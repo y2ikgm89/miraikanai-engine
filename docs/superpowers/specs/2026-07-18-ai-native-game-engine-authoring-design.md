@@ -1,9 +1,10 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.1
+- 文書版: 0.2
 - 作成日: 2026-07-18
+- 最終更新日: 2026-07-19
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想の合意版。次工程でMVPの規模・ジャンル・技術詳細を調整する
+- 状態: 基本構想、基盤アーキテクチャ、2D／3D機能範囲を統合した設計レビュー版
 
 ## 1. エグゼクティブサマリー
 
@@ -81,6 +82,8 @@ AIはC++エンジン内部を直接操作しない。AI、Editor GUI、外部ツ
 6. ゲームジャンル固有機能は巨大な共通基底へ集約せず、Domain Packとして追加する。
 
 一般的な数学、Rendering、Physics、Audio、Input、Asset管理、Undoなどはゲームエンジンに必要な共通概念であるが、公開API、ライフサイクル、シリアライズ、Editor表現は本プロジェクトの要件から独自に定義する。
+
+「独自」は、OS、Compiler、Direct3D 12、標準Library、検証済みのPhysics／Navigation／Script kernelまで再発明する意味ではない。製品の正規data model、公開Capability、編集protocol、validation、lifecycle、serialization、Editor UXを本プロジェクトが所有し、外部LibraryはEngine-owned Adapter内へ隔離する。採用条件と初期Dependencyは基盤アーキテクチャ規約で固定する。
 
 ## 4. 対象ユーザーとAuthoring Mode
 
@@ -238,7 +241,7 @@ First Playable以降、次の編集経路を同時に利用できる。
 
 ## 6. 正規データモデル
 
-名称は設計上の役割を示すものであり、公開API名はMVP調整後に確定する。
+本章の名称を正規概念名とする。C++ symbol、file、namespaceの表記は基盤アーキテクチャ規約へ従う。
 
 ### 6.1 GameSpec
 
@@ -273,7 +276,7 @@ Editorが保持する正規のゲーム状態。Scene TreeやInspector表示そ�
 ```text
 schema_version
 request_id
-base_world_revision
+base_project_revision
 operations[]
   operation_id
   command_type
@@ -336,6 +339,8 @@ AIが実装方式を判断するための制約を保持する。
 - Privacy／Retention policy
 
 ## 7. システムアーキテクチャ
+
+本章はProduct全体の論理構成を定義する。C++ module依存、所有権、memory、thread、error、Build、directoryの規範は、[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)を唯一の詳細基準とする。2D／3D Subsystemの機能範囲は、[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)へ従う。
 
 ```text
 Human Prompt / Editor / External Agent
@@ -412,7 +417,7 @@ Editor GUIの操作も直接状態を書き換えず、ChangeSetへ変換する�
 
 ### 7.3 AI Orchestrator
 
-Engine外プロセスまたはBackendとして配置し、モデルProviderの更新、障害、CredentialをEngineから隔離する。
+Engine外のNode.js 24 LTS／TypeScript 6.0 strict別Processとして配置し、Model Providerの更新、障害、CredentialをEngineから隔離する。EngineとはACL付きWindows named pipe上のversioned JSON-RPCで接続する。
 
 - Provider adapter
 - Prompt／Schema version
@@ -428,6 +433,8 @@ Engine外プロセスまたはBackendとして配置し、モデルProviderの�
 
 最終検証とCommit権限は持たない。
 
+初期ProviderはOpenAI Responses API、公式TypeScript SDK、評価Modelは`gpt-5.6-sol`のreasoning effort `medium`に固定する。ModelとPromptはEval後にだけProvider manifestを更新し、Engine codeやProject schemaへModel IDを埋め込まない。Anthropicは第二Providerとして同じconformance suite通過後に追加する。
+
 ### 7.4 Requirement Resolver
 
 自然言語をGoal、Constraint、Acceptance Criteria、Unknown、Conflictへ分解する。不足要件を影響度で分類し、質問、提案、自動補完を選択する。
@@ -438,9 +445,9 @@ Engine外プロセスまたはBackendとして配置し、モデルProviderの�
 
 ### 7.6 MCP Adapter
 
-外部のCodex、Claude Code、その他MCP対応HostへEngine機能を公開する任意の北向きAdapter。
+外部のCodex、Claude Code、その他MCP対応HostへEngine機能を公開する、EditorHostから独立して有効化できる北向きAdapter。
 
-初期公開候補は次のとおり。
+初期MCP公開範囲は次に固定する。
 
 - describe_capabilities
 - get_world_summary
@@ -541,8 +548,8 @@ Scriptは許可されたCapability APIだけを利用する。任意メモリ、
 | 範囲 | AIの標準権限 | 必須検証 |
 |---|---|---|
 | Game Module | 生成・修正可能 | Compile、Unit、Integration |
-| Project Plugin | 生成・修正可能 | Dependency、Capability、Sandbox |
-| Engine Extension | 明示的な高リスク変更 | 全体Test、Compatibility、承認 |
+| Project Native Module | 生成・修正可能 | Dependency、Capability、Sandbox |
+| Engine Extension | 明示的な高リスク変更 | 全体Test、current API conformance、承認 |
 | Engine Core | 通常は提案のみ | 特権承認、完全Review、回帰Test |
 
 初心者の自然言語指示からC++が必要になった場合も、まず隔離WorkspaceへNativeCodeChangeSetを生成し、CompileとTestを通す。稼働中Engineへ未検証コードを直接注入しない。
@@ -679,28 +686,31 @@ Script／C++生成は隔離されたBuild環境を利用する。
 ### 11.1 Core
 
 - Stable identity
-- Transform／Spatial
+- 2D／3D Transform／Spatial
 - World
 - Asset reference
 - Data table
 - Graph
-- UI基礎
+- 2D Canvas／3D Rendering
+- 2D／3D Physics
+- 2D grid／polygon Navigation、3D Navmesh
+- Animation／VFX
+- Input／Audio／UI
+- Script／Native Capability
 - Serialization
 - Command／Transaction
 - Test
 
-### 11.2 Domain Pack候補
+### 11.2 計画済みDomain Pack
 
-- 2D
-- 3D
-- Character／Combat
+- 2D Action
+- Character／Combat共通
 - FPS／TPS
 - RPG／Action RPG
 - Quest／Narrative
 - Simulation／Economy
-- UI
-- Audio
-- Multiplayer
+- Strategy
+- MultiplayerはC3のNetwork設計承認後
 
 各Packは次を持つ。
 
@@ -713,7 +723,7 @@ Script／C++生成は隔離されたBuild環境を利用する。
 - Test suite
 - AI向け説明
 
-AIはインストール済みCapabilityだけを利用できる。不足する場合、Script、Game Module、Engine Extensionの順で追加方法を検討する。
+AIはインストール済みCapabilityだけを利用できる。不足する場合は、構造化composition、Script、Project Native Module、Engine Extensionの順に選択し、Engine Extensionから人間の重要操作承認を必須とする。
 
 ## 12. Editor制作型とRuntime生成型
 
@@ -743,10 +753,10 @@ Runtimeでは次を原則禁止する。
 - Physics／Network stateの直接確定
 - Client内へのProvider API key埋め込み
 
-許可候補は次のとおり。
+最初のRuntime Policyで提案を許可する範囲は次に限定する。実装開始前にRuntime専用Threat Modelとserver authority設計を別途承認する。
 
 - Dialogue
-- Quest候補
+- Quest outline
 - 既存TemplateからのEncounter
 - 制限されたNPC intent
 - 既存Assetを使ったWorld構成
@@ -759,7 +769,7 @@ MultiplayerではAuthoritative serverだけがCommitし、LLMは提案者に限�
 ### 13.1 推奨構成
 
 - 中核推論: OpenAI／Anthropicなどの直接Model API
-- 複雑なCode／Build worker: 必要に応じてAgent SDK
+- Agent loop: MVPでは独自Orchestrator。Agent SDKはPhase 7以降にEvalとADRを通した場合だけ採用
 - 外部AI接続: MCP Adapter
 - Host固有配布: 薄いCodex／Claude Plugin
 - 開発・CI: CLI／Desktop
@@ -782,77 +792,118 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 ## 14. 段階計画
 
-### Phase 0: 設計基盤
+### Phase 0: Foundation契約とToolchain
 
-- 用語と責務の確定
-- GameSpec
-- World Model
-- ChangeSet
-- Stable ID／Revision
-- Capability
-- Command Gateway
-- Transaction／Undo／Journal
+- 本三文書の承認
+- Windows 11 x64／Direct3D 12／C++20 Toolchain
+- CMake Presets／vcpkg manifest／固定Dependency
+- Module dependency DAGとComposition Root
+- RAII、所有権、generation handle
+- CPU memory domain、GPU allocator、residency、fence-deferred release
+- Result／Error、thread affinity、fixed tick
+- Naming、format、static analysis、sanitizer
+- 2D／3Dの座標、単位、色、時間規約
 
-### Phase 1: AIを使わない最小Editor
+完了条件は、空のEditorHost／GameHost／WorkerHostが固定toolchainでBuildでき、Foundation contract test、ASan、format、static analysisがCIで成功することである。
 
-- 手書きChangeSetの読込
-- Schema／Semantic validation
-- Dry-run
-- Diff
-- Commit
-- Undo
-- Save／Load
-- Replay
+### Phase 1: Headless Authoring Core
 
-### Phase 2: Editor内AI
+- GameSpec、World Model、ChangeSet
+- Stable ID／Project Revision
+- Capability、Command Gateway
+- Schema／Semantic／Budget validation
+- Dry-run、Diff、Atomic Commit
+- Transaction、Undo／Redo、Journal
+- Save／Load、Replay
+- Versioned schemaとoffline Project Migrator
 
-- 一社のModel API
-- AI Orchestrator
-- Requirement Resolver
-- Game Brief
-- Structured Output
-- World snapshot
-- ChangeSet生成
-- Playtest feedback
+完了条件は、手書きChangeSetをheadlessでvalidate→stage→commit→save→load→replayし、同じstate hashを得られることである。
 
-### Phase 3: Script＋C++生成
+### Phase 2: Editor Shellと共通Runtime
 
-- Script contract
-- Script generation／direct edit
-- NativeCodeChangeSet
-- Isolated build
-- Compile／Test
-- Capability registration
-- 手動変更との競合処理
+- Dock／resize／floating／multi-workspace Editor shell
+- Scene／Canvas、Outliner、Inspector、Asset、Diff／History、AI Partner panel
+- Windows window／GameInput／XAudio2／DirectWrite
+- D3D12 device、Render Graph、D3D12MA、Debug Layer／DRED／PIX marker
+- Asset staging、content-addressed cache、sandboxed importer、cook
+- Luau hostとCapability boundary
 
-### Phase 4: 外部Agent
+完了条件は、AIを使わずEditor操作がChangeSetを経由し、空Sceneをplay、save、packageできることである。
+
+### Phase 3: 2D Manual First Playable
+
+- CanvasRenderer、sprite、tilemap、2D light、camera
+- Box2D Adapter、2D grid navigation
+- UI、Audio、2D animation、CPU particle
+- Luauでgame ruleを実装
+- 2D top-down action縦切り
+
+完了条件は、AIなしでTitleからResultまでplayでき、Reference stress sceneが1080p60とmemory budgetを満たすことである。
+
+### Phase 4: AI Authoring MVP-A
+
+- Node.js／TypeScript AI Orchestratorとnamed-pipe IPC
+- OpenAI Responses API、Structured Outputs、strict function calling
+- Requirement Resolver、Game Brief、GameSpec生成
+- Structured／Script／C++ strategy planner
+- ScriptChangeSet、NativeCodeChangeSet、isolated build／test
+- Engine-generated Diff、Approval、手動変更との競合処理
+- Playtest feedbackと自動修復
+
+完了条件は、大まかなprompt→必要質問→2D First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走できることである。
+
+### Phase 5: 外部Agent接続
 
 - Read／Propose中心のMCP Adapter
 - Codex Plugin
 - Claude Plugin
-- Headless validation
-- CI
+- Headless validation／build／playtest
+- CI統合
 
-### Phase 5: Domain PackとAsset
+完了条件は、Codex／Claude CLIまたはDesktopから直接Commit権限なしで同じ2D Projectを安全に編集できることである。
 
-- 選定ジャンルのPack
-- Asset staging
-- Content-addressed storage
-- Sandboxed importer
-- 画像／音声／3D Provider adapter
-- 自動Playtest
+### Phase 6: 3D First Playable MVP-B
 
-### Phase 6: 制限付きRuntime
+- glTF import、mesh、PBR、Forward+、shadow、sky／IBL／height fog
+- Jolt Physics Adapter、Recast／Detour Adapter
+- ozz-based sampling＋独自Animation Graph
+- 3D UI、Audio、particle、camera
+- Third-person compact action arena
 
-- Runtime専用Schema
+完了条件は、3D縦切りを自然言語と手動編集の両方で作成でき、Reference stress sceneが1080p60とmemory budgetを満たすことである。
+
+### Phase 7: Production CapabilityとDomain Pack
+
+- Hybrid deferred path
+- Multiple light、physically based atmosphere、volumetric fog／cloud
+- Baked lightmap、irradiance／reflection probe、C3 dynamic GI研究
+- GPU VFX、terrain、foliage、water、streaming
+- 2D Action、FPS／TPS、RPG／Action RPG、Quest、Simulation、Strategy Pack
+- 画像／音声／3D生成Provider adapter
+- 自動Playtestとperformance regression
+
+各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallbackの完了定義を満たしてからProduction扱いにする。
+
+### Phase 8: 制限付きRuntime生成
+
+- Runtime専用SchemaとThreat Model
 - Server-authoritative Gateway
 - Allowlist Command
 - Quota／Timeout／Fallback
-- Multiplayer revision／tick検証
+- Dialogue、Quest outline、Encounter、NPC intent、bounded World構成
+- Multiplayer revision／tick検証はNetwork設計承認後
+
+任意C++、任意Script、raw Physics／Rendering state、client-side Commitは許可しない。
 
 ## 15. MVPベースライン
 
-この章は次の調整工程で内容を増減するための出発点である。MVPジャンル、Renderer、Script実装、Providerなどの具体選定は、下記の選定基準に従って次工程で確定する。
+MVPはAI Authoringの安全な往復を証明する製品縦切りであり、Engine機能を網羅する版ではない。開発上の最小成立点を**MVP-A**、2D／3D両対応の基盤成立点を**MVP-B**として混同しない。
+
+- MVP-A: Phase 4完了。2D top-down actionでAI Authoring全loopを証明する。
+- MVP-B: Phase 6完了。3D compact action arenaを追加し、共通基盤が2D専用設計でないことを証明する。
+- 最初のTechnology Preview配布条件はMVP-B完了とする。
+
+詳細なSubsystem範囲と性能条件は2D／3D機能計画で固定する。
 
 ### 15.1 MVPの目的
 
@@ -880,7 +931,7 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 ### 15.3 MVP First Playableの形
 
-MVPでは、選定ジャンルに依存しない次の成立条件を満たす。
+2Dと3Dの各First Playableは、次の共通成立条件を満たす。
 
 - Titleから開始できる
 - Playerが操作できる
@@ -903,6 +954,8 @@ MVPでは、選定ジャンルに依存しない次の成立条件を満たす�
 - Plugin Marketplace
 - 複数Model Providerの本番Routing
 - 大規模Open World
+- Production品質のvolumetric cloud／GI／terrain／foliage
+- Ray tracing必須化
 - 完全自動リリース
 - AIによる無承認Commit
 
@@ -919,32 +972,46 @@ MVPでは、選定ジャンルに依存しない次の成立条件を満たす�
 - ChangeSetをUndoおよびReplayできる。
 - 無効なAI出力がWorld ModelへCommitされない。
 
-## 16. 次工程で調整するMVP選択事項
+## 16. 確定事項と実装計画前の残作業
 
-次のMVP調整工程では、一項目ずつ選択してMVP仕様を固定する。
+### 16.1 確定事項
 
-1. 最初の縦切りジャンル
-2. 2D／3D
-3. 対象Platform
-4. First Playableの規模
-5. World Modelの内部表現
-6. Rendererの範囲
-7. Physicsの範囲
-8. Input
-9. Editor UI技術
-10. Script contractと実行方式
-11. C++ ToolchainとBuild isolation
-12. Serialization／IDL
-13. AI Orchestratorの実装言語
-14. C++とOrchestrator間のIPC
-15. 最初のModel Provider
-16. Local BYOK／Backend
-17. AssetのPlaceholder方針
-18. Approvalの初期Policy
-19. Performance budget
-20. Test／Playtest自動化の範囲
+| 項目 | 決定 |
+|---|---|
+| 最初の縦切り | 2D top-down action |
+| 第二の縦切り | 3D single-player third-person compact action arena |
+| Platform | Windows 11 x64 |
+| Graphics | Direct3D 12、C1はForward+、C2でHybrid renderer |
+| Language | C++20 |
+| Script | Luau strict mode＋Engine Capability API |
+| 2D Physics | Box2D Adapter |
+| 3D Physics | Jolt Physics Adapter |
+| 3D Navigation | Recast／Detour Adapter |
+| GPU memory | D3D12MAをEngine-owned wrapper内で利用 |
+| Build | CMake Presets＋vcpkg manifest、version固定 |
+| Performance | 1080p60、RTX 3060／RX 6600級、runtime 2 GiB soft budget |
+| AI経路 | 内蔵はModel API、外部HostはMCP、配布単位はPlugin |
+| AI Orchestrator | Node.js 24 LTS／TypeScript 6.0 strict、別Process |
+| 初期Provider | OpenAI Responses API、`gpt-5.6-sol`、reasoning `medium` |
+| IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
+| Editor | Dock／resize／floating、保存可能な複数Workspace、AI Partnerをpin可能 |
+| Compatibility | Pre-1.0 API／ABI互換なし。永続Projectだけoffline migratorで一方向移行 |
 
-選定順序は「First Playableの体験」「検証可能性」「AI編集と手動編集の往復」を優先し、将来の多ジャンル対応を理由にMVPを過剰に汎用化しない。
+### 16.2 実装計画書で分解する事項
+
+次は設計上の選択肢ではなく、承認済み設計を実装taskへ分解する作業である。
+
+1. World Model、ChangeSet、Capability schemaのfield-level定義
+2. C++ target単位のdependency graphと最初のpublic header
+3. Authoring ServiceとAI Orchestrator間のJSON-RPC method／message schema
+4. Luau Capability contractのfield-level定義
+5. D3D12 feature check、descriptor layout、Render Graph resource model
+6. Reference sceneのfixtureとBenchmark測定手順
+7. Editor shellのaccessibility bridge検証
+8. Approval Policyのoperation別初期値
+9. Asset placeholderのlicense、生成、差替えworkflow
+
+将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 
 ## 17. リスクと対策
 
@@ -962,6 +1029,12 @@ MVPでは、選定ジャンルに依存しない次の成立条件を満たす�
 | 初心者に技術質問をする | ゲーム上の要件へ翻訳、内部方式はAIが判断 |
 | 自由度を上げると安全性が下がる | Structured／Script／C++で権限と検証を分離 |
 | 既存Engineの模倣になる | 独自原則を先に固定し、比較調査は検証だけに使う |
+| 所有権が曖昧でleak／use-after-freeが起きる | RAII、unique ownership、borrow規則、generation handle、ASan |
+| D3D12 resourceをGPU使用中に解放する | queue別fenceを持つdeferred release |
+| Allocatorを自作して逆に遅くなる | `pmr`境界、domain telemetry、実測したhot pathだけ専用化 |
+| GPU memoryのthrashing | OS budget監視、residency priority、streaming、明示的な失敗 |
+| Clean実装の名目でProject dataを失う | Runtime互換分岐は持たず、backup付きoffline migratorだけを提供 |
+| Module境界が崩れVendorへ固定される | CMake dependency DAG、Ports／Adapters、public header検査 |
 
 ## 18. 調査から得た位置付け
 
@@ -981,6 +1054,9 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 - OpenAI Plugins: https://learn.chatgpt.com/docs/build-plugins
 - OpenAI Responses／Agents: https://developers.openai.com/api/docs/guides/agents
 - OpenAI Structured Outputs: https://developers.openai.com/api/docs/guides/structured-outputs
+- OpenAI SDKs and CLI: https://developers.openai.com/api/docs/libraries
+- OpenAI Using Tools: https://developers.openai.com/api/docs/guides/tools
+- OpenAI GPT-5.6 Sol: https://developers.openai.com/api/docs/models/gpt-5.6-sol
 - Claude Code Plugins: https://code.claude.com/docs/en/plugins
 - Claude Agent SDK: https://code.claude.com/docs/en/agent-sdk/overview
 - Claude Structured Outputs: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
@@ -989,9 +1065,20 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 - Unity AI: https://unity.com/blog/unity-ai-how-to-get-started
 - Unreal MCP: https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor
 - Godot EditorPlugin: https://docs.godotengine.org/en/stable/tutorials/plugins/editor/making_plugins.html
+- C++ Core Guidelines: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines
+- MSVC C++ language standard: https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version
+- Direct3D 12 Programming Guide: https://learn.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide
+- Direct3D 12 Memory Management Strategies: https://learn.microsoft.com/en-us/windows/win32/direct3d12/memory-management-strategies
+- D3D12 Memory Allocator: https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator
+- vcpkg Manifest Mode: https://learn.microsoft.com/en-us/vcpkg/concepts/manifest-mode
+- Box2D: https://box2d.org/documentation/
+- Jolt Physics: https://jrouwe.github.io/JoltPhysics/
+- Recast Navigation: https://github.com/recastnavigation/recastnavigation
+- Luau Embedding／Sandbox: https://luau.org/embedding
+- glTF 2.0 Specification: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
 
 ## 20. 次のアクション
 
-この設計計画書を基準として、次の会話では第16章のMVP選択事項を上から順に調整する。最初に縦切りジャンル、2D／3D、対象Platform、First Playable規模を決め、その後にWorld Model、Script、Editor、AI Orchestratorの技術選定へ進む。
+本書、基盤アーキテクチャ規約、2D／3D機能計画の三文書を一つの設計としてReviewする。矛盾、未定義の責務、根拠のない技術選択を解消して承認した後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
 
-MVPの内容が承認された後に、実装タスク、依存関係、Test、Milestone、完了条件を含む実装計画書を別文書として作成する。
+実装計画はPhase 0 Foundationから開始し、2D First Playable、3D First Playableの順に分解する。承認前にEngine実装へ着手しない。
