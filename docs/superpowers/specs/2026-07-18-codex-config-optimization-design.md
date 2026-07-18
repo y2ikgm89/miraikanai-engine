@@ -1,9 +1,9 @@
 # Codex 設定最適化 設計書
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-18
 - 対象 Codex CLI: 0.144.5
-- 対象モデル: GPT-5.6 Sol / Terra
+- 対象モデル: GPT-5.6 Sol / Terra / Luna
 - 状態: 推奨構成の承認済み設計
 
 ## 1. 目的
@@ -65,6 +65,7 @@ Codex の実装品質を維持しながら、通常作業で不要な最大推�
 ### 2.3 公式方針
 
 - Codex の標準 Power は GPT-5.6 Sol / Medium。
+- Sol は曖昧・複雑・高価値な作業、Terra は日常作業の能力・速度・価格の均衡、Luna は明確で反復可能な大量処理を対象とする。
 - 必要な品質を満たす最も低い reasoning effort を使う。
 - High と XHigh は複雑な多段作業、Max は速度と使用量より深さを優先する最難関作業に限定する。
 - Fast mode は約 1.5 倍速だが、ChatGPT 認証の GPT-5.6 では標準の 2.5 倍のクレジットを消費する。
@@ -72,6 +73,27 @@ Codex の実装品質を維持しながら、通常作業で不要な最大推�
 - `model_context_window`、`model_auto_compact_token_limit`、`tool_output_token_limit` は、手動調整が必要な実測結果がない限り未指定にしてモデル既定値を使う。
 - 対話型の標準権限は `approval_policy = "on-request"` と `sandbox_mode = "workspace-write"`。
 - Windows native sandbox は `windows.sandbox = "elevated"` が推奨値。
+
+### 2.4 モデルと reasoning effort の比較
+
+モデルの capability tier と reasoning effort は別の軸である。モデルは判断力、曖昧さへの耐性、長期作業の追従性、仕上げ品質を決め、reasoning effort は同じモデルが計画、代替案、検査、修正へ使える推論量を増減させる。高い effort が下位 tier を上位 tier と同一能力にするという公式保証はない。
+
+OpenAI が公開した GPT-5.6 の coding 評価は次のとおりである。これは公開評価構成のモデル間比較であり、`Sol / low` 対 `Terra / max` のような全組み合わせを同一条件で比較した表ではない。
+
+| Coding 評価 | Sol | Terra | Luna |
+| --- | ---: | ---: | ---: |
+| Artificial Analysis Coding Agent Index v1.1 | 80.0 | 77.4 | 74.6 |
+| SWE-Bench Pro | 64.6% | 63.4% | 62.7% |
+| DeepSWE v1.1 | 72.7% | 69.6% | 67.2% |
+| Terminal-Bench 2.1 | 88.8% | 87.4% | 84.7% |
+
+System Card は reasoning effort を増やすと各モデルの性能が上がる曲線を示し、限定された評価では高 effort の小型モデルが低 effort の大型モデルを上回り得ることも示す。ただし、タスク横断の普遍的な順位は公開されていない。このため、交差比較は次のように扱う。
+
+- `Sol / low` 対 `Terra / max`: 曖昧な設計、広いコード変更、セキュリティ、仕上げ品質では Sol を選ぶ。ただし難しい作業なら Sol を Medium または High に上げる。明確に定義された多段問題では Terra / Max が Sol / Low を上回る場合があるが、通常既定値としては非効率である。
+- `Sol / low` 対 `Luna / max`: 複雑な開発は Sol / Low、明確で反復可能な変換・分類・抽出では Luna / Max が勝つ場合がある。通常は Luna / Medium または High で十分かを先に評価する。
+- `Terra / max` 対 `Luna / max`: 品質優先は Terra、速度・価格・大量処理優先は Luna。ただし最難関の開発品質が必要なら、両者を Max にする前に Sol / High または XHigh を使う。
+
+ChatGPT 認証のローカルメッセージ目安は、Plus の 5 時間枠で Sol 15–90、Terra 20–110、Luna 50–280 である。実消費は reasoning、コンテキスト、ツール、検索、キャッシュ、作業時間で変わるため、effort 別の固定換算率としては使わない。
 
 ## 3. 比較した構成
 
@@ -206,7 +228,25 @@ sandbox_mode = "read-only"
 - Max を通常実装へ流用しない。
 - Read-only を維持し、深い調査と変更適用を分離する。
 
-### 4.5 Scan profile
+### 4.5 Routine profile
+
+作成対象: `C:\Users\y2ikg\.codex\routine.config.toml`
+
+```toml
+model = "gpt-5.6-luna"
+model_reasoning_effort = "medium"
+model_verbosity = "low"
+model_reasoning_summary = "none"
+personality = "pragmatic"
+```
+
+用途:
+
+- 完了条件が明確な抽出、分類、変換、構造化要約、機械的な小規模変更。
+- Luna / Max は既定にせず、Medium で品質不足を実測した場合だけターン単位で上げる。
+- Fast tier は併用せず、Luna の標準速度と低い使用量を活かす。
+
+### 4.6 Scan profile
 
 対象: `C:\Users\y2ikg\.codex\scan.config.toml`
 
@@ -265,7 +305,7 @@ sandbox_mode = "read-only"
 2. `C:\Users\y2ikg\.codex\config.toml` の同一ディレクトリへ、日時付きバックアップを一つ作成する。
 3. グローバル設定の対象キーだけを変更し、MCP、plugin、desktop、app、marketplace、shell environment の各 table を保持する。
 4. `js_repl = false` と空になった `[features]` table を削除する。
-5. `fast.config.toml`、`deep.config.toml`、`scan.config.toml` を設計値へ更新する。
+5. `fast.config.toml`、`deep.config.toml`、`scan.config.toml` を設計値へ更新し、`routine.config.toml` を作成する。
 6. リポジトリへ `.codex/config.toml` を作成する。
 7. TOML parser と公式 JSON Schema で構文・型を検証する。
 8. Codex の実行時コマンドで各設定層と profile の読み込みを検証する。
@@ -282,15 +322,16 @@ codex features list
 codex debug models
 codex --profile fast doctor --json
 codex --profile deep doctor --json
+codex --profile routine doctor --json
 codex --profile scan doctor --json
 ```
 
 追加検証:
 
-- Python 3.11 以降の `tomllib` で四つのユーザー設定とプロジェクト設定を parse する。
+- Python 3.11 以降の `tomllib` で五つのユーザー設定とプロジェクト設定を parse する。
 - 公式 `https://developers.openai.com/codex/config-schema.json` に対して設定を検証する。
 - `doctor` の `config.load` が `ok` であることを確認する。
-- 通常 profile の model が Sol、Fast と Scan が Terra、Deep が Sol であることを確認する。
+- 通常 profile の model が Sol、Fast と Scan が Terra、Routine が Luna、Deep が Sol であることを確認する。
 - 削除済み feature override が残っていないことを確認する。
 - `git diff --check` と `git diff` でリポジトリ変更を確認する。
 
@@ -307,7 +348,7 @@ CLI の profile 読み込みコマンドがバージョン固有の引数配置�
 
 次をすべて満たしたとき完了とする。
 
-1. グローバル、プロジェクト、Fast、Deep、Scan の設定が設計値と一致する。
+1. グローバル、プロジェクト、Fast、Deep、Routine、Scan の設定が設計値と一致する。
 2. 全 TOML が parse できる。
 3. Codex 0.144.5 が通常設定と各 profile を正常に読み込む。
 4. 通常設定に `max`、`service_tier = "fast"`、削除済み feature が存在しない。
@@ -323,5 +364,11 @@ CLI の profile 読み込みコマンドがバージョン固有の引数配置�
 - Advanced Configuration / Profiles: https://learn.chatgpt.com/docs/config-file/config-advanced#profiles
 - Sample Configuration: https://learn.chatgpt.com/docs/config-file/config-sample
 - Speed / Fast mode: https://learn.chatgpt.com/docs/agent-configuration/speed
+- Codex pricing and usage limits: https://learn.chatgpt.com/docs/pricing
+- GPT-5.6 launch and coding evaluations: https://openai.com/index/gpt-5-6/
+- GPT-5.6 System Card: https://deploymentsafety.openai.com/gpt-5-6
 - GPT-5.6 Sol: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+- GPT-5.6 Terra: https://developers.openai.com/api/docs/models/gpt-5.6-terra
+- GPT-5.6 Luna: https://developers.openai.com/api/docs/models/gpt-5.6-luna
+- GPT-5.6 model and reasoning guidance: https://developers.openai.com/api/docs/guides/latest-model
 - GPT-5.6 prompting guidance: https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6
