@@ -35,7 +35,7 @@
 - Consumes: Current Codex configuration files and their SHA-256 hashes.
 - Produces: One immutable rollback copy of the global configuration and a baseline hash map used by final verification.
 
-- [ ] **Step 1: Confirm the repository and user configuration baseline**
+- [x] **Step 1: Confirm the repository and user configuration baseline**
 
 Run:
 
@@ -50,7 +50,7 @@ Get-FileHash -Algorithm SHA256 `
 
 Expected: Git reports only the design and plan documentation changes; all four user files return SHA-256 hashes.
 
-- [ ] **Step 2: Verify the baseline parses before copying it**
+- [x] **Step 2: Verify the baseline parses before copying it**
 
 Run:
 
@@ -72,7 +72,7 @@ for path in paths:
 
 Expected: Four `OK` lines and exit code 0.
 
-- [ ] **Step 3: Create and verify the rollback copy**
+- [x] **Step 3: Create and verify the rollback copy**
 
 Run:
 
@@ -102,7 +102,7 @@ Expected: One timestamped backup path and exit code 0.
 - Consumes: The verified backup from Task 1 and the exact values in the approved design.
 - Produces: A safe global Power default plus four explicit workload profiles.
 
-- [ ] **Step 1: Apply the global model, output, safety, and concurrency values**
+- [x] **Step 1: Apply the global model, output, safety, and concurrency values**
 
 Set these root values while preserving every unrelated key and table:
 
@@ -127,22 +127,23 @@ max_threads = 6
 max_depth = 1
 ```
 
-Remove only the ignored `js_repl = false` entry and remove `[features]` only if that table becomes empty.
+Remove the global `review_model` override so `/review` uses the current session model. Remove only the ignored `js_repl = false` feature entry and remove `[features]` only if that table becomes empty.
 
-- [ ] **Step 2: Apply the Fast profile**
+- [x] **Step 2: Apply the Fast profile**
 
 Use this complete content:
 
 ```toml
 model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
 model_verbosity = "low"
 model_reasoning_summary = "none"
 personality = "pragmatic"
 service_tier = "fast"
 ```
 
-- [ ] **Step 3: Apply the Deep profile**
+- [x] **Step 3: Apply the Deep profile**
 
 Use this complete content:
 
@@ -156,32 +157,34 @@ personality = "none"
 sandbox_mode = "read-only"
 ```
 
-- [ ] **Step 4: Apply the Scan profile**
+- [x] **Step 4: Apply the Scan profile**
 
 Use this complete content:
 
 ```toml
 model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
 model_verbosity = "low"
 model_reasoning_summary = "none"
 personality = "none"
 sandbox_mode = "read-only"
 ```
 
-- [ ] **Step 5: Create the Routine profile**
+- [x] **Step 5: Create the Routine profile**
 
 Use this complete content:
 
 ```toml
 model = "gpt-5.6-luna"
 model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
 model_verbosity = "low"
 model_reasoning_summary = "none"
 personality = "pragmatic"
 ```
 
-- [ ] **Step 6: Parse all five user configuration files**
+- [x] **Step 6: Parse all five user configuration files**
 
 Run:
 
@@ -214,7 +217,7 @@ Expected: Five `OK` lines and exit code 0.
 - Consumes: The user-level Sol / Medium default from Task 2.
 - Produces: A trusted-project override that raises implementation and planning effort without increasing answer verbosity.
 
-- [ ] **Step 1: Create the project configuration**
+- [x] **Step 1: Create the project configuration**
 
 Use this complete content:
 
@@ -228,7 +231,7 @@ model_verbosity = "low"
 model_reasoning_summary = "concise"
 ```
 
-- [ ] **Step 2: Parse the repository configuration**
+- [x] **Step 2: Parse the repository configuration**
 
 Run:
 
@@ -264,7 +267,7 @@ Expected: `OK project config` and exit code 0.
 - Consumes: All configuration layers produced by Tasks 2 and 3.
 - Produces: Current evidence that the CLI loads each layer and that only intended repository files changed.
 
-- [ ] **Step 1: Validate the normal configuration**
+- [x] **Step 1: Validate the normal configuration**
 
 Run:
 
@@ -276,26 +279,26 @@ codex debug models
 
 Expected: Configuration load reports `ok`; model output advertises Sol, Terra, Luna and the configured reasoning levels; no removed `js_repl` override remains.
 
-- [ ] **Step 2: Validate each explicit profile**
+- [x] **Step 2: Validate each explicit profile**
 
 Run:
 
 ```powershell
-codex --profile fast doctor --json
-codex --profile deep doctor --json
-codex --profile routine doctor --json
-codex --profile scan doctor --json
+codex --profile fast debug prompt-input "profile validation"
+codex --profile deep debug prompt-input "profile validation"
+codex --profile routine debug prompt-input "profile validation"
+codex --profile scan debug prompt-input "profile validation"
 ```
 
-Expected: Every command exits 0 with configuration load `ok`.
+Expected: Every command exits 0 and emits JSON that parses successfully. Fast and Routine expose `workspace-write`; Deep and Scan expose `read-only`.
 
-- [ ] **Step 3: Validate against the current official JSON Schema**
+- [x] **Step 3: Validate against the current official JSON Schema**
 
 Run a local JSON Schema validator already available in the bundled workspace runtime against the six TOML documents after converting them to objects. Do not install a dependency. If the runtime has no validator, use `codex doctor --json` plus Python `tomllib` as the validation boundary and report that limitation.
 
 Expected: Six valid documents, or an explicit report that runtime and parser validation passed while an independent schema library was unavailable.
 
-- [ ] **Step 4: Review the final repository diff**
+- [x] **Step 4: Review the final repository diff**
 
 Run:
 
@@ -307,7 +310,7 @@ git diff -- .codex/config.toml docs/superpowers/specs/2026-07-18-codex-config-op
 
 Expected: No whitespace errors; only the project config and the two documentation files are changed or untracked.
 
-- [ ] **Step 5: Commit the repository-scoped configuration and documentation**
+- [x] **Step 5: Commit the repository-scoped configuration and documentation**
 
 Run:
 

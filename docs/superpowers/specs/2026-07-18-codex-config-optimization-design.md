@@ -197,6 +197,7 @@ model_reasoning_summary = "concise"
 ```toml
 model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
 model_verbosity = "low"
 model_reasoning_summary = "none"
 personality = "pragmatic"
@@ -235,6 +236,7 @@ sandbox_mode = "read-only"
 ```toml
 model = "gpt-5.6-luna"
 model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
 model_verbosity = "low"
 model_reasoning_summary = "none"
 personality = "pragmatic"
@@ -253,6 +255,7 @@ personality = "pragmatic"
 ```toml
 model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "medium"
 model_verbosity = "low"
 model_reasoning_summary = "none"
 personality = "none"
@@ -320,22 +323,22 @@ sandbox_mode = "read-only"
 codex doctor --json
 codex features list
 codex debug models
-codex --profile fast doctor --json
-codex --profile deep doctor --json
-codex --profile routine doctor --json
-codex --profile scan doctor --json
+codex --profile fast debug prompt-input "profile validation"
+codex --profile deep debug prompt-input "profile validation"
+codex --profile routine debug prompt-input "profile validation"
+codex --profile scan debug prompt-input "profile validation"
 ```
 
 追加検証:
 
 - Python 3.11 以降の `tomllib` で五つのユーザー設定とプロジェクト設定を parse する。
 - 公式 `https://developers.openai.com/codex/config-schema.json` に対して設定を検証する。
-- `doctor` の `config.load` が `ok` であることを確認する。
+- 通常設定では `doctor` の `config.load`、各 profile では `debug prompt-input` の終了コードと JSON parse が正常であることを確認する。
 - 通常 profile の model が Sol、Fast と Scan が Terra、Routine が Luna、Deep が Sol であることを確認する。
 - 削除済み feature override が残っていないことを確認する。
 - `git diff --check` と `git diff` でリポジトリ変更を確認する。
 
-CLI の profile 読み込みコマンドがバージョン固有の引数配置を要求する場合は、`codex <command> --help` で同じ 0.144.5 の構文を確認し、その構文だけを使用する。
+CLI 0.144.5 の `--profile` は `doctor` へ適用できないため、profile の非推論ロード検証には `codex --profile <name> debug prompt-input` を使用する。
 
 ## 9. ロールバック
 
