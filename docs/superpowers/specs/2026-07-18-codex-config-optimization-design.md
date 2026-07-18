@@ -1,6 +1,6 @@
 # Codex 設定最適化 設計書
 
-- 文書版: 1.1
+- 文書版: 1.3
 - 作成日: 2026-07-18
 - 対象 Codex CLI: 0.144.5
 - 対象モデル: GPT-5.6 Sol / Terra / Luna
@@ -13,7 +13,7 @@ Codex の実装品質を維持しながら、通常作業で不要な最大推�
 完了時には次を満たす。
 
 1. 通常作業、複雑なゲームエンジン開発、最難関調査を別の設定層で扱える。
-2. 通常作業では GPT-5.6 Sol の Medium、対象リポジトリでは High、明示的な Deep profile だけで Max を使う。
+2. 通常作業では GPT-5.6 Sol の Medium、対象リポジトリでは High、明示的な Deep profile またはセッション単位の明示指定だけで Max を使う。
 3. Plan mode は通常 High、対象リポジトリでは XHigh を使う。
 4. 既定の回答量を Low にして、説明文による出力トークンと次ターンのコンテキスト増加を抑える。
 5. reasoning summary は通常 None、対象リポジトリと Deep profile だけ Concise にする。
@@ -25,7 +25,7 @@ Codex の実装品質を維持しながら、通常作業で不要な最大推�
 
 ### 2.1 現行状態
 
-`C:\Users\y2ikg\.codex\config.toml` は次の挙動を全作業へ適用している。
+`$CODEX_HOME/config.toml`（通常は `~/.codex/config.toml`）は次の挙動を全作業へ適用している。
 
 - `model = "gpt-5.6-sol"`
 - `model_reasoning_effort = "max"`
@@ -70,6 +70,7 @@ Codex の実装品質を維持しながら、通常作業で不要な最大推�
 - High と XHigh は複雑な多段作業、Max は速度と使用量より深さを優先する最難関作業に限定する。
 - Fast mode は約 1.5 倍速だが、ChatGPT 認証の GPT-5.6 では標準の 2.5 倍のクレジットを消費する。
 - 個人既定値は `~/.codex/config.toml`、リポジトリ固有値は `.codex/config.toml`、用途別差分は `$CODEX_HOME/<name>.config.toml` に分離する。
+- 設定の優先順位は、CLI flag と `--config`、project の `.codex/config.toml`、選択 profile、user config、system config、組み込み既定値の順である。
 - `model_context_window`、`model_auto_compact_token_limit`、`tool_output_token_limit` は、手動調整が必要な実測結果がない限り未指定にしてモデル既定値を使う。
 - 対話型の標準権限は `approval_policy = "on-request"` と `sandbox_mode = "workspace-write"`。
 - Windows native sandbox は `windows.sandbox = "elevated"` が推奨値。
@@ -118,14 +119,14 @@ Codex の推奨モデルと preset に全面追従する方式。
 グローバル、対象リポジトリ、明示 profile を分離する方式。
 
 - 利点: 通常使用量を抑えながら、複雑な実装と最難関作業の品質を明示的に確保できる。
-- 欠点: CLI profile を使う場合は `--profile` の選択が必要。
+- 欠点: CLI profile を使う場合は `--profile` の選択が必要であり、project config と重複する値は project config が優先される。
 - 判断: 採用する。
 
 ## 4. 設定設計
 
 ### 4.1 グローバル設定
 
-対象: `C:\Users\y2ikg\.codex\config.toml`
+対象: `$CODEX_HOME/config.toml`（通常は `~/.codex/config.toml`）
 
 次をグローバル既定値とする。
 
@@ -171,7 +172,7 @@ max_depth = 1
 
 ### 4.2 対象リポジトリ設定
 
-作成対象: `G:\workspace\development\GameEngine\mirakanai-engine\.codex\config.toml`
+作成対象: リポジトリルートの `.codex/config.toml`
 
 ```toml
 #:schema https://developers.openai.com/codex/config-schema.json
@@ -192,7 +193,7 @@ model_reasoning_summary = "concise"
 
 ### 4.3 Fast profile
 
-対象: `C:\Users\y2ikg\.codex\fast.config.toml`
+対象: `$CODEX_HOME/fast.config.toml`
 
 ```toml
 model = "gpt-5.6-terra"
@@ -211,7 +212,7 @@ service_tier = "fast"
 
 ### 4.4 Deep profile
 
-対象: `C:\Users\y2ikg\.codex\deep.config.toml`
+対象: `$CODEX_HOME/deep.config.toml`
 
 ```toml
 model = "gpt-5.6-sol"
@@ -231,7 +232,7 @@ sandbox_mode = "read-only"
 
 ### 4.5 Routine profile
 
-作成対象: `C:\Users\y2ikg\.codex\routine.config.toml`
+作成対象: `$CODEX_HOME/routine.config.toml`
 
 ```toml
 model = "gpt-5.6-luna"
@@ -250,7 +251,7 @@ personality = "pragmatic"
 
 ### 4.6 Scan profile
 
-対象: `C:\Users\y2ikg\.codex\scan.config.toml`
+対象: `$CODEX_HOME/scan.config.toml`
 
 ```toml
 model = "gpt-5.6-terra"
@@ -265,6 +266,14 @@ sandbox_mode = "read-only"
 用途:
 
 - 大量ファイル探索、読み取り中心の調査、補助情報の要約。
+
+### 4.7 Desktop app と CLI での選択
+
+- 正確な repository root が user config で `trusted` の場合、リポジトリを Codex desktop app で開くと `.codex/config.toml` が project layer として自動適用される。
+- `git rev-parse --show-toplevel` で得た root と `[projects.'<root>']` のキーを一致させる。リポジトリ名や場所を変更した場合は stale key を補正する。
+- Desktop app で一時的にモデルや reasoning effort を変える場合は、その task の model/reasoning picker を使う。
+- CLI の `--profile` は project config より優先度が低い。対象リポジトリ内で重複値も含めて一時変更する場合は、CLI flag または `--config` を使う。
+- Fast、Deep、Routine、Scan profile の単独動作は、競合する `.codex/config.toml` がないディレクトリで検証する。
 
 ## 5. 未指定にする設定
 
@@ -294,7 +303,7 @@ sandbox_mode = "read-only"
 - GitHub app tool の承認設定
 - `notify`
 - Desktop UI 設定
-- project trust 設定
+- 対象リポジトリの stale path 補正を除く project trust 設定
 - shell environment policy
 - 認証方式と credential store
 - グローバル `AGENTS.md`
@@ -304,16 +313,18 @@ sandbox_mode = "read-only"
 
 ## 7. 適用手順
 
-1. ユーザー設定四ファイルの SHA-256 と内容を取得し、プロジェクト設定が未作成であることを確認する。
-2. `C:\Users\y2ikg\.codex\config.toml` の同一ディレクトリへ、日時付きバックアップを一つ作成する。
-3. グローバル設定の対象キーだけを変更し、MCP、plugin、desktop、app、marketplace、shell environment の各 table を保持する。
-4. `js_repl = false` と空になった `[features]` table を削除する。
-5. `fast.config.toml`、`deep.config.toml`、`scan.config.toml` を設計値へ更新し、`routine.config.toml` を作成する。
-6. リポジトリへ `.codex/config.toml` を作成する。
-7. TOML parser と公式 JSON Schema で構文・型を検証する。
-8. Codex の実行時コマンドで各設定層と profile の読み込みを検証する。
-9. 変更前後の差分を確認し、対象外 table が不変であることを検証する。
-10. グローバル設定変更を反映するため、新しい Codex task で実効値を確認する。
+1. ユーザー設定四ファイルの SHA-256、内容、各 profile の存在有無を取得し、プロジェクト設定が未作成であることを確認する。
+2. 全既存ユーザー設定を日時付き backup directory へコピーし、元の存在有無と SHA-256 を `manifest.json` へ記録する。
+3. `git rev-parse --show-toplevel` の正規 root が user config で trusted か確認し、対象リポジトリの stale trust path だけを補正する。
+4. グローバル設定の対象キーだけを変更し、MCP、plugin、desktop、app、marketplace、shell environment の各 table を保持する。
+5. `js_repl = false` と空になった `[features]` table を削除する。
+6. `fast.config.toml`、`deep.config.toml`、`scan.config.toml` を設計値へ更新し、`routine.config.toml` を作成する。
+7. リポジトリへ `.codex/config.toml` を作成する。
+8. TOML parser と公式 JSON Schema で構文・型を検証する。
+9. `/debug-config` または app-server `config/read` で project layer の provenance を確認する。
+10. Codex の実行時コマンドで通常設定を検証し、競合する project config がない一時ディレクトリで各 profile の読み込みを検証する。
+11. 変更前後の差分を確認し、対象外 table が不変であることを検証する。
+12. グローバル設定変更を反映するため、新しい Codex task で実効値を確認する。
 
 ## 8. 検証
 
@@ -323,10 +334,17 @@ sandbox_mode = "read-only"
 codex doctor --json
 codex features list
 codex debug models
-codex --profile fast debug prompt-input "profile validation"
-codex --profile deep debug prompt-input "profile validation"
-codex --profile routine debug prompt-input "profile validation"
-codex --profile scan debug prompt-input "profile validation"
+$profileValidationRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'codex-profile-validation'
+New-Item -ItemType Directory -Force -Path $profileValidationRoot | Out-Null
+Push-Location $profileValidationRoot
+try {
+  codex --profile fast debug prompt-input "profile validation"
+  codex --profile deep debug prompt-input "profile validation"
+  codex --profile routine debug prompt-input "profile validation"
+  codex --profile scan debug prompt-input "profile validation"
+} finally {
+  Pop-Location
+}
 ```
 
 追加検証:
@@ -334,16 +352,17 @@ codex --profile scan debug prompt-input "profile validation"
 - Python 3.11 以降の `tomllib` で五つのユーザー設定とプロジェクト設定を parse する。
 - 公式 `https://developers.openai.com/codex/config-schema.json` に対して設定を検証する。
 - 通常設定では `doctor` の `config.load`、各 profile では `debug prompt-input` の終了コードと JSON parse が正常であることを確認する。
-- 通常 profile の model が Sol、Fast と Scan が Terra、Routine が Luna、Deep が Sol であることを確認する。
+- `/debug-config` または `config/read(includeLayers = true)` で project-disabled warning がなく、五つの project key の origin が repository `.codex` であることを確認する。
+- TOML の parse 結果から、通常設定の model が Sol、Fast と Scan が Terra、Routine が Luna、Deep が Sol であることを確認する。
 - 削除済み feature override が残っていないことを確認する。
 - `git diff --check` と `git diff` でリポジトリ変更を確認する。
 
-CLI 0.144.5 の `--profile` は `doctor` へ適用できないため、profile の非推論ロード検証には `codex --profile <name> debug prompt-input` を使用する。
+CLI 0.144.5 の `--profile` は `doctor` へ適用できないため、profile の非推論ロード検証には `codex --profile <name> debug prompt-input` を使用する。この出力は設定の読み込みと権限合成の確認に使い、実効 model の証明には使わない。model と reasoning 値は TOML の parse 結果で検証する。
 
 ## 9. ロールバック
 
-- グローバル設定で起動または検証に失敗した場合は、作成した日時付きバックアップから `C:\Users\y2ikg\.codex\config.toml` を復元する。
-- profile の検証に失敗した場合は、変更前に取得した内容へ該当 profile だけを戻す。
+- 検証済み backup directory の `config.toml`、`fast.config.toml`、`deep.config.toml`、`scan.config.toml` を `$CODEX_HOME` へ戻し、復元後の SHA-256 が `manifest.json` と一致することを確認する。
+- `manifest.json` で Routine が変更前に存在しなかった場合は、`routine.config.toml` を削除する。存在していた場合は、そのバックアップを復元する。
 - プロジェクト設定が原因の場合は、`.codex/config.toml` を削除してグローバル設定へ戻す。
 - ロールバック後に `codex doctor --json` を再実行し、`config.load = ok` を確認する。
 
@@ -353,11 +372,12 @@ CLI 0.144.5 の `--profile` は `doctor` へ適用できないため、profile �
 
 1. グローバル、プロジェクト、Fast、Deep、Routine、Scan の設定が設計値と一致する。
 2. 全 TOML が parse できる。
-3. Codex 0.144.5 が通常設定と各 profile を正常に読み込む。
+3. Codex 0.144.5 が通常設定を正常に読み込み、競合する project config がない場所で各 profile を正常に読み込む。
 4. 通常設定に `max`、`service_tier = "fast"`、削除済み feature が存在しない。
-5. 対象リポジトリでは Sol / High / XHigh Plan が有効になる。
+5. `config/read` の provenance で五つの対象キーが project layer 由来であり、Desktop app の task picker または CLI の明示 override がない限り Sol / High / XHigh Plan が有効になる。
 6. MCP、plugin、desktop、app、marketplace、notify、shell environment の既存設定が保持される。
-7. 変更差分、検証結果、バックアップ位置、残存リスクを最終報告する。
+7. 全ユーザー設定の rollback bundle、元の存在有無、SHA-256 が検証済みである。
+8. 変更差分、検証結果、バックアップ位置、残存リスクを最終報告する。
 
 ## 11. 公式資料
 
