@@ -1,6 +1,6 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.6
+- 文書版: 1.7
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
@@ -13,6 +13,7 @@
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
@@ -59,6 +60,7 @@ Miraikanai Engineは、**Windows Editor＋共通Runtime Contract＋Platform Adap
 | C++所有権、module、依存、共通directory | 基盤規約 |
 | Runtime phase、handle、queue、共通memory規約 | Runtime規約 |
 | 2D／3D Capabilityと表現 | 2D／3D機能計画 |
+| VFX Asset／Graph、CPU／GPU execution、VFX固有ceiling／fallback／Qualification | Particle／VFX規約 |
 | Android／AppleのTarget、Adapter、package、実機budget、store gate | 本書 |
 
 本書はPlatform固有事項について他文書より優先する。矛盾を見つけた場合は実装者が暗黙に片方を選ばず、文書修正またはADRを先に行う。

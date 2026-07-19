@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.8
+- 文書版: 1.9
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
@@ -12,6 +12,7 @@
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
@@ -48,6 +49,7 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 | C++実行コード・構造化ゲームデータ規約 | Game実行言語、GameplayDefinition、CookedGameplayPackage、NativeGameModule、AI実装選択 |
 | 基盤アーキテクチャ規約 | C++、module、依存、所有権の一般則、Build、directory |
 | 本書 | Runtime phase、Subsystem連携、参照無効化、Asset version、memory／performance budget、障害復旧 |
+| Particle／VFX規約 | VFX Asset／Graph／Compiler、CPU／GPU execution、VFX lifecycle／Command、VFX固有budget／failure／test |
 | Collision／Collider規約 | Body／Collider／Shape／Material／Filter、Query、Contact／Trigger、Cook、Editor／AI操作 |
 | 2D／3D機能計画 | 各Capabilityの機能、品質tier、Authoring、表現方式 |
 | モバイルPlatform規約 | Android／Apple lifecycle、Adapter、実機memory／performance、package、Store |

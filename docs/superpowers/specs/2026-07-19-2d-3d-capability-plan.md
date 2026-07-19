@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.0
+- 文書版: 2.1
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -11,6 +11,7 @@
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
 - Simulation連携規約: [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
@@ -796,7 +797,9 @@ Reference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU 
 
 ## 7. Particle／VFX
 
-2D／3Dで共通のauthoring graphとcurve systemを使い、Renderer backendだけを分ける。
+Particle／VFXのAsset、Emitter、Graph、Node Catalog、CPU／GPU execution、Renderer binding、AI／Editor Operation、Diagnostic、Qualificationの正本は[独自Particle／VFX Platform規約](./2026-07-20-particle-vfx-architecture-design.md)とする。本節は製品CapabilityとMilestone上の到達点、およびReview用Budget要約を所有する。数値を変更する場合は両文書を同じChangeSetで更新し、Particle／VFX規約を実装契約の正本とする。
+
+2D／3Dで共通の型付きauthoring graph、curve、parameter、AI Operationを使い、Cook時に2D／3DおよびCPU／GPU専用Artifactへspecializeする。初心者向けModule Stackと上級者向けGraphは同じSource AssetのProjectionであり、別Runtimeを持たない。
 
 ### C1: Particle／VFX Core
 
@@ -829,21 +832,22 @@ GPU particleはvisual effectであり、gameplayの正規状態やSaveへ使用�
 
 `ParticleBudgetProfile::ReferenceV1`を次に固定する。alive／spawn上限は全Emitter合計と各Emitterの両方を検査し、超過分を黙って間引かない。Editor preview／AI ChangeSetは`BudgetExceeded`で拒否し、Shippingで突発的に上限へ達した場合だけ`priority desc, screen_influence desc, emitter StableId asc, particle_spawn_id asc`の末尾を生成しない。
 
-| 項目 | C1 CPU | C2 GPU |
-|---|---:|---:|
-| Active emitter | Project 256 | Project 1,024 |
-| Alive particle | Project 65,536／Emitter 8,192 | Project 1,048,576／Emitter 262,144 |
-| Spawn | Project 20,000／s／Emitter 4,096／s | Project 524,288／s／Emitter 131,072／s |
-| Burst／tick | Project 8,192／Emitter 2,048 | Project 131,072／Emitter 32,768 |
-| Trail point | Project 16,384／Trail 64 | Project 262,144／Trail 256 |
-| Event child depth | 0 | 2。1 eventから最大8 child emitter |
-| Particle light | 0 | Project 32／Emitter 4 |
-| Simulation memory | CPU 32 MiB | GPU persistent 128 MiB＋transient 64 MiB |
-| Reference soft cap | CPU simulation P95 0.75 ms | GPU simulation＋draw P95 0.75 ms |
+| 項目 | C1 CPU | C2 CPU | C2 GPU |
+|---|---:|---:|---:|
+| Active emitter | Project 256 | Project 256 | Project 1,024 |
+| Alive particle | Project 65,536／Emitter 8,192 | Project 65,536／Emitter 8,192 | Project 1,048,576／Emitter 262,144 |
+| Spawn | Project 20,000／s／Emitter 4,096／s | Project 20,000／s／Emitter 4,096／s | Project 524,288／s／Emitter 131,072／s |
+| Burst／tick | Project 8,192／Emitter 2,048 | Project 8,192／Emitter 2,048 | Project 131,072／Emitter 32,768 |
+| Trail point | Project 16,384／Trail 64 | Project 16,384／Trail 64 | Project 262,144／Trail 256 |
+| Internal event／tick | 0 | Project 16,384／Emitter 2,048 | Project 65,536／Emitter 4,096 |
+| Event child depth | 0 | 2。親Particle当たり最大8 | 2。親Particle当たり最大8 |
+| Particle light | 0 | Project 32／Emitter 4 | Project 32／Emitter 4 |
+| Simulation memory | CPU 32 MiB | CPU 32 MiB | GPU persistent 128 MiB＋transient 64 MiB |
+| Reference soft cap | CPU simulation P95 0.75 ms | CPU simulation P95 0.75 ms | GPU simulation＋draw P95 0.75 ms |
 
 C1 CPU simulation 32 MiBはRuntime詳細規約11.2節のRendering CPU／upload配下`VFX CPU simulation`へchargeする。GPU memoryは同規約12.1節のRender target／transient Domainへchargeし、Particle textureはTexture Domainへ別途chargeする。Transparent／VFX全体のGPU soft capは1.50 msであり、Particleの0.75 msは予約保証ではない。Pipeline statisticsが利用可能なProfile buildでは`particle PS invocations / internal output pixel`をoverdraw ratioとし、4.0超でwarning、8.0超でAI proposal拒否、Stress fixtureのP95 8.0超でC2 gate失敗とする。counter非対応環境では1/4-resolution overdraw accumulation passをdiagnostic runだけ実行し、Shippingへ含めない。
 
-CPU previewは`seed:uint64`と`particle_spawn_id:uint64`からRuntime詳細規約5.6節のMT19937 streamを割り当てる。GPU simulationは同じseedから再現可能な見た目を目標にするがbitwise replay対象外であり、SaveにはEmitter parameter、seed、start tickだけを保存しalive GPU particleを保存しない。C2のlight emissionはRender light listだけへ入り、Physics、Navigation、AI perception、gameplay damageへ接続しない。
+CPU previewとGPU Node乱数はParticle／VFX規約8.2節のcounter-based `VfxCounterRngV1`を使い、per-particle MT19937 stateを保持しない。これはPresentation専用であり、Runtime詳細規約5.6節のauthoritative `DeterministicRngV1`を変更しない。GPU simulationは同じcounter入力から同じ整数乱数を得るが、浮動小数点simulation全体はbitwise replay対象外である。SaveにはPersistent VFXのAsset、parameter、seed、start tickだけを保存し、alive ParticleまたはGPU bufferを保存しない。C2のlight emissionはRender light listだけへ入り、Physics、Navigation、AI perception、gameplay damageへ接続しない。
 
 rate emissionは`rate_q32:uint64`のQ32.32 particle／secondで保存する。各60 Hz tickに`numerator = rate_q32 + division_remainder`、`accumulator_q32 += floor(numerator / 60)`、`division_remainder = numerator mod 60`、`spawn = accumulator_q32 >> 32`、`accumulator_q32 &= 0xffffffff`をこの順で行う。`accumulator_q32:uint64`と0～59の`division_remainder:uint8`をEmitter stateへ保持し、rateを0へ変更した場合だけ両方を0へresetする。Burstは指定tickに整数countを加えるが、同tickの合計は上表のalive／spawn上限とqueue capacityを通す。生成しなかった数は`ParticleSpawnDropped{emitter, tick, reason, count}`へ集計し、次tickへ繰り越さない。
 

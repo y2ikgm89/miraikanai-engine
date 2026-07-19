@@ -1,13 +1,15 @@
 # Miraikanai Engine Rendering／Render Graphアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: 2D／3D Rendering、Render Snapshot、Render Graph、GPU resource、D3D12／Vulkan／Metal Adapter
 - 状態: プロジェクト公式の規範設計レビュー版
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
@@ -33,7 +35,8 @@ Backend API、allocator、shader compilerはAdapterまたはToolとして利用�
 | 主題 | 正本 |
 |---|---|
 | RenderSnapshot、Render Graph、resource／pass contract、Backend mapping | 本書 |
-| Light、Shadow、Atmosphere、Fog、Cloud、VFX、Material、Visual Styleの機能と品質 | 2D／3D機能計画 |
+| Light、Shadow、Atmosphere、Fog、Cloud、Material、Visual Styleの機能と品質 | 2D／3D機能計画 |
+| VFX Asset／Graph／CPU・GPU simulation／VFX renderer binding／budget | Particle／VFX規約 |
 | GPU memory、handle、submission retire、frame phase、budget | 基盤／Runtime規約 |
 | Android Vulkan、Apple Metal minimum、surface lifecycle、thermal | Mobile規約 |
 | Asset import、Shader／Texture／Mesh cook、streaming | Asset規約 |

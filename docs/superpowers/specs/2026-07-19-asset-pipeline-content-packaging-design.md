@@ -1,13 +1,15 @@
 # Miraikanai Engine Asset Pipeline／Content Package規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: Asset source、Import、Cook、Cache、Catalog、VFS、Streaming、Package、Patch／DLC、AI生成Asset
 - 状態: プロジェクト公式の規範設計レビュー版
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
 - Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
@@ -30,7 +32,7 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 | Asset identity、metadata、import、cook、cache、catalog、VFS、package、streaming | 本書 |
 | Source Document Commit、StableId、ChangeSet | Authoring規約 |
 | Asset generation／lease／atomic promotion、memory charge | Runtime規約 |
-| Format／Style／Material／Shader／Nav／Physicsの機能範囲 | 2D／3D機能計画と各Subsystem規約 |
+| Format／Style／Material／Shader／Nav／Physics／VFXの機能範囲 | 2D／3D機能計画と各Subsystem規約 |
 | PAD、Apple Background Assets、Store package | Mobile規約 |
 | Windows installer／distribution／crash | Windows Platform規約 |
 
