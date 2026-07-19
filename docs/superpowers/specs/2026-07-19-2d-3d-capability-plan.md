@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.9
+- 文書版: 2.0
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -12,7 +12,8 @@
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
-- Simulation規約: [Miraikanai Engine Physics Dynamics／Navigation／Animation規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
+- Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Simulation連携規約: [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
@@ -127,7 +128,7 @@ CommandはStable ID、base project revision、型付き引数、precondition、�
 
 ### 3.6 Capability連携の公式経路
 
-次図は製品Capability間の概要である。Render pass／resource／barrierはRenderer規約、Asset generation／Catalog／PackageはAsset規約、Dynamics／Nav／AnimationのphaseとdataはSimulation規約、入力・UI・Audioの各境界はPlayer I/O三規約を詳細基準とする。
+次図は製品Capability間の概要である。Render pass／resource／barrierはRenderer規約、Asset generation／Catalog／PackageはAsset規約、Physics World／Dynamics／Joint／CharacterはPhysics Engine規約、Nav／AnimationとSubsystem間phaseはSimulation連携規約、入力・UI・Audioの各境界はPlayer I/O三規約を詳細基準とする。
 
 ```mermaid
 flowchart LR
@@ -293,11 +294,11 @@ AIはtile IDの巨大配列を直接生成せず、region、rule、seed、constr
 
 ### 5.3 2D Physics
 
-Box2D 3.1.1を`Physics2DBackend`内で利用する。
+Box2D 3.1.1を`Physics2DBackend`のprivate kernelとして採用する。設計上の選択は確定しているが、対象TargetのKernel QualificationとC1 fixture合格前は`candidate_locked`でありProduction表示しない。
 
 本節はCapability範囲を決める。Body／Collider分離、shape field、Material、Filter、Sensor、Query、Event、Cook、Editor、AI Operation、budget、合格条件の正本はCollision詳細規約とする。
 
-Fixed phase、Box2D job／allocator bridge、event正規化、memory、failure、PhysicsとNavigation／Animationの連携はSimulation規約を詳細基準とする。
+World／Solver全値、Box2D build／job／allocator bridge、Dynamics、Joint、Character Motor、Save／Replay、Physics AI／Editor、Kernel Qualification、memory／failureはPhysics Engine規約を詳細基準とする。PhysicsとNavigation／Animationのsnapshot／command接続はSimulation連携規約を基準とする。
 
 #### C1: 2D Physics Core
 
@@ -322,7 +323,7 @@ Fixed phase、Box2D job／allocator bridge、event正規化、memory、failure�
 - Concave sourceの明示Preview付きconvex piece生成
 - Physics query profiler
 
-`Physics2DProfile.sub_step_count`はinteger 1～8、既定4とし、`PlayPreparing`で固定してReplay headerへ保存する。Play中変更を拒否する。Box2D 3.1.1の`b2DefaultWorldDef()`をbaselineとし、Engineが上書きするgravity、worker callback、user task context、sleep／continuous collision flagはCook済みProfileへ全値を明記する。未記録のvendor default変更を自動採用しない。
+`Physics2DWorldProfileV1`はPhysics Engine規約8.2節の全fieldを保存し、`sub_step_count`はinteger 1～8、Reference 4とする。Box2D 3.1.1のgravity -10、maximum linear speed 400を暗黙採用せず、Miraikanaiの-9.81 m/s²、hard上限1,000 m/s、contact／sleep／continuous／worker値を全展開する。Play中変更を拒否する。
 
 Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcanonical keyで配送する。Box2D pointer、body ID、callback中のWorld変更をGame APIへ露出しない。Event ordering、invalid ID破棄、同一native event bufferを二度consumeしないことをAdapter conformance testで固定する。
 
@@ -330,7 +331,7 @@ Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcano
 
 2Dではgrid navigationとpolygon navigationを別backendとして提供する。
 
-Nav grid／query／obstacle snapshot／async resultのfield、phase、budget、stale結果破棄はSimulation規約を詳細基準とする。
+Nav grid／query／obstacle snapshot／async resultのfield、phase、budget、stale結果破棄はSimulation連携規約を詳細基準とする。
 
 #### C1: 2D Navigation Core
 
@@ -371,7 +372,7 @@ Tilemap cellとNavigation cellが一致しない場合、各Navigation cellが�
 
 ### 5.5 2D Animation
 
-Sprite animationのAsset／state graph／event／root motion proposal、pose反映phase、buffer lifetime、budgetはSimulation規約を詳細基準とする。
+Sprite animationのAsset／state graph／event／root motion proposal、pose反映phase、buffer lifetime、budgetはSimulation連携規約を詳細基準とする。
 
 #### C1: 2D Animation Core
 
@@ -653,11 +654,11 @@ Effectの順序はPost Process Graphで固定し、AIは登録済みnodeと範�
 
 ### 6.6 3D Physics
 
-Jolt Physics 5.6.0を`Physics3DBackend`内で利用する。
+Jolt Physics 5.6.0を`Physics3DBackend`のprivate kernelとして採用する。設計上の選択は確定しているが、対象TargetのKernel QualificationとC1 fixture合格前は`candidate_locked`でありProduction表示しない。
 
 本節はCapability範囲を決める。Body／Collider分離、shape field、Material、Filter、Sensor、Query、Event、Cook、Editor、AI Operation、budget、合格条件の正本はCollision詳細規約とする。
 
-Dynamics、constraint、Character、fixed phase、Jolt job／allocator bridge、event正規化、memory／failureはSimulation規約を詳細基準とする。
+World／Solver全値、Dynamics、Constraint、Character Motor、Jolt build／job／allocator bridge、Save／Replay、Physics AI／Editor、Kernel Qualification、memory／failureはPhysics Engine規約を詳細基準とする。Navigation／Animationとのsnapshot／command接続はSimulation連携規約を基準とする。
 
 #### C1: 3D Physics Core
 
@@ -688,7 +689,7 @@ Dynamics、constraint、Character、fixed phase、Jolt job／allocator bridge、
 
 Dynamic bodyへtriangle mesh colliderを許可しない。非uniform scaleはcook時にbakeする。Runtimeでscale変更されたcolliderは自動再cookせず、明示errorにする。
 
-`Physics3DProfile.collision_steps`はinteger 1～2、既定1とし、`PlayPreparing`で固定してReplay headerへ保存する。Jolt 5.6.0の`PhysicsSettings{}`をbaselineとし、Engineが変更するsolver、sleep、penetration、broad-phase設定をCook済みProfileへ全値で保存する。HighSpeed bodyだけ`LinearCast`を明示でき、既定は`Discrete`、Play中のprofile変更は拒否する。
+`Physics3DWorldProfileV1`はPhysics Engine規約8.3節でJolt 5.6.0 `PhysicsSettings{}`の全field、`PhysicsSystem::Init` capacity、64 body mutex、32 MiB TempAllocator、worker、Build Profileを保存する。`collision_steps`はinteger 1～2、Reference 1とする。HighSpeed bodyだけ`LinearCast`を明示でき、既定は`Discrete`、Play中のProfile変更は拒否する。
 
 Physics determinismは同一version／platform／thread設定のreplay範囲で検証する。Network lockstep相当のcross-platform determinismは保証しない。
 
@@ -696,7 +697,7 @@ Physics determinismは同一version／platform／thread設定のreplay範囲で�
 
 Recast／Detour 1.6.0でEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行う。
 
-Build input、tile generation、query handle、dynamic obstacle、off-mesh connection、async publish、budget／failureはSimulation規約を詳細基準とする。
+Build input、tile generation、query handle、dynamic obstacle、off-mesh connection、async publish、budget／failureはSimulation連携規約を詳細基準とする。
 
 #### C1: 3D Navigation Core
 
@@ -752,7 +753,7 @@ Agent Profile変更はsource geometry hashが同じでも全tileを再cookする
 
 ozz-animationをsampling／compression primitiveとしてAdapter内で利用し、Animation Graphは独自に実装する。
 
-Skeleton／clip、Engine-owned Animation Graph、state machine、root motion、IK policy、data flow、phase、pose buffer lifetime、budgetはSimulation規約を詳細基準とする。
+Skeleton／clip、Engine-owned Animation Graph、state machine、root motion、IK policy、data flow、phase、pose buffer lifetime、budgetはSimulation連携規約を詳細基準とする。
 
 #### C1: 3D Animation Core
 

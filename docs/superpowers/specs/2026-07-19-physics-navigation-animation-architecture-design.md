@@ -1,10 +1,11 @@
-# Miraikanai Engine Physics Dynamics／Navigation／Animation規約
+# Miraikanai Engine Physics／Navigation／Animation連携規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
-- 対象: 2D／3D Physics step、Joint／Constraint、Navigation build／query、2D／3D Animation graph／pose
+- 対象: PhysicsとNavigation／Animationの連携、Navigation build／query、2D／3D Animation graph／pose
 - 状態: プロジェクト公式の規範設計レビュー版
+- Physics正本: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
 - Collision正本: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
@@ -16,8 +17,8 @@
 
 Physics、Navigation、Animationは相互にpointerを渡す一体型Subsystemにしない。Runtime Orchestratorの固定phase、typed command／event、immutable snapshot、versioned Derived Assetだけで連携する。
 
-- Physicsの正規authoritative stateはEngine-owned Body／Joint ComponentとPhysics Adapter内のsession stateである。
-- Collision shape、filter、query、contact、character motorはCollision規約を正本とする。
+- PhysicsのWorld、Dynamics、Joint／Constraint、Character Motor、Backend、Save／Replay、AI／Editorは独自Physics Platform規約を正本とする。
+- Collision shape、filter、query、contactはCollision規約を正本とする。
 - Navigation mesh／gridは再生成可能なDerived Assetであり、Worldの正本ではない。
 - Animation GraphはMiraikanai独自のtyped graphであり、ozz-animationはoffline／sampling／blend primitiveとしてAdapter内で使う。
 - Box2D、Jolt、Recast／Detour、ozzのID、pointer、callback、serializationをProject、AI、Saveへ公開しない。
@@ -26,148 +27,44 @@ Physics、Navigation、Animationは相互にpointerを渡す一体型Subsystem�
 
 | 主題 | 正本 |
 |---|---|
-| Shape、Collider、Body field、Filter、Query、Contact、Character Motor | Collision規約 |
+| Shape、Collider、Body field、Filter、Query、Contact | Collision規約 |
 | Tick、writer、event順、queue、handle、budget、promotion | Runtime規約 |
-| World step、Joint／Constraint、Dynamics command | 本書Physics節 |
+| Physics World、Solver、Dynamics command、Joint／Constraint、Character Motor、Backend、Save／Replay | 独自Physics Platform規約 |
+| PhysicsとNavigation／Animationのtyped連携 | 本書Physics連携節 |
 | 2D grid／3D navmesh、query、avoidance、link | 本書Navigation節 |
 | Clip、Graph、state、root motion、pose、event、IK境界 | 本書Animation節 |
 | C1／C2 feature listとReference Scene | 2D／3D機能計画 |
 
 C1は2D sliceでBox2D、Grid Nav、Flipbook、3D sliceでJolt、Recast／Detour、ozzをProduction化する。Vehicle、ragdoll、advanced crowd、retarget、motion warpingはC2。Soft body、fluid、GPU Physics、network lockstep、runtime arbitrary navmesh generation、ML motion synthesisはC3である。
 
-# Part I: Physics Dynamics
+# Part I: Physics連携
 
-## 3. Physics World
+## 3. Physicsの公開境界
 
-### 3.1 2D Profile
+Physics World、Solver Profile、Dynamics Command、Joint／Constraint、Character Motor、Backend build、Save／Replay、memory、failure、Qualificationの詳細は独自Physics Platform規約を唯一の正本とする。本書は次のSubsystem間連携だけを決める。
 
-`Physics2DWorldProfile::ReferenceV1`を次で固定する。
+| Producer | 出力 | Consumer／時点 | 禁止 |
+|---|---|---|---|
+| Gameplay／NativeGameModule | bounded `PhysicsDynamicsCommandV1`／`CharacterMoveIntentV1` | Physics T30／T40 | Native World call、callback登録 |
+| Animation | `RootMotionProposal` | Character Motor T40 | Transform直接write |
+| Physics | `PhysicsStateSnapshotV1`、normalized Event | Gameplay T70、Animation T80、Replay T100 | Native ID／pointer |
+| Physics | 前tick完了済み`NavObstacleSnapshot`の入力値 | Navigation 次tick T20 | 同tickWorld pointer共有 |
+| Navigation／Crowd | desired velocity proposal | Character Motor 次のT40 | authoritative Transform write |
+| Rendering／Editor | immutable `PhysicsDebugSnapshotV1` | T60後 | Physics World query |
 
-| Field | 値／範囲 |
-|---|---|
-| `fixed_delta_s` | exactly `1/60` |
-| `gravity_mps2` | `(0, -9.81)`、各軸finite `[-1000, 1000]` |
-| `sub_step_count` | 既定4、integer 1～8 |
-| `enable_sleep` | true |
-| `enable_continuous` | true |
-| `restitution_threshold_mps` | 1.0、`[0, 100]` |
-| `hit_event_threshold_mps` | 1.0、`[0, 1000]` |
-| `worker_count` | Engine Worker Bridgeが起動時に決定しReplay headerへ保存 |
+## 4. 連携時の固定規則
 
-Box2Dの`b2DefaultWorldDef()`はbaselineとしてAdapter testに固定するが、Engineが使用する全fieldをCooked Profileへ明記する。vendor version更新でdefaultが変わっても自動採用しない。
-
-### 3.2 3D Profile
-
-`Physics3DWorldProfile::ReferenceV1`を次で固定する。
-
-| Field | 値／範囲 |
-|---|---|
-| `fixed_delta_s` | exactly `1/60` |
-| `gravity_mps2` | `(0, -9.81, 0)`、各軸finite `[-1000, 1000]` |
-| `collision_steps` | 既定1、integer 1～2 |
-| `allow_sleep` | true |
-| `deterministic_simulation` | 同一Build／Target／worker設定でtrue |
-| `temp_allocator_bytes` | exactly 32 MiB／World |
-| `max_bodies`／pair／contact | Collision規約のTarget Profile |
-| `worker_bridge` | Engine共通Worker pool |
-
-Jolt `PhysicsSettings{}`と`PhysicsSystem::Init`に渡す値はCooked Profileから明示変換する。BroadPhase Layer／Object Layer filter instanceはPhysics Worldより長生きし、Adapterが所有する。
-
-### 3.3 Lifecycle
-
-```text
-Uncreated -> ProfileValidated -> NativeWorldCreated -> StaticBuilt
--> PlayReady -> Stepping -> StopRequested -> JobsJoined
--> NativeWorldDestroyed
-```
-
-Play開始前にbody、shape、joint、pair、contact、temporary memory、event queueを予約する。`T50`中にWorld設定、body／constraint collectionを構造変更しない。全native jobがjoinした後だけ`T60`へ進む。
-
-2Dと3Dを同一Sceneで使う場合も別Worldとし、`producer_system_id`昇順にstepする。2D／3D Worldを同時stepせず、shape同士を直接collisionさせない。
-
-## 4. Dynamics command
-
-Gameplay／NativeGameModuleは次のtyped commandだけを`T30`／`T40`へ提出する。
-
-| Command | 対象／規則 |
-|---|---|
-| `ApplyForce` | dynamic body、finite、max magnitudeをProfileで検証 |
-| `ApplyTorque` | dynamic body |
-| `ApplyImpulse` | dynamic body、instantaneous |
-| `SetLinearVelocity` | 許可Capabilityだけ。hard speed内 |
-| `SetAngularVelocity` | 許可Capabilityだけ。hard speed内 |
-| `SetKinematicTarget` | kinematic body、`T40` |
-| `TeleportBody` | Collision規約のevent意味 |
-| `WakeBody`／`AllowSleep` | dynamic body |
-| `SetGravityFactor` | 3D dynamic、Cooked field範囲内 |
-| `SetJointMotorTarget` | motor対応Joint／Constraint |
-| `SetJointLimit` | schema範囲内、Play policyが許可時 |
-| `BreakJoint` | 次`T00`の構造変更 |
-
-CommandはBody／Joint handle、expected generation、producer、sequence、consume tickを持つ。ForceとImpulseの単位を混同せず、2D torqueはN·m、3D torque vectorもN·mとする。NaN、Inf、hard speed超過、static対象、stale handleをclampせずrejectする。
-
-同一Bodyへのcommandは`command priority, producer_system_id, sequence`でcanonical mergeする。Teleport、kinematic target、velocity、forceを暗黙加算せず、競合表をMCDで固定する。Teleportとkinematic targetの同tick競合はTeleportだけを採用し、warningではなくtyped conflictとして低priority commandを拒否する。
-
-## 5. Joint／Constraint
-
-### 5.1 共通Component
-
-| Field | 規則 |
-|---|---|
-| `joint_id` | StableId |
-| `body_a`／`body_b` | Body Component StableId。World anchorは明示enum |
-| `enabled` | bool |
-| `collide_connected` | bool。Collision pair overrideへ変換 |
-| `local_frame_a/b` | 2D poseまたは3D transform、finite |
-| `limit` | Type別typed object |
-| `motor` | Type別typed object |
-| `break_force_n` | optional positive finite |
-| `break_torque_nm` | optional positive finite |
-| `solver_priority` | 0～7。一般Authoringでは既定0 |
-
-BodyをdestroyするChangeSetは接続Jointを同じtransactionでdeleteするか、precondition failureになる。Jolt bodyがConstraintを所有しないというvendor挙動をProject modelへ漏らさず、Engine `JointRegistry`が接続を追跡する。
-
-### 5.2 C1 Type
-
-| 2D | 3D |
-|---|---|
-| distance、revolute、prismatic、weld | fixed、point、distance、hinge、slider、swing-twist |
-
-Joint Typeごとにanchor、axis、limit、motor force／torque、frequency／damping等の必要fieldをMCDで別structにする。存在しないfieldを汎用property bagへ入れない。AxisはCook時にnormalizeし、zero vectorを既定軸へ置換しない。
-
-Joint breakはnative callbackからGame処理を呼ばず、candidateをcopyする。`T60`でStableId、force／torque、threshold、tickをnormalizeし、`T70`でGameplay eventを配送、実際のComponent削除は次`T00`とする。
-
-## 6. Physics stepと結果
-
-| Phase | 処理 |
-|---|---|
-| `T40` | Character Motor、root motion、kinematic target、command validation |
-| `T50` | Box2D／Jolt step。Adapter以外World write禁止 |
-| `T60` | transform、sleep、velocity、contact／trigger／joint eventをcopy／normalize |
-| `T70` | Gameplayへtyped event配送、次tick command生成 |
-
-Dynamic BodyのTransform writerは`T60`だけである。Animation／Gameplayが同じTransformへwriteしない。Physics resultのcanonical順、event上限、capacity、handle、hard spatial rangeはCollision／Runtime規約を優先する。
-
-同一Build／Target／worker設定ではReplay state hashとevent順を一致させる。異なるCPU architecture／Platformのbitwise lockstepを保証しない。
-
-## 7. Physics memory、failureとtest
-
-Windows Physics Domain 96 MiBのうち、Runtime message queue予約12 MiBを先に差し引き、native World、Body、Joint、pair、contact、event staging、temporary memoryの合計を84 MiB以下とする。3D `temp_allocator_bytes=32 MiB`はこの84 MiBに含み、残る52 MiBをJolt persistent allocation、Box2D World、Engine mappingへ使用する。2Dと3Dを同時利用してもDomain capを二倍にしない。Collision Profileのcapacity予測が84 MiBを超える場合はCook／Play prepareを拒否し、Runtimeで一般heapやUnassigned headroomへfallbackしない。
-
-| Failure | 結果 |
-|---|---|
-| Temp allocator枯渇 | heap fallbackせずtick非publish、Play fault |
-| body／pair／contact上限 | tick非publish、Play fault |
-| native assert／non-finite | Worldを継続せずPlay fault |
-| Joint invalid body／axis | Play prepareまたはCommand reject |
-| Event overflow | tick非publish |
-| Callback中の再入 | Development hard assertion、Release fault |
-
-TestはJointごとのlimit／motor／break、sleep／wake、continuous motion、stack、high-speed、Character、capacity、invalid ID、multi-thread callback、10分soakを2D／3D Reference Profileで実行する。Physics P95 2.50 msを維持する。
+1. 2D／3D Physicsは別Worldであり、相互collisionを行わない。
+2. Physicsのdynamic Transform writerはT60だけである。
+3. Root motionとGameplay移動はCharacter Profileのclosed policyで一度だけ合成する。
+4. Navigationは前tickPhysics snapshotを使い、Physics callback、Body lock、shape pointerを保持しない。
+5. AnimationはPhysics resolved poseを読む。Ragdoll C2もtyped pose／constraint commandを介し、SkeletonとNative Bodyを相互所有させない。
+6. VFX、Audio、Cameraはnormalized Event／version付きQuery Resultを読み、Physicsのauthoritative結果へwrite backしない。
+7. Failed Physics tickはTransform、Event、Nav obstacle、Animation inputを部分publishしない。
 
 # Part II: Navigation
 
-## 8. 正規Navigation model
+## 5. 正規Navigation model
 
 | Object | 役割 |
 |---|---|
@@ -183,9 +80,9 @@ TestはJointごとのlimit／motor／break、sleep／wake、continuous motion、
 
 Navmesh polygon ref、`dtPolyRef`、Recast／Detour object pointer、worker query objectをWorld、Save、AIへ保存しない。
 
-## 9. 2D Navigation
+## 6. 2D Navigation
 
-### 9.1 Grid C1
+### 6.1 Grid C1
 
 `GridNav2DProfile::ReferenceV1`は2D／3D機能計画の値を正本とし、次を実行契約に固定する。
 
@@ -198,13 +95,13 @@ Navmesh polygon ref、`dtPolyRef`、Recast／Detour object pointer、worker quer
 
 A* open set、visited、parentはquery-local bounded memoryである。Budget超過を`NoPath`へ偽装せず`SearchBudgetExceeded`を返す。Start／Goal cellがblockedまたはclearance不足なら`InvalidEndpoint`とする。
 
-### 9.2 Polygon C2
+### 6.2 Polygon C2
 
 2D polygon navigation、hierarchical graph、flow field、local avoidanceはC2で別Capability IDを持つ。Grid C1 save／requestを同じbinaryへreinterpretしない。
 
-## 10. 3D Navigation
+## 7. 3D Navigation
 
-### 10.1 Build
+### 7.1 Build
 
 Recast 1.6.0をoffline builderとして使い、次のstageをArtifact Receiptへ記録する。
 
@@ -226,7 +123,7 @@ Source collect
 
 Build中のpartial tileをlive NavWorldへpublishしない。影響tileと境界隣接tileのclosureをStagingし、seam、connectivity、memory、reference queryを合格後、`T00`で`CookedNavWorld` generationを一度に交換する。
 
-### 10.2 Runtime query
+### 7.2 Runtime query
 
 ```text
 NavQueryRequest
@@ -246,7 +143,7 @@ Resultは`Success | NoPath | PartialPath | SearchBudgetExceeded | StaleNavMesh |
 
 Detour query objectとnode poolはworker／jobごとに分離する。同一`dtNavMeshQuery`をparallel jobで共有しない。ResultはRuntime規約どおり最短でも次tickの`T20`でrequest ID順に統合し、version／owner／deadlineを再検査する。
 
-### 10.3 Dynamic obstacleとlink
+### 7.3 Dynamic obstacleとlink
 
 - C1 Runtimeは既存Nav上のcost、goal、typed off-mesh link enabled stateだけを変更できる。
 - C2 TileCache obstacleは前tick`T60`後の`NavObstacleSnapshot`を次tick`T20`で取込む。
@@ -255,11 +152,11 @@ Detour query objectとnode poolはworker／jobごとに分離する。同一`dtN
 - Traversal開始前にlink generation、entry／exit clearance、Capabilityを再検査する。
 - AIはpolygon、tile binary、Detour refを生成しない。
 
-### 10.4 Crowd／avoidance
+### 7.4 Crowd／avoidance
 
 DetourCrowdとlocal avoidanceはC2であり、authoritative path queryと分離する。Crowd outputはdesired velocity proposalで、Character Motor／Physicsが最終transformを確定する。CrowdがWorld Transformへwriteしない。
 
-## 11. Navigation memory、failure、test
+## 8. Navigation memory、failure、test
 
 Navigation Domain 64 MiBの内訳、request／result各4096、live 2D／3D payload合計36 MiBはRuntime規約を正本とする。
 
@@ -276,7 +173,7 @@ Testは2D corner、cost、clearance、deterministic tie-break、3D seam、slope�
 
 # Part III: Animation
 
-## 12. 正規Animation model
+## 9. 正規Animation model
 
 | Object | 役割 |
 |---|---|
@@ -293,7 +190,7 @@ Testは2D corner、cost、clearance、deterministic tie-break、3D seam、slope�
 
 Clip名、joint名、function名をRuntime dispatchに使わない。Authoring名はCook時にStable numeric ID／semantic tagへ解決する。
 
-## 13. 2D Animation
+## 10. 2D Animation
 
 C1 Graph nodeを次で固定する。
 
@@ -310,9 +207,9 @@ Sprite frameはTexture Asset version＋sprite roleを参照し、atlas indexをS
 
 Cutout skeleton、2D IK、2D retarget、2D blend spaceはC2である。
 
-## 14. 3D Animation
+## 11. 3D Animation
 
-### 14.1 ozz境界
+### 11.1 ozz境界
 
 ozz-animation 0.16.0のoffline builder、compression、runtime Skeleton／Animation、SamplingJob、BlendingJob、LocalToModelJobをAdapter内で利用する。
 
@@ -323,7 +220,7 @@ ozz-animation 0.16.0のoffline builder、compression、runtime Skeleton／Animat
 - ozz archiveをProject source／Save formatにしない。
 - ozzはhigh-level blend treeを提供しないため、Graph、state、transition、event、root motion、IK policyはEngineが所有する。
 
-### 14.2 C1 Graph node
+### 11.2 C1 Graph node
 
 | Node | 規則 |
 |---|---|
@@ -340,7 +237,7 @@ ozz-animation 0.16.0のoffline builder、compression、runtime Skeleton／Animat
 
 Graphはcycleを原則rejectし、State Machineの遷移cycleは有限stateとして許可する。Pose nodeの再帰、任意loop、function callback、Script expressionを禁止する。Conditionはtyped parameter／event／state timeのbounded expressionである。
 
-## 15. Phaseとownership
+## 12. Phaseとownership
 
 | Phase | Animation処理 |
 |---|---|
@@ -361,7 +258,7 @@ Mode変更は`T00`だけで適用する。Animation deltaとGameplay deltaを加
 
 RagdollはPhysics `T60`の`RagdollPoseInput`をT80でweight blendする。Physicsが`SkeletonPose`へ直接writeしない。
 
-## 16. Event、IK、Skinning
+## 13. Event、IK、Skinning
 
 - Animation EventはClipの`event_track_id`とregistered typed Event IDを持つ。
 - frameを飛び越えても`(previous_time, current_time]`内eventを順番どおり検出する。
@@ -371,7 +268,7 @@ RagdollはPhysics `T60`の`RagdollPoseInput`をT80でweight blendする。Physic
 - CPU skinningはC1 fallback、GPU skinningはRendererのregistered Pass Templateで行う。
 - Skeleton paletteはAsset／pose generationを持ち、旧Skeletonへ新Poseを適用しない。
 
-## 17. Animation memory、failure、test
+## 14. Animation memory、failure、test
 
 Animation Domain 64 MiBをRuntime規約どおり守り、Skeleton／Clip payload、instance state、sampling context、pose／scratchを別counterへchargeする。
 
@@ -387,7 +284,7 @@ Animation Domain 64 MiBをRuntime規約どおり守り、Skeleton／Clip payload
 
 Testはforward／reverse／loop／seek、crossfade、layer／mask、transition interruption、root motion単一適用、Character collision、event飛越し、ragdoll blend、Skeleton hot reload、stale Asset、parallel instance、10分soakを含む。Motion＋Animation P95 1.50 msを維持する。
 
-## 18. AI／Editor操作
+## 15. AI／Editor操作
 
 AIと人間は次のtyped object／Operationだけを編集する。
 
@@ -399,7 +296,7 @@ AIはvendor setting blob、native ID、solver callback、nav polygon ref、ozz a
 
 EditorはPhysics／Joint、Nav voxel／tile／path、Animation state／blend／root／eventを可視化し、diagnosticからSource fieldへ移動できる。
 
-## 19. Cross-Subsystem Release Gate
+## 16. Cross-Subsystem Release Gate
 
 1. Root motion proposal→Character Motor→Physics resolved transform→Animation poseが一回だけ適用される。
 2. Static Collision Source revision→Nav Derived Asset→query generationが追跡できる。
@@ -410,7 +307,7 @@ EditorはPhysics／Joint、Nav voxel／tile／path、Animation state／blend／r
 7. 全vendor型がCX0 Public Header、CX3 Module interface、MCD、Save、Project C++から検出されない。
 8. Target別capacity、memory、P95、10分soakを満たす。
 
-## 20. 一次資料
+## 17. 一次資料
 
 - [Box2D 3.1.1 Documentation](https://box2d.org/documentation/)
 - [Box2D Simulation and multithreading](https://box2d.org/documentation/md_simulation.html)

@@ -1,6 +1,6 @@
 # Miraikanai Engine Collision／Colliderアーキテクチャ規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Collision、Rigid Body接続、Collision Query、Editor、AI Authoring、Asset Cook
@@ -9,7 +9,8 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - C++公開境界: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- Dynamics／Navigation／Animation規約: [Miraikanai Engine Physics Dynamics／Navigation／Animation規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
+- Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Simulation連携規約: [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
@@ -21,7 +22,7 @@
 
 CollisionはPhysicsの付属機能ではなく、Gameplay、Character、Camera、Navigation、Animation、VFX、Audio、Editor、AI Authoringを接続するFirst-class Capabilityとする。
 
-Miraikanai Engineは、AI、`GameplayDefinition`、人間、`NativeGameModule`（Project C++）へBox2D／Joltのbody、shape、pointer、callbackを公開しない。公開するのはEngine-ownedのCollider Asset、Physics Body Component、Collision Filter、Query、Event、Typed Command、Validator、Previewだけである。2Dの検出と応答にはBox2D 3.1.1、3DにはJolt Physics 5.6.0をAdapter内で利用するが、次はMiraikanai Engineが独自に所有する。
+Miraikanai Engineは、AI、`GameplayDefinition`、人間、`NativeGameModule`（Project C++）へBox2D／Joltのbody、shape、pointer、callbackを公開しない。公開するのはEngine-ownedのCollider Asset、Physics Body Component、Collision Filter、Query、Event、Typed Command、Validator、Previewだけである。2Dの検出と応答にはBox2D 3.1.1、3DにはJolt Physics 5.6.0をprivate Adapter候補として採用し、独自Physics Platform規約のTarget別Qualification合格後だけProduction利用する。次はMiraikanai Engineが独自に所有する。
 
 - 正規Authoring dataとRuntime contract
 - Stable ID、generation、Asset version、shape slot
@@ -42,6 +43,7 @@ Miraikanai Engineは、AI、`GameplayDefinition`、人間、`NativeGameModule`�
 | 主題 | 正本 |
 |---|---|
 | Collider、shape、material、filter、query、event、cook、Editor／AI操作 | 本書 |
+| Physics World、Solver、Dynamics、Joint／Constraint、Character Motor、Backend build、Save／Replay | 独自Physics Platform規約 |
 | Physics phase、event配送時点、handle寿命、queue overflow、global memory配分 | Runtime規約 |
 | C++所有権、pointer、module、directory、vendor version | 基盤規約 |
 | GameplayDefinition、NativeGameModule、AI実装選択 | Game実装規約 |
@@ -545,16 +547,7 @@ CCDはTeleport、Sensor overlap、zero-thickness geometry、全回転sweepを完
 
 ### 12.1 Character Motor
 
-Characterはdynamic Rigid Bodyへ直接速度を設定する方式をC1既定にせず、Engine-owned Kinematic Character Motorを使用する。MotorはT40でconvex sweep、initial overlap解消、slope、step、ground snapを順に評価し、最終kinematic targetをPhysicsへ提出する。
-
-| Reference Profile | 値 |
-|---|---|
-| `Character2DReferenceV1` | capsule radius 0.30 m、half segment 0.40 m、skin 0.01 m、step 0.25 m、max slope 50°、ground snap 0.10 m |
-| `Character3DReferenceV1` | capsule radius 0.35 m、half segment 0.55 m、skin 0.03 m、step 0.35 m、max slope 50°、ground snap 0.15 m |
-
-GameSpecが身長、移動方式、階段、坂を指定する場合はProfileを明示調整する。未指定時はGenre templateがReference Profileを複製し、選択値をGameSpecへ保存する。Runtimeでvendor Character型を保持しない。
-
-Root motionはAnimationがdeltaを提案し、Character Motorがcollision解決後のtransformを確定する。Animation deltaとGameplay deltaを二重加算しない。
+Characterはdynamic Rigid Bodyへ直接速度を設定する方式をC1既定にせず、Engine-owned Kinematic Character Motorを使用する。本書はMotorが利用するcapsule、overlap、shape cast、hit ordering、filter semanticsを所有する。Reference Profile、state、T40のoverlap recovery／slide／step／slope／ground snap順、moving platform、root motion、AI Operation、fixtureは独自Physics Platform規約11～17節を正本とする。RuntimeでVendor Character型を保持しない。
 
 ### 12.2 Camera collision
 
@@ -634,6 +627,9 @@ Static swap時は旧Asset leaseをEvent normalize完了まで保持する。新�
 ```text
 engine/physics/contracts
 engine/physics/core
+engine/physics/core/joints
+engine/physics/core/character
+engine/physics/core/save_replay
 engine/physics/collision
 engine/physics/diagnostics
 engine/physics/backends/box2d
@@ -643,7 +639,7 @@ editor/panels/collision
 tools/asset_compiler/collision
 ```
 
-`engine/physics/contracts`はEngine-owned value typeとPort、`engine/physics/collision`はbackend-independentなQuery／Event正規化とRuntime state、`authoring/collision`はSource model／Validator／Preview、`tools/asset_compiler/collision`はisolated Cookを所有する。Box2D、Jolt headerは各Adapter private implementationからだけincludeする。AdapterはWorldへ依存せず、Command／Snapshot／Asset payloadを消費し、copied resultを返す。
+`engine/physics/contracts`はEngine-owned value typeとPort、`engine/physics/core`は独自Physics Platform規約のWorld／Dynamics／Joint／Character／Save、`engine/physics/collision`はbackend-independentなQuery／Event正規化とRuntime state、`authoring/collision`はSource model／Validator／Preview、`tools/asset_compiler/collision`はisolated Cookを所有する。Box2D、Jolt headerは各Adapter private implementationからだけincludeする。AdapterはWorldへ依存せず、Command／Snapshot／Asset payloadを消費し、copied resultを返す。
 
 ### 14.2 Lifetime
 
@@ -659,7 +655,7 @@ tools/asset_compiler/collision
 
 2D／3Dはexactly 60 Hzでstepする。Box2Dは`sub_step_count=4`、Joltは`collision_steps=1`をReference値とし、PlayPreparingで固定してReplay headerへ保存する。Sceneが両方を持つ場合はRuntime規約どおり順番にstepし、workerをjoinしてから次Worldへ進む。二つのWorldを同時stepしない。
 
-JoltのTempAllocatorはWorldごとに32 MiB固定、Box2D／JoltはEngine allocatorとworker poolを使用する。Step中の一般heap fallback、独立worker pool、callback内allocationを禁止する。
+JoltのTempAllocatorはWorldごとに32 MiB固定、C1 GameHostのactive Worldは2D一つ／3D一つ、Box2D／JoltはEngine allocatorとworker poolを使用する。Step中の一般heap fallback、独立worker pool、callback内allocationを禁止する。World／Worker／Solverの全値と上限は独自Physics Platform規約を正本とする。
 
 ## 15. Editor
 
@@ -703,11 +699,11 @@ capability.collision.authoring_3d_v1
 capability.collision.filter_v1
 capability.collision.query_v1
 capability.collision.events_v1
-capability.collision.character_motor_v1
 capability.collision.debug_v1
 ```
 
 AIはCapability discovery後に選択したSchemaだけを取得する。Box2D／Jolt型、raw bitmask、native layer、pointer、callbackはTool Schemaへ含めない。
+Character Motorは`capability.physics.character_motor_v1`と`operation.physics.*`を使用し、Collision Capabilityはshape／query／event意味だけを提供する。
 
 ### 16.2 Typed Operation
 
@@ -733,7 +729,6 @@ AIはCapability discovery後に選択したSchemaだけを取得する。Box2D�
 | `operation.collision.generate_convex_hull_3d` | Meshから候補を生成 | R2 |
 | `operation.collision.bake_tile_collider_2d` | Tile regionをCook | R2 |
 | `operation.collision.create_query_profile` | Query filterを作る | R2 |
-| `operation.collision.create_character_profile` | Character Motor Profileを作る | R2 |
 | `operation.collision.modify_channel_table` | Project全体のpair semanticsを変更 | R2＋明示impact approval |
 
 Schema、Engine code、Adapter、budget上限自体の変更はR3／R4であり、上表のAuthoring権限では実行できない。
@@ -821,10 +816,10 @@ Runtime規約のPhysics 96 MiBを次へ固定する。
 
 | 用途 | MiB |
 |---|---:|
-| Physics command／normalized event二面buffer | 12 |
+| Normalized Physics event二面buffer | 12 |
 | Jolt step TempAllocator | 32 |
-| live Box2D／Jolt world、body、shape、broadphase | 40 |
-| Engine mapping、trigger pair cache、query scratch | 8 |
+| live Box2D／Jolt world、body、shape、joint、broadphase | 40 |
+| Engine mapping、trigger pair cache、query、Character、Joint registry、Replay scratch | 8 |
 | Physics domain non-lendable reserve | 4 |
 | **合計** | **96** |
 
@@ -850,9 +845,11 @@ Soft target超過をCollider簡略化の無通知適用で隠さない。AIとEd
 - SaveはBodyのEngine-visible pose、velocity、sleep、Gameplay-owned state、Asset Stable ID＋generation互換情報を保存する。
 - Saveへnative Body ID、pointer、broadphase node、contact cache、solver islandを保存しない。
 - Load時は現在のCooked Asset versionとSave compatibilityを検証し、不一致を近似shapeへfallbackしない。
-- Replay headerはBox2D／Jolt exact version、Cook Profile hash、Collision Profile hash、60 Hz、sub-step／collision step、worker countを持つ。
+- Replay headerはBox2D／Jolt exact version、Cook Profile hash、Collision Profile hash、60 Hz、sub-step／collision step、`shared_worker_pool_count`、`physics_worker_count`を持つ。
 - Determinism保証は同一version、platform、compiler、thread設定のReplay範囲である。2Dと3D、Windowsとmobile、Box2DとJoltのbitwise一致を要求しない。
 - Pre-1.0 Schema変更はoffline Project Migratorでbackup、旧Schema検証、変換、Diff、新Schema検証、atomic切替を行い、Runtime compatibility branchを残さない。
+
+Physics World、Joint、Characterを含むSave field、Load再構築順、Replay Build／SIMD環境、最初の不一致reportは独自Physics Platform規約14節を正本とする。
 
 ## 20. DiagnosticとFailure
 
@@ -960,9 +957,9 @@ Cross-backendでbitwise同一のtrajectoryを要求しない。Engine-visible in
 1. C0 MCD、canonical value type、Validator、Diagnostic、Cook envelope
 2. Collision Editor preview、primitive geometry、filter matrix
 3. Box2D Adapter、2D Query／Event、top-down action fixture
-4. 2D Tile／Chain、Character2D
+4. 2D Tile／Chain、独自Physics Platform規約のCharacter2D
 5. Jolt Adapter、3D primitive／convex、Query／Event
-6. Static Mesh／Heightfield、Character3D、Camera collision
+6. Static Mesh／Heightfield、独自Physics Platform規約のCharacter3D、Camera collision
 7. Mobile capacity／lifecycle／thermal conformance
 8. C2のone-way、concave分解等はCapabilityごとのADRとfixture合格後に一つずつ昇格
 

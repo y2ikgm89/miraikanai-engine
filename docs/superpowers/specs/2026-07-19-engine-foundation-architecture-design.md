@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.11
+- 文書版: 1.12
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -13,7 +13,8 @@
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Rendering／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Editor／Player I/O規約: [Editor](./2026-07-19-editor-workspace-ux-design.md)／[独自Editor UI Framework](./2026-07-20-editor-ui-framework-architecture-design.md)／[Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
-- Simulation規約: [Physics Dynamics／Navigation／Animation](./2026-07-19-physics-navigation-animation-architecture-design.md)
+- Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Simulation連携規約: [Physics／Navigation／Animation連携](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
@@ -46,6 +47,7 @@
 | Windows SDK | 10.0.26100.8249 |
 | Primary compiler | CX0はVisual Studio Build Tools 2026 18.8.0 Stable（build 12009.203）＋MSVC Build Tools v14.51 x64/x86。CX3は正式`/std:c++23`を持つPreviewでないv14.52以降をexact lock |
 | Secondary compiler | CX0／CX1はLLVM／clang-cl 22.1.8。CX3 Cutover時にNamed Modules／`import std`／analysisへ合格したStable LLVMをexact lock（CI診断用。Windows出荷ABIはMSVCで統一） |
+| Windows CRT | `Development`／`ASan`は`MultiThreadedDebugDLL`（`/MDd`）、`Profile`／`Shipping`は`MultiThreadedDLL`（`/MD`）。First-party、NativeGameModule、static Vendor libraryを同一linkで混在させない |
 | Build | CMakeをFirst-party C++ Build定義の唯一の正本とする。WindowsはNinja Multi-Config 1.13.2、AndroidはGradle `externalNativeBuild`からABI／Variant別Single-Config Ninja 1.13.2、Apple CX0はXcode 26.6、CX1以降のportable C++ Module graphはNinja Multi-Config、CX2／CX3のApp shell／最終link／archiveはXcode。Makefiles系と`ndk-build`はFirst-party公式経路にしない |
 | Dependency管理 | vcpkg manifest mode、builtin baseline `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | AI Orchestrator | Node.js 24.18.0 LTS、TypeScript 7.0.2 strict、別Process |
@@ -57,8 +59,8 @@
 | Shader | Material／Shader IR＋portable HLSL 2021。WindowsはDXIL／SM 6.6／Root Signature 1.1、AndroidはSPIR-V、AppleはMSL／metallibへoffline cook |
 | Windows D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
 | Game実装 | CPU実行CodeはC++23だけ。Game内容は検証済み`GameplayDefinition`をoffline Cookし、C++ Runtimeが実行 |
-| 2D Physics kernel | Box2D 3.1.1をAdapter内で利用 |
-| 3D Physics kernel | Jolt Physics 5.6.0をAdapter内で利用 |
+| 2D Physics kernel | Box2D 3.1.1、commit `8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3`を`candidate_locked`としてAdapter内で利用。Target別Qualification後だけProduction昇格 |
+| 3D Physics kernel | Jolt Physics 5.6.0、commit `e77f175595e64cb44218cc9d9d56fc365ad0e36a`を`candidate_locked`としてAdapter内で利用。CPU rigid body限定、Target別Qualification後だけProduction昇格 |
 | 3D Navigation kernel | Recast Navigation／Detour 1.6.0をAdapter内で利用 |
 | GPU suballocation | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`をEngine-owned Adapter内で利用 |
 | Windows reference runtime | 1920×1080、60 fps、Ryzen 5 5600、16 GB DDR4-3200 dual-channel、PCIe 3.0 NVMe、RTX 3060 12 GB／RX 6600 8 GB |
@@ -114,7 +116,7 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証�
 | `profiles[].resolved_files[]` | `{tool_id, relative_path, size_bytes, file_version, sha256, signer}`。実際に実行／linkするcompiler、SDK、shader、build toolを列挙 |
 | `shared.cxx_frontend_profiles[]` | `{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`。C++23・Modules規約から生成した四件をProfile ID順で保持し、Toolchain値を重複保存しない |
 | `shared.build_driver_profile_set_hash` | MCDの全`BuildDriverProfileV1`をDriver ID順にcanonicalizeしたroot SHA-256 |
-| `profiles[].build.cxx_bindings[]` | `{frontend_profile_id, language_standard, compiler_standard_flag, compiler_tool_id, compiler_full_version, standard_library_hash, cmake_tool_id, experimental_import_std_token, module_cache_policy}`。Profile ID順、重複不可。`language_standard`は`c++23`、Module cacheは`toolchain_and_configuration_local`。CX1だけtokenをexact stringで持ち、CX0／CX2／CX3は空文字。Generatorは`BuildDriverProfileV1`だけが所有する |
+| `profiles[].build.cxx_bindings[]` | `{frontend_profile_id, language_standard, compiler_standard_flag, compiler_tool_id, compiler_full_version, standard_library_hash, cmake_tool_id, experimental_import_std_token, module_cache_policy, msvc_runtime_by_configuration}`。Profile ID順、重複不可。`language_standard`は`c++23`、Module cacheは`toolchain_and_configuration_local`。CX1だけtokenをexact stringで持ち、CX0／CX2／CX3は空文字。Windowsは`Development/ASan=MultiThreadedDebugDLL`、`Profile/Shipping=MultiThreadedDLL`、非MSVC Targetは空map。Generatorは`BuildDriverProfileV1`だけが所有する |
 | `profiles[].build.driver_bindings[]` | `{driver_profile_id, driver_profile_hash, tool_ids, toolchain_file_hash, driver_config_hash}`。Targetに属するMCD DriverだけをID順でbindし、`tool_ids`は実行するCMake／Ninja／Gradle／Xcode artifact IDのASCII昇順。`toolchain_file_hash`はhost-native Windowsだけ空文字、Android／Appleは64文字SHA-256。`driver_config_hash`はPresetまたはGradle CMake設定のSHA-256。任意Generator名、任意command、Makefiles系を受理しない |
 | `profiles[windows_desktop_v1].build` | MSVC exact directory、Windows SDK `10.0.26100.8249`、CMake `4.4.0`、`Ninja Multi-Config`、Ninja `1.13.2`。CX0 flagは`/std:c++23preview`、CX3 flagは正式`/std:c++23` |
 | `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、Microsoft OpenJDK `17.0.19` LTS、CMake `4.4.0`、Single-Config `Ninja` `1.13.2`、`-std=c++23`、Shipping ABI `arm64-v8a` |
@@ -382,6 +384,8 @@ Placement new、Allocator内部のraw storage操作、C API境界は`engine/foun
 | `EditorMemory` | Panel model、preview、undo view | Editor telemetryで別計測 |
 | `TestMemory` | leak、OOM、failure injection | Test終了時にzero-liveを検証 |
 
+上表はallocationの寿命と解放方式を表す`memory_resource_class`であり、Runtime規約のPhysics、Navigation、Animation、Rendering等のSubsystem別`charge_domain`とは別軸である。すべてのEngine／Vendor allocationは`{charge_domain, memory_resource_class}`を同時に持つ。例えばJolt TempAllocatorはPhysics課金Domain＋`ScratchMemory`、Physicsのlive Body storageはPhysics課金Domain＋`PoolMemory`、Collision cook stagingはReadyまではAsset streaming課金Domain＋`StreamingMemory`、T00 promotion後はPhysics課金Domain＋`PoolMemory`である。二つの軸を一つのenumへ統合せず、budgetは`charge_domain`、reset／free条件は`memory_resource_class`で判定する。
+
 `FrameMemory`はthreadごとに所有し、他threadからallocateしない。`RenderFrameMemory`はframes-in-flightごとに独立させ、CPU frame終了だけでresetしない。
 
 Arenaとpoolの初期容量をsource codeのmagic numberで固定しない。開発Buildで記録したP99.9 peakに25% headroomを加え、Project Profileへversion付きで保存する。cap超過はDevelopmentでは即座にdiagnostic、Shippingでは設定されたfallbackまたは安全な失敗にする。
@@ -396,6 +400,8 @@ Memory resourceの実装構成は次に固定する。
 - `FailureMemoryResource`: N回目または指定sizeで失敗させるTest専用resource。
 
 `std::pmr::set_default_resource`でProcess全体の暗黙Allocatorを変更しない。`pmr` containerを所有するServiceはconstructorでresourceを受け取り、そのresourceがcontainerより長生きすることを型のcontractとTestで保証する。異なるmemory resource間へcontainerを移動する場合は明示的にcopy／move policyを指定する。
+
+`ASan` ConfigurationでCRT／OS allocatorを直接使うResourceはMSVC ASanのinterceptorを利用する。予約済みpageをsuballocateするArena／Poolは`sanitizer/asan_interface.h`の`ASAN_POISON_MEMORY_REGION`／`ASAN_UNPOISON_MEMORY_REGION` wrapperだけをFoundation Adapterから呼び、inactive／freed／reset済み領域をpoison、現在のallocationだけをunpoisonする。8 byte shadow granularityに必要なpaddingとalignmentをAllocator contractへ含め、1～64 byte、各alignment、red-zone越境、use-after-free、reset後access、double freeをASan fixtureにする。これを満たせない専用ResourceはASan Configurationで`SystemMemoryResource` passthroughへ切り替え、その相違をBuild Receiptへ記録する。Vendor allocator hookも同じASan-aware Resourceを経由し、専用AllocatorのためにASan Gateを省略しない。
 
 ### 6.3 Allocation metadata
 
@@ -551,10 +557,13 @@ Windows First-party targetの基準Optionは次とする。
 /EHsc
 /Zc:__cplusplus
 /MP
+/MDd  # Development／ASan
+/MD   # Profile／Shipping
 ```
 
 - WarningはFirst-party codeでerrorにする。
 - External headerはsystem／external扱いとし、警告levelを分離する。
+- CMake target property `MSVC_RUNTIME_LIBRARY`をToolchain bindingから設定し、Source／subdirectoryが`/MT`、`/MTd`、`/MD`、`/MDd`を個別追加することを禁止する。Vendor CMake optionもEngine値へ上書きし、同一link invocationの全objectを一致させる。
 - `/std:c++latest`は`cxx26_readiness` compile-only CI以外で禁止する。`/EHa`、warningの全体無効化も禁止する。
 - RTTIはToolとThird-party互換のため初期は有効にするが、Engine reflection、serialization、component dispatchに`typeid`／`dynamic_cast`を使わない。無効化はmodule単位の計測後にADRで行う。
 - Sanitizer BuildはAddressSanitizerを必須Presetとする。clang-clではUBSan相当の利用可能範囲もCIで実行する。
@@ -666,10 +675,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  ├─ materials/
 │  │  ├─ visual_styles/
 │  │  └─ backends/{d3d12,vulkan,metal}/
-│  ├─ physics/
-│  │  ├─ contracts/
-│  │  ├─ core/
-│  │  ├─ collision/
+  │  ├─ physics/
+  │  │  ├─ contracts/
+  │  │  ├─ core/{world,dynamics,joints,character,save_replay}/
+  │  │  ├─ collision/
 │  │  ├─ diagnostics/
 │  │  └─ backends/{box2d,jolt}/
 │  ├─ navigation/
@@ -707,6 +716,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ assets/
 │  ├─ visual_styles/
 │  ├─ collision/
+│  ├─ physics/
 │  └─ build/
 ├─ editor/
 │  ├─ app/
@@ -833,8 +843,8 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 | KTX-Software | v4.4.2／`936b655d10fe75f900967f524ba31005bebcbb47` | Apache-2.0 | Offline KTX／ASTC処理 | Texture schema、Target cook、quality policy |
 | Oboe | 1.10.0／`a81bb9f87d4105b84b682685d3bfbb5beca371d1` | Apache-2.0 | Android low-latency audio stream | Mixer、Audio command、callback budget、route policy |
 | libopus | 1.6.1／source SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1` | BSD-3-Clause | Streaming music／voice decode | Audio Asset schema、buffering、loop、thread policy |
-| Box2D | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3` | MIT | 2D collision／solver | Engine component、unit変換、event、serialization |
-| Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a` | MIT | 3D collision／solver | Engine component、job bridge、event、serialization |
+| Box2D | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3`、`candidate_locked` | MIT | private 2D collision／solver kernel | World／Body／Joint／Character／Command／Save／AI契約、Target別Qualification |
+| Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a`、`candidate_locked` | MIT | private CPU 3D collision／solver kernel | World／Body／Constraint／Character／Command／Save／AI契約、Target別Qualification |
 | Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | Navmesh build／query kernel | Build profile、tile asset、AI command、debug UX |
 | ozz-animation | 0.16.0／`6cbdc790123aa4731d82e255df187b3a8a808256` | MIT | Skeleton compression、sampling、blend primitives | Animation graph、state machine、root motion、IK policy |
 | HarfBuzz | 14.2.1／`77a832110d40b0179636f5be8f8781f8299d7e50` | MIT | OpenType shaping、script／language／direction付きglyph sequence | UI／Text model、run分割、Font fallback、layout、cache、Editor／AI操作 |
@@ -850,7 +860,7 @@ Editor UIはC++23の独自`MiraUI Core`と`MiraEditor Shell`で構築し、汎�
 
 HarfBuzzはFreeType＋ICU integrationだけを有効にし、GLib、Cairo、Graphite2、Shipping不要のtool／docsを無効にする。FreeTypeはTrueType／OpenType、CFF／CFF2、SFNTだけをC1必須とし、BZip2、Brotli／WOFF2、PNG、SVG optional moduleを無効にする。ICU4Cは`common`＋`i18n`を使い、ShippingではProject locale setと必要serviceにfiltered dataを生成する。Compiler option、Source archive SHA-512、patch、license file hash、filtered data hashはoverlay port、`toolchain.lock.json`、SBOM、Package Receiptへ固定する。
 
-Jolt 5.6.0で追加されたGPU compute／hair simulationは初期採用範囲外とし、`JPH_USE_DX12=OFF`、`JPH_USE_VK=OFF`、`JPH_USE_MTL=OFF`、`JPH_USE_CPU_COMPUTE=OFF`でCPU rigid-body kernelだけをBuildする。MiraikanaiのD3D12 device、Render Graph、GPU memory所有権へJoltを接続しない。
+Box2D／Jolt overlay portの全product／Qualification option、World／Solver値、昇格状態は独自Physics Platform規約を正本とする。Jolt 5.6.0で追加されたGPU compute／hair simulationは初期採用範囲外とし、`JPH_USE_DX12=OFF`、`JPH_USE_VK=OFF`、`JPH_USE_MTL=OFF`、`JPH_USE_CPU_COMPUTE=OFF`でCPU rigid-body kernelだけをBuildする。MiraikanaiのD3D12 device、Render Graph、GPU memory所有権へJoltを接続しない。
 
 D3D12 Adapterは公式NuGet `Microsoft.Direct3D.D3D12` 1.619.4を次の固定値で取得する。
 
@@ -967,6 +977,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 19. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
 20. TLA+対象5 State machine、実装transition conformance、AI Eval suite、Provider migration gateが承認される。
 21. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
+22. `PhysicsKernelLockV1`、Box2D／Joltのexact commit、product／Qualification build option、Target別昇格状態、全World／Solver Profile、Joint／Character／Save／Replay契約が承認され、未Qualification TargetをProduction表示しないGateが定義される。
 
 ## 19. 一次資料と判断の対応
 
@@ -986,7 +997,8 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | Warning policy | [MSVC warning level](https://learn.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=msvc-170) |
 | UTF-8 source | [MSVC `/utf-8`](https://learn.microsoft.com/en-us/cpp/build/reference/source-charset-set-source-character-set?view=msvc-170) |
 | Standard exception model | [MSVC exception handling model](https://learn.microsoft.com/en-us/cpp/build/reference/eh-exception-handling-model?view=msvc-170) |
-| ASanを開発とCIで利用 | [Microsoft C++ AddressSanitizer](https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170) |
+| 同一link内のMSVC Runtime Library統一、`/MD[d]`の意味 | [Microsoft `/MD`, `/MT`, `/LD`](https://learn.microsoft.com/en-us/cpp/build/reference/md-mt-ld-use-run-time-library?view=msvc-170) |
+| ASanを開発とCIで利用し、専用Allocatorを手動poisoningする | [Microsoft C++ AddressSanitizer](https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170), [AddressSanitizer runtime／manual poisoning](https://learn.microsoft.com/en-us/cpp/sanitizers/asan-runtime?view=msvc-170) |
 | D3D12でapplicationがmemory、sync、stateを管理 | [Direct3D 12 Programming Guide](https://learn.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide) |
 | Enhanced Barriersはoptional feature queryが必須 | [`D3D12_FEATURE_DATA_D3D12_OPTIONS12`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_feature_data_d3d12_options12), [Enhanced Barriers specification](https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html) |
 | 固定Stable Agility SDK | [Microsoft.Direct3D.D3D12 1.619.4](https://www.nuget.org/packages/Microsoft.Direct3D.D3D12/1.619.4), [Agility SDK setup](https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/) |
@@ -997,6 +1009,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | GPU-based validationを小規模Test／定期CIで使う | [GPU-based validation](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-d3d12-debug-layer-gpu-based-validation) |
 | D3D12 heap suballocation | [GPUOpen D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) |
 | Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/v0.16.0), [HarfBuzz 14.2.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.1), [FreeType 2.14.1](https://freetype.org/), [ICU 78.3](https://github.com/unicode-org/icu/releases/tag/release-78.3), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026) |
+| Physics kernelの独自契約、Build option、Qualification、全Solver値 | [独自Physics Platform／Dynamics規約](./2026-07-20-physics-engine-architecture-design.md#19-公式資料と採用根拠) |
 | Manifest modeとversion固定 | [vcpkg Manifest Mode](https://learn.microsoft.com/en-us/vcpkg/concepts/manifest-mode) |
 | CMake Presetsとの統合 | [vcpkg CMake Integration](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration) |
 | Namingは一貫したproject styleとして機械化 | [Google C++ Style Guide](https://google.github.io/styleguide/cppguide), [ClangFormat](https://clang.llvm.org/docs/ClangFormatStyleOptions.html), [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) |

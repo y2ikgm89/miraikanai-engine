@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.7
+- 文書版: 1.8
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
@@ -14,7 +14,8 @@
 - Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-- Simulation規約: [Physics Dynamics／Navigation／Animation](./2026-07-19-physics-navigation-animation-architecture-design.md)
+- Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Simulation連携規約: [Physics／Navigation／Animation連携](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
@@ -427,7 +428,7 @@ RagdollではPhysics `T60`が別fieldの`RagdollPoseInput`へbody poseを書き�
 
 ### 7.3 Physics event
 
-- Sceneが2D／3D Physicsを同時に有効化する場合、`T50`はPhysics Domainの`producer_system_id`昇順でBox2D world、Jolt worldをstepし、各stepの内部workerをjoinしてから次Domainへ進む。Libraryのnested waitとworker oversubscriptionを避けるため両stepを同時実行しない。2D shapeと3D shapeの直接collisionは行わず、両world間のinteractionは`T60`で正規化したeventをGameplayが次tick commandへ変換する。
+- Sceneが2D／3D Physicsを同時に有効化する場合、generated Producer Registryは`Physics2DStep`の`producer_system_id`を`Physics3DStep`より小さく固定する。`T50`は2D Worldをstepして内部workerをjoinし、その後3D Worldをstepしてjoinする。Stable ID生成順やthread完了順でこの順を変えず、Libraryのnested waitとworker oversubscriptionを避けるため両Worldを同時実行しない。2D shapeと3D shapeの直接collisionは行わず、両World間のinteractionは`T60`で正規化したEventをGameplayが次tick Commandへ変換する。
 - `T60`の統合も同じ`producer_system_id`昇順とし、native callback完了順を使わない。
 - native contact callbackではWorldを変更しない。
 - Adapterは必要な値をpreallocated thread-local bufferへcopyする。
@@ -598,7 +599,7 @@ Jolt `BodyID`は再利用・無効化され得るため利用時にlock／validi
 
 Jolt 5.6.0はCPU rigid-body機能だけを利用する。`JPH_USE_DX12`、`JPH_USE_VK`、`JPH_USE_MTL`、`JPH_USE_CPU_COMPUTE`をすべて`OFF`にし、追加されたGPU compute／hair simulationをMiraikanaiのRendererへ接続しない。
 
-Joltのstep temporary allocationはPhysics Domain内の32 MiB固定`TempAllocator`をWorldごとに一つ持ち、`PhysicsSystem::Update`完了後に全Jobの終了を確認してresetする。枯渇時は一般heapへfallbackせずPhysics stepをfaultする。
+Joltのstep temporary allocationはPhysics Domain内の32 MiB固定`TempAllocator`をWorldごとに一つ持ち、`PhysicsSystem::Update`完了後に全Jobの終了を確認してresetする。C1 GameHostのactive World上限は独自Physics Platform規約どおり2D一つ、3D一つであり、二つ目の3D TempAllocatorを同じ96 MiBへ暗黙追加しない。枯渇時は一般heapへfallbackせずPhysics stepをfaultする。
 
 GameplayDefinition evaluatorはC++ Runtime Systemであり、VM、bytecode、GC、FFIを持たない。DefinitionはCook時にevent index、flat node table、constant poolへ変換する。任意loop／recursionを禁止し、State Machineは一instance一phase一transition、Behavior TreeはDefinitionごとの`max_node_visits_per_tick`、collection／task／commandはMCDとTarget Profileの上限を必須とする。上限不在またはProfile超過はCook errorである。
 
@@ -889,21 +890,22 @@ Shippingでauthoritative eventを黙ってdropしない。Developmentは容量�
 
 `windows_desktop_v1`では次を適用する。
 
-- `GetSystemCpuSetInformation`が成功した場合、`Allocated == 0`または`AllocatedToTargetProcess == 1`のCPU Setのうち最大`EfficiencyClass`に属するlogical processor数を`P`とし、worker数は`clamp(P - 4, 1, 12)`。一時的な`Parked` flagはcapacityから除外せずtelemetryへ記録する。
-- CPU Set情報を取得できない場合はactive logical processor数`L`から`clamp(L - 4, 1, 12)`。
+- `GetSystemCpuSetInformation`が成功した場合、`Allocated == 0`または`AllocatedToTargetProcess == 1`のCPU Setのうち最大`EfficiencyClass`に属するlogical processor数を`P`とし、`shared_worker_pool_count = clamp(P - 4, 1, 12)`。一時的な`Parked` flagはcapacityから除外せずtelemetryへ記録する。
+- CPU Set情報を取得できない場合はactive logical processor数`L`から`shared_worker_pool_count = clamp(L - 4, 1, 12)`。
 - workerは`SetThreadSelectedCpuSets`で上記performance CPU Setをsoft affinityとして指定し、選択集合、実行CPU、migrationをtelemetryへ記録する。
-- Box2DはEngine worker poolへenqueueし、初期`workerCount = min(worker_count, 4)`。
-- JoltはEngine-owned `JobSystem` bridgeを使い、同じworker poolを共有する。
+- この節で算出した共有pool総数を`shared_worker_pool_count`とする。Physics規約のTarget Profileが固定する`physics_worker_count`はそのpool内でPhysicsへ許可する最大同時slot数であり、別poolのthread数ではない。
+- Box2DはEngine worker poolへenqueueし、`workerCount = physics_worker_count`とする。`shared_worker_pool_count < physics_worker_count`ではPlay準備を拒否する。
+- JoltはEngine-owned `JobSystem` bridgeを使い、同じworker poolを共有し、同時実行を`physics_worker_count` slotへ制限する。
 - GameplayDefinition evaluationはT30／T70のC++ Gameplay Systemが所有する。Workerへ渡す場合はimmutable definition／state snapshotとprivate outputだけにし、World／GameplayStateStoreへ直接writeしない。
 - file／network待機をworkerでblockせず、I/O completion threadがowned resultを`T20`へ渡す。
 
 worker計算で差し引く4 logical processorはmain／window-input、Game simulation、Render submission、Audio controlのlatency-sensitive実行余地である。I/O completion threadは通常completion portでblockし、長いCPU処理を行わないため予約数へ加えない。I/O completionで0.25 msを超える処理はworker jobへ移す。
 
-Android／Appleでは起動時のonline logical processor数`L`から`worker_count = clamp(L - 4, 1, 8)`を初期値とし、hard affinityを設定しない。Android ADPF／Performance HintとApple QoSはPlatform Adapterがroleを伝える補助に限定し、Gameplay結果を変えない。`Serious`以上のthermal stateでは新規Streaming／BackgroundTool jobを止め、critical worker数をPlay中に変更しない。
+Android／Appleでは起動時のonline logical processor数`L`から`shared_worker_pool_count = clamp(L - 4, 1, 8)`を初期値とし、hard affinityを設定しない。Android ADPF／Performance HintとApple QoSはPlatform Adapterがroleを伝える補助に限定し、Gameplay結果を変えない。`Serious`以上のthermal stateでは新規Streaming／BackgroundTool jobを止め、critical worker数をPlay中に変更しない。
 
 Job priorityは`CriticalSimulation`、`CriticalRender`、`Streaming`、`BackgroundTool`の四段階とする。Critical jobを待っている間に下位priority jobがworkerを占有し続けないよう、長いStreaming／Tool jobは最大0.50 msのcooperative sliceまたは明示yield pointを持つ。
 
-`worker_count`、Box2D `workerCount`、Jolt job設定はPlay開始時に固定し、Replay headerへdependency versionと共に保存する。Replayは記録値を使用し、現在hardwareが必要thread数を提供できない場合は結果を推測せず`ReplayEnvironmentMismatch`で開始を拒否する。
+`shared_worker_pool_count`、`physics_worker_count`、Box2D `workerCount`、Jolt job設定はPlay開始時に固定し、Replay headerへdependency versionと共に保存する。Replayは記録値を使用し、現在hardwareが必要thread数を提供できない場合は結果を推測せず`ReplayEnvironmentMismatch`で開始を拒否する。
 
 ## 14. 性能budgetと合格条件
 

@@ -1,6 +1,6 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Project C++、source／binary境界、entry point、lifecycle、Build、Preview、Packaging
@@ -53,7 +53,7 @@ ShippingではProject C++をGame binaryへ静的linkする。Windows Development
 
 DLLとShipping static linkは同じgenerated entry header、Capability manifest、conformance suiteを使用する。DLLだけに存在するGameplay機能を禁止する。Preview DLLはEditor Processへloadしない。
 
-Pre-1.0では第三者binary互換性を保証しない。Engine revision、Contract lock、Toolchain lock、CRT、compiler flagsの完全一致を必須とし、不一致binaryをshimで動かさない。
+Pre-1.0では第三者binary互換性を保証しない。Engine revision、Contract lock、Toolchain lock、CRT、compiler flagsの完全一致を必須とし、不一致binaryをshimで動かさない。Windows CRTは基盤規約の`Development/ASan=/MDd`、`Profile/Shipping=/MD`をEngine、NativeGameModule、static Vendor libraryで統一する。
 
 ## 4. Versioned entry contract
 
