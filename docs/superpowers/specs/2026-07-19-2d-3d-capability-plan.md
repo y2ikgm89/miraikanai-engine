@@ -1,12 +1,13 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 結論
 
@@ -43,7 +44,7 @@ Product Phaseと機能の成熟度を混同しないため、各機能を次の�
 | 2D Asset mapping | `pixels_per_unit` = Source texture texel数／1 World meter。`pixel_2d`既定32 |
 | UI | origin top-left、+X right、+Y down、DIP |
 | Texture UV | origin top-leftのAsset APIへ正規化 |
-| Clip／Depth | D3D NDCのX／Yは`[-1,1]`、Zは`[0,1]`。reversed-Zでnear=1、far=0、depth clear=0、compare=`GREATER_EQUAL` |
+| Clip／Depth | Engine正規clipのX／Yは`[-1,1]`、Zは`[0,1]`。reversed-Zでnear=1、far=0、depth clear=0、compare=`GREATER_EQUAL`。D3D12／Vulkan／Metal差とsurface pre-rotationはBackendで補正 |
 
 2Dの`reference_resolution`はCamera出力のlogical pixel数であり、World座標単位ではない。たとえば32×32 texelのSpriteを`pixels_per_unit = 32`でimportするとWorld上の大きさは1×1 meterになる。ScaleをPhysics bodyへ直接適用しない。Collider生成時に固定scaleをbakeし、実行中のvisual scaleとphysics scaleを分離する。単位変換はImporterまたはAdapter境界だけで行い、暗黙変換を禁止する。
 
@@ -152,7 +153,7 @@ flowchart LR
 | Physics | normalized event、authoritative transform | `T60`後のGameplay、Animation、snapshot | callbackからEntity破棄、Render transform直接write |
 | Navigation | version付きquery result | 次の`T20`→Gameplay | Physics pointer共有、stale Navmesh result適用 |
 | Animation | pose、root-motion proposal、bounds | `T40` resolver／`T80`／RenderSnapshot | Physics transformとの二重write |
-| Material／Light／Environment／VFX | version付きPresentation Asset／Profile | `R10` promotion→Render Graph | GPU resource、pass、descriptorの直接編集 |
+| Material／Light／Environment／VFX | version付きPresentation Asset／Profile | `R10` promotion→Render Graph | GPU resource、pass、bindingの直接編集 |
 | Audio／VFX／Camera shake | bounded Presentation command | `T90`以後 | gameplay damage、Save、AI perceptionへの逆流 |
 
 Asset、Profile、Script、C++の変更はdependency closure全体をstagingし、Runtime詳細規約の`T00`／`R10`だけでgenerationを切り替える。上図にないSubsystem間edgeを追加する場合は、Domain Port、typed contract、owner、phase、budget、failure policyをADRへ追加し、CMake DAGとconformance testを同じ変更で更新する。
@@ -161,20 +162,20 @@ Asset、Profile、Script、C++の変更はdependency closure全体をstagingし�
 
 | Capability | C1 | C2 | C3 |
 |---|---|---|---|
-| Window／display | Windowed、borderless、resolution、DPI | HDR、multi-monitor、quality auto-detect | Multi-view特殊display |
-| Input | Keyboard、mouse、GameInput gamepad、action map、rebinding | Chord、context、haptics、accessibility preset | Specialized device |
+| Window／display | Platform surface、resolution、logical scale、orientation、safe area | HDR、desktop multi-monitor、mobile quality auto-detect | Multi-view特殊display |
+| Input | Keyboard、mouse、touch、Platform controller、action map、rebinding | Chord、context、haptics、accessibility preset、sensor optional | Specialized device |
 | World | Stable ID、transform、component、prefab-like templateではないcomposition recipe | Streaming cell、dependency graph | Large-world origin rebasing |
 | Asset | Import、content hash、cook、cache、hot reimport | Background streaming、LOD cook、remote build cache | Distributed cook |
 | Save | Versioned save schema、checkpoint、atomic save | Slot、cloud adapter、partial world state | Large-world partition save |
-| Audio | XAudio2 voice、bus、spatial emitter、streaming music | X3DAudio、reverb zone、ducking、profiler | Geometry acoustics |
-| UI／Text | Layout、style、focus、gamepad nav、DirectWrite text | Localization、IME、screen reader semantics、animation | Advanced vector effects |
+| Audio | Engine mixer、voice、bus、spatial emitter、streaming music、Platform audio Adapter | reverb zone、ducking、profiler | Geometry acoustics |
+| UI／Text | Layout、style、focus、touch／controller nav、Platform text／IME Adapter | Localization、screen reader semantics、animation | Advanced vector effects |
 | Script | Luau strict、Capability API、quota、debug | Hot reload、profiler、module permission | Restricted runtime content script |
 | Native code | Project Capability C++、isolated build、test | Incremental build、source-level profiling | Stable external SDKは1.0後 |
 | Gameplay logic／AI | Typed state machine、Rule Graph、Script behavior、seeded random | Blackboard、perception、behavior tree／utility composition | Large-agent simulation policy |
 | Camera | 2D／3D camera、viewport、blend、shake | Cinematic track、split view | Multi-camera recording |
 | Diagnostics | Log、trace、memory、frame、capture | In-editor profiler、comparison baseline | Automated bottleneck advisor |
 | Test | Unit、headless simulation、golden state | Image／audio／performance regression | Large scenario automation |
-| Build | Development／Profile／Shipping、signed manifest | Packaging、crash symbols、patch chunks | Multi-platform farm |
+| Build | Development／Profile／Shipping、Target／Distribution Profile、signed manifest | AAB／archive packaging、crash symbols、Asset chunks | Multi-platform farm |
 | Collaboration | ChangeSet history、text-diffable source、conflict検出 | Git status／diff連携、Asset lock adapter | Remote multi-user authoring |
 | Networking | 対象外 | Transport abstractionの調査 | Authoritative multiplayer |
 
@@ -821,7 +822,7 @@ Shadow、Environment、Particle等のCapability別memory値は予約ではなく
 
 | 方式 | 評価 | 決定 |
 |---|---|---|
-| 単一Uber Shaderに全機能を静的switchで搭載 | 導入は速いが、Permutation、PSO、未使用resource、品質tierの組合せが増殖する | 不採用 |
+| 単一Uber Shaderに全機能を静的switchで搭載 | 導入は速いが、Permutation、pipeline variant、未使用resource、品質tierの組合せが増殖する | 不採用 |
 | Styleごとに無関係なRendererを複製 | 表現ごとの自由度は高いが、Light、Shadow、Material、Tool、AI schemaが分裂する | 不採用 |
 | AIへ自由なHLSLとRender Passを生成させる | 試作自由度は高いが、binding、GPU hang、互換性、再現性を保証できない | 標準経路として不採用 |
 | 共通Render Graph／Lighting Contract＋型付きMaterial Domain＋Style Profile | 共通基盤を維持しつつ、Realistic、Toon、2D、Hybridを明示的に検証できる | **採用** |
@@ -1022,7 +1023,7 @@ Toon ProfileのStyle-critical fieldは、ramp、shadow color、Key Light policy�
 
 `pixel_2d`では`reference_resolution`、`pixels_per_unit`、`integer_scale_policy`、`transform_policy`を必須とする。既定`integer_scale_policy`は`letterbox`、既定`transform_policy`は`axis_aligned_pixel`とする。`axis_aligned_pixel`では表示時のtranslationをpixel gridへsnapし、rotationを90度の整数倍、scaleを整数倍へ制限する。Simulation transformはfloatのまま保持する。任意角回転が必要な場合はScene全体または対象layerを論理解像度へrasterizeする`logical_resolution_rasterized`を選ぶ。表示解像度が整数倍にならない場合に非整数拡大へ自動変更しない。`crop`または`fractional_scale`はユーザーがProfileで明示した場合だけ許可する。
 
-Pixel textureの既定Samplerは`D3D12_FILTER_MIN_MAG_MIP_POINT`、mip countは1とする。遠距離縮小が必要なAssetは`mip_policy = nearest`を明示するか、別のIllustrated／Hybrid Assetへ分類する。Pixel-locked layerへTAA、motion blur、通常のlinear upscaleを適用しない。
+Pixel textureの既定SamplerはEngine enum `SamplerFilter::Point`、mip countは1とし、BackendがD3D12／Vulkan／Metalのpoint filterへ変換する。遠距離縮小が必要なAssetは`mip_policy = nearest`を明示するか、別のIllustrated／Hybrid Assetへ分類する。Pixel-locked layerへTAA、motion blur、通常のlinear upscaleを適用しない。
 
 ### 8.7 `pixel_diorama` Hybrid Composition
 
@@ -1062,30 +1063,29 @@ Material Graph
   → Domain/type validation
   → Material IR
   → Shading Model template specialization
-  → HLSL 2021 source
-  → isolated DXC compile
-  → DXIL validation
-  → Root Signature compatibility verification
+  → portable HLSL 2021 source
+  → isolated Target compiler pipeline
+      Windows: DXC → DXIL → DXIL/Root Signature validation
+      Android: DXC -spirv → SPIR-V → SPIRV-Tools validation
+      Apple: DXC -spirv → SPIR-V → SPIRV-Cross → MSL
+             → Apple metal/metallib validation
   → Engine ShaderInterface
-  → PSO／Shader cache
+  → Target pipeline／Shader cache
 ```
 
-- HLSL 2021をDXC v1.9.2602.24でcompileする。
-- Shader Model 6.6をReference baselineとする。
-- Root Signature 1.1を使用する。
-- Stable Agility SDK 1.619.4／SDKVersion 619とEnhanced Barriersを使用する。起動時に`D3D12_FEATURE_D3D12_OPTIONS12.EnhancedBarriersSupported`をHard gateとし、legacy `ResourceBarrier` pathを実装しない。
-- 起動時に`D3D12_FEATURE_ROOT_SIGNATURE`をqueryし、`D3D_ROOT_SIGNATURE_VERSION_1_1`未対応deviceはSupport対象外とする。Root Signature 1.0へ自動downgradeしない。
-- DXC v1.9.2602.24とAgility SDK 1.619.4を基盤規約のhashで`toolchain.lock.json`へ固定する。
-- Preview Agility SDKをShipping Buildで使用しない。
+- HLSL 2021とDXC v1.9.2602.24を共通source／compiler baselineとするが、`portable_mobile_v1`ではmesh／geometry／tessellation／ray tracing、unbounded bindless、wave size依存を禁止する。
+- WindowsはShader Model 6.6、Root Signature 1.1、Stable Agility SDK 1.619.4／SDKVersion 619、Enhanced BarriersをHard gateとし、legacy `ResourceBarrier` pathを実装しない。
+- Windows起動時に`D3D12_FEATURE_ROOT_SIGNATURE`をqueryし、`D3D_ROOT_SIGNATURE_VERSION_1_1`未対応deviceはSupport対象外とする。Root Signature 1.0へ自動downgradeしない。
+- AndroidはVulkan 1.1／AVP 2022のSPIR-V環境をHard gateとし、SPIRV-Tools v2026.2で全moduleをoffline validationする。
+- AppleはA12／Apple family 5を最低とし、SPIRV-Cross Vulkan SDK 1.4.350.0経由のMSLをXcode 26.6の`metal`／`metallib`でoffline compileする。Argument Buffers Tier 2を必要とするMetal Shader ConverterをA12 defaultにしない。
+- DXC、Agility SDK、SPIRV-Tools、SPIRV-Cross、Apple compilerを基盤／モバイル規約のhashで`toolchain.lock.json`へ固定し、Preview toolchainをShippingへ使わない。
 - Source hash、include hash、Material IR hash、Shading Model version、define、compiler version、target、optimizationからcache keyを作る。
-- Reflection結果を独自`ShaderInterface`へ変換し、RuntimeがDXC型へ依存しないようにする。
-- DXIL validatorとDXCの`/verifyrootsignature`相当の検証をBuild pipelineへ必須化する。
-- Root SignatureはEngineがDomain別の少数layoutを所有し、MaterialやAIが独自Root Signatureを定義しない。
-- 同じDomainのPSOは可能な限り同じRoot Signatureを共有する。
-- C1／C2のReference tierは起動時に`D3D_SHADER_MODEL_6_6`をHard gateとし、未対応deviceはSupport対象外として不足Capabilityを表示する。
-- SM 6.6 dynamic resource heapは`D3D12_RESOURCE_BINDING_TIER_3`も実機queryで確認できた場合だけ使用する。SM 6.6対応かつBinding Tier 3未満ではdescriptor table pathを使い、SM 6.6自体の不足をdescriptor tableで隠さない。
+- DXIL／SPIR-V／MSL reflectionを同じ独自`ShaderInterface`へ変換し、RuntimeがCompilerまたはvendor型へ依存しないようにする。
+- Binding layoutはEngineがDomain別の少数layoutとして所有し、MaterialやAIがRoot Signature、descriptor set layout、Metal argument layoutを直接定義しない。
+- Windows C1／C2は`D3D_SHADER_MODEL_6_6`をHard gateとする。SM 6.6 dynamic resource heapは`D3D12_RESOURCE_BINDING_TIER_3`も実機queryできた場合だけ使い、未対応時はEngine-owned descriptor table pathを使う。
+- AIが複数Targetを選んだProjectではCapability intersectionで全variantをcompileし、Target限定featureには承認済みfallbackを必須とする。
 
-Shipping BuildはすべてのMaterial variantをoffline compileする。RuntimeでAI出力またはProject sourceから任意Shaderをcompileしない。
+Shipping BuildはすべてのMaterial variantをTarget別にoffline compileする。RuntimeでAI出力、Project source、download contentから任意Shaderをcompileまたはloadしない。
 
 ### 8.9 Material authoring Level
 
@@ -1098,7 +1098,7 @@ Shipping BuildはすべてのMaterial variantをoffline compileする。Runtime�
 
 Material Graphはtyped IRへcompileし、そこからHLSLを生成する。AIは、`MaterialInstance`→既存`MaterialTemplate`→新規Graph→Project HLSLの順に、最小権限の方式を選ぶ。
 
-Project HLSL moduleもEngine提供entry pointとbindingだけを使う。Root Signature、filesystem include、dynamic resource heapの直接index、material surfaceからのUAV write、recursion、関数pointer、終了回数を静的に証明できないloopを禁止する。Surface用loopの静的上限は64 iterationとし、Compute Shaderは別Capabilityとして審査する。
+Project HLSL moduleもEngine提供entry pointとbindingだけを使う。Root Signature／descriptor set／Metal argument layout、filesystem include、dynamic resource heapの直接index、material surfaceからのUAV write、recursion、関数pointer、終了回数を静的に証明できないloopを禁止する。Surface用loopの静的上限は64 iterationとし、Compute Shaderは別Capabilityとして審査する。
 
 ### 8.10 AI Visual Style Resolver
 
@@ -1175,8 +1175,8 @@ requires_human_confirmation
 - Texture dimension、color／data encoding、normal convention、alpha mode
 - Resource数、sampler数、graph node数、static variant数
 - 禁止include、filesystem path、recursion、未証明loop
-- Binding collision、Root Signature、ShaderInterface compatibility
-- DXC compile、DXIL validation、PSO作成
+- Binding collision、Target binding layout、ShaderInterface compatibility
+- DXC／SPIR-V／MSL compile・validation、Target pipeline作成
 - Transparent depth、double-sided、shadow passの整合
 - Reference material preview
 - GPU timeoutを避けるisolated compiler process
@@ -1189,7 +1189,7 @@ Material-owned resourceの初期hard limitを次に固定する。Scene global�
 | Medium | 12 | 4 | 256 | 32 | 2 |
 | High | 16 | 8 | 384 | 64 | 3 |
 
-Shader instruction数だけをhard gateにしない。同じDXIL instructionでもGPU、occupancy、texture latency、branch coherenceでcostが異なるためである。Compiler estimateはwarningと順位付けに使用し、最終合否はReference sceneのGPU timing、frame P95、regression gateで決める。
+Shader instruction数だけをhard gateにしない。同じIRでもBackend、GPU、occupancy、texture latency、branch coherenceでcostが異なるためである。Compiler estimateはwarningと順位付けに使用し、最終合否はTarget別Reference sceneのGPU timing、frame P95、regression gateで決める。
 
 Optional passはOutline、coverage shadow、special depth等、登録済みShading Modelが要求するEngine-owned passだけを数える。Material GraphやProject HLSLが任意passを追加することは全Tierで禁止する。
 
@@ -1223,7 +1223,7 @@ Compile-time featureは`MaterialDefinition`だけが持ち、Instance parameter�
 | Toon | Sphere、hard／smooth normal mesh、顔、髪、透明髪、outline、複数解像度、camera距離、Key／accent light |
 | Pixel 2D | 1280×720、1920×1080、2560×1440、3440×1440、3840×2160でinteger scale／letterbox、camera scroll、rotation禁止検査 |
 | Pixel Diorama | Spriteと3Dのdepth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離、transparent sort、camera cut |
-| Material compiler | Invalid graph、resource上限、全禁止HLSL、DXIL／Root Signature不一致、cache再現性 |
+| Material compiler | Invalid graph、resource上限、全禁止HLSL、DXIL／SPIR-V／MSLとBinding不一致、Target別cache再現性 |
 | AI Resolver | 明示、未指定、おまかせ、矛盾、unsupported、Style変更のprompt suite |
 
 同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2/255超のpixelが0.1%未満を既定gateとする。Cross-vendor比較はpixel完全一致を要求せず、Material parameter sweep、luminance ordering、NaN／Infなし、outline width、pixel grid等のanalytic invariantを検証する。正当な見た目変更でbaselineを更新する場合はBefore／After、理由、性能差、人間承認を必須とする。
@@ -1232,8 +1232,8 @@ AI Resolver Evalは、明示12件、未指定12件、`おまかせ`委任12件�
 
 ### 8.13 FailureとFallback
 
-- Shader compile失敗時に直前のvalid PSOを保持するのはEditor previewだけとする。
-- Shipping buildはcompile、DXIL validation、PSO、Style validationのいずれかが失敗したartifactを含めない。
+- Shader compile失敗時に直前のvalid Target pipelineを保持するのはEditor previewだけとする。
+- Shipping buildはTarget別compile／validation、pipeline、Style validationのいずれかが失敗したartifactを含めない。
 - Capability不足時に別Styleへ黙って変更しない。
 - `fallback_policy = allow_listed`でも、実際に使うfallbackと見た目の差をBuild reportへ記録する。
 - Pixel-locked outputで整数scaleが不可能な場合は既定でletterboxする。Fractional scaleへ黙って変更しない。
@@ -1262,18 +1262,18 @@ AI Resolver Evalは、明示12件、未指定12件、`おまかせ`委任12件�
 | Pixel Diorama | Schema、composition preview | 非Production | 両composition mode | Large-world／advanced camera |
 | Custom HLSL | Interface設計 | 非Production | Project module＋sandbox | Stable extension SDK後 |
 
-Phase 3で2D Profile、Phase 4で候補生成・推薦・委任時選択、Phase 6で`realistic_basic`、Phase 7でRealistic advanced、Toon、Pixel Dioramaをこの順にProduction化する。未完成Profileは`StyleCapabilityManifest`へ掲載せず、AIに選択させない。
+Phase 3で2D Profile、Phase 4で候補生成・推薦・委任時選択、Phase 6で`realistic_basic`、Phase 7でmobile Target validation、Phase 8でRealistic advanced、Toon、Pixel Dioramaをこの順にProduction化する。未完成Profileは`StyleCapabilityManifest`へ掲載せず、AIに選択させない。
 
 ## 9. Asset pipeline
 
 | Asset | Source／Interchange | Runtime |
 |---|---|---|
-| Texture | PNG、JPEG、EXR、KTX2、DDS | BC format、mip、streaming metadata |
+| Texture | PNG、JPEG、EXR、KTX2、DDS | Windows BCn、Android ASTC＋ETC2、Apple ASTC、mip／streaming metadata |
 | 3D | glTF 2.0 | 独自mesh／skeleton／animation package |
 | 2D atlas | Image＋atlas metadata | Packed page＋sprite table |
-| Audio | WAV、FLAC等 | Platform codec／stream chunks |
-| Shader | Engine HLSL／Project HLSL | DXIL＋ShaderInterface |
-| Material | Material Graph、Definition、Instance、Template | Material package＋parameter block＋PSO key |
+| Audio | WAV、FLAC等 | PCM16またはOpus stream chunk＋Platform audio metadata |
+| Shader | Engine HLSL／Project HLSL | Windows DXIL、Android SPIR-V、Apple metallib＋共通ShaderInterface |
+| Material | Material Graph、Definition、Instance、Template | Material package＋parameter block＋pipeline key |
 | Visual Style | VisualStyleProfile＋sub-profile参照 | Cooked Style Manifest＋Capability requirement |
 | Nav | Source geometry＋profile | Tiled nav data |
 | Physics | Shape authoring data | Cooked shape data |
@@ -1297,6 +1297,8 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 - Navigation／Physics debug
 - Build／Playtest
 - Profiler
+- Target／Distribution Profile、Capability Matrix、Package Inspector
+- Device Manager、Remote Mac Agent、safe-area／cutout／orientation／touch preview
 - Diff／History
 - AI Partner
 
@@ -1313,6 +1315,7 @@ Editor shellはDear ImGui 1.92.8-dockingを描画基盤に使うが、操作設�
 - AI提案、Engine validation、実際にCommitされるDiffを視覚的に区別する。
 - AIが画風を推奨する場合は、候補ごとの代表Scene thumbnail、必要Capability、予測制作量、GPU差、未解決事項を同じ比較Viewへ表示する。
 - Style Validator errorから、原因となるMaterial、Light、Camera、Post、Asset import設定へ直接移動できる。
+- Target intersectionで未対応のMaterial／Texture／Input／UIをPlatform別に示し、fallback、memory／thermal／Store影響をAI Diffと同じ画面で確認できる。
 - Pixel Viewではlogical pixel grid、integer scale、Sprite coverage、3D depthとの交差をoverlay表示する。
 - Toon Viewではdiffuse ramp、shadow attenuation、Key／accent light、outline sourceをdebug表示する。
 
@@ -1343,6 +1346,8 @@ Editor shellはDear ImGui 1.92.8-dockingを描画基盤に使うが、操作設�
 | Toon outline | Inverted hull低上限 | Inverted hull | Inverted hull／screen-space |
 | Pixel composition | Point＋integer scale | Point＋integer scale | Point＋integer scale。品質低下で変更しない |
 
+本表はCapabilityの意味を示す共通tierであり、resource数の直接値はTarget Profileが決める。Mobileはモバイル規約14.4節のBaseline／Standard／High matrixを適用し、Baselineでvolumetric cloud／fog、local-light shadow、GPU particle等を自動有効化しない。World renderだけをdynamic resolution対象とし、UI、text、pixel-locked layerはdisplay resolutionを維持する。
+
 起動時にhardware featureとmemory budgetを検査し、Projectの最低Tier未満なら黙って品質を落とさず、理由と不足Capabilityを表示する。Userが許可した場合だけ下位Tierへfallbackする。
 
 Quality Tierは同じArt Direction内の実装品質だけを変更する。RealisticからToon、PixelからIllustrated、Pixel Dioramaから通常3Dへ切り替えるfallbackを禁止する。PixelのPoint／integer scale、ToonのStyle-critical ramp等はQuality TierよりVisualStyleProfileを優先する。
@@ -1370,15 +1375,18 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 7. 外部MCP、Codex／Claude Plugin
 8. 3D mesh、`realistic_basic`、Forward+、Jolt、Recast、animation
 9. `realistic_basic` 3D compact action arena
-10. `realistic_advanced` Material feature
-11. `toon_basic`、inverted-hull outline、`toon_character`
-12. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
-13. `pixel_diorama`の`unified_low_resolution`
-14. Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
-15. Hybrid deferred path、streaming、terrain／foliage
-16. Domain Pack拡張
-17. 制限付きRuntime generation
-18. Multiplayer／large world／ray tracingは個別設計後
+10. Android GameActivity／Vulkan／Oboe／touch／AABで同じ2D C1
+11. Apple UIScene／Metal／AudioUnit／touch／TestFlightで同じ2D C1
+12. Mobile 3D品質、Target shader／texture cook、memory／thermal governor、content delivery
+13. `realistic_advanced` Material feature
+14. `toon_basic`、inverted-hull outline、`toon_character`
+15. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
+16. `pixel_diorama`の`unified_low_resolution`
+17. Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
+18. Hybrid deferred path、streaming、terrain／foliage
+19. Domain Pack拡張
+20. Store-readyなdata-only Runtime generation
+21. Multiplayer／large world／ray tracingは個別設計後
 
 2Dと3Dの全機能を先に並行実装しない。共有基盤→2D complete loop→3D complete loopの順で、毎段階にplayable resultを置く。
 
@@ -1401,6 +1409,8 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 13. AIが未対応Styleを選択できず、曖昧なHigh Impact表現を無確認でlockできない。
 14. 状態のauthoritative writer、consume phase、event payload、borrow期限、Asset invalidationをRuntime詳細規約へ割り当てている。
 15. Subsystem別CPU／GPU／memory／queue budgetとoverflow／recovery testを満たす。
+16. 選択した全Target Profileでshader／texture／package cookとCapability intersection validationが合格する。
+17. Mobile対象の場合、minimum／reference実機でlifecycle、touch／controller、audio、memory、thermal、Store packageを合格する。
 
 ## 15. 主要リスクと確定対策
 
@@ -1425,6 +1435,9 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | 有名Engineの模倣になる | 独自World Model、ChangeSet、Capability、Editor projectionを維持 |
 | Physics／Nav／Animation／Renderの直接連携で循環する | Runtime Contractと固定phaseを介し、Domain間target依存をCIで拒否 |
 | hot reload中に新旧derived Assetが混在する | dependency closureをstagingし、完全合格後だけboundaryでatomic promotion |
+| Windows専用Shader／Input／UIが正規dataへ漏れる | Target非依存enum、Material IR、Platform Port、public-header vendor型scan |
+| Mobileで高品質Effectがthermal／memory破綻する | Mobile別quality matrix、dynamic resolution、thermal governor、実機soak |
+| AIがTarget非対応Styleを生成する | 全Target Capability intersection compile、fallback preview、人間承認 |
 
 ## 16. 一次資料
 
@@ -1447,8 +1460,9 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | D3D12 Filter、Unity／GodotのPixel資料 | Point filtering、logical resolution、integer scalingがPixel edge保持に必要 | 640×360 fixture、Point、integer scale、letterbox、temporal分離を独自Profile contractとして固定 |
 | NPR一次論文／NVIDIA技術資料 | Ramp shading、outline、view-dependent contour等は複数方式で、共通の単一Toon物理規格ではない | Toonを独立Shading Modelとし、Key Light、Ramp、Outline、Art／Animation Profileを独自に規範化 |
 | Square Enix公式説明 | 「HD-2D」はPixel Artと3D CGの融合を表す製品側の語 | 要求理解にだけ使い、正規名は一般化した独自`pixel_diorama`とする |
+| Android Vulkan Profile／Apple Metal feature table | Mobile GPUの共通最低機能はdesktop SM 6.6と同一でなく、A12はApple family 5 | `portable_mobile_v1`、AVP 2022、A12 baseline、Target別offline shader cook |
 
-本表の「事実」と「規範決定」を混同しない。外部資料が規定するinterchange／API要件はconformance対象とし、Miraikanai固有のProfile、既定値、Render順序、budgetは本書を規範とする。DXC v1.9.2602.24、Agility SDK 1.619.4、各Native Libraryのtag／commitは基盤規約の初期値を`toolchain.lock.json`とvcpkg manifestへ固定する。glTF specification／extension registry／Sample Assetsも取得日、revision、fixture hashをContent Conformance Manifestへ固定する。移動する`main` branch上のstatusが変わっても自動で対応範囲を変えず、一次資料の再確認、fixture、ADR、性能測定を通して本書を改訂する。
+本表の「事実」と「規範決定」を混同しない。外部資料が規定するinterchange／API要件はconformance対象とし、Miraikanai固有のProfile、既定値、Render順序、budgetは本書を規範とする。DXC v1.9.2602.24、Agility SDK 1.619.4、SPIRV-Tools 2026.2、SPIRV-Cross Vulkan SDK 1.4.350.0、KTX-Software 4.4.2、各Native Libraryのtag／commitは基盤規約の初期値を`toolchain.lock.json`とvcpkg manifestへ固定する。glTF specification／extension registry／Sample Assetsも取得日、revision、fixture hashをContent Conformance Manifestへ固定する。移動する`main` branch上のstatusが変わっても自動で対応範囲を変えず、一次資料の再確認、fixture、ADR、性能測定を通して本書を改訂する。
 
 ### 16.2 参照資料
 
@@ -1468,6 +1482,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [GameInput Introduction](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-overview)
 - [XAudio2 Programming Guide](https://learn.microsoft.com/en-us/windows/win32/xaudio2/programming-guide)
 - [DirectWrite](https://learn.microsoft.com/en-us/windows/win32/directwrite/direct-write-portal)
+- [モバイルPlatformアーキテクチャ規約のAndroid／Apple／dependency一次資料](./2026-07-19-mobile-platform-architecture-design.md#23-一次資料)
 - [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)
 - [glTF 2.0 Extension Registry and Status](https://github.com/KhronosGroup/glTF/blob/main/extensions/README.md)
 - [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets)

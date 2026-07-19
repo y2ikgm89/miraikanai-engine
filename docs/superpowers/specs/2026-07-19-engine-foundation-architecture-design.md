@@ -1,11 +1,12 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 目的と規範の読み方
 
@@ -24,38 +25,42 @@
 
 | 項目 | 公式基準 |
 |---|---|
-| 開発Host | Windows 11 25H2以降 x64（OS build 26200以上） |
-| 初期Game出力 | Windows 11 25H2以降 x64（OS build 26200以上） |
-| Graphics API | Direct3D 12 |
+| Editor／主要開発Host | Windows 11 25H2以降 x64（OS build 26200以上） |
+| Apple Build Agent | macOS Tahoe 26.2以降、Xcode 26.6 Stable。Apple TargetのC++／Metal compile、link、archive、signing、upload専用 |
+| 公式Game Target | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1` |
+| Graphics API | WindowsはDirect3D 12、AndroidはVulkan 1.1＋AVP 2022、AppleはMetal |
 | 言語 | C++20 |
 | Windows SDK | 10.0.26100.8249 |
 | Primary compiler | Visual Studio Build Tools 2026 18.8.0 Stable（build 12009.203）＋MSVC Build Tools v14.51 x64/x86 |
 | Secondary compiler | LLVM／clang-cl 22.1.8（CI診断用。出荷ABIはMSVCで統一） |
-| Build | CMake 4.4.0、Presets schema 12、Ninja Multi-Config 1.13.2 |
+| Build | CMake 4.4.0／Presets schema 12。Windows／AndroidはNinja Multi-Config 1.13.2、AppleはXcode 26.6 generator |
 | Dependency管理 | vcpkg manifest mode、builtin baseline `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | AI Orchestrator | Node.js 24.18.0 LTS、TypeScript 7.0.2 strict、別Process |
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | 初期Model Provider | OpenAI Responses API、公式TypeScript SDK 6.48.0 |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium`を明示 |
-| Shader | HLSL 2021、DXC v1.9.2602.24、Shader Model 6.6、Root Signature 1.1を必須基準 |
-| D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
+| Shader | Material／Shader IR＋portable HLSL 2021。WindowsはDXIL／SM 6.6／Root Signature 1.1、AndroidはSPIR-V、AppleはMSL／metallibへoffline cook |
+| Windows D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
 | Script VM | Luau 0.730 strict mode、Engine-owned Capability APIだけを公開 |
 | 2D Physics kernel | Box2D 3.1.1をAdapter内で利用 |
 | 3D Physics kernel | Jolt Physics 5.6.0をAdapter内で利用 |
 | 3D Navigation kernel | Recast Navigation／Detour 1.6.0をAdapter内で利用 |
-| GPU suballocation | D3D12 Memory Allocator 3.2.0をEngine-owned wrapper内で利用 |
-| Reference runtime target | 1920×1080、60 fps、Ryzen 5 5600、16 GB DDR4-3200 dual-channel、PCIe 3.0 NVMe、RTX 3060 12 GB／RX 6600 8 GB |
-| CPU memory baseline | Game runtime 2 GiB soft budget |
-| GPU residency baseline | 5.5 GiB Project budgetか、OS通知budgetの80%の小さい方 |
+| GPU suballocation | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`をEngine-owned Adapter内で利用 |
+| Windows reference runtime | 1920×1080、60 fps、Ryzen 5 5600、16 GB DDR4-3200 dual-channel、PCIe 3.0 NVMe、RTX 3060 12 GB／RX 6600 8 GB |
+| Windows CPU memory baseline | Game runtime 2 GiB soft budget |
+| Windows GPU residency baseline | 5.5 GiB Project budgetか、OS通知budgetの80%の小さい方 |
+| Mobile baseline | 30／60 fps、process 1,024 MiB、Engine CPU 768 MiB、GPU working set 384 MiB。実機classと測定法はモバイル規約に固定 |
 | Editor memory baseline | Editor process group 4 GiB soft budget。Play Runtime 2 GiB＋Authoring 2 GiBを含み、外部Compiler／AI processは別計測 |
 | Tool process memory baseline | Editor-launched child tree全体4 GiB hard commit cap。AI／Asset／Shader／Native Buildは個別nested Job limit |
 | Physics tick | C1／C2はexactly 60 Hz。Profileへ保存するが60以外を拒否し、可変rateはC3 ADR対象 |
 
 Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H2 Home／Proも2026年10月13日に更新終了となるため正式Targetに含めない。Windows 11 25H2の初期build familyである26200を最小とし、Support対象はMicrosoftが更新提供中のeditionと累積更新を適用した環境に限る。26H1は新規device向けで既存24H2／25H2 deviceへのin-place updateではないため、最小Targetの根拠にしない。
 
+実装順序はWindows Editor／`windows_desktop_v1`を先行し、共通Contractの成立後に`android_mobile_v1`、`apple_mobile_v1`を追加する。AndroidはAPI 29以上、arm64-v8a、Vulkan 1.1、AVP 2022、AppleはiOS／iPadOS 17以上、arm64、A12／Apple GPU family 5以上を最低Targetとする。Platform API、package、Store、mobile memory／performanceの決定権はモバイル規約に置き、本書のWindows固有値をmobileへ暗黙適用しない。
+
 ### 2.1 Toolchain lockと再現可能Build
 
-本節のversionは2026年7月19日時点の初期検証baselineであり、「最新」を意味するfloating指定ではない。Phase 0はrepository rootの`toolchain.lock.json`へ次を記録し、Developer bootstrap、CI image、Build manifestが同じ値を照合する。version、URL、size、hash、署名、実行file versionのいずれかが異なる環境はconfigure前に失敗させる。
+本節のversionは2026年7月19日時点の`windows_desktop_v1`初期検証baselineであり、「最新」を意味するfloating指定ではない。Phase 0はrepository rootの`toolchain.lock.json`へPlatform別profileを設け、Developer bootstrap、CI image、Build manifestが同じ値を照合する。version、URL、size、hash、署名、実行file versionのいずれかが異なる環境はconfigure前に失敗させる。Android NDK／SDK／GradleとApple Xcode／SDKの固定値、Store policy lockはモバイル規約5節に従う。
 
 | Tool | 固定artifact／source | 固定値 |
 |---|---|---|
@@ -73,31 +78,31 @@ Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H
 
 Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証する。GitHub release artifactはrelease APIのdigest、tag commit、取得後hashを照合する。npm packageは`package-lock.json`のexact versionとintegrityを`npm ci`で検証し、install scriptを持つpackageはallowlist外なら失敗させる。
 
-`toolchain.lock.json`のschema version 1は次のfieldを必須とする。schemaにないfield、`null`、重複tool ID、相対URL、複数hash候補を許可しない。arrayは`tool_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
+`toolchain.lock.json`のschema version 2は次のfieldを必須とする。schemaにないfield、`null`、重複profile／tool ID、相対URL、複数hash候補を許可しない。`profiles[]`は`profile_id`、artifact arrayは`tool_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
 
 | Field | 型／固定規則 |
 |---|---|
-| `lock_schema_version` | `uint32`、値1 |
-| `host.min_os_build` | `uint32`、値26200 |
-| `host.os_build`／`host.ubr` | `uint32`、初期値26200／8875 |
-| `artifacts[].tool_id` | lowercase ASCII snake_case、重複不可 |
-| `artifacts[].version` | exact UTF-8 string。range、`latest`、wildcard禁止 |
-| `artifacts[].url`／`artifacts[].resolved_url` | 本節のHTTPS URLとredirect完了後URL。redirectなしは同値 |
-| `artifacts[].size_bytes` | `uint64`、downloaded byte数と完全一致 |
-| `artifacts[].sha256` | 64文字lowercase hex |
-| `artifacts[].source_commit` | 対応するsource tagがあるtoolは40文字lowercase Git SHA-1、それ以外は空文字 |
-| `resolved_files[]` | `{tool_id, relative_path, size_bytes, file_version, sha256, authenticode_publisher}`。MSVC、Windows SDK、DXC、CMake、Ninja、LLVM、Nodeの実行fileを列挙。PE／MSI以外はpublisherを空文字 |
-| `build.msvc_tools_version` | fixed layoutから得たexact directory名。`14.51`のprefix一致だけでは合格にしない |
-| `build.windows_sdk_version` | exact `10.0.26100.8249` |
-| `build.cmake_version`／`build.generator`／`build.ninja_version` | `4.4.0`／`Ninja Multi-Config`／`1.13.2` |
-| `vcpkg.builtin_baseline` | 40文字commit `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
-| `npm.node_version` | `24.18.0` |
-| `npm.package_lock_sha256` | Commit済み`orchestrator/package-lock.json`の64文字lowercase hex |
-| `npm.packages` | `{name, version, tarball_url, size_bytes, integrity}`をname昇順で列挙 |
+| `lock_schema_version` | `uint32`、値2 |
+| `profiles[].profile_id` | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`をexactly各1件 |
+| `profiles[].host` | `{os, architecture, minimum_version, image_digest}`。WindowsとAndroid profileはWindows x64／build 26200、Apple profileはmacOS arm64／26.2 |
+| `profiles[].artifacts[].tool_id` | lowercase ASCII snake_case、profile内重複不可 |
+| `profiles[].artifacts[].version` | exact UTF-8 string。range、`latest`、wildcard禁止 |
+| `profiles[].artifacts[].url`／`resolved_url` | 本節またはモバイル規約のHTTPS URLとredirect完了後URL。redirectなしは同値 |
+| `profiles[].artifacts[].size_bytes` | `uint64`、downloaded byte数と完全一致 |
+| `profiles[].artifacts[].sha256` | 64文字lowercase hex |
+| `profiles[].artifacts[].source_commit` | 対応source tagがあるtoolは40文字lowercase Git SHA-1、それ以外は空文字 |
+| `profiles[].resolved_files[]` | `{tool_id, relative_path, size_bytes, file_version, sha256, signer}`。実際に実行／linkするcompiler、SDK、shader、build toolを列挙 |
+| `profiles[windows_desktop_v1].build` | MSVC exact directory、Windows SDK `10.0.26100.8249`、CMake `4.4.0`、`Ninja Multi-Config`、Ninja `1.13.2` |
+| `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、JDK 17、Shipping ABI `arm64-v8a` |
+| `profiles[apple_mobile_v1].build` | CMake `4.4.0`、Xcode `26.6`、iOS／iPadOS SDK `26.5`、deployment `17.0`、arm64、Xcode generator |
+| `shared.vcpkg.builtin_baseline` | 40文字commit `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
+| `shared.npm.node_version` | `24.18.0` |
+| `shared.npm.package_lock_sha256` | Commit済み`orchestrator/package-lock.json`の64文字lowercase hex |
+| `shared.npm.packages` | `{name, version, tarball_url, size_bytes, integrity}`をname昇順で列挙 |
 
-machine comparisonは必ず`host.os_build == 26200 && host.ubr == 8875`のように独立fieldで行う。月次OS baseline更新は両field、CI image digest、Runtime規約14.1節のbridge baselineを同じChangeSetで更新する。
+machine comparisonはWindowsなら`host.os_build == 26200 && host.ubr == 8875`、AppleならmacOS／Xcode build versionの独立fieldで行う。月次OS／SDK baseline更新は該当field、CI image digest、Runtimeまたはモバイル規約のbridge baselineを同じChangeSetで更新する。
 
-`CMakePresets.json`はschema 12、generatorは`Ninja Multi-Config`に固定する。`Development`、`Profile`、`Shipping`、`ASan`をconfigureし直さず同一Build treeで選べるようにする一方、CI jobごとに空のBuild treeを使用する。CMakeは`cmake_minimum_required(VERSION 4.4.0)`に加えbootstrapでexact 4.4.0を照合する。
+`CMakePresets.json`はschema 12とする。Windows／Androidは`Ninja Multi-Config`、AppleはXcode generatorを使い、Targetごとに別Build treeを必須とする。`Development`、`Profile`、`Shipping`、`ASan`はTarget内で明示configurationとし、CI jobごとに空のBuild treeを使用する。全Hostで`cmake_minimum_required(VERSION 4.4.0)`と実行CMake exact 4.4.0を照合し、AppleはさらにXcode 26.6との組合せをlockする。
 
 MSVCはversioned v14.51 componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap手順である。
 
@@ -105,7 +110,7 @@ TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、�
 
 数値予算は無期限の定数ではない。Reference sceneのBenchmarkを根拠にADRで改定する。ただし、改定されるまで上表が合否判定値であり、実装者ごとの暗黙値を認めない。
 
-初期Reference Projectの2 GiB CPU soft budgetは次に分割する。Emergency reserveは貸し出さない。その他の未使用Parent budgetは一つのload jobまたは最大120 frameだけ貸借でき、貸出元、借用先、global totalへ同時に記録する。child配分、80／90／100% threshold、Editor 4 GiB配分、貸借失敗時の処理はRuntime詳細規約を唯一の基準とする。
+`windows_desktop_v1`初期Reference Projectの2 GiB CPU soft budgetは次に分割する。Emergency reserveは貸し出さない。その他の未使用Parent budgetは一つのload jobまたは最大120 frameだけ貸借でき、貸出元、借用先、global totalへ同時に記録する。child配分、80／90／100% threshold、Editor 4 GiB配分、貸借失敗時の処理はRuntime詳細規約を唯一の基準とする。Mobileの絶対値とprocess／GPU重複計測はモバイル規約13節を基準とする。
 
 | CPU Domain | 初期soft budget |
 |---|---:|
@@ -159,7 +164,7 @@ flowchart BT
   CoreServices["Core Services\nWorld・Assets・Jobs・Serialization"]
   Model["Authoring Model\nGameSpec・World Model・ChangeSet"]
   Runtime["Runtime Capabilities\nWorld・Render・Physics・Nav・Audio・Script"]
-  Adapters["Adapters\nWindows・D3D12・Box2D・Jolt・Recast・Luau"]
+  Adapters["Adapters\nWindows・Android・Apple\nD3D12・Vulkan・Metal\nBox2D・Jolt・Recast・Luau"]
   Authoring["Authoring Service\nValidation・Transaction・Build"]
   Editor["Projection Editor"]
   Integrations["AI / MCP Integrations"]
@@ -206,7 +211,7 @@ EngineはModel Provider SDK、API key、HTTP clientをlinkしない。Node.js 24
 
 OpenAIではtool接続にstrict function calling、Game Brief／GameSpec案の生成にStructured Outputsを使用する。ただしSchema準拠はsyntax上の補助であり、Engineのsemantic validation、budget、revision、approvalを省略しない。ProviderへCommit toolを公開しない。
 
-Local IPCは次に固定する。
+Windows Editor Host上のLocal IPCは次に固定する。GameのAndroid／Apple Shipping RuntimeはAI Orchestratorを同梱せず、このIPCも開かない。
 
 - Windows named pipe。ACLは現在Userと起動したEngine processだけに限定する。
 - UTF-8 JSON-RPC 2.0を32 bit little-endian length prefixでframe化する。
@@ -291,7 +296,7 @@ Placement new、Allocator内部のraw storage操作、C API境界は`engine/foun
 |---|---|---|
 | `SystemMemory` | 長寿命、頻度が低い一般object | ownerのRAII |
 | `FrameMemory` | 1 frame内の一時data | frame job完了後に一括reset |
-| `RenderFrameMemory` | GPUへ参照されるframe data | 対応GPU fence完了後にreset |
+| `RenderFrameMemory` | GPUへ参照されるframe data | 対応する全`GpuSubmissionSerial`完了後にreset |
 | `ScratchMemory` | 一つのscope／jobだけで使う作業領域 | scope終了時にreset |
 | `PoolMemory` | 同サイズで頻繁に生成破棄する内部object | poolへ返却 |
 | `StreamingMemory` | Asset decode、upload staging、cache | budgetとLRU／priorityでevict |
@@ -353,23 +358,23 @@ CI performance testはallocation countを検査し、意図しない増加をreg
 - Core World、physics、render graphの必須allocationが失敗した場合は不整合状態で継続せず、diagnosticとcrash dumpを生成して停止する。
 - `new`が返すnullを期待しない。例外境界で`std::bad_alloc`をEngine errorへ変換する。
 
-## 7. GPUメモリとDirect3D 12寿命
+## 7. GPUメモリとBackend寿命
 
-Direct3D 12ではresource state、descriptor、queue同期、resource lifetimeをapplicationが管理する。本Engineは次を必須とする。
+D3D12、Vulkan、Metalのresource state／usage、binding、queue／command同期、resource lifetimeは異なる。本Engineは共通のresource handle、Render Graph access、`GpuSubmissionSerial`、allocator Portを所有し、Backend差をAdapterへ閉じ込める。
 
 ### 7.1 GPU allocator
 
-`GpuAllocator`はEngine-owned interfaceとし、実装AdapterでD3D12 Memory Allocator（D3D12MA）を利用する。D3D12MAの型をRendering public APIへ公開しない。
+`GpuAllocator`はEngine-owned interfaceとし、Windows AdapterでD3D12MA、Android AdapterでVMA、Apple Adapterで`MTLHeap`／memoryless resourceを利用する。Vendor型をRendering public APIへ公開しない。
 
-- 小～中規模のbuffer／textureはplaced resourceとしてsuballocateする。
-- 特殊alignment、大容量、共有resourceはdedicated committed allocationを選択できる。
+- 小～中規模のbuffer／textureはBackend heapからsuballocateする。
+- 特殊alignment、大容量、共有resourceはBackendのdedicated allocationを選択できる。
 - transient resourceはRender Graphがlifetimeを解析し、互換条件を満たす場合だけaliasする。
-- uploadはfence-aware ring buffer、readbackはsize class poolを使う。
+- uploadはsubmission-aware ring buffer、readbackはsize class poolを使う。
 - defragmentationはEditor／loading boundaryでだけ実行し、frame中に暗黙実行しない。
 
-### 7.2 Residency budget
+### 7.2 Residency／working-set budget
 
-DXGI Adapter3の`QueryVideoMemoryInfo`をlocal／non-local segmentごとに定期取得する。Project budgetは`min(configured_budget, 0.80 × Budget)`とし、`RegisterVideoMemoryBudgetChangeNotificationEvent`の通知時に再評価する。`CurrentUsage`がProject budgetへ近づいた時点で段階的にstreaming cacheを縮小する。
+共通counterはcommitted、resident／allocated、OS／allocator budget、eviction、allocation classとする。WindowsはDXGI Adapter3の`QueryVideoMemoryInfo`をlocal／non-local segmentごとに取得し、`min(configured_budget, 0.80 × Budget)`をProject budgetとする。AndroidはVMA heap budgetとprocess memory、AppleはMetal allocationとunified process footprintを同時に測定する。Mobileの絶対値とpressure thresholdはモバイル規約13節に従う。
 
 Eviction priorityは次の順序で固定する。
 
@@ -381,29 +386,29 @@ Eviction priorityは次の順序で固定する。
 
 5をevictしなければならない状況はbudget failureとして扱い、無制限なthrashingを許可しない。
 
-### 7.3 Fence-deferred destruction
+### 7.3 Submission-deferred destruction
 
-CPU ownerがresourceを破棄しても、最後に参照したすべてのqueueのfenceが完了するまでnative resource、heap range、descriptorを再利用しない。
+CPU ownerがresourceを破棄しても、最後に参照したすべてのqueue／command submissionが完了するまでnative resource、heap range、binding rangeを再利用しない。
 
 Deferred release recordは次を持つ。
 
 ```text
 resource_allocation
-descriptor_ranges[]
-last_use_fence[direct | compute | copy]
+binding_ranges[]
+last_use_submission_serials[]
 debug_name
 memory_tag
 ```
 
 複数queue間のownership transferとstate transitionはRender Graph compilerが生成する。手動barrierは低level adapterの限定APIだけで許可する。
 
-### 7.4 Descriptor
+### 7.4 Binding
 
-- RTV／DSV／CPU-visible descriptorはfence-aware free listを使う。
-- Shader-visible descriptorはpersistent領域とframe transient領域を分離する。
-- Descriptorはresourceを所有しない。resource ownerが寿命を保持する。
+- D3D12 descriptor、Vulkan descriptor、Metal argument／resource bindingはEngine-owned `BindingHandle`へ正規化する。
+- Persistent領域とframe transient領域を分離し、submission-aware free listを使う。
+- Bindingはresourceを所有しない。resource ownerが寿命を保持する。
 - 無効handle、二重解放、generation不一致をDevelopment Buildで検出する。
-- Root Signature version、Resource Binding Tier、Shader Model、heap上限は起動時にfeature queryし、Root Signature 1.1またはShader Model 6.6を満たさないdeviceは明示的に起動を拒否する。旧target向けRoot Signature 1.0／旧Shader Model互換pathは初期製品に持たない。
+- Target Profileごとのbinding／resource上限を起動時にqueryする。WindowsはRoot Signature 1.1／SM 6.6、AndroidはAVP 2022、AppleはA12／Apple family 5を最低gateとし、別Targetの要件で代用しない。
 
 ## 8. Threading、Job、決定性
 
@@ -414,7 +419,7 @@ memory_tag
 | Authoring thread | World Modelの構造変更、ChangeSet commit、Undo journal |
 | Game simulation thread | Runtime Worldのtick境界での構造変更 |
 | Worker threads | immutable inputから結果／command bufferを生成 |
-| Render submission thread | Render GraphからD3D12 command listを記録・submit |
+| Render submission thread | Render GraphからBackend commandを記録・submit |
 | Audio callback | preallocated bufferだけを処理 |
 
 Global mutable singletonは禁止する。ServiceはComposition Rootから明示注入する。Thread affinityを持つ型は型名、contract、assertで明示する。
@@ -457,7 +462,7 @@ Public errorにはstable error code、category、human message、source context�
 
 C++20を採用する。MSVCのC++23 modeは現時点でpreviewでABI変更可能性があるため、Shipping toolchainに採用しない。C++23の必要機能はCompilerのstable提供と全dependency検証後にADRで一括移行する。
 
-First-party targetの基準Optionは次とする。
+Windows First-party targetの基準Optionは次とする。
 
 ```text
 /std:c++20
@@ -476,12 +481,14 @@ First-party targetの基準Optionは次とする。
 - RTTIはToolとThird-party互換のため初期は有効にするが、Engine reflection、serialization、component dispatchに`typeid`／`dynamic_cast`を使わない。無効化はmodule単位の計測後にADRで行う。
 - Sanitizer BuildはAddressSanitizerを必須Presetとする。clang-clではUBSan相当の利用可能範囲もCIで実行する。
 
+Android／Apple First-party C++もCMake `cxx_std_20`、warning-as-error、hidden visibility、stack protector、sanitizer profileを同じtarget propertyから生成し、Clangでは`-Wall -Wextra -Wpedantic -Werror`を基準とする。MSVC optionをportable targetへ直接埋め込まず、Compiler policy targetが同じ意味へ変換する。Platform C ABI、JNI、Objective-C++境界でexceptionを伝播させない。Apple AdapterのObjective-C++だけARCを有効にする。
+
 ### 10.2 Header規則
 
 - Headerはself-containedで単独compileできる。
 - Include What You Useを原則とする。
 - Public headerは`include/mira/<module>/`だけに置く。
-- Public headerからWindows、D3D12、Box2D、Jolt、Recast、Luauの型を露出しない。
+- Public headerからWindows、Android、Apple、D3D12、Vulkan、Metal、JNI、Objective-C、Box2D、Jolt、Recast、Luauの型を露出しない。
 - Forward declarationはownershipとdestructor要件を満たす場合だけ使う。
 - `#pragma once`を採用する。
 - Unity buildは通常Buildで使わない。専用Presetで計測し、診断性を落とさない範囲で任意採用する。
@@ -525,6 +532,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 ├─ CMakeLists.txt
 ├─ CMakePresets.json
 ├─ toolchain.lock.json
+├─ store_policy.lock.json
 ├─ vcpkg.json
 ├─ vcpkg-configuration.json
 ├─ cmake/
@@ -542,7 +550,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 ├─ engine/
 │  ├─ foundation/
 │  ├─ platform/
-│  │  └─ windows/
+│  │  ├─ contracts/
+│  │  ├─ windows/
+│  │  ├─ android/
+│  │  └─ apple/
 │  ├─ world/
 │  ├─ assets/
 │  ├─ jobs/
@@ -552,10 +563,12 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  ├─ package/
 │  │  └─ compiler/
 │  ├─ rendering/
+│  │  ├─ contracts/
 │  │  ├─ core/
+│  │  ├─ render_graph/
 │  │  ├─ materials/
 │  │  ├─ visual_styles/
-│  │  └─ backends/d3d12/
+│  │  └─ backends/{d3d12,vulkan,metal}/
 │  ├─ physics/
 │  │  ├─ core/
 │  │  └─ backends/{box2d,jolt}/
@@ -564,7 +577,11 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  └─ backends/recast/
 │  ├─ animation/
 │  ├─ audio/
+│  │  └─ backends/{xaudio2,oboe,apple_audio_unit}/
 │  ├─ input/
+│  │  └─ backends/{windows,android,apple}/
+│  ├─ content/
+│  │  └─ backends/{local,play_asset_delivery,apple_background_assets}/
 │  ├─ ui/
 │  ├─ scripting/
 │  │  └─ backends/luau/
@@ -598,8 +615,14 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 ├─ tools/
 │  ├─ asset_compiler/
 │  ├─ shader_compiler/
+│  ├─ packaging/
+│  ├─ device_bridge/
+│  ├─ remote_mac_agent/
 │  ├─ project_migrator/
 │  └─ test_runner/
+├─ templates/
+│  ├─ android_game_shell/
+│  └─ apple_game_shell/
 ├─ hosts/
 │  ├─ editor_host/
 │  ├─ game_host/
@@ -666,6 +689,12 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 |---|---|---|---|---|
 | Microsoft.Direct3D.D3D12 | 1.619.4／SDKVersion 619／package SHA-512は下記 | Package同梱`LICENSE.txt`／`LICENSE-CODE.txt` | Agility runtime、D3D12 header、Enhanced Barriers | Device gate、Render Graph、resource lifetime、packaging validation |
 | D3D12MA | v3.2.0／`1d86c1130f61453634b1df85782e1fecfd59a525` | MIT | D3D12 heap suballocation、budget stats | GPU handle、tag、lifetime、residency policy |
+| Vulkan Memory Allocator | v3.3.0／`1d8f600fd424278486eade7ed3e877c99f0846b1` | MIT | Vulkan heap suballocation、budget、defrag primitives | GPU handle、submission lifetime、eviction、quality policy |
+| SPIRV-Cross | Vulkan SDK 1.4.350.0／`1a6169566c73d3da552748fc372fe2bbb856e46e`、vcpkg source SHA-512 `f4f9f62a9ff15e9b707b820ce603bda1ea9fe7138bf505307791e55058063d9362e9bba6e508f5d302836a53b51e115b03b9ce7478fbc7b86a4b266b426eaa5d` | Apache-2.0 | SPIR-V reflection／MSL生成 | Material IR、ShaderInterface、Capability、Apple validation |
+| SPIRV-Tools | v2026.2／`0539c81f69a3daeb706fd3477dca61435b475156` | Apache-2.0 | SPIR-V validation／offline optimization | Shader policy、resource budget、package gate |
+| KTX-Software | v4.4.2／`936b655d10fe75f900967f524ba31005bebcbb47` | Apache-2.0 | Offline KTX／ASTC処理 | Texture schema、Target cook、quality policy |
+| Oboe | 1.10.0／`a81bb9f87d4105b84b682685d3bfbb5beca371d1` | Apache-2.0 | Android low-latency audio stream | Mixer、Audio command、callback budget、route policy |
+| libopus | 1.6.1／source SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1` | BSD-3-Clause | Streaming music／voice decode | Audio Asset schema、buffering、loop、thread policy |
 | Box2D | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3` | MIT | 2D collision／solver | Engine component、unit変換、event、serialization |
 | Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a` | MIT | 3D collision／solver | Engine component、job bridge、event、serialization |
 | Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | Navmesh build／query kernel | Build profile、tile asset、AI command、debug UX |
@@ -712,7 +741,7 @@ SHA-512:
 
 最適化可能性は設計名ではなく計測で担保する。Development、Profile、Shippingの三Buildを用意する。
 
-Runtime詳細規約のCPU／GPU P95 14.00 ms soft target、16.67 ms hard acceptance、2 GiB CPU Domain配分、5.5 GiB GPU配分、bounded queue、10分soakをReference sceneの公式合否値とする。
+`windows_desktop_v1`はRuntime詳細規約のCPU／GPU P95 14.00 ms soft target、16.67 ms hard acceptance、2 GiB CPU Domain配分、5.5 GiB GPU配分、bounded queue、10分soakをReference sceneの公式合否値とする。Android／Appleはモバイル規約のmemory class、30／60 fps、実機10分run、30分thermal soak、2時間enduranceを適用し、desktop値を代用しない。
 
 ### 15.1 必須telemetry
 
@@ -749,7 +778,10 @@ PIX capture markerとDRED breadcrumbへProject revision、frame、Render pass、
 | Conformance | Box2D／Jolt／Recast／Luau Adapterの座標、event、lifetime |
 | Integration | ChangeSet→validate→stage→commit→save→load→replay、fixed phase、Asset atomic promotion |
 | Graphics | Headless／WARP smoke、reference GPU image test、Debug Layer |
+| Mobile graphics | SPIR-V／Metal validation、Android emulator／Apple Simulator smoke、Adreno／Mali／Apple実機golden |
+| Mobile package | AAB、ABI、16 KiB alignment、PAD、Apple archive、privacy manifest、実行code混入検査 |
 | Performance | Allocation count、Subsystem／frame P95、queue peak、streaming、physics、nav、script、10分soak |
+| Mobile endurance | 実機memory pressure、surface loss、audio interruption、30分thermal、2時間endurance |
 | Migration | 各保存fixtureをcurrent schemaへ変換しDiffを検証 |
 | Soak | 長時間play、resource churn、device lost、memory pressure、stale async result |
 
@@ -757,12 +789,13 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 
 ## 17. AI生成Script／C++への追加制約
 
-- AIはallocator、raw address、D3D12 native objectを直接操作しない。
+- AIはallocator、raw address、D3D12／Vulkan／Metal native object、JNI／Objective-C object、Platform lifecycleを直接操作しない。
 - ScriptはCapability allowlist外のfilesystem、network、process、clockへアクセスできない。
 - NativeCodeChangeSetは許可directory、CMake target、dependencyを宣言する。
 - 新規dependency、unsafe compiler option、public API変更、memory budget変更は重要操作として人間承認を必要とする。
 - Generated codeはownership annotation相当のAPI形、static analysis、ASan、unit test、isolated buildを通す。
 - Engine coreの自動書換えはMVP対象外。Project C++と明示されたExtension pointだけを対象とする。
+- Android／Apple Shipping Runtimeでは構造化data以外のcode／shader生成、post-install remote download、JIT、dynamic loadを禁止する。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
 
 ## 18. 実装開始条件
 
@@ -776,9 +809,11 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 6. Development／Profile／Shipping Buildの診断差が定義される。
 7. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
 8. Scene dimension、Art Direction、Composition、Shading Modelの正規四軸とVisualStyleProfile schemaが承認される。
-9. Material IR、Domain output、Engine-owned Root Signature、StyleCapabilityManifestの境界が承認される。
+9. Material IR、Domain output、Engine-owned Target Binding Layout、StyleCapabilityManifestの境界が承認される。
 10. Runtime詳細規約のmodule DAG、phase、write authority、handle／borrow、Asset promotion、memory／performance、failure matrixが承認される。
 11. `mira_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
+12. モバイル規約のTarget／Distribution Profile、Platform Port、Toolchain／Store lock、shipping data-only AI policyが承認される。
+13. Android／Apple Adapterが未実装の段階でも、Target validatorが`UnsupportedTarget`を返し、空packageを成功扱いしない。
 
 ## 19. 一次資料と判断の対応
 
@@ -822,6 +857,8 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 | JSON modeではなくStructured Outputsを使い、schemaと型の乖離を防ぐ | [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) |
 | 外部AI Hostとの標準接続 | [MCP Architecture](https://modelcontextprotocol.io/specification/2025-11-25/architecture), [MCP TypeScript SDK](https://modelcontextprotocol.io/docs/sdk) |
 | Editor dockingとmulti-viewport基盤 | [Dear ImGui Docking](https://github.com/ocornut/imgui/wiki/Docking), [Multi-Viewports](https://github.com/ocornut/imgui/wiki/Multi-Viewports) |
+| Android／Apple Target、Vulkan／Metal、package、Store、privacyの規範 | [モバイルPlatformアーキテクチャ規約の一次資料一覧](./2026-07-19-mobile-platform-architecture-design.md#23-一次資料) |
+| Mobile graphics／Asset／Audio dependency | [VMA 3.3.0](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/releases/tag/v3.3.0), [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross), [SPIRV-Tools 2026.2](https://github.com/KhronosGroup/SPIRV-Tools/releases/tag/v2026.2), [KTX-Software 4.4.2](https://github.com/KhronosGroup/KTX-Software/releases/tag/v4.4.2), [Oboe 1.10.0](https://github.com/google/oboe/releases/tag/1.10.0), [Opus](https://opus-codec.org/downloads/) |
 
 ## 20. 明示的に採用しないもの
 
@@ -838,5 +875,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 - Domain間の直接呼出しと相互pointer保持
 - callback、job、event配送中の再入的なWorld構造変更
 - Asset dependency closureの一部だけをlive化するhot reload
+- Android／Apple Shipping packageでのC++、native／managed executable、Script、shaderの生成、remote download、JIT、dynamic load
+- Mobile用に別World、別GameSpec、別Save schema、別AI command体系を作ること
 
 この禁止事項に例外が必要な場合は、再現可能なBenchmark、代替案、破棄条件、影響範囲をADRへ記録しなければならない。

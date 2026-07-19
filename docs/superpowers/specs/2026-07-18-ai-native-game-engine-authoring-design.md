@@ -1,10 +1,10 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.4
+- 文書版: 0.5
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-19
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想、基盤、Runtime連携、2D／3D機能範囲を統合した設計レビュー版
+- 状態: 基本構想、基盤、Runtime連携、2D／3D機能範囲、モバイルPlatformを統合した設計レビュー版
 
 ## 1. エグゼクティブサマリー
 
@@ -336,10 +336,12 @@ created_revision
 AIが実装方式を判断するための制約を保持する。
 
 - 対象Platform
-- 最低スペック
-- 目標FPS
+- Target Profileとrevision
+- Distribution Profile
+- 最低Capability Signatureとmemory class
+- 目標render FPS。SimulationはC1／C2で60 Hz固定
 - CPU／GPU／Memory budget
-- Render Quality Tierと必須D3D12 feature
+- Render Quality TierとTarget別必須Graphics capability
 - 対象出力解像度／HDR
 - Asset制作量、Texture／Mesh／Sprite animation budget
 - 必須／無効化するVisual Style Capability。実際の利用可否はEngine生成`StyleCapabilityManifest`
@@ -351,10 +353,12 @@ AIが実装方式を判断するための制約を保持する。
 - Input方式
 - Accessibility
 - Privacy／Retention policy
+- Mobile orientation／resize／safe-area／touch fallback policy
+- Permission、Content Delivery、Content Safety policy
 
 ## 7. システムアーキテクチャ
 
-本章はProduct全体の論理構成を定義する。C++ module依存、所有権の一般則、Build、directoryは[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)、Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)、2D／3D Subsystemの機能範囲は[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)を詳細基準とする。
+本章はProduct全体の論理構成を定義する。C++ module依存、所有権の一般則、Build、directoryは[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)、Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)、2D／3D Subsystemの機能範囲は[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)、Android／AppleのTarget、Adapter、実機budget、package、Store gateは[Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)を詳細基準とする。
 
 ```text
 Human Prompt / Editor / External Agent
@@ -779,6 +783,8 @@ Runtimeでは次を原則禁止する。
 - Physics／Network stateの直接確定
 - Client内へのProvider API key埋め込み
 
+Android／iOS／iPadOSのShipping Runtimeでは、この禁止をさらに具体化し、C++、native library、DEX、Luau source／bytecode、JavaScript、Python、shader source／binaryの生成、post-install remote download、JIT、動的loadを認めない。Store審査対象のbase packageへoffline compile済みshaderを同梱する通常Buildは除く。許可するのは、署名済みbinaryが既に実装するSchemaとCapabilityの範囲内で、検証された構造化dataを変更することだけである。Asset deliveryへ実行codeを混入しない。詳細なStore、content safety、package scanの規約は[モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)に従う。
+
 最初のRuntime Policyで提案を許可する範囲は次に限定する。実装開始前にRuntime専用Threat Modelとserver authority設計を別途承認する。
 
 - Dialogue
@@ -795,7 +801,7 @@ MultiplayerではAuthoritative serverだけがCommitし、LLMは提案者に限�
 ### 13.1 推奨構成
 
 - 中核推論: OpenAI／Anthropicなどの直接Model API
-- Agent loop: MVPでは独自Orchestrator。Agent SDKはPhase 7以降にEvalとADRを通した場合だけ採用
+- Agent loop: MVPでは独自Orchestrator。Agent SDKはProduction Capability段階以降にEvalとADRを通した場合だけ採用
 - 外部AI接続: MCP Adapter
 - Host固有配布: 薄いCodex／Claude Plugin
 - 開発・CI: CLI／Desktop
@@ -820,21 +826,23 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 ### Phase 0: Foundation契約とToolchain
 
-- 本四文書の承認
-- Windows 11 25H2以降 x64／Direct3D 12／C++20 Toolchain
-- VS Build Tools 18.8.0／MSVC 14.51／Windows SDK 10.0.26100.8249／CMake 4.4.0／Ninja 1.13.2の`toolchain.lock.json`
+- 本五文書の承認
+- C++20共通Runtime Contractと`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
+- Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
+- Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を30日以内に更新する`store_policy.lock.json`
 - vcpkg manifest／固定Dependency
 - Module dependency DAGとComposition Root
 - `mira_runtime_contracts`、`mira_runtime_package`、`RuntimeOrchestrator`、Domain Port／Runtime／Adapter境界、`ComponentAccessManifest`
 - RAII、所有権、generation handle
 - 12段階fixed tick、8段階render frame、typed command／event、bounded queue
-- CPU memory domain、GPU allocator、residency、fence-deferred release
+- CPU memory domain、GPU allocator、residency、submission-deferred release
 - Result／Error、thread affinity、borrow epoch、Asset version／atomic promotion
 - Naming、format、static analysis、sanitizer
 - 2D／3Dの座標、単位、色、時間規約
 - Scene dimension、Art Direction、Composition、Shading Modelの正規四軸
+- Lifecycle、Display、Graphics、Input、Audio、Text、Content Delivery、Thermal／MemoryのPlatform Port
 
-完了条件は、空のEditorHost／GameHost／WorkerHostが固定toolchainでBuildでき、Foundation contract、phase順序、handle／borrow、bounded queue、memory failure、Asset atomic promotionのtest、ASan、format、static analysisがCIで成功することである。
+完了条件は、空のWindows EditorHost／Windows GameHost／WorkerHostが固定toolchainでBuildでき、Android／Appleの未実装Adapterが偽の成功ではなく`UnsupportedTarget`を返し、Foundation contract、Target Profile、phase順序、handle／borrow、bounded queue、memory failure、Asset atomic promotionのtest、ASan、format、static analysisがCIで成功することである。
 
 ### Phase 1: Headless Authoring Core
 
@@ -858,9 +866,9 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - D3D12 device、Render Graph、D3D12MA、Debug Layer／DRED／PIX marker
 - Asset staging、content-addressed cache、sandboxed importer、cook
 - Luau hostとCapability boundary
-- Material IR、Domain別Root Signature、Material／Style Validator、代表Material preview
+- Material IR、Engine-owned Target Binding Layout、Material／Style Validator、代表Material preview
 
-完了条件は、AIを使わずEditor操作がChangeSetを経由し、空Sceneをplay、save、packageできることである。
+本Phaseのconcrete Adapterとpackageは`windows_desktop_v1`を対象とする。完了条件は、AIを使わずEditor操作がChangeSetを経由し、空SceneをWindowsでplay、save、packageできることである。
 
 ### Phase 3: 2D Manual First Playable
 
@@ -906,7 +914,18 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 完了条件は、`realistic_basic` 3D縦切りを自然言語と手動編集の両方で作成でき、Khronos core／Unlit／Emissive Strength／Texture Transform material fixture、Reference stress scene、1080p60、memory budgetを満たすことである。
 
-### Phase 7: Production CapabilityとDomain Pack
+### Phase 7: Mobile Platform
+
+- `android_mobile_v1`: GameActivity、Vulkan 1.1／AVP 2022、VMA、GameActivity input／text、Oboe、Swappy、AAB／PAD
+- `apple_mobile_v1`: UIScene／MTKView、Metal／MTLHeap、UIKit touch／text、GameController、AVAudioSession／AudioUnit、archive／TestFlight
+- Portable HLSL→SPIR-V→MSLのoffline shader pipeline、ASTC／ETC2／BCnのTarget別cook
+- Device Manager、Remote Mac Agent、safe-area／cutout／orientation preview、touch simulation
+- Mobile memory class、dynamic resolution、thermal governor、physical device matrix、16 KiB／privacy／Store package gate
+- Phase 3のWindows 2D C1を入力にAndroid 2D→Apple 2D、Phase 6のWindows 3D C1を入力にmobile 3D品質の順で成立させる
+
+完了条件は、同一Project revisionの2D First PlayableがAndroid minimum／reference実機とA12 iPhone／iPadでplay、save、suspend復帰でき、署名済みinternal track／TestFlight package、memory／frame／thermal／privacy gateを満たすことである。
+
+### Phase 8: Production CapabilityとDomain Pack
 
 - Hybrid deferred path
 - `realistic_advanced` Material、Skin／Hair／Eye／Cloth template
@@ -921,7 +940,7 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallback、VisualStyleProfile integrationの完了定義を満たしてからProduction扱いにする。ToonとPixel Dioramaは同時実装せず、Realistic advanced→Toon→Pixel Dioramaの順に個別vertical prototypeとperformance gateを通す。
 
-### Phase 8: 制限付きRuntime生成
+### Phase 9: 制限付きRuntime生成
 
 - Runtime専用SchemaとThreat Model
 - Server-authoritative Gateway
@@ -1017,18 +1036,19 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 |---|---|
 | 最初の縦切り | 2D top-down action |
 | 第二の縦切り | 3D single-player third-person compact action arena |
-| Platform | Windows 11 25H2以降 x64（OS build 26200以上） |
-| Graphics | Direct3D 12、C1はForward+、C2でHybrid renderer |
+| Editor Host | Windows 11 25H2以降 x64（OS build 26200以上） |
+| Game Target | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`。Mobile Editor、TV／Wear／XR、tvOS／visionOSは初期対象外 |
+| Graphics | WindowsはD3D12、AndroidはVulkan 1.1＋AVP 2022、AppleはMetal。C1はForward+、desktop C2でHybridを選択可 |
 | Language | C++20 |
 | Script | Luau 0.730 strict mode＋Engine Capability API |
 | 2D Physics | Box2D 3.1.1 Adapter |
 | 3D Physics | Jolt Physics 5.6.0 Adapter |
 | 3D Navigation | Recast／Detour 1.6.0 Adapter |
-| GPU memory | D3D12MA 3.2.0をEngine-owned wrapper内で利用 |
-| Build | VS Build Tools 18.8.0／MSVC 14.51、CMake 4.4.0 Presets＋Ninja Multi-Config 1.13.2＋vcpkg manifest、hashとversion固定 |
-| Performance | 1080p60、Ryzen 5 5600、16 GiB、RTX 3060 12 GB／RX 6600 8 GB、runtime CPU 2 GiB soft budget |
+| GPU memory | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`を各Adapter内で利用 |
+| Build | Windows／Androidは固定Windows toolchain、Apple archive／signingはXcode 26.6を持つMac agent。全artifactのhashとversionをprofile別に固定 |
+| Performance | Desktopは1080p60、Ryzen 5 5600、16 GiB、RTX 3060 12 GB／RX 6600 8 GB、runtime CPU 2 GiB。Mobileは30／60 fps、Baseline process 1,024 MiB／GPU 384 MiBから実機class別 |
 | Visual Style model | Scene dimension、Art Direction、Composition、Shading Modelを分離 |
-| Material | 型付きMaterial IR、複数Shading Model、Engine-owned Root Signature |
+| Material | 型付きMaterial IR、複数Shading Model、Engine-owned Target Binding Layout |
 | 最初の2D Style | `pixel_2d`、640×360、32 PPU、integer scale |
 | 最初の3D Style | `realistic_basic` |
 | Production Style順 | Realistic advanced→Toon→独自`pixel_diorama` |
@@ -1041,7 +1061,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Compatibility | Pre-1.0 API／ABI互換なし。永続Projectだけoffline migratorで一方向移行 |
 | Runtime連携 | Domain間の直接呼出し禁止。`RuntimeOrchestrator`が固定phaseでtyped command／event／snapshotを統合 |
 | Runtime storage | 独自16 KiB archetype chunk＋SoA列。構造変更はtick boundaryだけ |
-| Lifetime | generation handle、phase／epoch付きlease、Asset Registry単一所有、queue別GPU fence retire |
+| Lifetime | generation handle、phase／epoch付きlease、Asset Registry単一所有、queue別`GpuSubmissionSerial` retire |
 | Performance target | CPU／GPU P95 14.00 ms soft、16.67 ms hard。Subsystem別budgetと10分soak |
 
 ### 16.2 実装計画書で分解する事項
@@ -1052,15 +1072,19 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 2. 承認済みtarget DAGをfile／public header／CMake targetへ割り当てる実装単位
 3. Authoring ServiceとAI Orchestrator間のJSON-RPC method／message schema
 4. Luau Capability contractのfield-level定義
-5. D3D12 feature check、descriptor field layout、Render Graph resource recordのfield-level schema
+5. Target別D3D12／Vulkan／Metal feature check、binding layout、Render Graph resource／submission recordのfield-level schema
 6. Reference sceneのfixtureとBenchmark測定手順
 7. Editor shellのaccessibility bridge検証
 8. Approval Policyのoperation別初期値
 9. Asset placeholderのlicense、生成、差替えworkflow
-10. Material IR node、Domain output、Shading Model interface、Root Signature layout
+10. Material IR node、Domain output、Shading Model interface、Engine-owned Target Binding Layout
 11. VisualStyleResolverのrule engine、prompt fixture、60件×3回Eval harness
 12. typed command／event、snapshot、queue payloadのfield-level schemaとcode generation
 13. Reference profileのmemory／frame budgetを計測するtelemetry fixture
+14. Target／Distribution／Display／Lifecycle／Permission／Privacy／Content Safety schema
+15. D3D12／Vulkan／Metal別ShaderInterface、Render Graph同期、GPU submission serialのfield-level mapping
+16. Android AAB／PAD／16 KiB validatorとApple archive／Background Assets／Privacy Manifest validator
+17. Device Manager、Remote Mac Agent、実機Capability Signature、thermal／memory／frame test fixture
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 
@@ -1142,6 +1166,6 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 
 ## 20. 次のアクション
 
-本書、基盤アーキテクチャ規約、Runtime連携・寿命・性能規約、2D／3D機能計画の四文書を一つの設計としてReviewする。矛盾、未定義の責務、根拠のない技術選択を解消して承認した後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
+本書、基盤アーキテクチャ規約、Runtime連携・寿命・性能規約、2D／3D機能計画、モバイルPlatformアーキテクチャ規約の五文書を一つの設計としてReviewする。矛盾、未定義の責務、根拠のない技術選択を解消して承認した後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
 
-実装計画はPhase 0 Foundationから開始し、2D First Playable、3D First Playableの順に分解する。承認前にEngine実装へ着手しない。
+実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

@@ -1,12 +1,13 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成Script／C++
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 結論
 
@@ -33,6 +34,7 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 | 基盤アーキテクチャ規約 | C++、module、依存、所有権の一般則、Build、directory |
 | 本書 | Runtime phase、Subsystem連携、参照無効化、Asset version、memory／performance budget、障害復旧 |
 | 2D／3D機能計画 | 各Capabilityの機能、品質tier、Authoring、表現方式 |
+| モバイルPlatform規約 | Android／Apple lifecycle、Adapter、実機memory／performance、package、Store |
 
 重複箇所では、上表でその項目の決定権を持つ文書を適用する。直接矛盾を発見した場合は実装者が片方を暗黙に選ばず、文書修正とADRを先に行う。
 
@@ -58,6 +60,12 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 - AIによる任意Shader、navmesh polygon、Physics native objectの直接生成
 - 外部Libraryの内部allocator、solver、VM、codec自体の再実装
 
+### 2.4 Platform適用
+
+本書のphase、typed contract、handle、borrow、Asset promotion、failure原則は`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`で共通とする。D3D12、XAudio2、Windows Job Object、CNG、QPC等の記述は`windows_desktop_v1`のAdapterまたはReference測定であり、共通Portの唯一実装を意味しない。Android／AppleのOS lifecycle、Vulkan／Metal、Oboe／AudioUnit、mobile memory class、thermal／Store gateはモバイル規約を適用する。
+
+Shipping mobile RuntimeはAI Orchestrator、compiler、hot-code-reload serverを同梱しない。Runtime生成は検証済み構造化dataだけに限定し、共通phaseへ投入する前にmobile policy validationを通す。
+
 ## 3. Runtime module依存
 
 ### 3.1 依存DAG
@@ -72,7 +80,7 @@ flowchart BT
   World["mira_world"]
   Ports["Domain Ports\nRender・Physics・Nav・Animation・Audio・Input・UI・Script・VFX"]
   DomainRuntime["Domain Runtime\nComponent access・System・Resolver"]
-  Adapters["Native Adapters\nD3D12・Box2D・Jolt・Recast・ozz・Luau・XAudio2"]
+  Adapters["Native Adapters\nD3D12・Vulkan・Metal\nBox2D・Jolt・Recast・ozz・Luau\nXAudio2・Oboe・Apple AudioUnit"]
   Orchestrator["mira_runtime_orchestrator"]
   Package["mira_runtime_package\nLoader・Manifest"]
   Compiler["mira_runtime_compiler"]
@@ -171,6 +179,8 @@ Boot
 ```
 
 回復不能な状態は`Faulted`へ遷移する。`Faulted`から同じPlay sessionへ復帰しない。Editor processを継続できる場合は、journal保全後にProjectを閉じた`Authoring`相当のsafe shellへ戻す。
+
+Shipping GameHostはこのProcess状態と別に`ApplicationState = Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating`を持つ。OS callbackはWorldを直接変更せず、bounded lifecycle eventをmain threadへ渡す。Android process killとApple termination通知の不達、surface／drawableだけの消失を正常系として扱い、WorldとGPU surfaceの寿命を分離する。Saveは終了通知だけに依存せずcheckpointとinactive／suspend遷移でcommitする。詳細な遷移、surface generation、background禁止範囲はモバイル規約7節に従う。
 
 ### 4.2 Authoring WorldとRuntime World
 
@@ -309,7 +319,7 @@ x ^= x >> 18
 - system streamを複数threadから共有せず、各jobはlocal streamを持つ。
 - RNG draw countとstateをauthoritative state hashへ含める。
 - Asset生成のseedはGameSpecへ明示保存し、再cookで同じstreamを使う。
-- UUID、session nonce、credential等のsecurity用途には使用せず、Windows CNGのcryptographic RNGを使う。
+- UUID、session nonce、credential等のsecurity用途には使用せず、`IPlatformCrypto`のOS cryptographic RNGを使う。Windows AdapterはCNGを使用する。
 
 Algorithm変更は`DeterministicRngV2`として別versionを追加し、既存Projectを暗黙に切り替えない。Pre-1.0 migrationはoffline migratorでseedとalgorithm versionを変換する。
 
@@ -317,7 +327,7 @@ Algorithm変更は`DeterministicRngV2`として別versionを追加し、既存Pr
 
 ### 6.1 render frame
 
-初期reference profileは3 frames-in-flightとし、`RenderFrameMemory[3]`、transient descriptor領域、fence recordをそれぞれ分離する。Project Profileで2へ下げられるが、C1 reference測定は3で固定する。
+`windows_desktop_v1` referenceは3 frames-in-flightとし、`RenderFrameMemory[3]`、transient descriptor領域、submission recordをそれぞれ分離する。Mobileは`mobile_baseline`を2、`mobile_standard`／`mobile_high`を3に固定し、Profile外の値を拒否する。
 
 | 順序 | Render phase | 契約 |
 |---:|---|---|
@@ -326,27 +336,32 @@ Algorithm変更は`DeterministicRngV2`として別versionを追加し、既存Pr
 | 2 | `R20_ExtractCullLod` | snapshotからvisible set、LOD、material packetを生成 |
 | 3 | `R30_CompileRenderGraph` | resource lifetime、alias、barrier、queue依存を確定 |
 | 4 | `R40_Record` | workerごとのcommand listへ記録 |
-| 5 | `R50_Submit` | copy、compute、direct queueをfenceで接続してsubmit |
-| 6 | `R60_Present` | swap chainへpresent |
-| 7 | `R70_Retire` | 全last-use fence完了objectだけを解放・再利用 |
+| 5 | `R50_Submit` | Backend queueをsubmission dependencyで接続してsubmit |
+| 6 | `R60_Present` | 現在generationのsurfaceへpresent |
+| 7 | `R70_Retire` | 全last-use submission完了objectだけを解放・再利用 |
 
 RenderingはRuntime Worldへ書き戻さない。visibility、occlusion history、temporal historyはPresentation stateであり、Save／replay hashへ含めない。
 
 ### 6.2 queue同期
 
+- 共通契約は`GpuSubmissionSerial { queue_id, value }`を使い、同じresource byte rangeへ書き込むqueueは同時に一つだけとする。
+- queue間のwrite→read、read→write、write→writeは明示dependencyで順序付け、Render GraphのEngine-owned access／stage／layoutをD3D12 Enhanced Barriers、Vulkan barrier／layout、Metal encoder／hazard ruleへcompileする。
+- Render Graph外でresource stateを変更できるのは各Graphics Adapterの限定upload／present APIだけである。
+- barrierまたはqueue依存を推測で省略しない。Profileで不要と証明されたtransitionも、API上不要であることをRender Graph ruleとして表現する。
+
+`windows_desktop_v1`は次を追加適用する。
+
 - D3D12 AdapterはNuGet `Microsoft.Direct3D.D3D12` 1.619.4、`D3D12SDKVersion=619`を使用し、Enhanced BarriersをHard gateとする。Host packaging、DLL hash、export規約は基盤規約13章へ従う。
 - 初期D3D12構成はdirect、compute、copyを各1 queueとし、queueごとに一つの単調増加`uint64` fence timelineを持つ。fence値を巻き戻さず、複数queueから同じfenceをsignalしない。
-- 同じresource byte rangeへ書き込むqueueは同時に一つだけとする。
-- queue間のwrite→read、read→write、write→writeは明示fenceで順序付ける。
 - state transition、UAV、alias barrierはRender Graph compilerがEnhanced Barrierのsync、access、layoutへcompileし、`ID3D12GraphicsCommandList7::Barrier`だけを発行する。legacy `ResourceBarrier`を発行しない。
-- Render Graph外でresource stateを変更できるのはD3D12 Adapterの限定upload／present APIだけである。
-- barrierまたはqueue依存を推測で省略しない。Profileで不要と証明されたtransitionも、API上不要であることをRender Graph ruleとして表現する。
+
+Vulkan／Metalのqueue、barrier、drawable、surface generationはモバイル規約10節へ従い、D3D12 fenceまたはresource state enumを共通schemaへ保存しない。
 
 ### 6.3 audio
 
 - `T90`が`AudioCommand`をbounded queueへ送る。
 - Audio control threadがvoice生成、破棄、routing、stream refillを所有する。
-- XAudio2 callbackはpreallocated fixed-size completion eventをnon-blocking queueへpushするだけとする。
+- XAudio2、Oboe、AudioUnit callbackはpreallocated fixed-size completion eventまたはPCM ringだけをnon-blocking queueへ渡す。
 - callback内でallocation、file I/O、lock待機、voice破棄、Engine log formatting、Script呼出しを禁止する。
 - callback eventはAudio control threadが回収し、必要なgameplay通知は次tickの`T20`へ値として渡す。
 
@@ -354,7 +369,7 @@ RenderingはRuntime Worldへ書き戻さない。visibility、occlusion history�
 
 Assetのstaging完了は即時にlive pointerを書き換えない。
 
-- dependency closureごとに単調増加`AssetGenerationId: uint64`を割り当てる。CPU payload、GPU upload、Physics／Nav data、Audio decodeを含む全Domain artifactがreadyになり、検証と必要fenceが完了するまで`Staging`から`Ready`へ遷移させない。
+- dependency closureごとに単調増加`AssetGenerationId: uint64`を割り当てる。CPU payload、GPU upload、Physics／Nav data、Audio decodeを含む全Domain artifactがreadyになり、検証と必要なGPU submissionが完了するまで`Staging`から`Ready`へ遷移させない。
 - Simulationで使うgenerationのactivation pointは`T00`とする。`RenderSnapshot`、Physics／Nav command、Audio commandはlogical `AssetHandle`ではなく、activation時に固定した`AssetVersionHandle`と`AssetGenerationId`を保持する。
 - Renderingは`R10`で取得済み`RenderSnapshot`が要求するgeneration全体をleaseする。必要versionが一つでもreadyでなければ新snapshotを部分描画せず、直前の完全なsnapshot／generationを継続して`promotion_wait`を記録する。
 - Rendering専用generationは`R10`、Audio専用generationはAudio control block境界でactivationできる。
@@ -500,7 +515,7 @@ owner外から直接slot tableを読むAPIを公開しない。
 |---|---|---|
 | Component lease | 現在phase | Structural mutation、phase終了、World破棄 |
 | `FrameMemory` span | 現在CPU frame／全consumer job完了まで | frame arena reset |
-| `RenderFrameMemory` span | 対応frame slot | slotの全GPU fence完了後のreset |
+| `RenderFrameMemory` span | 対応frame slot | slotの全GPU submission完了後のreset |
 | Scratch span | 現在scope／job | scope終了、job完了 |
 | Physics native view | Adapter callback内 | callback return、step終了 |
 | Nav query temporary | `NavQueryLease` scope | lease返却、Navmesh version retire |
@@ -521,7 +536,7 @@ Job packetに許可するのは次だけである。
 - cancellation token
 - job専用memory resource
 
-World pointer、Component reference、borrowed span、Script VM pointer、native Physics body pointer、D3D12 resource pointerをcaptureしない。Job開始時とcompletion統合時の二回、handleとversionを検査する。
+World pointer、Component reference、borrowed span、Script VM pointer、native Physics body pointer、D3D12／Vulkan／Metal resource pointerをcaptureしない。Job開始時とcompletion統合時の二回、handleとversionを検査する。
 
 ### 9.4 Asset version
 
@@ -538,19 +553,21 @@ AssetGenerationId       dependency closureを一括識別するuint64
 
 1. live logical slotから参照されていない。
 2. CPU `AssetReadLease`数が0。
-3. 利用した全GPU queueのlast-use fenceが完了。
+3. 利用した全GPU queueのlast-use `GpuSubmissionSerial`が完了。
 4. Audio／Physics／Nav Adapterのdomain leaseが0。
 5. build／debug captureがpinしていない。
 
 ### 9.5 GPU resource
 
-- EngineのGPU resource wrapperはmove-onlyで、D3D12MA allocationとresourceを一体所有する。
-- Descriptor handleはresourceを所有しない。
+- EngineのGPU resource wrapperはmove-onlyで、backend allocationとnative resourceを一体所有する。
+- Descriptor／binding handleはresourceを所有しない。
 - command recording時にresource versionとdescriptor rangeをsubmission recordへ登録する。
-- destroy要求は`RetireRecord`を作るだけで、全queue fence完了までnative object、heap range、descriptor rangeを解放しない。
+- destroy要求は`RetireRecord`を作るだけで、全`GpuSubmissionSerial`完了までnative object、heap range、descriptor／binding rangeを解放しない。
 - alias resourceはRender Graphが非重複lifetimeを証明し、alias barrierと最初の完全初期化を生成した場合だけ許可する。
+- D3D12MA、VMA、`MTLHeap`は`IGpuAllocator` Adapter内だけで使い、vendor allocation型を公開しない。
 - D3D12MA allocatorはdeviceごとに一つとし、通常の内部同期を有効にする。`SINGLETHREADED` flagを使用しない。
 - D3D12MA `VirtualBlock`を共有する場合はEngine側mutexまたは単一thread ownerを必須とする。
+- VMA allocatorもVulkan deviceごとに一つ、default thread safety有効とし、loading boundary以外でdefragmentationしない。Metalはheapとmemoryless resourceをmobile budgetへ計上する。
 
 ### 9.6 Physics、Animation、Script、Audio Adapter
 
@@ -562,6 +579,8 @@ AssetGenerationId       dependency closureを一括識別するuint64
 | ozz-animation | immutable skeleton／clipはAsset Registry、contextはinstance | copied pose／bounds／root-motion delta | instance contextの同時write |
 | Luau | Script owner thread | typed Capability value／command | VM pointer、Lua stack pointer、unbounded allocator、OS API |
 | XAudio2 | Audio control thread | VoiceHandle、copied completion event | callback内block／allocation／DestroyVoice |
+| Oboe | Audio control thread＋audio callback | VoiceHandle、preallocated PCM／completion | callback内block／allocation／JNI／log |
+| Apple AudioUnit | Audio control thread＋audio callback | VoiceHandle、preallocated PCM／route event | callback内block／allocation／UIKit／log |
 
 Jolt `BodyID`は再利用・無効化され得るため利用時にlock／validityを検査する。複数body lockはJoltのmulti-lock APIを用いて一貫順序を維持する。Physics update完了後にだけ`T60`へ進む。
 
@@ -597,7 +616,7 @@ timestamp、absolute path、pointer、worker順序をkeyへ含めない。
 
 上記関数は文字列連結ではなく、ASCII domain tag `MIRA_ARTIFACT_V1\0`の後に各引数を`field_id: uint16`、`byte_length: uint64`、canonical bytesの順で格納するtagged tupleである。field IDは上から1～7、`schema_version`は`uint32`、`tool_id`と`tool_version`はNFC UTF-8 stringとする。dependency listは要素数`uint32`に続き、各要素を`dependency_role_id: uint32`、RFC 9562 UUIDのnetwork byte orderによる16 byte StableId、32 byte ArtifactKeyで格納する。未知field ID、重複field、欠落field、末尾byteを拒否する。
 
-永続content hash、source hash、settings hash、artifact keyはすべてSHA-256の32 byte値とし、text表現は64文字lowercase hexadecimalに固定する。Windows RuntimeはCNG SHA-256 Adapter、Node.js toolは標準`node:crypto`を使用し、同一fixtureでbyte一致を検査する。
+永続content hash、source hash、settings hash、artifact keyはすべてSHA-256の32 byte値とし、text表現は64文字lowercase hexadecimalに固定する。Runtimeは`IPlatformCrypto`を使用し、Windows AdapterはCNG、Android／Appleはモバイル規約のPlatform crypto Adapter、Node.js toolは標準`node:crypto`を使用する。同一fixtureで全実装のbyte一致を検査する。
 
 SHA-256へ渡すcanonical byte streamは次に固定する。
 
@@ -626,7 +645,7 @@ flowchart LR
   StaticTransform --> Lighting
   Texture["Texture source/settings"] --> CookedTexture["Cooked texture/atlas"]
   CookedTexture --> MaterialPkg["Material package"]
-  Material["MaterialDefinition"] --> MaterialIR["Material IR・DXIL・PSO key"]
+  Material["MaterialDefinition"] --> MaterialIR["Material IR・Target shader artifact・pipeline key"]
   MaterialIR --> MaterialPkg
   MaterialIR --> Lighting
   Style["VisualStyleProfile"] --> MaterialPkg
@@ -644,7 +663,7 @@ flowchart LR
 | Mesh source／import settings | cooked geometry、bounds、LOD、生成collider、関連Nav tile、baked lighting／HLOD |
 | Static transform | static Physics aggregate、関連Nav tile、lightmap／probe、HLOD。Mesh payload自体は再cookしない |
 | Texture | cooked texture／atlas、参照Material package。alpha由来colliderを明示使用する場合はそのcollider |
-| MaterialDefinition | Material IR、DXIL variant、PSO key、参照package、baked lighting |
+| MaterialDefinition | Material IR、Target別DXIL／SPIR-V／metallib variant、pipeline key、参照package、baked lighting |
 | VisualStyleProfile | Material template解決、Lighting、Camera、Post、VFX、UI、Preview／golden |
 | Nav agent profile | 該当agentのNav tile、query cache |
 | Skeleton／clip | compressed animation、retarget map、animation bounds |
@@ -656,7 +675,7 @@ flowchart LR
 1. dependency closureを計算し、一つの`AssetGenerationId`を割り当てる。
 2. すべての新artifactをgeneration専用stagingへbuildする。
 3. hash、schema、cross-reference、budget、platform compatibility、Domain conformanceを検査する。
-4. GPU upload fence、Audio decode、Physics／Nav buildを含むclosure全体のreadinessを確認する。
+4. GPU upload submission、Audio decode、Physics／Nav buildを含むclosure全体のreadinessを確認する。
 5. generation manifestを同一volumeのtemporary fileへ保存・検証し、一回のreplaceで`Ready`として公開する。この時点ではlive consumer bindingを変更しない。
 6. Simulation、Rendering、Audioは6.4節のboundaryで、generation単位にversion leaseを取得する。
 7. 一つでも失敗した場合は旧manifestと旧artifact setをliveのまま維持する。
@@ -682,13 +701,15 @@ flowchart LR
 
 ### 11.1 計測境界
 
-2 GiBは初期reference game runtimeのEngine-controlled CPU allocation budgetである。First-party allocation、allocator hookを持つvendor allocation、mapped Assetのresident charge、thread stack予約を所属Domainへ計上する。GPU heap、OS graphics driver共有memory、別processのAI Orchestrator／compilerは含めず、個別telemetryとする。
+本章11.1～11.5の2 GiBは`windows_desktop_v1` reference game runtimeのEngine-controlled CPU allocation budgetである。First-party allocation、allocator hookを持つvendor allocation、mapped Assetのresident charge、thread stack予約を所属Domainへ計上する。GPU heap、OS graphics driver共有memory、別processのAI Orchestrator／compilerは含めず、個別telemetryとする。
+
+Android／Appleは同じMemory Domainと80／90／100%のfailure原則を使うが、絶対値はモバイル規約13節の`mobile_baseline`／`mobile_standard`／`mobile_high`を適用する。Apple unified memoryではGPU allocationもprocess footprintへ現れ得るため、CPUとGPUを単純加算せずprocess、Engine CPU、GPUの三gateを個別に判定する。
 
 Process private working setも必ず記録し、C1 baselineから5%を超える増加をregressionとする。2 GiBのDomain計測とprivate working setを混同しない。
 
 本書のCPU「soft budget」はOSがProcessを即時killしないという意味であり、任意超過を許す意味ではない。100%では`BudgetMemoryResource`がnonessential allocationを拒否し、必須allocationの再試行失敗はfault、CI／Cookはbudget超過で不合格とする。OS Job Objectで強制するtool childのhard commit limitとは区別する。
 
-### 11.2 reference game profile
+### 11.2 Windows reference game profile
 
 | Parent domain | Child budget | MiB |
 |---|---|---:|
@@ -752,7 +773,7 @@ Job Object hard limit到達、child crash、timeoutでは当該treeを終了し�
 ### 11.5 arenaとpool
 
 - `FrameMemory`はthreadごとに所有し、全consumer job完了後にresetする。
-- `RenderFrameMemory`はframe slotのdirect／compute／copy fenceがすべて完了してからresetする。
+- `RenderFrameMemory`はframe slotの全`GpuSubmissionSerial`が完了してからresetする。
 - `ScratchMemory`はscope／job終了で一括解放する。
 - `PoolMemory`はsize分布とchurnが安定したprivate typeだけに採用する。
 - `std::pmr::monotonic_buffer_resource::release()`後の全borrowは無効である。
@@ -761,9 +782,9 @@ Job Object hard limit到達、child crash、timeoutでは当該treeを終了し�
 
 ## 12. GPU memory規約
 
-### 12.1 reference budget
+### 12.1 Windows reference budget
 
-GPU Project budgetは`min(5632 MiB, 0.80 × DXGI Budget)`とする。
+`windows_desktop_v1`のGPU Project budgetは`min(5632 MiB, 0.80 × DXGI Budget)`とする。Android／Appleはモバイル規約13節のGPU working setを使用する。
 
 | Domain | MiB |
 |---|---:|
@@ -777,6 +798,8 @@ GPU Project budgetは`min(5632 MiB, 0.80 × DXGI Budget)`とする。
 OS budgetが小さい場合は、critical resourceと256 MiB reserveを先に確保し、texture mip、streaming distance、shadow、transient resolutionの順にQuality Profileを下げる。
 
 ### 12.2 allocationとbudget
+
+以下は`windows_desktop_v1` D3D12 Adapterへ適用する。VulkanはVMA heap budget、AppleはMetal allocationとprocess footprintを`IGpuAllocator`共通counterへ変換し、mobile thresholdとfailure policyはモバイル規約に従う。
 
 - deviceごとにD3D12MA allocatorを一つ生成する。
 - D3D12MAのCPU allocation callbackをRendering CPU Domainへ接続する。D3D12MA自体は内部CPU OOMのgraceful recoveryを保証しないため、callbackがallocationを満たせない場合はpreallocated fatal recordへ`FatalD3D12MaCpuOom`を書き、`RaiseFailFastException`でProcessを終了して`nullptr`をD3D12MAへ返さない。Editorは次回起動時にjournalから回復する。事前のDomain cap、allocator metadata reserve、resource creation rate制限で到達を防ぐ。
@@ -792,10 +815,10 @@ OS budgetが小さい場合は、critical resourceと256 MiB reserveを先に確
 - Runtime play中に自動defragmentationを行わない。
 - defragmentationはEditorまたはloading boundaryで、非alias・移動可能resourceだけを対象にする。
 - 一passは最大64 MiBか64 allocationの先に達した方で終了する。
-- 対象poolへの新規allocationを一時停止し、copy、fence wait、handle swap、旧allocation retireの順で行う。
+- 対象poolへの新規allocationを一時停止し、copy、submission completion wait、handle swap、旧allocation retireの順で行う。
 - pass失敗時はsource allocationを維持し、部分swapを公開しない。
 
-### 12.4 device removed
+### 12.4 Windows D3D12 device removed
 
 1. 新規Render submitとPlay進行を停止する。
 2. DRED有効時はbreadcrumb／page fault、無効時は`GetDeviceRemovedReason`とEngine breadcrumbを取得し、Project revision、直前frame、resource名を関連付ける。
@@ -805,13 +828,15 @@ OS budgetが小さい場合は、critical resourceと256 MiB reserveを先に確
 6. 完全なframe setを作れた場合だけEditor previewを再開する。
 7. 復旧に失敗した場合はAuthoring journalを保存し、GPUを使わないWin32／DirectWrite最小safe Editor shellへ戻す。Shipping Gameはpreallocated crash recordを書き、interactive sessionではOS-native error dialogを表示して非0 codeで終了する。GPU描画を必要とするerror sceneへ遷移しない。
 
+Android Vulkan device lost、Apple drawable不在／Metal command errorはD3D12 DRED手順を模倣せず、モバイル規約のsurface generationとPlatform診断を使う。surfaceだけの消失はWorld faultにせず再作成し、device／command errorは新規submitを止め、Saveとpreallocated diagnosticを保全して安全終了する。
+
 Device removal後の未完了fenceが進むことを期待して待機し続けない。
 
 ## 13. bounded queueとoverflow
 
 ### 13.1 初期capacity
 
-capacityはC1 reference profileの初期hard limitであり、Project Profileが変更する場合はmemory budget、stress test、replay fixtureを再承認する。表のEntry capacityとPayload arenaは、tick／boundary bufferでは一面当たり、Audio ringではring全体の値である。
+capacityは全TargetのC1 reference profileで共通の初期hard limitであり、mobileでも暗黙縮小しない。合計58.9375 MiBを選択memory classのEngine CPU budgetへchargeする。Project Profileが変更する場合はmemory budget、stress test、replay fixtureを再承認する。表のEntry capacityとPayload arenaは、tick／boundary bufferでは一面当たり、Audio ringではring全体の値である。
 
 | Queue／buffer | Entry capacity | Payload arena | Max payload／entry | charge先 | critical reserve |
 |---|---:|---:|---:|---|---:|
@@ -824,7 +849,7 @@ capacityはC1 reference profileの初期hard limitであり、Project Profileが
 | Audio callback completion | 4,096 entries | 256 KiB | 64 B | Audio | 256 |
 | Asset promotion | 1,024 / boundary | 1 MiB | 4 KiB | dependency metadata | 64 |
 
-entry headerは5.4節のexactly 32 byte `RuntimeMessageHeader`とし、可変payloadをoffset＋lengthでbounded arenaへ格納する。tick／boundary bufferはcurrent／nextの二面を起動時に全量予約し、Audio ringは単一bounded ringとする。Navigationだけはrequest面とresult面を一つずつ持ち、各面が4,096 header＋8 MiB arenaである。header＋arenaの予約量はStructural 5.0000 MiB、Simulation 12.0000 MiB、Physics 12.0000 MiB、Navigation 16.2500 MiB、Presentation 10.0000 MiB、Audio command 1.2500 MiB、Audio callback 0.3750 MiB、Asset promotion 2.0625 MiB、合計58.9375 MiBである。すべて64 KiBの整数倍であり、この実commit量を11.2節の表に記載した該当child Domainへchargeする。予約後の残量はECS・World 111.0000 MiB、snapshot／bridge 22.0000 MiB、Physics 84.0000 MiB、Navigation 47.7500 MiB、Audio voice／control 14.3750 MiB、dependency metadata 29.9375 MiBであり、queue以外の各child用途に残す。
+entry headerは5.4節のexactly 32 byte `RuntimeMessageHeader`とし、可変payloadをoffset＋lengthでbounded arenaへ格納する。tick／boundary bufferはcurrent／nextの二面を起動時に全量予約し、Audio ringは単一bounded ringとする。Navigationだけはrequest面とresult面を一つずつ持ち、各面が4,096 header＋8 MiB arenaである。header＋arenaの予約量はStructural 5.0000 MiB、Simulation 12.0000 MiB、Physics 12.0000 MiB、Navigation 16.2500 MiB、Presentation 10.0000 MiB、Audio command 1.2500 MiB、Audio callback 0.3750 MiB、Asset promotion 2.0625 MiB、合計58.9375 MiBである。すべて64 KiBの整数倍であり、この実commit量を所属Memory Domainへchargeする。次の予約後残量は11.2節のWindows profileだけに適用する: ECS・World 111.0000 MiB、snapshot／bridge 22.0000 MiB、Physics 84.0000 MiB、Navigation 47.7500 MiB、Audio voice／control 14.3750 MiB、dependency metadata 29.9375 MiB。Mobileはaggregate Engine CPU capへ同じqueue量をchargeし、`RenderFrameMemory`はBaseline 32 MiB（16×2）、Standard／High 48 MiB（16×3）とする。
 
 Navigation 64 MiBの内訳はqueue 16.25 MiB、live 2D／3D Nav payload合計36 MiB、query lease pool 4 MiB、TileCache／dynamic obstacle 4 MiB、metadata 3.75 MiBに固定する。staging Nav payloadはReadyまではAsset streamingのdecode／transcode、Ready後はhot cacheへchargeする。`T00` promotion時に新payloadをNavigationへ移し、旧payloadをAsset streaming hot cacheへretagしてlease終了を待つ。retire待ちNav generationは一つだけとし、そのleaseが0になるまで次のNav promotionを延期する。旧payloadが120 frame以内にretireできない場合は11.4節の期限違反としてCIを失敗させ、それ以上のlive promotionを停止する。これによりNav hot reloadのために64 MiBを暗黙超過しない。
 
@@ -850,6 +875,8 @@ Shippingでauthoritative eventを黙ってdropしない。Developmentは容量�
 
 初期GameHostはmain／window-input、Game simulation、Render submission、Audio control、I/O completionを専用threadとし、共有worker poolを一つ持つ。Libraryごとの独立worker poolを作らない。
 
+`windows_desktop_v1`では次を適用する。
+
 - `GetSystemCpuSetInformation`が成功した場合、`Allocated == 0`または`AllocatedToTargetProcess == 1`のCPU Setのうち最大`EfficiencyClass`に属するlogical processor数を`P`とし、worker数は`clamp(P - 4, 1, 12)`。一時的な`Parked` flagはcapacityから除外せずtelemetryへ記録する。
 - CPU Set情報を取得できない場合はactive logical processor数`L`から`clamp(L - 4, 1, 12)`。
 - workerは`SetThreadSelectedCpuSets`で上記performance CPU Setをsoft affinityとして指定し、選択集合、実行CPU、migrationをtelemetryへ記録する。
@@ -858,7 +885,9 @@ Shippingでauthoritative eventを黙ってdropしない。Developmentは容量�
 - Luau VMはGame simulation threadだけで実行し、workerへVM workを送らない。
 - file／network待機をworkerでblockせず、I/O completion threadがowned resultを`T20`へ渡す。
 
-`P - 4`の4 logical processorはmain／window-input、Game simulation、Render submission、Audio controlのlatency-sensitive実行余地である。I/O completion threadは通常completion portでblockし、長いCPU処理を行わないため予約数へ加えない。I/O completionで0.25 msを超える処理はworker jobへ移す。
+worker計算で差し引く4 logical processorはmain／window-input、Game simulation、Render submission、Audio controlのlatency-sensitive実行余地である。I/O completion threadは通常completion portでblockし、長いCPU処理を行わないため予約数へ加えない。I/O completionで0.25 msを超える処理はworker jobへ移す。
+
+Android／Appleでは起動時のonline logical processor数`L`から`worker_count = clamp(L - 4, 1, 8)`を初期値とし、hard affinityを設定しない。Android ADPF／Performance HintとApple QoSはPlatform Adapterがroleを伝える補助に限定し、Gameplay結果を変えない。`Serious`以上のthermal stateでは新規Streaming／BackgroundTool jobを止め、critical worker数をPlay中に変更しない。
 
 Job priorityは`CriticalSimulation`、`CriticalRender`、`Streaming`、`BackgroundTool`の四段階とする。Critical jobを待っている間に下位priority jobがworkerを占有し続けないよう、長いStreaming／Tool jobは最大0.50 msのcooperative sliceまたは明示yield pointを持つ。
 
@@ -866,7 +895,7 @@ Job priorityは`CriticalSimulation`、`CriticalRender`、`Streaming`、`Backgrou
 
 ## 14. 性能budgetと合格条件
 
-### 14.1 reference条件
+### 14.1 Windows reference条件
 
 - Windows 11 25H2 x64、OS build 26200.8875をReference imageとする。Support最小はbuild family 26200。
 - 1920×1080、60 Hz
@@ -888,9 +917,13 @@ GPU vendor間で絶対値が異なるため、両reference GPUを別baselineと�
 
 全percentileはwarm-upを除く全sampleを昇順にし、nearest-rank `ceil(p × N)`番目を採る。5 runのmedianは各run値を昇順にした3番目である。CPU timestampはQueryPerformanceCounter、GPU passはD3D12 timestamp queryとqueue frequencyで測り、CPU／GPU相関には`GetClockCalibration`を使用する。
 
-`CPU input-to-submit critical path`は、ある`tick_id`の`T10_InputLatch`先頭から、そのtickを含む最初の`RenderSnapshot`をdirect queueへ`R50_Submit`した呼出しのreturnまでのwall durationである。tickが測定run中に一度もsubmitされなければ欠測として除外せずhard failureとする。`GPU frame`は当該snapshotの最初のGPU pass timestampから最終UI／composite pass timestampまでとし、PresentのVSync待機を含めない。
+Android／AppleのReference条件はRetail model名ではなくモバイル規約18.3節のCapability Signature laneを使う。30／60 fpsのP95、deadline miss 1%以下、10分run、30分thermal soak、2時間enduranceを実機で測定し、Emulator／Simulator値で代用しない。Platform timestampはmonotonic clockとVulkan／Metal GPU timestampをAdapterが共通nanosecondへ変換し、変換精度とavailabilityをmanifestへ記録する。
+
+`CPU input-to-submit critical path`は、ある`tick_id`の`T10_InputLatch`先頭から、そのtickを含む最初の`RenderSnapshot`をGraphics Adapterへ`R50_Submit`した呼出しのreturnまでのwall durationである。tickが測定run中に一度もsubmitされなければ欠測として除外せずhard failureとする。`GPU frame`は当該snapshotの最初のGPU pass timestampから最終UI／composite pass timestampまでとし、PresentのVSync待機を含めない。
 
 ### 14.2 frame budget
+
+次表は60 fps Targetに適用する。`windows_desktop_v1`とmobile 60 fpsは同じ14.00 ms soft／16.67 ms deadlineを使う。
 
 | Metric | Soft target | Hard acceptance |
 |---|---:|---:|
@@ -904,6 +937,8 @@ GPU vendor間で絶対値が異なるため、両reference GPUを別baselineと�
 | C1 Scene reload P95 | 2.00 s以下 | 3.00 s以下 |
 
 `16.67 ms`を常用目標にせず、2.67 ms以上のheadroomを確保する。
+
+Mobile 30 fps TargetはCPU／GPU P95 soft 28.00 ms、deadline 33.33 ms、120 fps optionalは7.00 ms／8.33 msとする。いずれもsimulationは60 Hzを維持し、mobile deadline missはwarm-up後10分で1%以下とする。MobileのSubsystem配分はQuality Profileと実機baselineで管理し、次のdesktop 14.3／14.4表を倍化して自動採用しない。
 
 Warm-cache起動は同じpackageを一度起動して操作可能frame到達後に正常終了し、OSを再起動せず、各runでGameHost Processを新規起動して10回測定する。Scene reloadは同一Processで20回測定する。最初のcold launchも別metricとして記録するが、OS／security scanner cacheを固定できないためC1 hard gateには使わない。
 
@@ -971,9 +1006,13 @@ CapabilityをC2 Productionへ昇格するには、次をすべて満たす。
 | Asset promotion非互換 | boundary | live set変更なし | restart required |
 | CPU Domain OOM | allocation | 一度だけevict/retry | 必須Domainはsession／job fault |
 | GPU budget圧迫 | budget poll／通知 | 段階的Quality縮小 | critical不足ならrender fault |
-| GPU resource allocation失敗 | D3D12MA／D3D12 result | live handle生成なし | nonessentialはevict後1回retry、criticalはrender fault |
+| GPU resource allocation失敗 | Graphics／allocator Adapter result | live handle生成なし | nonessentialはevict後1回retry、criticalはrender fault |
 | D3D12MA内部CPU OOM | allocator callback | 状態継続を保証しない | preallocated fatal record、Process終了、次回Editor起動でjournal回復 |
-| Device removed | submit／present | Play／render停止 | 利用可能なDRED／Engine breadcrumb取得、再構築。失敗時EditorはGPU不要safe shell、ShippingはOS-native error後に終了 |
+| Windows D3D12 device removed | submit／present | Play／render停止 | 利用可能なDRED／Engine breadcrumb取得、再構築。失敗時EditorはGPU不要safe shell、ShippingはOS-native error後に終了 |
+| Android／Apple surface消失 | lifecycle／present | render停止、World保持 | generationをinvalidateし、新surfaceでsize-dependent resourceだけ再作成 |
+| Vulkan device lost／Metal command error | submit completion | 新規submit停止 | Save／diagnostic保全後に安全終了。surface消失と混同しない |
+| Mobile memory／thermal critical | Platform signal／budget poll | Quality縮退、download停止 | Save優先。整合性を保てなければ安全終了 |
+| Mobile audio interruption／route change | Audio Adapter | voice stateをpause／再構成 | callback外でsession／streamを再構成し、次boundaryで再開 |
 | Audio presentation overflow | enqueue | 低priority soundだけdrop | critical command維持、counter |
 | Save失敗 | temp write／flush／replace | in-memory state変更なし | target／backup／journalを検証し、最新valid generationへ回復 |
 | AI／Editor ChangeSet不正 | validation | Authoring state変更なし | field単位errorと修正案 |
@@ -991,19 +1030,23 @@ Authoritative Scriptの永続状態はEngine-owned、schema付き`ScriptStateSto
 
 ### 15.3 save atomicity
 
+Save formatとrecovery algorithmは全Target共通とし、filesystem操作は`IAtomicFileStore`の`flush_file`、`replace_with_backup`、`flush_directory`へ隔離する。Save serviceだけがtarget／temporary／backupへアクセスし、同時reader／writerを許可しない。`replace_with_backup`成功後はtargetが新generation、既存targetがあった場合は指定backupが旧generation、temporaryが不存在でなければならない。複数directory entryを一命令で更新できないPlatformでは、途中状態をjournalから回復できることを契約とし、三fileの同時atomicityを偽って宣言しない。
+
 Save file headerは72 byteに固定し、8 byte magic `MIRASAV1`、`format_version: uint32=1`、`schema_version: uint32`、`save_generation: uint64`、`payload_length: uint64`、32 byte payload SHA-256、`reserved: uint32=0`、`header_crc32c: uint32`の順にlittle-endianで格納する。header CRC32Cは最後のchecksum fieldを除く先頭68 byteへ適用し、payloadはheader直後から`payload_length` byteちょうどとする。末尾byte、size overflow、hash不一致を拒否する。
 
-append-only save journalは8 byte magic `MIRASVJ1`で開始し、各recordを`record_size: uint32`、`generation: uint64`、`state: uint8`、3 byte zero、10.1節形式のUTF-8 file名、32 byte SHA-256、zero padding、`crc32c: uint32`の順にlittle-endianで格納する。paddingはrecord全体を8 byte倍数にする0～7 byteで、0以外を拒否する。`record_size`は64～65,536の8 byte倍数、file名は1～32,768 byteのbasenameだけとし、separator、drive、`..`を拒否する。CRC32Cはchecksum fieldを除くrecord全体へ、reflected polynomial `0x82F63B78`、initial `0xffffffff`、final XOR `0xffffffff`で計算する。record追記後に`FlushFileBuffers`する。状態値は`Begin=1`、`Replaced=2`、`Committed=3`だけを許可する。
+append-only save journalは8 byte magic `MIRASVJ1`で開始し、各recordを`record_size: uint32`、`generation: uint64`、`state: uint8`、3 byte zero、10.1節形式のUTF-8 file名、32 byte SHA-256、zero padding、`crc32c: uint32`の順にlittle-endianで格納する。paddingはrecord全体を8 byte倍数にする0～7 byteで、0以外を拒否する。`record_size`は64～65,536の8 byte倍数、file名は1～32,768 byteのbasenameだけとし、separator、drive、`..`を拒否する。CRC32Cはchecksum fieldを除くrecord全体へ、reflected polynomial `0x82F63B78`、initial `0xffffffff`、final XOR `0xffffffff`で計算する。record追記後に`IAtomicFileStore::flush_file`する。状態値は`Begin=1`、`Replaced=2`、`Committed=3`だけを許可する。
 
 1. target、temporary、backupを同一volumeに置き、`Begin`をjournalへflushする。
-2. generation固有temporary fileへwriteし、file handleへ`FlushFileBuffers`、再読込、length／SHA-256／schema validationを行う。
-3. 既存targetがある場合は世代固有の`backup.<old_generation>`を指定して`ReplaceFileW(target, temporary, backup, 0, nullptr, nullptr)`を使う。公式に`REPLACEFILE_WRITE_THROUGH`は未supportのため指定しない。初回Saveは`MoveFileExW(temporary, target, MOVEFILE_WRITE_THROUGH)`を使う。
+2. generation固有temporary fileへwriteし、`flush_file`、再読込、length／SHA-256／schema validationを行う。
+3. 既存targetがある場合は世代固有の`backup.<old_generation>`を指定して`replace_with_backup`する。初回Saveも同じAdapterのatomic replaceを使う。
 4. targetを再openしてlength／hashを検査し、`Replaced`、続いて`Committed`をjournalへflushする。
 5. Runtime handle、pointer、native IDをSave schema validationで拒否する。backupは次のgenerationがCommitするまで削除しない。
 
+Windows Adapterは既存targetで`ReplaceFileW`、初回で`MoveFileExW(..., MOVEFILE_WRITE_THROUGH)`、flushで`FlushFileBuffers`を使う。Androidはapp-private internal storageの同一directoryで、旧targetがあれば`rename(target, backup)`→`fsync(directory)`、次に`rename(temporary, target)`→`fsync(directory)`を行う。AppleもApplication Support内の同一手順とし、fileには`fsync`、利用可能な場合は`F_FULLFSYNC`、各rename後はdirectory syncを行う。各rename失敗を無視せずjournalを未Commitのまま保ち、起動時recoveryへ渡す。Symlink、path traversal、別volume置換を全Adapterで拒否する。
+
 起動時はjournalをCRCが正しい最後のrecordまで読む。targetが完全検証できればその最大generation、targetが不正ならbackup、置換途中でtarget／backupが不正ならBegin recordが指すtemporaryの順で検証し、最も新しいvalid generationだけを開く。候補が複数同generationでhash不一致なら自動選択せず`SaveRecoveryConflict`で停止する。突然の電源断に対して単一renameだけを完全durabilityと主張せず、valid hash付きtarget／backup／journalから回復可能であることをcontractとする。
 
-journalが1 MiBまたは1,024 recordの先に達した場合、次のSave commit後に直近2世代の`Committed` chainだけを新journalへ書いてflushし、旧journalを世代付きbackupにして`ReplaceFileW`する。起動時はcurrent journalが不正ならjournal backupも同じparserで検証する。
+journalが1 MiBまたは1,024 recordの先に達した場合、次のSave commit後に直近2世代の`Committed` chainだけを新journalへ書いてflushし、旧journalを世代付きbackupにして`replace_with_backup`する。起動時はcurrent journalが不正ならjournal backupも同じparserで検証する。
 
 ## 16. Observability
 
@@ -1029,7 +1072,7 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 ### 16.2 必須counter
 
 - phase／Subsystem CPU P50、P95、P99.9
-- GPU pass、queue overlap、barrier、fence wait
+- GPU pass、queue overlap、barrier、submission wait
 - queue current、peak、overflow、drop priority
 - handle resolve failure、generation mismatch、slot retire
 - borrow epoch violation
@@ -1038,7 +1081,8 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 - Physics body／contact／event、Nav request／stale result、Animation instance
 - Luau invocation／resume、Capability call、interrupt safepoint、memory、GC pause、deadline／timeout
 - Audio callback P99、queue、underrun
-- GPU committed、resident、DXGI Budget、D3D12MA Budget、descriptor使用量
+- GPU committed、resident、Platform budget、D3D12MA／VMA／Metal allocation、descriptor／binding使用量
+- surface generation、orientation、drawable取得失敗、memory pressure、thermal、frame pacing、audio route／interruption
 
 ## 17. Test、sanitizer、CI
 
@@ -1050,13 +1094,15 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 | Handle property | generation、slot再利用、wrap retire、random invalid handle |
 | Borrow lifetime | structural mutation、phase、tick、arena reset後の無効化 |
 | ECS property | archetype移動、iteration順、structural command merge |
-| Adapter conformance | Box2D／Jolt event・invalid ID・lock、Recast version、Luau quota／state rollback／yield拒否、ozz context、XAudio callback |
+| Adapter conformance | Box2D／Jolt event・invalid ID・lock、Recast version、Luau quota／state rollback／yield拒否、ozz context、XAudio2／Oboe／AudioUnit callback |
 | Asset graph | dependency closure、hash決定性、generation非混在、失敗時旧set維持、boundary promotion |
-| GPU lifetime | queue別fence、descriptor非所有、alias barrier、device removed |
+| GPU lifetime | backend別submission、descriptor／binding非所有、alias barrier、device／surface failure |
 | Memory | Domain cap、貸借期限、OOM injection、arena reset、zero-live |
 | Replay | input＋async acceptance tickから同一state hash |
 | Failure injection | queue overflow、cancel race、Script timeout、Save write／flush／replace各段階のProcess killとrecovery、hot reload非互換 |
 | Performance | 2D／3D Reference scene、allocation count、queue peak、10分soak |
+| Mobile lifecycle | suspend／resume、surface再作成、process kill Save recovery、rotation／resize、audio interruption |
+| Mobile endurance | physical device memory、30分thermal、2時間endurance、16 KiB／archive package |
 
 ### 17.2 sanitizerとrace検証
 
@@ -1064,6 +1110,7 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 - LLVM ThreadSanitizerはWindowsを公式support対象としていないため、Windows full Engineへ「TSan済み」と表示しない。
 - platform非依存のFoundation、Jobs、Runtime Contracts、Asset graphはLinux Clang CI targetも用意し、ThreadSanitizerを実行する。
 - Windows固有部分はthread-affinity assertion、lock-order checker、borrow epoch、randomized stress、別jobのApplication Verifier＋GFlags Full PageHeapで補完する。
+- AndroidはHWASan実機jobとShipping候補GWP-ASan、AppleはASan、TSan、Main Thread Checker、Metal validationを分離して実行する。
 - DREDはDevelopmentとProfile diagnostic runで有効、Profile performance runとShippingでは無効とする。
 - GPU-based validationは小規模Graphics CIで実行し、性能runでは無効にする。
 
@@ -1080,6 +1127,8 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 - Debug Layer error／warning、sanitizer error
 - performance／memory／queue hard gate超過
 - artifact再現hash不一致
+- Android AABのABI／16 KiB alignment／PAD／permission不一致、Apple archive／privacy／entitlement不一致
+- Shipping mobile packageまたはdownload chunkへのcompiler、debug server、Script／shader source、実行code、credential混入
 
 ## 18. AI生成Script／C++への適用
 
@@ -1091,12 +1140,13 @@ AIがLevel 0の自然言語指示からScript、C++、または両方を選ん�
 - performanceを理由にraw pointer、global singleton、vendor型、phase外mutationへ迂回しない。
 - C++が必要かどうかはBehavior Contract、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。
 - 生成物は同じunit、property、ASan、performance、dependency gateを通過するまでCommitしない。
+- Android／AppleのShipping Runtimeでは、AIが生成・取得できるものを検証済み構造化dataへ限定し、C++、Luau、managed／native code、shaderの生成、post-install remote download、JIT、dynamic loadを許可しない。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
 
 ## 19. Phase 0へ固定する成果物
 
 Engine feature実装前に次を完成させる。
 
-1. 本書を含む四規範文書の承認。
+1. 本書を含む五規範文書の承認。
 2. 基盤規約の`toolchain.lock.json`、固定offline layout、CI image digest、bootstrap照合。
 3. `mira_runtime_contracts`のtarget、Domain Port／Runtime／Adapter分離、依存DAG、`ComponentAccessManifest`検査。
 4. `TickPhaseId`、`RenderPhaseId`、typed command／event header。
@@ -1109,6 +1159,9 @@ Engine feature実装前に次を完成させる。
 11. 共通Adapter conformance harnessと、最初の2D sliceで使うBox2D、Luau、XAudio2 fixture。Jolt、Recast、ozz fixtureは3D Capability C0開始条件とする。
 12. phase／Subsystem telemetry schemaとProfile capture。
 13. Windows ASan、Linux portable-module TSan、static analysis CI。
+14. Target／Distribution／Lifecycle／Display／Platform Port schemaと、未実装Targetの`UnsupportedTarget` contract test。
+15. Android／Apple toolchain profile、Vulkan／Metal submission record、VMA／MTLHeap lifetime conformance plan。
+16. Mobile memory／thermal／surface／audio failure fixture、AAB／archive package validator、data-only Runtime AI gate。
 
 上記は実装taskの細分化ではなく、実装開始前に満たすcontractの完了条件である。承認後の実装計画書でfile、target、test、順序、milestoneへ分解する。
 
@@ -1137,6 +1190,8 @@ Engine feature実装前に次を完成させる。
 | Windows file API | `ReplaceFileW`はbackup付き置換をまとめて行うがWRITE_THROUGH flagは未support、`MoveFileExW`はWRITE_THROUGHを提供、`FlushFileBuffers`はfile bufferをdeviceへflushする | 同一volume temp、世代付きbackup、append-only journal、各段階kill recovery |
 | Windows fail-fast API | `RaiseFailFastException`は通常のexception handlerを迂回してProcessを終了する | graceful recoveryを保証しないD3D12MA内部CPU OOMだけに限定 |
 | Windows release情報 | 25H2はbuild 26200で更新提供中、26H1は新規device向けで既存deviceへのin-place updateではない | Support最小を25H2、Reference imageを26200.8875に固定 |
+| Android／Apple lifecycle、Vulkan／Metal、Audio、memory API | surface、process、audio route、memory／thermal signalはPlatformごとに異なる | 共通ApplicationState／surface generation／Platform Portへ正規化し、実機gateはモバイル規約に固定 |
+| Android／Apple Store code rule | 審査後に任意codeを取得・実行する設計は安全性とStore適合を失う | Shipping Runtime AIを検証済み構造化dataへ限定 |
 | NVIDIA／AMD公式driver | RTX 3060向け610.74とRX 6600向け26.6.4がWHQL release | 初期GPU baseline driverを固定し、更新はbridge baseline後だけ採用 |
 
 外部資料がMiraikanaiの12 tick phase、16 KiB chunk、2 GiB配分、queue capacity、14 ms targetを推奨しているわけではない。これらは外部contractを満たし、Reference sceneで検証する本プロジェクトの公式初期値である。
@@ -1195,6 +1250,7 @@ Engine feature実装前に次を完成させる。
 - [ozz-animation multithread sample](https://guillaumeblanc.github.io/ozz-animation/samples/multithread/)
 - [XAudio2 callbacks](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-callbacks)
 - [XAudio2 introduction](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-introduction)
+- [モバイルPlatformアーキテクチャ規約の一次資料一覧](./2026-07-19-mobile-platform-architecture-design.md#23-一次資料)
 
 公開Web文書の生成versionと固定tagが一致しない場合、実装のsource of truthはDependency lockに固定したtagのheader、source、同梱documentation、conformance fixtureとする。移動する`main` branchや別versionのWeb文書を根拠に、Adapter contractを暗黙変更しない。
 
