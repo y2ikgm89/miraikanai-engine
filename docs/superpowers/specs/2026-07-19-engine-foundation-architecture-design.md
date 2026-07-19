@@ -1,10 +1,11 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.5
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
@@ -43,11 +44,11 @@
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | 初期Model Provider | OpenAI Responses API、公式TypeScript SDK 6.48.0 |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium`を明示 |
-| 実行可能契約 | `/schemas/mira/`のMCDを正本とし、Contract compilerがC++／TS／Luau／MCP／Provider projectionを生成 |
+| 実行可能契約 | `/schemas/mira/`のMCDを正本とし、Contract compilerがC++／TS／MCP／Provider／Cooked binary projectionを生成 |
 | Formal model checker | TLA+／TLC CLI v1.7.4をBuild-onlyで固定。v1.8.0 Pre-releaseとToolboxをCIへ採用しない |
 | Shader | Material／Shader IR＋portable HLSL 2021。WindowsはDXIL／SM 6.6／Root Signature 1.1、AndroidはSPIR-V、AppleはMSL／metallibへoffline cook |
 | Windows D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
-| Script VM | Luau 0.730 strict mode、Engine-owned Capability APIだけを公開 |
+| Game実装 | CPU実行CodeはC++20だけ。Game内容は検証済み`GameplayDefinition`をoffline Cookし、C++ Runtimeが実行 |
 | 2D Physics kernel | Box2D 3.1.1をAdapter内で利用 |
 | 3D Physics kernel | Jolt Physics 5.6.0をAdapter内で利用 |
 | 3D Navigation kernel | Recast Navigation／Detour 1.6.0をAdapter内で利用 |
@@ -122,26 +123,26 @@ TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、�
 
 数値予算は無期限の定数ではない。Reference sceneのBenchmarkを根拠にADRで改定する。ただし、改定されるまで上表が合否判定値であり、実装者ごとの暗黙値を認めない。
 
-`windows_desktop_v1`初期Reference Projectの2 GiB CPU soft budgetは次に分割する。Emergency reserveは貸し出さない。その他の未使用Parent budgetは一つのload jobまたは最大120 frameだけ貸借でき、貸出元、借用先、global totalへ同時に記録する。child配分、80／90／100% threshold、Editor 4 GiB配分、貸借失敗時の処理はRuntime詳細規約を唯一の基準とする。Mobileの絶対値とprocess／GPU重複計測はモバイル規約13節を基準とする。
+`windows_desktop_v1`初期Reference Projectの2 GiB CPU soft budgetは次に分割する。Emergency reserveとUnassigned headroomは貸し出さない。それらを除く未使用Parent budgetは一つのload jobまたは最大120 frameだけ貸借でき、貸出元、借用先、global totalへ同時に記録する。child配分、80／90／100% threshold、Editor 4 GiB配分、貸借失敗時の処理はRuntime詳細規約を唯一の基準とする。Mobileの絶対値とprocess／GPU重複計測はモバイル規約13節を基準とする。
 
 | CPU Domain | 初期soft budget |
 |---|---:|
 | Core World／Save | 256 MiB |
 | Rendering CPU data／upload staging | 256 MiB |
 | Physics／Navigation／Animation | 256 MiB |
-| Script Domain全体 | 128 MiB |
+| Unassigned headroom | 128 MiB |
 | Audio | 128 MiB |
 | Asset streaming cache | 768 MiB |
 | Frame／Job transient | 128 MiB |
 | Emergency reserve | 128 MiB |
 
-Script Domain全体は128 MiB、Luau VM heapはProject合計96 MiB／1 module 32 MiB、bytecode cacheはProject 16 MiB／1 module 4 MiB、残り16 MiBはGC／diagnostic reserveとする。5.5 GiB GPU budgetはtexture 3 GiB、geometry 1 GiB、render target／transient 1 GiB、shader／descriptor 256 MiB、emergency reserve 256 MiBへ分ける。OSのBudgetが5.5 GiB未満ならcritical resourceとreserveを維持し、texture mip、streaming距離、shadow、transient resolutionの順にQuality Profileを下げる。
+Unassigned headroom 128 MiBはownerを持たず、通常allocation、Domain間の一時貸借、cacheへ使用しない。Reference fixture、Before／After、peak memory、allocation count、10分soak、人間Reviewを持つADRでだけDomainへ再配分できる。GameplayDefinitionのAuthoring／Cook stagingはEditor／Asset build、unloaded packageはAsset streaming、active immutable definitionとauthoritative stateはCore World／Save、per-job scratchはFrame／Job transientへchargeする。5.5 GiB GPU budgetはtexture 3 GiB、geometry 1 GiB、render target／transient 1 GiB、shader／descriptor 256 MiB、emergency reserve 256 MiBへ分ける。OSのBudgetが5.5 GiB未満ならcritical resourceとreserveを維持し、texture mip、streaming距離、shadow、transient resolutionの順にQuality Profileを下げる。
 
 ## 3. 後方互換性を持たないClean実装の意味
 
 ### 3.1 Pre-1.0の互換性方針
 
-Pre-1.0では、C++ source API、binary ABI、内部module API、Script API、Editor内部protocolの後方互換性を保証しない。
+Pre-1.0では、C++ source API、binary ABI、内部module API、GameplayDefinition schema、Editor内部protocolの後方互換性を保証しない。
 
 - 廃止APIのalias、互換wrapper、二重実装、legacy分岐を残さない。
 - 変更時は全First-party caller、Test、Sample、生成Templateを同じChangeSetで更新する。
@@ -175,8 +176,8 @@ flowchart BT
   Foundation["Foundation\nID・Memory・Result・Diagnostics"]
   CoreServices["Core Services\nWorld・Assets・Jobs・Serialization"]
   Model["Authoring Model\nGameSpec・World Model・ChangeSet"]
-  Runtime["Runtime Capabilities\nWorld・Render・Physics・Nav・Audio・Script"]
-  Adapters["Adapters\nWindows・Android・Apple\nD3D12・Vulkan・Metal\nBox2D・Jolt・Recast・Luau"]
+  Runtime["Runtime Capabilities\nWorld・Render・Physics・Nav・Audio・Gameplay"]
+  Adapters["Adapters\nWindows・Android・Apple\nD3D12・Vulkan・Metal\nBox2D・Jolt・Recast"]
   Authoring["Authoring Service\nValidation・Transaction・Build"]
   Editor["Projection Editor"]
   Integrations["AI / MCP Integrations"]
@@ -211,9 +212,9 @@ Runtime Worldの公式storageは、16 KiB payload、64 byte alignment、Componen
 
 ### 4.3 唯一の状態変更経路
 
-AI、Editor UI、Script tool、CLI、MCP clientはすべて不変なChangeSetを提案する。World ModelのCommitはC++ Authoring Service内のCommand Gatewayだけが行う。
+AI、Editor UI、GameplayDefinition tool、CLI、MCP clientはすべて不変なChangeSetを提案する。World ModelのCommitはC++ Authoring Service内のCommand Gatewayだけが行う。
 
-ChangeSetのrevision fieldは`base_project_revision`とする。WorldだけでなくScript、Asset metadata、Build設定を含むProject全体の楽観的並行制御に利用するためである。
+ChangeSetのrevision fieldは`base_project_revision`とする。WorldだけでなくGameplayDefinition、NativeGameModule、Asset metadata、Build設定を含むProject全体の楽観的並行制御に利用するためである。
 
 ### 4.4 AI OrchestratorとIPC
 
@@ -312,7 +313,7 @@ Placement new、Allocator内部のraw storage操作、C API境界は`engine/foun
 | `ScratchMemory` | 一つのscope／jobだけで使う作業領域 | scope終了時にreset |
 | `PoolMemory` | 同サイズで頻繁に生成破棄する内部object | poolへ返却 |
 | `StreamingMemory` | Asset decode、upload staging、cache | budgetとLRU／priorityでevict |
-| `ScriptMemory` | Luau VM／module | VM quotaとProject quota |
+| `GameplayDefinitionMemory` | active Cooked definition、Gameplay state／task | Core World／Save budget、versioned package lease |
 | `EditorMemory` | Panel model、preview、undo view | Editor telemetryで別計測 |
 | `TestMemory` | leak、OOM、failure injection | Test終了時にzero-liveを検証 |
 
@@ -357,7 +358,7 @@ source_location
 - Navigation query batch
 - Animation sampling／blend
 - Audio callback
-- Script scheduler inner loop
+- GameplayDefinition evaluator inner loop
 - Entity iteration
 
 CI performance testはallocation countを検査し、意図しない増加をregressionとして失敗させる。最適化はprofile、benchmark、cache miss、contention、allocation traceの根拠なしに導入しない。
@@ -464,7 +465,7 @@ RuntimeはRuntime詳細規約の12段階tickと8段階render frameを唯一の�
 | Programmer invariant violation | assertion、Developmentでは停止 |
 | Corruption／unsafe continuation | crash dumpを生成してfail fast |
 
-C++20には標準`std::expected`がないため、Foundationに小さな`Result<T, Error>`を定義する。例外は`/EHsc`で有効にするが、Engine frame、Subsystem boundary、C ABI、Script boundaryを越えて伝播させない。Third-party／tool adapterでcatchし、typed errorへ変換する。`/EHa`とSEHによる継続は使用しない。
+C++20には標準`std::expected`がないため、Foundationに小さな`Result<T, Error>`を定義する。例外は`/EHsc`で有効にするが、Engine frame、Subsystem boundary、C ABI、GameplayDefinition／NativeGameModule boundaryを越えて伝播させない。Third-party／tool adapterでcatchし、typed errorへ変換する。`/EHa`とSEHによる継続は使用しない。
 
 Public errorにはstable error code、category、human message、source context、causal chainを持たせる。Logだけを書いてsuccessを返すことを禁止する。
 
@@ -500,7 +501,7 @@ Android／Apple First-party C++もCMake `cxx_std_20`、warning-as-error、hidden
 - Headerはself-containedで単独compileできる。
 - Include What You Useを原則とする。
 - Public headerは`include/mira/<module>/`だけに置く。
-- Public headerからWindows、Android、Apple、D3D12、Vulkan、Metal、JNI、Objective-C、Box2D、Jolt、Recast、Luauの型を露出しない。
+- Public headerからWindows、Android、Apple、D3D12、Vulkan、Metal、JNI、Objective-C、Box2D、Jolt、Recastの型を露出しない。
 - Forward declarationはownershipとdestructor要件を満たす場合だけ使う。
 - `#pragma once`を採用する。
 - Unity buildは通常Buildで使わない。専用Presetで計測し、診断性を落とさない範囲で任意採用する。
@@ -537,7 +538,7 @@ C++標準やCore Guidelinesは唯一の命名方式を規定していない。�
 
 Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を唯一の設定とする。手動の見た目論争ではなくCIで機械適用する。
 
-改行とtext/binary判定はrepository rootの`.gitattributes`を唯一の基準とする。C／C++、CMake、HLSL、TypeScript、Luau、JSON、YAML、TOML、Markdown、PowerShellはUTF-8 without BOM＋LF、`.bat`／`.cmd`だけCRLF、画像、音声、動画、Font、Archive、compiled Artifactは`-text`に固定する。BootstrapとCIは`core.autocrlf=false`を強制し、`git check-attr`とGit blob scanでBOM、改行、binary誤判定を拒否する。Hash、Source Bundle、generated goldenはWorking tree表示ではなくGit blobまたは正規Artifactのbyte列を使う。
+改行とtext/binary判定はrepository rootの`.gitattributes`を唯一の基準とする。C／C++、CMake、HLSL、TypeScript、JSON、YAML、TOML、Markdown、PowerShellはUTF-8 without BOM＋LF、`.bat`／`.cmd`だけCRLF、画像、音声、動画、Font、Archive、compiled Artifactは`-text`に固定する。BootstrapとCIは`core.autocrlf=false`を強制し、`git check-attr`とGit blob scanでBOM、改行、binary誤判定を拒否する。Hash、Source Bundle、generated goldenはWorking tree表示ではなくGit blobまたは正規Artifactのbyte列を使う。
 
 ## 12. RepositoryとDirectory構造
 
@@ -618,8 +619,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ content/
 │  │  └─ backends/{local,play_asset_delivery,apple_background_assets}/
 │  ├─ ui/
-│  ├─ scripting/
-│  │  └─ backends/luau/
+│  ├─ gameplay/
+│  │  ├─ contracts/
+│  │  ├─ definitions/
+│  │  └─ runtime/
 │  └─ vfx/
 ├─ authoring/
 │  ├─ model/
@@ -662,6 +665,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ project_migrator/
 │  └─ test_runner/
 ├─ templates/
+│  ├─ native_game_module/
 │  ├─ android_game_shell/
 │  └─ apple_game_shell/
 ├─ hosts/
@@ -691,7 +695,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 
 `engine/runtime/contracts`はDomain実装を持たないtyped command／event／snapshotだけを所有する。`engine/runtime/orchestration`はphase順序とbuffer mergeを所有し、vendor型をincludeしない。`engine/runtime/package`はversioned binary manifestとloaderを所有し、Authoring objectを参照しない。`engine/runtime/compiler`はCommit済みAuthoring revisionからRuntime packageを生成し、live Runtime Worldを参照しない。
 
-各`engine/<domain>`は公開契約の`<domain>_port`、World query／System／resolverを持つ`<domain>_runtime`、vendor変換の`<domain>_<backend>_adapter`を別CMake targetにする。Runtimeだけが宣言済みComponent accessを通して`mira_world`へ依存でき、AdapterはWorldへ依存しない。Rendering、Audio、VFX、Luau binding等、snapshot／commandだけで動くconcrete targetには、上限DAGにedgeがあってもWorld dependencyを与えない。正確な許可edgeとread／write setはRuntime詳細規約を基準にする。
+各`engine/<domain>`は公開契約の`<domain>_port`、World query／System／resolverを持つ`<domain>_runtime`、vendor変換の`<domain>_<backend>_adapter`を別CMake targetにする。Runtimeだけが宣言済みComponent accessを通して`mira_world`へ依存でき、AdapterはWorldへ依存しない。Rendering、Audio、VFX等、snapshot／commandだけで動くconcrete targetには、上限DAGにedgeがあってもWorld dependencyを与えない。GameplayDefinition evaluatorは`gameplay_runtime`内のC++ Systemであり、汎用VM Adapterを持たない。正確な許可edgeとread／write setはRuntime詳細規約を基準にする。
 
 各moduleは次を標準形とする。
 
@@ -713,7 +717,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 - Public includeはmoduleの契約であり、他moduleの`src`をincludeしてはならない。
 - Hostだけがconcrete adapterを生成し、core module内でservice locatorを構築しない。
 - Domain targetから別Domain targetへの直接依存を禁止し、cross-domain dataは`engine/runtime/contracts`を経由する。
-- C++、TypeScript、Luau、MCP、Providerで共有する契約は`schemas/mira/`のMCDから生成し、手書きで二重管理しない。
+- C++、TypeScript、MCP、Provider、Cooked binaryで共有する契約は`schemas/mira/`のMCDから生成し、手書きで二重管理しない。
 - Generated source、Provider Schema、Reference docsはsource treeへ置かず、Build treeへ生成する。正本とgolden hashだけを追跡する。
 - `evidence/`は外部資料のclaim、URL、hash、取得日、期限を保持し、Web page全文の無断複製やBuild中の自動取得を行わない。
 - `formal/tla/`は有限State machineだけを対象とし、C++実装全体の証明を表明しない。
@@ -749,7 +753,6 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 | Box2D | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3` | MIT | 2D collision／solver | Engine component、unit変換、event、serialization |
 | Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a` | MIT | 3D collision／solver | Engine component、job bridge、event、serialization |
 | Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | Navmesh build／query kernel | Build profile、tile asset、AI command、debug UX |
-| Luau | 0.730／`5bc7f4b23756f69f4669b419fa9034f117ccd6fe` | MIT | Parser、bytecode、VM、GC | Capability API、quota、permission、hot reload policy |
 | ozz-animation | 0.16.0／`6cbdc790123aa4731d82e255df187b3a8a808256` | MIT | Skeleton compression、sampling、blend primitives | Animation graph、state machine、root motion、IK policy |
 | DirectXTex | may2026／`4feb3e11a020f35b796fc769a74216a555d4f5ef` | MIT | Offline texture decode／mipmap／BC encoding | Asset schema、import policy、cooked format |
 | Dear ImGui Docking | v1.92.8-docking／`b61e56346a92cfcaf1f43a545ca37b0b32239654` | MIT | 初期Editor shellのPanel描画、Docking、multi-viewport | Document、workspace、command、undo、design system、accessibility |
@@ -805,7 +808,7 @@ SHA-512:
 - Draw／dispatch／triangle／visible object
 - Physics body／contact／step time
 - Navigation tile／query time
-- Script VM memory／GC pause／invocation・Capability call・deadline quota
+- GameplayDefinition evaluation数／node visit／transaction／state／task／budget超過
 - Streaming request latencyとcache hit
 
 PIX capture markerとDRED breadcrumbへProject revision、frame、Render pass、resource debug nameを関連付ける。
@@ -825,23 +828,23 @@ PIX capture markerとDRED breadcrumbへProject revision、frame、Render pass、
 | Test | 必須内容 |
 |---|---|
 | Unit | Handle generation、Result、allocator、schema、command precondition |
-| Property／fuzz | Serializer、ChangeSet parser、asset importer、Script boundary |
-| Conformance | Box2D／Jolt／Recast／Luau Adapterの座標、event、lifetime |
+| Property／fuzz | Serializer、ChangeSet parser、asset importer、GameplayDefinition boundary |
+| Conformance | Box2D／Jolt／Recast Adapterの座標、event、lifetime、GameplayDefinition cook／state transaction |
 | Integration | ChangeSet→validate→stage→commit→save→load→replay、fixed phase、Asset atomic promotion |
 | Graphics | Headless／WARP smoke、reference GPU image test、Debug Layer |
 | Mobile graphics | SPIR-V／Metal validation、Android emulator／Apple Simulator smoke、Adreno／Mali／Apple実機golden |
 | Mobile package | AAB、ABI、16 KiB alignment、PAD、Apple archive、privacy manifest、実行code混入検査 |
-| Performance | Allocation count、Subsystem／frame P95、queue peak、streaming、physics、nav、script、10分soak |
+| Performance | Allocation count、Subsystem／frame P95、queue peak、streaming、physics、nav、gameplay、10分soak |
 | Mobile endurance | 実機memory pressure、surface loss、audio interruption、30分thermal、2時間endurance |
 | Migration | 各保存fixtureをcurrent schemaへ変換しDiffを検証 |
 | Soak | 長時間play、resource churn、device lost、memory pressure、stale async result |
 
 CIはformat、compile、static analysis、test、sanitizer、package manifestを順に実行する。生成C++はFirst-partyと同じwarning、sanitizer、test基準を通過しなければProjectへCommitできない。
 
-## 17. AI生成Script／C++への追加制約
+## 17. AI生成構造化データ／C++への追加制約
 
 - AIはallocator、raw address、D3D12／Vulkan／Metal native object、JNI／Objective-C object、Platform lifecycleを直接操作しない。
-- ScriptはCapability allowlist外のfilesystem、network、process、clockへアクセスできない。
+- GameplayDefinitionはMCDで許可された有限Capability、bounded collection、明示State transitionだけを使用し、filesystem、network、process、clock、FFI、任意loop／recursionを持たない。
 - NativeCodeChangeSetは許可directory、CMake target、dependencyを宣言する。
 - 新規dependency、unsafe compiler option、public API変更、memory budget変更は重要操作として人間承認を必要とする。
 - Generated codeはownership annotation相当のAPI形、static analysis、ASan、unit test、isolated buildを通す。
@@ -902,7 +905,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 | Shader-visible descriptorとresource寿命をfenceで管理する | [D3D12 Resource Binding Overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/resource-binding-flow-of-control) |
 | GPU-based validationを小規模Test／定期CIで使う | [GPU-based validation](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-d3d12-debug-layer-gpu-based-validation) |
 | D3D12 heap suballocation | [GPUOpen D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) |
-| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [Luau 0.730](https://github.com/luau-lang/luau/releases/tag/0.730), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/0.16.0), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026), [Dear ImGui 1.92.8-docking](https://github.com/ocornut/imgui/releases/tag/v1.92.8-docking) |
+| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/v0.16.0), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026), [Dear ImGui 1.92.8-docking](https://github.com/ocornut/imgui/releases/tag/v1.92.8-docking) |
 | Manifest modeとversion固定 | [vcpkg Manifest Mode](https://learn.microsoft.com/en-us/vcpkg/concepts/manifest-mode) |
 | CMake Presetsとの統合 | [vcpkg CMake Integration](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration) |
 | Namingは一貫したproject styleとして機械化 | [Google C++ Style Guide](https://google.github.io/styleguide/cppguide), [ClangFormat](https://clang.llvm.org/docs/ClangFormatStyleOptions.html), [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) |
@@ -935,7 +938,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 - Domain間の直接呼出しと相互pointer保持
 - callback、job、event配送中の再入的なWorld構造変更
 - Asset dependency closureの一部だけをlive化するhot reload
-- Android／Apple Shipping packageでのC++、native／managed executable、Script、shaderの生成、remote download、JIT、dynamic load
+- Android／Apple Shipping packageでのC++、native／managed executable、shaderの生成、remote download、JIT、dynamic load
 - Mobile用に別World、別GameSpec、別Save schema、別AI command体系を作ること
 
 この禁止事項に例外が必要な場合は、再現可能なBenchmark、代替案、破棄条件、影響範囲をADRへ記録しなければならない。

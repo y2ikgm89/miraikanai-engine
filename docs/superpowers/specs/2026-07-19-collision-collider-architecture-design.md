@@ -1,12 +1,13 @@
 # Miraikanai Engine Collision／Colliderアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: 2D／3D Collision、Rigid Body接続、Collision Query、Editor、AI Authoring、Asset Cook
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
@@ -17,7 +18,7 @@
 
 CollisionはPhysicsの付属機能ではなく、Gameplay、Character、Camera、Navigation、Animation、VFX、Audio、Editor、AI Authoringを接続するFirst-class Capabilityとする。
 
-Miraikanai Engineは、AI、Script、人間、Project C++へBox2D／Joltのbody、shape、pointer、callbackを公開しない。公開するのはEngine-ownedのCollider Asset、Physics Body Component、Collision Filter、Query、Event、Typed Command、Validator、Previewだけである。2Dの検出と応答にはBox2D 3.1.1、3DにはJolt Physics 5.6.0をAdapter内で利用するが、次はMiraikanai Engineが独自に所有する。
+Miraikanai Engineは、AI、`GameplayDefinition`、人間、`NativeGameModule`（Project C++）へBox2D／Joltのbody、shape、pointer、callbackを公開しない。公開するのはEngine-ownedのCollider Asset、Physics Body Component、Collision Filter、Query、Event、Typed Command、Validator、Previewだけである。2Dの検出と応答にはBox2D 3.1.1、3DにはJolt Physics 5.6.0をAdapter内で利用するが、次はMiraikanai Engineが独自に所有する。
 
 - 正規Authoring dataとRuntime contract
 - Stable ID、generation、Asset version、shape slot
@@ -26,7 +27,7 @@ Miraikanai Engineは、AI、Script、人間、Project C++へBox2D／Joltのbody�
 - Cook、validation、hot reload、failure policy
 - EditorのCollider編集、可視化、Profiler
 - AI用Capability、Operation、質問、Diff、承認
-- Script／Project C++へ公開する安全なAPI
+- `GameplayDefinition`へ許可する型付きOperationと`NativeGameModule`向けPort
 - 性能、memory、mobile、test、release gate
 
 「独自Collision system」はsolver数式を一から再実装する意味ではない。Engine固有の制作・検証・実行契約を所有し、vendor kernelを交換してもGameSpec、Project source、AI Tool、Saveがvendor APIへ依存しない状態を意味する。
@@ -40,6 +41,7 @@ Miraikanai Engineは、AI、Script、人間、Project C++へBox2D／Joltのbody�
 | Collider、shape、material、filter、query、event、cook、Editor／AI操作 | 本書 |
 | Physics phase、event配送時点、handle寿命、queue overflow、global memory配分 | Runtime規約 |
 | C++所有権、pointer、module、directory、vendor version | 基盤規約 |
+| GameplayDefinition、NativeGameModule、AI実装選択 | Game実装規約 |
 | 2D／3D Capability成熟度とGenre package | 2D／3D機能計画 |
 | Android／Apple絶対budget、lifecycle、thermal | モバイル規約 |
 | MCD、Schema projection、Codegen | 実行可能契約規約 |
@@ -74,7 +76,7 @@ Soft body、GPU simulation、network collision、large-world floating originはC
 6. **有限値だけを受理する。** NaN、Inf、非正規quaternion、退化形状、範囲外値をfallbackせず拒否する。
 7. **QueryとSimulationを分ける。** QueryはWorldを変更せず、結果順序をEngineが正規化する。
 8. **TriggerとBlockを分ける。** Sensorはoverlap eventだけを生成し、solver responseとmassへ寄与しない。
-9. **Callbackを公開しない。** Native callbackはpreallocated bufferへ値をcopyするだけで、World、Script、AIを呼ばない。
+9. **Callbackを公開しない。** Native callbackはpreallocated bufferへ値をcopyするだけで、World、Gameplay Logic、AIを呼ばない。
 10. **失敗を成功に見せない。** Cook、capacity、queue、invariantの失敗時はlast valid revisionを維持し、部分的なPhysics stateをpublishしない。
 
 ## 4. 座標、scale、数値範囲
@@ -129,7 +131,7 @@ PhysicsBody3DComponent ───────────────────
 - Source AssetはStable ID、schema version、revision、provenanceを持つ。
 - Cooked AssetはSource revision、Target Profile、backend ABI version、Cook profile、content hashを持つimmutable Derived Assetである。
 - Runtime bodyは`PhysicsBodyHandle { index32, generation32 }`で参照する。
-- Native `b2BodyId`、`b2ShapeId`、Jolt `BodyID`、`Shape*`をComponent、Event、Save、Scriptへ保存しない。
+- Native `b2BodyId`、`b2ShapeId`、Jolt `BodyID`、`Shape*`をComponent、Event、Save、GameplayDefinitionへ保存しない。
 - 一つのEntityへauthoritative `PhysicsBody2DComponent`と`PhysicsBody3DComponent`を同時付与しない。
 - 一つのBodyは一つのCooked Collider Asset versionを参照する。CompoundはAsset内の複数shapeで表現する。
 - Colliderを持たないBodyはEditor previewだけ許可し、Play／Cookを拒否する。
@@ -138,7 +140,7 @@ PhysicsBody3DComponent ───────────────────
 
 | Field | 型／範囲 | 規則 |
 |---|---|---|
-| `body_kind` | `static | kinematic | dynamic` | 必須 |
+| `body_kind` | `static \| kinematic \| dynamic` | 必須 |
 | `collider_asset_id` | Stable `AssetId<Collider2D>` | Runtime compileでversionへ解決 |
 | `position_m` | finite float2 | Authoring source |
 | `rotation_rad` | finite float | `[-pi, pi)`へcanonicalize |
@@ -149,18 +151,18 @@ PhysicsBody3DComponent ───────────────────
 | `gravity_scale` | float `[-16, 16]` | static／kinematicでは0へ固定せずfield自体を禁止 |
 | `linear_damping_per_s` | float `[0, 100]` | dynamic／kinematic |
 | `angular_damping_per_s` | float `[0, 100]` | dynamic／kinematic |
-| `mass_mode` | `from_shapes | override` | dynamicだけ |
+| `mass_mode` | `from_shapes \| override` | dynamicだけ |
 | `mass_override_kg` | float `(0, 1e9]` | override時だけ |
 | `inertia_override_kg_m2` | float `(0, 1e12]` | override時だけ |
 | `fixed_rotation` | bool | dynamic／kinematic |
-| `sleep_policy` | `allow | prevent | start_sleeping` | dynamicだけ |
-| `motion_quality` | `discrete | bullet` | dynamicだけ |
+| `sleep_policy` | `allow \| prevent \| start_sleeping` | dynamicだけ |
+| `motion_quality` | `discrete \| bullet` | dynamicだけ |
 
 ### 5.3 `PhysicsBody3DComponent`
 
 | Field | 型／範囲 | 規則 |
 |---|---|---|
-| `body_kind` | `static | kinematic | dynamic` | 必須 |
+| `body_kind` | `static \| kinematic \| dynamic` | 必須 |
 | `collider_asset_id` | Stable `AssetId<Collider3D>` | Runtime compileでversionへ解決 |
 | `position_m` | finite float3 | Authoring source |
 | `rotation_xyzw` | normalized float4 | 4.1節 |
@@ -171,12 +173,12 @@ PhysicsBody3DComponent ───────────────────
 | `gravity_scale` | float `[-16, 16]` | dynamicだけ |
 | `linear_damping_per_s` | float `[0, 100]` | dynamic／kinematic |
 | `angular_damping_per_s` | float `[0, 100]` | dynamic／kinematic |
-| `mass_mode` | `from_shapes | override` | dynamicだけ |
+| `mass_mode` | `from_shapes \| override` | dynamicだけ |
 | `mass_override_kg` | float `(0, 1e12]` | override時だけ |
 | `inertia_override_kg_m2` | positive finite float3 | override時だけ |
 | `allowed_dofs` | 6 bool | dynamic／kinematic。全falseは拒否してstaticを提案 |
-| `sleep_policy` | `allow | prevent | start_sleeping` | dynamicだけ |
-| `motion_quality` | `discrete | linear_cast` | dynamicだけ |
+| `sleep_policy` | `allow \| prevent \| start_sleeping` | dynamicだけ |
+| `motion_quality` | `discrete \| linear_cast` | dynamicだけ |
 
 `PhysicsBodyReferenceDefaultsV1`は、各body kindで存在するfieldについてinitial velocityをzero、declared peak linear speedを20 m/s、declared peak angular speedを20 rad/s、gravity scale 1、linear／angular dampingを0、mass modeを`from_shapes`、2D `fixed_rotation=false`、3D allowed DOFsを全true、sleepを`allow`、motion qualityを`discrete`とする。Body kind、Collider Asset、poseにはdefaultを設けない。Authoring Componentは採用値を全fieldへ展開し、Cooked Componentに「vendor defaultを使う」という欠落状態を残さない。Declared peakはValidatorとbudgetの入力であり、solver clamp値ではない。Runtime telemetryが連続60 tickで宣言値を超えた場合は`MIRA-COLLISION-DECLARED_MOTION_PROFILE_EXCEEDED` warningを記録する。
 
@@ -189,7 +191,7 @@ Runtime compilerは`collider_asset_id`を承認revisionの`AssetVersionHandle<Co
 | Field | 型／上限 |
 |---|---|
 | `asset_id` | Stable ID |
-| `dimension` | `two_d | three_d` |
+| `dimension` | `two_d \| three_d` |
 | `schema_version` | positive integer |
 | `source_revision` | monotonic uint64 |
 | `shapes` | Stable IDを持つ非空array |
@@ -208,8 +210,8 @@ Runtime compilerは`collider_asset_id`を承認revisionの`AssetVersionHandle<Co
 | `material_asset_id` | 同じdimensionのMaterial |
 | `filter_profile_id` | `CollisionFilterProfileV1` |
 | `is_sensor` | bool |
-| `event_mode` | `none`、または`begin_end`を含む`begin_end | persist | hit`の重複なしset |
-| `semantic_role` | `solid | hurtbox | hitbox | interaction | volume | camera_blocker | custom` |
+| `event_mode` | `none`、または`begin_end`を含む`begin_end \| persist \| hit`の重複なしset |
+| `semantic_role` | `solid \| hurtbox \| hitbox \| interaction \| volume \| camera_blocker \| custom` |
 
 `semantic_role`はAI説明、検索、Validator presetの入力であり、runtime filterを置き換えない。`is_sensor=true`で`semantic_role=solid`、または`is_sensor=false`で`hurtbox／hitbox／interaction／volume`を指定した場合はerrorにする。`custom`はfilter、sensor、eventをすべて明示した場合だけ許可する。
 
@@ -404,7 +406,7 @@ Filter通過後のBody kind規則を両Backendで次へ統一する。
 
 Triangle Mesh、Heightfield、Chainをcastするquery shapeとして使用しない。World側のtargetには使用できる。
 
-`CollisionQueryProfileV1`はStable ID、dimension、include channel set、`include_sensors`、include body kind set、back-face mode、initial-overlap policy、result mode、max hitsを持つ。Authoring／ScriptはProfileを参照し、Runtime requestはProfile ID、Profile hash、上記のCook済み全値を持つ。Profile更新を実行中Requestへ遡及適用しない。
+`CollisionQueryProfileV1`はStable ID、dimension、include channel set、`include_sensors`、include body kind set、back-face mode、initial-overlap policy、result mode、max hitsを持つ。Authoring／GameplayDefinitionはProfileを参照し、Runtime requestはProfile ID、Profile hash、上記のCook済み全値を持つ。Profile更新を実行中Requestへ遡及適用しない。
 
 `CameraCollisionQueryProfile::ReferenceV1`は`include_channels={world_static, world_dynamic, vehicle, destructible}`、`include_sensors=false`、全Body kind、`front_only`、`initial_overlap_policy=report`、`result_mode=closest`、`max_hits=1`とする。Camera ownerのBody handleを各requestの`ignored_bodies`へ必須指定する。
 
@@ -413,10 +415,10 @@ Triangle Mesh、Heightfield、Chainをcastするquery shapeとして使用しな
 | Field | 型／制約 |
 |---|---|
 | `request_id` | callerごとに単調増加uint64 |
-| `dimension` | `two_d | three_d` |
+| `dimension` | `two_d \| three_d` |
 | `physics_scene_version` | request作成時のversion |
 | `query_profile_id／hash` | `CollisionQueryProfileV1`の固定revision |
-| `query_kind` | `ray | shape_cast | overlap | point` |
+| `query_kind` | `ray \| shape_cast \| overlap \| point` |
 | `origin_pose` | dimension別finite pose、scaleなし |
 | `translation_m` | castだけ。finite、長さ`(0, 10,000]` |
 | `query_shape` | query_kindに対応するconvex geometry |
@@ -424,9 +426,9 @@ Triangle Mesh、Heightfield、Chainをcastするquery shapeとして使用しな
 | `include_sensors` | bool |
 | `include_body_kinds` | nonempty set |
 | `ignored_bodies` | `PhysicsBodyHandle`最大16 |
-| `back_face_mode` | `front_only | both`。Mesh／Heightfield target用 |
-| `initial_overlap_policy` | `ignore | report`。Shape castだけ |
-| `result_mode` | `any | closest | all` |
+| `back_face_mode` | `front_only \| both`。Mesh／Heightfield target用 |
+| `initial_overlap_policy` | `ignore \| report`。Shape castだけ |
+| `result_mode` | `any \| closest \| all` |
 | `max_hits` | `any／closest=1`、`all=1～256` |
 
 Rayのoriginがsolid内部にある場合、そのsolidのexit faceをhitとして返さない。内部判定が必要なcallerはPoint／Overlapを先に行う。Shape castの`initial_overlap_policy=report`は同じposeでOverlapを先に実行し、penetration depthを持つ`started_overlapping=true`のhitをfraction 0で返した後にsweepする。`ignore`ではBackendの初期overlapをhitへ変換しない。
@@ -457,12 +459,12 @@ surface_tag
 
 ### 9.4 実行時点
 
-- Gameplay／Scriptは`T30_PrePhysics`でtyped requestを生成する。
+- Gameplay Logicは`T30_PrePhysics`でtyped requestを生成する。
 - Physics Adapterは`T40_MotionIntent`で直前に完了したPhysics worldをread-only queryする。
 - `T60_PhysicsIntegrate`でversion／generation検査後にResultをpublishする。
 - `T70_PostPhysics` consumerは同tickにResultを読めるが、構造変更は次tick`T00` commandになる。
 - Camera等の`T20` consumerは次tickにversion一致Resultだけを読む。
-- Character Motor内部queryだけはPhysics ownerが`T40`中に同期利用でき、Script／AI／Project callbackへその入口を公開しない。
+- Character Motor内部queryだけはPhysics ownerが`T40`中に同期利用でき、GameplayDefinition／AI／Project callbackへその入口を公開しない。
 - Render thread、Audio thread、AI OrchestratorはPhysics worldをqueryしない。
 
 ## 10. Contact、Trigger、Hit
@@ -498,7 +500,7 @@ Trigger payloadはmanifoldを持たず、`sensor_a`、`sensor_b`を持つ。Sens
 - 最終Eventは`{event_kind, body_a, body_b, collider_a_version, shape_a_slot, collider_b_version, shape_b_slot, contact_point_index, payload_bits}`順にsortする。
 - NaN、Inf、zero normal、無効generation、retire済みAsset versionを含むEventは配送せず`MIRA-COLLISION-NATIVE_INVARIANT`としてtickをpublishしない。
 
-Native Contact callback中はpreallocated thread-local bufferへのcopy以外を禁止する。allocation、logging、World access、Body lock取得、Physics変更、Script、AI、Audio、VFX呼出しを行わない。Jolt callbackは複数threadから同時に呼ばれるため、bufferはworker別にする。Box2D event arrayはstep後に一度だけconsumeする。
+Native Contact callback中はpreallocated thread-local bufferへのcopy以外を禁止する。allocation、logging、World access、Body lock取得、Physics変更、Gameplay Logic、AI、Audio、VFX呼出しを行わない。Jolt callbackは複数threadから同時に呼ばれるため、bufferはworker別にする。Box2D event arrayはstep後に一度だけconsumeする。
 
 ### 10.3 Event subscriptionとoverflow
 
@@ -529,8 +531,8 @@ C1／C2のcontact modificationはEngine同梱の次のtyped ruleだけに限定�
 
 | Dimension | C1 mode | 規則 |
 |---|---|---|
-| 2D | `discrete | bullet` | dynamic bodyだけ。Bulletは必要な高速bodyに限定 |
-| 3D | `discrete | linear_cast` | dynamic bodyだけ |
+| 2D | `discrete \| bullet` | dynamic bodyだけ。Bulletは必要な高速bodyに限定 |
+| 3D | `discrete \| linear_cast` | dynamic bodyだけ |
 
 Validatorは`declared_peak_linear_speed_mps / 60 > 0.5 * minimum_solid_extent_m`の場合に`MIRA-COLLISION-TUNNELING_RISK` warningを出し、対応modeと厚み変更を提案する。AIはwarningだけで設定を自動Commitせず、Diffへ性能影響を表示する。
 
@@ -764,14 +766,14 @@ AIは自然言語を次の順で解決する。
 
 AIはValidator errorを理由にColliderを削除、Sensorへ変更、Filterを全許可、budgetを引上げて成功扱いしない。
 
-## 17. ScriptとProject C++
+## 17. GameplayDefinitionとNativeGameModule
 
-### 17.1 Luau
+### 17.1 GameplayDefinition
 
-Luau strict Capability APIへ次だけを公開する。
+GameplayDefinition schemaへ次の型付きOperationだけを定義する。
 
 - Collision Query requestとversion付きresult
-- Contact／Trigger／Hit subscription
+- Contact／Trigger／Hit eventを条件とするRule
 - Dynamic bodyへのForce／Impulse／Velocity command
 - Kinematic targetとCharacter move intent
 - 明示`TeleportBody` command
@@ -779,11 +781,13 @@ Luau strict Capability APIへ次だけを公開する。
 - Sensor shapeのT00 active切替
 - BodyのEngine-visible state snapshot
 
-LuauからCollider geometry、Sensor flag、Filter table定義、Material、Body kindをPlay中に変更しない。許可するのは5.4節の既存Profile選択とSensor activeだけである。Native ID、pointer、callback登録、World step、lock、allocatorを公開しない。
+これらは関数bindingではなく、MCDで列挙されたCapability ID、型付き引数、対象Stable ID、consume phase、上限を持つ宣言である。Cookerは参照、権限、phase、回数、query hit上限を検証し、C++ evaluatorがbounded commandへ変換する。任意関数呼出し、loop、recursion、callback登録、FFIは存在しない。
 
-### 17.2 Project C++
+GameplayDefinitionからCollider geometry、Sensor flag、Filter table定義、Material、Body kindをPlay中に変更しない。許可するのは5.4節の既存Profile選択とSensor activeだけである。Native ID、pointer、World step、lock、allocatorをdataへ保存または公開しない。
 
-Project C++は`collision_port`のtyped command／query／eventを使用する。Vendor headerをProject targetへlinkまたはincludeしない。C1ではProject独自Contact callbackを登録できない。Gameplay拡張はEvent consumerまたはMCD operationとして実装する。
+### 17.2 NativeGameModule
+
+NativeGameModule（Project C++）は`collision_port`のtyped command／query／eventを使用する。Vendor headerをProject targetへlinkまたはincludeしない。C1ではProject独自Contact callbackを登録できない。Gameplay拡張はEvent consumerまたはMCD operationとして実装する。
 
 新しいContact Rule、Shape type、Backend設定、Physics phase、queue、memory budgetを追加するC++はEngine Architecture変更としてR4 Reviewを要求する。
 
@@ -939,7 +943,7 @@ Cross-backendでbitwise同一のtrajectoryを要求しない。Engine-visible in
 
 | Capability | C0 | C1 | C2 | C3 |
 |---|---|---|---|---|
-| Contract | MCD、Validator、Diagnostic | C++／TS／Luau／MCP projection | Profile拡張 | Specialized |
+| Contract | MCD、Validator、Diagnostic | C++／TS／Cooked binary／MCP projection | Profile拡張 | Specialized |
 | 2D Shape | Preview Cook | Primitive、convex、segment、chain、tile | concave分解、one-way | specialized |
 | 3D Shape | Preview Cook | Primitive、convex、static mesh／heightfield | tapered、decomposition、streaming | soft／GPU |
 | Filter／Sensor | Schema、matrix | Production | advanced contact rule | network filter |
@@ -1010,8 +1014,8 @@ Navigationへ渡すStatic collision sourceはCollider Source revisionから別De
 本仕様のCollision C1は、次をすべて満たした時だけProductionと表示する。
 
 1. 本書のMCD type、operation、capability、profile、diagnosticが正本化される。
-2. C++／TypeScript／Luau／MCP projectionが同じMCDから生成される。
-3. Editor、AI、Script、人間操作が同じChangeSet／Validator／Cook経路を使う。
+2. C++／TypeScript／Cooked binary descriptor／MCP projectionが同じMCDから生成される。
+3. Editor／AI／人間によるGameplayDefinition編集が同じChangeSet／Validator／Cook経路を使う。
 4. Box2D／Jolt型がpublic header、Project source、Save、Eventへ出ない。
 5. 2D C1または3D C1の該当Adapter conformanceが全合格する。
 6. Query／Eventのcanonical ordering、lifetime、overflow、fault injectionが合格する。

@@ -1,11 +1,12 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.7
+- 文書版: 0.8
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-19
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
 - 状態: 基本構想、基盤、Runtime連携、Collision、2D／3D、モバイル、AI実装・保守契約を統合した設計レビュー版
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
+- Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
@@ -21,9 +22,9 @@
 2. AIがゲーム制作に重要な不足要件だけを質問する。
 3. AIが理解したゲーム概要と補完事項をGame Briefとして提示する。
 4. AIがゲーム全体のGameSpecと実装計画を作成する。
-5. AIが承認済みVisual StyleとEngine Capabilityに従い、構造化編集、Script、C++、またはその組み合わせをシステム単位で選択する。
+5. AIが承認済みVisual Style、Engine Capability、Behavior Budgetに従い、GameplayDefinitionまたはC++をシステム単位で選択し、必要なら型付き境界で併用する。
 6. C++エンジンが生成結果を検証し、短縮されたゲーム全体と代表的な完成部分を持つFirst Playableを生成する。
-7. ユーザーはAIとの会話、Scene／Graph／Inspector、Script、C++のいずれからでも調整できる。
+7. ユーザーはAIとの会話、Scene／Graph／Inspector／Definition Table、C++のいずれからでも調整できる。
 8. すべての変更はChangeSetとして記録され、Diff、Dry-run、Test、Undo、監査を経由する。
 
 AIはC++エンジン内部を直接操作しない。AI、Editor GUI、外部ツールはすべて変更提案の作成者であり、最終的な状態変更権限はC++ Command Gatewayだけが持つ。
@@ -36,8 +37,8 @@ AIはC++エンジン内部を直接操作しない。AI、Editor GUI、外部ツ
 
 - 初心者は自然言語だけで制作を開始できる。
 - AIは不足要件を適応的に質問し、設計と実装を補助する。
-- AIはScene、UI、ゲームルール、Asset設定、Script、C++、Testを生成・修正できる。
-- 経験者はビジュアルEditor、Script、C++を直接編集できる。
+- AIはScene、UI、ゲームルール、Asset設定、GameplayDefinition、C++、Testを生成・修正できる。
+- 経験者はビジュアルEditor、GameplayDefinition、C++を直接編集できる。
 - AIの編集と人間の編集を双方向に往復できる。
 - 2D、3D、FPS、TPS、RPG、Action RPG、SimulationなどへDomain Pack方式で拡張できる。
 - Editor制作型を先に完成させ、成熟した検証基盤を制限付きRuntime生成へ再利用する。
@@ -88,7 +89,7 @@ AIはC++エンジン内部を直接操作しない。AI、Editor GUI、外部ツ
 
 一般的な数学、Rendering、Physics、Audio、Input、Asset管理、Undoなどはゲームエンジンに必要な共通概念であるが、公開API、ライフサイクル、シリアライズ、Editor表現は本プロジェクトの要件から独自に定義する。
 
-「独自」は、OS、Compiler、Direct3D 12、標準Library、検証済みのPhysics／Navigation／Script kernelまで再発明する意味ではない。製品の正規data model、公開Capability、編集protocol、validation、lifecycle、serialization、Editor UXを本プロジェクトが所有し、外部LibraryはEngine-owned Adapter内へ隔離する。採用条件と初期Dependencyは基盤アーキテクチャ規約で固定する。
+「独自」は、OS、Compiler、Direct3D 12、標準Library、検証済みのPhysics／Navigation kernelまで再発明する意味ではない。製品の正規data model、公開Capability、編集protocol、validation、lifecycle、serialization、Editor UXを本プロジェクトが所有し、外部LibraryはEngine-owned Adapter内へ隔離する。Game programming modelはC++20とGameplayDefinitionに固定し、汎用Game scripting runtimeは採用しない。採用条件と初期Dependencyは基盤アーキテクチャ規約で固定する。
 
 ## 4. 対象ユーザーとAuthoring Mode
 
@@ -100,8 +101,8 @@ AIはC++エンジン内部を直接操作しない。AI、Editor GUI、外部ツ
 |---|---|---|
 | Level 0 | 自然言語、参考資料、選択肢への回答 | 初心者を含む全ユーザー |
 | Level 1 | Scene、Inspector、Graph、UI、Data、Timeline | 制作経験者、ノーコード利用者 |
-| Level 2 | 安全なゲームScriptの生成・直接編集 | 中級者、Designer、Mod制作者 |
-| Level 3 | Project C++、Engine Extensionの生成・直接編集 | 上級者、Engine開発者 |
+| Level 2 | GameplayDefinitionのGraph／Table／Form生成・直接編集 | 中級者、Designer、Mod制作者 |
+| Level 3 | NativeGameModule（Project C++）、Engine Extensionの生成・直接編集 | 上級者、Engine開発者 |
 
 レベルは権限階層であり、別製品や別ファイル形式ではない。初心者がLevel 0で作ったプロジェクトを、経験者がLevel 1〜3で直接編集できる。
 
@@ -182,7 +183,7 @@ AIはこの入力からジャンル、中心体験、Core loop、視点、進行
 
 回答操作は影響度で制限する。`Blocking` は、人間が回答するか、その判断だけを対象にした有効な `allow_ai_select` 委任によって解消するまで制作Commitへ進めない。`High Impact` の「おまかせ」は有効な委任とCapability／BudgetのHard gate通過を必須とし、条件を満たさなければ確認へ戻す。「後で決める」は `Medium Impact` 以下に限り、期限、暫定値、影響範囲をDecision Logへ記録する。「仮実装して試す」は、Schema、保存データ、Public API、Gameplay spaceを固定しない可逆な実験だけに許可する。
 
-初心者へScript／C++、ECS、RPCなどの実装方式を質問しない。AIは「同時に何体表示したいか」「オンラインが必要か」など、ゲーム上の要件を確認し、実装方式を内部で選択する。
+初心者へGameplayDefinition／C++、ECS、RPCなどの実装方式を質問しない。AIは「同時に何体表示したいか」「オンラインが必要か」など、ゲーム上の要件を確認し、実装方式を内部で選択する。
 
 ### 5.3 Game Brief
 
@@ -240,7 +241,7 @@ First Playable以降、次の編集経路を同時に利用できる。
 - Rule Graph
 - UI Editor
 - Data Table
-- Script Editorまたは外部IDE
+- GameplayDefinition Graph／Table／Form
 - C++ Editorまたは外部IDE
 
 小変更は即時Preview、中変更は短い実装計画、大変更は影響分析と承認を経由する。
@@ -305,19 +306,19 @@ operations[]
 
 | 種別 | 対象 |
 |---|---|
-| GameChangeSet | World、Scene、UI、Rule、Asset設定 |
+| GameChangeSet | World、Scene、Entity／Composition Recipe、UI layout／style binding、Asset参照／設定 |
 | StyleChangeSet | VisualStyleProfile、Material Template、Art Asset、Animation presentation、Lighting、Camera、Post、VFX、UI Style、関連Import設定 |
-| ScriptChangeSet | Script、公開Parameter、Binding、Test |
+| GameplayDefinitionChangeSet | Rule、FSM、Behavior Tree、Quest、Dialogue、Ability、UI Flow、公開Parameter、Test |
 | NativeCodeChangeSet | C++ source、header、Build定義、Test |
 | AssetChangeSet | 画像、音声、3D、Animation、Import設定 |
 
 各種別は共通してRevision、Diff、承認、履歴を持つが、検証・適用方法は分離する。
 
-### 6.5 Behavior Contract
+### 6.5 Gameplay Capability Contract
 
-ScriptとC++実装を交換可能にするため、GameSpecは具体的な言語実装ではなくBehavior ContractまたはCapabilityを参照する。
+GameSpecとGameplayDefinitionは具体的なC++ symbolではなく、version付きCapability ID、typed command／event／snapshotを参照する。
 
-Script版がPerformance要件を満たさない場合、同じContractを実装するC++版へ置き換えられる。呼び出し側のGameSpecと他システムを全面変更しない。
+既存Capabilityの組合せで表現できない機能、または同一fixtureの計測で構造化実装がPerformance要件を満たさない機能は、同じ公開Contractを維持した`NativeGameModule`へ実装できる。呼び出し側のGameSpec、Save field、他Systemを全面変更しない。
 
 ### 6.6 Decision Ledger
 
@@ -363,7 +364,7 @@ AIが実装方式を判断するための制約を保持する。
 
 ## 7. システムアーキテクチャ
 
-本章はProduct全体の論理構成を定義する。C++ module依存、所有権の一般則、Build、directoryは[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)、Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)、2D／3D Subsystemの機能範囲は[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)、Android／AppleのTarget、Adapter、実機budget、package、Store gateは[Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)を詳細基準とする。AI Task、権限、Source隔離、API／MCP／CLI／Pluginの役割は[AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)、Requirement、Schema、Codegen、Provider projectionは[実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)、Test、形式モデル、Eval、Receipt、Provenance、Evidence更新は[AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)を詳細基準とする。
+本章はProduct全体の論理構成を定義する。C++ module依存、所有権の一般則、Build、directoryは[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)、Game実行コード、GameplayDefinition、CookedGameplayPackage、NativeGameModuleは[C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)、Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)、2D／3D Subsystemの機能範囲は[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)、Android／AppleのTarget、Adapter、実機budget、package、Store gateは[Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)を詳細基準とする。AI Task、権限、Source隔離、API／MCP／CLI／Pluginの役割は[AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)、Requirement、Schema、Codegen、Provider projectionは[実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)、Test、形式モデル、Eval、Receipt、Provenance、Evidence更新は[AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)を詳細基準とする。
 
 ```text
 Human Prompt / Editor / External Agent
@@ -383,11 +384,11 @@ Human Prompt / Editor / External Agent
                 v
  Implementation Strategy Planner
                 |
-       +--------+---------+
-       |        |         |
- Structured   Script     C++
-       |        |         |
-       +--------+---------+
+       +------------------+
+       |                  |
+ GameplayDefinition     C++
+       |                  |
+       +------------------+
                 |
                 v
        Normalized ChangeSet
@@ -476,7 +477,7 @@ Game Brief、参考Asset、既存Asset、Project Profile、`StyleCapabilityManif
 
 ### 7.6 Implementation Strategy Planner
 
-システム単位で構造化編集、Script、C++、Hybridを選択する。LLMの推測だけで決めず、Engine Policyと実測を組み合わせる。
+システム単位でGameplayDefinition、C++、または型付きCapability境界での併用を選択する。LLMの推測だけで決めず、Engine Policyと実測を組み合わせる。汎用Game scripting runtimeは候補へ含めない。
 
 ### 7.7 MCP Adapter
 
@@ -514,112 +515,110 @@ Host固有Pluginは任意の薄い補助UXとする。PluginがなくてもProvi
 
 Codex／Claude CLI・DesktopはEngine開発、試作、CI、Code生成、Build、Testに利用する。出荷ゲームのRuntime依存にはしない。
 
-## 8. Script＋C++実装戦略
+## 8. C++実行コード＋構造化ゲームデータ戦略
 
 ### 8.1 基本方針
 
-ユーザーはScriptかC++かを毎回選ばない。AIがシステムごとに最適な方式を選び、理由と測定結果を記録する。
+Engine、Editor、GameHost、Project固有の実行コードはC++20とする。頻繁に調整するゲーム内容は`GameplayDefinition`として宣言し、offline Cookした`CookedGameplayPackage`をEngineのC++ evaluatorが実行する。汎用Game scripting runtime、bytecode interpreter、JIT、Game向けFFIは導入しない。
+
+ユーザーは実装方式を毎回選ばない。AIは次の順で判定し、理由、前提、Contract、Budget、Benchmark ReceiptをDecision Ledgerへ記録する。
 
 ```text
-構造化編集で表現可能
-  → 構造化編集
+既存CapabilityとGameplayDefinitionで表現可能
+  → GameplayDefinition
 
-ゲーム固有ロジックで頻繁に変更
-  → Script
+参照・index・layout・Cook最適化でBudget内
+  → GameplayDefinitionを維持
 
-高頻度、大量Entity、低遅延、Engine Capability
-  → C++
+未提供Gameplay Capability／新規Algorithm
+  → NativeGameModule
 
-高性能基盤と調整可能なルールが両方必要
-  → C++＋Script＋構造化データ
+複数Projectで再利用するEngine-wide Capability
+  → Engine ExtensionとしてR4 Review
+
+Platform／Native SDK統合
+  → Engine Adapter変更としてR4 Review
+
+同一fixtureで構造化実装がBudget超過
+  → C++候補と比較し、有意な改善時だけC++へ昇格
+
+調整可能なRuleと高性能Kernelが両方必要
+  → GameplayDefinition＋typed Capability境界＋C++
 ```
 
 ### 8.2 判断材料
 
-- ジャンル
-- 2D／3D
-- Real-time／Turn-based
-- Single／Multiplayer
-- Open World
-- 同時Entity数
-- Mapサイズ
-- 目標FPS
-- Platform
-- 更新頻度
-- Hot Reload要件
-- 決定論
-- Network Authority
-- Mod公開範囲
-- Security境界
-- 既存Capability
-- 過去のBenchmark
+- 既存Capabilityで完全に表現できるか
+- データ量、同時Entity数、呼出頻度、Latency
+- CPU／MemoryのBehavior Budget
+- Offline Cookで参照解決、index作成、SoA化、事前計算が可能か
+- 決定論、Save／Replay、Network Authority
+- Platform／Store／Security境界
+- 新しいNative SDKまたは低Level APIが必要か
+- 人間が頻繁に調整する値・Ruleか
+- 対象Target ProfileのBenchmarkと過去Receipt
 
-### 8.3 Scriptの責務
+Genre名、2D／3D、Project規模だけを理由にC++へ昇格しない。
 
-- ゲーム固有Behavior
-- Ability
-- Enemy AI
-- Event
-- Quest condition
-- UI behavior
-- Stage gimmick
-- 頻繁に調整するRule
+### 8.3 GameplayDefinitionの責務
 
-Scriptは許可されたCapability APIだけを利用する。任意メモリ、任意File、任意Network、OS commandを許可しない。
+- Rule、typed State Machine、bounded Behavior Tree
+- Ability、Quest、Dialogue、Encounter
+- Enemy intentと既存Capabilityのcomposition
+- UI Flow、Stage gimmick、Event reaction
+- 数値、Curve、Tag、Profile、参照
+- AI生成と人間によるGraph／Table／Form編集
+
+Definitionは許可済みCapability ID、型付き引数、Stable ID、状態IDだけを保持する。任意関数名、pointer、native handle、File、Network、OS command、loop、recursion、callback登録を保持しない。State Machineは一つのinstance／phaseにつきauthoritative transitionを最大1件、Behavior Treeは`max_node_visits_per_tick`を必須とする。
 
 ### 8.4 C++の責務
 
-- 大量Entity処理
-- 毎frameのHot path
-- Physics／Navigation／Rendering
-- Network Authority
-- Deterministic simulation
-- Asset importer
-- 新しいCapability
-- Scriptへ公開する安全な基盤
+- Engine／Editor／Platform／Adapterの実行基盤
+- Physics、Navigation、Rendering、Audio、Input等のKernel
+- Serializer、Allocator、Job system、Security境界
+- 大量Entity処理または低Latency hot path
+- 新しいAlgorithm、Native SDK、Platform API
+- GameplayDefinitionへ公開するversion付きCapability
+
+Project固有C++は`NativeGameModule`として、Engine-ownedのtyped command／event／immutable snapshotだけを利用する。Engine／vendor pointer、allocator、World内部container、GPU／Physics native objectを公開しない。
 
 ### 8.5 C++変更範囲
 
 | 範囲 | AIの標準権限 | 必須検証 |
 |---|---|---|
-| Game Module | 生成・修正可能 | Compile、Unit、Integration |
-| Project Native Module | 生成・修正可能 | Dependency、Capability、Sandbox |
-| Engine Extension | 明示的な高リスク変更 | 全体Test、current API conformance、承認 |
-| Engine Core | 通常は提案のみ | 特権承認、完全Review、回帰Test |
+| NativeGameModule | 隔離Workspaceで生成・修正可能 | Primary／secondary Compile、Static analysis、Unit、Integration、Capability conformance |
+| Engine／Platform Adapter | 明示的なR4変更 | Dependency、Security、Platform／Store、全体Test、Domain owner、独立Review |
+| Engine Extension | 明示的なR4変更 | 全体Test、current API conformance、Domain owner、独立Review |
+| Engine Core | R4 Proposalと隔離Patch | Threat／lifetime analysis、完全Review、回帰・fault・soak |
 
-初心者の自然言語指示からC++が必要になった場合も、まず隔離WorkspaceへNativeCodeChangeSetを生成し、CompileとTestを通す。稼働中Engineへ未検証コードを直接注入しない。
+初心者の自然言語指示からC++が必要になった場合も、まず隔離Workspaceへ`NativeCodeChangeSet`を生成し、CompileとTestを通す。稼働中Engineへ未検証codeを注入しない。Desktop Previewは別ProcessのGameHostをBuild後に再起動し、C++ DLLのin-process hot unloadを1.0では行わない。Android／AppleのC++変更は再Build、再署名、再installを必要とする。
 
 ### 8.6 実測による再評価
 
-AIの予測だけでPerformanceを確定しない。
+Systemごとに`BehaviorBudget`がなければ、性能を理由に実装方式を確定せず`MissingImplementationBudget`をBlocking診断にする。同じReference fixture、入力、品質、Target Profile、clean processで10分間を3回測定し、最悪回のP95、peak memory、deadline miss、allocation countを比較する。
 
-```text
-候補実装
-  → Benchmark
-  → Budgetとの比較
-  → Hot path特定
-  → Script／C++境界の変更
-  → 再測定
-  → 採用
-```
+- Budgetの80%以下、deadline miss 0、決定論／安全性Gate合格: GameplayDefinitionを維持する。
+- 80%超100%以下: DefinitionのCook、index、layoutを最適化し、C++候補と同一fixtureで比較する。
+- 100%超、deadline miss発生、またはNative APIが不可欠: C++候補を作る。
+- C++の改善が5%未満または測定Noise内: GameplayDefinitionを維持する。
 
-Script版をC++へ昇格する場合も、Behavior Contractを維持する。
+80%閾値と5%差は初期Project Policyであり、Task内のAI判断では変更しない。C++へ昇格する場合もCapability ID、command／event、Save field、GameplayDefinition参照を維持する。
 
 ## 9. AI編集と手動編集の統合
 
 ### 9.1 同じ正規状態を利用する
 
-AI、Scene、Graph、Inspectorからの状態変更はGameChangeSetへ統合する。ScriptとC++の正規情報はSource fileとし、File hash、Base revision、Build結果を管理する。
+AI、Scene、Graph、Inspectorからの状態変更はGameChangeSetまたはGameplayDefinitionChangeSetへ統合する。GameplayDefinitionの正規情報はAuthoring source、C++の正規情報はSource fileとし、File hash、Base revision、Definition Cook結果またはBuild結果を管理する。
 
 任意のC++をGameSpecへ逆変換しようとしない。C++ Moduleは提供するCapabilityとContractをEngineへ登録する。
 
 ### 9.2 外部IDE
 
-ScriptやC++が外部IDEで変更された場合、File watcherが変更を検出する。
+GameplayDefinition sourceまたはC++が外部Editor／IDEで変更された場合、File watcherが変更を検出する。
 
 1. File hash更新
 2. Parse／Index
-3. Compile
+3. Schema／semantic validationとCook、またはC++ Compile
 4. Capability影響分析
 5. GameSpec参照の検証
 6. 履歴登録
@@ -643,7 +642,7 @@ AIは現在のSource、GameSpec、World Model、Decision Ledgerを再読込し�
 - 「昨日追加したQuestだけ元に戻して」
 - 「今の見た目を変えずに処理を軽くして」
 - 「AIが仮に決めた項目を表示して」
-- 「ScriptになっているHot pathをC++化して」
+- 「構造化ルールのHot pathを計測して、必要ならC++化して」
 
 AIは指示の対象、範囲、影響度を解決し、ChangeSetとTestを作成する。
 
@@ -697,9 +696,9 @@ API、Agent SDK、MCP、Plugin、CLI、Editor GUIのいずれも安全境界と�
 
 最重要なのはEngine replayである。
 
-### 10.6 Code Sandbox
+### 10.6 Source Sandbox
 
-Script／C++生成は隔離されたBuild環境を利用する。
+C++／Shader source生成は隔離されたBuild環境を利用する。GameplayDefinitionは同じStaging revisionへ置くが、Source実行は行わず、Schema、semantic、Capability、budget、Cook、simulation gateを通す。
 
 - Read-only input
 - Ephemeral workspace
@@ -731,7 +730,7 @@ Script／C++生成は隔離されたBuild環境を利用する。
 - 2D grid／polygon Navigation、3D Navmesh
 - Animation／VFX
 - Input／Audio／UI
-- Script／Native Capability
+- GameplayDefinition／Native Capability
 - Serialization
 - Command／Transaction
 - Test
@@ -758,7 +757,7 @@ Script／C++生成は隔離されたBuild環境を利用する。
 - Test suite
 - AI向け説明
 
-AIはインストール済みCapabilityだけを利用できる。不足する場合は、構造化composition、Script、Project Native Module、Engine Extensionの順に選択し、Engine Extensionから人間の重要操作承認を必須とする。
+AIはインストール済みCapabilityだけを利用できる。不足する場合は、GameplayDefinition composition、NativeGameModule、Engine Extensionの順に選択し、NativeGameModuleはR3、Engine ExtensionはR4の承認を必須とする。
 
 ## 12. Editor制作型とRuntime生成型
 
@@ -768,7 +767,7 @@ AIはインストール済みCapabilityだけを利用できる。不足する�
 
 - GameSpec生成
 - Scene／Rule／UI／Asset設定
-- Script／C++生成
+- GameplayDefinition／C++生成
 - Diff
 - Dry-run
 - Playtest
@@ -782,13 +781,13 @@ Editorで検証基盤が成熟した後、同じIRとValidatorを異なるPolicy
 Runtimeでは次を原則禁止する。
 
 - 任意C++生成・実行
-- 任意Script実行
+- 任意の汎用Game bytecode生成・実行
 - 任意Asset download
 - Arbitrary World mutation
 - Physics／Network stateの直接確定
 - Client内へのProvider API key埋め込み
 
-Android／iOS／iPadOSのShipping Runtimeでは、この禁止をさらに具体化し、C++、native library、DEX、Luau source／bytecode、JavaScript、Python、shader source／binaryの生成、post-install remote download、JIT、動的loadを認めない。Store審査対象のbase packageへoffline compile済みshaderを同梱する通常Buildは除く。許可するのは、署名済みbinaryが既に実装するSchemaとCapabilityの範囲内で、検証された構造化dataを変更することだけである。Asset deliveryへ実行codeを混入しない。詳細なStore、content safety、package scanの規約は[モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)に従う。
+Android／iOS／iPadOSのShipping Runtimeでは、この禁止をさらに具体化し、C++、native library、DEX、JavaScript、Python、汎用Game bytecode、shader source／binaryの生成、post-install remote download、JIT、動的loadを認めない。Store審査対象のbase packageへoffline compile済みshaderを同梱する通常Buildは除く。許可するのは、署名済みbinaryが既に実装するSchemaとCapabilityの範囲内で、検証された構造化dataを変更することだけである。Asset deliveryへ実行codeを混入しない。詳細なStore、content safety、package scanの規約は[モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)に従う。
 
 最初のRuntime Policyで提案を許可する範囲は次に限定する。実装開始前にRuntime専用Threat Modelとserver authority設計を別途承認する。
 
@@ -814,7 +813,7 @@ MultiplayerではAuthoritative serverだけがCommitし、LLMは提案者に限�
 
 ### 13.2 Provider依存の隔離
 
-GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させない。内部Provider adapterを設け、一社から開始して同一Evalで追加Providerを比較する。
+GameSpec、ChangeSet、Gameplay Capability ContractをProvider固有形式へ依存させない。内部Provider adapterを設け、一社から開始して同一Evalで追加Providerを比較する。
 
 MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider projectionを生成する。Provider subsetで表現できないConstraintをManifestへ列挙し、C++ Command GatewayがInternal JSON Schema 2020-12とsemantic／permission／budget validatorで完全再検証する。Provider Schema適合だけをCommit条件にしない。
 
@@ -833,7 +832,7 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 
 ### Phase 0: Foundation契約とToolchain
 
-- 設計文書Indexに列挙した八文書の承認
+- 設計文書Indexに列挙した十文書の承認
 - C++20共通Runtime Contractと`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
@@ -848,7 +847,7 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 - 2D／3Dの座標、単位、色、時間規約
 - Scene dimension、Art Direction、Composition、Shading Modelの正規四軸
 - Lifecycle、Display、Graphics、Input、Audio、Text、Content Delivery、Thermal／MemoryのPlatform Port
-- `/schemas/mira/`のMCD meta-schema、Contract compiler、C++／TS／Luau／MCP／Provider projection
+- `/schemas/mira/`のMCD meta-schema、Contract compiler、C++／TS／Cooked binary descriptor／MCP／Provider projection
 - `TaskSpecification`、署名済み`TaskAuthorizationEnvelope`、`ContextPack`、Provider Manifest、R0–R5
 - Source Worker／Path broker／Network／PromotionのMCD契約、`NotActivated`拒否stub、security fixture。実WorkerはA1で解放
 - TLA+／TLC v1.7.4で検査する5 State machineのmapping。Phase 0ではA0とFoundation実装に該当するModel、残りは各Activation前に実行
@@ -879,7 +878,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Windows window／GameInput／XAudio2／DirectWrite
 - D3D12 device、Render Graph、D3D12MA、Debug Layer／DRED／PIX marker
 - Asset staging、content-addressed cache、sandboxed importer、cook
-- Luau hostとCapability boundary
+- GameplayDefinition schema／Validator／Cooker／C++ evaluatorとNativeGameModule boundary
 - Material IR、Engine-owned Target Binding Layout、Material／Style Validator、代表Material preview
 
 本Phaseのconcrete Adapterとpackageは`windows_desktop_v1`を対象とする。完了条件は、AIを使わずEditor操作がChangeSetを経由し、空SceneをWindowsでplay、save、packageできることである。
@@ -889,7 +888,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - CanvasRenderer、sprite、tilemap、2D light、camera
 - Box2D Adapter、2D grid navigation
 - UI、Audio、2D animation、CPU particle
-- Luauでgame ruleを実装
+- GameplayDefinitionでgame ruleを実装し、C++ evaluatorで実行
 - `pixel_2d`と`illustrated_2d` Profile
 - `pixel_2d` 2D top-down action縦切り
 
@@ -901,13 +900,13 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - OpenAI Responses API、Structured Outputs、strict function calling
 - Requirement Resolver、Game Brief、GameSpec生成
 - VisualStyleResolver、2D Style候補Preview、Decision Ledger
-- Structured／Script／C++ strategy planner
-- ScriptChangeSet、NativeCodeChangeSet、isolated build／test
+- GameplayDefinition／C++ strategy planner
+- GameplayDefinitionChangeSet、NativeCodeChangeSet、isolated validation／cook／build／test
 - Engine-generated Diff、Approval、手動変更との競合処理
 - Playtest feedbackと自動修復
-- Project C++ Capabilityを公開する前にA1を完成し、Source Worker、Promotion、Review ReceiptをTool catalogへ解放
+- NativeGameModule Capabilityを公開する前にA1を完成し、Source Worker、Promotion、Review ReceiptをTool catalogへ解放
 
-完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。MVP能力に含むProject C++生成はA1 Gate合格後だけ成功とし、A1未完ならMVP-A完了を宣言しない。
+完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。MVP能力に含むNativeGameModule生成はA1 Gate合格後だけ成功とし、A1未完ならMVP-A完了を宣言しない。
 
 ### Phase 5: 外部Agent接続
 
@@ -966,7 +965,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Dialogue、Quest outline、Encounter、NPC intent、bounded World構成
 - Multiplayer revision／tick検証はNetwork設計承認後
 
-任意C++、任意Script、raw Physics／Rendering state、client-side Commitは許可しない。
+任意C++、汎用Game bytecode、raw Physics／Rendering state、client-side Commitは許可しない。
 
 ## 15. MVPベースライン
 
@@ -990,15 +989,15 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 4. 最小GameSpec
 5. GameChangeSet
 6. 構造化Scene／Rule編集
-7. 一種類の安全なScript生成
-8. 一種類のProject C++ Capability生成
-9. AIによるStructured／Script／C++選択
-10. 隔離Compile／Test
+7. 一種類以上のGameplayDefinition生成
+8. 一種類のNativeGameModule Capability生成
+9. AIによるGameplayDefinition／C++選択
+10. 隔離Validation／Cook／Compile／Test
 11. Engine-generated Diff
 12. Approval／Commit
 13. Undo／Replay
 14. AI会話による再編集
-15. 手動Scene／Script／C++編集の検出
+15. 手動Scene／GameplayDefinition／C++編集の検出
 16. Base revisionによる競合防止
 17. 最小First Playableの実行
 
@@ -1013,8 +1012,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 - 一つの目標を達成できる
 - Resultまたは終了状態へ到達できる
 - Save／LoadまたはCheckpointが動作する
-- AI生成Scriptがゲーム挙動へ使われる
-- AI生成C++ Capabilityが一つ使われる
+- AI生成GameplayDefinitionがゲーム挙動へ使われる
+- AI生成NativeGameModule Capabilityが一つ使われる
 - 人間が一箇所を手動修正し、AIがその変更を保持して追加編集できる
 
 ### 15.4 MVPから除外する範囲
@@ -1039,8 +1038,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 - 承認済みGame BriefからFirst Playableを生成できる。
 - 生成Projectが固定ToolchainでCompileできる。
 - First Playableを開始から終了まで操作できる。
-- Script生成とC++ Capability生成が隔離環境で検証される。
-- AI変更をGame／Script／C++ごとにDiff表示できる。
+- GameplayDefinition生成とC++ Capability生成が隔離環境で検証される。
+- AI変更をGame／GameplayDefinition／C++ごとにDiff表示できる。
 - 手動変更後のAI再編集で、人間の変更が無条件に消えない。
 - ChangeSetをUndoおよびReplayできる。
 - 無効なAI出力がWorld ModelへCommitされない。
@@ -1056,8 +1055,9 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Editor Host | Windows 11 25H2以降 x64（OS build 26200以上） |
 | Game Target | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`。Mobile Editor、TV／Wear／XR、tvOS／visionOSは初期対象外 |
 | Graphics | WindowsはD3D12、AndroidはVulkan 1.1＋AVP 2022、AppleはMetal。C1はForward+、desktop C2でHybridを選択可 |
-| Language | C++20 |
-| Script | Luau 0.730 strict mode＋Engine Capability API |
+| Game executable language | C++20 |
+| Game implementation | C++実行コード＋GameplayDefinition。Authoring dataはoffline Cookし、C++ evaluatorが実行 |
+| General Game Script VM | 不採用。汎用bytecode interpreter、JIT、Game向けFFIを設けない |
 | 2D Physics | Box2D 3.1.1 Adapter |
 | 3D Physics | Jolt Physics 5.6.0 Adapter |
 | Collision contract | Body／Collider分離、32 Channel、typed Query／Contact／Trigger、immutable Cooked Asset、Collider Editing Mode、AI Typed Operation |
@@ -1075,7 +1075,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | AI Orchestrator | Node.js 24.18.0 LTS／TypeScript 7.0.2 strict、別Process |
 | 初期Provider | OpenAI Responses API、`gpt-5.6-sol`、reasoning `medium` |
 | AI権限 | AI可視Taskと署名済みAuthorization Envelopeを分離。R0–R5、Proposal／Approval／Promotionを別Authorityにする |
-| AI契約 | `/schemas/mira/`のMCDを正本とし、C++／TypeScript／Luau／MCP／Provider Schemaを生成 |
+| AI契約 | `/schemas/mira/`のMCDを正本とし、C++／TypeScript／Cooked binary descriptor／MCP／Provider Schemaを生成 |
 | AI検証 | Contract、semantic、policy、build、test、budget、選択的TLA+、Eval、Review、ProvenanceをRisk別に適用 |
 | IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | Editor | Dock／resize／floating、保存可能な複数Workspace、AI Partnerをpin可能 |
@@ -1092,7 +1092,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 1. World Model、ChangeSet、Capability、VisualStyleProfile schemaのfield-level定義
 2. 承認済みtarget DAGをfile／public header／CMake targetへ割り当てる実装単位
 3. Authoring ServiceとAI Orchestrator間のJSON-RPC method／message schema
-4. Luau Capability contractのfield-level定義
+4. GameplayDefinition、CookedGameplayPackage、GameplayStateStore、NativeGameModule Capability contractのfield-level定義
 5. Target別D3D12／Vulkan／Metal feature check、binding layout、Render Graph resource／submission recordのfield-level schema
 6. Reference sceneのfixtureとBenchmark測定手順
 7. Editor shellのaccessibility bridge検証
@@ -1124,7 +1124,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | AIが画風をGenreだけで決める | VisualStyleResolverの優先順位、Engine hard gate、High Impact承認 |
 | 画風変更でMaterialだけが変わり不整合になる | StyleChangeSetでLighting、Camera、Post、VFX、UI、Importを一括検証 |
 | 既存作品の映像表現を模倣する | 一般属性へ分解し、固有名を正規Profile／Shader／Assetへ保存しない |
-| Scriptが遅い | Behavior Contractを維持してHot pathをC++化 |
+| 構造化Gameplay Logicが遅い | Cook／index／layoutを先に最適化し、同一Contractとfixtureで有意な場合だけHot pathをC++化 |
 | AIが手動変更を消す | Base revision、File hash、三者比較、Lock |
 | Schema-validだが意味的に不正 | C++ Semantic validator、Budget、Dry-run |
 | 生成C++が危険 | 隔離Build、Network制限、固定Toolchain、Test |
@@ -1136,7 +1136,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | 最新Model／SDKで無通知回帰する | exact Provider Manifest、3回Eval、canary、明示昇格、rollback |
 | チャットが長くなり決定を失う | Decision Ledger、GameSpec、Project memory |
 | 初心者に技術質問をする | ゲーム上の要件へ翻訳、内部方式はAIが判断 |
-| 自由度を上げると安全性が下がる | Structured／Script／C++で権限と検証を分離 |
+| 自由度を上げると安全性が下がる | GameplayDefinitionとC++で権限、表現力、検証、Build境界を分離 |
 | 既存Engineの模倣になる | 独自原則を先に固定し、比較調査は検証だけに使う |
 | 所有権が曖昧でleak／use-after-freeが起きる | RAII、unique ownership、borrow規則、generation handle、ASan |
 | D3D12 resourceをGPU使用中に解放する | queue別fenceを持つdeferred release |
@@ -1192,11 +1192,10 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 - Box2D: https://box2d.org/documentation/
 - Jolt Physics: https://jrouwe.github.io/JoltPhysics/
 - Recast Navigation: https://github.com/recastnavigation/recastnavigation
-- Luau C API／Sandbox: https://luau.org/api/
 - glTF 2.0 Specification: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
 
 ## 20. 次のアクション
 
-設計文書Indexに列挙した八文書を一つの設計としてReviewする。特に、Product目標、C++／Runtime境界、2D／3D／Mobile機能、AI権限、MCD、Provider投影、形式検証、Eval、Provenanceの責務が矛盾しないことを確認する。承認後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
+設計文書Indexに列挙した十文書を一つの設計としてReviewする。特に、Product目標、C++／GameplayDefinition／Runtime境界、2D／3D／Mobile機能、AI権限、MCD、Provider投影、形式検証、Eval、Provenanceの責務が矛盾しないことを確認する。承認後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

@@ -1,12 +1,13 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.5
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
@@ -15,11 +16,11 @@
 
 ## 1. 結論
 
-2Dと3Dは同格のFirst-class runtimeとし、2Dを「奥行きが0の3D」として実装しない。Asset、Input、Audio、UI、Script、AI Authoring、Build、Save、Diagnosticsは共有し、描画、Physics、Navigation、Animation authoringは専用Subsystemを持つ。
+2Dと3Dは同格のFirst-class runtimeとし、2Dを「奥行きが0の3D」として実装しない。Asset、Input、Audio、UI、GameplayDefinition、AI Authoring、Build、Save、Diagnosticsは共有し、描画、Physics、Navigation、Animation authoringは専用Subsystemを持つ。
 
 映像表現は、`scene_dimension`（2D／3D／Hybrid）、`art_direction`（Realistic／Toon／Pixel等）、`composition`（Native／Pixel Diorama等）、`shading_model`（PBR／Toon／Unlit等）を独立して扱う。2DをPixel表現、3DをRealistic表現と同一視しない。自然言語で「HD-2D風」と要求された場合は、特定製品を模倣する名前や実装を正規dataへ保存せず、「2D Pixel Artと3D空間を合成する」という一般要件へ分解し、独自の`pixel_diorama` Composition Profileとして実現する。
 
-すべてのkernelを自作する方針は採らない。Miraikanai Engineが独自に所有するのは、公開Capability、正規data model、Editor UX、AI command、validation、lifetime、serialization、fallbackである。Collision solver、Navmesh polygon処理、Script VM、GPU heap suballocationなど、検証済みLibraryが安全性と開発速度を大きく改善する部分はAdapter内で利用する。
+すべてのkernelを自作する方針は採らない。Miraikanai Engineが独自に所有するのは、公開Capability、正規data model、Editor UX、AI command、validation、lifetime、serialization、fallbackである。Collision solver、Navmesh polygon処理、GPU heap suballocationなど、検証済みLibraryが安全性と開発速度を大きく改善する部分はAdapter内で利用する。Game programming modelはC++20と`GameplayDefinition`に固定し、汎用Game scripting runtimeは導入しない。
 
 ## 2. Capability成熟度
 
@@ -125,7 +126,7 @@ flowchart LR
   Compiler --> Package["Versioned Runtime Package"]
   Package --> World["Runtime World"]
 
-  World --> Gameplay["Gameplay／Luau T30・T70"]
+  World --> Gameplay["C++ Gameplay Logic T30・T70"]
   Gameplay --> Commands["Typed Commands"]
   Commands --> Physics["Physics T40～T60"]
   Physics --> Transform["Authoritative Transform／Physics Event"]
@@ -153,14 +154,14 @@ flowchart LR
 | Producer | 渡す契約 | Consumer／反映点 | 禁止する近道 |
 |---|---|---|---|
 | Human／AI／Editor | revision付きChangeSet | Authoring Validator→Commit | UI widgetやLLMからlive Worldへ直接write |
-| Gameplay／Script | typed Simulation／Structural command | 宣言consume phase／次`T00` | Physics、Nav、Render native API呼出し |
+| Gameplay Logic | typed Simulation／Structural command | 宣言consume phase／次`T00` | Physics、Nav、Render native API呼出し |
 | Physics | normalized event、authoritative transform | `T60`後のGameplay、Animation、snapshot | callbackからEntity破棄、Render transform直接write |
 | Navigation | version付きquery result | 次の`T20`→Gameplay | Physics pointer共有、stale Navmesh result適用 |
 | Animation | pose、root-motion proposal、bounds | `T40` resolver／`T80`／RenderSnapshot | Physics transformとの二重write |
 | Material／Light／Environment／VFX | version付きPresentation Asset／Profile | `R10` promotion→Render Graph | GPU resource、pass、bindingの直接編集 |
 | Audio／VFX／Camera shake | bounded Presentation command | `T90`以後 | gameplay damage、Save、AI perceptionへの逆流 |
 
-Asset、Profile、Script、C++の変更はdependency closure全体をstagingし、Runtime詳細規約の`T00`／`R10`だけでgenerationを切り替える。上図にないSubsystem間edgeを追加する場合は、Domain Port、typed contract、owner、phase、budget、failure policyをADRへ追加し、CMake DAGとconformance testを同じ変更で更新する。
+Asset、Profile、`GameplayDefinition`、C++の変更はdependency closure全体をstagingし、Runtime詳細規約の`T00`／`R10`だけでgenerationを切り替える。上図にないSubsystem間edgeを追加する場合は、Domain Port、typed contract、owner、phase、budget、failure policyをADRへ追加し、CMake DAGとconformance testを同じ変更で更新する。
 
 ## 4. 共通Engine機能
 
@@ -173,9 +174,9 @@ Asset、Profile、Script、C++の変更はdependency closure全体をstagingし�
 | Save | Versioned save schema、checkpoint、atomic save | Slot、cloud adapter、partial world state | Large-world partition save |
 | Audio | Engine mixer、voice、bus、spatial emitter、streaming music、Platform audio Adapter | reverb zone、ducking、profiler | Geometry acoustics |
 | UI／Text | Layout、style、focus、touch／controller nav、Platform text／IME Adapter | Localization、screen reader semantics、animation | Advanced vector effects |
-| Script | Luau strict、Capability API、quota、debug | Hot reload、profiler、module permission | Restricted runtime content script |
-| Native code | Project Capability C++、isolated build、test | Incremental build、source-level profiling | Stable external SDKは1.0後 |
-| Gameplay logic／AI | Typed state machine、Rule Graph、Script behavior、seeded random | Blackboard、perception、behavior tree／utility composition | Large-agent simulation policy |
+| GameplayDefinition | Rule／FSM／Ability／Quest／Dialogue／UI Flow schema、Validator、offline Cook、C++ evaluator | Behavior Tree、Blackboard、profiler、互換性検証済みhot reload | 署名済みdata-only Runtime content |
+| Native code | NativeGameModule、isolated build、test | Incremental build、source-level profiling | Stable external SDKは1.0後 |
+| Gameplay logic／AI | Typed state machine、Rule Graph、Cook済みRule、seeded random | Blackboard、perception、behavior tree／utility composition | Large-agent simulation policy |
 | Camera | 2D／3D camera、viewport、blend、shake | Cinematic track、split view | Multi-camera recording |
 | Diagnostics | Log、trace、memory、frame、capture | In-editor profiler、comparison baseline | Automated bottleneck advisor |
 | Test | Unit、headless simulation、golden state | Image／audio／performance regression | Large scenario automation |
@@ -385,8 +386,8 @@ Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Ga
 - Goal、checkpoint、save／load
 - 2D light、particle、camera shake、music／SFX
 - `pixel_2d` Profile、Sprite Material Template、Pixel-safe Post設定
-- AIが自然言語からlevel、rule、UI、Scriptを生成
-- 人間がInspectorとScriptで修正後、AIが差分を保持して再編集
+- AIが自然言語からlevel、rule、UI、`GameplayDefinition`を生成
+- 人間がInspector、Graph、table／form、必要時はC++で修正後、AIが差分を保持して再編集
 - 1080p60、10,000 visible sprite、500 dynamic physics bodyのReference stress scene
 
 Stress sceneはgameplay sceneと分離し、同時にすべてを要求しない。Reference hardwareでP95 frame time 16.67 ms以内、GPU／CPUいずれも継続的budget超過なしを合格条件とする。
@@ -760,8 +761,8 @@ Game ruleはclip名文字列へ依存せず、Animation Capabilityとsemantic ta
 - Sky／IBL／height fog
 - PBR material、particle、animation、spatial audio
 - glTF core／Unlit／Emissive Strength／Texture Transform Material importとPBR reference sphere
-- AIが自然言語からarena、rule、UI、Script、Asset設定を生成
-- Inspector、Scene View、Graph、Script、C++ Capabilityの手動修正
+- AIが自然言語からarena、rule、UI、`GameplayDefinition`、Asset設定を生成
+- Inspector、Scene View、Graph、table／form、NativeGameModule Capabilityの手動修正
 - 2,000 visible mesh instance、100 dynamic rigid body、50 navigation agentのstress scene
 
 Reference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU memory 2 GiB以内、GPU Project budget内を合格条件とする。
@@ -1287,7 +1288,7 @@ Phase 3で2D Profile、Phase 4で候補生成・推薦・委任時選択、Phase
 | Nav | Source geometry＋profile | Tiled nav data |
 | Physics | Shape authoring data | Cooked shape data |
 
-OpenUSDはC0～C2では採用しない。C3でDCC collaboration interchangeが必要になった場合だけ、別ADRとvertical prototypeを通して採否を決める。採用する場合もProject source of truthにはしない。OpenUSDは一般的なGUID systemや完全なrigging solutionを提供するものではなく、MiraikanaiのStable ID、GameSpec、Behavior Contractを置き換えない。
+OpenUSDはC0～C2では採用しない。C3でDCC collaboration interchangeが必要になった場合だけ、別ADRとvertical prototypeを通して採否を決める。採用する場合もProject source of truthにはしない。OpenUSDは一般的なGUID systemや完全なrigging solutionを提供するものではなく、MiraikanaiのStable ID、GameSpec、Gameplay Capability Contractを置き換えない。
 
 Importerは別Processで実行し、networkなし、許可pathだけ、timeout、memory capを持たせる。AI生成Assetも同じstaging、license metadata、content safety、import validationを通す。
 
@@ -1334,7 +1335,7 @@ Editor shellはDear ImGui 1.92.8-dockingを描画基盤に使うが、操作設�
 - AI Creator: AI Partner、Game Brief、Preview、承認Diffを中心
 - Production: Scene、Hierarchy、Inspector、Asset、AI Partner
 - Level: Scene、Outliner、Navigation、Physics、AI Partner
-- Scripting: Code、API、Test、Console、AI Partner
+- Gameplay Logic: Definition Graph／Table、C++ Code、API、Test、Console、AI Partner
 - Rendering: Scene、Material、VFX、Lighting、GPU profiler
 - Debug: Game、Log、Profiler、History、AI Partner
 
@@ -1380,7 +1381,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 2. ChangeSet、World Model、Authoring Service、headless test
 3. Editor shell、Windows／D3D12 device、Render Graph、Asset cooker
 4. Material IR、VisualStyleProfile、StyleCapabilityManifest、Validator、Preview
-5. 2D Canvas、Pixel／Illustrated Profile、Input、Audio、UI、Luau、Box2Dとmanual vertical slice
+5. 2D Canvas、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition cooker／C++ evaluator、Box2Dとmanual vertical slice
 6. TypeScript AI Orchestrator、named-pipe IPC、OpenAI Provider、VisualStyleResolverを含むAI editing loop
 7. 外部MCP、Codex／Claude Plugin
 8. 3D mesh、`realistic_basic`、Forward+、Jolt、Recast、animation
@@ -1404,7 +1405,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 
 機能は「画面に出た」だけでは完了しない。次をすべて満たす。
 
-1. MCDでAuthoring type、typed command、Capability、Requirementが定義され、C++／TS／Luau／AI Toolが同じ正本から生成される。
+1. MCDでAuthoring type、typed command、Capability、Requirementが定義され、C++／TS／Cooked binary descriptor／AI Toolが同じ正本から生成される。
 2. C++ semantic validatorとbudget validatorがある。
 3. Editorで作成、編集、preview、undoできる。
 4. AIがCapabilityを発見し、ChangeSetとして提案できる。
@@ -1423,7 +1424,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 17. Mobile対象の場合、minimum／reference実機でlifecycle、touch／controller、audio、memory、thermal、Store packageを合格する。
 18. Requirement Coverage Matrixがvalidator、test、実装Symbol、Receiptを追跡できる。
 19. MCP／OpenAI／Anthropic Provider projectionとGateway完全再検証のconformance testがある。
-20. AIが選んだScript／C++方式はBehavior Budgetと10分×3回のBenchmark Receiptを持つ。
+20. AIが選んだGameplayDefinition／C++方式はBehavior Budgetと10分×3回のBenchmark Receiptを持つ。
 21. State、authority、promotionを変更する機能は、対象TLA+ modelまたは「形式モデル対象外」の明示理由とtransition conformanceを持つ。
 22. AI／人間の変更がRisk別Verification、Review、Promotion Receiptへ接続される。
 
@@ -1516,8 +1517,6 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [Towards Unified and Physically-Based Volumetric Lighting in Frostbite, SIGGRAPH 2015](https://advances.realtimerendering.com/s2015/)
 - [Real-Time Samurai Cinema, SIGGRAPH 2021](https://advances.realtimerendering.com/s2021/jpatry_advances2021/index.html)
 - [NVIDIA GPU Gems 3: High-Speed, Off-Screen Particles](https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles)
-- [Luau C API](https://luau.org/api/)
-- [Luau Sandboxing](https://luau.org/sandbox)
 - [ozz-animation Documentation](https://guillaumeblanc.github.io/ozz-animation/)
 - [Godot Dedicated 2D Engine](https://docs.godotengine.org/en/stable/about/list_of_features.html#dedicated-2d-engine)
 - [Godot Multiple Resolutions and Integer Scaling](https://docs.godotengine.org/en/stable/tutorials/rendering/multiple_resolutions.html)

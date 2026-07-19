@@ -1,11 +1,12 @@
 # Miraikanai Engine 実行可能契約・Schema・Codegen規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-19
-- 対象: Requirement、Capability、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Luau生成
+- 対象: Requirement、Capability、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Cooked binary生成
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
@@ -16,7 +17,7 @@ Miraikanai Engineの要件、型、操作、状態遷移、権限、Budget、Dia
 - Engine内部検証用JSON Schema 2020-12。
 - C++20 wire type、enum、validator、serializer、dispatch table。
 - TypeScript strict type、runtime validator、JSON-RPC binding。
-- Luau strict type declarationとCapability facade。
+- GameplayDefinition／CookedGameplayPackageのbinary descriptor、encoder、decoder。
 - MCP 2025-11-25 Tool `inputSchema`／`outputSchema`。
 - OpenAI strict function／Structured Output向けsubset。
 - Anthropic Tool向けProvider projection。
@@ -44,12 +45,12 @@ Provider向けSchemaは正本ではない。OpenAI、Anthropic、MCP等の対応
 |---|---|---|
 | Requirement、Type、Operation、State Machine、Capability、Policy、Profile、Provider Profile | `/schemas/mira/**/*.mira.json` | Schema ChangeSetだけ |
 | JSON Schema projection | Build treeのgenerated output | 直接編集禁止 |
-| C++／TypeScript／Luau binding | Build treeのgenerated output | 直接編集禁止 |
+| C++／TypeScript binding、Cooked binary codec | Build treeのgenerated output | 直接編集禁止 |
 | MCP／Provider Tool Schema | Build treeのgenerated output | 直接編集禁止 |
 | 人間向けAPI reference | generated docs | 直接編集禁止 |
 | 意図、根拠、例、Architecture説明 | Markdown規約／ADR | 人間／AIがReview経由で編集 |
 | 手書きsemantic validator | C++／TypeScript source | Requirement IDを付けて編集 |
-| Project data | GameSpec／World／Asset metadata | 現在Schemaで検証しChangeSet経由 |
+| Project data | GameSpec／World／GameplayDefinition／Asset metadata | 現在Schemaで検証しChangeSet経由 |
 
 MCDは意図の説明を完全に置き換えない。MCDが機械的な合否、Markdown／ADRが理由とTrade-offを決める。両者が矛盾する場合、実行時合否はMCDに従い、矛盾自体をCI errorにする。
 
@@ -357,7 +358,7 @@ Internal validation projectionはJSON Schema Draft 2020-12を使い、`$schema`�
 - Asset revisionの存在。
 - CPU／GPU／memory budget。
 - Permission、Approval、Risk。
-- Script／C++禁止API。
+- GameplayDefinition禁止Capability、NativeGameModule禁止API。
 - Cross-fieldの複雑な算術制約。
 
 JSON Schema合格だけを「Engine valid」と表示しない。`structural_valid`、`semantic_valid`、`policy_valid`、`budget_valid`を別結果にする。
@@ -410,7 +411,7 @@ Anthropic projectionはTool `name`、詳細な`description`、`input_schema`、�
 
 Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider固有PluginがMCDを独自変換してはならず、Miraikanai MCP ServerのTool一覧とSchemaを取得する。Source直接編集はMCP Tool権限とは別に、AI実装・保守ガバナンス規約のSource Worker sandboxを適用する。
 
-## 17. Language binding
+## 17. Language／Runtime projection
 
 ### 17.1 C++20
 
@@ -432,26 +433,29 @@ Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider
 - `number`へ安全に入らない整数はdecimal string branded typeにする。
 - `unknown`からvalidatorを通して型を得る。`as`による無検証castを生成しない。
 
-### 17.3 Luau
+### 17.3 GameplayDefinition／Cooked binary
 
-- strict type declarationとCapability facadeだけを生成する。
-- Engine内部object、pointer、thread、filesystem、network、native libraryを公開しない。
-- Script commandはtyped bufferへ追加し、Runtime規約のcommit phaseで適用する。
-- ScriptからのErrorはDiagnostic codeへ変換し、raw C++ exceptionを公開しない。
+- `runtime_cook = true`のMCD Typeだけにbinary descriptor、encoder、decoderを生成する。
+- Field ID、wire type、offset、length、alignment、collection上限、Capability ID、State IDをContract setから生成する。
+- Pointer、vtable、native padding、source path、filesystem、network、native library情報をencodeしない。
+- GameplayDefinitionのWorld変更はtyped commandへ投影し、Runtime規約のconsume phaseで適用する。
+- State Machineは一phase一transition、Behavior Treeは`max_node_visits_per_tick`必須、collectionは固定上限という規約をgenerated validatorへ含める。
+- Binary headerへContract set、Definition set、Capability manifest、State layoutのhashを記録する。
+- Decode errorはMiraDiagnosticへ変換し、部分objectをRuntimeへ公開しない。
 
 ## 18. Round-tripとCross-language同値性
 
-各Typeは次のTestを自動生成する。
+各TypeはC++／TypeScriptについて次のTestを自動生成し、`runtime_cook = true`のTypeだけCooked binaryを同じfixtureへ追加する。
 
-1. MCD valid fixtureをC++、TypeScriptでdecodeする。
+1. MCD valid fixtureをC++、TypeScriptでdecodeし、対象TypeはCooked binaryでもdecodeする。
 2. decode値を再encodeする。
 3. Canonical JSON値が同値であることを確認する。
-4. C++ encodeをTypeScript decode、TypeScript encodeをC++ decodeする。
+4. C++ encodeをTypeScript decode、TypeScript encodeをC++ decodeし、`runtime_cook = true`ではCooked binaryとのcanonical value同値も検査する。
 5. Field順、unknown field、境界値、Unicode、empty、max length、invalid enumを検査する。
 6. Provider projectionで生成したvalid sampleをInternal validatorへ通す。
 7. Invalid sampleが全Languageで同じDiagnostic code familyになることを確認する。
 
-Binary Runtime formatを追加する場合も、MCDとJSON projectionを正本に維持し、binary codecのround-tripを同じfixtureへ追加する。Binary formatからMCDを逆生成しない。
+Binary Runtime formatはMCDとJSON projectionを正本に維持し、binary codecのround-tripを同じfixtureへ含める。Binary formatからMCDを逆生成しない。
 
 ## 19. Schema変更とMigration
 
@@ -481,7 +485,7 @@ Schema変更は次を同一ChangeSetへ含める。
 - Generated output差分。
 - valid／invalid／round-trip fixture。
 - Provider conformance結果。
-- 影響するGame sample、Editor、Script、C++ callerの更新。
+- 影響するGame sample、Editor、GameplayDefinition、C++ callerの更新。
 
 ## 20. AI向けDiscovery
 
@@ -497,7 +501,7 @@ Search結果は現在Contract setのhashを含む。AIが古いhashのCapability
 - 全MCD kindのmeta-schemaと最低1件のvalid／invalid fixtureがある。
 - Duplicate key、unknown field、unbounded collection、untagged unionを拒否する。
 - 同一Inputから二回生成したTree hashが一致する。
-- C++／TypeScript／Luau／MCP／OpenAI／Anthropic projectionが一つのMCDから生成される。
+- C++／TypeScript／Cooked binary／MCP／OpenAI／Anthropic projectionが一つのMCDから生成される。
 - Providerで表現できないConstraintがManifestから欠落しない。
 - Provider Outputが必ずInternal validatorで再検証される。
 - 全Operation errorが列挙され、string-only errorを持たない。

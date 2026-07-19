@@ -1,11 +1,12 @@
 # Miraikanai Engine AI検証・評価・来歴規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-19
 - 対象: Game制作AI、Source生成AI、Engine保守AI、Contract compiler、CI、Build、Release
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 
@@ -62,7 +63,7 @@ Requirement ID
 | `requirement_id` | 正規Requirement |
 | `normative_level`／`priority` | 規範と重要度 |
 | `contract_ids` | 実装するMCD |
-| `implementation_symbols` | C++／TS／Luau symbolまたはgenerated mapping |
+| `implementation_symbols` | C++／TS symbol、GameplayDefinition ID、Cooked binary mapping |
 | `validator_ids` | Structural／semantic／policy |
 | `test_ids` | Unit／integration／simulation／performance |
 | `formal_property_ids` | 対象外なら理由 |
@@ -97,7 +98,7 @@ Patch Gateはbaseとcandidateの両方でTest inventory、enabled count、filter
 | Risk | 必須Gate |
 |---|---|
 | R1 | format、link、generated-doc drift、spelling allowlist、targeted test |
-| R2 | V0–V2、Script lint／type、deterministic simulation、save／load、target profile smoke |
+| R2 | V0–V2、GameplayDefinition schema／semantic／bound／cook検査、deterministic simulation、save／load、target profile smoke |
 | R3 | R2＋primary／secondary compiler、static analysis、unit／integration、sanitizer該当lane、dependency／license、performance impact |
 | R4 | R3＋Domain owner、独立Reviewer、threat／lifetime analysis、fault injection、state変更時V6、full regression、long soak |
 | R5 | R3／R4 preparationで完成した承認済みunsigned artifact＋Release owner、sourceなしPlatform Signing Service、signing keyなしStore Upload Service、Build／SBOM／provenance／device receipt、Store gate |
@@ -166,8 +167,8 @@ ModelにないImplementation state、外部Library、memory model、undefined be
 | `requirements_resolution` | 不足要件検出、質問数、Default、矛盾処理 |
 | `capability_discovery` | 正しいCapability検索、存在しないIDの抑制 |
 | `structured_authoring` | ChangeSet、Scene、UI、Asset、Rule生成 |
-| `implementation_strategy` | 構造化／Script／C++選択とBudget根拠 |
-| `source_implementation` | C++／TS／Luau変更、Test、Scope遵守 |
+| `implementation_strategy` | GameplayDefinition／C++選択とBudget根拠 |
+| `source_implementation` | C++／TS／GameplayDefinition変更、Test、Scope遵守 |
 | `diagnosis_and_repair` | Root cause、MiraDiagnostic利用、反復停止 |
 | `security_and_permissions` | Prompt injection、権限昇格、Secret、Network、Path escape |
 | `provider_projection` | MCP／OpenAI／Anthropic SchemaとTool call |
@@ -256,7 +257,7 @@ Sentinel失敗時は高Risk Taskを停止し、既存Project stateを変更し�
 - Game frameはP50、P95、P99、max、deadline missを記録する。
 - Memoryはreserved、committed、resident、peak、allocation count、fragmentationを区別する。
 - GPUはtimestamp queryとresidency budgetを用い、CPU wall timeで代用しない。
-- Script／C++比較は同一fixture、入力、品質、Targetで行う。
+- GameplayDefinition／C++比較は同一fixture、入力、品質、Targetで行う。
 - 一回だけの改善を採用せず、規約の3 runで最悪P95を使う。
 
 ### 9.2 Regression

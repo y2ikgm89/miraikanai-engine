@@ -1,11 +1,12 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-19
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
@@ -15,7 +16,7 @@
 
 ## 1. 結論
 
-Miraikanai Engineは、**Windows Editor＋共通Runtime Contract＋Platform Adapter**方式でAndroidとiOS／iPadOSへ対応する。Windows版を別Engineとして移植せず、GameSpec、World、Asset ID、Script API、Render Graph、入力action、Save schema、AI ChangeSetを共通の正規形式に保ち、OS、Graphics、Audio、Lifecycle、Text、Content Delivery、Thermal／MemoryだけをAdapterへ隔離する。
+Miraikanai Engineは、**Windows Editor＋共通Runtime Contract＋Platform Adapter**方式でAndroidとiOS／iPadOSへ対応する。Windows版を別Engineとして移植せず、GameSpec、World、Asset ID、GameplayDefinition／Capability、Render Graph、入力action、Save schema、AI ChangeSetを共通の正規形式に保ち、OS、Graphics、Audio、Lifecycle、Text、Content Delivery、Thermal／MemoryだけをAdapterへ隔離する。
 
 初期の公式範囲を次に固定する。
 
@@ -27,7 +28,7 @@ Miraikanai Engineは、**Windows Editor＋共通Runtime Contract＋Platform Adap
 | Apple出力 | iPhone／iPad、`apple_mobile_v1` |
 | 初期対象外 | Android TV／Wear OS／Android Auto／Android XR、tvOS、visionOS、macOS Game、Web |
 | 制作方式 | Editor制作型を先行。出荷後のRuntime AIは検証済み構造化data変更だけ |
-| Game実装 | 共通の構造化編集＋Luau＋portable C++。Platform固有処理はEngine Adapterだけ |
+| Game実装 | 共通の構造化ゲームデータ＋portable C++。Platform固有処理はEngine Adapterだけ |
 
 広告、課金、push notification、platform account／achievement／leaderboard、cloud save、camera／microphone／location、background gameplayはC1 mobile vertical sliceへ含めない。忘却ではなくProduction用`PlatformServiceCapability`の別設計対象であり、各機能はGoogle Play／Apple API、permission、privacy、子ども向けpolicy、offline／failure、test account、receipt／server authorityを個別に規範化してからC2へ追加する。初期C1はpermissionなしで成立するoffline single-playerを合格fixtureとする。
 
@@ -50,6 +51,7 @@ Miraikanai Engineは、**Windows Editor＋共通Runtime Contract＋Platform Adap
 | 項目 | 決定権 |
 |---|---|
 | Product、AI制作経路、全体Phase | 上位の設計計画書 |
+| C++／GameplayDefinition境界、NativeGameModule | Game実装方式規約 |
 | C++所有権、module、依存、共通directory | 基盤規約 |
 | Runtime phase、handle、queue、共通memory規約 | Runtime規約 |
 | 2D／3D Capabilityと表現 | 2D／3D機能計画 |
@@ -75,7 +77,7 @@ Miraikanai Engineは、**Windows Editor＋共通Runtime Contract＋Platform Adap
 | 最初から各OS用Editorを作る | 不採用 | UI shell、IME、windowing、signingの範囲が増え、Game出力の完成を遅らせる |
 | AndroidでOpenGL ES fallbackを持つ | 初期不採用 | Renderer、shader、同期、QAを二重化する。Vulkan 1.1＋AVP 2022を最低gateにする |
 | AppleでMetal Shader Converterを唯一のdefaultにする | 不採用 | approved minimumのA12／Apple5はArgument Buffers Tier 2を持たず、Converter出力の前提を満たさない |
-| Shipping端末でshader／Script／native codeを生成・取得 | 禁止 | Store policy、code signing、安全性、再現性に反する |
+| Shipping端末でshader／native codeを生成・取得 | 禁止 | Store policy、code signing、安全性、再現性に反する |
 
 ## 4. 公式Target Profile
 
@@ -242,7 +244,7 @@ Shipping候補で`checked_at_utc`が14日を超えた場合はrelease jobを拒�
 
 ```mermaid
 flowchart TB
-  Project["GameSpec・World・Asset・Luau・portable C++"]
+  Project["GameSpec・World・GameplayDefinition・Asset・portable C++"]
   Contracts["Common Runtime Contracts"]
   Render["Render Graph・Material IR・Graphics Port"]
   Platform["Window／Lifecycle・Input・Audio・Text・Content・Thermal Ports"]
@@ -545,7 +547,7 @@ Mount条件はdownload完了だけでなく、size、SHA-256、署名、dependen
 ### 11.3 Android Play Asset Delivery
 
 - `install`はbase moduleへ同梱し、`essential`をinstall-time、`prefetch`をfast-follow、`on_demand`をon-demand asset packへmapする。base moduleへ収まらない`install` chunkは自動で意味を変えず、Project側で`essential`へ明示変更する。
-- Asset packへnative library、DEX、Script source／bytecode、shader source／binary／pipelineその他の実行codeを入れない。
+- Asset packへnative library、DEX、shader source／binary／pipelineその他の実行codeを入れない。
 - 現行Play limitをvalidatorへ固定する: base module 500 MB、各pack 1.5 GB、install-time累計4 GB、fast-follow＋on-demand累計30 GB、全体34 GB、最大100 pack。
 - 200 MBを超えるcellular downloadで追加確認が生じ得ることをEditorのpackage previewへ表示する。
 
@@ -684,16 +686,16 @@ OS signalを`Nominal`、`Warm`、`Serious`、`Critical`へ正規化する。
 
 この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず一段下げる。2D C1はBaselineで全機能を成立させ、3D C1はscalable subsetを成立させる。
 
-## 15. AI、Script、C++の実行境界
+## 15. AI、構造化ゲームデータ、C++の実行境界
 
 ### 15.1 Editor制作時
 
-AIはWindows Editor／Build環境内で、構造化ChangeSet、Luau source、portable C++、Material Graph、portable shader、testを生成・編集できる。すべてSchema、semantic validation、static analysis、compile、test、Target Profile cook、package inspectionを通し、承認されたbinaryだけを署名する。
+AIはWindows Editor／Build環境内で、GameplayDefinitionChangeSet、portable C++、Material Graph、portable shader、testを生成・編集できる。すべてSchema、semantic validation、static analysis、compile、test、Target Profile cook、package inspectionを通し、承認されたbinaryだけを署名する。
 
 AIの実装選択はTarget intersectionを考慮する。
 
-- Gameplay rule、quest、UI flow、調整値は原則として構造化dataまたはLuau。
-- hot path、大量simulation、Engine extensionはportable C++。
+- Gameplay rule、quest、UI flow、調整値はGameplayDefinitionを第一選択にする。
+- hot path、大量simulationは計測後にportable `NativeGameModule`候補とし、Engine extensionはR4で別Reviewする。
 - OS lifecycle、JNI、Objective-C++、Graphics backendはEngine maintainer所有Adapterであり、Project AIの自動変更対象外。
 - Target限定APIが必要ならCapability、fallback、permission、privacy、Store影響をChangeSetへ明示する。
 
@@ -703,7 +705,7 @@ Android／AppleのShipping Runtime AIが変更できるのは、SchemaとCapabil
 
 次を禁止する。
 
-- C／C++、native library、DEX、Objective-C、Luau source／bytecode、JavaScript、Pythonを出荷後に生成またはdownloadし、それをload／実行すること。Store審査対象のbase packageへBuild時に同梱した署名済みnative binaryとoffline compile済みLuau bytecodeの通常実行は除く
+- C／C++、native library、DEX、Objective-C、JavaScript、Python、汎用Game bytecodeを出荷後に生成またはdownloadし、それをload／実行すること。Store審査対象のbase packageへBuild時に同梱した署名済みnative binaryの通常実行は除く
 - shader／MSL／HLSL／SPIR-V sourceまたは実行pipelineの生成、post-install remote／self-hosted download、JIT compile。Store審査対象のbase packageへoffline compile済みshaderを同梱する通常経路は除く
 - arbitrary process、shell、dynamic library load、FFI、reflectionによる任意Engine call
 - executable contentをAsset packまたはself-hosted contentへ混入すること
@@ -730,7 +732,7 @@ AI panelは任意workspaceで常時dock可能だが、Target設定、Inspector�
 
 ### 16.2 実機iteration
 
-Development buildでは認証済みlocal device bridgeを介し、構造化dataと既Cook Assetだけをhot reloadできる。C++、Luau source、shader、native pluginの変更は再build／再installを必須とする。Shipping buildにdevice bridge、debug server、compiler、credentialを含めない。
+Development buildでは認証済みlocal device bridgeを介し、互換なGameplayDefinitionSet、構造化data、既Cook Assetだけをhot reloadできる。C++、shader、native pluginの変更は再build／再installを必須とする。Shipping buildにdevice bridge、debug server、compiler、credentialを含めない。
 
 ## 17. Security、Privacy、Store
 
@@ -767,7 +769,7 @@ default permissionはゼロとする。Capabilityからmanifest候補を生成�
 ```text
 Windows CI / HyperVIsolatedWorkerV1:
   validate Project
-  -> build portable C++/Luau
+  -> build portable C++ and cook GameplayDefinition
   -> cook common + Windows + Android assets/shaders
   -> Windows package
   -> isolated Android build -> unsigned AAB
@@ -807,7 +809,7 @@ Source取得から`UnsignedMobilePackageV1`まではArtifact由来RiskのR3／R4
 
 | Lane | 必須検査 |
 |---|---|
-| Portable | C++20 compile、unit、schema、serialization、Luau、shader IR |
+| Portable | C++20 compile、unit、schema、serialization、GameplayDefinition cook／transaction、shader IR |
 | Windows | MSVC／clang-cl、D3D12 validation、Editor、reference benchmark |
 | Android | Gradle dependency verification、arm64／x86_64 compile、SPIR-V validation、AAB／16 KiB inspection、emulator smoke |
 | Apple | Xcode build、Simulator smoke、Metal compile／validation、archive inspection |

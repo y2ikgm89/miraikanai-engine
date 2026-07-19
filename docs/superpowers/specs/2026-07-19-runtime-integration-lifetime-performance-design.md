@@ -1,10 +1,11 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
-- 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成Script／C++
+- 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
@@ -19,7 +20,7 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 
 この設計により、次を同時に成立させる。
 
-- AI、Script、Editor、Project C++がEngine内部pointerを直接操作しない。
+- AI、GameplayDefinition、Editor、NativeGameModule（Project C++）がEngine内部pointerを直接操作しない。
 - Physics、Navigation、Animation、Rendering、Audio等の外部Library型をEngineの公開契約へ漏らさない。
 - 構造変更、非同期結果、Physics event、Asset hot reloadの反映時点が一意になる。
 - object、borrow、job、GPU resourceの寿命と無効化条件を機械検査できる。
@@ -35,6 +36,7 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 | 文書 | 決定する範囲 |
 |---|---|
 | AIネイティブ設計計画書 | Product目標、AI／人間の制作経路、段階計画、MVP |
+| C++実行コード・構造化ゲームデータ規約 | Game実行言語、GameplayDefinition、CookedGameplayPackage、NativeGameModule、AI実装選択 |
 | 基盤アーキテクチャ規約 | C++、module、依存、所有権の一般則、Build、directory |
 | 本書 | Runtime phase、Subsystem連携、参照無効化、Asset version、memory／performance budget、障害復旧 |
 | Collision／Collider規約 | Body／Collider／Shape／Material／Filter、Query、Contact／Trigger、Cook、Editor／AI操作 |
@@ -63,7 +65,7 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 - rollback multiplayerとcross-platform bitwise determinism
 - Runtime中のnative C++ module unload
 - AIによる任意Shader、navmesh polygon、Physics native objectの直接生成
-- 外部Libraryの内部allocator、solver、VM、codec自体の再実装
+- 外部Libraryの内部allocator、solver、codec自体の再実装
 
 ### 2.4 Platform適用
 
@@ -83,9 +85,9 @@ flowchart BT
   Assets["mira_assets"]
   Contracts["mira_runtime_contracts\nCommand・Event・Snapshot"]
   World["mira_world"]
-  Ports["Domain Ports\nRender・Physics・Nav・Animation・Audio・Input・UI・Script・VFX"]
+  Ports["Domain Ports\nRender・Physics・Nav・Animation・Audio・Input・UI・Gameplay・VFX"]
   DomainRuntime["Domain Runtime\nComponent access・System・Resolver"]
-  Adapters["Native Adapters\nD3D12・Vulkan・Metal\nBox2D・Jolt・Recast・ozz・Luau\nXAudio2・Oboe・Apple AudioUnit"]
+  Adapters["Native Adapters\nD3D12・Vulkan・Metal\nBox2D・Jolt・Recast・ozz\nXAudio2・Oboe・Apple AudioUnit"]
   Orchestrator["mira_runtime_orchestrator"]
   Package["mira_runtime_package\nLoader・Manifest"]
   Compiler["mira_runtime_compiler"]
@@ -147,13 +149,13 @@ flowchart BT
 | `mira_runtime_orchestrator` | phase順序、buffer merge、boundary、fault遷移 | vendor型、Editor widget |
 | `mira_runtime_package` | versioned binary manifest、loader、Runtime向けschema | Authoring object、Editor、vendor型 |
 | Runtime Compiler | 承認Authoring revisionからRuntime packageをcook | live Runtime pointer |
-| EditorHost | Authoring Service、RuntimeOrchestrator、選択Adapterのcomposition | domain business logic |
+| EditorHost | Authoring Service、Presentation専用Preview Orchestrator、選択Adapterのcomposition | authoritative Play World、NativeGameModule、domain business logic |
 | GameHost | Runtime package loader、RuntimeOrchestrator、選択Adapterのcomposition | Authoring Service、Editor |
 | WorkerHost | Runtime Compiler、offline Asset／Shader build | live Runtime World、Editor |
 
-RenderingからPhysics、AnimationからNavigation、ScriptからWorldといった直接呼出しを禁止する。共有が必要な型は`mira_runtime_contracts`へ置くが、単なる再利用を理由に無関係な型を集める`common` moduleにはしない。
+RenderingからPhysics、AnimationからNavigation、Gameplay LogicからWorldといった直接呼出しを禁止する。共有が必要な型は`mira_runtime_contracts`へ置くが、単なる再利用を理由に無関係な型を集める`common` moduleにはしない。
 
-各Subsystemは`<domain>_port`、必要なら`<domain>_runtime`、`<domain>_<backend>_adapter`の別CMake targetにする。Domain Runtimeだけが`mira_world`の公開query／lease APIへ依存でき、schema生成された`ComponentAccessManifest`に宣言したread setとwrite setだけを、Orchestratorが許可したphaseで借用する。構造変更はDomain Runtimeからも直接行わず`StructuralCommand`へ変換する。AdapterはWorldへlinkせず、Portが渡した値、handle、owned bufferだけを扱う。Rendering、Audio、VFXはWorld leaseを持たず`RenderSnapshot`／Presentation commandだけ、Luau VM bindingはCapability snapshot／commandだけを受け取る。CMake edge検査に加え、manifestと実際のquery／write registrationが一致することをcode generation testで検査する。
+各Subsystemは`<domain>_port`、必要なら`<domain>_runtime`、`<domain>_<backend>_adapter`の別CMake targetにする。Domain Runtimeだけが`mira_world`の公開query／lease APIへ依存でき、schema生成された`ComponentAccessManifest`に宣言したread setとwrite setだけを、Orchestratorが許可したphaseで借用する。構造変更はDomain Runtimeからも直接行わず`StructuralCommand`へ変換する。AdapterはWorldへlinkせず、Portが渡した値、handle、owned bufferだけを扱う。Rendering、Audio、VFXはWorld leaseを持たず`RenderSnapshot`／Presentation commandだけを受け取る。GameplayDefinition evaluatorは`gameplay_runtime`内のC++ Systemとしてtyped Capability snapshot／commandを使用し、汎用VM Adapterを持たない。CMake edge検査に加え、manifestと実際のquery／write registrationが一致することをcode generation testで検査する。
 
 ### 3.3 Subsystem間の唯一の通信方式
 
@@ -165,7 +167,7 @@ RenderingからPhysics、AnimationからNavigation、ScriptからWorldといっ�
 | Versioned Asset handle | immutable payload参照 | swapは所有Subsystemだけ | retire条件成立まで |
 | Query result | 非同期計算結果 | immutable、version検査必須 | integration phaseまで |
 
-公開eventへpointer、reference、`span`、vendor ID、COM pointer、Lua stack indexを格納しない。可変長payloadはowned bounded blobまたはStableIdで表す。
+公開eventへpointer、reference、`span`、vendor ID、COM pointer、言語VM stack indexを格納しない。可変長payloadはowned bounded blobまたはStableIdで表す。
 
 ## 4. Process、Project、Playのlifecycle
 
@@ -190,11 +192,11 @@ Shipping GameHostはこのProcess状態と別に`ApplicationState = Starting | A
 ### 4.2 Authoring WorldとRuntime World
 
 - `PlayPreparing`は、Commit済み`project_revision`を一つ固定し、そのrevisionからRuntime packageとRuntime Worldを生成する。
-- 初期EditorHost／GameHostは同時に一つのauthoritative Play sessionと一つのRuntime Worldだけを持つ。Material／Asset preview worldはPresentation専用の隔離Worldであり、Save／replay／gameplay eventへ参加しない。
+- EditorHostは同時に一つのchild GameHostだけを管理し、そのGameHostだけが一つのauthoritative Play sessionとRuntime Worldを所有する。EditorHost内のMaterial／Asset preview worldはPresentation専用の隔離Worldであり、NativeGameModuleをloadせず、Save／replay／gameplay eventへ参加しない。
 - Runtime WorldはAuthoring object、Editor hierarchy、undo bufferとpointerを共有しない。
 - Play中のAuthoring変更は新しいrevisionとして保存できるが、schemaに`live_edit_policy = restart_play | next_tick | next_render_frame`が明示され、対応typed commandを持つfield以外は実行中Worldへ自動反映しない。fieldの既定値は`restart_play`、`next_tick`の適用点は`T00`、`next_render_frame`の適用点は`R10`に固定する。
 - `PlayStopping`ではRuntime Worldを破棄する。Runtime変更をAuthoringへ戻す場合は、値を抽出した`ApplyBackChangeSet`を別Transactionとしてpreview、validate、commitする。
-- Runtime handle、Physics ID、GPU handle、Script VM addressを`ApplyBackChangeSet`へ含めない。
+- Runtime handle、Physics ID、GPU handle、GameplayStateStore内部slotを`ApplyBackChangeSet`へ含めない。
 
 ### 4.3 object lifetime階層
 
@@ -229,14 +231,14 @@ Process
 
 | 順序 | Phase ID | 実行内容 | 状態変更 |
 |---:|---|---|---|
-| 0 | `T00_BoundaryApply` | 前tickで封印したStructural command、互換なAsset／Script swapを適用 | 構造変更を許可 |
+| 0 | `T00_BoundaryApply` | 前tickで封印したStructural command、互換なAsset／GameplayDefinitionSet swapを適用 | 構造変更を許可 |
 | 1 | `T10_InputLatch` | device inputをtick番号付き`InputSnapshot`へ固定 | Input stateだけ |
 | 2 | `T20_AsyncIntegrate` | deadline前に完了したNav、streaming、tool結果をversion検査して統合 | 定義済みresult fieldだけ |
-| 3 | `T30_PrePhysics` | gameplay、AI behavior、Luau pre-physics、ability rule | Simulation commandを生成 |
+| 3 | `T30_PrePhysics` | C++ gameplay、AI behavior、Cook済みrule／ability evaluator | Simulation commandを生成 |
 | 4 | `T40_MotionIntent` | root-motion proposal、character motor、kinematic targetを解決 | Physics inputを生成 |
 | 5 | `T50_PhysicsStep` | Box2D／Jolt fixed step | Physics Adapter内部だけ |
 | 6 | `T60_PhysicsIntegrate` | native eventをcopy／normalizeし、dynamic transformをWorldへwrite-back | Physics所有fieldだけ |
-| 7 | `T70_PostPhysics` | contact／trigger event配送、damage、quest、Luau post-physics | 非構造fieldとcommand生成 |
+| 7 | `T70_PostPhysics` | contact／trigger event配送、damage、quest、Cook済みpost-physics rule | 非構造fieldとcommand生成 |
 | 8 | `T80_AnimationFinalize` | authoritative transformからblend、IK、pose、boundsを確定 | Animation stateだけ |
 | 9 | `T90_PresentationBuild` | Audio、VFX、UI、camera向けevent batchを作成 | Presentation bufferだけ |
 | 10 | `T100_ReplayCheckpoint` | input、accepted async result、state hash、必要checkpointを記録 | Replay streamだけ |
@@ -253,7 +255,7 @@ Phaseの追加、削除、順序変更はpublic behavior変更であり、ADR、
 | `StructuralCommand` | create／destroy entity、add／remove component、reparent | 次の`T00` |
 | `SimulationCommand<P>` | force、velocity、motor target、gameplay value | 型で宣言したconsume phase。過ぎていれば次tick |
 | `PresentationCommand` | sound、visual particle、camera shake、notification | 同tick`T90`または次presentation frame |
-| `AuthoringChangeSet` | Scene、Asset設定、Script／C++変更 | Runtime tickでは適用しない |
+| `AuthoringChangeSet` | Scene、GameplayDefinition、Asset設定、C++変更 | Runtime tickでは適用しない |
 
 `SimulationCommand`はcompile-timeで`consume_phase`を持つ。任意phase名や同じSubsystemへの再入呼出しを許可しない。
 
@@ -296,7 +298,7 @@ RuntimeMessageHeader (alignas(8), exactly 32 bytes)
 - cancellation後に完了した結果も破棄する。
 - replayは「結果内容とacceptしたtick」を記録する。Replay中は記録済み結果を同tickで注入し、worker完了時刻を再現条件にしない。
 
-Replay digestはSHA-256で統一する。初期値は`SHA256("MIRA_REPLAY_V1\0" || 32 byte build_manifest_hash || project_seed_le)`とする。毎tick、ASCII domain tag `MIRA_REPLAY_TICK_V1\0`、前digest 32 byte、`tick_id_le`、続いてInputSnapshot、accepted async result、canonical authoritative component delta、PhysicsのEngine可視state、persistent Script state delta、RNG stateの各sectionを`section_id: uint16`、`byte_length: uint64`、canonical bytesの順に連結してSHA-256を更新する。section内はfield ID順・Entity StableId byte順とする。pointer、padding、Presentation state、worker順序を含めない。Development／Profileは60 tickごとにdomain tag `MIRA_REPLAY_FULL_V1\0`を用いたcanonical full-state SHA-256も記録し、rolling digestとの最初の不一致tickを報告する。
+Replay digestはSHA-256で統一する。初期値は`SHA256("MIRA_REPLAY_V1\0" || 32 byte build_manifest_hash || project_seed_le)`とする。毎tick、ASCII domain tag `MIRA_REPLAY_TICK_V1\0`、前digest 32 byte、`tick_id_le`、続いてInputSnapshot、accepted async result、canonical authoritative component delta、PhysicsのEngine可視state、persistent GameplayState delta、RNG stateの各sectionを`section_id: uint16`、`byte_length: uint64`、canonical bytesの順に連結してSHA-256を更新する。section内はfield ID順・Entity StableId byte順とする。pointer、padding、Presentation state、worker順序を含めない。Development／Profileは60 tickごとにdomain tag `MIRA_REPLAY_FULL_V1\0`を用いたcanonical full-state SHA-256も記録し、rolling digestとの最初の不一致tickを報告する。
 
 ### 5.6 deterministic randomness
 
@@ -367,7 +369,7 @@ Vulkan／Metalのqueue、barrier、drawable、surface generationはモバイル�
 - `T90`が`AudioCommand`をbounded queueへ送る。
 - Audio control threadがvoice生成、破棄、routing、stream refillを所有する。
 - XAudio2、Oboe、AudioUnit callbackはpreallocated fixed-size completion eventまたはPCM ringだけをnon-blocking queueへ渡す。
-- callback内でallocation、file I/O、lock待機、voice破棄、Engine log formatting、Script呼出しを禁止する。
+- callback内でallocation、file I/O、lock待機、voice破棄、Engine log formatting、Gameplay／AI呼出しを禁止する。
 - callback eventはAudio control threadが回収し、必要なgameplay通知は次tickの`T20`へ値として渡す。
 
 ### 6.4 Asset promotion
@@ -523,7 +525,6 @@ owner外から直接slot tableを読むAPIを公開しない。
 | Scratch span | 現在scope／job | scope終了、job完了 |
 | Physics native view | Adapter callback内 | callback return、step終了 |
 | Nav query temporary | `NavQueryLease` scope | lease返却、Navmesh version retire |
-| Luau stack／VM view | Script owner threadのnative call内 | stack変更、yield、return、reload |
 | Audio callback buffer | callback内 | callback return |
 | Asset payload lease | lease scope | lease release後。version swap自体では既存leaseはretire待ち |
 
@@ -540,7 +541,7 @@ Job packetに許可するのは次だけである。
 - cancellation token
 - job専用memory resource
 
-World pointer、Component reference、borrowed span、Script VM pointer、native Physics body pointer、D3D12／Vulkan／Metal resource pointerをcaptureしない。Job開始時とcompletion統合時の二回、handleとversionを検査する。
+World pointer、Component reference、borrowed span、GameplayStateStore内部pointer、native Physics body pointer、D3D12／Vulkan／Metal resource pointerをcaptureしない。Job開始時とcompletion統合時の二回、handleとversionを検査する。
 
 ### 9.4 Asset version
 
@@ -573,15 +574,14 @@ AssetGenerationId       dependency closureを一括識別するuint64
 - D3D12MA `VirtualBlock`を共有する場合はEngine側mutexまたは単一thread ownerを必須とする。
 - VMA allocatorもVulkan deviceごとに一つ、default thread safety有効とし、loading boundary以外でdefragmentationしない。Metalはheapとmemoryless resourceをmobile budgetへ計上する。
 
-### 9.6 Physics、Animation、Script、Audio Adapter
+### 9.6 Physics、Animation、Gameplay、Audio integration
 
 | Adapter | owner | 公開してよいもの | 禁止事項 |
 |---|---|---|---|
-| Box2D | Game simulation thread、step内部worker | Engine handleへ変換した値event | `b2BodyId`等をWorld／Scriptへ保存、callback中World変更 |
+| Box2D | Game simulation thread、step内部worker | Engine handleへ変換した値event | `b2BodyId`等をWorld／GameplayDefinitionへ保存、callback中World変更 |
 | Jolt | Physics Adapter、Jolt lock contract | Engine handle、copied contact data | unlocked body pointer保持、contact callback中Physics変更 |
 | Recast／Detour | immutable mesh version、worker別query lease | path point、status、version | shared mutable query object、polygon refの永続保存 |
 | ozz-animation | immutable skeleton／clipはAsset Registry、contextはinstance | copied pose／bounds／root-motion delta | instance contextの同時write |
-| Luau | Script owner thread | typed Capability value／command | VM pointer、Lua stack pointer、unbounded allocator、OS API |
 | XAudio2 | Audio control thread | VoiceHandle、copied completion event | callback内block／allocation／DestroyVoice |
 | Oboe | Audio control thread＋audio callback | VoiceHandle、preallocated PCM／completion | callback内block／allocation／JNI／log |
 | Apple AudioUnit | Audio control thread＋audio callback | VoiceHandle、preallocated PCM／route event | callback内block／allocation／UIKit／log |
@@ -592,9 +592,9 @@ Jolt 5.6.0はCPU rigid-body機能だけを利用する。`JPH_USE_DX12`、`JPH_U
 
 Joltのstep temporary allocationはPhysics Domain内の32 MiB固定`TempAllocator`をWorldごとに一つ持ち、`PhysicsSystem::Update`完了後に全Jobの終了を確認してresetする。枯渇時は一般heapへfallbackせずPhysics stepをfaultする。
 
-Luauは`lua_newstate`へEngine allocatorを渡す。Script Domain 128 MiBの内訳は、Luau VM heapがProject合計96 MiB／1 module 32 MiB、bytecode cacheがProject 16 MiB／1 module 4 MiB、GC／diagnostic reserveが16 MiBである。reserveを通常VM allocationまたはbytecodeへ貸さない。初期実行quotaは1 module 1,024 invocation／resume／tick、Project全体4,096 invocation／resume／tick、1 module 4,096 Capability call／tick、Project全体16,384 call／tick、wall deadlineは1 module 2.0 ms／tick、Project全体4.0 ms／tickとする。初回entrypoint実行も一つのresumeとして数える。
+GameplayDefinition evaluatorはC++ Runtime Systemであり、VM、bytecode、GC、FFIを持たない。DefinitionはCook時にevent index、flat node table、constant poolへ変換する。任意loop／recursionを禁止し、State Machineは一instance一phase一transition、Behavior TreeはDefinitionごとの`max_node_visits_per_tick`、collection／task／commandはMCDとTarget Profileの上限を必須とする。上限不在またはProfile超過はCook errorである。
 
-Luauの公開C APIは正確なVM instruction quotaを提供せず、`interrupt`はloop back edge、call／return、GC等のsafepointで呼ばれる。このため「instruction数」を偽って表示せず、deadlineを`interrupt`と各Capability callの前後で検査する。simulation thread上のCapability callは1回0.25 msをhard limitとし、それを超え得る処理はasync requestにする。quota到達時は15.2節の未seal commandとstate deltaを破棄し、sandbox化したglobal environmentとallowlist Capabilityだけを公開する。
+Evaluation開始時にimmutable Definition／state view、phase専用command buffer、state-delta journalを作る。World変更はcommand、state変更はdeltaへ記録し、node visit、Capability、state schema、command semantic、wall budgetをすべて満たした場合だけ一transactionとしてsealする。Budget超過時は未seal delta／commandを破棄し、authoritative tickをpublishしない。simulation thread上で0.25 msを超え得るCapabilityはasync requestにする。
 
 ozzのSkeletonとAnimation payloadはimmutable versionとして共有し、`SamplingJob::Context`、local transform output、blend scratchはanimation instanceまたはjobごとに分離する。
 
@@ -624,7 +624,7 @@ timestamp、absolute path、pointer、worker順序をkeyへ含めない。
 
 SHA-256へ渡すcanonical byte streamは次に固定する。
 
-- 画像、mesh、audio、Script source等のopaque source fileは変換前のraw byte列をhashする。GameSpec、World Model、Asset metadata等のschema objectはparseとvalidation後に以下のcanonical encodingをhashする。
+- 画像、mesh、audio、Project C++等のopaque source fileは変換前のraw byte列をhashする。GameSpec、World Model、GameplayDefinition、Asset metadata等のschema objectはparseとvalidation後に以下のcanonical encodingをhashする。
 - Schema objectはfieldの32 bit numeric ID昇順。
 - Integerはschema幅のlittle-endian、boolは`0x00`／`0x01`。
 - FloatはIEEE 754 binary32／binary64のlittle-endianとし、`-0`を`+0`へ正規化する。NaN／Infをschema validatorで拒否する。
@@ -634,7 +634,7 @@ SHA-256へ渡すcanonical byte streamは次に固定する。
 - Optionalはpresence byteの後に値を置く。struct padding、pointer、source pathを含めない。
 - `ordered_dependency_artifact_keys`は`dependency_role_id`、dependency StableId、ArtifactKeyの順でsortする。
 
-Schema objectを保存したAuthoring fileの空白やfield記述順はhashへ影響しない。opaque source fileとScript sourceの空白はraw contentの一部なのでhashへ影響する。C++とTypeScriptのcanonical encoderを同じschema fixtureでbyte比較する。
+Schema objectを保存したAuthoring fileの空白やfield記述順はhashへ影響しない。opaque source fileとProject C++ sourceの空白はraw contentの一部なのでhashへ影響する。C++とTypeScriptのcanonical encoderを同じschema fixtureでbyte比較する。
 
 ### 10.2 invalidation graph
 
@@ -671,8 +671,8 @@ flowchart LR
 | VisualStyleProfile | Material template解決、Lighting、Camera、Post、VFX、UI、Preview／golden |
 | Nav agent profile | 該当agentのNav tile、query cache |
 | Skeleton／clip | compressed animation、retarget map、animation bounds |
-| Luau source | bytecode、module dependency、Capability use manifest |
-| Project C++ | 対象extension binary、ABI manifest、関連test。Play中hot unloadはしない |
+| GameplayDefinition | CookedGameplayPackage、event index、Capability／State layout／dependency manifest |
+| NativeGameModule（Project C++） | 対象module binary、ABI manifest、関連test。Play中hot unloadはしない |
 
 ### 10.3 transactional build
 
@@ -698,7 +698,7 @@ flowchart LR
 | Static collider | staging worldでbuild／query test合格後、`T00`で置換 | 旧collider維持、restart要求 |
 | Dynamic／kinematic collider | 不可 | Play restart |
 | Navmesh | 完全な新versionを`T00` swap | stale query破棄 |
-| Luau module | `ScriptStateSchemaHash`と`CapabilityManifestHash`が一致 | module stateを変更せずrestart要求 |
+| GameplayDefinitionSet | `StateLayoutHash`と`CapabilityManifestHash`が一致し、Stable State／node IDを維持 | 旧setとstateを維持してrestart要求 |
 | Native C++ extension | 不可 | Host rebuild／restart |
 
 ## 11. CPU memory規約
@@ -720,18 +720,18 @@ Process private working setも必ず記録し、C1 baselineから5%を超える�
 | Core World／Save | ECS・World 128、snapshot／bridge 32、Save／Replay 64、stack／system 32 | 256 |
 | Rendering CPU／upload | Render world／extract 48、VFX CPU simulation 32、Shader／Material／PSO metadata 32、descriptor metadata 16、upload staging 96、reserve 32 | 256 |
 | Physics／Navigation／Animation | Physics 96、Navigation 64、Animation 64、reserve 32 | 256 |
-| Script | VM heap 96、bytecode／module cache 16、reserve 16 | 128 |
+| Unassigned headroom | ownerなし。通常allocation、cache、Domain貸借へ使用禁止 | 128 |
 | Audio | decoded／stream ring 96、voice／control 16、reserve 16 | 128 |
 | Asset streaming | compressed cache 256、decode／transcode 256、hot cache 192、dependency metadata 32、reserve 32 | 768 |
 | Frame／Job transient | Frame 32、RenderFrame 48（16×3）、Job scratch 40、reserve 8 | 128 |
 | Emergency | diagnostics、journal、controlled shutdown専用 | 128 |
 | **合計** |  | **2048** |
 
-Script quotaはScript Domain 128 MiB、Luau VM heap Project合計96 MiB／1 module 32 MiB、bytecode cache 16 MiB／1 module 4 MiB、非貸出reserve 16 MiBであり、表のScript parentを超えない。Third-party allocationはAdapterの所属Domainへchargeする。
+Unassigned headroom 128 MiBはReference fixture、Before／After、peak memory、allocation count、10分soak、人間Reviewを持つADRでだけDomainへ再配分できる。GameplayDefinitionのunloaded packageはAsset streaming、active immutable definitionとGameplayStateStoreはCore World／Save、evaluation scratchはFrame／Job transientへchargeする。Third-party allocationはAdapterの所属Domainへchargeする。
 
 ### 11.3 Editor profile
 
-Editor process groupの初期soft budgetは4 GiBとし、Play Runtimeの2 GiBを含める。初期の同一Process `EditorHost`ではmemory tagでRuntimeとAuthoringを分離し、将来Playを`GameHost` child processへ隔離してもEditorHost＋当該GameHostのgroup aggregateを4 GiBへ収める。AI Orchestrator、DXC、Asset compiler等のtool child processはこの表に含めず、Process別capとgroup telemetryを持つ。
+Editor process groupの初期soft budgetは4 GiBとし、Play Runtimeの2 GiBを含める。C1から`EditorHost`とPreview用`GameHost`を別Processにし、EditorHost＋当該GameHostのgroup aggregateを4 GiBへ収める。各Process内のDomain tagとProcess別telemetryも保持し、C++変更時はGameHostを終了して新binaryで再起動する。AI Orchestrator、DXC、Asset compiler等のtool child processはこの表に含めず、Process別capとgroup telemetryを持つ。
 
 | Domain | MiB |
 |---|---:|
@@ -768,7 +768,7 @@ Job Object hard limit到達、child crash、timeoutでは当該treeを終了し�
 - 90%: warning。nonessential cacheのeviction／quality縮小を開始する。
 - 100%: Domain cap。nonessential allocationを拒否する。
 - Emergency reserveは通常処理、cache拡張、品質維持へ貸さない。
-- reserve以外の未使用Parent budgetは、一つのload jobまたは最大120 frameだけ他Parentへ貸せる。
+- Unassigned headroomとEmergency reserve以外の未使用Parent budgetは、一つのload jobまたは最大120 frameだけ他Parentへ貸せる。
 - 借用bytesは貸出元、借用先、global totalの三つへ記録し、global 1920 MiBを超えない。
 - 120 frameを超える借用はbudget設定不良としてCIを失敗させ、暗黙に恒久化しない。
 - 必須allocation失敗時はcache eviction後に一度だけretryする。再失敗したWorld／Physics／Render Graphは不整合のまま継続せずfaultする。
@@ -859,7 +859,7 @@ Navigation 64 MiBの内訳はqueue 16.25 MiB、live 2D／3D Nav payload合計36 
 
 critical reserveは表のEntry capacityに含まれ、noncritical producerは使用できない。critical reserveを持つqueueはpayload arenaの末尾1/8、すなわちPresentation 512 KiB、Audio command 128 KiB、Audio callback 32 KiB、Asset promotion 128 KiBもcritical専用とする。entry数、個別payload、arenaのどれか一つでも上限へ達した時点でoverflow policyを適用する。Asset promotionの一entryは一artifactではなく一`AssetGenerationId`を表し、closureを分割しない。
 
-priorityとcritical bitはcommand／event schemaおよびCapability manifestが固定し、AI、Script、Project dataのpayloadから上げられない。criticalを許可するのはEngine-ownedのvoice stop／release、resource retire、controlled shutdown、generation rollbackだけとする。
+priorityとcritical bitはcommand／event schemaおよびCapability manifestが固定し、AI、GameplayDefinition、Project dataのpayloadから上げられない。criticalを許可するのはEngine-ownedのvoice stop／release、resource retire、controlled shutdown、generation rollbackだけとする。
 
 ### 13.2 overflow policy
 
@@ -886,7 +886,7 @@ Shippingでauthoritative eventを黙ってdropしない。Developmentは容量�
 - workerは`SetThreadSelectedCpuSets`で上記performance CPU Setをsoft affinityとして指定し、選択集合、実行CPU、migrationをtelemetryへ記録する。
 - Box2DはEngine worker poolへenqueueし、初期`workerCount = min(worker_count, 4)`。
 - JoltはEngine-owned `JobSystem` bridgeを使い、同じworker poolを共有する。
-- Luau VMはGame simulation threadだけで実行し、workerへVM workを送らない。
+- GameplayDefinition evaluationはT30／T70のC++ Gameplay Systemが所有する。Workerへ渡す場合はimmutable definition／state snapshotとprivate outputだけにし、World／GameplayStateStoreへ直接writeしない。
 - file／network待機をworkerでblockせず、I/O completion threadがowned resultを`T20`へ渡す。
 
 worker計算で差し引く4 logical processorはmain／window-input、Game simulation、Render submission、Audio controlのlatency-sensitive実行余地である。I/O completion threadは通常completion portでblockし、長いCPU処理を行わないため予約数へ加えない。I/O completionで0.25 msを超える処理はworker jobへ移す。
@@ -952,7 +952,7 @@ Warm-cache起動は同じpackageを一度起動して操作可能frame到達後�
 |---|---:|
 | `T00`＋`T10` | 0.50 ms |
 | `T20` | 0.25 ms |
-| Gameplay＋Luau | 1.50 ms |
+| Gameplay Logic | 1.50 ms |
 | Motion＋Animation | 1.50 ms |
 | Physics | 2.50 ms |
 | Nav result integration | 0.25 ms |
@@ -1003,7 +1003,7 @@ CapabilityをC2 Productionへ昇格するには、次をすべて満たす。
 | Borrow epoch違反 | access | なし | Development fail-fast、CI failure |
 | Authoritative queue overflow | phase seal | tick publishなし | EditorはPlay停止してAuthoringへ戻る。Shippingはlast valid snapshot上のpreallocated fault overlay後にsession終了 |
 | Stale async result | `T20` | なし | discard＋telemetry |
-| Script timeout／quota | Script boundary | 当該state delta／command bufferを破棄 | Script instance停止、error event、Replayへfault記録 |
+| GameplayDefinition step／wall budget超過 | Gameplay transaction seal | 当該state delta／command bufferを破棄、tick publishなし | Editor Play停止、Shipping session fault、Replayへfault記録 |
 | Physics Adapter invariant | `T50`／`T60` | tick publishなし | Play session fault |
 | Nav no path | query result | なし | typed `NoPath`。faultにしない |
 | Asset build failure | staging validation | live set変更なし | 旧version継続、修正診断 |
@@ -1021,16 +1021,16 @@ CapabilityをC2 Productionへ昇格するには、次をすべて満たす。
 | Save失敗 | temp write／flush／replace | in-memory state変更なし | target／backup／journalを検証し、最新valid generationへ回復 |
 | AI／Editor ChangeSet不正 | validation | Authoring state変更なし | field単位errorと修正案 |
 
-### 15.2 Script transaction
+### 15.2 GameplayDefinition transaction
 
-Authoritative Scriptの永続状態はEngine-owned、schema付き`ScriptStateStore`だけに置く。Luau global tableはsandbox後read-onlyとし、module global、userdata、registry、coroutine stackをSave／Replay対象の永続状態にしない。
+Authoritative Gameplay stateはEngine-owned、schema付き`GameplayStateStore`だけに置く。Cooked definitionはimmutableであり、C++ object layout、pointer、call stackをSave／Replay対象の永続状態にしない。
 
-- Script invocation開始時に`ScriptStateStore`のimmutable view、phase専用command buffer、state-delta journalを作る。
+- Evaluation開始時に`GameplayStateStore`のimmutable view、phase専用command buffer、state-delta journalを作る。
 - Capability callはWorldを即時変更せずcommand bufferへ、state writeはdelta journalへ記録する。
-- invocationが正常終了し、quota、permission、state schema、command semantic validationをすべて通過した場合だけ、state deltaとcommand bufferを一つのtransactionとしてsealする。
-- C1／C2のauthoritative entrypointはtickをまたいでLuau coroutine stackを保持せず、yieldを禁止する。待機はEngine-owned `ScriptTask {task_id, state_id, wake_tick, bounded_parameters}`として`ScriptStateStore`へ明示し、次回entrypointで再開する。Presentation専用coroutineは許可するが、Save／replay対象外でreload時にcancelする。
-- timeout、panic、memory quota、forbidden Capability、unexpected yieldが起きた場合はstate deltaと未seal commandをすべて破棄し、Luau threadを`lua_resetthread`または破棄する。前のphaseですでに適用済みのstateを暗黙rollbackしたように見せない。
-- authoritative timeoutは`{tick_id, script_instance_id, entrypoint_id, invocation_sequence, fault_code}`をReplayへ記録する。Replay時は該当invocationを実行せず同じfaultを注入する。C2性能試験中のtimeoutは1件でも不合格とする。
+- Evaluationが正常終了し、node visit、Capability、state schema、command semantic、wall budgetをすべて通過した場合だけ、state deltaとcommand bufferを一つのtransactionとしてsealする。
+- tickをまたぐ待機はEngine-owned `GameplayTask {task_id, state_id, wake_tick, bounded_parameters}`として`GameplayStateStore`へ明示し、次の該当event／tickで評価する。Coroutine、yield、任意call stack保存を持たない。
+- Budget、forbidden Capability、invalid transition、state schema違反時はstate deltaと未seal commandをすべて破棄する。前phaseですでに適用済みのstateを暗黙rollbackしたように見せない。
+- authoritative faultは`{tick_id, definition_instance_id, entrypoint_id, evaluation_sequence, fault_code}`をReplayへ記録する。Replay時は該当Evaluationを実行せず同じfaultを注入する。C2性能試験中のfaultは1件でも不合格とする。
 
 ### 15.3 save atomicity
 
@@ -1083,7 +1083,7 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 - memory current、peak、allocation count、upstream fallback、borrowed bytes
 - Asset cache hit、build／promotion latency、stale version、retire待ち
 - Physics body／contact／event、Nav request／stale result、Animation instance
-- Luau invocation／resume、Capability call、interrupt safepoint、memory、GC pause、deadline／timeout
+- GameplayDefinition evaluation／node visit、Capability call、state transaction、task、memory、budget fault
 - Audio callback P99、queue、underrun
 - GPU committed、resident、Platform budget、D3D12MA／VMA／Metal allocation、descriptor／binding使用量
 - surface generation、orientation、drawable取得失敗、memory pressure、thermal、frame pacing、audio route／interruption
@@ -1098,12 +1098,12 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 | Handle property | generation、slot再利用、wrap retire、random invalid handle |
 | Borrow lifetime | structural mutation、phase、tick、arena reset後の無効化 |
 | ECS property | archetype移動、iteration順、structural command merge |
-| Adapter conformance | Box2D／Jolt event・invalid ID・lock、Recast version、Luau quota／state rollback／yield拒否、ozz context、XAudio2／Oboe／AudioUnit callback |
+| Adapter／Gameplay conformance | Box2D／Jolt event・invalid ID・lock、Recast version、GameplayDefinition bound／state rollback／invalid transition、ozz context、XAudio2／Oboe／AudioUnit callback |
 | Asset graph | dependency closure、hash決定性、generation非混在、失敗時旧set維持、boundary promotion |
 | GPU lifetime | backend別submission、descriptor／binding非所有、alias barrier、device／surface failure |
 | Memory | Domain cap、貸借期限、OOM injection、arena reset、zero-live |
 | Replay | input＋async acceptance tickから同一state hash |
-| Failure injection | queue overflow、cancel race、Script timeout、Save write／flush／replace各段階のProcess killとrecovery、hot reload非互換 |
+| Failure injection | queue overflow、cancel race、GameplayDefinition budget fault、Save write／flush／replace各段階のProcess killとrecovery、hot reload非互換 |
 | Performance | 2D／3D Reference scene、allocation count、queue peak、10分soak |
 | Mobile lifecycle | suspend／resume、surface再作成、process kill Save recovery、rotation／resize、audio interruption |
 | Mobile endurance | physical device memory、30分thermal、2時間endurance、16 KiB／archive package |
@@ -1132,27 +1132,27 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 - performance／memory／queue hard gate超過
 - artifact再現hash不一致
 - Android AABのABI／16 KiB alignment／PAD／permission不一致、Apple archive／privacy／entitlement不一致
-- Shipping mobile packageまたはdownload chunkへのcompiler、debug server、Script／shader source、実行code、credential混入
+- Shipping mobile packageまたはdownload chunkへのcompiler、debug server、shader source、実行code、credential混入
 
-## 18. AI生成Script／C++への適用
+## 18. AI生成構造化データ／C++への適用
 
-AIがLevel 0の自然言語指示からScript、C++、または両方を選んでも、本書を免除しない。
+AIがLevel 0の自然言語指示からGameplayDefinitionまたはC++を選んでも、本書を免除しない。
 
-- Scriptはtyped Capability commandだけを生成し、World、Physics、Nav、GPU、Audio native objectへ触れない。
-- Project C++は公開Domain Port、Runtime Contract、handle／lease APIだけを利用する。
+- GameplayDefinitionはMCDの有限・bounded Capabilityだけを使い、World、Physics、Nav、GPU、Audio native objectへ触れない。
+- NativeGameModule（Project C++）は公開Domain Port、Runtime Contract、handle／lease APIだけを利用する。
 - AI生成C++が新phase、queue、thread、memory Domain、public dependencyを追加する提案はArchitecture Changeとして人間承認を必要とする。
 - performanceを理由にraw pointer、global singleton、vendor型、phase外mutationへ迂回しない。
-- C++が必要かどうかはBehavior Contract、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。Budget未定義ならBlockingとし、同一fixtureを10分×3回測定して最悪P95／peak／deadline missで判定する。
-- ScriptのP95とpeakが割当Budgetの80%以下かつdeadline miss 0ならScriptを維持し、80–100%はScript最適化とMixed／C++を比較し、100%超またはmiss発生時にC++／Mixedへ昇格する。80%はProject初期Policyであり、変更はBenchmarkとADRを要する。
+- C++が必要かどうかはGameplay Capability Contract、Capability gap、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。Budget未定義ならBlockingとし、同一fixtureを10分×3回測定して最悪P95／peak／deadline missで判定する。
+- 構造化実装のP95とpeakが割当Budgetの80%以下かつdeadline miss 0なら維持し、80–100%はCook／index／layout最適化とC++候補を比較し、100%超またはmiss発生時にC++候補を作る。C++化の改善が5%未満または測定Noise内なら構造化実装を維持する。閾値変更はBenchmarkとADRを要する。
 - 生成物は同じunit、property、ASan、performance、dependency gateを通過するまでCommitしない。
 - Engine coreのR4 SourceもAIが隔離Worktreeへ生成できるが、mainへの自動Promotionは行わず、Domain ownerと独立Reviewerを必須にする。
-- Android／AppleのShipping Runtimeでは、AIが生成・取得できるものを検証済み構造化dataへ限定し、C++、Luau、managed／native code、shaderの生成、post-install remote download、JIT、dynamic loadを許可しない。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
+- Android／AppleのShipping Runtimeでは、AIが生成・取得できるものを検証済み構造化dataへ限定し、C++、managed／native code、shaderの生成、post-install remote download、JIT、dynamic loadを許可しない。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
 
 ## 19. Phase 0へ固定する成果物
 
 Engine feature実装前に次を完成させる。
 
-1. 設計文書Indexに列挙した八規範文書の承認。
+1. 設計文書Indexに列挙した10規範文書の承認。
 2. 基盤規約の`toolchain.lock.json`、固定offline layout、CI image digest、bootstrap照合。
 3. `mira_runtime_contracts`のtarget、Domain Port／Runtime／Adapter分離、依存DAG、`ComponentAccessManifest`検査。
 4. `TickPhaseId`、`RenderPhaseId`、typed command／event header。
@@ -1162,13 +1162,13 @@ Engine feature実装前に次を完成させる。
 8. bounded queueとauthoritative overflow test。
 9. Asset artifact key、dependency closure、staging／atomic promotion fixture。
 10. Agility SDK 1.619.4のHost export／DLL hash／Enhanced Barriers gate、D3D12 queue別retire record、device-removed test harness。
-11. 共通Adapter conformance harnessと、最初の2D sliceで使うBox2D、Luau、XAudio2 fixture。Jolt、Recast、ozz fixtureは3D Capability C0開始条件とする。
+11. 共通Adapter conformance harnessと、最初の2D sliceで使うBox2D、GameplayDefinition cook／transaction、XAudio2 fixture。Jolt、Recast、ozz fixtureは3D Capability C0開始条件とする。
 12. phase／Subsystem telemetry schemaとProfile capture。
 13. Windows ASan、Linux portable-module TSan、static analysis CI。
 14. Target／Distribution／Lifecycle／Display／Platform Port schemaと、未実装Targetの`UnsupportedTarget` contract test。
 15. Android／Apple toolchain profile、Vulkan／Metal submission record、VMA／MTLHeap lifetime conformance plan。
 16. Mobile memory／thermal／surface／audio failure fixture、AAB／archive package validator、data-only Runtime AI gate。
-17. MCDのRequirement、Type、Operation、State machine、Capability、Policyと、C++／TS／Luau generated binding。
+17. MCDのRequirement、Type、Operation、State machine、Capability、Policyと、C++／TS／Cooked binary generated projection。
 18. `TaskSpecification`、署名済み`TaskAuthorizationEnvelope`、Risk別Gate、Source Worker／Promotion境界。
 19. `AiTaskLifecycle`、`ChangeSetCommit`、`SourcePromotion`、`AsyncResultPublish`、`AssetVersionSwap`のTLA+ modelとtransition conformance。
 20. Verification／Generation／Review／Promotion Receipt、Requirement Coverage Matrix、SPDX SBOM、SLSA build provenance接続。
@@ -1194,7 +1194,6 @@ Engine feature実装前に次を完成させる。
 | Box2D | opaque IDはvalidity検査が必要で、eventはstep後にbufferから読め、callbackはworkerで呼ばれ得る | native ID非公開、callbackはcopyだけ、`T60` normalize |
 | Jolt 5.6.0 | `BodyID`は無効化され得てlock APIが必要、contact callbackは複数thread／body lock中 | multi-lock利用、callback中変更禁止、step join後に統合。GPU／hair機能は無効 |
 | Recast／Detour | queryはNavmeshに対してpath／corridorを計算し、tile変更で参照前提が変わる | immutable Navmesh version、worker別query object、stale result破棄 |
-| Luau | custom allocator、sandboxを提供し、interruptはinstructionごとではなくsafepointで呼ばれる | owner thread、module／Project quota、deadline、typed state transaction、Capability allowlist |
 | ozz-animation | runtime dataはimmutable、jobはcaller提供bufferを使い、Sampling Contextを必要とする | immutable Asset共有、instance／job別contextとoutput |
 | XAudio2 | callbackは短時間で、disk、block、同期、重い処理を避ける必要がある | callback P99 0.25 ms、preallocated queue、DestroyVoiceはcontrol thread |
 | LLVM sanitizers | AddressSanitizerはmemory errorを検出し、ThreadSanitizerの公式platform一覧にWindowsはない | Windows ASan＋race assertion、portable moduleはLinux TSan |
@@ -1249,8 +1248,6 @@ Engine feature実装前に次を完成させる。
 - [Jolt Physics documentation archive](https://jrouwe.github.io/JoltPhysicsDocs/)
 - [Recast Navigation repository](https://github.com/recastnavigation/recastnavigation)
 - [Detour `dtNavMeshQuery`](https://recastnav.com/classdtNavMeshQuery.html)
-- [Luau C API](https://luau.org/api/)
-- [Luau Sandboxing](https://luau.org/sandbox)
 - [Windows `SYSTEM_CPU_SET_INFORMATION` and `EfficiencyClass`](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_cpu_set_information)
 - [Windows CPU Sets](https://learn.microsoft.com/en-us/windows/win32/procthread/cpu-sets)
 - [Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
