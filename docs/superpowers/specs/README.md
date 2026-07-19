@@ -1,7 +1,77 @@
 # Miraikanai Engine 設計文書Index
 
 - 最終更新日: 2026-07-20
-- 状態: Subsystem別正式仕様を統合した設計レビュー用Index
+- 状態: Subsystem別正式仕様を統合した設計レビュー用Index。2026-07-20内部整合レビュー済み、ユーザー承認待ち
+
+## 0. 統合計画サマリー
+
+Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエンジンではない。人間またはAIが「作りたいゲーム状態」と「編集Command」を型付き構造化データとして提案し、C++ `AuthoringCommandGateway`がSchema、semantic、Capability、Policy、budget、base revisionを検証した後だけ、一つの`ProjectRevision`として原子的にCommitする独自AIネイティブゲームエンジンである。
+
+| 主題 | 確定した計画 |
+|---|---|
+| Product形態 | Editor制作型を先に完成させる。制限付きRuntime生成はPhase 9で別Threat ModelとServer-authoritative Gatewayを設けた後だけ扱う |
+| 制作レベル | Level 0自然言語、Level 1 Scene／Inspector／Graph、Level 2 GameplayDefinition、Level 3 Project C++を同一Project形式で往復できる |
+| 初回制作 | 大まかなPromptをRequirementへ分解し、Blocking／High Impact不足だけを質問し、Game Brief承認後に薄いゲーム全体と深い代表部分を作る |
+| Game実装 | 実行CodeはC++23、頻繁に調整する内容は型付き`GameplayDefinition`。offline CookしたPackageをC++ evaluatorが実行する |
+| Script | Luau、Lua、C# Game runtime、汎用Script VM、bytecode interpreter、JIT、Game向けFFIは採用しない |
+| 実装方式選択 | AIはSystem単位でGameplayDefinition、C++、または型付きCapability境界での併用を選ぶ。選択理由、budget、benchmarkをDecision Ledgerへ記録する |
+| Engine／Editor | Engine、EditorHost、GameHost、Tool、NativeGameModuleのFirst-party CPU codeはC++23。EditorはC++ Projection Editorで、状態の正本ではない |
+| C++移行 | CX0のHeader bootstrapから、Named Modules＋`import std`を使うCX3へ一方向移行する。C++26はShippingに使わずreadiness CIだけを持つ |
+| Build | CMakeがFirst-party C++ Build定義の正本、Ninjaが高速なC++実行器、独自Build GatewayがEditor／AI／CIの唯一の入口。`build.ninja`は生成物であり公開APIにしない |
+| Platform Build | WindowsはNinja Multi-Config、AndroidはGradle→CMake→Single-Config Ninja、Appleはportable C++ archiveをNinja、App shell／resource／最終link／archive／署名をXcodeが所有する |
+| AI接続 | 内蔵AIはProvider API、外部Codex／Claude等はlocal MCP、Host Pluginは任意の補助UX。どの接続も検証・Commit権限を持たない |
+| Editor UX | Scene／Canvas、Hierarchy／Outliner、Inspector、Asset、Source、Console、AI Partnerをdock、resize、floating、入替、multi-monitor、複数Workspace保存できる |
+| 初心者UX | `AI Creator` Workspaceを同じEditor内に用意し、AI Partnerを常設可能にする。Production／Debug／Art／Level Design等のWorkspaceへ切替可能 |
+| Graphics | Windows Direct3D 12、Android Vulkan、Apple Metal。Engine-owned Render Graph、Material／Shader IR、Target別offline shader cookを使う |
+| 表現 | 2D、3D、`realistic_basic`、Realistic advanced、Toon、独自`pixel_diorama`を段階実装し、AI Visual Style ResolverがCapabilityとbudget内で選択する |
+| 必須Subsystem | Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text／Localization／Accessibility、Audio、Particle／VFX、Lighting、Sky／Atmosphere／Fog／Cloudを正式仕様で所有する |
+| 外部Library | Engineの正規data model、Capability、validation、lifecycle、serialization、Editor UXは独自所有する。OS、Graphics API、Box2D、Jolt、Recast、GPU allocator等は検証してAdapter内へ隔離し、再発明しない |
+| Memory／Pointer | RAII、明示所有権、generation handle、phase／epoch lease、memory domain、GPU deferred destruction、Target別budgetを正規規約にする |
+| 対象Platform | Windows Editor／Gameを先行し、Android、iOS／iPadOSを順に追加する。Mobile Editor、Linux製品Target、multiplayer、XRは初期対象外 |
+| MVP | MVP-AはAIで作る2D top-down action、MVP-Bは3D compact third-person action arena。Android／Apple vertical sliceはその後に行う |
+| AIによるEngine保守 | Game制作AIに加えてEngine本体の実装・保守AIを対象にするが、隔離Source Worker、Risk class、Review、Promotion、署名分離を満たすまで高権限操作を公開しない |
+
+### 0.1 要求から正式仕様への対応
+
+| これまでに確認した要求 | 決定権を持つ正式仕様 |
+|---|---|
+| AI設計図、追加質問、共同／詳細／高水準設計、Editor制作型 | AIネイティブ設計計画書 |
+| C++のみの実行層、構造化ゲームデータ、Luau不採用 | C++実行コード・構造化ゲームデータ規約 |
+| Memory、Pointer、Architecture、Naming、Directory、Dependency、Build | 基盤アーキテクチャ規約 |
+| C++23、C++26 readiness、Modules、`import std`、Ninja | C++23・Named Modules移行規約 |
+| AI／手動編集の共通状態、Undo、Recovery、Transaction | Authoring Model／Project State規約 |
+| AIが理解できる型、Operation、Capability、Schema、Codegen | 実行可能契約規約 |
+| Renderer／Asset／Editor／Input／UI／Audio／2D／3D | 各Subsystem正式仕様と2D／3D機能計画 |
+| Collision、Physics、Navmesh、Animation | Collision規約とPhysics／Navigation／Animation規約 |
+| Light、Fog、Cloud、Sky、Atmosphere、Particle、Shader、Material、Toon／Realistic／Pixel Diorama | Rendering規約と2D／3D機能計画 |
+| Android、iOS／iPadOS、Build、Store、実機budget | モバイルPlatform規約 |
+| Codex／Claude API、MCP、CLI／Desktop、Plugin、Engine保守AI | AI実装・保守ガバナンス規約 |
+| Test、Eval、Provenance、SBOM、最新情報更新 | AI検証・評価・来歴規約 |
+
+### 0.2 2026-07-20内部整合レビュー
+
+- `Miraikanai Engine`の名称へ統一され、旧綴りは公式Review setに残っていない。
+- C++23、GameplayDefinition、Script VM不採用、Target、Build Driver、Editor、AI権限、Runtime phaseの主要判断に矛盾する公式経路は見つかっていない。
+- 未記入placeholder、実装者任せの保留、暫定Defaultを正式要件として残していない。外部Artifact取得後に確定するhash等は、Owner、取得手順、失敗条件を持つPhase 0作業として区別している。
+- NinjaはBuild architecture全体ではなくC++ Build executorであること、Editor統合はCMake File APIとEngine-owned Receiptを使うこと、Phase 0で増分正当性と性能を実測することを今回の見直しで明文化した。
+- 本レビューは文書内部の整合確認であり、Engine実装完了または技術成立の実測証明ではない。実装開始には本Review setのユーザー承認と、別のPhase 0実装計画書の承認が必要である。
+
+### 0.3 見直し結論と未実証項目
+
+設計の粒度は、Phase 0実装計画をfile、target、contract、fixture、testへ分解できる段階に達している。一方、次は設計上の未決定ではなく、実artifactで合否を確定する未実証項目である。
+
+| 未実証項目 | 証明するPhase／Gate | 不合格時 |
+|---|---|---|
+| C++23 Modules／`import std`の全Target Shipping成立 | CX1 Probe、CX2 Candidate、CX3 Cutover Gate | Header bootstrapまたはCX2に留まり、Shippingへ昇格しない |
+| Ninjaの増分正当性、no-op性能、memory、中断復旧 | Phase 0 `VerificationReceiptV1` gate `mira.build.ninja_adoption.v1` | Makeへfallbackせず、DAG／dependency／poolを修正して再測定 |
+| AppleのNinja C++ archive＋Xcode App shell境界 | Phase 0 C ABI fixture、Mobile Phaseの実archive | Apple CX0または非Promotion Probeに留める |
+| AuthoringCommandGatewayとContract compilerの安全性 | Phase 0／1 conformance、negative、crash recovery | Editor／AIのwrite機能を有効化しない |
+| Dear ImGui上の独自Panel／Workspace／Accessibility tree | Phase 2 UI Automation、DPI、keyboard、screen reader fixture | Technology Preview配布へ進めない |
+| 2D／3Dのframe、memory、visual、physics／navigation連携 | Phase 3／6 reference scene、10分soak、golden capture | 対応CapabilityをC1へ昇格しない |
+| Android／AppleのStore、実機、thermal、package | Phase 7 physical device／package／privacy Gate | 対象Platformを配布Targetへ昇格しない |
+| AI生成品質、安全性、Provider更新耐性 | MVP-A以降のTask Eval、holdout、adversarial、Promotion Gate | 対象Risk classまたはProviderを有効化しない |
+
+したがって次の正規作業はEngine全体の一括実装ではなく、Phase 0だけを対象とする実装計画書の作成である。2D、3D、Mobile、Production機能は各Milestone Gateの入力が揃ってから別実装計画へ分解する。
 
 ## 1. 読む順序
 

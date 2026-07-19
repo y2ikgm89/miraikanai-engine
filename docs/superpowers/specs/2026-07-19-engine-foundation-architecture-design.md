@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.9
+- 文書版: 1.10
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -150,6 +150,39 @@ CX0／CX1は全Hostで`cmake_minimum_required(VERSION 4.4.0)`と実行CMake exac
 CX0のMSVCはversioned v14.51 Stable componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。CX1だけは別lockされた14.52 PreviewをProbeに使用できるが、そのartifactをPromotionしない。CX3は14.52以降がStableとなり正式`/std:c++23`を提供した後、別Toolchain更新ChangeSetでexact versionとhashを固定する。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap／Cutover手順である。
 
 TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、現時点で安定公開されていないTypeScript compiler programmatic APIへ製品codeを依存させない。OrchestratorとContract compilerは`package.json`の`"type": "module"`、TypeScriptの`module`／`moduleResolution`を`NodeNext`に固定し、CommonJS／ESM二重Buildを作らない。正式artifactのcompileは`--strict --singleThreaded`を明示して、experimentalな`--checkers`／`--builders`を使わない。Developerのwatch／language serviceは既定の並列処理を使えるが、その出力をShipping artifactとして採用せず、Commit gateでsingle-threaded clean buildを再実行する。
+
+### 2.2 Build layerの責務とNinja採用Gate
+
+NinjaはMiraikanai EngineのBuild architectureそのものではなく、CMakeが生成したC++依存DAGを低overheadで実行するBackendである。製品Buildを次の閉じた層へ分け、隣接層の責務をNinjaへ移さない。
+
+| Layer | 所有する責務 | 所有しない責務 |
+|---|---|---|
+| Build Gateway | Editor／AI／CLI／CIからの正規Request、Authorization、Target／C++／Driver Profile照合、resource予約、C++／Asset／Shader／Test／Packageの順序、cancel、Diagnostic、Build Receipt | C++ target依存の手書き複製、任意shell、署名secret |
+| CMake | First-party C++ target、compile definition、include／Module依存、code generation edge、test target、install可能なnative artifactの正本 | Project Revision、Asset Catalog、APK／AAB、Apple archive／署名 |
+| Ninja／Ninja Multi-Config | CMakeが生成したcommand DAGのincremental判定、parallel scheduling、compile／link／declared code generationの実行 | Product workflow、Toolchain選択、Package policy、Asset／Shaderの正規状態、権限判断 |
+| Content Build | Asset Import／Cook、Material／Shader compile、Derived Data、`.mirapack`、Target別Content Package | C++ target graphの正本 |
+| Platform owner | AndroidはGradleがManifest／resource／DEX／APK／AAB、AppleはXcodeがApp shell／resource／最終link／archive、各Signing Serviceが署名を所有 | C++ source依存の独自再定義 |
+
+EditorとBuild Gatewayは、checked-in `CMakePresets.json`のallowlist IDだけを指定し、CMake File APIのcodemodel、toolchains、cache、cmakeFilesとEngine-owned Build ReceiptからTarget、Configuration、Artifact、Diagnosticを取得する。`build.ninja`、`build-<Config>.ninja`、`.ninja_deps`、`.ninja_log`はBuild tree内の一時生成物であり、RepositoryへCommitせず、Editor、AI、Test、Project fileが解析または書換えない。CMake File API versionまたは必要object kindが利用できなければconfigureを失敗させ、Ninja file解析へfallbackしない。
+
+Asset／Shader変更をCMake configureへ暗黙連結しない。C++ compile前に必要なSchema／generated Header／ModuleだけはCMake custom commandとして全Input、Output、Byproduct、Depfile、working directoryを宣言し、その他のContent BuildはBuild Gatewayの型付きTask DAGが実行する。Ninjaの成功だけでProduct Build成功、Package成功、Promotion可能と判定しない。
+
+Build GatewayはRuntime連携規約のTool process memory予約を先に取得し、Ninja compile並列数を`min(max(logical_processors - 4, 1), 6)`以下、link poolを1に固定する。Process tree commitがNative Build予約の90%へ達した時点で新規compileを開始せず、4 GiB hard capを超えたProcess treeを終了して失敗Receiptを残す。無制限のNinja既定並列へ委ねない。
+
+Phase 0は`windows_desktop_v1` reference hardware上で次のNinja採用検証を実行する。
+
+1. Header bootstrapのclean Build、warm-up後10回のno-op Build、単一leaf `.cpp`変更、generated Header変更、Module interface変更を独立測定する。
+2. no-op `cmake --build --preset`のmedianを1.0秒以下、P95を1.5秒以下とし、Process起動、CMake、Ninjaを含むend-to-end時間を記録する。
+3. clean Buildと一連のincremental mutation後Buildについて、正規化可能なnative artifact、generated descriptor、test resultのcontent hashを一致させ、staleまたは欠落した再Buildを0件にする。
+4. compile中断、link中断、code generator失敗、Build Gateway cancel後に同じPresetを再実行し、手動file削除なしで正しいartifactへ収束させる。
+5. `Development`、`Profile`、`Shipping`、`ASan`、異なるC++ Profile、Toolchain hashのBuild treeがobject、BMI、log、Receiptを共有しないことをnegative testで確認する。
+6. WindowsはNinja Multi-Config、AndroidはGradle経由Single-Config Ninja、Apple CX1以降はNinja C++ archiveとXcode後段の境界をfixtureで確認する。
+
+採用検証はAI検証規約の`VerificationReceiptV1`を使い、`gate_id=mira.build.ninja_adoption.v1`、`gate_version=1`へ固定する。`input_artifacts`へSource revision、Preset、Toolchain lock、CMake File API codemodelの各hash、`metrics`へ`clean_duration_ms`、`noop_duration_ms`、`executed_command_count`、`restat_command_count`、`peak_process_tree_commit_bytes`、`artifact_hash_mismatch_count`、`stale_output_count`、`interrupt_recovery_failure_count`を型付きで記録する。Target graphは`module_graph_hash`またはCMake codemodel output artifactとして結び付け、failureは`exit_class`とclosed Diagnostic IDへ保存する。正当性、memory、no-op budgetのいずれかに失敗した場合、Makeまたは別Generatorへ暗黙fallbackせず、CMake graph、dependency宣言、pool設定を修正して再測定する。Generator変更が必要ならEvidence、全Target影響、Modules／`import std`互換性を持つADRと正式仕様ChangeSetを先に承認する。
+
+Object cacheまたはdistributed compileはPhase 0必須機能にしない。導入時はCMakeのcompiler launcher接続点からToolchain／command／Source content hashでkeyし、BMIをremote cacheへ保存せず、Releaseにcacheなし再検証laneを残す。
+
+### 2.3 Reference resource budget
 
 数値予算は無期限の定数ではない。Reference sceneのBenchmarkを根拠にADRで改定する。ただし、改定されるまで上表が合否判定値であり、実装者ごとの暗黙値を認めない。
 
@@ -931,7 +964,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | RAII、raw pointerは非所有、`unique_ptr`優先、明示`new`回避 | [C++ Core Guidelines R.1–R.30](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#S-resource) |
 | Pointer arithmeticより`span` | [Microsoft C26481](https://learn.microsoft.com/en-us/cpp/code-quality/c26481?view=msvc-170) |
 | C++23採用、14.51の`/std:c++23preview`はCX0非Shippingだけ、CX3はStable正式`/std:c++23` | [MSVC `/std`](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170), [MSVC 14.51 C++23 support](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) |
-| Named Modules、`import std`、CMake Module scan／Generator制約、Ninja正規化 | [Microsoft Module／Import／Export](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module?view=msvc-170), [Microsoft inclusion methods comparison](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods?view=msvc-170), [CMake C++ Modules](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html), [CMake Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html), [Android CMake configuration](https://developer.android.com/studio/projects/configure-cmake) |
+| Named Modules、`import std`、CMake Module scan／Generator制約、Ninja正規化 | [Microsoft Module／Import／Export](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module?view=msvc-170), [Microsoft inclusion methods comparison](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods?view=msvc-170), [CMake C++ Modules](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html), [CMake Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html), [CMake Ninja Multi-Config](https://cmake.org/cmake/help/v4.4/generator/Ninja%20Multi-Config.html), [CMake IDE Integration](https://cmake.org/cmake/help/v4.4/guide/ide-integration/index.html), [CMake File API](https://cmake.org/cmake/help/v4.4/manual/cmake-file-api.7.html), [Ninja manual](https://ninja-build.org/manual.html), [Android CMake configuration](https://developer.android.com/studio/projects/configure-cmake) |
 | Standards conformance | [MSVC `/permissive-`](https://learn.microsoft.com/en-us/cpp/build/reference/permissive-standards-conformance?view=msvc-170) |
 | Warning policy | [MSVC warning level](https://learn.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=msvc-170) |
 | UTF-8 source | [MSVC `/utf-8`](https://learn.microsoft.com/en-us/cpp/build/reference/source-charset-set-source-character-set?view=msvc-170) |

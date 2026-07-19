@@ -1,6 +1,6 @@
 # Miraikanai Engine C++23・Named Modules・`import std`移行規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
 - 調査基準日: 2026-07-20
 - 対象: C++言語基準、Named Modules、`import std`、CMake、Toolchain、AI生成C++、全Target移行
@@ -226,6 +226,9 @@ CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDri
 - Windows／Appleの通常入口は`cmake --preset`／`cmake --build --preset`、AndroidはGradle Wrapperとし、利用者、AI、CIがProduct Buildで`ninja`を直接起動しない。
 - CI／Promotionはcommand-line `-G`、`CMAKE_GENERATOR`環境変数、`CMakeUserPresets.json`による公式Generatorの上書きを拒否する。
 - Makeしか提供しないThird-partyは隔離Dependency Buildでのみ許可し、検証済みimmutable artifactまたはCMake imported targetへ変換する。Engine／ProjectのBuild modeとして公開しない。
+- NinjaはCMake生成DAGの実行器に限定し、Asset Cook、Shader Package、APK／AAB、Apple archive、Signing、Promotionの正本にしない。全製品工程はBuild Gatewayが型付きTaskとして順序付ける。
+- Editor、AI、CIは`build.ninja`、`build-<Config>.ninja`、`.ninja_deps`、`.ninja_log`を解析または変更せず、CMake File APIとEngine-owned Build ReceiptだけからTarget、Configuration、Artifact、Diagnosticを取得する。
+- checked-in CMake PresetのGenerator、binary directory、toolchain、configurationを正本とし、生成済みNinja fileはBuild treeとともに破棄可能でなければならない。
 
 Makefiles系は現行CMakeのC++ Module scan対象に含まれず、`import std`はNinja系Generatorだけが対応するため、Makeを互換経路として残さない。
 
@@ -458,6 +461,9 @@ CX2は依存DAGの下位から次の順で変換する。
 - Clean Build medianはCX0比5%を超えて悪化しない。
 - Leaf implementation変更後のincremental Build medianはCX0比5%を超えて悪化しない。
 - 両測定のP95はCX0比10%を超えて悪化しない。
+- no-op `cmake --build --preset`、単一leaf `.cpp`変更、直接importされるModule interface変更、generated Header変更を別系列で測定し、rebuild対象数と理由をReceiptへ保存する。
+- clean Buildとincremental mutation系列の最終artifact hash、generated descriptor、test結果が一致し、不要な未再Buildまたは過剰な全体再Buildを0件にする。
+- compile／link／code generationを各1回中断し、同じPresetの再実行だけで正しいartifactへ収束する。
 - Peak compiler process tree memoryはTool process hard cap内である。
 - 計測値、Compiler trace、Module graph、Cache hit／missをBuild Performance Receiptへ保存する。
 
@@ -493,7 +499,7 @@ Phase 0の実装計画は次を独立taskへ分解する。
 7. BMI identity／configuration isolation test。
 8. `cxx26_readiness` compile-only CI。
 9. Windows Ninja Multi-Config、Android Gradle→Single-Config Ninja、Apple Ninja–XcodeのCX3候補Build recipeとC ABI link fixture。
-10. CX0／CX1 Build Performance Receipt。
+10. CX0／CX1 Build Performance Receiptと`VerificationReceiptV1` gate `mira.build.ninja_adoption.v1`。no-op、leaf変更、Module interface fan-out、generated Header invalidation、中断復旧、clean／incremental成果物一致を含む。
 
 Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／CI基盤とCX1 probeの再現可能な成功または明示的なToolchain failure Receiptが必要であり、Preview不具合を隠して成功扱いしない。
 
@@ -513,6 +519,7 @@ Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／C
 10. BMIが配布ABIまたはcross-toolchain cacheとして扱われない。
 11. CX3 GateがToolchain、全Target、Tooling、正しさ、性能を検証する。
 12. C++26 readinessがShippingと分離されている。
+13. NinjaがCMake生成C++ DAGの実行器へ限定され、Editor統合がCMake File APIとBuild Receiptを使用し、生成Ninja fileを公開契約にしていない。
 
 ## 20. 一次資料
 
@@ -528,6 +535,10 @@ Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／C
 - [CMake C++ Modules support](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html)
 - [CMake `CXX_MODULE_STD`](https://cmake.org/cmake/help/v4.4/prop_tgt/CXX_MODULE_STD.html)
 - [CMake Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)
+- [CMake Ninja Multi-Config](https://cmake.org/cmake/help/v4.4/generator/Ninja%20Multi-Config.html)
+- [CMake IDE Integration](https://cmake.org/cmake/help/v4.4/guide/ide-integration/index.html)
+- [CMake File API](https://cmake.org/cmake/help/v4.4/manual/cmake-file-api.7.html)
+- [Ninja manual](https://ninja-build.org/manual.html)
 - [CMake toolchain manual: Apple cross compilation](https://cmake.org/cmake/help/v4.4/manual/cmake-toolchains.7.html)
 - [Android CMake／Ninja configuration](https://developer.android.com/studio/projects/configure-cmake)
 - [WG21 P2564R3 `consteval` needs to propagate up](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2564r3.html)

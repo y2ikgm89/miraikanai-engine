@@ -1,10 +1,10 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想とSubsystem別正式仕様22文書を統合した設計レビュー版
+- 状態: 基本構想とSubsystem別正式仕様22文書を統合した内部整合レビュー済み版。ユーザー承認待ち
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
@@ -21,6 +21,32 @@
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+
+## 0. 統合レビュー結果
+
+本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。22文書を単一巨大文書へ統合せず、次の三層を維持する。
+
+1. 本書がProduct vision、制作体験、Milestone、MVP、全体の依存順を決定する。
+2. [設計文書Index](./README.md)が読む順序、決定権、要求トレーサビリティ、Review状態を決定する。
+3. Subsystem別正式仕様が型、phase、lifetime、budget、failure、test、Definition of Doneを決定する。
+
+2026-07-20の内部整合レビューでは、会話で確定した要求が次の閉じた設計へ収束していることを確認した。
+
+| 領域 | 統合判断 |
+|---|---|
+| AIとEngineの境界 | AIはGame Brief、GameSpec、GameplayDefinition、C++、Test、ProjectChangeSetを提案できるが、Engine object、pointer、GPU resource、ProjectRevisionを直接変更できない |
+| Authoring | 自然言語、Editor GUI、外部IDE、MCPは同じAuthoring DocumentとProjectChangeSetへ収束し、C++ GatewayだけがCommitする |
+| Game実装 | C++23実行Code＋構造化GameplayDefinition。Luauを含む汎用Game Script VMは持たない |
+| Editor | C++で実装する独自Projection Editor。初心者用AI Creatorと上級者用Production／Debug等を同じProject形式で提供する |
+| AI統合 | 内蔵はProvider API、外部Hostはlocal MCP、Pluginは任意UX。Source変更は隔離WorkerとPromotionを必須にする |
+| Engine機能 | 2D／3D、Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text、Audio、VFX、環境表現をSubsystem契約として分離する |
+| Visual表現 | Realistic、Toon、2D、独自Pixel DioramaをVisual Style、Material、Shader、Quality Profileの組合せとして解決する |
+| Platform | Windows／D3D12を先行し、Android／Vulkan、Apple／Metalを同じPortへ接続する |
+| Build | CMakeがC++ Build定義、NinjaがC++ Build executor、Build Gatewayが製品入口。Android packageはGradle、Apple app／archive／署名はXcodeが所有する |
+| C++進化 | C++23をShipping基準とし、Named Modules＋`import std`へ一方向移行する。C++26はreadiness CIで先行検証する |
+| 実装順 | Foundation→Headless Authoring→Editor／Runtime→2D Manual→AI MVP-A→外部Agent→3D MVP-B→Mobile→Production→制限付きRuntime生成 |
+
+このレビューで新たな製品機能は追加していない。Ninjaを含むBuild層の責務、EditorからのCMake File API利用、増分Buildの正当性／性能Gateを明示し、「Build Toolの採用」と「製品Build architecture」を混同しないようにした。
 
 ## 1. エグゼクティブサマリー
 
@@ -856,6 +882,9 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
 - vcpkg manifest／固定Dependency
+- Build GatewayをEditor／AI／CLI／CIの唯一の製品Build入口とし、CMakeをC++ Build定義、Ninjaを生成DAG実行器、Gradle／XcodeをPlatform package ownerへ固定
+- CMake Presets／File API、Engine-owned Build Receipt、生成Ninja file非公開、Target／Configuration／Toolchain別Build tree分離
+- `VerificationReceiptV1` gate `mira.build.ninja_adoption.v1`によるclean／no-op／leaf変更／Module変更／generated Header変更／中断復旧／memory／artifact一致の実測
 - Module dependency DAGとComposition Root
 - `mira_runtime_contracts`、`mira_runtime_package`、`RuntimeOrchestrator`、Domain Port／Runtime／Adapter境界、`ComponentAccessManifest`
 - RAII、所有権、generation handle
@@ -1082,7 +1111,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Collision contract | Body／Collider分離、32 Channel、typed Query／Contact／Trigger、immutable Cooked Asset、Collider Editing Mode、AI Typed Operation |
 | 3D Navigation | Recast／Detour 1.6.0 Adapter |
 | GPU memory | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`を各Adapter内で利用 |
-| Build | CMakeをFirst-party C++ Build定義の唯一の正本とし、Makefiles系を公式経路にしない。WindowsはNinja Multi-Config、AndroidはGradle `externalNativeBuild`からABI／Variant別Single-Config Ninja、Apple CX0はXcode、CX1以降のportable C++ Module graphはNinja Multi-Config、App shell／最終link／archiveはXcode 26.6。全Driver／Generator／artifact／BMI identity入力をprofile別に固定 |
+| Build | Build GatewayをEditor／AI／CLI／CIの唯一の製品入口、CMakeをFirst-party C++ Build定義の正本、NinjaをCMake生成DAGの実行器とする。Makefiles系を公式経路にしない。WindowsはNinja Multi-Config、AndroidはGradle `externalNativeBuild`からABI／Variant別Single-Config Ninja、Apple CX0はXcode、CX1以降のportable C++ Module graphはNinja Multi-Config、App shell／最終link／archiveはXcode 26.6。EditorはCMake File APIとBuild Receiptを使用し、生成Ninja fileを公開APIにしない |
 | Performance | Desktopは1080p60、Ryzen 5 5600、16 GiB、RTX 3060 12 GB／RX 6600 8 GB、runtime CPU 2 GiB。Mobileは30／60 fps、Baseline process 1,024 MiB／GPU 384 MiBから実機class別 |
 | Visual Style model | Scene dimension、Art Direction、Composition、Shading Modelを分離 |
 | Material | 型付きMaterial IR、複数Shading Model、Engine-owned Target Binding Layout |
@@ -1116,7 +1145,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 次は設計上の選択肢ではなく、22文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
 
-1. Phase 0のrepository bootstrap、CMake target DAG、`BuildDriverProfileV1`、Windows Ninja Multi-Config／Android Gradle→Single-Config Ninja／Apple Ninja–Xcode Preset、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、Miraikanai Contract Definition配置をtaskへ分解する。
+1. Phase 0のrepository bootstrap、Build Gateway、CMake target DAG、`BuildDriverProfileV1`、Windows Ninja Multi-Config／Android Gradle→Single-Config Ninja／Apple Ninja–Xcode Preset、CMake File API query、Build Receipt、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、`mira.build.ninja_adoption.v1` Gate、Miraikanai Contract Definition配置をtaskへ分解する。
 2. 固定Toolchain／Dependency artifactの取得、hash lock、SBOM、offline CI image、更新Gateをtaskへ分解する。
 3. Contract compiler、C++／TypeScript／binary descriptor／MCP／Provider projection、round-trip／transition conformance testをtaskへ分解する。
 4. Authoring Document Store、ProjectRevision、ChangeSet transaction、journal／snapshot／crash recovery、headless fixtureをtaskへ分解する。
@@ -1165,6 +1194,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Clean実装の名目でProject dataを失う | Runtime互換分岐は持たず、backup付きoffline migratorだけを提供 |
 | Module境界が崩れVendorへ固定される | CMake dependency DAG、Ports／Adapters、CX0 Public Header／CX3 Module interfaceのVendor型・依存scan |
 | Make／Ninja二重対応でBuild結果が分岐する | `BuildDriverProfileV1`をclosed set化し、First-party Makefiles／`ndk-build`をPromotion対象外にする |
+| Ninjaだけで製品Build全体を表現してAsset／Package／署名が混線する | Build Gateway、CMake、Ninja、Content Build、Gradle／Xcode／Signingの責務を分離し、Ninja成功だけではPromotionを許可しない |
+| 増分Buildが速くても依存漏れで古いartifactを使う | generated Input／Output／Depfileを完全宣言し、clean／incremental hash一致、mutation、interrupt recoveryを`mira.build.ninja_adoption.v1` Gateで検証する |
 | Subsystemが相互に直接変更して順序依存になる | RuntimeOrchestrator、固定phase、typed command／event、非再入配送 |
 | Hot reloadで新旧Assetが混在する | dependency closure全体をstagingし、boundaryでatomic promotion |
 | 非同期jobが破棄済みobjectへ書く | handle＋versionを開始時と統合時に再検査し、stale resultを破棄 |
@@ -1204,6 +1235,10 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 - MSVC Build Tools 14.51 GA: https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/
 - MSVC C++ language standard: https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version
 - CMake 4.4: https://cmake.org/cmake/help/v4.4/release/4.4.html
+- CMake C++ Modules: https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html
+- CMake Ninja Multi-Config: https://cmake.org/cmake/help/v4.4/generator/Ninja%20Multi-Config.html
+- CMake IDE Integration／File API: https://cmake.org/cmake/help/v4.4/guide/ide-integration/index.html
+- Ninja Manual: https://ninja-build.org/manual.html
 - Node.js 24.18.0 LTS: https://nodejs.org/en/blog/release/v24.18.0
 - TypeScript 7.0: https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/
 - Direct3D 12 Programming Guide: https://learn.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide
@@ -1217,6 +1252,6 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 
 ## 20. 次のアクション
 
-設計文書Indexに列挙した22文書を一つの設計としてReviewする。特に、Product目標、Authoringの正本、C++23／Named Modules／`import std`／GameplayDefinition／NativeGameModule／Runtime境界、Renderer／Asset／Editor／Player I/O／Simulation／Platform、2D／3D／Mobile機能、AI権限、MCD、Provider投影、形式検証、Eval、Provenanceの責務が矛盾しないことを確認する。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
+設計文書Indexに列挙した22文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。
