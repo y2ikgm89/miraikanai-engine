@@ -1,10 +1,11 @@
 # Miraikanai Engine Windows Platform／Distribution規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: Windows Editor／Game、Process、Window、Platform Port、Filesystem、Package、Signing、Update、Crash
 - 状態: プロジェクト公式の規範設計レビュー版
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++言語・Build規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
@@ -191,6 +192,9 @@ Commit済みSource
 -> Receipt verification
 ```
 
+- `clean Build`は`windows_cmake_ninja_multi_v1`、checked-in CMake Preset、`Ninja Multi-Config`だけを使用する。Visual Studio IDEはCMake Presetを利用できるが、Visual Studio／NMake／MinGW／MSYS／Unix Makefilesによる別Product Buildを生成しない。
+- `Development`、`Profile`、`Shipping`、`ASan`は同じGeneratorの明示Configurationであり、C++ Profile、Toolchain hash、Configurationが異なるBuild tree／BMIを共有しない。
+- Editor、AI、CIはBuild Gatewayを呼び、`ninja`または`cmake -G`を直接Product Build入口として公開しない。
 - Build Workerはprivate signing keyを持たない。
 - Signing Serviceは固定Package artifact、identity、Release Authorizationだけを受け取る。
 - Authenticode／MSIXはSHA-256を使用し、trusted timestamp policyをDistribution Profileへ固定する。

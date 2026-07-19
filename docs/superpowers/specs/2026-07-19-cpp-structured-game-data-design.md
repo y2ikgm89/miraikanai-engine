@@ -1,6 +1,6 @@
 # Miraikanai Engine C++実行コード・構造化ゲームデータ規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -238,7 +238,7 @@ CX0ではContract compilerとCMakeが論理依存を`include/mira/`と生成Head
 ### 11.2 BuildとPreview
 
 - `NativeCodeChangeSet`はR3とする。
-- AI生成Sourceは隔離Source WorkerでBuildする。
+- AI生成SourceはTarget別`BuildDriverProfileV1`を固定した隔離Source WorkerでBuildし、WindowsはNinja Multi-Config、AndroidはGradle→Single-Config Ninja、AppleのModule archiveはNinja Multi-Configを使用する。First-party Makefiles／`ndk-build`とGenerator overrideを許可しない。
 - Format、warning-as-error、primary／secondary compiler、static analysis、ASan、unit、integration、performanceを通す。
 - Editorへ生成binaryを直接注入しない。
 - Windows Developmentは別Processの新しいGameHostが、起動時にversioned C ABI entryを持つGame DLLを一度だけloadする。変更時はGameHostを終了して新Processへ置き換え、in-process unload／reloadを実装しない。
@@ -432,7 +432,7 @@ Authoritative event、state delta、commandを性能のため黙ってdropしな
 10. Save、Replay、Hot Reload、failureがDefinition versionとState layoutで検証される。
 11. Beginner／Advanced Workspaceが同じChangeSetとHistoryを使う。
 12. 2D Manual First PlayableがScript VMなしで完走する。
-13. AI生成C++の論理依存、実際のimport／include、CMake DAGが一致し、未宣言依存とModule cycleが拒否される。
+13. AI生成C++の論理依存、実際のimport／include、CMake DAG、Target別`BuildDriverProfileV1`が一致し、未宣言依存、Module cycle、Make／Ninja二重経路が拒否される。
 
 ## 22. 一次資料
 

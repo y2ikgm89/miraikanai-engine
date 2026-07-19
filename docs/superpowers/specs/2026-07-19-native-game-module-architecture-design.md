@@ -1,6 +1,6 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Project C++、source／binary境界、entry point、lifecycle、Build、Preview、Packaging
@@ -268,13 +268,15 @@ engine_public_api_hash
 cpp_frontend_profile_hash
 cpp_dependency_set_hash
 module_graph_hash
+build_driver_profile_hash
+build_tree_identity_hash
 contract_lock_hash
 toolchain_lock_hash
 target_profile_hash
 configuration
 ```
 
-absolute path、user、timestampをobjectの意味入力にしない。Primary MSVCとsecondary Clangによるcompile、format、warning-as-error、static analysis、unit、ASan、integration、conformanceをclean Build treeで行う。
+absolute path、user、timestampをobjectの意味入力にしない。Target別`BuildDriverProfileV1`に従い、WindowsはNinja Multi-Config、AndroidはGradle→Single-Config Ninja、Apple Module archiveはNinja Multi-ConfigでBuildする。Makefiles／`ndk-build`、Generator override、異なるBuild tree identityのartifactをPromotionしない。Primary MSVCとsecondary Clangによるcompile、format、warning-as-error、static analysis、unit、ASan、integration、conformanceをclean Build treeで行う。
 
 ### 9.2 RiskとPromotion
 
@@ -347,6 +349,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - Windows Shipping、Android、Appleのclean static-link packageが同じModule revision hashを記録する。
 - AI生成SourceがPromotion前に正規Project／Editor／Shippingへloadされない。
 - CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
+- Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 
 C1完了条件は、2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。
 

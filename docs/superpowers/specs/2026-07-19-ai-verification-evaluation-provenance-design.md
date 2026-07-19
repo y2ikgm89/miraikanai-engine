@@ -1,6 +1,6 @@
 # Miraikanai Engine AI検証・評価・来歴規約
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Game制作AI、Source生成AI、Engine保守AI、Contract compiler、CI、Build、Release
@@ -292,6 +292,8 @@ Failure後は部分状態非公開、Resource解放、retry可能性、Diagnosti
 | `contract_set_hash`／`policy_set_hash` | 正規契約 |
 | `toolchain_lock_hash` | Toolchain |
 | `cxx_frontend_profile_id` | C++をCompileしないGateは空文字、CompileするGateはCX0／CX1／CX2／CX3のexact ID |
+| `build_driver_profile_id` | C++をCompile／PackageしないGateは空文字、対象Gateは基盤規約のclosed `BuildDriverProfileV1` ID |
+| `build_tree_identity_hash` | Target、C++ Profile、Driver、Generator、Toolchain、Configuration、Android Variant／ABIを正規化したroot。Build tree非利用Gateは空文字 |
 | `cpp_dependency_set_root_hash`／`module_graph_hash` | C++ Source Gateの正規依存と実Module graph。非C++ Gateは空文字 |
 | `module_cache_identity_hash` | BMIを利用したGateのCache identity入力root。BMI非利用Gateは空文字 |
 | `command_id` | allowlisted command template。raw secretなし |
@@ -531,7 +533,7 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 |---|---|---|
 | `contract-fast` | MCD／generated変更 | meta-schema、lint、determinism、round-trip、projection |
 | `source-targeted` | Source変更 | format、compile、targeted test、static |
-| `cxx-frontend` | C++、CMake、Toolchain、Module／Dependency変更 | C++23 conformance、CX0 Header、CX1／CX2 Named Module＋`import std`、BMI isolation、undeclared import／cycle negative test、C++26 readiness |
+| `cxx-frontend` | C++、CMake、Toolchain、Module／Dependency変更 | C++23 conformance、CX0 Header、CX1／CX2 Named Module＋`import std`、`BuildDriverProfileV1` matrix、Windows／Apple Ninja Multi-Config、Android Gradle→Single-Config Ninja、Makefiles／Generator override negative test、BMI isolation、undeclared import／cycle negative test、C++26 readiness |
 | `state-model` | State／authority変更 | TLC fast、transition conformance |
 | `ai-profile` | Prompt／Model／Tool／Context変更 | Provider conformance、public Eval 3 run |
 | `full-windows` | R3／R4、merge候補 | full build、test、sanitizer、benchmark |
@@ -540,7 +542,7 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 | `release-preparation` | R3／R4 release candidate | secretなしclean build、holdout Eval、SBOM、provenance、device／package検証、unsigned artifact生成 |
 | `release` | R5 authorization | 承認済みunsigned rootの`ReleaseTransactionV1`、sourceなしPlatform署名、signing keyなしStore upload、remote read-back |
 
-各Laneは新しいclean Build treeを使い、失敗したJobのArtifactを次JobのInputへ暗黙再利用しない。Cacheを使う場合はcontent hashとToolchain hashでkeyし、cacheなし再検証laneをReleaseへ含める。
+各Laneは`build_tree_identity_hash`ごとの新しいclean Build treeを使い、Target、C++ Profile、Driver、Generator、Configuration、Variant、ABIの異なるtreeを共有しない。失敗したJobのArtifactを次JobのInputへ暗黙再利用しない。Cacheを使う場合はcontent hashとToolchain hashでkeyし、cacheなし再検証laneをReleaseへ含める。
 
 ## 19. Definition of Done
 
@@ -550,6 +552,7 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 - Base／candidateのTest弱体化を検出する。
 - 5つの初期TLA+ ModelとC++／TS transition conformance testがある。
 - CX0／CX1／CX2／CX3のC++ Frontend GateがProfile、Dependency Set、Module graph、BMI identityをReceiptへ固定し、CX1 artifactをPromotionしない。
+- `BuildDriverProfileV1`とBuild tree identityがReceiptへ固定され、Makefiles／`ndk-build`、Generator override、Android Multi-Config、異種Build tree再利用をnegative testで拒否する。
 - TLA+結果をC++全体の証明と表現しないReport templateがある。
 - 10のAI Eval suite、Repository内public／adversarial／incident Corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpusがある。
 - Provider／Model／Prompt／Tool更新が一変数比較と3 run基準を通る。

@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.8
+- 文書版: 1.9
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -46,7 +46,7 @@
 | Windows SDK | 10.0.26100.8249 |
 | Primary compiler | CX0はVisual Studio Build Tools 2026 18.8.0 Stable（build 12009.203）＋MSVC Build Tools v14.51 x64/x86。CX3は正式`/std:c++23`を持つPreviewでないv14.52以降をexact lock |
 | Secondary compiler | CX0／CX1はLLVM／clang-cl 22.1.8。CX3 Cutover時にNamed Modules／`import std`／analysisへ合格したStable LLVMをexact lock（CI診断用。Windows出荷ABIはMSVCで統一） |
-| Build | CX0／CX1はCMake 4.4.0／Presets schema 12。CX0はWindows／AndroidがNinja Multi-Config 1.13.2、AppleがXcode 26.6 generator。CX3は`import std`を非Experimental提供する最初の検証済みStable CMakeをexact lockし、全portable C++ Module graphをNinja Multi-Config、Apple App shell／最終link／archiveをXcode 26.6で構築 |
+| Build | CMakeをFirst-party C++ Build定義の唯一の正本とする。WindowsはNinja Multi-Config 1.13.2、AndroidはGradle `externalNativeBuild`からABI／Variant別Single-Config Ninja 1.13.2、Apple CX0はXcode 26.6、CX1以降のportable C++ Module graphはNinja Multi-Config、CX2／CX3のApp shell／最終link／archiveはXcode。Makefiles系と`ndk-build`はFirst-party公式経路にしない |
 | Dependency管理 | vcpkg manifest mode、builtin baseline `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | AI Orchestrator | Node.js 24.18.0 LTS、TypeScript 7.0.2 strict、別Process |
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
@@ -98,11 +98,11 @@ Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H
 
 Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証する。GitHub release artifactはrelease APIのdigest、tag commit、取得後hashを照合する。npm packageは`package-lock.json`のexact versionとintegrityを`npm ci`で検証し、install scriptを持つpackageはallowlist外なら失敗させる。
 
-`toolchain.lock.json`のschema version 3は次のfieldを必須とする。schemaにないfield、`null`、重複profile／tool ID、相対URL、複数hash候補を許可しない。`profiles[]`は`profile_id`、artifact arrayは`tool_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
+`toolchain.lock.json`のschema version 4は次のfieldを必須とする。schemaにないfield、`null`、重複profile／tool／Driver ID、相対URL、複数hash候補を許可しない。`profiles[]`は`profile_id`、artifact arrayは`tool_id`、Driver arrayは`driver_profile_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
 
 | Field | 型／固定規則 |
 |---|---|
-| `lock_schema_version` | `uint32`、値3 |
+| `lock_schema_version` | `uint32`、値4 |
 | `profiles[].profile_id` | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`をexactly各1件 |
 | `profiles[].host` | `{os, architecture, minimum_version, image_digest}`。WindowsとAndroid profileはWindows x64／build 26200、Apple profileはmacOS arm64／26.2 |
 | `profiles[].artifacts[].tool_id` | lowercase ASCII snake_case、profile内重複不可 |
@@ -113,10 +113,12 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証�
 | `profiles[].artifacts[].source_commit` | 対応source tagがあるtoolは40文字lowercase Git SHA-1、それ以外は空文字 |
 | `profiles[].resolved_files[]` | `{tool_id, relative_path, size_bytes, file_version, sha256, signer}`。実際に実行／linkするcompiler、SDK、shader、build toolを列挙 |
 | `shared.cxx_frontend_profiles[]` | `{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`。C++23・Modules規約から生成した四件をProfile ID順で保持し、Toolchain値を重複保存しない |
-| `profiles[].build.cxx_bindings[]` | `{frontend_profile_id, language_standard, compiler_standard_flag, compiler_tool_id, compiler_full_version, standard_library_hash, cmake_tool_id, cpp_compile_generator, host_package_generator, experimental_import_std_token, module_cache_policy}`。Profile ID順、重複不可。`language_standard`は`c++23`、Module cacheは`toolchain_and_configuration_local`。CX1だけtokenをexact stringで持ち、CX0／CX2／CX3は空文字。AppleはCX0で両Generatorを`Xcode`、CX3でcompileを`Ninja Multi-Config`、packageを`Xcode`とする。Windows／Androidの`host_package_generator`は空文字 |
+| `shared.build_driver_profile_set_hash` | MCDの全`BuildDriverProfileV1`をDriver ID順にcanonicalizeしたroot SHA-256 |
+| `profiles[].build.cxx_bindings[]` | `{frontend_profile_id, language_standard, compiler_standard_flag, compiler_tool_id, compiler_full_version, standard_library_hash, cmake_tool_id, experimental_import_std_token, module_cache_policy}`。Profile ID順、重複不可。`language_standard`は`c++23`、Module cacheは`toolchain_and_configuration_local`。CX1だけtokenをexact stringで持ち、CX0／CX2／CX3は空文字。Generatorは`BuildDriverProfileV1`だけが所有する |
+| `profiles[].build.driver_bindings[]` | `{driver_profile_id, driver_profile_hash, tool_ids, toolchain_file_hash, driver_config_hash}`。Targetに属するMCD DriverだけをID順でbindし、`tool_ids`は実行するCMake／Ninja／Gradle／Xcode artifact IDのASCII昇順。`toolchain_file_hash`はhost-native Windowsだけ空文字、Android／Appleは64文字SHA-256。`driver_config_hash`はPresetまたはGradle CMake設定のSHA-256。任意Generator名、任意command、Makefiles系を受理しない |
 | `profiles[windows_desktop_v1].build` | MSVC exact directory、Windows SDK `10.0.26100.8249`、CMake `4.4.0`、`Ninja Multi-Config`、Ninja `1.13.2`。CX0 flagは`/std:c++23preview`、CX3 flagは正式`/std:c++23` |
-| `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、Microsoft OpenJDK `17.0.19` LTS、`-std=c++23`、Shipping ABI `arm64-v8a` |
-| `profiles[apple_mobile_v1].build` | CMake `4.4.0`、Xcode `26.6`、iOS／iPadOS SDK `26.5`、deployment `17.0`、arm64、`-std=c++23`。CX0はXcode generator、CX3はC++ archive用Ninja Multi-Config＋App shell／archive用Xcodeの両Receipt |
+| `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、Microsoft OpenJDK `17.0.19` LTS、CMake `4.4.0`、Single-Config `Ninja` `1.13.2`、`-std=c++23`、Shipping ABI `arm64-v8a` |
+| `profiles[apple_mobile_v1].build` | CMake `4.4.0`、Xcode `26.6`、iOS／iPadOS SDK `26.5`、deployment `17.0`、arm64、`-std=c++23`。CX0はXcode generator、CX1はNinja Multi-Configの非Promotion Probe、CX2–CX3はC++ archive用Ninja Multi-Config＋App shell／archive用Xcodeの両Receipt |
 | `shared.vcpkg.builtin_baseline` | 40文字commit `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | `shared.npm.node_version` | `24.18.0` |
 | `shared.npm.package_lock_sha256` | Commit済み`orchestrator/package-lock.json`の64文字lowercase hex |
@@ -125,9 +127,25 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証�
 
 machine comparisonはWindowsなら`host.os_build == 26200 && host.ubr == 8875`、AppleならmacOS／Xcode build versionの独立fieldで行う。月次OS／SDK baseline更新は該当field、CI image digest、Runtimeまたはモバイル規約のbridge baselineを同じChangeSetで更新する。
 
-初期lockは全TargetのCX0 bindingを必須とし、CX1はProbeを実行するTargetだけに追加できる。CX2／CX3 bindingは正式Cutover用Toolchain更新ChangeSetで追加する。Build Gatewayは要求TargetすべてにActive Profileのbindingがあることをconfigure前に確認し、欠落、Compiler／Generatorの不一致、CX1のPromotion要求を失敗させる。
+`BuildDriverProfileV1`はMCDの正規Profileであり、`{driver_profile_id, target_profile_id, allowed_frontend_profile_ids, configure_driver, cpp_generator, configuration_model, package_owner}`を持つ。Tool version／path／hashはMCDへ入れず、上記`driver_bindings[]`がexact artifactとchecked-in Preset／Gradle設定へ結び付ける。正規entryを次に固定する。
 
-CX0／CX1の`CMakePresets.json`はschema 12とする。CX0のWindows／Androidは`Ninja Multi-Config`、AppleはXcode generatorを使う。CX1はNinja系の非Promotion Probe、CX3のAppleはportable C++用Ninja Multi-ConfigとApp shell／archive用Xcodeを分離する。Target、C++ Frontend Profile、Generatorごとに別Build treeを必須とする。`Development`、`Profile`、`Shipping`、`ASan`はTarget内で明示configurationとし、CI jobごとに空のBuild treeを使用する。CX0／CX1は全Hostで`cmake_minimum_required(VERSION 4.4.0)`と実行CMake exact 4.4.0を照合し、AppleはさらにXcode 26.6との組合せをlockする。CX3 Cutoverは採用するStable CMakeに合わせてminimum version、Preset schema、全Host artifact hashを同じChangeSetで更新し、4.4互換分岐を残さない。
+| Driver Profile | Target／C++ Profile | Configure driver | C++ Generator | Configuration identity | Package owner |
+|---|---|---|---|---|---|
+| `windows_cmake_ninja_multi_v1` | Windows／CX0–CX3 | `cmake_preset` | `Ninja Multi-Config` | `Development`、`Profile`、`Shipping`、`ASan` | Windows Distribution規約 |
+| `android_gradle_ninja_v1` | Android／CX0–CX3 | `gradle_external_native_build` | `Ninja` | Gradle Variant × ABI × C++ ProfileごとのSingle-Config tree | Gradle |
+| `apple_cx0_xcode_v1` | Apple／CX0 | `cmake_preset` | `Xcode` | Xcode configuration | Xcode |
+| `apple_modules_probe_ninja_v1` | Apple／CX1 | `cmake_preset` | `Ninja Multi-Config` | Probe configuration、Promotion不可 | なし |
+| `apple_modules_ninja_xcode_v1` | Apple／CX2–CX3 | `cmake_preset` | `Ninja Multi-Config` | C++ archive configurationとXcode configurationをReceiptで一致 | Xcode |
+
+初期lockは全TargetのCX0 C++ bindingと該当Driver bindingを必須とし、CX1はProbeを実行するTargetだけに追加できる。CX2／CX3 bindingは正式Cutover用Toolchain更新ChangeSetで追加する。Build Gatewayは要求TargetすべてにActive C++ Profile、MCD Driver Profile、Toolchain Driver bindingの一致する組があることをconfigure前に確認し、Profile set hash、Driver hash、Compiler／Generator／Tool、CX1 Promotionの不一致を失敗させる。
+
+Root `CMakePresets.json`はschema 12とし、WindowsとAppleの正規DriverでGenerator、Binary directory、Toolchain fileを固定する。Androidの正規入口はGradle Wrapperと`externalNativeBuild.cmake`であり、同じRoot `CMakeLists.txt`を`-G Ninja`で構成する。Androidは`Development -> debug`、`Profile -> profile`、`Shipping -> release`、`ASan -> asan`へ一対一で写像し、Variant × ABI × C++ Profileごとに別Single-Config Build treeを使用する。Gradleが生成した`.so`をAPK／AABへpackageし、CMake／NinjaはAPK／AABを組み立てない。
+
+Windowsは`Ninja Multi-Config`、Appleは上表のXcodeまたは`Ninja Multi-Config`を使う。Target、C++ Profile、Driver、Generator、Toolchain hashが一つでも異なるBuild treeを共有しない。通常操作はWindows／Appleが`cmake --preset`と`cmake --build --preset`、Androidが固定Gradle Wrapperだけを使用し、`ninja`を直接Product Build入口にしない。CI／Promotionでは`-G`、`CMAKE_GENERATOR`環境変数、`CMakeUserPresets.json`によるGenerator上書きを拒否する。
+
+First-party targetではCMakeの`Unix Makefiles`、`NMake Makefiles`、`NMake Makefiles JOM`、`MinGW Makefiles`、`MSYS Makefiles`、raw Makefile、Android `ndk-build`を禁止し、Make／Ninja選択Switchと二重CIを作らない。CMake／Ninjaへ転送する互換`Makefile`も作らず、Phase 0から正規Driverだけを実装する。上流がMakeしか提供しないThird-party dependencyは隔離Dependency Build内だけで使用できるが、hash／license／patchをlockしたimmutable artifactまたはCMake imported targetとして取り込み、Engine／Projectの公式Build modeへMakeを公開しない。
+
+CX0／CX1は全Hostで`cmake_minimum_required(VERSION 4.4.0)`と実行CMake exact 4.4.0を照合し、AppleはさらにXcode 26.6との組合せをlockする。CX3 Cutoverは採用するStable CMakeに合わせてminimum version、Preset schema、全Host artifact hashを同じChangeSetで更新し、4.4互換分岐を残さない。
 
 CX0のMSVCはversioned v14.51 Stable componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。CX1だけは別lockされた14.52 PreviewをProbeに使用できるが、そのartifactをPromotionしない。CX3は14.52以降がStableとなり正式`/std:c++23`を提供した後、別Toolchain更新ChangeSetでexact versionとhashを固定する。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap／Cutover手順である。
 
@@ -878,7 +896,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 
 Phase 0自体は、設計Review後に別途承認された実装計画に従って着手する。次はPhase 0の実装成果物であり、すべてが揃うまでPhase 1以降のEngine feature実装へ進まない。
 
-1. `toolchain.lock.json` schema version 3、Root CMake Presets、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名差を拒否する。
+1. `toolchain.lock.json` schema version 4、`BuildDriverProfileV1`、Root CMake Presets、Android Gradle CMake設定、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名／Driver／Generator差を拒否する。
 2. `cxx23_headers_bootstrap`が固定MSVC 14.51 Stable／ClangでCompileし、P2564R3／P0533R9を使わず、`std::expected`とC++23 conformance fixtureへ合格する。
 3. `mira.foundation`の`cxx23_modules_probe`、`import std`、BMI identity、Module graph negative fixture、`cxx26_readiness`が非Promotion CIで再現可能に実行される。
 4. `mira_add_cpp_component()`、`CxxComponentGraphV1`、Foundation targetとdependency DAGがCIで検査できる。
@@ -893,7 +911,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 13. `mira_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
 14. モバイル規約のTarget／Distribution Profile、Platform Port、Toolchain／Store lock、shipping data-only AI policyが承認される。
 15. Android／Apple Adapterが未実装の段階でも、Target validatorが`UnsupportedTarget`を返し、空packageを成功扱いしない。
-16. MCD meta-schema、Requirement、Type、Operation、State machine、Capability、Policy、Profile、`CppDependencySetV1`の共通規約が承認される。
+16. MCD meta-schema、Requirement、Type、Operation、State machine、Capability、Policy、Profile、`CppDependencySetV1`、`BuildDriverProfileV1`の共通規約が承認される。
 17. Contract compilerの決定論生成、Provider projection、cross-language round-trip、generated file driftのTest計画が承認される。
 18. `TaskSpecification`とAIが変更不能な`TaskAuthorizationEnvelope`、R0–R5、Approval／Promotion境界が承認される。
 19. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
@@ -913,7 +931,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | RAII、raw pointerは非所有、`unique_ptr`優先、明示`new`回避 | [C++ Core Guidelines R.1–R.30](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#S-resource) |
 | Pointer arithmeticより`span` | [Microsoft C26481](https://learn.microsoft.com/en-us/cpp/code-quality/c26481?view=msvc-170) |
 | C++23採用、14.51の`/std:c++23preview`はCX0非Shippingだけ、CX3はStable正式`/std:c++23` | [MSVC `/std`](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170), [MSVC 14.51 C++23 support](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) |
-| Named Modules、`import std`、CMake Module scan／Generator制約 | [Microsoft Module／Import／Export](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module?view=msvc-170), [Microsoft inclusion methods comparison](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods?view=msvc-170), [CMake C++ Modules](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html) |
+| Named Modules、`import std`、CMake Module scan／Generator制約、Ninja正規化 | [Microsoft Module／Import／Export](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module?view=msvc-170), [Microsoft inclusion methods comparison](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods?view=msvc-170), [CMake C++ Modules](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html), [CMake Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html), [Android CMake configuration](https://developer.android.com/studio/projects/configure-cmake) |
 | Standards conformance | [MSVC `/permissive-`](https://learn.microsoft.com/en-us/cpp/build/reference/permissive-standards-conformance?view=msvc-170) |
 | Warning policy | [MSVC warning level](https://learn.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=msvc-170) |
 | UTF-8 source | [MSVC `/utf-8`](https://learn.microsoft.com/en-us/cpp/build/reference/source-charset-set-source-character-set?view=msvc-170) |

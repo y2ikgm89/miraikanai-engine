@@ -38,8 +38,8 @@ Miraikanai Engineの公式Review setは次の22文書である。上位のProduc
 |---|---|
 | AIネイティブ設計計画書 | Product vision、制作体験、AI／人間の関係、Phase、MVP、Review set全体の上位目的 |
 | C++実行コード・構造化ゲームデータ規約 | C++／data境界、GameplayDefinition、NativeGameModule、AI実装選択、Script VM不採用 |
-| 基盤アーキテクチャ規約 | C++、Memory、Pointer、Module、Dependency、Build、命名、Directory |
-| C++23・Named Modules移行規約 | C++23 Profile、Named Module名、`import std`、CMake、BMI、Header例外、AI依存表現、Apple Build分離、CX0→CX3 Cutover Gate |
+| 基盤アーキテクチャ規約 | C++、Memory、Pointer、Module、Dependency、`BuildDriverProfileV1`、Ninja／Gradle／Xcode、命名、Directory |
+| C++23・Named Modules移行規約 | C++23 Profile、Named Module名、`import std`、CMake、Ninja Generator matrix、Make非対応、BMI、Header例外、AI依存表現、Apple Build分離、CX0→CX3 Cutover Gate |
 | Authoring Model／Project State規約 | Authoring Document、ProjectRevision、ChangeSet、transaction、journal、recovery、唯一の状態変更経路 |
 | 実行可能契約規約 | Requirement、Type、Operation、State、Capability、Schema projection、Codegen |
 | Runtime連携規約 | Tick、Writer、Command／Event／Snapshot、寿命、Asset version、Budget、Failure |

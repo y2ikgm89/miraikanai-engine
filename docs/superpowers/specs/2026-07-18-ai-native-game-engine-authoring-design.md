@@ -1,6 +1,6 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
@@ -852,7 +852,7 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 ### Phase 0: Foundation契約とToolchain
 
 - 設計文書Indexに列挙した公式Review set 22文書の承認
-- C++23共通Runtime Contract、`CxxFrontendProfileV1`、`CppDependencySetV1`と`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
+- C++23共通Runtime Contract、`CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`と`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
 - vcpkg manifest／固定Dependency
@@ -1082,7 +1082,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Collision contract | Body／Collider分離、32 Channel、typed Query／Contact／Trigger、immutable Cooked Asset、Collider Editing Mode、AI Typed Operation |
 | 3D Navigation | Recast／Detour 1.6.0 Adapter |
 | GPU memory | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`を各Adapter内で利用 |
-| Build | CX0はWindows／AndroidがNinja Multi-Config、AppleがXcode。CX3はportable C++ Module graphをNinja Multi-Config、Apple App shell／最終link／archiveをXcode 26.6で構築。全artifactとBMI identity入力のhash／versionをprofile別に固定 |
+| Build | CMakeをFirst-party C++ Build定義の唯一の正本とし、Makefiles系を公式経路にしない。WindowsはNinja Multi-Config、AndroidはGradle `externalNativeBuild`からABI／Variant別Single-Config Ninja、Apple CX0はXcode、CX1以降のportable C++ Module graphはNinja Multi-Config、App shell／最終link／archiveはXcode 26.6。全Driver／Generator／artifact／BMI identity入力をprofile別に固定 |
 | Performance | Desktopは1080p60、Ryzen 5 5600、16 GiB、RTX 3060 12 GB／RX 6600 8 GB、runtime CPU 2 GiB。Mobileは30／60 fps、Baseline process 1,024 MiB／GPU 384 MiBから実機class別 |
 | Visual Style model | Scene dimension、Art Direction、Composition、Shading Modelを分離 |
 | Material | 型付きMaterial IR、複数Shading Model、Engine-owned Target Binding Layout |
@@ -1116,7 +1116,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 次は設計上の選択肢ではなく、22文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
 
-1. Phase 0のrepository bootstrap、CMake target DAG、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、Miraikanai Contract Definition配置をtaskへ分解する。
+1. Phase 0のrepository bootstrap、CMake target DAG、`BuildDriverProfileV1`、Windows Ninja Multi-Config／Android Gradle→Single-Config Ninja／Apple Ninja–Xcode Preset、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、Miraikanai Contract Definition配置をtaskへ分解する。
 2. 固定Toolchain／Dependency artifactの取得、hash lock、SBOM、offline CI image、更新Gateをtaskへ分解する。
 3. Contract compiler、C++／TypeScript／binary descriptor／MCP／Provider projection、round-trip／transition conformance testをtaskへ分解する。
 4. Authoring Document Store、ProjectRevision、ChangeSet transaction、journal／snapshot／crash recovery、headless fixtureをtaskへ分解する。
@@ -1164,6 +1164,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | GPU memoryのthrashing | OS budget監視、residency priority、streaming、明示的な失敗 |
 | Clean実装の名目でProject dataを失う | Runtime互換分岐は持たず、backup付きoffline migratorだけを提供 |
 | Module境界が崩れVendorへ固定される | CMake dependency DAG、Ports／Adapters、CX0 Public Header／CX3 Module interfaceのVendor型・依存scan |
+| Make／Ninja二重対応でBuild結果が分岐する | `BuildDriverProfileV1`をclosed set化し、First-party Makefiles／`ndk-build`をPromotion対象外にする |
 | Subsystemが相互に直接変更して順序依存になる | RuntimeOrchestrator、固定phase、typed command／event、非再入配送 |
 | Hot reloadで新旧Assetが混在する | dependency closure全体をstagingし、boundaryでatomic promotion |
 | 非同期jobが破棄済みobjectへ書く | handle＋versionを開始時と統合時に再検査し、stale resultを破棄 |

@@ -1,6 +1,6 @@
 # Miraikanai Engine C++23・Named Modules・`import std`移行規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-20
 - 調査基準日: 2026-07-20
 - 対象: C++言語基準、Named Modules、`import std`、CMake、Toolchain、AI生成C++、全Target移行
@@ -68,7 +68,7 @@ CompilerやBuild Systemの対応表は「その組合せなら製品に安全」
 | CX2 | `cxx23_modules_candidate` | 全First-party公開APIをNamed Modulesへ変換したCutover branch | `import std` | 全Target候補検証。公開Release不可 |
 | CX3 | `cxx23_modules_shipping` | Named Modulesが唯一のC++公開方式 | `import std` | Development、Profile、Shipping、ASanの正式方式 |
 
-MCD recordは`{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`を持ち、上表から生成する。Compiler、STL、CMake、Generatorとの対応はMCDへ埋め込まず、Target別`toolchain.lock.json`の`profiles[].build.cxx_bindings[]`へ次の`CxxToolchainBindingV1`として固定する。
+MCD recordは`{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`を持ち、上表から生成する。Compiler、STL、CMakeとの対応はMCDへ埋め込まず、Target別`toolchain.lock.json`の`profiles[].build.cxx_bindings[]`へ次の`CxxToolchainBindingV1`として固定する。Configure入口とGeneratorは別契約の`BuildDriverProfileV1`が所有する。
 
 ```text
 CxxToolchainBindingV1
@@ -79,13 +79,11 @@ CxxToolchainBindingV1
   compiler_full_version: exact string
   standard_library_hash: sha256
   cmake_tool_id: closed ToolArtifactId
-  cpp_compile_generator: Ninja | Ninja Multi-Config | Xcode
-  host_package_generator: "" | Xcode
   experimental_import_std_token: exact string
   module_cache_policy: toolchain_and_configuration_local
 ```
 
-CX1だけが`experimental_import_std_token`にexact tokenを持ち、他Stateは空文字とする。Windows／Androidの`host_package_generator`は空文字、AppleのCX0は両Generatorが`Xcode`、AppleのCX3は`cpp_compile_generator=Ninja Multi-Config`かつ`host_package_generator=Xcode`とする。配列はProfile ID順、重複不可とし、要求TargetにActive ProfileのbindingがなければBuild GatewayはProfile activationを失敗させる。
+CX1だけが`experimental_import_std_token`にexact tokenを持ち、他Stateは空文字とする。配列はProfile ID順、重複不可とし、要求TargetにActive ProfileのbindingがなければBuild GatewayはProfile activationを失敗させる。Configure入口、Generator、Configuration identity、Package ownerは基盤規約の`BuildDriverProfileV1`が所有し、C++ Frontend bindingへ重複保存しない。
 
 許可遷移は`CX0 -> CX1 -> CX2 -> CX3`だけである。CX1はCX0とCI上で並行実行できるが、同じProduction artifact内でHeader公開APIとModule公開APIを選択可能にしない。CX2は隔離Cutover branchで行い、CX3へ昇格する一つのChangeSetに全変換、生成物更新、Header削除、Gate Receiptを含める。
 
@@ -206,7 +204,32 @@ set_property(TARGET mira_foundation PROPERTY CXX_MODULE_STD ON)
 
 関数はTarget名、Module名、Public dependency、Source file、生成MCD dependencyを`CxxComponentGraphV1`へ出力する。AI、CI、Documentationはこの生成Graphを読み、CMake fileを別Parserで推測しない。
 
-### 8.2 許可するBuild組合せ
+### 8.2 Build Driver／Generator規則
+
+CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDriverProfileV1`と基盤規約のexact Toolchain bindingに一致する入口だけを公式経路とする。
+
+| Target／State | Driver Profile ID | 正規入口 | C++ Generator | Configuration単位 | 後段 |
+|---|---|---|---|---|---|
+| Windows／CX0–CX3 | `windows_cmake_ninja_multi_v1` | checked-in CMake Preset | `Ninja Multi-Config` | configuration | Windows Distribution |
+| Android／CX0–CX3 | `android_gradle_ninja_v1` | 固定Gradle Wrapper＋`externalNativeBuild.cmake` | `Ninja` | Variant × ABI × C++ ProfileのSingle-Config tree | Gradleが`.so`をAPK／AABへpackage |
+| Apple／CX0 | `apple_cx0_xcode_v1` | checked-in CMake Preset | `Xcode` | Xcode configuration | Xcode |
+| Apple／CX1 | `apple_modules_probe_ninja_v1` | checked-in CMake Preset | `Ninja Multi-Config` | Probe configuration | Packageなし |
+| Apple／CX2–CX3 | `apple_modules_ninja_xcode_v1` | checked-in CMake Preset | `Ninja Multi-Config` | C++ archive configuration | XcodeがC ABI App shell、最終Link、Archiveを所有 |
+
+規則:
+
+- CMakeの`Unix Makefiles`、`NMake Makefiles`、`NMake Makefiles JOM`、`MinGW Makefiles`、`MSYS Makefiles`、raw Makefile、First-party Android `ndk-build`を禁止する。
+- CMake／Ninjaを呼ぶだけの互換`Makefile`、Make target名を維持するwrapper、MakeからNinjaへの段階移行期間を作らず、Phase 0から正規Driverだけを実装する。
+- MakeとNinjaを選ぶProject option、Preset、Environment fallback、二重CIを作らない。
+- AndroidはNinja Multi-Configを使わず、Gradle Variant × ABI × C++ ProfileごとのSingle-Config Ninjaへ固定する。
+- Target、C++ Profile、Driver、Generator、Toolchain hashが異なるBuild treeを共有しない。既存Build treeの`CMAKE_GENERATOR`を書き換えず、別treeを作る。
+- Windows／Appleの通常入口は`cmake --preset`／`cmake --build --preset`、AndroidはGradle Wrapperとし、利用者、AI、CIがProduct Buildで`ninja`を直接起動しない。
+- CI／Promotionはcommand-line `-G`、`CMAKE_GENERATOR`環境変数、`CMakeUserPresets.json`による公式Generatorの上書きを拒否する。
+- Makeしか提供しないThird-partyは隔離Dependency Buildでのみ許可し、検証済みimmutable artifactまたはCMake imported targetへ変換する。Engine／ProjectのBuild modeとして公開しない。
+
+Makefiles系は現行CMakeのC++ Module scan対象に含まれず、`import std`はNinja系Generatorだけが対応するため、Makeを互換経路として残さない。
+
+### 8.3 許可するC++ Frontend組合せ
 
 内部選択値は次の四組だけとし、任意のBoolean組合せを作らない。
 
@@ -219,7 +242,7 @@ set_property(TARGET mira_foundation PROPERTY CXX_MODULE_STD ON)
 
 「Engine Modules＋標準Header」を長期Profileにしない。CX2内部で問題切分けの一時Buildを実行してもPromotion Receiptを発行せず、CMake Presetへ公開しない。
 
-### 8.3 Experimental gateの隔離
+### 8.4 Experimental gateの隔離
 
 CMake 4.4の`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` tokenは、CX1専用`cmake/experimental/ImportStdProbe.cmake`だけに置く。Root `CMakeLists.txt`はCX1 Profileのときだけ、このFileを最初の`project(... LANGUAGES CXX)`より前にincludeし、CXX toolchain discovery前にtokenを設定する。exact CMake artifact、token、Generator、Compiler、STL hashを`toolchain.lock.json`へ記録する。
 
@@ -400,7 +423,7 @@ CX2は依存DAGの下位から次の順で変換する。
 - Windows Primary compilerがPreviewでないMSVC 14.52以降で、正式な`/std:c++23`を提供する。
 - CMakeの`import std`がExperimental tokenなしで利用でき、`CMAKE_CXX_COMPILER_IMPORT_STD`がC++23を列挙する。
 - Windows／Android／AppleのCompiler、STL、SDK、CMake、Ninja、Xcodeをexact version／hashで`toolchain.lock.json`へ固定する。
-- Module dependency scan、`FILE_SET CXX_MODULES`、install／archive、Ninja Multi-Configが全公式Targetで成功する。
+- Module dependency scan、`FILE_SET CXX_MODULES`、install／archiveがWindows／Appleの`Ninja Multi-Config`とAndroidのSingle-Config `Ninja`で成功する。
 
 ### 16.2 Build matrix
 
@@ -445,6 +468,8 @@ CX2は依存DAGの下位から次の順で変換する。
 | Diagnostic | 条件 | 処理 |
 |---|---|---|
 | `MIRA-BUILD-CXX_PROFILE_INVALID` | 未定義Profileまたは許可されない組合せ | configure失敗 |
+| `MIRA-BUILD-DRIVER_PROFILE_INVALID` | Target／C++ ProfileとDriver／Generatorがclosed matrixに一致しない | configure前に失敗 |
+| `MIRA-BUILD-MAKE_GENERATOR_FORBIDDEN` | First-party targetがMakefiles系または`ndk-build`を要求 | configure前に失敗。Ninjaへの暗黙Fallbackもしない |
 | `MIRA-BUILD-CXX23_STABLE_REQUIRED` | Shipping要求に正式C++23 Toolchainがない | Artifact生成前に失敗 |
 | `MIRA-BUILD-MODULE_CYCLE` | Module graph cycle | configure失敗、cycle pathを表示 |
 | `MIRA-BUILD-MODULE_IMPORT_NOT_DECLARED` | Source importとMCD不一致 | Source Gate失敗 |
@@ -459,15 +484,15 @@ Clean rebuild後も同じBMI errorが再発した場合は自動Retryを止め�
 
 Phase 0の実装計画は次を独立taskへ分解する。
 
-1. `CxxFrontendProfileV1`と`CppDependencySetV1`のMCD。
+1. `CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`のMCD。
 2. `mira_add_cpp_component()`と`CxxComponentGraphV1`生成。
 3. C++23 Header bootstrap compiler policy。
 4. P2564R3、P0533R9、`std::expected`、language modeのconformance fixture。
 5. `mira.foundation`のCX1 Named Module／`import std` probe。
-6. Module graph cycle、undeclared import、Header exceptionのnegative fixture。
+6. Module graph cycle、undeclared import、Header exception、Makefiles／Generator overrideのnegative fixture。
 7. BMI identity／configuration isolation test。
 8. `cxx26_readiness` compile-only CI。
-9. Windows／Android／AppleのCX3候補Build recipeとApple Ninja–Xcode C ABI link fixture。
+9. Windows Ninja Multi-Config、Android Gradle→Single-Config Ninja、Apple Ninja–XcodeのCX3候補Build recipeとC ABI link fixture。
 10. CX0／CX1 Build Performance Receipt。
 
 Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／CI基盤とCX1 probeの再現可能な成功または明示的なToolchain failure Receiptが必要であり、Preview不具合を隠して成功扱いしない。
@@ -482,10 +507,12 @@ Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／C
 4. CMake target、Named Module、NativeGameModuleの用語が混同されない。
 5. Module名、Directory、CMake表現、AI dependency schemaが対応している。
 6. Header例外がC ABI、macro、言語bridgeへ閉じている。
-7. AppleのNinja C++ Module buildとXcode package責務が分離されている。
-8. BMIが配布ABIまたはcross-toolchain cacheとして扱われない。
-9. CX3 GateがToolchain、全Target、Tooling、正しさ、性能を検証する。
-10. C++26 readinessがShippingと分離されている。
+7. `BuildDriverProfileV1`がWindows、Android、Appleの入口、Generator、Configuration、Package ownerを一意にする。
+8. First-party Makefiles／`ndk-build`とMake／Ninja二重対応が禁止されている。
+9. AppleのNinja C++ Module buildとXcode package責務が分離されている。
+10. BMIが配布ABIまたはcross-toolchain cacheとして扱われない。
+11. CX3 GateがToolchain、全Target、Tooling、正しさ、性能を検証する。
+12. C++26 readinessがShippingと分離されている。
 
 ## 20. 一次資料
 
@@ -500,6 +527,8 @@ Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／C
 - [Microsoft Standard Library Module tutorial](https://learn.microsoft.com/en-us/cpp/cpp/tutorial-import-stl-named-module?view=msvc-180)
 - [CMake C++ Modules support](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html)
 - [CMake `CXX_MODULE_STD`](https://cmake.org/cmake/help/v4.4/prop_tgt/CXX_MODULE_STD.html)
+- [CMake Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)
 - [CMake toolchain manual: Apple cross compilation](https://cmake.org/cmake/help/v4.4/manual/cmake-toolchains.7.html)
+- [Android CMake／Ninja configuration](https://developer.android.com/studio/projects/configure-cmake)
 - [WG21 P2564R3 `consteval` needs to propagate up](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2564r3.html)
 - [WG21 P0533R9 `constexpr` for `<cmath>` and `<cstdlib>`](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p0533r9.pdf)

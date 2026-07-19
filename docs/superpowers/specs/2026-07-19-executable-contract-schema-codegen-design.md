@@ -1,6 +1,6 @@
 # Miraikanai Engine 実行可能契約・Schema・Codegen規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Requirement、Capability、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Cooked binary生成
@@ -282,11 +282,15 @@ Profileに存在しない値を環境変数やProvider defaultから暗黙補完
 
 `provider_profile`はProvider、API version、受理するSchema keyword、strict機能、Tool／Schema／Context上限、refusal／incomplete形式、retention capabilityを表す正規入力である。Provider固有Projectionそのものは正本にせず、このProfileとType／OperationからBuild treeへ生成する。Provider Manifestはexact Provider Profile ID＋version＋hashを参照する。
 
-### 11.3 C++ Frontend／Dependency
+### 11.3 C++ Frontend／Dependency／Build Driver
 
-`CxxFrontendProfileV1`は`cxx23_headers_bootstrap`、`cxx23_modules_probe`、`cxx23_modules_candidate`、`cxx23_modules_shipping`のclosed enum、許可遷移、Promotion可否を持つ。ProviderやAIがProfile IDを追加できず、Build Gatewayが`toolchain.lock.json`のCompiler／Generator対応と照合する。
+`CxxFrontendProfileV1`は`cxx23_headers_bootstrap`、`cxx23_modules_probe`、`cxx23_modules_candidate`、`cxx23_modules_shipping`のclosed enum、許可遷移、Promotion可否を持つ。ProviderやAIがProfile IDを追加できず、Build Gatewayが`toolchain.lock.json`のCompiler／STL／CMake bindingと照合する。
 
 `CppDependencySetV1`はowner component／Primary Module、public／private import、closed `StdHeaderId`、closed Header例外を正規化して表す。AIはraw include pathやCompiler flagをDependencyとして保存しない。Contract compilerはCX0で個別標準Header、CX1以降でNamed Module／`import std`へ投影し、Source scannerは実Sourceとの一致を検証する。Field、順序、Header例外、Cutover後のProjection停止条件はC++言語・Modules規約を基準とする。
+
+`BuildDriverProfileV1`は`driver_profile_id`、`target_profile_id`、`allowed_frontend_profile_ids`、`configure_driver`、`cpp_generator`、`configuration_model`、`package_owner`を持つ。IDと組合せは基盤規約のclosed setだけを許可し、AI、Provider、Project、Environmentが任意Driver、Generator、commandを追加できない。Contract compilerはWindows／Appleのchecked-in CMake Preset検査表、Android Gradle CMake検査表、Build Gateway allowlistへ投影するが、CMake／Gradle SourceそのものをMCDへ埋め込まない。
+
+ValidatorはTarget、C++ Frontend Profile、Driver Profileの全組合せを照合し、First-party Makefiles／`ndk-build`、Android Ninja Multi-Config、Generator override、異なるBuild tree identityの再利用を拒否する。
 
 ## 12. Diagnostic契約
 
@@ -434,6 +438,7 @@ Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider
 - HandleはID＋generationでありpointerを含めない。
 - CX0のGenerated Header、CX1以降のGenerated Module interface、永続C ABI HeaderにInput contract hashを記録する。
 - Generated Sourceのimport／includeは`CppDependencySetV1`からだけ生成し、手書き依存と二重管理しない。
+- CMake Preset／Android Gradle CMake設定のDriver、Generator、Configuration写像は`BuildDriverProfileV1`検査表と一致し、自由文字列のGeneratorを生成しない。
 
 ### 17.2 TypeScript
 
@@ -518,6 +523,7 @@ Search結果は現在Contract setのhashを含む。AIが古いhashのCapability
 - Cross-language round-tripとboundary fixtureが通る。
 - Generated fileの直接編集をCIが検出する。
 - Contract lock、Toolchain lock、Generated output hashがVerification Receiptへ記録される。
+- `BuildDriverProfileV1`のvalid／invalid fixtureがあり、Makefiles、Android Multi-Config、Generator override、Driver／Target不一致を拒否する。
 - Migrationなしの破壊的永続Schema変更をCIが拒否する。
 
 ## 22. 一次資料と採用根拠

@@ -1,6 +1,6 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.5
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
@@ -156,7 +156,7 @@ ProjectMobileSpec {
 | Gradle | 9.5.0 |
 | Android SDK Build Tools | 36.0.0 |
 | JDK | Microsoft Build of OpenJDK 17.0.19 LTS。Windows x64 zip 186,907,952 bytes、SHA-256 `394d1d8253d58b462300f15f9c81369478cf8813f82dca914c3b5dfdef080f9f` |
-| CMake／Ninja | 4.4.0／1.13.2 |
+| Native Build | 固定Gradle Wrapper／AGP `externalNativeBuild.cmake` → CMake 4.4.0 → Single-Config Ninja 1.13.2 |
 | GameActivity | AndroidX Games 4.4.2 |
 | Game Controller | AndroidX Games Controller 2.0.2 |
 | Frame Pacing | AndroidX Games Frame Pacing 2.1.3 |
@@ -177,6 +177,21 @@ CMAKE_ANDROID_STL_TYPE=c++_shared
 ANDROID_PLATFORM=android-29
 ```
 
+First-party Android C++の正本はRoot `CMakeLists.txt`、公式入口は固定Gradle Wrapperと`externalNativeBuild.cmake`、CMake Generatorはexact `Ninja`とする。この経路の正規Driver Profile IDは`android_gradle_ninja_v1`であり、基盤規約のMCDと`toolchain.lock.json` bindingから解決する。`Ninja Multi-Config`、`ndk-build`、Unix／NMake／MinGW／MSYS Makefiles、raw MakefileをAndroid公式経路にしない。Gradle外のcompile-only診断を行う場合も同じCMake／NDK lockと`-G Ninja`を使用し、Package／Promotion Receiptを発行しない。
+
+Configuration写像を次に固定する。
+
+| Mira configuration | Gradle build type | `CMAKE_BUILD_TYPE` | 制約 |
+|---|---|---|---|
+| `Development` | `debug` | `Debug` | debuggable、Shipping不可 |
+| `Profile` | `profile` | `RelWithDebInfo` | profiling用、Shipping不可 |
+| `Shipping` | `release` | `Release` | CX3とRelease Gate合格時だけ |
+| `ASan` | `asan` | `Debug`＋AddressSanitizer | test packageだけ、Shipping不可 |
+
+`profile`は`release`、`asan`は`debug`から明示初期化するが、署名、debuggable、最適化、sanitizer、package suffixを個別に上書きし、fallback build typeへ暗黙変換しない。Resolved Build tree identityは`module_id × variant_id × ABI × C++ Frontend Profile × toolchain_lock_hash`とする。`buildStagingDirectory`は`out/build/android/<module_id>/<cxx_frontend_profile_id>/`をProject-owned rootとし、AGPが管理するVariant／ABI別子directoryを別Profileや別Moduleと共有しない。実際のresolved pathと`CMAKE_GENERATOR=Ninja`をBuild Receiptへ記録する。
+
+GradleはCMake targetを選択し、Ninjaが生成した`.so`をAPK／AABへpackageする。CMake／NinjaはManifest merge、Android resource、DEX、APK／AAB assembly、Signingを所有しない。AI、Editor、CIはGradle Wrapperを呼び、`ninja`、`cmake -G`、Gradle daemon内部pathをProduct Build入口として公開しない。
+
 ### 5.2 Apple baseline
 
 | 項目 | 固定値 |
@@ -186,12 +201,12 @@ ANDROID_PLATFORM=android-29
 | SDK | iOS／iPadOS 26.5 |
 | Deployment target | 17.0 |
 | Architecture | arm64 |
-| CMake／generator | CX0はCMake 4.4.0／Xcode。CX3はportable C++23 Module graphをCMake／Ninja Multi-Config 1.13.2、App shell／最終link／archiveをXcode |
+| CMake／generator | CX0は`apple_cx0_xcode_v1`でCMake 4.4.0／Xcode。CX1 Probeは`apple_modules_probe_ninja_v1`でCMake／Ninja Multi-Config 1.13.2、packageなし。CX2–CX3は`apple_modules_ninja_xcode_v1`でportable C++23 Module graphをCMake／Ninja Multi-Config、App shell／最終link／archiveをXcode |
 | Language boundary | C++23 core＋Generated C ABI＋Objective-C／Objective-C++ Adapter、ARC有効。Xcode側bridgeはC++ Named Moduleをimportしない |
 | Shipping backend | `apple_xcode_cloud_v1`または適合済み`apple_self_hosted_split_v1`だけ |
 | Shipping | source-free signing／export、archive validation、TestFlight、App Store |
 
-WindowsはApple用Asset cook、portable shader validation、source生成まで行えるが、最終Metal compilationとarm64 linkは行わない。CX0のApple Unsigned Build WorkerはlockされたXcode、CX3はlockされたNinja C++ Module buildとXcode App shell／archive buildを実行し、`UnsignedApplePayloadV1`を生成する。CX3ではBMIをNinja Build tree外へ出さず、Xcode側はGenerated C ABI Headerとopaque handleだけでEngine archiveへ接続する。このWorkerはAI生成SourceとBuild phaseを実行する非信頼実行系であり、Provisioning profile、certificate private key、App Store Connect credential、Production secretを一切持たない。
+WindowsはApple用Asset cook、portable shader validation、source生成まで行えるが、最終Metal compilationとarm64 linkは行わない。CX0のApple Unsigned Build Workerは`apple_cx0_xcode_v1`でlockされたXcodeを実行する。CX1は`apple_modules_probe_ninja_v1`のcompile-only Probeだけで`UnsignedApplePayloadV1`を生成しない。CX2–CX3は`apple_modules_ninja_xcode_v1`でlockされたNinja C++ Module buildとXcode App shell／archive buildを実行し、`UnsignedApplePayloadV1`を生成する。CX2–CX3ではBMIをNinja Build tree外へ出さず、Xcode側はGenerated C ABI Headerとopaque handleだけでEngine archiveへ接続する。このWorkerはAI生成SourceとBuild phaseを実行する非信頼実行系であり、Provisioning profile、certificate private key、App Store Connect credential、Production secretを一切持たない。
 
 自己hostする`AppleUnsignedBuildWorkerV1`は、Apple hardware上の次の隔離Profileを全て満たす。
 
@@ -816,8 +831,8 @@ Source取得から`UnsignedMobilePackageV1`まではArtifact由来RiskのR3／R4
 |---|---|
 | Portable | C++23 compile、CX0 Header conformance、CX1 Named Module／`import std` Probe、C++26 readiness、unit、schema、serialization、GameplayDefinition cook／transaction、shader IR |
 | Windows | MSVC／clang-cl、D3D12 validation、Editor、reference benchmark |
-| Android | Gradle dependency verification、arm64／x86_64 compile、SPIR-V validation、AAB／16 KiB inspection、emulator smoke |
-| Apple | CX0 Xcode build、CX3 Ninja C++ Module archive＋Xcode C ABI App shell／final link、Simulator smoke、Metal compile／validation、archive inspection、BMI非混入 |
+| Android | Gradle dependency verification、Variant × ABI × C++ Profile別Single-Config Ninja、Generator／Build tree分離negative test、arm64／x86_64 compile、SPIR-V validation、AAB／16 KiB inspection、emulator smoke |
+| Apple | CX0 Xcode build、CX1 Ninja compile-only Probe、CX2–CX3 Ninja C++ Module archive＋Xcode C ABI App shell／final link、Simulator smoke、Metal compile／validation、archive inspection、BMI非混入 |
 | Physical device | graphics golden、input、audio、lifecycle、memory pressure、thermal、performance、content delivery |
 | Security／privacy | sanitizer、static analysis、permission／entitlement、privacy manifest、secret scan、package executable-content scan、Build／Signing／Upload identity分離test |
 
@@ -891,6 +906,7 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 - AI Task、Provider、Contract、Verification、Review、PromotionのReceipt hashがBuild provenanceへ接続される。
 - Store／SDKのExternal EvidenceがAI検証規約の期限内であり、Submission 7日前以内に再確認される。
 - Android Buildは`HyperVIsolatedWorkerV1`、自己host Apple Buildは`AppleUnsignedBuildWorkerV1`のBase image、no-secret／no-egress、Task disk破棄、Broker Output、Signing host分離conformanceを通る。
+- Android／Apple Build ReceiptのDriver Profile ID、Generator、Build tree identity、Package ownerが基盤規約のclosed matrixと一致し、Makefiles／`ndk-build`、Android Multi-Config、CX1 packageを拒否する。
 
 ## 22. 主なリスクと対策
 
@@ -906,6 +922,7 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 | AI生成Build scriptが署名鍵／Store credentialを窃取する | Build、Signing、Uploadを別identity／kernel境界へ分離し、Build WorkerへSecretを一切渡さない |
 | 自己host MacのBuild malwareが次Taskへ永続化する | immutable Base、Task別disk、一般egress／host shareなし、disk破棄、Broker限定Output。適合不能ならXcode Cloudだけ |
 | Apple source-free signingが特定Xcode／Project形状で成立しない | lock更新ごとの適合fixtureを必須化し、不合格時はXcode Cloudまたはfail closed。結合型Mac agentへfallbackしない |
+| AndroidでNinja Multi-Config／Make経路が混入しVariantと成果物がずれる | Gradle→CMake `-G Ninja`をclosed Driver Profile化し、Variant × ABI × C++ Profile別treeとReceiptを強制 |
 | touch UIがdesktop UIの縮小になる | dp／pt最小target、safe-area、tablet／foldable fixture |
 | 端末数増加でQAが破綻 | Capability Signature、Minimum／Reference／High lane、bridge baseline |
 | 複数backendで見た目がずれる | Material IR、offline cross-compile、golden image、明示fallback |
@@ -918,6 +935,7 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 - [AndroidX Games release notes](https://developer.android.com/jetpack/androidx/releases/games)
 - [Android NDK downloads](https://developer.android.com/ndk/downloads)
 - [Android Gradle Plugin 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes)
+- [Configure CMake／Ninja with Android Gradle](https://developer.android.com/studio/projects/configure-cmake)
 - [Install and configure NDK and CMake](https://developer.android.com/studio/projects/install-ndk)
 - [Android ABIs](https://developer.android.com/ndk/guides/abis)
 - [`uses-feature` Vulkan declarations](https://developer.android.com/guide/topics/manifest/uses-feature-element)
