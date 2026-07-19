@@ -1,11 +1,12 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 
 ## 1. 結論
 
@@ -30,6 +31,8 @@ Product Phaseと機能の成熟度を混同しないため、各機能を次の�
 
 ## 3. 全機能に共通する規約
 
+各Capabilityの状態書込、実行phase、event順序、pointer／borrow、Asset version、memory／performance budget、overflow、failure recoveryはRuntime詳細規約へ従う。Capability同士は直接呼び出さず、typed command、event、immutable snapshot、version付きAssetを`RuntimeOrchestrator`が統合する。
+
 ### 3.1 座標、単位、角度
 
 | 空間 | 規約 |
@@ -40,10 +43,13 @@ Product Phaseと機能の成熟度を混同しないため、各機能を次の�
 | 2D Asset mapping | `pixels_per_unit` = Source texture texel数／1 World meter。`pixel_2d`既定32 |
 | UI | origin top-left、+X right、+Y down、DIP |
 | Texture UV | origin top-leftのAsset APIへ正規化 |
+| Clip／Depth | D3D NDCのX／Yは`[-1,1]`、Zは`[0,1]`。reversed-Zでnear=1、far=0、depth clear=0、compare=`GREATER_EQUAL` |
 
 2Dの`reference_resolution`はCamera出力のlogical pixel数であり、World座標単位ではない。たとえば32×32 texelのSpriteを`pixels_per_unit = 32`でimportするとWorld上の大きさは1×1 meterになる。ScaleをPhysics bodyへ直接適用しない。Collider生成時に固定scaleをbakeし、実行中のvisual scaleとphysics scaleを分離する。単位変換はImporterまたはAdapter境界だけで行い、暗黙変換を禁止する。
 
 glTF importではglTF 2.0の右手系、+Y up、meter、radianを保持する。Objectのfront convention差はimport metadataへ記録し、mesh dataを無理由に再変換しない。
+
+Engine mathはcolumn vector、column-major storage、`world = parent_world * T * R * S`とする。HLSLは`column_major float4x4`と`mul(matrix, vector)`だけを使い、CPU／Shader境界で暗黙transposeしない。Quaternionのfield順は`x,y,z,w`、rotation合成は`q_world = q_parent * q_local`、保存前に長さ1へ正規化する。`q`と`-q`の二重表現は、`w > 0`、`w == 0`なら最初の非0成分が正となる側へcanonicalizeする。zero-length、NaN／InfのQuaternionを拒否する。
 
 ### 3.2 Color、HDR、Alpha
 
@@ -58,10 +64,10 @@ glTF importではglTF 2.0の右手系、+Y up、meter、radianを保持する。
 ### 3.3 時間
 
 - Simulationはfixed tick、renderは可変tick＋interpolationとする。
-- 初期fixed tickは60 Hz、最大catch-upは4 step。
+- C1／C2の`fixed_tick_hz`はexactly 60、最大catch-upは4 step。ProfileとReplay headerへ60を保存し、別値をschemaで拒否する。
 - Game pause、UI time、cinematic time、physics timeを明示的なclock domainに分ける。
 - Animation curve、particle、audio schedulingはsecondを正規単位とする。
-- Randomnessはsystem別seed streamを使い、global random generatorを禁止する。
+- Authoritative RandomnessはRuntime詳細規約のversion付き`DeterministicRngV1`とsystem／logical job別seed streamを使い、global random generatorとworker index由来seedを禁止する。
 
 ### 3.4 AIへ公開する編集単位
 
@@ -103,6 +109,54 @@ CommandはStable ID、base project revision、型付き引数、precondition、�
 
 「2.5D」は曖昧語なので正規値にしない。Requirement Resolverは、Side-view 3D、2D gameplay＋3D background、Billboard sprite in 3D、Pixel Dioramaのどれを意味するか解決する。
 
+### 3.6 Capability連携の公式経路
+
+```mermaid
+flowchart LR
+  HumanAI["Human／AI／Editor"] --> ChangeSet["GameSpec／ChangeSet"]
+  ChangeSet --> Validate["Schema・Capability・Budget Validator"]
+  Profiles["Project／Quality／Visual Style Profile"] --> Validate
+  Validate --> Compiler["Runtime Compiler"]
+  Compiler --> Package["Versioned Runtime Package"]
+  Package --> World["Runtime World"]
+
+  World --> Gameplay["Gameplay／Luau T30・T70"]
+  Gameplay --> Commands["Typed Commands"]
+  Commands --> Physics["Physics T40～T60"]
+  Physics --> Transform["Authoritative Transform／Physics Event"]
+  Transform --> Gameplay
+  Transform --> NavSnapshot["Previous-tick Nav Obstacle Snapshot"]
+  NavSnapshot --> Navigation["Navigation Worker→T20"]
+  Navigation --> Gameplay
+  Transform --> Animation["Animation T80"]
+  Animation --> RenderSnapshot["Immutable RenderSnapshot T110"]
+  Transform --> RenderSnapshot
+
+  Materials["Material／Shader Package"] --> RenderGraph["Render Graph R30"]
+  Lighting["Light／Shadow Profile"] --> RenderGraph
+  Environment["Sky／Fog／Cloud／IBL"] --> RenderGraph
+  VFX["Particle／VFX"] --> RenderGraph
+  RenderSnapshot --> RenderGraph
+  RenderGraph --> Post["Post／UI／Composite"]
+
+  Gameplay --> Presentation["Presentation Event T90"]
+  Presentation --> VFX
+  Presentation --> Audio["Audio Control"]
+  World --> Save["Save／Replay"]
+```
+
+| Producer | 渡す契約 | Consumer／反映点 | 禁止する近道 |
+|---|---|---|---|
+| Human／AI／Editor | revision付きChangeSet | Authoring Validator→Commit | UI widgetやLLMからlive Worldへ直接write |
+| Gameplay／Script | typed Simulation／Structural command | 宣言consume phase／次`T00` | Physics、Nav、Render native API呼出し |
+| Physics | normalized event、authoritative transform | `T60`後のGameplay、Animation、snapshot | callbackからEntity破棄、Render transform直接write |
+| Navigation | version付きquery result | 次の`T20`→Gameplay | Physics pointer共有、stale Navmesh result適用 |
+| Animation | pose、root-motion proposal、bounds | `T40` resolver／`T80`／RenderSnapshot | Physics transformとの二重write |
+| Material／Light／Environment／VFX | version付きPresentation Asset／Profile | `R10` promotion→Render Graph | GPU resource、pass、descriptorの直接編集 |
+| Audio／VFX／Camera shake | bounded Presentation command | `T90`以後 | gameplay damage、Save、AI perceptionへの逆流 |
+
+Asset、Profile、Script、C++の変更はdependency closure全体をstagingし、Runtime詳細規約の`T00`／`R10`だけでgenerationを切り替える。上図にないSubsystem間edgeを追加する場合は、Domain Port、typed contract、owner、phase、budget、failure policyをADRへ追加し、CMake DAGとconformance testを同じ変更で更新する。
+
 ## 4. 共通Engine機能
 
 | Capability | C1 | C2 | C3 |
@@ -125,6 +179,24 @@ CommandはStable ID、base project revision、型付き引数、precondition、�
 | Networking | 対象外 | Transport abstractionの調査 | Authoritative multiplayer |
 
 NetworkingをC1/C2へ暗黙に含めない。FPS/TPSというgenreはC1でsingle-playerとして成立させ、multiplayerは独立したC3計画とする。
+
+### 4.1 Cameraの公式Contract
+
+CameraはProjection、Viewport、Exposure／Post参照、Presentation rigを分離する。Gameplay aim／visibilityは`CameraIntentSnapshot`を入力にWorld／Physics側が判定し、Render interpolation後のCamera transformやcamera shakeをauthoritative判定へ使わない。
+
+| Profile | Projection | 初期公式値 | Validation |
+|---|---|---|---|
+| `PerspectiveGameplayV1` | 右手系reversed-Z perspective | vertical FOV 60°、near 0.05 m、culling far 10,000 m | FOV 5～170°、near 0.01～10 m、far `> near`かつ最大1,000,000 m |
+| `OrthographicGameplayV1` | 右手系reversed-Z orthographic | vertical size 11.25 m、near 0.01 m、far 1,000 m | size 0.001～1,000,000 m、far `> near` |
+| `Pixel2DReferenceV1` | Orthographic＋logical raster | 640×360、32 PPUなのでvertical size `360/32=11.25 m` | Point sampling、integer scale、pixel-locked layerへのTAA jitter禁止 |
+
+Perspective projectionはfinite culling farをVisibility、cluster、fogへ必ず渡し、projection matrixだけをinfinite-farへ変更することをC1では許可しない。Viewportはnormalized `(x,y,width,height)`、各field 0～1、width／heightは0より大きく、右端／下端が1以下であることを必須とする。Aspectは実viewport pixel幅／高さから毎frame計算し、Profileへ重複保存しない。
+
+Camera blendの既定durationは0.35 s、positionはcubic smoothstep `t²(3-2t)`、rotationはshortest-path normalized slerp、vertical FOVは`tan(fov/2)`を同じsmoothstepで補間する。Base Camera rigは`T30`でfixed tick時間から決定論的に進めるauthoritative stateとし、Renderingは直前／現在のbase poseを補間するだけとする。duration 0は次の`T30`でcutとして適用し、同tickの`T90`がtemporal history破棄eventを出す。Camera shakeだけをPresentation stateとしてbase poseから分離する。
+
+Camera collisionは`T30`でversion付きtyped sphere-cast requestを生成し、Physics Adapterが`T40`で直前に完了したPhysics worldへqueryし、`T60`でEngine値へnormalizeする。Camera rigは次tick`T20`でowner generationとPhysics scene versionが一致する結果だけを統合する。既定sphere radius 0.20 m、skin 0.05 m、最大補正距離10 mである。当該tickに結果がない場合は前回valid resultを最大2 tick保持し、3 tick目はcollision補正なしへ切り替えて`CameraCollisionStale`を記録する。Render threadからPhysics objectを直接queryしない。
+
+Camera shakeはseed、開始tick、duration、translation／rotation amplitude、frequencyを持つbounded Presentation commandであり、最終View matrixへだけ合成する。既定上限は同時16 shake、translation各軸2 m、rotation各軸20°、frequency 0～60 Hz、duration 0～30 sとし、Gameplay aim、Physics、Save transformへ戻さない。
 
 ## 5. 2D RuntimeとEditor
 
@@ -161,6 +233,21 @@ NetworkingをC1/C2へ暗黙に含めない。FPS/TPSというgenreはC1でsingle
 
 Blendの既定はpremultiplied alphaとする。Straight alpha Assetはimport時に変換し、Materialが明示要求した場合だけ別pipelineを使う。
 
+#### 2D LightのC1公式Profile
+
+`Light2DProfile::ReferenceMediumV1`をC1 fixtureへ固定する。
+
+| 項目 | 初期公式値 | Hard上限／overflow |
+|---|---:|---|
+| 可視Directional 2D light | 1 | 1。2個目はvalidation error |
+| 可視Point 2D light | 64 | 64。`priority desc, screen_coverage desc, StableId asc`で上限内を選ぶ |
+| 1 spriteが評価するPoint light | 8 | 8。9個目以降は同じcanonical順で除外しcounterを出す |
+| Shadow caster light | 8 | 8。AI ChangeSetは事前予測で超過したら拒否 |
+| SDF occluder atlas | 2,048×2,048、`R16_SNORM` | 8 MiB。1 texel padding、skyline pack、repackは`R10`でatomic promotion |
+| Shadow mask | internal resolutionの1/2 linear、最大960×540、`R8_UNORM` | Render Graph transient。camera cut／occluder generation変更で再生成 |
+
+2D lightはscene-linearで合成し、sprite normalの既定は`(0, 0, 1)`、normal mapの接線基底はsprite local `+X,+Y,+Z`とする。Point lightの距離はmeter、fluxはlumen、rangeは0.01～1,000 mを必須とする。無限range、NaN／Inf、負のfluxを拒否する。C2 clusteringへ移行しても上記の選択順、物理単位、overflow telemetryを維持する。
+
 ### 5.2 Tilemap
 
 Tilemapは単一巨大arrayではなく、変更・streaming・culling単位のchunkへ分割する。
@@ -188,7 +275,7 @@ AIはtile IDの巨大配列を直接生成せず、region、rule、seed、constr
 
 ### 5.3 2D Physics
 
-Box2D 3.xを`Physics2DBackend`内で利用する。
+Box2D 3.1.1を`Physics2DBackend`内で利用する。
 
 #### C1
 
@@ -200,7 +287,7 @@ Box2D 3.xを`Physics2DBackend`内で利用する。
 - Ray cast、shape cast、overlap query
 - Contact begin／end、trigger event
 - Kinematic character motor
-- Fixed 60 Hz、substep設定
+- Fixed 60 Hz、`sub_step_count=4`をC1 reference値とする
 - Collider、contact、sleep state debug draw
 
 #### C2
@@ -212,7 +299,9 @@ Box2D 3.xを`Physics2DBackend`内で利用する。
 - Large tile collider streaming
 - Physics query profiler
 
-Physics eventはtick末にStable IDへ変換して配送する。Box2D pointer、body ID、callback中のWorld変更をGame APIへ露出しない。Event orderingとduplicate抑止をAdapter conformance testで固定する。
+`Physics2DProfile.sub_step_count`はinteger 1～8、既定4とし、`PlayPreparing`で固定してReplay headerへ保存する。Play中変更を拒否する。Box2D 3.1.1の`b2DefaultWorldDef()`をbaselineとし、Engineが上書きするgravity、worker callback、user task context、sleep／continuous collision flagはCook済みProfileへ全値を明記する。未記録のvendor default変更を自動採用しない。
+
+Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcanonical keyで配送する。Box2D pointer、body ID、callback中のWorld変更をGame APIへ露出しない。Event ordering、invalid ID破棄、同一native event bufferを二度consumeしないことをAdapter conformance testで固定する。
 
 ### 5.4 2D Navigation
 
@@ -235,6 +324,25 @@ Physics eventはtick末にStable IDへ変換して配送する。Box2D pointer�
 - Local avoidance
 
 AIがlevelを作る際はspawnからgoalまで、必須interaction point間、escape routeの到達可能性を自動Testする。
+
+#### 2D NavigationのC1公式Profile
+
+`GridNav2DProfile::ReferenceV1`は次で固定する。
+
+| 項目 | 初期公式値 |
+|---|---:|
+| Navigation cell | 0.25 m正方形 |
+| 接続 | 8近傍。斜め移動は両隣の直交cellがwalkableな場合だけ許可 |
+| Cost | 直交`65,536`、斜め`92,682`のQ16.16。area multiplierは`[0.0625, 64.0]` |
+| Heuristic | admissibleなoctile distance。同点は`f`, `h`, canonical cell indexの昇順 |
+| 1 queryの展開node | 65,536 |
+| 1 pathのcell | 8,192 |
+| 1 assetのwalkable grid | 最大16,777,216 cell、cell payload 32 MiB、metadataを含むresident／serialized hard cap 34 MiB |
+| Agent radius | 0.40 m、schema範囲0～8 m。clearanceは`ceil(radius / cell_size)` |
+
+cell payloadはrow-major `cell_index = y * width + x`で、1 cell exactly 2 byteの`uint8 area_id`＋`uint8 clearance_cells`とする。`area_id=0`はblocked、1～255は256-entryのQ16.16 area-cost tableを参照する。clearanceは0～255 cellで飽和するが、Profileの必要clearanceを255超へ設定したAssetはcook errorにする。Path累積costは`uint64`で計算し、加算前overflow検査に失敗したqueryを`CostOverflow`とする。
+
+Tilemap cellとNavigation cellが一致しない場合、各Navigation cellが重なるcollision／blocked sourceを保守的ORで集約し、狭い障害を消さない。上限到達はpartial pathに偽装せず`SearchBudgetExceeded`、到達不能は`NoPath`、入力generation不一致は`StaleInput`を返す。Project Profile変更はgrid全体をDerived Assetとして再cookし、Play中の暗黙resampleを禁止する。2D／3D Navigationを併用するProjectでも、live Nav payload合計36 MiBとRuntime詳細規約13.1節のNavigation Domain内訳を超えてはならない。
 
 ### 5.5 2D Animation
 
@@ -323,10 +431,10 @@ Forward+を最初にする理由は、透明、MSAA、2D／3D合成を一つの�
 
 | Light | 単位 | C1 | C2 |
 |---|---|---|---|
-| Directional | lux | 1主光源、複数補助 | 複数shadow caster policy |
-| Point | lumen | 対応 | IES profile |
-| Spot | lumen／candela | 対応 | IES profile |
-| Rectangle／Disk | lumen／nit | 非対応 | LTC近似 |
+| Directional | lux | 最大2 visible、shadow caster 1 | 最大4 visible、shadow caster 1 |
+| Point | lumen（C1）／candela配光（C2 IES） | lumen source | IES profile |
+| Spot | lumen（C1）／candela配光（C2 IES） | lumen source | IES profile |
+| Rectangle／Disk | nit | 非対応 | LTC近似 |
 | Emissive surface | nit | 見た目のみ | probe／GIへの寄与 |
 
 Shadow:
@@ -339,6 +447,55 @@ Shadow:
 - 無効なbias、過大resolution、atlas overflowをValidatorで拒否または明示fallbackする。
 
 AIはlightを無制限に追加できない。Project Profileのvisible light数、shadow caster数、shadow texel budgetをChangeSet validationで検査する。
+
+#### Light schemaと初期公式値
+
+Engineは単位ごとのfieldを別型で保持し、内部で一つの無単位`intensity`へ畳み込まない。
+
+| 型 | Authoring field | Preset既定 | Schema範囲 |
+|---|---|---:|---:|
+| Directional | `illuminance_lux` | daylight 100,000 lux／moonlight 0.20 lux | 0～200,000 lux |
+| Point | `luminous_flux_lm`, `range_m` | 1,000 lm、10 m | 0～1,000,000 lm、0.01～10,000 m |
+| Spot | `luminous_flux_lm`, `inner_deg`, `outer_deg`, `range_m` | 1,500 lm、20°、35°、20 m | flux／rangeはPoint同等、`0 <= inner < outer < 179` |
+| Rectangle／Disk | `luminance_nit`, size | 1,000 nit、1×1 m | 0～100,000 nit、各辺0.001～1,000 m |
+| 共通 | linear RGB／CCT、priority、mobility | D65 6,500 K、priority 128、dynamic | CCT 1,000～20,000 K、priority 0～255 |
+
+色はlinear RGBまたはCCT＋tintのどちらか一方をsource of truthとし、両方の同時編集を拒否する。CCT presetからlinear RGBへの変換versionをCook manifestへ保存する。Light range外は物理的に寄与0とし、しきい値からEngineが暗黙にrangeを逆算しない。
+
+C1 Point／Spot Lightのsource of truthは`luminous_flux_lm`だけとし、candela入力とIES profileをschemaで拒否する。C2 IES modeはPoint／Spotのどちらでも、ANSI/IES LM-63-19(R25) Asset内のcandela配光とdimensionlessな`intensity_scale`をsource of truthに切り替え、`luminous_flux_lm`との同時指定を拒否する。初期ImporterはLM-63-19(R25)のPhotometric Type C、`TILT=NONE | INCLUDE`だけを受理し、Type A／B、外部TILT file参照、旧版識別子は`UnsupportedPhotometricProfile`で拒否する。単位、縦横角、lamp multiplier、有限かつ非負のcandela値を検証して独自`PhotometricDistributionV1`へcookし、raw IES配列をRuntime APIやAIへ公開しない。C2実装開始前に、開発組織が利用できる正規の規格本文と再配布可能なconformance fixtureのlicenseを記録する。未取得ならIES CapabilityだけをC1のまま維持し、推測実装しない。
+
+#### 3D Light／Shadow Quality Profile
+
+`ReferenceMediumV1`をC1／1080p fixtureの公式Profileとする。Forward+ clusterは16×16 internal pixel tile、near～cluster farを対数分割し、cluster farは`min(camera_far, 10,000 m)`とする。Compact light-reference listは32-bit index、cluster headerは32-bit offset＋16-bit count＋16-bit flagsである。
+
+| 項目 | Low | ReferenceMediumV1 | High |
+|---|---:|---:|---:|
+| 可視local light | 128 | 512 | 2,048 |
+| 可視Directional light | 1 | 2 | 4 |
+| Z slice | 16 | 24 | 32 |
+| 1 clusterのlocal light | 32 | 64 | 96 |
+| 全clusterのreference | 262,144 | 1,048,576 | 2,097,152 |
+| Shadowed local face-equivalent | 4 | 16 | 32 |
+| Shadowed Point light | 最大0 | 最大2 | 最大4 |
+
+Point shadowは6 face-equivalent、Spot shadowは1を消費する。Light listは`priority desc, screen_influence desc, distance asc, StableId asc`でstable sortする。GPU cull後に上限を超えた場合はこの順で末尾を除外し、`ClusterLightOverflow`をframe、cluster、除外StableId付きで記録する。AI提案が静的解析またはpreview sceneで上限を超える場合はChangeSetを拒否し、runtime overflowへ依存させない。
+
+Shadow resourceは`R16_TYPELESS`＋depth view／`R16_UNORM` shader viewを使い、Profileのpersistent capへmetadataとalignmentを含める。
+
+| 項目 | Low | ReferenceMediumV1 | High |
+|---|---:|---:|---:|
+| Directional cascade | 2×1,024² | 4×2,048² | 4×4,096² |
+| Shadow distance | 80 m | 150 m | 300 m |
+| Split | practical split λ=0.70 | 同左 | 同左 |
+| Cascade transition | 各cascade範囲の10% | 同左 | 同左 |
+| Local shadow atlas | 2,048² | 4,096² | 8,192² |
+| 既定Spot tile | 512² | 1,024² | 2,048² |
+| 既定Point face | 非対応 | 512² | 1,024² |
+| Shadow persistent cap | 16 MiB | 80 MiB | 288 MiB |
+
+CSM projectionをtexel単位でstabilizeし、cascade splitはcamera nearとShadow distanceから毎frame再計算する。既定biasはconstant 1.0 texel、slope 1.5 texel、normal offset 0.5 texel、schema範囲は各0～8 texelとする。Lightごとのresolution要求は128、256、512、1,024、2,048、4,096のいずれかに限定し、atlasへ入らない要求は自動縮小せず`ShadowAtlasExceeded`とする。LowでPoint shadowを要求した場合も同じtyped errorを返す。Shadow passはRuntime詳細規約14.4節の2.00 ms soft cap、16.67 ms frame hard acceptanceの両方を満たす。
+
+Shadow updateは`static`をLight／caster Asset generation変更時だけ、`stationary`をLightまたはcaster transform／visibility generation変更時、`dynamic`を毎frameとする。1 frameのlocal updateはLow 4、Medium 16、High 32 face-equivalentまでで、`priority desc, StableId asc`にdirty tileを更新する。上限を超えたdirty tileは旧generationを表示して`ShadowUpdateDeferred`を記録し、新旧cascade／cubemap faceを一組のLight内で混在させない。Directional shadow casterは全Tierで1とし、複数Directionalがvisibleでもshadow対象は`casts_shadow=true`のうち同じ`priority desc, StableId asc`の先頭だけである。AI proposalが2個以上を要求した場合はfallbackせずvalidation errorにする。
 
 Global illuminationは次に段階化する。
 
@@ -362,6 +519,25 @@ Lightmap、probe、IBLはDerived Assetとし、geometry、material、light、bak
 - Automatic／manual exposure
 - Environment bake command
 
+`EnvironmentProfile::ReferenceEarthV1`の物理presetは次をsource dataとして保存する。C1ではsun／ground／IBLだけを使用し、atmospheric scatteringはC2 Capabilityが有効な場合だけ評価する。距離単位はmeter、係数は`m^-1`であり、shader内のkm表現へ暗黙変換しない。
+
+| 項目 | 初期公式値 |
+|---|---|
+| ground／top radius | 6,360,000 m／6,460,000 m |
+| ground albedo | linear RGB `(0.3, 0.3, 0.3)` |
+| Rayleigh scattering／scale height | `(5.802, 13.558, 33.100) × 10^-6 m^-1`／8,000 m |
+| Rayleigh absorption | `(0, 0, 0) m^-1` |
+| Mie scattering／absorption／scale height／g | `3.996 × 10^-6 m^-1`／`4.400 × 10^-6 m^-1`／1,200 m／0.8 |
+| Ozone absorption | `(0.650, 1.881, 0.085) × 10^-6 m^-1` |
+| Ozone density | 25,000 mで1、そこから上下15,000 mで0となるtriangle profile |
+| Sun angular radius | 0.267° |
+
+任意planet presetではground radius、top radius、各scattering／absorption、density profile、phase g、ground albedoをすべて明示する。`top_radius > ground_radius > 0`、全係数finiteかつ0以上、`-0.999 <= g <= 0.999`を必須にし、欠落値をEarth presetから個別補完しない。
+
+C1 IBLはdiffuse irradiance cubemap 32²×6 `RGBA16_FLOAT`、specular prefilter cubemap 256²×6・9 mip `RGBA16_FLOAT`、split-sum BRDF LUT 256² `RG16_FLOAT`とする。HDR source cubemapはProject Assetであり、sourceを除くこのpersistent IBL setは8 MiBへ収める。Exposureはautomaticを既定とし、EV100 -16～32を256 log-luminance binへ量子化した0.5～99.5 percentile histogram、18% middle gray、出力EV100範囲-6～16、compensation 0、brighten 1.5 EV/s、darken 3.0 EV/sをCook済みProfileへ保存する。
+
+Height fogは`e=clamp(-height_falloff*(y-base_height), -80, 80)`、`extinction(y)=base_extinction*exp(e)`、距離fogは`optical_depth=clamp(extinction*d, 0, 80)`、`transmittance(d)=exp(-optical_depth)`と定義する。既定は`base_extinction=0.01 m^-1`、`height_falloff=0.10 m^-1`、`base_height=0 m`、albedo `(0.9,0.9,0.9)`、max distance 10,000 mである。extinction／falloffは0～10 `m^-1`、base heightは±1,000,000 m、albedoは各0～1、distanceは1～1,000,000 mとし、負数、NaN／Infを拒否する。
+
 #### C2
 
 - Physically based atmosphereのtransmittance、multi-scattering、sky-view LUT
@@ -373,6 +549,35 @@ Lightmap、probe、IBLはDerived Assetとし、geometry、material、light、bak
 - Temporal reprojection、blue-noise jitter
 - Dynamic skyからIBLを段階更新
 - Cloud shadow map
+
+Atmosphere LUTはHillaire 2020の構成を採り、Miraikanaiの`AtmosphereLutProfile::ReferenceV1`を次に固定する。
+
+| LUT | 解像度／format | 1 texelのray-march step | 更新条件 |
+|---|---|---:|---|
+| Transmittance | 256×64 `RGBA16_FLOAT` | 40 | atmosphere generation変更 |
+| Multiple scattering | 32×32 `RGBA16_FLOAT` | 20 | transmittance／light generation変更 |
+| Sky view | 200×100 `RGBA16_FLOAT` | 30 | observer altitude／sun direction／atmosphere generation変更 |
+| Aerial perspective | 32×32×32 `RGBA16_FLOAT` | 30 | camera frustum／sun／atmosphere generation変更 |
+
+step数は最大値ではなく正確なreference値とし、Quality Profile以外から変更できない。各rayではjittered stratified midpointを使い、光学的厚さまたはplanet boundary到達で終了する。LUTの旧generationは新しい4枚すべてがreadyになるまでliveとし、`R10`でatomic promotionする。
+
+Volumetric fogはcamera-aligned froxelを使う。
+
+| 項目 | Medium | High |
+|---|---:|---:|
+| 最大grid | 160×90×64 | 240×135×96 |
+| XY寸法 | `min(ceil(internal/12), 160×90)` | `min(ceil(internal/8), 240×135)` |
+| Z分布 | near～fog farのexponential、隣接slice幅比1.2 | 同左 |
+| Local fog volume | 32 | 128 |
+| Fogへ注入するlocal light | 64 | 128 |
+| current／history scattering | 各`RGBA16_FLOAT` | 各`RGBA16_FLOAT` |
+| extinction | `R16_FLOAT` | `R16_FLOAT` |
+
+`fog_far = min(EnvironmentProfile.max_fog_distance, camera_far)`とし、`N` sliceの最初の幅を`Δz0 = (fog_far-near) * (1.2-1) / (1.2^N-1)`、以後`Δzi = Δz0 * 1.2^i`とする。`fog_far <= near`はProfile validation errorである。
+
+Cloud layerの既定bottom／topはgroundから1,500 m／5,000 m、最大view ray distanceは100,000 m、coverage 0.50、density multiplier 1.0である。bottomは0～100,000 m、topは`bottom + 1 m`～200,000 m、coverage／densityは0～1／0～10を許可する。Volumetric cloudはMediumで`ceil(internal_width/4) × ceil(internal_height/4)`（最大480×270）、primary 48 step、light 6 step、Highで`ceil(internal_width/2) × ceil(internal_height/2)`（最大960×540）、primary 96 step、light 8 stepとする。view segment `[entry, exit]`のstep長は`(exit-entry)/N`、sample位置は`entry + (i + blue_noise_0_1) * step_length`、sun方向のlight sampleも同じuniform ruleを使う。blue-noise phaseを256 frameで循環し、accumulated opacity 0.995またはscene depthでearly-outする。Cloud sourceは512² weather map `RGBA8_UNORM`、128³ base noise `R8_UNORM`、32³ detail noise `R8_UNORM`のDerived Assetとする。Cloud shadowはMedium 1,024² `R16_FLOAT`を4 frameごと、High 2,048²を2 frameごとに更新し、sun directionが1°以上変化またはweather generation変更時は即時更新する。
+
+Dynamic IBL更新は6 face capture、1 diffuse convolution、9 specular mipのexactly 16 work unitで構成し、staging setへ最大1 unit／frameを実行する。16 unitすべてがreadyになった時だけ`R10`でgenerationを切り替える。1 frameの更新soft capは0.25 msで、超過時は作業を次frameへ送るが部分generationを公開しない。
 
 #### C3
 
@@ -386,10 +591,12 @@ Quality fallback:
 | Tier | Atmosphere | Fog | Cloud |
 |---|---|---|---|
 | Low | Precomputed sky cubemap | Height／distance fog | 2D cloud layer |
-| Medium | Atmosphere LUT | Half-resolution froxel | Reduced-step volumetric |
-| High | Atmosphere LUT＋dynamic IBL | Full feature froxel | Temporal volumetric＋shadow |
+| Medium | Atmosphere LUT | 最大160×90×64 froxel | 1/4-linear、48／6 step volumetric |
+| High | Atmosphere LUT＋dynamic IBL | 最大240×135×96 froxel | 1/2-linear、96／8 step＋shadow |
 
-Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposureとRender Graph上で明示依存する。履歴bufferが無効になるcamera cut、resolution変更、weather jumpではtemporal historyを破棄する。
+Environmentのpersistent、history、当該pass専用transientを合算した同時peak capはLow 32 MiB、Medium 128 MiB、High 256 MiBとし、Runtime詳細規約12.1節のTextureまたはRender target／transient Domainにも二重ではなく所属classで計上する。Render Graph aliasで物理heapを共有するresourceはcommitted physical byteを一度だけ数えるが、aliasを見込んだ未証明の0 byte見積りを禁止する。MediumをC2 reference acceptanceに使い、Atmosphere／Environment pass全体を同規約14.4節の2.00 ms soft capへ収める。Highも14.00 ms GPU frame soft targetを免除しない。
+
+Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposureとRender Graph上で明示依存する。履歴は、明示camera cut、world-origin rebase、internal width／height変更、非jitter projection変更、Environment generation変更、sun directionが1 frameで5°以上変化、weather coverage／density fieldの最大絶対差が正規化値0.20以上になった場合に全破棄する。履歴を破棄したframeはhistory weight 0、次の7 frameで`min(0.90, valid_frames / 8)`まで増加させる。AIはhistory weightや破棄判定を直接編集できない。
 
 ### 6.5 Post Processing
 
@@ -417,7 +624,7 @@ Effectの順序はPost Process Graphで固定し、AIは登録済みnodeと範�
 
 ### 6.6 3D Physics
 
-Jolt Physicsを`Physics3DBackend`内で利用する。
+Jolt Physics 5.6.0を`Physics3DBackend`内で利用する。
 
 #### C1
 
@@ -427,8 +634,9 @@ Jolt Physicsを`Physics3DBackend`内で利用する。
 - Ray、shape cast、overlap
 - Contact／trigger event
 - Character controller
-- Fixed step、sleep、continuous collision profile
-- Constraintの基本subset
+- Fixed 60 Hz、`collision_steps=1`をC1 reference値とする
+- sleep、`Discrete | LinearCast` continuous collision profile
+- Fixed、Point、Distance、Hinge、Slider、SwingTwist constraint
 - Debug draw、island、contact profiler
 
 #### C2
@@ -437,15 +645,23 @@ Jolt Physicsを`Physics3DBackend`内で利用する。
 - Vehicle
 - Destructible constraint setup
 - Heightfield／large static world streaming
-- Soft bodyは検証後に任意
+- SixDOF constraint
+
+#### C3 Research（C1／C2の実装範囲外）
+
+- Jolt CPU soft bodyはResearch Capabilityとし、C1／C2 package schemaでは拒否する
+- GPU compute、GPU／hair simulationは基盤規約どおりBuild無効のままとする
+- CPU soft bodyをProductionへ昇格するには、rigid bodyとのcontact、save／reload、deterministic replay範囲、32 MiB TempAllocator上限、両Reference GPU環境でのCPU frame budgetを専用fixtureで合格させ、本書を改訂する
 
 Dynamic bodyへtriangle mesh colliderを許可しない。非uniform scaleはcook時にbakeする。Runtimeでscale変更されたcolliderは自動再cookせず、明示errorにする。
+
+`Physics3DProfile.collision_steps`はinteger 1～2、既定1とし、`PlayPreparing`で固定してReplay headerへ保存する。Jolt 5.6.0の`PhysicsSettings{}`をbaselineとし、Engineが変更するsolver、sleep、penetration、broad-phase設定をCook済みProfileへ全値で保存する。HighSpeed bodyだけ`LinearCast`を明示でき、既定は`Discrete`、Play中のprofile変更は拒否する。
 
 Physics determinismは同一version／platform／thread設定のreplay範囲で検証する。Network lockstep相当のcross-platform determinismは保証しない。
 
 ### 6.7 3D Navigation
 
-RecastでEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行う。
+Recast／Detour 1.6.0でEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行う。
 
 #### C1
 
@@ -472,6 +688,30 @@ RecastでEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行�
 初期RuntimeではAIがpolygonを生成しない。許可するのは既存tile上のcost、off-mesh link、dynamic obstacle、goalの変更だけとする。Navmesh rebuildはEditorまたはserver-controlled bounded regionに限定する。
 
 Navmesh build resultはDerived Assetであり、source geometry、Agent Profile、builder version、settings hashから再生成できる。
+
+#### 3D NavigationのC1公式Profile
+
+`NavAgentProfile::HumanReferenceV1`と、そのRecast cook値を次に固定する。`cell_size = radius / 2`はRecastの公開starting guidanceに従い、それ以外の値は本Projectの初期公式値である。
+
+| Agent／Recast field | 初期公式値 |
+|---|---:|
+| Agent height／radius／max climb／max slope | 1.80 m／0.40 m／0.40 m／50° |
+| `cs`／`ch` | 0.20 m／0.10 m |
+| `walkableHeight`／`walkableRadius`／`walkableClimb` | `ceil(1.80/0.10)=18`／`ceil(0.40/0.20)=2`／`floor(0.40/0.10)=4` voxel |
+| `tileSize`／world tile width | 64 voxel／12.80 m |
+| `borderSize` | `walkableRadius + 3 = 5` voxel |
+| partition | Watershed |
+| `minRegionArea`／`mergeRegionArea` | 64／400 voxel² |
+| `maxEdgeLen`／`maxSimplificationError` | 16 voxel／1.3 voxel |
+| `maxVertsPerPoly` | 6 |
+| `detailSampleDist`／`detailSampleMaxError` | 1.20 m／0.10 m |
+| build filter | low-hanging obstacle、ledge span、low-height spanをすべて有効 |
+
+1 Navmesh versionは最大1,024 active tile、36 MiB cooked／resident data、1 tile 8,192 polygon、1 query node pool 4,096 node、corridor 2,048 polygon ref、straight path 256 pointとする。cook時にいずれかを超えたら分割済みWorld cellを要求し、値を切り捨てない。Detour queryのstatus bitを`Success | NoPath | PartialPath | SearchBudgetExceeded | StaleNavMesh | InvalidEndpoint`へ正規化し、`PartialPath`はrequestが`allow_partial=true`のときだけ成功扱いにする。Runtime request／result各4,096／tickと、2D／3D live payload合計36 MiBを含むNavigation Domain 64 MiB内訳はRuntime詳細規約11.2節／13.1節を優先する。
+
+EngineのNav areaは`uint8` 0～63、0をblocked、1をwalkable defaultとし、Detourの6-bit areaへ同値変換する。area traversal multiplierはfiniteな`[0.0625, 64.0]`、既定1.0で、0または負値を「通行不可」の別表現にしない。Point projection half-extentsは`(2.0, 4.0, 2.0) m`、endpointがこのbox内のpolygonへprojectできなければ`InvalidEndpoint`とする。Custom extentは各軸0.01～100 mで、query payloadへ明示する。
+
+Agent Profile変更はsource geometry hashが同じでも全tileを再cookする。AIは登録済みProfileの選択、area cost、typed off-mesh linkを編集できるが、voxel値、tile header、polygon refを直接指定しない。Custom Profileは上記式とschemaを通し、予測cook memory、build時間、clearance fixtureをpreviewして人間の承認後だけProject既定へ昇格できる。
 
 ### 6.8 3D Animation
 
@@ -546,6 +786,30 @@ Reference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU 
 - LOD、distance culling、fixed budget
 
 GPU particleはvisual effectであり、gameplayの正規状態やSaveへ使用しない。Gameplay判定が必要なeffectはCPUのdeterministic gameplay entityを別に持つ。AIが指定できるparticle上限、spawn rate、light count、collision modeはValidatorでProject budgetに制限する。
+
+### 7.1 Particle公式Budget Profile
+
+`ParticleBudgetProfile::ReferenceV1`を次に固定する。alive／spawn上限は全Emitter合計と各Emitterの両方を検査し、超過分を黙って間引かない。Editor preview／AI ChangeSetは`BudgetExceeded`で拒否し、Shippingで突発的に上限へ達した場合だけ`priority desc, screen_influence desc, emitter StableId asc, particle_spawn_id asc`の末尾を生成しない。
+
+| 項目 | C1 CPU | C2 GPU |
+|---|---:|---:|
+| Active emitter | Project 256 | Project 1,024 |
+| Alive particle | Project 65,536／Emitter 8,192 | Project 1,048,576／Emitter 262,144 |
+| Spawn | Project 20,000／s／Emitter 4,096／s | Project 524,288／s／Emitter 131,072／s |
+| Burst／tick | Project 8,192／Emitter 2,048 | Project 131,072／Emitter 32,768 |
+| Trail point | Project 16,384／Trail 64 | Project 262,144／Trail 256 |
+| Event child depth | 0 | 2。1 eventから最大8 child emitter |
+| Particle light | 0 | Project 32／Emitter 4 |
+| Simulation memory | CPU 32 MiB | GPU persistent 128 MiB＋transient 64 MiB |
+| Reference soft cap | CPU simulation P95 0.75 ms | GPU simulation＋draw P95 0.75 ms |
+
+C1 CPU simulation 32 MiBはRuntime詳細規約11.2節のRendering CPU／upload配下`VFX CPU simulation`へchargeする。GPU memoryは同規約12.1節のRender target／transient Domainへchargeし、Particle textureはTexture Domainへ別途chargeする。Transparent／VFX全体のGPU soft capは1.50 msであり、Particleの0.75 msは予約保証ではない。Pipeline statisticsが利用可能なProfile buildでは`particle PS invocations / internal output pixel`をoverdraw ratioとし、4.0超でwarning、8.0超でAI proposal拒否、Stress fixtureのP95 8.0超でC2 gate失敗とする。counter非対応環境では1/4-resolution overdraw accumulation passをdiagnostic runだけ実行し、Shippingへ含めない。
+
+CPU previewは`seed:uint64`と`particle_spawn_id:uint64`からRuntime詳細規約5.6節のMT19937 streamを割り当てる。GPU simulationは同じseedから再現可能な見た目を目標にするがbitwise replay対象外であり、SaveにはEmitter parameter、seed、start tickだけを保存しalive GPU particleを保存しない。C2のlight emissionはRender light listだけへ入り、Physics、Navigation、AI perception、gameplay damageへ接続しない。
+
+rate emissionは`rate_q32:uint64`のQ32.32 particle／secondで保存する。各60 Hz tickに`numerator = rate_q32 + division_remainder`、`accumulator_q32 += floor(numerator / 60)`、`division_remainder = numerator mod 60`、`spawn = accumulator_q32 >> 32`、`accumulator_q32 &= 0xffffffff`をこの順で行う。`accumulator_q32:uint64`と0～59の`division_remainder:uint8`をEmitter stateへ保持し、rateを0へ変更した場合だけ両方を0へresetする。Burstは指定tickに整数countを加えるが、同tickの合計は上表のalive／spawn上限とqueue capacityを通す。生成しなかった数は`ParticleSpawnDropped{emitter, tick, reason, count}`へ集計し、次tickへ繰り越さない。
+
+Shadow、Environment、Particle等のCapability別memory値は予約ではなく個別Hard上限である。同時に選んだProfileのworst-case committed bytesを所属GPU／CPU Domainごとに合算し、Runtime詳細規約のParent／global capを超えるProject ProfileをCook前に拒否する。未使用Capabilityの枠を別Capabilityへ暗黙移譲せず、貸借はRuntime詳細規約11.4節の期限付き規則だけに従う。
 
 ## 8. Visual Style、Shader、Material
 
@@ -806,11 +1070,12 @@ Material Graph
   → PSO／Shader cache
 ```
 
-- HLSL 2021をDXCでcompileする。
+- HLSL 2021をDXC v1.9.2602.24でcompileする。
 - Shader Model 6.6をReference baselineとする。
 - Root Signature 1.1を使用する。
+- Stable Agility SDK 1.619.4／SDKVersion 619とEnhanced Barriersを使用する。起動時に`D3D12_FEATURE_D3D12_OPTIONS12.EnhancedBarriersSupported`をHard gateとし、legacy `ResourceBarrier` pathを実装しない。
 - 起動時に`D3D12_FEATURE_ROOT_SIGNATURE`をqueryし、`D3D_ROOT_SIGNATURE_VERSION_1_1`未対応deviceはSupport対象外とする。Root Signature 1.0へ自動downgradeしない。
-- DXC、Agility SDKは検証済みStable versionをlock fileへ固定する。
+- DXC v1.9.2602.24とAgility SDK 1.619.4を基盤規約のhashで`toolchain.lock.json`へ固定する。
 - Preview Agility SDKをShipping Buildで使用しない。
 - Source hash、include hash、Material IR hash、Shading Model version、define、compiler version、target、optimizationからcache keyを作る。
 - Reflection結果を独自`ShaderInterface`へ変換し、RuntimeがDXC型へ依存しないようにする。
@@ -1096,7 +1361,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 
 ## 13. 実装順序
 
-1. Foundation、ID、memory、Result、Job、diagnostics
+1. Foundation、ID、memory、Result、Job、diagnostics、Runtime Contract、fixed phase、bounded queue
 2. ChangeSet、World Model、Authoring Service、headless test
 3. Editor shell、Windows／D3D12 device、Render Graph、Asset cooker
 4. Material IR、VisualStyleProfile、StyleCapabilityManifest、Validator、Preview
@@ -1134,6 +1399,8 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 11. User documentationとAI tool descriptionが同じschema versionを参照する。
 12. Visual featureの場合、VisualStyleProfile、Style Validator、代表Scene preview、Style-specific regression testがある。
 13. AIが未対応Styleを選択できず、曖昧なHigh Impact表現を無確認でlockできない。
+14. 状態のauthoritative writer、consume phase、event payload、borrow期限、Asset invalidationをRuntime詳細規約へ割り当てている。
+15. Subsystem別CPU／GPU／memory／queue budgetとoverflow／recovery testを満たす。
 
 ## 15. 主要リスクと確定対策
 
@@ -1156,6 +1423,8 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | Material variantが爆発する | Definition単位compile feature、Instanceで増やさないhard limit |
 | 2D／3D同時開発で完成しない | 共有Foundation後に2D、次に3Dの縦切り |
 | 有名Engineの模倣になる | 独自World Model、ChangeSet、Capability、Editor projectionを維持 |
+| Physics／Nav／Animation／Renderの直接連携で循環する | Runtime Contractと固定phaseを介し、Domain間target依存をCIで拒否 |
+| hot reload中に新旧derived Assetが混在する | dependency closureをstagingし、完全合格後だけboundaryでatomic promotion |
 
 ## 16. 一次資料
 
@@ -1164,27 +1433,38 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | 一次資料群 | 確認した事実 | Miraikanai Engineの規範決定 |
 |---|---|---|
 | Microsoft D3D12／HLSL | Root Signature 1.1はdescriptor／dataの静的性を宣言でき、SM 6.6 direct heap indexingはShader Model 6.6とResource Binding Tier 3の両方を必要とする | SM 6.6／Root Signature 1.1をHard gate、Domain別Root SignatureをEngine所有、Tier 3未満はdescriptor table |
+| ANSI/IES LM-63-19(R25) | luminaireのphotometric dataを電子移送する標準file formatを規定する | C2はType Cとembedded／no tiltだけを受理し、candela配光を独自IRへcookする。C1 lumen fieldと同時指定しない |
 | Khronos glTF 2.0／Extension Registry | CoreはMetallic-Roughness PBR、extensionは個別のratification statusを持つ | C1／C2 import範囲をextension IDで固定し、未対応featureを黙って破棄しない |
 | Khronos Sample Assets | Core materialとextension別の公開fixtureがある | Import、Material IR、golden imageのconformance inputに固定 |
 | Filament Material資料 | GGX系real-time PBR、Material parameter、Energy／roughness処理の公開実装知見がある | 比較根拠に使うが、そのAPIやMaterial schemaは採用せず、独自IRとProject既定値を持つ |
 | Box2D公式Manual／FAQ | Solver toleranceはMKSを前提に調整され、pixelを物理単位にすることは非推奨 | 2D World／Physicsをmeterで統一し、`pixels_per_unit`は描画Asset変換だけに使う |
+| Box2D Simulation | 60 Hzは通常高品質で、推奨sub-step countは4、精度向上例は8 | C1既定4、schema範囲1～8、Play開始時固定 |
+| Jolt Simulation Step | 60 Hz／1 collision stepで一般に安定し、`Update`完了時に内部Jobはjoin済み | C1既定1、schema範囲1～2、Engine worker bridgeを共有 |
+| Recast `rcConfig` | `cs`はAgent radiusの1/2または1/3がstarting guidanceで、小さいほどbuild costが急増する。fieldごとにworld／voxel単位と範囲が異なる | Human Profileの`cs=radius/2`、meterからvoxelへの丸め式、tile／query／memory上限を本書で固定 |
+| Hillaire 2020 atmosphere paper | Transmittance、multiple scattering、sky-view、aerial perspectiveを分離したscalable LUT構成とEarth係数を公開している | `ReferenceEarthV1`のsource係数とLUT fixtureに採用し、Engine schema、更新境界、resource capは独自規範とする |
+| Frostbite 2015／Patry 2021 volumetric資料 | Participating mediaをfroxelへ統合し、低解像度grid、指数depth、temporal filteringで実用化している | Medium／Highの固定froxel上限、履歴破棄、2.00 ms Environment capを独自Profileとして検証する |
+| NVIDIA off-screen particle資料 | 大量のscreen-space particleはoverdraw／fill-rateが支配的になり、低解像度描画がtrade-offになる | alive数だけでなくPS invocation由来overdrawとGPU時間をC2 gateにする |
 | D3D12 Filter、Unity／GodotのPixel資料 | Point filtering、logical resolution、integer scalingがPixel edge保持に必要 | 640×360 fixture、Point、integer scale、letterbox、temporal分離を独自Profile contractとして固定 |
 | NPR一次論文／NVIDIA技術資料 | Ramp shading、outline、view-dependent contour等は複数方式で、共通の単一Toon物理規格ではない | Toonを独立Shading Modelとし、Key Light、Ramp、Outline、Art／Animation Profileを独自に規範化 |
 | Square Enix公式説明 | 「HD-2D」はPixel Artと3D CGの融合を表す製品側の語 | 要求理解にだけ使い、正規名は一般化した独自`pixel_diorama`とする |
 
-本表の「事実」と「規範決定」を混同しない。外部資料が規定するinterchange／API要件はconformance対象とし、Miraikanai固有のProfile、既定値、Render順序、budgetは本書を規範とする。Implementation開始時にDXC、Agility SDK、glTF spec／extension registry、Sample Assets、各Libraryのversionまたはcommitをlock fileへ固定する。移動する`main` branch上のstatusが変わっても自動で対応範囲を変えず、一次資料の再確認、fixture、ADR、性能測定を通して本書を改訂する。
+本表の「事実」と「規範決定」を混同しない。外部資料が規定するinterchange／API要件はconformance対象とし、Miraikanai固有のProfile、既定値、Render順序、budgetは本書を規範とする。DXC v1.9.2602.24、Agility SDK 1.619.4、各Native Libraryのtag／commitは基盤規約の初期値を`toolchain.lock.json`とvcpkg manifestへ固定する。glTF specification／extension registry／Sample Assetsも取得日、revision、fixture hashをContent Conformance Manifestへ固定する。移動する`main` branch上のstatusが変わっても自動で対応範囲を変えず、一次資料の再確認、fixture、ADR、性能測定を通して本書を改訂する。
 
 ### 16.2 参照資料
 
 - [Direct3D 12 Programming Guide](https://learn.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide)
+- [ANSI/IES LM-63-19(R25) official standard page](https://store.ies.org/product/approved-method-ies-standard-file-format-for-the-electronic-transfer-of-photometric-data-and-related-information/)
 - [Direct3D 12 Memory Management Strategies](https://learn.microsoft.com/en-us/windows/win32/direct3d12/memory-management-strategies)
-- [DirectX Shader Compiler](https://github.com/microsoft/DirectXShaderCompiler)
+- [DirectX Shader Compiler v1.9.2602.24](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2602.24)
 - [HLSL Specification](https://microsoft.github.io/hlsl-specs/specs/hlsl.pdf)
 - [Direct3D 12 Root Signatures Overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signatures-overview)
 - [Root Signature Version 1.1](https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-version-1-1)
 - [Shader Model 6.6 Dynamic Resources](https://microsoft.github.io/DirectX-Specs/d3d/HLSL_SM_6_6_DynamicResources.html)
 - [D3D12 Texture Filter](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_filter)
 - [DirectX Agility SDK](https://devblogs.microsoft.com/directx/directx12agility/)
+- [Microsoft.Direct3D.D3D12 1.619.4](https://www.nuget.org/packages/Microsoft.Direct3D.D3D12/1.619.4)
+- [D3D12 Enhanced Barriers](https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html)
+- [`D3D12_FEATURE_DATA_D3D12_OPTIONS12`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_feature_data_d3d12_options12)
 - [GameInput Introduction](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-overview)
 - [XAudio2 Programming Guide](https://learn.microsoft.com/en-us/windows/win32/xaudio2/programming-guide)
 - [DirectWrite](https://learn.microsoft.com/en-us/windows/win32/directwrite/direct-write-portal)
@@ -1197,9 +1477,16 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [KTX 2.0 Specification](https://registry.khronos.org/KTX/specs/2.0/ktxspec.v2.html)
 - [OpenUSD Introduction](https://openusd.org/release/intro.html)
 - [Box2D Documentation](https://box2d.org/documentation/)
+- [Box2D Simulation and sub-steps](https://box2d.org/documentation/md_simulation.html)
 - [Jolt Physics Documentation](https://jrouwe.github.io/JoltPhysics/)
+- [Jolt Physics Simulation Step](https://jrouwe.github.io/JoltPhysics/#the-simulation-step)
 - [Recast Navigation Repository](https://github.com/recastnavigation/recastnavigation)
-- [Luau Embedding](https://luau.org/embedding)
+- [Recast `rcConfig` reference](https://recastnav.com/structrcConfig.html)
+- [Production Ready Atmosphere Rendering, EGSR 2020](https://sebh.github.io/publications/egsr2020.pdf)
+- [Towards Unified and Physically-Based Volumetric Lighting in Frostbite, SIGGRAPH 2015](https://advances.realtimerendering.com/s2015/)
+- [Real-Time Samurai Cinema, SIGGRAPH 2021](https://advances.realtimerendering.com/s2021/jpatry_advances2021/index.html)
+- [NVIDIA GPU Gems 3: High-Speed, Off-Screen Particles](https://developer.nvidia.com/gpugems/gpugems3/part-iv-image-effects/chapter-23-high-speed-screen-particles)
+- [Luau C API](https://luau.org/api/)
 - [Luau Sandboxing](https://luau.org/sandbox)
 - [ozz-animation Documentation](https://guillaumeblanc.github.io/ozz-animation/)
 - [Godot Dedicated 2D Engine](https://docs.godotengine.org/en/stable/about/list_of_features.html#dedicated-2d-engine)

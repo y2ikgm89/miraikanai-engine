@@ -1,10 +1,10 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.3
+- 文書版: 0.4
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-19
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想、基盤アーキテクチャ、2D／3D機能範囲を統合した設計レビュー版
+- 状態: 基本構想、基盤、Runtime連携、2D／3D機能範囲を統合した設計レビュー版
 
 ## 1. エグゼクティブサマリー
 
@@ -354,7 +354,7 @@ AIが実装方式を判断するための制約を保持する。
 
 ## 7. システムアーキテクチャ
 
-本章はProduct全体の論理構成を定義する。C++ module依存、所有権、memory、thread、error、Build、directoryの規範は、[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)を唯一の詳細基準とする。2D／3D Subsystemの機能範囲は、[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)へ従う。
+本章はProduct全体の論理構成を定義する。C++ module依存、所有権の一般則、Build、directoryは[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)、Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)、2D／3D Subsystemの機能範囲は[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)を詳細基準とする。
 
 ```text
 Human Prompt / Editor / External Agent
@@ -437,7 +437,7 @@ Editor GUIの操作も直接状態を書き換えず、ChangeSetへ変換する�
 
 ### 7.3 AI Orchestrator
 
-Engine外のNode.js 24 LTS／TypeScript 6.0 strict別Processとして配置し、Model Providerの更新、障害、CredentialをEngineから隔離する。EngineとはACL付きWindows named pipe上のversioned JSON-RPCで接続する。
+Engine外のNode.js 24.18.0 LTS／TypeScript 7.0.2 strict別Processとして配置し、Model Providerの更新、障害、CredentialをEngineから隔離する。EngineとはACL付きWindows named pipe上のversioned JSON-RPCで接続する。
 
 - Provider adapter
 - Prompt／Schema version
@@ -820,18 +820,21 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 ### Phase 0: Foundation契約とToolchain
 
-- 本三文書の承認
-- Windows 11 x64／Direct3D 12／C++20 Toolchain
-- CMake Presets／vcpkg manifest／固定Dependency
+- 本四文書の承認
+- Windows 11 25H2以降 x64／Direct3D 12／C++20 Toolchain
+- VS Build Tools 18.8.0／MSVC 14.51／Windows SDK 10.0.26100.8249／CMake 4.4.0／Ninja 1.13.2の`toolchain.lock.json`
+- vcpkg manifest／固定Dependency
 - Module dependency DAGとComposition Root
+- `mira_runtime_contracts`、`mira_runtime_package`、`RuntimeOrchestrator`、Domain Port／Runtime／Adapter境界、`ComponentAccessManifest`
 - RAII、所有権、generation handle
+- 12段階fixed tick、8段階render frame、typed command／event、bounded queue
 - CPU memory domain、GPU allocator、residency、fence-deferred release
-- Result／Error、thread affinity、fixed tick
+- Result／Error、thread affinity、borrow epoch、Asset version／atomic promotion
 - Naming、format、static analysis、sanitizer
 - 2D／3Dの座標、単位、色、時間規約
 - Scene dimension、Art Direction、Composition、Shading Modelの正規四軸
 
-完了条件は、空のEditorHost／GameHost／WorkerHostが固定toolchainでBuildでき、Foundation contract test、ASan、format、static analysisがCIで成功することである。
+完了条件は、空のEditorHost／GameHost／WorkerHostが固定toolchainでBuildでき、Foundation contract、phase順序、handle／borrow、bounded queue、memory failure、Asset atomic promotionのtest、ASan、format、static analysisがCIで成功することである。
 
 ### Phase 1: Headless Authoring Core
 
@@ -1014,16 +1017,16 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 |---|---|
 | 最初の縦切り | 2D top-down action |
 | 第二の縦切り | 3D single-player third-person compact action arena |
-| Platform | Windows 11 x64 |
+| Platform | Windows 11 25H2以降 x64（OS build 26200以上） |
 | Graphics | Direct3D 12、C1はForward+、C2でHybrid renderer |
 | Language | C++20 |
-| Script | Luau strict mode＋Engine Capability API |
-| 2D Physics | Box2D Adapter |
-| 3D Physics | Jolt Physics Adapter |
-| 3D Navigation | Recast／Detour Adapter |
-| GPU memory | D3D12MAをEngine-owned wrapper内で利用 |
-| Build | CMake Presets＋vcpkg manifest、version固定 |
-| Performance | 1080p60、RTX 3060／RX 6600級、runtime 2 GiB soft budget |
+| Script | Luau 0.730 strict mode＋Engine Capability API |
+| 2D Physics | Box2D 3.1.1 Adapter |
+| 3D Physics | Jolt Physics 5.6.0 Adapter |
+| 3D Navigation | Recast／Detour 1.6.0 Adapter |
+| GPU memory | D3D12MA 3.2.0をEngine-owned wrapper内で利用 |
+| Build | VS Build Tools 18.8.0／MSVC 14.51、CMake 4.4.0 Presets＋Ninja Multi-Config 1.13.2＋vcpkg manifest、hashとversion固定 |
+| Performance | 1080p60、Ryzen 5 5600、16 GiB、RTX 3060 12 GB／RX 6600 8 GB、runtime CPU 2 GiB soft budget |
 | Visual Style model | Scene dimension、Art Direction、Composition、Shading Modelを分離 |
 | Material | 型付きMaterial IR、複数Shading Model、Engine-owned Root Signature |
 | 最初の2D Style | `pixel_2d`、640×360、32 PPU、integer scale |
@@ -1031,27 +1034,33 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Production Style順 | Realistic advanced→Toon→独自`pixel_diorama` |
 | Style決定 | 明示要件優先、Genre単独決定禁止、High Impactは人間選択または一件限定`allow_ai_select`委任 |
 | AI経路 | 内蔵はModel API、外部HostはMCP、配布単位はPlugin |
-| AI Orchestrator | Node.js 24 LTS／TypeScript 6.0 strict、別Process |
+| AI Orchestrator | Node.js 24.18.0 LTS／TypeScript 7.0.2 strict、別Process |
 | 初期Provider | OpenAI Responses API、`gpt-5.6-sol`、reasoning `medium` |
 | IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | Editor | Dock／resize／floating、保存可能な複数Workspace、AI Partnerをpin可能 |
 | Compatibility | Pre-1.0 API／ABI互換なし。永続Projectだけoffline migratorで一方向移行 |
+| Runtime連携 | Domain間の直接呼出し禁止。`RuntimeOrchestrator`が固定phaseでtyped command／event／snapshotを統合 |
+| Runtime storage | 独自16 KiB archetype chunk＋SoA列。構造変更はtick boundaryだけ |
+| Lifetime | generation handle、phase／epoch付きlease、Asset Registry単一所有、queue別GPU fence retire |
+| Performance target | CPU／GPU P95 14.00 ms soft、16.67 ms hard。Subsystem別budgetと10分soak |
 
 ### 16.2 実装計画書で分解する事項
 
 次は設計上の選択肢ではなく、承認済み設計を実装taskへ分解する作業である。
 
 1. World Model、ChangeSet、Capability、VisualStyleProfile schemaのfield-level定義
-2. C++ target単位のdependency graphと最初のpublic header
+2. 承認済みtarget DAGをfile／public header／CMake targetへ割り当てる実装単位
 3. Authoring ServiceとAI Orchestrator間のJSON-RPC method／message schema
 4. Luau Capability contractのfield-level定義
-5. D3D12 feature check、descriptor layout、Render Graph resource model
+5. D3D12 feature check、descriptor field layout、Render Graph resource recordのfield-level schema
 6. Reference sceneのfixtureとBenchmark測定手順
 7. Editor shellのaccessibility bridge検証
 8. Approval Policyのoperation別初期値
 9. Asset placeholderのlicense、生成、差替えworkflow
 10. Material IR node、Domain output、Shading Model interface、Root Signature layout
 11. VisualStyleResolverのrule engine、prompt fixture、60件×3回Eval harness
+12. typed command／event、snapshot、queue payloadのfield-level schemaとcode generation
+13. Reference profileのmemory／frame budgetを計測するtelemetry fixture
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 
@@ -1080,6 +1089,9 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | GPU memoryのthrashing | OS budget監視、residency priority、streaming、明示的な失敗 |
 | Clean実装の名目でProject dataを失う | Runtime互換分岐は持たず、backup付きoffline migratorだけを提供 |
 | Module境界が崩れVendorへ固定される | CMake dependency DAG、Ports／Adapters、public header検査 |
+| Subsystemが相互に直接変更して順序依存になる | RuntimeOrchestrator、固定phase、typed command／event、非再入配送 |
+| Hot reloadで新旧Assetが混在する | dependency closure全体をstagingし、boundaryでatomic promotion |
+| 非同期jobが破棄済みobjectへ書く | handle＋versionを開始時と統合時に再検査し、stale resultを破棄 |
 
 ## 18. 調査から得た位置付け
 
@@ -1111,7 +1123,13 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 - Unreal MCP: https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor
 - Godot EditorPlugin: https://docs.godotengine.org/en/stable/tutorials/plugins/editor/making_plugins.html
 - C++ Core Guidelines: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines
+- Windows 11 Release Information: https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information
+- Visual Studio 2026 Release History: https://learn.microsoft.com/en-us/visualstudio/releases/2026/release-history
+- MSVC Build Tools 14.51 GA: https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/
 - MSVC C++ language standard: https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version
+- CMake 4.4: https://cmake.org/cmake/help/v4.4/release/4.4.html
+- Node.js 24.18.0 LTS: https://nodejs.org/en/blog/release/v24.18.0
+- TypeScript 7.0: https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/
 - Direct3D 12 Programming Guide: https://learn.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide
 - Direct3D 12 Memory Management Strategies: https://learn.microsoft.com/en-us/windows/win32/direct3d12/memory-management-strategies
 - D3D12 Memory Allocator: https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator
@@ -1119,11 +1137,11 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 - Box2D: https://box2d.org/documentation/
 - Jolt Physics: https://jrouwe.github.io/JoltPhysics/
 - Recast Navigation: https://github.com/recastnavigation/recastnavigation
-- Luau Embedding／Sandbox: https://luau.org/embedding
+- Luau C API／Sandbox: https://luau.org/api/
 - glTF 2.0 Specification: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
 
 ## 20. 次のアクション
 
-本書、基盤アーキテクチャ規約、2D／3D機能計画の三文書を一つの設計としてReviewする。矛盾、未定義の責務、根拠のない技術選択を解消して承認した後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
+本書、基盤アーキテクチャ規約、Runtime連携・寿命・性能規約、2D／3D機能計画の四文書を一つの設計としてReviewする。矛盾、未定義の責務、根拠のない技術選択を解消して承認した後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、2D First Playable、3D First Playableの順に分解する。承認前にEngine実装へ着手しない。

@@ -1,10 +1,11 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 
 ## 1. 目的と規範の読み方
 
@@ -23,48 +24,101 @@
 
 | 項目 | 公式基準 |
 |---|---|
-| 開発Host | Windows 11 x64 |
-| 初期Game出力 | Windows 11 x64 |
+| 開発Host | Windows 11 25H2以降 x64（OS build 26200以上） |
+| 初期Game出力 | Windows 11 25H2以降 x64（OS build 26200以上） |
 | Graphics API | Direct3D 12 |
 | 言語 | C++20 |
-| Primary compiler | Visual C++（最新の検証済みStable toolsetを固定） |
-| Secondary compiler | clang-cl（CIの診断用。出荷ABIはMSVCで統一） |
-| Build | CMake Presets |
-| Dependency管理 | vcpkg manifest mode、baselineとversionを固定 |
-| AI Orchestrator | Node.js 24 LTS、TypeScript 6.0 strict、別Process |
+| Windows SDK | 10.0.26100.8249 |
+| Primary compiler | Visual Studio Build Tools 2026 18.8.0 Stable（build 12009.203）＋MSVC Build Tools v14.51 x64/x86 |
+| Secondary compiler | LLVM／clang-cl 22.1.8（CI診断用。出荷ABIはMSVCで統一） |
+| Build | CMake 4.4.0、Presets schema 12、Ninja Multi-Config 1.13.2 |
+| Dependency管理 | vcpkg manifest mode、builtin baseline `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
+| AI Orchestrator | Node.js 24.18.0 LTS、TypeScript 7.0.2 strict、別Process |
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
-| 初期Model Provider | OpenAI Responses API、公式TypeScript SDK |
+| 初期Model Provider | OpenAI Responses API、公式TypeScript SDK 6.48.0 |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium`を明示 |
-| Shader | HLSL 2021、DXC、Shader Model 6.6、Root Signature 1.1を必須基準 |
-| Script VM | Luau strict mode、Engine-owned Capability APIだけを公開 |
-| 2D Physics kernel | Box2D 3.xをAdapter内で利用 |
-| 3D Physics kernel | Jolt Physicsの検証済みtagをAdapter内で利用 |
-| 3D Navigation kernel | Recast Navigation／DetourをAdapter内で利用 |
-| GPU suballocation | D3D12 Memory AllocatorをEngine-owned wrapper内で利用 |
-| Reference runtime target | 1920×1080、60 fps、RTX 3060／RX 6600級、8 GB VRAM |
+| Shader | HLSL 2021、DXC v1.9.2602.24、Shader Model 6.6、Root Signature 1.1を必須基準 |
+| D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
+| Script VM | Luau 0.730 strict mode、Engine-owned Capability APIだけを公開 |
+| 2D Physics kernel | Box2D 3.1.1をAdapter内で利用 |
+| 3D Physics kernel | Jolt Physics 5.6.0をAdapter内で利用 |
+| 3D Navigation kernel | Recast Navigation／Detour 1.6.0をAdapter内で利用 |
+| GPU suballocation | D3D12 Memory Allocator 3.2.0をEngine-owned wrapper内で利用 |
+| Reference runtime target | 1920×1080、60 fps、Ryzen 5 5600、16 GB DDR4-3200 dual-channel、PCIe 3.0 NVMe、RTX 3060 12 GB／RX 6600 8 GB |
 | CPU memory baseline | Game runtime 2 GiB soft budget |
 | GPU residency baseline | 5.5 GiB Project budgetか、OS通知budgetの80%の小さい方 |
-| Editor memory baseline | 4 GiB soft budget。外部Compiler／AI processは別計測 |
-| Physics tick | 60 Hz固定を初期値とし、Project Profileで明示変更可能 |
+| Editor memory baseline | Editor process group 4 GiB soft budget。Play Runtime 2 GiB＋Authoring 2 GiBを含み、外部Compiler／AI processは別計測 |
+| Tool process memory baseline | Editor-launched child tree全体4 GiB hard commit cap。AI／Asset／Shader／Native Buildは個別nested Job limit |
+| Physics tick | C1／C2はexactly 60 Hz。Profileへ保存するが60以外を拒否し、可変rateはC3 ADR対象 |
 
-Windows 10は2025年10月14日に一般サポートが終了しているため正式Targetに含めない。動作する可能性は否定しないが、CI、性能保証、Support matrixの対象外とする。
+Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H2 Home／Proも2026年10月13日に更新終了となるため正式Targetに含めない。Windows 11 25H2の初期build familyである26200を最小とし、Support対象はMicrosoftが更新提供中のeditionと累積更新を適用した環境に限る。26H1は新規device向けで既存24H2／25H2 deviceへのin-place updateではないため、最小Targetの根拠にしない。
+
+### 2.1 Toolchain lockと再現可能Build
+
+本節のversionは2026年7月19日時点の初期検証baselineであり、「最新」を意味するfloating指定ではない。Phase 0はrepository rootの`toolchain.lock.json`へ次を記録し、Developer bootstrap、CI image、Build manifestが同じ値を照合する。version、URL、size、hash、署名、実行file versionのいずれかが異なる環境はconfigure前に失敗させる。
+
+| Tool | 固定artifact／source | 固定値 |
+|---|---|---|
+| Visual Studio Build Tools | [18.8.0 fixed-version Build Tools bootstrapper](https://download.visualstudio.microsoft.com/download/pr/e05c0bc8-d058-4b2b-937c-1c80073d7633/b62e8829c6a6c043aacf2ef657456213ab71099c7e46a610f95d6778bfc9beb0/vs_BuildTools.exe) | 5,687,056 bytes、SHA-256 `b62e8829c6a6c043aacf2ef657456213ab71099c7e46a610f95d6778bfc9beb0`、ProductVersion 18.8.0、FileVersion 18.8.12009.203 |
+| MSVC | Stableの「MSVC Build Tools v14.51 for x64/x86」versioned component | `cl.exe`／`link.exe` 14.51.36231以上。`Latest`／`Preview` componentは禁止し、固定bootstrapperが解決したexact `VCToolsVersion`と各binary SHA-256をlockへ保存 |
+| Windows SDK | Visual Studio installerのversioned component | 10.0.26100.8249。`CMAKE_SYSTEM_VERSION`と`WindowsTargetPlatformVersion`を一致させる |
+| CMake | [cmake-4.4.0-windows-x86_64.zip](https://cmake.org/files/v4.4/cmake-4.4.0-windows-x86_64.zip) | 54,388,920 bytes、SHA-256 `156d70eb7625a7b469444df7d0861d2af8d5d0a437fce32c350372b08f5620e8` |
+| Ninja | [ninja-win.zip v1.13.2](https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-win.zip) | 291,570 bytes、SHA-256 `07fc8261b42b20e71d1720b39068c2e14ffcee6396b76fb7a795fb460b78dc65` |
+| LLVM診断toolchain | [LLVM-22.1.8-win64.exe](https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-win64.exe) | commit `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1`、455,545,840 bytes、SHA-256 `16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c` |
+| vcpkg registry | [2026.06.24](https://github.com/microsoft/vcpkg/releases/tag/2026.06.24) | `builtin-baseline` `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
+| DXC | [dxc_2026_05_27.zip](https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2602.24/dxc_2026_05_27.zip) | tag v1.9.2602.24、commit `d355aa8364d34df3f0822ba0de8d1dfc75ae6f48`、27,108,038 bytes、SHA-256 `cf658aacf070d3045e31b8f1f8a696c2945f37c1095019481ef7c513368db3b4` |
+| Node.js | [node-v24.18.0-win-x64.zip](https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip) | 37,176,245 bytes、SHA-256 `0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821` |
+| TypeScript | npm `typescript@7.0.2` | tarball 365,612 bytes、integrity `sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==` |
+| OpenAI TypeScript SDK | npm `openai@6.48.0` | commit `ee5bce84fccb97135948a4838255804d4af1b7dd`、tarball 1,707,934 bytes、integrity `sha512-KhVp+FyV50QrXNextvL9hIU5l6ox5HYuKQjGVk7lIqprgJol90+dQXWONV6S1lRWsKA1bXjrow8RsUT14M1hNA==` |
+
+Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証する。GitHub release artifactはrelease APIのdigest、tag commit、取得後hashを照合する。npm packageは`package-lock.json`のexact versionとintegrityを`npm ci`で検証し、install scriptを持つpackageはallowlist外なら失敗させる。
+
+`toolchain.lock.json`のschema version 1は次のfieldを必須とする。schemaにないfield、`null`、重複tool ID、相対URL、複数hash候補を許可しない。arrayは`tool_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
+
+| Field | 型／固定規則 |
+|---|---|
+| `lock_schema_version` | `uint32`、値1 |
+| `host.min_os_build` | `uint32`、値26200 |
+| `host.os_build`／`host.ubr` | `uint32`、初期値26200／8875 |
+| `artifacts[].tool_id` | lowercase ASCII snake_case、重複不可 |
+| `artifacts[].version` | exact UTF-8 string。range、`latest`、wildcard禁止 |
+| `artifacts[].url`／`artifacts[].resolved_url` | 本節のHTTPS URLとredirect完了後URL。redirectなしは同値 |
+| `artifacts[].size_bytes` | `uint64`、downloaded byte数と完全一致 |
+| `artifacts[].sha256` | 64文字lowercase hex |
+| `artifacts[].source_commit` | 対応するsource tagがあるtoolは40文字lowercase Git SHA-1、それ以外は空文字 |
+| `resolved_files[]` | `{tool_id, relative_path, size_bytes, file_version, sha256, authenticode_publisher}`。MSVC、Windows SDK、DXC、CMake、Ninja、LLVM、Nodeの実行fileを列挙。PE／MSI以外はpublisherを空文字 |
+| `build.msvc_tools_version` | fixed layoutから得たexact directory名。`14.51`のprefix一致だけでは合格にしない |
+| `build.windows_sdk_version` | exact `10.0.26100.8249` |
+| `build.cmake_version`／`build.generator`／`build.ninja_version` | `4.4.0`／`Ninja Multi-Config`／`1.13.2` |
+| `vcpkg.builtin_baseline` | 40文字commit `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
+| `npm.node_version` | `24.18.0` |
+| `npm.package_lock_sha256` | Commit済み`orchestrator/package-lock.json`の64文字lowercase hex |
+| `npm.packages` | `{name, version, tarball_url, size_bytes, integrity}`をname昇順で列挙 |
+
+machine comparisonは必ず`host.os_build == 26200 && host.ubr == 8875`のように独立fieldで行う。月次OS baseline更新は両field、CI image digest、Runtime規約14.1節のbridge baselineを同じChangeSetで更新する。
+
+`CMakePresets.json`はschema 12、generatorは`Ninja Multi-Config`に固定する。`Development`、`Profile`、`Shipping`、`ASan`をconfigureし直さず同一Build treeで選べるようにする一方、CI jobごとに空のBuild treeを使用する。CMakeは`cmake_minimum_required(VERSION 4.4.0)`に加えbootstrapでexact 4.4.0を照合する。
+
+MSVCはversioned v14.51 componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap手順である。
+
+TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、現時点で安定公開されていないTypeScript compiler programmatic APIへ製品codeを依存させない。正式artifactのcompileは`--strict --singleThreaded`を明示して、experimentalな`--checkers`／`--builders`を使わない。Developerのwatch／language serviceは既定の並列処理を使えるが、その出力をShipping artifactとして採用せず、Commit gateでsingle-threaded clean buildを再実行する。
 
 数値予算は無期限の定数ではない。Reference sceneのBenchmarkを根拠にADRで改定する。ただし、改定されるまで上表が合否判定値であり、実装者ごとの暗黙値を認めない。
 
-初期Reference Projectの2 GiB CPU soft budgetは次に分割する。各Domainはreserve 128 MiBを除いて未使用分を一時的に貸借できるが、peakは元Domainと借用先の両方へ記録する。
+初期Reference Projectの2 GiB CPU soft budgetは次に分割する。Emergency reserveは貸し出さない。その他の未使用Parent budgetは一つのload jobまたは最大120 frameだけ貸借でき、貸出元、借用先、global totalへ同時に記録する。child配分、80／90／100% threshold、Editor 4 GiB配分、貸借失敗時の処理はRuntime詳細規約を唯一の基準とする。
 
 | CPU Domain | 初期soft budget |
 |---|---:|
 | Core World／Save | 256 MiB |
 | Rendering CPU data／upload staging | 256 MiB |
 | Physics／Navigation／Animation | 256 MiB |
-| Script VM全体 | 128 MiB |
+| Script Domain全体 | 128 MiB |
 | Audio | 128 MiB |
 | Asset streaming cache | 768 MiB |
 | Frame／Job transient | 128 MiB |
 | Emergency reserve | 128 MiB |
 
-Scriptは1 module 32 MiB、Project全体128 MiBを既定quotaとする。5.5 GiB GPU budgetはtexture 3 GiB、geometry 1 GiB、render target／transient 1 GiB、shader／descriptor 256 MiB、emergency reserve 256 MiBへ分ける。OSのBudgetが5.5 GiB未満ならcritical resourceとreserveを維持し、texture mip、streaming距離、shadow、transient resolutionの順にQuality Profileを下げる。
+Script Domain全体は128 MiB、Luau VM heapはProject合計96 MiB／1 module 32 MiB、bytecode cacheはProject 16 MiB／1 module 4 MiB、残り16 MiBはGC／diagnostic reserveとする。5.5 GiB GPU budgetはtexture 3 GiB、geometry 1 GiB、render target／transient 1 GiB、shader／descriptor 256 MiB、emergency reserve 256 MiBへ分ける。OSのBudgetが5.5 GiB未満ならcritical resourceとreserveを維持し、texture mip、streaming距離、shadow、transient resolutionの順にQuality Profileを下げる。
 
 ## 3. 後方互換性を持たないClean実装の意味
 
@@ -136,7 +190,7 @@ flowchart BT
 - Editor hierarchyをRuntime object hierarchyとして直接実行しない。
 - Pointer、address、allocator内部indexを永続化しない。
 
-Runtime Worldはdata-orientedなEntity／Component storageを採用するが、特定の既存ECS APIを公開モデルにしない。Component storageはSoAまたはarchetype chunkを用い、実測によりSubsystem単位で選ぶ。
+Runtime Worldの公式storageは、16 KiB payload、64 byte alignment、ComponentごとのSoA列を持つ独自archetype chunkとする。構造変更はfixed tickの`T00_BoundaryApply`だけで行い、chunk移動後のComponent address保持を禁止する。Domain private storageに純粋SoA、sparse set、poolを採る場合は、公開World契約を変えず、archetype基準との再現可能な比較BenchmarkとADRを必須とする。
 
 ### 4.3 唯一の状態変更経路
 
@@ -146,7 +200,7 @@ ChangeSetのrevision fieldは`base_project_revision`とする。Worldだけで�
 
 ### 4.4 AI OrchestratorとIPC
 
-EngineはModel Provider SDK、API key、HTTP clientをlinkしない。Node.js 24 LTS／TypeScript 6.0 strictの`AiOrchestrator`を別Processとして起動し、Provider adapter、prompt／schema version、session、retry、rate limit、cost、audit、MCP serverを隔離する。
+EngineはModel Provider SDK、API key、HTTP clientをlinkしない。Node.js 24.18.0 LTS／TypeScript 7.0.2 strictの`AiOrchestrator`を別Processとして起動し、Provider adapter、prompt／schema version、session、retry、rate limit、cost、audit、MCP serverを隔離する。
 
 初期ProviderはOpenAI Responses APIと公式TypeScript SDK、初期評価Modelは`gpt-5.6-sol`、reasoning effortは`medium`を明示する。Model IDはEngine codeへhard-codeせず、検証済みProvider manifestに固定する。品質、latency、costのEvalを通した後だけrole別にSol／Terra／Lunaを追加し、すべてをflagshipへ送るroutingを禁止する。Anthropic adapterは同一Provider conformance suiteを満たした後に追加する。
 
@@ -375,9 +429,11 @@ Global mutable singletonは禁止する。ServiceはComposition Rootから明示
 
 ### 8.3 Simulation
 
-Physicsとgameplay simulationは60 Hz fixed stepを初期値とし、renderはinterpolationする。最大catch-up stepを4とし、それを超えた時間はspiral of deathを避けるためdiagnostic付きでclampする。
+C1／C2のPhysicsとgameplay simulationはexactly 60 Hz fixed stepとし、renderはinterpolationする。最大catch-up stepを4とし、それを超えた時間はspiral of deathを避けるためdiagnostic付きでclampする。別rateはC3 ADRと全fixture改訂なしに許可しない。
 
 Deterministic replayは同一Engine version、同一platform、同一build、同一seed、同一input streamを保証範囲とする。異なるCPU architecture、compiler、physics library version間のbitwise determinismは初期保証に含めない。
+
+RuntimeはRuntime詳細規約の12段階tickと8段階render frameを唯一の実行順序とする。Domain同士は直接呼び出さず、`RuntimeOrchestrator`がtyped command、event、immutable snapshot、version付きAssetをphase境界で統合する。非同期結果はowner generation、input revision、対象versionを統合時に再検査する。
 
 ## 9. Error、Exception、Assertion
 
@@ -468,9 +524,13 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 /
 ├─ CMakeLists.txt
 ├─ CMakePresets.json
+├─ toolchain.lock.json
 ├─ vcpkg.json
 ├─ vcpkg-configuration.json
 ├─ cmake/
+│  ├─ dependencies/
+│  │  └─ agility.cmake
+│  └─ toolchains/
 ├─ config/
 ├─ schemas/
 ├─ docs/
@@ -486,6 +546,11 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ world/
 │  ├─ assets/
 │  ├─ jobs/
+│  ├─ runtime/
+│  │  ├─ contracts/
+│  │  ├─ orchestration/
+│  │  ├─ package/
+│  │  └─ compiler/
 │  ├─ rendering/
 │  │  ├─ core/
 │  │  ├─ materials/
@@ -553,6 +618,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 
 `engine/rendering/materials`はMaterial IR、Shading Model contract、ShaderInterface、compile keyを所有する。`engine/rendering/visual_styles`はcook済みVisual StyleのRuntime適用とRender layer compositionを所有し、Authoring schemaやAI判断を持たない。`authoring/visual_styles`はVisualStyleProfile、StyleChangeSet、Validator、Preview modelを所有する。`orchestrator/src/visual_styles`は候補生成と説明だけを行い、Capability hard gate、Style validation、Commit権限を持たない。
 
+`engine/runtime/contracts`はDomain実装を持たないtyped command／event／snapshotだけを所有する。`engine/runtime/orchestration`はphase順序とbuffer mergeを所有し、vendor型をincludeしない。`engine/runtime/package`はversioned binary manifestとloaderを所有し、Authoring objectを参照しない。`engine/runtime/compiler`はCommit済みAuthoring revisionからRuntime packageを生成し、live Runtime Worldを参照しない。
+
+各`engine/<domain>`は公開契約の`<domain>_port`、World query／System／resolverを持つ`<domain>_runtime`、vendor変換の`<domain>_<backend>_adapter`を別CMake targetにする。Runtimeだけが宣言済みComponent accessを通して`mira_world`へ依存でき、AdapterはWorldへ依存しない。Rendering、Audio、VFX、Luau binding等、snapshot／commandだけで動くconcrete targetには、上限DAGにedgeがあってもWorld dependencyを与えない。正確な許可edgeとread／write setはRuntime詳細規約を基準にする。
+
 各moduleは次を標準形とする。
 
 ```text
@@ -569,9 +638,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 - Generated source、object、cache、downloaded dependencyをsource treeへ置かない。
 - 一つのdirectoryに複数の無関係なSubsystemを置かない。
 - `common`、`misc`、`shared`、巨大な`utils` directoryを作らない。
-- `third_party`へvendor sourceを手動copyしない。Patchとnoticeだけを追跡し、取得はvcpkg manifestで再現する。
+- `third_party`へvendor sourceを手動copyしない。Patchとnoticeだけを追跡する。C／C++ Libraryはvcpkg manifest、Agility SDKは公式NuGet flat-container URL＋SHA-512で取得を再現する。
 - Public includeはmoduleの契約であり、他moduleの`src`をincludeしてはならない。
 - Hostだけがconcrete adapterを生成し、core module内でservice locatorを構築しない。
+- Domain targetから別Domain targetへの直接依存を禁止し、cross-domain dataは`engine/runtime/contracts`を経由する。
 - C++とTypeScriptで共有するwire schemaは`schemas/`から双方の型を生成し、手書きで二重管理しない。
 
 ## 13. Dependency採用規則
@@ -581,31 +651,51 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 Dependencyを採用する条件:
 
 1. 公式repositoryとlicenseを確認する。
-2. 検証済みtag／commitとvcpkg baselineを固定する。
+2. 検証済みtag／commitとvcpkg baseline、または公式binary packageのexact version、SHA-256、lock fileを固定する。
 3. SBOMとthird-party noticeへ記録する。
 4. Engine-owned interfaceのAdapter内へ隔離する。
 5. Vendor型を永続format、Game API、Editor APIへ露出しない。
 6. Determinism、threading、allocator、exception、coordinate系をconformance testで固定する。
 7. 更新は専用ChangeSetで行い、replay、performance、serialized fixtureを再検証する。
 
-Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.xの正確なpatch、npm package、integrity hashを`package-lock.json`とCI imageへ固定する。Node.jsのCurrent版、TypeScript preview、floating version rangeをShipping toolchainに使わない。
+Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeScript 7.0.2、npm package、integrity hashを`toolchain.lock.json`、`package-lock.json`、CI imageへ固定する。Node.jsのCurrent版、TypeScript preview、floating version rangeをShipping toolchainに使わない。
 
 初期採用:
 
 | Dependency | 初期検証baseline | License | 採用範囲 | 独自で保持する範囲 |
 |---|---|---|---|---|
-| D3D12MA | 3.2.0 | MIT | D3D12 heap suballocation、budget stats | GPU handle、tag、lifetime、residency policy |
-| Box2D | 3.1.1 | MIT | 2D collision／solver | Engine component、unit変換、event、serialization |
-| Jolt Physics | 5.5.0 | MIT | 3D collision／solver | Engine component、job bridge、event、serialization |
-| Recast／Detour | 1.6.0 | zlib | Navmesh build／query kernel | Build profile、tile asset、AI command、debug UX |
-| Luau | 0.730 | MIT | Parser、bytecode、VM、GC | Capability API、quota、permission、hot reload policy |
-| ozz-animation | 0.16.0 | MIT | Skeleton compression、sampling、blend primitives | Animation graph、state machine、root motion、IK policy |
-| DirectXTex | may2026 | MIT | Offline texture decode／mipmap／BC encoding | Asset schema、import policy、cooked format |
-| Dear ImGui Docking | 1.92.8-docking | MIT | 初期Editor shellのPanel描画、Docking、multi-viewport | Document、workspace、command、undo、design system、accessibility |
+| Microsoft.Direct3D.D3D12 | 1.619.4／SDKVersion 619／package SHA-512は下記 | Package同梱`LICENSE.txt`／`LICENSE-CODE.txt` | Agility runtime、D3D12 header、Enhanced Barriers | Device gate、Render Graph、resource lifetime、packaging validation |
+| D3D12MA | v3.2.0／`1d86c1130f61453634b1df85782e1fecfd59a525` | MIT | D3D12 heap suballocation、budget stats | GPU handle、tag、lifetime、residency policy |
+| Box2D | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3` | MIT | 2D collision／solver | Engine component、unit変換、event、serialization |
+| Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a` | MIT | 3D collision／solver | Engine component、job bridge、event、serialization |
+| Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | Navmesh build／query kernel | Build profile、tile asset、AI command、debug UX |
+| Luau | 0.730／`5bc7f4b23756f69f4669b419fa9034f117ccd6fe` | MIT | Parser、bytecode、VM、GC | Capability API、quota、permission、hot reload policy |
+| ozz-animation | 0.16.0／`6cbdc790123aa4731d82e255df187b3a8a808256` | MIT | Skeleton compression、sampling、blend primitives | Animation graph、state machine、root motion、IK policy |
+| DirectXTex | may2026／`4feb3e11a020f35b796fc769a74216a555d4f5ef` | MIT | Offline texture decode／mipmap／BC encoding | Asset schema、import policy、cooked format |
+| Dear ImGui Docking | v1.92.8-docking／`b61e56346a92cfcaf1f43a545ca37b0b32239654` | MIT | 初期Editor shellのPanel描画、Docking、multi-viewport | Document、workspace、command、undo、design system、accessibility |
 
 上表はfloating rangeではなく初回conformance testの入力である。License、MSVC／C++20 Build、allocator hook、sanitizer、determinism、performanceに合格したexact tag／SHAをvcpkg baselineまたはlock manifestへ記録する。失敗時は無言で別versionへ置き換えず、原因、代替version、API差分をADRへ残す。Release更新は自動追従しない。
 
+`third_party/ports`のoverlay portは上表のcommitとsource archive SHA-512を固定する。vcpkg builtin portが別commitを指す場合はbuiltinへ追従せずoverlayを使う。CIはresolved source commit、patch hash、compiler options、license hashをSBOMとBuild manifestへ出力する。
+
 Dear ImGuiのDocking版は初期Editor shellのPanel描画とDockingに限って利用する。ただし、Editor document model、workspace、command、undo、accessibility metadataをImGui固有stateにしない。複雑なtext renderingはDirectWriteを利用する。
+
+Jolt 5.6.0で追加されたGPU compute／hair simulationは初期採用範囲外とし、`JPH_USE_DX12=OFF`、`JPH_USE_VK=OFF`、`JPH_USE_MTL=OFF`、`JPH_USE_CPU_COMPUTE=OFF`でCPU rigid-body kernelだけをBuildする。MiraikanaiのD3D12 device、Render Graph、GPU memory所有権へJoltを接続しない。
+
+D3D12 Adapterは公式NuGet `Microsoft.Direct3D.D3D12` 1.619.4を次の固定値で取得する。
+
+```text
+URL:
+https://api.nuget.org/v3-flatcontainer/microsoft.direct3d.d3d12/1.619.4/microsoft.direct3d.d3d12.1.619.4.nupkg
+Size:
+35169986 bytes
+SHA-512:
+6a275381027ed758714eedf1ccaeea446b1d9afeddc1f6b6bbc3c85939ef9ffd02b7fae780cd50da635b66b09f5fce99535788551cd64e3663b9e59fe6f7d9de
+```
+
+`cmake/dependencies/agility.cmake`がBuild treeへdownload／extractし、sizeとSHA-512不一致をconfigure errorにする。GPUを使う`EditorHost`／`GameHost` EXEは`D3D12SDKVersion=619`と`D3D12SDKPath=".\\D3D12\\"`をexportし、packageのheaderをWindows SDKより先にincludeする。Development／Profile packageは対応する`D3D12Core.dll`と`D3D12SDKLayers.dll`、Shippingは`D3D12Core.dll`だけをEXE隣接`D3D12/`へ配置し、起動前packaging testでversionとhashを検証する。GPUを使わない`WorkerHost`はAgility DLLもexportも持たない。
+
+起動時に`D3D12_FEATURE_D3D12_OPTIONS12.EnhancedBarriersSupported`を検査する。falseのdeviceはSupport対象外として不足Capabilityを表示し、legacy `ResourceBarrier`へdowngradeしない。Preview 1.719以降だけのFence Barriersは使用せず、queue間同期はstableなqueue fenceで行う。
 
 ## 14. Serialization、Schema、Build Artifact
 
@@ -613,7 +703,7 @@ Dear ImGuiのDocking版は初期Editor shellのPanel描画とDockingに限って
 - Runtime packageは独自のversioned binary formatへcookする。
 - Endianness、alignment、integer widthをformat仕様に明記する。
 - Native structを`memcpy`して永続化しない。
-- Assetはcontent hash、importer version、source hash、settings hashで識別する。
+- Assetのcontent hash、source hash、settings hash、artifact keyはRuntime詳細規約のSHA-256 canonical encodingを使い、importer／tool versionと組み合わせて識別する。
 - Build outputはinput revision、toolchain、dependency lock、schema、compiler flagをmanifestへ記録する。
 - 同一input manifestから同一artifact hashを得ることを目標とし、非決定要因をreportする。
 - Secret、Provider credential、local absolute pathをProject dataへ保存しない。
@@ -621,6 +711,8 @@ Dear ImGuiのDocking版は初期Editor shellのPanel描画とDockingに限って
 ## 15. Observabilityと性能検証
 
 最適化可能性は設計名ではなく計測で担保する。Development、Profile、Shippingの三Buildを用意する。
+
+Runtime詳細規約のCPU／GPU P95 14.00 ms soft target、16.67 ms hard acceptance、2 GiB CPU Domain配分、5.5 GiB GPU配分、bounded queue、10分soakをReference sceneの公式合否値とする。
 
 ### 15.1 必須telemetry
 
@@ -633,7 +725,7 @@ Dear ImGuiのDocking版は初期Editor shellのPanel描画とDockingに限って
 - Draw／dispatch／triangle／visible object
 - Physics body／contact／step time
 - Navigation tile／query time
-- Script VM memory／GC pause／instruction budget
+- Script VM memory／GC pause／invocation・Capability call・deadline quota
 - Streaming request latencyとcache hit
 
 PIX capture markerとDRED breadcrumbへProject revision、frame、Render pass、resource debug nameを関連付ける。
@@ -642,7 +734,7 @@ PIX capture markerとDRED breadcrumbへProject revision、frame、Render pass、
 
 - Unit／integration testはDebug Layerのwarning／errorを0件にする。Driver固有の誤検知を除外する場合はdevice、driver、message ID、根拠、有効期限をallowlistへ記録する。
 - GPU-based validationは小規模renderer testで定期実行する。
-- Device Removed Extended Data（DRED）をDevelopment／Profileで有効にする。
+- Device Removed Extended Data（DRED）をDevelopmentとProfile diagnostic runで有効にする。Profile performance runでは同じBuildのDREDを無効にし、計測条件をmanifestへ記録する。
 - Reference sceneのCPU／GPU frame P95、memory peak、allocation count、load timeをbaselineと比較する。
 - Performance CIは3回warm-up後に5回測定し、各runのP95からmedianを求める。同一OS image、power profile、driver、background policyを使う。
 - Frame時間はbaselineから5%かつ0.2 msを超える悪化、memory／allocation countは5%を超える悪化、またはbudget超過を自動失敗とする。意図的変更は測定結果付きbaseline updateを必要とする。
@@ -655,11 +747,11 @@ PIX capture markerとDRED breadcrumbへProject revision、frame、Render pass、
 | Unit | Handle generation、Result、allocator、schema、command precondition |
 | Property／fuzz | Serializer、ChangeSet parser、asset importer、Script boundary |
 | Conformance | Box2D／Jolt／Recast／Luau Adapterの座標、event、lifetime |
-| Integration | ChangeSet→validate→stage→commit→save→load→replay |
+| Integration | ChangeSet→validate→stage→commit→save→load→replay、fixed phase、Asset atomic promotion |
 | Graphics | Headless／WARP smoke、reference GPU image test、Debug Layer |
-| Performance | Allocation count、frame P95、streaming、physics、nav、script |
+| Performance | Allocation count、Subsystem／frame P95、queue peak、streaming、physics、nav、script、10分soak |
 | Migration | 各保存fixtureをcurrent schemaへ変換しDiffを検証 |
-| Soak | 長時間play、resource churn、device lost、memory pressure |
+| Soak | 長時間play、resource churn、device lost、memory pressure、stale async result |
 
 CIはformat、compile、static analysis、test、sanitizer、package manifestを順に実行する。生成C++はFirst-partyと同じwarning、sanitizer、test基準を通過しなければProjectへCommitできない。
 
@@ -676,7 +768,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 
 次が揃うまでEngine feature実装へ進まない。
 
-1. Root CMake Presetsとvcpkg manifestが固定されている。
+1. `toolchain.lock.json`、Root CMake Presets、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名差を拒否する。
 2. Foundation targetとdependency DAGがCIで検査できる。
 3. `StableId`、generation handle、`Result`、memory tagのcontract testがある。
 4. `.clang-format`、`.clang-tidy`、warning policyがCIで強制される。
@@ -685,12 +777,19 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 7. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
 8. Scene dimension、Art Direction、Composition、Shading Modelの正規四軸とVisualStyleProfile schemaが承認される。
 9. Material IR、Domain output、Engine-owned Root Signature、StyleCapabilityManifestの境界が承認される。
+10. Runtime詳細規約のmodule DAG、phase、write authority、handle／borrow、Asset promotion、memory／performance、failure matrixが承認される。
+11. `mira_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
 
 ## 19. 一次資料と判断の対応
 
 | 判断 | 一次資料 |
 |---|---|
-| Windows 11を正式TargetとしWindows 10を外す | [Windows 10 reaching end of support](https://learn.microsoft.com/en-us/lifecycle/announcements/windows-10-end-of-support) |
+| Windows 11 25H2以降を正式TargetとしWindows 10／11 24H2 Home・Proを外す | [Windows 10 reaching end of support](https://learn.microsoft.com/en-us/lifecycle/announcements/windows-10-end-of-support), [Windows 11 release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information) |
+| Build Tools 18.8.0 fixed bootstrapper | [Visual Studio 2026 release history](https://learn.microsoft.com/en-us/visualstudio/releases/2026/release-history) |
+| Stable MSVC v14.51をversion指定で固定 | [MSVC Build Tools 14.51 GA](https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/), [Visual Studio 2026 release notes](https://learn.microsoft.com/en-us/visualstudio/releases/2026/release-notes) |
+| Windows SDK 10.0.26100.8249 | [Windows SDK release notes](https://learn.microsoft.com/en-us/windows/apps/windows-sdk/release-notes) |
+| CMake 4.4.0とPresets schema 12 | [CMake 4.4 download](https://cmake.org/download/), [CMake 4.4 release notes](https://cmake.org/cmake/help/v4.4/release/4.4.html) |
+| Ninja、LLVM、DXC、vcpkgの固定release | [Ninja 1.13.2](https://github.com/ninja-build/ninja/releases/tag/v1.13.2), [LLVM 22.1.8](https://github.com/llvm/llvm-project/releases/tag/llvmorg-22.1.8), [DXC v1.9.2602.24](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2602.24), [vcpkg 2026.06.24](https://github.com/microsoft/vcpkg/releases/tag/2026.06.24) |
 | RAII、raw pointerは非所有、`unique_ptr`優先、明示`new`回避 | [C++ Core Guidelines R.1–R.30](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#S-resource) |
 | Pointer arithmeticより`span` | [Microsoft C26481](https://learn.microsoft.com/en-us/cpp/code-quality/c26481?view=msvc-170) |
 | C++20採用、C++23 previewを出荷に使わない | [MSVC `/std`](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170) |
@@ -700,22 +799,24 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 | Standard exception model | [MSVC exception handling model](https://learn.microsoft.com/en-us/cpp/build/reference/eh-exception-handling-model?view=msvc-170) |
 | ASanを開発とCIで利用 | [Microsoft C++ AddressSanitizer](https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170) |
 | D3D12でapplicationがmemory、sync、stateを管理 | [Direct3D 12 Programming Guide](https://learn.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide) |
+| Enhanced Barriersはoptional feature queryが必須 | [`D3D12_FEATURE_DATA_D3D12_OPTIONS12`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_feature_data_d3d12_options12), [Enhanced Barriers specification](https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html) |
+| 固定Stable Agility SDK | [Microsoft.Direct3D.D3D12 1.619.4](https://www.nuget.org/packages/Microsoft.Direct3D.D3D12/1.619.4), [Agility SDK setup](https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/) |
 | GPU memoryをclassify、budget、streamする | [D3D12 Memory Management Strategies](https://learn.microsoft.com/en-us/windows/win32/direct3d12/memory-management-strategies) |
 | `Budget`と`CurrentUsage`を別々に監視する | [`DXGI_QUERY_VIDEO_MEMORY_INFO`](https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_4/ns-dxgi1_4-dxgi_query_video_memory_info) |
 | Descriptorはresourceを所有しない | [D3D12 Descriptors Overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/descriptors-overview) |
 | Shader-visible descriptorとresource寿命をfenceで管理する | [D3D12 Resource Binding Overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/resource-binding-flow-of-control) |
 | GPU-based validationを小規模Test／定期CIで使う | [GPU-based validation](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-d3d12-debug-layer-gpu-based-validation) |
 | D3D12 heap suballocation | [GPUOpen D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) |
-| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.5.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.5.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [Luau 0.730](https://github.com/luau-lang/luau/releases/tag/0.730), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/0.16.0), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026), [Dear ImGui 1.92.8-docking](https://github.com/ocornut/imgui/releases/tag/v1.92.8-docking) |
+| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [Luau 0.730](https://github.com/luau-lang/luau/releases/tag/0.730), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/0.16.0), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026), [Dear ImGui 1.92.8-docking](https://github.com/ocornut/imgui/releases/tag/v1.92.8-docking) |
 | Manifest modeとversion固定 | [vcpkg Manifest Mode](https://learn.microsoft.com/en-us/vcpkg/concepts/manifest-mode) |
 | CMake Presetsとの統合 | [vcpkg CMake Integration](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration) |
 | Namingは一貫したproject styleとして機械化 | [Google C++ Style Guide](https://google.github.io/styleguide/cppguide), [ClangFormat](https://clang.llvm.org/docs/ClangFormatStyleOptions.html), [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) |
 | UUIDv7 format | [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562.html) |
-| ProductionでLTS Node.jsを使う | [Node.js Releases](https://nodejs.org/en/about/previous-releases) |
-| TypeScript strict toolchain baseline | [TypeScript 6.0 release notes](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-6-0.html) |
+| ProductionでNode.js 24.18.0 LTSを使う | [Node.js 24.18.0 release](https://nodejs.org/en/blog/release/v24.18.0), [Node.js Releases](https://nodejs.org/en/about/previous-releases) |
+| TypeScript 7.0.2 strict toolchain baseline。unstable programmatic APIには依存しない | [TypeScript 7.0 announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/), [TypeScript npm package](https://www.npmjs.com/package/typescript/v/7.0.2) |
 | Local IPCをUser ACLで制限する | [Named Pipe Security and Access Rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights), [JSON-RPC 2.0](https://www.jsonrpc.org/specification) |
 | API keyをProjectから隔離する | [Windows Credentials Management](https://learn.microsoft.com/en-us/windows/win32/secauthn/credentials-management) |
-| OpenAI公式TypeScript SDK | [OpenAI SDKs and CLI](https://developers.openai.com/api/docs/libraries#install-an-official-sdk) |
+| OpenAI公式TypeScript SDK | [OpenAI SDKs and CLI](https://developers.openai.com/api/docs/libraries#install-an-official-sdk), [openai-node 6.48.0](https://github.com/openai/openai-node/releases/tag/v6.48.0) |
 | 初期quality-first評価Model | [GPT-5.6 Sol model reference](https://developers.openai.com/api/docs/models/gpt-5.6-sol) |
 | 新規tool workflowにResponses APIとstrict function callingを使う | [OpenAI Using Tools](https://developers.openai.com/api/docs/guides/tools) |
 | JSON modeではなくStructured Outputsを使い、schemaと型の乖離を防ぐ | [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) |
@@ -734,5 +835,8 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 - Runtime内legacy schema分岐
 - 未固定dependency、preview compiler mode、preview Agility SDKのShipping採用
 - Profile結果のないdata-oriented化、pool化、lock-free化
+- Domain間の直接呼出しと相互pointer保持
+- callback、job、event配送中の再入的なWorld構造変更
+- Asset dependency closureの一部だけをlive化するhot reload
 
 この禁止事項に例外が必要な場合は、再現可能なBenchmark、代替案、破棄条件、影響範囲をADRへ記録しなければならない。
