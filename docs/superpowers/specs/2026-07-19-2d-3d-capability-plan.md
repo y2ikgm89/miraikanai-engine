@@ -1,12 +1,13 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
@@ -281,10 +282,12 @@ AIはtile IDの巨大配列を直接生成せず、region、rule、seed、constr
 
 Box2D 3.1.1を`Physics2DBackend`内で利用する。
 
+本節はCapability範囲を決める。Body／Collider分離、shape field、Material、Filter、Sensor、Query、Event、Cook、Editor、AI Operation、budget、合格条件の正本はCollision詳細規約とする。
+
 #### C1: 2D Physics Core
 
 - Static／kinematic／dynamic body
-- Circle、capsule、box、polygon、chain shape
+- Circle、capsule、box、convex polygon、segment、chain shape
 - Sensor、collision layer／mask
 - Distance、revolute、prismatic、weld joint
 - Physics material
@@ -301,6 +304,7 @@ Box2D 3.1.1を`Physics2DBackend`内で利用する。
 - Buoyancy／area force
 - Ragdoll-like joint authoring
 - Large tile collider streaming
+- Concave sourceの明示Preview付きconvex piece生成
 - Physics query profiler
 
 `Physics2DProfile.sub_step_count`はinteger 1～8、既定4とし、`PlayPreparing`で固定してReplay headerへ保存する。Play中変更を拒否する。Box2D 3.1.1の`b2DefaultWorldDef()`をbaselineとし、Engineが上書きするgravity、worker callback、user task context、sleep／continuous collision flagはCook済みProfileへ全値を明記する。未記録のvendor default変更を自動採用しない。
@@ -630,10 +634,12 @@ Effectの順序はPost Process Graphで固定し、AIは登録済みnodeと範�
 
 Jolt Physics 5.6.0を`Physics3DBackend`内で利用する。
 
+本節はCapability範囲を決める。Body／Collider分離、shape field、Material、Filter、Sensor、Query、Event、Cook、Editor、AI Operation、budget、合格条件の正本はCollision詳細規約とする。
+
 #### C1: 3D Physics Core
 
 - Static／kinematic／dynamic rigid body
-- Box、sphere、capsule、convex hull、triangle mesh
+- Box、sphere、capsule、cylinder、convex hull、static triangle mesh、non-streaming heightfield
 - Collision layer／mask、sensor
 - Ray、shape cast、overlap
 - Contact／trigger event
@@ -648,7 +654,7 @@ Jolt Physics 5.6.0を`Physics3DBackend`内で利用する。
 - Ragdoll
 - Vehicle
 - Destructible constraint setup
-- Heightfield／large static world streaming
+- Tiled heightfield update／large static world streaming
 - SixDOF constraint
 
 #### C3 Research（C1／C2の実装範囲外）
@@ -1298,6 +1304,7 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 - Material／VFX Graph
 - Visual Style、Art Asset、Animation presentation、Camera、Lighting、PostのProfile Inspector
 - Navigation／Physics debug
+- Collider Editing Mode、Collision matrix、Query probe、Contact／Trigger timeline
 - Build／Playtest
 - Profiler
 - Target／Distribution Profile、Capability Matrix、Package Inspector

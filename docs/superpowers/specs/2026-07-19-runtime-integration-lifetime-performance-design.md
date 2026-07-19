@@ -1,12 +1,13 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成Script／C++
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
@@ -36,6 +37,7 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 | AIネイティブ設計計画書 | Product目標、AI／人間の制作経路、段階計画、MVP |
 | 基盤アーキテクチャ規約 | C++、module、依存、所有権の一般則、Build、directory |
 | 本書 | Runtime phase、Subsystem連携、参照無効化、Asset version、memory／performance budget、障害復旧 |
+| Collision／Collider規約 | Body／Collider／Shape／Material／Filter、Query、Contact／Trigger、Cook、Editor／AI操作 |
 | 2D／3D機能計画 | 各Capabilityの機能、品質tier、Authoring、表現方式 |
 | モバイルPlatform規約 | Android／Apple lifecycle、Adapter、実機memory／performance、package、Store |
 
@@ -420,9 +422,8 @@ RagdollではPhysics `T60`が別fieldの`RagdollPoseInput`へbody poseを書き�
 - native contact callbackではWorldを変更しない。
 - Adapterは必要な値をpreallocated thread-local bufferへcopyする。
 - `T60`でEngine StableId／handleへ変換し、generationを検査してからnormalizeする。
-- body pairはpacked `PhysicsBodyHandle`の小さい方をAにし、入替時はnormalをA→Bへ反転する。native subshape IDは当該Collider Asset version内の`shape_slot: uint32`へ変換する。
-- event kindは`Begin=0`、`Persist=1`、`End=2`。manifold pointのposition、normal、separation、impulseはbinary32へ変換し、`-0`を`+0`へ正規化する。NaN／Inf、zero-length normal、正規化後normal長の許容範囲`[0.999, 1.001]`外はPhysics invariant faultとする。値のbit pattern順にsortして`contact_point_index`を再採番する。
-- 最終eventは`{event_kind, body_a_handle, body_b_handle, collider_a_version, shape_a_slot, collider_b_version, shape_b_slot, contact_point_index, payload_bit_pattern}`順にsortし、その順に`producer_sequence`を割り当てる。native callback thread、callback arrival、vendor event array順を保持しない。
+- body pair、shape slot、Contact／Trigger／Hit payload、event kind、binary32正規化、canonical sortはCollision詳細規約10.1～10.2節を正本とする。Gameplay payloadはBackend間で意味が一致しないsolver impulseではなく`approach_speed_mps`を持つ。
+- 最終eventはCollision詳細規約のcanonical key順にsortし、その順に`producer_sequence`を割り当てる。native callback thread、callback arrival、vendor event array順を保持しない。
 - body／shape破棄後に無効となったnative IDは公開eventへ出さない。
 - contact eventを受けたEntityの破棄は次tick`T00`となる。
 

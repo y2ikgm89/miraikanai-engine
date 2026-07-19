@@ -1,11 +1,12 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.6
+- 文書版: 0.7
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-19
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想、基盤、Runtime連携、2D／3D、モバイル、AI実装・保守契約を統合した設計レビュー版
+- 状態: 基本構想、基盤、Runtime連携、Collision、2D／3D、モバイル、AI実装・保守契約を統合した設計レビュー版
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
+- Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
@@ -1059,6 +1060,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Script | Luau 0.730 strict mode＋Engine Capability API |
 | 2D Physics | Box2D 3.1.1 Adapter |
 | 3D Physics | Jolt Physics 5.6.0 Adapter |
+| Collision contract | Body／Collider分離、32 Channel、typed Query／Contact／Trigger、immutable Cooked Asset、Collider Editing Mode、AI Typed Operation |
 | 3D Navigation | Recast／Detour 1.6.0 Adapter |
 | GPU memory | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`を各Adapter内で利用 |
 | Build | Windows／Androidは固定Windows toolchain、Apple archive／signingはXcode 26.6を持つMac agent。全artifactのhashとversionをprofile別に固定 |

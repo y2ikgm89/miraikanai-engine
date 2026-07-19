@@ -1,11 +1,12 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
@@ -601,7 +602,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  ├─ visual_styles/
 │  │  └─ backends/{d3d12,vulkan,metal}/
 │  ├─ physics/
+│  │  ├─ contracts/
 │  │  ├─ core/
+│  │  ├─ collision/
+│  │  ├─ diagnostics/
 │  │  └─ backends/{box2d,jolt}/
 │  ├─ navigation/
 │  │  ├─ core/
@@ -623,6 +627,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ validation/
 │  ├─ assets/
 │  ├─ visual_styles/
+│  ├─ collision/
 │  └─ build/
 ├─ editor/
 │  ├─ app/
@@ -645,6 +650,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  └─ claude/
 ├─ tools/
 │  ├─ asset_compiler/
+│  │  └─ collision/
 │  ├─ shader_compiler/
 │  ├─ contract_compiler/
 │  ├─ contract_lint/
