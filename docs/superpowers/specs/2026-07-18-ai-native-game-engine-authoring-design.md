@@ -1,6 +1,6 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.2
+- 文書版: 0.3
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-19
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
@@ -16,7 +16,7 @@
 2. AIがゲーム制作に重要な不足要件だけを質問する。
 3. AIが理解したゲーム概要と補完事項をGame Briefとして提示する。
 4. AIがゲーム全体のGameSpecと実装計画を作成する。
-5. AIが構造化編集、Script、C++、またはその組み合わせをシステム単位で選択する。
+5. AIが承認済みVisual StyleとEngine Capabilityに従い、構造化編集、Script、C++、またはその組み合わせをシステム単位で選択する。
 6. C++エンジンが生成結果を検証し、短縮されたゲーム全体と代表的な完成部分を持つFirst Playableを生成する。
 7. ユーザーはAIとの会話、Scene／Graph／Inspector、Script、C++のいずれからでも調整できる。
 8. すべての変更はChangeSetとして記録され、Diff、Dry-run、Test、Undo、監査を経由する。
@@ -162,7 +162,7 @@ Test             自動
 一人用で、初心者でも遊びやすくしたい。
 ```
 
-AIはこの入力からジャンル、中心体験、Core loop、視点、進行、世界、主要システム、規模、Platform、Performance要件の候補を抽出する。
+AIはこの入力からジャンル、中心体験、Core loop、視点、進行、世界、主要システム、規模、Platform、Performance要件に加え、`scene_dimension`、Art Direction、Camera／Composition、参考表現の候補を抽出する。2D／3DとRealistic／Toon／Pixelを同じ分類として扱わない。
 
 ### 5.2 適応型の追加質問
 
@@ -170,12 +170,12 @@ AIはこの入力からジャンル、中心体験、Core loop、視点、進行
 
 | 分類 | 例 | 対応 |
 |---|---|---|
-| Blocking | 2D／3D、Single／Multiplayerなど根本が不明 | 回答を得るまで実装判断を保留 |
-| High Impact | 規模、Platform、目標FPS、Open World、PvP | 選択肢と推奨理由を提示 |
+| Blocking | 2D／3D／Hybrid、Hybridのgameplay space、Single／Multiplayerなど根本が不明 | 回答を得るまで実装判断を保留 |
+| High Impact | Art Direction、Pixel DioramaのCamera、規模、Platform、目標FPS、Open World、PvP | 選択肢、低cost Preview、推奨理由を提示 |
 | Medium Impact | Inventory枠、Checkpoint間隔、UI初期配置 | 仮設定し、報告または確認 |
 | Low Impact | 内部ID、変数名、Test fixture | AIが決定して記録 |
 
-すべての質問で「おまかせ」「推奨設定」「後で決める」「仮実装して試す」を利用できる。
+回答操作は影響度で制限する。`Blocking` は、人間が回答するか、その判断だけを対象にした有効な `allow_ai_select` 委任によって解消するまで制作Commitへ進めない。`High Impact` の「おまかせ」は有効な委任とCapability／BudgetのHard gate通過を必須とし、条件を満たさなければ確認へ戻す。「後で決める」は `Medium Impact` 以下に限り、期限、暫定値、影響範囲をDecision Logへ記録する。「仮実装して試す」は、Schema、保存データ、Public API、Gameplay spaceを固定しない可逆な実験だけに許可する。
 
 初心者へScript／C++、ECS、RPCなどの実装方式を質問しない。AIは「同時に何体表示したいか」「オンラインが必要か」など、ゲーム上の要件を確認し、実装方式を内部で選択する。
 
@@ -187,6 +187,7 @@ AIはこの入力からジャンル、中心体験、Core loop、視点、進行
 - 対象プレイヤー
 - Core loop
 - 主要システム
+- Scene dimension、Art Direction、Composition、Camera方針
 - 規模
 - First Playableの範囲
 - AIが補完した事項
@@ -257,6 +258,14 @@ First Playable以降、次の編集経路を同時に利用できる。
 - UI
 - Input
 - Save
+- Visual Style Contract
+  - `scene_dimension`
+  - `art_direction`
+  - `composition`
+  - `composition_variant`
+  - `gameplay_space`
+  - `visual_style_profile_id`
+  - Style-critical fieldとlock状態
 - Asset要求
 - Test条件
 - Performance budget
@@ -292,6 +301,7 @@ operations[]
 | 種別 | 対象 |
 |---|---|
 | GameChangeSet | World、Scene、UI、Rule、Asset設定 |
+| StyleChangeSet | VisualStyleProfile、Material Template、Art Asset、Animation presentation、Lighting、Camera、Post、VFX、UI Style、関連Import設定 |
 | ScriptChangeSet | Script、公開Parameter、Binding、Test |
 | NativeCodeChangeSet | C++ source、header、Build定義、Test |
 | AssetChangeSet | 画像、音声、3D、Animation、Import設定 |
@@ -329,6 +339,10 @@ AIが実装方式を判断するための制約を保持する。
 - 最低スペック
 - 目標FPS
 - CPU／GPU／Memory budget
+- Render Quality Tierと必須D3D12 feature
+- 対象出力解像度／HDR
+- Asset制作量、Texture／Mesh／Sprite animation budget
+- 必須／無効化するVisual Style Capability。実際の利用可否はEngine生成`StyleCapabilityManifest`
 - 最大Entity数
 - Network要件
 - Offline要件
@@ -349,7 +363,13 @@ Human Prompt / Editor / External Agent
       Requirement Resolver
                 |
                 v
-      Game Brief / GameSpec
+           Game Brief
+                |
+                v
+      Visual Style Resolver
+                |
+                v
+             GameSpec
                 |
                 v
  Implementation Strategy Planner
@@ -437,13 +457,19 @@ Engine外のNode.js 24 LTS／TypeScript 6.0 strict別Processとして配置し�
 
 ### 7.4 Requirement Resolver
 
-自然言語をGoal、Constraint、Acceptance Criteria、Unknown、Conflictへ分解する。不足要件を影響度で分類し、質問、提案、自動補完を選択する。
+自然言語をGoal、Constraint、Acceptance Criteria、Unknown、Conflictへ分解する。不足要件を影響度で分類し、質問、提案、自動補完を選択する。Art DirectionはHigh Impact、2D／3D／HybridとHybrid gameplay spaceはBlockingとして扱う。
 
-### 7.5 Implementation Strategy Planner
+### 7.5 Visual Style Resolver
+
+Game Brief、参考Asset、既存Asset、Project Profile、`StyleCapabilityManifest`から利用可能なVisual Style候補を作る。EngineがCapabilityとbudgetをhard gateし、AIは残った候補の制作cost、runtime cost、一貫性、理由を説明する。GenreだけでStyleを決めず、曖昧なHigh Impact項目を無確認でlockしない。
+
+正規四軸、VisualStyleProfile、Material／Shader、Toon、Realistic、2D、Pixel Diorama、Preview、Validator、Evalの詳細は、[2D／3D機能計画 §8](./2026-07-19-2d-3d-capability-plan.md#8-visual-styleshadermaterial)を唯一の基準とする。
+
+### 7.6 Implementation Strategy Planner
 
 システム単位で構造化編集、Script、C++、Hybridを選択する。LLMの推測だけで決めず、Engine Policyと実測を組み合わせる。
 
-### 7.6 MCP Adapter
+### 7.7 MCP Adapter
 
 外部のCodex、Claude Code、その他MCP対応HostへEngine機能を公開する、EditorHostから独立して有効化できる北向きAdapter。
 
@@ -462,7 +488,7 @@ Engine外のNode.js 24 LTS／TypeScript 6.0 strict別Processとして配置し�
 
 初期段階では、MCPからの直接Commitを公開しない。CommitはEditorで承認する。
 
-### 7.7 Codex／Claude Plugin
+### 7.8 Codex／Claude Plugin
 
 Host固有Pluginは薄い配布層とする。
 
@@ -475,7 +501,7 @@ Host固有Pluginは薄い配布層とする。
 
 権威ロジックやEngine状態は保持しない。
 
-### 7.8 CLI／Desktop
+### 7.9 CLI／Desktop
 
 Codex／Claude CLI・DesktopはEngine開発、試作、CI、Code生成、Build、Testに利用する。出荷ゲームのRuntime依存にはしない。
 
@@ -803,6 +829,7 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - Result／Error、thread affinity、fixed tick
 - Naming、format、static analysis、sanitizer
 - 2D／3Dの座標、単位、色、時間規約
+- Scene dimension、Art Direction、Composition、Shading Modelの正規四軸
 
 完了条件は、空のEditorHost／GameHost／WorkerHostが固定toolchainでBuildでき、Foundation contract test、ASan、format、static analysisがCIで成功することである。
 
@@ -816,6 +843,7 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - Transaction、Undo／Redo、Journal
 - Save／Load、Replay
 - Versioned schemaとoffline Project Migrator
+- VisualStyleProfile、StyleChangeSet、StyleCapabilityManifestのschema
 
 完了条件は、手書きChangeSetをheadlessでvalidate→stage→commit→save→load→replayし、同じstate hashを得られることである。
 
@@ -827,6 +855,7 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - D3D12 device、Render Graph、D3D12MA、Debug Layer／DRED／PIX marker
 - Asset staging、content-addressed cache、sandboxed importer、cook
 - Luau hostとCapability boundary
+- Material IR、Domain別Root Signature、Material／Style Validator、代表Material preview
 
 完了条件は、AIを使わずEditor操作がChangeSetを経由し、空Sceneをplay、save、packageできることである。
 
@@ -836,21 +865,23 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - Box2D Adapter、2D grid navigation
 - UI、Audio、2D animation、CPU particle
 - Luauでgame ruleを実装
-- 2D top-down action縦切り
+- `pixel_2d`と`illustrated_2d` Profile
+- `pixel_2d` 2D top-down action縦切り
 
-完了条件は、AIなしでTitleからResultまでplayでき、Reference stress sceneが1080p60とmemory budgetを満たすことである。
+完了条件は、AIなしでTitleからResultまでplayでき、640×360 logical pixelを1920×1080へ3倍integer scaleし、Reference stress sceneが1080p60とmemory budgetを満たすことである。
 
 ### Phase 4: AI Authoring MVP-A
 
 - Node.js／TypeScript AI Orchestratorとnamed-pipe IPC
 - OpenAI Responses API、Structured Outputs、strict function calling
 - Requirement Resolver、Game Brief、GameSpec生成
+- VisualStyleResolver、2D Style候補Preview、Decision Ledger
 - Structured／Script／C++ strategy planner
 - ScriptChangeSet、NativeCodeChangeSet、isolated build／test
 - Engine-generated Diff、Approval、手動変更との競合処理
 - Playtest feedbackと自動修復
 
-完了条件は、大まかなprompt→必要質問→2D First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走できることである。
+完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。
 
 ### Phase 5: 外部Agent接続
 
@@ -864,17 +895,20 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 ### Phase 6: 3D First Playable MVP-B
 
-- glTF import、mesh、PBR、Forward+、shadow、sky／IBL／height fog
+- glTF core／Unlit／Emissive Strength／Texture Transform import、mesh、`realistic_basic` PBR、Forward+、shadow、sky／IBL／height fog
 - Jolt Physics Adapter、Recast／Detour Adapter
 - ozz-based sampling＋独自Animation Graph
 - 3D UI、Audio、particle、camera
 - Third-person compact action arena
 
-完了条件は、3D縦切りを自然言語と手動編集の両方で作成でき、Reference stress sceneが1080p60とmemory budgetを満たすことである。
+完了条件は、`realistic_basic` 3D縦切りを自然言語と手動編集の両方で作成でき、Khronos core／Unlit／Emissive Strength／Texture Transform material fixture、Reference stress scene、1080p60、memory budgetを満たすことである。
 
 ### Phase 7: Production CapabilityとDomain Pack
 
 - Hybrid deferred path
+- `realistic_advanced` Material、Skin／Hair／Eye／Cloth template
+- `toon_basic`、`toon_character`、Art Asset／Animation presentation、inverted-hull／screen-space outline
+- `pixel_diorama`のhigh-resolution 3D＋crisp sprite modeとunified low-resolution mode
 - Multiple light、physically based atmosphere、volumetric fog／cloud
 - Baked lightmap、irradiance／reflection probe、C3 dynamic GI研究
 - GPU VFX、terrain、foliage、water、streaming
@@ -882,7 +916,7 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - 画像／音声／3D生成Provider adapter
 - 自動Playtestとperformance regression
 
-各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallbackの完了定義を満たしてからProduction扱いにする。
+各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallback、VisualStyleProfile integrationの完了定義を満たしてからProduction扱いにする。ToonとPixel Dioramaは同時実装せず、Realistic advanced→Toon→Pixel Dioramaの順に個別vertical prototypeとperformance gateを通す。
 
 ### Phase 8: 制限付きRuntime生成
 
@@ -990,6 +1024,12 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | GPU memory | D3D12MAをEngine-owned wrapper内で利用 |
 | Build | CMake Presets＋vcpkg manifest、version固定 |
 | Performance | 1080p60、RTX 3060／RX 6600級、runtime 2 GiB soft budget |
+| Visual Style model | Scene dimension、Art Direction、Composition、Shading Modelを分離 |
+| Material | 型付きMaterial IR、複数Shading Model、Engine-owned Root Signature |
+| 最初の2D Style | `pixel_2d`、640×360、32 PPU、integer scale |
+| 最初の3D Style | `realistic_basic` |
+| Production Style順 | Realistic advanced→Toon→独自`pixel_diorama` |
+| Style決定 | 明示要件優先、Genre単独決定禁止、High Impactは人間選択または一件限定`allow_ai_select`委任 |
 | AI経路 | 内蔵はModel API、外部HostはMCP、配布単位はPlugin |
 | AI Orchestrator | Node.js 24 LTS／TypeScript 6.0 strict、別Process |
 | 初期Provider | OpenAI Responses API、`gpt-5.6-sol`、reasoning `medium` |
@@ -1001,7 +1041,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 次は設計上の選択肢ではなく、承認済み設計を実装taskへ分解する作業である。
 
-1. World Model、ChangeSet、Capability schemaのfield-level定義
+1. World Model、ChangeSet、Capability、VisualStyleProfile schemaのfield-level定義
 2. C++ target単位のdependency graphと最初のpublic header
 3. Authoring ServiceとAI Orchestrator間のJSON-RPC method／message schema
 4. Luau Capability contractのfield-level定義
@@ -1010,6 +1050,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 7. Editor shellのaccessibility bridge検証
 8. Approval Policyのoperation別初期値
 9. Asset placeholderのlicense、生成、差替えworkflow
+10. Material IR node、Domain output、Shading Model interface、Root Signature layout
+11. VisualStyleResolverのrule engine、prompt fixture、60件×3回Eval harness
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 
@@ -1020,6 +1062,9 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | 一括生成が巨大化する | 薄い全体＋深い代表部分、段階的ChangeSet |
 | 質問が多すぎる | 影響度分類、「おまかせ」、段階別質問 |
 | AIが誤った実装方式を選ぶ | Policy、Project Profile、Benchmark、Decision Record |
+| AIが画風をGenreだけで決める | VisualStyleResolverの優先順位、Engine hard gate、High Impact承認 |
+| 画風変更でMaterialだけが変わり不整合になる | StyleChangeSetでLighting、Camera、Post、VFX、UI、Importを一括検証 |
+| 既存作品の映像表現を模倣する | 一般属性へ分解し、固有名を正規Profile／Shader／Assetへ保存しない |
 | Scriptが遅い | Behavior Contractを維持してHot pathをC++化 |
 | AIが手動変更を消す | Base revision、File hash、三者比較、Lock |
 | Schema-validだが意味的に不正 | C++ Semantic validator、Budget、Dry-run |

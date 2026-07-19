@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
@@ -35,7 +35,7 @@
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | 初期Model Provider | OpenAI Responses API、公式TypeScript SDK |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium`を明示 |
-| Shader | HLSL 2021、DXC、Shader Model 6.6を基準 |
+| Shader | HLSL 2021、DXC、Shader Model 6.6、Root Signature 1.1を必須基準 |
 | Script VM | Luau strict mode、Engine-owned Capability APIだけを公開 |
 | 2D Physics kernel | Box2D 3.xをAdapter内で利用 |
 | 3D Physics kernel | Jolt Physicsの検証済みtagをAdapter内で利用 |
@@ -349,7 +349,7 @@ memory_tag
 - Shader-visible descriptorはpersistent領域とframe transient領域を分離する。
 - Descriptorはresourceを所有しない。resource ownerが寿命を保持する。
 - 無効handle、二重解放、generation不一致をDevelopment Buildで検出する。
-- Resource Binding Tier、Shader Model、heap上限は起動時にfeature queryし、Support matrix未満なら明示的に起動を拒否する。
+- Root Signature version、Resource Binding Tier、Shader Model、heap上限は起動時にfeature queryし、Root Signature 1.1またはShader Model 6.6を満たさないdeviceは明示的に起動を拒否する。旧target向けRoot Signature 1.0／旧Shader Model互換pathは初期製品に持たない。
 
 ## 8. Threading、Job、決定性
 
@@ -488,6 +488,8 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ jobs/
 │  ├─ rendering/
 │  │  ├─ core/
+│  │  ├─ materials/
+│  │  ├─ visual_styles/
 │  │  └─ backends/d3d12/
 │  ├─ physics/
 │  │  ├─ core/
@@ -507,6 +509,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ changes/
 │  ├─ validation/
 │  ├─ assets/
+│  ├─ visual_styles/
 │  └─ build/
 ├─ editor/
 │  ├─ app/
@@ -519,6 +522,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ src/
 │  │  ├─ providers/
 │  │  ├─ requirements/
+│  │  ├─ visual_styles/
 │  │  ├─ strategy/
 │  │  ├─ engine_bridge/
 │  │  └─ mcp/
@@ -546,6 +550,8 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
    ├─ patches/
    └─ notices/
 ```
+
+`engine/rendering/materials`はMaterial IR、Shading Model contract、ShaderInterface、compile keyを所有する。`engine/rendering/visual_styles`はcook済みVisual StyleのRuntime適用とRender layer compositionを所有し、Authoring schemaやAI判断を持たない。`authoring/visual_styles`はVisualStyleProfile、StyleChangeSet、Validator、Preview modelを所有する。`orchestrator/src/visual_styles`は候補生成と説明だけを行い、Capability hard gate、Style validation、Commit権限を持たない。
 
 各moduleは次を標準形とする。
 
@@ -677,6 +683,8 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 5. ChangeSetの`base_project_revision`とoffline migration policyがschemaへ反映される。
 6. Development／Profile／Shipping Buildの診断差が定義される。
 7. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
+8. Scene dimension、Art Direction、Composition、Shading Modelの正規四軸とVisualStyleProfile schemaが承認される。
+9. Material IR、Domain output、Engine-owned Root Signature、StyleCapabilityManifestの境界が承認される。
 
 ## 19. 一次資料と判断の対応
 
