@@ -1,10 +1,14 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.5
+- 文書版: 0.6
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-19
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想、基盤、Runtime連携、2D／3D機能範囲、モバイルPlatformを統合した設計レビュー版
+- 状態: 基本構想、基盤、Runtime連携、2D／3D、モバイル、AI実装・保守契約を統合した設計レビュー版
+- 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
+- AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 ## 1. エグゼクティブサマリー
 
@@ -358,7 +362,7 @@ AIが実装方式を判断するための制約を保持する。
 
 ## 7. システムアーキテクチャ
 
-本章はProduct全体の論理構成を定義する。C++ module依存、所有権の一般則、Build、directoryは[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)、Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)、2D／3D Subsystemの機能範囲は[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)、Android／AppleのTarget、Adapter、実機budget、package、Store gateは[Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)を詳細基準とする。
+本章はProduct全体の論理構成を定義する。C++ module依存、所有権の一般則、Build、directoryは[Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)、Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)、2D／3D Subsystemの機能範囲は[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)、Android／AppleのTarget、Adapter、実機budget、package、Store gateは[Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)を詳細基準とする。AI Task、権限、Source隔離、API／MCP／CLI／Pluginの役割は[AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)、Requirement、Schema、Codegen、Provider projectionは[実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)、Test、形式モデル、Eval、Receipt、Provenance、Evidence更新は[AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)を詳細基準とする。
 
 ```text
 Human Prompt / Editor / External Agent
@@ -494,7 +498,7 @@ Game Brief、参考Asset、既存Asset、Project Profile、`StyleCapabilityManif
 
 ### 7.8 Codex／Claude Plugin
 
-Host固有Pluginは薄い配布層とする。
+Host固有Pluginは任意の薄い補助UXとする。PluginがなくてもProvider APIとMCPで全公式機能を利用できなければならない。
 
 - Engine固有skill
 - GameSpec／ChangeSet説明
@@ -811,6 +815,8 @@ MultiplayerではAuthoritative serverだけがCommitし、LLMは提案者に限�
 
 GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させない。内部Provider adapterを設け、一社から開始して同一Evalで追加Providerを比較する。
 
+MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider projectionを生成する。Provider subsetで表現できないConstraintをManifestへ列挙し、C++ Command GatewayがInternal JSON Schema 2020-12とsemantic／permission／budget validatorで完全再検証する。Provider Schema適合だけをCommit条件にしない。
+
 評価指標は次のとおり。
 
 - Schema適合率
@@ -826,10 +832,10 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 
 ### Phase 0: Foundation契約とToolchain
 
-- 本五文書の承認
+- 設計文書Indexに列挙した八文書の承認
 - C++20共通Runtime Contractと`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
-- Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を30日以内に更新する`store_policy.lock.json`
+- Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
 - vcpkg manifest／固定Dependency
 - Module dependency DAGとComposition Root
 - `mira_runtime_contracts`、`mira_runtime_package`、`RuntimeOrchestrator`、Domain Port／Runtime／Adapter境界、`ComponentAccessManifest`
@@ -841,8 +847,15 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - 2D／3Dの座標、単位、色、時間規約
 - Scene dimension、Art Direction、Composition、Shading Modelの正規四軸
 - Lifecycle、Display、Graphics、Input、Audio、Text、Content Delivery、Thermal／MemoryのPlatform Port
+- `/schemas/mira/`のMCD meta-schema、Contract compiler、C++／TS／Luau／MCP／Provider projection
+- `TaskSpecification`、署名済み`TaskAuthorizationEnvelope`、`ContextPack`、Provider Manifest、R0–R5
+- Source Worker／Path broker／Network／PromotionのMCD契約、`NotActivated`拒否stub、security fixture。実WorkerはA1で解放
+- TLA+／TLC v1.7.4で検査する5 State machineのmapping。Phase 0ではA0とFoundation実装に該当するModel、残りは各Activation前に実行
+- Requirement Coverage、AI Eval、Verification／Generation ReceiptのA0実装と、Review／Promotion Receipt、SBOM／provenanceのSchema境界
 
-完了条件は、空のWindows EditorHost／Windows GameHost／WorkerHostが固定toolchainでBuildでき、Android／Appleの未実装Adapterが偽の成功ではなく`UnsupportedTarget`を返し、Foundation contract、Target Profile、phase順序、handle／borrow、bounded queue、memory failure、Asset atomic promotionのtest、ASan、format、static analysisがCIで成功することである。
+完了条件は、空のWindows EditorHost／Windows GameHost／WorkerHostが固定toolchainでBuildでき、Android／Appleの未実装Adapterが偽の成功ではなく`UnsupportedTarget`を返し、Foundation contract、Target Profile、phase順序、handle／borrow、bounded queue、memory failure、Asset atomic promotionのtest、ASan、format、static analysisがCIで成功することである。さらに、同一MCDからのA0用Projectionが決定論的に生成され、AIが変更不能なAuthorization Envelope、未解放Source Workerの`MIRA-POLICY-CAPABILITY_NOT_ACTIVATED`拒否、Provider再検証、該当TLA+ fast model、AI security negative fixture、Verification／Generation Receipt hash chainがheadless CIで合格しなければPhase 1へ進まない。
+
+Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能として解放するのはAI実装・保守ガバナンス規約のA0（R0–R2）だけである。A1のProject Source、A2のEngine保守、A3のReleaseは各Activation Gate完成後にTool catalogへ追加し、未完成機能を弱い検証で先行開放しない。
 
 ### Phase 1: Headless Authoring Core
 
@@ -891,8 +904,9 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - ScriptChangeSet、NativeCodeChangeSet、isolated build／test
 - Engine-generated Diff、Approval、手動変更との競合処理
 - Playtest feedbackと自動修復
+- Project C++ Capabilityを公開する前にA1を完成し、Source Worker、Promotion、Review ReceiptをTool catalogへ解放
 
-完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。
+完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。MVP能力に含むProject C++生成はA1 Gate合格後だけ成功とし、A1未完ならMVP-A完了を宣言しない。
 
 ### Phase 5: 外部Agent接続
 
@@ -919,11 +933,13 @@ GameSpec、ChangeSet、Behavior ContractをProvider固有形式へ依存させ�
 - `android_mobile_v1`: GameActivity、Vulkan 1.1／AVP 2022、VMA、GameActivity input／text、Oboe、Swappy、AAB／PAD
 - `apple_mobile_v1`: UIScene／MTKView、Metal／MTLHeap、UIKit touch／text、GameController、AVAudioSession／AudioUnit、archive／TestFlight
 - Portable HLSL→SPIR-V→MSLのoffline shader pipeline、ASTC／ETC2／BCnのTarget別cook
-- Device Manager、Remote Mac Agent、safe-area／cutout／orientation preview、touch simulation
+- Device Manager、Apple Unsigned Build Worker／Signing Service／Upload Service、safe-area／cutout／orientation preview、touch simulation
 - Mobile memory class、dynamic resolution、thermal governor、physical device matrix、16 KiB／privacy／Store package gate
 - Phase 3のWindows 2D C1を入力にAndroid 2D→Apple 2D、Phase 6のWindows 3D C1を入力にmobile 3D品質の順で成立させる
 
-完了条件は、同一Project revisionの2D First PlayableがAndroid minimum／reference実機とA12 iPhone／iPadでplay、save、suspend復帰でき、署名済みinternal track／TestFlight package、memory／frame／thermal／privacy gateを満たすことである。
+完了条件は、同一Project revisionの2D First PlayableがAndroid minimum／reference実機とA12 iPhone／iPadでplay、save、suspend復帰でき、Build／Signing／Uploadの秘密分離を証明した署名済みinternal track／TestFlight package、memory／frame／thermal／privacy gateを満たすことである。
+
+署名済みinternal track／TestFlight packageの作成前にA3 Releaseを完成する。A2 Engine MaintenanceはGame制作MVP-A／MVP-Bの必須条件ではないが、Engine coreをAI保守対象として公開する前に別途完成し、未完成時はR4 Toolを公開しない。
 
 ### Phase 8: Production CapabilityとDomain Pack
 
@@ -957,7 +973,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 - MVP-A: Phase 4完了。2D top-down actionでAI Authoring全loopを証明する。
 - MVP-B: Phase 6完了。3D compact action arenaを追加し、共通基盤が2D専用設計でないことを証明する。
-- 最初のTechnology Preview配布条件はMVP-B完了とする。
+- 最初のTechnology Preview配布条件はMVP-BとA3 Releaseの両方の完了とする。
 
 詳細なSubsystem範囲と性能条件は2D／3D機能計画で固定する。
 
@@ -1053,9 +1069,12 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | 最初の3D Style | `realistic_basic` |
 | Production Style順 | Realistic advanced→Toon→独自`pixel_diorama` |
 | Style決定 | 明示要件優先、Genre単独決定禁止、High Impactは人間選択または一件限定`allow_ai_select`委任 |
-| AI経路 | 内蔵はModel API、外部HostはMCP、配布単位はPlugin |
+| AI経路 | 内蔵はModel API、外部Hostはlocal MCP。Source保守はProvider APIまたは`ExternalClientSecurityProfile`合格済みManaged CLI Agent Host＋隔離Worker。非合格ClientはMCP Proposal専用。Pluginは任意の補助UX |
 | AI Orchestrator | Node.js 24.18.0 LTS／TypeScript 7.0.2 strict、別Process |
 | 初期Provider | OpenAI Responses API、`gpt-5.6-sol`、reasoning `medium` |
+| AI権限 | AI可視Taskと署名済みAuthorization Envelopeを分離。R0–R5、Proposal／Approval／Promotionを別Authorityにする |
+| AI契約 | `/schemas/mira/`のMCDを正本とし、C++／TypeScript／Luau／MCP／Provider Schemaを生成 |
+| AI検証 | Contract、semantic、policy、build、test、budget、選択的TLA+、Eval、Review、ProvenanceをRisk別に適用 |
 | IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | Editor | Dock／resize／floating、保存可能な複数Workspace、AI Partnerをpin可能 |
 | Compatibility | Pre-1.0 API／ABI互換なし。永続Projectだけoffline migratorで一方向移行 |
@@ -1066,7 +1085,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 ### 16.2 実装計画書で分解する事項
 
-次は設計上の選択肢ではなく、承認済み設計を実装taskへ分解する作業である。
+次は設計上の選択肢ではなく、承認済み設計を実装taskへ分解する作業である。MCDの共通Field、Provider投影、権限、Risk、Receipt、形式検証、Evalの規範はAI実装・保守三規約で確定済みであり、ここでは各Domainの具体的な定義Fileと実装Symbolへ割り当てる。
 
 1. World Model、ChangeSet、Capability、VisualStyleProfile schemaのfield-level定義
 2. 承認済みtarget DAGをfile／public header／CMake targetへ割り当てる実装単位
@@ -1084,7 +1103,12 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 14. Target／Distribution／Display／Lifecycle／Permission／Privacy／Content Safety schema
 15. D3D12／Vulkan／Metal別ShaderInterface、Render Graph同期、GPU submission serialのfield-level mapping
 16. Android AAB／PAD／16 KiB validatorとApple archive／Background Assets／Privacy Manifest validator
-17. Device Manager、Remote Mac Agent、実機Capability Signature、thermal／memory／frame test fixture
+17. Device Manager、Apple Unsigned Build Worker／Signing Service／Upload Service、Android分離署名、実機Capability Signature、thermal／memory／frame test fixture
+18. `TaskSpecification`、`TaskAuthorizationEnvelope`、`ContextPack`、Provider ManifestのMCD instance
+19. Contract compiler、Provider projection、cross-language round-trip、generated transition conformance test
+20. Source Worker sandbox、Path broker、Promotion Service、Risk別Gate、Receipt署名とEvidence更新Job
+21. `AiTaskLifecycle`、`ChangeSetCommit`、`SourcePromotion`、`AsyncResultPublish`、`AssetVersionSwap`のTLA+ model
+22. Repository内public／adversarial／incident AI Eval corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpus、Provider migration harness
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 
@@ -1103,6 +1127,11 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Schema-validだが意味的に不正 | C++ Semantic validator、Budget、Dry-run |
 | 生成C++が危険 | 隔離Build、Network制限、固定Toolchain、Test |
 | Provider依存 | Canonical IR、Provider adapter、Eval |
+| ProviderごとのSchema方言が異なる | MCDを正本にし、Provider別subsetと未表現Constraint Manifestを生成。Gatewayが完全再検証 |
+| MCP外でCLIがFile／Shellを操作する | full-access起動を公式境界外と明示。Managed modeはClient conformance、Credential分離、OS sandbox、隔離Worktree、Network deny、Path解決、差分Promotionを必須化 |
+| AIがTask本文で自己昇格する | Task内容とAIが変更不能な署名済みAuthorization Envelopeを分離 |
+| 形式モデルが実装保証に見える | Model–transition mappingと生成Conformance Testを併用し、C++全体の証明とは表現しない |
+| 最新Model／SDKで無通知回帰する | exact Provider Manifest、3回Eval、canary、明示昇格、rollback |
 | チャットが長くなり決定を失う | Decision Ledger、GameSpec、Project memory |
 | 初心者に技術質問をする | ゲーム上の要件へ翻訳、内部方式はAIが判断 |
 | 自由度を上げると安全性が下がる | Structured／Script／C++で権限と検証を分離 |
@@ -1124,7 +1153,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 - Model APIは推論を提供する。
 - Agent SDKは高度なAgent loopを管理する。
 - MCPはAI HostとEngine Toolを接続する。
-- Codex／Claude PluginはworkflowとMCP設定の配布単位である。
+- Codex／Claude Pluginは任意のworkflow／MCP設定／UX配布層であり、必須契約や権限の正本ではない。
 - CLI／DesktopはEngine開発と試作に適する。
 - どの層もEngineのSemantic validationとTransactionを代替しない。
 
@@ -1166,6 +1195,6 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 
 ## 20. 次のアクション
 
-本書、基盤アーキテクチャ規約、Runtime連携・寿命・性能規約、2D／3D機能計画、モバイルPlatformアーキテクチャ規約の五文書を一つの設計としてReviewする。矛盾、未定義の責務、根拠のない技術選択を解消して承認した後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
+設計文書Indexに列挙した八文書を一つの設計としてReviewする。特に、Product目標、C++／Runtime境界、2D／3D／Mobile機能、AI権限、MCD、Provider投影、形式検証、Eval、Provenanceの責務が矛盾しないことを確認する。承認後、実装タスク、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

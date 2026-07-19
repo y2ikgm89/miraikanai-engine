@@ -1,6 +1,6 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-19
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
@@ -9,6 +9,9 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 ## 1. 結論
 
@@ -57,7 +60,7 @@ Miraikanai Engineは、**Windows Editor＋共通Runtime Contract＋Platform Adap
 ### 2.3 更新規約
 
 - Toolchainは`toolchain.lock.json`、Store／OS要件は`store_policy.lock.json`へ分離する。
-- Shipping候補作成前30日以内に、Google PlayとAppleの要件を公式URLから再確認する。
+- Shipping候補作成前14日以内、Store提出前7日以内に、Google PlayとAppleの要件を公式URLから再確認する。
 - minimum OS、minimum device capability、Runtime AI許可範囲を緩和または強化する変更はADR、移行影響、実機bridge baselineを必須とする。
 - Preview／beta SDKをShipping baselineへ採用しない。
 - exact binary hash、署名、package integrityはbootstrap時に機械取得してlockする。値の転記は未決設計ではなく再現Build手順である。
@@ -146,7 +149,7 @@ ProjectMobileSpec {
 | Android Gradle Plugin | 9.3.0 |
 | Gradle | 9.5.0 |
 | Android SDK Build Tools | 36.0.0 |
-| JDK | 17 |
+| JDK | Microsoft Build of OpenJDK 17.0.19 LTS。Windows x64 zip 186,907,952 bytes、SHA-256 `394d1d8253d58b462300f15f9c81369478cf8813f82dca914c3b5dfdef080f9f` |
 | CMake／Ninja | 4.4.0／1.13.2 |
 | GameActivity | AndroidX Games 4.4.2 |
 | Game Controller | AndroidX Games Controller 2.0.2 |
@@ -172,18 +175,48 @@ ANDROID_PLATFORM=android-29
 
 | 項目 | 固定値 |
 |---|---|
-| Build host | macOS Tahoe 26.2以降の専用またはCI Mac agent |
+| Unsigned Build host | macOS Tahoe 26.2以降の専用またはephemeral CI Mac worker。署名鍵、Provisioning profile、Store credentialを持たない |
 | Xcode | 26.6 Stable |
 | SDK | iOS／iPadOS 26.5 |
 | Deployment target | 17.0 |
 | Architecture | arm64 |
 | CMake／generator | CMake 4.4.0／Xcode |
 | Language boundary | C++20 core＋Objective-C++ Adapter、ARC有効 |
-| Shipping | Xcode archive、validation、TestFlight、App Store |
+| Shipping backend | `apple_xcode_cloud_v1`または適合済み`apple_self_hosted_split_v1`だけ |
+| Shipping | source-free signing／export、archive validation、TestFlight、App Store |
 
-WindowsはApple用Asset cook、portable shader validation、source生成まで行えるが、最終Metal compilation、link、code signing、archive、TestFlight uploadを行わない。これらはlockされたXcodeを持つMac agentだけが行う。Provisioning profile、certificate、App Store Connect credentialはOS keychainまたはCI secret vaultに置き、Project、lock file、logへ保存しない。
+WindowsはApple用Asset cook、portable shader validation、source生成まで行えるが、最終Metal compilationとarm64 linkは行わない。Apple Unsigned Build WorkerがlockされたXcodeでこれらを実行し、`UnsignedApplePayloadV1`を生成する。このWorkerはAI生成SourceとBuild phaseを実行する非信頼実行系であり、Provisioning profile、certificate private key、App Store Connect credential、Production secretを一切持たない。
 
-Remote Mac AgentはTLS 1.3のmutual authenticationを必須とし、`status`、`submit_build`、`cancel_build`、`fetch_artifact`、`fetch_log`のversioned RPCだけを公開する。任意shell、任意path、任意environment変数をWindows Editorへ公開しない。入力はcontent-addressed archive、lock digest、Build request schemaで受け、専用ephemeral workspaceへ展開し、完了／失敗後にcredentialを含まない成果物だけを返してworkspaceを削除する。受信fileごとにsizeとSHA-256、成果物manifestにagent ID、Xcode build、SDK build、signing profile IDの非秘密識別子を記録する。
+自己hostする`AppleUnsignedBuildWorkerV1`は、Apple hardware上の次の隔離Profileを全て満たす。
+
+- 非管理者のTask専用macOS identityで実行し、User home、Keychain、他Project、Source control credential、Signing／Upload ServiceのfilesystemまたはIPC endpointをmountしない。
+- 組織が利用権を持つmacOS／Xcodeから作った署名済みimmutable Base imageとToolchain manifestを使う。Taskごとに新しいVM／ephemeral volumeを作り、停止後にOutput Receiptを確定してTask diskを破棄する。単なるworkspace削除、同じ長寿命login session、前Task snapshotからの継続をclean workerとみなさない。
+- Build guestへ一般virtual NICを公開せず、入力／出力はHost側Brokerが認証するlength-framed content-addressed channelだけにする。SDK／Dependencyは事前承認Bundleへ含め、Build中のdownload、Source control接続、任意egressを禁止する。
+- CPU、memory、process、File数、単一／総Output byte、wall timeをHostとguestの両方で制限し、子Processを含めて終了する。Outputは`UnsignedApplePayloadV1`とbounded Log／Receiptだけで、guest filesystem archiveを返さない。
+- Signing／Upload Serviceと同じmacOS kernel／user namespaceで動かさない。別host、またはBuild guestからHost secretへ到達できないPlatform-managed virtualization境界を必須にし、境界のversion／hash／negative-test ReceiptをToolchain lockへ含める。
+
+このProfile、macOS／Xcode利用許諾Evidence、task reset、Broker isolationを証明できない自己host MacはProduction BackendとしてActivationしない。OS kernel／hypervisor／firmware侵害はガバナンス規約のTrust boundary外だが、疑いがある場合はBase image再利用ではなくHost隔離とclean rebuildを行う。
+
+Apple Shipping backendは次の二つだけを公式対応にする。
+
+| Backend | 採用条件 | Secret境界 |
+|---|---|---|
+| `apple_xcode_cloud_v1` | Appleのephemeral build、Cloud Signing、built-in TestFlight／App Store配布を使い、組織Policyと料金が許容する | Distribution private keyをBuild scriptまたはMiraikanai Serviceへ渡さない。独自secretをBuild environmentへ置かない |
+| `apple_self_hosted_split_v1` | 下記のsource-free signing適合試験を、lockしたXcode／SDKごとに合格する | Unsigned Build Worker、Apple Signing Service、Store Upload Serviceを別identity、別workspace、別credentialで分離する |
+
+`apple_self_hosted_split_v1`のApple Signing Serviceは、`UnsignedApplePayloadV1`、承認済みEntitlement／Provisioning参照、署名済みRelease Authorizationだけを受け取る。Project source、`.xcodeproj`、`.xcworkspace`、CMake／Swift Package／Build script、任意shell、任意environmentを受け取らず、compile、link、Run Script phaseを実行しない。固定したfirst-party packagerがbundle path、Mach-O、nested code、Info.plist、Entitlement、Privacy Manifest、provisioning対応、hashを検査し、内側から外側の順に署名し、archive／export／validationを行う。Signing ServiceはOS keychainまたはHSM-backed identityだけを使い、private keyをFile、Environment、標準入出力、Logへ展開しない。Store Upload Serviceは署名済みpackageと短命App Store Connect credentialだけを持ち、SourceとSigning keyを持たない。
+
+Appleの公式文書はarchive export時の再署名と手動署名を規定するが、任意の未署名iOS payloadからSourceなしで全Project形状をApp Store提出物へ変換できることまでは保証しない。このため`apple_self_hosted_split_v1`は、実在する最小2D fixtureで次を全て満たすまでActivationしない。
+
+1. Unsigned Build WorkerにKeychain identity、Provisioning profile、Store credentialが存在しない状態でarm64 binaryと`UnsignedApplePayloadV1`を再現生成する。
+2. Signing ServiceにSource、Project、Build script、compilerを置かず、固定Toolと固定RPCだけでnested signing、archive／export、`codesign`検証、Xcode validationを完了する。
+3. TestFlight internal testingへuploadし、A12実機でinstall／launch／saveを確認する。
+4. 悪意あるBuild scriptによるKeychain列挙、Environment読取り、Network送信がSecretを得られないことをnegative testで示す。
+5. Signing ServiceがSource、script、symlink／hardlink／reparse相当、不正bundle path、未宣言nested code、Entitlement差替え、payload hash差を拒否する。
+
+いずれかが不合格なら結合型のcredential-bearing Mac buildへfallbackせず、`apple_xcode_cloud_v1`を使うかApple Shippingを`UnsupportedCapability`で停止する。Xcode／SDK更新ごとに同じ適合試験を再実行する。
+
+Remote Apple ServiceはTLS 1.3のmutual authenticationを必須とし、`status`、`submit_unsigned_build`、`submit_signing`、`submit_upload`、`cancel`、`fetch_artifact`、`fetch_receipt`、`fetch_log`のversioned RPCだけをRole別に公開する。任意shell、任意path、任意environment変数をWindows Editorへ公開しない。入力はcontent-addressed manifest、lock digest、署名済みRequest schemaで受け、専用ephemeral workspaceへmaterializeし、完了／失敗後にSecretを含まない成果物だけを返してworkspaceを削除する。受信fileごとにsizeとSHA-256、成果物manifestにService ID、Xcode build、SDK build、signing profile IDの非秘密識別子を記録する。
 
 ### 5.3 共通lock
 
@@ -201,7 +234,7 @@ StorePolicyLock {
 }
 ```
 
-Shipping候補で`checked_at_utc`が30日を超えた場合はrelease jobを拒否する。
+Shipping候補で`checked_at_utc`が14日を超えた場合はrelease jobを拒否する。Store提出Jobでは7日を超えたLockも拒否し、同じ公式URLを再確認して新しいReview付きLockを発行する。
 
 ## 6. Platform非依存アーキテクチャ
 
@@ -689,7 +722,7 @@ Runtime生成dataはcontent moderation、age／region policy、rate limit、in-a
 - touch、multi-touch、controller、software keyboard simulation
 - World resolution、UI resolution、dynamic resolution、memory、frame、thermal budget表示
 - Device Manager: install、launch、stop、log、screenshot、capture、crash取得
-- Remote Mac Agent: Xcode／SDK／certificate状態、build、archive、TestFlight job
+- Apple Services: Unsigned Build Worker、Signing Service、Upload Service、Xcode／SDK／certificateの非秘密状態、適合試験、TestFlight job
 - Package Inspector: ABI、native alignment、permission、privacy manifest、Asset chunk、size、shader coverage
 - AI Diff内のPlatform影響、fallback、Store／permission警告
 
@@ -729,27 +762,46 @@ default permissionはゼロとする。Capabilityからmanifest候補を生成�
 
 ## 18. Build、CI、実機Test
 
-### 18.1 Build pipeline
+### 18.1 Build、署名、配布pipeline
 
 ```text
-Windows CI:
+Windows CI / HyperVIsolatedWorkerV1:
   validate Project
   -> build portable C++/Luau
   -> cook common + Windows + Android assets/shaders
   -> Windows package
-  -> Android Gradle/AAB package
+  -> isolated Android build -> unsigned AAB
   -> package inspection
 
-macOS CI/Agent:
+Android Signing Service:
+  verify UnsignedMobilePackageV1 + Release Authorization
+  -> jarsigner with upload key
+  -> jarsigner verify + package inspection
+  -> signed AAB
+
+Apple Unsigned Build Worker:
   fetch signed source + cooked manifest
   -> revalidate lock/content hash
   -> compile Metal library
   -> build iOS/iPadOS arm64
-  -> archive/validate
-  -> TestFlight/App Store handoff
+  -> UnsignedApplePayloadV1
+
+Apple Signing Service or Xcode Cloud managed signing:
+  verify payload + Release Authorization
+  -> source-free nested signing/package/export
+  -> archive/signature/entitlement validation
+
+Store Upload Service:
+  verify signed package + receipts
+  -> TestFlight/Play internal track
+  -> human-approved App Store/Google Play handoff
 ```
 
-DevelopmentはAPK、ShippingはAAB＋Play App Signingを使う。Appleはdevelopment installとTestFlightを分け、App Store候補はarchive validationを通す。
+Developmentは`HyperVIsolatedWorkerV1`内でTaskごとに生成する非Production debug keyだけで署名するAPK、Shippingはunsigned AABを後段のAndroid Signing Serviceがupload keyで署名し、Play App Signingを使う。Debug keyはRelease Serviceへ登録できず、Package Inspectorはdebug certificateまたは`debuggable=true`のShipping入力を拒否する。Google公式手順どおりAAB署名には`jarsigner`を使い、`apksigner`を使わない。Android Signing ServiceはGradle、Project source、Build scriptを受け取らず、固定`jarsigner`／検証器だけを実行する。Upload keyとPlay API credentialは別Serviceに置き、Googleが保持するapp signing keyとEngineが保持するupload keyを同一にしない。Appleはdevelopment installとTestFlightを分け、App Store候補はBuild isolationと署名境界の両適合試験、archive validationを通す。
+
+全Platform共通の`UnsignedMobilePackageV1`は、Target／Distribution Profile、Engine commit、Source tree hash、Toolchain lock、Build Receipt、SBOM hash、payload entryごとのnormalized path／size／SHA-256／executable kindを持つ。Entryは通常Fileだけを許可し、absolute／`..`／case衝突／Unicode正規化衝突、symlink、hardlink、device、socket、alternate stream、sparse fileを拒否する。Signing ServiceはManifest外Fileを無視せず失敗させ、受信byteからhashを再計算する。署名後は`MobileSigningReceiptV1`にunsigned root、signed root、key ID、certificate chain hash、profile／entitlement hash、Tool hash、検証結果を記録し、Upload ServiceはこのReceiptとR5 Approvalが一致しなければ受け付けない。
+
+Source取得から`UnsignedMobilePackageV1`まではArtifact由来RiskのR3／R4 release-preparation Taskで行い、Signing key／Store credentialを使わない。R5は人間がunsigned root、Application、Version、Channel、Signing profile、Store listingを承認した後にだけ開始し、ガバナンス規約の一回限り`ReleaseTransactionV1`がSigningとUploadを最長6時間で実行する。Store processing／review／rollout待ちはTransaction外のread-only status監視に分離する。
 
 ### 18.2 CI lane
 
@@ -760,7 +812,7 @@ DevelopmentはAPK、ShippingはAAB＋Play App Signingを使う。Appleはdevelop
 | Android | Gradle dependency verification、arm64／x86_64 compile、SPIR-V validation、AAB／16 KiB inspection、emulator smoke |
 | Apple | Xcode build、Simulator smoke、Metal compile／validation、archive inspection |
 | Physical device | graphics golden、input、audio、lifecycle、memory pressure、thermal、performance、content delivery |
-| Security／privacy | sanitizer、static analysis、permission／entitlement、privacy manifest、secret scan、package executable-content scan |
+| Security／privacy | sanitizer、static analysis、permission／entitlement、privacy manifest、secret scan、package executable-content scan、Build／Signing／Upload identity分離test |
 
 ### 18.3 必須実機matrix
 
@@ -794,13 +846,14 @@ Shipping候補は次を全て満たす。
 1. Target／Distribution Profile、Toolchain lock、Store policy lockが一致する。
 2. 共通Project validationと全Target cookが成功する。
 3. 未対応shader、texture、permission、privacy declaration、Asset dependencyがゼロである。
-4. Android AABまたはApple archiveのABI、size、alignment、signatureが合格する。
+4. `UnsignedMobilePackageV1`、Build Receipt、Mobile Signing Receiptが同じSource／Toolchain／payload hashへ連結され、Android AABまたはApple archiveのABI、size、alignment、signatureが合格する。
 5. Minimum／Reference実機でlifecycle、input、audio、Save、graphics goldenが合格する。
 6. Memory class、frame、thermal、endurance budgetが合格する。
 7. Shipping packageにcompiler、debug server、source、動的実行code、credentialが含まれない。
 8. Runtime生成を使う場合はContentSafetyProfile、report、moderation、audit、rollbackが合格する。
 9. Data Safety／Privacy Manifestと実binary／SDK scanが一致する。
-10. release ownerがStore listing、permission purpose、privacy、signing、TestFlight／internal track結果を承認する。
+10. release ownerがStore listing、permission purpose、privacy、unsigned artifact hash、signing profile、TestFlight／internal track結果を承認する。
+11. Build WorkerにSigning／Upload secretがなく、Signing ServiceにSource／Build scriptがなく、Upload ServiceにSource／Signing keyがないことをService identityとnegative testで証明する。
 
 ## 20. 段階計画
 
@@ -809,8 +862,8 @@ Mobile対応はWindows MVPを捨てて同時並行に全面実装せず、共通
 | Mobile milestone | 実施時期 | 完了条件 |
 |---|---|---|
 | M0 Platform Contract | Product Phase 0 | Target／Distribution／Display／Lifecycle／Graphics Port schema、directory、toolchain lock、package validator |
-| M1 Android 2D slice | Windows 2D C1後 | GameActivity、Vulkan、Oboe、touch、Save、AAB、Baseline実機で同じ2D First Playable |
-| M2 Apple 2D slice | M1後 | UIKit／MTKView、Metal、AudioUnit、touch、Save、TestFlight、A12実機で同じ2D First Playable |
+| M1 Android 2D slice | Windows 2D C1後 | GameActivity、Vulkan、Oboe、touch、Save、unsigned AAB→分離署名、Baseline実機で同じ2D First Playable |
+| M2 Apple 2D slice | M1後 | UIKit／MTKView、Metal、AudioUnit、touch、Save、Shipping backend適合試験、TestFlight、A12実機で同じ2D First Playable |
 | M3 Mobile 3D production | Windows 3D C1後 | 3D scalable quality、shader／texture cook、thermal／memory governor、PAD／Background Assets |
 | M4 Store-ready Runtime AI | Production Capability後 | data-only Runtime AI、content safety、privacy、physical device lab、release gate |
 
@@ -821,13 +874,16 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 モバイル対応は「compileした」だけでは完了としない。各Capabilityは次を満たして初めて対象Profileで利用可能と表示する。
 
 - 正規schema、version、migration、validatorがある。
-- EditorとAIがCapability、budget、fallbackを理解し、同じChangeSetを生成する。
+- EditorとAIがMCDから生成した同じCapability、budget、fallback、Provider projectionを理解し、同じChangeSetを生成する。
 - Common Runtime ContractとPlatform Adapterの境界testがある。
-- Target別Cook、署名済みpackage、package inspectionがある。
+- Target別Cook、`UnsignedMobilePackageV1`、分離署名済みpackage、Build／Signing Receipt、package inspectionがある。
 - Minimum／Reference実機で機能、lifecycle、memory、performance、thermalを合格する。
 - failure、permission、privacy、Store policy、diagnostics、rollbackがある。
 - Source Assetから同じlockでartifactを再現できる。
 - Manual編集とAI編集が同一Projectを往復できる。
+- AI Task、Provider、Contract、Verification、Review、PromotionのReceipt hashがBuild provenanceへ接続される。
+- Store／SDKのExternal EvidenceがAI検証規約の期限内であり、Submission 7日前以内に再確認される。
+- Android Buildは`HyperVIsolatedWorkerV1`、自己host Apple Buildは`AppleUnsignedBuildWorkerV1`のBase image、no-secret／no-egress、Task disk破棄、Broker Output、Signing host分離conformanceを通る。
 
 ## 22. 主なリスクと対策
 
@@ -838,8 +894,11 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 | A12でshader pathが成立しない | SPIR-V→SPIRV-Cross→MSLをdefault、Metal Converterを必須にしない |
 | Apple unified memoryを二重計上または過小計上 | process、CPU domain、GPUの三budgetを個別検査 |
 | surface／process killでSave破損 | surfaceとWorld寿命分離、checkpoint、journal、atomic replace、kill test |
-| Store要件が更新される | `store_policy.lock.json`、30日refresh、release owner承認 |
+| Store要件が更新される | `store_policy.lock.json`、14日以内のEvidence、Submission 7日前再確認、release owner承認 |
 | AIが出荷後にcodeを生成する | Shipping capabilityをdata-onlyに固定し、package／download scan |
+| AI生成Build scriptが署名鍵／Store credentialを窃取する | Build、Signing、Uploadを別identity／kernel境界へ分離し、Build WorkerへSecretを一切渡さない |
+| 自己host MacのBuild malwareが次Taskへ永続化する | immutable Base、Task別disk、一般egress／host shareなし、disk破棄、Broker限定Output。適合不能ならXcode Cloudだけ |
+| Apple source-free signingが特定Xcode／Project形状で成立しない | lock更新ごとの適合fixtureを必須化し、不合格時はXcode Cloudまたはfail closed。結合型Mac agentへfallbackしない |
 | touch UIがdesktop UIの縮小になる | dp／pt最小target、safe-area、tablet／foldable fixture |
 | 端末数増加でQAが破綻 | Capability Signature、Minimum／Reference／High lane、bridge baseline |
 | 複数backendで見た目がずれる | Material IR、offline cross-compile、golden image、明示fallback |
@@ -866,20 +925,29 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 - [Native memory debugging](https://developer.android.com/ndk/guides/memory-debug)
 - [Support 16 KB page sizes](https://developer.android.com/guide/practices/page-sizes)
 - [Android App Bundle format](https://developer.android.com/guide/app-bundle/app-bundle-format)
+- [Build your app from the command line: unsigned AAB and `jarsigner`](https://developer.android.com/build/building-cmdline)
+- [Sign your app and Play App Signing](https://developer.android.com/studio/publish/app-signing)
 - [Play Asset Delivery](https://developer.android.com/guide/playcore/asset-delivery)
 - [Google Play maximum size limits](https://support.google.com/googleplay/android-developer/answer/9859372?hl=en-GB)
 - [Google Play Device Catalog and exclusions](https://support.google.com/googleplay/android-developer/answer/7353455?hl=en)
 - [Google Play target API requirements](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en-GB_ALL)
 - [Dynamic code loading risks](https://developer.android.com/privacy-and-security/risks/dynamic-code-loading)
 - [Google Play Data safety](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en)
-- [Google Play AI-generated content policy](https://support.google.com/googleplay/android-developer/answer/17190352?hl=en)
+- [Google Play AI-Generated Content policy](https://support.google.com/googleplay/android-developer/answer/13985936?hl=en)
 - [Android accessibility touch target guidance](https://developer.android.com/guide/topics/ui/accessibility/views/apps-views)
+- [Microsoft Build of OpenJDK downloads](https://learn.microsoft.com/en-us/java/openjdk/download)
+- [Microsoft Build of OpenJDK release notes](https://learn.microsoft.com/en-us/java/openjdk/release-notes)
 
 ### 23.2 Apple
 
 - [Xcode support and SDK matrix](https://developer.apple.com/support/xcode/)
 - [App Store upcoming SDK requirements](https://developer.apple.com/news/upcoming-requirements/?id=02032026a)
 - [Distributing an app for beta testing and releases](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases)
+- [Xcode Cloud security and ephemeral build environments](https://developer.apple.com/xcode-cloud/security/)
+- [Xcode distribution signing options](https://help.apple.com/xcode/mac/current/en.lproj/devff5ececf8.html)
+- [Xcode archive export files](https://help.apple.com/xcode/mac/current/en.lproj/deva1f2ab5a2.html)
+- [Apple Code Signing Tasks and nested-code order](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html)
+- [Synchronizing and protecting code-signing identities](https://developer.apple.com/documentation/Xcode/sharing-your-teams-signing-certificates)
 - [Managing an app life cycle](https://developer.apple.com/documentation/uikit/managing-your-app-s-life-cycle)
 - [`MTKView`](https://developer.apple.com/documentation/MetalKit/MTKView)
 - [Metal capabilities](https://developer.apple.com/metal/capabilities/)
@@ -919,4 +987,4 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 
 ## 24. 未確定事項の扱い
 
-本書にはM0実装を止める設計選択を残さない。Store要件とSDKは将来変わるためlockの更新手順を定義し、Device差はCapability Signatureと実機gateで扱う。各download artifactの最終SHA-256、Apple signing team、package identifier、実在するMac agent IDはProject bootstrap時に入力・検証する運用値であり、アーキテクチャ上の未決事項ではない。
+本書にはM0実装を止める設計選択を残さない。Store要件とSDKは将来変わるためlockの更新手順を定義し、Device差はCapability Signatureと実機gateで扱う。各download artifactの最終SHA-256、Apple signing team、package identifier、実在するBuild／Signing／Upload Service IDはProject bootstrap時に入力・検証する運用値であり、アーキテクチャ上の未決事項ではない。

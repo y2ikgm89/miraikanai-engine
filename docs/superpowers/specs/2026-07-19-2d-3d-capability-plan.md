@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
@@ -8,6 +8,9 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+- AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 ## 1. 結論
 
@@ -205,7 +208,7 @@ Camera shakeはseed、開始tick、duration、translation／rotation amplitude�
 
 2Dは専用`CanvasRenderer`を持つ。3D opaque passへquadを混ぜる設計にしない。
 
-#### C1
+#### C1: 2D Renderer Core
 
 - Sprite、sprite sheet、texture atlas
 - Region、flip、pivot、modulate color
@@ -222,7 +225,7 @@ Camera shakeはseed、開始tick、duration、translation／rotation amplitude�
 - Sprite material graphの制限subset
 - Draw-call、overdraw、atlas occupancy debug view
 
-#### C2
+#### C2: 2D Renderer Advanced
 
 - Instanced sprite、GPU culling
 - 2D light clustering
@@ -253,7 +256,7 @@ Blendの既定はpremultiplied alphaとする。Straight alpha Assetはimport時
 
 Tilemapは単一巨大arrayではなく、変更・streaming・culling単位のchunkへ分割する。
 
-#### C1
+#### C1: Tilemap Core
 
 - Multiple tile layer
 - Atlas tile、animated tile、collision shape、navigation tag
@@ -264,7 +267,7 @@ Tilemapは単一巨大arrayではなく、変更・streaming・culling単位のc
 - Collider merge
 - Paletteとcustom metadata
 
-#### C2
+#### C2: Tilemap Advanced
 
 - World streaming
 - Background async chunk cook
@@ -278,7 +281,7 @@ AIはtile IDの巨大配列を直接生成せず、region、rule、seed、constr
 
 Box2D 3.1.1を`Physics2DBackend`内で利用する。
 
-#### C1
+#### C1: 2D Physics Core
 
 - Static／kinematic／dynamic body
 - Circle、capsule、box、polygon、chain shape
@@ -291,7 +294,7 @@ Box2D 3.1.1を`Physics2DBackend`内で利用する。
 - Fixed 60 Hz、`sub_step_count=4`をC1 reference値とする
 - Collider、contact、sleep state debug draw
 
-#### C2
+#### C2: 2D Physics Advanced
 
 - One-way platform
 - Continuous collision quality profile
@@ -308,7 +311,7 @@ Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcano
 
 2Dではgrid navigationとpolygon navigationを別backendとして提供する。
 
-#### C1
+#### C1: 2D Navigation Core
 
 - Tilemapからwalkable grid生成
 - A* query、cost layer、blocked cell
@@ -316,7 +319,7 @@ Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcano
 - Reachability validation
 - Path debug overlay
 
-#### C2
+#### C2: 2D Navigation Advanced
 
 - Polygon navigation region
 - Dynamic obstacle update
@@ -347,7 +350,7 @@ Tilemap cellとNavigation cellが一致しない場合、各Navigation cellが�
 
 ### 5.5 2D Animation
 
-#### C1
+#### C1: 2D Animation Core
 
 - Flipbook
 - Property track
@@ -357,7 +360,7 @@ Tilemap cellとNavigation cellが一致しない場合、各Navigation cellが�
 - Blend parameter
 - Preview、scrub、onion skin
 
-#### C2
+#### C2: 2D Animation Advanced
 
 - Cutout skeleton
 - IK chain
@@ -388,7 +391,7 @@ Stress sceneはgameplay sceneと分離し、同時にすべてを要求しない
 
 ### 6.1 MeshとWorld Rendering
 
-#### C1
+#### C1: Mesh／World Rendering Core
 
 - Static mesh、skinned mesh、morph target
 - glTF 2.0 import
@@ -402,7 +405,7 @@ Stress sceneはgameplay sceneと分離し、同時にすべてを要求しない
 - Transparent forward pass
 - Debug wireframe、bounds、normal、material view
 
-#### C2
+#### C2: Mesh／World Rendering Advanced
 
 - GPU-driven instance culling
 - Occlusion culling
@@ -510,7 +513,7 @@ Lightmap、probe、IBLはDerived Assetとし、geometry、material、light、bak
 
 これらを別々の装飾機能ではなく、共通の`EnvironmentProfile`として連携させる。
 
-#### C1
+#### C1: Environment Core
 
 - Solid／gradient sky
 - HDR environment cubemap
@@ -539,7 +542,7 @@ C1 IBLはdiffuse irradiance cubemap 32²×6 `RGBA16_FLOAT`、specular prefilter 
 
 Height fogは`e=clamp(-height_falloff*(y-base_height), -80, 80)`、`extinction(y)=base_extinction*exp(e)`、距離fogは`optical_depth=clamp(extinction*d, 0, 80)`、`transmittance(d)=exp(-optical_depth)`と定義する。既定は`base_extinction=0.01 m^-1`、`height_falloff=0.10 m^-1`、`base_height=0 m`、albedo `(0.9,0.9,0.9)`、max distance 10,000 mである。extinction／falloffは0～10 `m^-1`、base heightは±1,000,000 m、albedoは各0～1、distanceは1～1,000,000 mとし、負数、NaN／Infを拒否する。
 
-#### C2
+#### C2: Environment Advanced
 
 - Physically based atmosphereのtransmittance、multi-scattering、sky-view LUT
 - Aerial perspective
@@ -580,7 +583,7 @@ Cloud layerの既定bottom／topはgroundから1,500 m／5,000 m、最大view ra
 
 Dynamic IBL更新は6 face capture、1 diffuse convolution、9 specular mipのexactly 16 work unitで構成し、staging setへ最大1 unit／frameを実行する。16 unitすべてがreadyになった時だけ`R10`でgenerationを切り替える。1 frameの更新soft capは0.25 msで、超過時は作業を次frameへ送るが部分generationを公開しない。
 
-#### C3
+#### C3: Environment Research
 
 - Multiple atmosphere body
 - Advanced weather front
@@ -601,7 +604,7 @@ Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposure
 
 ### 6.5 Post Processing
 
-#### C1
+#### C1: Post Processing Core
 
 - Exposure
 - Tone mapping
@@ -612,7 +615,7 @@ Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposure
 - FXAA、TAA
 - Motion vector infrastructure
 
-#### C2
+#### C2: Post Processing Advanced
 
 - Motion blur
 - High-quality depth of field
@@ -627,7 +630,7 @@ Effectの順序はPost Process Graphで固定し、AIは登録済みnodeと範�
 
 Jolt Physics 5.6.0を`Physics3DBackend`内で利用する。
 
-#### C1
+#### C1: 3D Physics Core
 
 - Static／kinematic／dynamic rigid body
 - Box、sphere、capsule、convex hull、triangle mesh
@@ -640,7 +643,7 @@ Jolt Physics 5.6.0を`Physics3DBackend`内で利用する。
 - Fixed、Point、Distance、Hinge、Slider、SwingTwist constraint
 - Debug draw、island、contact profiler
 
-#### C2
+#### C2: 3D Physics Advanced
 
 - Ragdoll
 - Vehicle
@@ -664,7 +667,7 @@ Physics determinismは同一version／platform／thread設定のreplay範囲で�
 
 Recast／Detour 1.6.0でEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行う。
 
-#### C1
+#### C1: 3D Navigation Core
 
 - Walkable slope、height、step、radiusを持つAgent Profile
 - Geometry収集filter
@@ -675,7 +678,7 @@ Recast／Detour 1.6.0でEditor／cook時にNavmeshを構築し、DetourでRuntim
 - Navmesh overlay、tile、failed query debug
 - Spawn／goal reachability test
 
-#### C2
+#### C2: 3D Navigation Advanced
 
 - TileCacheによるdynamic obstacle
 - Partial tile rebuild
@@ -718,7 +721,7 @@ Agent Profile変更はsource geometry hashが同じでも全tileを再cookする
 
 ozz-animationをsampling／compression primitiveとしてAdapter内で利用し、Animation Graphは独自に実装する。
 
-#### C1
+#### C1: 3D Animation Core
 
 - Skeleton、clip、compressed track
 - Sampling、cross-fade、layer、mask
@@ -728,7 +731,7 @@ ozz-animationをsampling／compression primitiveとしてAdapter内で利用し�
 - Skinning
 - Preview、scrub、transition debug
 
-#### C2
+#### C2: 3D Animation Advanced
 
 - 1D／2D blend space
 - Additive animation
@@ -761,7 +764,7 @@ Reference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU 
 
 2D／3Dで共通のauthoring graphとcurve systemを使い、Renderer backendだけを分ける。
 
-### C1
+### C1: Particle／VFX Core
 
 - Emitter shape
 - Rate／burst
@@ -775,7 +778,7 @@ Reference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU 
 - Seed固定preview
 - Bounds、particle count、overdraw debug
 
-### C2
+### C2: Particle／VFX Advanced
 
 - GPU compute simulation
 - Mesh particle
@@ -961,7 +964,7 @@ Authoring上の`perceptual_roughness`は0～1を保持し、shader内部ではFP
 
 glTF extensionはinterchangeの意味を保って独自Material IRへ変換する。対応していないratified extensionを黙って無視せず、Importerが`unsupported_material_feature`として停止するか、Project Profileで明示許可されたfallbackをPreviewする。2026-07-19時点でRatifiedでない`KHR_materials_diffuse_transmission`や`KHR_materials_subsurface`等は正式import対象にせず、ratification後に別ADRとconformance fixtureを通す。Skin、Hair、Eye等のEngine専用modelはglTFへlossless exportできるとは宣言しない。
 
-#### C3
+#### C3: Realistic Research
 
 - Displacement用offline mesh refinement
 - Spectral／thin-filmの高度近似
@@ -1298,7 +1301,7 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 - Build／Playtest
 - Profiler
 - Target／Distribution Profile、Capability Matrix、Package Inspector
-- Device Manager、Remote Mac Agent、safe-area／cutout／orientation／touch preview
+- Device Manager、Apple Unsigned Build／Signing／Upload Service、safe-area／cutout／orientation／touch preview
 - Diff／History
 - AI Partner
 
@@ -1394,7 +1397,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 
 機能は「画面に出た」だけでは完了しない。次をすべて満たす。
 
-1. Authoring schemaとtyped commandがある。
+1. MCDでAuthoring type、typed command、Capability、Requirementが定義され、C++／TS／Luau／AI Toolが同じ正本から生成される。
 2. C++ semantic validatorとbudget validatorがある。
 3. Editorで作成、編集、preview、undoできる。
 4. AIがCapabilityを発見し、ChangeSetとして提案できる。
@@ -1411,6 +1414,11 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 15. Subsystem別CPU／GPU／memory／queue budgetとoverflow／recovery testを満たす。
 16. 選択した全Target Profileでshader／texture／package cookとCapability intersection validationが合格する。
 17. Mobile対象の場合、minimum／reference実機でlifecycle、touch／controller、audio、memory、thermal、Store packageを合格する。
+18. Requirement Coverage Matrixがvalidator、test、実装Symbol、Receiptを追跡できる。
+19. MCP／OpenAI／Anthropic Provider projectionとGateway完全再検証のconformance testがある。
+20. AIが選んだScript／C++方式はBehavior Budgetと10分×3回のBenchmark Receiptを持つ。
+21. State、authority、promotionを変更する機能は、対象TLA+ modelまたは「形式モデル対象外」の明示理由とtransition conformanceを持つ。
+22. AI／人間の変更がRisk別Verification、Review、Promotion Receiptへ接続される。
 
 ## 15. 主要リスクと確定対策
 

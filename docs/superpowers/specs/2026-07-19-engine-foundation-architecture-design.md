@@ -1,12 +1,15 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+- AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 ## 1. 目的と規範の読み方
 
@@ -26,7 +29,7 @@
 | 項目 | 公式基準 |
 |---|---|
 | Editor／主要開発Host | Windows 11 25H2以降 x64（OS build 26200以上） |
-| Apple Build Agent | macOS Tahoe 26.2以降、Xcode 26.6 Stable。Apple TargetのC++／Metal compile、link、archive、signing、upload専用 |
+| Apple Build／Release | macOS Tahoe 26.2以降、Xcode 26.6 Stable。SecretなしUnsigned Build WorkerがC++／Metal compileとlinkを行い、適合済みSigning／Upload ServiceまたはXcode Cloudが後段を担う。結合型credential-bearing Agentは禁止 |
 | 公式Game Target | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1` |
 | Graphics API | WindowsはDirect3D 12、AndroidはVulkan 1.1＋AVP 2022、AppleはMetal |
 | 言語 | C++20 |
@@ -39,6 +42,8 @@
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | 初期Model Provider | OpenAI Responses API、公式TypeScript SDK 6.48.0 |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium`を明示 |
+| 実行可能契約 | `/schemas/mira/`のMCDを正本とし、Contract compilerがC++／TS／Luau／MCP／Provider projectionを生成 |
+| Formal model checker | TLA+／TLC CLI v1.7.4をBuild-onlyで固定。v1.8.0 Pre-releaseとToolboxをCIへ採用しない |
 | Shader | Material／Shader IR＋portable HLSL 2021。WindowsはDXIL／SM 6.6／Root Signature 1.1、AndroidはSPIR-V、AppleはMSL／metallibへoffline cook |
 | Windows D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
 | Script VM | Luau 0.730 strict mode、Engine-owned Capability APIだけを公開 |
@@ -52,6 +57,7 @@
 | Mobile baseline | 30／60 fps、process 1,024 MiB、Engine CPU 768 MiB、GPU working set 384 MiB。実機classと測定法はモバイル規約に固定 |
 | Editor memory baseline | Editor process group 4 GiB soft budget。Play Runtime 2 GiB＋Authoring 2 GiBを含み、外部Compiler／AI processは別計測 |
 | Tool process memory baseline | Editor-launched child tree全体4 GiB hard commit cap。AI／Asset／Shader／Native Buildは個別nested Job limit |
+| AI Source実行境界 | A1／A2のPromotion可能なlocal実行はWindows 11 Pro／Enterprise＋Hyper-Vの`HyperVIsolatedWorkerV1`。Home／Hyper-V unavailableはProposalのみ、または同等remote Worker |
 | Physics tick | C1／C2はexactly 60 Hz。Profileへ保存するが60以外を拒否し、可変rateはC3 ADR対象 |
 
 Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H2 Home／Proも2026年10月13日に更新終了となるため正式Targetに含めない。Windows 11 25H2の初期build familyである26200を最小とし、Support対象はMicrosoftが更新提供中のeditionと累積更新を適用した環境に限る。26H1は新規device向けで既存24H2／25H2 deviceへのin-place updateではないため、最小Targetの根拠にしない。
@@ -75,6 +81,10 @@ Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H
 | Node.js | [node-v24.18.0-win-x64.zip](https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip) | 37,176,245 bytes、SHA-256 `0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821` |
 | TypeScript | npm `typescript@7.0.2` | tarball 365,612 bytes、integrity `sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==` |
 | OpenAI TypeScript SDK | npm `openai@6.48.0` | commit `ee5bce84fccb97135948a4838255804d4af1b7dd`、tarball 1,707,934 bytes、integrity `sha512-KhVp+FyV50QrXNextvL9hIU5l6ox5HYuKQjGVk7lIqprgJol90+dQXWONV6S1lRWsKA1bXjrow8RsUT14M1hNA==` |
+| Strict JSON tokenizer／tree | npm [`jsonc-parser@3.3.1`](https://www.npmjs.com/package/jsonc-parser/v/3.3.1) | tag commit `3c9b4203d663061d87d4d34dd0004690aef94db5`、0 dependency、MIT、tarball 27,354 bytes、integrity `sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==`。Build-only |
+| RFC 8785 JCS | npm [`canonicalize@3.0.0`](https://www.npmjs.com/package/canonicalize/v/3.0.0) | tag commit `aba9209d044f2729c51141d8a73b11e80816e42c`、0 dependency、Apache-2.0、tarball 6,020 bytes、integrity `sha512-yYLfHyDMIXRyRqsKBRLX023riFLpXY2YOfdtqKXZRZy9qsfOJ9U+4F9YZL7MEzL5+ziN2x2nlBvY/Voi3EBljA==`。Build-only |
+| Microsoft Build of OpenJDK | [microsoft-jdk-17.0.19-windows-x64.zip](https://aka.ms/download-jdk/microsoft-jdk-17.0.19-windows-x64.zip) | 17.0.19 LTS、186,907,952 bytes、SHA-256 `394d1d8253d58b462300f15f9c81369478cf8813f82dca914c3b5dfdef080f9f`。Android buildとTLC CLIで共用 |
+| TLA+／TLC CLI | [tla2tools.jar v1.7.4](https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar) | Stable tag v1.7.4、2,274,532 bytes、SHA-256 `936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88`。Build-only |
 
 Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証する。GitHub release artifactはrelease APIのdigest、tag commit、取得後hashを照合する。npm packageは`package-lock.json`のexact versionとintegrityを`npm ci`で検証し、install scriptを持つpackageはallowlist外なら失敗させる。
 
@@ -93,12 +103,13 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証�
 | `profiles[].artifacts[].source_commit` | 対応source tagがあるtoolは40文字lowercase Git SHA-1、それ以外は空文字 |
 | `profiles[].resolved_files[]` | `{tool_id, relative_path, size_bytes, file_version, sha256, signer}`。実際に実行／linkするcompiler、SDK、shader、build toolを列挙 |
 | `profiles[windows_desktop_v1].build` | MSVC exact directory、Windows SDK `10.0.26100.8249`、CMake `4.4.0`、`Ninja Multi-Config`、Ninja `1.13.2` |
-| `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、JDK 17、Shipping ABI `arm64-v8a` |
+| `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、Microsoft OpenJDK `17.0.19` LTS、Shipping ABI `arm64-v8a` |
 | `profiles[apple_mobile_v1].build` | CMake `4.4.0`、Xcode `26.6`、iOS／iPadOS SDK `26.5`、deployment `17.0`、arm64、Xcode generator |
 | `shared.vcpkg.builtin_baseline` | 40文字commit `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | `shared.npm.node_version` | `24.18.0` |
 | `shared.npm.package_lock_sha256` | Commit済み`orchestrator/package-lock.json`の64文字lowercase hex |
 | `shared.npm.packages` | `{name, version, tarball_url, size_bytes, integrity}`をname昇順で列挙 |
+| `shared.source_worker` | `{profile_id, guest_os_version, base_vhdx_sha256, base_manifest_sha256, guest_service_sha256, hyperv_service_guid, protocol_version}`。A1 Activation前に全値を固定し、空値ではSource実行を拒否 |
 
 machine comparisonはWindowsなら`host.os_build == 26200 && host.ubr == 8875`、AppleならmacOS／Xcode build versionの独立fieldで行う。月次OS／SDK baseline更新は該当field、CI image digest、Runtimeまたはモバイル規約のbridge baselineを同じChangeSetで更新する。
 
@@ -106,7 +117,7 @@ machine comparisonはWindowsなら`host.os_build == 26200 && host.ubr == 8875`�
 
 MSVCはversioned v14.51 componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap手順である。
 
-TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、現時点で安定公開されていないTypeScript compiler programmatic APIへ製品codeを依存させない。正式artifactのcompileは`--strict --singleThreaded`を明示して、experimentalな`--checkers`／`--builders`を使わない。Developerのwatch／language serviceは既定の並列処理を使えるが、その出力をShipping artifactとして採用せず、Commit gateでsingle-threaded clean buildを再実行する。
+TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、現時点で安定公開されていないTypeScript compiler programmatic APIへ製品codeを依存させない。OrchestratorとContract compilerは`package.json`の`"type": "module"`、TypeScriptの`module`／`moduleResolution`を`NodeNext`に固定し、CommonJS／ESM二重Buildを作らない。正式artifactのcompileは`--strict --singleThreaded`を明示して、experimentalな`--checkers`／`--builders`を使わない。Developerのwatch／language serviceは既定の並列処理を使えるが、その出力をShipping artifactとして採用せず、Commit gateでsingle-threaded clean buildを再実行する。
 
 数値予算は無期限の定数ではない。Reference sceneのBenchmarkを根拠にADRで改定する。ただし、改定されるまで上表が合否判定値であり、実装者ごとの暗黙値を認めない。
 
@@ -525,12 +536,15 @@ C++標準やCore Guidelinesは唯一の命名方式を規定していない。�
 
 Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を唯一の設定とする。手動の見た目論争ではなくCIで機械適用する。
 
+改行とtext/binary判定はrepository rootの`.gitattributes`を唯一の基準とする。C／C++、CMake、HLSL、TypeScript、Luau、JSON、YAML、TOML、Markdown、PowerShellはUTF-8 without BOM＋LF、`.bat`／`.cmd`だけCRLF、画像、音声、動画、Font、Archive、compiled Artifactは`-text`に固定する。BootstrapとCIは`core.autocrlf=false`を強制し、`git check-attr`とGit blob scanでBOM、改行、binary誤判定を拒否する。Hash、Source Bundle、generated goldenはWorking tree表示ではなくGit blobまたは正規Artifactのbyte列を使う。
+
 ## 12. RepositoryとDirectory構造
 
 ```text
 /
 ├─ CMakeLists.txt
 ├─ CMakePresets.json
+├─ .gitattributes
 ├─ toolchain.lock.json
 ├─ store_policy.lock.json
 ├─ vcpkg.json
@@ -541,6 +555,23 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  └─ toolchains/
 ├─ config/
 ├─ schemas/
+│  ├─ mira/
+│  │  ├─ meta/
+│  │  ├─ requirements/
+│  │  ├─ types/
+│  │  ├─ operations/
+│  │  ├─ state_machines/
+│  │  ├─ capabilities/
+│  │  ├─ policies/
+│  │  ├─ profiles/
+│  │  └─ providers/
+│  └─ contract.lock.json
+├─ evidence/
+│  ├─ external/
+│  ├─ decisions/
+│  └─ locks/
+├─ formal/
+│  └─ tla/
 ├─ docs/
 │  ├─ architecture/
 │  ├─ adr/
@@ -615,6 +646,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 ├─ tools/
 │  ├─ asset_compiler/
 │  ├─ shader_compiler/
+│  ├─ contract_compiler/
+│  ├─ contract_lint/
+│  ├─ source_worker/
+│  ├─ source_promotion/
 │  ├─ packaging/
 │  ├─ device_bridge/
 │  ├─ remote_mac_agent/
@@ -628,10 +663,17 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ game_host/
 │  └─ worker_host/
 ├─ tests/
+│  ├─ contracts/
 │  ├─ integration/
 │  ├─ conformance/
+│  ├─ security/
 │  ├─ performance/
 │  └─ fixtures/
+├─ evals/
+│  ├─ public/
+│  ├─ holdout.manifest.json
+│  ├─ adversarial/
+│  └─ incidents/
 ├─ samples/
 └─ third_party/
    ├─ ports/
@@ -665,7 +707,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 - Public includeはmoduleの契約であり、他moduleの`src`をincludeしてはならない。
 - Hostだけがconcrete adapterを生成し、core module内でservice locatorを構築しない。
 - Domain targetから別Domain targetへの直接依存を禁止し、cross-domain dataは`engine/runtime/contracts`を経由する。
-- C++とTypeScriptで共有するwire schemaは`schemas/`から双方の型を生成し、手書きで二重管理しない。
+- C++、TypeScript、Luau、MCP、Providerで共有する契約は`schemas/mira/`のMCDから生成し、手書きで二重管理しない。
+- Generated source、Provider Schema、Reference docsはsource treeへ置かず、Build treeへ生成する。正本とgolden hashだけを追跡する。
+- `evidence/`は外部資料のclaim、URL、hash、取得日、期限を保持し、Web page全文の無断複製やBuild中の自動取得を行わない。
+- `formal/tla/`は有限State machineだけを対象とし、C++実装全体の証明を表明しない。
 
 ## 13. Dependency採用規則
 
@@ -794,7 +839,10 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 - NativeCodeChangeSetは許可directory、CMake target、dependencyを宣言する。
 - 新規dependency、unsafe compiler option、public API変更、memory budget変更は重要操作として人間承認を必要とする。
 - Generated codeはownership annotation相当のAPI形、static analysis、ASan、unit test、isolated buildを通す。
-- Engine coreの自動書換えはMVP対象外。Project C++と明示されたExtension pointだけを対象とする。
+- Engine coreもAIが隔離WorktreeへR4 PatchとTestを生成できる。MVPで対象外とするのは**自動昇格**であり、生成・検証・人間Reviewを禁止しない。
+- AI可視のTask本文と、Risk、Path、Network、Dependency、Gateを持つ署名済みAuthorization Envelopeを別Artifactにする。
+- External CLIのFile／Shell権限はMCP Tool allowlistだけで制御しない。Managed modeは`ExternalClientSecurityProfile`、Credential／Tool child分離、OS sandbox、Network deny、resolved path broker、差分Promotionを必須とし、非conformance ClientはMCP Proposal modeに限定する。
+- Provider向けSchemaは正本にせず、MCDから生成したsubsetとして扱い、C++ Gatewayが完全再検証する。
 - Android／Apple Shipping Runtimeでは構造化data以外のcode／shader生成、post-install remote download、JIT、dynamic loadを禁止する。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
 
 ## 18. 実装開始条件
@@ -804,7 +852,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 1. `toolchain.lock.json`、Root CMake Presets、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名差を拒否する。
 2. Foundation targetとdependency DAGがCIで検査できる。
 3. `StableId`、generation handle、`Result`、memory tagのcontract testがある。
-4. `.clang-format`、`.clang-tidy`、warning policyがCIで強制される。
+4. `.gitattributes`のtext／binary／改行、`.clang-format`、`.clang-tidy`、warning policyがCIで強制される。
 5. ChangeSetの`base_project_revision`とoffline migration policyがschemaへ反映される。
 6. Development／Profile／Shipping Buildの診断差が定義される。
 7. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
@@ -814,6 +862,12 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 11. `mira_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
 12. モバイル規約のTarget／Distribution Profile、Platform Port、Toolchain／Store lock、shipping data-only AI policyが承認される。
 13. Android／Apple Adapterが未実装の段階でも、Target validatorが`UnsupportedTarget`を返し、空packageを成功扱いしない。
+14. MCD meta-schema、Requirement、Type、Operation、State machine、Capability、Policy、Profileの共通規約が承認される。
+15. Contract compilerの決定論生成、Provider projection、cross-language round-trip、generated file driftのTest計画が承認される。
+16. `TaskSpecification`とAIが変更不能な`TaskAuthorizationEnvelope`、R0–R5、Approval／Promotion境界が承認される。
+17. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
+18. TLA+対象5 State machine、実装transition conformance、AI Eval suite、Provider migration gateが承認される。
+19. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
 
 ## 19. 一次資料と判断の対応
 

@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成Script／C++
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -8,6 +8,9 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+- AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 ## 1. 結論
 
@@ -1138,15 +1141,17 @@ AIがLevel 0の自然言語指示からScript、C++、または両方を選ん�
 - Project C++は公開Domain Port、Runtime Contract、handle／lease APIだけを利用する。
 - AI生成C++が新phase、queue、thread、memory Domain、public dependencyを追加する提案はArchitecture Changeとして人間承認を必要とする。
 - performanceを理由にraw pointer、global singleton、vendor型、phase外mutationへ迂回しない。
-- C++が必要かどうかはBehavior Contract、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。
+- C++が必要かどうかはBehavior Contract、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。Budget未定義ならBlockingとし、同一fixtureを10分×3回測定して最悪P95／peak／deadline missで判定する。
+- ScriptのP95とpeakが割当Budgetの80%以下かつdeadline miss 0ならScriptを維持し、80–100%はScript最適化とMixed／C++を比較し、100%超またはmiss発生時にC++／Mixedへ昇格する。80%はProject初期Policyであり、変更はBenchmarkとADRを要する。
 - 生成物は同じunit、property、ASan、performance、dependency gateを通過するまでCommitしない。
+- Engine coreのR4 SourceもAIが隔離Worktreeへ生成できるが、mainへの自動Promotionは行わず、Domain ownerと独立Reviewerを必須にする。
 - Android／AppleのShipping Runtimeでは、AIが生成・取得できるものを検証済み構造化dataへ限定し、C++、Luau、managed／native code、shaderの生成、post-install remote download、JIT、dynamic loadを許可しない。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
 
 ## 19. Phase 0へ固定する成果物
 
 Engine feature実装前に次を完成させる。
 
-1. 本書を含む五規範文書の承認。
+1. 設計文書Indexに列挙した八規範文書の承認。
 2. 基盤規約の`toolchain.lock.json`、固定offline layout、CI image digest、bootstrap照合。
 3. `mira_runtime_contracts`のtarget、Domain Port／Runtime／Adapter分離、依存DAG、`ComponentAccessManifest`検査。
 4. `TickPhaseId`、`RenderPhaseId`、typed command／event header。
@@ -1162,8 +1167,15 @@ Engine feature実装前に次を完成させる。
 14. Target／Distribution／Lifecycle／Display／Platform Port schemaと、未実装Targetの`UnsupportedTarget` contract test。
 15. Android／Apple toolchain profile、Vulkan／Metal submission record、VMA／MTLHeap lifetime conformance plan。
 16. Mobile memory／thermal／surface／audio failure fixture、AAB／archive package validator、data-only Runtime AI gate。
+17. MCDのRequirement、Type、Operation、State machine、Capability、Policyと、C++／TS／Luau generated binding。
+18. `TaskSpecification`、署名済み`TaskAuthorizationEnvelope`、Risk別Gate、Source Worker／Promotion境界。
+19. `AiTaskLifecycle`、`ChangeSetCommit`、`SourcePromotion`、`AsyncResultPublish`、`AssetVersionSwap`のTLA+ modelとtransition conformance。
+20. Verification／Generation／Review／Promotion Receipt、Requirement Coverage Matrix、SPDX SBOM、SLSA build provenance接続。
+21. Provider projection conformance、AI Eval 3 run、External Evidence freshness、Prompt injection／Path／Network／Secret negative fixture。
 
 上記は実装taskの細分化ではなく、実装開始前に満たすcontractの完了条件である。承認後の実装計画書でfile、target、test、順序、milestoneへ分解する。
+
+項目17–21は全RiskのSchema、拒否動作、追跡境界をPhase 0で固定する意味であり、R3–R5機能を同時に公開する意味ではない。A0ではR0–R2に必要なBinding、Gate、Receipt、Modelだけを実行可能にし、Source Promotion、Engine保守、Release provenanceはガバナンス規約のA1–A3を満たすまで`CapabilityNotActivated`とする。
 
 ## 20. 公式資料と規範決定の対応
 
