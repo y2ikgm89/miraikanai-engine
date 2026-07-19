@@ -1,6 +1,6 @@
 # Miraikanai Engine Editor／Workspace／UX規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: Windows Editor shell、panel、docking、workspace、AI Partner、手動編集、accessibility、recovery
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -9,6 +9,7 @@
 - AI規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
 
 ## 1. 結論
@@ -27,9 +28,9 @@ AIは常時表示、tab、floating、非表示をWorkspaceごとに選択でき�
 | Project Document、ChangeSet、Commit、Undo、Recovery data | Authoring規約 |
 | AI Task、質問、権限、Approval、Provider／MCP／CLI | AIガバナンス規約 |
 | Runtime／Play、Renderer、Asset、Input／UI／Audio等のDomain意味 | 各Subsystem規約 |
-| Dear ImGui version／dependency isolation | 基盤規約 |
+| MiraUI Core、MiraEditor Shell、Widget、Rendering、Platform Adapter、禁止GUI dependency | Editor UI Framework規約 |
 
-C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リアルタイムmulti-user、Editor extension marketplace、任意binary pluginを実装しない。Editor shellはDear ImGui docking 1.92.8を描画／windowing primitiveとしてAdapter内で使うが、Project model、Panel API、layout file、accessibility tree、操作規約をImGui serializationへ委ねない。
+C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リアルタイムmulti-user、Editor extension marketplace、任意binary pluginを実装しない。Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`で構築し、Dear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、CEFをGUI Frameworkとして使用しない。Win32、D3D12、DirectWrite、TSF、UI Automation、OLEはEditor UI Framework規約のPlatform Adapter境界でだけ利用する。
 
 ## 3. Process model
 
@@ -37,7 +38,8 @@ C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リ�
 EditorHost
   ├─ Authoring Service／Command Gateway
   ├─ Panel Projection／Workspace Service
-  ├─ Platform UI／Accessibility Adapter
+  ├─ MiraUI Core／MiraEditor Shell
+  ├─ Platform UI／Text／Accessibility Adapter
   └─ IPC clients
        ├─ GameHost
        ├─ AI Orchestrator
@@ -333,7 +335,7 @@ Progress不明なのに擬似percentを表示せず、indeterminateとstageを�
 - animationを減らす設定、font／UI scale、comfortable densityを持つ。
 - Problemsから対象Panel／Object／fieldへfocus移動できる。
 
-Dear ImGui widget IDとは別に`EditorSemanticTree`を構築し、Windows UI Automation providerへprojectする。Custom controlはUIA control patternを実装し、Narrator、NVDA、Accessibility Insightsで検証する。
+`EditorViewDescriptor`とcommitted Layoutから`EditorSemanticSnapshotV1`を構築し、Windows UI Automation providerへprojectする。Draw primitive、pixel、hit-test結果からSemantic Treeを逆算しない。Custom controlは適用可能な標準UIA control patternを実装し、Narrator、NVDA、Accessibility Insightsで検証する。
 
 ### 12.2 SizeとDPI
 
@@ -396,7 +398,8 @@ C1 Editorは、初心者がAI Creatorだけで2D First Playableを作れ、経�
 - [Microsoft UI Automation Providers Overview](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-providersoverview)
 - [Windows Accessibility Overview](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/accessibility-overview)
 - [Windows Keyboard Interactions](https://learn.microsoft.com/en-us/windows/apps/develop/input/keyboard-interactions)
+- [High DPI Desktop Application Development](https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows)
+- [Text Services Framework](https://learn.microsoft.com/en-us/windows/win32/api/_tsf/)
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/)
-- [Dear ImGui Docking／Multi-Viewports](https://github.com/ocornut/imgui/wiki/Multi-Viewports)
 
 WCAGはweb conformanceをEditorへそのまま宣言するためでなく、keyboard、focus、drag代替、target size等の人間工学上の最低原則として参照する。Windows desktopの実装合否はUI Automationと実assistive technologyで検証する。

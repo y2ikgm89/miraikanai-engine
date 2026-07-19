@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.10
+- 文書版: 1.11
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -12,7 +12,7 @@
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Rendering／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
-- Editor／Player I/O規約: [Editor](./2026-07-19-editor-workspace-ux-design.md)／[Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+- Editor／Player I/O規約: [Editor](./2026-07-19-editor-workspace-ux-design.md)／[独自Editor UI Framework](./2026-07-20-editor-ui-framework-architecture-design.md)／[Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Simulation規約: [Physics Dynamics／Navigation／Animation](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
@@ -683,6 +683,18 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ content/
 │  │  └─ backends/{local,play_asset_delivery,apple_background_assets}/
 │  ├─ ui/
+│  │  ├─ core/
+│  │  ├─ layout/
+│  │  ├─ events/
+│  │  ├─ semantics/
+│  │  ├─ text/
+│  │  ├─ rendering/
+│  │  └─ backends/
+│  │     ├─ d3d12/
+│  │     ├─ windows/{directwrite,tsf,uia}/
+│  │     ├─ harfbuzz_freetype/
+│  │     ├─ android/
+│  │     └─ apple/
 │  ├─ gameplay/
 │  │  ├─ contracts/
 │  │  ├─ definitions/
@@ -698,8 +710,14 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  └─ build/
 ├─ editor/
 │  ├─ app/
+│  ├─ ui/
+│  ├─ shell/
+│  ├─ docking/
 │  ├─ panels/
-│  └─ workspaces/
+│  ├─ workspaces/
+│  ├─ semantics/
+│  ├─ backends/windows_ole/
+│  └─ recovery/
 ├─ orchestrator/
 │  ├─ package.json
 │  ├─ package-lock.json
@@ -823,13 +841,12 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 | FreeType | 2.14.1／`3bd82b5f543bc84ccf2b1d0cdb63b95218099ee6` | FreeType License | Bundled OTF／TTF validation、glyph metrics／rasterization | Font Asset、coverage、atlas、lifetime、render policy |
 | ICU4C | 78.3／`21d1eb0f306e1141c10931e914dfc038c06121da` | Unicode-3.0 | BCP 47、BiDi、text boundary、plural／number／date／message format | Localization schema／fallback、bounded Message AST、package filtering、UI semantics |
 | DirectXTex | may2026／`4feb3e11a020f35b796fc769a74216a555d4f5ef` | MIT | Offline texture decode／mipmap／BC encoding | Asset schema、import policy、cooked format |
-| Dear ImGui Docking | v1.92.8-docking／`b61e56346a92cfcaf1f43a545ca37b0b32239654` | MIT | 初期Editor shellのPanel描画、Docking、multi-viewport | Document、workspace、command、undo、design system、accessibility |
 
 上表はfloating rangeではなく初回conformance testの入力である。License、MSVC／C++23 Build、Named Module private Adapter境界、allocator hook、sanitizer、determinism、performanceに合格したexact tag／SHAをvcpkg baselineまたはlock manifestへ記録する。失敗時は無言で別versionへ置き換えず、原因、代替version、API差分をADRへ残す。Release更新は自動追従しない。
 
 `third_party/ports`のoverlay portは上表のcommitとsource archive SHA-512を固定する。vcpkg builtin portが別commitを指す場合はbuiltinへ追従せずoverlayを使う。CIはresolved source commit、patch hash、compiler options、license hashをSBOMとBuild manifestへ出力する。
 
-Dear ImGuiのDocking版は初期Editor shellのPanel描画とDockingに限って利用する。ただし、Editor document model、workspace、command、undo、accessibility metadataをImGui固有stateにしない。Windows Editor shellの複雑なtext rendering／font discoveryはDirectWrite、text inputはTSFを利用する。Shipping Game UIは全Target共通のHarfBuzz／FreeType／ICU4C Adapterを使い、bundled Font、UI Layout、Localization、Accessibilityの正本はUI／Text正式規約に置く。
+Editor UIはC++23の独自`MiraUI Core`と`MiraEditor Shell`で構築し、汎用GUI toolkit dependencyを持たない。Widget、Layout、Event、Docking、Rendering、Semantic Tree、AI Interfaceの正本は独自Editor UI Framework規約に置く。Windows Editor shellのtext layout／system Font／glyph analysisはDirectWrite、text inputはTSF、custom control accessibilityはUI Automationをprivate Platform Adapterで利用する。Shipping Game UIは全Target共通のHarfBuzz／FreeType／ICU4C Adapterを使い、bundled Font、UI Layout、Localization、Accessibilityの正本はUI／Text正式規約に置く。
 
 HarfBuzzはFreeType＋ICU integrationだけを有効にし、GLib、Cairo、Graphite2、Shipping不要のtool／docsを無効にする。FreeTypeはTrueType／OpenType、CFF／CFF2、SFNTだけをC1必須とし、BZip2、Brotli／WOFF2、PNG、SVG optional moduleを無効にする。ICU4Cは`common`＋`i18n`を使い、ShippingではProject locale setと必要serviceにfiltered dataを生成する。Compiler option、Source archive SHA-512、patch、license file hash、filtered data hashはoverlay port、`toolchain.lock.json`、SBOM、Package Receiptへ固定する。
 
@@ -979,7 +996,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | Shader-visible descriptorとresource寿命をfenceで管理する | [D3D12 Resource Binding Overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/resource-binding-flow-of-control) |
 | GPU-based validationを小規模Test／定期CIで使う | [GPU-based validation](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-d3d12-debug-layer-gpu-based-validation) |
 | D3D12 heap suballocation | [GPUOpen D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) |
-| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/v0.16.0), [HarfBuzz 14.2.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.1), [FreeType 2.14.1](https://freetype.org/), [ICU 78.3](https://github.com/unicode-org/icu/releases/tag/release-78.3), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026), [Dear ImGui 1.92.8-docking](https://github.com/ocornut/imgui/releases/tag/v1.92.8-docking) |
+| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/v0.16.0), [HarfBuzz 14.2.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.1), [FreeType 2.14.1](https://freetype.org/), [ICU 78.3](https://github.com/unicode-org/icu/releases/tag/release-78.3), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026) |
 | Manifest modeとversion固定 | [vcpkg Manifest Mode](https://learn.microsoft.com/en-us/vcpkg/concepts/manifest-mode) |
 | CMake Presetsとの統合 | [vcpkg CMake Integration](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration) |
 | Namingは一貫したproject styleとして機械化 | [Google C++ Style Guide](https://google.github.io/styleguide/cppguide), [ClangFormat](https://clang.llvm.org/docs/ClangFormatStyleOptions.html), [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) |
@@ -993,7 +1010,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | 新規tool workflowにResponses APIとstrict function callingを使う | [OpenAI Using Tools](https://developers.openai.com/api/docs/guides/tools) |
 | JSON modeではなくStructured Outputsを使い、schemaと型の乖離を防ぐ | [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) |
 | 外部AI Hostとの標準接続 | [MCP Architecture](https://modelcontextprotocol.io/specification/2025-11-25/architecture), [MCP TypeScript SDK](https://modelcontextprotocol.io/docs/sdk) |
-| Editor dockingとmulti-viewport基盤 | [Dear ImGui Docking](https://github.com/ocornut/imgui/wiki/Docking), [Multi-Viewports](https://github.com/ocornut/imgui/wiki/Multi-Viewports) |
+| 独自Editor UI、Docking、DPI、Text、IME、Accessibilityの基盤 | [独自Editor UI Framework規約の一次資料と判断](./2026-07-20-editor-ui-framework-architecture-design.md#23-一次資料と判断の対応) |
 | Android／Apple Target、Vulkan／Metal、package、Store、privacyの規範 | [モバイルPlatformアーキテクチャ規約の一次資料一覧](./2026-07-19-mobile-platform-architecture-design.md#23-一次資料) |
 | Mobile graphics／Asset／Audio dependency | [VMA 3.3.0](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/releases/tag/v3.3.0), [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross), [SPIRV-Tools 2026.2](https://github.com/KhronosGroup/SPIRV-Tools/releases/tag/v2026.2), [KTX-Software 4.4.2](https://github.com/KhronosGroup/KTX-Software/releases/tag/v4.4.2), [Oboe 1.10.0](https://github.com/google/oboe/releases/tag/1.10.0), [Opus](https://opus-codec.org/downloads/) |
 
@@ -1009,6 +1026,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 - Runtime内legacy schema分岐
 - 未固定dependency、preview compiler mode、preview Agility SDKのShipping採用
 - Profile結果のないdata-oriented化、pool化、lock-free化
+- Dear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、CEFをEditor GUI Frameworkとして利用すること
 - Domain間の直接呼出しと相互pointer保持
 - callback、job、event配送中の再入的なWorld構造変更
 - Asset dependency closureの一部だけをlive化するhot reload

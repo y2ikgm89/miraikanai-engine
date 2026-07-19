@@ -1,6 +1,6 @@
 # Miraikanai Engine C++23・Named Modules・`import std`移行規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-20
 - 調査基準日: 2026-07-20
 - 対象: C++言語基準、Named Modules、`import std`、CMake、Toolchain、AI生成C++、全Target移行
@@ -9,6 +9,7 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 結論
@@ -140,6 +141,22 @@ CX3は各公式Targetで次を満たす。
 | `mira::runtime_contracts` | `mira.runtime.contracts` |
 | `mira::gameplay` | `mira.gameplay` |
 | `mira::native_game` | `mira.native_game` |
+| `mira::ui_core` | `mira.ui.core` |
+| `mira::ui_layout` | `mira.ui.layout` |
+| `mira::ui_events` | `mira.ui.events` |
+| `mira::ui_semantics` | `mira.ui.semantics` |
+| `mira::ui_text` | `mira.ui.text` |
+| `mira::ui_rendering` | `mira.ui.rendering` |
+| `mira::ui_d3d12_adapter` | `mira.ui.d3d12.adapter` |
+| `mira::ui_directwrite_adapter` | `mira.ui.directwrite.adapter` |
+| `mira::ui_tsf_adapter` | `mira.ui.tsf.adapter` |
+| `mira::ui_uia_adapter` | `mira.ui.uia.adapter` |
+| `mira::ui_harfbuzz_freetype_adapter` | `mira.ui.harfbuzz_freetype.adapter` |
+| `mira::editor_ui` | `mira.editor.ui` |
+| `mira::editor_shell` | `mira.editor.shell` |
+| `mira::editor_docking` | `mira.editor.docking` |
+| `mira::editor_semantics` | `mira.editor.semantics` |
+| `mira::editor_ole_adapter` | `mira.editor.ole.adapter` |
 | `mira::<domain>_port` | `mira.<domain>.port` |
 | `mira::<domain>_runtime` | `mira.<domain>.runtime` |
 | `mira::<domain>_<backend>_adapter` | `mira.<domain>.<backend>.adapter` |

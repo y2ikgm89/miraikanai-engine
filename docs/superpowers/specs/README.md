@@ -20,7 +20,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Build | CMakeがFirst-party C++ Build定義の正本、Ninjaが高速なC++実行器、独自Build GatewayがEditor／AI／CIの唯一の入口。`build.ninja`は生成物であり公開APIにしない |
 | Platform Build | WindowsはNinja Multi-Config、AndroidはGradle→CMake→Single-Config Ninja、Appleはportable C++ archiveをNinja、App shell／resource／最終link／archive／署名をXcodeが所有する |
 | AI接続 | 内蔵AIはProvider API、外部Codex／Claude等はlocal MCP、Host Pluginは任意の補助UX。どの接続も検証・Commit権限を持たない |
-| Editor UX | Scene／Canvas、Hierarchy／Outliner、Inspector、Asset、Source、Console、AI Partnerをdock、resize、floating、入替、multi-monitor、複数Workspace保存できる |
+| Editor UI／UX | C++23の独自`MiraUI Core`＋`MiraEditor Shell`。Retained UIと限定typed Immediate Canvasを併用し、Scene／Canvas、Hierarchy／Outliner、Inspector、Asset、Source、Console、AI Partnerをdock、resize、floating、入替、multi-monitor、複数Workspace保存できる |
 | 初心者UX | `AI Creator` Workspaceを同じEditor内に用意し、AI Partnerを常設可能にする。Production／Debug／Art／Level Design等のWorkspaceへ切替可能 |
 | Graphics | Windows Direct3D 12、Android Vulkan、Apple Metal。Engine-owned Render Graph、Material／Shader IR、Target別offline shader cookを使う |
 | 表現 | 2D、3D、`realistic_basic`、Realistic advanced、Toon、独自`pixel_diorama`を段階実装し、AI Visual Style ResolverがCapabilityとbudget内で選択する |
@@ -41,7 +41,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | C++23、C++26 readiness、Modules、`import std`、Ninja | C++23・Named Modules移行規約 |
 | AI／手動編集の共通状態、Undo、Recovery、Transaction | Authoring Model／Project State規約 |
 | AIが理解できる型、Operation、Capability、Schema、Codegen | 実行可能契約規約 |
-| Renderer／Asset／Editor／Input／UI／Audio／2D／3D | 各Subsystem正式仕様と2D／3D機能計画 |
+| Renderer／Asset／Editor／Input／UI／Audio／2D／3D | 各Subsystem正式仕様、独自Editor UI Framework規約、2D／3D機能計画 |
 | Collision、Physics、Navmesh、Animation | Collision規約とPhysics／Navigation／Animation規約 |
 | Light、Fog、Cloud、Sky、Atmosphere、Particle、Shader、Material、Toon／Realistic／Pixel Diorama | Rendering規約と2D／3D機能計画 |
 | Android、iOS／iPadOS、Build、Store、実機budget | モバイルPlatform規約 |
@@ -54,6 +54,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 - C++23、GameplayDefinition、Script VM不採用、Target、Build Driver、Editor、AI権限、Runtime phaseの主要判断に矛盾する公式経路は見つかっていない。
 - 未記入placeholder、実装者任せの保留、暫定Defaultを正式要件として残していない。外部Artifact取得後に確定するhash等は、Owner、取得手順、失敗条件を持つPhase 0作業として区別している。
 - NinjaはBuild architecture全体ではなくC++ Build executorであること、Editor統合はCMake File APIとEngine-owned Receiptを使うこと、Phase 0で増分正当性と性能を実測することを今回の見直しで明文化した。
+- Editor UIはDear ImGui等の置換前提prototypeを持たず、独自`MiraUI Core`、`MiraEditor Shell`、DirectWrite／TSF／UIA／OLE Adapter、AI Semantic Interfaceを正式経路にした。
 - 本レビューは文書内部の整合確認であり、Engine実装完了または技術成立の実測証明ではない。実装開始には本Review setのユーザー承認と、別のPhase 0実装計画書の承認が必要である。
 
 ### 0.3 見直し結論と未実証項目
@@ -66,7 +67,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Ninjaの増分正当性、no-op性能、memory、中断復旧 | Phase 0 `VerificationReceiptV1` gate `mira.build.ninja_adoption.v1` | Makeへfallbackせず、DAG／dependency／poolを修正して再測定 |
 | AppleのNinja C++ archive＋Xcode App shell境界 | Phase 0 C ABI fixture、Mobile Phaseの実archive | Apple CX0または非Promotion Probeに留める |
 | AuthoringCommandGatewayとContract compilerの安全性 | Phase 0／1 conformance、negative、crash recovery | Editor／AIのwrite機能を有効化しない |
-| Dear ImGui上の独自Panel／Workspace／Accessibility tree | Phase 2 UI Automation、DPI、keyboard、screen reader fixture | Technology Preview配布へ進めない |
+| 独自MiraUI Core／MiraEditor Shell、D3D12 UI pass、Docking、DirectWrite／TSF／UIA | Phase 2 dependency negative、UI Automation、DPI、IME、keyboard、screen reader、device-loss fixture | Technology Preview配布へ進めない |
 | 2D／3Dのframe、memory、visual、physics／navigation連携 | Phase 3／6 reference scene、10分soak、golden capture | 対応CapabilityをC1へ昇格しない |
 | Android／AppleのStore、実機、thermal、package | Phase 7 physical device／package／privacy Gate | 対象Platformを配布Targetへ昇格しない |
 | AI生成品質、安全性、Provider更新耐性 | MVP-A以降のTask Eval、holdout、adversarial、Promotion Gate | 対象Risk classまたはProviderを有効化しない |
@@ -75,7 +76,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 
 ## 1. 読む順序
 
-Miraikanai Engineの公式Review setは次の22文書である。上位のProduct判断から共通契約、Subsystem固有契約、検証規約の順に読む。
+Miraikanai Engineの公式Review setは次の23文書である。上位のProduct判断から共通契約、Subsystem固有契約、検証規約の順に読む。
 
 1. [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 2. [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
@@ -92,13 +93,14 @@ Miraikanai Engineの公式Review setは次の22文書である。上位のProduc
 13. [Miraikanai Engine Physics Dynamics／Navigation／Animation規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
 14. [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
 15. [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
-16. [Miraikanai Engine Audio／Mixer／Spatial規約](./2026-07-19-audio-mixer-spatial-architecture-design.md)
-17. [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
-18. [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
-19. [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
-20. [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
-21. [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
-22. [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+16. [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+17. [Miraikanai Engine Audio／Mixer／Spatial規約](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+18. [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+19. [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
+20. [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+21. [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
+22. [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+23. [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 `2026-07-18-codex-config-optimization-design.md`は開発者個人のCodex設定資料であり、Engineの製品・Runtime・Editor・AI契約に対する決定権を持たず、公式Review setへ含めない。
 
@@ -121,6 +123,7 @@ Miraikanai Engineの公式Review setは次の22文書である。上位のProduc
 | Physics／Navigation／Animation規約 | Dynamics、Nav build／query、2D grid nav、Animation Graph、root motion、固定phase連携 |
 | Input／Action／Device規約 | Device sample、semantic action、InputSnapshot、remap、replay、text入力分離、haptics |
 | UI／Text／Localization／Accessibility規約 | Retained UI、layout、event／focus、IME、shaping／raster、localization、Game accessibility |
+| 独自Editor UI Framework／Shell規約 | MiraUI C++ target、Widget、Retained／Immediate境界、D3D12 UI pass、DirectWrite／TSF／UIA／OLE Adapter、Docking、AI Semantic Interface、禁止GUI dependency |
 | Audio／Mixer／Spatial規約 | Audio cue／voice／bus、mixer、streaming、spatial audio、callback、device adapter |
 | Editor／Workspace／UX規約 | Window／Panel／Dock、Scene／Outliner／Inspector、AI Partner、AI Creator、workspace、Editor accessibility |
 | Windows Platform／Distribution規約 | Windows Target、MSIX／folder distribution、signing、crash privacy、package layout |
@@ -141,7 +144,7 @@ Miraikanai Engineの公式Review setは次の22文書である。上位のProduc
 
 実装計画書の作成へ進む前に、次をすべて満たす。
 
-- ユーザーが公式Review set 22文書の方向性をReviewし、修正点または承認を返す。
+- ユーザーが公式Review set 23文書の方向性をReviewし、修正点または承認を返す。
 - 文書間Link、Heading anchor、Table、Code fence、規範語の機械検査が通る。
 - C0／C1に必要な選択が暗黙Defaultになっておらず、外部artifactから取得する値には取得手順、Owner、Block条件がある。
 - Authoring、Runtime、Renderer、Asset、Editor、Input、UI、Audio、Physics、Navigation、Animation、Platform、AIの境界にOwner、入力、出力、phase、budget、failure、testが定義されている。

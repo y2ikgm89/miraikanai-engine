@@ -1,6 +1,6 @@
 # Miraikanai Engine Input／Action／Device規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: Keyboard、Mouse、Controller、Touch、Pointer、Action Mapping、Remap、Haptics、Replay
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -9,12 +9,15 @@
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
 - Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 
 ## 1. 結論
 
 Miraikanai EngineはPlatformのkey code、controller object、touch callbackをGame ruleへ直接渡さない。Platform AdapterがDevice ReadingをEngine値へ正規化し、`InputActionMap`がsemantic Actionへ解決し、`T10_InputLatch`でtick番号付きimmutable `InputSnapshot`を確定する。
 
 Gameplay、UI、AI、NativeGameModuleが参照するのはStable `InputActionId`とSnapshotだけである。Text入力／IMEはAction Inputと別の`ITextInputService`が所有し、keyboard stateから文字を推測しない。
+
+Editor UIのpointer、keyboard、IME、Window eventは`PlatformUiEventV1`へ正規化し、MiraUI Event／Focus Routerへ渡す。Editor Command操作をGameplayの`T10_InputLatch`へ混入させず、Editor UI event、Game InputSnapshot、Text compositionの三経路を分離する。
 
 ## 2. 決定権と対象外
 
@@ -23,6 +26,7 @@ Gameplay、UI、AI、NativeGameModuleが参照するのはStable `InputActionId`
 | Device正規化、Action、Binding、Snapshot、Remap、Haptics | 本書 |
 | `T10`、Replay、queue、thread、Platform event source | Runtime規約 |
 | Game UI focus／event、Text／IME | UI／Text規約 |
+| Editor UI event、Focus、Command、TSF integration | Editor UI Framework規約 |
 | Android／Apple lifecycle、controller、touch、haptics | Mobile規約 |
 
 C1ではVR motion controller、eye tracking、MIDI、raw HID extension、rhythm-game専用sub-millisecond API、network remote input、anti-cheat input attestationを実装しない。これらは別Device Capabilityとする。

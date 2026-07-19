@@ -1,6 +1,6 @@
 # Miraikanai Engine UI／Text／Localization／Accessibility規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: Game UI、Layout、Widget、Focus、Text、IME、Localization、Font、Accessibility、UI Rendering
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -10,6 +10,7 @@
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Input規約: [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 結論
@@ -24,7 +25,7 @@ TextはUTF-8を正規storageとし、次の検証済みLibraryを限定利用す
 
 Library型、Font object、ICU iterator、glyph atlas pointerをProject、Save、AI、NativeGameModuleへ公開しない。UI Document、Layout、Focus、Event、Binding、Localization schema、Accessibility semantic tree、memory／failureはMiraikanaiが所有する。
 
-Windows Editor shellは既存のDear ImGui＋DirectWrite／TSFを使用できる。Shipping Game UIは全Targetで本書の共通Text Layoutを使い、bundled Fontを正本にする。
+Windows Editor shellは本書の`UiRuntimeTree`、Layout、Event、Semantic contractを共有する独自`MiraUI Core`上に構築する。Editor固有のDocking、Window、DirectWrite、TSF、UI Automation、D3D12 UI passはEditor UI Framework規約を正本とする。Shipping Game UIは全Targetで本書の共通Text Layoutを使い、bundled Fontを正本にする。
 
 ## 2. 決定権と対象外
 
@@ -452,7 +453,7 @@ UIはWorld Post Process後、display resolutionでrenderし、dynamic resolution
 | `bounds` | final physical screen rect |
 | `order` | explicitまたはfocus order |
 
-Semantic treeはrender primitiveやDear ImGui IDから逆算せず、UiDocumentとLayoutから直接作る。
+Semantic treeはrender primitive、pixel、Backend objectから逆算せず、UiDocumentとLayoutから直接作る。Editorは同じ原則を`EditorViewDescriptor`と`EditorSemanticSnapshotV1`へ適用する。
 
 ### 14.2 Platform bridge
 

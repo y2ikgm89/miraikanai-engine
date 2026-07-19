@@ -1,6 +1,6 @@
 # Miraikanai Engine Rendering／Render Graphアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: 2D／3D Rendering、Render Snapshot、Render Graph、GPU resource、D3D12／Vulkan／Metal Adapter
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -9,6 +9,7 @@
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
 - Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
@@ -266,6 +267,8 @@ Shadow／Depth preparation
 - UI／Textはdisplay resolutionでrenderし、World dynamic resolutionの対象外とする。
 - Editor overlayはShipping Snapshotへ含めない。
 - GPU VFX、occlusion、exposure結果をauthoritative gameplayへ戻さない。
+
+Editor WindowではScene／Game Viewのversioned texture composite後に`MiraUiDrawPacketV1`をdisplay resolutionで描画する。MiraUIはD3D12 command list、descriptor、GPU addressを所有せず、本書のRendering Portとsubmission lifetimeへ従う。Editor UI Packet、primitive、clip、atlas、surface generationの正本はEditor UI Framework規約に置く。
 
 ## 10. Material、Shader、Pipeline
 

@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.6
+- 文書版: 1.7
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
@@ -13,6 +13,7 @@
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Simulation規約: [Physics Dynamics／Navigation／Animation](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
@@ -837,7 +838,7 @@ OS budgetが小さい場合は、critical resourceと256 MiB reserveを先に確
 4. queue、descriptor heap、resource、allocator、deviceを依存の逆順で破棄する。
 5. CPU／cooked artifactからdevice、allocator、heap、PSO、resident resourceを再構築する。
 6. 完全なframe setを作れた場合だけEditor previewを再開する。
-7. 復旧に失敗した場合はAuthoring journalを保存し、GPUを使わないWin32／DirectWrite最小safe Editor shellへ戻す。Shipping Gameはpreallocated crash recordを書き、interactive sessionではOS-native error dialogを表示して非0 codeで終了する。GPU描画を必要とするerror sceneへ遷移しない。
+7. 復旧に失敗した場合はAuthoring journalを保存し、通常MiraEditor ShellとはProcess／resource寿命を分離したGPU非依存のWin32 recovery entryへ移る。提供する操作はProject recovery、diagnostic保存、再起動、終了だけとする。Shipping Gameはpreallocated crash recordを書き、interactive sessionではOS-native error dialogを表示して非0 codeで終了する。GPU描画を必要とするerror sceneへ遷移しない。
 
 Android Vulkan device lost、Apple drawable不在／Metal command errorはD3D12 DRED手順を模倣せず、モバイル規約のsurface generationとPlatform診断を使う。surfaceだけの消失はWorld faultにせず再作成し、device／command errorは新規submitを止め、Saveとpreallocated diagnosticを保全して安全終了する。
 

@@ -1,10 +1,10 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想とSubsystem別正式仕様22文書を統合した内部整合レビュー済み版。ユーザー承認待ち
+- 状態: 基本構想とSubsystem別正式仕様23文書を統合した内部整合レビュー版。ユーザー承認待ち
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
@@ -13,6 +13,7 @@
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Simulation規約: [Physics Dynamics／Navigation／Animation](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
@@ -24,7 +25,7 @@
 
 ## 0. 統合レビュー結果
 
-本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。22文書を単一巨大文書へ統合せず、次の三層を維持する。
+本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。23文書を単一巨大文書へ統合せず、次の三層を維持する。
 
 1. 本書がProduct vision、制作体験、Milestone、MVP、全体の依存順を決定する。
 2. [設計文書Index](./README.md)が読む順序、決定権、要求トレーサビリティ、Review状態を決定する。
@@ -37,7 +38,7 @@
 | AIとEngineの境界 | AIはGame Brief、GameSpec、GameplayDefinition、C++、Test、ProjectChangeSetを提案できるが、Engine object、pointer、GPU resource、ProjectRevisionを直接変更できない |
 | Authoring | 自然言語、Editor GUI、外部IDE、MCPは同じAuthoring DocumentとProjectChangeSetへ収束し、C++ GatewayだけがCommitする |
 | Game実装 | C++23実行Code＋構造化GameplayDefinition。Luauを含む汎用Game Script VMは持たない |
-| Editor | C++で実装する独自Projection Editor。初心者用AI Creatorと上級者用Production／Debug等を同じProject形式で提供する |
+| Editor | C++23の独自`MiraUI Core`＋`MiraEditor Shell`で実装するProjection Editor。Retained UIと限定typed Immediate Canvasを併用し、禁止GUI toolkit、screen-coordinate AI操作、Projectへの直接writeを持たない |
 | AI統合 | 内蔵はProvider API、外部Hostはlocal MCP、Pluginは任意UX。Source変更は隔離WorkerとPromotionを必須にする |
 | Engine機能 | 2D／3D、Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text、Audio、VFX、環境表現をSubsystem契約として分離する |
 | Visual表現 | Realistic、Toon、2D、独自Pixel DioramaをVisual Style、Material、Shader、Quality Profileの組合せとして解決する |
@@ -877,7 +878,7 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 
 ### Phase 0: Foundation契約とToolchain
 
-- 設計文書Indexに列挙した公式Review set 22文書の承認
+- 設計文書Indexに列挙した公式Review set 23文書の承認
 - C++23共通Runtime Contract、`CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`と`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
@@ -921,9 +922,11 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 
 ### Phase 2: Editor Shellと共通Runtime
 
+- 独自MiraUI Core、Retained tree、Layout、Event、Focus、Semantic、D3D12 UI pass
 - Dock／resize／floating／multi-workspace Editor shell
 - Scene／Canvas、Outliner、Inspector、Asset、Diff／History、AI Partner panel
-- Windows window／GameInput／XAudio2 Adapter、Editor shell用DirectWrite／TSF
+- Windows window／GameInput／XAudio2 Adapter、Editor shell用DirectWrite／TSF／UI Automation／OLE
+- Human、keyboard、assistive technology、AIを同じtyped Editor Commandへ収束
 - D3D12 device、Render Graph、D3D12MA、Debug Layer／DRED／PIX marker
 - Asset staging、content-addressed cache、sandboxed importer、cook
 - GameplayDefinition schema／Validator／Cooker／C++ evaluatorとNativeGameModule boundary
@@ -1143,7 +1146,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 ### 16.2 実装計画書で分解する事項
 
-次は設計上の選択肢ではなく、22文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
+次は設計上の選択肢ではなく、23文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
 
 1. Phase 0のrepository bootstrap、Build Gateway、CMake target DAG、`BuildDriverProfileV1`、Windows Ninja Multi-Config／Android Gradle→Single-Config Ninja／Apple Ninja–Xcode Preset、CMake File API query、Build Receipt、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、`mira.build.ninja_adoption.v1` Gate、Miraikanai Contract Definition配置をtaskへ分解する。
 2. 固定Toolchain／Dependency artifactの取得、hash lock、SBOM、offline CI image、更新Gateをtaskへ分解する。
@@ -1211,7 +1214,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 - CLI／DesktopはEngine開発と試作に適する。
 - どの層もEngineのSemantic validationとTransactionを代替しない。
 
-Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、Main thread反映などの一般的教訓だけを得る。プロダクト固有の内部モデルやEditor UXは採用しない。
+Unity、Unreal Engine、Godot、O3DEからは、Retained tree、独自C++ Framework、Engine UI共有、third-party toolkit方式の利点と制約を比較するための一般的教訓だけを得る。Widget API、宣言構文、Node model、画面配置、serialization、プロダクト固有のEditor UXは採用しない。MiraUIの具体的な独自性と一次資料は独自Editor UI Framework規約を正本とする。
 
 ## 19. 参考一次資料
 
@@ -1252,6 +1255,6 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 
 ## 20. 次のアクション
 
-設計文書Indexに列挙した22文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
+設計文書Indexに列挙した23文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

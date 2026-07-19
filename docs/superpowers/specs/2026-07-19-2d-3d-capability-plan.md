@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.8
+- 文書版: 1.9
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -16,6 +16,7 @@
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - Domain Pack規約: [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
@@ -1321,7 +1322,7 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 
 ## 10. Editor機能との対応
 
-本章は2D／3D Capabilityに必要なPanelを列挙する。Document model、command、dock／resize／floating、workspace persistence、AI Partner、初心者用`AI Creator`、UI Automation、crash recovery、Editor性能Budgetは[Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)を基準とする。
+本章は2D／3D Capabilityに必要なPanelを列挙する。Document model、command、dock／resize／floating、workspace persistence、AI Partner、初心者用`AI Creator`、crash recovery、Editor製品性能Budgetは[Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)、MiraUI Core、Widget、Rendering、UI Automation、AI Semantic Interfaceの実装契約は[独自Editor UI Framework規約](./2026-07-20-editor-ui-framework-architecture-design.md)を基準とする。
 
 ### 共通Panel
 
@@ -1344,11 +1345,11 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 
 Panelは上下左右edgeでresizeでき、tab docking、split、floating、入替え、複数monitor、pinを持つ。AI Partnerは通常Panelと同様にdock可能で、常時表示をworkspaceごとに保存する。
 
-Editor shellはDear ImGui 1.92.8-dockingを描画基盤に使うが、操作設計とaccessibilityは独自に保持する。
+Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`を使用する。通常ControlはRetained Mode、Scene／Graph／Timeline／Profilerの高頻度可視化だけはRetained `UiCanvasSurface`内のEngine登録済みtyped Immediate Canvas producerを使用する。
 
 - 1920×1080、2560×1440、100／125／150／200% DPIをlayout test対象にする。
 - Mouseだけでなくkeyboard focus、tab order、shortcut、command paletteですべての主要操作へ到達できる。
-- Windows UI Automationへ公開するsemantic treeをImGui widget IDと分離して保持する。
+- Windows UI Automationへ公開する`EditorSemanticSnapshotV1`を`EditorViewDescriptor`とcommitted Layoutから直接生成し、Draw primitiveやpixelから逆算しない。
 - Focus indicator、high contrast、color以外の状態表現、remappable shortcutを必須にする。
 - Scene中央領域を常に残し、Panelが画面外へ消えた場合は`Reset Workspace`で回復できる。
 - Modal dialogを長時間taskの進捗表示に使わず、cancel可能なbackground jobとして表示する。
@@ -1410,7 +1411,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 
 1. Foundation、ID、memory、Result、Job、diagnostics、Runtime Contract、fixed phase、bounded queue
 2. ChangeSet、World Model、Authoring Service、headless test
-3. Editor shell、Windows／D3D12 device、Render Graph、Asset cooker
+3. 独自MiraUI Core／MiraEditor Shell、Windows／D3D12 device、Render Graph、Asset cooker
 4. Material IR、VisualStyleProfile、StyleCapabilityManifest、Validator、Preview
 5. 2D Canvas、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition cooker／C++ evaluator、Box2Dとmanual vertical slice
 6. TypeScript AI Orchestrator、named-pipe IPC、OpenAI Provider、VisualStyleResolverを含むAI editing loop

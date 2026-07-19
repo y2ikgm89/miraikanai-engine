@@ -1,6 +1,6 @@
 # Miraikanai Engine Authoring Model／Project State規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: Project source、World Model、Scene、ChangeSet、保存、Undo／Redo、外部編集、Recovery
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -8,6 +8,7 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 
 ## 1. 結論
 
@@ -33,7 +34,8 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | ID、memory、pointer、thread、directory、serialization基礎 | 基盤規約 |
 | Runtime World、tick、lease、queue、Asset promotion | Runtime規約 |
 | AI権限、承認、Source sandbox、Promotion | AI実装・保守ガバナンス規約 |
-| Editor panel、workspace、操作、accessibility | Editor規約 |
+| Editor panel、workspace、製品操作、人間工学 | Editor規約 |
+| Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | Editor UI Framework規約 |
 
 本書はGitをProject database、Undo system、runtime content storeとして必須化しない。Git連携は任意の外部version-control機能であり、Commitの成否はGit状態へ依存しない。共同リアルタイム編集、CRDT、branch merge UI、networked multi-user sessionはC3であり、C1／C2のChangeSet契約へ含めない。
 

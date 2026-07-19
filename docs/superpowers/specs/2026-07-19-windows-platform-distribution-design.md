@@ -1,6 +1,6 @@
 # Miraikanai Engine Windows Platform／Distribution規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 対象: Windows Editor／Game、Process、Window、Platform Port、Filesystem、Package、Signing、Update、Crash
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -11,6 +11,7 @@
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
@@ -32,6 +33,7 @@ Development用portable layoutはShipping Distributionではない。Miraikanai�
 | 主題 | 正本 |
 |---|---|
 | Windows OS／ABI、Window、Process、Filesystem、Package、Signing、Crash | 本書 |
+| MiraUI Widget、Docking、Editor Window composition、DirectWrite／TSF／UIA／OLE Adapter契約 | Editor UI Framework規約 |
 | D3D12 resource／frame／device loss | Rendering規約 |
 | Input、IME、UI／Text、Audio意味 | Player I/O規約 |
 | `.mirapack`、VFS、Patch／DLC | Asset規約 |
@@ -83,6 +85,7 @@ Credential、Signing、UploadはBuild Processへ渡さない。Named pipeはUser
 ### 5.1 Window
 
 - Win32 top-level HWNDをPlatform Adapterが所有する。
+- EditorはMain／floating Windowだけにtop-level HWNDを使用し、通常Widgetごとにchild HWNDを作らない。
 - DPI Awareness ContextはPer-Monitor V2をProcess起動直後に固定する。
 - logical size、physical pixel size、DPI、monitor、refresh、color space、surface generationを分離する。
 - resize／DPI／monitor移動はeventへ正規化し、Render surfaceをgeneration付きで再作成する。
@@ -106,10 +109,16 @@ Critical Project draft recoveryはEditorのAuthoring規約、Game SaveはSave se
 
 | Port | Windows Adapter |
 |---|---|
-| `IApplicationSurface` | Win32 Window＋DXGI surface generation |
+| `IApplicationSurface` | primary Win32 Window＋DXGI surface generation |
+| `IUiWindowService` | Editor top-level／owned Window、cursor、monitor、work area、non-client frame |
 | `ILifecycleService` | Window／session／power event normalization |
 | `IInputDeviceHub` | GameInput device／reading＋Win32 pointer bridge |
-| `ITextInputService` | TSF／IME composition、clipboard、accessibility text |
+| `IUiRenderBackend` | `MiraUiDrawPacketV1`からD3D12 UI passへの変換 |
+| `IUiTextBackend` | DirectWrite text layout、system Font fallback、glyph analysis |
+| `ITextInputService` | TSF／IME composition、selection、candidate geometry |
+| `IUiAccessibilityBridge` | UI Automation fragment root、provider、control pattern、event |
+| `IEditorDataTransferService` | Unicode clipboard、OLE `IDataObject`／drag and drop |
+| `IPlatformDialogService` | File／Folder picker、credential／permission、fatal recovery |
 | `IAudioDevice` | XAudio2 device／graph／route |
 | `IHapticsService` | GameInput haptic／force feedback subset |
 | `IContentDeliveryService` | installed package／external platform layout／C2 content group |
@@ -284,7 +293,7 @@ Windows Reference hardware、2 GiB CPU、5.5 GiB GPU、1080p60、P95 14 msは基
 - Windows 11 25H2 build 26200系のminimum／fully patched test
 - OS／D3D／SM／Enhanced Barrier／driver Capability rejection
 - 100／125／150／200% DPI、multi-monitor、resize、Alt+Tab、sleep／session end
-- GameInput／TSF／XAudio2／D3D12 Adapter conformance
+- GameInput／DirectWrite／TSF／UI Automation／OLE／XAudio2／D3D12 Adapter conformance
 - Project、Save、Cache、Package rootのpath／symlink／ACL／disk full
 - MSIX install、launch、upgrade、rollback、uninstall、signature、Store validation
 - managed layoutのfile hash、external client smoke、no built-in updater

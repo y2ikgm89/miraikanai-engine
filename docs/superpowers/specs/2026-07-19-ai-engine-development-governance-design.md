@@ -1,6 +1,6 @@
 # Miraikanai Engine AI実装・保守ガバナンス規約
 
-- 文書版: 1.5
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Game制作AI、GameplayDefinition／C++生成AI、Engine実装・保守AI、Editor、外部CLI／Desktop App、API Provider
@@ -13,6 +13,7 @@
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - 機械可読契約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 
 ## 1. 結論
 
@@ -106,7 +107,8 @@ AIはGame制作とEngine開発の両方で実装主体になれる。ただし�
 | Actor | 信頼Level | 許可される役割 | 禁止事項 |
 |---|---|---|---|
 | Human Author | 認証済み主体 | 要件入力、承認、手動編集、Review | Policy外の権限Token作成 |
-| Editor UX | 信頼済みClient | Proposal表示、Diff、Approval要求 | Validatorを迂回したProject書込 |
+| MiraEditor Shell | 信頼済みClient | Proposal表示、Diff、Approval要求、typed Command提出 | Validatorを迂回したProject書込 |
+| UI Automation Client | 非信頼OS Client | Semantic情報取得、標準control patternによる登録済みCommand要求 | Authoring権限取得、AIの正規操作経路、Widget pointer取得 |
 | Policy Service | 信頼済みAuthority | Risk分類、Policy解決、Authorization署名 | Artifact生成、自己Approval、Promotion |
 | Approval Service | 信頼済みAuthority | 人間認証、事前委任／Review Receipt署名 | AI判断だけでのApproval、Artifact変更 |
 | AI Orchestrator | 制限付きService | Task分解、Provider呼出、Tool調停、Receipt作成 | 自己承認、Secret保持、main昇格 |
@@ -122,6 +124,8 @@ AIはGame制作とEngine開発の両方で実装主体になれる。ただし�
 | Store Upload Service | 最高権限Service | 承認済みsigned artifactのStore／配布先upload | Source／Build script／Signing key保持 |
 
 AIが生成したText、Tool argument、Patch、Test結果要約、Risk自己申告はすべて非信頼Inputとして扱う。Validator、Compiler、Test runnerの終了CodeとArtifact hashは、信頼済みRunnerが採取した値だけを採用する。
+
+製品内AIへEditor contextを渡す場合は、独自Editor UI Framework規約の`EditorContextSnapshotV1`だけを使用する。Screen capture、pixel、Widget pointer、HWND、UI Automation provider、mouse／keyboard macroを正規操作または権限経路にせず、AIの変更はtyped Tool、`EditorCommandId`、Authoring Operationへ変換する。UI Automationはassistive technologyとblack-box testのPlatform標準interfaceであり、MCP／Provider APIの代替ではない。
 
 Threat modelは「Modelが通常は従う」ことを前提にしない。次を攻撃者能力としてin-scopeにする。
 

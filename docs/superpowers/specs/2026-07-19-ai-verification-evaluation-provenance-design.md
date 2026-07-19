@@ -1,6 +1,6 @@
 # Miraikanai Engine AI検証・評価・来歴規約
 
-- 文書版: 1.5
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Game制作AI、Source生成AI、Engine保守AI、Contract compiler、CI、Build、Release
@@ -13,6 +13,7 @@
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 
 ## 1. 結論
 
@@ -108,6 +109,8 @@ Patch Gateはbaseとcandidateの両方でTest inventory、enabled count、filter
 | R5 | R3／R4 preparationで完成した承認済みunsigned artifact＋Release owner、sourceなしPlatform Signing Service、signing keyなしStore Upload Service、Build／SBOM／provenance／device receipt、Store gate |
 
 Docsだけの変更でもToolchain version、Policy、Security guidance、Schemaの意味を変える場合はR3以上に分類する。
+
+`MiraUI Core`、`MiraEditor Shell`、Platform UI AdapterのSource変更は最低R3とし、Command authorization、AI context、UIA action、clipboard／drag payload、recovery、cross-thread lifetimeを変更する場合はR4とする。Promotion Gate `mira.editor.ui_framework.v1`はCMake／Module graph、forbidden GUI dependency、layout／event／semantic conformance、DirectWrite／TSF／UIA、DPI、device loss、memory／performance、8時間soakのReceipt rootを要求する。
 
 ## 6. Formal methodsの適用範囲
 
@@ -553,6 +556,7 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 - 5つの初期TLA+ ModelとC++／TS transition conformance testがある。
 - CX0／CX1／CX2／CX3のC++ Frontend GateがProfile、Dependency Set、Module graph、BMI identityをReceiptへ固定し、CX1 artifactをPromotionしない。
 - `BuildDriverProfileV1`とBuild tree identityがReceiptへ固定され、Makefiles／`ndk-build`、Generator override、Android Multi-Config、異種Build tree再利用をnegative testで拒否する。
+- `mira.editor.ui_framework.v1`が禁止GUI toolkitをsource、CMake graph、link map、SBOM、binary dependencyで拒否し、MiraUIのLayout、Command、AI Semantic、UIA、DPI、IME、device loss、memory／performanceを検証する。
 - TLA+結果をC++全体の証明と表現しないReport templateがある。
 - 10のAI Eval suite、Repository内public／adversarial／incident Corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpusがある。
 - Provider／Model／Prompt／Tool更新が一変数比較と3 run基準を通る。
