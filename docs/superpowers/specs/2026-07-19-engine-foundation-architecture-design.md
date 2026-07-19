@@ -1,12 +1,18 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.6
+- 文書版: 1.7
 - 作成日: 2026-07-19
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
+- Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Rendering／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Editor／Player I/O規約: [Editor](./2026-07-19-editor-workspace-ux-design.md)／[Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+- Simulation規約: [Physics Dynamics／Navigation／Animation](./2026-07-19-physics-navigation-animation-architecture-design.md)
+- Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
@@ -212,7 +218,7 @@ Runtime Worldの公式storageは、16 KiB payload、64 byte alignment、Componen
 
 ### 4.3 唯一の状態変更経路
 
-AI、Editor UI、GameplayDefinition tool、CLI、MCP clientはすべて不変なChangeSetを提案する。World ModelのCommitはC++ Authoring Service内のCommand Gatewayだけが行う。
+AI、Editor UI、GameplayDefinition tool、CLI、MCP clientはすべて不変な`ProjectChangeSet`を提案する。Authoring Document集合と`ProjectRevision`のCommitは、C++ Authoring Service内の`AuthoringCommandGateway`だけが行う。
 
 ChangeSetのrevision fieldは`base_project_revision`とする。WorldだけでなくGameplayDefinition、NativeGameModule、Asset metadata、Build設定を含むProject全体の楽観的並行制御に利用するためである。
 
@@ -294,6 +300,8 @@ Placement new、Allocator内部のraw storage操作、C API境界は`engine/foun
 ### 6.1 基本方針
 
 最初から全面的な独自general-purpose allocatorを作らない。標準Allocator／OS heapを基準に、`std::pmr::memory_resource`でallocation policyを注入できる境界を設け、profileで必要性が証明された領域だけ専用化する。
+
+`std::pmr::memory_resource`は同一C++ Module graph内部のpolicy注入に限る。NativeGameModuleのDLL／C ABI境界は`MiraNativeMemoryPortV1`のcontext＋allocate／deallocate function tableへ投影し、STL object、PMR object、allocator ownershipを越境させない。Module側でPMRを使う場合は、そのfunction tableを包むAdapterをModule内部に構築する。
 
 `pmr`は最適化そのものではない。次を可能にするmechanismである。
 
@@ -754,6 +762,9 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 | Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a` | MIT | 3D collision／solver | Engine component、job bridge、event、serialization |
 | Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | Navmesh build／query kernel | Build profile、tile asset、AI command、debug UX |
 | ozz-animation | 0.16.0／`6cbdc790123aa4731d82e255df187b3a8a808256` | MIT | Skeleton compression、sampling、blend primitives | Animation graph、state machine、root motion、IK policy |
+| HarfBuzz | 14.2.1／`77a832110d40b0179636f5be8f8781f8299d7e50` | MIT | OpenType shaping、script／language／direction付きglyph sequence | UI／Text model、run分割、Font fallback、layout、cache、Editor／AI操作 |
+| FreeType | 2.14.1／`3bd82b5f543bc84ccf2b1d0cdb63b95218099ee6` | FreeType License | Bundled OTF／TTF validation、glyph metrics／rasterization | Font Asset、coverage、atlas、lifetime、render policy |
+| ICU4C | 78.3／`21d1eb0f306e1141c10931e914dfc038c06121da` | Unicode-3.0 | BCP 47、BiDi、text boundary、plural／number／date／message format | Localization schema／fallback、bounded Message AST、package filtering、UI semantics |
 | DirectXTex | may2026／`4feb3e11a020f35b796fc769a74216a555d4f5ef` | MIT | Offline texture decode／mipmap／BC encoding | Asset schema、import policy、cooked format |
 | Dear ImGui Docking | v1.92.8-docking／`b61e56346a92cfcaf1f43a545ca37b0b32239654` | MIT | 初期Editor shellのPanel描画、Docking、multi-viewport | Document、workspace、command、undo、design system、accessibility |
 
@@ -761,7 +772,9 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 
 `third_party/ports`のoverlay portは上表のcommitとsource archive SHA-512を固定する。vcpkg builtin portが別commitを指す場合はbuiltinへ追従せずoverlayを使う。CIはresolved source commit、patch hash、compiler options、license hashをSBOMとBuild manifestへ出力する。
 
-Dear ImGuiのDocking版は初期Editor shellのPanel描画とDockingに限って利用する。ただし、Editor document model、workspace、command、undo、accessibility metadataをImGui固有stateにしない。複雑なtext renderingはDirectWriteを利用する。
+Dear ImGuiのDocking版は初期Editor shellのPanel描画とDockingに限って利用する。ただし、Editor document model、workspace、command、undo、accessibility metadataをImGui固有stateにしない。Windows Editor shellの複雑なtext rendering／font discoveryはDirectWrite、text inputはTSFを利用する。Shipping Game UIは全Target共通のHarfBuzz／FreeType／ICU4C Adapterを使い、bundled Font、UI Layout、Localization、Accessibilityの正本はUI／Text正式規約に置く。
+
+HarfBuzzはFreeType＋ICU integrationだけを有効にし、GLib、Cairo、Graphite2、Shipping不要のtool／docsを無効にする。FreeTypeはTrueType／OpenType、CFF／CFF2、SFNTだけをC1必須とし、BZip2、Brotli／WOFF2、PNG、SVG optional moduleを無効にする。ICU4Cは`common`＋`i18n`を使い、ShippingではProject locale setと必要serviceにfiltered dataを生成する。Compiler option、Source archive SHA-512、patch、license file hash、filtered data hashはoverlay port、`toolchain.lock.json`、SBOM、Package Receiptへ固定する。
 
 Jolt 5.6.0で追加されたGPU compute／hair simulationは初期採用範囲外とし、`JPH_USE_DX12=OFF`、`JPH_USE_VK=OFF`、`JPH_USE_MTL=OFF`、`JPH_USE_CPU_COMPUTE=OFF`でCPU rigid-body kernelだけをBuildする。MiraikanaiのD3D12 device、Render Graph、GPU memory所有権へJoltを接続しない。
 
@@ -854,9 +867,9 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 - Provider向けSchemaは正本にせず、MCDから生成したsubsetとして扱い、C++ Gatewayが完全再検証する。
 - Android／Apple Shipping Runtimeでは構造化data以外のcode／shader生成、post-install remote download、JIT、dynamic loadを禁止する。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
 
-## 18. 実装開始条件
+## 18. Phase 0完了・Feature実装開始Gate
 
-次が揃うまでEngine feature実装へ進まない。
+Phase 0自体は、設計Review後に別途承認された実装計画に従って着手する。次はPhase 0の実装成果物であり、すべてが揃うまでPhase 1以降のEngine feature実装へ進まない。
 
 1. `toolchain.lock.json`、Root CMake Presets、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名差を拒否する。
 2. Foundation targetとdependency DAGがCIで検査できる。
@@ -905,7 +918,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 | Shader-visible descriptorとresource寿命をfenceで管理する | [D3D12 Resource Binding Overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/resource-binding-flow-of-control) |
 | GPU-based validationを小規模Test／定期CIで使う | [GPU-based validation](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-d3d12-debug-layer-gpu-based-validation) |
 | D3D12 heap suballocation | [GPUOpen D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) |
-| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/v0.16.0), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026), [Dear ImGui 1.92.8-docking](https://github.com/ocornut/imgui/releases/tag/v1.92.8-docking) |
+| Dependency baseline release | [D3D12MA 3.2.0](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0), [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1), [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0), [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0), [ozz 0.16.0](https://github.com/guillaumeblanc/ozz-animation/releases/tag/v0.16.0), [HarfBuzz 14.2.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.1), [FreeType 2.14.1](https://freetype.org/), [ICU 78.3](https://github.com/unicode-org/icu/releases/tag/release-78.3), [DirectXTex may2026](https://github.com/microsoft/DirectXTex/releases/tag/may2026), [Dear ImGui 1.92.8-docking](https://github.com/ocornut/imgui/releases/tag/v1.92.8-docking) |
 | Manifest modeとversion固定 | [vcpkg Manifest Mode](https://learn.microsoft.com/en-us/vcpkg/concepts/manifest-mode) |
 | CMake Presetsとの統合 | [vcpkg CMake Integration](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration) |
 | Namingは一貫したproject styleとして機械化 | [Google C++ Style Guide](https://google.github.io/styleguide/cppguide), [ClangFormat](https://clang.llvm.org/docs/ClangFormatStyleOptions.html), [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) |

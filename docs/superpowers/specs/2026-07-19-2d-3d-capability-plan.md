@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 1.6
+- 文書版: 1.7
 - 作成日: 2026-07-19
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
@@ -8,8 +8,15 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Simulation規約: [Miraikanai Engine Physics Dynamics／Navigation／Animation規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
+- Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+- Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+- Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+- Domain Pack規約: [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
@@ -117,6 +124,8 @@ CommandはStable ID、base project revision、型付き引数、precondition、�
 
 ### 3.6 Capability連携の公式経路
 
+次図は製品Capability間の概要である。Render pass／resource／barrierはRenderer規約、Asset generation／Catalog／PackageはAsset規約、Dynamics／Nav／AnimationのphaseとdataはSimulation規約、入力・UI・Audioの各境界はPlayer I/O三規約を詳細基準とする。
+
 ```mermaid
 flowchart LR
   HumanAI["Human／AI／Editor"] --> ChangeSet["GameSpec／ChangeSet"]
@@ -168,12 +177,12 @@ Asset、Profile、`GameplayDefinition`、C++の変更はdependency closure全体
 | Capability | C1 | C2 | C3 |
 |---|---|---|---|
 | Window／display | Platform surface、resolution、logical scale、orientation、safe area | HDR、desktop multi-monitor、mobile quality auto-detect | Multi-view特殊display |
-| Input | Keyboard、mouse、touch、Platform controller、action map、rebinding | Chord、context、haptics、accessibility preset、sensor optional | Specialized device |
+| Input | Keyboard、mouse、touch、Platform controller、action map、rebinding、chord／context、C1 haptics、accessibility preset | Sensor optional、adaptive trigger／HD haptics、registered response curve | Specialized device |
 | World | Stable ID、transform、component、prefab-like templateではないcomposition recipe | Streaming cell、dependency graph | Large-world origin rebasing |
-| Asset | Import、content hash、cook、cache、hot reimport | Background streaming、LOD cook、remote build cache | Distributed cook |
+| Asset | Import、content hash、cook、cache、hot reimport、bounded async streaming、`.mirapack` | LOD cook、Patch／DLC、remote build cache | Distributed cook |
 | Save | Versioned save schema、checkpoint、atomic save | Slot、cloud adapter、partial world state | Large-world partition save |
 | Audio | Engine mixer、voice、bus、spatial emitter、streaming music、Platform audio Adapter | reverb zone、ducking、profiler | Geometry acoustics |
-| UI／Text | Layout、style、focus、touch／controller nav、Platform text／IME Adapter | Localization、screen reader semantics、animation | Advanced vector effects |
+| UI／Text | Layout、style、focus、touch／controller nav、Platform text／IME Adapter、Localization、screen reader semantics | UI animation、limited rich text span、MSDF | Advanced vector effects |
 | GameplayDefinition | Rule／FSM／Ability／Quest／Dialogue／UI Flow schema、Validator、offline Cook、C++ evaluator | Behavior Tree、Blackboard、profiler、互換性検証済みhot reload | 署名済みdata-only Runtime content |
 | Native code | NativeGameModule、isolated build、test | Incremental build、source-level profiling | Stable external SDKは1.0後 |
 | Gameplay logic／AI | Typed state machine、Rule Graph、Cook済みRule、seeded random | Blackboard、perception、behavior tree／utility composition | Large-agent simulation policy |
@@ -285,6 +294,8 @@ Box2D 3.1.1を`Physics2DBackend`内で利用する。
 
 本節はCapability範囲を決める。Body／Collider分離、shape field、Material、Filter、Sensor、Query、Event、Cook、Editor、AI Operation、budget、合格条件の正本はCollision詳細規約とする。
 
+Fixed phase、Box2D job／allocator bridge、event正規化、memory、failure、PhysicsとNavigation／Animationの連携はSimulation規約を詳細基準とする。
+
 #### C1: 2D Physics Core
 
 - Static／kinematic／dynamic body
@@ -315,6 +326,8 @@ Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcano
 ### 5.4 2D Navigation
 
 2Dではgrid navigationとpolygon navigationを別backendとして提供する。
+
+Nav grid／query／obstacle snapshot／async resultのfield、phase、budget、stale結果破棄はSimulation規約を詳細基準とする。
 
 #### C1: 2D Navigation Core
 
@@ -354,6 +367,8 @@ cell payloadはrow-major `cell_index = y * width + x`で、1 cell exactly 2 byte
 Tilemap cellとNavigation cellが一致しない場合、各Navigation cellが重なるcollision／blocked sourceを保守的ORで集約し、狭い障害を消さない。上限到達はpartial pathに偽装せず`SearchBudgetExceeded`、到達不能は`NoPath`、入力generation不一致は`StaleInput`を返す。Project Profile変更はgrid全体をDerived Assetとして再cookし、Play中の暗黙resampleを禁止する。2D／3D Navigationを併用するProjectでも、live Nav payload合計36 MiBとRuntime詳細規約13.1節のNavigation Domain内訳を超えてはならない。
 
 ### 5.5 2D Animation
+
+Sprite animationのAsset／state graph／event／root motion proposal、pose反映phase、buffer lifetime、budgetはSimulation規約を詳細基準とする。
 
 #### C1: 2D Animation Core
 
@@ -423,6 +438,8 @@ Stress sceneはgameplay sceneと分離し、同時にすべてを要求しない
 glTFはinterchange formatであり、Runtime source of truthにしない。Import後は独自Asset schemaへ変換し、cook時にGPU向けformatへ変換する。
 
 ### 6.2 Renderer architecture
+
+`RenderSnapshot`、extract、Render Graphのresource／pass／access宣言、graph compile、Backend Adapter、GPU lifetime、device-loss recoveryはRenderer規約を詳細基準とする。本節は2D／3D製品機能と品質到達点だけを決定する。
 
 Render GraphをC0で作り、resource lifetime、state transition、queue、aliasingをcompileする。
 
@@ -637,6 +654,8 @@ Jolt Physics 5.6.0を`Physics3DBackend`内で利用する。
 
 本節はCapability範囲を決める。Body／Collider分離、shape field、Material、Filter、Sensor、Query、Event、Cook、Editor、AI Operation、budget、合格条件の正本はCollision詳細規約とする。
 
+Dynamics、constraint、Character、fixed phase、Jolt job／allocator bridge、event正規化、memory／failureはSimulation規約を詳細基準とする。
+
 #### C1: 3D Physics Core
 
 - Static／kinematic／dynamic rigid body
@@ -673,6 +692,8 @@ Physics determinismは同一version／platform／thread設定のreplay範囲で�
 ### 6.7 3D Navigation
 
 Recast／Detour 1.6.0でEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行う。
+
+Build input、tile generation、query handle、dynamic obstacle、off-mesh connection、async publish、budget／failureはSimulation規約を詳細基準とする。
 
 #### C1: 3D Navigation Core
 
@@ -727,6 +748,8 @@ Agent Profile変更はsource geometry hashが同じでも全tileを再cookする
 ### 6.8 3D Animation
 
 ozz-animationをsampling／compression primitiveとしてAdapter内で利用し、Animation Graphは独自に実装する。
+
+Skeleton／clip、Engine-owned Animation Graph、state machine、root motion、IK policy、data flow、phase、pose buffer lifetime、budgetはSimulation規約を詳細基準とする。
 
 #### C1: 3D Animation Core
 
@@ -1211,7 +1234,7 @@ Compile-time featureは`MaterialDefinition`だけが持ち、Instance parameter�
 
 - ProfileにないShading Model、Material Domain、Post nodeの使用
 - Pixel-locked layerへのlinear filter、TAA、motion blur
-- `pixel_diorama`で未定義のgameplay space、Camera projection、composition mode
+- `pixel_diorama`で必須のgameplay space、Camera projection、composition modeのいずれかが欠落
 - `toon_surface`または`hybrid_sprite_toon`を使用するSceneのKey Lightが0個または複数
 - Style-critical fieldの未承認変更
 - missing CapabilityまたはQuality Tier未対応feature
@@ -1276,6 +1299,8 @@ Phase 3で2D Profile、Phase 4で候補生成・推薦・委任時選択、Phase
 
 ## 9. Asset pipeline
 
+本章は2D／3D Capabilityから必要となるAsset種別を示す。Source／Import／Derived／Packageの正規四層、Importer隔離、dependency graph、content-addressed cache、Catalog／VFS、Cook、`.mirapack`、Patch／DLC、AI生成Assetの来歴は[Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)を基準とする。
+
 | Asset | Source／Interchange | Runtime |
 |---|---|---|
 | Texture | PNG、JPEG、EXR、KTX2、DDS | Windows BCn、Android ASTC＋ETC2、Apple ASTC、mip／streaming metadata |
@@ -1293,6 +1318,8 @@ OpenUSDはC0～C2では採用しない。C3でDCC collaboration interchangeが�
 Importerは別Processで実行し、networkなし、許可pathだけ、timeout、memory capを持たせる。AI生成Assetも同じstaging、license metadata、content safety、import validationを通す。
 
 ## 10. Editor機能との対応
+
+本章は2D／3D Capabilityに必要なPanelを列挙する。Document model、command、dock／resize／floating、workspace persistence、AI Partner、初心者用`AI Creator`、UI Automation、crash recovery、Editor性能Budgetは[Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)を基準とする。
 
 ### 共通Panel
 
@@ -1364,6 +1391,8 @@ Editor shellはDear ImGui 1.92.8-dockingを描画基盤に使うが、操作設�
 Quality Tierは同じArt Direction内の実装品質だけを変更する。RealisticからToon、PixelからIllustrated、Pixel Dioramaから通常3Dへ切り替えるfallbackを禁止する。PixelのPoint／integer scale、ToonのStyle-critical ramp等はQuality TierよりVisualStyleProfileを優先する。
 
 ## 12. Domain Packとの境界
+
+Pack manifest、依存、version、配布、AI vocabulary、test scene、Core昇格禁止規則、初期Packの正確な内容、将来Capabilityの設計着手Gateは[Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)を基準とする。
 
 Coreはgenreを知らない。次はDomain Packで提供する。
 

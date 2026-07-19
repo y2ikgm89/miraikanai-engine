@@ -1,12 +1,14 @@
 # Miraikanai Engine C++実行コード・構造化ゲームデータ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-19
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 関連基盤: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Authoring詳細: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Runtime詳細: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- NativeGameModule詳細: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - 契約詳細: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 
 ## 1. 結論
@@ -210,6 +212,8 @@ Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択
 
 ## 11. NativeGameModule
 
+本章はGame実装方式上の境界を定める。ABI field、entry point、lifecycle、Target別link、Build／Promotion／restart、failureの詳細は[NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)を基準とする。
+
 ### 11.1 境界
 
 `NativeGameModule`は次だけを使用できる。
@@ -217,7 +221,7 @@ Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択
 - `include/mira/`の公開C++ API。
 - MCDから生成したwire type、validator、typed command／event。
 - 宣言済み`ComponentAccessManifest`のquery／lease。
-- Engine allocatorから渡された明示memory resource。
+- Engine allocatorを固定C function tableへ投影した`MiraNativeMemoryPortV1`。STL／PMR object自体は境界へ渡さない。
 - Versioned Asset／Entity／Resource handle。
 
 次を禁止する。
@@ -234,9 +238,10 @@ Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択
 - AI生成Sourceは隔離Source WorkerでBuildする。
 - Format、warning-as-error、primary／secondary compiler、static analysis、ASan、unit、integration、performanceを通す。
 - Editorへ生成binaryを直接注入しない。
-- C1ではGameHostを別Processとして再起動し、in-process C++ hot unloadを実装しない。
-- Windows Developmentはincremental Buildを許可するが、Preview用artifactをShippingへ昇格しない。
-- Android／AppleはC++変更後に完全なrebuild／package／installを必須とする。
+- Windows Developmentは別Processの新しいGameHostが、起動時にversioned C ABI entryを持つGame DLLを一度だけloadする。変更時はGameHostを終了して新Processへ置き換え、in-process unload／reloadを実装しない。
+- Windows ShippingはEngineとGame moduleを同一EXEへ静的linkする。Development用DLLまたはPreview artifactをShippingへ昇格しない。
+- AndroidはGame moduleをstatic archiveとしてGame shared libraryへlinkし、AppleはGame moduleをapp executableへ静的linkする。C++変更後は完全なrebuild／package／installを必須とする。
+- ABI境界へSTL object、exception、RTTI、allocator ownership、Engine／vendor native objectを渡さない。POD wire view、versioned handle、caller-owned buffer、function tableだけを使用する。
 
 隔離Buildは、生成されたnative codeがGameHost内でsandbox化されることを意味しない。Promotion後のC++はProcess内memoryへ到達できる信頼済みCodeであるため、Code owner Reviewと全Gateを通過するまで正規Projectへ昇格しない。
 

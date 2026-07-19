@@ -1,12 +1,17 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
+- Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
+- Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+- Simulation規約: [Physics Dynamics／Navigation／Animation](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
@@ -1142,7 +1147,7 @@ AIがLevel 0の自然言語指示からGameplayDefinitionまたはC++を選ん�
 - NativeGameModule（Project C++）は公開Domain Port、Runtime Contract、handle／lease APIだけを利用する。
 - AI生成C++が新phase、queue、thread、memory Domain、public dependencyを追加する提案はArchitecture Changeとして人間承認を必要とする。
 - performanceを理由にraw pointer、global singleton、vendor型、phase外mutationへ迂回しない。
-- C++が必要かどうかはGameplay Capability Contract、Capability gap、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。Budget未定義ならBlockingとし、同一fixtureを10分×3回測定して最悪P95／peak／deadline missで判定する。
+- C++が必要かどうかはGameplay Capability Contract、Capability gap、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。必要Budget fieldが存在しなければBlockingとし、同一fixtureを10分×3回測定して最悪P95／peak／deadline missで判定する。
 - 構造化実装のP95とpeakが割当Budgetの80%以下かつdeadline miss 0なら維持し、80–100%はCook／index／layout最適化とC++候補を比較し、100%超またはmiss発生時にC++候補を作る。C++化の改善が5%未満または測定Noise内なら構造化実装を維持する。閾値変更はBenchmarkとADRを要する。
 - 生成物は同じunit、property、ASan、performance、dependency gateを通過するまでCommitしない。
 - Engine coreのR4 SourceもAIが隔離Worktreeへ生成できるが、mainへの自動Promotionは行わず、Domain ownerと独立Reviewerを必須にする。

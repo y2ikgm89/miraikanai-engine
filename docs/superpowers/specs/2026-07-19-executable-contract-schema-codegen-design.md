@@ -1,6 +1,6 @@
 # Miraikanai Engine 実行可能契約・Schema・Codegen規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-19
 - 対象: Requirement、Capability、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Cooked binary生成
@@ -8,6 +8,7 @@
 - 上位文書: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 ## 1. 結論
@@ -276,7 +277,7 @@ PolicyはRisk、Approval、Network、Dependency、Data、Budget、Retry、Releas
 
 ProfileはTarget、Quality、Device、Workspace、AI Provider、Benchmarkを表す。Profileの継承は一段だけ許可し、multiple inheritanceを禁止する。解決後Profileをflat canonical JSONとして生成し、そのhashをBuildとTaskへ保存する。
 
-Profileに未定義の値を環境変数やProvider defaultから暗黙補完しない。Host固有値は`toolchain.lock.json`、Game／Runtime値はMCD Profileへ置く。
+Profileに存在しない値を環境変数やProvider defaultから暗黙補完しない。Host固有値は`toolchain.lock.json`、Game／Runtime値はMCD Profileへ置く。
 
 `provider_profile`はProvider、API version、受理するSchema keyword、strict機能、Tool／Schema／Context上限、refusal／incomplete形式、retention capabilityを表す正規入力である。Provider固有Projectionそのものは正本にせず、このProfileとType／OperationからBuild treeへ生成する。Provider Manifestはexact Provider Profile ID＋version＋hashを参照する。
 
