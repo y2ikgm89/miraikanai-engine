@@ -1,12 +1,13 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 0.9
+- 文書版: 1.0
 - 作成日: 2026-07-18
-- 最終更新日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想とSubsystem別正式仕様21文書を統合した設計レビュー版
+- 状態: 基本構想とSubsystem別正式仕様22文書を統合した設計レビュー版
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
@@ -98,7 +99,7 @@ AIはC++エンジン内部を直接操作しない。AI、Editor GUI、外部ツ
 
 一般的な数学、Rendering、Physics、Audio、Input、Asset管理、Undoなどはゲームエンジンに必要な共通概念であるが、公開API、ライフサイクル、シリアライズ、Editor表現は本プロジェクトの要件から独自に定義する。
 
-「独自」は、OS、Compiler、Direct3D 12、標準Library、検証済みのPhysics／Navigation kernelまで再発明する意味ではない。製品の正規data model、公開Capability、編集protocol、validation、lifecycle、serialization、Editor UXを本プロジェクトが所有し、外部LibraryはEngine-owned Adapter内へ隔離する。Game programming modelはC++20とGameplayDefinitionに固定し、汎用Game scripting runtimeは採用しない。採用条件と初期Dependencyは基盤アーキテクチャ規約で固定する。
+「独自」は、OS、Compiler、Direct3D 12、標準Library、検証済みのPhysics／Navigation kernelまで再発明する意味ではない。製品の正規data model、公開Capability、編集protocol、validation、lifecycle、serialization、Editor UXを本プロジェクトが所有し、外部LibraryはEngine-owned Adapter内へ隔離する。Game programming modelはC++23とGameplayDefinitionに固定し、汎用Game scripting runtimeは採用しない。First-party C++公開境界はHeader準備期からNamed Modules＋`import std`へ一方向移行する。採用条件と初期Dependencyは基盤アーキテクチャ規約で固定する。
 
 ## 4. 対象ユーザーとAuthoring Mode
 
@@ -537,7 +538,7 @@ Codex／Claude CLI・DesktopはEngine開発、試作、CI、Code生成、Build�
 
 ### 8.1 基本方針
 
-Engine、Editor、GameHost、Project固有の実行コードはC++20とする。頻繁に調整するゲーム内容は`GameplayDefinition`として宣言し、offline Cookした`CookedGameplayPackage`をEngineのC++ evaluatorが実行する。汎用Game scripting runtime、bytecode interpreter、JIT、Game向けFFIは導入しない。
+Engine、Editor、GameHost、Project固有の実行コードはC++23とする。頻繁に調整するゲーム内容は`GameplayDefinition`として宣言し、offline Cookした`CookedGameplayPackage`をEngineのC++ evaluatorが実行する。汎用Game scripting runtime、bytecode interpreter、JIT、Game向けFFIは導入しない。
 
 ユーザーは実装方式を毎回選ばない。AIは次の順で判定し、理由、前提、Contract、Budget、Benchmark ReceiptをDecision Ledgerへ記録する。
 
@@ -850,8 +851,8 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 
 ### Phase 0: Foundation契約とToolchain
 
-- 設計文書Indexに列挙した公式Review set 21文書の承認
-- C++20共通Runtime Contractと`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
+- 設計文書Indexに列挙した公式Review set 22文書の承認
+- C++23共通Runtime Contract、`CxxFrontendProfileV1`、`CppDependencySetV1`と`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
 - vcpkg manifest／固定Dependency
@@ -1073,7 +1074,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Editor Host | Windows 11 25H2以降 x64（OS build 26200以上） |
 | Game Target | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`。Mobile Editor、TV／Wear／XR、tvOS／visionOSは初期対象外 |
 | Graphics | WindowsはD3D12、AndroidはVulkan 1.1＋AVP 2022、AppleはMetal。C1はForward+、desktop C2でHybridを選択可 |
-| Game executable language | C++20 |
+| Game executable language | C++23。CX0は非Shipping Header bootstrap、最終方式はNamed Modules＋`import std`、C++26はreadiness CIだけ |
 | Game implementation | C++実行コード＋GameplayDefinition。Authoring dataはoffline Cookし、C++ evaluatorが実行 |
 | General Game Script VM | 不採用。汎用bytecode interpreter、JIT、Game向けFFIを設けない |
 | 2D Physics | Box2D 3.1.1 Adapter |
@@ -1081,7 +1082,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Collision contract | Body／Collider分離、32 Channel、typed Query／Contact／Trigger、immutable Cooked Asset、Collider Editing Mode、AI Typed Operation |
 | 3D Navigation | Recast／Detour 1.6.0 Adapter |
 | GPU memory | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`を各Adapter内で利用 |
-| Build | Windows／Androidは固定Windows toolchain、Apple archive／signingはXcode 26.6を持つMac agent。全artifactのhashとversionをprofile別に固定 |
+| Build | CX0はWindows／AndroidがNinja Multi-Config、AppleがXcode。CX3はportable C++ Module graphをNinja Multi-Config、Apple App shell／最終link／archiveをXcode 26.6で構築。全artifactとBMI identity入力のhash／versionをprofile別に固定 |
 | Performance | Desktopは1080p60、Ryzen 5 5600、16 GiB、RTX 3060 12 GB／RX 6600 8 GB、runtime CPU 2 GiB。Mobileは30／60 fps、Baseline process 1,024 MiB／GPU 384 MiBから実機class別 |
 | Visual Style model | Scene dimension、Art Direction、Composition、Shading Modelを分離 |
 | Material | 型付きMaterial IR、複数Shading Model、Engine-owned Target Binding Layout |
@@ -1113,9 +1114,9 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 ### 16.2 実装計画書で分解する事項
 
-次は設計上の選択肢ではなく、21文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
+次は設計上の選択肢ではなく、22文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
 
-1. Phase 0のrepository bootstrap、CMake target DAG、public header、Miraikanai Contract Definition配置をtaskへ分解する。
+1. Phase 0のrepository bootstrap、CMake target DAG、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、Miraikanai Contract Definition配置をtaskへ分解する。
 2. 固定Toolchain／Dependency artifactの取得、hash lock、SBOM、offline CI image、更新Gateをtaskへ分解する。
 3. Contract compiler、C++／TypeScript／binary descriptor／MCP／Provider projection、round-trip／transition conformance testをtaskへ分解する。
 4. Authoring Document Store、ProjectRevision、ChangeSet transaction、journal／snapshot／crash recovery、headless fixtureをtaskへ分解する。
@@ -1162,7 +1163,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Allocatorを自作して逆に遅くなる | `pmr`境界、domain telemetry、実測したhot pathだけ専用化 |
 | GPU memoryのthrashing | OS budget監視、residency priority、streaming、明示的な失敗 |
 | Clean実装の名目でProject dataを失う | Runtime互換分岐は持たず、backup付きoffline migratorだけを提供 |
-| Module境界が崩れVendorへ固定される | CMake dependency DAG、Ports／Adapters、public header検査 |
+| Module境界が崩れVendorへ固定される | CMake dependency DAG、Ports／Adapters、CX0 Public Header／CX3 Module interfaceのVendor型・依存scan |
 | Subsystemが相互に直接変更して順序依存になる | RuntimeOrchestrator、固定phase、typed command／event、非再入配送 |
 | Hot reloadで新旧Assetが混在する | dependency closure全体をstagingし、boundaryでatomic promotion |
 | 非同期jobが破棄済みobjectへ書く | handle＋versionを開始時と統合時に再検査し、stale resultを破棄 |
@@ -1215,6 +1216,6 @@ Unity、Unreal Engine、Godotからは、Editor拡張、Undo、Tool registry、M
 
 ## 20. 次のアクション
 
-設計文書Indexに列挙した21文書を一つの設計としてReviewする。特に、Product目標、Authoringの正本、C++／GameplayDefinition／NativeGameModule／Runtime境界、Renderer／Asset／Editor／Player I/O／Simulation／Platform、2D／3D／Mobile機能、AI権限、MCD、Provider投影、形式検証、Eval、Provenanceの責務が矛盾しないことを確認する。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
+設計文書Indexに列挙した22文書を一つの設計としてReviewする。特に、Product目標、Authoringの正本、C++23／Named Modules／`import std`／GameplayDefinition／NativeGameModule／Runtime境界、Renderer／Asset／Editor／Player I/O／Simulation／Platform、2D／3D／Mobile機能、AI権限、MCD、Provider投影、形式検証、Eval、Provenanceの責務が矛盾しないことを確認する。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含む実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

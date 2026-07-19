@@ -1,13 +1,15 @@
 # Miraikanai Engine Physics Dynamics／Navigation／Animation規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: 2D／3D Physics step、Joint／Constraint、Navigation build／query、2D／3D Animation graph／pose
 - 状態: プロジェクト公式の規範設計レビュー版
 - Collision正本: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++公開境界: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 
 ## 1. 結論
@@ -405,7 +407,7 @@ EditorはPhysics／Joint、Nav voxel／tile／path、Animation state／blend／r
 4. RagdollはPhysics inputとAnimation final poseのwriterを分離する。
 5. Asset hot reloadはPhysics、Nav、Animation dependency closureを部分混在させない。
 6. 2D／3D World併用、worker oversubscription、stale async result、queue overflowを合格する。
-7. 全vendor型がpublic header、MCD、Save、Project C++から検出されない。
+7. 全vendor型がCX0 Public Header、CX3 Module interface、MCD、Save、Project C++から検出されない。
 8. Target別capacity、memory、P95、10分soakを満たす。
 
 ## 20. 一次資料

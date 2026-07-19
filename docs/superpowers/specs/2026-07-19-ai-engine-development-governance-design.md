@@ -1,14 +1,15 @@
 # Miraikanai Engine AI実装・保守ガバナンス規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
-- 調査基準日: 2026-07-19
+- 調査基準日: 2026-07-20
 - 対象: Game制作AI、GameplayDefinition／C++生成AI、Engine実装・保守AI、Editor、外部CLI／Desktop App、API Provider
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - 機械可読契約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
@@ -149,6 +150,8 @@ OS kernel／hypervisor、TPM、信頼済みService binary、Policy／Approval／
 | `non_goals` | string array | Scope外を明示。空配列可 |
 | `input_revisions` | `{artifact_id, revision, sha256}` array | 使用する正規Inputを完全固定 |
 | `target_profiles` | Profile ID array | 最低1件 |
+| `cxx_frontend_profile_id` | nullable `CxxFrontendProfileId` | C++を生成、変更、CompileするTaskでは必須。非C++ Taskだけnull |
+| `cpp_dependency_sets` | `{component_id, dependency_set_sha256}` array | C++ Source Taskではcomponent ID昇順で全対象を固定。非C++ Taskは空配列 |
 | `requested_outputs` | Artifact kind array | 生成物を列挙 |
 | `open_questions` | Question ID array | Blockingが残る間は実装開始不可 |
 | `context_pack_id` | MiraId | immutable ContextPackを参照 |
@@ -443,6 +446,7 @@ Promotion Gateは次を確認する。
 5. required gateが信頼済みRunnerで成功している。
 6. Approval対象Diffと現在Diffのhashが一致する。
 7. 昇格後のbranchをclean buildし、同じ結果を再検証する。
+8. C++ Source Taskでは`CppDependencySetV1`、Sourceの実import／include、CMake／Module DAG、Active `CxxFrontendProfileV1`が一致し、Experimental CX1 artifactまたはBMIが昇格対象に含まれない。
 
 AI Processへ`.git` writeを許可せず、AIは`git commit`、tag、branch refを作成しない。Source Workerの出力はWorking tree差分とContent-addressed Artifactだけとする。正規履歴へ取り込むcommitはPromotion Serviceが検証済みTreeから作成し、Author／Generator／Reviewer来歴を別Fieldへ記録する。
 
@@ -651,6 +655,7 @@ Subsystem固有規約は近いDirectoryの`AGENTS.md`または正規文書へ分
 - Signing ServiceがSource、Project、Build script、任意shell、Manifest外Fileを拒否し、Signing Receiptが承認済みunsigned rootとsigned rootを連結する。
 - Keyless package inspectionとephemeral signing instanceを分け、Key Brokerが承認済みrootだけへone-shot非搬出Key leaseを発行し、別Artifact署名とKey exportを拒否する。
 - `SourceBundleV1`／`SourceDeltaV1`がGit blob byteとbase hashを固定し、duplicate path、hash／mode差、symlink／reparse／ADS、未許可Binary、size超過を拒否する。
+- C++ Source Taskが`CxxFrontendProfileV1`と全`CppDependencySetV1` hashを固定し、未宣言import／include、Module cycle、CX1 artifact／BMIのPromotionを拒否する。
 - `HyperVIsolatedWorkerV1`がBase image hash、Generation 2／Secure Boot、no NIC／no host mount、AF_HYPERV task binding、Task disk破棄、Hyper-V＋guest二重resource limitのconformanceを通る。
 - Path escape、junction、symlink、submodule、DNS rebinding、Redirect、private address、Network、Secretのnegative testがある。
 - Managed CLIは有効な`ExternalClientSecurityProfile`なしではSource Worker modeへ入れず、CredentialがTool childへ漏れない。

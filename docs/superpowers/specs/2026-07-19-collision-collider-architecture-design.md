@@ -1,11 +1,13 @@
 # Miraikanai Engine Collision／Colliderアーキテクチャ規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: 2D／3D Collision、Rigid Body接続、Collision Query、Editor、AI Authoring、Asset Cook
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++公開境界: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Dynamics／Navigation／Animation規約: [Miraikanai Engine Physics Dynamics／Navigation／Animation規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
@@ -1017,7 +1019,7 @@ Navigationへ渡すStatic collision sourceはCollider Source revisionから別De
 1. 本書のMCD type、operation、capability、profile、diagnosticが正本化される。
 2. C++／TypeScript／Cooked binary descriptor／MCP projectionが同じMCDから生成される。
 3. Editor／AI／人間によるGameplayDefinition編集が同じChangeSet／Validator／Cook経路を使う。
-4. Box2D／Jolt型がpublic header、Project source、Save、Eventへ出ない。
+4. Box2D／Jolt型がCX0 Public Header、CX3 Module interface、Project source、Save、Eventへ出ない。
 5. 2D C1または3D C1の該当Adapter conformanceが全合格する。
 6. Query／Eventのcanonical ordering、lifetime、overflow、fault injectionが合格する。
 7. Reference gameplay fixture、10分soak、memory、2.50 ms P95を満たす。

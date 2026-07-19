@@ -1,11 +1,13 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.7
+- 文書版: 1.8
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
@@ -40,11 +42,11 @@
 | Apple Build／Release | macOS Tahoe 26.2以降、Xcode 26.6 Stable。SecretなしUnsigned Build WorkerがC++／Metal compileとlinkを行い、適合済みSigning／Upload ServiceまたはXcode Cloudが後段を担う。結合型credential-bearing Agentは禁止 |
 | 公式Game Target | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1` |
 | Graphics API | WindowsはDirect3D 12、AndroidはVulkan 1.1＋AVP 2022、AppleはMetal |
-| 言語 | C++20 |
+| 言語 | C++23。CX0はMSVC 14.51 Stable＋`/std:c++23preview`の非Shipping bootstrap、CX3はMSVC 14.52以降Stable＋正式`/std:c++23`を必須とする |
 | Windows SDK | 10.0.26100.8249 |
-| Primary compiler | Visual Studio Build Tools 2026 18.8.0 Stable（build 12009.203）＋MSVC Build Tools v14.51 x64/x86 |
-| Secondary compiler | LLVM／clang-cl 22.1.8（CI診断用。出荷ABIはMSVCで統一） |
-| Build | CMake 4.4.0／Presets schema 12。Windows／AndroidはNinja Multi-Config 1.13.2、AppleはXcode 26.6 generator |
+| Primary compiler | CX0はVisual Studio Build Tools 2026 18.8.0 Stable（build 12009.203）＋MSVC Build Tools v14.51 x64/x86。CX3は正式`/std:c++23`を持つPreviewでないv14.52以降をexact lock |
+| Secondary compiler | CX0／CX1はLLVM／clang-cl 22.1.8。CX3 Cutover時にNamed Modules／`import std`／analysisへ合格したStable LLVMをexact lock（CI診断用。Windows出荷ABIはMSVCで統一） |
+| Build | CX0／CX1はCMake 4.4.0／Presets schema 12。CX0はWindows／AndroidがNinja Multi-Config 1.13.2、AppleがXcode 26.6 generator。CX3は`import std`を非Experimental提供する最初の検証済みStable CMakeをexact lockし、全portable C++ Module graphをNinja Multi-Config、Apple App shell／最終link／archiveをXcode 26.6で構築 |
 | Dependency管理 | vcpkg manifest mode、builtin baseline `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | AI Orchestrator | Node.js 24.18.0 LTS、TypeScript 7.0.2 strict、別Process |
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
@@ -54,7 +56,7 @@
 | Formal model checker | TLA+／TLC CLI v1.7.4をBuild-onlyで固定。v1.8.0 Pre-releaseとToolboxをCIへ採用しない |
 | Shader | Material／Shader IR＋portable HLSL 2021。WindowsはDXIL／SM 6.6／Root Signature 1.1、AndroidはSPIR-V、AppleはMSL／metallibへoffline cook |
 | Windows D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
-| Game実装 | CPU実行CodeはC++20だけ。Game内容は検証済み`GameplayDefinition`をoffline Cookし、C++ Runtimeが実行 |
+| Game実装 | CPU実行CodeはC++23だけ。Game内容は検証済み`GameplayDefinition`をoffline Cookし、C++ Runtimeが実行 |
 | 2D Physics kernel | Box2D 3.1.1をAdapter内で利用 |
 | 3D Physics kernel | Jolt Physics 5.6.0をAdapter内で利用 |
 | 3D Navigation kernel | Recast Navigation／Detour 1.6.0をAdapter内で利用 |
@@ -81,7 +83,7 @@ Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H
 | Visual Studio Build Tools | [18.8.0 fixed-version Build Tools bootstrapper](https://download.visualstudio.microsoft.com/download/pr/e05c0bc8-d058-4b2b-937c-1c80073d7633/b62e8829c6a6c043aacf2ef657456213ab71099c7e46a610f95d6778bfc9beb0/vs_BuildTools.exe) | 5,687,056 bytes、SHA-256 `b62e8829c6a6c043aacf2ef657456213ab71099c7e46a610f95d6778bfc9beb0`、ProductVersion 18.8.0、FileVersion 18.8.12009.203 |
 | MSVC | Stableの「MSVC Build Tools v14.51 for x64/x86」versioned component | `cl.exe`／`link.exe` 14.51.36231以上。`Latest`／`Preview` componentは禁止し、固定bootstrapperが解決したexact `VCToolsVersion`と各binary SHA-256をlockへ保存 |
 | Windows SDK | Visual Studio installerのversioned component | 10.0.26100.8249。`CMAKE_SYSTEM_VERSION`と`WindowsTargetPlatformVersion`を一致させる |
-| CMake | [cmake-4.4.0-windows-x86_64.zip](https://cmake.org/files/v4.4/cmake-4.4.0-windows-x86_64.zip) | 54,388,920 bytes、SHA-256 `156d70eb7625a7b469444df7d0861d2af8d5d0a437fce32c350372b08f5620e8` |
+| CMake CX0／CX1 | [cmake-4.4.0-windows-x86_64.zip](https://cmake.org/files/v4.4/cmake-4.4.0-windows-x86_64.zip) | 54,388,920 bytes、SHA-256 `156d70eb7625a7b469444df7d0861d2af8d5d0a437fce32c350372b08f5620e8`。CX3では`import std`非Experimental化を確認したStable releaseへToolchain更新ChangeSetで一括更新 |
 | Ninja | [ninja-win.zip v1.13.2](https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-win.zip) | 291,570 bytes、SHA-256 `07fc8261b42b20e71d1720b39068c2e14ffcee6396b76fb7a795fb460b78dc65` |
 | LLVM診断toolchain | [LLVM-22.1.8-win64.exe](https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-win64.exe) | commit `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1`、455,545,840 bytes、SHA-256 `16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c` |
 | vcpkg registry | [2026.06.24](https://github.com/microsoft/vcpkg/releases/tag/2026.06.24) | `builtin-baseline` `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
@@ -96,11 +98,11 @@ Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H
 
 Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証する。GitHub release artifactはrelease APIのdigest、tag commit、取得後hashを照合する。npm packageは`package-lock.json`のexact versionとintegrityを`npm ci`で検証し、install scriptを持つpackageはallowlist外なら失敗させる。
 
-`toolchain.lock.json`のschema version 2は次のfieldを必須とする。schemaにないfield、`null`、重複profile／tool ID、相対URL、複数hash候補を許可しない。`profiles[]`は`profile_id`、artifact arrayは`tool_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
+`toolchain.lock.json`のschema version 3は次のfieldを必須とする。schemaにないfield、`null`、重複profile／tool ID、相対URL、複数hash候補を許可しない。`profiles[]`は`profile_id`、artifact arrayは`tool_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
 
 | Field | 型／固定規則 |
 |---|---|
-| `lock_schema_version` | `uint32`、値2 |
+| `lock_schema_version` | `uint32`、値3 |
 | `profiles[].profile_id` | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`をexactly各1件 |
 | `profiles[].host` | `{os, architecture, minimum_version, image_digest}`。WindowsとAndroid profileはWindows x64／build 26200、Apple profileはmacOS arm64／26.2 |
 | `profiles[].artifacts[].tool_id` | lowercase ASCII snake_case、profile内重複不可 |
@@ -110,9 +112,11 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証�
 | `profiles[].artifacts[].sha256` | 64文字lowercase hex |
 | `profiles[].artifacts[].source_commit` | 対応source tagがあるtoolは40文字lowercase Git SHA-1、それ以外は空文字 |
 | `profiles[].resolved_files[]` | `{tool_id, relative_path, size_bytes, file_version, sha256, signer}`。実際に実行／linkするcompiler、SDK、shader、build toolを列挙 |
-| `profiles[windows_desktop_v1].build` | MSVC exact directory、Windows SDK `10.0.26100.8249`、CMake `4.4.0`、`Ninja Multi-Config`、Ninja `1.13.2` |
-| `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、Microsoft OpenJDK `17.0.19` LTS、Shipping ABI `arm64-v8a` |
-| `profiles[apple_mobile_v1].build` | CMake `4.4.0`、Xcode `26.6`、iOS／iPadOS SDK `26.5`、deployment `17.0`、arm64、Xcode generator |
+| `shared.cxx_frontend_profiles[]` | `{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`。C++23・Modules規約から生成した四件をProfile ID順で保持し、Toolchain値を重複保存しない |
+| `profiles[].build.cxx_bindings[]` | `{frontend_profile_id, language_standard, compiler_standard_flag, compiler_tool_id, compiler_full_version, standard_library_hash, cmake_tool_id, cpp_compile_generator, host_package_generator, experimental_import_std_token, module_cache_policy}`。Profile ID順、重複不可。`language_standard`は`c++23`、Module cacheは`toolchain_and_configuration_local`。CX1だけtokenをexact stringで持ち、CX0／CX2／CX3は空文字。AppleはCX0で両Generatorを`Xcode`、CX3でcompileを`Ninja Multi-Config`、packageを`Xcode`とする。Windows／Androidの`host_package_generator`は空文字 |
+| `profiles[windows_desktop_v1].build` | MSVC exact directory、Windows SDK `10.0.26100.8249`、CMake `4.4.0`、`Ninja Multi-Config`、Ninja `1.13.2`。CX0 flagは`/std:c++23preview`、CX3 flagは正式`/std:c++23` |
+| `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、Microsoft OpenJDK `17.0.19` LTS、`-std=c++23`、Shipping ABI `arm64-v8a` |
+| `profiles[apple_mobile_v1].build` | CMake `4.4.0`、Xcode `26.6`、iOS／iPadOS SDK `26.5`、deployment `17.0`、arm64、`-std=c++23`。CX0はXcode generator、CX3はC++ archive用Ninja Multi-Config＋App shell／archive用Xcodeの両Receipt |
 | `shared.vcpkg.builtin_baseline` | 40文字commit `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | `shared.npm.node_version` | `24.18.0` |
 | `shared.npm.package_lock_sha256` | Commit済み`orchestrator/package-lock.json`の64文字lowercase hex |
@@ -121,9 +125,11 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証�
 
 machine comparisonはWindowsなら`host.os_build == 26200 && host.ubr == 8875`、AppleならmacOS／Xcode build versionの独立fieldで行う。月次OS／SDK baseline更新は該当field、CI image digest、Runtimeまたはモバイル規約のbridge baselineを同じChangeSetで更新する。
 
-`CMakePresets.json`はschema 12とする。Windows／Androidは`Ninja Multi-Config`、AppleはXcode generatorを使い、Targetごとに別Build treeを必須とする。`Development`、`Profile`、`Shipping`、`ASan`はTarget内で明示configurationとし、CI jobごとに空のBuild treeを使用する。全Hostで`cmake_minimum_required(VERSION 4.4.0)`と実行CMake exact 4.4.0を照合し、AppleはさらにXcode 26.6との組合せをlockする。
+初期lockは全TargetのCX0 bindingを必須とし、CX1はProbeを実行するTargetだけに追加できる。CX2／CX3 bindingは正式Cutover用Toolchain更新ChangeSetで追加する。Build Gatewayは要求TargetすべてにActive Profileのbindingがあることをconfigure前に確認し、欠落、Compiler／Generatorの不一致、CX1のPromotion要求を失敗させる。
 
-MSVCはversioned v14.51 componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap手順である。
+CX0／CX1の`CMakePresets.json`はschema 12とする。CX0のWindows／Androidは`Ninja Multi-Config`、AppleはXcode generatorを使う。CX1はNinja系の非Promotion Probe、CX3のAppleはportable C++用Ninja Multi-ConfigとApp shell／archive用Xcodeを分離する。Target、C++ Frontend Profile、Generatorごとに別Build treeを必須とする。`Development`、`Profile`、`Shipping`、`ASan`はTarget内で明示configurationとし、CI jobごとに空のBuild treeを使用する。CX0／CX1は全Hostで`cmake_minimum_required(VERSION 4.4.0)`と実行CMake exact 4.4.0を照合し、AppleはさらにXcode 26.6との組合せをlockする。CX3 Cutoverは採用するStable CMakeに合わせてminimum version、Preset schema、全Host artifact hashを同じChangeSetで更新し、4.4互換分岐を残さない。
+
+CX0のMSVCはversioned v14.51 Stable componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。CX1だけは別lockされた14.52 PreviewをProbeに使用できるが、そのartifactをPromotionしない。CX3は14.52以降がStableとなり正式`/std:c++23`を提供した後、別Toolchain更新ChangeSetでexact versionとhashを固定する。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap／Cutover手順である。
 
 TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、現時点で安定公開されていないTypeScript compiler programmatic APIへ製品codeを依存させない。OrchestratorとContract compilerは`package.json`の`"type": "module"`、TypeScriptの`module`／`moduleResolution`を`NodeNext`に固定し、CommonJS／ESM二重Buildを作らない。正式artifactのcompileは`--strict --singleThreaded`を明示して、experimentalな`--checkers`／`--builders`を使わない。Developerのwatch／language serviceは既定の並列処理を使えるが、その出力をShipping artifactとして採用せず、Commit gateでsingle-threaded clean buildを再実行する。
 
@@ -292,7 +298,7 @@ Placement new、Allocator内部のraw storage操作、C API境界は`engine/foun
 - 必須引数はreferenceまたはvalueで表現し、nullを許可しない。
 - 任意の借用だけpointerを使用する。
 - 値が存在しない正常状態は`std::optional<T>`を使う。
-- 失敗し得る処理は`Result<T, Error>`を返す。
+- 失敗し得る処理は`Result<T>`を返す。
 - sentinel値、`-1`、空文字による失敗表現を公開APIに使わない。
 
 ## 6. CPUメモリ管理
@@ -473,7 +479,7 @@ RuntimeはRuntime詳細規約の12段階tickと8段階render frameを唯一の�
 | Programmer invariant violation | assertion、Developmentでは停止 |
 | Corruption／unsafe continuation | crash dumpを生成してfail fast |
 
-C++20には標準`std::expected`がないため、Foundationに小さな`Result<T, Error>`を定義する。例外は`/EHsc`で有効にするが、Engine frame、Subsystem boundary、C ABI、GameplayDefinition／NativeGameModule boundaryを越えて伝播させない。Third-party／tool adapterでcatchし、typed errorへ変換する。`/EHa`とSEHによる継続は使用しない。
+C++23の`std::expected`を採用し、Foundationは`template<class T> using Result = std::expected<T, Error>;`を公開Source表記とする。独自Expected実装、Compiler別Polyfill、Exceptionからの暗黙変換を作らない。例外は`/EHsc`で有効にするが、Engine frame、Subsystem boundary、C ABI、GameplayDefinition／NativeGameModule boundaryを越えて伝播させない。Third-party／tool adapterでcatchし、typed errorへ変換する。`/EHa`とSEHによる継続は使用しない。
 
 Public errorにはstable error code、category、human message、source context、causal chainを持たせる。Logだけを書いてsuccessを返すことを禁止する。
 
@@ -481,12 +487,12 @@ Public errorにはstable error code、category、human message、source context�
 
 ### 10.1 Language baseline
 
-C++20を採用する。MSVCのC++23 modeは現時点でpreviewでABI変更可能性があるため、Shipping toolchainに採用しない。C++23の必要機能はCompilerのstable提供と全dependency検証後にADRで一括移行する。
+C++23を採用する。C++言語・Modules規約のCX0ではMSVC 14.51 Stable＋`/std:c++23preview`をDevelopment／CI bootstrapに限定し、Production Shipping artifactを生成しない。CX3はPreviewでないMSVC 14.52以降の正式`/std:c++23`、全Targetの`-std=c++23`、Named Modules、`import std`のGate合格を必須とする。CX0ではP2564R3とP0533R9へ依存せず、Polyfillを作らない。
 
 Windows First-party targetの基準Optionは次とする。
 
 ```text
-/std:c++20
+/std:c++23preview  # CX0 Development／CIだけ。CX3では /std:c++23
 /permissive-
 /W4
 /WX
@@ -498,22 +504,21 @@ Windows First-party targetの基準Optionは次とする。
 
 - WarningはFirst-party codeでerrorにする。
 - External headerはsystem／external扱いとし、警告levelを分離する。
-- `/std:c++latest`、`/EHa`、warningの全体無効化を禁止する。
+- `/std:c++latest`は`cxx26_readiness` compile-only CI以外で禁止する。`/EHa`、warningの全体無効化も禁止する。
 - RTTIはToolとThird-party互換のため初期は有効にするが、Engine reflection、serialization、component dispatchに`typeid`／`dynamic_cast`を使わない。無効化はmodule単位の計測後にADRで行う。
 - Sanitizer BuildはAddressSanitizerを必須Presetとする。clang-clではUBSan相当の利用可能範囲もCIで実行する。
 
-Android／Apple First-party C++もCMake `cxx_std_20`、warning-as-error、hidden visibility、stack protector、sanitizer profileを同じtarget propertyから生成し、Clangでは`-Wall -Wextra -Wpedantic -Werror`を基準とする。MSVC optionをportable targetへ直接埋め込まず、Compiler policy targetが同じ意味へ変換する。Platform C ABI、JNI、Objective-C++境界でexceptionを伝播させない。Apple AdapterのObjective-C++だけARCを有効にする。
+Android／Apple First-party C++もCMake `cxx_std_23`、warning-as-error、hidden visibility、stack protector、sanitizer profileを同じtarget propertyから生成し、Clangでは`-std=c++23 -Wall -Wextra -Wpedantic -Werror`を基準とする。MSVC optionをportable targetへ直接埋め込まず、Compiler policy targetが同じ意味へ変換する。Platform C ABI、JNI、Objective-C++境界でexceptionを伝播させない。Apple AdapterのObjective-C++だけARCを有効にする。
 
-### 10.2 Header規則
+### 10.2 Header準備期とNamed Modules規則
 
-- Headerはself-containedで単独compileできる。
-- Include What You Useを原則とする。
-- Public headerは`include/mira/<module>/`だけに置く。
-- Public headerからWindows、Android、Apple、D3D12、Vulkan、Metal、JNI、Objective-C、Box2D、Jolt、Recastの型を露出しない。
+- CX0 Headerはself-containedで単独compileでき、Include What You Use、cycle禁止、macro／include順非依存を満たす。
+- CX0 Public Headerは`include/mira/<component>/`だけに置き、CX3 Cutoverで削除する。
+- Public APIからWindows、Android、Apple、D3D12、Vulkan、Metal、JNI、Objective-C、Box2D、Jolt、Recastの型を露出しない。
 - Forward declarationはownershipとdestructor要件を満たす場合だけ使う。
-- `#pragma once`を採用する。
+- CX0 Headerは`#pragma once`を採用する。CX3で残るHeaderはC ABI、Preprocessor macro、言語bridgeだけとする。
 - Unity buildは通常Buildで使わない。専用Presetで計測し、診断性を落とさない範囲で任意採用する。
-- C++20 ModulesはtoolchainとIDEの安定性が確認できるまで採用しない。
+- C++ Named Modulesと`import std`を最終方式として採用する。CX0からModule名／CMake target／依存DAGを固定し、CX1 Probe、CX2 Cutover、CX3 Shippingの一方向移行、`.cppm`、`FILE_SET CXX_MODULES`、BMI cache、Header例外はC++言語・Modules規約を唯一の基準とする。
 
 ## 11. 命名規則
 
@@ -705,15 +710,16 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 
 各`engine/<domain>`は公開契約の`<domain>_port`、World query／System／resolverを持つ`<domain>_runtime`、vendor変換の`<domain>_<backend>_adapter`を別CMake targetにする。Runtimeだけが宣言済みComponent accessを通して`mira_world`へ依存でき、AdapterはWorldへ依存しない。Rendering、Audio、VFX等、snapshot／commandだけで動くconcrete targetには、上限DAGにedgeがあってもWorld dependencyを与えない。GameplayDefinition evaluatorは`gameplay_runtime`内のC++ Systemであり、汎用VM Adapterを持たない。正確な許可edgeとread／write setはRuntime詳細規約を基準にする。
 
-各moduleは次を標準形とする。
+各C++ componentは次を標準形とする。
 
 ```text
-<module>/
+<component>/
 ├─ CMakeLists.txt
-├─ include/mira/<module>/   # 公開API
-├─ src/                     # private implementation
+├─ include/mira/<component>/ # CX0移行用公開API。CX3で削除
+├─ modules/                  # .cppm Primary interface／partition
+├─ src/                      # implementation unit／private source
 ├─ tests/
-└─ benchmarks/              # hot pathがあるmoduleだけ必須
+└─ benchmarks/               # hot pathがあるcomponentだけ必須
 ```
 
 規則:
@@ -722,7 +728,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 - 一つのdirectoryに複数の無関係なSubsystemを置かない。
 - `common`、`misc`、`shared`、巨大な`utils` directoryを作らない。
 - `third_party`へvendor sourceを手動copyしない。Patchとnoticeだけを追跡する。C／C++ Libraryはvcpkg manifest、Agility SDKは公式NuGet flat-container URL＋SHA-512で取得を再現する。
-- Public includeはmoduleの契約であり、他moduleの`src`をincludeしてはならない。
+- CX0 Public includeとCX3 Primary Named Moduleは同じcomponent契約を表し、他componentの`src`をincludeしてはならない。CX3ではConsumerがPrimary Named Moduleだけをimportする。
 - Hostだけがconcrete adapterを生成し、core module内でservice locatorを構築しない。
 - Domain targetから別Domain targetへの直接依存を禁止し、cross-domain dataは`engine/runtime/contracts`を経由する。
 - C++、TypeScript、MCP、Provider、Cooked binaryで共有する契約は`schemas/mira/`のMCDから生成し、手書きで二重管理しない。
@@ -768,7 +774,7 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 | DirectXTex | may2026／`4feb3e11a020f35b796fc769a74216a555d4f5ef` | MIT | Offline texture decode／mipmap／BC encoding | Asset schema、import policy、cooked format |
 | Dear ImGui Docking | v1.92.8-docking／`b61e56346a92cfcaf1f43a545ca37b0b32239654` | MIT | 初期Editor shellのPanel描画、Docking、multi-viewport | Document、workspace、command、undo、design system、accessibility |
 
-上表はfloating rangeではなく初回conformance testの入力である。License、MSVC／C++20 Build、allocator hook、sanitizer、determinism、performanceに合格したexact tag／SHAをvcpkg baselineまたはlock manifestへ記録する。失敗時は無言で別versionへ置き換えず、原因、代替version、API差分をADRへ残す。Release更新は自動追従しない。
+上表はfloating rangeではなく初回conformance testの入力である。License、MSVC／C++23 Build、Named Module private Adapter境界、allocator hook、sanitizer、determinism、performanceに合格したexact tag／SHAをvcpkg baselineまたはlock manifestへ記録する。失敗時は無言で別versionへ置き換えず、原因、代替version、API差分をADRへ残す。Release更新は自動追従しない。
 
 `third_party/ports`のoverlay portは上表のcommitとsource archive SHA-512を固定する。vcpkg builtin portが別commitを指す場合はbuiltinへ追従せずoverlayを使う。CIはresolved source commit、patch hash、compiler options、license hashをSBOMとBuild manifestへ出力する。
 
@@ -843,6 +849,7 @@ PIX capture markerとDRED breadcrumbへProject revision、frame、Render pass、
 | Unit | Handle generation、Result、allocator、schema、command precondition |
 | Property／fuzz | Serializer、ChangeSet parser、asset importer、GameplayDefinition boundary |
 | Conformance | Box2D／Jolt／Recast Adapterの座標、event、lifetime、GameplayDefinition cook／state transaction |
+| C++ frontend | C++23 mode、P2564R3／P0533R9 availability、`std::expected`、Named Module DAG、`import std`、BMI identity、Header exception、C++26 readiness |
 | Integration | ChangeSet→validate→stage→commit→save→load→replay、fixed phase、Asset atomic promotion |
 | Graphics | Headless／WARP smoke、reference GPU image test、Debug Layer |
 | Mobile graphics | SPIR-V／Metal validation、Android emulator／Apple Simulator smoke、Adreno／Mali／Apple実機golden |
@@ -858,7 +865,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 
 - AIはallocator、raw address、D3D12／Vulkan／Metal native object、JNI／Objective-C object、Platform lifecycleを直接操作しない。
 - GameplayDefinitionはMCDで許可された有限Capability、bounded collection、明示State transitionだけを使用し、filesystem、network、process、clock、FFI、任意loop／recursionを持たない。
-- NativeCodeChangeSetは許可directory、CMake target、dependencyを宣言する。
+- NativeCodeChangeSetは許可directory、CMake target、`CppDependencySetV1`のModule import／Header例外を宣言し、Source scan結果と一致させる。
 - 新規dependency、unsafe compiler option、public API変更、memory budget変更は重要操作として人間承認を必要とする。
 - Generated codeはownership annotation相当のAPI形、static analysis、ASan、unit test、isolated buildを通す。
 - Engine coreもAIが隔離WorktreeへR4 PatchとTestを生成できる。MVPで対象外とするのは**自動昇格**であり、生成・検証・人間Reviewを禁止しない。
@@ -871,25 +878,27 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 
 Phase 0自体は、設計Review後に別途承認された実装計画に従って着手する。次はPhase 0の実装成果物であり、すべてが揃うまでPhase 1以降のEngine feature実装へ進まない。
 
-1. `toolchain.lock.json`、Root CMake Presets、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名差を拒否する。
-2. Foundation targetとdependency DAGがCIで検査できる。
-3. `StableId`、generation handle、`Result`、memory tagのcontract testがある。
-4. `.gitattributes`のtext／binary／改行、`.clang-format`、`.clang-tidy`、warning policyがCIで強制される。
-5. ChangeSetの`base_project_revision`とoffline migration policyがschemaへ反映される。
-6. Development／Profile／Shipping Buildの診断差が定義される。
-7. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
-8. Scene dimension、Art Direction、Composition、Shading Modelの正規四軸とVisualStyleProfile schemaが承認される。
-9. Material IR、Domain output、Engine-owned Target Binding Layout、StyleCapabilityManifestの境界が承認される。
-10. Runtime詳細規約のmodule DAG、phase、write authority、handle／borrow、Asset promotion、memory／performance、failure matrixが承認される。
-11. `mira_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
-12. モバイル規約のTarget／Distribution Profile、Platform Port、Toolchain／Store lock、shipping data-only AI policyが承認される。
-13. Android／Apple Adapterが未実装の段階でも、Target validatorが`UnsupportedTarget`を返し、空packageを成功扱いしない。
-14. MCD meta-schema、Requirement、Type、Operation、State machine、Capability、Policy、Profileの共通規約が承認される。
-15. Contract compilerの決定論生成、Provider projection、cross-language round-trip、generated file driftのTest計画が承認される。
-16. `TaskSpecification`とAIが変更不能な`TaskAuthorizationEnvelope`、R0–R5、Approval／Promotion境界が承認される。
-17. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
-18. TLA+対象5 State machine、実装transition conformance、AI Eval suite、Provider migration gateが承認される。
-19. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
+1. `toolchain.lock.json` schema version 3、Root CMake Presets、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名差を拒否する。
+2. `cxx23_headers_bootstrap`が固定MSVC 14.51 Stable／ClangでCompileし、P2564R3／P0533R9を使わず、`std::expected`とC++23 conformance fixtureへ合格する。
+3. `mira.foundation`の`cxx23_modules_probe`、`import std`、BMI identity、Module graph negative fixture、`cxx26_readiness`が非Promotion CIで再現可能に実行される。
+4. `mira_add_cpp_component()`、`CxxComponentGraphV1`、Foundation targetとdependency DAGがCIで検査できる。
+5. `StableId`、generation handle、`Result`、memory tagのcontract testがある。
+6. `.gitattributes`のtext／binary／改行、`.clang-format`、`.clang-tidy`、warning policyがCIで強制される。
+7. ChangeSetの`base_project_revision`とoffline migration policyがschemaへ反映される。
+8. Development／Profile／Shipping Buildの診断差が定義され、CX0からProduction Shipping artifactを生成できない。
+9. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
+10. Scene dimension、Art Direction、Composition、Shading Modelの正規四軸とVisualStyleProfile schemaが承認される。
+11. Material IR、Domain output、Engine-owned Target Binding Layout、StyleCapabilityManifestの境界が承認される。
+12. Runtime詳細規約のmodule DAG、phase、write authority、handle／borrow、Asset promotion、memory／performance、failure matrixが承認される。
+13. `mira_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
+14. モバイル規約のTarget／Distribution Profile、Platform Port、Toolchain／Store lock、shipping data-only AI policyが承認される。
+15. Android／Apple Adapterが未実装の段階でも、Target validatorが`UnsupportedTarget`を返し、空packageを成功扱いしない。
+16. MCD meta-schema、Requirement、Type、Operation、State machine、Capability、Policy、Profile、`CppDependencySetV1`の共通規約が承認される。
+17. Contract compilerの決定論生成、Provider projection、cross-language round-trip、generated file driftのTest計画が承認される。
+18. `TaskSpecification`とAIが変更不能な`TaskAuthorizationEnvelope`、R0–R5、Approval／Promotion境界が承認される。
+19. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
+20. TLA+対象5 State machine、実装transition conformance、AI Eval suite、Provider migration gateが承認される。
+21. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
 
 ## 19. 一次資料と判断の対応
 
@@ -903,7 +912,8 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | Ninja、LLVM、DXC、vcpkgの固定release | [Ninja 1.13.2](https://github.com/ninja-build/ninja/releases/tag/v1.13.2), [LLVM 22.1.8](https://github.com/llvm/llvm-project/releases/tag/llvmorg-22.1.8), [DXC v1.9.2602.24](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2602.24), [vcpkg 2026.06.24](https://github.com/microsoft/vcpkg/releases/tag/2026.06.24) |
 | RAII、raw pointerは非所有、`unique_ptr`優先、明示`new`回避 | [C++ Core Guidelines R.1–R.30](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#S-resource) |
 | Pointer arithmeticより`span` | [Microsoft C26481](https://learn.microsoft.com/en-us/cpp/code-quality/c26481?view=msvc-170) |
-| C++20採用、C++23 previewを出荷に使わない | [MSVC `/std`](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170) |
+| C++23採用、14.51の`/std:c++23preview`はCX0非Shippingだけ、CX3はStable正式`/std:c++23` | [MSVC `/std`](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170), [MSVC 14.51 C++23 support](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) |
+| Named Modules、`import std`、CMake Module scan／Generator制約 | [Microsoft Module／Import／Export](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module?view=msvc-170), [Microsoft inclusion methods comparison](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods?view=msvc-170), [CMake C++ Modules](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html) |
 | Standards conformance | [MSVC `/permissive-`](https://learn.microsoft.com/en-us/cpp/build/reference/permissive-standards-conformance?view=msvc-170) |
 | Warning policy | [MSVC warning level](https://learn.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level?view=msvc-170) |
 | UTF-8 source | [MSVC `/utf-8`](https://learn.microsoft.com/en-us/cpp/build/reference/source-charset-set-source-character-set?view=msvc-170) |

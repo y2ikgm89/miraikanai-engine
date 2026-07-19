@@ -1,12 +1,14 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.5
+- 文書版: 1.6
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
@@ -1127,7 +1129,7 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 
 - target依存DAG違反
 - `toolchain.lock.json`、CI image、compiler／SDK／dependency／driver baseline manifestのversion、hash、署名不一致
-- public headerへのvendor型流出
+- CX0 Public Header／CX3 Module interfaceへのvendor型流出
 - `ComponentAccessManifest`外のWorld query／write registration
 - raw owning pointer、明示`new`／`delete`、Asset／Entityの`shared_ptr`
 - phase外Structural mutation

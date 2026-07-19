@@ -1,18 +1,20 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-20
 - 対象: Project C++、source／binary境界、entry point、lifecycle、Build、Preview、Packaging
 - 状態: プロジェクト公式の規範設計レビュー版
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 結論
 
-`NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++20で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。
+`NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++23で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。CX0ではModule-ready Header API、CX3ではNamed Modules＋`import std`を使用するが、Process／C ABI／Promotion境界は変えない。
 
 ShippingではProject C++をGame binaryへ静的linkする。Windows Development Previewだけ、同じentry contractを持つDLLを新しい`GameHost` Processの起動時に一度loadできる。in-process unload、binary差替え、live code patchを行わず、変更時はGameHostを終了して再起動する。AndroidではProject static archiveをGame runtime `.so`へ、Appleではstatic archive／objectをapp executableへlinkする。
 
@@ -153,17 +155,18 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 
 ### 5.1 公開API
 
-Project sourceは次だけをincludeできる。
+Project sourceが宣言できるEngine依存は次のPrimary Named Moduleだけとする。
 
 ```text
-include/mira/foundation/
-include/mira/runtime_contracts/
-include/mira/gameplay/
-include/mira/native_game/
-<build>/generated/mira/project_contracts/
+mira.foundation
+mira.runtime.contracts
+mira.gameplay
+mira.native_game
+mira.project.contracts
+std
 ```
 
-`engine/**/src`、vendor header、Platform header、generated backend binding、Editor headerをinclude pathへ加えない。CIはinclude graphとpreprocessor traceで検査する。
+`CppDependencySetV1`へpublic／private import、closed `StdHeaderId`、closed Header例外を記録する。CX0は上記論理依存を`include/mira/`、個別標準Header、`<build>/generated/mira/project_contracts/`へ投影し、CX3はPrimary Named Moduleと`import std;`へ投影する。`engine/**/src`、vendor header、Platform header、generated backend binding、Editor headerをinclude pathへ加えない。CIはCX0のinclude graph／preprocessor trace、CX1以降のModule dependency scan／ASTを検査する。
 
 MCDから生成するProject C++ APIは次を提供する。
 
@@ -182,7 +185,7 @@ MCDから生成するProject C++ APIは次を提供する。
 
 | 項目 | 規則 |
 |---|---|
-| STL | Module内部で使用可。ABI struct、callback parameter、Engine container ownershipへ出さない |
+| STL | Module内部で使用可。CX1以降は原則`import std;`。ABI struct、callback parameter、Engine container ownershipへ出さない |
 | RTTI | Compilerは基盤規約どおり有効。Engine reflection、serialization、Capability discoveryへ使わない |
 | Exception | Module内部で使用可。ただし全generated trampolineでcatchしtyped `NativeModuleError`へ変換。ABI／Subsystem boundaryを越えない |
 | Allocation | Engineは`MiraNativeMemoryPortV1 {context, allocate, deallocate}`の固定C function tableを渡す。Moduleは必要ならこれをmodule-owned `std::pmr::memory_resource` Adapterで包むが、PMR objectを境界へ渡さない |
@@ -262,6 +265,9 @@ source_tree_hash
 generated_contract_hash
 native_module_manifest_hash
 engine_public_api_hash
+cpp_frontend_profile_hash
+cpp_dependency_set_hash
+module_graph_hash
 contract_lock_hash
 toolchain_lock_hash
 target_profile_hash
@@ -285,7 +291,7 @@ Promotionには次を必須とする。
 7. signed Promotion Receipt
 8. Authoring規約の`RegisterNativeModuleRevision` Commit
 
-Source、generated header、Build artifact、Receiptのhashが一つでも一致しなければloadしない。
+Source、generated Module／C ABI Header、Dependency Set、Build artifact、Receiptのhashが一つでも一致しなければloadしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。
 
 ## 10. PreviewとPackage
 
@@ -314,6 +320,8 @@ Save互換検証なしに旧Play stateを新Processへ移さない。Preview art
 | invalid handle／lease | command reject、authoritative invariantならsession fault |
 | DLL file lock／load failure | Editorは継続、last valid artifactを明示表示 |
 | Mobile C++変更 | rebuild、re-sign、reinstallなしのPreviewを禁止 |
+| 未宣言import／未許可Header／Module cycle | Source Gate失敗、Header方式へFallbackしない |
+| `import std`／BMI／Module tooling不成立 | Active C++ Frontend Profile失敗、artifactを生成しない |
 
 CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであり、runtime sandboxで安全化されたとは表現しない。
 
@@ -324,7 +332,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - Persistent、session、scratch、command payloadを別telemetry counterへchargeする。
 - C++化は同一fixtureで構造化実装より5%以上かつmeasurement noiseを超える改善、または表現不能Capabilityを根拠とする。
 - ASLR、DEP、CFG、CET互換、stack protection、warnings-as-errors等のWindows Shipping hardeningをEngine binaryと同じにする。
-- Module Sourceに禁止header、inline assembly、dynamic load、socket、process、environment／registry accessがないことをAST／link import scanで検査する。
+- Module Sourceに未宣言import、禁止Header、inline assembly、dynamic load、socket、process、environment／registry accessがないことをAST／Module graph／link import scanで検査する。
 - Shipping import table、symbol、Capability manifest、Component access manifestの一致を検証する。
 
 ## 13. TestとDefinition of Done
@@ -338,6 +346,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - GameHostを100回再起動し、Editor Processのhandle／memoryが増加しない。
 - Windows Shipping、Android、Appleのclean static-link packageが同じModule revision hashを記録する。
 - AI生成SourceがPromotion前に正規Project／Editor／Shippingへloadされない。
+- CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
 
 C1完了条件は、2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。
 

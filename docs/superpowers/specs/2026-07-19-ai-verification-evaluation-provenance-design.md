@@ -1,14 +1,15 @@
 # Miraikanai Engine AI検証・評価・来歴規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
-- 調査基準日: 2026-07-19
+- 調査基準日: 2026-07-20
 - 対象: Game制作AI、Source生成AI、Engine保守AI、Contract compiler、CI、Build、Release
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
@@ -102,7 +103,7 @@ Patch Gateはbaseとcandidateの両方でTest inventory、enabled count、filter
 |---|---|
 | R1 | format、link、generated-doc drift、spelling allowlist、targeted test |
 | R2 | V0–V2、GameplayDefinition schema／semantic／bound／cook検査、deterministic simulation、save／load、target profile smoke |
-| R3 | R2＋primary／secondary compiler、static analysis、unit／integration、sanitizer該当lane、dependency／license、performance impact |
+| R3 | R2＋primary／secondary C++23 compiler、Active C++ Frontend Profile、`CppDependencySetV1`／Module DAG conformance、static analysis、unit／integration、sanitizer該当lane、dependency／license、performance impact |
 | R4 | R3＋Domain owner、独立Reviewer、threat／lifetime analysis、fault injection、state変更時V6、full regression、long soak |
 | R5 | R3／R4 preparationで完成した承認済みunsigned artifact＋Release owner、sourceなしPlatform Signing Service、signing keyなしStore Upload Service、Build／SBOM／provenance／device receipt、Store gate |
 
@@ -290,6 +291,9 @@ Failure後は部分状態非公開、Resource解放、retry可能性、Diagnosti
 | `input_artifacts` | URI、revision、SHA-256 |
 | `contract_set_hash`／`policy_set_hash` | 正規契約 |
 | `toolchain_lock_hash` | Toolchain |
+| `cxx_frontend_profile_id` | C++をCompileしないGateは空文字、CompileするGateはCX0／CX1／CX2／CX3のexact ID |
+| `cpp_dependency_set_root_hash`／`module_graph_hash` | C++ Source Gateの正規依存と実Module graph。非C++ Gateは空文字 |
+| `module_cache_identity_hash` | BMIを利用したGateのCache identity入力root。BMI非利用Gateは空文字 |
 | `command_id` | allowlisted command template。raw secretなし |
 | `started_at`／`finished_at` | UTC |
 | `exit_class` | pass、fail、infrastructure_error、cancelled |
@@ -426,7 +430,7 @@ StatementのJCS byte列をDSSE v1.0の`application/vnd.in-toto+json` payloadと�
 
 ### 13.2 SPDX
 
-Release artifactごとにSPDX 3.0.1 SBOMを実Build結果から生成する。AIが列挙したDependencyを正本にしない。First-party module、third-party package、version、download location、hash、license、relationship、Build／AI provenance参照を含める。
+Release artifactごとにSPDX 3.0.1 SBOMを実Build結果から生成する。AIが列挙したDependencyを正本にしない。First-party CMake component／linked library、third-party package、version、download location、hash、license、relationship、Build／AI provenance参照を含める。BMI／IFCは配布Componentではなく破棄可能Build cacheであるためSBOM packageとして列挙しない。
 
 SBOMとbinaryのdependency scanが一致しない場合はReleaseを停止する。Unknown license、禁止License、hash不一致、未承認Dependencyを拒否する。
 
@@ -527,6 +531,7 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 |---|---|---|
 | `contract-fast` | MCD／generated変更 | meta-schema、lint、determinism、round-trip、projection |
 | `source-targeted` | Source変更 | format、compile、targeted test、static |
+| `cxx-frontend` | C++、CMake、Toolchain、Module／Dependency変更 | C++23 conformance、CX0 Header、CX1／CX2 Named Module＋`import std`、BMI isolation、undeclared import／cycle negative test、C++26 readiness |
 | `state-model` | State／authority変更 | TLC fast、transition conformance |
 | `ai-profile` | Prompt／Model／Tool／Context変更 | Provider conformance、public Eval 3 run |
 | `full-windows` | R3／R4、merge候補 | full build、test、sanitizer、benchmark |
@@ -544,6 +549,7 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 - Engine-owned invariant testとAI-proposed testが区別される。
 - Base／candidateのTest弱体化を検出する。
 - 5つの初期TLA+ ModelとC++／TS transition conformance testがある。
+- CX0／CX1／CX2／CX3のC++ Frontend GateがProfile、Dependency Set、Module graph、BMI identityをReceiptへ固定し、CX1 artifactをPromotionしない。
 - TLA+結果をC++全体の証明と表現しないReport templateがある。
 - 10のAI Eval suite、Repository内public／adversarial／incident Corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpusがある。
 - Provider／Model／Prompt／Tool更新が一変数比較と3 run基準を通る。

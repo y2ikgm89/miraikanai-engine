@@ -1,14 +1,15 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
-- 調査基準日: 2026-07-19
+- 調査基準日: 2026-07-20
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
@@ -185,12 +186,12 @@ ANDROID_PLATFORM=android-29
 | SDK | iOS／iPadOS 26.5 |
 | Deployment target | 17.0 |
 | Architecture | arm64 |
-| CMake／generator | CMake 4.4.0／Xcode |
-| Language boundary | C++20 core＋Objective-C++ Adapter、ARC有効 |
+| CMake／generator | CX0はCMake 4.4.0／Xcode。CX3はportable C++23 Module graphをCMake／Ninja Multi-Config 1.13.2、App shell／最終link／archiveをXcode |
+| Language boundary | C++23 core＋Generated C ABI＋Objective-C／Objective-C++ Adapter、ARC有効。Xcode側bridgeはC++ Named Moduleをimportしない |
 | Shipping backend | `apple_xcode_cloud_v1`または適合済み`apple_self_hosted_split_v1`だけ |
 | Shipping | source-free signing／export、archive validation、TestFlight、App Store |
 
-WindowsはApple用Asset cook、portable shader validation、source生成まで行えるが、最終Metal compilationとarm64 linkは行わない。Apple Unsigned Build WorkerがlockされたXcodeでこれらを実行し、`UnsignedApplePayloadV1`を生成する。このWorkerはAI生成SourceとBuild phaseを実行する非信頼実行系であり、Provisioning profile、certificate private key、App Store Connect credential、Production secretを一切持たない。
+WindowsはApple用Asset cook、portable shader validation、source生成まで行えるが、最終Metal compilationとarm64 linkは行わない。CX0のApple Unsigned Build WorkerはlockされたXcode、CX3はlockされたNinja C++ Module buildとXcode App shell／archive buildを実行し、`UnsignedApplePayloadV1`を生成する。CX3ではBMIをNinja Build tree外へ出さず、Xcode側はGenerated C ABI Headerとopaque handleだけでEngine archiveへ接続する。このWorkerはAI生成SourceとBuild phaseを実行する非信頼実行系であり、Provisioning profile、certificate private key、App Store Connect credential、Production secretを一切持たない。
 
 自己hostする`AppleUnsignedBuildWorkerV1`は、Apple hardware上の次の隔離Profileを全て満たす。
 
@@ -272,7 +273,7 @@ flowchart TB
   Apple --> OS3
 ```
 
-Common public headerへ`ID3D12*`、`Vk*`、`MTL*`、JNI、Objective-C object、Android／UIKit enumを出さない。永続dataへOS handle、vendor enum、display device名を保存しない。AdapterはEngine-owned enum、handle、Resultへ変換する。
+CX0 Common Public HeaderとCX3 Module interfaceへ`ID3D12*`、`Vk*`、`MTL*`、JNI、Objective-C object、Android／UIKit enumを出さない。永続dataへOS handle、vendor enum、display device名を保存しない。AdapterはEngine-owned enum、handle、Resultへ変換する。
 
 ### 6.2 必須Port
 
@@ -787,8 +788,9 @@ Android Signing Service:
 Apple Unsigned Build Worker:
   fetch signed source + cooked manifest
   -> revalidate lock/content hash
+  -> Ninja compile C++23 Named Module graph + NativeGameModule archive
   -> compile Metal library
-  -> build iOS/iPadOS arm64
+  -> Xcode build C ABI App shell + final iOS/iPadOS arm64 link
   -> UnsignedApplePayloadV1
 
 Apple Signing Service or Xcode Cloud managed signing:
@@ -812,10 +814,10 @@ Source取得から`UnsignedMobilePackageV1`まではArtifact由来RiskのR3／R4
 
 | Lane | 必須検査 |
 |---|---|
-| Portable | C++20 compile、unit、schema、serialization、GameplayDefinition cook／transaction、shader IR |
+| Portable | C++23 compile、CX0 Header conformance、CX1 Named Module／`import std` Probe、C++26 readiness、unit、schema、serialization、GameplayDefinition cook／transaction、shader IR |
 | Windows | MSVC／clang-cl、D3D12 validation、Editor、reference benchmark |
 | Android | Gradle dependency verification、arm64／x86_64 compile、SPIR-V validation、AAB／16 KiB inspection、emulator smoke |
-| Apple | Xcode build、Simulator smoke、Metal compile／validation、archive inspection |
+| Apple | CX0 Xcode build、CX3 Ninja C++ Module archive＋Xcode C ABI App shell／final link、Simulator smoke、Metal compile／validation、archive inspection、BMI非混入 |
 | Physical device | graphics golden、input、audio、lifecycle、memory pressure、thermal、performance、content delivery |
 | Security／privacy | sanitizer、static analysis、permission／entitlement、privacy manifest、secret scan、package executable-content scan、Build／Signing／Upload identity分離test |
 

@@ -1,11 +1,12 @@
 # Miraikanai Engine C++実行コード・構造化ゲームデータ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
-- 調査基準日: 2026-07-19
+- 調査基準日: 2026-07-20
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 関連基盤: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++言語・Modules詳細: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring詳細: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Runtime詳細: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - NativeGameModule詳細: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
@@ -15,7 +16,7 @@
 
 Miraikanai Engine 1.0の公式実装方式を、次に固定する。
 
-> CPU上で実行するEngineおよびGame固有コードはC++20へ統一する。Scene、Entity、Composition Recipe、Quest、Dialogue、Ability、Behavior、UI Flow、Encounter、調整値は、Miraikanai Engineが所有する検証可能な構造化ゲームデータとして保存する。構造化ゲームデータはoffline Cookし、C++ Runtimeが型付きCompact Binaryとして実行する。
+> CPU上で実行するEngineおよびGame固有コードはC++23へ統一する。First-party C++公開境界はNamed Modules、標準Libraryは原則`import std`へ一方向移行する。Scene、Entity、Composition Recipe、Quest、Dialogue、Ability、Behavior、UI Flow、Encounter、調整値は、Miraikanai Engineが所有する検証可能な構造化ゲームデータとして保存する。構造化ゲームデータはoffline Cookし、C++ Runtimeが型付きCompact Binaryとして実行する。
 
 次を採用しない。
 
@@ -182,7 +183,7 @@ Pointer、vtable、native padding、source path、Editor-only説明、Provider�
 
 ## 9. C++ Runtimeでの実行
 
-- C++20のEngine-owned Gameplay SystemがCooked dataを処理する。
+- C++23のEngine-owned Gameplay SystemがCooked dataを処理する。
 - Hot pathはArchetype Chunk＋SoA queryをbatch処理する。
 - Entityごとのvirtual `Update()`、個別heap object、文字列dispatchを標準方式にしない。
 - Definitionはevent indexから対象だけを選び、全Ruleを毎tick走査しない。
@@ -216,13 +217,15 @@ Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択
 
 ### 11.1 境界
 
-`NativeGameModule`は次だけを使用できる。
+`NativeGameModule`は次の論理公開契約だけを使用できる。
 
-- `include/mira/`の公開C++ API。
+- `mira.foundation`、`mira.runtime.contracts`、`mira.gameplay`、`mira.native_game`とProject生成Contract。
 - MCDから生成したwire type、validator、typed command／event。
 - 宣言済み`ComponentAccessManifest`のquery／lease。
 - Engine allocatorを固定C function tableへ投影した`MiraNativeMemoryPortV1`。STL／PMR object自体は境界へ渡さない。
 - Versioned Asset／Entity／Resource handle。
+
+CX0ではContract compilerとCMakeが論理依存を`include/mira/`と生成Headerへ投影し、CX3ではPrimary Named Moduleと`import std`へ投影する。Project SourceがHeader／Module構文を選ぶのではなく、`CppDependencySetV1`、Active `CxxFrontendProfileV1`、Source scanを一致させる。CX3後はEngine C++ Public Header projectionを生成しない。
 
 次を禁止する。
 
@@ -368,7 +371,7 @@ Authoritative event、state delta、commandを性能のため黙ってdropしな
 - Deterministic Save／Load／Replay state hash。
 - GameplayStateStore transaction rollback。
 - Cooked package hash、dependency closure、atomic promotion。
-- NativeGameModule public header／DAG／access manifest conformance。
+- NativeGameModuleのCX0 Public Header／CX3 Primary Module、CMake／Module DAG、access manifest conformance。
 - Generated C++ static analysis、ASan、unit、integration。
 - 2D／3D Reference sceneのP50／P95／P99、allocation、cache miss。
 - 10分soak、Mobile 30分thermal、2時間endurance。
@@ -380,6 +383,8 @@ Authoritative event、state delta、commandを性能のため黙ってdropしな
 ### Phase 0
 
 - MCDへGameplayDefinition、Capability、State layout、Budgetを定義。
+- MCDへ`CxxFrontendProfileV1`と`CppDependencySetV1`を定義し、CX0 Header projectionとCX1 Module projectionを同じContractから生成。
+- `mira.foundation`のC++23／Named Module／`import std` ProbeとC++26 readiness CIを構築。
 - C++／TypeScript／MCP／Provider／Cooked binary projectionを生成。
 - GameplayDefinition validator、canonical codec、minimal evaluator fixture。
 - NativeGameModule public SDK、Source Worker、Promotion Gateを定義。
@@ -427,6 +432,7 @@ Authoritative event、state delta、commandを性能のため黙ってdropしな
 10. Save、Replay、Hot Reload、failureがDefinition versionとState layoutで検証される。
 11. Beginner／Advanced Workspaceが同じChangeSetとHistoryを使う。
 12. 2D Manual First PlayableがScript VMなしで完走する。
+13. AI生成C++の論理依存、実際のimport／include、CMake DAGが一致し、未宣言依存とModule cycleが拒否される。
 
 ## 22. 一次資料
 

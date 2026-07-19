@@ -1,13 +1,14 @@
 # Miraikanai Engine 実行可能契約・Schema・Codegen規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
-- 調査基準日: 2026-07-19
+- 調査基準日: 2026-07-20
 - 対象: Requirement、Capability、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Cooked binary生成
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
@@ -16,7 +17,7 @@
 Miraikanai Engineの要件、型、操作、状態遷移、権限、Budget、Diagnosticを、prose、C++ header、TypeScript type、AI Tool Schemaへ別々に手書きしない。Repositoryの`/schemas/mira/`に置く**Mira Contract Definition（MCD）**を唯一の機械可読正本とし、次を決定論的に生成する。
 
 - Engine内部検証用JSON Schema 2020-12。
-- C++20 wire type、enum、validator、serializer、dispatch table。
+- C++23 wire type、enum、validator、serializer、dispatch table、Named Module interface、C ABI Header。
 - TypeScript strict type、runtime validator、JSON-RPC binding。
 - GameplayDefinition／CookedGameplayPackageのbinary descriptor、encoder、decoder。
 - MCP 2025-11-25 Tool `inputSchema`／`outputSchema`。
@@ -281,6 +282,12 @@ Profileに存在しない値を環境変数やProvider defaultから暗黙補完
 
 `provider_profile`はProvider、API version、受理するSchema keyword、strict機能、Tool／Schema／Context上限、refusal／incomplete形式、retention capabilityを表す正規入力である。Provider固有Projectionそのものは正本にせず、このProfileとType／OperationからBuild treeへ生成する。Provider Manifestはexact Provider Profile ID＋version＋hashを参照する。
 
+### 11.3 C++ Frontend／Dependency
+
+`CxxFrontendProfileV1`は`cxx23_headers_bootstrap`、`cxx23_modules_probe`、`cxx23_modules_candidate`、`cxx23_modules_shipping`のclosed enum、許可遷移、Promotion可否を持つ。ProviderやAIがProfile IDを追加できず、Build Gatewayが`toolchain.lock.json`のCompiler／Generator対応と照合する。
+
+`CppDependencySetV1`はowner component／Primary Module、public／private import、closed `StdHeaderId`、closed Header例外を正規化して表す。AIはraw include pathやCompiler flagをDependencyとして保存しない。Contract compilerはCX0で個別標準Header、CX1以降でNamed Module／`import std`へ投影し、Source scannerは実Sourceとの一致を検証する。Field、順序、Header例外、Cutover後のProjection停止条件はC++言語・Modules規約を基準とする。
+
 ## 12. Diagnostic契約
 
 Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MiraDiagnosticV1`を返す。
@@ -414,7 +421,7 @@ Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider
 
 ## 17. Language／Runtime projection
 
-### 17.1 C++20
+### 17.1 C++23
 
 生成C++は次に従う。
 
@@ -422,10 +429,11 @@ Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider
 - Public wire structはstandard-layoutを要求せず、Field access APIを使う。
 - Owning string／vectorまたは明示viewを型で分ける。
 - Deserializerはunknown field、duplicate field、range超過、invalid UTF-8を拒否する。
-- `std::expected`相当のEngine `Result<T, MiraDiagnostic>`を返し、Exceptionをwire境界から出さない。
+- `std::expected`を基礎にしたEngine `Result<T>`を返し、`Error`／`MiraDiagnostic`へtyped conversionする。Exceptionをwire境界から出さない。
 - Enumはclosed enumとし、unknown値をdefaultへ変換しない。
 - HandleはID＋generationでありpointerを含めない。
-- Generated headerにInput contract hashを記録する。
+- CX0のGenerated Header、CX1以降のGenerated Module interface、永続C ABI HeaderにInput contract hashを記録する。
+- Generated Sourceのimport／includeは`CppDependencySetV1`からだけ生成し、手書き依存と二重管理しない。
 
 ### 17.2 TypeScript
 
