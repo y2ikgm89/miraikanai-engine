@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.14
+- 文書版: 1.15
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -52,7 +52,7 @@
 | Windows CRT | `Development`／`ASan`は`MultiThreadedDebugDLL`（`/MDd`）、`Profile`／`Shipping`は`MultiThreadedDLL`（`/MD`）。First-party、NativeGameModule、static Vendor libraryを同一linkで混在させない |
 | Build | CMakeをFirst-party C++ Build定義の唯一の正本とする。WindowsはNinja Multi-Config 1.13.2、AndroidはGradle `externalNativeBuild`からABI／Variant別Single-Config Ninja 1.13.2、Apple CX0はXcode 26.6、CX1以降のportable C++ Module graphはNinja Multi-Config、CX2／CX3のApp shell／最終link／archiveはXcode。Makefiles系と`ndk-build`はFirst-party公式経路にしない |
 | Dependency管理 | vcpkg manifest mode、builtin baseline `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
-| AI Orchestrator | Node.js 24.18.0 LTS、TypeScript 7.0.2 strict、別Process |
+| AI Orchestrator | Node.js 24.18.0 LTS＋同梱npm 11.16.0、TypeScript 7.0.2 strict、別Process |
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | 初期Model Provider | OpenAI Responses API、公式TypeScript SDK 6.48.0 |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium`を明示 |
@@ -92,7 +92,7 @@ Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H
 | LLVM診断toolchain | [LLVM-22.1.8-win64.exe](https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-win64.exe) | commit `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1`、455,545,840 bytes、SHA-256 `16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c` |
 | vcpkg registry | [2026.06.24](https://github.com/microsoft/vcpkg/releases/tag/2026.06.24) | `builtin-baseline` `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | DXC | [dxc_2026_05_27.zip](https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2602.24/dxc_2026_05_27.zip) | tag v1.9.2602.24、commit `d355aa8364d34df3f0822ba0de8d1dfc75ae6f48`、27,108,038 bytes、SHA-256 `cf658aacf070d3045e31b8f1f8a696c2945f37c1095019481ef7c513368db3b4` |
-| Node.js | [node-v24.18.0-win-x64.zip](https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip) | 37,176,245 bytes、SHA-256 `0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821` |
+| Node.js／npm | [node-v24.18.0-win-x64.zip](https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip) | Node.js 24.18.0 LTS、同梱npm 11.16.0、37,176,245 bytes、SHA-256 `0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821` |
 | TypeScript | npm `typescript@7.0.2` | tarball 365,612 bytes、integrity `sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==` |
 | OpenAI TypeScript SDK | npm `openai@6.48.0` | commit `ee5bce84fccb97135948a4838255804d4af1b7dd`、tarball 1,707,934 bytes、integrity `sha512-KhVp+FyV50QrXNextvL9hIU5l6ox5HYuKQjGVk7lIqprgJol90+dQXWONV6S1lRWsKA1bXjrow8RsUT14M1hNA==` |
 | Strict JSON tokenizer／tree | npm [`jsonc-parser@3.3.1`](https://www.npmjs.com/package/jsonc-parser/v/3.3.1) | tag commit `3c9b4203d663061d87d4d34dd0004690aef94db5`、0 dependency、MIT、tarball 27,354 bytes、integrity `sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==`。Build-only |
@@ -100,13 +100,13 @@ Windows 10は2025年10月14日に一般サポートが終了し、Windows 11 24H
 | Microsoft Build of OpenJDK | [microsoft-jdk-17.0.19-windows-x64.zip](https://aka.ms/download-jdk/microsoft-jdk-17.0.19-windows-x64.zip) | 17.0.19 LTS、186,907,952 bytes、SHA-256 `394d1d8253d58b462300f15f9c81369478cf8813f82dca914c3b5dfdef080f9f`。Android buildとTLC CLIで共用 |
 | TLA+／TLC CLI | [tla2tools.jar v1.7.4](https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar) | Stable tag v1.7.4、2,274,532 bytes、SHA-256 `936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88`。Build-only |
 
-Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証する。GitHub release artifactはrelease APIのdigest、tag commit、取得後hashを照合する。npm packageは`package-lock.json`のexact versionとintegrityを`npm ci`で検証し、install scriptを持つpackageはallowlist外なら失敗させる。
+Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証する。GitHub release artifactはrelease APIのdigest、tag commit、取得後hashを照合する。npm packageは各許可rootへCommitした`package-lock.json`のexact versionとintegrityを、事前充填したcontent-addressed cacheに対する`npm ci --ignore-scripts --offline --no-audit --no-fund`で検証する。初期Dependencyはinstall／prepare scriptを必要としないものに限定し、script実行が必要なDependencyは専用ADR、exact package hash、閉じたscript allowlist、隔離Dependency Buildを先に承認しなければならない。通常BuildとCIで`npm install`を使わず、lock更新とcache充填はNetwork許可済み専用Dependency ChangeSetだけが行う。
 
-`toolchain.lock.json`のschema version 4は次のfieldを必須とする。schemaにないfield、`null`、重複profile／tool／Driver ID、相対URL、複数hash候補を許可しない。`profiles[]`は`profile_id`、artifact arrayは`tool_id`、Driver arrayは`driver_profile_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
+`toolchain.lock.json`のschema version 5は次のfieldを必須とする。schemaにないfield、`null`、重複profile／tool／Driver ID、相対URL、複数hash候補を許可しない。`profiles[]`は`profile_id`、artifact arrayは`tool_id`、Driver arrayは`driver_profile_id`のASCII昇順、fileは正規化したrelative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
 
 | Field | 型／固定規則 |
 |---|---|
-| `lock_schema_version` | `uint32`、値4 |
+| `lock_schema_version` | `uint32`、値5 |
 | `profiles[].profile_id` | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`をexactly各1件 |
 | `profiles[].host` | `{os, architecture, minimum_version, image_digest}`。WindowsとAndroid profileはWindows x64／build 26200、Apple profileはmacOS arm64／26.2 |
 | `profiles[].artifacts[].tool_id` | lowercase ASCII snake_case、profile内重複不可 |
@@ -124,9 +124,11 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを検証�
 | `profiles[android_mobile_v1].build` | API compile／target 36、min 29、NDK `29.0.14206865`、AGP `9.3.0`、Gradle `9.5.0`、Build Tools `36.0.0`、Microsoft OpenJDK `17.0.19` LTS、CMake `4.4.0`、Single-Config `Ninja` `1.13.2`、`-std=c++23`、Shipping ABI `arm64-v8a` |
 | `profiles[apple_mobile_v1].build` | CMake `4.4.0`、Xcode `26.6`、iOS／iPadOS SDK `26.5`、deployment `17.0`、arm64、`-std=c++23`。CX0はXcode generator、CX1はNinja Multi-Configの非Promotion Probe、CX2–CX3はC++ archive用Ninja Multi-Config＋App shell／archive用Xcodeの両Receipt |
 | `shared.vcpkg.builtin_baseline` | 40文字commit `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
-| `shared.npm.node_version` | `24.18.0` |
-| `shared.npm.package_lock_sha256` | Commit済み`orchestrator/package-lock.json`の64文字lowercase hex |
-| `shared.npm.packages` | `{name, version, tarball_url, size_bytes, integrity}`をname昇順で列挙 |
+| `shared.npm.package_manager` | exact string `npm`。`bun`、`pnpm`、`yarn`、Corepack解決を受理しない |
+| `shared.npm.node_version`／`npm_version` | `24.18.0`／`11.16.0`。固定Node archive内の`node.exe`と`npm-cli.js`を`resolved_files[]`へ列挙する |
+| `shared.npm.allowed_roots` | `["orchestrator","tools/contract_compiler"]`をexactly保持し、他directoryからpackage managerを起動しない |
+| `shared.npm.package_locks[]` | `{package_root, lockfile_version, sha256}`。各許可rootをexactly一件、`lockfile_version=3`、64文字lowercase SHA-256でpackage root順に保持する |
+| `shared.npm.packages` | `{package_root, name, version, tarball_url, size_bytes, integrity}`をpackage root、name順で列挙 |
 | `shared.source_worker` | `{profile_id, guest_os_version, base_vhdx_sha256, base_manifest_sha256, guest_service_sha256, hyperv_service_guid, protocol_version}`。A1 Activation前に全値を固定し、空値ではSource実行を拒否 |
 
 machine comparisonはWindowsなら`host.os_build == 26200 && host.ubr == 8875`、AppleならmacOS／Xcode build versionの独立fieldで行う。月次OS／SDK baseline更新は該当field、CI image digest、Runtimeまたはモバイル規約のbridge baselineを同じChangeSetで更新する。
@@ -154,6 +156,22 @@ CX0／CX1は全Hostで`cmake_minimum_required(VERSION 4.4.0)`と実行CMake exac
 CX0のMSVCはversioned v14.51 Stable componentを使い、`Latest`を選ばない。固定installerで一度offline layoutとcatalog manifestを作り、そのlayoutをcontent-addressed CI imageへ封入する。`VCToolsVersion`、`_MSC_FULL_VER`、`cl.exe`、`link.exe`、STL、Windows SDKの実file hashを`toolchain.lock.json`へ確定する作業はPhase 0の最初のtaskであり、値が確定するまでC++ dependency conformance testを開始しない。CX1だけは別lockされた14.52 PreviewをProbeに使用できるが、そのartifactをPromotionしない。CX3は14.52以降がStableとなり正式`/std:c++23`を提供した後、別Toolchain更新ChangeSetでexact versionとhashを固定する。これは設計選択の保留ではなく、Microsoft署名済みpayloadを取得して機械転記するbootstrap／Cutover手順である。
 
 TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIに限定し、現時点で安定公開されていないTypeScript compiler programmatic APIへ製品codeを依存させない。OrchestratorとContract compilerは`package.json`の`"type": "module"`、TypeScriptの`module`／`moduleResolution`を`NodeNext`に固定し、CommonJS／ESM二重Buildを作らない。正式artifactのcompileは`--strict --singleThreaded`を明示して、experimentalな`--checkers`／`--builders`を使わない。Developerのwatch／language serviceは既定の並列処理を使えるが、その出力をShipping artifactとして採用せず、Commit gateでsingle-threaded clean buildを再実行する。
+
+### 2.1.1 Node.js／npmの採用境界と代替toolchain Gate
+
+公式JavaScript toolchainは、固定Node.js 24.18.0 LTS archiveと、そのarchiveに同梱されたnpm 11.16.0の一組とする。利用範囲は`orchestrator/`のAI Orchestratorと`tools/contract_compiler/`のBuild-only CLIだけであり、First-party C++ Buildの正本、Content Build、GameHost、Editor本体、Android／Apple Shipping Runtimeへ拡張しない。Editor配布物がAI機能用Node runtimeを同梱する場合も、npm CLI、npm cache、development dependency、lock更新機能をRuntime artifactへ含めず、EditorまたはGameからpackage managerを起動しない。
+
+各許可rootの`package.json`は`"private": true`、`"type": "module"`、`"packageManager": "npm@11.16.0"`、`engines.node`のexact `24.18.0`、`engines.npm`のexact `11.16.0`を必須とする。BootstrapはRepository内で固定archiveを展開した絶対pathの`node.exe`／`npm-cli.js`だけを使い、PATH上のglobal Node、npm、Corepack shimを拒否する。正式入口はBuild Gatewayが型付きTaskとして起動する`npm ci`、clean compile、test、packageだけであり、npm scriptからCMake／Ninja／Gradle／Xcodeの正規Product Buildを再定義しない。
+
+初期選択を次に固定する。
+
+| 候補 | Phase 0の公式状態 | 判断 |
+|---|---|---|
+| Node.js 24.18.0 LTS＋npm 11.16.0 | **採用** | 既存のNodeNext、OpenAI SDK、MCP、child process、診断toolとの互換面を保ち、Node公式archive、npm lockfile、CI imageを一組で固定できる |
+| Bun | **不採用・再評価可能** | install／起動速度は評価対象になり得るが、Node API互換とJavaScriptCore上の挙動をAiOrchestratorの全境界で再Qualificationする追加costが、初期の小規模Dependency graphに見合わない |
+| pnpm | **不採用・再評価可能** | content-addressed storeと厳密なdependency layoutは有用だが、初期二rootへ別lockfile、store、link layout、bootstrap artifactを追加する利益が現時点で小さい |
+
+Bunまたはpnpmの評価は、公式Buildから分離したBenchmark workspaceでのみ行い、`bun.lock`／`pnpm-lock.yaml`、Bun binary、pnpm storeを正規Repository、CI image、Build Receiptへ混在させない。再評価は、npm restoreまたはNode実行が計測済みbottleneckとなった時だけ開始し、Windows reference環境で20回以上のclean restore、clean compile、contract test、AiOrchestrator conformanceを比較する。共通Gateは中央値20%以上のend-to-end短縮と、機能／診断／determinism／SBOM／license／offline mirrorの無回帰とする。Bunはさらに`node:child_process`、`node:worker_threads`、ESM／NodeNext、named pipe、OpenAI SDK、MCP、cancel／exit code、crash dumpの互換fixtureへ全合格しなければならない。pnpmはNode.js 24.18.0を維持し、isolated dependency layout、offline store、package resolution、Windows link／pathのfixtureへ全合格しなければならない。採用にはADRとToolchain更新ChangeSetを先に承認し、BunならNode／npm、pnpmならnpmだけを同じChangeSetで置換する。複数Runtime、package manager、lockfileの恒久併存は認めない。
 
 ### 2.2 Build layerの責務とNinja採用Gate
 
@@ -758,6 +776,11 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  └─ collision/
 │  ├─ shader_compiler/
 │  ├─ contract_compiler/
+│  │  ├─ package.json
+│  │  ├─ package-lock.json
+│  │  ├─ tsconfig.json
+│  │  ├─ src/
+│  │  └─ tests/
 │  ├─ contract_lint/
 │  ├─ source_worker/
 │  ├─ source_promotion/
@@ -839,7 +862,7 @@ Dependencyを採用する条件:
 6. Determinism、threading、allocator、exception、coordinate系をconformance testで固定する。
 7. 更新は専用ChangeSetで行い、replay、performance、serialized fixtureを再検証する。
 
-Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeScript 7.0.2、npm package、integrity hashを`toolchain.lock.json`、`package-lock.json`、CI imageへ固定する。Node.jsのCurrent版、TypeScript preview、floating version rangeをShipping toolchainに使わない。
+Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、同梱npm 11.16.0、TypeScript 7.0.2、npm package、integrity hashを`toolchain.lock.json`、各許可rootの`package-lock.json`、CI imageへ固定する。Node.jsのCurrent版、別配布npm、Corepackによるfloating解決、TypeScript preview、floating version rangeを公式toolchainに使わない。
 
 初期採用:
 
@@ -966,7 +989,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 
 Phase 0自体は、設計Review後に別途承認された実装計画に従って着手する。次はPhase 0の実装成果物であり、すべてが揃うまでPhase 1以降のEngine feature実装へ進まない。
 
-1. `toolchain.lock.json` schema version 4、`BuildDriverProfileV1`、Root CMake Presets、Android Gradle CMake設定、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名／Driver／Generator差を拒否する。
+1. `toolchain.lock.json` schema version 5、`BuildDriverProfileV1`、Root CMake Presets、Android Gradle CMake設定、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名／Driver／Generator差を拒否する。
 2. `cxx23_headers_bootstrap`が固定MSVC 14.51 Stable／ClangでCompileし、P2564R3／P0533R9を使わず、`std::expected`とC++23 conformance fixtureへ合格する。
 3. `mira.foundation`の`cxx23_modules_probe`、`import std`、BMI identity、Module graph negative fixture、`cxx26_readiness`が非Promotion CIで再現可能に実行される。
 4. `mira_add_cpp_component()`、`CxxComponentGraphV1`、Foundation targetとdependency DAGがCIで検査できる。
@@ -988,6 +1011,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 20. TLA+対象5 State machine、実装transition conformance、AI Eval suite、Provider migration gateが承認される。
 21. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
 22. `PhysicsKernelLockV1`、Box2D／Joltのexact commit、product／Qualification build option、Target別昇格状態、全World／Solver Profile、Joint／Character／Save／Replay契約が承認され、未Qualification TargetをProduction表示しないGateが定義される。
+23. 固定Node.js 24.18.0 LTS＋npm 11.16.0だけで両許可rootの`npm ci --ignore-scripts --offline --no-audit --no-fund`、single-threaded clean compile、test、packageがnetworkなしで再現し、global Node／npm、Corepack、Bun、pnpm、未許可root、異種lockfileをnegative fixtureで拒否する。
 
 ## 19. 一次資料と判断の対応
 
@@ -1024,7 +1048,8 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 | CMake Presetsとの統合 | [vcpkg CMake Integration](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration) |
 | Namingは一貫したproject styleとして機械化 | [Google C++ Style Guide](https://google.github.io/styleguide/cppguide), [ClangFormat](https://clang.llvm.org/docs/ClangFormatStyleOptions.html), [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) |
 | UUIDv7 format | [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562.html) |
-| ProductionでNode.js 24.18.0 LTSを使う | [Node.js 24.18.0 release](https://nodejs.org/en/blog/release/v24.18.0), [Node.js Releases](https://nodejs.org/en/about/previous-releases) |
+| ProductionでNode.js 24.18.0 LTSと同梱npm 11.16.0を使う | [Node.js 24.18.0 release](https://nodejs.org/en/blog/release/v24.18.0), [Node.js 24.18.0 archive](https://nodejs.org/en/download/archive/v24.18.0), [Node.js Releases](https://nodejs.org/en/about/previous-releases), [`npm ci`](https://docs.npmjs.com/cli/v11/commands/npm-ci/) |
+| Bun／pnpmを初期公式toolchainへ混在させず、計測と互換Gateを通した一括置換だけを再評価する | [Bun Node.js compatibility](https://bun.sh/docs/runtime/nodejs-compat), [Bun lockfile](https://bun.sh/docs/pm/lockfile), [pnpm installation](https://pnpm.io/installation), [pnpm supply chain security](https://pnpm.io/supply-chain-security) |
 | TypeScript 7.0.2 strict toolchain baseline。unstable programmatic APIには依存しない | [TypeScript 7.0 announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/), [TypeScript npm package](https://www.npmjs.com/package/typescript/v/7.0.2) |
 | Local IPCをUser ACLで制限する | [Named Pipe Security and Access Rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights), [JSON-RPC 2.0](https://www.jsonrpc.org/specification) |
 | API keyをProjectから隔離する | [Windows Credentials Management](https://learn.microsoft.com/en-us/windows/win32/secauthn/credentials-management) |
@@ -1048,6 +1073,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 - Engine reflectionとしてC++ RTTIへ依存すること
 - Runtime内legacy schema分岐
 - 未固定dependency、preview compiler mode、preview Agility SDKのShipping採用
+- Node.js／npmとBun／pnpm／Yarn、複数package manager、複数lockfileを公式Build、CI image、配布artifactへ混在させること
 - Profile結果のないdata-oriented化、pool化、lock-free化
 - Dear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、CEFをEditor GUI Frameworkとして利用すること
 - Domain間の直接呼出しと相互pointer保持
