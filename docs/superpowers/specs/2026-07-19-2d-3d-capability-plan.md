@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.2
+- 文書版: 2.3
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -530,6 +530,97 @@ Shadow resourceは`R16_TYPELESS`＋depth view／`R16_UNORM` shader viewを使い
 CSM projectionをtexel単位でstabilizeし、cascade splitはcamera nearとShadow distanceから毎frame再計算する。既定biasはconstant 1.0 texel、slope 1.5 texel、normal offset 0.5 texel、schema範囲は各0～8 texelとする。Lightごとのresolution要求は128、256、512、1,024、2,048、4,096のいずれかに限定し、atlasへ入らない要求は自動縮小せず`ShadowAtlasExceeded`とする。LowでPoint shadowを要求した場合も同じtyped errorを返す。Shadow passはRuntime詳細規約14.4節の2.00 ms soft cap、16.67 ms frame hard acceptanceの両方を満たす。
 
 Shadow updateは`static`をLight／caster Asset generation変更時だけ、`stationary`をLightまたはcaster transform／visibility generation変更時、`dynamic`を毎frameとする。1 frameのlocal updateはLow 4、Medium 16、High 32 face-equivalentまでで、`priority desc, StableId asc`にdirty tileを更新する。上限を超えたdirty tileは旧generationを表示して`ShadowUpdateDeferred`を記録し、新旧cascade／cubemap faceを一組のLight内で混在させない。Directional shadow casterは全Tierで1とし、複数Directionalがvisibleでもshadow対象は`casts_shadow=true`のうち同じ`priority desc, StableId asc`の先頭だけである。AI proposalが2個以上を要求した場合はfallbackせずvalidation errorにする。
+
+Shadowアーキテクチャは次の比較で段階Hybrid方式を採用する。
+
+| 方式 | 評価 | 判断 |
+|---|---|---|
+| CSM／atlasだけを高解像度化 | C1とMobileに適するが、大規模Sceneで更新量とatlas fragmentationが上限になる | C1／Mobile Backendとして維持 |
+| Virtual／ray tracingへ全面移行 | High-end品質は高いが、Mobile、低Tier、driver capability、実装順序を壊す | 不採用 |
+| 共通Intent／Resolver＋Target別Backend | AI理解性、Artist自由度、Mobile互換、高品質拡張を同じ正本で両立できる | **採用** |
+
+#### AIが理解できるShadow Authoring契約
+
+Shadowの正規Sourceは解像度、cascade数、page座標、bias、shader名を並べたBackend設定ではなく、意味Intent、型付きGraph、承認済みTechnique Manifestである。AIと人間は同じAuthoring Operationを使い、`ShadowIntentV1`から開始する。AIは既定経路でCSM、Virtual Shadow、ray tracing等のアルゴリズム名を推測選択せず、望む見た目、対象、重要度、範囲、fallback優先事項を提案する。
+
+`ShadowIntentV1`を次で固定する。
+
+| Field | 型／規則 |
+|---|---|
+| `intent_id` | Project内Stable ID |
+| `role` | `environment \| primary_character \| secondary_character \| prop \| effect` |
+| `style` | `physically_based \| hard \| soft \| contact_hardening \| toon_banded \| pixel_crisp \| art_directed` |
+| `importance` | `critical \| important \| decorative` |
+| `coverage` | `near \| near_to_medium \| world` |
+| `softness_policy` | `light_source_derived \| fixed_artistic \| profile_default` |
+| `fallback_priority` | `preserve_contact \| preserve_silhouette \| preserve_distance \| preserve_style` |
+| `caster_group_ids`／`receiver_group_ids` | 登録済みGroup ID。任意query、Entity pointer、Component式は禁止 |
+| `profile_override_id` | optionalな登録済み`ShadowStyleProfileV1`。未指定はVisual Styleから解決 |
+
+Canonical priority rankは`decorative=0`、`important=1`、`critical=2`とする。Lightの`mobility`、source radius／angle、caster／receiver generationは既存Light／Renderable契約を正本とし、Intentへ重複保存しない。L1 Profileで許可する数値はfiniteなopacity 0～1、linear tint、distance、source size、Style範囲内のsoftnessだけである。cascade、atlas tile、virtual page、sample count、denoiser、native format、barrierをL0／L1入力にしない。
+
+Authoring自由度を次の四段階にする。
+
+| Level | 正規表現 | 許可 | 禁止／Gate |
+|---|---|---|---|
+| L0 Intent | 自然言語から`ShadowIntentV1` | 役割、見た目、重要度、範囲、fallback優先 | Backend方式、raw数値、shader指定 |
+| L1 Profile | `ShadowStyleProfileV1` | 半影、opacity、tint、distance、caster／receiver groupをSchema範囲で編集 | resource／pass／sample loopの編集 |
+| L2 Graph | `ShadowGraphV1` | 登録済みSource／Filter／Mask／Style／Composite nodeの型付きDAG | raw HLSL、任意pass、native resource、loop／recursion |
+| L3 Technique | `ProjectShadowTechniqueV1` | 承認済みC++／HLSL moduleでShadow Subsystem Techniqueを追加 | Renderer全体差替え、World直接参照、Runtime compile、未宣言GPU access |
+
+`ShadowGraphV1`は最大64 node、128 edge、8 Source node、Final Output一つとし、loop、recursion、動的node生成を禁止する。Schema-level Node CatalogはSourceに`shadow_map_2d`、`csm_atlas`、`cached_csm_atlas`、`virtual_shadow`、`ray_traced_shadow`、`sdf_2d`、`contact_shadow`、`capsule_shadow`、`cloud_shadow`、Filterに`pcf`、`pcss`、`temporal_stabilize`、`denoise`、Maskにcaster／receiver group、distance、Light Channel、Styleにtint、opacity、Toon band、pixel snap、Compositeに`multiply`、`minimum_attenuation`、priority selectを持つ。各Product PhaseとTargetのActive Catalogは有効Capabilityだけを掲載し、未有効NodeをAIへ選択肢として提示せず、直接入力されても`CapabilityNotActivated`で拒否する。Nodeは意味IDであり、GraphがRender pass名やshader entryを所有しない。2D SDF、Toon face／hair、Cloud Shadowは対応するGraphへ意味入力として合成できるが、各Subsystemの正規Assetとgenerationを複製しない。
+
+#### Shadow Resolver、Backend、説明可能性
+
+`ShadowResolverV1`は`ShadowIntentV1`、optional `ShadowGraphV1`、Light／casterのimmutable view、`VisualStyleProfile`、Target Capability、Shadow Quality Profile、GPU／memory budgetを入力にし、canonicalな`ResolvedShadowPlanV1`を生成する。L0／L1ではEngineがTechniqueを選び、L2では明示NodeをCapabilityとbudget内に解決し、L3では承認済みManifestだけをCatalogへ登録する。同じ入力から同じPlan hashを生成し、Device照会順、pointer、実行時登録順をtie-breakに使わない。
+
+`ResolvedShadowPlanV1`は少なくとも`technique_id`、`backend_id`、Graph Artifact hash、resolved caster／receiver group、予測GPU時間、persistent／transient byte、update上限、選択理由、unsupported reason、適用したfallback、debug channelを持つ。AIへは`CreateShadowIntent`、`UpdateShadowIntent`、`CreateShadowGraph`、`PreviewShadowPlan`、`EstimateShadowCost`、`ExplainShadowPlan`、`ValidateShadowChange`だけを公開し、Provider出力をGatewayで同じSchemaとbudgetへ完全再検証する。
+
+実行Backendを段階化する。
+
+| Capability | Backend | Target／成熟度 |
+|---|---|---|
+| 2D C1／C2 | `Shadow2DBackendV1` | 全Target。C1はSDF occluder、half-linear mask、hard shadow。C2でPCF／soft shadowを追加 |
+| 3D C1 | `ShadowMapBackendV1` | 全Target。Directional CSM、Spot atlas、Point cubemap |
+| 3D C2 | `CachedShadowMapBackendV1` | static／dynamic caster分離、cache、PCSS／contact-hardeningをQuality Profileで選択 |
+| 3D C2 High | `VirtualShadowBackendV1` | `windows_desktop_v1`のCapability Gate合格後だけ。128×128 texel page、Directional clipmap、on-demand residency、generation cache |
+| 3D C3 | `RayTracedShadowBackendV1` | 対応TargetでStyle-critical Light／receiverだけ。Virtual／conventional fallback必須 |
+| 3D C3 | `ProjectShadowTechniqueV1` | Stable Shadow Extension SDK、A1、R3、全Targetまたは明示fallback、専用Qualification後 |
+
+Virtual Shadowのphysical pool、page table、metadata、precompiled conventional fallback resourceはHighのShadow persistent cap 288 MiBへ全て含め、virtual pool部分は最大192 MiBとする。128×128 `R16` pageの実数はBackend alignmentとmetadataを先に差し引いてCook時に決定し、上限超過allocationを行わない。Page要求は`importance desc, screen_influence desc, distance asc, StableId asc, virtual_page_key asc`で選ぶ。Evictionは`visible asc, importance asc, last_used_frame asc, StableId asc, virtual_page_key asc`のcanonical順とし、同順位なら古い非表示pageを先に解放する。visible working setが収まらない場合はresidentなcoarser ancestorを使用して`ShadowPagePoolPressure`を記録し、critical receiverにancestorも存在しないFrameはProfileで事前承認しprecompileした`cached_csm_atlas` GraphへそのFrameから切り替える。fallback未定義なら`ShadowFallbackApprovalRequired`としてCookを拒否する。移動Light、caster bounds／visibility、WPO／deformation generation、camera cut、clipmap origin変更のcache invalidationをDebug Viewで追跡可能にする。
+
+`ProjectShadowTechniqueV1`は`ShadowTechniqueManifestV1`を内包し、`technique_id`、version、Target requirement、入力Semantic、出力`shadow_attenuation_linear`、登録済みPass Template、resource上限、予測／実測cost、fallback technique、debug channel、Shader Interface hashを必須とする。Cooked moduleは`ShadowTechniquePortV1`だけを実装する。Project moduleはRender Graphへ宣言したresourceだけを読み書きし、World、Entity、Gameplay state、native GPU handle、raw barrier、filesystem、networkへaccessしない。隔離offline compile、static validation、watchdog付き隔離GPU Runner、golden image、全対象Target cook、人間Review、Promotion Receiptに合格したArtifactだけをCatalogへ追加する。AIはL3を「Graphで表現不能」または人間の明示要求時だけ提案でき、直接有効化できない。
+
+既存Schema内のL0／L1／L2 instance変更はR2、Node CatalogまたはSchema互換性の変更とL3 Project C++／HLSLはR3、Engine Backendまたは`ShadowTechniquePortV1`／Extension SDKの変更はR4とする。AIはR2を有効な事前委任範囲内でだけ昇格でき、R3／R4を自動昇格しない。
+
+Resolver／Graph／Backendは次のtyped errorを共有する。
+
+- `ShadowBudgetExceeded`
+- `ShadowTechniqueUnsupported`
+- `ShadowGraphInvalid`
+- `ShadowStyleConflict`
+- `ShadowFallbackApprovalRequired`
+- `ShadowCachePressure`
+- `ShadowPagePoolPressure`
+- `ShadowTechniqueValidationFailed`
+
+DiagnosticsはIntent、resolved Plan、fallback差、GPU／memory予測、caster／receiver、cache invalidation、page residency、filter sample、最終attenuationを相互参照できる。Screen-space／temporal／ray-traced結果をGameplay visibility、stealth、Physics、Navigation、AI perceptionへ入力しない。
+
+#### Shadowの段階導入と合格条件
+
+Phase 0で`ShadowIntentV1`、`ShadowStyleProfileV1`、`ShadowGraphV1`、`ResolvedShadowPlanV1`、`ShadowTechniqueManifestV1`のSchema、Capability ID、未有効Backendの`CapabilityNotActivated`拒否を固定する。Phase 3はL0／L1と2D SDF C1、Phase 6はL0／L1と3D conventional C1、Phase 8はL2、cache、PCSS／contact-hardening、Windows HighのVirtual Shadowを個別GateでProduction化する。L3 Project TechniqueとHardware RTはC3であり、Phase 8完了だけを理由に有効化しない。
+
+Shadow機能の追加合格条件は次である。
+
+1. Intent／Graph／PlanのC++、TypeScript、Cooked descriptor、AI Tool projectionが同じMCDから生成される。
+2. L0自然言語、L1 Editor、L2 Graphが同じPlanへ正規化されるfixtureと、同入力のPlan hash一致がある。
+3. Graph cycle、node／edge超過、unsupported node、group不整合、未宣言resource、fallback欠落を拒否する。
+4. 2D SDF、CSM／atlas／cubemap、cache、PCSS、Virtual page、選択的RTのgolden sceneとStyle別回帰がある。
+5. static／stationary／dynamic、camera cut、deformation、Asset promotion、device lossのcache invalidation testがある。
+6. Atlas／page pool／descriptor／memory圧迫、dirty update超過、fallback、復旧をfailure injectionで検証する。
+7. ReferenceMediumは既存2.00 ms Shadow soft cap、各Tierのpersistent cap、16.67 ms frame hard acceptanceを維持する。C3が変更を必要とする場合はBenchmark付きADRを先に承認する。
+8. L3 Techniqueはforbidden access、shader hang、resource過少申告、Target欠落、stale interface hashをnegative fixtureで拒否する。
+9. AI Diffは見た目の代表Preview、選択理由、Target交差、fallback差、GPU時間、memory、更新負荷を表示する。
 
 Global illuminationは次に段階化する。
 
@@ -1441,10 +1532,10 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 2. ChangeSet、World Model、Authoring Service、headless test
 3. 独自MiraUI Core／MiraEditor Shell、Windows／D3D12 device、Render Graph、Asset cooker
 4. Material IR、VisualStyleProfile、StyleCapabilityManifest、Validator、Preview
-5. 2D Canvas、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition cooker／C++ evaluator、Box2Dとmanual vertical slice
+5. 2D Canvas、Pixel／Illustrated Profile、Shadow Intent L0／L1とSDF Shadow、Input、Audio、UI、GameplayDefinition cooker／C++ evaluator、Box2Dとmanual vertical slice
 6. TypeScript AI Orchestrator、named-pipe IPC、OpenAI Provider、VisualStyleResolverを含むAI editing loop
 7. 外部MCP、Codex／Claude Plugin
-8. 3D mesh、`realistic_basic`、Forward+、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
+8. 3D mesh、`realistic_basic`、Forward+、Shadow ResolverとCSM／atlas／cubemap、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
 9. `realistic_basic` 3D compact action arena
 10. Android GameActivity／Vulkan／Oboe／touch／AABで同じ2D C1
 11. Apple UIScene／Metal／AudioUnit／touch／TestFlightで同じ2D C1
@@ -1454,12 +1545,12 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 15. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
 16. `pixel_diorama`の`unified_low_resolution`
 17. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
-18. Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
+18. Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
 19. C2 Water Body／Query／Underwater、dynamic snow field
 20. Hybrid deferred path、streaming、terrain／foliage
 21. Domain Pack拡張
 22. Store-readyなdata-only Runtime generation
-23. FFT／shallow-water、deformable snow、Multiplayer／large world／ray tracingは個別C3 Gate後
+23. Project Shadow Technique L3、Hardware Ray Traced Shadow、FFT／shallow-water、deformable snow、Multiplayer／large world／ray tracingは個別C3 Gate後
 
 2Dと3Dの全機能を先に並行実装しない。共有基盤→2D complete loop→3D complete loopの順で、毎段階にplayable resultを置く。
 
@@ -1505,6 +1596,9 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | 完全自作Navigationが目的化して3D完成を遅らせる | C1はRecast基準Backend。自作は同一契約で機能／性能Evidenceとrollbackを満たすC3 Gateだけ |
 | GPU particleがgameplayを壊す | Gameplay stateとの分離 |
 | Shader自由度がdriver hangを招く | Graph優先、隔離compile、検証、budget |
+| Shadow Graph自由度でPass／variantが爆発する | closed Node Catalog、node／edge／Source上限、offline compile、Plan cost gate |
+| Virtual Shadow cacheが動的Sceneでthrashする | generation invalidation、canonical residency、coarse ancestor、precompiled fallback、page telemetry |
+| Project Shadow TechniqueがRenderer安全性を破る | Shadow専用Port、宣言resource、隔離GPU Runner、全Targetまたはfallback、C3 Promotion |
 | AIがGenreだけで画風を決める | 正規四軸、判断優先順位、High Impact確認、Decision Ledger |
 | StyleがScene／Material／UI／VFX間で崩れる | Versioned VisualStyleProfile、semantic role、Style Validator |
 | ToonのLight追加で陰影境界が破綻 | Key Light一意制約、accent light別ramp、Light Channel |
@@ -1539,6 +1633,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | Frostbite 2015／Patry 2021 volumetric資料 | Participating mediaをfroxelへ統合し、低解像度grid、指数depth、temporal filteringで実用化している | Medium／Highの固定froxel上限、履歴破棄、2.00 ms Environment capを独自Profileとして検証する |
 | NVIDIA off-screen particle資料 | 大量のscreen-space particleはoverdraw／fill-rateが支配的になり、低解像度描画がtrade-offになる | alive数だけでなくPS invocation由来overdrawとGPU時間をC2 gateにする |
 | D3D12 Filter、Unity／GodotのPixel資料 | Point filtering、logical resolution、integer scalingがPixel edge保持に必要 | 640×360 fixture、Point、integer scale、letterbox、temporal分離を独自Profile contractとして固定 |
+| Unreal Virtual Shadow／RDG、Unity SRP／Custom Pass、Godot Shadow／Compositor資料 | Virtual page／clipmap／cache、高水準設定からcustom pass／pipelineまでの拡張層、Renderer別Capabilityと2D occluderの公開方式がある | coverage比較だけに使い、共通Intent／Resolver、L0～L3、Target別Backend、budget／fallbackを独自契約として採用 |
 | NPR一次論文／NVIDIA技術資料 | Ramp shading、outline、view-dependent contour等は複数方式で、共通の単一Toon物理規格ではない | Toonを独立Shading Modelとし、Key Light、Ramp、Outline、Art／Animation Profileを独自に規範化 |
 | Square Enix公式説明 | 「HD-2D」はPixel Artと3D CGの融合を表す製品側の語 | 要求理解にだけ使い、正規名は一般化した独自`pixel_diorama`とする |
 | Android Vulkan Profile／Apple Metal feature table | Mobile GPUの共通最低機能はdesktop SM 6.6と同一でなく、A12はApple family 5 | `portable_mobile_v1`、AVP 2022、A12 baseline、Target別offline shader cook |
@@ -1589,12 +1684,18 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [Godot Dedicated 2D Engine](https://docs.godotengine.org/en/stable/about/list_of_features.html#dedicated-2d-engine)
 - [Godot Multiple Resolutions and Integer Scaling](https://docs.godotengine.org/en/stable/tutorials/rendering/multiple_resolutions.html)
 - [Unity 2D Pixel Perfect](https://docs.unity3d.com/6000.0/Documentation/Manual/com.unity.2d.pixel-perfect.html)
+- [Unreal Engine Virtual Shadow Maps](https://dev.epicgames.com/documentation/en-us/unreal-engine/virtual-shadow-maps-in-unreal-engine)
+- [Unreal Engine Render Dependency Graph](https://dev.epicgames.com/documentation/en-us/unreal-engine/render-dependency-graph-in-unreal-engine)
+- [Unity URP Custom Render Pass workflow](https://docs.unity3d.com/Manual/urp/renderer-features/custom-rendering-pass-workflow-in-urp.html)
+- [Unity Graphics Scriptable Render Pipeline](https://github.com/Unity-Technologies/Graphics)
+- [Godot 3D lights and shadows](https://docs.godotengine.org/en/stable/tutorials/3d/lights_and_shadows.html)
+- [Godot Compositor](https://docs.godotengine.org/en/stable/tutorials/rendering/compositor.html)
 - [Cartoon-Looking Rendering of 3D Scenes, INRIA RR-2919](https://phildec.users.sourceforge.net/Research/Publis/RR-2919-en.pdf)
 - [A Non-Photorealistic Lighting Model for Automatic Technical Illustration](https://users.cs.northwestern.edu/~ago820/SIG98/paper/drawing.html)
 - [Suggestive Contours for Conveying Shape](https://doi.org/10.1145/882262.882354)
 - [NVIDIA GPU Toon Shading](https://developer.download.nvidia.com/assets/gamedev/docs/GDC2K_GPU_Toon_Shading.pdf)
 - [Square EnixによるHD-2Dの説明](https://www.jp.square-enix.com/column/detail/101/)
 
-Microsoft資料はHLSL／DXIL／D3D12 bindingの契約、Khronos資料はPBR interchangeとconformance、Filament資料はreal-time BRDFの比較検討、NPR論文とNVIDIA資料はToon技法の比較検討に使用する。Unity／Godot資料はPixel Artで必要になる解像度、integer scale、filteringのcoverage確認、Square Enix資料はユーザー語「HD-2D」がPixel Artと3D CGの融合を指すことの確認にだけ使用する。
+Microsoft資料はHLSL／DXIL／D3D12 bindingの契約、Khronos資料はPBR interchangeとconformance、Filament資料はreal-time BRDFの比較検討、NPR論文とNVIDIA資料はToon技法の比較検討に使用する。Unreal／Unity／Godot資料はShadow方式、Renderer拡張層、2D／3D coverageの比較確認に使用し、そのAPI、型、Editor UXをMiraikanaiの正規契約へ転用しない。Square Enix資料はユーザー語「HD-2D」がPixel Artと3D CGの融合を指すことの確認にだけ使用する。
 
 既存Engineや製品の資料はcoverage確認にだけ使う。Miraikanai Engineの型、Scene、Editor command、serialization、lifecycle、Profile parameter、既定値を既存製品へ合わせる根拠にはしない。

@@ -1,6 +1,6 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 1.7
+- 文書版: 1.8
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
@@ -1021,6 +1021,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - `toon_basic`、`toon_character`、Art Asset／Animation presentation、inverted-hull／screen-space outline
 - `pixel_diorama`のhigh-resolution 3D＋crisp sprite modeとunified low-resolution mode
 - Multiple light、physically based atmosphere、volumetric fog／cloud
+- L2 `ShadowGraphV1`、static／dynamic cache、PCSS／contact-hardening、Capability Gate後のWindows High Virtual Shadow
 - Baked lightmap、irradiance／reflection probe、C3 dynamic GI研究
 - GPU VFX、C2 Water Body／Query／Underwater、dynamic snow field、terrain、foliage、streaming
 - 2D Action、FPS／TPS、RPG／Action RPG、Quest、Simulation、Strategy Pack
@@ -1028,7 +1029,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - 画像／音声／3D生成Provider adapter
 - 自動Playtestとperformance regression
 
-各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallback、VisualStyleProfile integrationの完了定義を満たしてからProduction扱いにする。`UiEffectGraph`は閉じたNode catalogとoffline compile、`UiNativeWidget`はA1、R3 Promotion、GameHost隔離、callback budget、accessibility semantics、fallbackを満たしたものだけをC2へ昇格する。第三者binary Widget、Marketplace、Editor processへのProject／外部Widget loadは別Threat Modelを持つC3まで対象外とする。ToonとPixel Dioramaは同時実装せず、Realistic advanced→Toon→Pixel Dioramaの順に個別vertical prototypeとperformance gateを通す。
+各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallback、VisualStyleProfile integrationの完了定義を満たしてからProduction扱いにする。ShadowはL0 Intent、L1 Profile、L2型付きGraph、L3 Project Techniqueへ段階化し、L0／L1でAIにBackend設定を推測させず、ResolverがTarget、Style、budgetから説明可能なPlanを生成する。L2は閉じたNode catalogとoffline compile、L3とHardware Ray Traced ShadowはStable Shadow Extension SDK、A1、R3 Promotion、全Targetまたは明示fallback、専用C3 Gate前に公開しない。`UiEffectGraph`は閉じたNode catalogとoffline compile、`UiNativeWidget`はA1、R3 Promotion、GameHost隔離、callback budget、accessibility semantics、fallbackを満たしたものだけをC2へ昇格する。第三者binary Widget、Marketplace、Editor processへのProject／外部Widget loadは別Threat Modelを持つC3まで対象外とする。ToonとPixel Dioramaは同時実装せず、Realistic advanced→Toon→Pixel Dioramaの順に個別vertical prototypeとperformance gateを通す。
 
 ### Phase 9: 制限付きRuntime生成
 

@@ -24,6 +24,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Game UI／AI UI | HUD／画面UIは型付き`UiDocument`を正本とし、手動操作とAI提案を同じChangeSetへ収束させる。C1はBuiltin＋`UiCompositeDefinition`、C2はoffline compileする`UiEffectGraph`＋A1／R3承認済み`UiNativeWidget`。生成画像はStaging、来歴、license、安全性、import／cook、Preview、承認を経由する |
 | 初心者UX | `AI Creator` Workspaceを同じEditor内に用意し、AI Partnerを常設可能にする。Production／Debug／Art／Level Design等のWorkspaceへ切替可能 |
 | Graphics | Windows Direct3D 12、Android Vulkan、Apple Metal。Engine-owned Render Graph、Material／Shader IR、Target別offline shader cookを使う |
+| Light／Shadow | AIと人間はL0 Intent、L1 Profile、L2型付きShadow Graph、L3承認済みProject Techniqueを同じ正本で編集する。ResolverがStyle、Target、budgetからSDF／CSM／atlas／cache／Virtual／選択的RTを説明可能なPlanへ解決し、Mobileは従来方式、Windows HighはGate後のVirtual、L3／RTはC3へ分離する |
 | 表現 | 2D、3D、`realistic_basic`、Realistic advanced、Toon、独自`pixel_diorama`を段階実装し、AI Visual Style ResolverがCapabilityとbudget内で選択する |
 | Particle／VFX | 単一の型付きVFX Asset／Graph IRから2D／3D・CPU／GPU専用Artifactをoffline生成する。初心者Stack、上級者Graph、AIは同じSourceを編集し、VFX結果をGameplayへ逆入力しない |
 | Water | C1 bounded surfaceからC2 lake／river／oceanへ段階導入し、Surface／Wave／Flow／Depth／UnderwaterとCPU Queryを専用Platformが所有する。GPU水面を浮力へ逆入力しない |

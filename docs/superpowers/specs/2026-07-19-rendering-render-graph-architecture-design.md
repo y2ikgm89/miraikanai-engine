@@ -1,6 +1,6 @@
 # Miraikanai Engine Rendering／Render Graphアーキテクチャ規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Rendering、Render Snapshot、Render Graph、GPU resource、D3D12／Vulkan／Metal Adapter
@@ -46,7 +46,7 @@ Backend API、allocator、shader compilerはAdapterまたはToolとして利用�
 | Android Vulkan、Apple Metal minimum、surface lifecycle、thermal | Mobile規約 |
 | Asset import、Shader／Texture／Mesh cook、streaming | Asset規約 |
 
-C1／C2ではray tracing、path tracing、mesh shader必須化、GPU-driven occlusionによるauthoritative gameplay、Runtime shader source compile、AIによる任意Render pass／HLSL生成を行わない。Ray tracing、large-world virtual geometry、neural renderingはC3 Research Capabilityであり、MCDへ公開しない。
+C1／C2ではray tracing、path tracing、mesh shader必須化、GPU-driven occlusionによるauthoritative gameplay、Runtime shader source compile、AIによる任意Render pass／HLSL生成を行わない。Ray tracing、large-world virtual geometry、neural renderingはC3 Research Capabilityであり、Phase 0ではSchemaと`CapabilityNotActivated`拒否だけを固定し、C3 Gate合格前のActive Capability CatalogやAI Toolへ掲載しない。
 
 ## 3. Module境界
 
@@ -68,6 +68,7 @@ RenderSnapshot
 | `render_graph` | resource／pass DAG、lifetime、alias、barrier plan |
 | `rendering_materials` | Material IR、Shading Model、parameter layout、pipeline key |
 | `rendering_visual_styles` | Cooked Style Manifest、layer composition |
+| `rendering_shadows` | Shadow Intent／Graphのresolved Plan、Technique Catalog、cache／page residency、debug semantics |
 | Backend Adapter | native device、queue、resource、descriptor、PSO、present |
 
 Backend AdapterはWorld、Authoring Model、GameplayDefinitionへlinkしない。`rendering_core`はPhysics／Navigation／Audioを呼ばず、`RenderSnapshot`とAsset leaseだけを読む。
@@ -169,7 +170,7 @@ RenderPassDescriptor
   declared_cost
 ```
 
-`pass_type`と`execute_template_id`はEngine Capability Catalogのclosed IDである。AI、GameplayDefinition、Project dataは任意GPU callback、shader binary、native barrierを指定できない。
+`pass_type`と`execute_template_id`はCooked Capability Catalogのclosed IDである。Engine Templateに加え、隔離compile、interface／budget／Target validation、人間Review、Promotion Receiptに合格した`ProjectShadowTechniqueV1`だけがCook前にProject固有IDを登録できる。AI、GameplayDefinition、Project dataはRuntimeに任意GPU callback、shader binary、native barrierを追加できない。
 
 `ResourceAccess`はresource／subresource、`read | write | read_write`、logical stage、logical usageを明示する。Passがdescriptorにないresourceへaccessした場合はDevelopment validation faultである。
 
@@ -332,6 +333,7 @@ Mobile background／surface lossはdevice lossと区別し、Mobile規約のsurf
 AIと人間へ公開するのは次だけである。
 
 - Camera、Light、Environment、Fog、Cloud、Post、VFX、Material、Visual Styleのtyped Authoring object
+- `ShadowIntentV1`、`ShadowStyleProfileV1`、`ShadowGraphV1`、承認済み`ProjectShadowTechniqueV1`
 - Target／Quality Profile
 - 登録済みRender featureとPass Template
 - cost予測、thumbnail、debug view、GPU capture参照、validation
@@ -341,6 +343,19 @@ Environment、Fog、Cloudの具体的なCapability、Intent、Preset、Operation
 AIはresource barrier、heap offset、descriptor index、native format、queue signal値、shader binaryを指定しない。Custom HLSLはC2のR3 Native／Shader Source ChangeSetであり、隔離compile、interface validation、instruction／resource budget、全Target test、人間承認を必須とする。
 
 EditorのRender Graph viewerは論理Pass、resource lifetime、alias、barrier、queue、costを表示するが、表示上のdragでShipping graphを任意改変しない。登録済みGraph Templateのparameter変更だけをChangeSetへ変換する。
+
+### 13.1 Shadow拡張境界
+
+Shadowの意味、Authoring Level、Node Catalog、Resolver、Quality Profile、Backend成熟度は2D／3D機能計画を正本とする。本書は`ResolvedShadowPlanV1`をRender Graphへ安全に展開する境界を所有する。
+
+- L0／L1は登録済みGraph Templateのparameterだけを変更する。
+- L2 `ShadowGraphV1`は型付きNodeをoffline compileし、closed Pass Templateとresource descriptorへ解決する。Graph nodeからnative command、shader entry、barrierを直接生成しない。
+- L3 `ProjectShadowTechniqueV1`はRenderer全体の差替えではなく、`ShadowTechniquePortV1`の入力Semanticから`shadow_attenuation_linear`を生成するProject moduleである。
+- Technique PassはCook前に固定ID、Shader Interface hash、resource／queue access、最大dispatch／draw、persistent／transient byte、fallback、debug channelをManifestへ記録する。
+- TechniqueはShadow専用snapshot viewとversioned Assetだけを受け、World、Gameplay state、Entity pointer、Backend native objectを受けない。
+- Runtime code／shader compile、未宣言resource access、Graph compile後のPass追加、Target別の秘密fallbackを禁止する。
+
+Render Graph compilerはTechnique Manifestの宣言を通常Passと同じcycle、hazard、lifetime、alias、queue、memory validationへ通す。Manifest申告とshader reflection／実行時使用が一致しないArtifactはpromotionせず、Running中の不一致は`ShadowTechniqueValidationFailed`で該当Planを停止する。事前承認済みfallbackがあれば次FrameのGraph Instanceから切り替え、なければRenderer faultへ遷移する。
 
 ## 14. PerformanceとTelemetry
 
@@ -354,6 +369,7 @@ Runtime規約のGPU P95 14.00 ms、hard 16.67 msとPass別soft capを維持す�
 - upload／readback bytes、streaming miss、promotion wait
 - barrier、queue wait、async overlap
 - history invalidation、surface generation、device fault
+- Shadow Plan hash、atlas occupancy、cache hit／invalidation、dirty update、virtual page request／resident／evict、coarse fallback、filter sample、Technique別GPU／memory
 
 10分soakでCPU／GPU deadline、memory、descriptor、submission serial backlogを検証する。GPU timestamp未対応／不安定DeviceではAvailabilityを記録し、0 msとして合格させない。
 
@@ -368,6 +384,8 @@ Runtime規約のGPU P95 14.00 ms、hard 16.67 msとPass別soft capを維持す�
 - resize、alt-tab、HDR／SDR切替、surface loss、device removed fault injection
 - GPU OOM、descriptor exhaustion、pipeline miss、corrupt shader、stale Asset generation
 - resource last-use serial前に破棄されないlifetime test
+- Shadow Graph cycle／上限／unsupported node、Technique未宣言access、Interface hash不一致、Target fallback欠落のnegative test
+- conventional／cached／virtual／ray-traced Shadow Planを同じ`shadow_attenuation_linear`契約へ接続するBackend conformance
 - UI／text／pixel-locked layerがdynamic resolutionやTAAで劣化しないtest
 - AIが未登録Pass、native resource、unsupported Target featureを生成できないconformance
 

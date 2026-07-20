@@ -1,6 +1,6 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.7
+- 文書版: 1.8
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
@@ -697,6 +697,7 @@ OS signalを`Nominal`、`Warm`、`Serious`、`Critical`へ正規化する。
 | 機能 | Baseline | Standard | High |
 |---|---|---|---|
 | Renderer | Forward+ | Forward+ | Forward+／optional hybrid |
+| Shadow technique | SDF 2D／CSM＋atlas | SDF 2D／cached CSM＋atlas | SDF 2D／cached CSM＋atlas＋選択的PCSS |
 | Shadowed directional | 1、2 cascade、1024 atlas | 1、3 cascade、2048 atlas | 1、4 cascade、2048–4096 atlas |
 | Visible local lights | 8、local shadowなし | 32、最大2 shadowed | 64、最大4 shadowed |
 | Fog | height／distance fog | half-resolution volumetric optional | volumetric高品質 |
@@ -706,6 +707,8 @@ OS signalを`Nominal`、`Warm`、`Serious`、`Critical`へ正規化する。
 | Anti-alias | FXAA | TAA／FXAA | TAA |
 
 この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず一段下げる。2D C1はBaselineで全機能を成立させ、3D C1はscalable subsetを成立させる。
+
+初期Mobile Targetは`VirtualShadowBackendV1`、`RayTracedShadowBackendV1`、`ProjectShadowTechniqueV1`をCapability Catalogへ掲載しない。共通`ShadowIntentV1`とL1 ProfileはMobileでも使用でき、Resolverが上表のSDF／CSM／atlas／選択的PCSSへ解決する。L2 `ShadowGraphV1`はMobile Catalogに存在するNodeだけでcompileし、Windows専用Sourceを含むGraphはTarget別fallbackと見た目DiffがなければCookを拒否する。将来Virtual／RT／Project TechniqueをMobileへ追加する場合はminimum実機、30分thermal soak、2時間endurance、tile memory／bandwidth、driver fault、全Store packageを持つ別Capability Gateを必要とする。
 
 ## 15. AI、構造化ゲームデータ、C++の実行境界
 
