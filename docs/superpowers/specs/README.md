@@ -191,7 +191,7 @@ Miraikanai Engineの公式Review setは次の31文書である。上位のProduc
 
 実装計画書の作成へ進む前に、次をすべて満たす。
 
-- ユーザーが公式Review set 30文書の方向性をReviewし、修正点または承認を返す。
+- ユーザーが公式Review set 31文書の方向性をReviewし、修正点または承認を返す。
 - 文書間Link、Heading anchor、Table、Code fence、規範語の機械検査が通る。
 - C0／C1に必要な選択が暗黙Defaultになっておらず、外部artifactから取得する値には取得手順、Owner、Block条件がある。
 - Authoring、Runtime、Renderer、Asset、Editor、Input、UI、Audio、Physics、Navigation、Animation、Platform、AIの境界にOwner、入力、出力、phase、budget、failure、testが定義されている。
@@ -208,3 +208,17 @@ Engine本体の実装は、公式Review set承認後に別文書として実装�
 - Phase完了は、該当文書のDefinition of Done、target matrix、conformance／integration／soak／package testが実artifactで合格した時だけ宣言する。
 - 2D First Playable、3D First Playable、Android／Apple vertical slice、Production Capabilityは、それぞれ独立したMilestone Gateとして順に判定する。
 - 仕様と実装が不一致になった場合、無断で仕様を実装へ合わせず、Evidenceと影響範囲を伴うADR／仕様ChangeSetを先にReviewする。
+
+### 5.1 Phase 0実装計画の設計
+
+Phase 0は、全Subsystemの空Directoryや将来APIを先に作るRepository scaffoldではなく、公式Toolchainから最小Hostの起動・終了と検証Receiptまでを一方向に通す最小vertical sliceとする。実装計画は次の順序で分解し、各段階が独立した失敗条件、test、rollback、完了Evidenceを持つ。
+
+1. CMake 4.4.0、Ninja 1.11以上、固定MSVC／Clang、vcpkg manifest baselineを取得し、hash、license、Target対応を`toolchain.lock.json`へ固定する。
+2. Root `CMakeLists.txt`、schema 12の`CMakePresets.json`、Toolchain file、Compiler policy target、CTest入口を作り、source tree外のTarget別Build treeだけを許可する。
+3. CX0 `cxx23_headers_bootstrap`をPhase 0の実装Profileとし、CX1 `cxx23_modules_probe`は限定fixtureの非Promotion CIへ隔離する。`import std`がCMakeのExperimental gateを必要とする間はCX2へ進まない。
+4. 最小MCD、Contract Compiler、generated Header／C ABI／Receiptを一つのfixtureで接続し、入力hash、生成物hash、再生成、negative caseを検証する。
+5. `mira_foundation`と最小Hostだけを作り、生成契約を介した起動、正常終了、失敗診断、process exit codeをIntegration testで固定する。
+6. clean build、incremental rebuild、no-op build、並列Build、入力変更、中断復旧、ASan、warning-as-error、memory／時間budgetを測定し、`VerificationReceiptV1`へ記録する。
+7. Phase 0 Gateに失敗した場合はEngine機能を追加せず、失敗したToolchain、DAG、契約、Fixtureだけを修正して再測定する。Make、未固定Toolchain、Experimental artifact、空実装によるfallbackを作らない。
+
+Phase 0では2D／3D Runtime、Renderer機能、Editor UI、Physics／Navigation Backend、Mobile package、Production Capabilityを実装しない。それらに対応するTop-level DirectoryとCMake targetは、最初の実装Taskが承認されるまで作成しない。Phase 0完了は、最小vertical sliceの実artifactと全Gate Receiptが揃った場合に限る。
