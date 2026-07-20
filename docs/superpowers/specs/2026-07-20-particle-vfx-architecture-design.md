@@ -1,9 +1,9 @@
 # Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-20
-- 最終更新日: 2026-07-20
-- 調査基準日: 2026-07-20
+- 最終更新日: 2026-07-21
+- 調査基準日: 2026-07-21
 - 対象: 2D／3D Particle、CPU／GPU simulation、VFX Asset、Compiler、Renderer連携、Editor、AI Authoring、Mobile
 - 状態: プロジェクト公式の規範設計レビュー版。C1 CPU経路とC2 GPU経路のProduction昇格は実装後のQualification待ち
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
@@ -21,6 +21,7 @@
 - モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 - 実行可能契約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AIガバナンス: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- AI検証正本: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 ## 1. 結論
 
@@ -30,6 +31,9 @@ Miraikanai EngineのParticle／VFXは、**一つの型付きVFX Asset／Graph IR
 - Godotの`CPU/GPU × 2D/3D`を別々のAuthoring modelとして重複実装しない。
 - Unreal Engine Niagaraの任意性をそのまま再現せず、C1／C2ごとのclosed Node Catalog、上限、型、failureを持たせる。
 - 初心者向けModule Stack、上級者向けGraph、AI自然言語編集は、すべて同じ`VfxSystemDocumentV1`のProjectionとする。
+- 自然言語を直接Graphへ変換せず、genre非依存の`VfxEffectIntentV1`、`VfxSemanticRoleCatalogV1`、`VfxPatternCatalogV1`を介して意味、規模、Target、Style、Gameplay境界を先に確定する。
+- CoreはAction、RPG、Strategy、Puzzle、Racing、Fighting、Card、Rhythm、Simulation等のgenre名を分岐条件にせず、impact、trail、area warning、status、ambient等のPresentation roleを共通語彙とする。
+- Core外のFluid、volumetric、破壊、特殊Renderer等は、無制限Graphへ逃がさず、型、Cost、Fallback、Semantic Contract、Qualificationを持つ`VfxExtensionManifestV1`として追加する。
 - C1はWindows／Mobileで成立するCPU simulationを先に実装し、C2でGPU compute、Mesh、Ribbon、Depth／SDF collision、Vector Field、Sub-emitter、Particle Lightを追加する。
 - VFXはPresentationであり、Particleの位置、衝突、GPU Event、Lightをauthoritative Gameplay、Damage、Save、Navigation、AI perceptionへ逆入力しない。
 - 敵、味方、環境を問わず同時に発生するVFXをProject全体の一つのadmission／overdraw／memory計画で扱い、Emitterごとの単体合格だけで大量戦闘を成立扱いにしない。
@@ -45,6 +49,7 @@ Gameの実行CodeはC++23のままである。VFX GraphはGame用Script VMでは
 | 主題 | 正本 |
 |---|---|
 | VFX Asset、Emitter、Graph、Node Catalog、VFX IR、CPU／GPU execution plan、VFX Runtime、VFX AI／Editor、VFX budget／failure／test | 本書 |
+| ユーザー語「エフェクト」のSemantic Catalog／Owner解決、`VisualEffectRequestV1`、`ResolvedVisualEffectOwnershipPlanV1` | 2D／3D機能計画 |
 | C1／C2で製品として提供する2D／3D表現範囲とMilestone | 2D／3D機能計画 |
 | Water Body／Queryとauthoritative Water Interaction Event | Water規約 |
 | Weather input、Snow Surface、積雪／融雪／footprint field | Weather／Snow規約 |
@@ -86,18 +91,18 @@ VFXはPhysics Backend、World ECS、Editor widget、Graphics Backendを所有し
 | Engine | 公式資料で確認した構成 | Miraikanaiへの判断 |
 |---|---|---|
 | Unity 6.0 | InspectorのModuleで構成するBuilt-in Particle Systemと、GPUで大規模Effectを扱うVisual Effect Graphを併用できる。Built-inはCollision、Sub Emitter、Light、Trail等のModuleを持つ | 初心者向けModuleと高性能Graphの両方は必要だが、正規Assetを二系統へ分けない |
-| Unreal Engine 5.8 | NiagaraはSystem、Emitter、Module、Parameterを持ち、Emitter単位でCPU／GPU Sim Targetを選ぶ。System／Emitter処理はGPU ParticleでもCPU上に残り、Emitter数、pool、bounds、scalabilityが性能要因になる | System／Emitter／Stage／Renderer分離、予算、pool、fixed boundsを採用する一方、任意VMと無制限Emitterを避ける |
-| Godot 4.6 | `GPUParticles2D`、`CPUParticles2D`、`GPUParticles3D`、`CPUParticles3D`を別Nodeとして提供する。GPUからCPUへ変換すると複数Draw Pass、turbulence、sub-emitter、trail、attractor、collision等を失う | 2D専用最適化は必要だが、Authoring sourceとCapability検査を共通化し、変換損失をCook時に明示する |
+| Unreal Engine 5.7／5.8 | NiagaraはSystem、Emitter、Module、Parameterを持ち、Emitter単位でCPU／GPU Sim Targetを選ぶ。System／Emitter処理はGPU ParticleでもCPU上に残り、Emitter数、pool、bounds、scalabilityが性能要因になる | System／Emitter／Stage／Renderer分離、予算、pool、fixed boundsを採用する一方、任意VMと無制限Emitterを避ける |
+| Godot 4.7 | `GPUParticles2D`、`CPUParticles2D`、`GPUParticles3D`、`CPUParticles3D`を別Nodeとして提供する。GPUからCPUへ変換すると複数Draw Pass、turbulence、sub-emitter、trail、attractor、collision等を失う | 2D専用最適化は必要だが、Authoring sourceとCapability検査を共通化し、変換損失をCook時に明示する |
 
-これらのAsset名、UI配置、Node名、file形式、既定値、Graph外観はコピーしない。MiraikanaiはAI検証、ProjectChangeSet、Dimension specialization、closed Capabilityを中心に独自設計する。
+これらのAsset名、UI配置、Node名、file形式、既定値、Graph外観はコピーしない。確認した公式VFX資料には、Miraikanaiの`VfxEffectIntentV1`、Risk付きOperation、Semantic差分、Budget Gate、Qualification Receiptを一つのAI Authoring契約として扱う仕様はないため、本EngineがAI検証、ProjectChangeSet、Dimension specialization、closed Capabilityを中心に独自所有する。
 
 ## 4. 成熟度と対象範囲
 
 | Level | 到達点 |
 |---|---|
-| C0 Foundation | MCD、Asset schema、Node Catalog、Graph Validator、VFX IR、CPU／GPU Artifact descriptor、Cost model、Preview contract、Diagnostic、Qualification harness |
-| C1 First Playable | 2D／3D CPU simulation、Point／Line／Area emitter、rate／burst、lifetime、velocity／acceleration／drag、Color／Size／Rotation over Life、Sprite／Flipbook、2D Sprite、3D Billboard、basic trail、fixed-seed preview、bounds／count／overdraw debug |
-| C2 Production | GPU compute、Mesh particle、Ribbon、Depth／SDF／VFX proxy collision、Vector Field、Sub-emitter／GPU Event、Particle Light、`VfxLodProfileV1` branch、GPU sorting、VFX bake cache、approved custom operator |
+| C0 Foundation | MCD、Asset schema、Effect Intent、Semantic Role／Pattern Catalog、Node Catalog、Graph Validator、VFX IR、CPU／GPU Artifact descriptor、Cost model、Preview contract、Diagnostic、Qualification harness |
+| C1 First Playable | 初期10 Semantic RoleとPortable Pattern、2D／3D CPU simulation、Point／Line／Area emitter、rate／burst、lifetime、velocity／acceleration／drag、Color／Size／Rotation over Life、Sprite／Flipbook、2D Sprite、3D Billboard、basic trail、fixed-seed preview、bounds／count／overdraw debug |
+| C2 Production | GPU compute、Mesh particle、Ribbon、Depth／SDF／VFX proxy collision、Vector Field、Sub-emitter／GPU Event、Particle Light、`VfxLodProfileV1` branch、GPU sorting、VFX bake cache、Qualification済みExtension |
 | C3 Research | Fluid／volumetric simulation、GPU mesh shader専用経路、ray-traced particle、cross-machine visual lockstep、runtime graph mutation、user-authored arbitrary GPU code |
 
 C1 ArtifactはC2／C3 Nodeを受理しない。C2機能がSourceに含まれる場合、Target Profileに対応Artifactがなくても無言で除去せず、明示したfallback graphが存在する場合だけ別variantとしてCookする。
@@ -111,6 +116,24 @@ C1 ArtifactはC2／C3 Nodeを受理しない。C2機能がSourceに含まれる�
 | iOS／iPadOS arm64／Metal | CPU 2D必須、CPU 3D scalable subset | Standard以上でGPU | A12 baseline、Metal実機、background／surface recovery、thermal、archive test |
 
 Mobile BaselineでGPU Particleを必須化しない。GPU variantはDevice Capability Signature、Target Profile、Quality Profileの全条件が一致した場合だけ選択する。
+
+### 4.2 Genre非依存性と汎用性の保証範囲
+
+「どのゲームでも汎用的」とは、全genre固有機能または全Effect algorithmをCoreへ内蔵することではない。Coreは次の直交軸を組み合わせ、genre名を知らずに通常のPresentation VFXを作成、検証、実行できなければならない。
+
+| 軸 | Coreで扱う値 |
+|---|---|
+| 空間 | 2D、3D、Hybrid、portable 2D／3D |
+| 意味 | impact、projectile、trail、area warning、status、ambient、weather、interaction、spawn／despawn、success feedback |
+| 時間 | one-shot、loop、continuous |
+| Gameplay関係 | cosmetic、authoritative Event由来Presentation、visual collision only |
+| Style | Unlit、Lit、Realistic、Toon、Pixel、Pixel Dioramaの登録済みVisual Style role |
+| 規模 | 単体、反復、群集、画面全体。Target別Scale envelopeとBudgetを必須化 |
+| Target | Windows、Android、iOS／iPadOSと、各TargetのQuality／Capability intersection |
+
+Genre Packは「RPG魔法」「Racing dust」等の別Runtimeを作らず、上表のRole、Pattern、Parameter、Visual Style、Presentation Eventをcompositionする。Core Patternで意味を保てない要求は`VfxExtensionRequired`とし、対応不能を成功扱いしない。Extensionは6.9節のManifestと21節のQualificationを満たした場合だけ、対応TargetでProduction表示できる。
+
+汎用性の合格条件は、有限なgenre名一覧の網羅ではなく、`VfxEffectIntentV1`から同じSemantic Roleを2D／3D／Hybrid、Style、Target、Scaleへ解決しても`MinimumCueContractV1`が保存されることである。未知genre名は既知Roleへ分解できればCoreで扱い、分解不能なら質問またはExtension提案へ停止する。
 
 ## 5. Platform構成、Module、Directory
 
@@ -182,6 +205,10 @@ Project C++は`mirakan.runtime.vfx`のCommand／parameter APIだけを通常利�
 | Object | 所有者 | Source保存 | Runtime保存 |
 |---|---|---:|---:|
 | `VfxSystemDocumentV1` | Authoring Model | する | 直接読まない |
+| `VfxEffectIntentV1` | Authoring Model | する | Resolved descriptorだけ |
+| `VfxSemanticRoleCatalogV1` | Engine Catalog | version付きで保存 | Catalog versionだけ |
+| `VfxPatternCatalogV1` | Engine／承認済みDomain Pack Catalog | version付きで保存 | 直接読まない |
+| `VfxExtensionManifestV1` | Engine／Project Extension Registry | する | Cooked capability descriptor |
 | `VfxEmitterV1` | `VfxSystemDocumentV1` | する | Cook済みrecordだけ |
 | `VfxGraphV1` | Authoring Model | する | しない |
 | `VfxCurveV1`／`VfxGradientV1` | Authoring Model | する | LUTまたはkey artifact |
@@ -200,6 +227,7 @@ Project C++は`mirakan.runtime.vfx`のCommand／parameter APIだけを通常利�
 VfxSystemDocumentV1
   document_header
   system_id: StableId
+  effect_intent_ref: StableId
   spatial_domain: d2 | d3 | portable_2d_3d
   loop_mode: once | loop | continuous
   duration_seconds: optional finite f32
@@ -216,6 +244,7 @@ VfxSystemDocumentV1
 ```
 
 - C1はEmitterを最大16、C2は最大32とする。
+- `effect_intent_ref`は存在する`VfxEffectIntentV1`を必須とし、一つのIntentを複数のDimension／Target用System Documentから参照できる。Intent変更は全参照Systemのdependency closureを一つのPreviewへ含める。
 - Systemは少なくとも一つの`enabled=true` Emitterを必要とし、全Emitter disabledのSystemをRuntime Instance化しない。
 - `once`／`loop`は`duration_seconds`を必須とし、範囲を`[1/60, 3600]`秒とする。
 - `continuous`は`duration_seconds`を持たない。
@@ -326,6 +355,84 @@ Event payloadは`SpawnVfxSystemV1`で新しいSystem Instanceを作る時に一�
 - `instance_sequence`は`T90`でcanonical merge済み`SpawnVfxSystemV1`順に単調増加し、thread completion順を使わない。
 
 外部AIまたはProject dataがRuntimeの`resolved_seed` fieldを直接書かない。Editor Previewは表示中のseedを固定／copyできる。
+
+### 6.7 `VfxEffectIntentV1`と`MinimumCueContractV1`
+
+`VfxEffectIntentV1`は自然言語、手動Wizard、Domain Pack templateから作る意味正本である。Graphは実装正本であり、IntentとGraphを同じfieldへ重複保存しない。ResolverはIntentからPattern候補と一つ以上のSystem／Graph ChangeSetを作り、Validatorは承認後のGraphがIntentを満たすことを再検査する。
+
+```text
+VfxEffectIntentV1
+  intent_id: StableId
+  semantic_role_id: VfxSemanticRoleId
+  spatial_scope: d2 | d3 | hybrid | portable_2d_3d
+  temporal_role: one_shot | loop | continuous
+  gameplay_relation: cosmetic | authoritative_event_presentation | visual_collision_only
+  style_role_ids: StableId[0..16]
+  target_selector: bounded TargetProfile selector
+  scale_envelope:
+    maximum_concurrent_instances: u32
+    maximum_visible_instances: u32
+    maximum_spawn_per_second: u32
+    maximum_burst_per_tick: u32
+  semantic_priority: LodSemanticPriorityV1
+  minimum_cue_contract: MinimumCueContractV1
+  fallback_policy: semantic_equivalent_only | approval_required | no_fallback
+  extension_policy: core_only | qualified_extension_allowed
+
+MinimumCueContractV1
+  required_invariants: VfxCueInvariantId[0..16]
+  minimum_visible_steps: u32
+  minimum_projected_coverage_px_q16: optional u32
+  required_contrast_class: optional low | medium | high
+```
+
+`VfxCueInvariantId`の初期集合は`onset_timing`、`duration_class`、`directional_readability`、`boundary_readability`、`team_readability`、`silhouette_class`、`minimum_visibility`、`contrast_floor`とする。Semantic Role Catalogが要求するInvariantをIntentから削除できず、AI、Pattern、LOD、Fallback、Quality変更の全経路で検査する。
+
+`spatial_scope`、`temporal_role`、Target、Scale envelopeが`VfxSystemDocumentV1`、Emitter、Budget Profileと矛盾するChangeSetを拒否する。`spatial_scope=hybrid`は少なくとも一つの`d2` Systemと一つの`d3` Systemを同じChangeSetへ明示し、単一のhybrid Runtime Artifactまたは親layerからのDimension推測を作らない。`gameplay_relation`が`authoritative_event_presentation`でもVFXは結果をGameへ返さず、登録済みPresentation Eventを受け取るだけである。
+
+### 6.8 Semantic Role／Pattern Catalog
+
+`VfxSemanticRoleCatalogV1`はRole ID、説明、許可する空間／時間、必須Cue invariant、既定priority上限、許可するPresentation Event、候補Patternを持つ。初期C1 Roleを次の10件に固定する。
+
+| Semantic Role ID | Genre非依存の用途 |
+|---|---|
+| `impact_confirmation` | 命中、接触、決定結果の短命Feedback |
+| `projectile_presentation` | authoritative ProjectileまたはEventの視覚表現 |
+| `motion_trail` | 移動方向、速度、軌跡の表現 |
+| `area_boundary_warning` | 範囲、危険域、選択域の境界表示 |
+| `status_loop` | 状態、強化、弱体、選択中を示す継続表現 |
+| `environment_ambient` | 炎、煙、埃、胞子、気泡等の環境表現 |
+| `weather_precipitation` | 雨、雪、灰等のcamera／world bounded表現 |
+| `interaction_feedback` | pickup、switch、craft、note、card等の操作結果 |
+| `spawn_despawn_transition` | World objectの出現／消失を示す表現 |
+| `progress_success_feedback` | completion、score、combo、goal等の成功表現 |
+
+`VfxPatternCatalogV1`はPattern ID、対応Role、Dimension-polymorphic Graph descriptor、必要Capability、Cost formula、Fallback Pattern、Reference Effect、Catalog versionを持つ。初期C1 Patternは`portable_burst`、`portable_flipbook_loop`、`portable_motion_trail`、`portable_area_boundary`、`portable_status_loop`、`portable_ambient_field`、`portable_precipitation`、`portable_interaction_pulse`、`portable_spawn_despawn`、`portable_success_burst`とする。
+
+Pattern適用はGraph Sourceを生成する一回限りのProposalであり、Runtime inheritanceまたは隠れたtemplate bindingを作らない。生成後のGraphが手動編集されてもPatternから自動再生成せず、Decision LedgerへPattern ID、version、Intent hash、生成ChangeSet hashを記録する。
+
+### 6.9 `VfxExtensionManifestV1`
+
+Core外表現は、Projectの任意Graph、任意Shader、genre固有Runtimeではなく、次のManifestを持つExtensionとして隔離する。
+
+```text
+VfxExtensionManifestV1
+  extension_id: StableId
+  extension_version: SemVer
+  risk_class: R4
+  semantic_role_ids: VfxSemanticRoleId[1..32]
+  operator_ids: VfxExtensionOperatorId[1..64]
+  supported_dimensions: set<d2 | d3 | portable_2d_3d>[1..3]
+  supported_target_profiles: TargetProfileId[1..32]
+  capability_requirements: CapabilityId[1..64]
+  cost_model_id: StableId
+  determinism_class: cpu_repeatable | visual_only
+  fallback_pattern_refs: VfxPatternRef[0..16]
+  preserved_cue_invariants: VfxCueInvariantId[0..16]
+  qualification_receipt_refs: ReceiptRef[0..64]
+```
+
+Draft ManifestはReceiptを0件で保存できるが、Production昇格には宣言した全Dimension／TargetのReceiptを最低1件ずつ必要とする。Extensionは対象外Targetを明示し、`semantic_equivalent_only` Intentには同じCue invariantを満たすFallbackを必須とする。Fallbackがない場合は対象TargetのCookを拒否する。AIはProduction昇格済みManifestと`ai` exposureのParameterだけを選択でき、Extension Source、HLSL、C++、Cost model、Receiptを直接変更しない。新規Extensionの提案と更新はR4とし、18.5節のOperator制約と21節のQualificationを同時に満たす。
 
 ## 7. Graph、型、Stage意味
 
@@ -971,18 +1078,25 @@ capability.vfx.mesh_ribbon_v1
 capability.vfx.visual_collision_v1
 capability.vfx.particle_light_v1
 capability.vfx.bake_cache_v1
+capability.vfx.semantic_intent_v1
+capability.vfx.pattern_catalog_v1
 capability.vfx.extension_operator_v1
 ```
 
-AIはEngine Backend名、descriptor、UAV、Vulkan barrier、Metal encoder、thread countを選ばない。Game上の目的、Dimension、規模、Target、Style、Gameplayとの関係からCapabilityを選び、9.2節のCompilerがexecution targetを確定する。
+AIはEngine Backend名、descriptor、UAV、Vulkan barrier、Metal encoder、thread countを選ばない。2D／3D機能計画3.7節のRoutingでParticle／VFXがOwnerまたは共同Ownerになった要求だけを受理し、Game上の目的、Semantic Role、Dimension、規模、Target、Style、Gameplayとの関係からIntentとCapabilityを選び、Pattern Resolverと9.2節のCompilerがGraph候補およびexecution targetを確定する。
 
 ### 18.2 Authoring Operation
 
 | Operation ID | 動作 | Risk |
 |---|---|---|
 | `operation.vfx.inspect_system` | Asset、Graph、Budget、Artifact、Diagnosticを読む | R0 |
+| `operation.vfx.inspect_semantic_catalog` | Role、Pattern、Extension、Cue Contract、対応Targetを読む | R0 |
 | `operation.vfx.validate_changeset` | Schema、Graph、Capability、Costを検査 | R0 |
+| `operation.vfx.validate_semantic_preservation` | Intent、Graph、LOD、Fallback間のCue invariantを検査 | R0 |
 | `operation.vfx.preview_changeset` | fixed seedでPreview／差分／Costを生成 | R0 |
+| `operation.vfx.resolve_effect_intent` | Intentから最大3件のPattern／Graph候補と不足Requirementを返す | R1 |
+| `operation.vfx.set_effect_intent` | 型付きIntentを作成／更新する | R2 |
+| `operation.vfx.apply_pattern` | 承認したPatternからGraph ChangeSetを生成する | R2 |
 | `operation.vfx.create_system` | System Documentを作成 | R2 |
 | `operation.vfx.create_emitter` | 型付きEmitterを追加 | R2 |
 | `operation.vfx.update_emitter`／`delete_emitter` | Emitterを変更／削除 | R2 |
@@ -1003,14 +1117,16 @@ VFX LODの説明、Policy提案、transition Preview、Validation、適用はLOD
 
 | 不足事項 | 扱い |
 |---|---|
-| Effectの意味。炎、煙、魔法、雨、爆発、軌跡等 | High Impact |
+| EffectのSemantic Role。impact、trail、area warning、status、ambient等 | 既存Intent／Presentation Eventから一意なら自動、曖昧ならHigh Impact |
 | Sceneが2D、3D、Hybridのどれか | 既存Sceneから一意なら自動、曖昧ならBlocking |
 | 常時表示か一回だけか、概算同時数 | High Impact |
 | Mobileを含むTarget | Project Profileから取得、未設定ならBlocking |
 | Gameplay判定を必要とするか | Blocking。必要ならGameplay／Collision Entityを別設計 |
 | Realistic、Toon、Pixel等のStyle | Visual Style Profileから取得、未設定ならHigh Impact |
+| Critical cueとして保持するTiming、境界、方向、Team、最小視認性 | Presentation Event Registry／Role Catalogから取得。不足時はBlocking |
+| Core Patternで表現不能な要件をExtensionで許可するか | Project Policyが未設定ならBlocking |
 
-初心者へCPU／GPU、thread、buffer、shader model、sort algorithmを質問しない。未指定の小規模EffectはC1 CPU、固定seed Preview、`premultiplied_alpha`またはEffectに適したadditive、Particle Lightなしを仮定し、理由と変更影響をDecision Ledgerへ記録する。
+初心者へCPU／GPU、thread、buffer、shader model、sort algorithmを質問しない。未指定の小規模EffectはC1 CPU、固定seed Preview、`premultiplied_alpha`またはEffectに適したadditive、Particle Lightなしを仮定し、理由と変更影響をDecision Ledgerへ記録する。Genre名だけでPatternを決めず、Genre要求をSemantic Role、Temporal Role、Scale、Target、Style、Cue invariantへ分解する。
 
 ### 18.4 手動編集
 
@@ -1023,6 +1139,7 @@ VFX LODの説明、Policy提案、transition Preview、Validation、適用はLOD
 
 C1ではProject custom operatorを許可しない。C2の`VfxExtensionOperatorV1`は次をすべて満たす場合だけ使用できる。
 
+- `VfxExtensionManifestV1`に所属し、対応Semantic Role、Dimension、Target、Cost model、Fallback、Cue invariant、Qualification Receiptが閉じている。
 - MCDで入力、出力、Stage、Dimension、attribute read／write、parameter range、scratch byte、determinism classを宣言する。
 - CPU実装はNativeGameModuleのC++23 functionとしてbuildし、bounded SoA spanだけを受け取る。
 - function内allocation、World query、Physics call、file／network、logging、GPU API、static mutable stateを禁止する。
@@ -1067,6 +1184,13 @@ VfxGraphCycle
 VfxTypeMismatch
 VfxStageViolation
 VfxDimensionMismatch
+VfxSemanticRoleUnknown
+VfxIntentUnresolved
+VfxCueContractViolation
+VfxSemanticDrift
+VfxPatternUnsupported
+VfxExtensionRequired
+VfxFallbackApprovalRequired
 VfxCapabilityUnavailable
 VfxNodeCatalogMismatch
 VfxBudgetExceeded
@@ -1096,6 +1220,9 @@ Diagnosticは`system_id`、`emitter_id`、optional Node／Field ID、Project rev
 
 | Failure | Source／Authoring | Runtime |
 |---|---|---|
+| Semantic Role不明、Intent未解決 | Proposalを停止し、質問または`VfxExtensionRequired` | Runtime generationを作らない |
+| Cue Contract違反、Semantic drift | Preview／Cook／Promotion reject | last valid Artifactを維持 |
+| Extension未昇格、Fallback承認不足 | R4またはUser承認までChangeSetをCommitしない | Instanceを開始しない |
 | Schema、Graph、型、Dimension不正 | ChangeSet全体reject | Artifactをloadしない |
 | Capability／fallback不足 | 対象Target Cook失敗 | Instanceを開始しない |
 | Budget／memory／overdraw超過 | Preview／AI proposal／Cook reject | 突発spawnだけ規定順でdrop |
@@ -1115,6 +1242,10 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 ### 21.1 Contract／Compiler
 
 - MCD→JSON Schema／C++／Provider projectionのround-trip。
+- Effect Intent、Minimum Cue、Semantic Role／Pattern Catalog、Extension Manifestのround-tripとversion mismatch拒否。
+- Intent→Pattern候補→Graph ChangeSetのcanonical hash、AI／手動Wizard一致。
+- 同じIntentの2D／3D specializationでCue invariantが一致し、Hybridが明示した`d2`＋`d3` Systemへ解決され、一方欠落を拒否する。
+- LOD、Quality、Target fallback、Extension適用前後のSemantic diffがCue invariant破壊を拒否する。
 - unknown field、duplicate ID、missing reference、cycle、type mismatch、Stage違反、Dimension違反のnegative fixture。
 - Node StableId順canonical compileとArtifact hash再現。
 - constant folding／dead-node elimination前後のscalar reference一致。
@@ -1170,6 +1301,9 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 ### 21.5 AI／Editor／Asset
 
 - 自然言語から2D／3D Effectを作り、同じGraphをStack／Graph／Inspectorで往復。
+- Genre名をSemantic Role、Dimension、Temporal Role、Scale、Target、Style、Cue invariantへ分解し、Genre専用Runtimeを生成しない。
+- 同じ`VfxEffectIntentV1`から2D／3D／Hybrid候補を生成し、Dimension固有fieldを暗黙推測せず、`MinimumCueContractV1`を維持する。
+- Pattern、LOD、Quality、Target fallback、ExtensionのBefore／After semantic diffが、保持／変更／未対応Cue invariantを列挙する。
 - AI proposalと手動操作が同じcanonical ChangeSetになる。
 - lock、stale revision、Budget、unsupported Target、Gameplay collision要求を正しく拒否／質問する。
 - AI／Project dataがPresentation Event Registryの最大`semantic_priority`を超えて昇格できず、同じGameplay cueを敵味方で同じadmissionへ解決する。
@@ -1178,11 +1312,39 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 - Source変更、Cook失敗、last valid generation、Preview restart、old Artifact retire。
 - Extension Source sandbox、R4 approval、forbidden API scan、Target compile。
 
-### 21.6 Promotion Gate
+### 21.6 `VfxAiAuthoringFixtureV1`
+
+VFXのAI可読性とgenre非依存性を、小数のShooter Effectまたは見た目だけの主観評価で合格させない。固定Corpusを360 Caseとし、次へ配分する。
+
+| Case群 | 件数 | 内容 |
+|---|---:|---|
+| 明確Case | 240 | 初期10 Semantic Role × 2D／3D × Pixel／Toon／Realistic × desktop small／desktop crowded／mobile baseline／mobile standard |
+| Hybrid | 40 | 2D World＋3D World、Pixel Diorama、UI分離、depth／layer、portable Pattern specialization |
+| 曖昧／High Impact | 40 | Role競合、Dimension不明、Gameplay判定要求、Target未設定、Cue Contract不足 |
+| 未対応／敵対 | 40 | unknown Role／Node、Core外Fluid／volumetric／破壊、Budget超過、Fallback欠落、Extension権限昇格、Prompt injection |
+
+各CaseはIntent、許容Pattern集合、必須質問、禁止Operation、Target、Budget、golden Cue invariant、期待Diagnostic、canonical ChangeSet hashまたは許容hash集合を持つ。固定seedのBefore／After Preview、Semantic diff、Cost、Cook結果を同じCase IDへ結び付ける。
+
+| Metric | Gate |
+|---|---:|
+| Blocking／High Impact見落とし | 0 |
+| 未知Role／Node／Operationを最終Proposalへ提出 | 0 |
+| Dimension、Temporal Role、Gameplay relationの誤解決 | 0 |
+| Presentation結果をauthoritative Gameplayへ逆入力するProposal | 0 |
+| 必須Cue invariantをPattern／LOD／Fallbackで破壊 | 0 |
+| 未対応要求を成功扱いまたは黙って機能削除 | 0 |
+| 明確CaseのAI／手動canonical ChangeSet不一致 | 0 |
+| Core外要求を`VfxExtensionRequired`または明示拒否へ解決 | 100% |
+| Task success | 95%以上 |
+| 不要なBlocking質問 | 5%以下 |
+
+AI ProfileのProduction昇格は、AI検証規約のclean state、固定Corpus、3 run最悪値、holdout分離を適用する。VFX固有Gateを全体Task successの平均で相殺しない。
+
+### 21.7 Promotion Gate
 
 #### C0完了
 
-- Schema、Node Catalog、IR、Compiler descriptor、Diagnostic、Cost modelが生成／round-trip testに合格する。
+- Schema、Effect Intent、Semantic Role／Pattern Catalog、Node Catalog、IR、Compiler descriptor、Diagnostic、Cost modelが生成／round-trip testに合格する。
 - VFX CoreがGraphics Backend、Physics Backend、Editor UIへ依存しないnegative dependency testに合格する。
 - invalid／adversarial GraphでProject stateを失わない。
 
@@ -1191,18 +1353,22 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 - Windowsの2D／3D CPU Reference Effectがvisual、determinism、memory、performance Gateを満たす。
 - Mobile Baselineの2D CPU vertical sliceが実機memory、thermal、10分performance、2時間enduranceに合格する。
 - AI、手動Editor、Project C++ Commandの三経路が同じVFX Asset／Runtime結果へ収束する。
+- 初期10 Semantic RoleとPortable Patternが2D／3D C1 matrixに合格し、`VfxAiAuthoringFixtureV1`のC1対象Caseが全hard Gateを満たす。
 - Particleをauthoritative Gameplayへ使う依存をSchema／link／runtime testで拒否する。
 
 #### C2 Production完了
 
 - D3D12、Vulkan、MetalのGPU Artifactが各実機／validation／shader／device recovery Gateに合格する。
 - Mesh、Ribbon、visual collision、Sub-emitter、Particle Light、`VfxLodProfileV1` branchがBudget内でReference Effectに合格する。
+- `VfxExtensionManifestV1`がTarget、Cost、Fallback、Cue invariant、R4 approval、Receipt closureを満たし、未昇格ExtensionをAIへ公開しない。
+- `VfxAiAuthoringFixtureV1` 360 Caseをclean stateから3回実行し、最悪回で全hard GateとTask success 95%以上を満たす。
 - GPU readbackなし、Shipping runtime compilerなし、Backend native型漏出なしをbinary／dependency scanで証明する。
 
 ## 22. Version、互換性、更新
 
-- `VfxSystemDocumentV1`、Node Catalog、IR、Artifactは別々のversionを持つ。
+- `VfxSystemDocumentV1`、Effect Intent、Semantic Role Catalog、Pattern Catalog、Extension Manifest、Node Catalog、IR、Artifactは別々のversionを持つ。
 - Source schema major変更は明示migration tool、before／after hash、semantic diff、golden更新を必要とする。
+- Role／Pattern削除またはCue invariant緩和はR3、Gameplay cueまたはExtension権限に関わる変更はR4とし、既存Intentをunknownへ変えるCatalog更新を自動昇格しない。
 - unknown Node、unknown attribute、unknown blend、unknown execution policyを既定値へ置換しない。
 - Node削除は少なくとも一つのProject release cycleでdeprecated diagnosticを持ち、migrationが全fixtureに合格してから行う。
 - ArtifactはCompiler build、Target、Quality、Node Catalog、Shader toolchainのいずれかが変われば再Cookする。
@@ -1214,14 +1380,14 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 
 - [Unity 6.0: Choosing your particle system solution](https://docs.unity3d.com/cn/current/Manual/ChoosingYourParticleSystem.html)
 - [Unity 6.0: Particle System modules](https://docs.unity3d.com/kr/current/Manual/ParticleSystemModules.html)
-- [Unreal Engine 5.8: Niagara Overview](https://dev.epicgames.com/documentation/en-us/unreal-engine/overview-of-niagara-effects-for-unreal-engine)
+- [Unreal Engine 5.7: Niagara Overview](https://dev.epicgames.com/documentation/en-us/unreal-engine/overview-of-niagara-effects-for-unreal-engine)
 - [Unreal Engine 5.8: Emitter Settings](https://dev.epicgames.com/documentation/unreal-engine/emitter-settings-reference-for-niagara-effects-in-unreal-engine)
 - [Unreal Engine: Niagara Scalability and Best Practices](https://dev.epicgames.com/documentation/en-us/unreal-engine/scalability-and-best-practices-for-niagara)
 - [Unreal Engine 5.8: Niagara Renderers](https://dev.epicgames.com/documentation/unreal-engine/render-module-reference-for-niagara-effects-in-unreal-engine?lang=en-US)
-- [Godot 4.6: GPUParticles2D](https://docs.godotengine.org/en/4.6/classes/class_gpuparticles2d.html)
-- [Godot 4.6: CPUParticles2D](https://docs.godotengine.org/en/4.6/classes/class_cpuparticles2d.html)
-- [Godot 4.6: GPUParticles3D](https://docs.godotengine.org/en/4.6/classes/class_gpuparticles3d.html)
-- [Godot 4.6: CPU／GPU 3D Particle conversion](https://docs.godotengine.org/en/4.6/tutorials/3d/particles/creating_a_3d_particle_system.html)
+- [Godot 4.7: GPUParticles2D](https://docs.godotengine.org/en/4.7/classes/class_gpuparticles2d.html)
+- [Godot 4.7: CPUParticles2D](https://docs.godotengine.org/en/4.7/classes/class_cpuparticles2d.html)
+- [Godot 4.7: GPUParticles3D](https://docs.godotengine.org/en/4.7/classes/class_gpuparticles3d.html)
+- [Godot 4.7: CPU／GPU 3D Particle conversion](https://docs.godotengine.org/en/4.7/tutorials/3d/particles/creating_a_3d_particle_system.html)
 
 ### 23.2 Graphics APIとAlgorithm
 

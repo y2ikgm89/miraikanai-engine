@@ -1,7 +1,8 @@
 # Miraikanai Engine AI検証・評価・来歴規約
 
-- 文書版: 1.10
+- 文書版: 1.11
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-21
 - 調査基準日: 2026-07-20
 - 対象: Game制作AI、Source生成AI、Engine保守AI、Contract compiler、CI、Build、Release
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -17,6 +18,7 @@
 - Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
 - World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
 - Debugging／Replay規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
+- Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 
 ## 1. 結論
 
@@ -182,6 +184,7 @@ ModelにないImplementation state、外部Library、memory model、undefined be
 | `implementation_strategy` | GameplayDefinition／C++選択とBudget根拠 |
 | `game_system_authoring` | Catalog選択、Project-defined System、State owner、System Bundle、Definition／Native同値性 |
 | `world_level_authoring` | Map 6分類、World／Scene／Level／Cell分離、Topology、Streaming、Level生成／再編集 |
+| `vfx_authoring` | Visual Effect Semantic Catalog／Owner Routing、Effect Intent、Semantic Role／Pattern、2D／3D／Hybrid、Style、Target、Scale、Cue Contract、Fallback、Extension、Budget、AI／手動同値性 |
 | `source_implementation` | C++／TS／GameplayDefinition変更、Test、Scope遵守 |
 | `diagnosis_and_repair` | Root cause、MirakanDiagnostic利用、反復停止 |
 | `debugging_diagnosis` | Session／Event／Counter／Snapshot／Replay／CausalityのEvidence選択、gap／redaction／revision識別、仮説／反証／追加計測、Reproduction Bundle、修正後Replay回帰 |
@@ -227,6 +230,9 @@ AI ProfileのProduction昇格には、固定Corpusをclean stateから3回実行
 | gap／redactionを正常値または不在の証拠として原因確定に使用 | 0 |
 | recorded stateとcurrent revisionを混同 | 0 |
 | presentation結果からauthoritative causeへ逆因果を確定 | 0 |
+| VFX Presentation結果をauthoritative Gameplayへ逆入力するProposal | 0 |
+| VFXの必須Cue invariantをPattern／LOD／Fallbackで破壊 | 0 |
+| 未対応VFX要求を成功扱いまたは黙って機能削除 | 0 |
 | Reproduction不成立の修正を成功と判定 | 0 |
 | 承認済みDebug修正のReplay＋回帰成功 | 100% |
 | AI Authoring MVP通常Caseの初回Context | 95%以上が24,000 input token以下 |
@@ -262,7 +268,59 @@ AI可読性を小規模Demoだけで合格させない。`large_scene_authoring`
 
 Context効率Caseは初回Pack、追加Resource read、修復Attemptごとのinput token、byte、選択Item、必須Evidence、不要Itemを記録する。TokenはProvider Manifestで固定したexact tokenizerで数え、tokenizer不明時は24,000 Gateを合格扱いにしない。
 
-### 7.5 Corpus管理
+### 7.5 Visual Effect／VFX AI Fixture
+
+#### `VisualEffectRoutingFixtureV1`
+
+ユーザー語の「エフェクト」をParticleへ短絡しないため、2D／3D機能計画3.7節のOwner表を96 Caseで検証する。
+
+| Case群 | 件数 | Coverage |
+|---|---:|---|
+| 単一Owner | 54 | 9 Owner × 2 applicable scope／Target variant × 3表現差 |
+| 複数Owner | 18 | Explosion、damage feedback、weather transition等の共有Eventとdependency closure |
+| 曖昧／競合 | 12 | Owner、Target、Gameplay relation不足／競合 |
+| Owner逸脱 | 12 | Particle永続Fog、Post authoritative visibility、World VFX内UI等 |
+
+| Metric | Gate |
+|---|---:|
+| 明確CaseのOwner recall | 100% |
+| 誤Owner | 0 |
+| 必須共同Ownerまたはdependency closure欠落 | 0 |
+| Gameplay stateをVisual-only Ownerだけで解決 | 0 |
+| Owner逸脱ProposalをGatewayが受理 | 0 |
+| 不要なBlocking質問 | 5%以下 |
+
+各Caseは`VisualEffectSemanticCatalogV1` version、`VisualEffectRequestV1`、許容`ResolvedVisualEffectOwnershipPlanV1`集合、必須Owner、禁止Owner、共有Presentation Event、生成Intent種別、期待Diagnosticを持つ。候補ModelへSubsystem名を正解として埋め込まず、同義表現、genre語、初心者語を分離したholdoutでOwner recallを測る。
+
+#### `VfxAiAuthoringFixtureV1`
+
+`vfx_authoring`はParticle／VFX規約21.6節の360 Caseを正本とし、AIが一つのShooter demoまたは見た目の類似だけで合格しないよう、Semantic Roleと直交軸で構成する。
+
+| Case群 | 件数 | Coverage |
+|---|---:|---|
+| 明確Case | 240 | 初期10 Semantic Role × 2D／3D × Pixel／Toon／Realistic × desktop small／desktop crowded／mobile baseline／mobile standard |
+| Hybrid | 40 | 2D／3D合成、Pixel Diorama、UI分離、depth／layer、portable specialization |
+| 曖昧／High Impact | 40 | Role、Dimension、Gameplay relation、Target、Cue Contract、Extension policyの不足／競合 |
+| 未対応／敵対 | 40 | unknown ID、Core外Effect、Budget、Fallback、権限昇格、Prompt injection |
+
+各Caseは`VfxEffectIntentV1`、許容Pattern集合、必須質問、禁止Operation、Target Profile、Budget、golden `MinimumCueContractV1`、期待Diagnostic、canonical ChangeSet hashまたは許容hash集合を持つ。Graph画像または自由文だけをgoldenにせず、Schema、Compiler、Budget Validator、Semantic diff、fixed-seed Preview、Cook、Receiptをcode-based graderで結ぶ。
+
+| Metric | Gate |
+|---|---:|
+| Blocking／High Impact見落とし | 0 |
+| unknown Role／Node／Operationを最終Proposalへ提出 | 0 |
+| Dimension／Temporal Role／Gameplay relation誤解決 | 0 |
+| Presentationからauthoritative Gameplayへの逆流Proposal | 0 |
+| 必須Cue invariant破壊 | 0 |
+| 未対応要求の成功扱い／無言削除 | 0 |
+| 明確CaseのAI／手動canonical ChangeSet不一致 | 0 |
+| Core外要求を`VfxExtensionRequired`または明示拒否へ解決 | 100% |
+| Task success | 95%以上 |
+| 不要なBlocking質問 | 5%以下 |
+
+Production昇格はclean stateから固定Corpusを3回実行し、最悪回を使う。`vfx_authoring`のhard Gateを全体Task successまたは他Suiteの成功で相殺しない。公開Corpus、restricted holdout、adversarial、incident Caseを7.6節に従って分離し、Role／Pattern／Extension Catalog、Model、Prompt、Tool Schemaのいずれかが変われば再実行する。
+
+### 7.6 Corpus管理
 
 - `evals/public/`: Repository内。Developerが見て修正できる回帰Set。
 - `evals/holdout.manifest.json`: Repository内にはCase ID、Suite、暗号化Artifact hash、required runnerだけを持つ署名済みManifestを置く。Case本文はRepository外のrestricted content-addressed storeに保存し、Release Evaluation Serviceだけがclean runnerへread-only materializeする。
@@ -620,9 +678,10 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 - `BuildDriverProfileV1`とBuild tree identityがReceiptへ固定され、Makefiles／`ndk-build`、Generator override、Android Multi-Config、異種Build tree再利用をnegative testで拒否する。
 - `mirakan.editor.ui_framework.v1`が禁止GUI toolkitをsource、CMake graph、link map、SBOM、binary dependencyで拒否し、MirakanUiのLayout、Command、AI Semantic、UIA、DPI、IME、device loss、memory／performanceを検証する。
 - TLA+結果をC++全体の証明と表現しないReport templateがある。
-- 15のAI Eval suite、Repository内public／adversarial／incident Corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpusがある。
+- 16のAI Eval suite、Repository内public／adversarial／incident Corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpusがある。
 - `game_system_authoring`がProject-defined System、exactly-one State owner、System Bundle、Definition／Native／Target Variant同値性を覆う。
 - `world_level_authoring`がMap 6分類、Scene／Level／Cell分離、Topology、Streaming、Level生成、手動変更保持、再編集を覆う。
+- `vfx_authoring`が`VisualEffectRoutingFixtureV1` 96 Caseと`VfxAiAuthoringFixtureV1` 360 Case、Owner Routing、初期10 Semantic Role、2D／3D／Hybrid、Style、Target、Scale、Cue Contract、Fallback、Extension、Budget、AI／手動canonical ChangeSet同値性を覆い、3 run最悪値で全hard Gateを満たす。
 - `debugging_diagnosis`がqueue overflow、stale handle、asset revision drift、simulation divergence、recording gap、redaction、recorded／current差分、presentation／authoritative因果方向、Reproduction Bundle、修正後Replay回帰を覆う。
 - `AiReadableAuthoringFixtureV1`が100万Entity、Decision／lock／reference closure、Shard／Slice／Diff／stale Indexを覆い、500 ms／2,000 ms Gateを3 run最悪値で満たす。
 - Context evidence recall、24,000 input token、typed Operation coverage、stale Decision、2回以内repair、禁止Categoryの非修復がRelease基準へ含まれる。

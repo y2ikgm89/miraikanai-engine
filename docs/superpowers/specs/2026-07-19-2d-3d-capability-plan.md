@@ -1,8 +1,8 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.17
+- 文書版: 2.18
 - 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
@@ -124,6 +124,8 @@ Diagnostics
 例:
 
 - `SetLightProfile`
+- `ResolveVisualEffectOwnership`
+- `SetVfxEffectIntent`
 - `CreateParticleEmitter`
 - `ConfigureNavAgent`
 - `AssignPhysicsMaterial`
@@ -220,6 +222,74 @@ flowchart LR
 | Audio／VFX／Camera shake | bounded Presentation command | `T90`以後 | gameplay damage、Save、AI perceptionへの逆流 |
 
 Asset、Profile、`GameplayDefinition`、C++の変更はdependency closure全体をstagingし、Runtime詳細規約の`T00`／`R10`だけでgenerationを切り替える。上図にないSubsystem間edgeを追加する場合は、Domain Port、typed contract、owner、phase、budget、failure policyをADRへ追加し、CMake DAGとconformance testを同じ変更で更新する。
+
+### 3.7 Visual Effect要求のAI可読Routing
+
+ユーザー語の「エフェクト」「演出」をParticleへ短絡しない。人間またはAIが作る`VisualEffectRequestV1`は、Runtime AssetではなくAuthoring Requirementであり、`ResolvedVisualEffectOwnershipPlanV1`が正規Ownerと必要Intentを決定する。
+
+```text
+VisualEffectRequestV1
+  request_id: StableId
+  source_requirement_ref: StableId
+  visual_effect_semantic_role_id: StableId
+  scope: world_object | world_region | view | ui | environment | hybrid
+  temporal_role: one_shot | loop | continuous | persistent
+  gameplay_relation: cosmetic | authoritative_event_presentation | gameplay_state_required
+  spatial_scope: d2 | d3 | hybrid | not_applicable
+  style_role_ids: StableId[0..16]
+  target_selector: bounded TargetProfile selector
+  scale_envelope:
+    maximum_concurrent_occurrences: optional u32
+    maximum_visible_occurrences: optional u32
+    coverage: object_local | bounded_region | view
+  required_cue_ids: RequirementId[0..32]
+
+ResolvedVisualEffectOwnershipPlanV1
+  request_id
+  routing_catalog_version
+  owner_capability_ids: CapabilityId[1..8]
+  generated_intent_refs: StableId[1..16]
+  shared_presentation_event_ref: optional StableId
+  dependency_closure
+  semantic_diff
+  target_cost
+  fallback
+```
+
+原文、曖昧さ、User／AI判断根拠は`source_requirement_ref`先のRequirement Evidenceに保持し、自由文をRole ID、Owner ID、Capability IDとして使わない。
+
+`visual_effect_semantic_role_id`はversion付き`VisualEffectSemanticCatalogV1`の登録済みIDでなければならない。各Catalog entryは許可scope、temporal role、gameplay relation、候補Owner、必須Requirement、生成可能なSubsystem Intent種別を持つ。表示名、同義語、genre語、locale別説明は検索projectionであり、Stable IDまたはOwner決定へ使わない。Domain Packは既存Roleへのalias／presetを追加できるが、新しい正規RoleまたはOwner edgeはR3 ADR、Routing fixture、Provider projection更新を必要とする。
+
+公開CapabilityとOperationを次に固定する。
+
+```text
+capability.presentation.visual_effect_routing_v1
+operation.presentation.inspect_visual_effect_owners        R0
+operation.presentation.validate_visual_effect_request      R0
+operation.presentation.preview_visual_effect_ownership     R0
+operation.presentation.resolve_visual_effect_ownership     R1
+operation.presentation.apply_visual_effect_ownership_plan  R2
+```
+
+Resolveは最大3候補、各候補のOwner、生成Intent種別、Semantic差分、Target cost、Fallback、不足Requirementを返す。Applyは選択済みPlanから`ProjectChangeSet`を作るだけで、各Owner Asset、Profile、Runtime stateを直接変更しない。Closed Diagnosticは`VisualEffectOwnerAmbiguous`、`VisualEffectOwnerUnsupported`、`VisualEffectOwnerViolation`、`VisualEffectGameplayOwnerRequired`、`VisualEffectDependencyClosureIncomplete`とする。
+
+| 要求の主対象 | 正規Owner |
+|---|---|
+| 短命のspark、smoke、trail、projectile、area cue | Particle／VFX |
+| View全体のExposure、Bloom、Color、Lens、DOF、Vignette | Post Process |
+| SurfaceのPBR／Toon／Unlit、dissolve、emissive、decal role | Material／Visual Style |
+| Light source、shadow、照明寄与 | Lighting |
+| 長時間のSky、Fog、Cloud、Environment lighting | Environment |
+| Water surface／volume、積雪／融雪field | Water、Weather／Snow |
+| HUD、text、cursor、screen-space feedback | UI Effect／UI Rendering |
+| Camera shake、focus、framing、cut | Camera |
+| Sprite／Meshのpose、motion、state transition | Animation |
+
+一つの要求がExplosionのVFX、Camera shake、Lighting flash、Post exposure等を必要とする場合、Ownerを一つへ押し込まず、同じauthoritative Presentation Eventを参照する複数Intentと一つのdependency closureを生成する。`gameplay_state_required`はVisual Subsystemだけで解決せず、Game System／Collision／Simulation Requirementを別Ownerとして必須化する。
+
+Ownerが一意でない、必要Targetがない、Style／Cueが競合する場合はBlockingとする。Particleで永続Fogを代用する、Post Processでauthoritative visibilityを決める、UI ParticleをWorld VFXへ埋め込む等のOwner逸脱をValidatorで拒否する。AIと手動Wizardは同じRouting Operation、候補、Semantic diff、Before／After Previewを使用する。
+
+`VisualEffectRoutingFixtureV1`を96 Caseに固定する。単一Owner 54件は上表9 Owner × 2 applicable scope／Target variant × 3表現差、複数Owner 18件はExplosion、damage feedback、weather transition等のdependency closure、曖昧／競合12件はOwner、Target、Gameplay relation不足、Owner逸脱12件はParticle永続Fog、Post authoritative visibility、World VFX内UI等を検証する。明確CaseのOwner recall 100%、誤Owner、必須共同Owner欠落、Gameplay stateのVisual-only解決、Owner逸脱Proposalを0件とする。
 
 ## 4. 共通Engine機能
 
@@ -1239,6 +1309,8 @@ Particle／VFXのAsset、Emitter、Graph、Node Catalog、CPU／GPU execution、
 
 ### C1: Particle／VFX Core
 
+- `VfxEffectIntentV1`、`VfxSemanticRoleCatalogV1`、`VfxPatternCatalogV1`
+- Genre非依存の初期10 Semantic RoleとPortable Pattern
 - Emitter shape
 - Rate／burst
 - Lifetime、velocity、acceleration、drag
@@ -1261,10 +1333,28 @@ Particle／VFXのAsset、Emitter、Graph、Node Catalog、CPU／GPU execution、
 - Ribbon
 - Vector field
 - LOD、distance culling、fixed budget
+- Cost、Fallback、Cue invariant、Target Receiptを持つQualification済み`VfxExtensionManifestV1`
 
 GPU particleはvisual effectであり、gameplayの正規状態やSaveへ使用しない。Gameplay判定が必要なeffectはCPUのdeterministic gameplay entityを別に持つ。AIが指定できるparticle上限、spawn rate、light count、collision modeはValidatorでProject budgetに制限する。
 
-### 7.1 Particle公式Budget Profile
+### 7.1 Genre非依存性、AI可読性、Phase配置
+
+Coreはgenre名をRuntime分岐へ使わず、impact、projectile、trail、area warning、status、ambient、weather、interaction、spawn／despawn、success feedbackのSemantic Roleを、2D／3D／Hybrid、one-shot／loop／continuous、Style、Target、Scaleへ直交分解する。RPG魔法、Racing dust、Fighting hit、Strategy selection、Puzzle completion等は、Domain Packが同じRole、Pattern、Presentation Event、Visual Styleをcompositionして表現する。
+
+「全gameで汎用的」は、全Effect algorithmをCoreへ内蔵する意味ではない。C1／C2 Core Patternで表現できないFluid、volumetric、破壊、特殊Renderer等は`VfxExtensionRequired`とし、型、Cost model、対応Dimension／Target、Fallback、`MinimumCueContractV1`、R4承認、Qualification Receiptを持つExtensionだけを採用する。未対応要求、Target非対応、Cue破壊を黙って機能削除または成功扱いしない。
+
+AIは自然言語を直接Graphへ変換せず、`VfxEffectIntentV1`を確定し、Semantic／Pattern Catalogから最大3候補を作り、型付きChangeSet、固定seed Preview、Semantic diff、Cost、Fallbackを提示する。手動Editor、AI、Project C++ Commandは同じSource AssetとOperationを使う。
+
+| Phase | Particle／VFX到達点 |
+|---|---|
+| Phase 2 | C0 Visual Effect Routing Catalog、VFX Intent、Role／Pattern／Node Catalog、Schema、Validator、Compiler descriptor、Diagnostic、Cost model |
+| Phase 3 | 2D C1 CPU VFX、初期10 Role／Portable Patternの2D matrix、manual Editor、`2d_crowded_battle_v1` |
+| Phase 4～5 | Visual Effect Ownership Router、Intent Resolver、AI Operation、Semantic Snapshot、Before／After、Routing／VFX Evalの2D／曖昧Case |
+| Phase 6 | 3D C1 CPU VFX、同一Intentの2D／3D specialization、`3d_crowded_battle_v1` |
+| Phase 7 | Android／AppleのC1 CPU subset、Mobile Budget、thermal／endurance |
+| Phase 8 | C2 GPU VFX、LOD、visual collision、Extension Manifest、D3D12／Vulkan／Metal、360 Caseの`VfxAiAuthoringFixtureV1` |
+
+### 7.2 Particle公式Budget Profile
 
 `ParticleBudgetProfile::ReferenceV1`を次に固定する。alive／spawn上限は全Emitter合計と各Emitterの両方を検査し、超過分を黙って間引かない。Game Brief／Scale intentとVFX SourceはTarget budget超過だけで破棄せず`OptimizationRequired`として保持するが、対象TargetのPreview実行、Cook、Shipping promotionは有効なRepresentation Planができるまで拒否する。Shippingで突発的に上限へ達した場合だけ、Engine解決済み`priority desc, screen_influence desc, emitter StableId asc, particle_spawn_id asc`の末尾を生成しない。
 
@@ -1464,8 +1554,9 @@ Coreはgenreを知らない。次はDomain Packで提供する。
 - Simulation: Time scale、agent、economy、flow field、large data table
 - 2D Action: Platform motor、one-way platform、tile rule
 - Strategy: Selection、formation、fog of war、large-agent navigation
+- VFX語彙: genre固有の表示名、Intent preset、Role組合せ、Parameter初期値、Presentation Event mapping。Core Semantic Roleを置換せず、未知Roleまたは未昇格Extensionを追加しない
 
-Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋め込まない。Packはschema、template、validator、AI vocabulary、test scenarioを一つのversioned packageとして配布する。
+Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋め込まない。Packはschema、template、validator、AI vocabulary、test scenarioを一つのversioned packageとして配布する。VFX Patternを同梱する場合は`VfxPatternCatalogV1`へversion付き登録し、Core外Operatorを含む場合は`VfxExtensionManifestV1`、R4承認、Target別Qualificationを必須とする。
 
 ## 13. 実装順序
 
@@ -1478,12 +1569,12 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | `WP0_foundation_measurement` | Phase 0 | 固定Toolchainで起動／終了する最小Host、Foundation／Math MCD生成、portable scalar Math、`DBG0_contract`／`DBG1_flight_recorder`、trace、memory／queue計測、Receipt | Toolchain／Artifact再現、Math unit／property／golden／cross-language／CPU・HLSL conformance、Debug Event／Counter／priority／gap／bounded Query／crash recovery、negative test、ASan、測定Availability。2D／3D機能は含めない |
 | `WP1_headless_authoring` | Phase 1 | ChangeSetとWorld／Scene／Level／Topology、`AuthoringSelectionContextV1`／`WorldAuthoringContextV1`、System Implementation Setをvalidate→commit→save→load→replayするHeadless Project | state hash、State owner、Topology、Scene永続化owner／Level membership／Cell assignment分離、`world_authoring_semantics_v1`、crash recovery、Budget／revision拒否 |
 | `WP2_common_runtime_editor` | Phase 2 | World Outline／Scene／Topology Graph／Level Form／Streaming Inspectorを使うWindows空Levelのedit→play→save→cook→packageと`DBG2_editor_local` Debug Workspace | `world_authoring_cross_view_v1` 64 scenarioのOperation／after hash一致、Runtime phase、System Graph、Level／Cell lifecycle、Derived read-only、Render Graph、Asset promotion、device recovery、safe pause／step、IDE／GPU tool関連付け、起動／reload baseline |
-| `WP3_2d_c1_vertical` | Phase 3 | compact 2D Level、Portal、Game Flow／Level／Character／Weapon／Projectile／Combat／Vital／Score／Ability／Encounter、独自Sprite／Tilemap、TitleからResultまでの2D top-down shooter、`DBG3_replay_causality` | Level transition、旧Level維持、atomic Fire、System／Save／Replay、first divergence／causal edge／Reproduction Bundle、`2d_shooter_c1_v1`、`2d_crowded_battle_v1`、1080p60、memory／queue、authoritative drop 0 |
+| `WP3_2d_c1_vertical` | Phase 3 | compact 2D Level、Portal、Game Flow／Level／Character／Weapon／Projectile／Combat／Vital／Score／Ability／Encounter、独自Sprite／Tilemap、C1 CPU VFX、TitleからResultまでの2D top-down shooter、`DBG3_replay_causality` | Level transition、旧Level維持、atomic Fire、System／Save／Replay、first divergence／causal edge／Reproduction Bundle、VFX初期10 Role／2D Pattern、`2d_shooter_c1_v1`、`2d_crowded_battle_v1`、1080p60、memory／queue、authoritative drop 0 |
 | `WP4_ai_authoring` | Phase 4～5 | 同じ2D ProjectのSystem／Level生成→手動編集→AI再編集、bounded World Discovery、`world_authoring_intent_v1` 240件（明確6分類×30件＋曖昧／High Impact 60件）と`DBG4_ai_diagnosis` | System／World Bundle、Map intent明確Case 97%以上、Blocking recall 100%、Scene／Level／Cell誤変更0、未知StableId／Derived write／直接Commit 0、Definition／Native同値性、AI evidence diagnosis Eval、Replay回帰、Source Promotion |
-| `WP5_3d_c1_vertical` | Phase 6 | 同じShooter／Game System／Level Contractの`realistic_basic` compact third-person shooter arena | compact 3D Level transition、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`、RTX 3060／RX 6600、1080p60、Physics／Nav／Animation／VFX統合 |
-| `WP6_mobile_vertical` | Phase 7 | 同じ2D C1、次に3D C1をAndroid／AppleでPackage／Playし、`DBG5_remote_shipping`で認証済みremote capture | minimum／reference実機、partial capture／gap、Session再結合、memory、30分thermal、2時間endurance、Shipping debug artifact除外、Store／privacy |
+| `WP5_3d_c1_vertical` | Phase 6 | 同じShooter／Game System／Level／VFX Intent Contractの`realistic_basic` compact third-person shooter arena | compact 3D Level transition、2D／3D VFX Semantic equivalence、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`、RTX 3060／RX 6600、1080p60、Physics／Nav／Animation／VFX統合 |
+| `WP6_mobile_vertical` | Phase 7 | 同じ2D C1、次に3D C1をVFX CPU subset込みでAndroid／AppleへPackage／Playし、`DBG5_remote_shipping`で認証済みremote capture | minimum／reference実機、VFX Mobile Budget／Fallback／Cue保存、partial capture／gap、Session再結合、memory、30分thermal、2時間endurance、Shipping debug artifact除外、Store／privacy |
 | `WP7a_2d_production_c2` | Phase 8先行 | GPU-qualified Sprite、streaming Tilemap、advanced Animation／Camera／Light、隔離2D Importer | 5.7節の全C2 fixture、CPU基準image diff、fallback、Windows／Mobile個別Receipt |
-| `WP7b_production_c2` | Phase 8 | World Partition／HLOD／procedural authoring、Advanced Renderer、Visual Style、Water／Snow、Domain Packを一Capabilityずつ追加 | World／Capability固有fixture、Portable／Mobile fallback、Before／After、全Vendorまたは限定Profile Receipt |
+| `WP7b_production_c2` | Phase 8 | World Partition／HLOD／procedural authoring、Advanced Renderer、Visual Style、GPU VFX／Extension、Water／Snow、Domain Packを一Capabilityずつ追加 | World／Capability固有fixture、`VfxAiAuthoringFixtureV1`、Portable／Mobile fallback、Before／After、全Vendorまたは限定Profile Receipt |
 | `WP8_research_c3` | Phase 8以後の個別C3 Gate | RTGI／Path／Neural、continuous origin-rebased Large World、Multiplayer等の隔離prototype | 別正式仕様、Threat Model、基準経路非退行、意味同等fallback、個別承認 |
 
 各Work PackageはRuntime規約14.1.2節の測定loopを使い、機能追加と観測基盤追加を同じ未検証taskへ混ぜない。Gate不合格時は後段Packageを開始せず、last valid playableとSource intentを維持する。C2／C3の複数Capabilityを一つの巨大変更で同時昇格せず、一件ごとに有効化、無効化、rollback、性能差を証明する。
@@ -1493,11 +1584,11 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 1. Foundation、ID、memory、Result、Job、Math semantic contract、portable scalar Math、Transform／Quaternion／projection、Runtime Contract、fixed phase、bounded queue、Debug Session／Event／Counter／priority／gap／bounded Query／crash-safe chunk、`game_system`／World／Level最小Schema fixture
 2. ChangeSet、World／Scene／Level／Topology、Scene永続化owner／Level membership／Cell assignment分離、`AuthoringSelectionContextV1`／`WorldAuthoringContextV1`、System Implementation Set、Authoring Service、`LodIntentV1`／Policy envelope、`world_authoring_semantics_v1` headless test
 3. 独自MirakanUi Core／MirakanEditor Shell、World Outline／Scene／Topology Graph／Level Form／Streaming Inspector、`world_authoring_cross_view_v1`、Windows／D3D12 device、Render Graph、Asset cooker、CPU LOD reference metric／Preview trace、Debug Workspace／safe pause／step／IDE・GPU tool Adapter
-4. Material IR、VisualStyleProfile、StyleCapabilityManifest、`LightSourceV1`／`LightIntentV1`／`ResolvedLightPlanV1`、`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、Validator、headless Resolver、Preview
-5. compact 2D Level／Portal、Game Flow／Level Gameplay／Character／Weapon／Shooter Projectile／Combat／Vital／Score／Ability／Encounter Contract、`mirakan.feature.shooter_core.c1`、`shooter.profile.2d_top_down.c1`、`SpriteImportSettingsV1`、TileSet／Tilemap／Chunk、Portable Canvas、C1 2D Light selection、C1 Post Process、CPU LOD、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition evaluator、Box2D、Replay／Rewind／Causality／Reproduction Bundleとmanual vertical slice
-6. TypeScript AI Orchestrator、System Catalog／Implementation Plan／Bundle、bounded World Discovery、Map intent／World Bundle、`world_authoring_intent_v1` holdout、named-pipe IPC、OpenAI Provider、VisualStyleResolver、Evidence ID付きAI debug diagnosisを含むAI editing loop
+4. Material IR、VisualStyleProfile、StyleCapabilityManifest、`VisualEffectSemanticCatalogV1`／`VisualEffectRequestV1`／`ResolvedVisualEffectOwnershipPlanV1`、`LightSourceV1`／`LightIntentV1`／`ResolvedLightPlanV1`、`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、`VfxEffectIntentV1`／Semantic Role・Pattern・Node Catalog／Compiler descriptor／Diagnostic、Validator、headless Resolver、Preview
+5. compact 2D Level／Portal、Game Flow／Level Gameplay／Character／Weapon／Shooter Projectile／Combat／Vital／Score／Ability／Encounter Contract、`mirakan.feature.shooter_core.c1`、`shooter.profile.2d_top_down.c1`、`SpriteImportSettingsV1`、TileSet／Tilemap／Chunk、Portable Canvas、C1 2D Light selection、C1 Post Process、C1 2D CPU VFX／初期10 Role・Pattern、CPU LOD、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition evaluator、Box2D、Replay／Rewind／Causality／Reproduction Bundleとmanual vertical slice
+6. TypeScript AI Orchestrator、System Catalog／Implementation Plan／Bundle、bounded World Discovery、Map intent／World Bundle、`world_authoring_intent_v1` holdout、Visual Effect Ownership Router／`VisualEffectRoutingFixtureV1`、VFX Intent Resolver／typed Operation／Semantic diff／`VfxAiAuthoringFixtureV1` 2D・曖昧Case、named-pipe IPC、OpenAI Provider、VisualStyleResolver、Evidence ID付きAI debug diagnosisを含むAI editing loop
 7. 外部MCP、Codex／Claude Plugin
-8. 同じLevel／Game System Contractの3D Variant、3D manual／generated static Mesh LOD、Animation presentation LOD、`realistic_basic`、Forward+、3D Light cluster、`AntiAliasingIntentV1`／FXAA／`mirakan_taa_v1`／MSAA 2x・4x、C1 Post Process、Shadow ResolverとCSM／atlas／cubemap、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
+8. 同じLevel／Game System／VFX Intent Contractの3D Variant、3D manual／generated static Mesh LOD、Animation presentation LOD、`realistic_basic`、Forward+、3D Light cluster、C1 3D CPU VFXと2D／3D Semantic equivalence、`AntiAliasingIntentV1`／FXAA／`mirakan_taa_v1`／MSAA 2x・4x、C1 Post Process、Shadow ResolverとCSM／atlas／cubemap、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
 9. `shooter.profile.tps_single_player.c1`を適用した`realistic_basic` 3D compact shooter arena
 10. Android GameActivity／Vulkan／Oboe／touch／AABで同じ2D C1
 11. Apple UIScene／Metal／AudioUnit／touch／TestFlightで同じ2D C1
@@ -1508,7 +1599,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 16. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
 17. `pixel_diorama`の`unified_low_resolution`
 18. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
-19. Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
+19. Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX、`VfxExtensionManifestV1`、`VfxAiAuthoringFixtureV1` 360 Case
 20. C2 Water Body／Query／Underwater、dynamic snow field
 21. GPU LOD selector、indirect、HZB、HLOD、geometry residency／streaming、generated skinned／morph Gate、portable meshlet artifactとCPU direct比較
 22. Hybrid deferred path、terrain／foliage、Advanced Renderer Fixture
@@ -1555,6 +1646,8 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 26. Anti-alias／Upscale機能は`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、方式互換表、sample／resolve、history reset、layer分離、typed Diagnostic、Preview、AA visual／performance Receiptを持ち、AIと手動Editorが同じOperationを使う。
 27. Lighting機能は`LightSourceV1`、`LightIntentV1`、`LightingStyleProfileV1`、`ResolvedLightPlanV1`、`LightSnapshotV1`、物理単位、安定selection／cluster、overflow、Preview、Explain、Target別Receiptを持ち、AIと手動Editorが同じOperationを使う。
 28. Post Process機能は`PostProcessIntentV1`、`PostProcessProfileV1`、`PostProcessVolumeV1`、`PostProcessNodeCatalogV1`、`ResolvedPostProcessPlanV1`、固定stage、AA互換、history reset、UI／pixel-locked分離、Preview、Target別Receiptを持ち、AIと手動Editorが同じOperationを使う。
+29. Particle／VFX機能は`VfxEffectIntentV1`、Semantic Role／Pattern／Node Catalog、`MinimumCueContractV1`、Target別CPU／GPU Artifact、Cost／Fallback、Semantic diff、Qualification Receiptを持ち、AI、手動Editor、Project C++ Commandが同じSourceとOperationへ収束する。Core外表現は`VfxExtensionManifestV1`のR4 Gateを通し、`VfxAiAuthoringFixtureV1` 360 Caseのhard Gateを満たす。
+30. Visual Effect要求は`VisualEffectSemanticCatalogV1`、`VisualEffectRequestV1`、`ResolvedVisualEffectOwnershipPlanV1`でParticle／VFX、Post、Material、Lighting、Environment、Water／Snow、UI、Camera、Animationへ型付きRoutingされ、`VisualEffectRoutingFixtureV1` 96 CaseでOwner recall 100%、誤Owner、必須共同Owner欠落、Visual-only Gameplay解決、Owner逸脱Proposal 0件を満たす。
 
 ## 15. 主要リスクと確定対策
 

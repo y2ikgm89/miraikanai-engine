@@ -1,8 +1,8 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.20
+- 文書版: 1.21
 - 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
@@ -1017,7 +1017,7 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 18. Contract compilerの決定論生成、Provider projection、cross-language round-trip、generated file driftのTest計画が承認される。
 19. `TaskSpecification`とAIが変更不能な`TaskAuthorizationEnvelope`、R0–R5、Approval／Promotion境界が承認される。
 20. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
-21. TLA+対象5 State machine、実装transition conformance、14 AI Eval suite、Provider migration gateが承認される。
+21. TLA+対象5 State machine、実装transition conformance、16 AI Eval suite、`VisualEffectRoutingFixtureV1` 96 Case、`VfxAiAuthoringFixtureV1` 360 Case、Provider migration gateが承認される。
 22. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
 23. `PhysicsKernelLockV1`、Box2D／Joltのexact commit、product／Qualification build option、Target別昇格状態、全World／Solver Profile、Joint／Character／Save／Replay契約が承認され、未Qualification TargetをProduction表示しないGateが定義される。
 24. 固定Node.js 24.18.0 LTS＋npm 11.16.0だけで両許可rootの`npm ci --ignore-scripts --offline --no-audit --no-fund`、single-threaded clean compile、test、packageがnetworkなしで再現し、global Node／npm、Corepack、Bun、pnpm、未許可root、異種lockfileをnegative fixtureで拒否する。

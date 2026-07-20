@@ -1,8 +1,8 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 2.6
+- 文書版: 2.7
 - 作成日: 2026-07-18
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
 - 状態: 基本構想とSubsystem別正式仕様46文書を統合した内部整合レビュー版。ユーザー承認待ち
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
@@ -1297,7 +1297,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 14. Water Source／Compiler／Render／CPU Query／Volume／Underwaterと、Weather Snapshot／降雪VFX／static・dynamic Snow Surface／stampをC1とC2の独立task、Gameplay分離fixture、Target別Gateへ分解する。
 15. Windows MSIX／managed Directory package、Android AAB／PAD／16 KiB、Apple archive／signing／uploadをPlatform別taskと実機Gateへ分解する。
 16. AI Orchestrator、bounded Context retrieval、最大2回repair loop、Requirement／Game System／Map Intent／World／Visual Style／UI Authoring／Scale Planner、Gameplay fidelity floor、Optimization Receipt、生成Asset Staging、Preview matrix、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
-17. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、15 AI Eval suite、`AiReadableAuthoringFixtureV1`、debugging diagnosis corpus／holdout、Provider／retrieval migration harnessを検証taskへ分解する。
+17. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、16 AI Eval suite、`AiReadableAuthoringFixtureV1`、`VisualEffectRoutingFixtureV1` 96 Case、`VfxAiAuthoringFixtureV1` 360 Case、debugging diagnosis corpus／holdout、Provider／retrieval migration harnessを検証taskへ分解する。
 18. 2D／3D compact Level、Portal／Streaming failure、System semantic equivalence、procedural connectivity、`2d_crowded_battle_v1`／`3d_crowded_battle_v1`、Project固有Integrated Scale Fixture、Water／Snow fixture、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
