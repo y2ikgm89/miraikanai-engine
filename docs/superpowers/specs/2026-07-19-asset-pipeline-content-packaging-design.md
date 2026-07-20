@@ -70,10 +70,10 @@ Pathはseparatorを`/`へ正規化し、absolute path、drive、UNC、`..`、emp
 
 ### 3.3 Asset Type
 
-| Type | C1 Source | 主なDerived Artifact |
+| Type | Source／導入段階 | 主なDerived Artifact |
 |---|---|---|
 | Texture／Sprite | PNG、JPEG、OpenEXR、KTX2、DDS | Target texture、mip、sprite table、thumbnail |
-| Mesh／Scene | glTF 2.0／GLB | mesh stream、meshlet reserved、skin binding、collision／nav source |
+| Mesh／Scene | glTF 2.0／GLB | mesh stream、portable meshlet／cluster、LOD／HLOD、occlusion proxy、skin binding、collision／nav／ray geometry source |
 | Skeleton／Animation | glTF 2.0 | ozz runtime skeleton／clip、event／root track |
 | Audio | WAV、FLAC | PCM16 one-shot、Opus stream chunk、waveform |
 | Font | OTF／TTF | validated font blob、glyph coverage index |
@@ -81,6 +81,7 @@ Pathはseparatorを`/`へ正規化し、absolute path、drive、UNC、`..`、emp
 | Material／Style | MCD JSON | parameter block、pipeline key、Style Manifest |
 | UI／Gameplay／Scene | MCD JSON | runtime package section |
 | Physics／Nav | Engine Source Document＋geometry | backend-independent manifest＋Target cooked payload |
+| Neural Render Model | C3の承認済みmodel package＋provenance | Target packed weight、semantic IO manifest、fallback／budget receipt |
 
 SVG、video、FBX、PSD、Blend等はC1 importer allowlistに含めない。利用者はDCCでC1 interchangeへexportする。Format追加はImporter threat model、fixture、license、fuzz、Target cook、memory上限を持つADRを必須とする。
 
@@ -179,6 +180,15 @@ DerivedArtifactManifest
 - Source、Import設定、Importer、Tool、dependency Artifactのいずれかが変われば影響nodeだけを再Cookする。
 
 Artifact storeはcontent-addressed、immutableである。成功Artifactを上書きせず、新keyで追加する。Garbage collectionはProject revision、package manifest、last-valid generation、active lease、Recovery snapshotからのreachabilityを計算した後だけ行う。
+
+### 6.3 Advanced rendering artifact
+
+- Mesh cookはC1 vertex／index streamを常に生成し、C2用portable cluster、meshlet、LOD／HLOD、occlusion proxyを追加Artifactとして生成する。Mesh Shader／Work Graph専用native commandをAssetへ保存しない。
+- Ray Tracing用geometryはposition、index、opacity／alpha classification、material／primitive mapping、build hintをBackend非依存形式で保存する。D3D12／Vulkan／Metal native acceleration structureはPackageへ保存せず、Runtimeが対象Device／driverでbuildする。
+- Backendがacceleration structure serializationを提供しても、device identity、driver、API、build flag、geometry keyが完全一致するlocal cacheに限定する。Package、Patch、DLC、別Deviceへ配布しない。
+- Neural weightはmodel ID、architecture、semantic input／output、weight format、weight SHA-256、training data／license provenance、quantization、required feature、persistent／scratch byte、inference budget、non-Neural fallbackを必須とする。
+- Vendor SDK DLL、framework、driver componentはGame AssetではなくToolchain／Distribution dependencyである。公式配布元、version、source／binary hash、署名、license、Notice、SBOMを`RendererProviderLockV1`へ保存し、Asset Catalogから差し替えない。
+- Runtime shader compile、Runtime model download／training、AIが生成した未承認weight、外部URL参照をDerived Artifactへ含めない。
 
 ## 7. CatalogとVFS
 
@@ -280,6 +290,8 @@ Unloaded -> Requested -> Reading -> Validating -> Decoding
 - Requestはpriority、deadline、budget class、owner generationを持つ。
 - I/O completion threadはread完了だけを通知し、decode／transcodeをworkerへ渡す。
 - CPU payload、GPU upload、Audio decode、Physics／Nav buildを含むdependency closureがReadyになるまでActiveにしない。
+- Geometry streamingはC1 vertex／index fallbackを先にReadyにし、cluster／HLOD／ray geometry generationを同じAsset generation内のoptional residencyとして扱う。欠落時にnative handleを使い回さず、Rendererの承認済みfallbackへ切り替える。
+- Neural modelは全weight、semantic manifest、Provider／Backend requirement、fallback closureがReadyになるまでActiveにしない。frame途中の部分weight promotionを禁止する。
 - Simulationは`T00`、Renderingは`R10`、Audioはcontrol block境界でversionをactivateする。
 - deadline超過、owner generation不一致、cancel済み結果をpublishしない。
 - Evictionはnoncritical、遠距離／低priority、再取得可能なresourceから行い、active leaseを破棄しない。
@@ -372,6 +384,10 @@ Placeholderを許可するAsset roleはProfileで明示し、Collision、Nav、r
 - Asset generation closureのatomic promotionとlease中retire
 - Cache削除後のfull rebuildでPackage root hash一致
 - Windows、Android、Apple Target別Texture／Shader／Audio／Mesh Cook
+- portable cluster／meshlet／LOD／HLOD／occlusion proxyのdeterministic CookとC1 geometry fallback
+- ray geometryからBackend別BLAS build、driver／device不一致cache rejection、dynamic refit／rebuild
+- Neural modelのweight hash、semantic IO、license、memory／inference budget、corrupt／unsigned／missing fallback
+- Renderer Provider binaryの公式source、version、hash、署名、license、SBOM、Shipping package scan
 - Streaming queue、cancel、deadline、stale result、memory pressure、surface／audio interruption
 - License、SBOM、Notice、Provenance、Safety ReceiptのPackage closure
 - AI Assetが通常Importを迂回できず、Production Readyへ自動昇格しないconformance

@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 2.0
+- 文書版: 2.1
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
@@ -36,6 +36,7 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 - 構造変更、非同期結果、Physics event、Asset hot reloadの反映時点が一意になる。
 - object、borrow、job、GPU resourceの寿命と無効化条件を機械検査できる。
 - CPU／GPU／memory budgetをSubsystem単位で測定し、最適化の成否を数値で判断できる。
+- 大量配置、burst生成、敵味方を問わない同時VFXを個数だけで拒否せず、制作意図を保ったboundedなRuntime表現へCookし、統合負荷試験で成立性を証明できる。
 - 失敗時に部分的なWorld、部分的なAsset、GPU使用中resourceの解放を公開しない。
 
 外部の公式資料はAPIとLibraryの事実を定める。本書のphase順序、memory配分、queue容量、failure policyは、それらの事実を満たすためにMiraikanai Engineが独自に確定するプロジェクト公式規約である。
@@ -67,6 +68,9 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 - **Borrow**: scope、phase、epochのいずれかで期限が切れる非所有access。
 - **Lease**: 所有Subsystemがobjectまたはversionをretireしないことを、限定scopeで保証するmove-only token。
 - **Snapshot**: 作成後に変更されず、consumerが元Worldへ書き戻せない値集合。
+- **Scale intent**: Projectが必要とする総配置数、最大同時存在数、生成burst、可視範囲、相互作用範囲、VFX同時性、TargetをGame用語で表したAuthoring要件。
+- **Gameplay fidelity floor**: 敵数、Damage、collision、goal、timing等、最適化で黙って弱めてはならない観測可能な最低挙動。
+- **Representation plan**: Scale intentをFull Entity、低頻度／休眠state、render instance、HLOD、streaming cell、VFX Artifact等へ変換するCook済み計画。
 - **Project official default**: ADRで改定されるまで、CIとReviewが用いる合否値。
 
 ### 2.3 対象外
@@ -503,6 +507,45 @@ World queryは`ReadLease<Component...>`または`WriteLease<Component...>`を返
 - Developmentではaccessごとにepochとthread affinityを検査する。
 - lease、span、referenceをmember、event、job capture、coroutine stateへ保存しない。
 
+### 8.4 大量配置・大量生成のRepresentation Plan
+
+大量制作のSourceを、Scene内に同じ重さのEntityを列挙したものとしてRuntimeへ直送しない。AI／人間は`RuntimeScaleIntentV1`へ少なくとも次を記録し、Runtime CompilerがTarget別`RuntimeRepresentationPlanV1`へ解決する。
+
+```text
+experience_role
+total_authored_count
+peak_live_count
+peak_spawn_per_tick
+peak_visible_count
+interaction_radius
+visibility_radius
+simultaneous_vfx_envelope
+gameplay_fidelity_floor
+target_profile_set
+```
+
+`experience_role`は`authoritative_actor | interactive_prop | decorative_instance | presentation_effect`のclosed enumとする。自由文字列の「軽量」「背景扱い」で権限を下げない。
+
+| Sourceの意味 | 許可するRuntime表現 | 禁止する変換 |
+|---|---|---|
+| Authoritative actor | Full Entity、契約済みsimulation LOD、休眠state record、streaming cell | 敵数、HP、Damage、collision、goal参加、入力への応答を黙って削る |
+| Interactive prop | Full Entity、休眠state record、partition単位activate | interaction可能範囲内のrender-only化、mutable Physics objectのstatic batch化 |
+| Decorative instance | Render instance、spatial batch、HLOD、streaming cell | 個別Gameplay eventを持つobjectとの意味混同 |
+| Presentation effect | VFX Artifact、aggregate emitter、quality variant、距離／画面影響度culling | authoritative Gameplay state、Damage、AI perceptionの代用 |
+
+Runtime Compilerは次の順にRepresentation Planを作る。
+
+1. 同一Asset／Material／mobility／interaction契約を分類する。
+2. Gameplay fidelity floorを満たす個体だけにauthoritative stateを割り当てる。「遠距離だから敵を消す」のではなく、Projectが宣言したsimulation LOD contractがある場合だけFull Entityと休眠state間を遷移させる。
+3. decorative dataをspatial cell、instance batch、HLODへCookし、総配置数ではなく最大resident／visible working setをboundedにする。
+4. Structural create／destroyを`T00`の事前予約済みbatchへまとめ、stable poolを持つDomainではslotをPlay開始またはloading境界でreserveする。poolはlifecycle最適化であり、Gameplay上の最大同時数を下げる理由にしない。
+5. VFXはParticle／VFX規約のCPU／GPU Artifact、aggregate Event、instance pool、overdraw／spawn budgetへ解決する。
+6. Target別cost estimateとProject固有の統合負荷traceを生成し、14.6節の実測Gateへ渡す。
+
+総配置数または生成要求が既定fixtureを超えること自体はSource authoringの拒否理由にしない。Sourceはprocedural descriptor、recipe、spatial partition等のbounded表現で保存できる。ただし、現在Targetでbounded working set、queue、memory、frame deadlineを満たすRepresentation Planが得られないProjectを、Play可能またはShipping可能と偽ってはならない。
+
+Presentation品質だけのLOD、instance化、HLOD、culling、VFX quality variantは、Style契約とvisual diffを満たす場合に自動適用できる。敵数、味方数、Damage、collision、navigation、goal、spawn timing等のGameplay fidelity floorを変える案は`GameplayScaleChangeProposalV1`としてBefore／After、理由、Target影響を示し、人間承認後の別ChangeSetにする。
+
 ## 9. ID、pointer、borrow、leaseの寿命
 
 ### 9.1 runtime handle
@@ -933,6 +976,20 @@ driver package version、DXGIが報告するdriver version、Windows build／UBR
 
 GPU vendor間で絶対値が異なるため、両reference GPUを別baselineとして保持し、片方だけの合格でC2へ昇格しない。
 
+#### 14.1.1 Advanced desktop qualification lane
+
+Portable Rasterの最低Production保証は14.1節のRyzen 5 5600＋RTX 3060／RX 6600から変更しない。GPU-driven、1440p、120 fps、Ray Tracing、Path Tracing、Neural Rendering、Vendor Reconstructionは追加laneで検証し、最低要件へ暗黙昇格させない。
+
+| Lane | CPU／Memory | GPU | 必須測定 |
+|---|---|---|---|
+| `desktop_advanced_nvidia_v1` | Ryzen 7 7800X3D、32 GiB DDR5-6000 CL30 | GeForce RTX 5070 12 GB | 1440p60、1080p120、DLSS、RT／Neural |
+| `desktop_advanced_amd_v1` | 同上 | Radeon RX 9070 16 GB | 1440p60、1080p120、FSR、RT／Neural |
+| `desktop_advanced_intel_v1` | 同上 | Intel Arc B580 12 GB | 1440p60、1080p120、XeSS、RT／Neural |
+
+SSDはSamsung 990 PRO 2 TB、Windows power／HAGS／Game Mode／VSync条件は14.1節と同じとする。Renderer Qualification Ownerは、実装計画で各SKUを取得した時点の最新WHQL driverを公式配布元から取得し、installer SHA-256、package version、DXGI version、VBIOS、motherboard BIOSを`AdvancedRendererBaselineV1`へ固定する。値が未記録のlaneを実行済みまたはProduction qualifiedと表示しない。
+
+Advanced Rasterの追加Gateは2560×1440 real 60 fpsと1920×1080 real 120 fpsである。3840×2160 display 60 fpsはQualified Temporal Reconstructionを使用できるが、real frameが60 fps deadlineを満たすことを必要とし、Frame Generationで合格を代用しない。Vendor固有Capabilityは対応するlaneで個別判定し、一Vendorの成功を他Vendorへ一般化しない。
+
 全percentileはwarm-upを除く全sampleを昇順にし、nearest-rank `ceil(p × N)`番目を採る。5 runのmedianは各run値を昇順にした3番目である。CPU timestampはQueryPerformanceCounter、GPU passはD3D12 timestamp queryとqueue frequencyで測り、CPU／GPU相関には`GetClockCalibration`を使用する。
 
 Android／AppleのReference条件はRetail model名ではなくモバイル規約18.3節のCapability Signature laneを使う。30／60 fpsのP95、deadline miss 1%以下、10分run、30分thermal soak、2時間enduranceを実機で測定し、Emulator／Simulator値で代用しない。Platform timestampはmonotonic clockとVulkan／Metal GPU timestampをAdapterが共通nanosecondへ変換し、変換精度とavailabilityをmanifestへ記録する。
@@ -996,6 +1053,20 @@ Nav pathfinding、Asset decode、Shader compile等のworker jobは上表へ計�
 
 2D sceneも同じ上限で測定するが、未使用の3D pass budgetを別機能の無制限な余裕として扱わない。2D専用baselineを保持する。
 
+高度機能の初期incremental soft capを次に固定する。これらは追加予算ではなく、上表のPassを置換または内包する内数である。Profile compilerは同時選択したPassのworst-case合計と2.00 ms headroomが14.00 msへ収まらないProfileを拒否する。
+
+| Advanced pass group | GPU P95 soft cap | 計上先 |
+|---|---:|---|
+| Temporal Reconstruction／Upscale | 1.50 ms | Post／Exposureを置換 |
+| Frame Generation execution | 2.50 ms | base GPU frame外のpresent metricとして別記録 |
+| RT Shadow＋Reflection | 2.50 ms | Shadow、Lightingの内数 |
+| RTGI／Radiance Cache | 3.00 ms | Lighting、Environmentの内数 |
+| Neural Reconstruction／Denoise | 2.00 ms | 対象RT／Post passの内数 |
+
+Frame Generationは`real_fps`と`displayed_fps`を分離し、generated frameをCPU／GPU frame P95、Simulation deadline、Capability gateのsampleへ含めない。base real frameのCPU／GPU P95が16.67 ms以下、10分runのdeadline miss 0、real render rate 60 fps以上の場合だけ有効にできる。
+
+120 fps TargetはCPU／GPU P95 soft 7.00 ms、deadline 8.33 msを使う。Path Tracing Editor Referenceはこのframe budgetを使わず、samples／pixel、収束時間、reference image error、peak GPU memoryを別Gateにする。Runtime Path Tracingは専用Profileが60 fps hard acceptanceへ合格するまでProduction Capabilityにしない。
+
 ### 14.5 Capability gate
 
 CapabilityをC2 Productionへ昇格するには、次をすべて満たす。
@@ -1006,6 +1077,32 @@ CapabilityをC2 Productionへ昇格するには、次をすべて満たす。
 4. baseline比でframe P95が5%かつ0.2 msを超えて悪化しない。
 5. memory peak／allocation countがbaseline比5%を超えて悪化しない。
 6. 意図的なbaseline更新にはBefore／After、原因、品質差、人間承認がある。
+7. Native Raster CapabilityはTemporal Reconstruction／Frame Generation無効でもhard acceptanceを満たす。
+8. Vendor ProviderはSDK／model／driver／署名／license lockとbridge baselineを持つ。
+9. 新最適化経路は同一fixtureでP95が5%以上かつ0.20 ms以上改善し、visual／memory／fault regressionがない。
+
+### 14.6 統合密度fixtureと制作Gate
+
+Subsystem単体の最大値を別々のrunで満たしただけでは、大量戦闘の成立証明にしない。各Projectは`RuntimeScaleIntentV1`から、実際に同時発生し得る次の負荷を一つの決定論的`IntegratedScaleFixtureV1`へ生成する。
+
+- resident／visibleなstatic、dynamic、decorative object
+- 敵、味方、projectile、interactive propのpeak live数
+- 最悪の合法な1 tickおよび1秒spawn／destroy列
+- Physics contact、Navigation request、Animation、Gameplay Logicの同時peak
+- 敵味方双方のhit、trail、area、projectile、explosion VFXとAudio／Camera presentation
+- Camera移動、streaming cell境界、LOD遷移、Asset promotionが重なる区間
+
+fixtureはGame Briefで承認された最大同時性を下回ってはならず、Runtime Compilerが個数を丸めて合格しやすくしてはならない。2D／3D機能計画の組込みfixtureは最低比較線であり、Projectの上限ではない。Project intentが組込みfixtureを超える場合はProject固有fixtureを優先する。
+
+測定は14.1節の120秒×5、10分soak、Target別実機条件を使い、次をすべて満たす。
+
+1. frame、Subsystem、memory、queue、descriptor、VFX overdrawの既存hard gateに合格する。
+2. authoritative spawn、Damage、collision、goal eventのdropが0である。
+3. `GameplayStateStore`、Replay hash、敵味方の最終countと結果がReference simulationと一致する。
+4. Presentation degradationを発生させた場合、drop／LOD／quality切替が規定priorityどおりで、重要なcombat cueの最低可視性を満たす。
+5. spawn frame、streaming境界、VFX burstのCPU／GPU P99.9 spikeが14.2節を満たす。
+
+不合格時はSourceを削除せず`OptimizationRequired`にする。AIは、spatial partition、streaming、instance／batch、HLOD、pool予約、hot／cold分離、simulation LOD、aggregate VFX、CPU／GPU VFX、overdraw削減の順に候補を作り、同一fixtureでBefore／Afterを測定する。Presentation-only変更で合格できなければ、Gameplay変更案を自動Commitせず人間へ提示する。Targetを外す判断も人間承認を必要とする。
 
 ## 15. failureとrecovery
 
@@ -1034,6 +1131,8 @@ CapabilityをC2 Productionへ昇格するには、次をすべて満たす。
 | Audio presentation overflow | enqueue | 低priority soundだけdrop | critical command維持、counter |
 | Save失敗 | temp write／flush／replace | in-memory state変更なし | target／backup／journalを検証し、最新valid generationへ回復 |
 | AI／Editor ChangeSet不正 | validation | Authoring state変更なし | field単位errorと修正案 |
+| Scale intentに有効なRepresentation Planがない | Source／Cook validation | Source revision維持、Play／Package promotionなし | `OptimizationRequired`として候補、cost差、未達Gateを提示 |
+| 統合密度fixture不合格 | Profile Gate | Qualified Artifact／Package変更なし | 同一fixtureで自動最適化を再測定。Gameplay変更とTarget除外は人間承認 |
 
 ### 15.2 GameplayDefinition transaction
 
@@ -1098,6 +1197,7 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 - Asset cache hit、build／promotion latency、stale version、retire待ち
 - Physics body／contact／event、Nav request／stale result、Animation instance
 - GameplayDefinition evaluation／node visit、Capability call、state transaction、task、memory、budget fault
+- Scale intent、Representation別authored／resident／active／visible count、spawn／destroy peak、pool hit／miss、streaming／simulation LOD遷移、Optimization Receipt
 - Audio callback P99、queue、underrun
 - GPU committed、resident、Platform budget、D3D12MA／VMA／Metal allocation、descriptor／binding使用量
 - surface generation、orientation、drawable取得失敗、memory pressure、thermal、frame pacing、audio route／interruption
@@ -1118,7 +1218,7 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 | Memory | Domain cap、貸借期限、OOM injection、arena reset、zero-live |
 | Replay | input＋async acceptance tickから同一state hash |
 | Failure injection | queue overflow、cancel race、GameplayDefinition budget fault、Save write／flush／replace各段階のProcess killとrecovery、hot reload非互換 |
-| Performance | 2D／3D Reference scene、allocation count、queue peak、10分soak |
+| Performance | 2D／3D Reference scene、Project固有Integrated Scale Fixture、allocation count、queue peak、spawn／streaming／VFX burst spike、10分soak、authoritative drop 0 |
 | Mobile lifecycle | suspend／resume、surface再作成、process kill Save recovery、rotation／resize、audio interruption |
 | Mobile endurance | physical device memory、30分thermal、2時間endurance、16 KiB／archive package |
 
@@ -1156,6 +1256,9 @@ AIがLevel 0の自然言語指示からGameplayDefinitionまたはC++を選ん�
 - NativeGameModule（Project C++）は公開Domain Port、Runtime Contract、handle／lease APIだけを利用する。
 - AI生成C++が新phase、queue、thread、memory Domain、public dependencyを追加する提案はArchitecture Changeとして人間承認を必要とする。
 - performanceを理由にraw pointer、global singleton、vendor型、phase外mutationへ迂回しない。
+- AIは大量という要求を固定個数上限へ即時変換せず、総配置、peak live／visible、spawn burst、interaction範囲、敵味方VFX同時性、Gameplay fidelity floorへ分解し、`RuntimeScaleIntentV1`とTarget別Representation Planを提示する。
+- AIはPresentation-onlyのinstance／batch／HLOD／streaming／VFX qualityを自動提案できるが、敵味方数、Damage、collision、navigation、goal、spawn timingを下げて性能合格を作らない。これらの変更は`GameplayScaleChangeProposalV1`と人間承認を必須にする。
+- AIが「最適化済み」「快適」と表示できるのは、対象Targetの`IntegratedScaleFixtureV1`に最新の合格Receiptがある場合だけである。cost estimateだけの場合は`Predicted`、未達は`OptimizationRequired`と表示する。
 - C++が必要かどうかはGameplay Capability Contract、Capability gap、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。必要Budget fieldが存在しなければBlockingとし、同一fixtureを10分×3回測定して最悪P95／peak／deadline missで判定する。
 - 構造化実装のP95とpeakが割当Budgetの80%以下かつdeadline miss 0なら維持し、80–100%はCook／index／layout最適化とC++候補を比較し、100%超またはmiss発生時にC++候補を作る。C++化の改善が5%未満または測定Noise内なら構造化実装を維持する。閾値変更はBenchmarkとADRを要する。
 - 生成物は同じunit、property、ASan、performance、dependency gateを通過するまでCommitしない。

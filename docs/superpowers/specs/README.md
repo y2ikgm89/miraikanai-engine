@@ -23,18 +23,19 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Editor UI／UX | C++23の独自`MiraUI Core`＋`MiraEditor Shell`。Retained UIと限定typed Immediate Canvasを併用し、Scene／Canvas、Hierarchy／Outliner、Inspector、Asset、Source、Console、AI Partnerをdock、resize、floating、入替、multi-monitor、複数Workspace保存できる |
 | Game UI／AI UI | HUD／画面UIは型付き`UiDocument`を正本とし、手動操作とAI提案を同じChangeSetへ収束させる。C1はBuiltin＋`UiCompositeDefinition`、C2はoffline compileする`UiEffectGraph`＋A1／R3承認済み`UiNativeWidget`。生成画像はStaging、来歴、license、安全性、import／cook、Preview、承認を経由する |
 | 初心者UX | `AI Creator` Workspaceを同じEditor内に用意し、AI Partnerを常設可能にする。Production／Debug／Art／Level Design等のWorkspaceへ切替可能 |
-| Graphics | Windows Direct3D 12、Android Vulkan、Apple Metal。Engine-owned Render Graph、Material／Shader IR、Target別offline shader cookを使う |
-| Light／Shadow | AIと人間はL0 Intent、L1 Profile、L2型付きShadow Graph、L3承認済みProject Techniqueを同じ正本で編集する。ResolverがStyle、Target、budgetからSDF／CSM／atlas／cache／Virtual／選択的RTを説明可能なPlanへ解決し、Mobileは従来方式、Windows HighはGate後のVirtual、L3／RTはC3へ分離する |
+| Graphics | Windows D3D12、Android Vulkan、Apple Metal。Portable Rasterを基準に、GPU indirect／HZB／HLOD、Hybrid Deferred、Temporal Reconstruction、DLSS／XeSS／FSR／MetalFX、Frame Generation、RT Shadow／Reflection、RTGI、Path Tracing、Neural RenderingをEngine-owned契約＋交換可能Adapter＋個別Qualificationで段階導入する |
+| Light／Shadow | AIと人間はL0 Intent、L1 Profile、L2型付きShadow Graph、L3承認済みProject Techniqueを同じ正本で編集する。ResolverがStyle、Target、budgetからSDF／CSM／atlas／cache／Virtual／選択的RTを説明可能なPlanへ解決する。Mobileは従来方式、Windows HighはGate後のVirtualを基準とし、選択的RT Shadow／ReflectionはC2個別Gate、L3 Project TechniqueとRTGI／Path TracingはC3個別Gateへ分離する |
 | 表現 | 2D、3D、`realistic_basic`、Realistic advanced、Toon、独自`pixel_diorama`を段階実装し、AI Visual Style ResolverがCapabilityとbudget内で選択する |
 | Particle／VFX | 単一の型付きVFX Asset／Graph IRから2D／3D・CPU／GPU専用Artifactをoffline生成する。初心者Stack、上級者Graph、AIは同じSourceを編集し、VFX結果をGameplayへ逆入力しない |
 | Water | C1 bounded surfaceからC2 lake／river／oceanへ段階導入し、Surface／Wave／Flow／Depth／UnderwaterとCPU Queryを専用Platformが所有する。GPU水面を浮力へ逆入力しない |
 | Weather／Snow | Weather Snapshot、降雪VFX、Snow Surfaceを分離する。C1静的mask、C2 dynamic fieldを提供し、摩擦等はauthoritative Gameplay Surface Stateが所有する |
 | Environment | Sky／Atmosphere／Fog／Cloud／IBLを`EnvironmentProfileV1`へ統合する。AIは意味IntentとPresetを提案し、Engineが物理値、Capability、Target、budget、lockを検証してDerived ArtifactへCookする |
 | 必須Subsystem | Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text／Localization／Accessibility、Audio、Particle／VFX、Lighting、Sky／Atmosphere／Fog／Cloudを正式仕様で所有する |
-| 外部Library | Engineの正規data model、Capability、validation、lifecycle、serialization、Editor UXは独自所有する。OS、Graphics API、Box2D、Jolt、Recast、GPU allocator等は検証してAdapter内へ隔離し、再発明しない |
+| 外部Library | Engineの正規data model、Capability、validation、lifecycle、serialization、Editor UXは独自所有する。OS、Graphics API、Box2D、Jolt、Recast、GPU allocator、DirectSR、DLSS／Streamline、XeSS、FSR、MetalFX等はversion／hash／署名／license／実機Gate後にAdapter内へ隔離し、再発明しない |
 | Physics Platform | 独自World／Body／Joint／Character／Command／Save／AI契約をC++23で所有し、2DはBox2D 3.1.1、3DはJolt 5.6.0をprivate kernel候補としてQualification後にProduction昇格する。Game／AIへVendor APIを公開しない |
 | Navigation Platform | 2D GridはEngine-owned、3Dは独自契約＋交換可能Backendとし、Recast／Detour 1.6.0をC1 private基準Backendにする。Profile、Artifact envelope、status、version／lease、AI／Editorを独自所有し、Vendor ref／binaryを公開しない |
 | Memory／Pointer | RAII、明示所有権、generation handle、phase／epoch lease、memory domain、GPU deferred destruction、Target別budgetを正規規約にする |
+| 大量制作／性能 | 大量配置、敵味方spawn、同時VFXを固定個数だけで制作拒否しない。AIがScale intentをFull Entity、simulation LOD、pool、instance、HLOD、streaming、CPU／GPU VFXへTarget別Cookし、Gameplayを黙って削らず統合負荷fixtureで実測する |
 | 対象Platform | Windows Editor／Gameを先行し、Android、iOS／iPadOSを順に追加する。Mobile Editor、Linux製品Target、multiplayer、XRは初期対象外 |
 | MVP | MVP-AはAIで作る2D top-down action、MVP-Bは3D compact third-person action arena。Android／Apple vertical sliceはその後に行う |
 | AIによるEngine保守 | Game制作AIに加えてEngine本体の実装・保守AIを対象にするが、隔離Source Worker、Risk class、Review、Promotion、署名分離を満たすまで高権限操作を公開しない |
@@ -54,6 +55,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Light、Shader、Material、Toon／Realistic／Pixel Diorama | Rendering規約と2D／3D機能計画 |
 | Sky、Atmosphere、Fog、Cloud、Environment Lighting、AI環境設定 | Environment Platform規約、Rendering規約、2D／3D機能計画 |
 | 2D／3D Particle、CPU／GPU VFX、VFX Graph、AI／Editor編集 | 独自Particle／VFX Platform規約と2D／3D機能計画 |
+| 大量配置、大量spawn、敵味方同時VFX、AI自動最適化 | Runtime連携・寿命・性能規約、Rendering規約、Particle／VFX規約、2D／3D機能計画、Authoring Model規約 |
 | 水面、川、湖、海、波、流れ、水深、水中、浮力Query | Water Surface Platform規約と2D／3D機能計画 |
 | 雨、降雪、積雪、融雪、圧雪、足跡表示 | Weather／Snow Surface規約、Particle／VFX規約、2D／3D機能計画 |
 | Android、iOS／iPadOS、Build、Store、実機budget | モバイルPlatform規約 |
@@ -73,6 +75,8 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 - Waterは一般Transparent Material、Particle、Physicsへ暗黙分散させず、独自Water SourceからRender／CPU Query／Volume ArtifactをCookする方式に確定した。C1 bounded surface、C2 Body／wave／flow／depth／underwater、C3 fluid researchを分離した。
 - Weather／Snowは降雪Particle、地表積雪、Gameplay Surface Stateを分離し、version付きWeather SnapshotとPresentation Eventで接続する方式に確定した。C1 static mask、C2 paged dynamic field、C3 deformable snowを分離した。
 - EnvironmentはSky、Atmosphere、Fog、Cloud、IBLを一つのSource Platformへ統合した。自然言語Intentをversion付きPresetとtyped Overrideへ決定論的に解決し、AIへLUT、froxel、history、GPU resourceを公開しない。Weather、Water、VFX、Visual Style、Gameplayとの所有境界、Preview Receipt、Risk、Budget、AI Evalを専用仕様へ分離した。
+- 大量制作は通常objectを無制限に並べる方式でも、固定cap超過で制作意図を捨てる方式でもなく、Scale intent、Gameplay fidelity floor、Target別Representation Plan、`OptimizationRequired` Source状態、Project固有Integrated Scale Fixtureで管理する。Presentation-only最適化はAIが自動提案できるが、敵味方数、Damage、collision、goal、spawn timingの変更は人間承認を必須にした。
+- RendererはPortable Rasterを最低保証に維持し、GPU-driven、Temporal Reconstruction、Frame Generation、RT／Path／NeuralをEngine-owned frame／ray／model契約へ統合した。Vendor SDKは一つのProviderがSR／FG／Latency ownershipを持ち、real frame性能、署名、license、visual、latency、fault、実機Gate合格前にProduction表示しない。
 - 本レビューは文書内部の整合確認であり、Engine実装完了または技術成立の実測証明ではない。実装開始には本Review setのユーザー承認と、別のPhase 0実装計画書の承認が必要である。
 
 ### 0.3 見直し結論と未実証項目
@@ -93,6 +97,8 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Weather Snapshot、降雪VFX、static／dynamic Snow Surface、Gameplay分離 | Phase 6 C1 snow fixture、C2 dynamic field qualification、Mobile thermal Gate | 該当Snow CapabilityをProduction表示しない |
 | Environment Intent Resolver、Preset、Atmosphere LUT、Volumetric Fog／Cloud、AI Preview、Target fallback | C0 resolver／contract fixture、Phase 6 C1 Environment、Production Environment Qualification、Mobile thermal Gate | 該当Environment CapabilityをManifestへ掲載せず、AIに選択させない |
 | 2D／3Dのframe、memory、visual、physics／navigation連携 | Phase 3／6 reference scene、10分soak、golden capture | 対応CapabilityをC1へ昇格しない |
+| 大量配置＋spawn burst＋Physics／Nav／Animation＋敵味方VFXの同時成立 | Phase 3 `2d_crowded_battle_v1`、Phase 6 `3d_crowded_battle_v1`、Project固有Integrated Scale Fixture、Target実機soak | Sourceを維持して`OptimizationRequired`、Play／Package promotion停止。Gameplay変更とTarget除外は人間承認 |
+| GPU indirect／HZB／HLOD／meshlet、DLSS／XeSS／FSR／MetalFX、Frame Generation、RTGI／Path／Neural | Renderer R2～R9、Vendor別hardware、visual／latency／signature／license／fault／bridge baseline | Portable Rasterへfallbackし、該当Provider／CapabilityをProduction表示しない |
 | Android／AppleのStore、実機、thermal、package | Phase 7 physical device／package／privacy Gate | 対象Platformを配布Targetへ昇格しない |
 | AI生成品質、安全性、Provider更新耐性 | MVP-A以降のTask Eval、holdout、adversarial、Promotion Gate | 対象Risk classまたはProviderを有効化しない |
 
@@ -144,11 +150,11 @@ Miraikanai Engineの公式Review setは次の29文書である。上位のProduc
 | C++23・Named Modules移行規約 | C++23 Profile、Named Module名、`import std`、CMake、Ninja Generator matrix、Make非対応、BMI、Header例外、AI依存表現、Apple Build分離、CX0→CX3 Cutover Gate |
 | Authoring Model／Project State規約 | Authoring Document、ProjectRevision、ChangeSet、transaction、journal、recovery、唯一の状態変更経路 |
 | 実行可能契約規約 | Requirement、Type、Operation、State、Capability、Schema projection、Codegen |
-| Runtime連携規約 | Tick、Writer、Command／Event／Snapshot、寿命、Asset version、Budget、Failure |
+| Runtime連携規約 | Tick、Writer、Command／Event／Snapshot、寿命、Asset version、Budget、Scale intent／Representation Plan、統合密度Gate、Failure |
 | 2D／3D機能計画 | 2D／3D Capability範囲、成熟度、Visual Style、各Subsystemの製品上の到達点 |
 | NativeGameModule規約 | 公開ABI、Target別link方式、Build／Promotion、GameHost restart、信頼境界 |
 | Asset Pipeline／Content Package規約 | Source／Import／Derived／Package、Importer隔離、Catalog／VFS、Cook、Patch／DLC、AI Asset来歴 |
-| Rendering／Render Graph規約 | RenderSnapshot、extract、Render Graph、resource／pass／access、Backend、同期、device loss |
+| Rendering／Render Graph規約 | RenderSnapshot、extract、individual／instanced／spatial／presentation表現、Render Graph、resource／pass／access、Backend、GPU visibility、Temporal Reconstruction／Frame Generation Provider、RT／Path／Neural、同期、device loss、Renderer Qualification |
 | Environment Platform／AI Authoring規約 | Sky／Atmosphere／Fog／Cloud／Environment LightingのSource、Intent、Preset、AI／Editor Operation、Validator、Preview、Compiler、Artifact、Budget、Diagnostic、Qualification |
 | 独自Particle／VFX Platform規約 | VFX Asset／Emitter／Graph／IR、2D／3D・CPU／GPU specialization、Runtime、Renderer binding、AI／Editor、Budget、Diagnostic、Qualification |
 | Water Surface Platform規約 | Water Body／Surface／Volume、Wave／Flow／Depth、CPU Query、Underwater、VFX／Physics境界、Budget、Qualification |

@@ -1,6 +1,6 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.8
+- 文書版: 1.9
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
@@ -533,6 +533,23 @@ Apple:
 
 AIがMaterialを生成する際は、選択TargetすべてのCapability intersectionでcompile／resource count／precision testを行う。Target限定表現を選ぶ場合はfallback Materialと視覚差をChangeSetへ明示し、人間の承認を得る。
 
+### 10.6 Reconstruction、GPU-driven、RT／Neural Capability
+
+MobileもRenderer規約の`TemporalFrameInputV1`、`ResolvedRendererProfileV1`、Provider排他、history reset、real／displayed fps分離を使う。Desktop Providerの成功をMobile対応へ一般化しない。
+
+| Target | 初期基準 | 追加候補 | Production条件 |
+|---|---|---|---|
+| Android Baseline | FXAA／Mira TAAU、CPU frustum／instancing | Vulkan indirect、FSRの当該Technique | Vulkan Profile、driver、実機memory／thermal／visual Gate |
+| Android Standard／High | Mira TAAU、GPU indirect＋CPU fallback | HZB、FSR SR／FG、選択的Ray Query | TechniqueのVulkan配布物、署名／hash、10分／30分／2時間Gate |
+| Apple Baseline | FXAA／Mira TAAU | MetalFX Spatial | `supportsFamily`とAPI availability |
+| Apple Standard／High | MetalFX Temporal、Indirect Command Buffer | MetalFX Frame Interpolation／Denoised、Mesh Shading、Ray Tracing、Metal 4 ML | 個別feature query、Provider／model lock、実機Gate |
+
+DLSS／XeSS／Windows DirectSRをAndroid／Apple Capability Catalogへ掲載しない。FSR SDKにD3D12とVulkan実装が含まれていても、選択Technique、Android ABI、Vulkan feature、driver、thermalが実機で合格するまでAndroid Productionにしない。
+
+Frame Generationはbase real frameのCPU／GPU P95が16.67 ms以下、real 60 fps、deadline miss 1%以下、30分thermal、2時間enduranceへ合格した`mobile_high`だけに許可する。touch-to-photonは1000 fps以上のhigh-speed cameraで240 tap×5 runを撮影し、touch contact frameから指定flash領域の最初の輝度変化までを数える。nearest-rank P95のmedianがProvider無効時より8.33 msを超えて悪化せず、かつ83.33 ms以下を必須とする。測定receiptがなければlatency合格にしない。30 fps入力からdisplayed 60 fpsを生成して60 fps Capabilityと表示しない。Pixel-locked 2D、全画面Menu、Loading、Pause、camera cut、rotation／resize、surface再生成中は無効にする。
+
+Mobile RTGI、Path Tracing、Neural Shaderは実装対象から除外しないが、最低Targetへ要求しない。Apple／Androidの個別実機、memory、thermal、battery、fallback、Store package Gateを持つ`Experimental` Capabilityから開始し、Raster／probe／SSR／非Neural fallbackがない機能をShipping必須にしない。
+
 ## 11. Texture、Asset Cook、Content Delivery
 
 ### 11.1 Texture format
@@ -692,6 +709,8 @@ OS signalを`Nominal`、`Warm`、`Serious`、`Critical`へ正規化する。
 
 回復は一段ずつ、15秒以上安定してから行う。瞬間的なsignalで品質を往復させない。AIが生成したGame ruleはThermal governorを無効化できない。
 
+Thermal governorが自動で下げられるのはresolution、shadow、VFX、volumetric、streaming concurrency等のPresentation品質である。Runtime規約のGameplay fidelity floorに含まれる敵味方数、Damage、collision、goal、spawn timingを端末都合で黙って下げない。承認済みScale intentを実機で満たせないTargetは`OptimizationRequired`のままShippingせず、別のTarget別Gameplay envelopeを採用する場合は体験差と対象端末を人間が承認する。
+
 ### 14.4 Mobile graphics quality
 
 | 機能 | Baseline | Standard | High |
@@ -704,7 +723,9 @@ OS signalを`Nominal`、`Warm`、`Serious`、`Critical`へ正規化する。
 | Clouds | 2D layer | reduced volumetric optional | volumetric |
 | Particle | CPUまたは限定GPU | GPU particle | GPU particle高budget |
 | Reflection | probe | probe＋SSR optional | probe＋SSR |
-| Anti-alias | FXAA | TAA／FXAA | TAA |
+| Anti-alias／Upscale | FXAA／Mira spatial | TAA／Mira TAAU／MetalFX temporal | Mira TAAU／Qualified FSR・MetalFX |
+| Frame Generation | Off | Off | Qualified `mobile_high`だけ |
+| RT／Neural | Off | Off | 個別Experimental／Qualification後。Raster fallback必須 |
 
 この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず一段下げる。2D C1はBaselineで全機能を成立させ、3D C1はscalable subsetを成立させる。
 
@@ -861,6 +882,7 @@ Retail model名だけで固定せず、Capability Signatureでlaneを定義す�
 - touch、multi-touch、controller connect／disconnect、IME、audio route／interruption
 - offline、network loss、Asset download中断／再開／hash不一致
 - memory pressure、GPU allocation失敗、thermal soak、battery saver
+- Project固有Integrated Scale Fixtureによる大量配置、敵味方spawn、Physics／Navigation／Animation、同時VFX。Presentation縮退時もauthoritative result一致
 - 10分performance、30分thermal、2時間endurance
 - Android 16 KiB package、Apple archive／privacy、Store size
 - Shader全variant compile、golden image、Target fallback
@@ -982,6 +1004,9 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 - [`MTKView`](https://developer.apple.com/documentation/MetalKit/MTKView)
 - [Metal capabilities](https://developer.apple.com/metal/capabilities/)
 - [Metal feature set tables](https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf)
+- [MetalFX](https://developer.apple.com/documentation/metalfx)
+- [Improving game graphics performance and settings](https://developer.apple.com/documentation/metal/improving-your-games-graphics-performance-and-settings)
+- [Metal ray tracing](https://developer.apple.com/documentation/metal/accelerating-ray-tracing-using-metal)
 - [Reducing the memory footprint of Metal apps](https://developer.apple.com/documentation/metal/reducing-the-memory-footprint-of-metal-apps)
 - [Precompiling a Metal shader library](https://developer.apple.com/documentation/metal/building-a-shader-library-by-precompiling-source-files)
 - [Metal developer tools for Windows](https://developer.apple.com/metal/tools/)
@@ -1014,6 +1039,7 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 - [KTX-Software 4.4.2](https://github.com/KhronosGroup/KTX-Software/releases/tag/v4.4.2)
 - [Oboe 1.10.0](https://github.com/google/oboe/releases/tag/1.10.0)
 - [Opus codec downloads](https://opus-codec.org/downloads/)
+- [AMD FSR SDK](https://gpuopen.com/manuals/fsr_sdk/)
 
 ## 24. 未確定事項の扱い
 

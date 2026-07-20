@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.3
+- 文書版: 2.4
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -36,6 +36,8 @@
 映像表現は、`scene_dimension`（2D／3D／Hybrid）、`art_direction`（Realistic／Toon／Pixel等）、`composition`（Native／Pixel Diorama等）、`shading_model`（PBR／Toon／Unlit等）を独立して扱う。2DをPixel表現、3DをRealistic表現と同一視しない。自然言語で「HD-2D風」と要求された場合は、特定製品を模倣する名前や実装を正規dataへ保存せず、「2D Pixel Artと3D空間を合成する」という一般要件へ分解し、独自の`pixel_diorama` Composition Profileとして実現する。
 
 すべてのkernelを自作する方針は採らない。Miraikanai Engineが独自に所有するのは、公開Capability、正規data model、Editor UX、AI command、validation、lifetime、serialization、fallbackである。Collision solver、3D Navmesh polygon生成／query、GPU heap suballocationなど、検証済みLibraryが安全性と開発速度を大きく改善する部分はAdapter内で利用する。Navigationは独自契約＋交換可能Backendとし、2D GridはEngine-owned、3D C1はRecast／Detour 1.6.0をprivate基準Backendにする。Game programming modelはC++23と`GameplayDefinition`に固定し、First-party C++公開境界はNamed Modules＋`import std`へ一方向移行する。汎用Game scripting runtimeは導入しない。
+
+大量配置、大量spawn、敵味方の同時VFXは、固定個数を超えたら制作不可にする機能ではない。AIとRuntime CompilerがGameplay上の意味を保ったまま、Full Entity、simulation LOD、pool、instance、HLOD、streaming、CPU／GPU VFXへTarget別に解決する。ただし、無限の同時Full Simulationを保証するのではなく、Projectが宣言した最大ゲーム体験を統合負荷試験で実測し、未達Targetを「最適化済み」と表示しない。
 
 ## 2. Capability成熟度
 
@@ -114,6 +116,20 @@ Diagnostics
 - `BakeEnvironmentLighting`
 
 CommandはStable ID、base project revision、型付き引数、precondition、推定costを持つ。Engineが生成したpreviewとDiffだけをCommit候補にする。
+
+#### 3.4.1 大量制作IntentとAIの責務
+
+AIは「敵を大量に」「街を埋める」「弾幕」「味方と敵が一斉に魔法を使う」を、単一のobject countへ短絡しない。最低限、総配置、最大同時存在、最大可視、1 tick／1秒spawn burst、interaction範囲、敵／味方／中立、戦闘cue別VFX同時数、Target、Gameplay fidelity floorへ分解する。
+
+AIは次の順で制作する。
+
+1. Game BriefへScale intentと、敵数、Damage、collision、goal、timing等の変更禁止項目を記録する。
+2. Runtime規約のRepresentation PlanとRenderer規約のindividual／instanced／spatial／presentation分類を生成する。
+3. 予測costを表示し、Project固有Integrated Scale Fixtureを生成する。
+4. Target実測が未合格なら`Predicted`または`OptimizationRequired`と明示し、instance、partition、streaming、pool、LOD、VFX aggregate／GPU化を再提案する。
+5. Presentation-only最適化で合格できない場合、Gameplay変更またはTarget除外を自動Commitせず、体験差を人間へ提示する。
+
+有名Engineが通常object経路とは別にUnity Entities／GPU Instancing、Unreal Mass／HLOD／World Partition／Niagara Scalability、Godot Server／MultiMeshを持つ構造を参考にする。ただしMiraikanaiでは、利用者に実装方式を選ばせるのではなく、AIが意味分類と候補を作り、Engineのtyped contractと実測Gateが安全性を決定する。
 
 ### 3.5 映像表現の正規四軸
 
@@ -412,8 +428,9 @@ Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Ga
 - AIが自然言語からlevel、rule、UI、`GameplayDefinition`を生成
 - 人間がInspector、Graph、table／form、必要時はC++で修正後、AIが差分を保持して再編集
 - 1080p60、10,000 visible sprite、500 dynamic physics bodyのReference stress scene
+- `2d_crowded_battle_v1`: 上記描画／Physics負荷と同じrunで、256 active combat entity、1秒に128 enemy／ally spawn、128 active VFX emitter、16,384 alive particle、同一tick 2,048 particle burst、hit／trail／projectile／area／explosion、Audio／Camera cueを再生
 
-Stress sceneはgameplay sceneと分離し、同時にすべてを要求しない。Reference hardwareでP95 frame time 16.67 ms以内、GPU／CPUいずれも継続的budget超過なしを合格条件とする。
+`2d_crowded_battle_v1`では大量配置、spawn、Gameplay、Physics、敵味方VFXを分離runに逃がさず同時に要求する。Reference hardwareでP95 frame time 16.67 ms以内、GPU／CPUの継続budget超過なし、authoritative event drop 0、Replay結果一致を合格条件とする。この個数はC1の最低組込みfixtureであって製品上限ではない。ProjectのScale intentが上回る場合はProject固有fixtureで再Qualificationする。
 
 ## 6. 3D RuntimeとEditor
 
@@ -435,10 +452,11 @@ Stress sceneはgameplay sceneと分離し、同時にすべてを要求しない
 
 #### C2: Mesh／World Rendering Advanced
 
-- GPU-driven instance culling
-- Occlusion culling
+- GPU frustum／LODとindirect instance culling
+- 前real frame HZBによるconservative occlusion culling
 - HLOD
-- Meshlet／indirect pathはfeature query後に任意
+- CPU direct fallbackを持つBackend別indirect draw
+- portable meshlet artifact。Mesh Shader／Work Graphは個別Qualification後の任意path
 - Streaming cell
 - Terrain、foliage、Water C2 Body／Surface
 - Reflection probe
@@ -452,10 +470,12 @@ glTFはinterchange formatであり、Runtime source of truthにしない。Impor
 Render GraphをC0で作り、resource lifetime、state transition、queue、aliasingをcompileする。
 
 - **C1**: Forward+ opaque／masked、forward transparent、depth prepassを基本とする。
-- **C2**: Deferred opaque lightingを追加し、Material／quality profile単位でForward+と選択するHybrid rendererにする。
+- **C2**: Deferred opaque lighting、GPU-driven visibility、Temporal Reconstructionを追加し、Material／quality profile単位でForward+と選択するHybrid rendererにする。
+- **C2 optional**: DLSS／XeSS／FSR／MetalFX、Frame Generation、Ray Traced Shadow／ReflectionをRenderer規約のProvider／Qualification Gate後に選択できる。
+- **C3**: RTGI、Path Tracing、Ray Reconstruction、Neural Denoising／Radiance Cache／Shaderを個別Capabilityとして段階昇格する。
 - Compute、copy、direct queueをRender Graphが依存関係からscheduleする。
 - Render pathは同じMaterial IRとlighting data contractを使う。
-- Ray tracingはC3 optional pathであり、raster fallbackを必須とする。
+- 全てのRT／Neural pathはRaster／非Neural fallbackを必須とし、Frame Generationをbase frame性能合格へ使用しない。
 
 Forward+を最初にする理由は、透明、MSAA、2D／3D合成を一つの実装で成立させ、最初の縦切りを過剰に広げないためである。多数lightと複雑なopaque materialの実測が必要になった段階でDeferred pathを加える。
 
@@ -758,7 +778,9 @@ Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposure
 - High-quality depth of field
 - Screen-space ambient occlusion
 - Screen-space reflection
-- Upscaling adapter
+- Engine `TemporalFrameInputV1`、Mira TAAU、DirectSR、DLSS／XeSS／FSR／MetalFX Adapter
+- Provider別Frame GenerationとLatency Adapter
+- Reactive／Composition mask、HUD-less Color、UI分離、camera cut／dynamic extent reset
 - HDR10 output
 
 Effectの順序はPost Process Graphで固定し、AIは登録済みnodeと範囲検証済みparameterだけを編集する。Temporal effectにはhistory invalidation contractを必須とする。
@@ -904,8 +926,24 @@ Game ruleはclip名文字列へ依存せず、Animation Capabilityとsemantic ta
 - AIが自然言語からarena、rule、UI、`GameplayDefinition`、Asset設定を生成
 - Inspector、Scene View、Graph、table／form、NativeGameModule Capabilityの手動修正
 - 2,000 visible mesh instance、100 dynamic rigid body、50 navigation agentのstress scene
+- `3d_crowded_battle_v1`: 上記描画／Physics／Navigation負荷と同じrunで、50 active combat actor、1秒に32 enemy／ally spawn、64 active VFX emitter、32,768 alive particle、同一tick 2,048 particle burst、hit／trail／projectile／area／explosion、Animation／Audio／Camera cueを再生
 
-Reference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU memory 2 GiB以内、GPU Project budget内を合格条件とする。
+`3d_crowded_battle_v1`はReference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU memory 2 GiB以内、GPU Project budget内、authoritative event drop 0、Replay結果一致を合格条件とする。この個数はC1の最低組込みfixtureであって製品上限ではない。ProjectのScale intentが上回る場合はProject固有fixtureで再Qualificationする。
+
+### 6.10 Advanced Rendererの公式Fixture
+
+Advanced Capabilityは3D arenaだけで合格させず、次のRenderer専用fixtureを固定する。Gameplay SimulationのEntity保証数とは分離し、Snapshot、visible packet、draw／dispatch、triangle、material、light、skin、history、streaming負荷をmanifestへ保存する。
+
+| Fixture | 正規負荷 | Target Gate |
+|---|---|---|
+| `Horde2DRendererC2V1` | 50,000 visible sprite、200,000 candidate、512 atlas／texture-array layer、256 material packet、透明overdraw 4.0以下 | Windows baseline 1080p60 |
+| `RpgTownRendererC2V1` | 5,000 visible mesh instance、200 skinned character、12,000,000 visible triangle、1,024 material、512 visible local light | Advanced lane 1440p60 |
+| `OpenWorldVisibilityC2V1` | 100,000 candidate instance、5,000 visible、HLOD／cell streaming、camera cut／teleport | Advanced lane 1440p60、CPU direct fallback一致 |
+| `TemporalAdversarialC2V1` | thin geometry、foliage、particle、transparent、emissive、skinning、急加速、camera cut、dynamic extent、HDR、UI | Native TAAと全Qualified Providerのvisual／history Gate |
+| `RayTracingInteriorC3V1` | dynamic emissive／area／local light、glossy reflection、alpha test、skinned object、RTGI cache invalidation | Provider別RT／denoiser Gate |
+| `PathTracingReferenceC3V1` | 同じMaterial BSDF、Light、Camera、EnvironmentをRaster／RT／Pathで共有 | convergence、reference error、peak memory |
+
+`Horde2DRendererC2V1`は50,000体のGameplay、Physics、AIを保証しない。大量Entity gameplayはRuntime／Collision／Domain Packの別fixtureを必要とする。`RpgTownRendererC2V1`の全local lightへshadowを要求せず、Shadow Profileのface-equivalent上限を同時に適用する。
 
 ## 7. Particle／VFX
 
@@ -942,7 +980,7 @@ GPU particleはvisual effectであり、gameplayの正規状態やSaveへ使用�
 
 ### 7.1 Particle公式Budget Profile
 
-`ParticleBudgetProfile::ReferenceV1`を次に固定する。alive／spawn上限は全Emitter合計と各Emitterの両方を検査し、超過分を黙って間引かない。Editor preview／AI ChangeSetは`BudgetExceeded`で拒否し、Shippingで突発的に上限へ達した場合だけ`priority desc, screen_influence desc, emitter StableId asc, particle_spawn_id asc`の末尾を生成しない。
+`ParticleBudgetProfile::ReferenceV1`を次に固定する。alive／spawn上限は全Emitter合計と各Emitterの両方を検査し、超過分を黙って間引かない。Game Brief／Scale intentとVFX SourceはTarget budget超過だけで破棄せず`OptimizationRequired`として保持するが、対象TargetのPreview実行、Cook、Shipping promotionは有効なRepresentation Planができるまで拒否する。Shippingで突発的に上限へ達した場合だけ、Engine解決済み`priority desc, screen_influence desc, emitter StableId asc, particle_spawn_id asc`の末尾を生成しない。
 
 | 項目 | C1 CPU | C2 CPU | C2 GPU |
 |---|---:|---:|---:|
@@ -1493,6 +1531,7 @@ Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`を使用する�
 | 項目 | Low | Medium | High |
 |---|---|---|---|
 | Renderer | Forward+ | Forward+ | Hybrid選択可 |
+| Visibility | CPU frustum／LOD | GPU indirect＋HZB、CPU fallback | GPU indirect＋HZB＋HLOD、Qualified meshlet任意 |
 | Shadow | 少数、低解像度 | CSM＋atlas | 高解像度＋area approximation |
 | Atmosphere | Cubemap | LUT | LUT＋dynamic IBL |
 | Fog | Height | Half-res volumetric | High-quality volumetric |
@@ -1500,8 +1539,12 @@ Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`を使用する�
 | Particle | CPU／低上限 | GPU standard | GPU high budget |
 | Water | bounded surface＋IBL | analytic wave＋probe | analytic wave＋probe／SSR＋underwater |
 | Snow Surface | static mask | dynamic field reduced | dynamic field full |
-| Reflection | Probe | Probe＋SSR | Probe＋SSR＋optional RT |
-| Anti-alias | FXAA | TAA | TAA／upscaler |
+| Reflection | Probe | Probe＋SSR | Probe＋SSR＋Qualified RT |
+| GI | Lightmap／probe | Lightmap／probe | Qualified RTGI／Radiance Cache、probe fallback |
+| Anti-alias／Upscale | FXAA | TAA／Mira TAAU | TAAU／Qualified DLSS・XeSS・FSR・MetalFX |
+| Frame Generation | Off | Off | Qualified Provider。real 60 fps必須 |
+| Path Tracing | Off | Off | Editor Reference。Runtimeは専用C3 Gate後 |
+| Neural Rendering | Off | Off | Qualified denoise／reconstruction／cache、非Neural fallback必須 |
 | Realistic material | Basic PBR | Basic PBR | Advanced PBR featureを選択可 |
 | Toon outline | Inverted hull低上限 | Inverted hull | Inverted hull／screen-space |
 | Pixel composition | Point＋integer scale | Point＋integer scale | Point＋integer scale。品質低下で変更しない |
@@ -1547,10 +1590,16 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 17. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
 18. Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
 19. C2 Water Body／Query／Underwater、dynamic snow field
-20. Hybrid deferred path、streaming、terrain／foliage
-21. Domain Pack拡張
-22. Store-readyなdata-only Runtime generation
-23. Project Shadow Technique L3、Hardware Ray Traced Shadow、FFT／shallow-water、deformable snow、Multiplayer／large world／ray tracingは個別C3 Gate後
+20. GPU indirect、HZB、HLOD、streaming、portable meshlet artifactとCPU direct比較
+21. Hybrid deferred path、terrain／foliage、Advanced Renderer Fixture
+22. `TemporalFrameInputV1`、Mira TAAU、DirectSR、DLSS／XeSS／FSR／MetalFXをProvider別にQualification
+23. Frame Generation、Latency Provider、UI／pixel-locked分離、real 60 fps Gate
+24. Hardware Ray Traced Shadow／Reflection、acceleration structure、Raster fallback
+25. RTGI／Radiance Cache、Editor Reference Path Tracer、Ray Reconstruction／Neural Denoising
+26. Neural Radiance Cache／Shader、Runtime Path Tracing、Work Graphは個別C3 Gate後
+27. Domain Pack拡張
+28. Store-readyなdata-only Runtime generation
+29. Project Shadow Technique L3、FFT／shallow-water、deformable snow、Multiplayer／large worldは個別C3 Gate後
 
 2Dと3Dの全機能を先に並行実装しない。共有基盤→2D complete loop→3D complete loopの順で、毎段階にplayable resultを置く。
 
@@ -1632,6 +1681,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | Hillaire 2020 atmosphere paper | Transmittance、multiple scattering、sky-view、aerial perspectiveを分離したscalable LUT構成とEarth係数を公開している | `ReferenceEarthV1`のsource係数とLUT fixtureに採用し、Engine schema、更新境界、resource capは独自規範とする |
 | Frostbite 2015／Patry 2021 volumetric資料 | Participating mediaをfroxelへ統合し、低解像度grid、指数depth、temporal filteringで実用化している | Medium／Highの固定froxel上限、履歴破棄、2.00 ms Environment capを独自Profileとして検証する |
 | NVIDIA off-screen particle資料 | 大量のscreen-space particleはoverdraw／fill-rateが支配的になり、低解像度描画がtrade-offになる | alive数だけでなくPS invocation由来overdrawとGPU時間をC2 gateにする |
+| Unity Entities／GPU Instancing、Unreal Mass／HLOD／World Partition／Niagara、Godot Server／MultiMesh | 通常object経路とは別にdata-oriented entity、instancing、LOD／HLOD、streaming、pooling、VFX scalabilityを組み合わせる | Scale intentをTarget別Representation PlanへCookし、AIが方式候補を作り、Gameplay fidelity floorと統合実測Gateで採否を決める |
 | D3D12 Filter、Unity／GodotのPixel資料 | Point filtering、logical resolution、integer scalingがPixel edge保持に必要 | 640×360 fixture、Point、integer scale、letterbox、temporal分離を独自Profile contractとして固定 |
 | Unreal Virtual Shadow／RDG、Unity SRP／Custom Pass、Godot Shadow／Compositor資料 | Virtual page／clipmap／cache、高水準設定からcustom pass／pipelineまでの拡張層、Renderer別Capabilityと2D occluderの公開方式がある | coverage比較だけに使い、共通Intent／Resolver、L0～L3、Target別Backend、budget／fallbackを独自契約として採用 |
 | NPR一次論文／NVIDIA技術資料 | Ramp shading、outline、view-dependent contour等は複数方式で、共通の単一Toon物理規格ではない | Toonを独立Shading Modelとし、Key Light、Ramp、Outline、Art／Animation Profileを独自に規範化 |
@@ -1683,7 +1733,14 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [ozz-animation Documentation](https://guillaumeblanc.github.io/ozz-animation/)
 - [Godot Dedicated 2D Engine](https://docs.godotengine.org/en/stable/about/list_of_features.html#dedicated-2d-engine)
 - [Godot Multiple Resolutions and Integer Scaling](https://docs.godotengine.org/en/stable/tutorials/rendering/multiple_resolutions.html)
+- [Godot Optimization using Servers](https://docs.godotengine.org/en/stable/tutorials/performance/using_servers.html)
+- [Godot Optimization using MultiMeshes](https://docs.godotengine.org/en/stable/tutorials/performance/using_multimesh.html)
 - [Unity 2D Pixel Perfect](https://docs.unity3d.com/6000.0/Documentation/Manual/com.unity.2d.pixel-perfect.html)
+- [Unity GPU Instancing](https://docs.unity3d.com/Manual/gpu-instancing-enable.html)
+- [Unity Entities Entity Command Buffer](https://docs.unity.cn/Packages/com.unity.entities%401.0/manual/systems-entity-command-buffers.html)
+- [Unreal Engine Mass Gameplay Overview](https://dev.epicgames.com/documentation/en-us/unreal-engine/overview-of-mass-gameplay-in-unreal-engine)
+- [Unreal Engine World Partition](https://dev.epicgames.com/documentation/unreal-engine/world-partition-in-unreal-engine)
+- [Unreal Engine Niagara Scalability](https://dev.epicgames.com/documentation/en-us/unreal-engine/scalability-and-best-practices-for-niagara)
 - [Unreal Engine Virtual Shadow Maps](https://dev.epicgames.com/documentation/en-us/unreal-engine/virtual-shadow-maps-in-unreal-engine)
 - [Unreal Engine Render Dependency Graph](https://dev.epicgames.com/documentation/en-us/unreal-engine/render-dependency-graph-in-unreal-engine)
 - [Unity URP Custom Render Pass workflow](https://docs.unity3d.com/Manual/urp/renderer-features/custom-rendering-pass-workflow-in-urp.html)
@@ -1696,6 +1753,6 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [NVIDIA GPU Toon Shading](https://developer.download.nvidia.com/assets/gamedev/docs/GDC2K_GPU_Toon_Shading.pdf)
 - [Square EnixによるHD-2Dの説明](https://www.jp.square-enix.com/column/detail/101/)
 
-Microsoft資料はHLSL／DXIL／D3D12 bindingの契約、Khronos資料はPBR interchangeとconformance、Filament資料はreal-time BRDFの比較検討、NPR論文とNVIDIA資料はToon技法の比較検討に使用する。Unreal／Unity／Godot資料はShadow方式、Renderer拡張層、2D／3D coverageの比較確認に使用し、そのAPI、型、Editor UXをMiraikanaiの正規契約へ転用しない。Square Enix資料はユーザー語「HD-2D」がPixel Artと3D CGの融合を指すことの確認にだけ使用する。
+Microsoft資料はHLSL／DXIL／D3D12 bindingの契約、Khronos資料はPBR interchangeとconformance、Filament資料はreal-time BRDFの比較検討、NPR論文とNVIDIA資料はToon技法の比較検討に使用する。Unreal／Unity／Godot資料は大量表現経路、Shadow方式、Renderer拡張層、2D／3D coverageの比較確認に使用し、そのAPI、型、Editor UXをMiraikanaiの正規契約へ転用しない。Square Enix資料はユーザー語「HD-2D」がPixel Artと3D CGの融合を指すことの確認にだけ使用する。
 
 既存Engineや製品の資料はcoverage確認にだけ使う。Miraikanai Engineの型、Scene、Editor command、serialization、lifecycle、Profile parameter、既定値を既存製品へ合わせる根拠にはしない。
