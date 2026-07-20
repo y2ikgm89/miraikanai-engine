@@ -1,6 +1,6 @@
 # Miraikanai Engine Input／Action／Device規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 対象: Keyboard、Mouse、Controller、Touch、Pointer、Action Mapping、Remap、Haptics、Replay
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -293,7 +293,63 @@ Persistent 8 MiBはRuntime規約のCore World／Saveにあるsnapshot／bridge 3
 
 C1完了条件は、同じ2D／3D ProjectがWindows keyboard／mouse／controller、Android touch／controller、Apple touch／controllerでsemantic Actionを共有し、Remap、Text分離、Replay、disconnectを合格することである。
 
-## 15. 一次資料
+## 15. 実装計画への引渡し
+
+最初の着工単位はC1全Platformの一括実装ではなく、共通契約からWindows 2D First Playableまでの縦切りとする。Android／Apple AdapterはWindows縦切りのGate合格後に別実装計画へ分解し、共通契約を変更せず追加できることを開始条件にする。
+
+実装計画は次の3 Work Packageへ分割する。各Work Packageは独立したReview、Test、Commit、Gateを持ち、後続Packageが前段の未検証内部実装へ依存することを禁止する。
+
+着工前提は、Phase 0 Foundation計画がrepository bootstrap、C++23 toolchain、Build Gateway、CMake component helper、`mira_runtime_contracts`、MCD meta-schema／Contract compiler、Result／Diagnostic、fixed phase、bounded queue、memory domainを実装し、それらのGate Receiptを発行済みであることとする。入力計画はこれらを重複実装せず、入力固有schema、component、fixture、Gateだけを所有する。Windows GameInput SDK artifact、version、hash、license、取得手順がDependency lockへ固定されていない場合、WP1を開始しない。
+
+### 15.1 WP0: C0共通契約
+
+対象はDevice／Action／Binding／Context／SnapshotのMCD、生成C++ value type、closed Control Catalog、Validator、canonical serialization、Result／Diagnostic、容量定数である。Platform SDK、GameInput header、Window handle、UI widgetを公開契約へ含めない。
+
+WP0の完了Gateを次に固定する。
+
+- 同一MCDからC++型とbinary descriptorを決定論的に生成できる。
+- Action 1,024件、Binding 4,096件、Context 32件、Snapshot 128 KiBの上限をValidatorとserialization testで強制する。
+- unknown field／enum、重複Stable ID、型不一致Binding、required Action未Binding、非finite値、範囲外値をtyped Diagnosticで拒否する。
+- Platform非依存fixtureから同じcanonical byte列とhashを得る。
+- Public header／Module interfaceにGameInput、Win32、Android、Appleの型またはheaderが漏れていない。
+
+### 15.2 WP1: Windows Input Runtime
+
+対象はGameInput Adapter、Device Hub、preallocated reading／connection queue、`T10_InputLatch`、Action resolver、Context／Focus／Consumption、Windows surface event、`ITextInputService`との分離conformanceである。TSF実装自体はEditor UI Framework／UI・Text計画が所有する。WP1はWP0の生成契約だけをconsumeし、GameInput objectとWin32 valueをAdapter外へ公開しない。
+
+WP1の完了Gateを次に固定する。
+
+- Keyboard、mouse、Xbox系／generic controllerのconnect、reading、disconnectを正規化できる。
+- 同一timestamp時のsequence順、duplicate除去、generation change、canonical release、最大16 transitionを決定論的に処理する。
+- Focus loss、disconnect、stale generation、invalid reading、queue overflowが本書12章どおりの結果になる。
+- Gameplay、Game UI、text entry、system Contextのpriorityとexclusive／focused／shared consumptionをfixtureで証明する。
+- Text／IME eventがAction Snapshotへ混入せず、keyboard readingから文字を生成しない。
+- Shipping callback／poll pathの一般heap allocation、filesystem、log formatting、unbounded lock waitが0件である。
+- Windows reference環境で`T00＋T10` P95 0.50 ms以下、そのうち`T10_InputLatch` P95 0.35 ms以下を満たす。
+
+### 15.3 WP2: Windows 2D First Playable統合
+
+対象はUser Remap、Binding capture、Accessibility setting、Replay、gamepad rumble、標準Game UI navigation、2D First Playable fixtureへの統合である。WP2で仮のkey polling、Device別Gameplay分岐、文字推測、Replay専用Action経路を追加しない。
+
+WP2の完了Gateを次に固定する。
+
+- keyboard／mouseだけ、およびcontrollerだけでTitle、Settings、Play、Pause、Result、Exitを完走できる。
+- Project DefaultとUser Remapを分離し、required Action、reserved shortcut、exclusive conflict、10秒capture timeout、Cancel保持を検証できる。
+- Toggle／hold切替、repeat timing、dead zone／sensitivityをUser settingとして保存・復元できる。
+- Replay中はPhysical Device readingがGameplayへ混入せず、同じAction Snapshot列とauthoritative state hashを得る。
+- Focus loss、controller disconnect、Play stopでrumbleを停止する。
+- 60／120 Hz displayと60 Hz simulationのinput-to-submit測定をReceiptへ記録する。
+- Input規約14章のWindows該当testがすべて成功する。
+
+### 15.4 依存関係とMobileへの引渡し
+
+依存順は`WP0 -> WP1 -> WP2`とする。WP1はWP0 Gate、WP2はWP1 GateのReceipt hashを入力に持つ。Gate不合格のPackageを後続がfallback、temporary flag、test skipで迂回してはならない。
+
+Android／Apple計画はWP2完了後に開始し、WP0のMCD、Action resolver、Context、Snapshot、Remap、Replayを再利用する。Platform固有差分はDevice Reading、surface／lifecycle event、text service、haptic Adapterへ限定する。Mobile対応のためにGame rule、Action ID、Replay formatをforkする変更は入力設計Reviewへ戻す。
+
+最初の実装計画ではtouch／gesture、virtual stick、mobile haptics、Android／Apple実機Gateを実装対象外とする。ただしWP0の型と容量は本書のC1共通上限を保持し、後続Adapterを妨げるWindows専用仮定を禁止する。C2のsensor、adaptive trigger、HD haptics、registered curve、および2章記載の別Device Capabilityは本実装計画へ含めない。
+
+## 16. 一次資料
 
 - [GameInput Introduction](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-overview)
 - [GameInput Readings](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-readings)
