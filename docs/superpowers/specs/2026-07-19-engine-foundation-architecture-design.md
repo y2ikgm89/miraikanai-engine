@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.13
+- 文書版: 1.14
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -11,6 +11,7 @@
 - Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
 - Rendering／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Editor／Player I/O規約: [Editor](./2026-07-19-editor-workspace-ux-design.md)／[独自Editor UI Framework](./2026-07-20-editor-ui-framework-architecture-design.md)／[Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
@@ -324,7 +325,8 @@ C++ Core GuidelinesのRAIIとownership規則を基準に、次を必須とする
 | 状況 | 使用する型 |
 |---|---|
 | 小さくscope内で完結する値 | value／stack object |
-| 単一所有 | `std::unique_ptr<T>` |
+| Engine内部の単一所有 | `std::unique_ptr<T>`またはmove-only RAII wrapper |
+| NativeGameModuleの単一所有 | `MiraUniqueOwner<T>`を生成factoryから取得 |
 | 真に複数所有される非同期寿命 | `std::shared_ptr<T>` |
 | 必須の借用 | `T&`／`const T&` |
 | 任意の借用 | `T*`／`const T*` |
@@ -337,7 +339,7 @@ C++ Core GuidelinesのRAIIとownership規則を基準に、次を必須とする
 以下を禁止する。
 
 - First-party codeの所有権を表すraw pointer
-- application codeでの明示的な`new`／`delete`、`malloc`／`free`
+- First-party application codeとProject C++での明示的な`new`／`delete`、`malloc`／`free`
 - Entity、Component、Asset、GPU resourceの寿命管理に`shared_ptr`を使うこと
 - addressのserialization、addressをStable IDとして使うこと
 - borrowの寿命を越えてpointer、reference、`span`、`string_view`を保持すること
@@ -346,6 +348,8 @@ C++ Core GuidelinesのRAIIとownership規則を基準に、次を必須とする
 `shared_ptr`は「便利だから」では使用しない。許可箇所は非同期tool jobの結果、immutable shared blobなど、複数の独立ownerが実在する場合に限り、Reviewでownerを列挙する。
 
 Placement new、Allocator内部のraw storage操作、C API境界は`engine/foundation`または該当Adapterのprivate implementationだけで許可する。RAII wrapper、alignment test、failure test、sanitizerを必須とし、呼出側へ所有raw pointerを返さない。
+
+Memory／Pointerの公開型、safe／unsafe境界、AI生成規則、`PointerContractV1`、`MemoryContractV1`はMemory／Pointer規約を正本とする。Project C++のpersistent allocationはNativeGameModule規約の`MiraMakePersistent`と`MiraUniqueOwner`だけを使用し、通常の`std::make_unique`がModule Memory Portを迂回することを許可しない。
 
 ### 5.3 Nullと結果
 
@@ -401,6 +405,8 @@ Memory resourceの実装構成は次に固定する。
 - `FailureMemoryResource`: N回目または指定sizeで失敗させるTest専用resource。
 
 `std::pmr::set_default_resource`でProcess全体の暗黙Allocatorを変更しない。`pmr` containerを所有するServiceはconstructorでresourceを受け取り、そのresourceがcontainerより長生きすることを型のcontractとTestで保証する。異なるmemory resource間へcontainerを移動する場合は明示的にcopy／move policyを指定する。
+
+各allocation siteはMemory／Pointer規約の`MemoryContractV1`または承認済みVendor Adapter mappingを持つ。identified hot pathの最終upstreamはbudget failureまたは`null_memory_resource`相当とし、Development／Shippingとも一般heapへ暗黙fallbackしない。
 
 `ASan` ConfigurationでCRT／OS allocatorを直接使うResourceはMSVC ASanのinterceptorを利用する。予約済みpageをsuballocateするArena／Poolは`sanitizer/asan_interface.h`の`ASAN_POISON_MEMORY_REGION`／`ASAN_UNPOISON_MEMORY_REGION` wrapperだけをFoundation Adapterから呼び、inactive／freed／reset済み領域をpoison、現在のallocationだけをunpoisonする。8 byte shadow granularityに必要なpaddingとalignmentをAllocator contractへ含め、1～64 byte、各alignment、red-zone越境、use-after-free、reset後access、double freeをASan fixtureにする。これを満たせない専用ResourceはASan Configurationで`SystemMemoryResource` passthroughへ切り替え、その相違をBuild Receiptへ記録する。Vendor allocator hookも同じASan-aware Resourceを経由し、専用AllocatorのためにASan Gateを省略しない。
 

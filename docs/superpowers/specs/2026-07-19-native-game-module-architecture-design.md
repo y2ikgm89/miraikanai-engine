@@ -1,6 +1,6 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Project C++、source／binary境界、entry point、lifecycle、Game UI extension、Build、Preview、Packaging
@@ -10,6 +10,7 @@
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+- Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 結論
@@ -196,7 +197,9 @@ MCDから生成するProject C++ APIは次を提供する。
 | Thread | Moduleによる作成、detach、thread-local service cacheを禁止 |
 | I/O | filesystem、socket、process、clockへの直接accessを禁止 |
 
-`new`／`delete`を構文として全面禁止しないが、Module-owned persistent objectは`MiraNativeMemoryPortV1`、per-tickはphase scratch arenaを使用する。Portから取得したblockは同じPortへ返し、cross-boundary objectをcaller側でdeleteしない。Shipping static linkでもこの規則を緩和しない。
+Project C++の明示的な`new`／`delete`、`malloc`／`free`を禁止する。Module-owned persistent objectは`MiraMakePersistent<T>(MiraNativeMemoryPortV1, tag_id, args...) -> Result<MiraUniqueOwner<T>>`だけで生成し、per-tick allocationはphase scratch Portだけを使用する。`MiraUniqueOwner<T>`はmove-onlyで、取得時のPort、size、alignment、tagを保持し、destructorで`T`を一度破棄して同じPortへblockを返す。copy、`release()`による所有raw pointer流出、別Portへの移管を提供しない。
+
+Module内部のPMR containerはMemory Portを包むmodule-owned `std::pmr::memory_resource` Adapterをconstructorで受け取る。通常の`std::make_unique`、default PMR resource、global operator newによってpersistent Portを迂回しない。cross-boundary objectをcaller側でdeleteせず、Shipping static linkでもこの規則を緩和しない。
 
 ## 6. Lifecycle
 

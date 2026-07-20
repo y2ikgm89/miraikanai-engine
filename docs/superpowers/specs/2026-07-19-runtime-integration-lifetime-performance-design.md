@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 2.1
+- 文書版: 2.2
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
@@ -8,6 +8,7 @@
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
@@ -571,6 +572,8 @@ Presentation品質だけのLOD、instance化、HLOD、culling、VFX quality vari
 
 owner外から直接slot tableを読むAPIを公開しない。
 
+公開APIのhandle、lease、viewはMemory／Pointer規約の`PointerContractV1`を持つ。resolveはowner context内でhandle kindごとの`Result<ReadLease<T>>`または`Result<ImmutableView<T>>`を返し、null object、native pointer、unchecked referenceへ暗黙変換しない。Project C++とAI生成C++はslot table layout、generation counter、owner registryへ到達しない。
+
 ### 9.2 borrow無効化表
 
 | borrow | 有効範囲 | 即時無効化条件 |
@@ -598,6 +601,8 @@ Job packetに許可するのは次だけである。
 - job専用memory resource
 
 World pointer、Component reference、borrowed span、GameplayStateStore内部pointer、native Physics body pointer、D3D12／Vulkan／Metal resource pointerをcaptureしない。Job開始時とcompletion統合時の二回、handleとversionを検査する。
+
+Contract compilerは`PointerContractV1.job_capturable`をJob packet schemaとC++ AST scanへ投影する。fieldが未登録、またはborrow／lease／writer／scratch blockを含むpacketはBuild時に拒否し、AIがcopy可否を推測しない。
 
 ### 9.4 Asset version
 
@@ -839,6 +844,8 @@ Job Object hard limit到達、child crash、timeoutでは当該treeを終了し�
 - `std::pmr::monotonic_buffer_resource::release()`後の全borrowは無効である。
 - Process global default `memory_resource`を変更しない。
 - hot pathでupstream fallbackが発生した場合、Developmentはそのframeを性能失敗として記録する。
+- hot pathの最終upstreamはbudget failureまたは`null_memory_resource`相当とし、Shippingでも一般heapへ暗黙fallbackしない。
+- すべてのallocation siteは`MemoryContractV1`または承認済みVendor Adapter mappingを持ち、Contract欠落をUnassigned Domainへ課金して継続しない。
 
 ## 12. GPU memory規約
 
