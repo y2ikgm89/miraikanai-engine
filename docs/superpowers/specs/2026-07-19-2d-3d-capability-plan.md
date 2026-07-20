@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.1
+- 文書版: 2.2
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -14,6 +14,7 @@
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Navigation規約: [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
 - Simulation連携規約: [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
@@ -32,7 +33,7 @@
 
 映像表現は、`scene_dimension`（2D／3D／Hybrid）、`art_direction`（Realistic／Toon／Pixel等）、`composition`（Native／Pixel Diorama等）、`shading_model`（PBR／Toon／Unlit等）を独立して扱う。2DをPixel表現、3DをRealistic表現と同一視しない。自然言語で「HD-2D風」と要求された場合は、特定製品を模倣する名前や実装を正規dataへ保存せず、「2D Pixel Artと3D空間を合成する」という一般要件へ分解し、独自の`pixel_diorama` Composition Profileとして実現する。
 
-すべてのkernelを自作する方針は採らない。Miraikanai Engineが独自に所有するのは、公開Capability、正規data model、Editor UX、AI command、validation、lifetime、serialization、fallbackである。Collision solver、Navmesh polygon処理、GPU heap suballocationなど、検証済みLibraryが安全性と開発速度を大きく改善する部分はAdapter内で利用する。Game programming modelはC++23と`GameplayDefinition`に固定し、First-party C++公開境界はNamed Modules＋`import std`へ一方向移行する。汎用Game scripting runtimeは導入しない。
+すべてのkernelを自作する方針は採らない。Miraikanai Engineが独自に所有するのは、公開Capability、正規data model、Editor UX、AI command、validation、lifetime、serialization、fallbackである。Collision solver、3D Navmesh polygon生成／query、GPU heap suballocationなど、検証済みLibraryが安全性と開発速度を大きく改善する部分はAdapter内で利用する。Navigationは独自契約＋交換可能Backendとし、2D GridはEngine-owned、3D C1はRecast／Detour 1.6.0をprivate基準Backendにする。Game programming modelはC++23と`GameplayDefinition`に固定し、First-party C++公開境界はNamed Modules＋`import std`へ一方向移行する。汎用Game scripting runtimeは導入しない。
 
 ## 2. Capability成熟度
 
@@ -332,7 +333,7 @@ Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcano
 
 2Dではgrid navigationとpolygon navigationを別backendとして提供する。
 
-Nav grid／query／obstacle snapshot／async resultのfield、phase、budget、stale結果破棄はSimulation連携規約を詳細基準とする。
+Nav grid／query／Profile／status／budget／Backend／AI／Editorは独自Navigation Platform規約、obstacle snapshot／async resultのphaseとstale結果破棄はSimulation連携規約を詳細基準とする。
 
 #### C1: 2D Navigation Core
 
@@ -367,9 +368,9 @@ AIがlevelを作る際はspawnからgoalまで、必須interaction point間、es
 | 1 assetのwalkable grid | 最大16,777,216 cell、cell payload 32 MiB、metadataを含むresident／serialized hard cap 34 MiB |
 | Agent radius | 0.40 m、schema範囲0～8 m。clearanceは`ceil(radius / cell_size)` |
 
-cell payloadはrow-major `cell_index = y * width + x`で、1 cell exactly 2 byteの`uint8 area_id`＋`uint8 clearance_cells`とする。`area_id=0`はblocked、1～255は256-entryのQ16.16 area-cost tableを参照する。clearanceは0～255 cellで飽和するが、Profileの必要clearanceを255超へ設定したAssetはcook errorにする。Path累積costは`uint64`で計算し、加算前overflow検査に失敗したqueryを`CostOverflow`とする。
+cell payloadはrow-major `cell_index = y * width + x`で、1 cell exactly 2 byteの`uint8 area_id`＋`uint8 clearance_cells`とする。2D／3D共通の`area_id=0`はblocked、1～63は64-entryのQ16.16 area-cost tableを参照し、64～255はinvalidとしてcook／loadを拒否する。clearanceは0～255 cellで飽和するが、Profileの必要clearanceを255超へ設定したAssetはcook errorにする。Path累積costは`uint64`で計算し、加算前overflow検査に失敗したqueryを`CostOverflow`とする。
 
-Tilemap cellとNavigation cellが一致しない場合、各Navigation cellが重なるcollision／blocked sourceを保守的ORで集約し、狭い障害を消さない。上限到達はpartial pathに偽装せず`SearchBudgetExceeded`、到達不能は`NoPath`、入力generation不一致は`StaleInput`を返す。Project Profile変更はgrid全体をDerived Assetとして再cookし、Play中の暗黙resampleを禁止する。2D／3D Navigationを併用するProjectでも、live Nav payload合計36 MiBとRuntime詳細規約13.1節のNavigation Domain内訳を超えてはならない。
+Tilemap cellとNavigation cellが一致しない場合、各Navigation cellが重なるcollision／blocked sourceを保守的ORで集約し、狭い障害を消さない。上限到達はpartial pathに偽装せず`SearchBudgetExceeded`、到達不能は`NoPath`、入力generation不一致は2D／3D共通の`StaleNavMesh`を返す。Project Profile変更はgrid全体をDerived Assetとして再cookし、Play中の暗黙resampleを禁止する。2D／3D Navigationを併用するProjectでも、live Nav payload合計36 MiBとRuntime詳細規約13.1節のNavigation Domain内訳を超えてはならない。
 
 ### 5.5 2D Animation
 
@@ -696,9 +697,9 @@ Physics determinismは同一version／platform／thread設定のreplay範囲で�
 
 ### 6.7 3D Navigation
 
-Recast／Detour 1.6.0でEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行う。
+独自Navigation契約と交換可能Backend Portを実装し、C1基準BackendとしてRecast／Detour 1.6.0、commit `6dc1667f580357e8a2154c28b7867bea7e8ad3a7`を使用する。RecastでEditor／cook時にNavmeshを構築し、DetourでRuntime queryを行う。Project C++、GameplayDefinition、AI、Editor、SaveへRecast／Detour型、polygon ref、status bit、tile binaryを公開しない。
 
-Build input、tile generation、query handle、dynamic obstacle、off-mesh connection、async publish、budget／failureはSimulation連携規約を詳細基準とする。
+Backend採用理由、Build input、Profile換算、tile／ref capacity、Artifact envelope、query status、dynamic obstacle、off-mesh connection、AI／Editor、Qualificationは独自Navigation Platform規約を正本とする。Physics snapshot、async publish、T00／T20、lease、global budgetはSimulation連携規約とRuntime詳細規約を正本とする。
 
 #### C1: 3D Navigation Core
 
@@ -744,11 +745,13 @@ Navmesh build resultはDerived Assetであり、source geometry、Agent Profile�
 | `detailSampleDist`／`detailSampleMaxError` | 1.20 m／0.10 m |
 | build filter | low-hanging obstacle、ledge span、low-height spanをすべて有効 |
 
-1 Navmesh versionは最大1,024 active tile、36 MiB cooked／resident data、1 tile 8,192 polygon、1 query node pool 4,096 node、corridor 2,048 polygon ref、straight path 256 pointとする。cook時にいずれかを超えたら分割済みWorld cellを要求し、値を切り捨てない。Detour queryのstatus bitを`Success | NoPath | PartialPath | SearchBudgetExceeded | StaleNavMesh | InvalidEndpoint`へ正規化し、`PartialPath`はrequestが`allow_partial=true`のときだけ成功扱いにする。Runtime request／result各4,096／tickと、2D／3D live payload合計36 MiBを含むNavigation Domain 64 MiB内訳はRuntime詳細規約11.2節／13.1節を優先する。
+1 Navmesh versionは全layer合計で最大1,024 loaded Detour tile slot、36 MiB cooked／resident data、1 tile 4,096 polygon、1 query node pool 4,096 node、corridor 2,048 polygon ref、straight path 256 pointとする。標準32-bit `dtPolyRef`ではtile／polygon／saltが10／12／10 bitとなり、Detour 1.6.0の最低10 salt bitを満たす。旧値8,192 polygonはsaltが9 bitとなり初期化失敗するため禁止する。cook時にいずれかを超えたら分割済みWorld cellを要求し、値を切り捨てない。
 
-EngineのNav areaは`uint8` 0～63、0をblocked、1をwalkable defaultとし、Detourの6-bit areaへ同値変換する。area traversal multiplierはfiniteな`[0.0625, 64.0]`、既定1.0で、0または負値を「通行不可」の別表現にしない。Point projection half-extentsは`(2.0, 4.0, 2.0) m`、endpointがこのbox内のpolygonへprojectできなければ`InvalidEndpoint`とする。Custom extentは各軸0.01～100 mで、query payloadへ明示する。
+Detourのhigh-level successだけで成功判定せず、detail bitとEngine validationを`Success | NoPath | PartialPath | InvalidRequest | InvalidEndpoint | SearchBudgetExceeded | CostOverflow | StaleNavMesh | QueueFull | Cancelled | BackendFailure`へ正規化する。`DT_OUT_OF_NODES`または`DT_BUFFER_TOO_SMALL`は`SearchBudgetExceeded`であり、`PartialPath`へ格下げしない。`PartialPath`はrequestが`allow_partial=true`のときだけ利用可能とする。Runtime request／result各4,096／tickと、2D／3D live payload合計36 MiBを含むNavigation Domain 64 MiB内訳はRuntime詳細規約11.2節／13.1節を優先する。
 
-Agent Profile変更はsource geometry hashが同じでも全tileを再cookする。AIは登録済みProfileの選択、area cost、typed off-mesh linkを編集できるが、voxel値、tile header、polygon refを直接指定しない。Custom Profileは上記式とschemaを通し、予測cook memory、build時間、clearance fixtureをpreviewして人間の承認後だけProject既定へ昇格できる。
+EngineのNav areaは`uint8` 0～63、0をblocked、1をwalkable defaultとし、Detourの6-bit areaへ同値変換する。area traversal multiplierはfiniteな`[0.0625, 64.0]`、既定1.0で、cook時に`round_ties_to_even(multiplier*65,536)`のQ16.16へ正規化する。0または負値を「通行不可」の別表現にしない。Point projection half-extentsは`(2.0, 4.0, 2.0) m`、endpointがこのbox内のpolygonへprojectできなければ`InvalidEndpoint`とする。Custom extentは各軸0.01～100 mで、query payloadへ明示する。
+
+Agent Profile変更はsource geometry hashが同じでも全tileを再cookする。AIは登録済みProfileの選択、area cost、typed off-mesh linkを編集できるが、voxel値、tile header、polygon refを直接指定しない。Custom Agentは`cs=clamp(radius/2,0.05,0.50)`、`ch=cs/2`、`walkableHeight=ceil(height/ch)`、`walkableRadius=ceil(radius/cs)`、`walkableClimb=floor(climb/ch)`、`tileSize=64`、`borderSize=walkableRadius+3`、detail sampleを`6*cs`／`ch`として一意に導出する。voxel field範囲はNavigation規約8.4節を満たし、予測cook memory、build時間、clearance fixtureをpreviewして人間の承認後だけProject既定へ昇格できる。
 
 ### 6.8 3D Animation
 
@@ -1421,7 +1424,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 5. 2D Canvas、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition cooker／C++ evaluator、Box2Dとmanual vertical slice
 6. TypeScript AI Orchestrator、named-pipe IPC、OpenAI Provider、VisualStyleResolverを含むAI editing loop
 7. 外部MCP、Codex／Claude Plugin
-8. 3D mesh、`realistic_basic`、Forward+、Jolt、Recast、animation
+8. 3D mesh、`realistic_basic`、Forward+、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
 9. `realistic_basic` 3D compact action arena
 10. Android GameActivity／Vulkan／Oboe／touch／AABで同じ2D C1
 11. Apple UIScene／Metal／AudioUnit／touch／TestFlightで同じ2D C1
@@ -1474,7 +1477,10 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | High-end表現で低Tierが破綻 | Quality Profileと明示fallback |
 | AIが過大なLight／Particle／Nav変更を作る | Cost宣言、budget validation、preview、approval |
 | Physics libraryへProject dataが固定 | Engine componentとAdapter、独自serialization |
-| Navmeshがsource of truthになる | Derived Assetとして再生成 |
+| Navmeshがsource of truthになる | 独自Navigation契約とEngine envelopeを正本にし、Source＋ProfileからDerived Assetとして再生成 |
+| Recast／DetourがProject／AI APIへ漏れる | Backend-only include／link、MCD／Save／binary scan、Vendor refをquery内で破棄 |
+| 32-bit Detour ref capacityが成立しない | 1,024 tile×4,096 polygon、10 salt bitをProfile Validatorとinit fixtureで固定 |
+| 完全自作Navigationが目的化して3D完成を遅らせる | C1はRecast基準Backend。自作は同一契約で機能／性能Evidenceとrollbackを満たすC3 Gateだけ |
 | GPU particleがgameplayを壊す | Gameplay stateとの分離 |
 | Shader自由度がdriver hangを招く | Graph優先、隔離compile、検証、budget |
 | AIがGenreだけで画風を決める | 正規四軸、判断優先順位、High Impact確認、Decision Ledger |
@@ -1506,7 +1512,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | Box2D公式Manual／FAQ | Solver toleranceはMKSを前提に調整され、pixelを物理単位にすることは非推奨 | 2D World／Physicsをmeterで統一し、`pixels_per_unit`は描画Asset変換だけに使う |
 | Box2D Simulation | 60 Hzは通常高品質で、推奨sub-step countは4、精度向上例は8 | C1既定4、schema範囲1～8、Play開始時固定 |
 | Jolt Simulation Step | 60 Hz／1 collision stepで一般に安定し、`Update`完了時に内部Jobはjoin済み | C1既定1、schema範囲1～2、Engine worker bridgeを共有 |
-| Recast `rcConfig` | `cs`はAgent radiusの1/2または1/3がstarting guidanceで、小さいほどbuild costが急増する。fieldごとにworld／voxel単位と範囲が異なる | Human Profileの`cs=radius/2`、meterからvoxelへの丸め式、tile／query／memory上限を本書で固定 |
+| Recast `rcConfig`／Detour source | `cs`はAgent radiusの1/2または1/3がstarting guidanceで、小さいほどbuild costが急増する。fieldごとにworld／voxel単位と範囲が異なる。標準32-bit refはtile／poly／saltへbit分割し、salt 10 bit未満を拒否する | Human Profileの`cs=radius/2`、meterからvoxelへの丸め式、1,024 tile×4,096 polygon、query／memory上限をNavigation規約で固定 |
 | Hillaire 2020 atmosphere paper | Transmittance、multiple scattering、sky-view、aerial perspectiveを分離したscalable LUT構成とEarth係数を公開している | `ReferenceEarthV1`のsource係数とLUT fixtureに採用し、Engine schema、更新境界、resource capは独自規範とする |
 | Frostbite 2015／Patry 2021 volumetric資料 | Participating mediaをfroxelへ統合し、低解像度grid、指数depth、temporal filteringで実用化している | Medium／Highの固定froxel上限、履歴破棄、2.00 ms Environment capを独自Profileとして検証する |
 | NVIDIA off-screen particle資料 | 大量のscreen-space particleはoverdraw／fill-rateが支配的になり、低解像度描画がtrade-offになる | alive数だけでなくPS invocation由来overdrawとGPU時間をC2 gateにする |
@@ -1549,7 +1555,10 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [Jolt Physics Documentation](https://jrouwe.github.io/JoltPhysics/)
 - [Jolt Physics Simulation Step](https://jrouwe.github.io/JoltPhysics/#the-simulation-step)
 - [Recast Navigation Repository](https://github.com/recastnavigation/recastnavigation)
+- [Recast Navigation 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0)
 - [Recast `rcConfig` reference](https://recastnav.com/structrcConfig.html)
+- [Detour NavMesh 1.6.0](https://github.com/recastnavigation/recastnavigation/blob/v1.6.0/Detour/Include/DetourNavMesh.h)
+- [Detour NavMesh initialization 1.6.0](https://github.com/recastnavigation/recastnavigation/blob/v1.6.0/Detour/Source/DetourNavMesh.cpp)
 - [Production Ready Atmosphere Rendering, EGSR 2020](https://sebh.github.io/publications/egsr2020.pdf)
 - [Towards Unified and Physically-Based Volumetric Lighting in Frostbite, SIGGRAPH 2015](https://advances.realtimerendering.com/s2015/)
 - [Real-Time Samurai Cinema, SIGGRAPH 2021](https://advances.realtimerendering.com/s2021/jpatry_advances2021/index.html)

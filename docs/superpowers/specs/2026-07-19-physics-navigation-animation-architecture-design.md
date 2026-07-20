@@ -1,11 +1,12 @@
 # Miraikanai Engine Physics／Navigation／Animation連携規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
-- 対象: PhysicsとNavigation／Animationの連携、Navigation build／query、2D／3D Animation graph／pose
+- 対象: Physics、Navigation、Animation間の固定phase連携、2D／3D Animation graph／pose
 - 状態: プロジェクト公式の規範設計レビュー版
 - Physics正本: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Navigation正本: [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
 - Collision正本: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
@@ -19,7 +20,7 @@ Physics、Navigation、Animationは相互にpointerを渡す一体型Subsystem�
 
 - PhysicsのWorld、Dynamics、Joint／Constraint、Character Motor、Backend、Save／Replay、AI／Editorは独自Physics Platform規約を正本とする。
 - Collision shape、filter、query、contactはCollision規約を正本とする。
-- Navigation mesh／gridは再生成可能なDerived Assetであり、Worldの正本ではない。
+- NavigationのProfile、2D Grid、3D Navmesh、Backend、Artifact、query、AI／Editorは独自Navigation Platform規約を正本とする。本書はPhysics／Animationとのphase連携だけを所有する。
 - Animation GraphはMiraikanai独自のtyped graphであり、ozz-animationはoffline／sampling／blend primitiveとしてAdapter内で使う。
 - Box2D、Jolt、Recast／Detour、ozzのID、pointer、callback、serializationをProject、AI、Saveへ公開しない。
 
@@ -31,7 +32,7 @@ Physics、Navigation、Animationは相互にpointerを渡す一体型Subsystem�
 | Tick、writer、event順、queue、handle、budget、promotion | Runtime規約 |
 | Physics World、Solver、Dynamics command、Joint／Constraint、Character Motor、Backend、Save／Replay | 独自Physics Platform規約 |
 | PhysicsとNavigation／Animationのtyped連携 | 本書Physics連携節 |
-| 2D grid／3D navmesh、query、avoidance、link | 本書Navigation節 |
+| 2D grid／3D navmesh、Backend、Artifact、query、avoidance、link、AI／Editor | 独自Navigation Platform規約 |
 | Clip、Graph、state、root motion、pose、event、IK境界 | 本書Animation節 |
 | C1／C2 feature listとReference Scene | 2D／3D機能計画 |
 
@@ -62,114 +63,47 @@ Physics World、Solver Profile、Dynamics Command、Joint／Constraint、Charact
 6. VFX、Audio、Cameraはnormalized Event／version付きQuery Resultを読み、Physicsのauthoritative結果へwrite backしない。
 7. Failed Physics tickはTransform、Event、Nav obstacle、Animation inputを部分publishしない。
 
-# Part II: Navigation
+# Part II: Navigation連携
 
-## 5. 正規Navigation model
+## 5. Navigation公開境界
 
-| Object | 役割 |
+Navigationの正規object、2D Grid、3D Build、Backend lock、Artifact envelope、query status、capacity、failure、AI／Editor、Qualificationは独自Navigation Platform規約を唯一の正本とする。本書は次のSubsystem間連携だけを決める。
+
+| Producer | 出力 | Consumer／時点 | 禁止 |
+|---|---|---|---|
+| Static Collision／Asset | `NavSourceSetV1`が参照するsource revision | offline Navigation cook | native shape／mesh pointer共有 |
+| Physics | 前tick完了済み`NavObstacleSnapshot`の入力値 | Navigation 次tick`T20` | 同tickWorld／Body pointer共有 |
+| Gameplay／NativeGameModule | bounded `NavQueryRequestV1` | Navigation worker | Detour API／polygon ref直接利用 |
+| Navigation | version付き`NavQueryResultV1` | 次tick以降のGameplay `T20` | World Transform直接write |
+| Navigation／Crowd C2 | desired velocity proposal | Character Motor 次の`T40` | authoritative Transform write |
+| Navigation | immutable `NavigationDebugSnapshotV1` | Editor／Rendering | live Backend query |
+
+## 6. 固定phaseとversion
+
+1. Static sourceとProfileから作るGrid／Navmeshは再生成可能なDerived Assetであり、Worldの正本ではない。
+2. Build／rebuildはstaging generationで完了させ、影響tile closureのseam、connectivity、memory、reference query合格後だけ`T00`で一括交換する。
+3. Runtime requestはdispatch時の`NavMeshVersion`を持ち、workerはそのversionのread leaseだけを使用する。
+4. Resultは最短でも次tickの`T20`でrequest ID順に統合し、active version、owner generation、deadlineを再検査する。
+5. version不一致、owner失効、deadline超過resultはWorldへ配送しない。
+6. C2 dynamic obstacleは前tick`T60`後のPhysics snapshotを次tick`T20`で取込み、同tickPhysics結果を参照しない。
+7. Navigation resultとCrowd proposalはCharacter Motorの入力であり、NavigationがTransform writerにならない。
+
+## 7. Cross-Subsystem failure
+
+| Failure | 連携側の処理 |
 |---|---|
-| `NavAgentProfile` | radius、height、climb、slope、query／avoidance設定 |
-| `NavSourceSet` | Static geometry、Collision source revision、area marker |
-| `NavAreaProfile` | area ID、Q16.16 cost、flags、semantic tag |
-| `NavModifier` | blocked／area override、bounded shape |
-| `NavOffMeshLink` | start／end、direction、radius、typed traversal action |
-| `NavBuildProfile` | grid／voxel、tile、region、simplification、hard cap |
-| `CookedNavWorld` | Target／Agent別immutable Derived Asset |
-| `NavObstacleSnapshot` | 前tick Physics transformから作るdynamic obstacle values |
-| `NavQueryRequest／Result` | async typed message |
-
-Navmesh polygon ref、`dtPolyRef`、Recast／Detour object pointer、worker query objectをWorld、Save、AIへ保存しない。
-
-## 6. 2D Navigation
-
-### 6.1 Grid C1
-
-`GridNav2DProfile::ReferenceV1`は2D／3D機能計画の値を正本とし、次を実行契約に固定する。
-
-- 0.25 m cell、8近傍、corner cutting禁止
-- `uint8 area_id`＋`uint8 clearance_cells`の2 byte cell
-- Q16.16 cost、octile heuristic
-- tie-breakは`f, h, canonical cell index`昇順
-- query node 65,536、path cell 8,192、Asset 16,777,216 cell／34 MiB
-- Agent radiusから`ceil(radius / cell_size)` clearance
-
-A* open set、visited、parentはquery-local bounded memoryである。Budget超過を`NoPath`へ偽装せず`SearchBudgetExceeded`を返す。Start／Goal cellがblockedまたはclearance不足なら`InvalidEndpoint`とする。
-
-### 6.2 Polygon C2
-
-2D polygon navigation、hierarchical graph、flow field、local avoidanceはC2で別Capability IDを持つ。Grid C1 save／requestを同じbinaryへreinterpretしない。
-
-## 7. 3D Navigation
-
-### 7.1 Build
-
-Recast 1.6.0をoffline builderとして使い、次のstageをArtifact Receiptへ記録する。
-
-```text
-Source collect
--> Rasterize heightfield
--> Walkable filter
--> Compact heightfield
--> Erode by agent radius
--> Distance／region partition
--> Contour
--> Polygon mesh
--> Detail mesh
--> Detour tile data
--> Validation query
-```
-
-`NavAgentProfile::HumanReferenceV1`、Recast `rcConfig`値、tile／polygon／memory／query上限は2D／3D機能計画6.7節を正本とする。Source geometry、static transform、Collision source revision、Agent／Build Profile、builder version、Toolchain hashからArtifactKeyを作る。
-
-Build中のpartial tileをlive NavWorldへpublishしない。影響tileと境界隣接tileのclosureをStagingし、seam、connectivity、memory、reference queryを合格後、`T00`で`CookedNavWorld` generationを一度に交換する。
-
-### 7.2 Runtime query
-
-```text
-NavQueryRequest
-  request_id
-  nav_world_version
-  agent_profile_id
-  start/end
-  projection_half_extents
-  area_mask/cost_table
-  allow_partial
-  max_nodes/max_corridor/max_points
-  deadline_tick
-  owner_generation
-```
-
-Resultは`Success | NoPath | PartialPath | SearchBudgetExceeded | StaleNavMesh | InvalidEndpoint | QueueFull | Cancelled`のclosed status、projected endpoints、corridor Stable representation、straight path point、cost、visited countを持つ。
-
-Detour query objectとnode poolはworker／jobごとに分離する。同一`dtNavMeshQuery`をparallel jobで共有しない。ResultはRuntime規約どおり最短でも次tickの`T20`でrequest ID順に統合し、version／owner／deadlineを再検査する。
-
-### 7.3 Dynamic obstacleとlink
-
-- C1 Runtimeは既存Nav上のcost、goal、typed off-mesh link enabled stateだけを変更できる。
-- C2 TileCache obstacleは前tick`T60`後の`NavObstacleSnapshot`を次tick`T20`で取込む。
-- 同tickPhysics resultをNavへ直接参照しない。
-- Door、jump、climb linkは任意callback名でなく`TraversalActionId`を持つ。
-- Traversal開始前にlink generation、entry／exit clearance、Capabilityを再検査する。
-- AIはpolygon、tile binary、Detour refを生成しない。
-
-### 7.4 Crowd／avoidance
-
-DetourCrowdとlocal avoidanceはC2であり、authoritative path queryと分離する。Crowd outputはdesired velocity proposalで、Character Motor／Physicsが最終transformを確定する。CrowdがWorld Transformへwriteしない。
-
-## 8. Navigation memory、failure、test
-
-Navigation Domain 64 MiBの内訳、request／result各4096、live 2D／3D payload合計36 MiBはRuntime規約を正本とする。
-
-| Failure | 結果 |
-|---|---|
-| Source／Build invalid | Artifact publishなし、旧Nav維持 |
-| Query queue full | 新規requestを`QueueFull`で拒否 |
-| Stale／deadline | Result破棄、World変更なし |
-| Node／corridor／point上限 | partial成功にせずtyped status |
+| Source／Build／Artifact invalid | partial publishなし、旧Nav維持 |
+| Query queue full | 新規requestだけを`QueueFull`で拒否 |
+| Node／corridor／point上限 | `SearchBudgetExceeded`、Transform変更なし |
+| Stale／owner／deadline | T20で破棄、Gameplayへ配送なし |
 | Tile promotion memory不足 | promotion延期、旧generation維持 |
-| Required pathなし | Level validation error |
+| Required pathなし | Level validation error、C1 Scene昇格不可 |
 
-Testは2D corner、cost、clearance、deterministic tie-break、3D seam、slope、step、off-mesh link、partial policy、dynamic obstacle遅延、stale result、tile swap、spawn→goal reachability、memory、query latencyを含む。
+Navigationのclosed statusと優先順位は独自Navigation Platform規約11.3節を正本とし、本書で別statusへ再解釈しない。
+
+## 8. Navigation連携test
+
+Static Collision source revision→Nav Derived Asset→query version、前tickPhysics obstacle snapshot→次tickNavigation、Navigation proposal→Character Motor、stale result→World無変更をconformance testで固定する。2D／3D併用、worker oversubscription、queue overflow、promotion延期、required path failureをCross-Subsystem Release Gateへ含める。
 
 # Part III: Animation
 
@@ -286,13 +220,13 @@ Testはforward／reverse／loop／seek、crossfade、layer／mask、transition i
 
 ## 15. AI／Editor操作
 
-AIと人間は次のtyped object／Operationだけを編集する。
+AIと人間は次のtyped object／Operationだけを編集する。NavigationのOperation、質問条件、preview、Backend禁止事項は独自Navigation Platform規約を正本とする。
 
 - Physics World Profileの公開field、Body／Joint、Character Profile
 - Nav Agent／Area／Build Profile、Modifier、Off-mesh Link、reachability test
 - Skeleton／Clip import、Animation Graph、parameter、transition、event、root motion mode
 
-AIはvendor setting blob、native ID、solver callback、nav polygon ref、ozz archive byte、arbitrary expressionを生成しない。Profile hard値変更、high-cost nav rebuild、Joint bulk生成、Graph全置換はRiskと予測costを表示する。
+AIはvendor setting blob、native ID、solver callback、nav polygon ref／tile／`rcConfig`、ozz archive byte、arbitrary expressionを生成しない。Profile hard値変更、high-cost nav rebuild、Joint bulk生成、Graph全置換はRiskと予測costを表示する。
 
 EditorはPhysics／Joint、Nav voxel／tile／path、Animation state／blend／root／eventを可視化し、diagnosticからSource fieldへ移動できる。
 
@@ -314,9 +248,10 @@ EditorはPhysics／Joint、Nav voxel／tile／path、Animation state／blend／r
 - [Jolt Physics 5.6 Documentation](https://jrouwe.github.io/JoltPhysicsDocs/5.6.0/)
 - [Jolt Physics Architecture](https://github.com/jrouwe/JoltPhysics/blob/v5.6.0/Docs/Architecture.md)
 - [Recast Navigation 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0)
-- [Recast Introduction and build process](https://github.com/recastnavigation/recastnavigation/blob/v1.6.0/Docs/_1_Introduction.md)
+- [Recast 1.6.0 API reference](https://github.com/recastnavigation/recastnavigation/blob/v1.6.0/Docs/Extern/Recast_api.txt)
+- [Recast 1.6.0 tiled build sample](https://github.com/recastnavigation/recastnavigation/blob/v1.6.0/RecastDemo/Source/Sample_TileMesh.cpp)
 - [ozz-animation Overview](https://guillaumeblanc.github.io/ozz-animation/documentation/)
 - [ozz-animation Runtime](https://guillaumeblanc.github.io/ozz-animation/documentation/animation_runtime/)
 - [ozz-animation Offline Libraries](https://guillaumeblanc.github.io/ozz-animation/documentation/animation_offline/)
 
-External Libraryはsolver、navmesh、sampling等の検証済みkernelとして使用する。Miraikanaiの公開data、phase、event、budget、failure、Editor、AI operationは本書とCollision／Runtime規約が所有する。
+External Libraryはsolver、navmesh、sampling等の検証済みkernelとして使用する。Physicsの製品契約は独自Physics Platform規約、Navigationは独自Navigation Platform規約、AnimationとSubsystem間phaseは本書、Collision／Runtimeの共通規則は各正本が所有する。

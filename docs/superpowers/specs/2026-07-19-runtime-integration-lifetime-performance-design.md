@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 1.9
+- 文書版: 2.0
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
@@ -16,6 +16,7 @@
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Navigation規約: [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
 - Simulation連携規約: [Physics／Navigation／Animation連携](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
@@ -442,12 +443,13 @@ RagdollではPhysics `T60`が別fieldの`RagdollPoseInput`へbody poseを書き�
 
 ### 7.4 Navigation
 
+- NavigationのProfile、Backend、Artifact、query schema／status、capacity、AI／Editor、Qualificationは独自Navigation Platform規約を正本とし、本節はRuntime phase、lease、queue、promotionだけを所有する。
 - Navmeshはimmutable `NavMeshVersion`として公開する。
 - tile rebuildはstaging versionへ行い、依存tile集合の検証後に`T00`でversionをswapする。
 - workerごとに専用`NavQueryLease`を割り当て、同じDetour query objectを同時共有しない。
 - resultはrequest時のNavmesh versionを持ち、swap後の旧resultを破棄する。
 - dynamic obstacle更新は前tickの`T60`完了後にpublishしたPhysics transform snapshotから`T20`で取り込み、Physics objectを直接参照しない。同tick`T50`の結果は次tickまでNav obstacleへ反映しない。
-- C1のDetour queryは1 lease当たりnode pool 4,096、corridor polygon ref 2,048、straight-path point 256を上限とする。通常探索がgoal前で終わり、かつrequestが`allow_partial=true`なら`PartialPath`を返せる。node／corridor／point上限到達は`SearchBudgetExceeded`とし、diagnostic用best-effort pathを添付できても成功扱いにせず、配列を暗黙truncateしない。
+- C1のDetour queryは1 lease当たりnode pool 4,096、corridor polygon ref 2,048、straight-path point 256を上限とする。通常探索がgoal前で終わり、budget超過がなく2 polygon以上前進した場合だけ`PartialPath`となり、requestが`allow_partial=true`のときだけ利用できる。`DT_OUT_OF_NODES`、corridor／point buffer不足、Engine iteration cap到達は`SearchBudgetExceeded`とし、diagnostic用best-effort pathを添付できても成功扱いにせず、配列を暗黙truncateしない。
 
 ### 7.5 gameplayとPresentationの分離
 
@@ -1174,7 +1176,7 @@ Engine feature実装前に次を完成させる。
 8. bounded queueとauthoritative overflow test。
 9. Asset artifact key、dependency closure、staging／atomic promotion fixture。
 10. Agility SDK 1.619.4のHost export／DLL hash／Enhanced Barriers gate、D3D12 queue別retire record、device-removed test harness。
-11. 共通Adapter conformance harnessと、最初の2D sliceで使うBox2D、GameplayDefinition cook／transaction、XAudio2 fixture。Jolt、Recast、ozz fixtureは3D Capability C0開始条件とする。
+11. 共通Adapter conformance harnessと、最初の2D sliceで使うBox2D、Grid Navigation、GameplayDefinition cook／transaction、XAudio2 fixture。Jolt、Recast／Detourの32-bit ref capacity／Artifact／query status、ozz fixtureは3D Capability C0開始条件とする。
 12. phase／Subsystem telemetry schemaとProfile capture。
 13. Windows ASan、Linux portable-module TSan、static analysis CI。
 14. Target／Distribution／Lifecycle／Display／Platform Port schemaと、未実装Targetの`UnsupportedTarget` contract test。

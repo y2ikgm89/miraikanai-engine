@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.12
+- 文書版: 1.13
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -14,6 +14,7 @@
 - Rendering／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Editor／Player I/O規約: [Editor](./2026-07-19-editor-workspace-ux-design.md)／[独自Editor UI Framework](./2026-07-20-editor-ui-framework-architecture-design.md)／[Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+- Navigation規約: [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
 - Simulation連携規約: [Physics／Navigation／Animation連携](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
@@ -61,7 +62,7 @@
 | Game実装 | CPU実行CodeはC++23だけ。Game内容は検証済み`GameplayDefinition`をoffline Cookし、C++ Runtimeが実行 |
 | 2D Physics kernel | Box2D 3.1.1、commit `8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3`を`candidate_locked`としてAdapter内で利用。Target別Qualification後だけProduction昇格 |
 | 3D Physics kernel | Jolt Physics 5.6.0、commit `e77f175595e64cb44218cc9d9d56fc365ad0e36a`を`candidate_locked`としてAdapter内で利用。CPU rigid body限定、Target別Qualification後だけProduction昇格 |
-| 3D Navigation kernel | Recast Navigation／Detour 1.6.0をAdapter内で利用 |
+| 3D Navigation kernel | Recast Navigation／Detour 1.6.0、commit `6dc1667f580357e8a2154c28b7867bea7e8ad3a7`を`candidate_locked`として交換可能なprivate Backend内で利用。標準32-bit refに固定 |
 | GPU suballocation | D3D12MA 3.2.0、VMA 3.3.0、Metal `MTLHeap`をEngine-owned Adapter内で利用 |
 | Windows reference runtime | 1920×1080、60 fps、Ryzen 5 5600、16 GB DDR4-3200 dual-channel、PCIe 3.0 NVMe、RTX 3060 12 GB／RX 6600 8 GB |
 | Windows CPU memory baseline | Game runtime 2 GiB soft budget |
@@ -682,7 +683,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  ├─ diagnostics/
 │  │  └─ backends/{box2d,jolt}/
 │  ├─ navigation/
-│  │  ├─ core/
+│  │  ├─ contracts/
+│  │  ├─ core/{build,query,runtime,artifacts}/
+│  │  ├─ grid2d/
+│  │  ├─ diagnostics/
 │  │  └─ backends/recast/
 │  ├─ animation/
 │  ├─ audio/
@@ -845,7 +849,7 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、TypeSc
 | libopus | 1.6.1／source SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1` | BSD-3-Clause | Streaming music／voice decode | Audio Asset schema、buffering、loop、thread policy |
 | Box2D | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3`、`candidate_locked` | MIT | private 2D collision／solver kernel | World／Body／Joint／Character／Command／Save／AI契約、Target別Qualification |
 | Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a`、`candidate_locked` | MIT | private CPU 3D collision／solver kernel | World／Body／Constraint／Character／Command／Save／AI契約、Target別Qualification |
-| Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | Navmesh build／query kernel | Build profile、tile asset、AI command、debug UX |
+| Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7`、`candidate_locked`、32-bit `dtPolyRef` | zlib | private 3D Navmesh build／query kernel | Navigation契約、Backend Port、Profile、Engine Artifact envelope、status、version／lease、AI／Editor、Qualification |
 | ozz-animation | 0.16.0／`6cbdc790123aa4731d82e255df187b3a8a808256` | MIT | Skeleton compression、sampling、blend primitives | Animation graph、state machine、root motion、IK policy |
 | HarfBuzz | 14.2.1／`77a832110d40b0179636f5be8f8781f8299d7e50` | MIT | OpenType shaping、script／language／direction付きglyph sequence | UI／Text model、run分割、Font fallback、layout、cache、Editor／AI操作 |
 | FreeType | 2.14.1／`3bd82b5f543bc84ccf2b1d0cdb63b95218099ee6` | FreeType License | Bundled OTF／TTF validation、glyph metrics／rasterization | Font Asset、coverage、atlas、lifetime、render policy |
