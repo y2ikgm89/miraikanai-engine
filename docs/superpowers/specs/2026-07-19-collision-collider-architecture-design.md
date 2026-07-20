@@ -1,6 +1,6 @@
 # Miraikanai Engine Collision／Colliderアーキテクチャ規約
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Collision、Rigid Body接続、Collision Query、Editor、AI Authoring、Asset Cook
@@ -17,6 +17,7 @@
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+- AI意味契約: [Miraikanai Engine Physics AI Semantic Capability Catalog規約](./2026-07-20-physics-ai-semantic-capability-catalog-design.md)
 
 ## 1. 結論
 
@@ -51,6 +52,7 @@ Miraikanai Engineは、AI、`GameplayDefinition`、人間、`NativeGameModule`�
 | Android／Apple絶対budget、lifecycle、thermal | モバイル規約 |
 | MCD、Schema projection、Codegen | 実行可能契約規約 |
 | AI Risk、Approval、Source sandbox | AI実装・保守規約 |
+| Physics／Collision自然言語Intent、canonical role、意味解決、質問、Assumption、Semantic Eval | Physics AI Semantic Capability Catalog規約 |
 
 本書はRuntime規約のphase、queue capacity、memory上限を緩和しない。本書と既存文書のCollision意味論が矛盾する場合は本書を優先し、同一ChangeSetで参照元を修正する。
 
@@ -734,6 +736,8 @@ Character Motorは`capability.physics.character_motor_v1`と`operation.physics.*
 Schema、Engine code、Adapter、budget上限自体の変更はR3／R4であり、上表のAuthoring権限では実行できない。
 
 ### 16.3 Level 0自然言語
+
+自然言語Intentの正規object、closed vocabulary、Capability比較、Diagnostic、Semantic EvalはPhysics AI Semantic Capability Catalog規約を正本とする。本節はCollision固有の解決順と安全規則を定める。
 
 AIは自然言語を次の順で解決する。
 

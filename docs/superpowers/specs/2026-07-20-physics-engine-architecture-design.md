@@ -1,6 +1,6 @@
 # Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-20
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Physics World、Dynamics、Joint／Constraint、Character Motor、Backend、Editor、AI Authoring、Save／Replay
@@ -13,6 +13,7 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 実行可能契約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- AI意味契約: [Miraikanai Engine Physics AI Semantic Capability Catalog規約](./2026-07-20-physics-ai-semantic-capability-catalog-design.md)
 
 ## 1. 結論
 
@@ -41,6 +42,7 @@ Miraikanai EngineのPhysicsは、**独自のPhysics PlatformをC++23で実装し
 | C++ ownership、pointer、dependency lock、Build Driver、directory上位規則 | 基盤規約 |
 | GameplayDefinition／Project C++の選択と権限 | Game実装規約 |
 | MCD、Schema、Provider／MCP projection、Codegen | 実行可能契約規約 |
+| Physics自然言語Intent、canonical role、意味解決、質問、Assumption、Semantic Eval | Physics AI Semantic Capability Catalog規約 |
 
 本書はRuntime規約のexactly 60 Hz、Physics 96 MiB、Physics全体P95 2.50 ms、T40～T70のwrite authorityを緩和しない。Collision規約のshape、filter、query、event semanticsを再定義しない。
 
@@ -62,7 +64,7 @@ AIが理解しやすいかどうかはsolverの内部実装ではなく、公開
 |---|---|---|
 | Unity 6 | Built-in 3DはNVIDIA PhysX integration、Built-in 2DはBox2D integration。DOTSはUnity PhysicsまたはHavok Physics for Unity | 製品API／Editorを所有し、用途別kernelを統合する構成は成立している |
 | Unreal Engine 5.8 | EpicのChaos PhysicsをEngineへ統合し、Rigid Body、Constraint、Vehicle、Ragdoll等を提供 | 大規模組織ではfirst-party solverも成立するが、Miraikanai C1の費用対効果とは一致しない |
-| Godot 4.6 | 新規3D Projectの既定PhysicsをJoltへ変更し、Engine integrationを所有 | Open source Engineでも外部kernelを深く統合する方式がProductionで成立している |
+| Godot 4.7 | 新規3D Projectの既定PhysicsにJoltを使用し、Engine integrationを所有 | Open source Engineでも外部kernelを深く統合する方式がProductionで成立している |
 
 これらはcoverageとriskの比較材料であり、MiraikanaiのComponent名、Scene形式、Editor、Profile、既定値を模倣する根拠にはしない。
 
@@ -482,6 +484,8 @@ Hit tie-breakは`fraction, packed body handle, shape slot, subshape index, point
 
 ## 12. AI、GameplayDefinition、Project C++、手動編集
 
+Physics自然言語Intent、canonical role、`PhysicsIntentResolutionV1`、質問、Assumption、未対応Capabilityの説明、Semantic EvalはPhysics AI Semantic Capability Catalog規約を正本とする。本節は解決後に利用するPhysics CapabilityとAuthoring Operationを定める。
+
 ### 12.1 AIへ公開するCapability
 
 ```text
@@ -753,8 +757,7 @@ Runtimeへ旧／新Kernel branchを長期共存させない。Pre-1.0では後�
 |---|---|---|
 | [Unity 6 Physics Manual](https://docs.unity3d.com/ja/current/Manual/PhysicsSection.html) | Built-in 3D PhysX、2D Box2D、DOTS Unity Physics／Havok | 独自Product契約＋用途別kernel統合の比較根拠 |
 | [Unreal Engine 5.8 Physics](https://dev.epicgames.com/documentation/en-us/unreal-engine/physics-in-unreal-engine) | Chaos Physicsと機能範囲 | First-party solver案の規模比較 |
-| [Godot 4.6 Release](https://godotengine.org/releases/4.6/) | 新規3D ProjectでJoltをdefault化 | Jolt integrationのProduction事例 |
-| [Godot 4.6 Jolt Guide](https://docs.godotengine.org/en/4.6/tutorials/physics/using_jolt_physics.html) | JoltとEngine APIの差、互換注意 | Semantic conformanceをtrajectory一致としない |
+| [Godot 4.7 Jolt Guide](https://docs.godotengine.org/en/4.7/tutorials/physics/using_jolt_physics.html) | 新規3D Projectの既定Jolt、Godot Physicsとの差、互換注意 | Jolt integrationのProduction事例。Semantic conformanceをtrajectory一致としない |
 | [Box2D v3.1.1 release](https://github.com/erincatto/box2d/releases/tag/v3.1.1) | exact stable source | Kernel lock |
 | [Box2D v3.1.1 README](https://github.com/erincatto/box2d/blob/v3.1.1/README.md) | C17、data-oriented、multithread、feature、license | 2D候補評価 |
 | [Box2D 3.1 Simulation](https://box2d.org/documentation/md_simulation.html) | 60 Hz、sub-step、event、task、ID lifetime | World／step／callback contract |
