@@ -21,6 +21,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Platform Build | WindowsはNinja Multi-Config、AndroidはGradle→CMake→Single-Config Ninja、Appleはportable C++ archiveをNinja、App shell／resource／最終link／archive／署名をXcodeが所有する |
 | AI接続 | 内蔵AIはProvider API、外部Codex／Claude等はlocal MCP、Host Pluginは任意の補助UX。どの接続も検証・Commit権限を持たない |
 | Editor UI／UX | C++23の独自`MiraUI Core`＋`MiraEditor Shell`。Retained UIと限定typed Immediate Canvasを併用し、Scene／Canvas、Hierarchy／Outliner、Inspector、Asset、Source、Console、AI Partnerをdock、resize、floating、入替、multi-monitor、複数Workspace保存できる |
+| Game UI／AI UI | HUD／画面UIは型付き`UiDocument`を正本とし、手動操作とAI提案を同じChangeSetへ収束させる。C1はBuiltin＋`UiCompositeDefinition`、C2はoffline compileする`UiEffectGraph`＋A1／R3承認済み`UiNativeWidget`。生成画像はStaging、来歴、license、安全性、import／cook、Preview、承認を経由する |
 | 初心者UX | `AI Creator` Workspaceを同じEditor内に用意し、AI Partnerを常設可能にする。Production／Debug／Art／Level Design等のWorkspaceへ切替可能 |
 | Graphics | Windows Direct3D 12、Android Vulkan、Apple Metal。Engine-owned Render Graph、Material／Shader IR、Target別offline shader cookを使う |
 | 表現 | 2D、3D、`realistic_basic`、Realistic advanced、Toon、独自`pixel_diorama`を段階実装し、AI Visual Style ResolverがCapabilityとbudget内で選択する |
@@ -47,7 +48,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | C++23、C++26 readiness、Modules、`import std`、Ninja | C++23・Named Modules移行規約 |
 | AI／手動編集の共通状態、Undo、Recovery、Transaction | Authoring Model／Project State規約 |
 | AIが理解できる型、Operation、Capability、Schema、Codegen | 実行可能契約規約 |
-| Renderer／Asset／Editor／Input／UI／Audio／2D／3D | 各Subsystem正式仕様、独自Editor UI Framework規約、2D／3D機能計画 |
+| Renderer／Asset／Editor／Input／UI／Audio／2D／3D | 各Subsystem正式仕様、独自Editor UI Framework規約、2D／3D機能計画。Game UIのAI生成、画像設定、Composite／Effect／Native WidgetはUI規約とNativeGameModule規約 |
 | Collision、Physics Engine、Joint、Character、Navmesh、Animation | Collision規約、独自Physics Platform規約、独自Navigation Platform規約、Physics／Navigation／Animation連携規約 |
 | Light、Shader、Material、Toon／Realistic／Pixel Diorama | Rendering規約と2D／3D機能計画 |
 | Sky、Atmosphere、Fog、Cloud、Environment Lighting、AI環境設定 | Environment Platform規約、Rendering規約、2D／3D機能計画 |
@@ -156,7 +157,7 @@ Miraikanai Engineの公式Review setは次の29文書である。上位のProduc
 | 独自Navigation Platform規約 | Grid2D、3D Navmesh、Backend lock／Port、Profile、Artifact、query status、capacity、AI／Editor、Qualification、完全自作研究Gate |
 | Physics／Navigation／Animation連携規約 | Physics／Navigation／Animationのsnapshot／command境界、Animation Graph、root motion、固定phase連携 |
 | Input／Action／Device規約 | Device sample、semantic action、InputSnapshot、remap、replay、text入力分離、haptics |
-| UI／Text／Localization／Accessibility規約 | Retained UI、layout、event／focus、IME、shaping／raster、localization、Game accessibility |
+| UI／Text／Localization／Accessibility規約 | `UiDocument`、Retained UI、layout、event／focus、IME、shaping／raster、localization、Game accessibility、AI UI Authoring、`UiCompositeDefinition`／`UiEffectGraph`／`UiNativeWidget`契約 |
 | 独自Editor UI Framework／Shell規約 | MiraUI C++ target、Widget、Retained／Immediate境界、D3D12 UI pass、DirectWrite／TSF／UIA／OLE Adapter、Docking、AI Semantic Interface、禁止GUI dependency |
 | Audio／Mixer／Spatial規約 | Audio cue／voice／bus、mixer、streaming、spatial audio、callback、device adapter |
 | Editor／Workspace／UX規約 | Window／Panel／Dock、Scene／Outliner／Inspector、AI Partner、AI Creator、workspace、Editor accessibility |

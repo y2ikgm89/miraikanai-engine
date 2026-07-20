@@ -1,8 +1,9 @@
 # Miraikanai Engine UI／Text／Localization／Accessibility規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
-- 対象: Game UI、Layout、Widget、Focus、Text、IME、Localization、Font、Accessibility、UI Rendering
+- 最終更新日: 2026-07-20
+- 対象: Game UI、Layout、Widget、拡張Widget、AI UI Authoring、Focus、Text、IME、Localization、Font、Accessibility、UI Rendering
 - 状態: プロジェクト公式の規範設計レビュー版
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
@@ -11,6 +12,7 @@
 - Input規約: [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+- Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 
 ## 1. 結論
@@ -37,8 +39,10 @@ Windows Editor shellは本書の`UiRuntimeTree`、Layout、Event、Semantic cont
 | UI Render pass、GPU resource、composition | Rendering規約 |
 | UTF／locale／Font Library version、Build、license | 基盤規約 |
 | Android／Apple lifecycle、safe area、Text Adapter | Mobile規約 |
+| Composite／Effect／Native WidgetのUI契約、AI UI生成workflow | 本書 |
+| Project C++ artifact、C ABI、Source Worker、Build、Promotion | Native Game規約、AI実装・保守ガバナンス規約 |
 
-C1ではHTML／CSS parser、DOM、JavaScript、webview、arbitrary expression binding、Runtime Font download、system Font依存のShipping layout、Rich Text markup parser、SVG Font、font editorを実装しない。C2候補はlimited rich text span、MSDF、HRTF字幕連携、advanced vector UIである。
+C1ではHTML／CSS parser、DOM、JavaScript、webview、arbitrary expression binding、Runtime Font download、system Font依存のShipping layout、Rich Text markup parser、SVG Font、font editorを実装しない。C1は標準Widgetと宣言型`UiCompositeDefinition`をProduction対象にする。C2候補はlimited rich text span、MSDF、HRTF字幕連携、advanced vector UI、型付き`UiEffectGraph`、承認済みProject C++による`UiNativeWidget`である。第三者binary Widget、Marketplace、Editor ProcessへProject Widget codeをloadする経路はC1／C2に含めず、C3で別Threat Model、ABI、署名、配布、revocation設計を承認した後だけ検討する。
 
 ## 3. Architectureとphase
 
@@ -125,6 +129,60 @@ UiDocument
 - world／scene viewport presentation
 
 Widgetごとにrequired field、event、focus、accessible roleをMCDで別typeにする。汎用property bag、Widget C++ class名、arbitrary draw callbackをUiDocumentへ保存しない。
+
+### 4.4 Widget拡張model
+
+Game UIの自由度は制約解除ではなく、Schemaへ登録する四層の拡張modelで提供する。
+
+| Tier | Source | 適用Phase | 許可範囲 |
+|---|---|---|---|
+| 0 `Builtin Widget` | Engine MCD | C1 | 4.3節の標準Widget、標準Layout、標準Interaction |
+| 1 `UiCompositeDefinition` | Project Authoring Document | C1 | 標準／登録済みWidgetの構成、named slot、型付きparameter、Binding、Style、Interaction |
+| 2 `UiEffectGraph` | Project Authoring Document | C2 | 閉じたEffect node catalogによるmask、gradient、SDF、noise、distortion、transition、bounded geometry |
+| 3 `UiNativeWidget` | 承認済みNativeGameModule | C2 | 宣言型表現で不足するProject固有のmeasure、presentation、interaction algorithm |
+
+`UiCompositeDefinition`は次を持つ。
+
+```text
+UiCompositeDefinition
+  composite_type_id
+  schema_version
+  root_template
+  named_slots[]
+  typed_parameters[]
+  binding_contract[]
+  interaction_contract[]
+  semantic_template
+  required_capabilities[]
+  fallback_widget_type_id
+```
+
+Compositeは展開後も通常のNode、depth、binding、interaction、memory capへchargeする。再帰的Composite cycle、slot多重所有、型不一致、fallback cycleをCookで拒否する。AIとUI DesignerはCompositeを一Widgetとして配置できる一方、Diff、Accessibility、cost previewでは展開結果まで表示できる。
+
+`UiEffectGraph`はEngine登録済みnode、finite parameter、静的loop上限、texture sample上限、primitive上限、Target Capability、reduced-motion fallbackを必須とする。Graphはoffline compileし、Target別の承認済みUI pipelineとparameter blockへ変換する。任意HLSL、raw GPU resource、command list、shader include、Runtime compileを許可しない。
+
+`UiNativeWidgetManifestV1`は最低限、次を宣言する。
+
+```text
+widget_type_id
+schema_version
+native_capability_id
+typed_properties[]
+named_slots[]
+input_fields[]
+output_commands[]
+semantic_contract
+measure_budget_us
+presentation_budget_us
+scratch_bytes
+primitive_cap
+supported_targets[]
+fallback_widget_type_id
+```
+
+Native WidgetはNativeGameModule規約のC ABI、Source Worker、R3 Review、Promotionを通ったProject codeだけを使用する。UI Runtimeはvalue型property、Asset handle、bounded scratch、whitelist済みprimitive encoder、承認済みEffect IDだけを渡す。Native codeは`UiRuntimeTree` pointer、Widget object、World pointer、GPU address、Renderer command、filesystem、network、OS APIを取得しない。Interaction結果はregistered `UiCommandId`、presentation結果はbounded primitiveだけとし、失敗時の部分outputを破棄する。
+
+Native Widget codeをEditor Processへloadしない。UI DesignerはManifestとfallbackによる静的projectionを表示し、実code Previewは別ProcessのGameHostで実行する。Windows PreviewはGameHost再起動、ShippingとMobileはclean static linkを使用する。Manifest、binary、Contract lock、Target Profileのhash不一致はload前に拒否する。
 
 ## 5. Coordinate、Scale、Safe Area
 
@@ -526,6 +584,53 @@ UI DesignerはCanvas、Hierarchy、Inspector、Layout／safe-area overlay、Focu
 
 AIがUIを生成する場合、GameSpecの主要flow、Target、safe area、required Action、locale expansion、accessibility、Style lockを先に検証し、見た目だけのScreenshot合格にしない。
 
+### 16.1 AI UI生成workflow
+
+内蔵AI、外部MCP Host、手動UI Designerは次の正規workflowへ収束する。
+
+```text
+Natural-language intent／manual edit
+  -> AuthoringContextPack
+  -> UiAuthoringIntentV1
+  -> UiDocument／Composite／Style／Binding proposal
+  -> AssetRequirement／GeneratedAssetStaging
+  -> ProjectChangeSet
+  -> schema／semantic／capability／budget validation
+  -> responsive／locale／input／accessibility preview matrix
+  -> approval or delegated policy
+  -> AuthoringCommandGateway commit
+```
+
+`UiAuthoringIntentV1`は対象Screen／HUD、主要flow、情報優先順位、Target、orientation、safe area、入力方式、locale set、UI scale、Accessibility、Visual Style lock、Asset budget、完了条件を持つ。Blocking不足は質問し、High Impactの見た目または情報構造は最大三候補の低cost Previewを提示する。既存のComposite、Style token、Localization、Assetを検索してから新規生成し、同じ意味のWidgetや画像を無制限に複製しない。
+
+AIの成果物は説明文やScreenshotではなく、Stable IDを対象にしたtyped Operationである。新IDはGatewayへ`Create*` Operationで要求し、存在しないWidget、Asset、ViewModel field、Action IDを推測しない。AIは`UiDocument`全置換を既定にせず、目的に必要なNode、Binding、Style、Asset参照だけを変更する。
+
+### 16.2 画像・生成Assetの設定
+
+C1は外部で生成済みの画像を通常Assetと同じImport、license、provenance、safety、quality Gateへ通し、合格したAsset IDだけを`image`、Composite、Styleへ参照できる。C2のAsset generation providerもoutputを`GeneratedAssetStaging`へ置き、Projectへ直接writeしない。
+
+AIは画像生成とUI設定を一つの不可分な成功として扱わず、次を別artifactとして提示する。
+
+1. `AssetRequirement`と候補、採用理由、style／semantic role
+2. Source、provenance、license、safety receipt
+3. Target別Import／Cook／memory結果
+4. UiDocument／StyleからAsset IDを参照するChangeSet
+5. 画像なし、last-valid、または承認済みplaceholderのfallback
+
+Text、価格、法的同意、認証情報、操作説明を画像へ焼き込まない。AI生成画像の見た目が合格しても、safe area、contrast、locale expansion、focus、semantic tree、Target cookを省略しない。
+
+### 16.3 Preview、承認、競合
+
+UI Preview matrixは最低限、Projectのminimum／reference解像度、portrait／landscape、safe area、0.75／1.00／2.00 UI scale、全required locale、keyboard／controller／touch、High Contrast、reduced motionを含む。Screenshot／vision評価は視覚差の補助oracleであり、layout rect、binding type、semantic hash、focus graph、budgetの正規判定を置き換えない。
+
+AI proposal作成中にProject revisionが変わった場合はstaleとしてCommitを禁止し、現在revisionへrebaseして全Validatorを再実行する。Navigation root、required Action、purchase／consent／credential UI、Accessibility semantics、Style lock、Production Asset採用、UiNativeWidget sourceは人間承認を必須とする。既存Style token内のspacing／color調整、明示fallback選択、既存Composite配置等はAuthorization Envelopeで範囲、回数、Targetを限定した場合だけ自動Commit候補にできる。
+
+### 16.4 拡張WidgetをAIが扱う条件
+
+AIはTier 1～3を同じWidget名だけで扱わず、Manifestからproperty、slot、Binding、Interaction、semantic、budget、Target、fallbackを取得する。表現方法は`Builtin／Composite -> Effect Graph -> Native Widget`の順に選び、下位Tierで完了条件を満たせる場合に上位Tierを生成しない。
+
+Tier 3を選ぶ場合、AIは理由、宣言型で不足するCapability、公開contract、Source Diff、test、performance予測、Target差、fallbackを`NativeCodeChangeSet`へ含める。Build成功だけでUIへ登録せず、R3 Promotion Receiptと`RegisterNativeModuleRevision` Commit後に初めて使用可能にする。
+
 ## 17. Failure policy
 
 | Failure | 結果 |
@@ -541,6 +646,11 @@ AIがUIを生成する場合、GameSpecの主要flow、Target、safe area、requ
 | Accessibility bridge stale | action reject、最新Semantic treeをpublish |
 | ICU／shaping non-finite／invalid output | text run reject、Screen diagnostic |
 | Password field error | content破棄／zeroize、log禁止 |
+| Composite cycle／slot／property不正 | ChangeSet／Cook reject、展開しない |
+| Effect Graph compile／budget失敗 | generationをReadyにせずlast validまたは明示fallback |
+| Native Widget manifest／binary／Target不一致 | load前reject、fallbackまたはScreen activation失敗 |
+| Native Widget fault／timeout／primitive超過 | 当該output全破棄、DevelopmentはGameHost停止、Shippingはsafe fallback |
+| AI UI proposal stale／invalid | Project revision不変、再base後に全Validator再実行 |
 
 Required system menu UIがfaultした場合はGameを操作不能のまま続行せず、safe fallback screenをEngine-owned fixed Assetから表示する。Fallback screenもbundled Font、Exit／Report action、Accessibility semanticsを持つ。
 
@@ -572,8 +682,13 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - glyph atlas eviction／submission lifetime、locale／Font／Style hot reload
 - 131,072 Node、65,536 glyph、8,192 event上限と10分soak
 - Windows、Android、Appleの同じUI fixtureでlogical layout／semantic hash一致
+- Compositeのcycle／slot／parameter／fallback、展開前後Diff、AI／手動往復
+- Effect Graphのnode／sample／loop／primitive cap、Target compile、reduced-motion fallback
+- Native WidgetのABI／manifest／measure／presentation／semantic／fault、GameHost隔離、Target fallback
+- Prompt→UiDocument／AssetRequirement→ChangeSet→Preview matrix→承認→Commit→Undo／Redo
+- AI生成画像のprovenance／license／safety／Target cookと、missing／reject時fallback
 
-C1完了条件は、2D／3D縦切りのTitle、Settings、HUD、Pause、Result、Text Inputを全Target、conformance locale、input方式、accessibility bridgeで操作でき、AI生成と手動編集が同じUiDocument／ChangeSet／Validatorを通り、CPU／GPU／memory hard gateを満たすことである。
+C1完了条件は、2D／3D縦切りのTitle、Settings、HUD、Pause、Result、Text Inputを標準Widgetと`UiCompositeDefinition`で構築し、全Target、conformance locale、input方式、accessibility bridgeで操作でき、AI生成と手動編集が同じUiDocument／ChangeSet／Validatorを通り、CPU／GPU／memory hard gateを満たすことである。Tier 2／3はC2 Gateであり、C1完了を偽装するfallbackに使わない。
 
 ## 20. 一次資料
 

@@ -1,9 +1,9 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
-- 対象: Project C++、source／binary境界、entry point、lifecycle、Build、Preview、Packaging
+- 対象: Project C++、source／binary境界、entry point、lifecycle、Game UI extension、Build、Preview、Packaging
 - 状態: プロジェクト公式の規範設計レビュー版
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
@@ -20,6 +20,8 @@ ShippingではProject C++をGame binaryへ静的linkする。Windows Development
 
 これによりShipping最適化とattack surface縮小を優先しながら、Windows Editorの反復速度をGameHost再起動で確保する。
 
+C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget`として登録できる。ただしこれは一般Widget pluginではなく、UI規約の型付きManifest、bounded primitive、typed command、Accessibility、fallbackを満たすNativeGameModule Capabilityである。Project codeをEditor Processへloadせず、PreviewはGameHostだけで実行する。
+
 ## 2. 決定権と対象外
 
 | 主題 | 正本 |
@@ -29,6 +31,7 @@ ShippingではProject C++をGame binaryへ静的linkする。Windows Development
 | C++ language、compiler、memory、pointer、exception、target DAG | 基盤規約 |
 | tick phase、World lease、command／event、queue、failure | Runtime規約 |
 | Source Worker、Risk R3、Approval、Promotion | AI実装・保守ガバナンス規約 |
+| `UiNativeWidget`のproperty、slot、measure、presentation、interaction、semantic、budget、fallback | UI／Text／Localization／Accessibility規約 |
 
 次をNativeGameModuleへ入れない。
 
@@ -223,6 +226,8 @@ Discovered
 
 ## 7. System registrationとphase
 
+### 7.1 Gameplay System
+
 `NativeSystemDescriptorV1`は次を必須とする。
 
 | Field | 規則 |
@@ -241,6 +246,23 @@ Discovered
 Orchestratorだけがcallbackを呼ぶ。callback inputはtick、fixed delta、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。World commitは成功後にRuntime規約のcanonical merge順で行う。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
 
 Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline tickを持ち、結果は`T20`で検査される。Module独自worker poolを作らない。
+
+### 7.2 Game UI extension
+
+`UiNativeWidget`は`NativeSystemDescriptorV1`へUI phaseを追加して実装しない。NativeGameModuleの`capability_table`へ登録する`capability.ui.native_widget_v1`から、UI規約の`UiNativeWidgetManifestV1`と次のpure callback tableを取得する。
+
+| Callback | Owner phase | Input | Output |
+|---|---|---|---|
+| `measure` | `T90` UI Layout | typed property、available size、Asset intrinsic metrics、bounded scratch | finite min／preferred／max size |
+| `build_presentation` | `T90` UI Presentation | final rect、typed property、presentation-only ViewModel field、Asset handle、bounded scratch | whitelist済みprimitive／Effect parameter |
+| `handle_interaction` | `T30` UI Interaction | semantic event、local state、typed property、bounded scratch | registered `UiCommandId`／local UiState delta |
+| `build_semantics` | `T90` Accessibility | typed property、final rect、state | bounded semantic node descriptor |
+
+各callbackはUI Runtimeだけがcanonical Node ID順で呼び、World、ECS、Renderer、GPU、Platform、filesystem、networkへ到達させない。callback inputのView、scratch、writerはreturn時にinvalidateし、保持をDevelopment lease epochで検出する。clock、RNG、thread、async job、global mutable stateを禁止し、同じinputから同じoutputを生成しなければならない。
+
+`measure`は子Widgetを直接走査せず、UI Runtimeが渡すnamed slotの集約済みmetricsだけを読む。`build_presentation`はraw vertex pointerを受け取らず、UI規約のcapacity付きprimitive encoderだけを使う。`handle_interaction`はGameplay stateやWorldを変更せず、typed commandを返す。`build_semantics`を省略できるのはManifestが明示`decorative_only=true`でfocus、input、meaningを持たない場合だけである。
+
+一callbackがerror、exception、timeout、non-finite、capacity超過を返した場合、そのcallbackの全outputを破棄する。Development PreviewはGameHostをfault停止し、EditorへDiagnosticとfallback Previewを返す。ShippingはManifestのfallback Widgetへ切り替え、required Screenに有効なfallbackがなければUI規約のsafe fallback screenへ遷移する。Native Widget fault後に同じModule instanceを再使用しない。
 
 ## 8. GameplayDefinitionとの併用
 
@@ -324,6 +346,8 @@ Save互換検証なしに旧Play stateを新Processへ移さない。Preview art
 | Mobile C++変更 | rebuild、re-sign、reinstallなしのPreviewを禁止 |
 | 未宣言import／未許可Header／Module cycle | Source Gate失敗、Header方式へFallbackしない |
 | `import std`／BMI／Module tooling不成立 | Active C++ Frontend Profile失敗、artifactを生成しない |
+| Native Widget manifest／Capability／Target不一致 | Widget callback登録前にreject、UI規約のfallbackへ遷移 |
+| Native Widget callback fault／timeout／capacity超過 | callback output全破棄、GameHost fault、同Module instance再利用禁止 |
 
 CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであり、runtime sandboxで安全化されたとは表現しない。
 
@@ -350,8 +374,11 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - AI生成SourceがPromotion前に正規Project／Editor／Shippingへloadされない。
 - CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
+- C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
 
 C1完了条件は、2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。
+
+C2 UI extension完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として実装し、AI生成SourceのR3 Promotion、UI Designer fallback projection、Windows GameHost Preview、Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを合格することである。これはC1 NativeGameModule完了条件を置き換えない。
 
 ## 14. 一次資料
 

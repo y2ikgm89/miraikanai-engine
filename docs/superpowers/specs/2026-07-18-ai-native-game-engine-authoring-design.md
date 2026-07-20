@@ -1,6 +1,6 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 1.6
+- 文書版: 1.7
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
@@ -42,6 +42,7 @@
 | Authoring | 自然言語、Editor GUI、外部IDE、MCPは同じAuthoring DocumentとProjectChangeSetへ収束し、C++ GatewayだけがCommitする |
 | Game実装 | C++23実行Code＋構造化GameplayDefinition。Luauを含む汎用Game Script VMは持たない |
 | Editor | C++23の独自`MiraUI Core`＋`MiraEditor Shell`で実装するProjection Editor。Retained UIと限定typed Immediate Canvasを併用し、禁止GUI toolkit、screen-coordinate AI操作、Projectへの直接writeを持たない |
+| Game UI／AI UI | HUDと画面UIは独立した`UiDocument`として所有し、手動操作とAI提案を同じ型付きChangeSetへ収束させる。C1は標準Widget＋`UiCompositeDefinition`、C2は`UiEffectGraph`＋承認済み`UiNativeWidget`をGameHostで扱い、AIによるWidget／生成Assetの直接writeを許可しない |
 | AI統合 | 内蔵はProvider API、外部Hostはlocal MCP、Pluginは任意UX。Source変更は隔離WorkerとPromotionを必須にする |
 | Engine機能 | 2D／3D、Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text、Audio、VFX、環境表現をSubsystem契約として分離する |
 | Physics | 独自World／Body／Joint／Character／Command／Save／AI契約をC++23で所有し、Box2D 3.1.1／Jolt 5.6.0をprivate kernel候補としてTarget別Qualification後にProduction昇格する |
@@ -433,6 +434,9 @@ Human Prompt / Editor / External Agent
              GameSpec
                 |
                 v
+       UI Authoring Planner
+                |
+                v
  Implementation Strategy Planner
                 |
        +------------------+
@@ -526,11 +530,21 @@ Game Brief、参考Asset、既存Asset、Project Profile、`StyleCapabilityManif
 
 正規四軸、VisualStyleProfile、Material／Shader、Toon、Realistic、2D、Pixel Diorama、Preview、Validator、Evalの詳細は、[2D／3D機能計画 §8](./2026-07-19-2d-3d-capability-plan.md#8-visual-styleshadermaterial)を唯一の基準とする。
 
-### 7.6 Implementation Strategy Planner
+### 7.6 UI Authoring Planner
+
+`GameSpec`、画面遷移、Target、safe area、入力方式、locale、accessibility、Visual Style lock、Asset／frame budgetを読み、HUD、Title、Settings、Pause、Result等の`UiDocument`、`UiCompositeDefinition`、style、binding、`AssetRequirement`を提案する。出力はStable IDを対象にした型付きOperationを含む`ProjectChangeSet`であり、Editor tree、Runtime Widget、画像Asset、Project fileを直接変更しない。
+
+提案はSchema、semantic、Capability、binding型、layout cycle、locale、focus、semantics、contrast、Target別budgetを検証する。承認前Previewは解像度、aspect ratio、safe area、代表locale、keyboard／mouse、gamepad、touch、accessibility設定の組合せを対象にし、構造化検証と操作testを合格条件とする。Screenshot差分は補助証拠であり、UIの正本または唯一の成功判定にはしない。
+
+Widget選択はBuiltin、`UiCompositeDefinition`、`UiEffectGraph`、`UiNativeWidget`の順に最小能力を選ぶ。C1はBuiltinとCompositeまで、Effect GraphとNative WidgetはC2で個別にPromotionする。Native WidgetのSource生成はA1 Gate、R3 Review／Promotion、型付きCapability、budget、fallbackを必須とし、Editor processへProject C++や外部binaryをloadせず、実Previewは別ProcessのGameHostで行う。
+
+画像生成を含むAsset要求は、Providerへ直接Project pathを書かせず、Stagingへ候補、Prompt／Model／Provider、license、provenance、safety結果を保存する。Asset Pipelineのimport、cook、Target／budget検証を通過した候補だけをChangeSetで参照し、未承認候補、文字を焼き込んだUI画像、秘密情報を含む生成物をCommitしない。詳細契約は[UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)を正本とする。
+
+### 7.7 Implementation Strategy Planner
 
 システム単位でGameplayDefinition、C++、または型付きCapability境界での併用を選択する。LLMの推測だけで決めず、Engine Policyと実測を組み合わせる。汎用Game scripting runtimeは候補へ含めない。
 
-### 7.7 MCP Adapter
+### 7.8 MCP Adapter
 
 外部のCodex、Claude Code、その他MCP対応HostへEngine機能を公開する、EditorHostから独立して有効化できる北向きAdapter。
 
@@ -549,7 +563,7 @@ Game Brief、参考Asset、既存Asset、Project Profile、`StyleCapabilityManif
 
 初期段階では、MCPからの直接Commitを公開しない。CommitはEditorで承認する。
 
-### 7.8 Codex／Claude Plugin
+### 7.9 Codex／Claude Plugin
 
 Host固有Pluginは任意の薄い補助UXとする。PluginがなくてもProvider APIとMCPで全公式機能を利用できなければならない。
 
@@ -562,7 +576,7 @@ Host固有Pluginは任意の薄い補助UXとする。PluginがなくてもProvi
 
 権威ロジックやEngine状態は保持しない。
 
-### 7.9 CLI／Desktop
+### 7.10 CLI／Desktop
 
 Codex／Claude CLI・DesktopはEngine開発、試作、CI、Code生成、Build、Testに利用する。出荷ゲームのRuntime依存にはしない。
 
@@ -943,7 +957,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 
 - CanvasRenderer、sprite、tilemap、2D light、camera
 - Box2D Adapter、2D grid navigation
-- UI、Audio、2D animation、CPU particle
+- 標準Widget＋`UiCompositeDefinition`によるTitle、Settings、HUD、Pause、Result、Audio、2D animation、CPU particle
 - GameplayDefinitionでgame ruleを実装し、C++ evaluatorで実行
 - `pixel_2d`と`illustrated_2d` Profile
 - `pixel_2d` 2D top-down action縦切り
@@ -956,13 +970,15 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - OpenAI Responses API、Structured Outputs、strict function calling
 - Requirement Resolver、Game Brief、GameSpec生成
 - VisualStyleResolver、2D Style候補Preview、Decision Ledger
+- UI Authoring Planner、自然言語からのHUD／画面UI生成、`AssetRequirement`と生成Asset Staging
+- 解像度／aspect ratio／safe area／locale／入力方式／accessibilityを跨ぐUI Previewと構造化検証
 - GameplayDefinition／C++ strategy planner
 - GameplayDefinitionChangeSet、NativeCodeChangeSet、isolated validation／cook／build／test
 - Engine-generated Diff、Approval、手動変更との競合処理
 - Playtest feedbackと自動修復
 - NativeGameModule Capabilityを公開する前にA1を完成し、Source Worker、Promotion、Review ReceiptをTool catalogへ解放
 
-完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。MVP能力に含むNativeGameModule生成はA1 Gate合格後だけ成功とし、A1未完ならMVP-A完了を宣言しない。
+完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。Title、Settings、HUD、Pause、ResultはAIと手動編集の往復、代表解像度／locale／入力方式／accessibility Preview、生成Assetの来歴確認を合格しなければならない。MVP能力に含むNativeGameModule生成はA1 Gate合格後だけ成功とし、A1未完ならMVP-A完了を宣言しない。
 
 ### Phase 5: 外部Agent接続
 
@@ -1008,10 +1024,11 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Baked lightmap、irradiance／reflection probe、C3 dynamic GI研究
 - GPU VFX、C2 Water Body／Query／Underwater、dynamic snow field、terrain、foliage、streaming
 - 2D Action、FPS／TPS、RPG／Action RPG、Quest、Simulation、Strategy Pack
+- `UiEffectGraph`と承認済みProject C++ `UiNativeWidget`
 - 画像／音声／3D生成Provider adapter
 - 自動Playtestとperformance regression
 
-各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallback、VisualStyleProfile integrationの完了定義を満たしてからProduction扱いにする。ToonとPixel Dioramaは同時実装せず、Realistic advanced→Toon→Pixel Dioramaの順に個別vertical prototypeとperformance gateを通す。
+各CapabilityはAuthoring schema、Validator、Editor、AI command、Runtime compiler、Diagnostics、Test、fallback、VisualStyleProfile integrationの完了定義を満たしてからProduction扱いにする。`UiEffectGraph`は閉じたNode catalogとoffline compile、`UiNativeWidget`はA1、R3 Promotion、GameHost隔離、callback budget、accessibility semantics、fallbackを満たしたものだけをC2へ昇格する。第三者binary Widget、Marketplace、Editor processへのProject／外部Widget loadは別Threat Modelを持つC3まで対象外とする。ToonとPixel Dioramaは同時実装せず、Realistic advanced→Toon→Pixel Dioramaの順に個別vertical prototypeとperformance gateを通す。
 
 ### Phase 9: 制限付きRuntime生成
 
@@ -1163,12 +1180,12 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 6. Render extraction、Render Graph compiler、D3D12 Adapter、Vulkan／Metal interface、Shader／Material pipeline、reference captureを段階taskへ分解する。
 7. Asset Import Worker、Derived Data、Catalog／VFS、Cook／`.mirapack`、AI Asset staging／provenanceをtaskへ分解する。
 8. Editor document shell、dock／workspace、Scene／Outliner／Inspector／Asset／AI Partner、UI Automation bridge、recovery testをtaskへ分解する。
-9. NativeGameModule C ABI、Target別static／dynamic link、isolated Build、GameHost restart、Promotion Gateをtaskへ分解する。
-10. Input、UI／Text／Localization／Accessibility、AudioのC0契約と2D First Playable用C1 vertical sliceをtaskへ分解する。
+9. NativeGameModule C ABI、Target別static／dynamic link、isolated Build、GameHost restart、Promotion GateとC2 `UiNativeWidget` Capabilityをtaskへ分解する。
+10. Input、UI／Text／Localization／Accessibility、AudioのC0契約、標準Widget＋`UiCompositeDefinition`による2D First Playable用C1 vertical slice、C2 `UiEffectGraph`を独立taskへ分解する。
 11. Collision、独自Physics PlatformのWorld／Dynamics／Joint／Character／Save／Replay、Box2D／Jolt Kernel Qualification、独自Navigation PlatformのGrid2D／Backend Port／Artifact／status／Recast・Detour Qualification、ozz、Engine-owned Animation Graphをconformanceとvertical sliceへ分解する。
 12. Water Source／Compiler／Render／CPU Query／Volume／Underwaterと、Weather Snapshot／降雪VFX／static・dynamic Snow Surface／stampをC1とC2の独立task、Gameplay分離fixture、Target別Gateへ分解する。
 13. Windows MSIX／folder package、Android AAB／PAD／16 KiB、Apple archive／signing／uploadをPlatform別taskと実機Gateへ分解する。
-14. AI Orchestrator、Requirement／Visual Style Resolver、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
+14. AI Orchestrator、Requirement／Visual Style／UI Authoring Planner、生成Asset Staging、Preview matrix、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
 15. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、AI Eval corpus／holdout、Provider migration harnessを検証taskへ分解する。
 16. 2D／3D reference scene、Water／Snow fixture、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
 
@@ -1186,6 +1203,9 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | 既存作品の映像表現を模倣する | 一般属性へ分解し、固有名を正規Profile／Shader／Assetへ保存しない |
 | 構造化Gameplay Logicが遅い | Cook／index／layoutを先に最適化し、同一Contractとfixtureで有意な場合だけHot pathをC++化 |
 | AIが手動変更を消す | Base revision、File hash、三者比較、Lock |
+| AIがScreenshotだけでUI完成と誤判定する | typed Operation、layout／binding／focus／semantic／budget検証、複数Target Preview matrixを正規Gateにする |
+| 独自WidgetがEngine境界を迂回する | Composite、Effect、Nativeの段階Capability、R3 Promotion、GameHost隔離、bounded callback、fallbackで閉じる |
+| AI生成画像が未検証のままUIへ入る | Staging、provenance／license／safety、Target別import／cook、人間承認、missing fallbackを必須にする |
 | Schema-validだが意味的に不正 | C++ Semantic validator、Budget、Dry-run |
 | 生成C++が危険 | 隔離Build、Network制限、固定Toolchain、Test |
 | Provider依存 | Canonical IR、Provider adapter、Eval |
