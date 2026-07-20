@@ -1,6 +1,6 @@
 # Miraikanai Engine Authoring Model／Project State規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 対象: Project source、World Model、Scene、ChangeSet、保存、Undo／Redo、外部編集、Recovery
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -166,8 +166,8 @@ ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary�
 5. 全preconditionとDocument revisionを検証する。
 6. 参照整合、cycle、Capability、Target intersection、Domain invariantを検証する。
 7. 変更後aggregateをcopy-on-write stagingへ構築する。
-8. memory、Asset cook、render、physics、nav、package等の予測costとRisk policyを検証する。
-9. Domain dry-runと必要なbackground validation artifactのhashを照合する。
+8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`Predicted`、現在のPlanでは未達なら`OptimizationRequired`を結果revisionへ記録する。`Qualified`は予測から生成せず、既存の有効な統合負荷Receiptを照合できた場合だけ維持する。
+9. Domain dry-runと必要なbackground validation artifactのhashを照合する。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`OptimizationRequired`として記録する。
 10. 変更Document、inverse Operation、manifest、journal recordを同一temporary transaction directoryへ書く。
 11. 全fileをflushし、transaction manifestを最後に原子的renameする。
 12. 新`ProjectRevision = old + 1`とDocument indexを一つのcommit pointでpublishする。
@@ -249,15 +249,25 @@ native_module_revision_hash
 asset_dependency_root_hash
 contract_lock_hash
 toolchain_lock_hash
+scale_intent_hash
+representation_plan_hash
+integrated_scale_receipt_hash
 ```
 
+`integrated_scale_receipt_hash`は`Qualified` Targetだけ必須であり、`Predicted`／`OptimizationRequired`では0ではなくfield omissionをcanonical encodingする。未Qualified revisionからPlay／Packageを要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
+
 Source revisionと全dependency closureが同じであれば、Cooked Runtime Packageはbyte-for-byte同一でなければならない。Build日時、machine path、user、random IDはartifact本文へ含めずReceiptへ分離する。
+
+大量配置や大量生成のScale intentは、Authoring Documentを無制限なEntity列挙にしてよいという意味ではない。procedural descriptor、Recipe、spatial partition等のbounded schemaを使い、Authoring aggregate自体のhard budgetは常に満たす。一方、Target Runtimeの予測budget未達だけを理由に有効な制作意図を破棄しない。`OptimizationRequired` revisionはSourceとしてCommit、Diff、Undo、AI再提案できるが、対象TargetのPlay開始、Cooked Runtime Package promotion、Shippingには使えない。
+
+`qualification_status`はTargetごとに`Predicted | OptimizationRequired | Qualified`を持つ。`Qualified`にはRuntime規約14.6節の`IntegratedScaleFixtureV1` Receipt hashが必要であり、Source、Scale intent、Representation Plan、Target Profileのいずれかが変われば`Predicted`へ戻す。last valid Derived ArtifactをDevelopment previewで使う場合、現在Sourceの合格結果に見せない。
 
 ## 10. Failure policy
 
 | Failure | 結果 |
 |---|---|
-| Schema／semantic／budget不合格 | ChangeSet全体reject、live revision不変 |
+| Schema／semantic／Authoring hard budget不合格 | ChangeSet全体reject、live revision不変 |
+| Runtime Target予測budget未達 | Source revisionを`OptimizationRequired`でCommit可能。対象TargetのPlay／Cook／Shipping promotionを拒否し、制作意図と最適化候補を維持 |
 | Stale base revision | `RevisionMismatch`、最新Diff summaryを返す |
 | Document／StableId不足 | `MissingReference`、placeholderへ黙って置換しない |
 | Journal／disk full | Commit前にreject、dirty draftをRecoveryへ可能な範囲で保持 |
@@ -278,6 +288,8 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - Undo／Redo 10,000回後のstate hash一致
 - 外部編集三者比較、同field conflict、人間lock保持
 - AI proposalと手動GUI操作が同じcanonical ChangeSetになるconformance
+- `Predicted → OptimizationRequired → Qualified`遷移、Receipt invalidation、未Qualified TargetのPlay／Cook／Shipping拒否
+- 大量Scale intentをbounded Recipe／partitionでCommitでき、Runtime budget未達時もSource、Diff、Undo、Gameplay fidelity floorを失わない
 - 同一Project revisionを二回compileしたArtifact hash一致
 - 100万Entityのread projectionを変更せず、影響Documentだけを再投影する性能fixture
 

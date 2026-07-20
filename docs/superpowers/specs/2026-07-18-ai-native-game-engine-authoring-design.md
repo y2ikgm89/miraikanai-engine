@@ -1,6 +1,6 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 1.8
+- 文書版: 1.9
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
@@ -47,13 +47,14 @@
 | Engine機能 | 2D／3D、Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text、Audio、VFX、環境表現をSubsystem契約として分離する |
 | Physics | 独自World／Body／Joint／Character／Command／Save／AI契約をC++23で所有し、Box2D 3.1.1／Jolt 5.6.0をprivate kernel候補としてTarget別Qualification後にProduction昇格する |
 | Particle／VFX | 単一の型付きVFX Asset／Graph IRを2D／3D・CPU／GPU専用Artifactへoffline compileする。初心者Stack、上級者Graph、AI編集は同じSourceのProjectionとし、Particle結果をauthoritative Gameplayへ逆入力しない |
+| 大量制作／自動最適化 | AIが大量配置、敵味方spawn、同時VFXをScale intentとGameplay fidelity floorへ分解し、Target別Representation PlanへCookする。固定個数だけで制作意図を捨てず、Gameplayを黙って削らず、統合負荷fixtureの実測で合否を決める |
 | Visual表現 | Realistic、Toon、2D、独自Pixel DioramaをVisual Style、Material、Shader、Quality Profileの組合せとして解決する |
 | Platform | Windows／D3D12を先行し、Android／Vulkan、Apple／Metalを同じPortへ接続する |
 | Build | CMakeがC++ Build定義、NinjaがC++ Build executor、Build Gatewayが製品入口。Android packageはGradle、Apple app／archive／署名はXcodeが所有する |
 | C++進化 | C++23をShipping基準とし、Named Modules＋`import std`へ一方向移行する。C++26はreadiness CIで先行検証する |
 | 実装順 | Foundation→Headless Authoring→Editor／Runtime→2D Manual→AI MVP-A→外部Agent→3D MVP-B→Mobile→Production→制限付きRuntime生成 |
 
-このレビューで新たな製品機能は追加していない。Ninjaを含むBuild層の責務、EditorからのCMake File API利用、増分Buildの正当性／性能Gateを明示し、「Build Toolの採用」と「製品Build architecture」を混同しないようにした。
+本レビューでは、Ninjaを含むBuild層の責務に加え、大量制作を固定capだけで拒否しないAI Scale Planningを正式化した。Source intentの保持とTarget RuntimeのQualificationを分離し、Presentation-only最適化は自動化できるが、敵味方数、Damage、collision、goal、spawn timingの変更は人間承認を必須にした。
 
 ## 1. エグゼクティブサマリー
 
@@ -191,6 +192,8 @@ Test             自動
   → 適応型の追加質問
   → Game Brief確認
   → ゲーム全体のGameSpec
+  → Scale intent／Gameplay fidelity floor
+  → Target別Representation Plan／統合負荷fixture
   → 実装方式の選択
   → 薄いゲーム全体＋深い代表部分
   → First Playable
@@ -238,6 +241,8 @@ AIはこの入力からジャンル、中心体験、Core loop、視点、進行
 - 主要システム
 - Scene dimension、Art Direction、Composition、Camera方針
 - 規模
+- 総配置、最大同時存在／可視、spawn burst、interaction範囲、敵味方VFX同時性、Target別Scale intent
+- 敵味方数、Damage、collision、goal、timing等のGameplay fidelity floor
 - First Playableの範囲
 - AIが補完した事項
 - 人間の確認が必要な事項
@@ -394,7 +399,8 @@ AIが実装方式を判断するための制約を保持する。
 - 対象出力解像度／HDR
 - Asset制作量、Texture／Mesh／Sprite animation budget
 - 必須／無効化するVisual Style Capability。実際の利用可否はEngine生成`StyleCapabilityManifest`
-- 最大Entity数
+- Scale intent。総配置、peak live／visible、spawn burst、interaction／visibility範囲、同時VFX envelope、Gameplay fidelity floor
+- Target別qualification statusとIntegrated Scale Fixture Receipt
 - Network要件
 - Offline要件
 - Mod対応
@@ -543,6 +549,8 @@ Widget選択はBuiltin、`UiCompositeDefinition`、`UiEffectGraph`、`UiNativeWi
 ### 7.7 Implementation Strategy Planner
 
 システム単位でGameplayDefinition、C++、または型付きCapability境界での併用を選択する。LLMの推測だけで決めず、Engine Policyと実測を組み合わせる。汎用Game scripting runtimeは候補へ含めない。
+
+大量制作では実装言語を選ぶ前に、Runtime規約のFull Entity／simulation LOD／休眠state／pool、Renderer規約のindividual／instanced／spatial／presentation、VFX規約のCPU／GPU／aggregate emitterをTarget別Representation Planへ解決する。AIは`Predicted | OptimizationRequired | Qualified`を区別し、実測Receiptなしに「快適」「最適化済み」と説明しない。Presentation-only変更で合格できない場合は、Gameplay変更またはTarget除外を承認付き別ChangeSetとして提示する。
 
 ### 7.8 MCP Adapter
 
@@ -909,6 +917,7 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 - `mira_runtime_contracts`、`mira_runtime_package`、`RuntimeOrchestrator`、Domain Port／Runtime／Adapter境界、`ComponentAccessManifest`
 - RAII、所有権、generation handle
 - 12段階fixed tick、8段階render frame、typed command／event、bounded queue
+- `RuntimeScaleIntentV1`、Gameplay fidelity floor、Target別Representation Plan、`IntegratedScaleFixtureV1`、qualification statusのMCD契約
 - CPU memory domain、GPU allocator、residency、submission-deferred release
 - Result／Error、thread affinity、borrow epoch、Asset version／atomic promotion
 - Naming、format、static analysis、sanitizer
@@ -931,6 +940,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Stable ID／Project Revision
 - Capability、`AuthoringCommandGateway`
 - Schema／Semantic／Budget validation
+- Authoring hard budgetとRuntime Target budgetの分離、`Predicted | OptimizationRequired | Qualified`、Receipt invalidation
 - Dry-run、Diff、Atomic Commit
 - Transaction、Undo／Redo、Journal
 - Save／Load、Replay
@@ -947,6 +957,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Windows window／GameInput／XAudio2 Adapter、Editor shell用DirectWrite／TSF／UI Automation／OLE
 - Human、keyboard、assistive technology、AIを同じtyped Editor Commandへ収束
 - D3D12 device、Render Graph、D3D12MA、Debug Layer／DRED／PIX marker
+- individual／instanced／spatial／presentation Render Representation、CPU cull／LOD／instancing、Scale diagnostic
 - Asset staging、content-addressed cache、sandboxed importer、cook
 - GameplayDefinition schema／Validator／Cooker／C++ evaluatorとNativeGameModule boundary
 - Material IR、Engine-owned Target Binding Layout、Material／Style Validator、代表Material preview
@@ -961,8 +972,9 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - GameplayDefinitionでgame ruleを実装し、C++ evaluatorで実行
 - `pixel_2d`と`illustrated_2d` Profile
 - `pixel_2d` 2D top-down action縦切り
+- `2d_crowded_battle_v1`で大量配置、敵味方spawn、Physics、Gameplay、VFX、Audio／Cameraを同時測定
 
-完了条件は、AIなしでTitleからResultまでplayでき、640×360 logical pixelを1920×1080へ3倍integer scaleし、Reference stress sceneが1080p60とmemory budgetを満たすことである。
+完了条件は、AIなしでTitleからResultまでplayでき、640×360 logical pixelを1920×1080へ3倍integer scaleし、Reference stress sceneと`2d_crowded_battle_v1`が1080p60、memory／queue／VFX budget、authoritative drop 0、Replay一致を満たすことである。
 
 ### Phase 4: AI Authoring MVP-A
 
@@ -973,6 +985,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - UI Authoring Planner、自然言語からのHUD／画面UI生成、`AssetRequirement`と生成Asset Staging
 - 解像度／aspect ratio／safe area／locale／入力方式／accessibilityを跨ぐUI Previewと構造化検証
 - GameplayDefinition／C++ strategy planner
+- AI Scale Planner、Gameplay fidelity floor、Representation Plan、Project固有Integrated Scale Fixture、Optimization Receipt
 - GameplayDefinitionChangeSet、NativeCodeChangeSet、isolated validation／cook／build／test
 - Engine-generated Diff、Approval、手動変更との競合処理
 - Playtest feedbackと自動修復
@@ -998,8 +1011,9 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - 3D UI、Audio、particle、camera
 - C1 bounded Water、flat Water Volume、CPU降雪VFX、static snow mask
 - Third-person compact action arena
+- `3d_crowded_battle_v1`で大量instance、敵味方spawn、Physics、Navigation、Animation、VFX、Audio／Cameraを同時測定
 
-完了条件は、`realistic_basic` 3D縦切りを自然言語と手動編集の両方で作成でき、Khronos core／Unlit／Emissive Strength／Texture Transform material fixture、Reference stress scene、1080p60、memory budgetを満たすことである。
+完了条件は、`realistic_basic` 3D縦切りを自然言語と手動編集の両方で作成でき、Khronos core／Unlit／Emissive Strength／Texture Transform material fixture、Reference stress scene、`3d_crowded_battle_v1`、1080p60、memory／queue／VFX budget、authoritative drop 0、Replay一致を満たすことである。
 
 ### Phase 7: Mobile Platform
 
@@ -1116,6 +1130,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 - GameplayDefinition生成とC++ Capability生成が隔離環境で検証される。
 - AI変更をGame／GameplayDefinition／C++ごとにDiff表示できる。
 - 手動変更後のAI再編集で、人間の変更が無条件に消えない。
+- 大量制作要求をScale intentとGameplay fidelity floorへ分解し、Target別Representation Planと統合負荷fixtureを生成できる。
+- 大量配置、spawn、敵味方VFXの同時runで、実測Receiptなしに最適化済みと表示せず、Gameplay変更を無承認で性能調整に使わない。
 - ChangeSetをUndoおよびReplayできる。
 - 無効なAI出力がWorld ModelへCommitされない。
 
@@ -1159,6 +1175,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Runtime storage | 独自16 KiB archetype chunk＋SoA列。構造変更はtick boundaryだけ |
 | Lifetime | generation handle、phase／epoch付きlease、Asset Registry単一所有、queue別`GpuSubmissionSerial` retire |
 | Performance target | CPU／GPU P95 14.00 ms soft、16.67 ms hard。Subsystem別budgetと10分soak |
+| Scale／optimization | 固定個数超過だけでSource intentを拒否しない。`RuntimeScaleIntentV1`、Gameplay fidelity floor、Target別Representation Plan、`OptimizationRequired`、Project固有Integrated Scale Fixtureで管理 |
 | Authoring source of truth | Authoring Document集合＋単調増加`ProjectRevision`。UI、AI会話、Runtime Worldは正本ではない |
 | NativeGameModule | Windows Developmentは別ProcessのGameHostが単一DLLを起動時に一度だけload、Shipping／Android／Appleは静的link。ABI越しにSTL／exception／allocator／native objectを渡さない |
 | Asset model | Source／Import／Derived／Packageの四層、隔離Importer、content-addressed Derived Data、Asset Catalog／VFS、`.mirapack` |
@@ -1177,8 +1194,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 2. 固定Toolchain／Dependency artifactの取得、hash lock、SBOM、offline CI image、更新Gateをtaskへ分解する。
 3. Contract compiler、C++／TypeScript／binary descriptor／MCP／Provider projection、round-trip／transition conformance testをtaskへ分解する。
 4. Authoring Document Store、ProjectRevision、ChangeSet transaction、journal／snapshot／crash recovery、headless fixtureをtaskへ分解する。
-5. RuntimeOrchestrator、fixed phase、typed command／event／snapshot、queue、handle／lease、memory telemetryをtaskへ分解する。
-6. Render extraction、Render Graph compiler、D3D12 Adapter、Vulkan／Metal interface、Shader／Material pipeline、reference captureを段階taskへ分解する。
+5. RuntimeOrchestrator、fixed phase、typed command／event／snapshot、queue、handle／lease、memory telemetry、Scale intent／Representation Plan、qualification status、Integrated Scale Fixtureをtaskへ分解する。
+6. Render extraction、individual／instanced／spatial／presentation分類、CPU cull／LOD／instancing、Render Graph compiler、D3D12 Adapter、Vulkan／Metal interface、Shader／Material pipeline、reference captureを段階taskへ分解する。
 7. Asset Import Worker、Derived Data、Catalog／VFS、Cook／`.mirapack`、AI Asset staging／provenanceをtaskへ分解する。
 8. Editor document shell、dock／workspace、Scene／Outliner／Inspector／Asset／AI Partner、UI Automation bridge、recovery testをtaskへ分解する。
 9. NativeGameModule C ABI、Target別static／dynamic link、isolated Build、GameHost restart、Promotion GateとC2 `UiNativeWidget` Capabilityをtaskへ分解する。
@@ -1186,9 +1203,9 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 11. Collision、独自Physics PlatformのWorld／Dynamics／Joint／Character／Save／Replay、Box2D／Jolt Kernel Qualification、独自Navigation PlatformのGrid2D／Backend Port／Artifact／status／Recast・Detour Qualification、ozz、Engine-owned Animation Graphをconformanceとvertical sliceへ分解する。
 12. Water Source／Compiler／Render／CPU Query／Volume／Underwaterと、Weather Snapshot／降雪VFX／static・dynamic Snow Surface／stampをC1とC2の独立task、Gameplay分離fixture、Target別Gateへ分解する。
 13. Windows MSIX／folder package、Android AAB／PAD／16 KiB、Apple archive／signing／uploadをPlatform別taskと実機Gateへ分解する。
-14. AI Orchestrator、Requirement／Visual Style／UI Authoring Planner、生成Asset Staging、Preview matrix、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
+14. AI Orchestrator、Requirement／Visual Style／UI Authoring／Scale Planner、Gameplay fidelity floor、Optimization Receipt、生成Asset Staging、Preview matrix、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
 15. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、AI Eval corpus／holdout、Provider migration harnessを検証taskへ分解する。
-16. 2D／3D reference scene、Water／Snow fixture、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
+16. 2D／3D reference scene、`2d_crowded_battle_v1`／`3d_crowded_battle_v1`、Project固有Integrated Scale Fixture、Water／Snow fixture、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 

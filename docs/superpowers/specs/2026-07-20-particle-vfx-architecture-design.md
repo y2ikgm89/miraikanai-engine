@@ -1,6 +1,6 @@
 # Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-20
 - 最終更新日: 2026-07-20
 - 調査基準日: 2026-07-20
@@ -31,6 +31,7 @@ Miraikanai EngineのParticle／VFXは、**一つの型付きVFX Asset／Graph IR
 - 初心者向けModule Stack、上級者向けGraph、AI自然言語編集は、すべて同じ`VfxSystemDocumentV1`のProjectionとする。
 - C1はWindows／Mobileで成立するCPU simulationを先に実装し、C2でGPU compute、Mesh、Ribbon、Depth／SDF collision、Vector Field、Sub-emitter、Particle Lightを追加する。
 - VFXはPresentationであり、Particleの位置、衝突、GPU Event、Lightをauthoritative Gameplay、Damage、Save、Navigation、AI perceptionへ逆入力しない。
+- 敵、味方、環境を問わず同時に発生するVFXをProject全体の一つのadmission／overdraw／memory計画で扱い、Emitterごとの単体合格だけで大量戦闘を成立扱いにしない。
 - Game／AI／Project C++へD3D12、Vulkan、Metalのresource、shader、counter、barrier、native pointerを公開しない。
 - Shipping RuntimeにVFX Graph compiler、shader source、任意code evaluator、JITを含めない。
 
@@ -229,7 +230,7 @@ VfxSystemDocumentV1
 | `execution_policy` | `auto \| cpu_required \| gpu_required \| dual_fallback` |
 | `simulation_space` | `local \| world`。Instance実行中に変更不可 |
 | `max_particles` | `uint32`、選択Budget内 |
-| `priority` | `uint8`。Presentation drop順にだけ使用し、critical権限を与えない |
+| `importance_class` | `critical_combat_cue \| combat_feedback \| ambient`。Capability manifestがdrop用`uint8 priority`へ解決し、critical queue権限は与えない |
 | `rate_q32` | Q32.32 particle／second |
 | `bursts` | 最大256、`tick_offset:uint32`と`count:uint32` |
 | `lifetime_seconds` | min／maxともfinite、`1/60`～`3600`、min≤max |
@@ -565,7 +566,7 @@ Any live state -> Faulted
 
 | Command | 必須field | 適用 |
 |---|---|---|
-| `SpawnVfxSystemV1` | asset、transform source、event payload、parameter block、priority。seedは6.6節でEngineが解決 | `T90` |
+| `SpawnVfxSystemV1` | asset、transform source、event payload、parameter block、importance class。drop用priorityとseedはEngineが解決 | `T90` |
 | `StopVfxSystemV1` | handle、`immediate \| drain` | `T90` |
 | `PauseVfxSystemV1`／`ResumeVfxSystemV1` | handle | `T90` |
 | `SetVfxParameterV1` | handle、parameter ID、typed value | 次の`T90` |
@@ -917,7 +918,9 @@ Profile buildでpipeline statisticsが利用できる場合、`particle pixel sh
 
 ### 16.5 Runtime overflowとdegradation
 
-- Editor preview、AI ChangeSet、CookはBudget超過を`VfxBudgetExceeded`で拒否し、黙ってspawn scaleを下げない。
+- Game Brief／Scale intentとVFX Sourceは、Target budget超過だけで制作意図ごと破棄しない。Authoring規約の`OptimizationRequired`としてCommitできるが、対象TargetのPlay／Cook／Shipping promotionは、有効なVFX Representation Planと統合負荷Receiptができるまで拒否する。
+- Compilerは同じ意味の短命impactをaggregate emitter／event serviceへまとめ、CPU／GPU Artifact、quality variant、bounds、instance pool、spawn／overdraw budgetをTarget別に再計画する。Sourceの敵味方数、Damage、collision、spawn timingをVFX最適化で変更しない。
+- `priority`は`critical_combat_cue | combat_feedback | ambient`からCapability manifestが解決する。Presentation Event RegistryはEvent typeごとの最大importanceを固定し、AI、Project data、Emitter Sourceがそれを超えて昇格できない。陣営だけで味方または敵を一律に低priorityへせず、同じGameplay上の重要度なら敵味方で同じadmissionを使う。
 - Shippingの突発的超過だけ、`priority desc, screen_influence desc, emitter StableId asc, particle_spawn_id asc`で末尾spawnを生成しない。
 - drop数は`ParticleSpawnDropped{emitter,tick,reason,count}`へ集計し、次tickへ繰り越さない。
 - Quality variant切替は同じexecution backend内のspawn rate、Material、Trail、Light、collision品質をframe boundaryで変更する。
@@ -1155,12 +1158,14 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 | Magic projectile | authoritative projectileとPresentation VFX分離 |
 | Explosion | one authoritative EventからAudio／Camera／VFXを独立配送 |
 | GPU mesh／ribbon | indirect draw、sort、C2 Budget |
+| Crowded battle composite | 敵味方双方のhit／trail／projectile／area／explosion、aggregate emitter、instance pool、CPU／GPU選択、priority、overdraw、spawn burstをRuntime規約のIntegrated Scale Fixtureと同一runで検証 |
 
 ### 21.5 AI／Editor／Asset
 
 - 自然言語から2D／3D Effectを作り、同じGraphをStack／Graph／Inspectorで往復。
 - AI proposalと手動操作が同じcanonical ChangeSetになる。
 - lock、stale revision、Budget、unsupported Target、Gameplay collision要求を正しく拒否／質問する。
+- AI／Project dataがPresentation Event Registryの最大importanceを超えてpriorityを昇格できず、同じcombat cueを敵味方で同じadmissionへ解決する。
 - invalid GraphをCommitせず、Undo／Redo 10,000回後にDocument hash一致。
 - Source変更、Cook失敗、last valid generation、Preview restart、old Artifact retire。
 - Extension Source sandbox、R4 approval、forbidden API scan、Target compile。
