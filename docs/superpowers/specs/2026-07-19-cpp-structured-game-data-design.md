@@ -1,7 +1,8 @@
 # Miraikanai Engine C++実行コード・構造化ゲームデータ規約
 
-- 文書版: 1.6
+- 文書版: 1.7
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-21
 - 調査基準日: 2026-07-20
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
@@ -12,6 +13,7 @@
 - NativeGameModule詳細: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - 契約詳細: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Game System詳細: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- Game制作時のEngine不変境界・初心者承認: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - Shooter Gameplay詳細: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
 
 ## 1. 結論
@@ -21,6 +23,8 @@ Miraikanai Engine 1.0の公式実装方式を、次に固定する。
 > CPU上で実行するEngineおよびGame固有コードはC++23へ統一する。First-party C++公開境界はNamed Modules、標準Libraryは原則`import std`へ一方向移行する。Scene、Entity、Composition Recipe、Quest、Dialogue、Ability、Behavior、UI Flow、Encounter、調整値は、Miraikanai Engineが所有する検証可能な構造化ゲームデータとして保存する。構造化ゲームデータはoffline Cookし、C++ Runtimeが型付きCompact Binaryとして実行する。
 
 Game Systemの公式方式は契約固定・実装開放型とする。Genre、System構成、Algorithmを固定せず、同じ`GameSystemSpecV1`に対してGameplayDefinition、Native C++、hybrid、Target-specialized setを選べる。ただしState owner、Command／Event／Snapshot、Save／Replay、Budget、Test、fallbackは実装方式にかかわらず維持する。
+
+Game制作ではEngine本体を署名済みread-only baselineとして固定する。Native C++は公開SDK内の`BoundedNativeGameProfileV1`に限り、Engine Extension、Engine Adapter、Engine core変更をGame実装方式へ含めない。公開Capabilityで実現不能な要求は`capability_unavailable`で停止する。
 
 次を採用しない。
 
@@ -199,7 +203,7 @@ Pointer、vtable、native padding、source path、Editor-only説明、Provider�
 - Authoritative state writeは`GameplayStateStore`のdelta journal、World変更はtyped commandへ記録する。
 - 正常終了と全Validator合格後にだけdeltaとcommandをsealする。
 
-Gameの表現力が固定Capabilityで不足する場合は、Definitionへ汎用命令を追加して言語化せず、CapabilityをC++で追加する。
+Gameの表現力が既存Capabilityで不足する場合は、Definitionへ汎用命令を追加して言語化せず、公開SDK内で表せるProject algorithmだけをbounded Native C++で追加する。Engine Capability自体の追加が必要なら`capability_unavailable`で停止する。
 
 ## 10. AIの実装方式選択
 
@@ -208,8 +212,8 @@ AIはSystemごとに次の順序を必須とする。
 1. `GameSystemCatalogV1`から既存Engine Standard System、Component、Asset、GameplayDefinition、Capabilityのcompositionで実現する。
 2. DefinitionのCook、index、batching、Asset layoutを最適化する。
 3. 既存Systemで責務を表せない場合はProject-defined `GameSystemSpecV1`を提案する。
-4. 表現不能な新規Gameplay Algorithm、または計測済みhot pathだけ`NativeGameModule`を提案する。
-5. Platform／Native SDK統合、またはEngine-wide再利用が必要な機能はProject Moduleへ入れず、Engine／Platform AdapterまたはEngine Capability変更をR4として提案する。
+4. 公開SDK内で表現できる新規Gameplay Algorithm、または計測済みhot pathだけ`NativeGameModule`を提案する。
+5. Platform／Native SDK統合、Engine private API、または新しいEngine-wide Capabilityが必要なら、Game制作Taskは`capability_unavailable`で停止し、Engine変更へ自動昇格しない。
 
 Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択Proposalは`SystemImplementationPlanV1`として次を持つ。
 
@@ -258,7 +262,7 @@ CX0ではContract compilerとCMakeが論理依存を`include/mirakan/`と生成H
 - AndroidはGame moduleをstatic archiveとしてGame shared libraryへlinkし、AppleはGame moduleをapp executableへ静的linkする。C++変更後は完全なrebuild／package／installを必須とする。
 - ABI境界へSTL object、exception、RTTI、allocator ownership、Engine／vendor native objectを渡さない。POD wire view、versioned handle、caller-owned buffer、function tableだけを使用する。
 
-隔離Buildは、生成されたnative codeがGameHost内でsandbox化されることを意味しない。Promotion後のC++はProcess内memoryへ到達できる信頼済みCodeであるため、Code owner Reviewと全Gateを通過するまで正規Projectへ昇格しない。
+隔離Buildは、生成されたnative codeがGameHost内でsandbox化されることを意味しない。Promotion後のC++はProcess内memoryへ到達できる信頼済みCodeであるため、`GameAuthoringProfileV1`では不変Engine規約のG0～G7をすべて通過し、Policy Serviceがexact hashへ`SystemTechnicalAttestationV1`を発行するまで正規Projectへ昇格しない。初心者本人にSource安全性のCode owner保証を要求しない。
 
 ## 12. Performance方針
 

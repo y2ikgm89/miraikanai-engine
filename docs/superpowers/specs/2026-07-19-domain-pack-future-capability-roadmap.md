@@ -1,11 +1,12 @@
 # Miraikanai Engine Domain Pack／将来Capability規約
 
-- 文書版: 1.4
+- 文書版: 1.5
 - 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: 多Genre対応、Domain Pack、Template、AI vocabulary、将来Core Capabilityの設計入口
 - 状態: プロジェクト公式の規範設計レビュー版
 - Product設計: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
@@ -294,7 +295,7 @@ Provider選定はArchitectureの空欄ではなく、C1でProvider-neutral stagi
 
 - Pack Sourceはuntrusted inputとしてschema、path、license、signature／hashを検査する。
 - Packが任意native binary、Script、post-install executableを含むことを禁止する。
-- Native source templateはR3、Engine Capability変更はR4である。
+- bounded Native source templateはGame制作R3、Engine Capability変更は別RepositoryのEngine製品R4である。後者をGame制作Taskへ公開せず、不足時は`capability_unavailable`とする。
 - PackごとにCPU／GPU／memory／queue／Asset予算を持ち、Core budgetを拡張しない。
 - Pack schema／Save fieldはexact `McdContractRefV1`と、そのType内で不変の`uint32 field_id`を使う。削除済みField IDを再利用せず、renameでidentityを変えない。
 - Pre-1.0 Major変更はoffline migratorを提供し、互換shimをRuntimeへ積まない。

@@ -1,12 +1,13 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.21
+- 文書版: 1.22
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-21
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
 - 状態: プロジェクト公式の規範設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - 命名・技術識別子規約: [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
 - Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
@@ -987,7 +988,7 @@ CIはformat、compile、static analysis、test、sanitizer、package manifestを
 - NativeCodeChangeSetは許可directory、CMake target、`CppDependencySetV1`のModule import／Header例外を宣言し、Source scan結果と一致させる。
 - 新規dependency、unsafe compiler option、public API変更、memory budget変更は重要操作として人間承認を必要とする。
 - Generated codeはownership annotation相当のAPI形、static analysis、ASan、unit test、isolated buildを通す。
-- Engine coreもAIが隔離WorktreeへR4 PatchとTestを生成できる。MVPで対象外とするのは**自動昇格**であり、生成・検証・人間Reviewを禁止しない。
+- Engine coreへのAI Patch／Test生成は、Game制作から分離したEngine製品開発RepositoryとR4 Authorizationだけで行える。Game制作ProfileはEngine source、Patch Tool、Worktreeを持たず、Engine変更が必要なら`capability_unavailable`で停止する。
 - AI可視のTask本文と、Risk、Path、Network、Dependency、Gateを持つ署名済みAuthorization Envelopeを別Artifactにする。
 - External CLIのFile／Shell権限はMCP Tool allowlistだけで制御しない。Managed modeは`ExternalClientSecurityProfile`、Credential／Tool child分離、OS sandbox、Network deny、resolved path broker、差分Promotionを必須とし、非conformance ClientはMCP Proposal modeに限定する。
 - Provider向けSchemaは正本にせず、MCDから生成したsubsetとして扱い、C++ Gatewayが完全再検証する。

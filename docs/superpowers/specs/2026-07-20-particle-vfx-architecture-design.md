@@ -1,12 +1,13 @@
 # Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-20
 - 最終更新日: 2026-07-21
 - 調査基準日: 2026-07-21
 - 対象: 2D／3D Particle、CPU／GPU simulation、VFX Asset、Compiler、Renderer連携、Editor、AI Authoring、Mobile
 - 状態: プロジェクト公式の規範設計レビュー版。C1 CPU経路とC2 GPU経路のProduction昇格は実装後のQualification待ち
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Renderer正本: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
@@ -432,7 +433,7 @@ VfxExtensionManifestV1
   qualification_receipt_refs: ReceiptRef[0..64]
 ```
 
-Draft ManifestはReceiptを0件で保存できるが、Production昇格には宣言した全Dimension／TargetのReceiptを最低1件ずつ必要とする。Extensionは対象外Targetを明示し、`semantic_equivalent_only` Intentには同じCue invariantを満たすFallbackを必須とする。Fallbackがない場合は対象TargetのCookを拒否する。AIはProduction昇格済みManifestと`ai` exposureのParameterだけを選択でき、Extension Source、HLSL、C++、Cost model、Receiptを直接変更しない。新規Extensionの提案と更新はR4とし、18.5節のOperator制約と21節のQualificationを同時に満たす。
+Draft ManifestはReceiptを0件で保存できるが、Production昇格には宣言した全Dimension／TargetのReceiptを最低1件ずつ必要とする。Extensionは対象外Targetを明示し、`semantic_equivalent_only` Intentには同じCue invariantを満たすFallbackを必須とする。Fallbackがない場合は対象TargetのCookを拒否する。AIは現在の署名済みBaselineに含まれるProduction昇格済みManifestと`ai` exposureのParameterだけを選択でき、Extension Source、HLSL、C++、Cost model、Receiptを直接変更しない。新規Extensionの提案と更新は別RepositoryのEngine製品R4であり、Game制作Profileからは実行しない。
 
 ## 7. Graph、型、Stage意味
 
@@ -1222,7 +1223,7 @@ Diagnosticは`system_id`、`emitter_id`、optional Node／Field ID、Project rev
 |---|---|---|
 | Semantic Role不明、Intent未解決 | Proposalを停止し、質問または`VfxExtensionRequired` | Runtime generationを作らない |
 | Cue Contract違反、Semantic drift | Preview／Cook／Promotion reject | last valid Artifactを維持 |
-| Extension未昇格、Fallback承認不足 | R4またはUser承認までChangeSetをCommitしない | Instanceを開始しない |
+| Engine Extensionが必要、Fallback承認不足 | Game制作は`capability_unavailable`、または既存FallbackのUser承認までCommitしない。R4へ自動昇格しない | Instanceを開始しない |
 | Schema、Graph、型、Dimension不正 | ChangeSet全体reject | Artifactをloadしない |
 | Capability／fallback不足 | 対象Target Cook失敗 | Instanceを開始しない |
 | Budget／memory／overdraw超過 | Preview／AI proposal／Cook reject | 突発spawnだけ規定順でdrop |
@@ -1310,7 +1311,7 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 - AIと手動Editorが同じ`VfxLodProfileV1`、Target別Plan hash、Before／After Previewへ収束し、critical cueをambientより先にdropする提案を拒否する。
 - invalid GraphをCommitせず、Undo／Redo 10,000回後にDocument hash一致。
 - Source変更、Cook失敗、last valid generation、Preview restart、old Artifact retire。
-- Extension Source sandbox、R4 approval、forbidden API scan、Target compile。
+- 別のEngine製品開発におけるExtension Source sandbox、R4 approval、forbidden API scan、Target compile。
 
 ### 21.6 `VfxAiAuthoringFixtureV1`
 
@@ -1360,7 +1361,7 @@ AI ProfileのProduction昇格は、AI検証規約のclean state、固定Corpus�
 
 - D3D12、Vulkan、MetalのGPU Artifactが各実機／validation／shader／device recovery Gateに合格する。
 - Mesh、Ribbon、visual collision、Sub-emitter、Particle Light、`VfxLodProfileV1` branchがBudget内でReference Effectに合格する。
-- `VfxExtensionManifestV1`がTarget、Cost、Fallback、Cue invariant、R4 approval、Receipt closureを満たし、未昇格ExtensionをAIへ公開しない。
+- `VfxExtensionManifestV1`が別のEngine製品開発でTarget、Cost、Fallback、Cue invariant、R4 approval、Receipt closureを満たし、署名済みBaselineへ組み込まれるまでGame制作AIへ公開しない。
 - `VfxAiAuthoringFixtureV1` 360 Caseをclean stateから3回実行し、最悪回で全hard GateとTask success 95%以上を満たす。
 - GPU readbackなし、Shipping runtime compilerなし、Backend native型漏出なしをbinary／dependency scanで証明する。
 
@@ -1368,7 +1369,7 @@ AI ProfileのProduction昇格は、AI検証規約のclean state、固定Corpus�
 
 - `VfxSystemDocumentV1`、Effect Intent、Semantic Role Catalog、Pattern Catalog、Extension Manifest、Node Catalog、IR、Artifactは別々のversionを持つ。
 - Source schema major変更は明示migration tool、before／after hash、semantic diff、golden更新を必要とする。
-- Role／Pattern削除またはCue invariant緩和はR3、Gameplay cueまたはExtension権限に関わる変更はR4とし、既存Intentをunknownへ変えるCatalog更新を自動昇格しない。
+- Project Role／Pattern削除またはCue invariant緩和はR3、Gameplay cue変更はProject R4とする。Extension権限変更は別のEngine製品R4だけで扱い、既存Intentをunknownへ変えるCatalog更新を自動昇格しない。
 - unknown Node、unknown attribute、unknown blend、unknown execution policyを既定値へ置換しない。
 - Node削除は少なくとも一つのProject release cycleでdeprecated diagnosticを持ち、migrationが全fixtureに合格してから行う。
 - ArtifactはCompiler build、Target、Quality、Node Catalog、Shader toolchainのいずれかが変われば再Cookする。

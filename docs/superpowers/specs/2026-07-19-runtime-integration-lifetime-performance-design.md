@@ -1,12 +1,13 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 2.9
+- 文書版: 3.0
 - 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
 - Math／Core Utilities規約: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
@@ -1349,14 +1350,14 @@ AIがLevel 0の自然言語指示からGameplayDefinitionまたはC++を選ん�
 - C++が必要かどうかはGameplay Capability Contract、Capability gap、profile、memory、latency、頻度から判断し、AIの主観だけで決めない。必要Budget fieldが存在しなければBlockingとし、同一fixtureを10分×3回測定して最悪P95／peak／deadline missで判定する。
 - 構造化実装のP95とpeakが割当Budgetの80%以下かつdeadline miss 0なら維持し、80–100%はCook／index／layout最適化とC++候補を比較し、100%超またはmiss発生時にC++候補を作る。C++化の改善が5%未満または測定Noise内なら構造化実装を維持する。閾値変更はBenchmarkとADRを要する。
 - 生成物は同じunit、property、ASan、performance、dependency gateを通過するまでCommitしない。
-- Engine coreのR4 SourceもAIが隔離Worktreeへ生成できるが、mainへの自動Promotionは行わず、Domain ownerと独立Reviewerを必須にする。
+- Engine coreのR4 SourceをAIが隔離Worktreeへ生成できるのは、別のEngine製品開発Profileだけである。Game制作ProfileへSource、Tool、Path、Approvalを公開せず、必要な要求は`capability_unavailable`で停止する。
 - Android／AppleのShipping Runtimeでは、AIが生成・取得できるものを検証済み構造化dataへ限定し、C++、managed／native code、shaderの生成、post-install remote download、JIT、dynamic loadを許可しない。Store審査対象base packageのoffline compile済みshaderは通常Buildとして扱う。
 
 ## 19. Phase 0へ固定する成果物
 
 Engine feature実装前に次を完成させる。
 
-1. 設計文書Indexに列挙した公式Review set 46文書の承認。
+1. 設計文書Indexに列挙した公式Review set 47文書の承認。
 2. 基盤規約の`toolchain.lock.json`、固定offline layout、CI image digest、bootstrap照合。
 3. `mirakan_runtime_contracts`のtarget、Domain Port／Runtime／Adapter分離、依存DAG、`ComponentAccessManifest`検査。
 4. `TickPhaseId`、`RenderPhaseId`、typed command／event header。

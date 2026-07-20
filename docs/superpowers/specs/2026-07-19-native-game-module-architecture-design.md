@@ -1,8 +1,8 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.7
+- 文書版: 1.8
 - 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: Project C++、source／binary境界、entry point、lifecycle、Game UI extension、Build、Preview、Packaging
 - 状態: プロジェクト公式の規範設計レビュー版
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
@@ -15,10 +15,13 @@
 - Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 - Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- Game制作時のEngine不変境界・初心者承認: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 
 ## 1. 結論
 
 `NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++23で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。CX0ではModule-ready Header API、CX3ではNamed Modules＋`import std`を使用するが、Process／C ABI／Promotion境界は変えない。
+
+Game制作では`BoundedNativeGameProfileV1`へ適合するModuleだけを許可し、Engine本体、Extension、Adapter、公開SDK、Validator、Policyを変更しない。公開SDKで要求を意味同等に実現できない場合、Native C++で境界を迂回せず`capability_unavailable`とする。
 
 Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV1`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
 
@@ -49,7 +52,7 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 - Downloadしたbinary、Runtime生成C++、Runtime compiler
 - Anti-cheat、DRM、広告SDK、課金SDK等のPlatform／third-party integration
 
-これらはEngine CapabilityまたはPlatform AdapterとしてR4で別設計する。
+これらはGame制作Taskの対象外である。必要なCapabilityは別Repository／別AuthorizationのEngine製品開発でのみ検討でき、Game制作TaskはPatchや権限へ自動昇格せず`capability_unavailable`で停止する。
 
 ## 3. Artifactとlink方式
 
@@ -327,12 +330,14 @@ Promotionには次を必須とする。
 3. Primary／secondary compileとstatic analysis
 4. Unit、property、fuzz、integration、replay、save／load
 5. 10分×3回の同一fixture performance比較
-6. Security／code-owner Review
+6. 不変Engine規約G0～G7の全合格とPolicy Service署名済み`SystemTechnicalAttestationV1`
 7. signed Promotion Receipt
 8. `SystemBundleChangeSetV1`の全hashとexpected dependency graphを照合
 9. Authoring規約の`RegisterNativeModuleRevision`＋`SetSystemImplementationVariant` Commit
 
 Source、generated Module／C ABI Header、Dependency Set、Build artifact、Receiptのhashが一つでも一致しなければloadしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。
+
+Builder AI、Reviewer AI、人間のGame authorはいずれも技術Attestationへ署名できない。初心者はSourceを読んで安全性を保証せず、Systemの意図、Capability scope、Replay、性能、既知制限を確認する。SourceまたはGate inputが変わればAttestationを失効させる。
 
 Source PromotionとProject Commitを一つの原子的transactionと偽らない。Source Promotion後にProject Commitが失敗したrevisionはinactiveのまま保持し、現在Projectが参照する直前のQualified Variantをloadする。再試行またはrevertは同じBundle hashと新しいReview Receiptを必要とする。
 

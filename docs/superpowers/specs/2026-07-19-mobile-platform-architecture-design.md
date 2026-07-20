@@ -1,12 +1,14 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.11
+- 文書版: 1.12
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-21
 - 調査基準日: 2026-07-20
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
@@ -745,7 +747,7 @@ AIはWindows Editor／Build環境内で、GameplayDefinitionChangeSet、portable
 AIの実装選択はTarget intersectionを考慮する。
 
 - Gameplay rule、quest、UI flow、調整値はGameplayDefinitionを第一選択にする。
-- hot path、大量simulationは計測後にportable `NativeGameModule`候補とし、Engine extensionはR4で別Reviewする。
+- hot path、大量simulationは計測後にportable bounded `NativeGameModule`候補とする。Engine extensionが必要ならGame制作は`capability_unavailable`で停止し、別のEngine製品開発へTaskや権限を継承しない。
 - OS lifecycle、JNI、Objective-C++、Graphics backendはEngine maintainer所有Adapterであり、Project AIの自動変更対象外。
 - Target限定APIが必要ならCapability、fallback、permission、privacy、Store影響をChangeSetへ明示する。
 

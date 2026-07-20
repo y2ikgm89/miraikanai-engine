@@ -1,11 +1,12 @@
 # Miraikanai Engine AI可読Capability Portfolio／MVP製品化・将来Roadmap規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: Offline Single-player MVP製品化、将来の汎用Engine化、不足Capabilityの所有境界、成熟度、着手Gate、AI向け説明
 - 状態: プロジェクト公式の規範設計レビュー版
 - Product設計: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 共通機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - 将来機能入口: [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
 - 実行可能契約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
@@ -862,7 +863,7 @@ Portfolioへ対するAI公開Operationを次へ限定する。
 | `operation.capability.compare_targets` | R1 | Target別差とEvidence |
 | `operation.capability.propose_priority_change` | R2 | Portfolio ChangeSet |
 | `operation.capability.propose_contract_scope` | R2／R3 | 個別正式仕様のScope案 |
-| `operation.capability.request_prototype` | R3／R4 | 隔離Prototype Task案 |
+| `operation.capability.request_prototype` | Engine製品開発R3／R4 | 別Repositoryの隔離Prototype Task案。Game制作Profileでは非公開 |
 
 AIへ次を公開しない。
 
@@ -873,6 +874,8 @@ AIへ次を公開しない。
 - Network／Account／Commerceの実操作。
 - Production Manifestへの直接掲載。
 - Gate、Budget、Threat Modelの削除または緩和。
+
+`GameAuthoringProfileV1`へ公開するのはQuery／Explain／Target比較とProject範囲のProposalだけである。不足Capabilityの説明はEngine変更権限を付与せず、Game制作Taskを`capability_unavailable`で停止する。
 
 ### 17.1 `CapabilityGapExplanationV1`
 

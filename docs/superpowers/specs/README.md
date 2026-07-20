@@ -1,7 +1,7 @@
 # Miraikanai Engine 設計文書Index
 
-- 最終更新日: 2026-07-20
-- 状態: Subsystem別正式仕様を統合した設計レビュー用Index。2026-07-20内部整合レビュー済み、ユーザー承認待ち
+- 最終更新日: 2026-07-21
+- 状態: Subsystem別正式仕様を統合した設計レビュー用Index。2026-07-21 Engine不変境界・初心者承認の内部整合レビュー済み、ユーザー最終レビュー待ち
 
 ## 0. 統合計画サマリー
 
@@ -15,7 +15,8 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Game実装 | 実行CodeはC++23、頻繁に調整する内容は型付き`GameplayDefinition`。offline CookしたPackageをC++ evaluatorが実行する |
 | Script | Luau、Lua、C# Game runtime、汎用Script VM、bytecode interpreter、JIT、Game向けFFIは採用しない |
 | 実装方式選択 | AIはSystem単位でGameplayDefinition、C++、または型付きCapability境界での併用を選ぶ。選択理由、budget、benchmarkをDecision Ledgerへ記録する |
-| Game System／コード生成 | 契約固定・実装開放型を公式方式とする。Engine標準、Project定義、Engine Extensionを同じ`GameSystemSpecV1`、State owner、Command／Event／Snapshot、System Catalog、Bundle、Testで扱い、`.cpp`だけを単独生成しない |
+| Engine不変境界／初心者承認 | Game制作では署名済みEngine baselineをread-only固定し、AIはProject構造化data、Asset、Test、公開SDK内のbounded C++、Engine-owned binding内のbounded Shaderだけを変更する。AIは自己承認せず、Engine-owned G0～G7とPolicy Serviceの署名済みAttestationが技術適格化し、人間はGame意図・Capability・試遊・最終Activationを承認する |
+| Game System／コード生成 | 契約固定・実装開放型を公式方式とする。Engine標準、Project定義、署名済みBaseline内のread-only Extensionを同じ`GameSystemSpecV1`、State owner、Command／Event／Snapshot、System Catalog、Bundle、Testで扱う。Game制作AIはExtensionを生成・変更せず、`.cpp`だけを単独生成しない |
 | Shooter Gameplay | `mirakan.feature.shooter_core.c1`をWeapon、Fire／Shot Delivery、Projectile、Combat、Vital、Pickup、Score、Encounter、Game Flowへ分割し、2D top-downと3D TPSは同じPublic ContractへProfileを適用する。Fireは原子的transaction、Projectileはauthoritative object、ParticleはPresentation専用とする |
 | Engine／Editor | Engine、EditorHost、GameHost、Tool、NativeGameModuleのFirst-party CPU codeはC++23。EditorはC++ Projection Editorで、状態の正本ではない |
 | C++移行 | CX0のHeader bootstrapから、Named Modules＋`import std`を使うCX3へ一方向移行する。C++26はShippingに使わずreadiness CIだけを持つ |
@@ -51,7 +52,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | 対象Platform | Windows Editor／Gameを先行し、Android、iOS／iPadOSを順に追加する。Mobile Editor、Linux製品Target、multiplayer、XRは初期対象外 |
 | MVP | MVP-AはAIで作る2D top-down shooter、MVP-Bは同じShooter Coreを使う3D compact third-person shooter arena。Android／Apple vertical sliceはその後に行う |
 | Capability Portfolio | MVP製品化と将来の汎用Engine化を`CapabilityPortfolioV1`で分離し、tierとactivation state、Owner、依存、Entry Gate、Evidenceを固定する。未Qualified CapabilityをAI／Editor／Buildが利用可能と表示しない |
-| AIによるEngine保守 | Game制作AIに加えてEngine本体の実装・保守AIを対象にするが、隔離Source Worker、Risk class、Review、Promotion、署名分離を満たすまで高権限操作を公開しない |
+| AIによるEngine保守 | Game制作とは別Repository／別Profile／別AuthorizationのEngine製品開発だけを対象にする。Game制作TaskへEngine source、A2／R4 Tool、Path、Approvalを公開または継承せず、新Engineは別の署名済みBaselineとして明示Migrationする |
 
 ### 0.1 要求から正式仕様への対応
 
@@ -65,6 +66,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | C++23、C++26 readiness、Modules、`import std`、Ninja | C++23・Named Modules移行規約 |
 | AI／手動編集の共通状態、Undo、Recovery、Transaction | Authoring Model／Project State規約 |
 | AIが理解できる型、Operation、Capability、Schema、Codegen | 実行可能契約規約。Physics／Collisionの自然言語Intent、canonical role、質問、Assumption、未対応Capability説明はPhysics AI Semantic Capability Catalog規約 |
+| Game制作AIにEngineを変更させない、初心者がC++を読まずに安全性を判定する、AIがGame全体をStaging生成してSystem／Feature／Game単位で承認する | 不変Engine境界・初心者向けAI技術承認規約を正本とし、Game System、NativeGameModule、AI実装・保守ガバナンス規約へ接続する |
 | Engine／ゲーム制作Debug、Profiler、Breakpoint／Watch、Replay／Rewind、Crash、remote device、AI原因分析 | AI可読Debugging／Observability／Replay規約を正本とし、Runtime、Editor、Platform、各SubsystemのDebug Snapshotへ接続する |
 | Game system、Level system、戦闘、Character、AI C++コード生成、実装自由度 | Game System／AI Code Generation規約を正本とし、C++／GameplayDefinition境界はC++実行コード規約、Native実装はNativeGameModule規約へ接続する |
 | Single-player Shooter、Weapon、Projectile、Damage、Vital、Pickup、Score、Encounter、2D top-down／3D TPS Profile | AI可読Shooter Gameplay／Weapon／Projectile規約をShooter意味契約の正本とし、Game System、Runtime、Input、Collision、UI、VFX、Audio各正本へ接続する |
@@ -153,54 +155,55 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 
 ## 1. 読む順序
 
-Miraikanai Engineの公式Review setは次の46文書である。上位のProduct判断から共通契約、Game／World model、Subsystem固有契約、検証規約の順に読む。
+Miraikanai Engineの公式Review setは次の47文書である。上位のProduct判断からGame制作の不変境界、共通契約、Game／World model、Subsystem固有契約、検証規約の順に読む。
 
 1. [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
-2. [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
-3. [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-4. [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
-5. [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
-6. [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
-7. [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
-8. [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
-9. [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
-10. [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
-11. [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
-12. [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-13. [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
-14. [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
-15. [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
-16. [Miraikanai Engine AI可読Capability Portfolio／MVP製品化・将来Roadmap規約](./2026-07-20-ai-readable-capability-portfolio-productization-roadmap-design.md)
-17. [Miraikanai Engine Camera Platform／AI Authoring／Virtual Productionアーキテクチャ規約](./2026-07-20-camera-platform-ai-authoring-virtual-production-architecture-design.md)
-18. [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
-19. [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
-20. [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
-21. [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
-22. [Miraikanai Engine Material／Visual Style／AI Authoringアーキテクチャ規約](./2026-07-20-material-visual-style-ai-authoring-architecture-design.md)
-23. [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
-24. [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
-25. [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
-26. [Miraikanai Engine Scale-Resilient Canonical Architecture規約](./2026-07-20-scale-resilient-canonical-architecture-design.md)
-27. [Miraikanai Engine Environment Platform／AI Authoringアーキテクチャ規約](./2026-07-20-environment-platform-ai-authoring-architecture-design.md)
-28. [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
-29. [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
-30. [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
-31. [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
-32. [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
-33. [Miraikanai Engine Physics AI Semantic Capability Catalog規約](./2026-07-20-physics-ai-semantic-capability-catalog-design.md)
-34. [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
-35. [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
-36. [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
-37. [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
-38. [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-39. [Miraikanai Engine Audio／Mixer／Spatial規約](./2026-07-19-audio-mixer-spatial-architecture-design.md)
-40. [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
-41. [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
-42. [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
-43. [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
-44. [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
-45. [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
-46. [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+2. [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
+3. [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+4. [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+5. [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
+6. [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
+7. [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
+8. [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
+9. [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
+10. [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
+11. [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+12. [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+13. [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+14. [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
+15. [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+16. [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+17. [Miraikanai Engine AI可読Capability Portfolio／MVP製品化・将来Roadmap規約](./2026-07-20-ai-readable-capability-portfolio-productization-roadmap-design.md)
+18. [Miraikanai Engine Camera Platform／AI Authoring／Virtual Productionアーキテクチャ規約](./2026-07-20-camera-platform-ai-authoring-virtual-production-architecture-design.md)
+19. [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
+20. [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+21. [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
+22. [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+23. [Miraikanai Engine Material／Visual Style／AI Authoringアーキテクチャ規約](./2026-07-20-material-visual-style-ai-authoring-architecture-design.md)
+24. [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
+25. [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
+26. [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
+27. [Miraikanai Engine Scale-Resilient Canonical Architecture規約](./2026-07-20-scale-resilient-canonical-architecture-design.md)
+28. [Miraikanai Engine Environment Platform／AI Authoringアーキテクチャ規約](./2026-07-20-environment-platform-ai-authoring-architecture-design.md)
+29. [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
+30. [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
+31. [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
+32. [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
+33. [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+34. [Miraikanai Engine Physics AI Semantic Capability Catalog規約](./2026-07-20-physics-ai-semantic-capability-catalog-design.md)
+35. [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
+36. [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
+37. [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
+38. [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
+39. [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+40. [Miraikanai Engine Audio／Mixer／Spatial規約](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+41. [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+42. [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
+43. [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+44. [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
+45. [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
+46. [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+47. [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 `2026-07-18-codex-config-optimization-design.md`は開発者個人のCodex設定資料であり、Engineの製品・Runtime・Editor・AI契約に対する決定権を持たず、公式Review setへ含めない。
 
@@ -209,6 +212,7 @@ Miraikanai Engineの公式Review setは次の46文書である。上位のProduc
 | 文書 | 決定する範囲 |
 |---|---|
 | AIネイティブ設計計画書 | Product vision、制作体験、AI／人間の関係、Phase、MVP、Review set全体の上位目的 |
+| 不変Engine境界・初心者向けAI技術承認規約 | `ImmutableEngineBaselineV1`、Game制作Tool／Path境界、bounded Project C++／Shader、G0～G7、AIとPolicy Serviceの権限分離、System／Feature／Game Candidate承認、初心者UI、atomic Activation／Rollback |
 | C++実行コード・構造化ゲームデータ規約 | C++／data境界、GameplayDefinition、NativeGameModule、AI実装選択、Script VM不採用 |
 | 基盤アーキテクチャ規約 | C++、Memory、Pointer、Module、Dependency、`BuildDriverProfileV1`、Ninja／Gradle／Xcode、Directory |
 | AI可読命名・技術識別子規約 | Product technical stem、Repository slug、C++、C ABI、Module、CMake、HLSL、Tool、Schema、Contract ID、Diagnostic、Test、Generated code、File／Directory、Naming Policy、lint、移行Gate |
@@ -267,7 +271,7 @@ Miraikanai Engineの公式Review setは次の46文書である。上位のProduc
 
 実装計画書の作成へ進む前に、次をすべて満たす。
 
-- ユーザーが公式Review set 46文書の方向性をReviewし、修正点または承認を返す。
+- ユーザーが公式Review set 47文書の方向性をReviewし、修正点または承認を返す。
 - 文書間Link、Heading anchor、Table、Code fence、規範語の機械検査が通る。
 - C0／C1に必要な選択が暗黙Defaultになっておらず、外部artifactから取得する値には取得手順、Owner、Block条件がある。
 - Authoring、Runtime、Renderer、Asset、Editor、Input、UI、Audio、Physics、Navigation、Animation、Platform、AIの境界にOwner、入力、出力、phase、budget、failure、testが定義されている。

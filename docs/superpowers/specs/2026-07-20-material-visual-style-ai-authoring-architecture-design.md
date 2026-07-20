@@ -1,10 +1,12 @@
 # Miraikanai Engine Material／Visual Style／AI Authoringアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: 描画Material、Visual Style、Shader authoring、Editor、AI Operation、Preview、Explain、Validator、Eval
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Authoring規約: [Miraikanai Engine AIネイティブゲームエンジン制作設計書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema Code Generation規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Lighting規約: [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
@@ -143,9 +145,9 @@ Bindingは参照を接続するだけで各Domainの値を複製しない。描�
 | 2 Material Graph | 型付きNode、公開parameter定義 | Templateで不足する表現 | R2 ChangeSet |
 | 3 Safe expression | 閉じた式subset | 小さな数式拡張 | R2 ChangeSet |
 | 4 Project HLSL | Engine entry／binding内のmodule | Graphで表現不能なProject表現 | R3 |
-| 5 Engine拡張 | Node、Domain、Shading Model、Compiler | 複数Project向けCapability | R4 |
+| 5 Engine製品拡張 | Node、Domain、Shading Model、Compiler | 別Repositoryで将来Baselineを開発 | Engine製品R4。Game制作Profileでは利用不可 |
 
-AIは低いLevelで要件を満たせる場合に高いLevelを選ばない。
+AIは低いLevelで要件を満たせる場合に高いLevelを選ばない。Game制作Profileの上限はLevel 4であり、Level 5をToolまたはfallbackとして公開しない。Level 4でも公開Shader binding内で実現できなければ`capability_unavailable`とする。
 
 ### 3.2 Editor projection
 
@@ -387,7 +389,7 @@ Graph出力はDomainごとに固定し、任意Render passやGPU resourceへ接�
 - Metallic-Roughness workflow
 - Base color、metallic、perceptual roughness、normal、occlusion、emissive
 - Opaque、alpha mask、premultiplied transparent
-- Reflection probe、shadow、height fog、exposure、tone mapping
+- Environment IBLによるreflection、shadow、height fog、exposure、tone mapping。Local reflection probeはC2
 - glTF core、`KHR_materials_unlit`、`KHR_materials_emissive_strength`、`KHR_texture_transform`
 
 Authoring上のroughness／metallicは0～1とし、shader内部のFP32 roughnessは0.045～1へclampする。

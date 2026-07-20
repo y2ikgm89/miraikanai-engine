@@ -1,8 +1,8 @@
 # Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 調査基準日: 2026-07-20
 - 対象: Game System、AI実装計画、GameplayDefinition、Project C++、System Catalog、Codegen、依存、検証、Promotion
 - 状態: プロジェクト公式の規範設計レビュー版。実装待ち
@@ -13,6 +13,7 @@
 - Runtime: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Project C++: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - AI権限: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+- Game制作時のEngine不変境界・初心者承認: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 検証: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 - World／Level／Map: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
 - Debugging／Replay: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
@@ -22,7 +23,7 @@
 
 Miraikanai Engineの公式Game System方式を、**契約固定・実装開放型（Contract-Stable／Implementation-Open）AI-native typed hybrid architecture**へ固定する。
 
-ゲームのGenre、Core loop、System構成、Component、State、Rule、Algorithm、2D／3D表現を固定しない。Projectは、Engine標準Systemのcomposition、Project固有`GameplayDefinition`、Project C++ `NativeGameModule`、承認済みEngine Extensionを必要に応じて選べる。一方、System間接続、State所有、MCD Contract ID／Version、Command、Event、Snapshot、Authority、Lifetime、Runtime phase、Save／Replay、Budget、Test、Target fallbackはMiraikanai Contract Definition（MCD）で一意にする。
+ゲームのGenre、Core loop、System構成、Component、State、Rule、Algorithm、2D／3D表現を固定しない。Projectは、署名済みEngine baselineに含まれる標準System／Capabilityのcomposition、Project固有`GameplayDefinition`、bounded Project C++ `NativeGameModule`を必要に応じて選べる。一方、System間接続、State所有、MCD Contract ID／Version、Command、Event、Snapshot、Authority、Lifetime、Runtime phase、Save／Replay、Budget、Test、Target fallbackはMiraikanai Contract Definition（MCD）で一意にする。
 
 ```text
 Natural language／Editor／IDE
@@ -70,7 +71,7 @@ Game SystemはEngine Subsystemの別名ではない。Physics、Renderer、Navig
 | Game System | 一つの明示責務、State owner、入出力契約、lifecycleを持つGameplay単位 |
 | Engine Standard System | Engineが標準Contract、Reference Definition、Fixtureを提供するSystem |
 | Project-defined System | Project namespaceで新しく定義し、MCDと全Gateを通したSystem |
-| Engine Extension | 複数Projectで再利用する新CapabilityをEngineへ追加するR4変更 |
+| Engine Extension | 別のEngine製品開発工程で作られ、署名済みEngine baselineへ組み込まれたread-only Capability。Game制作AIは生成、変更、昇格できない |
 | Public System Contract | System ID、State、Command、Event、Snapshot、Capability、Save意味の集合 |
 | Implementation Variant | 同じPublic System Contractを実装するGameplayDefinition、Native C++、hybrid等の一実装 |
 | System Bundle | System変更に必要なAuthoring、Definition、Source、Asset、Test、Migration、Receipt参照のclosure |
@@ -104,7 +105,7 @@ Contract compilerはactive `GameSystemContractRefV1`をMCD IDのUTF-8 byte順に
 - Project固有C++ Algorithm。
 - 2D、3D、hybrid gameplay space。
 - Targetごとの実装Variant。ただし意味同等性Gateを満たすこと。
-- R4 Reviewを通したEngine ExtensionとPlatform Adapter。
+- 現在の署名済みEngine baselineへ既に含まれるEngine ExtensionとPlatform Adapterの利用。
 
 ### 4.2 固定するもの
 
@@ -127,13 +128,15 @@ project_defined
 engine_extension
 ```
 
-Project-defined Systemは`game_system.project.<project_namespace>.<lower_snake_path>`を使用する。`project_namespace`はProject作成時に固定するASCII lowercase identifierで、3～32文字、先頭英字、以後英数字またはunderscoreとする。renameしてもSystem IDを変更しない。Engine Standardは`game_system.engine.<lower_snake_path>`、Extensionは`game_system.extension.<package_namespace>.<lower_snake_path>`を使う。
+`engine_extension`は現在の`ImmutableEngineBaselineV1`に署名済みで含まれるCatalog entryの出自を表すだけであり、Game制作中の実装候補または変更権限を表さない。
+
+Project-defined Systemは`game_system.project.<project_namespace>.<lower_snake_path>`を使用する。`project_namespace`はProject作成時に固定するASCII lowercase identifierで、3～32文字、先頭英字、以後英数字またはunderscoreとする。renameしてもSystem IDを変更しない。Engine Standardは`game_system.engine.<lower_snake_path>`、署名済みExtensionは`game_system.extension.<package_namespace>.<lower_snake_path>`を使う。
 
 `lower_snake_path`はdot区切りで、Engine Standardは1～6 segment、Project／Extensionは1～5 segment、各segmentは1～48文字、ASCII lowercase、先頭英字、以後英数字またはunderscoreとする。`package_namespace`も3～48文字で同じidentifier規則を使う。これにより実行可能契約規約の`<kind>.<namespace_path>`における2～8 segment上限を必ず満たす。
 
 表示名、localized title、Genre名をidentityに使わない。Project SystemをEngine Standardへ昇格する場合は新しいEngine IDを発行し、明示Migrationで置換する。同じIDのoriginを変更しない。
 
-### 4.4 明示的に許可するescape path
+### 4.4 Game制作Profileで許可する実装経路
 
 | 順序 | 実装経路 | 変更Risk |
 |---:|---|---:|
@@ -141,9 +144,9 @@ Project-defined Systemは`game_system.project.<project_namespace>.<lower_snake_p
 | 2 | Project GameplayDefinition | R2 |
 | 3 | Project-defined System Contract | Schema互換ならR3、Authority／State意味変更はR4 |
 | 4 | NativeGameModule Implementation Variant | R3 |
-| 5 | Engine Extension／Engine Adapter | R4 |
+| 5 | 公開Capability内で実現不能 | `capability_unavailable`で停止 |
 
-前段で表現できないことだけを理由に後段を禁止しない。ただし後段を使う場合もPublic System Contract、Target、Budget、Testを省略できない。
+前段で表現できないことだけを理由にbounded Project C++を禁止しない。ただし後段を使う場合もPublic System Contract、Target、Budget、Testを省略できない。Game制作TaskからEngine Extension、Engine Adapter、Engine core変更へfallbackしない。
 
 ## 5. `GameSystemSpecV1`
 
@@ -183,7 +186,7 @@ Project-defined Systemは`game_system.project.<project_namespace>.<lower_snake_p
 
 | Field | 型／規則 |
 |---|---|
-| `allowed_implementation_kinds` | `gameplay_definition \| native_game_module \| hybrid \| engine_extension \| target_specialized_set`の非空subset |
+| `allowed_implementation_kinds` | `gameplay_definition \| native_game_module \| hybrid \| target_specialized_set`の非空subset。`engine_extension`はGame制作時のImplementation Variantではない |
 | `default_implementation_ref` | Engine Standardは厳密に1件。Project-definedはQualification前のみ0件可 |
 | `native_eligibility` | `not_allowed \| capability_gap_only \| measured_hot_path_or_gap` |
 | `replacement_policy` | `not_replaceable \| one_active_variant \| project_override` |
@@ -372,7 +375,7 @@ AIは次の順序を守る。
 2. `systems.search`でTargetとmaturityを絞る。
 3. 選択候補だけ`systems.read`する。
 4. 必要なCapabilityだけ`capabilities.search／read`する。
-5. 既存composition、Project Definition、Native C++、Engine Extensionの順に候補を比較する。
+5. 既存composition、Project Definition、bounded Native C++の順に候補を比較し、いずれでも実現不能なら`capability_unavailable`とする。
 6. 不足情報がBlocking／High Impactの場合だけ質問する。
 7. `SystemImplementationPlanV1`とBundleを提案する。
 
@@ -411,7 +414,6 @@ SystemImplementationPlanV1
 gameplay_definition
 native_game_module
 hybrid
-engine_extension
 target_specialized_set
 ```
 
@@ -422,8 +424,7 @@ target_specialized_set
 1. 既存Component、Asset、Engine Standard System、GameplayDefinition、Capabilityのcomposition。
 2. Cook、index、flat layout、SoA、batch、Asset layoutの最適化。
 3. 表現不能なProject Algorithmまたは計測済みhot pathのNativeGameModule。
-4. 複数Projectで再利用する新CapabilityのEngine Extension。
-5. Platform／Native SDKが必要なEngine Adapter。
+4. 公開SDKで意味同等実装ができなければ`capability_unavailable`で停止する。
 
 Genre名、2D／3D、総File数、AIの主観だけでC++を選ばない。
 
@@ -462,7 +463,7 @@ Shipping CPU executionがC++23である点はC++ only方式と同じである。
 | 反復速度 | Rule／数値変更でもcompile／link／GameHost restart | Definition変更はvalidate／cook、互換時はT00 swap |
 | Code size／build graph | content量に応じSource、template、translation unitが増える | evaluator Codeを共有し、contentはcompact package |
 | AI一貫性 | Source、Save、Editor、Testの別生成でdriftしやすい | Contractからbinding、Editor、codec、Test skeletonを同時生成 |
-| 自由度 | C++で最大 | Project C++／Engine Extension escape pathにより同じ上限へ到達可能 |
+| 自由度 | Engine private／OS APIを含む任意C++まで到達可能 | 公開SDK内のProject C++でGame algorithmを自由化する。Engine変更相当の要求は意図的に未対応停止 |
 | 安全性／Target | pointer、phase、Save、fallbackをReviewで維持 | State owner、phase、Budget、Target、Saveを機械Gateで強制 |
 
 Definition evaluatorのindirect dispatch、generic branch、State lookupが計測済みBudgetを超える場合はNativeまたはhybridへ昇格するため、構造化方式のためにhard deadlineを犠牲にしない。逆にC++化だけで高速になるとは仮定せず、同じfixtureで5%以上かつnoiseを超える改善がなければDefinitionを維持する。
@@ -701,7 +702,7 @@ GatewayまたはAIがDiagnosticを理由に別Systemへ黙ってmappingしない
 
 - 自然言語Requirementから正しいsemantic roleを選ぶ。
 - 既存compositionを不要なC++へ昇格しない。
-- Capability不足時にProject SystemまたはEngine Extensionを区別する。
+- Capability不足時にProject System／bounded Nativeで解決可能か、`capability_unavailable`かを区別する。
 - State owner、dependency、Save、TestをBundleへ含める。
 - 未知ID、stale Contract、unsupported Targetを推測補正しない。
 - 人間変更を保持した再編集。
@@ -737,7 +738,7 @@ Phase 0で上表のGame実装、空Class、空CMake targetを作らない。Meta
 
 - MCDに`game_system` kindとmeta-schemaがある。
 - `GameSystemSpecV1`、Implementation Policy、Implementation Set、Catalog、Implementation Plan、Bundle、Dependency Graph、Save／Replay ContractのSchemaとC++／TS projectionがある。
-- Engine Standard、Project-defined、Engine Extensionが同じCatalog形式を使う。
+- Engine Standard、Project-defined、署名済みBaseline内のEngine Extensionが同じCatalog形式を使い、後者をGame制作AIが作成・変更できない。
 - CatalogがWhitelistではなく、Project namespace登録とActivation Gateを持つ。
 - authoritative State ownerが厳密に一つであることをContract compilerが証明する。
 - Build／Cook cycle、same-tick write cycle、Presentation逆入力を拒否する。

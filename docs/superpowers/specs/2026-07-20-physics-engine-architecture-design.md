@@ -1,11 +1,12 @@
 # Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: 2D／3D Physics World、Dynamics、Joint／Constraint、Character Motor、Backend、Editor、AI Authoring、Save／Replay
 - 状態: プロジェクト公式の規範設計レビュー版。Kernelは採用決定済み、Production昇格は実装後のQualification待ち
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - Collision正本: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Simulation連携: [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
@@ -541,7 +542,7 @@ AIは初心者へ「Box2DかJoltか」「solver iterationはいくつか」と�
 - World Profile、Body、Collider、Joint、Character Profile、filter、material、Gameplay parameterは構造化dataを使う。
 - Force適用条件、Character ability、damage、quest、game-specific state machineはGameplayDefinitionを優先する。
 - bounded operationでは表現できないProject固有behavior、またはBenchmarkで必要性が証明されたhot pathはProject C++を使う。
-- 新しいsolver、Joint type、contact modification、Backend setting、Physics phaseはProject C++の自由拡張にせずEngine R4変更とする。
+- 新しいsolver、Joint type、contact modification、Backend setting、Physics phaseはProject C++の自由拡張にしない。別RepositoryのEngine製品R4だけで検討し、Game制作Profileでは`capability_unavailable`とする。
 
 AIはLevel 0でも必要なGameplayDefinitionとProject C++を生成できるが、どちらもtyped Physics Portだけを使い、Vendor include、raw pointer、callback登録、任意World stepを生成しない。
 

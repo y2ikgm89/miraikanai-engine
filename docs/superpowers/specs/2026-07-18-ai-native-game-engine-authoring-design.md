@@ -1,16 +1,17 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 2.7
+- 文書版: 2.8
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-21
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想とSubsystem別正式仕様46文書を統合した内部整合レビュー版。ユーザー承認待ち
+- 状態: 基本構想とSubsystem別正式仕様47文書を統合した内部整合レビュー版。ユーザー承認待ち
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Math／Core Utilities規約: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- Game制作時のEngine不変境界・初心者承認: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
@@ -35,20 +36,22 @@
 
 ## 0. 統合レビュー結果
 
-本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。46文書を単一巨大文書へ統合せず、次の三層を維持する。
+本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。47文書を単一巨大文書へ統合せず、次の三層を維持する。
 
 1. 本書がProduct vision、制作体験、Milestone、MVP、全体の依存順を決定する。
 2. [設計文書Index](./README.md)が読む順序、決定権、要求トレーサビリティ、Review状態を決定する。
 3. Subsystem別正式仕様が型、phase、lifetime、budget、failure、test、Definition of Doneを決定する。
 
+このReview setにはEngine製品自体の将来開発も含まれるが、Game制作は`GameAuthoringProfileV1`で実行する。Game制作中のEngine、Editor、公開SDK、Validator、Policyは署名済みread-only baselineであり、Engine製品開発のRepository、Tool、A2／R4権限をGame制作Taskへ公開または継承しない。詳細と矛盾時の優先規則は[不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)を正本とする。
+
 2026-07-20の内部整合レビューでは、会話で確定した要求が次の閉じた設計へ収束していることを確認した。
 
 | 領域 | 統合判断 |
 |---|---|
-| AIとEngineの境界 | AIはGame Brief、GameSpec、GameplayDefinition、C++、Test、ProjectChangeSetを提案できるが、Engine object、pointer、GPU resource、ProjectRevisionを直接変更できない |
+| AIとEngineの境界 | Game制作AIはGame Brief、GameSpec、GameplayDefinition、bounded Project C++、Test、ProjectChangeSetを提案できるが、署名済みEngine baseline、Engine object、pointer、GPU resource、ProjectRevisionを直接変更できない。公開SDKで実現不能なら`capability_unavailable`で停止する |
 | Authoring | 自然言語、Editor GUI、外部IDE、MCPは同じAuthoring DocumentとProjectChangeSetへ収束し、C++ GatewayだけがCommitする |
 | Game実装 | C++23実行Code＋構造化GameplayDefinition。Luauを含む汎用Game Script VMは持たない |
-| Game System | 契約固定・実装開放型。Engine標準、Project定義、Engine Extensionを同じSystem Contract、State owner、Catalog、Bundle、Testへ収束させ、固定Class hierarchyまたはWhitelistでゲーム内容を制限しない |
+| Game System | 契約固定・実装開放型。Engine標準、Project定義、署名済みBaselineに含まれるread-only Extensionを同じSystem Contract、State owner、Catalog、Bundle、Testへ収束させる。Game制作AIがExtensionを生成・変更する経路は持たない |
 | World／Level／Map | `Map`をWorld structure、playable Level、Streaming、Procedural layout、Navigation、Map presentationへ解決する。Scene edit shard、Gameplay Level、Target別Streaming Cellを別identityとする |
 | Editor | C++23の独自`MirakanUi Core`＋`MirakanEditor Shell`で実装するProjection Editor。Retained UIと限定typed Immediate Canvasを併用し、禁止GUI toolkit、screen-coordinate AI操作、Projectへの直接writeを持たない |
 | Game UI／AI UI | HUDと画面UIは独立した`UiDocument`として所有し、手動操作とAI提案を同じ型付きChangeSetへ収束させる。C1は標準Widget＋`UiCompositeDefinition`、C2は`UiEffectGraph`＋承認済み`UiNativeWidget`をGameHostで扱い、AIによるWidget／生成Assetの直接writeを許可しない |
@@ -156,7 +159,7 @@ AIはC++エンジン内部を直接操作しない。AI、Editor GUI、外部ツ
 | Level 0 | 自然言語、参考資料、選択肢への回答 | 初心者を含む全ユーザー |
 | Level 1 | Scene、Inspector、Graph、UI、Data、Timeline | 制作経験者、ノーコード利用者 |
 | Level 2 | GameplayDefinitionのGraph／Table／Form生成・直接編集 | 中級者、Designer、Mod制作者 |
-| Level 3 | NativeGameModule（Project C++）、Engine Extensionの生成・直接編集 | 上級者、Engine開発者 |
+| Level 3 | 公開SDK内のNativeGameModule（Project C++）の生成・直接編集 | 上級者。Engine製品開発は別Repository／Profile |
 
 レベルは権限階層であり、別製品や別ファイル形式ではない。初心者がLevel 0で作ったプロジェクトを、経験者がLevel 1〜3で直接編集できる。
 
@@ -586,7 +589,7 @@ Widget選択はBuiltin、`UiCompositeDefinition`、`UiEffectGraph`、`UiNativeWi
 
 システム単位でGameplayDefinition、C++、または型付きCapability境界での併用を選択する。LLMの推測だけで決めず、Engine Policyと実測を組み合わせる。汎用Game scripting runtimeは候補へ含めない。
 
-Plannerは`GameSystemCatalogV1`から既存composition、Project GameplayDefinition、Project-defined System、NativeGameModule、Engine Extensionの順に比較し、`SystemImplementationPlanV1`へRequirement、Contract hash、State owner、Target、Budget、同値fixture、Save／Migration、fallback、却下案を記録する。AIがC++を選ぶ場合も`.cpp`だけを生成せず、generated binding、CMake、manifest、Definition参照、Test、Benchmark、System Bundleを同じdependency closureへ含める。
+Plannerは`GameSystemCatalogV1`から既存composition、Project GameplayDefinition、Project-defined System、bounded NativeGameModuleの順に比較し、`SystemImplementationPlanV1`へRequirement、Contract hash、State owner、Target、Budget、同値fixture、Save／Migration、fallback、却下案を記録する。いずれでも意味同等に実現できなければ`capability_unavailable`で停止する。AIがC++を選ぶ場合も`.cpp`だけを生成せず、generated binding、CMake、manifest、Definition参照、Test、Benchmark、System Bundleを同じdependency closureへ含める。
 
 大量制作では実装言語を選ぶ前に、Runtime規約のFull Entity／simulation LOD／休眠state／pool、Renderer規約のindividual／instanced／spatial／presentation、VFX規約のCPU／GPU／aggregate emitterをTarget別Representation Planへ解決する。AIは`Predicted | OptimizationRequired | Qualified`を区別し、実測Receiptなしに「快適」「最適化済み」と説明しない。Presentation-only変更で合格できない場合は、Gameplay変更またはTarget除外を承認付き別ChangeSetとして提示する。
 
@@ -641,14 +644,11 @@ Engine、Editor、GameHost、Project固有の実行コードはC++23とする。
 参照・index・layout・Cook最適化でBudget内
   → GameplayDefinitionを維持
 
-未提供Gameplay Capability／新規Algorithm
+公開SDK内の新規Game Algorithm／計測済みhot path
   → NativeGameModule
 
-複数Projectで再利用するEngine-wide Capability
-  → Engine ExtensionとしてR4 Review
-
-Platform／Native SDK統合
-  → Engine Adapter変更としてR4 Review
+Engine private API、Platform／Native SDK、新しいEngine-wide Capabilityが必要
+  → capability_unavailable（Game制作Task内でEngine変更へfallbackしない）
 
 同一fixtureで構造化実装がBudget超過
   → C++候補と比較し、有意な改善時だけC++へ昇格
@@ -697,10 +697,10 @@ Project固有C++は`NativeGameModule`として、Engine-ownedのtyped command／
 
 | 範囲 | AIの標準権限 | 必須検証 |
 |---|---|---|
-| NativeGameModule | 隔離Workspaceで生成・修正可能 | Primary／secondary Compile、Static analysis、Unit、Integration、Capability conformance |
-| Engine／Platform Adapter | 明示的なR4変更 | Dependency、Security、Platform／Store、全体Test、Domain owner、独立Review |
-| Engine Extension | 明示的なR4変更 | 全体Test、current API conformance、Domain owner、独立Review |
-| Engine Core | R4 Proposalと隔離Patch | Threat／lifetime analysis、完全Review、回帰・fault・soak |
+| bounded NativeGameModule | Game Projectの隔離Workspaceで生成・修正可能 | 不変Engine規約のG0～G7、`SystemTechnicalAttestationV1` |
+| Engine／Platform Adapter | Game制作Profileでは権限なし | `capability_unavailable`。別のEngine製品開発工程だけで扱う |
+| Engine Extension | Game制作Profileでは権限なし | `capability_unavailable`。別のEngine製品開発工程だけで扱う |
+| Engine Core | Game制作Profileでは権限なし | `capability_unavailable`。別のEngine製品開発工程だけで扱う |
 
 初心者の自然言語指示からC++が必要になった場合も、まず隔離Workspaceへ`NativeCodeChangeSet`を生成し、CompileとTestを通す。稼働中Engineへ未検証codeを注入しない。Desktop Previewは別ProcessのGameHostをBuild後に再起動し、C++ DLLのin-process hot unloadを1.0では行わない。Android／AppleのC++変更は再Build、再署名、再installを必要とする。
 
@@ -871,7 +871,7 @@ C++／Shader source生成は隔離されたBuild環境を利用する。Gameplay
 - Test suite
 - AI向け説明
 
-AIはインストール済みCapabilityだけを利用できる。不足する場合は、GameplayDefinition composition、NativeGameModule、Engine Extensionの順に選択し、NativeGameModuleはR3、Engine ExtensionはR4の承認を必須とする。
+AIは署名済みEngine baselineへインストール済みのCapabilityだけを利用できる。不足する場合は、GameplayDefinition composition、bounded NativeGameModuleの順に検討し、それでも実現不能なら`capability_unavailable`で停止する。Game制作TaskからEngine Extensionを生成または変更しない。
 
 ## 12. Editor制作型とRuntime生成型
 
@@ -964,7 +964,7 @@ Authoring Source、Material／Visual Style、Gameplay fidelity floor、LOD Inten
 
 ### Phase 0: Foundation契約とToolchain
 
-- 設計文書Indexに列挙した公式Review set 46文書の承認
+- 設計文書Indexに列挙した公式Review set 47文書の承認
 - C++23共通Runtime Contract、`CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`と`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
@@ -1106,7 +1106,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 
 完了条件は、同一Project revisionの2D First PlayableがAndroid minimum／reference実機とA12 iPhone／iPadでplay、save、suspend復帰でき、Build／Signing／Uploadの秘密分離を証明した署名済みinternal track／TestFlight package、memory／frame／thermal／privacy gateを満たすことである。さらに、失敗時のpartial captureをgap付きで回収し、同じSession／Build／Project revisionへ再結合でき、Shipping packageからvalidation layer、IDE attach、raw trace、source path、credentialを除外できなければならない。
 
-署名済みinternal track／TestFlight packageの作成前にA3 Releaseを完成する。A2 Engine MaintenanceはGame制作MVP-A／MVP-Bの必須条件ではないが、Engine coreをAI保守対象として公開する前に別途完成し、未完成時はR4 Toolを公開しない。
+署名済みinternal track／TestFlight packageの作成前にA3 Releaseを完成する。A2 Engine Maintenanceは別Repository／別AuthorizationのEngine製品開発Profileにだけ存在し、Game制作MVP-A／MVP-BへTool、Path、Approvalを公開しない。
 
 ### Phase 8: Production CapabilityとDomain Pack
 
@@ -1277,7 +1277,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 ### 16.2 実装計画書で分解する事項
 
-次は設計上の選択肢ではなく、46文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
+次は設計上の選択肢ではなく、47文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
 
 各実装taskは、対象file／target／public contract／依存taskに加え、基準fixture、Target Profile、測定metric、soft／hard Gate、Before／After比較、fallback、rollback、生成する`VerificationReceiptV1`、完了時に昇格できるCapability状態を明記する。実測不能なtaskは、機能実装taskへ混ぜずinstrumentationを先行taskにする。性能改善とbaseline緩和を同じ判断にせず、baseline変更は旧値、新値、理由、Reference環境、品質差、全下流Gate影響を持つ別Review対象にする。
 
@@ -1398,6 +1398,6 @@ Unity、Unreal Engine、Godot、O3DEからは、Retained tree、独自C++ Framew
 
 ## 20. 次のアクション
 
-設計文書Indexに列挙した46文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
+設計文書Indexに列挙した47文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)、[不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)、本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

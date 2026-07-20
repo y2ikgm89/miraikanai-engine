@@ -1,11 +1,12 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.18
+- 文書版: 2.19
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-21
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Math／Core Utilities規約: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
@@ -927,7 +928,7 @@ Virtual Shadowのphysical pool、page table、metadata、precompiled conventiona
 
 `ProjectShadowTechniqueV1`は`ShadowTechniqueManifestV1`を内包し、`technique_id`、version、Target requirement、入力Semantic、出力`shadow_attenuation_linear`、登録済みPass Template、resource上限、予測／実測cost、fallback technique、debug channel、Shader Interface hashを必須とする。Cooked moduleは`ShadowTechniquePortV1`だけを実装する。Project moduleはRender Graphへ宣言したresourceだけを読み書きし、World、Entity、Gameplay state、native GPU handle、raw barrier、filesystem、networkへaccessしない。隔離offline compile、static validation、watchdog付き隔離GPU Runner、golden image、全対象Target cook、人間Review、Promotion Receiptに合格したArtifactだけをCatalogへ追加する。AIはL3を「Graphで表現不能」または人間の明示要求時だけ提案でき、直接有効化できない。
 
-既存Schema内のL0／L1／L2 instance変更はR2、Node CatalogまたはSchema互換性の変更とL3 Project C++／HLSLはR3、Engine Backendまたは`ShadowTechniquePortV1`／Extension SDKの変更はR4とする。AIはR2を有効な事前委任範囲内でだけ昇格でき、R3／R4を自動昇格しない。
+既存Schema内のL0／L1／L2 instance変更はR2、Node CatalogまたはProject Schema互換性の変更とL3 bounded Project C++／HLSLはR3とする。Engine Backendまたは`ShadowTechniquePortV1`／Extension SDKの変更は別RepositoryのEngine製品R4であり、Game制作Profileでは利用不可とする。AIはR2を有効な事前委任範囲内でだけ昇格でき、Project R3はAttestationを必要とし、Engine R4へ昇格しない。
 
 Resolver／Graph／Backendは次のtyped errorを共有する。
 
@@ -1341,7 +1342,7 @@ GPU particleはvisual effectであり、gameplayの正規状態やSaveへ使用�
 
 Coreはgenre名をRuntime分岐へ使わず、impact、projectile、trail、area warning、status、ambient、weather、interaction、spawn／despawn、success feedbackのSemantic Roleを、2D／3D／Hybrid、one-shot／loop／continuous、Style、Target、Scaleへ直交分解する。RPG魔法、Racing dust、Fighting hit、Strategy selection、Puzzle completion等は、Domain Packが同じRole、Pattern、Presentation Event、Visual Styleをcompositionして表現する。
 
-「全gameで汎用的」は、全Effect algorithmをCoreへ内蔵する意味ではない。C1／C2 Core Patternで表現できないFluid、volumetric、破壊、特殊Renderer等は`VfxExtensionRequired`とし、型、Cost model、対応Dimension／Target、Fallback、`MinimumCueContractV1`、R4承認、Qualification Receiptを持つExtensionだけを採用する。未対応要求、Target非対応、Cue破壊を黙って機能削除または成功扱いしない。
+「全gameで汎用的」は、全Effect algorithmをCoreへ内蔵する意味ではない。C1／C2 Core Patternで表現できないFluid、volumetric、破壊、特殊Renderer等は`VfxExtensionRequired`とする。別のEngine製品開発で型、Cost model、対応Dimension／Target、Fallback、`MinimumCueContractV1`、R4承認、Qualification Receiptを満たして新Baselineへ組み込まれたExtensionだけをGame制作で利用できる。現在のBaselineで未対応なら`capability_unavailable`とし、機能削除または成功扱いしない。
 
 AIは自然言語を直接Graphへ変換せず、`VfxEffectIntentV1`を確定し、Semantic／Pattern Catalogから最大3候補を作り、型付きChangeSet、固定seed Preview、Semantic diff、Cost、Fallbackを提示する。手動Editor、AI、Project C++ Commandは同じSource AssetとOperationを使う。
 
@@ -1556,7 +1557,7 @@ Coreはgenreを知らない。次はDomain Packで提供する。
 - Strategy: Selection、formation、fog of war、large-agent navigation
 - VFX語彙: genre固有の表示名、Intent preset、Role組合せ、Parameter初期値、Presentation Event mapping。Core Semantic Roleを置換せず、未知Roleまたは未昇格Extensionを追加しない
 
-Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋め込まない。Packはschema、template、validator、AI vocabulary、test scenarioを一つのversioned packageとして配布する。VFX Patternを同梱する場合は`VfxPatternCatalogV1`へversion付き登録し、Core外Operatorを含む場合は`VfxExtensionManifestV1`、R4承認、Target別Qualificationを必須とする。
+Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋め込まない。Packはschema、template、validator、AI vocabulary、test scenarioを一つのversioned packageとして配布する。VFX Patternを同梱する場合は`VfxPatternCatalogV1`へversion付き登録する。Core外Operatorは別のEngine製品開発で`VfxExtensionManifestV1`、R4承認、Target別Qualificationを満たし、署名済みBaselineへ組み込まれた場合だけ利用できる。
 
 ## 13. 実装順序
 
@@ -1646,7 +1647,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 26. Anti-alias／Upscale機能は`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、方式互換表、sample／resolve、history reset、layer分離、typed Diagnostic、Preview、AA visual／performance Receiptを持ち、AIと手動Editorが同じOperationを使う。
 27. Lighting機能は`LightSourceV1`、`LightIntentV1`、`LightingStyleProfileV1`、`ResolvedLightPlanV1`、`LightSnapshotV1`、物理単位、安定selection／cluster、overflow、Preview、Explain、Target別Receiptを持ち、AIと手動Editorが同じOperationを使う。
 28. Post Process機能は`PostProcessIntentV1`、`PostProcessProfileV1`、`PostProcessVolumeV1`、`PostProcessNodeCatalogV1`、`ResolvedPostProcessPlanV1`、固定stage、AA互換、history reset、UI／pixel-locked分離、Preview、Target別Receiptを持ち、AIと手動Editorが同じOperationを使う。
-29. Particle／VFX機能は`VfxEffectIntentV1`、Semantic Role／Pattern／Node Catalog、`MinimumCueContractV1`、Target別CPU／GPU Artifact、Cost／Fallback、Semantic diff、Qualification Receiptを持ち、AI、手動Editor、Project C++ Commandが同じSourceとOperationへ収束する。Core外表現は`VfxExtensionManifestV1`のR4 Gateを通し、`VfxAiAuthoringFixtureV1` 360 Caseのhard Gateを満たす。
+29. Particle／VFX機能は`VfxEffectIntentV1`、Semantic Role／Pattern／Node Catalog、`MinimumCueContractV1`、Target別CPU／GPU Artifact、Cost／Fallback、Semantic diff、Qualification Receiptを持ち、AI、手動Editor、Project C++ Commandが同じSourceとOperationへ収束する。Core外表現は別のEngine製品開発で`VfxExtensionManifestV1`のR4 Gateと`VfxAiAuthoringFixtureV1` 360 Caseのhard Gateを満たし、署名済みBaselineへ組み込まれたものだけをGame制作で利用する。
 30. Visual Effect要求は`VisualEffectSemanticCatalogV1`、`VisualEffectRequestV1`、`ResolvedVisualEffectOwnershipPlanV1`でParticle／VFX、Post、Material、Lighting、Environment、Water／Snow、UI、Camera、Animationへ型付きRoutingされ、`VisualEffectRoutingFixtureV1` 96 CaseでOwner recall 100%、誤Owner、必須共同Owner欠落、Visual-only Gameplay解決、Owner逸脱Proposal 0件を満たす。
 
 ## 15. 主要リスクと確定対策

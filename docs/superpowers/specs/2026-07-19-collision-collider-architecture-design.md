@@ -1,11 +1,12 @@
 # Miraikanai Engine Collision／Colliderアーキテクチャ規約
 
-- 文書版: 1.6
+- 文書版: 1.7
 - 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: 2D／3D Collision、Rigid Body接続、Collision Query、Editor、AI Authoring、Asset Cook
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - C++公開境界: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
@@ -733,7 +734,7 @@ Character Motorは`capability.physics.character_motor_v1`と`operation.physics.*
 | `operation.collision.create_query_profile` | Query filterを作る | R2 |
 | `operation.collision.modify_channel_table` | Project全体のpair semanticsを変更 | R2＋明示impact approval |
 
-Schema、Engine code、Adapter、budget上限自体の変更はR3／R4であり、上表のAuthoring権限では実行できない。
+Project Schema互換変更は該当R3／R4 Gateを必要とする。Engine code、Adapter、Engine-owned budget上限自体の変更は別のEngine製品開発Profileだけで扱い、Game Authoring権限では実行または提案できない。
 
 ### 16.3 Level 0自然言語
 
@@ -791,7 +792,7 @@ GameplayDefinitionからCollider geometry、Sensor flag、Filter table定義、M
 
 NativeGameModule（Project C++）は`collision_port`のtyped command／query／eventを使用する。Vendor headerをProject targetへlinkまたはincludeしない。C1ではProject独自Contact callbackを登録できない。Gameplay拡張はEvent consumerまたはMCD operationとして実装する。
 
-新しいContact Rule、Shape type、Backend設定、Physics phase、queue、memory budgetを追加するC++はEngine Architecture変更としてR4 Reviewを要求する。
+新しいContact Rule、Shape type、Backend設定、Physics phase、queue、Engine-owned memory budgetを追加するC++は別RepositoryのEngine製品R4変更である。Game制作ProfileはEngine変更へ進まず、公開Capabilityで実現不能なら`capability_unavailable`とする。
 
 ## 18. Memory、性能、容量
 

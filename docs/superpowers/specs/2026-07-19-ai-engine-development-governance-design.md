@@ -1,7 +1,8 @@
 # Miraikanai Engine AI実装・保守ガバナンス規約
 
-- 文書版: 1.9
+- 文書版: 2.0
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-21
 - 調査基準日: 2026-07-20
 - 対象: Game制作AI、GameplayDefinition／C++生成AI、Engine実装・保守AI、Editor、外部CLI／Desktop App、API Provider
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -15,6 +16,7 @@
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- Game制作時のEngine不変境界・初心者承認: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
 - Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 
@@ -28,6 +30,8 @@
 
 AIはGame制作とEngine開発の両方で実装主体になれる。ただし、AIが自分で権限を宣言し、自分の出力を検証済みとみなし、正規Project、main branch、署名鍵、配布先を直接変更することは禁止する。AIは隔離領域へGameSpec、GameplayDefinition、ChangeSet、C++、Shader、Test、文書、Patchを生成し、決定論的Validator、Compiler、Test、Budget gate、必要な人間Reviewを通過した成果物だけを信頼済みGatewayが昇格する。
 
+Game制作とEngine製品開発は同じTaskのRisk段階ではなく、別Profile、別Repository、別Authorizationである。`GameAuthoringProfileV1`ではEngine baselineを不変に固定し、AIはEngine source、Extension、Adapter、Validator、Policyを変更できない。公開SDK内のbounded Project C++はEngine-owned GateとPolicy Serviceの署名済みAttestationで技術適格化し、初心者にSource安全性の保証を要求しない。Engine製品開発に関する本書のA2／R4記述はGame制作Taskへ適用または継承しない。
+
 この方式は次を同時に満たす。
 
 - 初心者は自然言語だけでGame全体を作り始められる。
@@ -37,7 +41,7 @@ AIはGame制作とEngine開発の両方で実装主体になれる。ただし�
 - AIは自然言語の「マップ」をWorld structure、Level、Streaming、Procedural layout、Navigation、Map presentationへ解決し、曖昧または高影響なら質問する。
 - Codex、Claude等のCLI／Desktop AppはMCP経由で同じ契約を利用できる。
 - 製品内の統合AIはProvider APIを使い、構造化出力、会話、監査、UXを一体管理できる。
-- Engine本体の実装・保守AIは隔離WorktreeでSourceを変更できる。
+- Engine本体の実装・保守AIは、Game制作から分離されたEngine製品開発RepositoryとAuthorizationでのみ隔離WorktreeへSource変更を提案できる。
 - AI Provider、Model、Prompt、Toolの更新を評価なしでProductionへ自動適用しない。
 
 ## 2. 採用前監査の結論
@@ -50,7 +54,7 @@ AIはGame制作とEngine開発の両方で実装主体になれる。ただし�
 | Provider APIを製品内AIの主経路にする | 採用 | 構造化出力、会話状態、監査、失敗処理、初心者UXをEngine側で統制できる |
 | MCPを外部AI接続の標準境界にする | 採用 | Codex、Claude、Desktop App、CLIを一つのEngine契約へ接続できる |
 | Pluginを補助UXとして許可する | 採用 | Panel、Command、Prompt template等を追加できるが、必須機能や権限の正本にはしない |
-| AIにGameplayDefinition／C++生成を許可する | 採用 | 構造化編集を第一選択とし、未提供Capability、新規Algorithm、計測済みhot pathをNativeGameModule（Project C++）、Platform統合をR4 Engine Adapterで補う |
+| AIにGameplayDefinition／C++生成を許可する | 採用 | 構造化編集を第一選択とし、公開SDK内の新規Algorithmと計測済みhot pathだけをbounded NativeGameModuleで補う。Engine変更が必要ならGame制作は`capability_unavailable`で停止する |
 | 選択的な形式モデルを使う | 採用 | 承認、Commit、非同期公開、Version切替等の小さな状態機械に有効 |
 | ModelとToolを用途別に使い分ける | 採用 | 全Taskを最大Modelへ送る方式はCost、Latency、評価範囲を不必要に増やす |
 | Stable-firstの技術更新 | 採用 | Previewの即時導入と「最新」のfloating指定は再現性を壊す |
@@ -373,11 +377,11 @@ AIは質問を無制限に並べない。初回はBlockingとHighを最大7問�
 | R0 | 読取、検索、説明、Report | 可 | 状態変更なし | 不要 |
 | R1 | 文書、非実行Sample、Editor layout個人設定 | 可 | 可。ただしprotected branch外 | Owner不要、Gate必須 |
 | R2 | GameSpec、World／Level／Topology、Scene、UI、Asset設定、GameplayDefinition、既存System Variant／configuration選択 | 可 | 署名済み事前委任Policyのallowlistにある可逆Operationを非Release branchへ適用する場合だけ | Author 1名、または同等Scopeの有効な事前委任 |
-| R3 | Project-defined Game System Contract、NativeGameModule（Project C++）、Shader、Build設定、Dependency、互換Schema変更 | 可 | 不可 | Code owner 1名＋全Gate |
-| R4 | authoritative State owner／Save意味変更、Engine Extension、Engine core、Memory、Threading、Serialization、Security、Source Gate | 可 | 不可 | Domain owner＋独立Reviewer |
+| R3 | Project-defined Game System Contract、bounded NativeGameModule（Project C++）、Project Shader、互換Schema変更。任意Build option／外部DependencyはGame制作Profileで禁止 | 可 | 不可 | `GameAuthoringProfileV1`は適用G0～G7＋Policy Service署名。それ以外の開発ProfileはCode owner 1名＋全Gate |
+| R4 | authoritative State owner／Save意味変更。Engine製品開発ProfileではEngine Extension、Engine core、Memory、Threading、Serialization、Security、Source Gateも含む | Project artifactは可。Engine sourceはGame制作Profileで不可 | 不可 | Project変更は該当Attestation／Approval。Engine製品変更はDomain owner＋独立Reviewer |
 | R5 | merge、tag、sign、Store upload、Production secret、公開Release | Proposalだけ可 | 禁止 | Human release owner＋分離Release pipeline |
 
-R4でもAIは隔離WorktreeへPatchとTestを生成できる。「提案だけ」とはSourceを生成できない意味ではなく、正規Branchへ自動昇格できない意味である。R5 OperationはModelへToolとして公開しない。
+R4のEngine製品変更でAIが隔離WorktreeへPatchとTestを生成できるのは、別のEngine製品開発Profileだけである。「提案だけ」とはSourceを生成できない意味ではなく、正規Branchへ自動昇格できない意味である。Game制作ProfileにはEngine sourceとR4 Engine Tool自体を公開しない。R5 OperationはModelへToolとして公開しない。
 
 Debugging OperationはDebugging規約20.1節をclosed mappingとして使用する。登録済みbounded QueryはR0、local Developmentのrecord／Watch／safe Pause／StepはR1、D3 capture／remote attachはR2、source-sensitive Bundle exportはR2＋人間承認とする。Debug FindingからProject／Sourceを変更するOperationは対象変更本来のRiskを使い、Debug Session権限や「修正目的」を理由に下げない。Debug dataの読取りTaskへProject変更Toolを同じCatalogで追加せず、DiagnosisとRemediationを別Envelopeへ分離する。
 
@@ -385,7 +389,7 @@ Riskは変更後の最大影響で決める。文書TaskでもBuild scriptやPol
 
 R2の事前委任はOperation ID＋version、PathGrant、最大Entity／byte数、Target branch、有効期限、Rollback可能性を固定し、Save schema、Public API、Asset license、Dependency、Security、課金、公開配布を含めない。Promotion Serviceは実DiffからRiskを再分類する。実RiskがEnvelopeより高い、または委任Scopeを外れる場合は昇格せず、新しいEnvelopeとApprovalを要求する。AIのRisk自己申告でRiskを下げない。
 
-Project-defined Systemは既存`game_system` meta-schemaへ適合してもPublic System Contract追加なのでR3とする。既存Systemのauthoritative State owner、Command／Event意味、Save field、migration、authority、Engine Capabilityを変更する場合はR4へ上げる。Level／World変更でもSave互換、Target support、Asset license、persistent Entity、runtime procedural generationへ影響する場合は最大影響に従いR3以上へ再分類する。
+Project-defined Systemは既存`game_system` meta-schemaへ適合してもPublic System Contract追加なのでR3とする。既存Systemのauthoritative State owner、Command／Event意味、Save field、migration、authorityを変更する場合はProject R4へ上げる。Engine Capability artifact自体の変更はGame制作Profileで禁止し、必要なら`capability_unavailable`とする。Level／World変更でもSave互換、Target support、Asset license、persistent Entity、runtime procedural generationへ影響する場合は最大影響に従いR3以上へ再分類する。
 
 ### 9.1 Activation Gate
 
@@ -394,11 +398,11 @@ Project-defined Systemは既存`game_system` meta-schemaへ適合してもPublic
 | Activation | 依存Activation | 有効にする範囲 | 解放条件 |
 |---|---|---|---|
 | A0 Authoring Core | なし | R0、R1、R2の構造化編集とGameplayDefinition | MCD最小Contract、署名Envelope、C++ Gateway、ChangeSet transaction、Definition Validator／Cooker、R0–R2 Policy test、Undo、adversarial Eval |
-| A1 Project Source | A0 | R3のNativeGameModule（Project C++）、Shader、Build設定 | `HyperVIsolatedWorkerV1`または同等remote Worker、Base image／IPC conformance、Promotion、全Path／Network／Process negative test、primary／secondary compiler、static／sanitizer、Code owner Review |
-| A2 Engine Maintenance | A1 | R4のEngine／Editor／Orchestrator保守 | 5 State modelとtransition conformance、独立Reviewer、threat／lifetime analysis、full regression、fault／soak |
+| A1 Project Source | A0 | R3のbounded NativeGameModule（Project C++）、Project Shader、Engine-owned templateからのBuild manifest | `HyperVIsolatedWorkerV1`または同等remote Worker、Base image／IPC conformance、Promotion、全Path／Network／Process negative test、primary／secondary compiler、G0～G7、Policy Service署名済み`SystemTechnicalAttestationV1` |
+| A2 Engine Maintenance | Game制作Activation DAG外 | 別Repository／別AuthorizationにおけるR4のEngine／Editor／Orchestrator保守 | 5 State modelとtransition conformance、独立Reviewer、threat／lifetime analysis、full regression、fault／soak。Game制作Tool catalogへ非公開 |
 | A3 Release | A0 | R5のmerge／tag／sign／Store提出 | 分離Release Coordinator／Build Worker／Signing／Upload Service、clean reproducible build、SBOM、DSSE SLSA provenance、Platform署名、device／Store gate |
 
-現在ActivationはMCD ProfileとEditor UIへ表示する。未解放OperationはTool catalogへ出さず、内部呼出しにも`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返す。A3はA2を必須としないが、Release Coordinatorは入力ごとに、そのArtifactを生成したCapabilityのActivationとRisk Gateを検査する。したがってR3 Sourceを含むReleaseにはA1が必要であり、R4 AI保守で生成したEngineを含むReleaseにはA2も必要になる。A0だけでGameplayDefinitionを使う2D Manual First Playableと構造化AI loopを完成できるようにする一方、NativeGameModule生成をMVP-A成功条件へ含めるため、正式なMVP-A完了にはA1を必須とする。未Activation機能を「将来対応」と偽って成功表示しない。
+現在ActivationはMCD ProfileとEditor UIへ表示する。未解放OperationはTool catalogへ出さず、内部呼出しにも`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返す。Game制作のA3はA2を参照しない。Release Coordinatorは入力ごとに、そのArtifactを生成したCapabilityのActivationとRisk Gateを検査するため、R3 Project Sourceを含むReleaseにはA1が必要である。別のEngine製品開発で生成した新EngineはA2を通過して署名済みの新Baselineになった後だけ、Game Projectが明示Migrationできる。A0だけでGameplayDefinitionを使う2D Manual First Playableと構造化AI loopを完成できるようにする一方、NativeGameModule生成をMVP-A成功条件へ含めるため、正式なMVP-A完了にはA1を必須とする。未Activation機能を「将来対応」と偽って成功表示しない。
 
 ## 10. Game実装方式の選択
 
@@ -409,8 +413,8 @@ Project-defined Systemは既存`game_system` meta-schemaへ適合してもPublic
 1. `GameSystemCatalogV1`から既存Engine Standard System、正規GameSpec、Component、Asset、Rule等のcompositionで表現する。
 2. 既存Capabilityと`GameplayDefinition`の組合せ、参照解決、offline Cook、event index、data layout最適化で解決する。
 3. 既存Contractで責務を表現できない場合はProject-defined `GameSystemSpecV1`をR3で提案する。
-4. 未提供Gameplay Capability、新規Algorithm、または同一fixtureでBudget超過が確認されたhot pathだけを`NativeGameModule`へ実装する。
-5. Platform／Native SDK統合または複数Project向け再利用はProject Gameplay moduleへ入れず、R4のEngine Extension／Platform Adapter変更とする。
+4. 公開SDK内で表現できる新規Game Algorithm、または同一fixtureでBudget超過が確認されたhot pathだけを`NativeGameModule`へ実装する。
+5. Platform／Native SDK統合、Engine private API、または新しいEngine-wide Capabilityが必要なら、Game制作Taskは`capability_unavailable`で停止する。別のEngine製品Roadmapへ要望を記録できるが、Task、Approval、権限、Patchを自動継承しない。
 6. 大きなSystemは`GameplayDefinition`と`NativeGameModule`を、MCDで定義されたtyped command／event／snapshot境界で分割する。
 
 汎用Game scripting runtime、bytecode interpreter、JIT、FFIは選択肢に含めない。AIはGameの「大きさ」やGenre名だけでC++を選んではならない。各Systemのデータ量、呼出頻度、Latency、Memory、決定論性、Platform、Security、再利用性を根拠に`SystemImplementationPlanV1`を作る。C++を選んでもSource断片だけを提出せず、Contract、Definition、Source、Build、Save／Migration、Test、Benchmarkを`SystemBundleChangeSetV1`へ含める。
@@ -422,9 +426,9 @@ Project-defined Systemは既存`game_system` meta-schemaへ適合してもPublic
 | Scene、数値、Rule table、Dialogue、Quest、Ability、UI Flow | 第一選択 | 原則不要 |
 | 頻繁に調整するGame固有Rule | 第一選択 | 未提供Capabilityだけ |
 | 1 frameに大量entityを処理 | Data定義とCook最適化 | 計測後のKernel候補 |
-| Physics／Render／AudioのLow-level統合 | 登録済みCommand設定 | Engine Adapter |
-| Native SDK／Platform API | 設定とCapability参照だけ | Engine Adapterだけ |
-| Security境界、Serializer、Allocator、Job system | Schemaで参照だけ | Engine core |
+| Physics／Render／AudioのLow-level統合 | 登録済みCapabilityの設定だけ | 未提供なら`capability_unavailable` |
+| Native SDK／Platform API | Baseline登録済みCapabilityの参照だけ | 未提供なら`capability_unavailable` |
+| Security境界、Serializer、Allocator、Job system | Baseline登録済みSchemaで参照だけ | Game制作Profileでは変更不可 |
 | Runtime生成内容 | 検証済みDataだけ | 生成、download、load禁止 |
 
 ### 10.3 性能による昇格基準
@@ -436,7 +440,7 @@ Systemごとに`BehaviorBudget`がない場合、AIは性能を理由にGameplay
 - P95 timeとpeak memoryが各割当Budgetの80%以下、deadline miss 0、決定論／安全性Gate合格: GameplayDefinitionを維持する。
 - 80%超100%以下: 自動確定せず、DefinitionのCook／index／layout最適化とC++候補を同一fixtureで比較する。
 - 100%超またはdeadline miss 1件以上: NativeGameModule候補、またはGameplayDefinition＋C++のtyped境界へ昇格する。
-- Platform／Native SDK APIが必要: R4 Engine／Platform Adapterとして別提案にする。Engine禁止APIが必要な設計はC++化で迂回せず拒否する。
+- Platform／Native SDK APIまたはEngine禁止APIが必要: C++化で迂回せず`capability_unavailable`で停止する。Engine変更提案へ自動昇格しない。
 - C++化で改善が5%未満または測定Noise内: 調整容易性を優先しGameplayDefinitionへ戻す。
 
 80%は20%の変動余裕を確保するMiraikanai初期Policyであり、Vendor公式値ではない。Reference hardwareの実測とADRによってSystem別に変更できるが、Task内のAI判断だけでは変更できない。

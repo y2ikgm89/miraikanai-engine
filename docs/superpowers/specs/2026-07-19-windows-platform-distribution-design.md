@@ -1,10 +1,12 @@
 # Miraikanai Engine Windows Platform／Distribution規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
+- 最終更新日: 2026-07-21
 - 対象: Windows Editor／Game、Process、Window、Platform Port、Filesystem、Package、Signing、Update、Crash
 - 状態: プロジェクト公式の規範設計レビュー版
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
 - Engine命名正本: [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
 - C++言語・Build規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
@@ -184,7 +186,7 @@ Editor本体もC2 Production Distributionではfull-trust MSIXを推奨する。
 
 Steam等の外部client向けにはPlatform非依存のDirectory layout、content manifest、launch manifest、redistributable noticeを出す。Install／update／rollback／entitlementは配布clientが所有し、Miraikanai Game内で独自updaterを起動しない。
 
-Layoutの実行fileとDLLへAuthenticode署名を行い、Package Receiptに全file SHA-256を記録する。Platform固有SDKを統合する場合はEngine Platform AdapterのR4変更であり、NativeGameModuleへ直接linkしない。
+Layoutの実行fileとDLLへAuthenticode署名を行い、Package Receiptに全file SHA-256を記録する。Platform固有SDK統合は別RepositoryのEngine製品R4変更であり、Game制作Profileから実行または提案せず、NativeGameModuleへ直接linkしない。Baselineに未提供なら`capability_unavailable`とする。
 
 ### 8.3 Development package
 
