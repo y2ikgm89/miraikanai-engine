@@ -5,6 +5,7 @@
 - 対象: C0 Foundation、C1 Bounded Water、C2 Production Water、C3 Research
 - 関連規約:
   - [2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+  - [Environment Platform／AI Authoring規約](./2026-07-20-environment-platform-ai-authoring-architecture-design.md)
   - [Rendering／Render Graph規約](./2026-07-19-rendering-render-graph-architecture-design.md)
   - [Particle／VFX Platform規約](./2026-07-20-particle-vfx-architecture-design.md)
   - [Physics Platform規約](./2026-07-20-physics-engine-architecture-design.md)
@@ -32,6 +33,7 @@ Unity HDRPのWater SurfaceとCPU search、Unreal EngineのWater Body／Water Mes
 | Water Source、Body、Surface、Volume、Wave、Flow、Depth、Query、Artifact、Budget、Qualification | 本書 |
 | GPU resource、pass、barrier、reflection view、history、device loss | Rendering規約 |
 | Water Material IR、Shading Model、Visual Style | 2D／3D機能計画 |
+| Sky radiance、sun／moon、Environment IBL、地上Fog／Exposure | Environment Platform規約 |
 | 飛沫、泡、雨滴、航跡Particle | Particle／VFX規約 |
 | 浮力Force、Character swimming、Body motion、Save／Replay | Physics／Gameplay規約 |
 | Collision shape、Trigger／Contact、Water Volume overlap | Collision規約 |

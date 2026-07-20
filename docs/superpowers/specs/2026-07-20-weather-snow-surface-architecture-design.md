@@ -5,6 +5,7 @@
 - 対象: Weather Presentation input、降雪VFX接続、静的／動的積雪、融雪、足跡表示
 - 関連規約:
   - [2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+  - [Environment Platform／AI Authoring規約](./2026-07-20-environment-platform-ai-authoring-architecture-design.md)
   - [Particle／VFX Platform規約](./2026-07-20-particle-vfx-architecture-design.md)
   - [Water Surface Platform規約](./2026-07-20-water-surface-platform-architecture-design.md)
   - [Rendering／Render Graph規約](./2026-07-19-rendering-render-graph-architecture-design.md)
@@ -15,7 +16,7 @@
 
 雪は一つのParticle Effectとして実装せず、次の三層へ分離する。
 
-1. `EnvironmentProfile`の風、降水量、温度が型付きWeather inputをpublishする。
+1. `WeatherPresentationProfileV1`が風、降水量、温度をversion付きWeather Snapshotとしてpublishし、EnvironmentはCloud／Fog用の明示Bindingとして読む。
 2. Particle／VFXが降雪、吹雪、着地煙をPresentationとして描画する。
 3. Snow Surfaceが静的Mask、動的積雪、融雪、圧雪、足跡の見た目をMaterialへ供給する。
 
@@ -28,13 +29,14 @@ Unity、Unreal Engine、Godotと同様に降雪Particleと地表Materialを分�
 | 主題 | 正本 |
 |---|---|
 | Weather presentation field、Snow Source、Mask、dynamic field、stamp、melt、budget、qualification | 本書 |
+| Sky、Atmosphere、Fog、Cloud、Weather Binding | Environment Platform規約 |
 | Particle spawn、simulation、renderer、collision、GPU Artifact | Particle／VFX規約 |
 | Material IR、snow surface role、Visual Style | 2D／3D機能計画 |
 | Render resource、compute pass、history、device loss | Rendering規約 |
 | Contact／Trigger、foot placement、authoritative surface ID | Collision／Gameplay規約 |
 | Tick、Event、Snapshot、Save、global budget | Runtime規約 |
 
-本書は汎用気象simulation、雲生成、流体降水、気候モデルを所有しない。C1／C2のWeatherはbounded inputであり、Cloud／Atmosphere規約が見た目を別に解決する。
+本書は汎用気象simulation、雲生成、流体降水、気候モデルを所有しない。C1／C2のWeatherはbounded inputであり、Environment Platformがversion付きBindingを通してCloud／Atmosphereの見た目を解決する。EnvironmentからWeather Sourceへの書き戻しを禁止する。
 
 ## 3. 成熟度
 
@@ -50,7 +52,7 @@ Unity、Unreal Engine、Godotと同様に降雪Particleと地表Materialを分�
 ```text
 schemas/mira/weather/
 schemas/mira/snow/
-engine/environment/weather/
+engine/weather/
 engine/snow/
   contracts/
   core/

@@ -543,6 +543,8 @@ Lightmap、probe、IBLはDerived Assetとし、geometry、material、light、bak
 
 これらを別々の装飾機能ではなく、共通の`EnvironmentProfile`として連携させる。
 
+Environment Source型、自然言語Intent、Preset、AI／Editor Operation、Validator、Preview Receipt、Runtime Compiler、Derived Artifact、Budget、Diagnostic、Qualificationの正本は[Environment Platform／AI Authoring規約](./2026-07-20-environment-platform-ai-authoring-architecture-design.md)とする。本節はC1／C2／C3の製品到達点とReview用数値要約を所有する。数値またはCapabilityを変更する場合は両文書を同じChangeSetで更新し、実装契約はEnvironment規約を優先する。
+
 #### C1: Environment Core
 
 - Solid／gradient sky

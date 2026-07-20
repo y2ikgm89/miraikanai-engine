@@ -37,7 +37,8 @@ Backend API、allocator、shader compilerはAdapterまたはToolとして利用�
 | 主題 | 正本 |
 |---|---|
 | RenderSnapshot、Render Graph、resource／pass contract、Backend mapping | 本書 |
-| Light、Shadow、Atmosphere、Fog、Cloud、Material、Visual Styleの機能と品質 | 2D／3D機能計画 |
+| Light、Shadow、Material、Visual Styleの機能と品質 | 2D／3D機能計画 |
+| Sky、Atmosphere、Fog、Cloud、Environment LightingのSource／AI Authoring／Compiler／品質 | Environment Platform規約 |
 | VFX Asset／Graph／CPU・GPU simulation／VFX renderer binding／budget | Particle／VFX規約 |
 | Water Body／Surface／Wave／Flow／Query／Underwater／water固有budget | Water規約 |
 | Weather input／Snow Surface field／stamp／snow固有budget | Weather／Snow規約 |
@@ -334,6 +335,8 @@ AIと人間へ公開するのは次だけである。
 - Target／Quality Profile
 - 登録済みRender featureとPass Template
 - cost予測、thumbnail、debug view、GPU capture参照、validation
+
+Environment、Fog、Cloudの具体的なCapability、Intent、Preset、Operation、Risk、PreviewはEnvironment Platform規約を正本とする。本書はそれらのSource Operationを登録済みRender Graph TemplateとTarget resourceへ変換する境界だけを所有する。
 
 AIはresource barrier、heap offset、descriptor index、native format、queue signal値、shader binaryを指定しない。Custom HLSLはC2のR3 Native／Shader Source ChangeSetであり、隔離compile、interface validation、instruction／resource budget、全Target test、人間承認を必須とする。
 
