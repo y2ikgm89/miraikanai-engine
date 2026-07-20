@@ -1,6 +1,6 @@
 # Miraikanai Engine Camera Platform／AI Authoring／Virtual Productionアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.2
 - 作成日: 2026-07-20
 - 調査基準日: 2026-07-20
 - 対象: 2D／3D Gameplay Camera、Camera Rig、Director、Cinematic、Split View、Multi-camera Recording、Virtual Production、AI／Editor Authoring
@@ -8,8 +8,10 @@
 - 上位文書: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - 共通Runtime: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Rendering: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- Post Process: [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
 - Authoring: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Contract: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- Math／Core Utilities: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - Physics: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
 - Input: [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
 - Verification: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
@@ -50,6 +52,7 @@ Camera Platformは次の原則に固定する。
 | 座標、Quaternion、clip／depth、Projection初期値 | 2D／3D機能計画 |
 | fixed tick、phase、command、snapshot、replay、memory | Runtime連携規約 |
 | `RenderView`、jitter、history、Render Graph、GPU resource | Rendering規約 |
+| Exposure、Tone Mapping、Color、Post Process Profile／Volume／Node／Plan | Post Process／AI Authoring規約 |
 | Physics World、shape cast、query result、scene version | Physics規約 |
 | Device sample、player input、action、replay input | Input規約 |
 | ProjectRevision、ChangeSet、Commit、Undo、Recovery | Authoring Model規約 |
@@ -88,35 +91,35 @@ C3の`recording`、`device_input`、`timecode`、`genlock`、`remote_preview`、
 
 | Target | 責務 | 禁止依存 |
 |---|---|---|
-| `mira_camera_contract` | MCD生成type、ID、enum、Operation、Diagnostic | Renderer／Physics／Device native header |
-| `mira_camera_authoring` | Intent Resolver、Validator、cost、Cook | live Runtime World、GPU、Device SDK |
-| `mira_camera_runtime` | C1 Rig、Director、Blend、Collision統合、Snapshot | Editor、Recording、Vendor API |
-| `mira_camera_sequence` | C2 Shot、Track、Cut、Cinematic evaluator | Device SDK、GPU native API |
-| `mira_camera_recording` | C3 Session、Take、spool、recovery、playback source | Network／Device API、Renderer native handle |
-| `mira_camera_device_port` | Device／Clock／CalibrationのEngine-owned Port | Vendor型の公開 |
-| `mira_camera_device_worker` | 別Process Adapter、packet decode、normalization | Project Commit、Gameplay World |
-| `mira_camera_render_bridge` | Base Poseから`RenderView`入力を生成 | Physics query、Authoring write |
-| `mira_camera_editor` | Inspector、Rig Graph、Preview、Debugger、AI projection | Project file直接write |
+| `mirakan_camera_contract` | MCD生成type、ID、enum、Operation、Diagnostic | Renderer／Physics／Device native header |
+| `mirakan_camera_authoring` | Intent Resolver、Validator、cost、Cook | live Runtime World、GPU、Device SDK |
+| `mirakan_camera_runtime` | C1 Rig、Director、Blend、Collision統合、Snapshot | Editor、Recording、Vendor API |
+| `mirakan_camera_sequence` | C2 Shot、Track、Cut、Cinematic evaluator | Device SDK、GPU native API |
+| `mirakan_camera_recording` | C3 Session、Take、spool、recovery、playback source | Network／Device API、Renderer native handle |
+| `mirakan_camera_device_port` | Device／Clock／CalibrationのEngine-owned Port | Vendor型の公開 |
+| `mirakan_camera_device_worker` | 別Process Adapter、packet decode、normalization | Project Commit、Gameplay World |
+| `mirakan_camera_render_bridge` | Base Poseから`RenderView`入力を生成 | Physics query、Authoring write |
+| `mirakan_camera_editor` | Inspector、Rig Graph、Preview、Debugger、AI projection | Project file直接write |
 
 ### 4.2 依存DAG
 
 ```text
-mira_camera_contract
-  ├─ mira_camera_authoring
-  ├─ mira_camera_runtime
-  │    ├─ mira_camera_sequence
-  │    └─ mira_camera_render_bridge
-  ├─ mira_camera_recording
-  ├─ mira_camera_device_port
-  │    └─ mira_camera_device_worker
-  └─ mira_camera_editor
+mirakan_camera_contract
+  ├─ mirakan_camera_authoring
+  ├─ mirakan_camera_runtime
+  │    ├─ mirakan_camera_sequence
+  │    └─ mirakan_camera_render_bridge
+  ├─ mirakan_camera_recording
+  ├─ mirakan_camera_device_port
+  │    └─ mirakan_camera_device_worker
+  └─ mirakan_camera_editor
 
-mira_camera_sequence  -> mira_camera_runtime public Portだけ
-mira_camera_recording -> contract／sequence interchangeだけ
-mira_camera_device_worker -> device_port IPCだけ
+mirakan_camera_sequence  -> mirakan_camera_runtime public Portだけ
+mirakan_camera_recording -> contract／sequence interchangeだけ
+mirakan_camera_device_worker -> device_port IPCだけ
 ```
 
-`mira_camera_runtime`はRecordingまたはDevice Workerをlinkしない。C1 GameHostとShipping packageへVirtual Production dependency、Network discovery、Device SDKを含めない。EditorHostもVendor SDKをin-process loadせず、Device Workerとbounded IPCで通信する。
+`mirakan_camera_runtime`はRecordingまたはDevice Workerをlinkしない。C1 GameHostとShipping packageへVirtual Production dependency、Network discovery、Device SDKを含めない。EditorHostもVendor SDKをin-process loadせず、Device Workerとbounded IPCで通信する。
 
 ### 4.3 Owner
 
@@ -124,12 +127,12 @@ mira_camera_device_worker -> device_port IPCだけ
 |---|---|
 | Camera Source Document | AuthoringCommandGatewayのCommit |
 | Cooked `CameraPlanV1` | Camera Compiler |
-| Base Rig state／Director state | `mira_camera_runtime`、`T30` |
+| Base Rig state／Director state | `mirakan_camera_runtime`、`T30` |
 | Collision result | Physics Adapter、Cameraへの統合は次tick `T20` |
 | Shake／Noise channel | Presentation subsystem |
 | Render interpolation／jitter／history | Rendering |
-| Recording Session | `mira_camera_recording` |
-| Device sample normalization | `mira_camera_device_worker` |
+| Recording Session | `mirakan_camera_recording` |
+| Device sample normalization | `mirakan_camera_device_worker` |
 | Calibration approval | 人間承認済みAuthoring Operation |
 | Take Artifact promotion | Recording Finalizer＋Authoring Gateway |
 
@@ -147,8 +150,8 @@ scene_dimension
 projection
 lens_profile
 viewport_profile
-exposure_profile_ref
 post_process_profile_ref
+post_process_override: optional PostProcessCameraOverrideV1
 focus_policy
 culling_far_m
 output_policy
@@ -156,7 +159,7 @@ capability_requirements[]
 locked_fields[]
 ```
 
-`projection`は`perspective`、`orthographic`、`pixel_orthographic`、`physical_perspective`のtagged unionである。C1初期値と範囲は2D／3D機能計画4.1節を正本とし、AspectをProfileへ重複保存しない。
+`projection`は`perspective`、`orthographic`、`pixel_orthographic`、`physical_perspective`のtagged unionである。C1初期値と範囲は2D／3D機能計画4.1節を正本とし、AspectをProfileへ重複保存しない。`post_process_profile_ref`は`PostProcessProfileV1`のStable ID、`post_process_override`はPost Process規約が定義するCamera scopeの型付きoverrideである。Exposure fieldをCamera独自形式へ重複保存しない。
 
 #### `CameraRigDocumentV1`
 
@@ -281,7 +284,7 @@ Source DocumentとDerived Artifactを同じFileへ混在させない。Takeの�
 ### 6.1 `CameraPoseV1`
 
 ```text
-position_m: Vec3f
+position_m: WorldPosition3f
 orientation_xyzw: NormalizedQuaternion
 vertical_fov_rad: nullable<float>
 orthographic_vertical_size_m: nullable<float>
@@ -290,7 +293,7 @@ aperture_f_stop: nullable<float>
 generation: uint64
 ```
 
-Perspective／Physical Perspectiveでは`vertical_fov_rad`を必須、Orthographicでは`orthographic_vertical_size_m`を必須とし、両方を同時に持たない。Quaternion canonicalization、NaN／Inf拒否、右手系、+Y up、Camera view forward −Zは2D／3D機能計画に従う。
+Perspective／Physical Perspectiveでは`vertical_fov_rad`を必須、Orthographicでは`orthographic_vertical_size_m`を必須とし、両方を同時に持たない。`WorldPosition3f`、Quaternion canonicalization、NaN／Inf拒否、失敗契約はMath／Core Utilities規約、右手系、+Y up、Camera view forward −Zは2D／3D機能計画に従う。
 
 ### 6.2 Snapshot
 
@@ -858,21 +861,21 @@ Media encodeのCPU／GPU／disk budgetはMedia Adapter Receiptへ分離し、Cam
 公式Diagnostic IDは次とする。
 
 ```text
-MIRA-CAMERA-RIG_CYCLE
-MIRA-CAMERA-PORT_TYPE_MISMATCH
-MIRA-CAMERA-TARGET_UNAVAILABLE
-MIRA-CAMERA-COLLISION_STALE
-MIRA-CAMERA-EVALUATION_NON_FINITE
-MIRA-CAMERA-FAILSAFE_ACTIVATED
-MIRA-CAMERA-BUDGET_EXCEEDED
-MIRA-CAMERA-CLOCK_DISCONTINUITY
-MIRA-CAMERA-GENLOCK_LOST
-MIRA-CAMERA-DEVICE_LOST
-MIRA-CAMERA-CALIBRATION_MISMATCH
-MIRA-CAMERA-RECORDING_GAP
-MIRA-CAMERA-SPOOL_CORRUPT
-MIRA-CAMERA-STORAGE_RESERVE_INSUFFICIENT
-MIRA-CAMERA-UNAUTHORIZED_OPERATION
+MIRAKAN-CAMERA-RIG_CYCLE
+MIRAKAN-CAMERA-PORT_TYPE_MISMATCH
+MIRAKAN-CAMERA-TARGET_UNAVAILABLE
+MIRAKAN-CAMERA-COLLISION_STALE
+MIRAKAN-CAMERA-EVALUATION_NON_FINITE
+MIRAKAN-CAMERA-FAILSAFE_ACTIVATED
+MIRAKAN-CAMERA-BUDGET_EXCEEDED
+MIRAKAN-CAMERA-CLOCK_DISCONTINUITY
+MIRAKAN-CAMERA-GENLOCK_LOST
+MIRAKAN-CAMERA-DEVICE_LOST
+MIRAKAN-CAMERA-CALIBRATION_MISMATCH
+MIRAKAN-CAMERA-RECORDING_GAP
+MIRAKAN-CAMERA-SPOOL_CORRUPT
+MIRAKAN-CAMERA-STORAGE_RESERVE_INSUFFICIENT
+MIRAKAN-CAMERA-UNAUTHORIZED_OPERATION
 ```
 
 DiagnosticはRequirement ID、Document／Node／Field path、actual、expected、Capability、Target、fallback、修正候補を持つ。AI向け説明だけでなくC++ enumとgenerated referenceを同じMCDから作る。

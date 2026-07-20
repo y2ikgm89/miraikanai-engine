@@ -31,8 +31,8 @@ ModulesはCompilerが強制するSource公開境界であり、Plugin ABI、Bina
 | 用語 | 本書での意味 |
 |---|---|
 | CMake target | Compile、Link、使用要件、依存edgeを所有するBuild単位 |
-| C++ Named Module | `export module mira.<name>;`で宣言するC++ Source公開単位 |
-| Module partition | `mira.<name>:<partition>`に属し、同じNamed Moduleを分割する単位 |
+| C++ Named Module | `export module mirakan.<name>;`で宣言するC++ Source公開単位 |
+| Module partition | `mirakan.<name>:<partition>`に属し、同じNamed Moduleを分割する単位 |
 | NativeGameModule | Project固有C++を隔離Build／PromotionするMiraikanai製品概念。C++ Named Moduleとは別物 |
 | Standard Library Module | C++23の`std` Named Module。本書では`import std;`だけを正式利用する |
 | BMI | Compilerが生成するBinary Module Interface。MSVCのIFCを含む総称 |
@@ -133,41 +133,41 @@ CX3は各公式Targetで次を満たす。
 
 ## 6. Named Moduleの境界と命名
 
-一つの公開CMake targetは、最大一つのPrimary Named Moduleを所有する。Primary名はlowercase ASCIIとdot区切りの`mira.<domain>[.<role>]`とし、CMake aliasと1対1で固定する。
+一つの公開CMake targetは、最大一つのPrimary Named Moduleを所有する。Primary名はlowercase ASCIIとdot区切りの`mirakan.<domain>[.<role>]`とし、CMake aliasと1対1で固定する。
 
 | CMake alias | Primary Named Module |
 |---|---|
-| `mira::foundation` | `mira.foundation` |
-| `mira::runtime_contracts` | `mira.runtime.contracts` |
-| `mira::gameplay` | `mira.gameplay` |
-| `mira::native_game` | `mira.native_game` |
-| `mira::ui_core` | `mira.ui.core` |
-| `mira::ui_layout` | `mira.ui.layout` |
-| `mira::ui_events` | `mira.ui.events` |
-| `mira::ui_semantics` | `mira.ui.semantics` |
-| `mira::ui_text` | `mira.ui.text` |
-| `mira::ui_rendering` | `mira.ui.rendering` |
-| `mira::ui_d3d12_adapter` | `mira.ui.d3d12.adapter` |
-| `mira::ui_directwrite_adapter` | `mira.ui.directwrite.adapter` |
-| `mira::ui_tsf_adapter` | `mira.ui.tsf.adapter` |
-| `mira::ui_uia_adapter` | `mira.ui.uia.adapter` |
-| `mira::ui_harfbuzz_freetype_adapter` | `mira.ui.harfbuzz_freetype.adapter` |
-| `mira::editor_ui` | `mira.editor.ui` |
-| `mira::editor_shell` | `mira.editor.shell` |
-| `mira::editor_docking` | `mira.editor.docking` |
-| `mira::editor_semantics` | `mira.editor.semantics` |
-| `mira::editor_ole_adapter` | `mira.editor.ole.adapter` |
-| `mira::<domain>_port` | `mira.<domain>.port` |
-| `mira::<domain>_runtime` | `mira.<domain>.runtime` |
-| `mira::<domain>_<backend>_adapter` | `mira.<domain>.<backend>.adapter` |
+| `mirakan::foundation` | `mirakan.foundation` |
+| `mirakan::runtime_contracts` | `mirakan.runtime.contracts` |
+| `mirakan::gameplay` | `mirakan.gameplay` |
+| `mirakan::native_game` | `mirakan.native_game` |
+| `mirakan::ui_core` | `mirakan.ui.core` |
+| `mirakan::ui_layout` | `mirakan.ui.layout` |
+| `mirakan::ui_events` | `mirakan.ui.events` |
+| `mirakan::ui_semantics` | `mirakan.ui.semantics` |
+| `mirakan::ui_text` | `mirakan.ui.text` |
+| `mirakan::ui_rendering` | `mirakan.ui.rendering` |
+| `mirakan::ui_d3d12_adapter` | `mirakan.ui.d3d12.adapter` |
+| `mirakan::ui_directwrite_adapter` | `mirakan.ui.directwrite.adapter` |
+| `mirakan::ui_tsf_adapter` | `mirakan.ui.tsf.adapter` |
+| `mirakan::ui_uia_adapter` | `mirakan.ui.uia.adapter` |
+| `mirakan::ui_harfbuzz_freetype_adapter` | `mirakan.ui.harfbuzz_freetype.adapter` |
+| `mirakan::editor_ui` | `mirakan.editor.ui` |
+| `mirakan::editor_shell` | `mirakan.editor.shell` |
+| `mirakan::editor_docking` | `mirakan.editor.docking` |
+| `mirakan::editor_semantics` | `mirakan.editor.semantics` |
+| `mirakan::editor_ole_adapter` | `mirakan.editor.ole.adapter` |
+| `mirakan::<domain>_port` | `mirakan.<domain>.port` |
+| `mirakan::<domain>_runtime` | `mirakan.<domain>.runtime` |
+| `mirakan::<domain>_<backend>_adapter` | `mirakan.<domain>.<backend>.adapter` |
 
 規則:
 
 - ConsumerがimportするのはPrimary Named Moduleだけとする。
-- Partition名は`mira.<primary>:<cohesive_contract>`とし、同じPrimary Moduleの実装・公開契約分割だけに使う。
+- Partition名は`mirakan.<primary>:<cohesive_contract>`とし、同じPrimary Moduleの実装・公開契約分割だけに使う。
 - ConsumerによるPartition直接import、exported import cycle、Module名alias、version suffix、Platformごとの別Primary名を禁止する。
 - CMake target DAGとModule graphのedgeを一致させる。どちらか一方にだけ存在する依存をconfigure errorにする。
-- `mira.common`、`mira.shared`、`mira.utils`を作らない。
+- `mirakan.common`、`mirakan.shared`、`mirakan.utils`を作らない。
 - Adapter ModuleをPort／Runtime Moduleからexportしない。Composition Rootだけがconcrete Adapterへ依存する。
 - Module名はSource API identityであり、BMI filename、filesystem path、DLL名、NativeGameModule IDには流用しない。
 
@@ -178,30 +178,30 @@ CX0から次の標準形を使用する。
 ```text
 <component>/
 ├─ CMakeLists.txt
-├─ include/mira/<component>/       # CX0だけの移行用Public Header
+├─ include/mirakan/<component>/       # CX0だけの移行用Public Header
 ├─ modules/
-│  ├─ mira.<component>.cppm        # Primary interface
-│  └─ <partition>.cppm             # cohesive partition
-├─ src/                             # implementation unit／private source
+│  ├─ mirakan.<component>.cppm        # Primary interface
+│  └─ <partition>.cppm                # cohesive partition
+├─ source/                            # implementation unit／private source
 ├─ tests/
 └─ benchmarks/
 ```
 
 CX0では`modules/`にCX1 fixture以外の見せかけの空interfaceを置かない。CMake Component登録に将来のPrimary Module名を必須指定し、Header directory、CMake target、Module名の対応を機械検査する。
 
-CX2で低level dependencyから`.cppm`を追加し、CX3 Cutover ChangeSetで`include/mira/<component>/`のEngine C++公開Headerを削除する。Generated C ABI、Preprocessor bridge、言語bridgeは`include/mira/c_api/`、`include/mira/preprocessor/`、`include/mira/platform_bridge/`へ分離し、Named Module APIと混在させない。
+CX2で低level dependencyから`.cppm`を追加し、CX3 Cutover ChangeSetで`include/mirakan/<component>/`のEngine C++公開Headerを削除する。Generated C ABI、Preprocessor bridge、言語bridgeは`include/mirakan/c_api/`、`include/mirakan/preprocessor/`、`include/mirakan/platform_bridge/`へ分離し、Named Module APIと混在させない。
 
 ## 8. CMake契約
 
 ### 8.1 Component登録
 
-Phase 0で一つのProject-owned関数`mira_add_cpp_component()`を定義し、First-party C++ targetを直接`add_library()`で公開登録しない。
+Phase 0で一つのProject-owned関数`mirakan_add_cpp_component()`を定義し、First-party C++ targetを直接`add_library()`で公開登録しない。
 
 ```cmake
-mira_add_cpp_component(
-    TARGET mira_foundation
-    ALIAS mira::foundation
-    MODULE_NAME mira.foundation
+mirakan_add_cpp_component(
+    TARGET mirakan_foundation
+    ALIAS mirakan::foundation
+    MODULE_NAME mirakan.foundation
     HEADER_API_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/include"
     PUBLIC_DEPENDENCIES
 )
@@ -210,13 +210,13 @@ mira_add_cpp_component(
 CX0では`MODULE_NAME`だけで将来のPrimary名を固定し、存在するPublic Headerを登録する。存在しない`MODULE_INTERFACE`を指定しない。CX1以降は実在する`.cppm`を`MODULE_INTERFACE`として必須指定し、次のCMake表現へ投影する。
 
 ```cmake
-target_sources(mira_foundation
+target_sources(mirakan_foundation
     PUBLIC
         FILE_SET cxx_modules TYPE CXX_MODULES
-        FILES modules/mira.foundation.cppm
+        FILES modules/mirakan.foundation.cppm
 )
-target_compile_features(mira_foundation PUBLIC cxx_std_23)
-set_property(TARGET mira_foundation PROPERTY CXX_MODULE_STD ON)
+target_compile_features(mirakan_foundation PUBLIC cxx_std_23)
+set_property(TARGET mirakan_foundation PROPERTY CXX_MODULE_STD ON)
 ```
 
 関数はTarget名、Module名、Public dependency、Source file、生成MCD dependencyを`CxxComponentGraphV1`へ出力する。AI、CI、Documentationはこの生成Graphを読み、CMake fileを別Parserで推測しない。
@@ -264,7 +264,7 @@ Makefiles系は現行CMakeのC++ Module scan対象に含まれず、`import std`
 
 ### 8.4 Experimental gateの隔離
 
-CMake 4.4の`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` tokenは、CX1専用`cmake/experimental/ImportStdProbe.cmake`だけに置く。Root `CMakeLists.txt`はCX1 Profileのときだけ、このFileを最初の`project(... LANGUAGES CXX)`より前にincludeし、CXX toolchain discovery前にtokenを設定する。exact CMake artifact、token、Generator、Compiler、STL hashを`toolchain.lock.json`へ記録する。
+CMake 4.4の`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` tokenは、CX1専用`cmake/experimental/import_std_probe.cmake`だけに置く。Root `CMakeLists.txt`はCX1 Profileのときだけ、このFileを最初の`project(... LANGUAGES CXX)`より前にincludeし、CXX toolchain discovery前にtokenを設定する。exact CMake artifact、token、Generator、Compiler、STL hashを`toolchain.lock.json`へ記録する。
 
 - Product targetの通常CMake fileでExperimental変数を参照しない。
 - CMake version更新時に以前のtokenを再利用しない。
@@ -291,11 +291,11 @@ CX0のHeaderは一時的でも、次をすべて満たす。
 CX1以降のFirst-party C++ Module unitは標準Library名を`import std;`で取得する。
 
 ```cpp
-export module mira.foundation;
+export module mirakan.foundation;
 
 import std;
 
-export namespace mira {
+export namespace mirakan {
     // Public declarations
 }
 ```
@@ -306,7 +306,7 @@ Textual includeが必要なModule unitはGlobal Module Fragmentへ限定する�
 module;
 #include <cassert>
 
-export module mira.foundation;
+export module mirakan.foundation;
 
 import std;
 ```
@@ -490,16 +490,16 @@ CX2は依存DAGの下位から次の順で変換する。
 
 | Diagnostic | 条件 | 処理 |
 |---|---|---|
-| `MIRA-BUILD-CXX_PROFILE_INVALID` | 未定義Profileまたは許可されない組合せ | configure失敗 |
-| `MIRA-BUILD-DRIVER_PROFILE_INVALID` | Target／C++ ProfileとDriver／Generatorがclosed matrixに一致しない | configure前に失敗 |
-| `MIRA-BUILD-MAKE_GENERATOR_FORBIDDEN` | First-party targetがMakefiles系または`ndk-build`を要求 | configure前に失敗。Ninjaへの暗黙Fallbackもしない |
-| `MIRA-BUILD-CXX23_STABLE_REQUIRED` | Shipping要求に正式C++23 Toolchainがない | Artifact生成前に失敗 |
-| `MIRA-BUILD-MODULE_CYCLE` | Module graph cycle | configure失敗、cycle pathを表示 |
-| `MIRA-BUILD-MODULE_IMPORT_NOT_DECLARED` | Source importとMCD不一致 | Source Gate失敗 |
-| `MIRA-BUILD-TEXTUAL_INCLUDE_NOT_ALLOWED` | allowlist外Header | Source Gate失敗 |
-| `MIRA-BUILD-BMI_IDENTITY_MISMATCH` | BMI key不一致 | 該当Build treeを無効化して一度だけclean rebuild |
-| `MIRA-BUILD-IMPORT_STD_UNAVAILABLE` | Active Compiler／Generatorが`import std`非対応 | Profile activation失敗。HeaderへFallbackしない |
-| `MIRA-BUILD-MODULE_TOOLING_UNAVAILABLE` | 必須IDE／analysis fixture失敗 | CX3 Promotionを停止 |
+| `MIRAKAN-BUILD-CXX_PROFILE_INVALID` | 未定義Profileまたは許可されない組合せ | configure失敗 |
+| `MIRAKAN-BUILD-DRIVER_PROFILE_INVALID` | Target／C++ ProfileとDriver／Generatorがclosed matrixに一致しない | configure前に失敗 |
+| `MIRAKAN-BUILD-MAKE_GENERATOR_FORBIDDEN` | First-party targetがMakefiles系または`ndk-build`を要求 | configure前に失敗。Ninjaへの暗黙Fallbackもしない |
+| `MIRAKAN-BUILD-CXX23_STABLE_REQUIRED` | Shipping要求に正式C++23 Toolchainがない | Artifact生成前に失敗 |
+| `MIRAKAN-BUILD-MODULE_CYCLE` | Module graph cycle | configure失敗、cycle pathを表示 |
+| `MIRAKAN-BUILD-MODULE_IMPORT_NOT_DECLARED` | Source importとMCD不一致 | Source Gate失敗 |
+| `MIRAKAN-BUILD-TEXTUAL_INCLUDE_NOT_ALLOWED` | allowlist外Header | Source Gate失敗 |
+| `MIRAKAN-BUILD-BMI_IDENTITY_MISMATCH` | BMI key不一致 | 該当Build treeを無効化して一度だけclean rebuild |
+| `MIRAKAN-BUILD-IMPORT_STD_UNAVAILABLE` | Active Compiler／Generatorが`import std`非対応 | Profile activation失敗。HeaderへFallbackしない |
+| `MIRAKAN-BUILD-MODULE_TOOLING_UNAVAILABLE` | 必須IDE／analysis fixture失敗 | CX3 Promotionを停止 |
 
 Clean rebuild後も同じBMI errorが再発した場合は自動Retryを止め、Toolchain defectとしてBuild Receiptを失敗確定する。
 
@@ -508,15 +508,15 @@ Clean rebuild後も同じBMI errorが再発した場合は自動Retryを止め�
 Phase 0の実装計画は次を独立taskへ分解する。
 
 1. `CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`のMCD。
-2. `mira_add_cpp_component()`と`CxxComponentGraphV1`生成。
+2. `mirakan_add_cpp_component()`と`CxxComponentGraphV1`生成。
 3. C++23 Header bootstrap compiler policy。
 4. P2564R3、P0533R9、`std::expected`、language modeのconformance fixture。
-5. `mira.foundation`のCX1 Named Module／`import std` probe。
+5. `mirakan.foundation`のCX1 Named Module／`import std` probe。
 6. Module graph cycle、undeclared import、Header exception、Makefiles／Generator overrideのnegative fixture。
 7. BMI identity／configuration isolation test。
 8. `cxx26_readiness` compile-only CI。
 9. Windows Ninja Multi-Config、Android Gradle→Single-Config Ninja、Apple Ninja–XcodeのCX3候補Build recipeとC ABI link fixture。
-10. CX0／CX1 Build Performance Receiptと`VerificationReceiptV1` gate `mira.build.ninja_adoption.v1`。no-op、leaf変更、Module interface fan-out、generated Header invalidation、中断復旧、clean／incremental成果物一致を含む。
+10. CX0／CX1 Build Performance Receiptと`VerificationReceiptV1` gate `mirakan.build.ninja_adoption.v1`。no-op、leaf変更、Module interface fan-out、generated Header invalidation、中断復旧、clean／incremental成果物一致を含む。
 
 Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／CI基盤とCX1 probeの再現可能な成功または明示的なToolchain failure Receiptが必要であり、Preview不具合を隠して成功扱いしない。
 

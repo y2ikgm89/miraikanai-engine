@@ -1,6 +1,6 @@
 # Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
 - 最終更新日: 2026-07-20
 - 調査基準日: 2026-07-20
@@ -10,6 +10,7 @@
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Renderer正本: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- LOD正本: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 - Asset正本: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Water連携: [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
 - Weather／Snow連携: [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
@@ -49,11 +50,12 @@ Gameの実行CodeはC++23のままである。VFX GraphはGame用Script VMでは
 | Weather input、Snow Surface、積雪／融雪／footprint field | Weather／Snow規約 |
 | Tick、Presentation command、queue、memory parent domain、global performance cap、Asset promotion phase | Runtime規約 |
 | `RenderSnapshot`、Render Graph、resource／pass／barrier、Material／Shader pipeline、Backend、device loss | Renderer規約 |
+| LOD Intent、semantic priority、VFX LOD Policy envelope、共通metric／transition、AI LOD Operation、Qualification Receipt | LOD規約 |
 | Source／Derived／Cooked Artifact、Catalog、Package、hot reload transaction | Asset規約 |
 | `ProjectChangeSet`、revision、Undo／Redo、唯一のCommit経路 | Authoring規約 |
 | Collider、Physics query、Contact／Trigger、authoritative collision | Collision規約 |
 | Mobile Capability Signature、Vulkan／Metal最低線、thermal、GPU／CPU aggregate budget | モバイル規約 |
-| Widget、Dock、MiraUI、keyboard／accessibility、AI Semantic Interface | Editor UI Framework規約 |
+| Widget、Dock、MirakanUi、keyboard／accessibility、AI Semantic Interface | Editor UI Framework規約 |
 | MCD、Capability、Operation、Diagnostic projection、Provider Schema | 実行可能契約規約 |
 
 本書は次を変更しない。
@@ -95,7 +97,7 @@ VFXはPhysics Backend、World ECS、Editor widget、Graphics Backendを所有し
 |---|---|
 | C0 Foundation | MCD、Asset schema、Node Catalog、Graph Validator、VFX IR、CPU／GPU Artifact descriptor、Cost model、Preview contract、Diagnostic、Qualification harness |
 | C1 First Playable | 2D／3D CPU simulation、Point／Line／Area emitter、rate／burst、lifetime、velocity／acceleration／drag、Color／Size／Rotation over Life、Sprite／Flipbook、2D Sprite、3D Billboard、basic trail、fixed-seed preview、bounds／count／overdraw debug |
-| C2 Production | GPU compute、Mesh particle、Ribbon、Depth／SDF／VFX proxy collision、Vector Field、Sub-emitter／GPU Event、Particle Light、quality variant、GPU sorting、VFX bake cache、approved custom operator |
+| C2 Production | GPU compute、Mesh particle、Ribbon、Depth／SDF／VFX proxy collision、Vector Field、Sub-emitter／GPU Event、Particle Light、`VfxLodProfileV1` branch、GPU sorting、VFX bake cache、approved custom operator |
 | C3 Research | Fluid／volumetric simulation、GPU mesh shader専用経路、ray-traced particle、cross-machine visual lockstep、runtime graph mutation、user-authored arbitrary GPU code |
 
 C1 ArtifactはC2／C3 Nodeを受理しない。C2機能がSourceに含まれる場合、Target Profileに対応Artifactがなくても無言で除去せず、明示したfallback graphが存在する場合だけ別variantとしてCookする。
@@ -113,7 +115,7 @@ Mobile BaselineでGPU Particleを必須化しない。GPU variantはDevice Capab
 ## 5. Platform構成、Module、Directory
 
 ```text
-schemas/mira/vfx/
+schemas/mirakan/vfx/
 engine/vfx/
   contracts/
   core/
@@ -158,20 +160,20 @@ tests/vfx/
 
 | CMake Target | 責務 |
 |---|---|
-| `mira_vfx_contracts` | 生成value type、enum、Command、Snapshot、Port |
-| `mira_vfx_core` | Graph共通意味、parameter、curve、RNG、budget |
-| `mira_vfx_compiler` | Source validation、IR、specialization、Artifact生成。Shipping Gameへlinkしない |
-| `mira_vfx_cpu` | Engine-owned CPU kernel、SoA storage、job |
-| `mira_vfx_gpu` | Backend非依存GPU pass template、buffer plan、shader codegen input |
-| `mira_vfx_render` | VFX batchからRenderer packet／Render Graph passを生成 |
-| `mira_vfx_runtime` | instance lifecycle、command consume、CPU scheduling、GPU instance descriptor |
-| `mira_vfx_authoring` | Document、ChangeSet projection、cost preview、cook request |
-| `mira_editor_vfx` | Stack／Graph／Timeline／Preview／Profiler panel |
-| `mira_vfx_qualification` | conformance、golden、benchmark、fault fixture |
+| `mirakan_vfx_contracts` | 生成value type、enum、Command、Snapshot、Port |
+| `mirakan_vfx_core` | Graph共通意味、parameter、curve、RNG、budget |
+| `mirakan_vfx_compiler` | Source validation、IR、specialization、Artifact生成。Shipping Gameへlinkしない |
+| `mirakan_vfx_cpu` | Engine-owned CPU kernel、SoA storage、job |
+| `mirakan_vfx_gpu` | Backend非依存GPU pass template、buffer plan、shader codegen input |
+| `mirakan_vfx_render` | VFX batchからRenderer packet／Render Graph passを生成 |
+| `mirakan_vfx_runtime` | instance lifecycle、command consume、CPU scheduling、GPU instance descriptor |
+| `mirakan_vfx_authoring` | Document、ChangeSet projection、cost preview、cook request |
+| `mirakan_editor_vfx` | Stack／Graph／Timeline／Preview／Profiler panel |
+| `mirakan_vfx_qualification` | conformance、golden、benchmark、fault fixture |
 
-`mira_vfx_core`、`mira_vfx_cpu`、`mira_vfx_gpu`はGraphics Backend header、Box2D、Jolt、Editor UIへ依存しない。`mira_vfx_gpu`はRendererのBackend非依存Graph／Shader Portだけを使う。D3D12、Vulkan、Metalへの変換はRenderer Adapterが所有する。
+`mirakan_vfx_core`、`mirakan_vfx_cpu`、`mirakan_vfx_gpu`はGraphics Backend header、Box2D、Jolt、Editor UIへ依存しない。`mirakan_vfx_gpu`はRendererのBackend非依存Graph／Shader Portだけを使う。D3D12、Vulkan、Metalへの変換はRenderer Adapterが所有する。
 
-Project C++は`mira.runtime.vfx`のCommand／parameter APIだけを通常利用する。`mira.vfx.gpu.backend`、particle buffer pointer、shader compiler objectを公開Moduleにしない。
+Project C++は`mirakan.runtime.vfx`のCommand／parameter APIだけを通常利用する。`mirakan.vfx.gpu.backend`、particle buffer pointer、shader compiler objectを公開Moduleにしない。
 
 ## 6. 正規ObjectとAsset契約
 
@@ -230,7 +232,7 @@ VfxSystemDocumentV1
 | `execution_policy` | `auto \| cpu_required \| gpu_required \| dual_fallback` |
 | `simulation_space` | `local \| world`。Instance実行中に変更不可 |
 | `max_particles` | `uint32`、選択Budget内 |
-| `importance_class` | `critical_combat_cue \| combat_feedback \| ambient`。Capability manifestがdrop用`uint8 priority`へ解決し、critical queue権限は与えない |
+| `semantic_priority` | LOD規約の`LodSemanticPriorityV1`。Presentation Event Registryの最大priorityを超えられず、critical queue権限は与えない |
 | `rate_q32` | Q32.32 particle／second |
 | `bursts` | 最大256、`tick_offset:uint32`と`count:uint32` |
 | `lifetime_seconds` | min／maxともfinite、`1/60`～`3600`、min≤max |
@@ -319,7 +321,7 @@ Event payloadは`SpawnVfxSystemV1`で新しいSystem Instanceを作る時に一�
 ### 6.6 Seed policy
 
 - `fixed`は`fixed_seed`を必須とし、全Instanceでその値を使う。
-- `per_instance`は`LE64(SHA256("MIRA_VFX_INSTANCE_SEED_V1\0" || project_seed_le64 || instance_sequence_le64)[0..7])`でRuntimeが導出する。
+- `per_instance`は`LE64(SHA256("MIRAKAN_VFX_INSTANCE_SEED_V1\0" || project_seed_le64 || instance_sequence_le64)[0..7])`でRuntimeが導出する。
 - `from_presentation_event`はEvent schemaに`vfx_seed:u64`を必須とし、不足時はSpawn Commandを拒否する。
 - `instance_sequence`は`T90`でcanonical merge済み`SpawnVfxSystemV1`順に単調増加し、thread completion順を使わない。
 
@@ -432,7 +434,7 @@ VFX乱数はper-particleの`std::mt19937` stateを保持しない。CPU／GPU共
 
 ```text
 emitter_seed32 =
-  LE32(SHA256("MIRA_VFX_EMITTER_SEED_V1\0" || emitter_id_canonical_bytes)[0..3])
+  LE32(SHA256("MIRAKAN_VFX_EMITTER_SEED_V1\0" || emitter_id_canonical_bytes)[0..3])
 
 counter =
   [low32(particle_spawn_id),
@@ -919,13 +921,15 @@ Profile buildでpipeline statisticsが利用できる場合、`particle pixel sh
 ### 16.5 Runtime overflowとdegradation
 
 - Game Brief／Scale intentとVFX Sourceは、Target budget超過だけで制作意図ごと破棄しない。Authoring規約の`OptimizationRequired`としてCommitできるが、対象TargetのPlay／Cook／Shipping promotionは、有効なVFX Representation Planと統合負荷Receiptができるまで拒否する。
-- Compilerは同じ意味の短命impactをaggregate emitter／event serviceへまとめ、CPU／GPU Artifact、quality variant、bounds、instance pool、spawn／overdraw budgetをTarget別に再計画する。Sourceの敵味方数、Damage、collision、spawn timingをVFX最適化で変更しない。
-- `priority`は`critical_combat_cue | combat_feedback | ambient`からCapability manifestが解決する。Presentation Event RegistryはEvent typeごとの最大importanceを固定し、AI、Project data、Emitter Sourceがそれを超えて昇格できない。陣営だけで味方または敵を一律に低priorityへせず、同じGameplay上の重要度なら敵味方で同じadmissionを使う。
-- Shippingの突発的超過だけ、`priority desc, screen_influence desc, emitter StableId asc, particle_spawn_id asc`で末尾spawnを生成しない。
+- CompilerはLOD規約の`VfxLodProfileV1`から、同じ意味の短命impactをaggregate emitter／event serviceへまとめ、CPU／GPU Artifact、branch、bounds、instance pool、spawn／alive／overdraw budgetをTarget別に再計画する。Sourceの敵味方数、Damage、collision、spawn timingをVFX最適化で変更しない。
+- `semantic_priority`はLOD規約の`critical_gameplay_cue | interactive_subject | primary_subject | supporting_subject | decorative | ambient`を使う。Presentation Event RegistryはEvent typeごとの最大priorityとminimum cue contractを固定し、AI、Project data、Emitter Sourceがそれを超えて昇格できない。陣営だけで味方または敵を一律に低priorityへせず、同じGameplay上の重要度なら敵味方で同じadmissionを使う。
+- `VfxLodTierV1`はbranch、spawn scale、maximum alive、update interval、renderer output、simulation target、minimum cue contractを持つ。登録済みbranch以外をRuntimeで合成せず、critical cueのshape、timing、minimum visibilityをambient effectより先に削らない。
+- Shippingの突発的超過だけ、`semantic_priority desc, projected_coverage_px_q16 desc, emitter StableId asc, particle_spawn_id asc`で末尾spawnを生成しない。
 - drop数は`ParticleSpawnDropped{emitter,tick,reason,count}`へ集計し、次tickへ繰り越さない。
-- Quality variant切替は同じexecution backend内のspawn rate、Material、Trail、Light、collision品質をframe boundaryで変更する。
+- `VfxLodTierV1`切替は同じexecution backend内のspawn rate、Material、Trail、Light、visual collision品質をframe boundaryで変更し、enter／exit hysteresisと`minimum_residency_units`を通す。
 - active Particle stateをCPUとGPU間で移送しない。Backend fallbackが必要な場合、新Instanceからfallback Artifactを使い、既存Instanceはdrainまたは明示restartする。
 - Thermal governorはVFX Qualityを一段ずつ下げられるが、Project dataから無効化できない。
+- VFX LODの結果、GPU visibility、drop countをGameplay、Damage、AI perceptionへ逆入力しない。
 
 ## 17. Asset promotion、Hot Reload、Device fault
 
@@ -993,6 +997,8 @@ AIはEngine Backend名、descriptor、UAV、Vulkan barrier、Metal encoder、thr
 
 Write Operationは`ProjectChangeSet`を生成するだけで、live Particle buffer、GPU resource、ProjectRevisionを直接変更しない。
 
+VFX LODの説明、Policy提案、transition Preview、Validation、適用はLOD規約の`operation.lod.*`を使う。VFX Operationが独自の距離閾値、Quality variant、priority enumを作らず、`VfxLodProfileV1`のtyped payloadを編集する。
+
 ### 18.3 Level 0で確認する内容
 
 | 不足事項 | 扱い |
@@ -1029,7 +1035,7 @@ Project C++は通常、Particle bufferを直接操作せず、VFX Command、Para
 
 ## 19. Editor UXとAI統合
 
-VFX Editorは独自MiraUI上のDock可能Panelとして実装し、次を同じWorkspaceまたは別Windowで配置できる。
+VFX Editorは独自MirakanUi上のDock可能Panelとして実装し、次を同じWorkspaceまたは別Windowで配置できる。
 
 - System／Emitter一覧。
 - Beginner Module Stack。
@@ -1142,6 +1148,7 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 - Proxy shape／capacity、最小TOI tie-break、1 hit上限、dynamic overflow順、Snapshot generation mismatch拒否。
 - `SubEmitterReady/Next`で同step再入がなく、quota超過Eventと未使用予約IDを規定どおりdrop／gap化する。
 - resize、surface loss、device fault、quality切替、Artifact retire。
+- `projected_coverage_px_q16`、enter／exit hysteresis、minimum residency、branch切替、critical cue floor、CPU／GPU Artifact fallback。
 - 120 Hzで同一Snapshotを再描画してもstepが増えず、30 fpsで2 recordを順序どおり処理し、9 tick gapで規定restart／non-replayになる。
 - persistent 128 MiB＋transient 64 MiB、P95 simulation＋draw 0.75 ms、overdraw Gate。
 
@@ -1165,7 +1172,8 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 - 自然言語から2D／3D Effectを作り、同じGraphをStack／Graph／Inspectorで往復。
 - AI proposalと手動操作が同じcanonical ChangeSetになる。
 - lock、stale revision、Budget、unsupported Target、Gameplay collision要求を正しく拒否／質問する。
-- AI／Project dataがPresentation Event Registryの最大importanceを超えてpriorityを昇格できず、同じcombat cueを敵味方で同じadmissionへ解決する。
+- AI／Project dataがPresentation Event Registryの最大`semantic_priority`を超えて昇格できず、同じGameplay cueを敵味方で同じadmissionへ解決する。
+- AIと手動Editorが同じ`VfxLodProfileV1`、Target別Plan hash、Before／After Previewへ収束し、critical cueをambientより先にdropする提案を拒否する。
 - invalid GraphをCommitせず、Undo／Redo 10,000回後にDocument hash一致。
 - Source変更、Cook失敗、last valid generation、Preview restart、old Artifact retire。
 - Extension Source sandbox、R4 approval、forbidden API scan、Target compile。
@@ -1188,7 +1196,7 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 #### C2 Production完了
 
 - D3D12、Vulkan、MetalのGPU Artifactが各実機／validation／shader／device recovery Gateに合格する。
-- Mesh、Ribbon、visual collision、Sub-emitter、Particle Light、quality variantがBudget内でReference Effectに合格する。
+- Mesh、Ribbon、visual collision、Sub-emitter、Particle Light、`VfxLodProfileV1` branchがBudget内でReference Effectに合格する。
 - GPU readbackなし、Shipping runtime compilerなし、Backend native型漏出なしをbinary／dependency scanで証明する。
 
 ## 22. Version、互換性、更新

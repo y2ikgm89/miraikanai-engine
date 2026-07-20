@@ -1,6 +1,6 @@
 # Miraikanai Engine Audio／Mixer／Spatial規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 対象: Audio Asset、Voice、Mixer、Bus、DSP、Streaming、Spatial、XAudio2／Oboe／AudioUnit Adapter
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -99,7 +99,7 @@ Audio Source ImportはAsset Import／AI Authoring／Editor UX規約の`AudioImpo
 
 ### 4.3 Stream
 
-C1 stream codecはlibopus 1.6.1を使う。Cook時に48 kHz、20 ms packetを基本単位とし、`.mirapack`内のseek tableとchunk indexを生成する。
+C1 stream codecはlibopus 1.6.1を使う。Cook時に48 kHz、20 ms packetを基本単位とし、`.mirakanpack`内のseek tableとchunk indexを生成する。
 
 `AudioStreamManifest`はduration、channels、pre-roll、packet／chunk offset、granule／frame mapping、loop、payload hashを持つ。RuntimeはOpus file parserやuntrusted Sourceを読まず、検証済みCooked packetだけをdecodeする。
 
@@ -187,7 +187,7 @@ Dialogue ---/
 Ambience ---/
 ```
 
-Bus IDはStable numeric ID、parentは一つ、cycle禁止、最大64 Bus、depth最大8とする。既定BusはMaster、Music、SFX、UI、Dialogue、Ambience。User volumeはBus gainへ適用し、Game Project revisionを変更しない。
+Authoring SourceのBus identityはUUIDv7 `StableId`とする。Cookerは一つのexact Audio Graph Artifact内だけで有効な`AudioBusId uint16`へStableId byte順で0～63を割り当てる。0もvalidであり、Masterは数値でなくGraphの`master_bus_ref`で厳密に一つ指定する。`AudioBusId`とGraph `ArtifactRefV1`を組にして扱い、別Graphの同じ数値を比較またはSaveせず、Save／User settingはBus `StableId`を保持する。parentは一つ、cycle禁止、最大64 Bus、depth最大8とする。既定BusはMaster、Music、SFX、UI、Dialogue、Ambience。User volumeはBus gainへ適用し、Game Project revisionを変更しない。
 
 Bus graphの構造変更はPlay開始前またはAudio control block boundaryで互換なSnapshot swapとして行う。一部Nodeだけをhot replaceしない。
 
@@ -285,7 +285,7 @@ Audio Editorはwaveform、sample-accurate loop、trim、loudness、true peak、c
 
 AIのAudio Import操作は`asset.inspect_source`、`asset.propose_import_profile`、`asset.request_preview`、`asset.propose_import_settings_change`、`asset.propose_reimport`へ限定する。Ambiguous channel、loop、gain、dialogue localeは質問を返し、file名から確定しない。
 
-Audio Authoring契約は`schemas/mira/audio/`のMCDを正本とし、C++、TypeScript、MCP Operation schema、validator、reference docsを生成する。最低限`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
+Audio Authoring契約は`schemas/mirakan/audio/`のMCDを正本とし、C++、TypeScript、MCP Operation schema、validator、reference docsを生成する。最低限`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
 
 semantic role、Cue parameter、Bus、DSP node、Snapshot、Spatial curve、diagnostic codeは`AudioSemanticCatalogV1`のStable IDへ登録する。表示名、file path、Editor selection、native handleを参照IDにしない。AIとEditorは同じCatalog revisionとvalidatorを使用し、unknown ID、range外、cycle、capacity超過、Target非対応をCommit前に拒否する。
 
@@ -315,7 +315,7 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 
 | Phase | 実装範囲 | Exit gate |
 |---|---|---|
-| A0 Audio Contract | `schemas/mira/audio/`、Catalog、generated C++／TypeScript／MCP schema、validator、golden fixture | schema round-trip、unknown ID／range／cycle／version拒否、generated hash再現 |
+| A0 Audio Contract | `schemas/mirakan/audio/`、Catalog、generated C++／TypeScript／MCP schema、validator、golden fixture | schema round-trip、unknown ID／range／cycle／version拒否、generated hash再現 |
 | A1 Headless Mixer | float32 48 kHz block mixer、gain／fade、Bus DAG、limiter、meter、resampler、offline WAV capture | sample golden、finite、denormal、block boundary、44.1／48／96 kHz resample、bit-stable reference |
 | A2 Voice／Cue／Spatial | handle generation、priority、virtualization、Cue evaluator、Snapshot、2D／3D pan、distance／cone／doppler／occlusion | deterministic Cue selection、capacity／critical reserve、stale generation、spatial golden |
 | A3 Import／Cook／Stream | WAV／RF64 parser、libFLAC Adapter、loudness／true peak、PCM Cook、libopus Cook／decode、manifest、loop／seek | official／adversarial corpus、CRC／bounds、preview＝cook、packet corruption、seam fixture |

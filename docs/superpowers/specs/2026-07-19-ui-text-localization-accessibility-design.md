@@ -1,6 +1,6 @@
 # Miraikanai Engine UI／Text／Localization／Accessibility規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game UI、Layout、Widget、拡張Widget、AI UI Authoring、Focus、Text、IME、Localization、Font、Accessibility、UI Rendering
@@ -28,7 +28,7 @@ TextはUTF-8を正規storageとし、次の検証済みLibraryを限定利用す
 
 Library型、Font object、ICU iterator、glyph atlas pointerをProject、Save、AI、NativeGameModuleへ公開しない。UI Document、Layout、Focus、Event、Binding、Localization schema、Accessibility semantic tree、memory／failureはMiraikanaiが所有する。
 
-Windows Editor shellは本書の`UiRuntimeTree`、Layout、Event、Semantic contractを共有する独自`MiraUI Core`上に構築する。Editor固有のDocking、Window、DirectWrite、TSF、UI Automation、D3D12 UI passはEditor UI Framework規約を正本とする。Shipping Game UIは全Targetで本書の共通Text Layoutを使い、bundled Fontを正本にする。
+Windows Editor shellは本書の`UiRuntimeTree`、Layout、Event、Semantic contractを共有する独自`MirakanUi Core`上に構築する。Editor固有のDocking、Window、DirectWrite、TSF、UI Automation、D3D12 UI passはEditor UI Framework規約を正本とする。Shipping Game UIは全Targetで本書の共通Text Layoutを使い、bundled Fontを正本にする。
 
 ## 2. 決定権と対象外
 
@@ -92,13 +92,13 @@ UiDocument
   nodes[]
 ```
 
-1 Documentはnode最大65,535、tree depth最大64、一Nodeの直接child最大4096とする。Node IDはDocument内Stable numeric IDで、表示名やarray indexをdispatchに使わない。Parent cycle、missing root、duplicate ID、orphan nodeをCookで拒否する。
+1 Documentはnode最大65,535、tree depth最大64、一Nodeの直接child最大4096とする。Source Node IDは基盤規約どおりUUIDv7 `StableId`で、表示名やarray indexをidentityに使わない。Parent cycle、missing root、duplicate ID、orphan nodeをCookで拒否する。
 
 ### 4.2 `UiNode`
 
 | Field | 規則 |
 |---|---|
-| `node_id` | Stable numeric ID |
+| `node_id` | UUIDv7 `StableId` |
 | `widget_type` | registered closed ID |
 | `parent_id` | root以外必須 |
 | `sibling_order_key` | `uint64` |
@@ -111,6 +111,8 @@ UiDocument
 | `interactions` | 最大16 |
 | `accessibility` | role、name、description、state、order |
 | `editor_metadata` | Runtime Cook対象外 |
+
+Cookerは一つのexact `UiDocument` Artifact内でNode `StableId`をUUID byte順に並べ、1から`UiNodeRuntimeId uint32`を割り当てる。0はinvalidとし、Artifactへ対応表を含める。Runtime layout／dispatchは`UiNodeRuntimeId`、Source／Save／AI／EditorはNode `StableId`＋Document revisionを使い、別Document Artifactの同じ数値を比較しない。
 
 ### 4.3 C1 Widget Catalog
 
@@ -372,7 +374,7 @@ LocalizationCatalog
     messages_by_locale
 ```
 
-`LocalizationKeyId`はStable numeric IDで、Source文字列やEnglish本文をkeyにしない。各messageはICU MessageFormat相当のbounded ASTへoffline Cookする。
+Source `LocalizationKeyId`はUUIDv7 `StableId`で、Source文字列やEnglish本文をkeyにしない。Cookerは一つのexact Localization Catalog Artifact内でKey `StableId`をUUID byte順に並べ、1から`LocalizationKeyRuntimeId uint32`を割り当てる。0はinvalidとし、Runtime IDをSource、Save、別Catalog比較へ使用しない。各messageはICU MessageFormat相当のbounded ASTへoffline Cookする。
 
 ### 11.2 Message AST
 

@@ -1,6 +1,6 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.5
+- 文書版: 1.7
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Project C++、source／binary境界、entry point、lifecycle、Game UI extension、Build、Preview、Packaging
@@ -8,14 +8,19 @@
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
+- Engine命名正本: [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
+- Game Project配置・命名正本: [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
 
 ## 1. 結論
 
 `NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++23で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。CX0ではModule-ready Header API、CX3ではNamed Modules＋`import std`を使用するが、Process／C ABI／Promotion境界は変えない。
+
+Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV1`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
 
 ShippingではProject C++をGame binaryへ静的linkする。Windows Development Previewだけ、同じentry contractを持つDLLを新しい`GameHost` Processの起動時に一度loadできる。in-process unload、binary差替え、live code patchを行わず、変更時はGameHostを終了して再起動する。AndroidではProject static archiveをGame runtime `.so`へ、Appleではstatic archive／objectをapp executableへlinkする。
 
@@ -32,6 +37,7 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 | C++ language、compiler、memory、pointer、exception、target DAG | 基盤規約 |
 | tick phase、World lease、command／event、queue、failure | Runtime規約 |
 | Source Worker、Risk R3、Approval、Promotion | AI実装・保守ガバナンス規約 |
+| Game System ID、State owner、Implementation Variant、System Bundle、Target同値性 | Game System規約 |
 | `UiNativeWidget`のproperty、slot、measure、presentation、interaction、semantic、budget、fallback | UI／Text／Localization／Accessibility規約 |
 
 次をNativeGameModuleへ入れない。
@@ -49,8 +55,8 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 
 | Target／Configuration | Artifact | Load方式 |
 |---|---|---|
-| Windows Development／Profile Preview | `MiraProjectGame.dll`＋PDB＋manifest | 新規GameHost startup時に絶対pathとhashを検証後、一度load |
-| Windows Shipping | static library／LTO object | `MiraGame.exe`へ静的link |
+| Windows Development／Profile Preview | `mirakan_game_<project_slug>.dll`＋同basenameのPDB＋manifest | 新規GameHost startup時に絶対pathとhashを検証後、一度load |
+| Windows Shipping | static library／LTO object | `mirakan_game.exe`へ静的link |
 | Android全Configuration | static archive／object | appのEngine-owned native `.so`へlink |
 | Apple全Configuration | static archive／object | app executableへlink |
 | Unit test | static library | test hostへlink |
@@ -66,11 +72,11 @@ Pre-1.0では第三者binary互換性を保証しない。Engine revision、Cont
 唯一のbinary entryを次の意味で固定する。
 
 ```cpp
-extern "C" MIRA_NATIVE_EXPORT
-MiraNativeStatus MIRA_NATIVE_CALL
-MiraGetNativeGameModuleV1(
-    const MiraNativeHostDescriptorV1* host,
-    MiraNativeGameModuleDescriptorV1* out_module) noexcept;
+extern "C" MIRAKAN_NATIVE_EXPORT
+MirakanNativeStatus MIRAKAN_NATIVE_CALL
+MirakanGetNativeGameModuleV1(
+    const MirakanNativeHostDescriptorV1* host,
+    MirakanNativeGameModuleDescriptorV1* out_module) noexcept;
 ```
 
 - Symbol名の`V1`はC ABI majorであり、MCD schema versionとは別である。
@@ -82,7 +88,7 @@ MiraGetNativeGameModuleV1(
 
 ### 4.2 Descriptor
 
-`MiraNativeGameModuleDescriptorV1`は次を持つ。
+`MirakanNativeGameModuleDescriptorV1`は次を持つ。
 
 | Field | 規則 |
 |---|---|
@@ -92,6 +98,8 @@ MiraGetNativeGameModuleV1(
 | `module_revision_hash` | SHA-256 |
 | `contract_lock_hash` | SHA-256 |
 | `capability_manifest_hash` | SHA-256 |
+| `game_system_dependency_graph_hash` | SHA-256。`GameSystemContractRefV1`↔package内runtime `system_id`対応表を含む |
+| `system_implementation_set_hash` | SHA-256 |
 | `component_access_manifest_hash` | SHA-256 |
 | `required_host_feature_bits` | 登録済みbitのみ |
 | `create`／`destroy` | lifecycle function |
@@ -103,7 +111,7 @@ Descriptor内の文字列は診断表示用UTF-8 byte spanだけとし、identit
 
 ### 4.3 Host、Create、Invoke context
 
-`MiraNativeHostDescriptorV1`はentry呼出中だけ有効な値Viewであり、次を持つ。
+`MirakanNativeHostDescriptorV1`はentry呼出中だけ有効な値Viewであり、次を持つ。
 
 | Field | 規則 |
 |---|---|
@@ -115,22 +123,22 @@ Descriptor内の文字列は診断表示用UTF-8 byte spanだけとし、identit
 | `platform_id`／`configuration` | MCD closed `uint32` enum |
 | `host_feature_bits` | 登録済みbitだけ |
 
-ModuleはentryからHost pointer／spanを保持しない。`create`時に別の`MiraNativeCreateContextV1`を渡し、module instance ID、immutable config byte span、persistent `MiraNativeMemoryPortV1`、typed Diagnostic Portを提供する。config spanは`create` returnまでだけ有効で、必要な値はpersistent Portへcopyする。Memory／Diagnostic Portのcontextとfunction tableは`destroy`開始まで有効である。
+ModuleはentryからHost pointer／spanを保持しない。`create`時に別の`MirakanNativeCreateContextV1`を渡し、module instance ID、immutable config byte span、persistent `MirakanNativeMemoryPortV1`、typed Diagnostic Portを提供する。config spanは`create` returnまでだけ有効で、必要な値はpersistent Portへcopyする。Memory／Diagnostic Portのcontextとfunction tableは`destroy`開始まで有効である。
 
-| `MiraNativeCreateContextV1` Field | 規則 |
+| `MirakanNativeCreateContextV1` Field | 規則 |
 |---|---|
 | `struct_size` | `uint32` |
 | `module_instance_handle` | session-local opaque fixed-width handle |
 | `config_schema_id`／`config_schema_version` | MCD generated ID／`uint32` |
 | `config_bytes`／`config_hash` | call中だけ有効なcanonical byte span／SHA-256 |
-| `persistent_memory` | `MiraNativeMemoryPortV1`を値で保持 |
-| `diagnostics` | `MiraNativeDiagnosticPortV1`を値で保持 |
+| `persistent_memory` | `MirakanNativeMemoryPortV1`を値で保持 |
+| `diagnostics` | `MirakanNativeDiagnosticPortV1`を値で保持 |
 
-各System `invoke`には`MiraNativeInvokeContextV1`を渡す。tick、phase、fixed delta numerator／denominator、immutable query batch、RNG state view、phase-private scratch Port、typed output writerを持ち、callback returnで全View／scratch／writerを無効化する。Project C++がpointer、span、writer、scratch allocationを次のtick、job、callbackへ保持することを禁止し、Development lease epochで検出する。
+各System `invoke`には`MirakanNativeInvokeContextV1`を渡す。tick、phase、fixed delta numerator／denominator、immutable query batch、RNG state view、phase-private scratch Port、typed output writerを持ち、callback returnで全View／scratch／writerを無効化する。Project C++がpointer、span、writer、scratch allocationを次のtick、job、callbackへ保持することを禁止し、Development lease epochで検出する。
 
-| `MiraNativeInvokeContextV1` Field | 規則 |
+| `MirakanNativeInvokeContextV1` Field | 規則 |
 |---|---|
-| `struct_size`、`system_id` | `uint32`、generated Stable ID |
+| `struct_size`、`system_id` | `uint32`。`system_id`はCooked package内だけで有効なgenerated runtime ID、0 invalid |
 | `tick_id`、`invoke_sequence` | `uint64` |
 | `phase_id` | Runtime規約のserialized `TickPhaseId` |
 | `fixed_delta_numerator`／`fixed_delta_denominator` | `uint32`、C1は1／60 |
@@ -140,7 +148,7 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 | `output_writer` | 宣言済みCommand／Event／State deltaだけを受理するprivate writer |
 | `lease_epoch` | return時にinvalidateする`uint64` |
 
-`MiraNativeMemoryPortV1`を次に固定する。
+`MirakanNativeMemoryPortV1`を次に固定する。
 
 | Field | 規則 |
 |---|---|
@@ -153,7 +161,7 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 
 `size`は1以上、`alignment`は1～4096の2冪とし、失敗時は`allocate`がnullを返す。FunctionはC ABIを越えて例外を投げず、persistent PortはEngine workerからの並行callに対応し、invoke scratch Portは当該invokeだけのsingle-ownerである。`deallocate`は取得時と同じPort、size、alignment、tagを必須とし、不一致はDevelopment assertion／Release session faultとする。Moduleはfunction tableをcopyできるが、context lifetimeを越えてcallしない。
 
-`MiraNativeDiagnosticPortV1`は`{struct_size, context, emit}`だけを持つ。`emit`は`diagnostic_code: uint32`、closed severity enum、system ID、tick／phase、最大8個のMCD scalar argument、任意のUTF-8 detail最大1,024 byteを値copyし、例外を投げない。Detail、表示名、log textをGame rule、dispatch、success判定へ使用せず、Secret、User text、pointer、pathを記録しない。1 invoke当たり64 recordを超えた分はcounterへ集約し、callbackをblockしない。
+`MirakanNativeDiagnosticPortV1`は`{struct_size, context, emit}`だけを持つ。`emit`は`diagnostic_code: uint32`、closed severity enum、system ID、tick／phase、最大8個のMCD scalar argument、任意のUTF-8 detail最大1,024 byteを値copyし、例外を投げない。Detail、表示名、log textをGame rule、dispatch、success判定へ使用せず、Secret、User text、pointer、pathを記録しない。1 invoke当たり64 recordを超えた分はcounterへ集約し、callbackをblockしない。
 
 ## 5. C++ source contract
 
@@ -162,15 +170,15 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 Project sourceが宣言できるEngine依存は次のPrimary Named Moduleだけとする。
 
 ```text
-mira.foundation
-mira.runtime.contracts
-mira.gameplay
-mira.native_game
-mira.project.contracts
+mirakan.foundation
+mirakan.runtime.contracts
+mirakan.gameplay
+mirakan.native_game
+mirakan.project.contracts
 std
 ```
 
-`CppDependencySetV1`へpublic／private import、closed `StdHeaderId`、closed Header例外を記録する。CX0は上記論理依存を`include/mira/`、個別標準Header、`<build>/generated/mira/project_contracts/`へ投影し、CX3はPrimary Named Moduleと`import std;`へ投影する。`engine/**/src`、vendor header、Platform header、generated backend binding、Editor headerをinclude pathへ加えない。CIはCX0のinclude graph／preprocessor trace、CX1以降のModule dependency scan／ASTを検査する。
+`CppDependencySetV1`へpublic／private import、closed `StdHeaderId`、closed Header例外を記録する。CX0は上記論理依存を`include/mirakan/`、個別標準Header、`<build>/generated/mirakan/project_contracts/`へ投影し、CX3はPrimary Named Moduleと`import std;`へ投影する。`engine/**/source`、vendor header、Platform header、generated backend binding、Editor headerをinclude pathへ加えない。CIはCX0のinclude graph／preprocessor trace、CX1以降のModule dependency scan／ASTを検査する。
 
 MCDから生成するProject C++ APIは次を提供する。
 
@@ -192,12 +200,12 @@ MCDから生成するProject C++ APIは次を提供する。
 | STL | Module内部で使用可。CX1以降は原則`import std;`。ABI struct、callback parameter、Engine container ownershipへ出さない |
 | RTTI | Compilerは基盤規約どおり有効。Engine reflection、serialization、Capability discoveryへ使わない |
 | Exception | Module内部で使用可。ただし全generated trampolineでcatchしtyped `NativeModuleError`へ変換。ABI／Subsystem boundaryを越えない |
-| Allocation | Engineは`MiraNativeMemoryPortV1 {context, allocate, deallocate}`の固定C function tableを渡す。Moduleは必要ならこれをmodule-owned `std::pmr::memory_resource` Adapterで包むが、PMR objectを境界へ渡さない |
+| Allocation | Engineは`MirakanNativeMemoryPortV1 {context, allocate, deallocate}`の固定C function tableを渡す。Moduleは必要ならこれをmodule-owned `std::pmr::memory_resource` Adapterで包むが、PMR objectを境界へ渡さない |
 | Global state | immutable compile-time data以外のmutable global／function staticを禁止 |
 | Thread | Moduleによる作成、detach、thread-local service cacheを禁止 |
 | I/O | filesystem、socket、process、clockへの直接accessを禁止 |
 
-Project C++の明示的な`new`／`delete`、`malloc`／`free`を禁止する。Module-owned persistent objectは`MiraMakePersistent<T>(MiraNativeMemoryPortV1, tag_id, args...) -> Result<MiraUniqueOwner<T>>`だけで生成し、per-tick allocationはphase scratch Portだけを使用する。`MiraUniqueOwner<T>`はmove-onlyで、取得時のPort、size、alignment、tagを保持し、destructorで`T`を一度破棄して同じPortへblockを返す。copy、`release()`による所有raw pointer流出、別Portへの移管を提供しない。
+Project C++の明示的な`new`／`delete`、`malloc`／`free`を禁止する。Module-owned persistent objectは`MirakanMakePersistent<T>(MirakanNativeMemoryPortV1, tag_id, args...) -> Result<MirakanUniqueOwner<T>>`だけで生成し、per-tick allocationはphase scratch Portだけを使用する。`MirakanUniqueOwner<T>`はmove-onlyで、取得時のPort、size、alignment、tagを保持し、destructorで`T`を一度破棄して同じPortへblockを返す。copy、`release()`による所有raw pointer流出、別Portへの移管を提供しない。
 
 Module内部のPMR containerはMemory Portを包むmodule-owned `std::pmr::memory_resource` Adapterをconstructorで受け取る。通常の`std::make_unique`、default PMR resource、global operator newによってpersistent Portを迂回しない。cross-boundary objectをcaller側でdeleteせず、Shipping static linkでもこの規則を緩和しない。
 
@@ -235,7 +243,9 @@ Discovered
 
 | Field | 規則 |
 |---|---|
-| `system_id` | Project内Stable numeric ID、generated |
+| `system_id` | Cooked package内runtime `uint32` ID、generated。永続化／別Package比較禁止 |
+| `system_contract_version` | `GameSystemSpecV1.version`からgenerated |
+| `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
 | `phase_mask` | `T30`、`T40`、`T70`の許可組合せ。`T00`等へ直接登録不可 |
 | `read_component_set` | ComponentAccessManifest subset |
 | `write_state_set` | GameplayState field subset |
@@ -244,9 +254,10 @@ Discovered
 | `scratch_bytes` | phaseごとのhard bound |
 | `budget_us` | Profile soft budget |
 | `determinism_class` | `authoritative \| presentation_only` |
+| `state_owner_set_hash` | Specのowned State Type集合と一致 |
 | `invoke` | generated no-throw trampoline |
 
-Orchestratorだけがcallbackを呼ぶ。callback inputはtick、fixed delta、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。World commitは成功後にRuntime規約のcanonical merge順で行う。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
+Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはtick、fixed delta、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。World commitは成功後にRuntime規約のcanonical merge順で行う。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
 
 Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline tickを持ち、結果は`T20`で検査される。Module独自worker poolを作らない。
 
@@ -271,13 +282,13 @@ Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを
 
 Capabilityの公開contractは実装方式に依存させない。
 
-- `GameplayDefinition`とNativeGameModuleは同じCapability ID、command、event、snapshot、Save fieldを使用する。
+- `GameplayDefinition`とNativeGameModuleは同じGame System ID、Capability ID、command、event、snapshot、Save fieldを使用する。
 - 一System内でDefinitionがparameter／state machine、Native C++がalgorithm／batch kernelを担当できる。
 - DefinitionからC++ function名、pointer、vtable indexを参照しない。
 - Native実装への昇格でStable State ID、Save field ID、event意味を変更しない。
 - 二つの実装を同時にauthoritative writerとして登録しない。
 
-実装方式の切替は`T00`でversioned Capability implementation setを交換し、Play中の自動切替をC1では行わない。
+実装方式の切替は検証済み`SystemImplementationSetV1`をPlay開始時に選択する。互換なDefinition-only swap以外をPlay中に自動切替せず、Native変更は新しいGameHostを起動する。
 
 ## 9. Build、検証、Promotion
 
@@ -288,6 +299,8 @@ Native artifact keyは最低限、次のhashから作る。
 ```text
 source_tree_hash
 generated_contract_hash
+game_system_dependency_graph_hash
+system_implementation_set_hash
 native_module_manifest_hash
 engine_public_api_hash
 cpp_frontend_profile_hash
@@ -316,9 +329,12 @@ Promotionには次を必須とする。
 5. 10分×3回の同一fixture performance比較
 6. Security／code-owner Review
 7. signed Promotion Receipt
-8. Authoring規約の`RegisterNativeModuleRevision` Commit
+8. `SystemBundleChangeSetV1`の全hashとexpected dependency graphを照合
+9. Authoring規約の`RegisterNativeModuleRevision`＋`SetSystemImplementationVariant` Commit
 
 Source、generated Module／C ABI Header、Dependency Set、Build artifact、Receiptのhashが一つでも一致しなければloadしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。
+
+Source PromotionとProject Commitを一つの原子的transactionと偽らない。Source Promotion後にProject Commitが失敗したrevisionはinactiveのまま保持し、現在Projectが参照する直前のQualified Variantをloadする。再試行またはrevertは同じBundle hashと新しいReview Receiptを必要とする。
 
 ## 10. PreviewとPackage
 
@@ -372,6 +388,9 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - createからdestroyまで各transitionへfailure injectionし、callback／job／allocationが残らない。
 - phase外write、未宣言Component、invalid handle、queue overflowを拒否する。
 - Definition実装とNative実装でcommand、event、Save、replay意味が一致する。
+- Native descriptorのSystem ID、Contract version、Variant、State owner、phase、accessがactive Game System Graphと一致しない場合にloadを拒否する。
+- Target-specialized Variantが同じPublic System ContractとGameplay fidelity fixtureを通り、意味同等fallbackなしのTargetを非対応にする。
+- Source Promotion後Project Commit失敗時に新Variantをloadせず、直前Qualified Variantを維持する。
 - GameHostを100回再起動し、Editor Processのhandle／memoryが増加しない。
 - Windows Shipping、Android、Appleのclean static-link packageが同じModule revision hashを記録する。
 - AI生成SourceがPromotion前に正規Project／Editor／Shippingへloadされない。

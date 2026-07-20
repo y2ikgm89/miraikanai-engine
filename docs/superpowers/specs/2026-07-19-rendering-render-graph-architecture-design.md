@@ -1,6 +1,6 @@
 # Miraikanai Engine Rendering／Render Graphアーキテクチャ規約
 
-- 文書版: 2.1
+- 文書版: 2.6
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Rendering、Render Snapshot、Render Graph、GPU resource、GPU-driven visibility、Temporal Reconstruction、Ray Tracing、Path Tracing、Neural Rendering、D3D12／Vulkan／Metal Adapter
@@ -9,6 +9,9 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Lighting規約: [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
+- Post Process規約: [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
+- LOD規約: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - Water規約: [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
 - Weather／Snow規約: [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
@@ -29,6 +32,7 @@ Rendererが正規に所有するものは次である。
 - resource lifetime、alias、barrier、queue dependency
 - GPU handle generation、submission serial、deferred destruction
 - temporal input、reconstruction、frame generation、latency markerの共通契約
+- anti-aliasのsample／resolve、spatial／temporal排他、ViewFamily単位Plan、history／layer分離
 - raster、ray tracing、path tracing、neural renderingのCapabilityとfallback
 - Target Capability検証、device loss、fallback、telemetry
 
@@ -39,7 +43,12 @@ Backend API、allocator、shader compiler、DLSS／XeSS／FSR／MetalFX等のSDK
 | 主題 | 正本 |
 |---|---|
 | RenderSnapshot、Render Graph、resource／pass contract、Backend mapping | 本書 |
-| Light、Shadow、Material、Visual Styleの機能と品質 | 2D／3D機能計画 |
+| Light Source、物理単位、Intent、Profile、Resolver、selection／clusterの論理契約 | Lighting／AI Authoring規約 |
+| Shadowの意味、技法、品質、成熟度 | 2D／3D機能計画 |
+| Material、Shader、Visual Style、AI Authoringの意味と品質 | Material／Visual Style／AI Authoring規約 |
+| 非AA Post effectのIntent、Profile、Node Catalog、stage、history、Volume、品質 | Post Process／AI Authoring規約 |
+| Anti-aliasのUser／AI向け意味Goal、Authoring Intent、製品成熟度 | 2D／3D機能計画 |
+| `ResolvedAntiAliasingPlanV1`、sample／resolve、排他、history、実行Pass、Qualification | 本書 |
 | Sky、Atmosphere、Fog、Cloud、Environment LightingのSource／AI Authoring／Compiler／品質 | Environment Platform規約 |
 | VFX Asset／Graph／CPU・GPU simulation／VFX renderer binding／budget | Particle／VFX規約 |
 | Water Body／Surface／Wave／Flow／Query／Underwater／water固有budget | Water規約 |
@@ -51,6 +60,21 @@ Backend API、allocator、shader compiler、DLSS／XeSS／FSR／MetalFX等のSDK
 C1はPortable RasterだけをProduction必須経路とする。C2はGPU-driven visibility、Temporal Reconstruction、Frame Generation、選択的Ray Traced Shadow／Reflectionを個別CapabilityとしてProduction昇格できる。C3はRTGI、Path Tracing、Ray Reconstruction、Neural Denoising／Radiance Cache／Shaderを実装対象に含めるが、機能ごとのQualification前にActive Capability CatalogやAI Toolへ掲載しない。
 
 Mesh Shader、Work Graph、unbounded bindless、Ray Tracing、Neural Renderingを最低Targetの必須条件にしない。GPU visibility、generated frame、neural outputをauthoritative gameplayへ使用しない。Runtime shader／model compile、Runtime学習、AIによる任意Render pass／HLSL／model weight生成を禁止する。
+
+### 2.1 単一Authoring SourceとTarget別実行Artifact
+
+Miraikanai Engineは、軽量用と高品質用に別Material、別Scene、別Visual Style、別Gameplay Sourceを持つ方式を採用しない。人間とAIは一つのAuthoring Document集合、Material IR、Visual Style、`LodIntentV1`、Render Representation intentを編集し、Runtime CompilerがTarget ProfileとProduction Capability Manifestから次の実行Artifact closureを生成する。
+
+| Artifact class | 対象 | 必須特性 |
+|---|---|---|
+| Portable Raster | Windows C1と全Targetの意味基準 | Native Raster、CPU direct／instancing、LOD0／CPU selector fallback、Vendor SDK不要 |
+| Mobile Raster | Android／Apple | 同じMaterial／Style意味、tile／bandwidth／thermal向けlayout、offline shader／texture specialization |
+| Advanced Raster | Qualified desktop | GPU indirect、HZB、HLOD、Hybrid Deferred等を個別Capabilityとして追加 |
+| Optional Advanced Attachment | 対応Profileだけ | Temporal／FG、RT、Path、Neural、Vendor Provider。個別に除去可能 |
+
+これらは別Authoring pipelineではなく、同じSourceから生成されるTarget別Derived Artifactである。Artifact間のbinary layout一致は要求しないが、Material parameter、Style lock、critical cue、Gameplay visibilityの意味一致を要求する。Source変更時は依存closureを再Cookし、TargetごとのArtifact／Interface hash、fallback、budget、Qualification Receiptを更新する。
+
+Packageは選択Targetに必要なArtifact closureだけを含める。起動時のfeature probeは事前Cook済み候補から選択するだけで、Runtime shader compile、Source変換、未承認Provider downloadを行わない。必須Artifactがない、Interface hashが一致しない、fallbackが未Cookの場合は上位機能だけを黙って外さず、Package／Scene loadをtyped errorで拒否する。Projectが明示的に許可した下位Quality Profileがあり、そのProfileも独立Qualification済みの場合だけ再選択できる。
 
 ## 3. Module境界
 
@@ -97,7 +121,7 @@ RenderSnapshot
   view_family[]
   renderable_2d[]
   renderable_3d[]
-  light[]
+  light_snapshot: LightSnapshotV1
   environment
   water_batch[]
   weather_presentation
@@ -124,7 +148,9 @@ Snapshotは`T110`で全体を一度だけpublishし、その後immutableであ�
 | `history_key` | temporal historyのStable key |
 | `quality_profile_id` | Cooked Profile |
 
-Game Viewは一つの`ViewFamily`を基準とし、split screen、stereo／XRはC3までMCDで拒否する。Editor Scene View、thumbnailはGame Viewとresource budgetを別telemetryへ記録し、Shippingへ含めない。
+Game Viewは一つの`ViewFamily`を基準とする。2D split viewは2D／3D機能計画5.6節のC2 Capabilityとして同一ViewFamily内のbounded Viewへ解決し、3D split view、stereo／XRはC3までMCDで拒否する。Editor Scene View、thumbnailはGame Viewとresource budgetを別telemetryへ記録し、Shippingへ含めない。
+
+`ViewLodContextV1`はprojection、render extent、FOV／orthographic span、view transform、camera cut、Quality ProfileからLOD規約の`projected_error_px_q16`と`projected_coverage_px_q16`を生成する。distanceだけをMesh LOD thresholdとして保存せず、CPU／GPUが同じ量子化、境界包含、enter／exit比較を使用する。Editor／shadow／reflection Viewはそれぞれ独立したselection stateを持ち、Game Viewの履歴またはtierを再利用しない。
 
 ### 4.3 Renderable packet
 
@@ -143,13 +169,22 @@ RenderableはAsset version、transform、bounds、material instance、layer、vi
 | `spatial_batch` | cell内のstatic decorative集合 | offline batch、cell単位cull | HLOD／streaming＋GPU visibility |
 | `presentation_batch` | Sprite、glyph、VFX等の非authoritative表示 | domain packet batch | indirect／domain固有GPU path |
 
-PlanはSource StableId集合、spatial cell、mobility、interaction、geometry／material key、LOD／HLOD chain、bounds、maximum resident／visible instance、Target fallback、visual equivalence hashを持つ。
+PlanはLOD規約のTarget別`LodResolutionPlanV1`を参照し、Source StableId集合、spatial cell、mobility、interaction、geometry／material key、Mesh／Representation／Material／VFX／Surface LOD plan、HLOD chain、bounds、maximum resident／visible instance、Target fallback、visual equivalence hashを持つ。Domainごとのtierを一つの共通`lod_index`へ畳み込まない。
 
 - static／decorative objectはCook時にinstance／spatial batch候補へする。総配置数が多いことだけでSourceを拒否しない。
 - mutable Physics、個別Damage、interaction、Save対象をstatic batchへ混入させない。描画をinstance化してもauthoritative Entity identityは失わない。
+- HLODはstatic `decorative_instance`だけを対象とし、proxy／impostor／occlusion geometryをGameplay Collision、Navigation、Damage、AI perceptionへ公開しない。
 - Material parameter差で無制限にbatchを分割せず、instance parameter blockまたは承認済みMaterial variantへ解決する。見た目を統合できない場合はindividualを維持する。
 - C1 `cpu_direct_v1`もinstancing、spatial culling、LODを必須とし、C2 GPU pathがないと大量Sceneが成立しない設計にしない。
 - AIは「大量」をdraw削減だけで解決済みと表示せず、CPU extract、visible instance、draw／dispatch、triangle／pixel、GPU memory、overdrawを同じfixtureで測定する。
+
+### 4.5 2D packetとExecution Plan
+
+2D製品機能、`Renderer2DExecutionPlanV1`、Sprite／Tilemap Profile、公式Backend対応、fallback、fixtureは2D／3D機能計画5.0～5.7節を正本とする。Rendererは`SpriteRendererComponentV1`または`TileChunkArtifactV1`から、Asset version、bounds、layer／order／Y-sort、material instance、atlas page、mask／blend、Stable rendering IDを持つpacketを抽出する。Source rect配列、Tile ID配列、Texture handle、native descriptor indexをSnapshotへcopyしない。
+
+Portable C1は`cpu_direct_v1`のdomain pathとしてCPU bounds cull、Sprite LOD、canonical sort、instance buffer、bounded resource table、direct instanced drawを実行する。TilemapはC1から専用chunk packet producerを持ち、occupied boundsでcullし、Cook済みdraw spanを同じCanvas batchへ送る。C2 `gpu_indirect_v1`はCPUと同じbounds、LOD量子化、batch key、Stable ID tie-breakからvisibility／draw listを生成し、CPU readback結果をGameplayへ返さない。
+
+2D resource bindingはEngine正規値`bounded_table | indexed_table`とし、D3D12 descriptor table／direct heap、Vulkan descriptor set／indexing、Metal bounded binding／argument bufferへAdapterが変換する。Backend高速化は起動時feature query、Target Capability Manifest、Qualification Receiptの積でだけ選び、`indexed_table -> bounded_table`、`gpu_indirect -> cpu_instanced -> cpu_direct`の事前Cook済みfallbackを保持する。driver名またはVendor名だけで選択せず、fallback切替時もSprite／Tile／animation eventの意味を変えない。
 
 ## 5. Render resource model
 
@@ -294,15 +329,15 @@ C1の共通composition順を次で固定する。未使用Passは除去できる
 
 ```text
 Shadow／Depth preparation
--> 3D Opaque／Lighting
+-> 3D Opaque／Lighting／AO／Reflection # Post Process規約のP00／P05接続
 -> Environment／Fog／Cloud
 -> Water Depth／Surface／Underwater Composite  # C2。C1 Waterは次の3D Transparentへ統合
 -> 3D Transparent／World VFX
 -> 2D World Layer
--> World Post Process
+-> World Post Process                 # ResolvedPostProcessPlanV1のP15～P70
 -> Pixel-locked Layer
 -> Game UI／Text
--> Accessibility／Debug Overlay
+-> Accessibility／Debug Overlay       # P80／P90接続
 -> Final Composite
 ```
 
@@ -314,11 +349,13 @@ Shadow／Depth preparation
 - GPU VFX、occlusion、exposure結果をauthoritative gameplayへ戻さない。
 - Water GPU波／SSR／foamとSnow GPU fieldをauthoritative gameplayへ戻さない。Water Surface QueryとGameplay Surface Stateは各SubsystemのCPU正規契約を使う。
 
-Editor WindowではScene／Game Viewのversioned texture composite後に`MiraUiDrawPacketV1`をdisplay resolutionで描画する。MiraUIはD3D12 command list、descriptor、GPU addressを所有せず、本書のRendering Portとsubmission lifetimeへ従う。Editor UI Packet、primitive、clip、atlas、surface generationの正本はEditor UI Framework規約に置く。
+Post ProcessのNode順、入力色空間、AA接続、Volume blend、history reset、UI／pixel-locked除外は[Post Process／AI Authoring規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)を正本とする。Rendererは`ResolvedPostProcessPlanV1`をCatalog登録済みPass Templateへ展開し、ProfileやAIから任意Pass順を受け取らない。
+
+Editor WindowではScene／Game Viewのversioned texture composite後に`MirakanUiDrawPacketV1`をdisplay resolutionで描画する。MirakanUiはD3D12 command list、descriptor、GPU addressを所有せず、本書のRendering Portとsubmission lifetimeへ従う。Editor UI Packet、primitive、clip、atlas、surface generationの正本はEditor UI Framework規約に置く。
 
 ## 10. Material、Shader、Pipeline
 
-Material IR、Shading Model、Visual Styleの機能詳細は2D／3D機能計画を正本とする。本書ではRuntime契約を次に固定する。
+Material IR、Shading Model、Visual Style、Semantic Catalog、AI Operation、Preview／Explain／Validatorの機能詳細は[Material／Visual Style／AI Authoring規約](./2026-07-20-material-visual-style-ai-authoring-architecture-design.md)を正本とする。本書ではRuntime契約を次に固定する。
 
 - Shader sourceはEngine／承認済みProject sourceからoffline compileする。
 - Cooked Shader Packageはtarget、entry ID、shader model、interface hash、binary hash、compiler hashを持つ。
@@ -365,14 +402,19 @@ Mobile background／surface lossはdevice lossと区別し、Mobile規約のsurf
 AIと人間へ公開するのは次だけである。
 
 - Camera、Light、Environment、Fog、Cloud、Post、VFX、Material、Visual Styleのtyped Authoring object
+- `LightIntentV1`、`LightingStyleProfileV1`とEngineが生成した`ResolvedLightPlanV1`／`LightSnapshotV1`
+- `PostProcessIntentV1`、`PostProcessProfileV1`とEngineが生成した`ResolvedPostProcessPlanV1`
 - `ShadowIntentV1`、`ShadowStyleProfileV1`、`ShadowGraphV1`、承認済み`ProjectShadowTechniqueV1`
+- `AntiAliasingIntentV1`とEngineが生成した`ResolvedAntiAliasingPlanV1`のread-only Preview
 - Target／Quality Profile
 - 登録済みRender featureとPass Template
 - cost予測、thumbnail、debug view、GPU capture参照、validation
 
-Environment、Fog、Cloudの具体的なCapability、Intent、Preset、Operation、Risk、PreviewはEnvironment Platform規約を正本とする。本書はそれらのSource Operationを登録済みRender Graph TemplateとTarget resourceへ変換する境界だけを所有する。
+Lightの物理単位、Role、Intent、Profile、Resolver、selection／cluster、Operation、PreviewはLighting規約、非AA Post effectのIntent、Profile、Node、Volume、Operation、PreviewはPost Process規約、Environment／Fog／CloudはEnvironment Platform規約を正本とする。本書は各Subsystemの解決済みPlanを登録済みRender Graph TemplateとTarget resourceへ変換する境界だけを所有する。
 
 AIはresource barrier、heap offset、descriptor index、native format、queue signal値、shader binaryを指定しない。Custom HLSLはC2のR3 Native／Shader Source ChangeSetであり、隔離compile、interface validation、instruction／resource budget、全Target test、人間承認を必須とする。
+
+AAについてAIが指定できるのは意味Goal、許可方式、Scope、Target／Quality selector、fallbackだけである。sample location、resolve shader、jitter sequence、history weight、reactive mask生成、Provider native option、Pipeline keyを指定しない。`camera_profile` ScopeもCamera単独のnative surfaceを変更せず、所属ViewFamilyのPlan候補としてResolverへ渡す。
 
 AIが大量配置を作る場合は、個別object数だけでなく`RenderRepresentationPlanV1`のindividual／instanced／spatial／presentation内訳、resident／visible peak、推定draw／triangle／pixel、memory、Target fallbackをPreviewへ表示する。instance化、batch、LOD、HLOD、streamingはGameplay identityやinteractionを変更しない範囲で自動提案できる。object削除、interaction削除、敵味方の可視性やGameplay結果を変える案はRenderer最適化として自動Commitしない。
 
@@ -397,8 +439,8 @@ Renderer Capabilityは実装有無とProduction保証を分離し、`Unavailable
 
 | Product段階 | 必須Capability | 任意Capability |
 |---|---|---|
-| C1 Portable Production | Forward+、2D batch、CPU frustum／LOD、TAA／FXAA、dynamic resolution、native present | Backend固有の同値最適化 |
-| C2 Scalable Production | GPU visibility、HZB、indirect、HLOD、Hybrid Deferred、Temporal Reconstruction Port | DLSS／XeSS／FSR／MetalFX、Frame Generation、RT Shadow／Reflection、Mesh Shader |
+| C1 Portable Production | Forward+、2D CPU bounds／instanced batch、Tile chunk、CPU frustum／LOD、FXAA、`mirakan_taa_v1`、Forward+ MSAA 2x／4x、dynamic resolution、native present | Backend固有の同値最適化 |
+| C2 Scalable Production | 2D GPU visibility／indirect／indexed binding／streaming Tilemap、3D GPU visibility、HZB、indirect、HLOD、Hybrid Deferred、SMAA 1x、Temporal Reconstruction Port | MSAA 8x、DLSS／XeSS／FSR／MetalFX、Frame Generation、RT Shadow／Reflection、Mesh Shader |
 | C3 Advanced | RTGI、Path Tracing、Ray Reconstruction、Neural Denoising／Radiance Cache／Shaderの共通契約と個別Qualification | Work Graph、large-world virtual geometry、vendor research SDK |
 
 起動時に`RendererCapabilitySignatureV1`を作る。最低fieldはBackend、API／shader version、GPU／driver identity、feature bit、memory budget、display mode、SDK／model generation、signed artifact hashである。`RendererProfileResolver`はProject要求、Target Profile、Capability Signature、Qualification Receiptから一つの`ResolvedRendererProfileV1`を決定し、次を保存する。
@@ -417,8 +459,8 @@ Userが設定画面でProviderを変更した場合も同じResolverを通す。
 
 | Path | 内容 | 必須fallback |
 |---|---|---|
-| `cpu_direct_v1` | CPU frustum、LOD、stable packet sort、instancing、direct draw | なし。C1基準 |
-| `gpu_indirect_v1` | GPU frustum、LOD、前frame HZB occlusion、compaction、indirect draw | `cpu_direct_v1` |
+| `cpu_direct_v1` | CPU frustum、`projected_error_px_q16` LOD、hysteresis、stable packet sort、instancing、direct draw | なし。C1基準 |
+| `gpu_indirect_v1` | CPUと同じ量子化規則によるGPU frustum／LOD、前frame HZB occlusion、compaction、indirect draw | `cpu_direct_v1` |
 | `gpu_meshlet_v1` | meshlet cull、indirect mesh drawまたはmesh shader | `gpu_indirect_v1` |
 | `gpu_work_graph_v1` | Work Graph／同等機能によるdynamic work expansion | `gpu_indirect_v1` |
 
@@ -426,11 +468,11 @@ C2 Desktopでは`gpu_indirect_v1`を正式実装対象とする。Meshlet、Mesh
 
 ### 15.2 Visibility data
 
-GPU inputは`VisibilityInstanceV1`のSoA bufferとし、geometry generation、current／previous transform、bounds、LOD range、material packet、layer、stable render IDだけを持つ。Entity、Component pointer、Gameplay tagを含めない。
+GPU inputは`VisibilityInstanceV1`のSoA bufferとし、geometry generation、current／previous transform、bounds、量子化済みlevel error／enter／exit threshold、previous presentation tier、material packet、layer、stable render IDだけを持つ。Entity、Component pointer、Gameplay tag、Simulation tier、authoritative relevanceを含めない。
 
 HZBは当該Viewの直前に完了したreal frame depthから構築する。camera cut、surface generation、projection、render extent、occluder policy変更時にhistoryをinvalid化し、invalid frameはfrustumだけで描画する。occlusion結果は一frame以上のconservative hysteresisを持ち、near plane交差、巨大bounds、前frame未存在objectを強制visibleにする。
 
-GPU outputはbounded visible index、LOD、indirect argument、overflow counterである。上限超過時はStable ID順に黙って欠落させず、事前Cook／Previewでは拒否し、Shippingの突発超過ではC1 CPU fallbackへ次frameから切り替えて`VisibilityCapacityExceeded`を記録する。
+GPU outputはbounded visible index、Domain別presentation tier、indirect argument、overflow counterである。上限超過時はStable ID順に黙って欠落させず、事前Cook／Previewでは拒否し、Shippingの突発超過ではC1 CPU fallbackへ次frameから切り替えて`MIRAKAN-LOD-CAPACITY_EXCEEDED`を記録する。
 
 ### 15.3 Backend mapping
 
@@ -443,7 +485,52 @@ GPU outputはbounded visible index、LOD、indirect argument、overflow counter�
 
 新経路は同じScene、input trace、Quality、output extent、warm stateで基準経路と比較し、frame P95が5%以上かつ0.20 ms以上改善し、GPU／CPU memory peak、allocation、shader variant、visual fixture、device faultが悪化しない場合だけ既定候補へ昇格する。改善が一GPUだけの場合はそのCapability Signature限定Profileとし、他Vendorへ一般化しない。
 
-## 16. Temporal Reconstruction、Frame Generation、Vendor SDK
+## 16. Anti-aliasing、Temporal Reconstruction、Frame Generation、Vendor SDK
+
+### 16.0 Anti-aliasing PlanとResolver
+
+`RendererProfileResolver`は`AntiAliasingIntentV1`を直接実行せず、ViewFamilyごとに一つの`ResolvedAntiAliasingPlanV1`へ解決する。同じViewFamilyのCameraはraster sample count、temporal Provider、jitter、render／display extentを共有する。Split ViewでCameraごとに異なる方式が必要な場合は別ViewFamily／別render targetとしてbudgetを再検証し、一つのsurfaceへ異なるMSAA sample countを混在させない。
+
+| Field | 規則 |
+|---|---|
+| `source_intent_id`／`source_revision` | 解決元Intentを特定し、stale Planを拒否する |
+| `view_family_id`／`scope_resolution` | Project／Camera Profileから最終ViewFamily Scopeへ解決した結果 |
+| `raster_samples` | `1 \| 2 \| 4 \| 8`。2以上はForward+のQualified attachment／pipelineだけ |
+| `spatial_method` | `off \| fxaa \| smaa_1x`。一つだけ |
+| `temporal_method` | `off \| mirakan_taa_v1 \| mirakan_taau_v1 \| qualified_provider_id`。一つだけ |
+| `render_extent`／`display_extent` | Target ProfileとProvider制限内。UI／pixel-locked extentを含めない |
+| `jitter_policy` | Engine-owned closed ID。AI／Project dataはsample列を保持しない |
+| `history_reset_mask` | camera cut、teleport、extent、surface、projection、Provider、model、AA方式変更のclosed bit |
+| `excluded_layers` | `ui \| text \| pixel_locked`を必須集合とし、World historyへ混入させない |
+| `required_capabilities` | Backend、renderer、sample count、motion／depth／mask、Provider、HDRのCapability ID |
+| `predicted_cost` | pass GPU、bandwidth、persistent／transient byte、Pipeline variant数 |
+| `fallback_chain` | 順序、意味差、User通知、必要な再構築境界 |
+| `decision_trace` | 選択理由、却下method、Constraint／Receipt／baseline ID |
+
+方式互換は次のclosed tableを正本とする。`Qualified`はTarget／Backend／driver／QualityごとのReceiptを意味し、API feature bitだけでは利用可能にしない。
+
+| Method | 成熟度 | Renderer／入力 | 主用途と制限 |
+|---|---|---|---|
+| `none` | C1 diagnostic | 全Raster | bit-exact検査、AA対象外layer、User明示指定だけ。AI自動最適化は禁止 |
+| `fxaa` | C1 Portable | 全Raster、resolved color | 最低costのspatial fallback。Tone map後、UI合成前に実行 |
+| `mirakan_taa_v1` | C1 Portable 3D | motion、depth、exposure、jitter、history | native extentのtemporal AA。Pixel／UI／VR low-latency Intentでは候補外 |
+| `msaa_2x`／`msaa_4x` | C1 Forward+ | sample可能なcolor／depth、全対象PSOのsample一致 | Geometry edgeとalpha-to-coverage。Shader／specular aliasを単独では解決しない |
+| `smaa_1x` | C2 Portable | resolved color | Temporal禁止かつFXAAより鮮明さを優先するspatial候補 |
+| `msaa_8x` | C2 optional | Forward+、High／offline実機Gate | 自動選択禁止。memory／bandwidth／tile storeを個別測定 |
+| `mirakan_taau_v1` | C2 | `TemporalFrameInputV1` | Engine基準temporal upscale |
+| Qualified DLSS／XeSS／FSR／MetalFX | C2 optional | Provider別Input／署名／license／driver | Providerごとに独立Qualification |
+
+正規組合せは次とする。
+
+- `raster_samples > 1`と`temporal_method != off`を同時に使用しない。Unity URPの排他とForward／Deferred差を含む複数BackendのPortable基準として固定する。
+- MSAAとFXAA／SMAAの併用は既定で禁止し、Target限定Qualificationが単独方式よりAA fixtureを改善しbudget内である場合だけProfileへ登録する。
+- Hybrid DeferredのGBufferをMSAA化しない。MSAAはForward+ ViewFamilyだけに許可し、Deferred／Hybrid ViewFamilyはspatialまたはtemporal方式を使う。
+- MSAA 2x／4xはC1、8xはC2 optionalとする。8xをLow／Medium／MobileのAuto候補にしない。
+- Alpha-to-coverageはMSAA有効時のmasked Material Capabilityであり、transparent blend、texture、specular aliasが改善するとは表示しない。
+- TAA／TAAU／temporal Providerはpre-tonemap scene-linear HDRで実行し、FXAA／SMAAはTone map後かつUI／text／pixel-locked final composite前に実行する。
+- Dynamic resolution変更、Camera cut、teleport、projection／surface／AA方式／Provider変更ではhistoryを全破棄する。MSAA sample count変更はRender Graph attachmentとPipeline keyをSettings Apply／Loading境界で再構築する。
+
+Resolverは`UnsupportedByRenderer | UnsupportedByTarget | InvalidCombination | MissingMotionVectors | MissingTemporalInput | PixelLockedTemporalForbidden | MsaaSampleUnsupported | ProviderNotQualified | BudgetExceeded | ScopeConflict | RebuildBoundaryRequired`を`AntiAliasingResolutionErrorV1`のclosed codeとして返す。未知方式を近い名前へ補正せず、利用可能候補、拒否理由、必要Capability／Receipt、意味差を`RemediationV1`へ含める。
 
 ### 16.1 Engine-owned frame contract
 
@@ -469,7 +556,7 @@ Opaque、masked、skinned、deformed、vertex animated objectはmotion vectorを
 
 | Provider | 初期lock／用途 | Platform |
 |---|---|---|
-| `mira_taa_u_v1` | Engine基準TAA／temporal upscale | 全Target |
+| `mirakan_taau_v1` | Engine基準TAA／temporal upscale | 全Target |
 | `directsr_v1` | DirectSR経由SR。Frame Generation／Ray Reconstructionを所有しない | Windows D3D12 |
 | `streamline_2_11_1` | DLSS SR／RR／FG、Reflex。Production署名binaryだけShipping可 | Windows D3D12。Vulkanは別Gate |
 | `xess_3_0_1` | XeSS SR／FG、XeLL | Windows D3D12 |
@@ -486,6 +573,7 @@ ShippingでProvider／modelの無承認OTA更新を禁止する。更新は旧�
 - DLSS familyを使う場合はStreamline、XeSS FGはXeLL、FSR familyはFSR SDK、AppleはMetalFXの同世代統合を既定とし、異なるVendorのFrame Generation／Latency wrapperを混在させない。
 - DirectSRはSRだけを必要とし、同じframeでDLSS／XeSS／FSR direct Adapterを使用しない場合に選ぶ。
 - Provider切替はLoading／Settings Apply境界でpresentをdrainし、旧Context、proxy swapchain、historyを完全破棄してsurface generationを増やす。
+- AA方式、MSAA sample count、jitter policyの切替もLoading／Settings Apply境界で行う。変更対象ViewFamilyのpresentをdrainし、history／resolved attachment／関連Pipelineを世代更新する。
 - Pause、全画面Menu、Loading、camera cut直後、window resize中、base real frameが60 fps hard gateを満たさない場合はFrame Generationを停止する。
 
 ### 16.4 Frame Generationの評価
@@ -532,7 +620,7 @@ sample sequence、seed、light sampling table、floating-point modeはreceiptへ
 
 ## 18. Failure、Fallback、Security
 
-`RendererProviderErrorV1`は少なくとも`NotInstalled | UnsupportedDevice | UnsupportedDriver | SignatureInvalid | LicenseNotApproved | VersionMismatch | MissingInput | InvalidFormat | InitializationFailed | ExecutionFailed | HistoryInvalid | SwapchainConflict | BudgetExceeded | DeviceFault`を持つ。
+`RendererProviderErrorV1`は少なくとも`NotInstalled | UnsupportedDevice | UnsupportedDriver | SignatureInvalid | LicenseNotApproved | VersionMismatch | MissingInput | InvalidFormat | InitializationFailed | ExecutionFailed | HistoryInvalid | SwapchainConflict | BudgetExceeded | DeviceFault`を持つ。AA Intent解決前の互換／排他／Scope失敗は16.0節の`AntiAliasingResolutionErrorV1`を使い、Provider障害と混同しない。
 
 - 起動時のProvider失敗は`ResolvedRendererProfileV1`の承認済みfallback順で次候補を選び、理由を表示する。
 - Running中のProvider failureは新規Providerへその場で差し替えず、generationを停止し、次のLoading境界でContextを再生成する。安全なreal frame presentを継続できなければRenderer faultへ遷移する。
@@ -546,10 +634,16 @@ Runtime規約のGPU P95 14.00 ms、hard 16.67 msとPass別soft capを維持す�
 
 最低telemetryは次である。
 
+- AA Intent／Plan ID、方式、raster sample count、render／display extent、jitter／history generation
+- AA pass GPU P50／P95／max、bandwidth、persistent／transient byte、resolve回数、Pipeline variant数
+- edge alias energy、edge spread、temporal shimmer、ghost persistence、history reset理由、fallback回数
+
 - CPU extract、cull、LOD、Graph compile、record、submit
 - Pass別GPU timestampとpipeline statistics
 - visible／culled／draw／dispatch／triangle／sprite／glyph count
+- 2D batch key、instances／batch、Tile authored／resident／requested／visible chunk、draw span、dirty rebuild、atlas page／occupancy／padding waste
 - Representation別authored／resident／visible count、instance batch数、instances／draw、spatial cell／HLOD遷移、individual fallback理由
+- LOD class／tier別transition、境界往復、minimum residency違反、projected error、geometry residency miss、fallback reason
 - HZB test／visible／false-negative guard、indirect command、meshlet、overflow
 - transient peak、alias saving、GPU budget／usage／eviction
 - descriptor、PSO cache hit、shader variant
@@ -563,22 +657,33 @@ Runtime規約のGPU P95 14.00 ms、hard 16.67 msとPass別soft capを維持す�
 
 10分soakでCPU／GPU deadline、memory、descriptor、submission serial backlogを検証する。GPU timestamp未対応／不安定DeviceではAvailabilityを記録し、0 msとして合格させない。最適化はBefore／After、同一input trace、Profile、driver、SDK、capture、visual diffを一つの`RendererOptimizationReceiptV1`へ保存する。
 
+Frame平均値だけでなくfirst-use hitchをProduction Gateに含める。Cooked Asset closureから必須pipeline key集合を決定論的に列挙し、起動／loading中にbackground PSO作成を開始する。操作可能frameの公開条件はcritical pipeline準備完了、または事前承認済み意味同等fallbackの準備完了である。120秒runではpipeline miss、compile wait、default material代替、draw skipの件数と最長stallを記録し、critical pipelineのruntime compile／blocking miss 0件をC1／C2 hard Gateとする。非critical background作成はStreaming priorityで実行し、Runtime規約のCriticalSimulation／CriticalRenderを飢餓させない。
+
+高度CapabilityはPortable Rasterと同じScene／input／output意味で比較する。Advanced経路が速くても、Portable fallbackのC1 Gate、Mobile Artifact、device recovery、Package起動を退行させる変更は共通Sourceへ昇格しない。共通改善とTarget限定改善を別Receiptにし、Target限定改善はCapability Signature一致時だけ選択する。
+
 ## 20. TestとRelease Gate
 
 Temporal／RT／Neuralの画質比較は`RendererVisualReceiptV1`へ固定する。比較画像をlinear Rec.709 RGB32Fへ変換し、UI／pixel-locked領域は別maskでbit-exact、3D領域はSSIM 0.950以上かつnormalized RGB RMSE 0.025以下、NaN／Inf 0 pixelを合格条件とする。disocclusion mask内でabsolute RGB error 0.10超が3 real frameを超えて残るpixelを0件とする。Path Referenceだけは17.2節の厳格値を使う。同じframe ID、camera、exposure、jitter、dynamic extent、Provider preset、driver、SDK／model hashをreceiptへ保存し、閾値変更はBefore／After corpusとADRを必要とする。
+
+AA方式ごとに`AntiAliasingVisualReceiptV1`を追加する。4x linear-resolution SSAA downsampleを静止Referenceとし、AA Offを動的Baselineにする。UI／text／pixel-locked maskはbit-exact、NaN／Inf 0 pixelを必須とする。edge mask内alias energyはOff比20%以上低減、FXAA／SMAA／MSAAのedge spread P95は1.50 display pixel以下、TAA／TAAU／temporal Providerは2.00 display pixel以下、temporal方式のshimmer energy P95はOff比30%以上低減する。disocclusion ghostは前段の3 real frame上限を共有する。方式が対象としないspecular／texture／transparent aliasは失敗扱いにせず`unaddressed_alias_class`へ列挙し、Resolver Previewが補助Capabilityまたは別方式を提示する。
 
 - Graph cycle、read-before-write、unordered write、subresource overlap、history invalidationのunit／property test
 - 同一Graph入力からcanonical compile plan hash一致
 - D3D12 Enhanced／legacy、Vulkan、Metalへのaccess／barrier conformance
 - D3D12 Debug Layer／GPU validation、Vulkan Validation、Metal validationのzero-error fixture
 - 2D pixel、Realistic、Toon、Pixel Dioramaのgolden imageと許容差
+- AA Off／FXAA／SMAA 1x／MSAA 2x・4x・8x／Mirakan TAA／Mirakan TAAUのthin geometry、foliage、alpha scissor／blend、specular、particle、emissive、skinning、急加速、camera cut、dynamic extent、HDR fixture
+- AA Scope conflict、TAA＋MSAA、Deferred MSAA、unsupported sample count、missing motion／depth、pixel-locked temporal、Settings Apply外rebuildのnegative test
+- D3D12／Vulkan／MetalでMSAA color／depth sample count、Pipeline key、resolve order、alpha-to-coverage、surface loss後再構築が一致するBackend conformance
 - RTX 3060、RX 6600、Android minimum／reference、A12／referenceのNative Raster Performance
 - RTX 5070、RX 9070、Arc B580の1440p60、1080p120、Vendor feature別Qualification
 - resize、alt-tab、HDR／SDR切替、surface loss、device removed fault injection
 - GPU OOM、descriptor exhaustion、pipeline miss、corrupt shader、stale Asset generation
 - resource last-use serial前に破棄されないlifetime test
 - CPU direct／GPU indirect／meshletの同一visible result、occlusion history、camera cut、overflow、fallback
+- FOV、projection、resolution、dynamic extentごとの`projected_error_px_q16` golden値、CPU／GPU tier一致、enter／exit hysteresis、camera cut再選択
 - `individual | instanced | spatial_batch | presentation_batch`のCook分類、Gameplay identity保持、mutable objectのstatic batch混入拒否、C1 CPU instancing
+- HLOD Source順序変更時のcluster／Artifact hash一致、interactive／Physics／Save／animation混入拒否、HLOD on／offのGameplay結果一致
 - Runtime規約の2D／3D Integrated Scale Fixtureで大量配置、spawn、streaming、敵味方VFXが同時発生してもNative Raster hard gateとvisual equivalenceを満たす
 - Native TAA／DirectSR／DLSS／XeSS／FSR／MetalFXのmotion、depth、exposure、reactive、UI、HDR、dynamic extent、camera cut
 - 一つのFG ProviderだけがSwapchainを所有し、Menu／Pause／Loading／resize／base miss時に停止するconformance
@@ -599,10 +704,10 @@ C1 RendererはPortable Rasterで2D top-down sliceと3D compact arenaを全Target
 
 | 段階 | 成果物 | Promotion Gate |
 |---|---|---|
-| R0 | Contract、Render Graph、telemetry、capture、Native Raster fixture | D3D12 C1 2D／3D |
-| R1 | Vulkan／Metal Portable Raster、Mobile Profile | 実機memory／thermal／endurance |
-| R2 | GPU indirect、HZB、HLOD、streaming、geometry artifact | CPU direct比較、全Vendor baseline |
-| R3 | `TemporalFrameInputV1`、Mira TAAU、DirectSR、DLSS、XeSS、FSR、MetalFX | visual／latency／failure／signature |
+| R0 | Contract、`AntiAliasingIntentV1`／Plan、FXAA、Mirakan TAA、D3D12 MSAA 2x／4x、CPU LOD reference selector、hysteresis、LOD0 fallback、Render Graph、telemetry、capture、Native Raster fixture | D3D12 C1 2D／3D、AA visual／resolve、LOD metric golden |
+| R1 | Vulkan／Metal Portable Raster、FXAA／MSAA 2x・4x Mobile Profile | 実機AA visual、tile memory／bandwidth、thermal／endurance |
+| R2 | GPU LOD selector、indirect、HZB、HLOD、geometry residency／streaming、geometry artifact | CPU selector一致、HLOD Gameplay分離、全Vendor baseline |
+| R3 | SMAA 1x、MSAA 8x、`TemporalFrameInputV1`、Mirakan TAAU、DirectSR、DLSS、XeSS、FSR、MetalFX | AA／temporal visual、latency、failure、signature |
 | R4 | Frame Generation、latency provider、UI separation | real 60 fps、present／input latency |
 | R5 | RT Shadow／Reflection、acceleration lifecycle、denoiser | Raster fallback、RT Vendor matrix |
 | R6 | RTGI／Radiance Cache | indoor／outdoor／dynamic fixture |
@@ -653,5 +758,35 @@ C1 RendererはPortable Rasterで2D top-down sliceと3D compact arenaを全Target
 - [Godot: Optimization using Servers](https://docs.godotengine.org/en/stable/tutorials/performance/using_servers.html)
 
 これらから、通常object経路とは別にECS／Mass／Server、instancing、LOD／HLOD、streaming、poolingを組み合わせる一般的な構造を採用する。ただし、外部Engineの個別APIや「大量なら表示を消す」という判断を模倣せず、MiraikanaiではScale intent、Gameplay fidelity floor、Representation Plan、統合実測GateをAI制作経路の必須契約にする。
+
+### 22.4 有名Engineの性能・実行経路
+
+- [Unreal Engine: Scalability Reference](https://dev.epicgames.com/documentation/en-us/unreal-engine/scalability-reference-for-unreal-engine)
+- [Unreal Engine: Lumen Performance Guide](https://dev.epicgames.com/documentation/en-us/unreal-engine/lumen-performance-guide-for-unreal-engine)
+- [Unreal Engine: PSO Precaching](https://dev.epicgames.com/documentation/en-us/unreal-engine/pso-precaching-for-unreal-engine)
+- [Unity: Choose a render pipeline](https://docs.unity3d.com/Manual/choose-a-render-pipeline.html)
+- [Unity: Burst compilation](https://docs.unity3d.com/Manual/script-compilation-burst.html)
+- [Godot: Renderers overview](https://docs.godotengine.org/en/stable/tutorials/rendering/renderers.html)
+- [Godot: General optimization](https://docs.godotengine.org/en/stable/tutorials/performance/general_optimization.html)
+
+これらから、品質Profileと対象hardwareに応じた実行経路、hot pathのcompiler／data-oriented最適化、計測主導のbottleneck選択、PSO first-use hitchの事前除去を採用する。ただし、Miraikanaiでは外部EngineのAPI、設定項目数、互換性区分をそのまま移植せず、単一Authoring SourceからTarget別artifactを生成し、Portable基準経路と意味同等fallbackを維持する。
+
+### 22.5 Anti-aliasingとAI Tool設計
+
+- [Unreal Engine 5.8: Anti-Aliasing and Upscaling](https://dev.epicgames.com/documentation/en-us/unreal-engine/anti-aliasing-and-upscaling-in-unreal-engine)
+- [Unreal Engine 5.8: Rendering Project Settings](https://dev.epicgames.com/documentation/unreal-engine/rendering-settings-in-the-unreal-engine-project-settings)
+- [Unreal Engine 5.8: Unreal MCP](https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor)
+- [Unity 6.3 URP: Add anti-aliasing](https://docs.unity3d.com/6000.3/Documentation/Manual/urp/anti-aliasing.html)
+- [Godot stable: 3D antialiasing](https://docs.godotengine.org/en/stable/tutorials/3d/3d_antialiasing.html)
+- [Godot stable: Renderer feature comparison](https://docs.godotengine.org/en/stable/tutorials/rendering/renderers.html)
+
+| 公式Engine | 公式仕様で確認した構成 | Miraikanaiへ採用する判断 |
+|---|---|---|
+| Unreal Engine 5.8 | TSR、TAAU、FXAA、MSAAを選択できる。MSAAはForward Renderer限定で2x／4x／8x、geometry edge中心でmaterial／texture／transparent aliasを単独では解決しない。Project／Scalability設定に分かれる | temporal／spatial／multisampleを別Capabilityにし、MSAAをForward+限定、2x／4xと8xを別成熟度にする。方式だけで全alias解決と表示しない |
+| Unity 6.3 URP | FXAA／SMAA／TAAはCamera、MSAAはURP Assetで設定する。TAAはMSAA、Camera Stacking、Dynamic Resolutionと非互換。MobileではFXAAを推奨し、StoreAndResolve非対応端末でOpaque Textureを使うとMSAAが無効になる | Project／Camera入力をViewFamily Planへ統合し、MSAA×temporalをPortable禁止にする。Mobile既定をFXAAとし、scene color sampling／store・resolve非互換を黙って無効化しない |
+| Godot stable | MSAAとSSAAは全Renderer、FXAA／SMAAはForward+／Mobile、TAA／FSR2はForward+だけ。MSAAは2x／4x／8xを持ち、FXAAは低cost、TAAはtemporal安定、MSAAは低blur用途として説明される | Renderer／Target互換表を正本化し、Goalから候補を選ぶ。複数方式の無条件併用ではなく、単独方式と比較したQualificationを必須にする |
+| Unreal MCP 5.8 Experimental | Toolset、JSON Schema、Tool search／describe／callによる段階的Discoveryを提供するが、Experimentalで変更可能性があり、localhost接続自体は認証境界ではない | typed MCD Operationと段階的Discoveryは採用し、Commit／Provider activation／Pipeline rebuildはToolへ投影しない。Gateway authorityとrevision検証を別に強制する |
+
+これらから、方式とRenderer／Platformの互換表、MSAA 2x／4x／8x、spatial／temporalの画質・cost差、TAAとMSAAのPortable排他、Camera／Project設定Scope、型付きTool schema、段階的Tool discoveryを採用する。外部Engineのconsole variable、Camera Component、Pipeline Asset、ProjectSettingsをMiraikanaiの正本にはせず、`AntiAliasingIntentV1`からViewFamily単位Planを生成し、Gateway検証とTarget別Qualificationを必須にする。
 
 これらのAPI／SDKは機能、入力、Capability、性能上の注意の根拠である。MiraikanaiのRender Graph schema、Provider選択、fallback、budget、AI公開範囲、Production表示を外部API／SDKへ委ねるものではない。

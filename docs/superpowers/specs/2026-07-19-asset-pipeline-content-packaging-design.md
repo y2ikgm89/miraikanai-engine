@@ -1,6 +1,6 @@
 # Miraikanai Engine Asset Pipeline／Content Package規約
 
-- 文書版: 1.2
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Asset source、Import、Cook、Cache、Catalog、VFS、Streaming、Package、Patch／DLC、AI生成Asset
@@ -10,6 +10,7 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- LOD規約: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
@@ -32,9 +33,11 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 |---|---|
 | Asset identity、metadata、import、cook、cache、catalog、VFS、package、streaming | 本書 |
 | Import Profile、Source解析、種別別IR、Conversion／Loss Report、Preview、Reimport、AI／Editor操作 | Asset Import／AI Authoring／Editor UX規約 |
+| LOD Intent／Policy、Mesh／HLOD／Residency Artifact envelope、metric、fallback、Receipt | LOD規約 |
 | Source Document Commit、StableId、ChangeSet | Authoring規約 |
 | Asset generation／lease／atomic promotion、memory charge | Runtime規約 |
-| Format／Style／Material／Shader／Nav／Physics／VFXの機能範囲 | 2D／3D機能計画と各Subsystem規約 |
+| Style／Material／Shaderの意味、機能、AI Authoring | Material／Visual Style／AI Authoring規約 |
+| Format／Nav／Physics／VFXの機能範囲 | 2D／3D機能計画と各Subsystem規約 |
 | PAD、Apple Background Assets、Store package | Mobile規約 |
 | Windows installer／distribution／crash | Windows Platform規約 |
 
@@ -74,7 +77,9 @@ Pathはseparatorを`/`へ正規化し、absolute path、drive、UNC、`..`、emp
 
 | Type | Source／導入段階 | 主なDerived Artifact |
 |---|---|---|
-| Texture／Sprite | PNG、JPEG、OpenEXR、KTX2、DDS | Target texture、mip、sprite table、thumbnail |
+| Texture | PNG、JPEG、OpenEXR、KTX2、DDS | Target texture、mip、thumbnail |
+| Sprite | C1 Image＋`SpriteImportSettingsV1`、C2隔離Aseprite PNG＋JSON | deterministic atlas page、stable sprite table、animation／collision binding |
+| TileSet／Tilemap | C1 Engine-native Source、C2隔離Tiled／LDtk | Tile chunk、draw span、Collider／Navigation Derived Artifact、stream index |
 | Mesh／Scene | C1 glTF 2.0／GLB、C2 Blend／FBX、C3 USD／USDZ | mesh stream、portable meshlet／cluster、LOD／HLOD、occlusion proxy、skin binding、collision／nav／ray geometry source |
 | Skeleton／Animation | C1 glTF 2.0、C2 Blend／FBX、C3 USD | ozz runtime skeleton／clip、event／root track |
 | Audio | WAV、FLAC | PCM16 one-shot、Opus stream chunk、waveform |
@@ -134,7 +139,8 @@ Thumbnail、debug dump、human-readable reportは正式Artifactと分け、Shipp
 | Type | 必須validation |
 |---|---|
 | Texture | dimension、mip、channel、alpha mode、color space、normal map、block alignment、GPU size |
-| Sprite | rect overlap／bounds、pivot、PPU、pixel sampling、atlas padding |
+| Sprite | rect overlap／bounds、Stable Sprite ID、pivot、PPU、trim／rotation／nine-slice、pixel sampling、全mip atlas padding、page／Sprite上限 |
+| TileSet／Tilemap | Stable Tile／Layer ID、grid／orientation、layer／chunk／property上限、Tile参照、animation、terrain rule、Collider／Nav tag、external path、Derived generation closure |
 | glTF | accessor bounds、buffer length、node cycle、finite transform、extension allowlist、material support |
 | Mesh | index range、degenerate比、vertex／triangle count、bounds、LOD順、skin influence |
 | Skeleton | joint count、unique stable joint path、parent cycle、bind pose finite／invertible |
@@ -187,7 +193,10 @@ Artifact storeはcontent-addressed、immutableである。成功Artifactを上�
 
 ### 6.3 Advanced rendering artifact
 
-- Mesh cookはC1 vertex／index streamを常に生成し、C2用portable cluster、meshlet、LOD／HLOD、occlusion proxyを追加Artifactとして生成する。Mesh Shader／Work Graph専用native commandをAssetへ保存しない。
+- Mesh cookはC1 vertex／index streamとLOD0 fallbackを常に生成し、LOD規約の`MeshLodProfileV1`からmanual／generated chainを同一Asset generationのimmutable `MeshLodArtifactV1`へCookする。C2用portable cluster、meshlet、HLOD、occlusion proxyを追加Artifactとして生成する。Mesh Shader／Work Graph専用native commandをAssetへ保存しない。
+- `MeshLodArtifactV1`はSource／Profile／Reducer version hash、level index、vertex／index range、bounds、object error、projected error threshold、material interface hash、skin／morph metadata、fallback levelを持つ。Source順、worker completion順、native pointerを永続化しない。
+- generated reducerはoffline Tool Adapter内へ隔離し、Engine-owned input／outputを使う。Reducerのversion、binary hash、deterministic seed、警告、visual／deformation errorをReceiptへ保存し、同じSource／Profile／Toolchainのclean二回CookでArtifact hashが一致しなければProductionへ昇格しない。
+- `HlodArtifactV1`はSource Stable ID集合、Source revision hash、cell、proxy mode、bounds、geometry／material key、visual error、fallback representationを持つ。interactive、mutable Physics、Save、animation Sourceを含むJobを拒否し、Gameplay Collision／Navigation ArtifactをHLOD proxyから生成しない。
 - Ray Tracing用geometryはposition、index、opacity／alpha classification、material／primitive mapping、build hintをBackend非依存形式で保存する。D3D12／Vulkan／Metal native acceleration structureはPackageへ保存せず、Runtimeが対象Device／driverでbuildする。
 - Backendがacceleration structure serializationを提供しても、device identity、driver、API、build flag、geometry keyが完全一致するlocal cacheに限定する。Package、Patch、DLC、別Deviceへ配布しない。
 - Neural weightはmodel ID、architecture、semantic input／output、weight format、weight SHA-256、training data／license provenance、quantization、required feature、persistent／scratch byte、inference budget、non-Neural fallbackを必須とする。
@@ -198,7 +207,7 @@ Artifact storeはcontent-addressed、immutableである。成功Artifactを上�
 
 ### 7.1 Runtime Catalog
 
-`MiraAssetCatalogV1`は次を持つ。
+`MirakanAssetCatalogV1`は次を持つ。
 
 | Field | 規則 |
 |---|---|
@@ -226,9 +235,9 @@ Runtime codeは`asset://<uuid>/<role>`の論理参照またはtyped `AssetHandle
 
 VFSはContent Package読取専用であり、Save、setting、screenshot、crash dumpはPlatform User Data Portへ分離する。
 
-## 8. `.mirapack` C1 format
+## 8. `.mirakanpack` C1 format
 
-独自Content Containerを`Mira Content Package V1`として定義する。
+独自Content Containerを`Mirakan Content Package V1`として定義する。
 
 ```text
 Header
@@ -257,7 +266,7 @@ Index
 - Indexはbounds、overlap、duplicate、integer overflow、path、dependencyをmount前に検証する。
 - RuntimeはPackage全体をmemory mapすることを前提にせず、bounded async range readを使う。
 
-C1の完全性はApplication package署名と`.mirapack` root hashで検証する。Self-hosted remote Patch／DLCの署名、rollback protection、key rotationはC2 Security ADRを承認するまでShipping Capabilityとして公開しない。
+C1の完全性はApplication package署名と`.mirakanpack` root hashで検証する。Self-hosted remote Patch／DLCの署名、rollback protection、key rotationはC2 Security ADRを承認するまでShipping Capabilityとして公開しない。
 
 ## 9. Package build、Patch、DLC
 
@@ -272,7 +281,7 @@ C1の完全性はApplication package署名と`.mirapack` root hashで検証す�
 7. clean Packageを再生成してroot hash一致を検証する。
 8. Platform packageへ封入し、Platform署名／Store validationへ渡す。
 
-Developmentのloose Artifact layoutとShipping `.mirapack`は同じCatalog conformanceを通す。
+Developmentのloose Artifact layoutとShipping `.mirakanpack`は同じCatalog conformanceを通す。
 
 ### 9.2 Patch
 
@@ -294,7 +303,7 @@ Unloaded -> Requested -> Reading -> Validating -> Decoding
 - Requestはpriority、deadline、budget class、owner generationを持つ。
 - I/O completion threadはread完了だけを通知し、decode／transcodeをworkerへ渡す。
 - CPU payload、GPU upload、Audio decode、Physics／Nav buildを含むdependency closureがReadyになるまでActiveにしない。
-- Geometry streamingはC1 vertex／index fallbackを先にReadyにし、cluster／HLOD／ray geometry generationを同じAsset generation内のoptional residencyとして扱う。欠落時にnative handleを使い回さず、Rendererの承認済みfallbackへ切り替える。
+- Geometry streamingはC1 vertex／index fallbackを先にReadyにし、LOD level、cluster／HLOD／ray geometry generationを同じAsset generation内のoptional residencyとして扱う。`GeometryResidencyLodPlanV1`のrequested／resident／pending／fallback level、byte cost、deadline、owner generationを追跡し、欠落時にnative handleまたは別generationのlevelを使い回さず、同generation内の承認済みresident fallbackへ切り替えて`MIRAKAN-LOD-RESIDENCY_MISS`を記録する。
 - Neural modelは全weight、semantic manifest、Provider／Backend requirement、fallback closureがReadyになるまでActiveにしない。frame途中の部分weight promotionを禁止する。
 - Simulationは`T00`、Renderingは`R10`、Audioはcontrol block境界でversionをactivateする。
 - deadline超過、owner generation不一致、cancel済み結果をpublishしない。
@@ -383,12 +392,15 @@ Placeholderを許可するAsset roleはProfileで明示し、Collision、Nav、r
 - 同一Jobのclean二回CookでArtifact hash一致
 - Source／setting／Importer／dependency変更時の正確なincremental invalidation
 - Catalog dependency cycle、missing、duplicate、Target mismatch
-- `.mirapack` header／index／block bounds／hash／overflow fuzz
+- `.mirakanpack` header／index／block bounds／hash／overflow fuzz
 - 64 KiB block patch再利用と途中kill／disk full rollback
 - Asset generation closureのatomic promotionとlease中retire
 - Cache削除後のfull rebuildでPackage root hash一致
 - Windows、Android、Apple Target別Texture／Shader／Audio／Mesh Cook
 - portable cluster／meshlet／LOD／HLOD／occlusion proxyのdeterministic CookとC1 geometry fallback
+- manual／generated Mesh LODのlevel単調性、Source／Profile／Reducer hash、visual／deformation error、material interface、LOD0 fallback、clean二回Cook hash一致
+- HLOD Source順序変更時のcluster／Artifact hash一致、interactive／Physics／Save／animation混入拒否、Gameplay Collision／Nav非生成
+- geometry residencyのmissing level、deadline、memory pressure、別generation混在拒否、同generation fallback
 - ray geometryからBackend別BLAS build、driver／device不一致cache rejection、dynamic refit／rebuild
 - Neural modelのweight hash、semantic IO、license、memory／inference budget、corrupt／unsigned／missing fallback
 - Renderer Provider binaryの公式source、version、hash、署名、license、SBOM、Shipping package scan
@@ -400,8 +412,12 @@ Placeholderを許可するAsset roleはProfileで明示し、Collision、Nav、r
 - Basic／Advanced Editor、AI、headless CLIが同じImport Plan、Diagnostic、Artifact hashへ収束
 - Reimportが既存Profileを保持し、Hierarchy／Skeleton／Material／Clip／channel／coverageの破壊的変更をconsumer closure付きConflictとしてblock
 - Blend／FBX／USDはCapability未Activated時にImporterを起動せず、C2／C3 Qualification後だけCatalogへ公開
+- Sprite atlasのclean二回Cookでpage、rect、padding、Sprite table、Artifact hashが一致し、runtime repackを行わない
+- Tile editが変更chunk、rule依存半径、Collider seam、Navigation overlapだけを再Cookし、Renderer／Collision／Navigation generationをatomic promotion
+- Aseprite／Tiled／LDtkはCapability未Activated時にImporterを起動せず、version allowlist、sandbox、Loss Report、malformed／compression bomb／path traversal fixture合格後だけCatalogへ公開
+- Tile streamingのrequest、cancel、stale result、active authoritative region、memory pressure、fallbackを`2d_streaming_tileworld_v1`で検証
 
-C1完了条件は、2D／3D縦切りの全AssetをSourceからclean Cookし、Development loose layoutとShipping `.mirapack`で同じCatalogをloadし、hot reload、corrupt input、memory pressure、Package再生成を合格することである。
+C1完了条件は、2D／3D縦切りの全AssetをSourceからclean Cookし、Development loose layoutとShipping `.mirakanpack`で同じCatalogをloadし、hot reload、corrupt input、memory pressure、Package再生成を合格することである。
 
 ## 15. 一次資料
 

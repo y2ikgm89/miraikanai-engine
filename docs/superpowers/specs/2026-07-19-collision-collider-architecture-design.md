@@ -1,6 +1,6 @@
 # Miraikanai Engine Collision／Colliderアーキテクチャ規約
 
-- 文書版: 1.5
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Collision、Rigid Body接続、Collision Query、Editor、AI Authoring、Asset Cook
@@ -113,7 +113,7 @@ Soft body、GPU simulation、network collision、large-world floating originはC
 
 Hard範囲外はerror、recommended範囲外はwarningとReference fixture追加要求にする。10 kmを超えるWorld、1 mm未満のauthoritative Collider、1,000 m/s超のbodyはC3 large／extreme-scale ADRなしに許可しない。Teleportは速度ではなく`TeleportBody` commandで表現し、sweepやCCDを実行したことにしない。
 
-Velocity／Impulse／Kinematic Target commandがhard speedを要求した場合は適用前に拒否する。Backend stepの結果がhard speedまたはfinite invariantを破った場合はclampして継続せず、`MIRA-COLLISION-NATIVE_INVARIANT`としてtickをpublishしない。Box2D world maximum linear speedとJolt motion propertyには1,000 m/sを明示設定し、未記録のvendor defaultを使わない。
+Velocity／Impulse／Kinematic Target commandがhard speedを要求した場合は適用前に拒否する。Backend stepの結果がhard speedまたはfinite invariantを破った場合はclampして継続せず、`MIRAKAN-COLLISION-NATIVE_INVARIANT`としてtickをpublishしない。Box2D world maximum linear speedとJolt motion propertyには1,000 m/sを明示設定し、未記録のvendor defaultを使わない。
 
 Visual Transformのscale変更はColliderへ暗黙反映しない。Editorは`Regenerate Collider` Diffを提示し、承認後にgeometry寸法を更新して再Cookする。負scaleはImporterが頂点とwindingへbakeできるStatic sourceだけ許可し、Runtimeでは拒否する。
 
@@ -187,9 +187,9 @@ PhysicsBody3DComponent ───────────────────
 | `sleep_policy` | `allow \| prevent \| start_sleeping` | dynamicだけ |
 | `motion_quality` | `discrete \| linear_cast` | dynamicだけ |
 
-`PhysicsBodyReferenceDefaultsV1`は、各body kindで存在するfieldについてinitial velocityをzero、declared peak linear speedを20 m/s、declared peak angular speedを20 rad/s、gravity scale 1、linear／angular dampingを0、mass modeを`from_shapes`、2D `fixed_rotation=false`、3D allowed DOFsを全true、sleepを`allow`、motion qualityを`discrete`とする。Body kind、Collider Asset、poseにはdefaultを設けない。Authoring Componentは採用値を全fieldへ展開し、Cooked Componentに「vendor defaultを使う」という欠落状態を残さない。Declared peakはValidatorとbudgetの入力であり、solver clamp値ではない。Runtime telemetryが連続60 tickで宣言値を超えた場合は`MIRA-COLLISION-DECLARED_MOTION_PROFILE_EXCEEDED` warningを記録する。
+`PhysicsBodyReferenceDefaultsV1`は、各body kindで存在するfieldについてinitial velocityをzero、declared peak linear speedを20 m/s、declared peak angular speedを20 rad/s、gravity scale 1、linear／angular dampingを0、mass modeを`from_shapes`、2D `fixed_rotation=false`、3D allowed DOFsを全true、sleepを`allow`、motion qualityを`discrete`とする。Body kind、Collider Asset、poseにはdefaultを設けない。Authoring Componentは採用値を全fieldへ展開し、Cooked Componentに「vendor defaultを使う」という欠落状態を残さない。Declared peakはValidatorとbudgetの入力であり、solver clamp値ではない。Runtime telemetryが連続60 tickで宣言値を超えた場合は`MIRAKAN-COLLISION-DECLARED_MOTION_PROFILE_EXCEEDED` warningを記録する。
 
-BodyのRuntime poseにscale fieldを設けない。`mass_mode=from_shapes`ではenabledかつnon-sensorのshapeだけからmassとinertiaを計算する。Sensor、triangle mesh、heightfieldはmassへ寄与しない。Dynamic bodyにmassへ寄与するshapeがなく、overrideもない場合は`MIRA-COLLISION-MASS_SOURCE_MISSING`で拒否する。
+BodyのRuntime poseにscale fieldを設けない。`mass_mode=from_shapes`ではenabledかつnon-sensorのshapeだけからmassとinertiaを計算する。Sensor、triangle mesh、heightfieldはmassへ寄与しない。Dynamic bodyにmassへ寄与するshapeがなく、overrideもない場合は`MIRAKAN-COLLISION-MASS_SOURCE_MISSING`で拒否する。
 
 Runtime compilerは`collider_asset_id`を承認revisionの`AssetVersionHandle<Collider2D／3D>`へ解決し、Runtime Componentにはlogical IDとversion handleの両方を保存する。Simulation中にlogical IDを再resolveせず、T00 promotionまたはPlay restartだけでversionを変更する。
 
@@ -283,11 +283,11 @@ Chainは次を必須とする。
 
 Convex HullはSource pointからinterior／duplicate pointを除去して構築する。Cook後のHullが4非coplanar頂点未満、volumeが0、またはJolt 5.6.0の256 hull point上限を超える場合は拒否する。頂点を無通知で間引かない。`GenerateConvexHull3D`は結果のpoint数、volume差、AABB差、予測memoryをPreviewし、人間または事前委任されたR2 Policyが承認してからSource Assetを変更する。
 
-`convex_radius_m`は0以上、対象shapeの最小full extentの25%以下を必須とする。Reference Generatorは`min(0.05 m, 0.10 * minimum_full_extent_m)`をSource fieldへ明示保存する。Joltが値を自動縮小した場合はCook成功にせず、`MIRA-COLLISION-CONVEX_RADIUS_OUT_OF_RANGE`としてSource修正を要求する。
+`convex_radius_m`は0以上、対象shapeの最小full extentの25%以下を必須とする。Reference Generatorは`min(0.05 m, 0.10 * minimum_full_extent_m)`をSource fieldへ明示保存する。Joltが値を自動縮小した場合はCook成功にせず、`MIRAKAN-COLLISION-CONVEX_RADIUS_OUT_OF_RANGE`としてSource修正を要求する。
 
 Triangle Meshは次を必須とする。
 
-- static body専用とし、kinematic／dynamic bodyでは`MIRA-COLLISION-DYNAMIC_TRIANGLE_MESH_FORBIDDEN`を返す。
+- static body専用とし、kinematic／dynamic bodyでは`MIRAKAN-COLLISION-DYNAMIC_TRIANGLE_MESH_FORBIDDEN`を返す。
 - finite position、index範囲、3つの異なるindex、非退化triangleを検証する。
 - Source windingを明示し、Cook後のsimulation triangleは片面とする。
 - Queryごとのback-face modeを8.3節で明示する。
@@ -339,7 +339,7 @@ Authoringでraw integer bitmaskを入力させない。Projectは最大32個の`
 
 | Field | 型／規則 |
 |---|---|
-| `channel_id` | 0～31のStable numeric ID |
+| `channel_id` | Project-scoped `CollisionChannelId uint8`、0～31。Project ID＋Collision profile revisionと組にして永続化し、別Projectと比較せず、削除値を再利用しない |
 | `stable_name` | ASCII lower snake、Project内一意 |
 | `display_name` | localizable |
 | `query_visible` | bool |
@@ -348,7 +348,7 @@ Authoringでraw integer bitmaskを入力させない。Projectは最大32個の`
 
 | Field | 型／規則 |
 |---|---|
-| `profile_id` | Stable ID |
+| `profile_id` | UUIDv7 `StableId` |
 | `channel_id` | 対応するChannel ID |
 | `collides_with` | channel IDの重複なしset |
 
@@ -367,7 +367,7 @@ Channel 0～7はEngine templateで次のstable nameを予約する。
 
 `CollisionChannelTable::ReferenceV1`は全8 Channelを`query_visible=true`とし、unordered pair `world_static–world_static`、`world_static–gameplay_sensor`、`projectile–projectile`の三組だけを非collision、残る33組をcollisionにする。Body kindとSensorによる最終動作は後掲の表を適用する。Genre templateはこのMatrixを変更できるが、32×32の対称Matrix全値とProfile hashをGameSpecへ保存し、未記録のReference default変更を既存Projectへ遡及適用しない。
 
-Projectはdisplay nameとpair設定を変更できるが、IDとstable nameを別用途へ再利用しない。8～31をProject定義に使用する。Profile PとQのpairは、`P.collides_with`がQのchannelを含み、かつ`Q.collides_with`がPのchannelを含む場合だけsimulation候補になる。片側だけの指定は`MIRA-COLLISION-FILTER_ASYMMETRIC`でCommitを拒否し、Engineが自動で反対側を追加しない。異なるmaskが必要なGameplay stateは同じChannelのProfileを増やさず、8～31に`character_ghost`等の明示Channelを作り、Runtimeで既存Profileへ切り替える。
+Projectはdisplay nameとpair設定を変更できるが、IDとstable nameを別用途へ再利用しない。8～31をProject定義に使用し、Gatewayが未使用かつ未予約の最小IDを割り当てる。削除済みIDはProjectのChannel tombstone tableへ残し、別Channelへ再利用しない。Profile PとQのpairは、`P.collides_with`がQのchannelを含み、かつ`Q.collides_with`がPのchannelを含む場合だけsimulation候補になる。片側だけの指定は`MIRAKAN-COLLISION-FILTER_ASYMMETRIC`でCommitを拒否し、Engineが自動で反対側を追加しない。異なるmaskが必要なGameplay stateは同じChannelのProfileを増やさず、8～31に`character_ghost`等の明示Channelを作り、Runtimeで既存Profileへ切り替える。
 
 Box2D Adapterはchannelを`categoryBits`、`collides_with`を`maskBits`へcompileする。Jolt AdapterはPlayPreparingで使用中ProfileとmobilityからObject Layer tableを構築し、Object-vs-BroadPhase、Object-pair filterへcompileする。Jolt Object Layer番号はCooked Project Profile内部値であり、Save、Event、AIへ公開しない。
 
@@ -440,7 +440,7 @@ Triangle Mesh、Heightfield、Chainをcastするquery shapeとして使用しな
 
 Rayのoriginがsolid内部にある場合、そのsolidのexit faceをhitとして返さない。内部判定が必要なcallerはPoint／Overlapを先に行う。Shape castの`initial_overlap_policy=report`は同じposeでOverlapを先に実行し、penetration depthを持つ`started_overlapping=true`のhitをfraction 0で返した後にsweepする。`ignore`ではBackendの初期overlapをhitへ変換しない。
 
-`any`は`has_hit: bool`だけを返し、Bodyやshape identityを返さないためBackendは最初の有効候補で停止できる。`report`かつ`any`ではfraction 0のoverlapがあれば`has_hit=true`としてsweepを実行しない。`report`かつ`closest`ではfraction 0のoverlapが一つ以上あればcanonical順の先頭だけを返し、sweepを実行しない。`all`ではfraction 0のoverlapをcanonical順で格納してから残capacityへsweep hitを追加する。実hit数が`max_hits`を超えた`all` Queryは`max_hits + 1`件を観測した時点で停止し、partial listを成功として返さず、`MIRA-COLLISION-QUERY_HIT_CAPACITY_EXCEEDED`と`observed_at_least = max_hits + 1`を返す。Global query result queue自体の上限超過はAuthoritative queue overflowとしてtickをfaultする。
+`any`は`has_hit: bool`だけを返し、Bodyやshape identityを返さないためBackendは最初の有効候補で停止できる。`report`かつ`any`ではfraction 0のoverlapがあれば`has_hit=true`としてsweepを実行しない。`report`かつ`closest`ではfraction 0のoverlapが一つ以上あればcanonical順の先頭だけを返し、sweepを実行しない。`all`ではfraction 0のoverlapをcanonical順で格納してから残capacityへsweep hitを追加する。実hit数が`max_hits`を超えた`all` Queryは`max_hits + 1`件を観測した時点で停止し、partial listを成功として返さず、`MIRAKAN-COLLISION-QUERY_HIT_CAPACITY_EXCEEDED`と`observed_at_least = max_hits + 1`を返す。Global query result queue自体の上限超過はAuthoritative queue overflowとしてtickをfaultする。
 
 ### 9.3 Result normalization
 
@@ -505,7 +505,7 @@ Trigger payloadはmanifoldを持たず、`sensor_a`、`sensor_b`を持つ。Sens
 - Event kind順は`ContactBegin=0`、`ContactPersist=1`、`ContactEnd=2`、`TriggerEnter=3`、`TriggerExit=4`、`CollisionHit=5`、`ColliderRemoved=6`とする。
 - Manifold pointはposition、normal、separation、approach speedのbinary32 bit pattern順に並べ、`contact_point_index`を0から再採番する。
 - 最終Eventは`{event_kind, body_a, body_b, collider_a_version, shape_a_slot, collider_b_version, shape_b_slot, contact_point_index, payload_bits}`順にsortする。
-- NaN、Inf、zero normal、無効generation、retire済みAsset versionを含むEventは配送せず`MIRA-COLLISION-NATIVE_INVARIANT`としてtickをpublishしない。
+- NaN、Inf、zero normal、無効generation、retire済みAsset versionを含むEventは配送せず`MIRAKAN-COLLISION-NATIVE_INVARIANT`としてtickをpublishしない。
 
 Native Contact callback中はpreallocated thread-local bufferへのcopy以外を禁止する。allocation、logging、World access、Body lock取得、Physics変更、Gameplay Logic、AI、Audio、VFX呼出しを行わない。Jolt callbackは複数threadから同時に呼ばれるため、bufferはworker別にする。Box2D event arrayはstep後に一度だけconsumeする。
 
@@ -516,7 +516,7 @@ Native Contact callback中はpreallocated thread-local bufferへのcopy以外を
 - `hit`はCollision Hitを追加する。Sensorには指定できない。
 - Contact eventが不要なColliderでは生成を無効化し、全Contactを常時配送しない。
 - Runtime規約のNormalized Physics Event上限65,536件／tick、4 MiB arenaを変更しない。
-- Authoritative Event queue overflowではeventをdrop、merge、sampleせず、`MIRA-COLLISION-EVENT_OVERFLOW`を記録して当該tickをpublishしない。Runtime session状態はRuntime規約の`AuthoritativeQueueOverflow`へ遷移する。
+- Authoritative Event queue overflowではeventをdrop、merge、sampleせず、`MIRAKAN-COLLISION-EVENT_OVERFLOW`を記録して当該tickをpublishしない。Runtime session状態はRuntime規約の`AuthoritativeQueueOverflow`へ遷移する。
 
 ## 11. Collision responseとContinuous Collision
 
@@ -541,7 +541,7 @@ C1／C2のcontact modificationはEngine同梱の次のtyped ruleだけに限定�
 | 2D | `discrete \| bullet` | dynamic bodyだけ。Bulletは必要な高速bodyに限定 |
 | 3D | `discrete \| linear_cast` | dynamic bodyだけ |
 
-Validatorは`declared_peak_linear_speed_mps / 60 > 0.5 * minimum_solid_extent_m`の場合に`MIRA-COLLISION-TUNNELING_RISK` warningを出し、対応modeと厚み変更を提案する。AIはwarningだけで設定を自動Commitせず、Diffへ性能影響を表示する。
+Validatorは`declared_peak_linear_speed_mps / 60 > 0.5 * minimum_solid_extent_m`の場合に`MIRAKAN-COLLISION-TUNNELING_RISK` warningを出し、対応modeと厚み変更を提案する。AIはwarningだけで設定を自動Commitせず、Diffへ性能影響を表示する。
 
 CCDはTeleport、Sensor overlap、zero-thickness geometry、全回転sweepを完全に保証しない。高速ProjectileのGameplay hitはswept Shape Queryを正規経路とし、表示用Rigid Bodyのcontactだけへ依存しない。
 
@@ -577,7 +577,7 @@ Source revision
   -> T00 promotion
 ```
 
-Importer／CookerはEditorとは別Processで、networkなし、許可pathだけ、timeout、memory capを持つ。Crash、timeout、out-of-memory、vendor assertは`MIRA-COLLISION-COOK_FAILED`へ変換し、Editor processを落とさない。
+Importer／CookerはEditorとは別Processで、networkなし、許可pathだけ、timeout、memory capを持つ。Crash、timeout、out-of-memory、vendor assertは`MIRAKAN-COLLISION-COOK_FAILED`へ変換し、Editor processを落とさない。
 
 Cooked Assetは次を必須metadataとする。
 
@@ -812,7 +812,7 @@ NativeGameModule（Project C++）は`collision_port`のtyped command／query／e
 
 上限はTarget Profileへ全値をCookし、Play中に変更しない。Projectが低い値を選ぶことはできる。高い値はReference scene、memory、2.50 ms Physics P95、10分soak、mobile thermal gateを再実行するADRなしに許可しない。
 
-Jolt `max body pairs`または`max contact constraints`を超えるとcollision欠落を起こし得るため、AdapterはUpdate errorを`MIRA-COLLISION-CAPACITY_EXCEEDED`へ変換し、そのtickをpublishしない。Box2D／Engine allocatorの容量不足も一般heapへfallbackせず同様にfaultする。
+Jolt `max body pairs`または`max contact constraints`を超えるとcollision欠落を起こし得るため、AdapterはUpdate errorを`MIRAKAN-COLLISION-CAPACITY_EXCEEDED`へ変換し、そのtickをpublishしない。Box2D／Engine allocatorの容量不足も一般heapへfallbackせず同様にfaultする。
 
 ### 18.2 Windows memory内訳
 
@@ -861,22 +861,22 @@ Physics World、Joint、Characterを含むSave field、Load再構築順、Replay
 
 | ID | 条件 | 動作 |
 |---|---|---|
-| `MIRA-COLLISION-INVALID_GEOMETRY` | 退化、自己交差、非convex、NaN／Inf | Commit／Cook拒否 |
-| `MIRA-COLLISION-CONVEX_RADIUS_OUT_OF_RANGE` | 3D convex radiusがshape範囲外またはvendorが縮小 | Commit／Cook拒否 |
-| `MIRA-COLLISION-SCALE_NOT_BAKED` | Runtime scaleがidentityでない | Play拒否 |
-| `MIRA-COLLISION-DYNAMIC_TRIANGLE_MESH_FORBIDDEN` | dynamic／kinematic mesh | Commit拒否 |
-| `MIRA-COLLISION-FILTER_ASYMMETRIC` | pairの片側だけ許可 | Commit拒否 |
-| `MIRA-COLLISION-MASS_SOURCE_MISSING` | dynamic massを計算不能 | Play拒否 |
-| `MIRA-COLLISION-TUNNELING_RISK` | 速度／厚みheuristic超過 | warning＋候補Diff |
-| `MIRA-COLLISION-DECLARED_MOTION_PROFILE_EXCEEDED` | 実速度が宣言peakを連続60 tick超過 | warning＋Profile見直し |
-| `MIRA-COLLISION-SENSOR_CCD_UNSUPPORTED` | SensorをCCD保証として使用 | error |
-| `MIRA-COLLISION-COOK_FAILED` | Worker crash／timeout／invalid output | last valid維持 |
-| `MIRA-COLLISION-CAPACITY_EXCEEDED` | body／pair／contact／query上限 | tick非publish／Play fault |
-| `MIRA-COLLISION-QUERY_STALE` | Scene version不一致 | result破棄 |
-| `MIRA-COLLISION-QUERY_HIT_CAPACITY_EXCEEDED` | `all` Queryの実hit数がcaller上限超過 | partial resultなし |
-| `MIRA-COLLISION-EVENT_OVERFLOW` | 65,536件または4 MiB超過 | tick非publish |
-| `MIRA-COLLISION-NATIVE_INVARIANT` | invalid ID、normal、callback、lock違反 | tick非publish／fault |
-| `MIRA-COLLISION-RESTART_REQUIRED` | Play中非互換変更 | old generation維持 |
+| `MIRAKAN-COLLISION-INVALID_GEOMETRY` | 退化、自己交差、非convex、NaN／Inf | Commit／Cook拒否 |
+| `MIRAKAN-COLLISION-CONVEX_RADIUS_OUT_OF_RANGE` | 3D convex radiusがshape範囲外またはvendorが縮小 | Commit／Cook拒否 |
+| `MIRAKAN-COLLISION-SCALE_NOT_BAKED` | Runtime scaleがidentityでない | Play拒否 |
+| `MIRAKAN-COLLISION-DYNAMIC_TRIANGLE_MESH_FORBIDDEN` | dynamic／kinematic mesh | Commit拒否 |
+| `MIRAKAN-COLLISION-FILTER_ASYMMETRIC` | pairの片側だけ許可 | Commit拒否 |
+| `MIRAKAN-COLLISION-MASS_SOURCE_MISSING` | dynamic massを計算不能 | Play拒否 |
+| `MIRAKAN-COLLISION-TUNNELING_RISK` | 速度／厚みheuristic超過 | warning＋候補Diff |
+| `MIRAKAN-COLLISION-DECLARED_MOTION_PROFILE_EXCEEDED` | 実速度が宣言peakを連続60 tick超過 | warning＋Profile見直し |
+| `MIRAKAN-COLLISION-SENSOR_CCD_UNSUPPORTED` | SensorをCCD保証として使用 | error |
+| `MIRAKAN-COLLISION-COOK_FAILED` | Worker crash／timeout／invalid output | last valid維持 |
+| `MIRAKAN-COLLISION-CAPACITY_EXCEEDED` | body／pair／contact／query上限 | tick非publish／Play fault |
+| `MIRAKAN-COLLISION-QUERY_STALE` | Scene version不一致 | result破棄 |
+| `MIRAKAN-COLLISION-QUERY_HIT_CAPACITY_EXCEEDED` | `all` Queryの実hit数がcaller上限超過 | partial resultなし |
+| `MIRAKAN-COLLISION-EVENT_OVERFLOW` | 65,536件または4 MiB超過 | tick非publish |
+| `MIRAKAN-COLLISION-NATIVE_INVARIANT` | invalid ID、normal、callback、lock違反 | tick非publish／fault |
+| `MIRAKAN-COLLISION-RESTART_REQUIRED` | Play中非互換変更 | old generation維持 |
 
 DiagnosticはStable ID、Entity、Collider Asset、shape ID／slot、Source path、Profile、Target、数値、上限、修正候補を含む。Vendor assert textだけをユーザーへ返さず、原文は開発者詳細へ添付する。
 

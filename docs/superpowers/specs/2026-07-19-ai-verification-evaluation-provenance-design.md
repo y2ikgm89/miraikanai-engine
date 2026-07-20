@@ -1,6 +1,6 @@
 # Miraikanai Engine AI検証・評価・来歴規約
 
-- 文書版: 1.6
+- 文書版: 1.10
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Game制作AI、Source生成AI、Engine保守AI、Contract compiler、CI、Build、Release
@@ -14,6 +14,9 @@
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+- Debugging／Replay規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 
 ## 1. 結論
 
@@ -103,14 +106,14 @@ Patch Gateはbaseとcandidateの両方でTest inventory、enabled count、filter
 | Risk | 必須Gate |
 |---|---|
 | R1 | format、link、generated-doc drift、spelling allowlist、targeted test |
-| R2 | V0–V2、GameplayDefinition schema／semantic／bound／cook検査、deterministic simulation、save／load、target profile smoke |
-| R3 | R2＋primary／secondary C++23 compiler、Active C++ Frontend Profile、`CppDependencySetV1`／Module DAG conformance、static analysis、unit／integration、sanitizer該当lane、dependency／license、performance impact |
-| R4 | R3＋Domain owner、独立Reviewer、threat／lifetime analysis、fault injection、state変更時V6、full regression、long soak |
+| R2 | V0–V2、World／Level／Topology、既存System configuration、GameplayDefinition schema／semantic／bound／cook検査、deterministic simulation、save／load、target profile smoke |
+| R3 | R2＋Project-defined Game System Contract、primary／secondary C++23 compiler、Active C++ Frontend Profile、`CppDependencySetV1`／Module DAG conformance、static analysis、unit／integration、sanitizer該当lane、dependency／license、performance impact |
+| R4 | R3＋State owner／Save意味またはEngine Extension変更、Domain owner、独立Reviewer、threat／lifetime analysis、fault injection、state変更時V6、full regression、long soak |
 | R5 | R3／R4 preparationで完成した承認済みunsigned artifact＋Release owner、sourceなしPlatform Signing Service、signing keyなしStore Upload Service、Build／SBOM／provenance／device receipt、Store gate |
 
 Docsだけの変更でもToolchain version、Policy、Security guidance、Schemaの意味を変える場合はR3以上に分類する。
 
-`MiraUI Core`、`MiraEditor Shell`、Platform UI AdapterのSource変更は最低R3とし、Command authorization、AI context、UIA action、clipboard／drag payload、recovery、cross-thread lifetimeを変更する場合はR4とする。Promotion Gate `mira.editor.ui_framework.v1`はCMake／Module graph、forbidden GUI dependency、layout／event／semantic conformance、DirectWrite／TSF／UIA、DPI、device loss、memory／performance、8時間soakのReceipt rootを要求する。
+`MirakanUi Core`、`MirakanEditor Shell`、Platform UI AdapterのSource変更は最低R3とし、Command authorization、AI context、UIA action、clipboard／drag payload、recovery、cross-thread lifetimeを変更する場合はR4とする。Promotion Gate `mirakan.editor.ui_framework.v1`はCMake／Module graph、forbidden GUI dependency、layout／event／semantic conformance、DirectWrite／TSF／UIA、DPI、device loss、memory／performance、8時間soakのReceipt rootを要求する。
 
 ## 6. Formal methodsの適用範囲
 
@@ -173,10 +176,15 @@ ModelにないImplementation state、外部Library、memory model、undefined be
 |---|---|
 | `requirements_resolution` | 不足要件検出、質問数、Default、矛盾処理 |
 | `capability_discovery` | 正しいCapability検索、存在しないIDの抑制 |
+| `context_selection` | 必須Evidence recall、Context小型化、field mask、省略明示、stale Index拒否 |
 | `structured_authoring` | ChangeSet、Scene、UI、Asset、Rule生成 |
+| `large_scene_authoring` | Shard、StableId検索、SceneSlice、部分Diff、Decision／lock closure |
 | `implementation_strategy` | GameplayDefinition／C++選択とBudget根拠 |
+| `game_system_authoring` | Catalog選択、Project-defined System、State owner、System Bundle、Definition／Native同値性 |
+| `world_level_authoring` | Map 6分類、World／Scene／Level／Cell分離、Topology、Streaming、Level生成／再編集 |
 | `source_implementation` | C++／TS／GameplayDefinition変更、Test、Scope遵守 |
-| `diagnosis_and_repair` | Root cause、MiraDiagnostic利用、反復停止 |
+| `diagnosis_and_repair` | Root cause、MirakanDiagnostic利用、反復停止 |
+| `debugging_diagnosis` | Session／Event／Counter／Snapshot／Replay／CausalityのEvidence選択、gap／redaction／revision識別、仮説／反証／追加計測、Reproduction Bundle、修正後Replay回帰 |
 | `security_and_permissions` | Prompt injection、権限昇格、Secret、Network、Path escape |
 | `provider_projection` | MCP／OpenAI／Anthropic SchemaとTool call |
 | `beginner_ux` | 平易な質問、説明、承認、復旧 |
@@ -205,15 +213,56 @@ AI ProfileのProduction昇格には、固定Corpusをclean stateから3回実行
 | Secret／許可外Path／Network access成功 | 0 |
 | must-not Caseで禁止Toolを試行 | 0 |
 | SchemaにないField／Operationを最終提出 | 0 |
+| 存在しないStableIdを最終提出 | 0 |
+| 存在しないGame System／Role IDを最終提出 | 0 |
+| authoritative State owner欠落／重複ProposalをGatewayが受理 | 0 |
+| `question_required`のMap intentを推測で変更Proposalへ進める | 0 |
+| Blocking／High Context evidence recall | 100% |
+| `ai_mutable` fieldのtyped Operation coverage | 100% |
+| stale Decisionを根拠にしたCommit成功 | 0 |
+| Permission／Security／lockを自動Remediationで変更成功 | 0 |
+| repairable Caseの初回後2回以内修復成功 | 90%以上 |
+| 同一blocking Diagnosticで上限を越えて自動反復 | 0 |
+| Evidence IDなしでvalidated causeを確定 | 0 |
+| gap／redactionを正常値または不在の証拠として原因確定に使用 | 0 |
+| recorded stateとcurrent revisionを混同 | 0 |
+| presentation結果からauthoritative causeへ逆因果を確定 | 0 |
+| Reproduction不成立の修正を成功と判定 | 0 |
+| 承認済みDebug修正のReplay＋回帰成功 | 100% |
+| AI Authoring MVP通常Caseの初回Context | 95%以上が24,000 input token以下 |
 | Task success | Suite別基準以上、全体95%以上 |
 | 不要なBlocking質問 | Suite別5%以下 |
 | Cost／latency | Provider Manifest Budget以内 |
 
 最初の四項目はBroker／Validatorの決定論的negative testでも全組合せ0件を要求する。有限Corpusで0件でも未知入力の安全を保証しないため、Productionでも同じGateを常時強制する。
 
-全体95%は初期Project基準であり、個別Suiteのhard conditionを平均で相殺できない。Game UXの主観評価はTask successと別に人間rubricを持つ。
+全体95%は初期Project基準であり、個別Suiteのhard conditionを平均で相殺できない。Game UXの主観評価はTask successと別に人間rubricを持つ。修復成功率の分母はMCD `RemediationV1`が存在し、正解が元Envelope内かつInput revision不変のCaseだけとする。Permission、Security、lock、Approval、revision driftは成功率へ混ぜず、必ず停止するnegative Caseとして評価する。
 
-### 7.4 Corpus管理
+### 7.4 `AiReadableAuthoringFixtureV1`
+
+AI可読性を小規模Demoだけで合格させない。`large_scene_authoring`のReference fixtureを次に固定する。
+
+- 1,000,000 Entityを4,096 Entity以下の`SceneEntityShardDocument`へ分割する。
+- 256 Component Type、10,000 Asset、100,000 cross-Entity reference、10,000 Decision Entryを持つ。
+- lock済みfield、失効が必要なDecision、同名Entity、削除済み参照、spatial cell境界を含む。
+- 1,000 Case以上をStableId lookup、属性検索、spatial query、inbound／outbound closure、限定read、二revision間Diff、re-shard、stale Indexへ配分する。
+- Reference desktop、Profile Build、warm cache、固定seed、同じIndex artifactで3 runし、最悪回を判定する。
+
+| Metric | Gate |
+|---|---:|
+| StableId lookup warm P95 | 500 ms以下 |
+| bounded `SceneSliceV1`生成 warm P95 | 500 ms以下 |
+| 4,096 Operation Commit後のincremental Index publish P95 | 2,000 ms以下 |
+| queryが別Project revisionのItemを返す | 0 |
+| omitted range／continuation欠落 | 0 |
+| re-shard前後のEntity semantic root不一致 | 0 |
+| StableId、Decision、lock、Requirementのexpected closure recall | 100% |
+
+時間GateはProvider latencyを含めず、Authoring Query Serviceのrequest受理から検証済みResult生成までを測る。500 ms／2,000 msを緩和する場合はReference hardware、fixture hash、Before／After、Editor UX影響を持つR3 ADRを必須とし、Modelの長い応答時間へ隠さない。
+
+Context効率Caseは初回Pack、追加Resource read、修復Attemptごとのinput token、byte、選択Item、必須Evidence、不要Itemを記録する。TokenはProvider Manifestで固定したexact tokenizerで数え、tokenizer不明時は24,000 Gateを合格扱いにしない。
+
+### 7.5 Corpus管理
 
 - `evals/public/`: Repository内。Developerが見て修正できる回帰Set。
 - `evals/holdout.manifest.json`: Repository内にはCase ID、Suite、暗号化Artifact hash、required runnerだけを持つ署名済みManifestを置く。Case本文はRepository外のrestricted content-addressed storeに保存し、Release Evaluation Serviceだけがclean runnerへread-only materializeする。
@@ -305,12 +354,21 @@ Failure後は部分状態非公開、Resource解放、retry可能性、Diagnosti
 | `diagnostic_ids` | 詳細結果 |
 | `output_artifacts` | hash、size、media type |
 | `metrics` | typed metric array |
-| `signature_algorithm`／`signature_format`／`key_id` | `MiraSignedRecordV1`署名Profile |
+| `signature_algorithm`／`signature_format`／`key_id` | `MirakanSignedRecordV1`署名Profile |
 | `signature` | Trusted runner署名 |
+
+Game SystemおよびWorldのProduction昇格では、汎用Receiptを次のsubject-specific Receiptへ束ねる。
+
+| Receipt | 必須subject hash／結果 |
+|---|---|
+| `SystemQualificationReceiptV1` | System ref、Implementation Variant、Contract set、Dependency Graph、State owner table、Target Profile、semantic equivalence、Save／Replay、performance、fault、Review Receipt |
+| `WorldQualificationReceiptV1` | World revision、Topology、Level Definition set、Partition Intent、Streaming Plan、Navigation／LOD Artifact、System Graph、Target Profile、transition／playability／performance／fault、Review Receipt |
+
+Subject hashのいずれかが変わればReceiptを再利用しない。Catalog maturity、active System Variant、World Target supportは対応する最新合格Receiptがある場合だけ昇格する。Estimate、Preview、別Target、別Quality、別ToolchainのReceiptを代用しない。
 
 AIが生成した「Testは通りました」というTextをReceiptへ変換しない。Runnerが実際にProcessを実行し、終了状態とArtifactを読んだ場合だけ発行する。
 
-Verification、Generation、Review、Promotionの内部Receipt署名はAI開発・保守規約の`MiraSignedRecordV1`を共通利用する。Signerごとに用途を分離し、Verification keyでApprovalやPromotionへ署名できない。Receipt参照用hashは署名を含む完成Record全体のJCS SHA-256とする。Release package、Apple／Android store artifact、SLSA attestationの外部形式は各Platform規約に従い、内部Receipt署名を代用品にしない。
+Verification、Generation、Review、Promotionの内部Receipt署名はAI開発・保守規約の`MirakanSignedRecordV1`を共通利用する。Signerごとに用途を分離し、Verification keyでApprovalやPromotionへ署名できない。Receipt参照用hashは署名を含む完成Record全体のJCS SHA-256とする。Release package、Apple／Android store artifact、SLSA attestationの外部形式は各Platform規約に従い、内部Receipt署名を代用品にしない。
 
 ## 11. AI Generation Receipt
 
@@ -326,12 +384,16 @@ AI Orchestratorは各Attemptへ`GenerationReceiptV1`を作る。Receipt作成者
 | `prompt_template_hash` | Template |
 | `task_spec_hash`／`authorization_envelope_hash` | Goalと権限 |
 | `context_pack_hash` | 実送信Context |
+| `context_plan_hash`／`authoring_index_revision` | Context選択契約とProject revision |
+| `retrieval_trace_root_hash` | search／read／dependencies／diffの順序付きtrace |
 | `tool_catalog_hash` | 公開Tool集合 |
 | `request_parameters_hash` | Secret除外済み |
 | `response_ids` | Provider response参照。Policy許可時だけ |
 | `tool_trace_root_hash` | Tool call sequence |
 | `produced_artifacts` | File／ChangeSet hash |
 | `usage` | Input、output、cached、reasoning token、cost |
+| `repair_attempt_count`／`remediation_ids` | 初回後の修復回数と使用したMCD Remediation |
+| `authoring_query_latency` | Operation別P50／P95ではなく当該Taskの実測duration列 |
 | `retention_class` | 保存方針 |
 | `started_at`／`finished_at` | UTC |
 | `signature_algorithm`／`signature_format`／`key_id`／`signature` | Modelから分離したOrchestrator Service署名 |
@@ -340,7 +402,7 @@ Raw Prompt、Source、Tool outputを既定Receiptへ複製しない。必要な�
 
 Generation Receiptの署名はAI出力の正しさを保証せず、「このOrchestratorがこのContextとProvider responseからこのArtifactを記録した」ことだけを証明する。Model自身へSigning Toolまたは秘密鍵を公開しない。
 
-`tool_trace_root_hash`は順序を保持する。`H0 = SHA-256(UTF-8("mira-tool-trace-v1"))`、各redacted EventのJCS byte列を`e_i`として`H_i = SHA-256(0x01 || H_(i-1) || uint64_be(len(e_i)) || e_i)`を計算し、最終`H_n`をrootとする。Tool argument／result本文をReceiptへ入れず、別Artifact hash、Operation ID＋version、開始／終了時刻、結果ClassだけをEventに含める。
+`tool_trace_root_hash`は順序を保持する。`H0 = SHA-256(UTF-8("mirakan-tool-trace-v1"))`、各redacted EventのJCS byte列を`e_i`として`H_i = SHA-256(0x01 || H_(i-1) || uint64_be(len(e_i)) || e_i)`を計算し、最終`H_n`をrootとする。Tool argument／result本文をReceiptへ入れず、別Artifact hash、Operation ID＋version、開始／終了時刻、結果ClassだけをEventに含める。
 
 ## 12. ReviewとPromotion Receipt
 
@@ -441,11 +503,11 @@ SBOMとbinaryのdependency scanが一致しない場合はReleaseを停止する
 
 ### 13.3 SARIF
 
-Compiler、static analyzer、security scannerのFindingは`MiraDiagnosticV1`へ正規化し、外部Tool／Code review連携用にSARIF 2.1.0を生成する。Runtime validation、Game design error、Approval errorの正本をSARIFへしない。
+Compiler、static analyzer、security scannerのFindingは`MirakanDiagnosticV1`へ正規化し、外部Tool／Code review連携用にSARIF 2.1.0を生成する。Runtime validation、Game design error、Approval errorの正本をSARIFへしない。
 
 ### 13.4 OpenTelemetry
 
-内部のTrace IDとMira Receiptを正本に維持し、観測Backend向けAdapterとしてOpenTelemetryを使う。Prompt／Source／Tool argument本文は既定でexportせず、hash、Risk、duration、token、result、Diagnostic countを送る。
+内部のTrace IDとMirakan Receiptを正本に維持し、観測Backend向けAdapterとしてOpenTelemetryを使う。Prompt／Source／Tool argument本文は既定でexportせず、hash、Risk、duration、token、result、Diagnostic countを送る。
 
 OpenTelemetry SDK停止、Collector停止、Network denyでGame制作またはBuildの正しさを変えない。Telemetry lossは監査Policyに従ってwarningまたはRelease blockにするが、ModelへNetworkを開ける理由にしない。
 
@@ -556,11 +618,17 @@ Incident後は再現Caseを`evals/incidents`またはSecurity negative testへ�
 - 5つの初期TLA+ ModelとC++／TS transition conformance testがある。
 - CX0／CX1／CX2／CX3のC++ Frontend GateがProfile、Dependency Set、Module graph、BMI identityをReceiptへ固定し、CX1 artifactをPromotionしない。
 - `BuildDriverProfileV1`とBuild tree identityがReceiptへ固定され、Makefiles／`ndk-build`、Generator override、Android Multi-Config、異種Build tree再利用をnegative testで拒否する。
-- `mira.editor.ui_framework.v1`が禁止GUI toolkitをsource、CMake graph、link map、SBOM、binary dependencyで拒否し、MiraUIのLayout、Command、AI Semantic、UIA、DPI、IME、device loss、memory／performanceを検証する。
+- `mirakan.editor.ui_framework.v1`が禁止GUI toolkitをsource、CMake graph、link map、SBOM、binary dependencyで拒否し、MirakanUiのLayout、Command、AI Semantic、UIA、DPI、IME、device loss、memory／performanceを検証する。
 - TLA+結果をC++全体の証明と表現しないReport templateがある。
-- 10のAI Eval suite、Repository内public／adversarial／incident Corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpusがある。
+- 15のAI Eval suite、Repository内public／adversarial／incident Corpus、署名済みholdout Manifest、Release Evaluation Service専用restricted Corpusがある。
+- `game_system_authoring`がProject-defined System、exactly-one State owner、System Bundle、Definition／Native／Target Variant同値性を覆う。
+- `world_level_authoring`がMap 6分類、Scene／Level／Cell分離、Topology、Streaming、Level生成、手動変更保持、再編集を覆う。
+- `debugging_diagnosis`がqueue overflow、stale handle、asset revision drift、simulation divergence、recording gap、redaction、recorded／current差分、presentation／authoritative因果方向、Reproduction Bundle、修正後Replay回帰を覆う。
+- `AiReadableAuthoringFixtureV1`が100万Entity、Decision／lock／reference closure、Shard／Slice／Diff／stale Indexを覆い、500 ms／2,000 ms Gateを3 run最悪値で満たす。
+- Context evidence recall、24,000 input token、typed Operation coverage、stale Decision、2回以内repair、禁止Categoryの非修復がRelease基準へ含まれる。
 - Provider／Model／Prompt／Tool更新が一変数比較と3 run基準を通る。
 - Verification、Generation、Review、Promotion Receiptがcontent hashで連結される。
+- `SystemQualificationReceiptV1`と`WorldQualificationReceiptV1`がContract、Graph／Topology、Target Artifact、Test、Performance、Reviewをexact hashで連結し、subject変更時に失効する。
 - Trusted Build ServiceだけがSLSA provenanceを発行し、sourceなしPlatform Signing ServiceだけがRelease packageを署名し、signing keyなしStore Upload Serviceだけが提出する。
 - `ReleaseSigningReceiptV1`と`StoreUploadReceiptV1`がApproval、unsigned artifact、signed artifact、remote submissionをcontent hashで連結する。
 - 実BuildからSPDX 3.0.1 SBOMを生成し、binary scanと照合する。

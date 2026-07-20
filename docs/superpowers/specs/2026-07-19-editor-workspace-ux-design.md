@@ -1,6 +1,6 @@
 # Miraikanai Engine Editor／Workspace／UX規約
 
-- 文書版: 1.3
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Windows Editor shell、panel、docking、workspace、AI Partner、手動編集、accessibility、recovery
@@ -10,10 +10,12 @@
 - AI規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
 - Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
+- Game Project配置・命名規約: [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
 
 ## 1. 結論
 
@@ -30,11 +32,12 @@ AIは常時表示、tab、floating、非表示をWorkspaceごとに選択でき�
 | Shell、panel、layout、workspace、操作、AI Partner、accessibility | 本書 |
 | Project Document、ChangeSet、Commit、Undo、Recovery data | Authoring規約 |
 | AI Task、質問、権限、Approval、Provider／MCP／CLI | AIガバナンス規約 |
+| Debug Session／Event／Counter／Query、pause／step、Replay／Causality、AI診断意味 | Debugging規約 |
 | Runtime／Play、Renderer、Asset、Input／UI／Audio等のDomain意味 | 各Subsystem規約 |
 | Asset Browser、Import Inspector、Preview、Conversion Report、Reimport ConflictのDomain data | Asset Import／AI Authoring／Editor UX規約 |
-| MiraUI Core、MiraEditor Shell、Widget、Rendering、Platform Adapter、禁止GUI dependency | Editor UI Framework規約 |
+| MirakanUi Core、MirakanEditor Shell、Widget、Rendering、Platform Adapter、禁止GUI dependency | Editor UI Framework規約 |
 
-C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リアルタイムmulti-user、Editor extension marketplace、任意binary pluginを実装しない。Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`で構築し、Dear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、CEFをGUI Frameworkとして使用しない。Win32、D3D12、DirectWrite、TSF、UI Automation、OLEはEditor UI Framework規約のPlatform Adapter境界でだけ利用する。
+C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リアルタイムmulti-user、Editor extension marketplace、任意binary pluginを実装しない。Editor shellはC++23の独自`MirakanUi Core`と`MirakanEditor Shell`で構築し、Dear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、CEFをGUI Frameworkとして使用しない。Win32、D3D12、DirectWrite、TSF、UI Automation、OLEはEditor UI Framework規約のPlatform Adapter境界でだけ利用する。
 
 ## 3. Process model
 
@@ -42,7 +45,7 @@ C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リ�
 EditorHost
   ├─ Authoring Service／Command Gateway
   ├─ Panel Projection／Workspace Service
-  ├─ MiraUI Core／MiraEditor Shell
+  ├─ MirakanUi Core／MirakanEditor Shell
   ├─ Platform UI／Text／Accessibility Adapter
   └─ IPC clients
        ├─ GameHost
@@ -168,13 +171,13 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 
 | Group | C1 Panel |
 |---|---|
-| World | Scene／Canvas、Game、Hierarchy／Outliner、Inspector |
+| World | Scene／Canvas、Game、World Outline、Hierarchy／Outliner、Inspector、Topology Graph、Level Form、Streaming Inspector、Map Presentation Preview、Bundle Review |
 | Content | Asset Browser、Import、Visual Style、Material |
 | Logic | Gameplay Definition Graph／Table／Form、UI Designer、Source |
 | Motion | Timeline、Animation Graph |
 | Simulation | Physics／Collision、Navigation、Simulation Monitor |
 | Production | Build／Package、Target／Device、Test／Playtest |
-| Diagnostics | Console、Problems、Profiler、Render Graph、History／Diff |
+| Diagnostics | Session、Console、Problems、Profiler、Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、Render Graph、History／Diff、External Tools |
 | AI | AI Partner、Question／Decision、Task／Receipt |
 
 同じ機能を初心者用と上級者用に別実装しない。初心者Workspaceではadvanced Panelを初期非表示にし、AIが必要時に理由とともに開く提案をする。
@@ -204,6 +207,25 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 - Gizmo操作はtyped Transform Operationを生成し、native transform pointerへwriteしない。
 - Play中の編集はfieldの`live_edit_policy`を表示し、restart要求を隠さない。
 
+### 6.3.1 Level Authoring View
+
+Level WorkspaceはWorld／Level／Map規約の同じSourceを次のProjectionで編集する。
+
+| View | 編集対象 | 主Operation／制約 |
+|---|---|---|
+| World Outline | World、Region、Level、Scene | StableId selection。Scene永続化ownerとLevel membershipを別columnで表示 |
+| Topology Graph | Level、Portal、entry／exit Anchor | `CreatePortal`／`UpdatePortalContract`／`DeletePortal`。片側edgeだけを保存しない |
+| Level Form | Source Scene集合、entry／exit、System、Objective、Profile、Budget | `SetLevelSourceScenes`、`SetLevelEntryExitContract`、`SetLevelGameplayComposition` |
+| Spatial View | Entity、Anchor、bounds、Scene owner | Transform Operation、`MoveEntityToScene`。Level membershipとCellを暗黙変更しない |
+| Streaming Inspector | Cell、residency、dependency、memory／IO | Target別Derived Planのread-only projection。Source編集欄を持たない |
+| Navigation Overlay | walkability、cost、query、Source／Artifact差 | Source Intentだけをtyped Operationで変更し、Navmesh／tileへwriteしない |
+| Map Presentation Preview | minimap、world map、marker、fog | Presentation Sourceだけを変更し、Quest／Objective／Navigation authorityへwriteしない |
+| Bundle Review | Requirement、Source Diff、Topology、Target、Budget、Test、Risk | Staging Bundleのaccept／reject。Commit権限を持たない |
+
+各ViewのContext barはProject revision、World／Scene／Level Stable ref、Target、lock、`Source | Staging | Derived read-only | Runtime`を常時表示し、Authoring規約の`AuthoringSelectionContextV1`とWorld規約の`WorldAuthoringContextV1`を同じContext hashで結ぶ。Scene／Outliner／Graph／Form／Inspector間のselection同期はStableIdを使い、screen coordinate、表示row、同名Object、Hierarchy pathを対象identityにしない。
+
+共有Sceneを複数Levelが参照する場合、編集の影響を受ける全LevelとTargetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、Level membership変更は別Operationとして明示する。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
+
 ### 6.4 Source
 
 C1 Source WorkspaceはProject C++／HLSL／MCD JSONのtree、UTF-8 editor、syntax highlight、diagnostic、Diff、Build／Test、symbolへのgenerated API referenceを持つ。大規模refactor、debugger、completionが必要な場合は設定済み外部IDEへProject／file／lineを開ける。
@@ -225,6 +247,19 @@ Asset BrowserとImport InspectorはAsset Import／AI Authoring／Editor UX規約
 - Reimportはbefore／after、consumer closure、Importer／Profile version、lossをDiffし、破壊的Conflictを自動promotionしない。
 - Import／Preview／Cook／bulk migrationはcancel可能なlong-running taskであり、partial outputを公開しない。
 
+### 6.6 Debugging
+
+Debug Workspaceは[AI可読Debugging／Observability／Replay規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)のtyped Storeを投影し、Panelごとに独自log parser、別timestamp、別Object identityを持たない。選択したSession、Project revision、Build、Target、tick／frame、recorded／current stateを上部Context barで固定表示する。
+
+- Sessionは接続、recording tier、retention、gap、redaction、remote trust、crash／hang状態を表示する。
+- Console／Problemsは同じ`DebugEventEnvelopeV1`と`MirakanDiagnosticV1`をseverity／domain／phase／Stable IDでfilterし、元Event、Snapshot、source map、Replay pointへ移動できる。
+- Profiler／Timeline／Causalityはcounter／span／event／causal edgeを同じtimepointへ整列し、presentation結果をauthoritative causeとして逆向きに結ばない。
+- Breakpoint／Watchはtarget、condition、scope、hit count、suspend policyを型付きで表示する。Runtime pauseは要求時点で即時停止せずT110 safe pointで成立させ、tick step／render-frame step／GameplayDefinition node stepを区別する。
+- Replayはrecord→scrub→inspect、first divergence、recorded／current revision差分、欠損rangeを表示する。gapまたはredactionを値なしの正常状態として扱わない。
+- Reproductionは選択Evidenceからbounded BundleをPreviewし、含有／除外file、secret／PII scan、hash、retention、export先を承認前に示す。
+- External ToolsはIDE、PIX、RenderDoc、Perfetto、Instruments等を`ExternalDebuggerLaunchDescriptorV1`から起動し、Session／Process／Build／capture IDを戻す。外部Toolの表示だけをEngineの正本にしない。
+- AI Partnerへは画面pixelや無制限raw traceではなく`AiDebugContextV1`を渡す。AI回答はEvidence ID、仮説、反証、不足データ、confidence、次のbounded Queryを示し、修正提案は既存Diff／Approval／Authoring Gatewayへ送る。
+
 ## 7. Workspace
 
 ### 7.1 built-in Workspace
@@ -233,12 +268,12 @@ Asset BrowserとImport InspectorはAsset Import／AI Authoring／Editor UX規約
 |---|---|---|
 | `AI Creator` | 初心者、高水準指示 | Game Brief、Preview、AI Partner、Question、Diff／Validation |
 | `Production` | 通常制作 | Scene、Outliner、Inspector、Asset、AI Partner |
-| `Level` | Level designer | Scene、Outliner、Inspector、Nav／Physics、AI Partner |
+| `Level` | Level designer | World Outline、Scene、Outliner、Topology Graph、Level Form、Inspector、Streaming Inspector、Navigation／Physics、Map Preview、Bundle Review、AI Partner |
 | `Gameplay Logic` | Designer／Programmer | Definition、Source、API、Test、Console、AI Partner |
 | `Rendering` | Technical artist | Scene、Material、Style、Light、Render Graph、GPU Profiler |
 | `Animation` | Animator | Scene、Timeline、Animation Graph、Asset、Inspector |
 | `UI` | UI designer | UI Designer、Hierarchy、Inspector、Localization、Preview |
-| `Debug` | Programmer／QA | Game、Problems、Console、Profiler、History、AI Partner |
+| `Debug` | Programmer／QA | Game、Session、Problems、Console、Profiler、Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、AI Partner |
 
 `AI Creator`は正式に採用する。AIを前面に出すが、Preview、質問、Diff、validation、戻し方を常に同時表示し、chatだけで状態を隠さない。いつでも`Production`へ切り替えられ、Project変換を行わない。
 
@@ -262,7 +297,7 @@ monitor_signature
 schema_version
 ```
 
-保存先は`.mira/user/<user-id>/workspaces`またはOS user configであり、Project共有は明示export／importだけにする。built-inはimmutable、User Workspaceは複数作成、複製、rename、delete、exportできる。Workspace切替は未Commit Project draftを破棄しない。
+Project内の保存先はGame Project配置・命名規約に従う`.mirakan/user/<user_id>/workspaces/`とし、代替はOS user configとする。Project共有は明示export／importだけにする。built-inはimmutable、User Workspaceは複数作成、複製、rename、delete、exportできる。Workspace切替は未Commit Project draftを破棄しない。
 
 ## 8. AI Partner
 
@@ -281,6 +316,8 @@ AI Partnerは単なるconversation logでなく、次のstateを分けて表示�
 | Result | Commit revision、Receipt、Playtest、rollback |
 
 Panelは現在selection、open Document、Problems、Playtest結果をContext候補として表示し、送信前にUserが除外できる。Project全体を毎回Providerへ送らない。
+
+World／Scene／Level編集では、画面captureまたはPanel内部objectをAI Contextの正本にせず、`AuthoringSelectionContextV1`、`WorldAuthoringContextV1`、必要な`SceneSliceV1`をPreviewする。Userは送信前にWorld／Scene／Level Stable ref、Viewport bounds、Target、field mask、omitted rangeを確認できる。Context生成後にProject revisionまたはselectionが変わった場合、pending promptとProposalをstale表示し、自動で新しい対象へ付け替えない。
 
 ### 8.2 Interaction mode
 
@@ -305,6 +342,7 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 ## 9. Manual editingとAIの往復
 
 - GUI、Graph、Inspector、Source、AIの全変更にauthor、base revision、field sourceを記録する。
+- Scene／Level Viewのdirty表示はlocal draft、staged Proposal、Commit済みrevision、Derived再Cook待ちを別stateとし、一つの`*`だけで混同しない。
 - 人間変更を既定でAI lockとせず、AIが変更する場合はDiffで明示する。
 - 明示LockはAI、bulk tool、Recipe updateから保護する。
 - AI proposal作成中に人間がCommitした場合、proposalをstaleとして自動Commitを禁止する。
@@ -392,6 +430,9 @@ Textを画像へ焼き込まず、UI scale 200%でclip、重なり、off-screen 
 | stale projection | Operation reject、最新revisionから再投影 |
 | AI disconnect | Manual Editor継続、pending proposalを保持 |
 | GameHost crash | Editor継続、crash task／last log／再起動を提示 |
+| Debug Store／Index破損 | 完全chunkまで回復し、欠損rangeをgapとして表示。推測で補完しない |
+| remote capture切断 | partial captureをread-onlyで確定し、未受信range、handshake、Targetを表示 |
+| recording budget超過 | policyに従い低priorityからdropし、件数とrangeを必ずEvent化 |
 | Worker timeout | Task failure、cancel／retry、Project revision不変 |
 | UI Automation provider failure | Release gate失敗。accessibilityを無効化してShippingしない |
 | Recovery破損 | 隔離し正規Projectだけを開く |
@@ -406,7 +447,14 @@ Textを画像へ焼き込まず、UI scale 200%でclip、重なり、off-screen 
 - AI CreatorからProductionへ切替えて同じObjectを手動修正し、AI再編集で保持
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない
+- 既知のqueue overflow、stale handle、asset revision drift、simulation divergenceをSession／Timeline／Causality／Replayで識別し、gapを原因確定へ使わない
+- pause要求がT110 safe pointでだけ成立し、tick／render-frame／GameplayDefinition node stepが混同されず、watch値にrevision／timepoint／validityが表示される
+- AI診断のvalidated causeはすべてEvidence IDを持ち、recorded／current混同、presentation→authoritativeの逆因果、再現なし修正成功を0件にする
 - 1920×1080でScene、Outliner、Inspector、Asset、AI Partnerが同時利用可能
+- `world_authoring_cross_view_v1`の64 scenarioで、World Outline、Topology Graph、Level Form、Spatial View、AIが同じStableId／revision／Domain Operation／after state hashへ収束
+- Scene永続化owner、Level membership、Cell assignmentの表示と変更経路を混同せず、共有Scene変更の影響LevelをCommit前に列挙
+- sort／filter／rename／re-shard／DPI変更後も、mouse、keyboard、UI Automation、AIがscreen coordinateまたは表示rowで別Objectを変更しない
+- Derived read-only／Runtime対象の編集を全Viewで拒否し、Source Intentへの安全な遷移候補を表示
 - 10万Assetのfilter／selection、multi-select共通field edit、dependency／reverse dependency表示
 - 3D／Texture／Audio／Font Previewが正式Import Planと同じ変換結果を表示
 - Basic／Advanced／AI／headless CLIが同じPlan hash、Diagnostic、Reimport Conflictへ収束

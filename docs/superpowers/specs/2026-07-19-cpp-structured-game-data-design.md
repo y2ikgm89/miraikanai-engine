@@ -1,6 +1,6 @@
 # Miraikanai Engine C++実行コード・構造化ゲームデータ規約
 
-- 文書版: 1.3
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -11,12 +11,16 @@
 - Runtime詳細: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - NativeGameModule詳細: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - 契約詳細: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- Game System詳細: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- Shooter Gameplay詳細: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
 
 ## 1. 結論
 
 Miraikanai Engine 1.0の公式実装方式を、次に固定する。
 
 > CPU上で実行するEngineおよびGame固有コードはC++23へ統一する。First-party C++公開境界はNamed Modules、標準Libraryは原則`import std`へ一方向移行する。Scene、Entity、Composition Recipe、Quest、Dialogue、Ability、Behavior、UI Flow、Encounter、調整値は、Miraikanai Engineが所有する検証可能な構造化ゲームデータとして保存する。構造化ゲームデータはoffline Cookし、C++ Runtimeが型付きCompact Binaryとして実行する。
+
+Game Systemの公式方式は契約固定・実装開放型とする。Genre、System構成、Algorithmを固定せず、同じ`GameSystemSpecV1`に対してGameplayDefinition、Native C++、hybrid、Target-specialized setを選べる。ただしState owner、Command／Event／Snapshot、Save／Replay、Budget、Test、fallbackは実装方式にかかわらず維持する。
 
 次を採用しない。
 
@@ -91,6 +95,9 @@ Miraikanai Engineは既存Engineの言語構成やEditor object modelをコピ�
 | `NativeGameModule` | 公開SDKとCapability contractだけを使うProject固有C++ module |
 | `GameplayDefinitionChangeSet` | Definitionを変更するrevision付きtransaction |
 | `NativeCodeChangeSet` | C++ source、header、CMake、Testを変更する高Risk transaction |
+| `GameSystemSpecV1` | Systemの責務、State owner、Port、phase、Save／Replay、Budget、Testを固定するMCD |
+| `SystemImplementationPlanV1` | 同じPublic System Contractに対する実装方式の比較・選択記録 |
+| `SystemBundleChangeSetV1` | Definition、Source、Asset、Migration、Testをexact hashで結ぶcoordination envelope |
 | `Capability` | C++ Runtimeが実装し、MCDで公開する型付き操作・query・event |
 
 `GameplayDefinition`を「Script」と呼ばない。これは任意Codeではなく、Engine-owned C++ systemへ渡す有限・型付き・権限制約付きdataである。
@@ -108,6 +115,7 @@ Miraikanai Engineは既存Engineの言語構成やEditor object modelをコピ�
 - UI Flow、Screen transition、Input action mapping。
 - Camera、Audio、VFXのPresentation cue。
 - Item、Weapon、Character、Difficulty、Balance table。
+- ShooterのFire Mode、Shot Pattern、Shot Delivery、Projectile、Ammo／Reload、Damage／Team、Vital、Pickup、Score、Encounter Pattern。
 
 Definitionが利用できる操作はMCDのCapability IDで列挙する。filesystem、network、process、clock、pointer、native SDK、dynamic library、arbitrary reflectionを公開しない。
 
@@ -148,7 +156,7 @@ AI、Editor GUI、CLI、MCP Clientの入力経路は異なっても、`ChangeSet
 
 ### 8.1 Editor形式
 
-- `/schemas/mira/`のMCDを正本にする。
+- `/schemas/mirakan/`のMCDを正本にする。
 - text-diffable、version付き、unknown field拒否。
 - StableId、Requirement ID、Capability ID、Budget、Target条件を保持する。
 - 人間向け名称や説明と、Runtime用数値IDを分離する。
@@ -176,7 +184,7 @@ Shipping GameHostはAuthoring JSONをGameplay実行経路でparseしない。`Co
 - Definition set hash、Capability manifest hash、State layout hash。
 - Section offset／length／alignment。
 - Flat definition table、event index、constant pool。
-- Stable runtime handleとAsset version dependency。
+- UUIDv7 `StableId` reference tableとexact Asset version dependency。generation付きruntime handleはload時に生成し、Packageへ保存しない。
 - 各Definitionの実行上限とTarget Profile。
 
 Pointer、vtable、native padding、source path、Editor-only説明、Provider情報を保存しない。
@@ -197,19 +205,23 @@ Gameの表現力が固定Capabilityで不足する場合は、Definitionへ汎�
 
 AIはSystemごとに次の順序を必須とする。
 
-1. 既存Component、Asset、GameplayDefinition、Capabilityのcompositionで実現する。
+1. `GameSystemCatalogV1`から既存Engine Standard System、Component、Asset、GameplayDefinition、Capabilityのcompositionで実現する。
 2. DefinitionのCook、index、batching、Asset layoutを最適化する。
-3. 表現不能な新規Gameplay Algorithm、または計測済みhot pathだけ`NativeGameModule`を提案する。
-4. Platform／Native SDK統合、またはEngine-wide再利用が必要な機能はProject Moduleへ入れず、Engine／Platform AdapterまたはEngine Capability変更をR4として提案する。
+3. 既存Systemで責務を表せない場合はProject-defined `GameSystemSpecV1`を提案する。
+4. 表現不能な新規Gameplay Algorithm、または計測済みhot pathだけ`NativeGameModule`を提案する。
+5. Platform／Native SDK統合、またはEngine-wide再利用が必要な機能はProject Moduleへ入れず、Engine／Platform AdapterまたはEngine Capability変更をR4として提案する。
 
-Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択Proposalは次を持つ。
+Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択Proposalは`SystemImplementationPlanV1`として次を持つ。
 
 - Requirementと未充足Capability。
+- `GameSystemContractRefV1`、State owner、Command／Event／Snapshot。Contract set hashはContractRefへ含める。
 - 同時instance数、呼出頻度、latency、memory、determinism。
 - Target intersectionとMobile／Store影響。
 - 構造化方式を採用または不採用にする理由。
-- Test、Benchmark、Rollback。
+- Save／Migration、semantic equivalence Test、Benchmark、Rollback。
 - C++公開APIと変更Path。
+
+AIがC++を選んでもSource断片だけを出力しない。MCD-generated binding、Native manifest、CMake、Definition参照、Test、Benchmark、Migrationを`SystemBundleChangeSetV1`のdependency closureへ含める。BundleはSource PromotionとProjectRevision Commitを一つの原子的transactionと偽らず、Game System規約の二段階Activationを使う。
 
 ## 11. NativeGameModule
 
@@ -219,13 +231,13 @@ Genre名、Gameの総規模、Modelの主観だけでC++を選ばない。選択
 
 `NativeGameModule`は次の論理公開契約だけを使用できる。
 
-- `mira.foundation`、`mira.runtime.contracts`、`mira.gameplay`、`mira.native_game`とProject生成Contract。
+- `mirakan.foundation`、`mirakan.runtime.contracts`、`mirakan.gameplay`、`mirakan.native_game`とProject生成Contract。
 - MCDから生成したwire type、validator、typed command／event。
 - 宣言済み`ComponentAccessManifest`のquery／lease。
-- Engine allocatorを固定C function tableへ投影した`MiraNativeMemoryPortV1`。STL／PMR object自体は境界へ渡さない。
+- Engine allocatorを固定C function tableへ投影した`MirakanNativeMemoryPortV1`。STL／PMR object自体は境界へ渡さない。
 - Versioned Asset／Entity／Resource handle。
 
-CX0ではContract compilerとCMakeが論理依存を`include/mira/`と生成Headerへ投影し、CX3ではPrimary Named Moduleと`import std`へ投影する。Project SourceがHeader／Module構文を選ぶのではなく、`CppDependencySetV1`、Active `CxxFrontendProfileV1`、Source scanを一致させる。CX3後はEngine C++ Public Header projectionを生成しない。
+CX0ではContract compilerとCMakeが論理依存を`include/mirakan/`と生成Headerへ投影し、CX3ではPrimary Named Moduleと`import std`へ投影する。Project SourceがHeader／Module構文を選ぶのではなく、`CppDependencySetV1`、Active `CxxFrontendProfileV1`、Source scanを一致させる。CX3後はEngine C++ Public Header projectionを生成しない。
 
 次を禁止する。
 
@@ -261,6 +273,8 @@ CX0ではContract compilerとCMakeが論理依存を`include/mira/`と生成Head
 - Profile根拠のないpool化、lock-free化、C++化を禁止。
 
 `windows_desktop_v1`の60 fps基準はCPU／GPU P95 14.00 ms soft、16.67 ms hardとする。`Gameplay Logic`はP95 1.50 ms soft capを維持する。構造化実装がBudgetの80%以下かつdeadline miss 0なら維持し、80～100%はCook／index／layout最適化とC++候補を同一fixtureで比較する。100%超またはdeadline miss発生時はC++候補を作る。C++化の改善が5%未満または測定Noise内なら、構造化実装を維持する。
+
+Target-specialized Implementation Variantは許可するが、Public System Contract、authoritative State、Save field ID、Replay観測結果、Gameplay fidelity floor、Error familyを全Targetで共通にする。意味同等fallbackがなければ対象Targetを非対応とし、性能目的でDamage、敵数、goal、spawn timingを黙って変更しない。
 
 ## 13. Memory方針
 
@@ -383,21 +397,24 @@ Authoritative event、state delta、commandを性能のため黙ってdropしな
 ### Phase 0
 
 - MCDへGameplayDefinition、Capability、State layout、Budgetを定義。
+- MCDへ`game_system` kind、`GameSystemSpecV1`、Catalog、State owner／dependency graphの最小fixtureを定義する。Phase 0で実Game System本文または空Class群を作らない。
 - MCDへ`CxxFrontendProfileV1`と`CppDependencySetV1`を定義し、CX0 Header projectionとCX1 Module projectionを同じContractから生成。
-- `mira.foundation`のC++23／Named Module／`import std` ProbeとC++26 readiness CIを構築。
+- `mirakan.foundation`のC++23／Named Module／`import std` ProbeとC++26 readiness CIを構築。
 - C++／TypeScript／MCP／Provider／Cooked binary projectionを生成。
 - GameplayDefinition validator、canonical codec、minimal evaluator fixture。
 - NativeGameModule public SDK、Source Worker、Promotion Gateを定義。
 
 ### 2D Manual First Playable
 
-- Rule、Quest、Ability、UI FlowをGameplayDefinitionで作成。
-- C++ Gameplay SystemがCookedGameplayPackageを実行。
+- Rule、Weapon、Fire Mode、Shot Pattern、Damage／Team、Score、Encounter、Ability、UI FlowをGameplayDefinitionで作成。
+- Game Flow、Level Gameplay、Character、Weapon、Shooter Projectile、Combat、Vital、Score、Ability、Encounterの同じPublic System ContractをC++ evaluatorが実行。
+- `mirakan.feature.shooter_core.c1`と`shooter.profile.2d_top_down.c1`を適用し、authoritative ProjectileとPresentation Particleを分離する。
 - Script VMなしでTitleからResultまで完走。
 
 ### AI Authoring MVP
 
 - AIが構造化方式を第一選択にする。
+- AIがCatalogからSystemを選び、必要ならProject-defined System、Implementation Plan、System Bundleを生成する。
 - 未充足Capabilityまたは計測済みhot pathだけC++を提案。
 - GameplayDefinitionChangeSetとNativeCodeChangeSetを別Riskで表示。
 - 初心者がC++を見ずに生成・調整・再試遊できる。
@@ -431,8 +448,11 @@ Authoritative event、state delta、commandを性能のため黙ってdropしな
 9. Gameplay LogicがP95 1.50 ms、全体14.00 ms soft／16.67 ms hardを満たす。
 10. Save、Replay、Hot Reload、failureがDefinition versionとState layoutで検証される。
 11. Beginner／Advanced Workspaceが同じChangeSetとHistoryを使う。
-12. 2D Manual First PlayableがScript VMなしで完走する。
+12. 2D top-down shooter Manual First PlayableがScript VMなしで完走し、Fire→Hit→Damage→Defeat→Score、Save／Load、Replayを再現する。
 13. AI生成C++の論理依存、実際のimport／include、CMake DAG、Target別`BuildDriverProfileV1`が一致し、未宣言依存、Module cycle、Make／Ninja二重経路が拒否される。
+14. Engine StandardとProject-defined Systemが同じ`GameSystemSpecV1`、State owner、Catalog、Target、Save／Replay、Testを使う。
+15. GameplayDefinition、Native、hybrid、Target-specialized setがPublic System Contractのsemantic equivalence fixtureへ合格する。
+16. AI生成C++がSourceだけでなくSystem BundleとしてStagingされ、二段階Activationの失敗時に直前のactive実装を維持する。
 
 ## 22. 一次資料
 

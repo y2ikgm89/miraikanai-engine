@@ -1,20 +1,28 @@
 # Miraikanai Engine 実行可能契約・Schema・Codegen規約
 
-- 文書版: 1.4
+- 文書版: 1.13
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
-- 対象: Requirement、Capability、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Cooked binary生成
+- 対象: Requirement、Capability、Game System、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Cooked binary生成
 - 状態: プロジェクト公式の規範設計レビュー版
 - 上位文書: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Math／Core Utilities正本: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+- LOD正本: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
+- Renderer／Anti-alias実行正本: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- Lighting正本: [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
+- Post Process正本: [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
+- Game System正本: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map正本: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+- Debugging正本: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 
 ## 1. 結論
 
-Miraikanai Engineの要件、型、操作、状態遷移、権限、Budget、Diagnosticを、prose、C++ header、TypeScript type、AI Tool Schemaへ別々に手書きしない。Repositoryの`/schemas/mira/`に置く**Mira Contract Definition（MCD）**を唯一の機械可読正本とし、次を決定論的に生成する。
+Miraikanai Engineの要件、型、操作、状態遷移、権限、Budget、Diagnosticを、prose、C++ header、TypeScript type、AI Tool Schemaへ別々に手書きしない。Repositoryの`/schemas/mirakan/`に置く**Miraikanai Contract Definition（MCD）**を唯一の機械可読正本とし、次を決定論的に生成する。
 
 - Engine内部検証用JSON Schema 2020-12。
 - C++23 wire type、enum、validator、serializer、dispatch table、Named Module interface、C ABI Header。
@@ -24,9 +32,14 @@ Miraikanai Engineの要件、型、操作、状態遷移、権限、Budget、Dia
 - OpenAI strict function／Structured Output向けsubset。
 - Anthropic Tool向けProvider projection。
 - Editor form、Inspector metadata、human-readable reference。
+- Game System Catalog、State owner table、dependency graph fragment、System conformance test。
 - Schema fixture、round-trip test、state transition conformance test。
 
 Provider向けSchemaは正本ではない。OpenAI、Anthropic、MCP等の対応Dialectやsubsetが異なるため、MCDを一つのProvider形式へ縮退させない。Provider出力はProvider projectionを通過した後も、C++ Command GatewayがMCDの完全な構造制約と意味制約で再検証する。
+
+LODは単一の裸`lod_index`として公開せず、`LodIntentV1`、Domain別Policy、`LodResolutionPlanV1`、`LodQualificationReceiptV1`をMCDへ登録する。`operation.lod.*`は本規約8節のOperation形式、authority、revision、typed errorへ従い、Generated Artifactまたはruntime選択結果を直接編集するCommandを生成しない。
+
+Anti-aliasも裸のmethod名またはconsole variableとして公開せず、`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、closed method／sample enum、互換Predicate、Target QualificationをMCDへ登録する。AIはIntentとbounded query／proposalだけを扱い、resolved Plan、Render Graph Pass、Provider activation、Pipeline rebuildを直接編集しない。
 
 ## 2. 解決する問題
 
@@ -45,14 +58,14 @@ Provider向けSchemaは正本ではない。OpenAI、Anthropic、MCP等の対応
 
 | Artifact | 正本 | 編集方法 |
 |---|---|---|
-| Requirement、Type、Operation、State Machine、Capability、Policy、Profile、Provider Profile | `/schemas/mira/**/*.mira.json` | Schema ChangeSetだけ |
+| Requirement、Type、Operation、State Machine、Capability、Game System、Policy、Profile、Provider Profile、Remediation | `/schemas/mirakan/**/*.mirakan.json` | Schema ChangeSetだけ |
 | JSON Schema projection | Build treeのgenerated output | 直接編集禁止 |
 | C++／TypeScript binding、Cooked binary codec | Build treeのgenerated output | 直接編集禁止 |
 | MCP／Provider Tool Schema | Build treeのgenerated output | 直接編集禁止 |
 | 人間向けAPI reference | generated docs | 直接編集禁止 |
 | 意図、根拠、例、Architecture説明 | Markdown規約／ADR | 人間／AIがReview経由で編集 |
 | 手書きsemantic validator | C++／TypeScript source | Requirement IDを付けて編集 |
-| Project data | GameSpec／World／GameplayDefinition／Asset metadata | 現在Schemaで検証しChangeSet経由 |
+| Project data | GameSpec／World／Level／System Implementation Set／GameplayDefinition／Asset metadata | 現在Schemaで検証しChangeSet経由 |
 
 MCDは意図の説明を完全に置き換えない。MCDが機械的な合否、Markdown／ADRが理由とTrade-offを決める。両者が矛盾する場合、実行時合否はMCDに従い、矛盾自体をCI errorにする。
 
@@ -60,25 +73,29 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 
 ```text
 /schemas/
-  /mira/
+  /mirakan/
     /meta/
-      mira_contract_v1.schema.json
-      mira_requirement_v1.schema.json
-      mira_type_v1.schema.json
-      mira_operation_v1.schema.json
-      mira_state_machine_v1.schema.json
-      mira_capability_v1.schema.json
-      mira_policy_v1.schema.json
-      mira_profile_v1.schema.json
-      mira_provider_profile_v1.schema.json
+      mirakan_contract_v1.schema.json
+      mirakan_requirement_v1.schema.json
+      mirakan_type_v1.schema.json
+      mirakan_operation_v1.schema.json
+      mirakan_state_machine_v1.schema.json
+      mirakan_capability_v1.schema.json
+      mirakan_game_system_v1.schema.json
+      mirakan_policy_v1.schema.json
+      mirakan_profile_v1.schema.json
+      mirakan_provider_profile_v1.schema.json
+      mirakan_remediation_v1.schema.json
     /requirements/
     /types/
     /operations/
     /state_machines/
     /capabilities/
+    /game_systems/
     /policies/
     /profiles/
     /providers/
+    /remediations/
   contract.lock.json
 /tools/
   /contract_compiler/
@@ -95,7 +112,7 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 
 正本FileはRFC 8259 JSON、UTF-8 without BOM、LF、末尾改行ありとする。JSON5、comment、trailing comma、NaN、Infinity、重複keyを禁止する。人間向け注釈は定義済み`description`、`rationale_refs`、`examples`へ記録する。
 
-非RequirementのFile名は正本IDへ`.mira.json`を付けたものとし、例を`operations/operation.authoring.apply_changeset.mira.json`とする。RequirementはIDをASCII lowercase化して`-`を`_`へ変換し、`requirements/requirement.mira_ai_0001.mira.json`とする。この変換以外の略称を許可せず、File pathをIDから決定論的に導出する。同じIDを複数Fileへ定義しない。
+非RequirementのFile名は正本IDへ`.mirakan.json`を付けたものとし、例を`operations/operation.authoring.apply_changeset.mirakan.json`とする。RequirementはIDをASCII lowercase化して`-`を`_`へ変換し、`requirements/requirement.mirakan_ai_0001.mirakan.json`とする。この変換以外の略称を許可せず、File pathをIDから決定論的に導出する。同じIDを複数Fileへ定義しない。
 
 ## 5. MCD共通Envelope
 
@@ -104,7 +121,7 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 | Field | 型 | 規則 |
 |---|---|---|
 | `mcd_version` | uint32 | 初期値1 |
-| `kind` | enum | `requirement`、`type`、`operation`、`state_machine`、`capability`、`policy`、`profile`、`provider_profile` |
+| `kind` | enum | `requirement`、`type`、`operation`、`state_machine`、`capability`、`game_system`、`policy`、`profile`、`provider_profile`、`remediation` |
 | `id` | string | Kind別Grammarに従う正本ID。Repository全体で一意 |
 | `version` | uint32 | 意味変更ごとに増加、0禁止 |
 | `status` | enum | `draft`、`active`、`deprecated`、`retired` |
@@ -117,7 +134,9 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 | `supersedes` | `{id, version}` array | 置換対象。空可 |
 | `tags` | lowercase string array | ASCII昇順、重複不可 |
 
-`id`をKind固有の別Fieldへ二重保存しない。`requirement`だけは`MIRA-<DOMAIN>-<4桁以上の番号>`、それ以外は`<kind>.<domain>.<lower_snake_name>`を使う。例は`MIRA-AI-0001`、`operation.authoring.apply_changeset`、`capability.render.material.toon_v1`である。Referenceにbare IDを使う場合、現在のContract set内で`status=active`のversionが厳密に1件でなければContract compilerを失敗させる。永続ArtifactとReceiptはbare IDに加えて`contract_set_hash`を持つ。
+`id`をKind固有の別Fieldへ二重保存しない。`requirement`だけは`MIRAKAN-<DOMAIN>-<4桁以上の番号>`、それ以外は`<kind>.<namespace_path>`を使う。`namespace_path`は2～8個のdot区切りsegmentで、各segmentはASCII lowercase、先頭英字、以後英数字またはunderscore、1～48文字とする。例は`MIRAKAN-AI-0001`、`operation.authoring.apply_changeset`、`capability.render.material.toon_v1`、`game_system.engine.combat`、`remediation.authoring.refresh_context`である。
+
+MCDへの永続参照を`McdContractRefV1 { id: string, version: uint32, contract_set_hash: SHA-256 }`へ固定する。`id`のkindと参照Fieldが要求するkindは一致し、`version`は同じContract set内で存在して`status=active`でなければならない。Bare IDは固定済み`contract_set_hash`を入力にするEditor／AIのread-only検索だけで使用でき、候補が厳密に1件でなければ解決しない。Project Source、Cooked Artifact、Save、Replay、Receipt、ChangeSetはbare IDまたはruntime numeric IDを永続参照に使用しない。`GameSystemContractRefV1`は`McdContractRefV1`のうちkindが`game_system`である型付きaliasとする。
 
 `status=deprecated`は新規利用を拒否するが、offline migratorが旧Projectを読むための入力Schemaだけに残せる。Runtime、Editor、Game codeへdeprecated branchを生成しない。`retired`はcurrent Contract setの生成対象外である。
 
@@ -127,7 +146,7 @@ Requirementは次を必須とする。
 
 | Field | 型／値 |
 |---|---|
-| 共通`id` | `MIRA-<DOMAIN>-<4桁以上の番号>` |
+| 共通`id` | `MIRAKAN-<DOMAIN>-<4桁以上の番号>` |
 | `normative_level` | `must`、`must_not`、`should`、`may` |
 | `priority` | `blocking`、`high`、`medium`、`low` |
 | `statement` | 一つの検証可能な規範文 |
@@ -180,7 +199,7 @@ Requirementは次を必須とする。
 - `type_ref`: exact Type IDとversion。
 - `presence`: `required`または`optional`。
 - `default`: 定数またはなし。
-- `constraints`: length、range、pattern、cardinality、unit、coordinate space。
+- `constraints`: length、range、pattern、cardinality、unit、coordinate space、frame、normalization、finite policy、canonicalization。
 - `stability`: `stable_id`、`revision_bound`、`ephemeral`。
 - `sensitivity`: `public`、`project_private`、`restricted`、`secret`。
 - `description`。
@@ -189,7 +208,7 @@ Requirementは次を必須とする。
 
 ### 7.3 数値と単位
 
-物理量は裸の`float`にしない。`unit`、`valid_range`、`coordinate_space`、`precision`を定義する。角度はAPIごとにdegree／radianを混在させず、正規Wireはradian、Editor表示だけdegreeを許可する。Lengthはmeter、timeはsecondまたは明示`duration_ns`、colorはlinear／sRGBを型で分ける。
+物理量は裸の`float`または意味なしvectorにしない。`semantic_role`、`dimension`、`scalar_type`、`unit`、`valid_range`、`coordinate_space`、`frame_kind`、`normalization`、`precision`、`finite_policy`、`canonicalization`、`wire_layout`を定義する。Position、Displacement、Direction、UnitDirection、Velocity、Scale、Quaternion、Transform、Color、UVを別Typeとして表し、初期Type catalogとC++ storage／semantic境界はMath／Core Utilities規約を正本とする。角度はAPIごとにdegree／radianを混在させず、正規Wireはradian、Editor表示だけdegreeを許可する。Lengthはmeter、timeはsecondまたは明示`duration_ns`、colorはlinear／sRGBを型で分ける。
 
 浮動小数点の`-0`は`0`へ正規化し、NaN／Infinityを拒否する。Deterministic hash対象のfloatはIEEE 754 bit patternを直接JSON化せず、Typeごとに定義した最短round-trip decimalへ正規化する。
 
@@ -215,9 +234,11 @@ Requirementは次を必須とする。
 | `audit_level` | `metadata`、`full_redacted`、`restricted` |
 | `provider_exposure` | Provider／MCPへ公開可能か |
 
-未列挙Exception、stringだけのerror、部分成功を禁止する。部分結果が必要なOperationは、成功項目と失敗項目を型付きResultとして明示する。Commandはexpected base revisionをInputへ必須とし、stale revisionを`MIRA-CONFLICT-REVISION_MISMATCH`で拒否する。
+未列挙Exception、stringだけのerror、部分成功を禁止する。部分結果が必要なOperationは、成功項目と失敗項目を型付きResultとして明示する。Commandはexpected base revisionをInputへ必須とし、stale revisionを`MIRAKAN-CONFLICT-REVISION_MISMATCH`で拒否する。
 
 MCPへ公開するOperationは`provider_exposure=mcp_proposal`に限定する。正規Commit、Approval発行、Promotion、Releaseは`trusted_internal`とし、Provider projectionを生成しない。
+
+Authoring Typeのfieldは`mutability = immutable | human_mutable | ai_mutable`と、変更可能なOperation ID集合を持つ。Contract compilerは`ai_mutable` fieldからtyped CommandまたはDomain Operationへの到達性を全件検査し、coverageが100%でなければ該当CapabilityのProvider／MCP projectionを生成しない。自由形式のJSON Pointer write、任意path write、Operationを迂回するSource writeをcoverageとして数えない。
 
 ## 9. State machine定義
 
@@ -268,6 +289,21 @@ CapabilityはAIとEditorが「何を作れるか」を理解する正規単位�
 
 `ai_guidance`は説明補助であり、Validatorを置き換えない。Capability検索はID、tag、Target、maturity、dependencyから行い、AIへ全Capabilityを毎回送らない。
 
+### 10.1 Game System定義
+
+MCD kind `game_system`はEngine Capabilityの利用者であるGameplay単位を表す。完全なField、namespace、State owner、dependency、implementation、Bundle規則はGame System／AI Code Generation規約を正本とし、MCDでは`GameSystemSpecV1`として次を必須にする。
+
+- `system_origin`、`semantic_role_ids`、責務／非責務Requirement。
+- Runtime instance scope、State class、authoritative State owner。
+- accepted Command、emitted Event、read Snapshot。
+- required／provided Capability、phase、dependency edge。
+- Implementation Policy、Save／Replay、Target別Budget、fallback。
+- fixture、compatibility invariant、extension policy。
+
+Contract compilerはactive `game_system`集合から`GameSystemCatalogV1`、`GameSystemDependencyGraphV1`、State owner table、C++／TypeScript binding、Editor metadata、System conformance testを生成する。Project-defined Systemも同じkindを使い、`game_system.project.<project_namespace>.<path>`へ登録する。Engine標準Catalogを利用可能Systemの固定Whitelistとして扱わない。
+
+Authoritative Typeはactive Contract set内で厳密に一つのGame Systemだけが所有できる。Owner欠落、複数Owner、Build／Cook cycle、同phase再入cycle、Presentationからauthoritative Stateへのwrite edgeをsemantic compile errorにする。
+
 ## 11. PolicyとProfile
 
 ### 11.1 Policy
@@ -294,18 +330,21 @@ ValidatorはTarget、C++ Frontend Profile、Driver Profileの全組合せを照�
 
 ## 12. Diagnostic契約
 
-Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MiraDiagnosticV1`を返す。
+### 12.1 `MirakanDiagnosticV1`
+
+Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MirakanDiagnosticV1`を返す。
 
 | Field | 型／規則 |
 |---|---|
 | `diagnostic_version` | 1 |
-| `code` | `MIRA-<DOMAIN>-<NAME>`、不変 |
+| `code` | `MIRAKAN-<DOMAIN>-<NAME>`、不変 |
 | `severity` | `info`、`warning`、`error`、`blocking` |
 | `category` | schema、semantic、permission、conflict、build、test、performance、security、provider、infrastructure |
 | `message_key` | Localization key |
 | `arguments` | primitive map。完成文だけを保存しない |
 | `artifact_id`／`revision` | 対象 |
 | `location` | JSON Pointerまたはnormalized source location |
+| `target_stable_ids` | 実在確認済み対象ID。候補の場合は候補理由を`arguments`へ含める |
 | `requirement_ids` | 1件以上。Infrastructureだけ例外 |
 | `expected`／`actual` | redacted typed value |
 | `remediation_ids` | 機械実行可能または人間向け修正案 |
@@ -314,6 +353,27 @@ Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MiraDiagno
 | `trace_id` | Verification trace参照 |
 
 AIへ返すErrorはこの構造を維持する。Provider向け説明文だけへ変換してcode、location、expected、actualを失わない。Source／static analysis結果はこの形式を正本とし、外部Tool連携用にSARIF 2.1.0へexportする。
+
+`MirakanDiagnosticV1`は検証結果と修復入口の正本であり、Debug Event全般の代替ではない。Debugging規約の`DebugEventEnvelopeV1`は必要時に`diagnostic_id`／`cause_chain`／`trace_id`を参照し、severity、location、expected／actualを別Schemaへ重複保存しない。反対に高頻度counter、span、frame marker、domain snapshotを`MirakanDiagnosticV1`として発行してはならない。
+
+### 12.2 `RemediationV1`
+
+`remediation_ids`は自由文ではなく、MCDの`RemediationV1`を参照する。
+
+| Field | 規則 |
+|---|---|
+| `id`／`version` | `remediation.<domain>.<lower_snake_name>`、意味変更ごとにversion増加 |
+| `applicable_codes` | `MirakanDiagnosticV1.code`のclosed set |
+| `required_queries` | exact query Operation ID＋version、field mask、最大件数 |
+| `operation_template` | typed Command ID＋固定field／placeholder定義。任意JSON禁止 |
+| `preconditions`／`postconditions` | Predicate ID array |
+| `risk_class`／`required_approvals` | 元Taskより権限を弱めない |
+| `retryable_categories` | `schema \| semantic \| conflict \| build \| test \| performance \| provider \| infrastructure`の許可subset |
+| `forbidden_categories` | `permission`、`security`、lock／approval／revision driftを必須化 |
+| `max_applications_per_task` | 1または2。0と3以上を禁止 |
+| `human_message_key` | Localization key |
+
+RemediationはDiagnosticの解決候補であり、適用権限ではない。Gatewayは現在revision、Envelope、Risk、Approval、preconditionを再検証する。該当しないtarget、未知placeholder、権限追加、Source直接writeを含むtemplateはContract compile errorとする。同じnormalized blocking Diagnostic集合へ同じRemediationを二回適用しても減少しないfixtureはinvalidとし、Providerへ公開しない。
 
 ## 13. CanonicalizationとHash
 
@@ -347,7 +407,7 @@ JSON treeには`jsonc-parser@3.3.1`、JCSにはRFC 8785 Appendix GがJavaScript�
 1. RFC 8259としてparseし、重複keyを拒否する。標準`JSON.parse`だけでは重複keyを検出できないため、UTF-8 byte列へduplicate-aware tokenizerを先に適用し、Object scopeごとのdecoded key一致を検査する。
 2. Kind別meta-schemaでvalidateする。
 3. 全IDとversionをindex化する。
-4. 参照解決、cycle、owner、requirement coverageを検査する。
+4. 参照解決、cycle、Game System State owner、phase edge、requirement coverageを検査する。
 5. Semantic lintとPolicy lintを実行する。
 6. Canonicalizeして`/schemas/contract.lock.json`と照合する。
 7. Internal JSON Schema 2020-12を生成する。
@@ -367,6 +427,8 @@ Internal validation projectionはJSON Schema Draft 2020-12を使い、`$schema`�
 - Entity間参照整合性。
 - Target Capabilityの組合せ。
 - Runtime phaseとwriter authority。
+- Game Systemのauthoritative State owner、dependency cycle、Implementation Variant conformance。
+- World／Scene／Level／Cell identity、Topology、Streaming PlanのSource／Derived境界。
 - Asset revisionの存在。
 - CPU／GPU／memory budget。
 - Permission、Approval、Risk。
@@ -397,7 +459,7 @@ Constraintを黙って削除しない。未表現Constraintがある場合でも
 
 MCP projectionは`inputSchema`と`outputSchema`へJSON Schema 2020-12を明示する。Tool resultは`structuredContent`と互換用の同値JSON textを返す。ServerはOutputを送信前に検証し、Clientが検証しない場合でも安全性が変わらないようにする。
 
-Tool annotationは非信頼表示Hintとして生成する。Access control、Risk、ApprovalはServer Policyで強制する。Tool名は`mira.<domain>.<verb>`、ASCII、128文字以下、Repository全体で一意とする。
+Tool annotationは非信頼表示Hintとして生成する。Access control、Risk、ApprovalはServer Policyで強制する。Tool名は`mirakan.<domain>.<verb>`、ASCII、128文字以下、Repository全体で一意とする。
 
 ### 16.3 OpenAI strict projection
 
@@ -429,11 +491,11 @@ Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider
 
 生成C++は次に従う。
 
-- Namespaceは`mira::contract::<domain>`。
+- Namespaceは`mirakan::contract::<domain>`。
 - Public wire structはstandard-layoutを要求せず、Field access APIを使う。
 - Owning string／vectorまたは明示viewを型で分ける。
 - Deserializerはunknown field、duplicate field、range超過、invalid UTF-8を拒否する。
-- `std::expected`を基礎にしたEngine `Result<T>`を返し、`Error`／`MiraDiagnostic`へtyped conversionする。Exceptionをwire境界から出さない。
+- `std::expected`を基礎にしたEngine `Result<T>`を返し、`Error`／`MirakanDiagnostic`へtyped conversionする。Exceptionをwire境界から出さない。
 - Enumはclosed enumとし、unknown値をdefaultへ変換しない。
 - HandleはID＋generationでありpointerを含めない。
 - CX0のGenerated Header、CX1以降のGenerated Module interface、永続C ABI HeaderにInput contract hashを記録する。
@@ -455,7 +517,7 @@ Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider
 - GameplayDefinitionのWorld変更はtyped commandへ投影し、Runtime規約のconsume phaseで適用する。
 - State Machineは一phase一transition、Behavior Treeは`max_node_visits_per_tick`必須、collectionは固定上限という規約をgenerated validatorへ含める。
 - Binary headerへContract set、Definition set、Capability manifest、State layoutのhashを記録する。
-- Decode errorはMiraDiagnosticへ変換し、部分objectをRuntimeへ公開しない。
+- Decode errorはMirakanDiagnosticへ変換し、部分objectをRuntimeへ公開しない。
 
 ## 18. Round-tripとCross-language同値性
 
@@ -510,21 +572,128 @@ AIへ巨大な全Schemaを一括送信しない。次の二段階Discoveryを使
 
 Search結果は現在Contract setのhashを含む。AIが古いhashのCapabilityでProposalを送った場合、Gatewayはstaleとして拒否し、差分を返す。AIがSchemaにないFieldやOperationを使った場合、fuzzyに推測して補正せず、候補ID付きDiagnosticを返す。
 
+Authoring dataは同じDiscovery原則で次のR0 queryだけを公開する。
+
+| Operation | 結果 |
+|---|---|
+| `operation.authoring.search` | kind、tag、Component、name token、spatial boundからStableId候補とscore理由を返す |
+| `operation.authoring.read` | StableId、field mask、expected revisionからbounded `SceneSliceV1`またはDocument projectionを返す |
+| `operation.authoring.dependencies` | inbound／outbound、Requirement、Capability、Decision、lockのbounded closureを返す |
+| `operation.authoring.diff` | base／target revisionとStableId scopeからsemantic diff、storage-only diff、continuationを返す |
+
+全Queryは`project_revision`、`contract_set_hash`、`authoring_index_revision`、`query_hash`、`omitted_ranges`、`continuation_cursor`を返す。別revisionへのfallback、表示index、曖昧な名前だけのtarget確定、任意JSON断片を禁止する。検索結果が複数候補ならAIが名前から推測せず、追加readまたは人間選択を行う。
+
+LOD Discoveryは`lod_class`、semantic role、Target、Qualityで絞り込み、Intent、該当Domain Policy、fallback、選択metric、現在のqualification statusだけを返す。全DomainのLOD Schemaやruntime telemetryを常に一括送信しない。
+
+Game System Discoveryは次のMCD OperationからProvider別Tool名を生成する。MCP／製品表示上のaliasはそれぞれ`mirakan.systems.search`、`mirakan.systems.read`、`mirakan.systems.plan`、`mirakan.systems.validate_bundle`とする。
+
+| MCD Operation | Authority | 結果 |
+|---|---|---|
+| `operation.systems.search` | R0 query | Role、Target、maturity、originでCatalog entryを検索 |
+| `operation.systems.read` | R0 query | exact System Contract、constraint、budget、fixtureを取得 |
+| `operation.systems.plan` | R1 proposal | `SystemImplementationPlanV1`を提案 |
+| `operation.systems.validate_bundle` | R0 query／job | Staging `SystemBundleChangeSetV1`を検証 |
+
+World Discoveryも次のMCD Operationを正本とし、同じInput／Output Schemaから`mirakan.worlds.*` aliasを生成する。
+
+| MCD Operation | Authority | 結果 |
+|---|---|---|
+| `operation.worlds.search` | R0 query | kind、role、tag、Target、spatial boundからWorld／Region／Level／Scene候補、StableId、score理由を返す |
+| `operation.worlds.read` | R0 query | exact Stable ref、field mask、Viewport、Targetからbounded `WorldAuthoringContextV1`を返す |
+| `operation.worlds.resolve_map_intent` | R0 query／R1 proposal | 6分類候補、Evidence、`resolved \| question_required \| rejected`を返す |
+| `operation.worlds.plan_change` | R1 proposal | allowed Domain Operation ID／version、precondition、Budget、fixtureを持つ`WorldAuthoringPlanV1`を返す |
+| `operation.worlds.validate_bundle` | R0 query／job | Staging BundleのSchema、semantic、reference、ownership、Topology、Budget Diagnosticを返す |
+| `operation.worlds.preview_bundle` | R0 query／job | Source／Topology／Level／Target別Derived差分、playability、performance、fallback比較を返す |
+
+`operation.worlds.read`はAuthoring規約の`AuthoringSelectionContextV1` hashを任意入力として受けられるが、screen coordinate、表示row、Hierarchy path、表示名だけをtargetへ変換しない。出力はProject revision、Contract set hash、Source Document hash、Source／Staging／Derived read-only／Runtime区分、omitted range、continuationを必須とする。Derived Artifactはread-only refだけを返し、Cell、Navmesh、HLOD、Runtime handleのwrite Operation Schemaを生成しない。
+
+`operation.worlds.plan_change`が返すDomain OperationはWorld規約のCatalogに存在し、`ai_mutable` field coverage、expected Document revision、precondition hash、Risk、Approval、inverse availabilityを満たすものだけにする。`MoveEntityToScene`、`SetLevelSourceScenes`、Target別Cell生成を相互代替にせず、Scene永続化owner、Level membership、Cell assignmentを別constraintとしてProvider Schemaとserver-enforced semantic validatorへ投影する。
+
+World CapabilityのMCD `examples`は最低でも、明確な`playable_level`、曖昧で`question_required`、共有Scene変更の影響Level列挙、Derived Cell直接write拒否、stale revision拒否を各1件含む。Exampleは説明文だけでなく、exact Input、expected disposition／Operation ID、expected Diagnostic code、変更されないinvariantを持つ。
+
+`MapIntentResolutionV1.disposition=question_required`をCommit可能Proposalへ自動変換しない。System／WorldのActivation、Source Promotion、Project Commit OperationはProvider projectionへ含めない。
+
+Anti-alias Discoveryは2D／3D機能計画の意味GoalとRenderer規約の実行制約を、次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.rendering.aa.search`、`mirakan.rendering.aa.read`、`mirakan.rendering.aa.resolve_intent`、`mirakan.rendering.aa.plan_change`、`mirakan.rendering.aa.preview_change`を生成する。
+
+| MCD Operation | Risk／kind | 結果 |
+|---|---|---|
+| `operation.rendering.aa.search` | R0 query | 意味Goal、Target、Renderer、Quality、maturityからIntent／method候補を検索し、候補ID、短い適合理由、制約要約を返す |
+| `operation.rendering.aa.read` | R0 query | exact Intent／method／Profileの互換Predicate、sample count、layer scope、cost model、fallback、Diagnostic、必要Qualificationを返す |
+| `operation.rendering.aa.resolve_intent` | R0 query | 永続変更なしでIntentをViewFamily単位Planへ決定的に解決し、採用候補、却下候補と理由、`resolved`／`question_required`／`unsupported`を返す |
+| `operation.rendering.aa.plan_change` | R1 proposal | expected Project revisionに対するtyped `AntiAliasingChangeSetProposalV1`だけを生成する。Commit、Provider activation、Pipeline rebuildは行わない |
+| `operation.rendering.aa.preview_change` | R0 query／job | ProposalをStagingで検証し、resolved Plan差分、Graph／history影響、GPU／memory／bandwidth見積り、visual fixture要求、fallback、必要Receiptを返す |
+
+全Anti-alias Query／Proposal結果は`project_revision`、`contract_set_hash`、`capability_signature_hash`、`renderer_profile_revision`、`qualification_receipt_hashes`、`query_hash`を返し、ViewFamilyへ解決した結果は`view_family_id`と`source_intent_revision`も返す。bounded collectionは`omitted_ranges`と`continuation_cursor`を持つ。`plan_change`は`expected_project_revision`、`idempotency_key`、変更理由、対象scopeを必須にし、`preview_change`はProposal hashと同じrevisionを必須にする。stale revision、未知method、未Qualified Target、MSAA×temporal、Hybrid Deferred MSAA、異なるsample countの同一ViewFamily混在、pixel-locked layerへのAA適用をtyped Diagnosticでfail-closedにする。
+
+`AntiAliasingIntentV1`の`mode_policy`は`auto | fixed`、`preferred_method`は`none | fxaa | smaa_1x | msaa | mirakan_taa_v1 | mirakan_taau_v1 | qualified_provider`、`msaa_samples`は`auto | 2 | 4 | 8`のclosed enum／unionとする。`msaa`以外で2／4／8を指定した入力を拒否し、`qualified_provider`はCatalogのexact Provider IDを必須にする。`none`は明示User指定、bit-exact diagnostic、AA対象外layerだけに許可し、AIの性能最適化候補にしない。Provider／MCPへ投影するのは上記五Operationだけであり、`ResolvedAntiAliasingPlanV1` write、arbitrary Render Graph write、Provider install／activate、Settings Apply、Source Promotion、Project CommitをTool listへ含めない。
+
+Lighting DiscoveryはLighting規約の意味Role、物理単位、Target／Budget制約を次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.lighting.*`を生成する。
+
+| MCD Operation | Risk／kind | 結果 |
+|---|---|---|
+| `operation.lighting.search` | R0 query | Light／Profile／role／Target／maturityを検索 |
+| `operation.lighting.read` | R0 query | field mask付きSource／Intent／Profile／Planを取得 |
+| `operation.lighting.inspect` | R0 query | bounded Scene summary、lock、上限、cost、Diagnosticを取得 |
+| `operation.lighting.resolve_intent` | R0 query | 永続変更なしで`ResolvedLightPlanV1`を決定的に生成 |
+| `operation.lighting.plan_change` | R1 proposal | expected revisionに対する`LightingChangeSetProposalV1`を生成 |
+| `operation.lighting.preview_change` | R0 query／job | before／after、contribution、cluster、Shadow、costを検証 |
+| `operation.lighting.explain_plan` | R0 query | Intent→Source field、採用／棄却／fallback理由を取得 |
+| `operation.lighting.estimate_cost` | R0 query | Target別CPU／GPU／Memory予測とconfidenceを取得 |
+| `operation.lighting.validate_change` | R0 query／job | Schema／semantic／Capability／Budget／lockを検証 |
+
+Lighting結果は`project_revision`、`contract_set_hash`、`lighting_catalog_hash`、`target_capability_hash`、`query_hash`を必須とする。Plan／Previewは`source_intent_revision`、`resolved_plan_hash`、`profile_revision`、`qualification_receipt_hashes`も返す。LightのCommit、native GPU resource／cluster buffer書込み、Shadow Technique追加、Provider activation、Project HLSLはTool listへ含めない。
+
+Post Process DiscoveryはPost Process規約のIntent、Profile、Node Catalog、Volume、AA／Layer互換を次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.post_process.*`を生成する。
+
+| MCD Operation | Risk／kind | 結果 |
+|---|---|---|
+| `operation.post_process.search` | R0 query | Profile／Volume／Node／Target／maturityを検索 |
+| `operation.post_process.read` | R0 query | field mask付きIntent／Profile／Volume／Planを取得 |
+| `operation.post_process.inspect` | R0 query | View、active stage、history、layer、cost、Diagnosticを取得 |
+| `operation.post_process.resolve_intent` | R0 query | 永続変更なしで`ResolvedPostProcessPlanV1`を決定的に生成 |
+| `operation.post_process.plan_change` | R1 proposal | expected revisionに対する`PostProcessChangeSetProposalV1`を生成 |
+| `operation.post_process.preview_change` | R0 query／job | before／after、色空間、layer、history、costを検証 |
+| `operation.post_process.explain_plan` | R0 query | Intent→Node／parameter、採用／棄却／fallback理由を取得 |
+| `operation.post_process.estimate_cost` | R0 query | Target別CPU／GPU／Memory予測とconfidenceを取得 |
+| `operation.post_process.validate_change` | R0 query／job | Schema／stage／AA／Layer／Capability／Budgetを検証 |
+
+Post Process結果は`project_revision`、`contract_set_hash`、`post_node_catalog_hash`、`target_capability_hash`、`anti_aliasing_plan_hash`、`query_hash`を必須とする。Plan／Previewは`resolved_plan_hash`、`profile_revision`、`volume_set_hash`、`qualification_receipt_hashes`も返す。任意Render pass、native resource、history weight、Node stage並替え、Provider activation、Project Shader、Source Promotion、Project CommitはTool listへ含めない。
+
+Lighting／Post ProcessのSearchは既定50件、最大200件、continuation付きとし、Read／Inspectはfield maskとbounded scopeを必須にする。どちらの`plan_change`も`expected_project_revision`と`idempotency_key`を必須にし、Provider OutputはInternal C++ validatorで完全再検証する。
+
 ## 21. Contract compilerのDefinition of Done
 
 - 全MCD kindのmeta-schemaと最低1件のvalid／invalid fixtureがある。
+- `game_system` kindからCatalog、Dependency Graph、State owner table、C++／TypeScript binding、conformance testを決定論的に生成する。
+- Project-defined SystemがEngine Standardと同じContract validationを通り、固定WhitelistなしでCatalogへ登録できる。
+- authoritative State owner欠落／重複、System dependency cycle、Presentation逆writeをinvalid fixtureで拒否する。
+- `RemediationV1`のapplicable code、typed Operation template、Risk、Approval、禁止Category、適用上限を生成・検証できる。
 - Duplicate key、unknown field、unbounded collection、untagged unionを拒否する。
 - 同一Inputから二回生成したTree hashが一致する。
 - C++／TypeScript／Cooked binary／MCP／OpenAI／Anthropic projectionが一つのMCDから生成される。
 - Providerで表現できないConstraintがManifestから欠落しない。
 - Provider Outputが必ずInternal validatorで再検証される。
 - 全Operation errorが列挙され、string-only errorを持たない。
+- `ai_mutable` Authoring fieldのtyped Operation coverageが100%で、未到達fieldを持つCapabilityのProvider projectionを拒否する。
+- `AuthoringSelectionContextV1`と`WorldAuthoringContextV1`がC++／TypeScript／JSON Schema／MCPへ同じfield ID、bound、Source／Derived区分で生成される。
+- World Discovery六Operationがexact revision／hash、omitted range、continuation、typed Diagnosticを返し、screen coordinate、表示row、Hierarchy pathだけのtarget指定を拒否する。
+- Scene永続化owner、Level membership、Cell assignmentを別constraintとして生成し、`MoveEntityToScene`、`SetLevelSourceScenes`、Derived Cell writeを相互代替できないinvalid fixtureを持つ。
+- World Capabilityの必須ExampleがProvider projectionとInternal validatorで同じdisposition、Operation ID、Diagnostic code、非変更invariantへ収束する。
 - 全State machineにinvalid transition testがある。
 - Cross-language round-tripとboundary fixtureが通る。
 - Generated fileの直接編集をCIが検出する。
 - Contract lock、Toolchain lock、Generated output hashがVerification Receiptへ記録される。
 - `BuildDriverProfileV1`のvalid／invalid fixtureがあり、Makefiles、Android Multi-Config、Generator override、Driver／Target不一致を拒否する。
 - Migrationなしの破壊的永続Schema変更をCIが拒否する。
+- `authoring.search`／`read`／`dependencies`／`diff`がrevision、field mask、省略範囲、continuationを保持し、stale Indexと曖昧targetを拒否する。
+- `systems.*`と`worlds.*`がContract／Project revision、Target、maturity、bounded resultを保持し、Activation／Commit authorityをProviderへ投影しない。
+- LODの全closed enum、Domain別tagged union、enter／exit threshold、fallback、Operation errorにvalid／invalid fixtureがあり、presentation LODからauthoritative stateへ逆入力するReferenceをsemantic validatorが拒否する。
+- Anti-aliasのIntent／method／sample／scope／dispositionがclosed enum／tagged unionであり、FXAA／SMAA／MSAA／Mirakan TAA／TAAUとQualified Providerの互換Predicate、fallback、history reset、Target Qualificationを同じMCDから生成する。
+- `operation.rendering.aa.*`五OperationのC++／TypeScript／MCP／Provider projection、bounded result、stale revision、ambiguous／unsupported result、valid／invalid fixtureが一致し、Provider activation／Pipeline rebuild／Commit OperationをProviderへ投影しない。
+- MSAA×temporal、Hybrid Deferred MSAA、未対応sample count、同一ViewFamilyのsample count混在、pixel-locked layer適用をInternal semantic validatorが同じDiagnostic code familyで拒否する。
+- LightingのSource／Intent／Profile／Plan／Snapshot、物理単位tagged union、`operation.lighting.*`九Operation、bounded result、stale／lock／Target／Budget／overflowのvalid／invalid fixtureを同じMCDから生成する。
+- Post ProcessのIntent／Profile／Camera Override／Volume／Node Catalog／Plan、固定stage、色空間、AA／Layer／history Predicate、`operation.post_process.*`九Operation、bounded resultのvalid／invalid fixtureを同じMCDから生成する。
+- Lighting／Post ProcessのProvider projectionへCommit、native GPU resource、任意Render pass／Shader、history内部値、Capability activationを含めず、Internal validatorが未知fieldと未成熟Capabilityをfail-closedにする。
 
 ## 22. 一次資料と採用根拠
 

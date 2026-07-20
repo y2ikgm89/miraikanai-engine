@@ -55,7 +55,7 @@
 | PascalCase stem | `Mirakan` |
 | UPPER_SNAKE stem | `MIRAKAN` |
 
-Engine所有識別子へ新しく`mira`、`miraikanai`、`mkan`、`mk`等の別stemを導入しない。既存設計中の`mira`はPhase N1で移行するlegacy tokenであり、新規実装の互換aliasとして残さない。
+Engine所有識別子へ新しく`mira`、`miraikanai`、`mkan`、`mk`等の別stemを導入しない。公式規範文書は`mirakan`へcutover済みであり、`mira`は明示されたMigration Table、negative example、historical fixture、外部引用の入力としてだけ認識する。新規実装の互換aliasとして残さない。
 
 | Surface | 正規形 | 例 |
 |---|---|---|
@@ -67,8 +67,10 @@ Engine所有識別子へ新しく`mira`、`miraikanai`、`mkan`、`mk`等の別s
 | Macro／environment variable | `MIRAKAN_` | `MIRAKAN_ASSERT`, `MIRAKAN_TOOLCHAIN_ROOT` |
 | C ABI type／entry prefix | `Mirakan` | `MirakanNativeGameModuleDescriptorV1` |
 | CLI executable | `mirakan` | `mirakan build` |
+| Git repository slug／default clone root | `mirakan-engine` | `github.com/<owner>/mirakan-engine` |
 | Project manifest | `mirakan.project.json` | `mirakan.project.json` |
 | MCD document suffix | `.mirakan.json` | `operation.authoring.apply_changeset.mirakan.json` |
+| Content package suffix | `.mirakanpack` | `game_content.mirakanpack` |
 | Engine metadata directory | `.mirakan/` | `.mirakan/journal/` |
 | Schema root | `schemas/mirakan/` | `schemas/mirakan/types/` |
 | Requirement／Diagnostic prefix | `MIRAKAN-` | `MIRAKAN-AI-0001` |
@@ -212,6 +214,8 @@ Accessorは`frame_index()`、mutatorは`set_frame_index()`とする。単純acce
 | universally unique identifier | `Uuid` | `uuid` | `UUID` |
 | user interface | `Ui` | `ui` | `UI` |
 | JavaScript Object Notation | `Json` | `json` | `JSON` |
+| temporal anti-aliasing | `Taa` | `taa` | `TAA` |
+| temporal anti-aliasing upsampling | `Taau` | `taau` | `TAAU` |
 
 例は`GpuResourceId`、`parse_json()`、`ui_root_id`、`MIRAKAN_GPU_VALIDATION`である。`GPUResourceID`、`parseJSON()`、`ui_root_identifier`を混在させない。Vendorが定めた正式商標、C ABI field、OS symbolはAdapter内で原表記を保持できる。
 
@@ -237,21 +241,27 @@ Accessorは`frame_index()`、mutatorは`set_frame_index()`とする。単純acce
 
 ### 7.1 FileとDirectory
 
+Repository／Game Projectの物理・論理構造を指す規範語は`Directory`とする。`Folder`はOS API／UI label／外部引用の正式語に限り、別の構造概念として扱わない。
+
 | 対象 | 規則 | 例 |
 |---|---|---|
 | Directory | lowercase `snake_case` | `render_graph/` |
+| Private implementation root | `source/` | `engine/rendering/source/` |
 | C++ Header | lowercase `snake_case.hpp` | `render_graph.hpp` |
 | C++ implementation | lowercase `snake_case.cpp` | `render_graph.cpp` |
 | Primary Module interface | Primary Module名＋`.cppm` | `mirakan.render.cppm` |
 | Module partition | lowercase `snake_case.cppm` | `resource_registry.cppm` |
 | HLSL | lowercase `snake_case.hlsl` | `visibility_buffer.hlsl` |
 | CMake include | lowercase `snake_case.cmake` | `compiler_policy.cmake` |
+| First-party executable／library artifact | lowercase `snake_case`＋Platform extension | `mirakan_game_host.exe`, `mirakan_runtime.dll` |
 | Test | `<subject>_test.cpp` | `render_graph_test.cpp` |
 | Benchmark | `<subject>_benchmark.cpp` | `render_graph_benchmark.cpp` |
 | Fuzz target | `<subject>_fuzz.cpp` | `contract_decoder_fuzz.cpp` |
 | Generated source | `<subject>.generated.<ext>` | `render_contracts.generated.hpp` |
 
-`CMakeLists.txt`等のTool必須名、Platform SDK必須名、license fileは例外とする。`new_`、`old_`、`final_`、`copy_`、日付、担当者名をSource file versioningへ使わない。Version管理はGitとSchema versionで行う。
+First-party componentのprivate implementation rootは`source/`へ固定し、repository所有Pathへ`src/`を新設しない。外部Repository URL、Vendor subtree、Platform SDKが要求するPathはpath-scoped exceptionとする。
+
+`CMakeLists.txt`、`AppxManifest.xml`等のTool／Platform必須名、Platform SDK必須名、license file、Third-party binary basenameは例外とする。`new_`、`old_`、`final_`、`copy_`、日付、担当者名をSource file versioningへ使わない。Version管理はGitとSchema versionで行う。
 
 Platform／Backend suffixは実際に実装が分かれるprivate sourceだけへ使用する。
 
@@ -489,23 +499,25 @@ Wildcard exception、Directory全体の`NOLINT`、期限のない「legacy」理
 
 ## 14. 移行計画
 
-### Phase N0: 規範固定
+### Phase N0: 規範固定と文書cutover（完了）
 
 - 本書を命名の正本にする。
 - Product technical stemを`mirakan`へ固定する。
 - Game作品側の表示名規則を本書から分離する。
-- 既存`mira`表記をlegacy inventoryとして抽出する。
+- 公式Review setの規範例、Path、technical stemを`mirakan`へ統一する。
+- `mira`表記をMigration Table、negative example、historical fixture、外部引用へ限定する。
 
 ### Phase N1: Policyとrename map
 
 - `config/naming_policy.toml`、Naming Exception Manifest、positive／negative fixtureを追加する。
-- `mira`から`mirakan`へのrename mapをsurface別に作る。
+- 実装、Schema、generated artifact、scaffoldに残る`mira`から`mirakan`へのrename mapをsurface別に作る。
 - External citation、自然言語製品名、Contract ID、File suffix、ABI symbolを分類し、blind replacementを禁止する。
 - `.clang-tidy`とrepository naming linterを追加する。
 
 ### Phase N2: Atomic prefix cutover
 
-- Namespace、include root、Named Module、CMake alias／target、macro、C ABI、Schema root、MCD suffix、manifest、metadata Directory、Requirement／Diagnostic prefixを同じChangeSetで切り替える。
+- Repository slug／default clone root、Namespace、include root、Named Module、CMake alias／target、macro、C ABI、Schema root、MCD suffix、Content package suffix、manifest、metadata Directory、Requirement／Diagnostic prefixを同じ実装ChangeSetで切り替える。
+- Hosting repository、local clone、CI、badge、bootstrap、submodule／dependency参照を`mirakan-engine`へ同時更新し、旧URL redirectを正規参照または恒久aliasとして使わない。
 - Pre-1.0で実装前のため、`mira` compatibility namespace、Module alias、Header forwarding、Diagnostic aliasを残さない。
 - Generated golden、example、fixtureを同じPolicy versionで再生成する。
 
@@ -564,12 +576,12 @@ Wildcard exception、Directory全体の`NOLINT`、期限のない「legacy」理
 
 ## 18. 実装順
 
-1. 本書と基盤規約の決定権を整合させる。
-2. Legacy inventoryとsurface別rename mapを作る。
+1. 本書、基盤規約、Game Project配置・命名規約、公式Review setの決定権と規範表記を整合させる（完了）。
+2. 実装対象のLegacy inventoryとsurface別rename mapを作る。
 3. Naming Policy Schema、TOML、exception manifest、fixtureを実装する。
 4. `.clang-tidy`のidentifier naming projectionを実装する。
 5. Repository naming linterを実装する。
-6. `mirakan` prefixを一つのatomic ChangeSetで設計文書、Schema、scaffoldへ反映する。
+6. `mirakan` prefixを一つのatomic ChangeSetでSchema、source、generated artifact、scaffoldへ反映する。
 7. Component scaffoldとCodegenをNaming Policyへ接続する。
 8. Foundation縦切りでQualification Gateを通す。
 

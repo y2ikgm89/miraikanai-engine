@@ -1,6 +1,6 @@
 # Miraikanai Engine AI可読Capability Portfolio／MVP製品化・将来Roadmap規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-20
 - 最終更新日: 2026-07-20
 - 対象: Offline Single-player MVP製品化、将来の汎用Engine化、不足Capabilityの所有境界、成熟度、着手Gate、AI向け説明
@@ -12,6 +12,7 @@
 - Project状態: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Runtime: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Game System／World境界: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)／[Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- Shooter Gameplay: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
 - Platform: [Windows規約](./2026-07-19-windows-platform-distribution-design.md)／[Mobile規約](./2026-07-19-mobile-platform-architecture-design.md)
 - AI権限と検証: [AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)／[AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
@@ -19,7 +20,7 @@
 
 Miraikanai Engineは、不足機能を一つの巨大な「将来機能一覧」へ置かず、次の二つの時間軸を一つの`CapabilityPortfolioV1`で管理する。
 
-1. **MVP製品化軸**: Windowsを先行し、2D top-down actionと3D compact third-person action arenaを、offline single-player製品として作成、保存、Package、Install、起動、診断、更新判断できる状態へ閉じる。
+1. **MVP製品化軸**: Windowsを先行し、共通`mirakan.feature.shooter_core.c1`を使う2D top-down shooterと3D compact third-person shooter arenaを、offline single-player製品として作成、保存、Package、Install、起動、診断、更新判断できる状態へ閉じる。
 2. **汎用Engine軸**: Platform Service、Extension、Collaboration、Timeline／Media、Terrain／Foliage、Multiplayer／Online、Advanced Physics／Animation、追加Platform／XR、Mod／UGC／LiveOpsを、独立Capabilityとして段階導入する。
 
 全Capabilityは、製品上の到達点を示す`capability_tier`と、実Artifactで証明済みかを示す`activation_state`を分離する。文書にC2またはC3と書かれていても、`production` ReceiptがないCapabilityをAI、Editor、Build、Projectが利用可能と扱ってはならない。
@@ -459,7 +460,7 @@ Support BundleはCredential、raw Save secret、User document、arbitrary filesy
 
 Engine製品MVPはArchitecture文書だけで完了しない。最低限、次をversioned artifactとしてPackageまたは配布物へ含める。
 
-- 2D Action Reference Project。
+- 2D top-down Shooter Reference Project。
 - 3D TPS Reference Project。
 - Project作成からFirst PlayableまでのQuick Start。
 - Capability MatrixとTarget別Known Limitations。
@@ -919,7 +920,7 @@ Diagnosticは不足Capability、現在state、必要Gate、該当Target、fallba
 | 1 | `CapabilityPortfolioEntryV1`、state machine、lint、Query | WP0 | schema／transition／negative fixture |
 | 2 | MVP Release Readiness Manifest、Offline Provider、Local Profile contract | WP1 | headless save／load、offline query、profile migration |
 | 3 | clean launch、first-run settings、Support Bundle、data reset | WP2 | Windows package fixture、privacy／recovery receipt |
-| 4 | 2D ActionのMVP closure | WP3 | Title→Result→Save→Package→clean launch |
+| 4 | 2D top-down ShooterのMVP closure | WP3 | Title→Result→Save→Package→clean launch、`2d_shooter_c1_v1` |
 | 5 | AI Gap Explanation／Portfolio projection | WP4 | unsupported intent、forbidden approximation、direct activation 0 |
 | 6 | 3D TPSのMVP closure | WP5 | 3D integrated gate＋product readiness |
 | 7 | Mobile offline closure | WP6 | Network deny、Store package、thermal、privacy |

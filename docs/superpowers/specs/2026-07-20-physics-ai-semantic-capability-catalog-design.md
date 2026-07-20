@@ -224,7 +224,7 @@ DimensionとBody kindに存在しないstrategyを拒否する。Dynamic Bodyへ
 9. 対応不能なら`capability_unavailable`とし、Source要求を削減せず、利用可能な代替案と必要な昇格Gateを返す。
 10. `ready_to_propose`の場合だけ既存write Operation候補とPreview fixtureを返す。
 
-AI Providerの出力だけで`disposition`を確定しない。Gatewayが同じMCDとValidatorで再計算し、不一致なら`MIRA-PHYSICS-AI-RESOLUTION_MISMATCH`で提案を拒否する。
+AI Providerの出力だけで`disposition`を確定しない。Gatewayが同じMCDとValidatorで再計算し、不一致なら`MIRAKAN-PHYSICS-AI-RESOLUTION_MISMATCH`で提案を拒否する。
 
 ## 7. Canonical intent mapping
 
@@ -308,13 +308,13 @@ AIは最初に`capabilities.search`でTarget、maturity、tagを絞り、選択�
 
 | ID | 条件 | 動作／remediation |
 |---|---|---|
-| `MIRA-PHYSICS-AI-INTENT_AMBIGUOUS` | role、solid／sensor、authority等を一意にできない | 一つのBlocking questionを返す |
-| `MIRA-PHYSICS-AI-CAPABILITY_UNAVAILABLE` | Target／maturityで要求Capabilityが利用不能 | 要求を維持し、利用可能な代替と昇格Gateを提示 |
-| `MIRA-PHYSICS-AI-AUTHORITY_CONFLICT` | 同じobject／phaseへ複数writerを選択 | canonical authorityを質問または明示選択 |
-| `MIRA-PHYSICS-AI-UNSAFE_APPROXIMATION` | 未対応機能を別機能で成功扱い | ChangeSet生成を拒否 |
-| `MIRA-PHYSICS-AI-BUDGET_UNQUALIFIED` | CostまたはTarget fixtureが未検証 | Preview／Commitを停止しfixtureを要求 |
-| `MIRA-PHYSICS-AI-STALE_CATALOG` | Contract set、Catalog、Project revisionが古い | 最新hashで再解決 |
-| `MIRA-PHYSICS-AI-RESOLUTION_MISMATCH` | Provider提案とGateway再計算が不一致 | Provider結果を採用せずDiffを返す |
+| `MIRAKAN-PHYSICS-AI-INTENT_AMBIGUOUS` | role、solid／sensor、authority等を一意にできない | 一つのBlocking questionを返す |
+| `MIRAKAN-PHYSICS-AI-CAPABILITY_UNAVAILABLE` | Target／maturityで要求Capabilityが利用不能 | 要求を維持し、利用可能な代替と昇格Gateを提示 |
+| `MIRAKAN-PHYSICS-AI-AUTHORITY_CONFLICT` | 同じobject／phaseへ複数writerを選択 | canonical authorityを質問または明示選択 |
+| `MIRAKAN-PHYSICS-AI-UNSAFE_APPROXIMATION` | 未対応機能を別機能で成功扱い | ChangeSet生成を拒否 |
+| `MIRAKAN-PHYSICS-AI-BUDGET_UNQUALIFIED` | CostまたはTarget fixtureが未検証 | Preview／Commitを停止しfixtureを要求 |
+| `MIRAKAN-PHYSICS-AI-STALE_CATALOG` | Contract set、Catalog、Project revisionが古い | 最新hashで再解決 |
+| `MIRAKAN-PHYSICS-AI-RESOLUTION_MISMATCH` | Provider提案とGateway再計算が不一致 | Provider結果を採用せずDiffを返す |
 
 DiagnosticはSource location、Requirement ID、expected／actual、remediation IDを持つ。AIはDiagnosticを理由にCollider削除、Sensor化、Filter全許可、Budget引上げ、Target除外を自動実行しない。
 
@@ -385,11 +385,11 @@ Physics Semantic Evalは既存Physics／Collision Evalを置き換えず、そ�
 実装計画は次の正本Artifactを対象にする。
 
 ```text
-/schemas/mira/types/type.physics.intent_vocabulary_entry_v1.mira.json
-/schemas/mira/types/type.physics.intent_resolution_v1.mira.json
-/schemas/mira/operations/operation.physics.resolve_intent.mira.json
-/schemas/mira/operations/operation.physics.explain_intent_resolution.mira.json
-/schemas/mira/capabilities/capability.physics.semantic_authoring_v1.mira.json
+/schemas/mirakan/types/type.physics.intent_vocabulary_entry_v1.mirakan.json
+/schemas/mirakan/types/type.physics.intent_resolution_v1.mirakan.json
+/schemas/mirakan/operations/operation.physics.resolve_intent.mirakan.json
+/schemas/mirakan/operations/operation.physics.explain_intent_resolution.mirakan.json
+/schemas/mirakan/capabilities/capability.physics.semantic_authoring_v1.mirakan.json
 /tests/contracts/fixtures/valid/physics_semantic/
 /tests/contracts/fixtures/invalid/physics_semantic/
 /tests/contracts/golden/physics_semantic/

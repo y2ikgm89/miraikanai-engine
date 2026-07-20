@@ -1,6 +1,6 @@
 # Miraikanai Engine AI実装・保守ガバナンス規約
 
-- 文書版: 1.6
+- 文書版: 1.9
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Game制作AI、GameplayDefinition／C++生成AI、Engine実装・保守AI、Editor、外部CLI／Desktop App、API Provider
@@ -14,6 +14,9 @@
 - 機械可読契約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 
 ## 1. 結論
 
@@ -30,6 +33,8 @@ AIはGame制作とEngine開発の両方で実装主体になれる。ただし�
 - 初心者は自然言語だけでGame全体を作り始められる。
 - 経験者はEditor、GameplayDefinition、C++を手動編集できる。
 - AIは構造化編集またはC++を要件と計測から選べ、両者を明示的なCapability境界で併用できる。
+- AIはEngine標準とProject-defined Game Systemを同じCatalog／Contractから選び、Definition、C++、Asset、Migration、TestをSystem Bundleとして提案できる。
+- AIは自然言語の「マップ」をWorld structure、Level、Streaming、Procedural layout、Navigation、Map presentationへ解決し、曖昧または高影響なら質問する。
 - Codex、Claude等のCLI／Desktop AppはMCP経由で同じ契約を利用できる。
 - 製品内の統合AIはProvider APIを使い、構造化出力、会話、監査、UXを一体管理できる。
 - Engine本体の実装・保守AIは隔離WorktreeでSourceを変更できる。
@@ -107,7 +112,7 @@ AIはGame制作とEngine開発の両方で実装主体になれる。ただし�
 | Actor | 信頼Level | 許可される役割 | 禁止事項 |
 |---|---|---|---|
 | Human Author | 認証済み主体 | 要件入力、承認、手動編集、Review | Policy外の権限Token作成 |
-| MiraEditor Shell | 信頼済みClient | Proposal表示、Diff、Approval要求、typed Command提出 | Validatorを迂回したProject書込 |
+| MirakanEditor Shell | 信頼済みClient | Proposal表示、Diff、Approval要求、typed Command提出 | Validatorを迂回したProject書込 |
 | UI Automation Client | 非信頼OS Client | Semantic情報取得、標準control patternによる登録済みCommand要求 | Authoring権限取得、AIの正規操作経路、Widget pointer取得 |
 | Policy Service | 信頼済みAuthority | Risk分類、Policy解決、Authorization署名 | Artifact生成、自己Approval、Promotion |
 | Approval Service | 信頼済みAuthority | 人間認証、事前委任／Review Receipt署名 | AI判断だけでのApproval、Artifact変更 |
@@ -125,7 +130,7 @@ AIはGame制作とEngine開発の両方で実装主体になれる。ただし�
 
 AIが生成したText、Tool argument、Patch、Test結果要約、Risk自己申告はすべて非信頼Inputとして扱う。Validator、Compiler、Test runnerの終了CodeとArtifact hashは、信頼済みRunnerが採取した値だけを採用する。
 
-製品内AIへEditor contextを渡す場合は、独自Editor UI Framework規約の`EditorContextSnapshotV1`だけを使用する。Screen capture、pixel、Widget pointer、HWND、UI Automation provider、mouse／keyboard macroを正規操作または権限経路にせず、AIの変更はtyped Tool、`EditorCommandId`、Authoring Operationへ変換する。UI Automationはassistive technologyとblack-box testのPlatform標準interfaceであり、MCP／Provider APIの代替ではない。
+製品内AIへEditor contextを渡す場合は、独自Editor UI Framework規約の`EditorContextSnapshotV1`だけを使用する。Debug診断ではこれに無制限raw traceを埋め込まず、Debugging規約のbounded `AiDebugContextV1`を別参照する。Screen capture、pixel、Widget pointer、native pointer、HWND、UI Automation provider、mouse／keyboard macroを正規操作または権限経路にせず、AIの変更はtyped Tool、`EditorCommandId`、Authoring Operationへ変換する。UI Automationはassistive technologyとblack-box testのPlatform標準interfaceであり、MCP／Provider APIの代替ではない。
 
 Threat modelは「Modelが通常は従う」ことを前提にしない。次を攻撃者能力としてin-scopeにする。
 
@@ -146,7 +151,7 @@ OS kernel／hypervisor、TPM、信頼済みService binary、Policy／Approval／
 
 | Field | 型 | 必須規則 |
 |---|---|---|
-| `task_id` | `MiraId` | Gateway発行、変更不可 |
+| `task_id` | `MirakanId` | Gateway発行、変更不可 |
 | `spec_revision` | uint32 | 1開始。`ResolvingRequirements`中だけ単調増加し、Envelope発行後は固定 |
 | `task_kind` | enum | `game_authoring`、`project_source`、`engine_source`、`schema`、`docs`、`research`、`verification`、`release` |
 | `goal` | UTF-8 string | 一つの検証可能な結果 |
@@ -159,14 +164,15 @@ OS kernel／hypervisor、TPM、信頼済みService binary、Policy／Approval／
 | `cpp_dependency_sets` | `{component_id, dependency_set_sha256}` array | C++ Source Taskではcomponent ID昇順で全対象を固定。非C++ Taskは空配列 |
 | `requested_outputs` | Artifact kind array | 生成物を列挙 |
 | `open_questions` | Question ID array | Blockingが残る間は実装開始不可 |
-| `context_pack_id` | MiraId | immutable ContextPackを参照 |
+| `context_plan_id`／`context_plan_sha256` | MirakanId／lowercase hex | `game_authoring`は`AuthoringContextPlanV1`を必須化。他Taskはnullable |
+| `context_pack_id` | MirakanId | immutable `ContextPackV2`を参照 |
 | `context_pack_sha256` | lowercase hex | 実際にProviderへ渡すManifestを固定 |
 
 ### 6.2 `TaskAuthorizationEnvelope`
 
 `TaskAuthorizationEnvelope`は信頼済みPolicy Serviceだけが生成し、AIが変更できない。通常TaskはR0を含めてすべて署名を必須にし、未署名で許可する移行Phaseを設けない。署名鍵を作る前の`BootstrapDiscovery`だけは通常Task state machineの外に置き、Buildへ固定したlocal system情報の読取り、Key生成、Public key registry初期化だけを許可する。Provider、External client、Project読取り、Source Worker、任意Path、Network、変更操作を許可せず、初期化完了Marker後は再実行できない。
 
-初期署名Profileを`MiraSignedRecordV1`として次に固定する。
+初期署名Profileを`MirakanSignedRecordV1`として次に固定する。
 
 - AlgorithmはECDSA P-256 with SHA-256、識別子は`ecdsa_p256_sha256`。
 - `signature`以外の全FieldをRFC 8785 JCSでcanonicalizeし、SHA-256を1回計算して署名する。`signature_algorithm`、`signature_format`、`key_id`も署名対象に含める。
@@ -183,7 +189,7 @@ OS kernel／hypervisor、TPM、信頼済みService binary、Policy／Approval／
 | Field | 型 | 必須規則 |
 |---|---|---|
 | `envelope_version` | uint32 | 初期値1 |
-| `task_id` | MiraId | `TaskSpecification.task_id`と一致 |
+| `task_id` | MirakanId | `TaskSpecification.task_id`と一致 |
 | `spec_sha256` | lowercase hex | Task本文のCanonical hash |
 | `issued_at` | UTC timestamp | Policy Serviceが発行した時刻 |
 | `not_before` | UTC timestamp | これより前は無効 |
@@ -232,9 +238,25 @@ OS kernel／hypervisor、TPM、信頼済みService binary、Policy／Approval／
 
 Public key registry、Nonce ledger、Bootstrap完了MarkerはProject／Repository外のPolicy Service stateへ置き、AI OrchestratorとSource Workerにwrite ACLを与えない。Registry更新は既存の信頼済みKeyとApproval Serviceの両方で承認し、Key喪失時のRecoveryはinteractive owner認証、全未完了Envelope失効、新Root hash表示、Audit exportを必須にする。古いPublic keyは過去Receipt検証用に保持し、秘密鍵を復元または再利用しない。
 
-### 6.3 `ContextPack`
+### 6.3 `AuthoringContextPlanV1`と`ContextPackV2`
 
-ContextPackはProviderへ渡す情報のManifestであり、各Itemを次のChannelへ分離する。
+`AuthoringContextPlanV1`は、AIへ何を渡すかをProvider呼出し前に信頼済みOrchestratorが決定する選択契約である。`game_authoring` Taskでは次を必須とする。
+
+| Field | 規則 |
+|---|---|
+| `plan_id`／`task_id` | Gateway発行ID。Taskと一対一 |
+| `project_revision`／`contract_set_hash` | Authoring Indexと正規契約を固定 |
+| `intent_kind`／`anchor_stable_ids` | closed enumと実在確認済みID |
+| `required_channels` | `control`、`normative`、`evidence`、`content`の必要集合 |
+| `field_masks`／`dependency_rules` | MCD登録済みfield mask、inbound／outbound depth、Domain boundary |
+| `required_requirement_ids`／`required_decision_ids` | Blocking／Highとlock済みDecisionを完全列挙 |
+| `max_context_bytes`／`max_provider_input_tokens` | AI ProfileとProvider Manifestの小さい方以下 |
+| `reserved_output_tokens`／`max_resource_reads` | 0禁止のhard上限 |
+| `selection_policy_id` | 決定論的な選択／順位Policy |
+
+Modelまたは取得対象Contentに選択Planを書かせない。`AuthoringContextIndexV1`から得たStableId、参照、lock、Decision、Requirement、field byte／token costを使ってPlanを解決し、入力revisionが変わればPlanとTaskをstaleにする。
+
+`ContextPackV2`はProviderへ実際に渡す情報のManifestであり、各Itemを次のChannelへ分離する。
 
 | Channel | 内容 | 扱い |
 |---|---|---|
@@ -243,9 +265,13 @@ ContextPackはProviderへ渡す情報のManifestであり、各Itemを次のChan
 | `evidence` | Source、Test、公式資料、Benchmark | 引用元、revision、取得日を保持 |
 | `content` | Asset metadata、User text、Source comment | Prompt injectionを含み得る非信頼Data |
 
-各Itemは`resource_id`、`channel`、`uri`、`revision`、`sha256`、`requirement_ids`、`inclusion_reason`、`sensitivity`、`byte_count`を持つ。Providerへ送信した実際のItem集合と順序をContextPack hashへ含める。
+各Itemは`resource_id`、`channel`、`uri`、`revision`、`sha256`、`requirement_ids`、`decision_ids`、`field_mask_id`、`inclusion_reason`、`sensitivity`、`byte_count`、`provider_token_count`を持つ。Packはさらに`context_plan_sha256`、`authoring_index_revision`、`selection_query_root_hash`、`omitted_ranges`、`continuation_cursors`、`truncation_status`、`retrieval_trace_root_hash`を持つ。Providerへ送信した実際のItem集合、順序、field mask、tokenizer IDとtoken数をContextPack hashへ含める。
 
-Blocking／High要件は原文を`normative`へ含める。Context windowに収まらない場合は古い要件を黙って要約せず、Taskを分割するか、Schema付きResource toolで必要部分を取得させる。最終GatewayはContextに関係なく全正規要件で再検証するため、ContextPackはSecurity boundaryではない。
+Blocking／High要件は原文を`normative`へ含め、lock済みまたはTask対象に依存するDecisionは現在status、根拠hash、成立条件を含める。Context windowに収まらない場合は古い要件を黙って要約せず、Taskを分割するか、Schema付きResource toolで必要部分を取得させる。省略は必ず`omitted_ranges`へ記録し、`truncation_status=complete`と偽らない。
+
+AI生成要約は`content`または`evidence`のadvisory Itemに限定し、元Resource ID、revision、field mask、source hashを必須とする。要約だけをOperation target、precondition、Decision根拠、Approval対象に使わない。最終GatewayはContextに関係なく全正規要件で再検証するため、ContextPackはSecurity boundaryではない。
+
+AI Authoring MVP Profileは通常Caseの初回Packを24,000 provider input token以下とし、超過Caseを黙って切り捨てず、Task分割または追加Resource readへ移す。深い監査、Migration、Release Taskは別Profileを使えるが、上限と実測tokenをGeneration Receiptへ残す。
 
 ## 7. Task state machine
 
@@ -275,7 +301,7 @@ Terminal:
 | Running | `NeedUserInput` | active副作用なし、Cleanup／Artifact hash保存済み | AwaitingUserInput |
 | Running | `ProposalProduced` | output size内 | Validating |
 | Validating | `NeedUserInput` | active副作用なし、診断とArtifact hash保存済み | AwaitingUserInput |
-| AwaitingUserInput | `PreAuthorizationAnswerAccepted` | `resume_state=ResolvingRequirements`、Specification draft revisionとContextPackを更新 | ResolvingRequirements |
+| AwaitingUserInput | `PreAuthorizationAnswerAccepted` | `resume_state=ResolvingRequirements`、Specification draft revisionと`ContextPackV2`を更新 | ResolvingRequirements |
 | AwaitingUserInput | `AuthorizedAnswerAccepted` | `resume_state`がRunning／Validating、Authorization影響なし、Input revision一致、Envelope有効 | `{resume_state}` |
 | AwaitingUserInput | `AuthorizationAffectingAnswer` | Envelope発行済み、`superseded_by_task_id`を記録、新Task作成済み | Cancelled |
 | Validating | `AllAutomaticGatesPassed` | Gate receipt一致、Approval必要 | AwaitingApproval |
@@ -290,6 +316,15 @@ Terminal:
 | Promoting | `AtomicPromotionFailedBeforeCommit` | Authoritative state不変を読戻し確認 | Failed |
 | Promoting | `AtomicPromotionRolledBack` | before hashへ復旧し読戻し確認 | Failed |
 
+`RepairableFailure`はMCDの`RemediationV1`が一件以上あり、`retryability=after_change`、Input revision不変、Envelope内Operationだけで修復できる場合に限る。初回Proposal後の修復再提出は最大2回とし、次のいずれかで`Failed`または`AwaitingUserInput`へ停止する。
+
+- normalized blocking Diagnostic code＋location＋target StableId集合が前Attemptと同一で、blocking数も減っていない。
+- `RemediationV1`が要求するread、Operation、Risk、ApprovalがEnvelopeを超える。
+- permission、security、lock、approval、revision drift、unknown remediationである。
+- 二回目の修復再提出もAutomatic Gateへ合格しない。
+
+Repair Attemptは新しい`attempt_id`を持ち、元Diagnostic root、使用したRemediation ID、追加read、Proposal hash、結果Diagnostic rootをGeneration Receiptへ記録する。AIに自由形式の「直して再試行」を指示せず、同一失敗を無制限に反復しない。Input revision driftは修復で吸収せず、新しい`AuthoringContextPlanV1`、`ContextPackV2`、Envelopeを持つ新Taskへ移す。
+
 次を不変条件とする。
 
 - Authorization前にSource Workerまたは変更Toolを起動しない。
@@ -301,9 +336,9 @@ Terminal:
 
 Atomic commit、有効な`verification.long_run.v1`、または有効な`ReleaseTransactionV1`のcritical section開始後のCancel／ExpiryはOperationを未記録のまま中断せず、`cancel_requested_at`または`expired_during_operation`をAuditへ記録する。担当Authorityは完了、rollback／cancel、read-backのいずれかへ必ず収束させ、成功なら次の合法状態、commit前失敗またはrollback成功なら`Failed`とする。結果未確定のまま`Cancelled`／`Expired`へ見せない。`long_running_grant`のない副作用Operationのhard timeoutは開始時のEnvelope残時間以下とし、Source Worker等の非信頼Processはtimeout時にProcess treeを終了してCleanup後に`Expired`とする。
 
-`AwaitingUserInput`へ入る時は`resume_state`と現在Artifact hashを保存し、副作用を停止する。`resume_state=ResolvingRequirements`ではEnvelopeがまだ存在しないため、回答を同じTask IDの新しいSpecification draft revisionとContextPackへ反映し、質問を閉じて要件解決を続ける。旧draft hashもAuditへ残し、Blocking question 0になった版だけをAuthorization対象にする。
+`AwaitingUserInput`へ入る時は`resume_state`と現在Artifact hashを保存し、副作用を停止する。`resume_state=ResolvingRequirements`ではEnvelopeがまだ存在しないため、回答を同じTask IDの新しいSpecification draft revisionと`ContextPackV2`へ反映し、質問を閉じて要件解決を続ける。旧draft hashもAuditへ残し、Blocking question 0になった版だけをAuthorization対象にする。
 
-Envelope発行後の回答がTask goal、success criteria、Input revision、Risk、Operation、Path、Network、Dependency、Gate、Approvalのいずれかを変える場合、元Taskへ追記せず新しいSpecification、ContextPack、Envelopeを持つ新Taskにする。変更しない補足回答だけ、同じInput revisionと有効Envelopeを再検証して`resume_state`へ戻す。副作用Operationは開始時点で`expires_at - now >= operation.timeout_ms`を満たさなければ開始しない。ただし、署名済み`LongRunningGrantV1`を原子的に消費した一回限りOperationは、その`complete_by`をhard deadlineとして扱う。
+Envelope発行後の回答がTask goal、success criteria、Input revision、Risk、Operation、Path、Network、Dependency、Gate、Approvalのいずれかを変える場合、元Taskへ追記せず新しいSpecification、`ContextPackV2`、Envelopeを持つ新Taskにする。変更しない補足回答だけ、同じInput revisionと有効Envelopeを再検証して`resume_state`へ戻す。副作用Operationは開始時点で`expires_at - now >= operation.timeout_ms`を満たさなければ開始しない。ただし、署名済み`LongRunningGrantV1`を原子的に消費した一回限りOperationは、その`complete_by`をhard deadlineとして扱う。
 
 ## 8. 要件解決と質問Policy
 
@@ -337,16 +372,20 @@ AIは質問を無制限に並べない。初回はBlockingとHighを最大7問�
 |---|---|---:|---:|---|
 | R0 | 読取、検索、説明、Report | 可 | 状態変更なし | 不要 |
 | R1 | 文書、非実行Sample、Editor layout個人設定 | 可 | 可。ただしprotected branch外 | Owner不要、Gate必須 |
-| R2 | GameSpec、Scene、UI、Asset設定、GameplayDefinition | 可 | 署名済み事前委任Policyのallowlistにある可逆Operationを非Release branchへ適用する場合だけ | Author 1名、または同等Scopeの有効な事前委任 |
-| R3 | NativeGameModule（Project C++）、Shader、Build設定、Dependency、Schema互換変更 | 可 | 不可 | Code owner 1名＋全Gate |
-| R4 | Engine core、Memory、Threading、Serialization、Security、Source Gate | 可 | 不可 | Domain owner＋独立Reviewer |
+| R2 | GameSpec、World／Level／Topology、Scene、UI、Asset設定、GameplayDefinition、既存System Variant／configuration選択 | 可 | 署名済み事前委任Policyのallowlistにある可逆Operationを非Release branchへ適用する場合だけ | Author 1名、または同等Scopeの有効な事前委任 |
+| R3 | Project-defined Game System Contract、NativeGameModule（Project C++）、Shader、Build設定、Dependency、互換Schema変更 | 可 | 不可 | Code owner 1名＋全Gate |
+| R4 | authoritative State owner／Save意味変更、Engine Extension、Engine core、Memory、Threading、Serialization、Security、Source Gate | 可 | 不可 | Domain owner＋独立Reviewer |
 | R5 | merge、tag、sign、Store upload、Production secret、公開Release | Proposalだけ可 | 禁止 | Human release owner＋分離Release pipeline |
 
 R4でもAIは隔離WorktreeへPatchとTestを生成できる。「提案だけ」とはSourceを生成できない意味ではなく、正規Branchへ自動昇格できない意味である。R5 OperationはModelへToolとして公開しない。
 
+Debugging OperationはDebugging規約20.1節をclosed mappingとして使用する。登録済みbounded QueryはR0、local Developmentのrecord／Watch／safe Pause／StepはR1、D3 capture／remote attachはR2、source-sensitive Bundle exportはR2＋人間承認とする。Debug FindingからProject／Sourceを変更するOperationは対象変更本来のRiskを使い、Debug Session権限や「修正目的」を理由に下げない。Debug dataの読取りTaskへProject変更Toolを同じCatalogで追加せず、DiagnosisとRemediationを別Envelopeへ分離する。
+
 Riskは変更後の最大影響で決める。文書TaskでもBuild scriptやPolicyを変更すればR3以上である。Test削除、Assertion緩和、Budget引上げ、Schema制約削除、Approval条件削除は対象実装と同じか一段高いRiskとする。
 
 R2の事前委任はOperation ID＋version、PathGrant、最大Entity／byte数、Target branch、有効期限、Rollback可能性を固定し、Save schema、Public API、Asset license、Dependency、Security、課金、公開配布を含めない。Promotion Serviceは実DiffからRiskを再分類する。実RiskがEnvelopeより高い、または委任Scopeを外れる場合は昇格せず、新しいEnvelopeとApprovalを要求する。AIのRisk自己申告でRiskを下げない。
+
+Project-defined Systemは既存`game_system` meta-schemaへ適合してもPublic System Contract追加なのでR3とする。既存Systemのauthoritative State owner、Command／Event意味、Save field、migration、authority、Engine Capabilityを変更する場合はR4へ上げる。Level／World変更でもSave互換、Target support、Asset license、persistent Entity、runtime procedural generationへ影響する場合は最大影響に従いR3以上へ再分類する。
 
 ### 9.1 Activation Gate
 
@@ -359,7 +398,7 @@ R2の事前委任はOperation ID＋version、PathGrant、最大Entity／byte数�
 | A2 Engine Maintenance | A1 | R4のEngine／Editor／Orchestrator保守 | 5 State modelとtransition conformance、独立Reviewer、threat／lifetime analysis、full regression、fault／soak |
 | A3 Release | A0 | R5のmerge／tag／sign／Store提出 | 分離Release Coordinator／Build Worker／Signing／Upload Service、clean reproducible build、SBOM、DSSE SLSA provenance、Platform署名、device／Store gate |
 
-現在ActivationはMCD ProfileとEditor UIへ表示する。未解放OperationはTool catalogへ出さず、内部呼出しにも`MIRA-POLICY-CAPABILITY_NOT_ACTIVATED`を返す。A3はA2を必須としないが、Release Coordinatorは入力ごとに、そのArtifactを生成したCapabilityのActivationとRisk Gateを検査する。したがってR3 Sourceを含むReleaseにはA1が必要であり、R4 AI保守で生成したEngineを含むReleaseにはA2も必要になる。A0だけでGameplayDefinitionを使う2D Manual First Playableと構造化AI loopを完成できるようにする一方、NativeGameModule生成をMVP-A成功条件へ含めるため、正式なMVP-A完了にはA1を必須とする。未Activation機能を「将来対応」と偽って成功表示しない。
+現在ActivationはMCD ProfileとEditor UIへ表示する。未解放OperationはTool catalogへ出さず、内部呼出しにも`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返す。A3はA2を必須としないが、Release Coordinatorは入力ごとに、そのArtifactを生成したCapabilityのActivationとRisk Gateを検査する。したがってR3 Sourceを含むReleaseにはA1が必要であり、R4 AI保守で生成したEngineを含むReleaseにはA2も必要になる。A0だけでGameplayDefinitionを使う2D Manual First Playableと構造化AI loopを完成できるようにする一方、NativeGameModule生成をMVP-A成功条件へ含めるため、正式なMVP-A完了にはA1を必須とする。未Activation機能を「将来対応」と偽って成功表示しない。
 
 ## 10. Game実装方式の選択
 
@@ -367,13 +406,14 @@ R2の事前委任はOperation ID＋version、PathGrant、最大Entity／byte数�
 
 すべてのGame機能は、次の順に検討する。
 
-1. 正規GameSpec、Component、Asset、Rule、FSM、Behavior Tree、Quest、Dialogue、Ability、UI Flow等の`GameplayDefinition`で表現する。
-2. 既存Capabilityの組合せ、参照解決、offline Cook、event index、data layout最適化で解決する。
-3. 未提供Gameplay Capability、新規Algorithm、または同一fixtureでBudget超過が確認されたhot pathだけを`NativeGameModule`へ実装する。
-4. Platform／Native SDK統合はProject Gameplay moduleへ入れず、R4のEngine／Platform Adapter変更とする。
-5. 大きなSystemは`GameplayDefinition`と`NativeGameModule`を、MCDで定義されたtyped command／event／snapshot境界で分割する。
+1. `GameSystemCatalogV1`から既存Engine Standard System、正規GameSpec、Component、Asset、Rule等のcompositionで表現する。
+2. 既存Capabilityと`GameplayDefinition`の組合せ、参照解決、offline Cook、event index、data layout最適化で解決する。
+3. 既存Contractで責務を表現できない場合はProject-defined `GameSystemSpecV1`をR3で提案する。
+4. 未提供Gameplay Capability、新規Algorithm、または同一fixtureでBudget超過が確認されたhot pathだけを`NativeGameModule`へ実装する。
+5. Platform／Native SDK統合または複数Project向け再利用はProject Gameplay moduleへ入れず、R4のEngine Extension／Platform Adapter変更とする。
+6. 大きなSystemは`GameplayDefinition`と`NativeGameModule`を、MCDで定義されたtyped command／event／snapshot境界で分割する。
 
-汎用Game scripting runtime、bytecode interpreter、JIT、FFIは選択肢に含めない。AIはGameの「大きさ」やGenre名だけでC++を選んではならない。各Systemのデータ量、呼出頻度、Latency、Memory、決定論性、Platform、Security、再利用性を根拠にする。
+汎用Game scripting runtime、bytecode interpreter、JIT、FFIは選択肢に含めない。AIはGameの「大きさ」やGenre名だけでC++を選んではならない。各Systemのデータ量、呼出頻度、Latency、Memory、決定論性、Platform、Security、再利用性を根拠に`SystemImplementationPlanV1`を作る。C++を選んでもSource断片だけを提出せず、Contract、Definition、Source、Build、Save／Migration、Test、Benchmarkを`SystemBundleChangeSetV1`へ含める。
 
 ### 10.2 選択Matrix
 
@@ -417,7 +457,7 @@ Systemごとに`BehaviorBudget`がない場合、AIは性能を理由にGameplay
 Windows A1／A2のPromotion可能なSource実行Backendは`HyperVIsolatedWorkerV1`に固定する。
 
 - HostはWindows 11 25H2 Pro／Enterprise、SLAT、hardware virtualization、Hyper-V有効を必須にする。Editor本体の閲覧／構造化AuthoringはHomeでも利用できるが、HomeまたはHyper-V unavailableではlocal Source実行を`CapabilityNotActivated`にし、同じProfileのremote Workerを使えなければfail closedにする。
-- WorkerはGeneration 2 Windows VM、Secure Boot有効、vGPU／virtual NIC／Enhanced Session／clipboard／device／host folder共有なしとする。Source WorkerへSecretとProduction Dataを入れないためvTPMを必須にせず、Base image integrityはHost側の署名ManifestとSHA-256で検証する。
+- WorkerはGeneration 2 Windows VM、Secure Boot有効、vGPU／virtual NIC／Enhanced Session／clipboard／device／host Directory共有なしとする。Source WorkerへSecretとProduction Dataを入れないためvTPMを必須にせず、Base image integrityはHost側の署名ManifestとSHA-256で検証する。
 - Toolchainを焼いたimmutable Base VHDXをcontent-addressed Artifactとして固定し、Taskごとに一段だけのdifferencing VHDXを作る。VM停止後にOutput取得とReceipt確定を行い、Task diskを破棄する。Differencing chainの再利用、checkpointからのTask継続、別Taskへのdisk持越しを禁止する。
 - Windows guest imageをEngine installerへ同梱できるとは仮定しない。Base VHDXは、組織またはUserが利用権を持つMicrosoft mediaと固定ToolchainからImage Builderで作成するか、適切なLicenseを持つremote Worker Serviceが提供する。OS／ToolchainのLicense EvidenceがないImage、第三者が再配布した不明VHDX、Evaluation期限切れImageをA1／A2へ使用しない。
 - Source BundleとOutput BundleはHyper-V socket `AF_HYPERV`／`SOCK_STREAM`／`HV_PROTOCOL_RAW`上のlength-prefixed protocolでだけ転送する。接続はHostが指定したVM ID＋Service GUID、Task nonce、Envelope hash、Bundle hashを相互照合し、Protocol外Messageを拒否する。SMB、PowerShell Direct、Guest Services file copy、shared clipboardをData pathにしない。
@@ -518,20 +558,32 @@ Managed CLIを許可するMCD `profile` instanceの`ExternalClientSecurityProfil
 
 | Tool | 種別 | 効果 |
 |---|---|---|
-| `mira.project.describe` | Query | Project revision、Target、Profile概要 |
-| `mira.requirements.list` | Query | Requirementと未解決Question |
-| `mira.capabilities.search` | Query | Capability ID検索 |
-| `mira.capabilities.read` | Query | Schema、制約、Budget、例 |
-| `mira.snapshot.read` | Query | 許可されたAuthoring snapshot |
-| `mira.changeset.validate` | Pure validation | Proposalを正本に対して検証 |
-| `mira.changeset.preview` | Pure preview | Diff、影響、予測Costを返す |
-| `mira.changeset.submit` | Proposal write | StagingへProposalを保存。正規Projectは不変 |
-| `mira.source_task.create` | Proposal write | Source Taskの承認要求を作る |
-| `mira.source_patch.submit` | Proposal write | 隔離PatchをStagingへ登録 |
-| `mira.task.status` | Query | State、Diagnostic、Gate進捗 |
-| `mira.approval.request` | Proposal write | 人間UIへ承認依頼。承認そのものではない |
+| `mirakan.project.describe` | Query | Project revision、Target、Profile概要 |
+| `mirakan.requirements.list` | Query | Requirementと未解決Question |
+| `mirakan.capabilities.search` | Query | Capability ID検索 |
+| `mirakan.capabilities.read` | Query | Schema、制約、Budget、例 |
+| `mirakan.systems.search` | Query | Role、Target、maturity、originからGame System候補を検索 |
+| `mirakan.systems.read` | Query | exact System Contract、State owner、Port、Budget、fixtureを取得 |
+| `mirakan.systems.plan` | Proposal write | `SystemImplementationPlanV1`候補をStagingへ保存 |
+| `mirakan.systems.validate_bundle` | Pure validation | Staging System Bundleを検証 |
+| `mirakan.worlds.search` | Query | World、Level、Region、Stable IDを検索 |
+| `mirakan.worlds.read` | Query | bounded World／Level／Topology projectionを取得 |
+| `mirakan.worlds.resolve_map_intent` | Pure validation／proposal | Map要求を6分類へ解決し、必要質問を返す |
+| `mirakan.worlds.plan_change` | Proposal write | `WorldAuthoringPlanV1`候補をStagingへ保存 |
+| `mirakan.worlds.validate_bundle` | Pure validation | Staging World Bundleを検証 |
+| `mirakan.worlds.preview_bundle` | Pure preview job | isolated Level／World Previewと比較Artifactを生成 |
+| `mirakan.snapshot.read` | Query | 許可されたAuthoring snapshot |
+| `mirakan.changeset.validate` | Pure validation | Proposalを正本に対して検証 |
+| `mirakan.changeset.preview` | Pure preview | Diff、影響、予測Costを返す |
+| `mirakan.changeset.submit` | Proposal write | StagingへProposalを保存。正規Projectは不変 |
+| `mirakan.source_task.create` | Proposal write | Source Taskの承認要求を作る |
+| `mirakan.source_patch.submit` | Proposal write | 隔離PatchをStagingへ登録 |
+| `mirakan.task.status` | Query | State、Diagnostic、Gate進捗 |
+| `mirakan.approval.request` | Proposal write | 人間UIへ承認依頼。承認そのものではない |
 
-`commit`、`merge`、`sign`、`release`、`secret.read`、`policy.override`を含むToolはModelへ公開しない。Authoring Project revisionはC++ Command Gatewayが、署名Envelopeと必要な事前委任または`ReviewReceiptV1`を照合してTransaction確定する。SourceのGit commitはSource Promotion Serviceだけが同じ証拠を照合して作成する。Policy Service、Editor Client、AI Orchestrator、Modelは正規Project revisionまたはGit commitを直接作成しない。
+`commit`、`activate_system`、`activate_cell`、`replace_streaming_plan`、`write_navmesh`、`merge`、`sign`、`release`、`secret.read`、`policy.override`を含むToolはModelへ公開しない。Authoring Project revisionはC++ Command Gatewayが、署名Envelopeと必要な事前委任または`ReviewReceiptV1`を照合してTransaction確定する。SourceのGit commitはSource Promotion Serviceだけが同じ証拠を照合して作成する。Policy Service、Editor Client、AI Orchestrator、Modelは正規Project revisionまたはGit commitを直接作成しない。
+
+`mirakan.worlds.resolve_map_intent`が`question_required`を返した場合、Orchestratorは質問を閉じるまでWorld／Level／Map ProposalをCommit候補へ進めない。System／World Toolの検索結果に未Qualified Targetまたは`maturity=unavailable`が含まれても、成功候補として自動選択しない。
 
 MCP ToolのannotationはClient表示の補助であり、Server側のAccess controlを置き換えない。InputとOutputはServerが正本Schemaで再検証し、timeout、rate limit、auditを必須にする。
 
@@ -563,7 +615,7 @@ Provider API credentialはAI Orchestratorと別の低権限OS ProcessであるPr
 
 | Risk | 自動修復 | 上限 |
 |---|---|---:|
-| R1 | format、link、明白なSchema error | 3回 |
+| R1 | format、link、明白なSchema error | 2回 |
 | R2 | Validator／Test診断に基づく局所修正 | 2回 |
 | R3 | compile／targeted testの局所修正 | 1回 |
 | R4 | 自動修復なし。診断と修正案を提出 | 0回 |
@@ -577,7 +629,7 @@ Provider API credentialはAI Orchestratorと別の低権限OS ProcessであるPr
 - 新規Dependency、Network、Secret、Migrationが必要になる。
 - Input revisionまたはProvider Manifestが途中で変化した。
 
-Retryは元Proposalへ上書きせず、親Revisionを持つ新しいAttemptとして保存する。Cost、Token、時間のBudget超過時もfail closedにする。
+Retryは元Proposalへ上書きせず、親Revisionを持つ新しいAttemptとして保存する。表の回数は初回Proposal後の修復再提出回数であり、7章の全Task共通上限2回を超えない。Cost、Token、時間のBudget超過時もfail closedにする。
 
 ## 15. 初心者と上級者の同居
 
@@ -635,26 +687,31 @@ Subsystem固有規約は近いDirectoryの`AGENTS.md`または正規文書へ分
 | Structured output refusal／incomplete | Proposalを作らず、明示Diagnostic |
 | Provider Schema fallback | strict要求Taskでは拒否 |
 | Context不足 | Task分割または質問。Must要件を削らない |
+| Context Index未Ready／revision不一致 | 別revisionへfallbackせず、bounded retry後にTaskを再計画 |
+| 同一blocking Diagnosticの反復／修復上限到達 | 自動loop停止。Diagnosticと全Attemptを保持して`Failed`または`AwaitingUserInput` |
 | Validator crash | Proposal拒否。Validatorを迂回しない |
 | Sandbox unavailable | Source Workerを起動せず停止 |
 | Test infrastructure failure | 合格扱いにせず`infrastructure_error` |
 | Human rejection | `Rejected`終端。新Taskとして再提案 |
-| Input revision drift | 現Taskを停止し、新ContextPackとEnvelopeを発行 |
+| Input revision drift | 現Taskを停止し、新`AuthoringContextPlanV1`、`ContextPackV2`、Envelopeを発行 |
 | Receipt／hash不一致 | Security eventとして昇格拒否 |
 
 ## 19. Definition of Done
 
 本規約の実装は次をすべて満たした時だけ完了とする。
 
-- `TaskSpecification`、`TaskAuthorizationEnvelope`、`ContextPack`、Task state machineのSchemaがある。
+- `TaskSpecification`、`TaskAuthorizationEnvelope`、`AuthoringContextPlanV1`、`ContextPackV2`、Task state machineのSchemaがある。
+- Blocking／High要件、lock済みDecision、省略範囲、field mask、tokenizer、実測tokenがContext hashとReceiptへ固定され、AI要約だけへ置換されない。
+- AI Authoring MVPの初回24,000 token上限、追加Resource read上限、修復再提出最大2回がPolicy testで強制される。
 - EnvelopeをAI Processが作成・変更できない。
-- EnvelopeがSpecification、ContextPack、Contract、Policy、Profile、Tool catalogのhashを固定し、一つでも差し替えると拒否される。
+- EnvelopeがSpecification、`AuthoringContextPlanV1`、`ContextPackV2`、Contract、Policy、Profile、Tool catalogのhashを固定し、一つでも差し替えると拒否される。
 - CNG／cross-platformのP-256署名round-trip、low-S、high-S拒否、未知／失効Key、期限、Nonce replayのnegative testがある。
 - `LongRunningGrantV1`は二つの内部Operation以外、期限上限超過、Input／Runner／Destination差、二重Start、開始後のProcess種別追加を拒否し、完了／cancel／read-backへ収束する。
 - R0からR5のPolicy testが全組合せで通る。
 - 実DiffのRisk再分類がEnvelope超過とR2事前委任超過を停止する。
-- External MCPに正規Commit／merge／sign／release Toolが存在しない。
+- External MCPに正規Commit／System activation／Cell activation／Streaming Plan置換／Nav artifact write／merge／sign／release Toolが存在しない。
 - API、MCP、CLIのProposalが同じC++ Gateway validatorへ到達する。
+- permission／security／lock／revision driftをRepairableFailureへ分類せず、同一blocking Diagnostic反復時に自動loopを停止する。
 - Source Workerがsandbox不能時にfail closedになる。
 - Release Build Worker、Platform Signing Service、Store Upload Serviceが別identity／credentialで動き、悪意あるBuild scriptがSigning key／Upload credentialを取得できない。
 - Signing ServiceがSource、Project、Build script、任意shell、Manifest外Fileを拒否し、Signing Receiptが承認済みunsigned rootとsigned rootを連結する。
@@ -667,6 +724,10 @@ Subsystem固有規約は近いDirectoryの`AGENTS.md`または正規文書へ分
 - Local MCPは`McpSessionGrantV1`のProject、Adapter hash、SID、Scope、期限を検証し、remote transportがMVPでlistenしない。
 - Beginner／Advanced両Workspaceが同じChangeSetとHistoryを使用する。
 - GameplayDefinition／C++選択がBudgetとBenchmark receiptを参照し、Genre名だけで決まらない。
+- Project-defined Game System追加をR3、authoritative State owner／Save意味変更をR4へ再分類し、AI自己申告でRiskを下げない。
+- `mirakan.systems.*`がCatalog／Contract／Plan／Bundle validationまで、`mirakan.worlds.*`が検索／Map intent解決／Plan／validation／previewまでに限定される。
+- Map intentが曖昧または高影響なら`question_required`で停止し、Scene、Level、Cell、Navigation、Map Presentationを推測統合しない。
+- System BundleのSource Promotion後にProject Commitが失敗しても新Variantをactiveにせず、直前Qualified Variantを維持する。
 - Provider ManifestなしのModel呼出をCIとRuntimeが拒否する。
 - Prompt／Model／Tool変更に検証規約のEvalが適用される。
 - 全State transitionが形式モデルまたは生成Conformance Testで検査される。

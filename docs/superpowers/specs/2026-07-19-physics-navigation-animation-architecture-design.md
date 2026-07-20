@@ -1,6 +1,6 @@
 # Miraikanai Engine Physics／Navigation／Animation連携規約
 
-- 文書版: 1.4
+- 文書版: 1.6
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Physics、Navigation、Animation間の固定phase連携、2D／3D Animation graph／pose
@@ -14,6 +14,7 @@
 - C++公開境界: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
+- LOD正本: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 
 ## 1. 結論
 
@@ -35,6 +36,7 @@ Physics、Navigation、Animationは相互にpointerを渡す一体型Subsystem�
 | PhysicsとNavigation／Animationのtyped連携 | 本書Physics連携節 |
 | 2D grid／3D navmesh、Backend、Artifact、query、avoidance、link、AI／Editor | 独自Navigation Platform規約 |
 | Clip、Graph、state、root motion、pose、event、IK境界 | 本書Animation節 |
+| Animation presentation LODの共通Intent、選択、fallback、Receipt | LOD正本 |
 | C1／C2 feature listとReference Scene | 2D／3D機能計画 |
 
 C1は2D sliceでBox2D、Grid Nav、Flipbook、3D sliceでJolt、Recast／Detour、ozzをProduction化する。Vehicle、ragdoll、advanced crowd、retarget、motion warpingはC2。Soft body、fluid、GPU Physics、network lockstep、runtime arbitrary navmesh generation、ML motion synthesisはC3である。
@@ -123,7 +125,7 @@ Static Collision source revision→Nav Derived Asset→query version、前tickPh
 | `SkeletonPose` | T80で確定したlocal／model poseとbounds |
 | `AnimationEvent` | typed Event ID、normalized time、source state |
 
-Clip名、joint名、function名をRuntime dispatchに使わない。Authoring名はCook時にStable numeric ID／semantic tagへ解決する。
+Clip名、joint名、function名をRuntime dispatchに使わない。Cookerは一つのexact Cooked Skeleton／Clip Artifact内でcanonical joint pathとClip Source `StableId`を固定順へ並べ、1から`JointRuntimeId uint32`／`ClipRuntimeId uint32`を割り当てる。0はinvalidとし、Runtime IDは対応する`ArtifactRefV1`と組にして使い、Source、Save、別Artifact比較へ使用しない。Semantic bone／event tagはexact `McdContractRefV1`へ解決する。
 
 ## 10. 2D Animation
 
@@ -204,6 +206,12 @@ Mode変更は`T00`だけで適用する。Animation deltaとGameplay deltaを加
 
 RagdollはPhysics `T60`の`RagdollPoseInput`をT80でweight blendする。Physicsが`SkeletonPose`へ直接writeしない。
 
+### 12.1 Animation presentation LOD
+
+`AnimationLodProfileV1`はLOD正本の`LodIntentV1`と`LodResolutionPlanV1`からT80のpresentation pose／skinning tierを選ぶ。tierはpose update interval、presentation bone set、skinning mode、shadow poseを変更できるが、T40 root motion、hitbox／weapon socket、foot contact、Gameplay Animation Event、authoritative boundsを低頻度poseから取得しない。
+
+off-screen、occlusion、Renderer visibilityはAnimationのauthoritative clock／state transition／event cursorを停止する入力にしない。Dormancyが必要なEntityはRuntimeの`SimulationLodContractV1`で別に契約し、Animation LODから逆入力しない。tier遷移はenter／exit threshold、`minimum_residency_units`、fallback poseを必須とし、強制tierはEditor previewだけに許可する。
+
 ## 13. Event、IK、Skinning
 
 - Animation EventはClipの`event_track_id`とregistered typed Event IDを持つ。
@@ -228,7 +236,7 @@ Animation Domain 64 MiBをRuntime規約どおり守り、Skeleton／Clip payload
 | Required locomotion clip不足 | Play prepare失敗 |
 | Event overflow | presentationはpriority policy、authoritative eventはtick fault |
 
-Testはforward／reverse／loop／seek、crossfade、layer／mask、transition interruption、root motion単一適用、Character collision、event飛越し、ragdoll blend、Skeleton hot reload、stale Asset、parallel instance、10分soakを含む。Import testはmissing／extra／reordered joint、noninvertible bind、step／linear／cubic、key reduction閾値、loop seam、root trajectory、Importer migration Conflict、Editor scrubのEvent非発火を含む。Motion＋Animation P95 1.50 msを維持する。
+Testはforward／reverse／loop／seek、crossfade、layer／mask、transition interruption、root motion単一適用、Character collision、event飛越し、ragdoll blend、Skeleton hot reload、stale Asset、parallel instance、10分soakを含む。Animation LOD testはcamera path／visibility／Target／Qualityを変えてもroot motion、hitbox、Gameplay Event、state hashが一致し、presentation bone fallback、hysteresis、tier traceが再現可能であることを検証する。Import testはmissing／extra／reordered joint、noninvertible bind、step／linear／cubic、key reduction閾値、loop seam、root trajectory、Importer migration Conflict、Editor scrubのEvent非発火を含む。Motion＋Animation P95 1.50 msを維持する。
 
 ## 15. AI／Editor操作
 
@@ -237,6 +245,7 @@ AIと人間は次のtyped object／Operationだけを編集する。Navigation�
 - Physics World Profileの公開field、Body／Joint、Character Profile
 - Nav Agent／Area／Build Profile、Modifier、Off-mesh Link、reachability test
 - Skeleton／Clip import、Animation Graph、parameter、transition、event、root motion mode
+- `AnimationLodProfileV1`のproposal／preview／validation。共通操作IDは`operation.lod.*`
 - Skeleton tree、joint axis、bind／reference pose、skin weight、root trajectory、compression error、retarget before／after Preview
 
 AIはvendor setting blob、native ID、solver callback、nav polygon ref／tile／`rcConfig`、ozz archive byte、arbitrary expressionを生成しない。Profile hard値変更、high-cost nav rebuild、Joint bulk生成、Graph全置換はRiskと予測costを表示する。
@@ -254,7 +263,8 @@ EditorはPhysics／Joint、Nav voxel／tile／path、Animation state／blend／r
 5. Asset hot reloadはPhysics、Nav、Animation dependency closureを部分混在させない。
 6. 2D／3D World併用、worker oversubscription、stale async result、queue overflowを合格する。
 7. 全vendor型がCX0 Public Header、CX3 Module interface、MCD、Save、Project C++から検出されない。
-8. Target別capacity、memory、P95、10分soakを満たす。
+8. Animation presentation LODを切り替えてもroot motion、hitbox、Gameplay Event、authoritative state hashが不変である。
+9. Target別capacity、memory、P95、10分soakを満たす。
 
 ## 17. 一次資料
 

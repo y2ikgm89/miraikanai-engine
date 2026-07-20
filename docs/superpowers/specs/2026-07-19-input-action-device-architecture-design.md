@@ -1,9 +1,10 @@
 # Miraikanai Engine Input／Action／Device規約
 
-- 文書版: 1.2
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 対象: Keyboard、Mouse、Controller、Touch、Pointer、Action Mapping、Remap、Haptics、Replay
 - 状態: プロジェクト公式の規範設計レビュー版
+- Shooter Gameplay連携: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
@@ -17,7 +18,7 @@ Miraikanai EngineはPlatformのkey code、controller object、touch callbackをG
 
 Gameplay、UI、AI、NativeGameModuleが参照するのはStable `InputActionId`とSnapshotだけである。Text入力／IMEはAction Inputと別の`ITextInputService`が所有し、keyboard stateから文字を推測しない。
 
-Editor UIのpointer、keyboard、IME、Window eventは`PlatformUiEventV1`へ正規化し、MiraUI Event／Focus Routerへ渡す。Editor Command操作をGameplayの`T10_InputLatch`へ混入させず、Editor UI event、Game InputSnapshot、Text compositionの三経路を分離する。
+Editor UIのpointer、keyboard、IME、Window eventは`PlatformUiEventV1`へ正規化し、MirakanUi Event／Focus Routerへ渡す。Editor Command操作をGameplayの`T10_InputLatch`へ混入させず、Editor UI event、Game InputSnapshot、Text compositionの三経路を分離する。
 
 ## 2. 決定権と対象外
 
@@ -73,7 +74,7 @@ Digital controlは`up | down`、analogはfinite float `[-1,1]`、triggerは`[0,1
 
 | Field | 規則 |
 |---|---|
-| `action_id` | Stable numeric ID。表示名をdispatchに使わない |
+| `action_id` | Authoring SourceのUUIDv7 `StableId`。表示名をidentityに使わない |
 | `value_type` | `digital \| axis1 \| axis2 \| pointer2` |
 | `scope` | `gameplay \| ui \| editor \| system` |
 | `consumption` | `shared \| focused \| exclusive` |
@@ -84,6 +85,8 @@ Digital controlは`up | down`、analogはfinite float `[-1,1]`、triggerは`[0,1
 | `replay_policy` | `authoritative \| presentation_only \| excluded` |
 
 Pose、text、arbitrary byte payloadをAction valueへ入れない。
+
+Cookerは一つのexact `InputActionMap` Artifact内でAction `StableId`をUUID byte順に並べ、1から`RuntimeActionId uint32`を割り当てる。0はinvalidとし、Artifactへ`StableId`↔`RuntimeActionId`対応表を含める。Runtime dispatchは`RuntimeActionId`、Project Source、User binding、Save／Replay headerはAction `StableId`＋Action Map `ArtifactRefV1`を使い、別Artifactの同じ数値を比較しない。
 
 ### 4.2 Binding
 
@@ -127,6 +130,14 @@ Tap最大時間は既定0.25 s、Hold最小0.40 s、Repeat初回0.40 s／間隔0
 | composite | WASD／D-pad→axis2 |
 
 Processor順序は`normalize -> dead_zone -> invert -> scale -> curve -> clamp -> composite`の登録順で固定し、Bindingごとの任意function chainを許可しない。
+
+### 4.5 Shooter Semantic Action Template
+
+Shooter Packは`shooter.move`、`shooter.aim`、`shooter.look`、`shooter.fire_primary`、`shooter.fire_secondary`、`shooter.aim_mode`、`shooter.reload`、`shooter.next_weapon`、`shooter.previous_weapon`、`shooter.pause`のsemantic roleを提供する。Project適用時に各ActionのUUIDv7 `StableId`を生成し、role文字列をRuntime dispatchまたはSave identityにしない。
+
+2D top-down Profileはmove、aim、fire primary、pause、TPS Profileはmove、look、fire primary、aim mode、reload、next／previous weapon、pauseをrequiredとする。secondary fire、2D reload、2D Weapon switchはProfileがoptionalにできる。
+
+ActionはWeapon、ammo、Projectileを直接変更せず、T10 `InputSnapshot`をT30のControl／Weapon intent evaluatorがShooter規約のtyped Commandへ変換する。Replay、AI、Keyboard／Mouse、Controller、Touchで別のFire経路を作らない。
 
 ## 5. Context、Focus、Consumption
 
@@ -287,6 +298,7 @@ Persistent 8 MiBはRuntime規約のCore World／Saveにあるsnapshot／bridge 3
 - Windows GameInput callback解除／Reading履歴、Android buffer swap、Apple inactive
 - Controller／keyboard／touchだけでmenu→Play→pause→exit
 - User Remap、required Action、reserved shortcut、left-handed layout
+- 2D top-down／TPS Shooter Action Template、hold／release Fire、reload、Weapon switch、pause
 - Replayで同じAction Snapshot／authoritative state hash
 - Haptic stop、disconnect、unsupported device
 - 60／120 Hz display、60 Hz simulationでinput-to-submit測定
@@ -299,7 +311,7 @@ C1完了条件は、同じ2D／3D ProjectがWindows keyboard／mouse／controlle
 
 実装計画は次の3 Work Packageへ分割する。各Work Packageは独立したReview、Test、Commit、Gateを持ち、後続Packageが前段の未検証内部実装へ依存することを禁止する。
 
-着工前提は、Phase 0 Foundation計画がrepository bootstrap、C++23 toolchain、Build Gateway、CMake component helper、`mira_runtime_contracts`、MCD meta-schema／Contract compiler、Result／Diagnostic、fixed phase、bounded queue、memory domainを実装し、それらのGate Receiptを発行済みであることとする。入力計画はこれらを重複実装せず、入力固有schema、component、fixture、Gateだけを所有する。Windows GameInput SDK artifact、version、hash、license、取得手順がDependency lockへ固定されていない場合、WP1を開始しない。
+着工前提は、Phase 0 Foundation計画がrepository bootstrap、C++23 toolchain、Build Gateway、CMake component helper、`mirakan_runtime_contracts`、MCD meta-schema／Contract compiler、Result／Diagnostic、fixed phase、bounded queue、memory domainを実装し、それらのGate Receiptを発行済みであることとする。入力計画はこれらを重複実装せず、入力固有schema、component、fixture、Gateだけを所有する。Windows GameInput SDK artifact、version、hash、license、取得手順がDependency lockへ固定されていない場合、WP1を開始しない。
 
 ### 15.1 WP0: C0共通契約
 
@@ -329,7 +341,7 @@ WP1の完了Gateを次に固定する。
 
 ### 15.3 WP2: Windows 2D First Playable統合
 
-対象はUser Remap、Binding capture、Accessibility setting、Replay、gamepad rumble、標準Game UI navigation、2D First Playable fixtureへの統合である。WP2で仮のkey polling、Device別Gameplay分岐、文字推測、Replay専用Action経路を追加しない。
+対象はUser Remap、Binding capture、Accessibility setting、Replay、gamepad rumble、標準Game UI navigation、2D top-down shooter First Playable fixtureへの統合である。WP2で仮のkey polling、Device別Gameplay分岐、文字推測、Replay専用Action経路を追加しない。
 
 WP2の完了Gateを次に固定する。
 

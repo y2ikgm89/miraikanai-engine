@@ -11,6 +11,7 @@
   - [Rendering／Render Graph規約](./2026-07-19-rendering-render-graph-architecture-design.md)
   - [Collision／Collider規約](./2026-07-19-collision-collider-architecture-design.md)
   - [Runtime連携規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
+  - [AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 
 ## 1. 結論
 
@@ -31,10 +32,11 @@ Unity、Unreal Engine、Godotと同様に降雪Particleと地表Materialを分�
 | Weather presentation field、Snow Source、Mask、dynamic field、stamp、melt、budget、qualification | 本書 |
 | Sky、Atmosphere、Fog、Cloud、Weather Binding | Environment Platform規約 |
 | Particle spawn、simulation、renderer、collision、GPU Artifact | Particle／VFX規約 |
-| Material IR、snow surface role、Visual Style | 2D／3D機能計画 |
+| Material IR、snow surface role、Visual Style | Material／Visual Style／AI Authoring規約 |
 | Render resource、compute pass、history、device loss | Rendering規約 |
 | Contact／Trigger、foot placement、authoritative surface ID | Collision／Gameplay規約 |
 | Tick、Event、Snapshot、Save、global budget | Runtime規約 |
+| Snow Surface LODの共通Intent、選択、fallback、Receipt | LOD規約 |
 
 本書は汎用気象simulation、雲生成、流体降水、気候モデルを所有しない。C1／C2のWeatherはbounded inputであり、Environment Platformがversion付きBindingを通してCloud／Atmosphereの見た目を解決する。EnvironmentからWeather Sourceへの書き戻しを禁止する。
 
@@ -50,8 +52,8 @@ Unity、Unreal Engine、Godotと同様に降雪Particleと地表Materialを分�
 ## 4. ModuleとDirectory
 
 ```text
-schemas/mira/weather/
-schemas/mira/snow/
+schemas/mirakan/weather/
+schemas/mirakan/snow/
 engine/weather/
 engine/snow/
   contracts/
@@ -69,13 +71,13 @@ tests/snow/
 
 | Target | 責務 |
 |---|---|
-| `mira_weather_contracts` | Weather inputとSnapshot value type |
-| `mira_snow_contracts` | Snow Source、Artifact、stamp、Snapshot、Diagnostic |
-| `mira_snow_core` | accumulation／melt／compaction規則、page選択、budget |
-| `mira_snow_compiler` | static mask、receiver、page manifest、Material binding |
-| `mira_snow_runtime` | dynamic field、stamp admission、Snapshot、Save seed |
-| `mira_snow_render` | Material parameter、compute pass、debug view |
-| `mira_snow_authoring` | ChangeSet、paint、preview、cost |
+| `mirakan_weather_contracts` | Weather inputとSnapshot value type |
+| `mirakan_snow_contracts` | Snow Source、Artifact、stamp、Snapshot、Diagnostic |
+| `mirakan_snow_core` | accumulation／melt／compaction規則、page選択、budget |
+| `mirakan_snow_compiler` | static mask、receiver、page manifest、Material binding |
+| `mirakan_snow_runtime` | dynamic field、stamp admission、Snapshot、Save seed |
+| `mirakan_snow_render` | Material parameter、compute pass、debug view |
+| `mirakan_snow_authoring` | ChangeSet、paint、preview、cost |
 
 Snow RuntimeはPhysics World、VFX Particle buffer、Graphics Backendを直接queryしない。
 
@@ -149,6 +151,8 @@ world-up thresholdだけから雪を生成せず、static／dynamic coverageが0
 ## 8. C2 Dynamic Snow Field
 
 `SnowDynamicFieldProfileV1`はworld-aligned paged atlasを定める。
+
+Target別のupdate distance、normal／sparkle detail、降雪VFX density、static mask fallbackはLOD正本の`SnowSurfaceLodProfileV1`から解決する。dynamic fieldのpage identity、coverage値、stamp eventはLOD tierで書き換えず、tierはpresentation update／sampling detailだけを変更する。
 
 | 項目 | Desktop | Mobile Standard |
 |---|---:|---:|
@@ -227,11 +231,11 @@ device loss時はstatic mask、page manifest、新規empty fieldを復元し、�
 
 降雪ParticleはParticle／VFX budgetへ別計上する。同じbyteをSnowとTexture Domainへ二重計上せず、Parent GPU capの合算検査を行う。
 
-Fallback順はdynamic footprint detail、field update distance、sparkle、normal detail、降雪densityとする。Gameplay Surface ID、static coverage、Visual Styleを変更しない。
+Fallback順は`SnowSurfaceLodProfileV1`のtyped tierとしてdynamic footprint detail、field update distance、sparkle、normal detail、降雪densityとする。Gameplay Surface ID、static coverage、Visual Styleを変更しない。dynamic pageが未residentまたはbudget外の場合はstatic maskへ戻し、fallbackを持たないreceiverをProductionにしない。
 
 ## 13. AI／Editor
 
-EditorはWeather Preview、Snow Receiver、static mask paint、dynamic page、coverage、compaction、stamp、budget、overdrawを表示する。AI Operationは`SetWeatherPresentation`、`CreateSnowReceiver`、`PaintStaticSnowMask`、`SetSnowMaterial`、`EnableDynamicSnow`、`PreviewSnowCost`とする。
+EditorはWeather Preview、Snow Receiver、static mask paint、dynamic page、coverage、compaction、stamp、budget、overdraw、LOD tier／transition理由を表示する。AI Operationは`SetWeatherPresentation`、`CreateSnowReceiver`、`PaintStaticSnowMask`、`SetSnowMaterial`、`EnableDynamicSnow`、`PreviewSnowCost`とLOD正本の`operation.lod.*`とする。
 
 AIはGPU texture、Render pass、Particle buffer、Gameplay frictionを直接編集しない。動的積雪を有効にするChangeSetはTarget Capability、page数、memory、GPU cost、fallbackを提示する。
 
@@ -264,6 +268,7 @@ AIはGPU texture、Render pass、Particle buffer、Gameplay frictionを直接編
 - device loss後にstale pageを参照せず再構築できる。
 - D3D12、Vulkan、Metalのgolden image、memory、GPU P95を満たす。
 - Gameplay friction fixtureがGPU field、render frame rate、Particle countを変更しても同じ結果になる。
+- camera path、Target、Quality、budget pressureでSnow Surface LODを切り替えてもGameplay Surface State、static coverage、stamp event列が一致し、static mask fallbackとtier traceを再現できる。
 
 ### C3着手Gate
 

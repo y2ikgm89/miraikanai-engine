@@ -16,8 +16,8 @@
 
 Miraikanai EngineのMathとCore Utilitiesは、汎用`Vector3`と雑多な`utils`を全Subsystemへ公開する方式にしない。次を公式方式とする。
 
-1. `mira::foundation`はID、Result／Error、Diagnostic、Hash、Endian、Time、bounded access、memory tag等の非数学基盤を所有する。
-2. `mira::math`はscalar、角度、vector、matrix、quaternion、transform、geometry、数値検証を所有し、`mira::foundation`だけへ依存する。
+1. `mirakan::foundation`はID、Result／Error、Diagnostic、Hash、Endian、Time、bounded access、memory tag等の非数学基盤を所有する。
+2. `mirakan::math`はscalar、角度、vector、matrix、quaternion、transform、geometry、数値検証を所有し、`mirakan::foundation`だけへ依存する。
 3. hot path内部ではcompactな`Vec2f`／`Vec3f`／`Mat4f`等を使えるが、AI、Editor、Authoring、Save、Subsystem公開境界では位置、方向、単位、座標空間、正規化条件を持つsemantic typeを使う。
 4. Math／Utilityの正本はMiraikanai Contract Definition（MCD）と本書であり、C++型、Editor metadata、serialization descriptor、MCP／Provider Schema、Validator、Diagnostic、testを同じ定義から生成する。
 5. AIはraw memory、任意matrix、内部SIMD型、Platform math型を直接編集しない。意味付きFieldまたはtyped Operationを提案し、C++ Gatewayが完全再検証する。
@@ -70,12 +70,12 @@ MathとCore Utilitiesはほぼ全Subsystemの下位依存であり、ここで�
 
 | Target | 公開Alias | 責務 | 許可依存 |
 |---|---|---|---|
-| `mira_foundation` | `mira::foundation` | Result／Error、Diagnostic、ID、Hash、Endian、Time、bounded access、memory tag | C++ standard library、明示承認されたPlatform-free Build dependency |
-| `mira_math` | `mira::math` | scalar、unit、vector、matrix、quaternion、transform、geometry、numeric validation | `mira::foundation` |
-| `mira_math_conformance` | なし | golden、property、fuzz、CPU／Shader／Adapter conformance | `mira::math`、test-only dependency |
-| `mira_math_benchmark` | なし | scalar referenceと候補backendの比較 | `mira::math`、benchmark-only dependency |
+| `mirakan_foundation` | `mirakan::foundation` | Result／Error、Diagnostic、ID、Hash、Endian、Time、bounded access、memory tag | C++ standard library、明示承認されたPlatform-free Build dependency |
+| `mirakan_math` | `mirakan::math` | scalar、unit、vector、matrix、quaternion、transform、geometry、numeric validation | `mirakan::foundation` |
+| `mirakan_math_conformance` | なし | golden、property、fuzz、CPU／Shader／Adapter conformance | `mirakan::math`、test-only dependency |
+| `mirakan_math_benchmark` | なし | scalar referenceと候補backendの比較 | `mirakan::math`、benchmark-only dependency |
 
-`mira::foundation`は`mira::math`へ依存しない。Core Services、Authoring Model、Runtime、Renderer、Physics、Navigation、Animation、Asset Import、Editorは必要に応じて両方へ依存できる。Platform／Vendor型との変換は各Adapter private targetが所有し、`mira::math`へD3D12、Vulkan、Metal、Box2D、Jolt、Recast型を持ち込まない。
+`mirakan::foundation`は`mirakan::math`へ依存しない。Core Services、Authoring Model、Runtime、Renderer、Physics、Navigation、Animation、Asset Import、Editorは必要に応じて両方へ依存できる。Platform／Vendor型との変換は各Adapter private targetが所有し、`mirakan::math`へD3D12、Vulkan、Metal、Box2D、Jolt、Recast型を持ち込まない。
 
 ### 4.2 Directory
 
@@ -165,7 +165,7 @@ wire_layout
 
 型名だけで全意味を重複表現しない。C++生成型名は可読なsemantic nameを使い、完全な単位、space、range、canonicalizationはMCD descriptorを正本とする。
 
-このCatalogのうち`DurationNs`／`DurationSeconds`の実装Ownerは`mira::foundation/time`、`LinearColor4f`の色空間と許容範囲のOwnerはRendering／2D・3D規約である。`mira::math`は共通storageと検証演算を提供しても、clock policyまたは色管理policyを所有しない。
+このCatalogのうち`DurationNs`／`DurationSeconds`の実装Ownerは`mirakan::foundation/time`、`LinearColor4f`の色空間と許容範囲のOwnerはRendering／2D・3D規約である。`mirakan::math`は共通storageと検証演算を提供しても、clock policyまたは色管理policyを所有しない。
 
 ### 5.3 公開型の混同禁止
 
@@ -266,21 +266,21 @@ Presentationでfallbackが必要な場合は`normalize_or(v, fallback_unit_direc
 初期closed Diagnostic IDは次を含む。
 
 ```text
-MIRA-MATH-NON_FINITE
-MIRA-MATH-ZERO_LENGTH
-MIRA-MATH-NOT_NORMALIZED
-MIRA-MATH-QUATERNION_SIGN_NON_CANONICAL
-MIRA-MATH-SINGULAR_MATRIX
-MIRA-MATH-ILL_CONDITIONED_MATRIX
-MIRA-MATH-SHEAR_UNSUPPORTED
-MIRA-MATH-SPACE_MISMATCH
-MIRA-MATH-UNIT_MISMATCH
-MIRA-MATH-RANGE_VIOLATION
-MIRA-MATH-LAYOUT_MISMATCH
-MIRA-MATH-UNQUALIFIED_BACKEND
-MIRA-FOUNDATION-BOUNDS
-MIRA-FOUNDATION-ENDIAN
-MIRA-FOUNDATION-HASH_MISMATCH
+MIRAKAN-MATH-NON_FINITE
+MIRAKAN-MATH-ZERO_LENGTH
+MIRAKAN-MATH-NOT_NORMALIZED
+MIRAKAN-MATH-QUATERNION_SIGN_NON_CANONICAL
+MIRAKAN-MATH-SINGULAR_MATRIX
+MIRAKAN-MATH-ILL_CONDITIONED_MATRIX
+MIRAKAN-MATH-SHEAR_UNSUPPORTED
+MIRAKAN-MATH-SPACE_MISMATCH
+MIRAKAN-MATH-UNIT_MISMATCH
+MIRAKAN-MATH-RANGE_VIOLATION
+MIRAKAN-MATH-LAYOUT_MISMATCH
+MIRAKAN-MATH-UNQUALIFIED_BACKEND
+MIRAKAN-FOUNDATION-BOUNDS
+MIRAKAN-FOUNDATION-ENDIAN
+MIRAKAN-FOUNDATION-HASH_MISMATCH
 ```
 
 Diagnosticはfield path、type ID／version、expected unit／space／range、actualのredacted typed value、related requirement、許可されたRemediationを返す。
@@ -378,7 +378,7 @@ Provider projectionは正本ではない。Providerが`unit`等のcustom keyword
 
 Unity、Unreal Engine、Godot、DirectXMath、GLM、Eigen、Box2D、Jolt等のMath型をMiraikanai public API、MCD、Save、Cooked portable descriptorへ公開しない。
 
-Phase 0の`mira::math`は、C++23 standard libraryとportable scalar referenceだけでC0型・演算を実装する。目的は全数学を研究から再発明することではなく、Miraikanaiの意味とfailureを固定する最小referenceを所有することである。
+Phase 0の`mirakan::math`は、C++23 standard libraryとportable scalar referenceだけでC0型・演算を実装する。目的は全数学を研究から再発明することではなく、Miraikanaiの意味とfailureを固定する最小referenceを所有することである。
 
 ### 11.2 DirectXMath
 
@@ -488,7 +488,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 |---|---|---|
 | `MATH0_contract` | Math Type／Operation／Diagnostic MCD、generated descriptor | schema、round-trip、invalid fixture |
 | `FOUNDATION0_core` | Result、Error、Diagnostic、StableId、Hash、Endian、Duration、bounded reader／writer | unit、property、ASan、no-allocation failure path |
-| `MATH1_scalar_reference` | `mira::math` C0 storage／semantic typeとportable scalar演算 | unit、property、golden、MSVC／clang-cl |
+| `MATH1_scalar_reference` | `mirakan::math` C0 storage／semantic typeとportable scalar演算 | unit、property、golden、MSVC／clang-cl |
 | `MATH2_transform` | matrix、Quaternion、Transform2／3、projection共通部 | compose、inverse、decompose、reversed-Z |
 | `MATH3_projection` | C++／C ABI／Editor／TypeScript／MCP descriptor | deterministic generation、Gateway再検証 |
 | `MATH4_conformance` | glTF／HLSL／Adapter golden fixture | CPU／Shader、layout、invalid input |
@@ -530,7 +530,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 
 ## 16. Definition of Done
 
-1. `mira::foundation`と`mira::math`の依存が一方向でcycleがない。
+1. `mirakan::foundation`と`mirakan::math`の依存が一方向でcycleがない。
 2. `utils`／`helpers`／`common` targetまたはDirectoryがない。
 3. 全公開Math Fieldにunit、space、range、finite、precisionがある。
 4. Position、Direction、Velocity、Scale、Color、UVがAI／Authoring境界で区別される。

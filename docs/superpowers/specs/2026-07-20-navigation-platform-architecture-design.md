@@ -1,6 +1,6 @@
 # Miraikanai Engine 独自Navigation Platformアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-20
 - 最終更新日: 2026-07-20
 - 対象: 2D Grid Navigation、3D Navmesh build／query、Backend、Derived Asset、Editor、AI Authoring、Qualification
@@ -12,6 +12,7 @@
 - Asset正本: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - 実行可能契約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- World／Level／Map正本: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
 
 ## 1. 結論
 
@@ -39,8 +40,11 @@ Miraikanai EngineのNavigationは、**公開契約、正規data、build／query 
 | C1／C2製品機能、Reference Scene、成熟度 | 2D／3D機能計画 |
 | C++ ownership、pointer、dependency lock、Build Driver、directory上位規則 | 基盤規約 |
 | MCD、Schema、Provider／MCP projection、Codegen | 実行可能契約規約 |
+| World／Scene／Level／Cell identity、Streaming activation、Map Presentation | World／Level／Map規約 |
 
 本書はRuntime規約のNavigation Domain 64 MiB、request／result各4,096件／tick、T00 promotion、T20 result integrationを緩和しない。Large World、floating origin、network lockstep、GPU pathfinding、任意Runtime Navmesh生成はC1／C2に暗黙包含しない。
+
+Navigation ArtifactはWorld／Level SourceまたはStreaming Planの正本ではない。Cell activation groupは必要Navigation generationをhard dependencyとして宣言できるが、必要tileがresidentでないCellをactiveにしない。Level／World側はNavigation backend object、tile binary、path resultを保存せず、Navigation側もLevel gameplay、Objective、Portal、Map Presentationを所有しない。
 
 ## 3. 採用判断
 
@@ -164,7 +168,7 @@ tools/navigation_qualification/
 - `editor/panels/navigation`は正規documentとimmutable debug snapshotのProjectionであり、Navmeshの正本ではない。
 - `tools/navigation_qualification`はShipping Gameへlinkせず、Backend比較、fixture、benchmarkを実行する。
 
-Project C++は生成された`NavigationQueryPortV1`、`NavigationResultViewV1`、`NavigationCommandWriterV1`だけを利用する。`mira.navigation.backend.recast`という公開Moduleを作らない。
+Project C++は生成された`NavigationQueryPortV1`、`NavigationResultViewV1`、`NavigationCommandWriterV1`だけを利用する。`mirakan.navigation.backend.recast`という公開Moduleを作らない。
 
 ## 6. Backend lock、Build、交換条件
 
@@ -174,7 +178,7 @@ C1のlock entryを次に固定する。
 
 | Field | 値 |
 |---|---|
-| `backend_id` | `mira.nav.recast_detour` |
+| `backend_id` | `mirakan.nav.recast_detour` |
 | `source_version` | `1.6.0` |
 | `source_commit` | `6dc1667f580357e8a2154c28b7867bea7e8ad3a7` |
 | `license` | zlib |

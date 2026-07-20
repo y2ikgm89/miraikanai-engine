@@ -64,7 +64,7 @@ Miraikanai Engineの公式方式は、**契約駆動のhybrid memory management*
 |---|---|---|---|---|---|
 | 小さな値 | `T` | container／scope | 可 | 可 | 可 |
 | Engine内部single owner | `std::unique_ptr<T>`またはmove-only RAII wrapper | 一つ | session内だけ | owned packet時だけ | Engine保守R4だけ |
-| NativeGameModule persistent owner | `MiraUniqueOwner<T>` | Module instance | session内だけ | 禁止 | 生成factory経由だけ可 |
+| NativeGameModule persistent owner | `MirakanUniqueOwner<T>` | Module instance | session内だけ | 禁止 | 生成factory経由だけ可 |
 | 必須同期borrow | `T&`／`const T&` | 呼出側 | 禁止 | 禁止 | 生成API内部だけ |
 | 任意同期borrow | `T*`／`const T*` | 呼出側 | 禁止 | 禁止 | 公開生成APIでは禁止 |
 | 連続領域borrow | `std::span<T>`またはgenerated bounded view | 呼出側 | 禁止 | 禁止 | generated bounded viewだけ可 |
@@ -177,17 +177,17 @@ Module persistent objectは次の生成factoryだけを使用する。
 
 ```cpp
 template<class T, class... Args>
-Result<MiraUniqueOwner<T>> MiraMakePersistent(
-    MiraNativeMemoryPortV1 memory,
+Result<MirakanUniqueOwner<T>> MirakanMakePersistent(
+    MirakanNativeMemoryPortV1 memory,
     std::uint32_t tag_id,
     Args&&... args);
 ```
 
-`MiraUniqueOwner<T>`はmove-onlyで、object pointer、Memory Port、size、alignment、tagを保持する。destructorは`T`のdestructorを一度だけ呼び、取得時と同じPort、size、alignment、tagでdeallocateする。copy、releaseによる所有raw pointer流出、別Portへの移管を禁止する。
+`MirakanUniqueOwner<T>`はmove-onlyで、object pointer、Memory Port、size、alignment、tagを保持する。destructorは`T`のdestructorを一度だけ呼び、取得時と同じPort、size、alignment、tagでdeallocateする。copy、releaseによる所有raw pointer流出、別Portへの移管を禁止する。
 
 default構築状態とmove後状態は空ownerとし、destructorは何もしない。Memory Portのallocateがnullを返した場合は`MemoryBudgetExceeded`、`T`のconstructorが例外を投げた場合は取得blockを同じPortへ返して`NativeObjectConstructionFailed`を返す。例外をC ABIまたはRuntime phase境界へ伝播させない。
 
-Project C++の明示`new`／`delete`、`malloc`／`free`を禁止する。Module内部のPMR containerは`MiraNativeMemoryPortV1`を包むmodule-owned Adapterをconstructorで受け取る。ABIを越えてfactory、owner、PMR object、STL containerを渡さない。
+Project C++の明示`new`／`delete`、`malloc`／`free`を禁止する。Module内部のPMR containerは`MirakanNativeMemoryPortV1`を包むmodule-owned Adapterをconstructorで受け取る。ABIを越えてfactory、owner、PMR object、STL containerを渡さない。
 
 ## 6. AI可読Contract
 
@@ -273,14 +273,14 @@ AIはcontract IDから許可型とfactoryを選ぶ。判断不能時はraw point
 
 | Code | 条件 | Development | Shipping／Tool |
 |---|---|---|---|
-| `MIRA-MEMORY-CONTRACT_MISSING` | allocation siteにcontractなし | Build failure | 未昇格artifactに含めない |
-| `MIRA-MEMORY-DOMAIN_MISMATCH` | free元、domain、tag不一致 | fail-fast | session fault |
-| `MIRA-MEMORY-BUDGET_EXCEEDED` | hard cap超過 | allocation拒否＋capture | 規定evict後一度retry、再失敗はdomain fault |
-| `MIRA-MEMORY-HOT_PATH_FALLBACK` | hot pathが一般heapを要求 | performance test failure | fallbackせず当該phase fault |
-| `MIRA-POINTER-STALE_HANDLE` | generation不一致 | owner／create／destroy tickを表示 | typed failure |
-| `MIRA-POINTER-BORROW_EXPIRED` | epoch／phase失効後access | fail-fast | invalid actionをpublishしない |
-| `MIRA-POINTER-THREAD_AFFINITY` | 非owner threadでresolve／access | fail-fast | command／job resultをreject |
-| `MIRA-POINTER-UNSAFE_CAPABILITY_REQUIRED` | unsafe API権限なし | Build failure | artifact promotion拒否 |
+| `MIRAKAN-MEMORY-CONTRACT_MISSING` | allocation siteにcontractなし | Build failure | 未昇格artifactに含めない |
+| `MIRAKAN-MEMORY-DOMAIN_MISMATCH` | free元、domain、tag不一致 | fail-fast | session fault |
+| `MIRAKAN-MEMORY-BUDGET_EXCEEDED` | hard cap超過 | allocation拒否＋capture | 規定evict後一度retry、再失敗はdomain fault |
+| `MIRAKAN-MEMORY-HOT_PATH_FALLBACK` | hot pathが一般heapを要求 | performance test failure | fallbackせず当該phase fault |
+| `MIRAKAN-POINTER-STALE_HANDLE` | generation不一致 | owner／create／destroy tickを表示 | typed failure |
+| `MIRAKAN-POINTER-BORROW_EXPIRED` | epoch／phase失効後access | fail-fast | invalid actionをpublishしない |
+| `MIRAKAN-POINTER-THREAD_AFFINITY` | 非owner threadでresolve／access | fail-fast | command／job resultをreject |
+| `MIRAKAN-POINTER-UNSAFE_CAPABILITY_REQUIRED` | unsafe API権限なし | Build failure | artifact promotion拒否 |
 
 OOM diagnostic用storageはEmergency reserveから事前確保し、OOM pathで一般container、format allocation、logger queue拡張を行わない。
 
@@ -308,7 +308,7 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 
 - generation slotのcreate、destroy、reuse、random invalid、wrap retire、space exhaustion。
 - `ReadLease`／`WriteLease`のphase、epoch、thread、overlap、structural mutation失効。
-- `MiraUniqueOwner`のconstructor failure、move、destructor一回、Port／size／alignment／tag一致。
+- `MirakanUniqueOwner`のconstructor failure、move、destructor一回、Port／size／alignment／tag一致。
 - arena reset、pool reuse、double free、wrong resource、alignment 1～4096。
 - Asset version leaseとGPU／Audio／Physics retireの同時条件。
 - GPU multi-queue submission completion前のallocation／binding再利用禁止。
@@ -336,7 +336,7 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 3. System／Tracking／Budget／Failure Resourceを実装する。
 4. Frame／RenderFrame／Scratch arenaとASan poisonを実装する。
 5. `ReadLease`／`WriteLease`、epoch、thread-affinity検査を実装する。
-6. Native Memory Port Adapterと`MiraUniqueOwner` factoryを実装する。
+6. Native Memory Port Adapterと`MirakanUniqueOwner` factoryを実装する。
 7. Contract compilerからC++ API、manifest、static rule、test fixtureを生成する。
 8. ECS 16 KiB archetype chunk、hot path allocation Gate、telemetryを接続する。
 9. GPU allocator、submission retire、Asset version leaseを接続する。

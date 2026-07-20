@@ -1,12 +1,14 @@
 # Miraikanai Engine Material／Visual Style／AI Authoringアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-20
 - 対象: 描画Material、Visual Style、Shader authoring、Editor、AI Operation、Preview、Explain、Validator、Eval
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Authoring規約: [Miraikanai Engine AIネイティブゲームエンジン制作設計書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema Code Generation規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- Lighting規約: [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
+- Post Process規約: [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Asset Import規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UX規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
 - LOD規約: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
@@ -83,11 +85,13 @@ Catalog検索
 | RenderSnapshot、Render Graph、GPU resource lifetime、Backend Adapter | Renderer規約 |
 | Source import、Texture encoding、Cook、Package、Hot Reload | Asset／Asset Import規約 |
 | 共通LOD Intent、Target別Plan、transition、Receipt | LOD規約 |
+| Light Source、物理単位、Lighting Intent／Profile／Resolver、selection／cluster | Lighting規約 |
+| Post Process Intent／Profile／Node、Volume、execution stage、history | Post Process規約 |
 | 摩擦、反発、密度、contact surface | Collision規約 |
 | ChangeSet、revision、approval、R0～R5 | Authoring／AI権限規約 |
 | MCD Type／Operation、code generation | 契約規約 |
 
-本書と他規約で同じfieldを重複定義しない。本書はMaterialの意味を、各Subsystem規約は実行境界とArtifactを所有する。
+本書と他規約で同じfieldを重複定義しない。本書はMaterialとVisual Styleの意味を所有し、LightingはStyleを制約入力としてLight Planを、Post ProcessはStyleを制約入力としてPost Process Planを解決する。Visual StyleがLight Source、Post Process Profile、Render passを直接所有してはならない。
 
 ### 1.3 描画MaterialとCollision Material
 
@@ -115,7 +119,7 @@ Bindingは参照を接続するだけで各Domainの値を複製しない。描�
 
 ## 2. 設計原則
 
-1. **意味を名前より優先する。** File名、folder名、Shader名、自然言語だけを正規identityにしない。
+1. **意味を名前より優先する。** File名、Directory名、Shader名、自然言語だけを正規identityにしない。
 2. **一つのAuthoring SourceからTarget別Artifactを作る。** Windows、Android、Apple用に別Materialを手作業で維持しない。
 3. **Instanceを通常経路にする。** 色やTexture変更でGraph revisionやvariantを増やさない。
 4. **Domainごとに出力を閉じる。** Graphから任意pass、UAV、native resourceへ接続させない。
@@ -647,22 +651,22 @@ Material LODはoffline compile済みvariantだけを選ぶ。次を削除また�
 最低Diagnostic IDを次に固定する。
 
 ```text
-MIRA-MATERIAL-SEMANTIC_ROLE_UNKNOWN
-MIRA-MATERIAL-DOMAIN_MISMATCH
-MIRA-MATERIAL-GRAPH_INVALID
-MIRA-MATERIAL-PARAMETER_INVALID
-MIRA-MATERIAL-TEXTURE_ENCODING_MISMATCH
-MIRA-MATERIAL-CAPABILITY_NOT_ACTIVATED
-MIRA-MATERIAL-BUDGET_EXCEEDED
-MIRA-MATERIAL-INTERFACE_MISMATCH
-MIRA-MATERIAL-VARIANT_LIMIT
-MIRA-MATERIAL-COMPILE_FAILED
-MIRA-MATERIAL-STYLE_LOCK_VIOLATION
-MIRA-MATERIAL-FALLBACK_REQUIRED
-MIRA-MATERIAL-PROVENANCE_MISSING
-MIRA-MATERIAL-PREVIEW_STALE
-MIRA-MATERIAL-UNAUTHORIZED_SOURCE
-MIRA-MATERIAL-COLLISION_NAMESPACE_MISMATCH
+MIRAKAN-MATERIAL-SEMANTIC_ROLE_UNKNOWN
+MIRAKAN-MATERIAL-DOMAIN_MISMATCH
+MIRAKAN-MATERIAL-GRAPH_INVALID
+MIRAKAN-MATERIAL-PARAMETER_INVALID
+MIRAKAN-MATERIAL-TEXTURE_ENCODING_MISMATCH
+MIRAKAN-MATERIAL-CAPABILITY_NOT_ACTIVATED
+MIRAKAN-MATERIAL-BUDGET_EXCEEDED
+MIRAKAN-MATERIAL-INTERFACE_MISMATCH
+MIRAKAN-MATERIAL-VARIANT_LIMIT
+MIRAKAN-MATERIAL-COMPILE_FAILED
+MIRAKAN-MATERIAL-STYLE_LOCK_VIOLATION
+MIRAKAN-MATERIAL-FALLBACK_REQUIRED
+MIRAKAN-MATERIAL-PROVENANCE_MISSING
+MIRAKAN-MATERIAL-PREVIEW_STALE
+MIRAKAN-MATERIAL-UNAUTHORIZED_SOURCE
+MIRAKAN-MATERIAL-COLLISION_NAMESPACE_MISMATCH
 ```
 
 DiagnosticはStable ID、revision、field／node／port、Target、Quality、actual、expected、consumer closure、修正候補を持つ。Vendor compiler logだけをユーザーへ返さず、原文は開発者詳細へ添付する。

@@ -1,6 +1,6 @@
 # Miraikanai Engine モバイルPlatformアーキテクチャ規約
 
-- 文書版: 1.9
+- 文書版: 1.11
 - 作成日: 2026-07-19
 - 調査基準日: 2026-07-20
 - 対象: Android、iOS／iPadOS、共通C++ Runtime、Windows Editor、Build／配布、AI Authoring
@@ -18,6 +18,7 @@
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 
 ## 1. 結論
 
@@ -183,7 +184,7 @@ First-party Android C++の正本はRoot `CMakeLists.txt`、公式入口は固定
 
 Configuration写像を次に固定する。
 
-| Mira configuration | Gradle build type | `CMAKE_BUILD_TYPE` | 制約 |
+| Mirakan configuration | Gradle build type | `CMAKE_BUILD_TYPE` | 制約 |
 |---|---|---|---|
 | `Development` | `debug` | `Debug` | debuggable、Shipping不可 |
 | `Profile` | `profile` | `RelWithDebInfo` | profiling用、Shipping不可 |
@@ -535,14 +536,18 @@ AIがMaterialを生成する際は、選択TargetすべてのCapability intersec
 
 ### 10.6 Reconstruction、GPU-driven、RT／Neural Capability
 
-MobileもRenderer規約の`TemporalFrameInputV1`、`ResolvedRendererProfileV1`、Provider排他、history reset、real／displayed fps分離を使う。Desktop Providerの成功をMobile対応へ一般化しない。
+MobileもRenderer規約の`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、`TemporalFrameInputV1`、`ResolvedRendererProfileV1`、Provider排他、history reset、real／displayed fps分離を使う。Desktop Providerの成功をMobile対応へ一般化しない。
 
 | Target | 初期基準 | 追加候補 | Production条件 |
 |---|---|---|---|
-| Android Baseline | FXAA／Mira TAAU、CPU frustum／instancing | Vulkan indirect、FSRの当該Technique | Vulkan Profile、driver、実機memory／thermal／visual Gate |
-| Android Standard／High | Mira TAAU、GPU indirect＋CPU fallback | HZB、FSR SR／FG、選択的Ray Query | TechniqueのVulkan配布物、署名／hash、10分／30分／2時間Gate |
-| Apple Baseline | FXAA／Mira TAAU | MetalFX Spatial | `supportsFamily`とAPI availability |
-| Apple Standard／High | MetalFX Temporal、Indirect Command Buffer | MetalFX Frame Interpolation／Denoised、Mesh Shading、Ray Tracing、Metal 4 ML | 個別feature query、Provider／model lock、実機Gate |
+| Android Baseline | FXAA、CPU frustum／instancing。Forward+ MSAA 2xはQualified端末だけ | MSAA 4x、SMAA 1x、Mirakan TAA／TAAU、Vulkan indirect、FSRの当該Technique | Vulkan sample count／color・depth resolve、tile memory／bandwidth、Profile、driver、実機memory／thermal／visual Gate |
+| Android Standard／High | FXAA fallback。Intentに応じてQualified MSAA 2x／4xまたはMirakan TAA／TAAU、GPU indirect＋CPU fallback | HZB、FSR SR／FG、選択的Ray Query。MSAA 8xは`mobile_high`の個別候補だけ | TechniqueのVulkan配布物、署名／hash、10分／30分／2時間Gate |
+| Apple Baseline | FXAA。Forward+ MSAA 2xはQualified端末だけ | MSAA 4x、SMAA 1x、MetalFX Spatial | sample count／store・resolve、tile memory／bandwidth、`supportsFamily`、API availability、実機visual Gate |
+| Apple Standard／High | FXAA fallback。Intentに応じてQualified MSAA 2x／4xまたはMirakan TAAU／MetalFX Temporal、Indirect Command Buffer | MetalFX Frame Interpolation／Denoised、Mesh Shading、Ray Tracing、Metal 4 ML。MSAA 8xは`mobile_high`の個別候補だけ | 個別feature query、Provider／model lock、10分／30分／2時間の実機Gate |
+
+Mobileの自動選択は`balanced`／`low_gpu_cost`でFXAAをBaseline既定とし、temporal methodを実機Gateなしで自動採用しない。`minimum_blur`／`minimum_ghosting`／`vr_low_latency`ではQualified Forward+ MSAA 2x／4xを候補にできる。MSAA 8xは`mobile_high`またはoffline captureだけのC2機能とし、AIの自動選択から除外する。SMAA 1xもC2でありBaseline必須にしない。`pixel_crisp`はWorld AAをpixel-locked layerへ適用せず、最終解像度で合成する。
+
+MSAAはmultisample color／depth attachment、store／resolve、sample count、transient／memoryless attachmentをTargetごとに検証する。Opaque Texture相当のsampled scene color、post effect、transparent表現またはtile store条件と両立しない場合は、MSAAを黙って無効化せず`AntiAliasingResolutionErrorV1::UnsupportedByTarget`でPlanを拒否し、FXAA等の明示fallbackを提示する。Portable baselineではMSAAとtemporal AA／TAAUの併用を禁止し、MSAA＋FXAA／SMAAもTarget固有Qualificationを通した例外だけにする。
 
 DLSS／XeSS／Windows DirectSRをAndroid／Apple Capability Catalogへ掲載しない。FSR SDKにD3D12とVulkan実装が含まれていても、選択Technique、Android ABI、Vulkan feature、driver、thermalが実機で合格するまでAndroid Productionにしない。
 
@@ -694,7 +699,7 @@ CPUとGPUはpipelineされるためsoft値を加算しない。warm-up後10分�
 | `mobile_standard` | 2,073,600 | 1920×1080 |
 | `mobile_high` | 3,686,400 | 2560×1440 |
 
-pixel数で上限を判定し、縦横比へ追従する。Dynamic resolutionは5%刻み、最低50%とする。30連続frameのうち12 frame以上でGPU soft targetを超えた場合、またはMemory／Thermalが`Serious`以上になった場合は直ちに一段下げる。一段上げるのはGPU frame timeがsoft targetの80%未満かつMemory／Thermalが`Normal`の状態を15秒連続で満たした場合だけとし、1秒に一段を超えて変更しない。UI／text／pixel-locked layerへ適用しない。
+pixel数で上限を判定し、縦横比へ追従する。Dynamic resolutionは5%刻み、最低50%とする。30連続frameのうち12 frame以上でGPU soft targetを超えた場合、またはMemory／Thermalが`Serious`以上になった場合は直ちに一段下げる。一段上げるのはGPU frame timeがsoft targetの80%未満かつMemory／Thermalが`Normal`の状態を15秒連続で満たした場合だけとし、1秒に一段を超えて変更しない。UI／text／pixel-locked layerへ適用しない。temporal method使用中にresolution step、orientation、surface generation、projection、jitter sequence、camera cutが変わった場合は、Renderer規約の理由code付きhistory resetを必須にする。
 
 ### 14.3 Thermal governor
 
@@ -723,11 +728,11 @@ Thermal governorが自動で下げられるのはresolution、shadow、VFX、vol
 | Clouds | 2D layer | reduced volumetric optional | volumetric |
 | Particle | CPUまたは限定GPU | GPU particle | GPU particle高budget |
 | Reflection | probe | probe＋SSR optional | probe＋SSR |
-| Anti-alias／Upscale | FXAA／Mira spatial | TAA／Mira TAAU／MetalFX temporal | Mira TAAU／Qualified FSR・MetalFX |
+| Anti-alias／Upscale | FXAA。Qualified MSAA 2xは`minimum_blur`／`minimum_ghosting`／`vr_low_latency`だけ | FXAA fallback。Qualified SMAA 1x、MSAA 2x／4x、Mirakan TAA／TAAU | Mirakan TAAU／Qualified FSR・MetalFX。MSAA 8xは個別Gateだけ |
 | Frame Generation | Off | Off | Qualified `mobile_high`だけ |
 | RT／Neural | Off | Off | 個別Experimental／Qualification後。Raster fallback必須 |
 
-この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず一段下げる。2D C1はBaselineで全機能を成立させ、3D C1はscalable subsetを成立させる。
+この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず一段下げる。2D C1はBaselineで全機能を成立させ、3D C1はscalable subsetを成立させる。AI／Editorはmethod名を直接推測せず`AntiAliasingIntentV1`を入力し、Rendererの決定的Resolverから得た`ResolvedAntiAliasingPlanV1`、推定GPU／memory／bandwidth費用、fallback、omitted reason、Qualification Receiptを同じChangeSet previewへ表示する。
 
 初期Mobile Targetは`VirtualShadowBackendV1`、`RayTracedShadowBackendV1`、`ProjectShadowTechniqueV1`をCapability Catalogへ掲載しない。共通`ShadowIntentV1`とL1 ProfileはMobileでも使用でき、Resolverが上表のSDF／CSM／atlas／選択的PCSSへ解決する。L2 `ShadowGraphV1`はMobile Catalogに存在するNodeだけでcompileし、Windows専用Sourceを含むGraphはTarget別fallbackと見た目DiffがなければCookを拒否する。将来Virtual／RT／Project TechniqueをMobileへ追加する場合はminimum実機、30分thermal soak、2時間endurance、tile memory／bandwidth、driver fault、全Store packageを持つ別Capability Gateを必要とする。
 
@@ -768,7 +773,9 @@ Runtime生成dataはcontent moderation、age／region policy、rate limit、in-a
 - phone、tablet、foldable、iPhone、iPadのsafe-area／cutout／orientation preview
 - touch、multi-touch、controller、software keyboard simulation
 - World resolution、UI resolution、dynamic resolution、memory、frame、thermal budget表示
-- Device Manager: install、launch、stop、log、screenshot、capture、crash取得
+- Device Manager: install、launch、stop、認証済みDebug Session、log、screenshot、bounded capture、partial gap、crash／hang／Reproduction Bundle取得
+- Android External Tools: Android Performance Analyzer／Perfetto system trace、AGI frame profile、Vulkan Validation／`VK_EXT_debug_utils`をSession／Build／Project revisionへ関連付け
+- Apple External Tools: Metal API Validation／GPU capture／InstrumentsをSession／Build／Project revisionへ関連付け
 - Apple Services: Unsigned Build Worker、Signing Service、Upload Service、Xcode／SDK／certificateの非秘密状態、適合試験、TestFlight job
 - Package Inspector: ABI、native alignment、permission、privacy manifest、Asset chunk、size、shader coverage
 - AI Diff内のPlatform影響、fallback、Store／permission警告
@@ -777,7 +784,7 @@ AI panelは任意workspaceで常時dock可能だが、Target設定、Inspector�
 
 ### 16.2 実機iteration
 
-Development buildでは認証済みlocal device bridgeを介し、互換なGameplayDefinitionSet、構造化data、既Cook Assetだけをhot reloadできる。C++、shader、native pluginの変更は再build／再installを必須とする。Shipping buildにdevice bridge、debug server、compiler、credentialを含めない。
+Development buildでは認証済みlocal device bridgeを介し、互換なGameplayDefinitionSet、構造化data、既Cook Assetだけをhot reloadできる。C++、shader、native pluginの変更は再build／再installを必須とする。Device Debug handshakeはEngine／protocol／Build／Project revision／Target／device identity／requested recording tier／retention上限を照合し、Userが選択した一台、一Session、一時間範囲だけを接続する。切断時は受信済み完全chunkをread-onlyで確定し、未受信rangeをgapとして残す。Shipping buildにdevice bridge、debug server、IDE attach、validation layer、raw trace、compiler、source path、credentialを含めない。
 
 ## 17. Security、Privacy、Store
 
@@ -886,6 +893,7 @@ Retail model名だけで固定せず、Capability Signatureでlaneを定義す�
 - 10分performance、30分thermal、2時間endurance
 - Android 16 KiB package、Apple archive／privacy、Store size
 - Shader全variant compile、golden image、Target fallback
+- Off／FXAA／SMAA 1x／MSAA 2x・4x・8x／Mirakan TAA／TAAUの対応Profile別visual receipt、MSAA store／resolve、alpha／transparent、camera cut、dynamic resolution、rotation／surface再生成、pixel-locked UI／textのbit-exact合成。未対応組合せのfail-closed
 - Runtime AI data validation、moderation failure、rollback、実行code混入拒否
 
 ## 19. Release gate
@@ -903,6 +911,7 @@ Shipping候補は次を全て満たす。
 9. Data Safety／Privacy Manifestと実binary／SDK scanが一致する。
 10. release ownerがStore listing、permission purpose、privacy、unsigned artifact hash、signing profile、TestFlight／internal track結果を承認する。
 11. Build WorkerにSigning／Upload secretがなく、Signing ServiceにSource／Build scriptがなく、Upload ServiceにSource／Signing keyがないことをService identityとnegative testで証明する。
+12. 各Targetの`ResolvedAntiAliasingPlanV1`がCapability Signature、Qualification Receipt、visual receipt、memory／bandwidth、30分thermal結果へ連結され、未対応method／sample count／併用を選んでいない。
 
 ## 20. 段階計画
 
@@ -911,9 +920,9 @@ Mobile対応はWindows MVPを捨てて同時並行に全面実装せず、共通
 | Mobile milestone | 実施時期 | 完了条件 |
 |---|---|---|
 | M0 Platform Contract | Product Phase 0 | Target／Distribution／Display／Lifecycle／Graphics Port schema、directory、toolchain lock、package validator |
-| M1 Android 2D slice | Windows 2D C1後 | GameActivity、Vulkan、Oboe、touch、Save、unsigned AAB→分離署名、Baseline実機で同じ2D First Playable |
-| M2 Apple 2D slice | M1後 | UIKit／MTKView、Metal、AudioUnit、touch、Save、Shipping backend適合試験、TestFlight、A12実機で同じ2D First Playable |
-| M3 Mobile 3D production | Windows 3D C1後 | 3D scalable quality、shader／texture cook、thermal／memory governor、PAD／Background Assets |
+| M1 Android 2D slice | Windows 2D C1後 | GameActivity、Vulkan、Oboe、touch、Save、unsigned AAB→分離署名、FXAA／MSAA 2x conformance、Baseline実機で同じ2D First Playable |
+| M2 Apple 2D slice | M1後 | UIKit／MTKView、Metal、AudioUnit、touch、Save、FXAA／MSAA 2x conformance、Shipping backend適合試験、TestFlight、A12実機で同じ2D First Playable |
+| M3 Mobile 3D production | Windows 3D C1後 | 3D scalable quality、AA Intent／Plan resolver、Mirakan TAA、Qualified MSAA 4x、shader／texture cook、thermal／memory governor、PAD／Background Assets |
 | M4 Store-ready Runtime AI | Production Capability後 | data-only Runtime AI、content safety、privacy、physical device lab、release gate |
 
 M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget`を返す。偽の成功や空のpackageを作らない。
@@ -934,6 +943,8 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 - Store／SDKのExternal EvidenceがAI検証規約の期限内であり、Submission 7日前以内に再確認される。
 - Android Buildは`HyperVIsolatedWorkerV1`、自己host Apple Buildは`AppleUnsignedBuildWorkerV1`のBase image、no-secret／no-egress、Task disk破棄、Broker Output、Signing host分離conformanceを通る。
 - Android／Apple Build ReceiptのDriver Profile ID、Generator、Build tree identity、Package ownerが基盤規約のclosed matrixと一致し、Makefiles／`ndk-build`、Android Multi-Config、CX1 packageを拒否する。
+- `AntiAliasingIntentV1`から`ResolvedAntiAliasingPlanV1`への解決がTarget Capabilityに対して決定的であり、FXAA／SMAA／MSAA／Mirakan TAA／TAAUの対応範囲、排他、fallback、history reset、visual receiptをEditorとAIが同じMCDから理解する。
+- Android／Apple実機のDebug Session handshake、bounded capture、切断partial gap、Android Performance Analyzer／Perfetto／AGI／Vulkan／Metal／Instruments captureのSession再結合を検証し、Shipping package scanがdevice bridge、debug server、IDE attach、validation layer、raw trace、source path、credentialを拒否する。
 
 ## 22. 主なリスクと対策
 
@@ -953,6 +964,8 @@ M0ではPortとschemaを作るが、未完成Adapterのstubは`UnsupportedTarget
 | touch UIがdesktop UIの縮小になる | dp／pt最小target、safe-area、tablet／foldable fixture |
 | 端末数増加でQAが破綻 | Capability Signature、Minimum／Reference／High lane、bridge baseline |
 | 複数backendで見た目がずれる | Material IR、offline cross-compile、golden image、明示fallback |
+| AIが高価なAA、blur／ghostingの強いAA、未対応併用を自動選択する | closed Intent enum、決定的Resolver、費用／画質preview、MSAA×temporal fail-closed、実機Qualification Receipt |
+| MSAAがtile memory／bandwidth／store-resolve制約でthermal悪化または描画欠落を起こす | BaselineはFXAA、2x／4xを実機Gate、8xを個別Gate、sample／resolve conformanceと30分thermalをRelease gate化 |
 
 ## 23. 一次資料
 

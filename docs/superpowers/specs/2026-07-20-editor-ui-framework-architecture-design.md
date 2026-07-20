@@ -1,9 +1,9 @@
 # Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-20
 - 調査基準日: 2026-07-20
-- 対象: MiraUI Core、MiraEditor Shell、Widget、Layout、Event、Rendering、Docking、Window、Text、IME、Accessibility、AI Semantic Interface
+- 対象: MirakanUi Core、MirakanEditor Shell、Widget、Layout、Event、Rendering、Docking、Window、Text、IME、Accessibility、AI Semantic Interface
 - 状態: プロジェクト公式の規範設計レビュー版
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - C++規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
@@ -12,14 +12,15 @@
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Rendering規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 
 ## 1. 結論
 
-Miraikanai EngineはDear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、Chromium Embedded FrameworkをEditor UI Frameworkとして採用しない。C++23で独自の`MiraUI Core`と`MiraEditor Shell`を構築する。
+Miraikanai EngineはDear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、Chromium Embedded FrameworkをEditor UI Frameworkとして採用しない。C++23で独自の`MirakanUi Core`と`MirakanEditor Shell`を構築する。
 
-`MiraUI Core`はRetained Modeの`UiRuntimeTree`、typed Layout、Style、Event、Focus、Hit Test、Semantic Tree、Render Packetを所有する。Scene View、Graph、Timeline、Profiler等の高頻度可視化は、Retained Widgetである`UiCanvasSurface`の内部に限り、Engine登録済みのtyped Immediate Canvas producerを使用できる。Immediate描画命令列はUI状態、入力状態、Accessibility、Workspace、Projectの正本にならない。
+`MirakanUi Core`はRetained Modeの`UiRuntimeTree`、typed Layout、Style、Event、Focus、Hit Test、Semantic Tree、Render Packetを所有する。Scene View、Graph、Timeline、Profiler等の高頻度可視化は、Retained Widgetである`UiCanvasSurface`の内部に限り、Engine登録済みのtyped Immediate Canvas producerを使用できる。Immediate描画命令列はUI状態、入力状態、Accessibility、Workspace、Projectの正本にならない。
 
-EditorとShipping Game UIは`MiraUI Core`を共有するが、FrontendとPlatform Adapterを分離する。
+EditorとShipping Game UIは`MirakanUi Core`を共有するが、FrontendとPlatform Adapterを分離する。
 
 - Editor: C++ `EditorViewDescriptor`、Editor command、Docking、Workspace、Windows system font、DirectWrite、TSF、UI Automation
 - Game: Schema検証済み`UiDocument`、typed ViewModel、bundled Font、HarfBuzz／FreeType／ICU、Target別Accessibility bridge
@@ -32,7 +33,7 @@ EditorとShipping Game UIは`MiraUI Core`を共有するが、FrontendとPlatfor
 
 | 主題 | 正本 |
 |---|---|
-| MiraUI C++ target、Editor UI architecture、Docking engine、Editor Semantic Interface、禁止GUI dependency | 本書 |
+| MirakanUi C++ target、Editor UI architecture、Docking engine、Editor Semantic Interface、禁止GUI dependency | 本書 |
 | Game `UiDocument`、Layout algorithm、Style、Binding、Text／Localization、Game Accessibility | UI規約 |
 | Panel配置、Workspace、操作、AI Partner、人間工学、Editor性能の製品要件 | Editor UX規約 |
 | Project state変更、ChangeSet、Commit、Undo、Recovery | Authoring規約 |
@@ -46,14 +47,14 @@ EditorとShipping Game UIは`MiraUI Core`を共有するが、FrontendとPlatfor
 
 | 用語 | 定義 |
 |---|---|
-| `MiraUI Core` | Editor／Gameで共有するRetained UI Runtime |
-| `MiraEditor Shell` | MiraUI上に構築するEditor専用Window、Panel、Dock、Menu、Command、Workspace層 |
+| `MirakanUi Core` | Editor／Gameで共有するRetained UI Runtime |
+| `MirakanEditor Shell` | MirakanUi上に構築するEditor専用Window、Panel、Dock、Menu、Command、Workspace層 |
 | `UiRuntimeTree` | Widgetの構造、local presentation state、computed style参照を保持する非永続Retained tree |
 | `UiPresentationSnapshot` | Layout、Hit Test、Semantic、Draw Packetのimmutableな一Frame snapshot |
 | `EditorViewDescriptor` | Editor C++ viewをtypedに構成する入力。Project正本ではない |
 | `EditorSemanticSnapshotV1` | Accessibility、AI context、automation testが読む意味情報のimmutable snapshot |
 | `UiCanvasSurface` | Engine登録済みproducerだけがbounded primitiveを出力できるRetained Widget |
-| Platform Adapter | Win32／DirectWrite／TSF／UIA／OLE型をMiraUI型へ変換するprivate実装 |
+| Platform Adapter | Win32／DirectWrite／TSF／UIA／OLE型をMirakanUi型へ変換するprivate実装 |
 
 ### 2.3 C1対象外
 
@@ -125,7 +126,7 @@ OS dialogはbootstrap、File／Folder selection、credential／permission、fata
 Human pointer／keyboard／IME
   -> WindowsUiAdapter
   -> PlatformUiEventV1
-  -> MiraUI Event／Focus Router
+  -> MirakanUi Event／Focus Router
   -> EditorCommandRequest
   -> EditorCommandRegistry
   -> AuthoringCommandGateway／WorkspaceService
@@ -141,7 +142,7 @@ ProjectRevision + EditorUserState
   -> UiRuntimeTree
   -> Measure／Arrange／HitTest／Semantic／Paint
   -> UiPresentationSnapshot
-       ├─ MiraUiDrawPacketV1 -> Rendering UI Pass -> D3D12
+       ├─ MirakanUiDrawPacketV1 -> Rendering UI Pass -> D3D12
        ├─ EditorSemanticSnapshotV1 -> Windows UIA Provider
        └─ EditorContextSnapshotV1 -> bounded AI context
 ```
@@ -157,7 +158,7 @@ ProjectRevision + EditorUserState
 
 ## 6. Shared Core、Editor、Gameの分離
 
-| Capability | MiraUI Core | MiraEditor Shell | Game UI Frontend |
+| Capability | MirakanUi Core | MirakanEditor Shell | Game UI Frontend |
 |---|---:|---:|---:|
 | UiRuntimeTree／generation | 所有 | 利用 | 利用 |
 | Layout／Style／Event／Focus | 所有 | 利用 | 利用 |
@@ -166,12 +167,12 @@ ProjectRevision + EditorUserState
 | Dock／Panel／Workspace | primitiveのみ | 所有 | 禁止 |
 | `UiDocument`／ViewModel／Screen stack | primitiveのみ | 禁止 | 所有 |
 | AuthoringCommandGateway | 禁止 | typed Portだけ利用 | 禁止 |
-| DirectWrite | `IUiTextBackend` Portのみ | `mira.ui.directwrite.adapter`をcompose | 使用しない |
-| TSF | `ITextInputService` Portのみ | `mira.ui.tsf.adapter`をcompose | Windowsでtext inputを持つGameだけ同じAdapterをcompose |
-| UI Automation | `IUiAccessibilityBridge` Portのみ | `mira.ui.uia.adapter`をcompose | Windows Accessibilityを有効にするGameだけ同じAdapterをcompose |
+| DirectWrite | `IUiTextBackend` Portのみ | `mirakan.ui.directwrite.adapter`をcompose | 使用しない |
+| TSF | `ITextInputService` Portのみ | `mirakan.ui.tsf.adapter`をcompose | Windowsでtext inputを持つGameだけ同じAdapterをcompose |
+| UI Automation | `IUiAccessibilityBridge` Portのみ | `mirakan.ui.uia.adapter`をcompose | Windows Accessibilityを有効にするGameだけ同じAdapterをcompose |
 | HarfBuzz／FreeType／ICU | Portのみ | ICUだけをlocale、boundary、message処理へ利用。HarfBuzz／FreeTypeはEditorHostへlinkしない | Target共通Backend |
 
-Shipping `GameHost`のdependency closureに`mira.editor.*`、Authoring、Workspace、UIA Editor providerを含めない。CIはCMake graph、Named Module graph、link map、SBOMの四つで検査する。
+Shipping `GameHost`のdependency closureに`mirakan.editor.*`、Authoring、Workspace、UIA Editor providerを含めない。CIはCMake graph、Named Module graph、link map、SBOMの四つで検査する。
 
 EditorとGameで共有するのはalgorithmとcontractであり、Widget instance、Font cache、Focus、State Store、semantic generation、GPU resourceをProcess間共有しない。
 
@@ -210,22 +211,22 @@ editor/
 
 | CMake alias | Named Module | 公開責務 |
 |---|---|---|
-| `mira::ui_core` | `mira.ui.core` | tree、handle、snapshot、state |
-| `mira::ui_layout` | `mira.ui.layout` | typed layout、virtualization |
-| `mira::ui_events` | `mira.ui.events` | event、focus、hit test |
-| `mira::ui_semantics` | `mira.ui.semantics` | semantic contract |
-| `mira::ui_text` | `mira.ui.text` | text backend port |
-| `mira::ui_rendering` | `mira.ui.rendering` | draw packet、render port |
-| `mira::ui_d3d12_adapter` | `mira.ui.d3d12.adapter` | MiraUiDrawPacketV1のD3D12変換 |
-| `mira::ui_directwrite_adapter` | `mira.ui.directwrite.adapter` | DirectWrite text layout／glyph analysis |
-| `mira::ui_tsf_adapter` | `mira.ui.tsf.adapter` | TSF text input |
-| `mira::ui_uia_adapter` | `mira.ui.uia.adapter` | UI Automation provider |
-| `mira::ui_harfbuzz_freetype_adapter` | `mira.ui.harfbuzz_freetype.adapter` | Shipping Game text shaping／raster |
-| `mira::editor_ole_adapter` | `mira.editor.ole.adapter` | Editor Clipboard／OLE drag and drop |
-| `mira::editor_ui` | `mira.editor.ui` | Editor view／control |
-| `mira::editor_shell` | `mira.editor.shell` | shell／command composition |
-| `mira::editor_docking` | `mira.editor.docking` | docking／floating transaction |
-| `mira::editor_semantics` | `mira.editor.semantics` | AI／UIA用Editor semantics |
+| `mirakan::ui_core` | `mirakan.ui.core` | tree、handle、snapshot、state |
+| `mirakan::ui_layout` | `mirakan.ui.layout` | typed layout、virtualization |
+| `mirakan::ui_events` | `mirakan.ui.events` | event、focus、hit test |
+| `mirakan::ui_semantics` | `mirakan.ui.semantics` | semantic contract |
+| `mirakan::ui_text` | `mirakan.ui.text` | text backend port |
+| `mirakan::ui_rendering` | `mirakan.ui.rendering` | draw packet、render port |
+| `mirakan::ui_d3d12_adapter` | `mirakan.ui.d3d12.adapter` | MirakanUiDrawPacketV1のD3D12変換 |
+| `mirakan::ui_directwrite_adapter` | `mirakan.ui.directwrite.adapter` | DirectWrite text layout／glyph analysis |
+| `mirakan::ui_tsf_adapter` | `mirakan.ui.tsf.adapter` | TSF text input |
+| `mirakan::ui_uia_adapter` | `mirakan.ui.uia.adapter` | UI Automation provider |
+| `mirakan::ui_harfbuzz_freetype_adapter` | `mirakan.ui.harfbuzz_freetype.adapter` | Shipping Game text shaping／raster |
+| `mirakan::editor_ole_adapter` | `mirakan.editor.ole.adapter` | Editor Clipboard／OLE drag and drop |
+| `mirakan::editor_ui` | `mirakan.editor.ui` | Editor view／control |
+| `mirakan::editor_shell` | `mirakan.editor.shell` | shell／command composition |
+| `mirakan::editor_docking` | `mirakan.editor.docking` | docking／floating transaction |
+| `mirakan::editor_semantics` | `mirakan.editor.semantics` | AI／UIA用Editor semantics |
 
 依存は次のDAGに固定する。`A <- B`は「BがAへ依存する」を意味し、逆方向の依存を許可しない。
 
@@ -394,6 +395,7 @@ AIへ提供する`EditorContextSnapshotV1`は、選択されたPanelのSemantic 
 - Context byte上限とredaction resultをReceiptへ記録する。
 - AIはControl IDを説明とfocus requestに使用できるが、状態変更はCommand ID／Authoring Operationで行う。
 - `EditorContextSnapshotV1`のgenerationが古いProposalを自動実行しない。
+- Debug Panel選択時もraw trace、画面pixel、無制限event列をこのSnapshotへ埋め込まない。Debugging規約のbounded `AiDebugContextV1`を参照し、Session／Query／Evidence ID／recorded revision／gap／redactionを失わない。
 
 このSemantic Interfaceにより、AI統合は画面操作macroではなくMiraikanaiのAuthoring契約となる。
 
@@ -402,7 +404,7 @@ AIへ提供する`EditorContextSnapshotV1`は、選択されたPanelのSemantic 
 ### 11.1 Packet
 
 ```text
-MiraUiDrawPacketV1
+MirakanUiDrawPacketV1
   surface_generation
   layout_generation
   clip_table[]
@@ -428,7 +430,7 @@ Arbitrary shader、raw GPU address、descriptor、command list、HLSL sourceをP
 
 ### 11.2 D3D12 UI pass
 
-- `MiraUiDrawPacketV1`をRendering Portへ渡し、D3D12 Adapterがvertex／index upload、pipeline、descriptor、clipを解決する。
+- `MirakanUiDrawPacketV1`をRendering Portへ渡し、D3D12 Adapterがvertex／index upload、pipeline、descriptor、clipを解決する。
 - UIはdisplay resolutionでScene tone map後に描画し、World dynamic resolution、TAA、motion blurの対象外にする。
 - 順序を変えない範囲でpipeline、texture、clipをbatchする。
 - GPU resourceはsubmission serialまで保持し、UiTreeまたはPanel破棄で即時freeしない。
@@ -473,7 +475,7 @@ Japanese Microsoft IME、Chinese Pinyin、Korean IME、dead key、emoji、surrog
 
 ### 12.3 OLE drag and drop
 
-Explorerとのfile transferはOLE `IDataObject`／`IDropTarget` Adapterを使用する。Internal Panel dockingとEntity／Asset dragはMiraUI typed drag payloadを使用し、OLE objectをUiTreeへ保持しない。Dropはpreview validationを通し、pointer releaseだけでProjectへ直接writeしない。
+Explorerとのfile transferはOLE `IDataObject`／`IDropTarget` Adapterを使用する。Internal Panel dockingとEntity／Asset dragはMirakanUi typed drag payloadを使用し、OLE objectをUiTreeへ保持しない。Dropはpreview validationを通し、pointer releaseだけでProjectへ直接writeしない。
 
 ## 13. Window、DPI、Docking、Workspace
 
@@ -566,7 +568,7 @@ Semantic Snapshotは`EditorViewDescriptor`、read projection、committed Layout�
 
 各top-level HWNDをUIA fragment rootとし、Windowless Widgetをfragment elementとして公開する。Providerは標準UIA control typeとpatternを優先する。
 
-| MiraUI control | 必須UIA pattern |
+| MirakanUi control | 必須UIA pattern |
 |---|---|
 | button | Invoke |
 | toggle／checkbox | Toggle |
@@ -736,9 +738,9 @@ CIはsource include、CMake graph、link map、SBOM、license noticeを検査し
 | Global Phase | UI成果物 | Promotion Gate |
 |---|---|---|
 | Phase 0 | target／Module skeleton、UiNode／Event／Semantic／Packet contract、forbidden dependency test | Header／Module graph、negative fixture、no external GUI toolkit |
-| Phase 1 | MiraUI Core、Layout、Event、Focus、software test renderer、Game `UiDocument`最小projection | deterministic layout／semantic hash、fuzz、memory cap |
-| Phase 2 | Windows D3D12 UI pass、DirectWrite、TSF、UIA、Main Shell、Dock、Workspace | DPI、IME、screen reader、device loss、dock soak、Performance |
-| Phase 3 | Scene／Outliner／Inspector／Asset／AI Partnerのproduction vertical slice | 2D First PlayableをAIと手動の両方で編集 |
+| Phase 1 | MirakanUi Core、Layout、Event、Focus、software test renderer、Game `UiDocument`最小projection | deterministic layout／semantic hash、fuzz、memory cap |
+| Phase 2 | Windows D3D12 UI pass、DirectWrite、TSF、UIA、Main Shell、Dock、Workspace、Session／Console／Problems／Profiler／Timeline／Watchのtyped Debug projection | DPI、IME、screen reader、device loss、dock soak、Debug query virtualization、Performance |
+| Phase 3 | Scene／Outliner／Inspector／Asset／AI Partner、Breakpoint／Causality／Replay／Reproductionのproduction vertical slice | 2D First PlayableをAIと手動の両方で編集し、既知faultをrecord→scrub→inspectできる |
 | Phase 6 | 3D／Graph／Timeline／Profiler Canvas拡張 | 3D First Playable、50,000 node Graph、GPU gate |
 | Phase 7以降 | Game UIのAndroid／Apple backend | 各Mobile規約の実機Accessibility／IME／thermal gate |
 
@@ -764,8 +766,8 @@ Phase 0のblank WindowをEditor完成と呼ばない。Phase 2 Gateに合格す�
 C1独自Editor UI Frameworkは次をすべて満たした時点で完了する。
 
 1. Editor binaryとSBOMに禁止GUI toolkitが含まれない。
-2. MiraUI CoreをEditorとGame UIが共有し、Shipping Game closureにEditor targetが含まれない。
-3. Scene、Outliner、Inspector、Asset、Source、Console、AI Partnerが独自Widgetで動作する。
+2. MirakanUi CoreをEditorとGame UIが共有し、Shipping Game closureにEditor targetが含まれない。
+3. Scene、Outliner、Inspector、Asset、Source、Session、Console、Problems、Profiler、Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、AI Partnerが独自Widgetで動作し、Debug dataはDebugging規約のtyped projectionだけを使う。
 4. Dock、resize、tab reorder、floating、multi-monitor、複数Workspace保存と回復が成立する。
 5. DirectWrite、TSF、UIAをAdapter内へ隔離し、UTF-8／IME／screen readerを満たす。
 6. Human、keyboard、assistive technology、AIが同じtyped Command／ChangeSet／Validationを通る。
@@ -790,4 +792,4 @@ C1独自Editor UI Frameworkは次をすべて満たした時点で完了する�
 | ClipboardはUser commandへの応答として扱う | [About the Clipboard](https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-the-clipboard)、[Clipboard Formats](https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats) |
 | Keyboard、Focus、target size、drag代替の人間工学原則 | [WCAG 2.2](https://www.w3.org/TR/WCAG22/) |
 
-外部資料はPlatform APIと既存Engineの方式を示す。`MiraUI Core`、`EditorViewDescriptor`、`EditorSemanticSnapshotV1`、AI／UIA分離、Command収束、Budget、Directory、Phase、GateはMiraikanai Engine独自の規範決定である。
+外部資料はPlatform APIと既存Engineの方式を示す。`MirakanUi Core`、`EditorViewDescriptor`、`EditorSemanticSnapshotV1`、AI／UIA分離、Command収束、Budget、Directory、Phase、GateはMiraikanai Engine独自の規範決定である。

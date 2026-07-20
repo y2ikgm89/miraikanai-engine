@@ -1,6 +1,6 @@
 # Miraikanai Engine Runtime連携・寿命・性能規約
 
-- 文書版: 2.2
+- 文書版: 2.9
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game Runtime、Editor Play、Asset Runtime、Native Adapter、AI生成構造化データ／C++
@@ -9,11 +9,14 @@
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
+- Math／Core Utilities規約: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- LOD規約: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
@@ -25,6 +28,9 @@
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+- Shooter Gameplay規約: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
 
 ## 1. 結論
 
@@ -39,6 +45,8 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 - CPU／GPU／memory budgetをSubsystem単位で測定し、最適化の成否を数値で判断できる。
 - 大量配置、burst生成、敵味方を問わない同時VFXを個数だけで拒否せず、制作意図を保ったboundedなRuntime表現へCookし、統合負荷試験で成立性を証明できる。
 - 失敗時に部分的なWorld、部分的なAsset、GPU使用中resourceの解放を公開しない。
+- Engine標準とProject定義Game Systemを同じ依存Graph、State owner、phase、Budgetで実行し、実装方式によるRuntime契約の分岐を作らない。
+- Scene、Level、Streaming Cellを別lifecycleとして扱い、Cell activation失敗時に旧Levelと直前のauthoritative stateを維持する。
 
 外部の公式資料はAPIとLibraryの事実を定める。本書のphase順序、memory配分、queue容量、failure policyは、それらの事実を満たすためにMiraikanai Engineが独自に確定するプロジェクト公式規約である。
 
@@ -50,8 +58,11 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 |---|---|
 | AIネイティブ設計計画書 | Product目標、AI／人間の制作経路、段階計画、MVP |
 | C++実行コード・構造化ゲームデータ規約 | Game実行言語、GameplayDefinition、CookedGameplayPackage、NativeGameModule、AI実装選択 |
+| Game System規約 | Game System ID、責務、State owner、Port、Implementation Variant、System Dependency Graph |
+| World／Level／Map規約 | World／Level／Cell lifecycle、Streaming Plan、Level transition、Map Presentation境界 |
 | 基盤アーキテクチャ規約 | C++、module、依存、所有権の一般則、Build、directory |
 | 本書 | Runtime phase、Subsystem連携、参照無効化、Asset version、memory／performance budget、障害復旧 |
+| AI可読LOD規約 | LOD共通Intent／Policy／metric、Simulation LOD契約、Domain間禁止規則、AI Operation、Qualification Receipt |
 | Particle／VFX規約 | VFX Asset／Graph／Compiler、CPU／GPU execution、VFX lifecycle／Command、VFX固有budget／failure／test |
 | Collision／Collider規約 | Body／Collider／Shape／Material／Filter、Query、Contact／Trigger、Cook、Editor／AI操作 |
 | 2D／3D機能計画 | 各Capabilityの機能、品質tier、Authoring、表現方式 |
@@ -72,6 +83,9 @@ Miraikanai EngineのRuntimeは、各Subsystemが互いを直接操作する構�
 - **Scale intent**: Projectが必要とする総配置数、最大同時存在数、生成burst、可視範囲、相互作用範囲、VFX同時性、TargetをGame用語で表したAuthoring要件。
 - **Gameplay fidelity floor**: 敵数、Damage、collision、goal、timing等、最適化で黙って弱めてはならない観測可能な最低挙動。
 - **Representation plan**: Scale intentをFull Entity、低頻度／休眠state、render instance、HLOD、streaming cell、VFX Artifact等へ変換するCook済み計画。
+- **Game System instance**: `GameSystemSpecV1`の一つのRuntime scopeに対するactive instance。authoritative State ownerはSpec集合内で厳密に一つ。
+- **Level instance**: entry、objective、completion、exitを持つplay可能単位のRuntime instance。Scene edit shardまたはStreaming Cellではない。
+- **Streaming cell**: `WorldStreamingPlanV1`がTarget別に生成する最小residency単位。`resident`と`active`を区別する。
 - **Project official default**: ADRで改定されるまで、CIとReviewが用いる合否値。
 
 ### 2.3 対象外
@@ -96,18 +110,18 @@ Shipping mobile RuntimeはAI Orchestrator、compiler、hot-code-reload serverを
 
 ```mermaid
 flowchart BT
-  Foundation["mira_foundation\nID・Result・Memory・Diagnostics"]
-  Jobs["mira_jobs"]
-  Serialization["mira_serialization"]
-  Assets["mira_assets"]
-  Contracts["mira_runtime_contracts\nCommand・Event・Snapshot"]
-  World["mira_world"]
+  Foundation["mirakan_foundation\nID・Result・Memory・Diagnostics"]
+  Jobs["mirakan_jobs"]
+  Serialization["mirakan_serialization"]
+  Assets["mirakan_assets"]
+  Contracts["mirakan_runtime_contracts\nCommand・Event・Snapshot"]
+  World["mirakan_world"]
   Ports["Domain Ports\nRender・Physics・Nav・Animation・Audio・Input・UI・Gameplay・VFX"]
   DomainRuntime["Domain Runtime\nComponent access・System・Resolver"]
   Adapters["Native Adapters\nD3D12・Vulkan・Metal\nBox2D・Jolt・Recast・ozz\nXAudio2・Oboe・Apple AudioUnit"]
-  Orchestrator["mira_runtime_orchestrator"]
-  Package["mira_runtime_package\nLoader・Manifest"]
-  Compiler["mira_runtime_compiler"]
+  Orchestrator["mirakan_runtime_orchestrator"]
+  Package["mirakan_runtime_package\nLoader・Manifest"]
+  Compiler["mirakan_runtime_compiler"]
   Authoring["Authoring Service"]
   EditorHost["EditorHost"]
   GameHost["GameHost"]
@@ -157,22 +171,22 @@ flowchart BT
 
 | target分類 | 所有するもの | 依存を禁止するもの |
 |---|---|---|
-| `mira_foundation` | ID、Result、memory resource、clock primitive、diagnostics primitive | World、domain、vendor API |
-| `mira_runtime_contracts` | typed command／event、phase ID、snapshot schema、共通value type | domain実装、vendor API、Editor |
-| `mira_world` | Runtime entity location、component chunk、StableId対応表 | Renderer、Physics、Nav等の実装 |
+| `mirakan_foundation` | ID、Result、memory resource、clock primitive、diagnostics primitive | World、domain、vendor API |
+| `mirakan_runtime_contracts` | typed command／event、phase ID、snapshot schema、共通value type | domain実装、vendor API、Editor |
+| `mirakan_world` | Runtime entity location、component chunk、StableId対応表 | Renderer、Physics、Nav等の実装 |
 | Domain Port | Engine-owned interface、domain data、validator、telemetry schema | World実装、他Domain、他Domain Adapter、vendor型 |
 | Domain Runtime | 自Domainのcomponent query、System、resolver、typed command／event生成 | 他Domain target、vendor型、phase外mutation |
 | Native Adapter | vendor型との変換、vendor object寿命、conformance test | Runtime World、Authoring schema、AI、他Adapter |
-| `mira_runtime_orchestrator` | phase順序、buffer merge、boundary、fault遷移 | vendor型、Editor widget |
-| `mira_runtime_package` | versioned binary manifest、loader、Runtime向けschema | Authoring object、Editor、vendor型 |
+| `mirakan_runtime_orchestrator` | phase順序、buffer merge、boundary、fault遷移 | vendor型、Editor widget |
+| `mirakan_runtime_package` | versioned binary manifest、loader、Runtime向けschema | Authoring object、Editor、vendor型 |
 | Runtime Compiler | 承認Authoring revisionからRuntime packageをcook | live Runtime pointer |
 | EditorHost | Authoring Service、Presentation専用Preview Orchestrator、選択Adapterのcomposition | authoritative Play World、NativeGameModule、domain business logic |
 | GameHost | Runtime package loader、RuntimeOrchestrator、選択Adapterのcomposition | Authoring Service、Editor |
 | WorkerHost | Runtime Compiler、offline Asset／Shader build | live Runtime World、Editor |
 
-RenderingからPhysics、AnimationからNavigation、Gameplay LogicからWorldといった直接呼出しを禁止する。共有が必要な型は`mira_runtime_contracts`へ置くが、単なる再利用を理由に無関係な型を集める`common` moduleにはしない。
+RenderingからPhysics、AnimationからNavigation、Gameplay LogicからWorldといった直接呼出しを禁止する。共有が必要な型は`mirakan_runtime_contracts`へ置くが、単なる再利用を理由に無関係な型を集める`common` moduleにはしない。
 
-各Subsystemは`<domain>_port`、必要なら`<domain>_runtime`、`<domain>_<backend>_adapter`の別CMake targetにする。Domain Runtimeだけが`mira_world`の公開query／lease APIへ依存でき、schema生成された`ComponentAccessManifest`に宣言したread setとwrite setだけを、Orchestratorが許可したphaseで借用する。構造変更はDomain Runtimeからも直接行わず`StructuralCommand`へ変換する。AdapterはWorldへlinkせず、Portが渡した値、handle、owned bufferだけを扱う。Rendering、Audio、VFXはWorld leaseを持たず`RenderSnapshot`／Presentation commandだけを受け取る。GameplayDefinition evaluatorは`gameplay_runtime`内のC++ Systemとしてtyped Capability snapshot／commandを使用し、汎用VM Adapterを持たない。CMake edge検査に加え、manifestと実際のquery／write registrationが一致することをcode generation testで検査する。
+各Subsystemは`<domain>_port`、必要なら`<domain>_runtime`、`<domain>_<backend>_adapter`の別CMake targetにする。Domain Runtimeだけが`mirakan_world`の公開query／lease APIへ依存でき、schema生成された`ComponentAccessManifest`に宣言したread setとwrite setだけを、Orchestratorが許可したphaseで借用する。構造変更はDomain Runtimeからも直接行わず`StructuralCommand`へ変換する。AdapterはWorldへlinkせず、Portが渡した値、handle、owned bufferだけを扱う。Rendering、Audio、VFXはWorld leaseを持たず`RenderSnapshot`／Presentation commandだけを受け取る。GameplayDefinition evaluatorは`gameplay_runtime`内のC++ Systemとしてtyped Capability snapshot／commandを使用し、汎用VM Adapterを持たない。CMake edge検査に加え、manifestと実際のquery／write registrationが一致することをcode generation testで検査する。
 
 ### 3.3 Subsystem間の唯一の通信方式
 
@@ -185,6 +199,19 @@ RenderingからPhysics、AnimationからNavigation、Gameplay LogicからWorld�
 | Query result | 非同期計算結果 | immutable、version検査必須 | integration phaseまで |
 
 公開eventへpointer、reference、`span`、vendor ID、COM pointer、言語VM stack indexを格納しない。可変長payloadはowned bounded blobまたはStableIdで表す。
+
+### 3.4 Game System GraphとState owner
+
+Runtime packageは`GameSystemDependencyGraphV1`、`SystemImplementationSetV1`、Contract set hashを必須とする。Runtime OrchestratorはPlay開始前に、各`GameSystemContractRefV1`、package内runtime `system_id`、対応表hash、scope、phase、State owner、Command／Event／Snapshot、Component access、Target別Implementation Variantを検証する。runtime `system_id`は永続化せず、別Packageの番号と比較しない。
+
+- 一つのauthoritative State Typeにactive ownerが0件または複数件ならPlayを開始しない。
+- Game Systemは他SystemのStateへ直接writeせず、ownerへCommandを送りimmutable Snapshot／sealed Eventを読む。
+- Build／Cook dependencyはDAG、same-tick write cycleと同phase callback再入は禁止する。
+- `next_tick` Event cycleは各edgeにqueue contribution、最大latency tick、overflow failureがありReplay fixtureへ合格した場合だけ許可する。
+- Definition、Native、hybrid、Target-specialized Variantは同じGraph nodeとして扱い、Runtime phaseやState ownerを実装方式で変えない。
+- Presentation System、Map Presentation、LOD、Camera、GPU visibilityの結果をauthoritative Systemへ逆入力しない。
+
+Graph hash、Implementation Set hash、World Streaming Plan hashをRuntime package、Save／Replay header、Qualification Receiptへ記録する。Hash不一致を名前またはversion類似で自動修復しない。
 
 ## 4. Process、Project、Playのlifecycle
 
@@ -209,6 +236,7 @@ Shipping GameHostはこのProcess状態と別に`ApplicationState = Starting | A
 ### 4.2 Authoring WorldとRuntime World
 
 - `PlayPreparing`は、Commit済み`project_revision`を一つ固定し、そのrevisionからRuntime packageとRuntime Worldを生成する。
+- `PlayPreparing`はSystem Graph、Implementation Set、World／Level／Topology、Target別Streaming Plan、Asset／Navigation closureを照合し、最初のLevel activation group全体がreadyになるまで`Playing`へ進めない。
 - EditorHostは同時に一つのchild GameHostだけを管理し、そのGameHostだけが一つのauthoritative Play sessionとRuntime Worldを所有する。EditorHost内のMaterial／Asset preview worldはPresentation専用の隔離Worldであり、NativeGameModuleをloadせず、Save／replay／gameplay eventへ参加しない。
 - Runtime WorldはAuthoring object、Editor hierarchy、undo bufferとpointerを共有しない。
 - Play中のAuthoring変更は新しいrevisionとして保存できるが、schemaに`live_edit_policy = restart_play | next_tick | next_render_frame`が明示され、対応typed commandを持つfield以外は実行中Worldへ自動反映しない。fieldの既定値は`restart_play`、`next_tick`の適用点は`T00`、`next_render_frame`の適用点は`R10`に固定する。
@@ -248,7 +276,7 @@ Process
 
 | 順序 | Phase ID | 実行内容 | 状態変更 |
 |---:|---|---|---|
-| 0 | `T00_BoundaryApply` | 前tickで封印したStructural command、互換なAsset／GameplayDefinitionSet swapを適用 | 構造変更を許可 |
+| 0 | `T00_BoundaryApply` | 前tickで封印したStructural command、互換なAsset／GameplayDefinitionSet swap、検証済みLevel／Cell activation boundaryを適用 | 構造変更を許可 |
 | 1 | `T10_InputLatch` | device inputをtick番号付き`InputSnapshot`へ固定 | Input stateだけ |
 | 2 | `T20_AsyncIntegrate` | deadline前に完了したNav、streaming、tool結果をversion検査して統合 | 定義済みresult fieldだけ |
 | 3 | `T30_PrePhysics` | C++ gameplay、AI behavior、Cook済みrule／ability evaluator | Simulation commandを生成 |
@@ -315,7 +343,7 @@ RuntimeMessageHeader (alignas(8), exactly 32 bytes)
 - cancellation後に完了した結果も破棄する。
 - replayは「結果内容とacceptしたtick」を記録する。Replay中は記録済み結果を同tickで注入し、worker完了時刻を再現条件にしない。
 
-Replay digestはSHA-256で統一する。初期値は`SHA256("MIRA_REPLAY_V1\0" || 32 byte build_manifest_hash || project_seed_le)`とする。毎tick、ASCII domain tag `MIRA_REPLAY_TICK_V1\0`、前digest 32 byte、`tick_id_le`、続いてInputSnapshot、accepted async result、canonical authoritative component delta、PhysicsのEngine可視state、persistent GameplayState delta、RNG stateの各sectionを`section_id: uint16`、`byte_length: uint64`、canonical bytesの順に連結してSHA-256を更新する。section内はfield ID順・Entity StableId byte順とする。pointer、padding、Presentation state、worker順序を含めない。Development／Profileは60 tickごとにdomain tag `MIRA_REPLAY_FULL_V1\0`を用いたcanonical full-state SHA-256も記録し、rolling digestとの最初の不一致tickを報告する。
+Replay digestはSHA-256で統一する。初期値は`SHA256("MIRAKAN_REPLAY_V1\0" || 32 byte build_manifest_hash || project_seed_le)`とする。毎tick、ASCII domain tag `MIRAKAN_REPLAY_TICK_V1\0`、前digest 32 byte、`tick_id_le`、続いてInputSnapshot、accepted async result、canonical authoritative component delta、PhysicsのEngine可視state、persistent GameplayState delta、RNG stateの各sectionを`section_id: uint16`、`byte_length: uint64`、canonical bytesの順に連結してSHA-256を更新する。section内はfield ID順・Entity StableId byte順とする。pointer、padding、Presentation state、worker順序を含めない。Development／Profileは60 tickごとにdomain tag `MIRAKAN_REPLAY_FULL_V1\0`を用いたcanonical full-state SHA-256も記録し、rolling digestとの最初の不一致tickを報告する。
 
 ### 5.6 deterministic randomness
 
@@ -532,7 +560,7 @@ target_profile_set
 | Authoritative actor | Full Entity、契約済みsimulation LOD、休眠state record、streaming cell | 敵数、HP、Damage、collision、goal参加、入力への応答を黙って削る |
 | Interactive prop | Full Entity、休眠state record、partition単位activate | interaction可能範囲内のrender-only化、mutable Physics objectのstatic batch化 |
 | Decorative instance | Render instance、spatial batch、HLOD、streaming cell | 個別Gameplay eventを持つobjectとの意味混同 |
-| Presentation effect | VFX Artifact、aggregate emitter、quality variant、距離／画面影響度culling | authoritative Gameplay state、Damage、AI perceptionの代用 |
+| Presentation effect | VFX Artifact、aggregate emitter、`VfxLodProfileV1` branch、距離／画面影響度culling | authoritative Gameplay state、Damage、AI perceptionの代用 |
 
 Runtime Compilerは次の順にRepresentation Planを作る。
 
@@ -545,7 +573,19 @@ Runtime Compilerは次の順にRepresentation Planを作る。
 
 総配置数または生成要求が既定fixtureを超えること自体はSource authoringの拒否理由にしない。Sourceはprocedural descriptor、recipe、spatial partition等のbounded表現で保存できる。ただし、現在Targetでbounded working set、queue、memory、frame deadlineを満たすRepresentation Planが得られないProjectを、Play可能またはShipping可能と偽ってはならない。
 
-Presentation品質だけのLOD、instance化、HLOD、culling、VFX quality variantは、Style契約とvisual diffを満たす場合に自動適用できる。敵数、味方数、Damage、collision、navigation、goal、spawn timing等のGameplay fidelity floorを変える案は`GameplayScaleChangeProposalV1`としてBefore／After、理由、Target影響を示し、人間承認後の別ChangeSetにする。
+Presentation品質だけのLOD、instance化、HLOD、culling、`VfxLodProfileV1` branchは、LOD規約の`LodIntentV1`、Domain別Policy、Style契約、critical cue floor、visual diffを満たす場合に自動適用できる。敵数、味方数、Damage、collision、navigation、goal、spawn timing等のGameplay fidelity floorを変える案は`GameplayScaleChangeProposalV1`としてBefore／After、理由、Target影響を示し、人間承認後の別ChangeSetにする。
+
+### 8.5 Simulation LOD
+
+Simulation LODはTarget別Quality設定ではなく、Projectが明示する`SimulationLodContractV1`である。Tierは`full | reduced_frequency | dormant_record`とし、Runtime Orchestratorだけが`T00`で遷移を適用する。
+
+- `gameplay_relevance_q16`はplayer／controlled actor／goalのWorld位置、interaction radius、active Damage／Collision、Navigation goal、target lock、script critical flag、pending authoritative command／event、登録済みDomain signalだけから決定する。
+- Camera distance、frustum、occlusion、GPU query、screen size、Audio、VFX visibility、Presentation LODをrelevance入力にしない。
+- `reduced_frequency`は`exact_batch | analytic_step | event_only`の実行方式、interval、catch-up、誤差上限を持ち、Full referenceとのequivalence Gateに合格したDomainだけ使用できる。
+- `dormant_record`もEntity identity、typed state、pending event、wake triggerを保持する。wake eventまたはqueue overflowをdropして継続しない。
+- tier、minimum residency tick、wake reason、pending eventはSave／Replay対象であり、Stable ID順とfixed-point比較で決定する。
+- TargetまたはQuality Profileを理由にContractを強めない。Target budget未達時はauthoritative結果を変えず`OptimizationRequired`にする。
+- Full referenceとReplay hash、最終count、Damage、goal結果が一致しないContractをProductionへ昇格しない。
 
 ## 9. ID、pointer、borrow、leaseの寿命
 
@@ -679,7 +719,7 @@ ArtifactKey = SHA256(
 
 timestamp、absolute path、pointer、worker順序をkeyへ含めない。
 
-上記関数は文字列連結ではなく、ASCII domain tag `MIRA_ARTIFACT_V1\0`の後に各引数を`field_id: uint16`、`byte_length: uint64`、canonical bytesの順で格納するtagged tupleである。field IDは上から1～7、`schema_version`は`uint32`、`tool_id`と`tool_version`はNFC UTF-8 stringとする。dependency listは要素数`uint32`に続き、各要素を`dependency_role_id: uint32`、RFC 9562 UUIDのnetwork byte orderによる16 byte StableId、32 byte ArtifactKeyで格納する。未知field ID、重複field、欠落field、末尾byteを拒否する。
+上記関数は文字列連結ではなく、ASCII domain tag `MIRAKAN_ARTIFACT_V1\0`の後に各引数を`field_id: uint16`、`byte_length: uint64`、canonical bytesの順で格納するtagged tupleである。field IDは上から1～7、`schema_version`は`uint32`、`tool_id`と`tool_version`はNFC UTF-8 stringとする。dependency listは要素数`uint32`に続き、各要素を`dependency_role_id: uint32`、RFC 9562 UUIDのnetwork byte orderによる16 byte StableId、32 byte ArtifactKeyで格納する。未知field ID、重複field、欠落field、末尾byteを拒否する。
 
 永続content hash、source hash、settings hash、artifact keyはすべてSHA-256の32 byte値とし、text表現は64文字lowercase hexadecimalに固定する。Runtimeは`IPlatformCrypto`を使用し、Windows AdapterはCNG、Android／Appleはモバイル規約のPlatform crypto Adapter、Node.js toolは標準`node:crypto`を使用する。同一fixtureで全実装のbyte一致を検査する。
 
@@ -893,7 +933,7 @@ OS budgetが小さい場合は、critical resourceと256 MiB reserveを先に確
 4. queue、descriptor heap、resource、allocator、deviceを依存の逆順で破棄する。
 5. CPU／cooked artifactからdevice、allocator、heap、PSO、resident resourceを再構築する。
 6. 完全なframe setを作れた場合だけEditor previewを再開する。
-7. 復旧に失敗した場合はAuthoring journalを保存し、通常MiraEditor ShellとはProcess／resource寿命を分離したGPU非依存のWin32 recovery entryへ移る。提供する操作はProject recovery、diagnostic保存、再起動、終了だけとする。Shipping Gameはpreallocated crash recordを書き、interactive sessionではOS-native error dialogを表示して非0 codeで終了する。GPU描画を必要とするerror sceneへ遷移しない。
+7. 復旧に失敗した場合はAuthoring journalを保存し、通常MirakanEditor ShellとはProcess／resource寿命を分離したGPU非依存のWin32 recovery entryへ移る。提供する操作はProject recovery、diagnostic保存、再起動、終了だけとする。Shipping Gameはpreallocated crash recordを書き、interactive sessionではOS-native error dialogを表示して非0 codeで終了する。GPU描画を必要とするerror sceneへ遷移しない。
 
 Android Vulkan device lost、Apple drawable不在／Metal command errorはD3D12 DRED手順を模倣せず、モバイル規約のsurface generationとPlatform診断を使う。surfaceだけの消失はWorld faultにせず再作成し、device／command errorは新規submitを止め、Saveとpreallocated diagnosticを保全して安全終了する。
 
@@ -1003,6 +1043,40 @@ Android／AppleのReference条件はRetail model名ではなくモバイル規�
 
 `CPU input-to-submit critical path`は、ある`tick_id`の`T10_InputLatch`先頭から、そのtickを含む最初の`RenderSnapshot`をGraphics Adapterへ`R50_Submit`した呼出しのreturnまでのwall durationである。tickが測定run中に一度もsubmitされなければ欠測として除外せずhard failureとする。`GPU frame`は当該snapshotの最初のGPU pass timestampから最終UI／composite pass timestampまでとし、PresentのVSync待機を含めない。
 
+#### 14.1.2 継続性能工学と測定loop
+
+性能は実装完了後の一括作業にしない。Foundation、2D、3D、Mobile、各C2／C3 Capabilityは、同じ測定loopを完了条件へ含める。
+
+```text
+Contract／Budget
+  -> Reference implementation
+  -> Deterministic fixture
+  -> Target trace
+  -> Bottleneck selection
+  -> Candidate optimization
+  -> Before／After＋correctness／visual／fault comparison
+  -> VerificationReceiptV1
+  -> Promote | OptimizationRequired | Reject
+```
+
+一回の計測で最低限、次のmetric familyを同じ`VerificationReceiptV1.metrics`へ型付きで記録する。取得不能なmetricは0で代用せずAvailabilityとBlocking理由を記録する。
+
+| Metric family | 必須値 |
+|---|---|
+| Frame／latency | CPU input-to-submit P50／P95、GPU frame P50／P95、10分P99.9、deadline miss count、最長frame、real／displayed fps |
+| Hitch | Target deadline／2倍deadline／50.00 ms超のcountとduration、Shader／PSO、Asset I/O、allocation／page fault、job／queue wait、driver／device、unknownの原因分類 |
+| Runtime CPU | phase／Subsystem wall time、worker CPU time、queue latency、wait、steal、yield、critical path寄与 |
+| Memory | Domain別current／peak、process private working set、resident／commit、allocation count、arena／pool high-water、fallback allocation count |
+| Loading | cold／warm起動、Scene reload、Asset closure staging、decode、upload、pipeline準備、操作可能frame到達 |
+| GPU／streaming | Pass timestamp、queue overlap／wait、upload、residency、eviction、descriptor／pipeline miss、first-use stall |
+| Correctness | state／Replay hash、authoritative drop、stale result、fault、visual／audio fixture結果 |
+
+最適化候補は、同一Source revision、fixture、input trace、Target Profile、Quality、Toolchain lock、dependency、OS／driver baselineで比較する。変更により入力Artifactが変わる場合は旧／新hashと意味同等性をReceiptへ記録する。平均fpsだけの改善、generated frameをreal frameへ加算した改善、debug／validation無効化だけの改善、品質またはGameplay fidelityを下げた改善を採用しない。
+
+新しい高速経路は14.5節9項の改善条件を満たし、memory、visual、fault、startup／hitchのいずれもhard Gateを悪化させない場合だけ既定候補へ昇格する。改善が特定Capability Signatureだけで成立する場合はそのTarget Profileへ限定し、共通経路を置き換えない。Baseline緩和は最適化と別Reviewにし、過去30回の分布、旧／新値、原因、品質差、下流Capability影響を伴わない変更を拒否する。
+
+Phase 0は共通trace context、typed metric、Receipt接続、deterministic microfixture、process／memory／queue計測を作るが、2D／3D機能を先行実装しない。Phase 2以降はmicrofixtureだけでなく、その時点のPlayable vertical sliceと統合密度fixtureを必須にする。Gate不合格時は次の高度機能を追加せず、観測された最上位ボトルネック、instrumentation欠落、または契約違反だけを修正して再測定する。
+
 ### 14.2 frame budget
 
 次表は60 fps Targetに適用する。`windows_desktop_v1`とmobile 60 fpsは同じ14.00 ms soft／16.67 ms deadlineを使う。
@@ -1093,13 +1167,13 @@ CapabilityをC2 Productionへ昇格するには、次をすべて満たす。
 Subsystem単体の最大値を別々のrunで満たしただけでは、大量戦闘の成立証明にしない。各Projectは`RuntimeScaleIntentV1`から、実際に同時発生し得る次の負荷を一つの決定論的`IntegratedScaleFixtureV1`へ生成する。
 
 - resident／visibleなstatic、dynamic、decorative object
-- 敵、味方、projectile、interactive propのpeak live数
+- 敵、味方、authoritative projectile、interactive propのpeak live数、およびhitscan query、ammo／reload、weapon switchの最悪合法列
 - 最悪の合法な1 tickおよび1秒spawn／destroy列
 - Physics contact、Navigation request、Animation、Gameplay Logicの同時peak
 - 敵味方双方のhit、trail、area、projectile、explosion VFXとAudio／Camera presentation
 - Camera移動、streaming cell境界、LOD遷移、Asset promotionが重なる区間
 
-fixtureはGame Briefで承認された最大同時性を下回ってはならず、Runtime Compilerが個数を丸めて合格しやすくしてはならない。2D／3D機能計画の組込みfixtureは最低比較線であり、Projectの上限ではない。Project intentが組込みfixtureを超える場合はProject固有fixtureを優先する。
+fixtureはGame Briefで承認された最大同時性を下回ってはならず、Runtime Compilerが個数を丸めて合格しやすくしてはならない。Shooter C1は`2d_shooter_c1_v1`と`tps_shooter_c1_v1`でFire→Hit→Damage→Defeat→Score、atomic Fire、authoritative drop 0、Save／Replay一致を検証し、`2d_crowded_battle_v1`と`3d_crowded_battle_v1`で描画、Physics、Navigation、VFX、Audio、Cameraとの同時負荷を検証する。2D／3D機能計画の組込みfixtureは最低比較線であり、Projectの上限ではない。Project intentが組込みfixtureを超える場合はProject固有fixtureを優先する。
 
 測定は14.1節の120秒×5、10分soak、Target別実機条件を使い、次をすべて満たす。
 
@@ -1174,6 +1248,8 @@ journalが1 MiBまたは1,024 recordの先に達した場合、次のSave commit
 
 ## 16. Observability
 
+本書はRuntimeが生成する共通trace context、phase／Subsystem Counter、fault／overflow emission pointと低overhead計測責務を所有する。Session lifecycle、Event envelope、priority／gap／retention、Store／Index／Query、Breakpoint／Watch、safe pause／step、Replay／Rewind、Causality、Reproduction Bundle、Editor Debug Workspace、AI診断、remote device protocolは[AI可読Debugging／Observability／Replay規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)が正本である。SubsystemはDebug StoreやUIへ直接依存せず、生成済みDebug contractを通じてbounded event／counter／snapshotを発行する。
+
 ### 16.1 共通trace context
 
 次をCPU span、job、event、GPU marker、errorへ共通付与する。
@@ -1216,6 +1292,8 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 | Test群 | 証明するもの |
 |---|---|
 | Phase contract | 12 tick phaseと8 render phaseの順序、禁止再入、consume phase、Component read／write set |
+| Game System graph | exactly-one State owner、dependency DAG、same-tick cycle拒否、Definition／Native同値性、Target Variant fallback |
+| World／Level／Cell | compact Level transition、activation group atomicity、旧Level維持、hard dependency residency、deactivate後zero-live |
 | Handle property | generation、slot再利用、wrap retire、random invalid handle |
 | Borrow lifetime | structural mutation、phase、tick、arena reset後の無効化 |
 | ECS property | archetype移動、iteration順、structural command merge |
@@ -1259,6 +1337,8 @@ Shippingでは個人情報、source path、AI promptを除去するが、budget�
 
 AIがLevel 0の自然言語指示からGameplayDefinitionまたはC++を選んでも、本書を免除しない。
 
+- AIは`GameSystemCatalogV1`と`SystemImplementationPlanV1`を使い、Engine標準、Project-defined、Definition、Native、hybridを同じPublic System Contractへ接続する。Source断片だけをRuntime packageへ入れない。
+- AIの「マップ」要求はWorld／Level／Map規約の6分類へ解決し、Scene、Level、Cell、Navigation、Map Presentationを同じSystemまたはidentityへまとめない。
 - GameplayDefinitionはMCDの有限・bounded Capabilityだけを使い、World、Physics、Nav、GPU、Audio native objectへ触れない。
 - NativeGameModule（Project C++）は公開Domain Port、Runtime Contract、handle／lease APIだけを利用する。
 - AI生成C++が新phase、queue、thread、memory Domain、public dependencyを追加する提案はArchitecture Changeとして人間承認を必要とする。
@@ -1276,9 +1356,9 @@ AIがLevel 0の自然言語指示からGameplayDefinitionまたはC++を選ん�
 
 Engine feature実装前に次を完成させる。
 
-1. 設計文書Indexに列挙した10規範文書の承認。
+1. 設計文書Indexに列挙した公式Review set 46文書の承認。
 2. 基盤規約の`toolchain.lock.json`、固定offline layout、CI image digest、bootstrap照合。
-3. `mira_runtime_contracts`のtarget、Domain Port／Runtime／Adapter分離、依存DAG、`ComponentAccessManifest`検査。
+3. `mirakan_runtime_contracts`のtarget、Domain Port／Runtime／Adapter分離、依存DAG、`ComponentAccessManifest`検査。
 4. `TickPhaseId`、`RenderPhaseId`、typed command／event header。
 5. generation slot table、`ReadLease`／`WriteLease`、debug epoch。
 6. 16 KiB archetype chunkの基準benchmark。
@@ -1287,20 +1367,21 @@ Engine feature実装前に次を完成させる。
 9. Asset artifact key、dependency closure、staging／atomic promotion fixture。
 10. Agility SDK 1.619.4のHost export／DLL hash／Enhanced Barriers gate、D3D12 queue別retire record、device-removed test harness。
 11. 共通Adapter conformance harnessと、最初の2D sliceで使うBox2D、Grid Navigation、GameplayDefinition cook／transaction、XAudio2 fixture。Jolt、Recast／Detourの32-bit ref capacity／Artifact／query status、ozz fixtureは3D Capability C0開始条件とする。
-12. phase／Subsystem telemetry schemaとProfile capture。
+12. phase／Subsystem telemetry schemaとProfile capture、およびDebugging規約の`DBG0_contract`／`DBG1_flight_recorder`に必要なSession／Event／Counter／priority／gap／bounded Query／crash-safe chunkのreference実装。
 13. Windows ASan、Linux portable-module TSan、static analysis CI。
 14. Target／Distribution／Lifecycle／Display／Platform Port schemaと、未実装Targetの`UnsupportedTarget` contract test。
 15. Android／Apple toolchain profile、Vulkan／Metal submission record、VMA／MTLHeap lifetime conformance plan。
 16. Mobile memory／thermal／surface／audio failure fixture、AAB／archive package validator、data-only Runtime AI gate。
-17. MCDのRequirement、Type、Operation、State machine、Capability、Policyと、C++／TS／Cooked binary generated projection。
+17. MCDのRequirement、Type、Operation、State machine、Capability、`game_system`、Policyと、C++／TS／Cooked binary generated projection。Game SystemはSpec、Catalog、State owner／dependency graphのfixtureだけとし、実Gameplay本文を作らない。
 18. `TaskSpecification`、署名済み`TaskAuthorizationEnvelope`、Risk別Gate、Source Worker／Promotion境界。
 19. `AiTaskLifecycle`、`ChangeSetCommit`、`SourcePromotion`、`AsyncResultPublish`、`AssetVersionSwap`のTLA+ modelとtransition conformance。
 20. Verification／Generation／Review／Promotion Receipt、Requirement Coverage Matrix、SPDX SBOM、SLSA build provenance接続。
 21. Provider projection conformance、AI Eval 3 run、External Evidence freshness、Prompt injection／Path／Network／Secret negative fixture。
+22. World／Topology／Level／Partition Intent／Streaming Plan／Map IntentのSchema、Source／Derived境界、最小valid／invalid fixture。large-world Runtimeまたは空`MapManager`は作らない。
 
 上記は実装taskの細分化ではなく、実装開始前に満たすcontractの完了条件である。承認後の実装計画書でfile、target、test、順序、milestoneへ分解する。
 
-項目17–21は全RiskのSchema、拒否動作、追跡境界をPhase 0で固定する意味であり、R3–R5機能を同時に公開する意味ではない。A0ではR0–R2に必要なBinding、Gate、Receipt、Modelだけを実行可能にし、Source Promotion、Engine保守、Release provenanceはガバナンス規約のA1–A3を満たすまで`CapabilityNotActivated`とする。
+項目17–22は全RiskのSchema、拒否動作、追跡境界をPhase 0で固定する意味であり、R3–R5機能を同時に公開する意味ではない。A0ではR0–R2に必要なBinding、Gate、Receipt、Modelだけを実行可能にし、Source Promotion、Engine保守、Release provenanceはガバナンス規約のA1–A3を満たすまで`CapabilityNotActivated`とする。
 
 ## 20. 公式資料と規範決定の対応
 

@@ -1,6 +1,6 @@
 # Miraikanai Engine Authoring Model／Project State規約
 
-- 文書版: 1.2
+- 文書版: 1.5
 - 作成日: 2026-07-19
 - 対象: Project source、World Model、Scene、ChangeSet、保存、Undo／Redo、外部編集、Recovery
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -9,6 +9,9 @@
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - 契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+- Game Project配置・命名規約: [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
 
 ## 1. 結論
 
@@ -36,6 +39,8 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | AI権限、承認、Source sandbox、Promotion | AI実装・保守ガバナンス規約 |
 | Editor panel、workspace、製品操作、人間工学 | Editor規約 |
 | Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | Editor UI Framework規約 |
+| Game System Spec、Implementation Set、System Bundle、二段階Activation | Game System規約 |
+| World、Scene、Level、Topology、Partition Intent、Procedural World、Map Presentation | World／Level／Map規約 |
 
 本書はGitをProject database、Undo system、runtime content storeとして必須化しない。Git連携は任意の外部version-control機能であり、Commitの成否はGit状態へ依存しない。共同リアルタイム編集、CRDT、branch merge UI、networked multi-user sessionはC3であり、C1／C2のChangeSet契約へ含めない。
 
@@ -47,8 +52,15 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 |---|---|---|
 | `ProjectManifest` | Project identity、root scene、Target、Package、Capability、Document index | Projectに一つ、`project_id`、`project_revision` |
 | `GameSpecDocument` | Genreに依存しない要求、system、content、test、budget、style lock | `game_spec_id`、document revision |
-| `WorldDocument` | Scene参照、global composition、persistent entity、streaming boundary | `world_id`、document revision |
-| `SceneDocument` | Entity、component、parent、local transform、Composition Recipe instance | `scene_id`、document revision |
+| `WorldDocument` | Scene／Level／Topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
+| `SceneDocument` | collaborative edit shard identity、Shard index、global setting、Composition Recipe root。Gameplay LevelまたはStreaming Cellではない | `scene_id`、document revision |
+| `SceneEntityShardDocument` | 一つのSceneに属するbounded Entity record集合 | `shard_id`、document revision |
+| `WorldTopologyDocument` | Region、Level、Portal、entryの論理Graph | `topology_id`、document revision |
+| `LevelDefinitionDocument` | entry／exit、Objective、Spawn、Encounter、Game System、Profileを持つplay可能単位 | `level_id`、document revision |
+| `SpatialPartitionIntentDocument` | Target非依存のresidency／grouping／priority Intent | `partition_intent_id`、document revision |
+| `ProceduralWorldDefinitionDocument` | generator、seed policy、constraint、bound、fallback | `procedural_world_id`、document revision |
+| `MapPresentationDocument` | minimap／world map／marker／fogの非authoritative UI Source | `map_presentation_id`、document revision |
+| `SystemImplementationSetDocument` | active Game System ref、Implementation Variant、Target selection、configuration | `system_implementation_set_id`、document revision |
 | `UiDocument` | UI tree、style、binding、navigation、localization key | `ui_document_id`、document revision |
 | `GameplayDefinitionDocument` | Rule、state、task、typed Capability参照 | Definition StableId、document revision |
 | `AssetMetadataDocument` | Source identity、import settings、license、provenance、tag | Asset StableId、document revision |
@@ -59,6 +71,8 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | `TestScenarioDocument` | Preconditions、input、oracle、budget、Target | Scenario StableId、document revision |
 
 `ProjectManifest`はDocument本文を埋め込まず、`DocumentRef { stable_id, document_kind, relative_path, content_hash, schema_version }`だけを持つ。Authoring Document間の参照はStableIdで行い、相対path、配列index、表示名を意味参照に使用しない。
+
+`WorldStreamingPlanV1`、Navigation Artifact、HLOD、Cooked Gameplay Package、generated System Catalog／Dependency GraphはDerived Artifactであり、正規Document種別へ追加しない。CreatorまたはAIがDerived Artifactを直接編集した変更をGatewayは拒否する。
 
 ### 3.2 共通Document header
 
@@ -80,11 +94,31 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 
 浮動小数点はfiniteだけを受理する。map keyはMCDが定めるcanonical順、setはStableId byte順、配列は意味的順序を持つfieldだけに使う。Document hashはJCSへ変換した意味modelではなく、実行可能契約規約のMCD canonical binary encodingからSHA-256で計算する。
 
+### 3.3 Decision Ledgerの有効性
+
+`DecisionLedgerDocument`の各Entryは、説明文だけでなく次を必須とする。
+
+| Field | 型／規則 |
+|---|---|
+| `decision_id` | StableId |
+| `status` | `active \| needs_review \| superseded \| rejected` |
+| `value`／`reason` | typed valueとNFC UTF-8 |
+| `source` | `human \| ai_recommendation \| ai_assumption \| engine_default` |
+| `approved`／`locked` | 信頼済みHostが付与するbool。AI出力から昇格しない |
+| `applies_to` | Document、Entity、field、Requirement、CapabilityのStable reference集合 |
+| `evidence_refs` | 根拠Artifactと、そのrevision／hash |
+| `decision_dependencies` | 他Decision StableId |
+| `validity_predicates` | MCDで登録済みPredicate ID＋typed argument |
+| `created_revision`／`confirmed_revision` | `ProjectRevision` |
+| `superseded_by` | optional Decision StableId |
+
+GatewayはChangeSetの影響closureから、`applies_to`、`evidence_refs`、`decision_dependencies`、`validity_predicates`を決定論的に照合する。成立条件が変わる場合、提案ChangeSetに`InvalidateDecision`または新根拠を伴う`ReconfirmDecision`がなければ`MIRAKAN-DECISION-INVALIDATION_REQUIRED`で全体を拒否し、必要OperationとDecision IDを返す。GatewayがEntryを黙って`needs_review`へ変更してはならない。`locked=true`のDecisionへ影響する変更は、別Authorityが承認した`UnlockDecision`を同じtransactionへ含めない限り拒否する。
+
 ## 4. World Model
 
 ### 4.1 EntityとComposition
 
-`SceneDocument`のEntity recordを次で固定する。
+`SceneEntityShardDocument`のEntity recordを次で固定する。
 
 | Field | 型／規則 |
 |---|---|
@@ -115,6 +149,53 @@ Projectionは次を保証する。
 - Commit成功後に新revisionから再投影する。
 - stale read modelからのOperationは`RevisionMismatch`で拒否する。
 
+人間、AI、keyboard automation、assistive technologyが同じ対象を指せるよう、選択状態の機械可読projectionを`AuthoringSelectionContextV1`へ固定する。
+
+```text
+AuthoringSelectionContextV1
+  project_id
+  project_revision
+  contract_set_hash
+  view_kind
+  primary_stable_id optional
+  selected_stable_ids[0..1024]
+  world_ref optional
+  scene_ref optional
+  level_ref optional
+  viewport_bounds optional
+  field_mask
+  target_profile_ref optional
+  lock_refs[0..128]
+  source_hashes[1..1024]
+  omitted_ranges[0..128]
+  continuation
+```
+
+`AuthoringSelectionContextV1`はCommit済みDocumentと明示的な`EditorUserState`から生成するread-only／DisposableなContextであり、Project正本またはUndo対象ではない。`primary_stable_id`、World／Scene／Level参照は表示名、Hierarchy path、row index、screen coordinateから推測せず、存在確認済みStableIdとrevisionを使う。AIへ渡すContext、Editor command、UI Automation semantic actionは同じContext hashを参照し、操作時には対象StableIdとexpected Document revisionを再指定する。Contextがstale、対象がomitted、lock情報が欠落、またはSource／Derived区分が不明な場合は変更Operationへ昇格しない。
+
+### 4.3 大規模SceneのShard、Index、Slice
+
+`SceneDocument`は論理aggregateであり、Entity本文を直接無制限に埋め込まない。C1から一つ以上の`SceneEntityShardDocument`をStableId参照し、各Shardは4,096 Entity recordまたはcanonical encoded 8 MiBの早い方を上限とする。単一Entityが上限を超える場合はComponent schema違反としてrejectし、巨大blobをShardへ埋め込まない。
+
+- Shardは`scene_id`、`shard_id`、`partition_mode = stable_id_range | spatial_cell`、partition key、Entity StableId範囲、record count、content hashを持つ。
+- Entity StableIdはShard移動、Scene rename、spatial cell変更で変えない。親、Recipe、Component参照はShard内indexでなくStableIdを使う。
+- `SceneDocument.entity_set_root_hash`はShard配置ではなく、Entity StableId順のcanonical Entity leafからMerkle計算する。Re-shardだけでGameplay上のsemantic diffを作らない。
+- Re-shardも正規Source変更なので一つの`ProjectRevision`としてCommitするが、Diffは`storage_only`とEntity意味変更を分離する。
+- Shardを跨ぐ親cycle、reference、lock、Decision、Recipe invariantはScene aggregate全体で検証する。
+
+Entityの永続化ownerは、そのrecordを含むShardの`scene_id`で厳密に一つへ決まる。Transform parent、Outliner folder、Level membership、Streaming Cell、Data Layer相当のtagから永続化ownerを推測しない。Scene間移動は`MoveEntityToScene` Domain Operationだけが、移動元／移動先Scene revision、移動rootと全descendant、移動先のoptional parent、参照、lock、Recipe override、boundsを検証してsubtree recordを移す。subtree内部のparent関係とStableIdを維持し、移動rootの新parentは移動先Scene内またはnullに限定する。Level membershipまたはRuntime Cell割当は同Operationの暗黙副作用にせず、必要なSource変更を同じChangeSetへ別のtyped Operationとして明示する。
+
+`AuthoringContextIndexV1`はCommit済みrevisionから生成するDisposableな派生Indexであり、正本ではない。`project_revision`、`contract_set_hash`、Document root hash、index schema version、利用するtokenizer ID／manifest hash集合を固定し、次を索引化する。
+
+- StableIdからDocument／Shard／fieldへの位置。
+- inbound／outbound reference、Requirement、Capability、Decision、lockのclosure。
+- Sceneのspatial bounds、tag、component type、modified revision。
+- field maskごとのcanonical byte数とProvider tokenizer別の実測token数。
+
+Commit後は旧Indexをstaleにし、変更Shardと参照closureだけをcopy-on-write更新してから新revisionとしてpublishする。要求revisionのIndexがReadyでない場合、別revisionの結果を返さず`MIRAKAN-AUTHORING-INDEX_NOT_READY`とretry hintを返す。
+
+AI、Editor、CLIへ返す`SceneSliceV1`は、query ID、Project revision、anchor StableId、選択Shard、field mask、dependency depth、各source hash、選択理由、omitted range、continuation cursorを持つread-only projectionである。任意byte位置で切ったJSON、表示順index、要約だけをChangeSetの根拠にしない。SliceからのOperationもStableIdとexpected Document revisionを必須とし、Gatewayが対象Shardへroutingする。
+
 ## 5. ProjectChangeSet
 
 ### 5.1 Envelope
@@ -144,16 +225,20 @@ ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary�
 | Operation群 | C1 Operation |
 |---|---|
 | Document | `CreateDocument`、`DeleteDocument`、`RenameDocument` |
-| Entity | `CreateEntity`、`DeleteEntity`、`ReparentEntity`、`SetSiblingOrder` |
+| Entity | `CreateEntity`、`DeleteEntity`、`ReparentEntity`、`SetSiblingOrder`、`MoveEntityToScene` |
 | Component | `AddComponent`、`RemoveComponent`、`SetComponentField`、`ReplaceComponent` |
 | Reference | `SetStableReference`、`ClearStableReference` |
 | Recipe | `InstantiateRecipe`、`ApplyRecipeUpdate`、`SetRecipeOverride` |
 | Gameplay／UI／Style | 各Subsystemが登録するtyped Operation |
+| Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。Qualified Contract／Staging hashだけ |
+| World／Level | Topology、Level、Partition Intent、Procedural、Map Presentationの各Domain typed Operation |
 | Asset | `RegisterAssetSource`、`SetImportField`、`ReplaceAssetSourceRevision` |
 | Native C++ | `RegisterNativeModuleRevision`。Source promotion済みhashだけ |
-| Target／Decision | `SetTargetProfileField`、`RecordDecision`、`LockDecision` |
+| Target／Decision | `SetTargetProfileField`、`RecordDecision`、`LockDecision`、`UnlockDecision`、`InvalidateDecision`、`ReconfirmDecision` |
 
 自由形式の`SetJsonPointer`、任意path write、任意C++ symbol call、任意console commandをOperation Catalogへ登録しない。複数fieldを不変条件とともに変える操作は一つのDomain Operationとし、細かな`SetField`列へ分解して中間不整合を作らない。
+
+AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全fieldが一つ以上のtyped OperationまたはDomain Operationから到達可能であることをContract compilerで証明する。Operation coverageが100%でないCapabilityはAI Tool catalogへ昇格しない。AI TaskのPath Grantへ正規Authoring JSONのwrite権限を含めず、AIがSource fileを直接変更してcoverageを迂回する経路を作らない。
 
 ### 5.3 Commit algorithm
 
@@ -164,30 +249,46 @@ ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary�
 3. Operation ID一意性とdependency DAGを検証し、canonical topological orderを作る。
 4. MCD schema、enum、range、finite、string、StableId、pathを検証する。
 5. 全preconditionとDocument revisionを検証する。
-6. 参照整合、cycle、Capability、Target intersection、Domain invariantを検証する。
+6. 参照整合、cycle、Capability、Target intersection、Decision invalidation、Domain invariantを検証する。
 7. 変更後aggregateをcopy-on-write stagingへ構築する。
 8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`Predicted`、現在のPlanでは未達なら`OptimizationRequired`を結果revisionへ記録する。`Qualified`は予測から生成せず、既存の有効な統合負荷Receiptを照合できた場合だけ維持する。
 9. Domain dry-runと必要なbackground validation artifactのhashを照合する。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`OptimizationRequired`として記録する。
 10. 変更Document、inverse Operation、manifest、journal recordを同一temporary transaction directoryへ書く。
 11. 全fileをflushし、transaction manifestを最後に原子的renameする。
 12. 新`ProjectRevision = old + 1`とDocument indexを一つのcommit pointでpublishする。
-13. Projectionへ`ProjectRevisionCommitted` eventを値として配送する。
+13. `AuthoringContextIndexV1`の旧revisionをstaleにし、変更Shardと参照closureの更新Jobを発行する。
+14. Projectionへ`ProjectRevisionCommitted` eventを値として配送する。
 
 1～10の失敗はlive stateを変更しない。11以後にProcessが停止した場合、次回起動時にtransaction manifest、file hash、journal recordの三者を検査し、完全なtransactionだけをroll-forwardする。不完全なtemporary directoryは隔離し、勝手に部分復旧しない。
 
+### 5.4 System／World Bundle
+
+`SystemBundleChangeSetV1`と`WorldAuthoringBundleV1`は複数の既存ChangeSet／Staging artifactをexact hashで結ぶcoordination envelopeであり、`ProjectChangeSet`へSource本文またはAsset binaryを埋め込む機能ではない。Bundle自体をCommitして正規Documentを迂回しない。
+
+System BundleがC++ Sourceを含む場合、Source repositoryとProjectRevisionを一つの原子的transactionと宣言しない。Staging検証、隔離Build／Test、Review、Source Promotion、昇格済みSourceからのTrusted Buildが成功した後、`RegisterNativeModuleRevision`と`SetSystemImplementationVariant`を同じProjectChangeSetでCommitする。Source Promotion後にProject Commitが失敗した場合、Sourceを削除またはforce moveせずinactive revisionとして保持し、同一hashで再試行するか別Review済みrevertを提案する。Projectは直前のactive implementationを維持する。
+
+World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つのProjectChangeSetへ変換する。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`OptimizationRequired`または非Qualifiedにする。
+
 ## 6. Source layoutと永続化
 
-Project rootの正規layoutを次で固定する。
+Project root全体のPathと命名はGame Project配置・命名規約を正本とし、本書はAuthoring永続化に関係するprojectionを次で固定する。
 
 ```text
 <project>/
-├─ mira.project.json
+├─ mirakan.project.json
 ├─ authoring/
 │  ├─ game_spec/
 │  ├─ worlds/
 │  ├─ scenes/
-│  ├─ ui/
+│  ├─ world_topologies/
+│  ├─ levels/
+│  ├─ spatial_intents/
+│  ├─ procedural_worlds/
+│  ├─ map_presentations/
+│  ├─ system_implementations/
 │  ├─ gameplay/
+│  ├─ ui/
+│  ├─ localization/
 │  ├─ visual_styles/
 │  ├─ targets/
 │  ├─ decisions/
@@ -197,20 +298,28 @@ Project rootの正規layoutを次で固定する。
 │  └─ metadata/
 ├─ native/
 │  └─ game/
-├─ .mira/
+│     ├─ include/
+│     ├─ modules/
+│     ├─ source/
+│     └─ tests/
+├─ .mirakan/
 │  ├─ journal/
 │  ├─ snapshots/
 │  ├─ recovery/
+│  ├─ index/               # 派生Index。source control対象外
+│  ├─ staging/             # Import／AI候補。source control対象外
 │  └─ user/
 └─ build/                 # 生成物。source control対象外
 ```
 
-- `mira.project.json`とAuthoring JSONはUTF-8 without BOM、LF、重複key禁止、comments禁止、trailing comma禁止とする。
-- JSONは人間Diff用sourceであり、Runtimeは直接読まない。
-- `.mira/journal`はChangeSet、base／result revision、before／after hash、inverse Operation、Receipt参照を持つappend-only recordである。
+- `mirakan.project.json`とAuthoring MCDはUTF-8 without BOM、LF、重複key禁止、comments禁止、trailing comma禁止とする。
+- Scene sourceは`authoring/scenes/<scene_id>/scene.mirakan.json`と`authoring/scenes/<scene_id>/shards/<shard_id>.mirakan.json`へ置き、IDから決定論的にpathを導出する。表示名、cell名、Entity名をpathへ使わない。
+- Level、Topology、Partition Intent、Procedural World、Map Presentation、System Implementation SetもStable IDから決定論的にpathを導出し、表示名、Region名、Target名をpath identityへ使わない。
+- `.mirakan.json`は人間Diff用sourceであり、Runtimeは直接読まない。
+- `.mirakan/journal`はChangeSet、base／result revision、before／after hash、inverse Operation、Receipt参照を持つappend-only recordである。
 - 100 Commitまたはjournal 64 MiBの早い方でsnapshotを作る。最新2 snapshotと、それ以後のjournalを最低保持する。
 - Project source保存成功とAsset／Runtime cook成功を同一transactionにしない。Commit済みsourceからDerived Artifactを非同期生成し、失敗時もsource revisionを失わない。
-- Auto-saveは未CommitのEditor draftを`.mira/recovery/<user>/<session>`へ20秒ごと、またはfocus loss時に保存する。正規revisionへ自動Commitしない。
+- Auto-saveは未CommitのEditor draftを`.mirakan/recovery/<user>/<session>`へ20秒ごと、またはfocus loss時に保存する。正規revisionへ自動Commitしない。
 
 ## 7. Undo／Redo、外部編集、競合
 
@@ -227,9 +336,12 @@ Undoは過去fileを上書きする操作ではない。Journalのinverse Operat
 
 ## 8. AIと手動編集
 
-- AIは現在revision、関係Document、lock、Capability、Target、budgetを含む`AuthoringContextPack`を読む。
+- AIは現在revision、関係Document、lock、Capability、Target、budgetを含む`ContextPackV2`を読む。
+- Context選択は`AuthoringContextIndexV1`と署名対象の`AuthoringContextPlanV1`から行い、選択理由、field mask、omitted range、continuation、source hashを失わない。
+- Editorで選択中のWorld／Scene／Level／Entityを会話Contextへ含める場合は`AuthoringSelectionContextV1`を使い、画面pixel、Hierarchy path、表示名だけを対象識別子にしない。
 - AIは存在しないStableIdを推測せず、`Create*` Operationで新IDを要求する。IDはGatewayが生成して結果mapを返す。
 - AIは巨大Sceneを全置換せず、目的に必要なOperationだけを提案する。
+- AIは正規Authoring JSONへ直接writeせず、`authoring.search`、`authoring.read`、`authoring.dependencies`、`authoring.diff`とtyped Operationだけを使う。
 - 人間がlockしたfield、Document、Entity subtreeをAIは変更できない。
 - Level 0ではAIが質問と仮定をGame用語で提示し、実装語を初心者へ選ばせない。
 - 手動Inspector、Graph、Code連携もAIと同じDiff、Validation、Undoを使う。
@@ -245,6 +357,11 @@ project_revision
 document_set_hash
 capability_manifest_hash
 target_profile_hash
+game_system_dependency_graph_hash
+system_implementation_set_hash
+world_topology_hash
+level_definition_set_hash
+world_streaming_plan_hash
 native_module_revision_hash
 asset_dependency_root_hash
 contract_lock_hash
@@ -270,6 +387,8 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 | Runtime Target予測budget未達 | Source revisionを`OptimizationRequired`でCommit可能。対象TargetのPlay／Cook／Shipping promotionを拒否し、制作意図と最適化候補を維持 |
 | Stale base revision | `RevisionMismatch`、最新Diff summaryを返す |
 | Document／StableId不足 | `MissingReference`、placeholderへ黙って置換しない |
+| 要求revisionのContext Index未完成 | `IndexNotReady`。別revisionへfallbackせず、bounded retryまたはTask分割 |
+| Decision成立条件の変化 | `DecisionInvalidationRequired`。必要Decision Operationを返し、暗黙失効しない |
 | Journal／disk full | Commit前にreject、dirty draftをRecoveryへ可能な範囲で保持 |
 | Crash during Commit | 起動時にhash検証し完全transactionだけroll-forward |
 | Derived cook失敗 | Source revision維持、last valid Derived ArtifactをDevelopment previewだけで明示継続 |
@@ -288,7 +407,17 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - Undo／Redo 10,000回後のstate hash一致
 - 外部編集三者比較、同field conflict、人間lock保持
 - AI proposalと手動GUI操作が同じcanonical ChangeSetになるconformance
+- 同じ`AuthoringSelectionContextV1`からmouse、keyboard、UI Automation、AIが同じStableId／revisionを対象にし、sort／filter／rename／re-shard後も表示indexまたはscreen coordinateへ退行しないconformance
+- `ai_mutable=true` fieldのtyped Operation coverage 100%、正規Authoring JSONへのAI write権限0
+- 100万Entityを複数Shardへ保存し、StableId、親、参照、Decision、lockを跨いで検索／Slice／部分Diffできるfixture
+- Re-shard前後で`entity_set_root_hash`とsemantic diffが不変、storage-only Diffだけが生成されるtest
+- Index stale／rebuild中に別revisionのSliceを返さないconcurrency test
+- Decision dependency変更で`InvalidateDecision`／`ReconfirmDecision`不足をrejectし、locked Decisionを別承認なしで変更できないnegative test
 - `Predicted → OptimizationRequired → Qualified`遷移、Receipt invalidation、未Qualified TargetのPlay／Cook／Shipping拒否
+- Game System authoritative State ownerが0件／複数件、stale System Bundle、Source Promotion後Project Commit failureのnegative／recovery test
+- World／Scene／Level／Cell identity、Topology reachability、Portal trap、Map intent ambiguity、Cell activation atomicityのfixture
+- Source Intentから同じTarget別Streaming Plan hashを再生成し、Derived Planの直接編集を拒否するtest
+- `MoveEntityToScene`がsubtreeの永続化owner、Shard、明示したroot parentだけを原子的に変更し、Level membership、subtree内部parent、StableId、Runtime Cellを暗黙変更しないvalid／invalid／Undo test
 - 大量Scale intentをbounded Recipe／partitionでCommitでき、Runtime budget未達時もSource、Diff、Undo、Gameplay fidelity floorを失わない
 - 同一Project revisionを二回compileしたArtifact hash一致
 - 100万Entityのread projectionを変更せず、影響Documentだけを再投影する性能fixture
@@ -301,5 +430,8 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785.html)
 - [O3DE Asset Pipeline](https://docs.o3de.org/docs/user-guide/assets/pipeline/)
 - [O3DE Product Assets and deterministic generation](https://docs.o3de.org/docs/user-guide/assets/pipeline/product-assets/)
+- [Unity 6.3 LTS Undo API](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Undo.html)
+- [Unreal Engine 5.8 Transactions](https://dev.epicgames.com/documentation/en-us/unreal-engine/BlueprintAPI/Transactions/BeginTransaction)
+- [Godot 4.7 Running code in the editor](https://docs.godotengine.org/en/4.7/tutorials/plugins/running_code_in_the_editor.html)
 
-外部EngineのProject formatやPrefab実装は採用しない。SourceとDerivedの分離、安定ID、決定論的生成という検証済み原則を参照し、MiraikanaiのDocument、ChangeSet、Commit、Projectionは本書で独自に定義する。
+外部EngineのProject formatやPrefab実装は採用しない。UnityのEditor変更をUndoへ登録する原則、UnrealのEditor transaction、Godotの永続化owner／unsaved／Undoを明示する原則をEvidenceとし、Miraikanaiでは全経路を`ProjectChangeSet`、`AuthoringSelectionContextV1`、Scene永続化ownerへ統合する。SourceとDerivedの分離、安定ID、決定論的生成を含め、Document、ChangeSet、Commit、Projectionは本書で独自に定義する。

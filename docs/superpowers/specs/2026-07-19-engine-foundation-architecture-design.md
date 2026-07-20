@@ -1,6 +1,6 @@
 # Miraikanai Engine 基盤アーキテクチャ規約
 
-- 文書版: 1.15
+- 文書版: 1.20
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: C++ Engine、Authoring Service、Editor、Tool、Native Extension
@@ -8,10 +8,12 @@
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
+- 命名・技術識別子規約: [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
 - Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
+- Math／Core Utilities規約: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - Rendering／Asset規約: [Rendering／Render Graph](./2026-07-19-rendering-render-graph-architecture-design.md)／[Asset Pipeline／Content Package](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Editor／Player I/O規約: [Editor](./2026-07-19-editor-workspace-ux-design.md)／[独自Editor UI Framework](./2026-07-20-editor-ui-framework-architecture-design.md)／[Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
@@ -23,10 +25,13 @@
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+- Debugging／Replay規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 
 ## 1. 目的と規範の読み方
 
-本書は、メモリ管理、所有権、ポインタ、並行処理、エラー処理、モジュール境界、命名、ディレクトリ、Build、依存関係、互換性を実装開始前に固定する。目的は「独自Allocatorを作ること」ではなく、正しさを証明でき、計測に基づいて最適化でき、AI生成コードも同じ規則で検証できる基盤を作ることである。
+本書は、メモリ管理、所有権、ポインタ、並行処理、エラー処理、モジュール境界、命名、ディレクトリ、Build、依存関係、互換性を実装開始前に固定する。目的は「独自Allocatorを作ること」ではなく、正しさを証明でき、計測に基づいて最適化でき、AI生成コードも同じ規則で検証できる基盤を作ることである。Mathの型、数値意味、失敗契約はMath／Core Utilities規約を正本とし、`mirakan::foundation`から分離する。
 
 本文では次の意味を用いる。
 
@@ -56,11 +61,13 @@
 | Engine–Orchestrator IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | 初期Model Provider | OpenAI Responses API、公式TypeScript SDK 6.48.0 |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium`を明示 |
-| 実行可能契約 | `/schemas/mira/`のMCDを正本とし、Contract compilerがC++／TS／MCP／Provider／Cooked binary projectionを生成 |
+| 実行可能契約 | `/schemas/mirakan/`のMCDを正本とし、Contract compilerがC++／TS／MCP／Provider／Cooked binary projectionを生成 |
 | Formal model checker | TLA+／TLC CLI v1.7.4をBuild-onlyで固定。v1.8.0 Pre-releaseとToolboxをCIへ採用しない |
 | Shader | Material／Shader IR＋portable HLSL 2021。WindowsはDXIL／SM 6.6／Root Signature 1.1、AndroidはSPIR-V、AppleはMSL／metallibへoffline cook |
 | Windows D3D12 runtime | Stable Agility SDK 1.619.4、Enhanced Barriers必須。legacy ResourceBarrier pathなし |
 | Game実装 | CPU実行CodeはC++23だけ。Game内容は検証済み`GameplayDefinition`をoffline Cookし、C++ Runtimeが実行 |
+| Game System | 契約固定・実装開放型。Engine標準、Project-defined、Engine Extensionを同じ`GameSystemSpecV1`、一意State owner、typed Port、Target／Testへ接続し、固定Class hierarchyまたはWhitelistを作らない |
+| World／Level | World／Scene／Level／Cellを別identityとし、Source IntentからTarget別Streaming Planをoffline生成する。`MapManager`へ責務を集約しない |
 | 2D Physics kernel | Box2D 3.1.1、commit `8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3`を`candidate_locked`としてAdapter内で利用。Target別Qualification後だけProduction昇格 |
 | 3D Physics kernel | Jolt Physics 5.6.0、commit `e77f175595e64cb44218cc9d9d56fc365ad0e36a`を`candidate_locked`としてAdapter内で利用。CPU rigid body限定、Target別Qualification後だけProduction昇格 |
 | 3D Navigation kernel | Recast Navigation／Detour 1.6.0、commit `6dc1667f580357e8a2154c28b7867bea7e8ad3a7`を`candidate_locked`として交換可能なprivate Backend内で利用。標準32-bit refに固定 |
@@ -182,7 +189,7 @@ NinjaはMiraikanai EngineのBuild architectureそのものではなく、CMake�
 | Build Gateway | Editor／AI／CLI／CIからの正規Request、Authorization、Target／C++／Driver Profile照合、resource予約、C++／Asset／Shader／Test／Packageの順序、cancel、Diagnostic、Build Receipt | C++ target依存の手書き複製、任意shell、署名secret |
 | CMake | First-party C++ target、compile definition、include／Module依存、code generation edge、test target、install可能なnative artifactの正本 | Project Revision、Asset Catalog、APK／AAB、Apple archive／署名 |
 | Ninja／Ninja Multi-Config | CMakeが生成したcommand DAGのincremental判定、parallel scheduling、compile／link／declared code generationの実行 | Product workflow、Toolchain選択、Package policy、Asset／Shaderの正規状態、権限判断 |
-| Content Build | Asset Import／Cook、Material／Shader compile、Derived Data、`.mirapack`、Target別Content Package | C++ target graphの正本 |
+| Content Build | Asset Import／Cook、Material／Shader compile、Derived Data、`.mirakanpack`、Target別Content Package | C++ target graphの正本 |
 | Platform owner | AndroidはGradleがManifest／resource／DEX／APK／AAB、AppleはXcodeがApp shell／resource／最終link／archive、各Signing Serviceが署名を所有 | C++ source依存の独自再定義 |
 
 EditorとBuild Gatewayは、checked-in `CMakePresets.json`のallowlist IDだけを指定し、CMake File APIのcodemodel、toolchains、cache、cmakeFilesとEngine-owned Build ReceiptからTarget、Configuration、Artifact、Diagnosticを取得する。`build.ninja`、`build-<Config>.ninja`、`.ninja_deps`、`.ninja_log`はBuild tree内の一時生成物であり、RepositoryへCommitせず、Editor、AI、Test、Project fileが解析または書換えない。CMake File API versionまたは必要object kindが利用できなければconfigureを失敗させ、Ninja file解析へfallbackしない。
@@ -200,7 +207,7 @@ Phase 0は`windows_desktop_v1` reference hardware上で次のNinja採用検証�
 5. `Development`、`Profile`、`Shipping`、`ASan`、異なるC++ Profile、Toolchain hashのBuild treeがobject、BMI、log、Receiptを共有しないことをnegative testで確認する。
 6. WindowsはNinja Multi-Config、AndroidはGradle経由Single-Config Ninja、Apple CX1以降はNinja C++ archiveとXcode後段の境界をfixtureで確認する。
 
-採用検証はAI検証規約の`VerificationReceiptV1`を使い、`gate_id=mira.build.ninja_adoption.v1`、`gate_version=1`へ固定する。`input_artifacts`へSource revision、Preset、Toolchain lock、CMake File API codemodelの各hash、`metrics`へ`clean_duration_ms`、`noop_duration_ms`、`executed_command_count`、`restat_command_count`、`peak_process_tree_commit_bytes`、`artifact_hash_mismatch_count`、`stale_output_count`、`interrupt_recovery_failure_count`を型付きで記録する。Target graphは`module_graph_hash`またはCMake codemodel output artifactとして結び付け、failureは`exit_class`とclosed Diagnostic IDへ保存する。正当性、memory、no-op budgetのいずれかに失敗した場合、Makeまたは別Generatorへ暗黙fallbackせず、CMake graph、dependency宣言、pool設定を修正して再測定する。Generator変更が必要ならEvidence、全Target影響、Modules／`import std`互換性を持つADRと正式仕様ChangeSetを先に承認する。
+採用検証はAI検証規約の`VerificationReceiptV1`を使い、`gate_id=mirakan.build.ninja_adoption.v1`、`gate_version=1`へ固定する。`input_artifacts`へSource revision、Preset、Toolchain lock、CMake File API codemodelの各hash、`metrics`へ`clean_duration_ms`、`noop_duration_ms`、`executed_command_count`、`restat_command_count`、`peak_process_tree_commit_bytes`、`artifact_hash_mismatch_count`、`stale_output_count`、`interrupt_recovery_failure_count`を型付きで記録する。Target graphは`module_graph_hash`またはCMake codemodel output artifactとして結び付け、failureは`exit_class`とclosed Diagnostic IDへ保存する。正当性、memory、no-op budgetのいずれかに失敗した場合、Makeまたは別Generatorへ暗黙fallbackせず、CMake graph、dependency宣言、pool設定を修正して再測定する。Generator変更が必要ならEvidence、全Target影響、Modules／`import std`互換性を持つADRと正式仕様ChangeSetを先に承認する。
 
 Object cacheまたはdistributed compileはPhase 0必須機能にしない。導入時はCMakeのcompiler launcher接続点からToolchain／command／Source content hashでkeyし、BMIをremote cacheへ保存せず、Releaseにcacheなし再検証laneを残す。
 
@@ -259,6 +266,7 @@ Runtime、Editor、Game codeへ旧schemaの条件分岐を埋め込まない。�
 ```mermaid
 flowchart BT
   Foundation["Foundation\nID・Memory・Result・Diagnostics"]
+  Math["Math\nUnits・Linear Algebra・Transforms・Geometry"]
   CoreServices["Core Services\nWorld・Assets・Jobs・Serialization"]
   Model["Authoring Model\nGameSpec・World Model・ChangeSet"]
   Runtime["Runtime Capabilities\nWorld・Render・Physics・Nav・Audio・Gameplay"]
@@ -268,10 +276,14 @@ flowchart BT
   Integrations["AI / MCP Integrations"]
   Hosts["Composition Roots\nEditorHost・GameHost・WorkerHost"]
 
+  Math --> Foundation
   CoreServices --> Foundation
+  CoreServices --> Math
   Model --> Foundation
+  Model --> Math
   Model --> CoreServices
   Runtime --> Foundation
+  Runtime --> Math
   Runtime --> CoreServices
   Adapters --> Runtime
   Authoring --> Model
@@ -323,17 +335,23 @@ CredentialはWindows Credential Managerへ保存し、Project、log、ChangeSet�
 
 ## 5. ID、参照、所有権
 
-### 5.1 二種類のID
+### 5.1 IDと参照の型
 
 | 種類 | 表現 | 用途 | 永続化 |
 |---|---|---|---|
 | `StableId` | RFC 9562 UUIDv7、128 bit | Authoring entity、Asset、Rule、UI element | する |
-| `EntityHandle`／`ResourceHandle` | index 32 bit＋generation 32 bit | Runtimeの高速参照 | しない |
+| `McdContractRefV1` | MCD ID＋`uint32 version`＋contract set SHA-256 | Type、Operation、Capability、Game System等の契約 | する |
+| `ArtifactRefV1` | artifact kind＋schema version＋content SHA-256 | Cooked／Derived Artifact | する |
+| Domain-local ID | Domainが定める固定幅integer＋owner `StableId`または`ArtifactRefV1` | 一つのDocument、Manifest、Package内のcompact dispatch | owner参照と組にする場合だけ可 |
+| `EntityHandle`／`ResourceHandle`等のRuntime handle | index 32 bit＋generation 32 bit | 一つのRuntime instance内の高速参照 | しない |
 
 - `StableId`は生成後に再利用しない。
+- `StableId`、MCD Contract ID、Artifact hash、Domain-local ID、Runtime handleを相互変換可能な同一identityとして扱わない。
+- Domain-local IDは型名、bit幅、0の意味、owner scope、割当順、永続可否を所有文書で必ず定義する。「stable numeric ID」だけを型定義として使用しない。
+- Domain-local IDを永続化する場合はowner `StableId`または`ArtifactRefV1`、owner version／hashを同時保存し、別ownerの同じ数値と比較しない。
 - 0のRuntime handleは常にinvalidとし、generationは1から開始する。
 - Slotを再利用するたびgenerationをincrementし、wrap時はそのslotをretireする。
-- Save dataはStable IDまたは明示的なSave IDを使い、Runtime handleを保存しない。
+- Save dataは`StableId`、exact `McdContractRefV1`、または所有範囲を固定した明示的なSave IDを使い、Runtime handleを保存しない。
 - Runtime handleの解決失敗はuse-after-freeとして検出可能にする。
 
 ### 5.2 所有権の公式規則
@@ -344,7 +362,7 @@ C++ Core GuidelinesのRAIIとownership規則を基準に、次を必須とする
 |---|---|
 | 小さくscope内で完結する値 | value／stack object |
 | Engine内部の単一所有 | `std::unique_ptr<T>`またはmove-only RAII wrapper |
-| NativeGameModuleの単一所有 | `MiraUniqueOwner<T>`を生成factoryから取得 |
+| NativeGameModuleの単一所有 | `MirakanUniqueOwner<T>`を生成factoryから取得 |
 | 真に複数所有される非同期寿命 | `std::shared_ptr<T>` |
 | 必須の借用 | `T&`／`const T&` |
 | 任意の借用 | `T*`／`const T*` |
@@ -367,7 +385,7 @@ C++ Core GuidelinesのRAIIとownership規則を基準に、次を必須とする
 
 Placement new、Allocator内部のraw storage操作、C API境界は`engine/foundation`または該当Adapterのprivate implementationだけで許可する。RAII wrapper、alignment test、failure test、sanitizerを必須とし、呼出側へ所有raw pointerを返さない。
 
-Memory／Pointerの公開型、safe／unsafe境界、AI生成規則、`PointerContractV1`、`MemoryContractV1`はMemory／Pointer規約を正本とする。Project C++のpersistent allocationはNativeGameModule規約の`MiraMakePersistent`と`MiraUniqueOwner`だけを使用し、通常の`std::make_unique`がModule Memory Portを迂回することを許可しない。
+Memory／Pointerの公開型、safe／unsafe境界、AI生成規則、`PointerContractV1`、`MemoryContractV1`はMemory／Pointer規約を正本とする。Project C++のpersistent allocationはNativeGameModule規約の`MirakanMakePersistent`と`MirakanUniqueOwner`だけを使用し、通常の`std::make_unique`がModule Memory Portを迂回することを許可しない。
 
 ### 5.3 Nullと結果
 
@@ -383,7 +401,7 @@ Memory／Pointerの公開型、safe／unsafe境界、AI生成規則、`PointerCo
 
 最初から全面的な独自general-purpose allocatorを作らない。標準Allocator／OS heapを基準に、`std::pmr::memory_resource`でallocation policyを注入できる境界を設け、profileで必要性が証明された領域だけ専用化する。
 
-`std::pmr::memory_resource`は同一C++ Module graph内部のpolicy注入に限る。NativeGameModuleのDLL／C ABI境界は`MiraNativeMemoryPortV1`のcontext＋allocate／deallocate function tableへ投影し、STL object、PMR object、allocator ownershipを越境させない。Module側でPMRを使う場合は、そのfunction tableを包むAdapterをModule内部に構築する。
+`std::pmr::memory_resource`は同一C++ Module graph内部のpolicy注入に限る。NativeGameModuleのDLL／C ABI境界は`MirakanNativeMemoryPortV1`のcontext＋allocate／deallocate function tableへ投影し、STL object、PMR object、allocator ownershipを越境させない。Module側でPMRを使う場合は、そのfunction tableを包むAdapterをModule内部に構築する。
 
 `pmr`は最適化そのものではない。次を可能にするmechanismである。
 
@@ -598,7 +616,7 @@ Android／Apple First-party C++もCMake `cxx_std_23`、warning-as-error、hidden
 ### 10.2 Header準備期とNamed Modules規則
 
 - CX0 Headerはself-containedで単独compileでき、Include What You Use、cycle禁止、macro／include順非依存を満たす。
-- CX0 Public Headerは`include/mira/<component>/`だけに置き、CX3 Cutoverで削除する。
+- CX0 Public Headerは`include/mirakan/<component>/`だけに置き、CX3 Cutoverで削除する。
 - Public APIからWindows、Android、Apple、D3D12、Vulkan、Metal、JNI、Objective-C、Box2D、Jolt、Recastの型を露出しない。
 - Forward declarationはownershipとdestructor要件を満たす場合だけ使う。
 - CX0 Headerは`#pragma once`を採用する。CX3で残るHeaderはC ABI、Preprocessor macro、言語bridgeだけとする。
@@ -607,32 +625,16 @@ Android／Apple First-party C++もCMake `cxx_std_23`、warning-as-error、hidden
 
 ## 11. 命名規則
 
-C++標準やCore Guidelinesは唯一の命名方式を規定していない。本節をMiraikanai Engineの公式方式として統一する。
+命名の唯一の正本を[AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)とする。同規約はC++だけでなく、C ABI、Named Module、CMake、HLSL、Tool言語、Schema、Contract ID、Diagnostic、Test、Generated code、File／Directoryと自動検査を所有する。
 
-| 対象 | 方式 | 例 |
-|---|---|---|
-| Root namespace | lowercase | `mira` |
-| Subnamespace | lowercase | `mira::render` |
-| Type、concept | PascalCase | `RenderGraph`, `GpuResource` |
-| Function、method | snake_case | `compile_graph()` |
-| Local、parameter | snake_case | `frame_index` |
-| Private data member | snake_case＋末尾`_` | `frame_index_` |
-| Compile-time constant | `k`＋PascalCase | `kInvalidIndex` |
-| `enum class`型／値 | PascalCase | `QueueType::Compute` |
-| Macro | `MIRA_`＋UPPER_SNAKE | `MIRA_ASSERT` |
-| File | snake_case | `render_graph.hpp` |
-| CMake target | `mira::<name>` alias | `mira::foundation` |
-| Test | `<subject>_<condition>_<result>` | `handle_stale_generation_is_rejected` |
+基盤規約では次の不変条件だけを保持する。
 
-追加規則:
-
-- Headerは`.hpp`、implementationは`.cpp`に統一する。
-- Booleanは`is_`、`has_`、`can_`、`should_`など、trueの意味が読める名前にする。
-- Interfaceへ機械的な`I` prefixを付けない。役割名を使う。例: `RendererBackend`。
-- Hungarian notation、型を重複するprefix、曖昧な`manager`、`util`、`helper`を禁止する。
-- 単位を隠さない。`Duration`、`Radians`などのstrong type、または境界APIで`timeout_ms`のように明示する。
-- 略語は一般的なものだけを一貫して使う。`id`、`gpu`、`ui`はidentifier内で通常語として扱う。
-- Macroはplatform、export、assert、compile configurationへ限定する。
+- 自然言語の製品名は`Miraikanai Engine`、Engine所有の技術stemは`mirakan`／`Mirakan`／`MIRAKAN`とする。
+- C++ root namespace、Public include root、Primary Named Module、CMake aliasを同じcomponent identityから決定論的に導出する。
+- 名前、path、array index、content hashを永続identityに使わず、Stable ID、reference、runtime handle、index、key、hashを型と正規suffixで区別する。
+- First-party codeはC++ Core Guidelinesの原則へ従い、未規定箇所だけProject house styleを使う。Third-party sourceは原Styleを保持してAdapter境界で変換する。
+- Naming Policy、`.clang-tidy`、repository linter、positive／negative fixtureをCIで照合し、Reviewだけへ依存しない。
+- 規範例は`mirakan`へcutover済みとし、legacy表記は命名正本で明示したMigration Table、negative example、historical fixture、外部引用だけに置く。
 
 Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を唯一の設定とする。手動の見た目論争ではなくCIで機械適用する。
 
@@ -655,7 +657,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  └─ toolchains/
 ├─ config/
 ├─ schemas/
-│  ├─ mira/
+│  ├─ mirakan/
 │  │  ├─ meta/
 │  │  ├─ requirements/
 │  │  ├─ types/
@@ -680,6 +682,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │     └─ plans/
 ├─ engine/
 │  ├─ foundation/
+│  ├─ math/
 │  ├─ platform/
 │  │  ├─ contracts/
 │  │  ├─ windows/
@@ -700,10 +703,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  ├─ materials/
 │  │  ├─ visual_styles/
 │  │  └─ backends/{d3d12,vulkan,metal}/
-  │  ├─ physics/
-  │  │  ├─ contracts/
-  │  │  ├─ core/{world,dynamics,joints,character,save_replay}/
-  │  │  ├─ collision/
+│  ├─ physics/
+│  │  ├─ contracts/
+│  │  ├─ core/{world,dynamics,joints,character,save_replay}/
+│  │  ├─ collision/
 │  │  ├─ diagnostics/
 │  │  └─ backends/{box2d,jolt}/
 │  ├─ navigation/
@@ -760,7 +763,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  ├─ package.json
 │  ├─ package-lock.json
 │  ├─ tsconfig.json
-│  ├─ src/
+│  ├─ source/
 │  │  ├─ providers/
 │  │  ├─ requirements/
 │  │  ├─ visual_styles/
@@ -779,7 +782,7 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 │  │  ├─ package.json
 │  │  ├─ package-lock.json
 │  │  ├─ tsconfig.json
-│  │  ├─ src/
+│  │  ├─ source/
 │  │  └─ tests/
 │  ├─ contract_lint/
 │  ├─ source_worker/
@@ -816,22 +819,26 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
    └─ notices/
 ```
 
-`engine/rendering/materials`はMaterial IR、Shading Model contract、ShaderInterface、compile keyを所有する。`engine/rendering/visual_styles`はcook済みVisual StyleのRuntime適用とRender layer compositionを所有し、Authoring schemaやAI判断を持たない。`authoring/visual_styles`はVisualStyleProfile、StyleChangeSet、Validator、Preview modelを所有する。`orchestrator/src/visual_styles`は候補生成と説明だけを行い、Capability hard gate、Style validation、Commit権限を持たない。
+波括弧は同じ親を共有する兄弟Directoryの文書上の省略記法であり、`backends/{d3d12,vulkan,metal}`という文字列のDirectoryを作らない。
+
+`engine/rendering/materials`はMaterial IR、Shading Model contract、ShaderInterface、compile keyを所有する。`engine/rendering/visual_styles`はcook済みVisual StyleのRuntime適用とRender layer compositionを所有し、Authoring schemaやAI判断を持たない。`authoring/visual_styles`はVisualStyleProfile、StyleChangeSet、Validator、Preview modelを所有する。`orchestrator/source/visual_styles`は候補生成と説明だけを行い、Capability hard gate、Style validation、Commit権限を持たない。
 
 `engine/runtime/contracts`はDomain実装を持たないtyped command／event／snapshotだけを所有する。`engine/runtime/orchestration`はphase順序とbuffer mergeを所有し、vendor型をincludeしない。`engine/runtime/package`はversioned binary manifestとloaderを所有し、Authoring objectを参照しない。`engine/runtime/compiler`はCommit済みAuthoring revisionからRuntime packageを生成し、live Runtime Worldを参照しない。
 
-各`engine/<domain>`は公開契約の`<domain>_port`、World query／System／resolverを持つ`<domain>_runtime`、vendor変換の`<domain>_<backend>_adapter`を別CMake targetにする。Runtimeだけが宣言済みComponent accessを通して`mira_world`へ依存でき、AdapterはWorldへ依存しない。Rendering、Audio、VFX等、snapshot／commandだけで動くconcrete targetには、上限DAGにedgeがあってもWorld dependencyを与えない。GameplayDefinition evaluatorは`gameplay_runtime`内のC++ Systemであり、汎用VM Adapterを持たない。正確な許可edgeとread／write setはRuntime詳細規約を基準にする。
+各`engine/<domain>`は公開契約の`<domain>_port`、World query／System／resolverを持つ`<domain>_runtime`、vendor変換の`<domain>_<backend>_adapter`を別CMake targetにする。Runtimeだけが宣言済みComponent accessを通して`mirakan_world`へ依存でき、AdapterはWorldへ依存しない。Rendering、Audio、VFX等、snapshot／commandだけで動くconcrete targetには、上限DAGにedgeがあってもWorld dependencyを与えない。GameplayDefinition evaluatorは`gameplay_runtime`内のC++ Systemであり、汎用VM Adapterを持たない。正確な許可edgeとread／write setはRuntime詳細規約を基準にする。
+
+`engine/gameplay/contracts`はMCD-generated Game System ID、Command／Event／Snapshot、State owner、Dependency Graph projectionだけを所有する。`engine/gameplay/definitions`はbounded Definitionのcompiler／evaluator、`engine/gameplay/runtime`はactive System instanceとImplementation Set接続を所有する。Game Systemごとに独立CMake target、global singleton、`Manager`基底Classを自動生成しない。Project固有C++は`NativeGameModule`のgenerated descriptorとして同じContractへ登録し、Engine private targetへ直接linkしない。
 
 各C++ componentは次を標準形とする。
 
 ```text
 <component>/
 ├─ CMakeLists.txt
-├─ include/mira/<component>/ # CX0移行用公開API。CX3で削除
-├─ modules/                  # .cppm Primary interface／partition
-├─ src/                      # implementation unit／private source
+├─ include/mirakan/<component>/ # CX0移行用公開API。CX3で削除
+├─ modules/                     # .cppm Primary interface／partition
+├─ source/                      # implementation unit／private source
 ├─ tests/
-└─ benchmarks/               # hot pathがあるcomponentだけ必須
+└─ benchmarks/                  # hot pathがあるcomponentだけ必須
 ```
 
 規則:
@@ -840,10 +847,10 @@ Formatはrepository rootの`.clang-format`、static analysisは`.clang-tidy`を�
 - 一つのdirectoryに複数の無関係なSubsystemを置かない。
 - `common`、`misc`、`shared`、巨大な`utils` directoryを作らない。
 - `third_party`へvendor sourceを手動copyしない。Patchとnoticeだけを追跡する。C／C++ Libraryはvcpkg manifest、Agility SDKは公式NuGet flat-container URL＋SHA-512で取得を再現する。
-- CX0 Public includeとCX3 Primary Named Moduleは同じcomponent契約を表し、他componentの`src`をincludeしてはならない。CX3ではConsumerがPrimary Named Moduleだけをimportする。
+- CX0 Public includeとCX3 Primary Named Moduleは同じcomponent契約を表し、他componentの`source`をincludeしてはならない。CX3ではConsumerがPrimary Named Moduleだけをimportする。
 - Hostだけがconcrete adapterを生成し、core module内でservice locatorを構築しない。
 - Domain targetから別Domain targetへの直接依存を禁止し、cross-domain dataは`engine/runtime/contracts`を経由する。
-- C++、TypeScript、MCP、Provider、Cooked binaryで共有する契約は`schemas/mira/`のMCDから生成し、手書きで二重管理しない。
+- C++、TypeScript、MCP、Provider、Cooked binaryで共有する契約は`schemas/mirakan/`のMCDから生成し、手書きで二重管理しない。
 - Generated source、Provider Schema、Reference docsはsource treeへ置かず、Build treeへ生成する。正本とgolden hashだけを追跡する。
 - `evidence/`は外部資料のclaim、URL、hash、取得日、期限を保持し、Web page全文の無断複製やBuild中の自動取得を行わない。
 - `formal/tla/`は有限State machineだけを対象とし、C++実装全体の証明を表明しない。
@@ -890,7 +897,7 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、同梱
 
 `third_party/ports`のoverlay portは上表のcommitとsource archive SHA-512を固定する。vcpkg builtin portが別commitを指す場合はbuiltinへ追従せずoverlayを使う。CIはresolved source commit、patch hash、compiler options、license hashをSBOMとBuild manifestへ出力する。
 
-Editor UIはC++23の独自`MiraUI Core`と`MiraEditor Shell`で構築し、汎用GUI toolkit dependencyを持たない。Widget、Layout、Event、Docking、Rendering、Semantic Tree、AI Interfaceの正本は独自Editor UI Framework規約に置く。Windows Editor shellのtext layout／system Font／glyph analysisはDirectWrite、text inputはTSF、custom control accessibilityはUI Automationをprivate Platform Adapterで利用する。Shipping Game UIは全Target共通のHarfBuzz／FreeType／ICU4C Adapterを使い、bundled Font、UI Layout、Localization、Accessibilityの正本はUI／Text正式規約に置く。
+Editor UIはC++23の独自`MirakanUi Core`と`MirakanEditor Shell`で構築し、汎用GUI toolkit dependencyを持たない。Widget、Layout、Event、Docking、Rendering、Semantic Tree、AI Interfaceの正本は独自Editor UI Framework規約に置く。Windows Editor shellのtext layout／system Font／glyph analysisはDirectWrite、text inputはTSF、custom control accessibilityはUI Automationをprivate Platform Adapterで利用する。Shipping Game UIは全Target共通のHarfBuzz／FreeType／ICU4C Adapterを使い、bundled Font、UI Layout、Localization、Accessibilityの正本はUI／Text正式規約に置く。
 
 HarfBuzzはFreeType＋ICU integrationだけを有効にし、GLib、Cairo、Graphite2、Shipping不要のtool／docsを無効にする。FreeTypeはTrueType／OpenType、CFF／CFF2、SFNTだけをC1必須とし、BZip2、Brotli／WOFF2、PNG、SVG optional moduleを無効にする。ICU4Cは`common`＋`i18n`を使い、ShippingではProject locale setと必要serviceにfiltered dataを生成する。Compiler option、Source archive SHA-512、patch、license file hash、filtered data hashはoverlay port、`toolchain.lock.json`、SBOM、Package Receiptへ固定する。
 
@@ -992,27 +999,28 @@ Phase 0自体は、設計Review後に別途承認された実装計画に従っ�
 
 1. `toolchain.lock.json` schema version 5、`BuildDriverProfileV1`、Root CMake Presets、Android Gradle CMake設定、vcpkg manifest、CI image digestが固定され、bootstrapがversion／hash／署名／Driver／Generator差を拒否する。
 2. `cxx23_headers_bootstrap`が固定MSVC 14.51 Stable／ClangでCompileし、P2564R3／P0533R9を使わず、`std::expected`とC++23 conformance fixtureへ合格する。
-3. `mira.foundation`の`cxx23_modules_probe`、`import std`、BMI identity、Module graph negative fixture、`cxx26_readiness`が非Promotion CIで再現可能に実行される。
-4. `mira_add_cpp_component()`、`CxxComponentGraphV1`、Foundation targetとdependency DAGがCIで検査できる。
+3. `mirakan.foundation`の`cxx23_modules_probe`、`import std`、BMI identity、Module graph negative fixture、`cxx26_readiness`が非Promotion CIで再現可能に実行される。
+4. `mirakan_add_cpp_component()`、`CxxComponentGraphV1`、Foundation targetとdependency DAGがCIで検査できる。
 5. `StableId`、generation handle、`Result`、memory tagのcontract testがある。
-6. `.gitattributes`のtext／binary／改行、`.clang-format`、`.clang-tidy`、warning policyがCIで強制される。
-7. ChangeSetの`base_project_revision`とoffline migration policyがschemaへ反映される。
-8. Development／Profile／Shipping Buildの診断差が定義され、CX0からProduction Shipping artifactを生成できない。
-9. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
-10. Scene dimension、Art Direction、Composition、Shading Modelの正規四軸とVisualStyleProfile schemaが承認される。
-11. Material IR、Domain output、Engine-owned Target Binding Layout、StyleCapabilityManifestの境界が承認される。
-12. Runtime詳細規約のmodule DAG、phase、write authority、handle／borrow、Asset promotion、memory／performance、failure matrixが承認される。
-13. `mira_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
-14. モバイル規約のTarget／Distribution Profile、Platform Port、Toolchain／Store lock、shipping data-only AI policyが承認される。
-15. Android／Apple Adapterが未実装の段階でも、Target validatorが`UnsupportedTarget`を返し、空packageを成功扱いしない。
-16. MCD meta-schema、Requirement、Type、Operation、State machine、Capability、Policy、Profile、`CppDependencySetV1`、`BuildDriverProfileV1`の共通規約が承認される。
-17. Contract compilerの決定論生成、Provider projection、cross-language round-trip、generated file driftのTest計画が承認される。
-18. `TaskSpecification`とAIが変更不能な`TaskAuthorizationEnvelope`、R0–R5、Approval／Promotion境界が承認される。
-19. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
-20. TLA+対象5 State machine、実装transition conformance、AI Eval suite、Provider migration gateが承認される。
-21. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
-22. `PhysicsKernelLockV1`、Box2D／Joltのexact commit、product／Qualification build option、Target別昇格状態、全World／Solver Profile、Joint／Character／Save／Replay契約が承認され、未Qualification TargetをProduction表示しないGateが定義される。
-23. 固定Node.js 24.18.0 LTS＋npm 11.16.0だけで両許可rootの`npm ci --ignore-scripts --offline --no-audit --no-fund`、single-threaded clean compile、test、packageがnetworkなしで再現し、global Node／npm、Corepack、Bun、pnpm、未許可root、異種lockfileをnegative fixtureで拒否する。
+6. `mirakan_math`が`mirakan_foundation`だけへ依存し、portable scalar reference、storage／semantic type、finite／normalization／failure contract、Math MCD projection、unit／property／golden／cross-language／CPU・HLSL conformance testを持つ。
+7. `.gitattributes`のtext／binary／改行、`.clang-format`、`.clang-tidy`、warning policyがCIで強制される。
+8. ChangeSetの`base_project_revision`とoffline migration policyがschemaへ反映される。
+9. Development／Profile／Shipping Buildの診断差が定義され、CX0からProduction Shipping artifactを生成できない。
+10. 2D／3D capability planのcoordinate、unit、color、tick規約が承認される。
+11. Scene dimension、Art Direction、Composition、Shading Modelの正規四軸とVisualStyleProfile schemaが承認される。
+12. Material IR、Domain output、Engine-owned Target Binding Layout、StyleCapabilityManifestの境界が承認される。
+13. Runtime詳細規約のmodule DAG、phase、write authority、handle／borrow、Asset promotion、memory／performance、failure matrixが承認される。
+14. `mirakan_runtime_contracts`、bounded queue、generation slot、borrow epoch、Domain budgetのcontract test計画が承認される。
+15. モバイル規約のTarget／Distribution Profile、Platform Port、Toolchain／Store lock、shipping data-only AI policyが承認される。
+16. Android／Apple Adapterが未実装の段階でも、Target validatorが`UnsupportedTarget`を返し、空packageを成功扱いしない。
+17. MCD meta-schema、Requirement、Type、Operation、State machine、Capability、`game_system`、Policy、Profile、`CppDependencySetV1`、`BuildDriverProfileV1`の共通規約が承認される。World／Topology／Level／Partition Intent／Streaming Plan／Map Intentは最小fixtureだけを含み、実Game System本文、large-world Runtime、空Class／Directoryを作らない。
+18. Contract compilerの決定論生成、Provider projection、cross-language round-trip、generated file driftのTest計画が承認される。
+19. `TaskSpecification`とAIが変更不能な`TaskAuthorizationEnvelope`、R0–R5、Approval／Promotion境界が承認される。
+20. Source Workerのsandbox、Path escape、Network、Secret、Process tree、差分Promotionのnegative test計画が承認される。
+21. TLA+対象5 State machine、実装transition conformance、14 AI Eval suite、Provider migration gateが承認される。
+22. Verification／Generation／Review／Promotion Receipt、SPDX SBOM、SLSA provenance、Evidence freshnessの発行Authorityが承認される。
+23. `PhysicsKernelLockV1`、Box2D／Joltのexact commit、product／Qualification build option、Target別昇格状態、全World／Solver Profile、Joint／Character／Save／Replay契約が承認され、未Qualification TargetをProduction表示しないGateが定義される。
+24. 固定Node.js 24.18.0 LTS＋npm 11.16.0だけで両許可rootの`npm ci --ignore-scripts --offline --no-audit --no-fund`、single-threaded clean compile、test、packageがnetworkなしで再現し、global Node／npm、Corepack、Bun、pnpm、未許可root、異種lockfileをnegative fixtureで拒否する。
 
 ## 19. 一次資料と判断の対応
 

@@ -127,7 +127,7 @@ tools/physics_qualification/
 - `editor/panels/physics`は正規documentのProjectionであり、Runtime Worldの正本ではない。
 - `tools/physics_qualification`は通常Game Runtimeへlinkせず、Kernel昇格試験と比較Benchmarkを実行する。
 
-Project C++は`mira.runtime`から生成される`PhysicsCommandWriterV1`、`PhysicsQueryPortV1`、`PhysicsEventViewV1`だけを利用する。`mira.physics.backend.*`という公開Moduleは作らない。
+Project C++は`mirakan.runtime`から生成される`PhysicsCommandWriterV1`、`PhysicsQueryPortV1`、`PhysicsEventViewV1`だけを利用する。`mirakan.physics.backend.*`という公開Moduleは作らない。
 
 ### 5.3 所有権とthread
 
@@ -248,7 +248,7 @@ Visual scaleをNative Bodyへ渡さない。Collider寸法へCookし、Runtime p
 | Mobile standard | 2 |
 | Mobile high | 4 |
 
-この値を`physics_worker_count`とし、Runtime規約がhardwareから決める共有pool総数`shared_worker_pool_count`とは区別する。Main Runtime threadはどちらにも含めない。Physicsは共有pool内で最大`physics_worker_count` slotだけを同時使用し、Library固有thread／poolを作らない。`shared_worker_pool_count < physics_worker_count`ならworker数1へ無通知fallbackせず`MIRA-PHYSICS-WORKER_PROFILE_UNAVAILABLE`でPlay準備を失敗させるか、ユーザー承認済み下位Target Profileへ変更する。両値はPlay開始時に固定してReplay headerへ保存し、OSのhardware concurrency変化からPlay中に再計算しない。
+この値を`physics_worker_count`とし、Runtime規約がhardwareから決める共有pool総数`shared_worker_pool_count`とは区別する。Main Runtime threadはどちらにも含めない。Physicsは共有pool内で最大`physics_worker_count` slotだけを同時使用し、Library固有thread／poolを作らない。`shared_worker_pool_count < physics_worker_count`ならworker数1へ無通知fallbackせず`MIRAKAN-PHYSICS-WORKER_PROFILE_UNAVAILABLE`でPlay準備を失敗させるか、ユーザー承認済み下位Target Profileへ変更する。両値はPlay開始時に固定してReplay headerへ保存し、OSのhardware concurrency変化からPlay中に再計算しない。
 
 ### 8.2 `Physics2DWorldProfile::ReferenceV1`
 
@@ -562,7 +562,7 @@ AIはLevel 0でも必要なGameplayDefinitionとProject C++を生成できるが
 - Save→Load state差、Replay最初の不一致tick、Kernel／Profile／Build Receipt。
 - Source、Preview、Committed、Runtimeの状態を色だけでなくlabel、line pattern、iconで区別。
 
-Panelは独自MiraUIの通常dockとしてresize、dock、floating、multi-monitor、Workspace保存へ対応する。Scene ViewやProfilerからNative Worldを直接参照せず、T60後のbounded `PhysicsDebugSnapshotV1`だけを読む。
+Panelは独自MirakanUiの通常dockとしてresize、dock、floating、multi-monitor、Workspace保存へ対応する。Scene ViewやProfilerからNative Worldを直接参照せず、T60後のbounded `PhysicsDebugSnapshotV1`だけを読む。
 
 AI Partnerは選択中Body／Joint／CharacterのSemantic Snapshot、Diagnostic、budgetを取得できるが、screen座標やpixelから状態を推測しない。AI提案、Engine validation結果、CommitされるDiffを別表示にする。
 
@@ -649,21 +649,21 @@ Kernel version、SIMD、solver field、`physics_worker_count`を変更した比�
 
 | ID | 条件 | 動作 |
 |---|---|---|
-| `MIRA-PHYSICS-KERNEL_UNQUALIFIED` | Target／BuildのQualification Receiptなし | World作成拒否 |
-| `MIRA-PHYSICS-KERNEL_LOCK_MISMATCH` | version、commit、hash、option不一致 | configure／Play拒否 |
-| `MIRA-PHYSICS-WORKER_PROFILE_UNAVAILABLE` | 要求workerを提供不能 | Play準備拒否 |
-| `MIRA-PHYSICS-PROFILE_INVALID` | solver値、60 Hz、capacity不正 | Commit／Cook拒否 |
-| `MIRA-PHYSICS-COMMAND_CONFLICT` | 同一targetの排他的Command | 低priority Command拒否 |
-| `MIRA-PHYSICS-JOINT_INVALID` | Body、frame、axis、limit、motor不正 | Commit／Play拒否 |
-| `MIRA-PHYSICS-JOINT_CAPACITY_EXCEEDED` | live Joint上限 | tick非publish／Play fault |
-| `MIRA-PHYSICS-CHARACTER_PROFILE_INVALID` | capsule、skin、step、slope不正 | Commit拒否 |
-| `MIRA-PHYSICS-CHARACTER_DEPENETRATION_EXCEEDED` | overlap解消上限 | tick非publish／Play fault |
-| `MIRA-PHYSICS-CALLBACK_REENTRY` | callback中World／Gameplay再入 | Development assert、Release fault |
-| `MIRA-PHYSICS-TEMP_MEMORY_EXHAUSTED` | Temp／scratch枯渇 | tick非publish／Play fault |
-| `MIRA-PHYSICS-NATIVE_UPDATE_FAILED` | Jolt error、Box2D invariant、non-finite | tick非publish／Play fault |
-| `MIRA-PHYSICS-SAVE_INCOMPATIBLE` | Profile／Asset／Schema不一致 | Load失敗、旧World維持 |
-| `MIRA-PHYSICS-REPLAY_ENVIRONMENT_MISMATCH` | Build／Profile／worker不一致 | Replay開始拒否 |
-| `MIRA-PHYSICS-REPLAY_DIVERGED` | state／Event digest不一致 | 最初の不一致で停止しreport |
+| `MIRAKAN-PHYSICS-KERNEL_UNQUALIFIED` | Target／BuildのQualification Receiptなし | World作成拒否 |
+| `MIRAKAN-PHYSICS-KERNEL_LOCK_MISMATCH` | version、commit、hash、option不一致 | configure／Play拒否 |
+| `MIRAKAN-PHYSICS-WORKER_PROFILE_UNAVAILABLE` | 要求workerを提供不能 | Play準備拒否 |
+| `MIRAKAN-PHYSICS-PROFILE_INVALID` | solver値、60 Hz、capacity不正 | Commit／Cook拒否 |
+| `MIRAKAN-PHYSICS-COMMAND_CONFLICT` | 同一targetの排他的Command | 低priority Command拒否 |
+| `MIRAKAN-PHYSICS-JOINT_INVALID` | Body、frame、axis、limit、motor不正 | Commit／Play拒否 |
+| `MIRAKAN-PHYSICS-JOINT_CAPACITY_EXCEEDED` | live Joint上限 | tick非publish／Play fault |
+| `MIRAKAN-PHYSICS-CHARACTER_PROFILE_INVALID` | capsule、skin、step、slope不正 | Commit拒否 |
+| `MIRAKAN-PHYSICS-CHARACTER_DEPENETRATION_EXCEEDED` | overlap解消上限 | tick非publish／Play fault |
+| `MIRAKAN-PHYSICS-CALLBACK_REENTRY` | callback中World／Gameplay再入 | Development assert、Release fault |
+| `MIRAKAN-PHYSICS-TEMP_MEMORY_EXHAUSTED` | Temp／scratch枯渇 | tick非publish／Play fault |
+| `MIRAKAN-PHYSICS-NATIVE_UPDATE_FAILED` | Jolt error、Box2D invariant、non-finite | tick非publish／Play fault |
+| `MIRAKAN-PHYSICS-SAVE_INCOMPATIBLE` | Profile／Asset／Schema不一致 | Load失敗、旧World維持 |
+| `MIRAKAN-PHYSICS-REPLAY_ENVIRONMENT_MISMATCH` | Build／Profile／worker不一致 | Replay開始拒否 |
+| `MIRAKAN-PHYSICS-REPLAY_DIVERGED` | state／Event digest不一致 | 最初の不一致で停止しreport |
 
 Failed tickのTransform、Event、Debug Snapshotを部分publishしない。Play fault後はlast completed tickのread-only snapshotをEditorへ残し、Gameの継続を成功扱いしない。
 

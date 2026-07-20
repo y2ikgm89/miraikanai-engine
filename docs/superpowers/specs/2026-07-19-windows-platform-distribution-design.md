@@ -1,10 +1,11 @@
 # Miraikanai Engine Windows Platform／Distribution規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 対象: Windows Editor／Game、Process、Window、Platform Port、Filesystem、Package、Signing、Update、Crash
 - 状態: プロジェクト公式の規範設計レビュー版
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Engine命名正本: [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
 - C++言語・Build規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
@@ -12,6 +13,7 @@
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
@@ -24,7 +26,7 @@ Windows固有APIは`engine/platform/windows`と各Backend Adapterに閉じ、正
 生成Gameの公式Distributionは次の二つである。
 
 - `windows_msix_v1`: Microsoft Store、enterprise、直接配布向けの署名済みfull-trust MSIX
-- `windows_managed_layout_v1`: Steam等の外部配布clientがinstall／updateを管理する署名済みfolder layout
+- `windows_managed_layout_v1`: Steam等の外部配布clientがinstall／updateを管理する署名済みDirectory layout
 
 Development用portable layoutはShipping Distributionではない。Miraikanai独自の常駐auto-updater、kernel driver、system serviceをC1で実装しない。
 
@@ -33,10 +35,10 @@ Development用portable layoutはShipping Distributionではない。Miraikanai�
 | 主題 | 正本 |
 |---|---|
 | Windows OS／ABI、Window、Process、Filesystem、Package、Signing、Crash | 本書 |
-| MiraUI Widget、Docking、Editor Window composition、DirectWrite／TSF／UIA／OLE Adapter契約 | Editor UI Framework規約 |
+| MirakanUi Widget、Docking、Editor Window composition、DirectWrite／TSF／UIA／OLE Adapter契約 | Editor UI Framework規約 |
 | D3D12 resource／frame／device loss | Rendering規約 |
 | Input、IME、UI／Text、Audio意味 | Player I/O規約 |
-| `.mirapack`、VFS、Patch／DLC | Asset規約 |
+| `.mirakanpack`、VFS、Patch／DLC | Asset規約 |
 | C++ toolchain、Agility、memory、security baseline | 基盤規約 |
 | Android／Apple | Mobile規約 |
 
@@ -69,12 +71,12 @@ OS Support期間と累積更新要件は`platform_policy.lock.json`へ取得日�
 
 | Process | 権限／役割 |
 |---|---|
-| `MiraikanaiEditor.exe` | UI、Authoring Command Gateway、Project／Workspace |
-| `MiraGameHost.exe` | Preview Runtime、Project C++、Renderer、Audio |
-| `MiraWorkerHost.exe` | Asset／Shader／Contract等のJob entry |
-| `MiraAiOrchestrator.exe` | Model Provider、MCP、AI Task |
-| `MiraPackageService.exe` | Package assembly／inspection。署名keyなし |
-| `MiraCrashCollector.exe` | optional out-of-process dump／metadata collection |
+| `mirakan_editor.exe` | UI、Authoring Command Gateway、Project／Workspace |
+| `mirakan_game_host.exe` | Preview Runtime、Project C++、Renderer、Audio |
+| `mirakan_worker_host.exe` | Asset／Shader／Contract等のJob entry |
+| `mirakan_ai_orchestrator.exe` | Model Provider、MCP、AI Task |
+| `mirakan_package_service.exe` | Package assembly／inspection。署名keyなし |
+| `mirakan_crash_collector.exe` | optional out-of-process dump／metadata collection |
 
 Editor起動child tree全体は`EditorSessionJob`でkill-on-job-closeとchild process policyを適用するが、AI／Compiler／WorkerまでEditor memoryへ誤計上しないため、このroot Jobへaggregate memory limitを設定しない。EditorHost＋同時に一つだけのGameHostはRuntime規約のallocator tagとProcess working-set telemetryでaggregate 4 GiB hard gateを適用する。Source／Asset／Shader Workerはsuspended起動後にtask別nested Jobへ割り当ててからresumeし、Source sandbox Profileのcommit memory／CPU／process数上限をOSで強制する。AI Orchestrator、Package Service、Crash CollectorもProcess別budgetを持ち、Editor 4 GiBへ含めない。GameHost終了時にProject C++ job、GPU、Audioをjoinし、timeout時はProcess単位で終了する。
 
@@ -113,7 +115,7 @@ Critical Project draft recoveryはEditorのAuthoring規約、Game SaveはSave se
 | `IUiWindowService` | Editor top-level／owned Window、cursor、monitor、work area、non-client frame |
 | `ILifecycleService` | Window／session／power event normalization |
 | `IInputDeviceHub` | GameInput device／reading＋Win32 pointer bridge |
-| `IUiRenderBackend` | `MiraUiDrawPacketV1`からD3D12 UI passへの変換 |
+| `IUiRenderBackend` | `MirakanUiDrawPacketV1`からD3D12 UI passへの変換 |
 | `IUiTextBackend` | DirectWrite text layout、system Font fallback、glyph analysis |
 | `ITextInputService` | TSF／IME composition、selection、candidate geometry |
 | `IUiAccessibilityBridge` | UI Automation fragment root、provider、control pattern、event |
@@ -159,14 +161,16 @@ full-trust Win32 applicationをMSIXへpackageする。
 ```text
 MSIX
 ├─ AppxManifest.xml
-├─ MiraGame.exe
+├─ mirakan_game.exe
 ├─ D3D12/D3D12Core.dll
-├─ Content/*.mirapack
-├─ Runtime dependency／license
-├─ Visual Assets
-└─ Platform-generated block map／signature
+├─ content/*.mirakanpack
+├─ <locked_runtime_dependency>.dll
+├─ assets/
+├─ licenses/
+└─ [MSIX-generated block map／signature]
 ```
 
+- `AppxManifest.xml`、`D3D12/D3D12Core.dll`、Third-party runtime basename、MSIX生成物はTool／Platform所有名として原表記を保持する。それ以外のFirst-party artifactとDirectoryはEngine命名正本のlowercase `snake_case`に従う。
 - Package identity、publisher、version、architecture、minimum OS、capabilityをTarget／Distribution Profileから生成する。
 - default capabilityは0で、実際に必要な宣言だけをRelease ownerが承認する。
 - elevation、driver、service、arbitrary startup taskを要求するGameをC1 packageで拒否する。
@@ -178,13 +182,13 @@ Editor本体もC2 Production Distributionではfull-trust MSIXを推奨する。
 
 ### 8.2 `windows_managed_layout_v1`
 
-Steam等の外部client向けにはPlatform非依存のfolder layout、content manifest、launch manifest、redistributable noticeを出す。Install／update／rollback／entitlementは配布clientが所有し、Miraikanai Game内で独自updaterを起動しない。
+Steam等の外部client向けにはPlatform非依存のDirectory layout、content manifest、launch manifest、redistributable noticeを出す。Install／update／rollback／entitlementは配布clientが所有し、Miraikanai Game内で独自updaterを起動しない。
 
 Layoutの実行fileとDLLへAuthenticode署名を行い、Package Receiptに全file SHA-256を記録する。Platform固有SDKを統合する場合はEngine Platform AdapterのR4変更であり、NativeGameModuleへ直接linkしない。
 
 ### 8.3 Development package
 
-`windows_development_layout_v1`はlocal Play／CI専用で、PDB、validation layer、loose Catalogを含められる。Shipping manifestと別ID／directoryを使い、Shipping signing／Store uploadへ昇格できない。
+`windows_development_layout_v1`はlocal Play／CI専用で、PDB、source map、D3D12 Debug Layer／DRED、validation layer、loose Catalog、Debugging規約のD2／D3 instrumentを含められる。各symbol／captureはBuild Receipt、Module hash、Session IDへ関連付け、絶対source pathやcredentialを共有Bundleへ既定で含めない。Shipping manifestと別ID／directoryを使い、Shipping signing／Store uploadへ昇格できない。
 
 ## 9. Build、Signing、Publication
 
@@ -218,25 +222,25 @@ Certificate subject、thumbprint、timestamp URL、Store identityはProject boot
 | 更新対象 | C1／C2経路 |
 |---|---|
 | EXE／DLL／offline shader | Store、MSIX App Installer、または外部配布clientのApplication updateだけ |
-| Base `.mirapack` | Application update |
+| Base `.mirakanpack` | Application update |
 | Content Patch／DLC | Asset規約のC2 signed Package＋Distribution service |
 | Save schema | Application update同梱のoffline migrator |
 
 C1は自己更新を実装しない。C2でdirect MSIX配布を有効化する場合はMicrosoft App Installer／MSIX update modelを使い、Gameが任意URLからEXEをdownload／executeする独自updaterを作らない。
 
-Patch apply中は旧Packageを上書きせず、完全検証後にmount setを切り替える。rollback可能version、minimum app version、content entitlementをCatalogへ明示する。codeを`.mirapack`／DLCへ混入しない。
+Patch apply中は旧Packageを上書きせず、完全検証後にmount setを切り替える。rollback可能version、minimum app version、content entitlementをCatalogへ明示する。codeを`.mirakanpack`／DLCへ混入しない。
 
 ## 11. Crash、Hang、Diagnostics
 
 ### 11.1 C1
 
 - Development／ProfileではWER LocalDumpsまたはTask Manager／ProcDumpによるdump取得手順を提供する。
-- Shippingでは`MiraCrashCollector.exe`を任意で同梱し、out-of-processでminidumpとtyped crash metadataをLocalAppDataへ保存する。
+- Shippingでは`mirakan_crash_collector.exe`を任意で同梱し、out-of-processでminidumpとtyped crash metadataをLocalAppDataへ保存する。
 - in-process exception handlerで複雑なallocation、lock、network upload、Project Saveを行わない。
 - Dump取得失敗でProcess終了を阻止しない。
 - Hang watchdogはGame simulation／render／window heartbeatを監視するが、threadを強制再開して継続しない。
 
-`CrashEnvelopeV1`はapp／Engine／Module／Package hash、OS／driver、Target Capability、last phase、bounded log／breadcrumb、consent stateを持つ。Project source、AI prompt、credential、full path、user name、Save本文を既定で含めない。
+`CrashEnvelopeV1`はapp／Engine／Module／Package hash、OS／driver、Target Capability、last phase、bounded log／breadcrumb、consent stateを持つ。Debugging規約のSession ID、last complete debug chunk、gap、Replay slice、DRED breadcrumbs／page fault、dump／symbol descriptorを参照できるが、同じpayloadを重複保存しない。Project source、AI prompt、credential、full path、user name、Save本文を既定で含めない。
 
 ### 11.2 Upload
 
@@ -299,6 +303,7 @@ Windows Reference hardware、2 GiB CPU、5.5 GiB GPU、1080p60、P95 14 msは基
 - managed layoutのfile hash、external client smoke、no built-in updater
 - EXE／DLL／Content executable scan、DLL hijack、untrusted Project
 - WER／Crash Collectorのcrash／hang／dump failure／privacy redaction
+- Development／ProfileのPDB／source map／DRED／Debug Session関連付けと、Shipping packageからvalidation layer、IDE attach、raw trace、source path、credentialを除外するscan
 - signed Packageをclean VMへinstallし、2D／3D縦切りをplay／save／reload
 
 C1完了条件は、Windows Editorから同一Project revisionをDevelopment Play、signed internal MSIX、managed layoutへBuildし、clean machineでinstall／play／save／crash回収／uninstallでき、Source、credential、debug toolをShippingへ含めないことである。

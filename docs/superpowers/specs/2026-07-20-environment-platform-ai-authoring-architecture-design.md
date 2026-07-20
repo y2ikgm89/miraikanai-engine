@@ -3,6 +3,7 @@
 - 日付: 2026-07-20
 - 状態: 設計レビュー用正式仕様。既存Environment計画を型付きSource、AI Intent、Operation、Preview、Runtime Compiler、Qualificationへ具体化
 - 対象: Sky、Atmosphere、Fog、Cloud、Environment Lighting、AI／Editor Authoring
+- Lighting規約: [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
 
 ## 1. 結論
 
@@ -20,10 +21,12 @@ Miraikanai EngineのEnvironmentは、Sky、Atmosphere、Fog、Cloud、Environmen
 | C1／C2／C3の製品到達点と全体実装順序 | 2D／3D機能計画 |
 | RenderSnapshot、Render Graph、GPU resource、pass、barrier、Backend、device loss | Rendering／Render Graph規約 |
 | MCD Type／Operation／Capability、Provider Schema projection | 実行可能契約規約 |
+| Math storage／semantic type、unit／space／normalization、Transform／Velocity、failure | [Math／Core Utilities規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md) |
 | ChangeSet、Commit、Undo、journal、recovery | Authoring Model／Project State規約 |
 | Weather Snapshot、降水、温度、風、Snow Surface | Weather／Snow Surface規約 |
 | Water Surface、Water Volume、水中固有吸収／散乱 | Water Surface Platform規約 |
-| Visual StyleのPalette、style-critical field、Profile lock | 2D／3D機能計画のVisual Style節 |
+| Visual StyleのPalette、style-critical field、Profile lock | Material／Visual Style／AI Authoring規約 |
+| Sun／Moonの`LightSourceV1`、物理単位、Light Intent／Resolver／Runtime Snapshot | Lighting／AI Authoring規約 |
 | Target、thermal、mobile fallback | モバイルPlatform規約 |
 
 本書は次を所有しない。
@@ -103,7 +106,7 @@ EnvironmentProfileV1
 | `intensity_multiplier` | 0～64 |
 | `sun_light_id`／`moon_light_id` | nullable Light StableId |
 
-`physical_atmosphere`はC2 Capabilityを必要とする。C1で指定された場合、Projectが明示許可した`precomputed_sky_cubemap` fallbackが存在する時だけCookできる。Light参照はDirectional Lightに限り、同一Lightをsunとmoonへ二重指定しない。
+`physical_atmosphere`はC2 Capabilityを必要とする。C1で指定された場合、Projectが明示許可した`precomputed_sky_cubemap` fallbackが存在する時だけCookできる。Light参照はLighting規約の`LightSourceV1`かつDirectional Lightに限り、同一Lightをsunとmoonへ二重指定しない。Environmentは参照先Lightの物理量、色、Shadow、Runtime Snapshotを複製しない。
 
 `solid`では`solid_color`だけ、`gradient`では3色だけ、`hdri`では`hdri_asset`だけを必須とする。`physical_atmosphere`では色とHDRIをnullにし、`AtmosphereSourceV1.mode=physical`を必須とする。modeに属さないpayloadを保持して暗黙復帰に使わず、Profile切替はPresetまたはChangeSet履歴から行う。
 
@@ -188,7 +191,7 @@ transmittance = exp(-optical_depth)
 LocalFogVolumeSourceV1
   volume_id: StableId
   shape: box | sphere | ellipsoid | cylinder
-  transform: Transform3D
+  transform: Transform3f
   blend_distance_m: float32
   density_operation: add | subtract | replace
   density_multiplier: float32
@@ -197,12 +200,14 @@ LocalFogVolumeSourceV1
   emission_linear: LinearRgb
   noise_asset: nullable<Texture3DRef>
   noise_scale_m: float32
-  noise_velocity_m_s: Vec3
+  noise_velocity_m_s: Velocity3f
   priority: int32
   semantic_role: ground_mist | room_haze | dust_shafts | cave_fog | exclusion | custom
 ```
 
 Volume寸法は各axis 0.01～100,000 m、blend distanceは0～Volume最短半径、density multiplierは`add／replace`で0～10、`subtract`で-10～0とする。C2 Mediumはvisible 32、Highは128を上限とし、Source全体上限も128とする。上限超過を黙って間引かず、Preview時点で`EnvironmentLocalFogLimitExceeded`を返す。
+
+`noise_velocity_m_s`はVolume local space、Cloudの`wind_velocity_m_s`はWorld spaceの`Velocity3f`とし、MCD descriptorへframeを必須にする。両者の暗黙変換と裸のvector公開を禁止する。
 
 ### 5.6 `CloudSourceV1`
 
@@ -218,7 +223,7 @@ Volume寸法は各axis 0.01～100,000 m、blend distanceは0～Volume最短半�
 | `weather_map_asset` | nullable 512² `RGBA8_UNORM` Derived Asset source |
 | `base_noise_asset` | nullable 128³ `R8_UNORM` Derived Asset source |
 | `detail_noise_asset` | nullable 32³ `R8_UNORM` Derived Asset source |
-| `wind_velocity_m_s` | Vec3、各±200 |
+| `wind_velocity_m_s` | World spaceの`Velocity3f`、各axis ±200 m/s |
 | `cast_cloud_shadow` | bool |
 
 既定bottom／topは1,500 m／5,000 m、最大view distanceは100,000 m、coverage 0.50、density multiplier 1.0とする。`layer_2d`はProject AssetまたはEngine同梱Reference texture、`volumetric`はweather／base／detail noiseの3 Assetを必要とする。nullの場合は同じversionの`ReferenceCloudAssetsV1`を一式使用し、一部だけを暗黙補完しない。C1は`layer_2d`まで、C2は`volumetric`を許可する。AIはnoise textureのtexel、ray-march step、blue-noise phase、shadow map resolutionを生成または指定しない。

@@ -1,17 +1,25 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.5
+- 文書版: 2.17
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
 - 状態: プロジェクト公式の機能範囲と段階設計
 - 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
+- Math／Core Utilities規約: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Runtime詳細規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
+- Shooter Gameplay規約: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- Material／Visual Style規約: [Miraikanai Engine Material／Visual Style／AI Authoringアーキテクチャ規約](./2026-07-20-material-visual-style-ai-authoring-architecture-design.md)
+- Lighting規約: [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
+- Post Process規約: [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
+- Camera規約: [Miraikanai Engine Camera Platform／AI Authoring／Virtual Productionアーキテクチャ規約](./2026-07-20-camera-platform-ai-authoring-virtual-production-architecture-design.md)
+- LOD規約: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 - Water規約: [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
 - Weather／Snow規約: [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
@@ -29,10 +37,14 @@
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
 
 ## 1. 結論
 
 2Dと3Dは同格のFirst-class runtimeとし、2Dを「奥行きが0の3D」として実装しない。Asset、Input、Audio、UI、GameplayDefinition、AI Authoring、Build、Save、Diagnosticsは共有し、描画、Physics、Navigation、Animation authoringは専用Subsystemを持つ。
+
+Game Flow、Level Gameplay、Character、Combat、Ability、Encounter等のPublic Game System Contractは2D／3Dで共通にし、Physics／Navigation／Animation／CameraのImplementation VariantだけをTarget／Dimensionに応じて切り替える。World、Scene、Level、Streaming Cell、Map PresentationもDimensionに依存しないStable identityとSource／Derived境界を共有する。
 
 映像表現は、`scene_dimension`（2D／3D／Hybrid）、`art_direction`（Realistic／Toon／Pixel等）、`composition`（Native／Pixel Diorama等）、`shading_model`（PBR／Toon／Unlit等）を独立して扱う。2DをPixel表現、3DをRealistic表現と同一視しない。自然言語で「HD-2D風」と要求された場合は、特定製品を模倣する名前や実装を正規dataへ保存せず、「2D Pixel Artと3D空間を合成する」という一般要件へ分解し、独自の`pixel_diorama` Composition Profileとして実現する。
 
@@ -51,13 +63,15 @@ Product Phaseと機能の成熟度を混同しないため、各機能を次の�
 | C2 Production | 品質tier、profiling、authoring、fallbackを備える | Reference sceneの性能・安定性gate |
 | C3 Advanced | 大規模World、高品質表現、特殊genre向け | 専用BenchmarkとDomain Pack |
 
-初期MVPはC0を完成させた後、**2D縦切りをC1、3D compact action arenaをC1**へ順に到達させる。両方を同時に実装しない。AI Authoringの基盤検証を優先する最初の縦切りは2Dとし、Direct3D 12 rendererのProduction検証を行う第二の縦切りを3Dとする。
+初期MVPはC0を完成させた後、**2D top-down shooterをC1、同じShooter Coreを使う3D compact third-person shooter arenaをC1**へ順に到達させる。両方を同時に実装しない。AI Authoringの基盤検証を優先する最初の縦切りは2Dとし、Direct3D 12 rendererのProduction検証を行う第二の縦切りを3Dとする。
 
 ## 3. 全機能に共通する規約
 
 各Capabilityの状態書込、実行phase、event順序、pointer／borrow、Asset version、memory／performance budget、overflow、failure recoveryはRuntime詳細規約へ従う。Capability同士は直接呼び出さず、typed command、event、immutable snapshot、version付きAssetを`RuntimeOrchestrator`が統合する。
 
 ### 3.1 座標、単位、角度
+
+本節は製品上の座標系と単位を決定する。`mirakan::foundation`／`mirakan::math`のtarget、storage／semantic type、finite／normalization／failure、floating-point、AI projection、backend QualificationはMath／Core Utilities規約を正本とする。AI／Editor／Authoring／Save／Subsystem公開境界では、裸の`Vec2f`／`Vec3f`ではなく`WorldPosition*`、`LocalPosition*`、`Displacement*`、`UnitDirection*`、`Velocity*`、`Scale*`、`NormalizedQuaternion`等の意味型を使用する。
 
 | 空間 | 規約 |
 |---|---|
@@ -132,6 +146,14 @@ AIは次の順で制作する。
 
 有名Engineが通常object経路とは別にUnity Entities／GPU Instancing、Unreal Mass／HLOD／World Partition／Niagara Scalability、Godot Server／MultiMeshを持つ構造を参考にする。ただしMiraikanaiでは、利用者に実装方式を選ばせるのではなく、AIが意味分類と候補を作り、Engineのtyped contractと実測Gateが安全性を決定する。
 
+#### 3.4.2 全LODのAI可読契約
+
+Mesh／Sprite、Representation／HLOD、Simulation、Animation、Material、VFX、Terrain／Foliage／Water、Geometry residencyの共通語彙、Intent、Policy envelope、metric、transition、AI Operation、fallback、ReceiptはLOD規約を正本とする。一つの距離値または万能`lod_index`を全Domainへ共有しない。
+
+AIは`LodIntentV1`と`LodPolicySetV1`を提案し、Runtime CompilerがTarget別`LodResolutionPlanV1`へ解決する。MeshはFOVと解像度を含む`projected_error_px_q16`、HLODはstatic decorative Source、Simulationはauthoritativeな`gameplay_relevance_q16`だけを入力にする。Camera visibility、GPU occlusion、VFX表示結果をSimulationへ逆入力しない。
+
+Quality ProfileはPresentationの実装品質だけを変更できる。敵数、Damage、Collision、Navigation、goal、spawn timing、Simulation ContractをTarget性能に合わせて黙って変更せず、未達時は`OptimizationRequired`とする。AIが自動適用できるのはVisual Style、critical cue、Gameplay fidelity floor、Target fallbackを満たすPresentation-only Policyに限る。
+
 ### 3.5 映像表現の正規四軸
 
 次の四軸をGameSpecとWorld Modelの正規概念とする。自由文字列、Shader名、既存製品名を正規値として使わない。
@@ -150,6 +172,8 @@ AIは次の順で制作する。
 ### 3.6 Capability連携の公式経路
 
 次図は製品Capability間の概要である。Render pass／resource／barrierはRenderer規約、Asset generation／Catalog／PackageはAsset規約、Physics World／Dynamics／Joint／CharacterはPhysics Engine規約、Nav／AnimationとSubsystem間phaseはSimulation連携規約、入力・UI・Audioの各境界はPlayer I/O三規約を詳細基準とする。
+
+Game Systemの責務、State owner、System Catalog、Implementation VariantはGame System規約、World／Scene／Level／Cell、Topology、Streaming、Procedural、Map PresentationはWorld／Level／Map規約を正本とする。2D／3D差を理由にSystem ID、Save field、Command／Event意味を分裂させない。
 
 ```mermaid
 flowchart LR
@@ -203,16 +227,17 @@ Asset、Profile、`GameplayDefinition`、C++の変更はdependency closure全体
 |---|---|---|---|
 | Window／display | Platform surface、resolution、logical scale、orientation、safe area | HDR、desktop multi-monitor、mobile quality auto-detect | Multi-view特殊display |
 | Input | Keyboard、mouse、touch、Platform controller、action map、rebinding、chord／context、C1 haptics、accessibility preset | Sensor optional、adaptive trigger／HD haptics、registered response curve | Specialized device |
-| World | Stable ID、transform、component、prefab-like templateではないcomposition recipe | Streaming cell、dependency graph | Large-world origin rebasing |
-| Asset | Import、content hash、cook、cache、hot reimport、bounded async streaming、`.mirapack` | LOD cook、Patch／DLC、remote build cache | Distributed cook |
+| Game System | Game Flow、Level、Character、Combat、Ability、Encounterの共通Contract、Definition evaluator | Project-defined／Native／Target-specialized Variant | Engine Extension、advanced Domain System |
+| World | Stable ID、compact Level、Topology、transform、component、composition recipe | Target別Streaming Plan、World Partition、HLOD、procedural authoring | continuous large-world origin rebasing |
+| Asset | Import、content hash、cook、cache、hot reimport、bounded async streaming、`.mirakanpack` | LOD cook、Patch／DLC、remote build cache | Distributed cook |
 | Save | Versioned save schema、checkpoint、atomic save | Slot、cloud adapter、partial world state | Large-world partition save |
 | Audio | Engine mixer、voice、bus、spatial emitter、streaming music、Platform audio Adapter | reverb zone、ducking、profiler | Geometry acoustics |
 | UI／Text | Layout、style、focus、touch／controller nav、Platform text／IME Adapter、Localization、screen reader semantics | UI animation、limited rich text span、MSDF | Advanced vector effects |
 | GameplayDefinition | Rule／FSM／Ability／Quest／Dialogue／UI Flow schema、Validator、offline Cook、C++ evaluator | Behavior Tree、Blackboard、profiler、互換性検証済みhot reload | 署名済みdata-only Runtime content |
 | Native code | NativeGameModule、isolated build、test | Incremental build、source-level profiling | Stable external SDKは1.0後 |
 | Gameplay logic／AI | Typed state machine、Rule Graph、Cook済みRule、seeded random | Blackboard、perception、behavior tree／utility composition | Large-agent simulation policy |
-| Camera | 2D／3D camera、viewport、blend、shake | Cinematic track、split view | Multi-camera recording |
-| Diagnostics | Log、trace、memory、frame、capture | In-editor profiler、comparison baseline | Automated bottleneck advisor |
+| Camera | 2D／3D camera、viewport、blend、shake | Cinematic sequence、split view | Multi-camera recording、Virtual Production、Timecode／Genlock |
+| Diagnostics | Engine-owned Session、構造化Event／Counter、Console／Problems／Profiler、Breakpoint／Watch、T110 safe pause、tick／frame step、Replay divergence | record／scrub／inspect、Causality、Reproduction Bundle、remote capture、AI evidence diagnosis | Policy承認済みの自動追加計測／修正提案。自動Commit／根拠なしcause確定は禁止 |
 | Test | Unit、headless simulation、golden state | Image／audio／performance regression | Large scenario automation |
 | Build | Development／Profile／Shipping、Target／Distribution Profile、signed manifest | AAB／archive packaging、crash symbols、Asset chunks | Multi-platform farm |
 | Collaboration | ChangeSet history、text-diffable source、conflict検出 | Git status／diff連携、Asset lock adapter | Remote multi-user authoring |
@@ -221,6 +246,8 @@ Asset、Profile、`GameplayDefinition`、C++の変更はdependency closure全体
 NetworkingをC1/C2へ暗黙に含めない。FPS/TPSというgenreはC1でsingle-playerとして成立させ、multiplayerは独立したC3計画とする。
 
 ### 4.1 Cameraの公式Contract
+
+CameraのSource Document、Rig Graph、Director、AI Semantic／Operation、Sequence、Recording、Device Gateway、Timecode／Genlock、Calibration、Security、Budget、Diagnostic、Qualificationは[Camera Platform規約](./2026-07-20-camera-platform-ai-authoring-virtual-production-architecture-design.md)を正本とする。本節は2D／3D製品機能から参照するProjection初期値とRuntime不変条件だけを固定する。
 
 CameraはProjection、Viewport、Exposure／Post参照、Presentation rigを分離する。Gameplay aim／visibilityは`CameraIntentSnapshot`を入力にWorld／Physics側が判定し、Render interpolation後のCamera transformやcamera shakeをauthoritative判定へ使わない。
 
@@ -238,7 +265,40 @@ Camera collisionは`T30`でversion付きtyped sphere-cast requestを生成し、
 
 Camera shakeはseed、開始tick、duration、translation／rotation amplitude、frequencyを持つbounded Presentation commandであり、最終View matrixへだけ合成する。既定上限は同時16 shake、translation各軸2 m、rotation各軸20°、frequency 0～60 Hz、duration 0～30 sとし、Gameplay aim、Physics、Save transformへ戻さない。
 
+C2 Cinematicは同じCamera Rig／Director／TransitionをSequenceから駆動し、別Camera実装へ分裂させない。C3 RecordingはBase Pose、Lens、Presentation channel、Clock、Calibration、Gapを非破壊Takeへ記録し、外部Deviceを別Process Adapterへ隔離する。C3 CapabilityはRecording、Device、Timecode、Genlock、Remote Preview、Hardware Adapterごとに個別Qualificationし、一括Production表示しない。
+
 ## 5. 2D RuntimeとEditor
+
+### 5.0 独自実装と公式Backend方針
+
+Miraikanai Engineは、2DのSource／Cooked Asset、`CanvasRenderer`、Tilemap chunk、Animation Graph、Editor、AI Operation、validation、serialization、streaming、fallback、telemetryを独自に所有する。D3D12、Vulkan、MetalはGPU Backend API、Box2Dは2D Physicsのprivate kernelとして利用するが、native handle、descriptor、command buffer、Box2D ID／callbackをProject C++、GameplayDefinition、Save、AI Schemaへ公開しない。他EngineのSprite／Tilemap runtimeまたはEditorを組み込まない。
+
+`Renderer2DExecutionPlanV1`はProject要求、Visual Style、Scale intent、Target Profile、`RendererCapabilitySignatureV1`、Qualification ReceiptからCook時に生成し、次を保存する。
+
+| Field | 正規値／意味 |
+|---|---|
+| `submission_path` | `cpu_direct \| cpu_instanced \| gpu_indirect` |
+| `resource_binding_path` | `bounded_table \| indexed_table`。native descriptor方式名は保存しない |
+| `visibility_path` | `cpu_bounds \| gpu_bounds`。authoritative visibilityには使わない |
+| `atlas_path` | `packed_pages \| qualified_paged_residency` |
+| `tile_chunk_path` | `cpu_built_static \| async_streamed \| gpu_indirect` |
+| `animation_pose_path` | `cpu_pose \| qualified_gpu_presentation_pose` |
+| `required_capability_ids` | Targetで実測済みのCapability ID集合 |
+| `fallback_chain` | 意味同等な低位Plan。順序、理由、予測costを必須保存 |
+
+C1のPortable基準はCPU bounds culling、canonical stable sort、offline packed atlas、bounded resource table、CPU生成instance buffer、direct instanced drawである。単一instanceにできないMaterial／mask／blendだけをbounded direct drawへ分離する。この経路をWindows、Android、Appleのgolden意味基準とし、高速化経路が存在するTargetでも削除しない。
+
+Backend別高速化は次の公式API条件をすべて満たした場合だけ有効化する。
+
+| Backend | C1基準 | C2以後の任意高速化 | 必須Gate |
+|---|---|---|---|
+| D3D12 | Root Signature 1.1、descriptor table、placed／committed resource、explicit upload | SM 6.6 direct heap indexing、`ExecuteIndirect`、placed resource pool | `CheckFeatureSupport`、Resource Binding Tier、Shader Model、DXGI memory budget、GPU validation。Enhanced Barrier使用時は個別support |
+| Vulkan | Target Vulkan Profile内のdescriptor set、indexed／instanced draw、staging upload | descriptor indexing、draw indirect count、GPU culling、async transfer | API version、Profile、全required feature／limit、queue family、format、validation、Android DEQP／実機Receipt |
+| Metal | CPU encoding、bounded texture／sampler binding、triple-buffered dynamic data | argument buffer、heap、Indirect Command Buffer、Metal I/O | `MTLDevice` family／feature table、argument buffer tier、heap／ICB support、residency宣言、Xcode GPU validation／実機Receipt |
+
+API名はBackend AdapterとQualification Receiptにだけ記録する。GPU名、OS名、Vendor名からCapabilityを推測せず、起動時feature queryと署名済みTarget Capability Manifestの積でPlanを選ぶ。任意高速化が未対応、driver denylist、memory pressure、device recovery後の再Qualification不一致となった場合は`gpu_indirect -> cpu_instanced -> cpu_direct`、`indexed_table -> bounded_table`の順で、事前Cook済みfallbackへ遷移する。実行中にshader／pipelineをcompileせず、fallback artifactがない必須Capabilityは起動前に拒否する。
+
+GPU memoryはD3D12公式方針と同じくclassify、budget、streamを基本とし、Vulkan／Metalでも同じEngine-owned residency contractへ正規化する。Atlas、Tile chunk、instance／animation buffer、render targetを別Classへ計上し、Platform budget、working set、eviction、upload、promotion、retire serialをtelemetryへ出す。Quality縮小はPresentationだけに適用し、Collision、Navigation、Gameplay event、tile semantic、animation eventを変更しない。
 
 ### 5.1 2D Renderer
 
@@ -250,7 +310,7 @@ Camera shakeはseed、開始tick、duration、translation／rotation amplitude�
 - Region、flip、pivot、modulate color
 - Nine-slice、tiled sprite
 - Layer、explicit order、Y-sort group
-- Dynamic batching、texture／sampler grouping
+- CPU bounds culling、canonical sort、direct／instanced batching、texture／sampler grouping
 - Orthographic camera、pixel snap、integer scale option
 - Parallax layer
 - Scissor、mask、blend mode
@@ -259,19 +319,57 @@ Camera shakeはseed、開始tick、duration、translation／rotation amplitude�
 - Directional／point 2D light
 - Signed-distance-field 2D shadow occluder
 - Sprite material graphの制限subset
+- CPU Sprite LOD、animation update LOD、critical cueの最低表示floor
 - Draw-call、overdraw、atlas occupancy debug view
 
 #### C2: 2D Renderer Advanced
 
-- Instanced sprite、GPU culling
+- Capability-qualified GPU culling／indirect submission
+- Texture array／indexed resource binding、atlas group間のbounded rebatch
+- Palette swap、mesh sprite、per-sprite Material parameter block
 - 2D light clustering
 - Soft shadow、shadow atlas
 - Vector path tessellation cache
 - Render-to-texture、multi-camera composition
-- Tilemap専用chunk renderer
 - 2D post process stack
 
+#### C3: 2D Renderer Specialized
+
+- Qualification済みpaged Sprite residency／sparse resource
+- GPU Presentation pose／animation decodeとCPU pose fallback
+- 大規模2D World向けGPU-generated visibility／draw list
+- Vector／mesh spriteの高度なdeformation、specialized Domain renderer
+
 Blendの既定はpremultiplied alphaとする。Straight alpha Assetはimport時に変換し、Materialが明示要求した場合だけ別pipelineを使う。
+
+#### Spriteの正規Asset／Component
+
+`SpriteImportSettingsV1`をTexture importのoptional projectionとして正式定義する。
+
+```text
+SpriteImportSettingsV1
+  rect_mode: single | grid | explicit
+  rects: bounded array<SpriteRectV1>
+  grid_cell_px: optional uint2
+  grid_margin_px: uint2
+  grid_spacing_px: uint2
+  default_pivot_normalized: float2
+  pixels_per_unit: float
+  border_px: uint4
+  trim_policy: none | transparent_bounds
+  packing_policy: standalone | atlas_group
+  atlas_group_id: optional StableId
+  allow_rotation_in_atlas: bool
+  extrude_texels: uint8
+```
+
+`SpriteRectV1`はStable Sprite ID、Source rect、pivot、nine-slice border、tag、optional collision polygon参照を持つ。rectはTexture bounds内、正のextent、相互overlapはProfileが明示許可したanimation alias以外禁止、pivotは各軸`[-8, 8]`、`pixels_per_unit`はfiniteな`[0.001, 65,536]`とする。C1 atlasは最大4,096×4,096 texelのoffline packed page、Sprite数は一Source Asset最大65,535、atlas rotationは既定falseとする。Targetのtexture extent上限がProfile未満なら自動縮小せずTarget Cookを失敗させ、Source分割Previewを提示する。
+
+`rect_mode=single`は`rects`を空にしてTexture全体から一Spriteを作る。`grid`は正の`grid_cell_px`を必須、`rects`を禁止し、margin／spacingから右下exclusive boundsを超えるcellを生成しない。`explicit`は1～65,535件の`rects`を必須、grid fieldをzeroとする。`packing_policy=atlas_group`だけが`atlas_group_id`を必須とし、`standalone`での指定を拒否する。Pixel Profileはatlas rotationを禁止し、Illustrated Profileで許可する場合もpivot、border、collision座標の回転変換をgolden fixtureへ固定する。
+
+C1 packerは`height desc, width desc, Stable Sprite ID asc`で入力をcanonicalizeする`skyline_v1`とする。同じ入力、Profile、Cooker versionから同じpage、rect、padding、hashを生成する。mipを持つSpriteは全mipで隣接Spriteをsampleしないpadding／extrudeをCookerが検証し、満たせないpageを拒否する。Runtime repack、frame中のatlas pointer差替え、使用中pageへの上書きを禁止し、hot reloadは新page集合全体をstaging後に`R10`でatomic promotionする。
+
+`SpriteRendererComponentV1`はSprite Asset ID、material instance ID、layer、order、Y-sort group、color、flip、visibility、Sprite LOD Policy IDを持つ。Texture handle、UV、native descriptor index、batch indexを保存しない。`CanvasBatchKeyV1`はresolved pipeline、blend、mask、sampler、atlas page、material parameter layoutからRendererが毎Snapshot生成し、stable rendering IDを最終tie-breakにする。
 
 #### 2D LightのC1公式Profile
 
@@ -280,7 +378,7 @@ Blendの既定はpremultiplied alphaとする。Straight alpha Assetはimport時
 | 項目 | 初期公式値 | Hard上限／overflow |
 |---|---:|---|
 | 可視Directional 2D light | 1 | 1。2個目はvalidation error |
-| 可視Point 2D light | 64 | 64。`priority desc, screen_coverage desc, StableId asc`で上限内を選ぶ |
+| 可視Point 2D light | 64 | 64。`importance rank desc, priority_u8 desc, screen_coverage desc, StableId asc`で上限内を選ぶ |
 | 1 spriteが評価するPoint light | 8 | 8。9個目以降は同じcanonical順で除外しcounterを出す |
 | Shadow caster light | 8 | 8。AI ChangeSetは事前予測で超過したら拒否 |
 | SDF occluder atlas | 2,048×2,048、`R16_SNORM` | 8 MiB。1 texel padding、skyline pack、repackは`R10`でatomic promotion |
@@ -292,26 +390,82 @@ Blendの既定はpremultiplied alphaとする。Straight alpha Assetはimport時
 
 Tilemapは単一巨大arrayではなく、変更・streaming・culling単位のchunkへ分割する。
 
+Tile chunkはTilemap内部の編集、Cook、描画、Collider／Nav差分単位であり、World／Level／Map規約のWorld、Region、Level、Streaming Cellではない。World topology、Level lifecycle、Partition Intent、Cell grouping／activation、Map PresentationはWorld／Level／Map規約を正本とする。Tilemapは`WorldStreamingPlanV1`がresident／activeにしたCellのAsset closureへ参加し、その内部payloadをchunkで管理するが、Tile chunk単独でLevel Entity、Objective、Portal、authoritative gameplayをactivateしない。
+
+#### Tilemapの正規Asset
+
+```text
+TileSetAssetV1
+  grid: TileGridV1
+  sprite_table_id: StableId
+  tiles: bounded array<TileDefinitionV1>
+  terrain_rule_sets: bounded array<TerrainRuleSetV1>
+  custom_property_schema_id: optional StableId
+
+TilemapAssetV1
+  orientation: orthogonal | isometric | staggered | hexagonal
+  tile_set_sources: bounded array<TileSetRevisionV1>
+  layers: bounded array<TileLayerV1>
+  chunk_extent_tiles: uint2
+  source_bounds: optional RectI64
+  generation: uint64
+
+TileChunkArtifactV1
+  chunk_coord: int2
+  source_generation: uint64
+  occupied_bounds: RectU32
+  draw_spans: bounded array<TileDrawSpanV1>
+  collision_artifact_key: optional ArtifactKey
+  navigation_artifact_key: optional ArtifactKey
+  content_sha256: bytes32
+```
+
+`TileGridV1`はtile texel extent、`pixels_per_unit`、origin、axis、orientation固有stagger／hex sideを持つ。`TileSetRevisionV1`は`AssetId<TileSet>`と`AssetRevision`、`TileLayerV1`はStable Layer ID、kind、optional parent、chunk map、表示／semantic policy、`TileDrawSpanV1`はCanvas Batch Key、instance offset／count、local boundsを持つ。`RectI64`／`RectU32`はinclusive min／exclusive maxであり、empty、overflow、negative unsigned extentを拒否する。
+
+`TileDefinitionV1`はStable Tile ID、Sprite ID、最大256 frameのanimation、material slot、collision tag、navigation area／blocked tag、terrain／Wang-like edge・corner tag、最大32件のtyped custom propertyを持つ。frame durationは1～60,000 ms、総clip durationは24時間以下とする。Source外部形式のglobal tile IDや配列indexをStable Tile IDとして保存しない。未知property、未登録class、dangling tileset、負duration、非finite offset、未対応orientationをLoss Reportなしに破棄しない。
+
+C1は一TileSet最大65,535 Tile、一Tilemap最大64 Layer、全Layer合計最大16,777,216 occupied cell、chunk extentは各軸8～256の2冪、Reference 32×32、一Chunk最大4,096 draw spanとする。C2 streaming SourceはProfileに`max_authored_chunk_count`、`max_resident_chunk_count`、serialized／resident byte上限を必須指定し、上限のないinfinite mapを受理しない。C3も無制限値を導入せず、Regionごとに同じbounded Profileを適用する。
+
+`TilemapAssetV1`のC1 orientationは`orthogonal`、C2で`isometric`、`staggered`、`hexagonal`を個別Qualificationする。layer kindはC1でtile／group、C2でtyped object stamp／image／height semanticを追加する。LayerはStable Layer ID、visibility、lock、opacity、tint、blend、parallax、offset、collision／navigation contribution policyを保存する。Editor表示用visibilityをCollision／Navigationの有効性へ暗黙接続しない。
+
 #### C1: Tilemap Core
 
 - Multiple tile layer
 - Atlas tile、animated tile、collision shape、navigation tag
 - 既定32×32 tileのchunk。Projectで変更可能
+- 専用chunk renderer、空chunk除外、同一Batch Keyのdraw span結合
 - Rectangle／line／fill／stamp／selection
-- Rule-based terrain paint
-- Chunk単位mesh rebuild
+- Deterministic terrain／edge／corner rule paint
+- Dirty rectangleから影響chunkだけを再Cook／mesh rebuild
 - Collider merge
 - Paletteとcustom metadata
+- Chunk bounds、resident、dirty、draw span、collision／nav generation debug
 
 #### C2: Tilemap Advanced
 
-- World streaming
+- Camera／GameSpec interest sourceによるWorld streamingとprefetch
 - Background async chunk cook
 - Procedural rule preview
 - Occlusion／light mask
-- Runtime editを許可するtile command
+- Revision付きRuntime tile command、undo／save／replay
+- Isometric／staggered／hexagonal grid
+- Typed entity／prefab stamp、layer template
+- Chunk-level portal graphとhierarchical pathfinding接続
 
-AIはtile IDの巨大配列を直接生成せず、region、rule、seed、constraintを持つ`TileLayoutCommand`を提案する。Engineが実tileへ展開し、接続不良、到達不能、過大変更を検証する。
+#### C3: Tilemap Specialized
+
+- World規約のRegion参照を持つlarge-world paged tile database。Region identity／originは所有しない
+- Qualification済みGPU tile visibility／draw generation
+- Bounded procedural biome／terrain generation cache
+- Multiplayer／collaborative editはNetworking規約の個別Gate後
+
+`TileLayoutCommandV1`はtarget Tilemap／expected revision、region、`paint | erase | fill | stamp | apply_rule | replace_by_query`のclosed operation、Rule Set／Stamp Asset ID、seed、allowed Tile／terrain tag、connectivity／reachability constraint、`max_changed_tile_count`、preview hashを持つ。AIはtile IDの巨大配列を直接生成せず、本Commandを提案する。Engineが実tileへ決定論的に展開し、接続不良、到達不能、未登録Tile、上限超過を検証する。Preview hashとCommit直前の再展開hashが異なるCommandを拒否する。
+
+Tile editはimmutableな新`TileChunkArtifactV1`を作り、変更regionの1 tile外側、terrain rule依存半径、Collider seam、Navigation overlapを含めて再Cookする。Renderer、Collision、Navigationの全Derived ArtifactがReadyになるまでgenerationを公開しない。Presentationだけの変更はCollision／Navigation Artifactを再利用できるが、dependency hash一致を必須とする。
+
+C2 streamerは`WorldStreamingPlanV1`のactive／prefetch Cell、Camera、Gameplay required region、Physics body swept bounds、Navigation query corridor、save checkpointをinterest sourceとして統合する。World Cellのall-or-nothing activationをTile chunk単位へ弱めず、Tilemap側ReadyはCell activation groupの一条件として報告する。Presentation chunkはvisual fallbackへevictできるが、active authoritative regionのCollider／Navを先にevictしない。load deadline未達時は空Tileや無衝突状態を表示せず、World Planのfailure policyに従って境界停止、既存generation維持、loading transitionのいずれかを実行する。
+
+外部2D SourceはEngine-native Assetを正本にせず、隔離Importerで独自IRへ変換する。C2候補はAseprite CLIのPNG＋JSON sprite sheet、Tiledのversion付きJSON／TMX／TSX、LDtkのversion付きJSON Schemaである。Importerはformat version、tool version、Source hash、外部IDからStable IDへの対応、unsupported field、Loss Reportを保存し、network、script、plugin discoveryを禁止する。各形式はDependency ADR、license、malformed／zip bomb／path traversal fixture、round-tripではなく意味fixture、reimport conflictを合格した後だけCatalogへ公開する。
 
 ### 5.3 2D Physics
 
@@ -348,6 +502,8 @@ World／Solver全値、Box2D build／job／allocator bridge、Dynamics、Joint�
 
 Physics eventは`T60`でStable IDへ変換し、Runtime詳細規約7.3節のcanonical keyで配送する。Box2D pointer、body ID、callback中のWorld変更をGame APIへ露出しない。Event ordering、invalid ID破棄、同一native event bufferを二度consumeしないことをAdapter conformance testで固定する。
 
+公式Box2D integrationではexactly 60 Hz、固定`sub_step_count`、Engine worker bridge、step後のbody／contact／sensor event array取得を基準経路とする。Callback中はpreallocated bufferへのcopy以外を行わず、World変更、allocation、logging、Gameplay呼出しを禁止する。Tile terrainは隣接boxの内部cornerを量産せず、semanticが同一のedgeをchain／merged static shapeへCookする。Characterの既定shapeはcapsuleまたはrounded polygonとし、rectangular characterをTile seam品質の基準にしない。
+
 ### 5.4 2D Navigation
 
 2Dではgrid navigationとpolygon navigationを別backendとして提供する。
@@ -366,9 +522,16 @@ Nav grid／query／Profile／status／budget／Backend／AI／Editorは独自Nav
 
 - Polygon navigation region
 - Dynamic obstacle update
-- Hierarchical pathfinding
+- Chunk portal graphによるhierarchical pathfinding
+- Generation付きpath cacheと同一goal batch query
 - Flow field（Simulation Domain Pack）
 - Local avoidance
+
+#### C3: 2D Navigation Specialized
+
+- Large-world multi-level portal graph
+- Strategy Domain向けbounded crowd／flow-field solver
+- Runtime生成Regionの永続cacheとdistributed cookは個別Gate後
 
 AIがlevelを作る際はspawnからgoalまで、必須interaction point間、escape routeの到達可能性を自動Testする。
 
@@ -404,6 +567,7 @@ Sprite animationのAsset／state graph／event／root motion proposal、pose反�
 - State machineとtransition condition
 - Blend parameter
 - Preview、scrub、onion skin
+- Animation update LOD、不可視pose保持、critical event floor
 
 #### C2: 2D Animation Advanced
 
@@ -412,26 +576,98 @@ Sprite animationのAsset／state graph／event／root motion proposal、pose反�
 - Blend space
 - Animation retarget profile
 - Root-like 2D displacement
+- Sprite mesh deformation、palette／material track
+- Clip compressionとCPU pose batch evaluation
+
+#### C3: 2D Animation Specialized
+
+- Qualification済みGPU Presentation pose evaluation
+- Procedural cutout rig、advanced constraint graph
+- 大規模crowd用pose sharingとvisual variation
 
 Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Gameplay Eventを発行する。
 
-### 5.6 2D縦切りの合格Scene
+Animation update LODはpose計算頻度とPresentation補間だけを変更する。event cursorは60 Hzのauthoritative timeで進め、不可視化、GPU culling、offscreen、Quality tierを理由にGameplay Eventをdrop、重複、遅延しない。C2 GPU poseはPresentation専用で、hitbox、Collider、Navigation obstacle、root-like displacementはCPU正規pose／typed commandを使用する。
 
-最初のC1は`pixel_2d` VisualStyleProfileを使用するtop-down action gameとする。論理解像度640×360、`pixels_per_unit = 32`、`integer_scale_policy = letterbox`を固定fixtureとし、1920×1080では3倍Point upscaleで表示する。
+### 5.6 2D CameraとComposition
+
+Camera Source、Rig、Director、Sequence、Recording、AI Operationの正本はCamera Platform規約とし、本節は2D固有Capabilityを定める。
+
+#### C1: 2D Camera Core
+
+- Orthographic projection、logical resolution、integer／fractional scale policy
+- Follow target、dead／soft zone、look-ahead、bounded zoom
+- World bounds／region confiner、pixel snap、parallax
+- Typed camera shake、screen transition、safe-area aware viewport
+
+#### C2: 2D Camera Advanced
+
+- Camera stack、layer別camera／post、render-to-texture
+- Split view、local multiplayer viewport、multi-camera composition
+- Rail／room transition、target group framing、cinematic sequence
+- Pixel-locked layerとsubpixel layerのcoverage-aware composite
+
+#### C3: 2D Camera Specialized
+
+- Multi-camera recording、external device、timecode／genlockはCamera規約の個別Qualification後
+
+Camera confiner、look-ahead、shake、Presentation interpolation後のtransformをPhysics、aim、Navigation、visibility authorityへ戻さない。Pixel-locked layerはlogical resolutionでrasterizeし、TAA、motion blur、temporal upscaler、frame generationへ混ぜず、最終compositeでsafe-area／UIと合成する。
+
+### 5.7 2D最適化、Fallback、Qualification
+
+2D最適化は総Asset数の拒否ではなく、authored、resident、active、visibleを分離し、Sprite LOD、animation update LOD、chunk、atlas、instance、streamingへ解決する。CPU／GPU経路は同じ`Renderer2DExecutionPlanV1`、Sprite／Tile Stable ID、sort key、coverage ruleを使い、Backendごとに見た目やGameplay意味を変えない。
+
+最低telemetryは次とする。
+
+- CPU: Snapshot extract、bounds cull、LOD、sort、batch build、Tile dirty propagation、Cook queue、upload staging、Render Graph record／submit
+- GPU: Canvas／Light／Shadow／Post／Composite pass、draw／instance／visible／culled Sprite、Tile chunk／draw span、overdraw、pixel invocation
+- Resource: atlas page／occupancy／padding waste、descriptor／argument usage、instance／pose ring peak、Tile authored／resident／requested／miss、upload／evict／retire bytes
+- Quality: fallback reason、Plan hash、critical cue floor、image diff、pixel-grid violation、animation event drift
+
+高速化Capabilityは次の全fixtureに合格して個別に昇格する。
+
+| Fixture | C1／C2入力 | 合格条件 |
+|---|---|---|
+| `2d_crowded_battle_v1` | C1の10,000 visible Sprite、500 dynamic body、VFX／Audio／Camera同時負荷 | Runtime規約の60 fps hard acceptance、event drop 0、Replay一致 |
+| `2d_sprite_throughput_v1` | C2 Windows Referenceで100,000 authored、50,000 visible、8 layer、4 atlas group、25% animated | CPU基準とimage tolerance一致、P95 14.00 ms soft／16.67 ms hard、fallback再実行合格 |
+| `2d_streaming_tileworld_v1` | 4,096×4,096 cell、4 layer、32×32 chunk、最大256 resident chunk、World Cell activation、連続Camera移動と64 tile edit／s | Cell all-or-nothing、active region hole 0、Collider／Nav世代不一致0、queue／memory cap内、10分soak |
+| `2d_light_overdraw_v1` | C1上限64 Point light、1 Sprite最大8、8 shadow caster、Sprite／VFX重複 | canonical light選択一致、GPU pass cap、atlas overflow／fallback検証 |
+| `2d_editor_iteration_v1` | 64×64 stamp、terrain rule、undo／redo、reimport conflict、Play hot reload | input→preview P95 50 ms以下、UI thread blocking 50 ms超0、atomic generation、undo hash一致 |
+
+C2の数値はWindows Reference fixtureであり、Product上限またはMobile達成を意味しない。Android／Appleは同じSource intentと意味fixtureからTarget固有Scale ProfileをCookし、minimum／reference実機で個別にvisible working set、memory、thermal、battery、frame pacingを測る。個数を減らした結果critical cue、Collision、Navigation、Gameplay Eventが変わるProfileは不合格とする。
+
+正規fallbackは次のとおり。
+
+| 高位Capability | Fallback | 禁止 |
+|---|---|---|
+| GPU culling／indirect | CPU bounds＋instanced、次にbounded direct | draw skip、前frame visibilityの無期限再利用 |
+| Indexed resource binding | offline atlas group＋bounded table | missing texture、descriptor 0への置換 |
+| Paged Sprite／Tile residency | packed page／bounded preloaded region | 空Tile、無衝突Tile、Nav欠落 |
+| Clustered 2D light／soft shadow | C1 canonical light selection＋hard SDF shadow | Gameplay light意味の変更 |
+| GPU／cutout pose | CPU poseまたはCook済みflipbook | animation event、hitbox、root変位の省略 |
+| Runtime Tile edit | 事前Cook済みCommandだけ、またはCapability block | 未保存edit、部分generation公開 |
+
+### 5.8 2D縦切りの合格Scene
+
+最初のC1は`mirakan.feature.shooter_core.c1`と`shooter.profile.2d_top_down.c1`を使用する`pixel_2d` top-down shooterとする。論理解像度640×360、`pixels_per_unit = 32`、`integer_scale_policy = letterbox`を固定fixtureとし、1920×1080では3倍Point upscaleで表示する。
 
 - Title、settings、play、result
 - 一つのtilemap level
-- Player movement、attack、damage
-- 3 enemy archetype、spawn rule
-- Goal、checkpoint、save／load
+- Player movement／aim、primary fire、reload optional、Weapon switch optional
+- typed Weapon、single／automatic／burst、hitscan／straight projectile、fixed／fan／radial Pattern
+- Health、Shield optional、Damage、Team、invulnerability、defeat
+- 3 enemy archetype、Wave／spawn rule、1 Bossと複数phase
+- Score、Combo、persistent high score
+- Goal、checkpoint、save／load／replay／restart
 - 2D light、particle、camera shake、music／SFX
 - `pixel_2d` Profile、Sprite Material Template、Pixel-safe Post設定
 - AIが自然言語からlevel、rule、UI、`GameplayDefinition`を生成
 - 人間がInspector、Graph、table／form、必要時はC++で修正後、AIが差分を保持して再編集
 - 1080p60、10,000 visible sprite、500 dynamic physics bodyのReference stress scene
+- `2d_shooter_c1_v1`: 256 active combat entity、2,048 live authoritative projectile、256 projectile spawn／tick、128 hitscan query／tick、Fire→Hit→Damage→Defeat→Scoreのauthoritative drop 0
 - `2d_crowded_battle_v1`: 上記描画／Physics負荷と同じrunで、256 active combat entity、1秒に128 enemy／ally spawn、128 active VFX emitter、16,384 alive particle、同一tick 2,048 particle burst、hit／trail／projectile／area／explosion、Audio／Camera cueを再生
 
-`2d_crowded_battle_v1`では大量配置、spawn、Gameplay、Physics、敵味方VFXを分離runに逃がさず同時に要求する。Reference hardwareでP95 frame time 16.67 ms以内、GPU／CPUの継続budget超過なし、authoritative event drop 0、Replay結果一致を合格条件とする。この個数はC1の最低組込みfixtureであって製品上限ではない。ProjectのScale intentが上回る場合はProject固有fixtureで再Qualificationする。
+`2d_shooter_c1_v1`はWeapon、Projectile、Collision query、Damage、Pickup、Score、Save／Replayの正当性を所有し、`2d_crowded_battle_v1`は大量配置、spawn、Gameplay、Physics、敵味方VFXを分離runに逃がさず同時に要求する。両FixtureはReference hardwareでP95 frame time 16.67 ms以内、GPU／CPUの継続budget超過なし、authoritative event drop 0、Replay結果一致を合格条件とする。この個数はC1の最低組込みfixtureであって製品上限ではない。ProjectのScale intentが上回る場合はProject固有fixtureで再Qualificationする。
 
 ## 6. 3D RuntimeとEditor
 
@@ -447,7 +683,8 @@ Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Ga
 - PBR metallic-roughness material
 - Normal、occlusion、emissive
 - Camera frustum culling
-- Manual／generated LOD
+- `MeshLodProfileV1`によるManual／generated static Mesh LOD、CPU `projected_error_px_q16`選択、hysteresis、LOD0 fallback
+- skinned／morphはSource chainを基準とし、generated chainはdeformation／bone／morph error Gate後だけ昇格
 - Hardware instancing
 - Decal
 - Transparent forward pass
@@ -457,9 +694,9 @@ Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Ga
 
 - 承認済み公式Blender→glTF Source Conversion Worker
 - `ufbx`候補のFBX AdapterとImporter migration fixture
-- GPU frustum／LODとindirect instance culling
+- CPU selectorと同じ量子化規則を使うGPU frustum／LODとindirect instance culling
 - 前real frame HZBによるconservative occlusion culling
-- HLOD
+- `HlodProfileV1`によるstatic decorative限定HLOD。interactive／mutable Physics／Save／animation Source混入拒否
 - CPU direct fallbackを持つBackend別indirect draw
 - portable meshlet artifact。Mesh Shader／Work Graphは個別Qualification後の任意path
 - Streaming cell
@@ -487,6 +724,8 @@ Render GraphをC0で作り、resource lifetime、state transition、queue、alia
 Forward+を最初にする理由は、透明、MSAA、2D／3D合成を一つの実装で成立させ、最初の縦切りを過剰に広げないためである。多数lightと複雑なopaque materialの実測が必要になった段階でDeferred pathを加える。
 
 ### 6.3 LightとShadow
+
+本節はLight／Shadowの製品成熟度、C1／C2到達点、Target別初期値を決定する。Light Source、物理単位、Intent、Style Profile、Resolver、2D selection、3D cluster、Runtime Snapshot、AI Operationの機械可読正本は[Lighting／AI Authoring規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)とする。Shadow Intent、Graph、Technique、atlas／cache／Virtual／RT方式の正本は引き続き本節とする。
 
 物理量を使用し、無単位の「強さ」だけを公開しない。
 
@@ -519,7 +758,7 @@ Engineは単位ごとのfieldを別型で保持し、内部で一つの無単位
 | Point | `luminous_flux_lm`, `range_m` | 1,000 lm、10 m | 0～1,000,000 lm、0.01～10,000 m |
 | Spot | `luminous_flux_lm`, `inner_deg`, `outer_deg`, `range_m` | 1,500 lm、20°、35°、20 m | flux／rangeはPoint同等、`0 <= inner < outer < 179` |
 | Rectangle／Disk | `luminance_nit`, size | 1,000 nit、1×1 m | 0～100,000 nit、各辺0.001～1,000 m |
-| 共通 | linear RGB／CCT、priority、mobility | D65 6,500 K、priority 128、dynamic | CCT 1,000～20,000 K、priority 0～255 |
+| 共通 | linear RGB／CCT、`priority_u8`、mobility | D65 6,500 K、`priority_u8=128`、dynamic | CCT 1,000～20,000 K、`priority_u8` 0～255 |
 
 色はlinear RGBまたはCCT＋tintのどちらか一方をsource of truthとし、両方の同時編集を拒否する。CCT presetからlinear RGBへの変換versionをCook manifestへ保存する。Light range外は物理的に寄与0とし、しきい値からEngineが暗黙にrangeを逆算しない。
 
@@ -539,9 +778,9 @@ C1 Point／Spot Lightのsource of truthは`luminous_flux_lm`だけとし、cande
 | Shadowed local face-equivalent | 4 | 16 | 32 |
 | Shadowed Point light | 最大0 | 最大2 | 最大4 |
 
-Point shadowは6 face-equivalent、Spot shadowは1を消費する。Light listは`priority desc, screen_influence desc, distance asc, StableId asc`でstable sortする。GPU cull後に上限を超えた場合はこの順で末尾を除外し、`ClusterLightOverflow`をframe、cluster、除外StableId付きで記録する。AI提案が静的解析またはpreview sceneで上限を超える場合はChangeSetを拒否し、runtime overflowへ依存させない。
+Point shadowは6 face-equivalent、Spot shadowは1を消費する。Light listは`importance rank desc, priority_u8 desc, screen_influence desc, distance asc, StableId asc`でstable sortする。GPU cull後に上限を超えた場合はこの順で末尾を除外し、`ClusterLightOverflow`をframe、cluster、除外StableId付きで記録する。AI提案が静的解析またはpreview sceneで上限を超える場合はChangeSetを拒否し、runtime overflowへ依存させない。
 
-Shadow resourceは`R16_TYPELESS`＋depth view／`R16_UNORM` shader viewを使い、Profileのpersistent capへmetadataとalignmentを含める。
+Shadow resourceの論理formatは`shadow_depth16_sampled`とし、Profileのpersistent capへmetadataとalignmentを含める。D3D12は`R16_TYPELESS` resource＋`D16_UNORM` depth view＋`R16_UNORM` shader view、Vulkanはsampled depth対応の`D16_UNORM`、Metalはsample可能な`Depth16Unorm`へBackend Adapterが写像する。Targetが16-bit sampled depthを満たさない場合はCatalogに登録された32-bit logical fallbackへProfile全体を再解決し、native format名をSource、AI Operation、Saveへ保存しない。
 
 | 項目 | Low | ReferenceMediumV1 | High |
 |---|---:|---:|---:|
@@ -556,7 +795,7 @@ Shadow resourceは`R16_TYPELESS`＋depth view／`R16_UNORM` shader viewを使い
 
 CSM projectionをtexel単位でstabilizeし、cascade splitはcamera nearとShadow distanceから毎frame再計算する。既定biasはconstant 1.0 texel、slope 1.5 texel、normal offset 0.5 texel、schema範囲は各0～8 texelとする。Lightごとのresolution要求は128、256、512、1,024、2,048、4,096のいずれかに限定し、atlasへ入らない要求は自動縮小せず`ShadowAtlasExceeded`とする。LowでPoint shadowを要求した場合も同じtyped errorを返す。Shadow passはRuntime詳細規約14.4節の2.00 ms soft cap、16.67 ms frame hard acceptanceの両方を満たす。
 
-Shadow updateは`static`をLight／caster Asset generation変更時だけ、`stationary`をLightまたはcaster transform／visibility generation変更時、`dynamic`を毎frameとする。1 frameのlocal updateはLow 4、Medium 16、High 32 face-equivalentまでで、`priority desc, StableId asc`にdirty tileを更新する。上限を超えたdirty tileは旧generationを表示して`ShadowUpdateDeferred`を記録し、新旧cascade／cubemap faceを一組のLight内で混在させない。Directional shadow casterは全Tierで1とし、複数Directionalがvisibleでもshadow対象は`casts_shadow=true`のうち同じ`priority desc, StableId asc`の先頭だけである。AI proposalが2個以上を要求した場合はfallbackせずvalidation errorにする。
+Shadow updateは`static`をLight／caster Asset generation変更時だけ、`stationary`をLightまたはcaster transform／visibility generation変更時、`dynamic`を毎frameとする。1 frameのlocal updateはLow 4、Medium 16、High 32 face-equivalentまでで、`importance rank desc, priority_u8 desc, StableId asc`にdirty tileを更新する。上限を超えたdirty tileは旧generationを表示して`ShadowUpdateDeferred`を記録し、新旧cascade／cubemap faceを一組のLight内で混在させない。Directional shadow casterは全Tierで1とし、複数Directionalがvisibleでもshadow対象は`casts_shadow=true`のうち同じ`importance rank desc, priority_u8 desc, StableId asc`の先頭だけである。AI proposalが2個以上を要求した場合はfallbackせずvalidation errorにする。
 
 Shadowアーキテクチャは次の比較で段階Hybrid方式を採用する。
 
@@ -768,6 +1007,8 @@ Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposure
 
 ### 6.5 Post Processing
 
+非AA Post effectのIntent、Profile、Volume、Node Catalog、固定execution stage、履歴、UI／pixel-locked分離、Resolver、AI Operationの正本は[Post Process／AI Authoring規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)とする。本節は製品成熟度とC1／C2範囲を決定し、AAの意味Intentは6.5.1節、AA実行はRenderer規約を正本とする。
+
 #### C1: Post Processing Core
 
 - Exposure
@@ -776,7 +1017,8 @@ Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposure
 - Color grading LUT
 - Vignette
 - Depth of fieldの簡易版
-- FXAA、TAA
+- FXAA、Engine基準`mirakan_taa_v1`
+- Forward+限定MSAA 2x／4x。Target別sample count／resolve Qualificationに合格した場合だけ選択可能
 - Motion vector infrastructure
 
 #### C2: Post Processing Advanced
@@ -785,12 +1027,47 @@ Cloudとvolumetric fogはtransparent lighting、depth、motion vector、exposure
 - High-quality depth of field
 - Screen-space ambient occlusion
 - Screen-space reflection
-- Engine `TemporalFrameInputV1`、Mira TAAU、DirectSR、DLSS／XeSS／FSR／MetalFX Adapter
+- SMAA 1x。Temporalを禁止する鮮明さ重視ProfileのPortable spatial候補
+- Forward+ MSAA 8x。`offline_reference`または実機High Profileの個別Qualification専用で、自動選択しない
+- Engine `TemporalFrameInputV1`、Mirakan TAAU、DirectSR、DLSS／XeSS／FSR／MetalFX Adapter
 - Provider別Frame GenerationとLatency Adapter
 - Reactive／Composition mask、HUD-less Color、UI分離、camera cut／dynamic extent reset
 - HDR10 output
 
-Effectの順序はPost Process Graphで固定し、AIは登録済みnodeと範囲検証済みparameterだけを編集する。Temporal effectにはhistory invalidation contractを必須とする。
+#### 6.5.1 Anti-alias／UpscaleのAI可読Authoring契約
+
+人間とAIが編集する正本はBackend名、console variable、sampled texture、history bufferではなく`AntiAliasingIntentV1`である。RendererはこのIntent、`VisualStyleProfile`、Camera Profile、Target／Quality Profile、`RendererCapabilitySignatureV1`、Qualification Receiptから`ResolvedAntiAliasingPlanV1`を決定する。実行Plan、排他、sample／resolve、history、Provider Adapterの正本はRenderer規約16.0節とする。
+
+| Field | 型／規則 |
+|---|---|
+| `intent_id`／`revision` | Stable IDと単調増加revision。別revisionのPlanを流用しない |
+| `scope` | `project_default \| view_family \| camera_profile`。Camera指定も最終的には所属ViewFamily単位で解決する |
+| `goal` | `balanced \| low_gpu_cost \| minimum_blur \| minimum_ghosting \| temporal_stability \| pixel_crisp \| vr_low_latency \| offline_reference` |
+| `mode_policy` | `auto \| fixed`。`fixed`は`preferred_method`と明示fallbackを必須にする |
+| `preferred_method` | `none \| fxaa \| smaa_1x \| msaa \| mirakan_taa_v1 \| mirakan_taau_v1 \| qualified_provider`。`auto`ではhintであり強制しない |
+| `msaa_samples` | `auto \| 2 \| 4 \| 8`。`msaa`以外で2／4／8を指定したIntentは拒否する |
+| `render_scale_policy` | `native \| dynamic \| fixed_scale`。`fixed_scale`はQ16で0.50～2.00、Target Profile上限内 |
+| `style_constraints` | `preserve_pixel_grid`、`forbid_temporal_jitter`、`forbid_added_blur`、`preserve_ui_bit_exact`のclosed flag |
+| `target_selector`／`quality_selector` | TargetとQualityのbounded selector。空集合、未知Target、未定義Qualityを拒否する |
+| `fallback_policy` | 順序付きmethod候補、許容する画質差、User通知要否。Art Direction変更を含めない |
+
+自然言語は次の意味へ正規化する。AIは「高品質だからTAAU」のように方式名だけで決めず、競合する目標をHigh Impactとして確認する。
+
+| User intent | Resolverへ渡すGoal／制約 | 既定候補順 |
+|---|---|---|
+| 「軽く」「低スペック向け」 | `low_gpu_cost` | FXAA、明示許可時だけNone |
+| 「ぼかしたくない」「くっきり」 | `minimum_blur`＋`forbid_added_blur` | Forward+ MSAA 2x／4x、SMAA 1x、FXAA |
+| 「残像を避けたい」 | `minimum_ghosting` | MSAA、SMAA 1x、FXAA。Temporal候補を除外 |
+| 「細線や遠景のちらつきを抑えたい」 | `temporal_stability` | Mirakan TAA、Mirakan TAAU、Qualified temporal Provider |
+| 「Pixel Artを崩さない」 | `pixel_crisp`＋`preserve_pixel_grid`＋`forbid_temporal_jitter` | Pixel-locked layerを全Scene AAから分離し、Point／integer scaleで最終合成 |
+| 「VRで遅延と鮮明さを優先」 | `vr_low_latency`＋`forbid_temporal_jitter` | Forward+ MSAA 2x／4x。8xは実機Gate後 |
+| 指定なし | `balanced` | Target／Style／BudgetからResolverが選択し、理由を保存 |
+
+`none`はUserの明示指定、bit-exact diagnostic、またはAA対象外のpixel-locked layerだけに許可し、AIが性能最適化として自動選択しない。MSAAとTAA／TAAU／temporal Providerは同じViewFamilyで併用しない。MSAAとFXAA／SMAAの併用は、単独方式よりAA visual fixtureを改善し、GPU／memory Gateを満たしたTarget固有Planだけに許可し、既定候補にはしない。
+
+AI／EditorはMCD Operation `operation.rendering.aa.search`、`operation.rendering.aa.read`、`operation.rendering.aa.resolve_intent`、`operation.rendering.aa.plan_change`、`operation.rendering.aa.preview_change`だけを使用する。MCPでは同じSchemaを`mirakan.rendering.aa.*` aliasへ投影する。Provider activation、Pipeline rebuild、Project CommitはAI Toolへ公開しない。Previewは選択方式、却下候補と理由、対象／除外layer、history reset条件、予測GPU／memory、fallback、必要Receiptを表示する。
+
+Effectの順序は`ResolvedPostProcessPlanV1`と`PostProcessNodeCatalogV1`の固定stageで決まり、AIはIntent、Profile、登録済みNodeの範囲検証済みparameterだけを編集する。Temporal effectにはPost Process規約のhistory invalidation contractを必須とする。
 
 ### 6.6 3D Physics
 
@@ -920,10 +1197,11 @@ Game ruleはclip名文字列へ依存せず、Animation Capabilityとsemantic ta
 
 ### 6.9 3D縦切りの合格Scene
 
-第二C1は`realistic_basic` VisualStyleProfileを使用するsingle-player third-person compact action arenaとする。
+第二C1は同じ`mirakan.feature.shooter_core.c1`へ`shooter.profile.tps_single_player.c1`を適用し、`realistic_basic` VisualStyleProfileを使用するsingle-player third-person compact shooter arenaとする。
 
 - Title、settings、play、result
-- Player locomotion、camera、attack、damage
+- Player locomotion、camera、aim、hitscan／projectile、single／automatic／burst、ammo／reload／Weapon switch
+- Health、Damage、Team、hit reaction
 - 3 enemy archetype、Navmesh追跡
 - One quest goal、checkpoint、save／load
 - Directional、point、spot lightとshadow
@@ -933,9 +1211,10 @@ Game ruleはclip名文字列へ依存せず、Animation Capabilityとsemantic ta
 - AIが自然言語からarena、rule、UI、`GameplayDefinition`、Asset設定を生成
 - Inspector、Scene View、Graph、table／form、NativeGameModule Capabilityの手動修正
 - 2,000 visible mesh instance、100 dynamic rigid body、50 navigation agentのstress scene
+- `tps_shooter_c1_v1`: 50 active combat actor、256 live authoritative projectile、64 projectile spawn／tick、128 hitscan query／tick、Weapon／Damage／Scoreが2Dと同じPublic Contract
 - `3d_crowded_battle_v1`: 上記描画／Physics／Navigation負荷と同じrunで、50 active combat actor、1秒に32 enemy／ally spawn、64 active VFX emitter、32,768 alive particle、同一tick 2,048 particle burst、hit／trail／projectile／area／explosion、Animation／Audio／Camera cueを再生
 
-`3d_crowded_battle_v1`はReference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU memory 2 GiB以内、GPU Project budget内、authoritative event drop 0、Replay結果一致を合格条件とする。この個数はC1の最低組込みfixtureであって製品上限ではない。ProjectのScale intentが上回る場合はProject固有fixtureで再Qualificationする。
+`tps_shooter_c1_v1`と`3d_crowded_battle_v1`はReference hardwareで1080p60、P95 frame time 16.67 ms以内、Game runtime CPU memory 2 GiB以内、GPU Project budget内、authoritative event drop 0、Replay結果一致を合格条件とする。この個数はC1の最低組込みfixtureであって製品上限ではない。ProjectのScale intentが上回る場合はProject固有fixtureで再Qualificationする。
 
 ### 6.10 Advanced Rendererの公式Fixture
 
@@ -1012,466 +1291,68 @@ Shadow、Environment、Particle等のCapability別memory値は予約ではなく
 
 ## 8. Visual Style、Shader、Material
 
-### 8.1 プロジェクト公式方式
+Material、Shader、Visual Style、AI Authoring、Preview、Explain、Validator、Evalの正本は、[Material／Visual Style／AI Authoring規約](./2026-07-20-material-visual-style-ai-authoring-architecture-design.md)とする。本節は2D／3D製品計画上の到達点とPhase配置だけを所有し、Schema、Node、Operation、budget、compiler、fallback、合格条件を重複定義しない。
 
-**型付きMaterial IR＋複数のShading Model＋Versioned VisualStyleProfile**を公式方式とする。Visual Styleを一つの巨大Shader、Post Effectだけ、AI生成HLSLだけで表現しない。
+### 8.1 公式方式と利用モデル
 
-比較した方式:
+公式方式は、型付きMaterial IR、複数Shading Model、version付きVisualStyleProfile、意味Catalog、型付きAI Operationの組合せとする。単一Uber Shader、StyleごとのRenderer複製、AIによる自由なHLSL／Render Pass生成を標準経路にしない。
 
-| 方式 | 評価 | 決定 |
-|---|---|---|
-| 単一Uber Shaderに全機能を静的switchで搭載 | 導入は速いが、Permutation、pipeline variant、未使用resource、品質tierの組合せが増殖する | 不採用 |
-| Styleごとに無関係なRendererを複製 | 表現ごとの自由度は高いが、Light、Shadow、Material、Tool、AI schemaが分裂する | 不採用 |
-| AIへ自由なHLSLとRender Passを生成させる | 試作自由度は高いが、binding、GPU hang、互換性、再現性を保証できない | 標準経路として不採用 |
-| 共通Render Graph／Lighting Contract＋型付きMaterial Domain＋Style Profile | 共通基盤を維持しつつ、Realistic、Toon、2D、Hybridを明示的に検証できる | **採用** |
-
-Toonには業界共通の単一物理モデルがなく、Pixel Artと3Dの混合表現にも公開された汎用Shader規格はない。したがって、一次資料から技法と制約を確認したうえで、最終的なparameter、pass順序、fallback、合格条件はMiraikanai Engineの公式規約として固定する。
-
-### 8.2 正規Authoring object
-
-| Object | 責務 | 変更規則 |
-|---|---|---|
-| `MaterialDefinition` | Domain、Shading Model、typed graph、render state、compile feature | Graphまたはcompile feature変更で新revision |
-| `MaterialInstance` | Textureと公開parameterの上書き | Shading Model、Alpha Mode、Depth policyは変更不可 |
-| `MaterialTemplate` | `character_skin`、`terrain`、`sprite_actor`等のsemantic roleと既定Definition | Style Profileがroleごとに選択 |
-| `ArtAssetProfile` | Shape language、mesh／sprite密度、Texture制作規則、Palette、semantic role | Importer、Asset generator、Validatorが共有 |
-| `AnimationPresentationProfile` | Smooth／stepped sampling、pose hold、motion accent、Cameraとの同期 | Simulation tickから分離した表示規則 |
-| `VisualStyleProfile` | Project全体の画風、許可Material、Light、Camera、Post、VFX、UIの契約 | ChangeSet＋Style Validator＋Preview＋承認 |
-| `StyleCapabilityManifest` | 現在のEngine build、Renderer path、Quality Tierで利用可能な機能 | Engine buildから生成し、AIは変更不可 |
-| `VisualStyleDecision` | AIの候補、除外理由、選択理由、未解決事項 | Decision Ledgerへ記録 |
-
-`MaterialDefinition`と`VisualStyleProfile`はAssetとしてStable ID、schema version、content hashを持つ。Runtime packageは承認revisionからcookし、EditorのGraph nodeやAI promptをRuntimeへ持ち込まない。
-
-Engine同梱Profileはimmutable templateとする。Projectで変更する場合は`CreateDerivedVisualStyle`が全fieldを解決した独立Profileを作り、`source_profile_id`をprovenanceとしてだけ保持する。Runtime inheritance、複数親、変更が自動伝播するProfile chainを禁止する。
-
-`VisualStyleProfile`の必須fieldを次に固定する。
+人間とAIは次の順で最小限の自由度を選ぶ。
 
 ```text
-schema_version
-profile_id: StableId
-source_profile_id: optional StableId
-display_name
-scene_dimension
-art_direction
-composition
-composition_variant: native | crisp_sprite_over_high_res_3d | unified_low_resolution
-gameplay_space: canvas_2d | world_3d
-camera_profile_id
-lighting_profile_id
-post_process_profile_id
-vfx_style_profile_id
-ui_style_profile_id
-art_asset_profile_id
-animation_presentation_profile_id
-allowed_material_domains[]
-allowed_shading_models[]
-material_template_by_semantic_role{}
-texture_policy
-  color_texture_encoding: srgb
-  data_texture_encoding: linear
-  default_filter: point | linear | anisotropic
-  mip_policy: none | nearest | linear
-  integer_scale_policy: not_applicable | letterbox | crop | fractional_scale
-  pixels_per_unit: null | positive_number
-  reference_resolution: null | { width: positive_integer, height: positive_integer }
-  transform_policy: unrestricted | axis_aligned_pixel | logical_resolution_rasterized
-  world_texel_density: null | object
-    reference_distance_m: positive_number
-    min_screen_pixel_ratio: positive_number
-    max_screen_pixel_ratio: positive_number
-outline_profile_id: optional
-palette_profile_id: optional
-quality_profile_id
-fallback_policy: forbid | allow_listed
-allowed_fallbacks[]
-style_critical_fields[]
-reference_assets[]
-  asset_id
-  content_hash
-  source_uri_or_local_provenance
-  license_or_usage_basis
-  extracted_attributes[]
-locked_fields[]
+Intent
+  -> MaterialTemplate
+  -> MaterialInstance
+  -> MaterialDefinition／typed Graph
+  -> 承認済みProject HLSL
 ```
 
-`gameplay_space`がPhysicsとNavigationの所有空間を決める。`hybrid_2d3d`や`pixel_diorama`という見た目からPhysics2D／Physics3Dを推測しない。`composition = pixel_diorama`では二つのPixel Diorama variantのどちらか、それ以外では`composition_variant = native`を必須とする。`reference_resolution`は`pixel_2d`と`unified_low_resolution`で正整数のwidth／heightを必須、`crisp_sprite_over_high_res_3d`ではnullとし、Camera Profileの対象出力解像度を使用する。`integer_scale_policy`は前二者で`not_applicable`以外、crisp variantと非Pixel系では`not_applicable`とする。`pixels_per_unit`はPixel spriteを使う場合だけ1以上の正数を必須とする。`world_texel_density`は`pixel_diorama`で必須、それ以外ではnullとする。`min_screen_pixel_ratio <= max_screen_pixel_ratio`を必須とし、既定は0.8～1.2とする。Profile新規作成時の`reference_distance_m`既定はCamera Profileのfocus distanceから複製して保存し、Camera変更時に暗黙更新しない。
-
-`style_critical_fields`と`locked_fields`はVisualStyleProfile内を指すJSON Pointerとして保存する。`fallback_policy = allow_listed`では`allowed_fallbacks`を1件以上必須とし、`forbid`では空配列を必須とする。`reference_assets`は空配列を許可するが、要素がある場合は`license_or_usage_basis`を`user_owned`、`licensed`、`public_domain`、`reference_only`のいずれかで必須記録する。
-
-参考画像は、Palette、輪郭線、陰影段数、Texture密度、Camera、構図、Material傾向などの属性へ分解する。既存ゲーム名、作者名、作品固有AssetをShader名、Profile名、生成Textureへ転用しない。出所または利用根拠を記録できない参考AssetはProjectへCommitできない。`reference_only`のSource byteはuser-managed Reference Vaultへ置き、Project source、Cooked package、生成Assetへ複製しない。Projectへ保存するのはcontent hash、provenance、抽出した一般属性だけとし、共同repositoryへSource byteを追加するには`licensed`等の再配布可能なbasisへ更新する。
-
-`ArtAssetProfile`は、semantic roleごとの`min/max_triangles_at_lod0`、`min/max_texels_per_meter`、Spriteの`canvas_width/height`と`pixels_per_unit`、Palette参照、normal map policy、alpha padding pixel数、許可Texture channelを持つ。数値範囲外はhard warning、必須channel欠落とPixel spriteのpadding不足はimport errorとする。`shape_language_tags`と`silhouette_complexity`はAI説明と検索に使うadvisory metadataであり、C++ Validatorが「アニメらしさ」を主観判定する根拠にしない。
-
-`AnimationPresentationProfile`は`sampling_mode: continuous | stepped`、`presentation_fps: null | positive_integer`、`interpolation: none | pose_blend`、許可されたmotion accent／smear effect、Camera shake scaleを持つ。`stepped`では`presentation_fps`を1～Project目標FPSの整数で必須、`continuous`ではnullとする。`stepped`の表示pose時刻は`floor(simulation_time_seconds * presentation_fps) / presentation_fps`で決め、表示FPSの約数でない場合もこの式に従って決定的にholdする。これは表示poseのsamplingだけを変え、60 Hz Simulation、collision、root motion積分を間引かない。
-
-### 8.3 Material DomainとShading Model
-
-Material Graphの出力はDomainごとに固定し、任意のRender PassやGPU resourceへ接続させない。
-
-| Material Domain | 許可Shading Model | 主な出力 |
-|---|---|---|
-| `surface_3d` | `pbr_metal_rough`、`toon_surface`、`unlit_surface` | Surface normal、color、opacity、model固有parameter |
-| `sprite_2d` | `sprite_unlit`、`sprite_lit`、`sprite_toon` | Premultiplied color、opacity、2D normal、emissive、mask |
-| `hybrid_sprite_3d` | `hybrid_sprite_unlit`、`hybrid_sprite_lit`、`hybrid_sprite_toon` | Sprite出力＋depth coverage、shadow coverage |
-| `decal` | `pbr_decal`、`toon_decal` | Base color／normal／roughness等の許可channel |
-| `vfx` | `vfx_unlit`、`vfx_lit` | Color、opacity、distortion、emissive |
-| `ui` | `ui_unlit` | Premultiplied color、opacity、clip mask |
-| `post_process` | 登録済みPost nodeだけ | HDR colorまたはmask。Depth／motionはread-only |
-
-`AlphaMode`は`opaque`、`mask`、`blend_premultiplied`の三つに固定する。`MaterialInstance`による変更を禁止し、Definitionのcompile featureとする。`blend_premultiplied`はdepth writeを既定off、`mask`はcoverage判定後にdepthを書き込む。
-
-Toon objectはC2 Hybrid rendererでもForward+ pathへ送る。PBR opaqueだけをDeferred pathの候補とし、Toon専用G-bufferを初期実装へ追加しない。Spriteとtransparentは常にForward compositionを使う。
-
-### 8.4 Realistic表現
-
-`realistic`はPBR Shaderを選ぶだけでは成立しない。物理scale、Material parameter、Light単位、IBL、Camera exposure、Texture／Mesh密度、Animation、Post Processが同じProfileに従うことを必要条件とする。AIは`pbr_metal_rough`を使用した事実だけで「Realistic達成」と報告できない。
-
-#### C1: `realistic_basic`
-
-- Scene-linear HDR、物理単位Light、Image Based Lighting
-- Cook-Torrance microfacet BRDF
-- GGX normal distribution、Smith height-correlated visibility、Schlick Fresnel
-- Metallic-Roughness workflow
-- Base color、metallic、perceptual roughness、normal、occlusion、emissive
-- Opaque、alpha mask、premultiplied transparent
-- Reflection probe、shadow、height fog、exposure、tone mapping
-- glTF 2.0 core material、`KHR_materials_unlit`、`KHR_materials_emissive_strength`、`KHR_texture_transform` import
-
-Authoring上の`perceptual_roughness`は0～1を保持し、shader内部ではFP32計算時に0.045～1へclampして0除算と過小specular highlightを防ぐ。`metallic`は0～1を許可する。`MaterialDefinition.metallic_usage`を`binary`または`blend_mask`で必須宣言し、`binary`で0.1超0.9未満のtexelが全有効texelの5%を超えた場合はwarningとする。Base color textureへ焼き込まれたdirect lightとshadowの検出はheuristic warningに限り、自動修正しない。
-
-#### C2: `realistic_advanced`
-
-- `KHR_materials_clearcoat`
-- `KHR_materials_sheen`
-- `KHR_materials_specular`
-- `KHR_materials_ior`
-- `KHR_materials_transmission`＋`KHR_materials_volume`
-- `KHR_materials_anisotropy`
-- `KHR_materials_iridescence`
-- `KHR_materials_dispersion`
-- `KHR_materials_variants`を独自`MaterialVariantSet`へ変換
-- Skin用screen-space subsurface profile
-- Cloth用sheen／fiber response
-- Hair用anisotropic dual-highlight profile
-- Eye用sclera／iris／cornea layered template
-- Foliage用two-sided transmission approximation
-- Parallax occlusion mapping
-
-glTF extensionはinterchangeの意味を保って独自Material IRへ変換する。対応していないratified extensionを黙って無視せず、Importerが`unsupported_material_feature`として停止するか、Project Profileで明示許可されたfallbackをPreviewする。2026-07-19時点でRatifiedでない`KHR_materials_diffuse_transmission`や`KHR_materials_subsurface`等は正式import対象にせず、ratification後に別ADRとconformance fixtureを通す。Skin、Hair、Eye等のEngine専用modelはglTFへlossless exportできるとは宣言しない。
-
-#### C3: Realistic Research
-
-- Displacement用offline mesh refinement
-- Spectral／thin-filmの高度近似
-- Hardware ray tracingによるreflection、shadow、GIの任意品質向上
-- Offline path-traced referenceとのMaterial calibration
-
-Runtime tessellationをRealistic表現の必須要件にしない。C0～C2ではgeometry detail、normal map、parallax、offline subdivisionを使用する。
-
-### 8.5 Toon／アニメ調表現
-
-Toonは「PBR結果を最後にPosterizeするEffect」ではなく、独立した`toon_surface` Shading Modelとする。ただし、Shaderだけでアニメ調が成立したとは判定しない。Silhouette／形状、Texture、Palette、Outline、Animation timing、Camera、VFXを`ArtAssetProfile`と`AnimationPresentationProfile`まで含めて検証する。C1 3D縦切りを増大させないため、Production実装はC2とするが、C0でschema、Material preview、Validatorを確定する。
-
-#### `toon_basic`
-
-- Artist-authored 1D diffuse ramp。既定はlight／mid／shadowの3領域
-- Ramp thresholdとsoftness。値域は0～1、thresholdは昇順を必須とする
-- Base、mid、shadow color multiplier
-- Shadow map attenuationとToon rampを別入力として合成
-- Banded specular、specular size、specular softness
-- View-dependent rim light、rim mask、rim color
-- Emissive、normal map、ambient／IBL contribution clamp
-- Material単位のLight Channel
-- Key Lightを一つ明示し、未指定時はSceneの`primary_key` semantic tagを一意に解決
-
-複数Lightを無差別に各bandへ通すと陰影境界が増殖するため、Key Lightだけがmain diffuse rampを駆動する。Local Lightは`accent`として別のclamped additive rampへ入り、Project Profileのvisible accent light上限に従う。Key Lightが0個または複数あるSceneはStyle Validator errorとする。
-
-#### `toon_character`
-
-- Head local axisを使うFace Shadow Map
-- Left／right対応の顔影threshold texture
-- Cheek／nose等のdetail shadow mask
-- Hair anisotropic highlight mask
-- Hair fringeのface-shadow projection
-- Skin、hair、eye、clothのsemantic Material Template
-- Per-character Light Rig override。Scene Lightを複製せずparameterだけを上書き
-
-#### Outline
-
-| 方式 | 利点 | 制約 | 採用段階 |
-|---|---|---|---|
-| Inverted hull | Character silhouetteが安定し、object単位に色と幅を制御可能 | Mesh増描画、hard edgeで割れ、内部線を描けない | C2既定 |
-| Screen-space depth／normal／object ID | 内部境界、Scene全体、選択的outlineに対応 | 解像度、MSAA、temporal history、透明物に敏感 | C2 optional |
-| Mesh edge／suggestive contour | 高品質な線画制御 | Preprocess、adjacency、camera依存costが高い | C3 |
-
-Outline width unitはsemantic roleごとに`screen_pixels`または`world_units`のどちらか一つをProfileで明示する。一つのOutline instance内では両単位を混在させないが、Profileはrole別mapを持てる。Character既定は`screen_pixels`、World prop既定は`world_units`とする。線色は黒固定にせずPalette tokenを参照する。
-
-Toon ProfileのStyle-critical fieldは、ramp、shadow color、Key Light policy、outline method／width、specular band、face shadow policyである。これらを別Profileの値へ部分変更するChangeSetは、派生Profileの作成として扱い、Scene内の偶発的な混在を禁止する。
-
-### 8.6 2D表現Profile
-
-2DはPixel Artに限定しない。次を別Profileとして提供する。
-
-| Profile | Texture | Camera／scale | Light／Material | C1 |
-|---|---|---|---|---|
-| `pixel_2d` | Point filter、原則no mip、整数texel | 論理解像度、integer scale、pixel snap | Unlitまたはbanded 2D light | 対応 |
-| `illustrated_2d` | Linear filter、mip optional | Subpixel camera可 | Unlit／2D normal light | 対応 |
-| `lit_sprite_2d` | LinearまたはPointをProfileで固定 | Orthographic | 2D normal、SDF shadow、emissive | 対応 |
-| `vector_graphic_2d` | Vector sourceをtessellation cache | Resolution-independent | Fill、stroke、gradient | C2 |
-
-`pixel_2d`では`reference_resolution`、`pixels_per_unit`、`integer_scale_policy`、`transform_policy`を必須とする。既定`integer_scale_policy`は`letterbox`、既定`transform_policy`は`axis_aligned_pixel`とする。`axis_aligned_pixel`では表示時のtranslationをpixel gridへsnapし、rotationを90度の整数倍、scaleを整数倍へ制限する。Simulation transformはfloatのまま保持する。任意角回転が必要な場合はScene全体または対象layerを論理解像度へrasterizeする`logical_resolution_rasterized`を選ぶ。表示解像度が整数倍にならない場合に非整数拡大へ自動変更しない。`crop`または`fractional_scale`はユーザーがProfileで明示した場合だけ許可する。
-
-Pixel textureの既定SamplerはEngine enum `SamplerFilter::Point`、mip countは1とし、BackendがD3D12／Vulkan／Metalのpoint filterへ変換する。遠距離縮小が必要なAssetは`mip_policy = nearest`を明示するか、別のIllustrated／Hybrid Assetへ分類する。Pixel-locked layerへTAA、motion blur、通常のlinear upscaleを適用しない。
-
-### 8.7 `pixel_diorama` Hybrid Composition
-
-自然言語の「HD-2D風」は、Square Enixの公式説明にある「Pixel Artと3D CGの融合」という要求理解にだけ使用する。Schema、UI preset、code symbolでは`pixel_diorama`と呼び、特定作品のPalette、Camera、Post Effect、Assetを再現しない。
-
-`pixel_diorama`は一つのShaderではなく、次の契約を持つComposition Profileである。
-
-- `scene_dimension = hybrid_2d3d`
-- `art_direction = pixel`
-- `composition = pixel_diorama`
-- `gameplay_space`はProjectが`canvas_2d`または`world_3d`を明示
-- Camera projectionは`perspective_diorama`または`orthographic_diorama`を明示
-- 3D background、2D／billboard actor、VFX、UIを別Render layerとして管理
-- 2D actorはStable 3D anchor、pivot、feet contact point、billboard modeを持つ
-- Billboardは`camera_facing`、`vertical_axis_locked`、`fixed_orientation`から選ぶ
-- Opaque Pixel spriteはalpha maskを既定とし、coverage pixelだけdepthとshadow coverageを書く
-- 半透明Spriteはpremultiplied blend、depth write off、sort group＋view depthで安定順序を作る
-- Cast shadowとReceive fog／shadowは別flag。矩形quad全体をshadow casterにしない
-
-#### 合成Mode
-
-| Mode | 用途 | Render順序 |
-|---|---|---|
-| `crisp_sprite_over_high_res_3d` | 高解像度3D背景と鮮明なPixel actor | 3D depth／opaque→3D temporal AA→Pixel actor depth-tested color→Style-aware fog／DOF mask→Bloom allowlist→UI stage policy |
-| `unified_low_resolution` | 3Dを含むScene全体を意図的にPixel化 | 論理解像度へWorld＋logical UI render→Point integer upscale→Pixel-safe color grade→display UI |
-
-既定は`crisp_sprite_over_high_res_3d`とする。このModeでPixel actor colorをTAA historyへ混ぜない。Depth of Field、Fog、Bloomが必要な場合はactor depth／emissive／coverage maskを入力にする専用compositeを使い、Pixel edgeのlinear blurをProfileの`style_critical_fields`として禁止できる。
-
-`UiStyleProfile.composition_stage`は`logical_before_upscale`または`display_after_upscale`とする。Pixel frame、world label等は前者、可読性を優先する本文、IME、Accessibility overlay等は後者を使用できる。同じUI elementを両stageへ重複配置しない。
-
-3D objectの`world_texel_density`とSpriteの見かけ上のpixel sizeはCamera基準距離で比較する。Perspectiveはviewへ正対するprobe planeについて`projected_screen_pixels_per_meter = output_height_px / (2 * reference_distance_m * tan(vertical_fov_radians / 2))`、Orthographicは`output_height_px / ortho_height_m`とする。`material_texels_per_meter`はImporterが非退化UV triangleから算出するsurface-area加重中央値を使う。3D側を`projected_screen_pixels_per_meter / material_texels_per_meter`、Sprite側を`projected_screen_pixels_per_meter / pixels_per_unit`とし、`screen_pixel_ratio = 3d_pixels_per_texel / sprite_pixels_per_texel`で定義する。crisp modeは最終display pixel、unified low-resolution modeはupscale前のlogical pixelで測定する。比率が`min_screen_pixel_ratio`未満または`max_screen_pixel_ratio`超のAssetをwarningにし、Engine defaultは0.8～1.2とする。
-
-### 8.8 Compiler pipeline
-
-```text
-Material Graph
-  → Domain/type validation
-  → Material IR
-  → Shading Model template specialization
-  → portable HLSL 2021 source
-  → isolated Target compiler pipeline
-      Windows: DXC → DXIL → DXIL/Root Signature validation
-      Android: DXC -spirv → SPIR-V → SPIRV-Tools validation
-      Apple: DXC -spirv → SPIR-V → SPIRV-Cross → MSL
-             → Apple metal/metallib validation
-  → Engine ShaderInterface
-  → Target pipeline／Shader cache
-```
-
-- HLSL 2021とDXC v1.9.2602.24を共通source／compiler baselineとするが、`portable_mobile_v1`ではmesh／geometry／tessellation／ray tracing、unbounded bindless、wave size依存を禁止する。
-- WindowsはShader Model 6.6、Root Signature 1.1、Stable Agility SDK 1.619.4／SDKVersion 619、Enhanced BarriersをHard gateとし、legacy `ResourceBarrier` pathを実装しない。
-- Windows起動時に`D3D12_FEATURE_ROOT_SIGNATURE`をqueryし、`D3D_ROOT_SIGNATURE_VERSION_1_1`未対応deviceはSupport対象外とする。Root Signature 1.0へ自動downgradeしない。
-- AndroidはVulkan 1.1／AVP 2022のSPIR-V環境をHard gateとし、SPIRV-Tools v2026.2で全moduleをoffline validationする。
-- AppleはA12／Apple family 5を最低とし、SPIRV-Cross Vulkan SDK 1.4.350.0経由のMSLをXcode 26.6の`metal`／`metallib`でoffline compileする。Argument Buffers Tier 2を必要とするMetal Shader ConverterをA12 defaultにしない。
-- DXC、Agility SDK、SPIRV-Tools、SPIRV-Cross、Apple compilerを基盤／モバイル規約のhashで`toolchain.lock.json`へ固定し、Preview toolchainをShippingへ使わない。
-- Source hash、include hash、Material IR hash、Shading Model version、define、compiler version、target、optimizationからcache keyを作る。
-- DXIL／SPIR-V／MSL reflectionを同じ独自`ShaderInterface`へ変換し、RuntimeがCompilerまたはvendor型へ依存しないようにする。
-- Binding layoutはEngineがDomain別の少数layoutとして所有し、MaterialやAIがRoot Signature、descriptor set layout、Metal argument layoutを直接定義しない。
-- Windows C1／C2は`D3D_SHADER_MODEL_6_6`をHard gateとする。SM 6.6 dynamic resource heapは`D3D12_RESOURCE_BINDING_TIER_3`も実機queryできた場合だけ使い、未対応時はEngine-owned descriptor table pathを使う。
-- AIが複数Targetを選んだProjectではCapability intersectionで全variantをcompileし、Target限定featureには承認済みfallbackを必須とする。
-
-Shipping BuildはすべてのMaterial variantをTarget別にoffline compileする。RuntimeでAI出力、Project source、download contentから任意Shaderをcompileまたはloadしない。
-
-### 8.9 Material authoring Level
-
-| Level | 編集方式 | AIの既定動作 |
-|---|---|---|
-| Level 0 | 「濡れた石」「3段影の青い髪」等の自然言語intent | 既存TemplateとInstance parameterを優先 |
-| Level 1 | Material Graphとparameter | 型付きnodeだけを編集 |
-| Level 2 | Safe custom expression subset | Loop、resource宣言、include、UAV、barrierを禁止 |
-| Level 3 | Project HLSL module | Graphで表現不能または明示要求時だけ生成 |
-
-Material Graphはtyped IRへcompileし、そこからHLSLを生成する。AIは、`MaterialInstance`→既存`MaterialTemplate`→新規Graph→Project HLSLの順に、最小権限の方式を選ぶ。
-
-Project HLSL moduleもEngine提供entry pointとbindingだけを使う。Root Signature／descriptor set／Metal argument layout、filesystem include、dynamic resource heapの直接index、material surfaceからのUAV write、recursion、関数pointer、終了回数を静的に証明できないloopを禁止する。Surface用loopの静的上限は64 iterationとし、Compute Shaderは別Capabilityとして審査する。
-
-### 8.10 AI Visual Style Resolver
-
-`Requirement Resolver`の後、`Implementation Strategy Planner`の前に`VisualStyleResolver`を置く。AIはShader名を直接選ばず、Engineが返す`StyleCapabilityManifest`内のProfileとMaterial Templateだけを候補にする。
-
-判断優先順位を次に固定する。
-
-1. Lockされた人間の決定
-2. 現在依頼で明示された表現
-3. 承認済みGame Brief／GameSpec
-4. Provenance確認済み参考Assetから抽出した一般属性
-5. 再利用必須の既存Assetとの互換性
-6. Platform、FPS、memory、制作量、予定期間
-7. Project default
-8. ユーザーが「おまかせ」を選んだ場合のAI推奨
-
-Genreだけで画風を決めない。「RPGだからPixel Diorama」「FPSだからRealistic」のような規則を禁止する。ToonがRealisticより常に低cost、Pixel Artが常に短納期とも仮定しない。Mesh／Texture制作量、Sprite frame数、Animation量、Lighting量、Composition complexityを個別に見積もる。
-
-`VisualStyleDecision`は次を必須出力する。
-
-```text
-request_id
-decision_authority: explicit_human | delegated_ai | confirmed_recommendation
-delegation_record_id: optional
-resolved_requirements[]
-unknowns[]
-conflicts[]
-eligible_profile_ids[]
-rejected_candidates[]
-  profile_id
-  reason_code
-selected_profile_id: optional
-selection_reasons[]
-production_cost_estimate
-  asset_counts_by_semantic_role{}
-  labor_class: low | medium | high | unknown
-  assumptions[]
-runtime_cost_estimate
-  estimated_texture_mib
-  estimated_optional_passes
-  estimated_gpu_delta_ms_range
-  measurement_status: predicted | measured
-required_capabilities[]
-missing_capabilities[]
-confidence: high | medium | low
-requires_human_confirmation
-```
-
-`delegation_record_id`は`decision_authority = delegated_ai`の場合だけ必須とし、Project revision、decision key、許可候補集合、一回限りのnonceへEngineが紐付ける。`estimated_gpu_delta_ms_range`はReference sceneが存在するまでは`predicted`であり、性能合否には使用しない。Prototype計測後にEngine telemetryが`measured`へ置換する。候補をLLMの総合点だけで決めない。EngineがCapability、budget、互換性をhard gateし、残った候補だけをAIが説明付きで順位付けする。
-
-`confidence`はAIの自己申告をそのまま使わず、Engineが次の条件から再計算する。`high`は全Blocking事項解決、Conflict 0、候補1件以上、Capability／runtime budget hard gate合格、必要Asset種別と制作量の仮定がGame Briefへ記録済み、さらにArt Directionが明示済みまたは有効な`allow_ai_select`委任あり、の全条件を満たす場合だけとする。Hard gateは合格したがArt Directionの明示／委任がない、または制作量の仮定が未記録の場合は`medium`、Blocking unknown、Conflict、必要budget欠落のいずれかがあれば`low`とする。`medium`と`low`は常に`requires_human_confirmation = true`とする。
-
-| 未指定事項 | 影響度 | 動作 |
-|---|---|---|
-| 2D／3D／Hybrid | Blocking | 回答までStyle確定を停止 |
-| Realistic／Toon／Pixel等のArt Direction | High Impact | 明示または`おまかせ`委任がなければ2～3候補と推奨を提示 |
-| Hybridのgameplay space | Blocking | Physics／Navigation設計前に質問 |
-| Pixel DioramaのCamera projection | High Impact | Preview比較後に承認 |
-| Pixelの論理解像度／PPU | High Impact | Asset本制作前に承認 |
-| Outline方式、陰影段数、Palette | Medium Impact | 仮値＋Preview。Style lock前に承認 |
-| 内部Shader variant名、cache key | Low Impact | Engineが決定 |
-
-明示的に「3D Toon」「2D Pixel」等が指定され、Capabilityとbudgetが成立する場合は同じ質問を繰り返さない。ユーザーが`おまかせ`を選んだ操作は、現在のStyle決定一件だけに有効な`allow_ai_select`委任として記録する。全Blocking事項が解決済み、Conflictなし、Engine hard gate合格、`confidence = high`の場合、AIは最上位候補を選択して理由とPreviewを表示し、追加回答を待たずに進められる。いずれかを満たさない場合は委任があっても質問する。
-
-委任がないHigh Impact判断では、代表Sceneの低cost Previewを最大三つ提示し、人間の選択後にStyleをlockする。PreviewはEngine同梱の権利確認済みproxy mesh／sprite、reference light rig、Material parameterだけで作り、外部Asset生成Providerを必須にしない。PlaceholderだけのFirst PlayableはStyle lock前にも生成できるが、本制作Assetを大量生成しない。
-
-既存Styleを変更する指示は、MaterialだけでなくArt Asset、Animation presentation、Lighting、Camera、Post、VFX、UI、Asset importへの影響を一つの`StyleChangeSet`へまとめる。部分適用はEngineがdependencyを満たす場合だけ許可する。
-
-### 8.11 ValidationとComplexity budget
-
-#### Material Validator
-
-- Graph cycle、pin型、Domain出力、NaN／Inf、parameter range
-- Texture dimension、color／data encoding、normal convention、alpha mode
-- Resource数、sampler数、graph node数、static variant数
-- 禁止include、filesystem path、recursion、未証明loop
-- Binding collision、Target binding layout、ShaderInterface compatibility
-- DXC／SPIR-V／MSL compile・validation、Target pipeline作成
-- Transparent depth、double-sided、shadow passの整合
-- Reference material preview
-- GPU timeoutを避けるisolated compiler process
-
-Material-owned resourceの初期hard limitを次に固定する。Scene global、Light、Shadow、IBL resourceは別budgetとする。
-
-| Quality Tier | Texture SRV／Material | Unique sampler | Graph node | Static variant／Definition | Optional Engine-owned pass |
-|---|---:|---:|---:|---:|---:|
-| Low | 8 | 2 | 128 | 16 | 1 |
-| Medium | 12 | 4 | 256 | 32 | 2 |
-| High | 16 | 8 | 384 | 64 | 3 |
-
-Shader instruction数だけをhard gateにしない。同じIRでもBackend、GPU、occupancy、texture latency、branch coherenceでcostが異なるためである。Compiler estimateはwarningと順位付けに使用し、最終合否はTarget別Reference sceneのGPU timing、frame P95、regression gateで決める。
-
-Optional passはOutline、coverage shadow、special depth等、登録済みShading Modelが要求するEngine-owned passだけを数える。Material GraphやProject HLSLが任意passを追加することは全Tierで禁止する。
-
-Compile-time featureは`MaterialDefinition`だけが持ち、Instance parameterでvariantを増やさない。Variant上限超過時は、featureをdynamic parameterへ移す、Definitionをsemantic roleごとに分割する、不要featureを削る、の順に修正し、上限を自動緩和しない。
-
-#### Style Validator
-
-次はerrorとしてCommitを拒否する。
-
-- ProfileにないShading Model、Material Domain、Post nodeの使用
-- Pixel-locked layerへのlinear filter、TAA、motion blur
-- `pixel_diorama`で必須のgameplay space、Camera projection、composition modeのいずれかが欠落
-- `toon_surface`または`hybrid_sprite_toon`を使用するSceneのKey Lightが0個または複数
-- Style-critical fieldの未承認変更
-- missing CapabilityまたはQuality Tier未対応feature
-- Provenance未記録の参考Asset
-- Profileが`fallback_policy = forbid`なのにfallbackを必要とするBuild
-
-次はwarningとし、Previewで可視化する。
-
-- Pixel size／world texel density比がProfileのmin／max範囲外
-- Palette、outline width、shadow color、material roleの外れ値
-- PBR Base colorへdirect lightが焼き込まれた疑い
-- screen coverageとoverdrawから予測したMaterial budget超過
-
-### 8.12 Testと合格条件
-
-| 対象 | 必須Test |
-|---|---|
-| PBR | Khronos glTF Asset Generator／Sample Assets／ValidatorのMetal／Roughness、Unlit、Emissive Strength、Texture Transform、Clearcoat等。C1はcore／Unlit／Emissive Strength／Texture Transform、C2は本節`realistic_advanced`に列挙したextension |
-| 3D Import Transform | 1 m軸模型、原点外配置、複数／空Root、parent T／R／S、Pivot、negative determinant、non-uniform scale、shear、bind pose、root motion。Import前後のHierarchy／Transform hashとConversion Reportを検証 |
-| Toon | Sphere、hard／smooth normal mesh、顔、髪、透明髪、outline、複数解像度、camera距離、Key／accent light |
-| Pixel 2D | 1280×720、1920×1080、2560×1440、3440×1440、3840×2160でinteger scale／letterbox、camera scroll、rotation禁止検査 |
-| Pixel Diorama | Spriteと3Dのdepth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離、transparent sort、camera cut |
-| Material compiler | Invalid graph、resource上限、全禁止HLSL、DXIL／SPIR-V／MSLとBinding不一致、Target別cache再現性 |
-| AI Resolver | 明示、未指定、おまかせ、矛盾、unsupported、Style変更のprompt suite |
-
-同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2/255超のpixelが0.1%未満を既定gateとする。Cross-vendor比較はpixel完全一致を要求せず、Material parameter sweep、luminance ordering、NaN／Infなし、outline width、pixel grid等のanalytic invariantを検証する。正当な見た目変更でbaselineを更新する場合はBefore／After、理由、性能差、人間承認を必須とする。
-
-AI Resolver Evalは、明示12件、未指定12件、`おまかせ`委任12件、矛盾12件、未対応12件の60 promptを各3回実行する。Engine hard gate違反と無権限Commitは0件、fixtureごとに期待されるBlocking question、明示Style保持、委任scope遵守、unsupported拒否は180件すべて正解、推奨候補順位は承認済みrubricに対して95%以上を合格条件とする。
-
-### 8.13 FailureとFallback
-
-- Shader compile失敗時に直前のvalid Target pipelineを保持するのはEditor previewだけとする。
-- Shipping buildはTarget別compile／validation、pipeline、Style validationのいずれかが失敗したartifactを含めない。
-- Capability不足時に別Styleへ黙って変更しない。
-- `fallback_policy = allow_listed`でも、実際に使うfallbackと見た目の差をBuild reportへ記録する。
-- Pixel-locked outputで整数scaleが不可能な場合は既定でletterboxする。Fractional scaleへ黙って変更しない。
-- ProfileまたはMaterial Assetがmissingの場合はmagenta等の出荷可能な代替表示で継続せず、Editorだけ診断Materialを表示し、Shipping buildを失敗させる。
-
-許可可能な初期fallback:
-
-| Feature | Listed fallback |
-|---|---|
-| PBR clearcoat | Base PBR。Style-critical指定時は禁止 |
-| PBR anisotropy | Isotropic PBR |
-| Skin subsurface | Energy-clamped wrapped diffuse |
-| Toon screen-space outline | Inverted hull対応meshだけに限定 |
-| Toon face shadow | Basic ramp。Character-closeupでStyle-criticalの場合は禁止 |
-| Pixel Diorama volumetric fog | Height fog＋coverage-aware composite |
-| High-quality DOF | Style-safe simple depth blurまたはoff |
-
-### 8.14 Capability成熟度と実装順
+通常制作はTemplateとInstanceを基準とする。GraphはTemplateで不足する場合、Project HLSLはGraphで表現不能または人間が明示要求した場合だけ使用する。
+
+### 8.2 AI／Editorの到達点
+
+- Stable semantic role、Template、Parameter、Node、CapabilityをCatalogから段階的に発見できる。
+- Basic／Advanced／Expertは同じ正規DocumentのProjectionとし、別設定を持たない。
+- AIはbounded inspectからPlanを作り、Preview、Explain、Estimate、Validate後にtyped ChangeSetを提案する。
+- AIへraw GPU command、任意Render pass、native binding、未検証Shader sourceを公開しない。
+- 描画MaterialとCollision Materialを別namespaceにし、必要な接続だけを明示Surface Bindingで行う。
+- missing／invalid／unsupported MaterialをShippingで成功表示しない。
+- 未成熟Profile、Template、Node、OperationをCapability Manifestへ掲載しない。
+
+### 8.3 Capability成熟度
 
 | Capability | C0 | C1 | C2 | C3 |
 |---|---|---|---|---|
-| VisualStyleProfile／Resolver | Schema、Validator、Decision | 2D候補生成・推薦・委任時選択 | 3D／Hybrid候補、Preview比較 | Custom style learning補助 |
-| 2D | Pixel／Illustrated schema | `pixel_2d`、`illustrated_2d`、`lit_sprite_2d` | Vector、advanced 2D post | Specialized |
-| Realistic | Material IR、PBR preview | `realistic_basic` | `realistic_advanced`、Skin／Hair／Eye／Cloth | RT／offline reference |
-| Toon | Schema、ramp／outline preview | 非Production | `toon_basic`、`toon_character` | Suggestive contour等 |
-| Pixel Diorama | Schema、composition preview | 非Production | 両composition mode | Large-world／advanced camera |
-| Custom HLSL | Interface設計 | 非Production | Project module＋sandbox | Stable extension SDK後 |
+| Semantic Catalog／AI Operation | Schema、fixture、R0 query | Template／Instance R2 | Graph／Style R2 | Project／Engine拡張 |
+| VisualStyleProfile／Resolver | Schema、Validator、Decision | 2D候補 | 3D／Hybrid比較 | Custom style補助 |
+| 2D | Pixel／Illustrated schema | `pixel_2d`、`illustrated_2d`、`lit_sprite_2d` | Vector、advanced post | Specialized |
+| Realistic | Material IR、PBR Preview | `realistic_basic` | advanced、Skin／Hair／Eye／Cloth | RT／offline reference |
+| Toon | Schema、ramp／outline Preview | 非Production | `toon_basic`、`toon_character` | advanced contour |
+| Pixel Diorama | Schema、composition Preview | 非Production | 両composition mode | Large-world／advanced Camera |
+| Project HLSL | Interface設計 | 非Production | sandbox prototype | Stable extension Gate後 |
 
-Phase 3で2D Profile、Phase 4で候補生成・推薦・委任時選択、Phase 6で`realistic_basic`、Phase 7でmobile Target validation、Phase 8でRealistic advanced、Toon、Pixel Dioramaをこの順にProduction化する。未完成Profileは`StyleCapabilityManifest`へ掲載せず、AIに選択させない。
+### 8.4 Phase配置
+
+1. Phase 2までにMaterial IR、Catalog、Validator、Preview、offline compiler基盤を作る。
+2. Phase 3で2D C1 ProfileをProduction化する。
+3. Phase 4でAI候補生成、推薦、委任時選択、Material R0～R2を有効化する。
+4. Phase 6で`realistic_basic`をProduction化する。
+5. Phase 7でAndroid／AppleのTarget validationを行う。
+6. Phase 8で`realistic_advanced`、Toon、Pixel Dioramaを一Capabilityずつ昇格する。
+7. Project HLSL、RT／offline reference等はPhase 8以後の個別Gateとする。
+
+Material機能は、MCD、Editor、AI Operation、Validator、offline Cook／Compile、Diagnostic、fallback、Target別Reference Scene、Material専用Evalが揃うまで完了としない。
 
 ## 9. Asset pipeline
 
-本章は2D／3D Capabilityから必要となるAsset種別を示す。Source／Import／Derived／Packageの正規四層、Importer隔離、dependency graph、content-addressed cache、Catalog／VFS、Cook、`.mirapack`、Patch／DLC、AI生成Assetの来歴は[Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)を基準とする。
+本章は2D／3D Capabilityから必要となるAsset種別を示す。Source／Import／Derived／Packageの正規四層、Importer隔離、dependency graph、content-addressed cache、Catalog／VFS、Cook、`.mirakanpack`、Patch／DLC、AI生成Assetの来歴は[Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)を基準とする。
 
 | Asset | Source／Interchange | Runtime |
 |---|---|---|
 | Texture | PNG、JPEG、EXR、KTX2、DDS | Windows BCn、Android ASTC＋ETC2、Apple ASTC、mip／streaming metadata |
 | 3D | C1 glTF 2.0、C2 Blend／FBX、C3 USD／USDZ | 共通`SceneImportIRV1`から独自mesh／skeleton／animation package |
-| 2D atlas | Image＋atlas metadata | Packed page＋sprite table |
+| Sprite | C1 Image＋`SpriteImportSettingsV1`、C2隔離Aseprite PNG＋JSON Adapter | Packed page＋stable sprite table＋animation／collision binding |
+| TileSet／Tilemap | C1 Engine-native Asset、C2隔離Tiled／LDtk Adapter | Target別Tile chunk、draw span、Collider／Nav Derived Artifact |
 | Audio | WAV、FLAC等 | PCM16またはOpus stream chunk＋Platform audio metadata |
 | Shader | Engine HLSL／Project HLSL | Windows DXIL、Android SPIR-V、Apple metallib＋共通ShaderInterface |
 | Material | Material Graph、Definition、Instance、Template | Material package＋parameter block＋pipeline key |
@@ -1485,7 +1366,7 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 
 ## 10. Editor機能との対応
 
-本章は2D／3D Capabilityに必要なPanelを列挙する。Document model、command、dock／resize／floating、workspace persistence、AI Partner、初心者用`AI Creator`、crash recovery、Editor製品性能Budgetは[Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)、MiraUI Core、Widget、Rendering、UI Automation、AI Semantic Interfaceの実装契約は[独自Editor UI Framework規約](./2026-07-20-editor-ui-framework-architecture-design.md)を基準とする。
+本章は2D／3D Capabilityに必要なPanelを列挙する。Document model、command、dock／resize／floating、workspace persistence、AI Partner、初心者用`AI Creator`、crash recovery、Editor製品性能Budgetは[Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)、MirakanUi Core、Widget、Rendering、UI Automation、AI Semantic Interfaceの実装契約は[独自Editor UI Framework規約](./2026-07-20-editor-ui-framework-architecture-design.md)を基準とする。
 
 ### 共通Panel
 
@@ -1493,6 +1374,10 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 - Hierarchy／Outliner projection
 - Inspector
 - Asset Browser
+- Sprite Slicer／Atlas Inspector、Sprite coverage／padding／mip Preview
+- Tile Palette、Tilemap Paint、Terrain Rule、Layer／Chunk／Residency Inspector
+- 2D Animation／Camera Rig／Light／Shadow Inspector
+- 2D Renderer Plan、batch／overdraw／atlas／streaming／fallback Profiler
 - Import Inspector、Source／Engine軸・Pivot・Root・Hierarchy Preview、Conversion／Loss Report、Reimport Conflict
 - Game／Rule Graph
 - Timeline／Animation
@@ -1501,7 +1386,7 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 - Navigation／Physics debug
 - Collider Editing Mode、Collision matrix、Query probe、Contact／Trigger timeline
 - Build／Playtest
-- Profiler
+- Debug Workspace: Session／Console／Problems／Profiler／Timeline／Causality／Breakpoint／Watch／Replay／Reproduction／External Tools
 - Target／Distribution Profile、Capability Matrix、Package Inspector
 - Device Manager、Apple Unsigned Build／Signing／Upload Service、safe-area／cutout／orientation／touch preview
 - Diff／History
@@ -1509,7 +1394,7 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 
 Panelは上下左右edgeでresizeでき、tab docking、split、floating、入替え、複数monitor、pinを持つ。AI Partnerは通常Panelと同様にdock可能で、常時表示をworkspaceごとに保存する。
 
-Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`を使用する。通常ControlはRetained Mode、Scene／Graph／Timeline／Profilerの高頻度可視化だけはRetained `UiCanvasSurface`内のEngine登録済みtyped Immediate Canvas producerを使用する。
+Editor shellはC++23の独自`MirakanUi Core`と`MirakanEditor Shell`を使用する。通常ControlはRetained Mode、Scene／Graph／Timeline／Profilerの高頻度可視化だけはRetained `UiCanvasSurface`内のEngine登録済みtyped Immediate Canvas producerを使用する。
 
 - 1920×1080、2560×1440、100／125／150／200% DPIをlayout test対象にする。
 - Mouseだけでなくkeyboard focus、tab order、shortcut、command paletteですべての主要操作へ到達できる。
@@ -1540,7 +1425,9 @@ Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`を使用する�
 | 項目 | Low | Medium | High |
 |---|---|---|---|
 | Renderer | Forward+ | Forward+ | Hybrid選択可 |
-| Visibility | CPU frustum／LOD | GPU indirect＋HZB、CPU fallback | GPU indirect＋HZB＋HLOD、Qualified meshlet任意 |
+| Visibility | CPU frustum＋screen-space Mesh LOD | GPU indirect＋HZB、CPU selector fallback | GPU indirect＋HZB＋HLOD、Qualified meshlet任意 |
+| LOD Transition | hysteresis、LOD0／Full fallback | dither／cross-fadeはProfileとBackend Gate内 | Domain blend、HLOD transitionは個別Qualification後 |
+| Simulation LOD | Projectの契約済みFull／dormant | Quality非依存。同じContract | Quality非依存。同じContract。C2 reduced-frequencyはDomain equivalence Gate必須 |
 | Shadow | 少数、低解像度 | CSM＋atlas | 高解像度＋area approximation |
 | Atmosphere | Cubemap | LUT | LUT＋dynamic IBL |
 | Fog | Height | Half-res volumetric | High-quality volumetric |
@@ -1550,7 +1437,7 @@ Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`を使用する�
 | Snow Surface | static mask | dynamic field reduced | dynamic field full |
 | Reflection | Probe | Probe＋SSR | Probe＋SSR＋Qualified RT |
 | GI | Lightmap／probe | Lightmap／probe | Qualified RTGI／Radiance Cache、probe fallback |
-| Anti-alias／Upscale | FXAA | TAA／Mira TAAU | TAAU／Qualified DLSS・XeSS・FSR・MetalFX |
+| Anti-alias／Upscale | FXAA。鮮明さ／VR IntentではQualified MSAA 2x | Mirakan TAA。Temporal禁止時はMSAA 2x／4xまたはC2 SMAA 1x | Mirakan TAAU／Qualified DLSS・XeSS・FSR・MetalFX。MSAA 4x、8xは個別Gate |
 | Frame Generation | Off | Off | Qualified Provider。real 60 fps必須 |
 | Path Tracing | Off | Off | Editor Reference。Runtimeは専用C3 Gate後 |
 | Neural Rendering | Off | Off | Qualified denoise／reconstruction／cache、非Neural fallback必須 |
@@ -1570,7 +1457,9 @@ Pack manifest、依存、version、配布、AI vocabulary、test scene、Core昇
 
 Coreはgenreを知らない。次はDomain Packで提供する。
 
-- FPS／TPS: Character weapon、aim、camera、hit reaction
+- Shooter Core Feature: Weapon、Fire Mode、Shot Pattern、hitscan／Projectile、ammo／reload、Damage／Vital／Team、Pickup、Score、Encounter
+- 2D top-down shooter Profile: orthographic aim、fixed／fan／radial Pattern、Wave／Boss、Score／Combo
+- FPS／TPS Profile: Character weapon、aim、camera、hit reaction。Weapon／Damage契約はShooter Coreを再利用
 - RPG／Action RPG: Attribute、ability、item、quest、dialogue
 - Simulation: Time scale、agent、economy、flow field、large data table
 - 2D Action: Platform motor、one-way platform、tile rule
@@ -1580,37 +1469,59 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 
 ## 13. 実装順序
 
-1. Foundation、ID、memory、Result、Job、diagnostics、Runtime Contract、fixed phase、bounded queue
-2. ChangeSet、World Model、Authoring Service、headless test
-3. 独自MiraUI Core／MiraEditor Shell、Windows／D3D12 device、Render Graph、Asset cooker
-4. Material IR、VisualStyleProfile、StyleCapabilityManifest、Validator、Preview
-5. 2D Canvas、Pixel／Illustrated Profile、Shadow Intent L0／L1とSDF Shadow、Input、Audio、UI、GameplayDefinition cooker／C++ evaluator、Box2Dとmanual vertical slice
-6. TypeScript AI Orchestrator、named-pipe IPC、OpenAI Provider、VisualStyleResolverを含むAI editing loop
+### 13.1 Delivery Work Package
+
+詳細機能を一列に並べるだけでなく、独立してReview、測定、停止できるWork Packageへ束ねる。後段PackageはEntry Gateを満たすまで開始せず、先行prototypeがあってもProduction依存にしない。
+
+| Work Package | 対応Phase | 最小の動く成果物 | Promotion Gate |
+|---|---|---|---|
+| `WP0_foundation_measurement` | Phase 0 | 固定Toolchainで起動／終了する最小Host、Foundation／Math MCD生成、portable scalar Math、`DBG0_contract`／`DBG1_flight_recorder`、trace、memory／queue計測、Receipt | Toolchain／Artifact再現、Math unit／property／golden／cross-language／CPU・HLSL conformance、Debug Event／Counter／priority／gap／bounded Query／crash recovery、negative test、ASan、測定Availability。2D／3D機能は含めない |
+| `WP1_headless_authoring` | Phase 1 | ChangeSetとWorld／Scene／Level／Topology、`AuthoringSelectionContextV1`／`WorldAuthoringContextV1`、System Implementation Setをvalidate→commit→save→load→replayするHeadless Project | state hash、State owner、Topology、Scene永続化owner／Level membership／Cell assignment分離、`world_authoring_semantics_v1`、crash recovery、Budget／revision拒否 |
+| `WP2_common_runtime_editor` | Phase 2 | World Outline／Scene／Topology Graph／Level Form／Streaming Inspectorを使うWindows空Levelのedit→play→save→cook→packageと`DBG2_editor_local` Debug Workspace | `world_authoring_cross_view_v1` 64 scenarioのOperation／after hash一致、Runtime phase、System Graph、Level／Cell lifecycle、Derived read-only、Render Graph、Asset promotion、device recovery、safe pause／step、IDE／GPU tool関連付け、起動／reload baseline |
+| `WP3_2d_c1_vertical` | Phase 3 | compact 2D Level、Portal、Game Flow／Level／Character／Weapon／Projectile／Combat／Vital／Score／Ability／Encounter、独自Sprite／Tilemap、TitleからResultまでの2D top-down shooter、`DBG3_replay_causality` | Level transition、旧Level維持、atomic Fire、System／Save／Replay、first divergence／causal edge／Reproduction Bundle、`2d_shooter_c1_v1`、`2d_crowded_battle_v1`、1080p60、memory／queue、authoritative drop 0 |
+| `WP4_ai_authoring` | Phase 4～5 | 同じ2D ProjectのSystem／Level生成→手動編集→AI再編集、bounded World Discovery、`world_authoring_intent_v1` 240件（明確6分類×30件＋曖昧／High Impact 60件）と`DBG4_ai_diagnosis` | System／World Bundle、Map intent明確Case 97%以上、Blocking recall 100%、Scene／Level／Cell誤変更0、未知StableId／Derived write／直接Commit 0、Definition／Native同値性、AI evidence diagnosis Eval、Replay回帰、Source Promotion |
+| `WP5_3d_c1_vertical` | Phase 6 | 同じShooter／Game System／Level Contractの`realistic_basic` compact third-person shooter arena | compact 3D Level transition、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`、RTX 3060／RX 6600、1080p60、Physics／Nav／Animation／VFX統合 |
+| `WP6_mobile_vertical` | Phase 7 | 同じ2D C1、次に3D C1をAndroid／AppleでPackage／Playし、`DBG5_remote_shipping`で認証済みremote capture | minimum／reference実機、partial capture／gap、Session再結合、memory、30分thermal、2時間endurance、Shipping debug artifact除外、Store／privacy |
+| `WP7a_2d_production_c2` | Phase 8先行 | GPU-qualified Sprite、streaming Tilemap、advanced Animation／Camera／Light、隔離2D Importer | 5.7節の全C2 fixture、CPU基準image diff、fallback、Windows／Mobile個別Receipt |
+| `WP7b_production_c2` | Phase 8 | World Partition／HLOD／procedural authoring、Advanced Renderer、Visual Style、Water／Snow、Domain Packを一Capabilityずつ追加 | World／Capability固有fixture、Portable／Mobile fallback、Before／After、全Vendorまたは限定Profile Receipt |
+| `WP8_research_c3` | Phase 8以後の個別C3 Gate | RTGI／Path／Neural、continuous origin-rebased Large World、Multiplayer等の隔離prototype | 別正式仕様、Threat Model、基準経路非退行、意味同等fallback、個別承認 |
+
+各Work PackageはRuntime規約14.1.2節の測定loopを使い、機能追加と観測基盤追加を同じ未検証taskへ混ぜない。Gate不合格時は後段Packageを開始せず、last valid playableとSource intentを維持する。C2／C3の複数Capabilityを一つの巨大変更で同時昇格せず、一件ごとに有効化、無効化、rollback、性能差を証明する。
+
+### 13.2 詳細依存順序
+
+1. Foundation、ID、memory、Result、Job、Math semantic contract、portable scalar Math、Transform／Quaternion／projection、Runtime Contract、fixed phase、bounded queue、Debug Session／Event／Counter／priority／gap／bounded Query／crash-safe chunk、`game_system`／World／Level最小Schema fixture
+2. ChangeSet、World／Scene／Level／Topology、Scene永続化owner／Level membership／Cell assignment分離、`AuthoringSelectionContextV1`／`WorldAuthoringContextV1`、System Implementation Set、Authoring Service、`LodIntentV1`／Policy envelope、`world_authoring_semantics_v1` headless test
+3. 独自MirakanUi Core／MirakanEditor Shell、World Outline／Scene／Topology Graph／Level Form／Streaming Inspector、`world_authoring_cross_view_v1`、Windows／D3D12 device、Render Graph、Asset cooker、CPU LOD reference metric／Preview trace、Debug Workspace／safe pause／step／IDE・GPU tool Adapter
+4. Material IR、VisualStyleProfile、StyleCapabilityManifest、`LightSourceV1`／`LightIntentV1`／`ResolvedLightPlanV1`、`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、Validator、headless Resolver、Preview
+5. compact 2D Level／Portal、Game Flow／Level Gameplay／Character／Weapon／Shooter Projectile／Combat／Vital／Score／Ability／Encounter Contract、`mirakan.feature.shooter_core.c1`、`shooter.profile.2d_top_down.c1`、`SpriteImportSettingsV1`、TileSet／Tilemap／Chunk、Portable Canvas、C1 2D Light selection、C1 Post Process、CPU LOD、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition evaluator、Box2D、Replay／Rewind／Causality／Reproduction Bundleとmanual vertical slice
+6. TypeScript AI Orchestrator、System Catalog／Implementation Plan／Bundle、bounded World Discovery、Map intent／World Bundle、`world_authoring_intent_v1` holdout、named-pipe IPC、OpenAI Provider、VisualStyleResolver、Evidence ID付きAI debug diagnosisを含むAI editing loop
 7. 外部MCP、Codex／Claude Plugin
-8. 3D mesh、`realistic_basic`、Forward+、Shadow ResolverとCSM／atlas／cubemap、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
-9. `realistic_basic` 3D compact action arena
+8. 同じLevel／Game System Contractの3D Variant、3D manual／generated static Mesh LOD、Animation presentation LOD、`realistic_basic`、Forward+、3D Light cluster、`AntiAliasingIntentV1`／FXAA／`mirakan_taa_v1`／MSAA 2x・4x、C1 Post Process、Shadow ResolverとCSM／atlas／cubemap、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
+9. `shooter.profile.tps_single_player.c1`を適用した`realistic_basic` 3D compact shooter arena
 10. Android GameActivity／Vulkan／Oboe／touch／AABで同じ2D C1
 11. Apple UIScene／Metal／AudioUnit／touch／TestFlightで同じ2D C1
 12. Mobile 3D品質、Target shader／texture cook、memory／thermal governor、content delivery
-13. `realistic_advanced` Material feature
-14. `toon_basic`、inverted-hull outline、`toon_character`
-15. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
-16. `pixel_diorama`の`unified_low_resolution`
-17. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
-18. Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
-19. C2 Water Body／Query／Underwater、dynamic snow field
-20. GPU indirect、HZB、HLOD、streaming、portable meshlet artifactとCPU direct比較
-21. Hybrid deferred path、terrain／foliage、Advanced Renderer Fixture
-22. `TemporalFrameInputV1`、Mira TAAU、DirectSR、DLSS／XeSS／FSR／MetalFXをProvider別にQualification
-23. Frame Generation、Latency Provider、UI／pixel-locked分離、real 60 fps Gate
-24. Hardware Ray Traced Shadow／Reflection、acceleration structure、Raster fallback
-25. RTGI／Radiance Cache、Editor Reference Path Tracer、Ray Reconstruction／Neural Denoising
-26. Neural Radiance Cache／Shader、Runtime Path Tracing、Work Graphは個別C3 Gate後
-27. Domain Pack拡張
-28. Store-readyなdata-only Runtime generation
-29. Project Shadow Technique L3、FFT／shallow-water、deformable snow、Multiplayer／large worldは個別C3 Gate後
+13. 2D GPU culling／indirect、indexed binding、streaming Tilemap、C2 grid、cutout／IK、Camera stack、2D Light clustering、Aseprite／Tiled／LDtk隔離Importerを一CapabilityずつQualification
+14. `realistic_advanced` Material feature
+15. `toon_basic`、inverted-hull outline、`toon_character`
+16. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
+17. `pixel_diorama`の`unified_low_resolution`
+18. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
+19. Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
+20. C2 Water Body／Query／Underwater、dynamic snow field
+21. GPU LOD selector、indirect、HZB、HLOD、geometry residency／streaming、generated skinned／morph Gate、portable meshlet artifactとCPU direct比較
+22. Hybrid deferred path、terrain／foliage、Advanced Renderer Fixture
+23. SMAA 1x、MSAA 8x、`TemporalFrameInputV1`、Mirakan TAAU、DirectSR、DLSS／XeSS／FSR／MetalFXを方式／Provider別にQualification
+24. Frame Generation、Latency Provider、UI／pixel-locked分離、real 60 fps Gate
+25. Hardware Ray Traced Shadow／Reflection、acceleration structure、Raster fallback
+26. RTGI／Radiance Cache、Editor Reference Path Tracer、Ray Reconstruction／Neural Denoising
+27. Neural Radiance Cache／Shader、Runtime Path Tracing、Work Graphは個別C3 Gate後
+28. Domain Pack拡張
+29. Store-readyなdata-only Runtime generation
+30. Project Shadow Technique L3、FFT／shallow-water、deformable snow、Multiplayer／continuous origin-rebased large worldは個別C3 Gate後
 
-2Dと3Dの全機能を先に並行実装しない。共有基盤→2D complete loop→3D complete loopの順で、毎段階にplayable resultを置く。
+2Dと3Dの全機能を先に並行実装しない。共有基盤→2D complete loop→3D complete loopの順で、毎段階にplayable resultを置く。各番号は「実装した」だけで次へ進まず、所属Work PackageのPromotion GateとRuntime規約のsoft／hard budgetを満たして閉じる。計測で最大寄与と確認できないmicro optimization、Target固有高速化の共通経路化、将来利用を理由にした抽象化を前倒ししない。
 
 ## 14. 機能完了の定義
 
@@ -1621,7 +1532,7 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 3. Editorで作成、編集、preview、undoできる。
 4. AIがCapabilityを発見し、ChangeSetとして提案できる。
 5. Runtime packageへcookできる。
-6. Debug visualizationとtelemetryがある。
+6. Debug visualizationだけでなく、Engine-owned Session／Event／Counter、bounded Query、priority／gap、safe pause／stepを持つ。stateful／async機能はReplay／Rewind、first divergence、Causality、Reproduction Bundleを同じID体系で追跡し、AI診断はEvidence ID、不足データ、反証条件を返す。
 7. Unit、conformance、integration、performance testがある。
 8. Invalid input、OOM、device lost、missing assetのfailure behaviorが定義される。
 9. Quality tierとfallbackが定義される。
@@ -1638,6 +1549,12 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 20. AIが選んだGameplayDefinition／C++方式はBehavior Budgetと10分×3回のBenchmark Receiptを持つ。
 21. State、authority、promotionを変更する機能は、対象TLA+ modelまたは「形式モデル対象外」の明示理由とtransition conformanceを持つ。
 22. AI／人間の変更がRisk別Verification、Review、Promotion Receiptへ接続される。
+23. 2D／3DのGame Flow、Level、Character、Weapon、Shooter Projectile、Combat、Vital、Score、Ability、Encounterが同じPublic System Contract、Save／Replay、semantic equivalence fixtureを使う。
+24. Scene、Level、Streaming Cell、Navigation、Map Presentationが別identity／ownerを持ち、Level transition失敗時に旧Levelとauthoritative stateを維持する。
+25. Shooter機能では、Fire transactionの原子性、authoritative ProjectileとPresentation Particleの分離、Fire→Hit→Damage→Defeat→ScoreのCausality、Profile Scaleを専用Shooter Fixtureで検証する。
+26. Anti-alias／Upscale機能は`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、方式互換表、sample／resolve、history reset、layer分離、typed Diagnostic、Preview、AA visual／performance Receiptを持ち、AIと手動Editorが同じOperationを使う。
+27. Lighting機能は`LightSourceV1`、`LightIntentV1`、`LightingStyleProfileV1`、`ResolvedLightPlanV1`、`LightSnapshotV1`、物理単位、安定selection／cluster、overflow、Preview、Explain、Target別Receiptを持ち、AIと手動Editorが同じOperationを使う。
+28. Post Process機能は`PostProcessIntentV1`、`PostProcessProfileV1`、`PostProcessVolumeV1`、`PostProcessNodeCatalogV1`、`ResolvedPostProcessPlanV1`、固定stage、AA互換、history reset、UI／pixel-locked分離、Preview、Target別Receiptを持ち、AIと手動Editorが同じOperationを使う。
 
 ## 15. 主要リスクと確定対策
 
@@ -1657,6 +1574,9 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | Shadow Graph自由度でPass／variantが爆発する | closed Node Catalog、node／edge／Source上限、offline compile、Plan cost gate |
 | Virtual Shadow cacheが動的Sceneでthrashする | generation invalidation、canonical residency、coarse ancestor、precompiled fallback、page telemetry |
 | Project Shadow TechniqueがRenderer安全性を破る | Shadow専用Port、宣言resource、隔離GPU Runner、全Targetまたはfallback、C3 Promotion |
+| AA方式名だけでAIが不適切な方式を固定する | `AntiAliasingIntentV1`の意味Goal、Target／Style／Budget Resolver、却下理由、Preview、High Impact確認 |
+| TAA／MSAA／dynamic resolution／Camera構成が不正に混在する | ViewFamily単位`ResolvedAntiAliasingPlanV1`、closed排他表、Graph compile拒否、Settings Apply境界での再構築 |
+| MSAAがGeometry edgeだけを改善しShader／specular／透明aliasを残す | AA方式別fixture、alpha-to-coverage／roughness対策、SMAA／Temporal候補、制限をPreviewへ明示 |
 | AIがGenreだけで画風を決める | 正規四軸、判断優先順位、High Impact確認、Decision Ledger |
 | StyleがScene／Material／UI／VFX間で崩れる | Versioned VisualStyleProfile、semantic role、Style Validator |
 | ToonのLight追加で陰影境界が破綻 | Key Light一意制約、accent light別ramp、Light Channel |
@@ -1679,12 +1599,16 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | 一次資料群 | 確認した事実 | Miraikanai Engineの規範決定 |
 |---|---|---|
 | Microsoft D3D12／HLSL | Root Signature 1.1はdescriptor／dataの静的性を宣言でき、SM 6.6 direct heap indexingはShader Model 6.6とResource Binding Tier 3の両方を必要とする | SM 6.6／Root Signature 1.1をHard gate、Domain別Root SignatureをEngine所有、Tier 3未満はdescriptor table |
+| Microsoft D3D12 Capability／Memory／Indirect | Featureは`CheckFeatureSupport`で照会し、memoryはclassify／budget／stream、GPU生成引数は`ExecuteIndirect`で実行できる | 2D C1はbounded descriptor table＋CPU instanced、direct heap／indirectはfeature、budget、GPU validation、fallbackを満たすC2 |
+| Khronos Vulkan／Android Vulkan | API version、Profile、feature／limit、queue／formatを実機で照会し、Android native EngineはVulkan version、Profile、frame pacing、pre-rotationを明示管理する | descriptor indexing／indirect／async transferを名前やVendorで推測せず、Target Profileと実機Receiptで個別有効化 |
+| Apple Metal Feature Table／Best Practices | argument buffer tier、heap、ICBはDevice family／featureに依存し、動的dataの多重buffer、resource residencyの明示が必要 | C1 CPU encoding＋bounded binding、C2 argument buffer／heap／ICB、全経路でretire serialとCPU fallbackを保持 |
 | ANSI/IES LM-63-19(R25) | luminaireのphotometric dataを電子移送する標準file formatを規定する | C2はType Cとembedded／no tiltだけを受理し、candela配光を独自IRへcookする。C1 lumen fieldと同時指定しない |
 | Khronos glTF 2.0／Extension Registry | CoreはMetallic-Roughness PBR、extensionは個別のratification statusを持つ | C1／C2 import範囲をextension IDで固定し、未対応featureを黙って破棄しない |
 | Khronos Sample Assets | Core materialとextension別の公開fixtureがある | Import、Material IR、golden imageのconformance inputに固定 |
 | Filament Material資料 | GGX系real-time PBR、Material parameter、Energy／roughness処理の公開実装知見がある | 比較根拠に使うが、そのAPIやMaterial schemaは採用せず、独自IRとProject既定値を持つ |
 | Box2D公式Manual／FAQ | Solver toleranceはMKSを前提に調整され、pixelを物理単位にすることは非推奨 | 2D World／Physicsをmeterで統一し、`pixels_per_unit`は描画Asset変換だけに使う |
 | Box2D Simulation | 60 Hzは通常高品質で、推奨sub-step countは4、精度向上例は8 | C1既定4、schema範囲1～8、Play開始時固定 |
+| Box2D Tile Environment FAQ | 多数の隣接boxは内部cornerでcharacterが引っ掛かり得るためchain terrainとrounded characterが推奨される | Tile Colliderをsemantic別chain／merged static shapeへCookし、capsule／rounded polygonをCharacter基準fixtureにする |
 | Jolt Simulation Step | 60 Hz／1 collision stepで一般に安定し、`Update`完了時に内部Jobはjoin済み | C1既定1、schema範囲1～2、Engine worker bridgeを共有 |
 | Recast `rcConfig`／Detour source | `cs`はAgent radiusの1/2または1/3がstarting guidanceで、小さいほどbuild costが急増する。fieldごとにworld／voxel単位と範囲が異なる。標準32-bit refはtile／poly／saltへbit分割し、salt 10 bit未満を拒否する | Human Profileの`cs=radius/2`、meterからvoxelへの丸め式、1,024 tile×4,096 polygon、query／memory上限をNavigation規約で固定 |
 | Hillaire 2020 atmosphere paper | Transmittance、multiple scattering、sky-view、aerial perspectiveを分離したscalable LUT構成とEarth係数を公開している | `ReferenceEarthV1`のsource係数とLUT fixtureに採用し、Engine schema、更新境界、resource capは独自規範とする |
@@ -1696,14 +1620,17 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | NPR一次論文／NVIDIA技術資料 | Ramp shading、outline、view-dependent contour等は複数方式で、共通の単一Toon物理規格ではない | Toonを独立Shading Modelとし、Key Light、Ramp、Outline、Art／Animation Profileを独自に規範化 |
 | Square Enix公式説明 | 「HD-2D」はPixel Artと3D CGの融合を表す製品側の語 | 要求理解にだけ使い、正規名は一般化した独自`pixel_diorama`とする |
 | Android Vulkan Profile／Apple Metal feature table | Mobile GPUの共通最低機能はdesktop SM 6.6と同一でなく、A12はApple family 5 | `portable_mobile_v1`、AVP 2022、A12 baseline、Target別offline shader cook |
+| Aseprite CLI／Tiled JSON・TMX／LDtk JSON Schema | Sprite sheet／Tilemapをversion付きの画像＋metadataまたはJSON／XMLとしてexportでき、formatはversion間で変化する | C2隔離Importer候補とし、Engine-native ID／schemaへ変換、version allowlist、Loss Report、reimport conflict、malformed fixtureを必須化 |
 
 本表の「事実」と「規範決定」を混同しない。外部資料が規定するinterchange／API要件はconformance対象とし、Miraikanai固有のProfile、既定値、Render順序、budgetは本書を規範とする。DXC v1.9.2602.24、Agility SDK 1.619.4、SPIRV-Tools 2026.2、SPIRV-Cross Vulkan SDK 1.4.350.0、KTX-Software 4.4.2、各Native Libraryのtag／commitは基盤規約の初期値を`toolchain.lock.json`とvcpkg manifestへ固定する。glTF specification／extension registry／Sample Assetsも取得日、revision、fixture hashをContent Conformance Manifestへ固定する。移動する`main` branch上のstatusが変わっても自動で対応範囲を変えず、一次資料の再確認、fixture、ADR、性能測定を通して本書を改訂する。
 
 ### 16.2 参照資料
 
 - [Direct3D 12 Programming Guide](https://learn.microsoft.com/en-us/windows/win32/direct3d12/directx-12-programming-guide)
+- [Direct3D 12 Capability Querying](https://learn.microsoft.com/en-us/windows/win32/direct3d12/capability-querying)
 - [ANSI/IES LM-63-19(R25) official standard page](https://store.ies.org/product/approved-method-ies-standard-file-format-for-the-electronic-transfer-of-photometric-data-and-related-information/)
 - [Direct3D 12 Memory Management Strategies](https://learn.microsoft.com/en-us/windows/win32/direct3d12/memory-management-strategies)
+- [Direct3D 12 ExecuteIndirect](https://learn.microsoft.com/en-us/windows/win32/direct3d12/indirect-drawing)
 - [DirectX Shader Compiler v1.9.2602.24](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2602.24)
 - [HLSL Specification](https://microsoft.github.io/hlsl-specs/specs/hlsl.pdf)
 - [Direct3D 12 Root Signatures Overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signatures-overview)
@@ -1714,6 +1641,13 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [Microsoft.Direct3D.D3D12 1.619.4](https://www.nuget.org/packages/Microsoft.Direct3D.D3D12/1.619.4)
 - [D3D12 Enhanced Barriers](https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html)
 - [`D3D12_FEATURE_DATA_D3D12_OPTIONS12`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_feature_data_d3d12_options12)
+- [Vulkan Specification](https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html)
+- [Android native／proprietary Engine Vulkan support](https://developer.android.com/games/develop/vulkan/native-engine-support)
+- [Android Frame Pacing](https://developer.android.com/games/sdk/frame-pacing)
+- [Metal Feature Set Tables](https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf)
+- [Metal argument buffer performance](https://developer.apple.com/documentation/metal/improving-cpu-performance-by-using-argument-buffers)
+- [Metal indirect command buffers](https://developer.apple.com/documentation/metal/encoding-indirect-command-buffers-on-the-cpu)
+- [Metal Resource Heaps](https://developer.apple.com/library/archive/documentation/Miscellaneous/Conceptual/MetalProgrammingGuide/ResourceHeaps/ResourceHeaps.html)
 - [GameInput Introduction](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-overview)
 - [XAudio2 Programming Guide](https://learn.microsoft.com/en-us/windows/win32/xaudio2/programming-guide)
 - [DirectWrite](https://learn.microsoft.com/en-us/windows/win32/directwrite/direct-write-portal)
@@ -1728,6 +1662,11 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 - [OpenUSD Introduction](https://openusd.org/release/intro.html)
 - [Box2D Documentation](https://box2d.org/documentation/)
 - [Box2D Simulation and sub-steps](https://box2d.org/documentation/md_simulation.html)
+- [Box2D Tile Based Environment FAQ](https://box2d.org/documentation/md_faq.html)
+- [Aseprite CLI sprite sheet／tileset export](https://www.aseprite.org/docs/cli/)
+- [Tiled JSON Map Format](https://doc.mapeditor.org/en/stable/reference/json-map-format/)
+- [Tiled TMX／TSX Map Format](https://doc.mapeditor.org/en/stable/reference/tmx-map-format/)
+- [LDtk versioned JSON Schema](https://ldtk.io/json/)
 - [Jolt Physics Documentation](https://jrouwe.github.io/JoltPhysics/)
 - [Jolt Physics Simulation Step](https://jrouwe.github.io/JoltPhysics/#the-simulation-step)
 - [Recast Navigation Repository](https://github.com/recastnavigation/recastnavigation)

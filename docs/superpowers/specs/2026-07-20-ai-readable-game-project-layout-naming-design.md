@@ -44,7 +44,7 @@ Projectで自由に増やせるのは、許可済み配置Profile内の**対象D
 4. 本書のGame Project配置ProfileとSource Asset名
 5. Project固有のversioned extension
 
-本書はGame ProjectのPathと名前に限り、旧文書に残る次のlegacy表記を置き換える。
+本書はGame ProjectのPathと名前に限り、移行入力で認識する次のlegacy表記と正規形を固定する。公式Review setの規範例は正規形へcutover済みである。
 
 | Legacy | 正規形 |
 |---|---|
@@ -423,6 +423,8 @@ native/game/
 └─ tests/
 ```
 
+この木のcanonical native rootは`native/game/include/`、`native/game/modules/`、`native/game/source/`、`native/game/tests/`である。AI、Template、Validatorは親子行の見た目からPathを推測せず、この完全Path集合を使用する。
+
 識別子caseはEngine命名正本を継承する。Game固有の正規対応を次へ固定する。
 
 ```text
@@ -431,6 +433,8 @@ Named Module:   mirakan.game.<project_slug>.<domain>
 CMake target:   mirakan_game_<project_slug>_<domain>
 CMake alias:    mirakan::game_<project_slug>_<domain>
 Header root:    native/game/include/<project_slug>/<domain>/
+Aggregate CMake target: mirakan_game_<project_slug>
+Windows Preview artifact: mirakan_game_<project_slug>.dll
 ```
 
 例:
@@ -439,6 +443,7 @@ Header root:    native/game/include/<project_slug>/<domain>/
 mirakan::game::forgotten_echoes::combat
 mirakan.game.forgotten_echoes.combat
 mirakan_game_forgotten_echoes_combat
+mirakan_game_forgotten_echoes.dll
 native/game/source/combat/damage_resolution.cpp
 ```
 
@@ -512,7 +517,7 @@ ProposedProjectPlacementV1
 
 Derived Artifactを`assets/source`へSourceのふりをして入れない。AIが生成したLOD、thumbnail、compressed texture、navmesh、shader binaryはDerived Artifactであり、元Sourceと生成契約から再構築する。
 
-## 10. Folder／File追加の正規Operation
+## 10. Directory／File追加の正規Operation
 
 ### 10.1 Directory
 
@@ -561,7 +566,7 @@ Importer、AI、File watcherが同じSourceを同時に登録しようとした�
 
 ### 10.4 Delete
 
-Folderを再帰的に直接削除しない。削除対象Asset／Document／Source entryをStable IDまたはcanonical pathで列挙し、reference closure、package、Save compatibility、Native bindingを検証する。Commit後に空になったDirectoryだけをGatewayが除去する。
+Directoryを再帰的に直接削除しない。削除対象Asset／Document／Source entryをStable IDまたはcanonical pathで列挙し、reference closure、package、Save compatibility、Native bindingを検証する。Commit後に空になったDirectoryだけをGatewayが除去する。
 
 AIによるdelete、置換、shared consumerを持つmove、Project slug変更は人間Reviewを必須とする。
 
@@ -737,16 +742,17 @@ AIがDirectory名やUUIDを先に作るのではなく、Game上の意味を提�
 - Prompt本文、Provider応答、PreviewをRuntimeまたはProject正本にする
 - Staging候補をBuild、Play、Packageから直接参照する
 - Derived ArtifactをSource Assetとして保存する
-- Folderのrecursive deleteをProject変更Operationにする
+- Directoryのrecursive deleteをProject変更Operationにする
 - AIがStable ID、Source path、License、Safety合格を推測する
 
 ## 18. Migration
 
-### Phase P0: 規範固定
+### Phase P0: 規範固定と文書cutover（文書完了、Policy実装待ち）
 
 - 本書をGame Project配置・命名の正本にする。
-- `ProjectNamingPolicyV1`、Diagnostic ID、layout goldenを固定する。
-- 新規Templateは`mirakan.project.json`と`.mirakan/`だけを出力する。
+- 公式Review setのGame Project Path、technical stem、MCD suffixを正規形へ統一する（完了）。
+- `ProjectNamingPolicyV1`、Diagnostic ID、layout goldenを実装する。
+- 新規Templateが`mirakan.project.json`と`.mirakan/`だけを出力するようにする。
 
 ### Phase P1: Legacy inventory
 
@@ -793,6 +799,6 @@ AIがDirectory名やUUIDを先に作るのではなく、Game上の意味を提�
 
 - Unreal Engine: Project source、Content、Plugin、生成Directoryを分離し、大規模Asset検索のため早期に一貫した命名を定める。[Directory Structure](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-directory-structure)、[Recommended Asset Naming Conventions](https://dev.epicgames.com/documentation/en-us/unreal-engine/recommended-asset-naming-conventions-in-unreal-engine-projects)
 - Unity: Source Assetと再生成可能なLibraryを分離し、Pathとは別のunique IDを`.meta`へ保持して参照を維持する。[Asset metadata](https://docs.unity3d.com/Manual/AssetMetadata.html)、[Introduction to importing assets](https://docs.unity3d.com/Manual/ImportingAssets.html)
-- Godot: Filesystemを明示的なProject構造として扱い、関連Scene／Assetをsubjectの近くへ配置し、file／folderへ`snake_case`を使う。[Project organization](https://docs.godotengine.org/en/stable/tutorials/best_practices/project_organization.html)、[Version control systems](https://docs.godotengine.org/en/stable/tutorials/best_practices/version_control_systems.html)
+- Godot: Filesystemを明示的なProject構造として扱い、関連Scene／Assetをsubjectの近くへ配置し、File／Directoryへ`snake_case`を使う。[Project organization](https://docs.godotengine.org/en/stable/tutorials/best_practices/project_organization.html)、[Version control systems](https://docs.godotengine.org/en/stable/tutorials/best_practices/version_control_systems.html)
 
 Miraikanai固有の結論は、subject-first配置、UUIDv7 Stable ID、typed metadata、`.mirakan/staging`、atomic promotion、Provenance、Policy projectionを一つの規則へ統合することである。これは他Engineの「公式共通規格」ではなく、上記原則を根拠に定めたMiraikanai Engine公式Game Project規約である。

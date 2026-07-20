@@ -1,19 +1,24 @@
 # AIネイティブ独自ゲームエンジン 設計計画書
 
-- 文書版: 2.0
+- 文書版: 2.6
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想とSubsystem別正式仕様32文書を統合した内部整合レビュー版。ユーザー承認待ち
+- 状態: 基本構想とSubsystem別正式仕様46文書を統合した内部整合レビュー版。ユーザー承認待ち
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
+- Math／Core Utilities規約: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
 - Authoring状態規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
+- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
+- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
 - Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
+- LOD規約: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
+- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
@@ -22,6 +27,7 @@
 - Simulation連携規約: [Physics／Navigation／Animation連携](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
 - 将来Capability規約: [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
+- Shooter Gameplay規約: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
 - Collision詳細規約: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - AI実装・保守規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
@@ -29,7 +35,7 @@
 
 ## 0. 統合レビュー結果
 
-本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。32文書を単一巨大文書へ統合せず、次の三層を維持する。
+本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。46文書を単一巨大文書へ統合せず、次の三層を維持する。
 
 1. 本書がProduct vision、制作体験、Milestone、MVP、全体の依存順を決定する。
 2. [設計文書Index](./README.md)が読む順序、決定権、要求トレーサビリティ、Review状態を決定する。
@@ -42,18 +48,21 @@
 | AIとEngineの境界 | AIはGame Brief、GameSpec、GameplayDefinition、C++、Test、ProjectChangeSetを提案できるが、Engine object、pointer、GPU resource、ProjectRevisionを直接変更できない |
 | Authoring | 自然言語、Editor GUI、外部IDE、MCPは同じAuthoring DocumentとProjectChangeSetへ収束し、C++ GatewayだけがCommitする |
 | Game実装 | C++23実行Code＋構造化GameplayDefinition。Luauを含む汎用Game Script VMは持たない |
-| Editor | C++23の独自`MiraUI Core`＋`MiraEditor Shell`で実装するProjection Editor。Retained UIと限定typed Immediate Canvasを併用し、禁止GUI toolkit、screen-coordinate AI操作、Projectへの直接writeを持たない |
+| Game System | 契約固定・実装開放型。Engine標準、Project定義、Engine Extensionを同じSystem Contract、State owner、Catalog、Bundle、Testへ収束させ、固定Class hierarchyまたはWhitelistでゲーム内容を制限しない |
+| World／Level／Map | `Map`をWorld structure、playable Level、Streaming、Procedural layout、Navigation、Map presentationへ解決する。Scene edit shard、Gameplay Level、Target別Streaming Cellを別identityとする |
+| Editor | C++23の独自`MirakanUi Core`＋`MirakanEditor Shell`で実装するProjection Editor。Retained UIと限定typed Immediate Canvasを併用し、禁止GUI toolkit、screen-coordinate AI操作、Projectへの直接writeを持たない |
 | Game UI／AI UI | HUDと画面UIは独立した`UiDocument`として所有し、手動操作とAI提案を同じ型付きChangeSetへ収束させる。C1は標準Widget＋`UiCompositeDefinition`、C2は`UiEffectGraph`＋承認済み`UiNativeWidget`をGameHostで扱い、AIによるWidget／生成Assetの直接writeを許可しない |
 | AI統合 | 内蔵はProvider API、外部Hostはlocal MCP、Pluginは任意UX。Source変更は隔離WorkerとPromotionを必須にする |
 | Engine機能 | 2D／3D、Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text、Audio、VFX、環境表現をSubsystem契約として分離する |
 | Physics | 独自World／Body／Joint／Character／Command／Save／AI契約をC++23で所有し、Box2D 3.1.1／Jolt 5.6.0をprivate kernel候補としてTarget別Qualification後にProduction昇格する |
 | Particle／VFX | 単一の型付きVFX Asset／Graph IRを2D／3D・CPU／GPU専用Artifactへoffline compileする。初心者Stack、上級者Graph、AI編集は同じSourceのProjectionとし、Particle結果をauthoritative Gameplayへ逆入力しない |
+| LOD | 共通`LodIntentV1`、Domain別Policy、Target別`LodResolutionPlanV1`、実測Receiptへ分離する。Mesh／Sprite、HLOD、Simulation、Animation、Material、VFX、Terrain／Foliage／Water／Snow Surface、Geometry residencyを同じ万能indexへ混ぜず、AIは意味、Engineは決定論的解決とfidelity Gateを所有する |
 | 大量制作／自動最適化 | AIが大量配置、敵味方spawn、同時VFXをScale intentとGameplay fidelity floorへ分解し、Target別Representation PlanへCookする。固定個数だけで制作意図を捨てず、Gameplayを黙って削らず、統合負荷fixtureの実測で合否を決める |
 | Visual表現 | Realistic、Toon、2D、独自Pixel DioramaをVisual Style、Material、Shader、Quality Profileの組合せとして解決する |
 | Platform | Windows／D3D12を先行し、Android／Vulkan、Apple／Metalを同じPortへ接続する |
 | Build | CMakeがC++ Build定義、NinjaがC++ Build executor、Build Gatewayが製品入口。Android packageはGradle、Apple app／archive／署名はXcodeが所有する |
 | C++進化 | C++23をShipping基準とし、Named Modules＋`import std`へ一方向移行する。C++26はreadiness CIで先行検証する |
-| 実装順 | Foundation→Headless Authoring→Editor／Runtime→2D Manual→AI MVP-A→外部Agent→3D MVP-B→Mobile→Production→制限付きRuntime生成 |
+| 実装順 | Foundation→Headless Authoring→Editor／Runtime→2D Manual→AI MVP-A→外部Agent→3D MVP-B→Mobile→Production→制限付きRuntime生成。各段階は契約→最小縦切り→実測→ボトルネック最適化→回帰Gate→Capability昇格の順で閉じる |
 
 本レビューでは、Ninjaを含むBuild層の責務に加え、大量制作を固定capだけで拒否しないAI Scale Planningを正式化した。Source intentの保持とTarget RuntimeのQualificationを分離し、Presentation-only最適化は自動化できるが、敵味方数、Damage、collision、goal、spawn timingの変更は人間承認を必須にした。
 
@@ -327,9 +336,11 @@ First Playable以降、次の編集経路を同時に利用できる。
 
 ### 6.2 World Model
 
-Authoring Serviceが保持するAuthoring Document集合のうち、`WorldDocument`、`SceneDocument`、Entity／Component／CompositionをWorld Modelと総称する。Editorが独自に所有する一枚のobject graphではなく、Scene Tree、Inspector、AI要約、Runtime Worldを正規状態にしない。
+Authoring Serviceが保持するAuthoring Document集合のうち、`WorldDocument`、論理`SceneDocument`、`SceneEntityShardDocument`、Entity／Component／CompositionをWorld Modelと総称する。Editorが独自に所有する一枚のobject graphではなく、Scene Tree、Inspector、AI要約、Runtime Worldを正規状態にしない。
 
 Commit済み`ProjectRevision`の同じDocument集合をScene、Graph、表、UI、Timeline、Simulation MonitorなどへProjectionする。Document種類、header、ID、参照、保存、Recoveryの詳細はAuthoring Model／Project State規約を正本とする。
+
+World Modelの`SceneDocument`は編集Shardであり、Gameplay上のLevelまたはRuntime Streaming Cellではない。World、Topology、Level、Spatial Partition Intent、Target別Streaming Plan、Procedural Definition、Navigation、Map Presentationの正規境界は[World／Level／Map規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)を正本とする。自然言語の「マップ」を型名またはSystem名へ直接採用せず、同規約の6分類へ解決する。
 
 ### 6.3 ChangeSet
 
@@ -360,8 +371,10 @@ operations[]
 | GameplayDefinitionChangeSet | Rule、FSM、Behavior Tree、Quest、Dialogue、Ability、UI Flow、公開Parameter、Test |
 | NativeCodeChangeSet | C++ source、header、Build定義、Test |
 | AssetChangeSet | 画像、音声、3D、Animation、Import設定 |
+| SystemBundleChangeSetV1 | System Contract、Definition、Native Source、Asset、Migration、Testをexact hashで結ぶcoordination envelope |
+| WorldAuthoringBundleV1 | World／Topology／Level／Streaming Intent／Procedural／Navigation／Map Presentation変更を結ぶcoordination envelope |
 
-各種別は共通してRevision、Diff、承認、履歴を持つが、検証・適用方法は分離する。
+下二つのBundleは既存ChangeSetを置き換えず、複数AuthorityのStaging artifactを結ぶ。各種別は共通してRevision、Diff、承認、履歴を持つが、検証・適用方法は分離する。
 
 ### 6.5 Gameplay Capability Contract
 
@@ -369,22 +382,31 @@ GameSpecとGameplayDefinitionは具体的なC++ symbolではなく、version付�
 
 既存Capabilityの組合せで表現できない機能、または同一fixtureの計測で構造化実装がPerformance要件を満たさない機能は、同じ公開Contractを維持した`NativeGameModule`へ実装できる。呼び出し側のGameSpec、Save field、他Systemを全面変更しない。
 
+ゲームシステム、レベルシステム、戦闘、Character、Ability、Encounter等は`GameSystemSpecV1`で責務、authoritative State owner、Command、Event、Snapshot、Runtime scope／phase、Save／Replay、Budget、Target fallback、Testを固定する。Engine Standard System Catalogは開始点でありWhitelistではない。Projectは検証済み`game_system.project.<project_namespace>.*`を第一級Systemとして追加できる。AIは`mirakan.systems.search／read`で必要な契約だけを取得し、`SystemImplementationPlanV1`と`SystemBundleChangeSetV1`を提案する。詳細は[Game System／AI Code Generation規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)を正本とする。
+
 ### 6.6 Decision Ledger
 
 設計判断の出所と理由を記録する。
 
 ```text
+decision_id
 value
 source: human | ai_recommendation | ai_assumption | engine_default
 reason
 confidence
 approved
 locked
-dependencies
+status: active | needs_review | superseded | rejected
+applies_to
+evidence_refs
+decision_dependencies
+validity_predicates
 created_revision
+confirmed_revision
+superseded_by
 ```
 
-チャット履歴そのものではなく、確定要件、仮定、却下案、未解決事項、ロック、承認を構造化して保存する。
+チャット履歴そのものではなく、確定要件、仮定、却下案、未解決事項、ロック、承認を構造化して保存する。依存Document、Target、Capability、根拠hashが変わるChangeSetは、影響するDecisionの`InvalidateDecision`または`ReconfirmDecision`を明示的に含める。Gatewayは失効を黙って補完せず、lock済みDecisionは別AuthorityのUnlock承認なしに変更しない。
 
 ### 6.7 Project Profile
 
@@ -412,6 +434,18 @@ AIが実装方式を判断するための制約を保持する。
 - Mobile orientation／resize／safe-area／touch fallback policy
 - Permission、Content Delivery、Content Safety policy
 
+### 6.8 AI可読Authoring契約
+
+AIへProject全体を無条件に送らず、Commit済みrevisionから生成する`AuthoringContextIndexV1`、Task固有`AuthoringContextPlanV1`、実送信Manifest `ContextPackV2`の三層でContextを構成する。
+
+`AuthoringContextIndexV1`はStableId、Document／Scene Shard位置、inbound／outbound reference、Requirement、Capability、Decision、lock、spatial bound、field byte／token costを索引化するDisposable artifactである。正本はAuthoring Document集合のままとし、Indexがstaleまたは未完成なら別revisionへfallbackしない。
+
+`AuthoringContextPlanV1`はTask goal、anchor StableId、field mask、依存closure、必須Requirement／Decision、byte／token上限、追加read上限を固定する。`ContextPackV2`は実際に送ったItem、順序、source hash、選択理由、省略範囲、continuation、tokenizerと実測tokenを記録する。Blocking／High要件、lock済みDecisionを要約だけに置換せず、収まらなければTaskを分割する。
+
+大規模Sceneは論理`SceneDocument`とbounded `SceneEntityShardDocument`へ分け、AIには任意に切断したJSONでなく`SceneSliceV1`を返す。`authoring.search`、`authoring.read`、`authoring.dependencies`、`authoring.diff`はrevision付きR0 query、編集はStableId対象のtyped Operationだけとする。AIへ正規Authoring JSONのwrite権限を与えず、`ai_mutable` fieldのtyped Operation coverage 100%をCapability昇格条件にする。
+
+Validator failureはMCD `RemediationV1`から必要read、typed Operation template、precondition、Risk、Approvalを返す。初回Proposal後の修復は最大2回、同じblocking Diagnostic集合が減らない場合は停止する。Permission、Security、lock、Approval、revision driftを自動修復しない。詳細型、状態遷移、性能fixture、Release GateはAuthoring、AIガバナンス、実行可能契約、AI検証の各規約を正本とする。
+
 ## 7. システムアーキテクチャ
 
 本章はProduct全体の論理構成を定義し、field、phase、lifetime、budget、failure、testの詳細は各正式仕様へ委譲する。
@@ -420,6 +454,7 @@ AIが実装方式を判断するための制約を保持する。
 - 正規Project状態、ProjectRevision、ChangeSet、journal、recoveryは[Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)を基準とする。
 - Game実行コードと構造化ゲームデータの境界は[C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)、Native ABI、Target別link、Build／Promotionは[NativeGameModule規約](./2026-07-19-native-game-module-architecture-design.md)を基準とする。
 - Runtime phase、Subsystem連携、borrow無効化、Asset version、memory／performance budget、障害復旧は[Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)を基準とする。
+- Debug Session、構造化Event／Counter、Query、Breakpoint／Watch、Causality、Replay／Rewind、Reproduction Bundle、AI診断境界は[AI可読Debugging／Observability／Replay規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)を基準とする。
 - Renderer、Asset、Collision、Physics／Navigation／Animation、Input、UI／Text、Audio、Editorは、それぞれのSubsystem正式仕様を基準とする。全リンクと決定権は[設計文書Index](./README.md)を正本とする。
 - 2D／3Dの製品機能範囲と成熟度は[2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)、Genre別機能と将来Capabilityは[Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)を基準とする。
 - Windows Target／Distributionは[Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)、Android／AppleのTarget、Adapter、実機budget、package、Store gateは[モバイルPlatform規約](./2026-07-19-mobile-platform-architecture-design.md)を基準とする。
@@ -535,7 +570,7 @@ Engine外のNode.js 24.18.0 LTS／TypeScript 7.0.2 strict別Processとして配�
 
 Game Brief、参考Asset、既存Asset、Project Profile、`StyleCapabilityManifest`から利用可能なVisual Style候補を作る。EngineがCapabilityとbudgetをhard gateし、AIは残った候補の制作cost、runtime cost、一貫性、理由を説明する。GenreだけでStyleを決めず、曖昧なHigh Impact項目を無確認でlockしない。
 
-正規四軸、VisualStyleProfile、Material／Shader、Toon、Realistic、2D、Pixel Diorama、Preview、Validator、Evalの詳細は、[2D／3D機能計画 §8](./2026-07-19-2d-3d-capability-plan.md#8-visual-styleshadermaterial)を唯一の基準とする。
+正規四軸、VisualStyleProfile、Material／Shader、Toon、Realistic、2D、Pixel Diorama、Semantic Catalog、AI Operation、Preview、Explain、Validator、Evalの詳細は、[Material／Visual Style／AI Authoring規約](./2026-07-20-material-visual-style-ai-authoring-architecture-design.md)を唯一の基準とする。2D／3D機能計画§8は製品到達点とPhase配置だけを所有する。
 
 ### 7.6 UI Authoring Planner
 
@@ -550,6 +585,8 @@ Widget選択はBuiltin、`UiCompositeDefinition`、`UiEffectGraph`、`UiNativeWi
 ### 7.7 Implementation Strategy Planner
 
 システム単位でGameplayDefinition、C++、または型付きCapability境界での併用を選択する。LLMの推測だけで決めず、Engine Policyと実測を組み合わせる。汎用Game scripting runtimeは候補へ含めない。
+
+Plannerは`GameSystemCatalogV1`から既存composition、Project GameplayDefinition、Project-defined System、NativeGameModule、Engine Extensionの順に比較し、`SystemImplementationPlanV1`へRequirement、Contract hash、State owner、Target、Budget、同値fixture、Save／Migration、fallback、却下案を記録する。AIがC++を選ぶ場合も`.cpp`だけを生成せず、generated binding、CMake、manifest、Definition参照、Test、Benchmark、System Bundleを同じdependency closureへ含める。
 
 大量制作では実装言語を選ぶ前に、Runtime規約のFull Entity／simulation LOD／休眠state／pool、Renderer規約のindividual／instanced／spatial／presentation、VFX規約のCPU／GPU／aggregate emitterをTarget別Representation Planへ解決する。AIは`Predicted | OptimizationRequired | Qualified`を区別し、実測Receiptなしに「快適」「最適化済み」と説明しない。Presentation-only変更で合格できない場合は、Gameplay変更またはTarget除外を承認付き別ChangeSetとして提示する。
 
@@ -729,18 +766,19 @@ API、Agent SDK、MCP、Plugin、CLI、Editor GUIのいずれも安全境界と�
 ### 10.2 検証パイプライン
 
 1. Provider response状態
-2. Strict Schema parse
-3. Canonicalization
-4. Stable ID／Reference
-5. Semantic invariant
-6. Capability／Authorization
-7. Resource budget
-8. Base revision／Conflict
-9. Staging／Dry-run
-10. Engine-generated Diff
-11. Risk policy／Approval
-12. Atomic Commit
-13. Undo／Journal／Receipt
+2. Context Plan、Project／Index revision、Blocking／High evidence completeness
+3. Strict Schema parse
+4. Canonicalization
+5. Stable ID／Reference
+6. Semantic invariant、Decision invalidation
+7. Capability／Authorization、typed Operation coverage
+8. Resource budget
+9. Base revision／Conflict
+10. Staging／Dry-run
+11. Engine-generated Diff
+12. Risk policy／Approval
+13. Atomic Commit
+14. Undo／Journal／Context／Generation Receipt
 
 ### 10.3 AIへ書かせない信頼情報
 
@@ -812,7 +850,9 @@ C++／Shader source生成は隔離されたBuild環境を利用する。Gameplay
 ### 11.2 計画済みDomain Pack
 
 - 2D Action
-- Character／Combat共通
+- reusable `mirakan.feature.shooter_core.c1`
+- 2D top-down shooter Profile
+- Character／Combat／Vital共通
 - FPS／TPS
 - RPG／Action RPG
 - Quest／Narrative
@@ -904,40 +944,64 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 
 ## 14. 段階計画
 
+### 全Phase共通: 計測先行・縦切り実装・性能Gate付きCapability昇格
+
+Miraikanai Engineは、高度機能を先に並列実装して最後に一括最適化する方式も、全Subsystemの汎用基盤を完成するまでPlayableを作らない方式も採用しない。各Phaseと各Capabilityは、次の一方向loopで実装する。
+
+1. MCD Requirement、Capability、Target Profile、Budget、failure、fallbackを固定する。
+2. 最小のreference経路と、成功／失敗を再現する決定論的fixtureを作る。
+3. PlayableまたはHeadless vertical sliceへ接続し、Target実機または規定Reference環境でtraceを取得する。
+4. CPU critical path、GPU pass、memory、allocation、queue latency、Asset／pipeline準備、起動／reloadの実測から上位ボトルネックだけを選ぶ。
+5. 同一Source、input trace、Target Profile、Quality、Toolchain、driver条件でBefore／Afterを比較し、意味、画質、Replay、fault recoveryを回帰検証する。
+6. Runtime規約のhard budget、Subsystem固有Gate、統合密度fixtureをすべて満たした場合だけCapabilityを昇格する。
+7. 不合格時はSource intentとlast valid baselineを維持し、`OptimizationRequired`または当該Capability非表示として次機能へ進まない。
+
+独立した「最適化最終Phase」は設けない。Phase 0は測定、trace、Receipt、基準fixtureを実装可能にし、Phase 2以降は各Playableへ同じ測定経路を接続する。C1はPortableな基準経路を先に完成させ、C2は高機能を一Capabilityずつ予算内へ追加し、C3は別仕様、別prototype、意味同等fallback、個別Qualificationを持つ場合だけ着手する。
+
+Authoring Source、Material／Visual Style、Gameplay fidelity floor、LOD IntentはTargetごとに分裂させない。Runtime Compilerが同じ正本からPortable、Mobile、AdvancedのTarget別Artifact closureを生成し、Packageは選択Targetに必要な検証済みArtifactだけを含める。高性能Targetの成功を最低Targetへ一般化せず、最低Targetの制約を理由に高性能TargetのSource表現を削除しない。
+
+平均fps、推定cost、単一GPU、生成Frame込みのdisplayed fps、短いmicrobenchmarkだけで完了を宣言しない。性能値と測定方法の正本はRuntime規約14節、Renderer固有の画質／Provider／GPU GateはRenderer規約19～21節、機能範囲と順序は2D／3D機能計画13節を適用する。
+
 ### Phase 0: Foundation契約とToolchain
 
-- 設計文書Indexに列挙した公式Review set 32文書の承認
+- 設計文書Indexに列挙した公式Review set 46文書の承認
 - C++23共通Runtime Contract、`CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`と`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
 - vcpkg manifest／固定Dependency
 - Build GatewayをEditor／AI／CLI／CIの唯一の製品Build入口とし、CMakeをC++ Build定義、Ninjaを生成DAG実行器、Gradle／XcodeをPlatform package ownerへ固定
 - CMake Presets／File API、Engine-owned Build Receipt、生成Ninja file非公開、Target／Configuration／Toolchain別Build tree分離
-- `VerificationReceiptV1` gate `mira.build.ninja_adoption.v1`によるclean／no-op／leaf変更／Module変更／generated Header変更／中断復旧／memory／artifact一致の実測
+- `VerificationReceiptV1` gate `mirakan.build.ninja_adoption.v1`によるclean／no-op／leaf変更／Module変更／generated Header変更／中断復旧／memory／artifact一致の実測
 - Module dependency DAGとComposition Root
-- `mira_runtime_contracts`、`mira_runtime_package`、`RuntimeOrchestrator`、Domain Port／Runtime／Adapter境界、`ComponentAccessManifest`
+- `mirakan_runtime_contracts`、`mirakan_runtime_package`、`RuntimeOrchestrator`、Domain Port／Runtime／Adapter境界、`ComponentAccessManifest`
 - RAII、所有権、generation handle
 - 12段階fixed tick、8段階render frame、typed command／event、bounded queue
 - `RuntimeScaleIntentV1`、Gameplay fidelity floor、Target別Representation Plan、`IntegratedScaleFixtureV1`、qualification statusのMCD契約
 - CPU memory domain、GPU allocator、residency、submission-deferred release
 - Result／Error、thread affinity、borrow epoch、Asset version／atomic promotion
+- `mirakan_foundation`と`mirakan_math`の一方向依存、portable scalar reference、storage／semantic math type、finite／normalization／failure contract
 - Naming、format、static analysis、sanitizer
-- 2D／3Dの座標、単位、色、時間規約
+- 2D／3Dの座標、単位、色、時間規約と、Position／Direction／Velocity／Scale／Quaternion／TransformのMCD意味型
 - Scene dimension、Art Direction、Composition、Shading Modelの正規四軸
 - Lifecycle、Display、Graphics、Input、Audio、Text、Content Delivery、Thermal／MemoryのPlatform Port
-- `/schemas/mira/`のMCD meta-schema、Contract compiler、C++／TS／Cooked binary descriptor／MCP／Provider projection
-- `TaskSpecification`、署名済み`TaskAuthorizationEnvelope`、`ContextPack`、Provider Manifest、R0–R5
+- `/schemas/mirakan/`のMCD meta-schema、Contract compiler、C++／TS／Cooked binary descriptor／MCP／Provider projection
+- `game_system` meta-schema、最小`GameSystemSpecV1`／Catalog／State owner／dependency graphのvalid・invalid fixture。Game実装または空System classは作らない
+- World／Topology／Level／Partition Intent／Streaming Plan／Map Intentの最小Schemaとnegative fixture。large-world Runtimeまたは空`MapManager`は作らない
+- `TaskSpecification`、署名済み`TaskAuthorizationEnvelope`、`AuthoringContextPlanV1`、`ContextPackV2`、`RemediationV1`、Provider Manifest、R0–R5
 - Source Worker／Path broker／Network／PromotionのMCD契約、`NotActivated`拒否stub、security fixture。実WorkerはA1で解放
 - TLA+／TLC v1.7.4で検査する5 State machineのmapping。Phase 0ではA0とFoundation実装に該当するModel、残りは各Activation前に実行
 - Requirement Coverage、AI Eval、Verification／Generation ReceiptのA0実装と、Review／Promotion Receipt、SBOM／provenanceのSchema境界
+- `DBG0_contract`／`DBG1_flight_recorder`: `DebugSessionDescriptorV1`、`DebugEventEnvelopeV1`、Counter定義、priority、gap、bounded retention、crash-safe chunk、D0／D1計測、`DebugQueryV1`のMCD契約とheadless reference実装
 
-完了条件は、空のWindows EditorHost／Windows GameHost／WorkerHostが固定toolchainでBuildでき、Android／Appleの未実装Adapterが偽の成功ではなく`UnsupportedTarget`を返し、Foundation contract、Target Profile、phase順序、handle／borrow、bounded queue、memory failure、Asset atomic promotionのtest、ASan、format、static analysisがCIで成功することである。さらに、同一MCDからのA0用Projectionが決定論的に生成され、AIが変更不能なAuthorization Envelope、未解放Source Workerの`MIRA-POLICY-CAPABILITY_NOT_ACTIVATED`拒否、Provider再検証、該当TLA+ fast model、AI security negative fixture、Verification／Generation Receipt hash chainがheadless CIで合格しなければPhase 1へ進まない。
+完了条件は、空のWindows EditorHost／Windows GameHost／WorkerHostが固定toolchainでBuildでき、Android／Appleの未実装Adapterが偽の成功ではなく`UnsupportedTarget`を返し、Foundation contract、Target Profile、phase順序、handle／borrow、bounded queue、memory failure、Asset atomic promotionのtest、ASan、format、static analysisがCIで成功することである。さらに、同一MCDからのA0用Projectionが決定論的に生成され、AIが変更不能なAuthorization Envelope、未解放Source Workerの`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`拒否、Provider再検証、該当TLA+ fast model、AI security negative fixture、Verification／Generation Receipt hash chainがheadless CIで合格しなければPhase 1へ進まない。最小GameHostでSession開始、D0／D1 Event／Counter記録、priority別dropとgapの可視化、bounded Query、異常終了後の完全chunk回収を再現し、生pointer／credential／無制限Query／stale indexを拒否できなければ`DBG1_flight_recorder`を完了扱いにしない。
 
 Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能として解放するのはAI実装・保守ガバナンス規約のA0（R0–R2）だけである。A1のProject Source、A2のEngine保守、A3のReleaseは各Activation Gate完成後にTool catalogへ追加し、未完成機能を弱い検証で先行開放しない。
 
 ### Phase 1: Headless Authoring Core
 
 - GameSpec、World Model、ChangeSet
+- `WorldDocument`／`SceneDocument`／`LevelDefinitionV1`／`WorldTopologyDefinitionV1`のSource境界とcompact Level lifecycle
+- `SystemImplementationSetV1`、Project-defined System registration、System／World BundleのStagingと二段階Activation境界
 - Stable ID／Project Revision
 - Capability、`AuthoringCommandGateway`
 - Schema／Semantic／Budget validation
@@ -947,12 +1011,16 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Save／Load、Replay
 - Versioned schemaとoffline Project Migrator
 - VisualStyleProfile、StyleChangeSet、StyleCapabilityManifestのschema
+- 論理`SceneDocument`、bounded `SceneEntityShardDocument`、`entity_set_root_hash`
+- `AuthoringContextIndexV1`、`SceneSliceV1`、revision付きsearch／read／dependencies／diff
+- Decision validity／invalidation、lock、`InvalidateDecision`／`ReconfirmDecision`
+- `ai_mutable` fieldのtyped Operation coverage 100%検査
 
-完了条件は、手書きChangeSetをheadlessでvalidate→stage→commit→save→load→replayし、同じstate hashを得られることである。
+完了条件は、手書きChangeSetをheadlessでvalidate→stage→commit→save→load→replayし、同じstate hashを得られることに加え、100万Entity fixtureをShardへ保存してStableId検索、限定Slice、部分Diff、re-shard、Decision／lock closure、stale Index拒否を実行できることである。
 
 ### Phase 2: Editor Shellと共通Runtime
 
-- 独自MiraUI Core、Retained tree、Layout、Event、Focus、Semantic、D3D12 UI pass
+- 独自MirakanUi Core、Retained tree、Layout、Event、Focus、Semantic、D3D12 UI pass
 - Dock／resize／floating／multi-workspace Editor shell
 - Scene／Canvas、Outliner、Inspector、Asset、Diff／History、AI Partner panel
 - Windows window／GameInput／XAudio2 Adapter、Editor shell用DirectWrite／TSF／UI Automation／OLE
@@ -962,20 +1030,24 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Asset staging、content-addressed cache、sandboxed importer、cook
 - GameplayDefinition schema／Validator／Cooker／C++ evaluatorとNativeGameModule boundary
 - Material IR、Engine-owned Target Binding Layout、Material／Style Validator、代表Material preview
+- `DBG2_editor_local`: Session／Console／Problems／Profiler／Timeline／WatchのDebug Workspace、T110 safe pause、tick／render-frame step、GameplayDefinition node step、外部IDE／GPU debugger launch
 
-本Phaseのconcrete Adapterとpackageは`windows_desktop_v1`を対象とする。完了条件は、AIを使わずEditor操作がChangeSetを経由し、空SceneをWindowsでplay、save、packageできることである。
+本Phaseのconcrete Adapterとpackageは`windows_desktop_v1`を対象とする。完了条件は、AIを使わずEditor操作がChangeSetを経由し、空SceneをWindowsでplay、save、packageできることに加え、同じtyped Debug StoreをEditor panel、headless Query、外部debugger launchが参照し、pause要求がT110以外でsimulation stateを露出せず、step結果がSession／tick／frame／revisionへ再結合できることである。
 
 ### Phase 3: 2D Manual First Playable
 
 - CanvasRenderer、sprite、tilemap、2D light、camera
 - Box2D Adapter、2D grid navigation
+- compact 2D Level、Portal transition、Level activation失敗時の旧Level維持
+- Game Flow、Level Gameplay、Character、Weapon、Shooter Projectile、Combat、Vital、Score、Ability、Encounterの最小Engine Standard System Contract
 - 標準Widget＋`UiCompositeDefinition`によるTitle、Settings、HUD、Pause、Result、Audio、2D animation、CPU particle
 - GameplayDefinitionでgame ruleを実装し、C++ evaluatorで実行
 - `pixel_2d`と`illustrated_2d` Profile
-- `pixel_2d` 2D top-down action縦切り
-- `2d_crowded_battle_v1`で大量配置、敵味方spawn、Physics、Gameplay、VFX、Audio／Cameraを同時測定
+- `mirakan.feature.shooter_core.c1`＋`shooter.profile.2d_top_down.c1`による`pixel_2d` 2D top-down shooter縦切り
+- `2d_shooter_c1_v1`と`2d_crowded_battle_v1`でWeapon、Projectile、Hit、Damage、Score、大量配置、敵味方spawn、Physics、VFX、Audio／Cameraを同時測定
+- `DBG3_replay_causality`: input／seed／authoritative command／snapshotを記録し、record→scrub→inspect、first divergence、causal edge、recorded／current revision差分、最小Reproduction Bundleを成立
 
-完了条件は、AIなしでTitleからResultまでplayでき、640×360 logical pixelを1920×1080へ3倍integer scaleし、Reference stress sceneと`2d_crowded_battle_v1`が1080p60、memory／queue／VFX budget、authoritative drop 0、Replay一致を満たすことである。
+完了条件は、AIなしでTitleからResultまで5分playでき、typed Weapon、hitscan／Projectile、ammo／reload Profile、Health／Damage／Team、one-shot Pickup、Wave／Boss phase、Score／Combo、Save／Loadを含み、640×360 logical pixelを1920×1080へ3倍integer scaleすることである。Reference stress scene、`2d_shooter_c1_v1`、`2d_crowded_battle_v1`は1080p60、memory／queue／VFX budget、authoritative drop 0、Replay一致を満たす。既知のsimulation divergence、queue overflow、stale handle、asset revision driftをTimeline／Causality／Replayから誤因果なしで特定し、recorded data欠損時は原因確定ではなくgapとして停止できなければならない。
 
 ### Phase 4: AI Authoring MVP-A
 
@@ -986,13 +1058,19 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - UI Authoring Planner、自然言語からのHUD／画面UI生成、`AssetRequirement`と生成Asset Staging
 - 解像度／aspect ratio／safe area／locale／入力方式／accessibilityを跨ぐUI Previewと構造化検証
 - GameplayDefinition／C++ strategy planner
+- `mirakan.systems.search／read／plan`、System Bundle生成、Definition／Native同値fixture
+- Map intent resolver、World Authoring Bundle、compact 2D Level生成／Preview／手動変更保持／再編集
 - AI Scale Planner、Gameplay fidelity floor、Representation Plan、Project固有Integrated Scale Fixture、Optimization Receipt
 - GameplayDefinitionChangeSet、NativeCodeChangeSet、isolated validation／cook／build／test
 - Engine-generated Diff、Approval、手動変更との競合処理
 - Playtest feedbackと自動修復
+- `AuthoringContextPlanV1`からのbounded retrieval、24,000 token初回Context Gate、追加Resource read
+- `RemediationV1`による最大2回の修復、同一blocking反復停止、Permission／Security／lock非修復
+- Decision Ledgerの成立条件追跡、失効Preview、再確認
 - NativeGameModule Capabilityを公開する前にA1を完成し、Source Worker、Promotion、Review ReceiptをTool catalogへ解放
+- `DBG4_ai_diagnosis`: `AiDebugContextV1`、`DebugFindingV1`、Evidence ID付き仮説／反証／不足データ／最小追加計測、Reproduction Bundleからのsupervised修正提案、既存Authoring Gateway／Risk／Approval／Replay回帰への接続
 
-完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。Title、Settings、HUD、Pause、ResultはAIと手動編集の往復、代表解像度／locale／入力方式／accessibility Preview、生成Assetの来歴確認を合格しなければならない。MVP能力に含むNativeGameModule生成はA1 Gate合格後だけ成功とし、A1未完ならMVP-A完了を宣言しない。
+完了条件は、大まかなprompt→必要質問→人間選択または一件限定の`おまかせ`委任による2D Visual Style確定→First Playable生成→AI修正→手動修正→AI再編集を一つのProject revision historyで完走し、Style Resolver EvalとStyle Validator gateを満たすことである。Title、Settings、HUD、Pause、ResultはAIと手動編集の往復、代表解像度／locale／入力方式／accessibility Preview、生成Assetの来歴確認を合格しなければならない。さらに、AI Authoring通常Caseの95%以上で初回Contextを24,000 input token以下、Blocking／High evidence recall 100%、存在しないStableIdの最終提出0、stale DecisionによるCommit成功0、repairable Caseの2回以内修復90%以上、禁止Categoryの自動修復0を3 run最悪値で満たす。Debugging Evalでは、根拠なしのvalidated cause、gap／redactionの誤解釈、recorded／current revision混同、presentation結果からauthoritative causeへの逆因果、再現不能な修正成功をすべて0件とし、承認済み修正のReplay＋回帰成功100%を満たす。MVP能力に含むNativeGameModule生成はA1 Gate合格後だけ成功とし、A1未完ならMVP-A完了を宣言しない。
 
 ### Phase 5: 外部Agent接続
 
@@ -1011,7 +1089,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - ozz-based sampling＋独自Animation Graph
 - 3D UI、Audio、particle、camera
 - C1 bounded Water、flat Water Volume、CPU降雪VFX、static snow mask
-- Third-person compact action arena
+- 同じShooter Coreを使うsingle-player third-person compact shooter arena
 - `3d_crowded_battle_v1`で大量instance、敵味方spawn、Physics、Navigation、Animation、VFX、Audio／Cameraを同時測定
 
 完了条件は、`realistic_basic` 3D縦切りを自然言語と手動編集の両方で作成でき、Khronos core／Unlit／Emissive Strength／Texture Transform material fixture、Reference stress scene、`3d_crowded_battle_v1`、1080p60、memory／queue／VFX budget、authoritative drop 0、Replay一致を満たすことである。
@@ -1023,9 +1101,10 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Portable HLSL→SPIR-V→MSLのoffline shader pipeline、ASTC／ETC2／BCnのTarget別cook
 - Device Manager、Apple Unsigned Build Worker／Signing Service／Upload Service、safe-area／cutout／orientation preview、touch simulation
 - Mobile memory class、dynamic resolution、thermal governor、physical device matrix、16 KiB／privacy／Store package gate
+- `DBG5_remote_shipping`: 認証済みDevice Debug handshake、bounded remote capture、Android Performance Analyzer／Perfetto／AGI／Vulkan Validation、Apple Metal validation／Instruments連携、offline bundle回収、Shipping instrumentation／secret混入scan
 - Phase 3のWindows 2D C1を入力にAndroid 2D→Apple 2D、Phase 6のWindows 3D C1を入力にmobile 3D品質の順で成立させる
 
-完了条件は、同一Project revisionの2D First PlayableがAndroid minimum／reference実機とA12 iPhone／iPadでplay、save、suspend復帰でき、Build／Signing／Uploadの秘密分離を証明した署名済みinternal track／TestFlight package、memory／frame／thermal／privacy gateを満たすことである。
+完了条件は、同一Project revisionの2D First PlayableがAndroid minimum／reference実機とA12 iPhone／iPadでplay、save、suspend復帰でき、Build／Signing／Uploadの秘密分離を証明した署名済みinternal track／TestFlight package、memory／frame／thermal／privacy gateを満たすことである。さらに、失敗時のpartial captureをgap付きで回収し、同じSession／Build／Project revisionへ再結合でき、Shipping packageからvalidation layer、IDE attach、raw trace、source path、credentialを除外できなければならない。
 
 署名済みinternal track／TestFlight packageの作成前にA3 Releaseを完成する。A2 Engine MaintenanceはGame制作MVP-A／MVP-Bの必須条件ではないが、Engine coreをAI保守対象として公開する前に別途完成し、未完成時はR4 Toolを公開しない。
 
@@ -1039,7 +1118,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - L2 `ShadowGraphV1`、static／dynamic cache、PCSS／contact-hardening、Capability Gate後のWindows High Virtual Shadow
 - Baked lightmap、irradiance／reflection probe、C3 dynamic GI研究
 - GPU VFX、C2 Water Body／Query／Underwater、dynamic snow field、terrain、foliage、streaming
-- 2D Action、FPS／TPS、RPG／Action RPG、Quest、Simulation、Strategy Pack
+- Shooter C2 Feature、2D Action、FPS／TPS、RPG／Action RPG、Quest、Simulation、Strategy Pack
 - `UiEffectGraph`と承認済みProject C++ `UiNativeWidget`
 - 画像／音声／3D生成Provider adapter
 - 自動Playtestとperformance regression
@@ -1061,8 +1140,8 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 
 MVPはAI Authoringの安全な往復を証明する製品縦切りであり、Engine機能を網羅する版ではない。開発上の最小成立点を**MVP-A**、2D／3D両対応の基盤成立点を**MVP-B**として混同しない。
 
-- MVP-A: Phase 4完了。2D top-down actionでAI Authoring全loopを証明する。
-- MVP-B: Phase 6完了。3D compact action arenaを追加し、共通基盤が2D専用設計でないことを証明する。
+- MVP-A: Phase 4完了。共通Shooter Coreを使う2D top-down shooterでAI Authoring全loopを証明する。
+- MVP-B: Phase 6完了。同じShooter Coreを使う3D compact third-person shooter arenaを追加し、共通基盤が2D専用設計でないことを証明する。
 - 最初のTechnology Preview配布条件はMVP-BとA3 Releaseの両方の完了とする。
 
 詳細なSubsystem範囲と性能条件は2D／3D機能計画で固定する。
@@ -1135,6 +1214,10 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 - 大量配置、spawn、敵味方VFXの同時runで、実測Receiptなしに最適化済みと表示せず、Gameplay変更を無承認で性能調整に使わない。
 - ChangeSetをUndoおよびReplayできる。
 - 無効なAI出力がWorld ModelへCommitされない。
+- Blocking／High要件とlock済みDecisionを欠落させず、通常Caseの95%以上を24,000 input token以下の初回Contextで処理できる。
+- AIが正規Authoring JSONを直接変更せず、全`ai_mutable` fieldをtyped Operationで編集できる。
+- repairable failureを初回後2回以内で90%以上修復し、同一blocking反復、Permission、Security、lock、revision driftでは自動停止する。
+- Decision成立条件の変更をPreviewし、失効または再確認なしにstale Decisionを根拠としたCommitを成功させない。
 
 ## 16. 確定事項と実装計画への引渡し
 
@@ -1142,13 +1225,15 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 | 項目 | 決定 |
 |---|---|
-| 最初の縦切り | 2D top-down action |
-| 第二の縦切り | 3D single-player third-person compact action arena |
+| 最初の縦切り | `mirakan.feature.shooter_core.c1`を使う2D top-down shooter |
+| 第二の縦切り | 同じShooter Coreを使う3D single-player third-person compact shooter arena |
 | Editor Host | Windows 11 25H2以降 x64（OS build 26200以上） |
 | Game Target | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`。Mobile Editor、TV／Wear／XR、tvOS／visionOSは初期対象外 |
 | Graphics | WindowsはD3D12、AndroidはVulkan 1.1＋AVP 2022、AppleはMetal。C1はForward+、desktop C2でHybridを選択可 |
 | Game executable language | C++23。CX0は非Shipping Header bootstrap、最終方式はNamed Modules＋`import std`、C++26はreadiness CIだけ |
 | Game implementation | C++実行コード＋GameplayDefinition。Authoring dataはoffline Cookし、C++ evaluatorが実行 |
+| Game System model | 契約固定・実装開放型。Engine標準、Project定義、Extensionを`GameSystemSpecV1`、一意State owner、typed Port、Catalog、Implementation Plan、System Bundle、Qualificationへ収束 |
+| World／Level／Map model | World／Scene／Level／Cellを分離し、Source IntentからTarget別Streaming PlanをCookする。「Map」は6分類へ解決し、曖昧または高影響なら質問する |
 | General Game Script VM | 不採用。汎用bytecode interpreter、JIT、Game向けFFIを設けない |
 | 2D Physics | 独自Physics Platform＋Box2D 3.1.1 private Adapter。KernelはTarget別Qualification後にProduction昇格 |
 | 3D Physics | 独自Physics Platform＋Jolt Physics 5.6.0 private Adapter。C1はCPU rigid bodyだけ、Target別Qualification後にProduction昇格 |
@@ -1167,7 +1252,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | AI Orchestrator | Node.js 24.18.0 LTS／TypeScript 7.0.2 strict、別Process |
 | 初期Provider | OpenAI Responses API、`gpt-5.6-sol`、reasoning `medium` |
 | AI権限 | AI可視Taskと署名済みAuthorization Envelopeを分離。R0–R5、Proposal／Approval／Promotionを別Authorityにする |
-| AI契約 | `/schemas/mira/`のMCDを正本とし、C++／TypeScript／Cooked binary descriptor／MCP／Provider Schemaを生成 |
+| AI契約 | `/schemas/mirakan/`のMCDを正本とし、C++／TypeScript／Cooked binary descriptor／MCP／Provider Schemaを生成 |
+| AI可読Authoring | `AuthoringContextIndexV1`→`AuthoringContextPlanV1`→`ContextPackV2`、bounded Scene Shard／Slice、revision付きR0 query、typed Operation coverage 100%、Decision invalidation、MCD `RemediationV1` |
 | AI検証 | Contract、semantic、policy、build、test、budget、選択的TLA+、Eval、Review、ProvenanceをRisk別に適用 |
 | IPC | ACL付きWindows named pipe、length-prefixed JSON-RPC 2.0 |
 | Editor | Dock／resize／floating、保存可能な複数Workspace、AI Partnerをpin可能 |
@@ -1175,38 +1261,44 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Runtime連携 | Domain間の直接呼出し禁止。`RuntimeOrchestrator`が固定phaseでtyped command／event／snapshotを統合 |
 | Runtime storage | 独自16 KiB archetype chunk＋SoA列。構造変更はtick boundaryだけ |
 | Lifetime | generation handle、phase／epoch付きlease、Asset Registry単一所有、queue別`GpuSubmissionSerial` retire |
+| Debugging／AI Diagnosis | Engine-owned Session／Event／Counter／Query／Snapshot／Causality／Replayを正本とし、IDE／GPU tool／OS traceはAdapterとして関連IDで接続する。AIはbounded evidenceから仮説と不足データを提示し、修正は既存Risk／Approval／Authoring Gateway／Replay回帰を必ず通す |
+| Math／Core Utilities | `mirakan::foundation`と`mirakan::math`を分離。内部はcompact storage type、AI／Editor／Authoring／Save／Subsystem公開境界はunit／space／normalizationを持つsemantic type。portable scalar referenceを正解系にし、SIMD／Platform backendは実測とconformance後にprivate昇格 |
 | Performance target | CPU／GPU P95 14.00 ms soft、16.67 ms hard。Subsystem別budgetと10分soak |
 | Scale／optimization | 固定個数超過だけでSource intentを拒否しない。`RuntimeScaleIntentV1`、Gameplay fidelity floor、Target別Representation Plan、`OptimizationRequired`、Project固有Integrated Scale Fixtureで管理 |
 | Authoring source of truth | Authoring Document集合＋単調増加`ProjectRevision`。UI、AI会話、Runtime Worldは正本ではない |
 | NativeGameModule | Windows Developmentは別ProcessのGameHostが単一DLLを起動時に一度だけload、Shipping／Android／Appleは静的link。ABI越しにSTL／exception／allocator／native objectを渡さない |
-| Asset model | Source／Import／Derived／Packageの四層、隔離Importer、content-addressed Derived Data、Asset Catalog／VFS、`.mirapack` |
+| Asset model | Source／Import／Derived／Packageの四層、隔離Importer、content-addressed Derived Data、Asset Catalog／VFS、`.mirakanpack` |
 | Renderer model | Immutable `RenderSnapshot`をextractし、Engine-owned Render GraphをcompileしてD3D12／Vulkan／Metal Adapterへ投入 |
 | Water／Snow model | Water Surface／CPU Query、降雪VFX、Snow Surface、Gameplay Surface Stateを分離し、GPU presentation結果をPhysics／Gameplayへ逆入力しない |
 | Editor model | Production Editorと初心者用`AI Creator` Workspaceを同一Document／ChangeSet上で提供。Panelはdock／resize／floating／multi-monitor／保存可能 |
 | Player I/O | InputはAction→`InputSnapshot`、UIはretained typed document、AudioはEngine-owned mixer。Platform native APIはAdapter内だけ |
 | Game text | UTF-8、HarfBuzz 14.2.1、FreeType 2.14.1、ICU4C 78.3。Editor shellのDirectWrite／TSFとは責務を分離 |
-| Domain Pack | CoreはGenre非依存。2D Action／TPS／RPG／Simulationを初期Packとし、multiplayer等は別GateまでCoreへ混入させない |
+| Domain Pack | CoreはGenre非依存。2D Action／TPS／RPG／Simulationを初期Packとし、Shooter共通機能は`mirakan.feature.shooter_core.c1`＋2D／TPS Profileとしてcomposeする。multiplayer等は別GateまでCoreへ混入させない |
 
 ### 16.2 実装計画書で分解する事項
 
-次は設計上の選択肢ではなく、32文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
+次は設計上の選択肢ではなく、46文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
 
-1. Phase 0のrepository bootstrap、Build Gateway、CMake target DAG、`BuildDriverProfileV1`、Windows Ninja Multi-Config／Android Gradle→Single-Config Ninja／Apple Ninja–Xcode Preset、CMake File API query、Build Receipt、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、`mira.build.ninja_adoption.v1` Gate、Miraikanai Contract Definition配置をtaskへ分解する。
+各実装taskは、対象file／target／public contract／依存taskに加え、基準fixture、Target Profile、測定metric、soft／hard Gate、Before／After比較、fallback、rollback、生成する`VerificationReceiptV1`、完了時に昇格できるCapability状態を明記する。実測不能なtaskは、機能実装taskへ混ぜずinstrumentationを先行taskにする。性能改善とbaseline緩和を同じ判断にせず、baseline変更は旧値、新値、理由、Reference環境、品質差、全下流Gate影響を持つ別Review対象にする。
+
+1. Phase 0のrepository bootstrap、Build Gateway、CMake target DAG、`BuildDriverProfileV1`、Windows Ninja Multi-Config／Android Gradle→Single-Config Ninja／Apple Ninja–Xcode Preset、CMake File API query、Build Receipt、C++23 Header bootstrap、`mirakan_add_cpp_component()`、Named Module／`import std` Probe、`mirakan.build.ninja_adoption.v1` Gate、Miraikanai Contract Definition配置をtaskへ分解する。
 2. 固定Toolchain／Dependency artifactの取得、hash lock、SBOM、offline CI image、更新Gateをtaskへ分解する。
-3. Contract compiler、C++／TypeScript／binary descriptor／MCP／Provider projection、round-trip／transition conformance testをtaskへ分解する。
-4. Authoring Document Store、ProjectRevision、ChangeSet transaction、journal／snapshot／crash recovery、headless fixtureをtaskへ分解する。
-5. RuntimeOrchestrator、fixed phase、typed command／event／snapshot、queue、handle／lease、memory telemetry、Scale intent／Representation Plan、qualification status、Integrated Scale Fixtureをtaskへ分解する。
-6. Render extraction、individual／instanced／spatial／presentation分類、CPU cull／LOD／instancing、Render Graph compiler、D3D12 Adapter、Vulkan／Metal interface、Shader／Material pipeline、reference captureを段階taskへ分解する。
-7. Asset Import Worker、Derived Data、Catalog／VFS、Cook／`.mirapack`、AI Asset staging／provenanceをtaskへ分解する。
-8. Editor document shell、dock／workspace、Scene／Outliner／Inspector／Asset／AI Partner、UI Automation bridge、recovery testをtaskへ分解する。
-9. NativeGameModule C ABI、Target別static／dynamic link、isolated Build、GameHost restart、Promotion GateとC2 `UiNativeWidget` Capabilityをtaskへ分解する。
-10. Input、UI／Text／Localization／Accessibility、AudioのC0契約、標準Widget＋`UiCompositeDefinition`による2D First Playable用C1 vertical slice、C2 `UiEffectGraph`を独立taskへ分解する。
-11. Collision、独自Physics PlatformのWorld／Dynamics／Joint／Character／Save／Replay、Box2D／Jolt Kernel Qualification、独自Navigation PlatformのGrid2D／Backend Port／Artifact／status／Recast・Detour Qualification、ozz、Engine-owned Animation Graphをconformanceとvertical sliceへ分解する。
-12. Water Source／Compiler／Render／CPU Query／Volume／Underwaterと、Weather Snapshot／降雪VFX／static・dynamic Snow Surface／stampをC1とC2の独立task、Gameplay分離fixture、Target別Gateへ分解する。
-13. Windows MSIX／folder package、Android AAB／PAD／16 KiB、Apple archive／signing／uploadをPlatform別taskと実機Gateへ分解する。
-14. AI Orchestrator、Requirement／Visual Style／UI Authoring／Scale Planner、Gameplay fidelity floor、Optimization Receipt、生成Asset Staging、Preview matrix、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
-15. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、AI Eval corpus／holdout、Provider migration harnessを検証taskへ分解する。
-16. 2D／3D reference scene、`2d_crowded_battle_v1`／`3d_crowded_battle_v1`、Project固有Integrated Scale Fixture、Water／Snow fixture、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
+3. `MATH0_contract`、`FOUNDATION0_core`、`MATH1_scalar_reference`から`MATH5_baseline`までを分け、`mirakan_foundation`／`mirakan_math`、storage／semantic type、Transform／Quaternion／projection、failure、C++／C ABI／Editor／TypeScript／MCP projection、unit／property／golden／CPU・HLSL conformance、portable baselineをtaskへ分解する。
+4. Contract compiler、C++／TypeScript／binary descriptor／MCP／Provider projection、`game_system` meta-schema、System Catalog／Graph projection、`RemediationV1`、typed Operation coverage、Authoring query projection、round-trip／transition conformance testをtaskへ分解する。
+5. Authoring Document Store、ProjectRevision、World／Scene／Level／Topology、Scene Shard／Slice、Context Index／Plan／Pack、Decision invalidation、ChangeSet transaction、System／World Bundle、journal／snapshot／crash recovery、100万Entity headless fixtureをtaskへ分解する。
+6. RuntimeOrchestrator、fixed phase、typed command／event／snapshot、Game System一意State owner、Level／Cell lifecycle、queue、handle／lease、memory telemetry、Scale intent／Representation Plan、qualification status、Integrated Scale Fixtureをtaskへ分解する。
+7. `DBG0_contract`から`DBG5_remote_shipping`までを分け、Debug Session／Event／Counter／Store／Query、priority／gap／retention、safe pause／step、Breakpoint／Watch、Replay／Rewind、Causality、Reproduction Bundle、Crash／Hang、外部IDE／GPU／OS Adapter、AI evidence diagnosis、remote device、security／privacy／overhead Gateをtaskへ分解する。
+8. `LodIntentV1`、Domain別LOD Policy、CPU reference metric、Mesh／Sprite／Simulation／Animation／Material／VFX／Surface／Residency Plan、Render extraction、individual／instanced／spatial／presentation分類、CPU cull／LOD／instancing、Render Graph compiler、D3D12 Adapter、Vulkan／Metal interface、Shader／Material pipeline、reference captureを段階taskへ分解する。
+9. Asset Import Worker、Derived Data、Catalog／VFS、Cook／`.mirakanpack`、AI Asset staging／provenanceをtaskへ分解する。
+10. Editor document shell、dock／workspace、Scene／Outliner／Inspector／Asset／AI Partner／Debug Workspace、UI Automation bridge、recovery testをtaskへ分解する。
+11. NativeGameModule C ABI、`GameSystemSpecV1` conformance、Target別Implementation Variant、static／dynamic link、isolated Build、GameHost restart、Promotion GateとC2 `UiNativeWidget` Capabilityをtaskへ分解する。
+12. Input、UI／Text／Localization／Accessibility、AudioのC0契約、標準Widget＋`UiCompositeDefinition`による2D First Playable用C1 vertical slice、C2 `UiEffectGraph`を独立taskへ分解する。
+13. Collision、独自Physics PlatformのWorld／Dynamics／Joint／Character／Save／Replay、Box2D／Jolt Kernel Qualification、独自Navigation PlatformのGrid2D／Backend Port／Artifact／status／Recast・Detour Qualification、ozz、Engine-owned Animation Graphをconformanceとvertical sliceへ分解する。
+14. Water Source／Compiler／Render／CPU Query／Volume／Underwaterと、Weather Snapshot／降雪VFX／static・dynamic Snow Surface／stampをC1とC2の独立task、Gameplay分離fixture、Target別Gateへ分解する。
+15. Windows MSIX／managed Directory package、Android AAB／PAD／16 KiB、Apple archive／signing／uploadをPlatform別taskと実機Gateへ分解する。
+16. AI Orchestrator、bounded Context retrieval、最大2回repair loop、Requirement／Game System／Map Intent／World／Visual Style／UI Authoring／Scale Planner、Gameplay fidelity floor、Optimization Receipt、生成Asset Staging、Preview matrix、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
+17. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、15 AI Eval suite、`AiReadableAuthoringFixtureV1`、debugging diagnosis corpus／holdout、Provider／retrieval migration harnessを検証taskへ分解する。
+18. 2D／3D compact Level、Portal／Streaming failure、System semantic equivalence、procedural connectivity、`2d_crowded_battle_v1`／`3d_crowded_battle_v1`、Project固有Integrated Scale Fixture、Water／Snow fixture、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 
@@ -1215,6 +1307,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | リスク | 対策 |
 |---|---|
 | 一括生成が巨大化する | 薄い全体＋深い代表部分、段階的ChangeSet |
+| Contextが巨大または必要根拠を欠く | Context Index／Plan／Packを分離し、field mask、省略Manifest、追加read、24,000 token Gate、Blocking／High recall 100%を強制 |
+| 巨大SceneをAIが全読込・全置換する | bounded Scene Shard、StableId検索、SceneSlice、部分Diff、100万Entity性能fixture |
 | 質問が多すぎる | 影響度分類、「おまかせ」、段階別質問 |
 | AIが誤った実装方式を選ぶ | Policy、Project Profile、Benchmark、Decision Record |
 | AIが画風をGenreだけで決める | VisualStyleResolverの優先順位、Engine hard gate、High Impact承認 |
@@ -1226,6 +1320,8 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | 独自WidgetがEngine境界を迂回する | Composite、Effect、Nativeの段階Capability、R3 Promotion、GameHost隔離、bounded callback、fallbackで閉じる |
 | AI生成画像が未検証のままUIへ入る | Staging、provenance／license／safety、Target別import／cook、人間承認、missing fallbackを必須にする |
 | Schema-validだが意味的に不正 | C++ Semantic validator、Budget、Dry-run |
+| Diagnosticを読めず同じ修正を反復する | MCD Remediation、最大2回、同一blocking集合の減少確認、全Attempt Receipt |
+| 古い設計判断をAIが正しい前提として使う | Decision成立条件、根拠hash、依存closure、明示Invalidate／Reconfirm、lock承認 |
 | 生成C++が危険 | 隔離Build、Network制限、固定Toolchain、Test |
 | Provider依存 | Canonical IR、Provider adapter、Eval |
 | ProviderごとのSchema方言が異なる | MCDを正本にし、Provider別subsetと未表現Constraint Manifestを生成。Gatewayが完全再検証 |
@@ -1245,7 +1341,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | Module境界が崩れVendorへ固定される | CMake dependency DAG、Ports／Adapters、CX0 Public Header／CX3 Module interfaceのVendor型・依存scan |
 | Make／Ninja二重対応でBuild結果が分岐する | `BuildDriverProfileV1`をclosed set化し、First-party Makefiles／`ndk-build`をPromotion対象外にする |
 | Ninjaだけで製品Build全体を表現してAsset／Package／署名が混線する | Build Gateway、CMake、Ninja、Content Build、Gradle／Xcode／Signingの責務を分離し、Ninja成功だけではPromotionを許可しない |
-| 増分Buildが速くても依存漏れで古いartifactを使う | generated Input／Output／Depfileを完全宣言し、clean／incremental hash一致、mutation、interrupt recoveryを`mira.build.ninja_adoption.v1` Gateで検証する |
+| 増分Buildが速くても依存漏れで古いartifactを使う | generated Input／Output／Depfileを完全宣言し、clean／incremental hash一致、mutation、interrupt recoveryを`mirakan.build.ninja_adoption.v1` Gateで検証する |
 | Subsystemが相互に直接変更して順序依存になる | RuntimeOrchestrator、固定phase、typed command／event、非再入配送 |
 | Hot reloadで新旧Assetが混在する | dependency closure全体をstagingし、boundaryでatomic promotion |
 | 非同期jobが破棄済みobjectへ書く | handle＋versionを開始時と統合時に再検査し、stale resultを破棄 |
@@ -1261,7 +1357,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 - CLI／DesktopはEngine開発と試作に適する。
 - どの層もEngineのSemantic validationとTransactionを代替しない。
 
-Unity、Unreal Engine、Godot、O3DEからは、Retained tree、独自C++ Framework、Engine UI共有、third-party toolkit方式の利点と制約を比較するための一般的教訓だけを得る。Widget API、宣言構文、Node model、画面配置、serialization、プロダクト固有のEditor UXは採用しない。MiraUIの具体的な独自性と一次資料は独自Editor UI Framework規約を正本とする。
+Unity、Unreal Engine、Godot、O3DEからは、Retained tree、独自C++ Framework、Engine UI共有、third-party toolkit方式の利点と制約を比較するための一般的教訓だけを得る。Widget API、宣言構文、Node model、画面配置、serialization、プロダクト固有のEditor UXは採用しない。MirakanUiの具体的な独自性と一次資料は独自Editor UI Framework規約を正本とする。
 
 ## 19. 参考一次資料
 
@@ -1302,6 +1398,6 @@ Unity、Unreal Engine、Godot、O3DEからは、Retained tree、独自C++ Framew
 
 ## 20. 次のアクション
 
-設計文書Indexに列挙した32文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
+設計文書Indexに列挙した46文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

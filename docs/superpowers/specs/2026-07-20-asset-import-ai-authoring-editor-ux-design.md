@@ -1,11 +1,12 @@
 # Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約
 
-- 文書版: 1.0
+- 文書版: 1.2
 - 作成日: 2026-07-20
-- 対象: Texture、Sprite、3D Scene／Mesh、Skeleton／Animation、Audio、Font、Import Profile、Conversion Report、Preview、Reimport、Asset Browser、AI Operation
+- 対象: Texture、Sprite、TileSet／Tilemap、3D Scene／Mesh、Skeleton／Animation、Audio、Font、Import Profile、Conversion Report、Preview、Reimport、Asset Browser、AI Operation
 - 状態: プロジェクト公式の規範設計レビュー版
 - Asset基盤正本: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - 2D／3D正本: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- LOD正本: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
 - Audio正本: [Miraikanai Engine Audio／Mixer／Spatial規約](./2026-07-19-audio-mixer-spatial-architecture-design.md)
 - Animation正本: [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
 - Editor正本: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
@@ -35,7 +36,9 @@ Miraikanai EngineのAsset Importは、Source形式ごとの任意処理ではな
 |---|---|
 | Job identity、Worker隔離、Derived Artifact、Catalog、Package、Streaming、Hot Reload | Asset基盤規約 |
 | Import Profile、Source解析、種別別IR、Conversion／Loss Report、Preview、Reimport、AI／Editor操作 | 本書 |
-| World座標、Material／Texture意味、Mesh、Skeleton／Animation製品Capability | 2D／3D機能計画とAnimation正本 |
+| LOD Intent、Policy、metric、transition、generated Artifact、AI LOD Operation、Qualification | LOD正本 |
+| Material／Texture意味、Visual Style、Material AI Operation | Material／Visual Style／AI Authoring規約 |
+| World座標、Mesh、Skeleton／Animation製品Capability | 2D／3D機能計画とAnimation正本 |
 | Audio Clip、loudness、loop、streaming意味 | Audio正本 |
 | Panel、Workspace、Diff、History、Accessibility | Editor正本 |
 | ProjectRevision、ChangeSet、Undo、Recovery、Stable ID | Authoring正本 |
@@ -138,7 +141,7 @@ AssetSourceAnalysisV1
   analyzer_receipt: ToolReceiptV1
 ```
 
-Sourceの名前、folder、DCC名だけからsemantic roleを確定しない。ファイルが持つ規範metadata、Project Profile、明示User設定を根拠にする。
+Sourceの名前、Directory、DCC名だけからsemantic roleを確定しない。Fileが持つ規範metadata、Project Profile、明示User設定を根拠にする。
 
 ### 5.2 `AssetImportProfileV1`
 
@@ -328,7 +331,30 @@ Import Previewは必ず次を表示する。
 - Skeleton bind pose、Animation root track、Collider／Nav生成予定
 - 変換前後のhierarchy Diff
 
-### 6.4 Format Adapter
+### 6.4 Mesh LOD sourceとImport設定
+
+`MeshImportSettingsV1`はLOD規約の`MeshLodProfileV1`を参照し、次を持つ。
+
+```text
+MeshImportSettingsV1
+  lod_source_mode: disabled | source_chain | generated_chain | hybrid_chain
+  source_lod_bindings: SourceLodBindingV1[0..16]
+  mesh_lod_profile_id: StableId?
+  preserve_boundaries: bool
+  preserve_uv_seams: bool
+  preserve_hard_normals: bool
+  required_vertex_color_channels: ClosedChannelId[0..8]
+  skin_policy: source_only | qualified_generated
+  morph_policy: source_only | qualified_generated
+```
+
+- Source名の`_LOD0`等は候補検出にだけ使い、Bindingを確定しない。ImporterはSource metadata、stable source path、明示Profileから`SourceLodBindingV1`を作り、曖昧、重複、欠番、Material interface不一致をBlocking Diagnosticにする。
+- LOD0はSource最高detailであり、ImportまたはReimportで上書きしない。generated levelはImport IRへSource meshとして偽装せず、Asset CookのDerived Artifactとして生成する。
+- Import PreviewはSource chain、triangle／vertex／section、bounds、skin／morph有無、Material interface、生成予定level、error limit、LOD0 fallbackを表示する。
+- Reimportでlevel削除、順序、Material interface、Skeleton、morph set、boundsが変わる場合は`AssetReimportConflictV1`へconsumer closure付きで記録し、自動promotionしない。
+- generated reducerの選択、threshold、hysteresis、Target Plan、HLODはLOD正本が所有する。Importerが独自の距離閾値またはReducer native optionを公開しない。
+
+### 6.5 Format Adapter
 
 #### glTF／GLB C1
 
@@ -384,6 +410,10 @@ TextureImportSettingsV1
   sprite: optional SpriteImportSettingsV1
 ```
 
+`SpriteImportSettingsV1`は2D／3D機能計画5.1節と同じSchemaから生成し、`rect_mode`、bounded `SpriteRectV1`、grid cell／margin／spacing、pivot、PPU、nine-slice border、trim、packing、atlas group、rotation許可、extrudeを持つ。Textureのcolor、alpha、mip、compression、streaming設定を重複保存しない。単一Texture内のSprite上限は65,535、C1 atlas pageは最大4,096×4,096 texelとし、Target limit、mip padding、GPU byte budgetを超える入力は分割候補Preview付きで拒否する。
+
+`SpriteRectV1`のStable Sprite IDはSource配列index、frame番号、file内の一時IDから導出しない。初回ImportでUUIDv7を割り当て、ReimportはSource name／tag、rect、layer／frame由来の対応候補と既存consumer closureを表示し、人間の明示MigrationなしにIDを再割当しない。trim、atlas rotation、padding変更後もpivot、border、collision polygonをuntrimmed Source座標へ保持し、Cook時にTarget rectへ変換する。
+
 AIはfile名の`_n`、`normal`等だけでnormal mapを確定しない。名前はadvisory evidenceであり、Project naming policy、画像統計、Material slot、User確認を組み合わせる。Normal、data、maskをsRGBとしてCookすることをhard errorにする。
 
 ### 7.2 形式別規則
@@ -399,6 +429,30 @@ AIはfile名の`_n`、`normal`等だけでnormal mapを確定しない。名前�
 Previewはsource／scene-linear／target compressedの三表示、alpha checker、channel solo、normal sphere、mip、sprite rect／pivot／PPU、estimated GPU bytesを持つ。Target compressed previewがない状態でProduction compression Profileを承認できない。
 
 CookはSource bytesをRuntimeへ持ち込まず、Target別BCn／ASTC／ETC2 Artifactを決定論的に生成する。Codec／encoder version、quality、thread count、RDO parameter、Target formatをArtifact keyへ含める。
+
+### 7.4 Aseprite C2 Adapter
+
+Asepriteは`.ase`／`.aseprite`をEngine内で直接decodeせず、Projectが明示設定した公式Aseprite executableをJob Orchestratorが別sandboxでbatch起動し、公式CLIのPNG sheet＋JSON arrayへexportする。Engine packageへAseprite binaryを再配布せず、tool path、exact version、executable hash、license record、CLI option、Source hash、PNG／JSON hashをConversion Receiptへ保存する。
+
+- `--batch`、`--sheet`、`--data`、`--format json-array`、必要時の`--split-layers`／tag selectionだけをallowlistする。
+- `--script`、shell、extension discovery、network、Source directory外のwriteを禁止する。
+- frame、tag、duration、slice／pivot、layerを独自`SpriteImportIRV1`へ変換し、未知field、blend、color mode、tilemap featureをLoss Reportへ出す。
+- CLI終了成功だけで承認せず、PNG bounds、JSON size／depth／count、frame overlap、duration、tag range、pathをEngine Validatorで再検査する。
+- Reimportでframe／tag／slice対応が変わる場合はanimation clip、Collider、UI、Material consumer closure付きConflictとしてblockする。
+
+### 7.5 TileSet／Tilemap C2 Adapter
+
+Engine-native `TileSetAssetV1`／`TilemapAssetV1`を正本とし、外部global tile ID、layer index、entity IIDをRuntime IDへ直接採用しない。C2 AdapterはTiled JSON、TMX／TSX、LDtk JSONを個別Capabilityとして扱う。各Adapterはformat version allowlist、schema／XML parser version、Source bundle hash、外部ID対応表、unsupported field、Loss Report、Reimport Conflictを保存する。
+
+| Source | C2入力 | 変換規則 |
+|---|---|---|
+| Tiled | version付きJSONをReference、TMX／TSXは別Qualification | tile／group／object／image layer、tileset、animation、Wang set、object template、property、flip flag、chunkをtyped IRへ変換 |
+| LDtk | `jsonVersion`と公式JSON Schemaがallowlist一致するJSON／external level | Level、Layer、IntGrid、AutoLayer、Tile、Entity、Field、Tilesetをtyped IRへ変換 |
+| Aseprite tileset | 公式CLIのPNG＋JSON export | TileSet画像、tile metadataを受理し、Map／Gameplay semanticは推測しない |
+
+JSON／XMLのbyte、nesting、array、layer、tile、chunk、property、decoded payload、compression ratioへhard capを設定する。Tiled base64＋zlib／gzip／zstd payloadは宣言sizeと展開上限を事前検査し、external tileset／image／object template／LDtk level pathはSource bundle内のcanonical relative pathだけを許可する。Object Template参照は最大深さ8、cycleなし、展開後object上限内とし、Source由来をReceiptへ保存する。script、custom plugin、network URL、absolute path、`..` escape、unknown compressionを拒否する。
+
+OrientationはC1の`orthogonal`を必須Referenceとし、`isometric`、`staggered`、`hexagonal`は座標、render order、flip、collision、navigation、editor pickのfixtureに個別合格した場合だけC2 Catalogへ掲載する。外部propertyは登録済み`TilePropertySchemaV1`へ名前と型が一致するものだけ昇格し、自由文字列をComponent、Gameplay Event、Asset pathへ自動変換しない。
 
 ## 8. Skeleton／Animation Import
 
@@ -482,7 +536,7 @@ Waveform、sample-accurate loop、loudness、true peak、channel、trim、reside
 
 Asset Browserは次を一つのStable ID selection modelで提供する。
 
-- logical folder、type、semantic role、tag、license、Production readiness、diagnosticでfilter
+- logical Directory、type、semantic role、tag、license、Production readiness、diagnosticでfilter
 - thumbnail／waveform／font sample／3D turntable
 - Source、Import revision、Active generation、Target residency、dependency／reverse dependency
 - duplicate content hash候補と「同一Assetである」という意味判断の分離
@@ -522,6 +576,7 @@ Import、Preview、Cook、Reimport、bulk migrationはcancel可能なJobとし�
 | `asset.inspect_conversion_report` | applied conversion、loss、before／after |
 | `asset.inspect_dependencies` | forward／reverse dependency closure |
 | `asset.inspect_reimport_conflicts` | typed conflictとconsumer impact |
+| `asset.inspect_lod_source_chain` | Source LOD候補、確定Binding、triangle／section／skin／morph／Material interface差 |
 
 ### 12.2 Proposal Operation
 
@@ -533,6 +588,7 @@ Import、Preview、Cook、Reimport、bulk migrationはcancel可能なJobとし�
 | `asset.propose_reimport` | R1～R3。破壊的Conflictは人間承認必須 |
 | `asset.propose_bulk_profile_migration` | R3。最大100 Asset／ChangeSet、closure preview必須 |
 | `asset.propose_placeholder_replacement` | R1。required roleへ汎用placeholder不可 |
+| `asset.propose_lod_source_binding` | R1～R2。Stable source pathとLOD levelの明示Binding。generated Artifactは含めない |
 
 AIはProfile ID、Asset ID、Source pathを推測生成しない。Catalogにない選択肢、未Activated Format Capability、Target非対応codecを提案した場合は`CapabilityNotActivated`を返す。
 
@@ -597,6 +653,8 @@ AI提案は次を同時に返す。
 - parent T／R／S、negative determinant、non-uniform scale、shear、singular matrix
 - pivot、geometric transform、front metadata、unit 1 m／cm／mm
 - static／skinned／morph、bind pose、Animation、root motion、loop
+- manual Source LOD chainの曖昧名、欠番、重複、非単調triangle、Material interface、bounds、skin／morph差とBlocking Diagnostic
+- generated／hybrid profileのLOD0保持、生成予定level、error limit、clean二回Cook hash、deformation Gate不合格時のSource chain fallback
 - Blender→GLB、FBX→IR、USD selected root→IRの同一意味fixture
 - Importer version変更によるhierarchy／rest pose／material order Conflict
 
@@ -605,6 +663,9 @@ AI提案は次を同時に返す。
 - PNG Third Edition test、KTX2 validation、OpenEXR scanline／tiled、DDS BC
 - sRGB／linear／ICC、straight／premultiplied alpha、normal ±Y、data texture
 - odd size、mip、cube／array、sprite pivot／PPU／padding
+- trim／rotation／nine-slice／collision座標、65,535 Sprite境界、4,096² atlas、決定論的pack hash
+- Aseprite frame／tag／slice／duration／layer、malformed JSON、CLI timeout／version変更、Reimport Conflict
+- Tiled JSON／TMX／TSXとLDtk JSONのversion、orientation、chunk、flip、animation、Wang／AutoLayer、typed property、external path、compression bomb
 - Target圧縮後のPSNR／normal angular error／alpha coverage／GPU byte gate
 
 ### 15.4 Animation
@@ -646,11 +707,12 @@ Asset Import機能は次をすべて満たすまでC1／C2／C3へ昇格しな�
 | Work Package | 到達点 |
 |---|---|
 | AS0 Contract | MCD、Profile、Plan、IR、Diagnostic、Report、Receipt、state、headless fixture |
-| AS1 Texture／Sprite | PNG／JPEG／OpenEXR／KTX2／DDS、Preview、Target Cook、Sprite |
+| AS1 Texture／Sprite | PNG／JPEG／OpenEXR／KTX2／DDS、`SpriteImportSettingsV1`、deterministic atlas、Preview、Target Cook |
+| AS1b 2D External C2 | Aseprite CLI PNG＋JSON、Tiled JSON／TMX／TSX、LDtk JSON、TileSet／Tilemap IR、Loss／Conflict |
 | AS2 Audio／Font | WAV／FLAC、Opus Cook、loop／loudness、OpenType coverage |
-| AS3 glTF Scene | glTF／GLB、Transform／Mesh／Material、Skeleton／Animation、Preview |
+| AS3 glTF Scene | glTF／GLB、Transform／Mesh／Material、Skeleton／Animation、Source LOD Binding、Preview |
 | AS4 Editor／AI | Asset Browser、Import Inspector、Diff、Reimport Conflict、AI Operation |
-| AS5 C1 Integration | Package、Streaming、Hot Reload、2D／3D vertical slice |
+| AS5 C1 Integration | generated static Mesh LOD、LOD0 fallback、Package、Streaming、Hot Reload、2D／3D vertical slice |
 | AS6 Blend／FBX C2 | Blender Worker、`ufbx` Adapter、Migration／loss fixture |
 | AS7 USD C3 | OpenUSD Stage resolver、composition／variant／payload、selected-root import |
 
@@ -665,6 +727,10 @@ Asset Import機能は次をすべて満たすまでC1／C2／C3へ昇格しな�
 - [Khronos glTF repository／Asset Generator／Sample Assets](https://github.com/KhronosGroup/glTF)
 - [KTX 2.0 Specification](https://registry.khronos.org/KTX/specs/2.0/ktxspec.v2.html)
 - [W3C PNG Third Edition](https://www.w3.org/TR/png-3/)
+- [Aseprite CLI](https://www.aseprite.org/docs/cli/)
+- [Tiled JSON Map Format](https://doc.mapeditor.org/en/stable/reference/json-map-format/)
+- [Tiled TMX／TSX Map Format](https://doc.mapeditor.org/en/stable/reference/tmx-map-format/)
+- [LDtk versioned JSON Schema](https://ldtk.io/json/)
 - [JPEG 1／ISO/IEC 10918 overview](https://jpeg.org/jpeg/)
 - [OpenEXR Technical Introduction](https://openexr.com/en/latest/TechnicalIntroduction.html)
 - [Microsoft WAVEFORMATEXTENSIBLE](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ksmedia/ns-ksmedia-waveformatextensible)
