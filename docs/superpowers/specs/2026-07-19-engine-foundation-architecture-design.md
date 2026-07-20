@@ -876,6 +876,7 @@ Node.js／TypeScript側も同じ考え方を適用し、Node.js 24.18.0、同梱
 | KTX-Software | v4.4.2／`936b655d10fe75f900967f524ba31005bebcbb47` | Apache-2.0 | Offline KTX／ASTC処理 | Texture schema、Target cook、quality policy |
 | Oboe | 1.10.0／`a81bb9f87d4105b84b682685d3bfbb5beca371d1` | Apache-2.0 | Android low-latency audio stream | Mixer、Audio command、callback budget、route policy |
 | libopus | 1.6.1／source SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1` | BSD-3-Clause | Streaming music／voice decode | Audio Asset schema、buffering、loop、thread policy |
+| libFLAC | 1.5.0／source SHA-256 `f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920` | Xiph.org BSD | Asset Import Worker内のnative FLAC decode／metadata／integrity確認 | Source validation、channel／gain／loop policy、conversion、Cooked Audio artifact |
 | Box2D | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3`、`candidate_locked` | MIT | private 2D collision／solver kernel | World／Body／Joint／Character／Command／Save／AI契約、Target別Qualification |
 | Jolt Physics | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a`、`candidate_locked` | MIT | private CPU 3D collision／solver kernel | World／Body／Constraint／Character／Command／Save／AI契約、Target別Qualification |
 | Recast／Detour | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7`、`candidate_locked`、32-bit `dtPolyRef` | zlib | private 3D Navmesh build／query kernel | Navigation契約、Backend Port、Profile、Engine Artifact envelope、status、version／lease、AI／Editor、Qualification |

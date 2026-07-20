@@ -1,6 +1,6 @@
 # Miraikanai Engine Audio／Mixer／Spatial規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 対象: Audio Asset、Voice、Mixer、Bus、DSP、Streaming、Spatial、XAudio2／Oboe／AudioUnit Adapter
 - 状態: プロジェクト公式の規範設計レビュー版
@@ -28,6 +28,24 @@ C1は48 kHz float32 Engine mix、stereo output、one-shot PCM、Opus music strea
 | Android／Apple device、route、interruption | Mobile規約 |
 
 C1ではvoice chat、microphone capture、speech recognition、MIDI、video sync、third-party DSP plugin、Runtime arbitrary audio graph code、HRTF、convolution reverb、dynamic music authoringを実装しない。HRTF、advanced reverb、voice chatはC2以降の別Capabilityである。
+
+### 2.1 独自実装と公式依存の境界
+
+MiraikanaiはWwise、FMOD、SoLoud等のAudio middlewareをRuntime、Editor、Cookerの正本に採用しない。Audio Asset schema、Sound Cue、logical Voice、priority／virtualization、Bus／Snapshot、DSP Catalog、Spatial、decode scheduling、stream ring、resampler、Mixer、lifecycle、diagnostic、AI／Editor OperationはEngine-owned実装とする。
+
+OS device出力と標準codecは、独自再実装による互換性・安全性・実機差リスクを避けるため、次の公式API／reference libraryをprivate Adapter内だけで使用する。
+
+| 依存 | 固定baseline | 許可する用途 | Engineが保持する正本 |
+|---|---|---|---|
+| XAudio2 | Windows SDK／Agility toolchain lockに一致するOS API | Windows output voice、device、engine／buffer completion callback | PCM ring、logical Voice、Mixer、route policy、callback queue |
+| Oboe | 1.10.0／`a81bb9f87d4105b84b682685d3bfbb5beca371d1` | Android low-latency output stream、device burst／xrun取得 | Mixer、buffer policy、fallback、route／interruption、telemetry |
+| AVAudioSession／AudioUnit | Apple Target SDK lockに一致するsystem framework | session category／route／interruption、render callback、device format | Mixer、logical clock、PCM ring、recovery、background policy |
+| libopus | 1.6.1／source SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1` | Cook時encode、検証済みpacketのRuntime decode | stream manifest、packet／chunk index、pre-roll、loop、memory |
+| libFLAC | 1.5.0／source SHA-256 `f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920` | Asset Import Worker内のnative FLAC decode／metadata／integrity確認 | Source validation、channel policy、conversion、Cooked artifact |
+
+libFLACはSource Importにだけlinkし、GameHostへlinkしない。RuntimeはSource WAV／FLAC／Ogg containerをparseせず、Engine validatorとCookerが生成したPCMまたはOpus packet manifestだけを読む。Vendor型、pointer、callback、error codeをMCD、Cooked format、Game API、AI Operationへ公開しない。
+
+公式資料の推奨値は初期候補であり、Target実機Qualificationを省略する根拠にはしない。Dependency更新はfoundation規約のlock、license、SBOM、Adapter conformance、serialized fixture、performance再検証を通す。
 
 ## 3. Architecture
 
@@ -72,7 +90,7 @@ Audio control threadがVoice create／destroy、Bus graph、Cue selection、deco
 
 Audio Source ImportはAsset Import／AI Authoring／Editor UX規約の`AudioImportSettingsV1`、`AudioImportIRV1`、Conversion Report、Preview、Reimport Conflictを使用する。
 
-- C1 SourceはWAV PCM／IEEE floatとnative FLACである。WAV compressed codec、unknown channel mask、FLAC CRC不合格を拒否する。
+- C1 SourceはWAV PCM／IEEE floatとnative FLACである。WAV compressed codec、unknown channel mask、FLAC CRC不合格を拒否する。libFLACはOgg supportを無効にしたstream decoderだけをImport Workerへlinkし、`STREAMINFO`を必須、non-zero MD5をfull decode時に検証、error callback、frame CRC mismatch、lost sync、trailing undecoded payloadをImport失敗にする。
 - RIFF／RF64 bounds、WAVEFORMATEXTENSIBLE valid bits／channel mask／block alignment、FLAC STREAMINFO／frame／CRCを検証する。
 - Sourceを48 kHzへCookしても`source_sample_rate`、original frame count、resampler version、変換前後durationをReceiptへ保持する。
 - Integrated loudnessとtrue peakは測定metadataであり、明示`gain_policy`なしに自動normalizationをsampleへ焼かない。
@@ -216,9 +234,9 @@ AudioはPhysics Queryをcallback中に行わない。Gameplay／Audio presentati
 - DecodeはEngine Worker poolへowned compressed chunkとoutput bufferを渡す。
 - ResultはAsset version、Voice generation、deadlineを検査してAudio control threadが統合する。
 - Callback用PCM ringはpreallocated、既定3 block、minimum 2 blockである。
-- Androidはnative frames-per-burstの整数倍へblockを選び、低遅延modeとcallbackを使う。
+- AndroidはOboe `PerformanceMode::LowLatency`、`SharingMode::Exclusive`、`Usage::Game`、data callbackを要求し、sample rateを強制せずopen後のnative rateを取得する。48 kHz以外はEngine final resamplerを使う。既定usable bufferは2 burst、PCM ring blockはnative frames-per-burstの整数倍とし、Shared fallback、実buffer、xrunをCapability Signatureへ記録する。
 - XAudio2はpre-mixed bufferを一つのEngine output sourceへsubmitし、callbackはbuffer completionだけをqueueへcopyする。
-- AppleはAVAudioSession route／sample rate確定後にAudioUnitを構成し、render callbackがringをconsumeする。
+- AppleはAVAudioSession category／route／sample rate確定後にRemoteIO／AudioUnitを構成し、nonblocking render callbackがringをconsumeする。route change、interruption、media service resetはtyped eventへcopyし、Audio control threadで再構成する。
 
 Underrun時は未初期化memoryやlast blockをrepeatせずzero-fillし、counterを上げる。1回のunderrunはpresentation degradation、1秒に3回または10秒に10回でAudio subsystem faultとしてroute rebuildを一度試し、再発時はaudioを停止してGameを継続するか、Projectの`audio_required`ならsession faultにする。
 
@@ -267,6 +285,14 @@ Audio Editorはwaveform、sample-accurate loop、trim、loudness、true peak、c
 
 AIのAudio Import操作は`asset.inspect_source`、`asset.propose_import_profile`、`asset.request_preview`、`asset.propose_import_settings_change`、`asset.propose_reimport`へ限定する。Ambiguous channel、loop、gain、dialogue localeは質問を返し、file名から確定しない。
 
+Audio Authoring契約は`schemas/mira/audio/`のMCDを正本とし、C++、TypeScript、MCP Operation schema、validator、reference docsを生成する。最低限`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
+
+semantic role、Cue parameter、Bus、DSP node、Snapshot、Spatial curve、diagnostic codeは`AudioSemanticCatalogV1`のStable IDへ登録する。表示名、file path、Editor selection、native handleを参照IDにしない。AIとEditorは同じCatalog revisionとvalidatorを使用し、unknown ID、range外、cycle、capacity超過、Target非対応をCommit前に拒否する。
+
+Import以外のAI操作は`audio.inspect_cue`、`audio.propose_cue`、`audio.validate_cue`、`audio.request_preview`、`audio.inspect_mixer`、`audio.propose_mixer_change`、`audio.explain_budget`、`audio.diff_revision`に限定する。すべてbase revision、target Stable ID、提案patch、predicted budget、diagnostic、preview／validation receiptを返し、直接Commit、直接Play session変更、native object操作を行わない。
+
+各schemaとOperationにはvalid／invalid golden fixtureを用意する。最低限、footstep random Cue、UI critical Cue、streaming music loop、dialogue locale set、Bus cycle、Cue depth超過、unknown parameter、invalid loop、Voice capacity超過、stale revisionを含める。
+
 Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。外部AI生成AudioはAsset規約のStaging、権利、来歴、安全、Importを通す。
 
 ## 15. Failure policy
@@ -283,10 +309,29 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 | Audio deviceなし | `audio_required=false`ならsilent device、trueならPlay拒否 |
 | Callback generation stale | event破棄 |
 
-## 16. TestとDefinition of Done
+## 16. 段階実装計画
+
+共通契約を全Target向けに先に固定し、実装と合格判定はWindows縦切りを優先する。Android／Appleの未完成Adapterはsilent successを返さず`UnsupportedTarget`とする。
+
+| Phase | 実装範囲 | Exit gate |
+|---|---|---|
+| A0 Audio Contract | `schemas/mira/audio/`、Catalog、generated C++／TypeScript／MCP schema、validator、golden fixture | schema round-trip、unknown ID／range／cycle／version拒否、generated hash再現 |
+| A1 Headless Mixer | float32 48 kHz block mixer、gain／fade、Bus DAG、limiter、meter、resampler、offline WAV capture | sample golden、finite、denormal、block boundary、44.1／48／96 kHz resample、bit-stable reference |
+| A2 Voice／Cue／Spatial | handle generation、priority、virtualization、Cue evaluator、Snapshot、2D／3D pan、distance／cone／doppler／occlusion | deterministic Cue selection、capacity／critical reserve、stale generation、spatial golden |
+| A3 Import／Cook／Stream | WAV／RF64 parser、libFLAC Adapter、loudness／true peak、PCM Cook、libopus Cook／decode、manifest、loop／seek | official／adversarial corpus、CRC／bounds、preview＝cook、packet corruption、seam fixture |
+| A4 Windows Vertical Slice | Audio control thread、bounded queues、PCM ring、XAudio2 output Adapter、device recovery、telemetry | Music／SFX／UI／Dialogue／3D Cue、callback hard gate、10分underrun 0、disconnect recovery |
+| A5 AI／Editor／Profiler | Audio Operation、waveform／loop preview、Cue／Bus editor、budget prediction、Voice／stream／route timeline | Manual／AI round-trip、invalid ChangeSet拒否、preview receipt、profiler counter整合 |
+| A6 Android Port | Oboe output Adapter、burst／buffer tuning、route／interruption、thermal／background integration | Baseline／Reference実機でxrun、latency、route、10分／2時間gate |
+| A7 Apple Port | AVAudioSession／RemoteIO AudioUnit Adapter、route／interruption／media reset、background integration | A12 minimum／Reference実機でrender、route、interruption、10分／2時間gate |
+| A8 Cross-platform Qualification | 同一Cooked Cue／Bus contract、2D／3D integrated fixture、package／SBOM／license | Windows／Android／AppleでC1 DoD、Target差分receipt、release gate |
+
+各Phaseは失敗testを先に追加し、最小実装、targeted test、sanitizer／fault injection、performance gate、document／receipt更新の順で完了する。A1〜A3はdevice非依存でCI実行できなければならず、A4以降のAdapter都合をAudio contractへ逆流させない。
+
+## 17. TestとDefinition of Done
 
 - WAV PCM8／16／24／32、float32、RF64、FLAC、Opus Cook、loop、seek、corrupt packet、stale Asset generation
 - WAVEFORMATEXTENSIBLE channel mask、FLAC CRC、Opus pre-skip／output gain／granule mapping
+- IETF CELLAR FLAC decoder testbench、RFC 8251 Opus test vector、corrupt／truncated／oversized metadata fuzz corpus
 - loudness／true peak golden、44.1／48／96 kHz resample、Target codec A／B PreviewとCook一致
 - Cue random／sequence／switch、seed、node／depth cap
 - Voice allocate／virtualize／steal／generation／critical reserve
@@ -301,15 +346,20 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 
 C1完了条件は、2D／3D縦切りでMusic、SFX、UI、Dialogue、3D spatial音をWindows／Android／Appleへ同じCue／Bus contractで再生し、route、stream、memory、callback hard gateを満たすことである。
 
-## 17. 一次資料
+## 18. 一次資料
 
 - [XAudio2 Introduction](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-introduction)
 - [XAudio2 Callbacks](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-callbacks)
 - [XAudio2 Audio Graph](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-audio-graph)
 - [Android Oboe Low-latency Audio](https://developer.android.com/games/sdk/oboe/low-latency-audio)
+- [Oboe 1.10.0](https://github.com/google/oboe/releases/tag/1.10.0)
 - [Apple AVAudioSession](https://developer.apple.com/documentation/avfaudio/avaudiosession)
 - [Apple Audio Route Changes](https://developer.apple.com/documentation/avfaudio/responding-to-audio-route-changes)
+- [Apple AURenderCallback](https://developer.apple.com/documentation/audiotoolbox/aurendercallback)
 - [Opus 1.6 API](https://opus-codec.org/docs/opus_api-1.6.pdf)
+- [Opus RFC 8251 Test Vectors](https://opus-codec.org/testvectors/)
+- [libFLAC 1.5.0 Stream Decoder](https://xiph.org/flac/api/group__flac__stream__decoder.html)
+- [IETF CELLAR FLAC Decoder Testbench](https://github.com/ietf-wg-cellar/flac-test-files)
 - [WAVEFORMATEXTENSIBLE](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ksmedia/ns-ksmedia-waveformatextensible)
 - [RFC 9639: Free Lossless Audio Codec](https://www.rfc-editor.org/rfc/rfc9639.html)
 - [RFC 7845: Ogg Encapsulation for Opus](https://www.rfc-editor.org/rfc/rfc7845.html)
