@@ -1,6 +1,6 @@
 # Miraikanai Engine Physics／Navigation／Animation連携規約
 
-- 文書版: 1.3
+- 文書版: 1.4
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Physics、Navigation、Animation間の固定phase連携、2D／3D Animation graph／pose
@@ -13,6 +13,7 @@
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - C++公開境界: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
 
 ## 1. 結論
 
@@ -171,6 +172,17 @@ ozz-animation 0.16.0のoffline builder、compression、runtime Skeleton／Animat
 
 Graphはcycleを原則rejectし、State Machineの遷移cycleは有限stateとして許可する。Pose nodeの再帰、任意loop、function callback、Script expressionを禁止する。Conditionはtyped parameter／event／state timeのbounded expressionである。
 
+### 11.3 Skeleton／Clip Import
+
+Skeleton／Animation Source ImportはAsset Import／AI Authoring／Editor UX規約の`SceneImportIRV1`、`AnimationImportSettingsV1`、Conversion Report、Preview、Reimport Conflictを使用する。
+
+- C1はglTF 2.0の同一Skeleton exact bindingだけをProduction対応し、stable joint path、parent、bind poseが一致しないClipを結合しない。
+- C1 retarget policyは`none`である。Humanoid semantic mapping、reference pose、scale／twist compensation、before／after pose corpusを持つC2 Profileだけがretargetを有効化できる。
+- Source hierarchy、Root Transform、unit、negative determinant、shearの処理後にskin bind equationを再検証する。Skinned Meshのnegative determinant、shear、singular bind poseをC1でbakeしない。
+- Clip extraction、sample policy、bake rate、interpolation、key reduction、root motion、event metadataは型付きProfile fieldとし、file名やDCC既定値だけで確定しない。
+- Animation optimizerはtranslation／rotation／scale errorをProfile閾値で測定し、圧縮前後の最大誤差とloop seamをReceiptへ記録する。
+- Importer ID／major version、Hierarchy、rest pose、material／joint orderの変更は自動Reimportせず、consumer closure付きConflict Previewを必須とする。
+
 ## 12. Phaseとownership
 
 | Phase | Animation処理 |
@@ -216,7 +228,7 @@ Animation Domain 64 MiBをRuntime規約どおり守り、Skeleton／Clip payload
 | Required locomotion clip不足 | Play prepare失敗 |
 | Event overflow | presentationはpriority policy、authoritative eventはtick fault |
 
-Testはforward／reverse／loop／seek、crossfade、layer／mask、transition interruption、root motion単一適用、Character collision、event飛越し、ragdoll blend、Skeleton hot reload、stale Asset、parallel instance、10分soakを含む。Motion＋Animation P95 1.50 msを維持する。
+Testはforward／reverse／loop／seek、crossfade、layer／mask、transition interruption、root motion単一適用、Character collision、event飛越し、ragdoll blend、Skeleton hot reload、stale Asset、parallel instance、10分soakを含む。Import testはmissing／extra／reordered joint、noninvertible bind、step／linear／cubic、key reduction閾値、loop seam、root trajectory、Importer migration Conflict、Editor scrubのEvent非発火を含む。Motion＋Animation P95 1.50 msを維持する。
 
 ## 15. AI／Editor操作
 
@@ -225,8 +237,11 @@ AIと人間は次のtyped object／Operationだけを編集する。Navigation�
 - Physics World Profileの公開field、Body／Joint、Character Profile
 - Nav Agent／Area／Build Profile、Modifier、Off-mesh Link、reachability test
 - Skeleton／Clip import、Animation Graph、parameter、transition、event、root motion mode
+- Skeleton tree、joint axis、bind／reference pose、skin weight、root trajectory、compression error、retarget before／after Preview
 
 AIはvendor setting blob、native ID、solver callback、nav polygon ref／tile／`rcConfig`、ozz archive byte、arbitrary expressionを生成しない。Profile hard値変更、high-cost nav rebuild、Joint bulk生成、Graph全置換はRiskと予測costを表示する。
+
+AIはCatalogにないSkeleton、joint、Clip、retarget Profileを推測しない。Ambiguous root joint、clip range、root motion、retarget mappingは`AssetImportPlanV1.blocking_questions`として返し、未回答のままCookしない。
 
 EditorはPhysics／Joint、Nav voxel／tile／path、Animation state／blend／root／eventを可視化し、diagnosticからSource fieldへ移動できる。
 

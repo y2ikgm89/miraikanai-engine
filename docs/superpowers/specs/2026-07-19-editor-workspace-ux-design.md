@@ -1,6 +1,6 @@
 # Miraikanai Engine Editor／Workspace／UX規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Windows Editor shell、panel、docking、workspace、AI Partner、手動編集、accessibility、recovery
@@ -9,6 +9,7 @@
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - AI規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
 - 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
 - UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
@@ -30,6 +31,7 @@ AIは常時表示、tab、floating、非表示をWorkspaceごとに選択でき�
 | Project Document、ChangeSet、Commit、Undo、Recovery data | Authoring規約 |
 | AI Task、質問、権限、Approval、Provider／MCP／CLI | AIガバナンス規約 |
 | Runtime／Play、Renderer、Asset、Input／UI／Audio等のDomain意味 | 各Subsystem規約 |
+| Asset Browser、Import Inspector、Preview、Conversion Report、Reimport ConflictのDomain data | Asset Import／AI Authoring／Editor UX規約 |
 | MiraUI Core、MiraEditor Shell、Widget、Rendering、Platform Adapter、禁止GUI dependency | Editor UI Framework規約 |
 
 C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リアルタイムmulti-user、Editor extension marketplace、任意binary pluginを実装しない。Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`で構築し、Dear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、CEFをGUI Frameworkとして使用しない。Win32、D3D12、DirectWrite、TSF、UI Automation、OLEはEditor UI Framework規約のPlatform Adapter境界でだけ利用する。
@@ -207,6 +209,21 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 C1 Source WorkspaceはProject C++／HLSL／MCD JSONのtree、UTF-8 editor、syntax highlight、diagnostic、Diff、Build／Test、symbolへのgenerated API referenceを持つ。大規模refactor、debugger、completionが必要な場合は設定済み外部IDEへProject／file／lineを開ける。
 
 外部IDE変更はAuthoring規約の三者比較と`NativeCodeChangeSet`／外部Document ChangeSetへ取り込む。Editor内text buffer保存だけでSource Promotionまたはbinary loadを行わない。
+
+### 6.5 Asset Browser／Import Inspector
+
+Asset BrowserとImport InspectorはAsset Import／AI Authoring／Editor UX規約のStable ID selection、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`AssetConversionReportV1`、`AssetReimportConflictV1`を投影する。
+
+- Asset Browserはtype、semantic role、tag、license、Production readiness、diagnostic、dependencyでfilterできる。
+- thumbnail、waveform、font sample、3D turntableは選択補助であり、Operation targetにはStable IDを使う。
+- Import Inspectorは`Source`、`Analysis`、`Profile`、`Preview`、`Conversion`、`Dependencies`、`Diagnostics`、`History`を持つ。
+- Basic viewはProfile候補とHigh Impact質問、Advanced viewは同じDocumentの全型付きfieldとevidenceを表示する。別設定を持たない。
+- 3D PreviewはSource／Engine軸、Root、Pivot、bounds、ground、Hierarchy、Skeleton、Animation rootを表示する。
+- Texture Previewはsource／scene-linear／Target compressed、channel、alpha、normal、mip、Sprite pivot／PPUを表示する。
+- Audio Previewはwaveform、loop、loudness、true peak、channel、codec A／B、stream costを表示する。
+- Font Previewはrequired script、fallback、missing glyph、variation、Target raster差を表示する。
+- Reimportはbefore／after、consumer closure、Importer／Profile version、lossをDiffし、破壊的Conflictを自動promotionしない。
+- Import／Preview／Cook／bulk migrationはcancel可能なlong-running taskであり、partial outputを公開しない。
 
 ## 7. Workspace
 
@@ -390,6 +407,10 @@ Textを画像へ焼き込まず、UI scale 200%でclip、重なり、off-screen 
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない
 - 1920×1080でScene、Outliner、Inspector、Asset、AI Partnerが同時利用可能
+- 10万Assetのfilter／selection、multi-select共通field edit、dependency／reverse dependency表示
+- 3D／Texture／Audio／Font Previewが正式Import Planと同じ変換結果を表示
+- Basic／Advanced／AI／headless CLIが同じPlan hash、Diagnostic、Reimport Conflictへ収束
+- Importer version、Hierarchy、Skeleton、Material、Clip、channel、coverage変更をconsumer closure付きでblock
 - UIA treeのname／role／value／patternとvisual focusの自動test
 - 100万Entity、10万Asset、長時間TaskのPerformance fixture
 

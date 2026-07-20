@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.4
+- 文書版: 2.5
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -15,6 +15,7 @@
 - Water規約: [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
 - Weather／Snow規約: [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
 - Navigation規約: [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
 - Simulation連携規約: [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
@@ -70,7 +71,7 @@ Product Phaseと機能の成熟度を混同しないため、各機能を次の�
 
 2Dの`reference_resolution`はCamera出力のlogical pixel数であり、World座標単位ではない。たとえば32×32 texelのSpriteを`pixels_per_unit = 32`でimportするとWorld上の大きさは1×1 meterになる。ScaleをPhysics bodyへ直接適用しない。Collider生成時に固定scaleをbakeし、実行中のvisual scaleとphysics scaleを分離する。単位変換はImporterまたはAdapter境界だけで行い、暗黙変換を禁止する。
 
-glTF importではglTF 2.0の右手系、+Y up、meter、radianを保持する。Objectのfront convention差はimport metadataへ記録し、mesh dataを無理由に再変換しない。
+glTF importではglTF 2.0の右手系、+Y up、+Z forward、meter、radianを保持する。Objectの意味上のfront convention差はimport metadataとConversion Reportへ記録し、mesh data、Root Transform、Pivot、Hierarchyを無理由に再変換しない。補正、Static geometry bake、Preview、Reimport Conflictの正式契約はAsset Import／AI Authoring／Editor UX規約を基準とする。
 
 Engine mathはcolumn vector、column-major storage、`world = parent_world * T * R * S`とする。HLSLは`column_major float4x4`と`mul(matrix, vector)`だけを使い、CPU／Shader境界で暗黙transposeしない。Quaternionのfield順は`x,y,z,w`、rotation合成は`q_world = q_parent * q_local`、保存前に長さ1へ正規化する。`q`と`-q`の二重表現は、`w > 0`、`w == 0`なら最初の非0成分が正となる側へcanonicalizeする。zero-length、NaN／InfのQuaternionを拒否する。
 
@@ -440,6 +441,8 @@ Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Ga
 
 - Static mesh、skinned mesh、morph target
 - glTF 2.0 import
+- Source／Engine軸、Root、Pivot、bounds、Hierarchy、SkeletonのImport Preview
+- 型付きImport Profile、Conversion／Loss Report、Reimport Conflict
 - Vertex／index buffer cook
 - PBR metallic-roughness material
 - Normal、occlusion、emissive
@@ -452,6 +455,8 @@ Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Ga
 
 #### C2: Mesh／World Rendering Advanced
 
+- 承認済み公式Blender→glTF Source Conversion Worker
+- `ufbx`候補のFBX AdapterとImporter migration fixture
 - GPU frustum／LODとindirect instance culling
 - 前real frame HZBによるconservative occlusion culling
 - HLOD
@@ -462,6 +467,8 @@ Animation eventは任意関数名を文字列で呼ばず、登録済みtyped Ga
 - Reflection probe
 
 glTFはinterchange formatであり、Runtime source of truthにしない。Import後は独自Asset schemaへ変換し、cook時にGPU向けformatへ変換する。
+
+Blend／FBXはC2、USD／USDZはC3の入力Capabilityであり、glTFとは別のRuntime objectを生成しない。全形式を`SceneImportIRV1`へ変換し、同じTransform、Mesh、Material、Skeleton／Animation ValidatorとCookを通す。Source形式固有の意味損失、Importer version差、Hierarchy／rest pose／material order差はConversion ReportとMigration Conflictとして明示する。
 
 ### 6.2 Renderer architecture
 
@@ -1410,7 +1417,8 @@ Compile-time featureは`MaterialDefinition`だけが持ち、Instance parameter�
 
 | 対象 | 必須Test |
 |---|---|
-| PBR | Khronos glTF Sample AssetsのMetal／Roughness、Unlit、Emissive Strength、Texture Transform、Clearcoat等。C1はcore／Unlit／Emissive Strength／Texture Transform、C2は本節`realistic_advanced`に列挙したextension |
+| PBR | Khronos glTF Asset Generator／Sample Assets／ValidatorのMetal／Roughness、Unlit、Emissive Strength、Texture Transform、Clearcoat等。C1はcore／Unlit／Emissive Strength／Texture Transform、C2は本節`realistic_advanced`に列挙したextension |
+| 3D Import Transform | 1 m軸模型、原点外配置、複数／空Root、parent T／R／S、Pivot、negative determinant、non-uniform scale、shear、bind pose、root motion。Import前後のHierarchy／Transform hashとConversion Reportを検証 |
 | Toon | Sphere、hard／smooth normal mesh、顔、髪、透明髪、outline、複数解像度、camera距離、Key／accent light |
 | Pixel 2D | 1280×720、1920×1080、2560×1440、3440×1440、3840×2160でinteger scale／letterbox、camera scroll、rotation禁止検査 |
 | Pixel Diorama | Spriteと3Dのdepth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離、transparent sort、camera cut |
@@ -1462,7 +1470,7 @@ Phase 3で2D Profile、Phase 4で候補生成・推薦・委任時選択、Phase
 | Asset | Source／Interchange | Runtime |
 |---|---|---|
 | Texture | PNG、JPEG、EXR、KTX2、DDS | Windows BCn、Android ASTC＋ETC2、Apple ASTC、mip／streaming metadata |
-| 3D | glTF 2.0 | 独自mesh／skeleton／animation package |
+| 3D | C1 glTF 2.0、C2 Blend／FBX、C3 USD／USDZ | 共通`SceneImportIRV1`から独自mesh／skeleton／animation package |
 | 2D atlas | Image＋atlas metadata | Packed page＋sprite table |
 | Audio | WAV、FLAC等 | PCM16またはOpus stream chunk＋Platform audio metadata |
 | Shader | Engine HLSL／Project HLSL | Windows DXIL、Android SPIR-V、Apple metallib＋共通ShaderInterface |
@@ -1471,9 +1479,9 @@ Phase 3で2D Profile、Phase 4で候補生成・推薦・委任時選択、Phase
 | Nav | Source geometry＋profile | Tiled nav data |
 | Physics | Shape authoring data | Cooked shape data |
 
-OpenUSDはC0～C2では採用しない。C3でDCC collaboration interchangeが必要になった場合だけ、別ADRとvertical prototypeを通して採否を決める。採用する場合もProject source of truthにはしない。OpenUSDは一般的なGUID systemや完全なrigging solutionを提供するものではなく、MiraikanaiのStable ID、GameSpec、Gameplay Capability Contractを置き換えない。
+OpenUSDはC0～C2では採用しない。C3でDCC collaboration interchangeが必要になった場合だけ、Asset Import／AI Authoring／Editor UX規約のbounded Stage、resolver／plugin allowlist、composition／variant／payload Loss Report、別ADR、vertical prototypeを通して有効化する。採用する場合もProject source of truthにはしない。OpenUSDは一般的なGUID systemや完全なrigging solutionを提供するものではなく、MiraikanaiのStable ID、GameSpec、Gameplay Capability Contractを置き換えない。
 
-Importerは別Processで実行し、networkなし、許可pathだけ、timeout、memory capを持たせる。AI生成Assetも同じstaging、license metadata、content safety、import validationを通す。
+Importerは別Processで実行し、networkなし、許可pathだけ、timeout、memory capを持たせる。Blend変換はImporter child processではなくJob Orchestratorが別sandboxで公式Blenderを起動する。AI生成Assetも同じstaging、license metadata、content safety、Import Plan、Conversion Report、Preview、validationを通す。
 
 ## 10. Editor機能との対応
 
@@ -1485,6 +1493,7 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 - Hierarchy／Outliner projection
 - Inspector
 - Asset Browser
+- Import Inspector、Source／Engine軸・Pivot・Root・Hierarchy Preview、Conversion／Loss Report、Reimport Conflict
 - Game／Rule Graph
 - Timeline／Animation
 - Material／VFX Graph

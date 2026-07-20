@@ -1,11 +1,12 @@
 # Miraikanai Engine Audio／Mixer／Spatial規約
 
-- 文書版: 1.0
+- 文書版: 1.1
 - 作成日: 2026-07-19
 - 対象: Audio Asset、Voice、Mixer、Bus、DSP、Streaming、Spatial、XAudio2／Oboe／AudioUnit Adapter
 - 状態: プロジェクト公式の規範設計レビュー版
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
 - Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
 
@@ -67,7 +68,18 @@ Audio control threadがVoice create／destroy、Bus graph、Cue selection、deco
 
 10秒以下かつdecoded size 2 MiB以下をresident候補、それ以外をstreamed候補とする。これは自動確定でなくImport previewであり、UI music、loop、latency要件でProfileが明示変更できる。
 
-### 4.2 Stream
+### 4.2 Source Import
+
+Audio Source ImportはAsset Import／AI Authoring／Editor UX規約の`AudioImportSettingsV1`、`AudioImportIRV1`、Conversion Report、Preview、Reimport Conflictを使用する。
+
+- C1 SourceはWAV PCM／IEEE floatとnative FLACである。WAV compressed codec、unknown channel mask、FLAC CRC不合格を拒否する。
+- RIFF／RF64 bounds、WAVEFORMATEXTENSIBLE valid bits／channel mask／block alignment、FLAC STREAMINFO／frame／CRCを検証する。
+- Sourceを48 kHzへCookしても`source_sample_rate`、original frame count、resampler version、変換前後durationをReceiptへ保持する。
+- Integrated loudnessとtrue peakは測定metadataであり、明示`gain_policy`なしに自動normalizationをsampleへ焼かない。
+- Loopはsample frameで表し、Source marker採用、手動range、codec delay／pre-skip補正をConversion Reportへ記録する。
+- Source channelを名前やsemantic roleだけでdownmixせず、typed channel policyとPreview auditionを必須とする。
+
+### 4.3 Stream
 
 C1 stream codecはlibopus 1.6.1を使う。Cook時に48 kHz、20 ms packetを基本単位とし、`.mirapack`内のseek tableとchunk indexを生成する。
 
@@ -251,7 +263,9 @@ AIと人間へ公開するのはAudio Clip Import、Sound Cue、Bus、Mixer Snap
 
 AIは音声buffer、XAudio2 voice、Oboe stream、AudioUnit、DSP pointerを生成／操作しない。Cueを大量生成するChangeSetは同時Voice予測、stream memory、loudness、loop、missing locale、copyright／licenseを検証する。
 
-Audio Editorはwaveform、loop、loudness、Cue tree、Bus graph、Voice／stream profiler、spatial preview、underrun／route timelineを持つ。Previewも専用Preview Voice capacityを使い、Play sessionのBus／Voiceを直接変更しない。
+Audio Editorはwaveform、sample-accurate loop、trim、loudness、true peak、channel、resident／stream cost、Target codec A／B audition、Cue tree、Bus graph、Voice／stream profiler、spatial preview、underrun／route timelineを持つ。Previewも正式Import Planと同じdecode／resample／encode code、専用Preview Voice capacityを使い、Play sessionのBus／Voiceを直接変更しない。
+
+AIのAudio Import操作は`asset.inspect_source`、`asset.propose_import_profile`、`asset.request_preview`、`asset.propose_import_settings_change`、`asset.propose_reimport`へ限定する。Ambiguous channel、loop、gain、dialogue localeは質問を返し、file名から確定しない。
 
 Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。外部AI生成AudioはAsset規約のStaging、権利、来歴、安全、Importを通す。
 
@@ -271,7 +285,9 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 
 ## 16. TestとDefinition of Done
 
-- PCM／Opus import、loop、seek、corrupt packet、stale Asset generation
+- WAV PCM8／16／24／32、float32、RF64、FLAC、Opus Cook、loop、seek、corrupt packet、stale Asset generation
+- WAVEFORMATEXTENSIBLE channel mask、FLAC CRC、Opus pre-skip／output gain／granule mapping
+- loudness／true peak golden、44.1／48／96 kHz resample、Target codec A／B PreviewとCook一致
 - Cue random／sequence／switch、seed、node／depth cap
 - Voice allocate／virtualize／steal／generation／critical reserve
 - Bus cycle、Snapshot transition、DSP finite、limiter
@@ -294,5 +310,8 @@ C1完了条件は、2D／3D縦切りでMusic、SFX、UI、Dialogue、3D spatial�
 - [Apple AVAudioSession](https://developer.apple.com/documentation/avfaudio/avaudiosession)
 - [Apple Audio Route Changes](https://developer.apple.com/documentation/avfaudio/responding-to-audio-route-changes)
 - [Opus 1.6 API](https://opus-codec.org/docs/opus_api-1.6.pdf)
+- [WAVEFORMATEXTENSIBLE](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ksmedia/ns-ksmedia-waveformatextensible)
+- [RFC 9639: Free Lossless Audio Codec](https://www.rfc-editor.org/rfc/rfc9639.html)
+- [RFC 7845: Ogg Encapsulation for Opus](https://www.rfc-editor.org/rfc/rfc7845.html)
 
 Platform APIはdevice／callbackの制約を決める。Cue、Voice、Bus、DSP Catalog、Spatial、failureはMiraikanaiが所有する。

@@ -1,10 +1,11 @@
 # Miraikanai Engine Asset Pipeline／Content Package規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Asset source、Import、Cook、Cache、Catalog、VFS、Streaming、Package、Patch／DLC、AI生成Asset
 - 状態: プロジェクト公式の規範設計レビュー版
+- Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
 - Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
@@ -30,13 +31,14 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 | 主題 | 正本 |
 |---|---|
 | Asset identity、metadata、import、cook、cache、catalog、VFS、package、streaming | 本書 |
+| Import Profile、Source解析、種別別IR、Conversion／Loss Report、Preview、Reimport、AI／Editor操作 | Asset Import／AI Authoring／Editor UX規約 |
 | Source Document Commit、StableId、ChangeSet | Authoring規約 |
 | Asset generation／lease／atomic promotion、memory charge | Runtime規約 |
 | Format／Style／Material／Shader／Nav／Physics／VFXの機能範囲 | 2D／3D機能計画と各Subsystem規約 |
 | PAD、Apple Background Assets、Store package | Mobile規約 |
 | Windows installer／distribution／crash | Windows Platform規約 |
 
-C1／C2ではOpenUSDを正本にせず、FBX importer、Runtime arbitrary import、remote untrusted mod、encrypted DRM package、peer-to-peer content、self-hosted binary updaterを実装しない。これらは個別Capabilityとsecurity designなしに追加しない。
+C1ではOpenUSD、FBX、Blend importer、Runtime arbitrary import、remote untrusted mod、encrypted DRM package、peer-to-peer content、self-hosted binary updaterを実装しない。C2は承認済み公式Blender→glTF Source Conversion Workerと`ufbx`候補のFBX Adapter、C3はbounded OpenUSD Stage AdapterをAsset Import／AI Authoring／Editor UX規約のGate後だけ追加できる。いずれもProject／Runtimeの正本にせず、共通Import IRと独自Asset schemaへ変換する。
 
 ## 3. Asset identityとmetadata
 
@@ -73,8 +75,8 @@ Pathはseparatorを`/`へ正規化し、absolute path、drive、UNC、`..`、emp
 | Type | Source／導入段階 | 主なDerived Artifact |
 |---|---|---|
 | Texture／Sprite | PNG、JPEG、OpenEXR、KTX2、DDS | Target texture、mip、sprite table、thumbnail |
-| Mesh／Scene | glTF 2.0／GLB | mesh stream、portable meshlet／cluster、LOD／HLOD、occlusion proxy、skin binding、collision／nav／ray geometry source |
-| Skeleton／Animation | glTF 2.0 | ozz runtime skeleton／clip、event／root track |
+| Mesh／Scene | C1 glTF 2.0／GLB、C2 Blend／FBX、C3 USD／USDZ | mesh stream、portable meshlet／cluster、LOD／HLOD、occlusion proxy、skin binding、collision／nav／ray geometry source |
+| Skeleton／Animation | C1 glTF 2.0、C2 Blend／FBX、C3 USD | ozz runtime skeleton／clip、event／root track |
 | Audio | WAV、FLAC | PCM16 one-shot、Opus stream chunk、waveform |
 | Font | OTF／TTF | validated font blob、glyph coverage index |
 | Shader | Engine／承認済みProject HLSL | DXIL、SPIR-V、metallib、ShaderInterface |
@@ -83,7 +85,7 @@ Pathはseparatorを`/`へ正規化し、absolute path、drive、UNC、`..`、emp
 | Physics／Nav | Engine Source Document＋geometry | backend-independent manifest＋Target cooked payload |
 | Neural Render Model | C3の承認済みmodel package＋provenance | Target packed weight、semantic IO manifest、fallback／budget receipt |
 
-SVG、video、FBX、PSD、Blend等はC1 importer allowlistに含めない。利用者はDCCでC1 interchangeへexportする。Format追加はImporter threat model、fixture、license、fuzz、Target cook、memory上限を持つADRを必須とする。
+SVG、video、FBX、PSD、Blend、USD等はC1 importer allowlistに含めない。利用者はDCCでC1 interchangeへexportする。Blend／FBXはC2、USD／USDZはC3のFormat Capabilityとし、Importer threat model、fixture、license、fuzz、Target cook、memory上限、Conversion／Loss Report、Reimport migrationを持つADRとQualification Receiptを必須とする。
 
 ## 4. Import Job
 
@@ -144,6 +146,8 @@ Thumbnail、debug dump、human-readable reportは正式Artifactと分け、Shipp
 | Physics／Nav | geometry range、cook profile、backend version、query fixture、hard memory cap |
 
 Validatorはunsupported featureを削除して成功させない。明示したfallbackがあり、Preview差分と人間承認がある場合だけ別ChangeSetとしてImport設定を変更する。
+
+Asset種別ごとのProfile、IR、座標／色／音声／Skeleton変換、Preview、Diagnostic、AI Operation、Reimport ConflictはAsset Import／AI Authoring／Editor UX規約を正本とする。Importerは全成功Jobへ`AssetConversionReportV1`と`AssetImportReceiptV1`を生成し、Source／Profile／Plan／IR／Artifact／Approval／Toolchainのhash chainが切れたArtifactをReadyにしない。
 
 ## 6. Derived Artifact
 
@@ -391,6 +395,11 @@ Placeholderを許可するAsset roleはProfileで明示し、Collision、Nav、r
 - Streaming queue、cancel、deadline、stale result、memory pressure、surface／audio interruption
 - License、SBOM、Notice、Provenance、Safety ReceiptのPackage closure
 - AI Assetが通常Importを迂回できず、Production Readyへ自動昇格しないconformance
+- glTF／Texture／Audio／Fontの公式Validator／fixtureとEngine Validatorの重大判定差0件
+- 軸、単位、Pivot、Root、Hierarchy、color encoding、normal convention、audio channel／loop、Skeleton bind／Clipのbefore／after Conversion Report
+- Basic／Advanced Editor、AI、headless CLIが同じImport Plan、Diagnostic、Artifact hashへ収束
+- Reimportが既存Profileを保持し、Hierarchy／Skeleton／Material／Clip／channel／coverageの破壊的変更をconsumer closure付きConflictとしてblock
+- Blend／FBX／USDはCapability未Activated時にImporterを起動せず、C2／C3 Qualification後だけCatalogへ公開
 
 C1完了条件は、2D／3D縦切りの全AssetをSourceからclean Cookし、Development loose layoutとShipping `.mirapack`で同じCatalogをloadし、hot reload、corrupt input、memory pressure、Package再生成を合格することである。
 
@@ -400,7 +409,14 @@ C1完了条件は、2D／3D縦切りの全AssetをSourceからclean Cookし、De
 - [O3DE Asset Cache](https://docs.o3de.org/docs/user-guide/assets/pipeline/asset-cache/)
 - [O3DE Product Assets and deterministic generation](https://docs.o3de.org/docs/user-guide/assets/pipeline/product-assets/)
 - [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)
+- [glTF Validator](https://github.com/KhronosGroup/glTF-Validator)
 - [KTX 2.0 Specification](https://registry.khronos.org/KTX/specs/2.0/ktxspec.v2.html)
+- [PNG Third Edition](https://www.w3.org/TR/png-3/)
+- [OpenEXR Technical Introduction](https://openexr.com/en/latest/TechnicalIntroduction.html)
+- [RFC 9639: FLAC](https://www.rfc-editor.org/rfc/rfc9639.html)
+- [RFC 7845: Ogg Opus](https://www.rfc-editor.org/rfc/rfc7845.html)
+- [OpenType 1.9.1](https://learn.microsoft.com/en-us/typography/opentype/spec/)
+- [OpenUSD Introduction](https://openusd.org/release/intro.html)
 - [C2PA Specifications 2.4](https://spec.c2pa.org/specifications/)
 
 外部EngineのAsset database／bundle形式は採用しない。Sourceとruntime productの分離、dependency tracking、決定論的生成、来歴という原則を根拠に、Miraikanai固有のArtifact、Catalog、Package、promotionを定義する。

@@ -1,6 +1,6 @@
 # Miraikanai Engine UI／Text／Localization／Accessibility規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-20
 - 対象: Game UI、Layout、Widget、拡張Widget、AI UI Authoring、Focus、Text、IME、Localization、Font、Accessibility、UI Rendering
@@ -9,6 +9,7 @@
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Rendering規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
 - Input規約: [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
@@ -449,6 +450,8 @@ Fallbackはgrapheme／shaping clusterを分割しない最小runで行う。Fall
 
 C1 color fontはCOLR／CPAL v0を検証対象とする。SVG glyph、CBDT／CBLC PNG、COLR v1、system emojiはC2であり、C1ではmonochrome fallbackをPackageに含める。
 
+Font Source ImportはAsset Import／AI Authoring／Editor UX規約の`FontImportSettingsV1`、`FontImportIRV1`、coverage Preview、Conversion Report、Reimport Conflictを使用する。OpenType 1.9.1のtable directory、offset／length、checksum、cmap、GSUB／GPOS／variation、composite glyph boundsを検証し、required locale／script coverage不足をProduction package blockにする。Font名、埋込みmetadata、license URLだけで利用権を承認せず、Asset License Recordを必須とする。
+
 ### 12.3 Font sizeとmetrics
 
 Font sizeは`ui_lu`、1/64単位へcanonicalizeする。Line heightはFont metrics、explicit multiplier `[0.5,4]`、paragraph spacingから計算する。Baseline、ascent、descent、line gapをFontごとに保持し、fallback glyphで行全体がframeごとに揺れないようFont Setのaggregate line metricsをCookする。
@@ -674,7 +677,7 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - UTF-8、grapheme、combining mark、ZWJ、variation selector、CJK、Arabic／Hebrew BiDi
 - ICU plural／number／date、locale fallback、required key、pseudo localization
 - HarfBuzz shapingとFreeType glyph metrics／raster golden
-- Font fallback cluster、missing glyph、COLR／CPAL v0、license／coverage
+- OpenType table bounds／checksum、Font fallback cluster、missing glyph、COLR／CPAL v0、variation、license／required locale coverage
 - IME composition、selection、clipboard、password zeroization／AI exclusion
 - 100／125／150／200% DPI、0.75～2.0 UI scale、portrait／landscape、cutout
 - Windows UIA、Android Accessibility、Apple UIAccessibility action
