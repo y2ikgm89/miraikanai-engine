@@ -12,6 +12,8 @@
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
+- Water規約: [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
+- Weather／Snow規約: [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Physics Engine規約: [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
 - Navigation規約: [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
@@ -438,7 +440,7 @@ Stress sceneはgameplay sceneと分離し、同時にすべてを要求しない
 - HLOD
 - Meshlet／indirect pathはfeature query後に任意
 - Streaming cell
-- Terrain、foliage、water
+- Terrain、foliage、Water C2 Body／Surface
 - Reflection probe
 
 glTFはinterchange formatであり、Runtime source of truthにしない。Import後は独自Asset schemaへ変換し、cook時にGPU向けformatへ変換する。
@@ -617,6 +619,20 @@ Dynamic IBL更新は6 face capture、1 diffuse convolution、9 specular mipのex
 - Advanced weather front
 - Large-world cloud streaming
 - Hardware ray traced environment option
+
+### 6.4.1 Water／Weather Surface
+
+WaterのBody、Surface、Volume、Wave、Flow、Depth、CPU Query、Underwater、Budget、Qualificationは[Water Surface Platform規約](./2026-07-20-water-surface-platform-architecture-design.md)を正本とする。降雪VFXと静的／動的積雪、融雪、圧雪、footprint表示は[Weather／Snow Surface規約](./2026-07-20-weather-snow-surface-architecture-design.md)を正本とする。
+
+段階実装を次で固定する。
+
+| Level | Water | Snow |
+|---|---|---|
+| C1 | 小規模`bounded_plane`／`mesh_region`、静的水位、dual normal、Fresnel、Environment IBL、flat Water Volume | CPU降雪VFX、静的snow mask、world-up Material blend、contact由来footprint Decal／VFX |
+| C2 | lake／spline river／ocean、解析波、flow、depth、probe＋SSR、underwater、CPU Query、buoyancy連携 | GPU降雪、turbulence、visual collision、paged dynamic snow field、accumulation、melt、compaction |
+| C3 | FFT ocean、shallow-water、相互作用流体、large-world water | deformable snow、avalanche、persistent large-world snow |
+
+Water GPU波、SSR、foam、Snow GPU field、Particle collisionをGameplayへ逆入力しない。浮力はCPU Water Query、摩擦はauthoritative `GameplaySurfaceState`、飛沫／足跡はauthoritative contactから生成したPresentation Eventを使用する。
 
 Quality fallback:
 
@@ -1389,6 +1405,8 @@ Editor shellはC++23の独自`MiraUI Core`と`MiraEditor Shell`を使用する�
 | Fog | Height | Half-res volumetric | High-quality volumetric |
 | Cloud | 2D layer | Reduced volumetric | Full temporal volumetric |
 | Particle | CPU／低上限 | GPU standard | GPU high budget |
+| Water | bounded surface＋IBL | analytic wave＋probe | analytic wave＋probe／SSR＋underwater |
+| Snow Surface | static mask | dynamic field reduced | dynamic field full |
 | Reflection | Probe | Probe＋SSR | Probe＋SSR＋optional RT |
 | Anti-alias | FXAA | TAA | TAA／upscaler |
 | Realistic material | Basic PBR | Basic PBR | Advanced PBR featureを選択可 |
@@ -1433,11 +1451,13 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 14. `toon_basic`、inverted-hull outline、`toon_character`
 15. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
 16. `pixel_diorama`の`unified_low_resolution`
-17. Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
-18. Hybrid deferred path、streaming、terrain／foliage
-19. Domain Pack拡張
-20. Store-readyなdata-only Runtime generation
-21. Multiplayer／large world／ray tracingは個別設計後
+17. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
+18. Production lighting、atmosphere、volumetric fog／cloud、GPU VFX
+19. C2 Water Body／Query／Underwater、dynamic snow field
+20. Hybrid deferred path、streaming、terrain／foliage
+21. Domain Pack拡張
+22. Store-readyなdata-only Runtime generation
+23. FFT／shallow-water、deformable snow、Multiplayer／large world／ray tracingは個別C3 Gate後
 
 2Dと3Dの全機能を先に並行実装しない。共有基盤→2D complete loop→3D complete loopの順で、毎段階にplayable resultを置く。
 

@@ -4,7 +4,7 @@
 - 作成日: 2026-07-18
 - 最終更新日: 2026-07-20
 - 対象: 独自C++ゲームエンジン、独自Editor、AI制作基盤
-- 状態: 基本構想とSubsystem別正式仕様26文書を統合した内部整合レビュー版。ユーザー承認待ち
+- 状態: 基本構想とSubsystem別正式仕様28文書を統合した内部整合レビュー版。ユーザー承認待ち
 - 設計文書Index: [Miraikanai Engine 設計文書Index](./README.md)
 - Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
 - C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
@@ -28,7 +28,7 @@
 
 ## 0. 統合レビュー結果
 
-本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。26文書を単一巨大文書へ統合せず、次の三層を維持する。
+本書は、これまで個別に確定した要求を一つのProduct計画として束ねるマスター計画書である。詳細契約はSubsystem別正式仕様へ分離し、本書と各仕様を一つのReview setとして扱う。28文書を単一巨大文書へ統合せず、次の三層を維持する。
 
 1. 本書がProduct vision、制作体験、Milestone、MVP、全体の依存順を決定する。
 2. [設計文書Index](./README.md)が読む順序、決定権、要求トレーサビリティ、Review状態を決定する。
@@ -883,7 +883,7 @@ MCDを正本とし、MCP、OpenAI strict、Anthropic Toolへ別々のProvider pr
 
 ### Phase 0: Foundation契約とToolchain
 
-- 設計文書Indexに列挙した公式Review set 26文書の承認
+- 設計文書Indexに列挙した公式Review set 28文書の承認
 - C++23共通Runtime Contract、`CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`と`windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`のTarget Profile schema
 - Windows 11 25H2以降 x64／Direct3D 12を最初に実装し、Android Vulkan／Apple Metalを同じGraphics Portへ接続する境界
 - Windows、Android、Apple toolchainをprofile別に固定する`toolchain.lock.json`と、Store要件を14日以内かつSubmission 7日前以内に再確認する`store_policy.lock.json`
@@ -980,6 +980,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - Jolt Physics Adapter、Recast／Detour Adapter
 - ozz-based sampling＋独自Animation Graph
 - 3D UI、Audio、particle、camera
+- C1 bounded Water、flat Water Volume、CPU降雪VFX、static snow mask
 - Third-person compact action arena
 
 完了条件は、`realistic_basic` 3D縦切りを自然言語と手動編集の両方で作成でき、Khronos core／Unlit／Emissive Strength／Texture Transform material fixture、Reference stress scene、1080p60、memory budgetを満たすことである。
@@ -1005,7 +1006,7 @@ Phase 0で全Risk classの契約と拒否動作を定義するが、製品機能
 - `pixel_diorama`のhigh-resolution 3D＋crisp sprite modeとunified low-resolution mode
 - Multiple light、physically based atmosphere、volumetric fog／cloud
 - Baked lightmap、irradiance／reflection probe、C3 dynamic GI研究
-- GPU VFX、terrain、foliage、water、streaming
+- GPU VFX、C2 Water Body／Query／Underwater、dynamic snow field、terrain、foliage、streaming
 - 2D Action、FPS／TPS、RPG／Action RPG、Quest、Simulation、Strategy Pack
 - 画像／音声／3D生成Provider adapter
 - 自動Playtestとperformance regression
@@ -1144,6 +1145,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 | NativeGameModule | Windows Developmentは別ProcessのGameHostが単一DLLを起動時に一度だけload、Shipping／Android／Appleは静的link。ABI越しにSTL／exception／allocator／native objectを渡さない |
 | Asset model | Source／Import／Derived／Packageの四層、隔離Importer、content-addressed Derived Data、Asset Catalog／VFS、`.mirapack` |
 | Renderer model | Immutable `RenderSnapshot`をextractし、Engine-owned Render GraphをcompileしてD3D12／Vulkan／Metal Adapterへ投入 |
+| Water／Snow model | Water Surface／CPU Query、降雪VFX、Snow Surface、Gameplay Surface Stateを分離し、GPU presentation結果をPhysics／Gameplayへ逆入力しない |
 | Editor model | Production Editorと初心者用`AI Creator` Workspaceを同一Document／ChangeSet上で提供。Panelはdock／resize／floating／multi-monitor／保存可能 |
 | Player I/O | InputはAction→`InputSnapshot`、UIはretained typed document、AudioはEngine-owned mixer。Platform native APIはAdapter内だけ |
 | Game text | UTF-8、HarfBuzz 14.2.1、FreeType 2.14.1、ICU4C 78.3。Editor shellのDirectWrite／TSFとは責務を分離 |
@@ -1151,7 +1153,7 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 
 ### 16.2 実装計画書で分解する事項
 
-次は設計上の選択肢ではなく、26文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
+次は設計上の選択肢ではなく、28文書で確定した契約をfile、target、生成物、fixture、testへ割り当てる実装計画作成作業である。fieldとpolicyを実装担当者が再決定してはならない。
 
 1. Phase 0のrepository bootstrap、Build Gateway、CMake target DAG、`BuildDriverProfileV1`、Windows Ninja Multi-Config／Android Gradle→Single-Config Ninja／Apple Ninja–Xcode Preset、CMake File API query、Build Receipt、C++23 Header bootstrap、`mira_add_cpp_component()`、Named Module／`import std` Probe、`mira.build.ninja_adoption.v1` Gate、Miraikanai Contract Definition配置をtaskへ分解する。
 2. 固定Toolchain／Dependency artifactの取得、hash lock、SBOM、offline CI image、更新Gateをtaskへ分解する。
@@ -1164,10 +1166,11 @@ MVPはAI Authoringの安全な往復を証明する製品縦切りであり、En
 9. NativeGameModule C ABI、Target別static／dynamic link、isolated Build、GameHost restart、Promotion Gateをtaskへ分解する。
 10. Input、UI／Text／Localization／Accessibility、AudioのC0契約と2D First Playable用C1 vertical sliceをtaskへ分解する。
 11. Collision、独自Physics PlatformのWorld／Dynamics／Joint／Character／Save／Replay、Box2D／Jolt Kernel Qualification、独自Navigation PlatformのGrid2D／Backend Port／Artifact／status／Recast・Detour Qualification、ozz、Engine-owned Animation Graphをconformanceとvertical sliceへ分解する。
-12. Windows MSIX／folder package、Android AAB／PAD／16 KiB、Apple archive／signing／uploadをPlatform別taskと実機Gateへ分解する。
-13. AI Orchestrator、Requirement／Visual Style Resolver、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
-14. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、AI Eval corpus／holdout、Provider migration harnessを検証taskへ分解する。
-15. 2D／3D reference scene、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
+12. Water Source／Compiler／Render／CPU Query／Volume／Underwaterと、Weather Snapshot／降雪VFX／static・dynamic Snow Surface／stampをC1とC2の独立task、Gameplay分離fixture、Target別Gateへ分解する。
+13. Windows MSIX／folder package、Android AAB／PAD／16 KiB、Apple archive／signing／uploadをPlatform別taskと実機Gateへ分解する。
+14. AI Orchestrator、Requirement／Visual Style Resolver、OpenAI Provider、local MCP、外部Client Security ProfileをRisk別taskへ分解する。
+15. Source Worker、Path Broker、Promotion Service、Receipt署名、TLA+ model、AI Eval corpus／holdout、Provider migration harnessを検証taskへ分解する。
+16. 2D／3D reference scene、Water／Snow fixture、frame／memory／thermal／soak fixture、performance baseline、Milestone判定をtaskへ分解する。
 
 将来の多ジャンル対応を理由に最初の縦切りを過剰に汎用化しない。各taskは「AI編集と手動編集の安全な往復」「Engine側検証」「playable result」のいずれかへ直接寄与しなければならない。
 
@@ -1260,6 +1263,6 @@ Unity、Unreal Engine、Godot、O3DEからは、Retained tree、独自C++ Framew
 
 ## 20. 次のアクション
 
-設計文書Indexに列挙した26文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
+設計文書Indexに列挙した28文書の内部整合レビューは完了した。次はユーザーが[統合計画サマリー](./README.md#0-統合計画サマリー)と本書16章の確定事項を入口にReviewし、修正点または承認を返す。承認後、実装task、依存関係、Test、Milestone、性能Gate、完了条件を含むPhase 0実装計画書を別文書として作成する。
 
 実装計画はPhase 0 Foundationから開始し、Windows 2D First Playable、Windows 3D First Playable、Android／Appleの順序付きmobile vertical sliceへ分解する。承認前にEngine実装へ着手しない。

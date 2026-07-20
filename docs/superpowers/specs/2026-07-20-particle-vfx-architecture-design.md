@@ -11,6 +11,8 @@
 - Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Renderer正本: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 - Asset正本: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
+- Water連携: [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
+- Weather／Snow連携: [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
 - Authoring正本: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
 - Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
@@ -42,6 +44,8 @@ Gameの実行CodeはC++23のままである。VFX GraphはGame用Script VMでは
 |---|---|
 | VFX Asset、Emitter、Graph、Node Catalog、VFX IR、CPU／GPU execution plan、VFX Runtime、VFX AI／Editor、VFX budget／failure／test | 本書 |
 | C1／C2で製品として提供する2D／3D表現範囲とMilestone | 2D／3D機能計画 |
+| Water Body／Queryとauthoritative Water Interaction Event | Water規約 |
+| Weather input、Snow Surface、積雪／融雪／footprint field | Weather／Snow規約 |
 | Tick、Presentation command、queue、memory parent domain、global performance cap、Asset promotion phase | Runtime規約 |
 | `RenderSnapshot`、Render Graph、resource／pass／barrier、Material／Shader pipeline、Backend、device loss | Renderer規約 |
 | Source／Derived／Cooked Artifact、Catalog、Package、hot reload transaction | Asset規約 |
@@ -1147,7 +1151,7 @@ Developmentのerror material、bounds overlay、counter readbackはDiagnostic bu
 | 2D trail | moving emitter、local／world、64 point上限 |
 | 3D hit spark | Billboard、velocity alignment、depth sort |
 | 3D fire／smoke | alpha、soft depth C2、bounds、overdraw |
-| Rain／snow | large bounds、quality scaling、Mobile thermal |
+| Rain／snow | finite camera-relative bounds、Weather Snapshot parameter、quality scaling、Mobile thermal。積雪fieldはWeather／Snow規約で別検証 |
 | Magic projectile | authoritative projectileとPresentation VFX分離 |
 | Explosion | one authoritative EventからAudio／Camera／VFXを独立配送 |
 | GPU mesh／ribbon | indirect draw、sort、C2 Budget |

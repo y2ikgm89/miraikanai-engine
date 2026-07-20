@@ -16,7 +16,7 @@ FPS／TPS、RPG／Action RPG、Simulation、Strategy、2D ActionをEngine Core�
 
 Domain PackはEngine forkでも、任意binary pluginでもない。MCDで検証可能なpackageであり、必要なProject C++ source templateを含める場合も通常の`NativeGameModule` Build／Review／Promotionを通る。
 
-Multiplayer、large world、terrain／foliage／water、ray tracing、商用品質の内蔵AI Asset生成は「多Genre対応」に暗黙包含しない。それぞれを独立Capabilityとして設計、脅威分析、vertical slice、budget、Target gate後に昇格する。
+Multiplayer、large world、terrain／foliage、ray tracing、商用品質の内蔵AI Asset生成は「多Genre対応」に暗黙包含しない。それぞれを独立Capabilityとして設計、脅威分析、vertical slice、budget、Target gate後に昇格する。WaterとWeather／Snow SurfaceはこのGateを通過して専用正式仕様へ昇格したが、Production表示は各仕様のC1／C2 Qualification完了後に限る。
 
 ## 2. 決定権とDomain Packの正規構造
 
@@ -215,15 +215,14 @@ Single-player FPS／TPSやNPC NavigationをMultiplayer対応と表現しない�
 
 必要設計はfloating origin、World cell、stable global coordinate、cross-cell entity、Asset／Nav／Physics／Render streaming、save、teleport、Editor collaboration、precision、memory／I/O budgetである。
 
-### 7.3 Terrain／Foliage／Water
+### 7.3 Terrain／Foliage
 
 状態: **C2／C3候補。一般Mesh／Materialで代用可能な小規模SceneだけC1。**
 
 - Terrain: height／mesh source、LOD、collision、nav、paint、streaming
 - Foliage: scatter rule、seed、instance LOD、wind、collision subset
-- Water: surface、depth、flow、reflection、underwater、physics／gameplay分離
 
-各SubsystemがRendererだけでなくAsset、Physics、Nav、Editor、AIへ跨るため、個別正式仕様なしに「描画Effect」として追加しない。
+各SubsystemがRendererだけでなくAsset、Physics、Nav、Editor、AIへ跨るため、個別正式仕様なしに「描画Effect」として追加しない。Waterは[Water Surface Platform規約](./2026-07-20-water-surface-platform-architecture-design.md)、降雪／積雪は[Weather／Snow Surface規約](./2026-07-20-weather-snow-surface-architecture-design.md)へ昇格済みであり、本節の将来候補には含めない。
 
 ### 7.4 Ray Tracing
 
@@ -261,7 +260,7 @@ Provider選定はArchitectureの空欄ではなく、C1でProvider-neutral stagi
 | 5 | RPG／ARPG C1 |
 | 6 | Simulation C1 |
 | 7 | media別AI Asset Provider C2 |
-| 8 | Terrain／Foliage／Water C2候補 |
+| 8 | Terrain／Foliage C2候補。Water／Snow C1・C2は専用正式仕様のGateで昇格 |
 | 9 | Multiplayer、Large World、Ray Tracingは各正式仕様とprototype承認後 |
 
 複数Genreを理由に最初の2D／3D slice前から全Packを同時実装しない。

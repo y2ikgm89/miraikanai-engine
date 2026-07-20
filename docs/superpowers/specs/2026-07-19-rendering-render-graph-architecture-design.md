@@ -10,6 +10,8 @@
 - Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
 - Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 - Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
+- Water規約: [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
+- Weather／Snow規約: [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
 - UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
 - Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
 - Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
@@ -37,6 +39,8 @@ Backend API、allocator、shader compilerはAdapterまたはToolとして利用�
 | RenderSnapshot、Render Graph、resource／pass contract、Backend mapping | 本書 |
 | Light、Shadow、Atmosphere、Fog、Cloud、Material、Visual Styleの機能と品質 | 2D／3D機能計画 |
 | VFX Asset／Graph／CPU・GPU simulation／VFX renderer binding／budget | Particle／VFX規約 |
+| Water Body／Surface／Wave／Flow／Query／Underwater／water固有budget | Water規約 |
+| Weather input／Snow Surface field／stamp／snow固有budget | Weather／Snow規約 |
 | GPU memory、handle、submission retire、frame phase、budget | 基盤／Runtime規約 |
 | Android Vulkan、Apple Metal minimum、surface lifecycle、thermal | Mobile規約 |
 | Asset import、Shader／Texture／Mesh cook、streaming | Asset規約 |
@@ -84,6 +88,9 @@ RenderSnapshot
   renderable_3d[]
   light[]
   environment
+  water_batch[]
+  weather_presentation
+  snow_surface_batch[]
   vfx_batch[]
   ui_snapshot
   debug_batch
@@ -256,6 +263,7 @@ C1の共通composition順を次で固定する。未使用Passは除去できる
 Shadow／Depth preparation
 -> 3D Opaque／Lighting
 -> Environment／Fog／Cloud
+-> Water Depth／Surface／Underwater Composite  # C2。C1 Waterは次の3D Transparentへ統合
 -> 3D Transparent／World VFX
 -> 2D World Layer
 -> World Post Process
@@ -270,6 +278,7 @@ Shadow／Depth preparation
 - UI／Textはdisplay resolutionでrenderし、World dynamic resolutionの対象外とする。
 - Editor overlayはShipping Snapshotへ含めない。
 - GPU VFX、occlusion、exposure結果をauthoritative gameplayへ戻さない。
+- Water GPU波／SSR／foamとSnow GPU fieldをauthoritative gameplayへ戻さない。Water Surface QueryとGameplay Surface Stateは各SubsystemのCPU正規契約を使う。
 
 Editor WindowではScene／Game Viewのversioned texture composite後に`MiraUiDrawPacketV1`をdisplay resolutionで描画する。MiraUIはD3D12 command list、descriptor、GPU addressを所有せず、本書のRendering Portとsubmission lifetimeへ従う。Editor UI Packet、primitive、clip、atlas、surface generationの正本はEditor UI Framework規約に置く。
 

@@ -25,6 +25,8 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Graphics | Windows Direct3D 12、Android Vulkan、Apple Metal。Engine-owned Render Graph、Material／Shader IR、Target別offline shader cookを使う |
 | 表現 | 2D、3D、`realistic_basic`、Realistic advanced、Toon、独自`pixel_diorama`を段階実装し、AI Visual Style ResolverがCapabilityとbudget内で選択する |
 | Particle／VFX | 単一の型付きVFX Asset／Graph IRから2D／3D・CPU／GPU専用Artifactをoffline生成する。初心者Stack、上級者Graph、AIは同じSourceを編集し、VFX結果をGameplayへ逆入力しない |
+| Water | C1 bounded surfaceからC2 lake／river／oceanへ段階導入し、Surface／Wave／Flow／Depth／UnderwaterとCPU Queryを専用Platformが所有する。GPU水面を浮力へ逆入力しない |
+| Weather／Snow | Weather Snapshot、降雪VFX、Snow Surfaceを分離する。C1静的mask、C2 dynamic fieldを提供し、摩擦等はauthoritative Gameplay Surface Stateが所有する |
 | 必須Subsystem | Renderer、Asset、Collision、Physics、Navigation、Animation、Input、UI／Text／Localization／Accessibility、Audio、Particle／VFX、Lighting、Sky／Atmosphere／Fog／Cloudを正式仕様で所有する |
 | 外部Library | Engineの正規data model、Capability、validation、lifecycle、serialization、Editor UXは独自所有する。OS、Graphics API、Box2D、Jolt、Recast、GPU allocator等は検証してAdapter内へ隔離し、再発明しない |
 | Physics Platform | 独自World／Body／Joint／Character／Command／Save／AI契約をC++23で所有し、2DはBox2D 3.1.1、3DはJolt 5.6.0をprivate kernel候補としてQualification後にProduction昇格する。Game／AIへVendor APIを公開しない |
@@ -48,6 +50,8 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Collision、Physics Engine、Joint、Character、Navmesh、Animation | Collision規約、独自Physics Platform規約、独自Navigation Platform規約、Physics／Navigation／Animation連携規約 |
 | Light、Fog、Cloud、Sky、Atmosphere、Shader、Material、Toon／Realistic／Pixel Diorama | Rendering規約と2D／3D機能計画 |
 | 2D／3D Particle、CPU／GPU VFX、VFX Graph、AI／Editor編集 | 独自Particle／VFX Platform規約と2D／3D機能計画 |
+| 水面、川、湖、海、波、流れ、水深、水中、浮力Query | Water Surface Platform規約と2D／3D機能計画 |
+| 雨、降雪、積雪、融雪、圧雪、足跡表示 | Weather／Snow Surface規約、Particle／VFX規約、2D／3D機能計画 |
 | Android、iOS／iPadOS、Build、Store、実機budget | モバイルPlatform規約 |
 | Codex／Claude API、MCP、CLI／Desktop、Plugin、Engine保守AI | AI実装・保守ガバナンス規約 |
 | Test、Eval、Provenance、SBOM、最新情報更新 | AI検証・評価・来歴規約 |
@@ -62,6 +66,8 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 - Physicsは「全Solver自作」でも「Vendor API直接公開」でもなく、独自の型付きPlatform契約へBox2D／Joltを隔離する方式に確定した。World／Solver全値、Joint、Character Motor、AI、Save／Replay、Qualificationの決定権を専用仕様へ分離し、Navigation／Animation連携文書との重複を解消した。
 - Navigationは「Navmesh生成／探索まで全自作」でも「Recast API直接公開」でもなく、独自契約＋交換可能Backendに確定した。2D GridはEngine-owned、3D C1はRecast／Detour 1.6.0の標準32-bit refをprivate基準Backendとし、1,024 tile×4,096 polygonで最低10 salt bitを保証する。Profile、Artifact、status、AI／Editor、Qualificationの決定権を専用仕様へ分離した。
 - Particle／VFXは4つの別Authoring Systemや万能Runtime Graphではなく、単一Source／型付きIRから2D／3D・CPU／GPU専用Artifactへspecializeする方式に確定した。C1 CPU、C2 GPU、Gameplay分離、SoA、counter RNG、Render Graph、AI／Editor、Budget、Qualificationの決定権を専用仕様へ分離した。
+- Waterは一般Transparent Material、Particle、Physicsへ暗黙分散させず、独自Water SourceからRender／CPU Query／Volume ArtifactをCookする方式に確定した。C1 bounded surface、C2 Body／wave／flow／depth／underwater、C3 fluid researchを分離した。
+- Weather／Snowは降雪Particle、地表積雪、Gameplay Surface Stateを分離し、version付きWeather SnapshotとPresentation Eventで接続する方式に確定した。C1 static mask、C2 paged dynamic field、C3 deformable snowを分離した。
 - 本レビューは文書内部の整合確認であり、Engine実装完了または技術成立の実測証明ではない。実装開始には本Review setのユーザー承認と、別のPhase 0実装計画書の承認が必要である。
 
 ### 0.3 見直し結論と未実証項目
@@ -78,6 +84,8 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 | Box2D 3.1.1／Jolt 5.6.0のTarget別Kernel Qualification、Adapter、Joint、Character、Save／Replay | Phase 0 source／build lock、Phase 3の2D C1、Phase 6の3D C1、Mobile Phase実機Gate | 当該Dimension／TargetのPhysics CapabilityをProduction表示しない |
 | Grid2D／Recast・Detour 1.6.0 Backend、Artifact、32-bit ref capacity、query status、AI／Editor | Phase 0 MCD／Backend Port、Phase 3 Grid C1、Phase 6 3D Qualification／Reference Scene、Mobile Phase実機Gate | 当該Dimension／TargetのNavigation CapabilityをProduction表示しない |
 | VFX Graph Compiler、2D／3D CPU specialization、D3D12／Vulkan／Metal GPU Artifact、indirect draw、device recovery | C0 Compiler fixture、Phase 3／6 CPU Reference Effect、Phase 8 GPU／Mobile実機Gate | 該当CPU／GPU VFX CapabilityをProduction表示しない |
+| Water Body／Surface Compiler、CPU Query、D3D12／Vulkan／Metal Water pass、buoyancy境界 | C0 schema／flat fixture、Phase 6 C1 bounded water、C2 Water Qualification、Mobile実機Gate | 該当Water CapabilityをProduction表示しない |
+| Weather Snapshot、降雪VFX、static／dynamic Snow Surface、Gameplay分離 | Phase 6 C1 snow fixture、C2 dynamic field qualification、Mobile thermal Gate | 該当Snow CapabilityをProduction表示しない |
 | 2D／3Dのframe、memory、visual、physics／navigation連携 | Phase 3／6 reference scene、10分soak、golden capture | 対応CapabilityをC1へ昇格しない |
 | Android／AppleのStore、実機、thermal、package | Phase 7 physical device／package／privacy Gate | 対象Platformを配布Targetへ昇格しない |
 | AI生成品質、安全性、Provider更新耐性 | MVP-A以降のTask Eval、holdout、adversarial、Promotion Gate | 対象Risk classまたはProviderを有効化しない |
@@ -86,7 +94,7 @@ Miraikanai Engineは、AIがEngine内部objectを直接操作するゲームエ�
 
 ## 1. 読む順序
 
-Miraikanai Engineの公式Review setは次の26文書である。上位のProduct判断から共通契約、Subsystem固有契約、検証規約の順に読む。
+Miraikanai Engineの公式Review setは次の28文書である。上位のProduct判断から共通契約、Subsystem固有契約、検証規約の順に読む。
 
 1. [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
 2. [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
@@ -100,20 +108,22 @@ Miraikanai Engineの公式Review setは次の26文書である。上位のProduc
 10. [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
 11. [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
 12. [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
-13. [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
-14. [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
-15. [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
-16. [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
-17. [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
-18. [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
-19. [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-20. [Miraikanai Engine Audio／Mixer／Spatial規約](./2026-07-19-audio-mixer-spatial-architecture-design.md)
-21. [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
-22. [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
-23. [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
-24. [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
-25. [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
-26. [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
+13. [Miraikanai Engine Water Surface Platformアーキテクチャ規約](./2026-07-20-water-surface-platform-architecture-design.md)
+14. [Miraikanai Engine Weather／Snow Surfaceアーキテクチャ規約](./2026-07-20-weather-snow-surface-architecture-design.md)
+15. [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
+16. [Miraikanai Engine 独自Physics Platform／Dynamicsアーキテクチャ規約](./2026-07-20-physics-engine-architecture-design.md)
+17. [Miraikanai Engine 独自Navigation Platformアーキテクチャ規約](./2026-07-20-navigation-platform-architecture-design.md)
+18. [Miraikanai Engine Physics／Navigation／Animation連携規約](./2026-07-19-physics-navigation-animation-architecture-design.md)
+19. [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
+20. [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
+21. [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+22. [Miraikanai Engine Audio／Mixer／Spatial規約](./2026-07-19-audio-mixer-spatial-architecture-design.md)
+23. [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
+24. [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
+25. [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+26. [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
+27. [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
+28. [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 
 `2026-07-18-codex-config-optimization-design.md`は開発者個人のCodex設定資料であり、Engineの製品・Runtime・Editor・AI契約に対する決定権を持たず、公式Review setへ含めない。
 
@@ -133,6 +143,8 @@ Miraikanai Engineの公式Review setは次の26文書である。上位のProduc
 | Asset Pipeline／Content Package規約 | Source／Import／Derived／Package、Importer隔離、Catalog／VFS、Cook、Patch／DLC、AI Asset来歴 |
 | Rendering／Render Graph規約 | RenderSnapshot、extract、Render Graph、resource／pass／access、Backend、同期、device loss |
 | 独自Particle／VFX Platform規約 | VFX Asset／Emitter／Graph／IR、2D／3D・CPU／GPU specialization、Runtime、Renderer binding、AI／Editor、Budget、Diagnostic、Qualification |
+| Water Surface Platform規約 | Water Body／Surface／Volume、Wave／Flow／Depth、CPU Query、Underwater、VFX／Physics境界、Budget、Qualification |
+| Weather／Snow Surface規約 | Weather Snapshot、降雪VFX接続、static／dynamic積雪、融雪／圧雪／stamp、Gameplay分離、Budget、Qualification |
 | Collision／Collider規約 | Body／Collider／Shape／Material／Filter、Query、Contact／Trigger、Cook、Editor／AI操作 |
 | 独自Physics Platform／Dynamics規約 | Physics World、Solver Profile、Kernel Qualification、Dynamics、Joint／Constraint、Character Motor、Physics Save／Replay、Physics Editor／AI |
 | 独自Navigation Platform規約 | Grid2D、3D Navmesh、Backend lock／Port、Profile、Artifact、query status、capacity、AI／Editor、Qualification、完全自作研究Gate |
@@ -160,7 +172,7 @@ Miraikanai Engineの公式Review setは次の26文書である。上位のProduc
 
 実装計画書の作成へ進む前に、次をすべて満たす。
 
-- ユーザーが公式Review set 26文書の方向性をReviewし、修正点または承認を返す。
+- ユーザーが公式Review set 28文書の方向性をReviewし、修正点または承認を返す。
 - 文書間Link、Heading anchor、Table、Code fence、規範語の機械検査が通る。
 - C0／C1に必要な選択が暗黙Defaultになっておらず、外部artifactから取得する値には取得手順、Owner、Block条件がある。
 - Authoring、Runtime、Renderer、Asset、Editor、Input、UI、Audio、Physics、Navigation、Animation、Platform、AIの境界にOwner、入力、出力、phase、budget、failure、testが定義されている。
