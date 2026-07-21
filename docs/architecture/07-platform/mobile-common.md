@@ -47,7 +47,25 @@ ProjectMobileSpec
   content_safety_profile_ref
 ```
 
-`profile_revision`不一致、unknown Capability、禁止permission、Target別aggregate cap超過、minimum deviceとCooked artifact要求の不整合はCook前に拒否する。`CapabilitySignature`はOS／device class、GPU feature、memory class、display、input／audio availability、thermal sourceをEngine-owned enum／valueへ正規化し、vendor objectやdisplay名を永続化しない。
+`profile_revision`不一致、unknown Capability、禁止permission、Target別aggregate cap超過、minimum deviceとCooked artifact要求の不整合はCook前に拒否する。Android／Appleが共通して生成し、ResolverとQualificationが消費する型は次の`MobileCapabilitySignatureV1`だけである。
+
+```text
+MobileCapabilitySignatureV1
+  schema_version
+  target_profile_ref
+  toolchain_profile_ref
+  device_identity
+  os_capabilities
+  cpu_abi
+  gpu_capabilities
+  memory_class
+  display_capabilities
+  input_capabilities
+  audio_capabilities
+  thermal_capabilities
+```
+
+各値はEngine-owned enum／valueへ正規化し、vendor objectやdisplay名を永続化しない。Android／Apple ownerは観測値の写像だけを所有し、このfield setを再定義しない。旧`CapabilitySignature`、`PlatformCapabilitySignature`、別綴りのalias、union受理は行わない。
 
 Store要件の時点依存dataは共通参照schemaだけを持つ。
 
@@ -61,6 +79,8 @@ StorePolicyLock
 ```
 
 Android／Appleのrequirement値、refresh／submission procedureは各Platform ownerが決定し、external version／URLはToolchain ownerのsource refへ解決する。
+
+`StorePolicyLock`はMobile Store要件の唯一の物理schemaである。Android／Appleはこの型への参照とPlatform固有requirement値だけを所有し、`store_policy.lock`その他の別schemaを定義または受理しない。
 
 旧`MobileSigningReceiptV1`のcross-platform aliasは、signing procedureをCommonへ逆流させるためduplicate-removeする。Androidは`AndroidSigningReceiptV1`、Appleは`AppleSigningReceiptV1`を各Ownerで定義し、共通provenanceへの接続だけを[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)へ委譲する。
 
@@ -101,11 +121,39 @@ OS process killとtermination callback不達を前提とする。Saveはexplicit
 
 initial Mobile Runtimeはbackground simulation、network tick、Asset decodeを行わず、Platformが許すbounded checkpoint完了だけを使う。background audio／location／Bluetooth等はactivated `PlatformServiceCapability`なしに有効化しない。
 
+Platform Adapter破棄順は、callback停止、新規submission停止、queue drain／timeout、resource retire、device／surface解放の順で固定する。順序を入れ替えず、timeout後も未完了submissionが参照するresourceを先に解放しない。停止後に届いたcallbackと古い`SurfaceGeneration`のworkはcommitせず、diagnosticへgeneration、submission serial、timeout reasonを記録する。
+
 ## 5. Renderer境界とAsset delivery
 
-Mobileは[Render Graph](../06-rendering/render-graph.md)の`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、`AntiAliasingResolutionErrorV1`、`TemporalFrameInputV1`、`ResolvedRendererProfileV1`、`GpuSubmissionSerial`、Provider排他、history reset、real／displayed frame分離を変更しない。本書はTarget Profile／Capability Signature／memory・thermal signalをResolverへ渡し、backend barrier、clip／depth、resource lifetime、AA／upscale／frame-generation algorithmを再定義しない。
+Mobileは[Render Graph](../06-rendering/render-graph.md)の`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、`AntiAliasingResolutionErrorV1`、`TemporalFrameInputV1`、`ResolvedRendererProfileV1`、`GpuSubmissionSerial`、Provider排他、history reset、real／displayed frame分離を変更しない。本書はTarget Profile／`MobileCapabilitySignatureV1`／memory・thermal signalと、以下のMobile選択policyをResolverへ渡す。Render Graphはexecution、backend barrier、clip／depth、resource lifetime、AA／upscale／frame-generation algorithmを所有する。
 
 Mobile baselineへWindows-only backend、ray／neural technique、unqualified temporal Providerを要求しない。`VirtualShadowBackendV1`、`RayTracedShadowBackendV1`、`ProjectShadowTechniqueV1`はMobile Capability Catalogへ暗黙登録せず、[Render Graph](../06-rendering/render-graph.md)のactivation／resolver contractへ委譲する。unsupported combinationは`UnsupportedByTarget`としてfail closedし、explicit fallbackとomitted reasonを返す。UI／text／pixel-locked layerはWorld dynamic resolutionやtemporal processingの対象外である。Target固有Vulkan／Metal mappingとdevice fixtureは各Platform ownerが持つ。
+
+### 5.1 Frames-in-flightとAA選択
+
+Frames-in-flightは`mobile_baseline`を2、`mobile_standard`と`mobile_high`を3に固定する。Profile外の値を拒否し、全submission完了前にtransient arena、upload ring、binding rangeをresetしない。
+
+- `balanced | low_gpu_cost`: Baseline既定はFXAAであり、実機Gateなしにtemporal methodを自動選択しない。
+- `minimum_blur | minimum_ghosting | vr_low_latency`: qualification済みForward+ MSAA 2x／4xだけを候補にする。
+- MSAA 8xは`mobile_high`またはoffline capture C2だけに許可し、AI自動選択から除外する。SMAA 1xはC2であり、Baseline必須にしない。
+- `pixel_crisp`: pixel-locked layerへWorld AAを適用せず、最終解像度で合成する。
+- unsupported combinationは`AntiAliasingResolutionErrorV1::UnsupportedByTarget`で失敗し、明示的fallbackを表示する。
+
+### 5.2 Dynamic resolution
+
+| Profile | 最大pixel数 | 基準解像度 |
+|---|---:|---:|
+| `mobile_baseline` | 921,600 | 1280×720 |
+| `mobile_standard` | 2,073,600 | 1920×1080 |
+| `mobile_high` | 3,686,400 | 2560×1440 |
+
+Dynamic resolutionは5%刻み、下限50%とする。直近30 frame中12 frame以上がGPU soft targetを超えるか、Memory／Thermalが`Serious`以上なら直ちに一段下げる。GPUがtargetの80%未満かつMemory／Thermalが`Normal`の状態が15秒連続した場合だけ一段上げ、変更は最大毎秒一段とする。UI、text、pixel-locked layerへ適用しない。temporal method使用時はresolution step、orientation、surface generation、projection、jitter sequence、camera cutのいずれかが変化したframeでhistoryをresetし、reason codeを記録する。
+
+### 5.3 Frame Generation
+
+Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameがCPU／GPU P95とも16.67 ms以下、real 60 fps、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。touch-to-photonは1000 fps以上のhigh-speed cameraで`240 tap×5 run`を採取し、touch contact frameから指定flash regionの最初の輝度変化までを測る。各runのnearest-rank P95のmedianを判定値とし、Provider-off比の劣化8.33 ms以下かつ絶対値83.33 ms以下を要求する。Receiptがなければ失敗する。30 fps入力をdisplayed 60 fpsにした結果を60 fps capabilityと表示しない。pixel-locked 2D、fullscreen menu、loading、pause、camera cut、rotation／resize／surface regenerationでは無効化する。
+
+### 5.4 Asset delivery
 
 共通delivery manifestは次である。
 
@@ -131,7 +179,7 @@ Touch OS IDは保存せず、contact開始から終了まで有効なgeneration 
 
 Editor／AIはTarget／Distribution selector、Capability Matrix、phone／tablet／foldable／safe-area／cutout／orientation preview、touch／controller／software keyboard simulation、World／UI resolution、memory／frame／thermal status、Package Inspector、Platform impact／fallbackを同じProject snapshotから表示する。
 
-`DeviceDebugHandshakeV1`はEngine protocol、Build、Project revision、Target、device identity、requested recording tier、retention boundを照合する。認証済みlocal bridgeは一台、一session、bounded timeだけ接続し、compatible GameplayDefinitionSet、structured data、already-cooked Assetだけをhot reloadする。C++、shader、native pluginはrebuild／reinstallする。切断時はcomplete chunkだけをread-only確定し、欠落rangeをgapとして残す。Shipping scanはdevice bridge、debug server、IDE attach、validation layer、raw trace、compiler、source path、credentialを拒否する。
+`DeviceDebugHandshakeV1`はEngine protocol、Build、Project revision、Target、device identity、requested recording tier、retention boundを照合する。認証済みlocal bridgeはUserが選択した一台、一Session、一時間だけ接続し、compatible GameplayDefinitionSet、structured data、already-cooked Assetだけをhot reloadする。二台目または二つ目のSessionを拒否し、一時間到達時は新規captureを停止する。C++、shader、native pluginはrebuild／reinstallする。切断または期限到達時は受信済みcomplete chunkだけをread-only確定し、missing rangeをgapとして残す。Shipping scanはdevice bridge、debug server、IDE attach、validation layer、raw trace、compiler、source path、credentialを拒否する。
 
 ## 7. Memory、thermal、privacy、Runtime AI
 
@@ -161,9 +209,11 @@ Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけ
 | Asset chunk hash／signature／dependency mismatch | mount拒否、last-valid namespace維持 |
 | memory Exhausted／thermal Critical | authoritative stateを維持して縮退、不能ならcheckpoint後safe exit |
 | device bridge mismatch／gap | session拒否またはcomplete chunkだけ確定 |
+| device bridgeの二台目／二Session目／一時間超過 | 接続拒否またはcapture停止、complete chunkをread-only確定しmissing rangeをgap化 |
+| Platform Adapter破棄順違反 | qualification失敗、device／surfaceの早期解放を禁止し順序とtimeout reasonを診断 |
 | executable content in delivered Asset | package／mount拒否 |
 | Runtime AI validation／moderation failure | Project／Save不変、last-valid content維持 |
 
-共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、structured-data rollbackを含む。
+共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、structured-data rollbackを含む。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
 
 Minimum／Reference実機は同一commit、package、input traceでlifecycle、Save、Input、Audio、graphics golden、memory、thermal、deliveryを測る。Emulator／Simulatorはfunctional smoke専用で、GPU、audio／touch latency、memory、thermalの合否に使わない。Evidence envelope、run grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが所有する。

@@ -35,21 +35,25 @@ required device capabilityはToolchain profileのarm64／Metal／minimum perform
 
 InputはUIKit touch／pointerをprimary path、Game Controllerをoptional device pathとして[Input](input.md)の`DeviceReading`／Actionへ正規化する。controller-required Gameでもprimary menu／play操作にtouch fallbackを持つ。text composition、selection、software keyboardは`ITextInputService`へ集約する。motion inputはactivated Capability、privacy declaration、sampling budgetがある場合だけ使う。
 
+Appleの頻繁に使うinteractive targetは44×44 pt以上、補助targetも28×28 pt未満にしない。text既定は17 pt、意図的な補助textも11 pt未満にしない。実際のhit rectangle、safe area、Dynamic Type／large text、隣接targetとの分離をdevice fixtureで検証する。
+
 Audioは`AVAudioSession`でcategory／route／interruption、AudioUnit callbackで[Audio](audio.md)のMixer／PCM ringを接続する。interruption、route change、media service resetはgeneration付きvalue eventにし、callback内allocation、lock、log、World callを禁止する。
 
 Metal Adapterはheap／memoryless attachment、offline shader library／binary archive、command buffer completionを[Render Graph](../06-rendering/render-graph.md)へ写像する。drawable、command buffer、resourceはsubmission serial完了前にreuse／releaseしない。drawable timeout、background、device faultを別failureにする。
 
-AA／temporal／dynamic resolution／history reset／provider resolverはRender Graph ownerを参照する。Appleはfeature family、sample count、tile memory／bandwidth、format／resolve、API availability、device resultを`CapabilitySignature`とQualification Receiptへ供給し、MSAA、MetalFX、indirect、mesh／ray／neural techniqueを実機Gateなしで有効化しない。minimum deviceにないoptional converter／argument featureをbaseline shader pathへ要求しない。
+AA／temporal／dynamic resolution／history reset／provider resolverはRender Graph ownerを参照し、MobileのFrames-in-flight、AA intent、dynamic resolution、Frame Generation選択policyは[Mobile Common](mobile-common.md)を参照する。Appleはfeature family、sample count、tile memory／bandwidth、format／resolve、API availability、device resultを[Mobile Common](mobile-common.md)の`MobileCapabilitySignatureV1`とQualification Receiptへ供給し、共通field setを再定義しない。MSAA、MetalFX、indirect、mesh／ray／neural techniqueを実機Gateなしで有効化せず、minimum deviceにないoptional converter／argument featureをbaseline shader pathへ要求しない。
 
 offline shader pathはToolchain lockのportable sourceからintermediate、MSL、Metal libraryへ変換する。Shippingへcompiler、shader source、authoring reflectionを含めない。unqualified Target-limited Materialはexplicit fallbackとvisual diffなしにCookしない。
 
 process physical footprint、available memory、memory warning、Metal allocated size、allocator domainを別系列として取得し、Mobile Common aggregate capへ判定する。thermal signalは`Nominal | Warm | Serious | Critical`へ変換する。Development sanitizer、thread／main-thread checker、Metal validationは別jobで実行し、同時有効化でfailure sourceを混同しない。
 
+Shipping crash report metadataはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed frame／tick、memory／thermal levelを含む。personal informationとconversation bodyは含めず、credential、token、signing keyの除外をpackage／device fixtureで検証する。
+
 ## 3. Asset packaging、privacy、runtime content
 
 `apple_bundle_v1`は`install`をapp bundle、`essential | prefetch | on_demand`を同名policyのself-hosted unmanaged deliveryへ写像する。`essential`を使用しないProjectはfirst playableに必要な全Assetを`install`へ含める。deprecated delivery mechanismを新規採用しない。
 
-`apple_managed_assets_v1`はToolchain／Store policyが許す別minimum-OS variantだけでApple-hosted managed deliveryを使う。bundle variantとmanaged variantのTarget／Distribution ref、package、TestFlight lane、Save compatibilityを分離する。Store size／pack limitsとminimum OSは`store_policy.lock`からvalidatorへ注入し、本書へ時点依存値を複写しない。
+`apple_managed_assets_v1`はToolchain／Store policyが許す別minimum-OS variantだけでApple-hosted managed deliveryを使う。bundle variantとmanaged variantのTarget／Distribution ref、package、TestFlight lane、Save compatibilityを分離する。Store size／pack limitsとminimum OSは[Mobile Common](mobile-common.md)の唯一の共通schema `StorePolicyLock`からvalidatorへ注入し、本書に物理lock schemaや時点依存値を複写しない。
 
 `AssetChunkManifest`のsize、content hash、signature、dependency closure、Target Profileが全合格するまでmountしない。delivery packageへMach-O、dynamic library、shader source／runtime compiler、その他executable contentを混入しない。初回起動にはtutorialまたはmeaningful first playableをinstall contentとして含め、空のdownloader screenだけにしない。
 
@@ -85,7 +89,7 @@ Remote Apple serviceはmutual-authenticated transportでrole別versioned RPC `st
 
 Minimum laneはToolchain profileのminimum iPhone一台とiPad一台、Reference laneはnewer phone／tablet class、High laneはoptional graphics／high-refresh classとする。device交換はsame commit／package／input traceのbridge baselineを残す。Simulatorはfunctional smokeだけで、GPU、audio／touch latency、memory、thermal合否に使わない。
 
-Apple fixtureはclean install／upgrade、cold／warm start、inactive／background／foreground、termination Save recovery、scene／surface recreation、rotation／safe area、touch／controller／IME、audio route／interruption／media reset、offline Asset interruption／resume／hash mismatch、physical footprint pressure、Metal allocation failure、thermal／battery saver、shader／golden、archive／entitlement／Privacy Manifest、TestFlight installを含む。10分performance、30分thermal、2時間enduranceをphysical deviceで行う。
+Apple fixtureはclean install／upgrade／uninstall／reinstall、cold／warm start、inactive／background／foreground、termination Save recovery、scene／surface recreation、rotation／safe area、touch／controller／IME、audio route／interruption／media reset、offline Asset interruption／resume／hash mismatch、physical footprint pressure、Metal allocation failure、thermal／battery saver、shader／golden、archive／entitlement／Privacy Manifest、TestFlight installを含む。touch／text fixtureは頻用44×44 pt、補助28×28 pt、既定17 pt、補助11 ptの各下限を検証する。uninstall／reinstall後にstale local stateを復活させず、Distribution／Save compatibility policyどおりの初期状態になることを検証する。Shipping crash fixtureはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed frame／tick、memory／thermal levelの存在と、personal information／conversation body／credentialの不在を検証する。10分performance、30分thermal、2時間enduranceをphysical deviceで行う。
 
 | Failure | 結果 |
 |---|---|
@@ -94,6 +98,9 @@ Apple fixtureはclean install／upgrade、cold／warm start、inactive／backgro
 | Metal capability不足 | `UnsupportedDevice`、launch拒否 |
 | drawable unavailable | surface unavailableとして待機、GPU faultと混同しない |
 | Metal execution fault | diagnostic＋Save保護、safe fault／exit |
+| control／text minimum違反 | UI／device qualification失敗、release block |
+| crash metadata不足／private data混入 | crash／privacy qualification失敗、release block |
+| uninstall／reinstall fixture不一致 | stale stateを採用せず、release block |
 | privacy／entitlement／provisioning mismatch | signing／release block |
 | signing separation conformance failure | Cloud backendまたはfail closed |
 | Asset partial／hash／dependency failure | mount拒否、last-valid維持 |

@@ -11,7 +11,7 @@
 
 `android_mobile_v1`はphone／tablet／foldableのShipping Target、`android_play_v1`はGoogle Play Distribution Profileである。minimum／compile／target API、ABI、Vulkan Profile、NDK、Gradle／AGP、Build Tools、JDK、CMake／Ninja、AndroidX Games、Oboeのexact valuesは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のAndroid baselineだけが所有する。本書はそれらをProfile、Build、packageへ写像する。
 
-Shipping ABIはToolchain profileのprimary arm64 ABIだけ、secondary ABIはDevelopment／CIだけに許可する。STLはToolchain profileが指定する一種へappとnative dependencyを統一する。Runtime probeとpackage inspectionはresolved OS／ABI／graphics requirementsを`CapabilitySignature`へ記録し、不足をquality fallbackで隠さない。
+Shipping ABIはToolchain profileのprimary arm64 ABIだけ、secondary ABIはDevelopment／CIだけに許可する。STLはToolchain profileが指定する一種へappとnative dependencyを統一する。Runtime probeとpackage inspectionはresolved OS／ABI／graphics requirementsを[Mobile Common](mobile-common.md)の`MobileCapabilitySignatureV1`へ記録し、不足をquality fallbackで隠さない。AndroidはPlatform観測値の写像だけを所有し、共通field setを再定義しない。
 
 正規DriverはToolchain ownerの`android_gradle_ninja_v1`である。checked-in WrapperがAndroid resource、manifest merge、DEX、native external build、APK／AAB assemblyを統括し、CMake／Ninjaはfirst-party C++ targetとnative artifactだけを所有する。Editor、AI、CIはBuild GatewayからDriverを呼び、raw `ninja`、`cmake -G`、daemon内部path、`ndk-build`、Makefiles系をProduct Build入口にしない。
 
@@ -36,7 +36,9 @@ JNI local referenceはcall scope、global referenceはRAII wrapper、thread atta
 
 InputはGameActivity bufferをproducer／consumerでswapし、touch／key／mouseを[Input](input.md)の`DeviceReading`と`InputSnapshot`へ正規化する。Toolchain lockのcontroller Adapterはeventを同じAction mapへforwardし、Platform buttonをGameplayへ出さない。IME compositionはGameTextInput経由の`TextCompositionEvent`へ写像し、Back gesture／system navigationをGame Actionへ混同しない。
 
-Audioは[Audio](audio.md)のMixer／PCM ringをToolchain lockのAndroid output Adapterへ接続する。actual backend、sample rate、burst、latency、xrunをCapability Signatureへ記録する。callback内allocation、mutex、file I/O、log、JNI、Asset lookupは禁止し、route／focus／lifecycle eventはAudio control threadへvalue eventとして渡す。
+Androidのprimary interactive targetは48×48 dp以上とする。視覚glyphだけでなく実際のhit rectangleで満たし、safe area、display scale、large text、隣接targetとの分離を含むUI fixtureで検証する。
+
+Audioは[Audio](audio.md)のMixer／PCM ringをToolchain lockのAndroid output Adapterへ接続する。actual backend、sample rate、burst、latency、xrunを`MobileCapabilitySignatureV1`へ記録する。callback内allocation、mutex、file I/O、log、JNI、Asset lookupは禁止し、route／focus／lifecycle eventはAudio control threadへvalue eventとして渡す。
 
 frame pacing AdapterはToolchain lockのAndroidX Games Frame Pacingをpresent timingへ使用し、busy wait／fixed sleep capを禁止する。Controller／Frame Pacing／GameActivity objectはprivate Adapterから公開しない。
 
@@ -48,7 +50,7 @@ Manifest filter、Play Device Catalog exclusion、Runtime Capability probeの三
 
 orientation changeはswapchain transformとprojectionでpre-rotationし、compositorの余分なrotationを避ける。validation layerはDevelopment packageだけに含める。device lostは同一sessionで無条件復旧せず、crash-safe diagnosticとSaveを保護してrender fault画面またはsafe exitへ移る。
 
-Render Graph、resource access／barrier、`GpuSubmissionSerial`、AA／temporal resolver、dynamic resolution、history reset、provider qualificationは[Render Graph](../06-rendering/render-graph.md)を参照する。AndroidはVulkan feature／format／sample count／tile memory／bandwidth／driver結果を`CapabilitySignature`とQualification Receiptへ供給し、MSAA、temporal、frame generation、ray／neural techniqueを実機Gateなしで有効化しない。
+Render Graph、resource access／barrier、`GpuSubmissionSerial`、AA／temporal resolver、dynamic resolution、history reset、provider qualificationは[Render Graph](../06-rendering/render-graph.md)を参照し、MobileのFrames-in-flight、AA intent、dynamic resolution、Frame Generation選択policyは[Mobile Common](mobile-common.md)を参照する。AndroidはVulkan feature／format／sample count／tile memory／bandwidth／driver結果を`MobileCapabilitySignatureV1`とQualification Receiptへ供給し、MSAA、temporal、frame generation、ray／neural techniqueを実機Gateなしで有効化しない。
 
 offline shader pipelineはToolchain lockのportable source、compiler、validator、optimizerを使い、SPIR-V artifactとminimum reflection metadataだけをpackageする。Shippingへcompiler、shader source、authoring reflectionを含めない。`portable_mobile_v1`はmesh／ray、unbounded bindless、wave-size依存、geometry／tessellationをrequired featureにせず、unsupported materialはexplicit Target fallbackなしにCookしない。
 
@@ -69,7 +71,7 @@ Android packageはAABを正規Shipping artifactとする。`UnsignedMobilePackag
 | `prefetch` | fast-follow asset pack |
 | `on_demand` | on-demand asset pack |
 
-baseへ収まらない`install`を自動で`essential`へ変えない。Asset packへnative library、DEX、shader source／binary／pipelineその他のexecutable contentを入れない。Play size／pack／cellular confirmation limitは`store_policy.lock`からvalidatorへ注入し、本書に時点依存値を複写しない。partial／hash mismatch／dependency mismatchはmountせずlast-valid namespaceを維持する。
+baseへ収まらない`install`を自動で`essential`へ変えない。Asset packへnative library、DEX、shader source／binary／pipelineその他のexecutable contentを入れない。Play size／pack／cellular confirmation limitは[Mobile Common](mobile-common.md)の唯一の共通schema `StorePolicyLock`からvalidatorへ注入し、本書に物理lock schemaや時点依存値を複写しない。partial／hash mismatch／dependency mismatchはmountせずlast-valid namespaceを維持する。
 
 default permissionは0である。Capabilityからmanifest candidateを生成するが、用途、user explanation、privacy declaration、authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)のdecision refがなければShipping manifestへ反映しない。unused permission、background mode、URL scheme、undeclared serviceをpackage inspectionで拒否する。
 
@@ -81,7 +83,7 @@ Signing Serviceはfixed unsigned AABとgovernance ownerのRelease decision ref�
 
 Minimum laneはToolchain profileのminimum API／Vulkan Profileに合格するarm64 Adreno系1台とMali系1台、Reference laneはcurrent profileのphone／tablet／foldable、High laneはoptional graphics／high-refresh Profileとする。device交換はsame commit／package／input traceのbridge baselineを残す。Emulatorはfunctional smokeだけに使う。
 
-Android fixtureはclean install／upgrade／uninstall、cold／warm start、background／foreground、process kill Save recovery、surface loss／rotation／resize／fold、touch／controller／IME、audio route、offline、PAD interruption／resume／hash mismatch、PSS pressure、GPU allocation failure、thermal／battery saver、Vulkan variant／golden、16 KiB package、permission／privacy scanを含む。10分performance、30分thermal、2時間endurance runをphysical deviceで行う。
+Android fixtureはclean install／upgrade／uninstall、cold／warm start、background／foreground、process kill Save recovery、surface loss／rotation／resize／fold、touch／controller／IME、audio route、offline、PAD interruption／resume／hash mismatch、PSS pressure、GPU allocation failure、thermal／battery saver、Vulkan variant／golden、16 KiB package、permission／privacy scanを含む。touch fixtureはprimary interactive targetの実hit rectangleが48×48 dp以上であることを検証する。10分performance、30分thermal、2時間endurance runをphysical deviceで行う。
 
 | Failure | 結果 |
 |---|---|
@@ -90,6 +92,7 @@ Android fixtureはclean install／upgrade／uninstall、cold／warm start、back
 | Vulkan baseline不足 | `UnsupportedDevice`、launch拒否 |
 | Vulkan device lost | diagnostic＋Save保護、safe fault／exit |
 | 16 KiB alignment failure | package promotion拒否 |
+| primary interactive targetが48×48 dp未満 | UI／device qualification失敗、release block |
 | PAD partial／hash／dependency failure | mount拒否、last-valid維持 |
 | permission／Data Safety mismatch | release block |
 | debug／source／dynamic code混入 | release block |

@@ -53,7 +53,23 @@ WindowsDesktopTargetProfileV1
   crash_profile_id
 ```
 
-起動時にOS build、CPU architecture、D3D feature、SM、driver、memory budget、display、audio／input availabilityを`PlatformCapabilitySignature`へ記録する。Hard requirement不足は起動を止め、quality fallbackでTarget不足を隠さない。
+```text
+WindowsCapabilitySignatureV1
+  schema_version
+  target_profile_ref
+  toolchain_profile_ref
+  os_build_observation
+  cpu_architecture
+  graphics_feature_observation
+  shader_capability_observation
+  driver_identity
+  memory_budget
+  display_capabilities
+  audio_availability
+  input_availability
+```
+
+起動時にOS build、CPU architecture、D3D feature、SM、driver、memory budget、display、audio／input availabilityを`WindowsCapabilitySignatureV1`へ記録する。これはMobileの`MobileCapabilitySignatureV1`とは別のclosed typeであり、旧`PlatformCapabilitySignature`、旧`CapabilitySignature`、alias、別綴りを受理しない。Hard requirement不足は起動を止め、quality fallbackでTarget不足を隠さない。
 
 OS Support期間と累積更新要件はToolchain ownerのPlatform policy lockを参照し、本書は固定build、取得先、更新周期を再定義しない。
 
