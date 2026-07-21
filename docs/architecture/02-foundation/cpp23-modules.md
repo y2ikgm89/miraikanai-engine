@@ -534,9 +534,9 @@ Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／C
 ## 20. 一次資料
 
 - Compiler、CMake、Ninja、SDKのversion別Evidenceは[Toolchain／Dependencies](toolchain-dependencies.md)を参照する。
-- [Microsoft C++ `module`／`import`／`export`](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module?view=msvc-170)
-- [Microsoft Header／PCH／Header Unit／Named Module比較](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods?view=msvc-170)
-- [Microsoft Standard Library Module tutorial](https://learn.microsoft.com/en-us/cpp/cpp/tutorial-import-stl-named-module?view=msvc-180)
+- [Microsoft C++ `module`／`import`／`export`](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module)
+- [Microsoft Header／PCH／Header Unit／Named Module比較](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods)
+- [Microsoft Standard Library Module tutorial](https://learn.microsoft.com/en-us/cpp/cpp/tutorial-import-stl-named-module)
 - [Ninja manual](https://ninja-build.org/manual.html)
 - [Android CMake／Ninja configuration](https://developer.android.com/studio/projects/configure-cmake)
 - [WG21 P2564R3 `consteval` needs to propagate up](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2564r3.html)

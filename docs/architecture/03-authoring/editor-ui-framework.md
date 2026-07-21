@@ -769,7 +769,7 @@ C1独自Editor UI Frameworkは次をすべて満たした時点で完了する�
 
 | 判断 | 一次資料 |
 |---|---|
-| 複雑なEditor UIにはRetained tree、Layout、debug toolingが必要 | [Unity UI Toolkit](https://docs.unity3d.com/2023.2/Documentation/Manual/UIElements.html)、[Unity 6.5 UI systems comparison](https://docs.unity3d.com/Manual/UI-system-compare.html) |
+| 複雑なEditor UIにはRetained tree、Layout、debug toolingが必要 | [Unity UI Toolkit](https://docs.unity3d.com/Manual/UIElements.html)、[Unity UI systems comparison](https://docs.unity3d.com/Manual/UI-system-compare.html) |
 | 独自C++ Editor UI FrameworkとDockingは成立する | [Unreal Engine Slate Overview](https://dev.epicgames.com/documentation/unreal-engine/slate-overview-for-unreal-engine?lang=en-US)、[Slate Widget Reflector](https://dev.epicgames.com/documentation/unreal-engine/using-the-slate-widget-reflector-in-unreal-engine?lang=en-US) |
 | Engine自身のRenderer／UIでC++ Editorを構築できる | [Godot Introduction to editor development](https://docs.godotengine.org/en/stable/engine_details/editor/introduction_to_editor_development.html)、[Godot UI toolkit FAQ](https://docs.godotengine.org/en/latest/about/faq.html#what-user-interface-toolkit-does-godot-use) |
 | Qtを利用するEngine Editorもあるが、本Projectはこの方式を選ばない | [O3DE Tools UI Developer's Guide](https://www.docs.o3de.org/docs/tools-ui/) |

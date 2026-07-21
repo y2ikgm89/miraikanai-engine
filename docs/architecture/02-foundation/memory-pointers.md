@@ -362,7 +362,6 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 | [Unreal Engine Memory and CPU Performance Considerations](https://dev.epicgames.com/documentation/en-us/unreal-engine/common-memory-and-cpu-performance-considerations-in-unreal-engine) | poolは生成破棄costをprofileしたobjectだけに使用する |
 | [Unity Managed Memory](https://docs.unity3d.com/jp/current/Manual/performance-managed-memory-introduction.html) | GC allocation／collection spikeをMiraikanai hot pathへ導入しない |
 | [Unity Unmanaged Memory](https://docs.unity3d.com/ja/current/Manual/performance-unmanaged-memory.html) | temporary、job、persistent allocationを寿命で分ける |
-| [Unity Entities Archetypes](https://docs.unity.cn/Packages/com.unity.entities%401.0/manual/concepts-archetypes.html) | 16 KiB archetype chunkとComponent別連続配列を基準にする |
-| [Unity Entity Handle](https://docs.unity.cn/Packages/com.unity.entities%400.16/api/Unity.Entities.Entity.html) | recycled indexをversionで検証する |
+| [Unity ECS](https://unity.com/ecs) | archetype単位のdata-oriented layoutと軽量なEntity identityを用途別型へ閉じる |
 | [Godot Object ownership](https://docs.godotengine.org/en/stable/engine_details/architecture/object_class.html) | 非ownerの長期保持にraw pointerを使わずIDへ変換する |
 | [Godot RID](https://docs.godotengine.org/en/stable/classes/class_rid.html) | low-level resourceをsession-local opaque handleで公開する |

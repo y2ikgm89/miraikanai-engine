@@ -422,8 +422,8 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785.html)
 - [O3DE Asset Pipeline](https://docs.o3de.org/docs/user-guide/assets/pipeline/)
 - [O3DE Product Assets and deterministic generation](https://docs.o3de.org/docs/user-guide/assets/pipeline/product-assets/)
-- [Unity 6.3 LTS Undo API](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Undo.html)
-- [Unreal Engine 5.8 Transactions](https://dev.epicgames.com/documentation/en-us/unreal-engine/BlueprintAPI/Transactions/BeginTransaction)
-- [Godot 4.7 Running code in the editor](https://docs.godotengine.org/en/4.7/tutorials/plugins/running_code_in_the_editor.html)
+- [Unity Undo API](https://docs.unity3d.com/ScriptReference/Undo.html)
+- [Unreal Engine Transactions](https://dev.epicgames.com/documentation/en-us/unreal-engine/BlueprintAPI/Transactions/BeginTransaction)
+- [Godot Running code in the editor](https://docs.godotengine.org/en/stable/tutorials/plugins/running_code_in_the_editor.html)
 
 外部EngineのProject formatやPrefab実装は採用しない。UnityのEditor変更をUndoへ登録する原則、UnrealのEditor transaction、Godotの永続化owner／unsaved／Undoを明示する原則をEvidenceとし、Miraikanaiでは全経路を`ProjectChangeSet`、`AuthoringSelectionContextV1`、Scene永続化ownerへ統合する。SourceとDerivedの分離、安定ID、決定論的生成を含め、Document、ChangeSet、Commit、Projectionは本書で独自に定義する。

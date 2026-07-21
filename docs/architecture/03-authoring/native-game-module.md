@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
 - 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、Runtime scheduling／lifetime（canonical target `../04-runtime/scheduling-lifetime.md`）、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -28,7 +28,7 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 | C++／GameplayDefinition選択、GameSystemSpecV1、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
 | NativeGameModule artifact、ABI、entry、lifecycle、Build、Package | 本書 |
 | C++ language、compiler、memory、pointer、exception、target DAG | [C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md) |
-| tick phase／fixed delta値、World lease、command／event、queue、failure | Runtime scheduling／lifetime（canonical target `../04-runtime/scheduling-lifetime.md`） |
+| tick phase／fixed delta値、World lease、command／event、queue、failure | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
 | Source Worker、Risk、Approval、Promotion authorization | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Game System ID、State owner、Implementation Variant、System Bundle、Target同値性 | [Gameplay programming model](gameplay-programming-model.md) |
 | `UiNativeWidget`のproperty、slot、measure、presentation、interaction、semantic、budget、fallback | UI／Text／Localization／Accessibility規約 |

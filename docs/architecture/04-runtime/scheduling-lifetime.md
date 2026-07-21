@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Runtime tick／render phase、固定実行順、job dependency、command／event順序、state writer、handle／borrow／lease、Asset activation、Play／World／frame lifetime、fault recovery
 - 非正本範囲: 共通memory／frame／queue budget、capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
@@ -155,7 +155,7 @@ render frame sequenceは次とする。
 | 6 | `R60_Present` | current surface generationへpresent |
 | 7 | `R70_Retire` | last-use submission完了objectだけを解放 |
 
-`RenderPhaseId`のserialized値は順序に対応する`0x0100`～`0x0107`とする。RenderingはRuntime Worldへ書き戻さず、visibility、occlusion history、temporal historyをSave／Replay hashへ含めない。frames-in-flightと各buffer容量は[Performance／capacity](performance-capacity.md)、Render Graph resource semanticsはcanonical target `../06-rendering/render-graph.md` が所有する。
+`RenderPhaseId`のserialized値は順序に対応する`0x0100`～`0x0107`とする。RenderingはRuntime Worldへ書き戻さず、visibility、occlusion history、temporal historyをSave／Replay hashへ含めない。frames-in-flightと各buffer容量は[Performance／capacity](performance-capacity.md)、Render Graph resource semanticsは[Render Graph](../06-rendering/render-graph.md)が所有する。
 
 Audio control threadがvoice lifecycle、routing、stream refillを所有する。audio callbackはpreallocated recordまたはPCM ringへ値を渡すだけで、allocation、file I/O、blocking、World／AI呼出しを行わない。Gameplay通知はcallbackから直接配送せず、外部latch sourceとして次のasync integrationへ渡す。
 
@@ -183,7 +183,7 @@ Physics／Navigation／Animationのcross-subsystem順は次の不変条件を持
 - Navigation obstacle inputは完了済みPhysics snapshotから取り込み、live Physics objectを参照しない。Nav resultはrequest時のmesh versionとowner generationが一致する場合だけ統合する。
 - Animationはresolved transformからpose／boundsを確定し、Physics Adapterは最終bone poseへ直接writeしない。ragdoll inputは別fieldを通してAnimation ownerが合成する。
 - root motion、Physics event、Navigation result、Animation eventはcommand／eventのcanonical orderへ参加し、vendor callback順を保持しない。
-- Physics、Navigation、Animation固有のshape、solver、path、graph、pose、retarget、memory schemaは各canonical target `../05-simulation/physics.md`、`../05-simulation/navigation.md`、`../05-simulation/animation.md` が所有する。
+- Physics、Navigation、Animation固有のshape、solver、path、graph、pose、retarget、memory schemaはそれぞれ[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)が所有する。
 
 Audio、VFX、camera、render occlusion、Presentation LODをGameplay authorityの入力にしない。Gameplayに必要なexplosion、visibility、damage volumeはauthoritative Domain componentとして別に表す。
 
@@ -197,7 +197,7 @@ World queryはmove-onlyな`ReadLease<Component...>`または`WriteLease<Componen
 
 Structural command batchは、全handle、precondition、conflict、destination容量を先に検査・予約し、live location tableを変更せずstaging mutation planへ構築する。全command成功後の単一commit pointでchunk owner、location table、World epochをpublishする。commit前の失敗はstagingだけを破棄し、live Worldを変更しない。
 
-大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV1`とTarget別Representation Planから解決する。World cell fieldはcanonical target `../06-rendering/world.md`、LOD strategy fieldはcanonical target `../06-rendering/lod.md` が所有し、本書はactivation boundaryとstate ownerだけを決定する。
+大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV1`とTarget別Representation Planから解決する。World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)が所有し、本書はactivation boundaryとstate ownerだけを決定する。
 
 ## 8. Handle、borrow、lease、job lifetime
 

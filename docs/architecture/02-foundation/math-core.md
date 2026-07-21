@@ -569,8 +569,8 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 
 ## 19. 公式資料
 
-- [Unity 6 Serialization rules](https://docs.unity3d.com/6000.0/Documentation/Manual/script-serialization-rules.html)
-- [Unity 6 `SerializedObject`](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/SerializedObject.html)
+- [Unity Serialization rules](https://docs.unity3d.com/Manual/script-serialization-rules.html)
+- [Unity `SerializedObject`](https://docs.unity3d.com/ScriptReference/SerializedObject.html)
 - [Unreal Engine Metadata Specifiers](https://dev.epicgames.com/documentation/unreal-engine/metadata-specifiers-in-unreal-engine)
 - [Unreal Engine Properties](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-uproperties)
 - [Unreal MCP](https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor)
@@ -578,7 +578,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 - [Godot Object／ClassDB／PropertyInfo](https://docs.godotengine.org/en/stable/engine_details/architecture/object_class.html)
 - [Microsoft DirectXMath](https://learn.microsoft.com/en-us/windows/win32/dxmath/directxmath-portal)
 - [HLSL Specification](https://microsoft.github.io/hlsl-specs/specs/index.html)
-- [Khronos glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)
+- [Khronos glTF Registry](https://registry.khronos.org/glTF/)
 - [C++ working draft `std::expected`](https://eel.is/c++draft/expected)
 - [C++ working draft numerics](https://eel.is/c++draft/numerics)
 
