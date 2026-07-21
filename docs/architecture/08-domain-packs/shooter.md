@@ -116,12 +116,11 @@ ShooterPerceptionBindingV1
   enemy_archetype_ref
   perception_profile_ref
   hostile_team_filter_ref
-  target_selection_policy: nearest | highest_priority_then_nearest
   lost_target_behavior: search_last_known | return_to_route
   fire_intent_policy_ref
 ```
 
-視界、聴覚、LOS、memoryは[Gameplay Perception](../03-authoring/gameplay-programming-model.md)の`PerceptionSnapshotV1`から読み、C1は`highest_priority_then_nearest`を使用する。lost targetは上記closed enumだけで解決し、fire intentは`RequestFireCommandV1`へ変換する。Render visibility、reticle、Camera occlusion、Audio Voiceを認識authorityにしない。
+視界、聴覚、LOS、memoryは[Gameplay Perception](../03-authoring/gameplay-programming-model.md)の`PerceptionSnapshotV1`から読む。C1 validatorは`perception_profile_ref`を解決し、参照先の`PerceptionProfileV1`がOwner fieldとして`target_selection_policy=highest_priority_then_nearest`を持つ場合だけbindingをacceptする。参照欠落、解決不能、不一致をrejectし、Shooter側でenumを再定義せず別値へのfallbackを行わない。lost targetはShooter bindingのclosed enumだけで解決し、fire intentは`RequestFireCommandV1`へ変換する。Render visibility、reticle、Camera occlusion、Audio Voiceを認識authorityにしない。
 
 ### 5.3 共通CapabilityのOwner参照
 
