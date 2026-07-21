@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.rendering-world
 - 状態: review
-- 正本範囲: World／Scene／Levelのsource identity、Cellのplan-local identity、source composition／partition、streaming-plan authoring、Level transition intent、reference closure、procedural source、Map要求resolution、World固有operation／diagnostic／qualification
+- 正本範囲: World／Scene／Levelのsource identity、Cellのplan-local identity、source composition／partition、streaming-plan authoring、Level transition／Loading presentation、Tilemap、Engine-native Blockout、reference closure、procedural source、Map要求resolution、World固有operation／diagnostic／qualification
 - 非正本範囲: Runtime cell activation／phase／shared capacity、ECS／Gameplay component schema、Physics／Navigation behavior、Render／LOD execution、Asset transaction、Save／Replay envelope、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)
 - 外部根拠検証日: 2026-07-21
@@ -177,6 +177,51 @@ Level transitionはsource／target Level、trigger intent、loading presentation
 
 transition中に旧／新LevelのEntity identityを再利用せず、persistent identityは明示されたownerとhandoff recordを持つ。target dependencyが不足する場合は部分Activationやdefault Levelへ黙って進まず、blocking reasonと登録済みfallbackを返す。
 
+### 7.1 Loading／prefetch presentation
+
+Loading presentationはWorld activationの結果を表示するread-only projectionであり、activationのOwnerではない。初回起動、Level遷移、Save再開は同じ契約を使い、Runtime Orchestratorがdependency closureからPlanを作り、immutable Snapshotを公開する。
+
+```text
+LevelTransitionPresentationPolicyV1
+  policy_id: StableId
+  mode: seamless | overlay | blocking
+  loading_ui_document_ref: exact document ref
+  input_context_ref: exact input context ref
+  audio_snapshot_ref: exact audio snapshot ref
+  minimum_display_monotonic_ms: uint32
+  cancel_allowed_until: prefetching | resident
+  failure_presentation_ref: exact document ref
+  retry_policy: none | explicit_user_retry
+  accessibility_announcement_policy_ref: exact policy ref
+
+LoadingProgressPlanV1
+  plan_id: DerivedPlanId
+  subject_kind: initial_boot | level_transition | resume_save
+  subject_request_ref: exact generation-bearing typed request ref
+  dependency_closure_hash: bytes32
+  work_units: bounded array<{kind, exact_target_ref, positive_weight_q16}>
+  total_weight_q16: 65535
+
+LoadingProgressSnapshotV1
+  loading_session_id: generation-bearing runtime ID
+  progress_plan_ref: exact {plan_id, dependency_closure_hash, generation}
+  phase: validating | prefetching | verifying | resident | activating | transferring | complete | failed | cancelled
+  completed_weight_q16: uint16
+  current_item_message_key: localization key
+  can_cancel: bool
+  can_retry: bool
+  failure_reason: optional typed failure
+  generation: uint64
+```
+
+`minimum_display_monotonic_ms`は0～2,000で、表示flash抑制だけに使う。各work unitのkindは`io_bytes | artifact_verify | dependency_ready | activation_group | state_transfer`のclosed enumであり、exact対象refと正のweightを必須とする。Runtime Orchestratorは表示開始前に確定したdependency closureの実作業だけを列挙し、canonical orderで合計65,535へnormalizeする。同じPlan generationの`completed_weight_q16`は0～65,535で単調非減少とし、完了したunitのweightだけを加算する。fake timer、frame count、UI animation、spinner、未列挙jobを進捗へ混ぜない。closure hashが変わればbarを巻き戻さず、新しいsession、Plan、generationを発行する。
+
+I/O、verify、timeoutは`real_time`／`async_io` domainで進められるが、activation、Character transfer、Save state適用はRuntime Ownerの正規tick boundaryだけでcommitする。Target activation groupとRenderer／Collision／Navigationを含むhard dependency closureがすべてReadyになった後だけ新generationをatomic publishする。activationまたはtransferが失敗した場合はtargetを全rollbackし、旧Levelをactiveのまま維持する。旧Levelを先に破棄して空Worldを露出せず、新Level active後にだけtransferし、その後に旧Levelをdeactivateする。
+
+CancelはPolicyが許可し、phaseが`prefetching | resident`以下の時だけ受理する。以後は`can_cancel=false`である。受理後はinflight I/Oをcancelまたはbounded drainし、leaseとtemporary Artifactを解放してSource LevelまたはTitleを維持する。Retryは`explicit_user_retry`時の人間の明示操作だけで、新request／session IDを発行し、Source revision、Portal condition、Save checksum、Target Capability、storage／memory budgetを再検証する。partial activation、古いSnapshot、古いprogressを再利用しない。
+
+`blocking`はGameplay inputをLoading contextへ切り替え、Cancel／Retry／system UIだけを許可する。`overlay | seamless`でもtransfer前の入力をTargetへ配送しない。Audioは`audio_snapshot_ref`でcontinue／fade／muteを明示し、無音を暗黙defaultにしない。Accessibilityはphase変更を即時通知し、同一phaseの進捗通知を10%境界かつ1秒以上の間隔へ制限する。色だけへ依存せず、progress、phase、Cancel／Retry、failure reasonへkeyboard／controller／screen readerから到達可能にする。Loading UI、tips、Audio fade、読み上げはauthority、progress、timeoutへ逆入力しない。
+
 ## 8. 参照と依存closure
 
 全World referenceはStable ID、expected document kind、required／optional、version compatibilityを持つ。CookerはScene nesting、Entity parent、Level composition、Cell membership、Domain component asset、transition targetのclosureをcanonical orderで解決する。
@@ -208,6 +253,169 @@ Navigation queryやWorld movement、Physics body activation、Animation sampling
 [LOD](lod.md)はresident candidateからrepresentationを選び、[Render Graph](render-graph.md)はactive Cell由来の`WorldRenderPacket`を実行する。Worldはselection formula、visibility algorithm、render passを所有しない。
 
 `MapPresentationDefinitionV1`は`map_presentation_id: StableId`、`presentation_kind: minimap | world_map | level_map | navigation_overlay`、exact `world_or_level_ref`、`projection_policy: orthographic_2d | authored_2d | projected_3d`、`layer_refs[1..128]`、`marker_style_refs[0..512]`、typed `marker_source_contract_refs`、optional `fog_policy_ref`、`accessibility_profile_refs[1..32]`、exact `localization_namespace_ref`、Targetごとのexact `render_budget_refs`、`fallback_contract`を持つ非authoritative Sourceである。Marker／fog／cursorからWorld／Quest／Objective／Navigation costを直接writeせず、入力はtyped `MapInteractionCommandV1`としてNavigation／Quest ownerへ送る。
+
+### 10.1 Tilemap source、cook、publication
+
+Tile chunkはTilemap内部のedit、cook、culling単位であり、World Cell、Region、Level、activation groupではない。Tilemapはresident／active CellのAsset closureへ参加するが、chunk単独でEntity、Objective、Portal、authoritative gameplayをactivateしない。次の12型をWorldの唯一の正本とする。
+
+```text
+TileGridV1
+  tile_texel_extent: uint2
+  pixels_per_unit: positive finite float
+  origin: top_left | bottom_left | center
+  axis: x_right_y_down | x_right_y_up
+  stagger_axis: none | x | y
+  stagger_index: none | even | odd
+  hex_side_length_texels: uint32
+
+TileSetAssetV1
+  tile_set_id: StableId
+  revision: AssetRevision
+  grid: TileGridV1
+  sprite_table_ref: exact revision ref
+  tiles: bounded array[1..65535]<TileDefinitionV1>
+  terrain_rule_sets: bounded array[0..4096]<TerrainRuleSetV1>
+  custom_property_schema_ref: optional exact schema ref
+
+TileDefinitionV1
+  tile_id: StableId
+  sprite_id: StableId
+  animation_frames: bounded array[0..256]<{sprite_id, duration_ms}>
+  material_slot_ref: exact material slot ref
+  pivot_offset_m: finite Displacement2f
+  collision_shape_ref: optional exact source ref
+  collision_tag_ref: optional typed tag ref
+  navigation_area_ref: optional typed area ref
+  navigation_blocked: bool
+  terrain_edge_tags: bounded array[0..8]<typed tag ref>
+  terrain_corner_tags: bounded array[0..8]<typed tag ref>
+  custom_properties: bounded array[0..32]<typed property>
+
+TerrainRuleSetV1
+  rule_set_id: StableId
+  terrain_tag_ref: typed tag ref
+  adjacency: edge | edge_and_corner
+  rules: bounded array[1..65535]<{neighbor_tag_pattern, candidate_tile_ids[1..65535], positive_weights[1..65535]}>
+  dependency_radius_tiles: uint8
+  deterministic_tie_break: canonical_tile_id_then_rule_id
+
+TileSetRevisionV1
+  tile_set_asset_id: AssetId<TileSet>
+  asset_revision: AssetRevision
+  source_content_hash: bytes32
+
+TilemapAssetV1
+  tilemap_id: StableId
+  orientation: orthogonal | isometric | staggered | hexagonal
+  tile_set_sources: bounded array[1..256]<TileSetRevisionV1>
+  layers: bounded array[1..64]<TileLayerV1>
+  chunk_extent_tiles: uint2
+  source_bounds: optional RectI64
+  generation: uint64
+
+TileLayerV1
+  layer_id: StableId
+  kind: tile | group | typed_object_stamp | image | height_semantic
+  parent_layer_ref: optional StableId
+  chunks: sparse ordered map<int2, TileChunkSourceV1>
+  visible: bool
+  locked: bool
+  opacity_q16: uint16
+  tint_linear: finite Color4f
+  blend_mode_ref: exact blend ref
+  parallax: finite float2
+  offset_m: finite Displacement2f
+  collision_contribution: none | enabled
+  navigation_contribution: none | area | obstacle
+
+TileChunkSourceV1
+  chunk_coord: int2
+  cells: bounded array[0..65536]<TileCellSourceV1>
+  generation: uint64
+
+TileCellSourceV1
+  local_coord: uint2
+  tile_set_revision_ref: exact TileSetRevisionV1 ref
+  tile_id: StableId
+  transform: identity | rotate_90 | rotate_180 | rotate_270 | flip_x | flip_y | transpose | anti_transpose
+  animation_phase_policy: synchronized | stable_cell_offset
+
+TileChunkArtifactV1
+  tilemap_ref: exact {tilemap_id, revision}
+  layer_id: StableId
+  chunk_coord: int2
+  source_generation: uint64
+  occupied_bounds: RectU32
+  renderer_artifact_key: ArtifactKey
+  draw_spans: bounded array[0..4096]<TileDrawSpanV1>
+  collision_artifact_key: optional ArtifactKey
+  navigation_artifact_key: optional ArtifactKey
+  dependency_hashes: bounded array[1..1024]<bytes32>
+  content_sha256: bytes32
+
+TileDrawSpanV1
+  canvas_batch_key: exact Canvas Batch Key
+  instance_offset: uint32
+  instance_count: positive uint32
+  local_bounds: RectF32
+  cooked_cell_transform_state: d4_applied_once
+
+TileLayoutCommandV1
+  command_id: StableId
+  target_tilemap_ref: exact {tilemap_id, expected_revision, expected_generation}
+  region: RectI64
+  operation: paint | erase | fill | stamp | apply_rule | replace_by_query
+  rule_set_ref: optional exact TerrainRuleSetV1 ref
+  stamp_asset_ref: optional exact Asset revision ref
+  seed: uint64
+  allowed_tile_ids: bounded set[0..65535]<StableId>
+  allowed_terrain_tag_refs: bounded set[0..4096]<typed tag ref>
+  connectivity_constraints: bounded array[0..256]<typed constraint>
+  reachability_constraints: bounded array[0..256]<typed constraint>
+  max_changed_tile_count: positive uint32
+  preview_expansion_hash: bytes32
+```
+
+`TileGridV1`のtexel extentは両軸正、`pixels_per_unit`はfiniteかつ正とする。stagger／hex fieldはorientationと整合しなければならない。C1 orientationは`orthogonal`だけをQualifiedとし、他のorientationと`typed_object_stamp | image | height_semantic`はC2の個別Qualification前に拒否する。`RectI64`／`RectU32`はinclusive min、exclusive maxで、empty、overflow、負のunsigned extentを拒否する。
+
+空cellはrecord欠落で表し、`tile_id=0`等のsentinelを保存しない。chunk extentは各軸8～256の2冪、Referenceは32×32である。`local_coord`は`[0, chunk_extent_tiles)`内で一意とし、cellsを`local_y, local_x, tile_id`、chunksを`chunk_y, chunk_x`でcanonicalizeする。負のWorld tile coordinateはfloor divisionでchunkへ写像し、`local = world - chunk * extent`を必ず非負にする。言語の負剰余を使わない。
+
+C1 boundは一TileSet 65,535 Tile、一Tilemap 64 Layer、全Layer合計16,777,216 occupied cell、一chunk 4,096 draw spanである。Tile animationのdurationは各1～60,000 ms、合計24時間以下とする。重複／範囲外cell、unknown Tile、TileSet revision mismatch、Source bounds／count overflow、unsupported orientation、dangling parent／Tileset、非finite offsetをtyped validation failureとして拒否する。外部global tile ID、配列index、path、表示名をStable Tile IDにしない。
+
+cell `transform`は正方形格子の二面体群D4のclosed enumである。Cookerはcell中心を基準に、Renderer UV、Sprite pivot、Collision polygon、Navigation source、terrain edge／corner tagへ同じD4 transformをちょうど一度適用する。`TileDrawSpanV1.cooked_cell_transform_state`は適用済みを示し、consumerは再適用しない。いずれかのconsumerが同じ変換を表現できない、適用回数または結果hashが一致しない場合は`consumer_transform_mismatch`でclosure全体を失敗させ、Presentationだけを成功させない。`stable_cell_offset`はTilemap ID、Layer ID、World tile coordinate、Tile IDのcanonical hashだけから決め、load順、chunk residency順、worker順をseedにしない。
+
+Tile editはimmutableな新Artifactを、変更region外周1 tile、terrain dependency radius、Collider seam、Navigation overlapまで再Cookする。Renderer、Collision、Navigationのrequired ArtifactがすべてReadyで、dependency hashとsource generationが一致した後だけ、World activation groupとTilemap generationを一つのpublication boundaryでatomic publishする。Presentation-only変更でCollision／Navigationを再利用する場合もexact dependency hashを検証する。一つでもfailed／cancelled／staleなら旧generationを維持し、partial artifact、空Tile、無衝突状態を公開しない。active authoritative regionのCollider／NavigationをPresentationより先にevictせず、Cell all-or-nothing activationをchunk単位へ弱めない。
+
+AIとEditorは同じbounded `TileLayoutCommandV1`を使い、AIが巨大なtile ID配列を直接生成することを拒否する。Engineはexpected revision／generation上で決定論的に展開し、allowed set、接続、到達性、`max_changed_tile_count`を検証する。Commit直前に同じ入力から再展開し、canonical preview expansion hashと一致しなければ`preview_commit_hash_mismatch`として拒否する。stale generation、上限超過、unknown Tile、revision mismatchもtyped rejectionで、近似修復しない。
+
+### 10.2 Engine-native 3D Blockout
+
+```text
+PrimitiveMeshSourceV1
+  primitive_id: StableId
+  kind: box | sphere | capsule | cylinder | plane | ramp
+  dimensions_m: finite float3
+  radial_segments: uint8
+  height_segments: uint8
+  uv_policy: generated_world_scale | generated_normalized
+  material_instance_ref: exact Asset revision ref
+  collision_semantic: none | solid | walkable | interaction
+  navigation_semantic: ignore | walkable | obstacle
+  mobility: static | movable
+
+BlockoutAssemblyV1
+  assembly_id: StableId
+  assembly_transform: finite Transform3f with positive scale
+  primitive_instances: bounded array[1..256]<{primitive_ref, local_transform}>
+  composition_recipe_ref: optional exact recipe ref
+  gameplay_anchor_refs: bounded array[0..256]<StableId>
+  validation_fixture_refs: bounded array[1..256]<exact fixture ref>
+  source_generation: uint64
+```
+
+各dimensionは0.01～10,000 m、radial segmentsは3～64、height segmentsは1～64、compact Level全体は4,096 primitive以下とする。assembly／local transformはfinite translation、normalized rotation、正のscaleで、負scale、NaN／Inf、zero-area surface、暗黙boolean由来のnonmanifold、Colliderとwalkable semanticの矛盾を拒否する。Primitiveは通常のTransform、Material、Renderer、Collision、Navigation SourceへCookし、Blockout専用Runtime objectを作らない。
+
+`CreatePrimitiveMesh | CreateBlockoutAssembly | UpdateBlockoutPrimitive | PromoteBlockoutToMeshAsset`をAI／Editor共通のbounded operationとする。Promotion previewは元Stable ID、generation、pivot、bounds、Material slot、Collider／Navigation semantic、参照元を固定し、承認後に通常Mesh Sourceと対応表をatomic publishする。Renderer／Collision／Navigation Artifactのall-readyとgeneration一致前にはassembly置換を公開しない。元Sourceを自動削除せず、置換対象はexplicit ChangeSetに列挙する。C1 fixtureはexternal DCCを要求せず、6 primitive、dimension境界、4,096 primitive Level、Collider／Navigation cook、Promotion前後のbounds／pivot／Material slot、Undo／Redo、Save／Load、AI／手動operationのafter hash一致を検証する。external DCC Asset 0件のarenaをTitleからResultまで完走できることをGateとする。
 
 ## 11. Authoring bundleとAI／Editor UX
 
@@ -252,8 +460,14 @@ World固有diagnosticはWorld／Scene／Level／Entity Stable ID、Plan ID／pla
 | `MIRAKAN-WORLD-TOPOLOGY_INVALID` | cycle、trap、unreachable、参照不正 | Cook／Commit拒否 |
 | `MIRAKAN-WORLD-LEVEL_OWNER_INVALID` | Level gameplay ownerが0または複数 | Activation拒否 |
 | `MIRAKAN-WORLD-STREAMING_PLAN_STALE` | Source／Target／Toolchain hash不一致 | 再Cook要求 |
+| `MIRAKAN-WORLD-LOADING_PLAN_STALE` | dependency closure／Plan generation不一致 | 新session／Planを発行 |
 | `MIRAKAN-WORLD-DEPENDENCY_NOT_RESIDENT` | hard dependency不足 | Cellをactiveにしない |
 | `MIRAKAN-WORLD-ACTIVATION_PARTIAL` | activation groupの一部だけ成功 | 全体rollback |
+| `MIRAKAN-WORLD-TILE_SOURCE_INVALID` | duplicate／out-of-range cell、unknown Tile、revision mismatch、overflow、unsupported orientation | Source／Cook拒否 |
+| `MIRAKAN-WORLD-TILE_TRANSFORM_MISMATCH` | D4のconsumer結果／適用回数不一致 | 全consumer closureを拒否 |
+| `MIRAKAN-WORLD-TILE_GENERATION_STALE` | Source／Artifact／command generation不一致 | 旧generation維持、再Cook／再Preview |
+| `MIRAKAN-WORLD-TILE_ARTIFACT_PARTIAL` | Renderer／Collision／Navigationがall-readyでない | publication拒否 |
+| `MIRAKAN-WORLD-TILE_PREVIEW_STALE` | Preview／Commit再展開hash不一致 | Command拒否 |
 | `MIRAKAN-WORLD-BUDGET_EXCEEDED` | residency／IO／hitch上限超過 | fallbackまたはtransition中止 |
 | `MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC` | 同じ入力でoutput hash不一致 | Artifact拒否 |
 | `MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT` | Schema／connectivity／playability不合格 | delta破棄 |
@@ -272,6 +486,9 @@ Qualificationは次のDomain fixtureを持つ。
 - `MoveEntityToScene`、`SetLevelSourceScenes`、Cell再Cookがidentity／membershipを暗黙変更しないこと。
 - Topology reachability／trap／cycle／Target fallback、unknown／stale／cross-cell pointer negative test、Undo／redo／crash recovery／concurrent edit conflict。
 - Cell全state transition、cancel、timeout、I/O failure、activation group atomicity、旧Level維持、Level transition／Character transfer／lease解放、Save／Load／Replay state hash。
+- Loadingの実作業weight合計65,535、同Plan単調進捗、closure変更時の新generation、fake timer拒否、Cancel boundary、明示Retry、input／audio／accessibility projectionを検証する。
+- Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transformのRenderer／pivot／Collision／Navigation／terrain一致、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致を検証する。
+- Blockoutのdimension／segment／assembly／Level bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件fixtureを検証する。
 - 同じSource Levelの複数saved instance、checkpoint連鎖、missing／duplicate／不正`LevelSaveInstanceId`、Loadごとの新しい`LevelInstanceHandle`、one-to-one remap、保存handle復元拒否を検証するidentity fixture。
 - inactive／resident／active境界からauthoritative処理が漏れず、Presentation／LOD／Camera／GPU結果からauthorityへ逆入力しないこと。
 - 同じseed／input／Target／Toolchainから同じprocedural output hash、Generator bound、connectivity、entry-to-objective-to-exit reachability、Physics overlap、spawn safety、Navigation query、invalid output／timeout／unsupported Target fallback、Navigation Artifact削除後の再生成。

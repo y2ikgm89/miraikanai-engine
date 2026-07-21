@@ -45,6 +45,45 @@ Graph validationはreachable output、cycle policy、parameter type、clip／ske
 
 2D blendはcompatible property trackだけを補間し、sprite selection等のdiscrete trackは明示policyで解決する。flip、pivot、socketはtyped propertyで、negative scaleやrenderer-specific flagへ暗黙投影しない。2D root motionを使う場合も3Dと同じproposal／resolution contractを通す。
 
+#### Sprite Flipbook source
+
+次の3型をSprite Flipbookの唯一のSource正本とする。C1手動EditorとQualified importerは同じschemaを生成し、RuntimeはCook済みのStable ID tableを解決する。
+
+```text
+SpriteAnimationFrameV1
+  sprite_asset_revision_ref: exact Asset revision ref
+  sprite_id: StableId
+  duration_ticks: uint32
+  untrimmed_pivot_texel: finite float2
+  local_offset_m: finite Displacement2f
+  collision_pose_ref: optional StableId
+  socket_pose_set_ref: optional StableId
+
+SpriteAnimationClipSourceV1
+  clip_id: StableId
+  frames: bounded array[1..4096]<SpriteAnimationFrameV1>
+  playback_mode: forward | reverse | ping_pong
+  loop_mode: once | loop
+  event_tracks: bounded array[0..256]<TypedAnimationEventTrackV1>
+  default_speed_q16: positive Q16.16
+
+TypedAnimationEventTrackV1
+  event_track_id: StableId
+  event_contract_ref: exact registered typed Event ref
+  classification: gameplay | presentation
+  keys: bounded array[0..4096]<{event_key_id: StableId, tick: uint64, payload_ref: optional exact typed payload ref}>
+```
+
+`clip_id`、`sprite_id`、`event_track_id`、event key IDは永続Stable IDである。Frameはexact Sprite Asset revisionとStable Sprite IDを参照し、Texture path、atlas index、frame index、Source配列index、Aseprite tag／layer名、importer tagをRuntime identityにしない。Reimportは旧新revision、Stable Sprite／Clip ID対応、追加／削除／曖昧候補、pivot／trim／event差分をconflict previewへ出し、明示resolutionなしにIDを再採番、近似対応、consumer revision更新しない。
+
+一Clipは1～4,096 frame、各`duration_ticks`は1～60,000、総durationは5,184,000 tick（60 Hzで24時間）以下とする。`default_speed_q16`はQ16.16の`[0.0625, 16.0]`で、0、負値、overflowを拒否する。一時停止はspeed 0へのSource書換えでなく、Animation stateまたはClock Domainのtyped commandを使う。Frameのuntrimmed pivotと`local_offset_m`はfiniteとし、Atlas repack／trim後も見かけ位置、Collider、socketを同じCPU正規座標へCookする。
+
+`forward | reverse | ping_pong`と`once | loop`の組合せをすべて定義する。`once`は終端poseを保持し、`loop`は定義済みseamへ戻る。ping-pongは端frameを折返し時に重複評価せず、3 frameなら`A,B,C,B,A`を一周期とする。1 frame clip、reverse、seek、loop跨ぎ、1 tick内の複数frame通過でも、既存のauthoritative event cursorと`AnimationEventTraversalPolicyV1`を使い、crossed typed Eventを境界順に高々一度だけ発行する。Editor scrubはisolated preview cursorを使いRuntime Eventを発火しない。
+
+`TypedAnimationEventTrackV1.keys`はtick、event track ID、event key IDの順でcanonicalizeし、duplicate key ID、clip範囲外tick、未登録Event、payload type mismatchを拒否する。任意関数名やimporter文字列をdispatchしない。Gameplay Eventはvisibility、offscreen、GPU culling、Quality tier、presentation update LODでdrop／重複／遅延させない。
+
+`collision_pose_ref`と`socket_pose_set_ref`は登録済みCPU正規poseだけを参照する。Sprite alpha、GPU pose、Renderer visibilityからHitbox／Hurtbox／socketを生成せず、Presentation poseをauthorityへ戻さない。Sensor切替はCollision Ownerのtyped RuleへEventを渡し、AnimationがColliderを直接writeしない。fixtureはforward／reverse／ping-pong、once／loop、端frame、複数境界、Atlas repack、pivot／offset、CPU collision／socket pose、reimport conflict、Save／Replay event sequenceを固定する。
+
 ### 2.3 3D Skeleton、Skin、Clip
 
 Skeletonはsingle root policy、acyclic parent relation、unique canonical joint path、finite bind pose、invertible bind relationを検証する。ClipはSkeleton contract ref、time interval、typed translation／rotation／scale track、event、optional root trackを持つ。Skinはmesh section、joint remap、normalized finite influenceを持ち、missing jointやout-of-range influenceをsilent repairしない。
