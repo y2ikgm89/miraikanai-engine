@@ -146,6 +146,37 @@ Engine repository rootは[Core architecture](core-architecture.md)のRepository�
 
 Project root discoveryは`mirakan.project.json`の存在とschema validationで行う。Current working directory、Editor executable位置、親Directory名から推測しない。Project manifest内のProject IDとdisplay nameを物理Directory名から独立させる。
 
+### 5.1 旧Project rootのclean-break disposition
+
+旧Project layoutを通常のProject open、Build、Import、Editor、AI Operationで受理しない。専用offline migratorだけが旧rootを入力として認識でき、次表の一つのdestinationへ移すか、明示した理由で破棄する。表にない推測、複数候補へのcopy、旧Path fallbackを禁止する。
+
+| 旧root | disposition | 新destination／Owner | Migration処理と理由 |
+|---|---|---|---|
+| `authoring/` | 移動 | `source/`／Authoring Gateway | Stable IDとDomain kindを保持してAuthoring Sourceへ移す。旧root自体は削除する |
+| `assets/source/` | 移動 | `source/assets/`／Asset Broker | Source Assetとimport設定を移し、Catalog参照を同じChangeSetで書き換える |
+| `assets/metadata/` | 移動 | `source/assets/`／Asset Gateway | 対応Asset subjectのSource metadataとして併置し、Asset IDで一意に解決する。独立metadata rootは残さない |
+| `native/game/` | 移動 | `source/native/`／Source Promotion Service | Module単位を保持して移し、CMake inputとgenerated descriptor参照を同時更新する |
+| `.mirakan/journal/` | 明示削除 | Project State owner、Project内destinationなし | 旧local operation logはcanonical sourceではない。Commit済みrevisionだけを正本とし、migration receipt確定後に破棄する |
+| `.mirakan/snapshots/` | 明示削除 | Project State owner、Project内destinationなし | 旧recovery snapshotを新Sourceとして昇格しない。必要なcanonical revisionを先にCommitし、snapshotは破棄する |
+| `.mirakan/recovery/` | 移動 | `intermediate/recovery/`／Editor Recovery | crash recovery用local stateとして移し、Source、Package、Git追跡対象にしない |
+| `.mirakan/index/` | 移動 | `derived/index/`／Indexer | Sourceから再構築可能なindexとして移す。内容hashが不一致なら移さず再生成する |
+| `.mirakan/staging/` | 移動 | `staging/`／Trusted Broker | 未Commit proposal／candidateをAuthorityを変えず隔離rootへ移す。期限切れ・入力不明のcandidateは失敗として破棄する |
+| `.mirakan/user/` | 明示削除 | Editor User Profile owner、Project外のUser data root | machine／User固有stateをProjectへ移植せず、Editor profileから再設定する。Project configへcopyしない |
+| `.mirakan/` | 明示削除 | destinationなし | 全child disposition完了後に空であることを検査してrootを削除する。未知childがあればmigrationを失敗させる |
+| `build/` | 明示削除 | Build／Content／Packaging owner、旧rootのdestinationなし | Authorityが混在するため内容を移さない。Sourceから`derived/`、`intermediate/`、`packages/`へ分類別にclean rebuildする |
+
+新layoutのTop-level closed setは`source/`、`config/`、`packages/`、`derived/`、`intermediate/`、`staging/`、`evidence/`とmanifestである。旧root名、`content/`、`resources/`、`game_data/`、`ai_generated/`、`temp/`等の代替rootを追加しない。
+
+Migrationは次のfail-closed手順だけを許可する。
+
+1. Offline migratorが旧tree、manifest、Catalog、全referenceをinventoryし、上表から一意なrename／delete／rebuild planを作る。通常Gatewayは旧rootを探索しない。
+2. 新destinationに別identityまたは異なるcontentのentryがある、case／Unicode正規化後に衝突する、旧rootの一部しか読めない、未知`.mirakan` childがある場合は、変更前に全体を失敗させる。merge、上書き、自動連番をしない。
+3. 隔離temp treeで全Path、Stable ID、Catalog、manifest、reference、Git profileを検証し、一つのProject ChangeSetで新layout profileへの更新、移動、明示削除を原子的にCommitする。失敗時は旧treeをそのまま残す。
+4. Commit後に旧rootが0件、新rootのAuthorityが一意、clean rebuildが成功することを検証してMigration Receiptを確定する。
+5. 新layout profileで旧rootを一つでも検出したProjectは`LegacyLayoutRoot`、旧rootと新rootの併存または欠落を検出したProjectは`PartialLayoutMigration`としてopen／Build／Import／Packageを拒否する。
+
+旧Path alias、redirect、symlink／junction、旧rootから新rootを探すcompatibility lookup、旧Pathと新Pathの二重watch、fallback importを実装しない。未移行Projectは通常openせず、明示されたoffline migrationだけを案内する。
+
 ## 6. Source、Derived、Intermediate、Package
 
 | Root | 所有内容 | Git／配布 | 書込み権限 |
@@ -252,7 +283,21 @@ Commit Gateは少なくとも次を機械検査する。
 - Generated fileのmanifest、input hash、再生成diff、手編集
 - Operation／Diagnostic IDの重複、alias、動的segment
 
-移行はinventory、deterministic rename map、reference rewrite、case-only rename用の二段階move、clean checkout検証を一つのChangeSetで行う。旧Path redirect、compatibility symlink、旧Target alias、二重Module名を残さない。
+### 14.1 Repository byte／format policy
+
+Formatとbyte表現のAuthorityを次に固定する。
+
+- C／C++ formatはrepository rootの`.clang-format`、static analysisはrepository rootの`.clang-tidy`を唯一の設定とする。IDE、個人設定、subdirectory別configで上書きせず、CIが同じroot設定を機械適用する。
+- text／binary属性と改行はrepository rootの`.gitattributes`を唯一の設定とする。UserのGit global configやOS既定値を正本にしない。
+- C／C++、CMake、HLSL、TypeScript、JSON、YAML、TOML、Markdown、PowerShellはUTF-8 without BOM＋LFへ固定する。`.bat`／`.cmd`だけUTF-8 without BOM＋CRLFを許可する。
+- 画像、音声、動画、Font、Archive、compiled Artifactは`.gitattributes`で`-text`に固定し、text変換を禁止する。
+- Bootstrap、Developer setup、CIは`core.autocrlf=false`を必須とする。不一致をwarningにせずconfigure／Commit Gateで拒否する。
+
+Commit Gateは`git check-attr`で各Pathのeffective attributeを検査し、indexへstageされたGit blobをscanしてBOM、許可されないCRLF／bare CR、末尾NUL、text／binary誤判定を拒否する。CIはclean checkoutのGit blobを同じ規則でscanする。Working tree表示だけを検査して成功とせず、Hash、Source Bundle、generated goldenはGit blobまたは正規Artifactのbyte列から計算する。
+
+`.clang-format`、`.clang-tidy`、`.gitattributes`の欠落、複数Authority、属性未定義、format差分、static analysis違反、blob byte違反が一件でもあればCommit／Migration／Packageをfail-closedで停止する。改行やBOMの一括変換は専用Migration ChangeSetとしてsemantic diffと分離し、全blob再scan、clean checkout、generated golden再生成が合格するまで昇格しない。
+
+移行はinventory、deterministic rename map、reference rewrite、case-only rename用の二段階move、Git blob byte検査、clean checkout検証を一つのChangeSetで行う。旧Path redirect、compatibility symlink、旧Target alias、二重Module名を残さない。
 
 Migration完了条件:
 

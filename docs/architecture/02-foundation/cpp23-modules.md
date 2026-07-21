@@ -364,7 +364,7 @@ CX3の`AppleUnsignedBuildWorkerV1`はBuildを次に分離する。
 
 1. Ninja Multi-Configが、portable C++23 Named Module graph、Engine、NativeGameModuleをarm64 static archive／objectへCompileする。
 2. BMIはNinja Build tree内部だけに保持し、Xcode projectへ渡さない。
-3. Xcode 26.6 Stableが、最小App shell、Objective-C／Objective-C++ C ABI bridge、Platform resource、Entitlement、最終Link、Archive validationを担当する。
+3. [Toolchain／Dependencies](toolchain-dependencies.md)が固定するApple toolchain profileのXcodeが、最小App shell、Objective-C／Objective-C++ C ABI bridge、Platform resource、Entitlement、最終Link、Archive validationを担当する。
 4. Xcode側SourceはC++ Named Moduleをimportせず、Generated C ABI Headerとopaque handleだけでNinja生成archiveへ接続する。
 5. Metal compiler／binary archiveはShader toolchain lockに従い、C++ BMIと共有Cacheを持たない。
 6. `UnsignedApplePayloadV1`はNinja Build Receipt、Xcode Build Receipt、両者が参照したSource root／Toolchain lock、最終Mach-O hashを含む。
