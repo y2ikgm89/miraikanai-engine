@@ -277,21 +277,17 @@ docs/architecture/
 
 ## 8. 公式資料・Context7監査結果
 
-再編設計時点で、次の主要前提を確認した。
+再編時の監査対象は、Build／言語Toolchain、Physics／Navigation Backend、offline authoring Toolchain、Platform build環境、AI Provider Schemaの各群とした。採用対象は先に[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のTarget Profileから解決し、Library／Toolの挙動は対象IDとTarget VersionをContext7で確認する。Context7が対象またはVersionを扱わない場合だけ公式Project、公式Vendor、標準化団体の一次資料へFallbackし、その経路をOwner文書のReference noteへ記録する。
 
-| 対象 | 確認結果 | 根拠 |
-|---|---|---|
-| CMake 4.4.0 | Release tagとWindows artifact SHA-256が一致。C++ Module scanはNinja、Ninja Multi-Config、VS 2022／2026を扱う。`import std`はExperimental gateが必要で、Ninja系だけが対応 | [CMake 4.4.0](https://github.com/Kitware/CMake/releases/tag/v4.4.0)、Context7 `/kitware/cmake` |
-| MSVC 14.51 | Stable GA。C++23未完項目はP2564R3とP0533R9で、正式`/std:c++23`は14.52以降のStableを待つ方針が妥当 | [MSVC 14.51 GA](https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/)、[C++23 status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) |
-| Box2D 3.1.1 | Releaseとcommit `8c661469...`が一致。C17、ID handle、固定step／substep、multithread Adapter前提が妥当 | [Box2D 3.1.1](https://github.com/erincatto/box2d/releases/tag/v3.1.1)、Context7 `/erincatto/box2d` |
-| Jolt 5.6.0 | Releaseとcommit `e77f175...`が一致。GPU computeとhairは追加機能で、`JPH_USE_DX12`等をOFFにできる | [Jolt 5.6.0](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0)、Context7 `/jrouwe/joltphysics` |
-| Recast 1.6.0 | Annotated tagがcommit `6dc1667...`へ解決する。Recast build／Detour queryのprivate Backend化が妥当 | [Recast 1.6.0](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0)、Context7 `/recastnavigation/recastnavigation` |
-| Node.js／TypeScript | Node.js 24.18.0 LTSとTypeScript 7.0.2が正式Release。TypeScript 7.0はProgrammatic APIを出していないためCLI限定方針が妥当 | [Node.js 24.18.0](https://nodejs.org/en/blog/release/v24.18.0)、[TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) |
-| OpenAI | 新規ProjectはResponses APIが公式推奨。Function Callingは`strict: true`が推奨で、全Property required、各Objectの`additionalProperties: false`が必要 | [Responses API migration](https://developers.openai.com/api/docs/guides/migrate-to-responses)、[Strict mode](https://developers.openai.com/api/docs/guides/function-calling#strict-mode) |
-| Android | AGP 9.3.0の最小／既定Gradleは9.5.0、Build Toolsは36.0.0、JDKは17。Context7に公式AGP 9.3資料がなかったためAndroid公式へFallbackした | [AGP 9.3.0](https://developer.android.com/build/releases/agp-9-3-0-release-notes)、[NDK history](https://developer.android.com/ndk/downloads/revision_history) |
-| Apple | Xcode 26.6はmacOS Tahoe 26.2以降を要求し、iOS／iPadOS 26.5 SDKを含む。Xcode Cloudはephemeral環境を使用する | [Xcode 26.6](https://developer.apple.com/documentation/Xcode-Release-Notes/xcode-26_6-release-notes)、[Xcode Cloud security](https://developer.apple.com/xcode-cloud/security/) |
+監査から得た文書体系上の結論は次である。
 
-全676外部URLを新文書へ機械的に移植しない。各OwnerがNormative判断を支える最小の一次資料だけを残し、同じSourceを複数文書で説明しない。
+- Compiler、Generator、language modeのsupport matrixをBuild profileから分離せず、experimental capabilityを暗黙のShipping baselineにしない。
+- Physics／Navigation等の外部Backendはprivate Adapterへ隔離し、公開identity、determinism、failure semanticsをEngine-owned Contractに保つ。
+- Authoring用language／package Toolchainはoffline CLI境界へ閉じ、未確認のprogrammatic APIをArchitecture前提にしない。
+- Platform host、SDK、Build serviceの差はTarget ProfileとBuild profileで表し、Document systemの定数にしない。
+- AI Provider固有のSchema挙動や推奨をDocument systemの規則にせず、typed projectionとProvider評価を各Ownerへ委譲する。
+
+exact adopted Version、commit、artifact size／hash、license、取得URL、Model ID、SDK compatibility、Toolchain lockの唯一の正本は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)である。本Decisionは監査対象、確認方法、文書配置の結論だけを記録し、exact値、versioned URL、lockを複写しない。
 
 ## 9. 実装順序
 

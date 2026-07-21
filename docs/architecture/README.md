@@ -124,13 +124,8 @@
 
 ## 5. Developer toolの分離
 
-個人または開発支援用toolの設定資料は`docs/developer-tools/`に置き、Engine仕様、Engine正本数、Architecture dependency graphへ含めない。Engine仕様はその設定資料を参照せず、tool設定の推奨値をEngine要件へ取り込まない。
+Developer tool文書は`docs/developer-tools/`にあり、このIndexのEngine正本一覧には掲載しない。文書体系上の分離理由と扱いは[文書体系再編Decision §5](decisions/2026-07-21-document-system-restructure.md#5-target構造)を参照する。
 
 ## 6. 文書変更規則
 
-1. 変更する概念の正本を3節から一つ選び、別仕様またはIndexへ定義を複写しない。
-2. Owner外の文書は相対linkと短い利用文脈だけを持ち、正本の契約または固定値を再掲しない。
-3. Productの計画、Governanceの承認、Runtimeの実行制御、Subsystem固有契約を同じ表または状態へ混在させない。
-4. 新しい正本を追加、統合、分割、廃止する変更では、Indexの一意な行と依存linkを同じ変更で更新する。
-5. Developer tool資料、Decision、完了済み作業記録をactive Engine仕様として数えない。
-6. 変更後は文書metadata、heading、相対link、正本一意性、重複、曖昧marker、line上限を検証する。
+文書変更規則の正本は[文書体系再編Decision §7](decisions/2026-07-21-document-system-restructure.md#7-正本規則)、Verification Gateの正本は[同Decision §10](decisions/2026-07-21-document-system-restructure.md#10-verification-gate)を参照する。Index更新は発見用metadataの更新にすぎず、このIndexから新しい規則を定義しない。
