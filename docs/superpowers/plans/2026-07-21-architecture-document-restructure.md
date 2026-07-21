@@ -112,7 +112,7 @@ $plans = Get-ChildItem docs/superpowers/plans -File -Filter *.md
 git status --short --branch
 ```
 
-Expected: `specs=49 plans=3` because the active implementation plan now exists; Git status lists only this plan before it is committed.
+Expected: `specs=49 plans=3` because the active implementation plan now exists; Git status is clean on `codex/architecture-document-restructure` because the plan was committed before task execution.
 
 - [ ] **Step 2: Verify the target files do not yet exist**
 
