@@ -1,21 +1,11 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
-- 文書版: 1.8
-- 作成日: 2026-07-19
-- 最終更新日: 2026-07-21
-- 対象: Project C++、source／binary境界、entry point、lifecycle、Game UI extension、Build、Preview、Packaging
-- 状態: プロジェクト公式の規範設計レビュー版
-- Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
-- 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
-- Engine命名正本: [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
-- Game Project配置・命名正本: [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
-- Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
-- Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- Memory／Pointer規約: [Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約](./2026-07-20-ai-readable-memory-pointer-architecture-design.md)
-- Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
-- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
-- Game制作時のEngine不変境界・初心者承認: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
+- 文書ID: mirakan.arch.native-game-module
+- 状態: review
+- 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Promotion、Packaging、Native failure／security gate
+- 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
@@ -35,12 +25,12 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 
 | 主題 | 正本 |
 |---|---|
-| C++／GameplayDefinition選択、Performance閾値、Script VM不採用 | Game実装規約 |
+| C++／GameplayDefinition選択、GameSystemSpecV1、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
 | NativeGameModule artifact、ABI、entry、lifecycle、Build、Package | 本書 |
-| C++ language、compiler、memory、pointer、exception、target DAG | 基盤規約 |
+| C++ language、compiler、memory、pointer、exception、target DAG | [C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md) |
 | tick phase、World lease、command／event、queue、failure | Runtime規約 |
-| Source Worker、Risk R3、Approval、Promotion | AI実装・保守ガバナンス規約 |
-| Game System ID、State owner、Implementation Variant、System Bundle、Target同値性 | Game System規約 |
+| Source Worker、Risk、Approval、Promotion authorization | [AI Security／Approval](../01-governance/ai-security-approval.md) |
+| Game System ID、State owner、Implementation Variant、System Bundle、Target同値性 | [Gameplay programming model](gameplay-programming-model.md) |
 | `UiNativeWidget`のproperty、slot、measure、presentation、interaction、semantic、budget、fallback | UI／Text／Localization／Accessibility規約 |
 
 次をNativeGameModuleへ入れない。

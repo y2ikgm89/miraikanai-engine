@@ -1,21 +1,11 @@
 # Miraikanai Engine Editor／Workspace／UX規約
 
-- 文書版: 1.5
-- 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
-- 対象: Windows Editor shell、panel、docking、workspace、AI Partner、手動編集、accessibility、recovery
-- 状態: プロジェクト公式の規範設計レビュー版
-- Product設計: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
-- Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
-- AI規約: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
-- 機能範囲: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
-- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
-- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
-- Particle／VFX規約: [Miraikanai Engine 独自Particle／VFX Platformアーキテクチャ規約](./2026-07-20-particle-vfx-architecture-design.md)
-- UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
-- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-- Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
-- Game Project配置・命名規約: [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
+- 文書ID: mirakan.arch.editor-workspace-ux
+- 状態: review
+- 正本範囲: Editor process model、Shell配置、Panel／Workspace、制作journey、AI Partner UX、手動編集との往復、Error／Recovery UX、初心者／上級者projection、AccessibilityとEditor操作性能
+- 非正本範囲: Widget／Layout実装、Project transaction、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
@@ -30,12 +20,12 @@ AIは常時表示、tab、floating、非表示をWorkspaceごとに選択でき�
 | 主題 | 正本 |
 |---|---|
 | Shell、panel、layout、workspace、操作、AI Partner、accessibility | 本書 |
-| Project Document、ChangeSet、Commit、Undo、Recovery data | Authoring規約 |
-| AI Task、質問、権限、Approval、Provider／MCP／CLI | AIガバナンス規約 |
+| Project Document、ChangeSet、Commit、Undo、Recovery data | [Project state](project-state.md) |
+| AI Task、質問、権限、Approval、Provider／MCP／CLI | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Debug Session／Event／Counter／Query、pause／step、Replay／Causality、AI診断意味 | Debugging規約 |
 | Runtime／Play、Renderer、Asset、Input／UI／Audio等のDomain意味 | 各Subsystem規約 |
-| Asset Browser、Import Inspector、Preview、Conversion Report、Reimport ConflictのDomain data | Asset Import／AI Authoring／Editor UX規約 |
-| MirakanUi Core、MirakanEditor Shell、Widget、Rendering、Platform Adapter、禁止GUI dependency | Editor UI Framework規約 |
+| Asset Browser、Import Inspector、Preview、Conversion Report、Reimport ConflictのDomain data | [Asset lifecycle](asset-lifecycle.md) |
+| MirakanUi Core、MirakanEditor Shell、Widget、Rendering、Platform Adapter、禁止GUI dependency | [Editor UI Framework](editor-ui-framework.md) |
 
 C1ではMobile上でEditorを動かさず、web editor、VR editor、共同リアルタイムmulti-user、Editor extension marketplace、任意binary pluginを実装しない。Editor shellはC++23の独自`MirakanUi Core`と`MirakanEditor Shell`で構築し、Dear ImGui、Qt、WinUI、WPF、Windows Forms、GTK、wxWidgets、Electron、CEFをGUI Frameworkとして使用しない。Win32、D3D12、DirectWrite、TSF、UI Automation、OLEはEditor UI Framework規約のPlatform Adapter境界でだけ利用する。
 
@@ -234,7 +224,7 @@ C1 Source WorkspaceはProject C++／HLSL／MCD JSONのtree、UTF-8 editor、synt
 
 ### 6.5 Asset Browser／Import Inspector
 
-Asset BrowserとImport InspectorはAsset Import／AI Authoring／Editor UX規約のStable ID selection、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`AssetConversionReportV1`、`AssetReimportConflictV1`を投影する。
+Asset BrowserとImport Inspectorは[Asset lifecycle](asset-lifecycle.md)が所有するStable ID selection、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`AssetConversionReportV1`、`AssetReimportConflictV1`を投影する。
 
 - Asset Browserはtype、semantic role、tag、license、Production readiness、diagnostic、dependencyでfilterできる。
 - thumbnail、waveform、font sample、3D turntableは選択補助であり、Operation targetにはStable IDを使う。
@@ -249,10 +239,10 @@ Asset BrowserとImport InspectorはAsset Import／AI Authoring／Editor UX規約
 
 ### 6.6 Debugging
 
-Debug Workspaceは[AI可読Debugging／Observability／Replay規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)のtyped Storeを投影し、Panelごとに独自log parser、別timestamp、別Object identityを持たない。選択したSession、Project revision、Build、Target、tick／frame、recorded／current stateを上部Context barで固定表示する。
+Debug WorkspaceはDebugging Ownerのtyped Storeを投影し、Panelごとに独自log parser、別timestamp、別Object identityを持たない。選択したSession、Project revision、Build、Target、tick／frame、recorded／current stateを上部Context barで固定表示する。
 
 - Sessionは接続、recording tier、retention、gap、redaction、remote trust、crash／hang状態を表示する。
-- Console／Problemsは同じ`DebugEventEnvelopeV1`と`MirakanDiagnosticV1`をseverity／domain／phase／Stable IDでfilterし、元Event、Snapshot、source map、Replay pointへ移動できる。
+- Console／ProblemsはDebugging Ownerが所有する`DebugEventEnvelopeV1`と`MirakanDiagnosticV1`をseverity／domain／phase／Stable IDでfilterし、元Event、Snapshot、source map、Replay pointへ移動できる。
 - Profiler／Timeline／Causalityはcounter／span／event／causal edgeを同じtimepointへ整列し、presentation結果をauthoritative causeとして逆向きに結ばない。
 - Breakpoint／Watchはtarget、condition、scope、hit count、suspend policyを型付きで表示する。Runtime pauseは要求時点で即時停止せずT110 safe pointで成立させ、tick step／render-frame step／GameplayDefinition node stepを区別する。
 - Replayはrecord→scrub→inspect、first divergence、recorded／current revision差分、欠損rangeを表示する。gapまたはredactionを値なしの正常状態として扱わない。

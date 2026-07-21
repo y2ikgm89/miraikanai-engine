@@ -1,18 +1,11 @@
 # Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約
 
-- 文書版: 1.1
-- 作成日: 2026-07-20
-- 調査基準日: 2026-07-20
-- 対象: MirakanUi Core、MirakanEditor Shell、Widget、Layout、Event、Rendering、Docking、Window、Text、IME、Accessibility、AI Semantic Interface
-- 状態: プロジェクト公式の規範設計レビュー版
-- 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-- C++規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
-- UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
-- Editor UX規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
-- Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
-- Rendering規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
-- Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
-- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
+- 文書ID: mirakan.arch.editor-ui-framework
+- 状態: review
+- 正本範囲: MirakanUi Core、Editor Shell、Widget／Layout／Style、Event／Focus／Command、UI Rendering、Window／Dock、Text／IME、Semantic Tree、Accessibility bridge、UI ownershipと検証
+- 非正本範囲: Project transaction、Workspace journey、Asset operation、Gameplay model、外部Tool・SDK・Libraryの固定値、Runtime／Rendering／Platform内部。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 

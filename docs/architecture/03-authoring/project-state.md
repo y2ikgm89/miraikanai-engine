@@ -1,17 +1,11 @@
 # Miraikanai Engine Authoring Model／Project State規約
 
-- 文書版: 1.5
-- 作成日: 2026-07-19
-- 対象: Project source、World Model、Scene、ChangeSet、保存、Undo／Redo、外部編集、Recovery
-- 状態: プロジェクト公式の規範設計レビュー版
-- 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
-- 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-- Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- 契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
-- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-- Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
-- World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
-- Game Project配置・命名規約: [Miraikanai Engine AI可読Game Project配置・命名規約](./2026-07-20-ai-readable-game-project-layout-naming-design.md)
+- 文書ID: mirakan.arch.project-state
+- 状態: review
+- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSet、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
+- 非正本範囲: Schema基盤、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime scheduling。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
@@ -33,13 +27,13 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | 主題 | 正本 |
 |---|---|
 | Project Document、World Model、ChangeSet、Commit、Undo、Recovery | 本書 |
-| MCD型、Operation、Error、Schema projection、Codegen | 実行可能契約規約 |
-| ID、memory、pointer、thread、directory、serialization基礎 | 基盤規約 |
+| MCD型、Operation、Error、Schema projection、Codegen | [Executable contracts](../02-foundation/executable-contracts.md) |
+| ID、memory、pointer、thread、directory、serialization基礎 | [Core architecture](../02-foundation/core-architecture.md)と各Foundation Owner |
 | Runtime World、tick、lease、queue、Asset promotion | Runtime規約 |
-| AI権限、承認、Source sandbox、Promotion | AI実装・保守ガバナンス規約 |
-| Editor panel、workspace、製品操作、人間工学 | Editor規約 |
-| Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | Editor UI Framework規約 |
-| Game System Spec、Implementation Set、System Bundle、二段階Activation | Game System規約 |
+| AI権限、承認、Source sandbox、Promotion | [AI Security／Approval](../01-governance/ai-security-approval.md) |
+| Editor panel、workspace、製品操作、人間工学 | [Editor Workspace UX](editor-workspace-ux.md) |
+| Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | [Editor UI Framework](editor-ui-framework.md) |
+| Game System Spec、Implementation Set、System Bundle、二段階Activation | [Gameplay programming model](gameplay-programming-model.md) |
 | World、Scene、Level、Topology、Partition Intent、Procedural World、Map Presentation | World／Level／Map規約 |
 
 本書はGitをProject database、Undo system、runtime content storeとして必須化しない。Git連携は任意の外部version-control機能であり、Commitの成否はGit状態へ依存しない。共同リアルタイム編集、CRDT、branch merge UI、networked multi-user sessionはC3であり、C1／C2のChangeSet契約へ含めない。
@@ -263,9 +257,7 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 
 ### 5.4 System／World Bundle
 
-`SystemBundleChangeSetV1`と`WorldAuthoringBundleV1`は複数の既存ChangeSet／Staging artifactをexact hashで結ぶcoordination envelopeであり、`ProjectChangeSet`へSource本文またはAsset binaryを埋め込む機能ではない。Bundle自体をCommitして正規Documentを迂回しない。
-
-System BundleがC++ Sourceを含む場合、Source repositoryとProjectRevisionを一つの原子的transactionと宣言しない。Staging検証、隔離Build／Test、Review、Source Promotion、昇格済みSourceからのTrusted Buildが成功した後、`RegisterNativeModuleRevision`と`SetSystemImplementationVariant`を同じProjectChangeSetでCommitする。Source Promotion後にProject Commitが失敗した場合、Sourceを削除またはforce moveせずinactive revisionとして保持し、同一hashで再試行するか別Review済みrevertを提案する。Projectは直前のactive implementationを維持する。
+`SystemBundleChangeSetV1`のschema、状態遷移、二段階Activation、Source Promotion後のrecoveryは[Gameplay programming model](gameplay-programming-model.md)だけが所有する。本書はBundleが参照する`ProjectChangeSet`と最終Project Commitだけを所有する。Gatewayは検証済みexact hashを受け取り、`RegisterNativeModuleRevision`と`SetSystemImplementationVariant`を同じProjectChangeSetでCommitする。Bundle自体をCommitして正規Documentを迂回せず、Project Commit失敗時にSource repositoryをrollbackしない。
 
 World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つのProjectChangeSetへ変換する。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`OptimizationRequired`または非Qualifiedにする。
 
