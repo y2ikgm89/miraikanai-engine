@@ -587,6 +587,15 @@ SettingsApplyTransactionV1
   previous_known_good_ref
   validation_receipt_refs[]
   result: pending | applied | reverted | restart_required | rejected
+
+SettingsCatalogCommitMarkerV1
+  commit_marker_id
+  settings_document_ref
+  settings_revision
+  settings_checksum
+  save_catalog_ref
+  save_catalog_generation
+  save_catalog_checksum
 ```
 
 `settings_document_ref`は`SettingsDocumentV1`を指す。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、対応するSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
@@ -599,7 +608,11 @@ Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変
 | `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、UI／real-time clockの**ちょうど15秒**以内にkeyboard／controllerで確認されなければ自動Revert |
 | `restart_required` | Renderer Backend、Packageでrestartが必要と宣言されたDevice feature | 現sessionのRuntime stateを変更せず、次回起動候補として保存し、起動失敗時はlast-known-goodへ戻す |
 
-Commitはtemp write、flush、checksum verify、atomic replace、Save Catalog generation updateの順に一つのtransactionとして完了させる。base revision mismatch、unsupported Target、display mode loss、device loss、audio route loss、storage full、partial writeはtyped failureとして原子的にrejectedとし、部分適用を成功扱いにしない。失敗時はlast-known-goodへatomic revertし、confirmed適用中もUI、確認入力、screen reader、Revert経路を維持して表示不能を成功扱いにしない。
+SettingsとSave Catalogは`SettingsCatalogCommitMarkerV1`を同じdurable commit markerとする二相公開で、個別generationを公開しない。第一相ではSettings payloadと対応するSave Catalog entry／generationをstageし、両方をflushしchecksum verifyしてからmarkerをdurableにする。第二相では成功した同一markerをactive rootとしてatomic replaceし、そのmarkerに記録されたSettingsとCatalogの両referenceを同時にpublishする。readerはactive markerから対になる両referenceを一読で解決し、SettingsまたはCatalogを別rootから混在して読まない。
+
+Catalog update、marker、flush、atomic replace、recoveryのいずれかが失敗した場合はtyped `catalog_commit_failed`としてrejectedとし、staged generationを一方も公開せず、SettingsとCatalogをともに以前のgenerationへ残す。起動時のinterrupted commit recoveryはactive markerと両payload／checksum／generationをreadbackして対を検証する。marker欠落、readback不一致、またはrecovery failureでは新generationをpublishせずprevious active markerを維持し、両方のprior generationを使用する。
+
+Commitはこの二相境界の内側でtemp write、flush、checksum verify、atomic replaceを行う。base revision mismatch、unsupported Target、display mode loss、device loss、audio route loss、storage full、partial writeはtyped failureとして原子的にrejectedとし、部分適用を成功扱いにしない。失敗時はlast-known-goodへatomic revertし、confirmed適用中もUI、確認入力、screen reader、Revert経路を維持して表示不能を成功扱いにしない。
 
 ```text
 SaveCatalogV1
@@ -762,7 +775,7 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - 100／125／150／200% DPI、0.75～2.0 UI scale、portrait／landscape、cutout
 - Windows UIA、Android Accessibility、Apple UIAccessibility action
 - keyboard／controller／touch／screen readerでTitle→Settings→Play→Pause→Exit
-- `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのちょうど15秒timeout、restart_required、future schema／hash／reference Safe Mode、Save Catalog generation／identity禁止
+- `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのちょうど15秒timeout、restart_required、future schema／hash／reference Safe Mode、`SettingsCatalogCommitMarkerV1`二相公開／split generation不可視／catalog_commit_failed／interrupted recovery、Save Catalog generation／identity禁止
 - glyph atlas eviction／submission lifetime、locale／Font／Style hot reload
 - 131,072 Node、65,536 glyph、8,192 event上限と10分soak
 - Windows、Android、Appleの同じUI fixtureでlogical layout／semantic hash一致
