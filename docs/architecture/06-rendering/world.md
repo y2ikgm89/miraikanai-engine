@@ -199,7 +199,7 @@ LoadingProgressPlanV1
   subject_kind: initial_boot | level_transition | resume_save
   subject_request_ref: exact generation-bearing typed request ref
   dependency_closure_hash: bytes32
-  work_units: bounded array<{kind, exact_target_ref, positive_weight_q16}>
+  work_units: bounded array[1..65,535]<{kind, exact_target_ref, positive_weight_q16}>
   total_weight_q16: 65535
 
 LoadingProgressSnapshotV1
@@ -214,7 +214,7 @@ LoadingProgressSnapshotV1
   generation: uint64
 ```
 
-`minimum_display_monotonic_ms`は0～2,000で、表示flash抑制だけに使う。各work unitのkindは`io_bytes | artifact_verify | dependency_ready | activation_group | state_transfer`のclosed enumであり、exact対象refと正のweightを必須とする。Runtime Orchestratorは表示開始前に確定したdependency closureの実作業だけを列挙し、canonical orderで合計65,535へnormalizeする。同じPlan generationの`completed_weight_q16`は0～65,535で単調非減少とし、完了したunitのweightだけを加算する。fake timer、frame count、UI animation、spinner、未列挙jobを進捗へ混ぜない。closure hashが変わればbarを巻き戻さず、新しいsession、Plan、generationを発行する。
+`minimum_display_monotonic_ms`は0～2,000で、表示flash抑制だけに使う。各work unitのkindは`io_bytes | artifact_verify | dependency_ready | activation_group | state_transfer`のclosed enumであり、exact対象refと正のweightを必須とする。Runtime Orchestratorは表示開始前に確定したdependency closureの実作業を1～65,535件だけ列挙し、canonical orderで合計65,535へnormalizeする。同じPlan generationの`completed_weight_q16`は0～65,535で単調非減少とし、完了したunitのweightだけを加算する。65,535 unitは各weightが正で正規化可能なら受理し、exact +1の65,536 unitはPlan materialization前にtyped `loading_plan_capacity_exceeded`で拒否する。unitを省略、結合、truncateして成功へ近似せず、previous valid PlanとWorld generationを維持してpartial unitまたはpartial Planを公開しない。fake timer、frame count、UI animation、spinner、未列挙jobを進捗へ混ぜない。closure hashが変わればbarを巻き戻さず、新しいsession、Plan、generationを発行する。
 
 I/O、verify、timeoutは`real_time`／`async_io` domainで進められるが、activation、Character transfer、Save state適用はRuntime Ownerの正規tick boundaryだけでcommitする。Target activation groupとRenderer／Collision／Navigationを含むhard dependency closureがすべてReadyになった後だけ新generationをatomic publishする。activationまたはtransferが失敗した場合はtargetを全rollbackし、旧Levelをactiveのまま維持する。旧Levelを先に破棄して空Worldを露出せず、新Level active後にだけtransferし、その後に旧Levelをdeactivateする。
 
@@ -372,6 +372,7 @@ TileLayoutCommandV1
   allowed_terrain_tag_refs: bounded set[0..4096]<typed tag ref>
   connectivity_constraints: bounded array[0..256]<typed constraint>
   reachability_constraints: bounded array[0..256]<typed constraint>
+  max_examined_tile_count: positive uint32
   max_changed_tile_count: positive uint32
   preview_expansion_hash: bytes32
 ```
@@ -386,7 +387,9 @@ cell `transform`は正方形格子の二面体群D4のclosed enumである。Coo
 
 Tile editはimmutableな新Artifactを、変更region外周1 tile、terrain dependency radius、Collider seam、Navigation overlapまで再Cookする。Renderer、Collision、Navigationのrequired ArtifactがすべてReadyで、dependency hashとsource generationが一致した後だけ、World activation groupとTilemap generationを一つのpublication boundaryでatomic publishする。Presentation-only変更でCollision／Navigationを再利用する場合もexact dependency hashを検証する。一つでもfailed／cancelled／staleなら旧generationを維持し、partial artifact、空Tile、無衝突状態を公開しない。active authoritative regionのCollider／NavigationをPresentationより先にevictせず、Cell all-or-nothing activationをchunk単位へ弱めない。
 
-AIとEditorは同じbounded `TileLayoutCommandV1`を使い、AIが巨大なtile ID配列を直接生成することを拒否する。Engineはexpected revision／generation上で決定論的に展開し、allowed set、接続、到達性、`max_changed_tile_count`を検証する。Commit直前に同じ入力から再展開し、canonical preview expansion hashと一致しなければ`preview_commit_hash_mismatch`として拒否する。stale generation、上限超過、unknown Tile、revision mismatchもtyped rejectionで、近似修復しない。
+AIとEditorは同じbounded `TileLayoutCommandV1`を使い、AIが巨大なtile ID配列を直接生成することを拒否する。`region`のinclusive-min／exclusive-max areaはoverflow-safeなwide integerで事前計算し、canonical preflightはcell payloadのscanやcandidate materializationなしに決定論的なexpansion candidate countを導出する。region areaとcandidate countはそれぞれ`max_examined_tile_count`、Target Profileのcommand examined-tile limit、C1全Layer ceiling 16,777,216以下でなければならず、`max_changed_tile_count <= max_examined_tile_count`も必須とする。16,777,216 examined tileは他の二上限も許せば受理し、exact +1の16,777,217、area積overflow、いずれかの上限超過はscan／expansion開始前にtyped `tile_layout_capacity_exceeded`で拒否する。
+
+Engineはaccepted commandだけをexpected revision／generation上で決定論的に展開し、allowed set、接続、到達性、変更数を検証する。capacity failureでregionをtruncate、sample、分割、近似せず、candidate、changed tile、Artifactを部分公開しない。Commit直前に同じ入力から再展開し、canonical preview expansion hashと一致しなければ`preview_commit_hash_mismatch`として拒否する。stale generation、unknown Tile、revision mismatchもtyped rejectionであり、全拒否経路でprevious Tilemap／World generationと既存Renderer／Collision／Navigation Artifactを維持する。
 
 ### 10.2 Engine-native 3D Blockout
 
@@ -461,9 +464,11 @@ World固有diagnosticはWorld／Scene／Level／Entity Stable ID、Plan ID／pla
 | `MIRAKAN-WORLD-LEVEL_OWNER_INVALID` | Level gameplay ownerが0または複数 | Activation拒否 |
 | `MIRAKAN-WORLD-STREAMING_PLAN_STALE` | Source／Target／Toolchain hash不一致 | 再Cook要求 |
 | `MIRAKAN-WORLD-LOADING_PLAN_STALE` | dependency closure／Plan generation不一致 | 新session／Planを発行 |
+| `MIRAKAN-WORLD-LOADING_PLAN_CAPACITY_EXCEEDED` | work unitが65,535件超 | `loading_plan_capacity_exceeded`、previous Plan／World generation維持 |
 | `MIRAKAN-WORLD-DEPENDENCY_NOT_RESIDENT` | hard dependency不足 | Cellをactiveにしない |
 | `MIRAKAN-WORLD-ACTIVATION_PARTIAL` | activation groupの一部だけ成功 | 全体rollback |
 | `MIRAKAN-WORLD-TILE_SOURCE_INVALID` | duplicate／out-of-range cell、unknown Tile、revision mismatch、overflow、unsupported orientation | Source／Cook拒否 |
+| `MIRAKAN-WORLD-TILE_LAYOUT_CAPACITY_EXCEEDED` | region area／candidate／changed countがcommand、Target、C1上限超過 | `tile_layout_capacity_exceeded`、scan前に拒否 |
 | `MIRAKAN-WORLD-TILE_TRANSFORM_MISMATCH` | D4のconsumer結果／適用回数不一致 | 全consumer closureを拒否 |
 | `MIRAKAN-WORLD-TILE_GENERATION_STALE` | Source／Artifact／command generation不一致 | 旧generation維持、再Cook／再Preview |
 | `MIRAKAN-WORLD-TILE_ARTIFACT_PARTIAL` | Renderer／Collision／Navigationがall-readyでない | publication拒否 |
@@ -486,8 +491,8 @@ Qualificationは次のDomain fixtureを持つ。
 - `MoveEntityToScene`、`SetLevelSourceScenes`、Cell再Cookがidentity／membershipを暗黙変更しないこと。
 - Topology reachability／trap／cycle／Target fallback、unknown／stale／cross-cell pointer negative test、Undo／redo／crash recovery／concurrent edit conflict。
 - Cell全state transition、cancel、timeout、I/O failure、activation group atomicity、旧Level維持、Level transition／Character transfer／lease解放、Save／Load／Replay state hash。
-- Loadingの実作業weight合計65,535、同Plan単調進捗、closure変更時の新generation、fake timer拒否、Cancel boundary、明示Retry、input／audio／accessibility projectionを検証する。
-- Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transformのRenderer／pivot／Collision／Navigation／terrain一致、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致を検証する。
+- Loadingの実作業unit 65,535 exact／65,536 exact +1、weight合計65,535、同Plan単調進捗、capacity failureでpartial unit非公開、closure変更時の新generation、fake timer拒否、Cancel boundary、明示Retry、input／audio／accessibility projectionを検証する。
+- Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、examined tile 16,777,216 exact／16,777,217 exact +1のscan前capacity rejection、D4 single transformのRenderer／pivot／Collision／Navigation／terrain一致、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致を検証する。
 - Blockoutのdimension／segment／assembly／Level bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件fixtureを検証する。
 - 同じSource Levelの複数saved instance、checkpoint連鎖、missing／duplicate／不正`LevelSaveInstanceId`、Loadごとの新しい`LevelInstanceHandle`、one-to-one remap、保存handle復元拒否を検証するidentity fixture。
 - inactive／resident／active境界からauthoritative処理が漏れず、Presentation／LOD／Camera／GPU結果からauthorityへ逆入力しないこと。
