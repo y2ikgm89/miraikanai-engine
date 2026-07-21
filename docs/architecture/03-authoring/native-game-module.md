@@ -2,9 +2,9 @@
 
 - 文書ID: mirakan.arch.native-game-module
 - 状態: review
-- 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Promotion、Packaging、Native failure／security gate
-- 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
+- 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、Runtime scheduling／lifetime（canonical target `../04-runtime/scheduling-lifetime.md`）、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -28,7 +28,7 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 | C++／GameplayDefinition選択、GameSystemSpecV1、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
 | NativeGameModule artifact、ABI、entry、lifecycle、Build、Package | 本書 |
 | C++ language、compiler、memory、pointer、exception、target DAG | [C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md) |
-| tick phase、World lease、command／event、queue、failure | Runtime規約 |
+| tick phase／fixed delta値、World lease、command／event、queue、failure | Runtime scheduling／lifetime（canonical target `../04-runtime/scheduling-lifetime.md`） |
 | Source Worker、Risk、Approval、Promotion authorization | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Game System ID、State owner、Implementation Variant、System Bundle、Target同値性 | [Gameplay programming model](gameplay-programming-model.md) |
 | `UiNativeWidget`のproperty、slot、measure、presentation、interaction、semantic、budget、fallback | UI／Text／Localization／Accessibility規約 |
@@ -134,7 +134,7 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 | `struct_size`、`system_id` | `uint32`。`system_id`はCooked package内だけで有効なgenerated runtime ID、0 invalid |
 | `tick_id`、`invoke_sequence` | `uint64` |
 | `phase_id` | Runtime規約のserialized `TickPhaseId` |
-| `fixed_delta_numerator`／`fixed_delta_denominator` | `uint32`、C1は1／60 |
+| `fixed_delta_numerator`／`fixed_delta_denominator` | `uint32`。Runtime Ownerが供給する既約有理数を読み取り、Native側で既定値を選ばない |
 | `query_batches` | ComponentAccessManifestから生成したimmutable bounded View |
 | `rng_stream` | Engine-owned deterministic RNG Port |
 | `scratch_memory` | callback returnまで有効なsingle-owner Port |
@@ -239,7 +239,7 @@ Discovered
 | `system_id` | Cooked package内runtime `uint32` ID、generated。永続化／別Package比較禁止 |
 | `system_contract_version` | `GameSystemSpecV1.version`からgenerated |
 | `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
-| `phase_mask` | `T30`、`T40`、`T70`の許可組合せ。`T00`等へ直接登録不可 |
+| `phase_mask` | `RuntimePhaseSetRefV1`。`GameSystemSpecV1`から生成された許可集合だけを消費し、Native側でphaseを追加しない |
 | `read_component_set` | ComponentAccessManifest subset |
 | `write_state_set` | GameplayState field subset |
 | `command_set`／`event_set` | 生成可能な型のsubset |
@@ -252,7 +252,7 @@ Discovered
 
 Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはtick、fixed delta、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。World commitは成功後にRuntime規約のcanonical merge順で行う。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
 
-Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline tickを持ち、結果は`T20`で検査される。Module独自worker poolを作らない。
+Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline tickを持ち、結果はRuntime Ownerが定める結果portと安全境界で検査される。Module独自worker poolを作らない。
 
 ### 7.2 Game UI extension
 
@@ -260,10 +260,10 @@ Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを
 
 | Callback | Owner phase | Input | Output |
 |---|---|---|---|
-| `measure` | `T90` UI Layout | typed property、available size、Asset intrinsic metrics、bounded scratch | finite min／preferred／max size |
-| `build_presentation` | `T90` UI Presentation | final rect、typed property、presentation-only ViewModel field、Asset handle、bounded scratch | whitelist済みprimitive／Effect parameter |
-| `handle_interaction` | `T30` UI Interaction | semantic event、local state、typed property、bounded scratch | registered `UiCommandId`／local UiState delta |
-| `build_semantics` | `T90` Accessibility | typed property、final rect、state | bounded semantic node descriptor |
+| `measure` | UI Layout role | typed property、available size、Asset intrinsic metrics、bounded scratch | finite min／preferred／max size |
+| `build_presentation` | UI Presentation role | final rect、typed property、presentation-only ViewModel field、Asset handle、bounded scratch | whitelist済みprimitive／Effect parameter |
+| `handle_interaction` | UI Interaction role | semantic event、local state、typed property、bounded scratch | registered `UiCommandId`／local UiState delta |
+| `build_semantics` | Accessibility role | typed property、final rect、state | bounded semantic node descriptor |
 
 各callbackはUI Runtimeだけがcanonical Node ID順で呼び、World、ECS、Renderer、GPU、Platform、filesystem、networkへ到達させない。callback inputのView、scratch、writerはreturn時にinvalidateし、保持をDevelopment lease epochで検出する。clock、RNG、thread、async job、global mutable stateを禁止し、同じinputから同じoutputを生成しなければならない。
 
@@ -307,29 +307,23 @@ target_profile_hash
 configuration
 ```
 
-absolute path、user、timestampをobjectの意味入力にしない。Target別`BuildDriverProfileV1`に従い、WindowsはNinja Multi-Config、AndroidはGradle→Single-Config Ninja、Apple Module archiveはNinja Multi-ConfigでBuildする。Makefiles／`ndk-build`、Generator override、異なるBuild tree identityのartifactをPromotionしない。Primary MSVCとsecondary Clangによるcompile、format、warning-as-error、static analysis、unit、ASan、integration、conformanceをclean Build treeで行う。
+absolute path、user、timestampをobjectの意味入力にしない。Target別`BuildDriverProfileV1`に従い、WindowsはNinja Multi-Config、AndroidはGradle→Single-Config Ninja、Apple Module archiveはNinja Multi-ConfigでBuildする。Makefiles／`ndk-build`、Generator override、異なるBuild tree identityのartifactをbuild evidenceへ混在させない。Primary MSVCとsecondary Clangによるcompile、format、warning-as-error、static analysis、unit、ASan、integration、conformanceをclean Build treeで行う。
 
-### 9.2 RiskとPromotion
+### 9.2 Build evidenceとGovernance handoff
 
-AI生成またはAI変更の`NativeCodeChangeSet`はR3である。Source Workerはnetwork deny、Job Object／sandbox、path broker、CPU／memory／time capを持つ。Build成功は正規ProjectへのPromotion権限ではない。
+Native buildは`NativeModuleBuildEvidenceV1`として次のdomain evidenceだけを出力する。
 
-Promotionには次を必須とする。
+- Source delta／source tree hashとRequirement mapping
+- generated Module／C ABI contract hash、Dependency Set、manifest、Capability／access／budget
+- build identity、Target、Configuration、Toolchain lock、artifact hash
+- primary／secondary compile、format、warning、static analysisの結果
+- unit、property、fuzz、integration、replay、save／load、ASan、contract conformanceの結果
+- 同一fixtureのdeterminism、semantic equivalence、performance測定と入力hash
+- sandbox、resource limit、failure／cancellation status
 
-1. Source DiffとRequirement mapping
-2. 生成／変更したCapability、access、budgetのmanifest
-3. Primary／secondary compileとstatic analysis
-4. Unit、property、fuzz、integration、replay、save／load
-5. 10分×3回の同一fixture performance比較
-6. 不変Engine規約G0～G7の全合格とPolicy Service署名済み`SystemTechnicalAttestationV1`
-7. signed Promotion Receipt
-8. `SystemBundleChangeSetV1`の全hashとexpected dependency graphを照合
-9. Authoring規約の`RegisterNativeModuleRevision`＋`SetSystemImplementationVariant` Commit
+`NativeModuleBuildEvidenceV1`はbuild事実のimmutable envelopeであり、Risk、Approval、review attestation、promotion、activationを決定しない。それらの分類、署名者、失効、authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有する。`SystemBundleChangeSetV1`と実装切替は[Gameplay programming model](gameplay-programming-model.md)、Projectへの登録とCommitは[Project state](project-state.md)が所有する。
 
-Source、generated Module／C ABI Header、Dependency Set、Build artifact、Receiptのhashが一つでも一致しなければloadしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。
-
-Builder AI、Reviewer AI、人間のGame authorはいずれも技術Attestationへ署名できない。初心者はSourceを読んで安全性を保証せず、Systemの意図、Capability scope、Replay、性能、既知制限を確認する。SourceまたはGate inputが変わればAttestationを失効させる。
-
-Source PromotionとProject Commitを一つの原子的transactionと偽らない。Source Promotion後にProject Commitが失敗したrevisionはinactiveのまま保持し、現在Projectが参照する直前のQualified Variantをloadする。再試行またはrevertは同じBundle hashと新しいReview Receiptを必要とする。
+Source、generated Module／C ABI Header、Dependency Set、Build artifact、build evidenceのhashが一つでも一致しなければload候補にしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。Governanceからauthorizationが返らないartifactはinactiveに保ち、Projectは直前のQualified Variantを参照し続ける。
 
 ## 10. PreviewとPackage
 
@@ -337,7 +331,7 @@ Windows Preview sequenceを次で固定する。
 
 1. Editorが現在のCommit済みProject revisionをBuild requestに固定する。
 2. 隔離Workerが新しいartifact directoryへDLL、PDB、manifestを出す。
-3.全Gate合格後にPreview artifactをread-only publishする。
+3. Native build検証合格後、Governance authorizationを受けたPreview artifactをread-only publishする。
 4. 旧GameHostへgraceful stopを要求し、timeout時はProcessを終了する。
 5. 新GameHostがEngine／Contract／Module hashを検証してstartup loadする。
 6. Project packageをloadし、Play sessionを新規作成する。
@@ -385,17 +379,17 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - Definition実装とNative実装でcommand、event、Save、replay意味が一致する。
 - Native descriptorのSystem ID、Contract version、Variant、State owner、phase、accessがactive Game System Graphと一致しない場合にloadを拒否する。
 - Target-specialized Variantが同じPublic System ContractとGameplay fidelity fixtureを通り、意味同等fallbackなしのTargetを非対応にする。
-- Source Promotion後Project Commit失敗時に新Variantをloadせず、直前Qualified Variantを維持する。
+- Governance authorization後Project Commit失敗時に新Variantをloadせず、直前Qualified Variantを維持する。
 - GameHostを100回再起動し、Editor Processのhandle／memoryが増加しない。
 - Windows Shipping、Android、Appleのclean static-link packageが同じModule revision hashを記録する。
-- AI生成SourceがPromotion前に正規Project／Editor／Shippingへloadされない。
+- AI生成SourceがGovernance authorization前に正規Project／Editor／Shippingへloadされない。
 - CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 - C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
 
 C1完了条件は、2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。
 
-C2 UI extension完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として実装し、AI生成SourceのR3 Promotion、UI Designer fallback projection、Windows GameHost Preview、Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを合格することである。これはC1 NativeGameModule完了条件を置き換えない。
+C2 UI extension完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として実装し、Governance-authorized source、UI Designer fallback projection、Windows GameHost Preview、Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを合格することである。これはC1 NativeGameModule完了条件を置き換えない。
 
 ## 14. 一次資料
 

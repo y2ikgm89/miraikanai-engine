@@ -728,16 +728,12 @@ CIはsource include、CMake graph、link map、SBOM、license noticeを検査し
 
 ## 20. PhaseとPromotion Gate
 
-| Global Phase | UI成果物 | Promotion Gate |
-|---|---|---|
-| Phase 0 | target／Module skeleton、UiNode／Event／Semantic／Packet contract、forbidden dependency test | Header／Module graph、negative fixture、no external GUI toolkit |
-| Phase 1 | MirakanUi Core、Layout、Event、Focus、software test renderer、Game `UiDocument`最小projection | deterministic layout／semantic hash、fuzz、memory cap |
-| Phase 2 | Windows D3D12 UI pass、DirectWrite、TSF、UIA、Main Shell、Dock、Workspace、Session／Console／Problems／Profiler／Timeline／Watchのtyped Debug projection | DPI、IME、screen reader、device loss、dock soak、Debug query virtualization、Performance |
-| Phase 3 | Scene／Outliner／Inspector／Asset／AI Partner、Breakpoint／Causality／Replay／Reproductionのproduction vertical slice | 2D First PlayableをAIと手動の両方で編集し、既知faultをrecord→scrub→inspectできる |
-| Phase 6 | 3D／Graph／Timeline／Profiler Canvas拡張 | 3D First Playable、50,000 node Graph、GPU gate |
-| Phase 7以降 | Game UIのAndroid／Apple backend | 各Mobile規約の実機Accessibility／IME／thermal gate |
+Phase順序、Capability maturity、release threshold、promotion authorizationは[Product Plan](../00-product/product-plan.md)だけが所有する。本書はProduct Planが有効化したUI Capabilityを消費し、phase番号や共有thresholdを割り当てない。
 
-Phase 0のblank WindowをEditor完成と呼ばない。Phase 2 Gateに合格するまでTechnology PreviewへEditorを配布しない。
+- 有効化されたCapabilityだけにUI surfaceを公開し、未有効化ならtyped `CapabilityNotActivated`を返す。
+- 各UI成果物は本書のWidget／Layout／Event／Semantic／Accessibility／Performance contractへの適合evidenceを提供する。
+- Editor shell、Game UI、Platform backendはProduct Planのactive capability setを同じ入力として使用する。
+- release候補には本書のQualification結果を添付するが、promotion可否はProduct PlanとGovernance Ownerへ渡す。
 
 ## 21. 明示的に採用しないもの
 
@@ -785,4 +781,4 @@ C1独自Editor UI Frameworkは次をすべて満たした時点で完了する�
 | ClipboardはUser commandへの応答として扱う | [About the Clipboard](https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-the-clipboard)、[Clipboard Formats](https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats) |
 | Keyboard、Focus、target size、drag代替の人間工学原則 | [WCAG 2.2](https://www.w3.org/TR/WCAG22/) |
 
-外部資料はPlatform APIと既存Engineの方式を示す。`MirakanUi Core`、`EditorViewDescriptor`、`EditorSemanticSnapshotV1`、AI／UIA分離、Command収束、Budget、Directory、Phase、GateはMiraikanai Engine独自の規範決定である。
+外部資料はPlatform APIと既存Engineの方式を示す。`MirakanUi Core`、`EditorViewDescriptor`、`EditorSemanticSnapshotV1`、AI／UIA分離、Command収束、UI固有contractとfixtureはMiraikanai Engine独自の規範決定である。

@@ -23,6 +23,8 @@ Source Asset
 
 Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを直接読まない。AI、Editor、CLIもCooked binary、Package index、GPU／Physics native objectを直接生成または変更しない。Import／ReimportとPackage assemblyはこの文書だけが所有し、前者の結果を後者が消費する同一lifecycleの別stageとする。
 
+本文書の`AssetSourceDescriptor`、`AssetImportJob`、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`CommonImportSettingsV1`、Asset kind別Settings／IR、`AssetImportPlanV1`、`AssetConversionReportV1`、`AssetDiagnosticV1`、`AssetImportReceiptV1`、`AssetReimportConflictV1`、`TypedConflictValueV1`、`DerivedArtifactManifest`、`MirakanAssetCatalogV1`はAsset Domainのcanonical MCD schemaである。[Executable contracts](../02-foundation/executable-contracts.md)は共通Envelope、projection、compiler規則を所有し、Asset field、tag、cardinalityは本文書だけが所有する。
+
 ## 1. Source／Import identity
 
 ### 1.1 Assetの四層
@@ -42,20 +44,38 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 | `asset_type` | closed Asset Type ID |
 | `asset_revision` | `uint64` |
 | `source_relative_path` | Project source root内のcanonical relative path |
-| `source_sha256` | Source bytesのhash |
-| `source_media_type` | allowlist enum |
+| `source_sha256` | Source file bytesのSHA-256 |
+| `source_media_type` | closed allowlist enum |
 | `import_profile_id` | typed Profile `StableId` |
 | `import_settings` | Asset Type別MCD object |
-| `declared_dependencies` | `AssetId`とrole |
-| `license_record_id` | 必須 |
-| `provenance_record_id` | 必須 |
-| `safety_receipt_id` | 外部／AI生成時必須 |
+| `declared_dependencies` | `AssetDependencyRefV1[0..4096]`。各要素は`AssetId`＋role |
+| `license_record_id` | `StableId`、必須 |
+| `provenance_record_id` | `StableId`、必須 |
+| `safety_receipt_id` | `optional StableId`。外部／AI生成時は必須 |
+| `editor_tags` | `ClosedAssetTagId[0..64]` |
 
 Pathは`/`へ正規化し、absolute path、drive、UNC、`..`、empty segment、NUL、reserved device name、case-fold衝突を拒否する。logical path比較はUnicode NFCとProject canonical keyを使い、同一keyの二つのSourceを許可しない。Source dependencyはBrokerが解決したmanifestへ閉じ、Importerが実行中に任意pathを探索してはならない。
 
 ### 1.2 Import jobと状態
 
-`AssetImportJob`は`job_id`、Asset ID／revision、Source hash、flattened Profile hash、Importer ID、Importer lock hash、Target Profile ID、dependency Artifact key、Toolchain lock hash、resource limitを持つ。Job keyはこのcanonical tupleのSHA-256である。Timestamp、machine path、user、worker completion順をcache identityにしない。
+`AssetImportJob`は次のcanonical tupleを持つ。
+
+```text
+AssetImportJob
+  job_id: StableId
+  asset_id: StableId
+  asset_revision: uint64
+  source_hash: sha256
+  import_profile_hash: sha256
+  importer_id: ClosedImporterId
+  importer_version_hash: sha256
+  target_profile_id: StableId
+  dependency_artifact_keys: sha256[0..4096]
+  toolchain_lock_hash: sha256
+  limits: AssetImportJobLimitsV1
+```
+
+`AssetImportJobLimitsV1`はCPU time、wall time、commit memory、output bytes、output file countのpositive hard limitだけを持つ。Job keyは上記tupleのcanonical bytesから作る。Timestamp、machine path、user、worker completion順をcache identityにしない。`import_profile_hash`はflatten済みProfile hash、`importer_version_hash`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のexact lockを参照するhashであり、本文書へ外部versionを複写しない。
 
 ```text
 Discovered
@@ -76,32 +96,252 @@ Source解析はProjectを変更しない。Import設定変更はImport Document�
 
 ### 2.1 Analysis、Profile、Plan
 
-`AssetSourceAnalysisV1`はAsset ID／revision、media type、Source hash、format feature、座標／単位／色／音声metadata、dependency候補、構造summary、unsupported feature、Analyzer Receiptを持つ。Source名、Directory、DCC名だけからsemantic roleを確定しない。規範metadata、Project Profile、明示User設定だけを根拠とする。
+```text
+AssetSourceAnalysisV1
+  asset_id: StableId
+  asset_revision: uint64
+  source_media_type: ClosedMediaTypeId
+  source_hash: sha256
+  format_version: string
+  format_features: ClosedFeatureId[0..256]
+  source_coordinate_system: optional CoordinateSystemDescriptorV1
+  source_unit_scale_meters: optional positive_f64
+  source_color_encoding: optional ColorEncodingDescriptorV1
+  source_audio_layout: optional AudioLayoutDescriptorV1
+  dependency_candidates: SourceDependencyCandidateV1[0..4096]
+  structural_summary: AssetStructuralSummaryV1
+  unsupported_features: ClosedFeatureId[0..256]
+  analyzer_receipt: ToolReceiptV1
+```
 
-`AssetImportProfileV1`はProfile ID、schema version、Asset kind、Target scope、共通設定、kind別typed settings、fallback policy、Approval policyを持つ。Profile継承は一段に限定し、flattened Profile hashをJobとReceiptに保存する。kind固有fieldをuntyped property bagへ入れない。
-
-`AssetImportPlanV1`は次を持つ。
+Source名、Directory、DCC名だけからsemantic roleを確定しない。規範metadata、Project Profile、明示User設定だけを根拠とする。
 
 ```text
-plan_id
-asset_id
-base_asset_revision
-base_project_revision
-source_analysis_hash
-flattened_profile_hash
-selected_subresources[]
-explicit_conversions[]
-predicted_artifacts[]
-predicted_runtime_cost
-blocking_questions[]
-risk_class
+AssetImportProfileV1
+  profile_id: StableId
+  schema_version: SemVer
+  asset_kind: texture | sprite | scene_3d | mesh | skeleton
+            | animation | audio | font
+  target_profile_scope: StableId[1..16]
+  common: CommonImportSettingsV1
+  settings: tagged union by asset_kind (AssetKindImportSettingsV1)
+  fallback_policy: forbid | allow_listed
+  approval_policy: RiskApprovalPolicyV1
+```
+
+`CommonImportSettingsV1`は次の4 fieldだけを持つ。
+
+| Field | 型／規則 |
+|---|---|
+| `dependency_policy` | `AssetDependencyPolicyV1` |
+| `unknown_metadata_policy` | `UnknownMetadataPolicyV1` |
+| `warning_promotion_policy` | `WarningPromotionPolicyV1` |
+| `budget_class` | `AssetBudgetClassId` |
+
+`AssetKindImportSettingsV1`は`asset_kind`と一致する次のclosed tagged unionである。
+
+| `asset_kind` | `settings` variant | Duplicate disposition |
+|---|---|---|
+| `texture` | `TextureImportSettingsV1`、`sprite=none` | Texture共通fieldを別schemaへ複写しない |
+| `sprite` | `TextureImportSettingsV1`、`sprite=some SpriteImportSettingsV1` | SpriteはTexture設定を内包しない |
+| `scene_3d` | `SceneImportSettingsV1` | 旧Transform policy表をtyped schema化 |
+| `mesh` | `MeshImportSettingsV1` | Scene transformはSource analysis／IRから継承 |
+| `skeleton` | `SkeletonImportSettingsV1` | 旧Skeleton validation policyをtyped schema化 |
+| `animation` | `AnimationImportSettingsV1` | Skeleton binding fieldを同schemaで参照 |
+| `audio` | `AudioImportSettingsV1` | Audio以外のfieldを持たない |
+| `font` | `FontImportSettingsV1` | Font以外のfieldを持たない |
+
+Profile inheritanceは一段だけ許可し、最終的なflatten済みProfile hashをJob keyとReceiptへ保存する。Asset kind固有fieldをuntyped property bagへ入れず、tagとvariant不一致をSchema errorにする。
+
+```text
+AssetImportPlanV1
+  plan_id: StableId
+  asset_id: StableId
+  base_asset_revision: uint64
+  base_project_revision: uint64
+  source_analysis_hash: sha256
+  flattened_profile_hash: sha256
+  selected_subresources: StableSourcePathV1[0..4096]
+  explicit_conversions: ImportConversionV1[0..256]
+  predicted_artifacts: ArtifactRoleId[1..256]
+  predicted_runtime_cost: AssetCostEstimateV1
+  blocking_questions: ImportQuestionV1[0..32]
+  risk_class: R0 | R1 | R2 | R3
 ```
 
 Blocking questionが一件でもあればCook承認対象にしない。AIが未回答を既定値で埋めることを禁止する。低影響で公式Profileが一意な項目だけEngineが解決し、由来をPlanへ記録する。
 
-### 2.2 typed Import IRとAsset別検出
+### 2.2 Asset kind settings
 
-Texture、Sprite、Scene／Mesh、Skeleton／Animation、Audio、Fontはそれぞれtyped IRを持つ。IRはSource native object、decoder pointer、DCC property bagを保存しない。Source形式が増えてもRuntime Asset schema、AI Operation、Cook入口を分岐させず、同じPlan、IR、Validator、Report、Receiptへ収束させる。
+```text
+TextureImportSettingsV1
+  semantic_role: base_color | emissive | normal | orm | mask
+               | height | hdr_environment | ui | sprite | data
+  color_encoding: srgb | linear | source_icc_to_scene_linear
+  alpha_mode: opaque | straight | premultiplied | mask
+  normal_convention: none | tangent_plus_y | tangent_minus_y
+  mip_policy: none | generate_color | generate_normal | preserve_source
+  resize_policy: preserve | max_dimension
+  max_dimension: uint32
+  compression_profile: StableId
+  streaming_policy: resident | streamed
+  channel_mapping: TextureChannelMappingV1
+  sprite: optional SpriteImportSettingsV1
+```
+
+`max_dimension`は`resize_policy=max_dimension`の時だけnonzeroを必須とする。`semantic_role`が`normal`、`orm`、`mask`、`height`、`data`の場合にsRGB Cookを拒否する。
+
+```text
+SpriteImportSettingsV1
+  rect_mode: SpriteRectModeV1
+  rects: SpriteRectV1[0..65536]
+  grid_cell: optional SpriteGridCellV1
+  grid_margin: optional Extent2uV1
+  grid_spacing: optional Extent2uV1
+  pivot: SpritePivotV1
+  pixels_per_unit: positive_f32
+  nine_slice_border: optional SpriteBorderV1
+  trim_policy: SpriteTrimPolicyV1
+  packing_policy: SpritePackingPolicyV1
+  atlas_group: optional StableId
+  allow_rotation: bool
+  extrude_texels: uint32
+```
+
+Sprite rectはboundedで、単一Texture内の有効Sprite数は65,535以下、atlas pageは4,096×4,096 texel以下とする。Textureのcolor、alpha、mip、compression、streaming設定を`SpriteImportSettingsV1`へ重複保存しない。
+
+旧3D Transform policy表を次のtyped settingsへ正規化する。
+
+```text
+SceneImportSettingsV1
+  hierarchy_policy: preserve
+  root_transform_policy: preserve
+  pivot_policy: preserve
+  placement_policy: preserve_source
+  front_policy: preserve_source
+  unit_policy: convert_to_meters
+  matrix_policy: require_decomposable_trs
+```
+
+上記closed value以外は別versionのSchemaなしに追加しない。Static Meshの明示`bake_geometry`は`ImportConversionV1`であり、Scene settingsの暗黙defaultにしない。
+
+```text
+MeshImportSettingsV1
+  lod_source_mode: disabled | source_chain | generated_chain | hybrid_chain
+  source_lod_bindings: SourceLodBindingV1[0..16]
+  mesh_lod_profile_id: StableId?
+  preserve_boundaries: bool
+  preserve_uv_seams: bool
+  preserve_hard_normals: bool
+  required_vertex_color_channels: ClosedChannelId[0..8]
+  skin_policy: source_only | qualified_generated
+  morph_policy: source_only | qualified_generated
+```
+
+`SkeletonImportSettingsV1`は旧Skeleton validation policyをfield化し、任意propertyを許可しない。
+
+| Field | 型／規則 |
+|---|---|
+| `joint_path_policy` | `require_unique_stable_path` |
+| `parent_policy` | `reject_cycle` |
+| `bind_pose_policy` | `require_finite_invertible` |
+| `weight_policy` | `require_finite_nonnegative_normalized` |
+| `influence_cap` | `positive_uint32`、Target Profile上限以下 |
+
+```text
+AnimationImportSettingsV1
+  skeleton_policy: require_embedded | bind_existing_exact
+  clip_extraction: embedded_clips | explicit_ranges
+  sample_policy: preserve_keys | bake_fixed_rate
+  bake_rate_hz: optional positive_f32
+  interpolation_policy: preserve_supported | bake_unsupported
+  key_reduction_profile: StableId
+  root_motion_policy: preserve_track | extract | discard
+  root_joint: optional StableSourcePathV1
+  event_source_policy: none | registered_metadata
+  retarget_policy: none | approved_humanoid_profile
+```
+
+`bake_rate_hz`は`sample_policy=bake_fixed_rate`の時だけ必須である。Standalone Skeletonは`SkeletonImportSettingsV1`、Animationは`AnimationImportSettingsV1`を使い、同じ`SkinIRV1` identityを参照する。
+
+```text
+AudioImportSettingsV1
+  semantic_role: sfx | ui | dialogue | music | ambience
+  channel_policy: preserve_mono_stereo | downmix_to_mono | downmix_to_stereo
+  sample_rate_policy: cook_48000
+  trim_policy: preserve | trim_explicit_range
+  gain_policy: preserve | apply_explicit_db
+  loop_policy: none | explicit_frames | source_markers
+  streaming_policy: auto_profile | resident | streamed
+  codec_profile: StableId
+  locale: optional LocaleId
+```
+
+`trim_explicit_range`、`apply_explicit_db`、`explicit_frames`のpayloadは`ImportConversionV1`に置き、settingsへuntyped scalarを追加しない。無承認の音量正規化を行わない。
+
+`FontImportSettingsV1`は旧Font契約を次のrequired fieldへ固定する。
+
+| Field | 型／規則 |
+|---|---|
+| `required_locales` | `LocaleId[1..256]` |
+| `required_scripts` | `ScriptId[1..256]` |
+| `glyph_coverage_policy` | `FontGlyphCoveragePolicyV1` |
+| `variable_axis_policy` | `FontVariableAxisPolicyV1` |
+| `color_glyph_policy` | `FontColorGlyphPolicyV1` |
+| `hinting_policy` | `FontHintingPolicyV1` |
+| `fallback_families` | `FontFamilyRefV1[0..64]` |
+| `raster_policy` | `FontRasterPolicyV1`。atlas／Runtime rasterを区別 |
+| `embedding_permission_record` | `StableId`、必須 |
+
+### 2.3 typed Import IRとAsset別検出
+
+Asset IRは次の4 canonical rootへ統合する。SpriteはTexture、Mesh／Skeleton／AnimationはScene rootを共有し、Source形式別IR aliasを増やさない。
+
+```text
+TextureImportIRV1
+  extent: uint32 width／height／depth
+  layers／faces／levels: bounded uint32
+  source_pixel_encoding: ClosedPixelEncodingId
+  color_encoding: ColorEncodingDescriptorV1
+  alpha_mode: opaque | straight | premultiplied | mask
+  semantic_role: ClosedTextureRoleId
+  channel_mapping: TextureChannelMappingV1
+  decoded_level_hashes: sha256[1..32]
+  sprite_records: SpriteRecordIRV1[0..65536]
+
+SceneImportIRV1
+  scene_roots: SceneNodeId[1..256]
+  nodes: SceneNodeIRV1[1..65536]
+  meshes: MeshIRV1[0..16384]
+  materials: MaterialBindingIRV1[0..16384]
+  skins: SkinIRV1[0..1024]
+  animations: AnimationIRV1[0..4096]
+  cameras: CameraIRV1[0..256]
+  lights: LightIRV1[0..256]
+  source_coordinate_system: CoordinateSystemDescriptorV1
+  canonicalization: SceneCanonicalizationV1
+
+AudioImportIRV1
+  sample_rate_hz: positive_uint32
+  channel_layout: ClosedAudioLayoutId
+  sample_format: pcm_s8 | pcm_s16 | pcm_s24 | pcm_s32 | float32
+  frame_count: uint64
+  loop_range: optional FrameRangeV1
+  measured_loudness_lufs: finite_f32
+  measured_true_peak_dbfs: finite_f32
+  decoded_pcm_hash: sha256
+
+FontImportIRV1
+  face_records: FontFaceIRV1[1..64]
+  unicode_coverage: UnicodeRangeSetV1
+  script_coverage: ScriptCoverageV1[1..256]
+  variation_axes: FontVariationAxisV1[0..64]
+  color_capabilities: ClosedFontColorCapabilityId[0..16]
+  embedding_permission: FontEmbeddingPermissionV1
+  normalized_table_hashes: FontTableHashV1[1..256]
+```
+
+旧Aseprite節の`SpriteImportIRV1`名は独立rootとして残さず、frame、tag、duration、slice／pivot、layerを`TextureImportIRV1.sprite_records`とtyped Conversion Reportへ正規化する。Standalone Skeleton／Animationも`SceneImportIRV1.skins`／`animations`の`SkinIRV1`／`AnimationIRV1`を使用する。IRはSource native object、decoder pointer、DCC property bagを保存しない。Source形式が増えてもRuntime Asset schema、AI Operation、Cook入口を分岐させない。
 
 | Kind | 必須の検出／validation |
 |---|---|
@@ -124,7 +364,24 @@ AnimationはSkeleton binding、clip extraction、sample／interpolation、root m
 
 Previewは正式Artifactと同じIR、Validator、Cook codeを使い、Preview専用の黙った補正を禁止する。Preview Artifactはpresentation用であり、Production Artifact keyまたはShipping closureへ自動追加しない。
 
-`AssetConversionReportV1`はSource analysis hash、Plan hash、Importer lock hash、Tool Receipt、適用変換、保持feature、loss、typed Diagnostic、before／after summary、Preview Artifact key、clean二回実行hashを持つ。`LossRecordV1`はSource path、feature ID、理由、visual／behavior impact、承認可否を持つ。unsupported featureをlossへ記録しただけで成功にせず、Profileが列挙したfallbackと必要なApprovalがある場合だけCook候補にする。
+```text
+AssetConversionReportV1
+  source_analysis_hash: sha256
+  plan_hash: sha256
+  importer_id: ClosedImporterId
+  importer_version_hash: sha256
+  source_tool_receipts: ToolReceiptV1[0..8]
+  applied_conversions: AppliedConversionV1[0..256]
+  preserved_features: ClosedFeatureId[0..256]
+  dropped_features: LossRecordV1[0..256]
+  diagnostics: AssetDiagnosticV1[0..1024]
+  before_summary: AssetStructuralSummaryV1
+  after_summary: AssetStructuralSummaryV1
+  preview_artifact_key: optional sha256
+  deterministic_run_hashes: sha256[2]
+```
+
+`LossRecordV1`はSource path、feature ID、理由、visual／behavior impact、承認可否を持つ。unsupported featureをlossへ記録しただけで成功にせず、Profileが列挙したfallbackと必要なApprovalがある場合だけCook候補にする。
 
 Asset種別Previewは少なくとも次を示す。
 
@@ -136,7 +393,7 @@ Asset種別Previewは少なくとも次を示す。
 
 PreviewはSource、Profile、Target、Artifact、consumer impactを同時に比較できなければ承認可能状態にしない。Editor scrubはGameplay、Audio、VFXのauthoritative Eventを発火しない。
 
-`AssetImportReceiptV1`はSource、Profile、Plan、IR、Report、Preview、Approval、Toolchain、Validator、Artifactを一つのhash chainで結び、Target、実行limit、Diagnostic count、Package eligibilityを持つ。Receipt不在、hash不一致、未承認Loss、Development-only Tool混入のArtifactをPackage候補にしない。
+`AssetImportReceiptV1`はSource／Profile／Plan／IR／Artifact／Preview／Approval／Toolchain／Validatorの各hash、Target、実行budget、全Diagnostic count、Package eligibilityを一つのhash chainで結ぶ。この列挙がReceiptのclosed field setであり、生成projectionはfieldを追加せずschema versionを上げる。Receipt不在、hash不一致、未承認Loss、Development-only Tool混入のArtifactをPackage候補にしない。
 
 ## 4. Reimportと依存invalidation
 
@@ -147,7 +404,22 @@ Reimportは既存Asset IDとProfileを維持して新しいAnalysisとPreviewを
 - 新しいwarning／loss、budget超過、dependency削除。
 - Scene、Material、Cue、UI等のconsumerへ生じる意味Diff。
 
-`AssetReimportConflictV1`はConflict ID、Asset ID、closed kind、stable Source path、typed before／after、consumer closure、severity、許可Resolutionを持つ。任意JSONや名前一致による自動再接続を禁止する。Blocking conflictはSource修正、Profile変更、明示Migration ChangeSetのいずれかと新しいPreview Receiptが揃うまで解決済みにしない。
+```text
+AssetReimportConflictV1
+  conflict_id: StableId
+  asset_id: StableId
+  conflict_kind: hierarchy | skeleton | material_slot | animation_clip
+               | texture_channel | audio_layout | font_coverage
+               | importer_version | profile_schema | dependency
+  source_path: optional StableSourcePathV1
+  before_value: TypedConflictValueV1
+  after_value: TypedConflictValueV1
+  consumers: AssetConsumerImpactV1[0..4096]
+  severity: warning | destructive | blocking
+  allowed_resolutions: ClosedConflictResolutionId[1..8]
+```
+
+`TypedConflictValueV1`は`conflict_kind`と同じtagを持つclosed unionである。各payloadは順に`HierarchyConflictValueV1`、`SkeletonConflictValueV1`、`MaterialSlotConflictValueV1`、`AnimationClipConflictValueV1`、`TextureChannelConflictValueV1`、`AudioLayoutConflictValueV1`、`FontCoverageConflictValueV1`、`ImporterVersionConflictValueV1`、`ProfileSchemaConflictValueV1`、`DependencyConflictValueV1`とする。before／afterは同じvariantでなければならず、任意JSONや名前一致による自動再接続を禁止する。Blocking conflictはSource修正、Profile変更、明示Migration ChangeSetのいずれかと新しいPreview Receiptが揃うまで解決済みにしない。
 
 invalidation keyはSource hash、flattened Profile hash、Importer／Toolchain lock、dependency Artifact key、Target Profileを含む。いずれかが変われば影響nodeだけを再Cookする。Hard dependency cycle、missing、Target不一致をrejectし、Build-only dependencyをRuntime Catalogへ含めない。Optional dependencyは意味同等のfallback Asset IDを明示する。
 
@@ -158,20 +430,22 @@ Reimport、bulk migration、CookのCancel後にpartial outputをArtifact store�
 `DerivedArtifactManifest`は次を持つ。
 
 ```text
+DerivedArtifactManifest
 artifact_key: sha256
-asset_id
-asset_revision
-artifact_role_id
-target_profile_id
-schema_version
-payload_hash
-payload_size
-alignment
-dependency_keys[]
-importer_lock_hash
-toolchain_lock_hash
-capability_requirements[]
-runtime_cost
+asset_id: StableId
+asset_revision: uint64
+artifact_role_id: ClosedArtifactRoleId
+target_profile_id: StableId
+schema_version: SemVer
+payload_hash: sha256
+payload_size: uint64
+alignment: positive_uint32
+dependency_keys: sha256[0..4096]
+importer_id: ClosedImporterId
+importer_version_hash: sha256
+toolchain_lock_hash: sha256
+capability_requirements: ClosedCapabilityId[0..256]
+runtime_budget: RuntimeAssetBudgetV1
 ```
 
 Artifact keyはmanifestとpayloadのcanonical encodingから作る。Payload headerはAsset ID、revision、role、Target、schema、sizeを持ち、unknown major、truncation、trailing bytes、hash mismatchを拒否する。Artifact storeはcontent-addressedかつimmutableであり、成功Artifactを上書きしない。
@@ -184,7 +458,20 @@ Garbage collectionはProject revision、Package manifest、last-valid generation
 
 ### 6.1 CatalogとVFS
 
-`MirakanAssetCatalogV1`はCatalog ID／version、Target Profile hash、Package set hash、Asset ID＋role順のEntry、Artifact dependency、Content Group、Capability requirement、root hashを持つ。Runtime参照は`asset://<uuid>/<role>`またはtyped `AssetHandle`を使い、OS pathをGameplayDefinition、Save、Network payloadへ保存しない。
+`MirakanAssetCatalogV1`は次を正本field setとする。
+
+| Field | 型／規則 |
+|---|---|
+| `catalog_id`／`catalog_version` | UUIDv7／`uint64` |
+| `target_profile_hash` | `sha256`。Packageと一致 |
+| `package_set_hash` | `sha256`。mount closure |
+| `entries` | `AssetCatalogEntryV1[]`。Asset ID＋role順 |
+| `dependencies` | `AssetCatalogDependencyV1[]`。Artifact key順 |
+| `content_groups` | `ContentGroupV1[]`。base、optional、level、DLC等 |
+| `capability_requirements` | `ClosedCapabilityId[]`。Target起動前検査 |
+| `root_hash` | canonical catalog SHA-256 |
+
+Runtime参照は`asset://<uuid>/<role>`またはtyped `AssetHandle`を使い、OS pathをGameplayDefinition、Save、Network payloadへ保存しない。
 
 VFSはContent Packageのread-only mountであり、Save、setting、screenshot、crash dumpを保持しない。高priority Catalogによる置換は同じAsset ID＋role、schema compatibility、Capability、dependency closure、Package integrityがすべて合格する場合だけ許可する。Path一致で別Assetへ置換しない。
 
@@ -249,7 +536,22 @@ Streaming requestのpriority、deadline、lease、queue、Domain activationはRu
 
 ## 10. Diagnostics
 
-`AssetDiagnosticV1`はDiagnostic ID、severity、Asset ID、optional Source path／field path、typed evidence、localized message key、Remediation ID、Preview／Cook／promotion block flagを持つ。Free-form messageだけをAI判断へ使わない。
+```text
+AssetDiagnosticV1
+  diagnostic_id: ClosedDiagnosticId
+  severity: info | warning | error | fatal
+  asset_id: StableId
+  source_path: optional StableSourcePathV1
+  field_path: optional McdFieldPath
+  evidence: DiagnosticEvidenceV1[1..16]
+  message_key: LocalizationKey
+  remediation_ids: ClosedRemediationId[0..8]
+  blocks_preview: bool
+  blocks_cook: bool
+  blocks_promotion: bool
+```
+
+Free-form messageだけをAI判断へ使わない。
 
 | Diagnostic | 結果 |
 |---|---|
@@ -296,6 +598,7 @@ Asset lifecycleは次のGateをすべて満たすまで対象CapabilityをActiva
 ### 12.1 Contractとdeterminism
 
 - MCD type、Profile、Plan、Operation、Diagnostic、stateがC++、Editor、AI Tool、CLIへ同じ正本から生成される。
+- 各生成projectionはAsset contract ID、schema version、canonical content hashを記録し、本書の全named contractについてfield名、型、cardinality、closed tagが完全一致する。schema ownership検索で定義文書が本書一つだけであることを検証する。
 - valid／invalid／boundary、truncation、overflow、NaN／Inf、cycle、duplicate、unknown feature fixture。
 - clean二回Import／Cook／Package assemblyでIR、Report、Artifact、Package root hashが一致する。
 - Source、Profile、Importer lock、Toolchain lock、dependency、Target変更を正確にinvalidateする。
