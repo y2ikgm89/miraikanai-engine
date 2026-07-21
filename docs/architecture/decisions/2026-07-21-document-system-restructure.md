@@ -3,7 +3,7 @@
 - 文書種別: Architecture Decision／再編設計
 - 状態: ユーザー承認済み
 - 承認日: 2026-07-21
-- 対象: `docs/superpowers/specs/`、`docs/superpowers/plans/`
+- 対象: `docs/superpowers/specs/`、`docs/superpowers/plans/`、PR #3 `codex/c1-gameplay-capability-closure`、PR #4 `codex/architecture-document-restructure`
 - 実装方針: 後方互換性を設けない一括移行
 
 ## 1. 結論
@@ -369,6 +369,116 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 | 将来Capabilityの詳細が現行契約化する | `not_activated` entryだけをProduct Planへ残し、Activation前の実装Schemaを置かない |
 | Codex個人設定がEngine判断へ混入する | Engine外Directoryへ分離し、Engine GraphからLinkしない |
 
-## 12. 未解決事項
+## 12. PR #3履歴成果の正本統合
+
+本節の設計は2026-07-21にユーザー承認済みである。PR #4作成後に判明したPR #3の未統合成果を、旧文書を復活させず既存42正本へ意味単位で移植する。
+
+### 12.1 履歴調査結果と結論
+
+GitHub上の履歴は次である。
+
+| 対象 | 状態 | PR #4への包含 |
+|---|---|---|
+| PR #1 `codex/codex-config-optimization` | merged | merge commit `decf50d`を祖先として包含 |
+| PR #2 `codex/docs-architecture-sync` | merged | merge commit `c563d63`を祖先として包含 |
+| local `main`の`9f49d77`、`a697ffb`、`1308772` | remote `main`より3 commit先行 | すべてPR #4の祖先として包含 |
+| PR #3 `9f10ec2` | open draft | 未包含 |
+| PR #3 `5d1f1b8` | open draft | 未包含 |
+
+`9f10ec2`は旧仕様4件へ591行追加、55行削除、63 diff hunkを持つ。追加行から抽出した版付き型56件のうち49件がPR #4の正本に存在せず、`SaveCatalogV1`も新Settings契約の必須依存として欠落している。したがって、直接または依存として移行判定が必要な型は50件である。
+
+`9f10ec2`を既存Ownerへ意味移植し、旧Path、suffixなしalias、旧型名alias、redirect、compatibility stubは作らない。移植、監査、独立Reviewの完了後、PR #3をPR #4へ統合済みとしてCloseし、PR #4だけを`main`へMergeする。`5d1f1b8`によるrepository-wide `model_reasoning_effort = "xhigh"`変更は採用しない。
+
+比較した案は次である。
+
+| 案 | 内容 | 判断 |
+|---|---|---|
+| A. 意味移植 | PR #3の固有差分を既存Ownerへ再配置し、旧文書は復活させない | 採用。42正本、一意Owner、後方互換なしを維持できる |
+| B. PR #3を先にMerge | 旧`docs/superpowers/specs/`を更新後、PR #4と統合する | 不採用。削除済み旧文書を再導入し、大規模Conflictと二重正本を作る |
+| C. PR #3をCloseして破棄 | PR #4をそのままMergeする | 不採用。Pause、Settings、Perception等の承認済み契約を失う |
+
+### 12.2 正本所有
+
+PR #3の意味内容は次のOwnerへ一度だけ定義する。
+
+| 正本 | 所有する移行内容 |
+|---|---|
+| `00-product/product-plan.md` | `C2CapabilityCoverageMatrixV1`、`LocalPlaySessionProfileV1`、2D genre横断Product Gate、C1／C2成熟度とPhase配置 |
+| `03-authoring/gameplay-programming-model.md` | `PerceptionProfileV1`、`PerceptionStimulusEventV1`、`PerceptionSnapshotV1`、`InteractionDefinitionV1`、`InteractionRequestV1`、`InteractionSnapshotV1` |
+| `04-runtime/scheduling-lifetime.md` | `GameClockDomainProfileV1`、`ClockDomainEntryV1`、`PausePolicyV1`、`GamePauseCommandV1`、`GamePauseStateSnapshotV1`、Gameplay Timer三型、`GameTimeEffectPolicyV1` |
+| `05-simulation/navigation.md` | `PathFollowRequestV1`、`PathFollowerStateV1`、`MovementIntentV1`、Nav generation／replan／stuck／Character Motor writer境界 |
+| `05-simulation/animation.md` | `SpriteAnimationFrameV1`、`SpriteAnimationClipSourceV1`、`TypedAnimationEventTrackV1`、Flipbook event／CPU pose契約 |
+| `06-rendering/materials.md` | `DecalDefinitionV1`、`DecalSpawnCommandV1`、`DecalPacketV1`、receiver／sort／lifetime／fallback契約 |
+| `06-rendering/lighting.md` | `LightingBakeProfileV1`、`LightingBakeArtifactV1`、`LightmapBindingV1`、`IrradianceProbeVolumeV1`、`ReflectionProbeDefinitionV1` |
+| `06-rendering/world.md` | Loading三型、Tilemap九型、`PrimitiveMeshSourceV1`、`BlockoutAssemblyV1`、Loading／Tile／Blockoutのfailureとfixture |
+| `07-platform/ui-text-localization-accessibility.md` | `LocalPlayerProfileV1`、`SettingsDefaultsV1`、`SettingsDocumentV1`、`SettingsApplyTransactionV1`、`SaveCatalogV1`、apply／revert／last-known-good |
+| `08-domain-packs/shooter.md` | `ShooterPerceptionBindingV1`と2D／TPS integrated fixture。共通Perception等を再定義しない |
+
+Owner外の文書は相対Link、Capability参照、統合fixtureだけを持ち、Field一覧、値、failure規則を複写しない。
+
+### 12.3 移行対象の完全性
+
+直接または依存として移行判定する50型は次である。
+
+1. Product: `C2CapabilityCoverageMatrixV1`、`LocalPlaySessionProfileV1`。
+2. Scheduling: `GameClockDomainProfileV1`、`ClockDomainEntryV1`、`PausePolicyV1`、`GamePauseCommandV1`、`GamePauseStateSnapshotV1`、`GameplayTimerDefinitionV1`、`GameplayTimerCommandV1`、`GameplayTimerSnapshotV1`、`GameTimeEffectPolicyV1`。
+3. Gameplay: `PerceptionProfileV1`、`PerceptionStimulusEventV1`、`PerceptionSnapshotV1`、`InteractionDefinitionV1`、`InteractionRequestV1`、`InteractionSnapshotV1`。
+4. Navigation: `PathFollowRequestV1`、`PathFollowerStateV1`、`MovementIntentV1`。
+5. Animation: `SpriteAnimationFrameV1`、`SpriteAnimationClipSourceV1`、`TypedAnimationEventTrackV1`。
+6. Materials: `DecalDefinitionV1`、`DecalSpawnCommandV1`、`DecalPacketV1`。
+7. Lighting: `LightingBakeProfileV1`、`LightingBakeArtifactV1`、`LightmapBindingV1`、`IrradianceProbeVolumeV1`、`ReflectionProbeDefinitionV1`。
+8. World Loading: `LevelTransitionPresentationPolicyV1`、`LoadingProgressPlanV1`、`LoadingProgressSnapshotV1`。
+9. World Tilemap: `TileGridV1`、`TileSetAssetV1`、`TileSetRevisionV1`、`TilemapAssetV1`、`TileLayerV1`、`TileChunkSourceV1`、`TileCellSourceV1`、`TileDrawSpanV1`。
+10. World Blockout: `PrimitiveMeshSourceV1`、`BlockoutAssemblyV1`。
+11. Platform Settings: `LocalPlayerProfileV1`、`SettingsDefaultsV1`、`SettingsDocumentV1`、`SettingsApplyTransactionV1`、`SaveCatalogV1`。
+12. Shooter: `ShooterPerceptionBindingV1`。
+
+PR #3で既に参照され、PR #4に存在する`AntiAliasingIntentV1`、`RequestFireCommandV1`、`SpriteImportSettingsV1`、`TemporalFrameInputV1`、`VfxAiAuthoringFixtureV1`、`VfxExtensionManifestV1`、`WorldAuthoringBundleV1`は既存Ownerを変更せず消費する。
+
+### 12.4 Codex設定の判断
+
+現行OpenAI Codex Manualは、必要な品質を満たす最も低いreasoning effortから開始し、複雑性に応じて上げることを推奨する。`high`は複数step、複数source、trade-off、複雑なlogicやedge case向け、`max`／`xhigh`は特に要求の高い推論向けである。
+
+Miraikanaiの[Codex Configuration Guide](../../developer-tools/codex/configuration.md)はこの原則に従い、repository既定をSol／High、PlanをXHigh、最難関の一時作業を別Profileへ分ける。PR #3の全作業XHigh化は、速度・使用量を常時増やし用途分離を失うため棄却する。`.codex/config.toml`は変更しない。
+
+公式確認先:
+
+- [Codex Models](https://learn.chatgpt.com/docs/models)
+- [Codex Config basics](https://learn.chatgpt.com/docs/config-file/config-basic)
+- [Codex Configuration Reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+
+### 12.5 Data flowとfailure境界
+
+1. Authoring SourceまたはPolicyを既存MCDへ登録する。
+2. Runtimeはgeneration付きCommand／Snapshotだけを交換し、native handle、render visibility、UI pixel、wall clockをauthoritative入力へ使わない。
+3. SchedulingはPause／Timer、NavigationはPath、WorldはLoading／Tile／Blockout、各Subsystemは自分のstate writerだけを所有する。
+4. stale generation、capacity超過、unsupported Target、partial apply、dependency closure変更はtyped failureとし、推測、silent drop、別対象fallback、部分Commitを禁止する。
+5. Save／ReplayはSource identity、policy、authoritative stateだけを保存し、Derived path、runtime pointer、display文字列を保存しない。
+
+### 12.6 履歴統合Verification Gate
+
+統合は次をすべて満たした場合だけ完了する。
+
+1. `9f10ec2`の591追加行、55削除行、63 hunkをPreserved／Merged／Removedへ全件分類し、未分類を0にする。
+2. 本節の50型が正本で定義または明示棄却され、使用される型は一意Ownerを持つ。
+3. 42正本、Index 1、Decision 1、Codex guideの構成を維持し、active旧文書と互換stubを0にする。
+4. 各正本を1,000行以下とし、必須Header、Document ID、relative link、anchorを検証する。
+5. 120文字以上のexact paragraph重複0、全861文書pairの4-gram類似度0.70以上0を維持する。
+6. unresolved marker、suffixなしalias、owner不明、stale future ownerを0にする。
+7. Settings、Pause／Timer、Perception、Interaction、Path、Loading、Tile、Flipbook、Decal、Blockout、Lighting Bake、2D／TPS integrated fixtureの正常系、境界、capacity丁度／+1、Save／Replay、failureを保持する。
+8. `.codex/config.toml`をTOML parseし、repository reasoningが`high`、plan reasoningが`xhigh`であることを確認する。
+9. task-scoped Reviewとwhole-branch ReviewでCritical／Important／Minorを0にする。
+10. PR #4をpush後にPR #3へ統合先と棄却したCodex設定理由をCommentし、PR #3をCloseする。PR #4が`MERGEABLE / CLEAN`であることを再確認してからReady化・Mergeする。
+
+### 12.7 実装順序
+
+1. 63 hunkのDisposition台帳と50型のOwner台帳を作る。
+2. Runtime／Gameplay／Navigation／Platformの横断Contractを移行する。
+3. World／Animation／Materials／Lightingのcontent／render Contractを移行する。
+4. Product／ShooterのCapabilityと統合fixtureを更新する。
+5. Index／依存Link／監査scriptを更新し、全Gateを実行する。
+6. 独立Review後、PR #3をCloseし、PR #4を`main`へMergeする。
+
+## 13. 未解決事項
 
 なし。Target構造、全旧文書の移行先、削除対象、正本規則、後方互換性を設けない方針、検証Gateは本Decisionで確定している。
