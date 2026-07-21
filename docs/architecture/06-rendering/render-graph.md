@@ -3,15 +3,15 @@
 - 文書ID: mirakan.arch.rendering-render-graph
 - 状態: review
 - 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、surface composition、visibility／geometry execution、anti-aliasing／temporal execution、Renderer固有failure／qualification
-- 非正本範囲: Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
-- 外部根拠検証日: 2026-07-21
+- 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
+- 外部根拠検証日: 2026-07-22
 
 ## 1. 結論と所有境界
 
 RendererはProject C++、Gameplay、Editor、AIからnative API object、command list、descriptor index、GPU address、shader binaryを隔離し、Engine-owned handleとimmutable input snapshotだけを受ける。Render Graphはpass、resource、queue、barrier、alias、temporal history、submissionを一意に計画し、Backend Adapterはその計画をnative APIへ写像する。
 
-宣言的`RenderGraphDefinition`はresource／pass／view／dependencyだけを持ち、`render_graph` moduleがcanonical execution planへcompileする。Definitionへcallback外access、native barrier／queue signal、Backend objectを埋め込まない。
+宣言的`RenderGraphDefinition`はresource／pass／view／dependencyだけを持ち、`render_graph` moduleがcanonical execution planへcompileする。Engine-owned Pass Templateと[Project Shader](project-shader.md)でQualification済みのTechnique ManifestだけをDefinitionへ展開し、callback外access、native barrier／queue signal、Backend objectを埋め込まない。
 
 Runtime phase、tick、job dependency、submission lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通CPU／GPU／memory budgetと測定法は[Runtime performance／capacity](../04-runtime/performance-capacity.md)だけが決定する。本書はRenderer固有のresource pressure、fallback、correctnessを定義するが、共通値や測定envelopeを複写しない。
 
@@ -104,7 +104,7 @@ resource／pipeline／materialの再利用または破棄は、最後に使用�
 
 Pass declarationはStable ID、queue class、read／write／read-write access、subresource range、attachment、pipeline key、side-effect class、optional capability requirementを持つ。Pass callbackが宣言外resourceへ触れること、native barrierを発行すること、別queueへworkを隠すことを禁止する。
 
-`RenderPassDescriptor`は`pass_id`、`pass_type`、`queue_class`、`view_scope`、`accesses[]`、`color_attachments[]`、`depth_stencil_attachment`、`execute_template_id`、`parameter_block`、`declared_cost`を持つ。pass type／execute templateはCooked Capability Catalogのclosed IDで、Project／AIはRuntime GPU callback、shader binary、native barrierを追加できない。`ResourceAccess`はresource／subresource、`read | write | read_write`、logical stage／usageを明示し、descriptor外accessはvalidation faultである。
+`RenderPassDescriptor`は`pass_id`、`pass_type`、`queue_class`、`view_scope`、`accesses[]`、`color_attachments[]`、`depth_stencil_attachment`、`execute_template_id`、`parameter_block`、`declared_cost`を持つ。Runtimeのpass type／execute templateはCooked Capability Catalogのclosed IDである。Project／AIはRuntime GPU callback、shader binary、native barrierを追加できないが、offline Source ChangeSetとして`ProjectShaderTechniqueV1`を提案し、Qualification後にCookerがgenerated execute templateとShader artifactへ変換できる。`ResourceAccess`はresource／subresource、`read | write | read_write`、logical stage／usageを明示し、descriptor外accessはvalidation faultである。
 
 Graph Compilerは少なくとも次を検証する。
 
@@ -160,13 +160,13 @@ GPU-driven pathとCPU reference pathは同じvisible item identity、material bi
 
 ## 8. Material、Lighting、Post Processとの実行境界
 
-[Materials](materials.md)がshader interface、material domain、visual style、variant keyを所有する。Rendererはoffline生成済みshader artifactとPipeline Interfaceを検証し、runtime source compileや未登録fallback shaderを行わない。
+[Materials](materials.md)がMaterial Domain、Shading Model意味、visual style、Material variant keyを所有し、[Project Shader](project-shader.md)がProject Module／Techniqueのsemantic interface、Source profile、Fact Graph、Understanding Closureを所有する。Rendererはoffline生成済みshader artifact、Technique Manifest、Pipeline Interfaceを検証し、runtime source compileや未登録fallback shaderを行わない。
 
 MCD生成`ShaderInterface`はbinding、constant layout、vertex input、attachment expectationを持ち、Pipeline keyはShader Package、render state、vertex layout、attachment format、sample count、Target featureのcanonical hashとする。
 
 [Lighting](lighting.md)はlight type、photometric quantity、color／temperature、shape、range、shadow intentを所有する。RendererはTarget Capabilityに応じたselection、cluster／tile assignment、shadow pass、lighting passをGraph executionとして所有するが、lightの物理値を別単位へ黙って補正しない。
 
-[Post Processing](post-processing.md)はvolume resolve、effect order、parameter compositionを所有する。RendererはPlanのresource requirement、history lease、AA接続、surface compositeを検証し、任意のpass挿入や順序変更を受けない。
+[Post Processing](post-processing.md)はvolume resolve、effect order、parameter compositionを所有する。RendererはPlanのEffect Catalog IDまたはQualification済みProject Shader Technique IDからresource requirement、history lease、AA接続、surface compositeを検証し、Plan本文からraw pass、Shader Source、native resource、未承認順序変更を受けない。
 
 ## 9. Anti-aliasingとtemporal execution
 
@@ -241,9 +241,9 @@ Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfi
 
 `RendererCapabilitySignatureV1`はBackend、API／shader version、GPU／driver identity、feature bit、memory budget、display mode、SDK／model generation、signed artifact hashを持つ。`ResolvedRendererProfileV1`はProject要求、Target Profile、そのSignature、Qualification Receiptから一意に解決し、承認済みfallback順を持つ。`RendererOptimizationReceiptV1`は同一input trace／Profile／driver／SDKのBefore／After、capture、visual diffを結ぶ。
 
-Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`／`ShadowGraphV1`と承認済み`ProjectShadowTechniqueV1`は解決後の`ResolvedShadowPlanV1`だけをRendererへ渡す。`ShadowGraphV1`はclosed Pass Templateへoffline compileし、Project techniqueは`ShadowTechniquePortV1`の入力semanticから`shadow_attenuation_linear`を出力する。native command／barrier、runtime shader compile、未宣言accessを禁止する。
+Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`／`ShadowGraphV1`と承認済み`ProjectShadowTechniqueV1`は解決後の`ResolvedShadowPlanV1`だけをRendererへ渡す。`ProjectShadowTechniqueV1`は`ProjectShaderTechniqueV1`のexact specializationで、`injection_port_id = shadow`、`technique_kind = raster | compute | ray | mixed`、必須出力を`shadow_attenuation_linear`とする。`ShadowTechniquePortV1`はこのEngine-owned Portの入力semantic、出力、Layer、history、ordering boundaryを固定する。`ShadowGraphV1`はclosed Pass Templateへoffline compileし、native command／barrier、runtime shader compile、未宣言accessを禁止する。
 
-Render Graph compilerはTechnique Manifestを通常Passと同じcycle、hazard、lifetime、alias、queue、memory validationへ通す。Manifest申告とshader reflectionまたは実行時resource useが一致しないArtifactはpromotionを拒否する。Running中の不一致は`ShadowTechniqueValidationFailed`を発行し、該当`ResolvedShadowPlanV1`のそれ以降のpassとsubmissionを停止する。同一frameにfallback passを挿入しない。
+Render Graph compilerは[Project Shader](project-shader.md)が所有するTechnique Manifestを通常Passと同じcycle、hazard、lifetime、alias、queue、memory validationへ通す。Manifest申告とShader Fact Graph、reflection、実行時resource useが一致しないArtifactはpromotionを拒否する。Running中の不一致は汎用`ProjectShaderTechniqueValidationFailed`とDomain projectionを発行し、該当Techniqueのそれ以降のpassとsubmissionを停止する。ShadowではDomain projectionを`ShadowTechniqueValidationFailed`とする。同一frameにfallback passを挿入しない。
 
 PlanがGovernanceで承認されたfallback referenceを持つ場合は、次frameのGraph Instanceからそのfallbackへ決定論的に切り替える。承認済みfallbackがなければRenderer faultへ遷移し、該当Planをretry／resumeしない。承認の成立、scope、署名、期限／失効は[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決め、Rendererはそのexact Governance referenceの検証結果だけを消費する。
 
@@ -271,6 +271,7 @@ Qualificationはportable raster referenceを必須とし、次のDomain fixture�
 - Provider署名／hash／missing artifact／unsupported driver／initialization／execution failure／teardown、RT Raster fallback、acceleration structure lifetime、Path convergence／deterministic seed、corrupt／unsigned neural model／non-neural fallback。
 - Shadow Graph cycle／上限／unsupported node、未宣言access、interface hash不一致、fallback欠落のnegative testと、各Shadow Planの同一`shadow_attenuation_linear`接続。
 - 同じTechnique Manifest／shader reflection／runtime-use trace／Governance referenceから同じ`ShadowTechniqueValidationFailed`を生成し、promotion拒否、該当Plan停止、当該frameへのfallback挿入0件、承認済みfallbackがある場合は次frame切替、ない場合はRenderer faultとなる決定論fixture。
+- Project ShaderのRaster／Compute／Ray／mixed Techniqueについて、宣言済みStorage access、Pass DAG、Port入出力、Target fallbackが同じcanonical Graphへcompileされ、Manifest外Pass／Resource／side effect、stale Understanding Closureを拒否するfixture。
 - UI／text／pixel-locked layerがdynamic resolution、Temporal Reconstruction、Frame Generationで劣化しないtest。
 - AIが未登録Pass、native resource、unsupported Target feature、arbitrary modelを生成できないconformance。
 
@@ -278,4 +279,4 @@ AA visual fixtureは4x linear-resolution SSAA downsampleを静止Reference、AA 
 
 性能run、visual／replay evidence、receipt envelope、provenance gradingは[Runtime performance／capacity](../04-runtime/performance-capacity.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使い、閾値やfieldを複写しない。Renderer固有fixtureはGraph input、expected pass/resource relation、expected output／fallbackだけを所有する。
 
-Release候補はruntime source compile、undeclared resource access、stale generation use、critical pipeline miss、device recovery leak、unqualified provider activationが0件でなければならない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
+Release候補はruntime source compile、undeclared resource access、stale generation／Shader Understanding Closure use、critical pipeline miss、device recovery leak、unqualified Provider／Project Technique activationが0件でなければならない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。

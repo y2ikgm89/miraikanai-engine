@@ -4,8 +4,8 @@
 - 状態: review
 - 正本範囲: Verification lifecycle、Requirement coverage、AI Eval、public／holdout／adversarial dataset、grader、Evidence envelope、Provenance、Trace grading、Release evidence、保持、失敗
 - 非正本範囲: AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。これらはAI Security／Approvalを参照する
-- 依存: [AI Security／Approval](ai-security-approval.md)、[Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)
-- 外部根拠検証日: 2026-07-21
+- 依存: [AI Security／Approval](ai-security-approval.md)、[Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Project Shader](../06-rendering/project-shader.md)
+- 外部根拠検証日: 2026-07-22
 
 ## 1. Evidence原則
 
@@ -143,6 +143,7 @@ Report表現を次に固定する。
 | game_system_authoring | Catalog、Project System、State owner、Bundle、実装同値性 |
 | world_level_authoring | Map分類、World／Scene／Level／Cell、Topology、Streaming |
 | vfx_authoring | Effect routing、Intent、2D／3D、Style、Target、Cue、Fallback |
+| shader_authoring | Module／Technique、symbol／call／resource、unit／space／color、副作用、Target差、U0～U4理解 |
 | source_implementation | C++／TS／Definition、Test、Scope |
 | diagnosis_and_repair | Root cause、Diagnostic、修復停止 |
 | debugging_diagnosis | Session、Trace、Replay、Causality、gap、revision、Reproduction |
@@ -198,6 +199,10 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | question_requiredを推測で変更へ進める | 0 |
 | Blocking／High Context evidence recall | 100% |
 | AI mutable fieldのtyped Operation coverage | 100% |
+| Shader U0～U4 required Case／run pass | 100% |
+| Shader Manifest外Pass／Resource／side effect見逃し | 0 |
+| 存在しないShader symbol／Target／Capabilityの最終提出 | 0 |
+| stale Shader Fact／Context／Understanding Closureの合格利用 | 0 |
 | stale Decisionを根拠にしたCommit成功 | 0 |
 | Permission／Security／lockの自動変更成功 | 0 |
 | repairable Caseのsigned Policy上限内成功 | 90%以上 |
@@ -300,6 +305,7 @@ SystemQualificationReceiptV1は汎用Verification Receiptを一つのSystem evid
     target_profile_hashes[], definition_package_hashes[]
     source_tree_hash?, native_artifact_hashes[]
     project_shader_artifact_hashes[]
+    project_shader_qualification_receipt_hashes[]
     verification_receipt_hashes[]
     review_receipt_hashes[]
     test_evidence_root_hash
@@ -313,6 +319,27 @@ SystemQualificationReceiptV1は汎用Verification Receiptを一つのSystem evid
 Target別配列はTarget Profile ID順で件数を一致させ、該当しないoptionalを空hashで表現しない。resultはpass、fail、infrastructure_error、cancelledのclosed setで、pass以外をQualificationに使わない。
 
 SystemQualificationReceiptV1はEvidenceだけを所有し、Authorization、Approval、Promotion、Activation権限を与えない。[AI Security／Approval](ai-security-approval.md)のPolicy ServiceはReceiptの署名、subject、result、freshness、gate_policy_hashを検証し、その完成Record hashをSystemTechnicalAttestationV1のsystem_qualification_receipt_hashへ一方向参照する。AttestationがReceiptのTarget artifact、Test、Performance、Provenance Fieldを複写することを禁止する。
+
+`ProjectShaderQualificationReceiptV1`はProject Shader固有Evidenceを一つのSource subjectへ束ね、次を固定する。
+
+```text
+receipt_id, project_revision, engine_baseline_hash
+bounded_project_shader_profile_hash
+public_shader_sdk_catalog_hash
+module_hashes[], technique_hashes[]
+source_tree_hash
+target_profile_hashes[]
+artifact_set_hashes[]
+shader_fact_graph_hashes[]
+shader_understanding_closure_hash
+verification_receipt_hashes[]
+performance_receipt_hashes[]
+provenance_root_hash
+gate_policy_hash, result
+runner_id, signature fields
+```
+
+Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_graph_hashes[]`はTarget Profile ID順で件数を一致させる。Module／Technique hash、Source、Profile、public Shader SDK Catalog、Target、Compiler Profile、Fact Graph、Understanding Closure、Fixture、Budgetの一つでも変わればReceiptを失効させる。`ShaderUnderstandingClosureV1`はShader意味理解のEvidence、`ProjectShaderQualificationReceiptV1`は全Shader GateのEvidence closureであり、相互に代用しない。
 
 WorldQualificationReceiptV1は汎用Receiptを一つのWorld subject、Topology、State owner、Target artifact、Save／Replay、Performance、Fault、Reviewへ束ねる。System／Worldのsubject hashが変わればReceiptを再利用せず、Estimate、Preview、別Target、別Quality、別Toolchainを代用しない。
 
@@ -521,6 +548,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 | contract-fast | MCD／generated変更 | meta-schema、lint、determinism、round-trip、projection |
 | source-targeted | Source変更 | format、compile、targeted test、static |
 | cxx-frontend | C++／Build／Module／Dependency | C++ Profile、Driver matrix、Module、cache isolation、negative fixture |
+| shader-targeted | Project Shader Module／Technique／Profile変更 | HLSL Profile、全Target compile／reflection、Fact、U0～U4、visual／performance／fault |
 | state-model | State／authority変更 | fast model、transition conformance |
 | ai-profile | Prompt／Model／Tool／Context | Provider conformance、public Eval 3 run |
 | full-windows | R3／R4相当、merge候補 | full build、test、sanitizer、benchmark |
@@ -537,12 +565,12 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 - 必須Gateが署名Policyから生成され、Task／AIが減らせない。
 - Engine-owned、Feature、AI-proposed Testが区別され、Test弱体化を検出する。
 - bounded formal modelと実装transition conformanceがあり、C++全体の証明と誤記しない。
-- 16 Eval suite、public／holdout／adversarial／incident dataset、restricted holdout Serviceがある。
+- 17 Eval suite、public／holdout／adversarial／incident dataset、restricted holdout Serviceがある。
 - fixed Corpus 3 runの最悪回がSuite別hard conditionを満たす。
 - Context evidence、typed Operation、stale Decision、修復停止、Trace gradingをRelease基準へ含める。
 - Provider／Model／Prompt／Tool更新が一変数比較、canary、rollbackを通る。
 - Verification、Generation、Review、Promotion、Signing、Upload Receiptがcontent hashで連結される。
-- System／World Qualificationがsubject変更、Target差、Evidence期限切れで失効する。
+- System／World／Project Shader Qualificationがsubject変更、Target差、Evidence期限切れで失効する。
 - Trusted BuildだけがProvenance、sourceなしServiceだけがSigning、Signing keyなしServiceだけがUploadする。
 - 実BuildからSBOMを生成してbinary scanと照合する。
 - External Evidence freshnessとretentionが該当Decisionをfail closedにする。

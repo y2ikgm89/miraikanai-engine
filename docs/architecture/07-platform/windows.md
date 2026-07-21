@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Windows Target Profile、process／window／display／lifecycle Adapter、filesystem／user data、Windows package／signing／publication／update、Windows crash／security／qualification
 - 非正本範囲: 外部Tool／SDK／OS／graphics version、共通Runtime budget／phase、Asset lifecycle、Renderer／Input／Audio／UI意味、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -180,7 +180,7 @@ MSIX
 - Package identity、publisher、version、architecture、minimum OS、capabilityをTarget／Distribution Profileから生成する。
 - default capabilityは0で、実際に必要な宣言だけを[AI Security／Approval](../01-governance/ai-security-approval.md)のRelease decision refから生成する。
 - elevation、driver、service、arbitrary startup taskを要求するGameをC1 packageで拒否する。
-- Agility DLL version／hash、executable import、Content root hash、source／debug／compiler非混入をinspectionする。
+- Agility DLL version／hash、executable import、Content root hash、source／debug／compiler非混入をinspectionする。Project Shaderを含む場合はWindows専用`ProjectShaderArtifactSetV1`のDXIL、Target Profile、Engine baseline、`ProjectShaderQualificationReceiptV1`、artifact／interface hashも一致させる。
 - MSIX packageはinstall前に署名が必要で、Store外はTarget環境が信頼する証明書を用いる。
 - Store提出用packageとdirect／enterprise署名packageのIdentity／Signing Receiptを混在させない。
 

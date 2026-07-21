@@ -5,7 +5,7 @@
 - 正本範囲: Product intent、非交渉原則、Capability成熟度、Portfolio、MVP、Phase順序、製品昇格・停止・完了Gate
 - 非正本範囲: Subsystemの型・Field・API・Backend・既定値・Budget、AI権限と承認、Evidence形式。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
-- 外部根拠検証日: 2026-07-21
+- 外部根拠検証日: 2026-07-22
 
 ## 1. Product intent
 
@@ -17,7 +17,7 @@ Miraikanai Engineは、既存EngineへChat機能を付加する製品ではな�
 2. AIはBlocking／High impactの不足要件だけを質問し、推奨案、影響、後から変更可能かを示す。
 3. AIが理解した内容、仮定、未対応CapabilityをGame Briefとして人間へ提示する。
 4. 承認済みGame BriefからGameSpec、実装計画、短縮されたGame全体と深い代表区間を持つFirst Playableを作る。
-5. 構造化Game dataを第一選択とし、公開SDK内で必要かつ適格な場合だけProject C++／Project Shaderを使う。
+5. 構造化Game dataを第一選択とし、公開SDK内で必要かつ適格な場合だけProject C++／Project Shaderを使う。Project ShaderはParameter／Graph、semantic HLSL Module、Stage／Shading Model、declarative Techniqueの順に最小Levelを選び、native GPU APIへ到達しない。
 6. AI、Editor GUI、外部IDE、MCPからの変更は同じChangeSet、Diff、Dry-run、Test、Approval、Undo、Replayへ収束する。
 7. 人間の手動変更を正規Project revisionとして再読込し、古い仮定で上書きしない。
 8. Editor制作型を完成させた後だけ、同じIRとValidatorを制限付きRuntime生成へ再利用する。
@@ -121,7 +121,7 @@ MVPはEngine機能網羅版ではなく、AI Authoringの安全な往復を証�
 | MVP-B | Phase 6完了。同じShooter Coreを使う3D compact single-player third-person shooter arenaを追加し、共通基盤が2D専用でないことを証明する |
 | Technology Preview | MVP-Bに加え、Release ActivationとProduct completion gateを満たす |
 
-MVP First PlayableはTitleから開始し、Player操作、一つのCore loop、敵／課題／Simulation対象、達成可能なGoal、Result／終了、Save／LoadまたはCheckpointを持つ。AI生成GameplayDefinitionを実際の挙動へ使い、適格なProject Native Capabilityを少なくとも一つ使い、人間の手動変更を保持してAIが追加編集できる。
+MVP First PlayableはTitleから開始し、Player操作、一つのCore loop、敵／課題／Simulation対象、達成可能なGoal、Result／終了、Save／LoadまたはCheckpointを持つ。AI生成GameplayDefinitionを実際の挙動へ使い、適格なProject Native CapabilityとProject Shader ModuleまたはTechniqueをそれぞれ少なくとも一つ使い、人間の手動変更を保持してAIが追加編集できる。
 
 MVPに含める製品能力は、自由Prompt、Blocking／High質問、Game Brief、GameSpec、typed ChangeSet、構造化Scene／Rule／UI／Asset編集、GameplayDefinition、bounded Project C++／Shaderの隔離検証、Engine生成Diff、Approval、Commit、Undo、Replay、競合防止、First Playable、Cook、Package、Install、offline起動、diagnosis、support bundle、data resetである。
 
@@ -294,6 +294,7 @@ player assignment、join／leave、Input、Game Flow、UI join prompt／focus、
 
 - [Render graph](../06-rendering/render-graph.md)
 - [Materials](../06-rendering/materials.md)
+- [Project shader](../06-rendering/project-shader.md)
 - [Lighting](../06-rendering/lighting.md)
 - [Post processing](../06-rendering/post-processing.md)
 - [VFX authoring](../06-rendering/vfx-authoring.md)

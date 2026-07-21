@@ -3,9 +3,9 @@
 - 文書ID: mirakan.arch.rendering-vfx-authoring
 - 状態: review
 - 正本範囲: VFX Source Document、semantic intent／catalog、typed graph、curve／gradient／random、compiler、VFX固有authoring operation／diagnostic／qualification
-- 非正本範囲: compiled execution artifact／instance／CPU・GPU simulation／render execution、LOD共通selection、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[LOD](lod.md)、[VFX runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)
-- 外部根拠検証日: 2026-07-21
+- 非正本範囲: Project HLSL Module／Technique、compiled execution artifact／instance／CPU・GPU simulation／render execution、LOD共通selection、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[LOD](lod.md)、[VFX runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)
+- 外部根拠検証日: 2026-07-22
 
 ## 1. 結論と所有境界
 
@@ -219,7 +219,7 @@ VfxExtensionManifestV1
   qualification_receipt_refs: ReceiptRef[0..64]
 ```
 
-Manifestは対象外Targetを明示し、Production候補には各宣言dimension／TargetのReceiptを最低1件必要とする。semantic-equivalent intentは同じCueを保つfallbackを必須とし、不足時はCookを拒否する。`VfxExtensionOperatorV1`はtyped ports、stage、dimension、attribute set、bounded scratch、determinismを宣言し、CPUはNative Game Moduleのbounded SoA spanだけ、GPUはportable shader subsetだけを扱う。allocation、World／Physics、file／network、logging、native GPU API、mutable static stateを禁止する。ExtensionのauthorizationはGovernance ownerへ委譲する。
+Manifestは対象外Targetを明示し、Production候補には各宣言dimension／TargetのReceiptを最低1件必要とする。semantic-equivalent intentは同じCueを保つfallbackを必須とし、不足時はCookを拒否する。`VfxExtensionOperatorV1`はtyped ports、stage、dimension、attribute set、bounded scratch、determinismを宣言し、CPUはNative Game Moduleのbounded SoA spanだけ、GPUは[Project Shader](project-shader.md)のS2 `ProjectShaderModuleV1`または`vfx_simulation | vfx_render` Portへ接続するS4 `ProjectShaderTechniqueV1`だけを扱う。allocation、World／Physics、file／network、logging、native GPU API、mutable static stateを禁止する。ExtensionのauthorizationはGovernance ownerへ委譲する。
 
 ## 4. Compiler、authoring operation、preview
 
@@ -233,8 +233,8 @@ Manifestは対象外Targetを明示し、Production候補には各宣言dimensio
 6. constant folding、dead-node elimination、attribute livenessを行い、float演算を再結合しない。
 7. d2／d3 specializationで不要fieldを除く。
 8. execution policy、Node requirement、Target capability、domain thresholdsからvariantを解決する。
-9. CPUはclosed kernel plan、GPUはportable shader IRとpass templateを生成する。
-10. Rendererのoffline shader pipelineへTarget compile／validationを依頼する。
+9. CPUはclosed kernel plan、GPUはportable shader IRとEngine-owned Pass TemplateまたはQualification済みProject Shader Module／Technique参照を生成する。
+10. [Project Shader](project-shader.md)のoffline compile／Fact／Understanding validationとRenderer pipeline compileを依頼する。
 11. source／compiler／interface／resource／fixture hashを生成する。
 12. Asset lifecycle ownerへtransactional Cookとclosure promotion候補を渡す。
 

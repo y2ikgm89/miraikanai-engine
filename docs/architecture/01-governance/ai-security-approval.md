@@ -4,8 +4,8 @@
 - 状態: review
 - 正本範囲: AI task authorization、Risk、Trust boundary、不変Engine、Sandbox、Credential、Provider／MCP／CLI security、Preview、人間承認、Activation、Promotion、拒否
 - 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持。これらはAI Verification／Provenanceを参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)
-- 外部根拠検証日: 2026-07-21
+- 依存: [Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
+- 外部根拠検証日: 2026-07-22
 
 ## 1. 結論、優先順位、用語
 
@@ -45,7 +45,7 @@ Game制作とEngine製品開発は別Profile、別Repository、別Authorization�
 | Promotion | 検証・承認済みProposalをAuthoritative revisionまたはSource commitへ昇格すること |
 | ImmutableEngineBaselineV1 | Engine、Editor、GameHost、SDK、Validator、Policy、Engine-owned Testのversionとhashを固定する署名済みManifest |
 | Bounded Native | 公開SDKと許可C++ subsetだけを使うProject固有NativeGameModule |
-| Bounded Project Shader | Engine-owned entry／binding／pass／resource境界内でoffline compileするProject Shader |
+| Bounded Project Shader | `BoundedProjectShaderProfileV1`とEngine-owned Port内で、semantic Moduleまたはdeclarative Techniqueとしてoffline compileするProject Shader |
 | capability_unavailable | 公開Capabilityで実現不能であり、Game制作TaskからEngine変更へ進まず停止した状態 |
 
 ## 2. ActorとTrust boundary
@@ -215,12 +215,13 @@ AIの「理解した」という自己申告を状態にしない。GameUndersta
     system_graph, state_owner_map, capability_scope
     save_replay_contract, target_profile_set
     behavior_budget_set, test_plan, evidence_closure
+    project_shader_understanding_closure_hashes[]
     unresolved_blocking_question_count
     unresolved_high_requirement_count
     unsupported_capability_ids[]
     disposition
 
-ready_to_stageにはBlocking／High未解決0、RequirementからSystem／Implementation／Test／Artifactまでの追跡100%、State owner重複0、stale Evidence 0が必要である。必須Requirementに未対応Capabilityがあればcapability_unavailableにする。
+ready_to_stageにはBlocking／High未解決0、RequirementからSystem／Implementation／Test／Artifactまでの追跡100%、State owner重複0、stale Evidence 0が必要である。Project Shaderを含むSystemは全参照Module／Techniqueに有効な`ShaderUnderstandingClosureV1`と`ProjectShaderQualificationReceiptV1`を必要とし、欠落／stale／Target不一致をGame全体の理解で相殺しない。必須Requirementに未対応Capabilityがあればcapability_unavailableにする。
 
 ## 6. Project data、Project C++／Shader／Native module
 
@@ -244,15 +245,24 @@ Game制作Tool catalogへEngine source patch、Engine module／Extension／Adapt
 - GameplayDefinition、World、Level、Scene、UI、Asset、Material、Animation、Audio設定。
 - Project Test、Fixture、Benchmark、Replay、Save migration。
 - BoundedNativeGameProfileV1に適合するNativeGameModule。
-- BoundedProjectShaderProfileV1に適合するShader SourceとTarget別offline artifact。
+- [Project Shader](../06-rendering/project-shader.md)の`BoundedProjectShaderProfileV1`に適合する`ProjectShaderModuleV1`／`ProjectShaderTechniqueV1` Source、`ShaderFactGraphV1`、`ShaderUnderstandingClosureV1`、Target別`ProjectShaderArtifactSetV1`。
 - 生成Bindingの入力となるProject Contract。GeneratorとEngine-owned Schemaは変更不可。
 
-実装方式は次の順で検討する。
+Gameplay／System実装は次の順で検討する。
 
     既存System／Capability composition
       -> GameplayDefinition
       -> Cook／index／layout最適化
       -> Bounded NativeGameModule
+      -> capability_unavailable
+
+Material／Rendering実装は次の順で検討する。
+
+    既存Material／Template／Pass Capability composition
+      -> Material Instance／closed typed Graph
+      -> Project Shader Function／Node／Library
+      -> Project Shading Model／Stage Module
+      -> declarative Project Shader Technique／Project Renderer Feature
       -> capability_unavailable
 
 Engine Extension、Engine Adapter、Engine core変更をGame制作のfallbackにしない。
@@ -274,7 +284,9 @@ Source scanだけに依存せず、AST、Module graph、object import、link map
 
 ### 6.4 Bounded Project Shader
 
-Project ShaderはEngine-owned entry、generated binding、許可pass／resourceへ接続する。任意Render pass、UAV、native GPU resource、descriptor heap、Compiler option、Engine private includeを追加できない。Targetごとに隔離Workerでoffline compile／validateし、Shipping RuntimeでSource生成、download、JITを行わない。新Domain／Backendが必要ならcapability_unavailableにする。
+Project ShaderのSource／semantic／resource／pass／AI理解／qualification境界は[Project Shader](../06-rendering/project-shader.md)だけが定義する。ProjectはProfile内でHLSL Function／Node／Shading Model／Stage、宣言済みStorage／UAV相当access、複数Pass Techniqueを追加できるが、Manifest外Pass／Resource／side effect、native GPU resource／descriptor／barrier／queue、Compiler option、Engine private includeへ到達できない。
+
+Targetごとにhardware-VMの隔離Workerでoffline compile／validateし、Source contract、compiler fact、reflection、runtime-use trace、fixtureを照合する。Shipping RuntimeでSource生成、download、JITを行わない。既存`ProjectRenderDomainPortV1`で表現できない新Domain、Port自体、Backend、native execution primitiveが必要なら`capability_unavailable`にする。
 
 ## 7. Sandbox、Filesystem、Network、Credential
 
@@ -387,7 +399,7 @@ SystemTechnicalAttestationV1は次を固定する。
     system_qualification_receipt_hash
     gate_policy_hash, result, signer_identity, signature
 
-implementation_kindはgameplay_definition、native_game_module、hybrid、target_specialized_setのclosed setである。SystemTechnicalAttestationV1はEvidence bundleを再掲せず、exactly oneのSystemQualificationReceiptV1をhash参照する。Policy ServiceはReceiptのproject_revision、engine_baseline_hash、system_contract_ref、system_bundle_hash、implementation_kind、capability_scope_hash、gate_policy_hashがAttestation subjectと一致し、resultがpassで、署名用途がsystem_qualificationであり、失効していない場合だけ署名する。
+implementation_kindは`gameplay_definition | native_game_module | project_shader_module | project_shader_technique | hybrid | target_specialized_set`のclosed setである。`project_shader_module`はS2／S3 Moduleだけ、`project_shader_technique`はS4／S5 Techniqueを含むSystem、`hybrid`はGameplayDefinition、Native、Project Shaderのうち二種類以上を一つのSystem Bundleへ結ぶ場合に使う。SystemTechnicalAttestationV1はEvidence bundleを再掲せず、exactly oneのSystemQualificationReceiptV1をhash参照する。Policy ServiceはReceiptのproject_revision、engine_baseline_hash、system_contract_ref、system_bundle_hash、implementation_kind、capability_scope_hash、gate_policy_hashがAttestation subjectと一致し、resultがpassで、署名用途がsystem_qualificationであり、失効していない場合だけ署名する。
 
 関係は一方向である。
 
@@ -511,7 +523,7 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - fork／background process、timeout後Process、resource exhaustion。
 - Baseline、SDK、Validator、Policy、Engine-owned Testの1 byte変更。
 - Bounded Nativeのprivate／OS／Vendor API、未知binary import、direct allocation／thread／dynamic load。
-- Bounded Shaderの任意pass／UAV／native resource／private include。
+- Bounded ShaderのManifest外pass／Resource／UAV access／side effect、native resource、private include。
 - malicious Build scriptからSigning key／Store tokenへの読取と持出し。
 - Signing ServiceへのSource、Build script、shell、Manifest外File、別Artifact。
 - Upload Serviceへの未署名Artifact、古いEvidence、別Application／Channel／Version、過剰Role。
