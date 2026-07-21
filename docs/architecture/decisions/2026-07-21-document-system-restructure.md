@@ -416,6 +416,8 @@ PR #3の意味内容は次のOwnerへ一度だけ定義する。
 
 Owner外の文書は相対Link、Capability参照、統合fixtureだけを持ち、Field一覧、値、failure規則を複写しない。
 
+PR #3 sourceの`LocalPlayerProfileV1.settings_document_ref`と`save_catalog_ref`は独立したactive read rootを作るため、そのまま移植しない。clean-breaking移行として両Fieldを削除し、`settings_catalog_commit_marker_ref`と`settings_catalog_commit_generation`へ置換する。`SettingsCatalogCommitMarkerV1`だけが対になるSettings／Catalog referenceとgenerationを所有し、readerはmarker経由以外で両payloadをactive stateとして解決しない。旧Field、dual-read、fallback alias、schema migration shimは残さない。
+
 ### 12.3 移行対象の完全性
 
 直接または依存として移行判定する55型は次である。
