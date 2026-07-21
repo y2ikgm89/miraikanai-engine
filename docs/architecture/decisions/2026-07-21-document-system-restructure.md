@@ -385,7 +385,7 @@ GitHub上の履歴は次である。
 | PR #3 `9f10ec2` | open draft | 未包含 |
 | PR #3 `5d1f1b8` | open draft | 未包含 |
 
-`9f10ec2`は旧仕様4件へ591行追加、55行削除、63 diff hunkを持つ。追加行から抽出した版付き型56件のうち49件がPR #4の正本に存在せず、`SaveCatalogV1`も新Settings契約の必須依存として欠落している。したがって、直接または依存として移行判定が必要な型は50件である。
+`9f10ec2`は旧仕様4件へ591行追加、55行削除、63 diff hunkを持つ。追加行から抽出した版付き型56件のうち49件がPR #4の正本仕様に存在せず、`SaveCatalogV1`も新Settings契約の必須依存として欠落している。さらにTilemap追加差分の依存closureを辿ると、追加前の旧仕様にだけ定義または要求され、PR #4では未定義だった`TileDefinitionV1`、`TerrainRuleSetV1`、`TileChunkArtifactV1`、`TileLayoutCommandV1`が必要である。したがって、直接または依存として移行判定が必要な型は54件である。
 
 `9f10ec2`を既存Ownerへ意味移植し、旧Path、suffixなしalias、旧型名alias、redirect、compatibility stubは作らない。移植、監査、独立Reviewの完了後、PR #3をPR #4へ統合済みとしてCloseし、PR #4だけを`main`へMergeする。`5d1f1b8`によるrepository-wide `model_reasoning_effort = "xhigh"`変更は採用しない。
 
@@ -410,7 +410,7 @@ PR #3の意味内容は次のOwnerへ一度だけ定義する。
 | `05-simulation/animation.md` | `SpriteAnimationFrameV1`、`SpriteAnimationClipSourceV1`、`TypedAnimationEventTrackV1`、Flipbook event／CPU pose契約 |
 | `06-rendering/materials.md` | `DecalDefinitionV1`、`DecalSpawnCommandV1`、`DecalPacketV1`、receiver／sort／lifetime／fallback契約 |
 | `06-rendering/lighting.md` | `LightingBakeProfileV1`、`LightingBakeArtifactV1`、`LightmapBindingV1`、`IrradianceProbeVolumeV1`、`ReflectionProbeDefinitionV1` |
-| `06-rendering/world.md` | Loading三型、Tilemap九型、`PrimitiveMeshSourceV1`、`BlockoutAssemblyV1`、Loading／Tile／Blockoutのfailureとfixture |
+| `06-rendering/world.md` | Loading三型、Tilemap十二型、`PrimitiveMeshSourceV1`、`BlockoutAssemblyV1`、Loading／Tile／Blockoutのfailureとfixture |
 | `07-platform/ui-text-localization-accessibility.md` | `LocalPlayerProfileV1`、`SettingsDefaultsV1`、`SettingsDocumentV1`、`SettingsApplyTransactionV1`、`SaveCatalogV1`、apply／revert／last-known-good |
 | `08-domain-packs/shooter.md` | `ShooterPerceptionBindingV1`と2D／TPS integrated fixture。共通Perception等を再定義しない |
 
@@ -418,7 +418,7 @@ Owner外の文書は相対Link、Capability参照、統合fixtureだけを持ち
 
 ### 12.3 移行対象の完全性
 
-直接または依存として移行判定する50型は次である。
+直接または依存として移行判定する54型は次である。
 
 1. Product: `C2CapabilityCoverageMatrixV1`、`LocalPlaySessionProfileV1`。
 2. Scheduling: `GameClockDomainProfileV1`、`ClockDomainEntryV1`、`PausePolicyV1`、`GamePauseCommandV1`、`GamePauseStateSnapshotV1`、`GameplayTimerDefinitionV1`、`GameplayTimerCommandV1`、`GameplayTimerSnapshotV1`、`GameTimeEffectPolicyV1`。
@@ -428,7 +428,7 @@ Owner外の文書は相対Link、Capability参照、統合fixtureだけを持ち
 6. Materials: `DecalDefinitionV1`、`DecalSpawnCommandV1`、`DecalPacketV1`。
 7. Lighting: `LightingBakeProfileV1`、`LightingBakeArtifactV1`、`LightmapBindingV1`、`IrradianceProbeVolumeV1`、`ReflectionProbeDefinitionV1`。
 8. World Loading: `LevelTransitionPresentationPolicyV1`、`LoadingProgressPlanV1`、`LoadingProgressSnapshotV1`。
-9. World Tilemap: `TileGridV1`、`TileSetAssetV1`、`TileSetRevisionV1`、`TilemapAssetV1`、`TileLayerV1`、`TileChunkSourceV1`、`TileCellSourceV1`、`TileDrawSpanV1`。
+9. World Tilemap: `TileGridV1`、`TileSetAssetV1`、`TileDefinitionV1`、`TerrainRuleSetV1`、`TileSetRevisionV1`、`TilemapAssetV1`、`TileLayerV1`、`TileChunkSourceV1`、`TileCellSourceV1`、`TileChunkArtifactV1`、`TileDrawSpanV1`、`TileLayoutCommandV1`。
 10. World Blockout: `PrimitiveMeshSourceV1`、`BlockoutAssemblyV1`。
 11. Platform Settings: `LocalPlayerProfileV1`、`SettingsDefaultsV1`、`SettingsDocumentV1`、`SettingsApplyTransactionV1`、`SaveCatalogV1`。
 12. Shooter: `ShooterPerceptionBindingV1`。
@@ -460,7 +460,7 @@ Miraikanaiの[Codex Configuration Guide](../../developer-tools/codex/configurati
 統合は次をすべて満たした場合だけ完了する。
 
 1. `9f10ec2`の591追加行、55削除行、63 hunkをPreserved／Merged／Removedへ全件分類し、未分類を0にする。
-2. 本節の50型が正本で定義または明示棄却され、使用される型は一意Ownerを持つ。
+2. 本節の54型が正本で定義または明示棄却され、使用される型は一意Ownerを持つ。
 3. 42正本、Index 1、Decision 1、Codex guideの構成を維持し、active旧文書と互換stubを0にする。
 4. 各正本を1,000行以下とし、必須Header、Document ID、relative link、anchorを検証する。
 5. 120文字以上のexact paragraph重複0、全861文書pairの4-gram類似度0.70以上0を維持する。
@@ -472,7 +472,7 @@ Miraikanaiの[Codex Configuration Guide](../../developer-tools/codex/configurati
 
 ### 12.7 実装順序
 
-1. 63 hunkのDisposition台帳と50型のOwner台帳を作る。
+1. 63 hunkのDisposition台帳と54型のOwner台帳を作る。
 2. Runtime／Gameplay／Navigation／Platformの横断Contractを移行する。
 3. World／Animation／Materials／Lightingのcontent／render Contractを移行する。
 4. Product／ShooterのCapabilityと統合fixtureを更新する。
