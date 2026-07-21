@@ -1,6 +1,6 @@
 # Miraikanai Engine AI可読Capability Portfolio／MVP製品化・将来Roadmap規約
 
-- 文書版: 1.2
+- 文書版: 1.3
 - 作成日: 2026-07-20
 - 最終更新日: 2026-07-21
 - 対象: Offline Single-player MVP製品化、将来の汎用Engine化、不足Capabilityの所有境界、成熟度、着手Gate、AI向け説明
@@ -424,6 +424,48 @@ LocalPlayerProfileV1
   created_at_monotonic_context
   migration_history[]
 ```
+
+`settings_document_ref`は次の`SettingsDocumentV1`を指す。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、対応するSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
+
+```text
+SettingsDocumentV1
+  settings_document_id
+  schema_version
+  revision
+  project_defaults_hash
+  display_settings_ref
+  render_quality_selection_ref
+  audio_user_settings_ref
+  input_binding_document_ref
+  accessibility_document_ref
+  locale_selection
+  last_known_good_snapshot_ref
+  migration_history[]
+
+SettingsApplyTransactionV1
+  transaction_id
+  profile_ref
+  base_settings_revision
+  proposed_settings_hash
+  changed_field_paths[]
+  apply_classes[]
+  confirmation_deadline_monotonic_ms
+  previous_known_good_ref
+  validation_receipt_refs[]
+  result: pending | applied | reverted | restart_required | rejected
+```
+
+Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変更せずProfile scopeのoverrideだけを保存する。設定の有効値は`Project defaults -> Target supported range -> User override`の順に解決し、未対応値を近似せず、該当fieldとTarget capabilityを含むtyped rejectionを返す。旧schemaは登録済み一方向Migrationを通し、future schema、hash不一致、参照欠落ではDocumentを上書きせずlast-known-goodまたはProject defaultでSafe Modeを起動する。
+
+Apply classを固定する。
+
+| Apply class | 対象 | 規則 |
+|---|---|---|
+| `immediate` | Audio volume／route preference、Input binding、Language、Accessibility、通常のQuality選択 | 全Validator成功後にSubsystemへ同一transaction generationで適用し、atomic保存失敗時は全fieldを以前のgenerationへ戻す |
+| `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、UI／real-time clockの15秒以内にkeyboard／controllerで確認されなければ自動Revert |
+| `restart_required` | Renderer Backend、Packageでrestartが必要と宣言されたDevice feature | 現sessionのRuntime stateを変更せず、次回起動候補として保存し、起動失敗時はlast-known-goodへ戻す |
+
+`SettingsApplyTransactionV1`はbase revision不一致、unsupported Target、display mode loss、device loss、audio route loss、storage full、partial writeを原子的に失敗させる。confirmed適用中もUI、確認入力、screen reader、Revert経路を維持し、表示不能を成功扱いしない。Gameplay Save、Editor workspace、Project defaults、Account credentialをSettingsへ混在させない。Telemetry、AI Provider、network consentは専用Consent RecordをOwnerとし、Settingsの一般boolへ畳み込まない。
 
 C1は一つのactive local profile、原子的なsettings保存、少なくとも一つのrecoverable gameplay save pathを必須にする。複数User Account、cross-device merge、Cloud conflict、Platform Account bindingはPlatform Service C2以後である。
 
@@ -921,8 +963,8 @@ Diagnosticは不足Capability、現在state、必要Gate、該当Target、fallba
 | 順序 | Portfolio Deliverable | 既存Work Packageとの接続 | 完了Evidence |
 |---:|---|---|---|
 | 1 | `CapabilityPortfolioEntryV1`、state machine、lint、Query | WP0 | schema／transition／negative fixture |
-| 2 | MVP Release Readiness Manifest、Offline Provider、Local Profile contract | WP1 | headless save／load、offline query、profile migration |
-| 3 | clean launch、first-run settings、Support Bundle、data reset | WP2 | Windows package fixture、privacy／recovery receipt |
+| 2 | MVP Release Readiness Manifest、Offline Provider、Local Profile／`SettingsDocumentV1` contract | WP1 | headless save／load、settings round-trip／migration、offline query、profile migration |
+| 3 | clean launch、first-run settings apply／revert、Support Bundle、data reset | WP2 | Windows package fixture、display confirmation timeout、last-known-good、privacy／recovery receipt |
 | 4 | 2D top-down ShooterのMVP closure | WP3 | Title→Result→Save→Package→clean launch、`2d_shooter_c1_v1` |
 | 5 | AI Gap Explanation／Portfolio projection | WP4 | unsupported intent、forbidden approximation、direct activation 0 |
 | 6 | 3D TPSのMVP closure | WP5 | 3D integrated gate＋product readiness |
@@ -962,6 +1004,8 @@ Portfolio承認後、次の順に別文書へ詳細化する。
 
 - Network deny、Accountなし、Providerなしで2D／3D Reference Gameが成立する。
 - settings、input binding、accessibility、locale、save catalogが再起動後に保持される。
+- `SettingsApplyTransactionV1`のimmediate／confirmed／restart-required、base revision競合、15秒timeout、表示不能、storage full、partial writeを検証し、失敗後にlast-known-goodへ戻る。
+- Project defaults、User override、Local Profile projectionが一致し、Settings変更でProject SourceまたはGameplay Save hashが変化しない。
 - corrupt／old schema／future schema／storage full／partial writeを安全に処理する。
 - clean packageがEditor／AI／Source／Credentialを含まない。
 - clean environmentで起動、save、resume、support bundle、data resetが動作する。
@@ -1002,7 +1046,7 @@ Portfolio承認後、次の順に別文書へ詳細化する。
 
 1. MVPと将来汎用化が同じPortfolio Schemaで区別される。
 2. Tier、activation、priority、Target、Owner、Authority、fallback、AI禁止推論が型として定義される。
-3. Offline MVPの製品完了closureがEditor内PlayだけでなくPackage／clean launch／save／supportまで定義される。
+3. Offline MVPの製品完了closureがEditor内PlayだけでなくPackage／clean launch／`SettingsDocumentV1`のapply／revert／last-known-good／save／supportまで定義される。
 4. Platform Service、Extension、Collaboration、Timeline／Media、Terrain／Foliage、Multiplayerの責務境界とEntry Gateが定義される。
 5. Advanced Physics／Animation、追加Platform／XR、Mod／UGC／LiveOpsが独立Envelopeを持つ。
 6. 有名Engine比較が公式資料へ結び付き、模倣ではなくMiraikanaiの設計判断へ変換される。

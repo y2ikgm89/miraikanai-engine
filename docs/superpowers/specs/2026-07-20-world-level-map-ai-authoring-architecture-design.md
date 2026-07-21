@@ -1,7 +1,8 @@
 # Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 調査基準日: 2026-07-20
 - 対象: World、Scene、Level、Topology、Streaming、Procedural Generation、Navigation接続、Map Presentation、AI Authoring
 - 状態: プロジェクト公式の規範設計レビュー版。実装待ち
@@ -468,6 +469,51 @@ Level transitionの正規順序を固定する。
 
 6または7が失敗した場合、旧Levelをactiveのまま維持する。旧Levelを先に破棄してLoading失敗後に空Worldへ落とさない。Seamless presentationはこのauthority順序を変えない。
 
+### 9.1 Player-facing Loading／Prefetch UX
+
+初回起動、Level遷移、Save再開は同じLoading presentation契約を使う。Loading UIはWorld activationのOwnerではなく、Runtime Orchestratorが公開するimmutable Snapshotを表示する。
+
+```text
+LevelTransitionPresentationPolicyV1
+  policy_id
+  mode: seamless | overlay | blocking
+  loading_ui_document_ref
+  input_context_ref
+  audio_snapshot_ref
+  minimum_display_monotonic_ms
+  cancel_allowed_until: prefetching | resident
+  failure_presentation_ref
+  retry_policy: none | explicit_user_retry
+  accessibility_announcement_policy_ref
+
+LoadingProgressPlanV1
+  plan_id
+  subject_kind: initial_boot | level_transition | resume_save
+  subject_request_ref
+  dependency_closure_hash
+  work_units[]
+  total_weight_q16: 65535
+
+LoadingProgressSnapshotV1
+  loading_session_id
+  progress_plan_ref
+  phase: validating | prefetching | verifying | activating | transferring | complete | failed | cancelled
+  completed_weight_q16
+  current_item_message_key
+  can_cancel
+  can_retry
+  failure_reason
+  generation
+```
+
+`LoadingProgressPlanV1`は表示開始前に確定したdependency closureからRuntime Orchestratorが生成するDerived Planである。`subject_request_ref`はRuntime／Worldが発行したgeneration付きtyped requestへの参照であり、Source `StableId`、表示名、pointerを代用しない。work unitは`io_bytes`、`artifact_verify`、`dependency_ready`、`activation_group`、`state_transfer`のclosed kind、exact対象ref、正のweightを持ち、合計を65,535へcanonical normalizeする。Snapshotのprogressは同じPlan内で単調非減少とし、fake timer、frame count、UI animation、未列挙jobを進捗値へ使わない。dependency closureが変わった場合は同じbarを巻き戻さず、新しいsession／Plan generationとして表示する。
+
+`minimum_display_monotonic_ms`は0～2,000 msで、短いflashを抑えるPresentation値に限る。timeout、I/O、verifyはGame pauseではなく`real_time`／`async_io` domainで進められるが、World activation、Character transfer、Save state適用はRuntime Orchestratorの正規tick boundaryだけで行う。Loading UI、spinner、tips、Audio fadeはauthoritative state、progress、timeoutへ逆入力しない。
+
+CancelはPolicyが許可し、かつphaseが`prefetching`または`resident`までの場合だけ受理する。Cancel後はinflight I/Oをcancelまたはdrainし、leaseとtemporary Artifactを解放し、Source LevelまたはTitleを維持する。`activating`以後は`can_cancel=false`とし、UIが強制破棄しない。Retryは人間の明示操作で新しいrequest／session IDを発行し、Source revision、Portal condition、Save checksum、Target Capability、storage／memory budgetを再検証する。失敗したpartial activationまたは古いprogressを再利用しない。
+
+blocking modeはGameplay inputをLoading contextへ切り替え、Cancel／Retry／system UIだけを許可する。overlay／seamless modeでもCharacter transfer前の入力をTarget Levelへ配送しない。Audioは`audio_snapshot_ref`で継続、fade、muteを明示し、無音を暗黙defaultにしない。Accessibilityはphase変更を即時通知し、同一phaseの進捗通知は10%境界かつ1秒以上の間隔に制限して毎frame読み上げない。色だけで状態を表さず、進捗値、phase、Cancel／Retry可否、failure reasonへkeyboard／controller／screen readerから到達可能にする。
+
 ## 10. 参照と依存closure
 
 - Source Document／Level間はUUIDv7 `StableId`、MCD契約は`McdContractRefV1`、Derived Artifactは`ArtifactRefV1`で参照する。Cell間参照は同じPlan内の`uint32 cell_id`だけを使い、Plan外ではPlanの`ArtifactRefV1`を必須とする。
@@ -759,6 +805,9 @@ Replay headerへWorld revision、Topology version、Level version、Streaming Pl
 | `MIRAKAN-WORLD-DEPENDENCY_NOT_RESIDENT` | hard dependency不足 | Cellをactiveにしない |
 | `MIRAKAN-WORLD-ACTIVATION_PARTIAL` | activation groupの一部だけ成功 | 全体rollback |
 | `MIRAKAN-WORLD-BUDGET_EXCEEDED` | residency／IO／hitch上限超過 | fallbackまたはtransition中止 |
+| `MIRAKAN-WORLD-LOADING_PROGRESS_PLAN_STALE` | dependency closure／generation不一致 | 旧Snapshotを破棄し新sessionを開始 |
+| `MIRAKAN-WORLD-LOADING_CANCEL_REJECTED` | activating以後またはPolicy不許可 | World state不変のtyped rejection |
+| `MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED` | Source／Save／Capability／budgetが再検証不合格 | partial stateを使わずfailure表示を維持 |
 | `MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC` | 同じ入力でoutput hash不一致 | Artifact拒否 |
 | `MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT` | Schema／connectivity／playability不合格 | delta破棄 |
 | `MIRAKAN-WORLD-PRESENTATION_AUTHORITY_WRITE` | Map／LOD／visibilityからGameplay write | Build／conformance失敗 |
@@ -786,6 +835,10 @@ Failure時に別Level、別Portal、別Assetへ名前類似で自動置換しな
 - Cell全state transition、cancel、timeout、IO failure。
 - activation group atomicity、旧Level維持。
 - Level transition、Character transfer、queue／lease解放。
+- initial boot／Level transition／Save resumeで同じLoading Progress Plan／Snapshotを使用する。
+- progressの単調性、dependency closure変更時の新generation、0／10／99／100%、cold I/O、verify失敗を検証する。
+- prefetch中Cancel、activating以後のCancel拒否、明示Retry、旧Level／Title維持、lease／temporary Artifact解放を検証する。
+- blocking／overlay／seamlessのInput、Audio、minimum display、keyboard／controller／screen reader経路を検証する。
 - Save／Load／Replay state hash。
 - inactive／resident／active境界でauthoritative処理が漏れないこと。
 - Presentation、LOD、Camera、GPU結果からauthorityへ逆入力しないこと。
@@ -832,7 +885,7 @@ Failure時に別Level、別Portal、別Assetへ名前類似で自動置換しな
 | Phase 0 | Meta-schema、ID／参照taxonomy、最小Topology／Level fixture、negative test | 実Game実装なし |
 | Phase 1 | Headless World／Scene／Level Document、ProjectChangeSet、Runtime World lifecycle | T00／T01相当 |
 | Phase 2 | World Outline、Scene、Topology Graph、Level Form、Streaming Inspector、cross-view selection／Undo | Windows空Level edit→play→save→cook→package、`world_authoring_cross_view_v1` |
-| Phase 3 | Compact 2D Level、Portal transition、Level gameplay、Asset／Navigation／Camera／UI接続 | C1 2D First Playable |
+| Phase 3 | Compact 2D Level、Portal transition、Loading／Prefetch UX、Level gameplay、Asset／Navigation／Camera／UI接続 | C1 2D First Playable |
 | Phase 4 | AI Map intent resolver、World Bundle、Level生成、preview、再編集 | AI First Playable＋holdout Eval |
 | Phase 6 | Compact 3D Level、3D Navigation／Physics／Camera、同一Level Contract | C1 3D |
 | Phase 8 | World Partition、HLOD、大規模World、advanced procedural authoring | 個別C2 Gate |
@@ -848,6 +901,7 @@ Phase 3までのSource modelはPhase 8の大規模Worldへ移行できるUUIDv7 
 - Source IntentとTarget別Derived Artifactを相互に編集しない。
 - Level gameplay ownerが厳密に一つである。
 - Cell activation groupがall-or-nothingで、失敗時に旧Levelを維持する。
+- 初回起動、Level遷移、Save再開が`LoadingProgressPlanV1`／`LoadingProgressSnapshotV1`を使い、実作業由来の単調進捗、bounded Cancel、明示Retry、Input／Audio／Accessibilityを持つ。
 - Cross-cell pointer、Presentation authority write、stale Planを自動検出する。
 - Compact 2D／3D Levelが同じContractでTitleからResultまで完走する。
 - AIがRequirementからWorld Bundle、Target Cook、Preview、Test、Commit proposal、再編集を完走する。

@@ -1,8 +1,8 @@
 # Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約
 
-- 文書版: 1.1
+- 文書版: 1.2
 - 作成日: 2026-07-20
-- 最終更新日: 2026-07-20
+- 最終更新日: 2026-07-21
 - 対象: single-player Shooter Core、2D top-down shooter C1、3D TPS C1、AI／Editor Authoring、Game System、Save／Replay、Qualification
 - 状態: プロジェクト公式の規範設計レビュー版
 - Product設計: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
@@ -13,6 +13,8 @@
 - Input正本: [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
 - Collision正本: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
 - Debugging正本: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
+- Perception／Clock／Interaction正本: [Miraikanai Engine 2D／3D機能計画](./2026-07-19-2d-3d-capability-plan.md)
+- Player Settings正本: [Miraikanai Engine AI可読Capability Portfolio／MVP製品化・将来Roadmap規約](./2026-07-20-ai-readable-capability-portfolio-productization-roadmap-design.md)
 
 ## 1. 結論
 
@@ -69,7 +71,7 @@ C1は次をProduction候補とする。
 - self／ally／neutral／hostileのTeam relationとfriendly-fire policy
 - defeat、pickup、score、combo、multiplier、session high score
 - Encounter、Wave、Spawn、Boss phase
-- Title、Settings、Ready、Playing、Paused、Result、Restart
+- Title、Settings、Ready、Playing、Paused、Result、Restart。SettingsはCapability Portfolio正本の`SettingsDocumentV1`、Pauseは2D／3D機能計画の`GameClockDomainProfileV1`／`PausePolicyV1`を使用
 - HUD、reticle、ammo、health、score、critical cue
 - Save／Load、Replay／Rewind、Debug Snapshot
 - 2D top-down Profileと3D single-player TPS Profile
@@ -147,9 +149,24 @@ Feature PackはPublic Contract、Schema、Reference Definition、Validator、AI 
 - deterministic cone spread
 - magazine／reserve ammo
 - Health、Shield optional、Team、hit reaction
-- simple perception／combat behavior、Encounter、Checkpoint、Result
+- `PerceptionProfileV1`によるbounded sight／hearing／memory、combat behavior、Encounter、Checkpoint、Result
 - Character motor／aim-origin契約。AI behaviorは同じ`RequestFireCommandV1`を使いWeapon Stateを直接writeしない
 - keyboard／mouse、controller
+
+TPS Profileは`ShooterPerceptionBindingV1`でenemy archetypeと共通Perceptionをcomposeする。
+
+```text
+ShooterPerceptionBindingV1
+  binding_id
+  enemy_archetype_ref
+  perception_profile_ref
+  hostile_team_filter_ref
+  target_selection_policy: nearest | highest_priority_then_nearest
+  lost_target_behavior: search_last_known | return_to_route
+  fire_intent_policy_ref
+```
+
+`ShooterPerceptionBindingV1`は視界、聴覚、LOS、memoryの実装をforkせず、`PerceptionSnapshotV1`からShooter AI intentを作るmappingだけを所有する。C1 target selectionは`highest_priority_then_nearest`、lost target behaviorは上記closed enum、fire intentは必ず`RequestFireCommandV1`へ変換する。Render visibility、reticle、Camera occlusion、Audio Voiceをenemy認識へ使用しない。
 
 FPS viewはC2 Camera／Weapon Presentation Profileであり、新しいDamage／Weapon契約ではない。
 
@@ -469,7 +486,8 @@ PickupInstanceStateV1
 | `game_system.engine.score` | `play_session` | `ScoreStateV1` | 加点、combo、multiplier、high score |
 | `game_system.engine.pickup` | `world_instance` | `PickupInstanceStateV1` collection | overlap Evidence、collection、typed Grant、one-shot state |
 | `game_system.engine.encounter` | `encounter_instance` | Encounter runtime state | Wave、Spawn、Boss phase、completion |
-| `game_system.engine.game_flow` | `play_session` | Game flow state | Ready、Playing、Paused、Result、Restart |
+| `game_system.engine.perception` | `entity_instance` | bounded Perception memory state | sight／hearing candidate、LOS Query、memory、`PerceptionSnapshotV1` |
+| `game_system.engine.game_flow` | `play_session` | Game flow／pause state | Ready、Playing、Paused、Result、Restart、Clock／Pause Policy適用 |
 
 同じPublic Contractへ適合するProject-defined実装は許可するが、Engine Standardと同時にactiveにしない。WeaponとVitalをCharacter Systemのprivate Fieldへ隠さず、Public State owner tableへ出す。
 
@@ -577,6 +595,7 @@ Eventは原因となるCommand ID、tick、producer System、owner／target Stab
 - `ScoreSnapshotV1`: score、combo、multiplier、high score
 - `PickupSnapshotV1`: available／pending／collected、transaction、collector、collection tick
 - `EncounterSnapshotV1`: encounter、phase、wave、remaining authoritative actor
+- `PerceptionSnapshotV1`: observer、visible／heard／remembered target、query generation、overflow state
 - `ShooterGameFlowSnapshotV1`: state、transition reason、result
 
 HUD、AI behavior、Debuggingは必要なbounded Snapshotだけを読む。Render、Audio、VFXはPresentation projectionを使い、authoritative ownerを直接queryしない。
@@ -731,7 +750,9 @@ AI変更はRequirement、Before／After、Gameplay差分、Presentation差分、
 - Pickup available／pending／collected stateとgrant transaction
 - Score／Combo／persistent high score
 - Encounter phase、Wave、Spawn ordinal、RNG stream state
+- Perception memoryのtarget Stable ID、last confirmed tick、stimulus kind。Query／Physics／Render handleは保存しない
 - Shooter Game Flow
+- active `GameClockDomainProfileV1`／`PausePolicyV1` refとauthoritative elapsed tick。pause中のwall timeは保存しない
 - active Definition、System Graph、Implementation Set、Profile hash
 
 SaveはProjectileを`projectile_spawn_id`順、WeaponをStable ID順、Entity StateをStable ID順に並べる。Pool slot、Runtime handle、Physics native ID、VFX instance、Audio Voice、Camera shakeを保存しない。
@@ -780,6 +801,10 @@ peak_score_event_per_tick
 peak_live_pickup
 peak_pickup_collection_per_tick
 peak_enemy_and_ally
+peak_perception_observer
+peak_perception_candidate_per_observer
+peak_perception_query_per_tick
+peak_perception_stimulus_per_tick
 peak_simultaneous_presentation_cue
 ```
 
@@ -791,6 +816,8 @@ peak_simultaneous_presentation_cue
 |---|---:|---:|---:|---:|---|
 | `2d_top_down_c1` | 256 | 2,048 | 256 | 128 | 1080p60、authoritative drop 0 |
 | `tps_single_player_c1` | 50 | 256 | 64 | 128 | 1080p60、authoritative drop 0 |
+
+`tps_single_player_c1`は同じrunでPerception observer 50、候補64／observer、visible 16／observer、stimulus 128／tick、LOS Query 256／tickを要求する。candidate／visible／memory capacity丁度と+1を検証し、overflow時もcanonical target順、authoritative state、Replay hashを維持する。
 
 この個数はProduct上限ではない。Project intentが上回る場合はProject固有`IntegratedScaleFixtureV1`を生成する。
 
@@ -911,10 +938,20 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - Ready→Playing→Paused→Playing→Result→Restart
 - Wave 1／256、Spawn group 1／1,024、Boss phase 0／32
 - enemy全滅、goal、time、Boss defeatのcompletion
-- pause中cadence／reload／Encounter clockがProfileどおり停止
+- pause中cadence／reload／Encounter／Physics／authoritative Animationが同一tickで停止し、UI／確認入力が継続する
+- pause中にasync I/Oが完了してもauthoritative activation／Commandをresume境界まで適用しない
 - Save／Load後に同じWave、RNG、Projectile、Score結果
 
-### 16.6 AI Eval
+### 16.6 Perception／Settings／Pause
+
+- 2D／3Dのdistance、FOV境界、LOS遮断、hearing、damage stimulus、memory 0／600 tick、lost target
+- Renderer非表示、Camera外、Particle遮蔽、Audio muteがauthoritative Perceptionを変えない
+- candidate 64／65、visible 16／17、stimulus capacity、同score／distance時のStable ID canonical order
+- Save／Load／Replay後に同じtarget、last known position、fire intent、state hashへ収束
+- SettingsのAudio／Input／Language／Accessibility immediate apply、Display confirmed apply、15秒timeout Revert、restart-required
+- pause／resume適用tick、pause中1／600 real frame、Debug stepとの権限分離、Game Flow遷移
+
+### 16.7 AI Eval
 
 - 「銃」「弾」「ビーム」「連射」「三方向」「弾幕」「強く」「軽く」のcanonical resolution
 - authoritative projectileとPresentation particleの混同0
@@ -924,7 +961,7 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - AI／手動Editor／Project C++ Commandが同じDefinition hashとRuntime結果へ収束
 - ExplainがField、理由、Assumption、代替、Budget、Testを返す
 
-### 16.7 Performance／Soak
+### 16.8 Performance／Soak
 
 - 14.2節の2D／TPS Fixtureを各Targetで120秒×5 run
 - 10分soak、spawn／destroy churn、pause／restart、Save／Load
@@ -937,11 +974,11 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 
 | Work Package | Phase | 成果物 | Promotion Gate |
 |---|---:|---|---|
-| `SH0_contract_fixture` | 0 | Shooter Type、Command／Event／Snapshot、Semantic Catalog、negative fixture | MCD生成、round-trip、owner／phase／Save graph。Runtime Game実装なし |
+| `SH0_contract_fixture` | 0 | Shooter Type、Command／Event／Snapshot、Perception Binding、Clock／Settings dependency、Semantic Catalog、negative fixture | MCD生成、round-trip、owner／phase／Save graph。Runtime Game実装なし |
 | `SH1_headless_core` | 3 | Weapon、Projectile、Combat、Vital、Pickup、Score、Encounterのportable reference | deterministic headless test、Save／Replay、fault、capacity |
 | `SH2_2d_top_down_vertical` | 3 | 5分遊べる2D top-down shooter | Title→Result、3 enemy、Wave、Boss phase、score、`2d_shooter_c1_v1` |
 | `SH3_ai_authoring` | 4 | Prompt→質問→Profile→First Playable→再編集 | Semantic Eval、ChangeSet安全性、manual／AI収束 |
-| `SH4_tps_profile` | 6 | 同じCore Contractのsingle-player TPS | aim、hitscan／projectile、reload、switch、Team、`tps_shooter_c1_v1` |
+| `SH4_tps_profile` | 6 | 同じCore Contractのsingle-player TPS | aim、hitscan／projectile、reload、switch、Team、sight／hearing／memory、Settings apply／revert、Pause、`tps_shooter_c1_v1` |
 | `SH5_mobile` | 7 | 2D、次にTPSのMobile Profile | touch／controller、thermal、memory、Package、Store |
 | `SH6_c2_features` | 8以後 | 個別Feature Pack | 機能ごとの契約、Fixture、Budget、Save／Replay |
 
@@ -961,6 +998,9 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 10. C2／C3機能を未実装のままC1 Capabilityとして公開しない。
 11. Project intentが基準Fixtureを超える場合に固有Fixtureを生成し、Gameplayを黙って削らない。
 12. DebuggingでInput→Fire→Hit→Damage→Defeat→Scoreの因果をStable ID付きEvidenceとして追跡できる。
+13. TPSの3 enemy archetypeが`ShooterPerceptionBindingV1`と共通`PerceptionProfileV1`を使い、sight／hearing／memory、Save／Replay、overflow fixtureを通る。
+14. Settings画面が`SettingsDocumentV1`のapply／revert／last-known-goodを使用し、Shooter独自設定fileを作らない。
+15. Paused stateが`GameClockDomainProfileV1`／`PausePolicyV1`を使用し、Gameplay／Physics停止、UI継続、async activation保留を検証する。
 
 ## 19. 有名Engineの確認結果と採用判断
 

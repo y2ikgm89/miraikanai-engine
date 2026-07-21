@@ -1,6 +1,6 @@
 # Miraikanai Engine 2D／3D機能計画
 
-- 文書版: 2.19
+- 文書版: 2.21
 - 作成日: 2026-07-19
 - 最終更新日: 2026-07-21
 - 対象: 2D／3D Game Runtime、Editor、Asset pipeline、AI Authoring
@@ -40,6 +40,7 @@
 - AI検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
 - Game System規約: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
 - World／Level／Map規約: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
+- Capability Portfolio／Player Settings規約: [Miraikanai Engine AI可読Capability Portfolio／MVP製品化・将来Roadmap規約](./2026-07-20-ai-readable-capability-portfolio-productization-roadmap-design.md)
 
 ## 1. 結論
 
@@ -104,9 +105,90 @@ Engine mathはcolumn vector、column-major storage、`world = parent_world * T *
 
 - Simulationはfixed tick、renderは可変tick＋interpolationとする。
 - C1／C2の`fixed_tick_hz`はexactly 60、最大catch-upは4 step。ProfileとReplay headerへ60を保存し、別値をschemaで拒否する。
-- Game pause、UI time、cinematic time、physics timeを明示的なclock domainに分ける。
+- Game pause、UI time、cinematic time、physics timeを`GameClockDomainProfileV1`で明示的なclock domainに分ける。
 - Animation curve、particle、audio schedulingはsecondを正規単位とする。
 - Authoritative RandomnessはRuntime詳細規約のversion付き`DeterministicRngV1`とsystem／logical job別seed streamを使い、global random generatorとworker index由来seedを禁止する。
+
+`GameClockDomainProfileV1`と`PausePolicyV1`をC1共通Contractとする。
+
+```text
+GameClockDomainProfileV1
+  profile_id
+  fixed_tick_hz: 60
+  domains[]
+  pause_policy_ref
+  cinematic_policy_ref
+  replay_policy_ref
+
+ClockDomainEntryV1
+  domain: gameplay | physics | authoritative_animation | cinematic | presentation | ui | audio | real_time | async_io
+  source: fixed_tick | render_delta | monotonic_time | explicit_step
+  paused_behavior: freeze | continue | explicit_step_only
+
+PausePolicyV1
+  policy_id
+  pause_command_ref
+  resume_command_ref
+  pause_state_owner: play_session
+  audio_snapshot_ref
+  input_context_ref
+  async_completion_policy: queue_until_resume
+```
+
+C1の通常Game pauseでは`gameplay`、`physics`、`authoritative_animation`を同じtick boundaryで停止し、`ui`と`real_time`を継続する。`cinematic`、`presentation`、`audio`はProfileで明示し、Gameplay timer、Weapon cadence、Encounter、authoritative VFX cueをwall clockへ接続しない。`async_io`はI/O完了まで進められるが、World activation、authoritative Command適用、State owner変更はresume後のtick boundaryまでqueueする。Pause中のAudioは`audio_snapshot_ref`を原子的に適用し、UI cueと許可されたmusicだけを継続できる。
+
+Pause／resumeは`GamePauseCommandV1`と`GamePauseStateSnapshotV1`を通し、任意Subsystemがlocal boolで停止状態を所有しない。Saveはauthoritative elapsed tick、clock Profile ref、Game Flow stateを保存し、monotonic time、render delta、pause中の実時間をGameplay stateへ保存しない。Replayはpause／resume Commandと適用tickを記録し、pause区間のauthoritative state hashが不変であることを検証する。Debug stepは通常Pauseと別の`explicit_step_only` policyであり、Shipping Game pauseからDebug権限を取得しない。
+
+#### 3.3.1 C1 Gameplay Timer／Scheduler
+
+Cooldown、invulnerability、Wave、Boss phase、delayed interaction、UI countdown等を各Game Systemのad-hoc counterへ分散させない。`capability.gameplay.timer.c1`を2D／3D共通の決定論的Schedulerとし、authoritativeな期限はwall clock、render frame、Audio sampleではなくfixed tickで表す。
+
+```text
+GameplayTimerDefinitionV1
+  timer_definition_id
+  clock_domain: gameplay | authoritative_animation | cinematic
+  duration_ticks: uint32
+  repeat_policy: one_shot | fixed_interval
+  repeat_interval_ticks: optional uint32
+  max_fire_count: uint32
+  fire_event_ref
+  save_policy: transient | owner_state
+
+GameplayTimerCommandV1
+  command_id
+  operation: schedule | cancel
+  timer_definition_ref
+  owner_ref
+  owner_generation
+  requested_tick
+  instance_id
+
+GameplayTimerSnapshotV1
+  instance_id
+  timer_definition_ref
+  owner_ref
+  deadline_tick
+  fire_count
+  state: scheduled | completed | cancelled | owner_invalidated
+  generation
+
+GameTimeEffectPolicyV1
+  policy_id
+  mode: hit_stop | rational_dilation
+  affected_domains[]
+  activation_owner_ref
+  duration_contract_ref
+  input_policy_ref
+  audio_policy_ref
+  presentation_policy_ref
+  save_replay_policy_ref
+```
+
+`duration_ticks`は1～`2^31-1`、`fixed_interval`は正の`repeat_interval_ticks`と1～1,000,000の`max_fire_count`を必須とする。C1 reference Profileはactive timer 65,536、1 tickの発火4,096をHard上限とする。発火順は`deadline_tick, owner StableId, timer_definition_id, instance_id`の昇順でcanonicalizeし、同tickの登録順、container順、worker完了順を使用しない。上限超過、owner generation不一致、未知Event、deadline overflowはtyped failureとし、発火を黙ってdrop、次tickへ繰越、wall clockへfallbackしない。
+
+Schedule／cancelは`T30`で確定し、同tickに作成したzero-delay timerを禁止する。各`T30`はowner invalidation、cancel、schedule、deadline発火の順で処理し、各group内を前述canonical keyとCommand IDで整列する。deadline tickと同tickのcancelは発火より先に確定し、cancelled timerを発火しない。発火Eventは期限tickの`T30`で通常のtyped Gameplay Eventとして発行し、同じtickに再帰的な無制限scheduleを行わない。`save_policy=owner_state`のtimerはownerのSave fieldとして残りtick、fire count、Definition ref、generationを保存し、load時の現在時刻から再計算しない。Replayはschedule／cancel Commandと発火Eventを記録し、deadline、順序、state hashを照合する。UI countdownは`GameplayTimerSnapshotV1`のprojectionであり、UI animation終了callbackをauthoritative発火条件にしない。
+
+C1はPauseによるdomain停止だけをProduction対象とする。Hit-stop、slow-motion、domainごとのfractional time dilationは`GameTimeEffectPolicyV1`のC0 Schema、owner、対象domain、Save／Replay、Audio／VFX／Input policyを先に固定し、C2の個別CapabilityとしてQualificationする。任意のfloat time scaleをPhysics `delta_time`やGameplay timerへ直接乗算しない。
 
 ### 3.4 AIへ公開する編集単位
 
@@ -298,6 +380,8 @@ Ownerが一意でない、必要Targetがない、Style／Cueが競合する場�
 |---|---|---|---|
 | Window／display | Platform surface、resolution、logical scale、orientation、safe area | HDR、desktop multi-monitor、mobile quality auto-detect | Multi-view特殊display |
 | Input | Keyboard、mouse、touch、Platform controller、action map、rebinding、chord／context、C1 haptics、accessibility preset | Sensor optional、adaptive trigger／HD haptics、registered response curve | Specialized device |
+| Player settings | `SettingsDocumentV1`、Project default／user override、atomic save、apply／revert、last-known-good | 複数local profile、Platform Account連携 | Cloud merge／cross-device conflict |
+| Time／Scheduling | `GameClockDomainProfileV1`、Pause、決定論的Gameplay Timer／Scheduler | Hit-stop、rational time dilation、domain別time effect | Specialized timeline synchronization |
 | Game System | Game Flow、Level、Character、Combat、Ability、Encounterの共通Contract、Definition evaluator | Project-defined／Native／Target-specialized Variant | Engine Extension、advanced Domain System |
 | World | Stable ID、compact Level、Topology、transform、component、composition recipe | Target別Streaming Plan、World Partition、HLOD、procedural authoring | continuous large-world origin rebasing |
 | Asset | Import、content hash、cook、cache、hot reimport、bounded async streaming、`.mirakanpack` | LOD cook、Patch／DLC、remote build cache | Distributed cook |
@@ -306,7 +390,8 @@ Ownerが一意でない、必要Targetがない、Style／Cueが競合する場�
 | UI／Text | Layout、style、focus、touch／controller nav、Platform text／IME Adapter、Localization、screen reader semantics | UI animation、limited rich text span、MSDF | Advanced vector effects |
 | GameplayDefinition | Rule／FSM／Ability／Quest／Dialogue／UI Flow schema、Validator、offline Cook、C++ evaluator | Behavior Tree、Blackboard、profiler、互換性検証済みhot reload | 署名済みdata-only Runtime content |
 | Native code | NativeGameModule、isolated build、test | Incremental build、source-level profiling | Stable external SDKは1.0後 |
-| Gameplay logic／AI | Typed state machine、Rule Graph、Cook済みRule、seeded random | Blackboard、perception、behavior tree／utility composition | Large-agent simulation policy |
+| Gameplay logic／AI | Typed state machine、Rule Graph、Cook済みRule、seeded random、bounded sight／hearing perception | Blackboard、shared knowledge、behavior tree／utility composition | Large-agent simulation policy |
+| Interaction | focus query、prompt semantic、use command、range／LOS、exclusive／shared policy、Save／Replay | hold／multi-stage／cooperative interaction | Network-authoritative interaction |
 | Camera | 2D／3D camera、viewport、blend、shake | Cinematic sequence、split view | Multi-camera recording、Virtual Production、Timecode／Genlock |
 | Diagnostics | Engine-owned Session、構造化Event／Counter、Console／Problems／Profiler、Breakpoint／Watch、T110 safe pause、tick／frame step、Replay divergence | record／scrub／inspect、Causality、Reproduction Bundle、remote capture、AI evidence diagnosis | Policy承認済みの自動追加計測／修正提案。自動Commit／根拠なしcause確定は禁止 |
 | Test | Unit、headless simulation、golden state | Image／audio／performance regression | Large scenario automation |
@@ -337,6 +422,132 @@ Camera collisionは`T30`でversion付きtyped sphere-cast requestを生成し、
 Camera shakeはseed、開始tick、duration、translation／rotation amplitude、frequencyを持つbounded Presentation commandであり、最終View matrixへだけ合成する。既定上限は同時16 shake、translation各軸2 m、rotation各軸20°、frequency 0～60 Hz、duration 0～30 sとし、Gameplay aim、Physics、Save transformへ戻さない。
 
 C2 Cinematicは同じCamera Rig／Director／TransitionをSequenceから駆動し、別Camera実装へ分裂させない。C3 RecordingはBase Pose、Lens、Presentation channel、Clock、Calibration、Gapを非破壊Takeへ記録し、外部Deviceを別Process Adapterへ隔離する。C3 CapabilityはRecording、Device、Timecode、Genlock、Remote Preview、Hardware Adapterごとに個別Qualificationし、一括Production表示しない。
+
+### 4.2 C1 Gameplay Perception
+
+`capability.gameplay.perception.c1`は2D／3D共通のboundedな視覚・聴覚認識を提供する。Behavior Tree、Utility AI、Squad共有BlackboardはC2であり、C1 Perceptionへ暗黙に含めない。
+
+```text
+PerceptionProfileV1
+  profile_id
+  dimension: world_2d | world_3d
+  sight_range_m
+  horizontal_fov_rad
+  vertical_fov_rad
+  hearing_range_m
+  line_of_sight_query_profile_ref
+  detectable_channel_mask
+  update_interval_ticks
+  memory_duration_ticks
+  max_candidates_per_observer
+  max_visible_targets_per_observer
+  target_selection_policy: nearest | highest_priority_then_nearest
+
+PerceptionStimulusEventV1
+  stimulus_id
+  source_entity_ref
+  kind: sight_candidate | sound | damage | scripted
+  world_position
+  strength_q16
+  emitted_tick
+  channel
+
+PerceptionSnapshotV1
+  observer_ref
+  snapshot_tick
+  visible_targets[]
+  heard_stimuli[]
+  remembered_targets[]
+  query_generation
+  overflow_state
+```
+
+距離、FOV、channel filterで候補を先にbounded化し、視界判定はCollision正本のversion付きRay／Shape Queryを使用する。rangeは0～10,000 m、horizontal FOVは0～2π rad、3D vertical FOVは0～π radのfinite値とし、0 range／0 FOVは該当sense無効を意味する。2Dは`vertical_fov_rad=0`を必須とし、判定に使用しない。Render visibility、depth buffer、occlusion query、Camera frustum、Particle、Post Processをauthoritative Perceptionへ入力しない。聴覚はAudio mixerの実際の音量ではなく、Gameplay Systemが発行した`PerceptionStimulusEventV1`を使用する。`T30`で候補とQueryを生成し、Physicsが`T40`で処理、`T60`で正規化した結果を次tickのGameplayが読む。結果はpriority、距離の量子化値、source `StableId`、stimulus IDの順にcanonical sortする。
+
+候補、visible target、stimulus Event、memoryはProfileのhard boundを必須とする。上限超過時は配列を非決定的に切らず、canonical priorityで残した結果と`overflow_state`を返し、C1 reference Profileはobserver当たり候補64、visible target16、heard stimulus16、memory32、update interval 1～6 tick、memory 0～600 tickを許可する。Perception memoryのauthoritative state、last confirmed tick、target `StableId`はSave／Replay対象とし、Physics handle、Query result pointer、render objectを保存しない。
+
+### 4.3 C1 World Interaction
+
+`capability.gameplay.interaction.c1`はdoor、switch、pickup、inspect、talk等のProject固有結果を所有せず、対象発見、prompt semantic、利用要求、競合制御を共通化する。
+
+```text
+InteractionDefinitionV1
+  interaction_id
+  semantic_role
+  input_action_id
+  prompt_message_key
+  priority: int16
+  max_range_m
+  query_shape_ref
+  line_of_sight_policy: required | not_required
+  concurrency_policy: exclusive | shared
+  activation_command_ref
+  state_owner_ref
+  save_policy: none | owner_state
+  accessibility_cue_refs[]
+
+InteractionRequestV1
+  request_id
+  actor_ref
+  target_ref
+  interaction_ref
+  requested_tick
+  focus_snapshot_generation
+
+InteractionSnapshotV1
+  actor_ref
+  focused_target_ref
+  available_interaction_refs[]
+  rejection_reason
+  generation
+```
+
+`max_range_m`はfiniteな0.1～100 mとする。FocusはCollisionの`interaction` semantic sensorとversion付きQueryを使い、range、LOS、priority降順、距離の量子化値、target `StableId`で決定論的に選ぶ。UIは`prompt_message_key`とAccessibility cueを表示するだけで、localized文字列やpixel hitからWorldを変更しない。Use入力は`InteractionRequestV1`となり、Engine Standard Interaction Systemがactor／target generation、range、LOS、Game Flow、exclusive lease、State ownerを再検証して登録済みCommandを発行する。Door、switch、pickup等の結果は参照先Game Systemが所有し、Interaction Systemが任意Componentを書き換えない。
+
+Queryがstale、対象がdeactivate、range外、LOS遮断、exclusive lease競合の場合はtyped rejectionとし、推測による別対象への切替を行わない。Focus QueryとUse確定の間は最大1 tickだけ許容し、それを超えたRequestは再Queryを要求する。Exclusive leaseは確定Commandを発行するtickだけ有効で、継続占有は参照先Game Systemが別のauthoritative stateとして所有する。Owner stateだけをSaveし、focus、prompt、lease、Physics handleは保存しない。ReplayはRequest、確定Command、rejection reasonを記録する。C1 fixtureはdoor、switch、collision pickup、explicit-use pickup、inspectを2D／3Dで同じContractへ通し、keyboard／controller／touch、screen reader label、pause、Level deactivate、同tick競合を検証する。
+
+### 4.4 C1 Path Following／Movement Intent
+
+Navigation queryがpathを返しただけでNPC移動を完成扱いにしない。`capability.gameplay.path_following.c1`は2D／3D共通のgoal、path generation、waypoint進行、再探索、stuck判定を所有し、Navigationはquery結果、Character Motorは最終的なauthoritative Transform解決だけを所有する。Path FollowingがWorld Transform、Physics body、Nav payloadを直接writeしない。
+
+```text
+PathFollowRequestV1
+  request_id
+  actor_ref
+  actor_generation
+  goal: WorldPosition2f | WorldPosition3f | StableAnchorRef
+  nav_agent_profile_ref
+  movement_profile_ref
+  arrival_radius_m
+  replan_policy_ref
+  requested_tick
+
+PathFollowerStateV1
+  actor_ref
+  request_id
+  nav_generation
+  path_result_generation
+  waypoint_index
+  status: awaiting_path | following | arrived | blocked | stuck | stale | cancelled
+  last_progress_tick
+  replan_count
+  generation
+
+MovementIntentV1
+  actor_ref
+  actor_generation
+  source_request_id
+  desired_velocity
+  facing_intent
+  valid_for_tick
+  movement_profile_ref
+```
+
+`arrival_radius_m`はfiniteな0.01～10 m、C1 path waypointは2D Navigation Profileの8,192 cell上限または3D Navigation Profileの256 straight-path point上限へ従う。Path resultはNav generation、actor generation、request IDが一致した場合だけ統合する。goal移動、Nav generation変更、path corridor逸脱、Character Motorの連続blockedにより再探索できるが、Profileの最短replan間隔、最大replan回数、stuck tick上限を必須とし、毎tick無制限queryを発行しない。
+
+Navigation結果は`T20`で統合し、Path Followingが`T30`で次の`MovementIntentV1`を一つだけ生成し、Character Motorが`T40`でCollision queryとともに解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1はpath waypoint追従とCharacter Motor collision responseを提供し、複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2とする。
+
+Saveはownerが永続化を要求した場合だけgoal、request semantic、replan countを保存し、waypoint index、Nav path point配列、native query handle、Physics stateを保存しない。Load後は保存したNav generationやpath進捗を信用せず、同じgoalとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、arrived／stuck／replan Eventを記録する。C1 fixtureは2Dのenemy seek／attackと3DのNavmesh追跡について、goal移動、door閉鎖、stale result、Level deactivate、blocked recovery、Save／Load、Replay一致を検証する。
 
 ## 5. 2D RuntimeとEditor
 
@@ -481,6 +692,18 @@ TilemapAssetV1
   source_bounds: optional RectI64
   generation: uint64
 
+TileChunkSourceV1
+  chunk_coord: int2
+  cells: bounded array<TileCellSourceV1>
+  generation: uint64
+
+TileCellSourceV1
+  local_coord: uint2
+  tile_set_revision_ref
+  tile_id: StableId
+  transform: identity | rotate_90 | rotate_180 | rotate_270 | flip_x | flip_y | transpose | anti_transpose
+  animation_phase_policy: synchronized | stable_cell_offset
+
 TileChunkArtifactV1
   chunk_coord: int2
   source_generation: uint64
@@ -491,7 +714,11 @@ TileChunkArtifactV1
   content_sha256: bytes32
 ```
 
-`TileGridV1`はtile texel extent、`pixels_per_unit`、origin、axis、orientation固有stagger／hex sideを持つ。`TileSetRevisionV1`は`AssetId<TileSet>`と`AssetRevision`、`TileLayerV1`はStable Layer ID、kind、optional parent、chunk map、表示／semantic policy、`TileDrawSpanV1`はCanvas Batch Key、instance offset／count、local boundsを持つ。`RectI64`／`RectU32`はinclusive min／exclusive maxであり、empty、overflow、negative unsigned extentを拒否する。
+`TileGridV1`はtile texel extent、`pixels_per_unit`、origin、axis、orientation固有stagger／hex sideを持つ。`TileSetRevisionV1`は`AssetId<TileSet>`と`AssetRevision`、`TileLayerV1`はStable Layer ID、kind、optional parent、`chunk_coord -> TileChunkSourceV1`のsparse map、表示／semantic policy、`TileDrawSpanV1`はCanvas Batch Key、instance offset／count、local boundsを持つ。`RectI64`／`RectU32`はinclusive min／exclusive maxであり、empty、overflow、negative unsigned extentを拒否する。
+
+空cellは`tile_id=0`等のsentinelを保存せず、`TileChunkSourceV1.cells`にrecordが存在しないことで表す。`local_coord`は`[0, chunk_extent_tiles)`内で一意とし、Source serializationは`local_y, local_x, tile_id`の順、Chunk mapは`chunk_y, chunk_x`の順でcanonicalizeする。duplicate coordinate、範囲外、unknown Tile ID、Tileset revision不一致、Source bounds overflowを拒否する。負World tile coordinateはfloor divisionで一意のChunkと非負local coordinateへ写像し、言語既定の負剰余へ依存しない。
+
+`transform`は正方形格子の二面体群D4をclosed enumとして保存し、外部形式のbit flag、matrix、UV indexを正規Sourceへ持ち込まない。RendererのUV、Sprite pivot、Tile collision polygon、Navigation source、terrain edge／corner tagへ同じcell中心基準transformをCook時に適用する。いずれかのDomainが変換を表現できないTileをPresentationだけ変換して成功扱いにせず、consumer closure付きCook errorにする。`stable_cell_offset`のanimation phaseはTilemap ID、Layer ID、World tile coordinate、Tile IDのcanonical hashから決定し、runtime load順やchunk residency順をseedにしない。
 
 `TileDefinitionV1`はStable Tile ID、Sprite ID、最大256 frameのanimation、material slot、collision tag、navigation area／blocked tag、terrain／Wang-like edge・corner tag、最大32件のtyped custom propertyを持つ。frame durationは1～60,000 ms、総clip durationは24時間以下とする。Source外部形式のglobal tile IDや配列indexをStable Tile IDとして保存しない。未知property、未登録class、dangling tileset、負duration、非finite offset、未対応orientationをLoss Reportなしに破棄しない。
 
@@ -640,6 +867,34 @@ Sprite animationのAsset／state graph／event／root motion proposal、pose反�
 - Preview、scrub、onion skin
 - Animation update LOD、不可視pose保持、critical event floor
 
+#### Sprite FlipbookのC1正規Source
+
+```text
+SpriteAnimationFrameV1
+  sprite_asset_revision_ref
+  sprite_id: StableId
+  duration_ticks: uint32
+  local_offset_m: Displacement2f
+  collision_pose_ref: optional StableId
+  socket_pose_set_ref: optional StableId
+
+SpriteAnimationClipSourceV1
+  clip_id: StableId
+  frames: bounded array<SpriteAnimationFrameV1>
+  playback_mode: forward | reverse | ping_pong
+  loop_mode: once | loop
+  event_tracks: bounded array<TypedAnimationEventTrackV1>
+  default_speed_q16
+```
+
+1 Clipは1～4,096 frame、各`duration_ticks`は1～60,000、総durationは5,184,000 tick（60 Hzで24時間）以下とする。FrameはTexture path、atlas index、Source配列indexでなくexact Sprite Asset revisionとStable Sprite IDを参照する。Frameごとのtrim、pivot差はuntrimmed Source座標と`local_offset_m`からCookし、Atlas repackで見かけ位置、Collider、socketがずれないことをfixtureで固定する。
+
+`default_speed_q16`はQ16.16の正値`[0.0625, 16.0]`とし、0、負値、overflowを拒否する。Runtimeの一時停止はClip speed 0の書換えで表現せず、Animation stateまたはClock Domainのtyped commandを使う。
+
+`once`は終端poseを保持し、`loop`は定義済みのloop seamへ戻る。`ping_pong`は両端frameを折返し時に二重評価せず、`A,B,C,B,A`を一周期とする。Reverse、seek、loop跨ぎ、1 tick内で複数frameを通過する場合も、typed Eventはauthoritative event cursorが通過した境界順に一度だけ発行する。Editor scrubはEventを発火せず、Preview専用cursorを使う。
+
+`collision_pose_ref`と`socket_pose_set_ref`は登録済みCPU正規poseだけを参照し、Sprite alpha、GPU pose、表示visibilityからHitbox／Hurtboxを生成しない。Animation eventによるSensor active切替はCollision規約のtyped Ruleを使い、AnimationがColliderを直接writeしない。C1手動EditorとC2 Aseprite Adapterは同じ`SpriteAnimationClipSourceV1`を生成し、Aseprite tag名、frame index、layer名をRuntime identityにしない。
+
 #### C2: 2D Animation Advanced
 
 - Cutout skeleton
@@ -740,6 +995,19 @@ C2の数値はWindows Reference fixtureであり、Product上限またはMobile�
 
 `2d_shooter_c1_v1`はWeapon、Projectile、Collision query、Damage、Pickup、Score、Save／Replayの正当性を所有し、`2d_crowded_battle_v1`は大量配置、spawn、Gameplay、Physics、敵味方VFXを分離runに逃がさず同時に要求する。両FixtureはReference hardwareでP95 frame time 16.67 ms以内、GPU／CPUの継続budget超過なし、authoritative event drop 0、Replay結果一致を合格条件とする。この個数はC1の最低組込みfixtureであって製品上限ではない。ProjectのScale intentが上回る場合はProject固有fixtureで再Qualificationする。
 
+### 5.9 2D Productionのgenre横断Gate
+
+`2d_shooter_c1_v1`だけの合格を「汎用2D Production」と表示しない。個別Capabilityは固有fixture合格時にC2へ昇格できるが、Product全体の`capability.product.2d_general_production_c2`は、Shooterに加えて次の二つのPlayable fixtureと`C2CapabilityCoverageMatrixV1`へ合格した場合だけ公開する。
+
+| Fixture | 最小の体験 | 必須検証 |
+|---|---|---|
+| `2d_platformer_c2_v1` | Title→3 room→checkpoint→Resultを5分以上playできる2D action | one-way／moving platform、slope／step／ground snap、continuous collision、room Camera、Flipbook event／hitbox、Game Timer、Save／Load／Replay、keyboard／controller／touch、1080p60 |
+| `2d_puzzle_dialogue_c2_v1` | 戦闘に依存しない3 roomのpuzzle、Dialogue／Choice、Item／Interaction、Result | pointer／keyboard／controller／touch UI、Focus、Localization、Text／Font、Timer付きpuzzle、Save slot、Loading cancel／retry、Accessibility、AI生成→手動編集→AI再編集、1080p60 |
+
+`C2CapabilityCoverageMatrixV1`は、4章の共通C2および5.1～5.6でC2と宣言した各Capability IDについて、owner Work Package、Entry Gate、実装Symbol、Validator、Unit／integration／performance fixture、Target、fallback、Qualification Receipt、Product labelへの包含可否を一行で追跡する。owner、fixture、fallbackのいずれかが空のCapabilityを`Production`表示せず、`declared_unscheduled`または`experimental`とする。Work Packageから外す場合も削除せず、理由、依存、再検討Gateを記録する。
+
+Local multiplayerはCameraのsplit viewだけで完了扱いにしない。C2で有効化する場合は、Inputのplayer slot／device assignment、Game Flowのjoin／leave、UIのjoin prompt／focus、Camera viewport、Audio multi-listener、Saveのlocal profile対応を一つの`LocalPlaySessionProfileV1`と統合fixtureへ閉じる。いずれかが未対応ならsingle-player C2を維持し、local multiplayer Capabilityだけを未昇格とする。
+
 ## 6. 3D RuntimeとEditor
 
 ### 6.1 MeshとWorld Rendering
@@ -760,6 +1028,32 @@ C2の数値はWindows Reference fixtureであり、Product上限またはMobile�
 - Decal
 - Transparent forward pass
 - Debug wireframe、bounds、normal、material view
+
+#### DecalのC1公式Contract
+
+`DecalDefinitionV1`をProject Source、`DecalSpawnCommandV1`をRuntime要求、`DecalPacketV1`をRender Snapshot上のPresentation recordとする。
+
+```text
+DecalDefinitionV1
+  decal_id
+  material_instance_ref
+  projection_extents_m
+  receiver_channel_mask
+  surface_normal_limit_rad
+  blend_mode: color | normal | roughness | emissive
+  sort_layer
+  lifetime_policy: authored_static | timed
+  lifetime_seconds
+  fade_seconds
+  budget_class: critical_feedback | gameplay_feedback | ambient
+  target_fallback_ref
+```
+
+projection各軸はfiniteな0.001～16 m、`sort_layer`は0～31、timed lifetimeは0.016～120 s、fadeは0～lifetimeとする。receiverはMaterial／Renderableのclosed channel maskで選び、projection volume内という理由だけでUI、transparent、Particle、Character、terrainへ暗黙投影しない。C1はForward+のopaque／masked receiverへcolor、normal、roughness、emissiveを適用し、transparent receiver、animated atlas、deferred-only DBufferをC2とする。同じpixelのDecalはsort layer、budget priority、Decal `StableId`またはRuntime spawn sequenceの順に決定する。`authored_static`は`lifetime_seconds=0`かつ`fade_seconds=0`、`timed`は上記有効範囲を必須とし、不要fieldの任意値を許可しない。
+
+authored static DecalだけがLevel SourceとSave互換identityを持つ。impact等のtimed DecalはHit／Interaction等のauthoritative Eventから生成するPresentationであり、Damage、visibility、surface frictionへ逆入力せず、Save対象外とする。Replay時は元Eventから再生成する。C1 reference Profileはactive 2,048、spawn 128／tick、visible 512／viewをhard boundとし、超過時は`ambient`、`gameplay_feedback`の順にcanonical evictionしてDiagnosticを残す。`critical_feedback`を黙って欠落させず、Target Profileのmesh／particle／UI fallbackへ切り替えるかCapability不足として拒否する。
+
+QualificationはForward+、MSAA 1x／2x／4x、skinned receiver除外、camera cut、Level deactivate、receiver mask、同一面重なり、capacity丁度／+1、Windows／Mobile fallbackを含む。Visual regressionはangle、depth bias、normal blend、fadeを固定CameraとMaterialで比較し、Decalの有無でauthoritative state hashが変化しないことを同時に検証する。
 
 #### C2: Mesh／World Rendering Advanced
 
@@ -966,6 +1260,41 @@ Global illuminationは次に段階化する。
 - C3: hardware非依存のdynamic diffuse GIを研究し、ray tracingは品質向上用の任意backendとする。
 
 Lightmap、probe、IBLはDerived Assetとし、geometry、material、light、baker version、quality settingsのhashから再生成する。AIは`BakeLighting`を要求できるが、bake結果のtexelを直接生成・編集しない。
+
+```text
+LightingBakeProfileV1
+  profile_id
+  target_profile_ref
+  lightmap_texel_density_per_m
+  max_lightmap_dimension
+  max_atlas_count
+  irradiance_probe_spacing_m
+  reflection_probe_resolution
+  compression_profile_ref
+  bake_budget_ref
+
+LightingBakeArtifactV1
+  source_revision
+  geometry_hash
+  material_hash
+  light_hash
+  environment_hash
+  bake_profile_hash
+  lightmap_atlas_refs[]
+  lightmap_binding_refs[]
+  irradiance_probe_volume_refs[]
+  reflection_probe_artifact_refs[]
+  validation_report_ref
+  artifact_hash
+```
+
+Static meshのlightmap UVは専用UV set、0～1範囲、finite、triangle overlap許容率0%、4 texel以上のchart paddingをCook後解像度で満たす。C2 reference値はtexel density 32 texel／m、atlas最大4,096²、1 Level最大64 atlas、irradiance probe間隔0.5～16 m、reflection cubemap 128²×6とする。Source meshが条件を満たさない場合はImporterが生成候補とLoss Reportを提示できるが、既存UVを無断置換しない。
+
+`LightmapBindingV1`はMesh／submesh `StableId`、UV set、atlas rect、decode scale／biasを持つ。`IrradianceProbeVolumeV1`はbounds、spacing、priority、blend distance、validity maskを持ち、`ReflectionProbeDefinitionV1`はsphere／box bounds、capture origin、priority、blend distance、receiver channelを持つ。Probe重複はpriority、volume、Stable ID順で解決し、未配置領域はC1 Environment IBLへfallbackする。Local reflection probeをC1 global IBLと混同しない。
+
+geometry、Materialのbaked contribution、Static／stationary Light、Environment、Bake Profileのhash変更時だけ該当Cell Artifactをinvalidateする。ArtifactはWorld Cell dependencyへ登録し、Lightmap、irradiance、reflectionをactivation group単位でall-or-nothingにresident化する。欠落、stale、破損時は同じTargetでQualification済みのrealtime Light＋Environment IBL fallbackへ移り、黒Scene、旧Artifact継続、部分atlas適用を禁止する。
+
+Bakeは同じSource、Toolchain、ProfileでArtifact hashが一致するdeterministic jobとし、UV overlap、漏れ、seam、probe light leak、dynamic object blend、Cell境界、cold streaming、memory、bake timeをfixture化する。Visual Gateは固定Exposureのoffline reference、realtime fallback、Target実機を比較し、Gameplay／Physics／Navigation／Save stateがBake Artifactに依存しないことを検証する。
 
 ### 6.4 Sky、Atmosphere、Fog、Cloud、Environment Lighting
 
@@ -1270,16 +1599,18 @@ Game ruleはclip名文字列へ依存せず、Animation Capabilityとsemantic ta
 
 第二C1は同じ`mirakan.feature.shooter_core.c1`へ`shooter.profile.tps_single_player.c1`を適用し、`realistic_basic` VisualStyleProfileを使用するsingle-player third-person compact shooter arenaとする。
 
-- Title、settings、play、result
+- 初回起動／Save再開／Level遷移で実作業由来のLoading進捗、bounded cancel、明示retry、keyboard／controller／screen reader経路
+- Title、settings apply／revert、play、pause／resume、result。再起動後にInput／Audio／Display／Language／Accessibility設定を保持
 - Player locomotion、camera、aim、hitscan／projectile、single／automatic／burst、ammo／reload／Weapon switch
 - Health、Damage、Team、hit reaction
-- 3 enemy archetype、Navmesh追跡
+- 3 enemy archetype、`PerceptionProfileV1`のsight／hearing／memory、Navmesh追跡
+- doorまたはswitch、explicit-use pickup、inspectを`InteractionDefinitionV1`で実行し、range／LOS／競合／Accessibilityを検証
 - One quest goal、checkpoint、save／load
 - Directional、point、spot lightとshadow
 - Sky／IBL／height fog
-- PBR material、particle、animation、spatial audio
+- PBR material、impact Decal、particle、animation、spatial audio
 - glTF core／Unlit／Emissive Strength／Texture Transform Material importとPBR reference sphere
-- AIが自然言語からarena、rule、UI、`GameplayDefinition`、Asset設定を生成
+- AIが空Projectから`BlockoutAssemblyV1`のarena、rule、UI、`GameplayDefinition`、Asset設定を生成し、glTF Assetへ段階置換
 - Inspector、Scene View、Graph、table／form、NativeGameModule Capabilityの手動修正
 - 2,000 visible mesh instance、100 dynamic rigid body、50 navigation agentのstress scene
 - `tps_shooter_c1_v1`: 50 active combat actor、256 live authoritative projectile、64 projectile spawn／tick、128 hitscan query／tick、Weapon／Damage／Scoreが2Dと同じPublic Contract
@@ -1442,8 +1773,9 @@ Material機能は、MCD、Editor、AI Operation、Validator、offline Cook／Com
 |---|---|---|
 | Texture | PNG、JPEG、EXR、KTX2、DDS | Windows BCn、Android ASTC＋ETC2、Apple ASTC、mip／streaming metadata |
 | 3D | C1 glTF 2.0、C2 Blend／FBX、C3 USD／USDZ | 共通`SceneImportIRV1`から独自mesh／skeleton／animation package |
-| Sprite | C1 Image＋`SpriteImportSettingsV1`、C2隔離Aseprite PNG＋JSON Adapter | Packed page＋stable sprite table＋animation／collision binding |
-| TileSet／Tilemap | C1 Engine-native Asset、C2隔離Tiled／LDtk Adapter | Target別Tile chunk、draw span、Collider／Nav Derived Artifact |
+| 3D Blockout | Engine-native `PrimitiveMeshSourceV1`／`BlockoutAssemblyV1` | 通常のstatic mesh、Collider／Navigation source semantics、Material instance |
+| Sprite | C1 Image＋`SpriteImportSettingsV1`＋`SpriteAnimationClipSourceV1`、C2隔離Aseprite PNG＋JSON Adapter | Packed page＋stable sprite table＋flipbook／event／collision binding |
+| TileSet／Tilemap | C1 Engine-native `TileSetAssetV1`／`TilemapAssetV1`／`TileCellSourceV1`、C2隔離Tiled／LDtk Adapter | Target別Tile chunk、cell transform済みdraw span、Collider／Nav Derived Artifact |
 | Audio | WAV、FLAC等 | PCM16またはOpus stream chunk＋Platform audio metadata |
 | Shader | Engine HLSL／Project HLSL | Windows DXIL、Android SPIR-V、Apple metallib＋共通ShaderInterface |
 | Material | Material Graph、Definition、Instance、Template | Material package＋parameter block＋pipeline key |
@@ -1454,6 +1786,38 @@ Material機能は、MCD、Editor、AI Operation、Validator、offline Cook／Com
 OpenUSDはC0～C2では採用しない。C3でDCC collaboration interchangeが必要になった場合だけ、Asset Import／AI Authoring／Editor UX規約のbounded Stage、resolver／plugin allowlist、composition／variant／payload Loss Report、別ADR、vertical prototypeを通して有効化する。採用する場合もProject source of truthにはしない。OpenUSDは一般的なGUID systemや完全なrigging solutionを提供するものではなく、MiraikanaiのStable ID、GameSpec、Gameplay Capability Contractを置き換えない。
 
 Importerは別Processで実行し、networkなし、許可pathだけ、timeout、memory capを持たせる。Blend変換はImporter child processではなくJob Orchestratorが別sandboxで公式Blenderを起動する。AI生成Assetも同じstaging、license metadata、content safety、Import Plan、Conversion Report、Preview、validationを通す。
+
+### 9.1 C1 3D Blockout／Primitive Authoring
+
+空のProjectからAIまたは人間が外部DCCなしでcompact 3D Levelを作れるよう、C1にboundedなBlockout経路を含める。一般用途のruntime CSG、boolean tree、procedural modeling言語はC1へ含めない。
+
+```text
+PrimitiveMeshSourceV1
+  primitive_id
+  kind: box | sphere | capsule | cylinder | plane | ramp
+  dimensions_m
+  radial_segments
+  height_segments
+  uv_policy: generated_world_scale | generated_normalized
+  material_instance_ref
+  collision_semantic: none | solid | walkable | interaction
+  navigation_semantic: ignore | walkable | obstacle
+  mobility: static | movable
+
+BlockoutAssemblyV1
+  assembly_id
+  primitive_refs[]
+  local_transforms[]
+  composition_recipe_ref
+  gameplay_anchor_refs[]
+  validation_fixture_refs[]
+```
+
+dimensionはfiniteな0.01～10,000 m、radial segmentは3～64、height segmentは1～64、1 Assemblyは最大256 primitive、1 compact Levelは最大4,096 primitiveとする。負scale、NaN／Inf、zero-area surface、非manifoldな暗黙boolean、Colliderとwalkable semanticの矛盾を拒否する。Primitiveは通常のTransform、Material、Renderer、Collision、Navigation Sourceを使い、Blockout専用Runtime objectを作らない。
+
+`CreatePrimitiveMesh`、`CreateBlockoutAssembly`、`UpdateBlockoutPrimitive`、`PromoteBlockoutToMeshAsset`をAI／Editor共通Operationとする。Promotionは元primitive／assembly `StableId`、pivot、bounds、Material slot、Collider／Navigation semantic、参照元をPreviewし、承認後に通常Mesh Sourceと対応表を生成する。Promotion後も元Sourceを自動削除せず、置換対象をexplicit ChangeSetで示す。AIはarena生成時にentry、objective、cover、combat lane、interaction point、Nav reachability、spawn safety、scale／visibility budgetを一つの`WorldAuthoringBundleV1`へ含める。
+
+Blockout fixtureは6 primitive、dimension境界、4,096 primitive Level、Collider／Nav cook、lightmap UV生成候補、Promotion前後のbounds／pivot／Material slot、Undo／redo、Save／Load、AI／手動Operationのafter hash一致を検証する。3D C1 vertical sliceは外部DCC Assetが0件でもBlockout arenaをTitleからResultまで完走でき、同じLevelへglTF Assetを段階置換できることをGateとする。
 
 ## 10. Editor機能との対応
 
@@ -1466,15 +1830,18 @@ Importerは別Processで実行し、networkなし、許可pathだけ、timeout�
 - Inspector
 - Asset Browser
 - Sprite Slicer／Atlas Inspector、Sprite coverage／padding／mip Preview
-- Tile Palette、Tilemap Paint、Terrain Rule、Layer／Chunk／Residency Inspector
+- Sprite Flipbook Clip／Frame duration／Event／pivot／Collider／socket Inspector
+- Tile Palette、Tilemap Paint、cell D4 transform、Terrain Rule、Layer／Chunk／Residency Inspector
 - 2D Animation／Camera Rig／Light／Shadow Inspector
 - 2D Renderer Plan、batch／overdraw／atlas／streaming／fallback Profiler
 - Import Inspector、Source／Engine軸・Pivot・Root・Hierarchy Preview、Conversion／Loss Report、Reimport Conflict
+- Blockout Palette、Primitive Inspector、Collider／Navigation semantic、Mesh Promotion Preview
 - Game／Rule Graph
+- Gameplay Timer／Clock Domain／deadline／owner／発火順 Inspector
 - Timeline／Animation
 - Material／VFX Graph
 - Visual Style、Art Asset、Animation presentation、Camera、Lighting、PostのProfile Inspector
-- Navigation／Physics debug
+- Navigation／Path Following／Movement Intent／stuck／replan／Physics debug
 - Collider Editing Mode、Collision matrix、Query probe、Contact／Trigger timeline
 - Build／Playtest
 - Debug Workspace: Session／Console／Problems／Profiler／Timeline／Causality／Breakpoint／Watch／Replay／Reproduction／External Tools
@@ -1569,49 +1936,53 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 |---|---|---|---|
 | `WP0_foundation_measurement` | Phase 0 | 固定Toolchainで起動／終了する最小Host、Foundation／Math MCD生成、portable scalar Math、`DBG0_contract`／`DBG1_flight_recorder`、trace、memory／queue計測、Receipt | Toolchain／Artifact再現、Math unit／property／golden／cross-language／CPU・HLSL conformance、Debug Event／Counter／priority／gap／bounded Query／crash recovery、negative test、ASan、測定Availability。2D／3D機能は含めない |
 | `WP1_headless_authoring` | Phase 1 | ChangeSetとWorld／Scene／Level／Topology、`AuthoringSelectionContextV1`／`WorldAuthoringContextV1`、System Implementation Setをvalidate→commit→save→load→replayするHeadless Project | state hash、State owner、Topology、Scene永続化owner／Level membership／Cell assignment分離、`world_authoring_semantics_v1`、crash recovery、Budget／revision拒否 |
-| `WP2_common_runtime_editor` | Phase 2 | World Outline／Scene／Topology Graph／Level Form／Streaming Inspectorを使うWindows空Levelのedit→play→save→cook→packageと`DBG2_editor_local` Debug Workspace | `world_authoring_cross_view_v1` 64 scenarioのOperation／after hash一致、Runtime phase、System Graph、Level／Cell lifecycle、Derived read-only、Render Graph、Asset promotion、device recovery、safe pause／step、IDE／GPU tool関連付け、起動／reload baseline |
-| `WP3_2d_c1_vertical` | Phase 3 | compact 2D Level、Portal、Game Flow／Level／Character／Weapon／Projectile／Combat／Vital／Score／Ability／Encounter、独自Sprite／Tilemap、C1 CPU VFX、TitleからResultまでの2D top-down shooter、`DBG3_replay_causality` | Level transition、旧Level維持、atomic Fire、System／Save／Replay、first divergence／causal edge／Reproduction Bundle、VFX初期10 Role／2D Pattern、`2d_shooter_c1_v1`、`2d_crowded_battle_v1`、1080p60、memory／queue、authoritative drop 0 |
+| `WP2_common_runtime_editor` | Phase 2 | World Outline／Scene／Topology Graph／Level Form／Streaming Inspectorを使うWindows空Levelのedit→play→save→cook→package、`SettingsDocumentV1`、Clock／Pause、Gameplay Timer、Loading UXと`DBG2_editor_local` Debug Workspace | `world_authoring_cross_view_v1` 64 scenarioのOperation／after hash一致、Runtime phase、System Graph、Level／Cell lifecycle、Settings apply／revert／last-known-good、clock domain、Timer ordering／Save／Replay、実作業由来Loading進捗、Derived read-only、Render Graph、Asset promotion、device recovery、safe pause／step、IDE／GPU tool関連付け、起動／reload baseline |
+| `WP3_2d_c1_vertical` | Phase 3 | compact 2D Level、Portal、Game Flow／Level／Character／Weapon／Projectile／Combat／Vital／Score／Ability／Encounter、bounded Perception／Interaction、Path Following、`TileCellSourceV1`、`SpriteAnimationClipSourceV1`、独自Sprite／Tilemap、C1 CPU VFX、TitleからResultまでの2D top-down shooter、`DBG3_replay_causality` | Level transition／Loading cancel・retry、旧Level維持、Settings／Pause／Timer、Perception／Interaction、enemy seek／stuck recovery、Tile transformのRender／Collision／Nav一致、Flipbook event／hitbox、atomic Fire、System／Save／Replay、first divergence／causal edge／Reproduction Bundle、VFX初期10 Role／2D Pattern、`2d_shooter_c1_v1`、`2d_crowded_battle_v1`、1080p60、memory／queue、authoritative drop 0 |
 | `WP4_ai_authoring` | Phase 4～5 | 同じ2D ProjectのSystem／Level生成→手動編集→AI再編集、bounded World Discovery、`world_authoring_intent_v1` 240件（明確6分類×30件＋曖昧／High Impact 60件）と`DBG4_ai_diagnosis` | System／World Bundle、Map intent明確Case 97%以上、Blocking recall 100%、Scene／Level／Cell誤変更0、未知StableId／Derived write／直接Commit 0、Definition／Native同値性、AI evidence diagnosis Eval、Replay回帰、Source Promotion |
-| `WP5_3d_c1_vertical` | Phase 6 | 同じShooter／Game System／Level／VFX Intent Contractの`realistic_basic` compact third-person shooter arena | compact 3D Level transition、2D／3D VFX Semantic equivalence、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`、RTX 3060／RX 6600、1080p60、Physics／Nav／Animation／VFX統合 |
+| `WP5_3d_c1_vertical` | Phase 6 | 同じShooter／Game System／Level／VFX Intent Contractの`realistic_basic` compact third-person shooter arena。空ProjectからBlockout生成、Decal、Perception、Interaction、Path Followingを含む | compact 3D Level transition／Loading、Settings／Pause／Timer、Blockout→Mesh置換、Decal Forward+、sight／hearing／memory、range／LOS interaction、Navmesh追跡／stale／stuck recovery、2D／3D VFX Semantic equivalence、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`、RTX 3060／RX 6600、1080p60、Physics／Nav／Animation／VFX統合 |
 | `WP6_mobile_vertical` | Phase 7 | 同じ2D C1、次に3D C1をVFX CPU subset込みでAndroid／AppleへPackage／Playし、`DBG5_remote_shipping`で認証済みremote capture | minimum／reference実機、VFX Mobile Budget／Fallback／Cue保存、partial capture／gap、Session再結合、memory、30分thermal、2時間endurance、Shipping debug artifact除外、Store／privacy |
-| `WP7a_2d_production_c2` | Phase 8先行 | GPU-qualified Sprite、streaming Tilemap、advanced Animation／Camera／Light、隔離2D Importer | 5.7節の全C2 fixture、CPU基準image diff、fallback、Windows／Mobile個別Receipt |
-| `WP7b_production_c2` | Phase 8 | World Partition／HLOD／procedural authoring、Advanced Renderer、Visual Style、GPU VFX／Extension、Water／Snow、Domain Packを一Capabilityずつ追加 | World／Capability固有fixture、`VfxAiAuthoringFixtureV1`、Portable／Mobile fallback、Before／After、全Vendorまたは限定Profile Receipt |
+| `WP7a1_2d_render_content_c2` | Phase 8先行 | C2 Canvas、Tilemap、Animation、Camera、Light、2D Post、Aseprite／Tiled／LDtk隔離Importerを一Capabilityずつ追加 | 5.1／5.2／5.5／5.6のC2項目と5.7節の全該当fixture、CPU基準image diff、Tile Source／Derived closure、fallback、Windows／Mobile個別Receipt、Coverage Matrixのorphan 0 |
+| `WP7a2_2d_simulation_c2` | Phase 8先行 | `GameTimeEffectPolicyV1`、C2 2D Physics、Polygon／dynamic／hierarchical Navigation、Path Following C2、local avoidanceを一Capabilityずつ追加 | hit-stop／rational dilation、one-way／CCD／ragdoll-like／large Tile Collider／query profiler、dynamic obstacle、path cache／batch、stale／stuck／avoidance、Save／Replay、fallback、Windows／Mobile個別Receipt |
+| `WP7a3_2d_product_coverage_c2` | Phase 8先行 | `2d_platformer_c2_v1`、`2d_puzzle_dialogue_c2_v1`、任意の`LocalPlaySessionProfileV1`をmanual＋AIで完成 | TitleからResult、Package、全入力、Localization／Accessibility、Save slot、5.9節のgenre横断Gate、Coverage Matrixの`declared_unscheduled` 0または明示defer |
+| `WP7b_production_c2` | Phase 8 | World Partition／HLOD／procedural authoring、Lighting bake／probe、Advanced Renderer、Visual Style、GPU VFX／Extension、Water／Snow、Domain Packを一Capabilityずつ追加 | World／Capability固有fixture、deterministic Bake hash、UV／probe／Cell streaming、realtime fallback、`VfxAiAuthoringFixtureV1`、Portable／Mobile fallback、Before／After、全Vendorまたは限定Profile Receipt |
 | `WP8_research_c3` | Phase 8以後の個別C3 Gate | RTGI／Path／Neural、continuous origin-rebased Large World、Multiplayer等の隔離prototype | 別正式仕様、Threat Model、基準経路非退行、意味同等fallback、個別承認 |
 
 各Work PackageはRuntime規約14.1.2節の測定loopを使い、機能追加と観測基盤追加を同じ未検証taskへ混ぜない。Gate不合格時は後段Packageを開始せず、last valid playableとSource intentを維持する。C2／C3の複数Capabilityを一つの巨大変更で同時昇格せず、一件ごとに有効化、無効化、rollback、性能差を証明する。
 
 ### 13.2 詳細依存順序
 
-1. Foundation、ID、memory、Result、Job、Math semantic contract、portable scalar Math、Transform／Quaternion／projection、Runtime Contract、fixed phase、bounded queue、Debug Session／Event／Counter／priority／gap／bounded Query／crash-safe chunk、`game_system`／World／Level最小Schema fixture
+1. Foundation、ID、memory、Result、Job、Math semantic contract、portable scalar Math、Transform／Quaternion／projection、Runtime Contract、fixed phase、`GameClockDomainProfileV1`／`PausePolicyV1`、`GameplayTimerDefinitionV1`／Command／Snapshot、bounded queue、Debug Session／Event／Counter／priority／gap／bounded Query／crash-safe chunk、`game_system`／World／Level最小Schema fixture
 2. ChangeSet、World／Scene／Level／Topology、Scene永続化owner／Level membership／Cell assignment分離、`AuthoringSelectionContextV1`／`WorldAuthoringContextV1`、System Implementation Set、Authoring Service、`LodIntentV1`／Policy envelope、`world_authoring_semantics_v1` headless test
-3. 独自MirakanUi Core／MirakanEditor Shell、World Outline／Scene／Topology Graph／Level Form／Streaming Inspector、`world_authoring_cross_view_v1`、Windows／D3D12 device、Render Graph、Asset cooker、CPU LOD reference metric／Preview trace、Debug Workspace／safe pause／step／IDE・GPU tool Adapter
+3. 独自MirakanUi Core／MirakanEditor Shell、World Outline／Scene／Topology Graph／Level Form／Streaming Inspector、`SettingsDocumentV1` apply／revert、`LoadingProgressPlanV1`／Snapshot、`world_authoring_cross_view_v1`、Windows／D3D12 device、Render Graph、Asset cooker、CPU LOD reference metric／Preview trace、Debug Workspace／safe pause／step／IDE・GPU tool Adapter
 4. Material IR、VisualStyleProfile、StyleCapabilityManifest、`VisualEffectSemanticCatalogV1`／`VisualEffectRequestV1`／`ResolvedVisualEffectOwnershipPlanV1`、`LightSourceV1`／`LightIntentV1`／`ResolvedLightPlanV1`、`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、`VfxEffectIntentV1`／Semantic Role・Pattern・Node Catalog／Compiler descriptor／Diagnostic、Validator、headless Resolver、Preview
-5. compact 2D Level／Portal、Game Flow／Level Gameplay／Character／Weapon／Shooter Projectile／Combat／Vital／Score／Ability／Encounter Contract、`mirakan.feature.shooter_core.c1`、`shooter.profile.2d_top_down.c1`、`SpriteImportSettingsV1`、TileSet／Tilemap／Chunk、Portable Canvas、C1 2D Light selection、C1 Post Process、C1 2D CPU VFX／初期10 Role・Pattern、CPU LOD、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition evaluator、Box2D、Replay／Rewind／Causality／Reproduction Bundleとmanual vertical slice
+5. compact 2D Level／Portal、Game Flow／Level Gameplay／Character／Weapon／Shooter Projectile／Combat／Vital／Score／Ability／Encounter Contract、`PerceptionProfileV1`、`InteractionDefinitionV1`、`PathFollowRequestV1`／`PathFollowerStateV1`／`MovementIntentV1`、`mirakan.feature.shooter_core.c1`、`shooter.profile.2d_top_down.c1`、`SpriteImportSettingsV1`／`SpriteAnimationClipSourceV1`、TileSet／Tilemap／`TileCellSourceV1`／Chunk、Portable Canvas、C1 2D Light selection、C1 Post Process、C1 2D CPU VFX／初期10 Role・Pattern、CPU LOD、Pixel／Illustrated Profile、Input、Audio、UI、GameplayDefinition evaluator、Box2D、Replay／Rewind／Causality／Reproduction Bundleとmanual vertical slice
 6. TypeScript AI Orchestrator、System Catalog／Implementation Plan／Bundle、bounded World Discovery、Map intent／World Bundle、`world_authoring_intent_v1` holdout、Visual Effect Ownership Router／`VisualEffectRoutingFixtureV1`、VFX Intent Resolver／typed Operation／Semantic diff／`VfxAiAuthoringFixtureV1` 2D・曖昧Case、named-pipe IPC、OpenAI Provider、VisualStyleResolver、Evidence ID付きAI debug diagnosisを含むAI editing loop
 7. 外部MCP、Codex／Claude Plugin
-8. 同じLevel／Game System／VFX Intent Contractの3D Variant、3D manual／generated static Mesh LOD、Animation presentation LOD、`realistic_basic`、Forward+、3D Light cluster、C1 3D CPU VFXと2D／3D Semantic equivalence、`AntiAliasingIntentV1`／FXAA／`mirakan_taa_v1`／MSAA 2x・4x、C1 Post Process、Shadow ResolverとCSM／atlas／cubemap、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
+8. 同じLevel／Game System／VFX Intent Contractの3D Variant、`PrimitiveMeshSourceV1`／`BlockoutAssemblyV1`、3D manual／generated static Mesh LOD、`DecalDefinitionV1`、Animation presentation LOD、`realistic_basic`、Forward+、3D Light cluster、C1 3D CPU VFXと2D／3D Semantic equivalence、`AntiAliasingIntentV1`／FXAA／`mirakan_taa_v1`／MSAA 2x・4x、C1 Post Process、Shadow ResolverとCSM／atlas／cubemap、Jolt、独自Navigation契約、Recast／Detour基準Backend、animation
 9. `shooter.profile.tps_single_player.c1`を適用した`realistic_basic` 3D compact shooter arena
 10. Android GameActivity／Vulkan／Oboe／touch／AABで同じ2D C1
 11. Apple UIScene／Metal／AudioUnit／touch／TestFlightで同じ2D C1
 12. Mobile 3D品質、Target shader／texture cook、memory／thermal governor、content delivery
-13. 2D GPU culling／indirect、indexed binding、streaming Tilemap、C2 grid、cutout／IK、Camera stack、2D Light clustering、Aseprite／Tiled／LDtk隔離Importerを一CapabilityずつQualification
-14. `realistic_advanced` Material feature
-15. `toon_basic`、inverted-hull outline、`toon_character`
-16. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
-17. `pixel_diorama`の`unified_low_resolution`
-18. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
-19. Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX、`VfxExtensionManifestV1`、`VfxAiAuthoringFixtureV1` 360 Case
-20. C2 Water Body／Query／Underwater、dynamic snow field
-21. GPU LOD selector、indirect、HZB、HLOD、geometry residency／streaming、generated skinned／morph Gate、portable meshlet artifactとCPU direct比較
-22. Hybrid deferred path、terrain／foliage、Advanced Renderer Fixture
-23. SMAA 1x、MSAA 8x、`TemporalFrameInputV1`、Mirakan TAAU、DirectSR、DLSS／XeSS／FSR／MetalFXを方式／Provider別にQualification
-24. Frame Generation、Latency Provider、UI／pixel-locked分離、real 60 fps Gate
-25. Hardware Ray Traced Shadow／Reflection、acceleration structure、Raster fallback
-26. RTGI／Radiance Cache、Editor Reference Path Tracer、Ray Reconstruction／Neural Denoising
-27. Neural Radiance Cache／Shader、Runtime Path Tracing、Work Graphは個別C3 Gate後
-28. Domain Pack拡張
-29. Store-readyなdata-only Runtime generation
-30. Project Shadow Technique L3、FFT／shallow-water、deformable snow、Multiplayer／continuous origin-rebased large worldは個別C3 Gate後
+13. `WP7a1`として2D GPU culling／indirect、texture array／indexed binding、palette／mesh Sprite、per-sprite Material parameter、2D Light clustering／soft shadow atlas、vector path、render-to-texture／2D Post、streaming／prefetch／async／procedural preview／occlusion mask／Runtime edit Tilemap、C2 grid、entity／prefab stamp、layer template、chunk portal graph、cutout／IK／blend space／retarget／root-like displacement／mesh deformation／Clip compression、Camera stack／layer Post／split／multi-camera／rail／room／target group／cinematic／pixel-subpixel composite、Aseprite／Tiled／LDtk隔離Importerを一CapabilityずつQualification
+14. `WP7a2`として`GameTimeEffectPolicyV1`のhit-stop／rational dilation、one-way platform、continuous collision、buoyancy／area force、ragdoll-like joint、large Tile Collider、concave生成、Physics query profiler、Polygon Navigation、dynamic obstacle、hierarchical query、path cache／batch、flow field、Path Following C2、local avoidanceを一CapabilityずつQualification
+15. `WP7a3`として4章共通C2と5.1～5.6の`C2CapabilityCoverageMatrixV1`を閉じ、Save slot、`2d_platformer_c2_v1`、`2d_puzzle_dialogue_c2_v1`、任意の`LocalPlaySessionProfileV1`をWindows／MobileでQualification
+16. `realistic_advanced` Material feature
+17. `toon_basic`、inverted-hull outline、`toon_character`
+18. `pixel_diorama`の`crisp_sprite_over_high_res_3d`
+19. `pixel_diorama`の`unified_low_resolution`
+20. C1 bounded Water、CPU降雪VFX、静的snow maskを3D reference sceneへ追加
+21. `LightingBakeProfileV1`／Lightmap／Irradiance／Reflection Probe、Shadow Graph L2、cache、PCSS／contact-hardening、Windows High Virtual Shadow、Production lighting、atmosphere、volumetric fog／cloud、GPU VFX、`VfxExtensionManifestV1`、`VfxAiAuthoringFixtureV1` 360 Case
+22. C2 Water Body／Query／Underwater、dynamic snow field
+23. GPU LOD selector、indirect、HZB、HLOD、geometry residency／streaming、generated skinned／morph Gate、portable meshlet artifactとCPU direct比較
+24. Hybrid deferred path、terrain／foliage、Advanced Renderer Fixture
+25. SMAA 1x、MSAA 8x、`TemporalFrameInputV1`、Mirakan TAAU、DirectSR、DLSS／XeSS／FSR／MetalFXを方式／Provider別にQualification
+26. Frame Generation、Latency Provider、UI／pixel-locked分離、real 60 fps Gate
+27. Hardware Ray Traced Shadow／Reflection、acceleration structure、Raster fallback
+28. RTGI／Radiance Cache、Editor Reference Path Tracer、Ray Reconstruction／Neural Denoising
+29. Neural Radiance Cache／Shader、Runtime Path Tracing、Work Graphは個別C3 Gate後
+30. Domain Pack拡張
+31. Store-readyなdata-only Runtime generation
+32. Project Shadow Technique L3、FFT／shallow-water、deformable snow、Multiplayer／continuous origin-rebased large worldは個別C3 Gate後
 
 2Dと3Dの全機能を先に並行実装しない。共有基盤→2D complete loop→3D complete loopの順で、毎段階にplayable resultを置く。各番号は「実装した」だけで次へ進まず、所属Work PackageのPromotion GateとRuntime規約のsoft／hard budgetを満たして閉じる。計測で最大寄与と確認できないmicro optimization、Target固有高速化の共通経路化、将来利用を理由にした抽象化を前倒ししない。
 
@@ -1649,6 +2020,21 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 28. Post Process機能は`PostProcessIntentV1`、`PostProcessProfileV1`、`PostProcessVolumeV1`、`PostProcessNodeCatalogV1`、`ResolvedPostProcessPlanV1`、固定stage、AA互換、history reset、UI／pixel-locked分離、Preview、Target別Receiptを持ち、AIと手動Editorが同じOperationを使う。
 29. Particle／VFX機能は`VfxEffectIntentV1`、Semantic Role／Pattern／Node Catalog、`MinimumCueContractV1`、Target別CPU／GPU Artifact、Cost／Fallback、Semantic diff、Qualification Receiptを持ち、AI、手動Editor、Project C++ Commandが同じSourceとOperationへ収束する。Core外表現は別のEngine製品開発で`VfxExtensionManifestV1`のR4 Gateと`VfxAiAuthoringFixtureV1` 360 Caseのhard Gateを満たし、署名済みBaselineへ組み込まれたものだけをGame制作で利用する。
 30. Visual Effect要求は`VisualEffectSemanticCatalogV1`、`VisualEffectRequestV1`、`ResolvedVisualEffectOwnershipPlanV1`でParticle／VFX、Post、Material、Lighting、Environment、Water／Snow、UI、Camera、Animationへ型付きRoutingされ、`VisualEffectRoutingFixtureV1` 96 CaseでOwner recall 100%、誤Owner、必須共同Owner欠落、Visual-only Gameplay解決、Owner逸脱Proposal 0件を満たす。
+31. Game time／Pauseは`GameClockDomainProfileV1`、`PausePolicyV1`、Command／Snapshot、Save／Replayを持ち、Gameplay／Physics停止、UI継続、async activation保留、Debug stepとの権限分離を検証する。
+32. Player settingsは`SettingsDocumentV1`、Project default／User override、apply class、15秒confirmation、atomic revert、last-known-good、Migration、Target別failure fixtureを持つ。
+33. C1 Perceptionは`PerceptionProfileV1`、Stimulus Event、Snapshot、State owner、LOS Query phase、hard capacity、Save／Replay、Debug、2D／3D semantic fixtureを持つ。
+34. C1 Interactionは`InteractionDefinitionV1`、Request／Snapshot、range／LOS、exclusive lease、typed rejection、Save／Replay、Accessibility、2D／3D fixtureを持つ。
+35. C1 3D Blockoutは`PrimitiveMeshSourceV1`／`BlockoutAssemblyV1`、Collider／Navigation semantic、Mesh Promotion、AI／手動Operation同値性、外部DCCなしのplayable fixtureを持つ。
+36. C1 Decalは`DecalDefinitionV1`、Spawn Command／Render packet、receiver filter、sort／lifetime／budget、Forward+／Mobile fallback、authoritative非依存fixtureを持つ。
+37. Loading UXは`LoadingProgressPlanV1`／`LoadingProgressSnapshotV1`、実作業由来の単調進捗、Cancel／Retry、旧Level維持、Input／Audio／Accessibility fixtureを持つ。
+38. C2 Lighting bake／probeは`LightingBakeProfileV1`／Artifact、UV／atlas／probe、hash invalidation、Cell streaming、deterministic Bake、realtime fallback、Visual／performance Receiptを持つ。
+39. C1 Gameplay TimerはDefinition／Command／Snapshot、fixed-tick deadline、canonical発火順、owner generation、cancel、capacity、Save／Replay、UI projectionを持ち、wall clock／render frameへのfallbackとsilent dropを行わない。
+40. C1 Path FollowingはRequest／State／Movement Intent、Nav／actor generation、replan／stuck policy、T20→T30→T40 phase、Character Motorとのwriter分離、Save／再query／Replayを持ち、2D enemy seekと3D Navmesh追跡fixtureを合格する。
+41. Tilemap Sourceは`TileChunkSourceV1`／`TileCellSourceV1`、空cell表現、負座標floor division、D4 transform、canonical order、animation phaseを持ち、Renderer／Collision／Navigation／terrain tagへ同じ変換を適用する。
+42. C1 Sprite Flipbookは`SpriteAnimationClipSourceV1`、Stable Sprite ID、frame duration、forward／reverse／ping-pong、once／loop、typed Event、pivot／offset、CPU collision／socket pose、手動Editor fixtureを持つ。
+43. 4章共通C2および5.1～5.6のC2宣言Capabilityは`C2CapabilityCoverageMatrixV1`でowner Work Package、Validator、fixture、Target、fallback、Receiptを追跡し、空欄を持つ項目をProduction表示しない。
+44. `capability.product.2d_general_production_c2`はShooter、Platformer、非戦闘Puzzle／Dialogueの三Playable fixtureをmanual＋AI、Package、Save／Replay、全入力、Localization／Accessibility、Windows／Mobileで合格する。
+45. C2 Local multiplayerは`LocalPlaySessionProfileV1`でplayer assignment、join／leave、UI focus、split viewport、Audio listener、local profileを閉じ、Camera split viewだけで完了扱いにしない。
 
 ## 15. 主要リスクと確定対策
 
@@ -1658,6 +2044,18 @@ Domain PackはCore Capabilityをcompositionし、C++継承階層へgenreを埋�
 | 多genre対応でCoreが巨大化 | Capability＋Domain Pack、継承ではなくcomposition |
 | High-end表現で低Tierが破綻 | Quality Profileと明示fallback |
 | AIが過大なLight／Particle／Nav変更を作る | Cost宣言、budget validation、preview、approval |
+| Settings適用で表示不能または起動不能になる | confirmed apply、15秒timeout、atomic revert、last-known-good Safe Mode |
+| Pause中にSubsystemごとに時間がずれる | closed clock domain、単一Pause owner、tick boundary、Save／Replay fixture |
+| Gameplay Timerがwall clock、登録順、worker順でずれる | fixed-tick deadline、canonical発火順、owner generation、capacity fault、Save／Replay fixture |
+| Hit-stop／slow-motionが任意float `delta_time`へ分散する | C1はPauseだけ、C2は`GameTimeEffectPolicyV1`とdomain／Replay Gate後に有効化 |
+| Loading UIがfake進捗またはWorld authorityを持つ | dependency closure由来Plan、immutable Snapshot、Runtime Orchestratorだけがactivation |
+| Render visibilityをAI Perceptionへ流用する | Collision Query／Gameplay Stimulusだけをauthorityにし、Render／Audio実体からの逆入力を拒否 |
+| Navigation path取得だけでNPC移動を完成扱いにする | Path Followingがgoal／replan／stuck、Character MotorがTransformを所有し、T20→T30→T40をfixture化 |
+| Tileのflip／rotationが描画とCollider／Navで異なる | `TileCellSourceV1`のD4 transformを全consumerへ一度だけCookし、意味不一致をCook errorにする |
+| Sprite frame index／Aseprite tagがRuntime identityになる | Stable Sprite／Clip ID、exact Asset revision、Reimport Conflict、手動／Importer同一Source契約 |
+| Shooter一種類の合格で汎用2Dを名乗る | Platformerと非戦闘Puzzle／DialogueのPlayable fixtureをProduct C2 hard gateへ追加 |
+| C2機能が宣言だけでWork Package／fixtureを持たない | `C2CapabilityCoverageMatrixV1`、WP7a1～3、`declared_unscheduled`の明示 |
+| Split viewだけでlocal multiplayer対応と表示する | Input／Game Flow／UI／Camera／Audio／Saveを`LocalPlaySessionProfileV1`へ閉包 |
 | Physics libraryへProject dataが固定 | Engine componentとAdapter、独自serialization |
 | Navmeshがsource of truthになる | 独自Navigation契約とEngine envelopeを正本にし、Source＋ProfileからDerived Assetとして再生成 |
 | Recast／DetourがProject／AI APIへ漏れる | Backend-only include／link、MCD／Save／binary scan、Vendor refをquery内で破棄 |
