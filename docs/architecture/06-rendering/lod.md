@@ -179,7 +179,7 @@ Animationはclip／pose／skin candidateとminimum event／root-motion semantics
 
 Materialは各tierのcompatible artifactとfeature reductionを[Materials](materials.md)で宣言する。LODはtierを選ぶがshader variantやparameter意味を再定義しない。
 
-`MaterialLodProfileV1`の各tierはMaterial interface hash、allowed feature mask、texture residency floor、shadow／depth participation、visual equivalence toleranceを持つ。Style-critical ramp、alpha semantics、pixel sampling、combat cue emissiveを削除しない。
+[Materialsが所有する`MaterialLodProfileV1`](materials.md#7-material-lod境界)をexactに消費し、Fieldを再定義しない。Style-critical ramp、alpha semantics、pixel sampling、combat cue emissiveを削除しない。
 
 `VfxLodProfileV1`は`VfxLodTierV1[]`を持ち、各tierは`tier_id`、`semantic_priority`、`branch_id`、`spawn_scale_permille`、`maximum_alive`、`update_interval`、`renderer_outputs[]`、`simulation_target`、`minimum_cue_contract`を持つ。`critical_gameplay_cue`はshape／timing／minimum visibilityを維持し、ambient effectより先にdropしない。VFX tierはGameplay event数／Damage／Collision／AI perceptionを変更しない。
 
@@ -248,6 +248,6 @@ Qualificationは次のDomain fixtureを持つ。
 
 Evidence envelopeとgradingは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。distance-only selection、tier index coupling、silent hide、authoritative behavior loss、phase／budget複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
 
-`IntegratedScaleFixtureV1`はcamera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、敵味方VFX、streaming、Asset promotionを同一runで発生させる。`LodQualificationReceiptV1`は`receipt_id`、`plan_hash`、`artifact_hashes[]`、`target_profile`、`device／driver`、`fixture_id／fixture_hash`、`camera_path_hash`、`quality_profile`、`before_metrics`、`after_metrics`、`visual_diff_metrics`、`gameplay_replay_hash`、`fallback_events[]`、`diagnostics[]`、`result`、`toolchain_hash`、`timestamp`を持つ。Evidence envelopeの定義はGovernance正本を使う。
+[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)を使い、camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、敵味方VFX、streaming、Asset promotionを同一runで発生させる。`LodQualificationReceiptV1`は`receipt_id`、`plan_hash`、`artifact_hashes[]`、`target_profile`、`device／driver`、`fixture_id／fixture_hash`、`camera_path_hash`、`quality_profile`、`before_metrics`、`after_metrics`、`visual_diff_metrics`、`gameplay_replay_hash`、`fallback_events[]`、`diagnostics[]`、`result`、`toolchain_hash`、`timestamp`を持つ。Evidence envelopeの定義は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)の正本を使う。
 
 全Domainを一つの`LodProfileV1`や一つの`lod_index`へ畳み込む設計は重複契約として非採用である。Worldの`SpatialPartitionIntentV1`は[World](world.md)が所有し、LODはそのDerived Planに対するrepresentationだけを選ぶ。Gameplay意味の変更が必要な場合はLOD proposalと分離した`GameplayScaleChangeProposalV1`と人間承認を[Executable contracts](../02-foundation/executable-contracts.md)のChangeSet経路へ返し、LODが暗黙Commitしない。

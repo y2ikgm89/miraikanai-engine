@@ -125,7 +125,7 @@ TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIだけに使い�
 | Graphics | Vulkan Memory Allocator | v3.3.0／`1d8f600fd424278486eade7ed3e877c99f0846b1` | MIT | Vulkan heap suballocation、budget、defrag primitive |
 | Graphics | SPIRV-Cross | Vulkan SDK 1.4.350.0／`1a6169566c73d3da552748fc372fe2bbb856e46e` | Apache-2.0 | SPIR-V reflection、MSL生成 |
 | Graphics | SPIRV-Tools | v2026.2／`0539c81f69a3daeb706fd3477dca61435b475156` | Apache-2.0 | SPIR-V validation、offline optimization |
-| Image | KTX-Software | v4.4.2／`936b655d10fe75f900967f524ba31005bebcbb47` | Apache-2.0 | Offline KTX／ASTC処理 |
+| Image | KTX-Software | v4.4.2／`4d6fc70eaf62ad0558e63e8d97eb9766118327a6` | Apache-2.0 | Offline KTX／ASTC処理 |
 | Image | DirectXTex | may2026／`4feb3e11a020f35b796fc769a74216a555d4f5ef` | MIT | Offline texture decode、mipmap、BC encoding |
 | Audio | Oboe | 1.10.0／`a81bb9f87d4105b84b682685d3bfbb5beca371d1` | Apache-2.0 | Android low-latency audio stream |
 | Audio | libopus | 1.6.1／source SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1` | BSD-3-Clause | Streaming music／voice decode |
@@ -137,7 +137,7 @@ TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIだけに使い�
 | Physics | Jolt Physics 5.6.0 | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a` | MIT | private CPU 3D collision／solver kernel |
 | Navigation | Recast／Detour 1.6.0 | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | private 3D navmesh build／query kernel、32-bit `dtPolyRef` |
 | Animation | ozz-animation | 0.16.0／`6cbdc790123aa4731d82e255df187b3a8a808256` | MIT | Skeleton compression、sampling、blend primitive |
-| Text | HarfBuzz | 14.2.1／`77a832110d40b0179636f5be8f8781f8299d7e50` | MIT | OpenType shaping |
+| Text | HarfBuzz | 14.2.1／`56feae4035bdd48f62ba2b8d8c16232d4d89b3a4` | MIT | OpenType shaping |
 | Text | FreeType | 2.14.1／`3bd82b5f543bc84ccf2b1d0cdb63b95218099ee6` | FreeType License | OTF／TTF validation、glyph metric／rasterization |
 | Text | ICU4C | 78.3／`21d1eb0f306e1141c10931e914dfc038c06121da` | Unicode-3.0 | BCP 47、BiDi、boundary、plural／number／date／message format |
 
@@ -159,7 +159,7 @@ TypeScript 7.0.2はOrchestratorのcompileとlanguage-service CLIだけに使い�
 | Oboe | [1.10.0 release](https://github.com/google/oboe/releases/tag/1.10.0) | source archive SHA-512とlicense hashをoverlay portで固定 |
 | libopus | [official downloads](https://opus-codec.org/downloads/) | 上表のsource SHA-256とlicense file hashを固定 |
 | libFLAC | [1.5.0 release](https://github.com/xiph/flac/releases/tag/1.5.0) | 上表のsource SHA-256とlicense file hashを固定 |
-| ozz-animation | [0.16.0 release](https://github.com/guillaumeblanc/ozz-animation/releases/tag/v0.16.0) | source archive SHA-512とlicense hashをoverlay portで固定 |
+| ozz-animation | [0.16.0 release](https://github.com/guillaumeblanc/ozz-animation/releases/tag/0.16.0) | source archive SHA-512とlicense hashをoverlay portで固定 |
 | HarfBuzz | [14.2.1 release](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.1) | source archive SHA-512とlicense hashをoverlay portで固定 |
 | FreeType | [official downloads](https://freetype.org/download.html) | source archive SHA-512とFreeType License file hashをoverlay portで固定 |
 | ICU4C | [78.3 release](https://github.com/unicode-org/icu/releases/tag/release-78.3) | filtered data hashとlicense hashを固定 |
@@ -179,6 +179,7 @@ Repository rootの`toolchain.lock.json`はschema version 5とし、未知Field�
 | `lock_schema_version` | `uint32`、値5 |
 | `profiles[].profile_id` | `windows_desktop_v1`、`android_mobile_v1`、`apple_mobile_v1`を各一件 |
 | `profiles[].host` | OS、architecture、minimum version、CI image digest |
+| `profiles[].target.deployment_target` | `apple_mobile_v1`だけが持つcanonical numeric string。値は[§2.3 Apple](#23-apple)のDeployment target行と一致し、他ProfileではField自体を拒否 |
 | `profiles[].artifacts[]` | tool ID、exact version、source／resolved URL、size、SHA-256、source commit |
 | `profiles[].resolved_files[]` | tool ID、relative path、size、file version、SHA-256、signer |
 | `profiles[].build.cxx_bindings[]` | Frontend、language standard、compiler flag／full version、STL hash、CMake ID、experimental token、BMI policy、CRT mapping |

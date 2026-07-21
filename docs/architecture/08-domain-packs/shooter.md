@@ -755,7 +755,7 @@ peak_simultaneous_presentation_cue
 | `2d_top_down_c1` | 256 | 2,048 | 256 | 128 | 1080p60、authoritative drop 0 |
 | `tps_single_player_c1` | 50 | 256 | 64 | 128 | 1080p60、authoritative drop 0 |
 
-この個数はProduct上限ではない。Project intentが上回る場合はProject固有`IntegratedScaleFixtureV1`を生成する。
+この個数はProduct上限ではない。Project intentが上回る場合は[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)をProject固有Envelopeから生成する。
 
 ### 14.3 Pool
 

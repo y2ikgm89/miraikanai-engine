@@ -276,8 +276,7 @@ Crash consentをAnalytics、AI Provider、Marketing consentとまとめない。
 
 [Runtime performance／capacity](../04-runtime/performance-capacity.md)のWindows reference environment、共通CPU／GPU／frame envelope、measurement windowをそのまま使用し、本書では複写しない。
 
-- warm-cache起動→操作可能frame P95 5秒、hard 8秒
-- Scene reload P95 2秒、hard 3秒
+- warm-cache起動とScene reloadは[Runtime performance／capacityの共通operation budget](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)をexactに消費し、本書で値を再定義しない
 - package mount／Catalog validationを起動時間へ計上する
 - window input→submit、audio callback、resize、Alt+Tab、device lossを10分soakへ含める
 - package install／upgrade／rollback／uninstall後にUser Saveを保持し、Program filesを残さない

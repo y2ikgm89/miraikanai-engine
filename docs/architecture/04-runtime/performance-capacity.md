@@ -276,7 +276,7 @@ Large World coordinate、continuous streaming、partition-owned multi-writer、d
 
 ## 13. Integrated fixtureとqualification
 
-各ProjectはEnvelopeから、実際に同時発生し得るresident／visible object、authoritative actor／projectile／interactive prop、spawn／destroy burst、Physics contact、Navigation request、Animation、Gameplay、VFX、Audio、camera、streaming、LOD、Asset activationを一つのdeterministic integrated fixtureへ生成する。Subsystem最大値を別runへ分離して同時性を隠さない。Compilerが個数を丸めて合格しやすくしない。
+共有Contract `IntegratedScaleFixtureV1`は本節だけが所有し、各ProjectのEnvelopeから、実際に同時発生し得るresident／visible object、authoritative actor／projectile／interactive prop、spawn／destroy burst、Physics contact、Navigation request、Animation、Gameplay、VFX、Audio、camera、streaming、LOD、Asset activationを一つのdeterministic integrated fixtureへ生成する。Subsystem最大値を別runへ分離して同時性を隠さない。Compilerが個数を丸めて合格しやすくしない。
 
 fixtureは次を全て満たす。
 

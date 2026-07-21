@@ -654,14 +654,13 @@ PanelのDomain data projection、thumbnail、Scene render target、Source file b
 | Metric | C1 gate |
 |---|---:|
 | Idle時の不要UiTree mutation | 0／frame |
-| Input event受付からvisual submit P95 | 50 ms以下 |
 | dirty subtree event＋style＋layout＋packet CPU P95 | 4.0 ms以下 |
 | Full Window layout＋packet CPU P95 | 8.0 ms以下 |
 | UI GPU pass P95、2560×1440 | 1.0 ms以下 |
 | Dock preview update P95 | 16.67 ms以下 |
-| Workspace switch、Asset load除外 P95 | 200 ms以下 |
-| UI thread blocking | 50 ms超を0件 |
 | steady state heap allocation | 0／idle frame |
+
+Input→visual response、Panel／Workspace操作、UI thread blockingのend-to-end acceptanceは[Editor Workspace／UX](editor-workspace-ux.md#13-performance)だけが所有する。本節はその達成に必要なFramework内部costを所有し、同じ受入値を再定義しない。
 
 TelemetryはWindow、Panel、Control type、dirty reason、layout、paint、glyph、primitive、UIA request、event latencyをtag付けする。User text、Project path、AI prompt、credentialをtraceへ記録しない。
 

@@ -131,7 +131,7 @@ Shipping Runtime AIが変更できるのは出荷済みCapabilityとSchemaが許
 
 `GameSystemImplementationPolicyV1`は許可Implementation kind、default implementation、Native eligibility、replacement policy、live switch policy、equivalence fixture、required Target、configuration schema、unavailable behaviorを持つ。Native live switchは許可しない。Project overrideもPublic Contract、State、Save field、Replay意味を変更できない。
 
-`GameSystemContractRefV1 { id, version, contract_set_hash }`をPublic Contractの永続identityに使う。Implementation Variant／Bundle／ReceiptはUUIDv7 `StableId`、Cooked package内dispatchはderived `uint32 system_id`を使う。runtime `system_id`をSave、Replay、外部APIへ保存しない。
+[Executable contracts](../02-foundation/executable-contracts.md#5-mcd共通envelope)が所有する`GameSystemContractRefV1`をPublic Contractの永続identityに使い、Fieldを再定義しない。Implementation Variant／Bundle／ReceiptはUUIDv7 `StableId`、Cooked package内dispatchはderived `uint32 system_id`を使う。runtime `system_id`をSave、Replay、外部APIへ保存しない。
 
 ## 4. State ownershipとtyped ports
 

@@ -27,7 +27,7 @@ Gameplay component、Physics、Collision、Navigation、Animation、Renderingは
 
 World／Scene／Level／Entity source identityはProject Stable ID、source revision、display labelを分離する。path、filename、display name、array indexをidentityにしない。CellはSource Stable IDを持たずPlan-local `uint32`であり、SceneをLevel、LevelをCell、CellをRuntime chunkと同一視しない。
 
-MCD参照の`McdContractRefV1`は`{id, version, contract_set_hash}`、Derived Artifact参照の`ArtifactRefV1`は`{artifact_kind, schema_version, sha256}`に固定する。Plan-local IDは同じPlan内だけで使い、Plan外のCell参照はPlanの`ArtifactRefV1`と組み合わせる。Levelが構成するGame Systemはexact `GameSystemContractRefV1`で参照し、typed Command／Event／Snapshotで接続する。
+[Executable contracts](../02-foundation/executable-contracts.md#5-mcd共通envelope)が所有するexact `McdContractRefV1`、`ArtifactRefV1`、`GameSystemContractRefV1`を使い、WorldでFieldを再定義しない。Plan-local IDは同じPlan内だけで使い、Plan外のCell参照はPlanの`ArtifactRefV1`と組み合わせる。Levelが構成するGame Systemはtyped Command／Event／Snapshotで接続する。
 
 ## 3. 「Map」要求の解決規則
 

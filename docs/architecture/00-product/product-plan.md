@@ -275,6 +275,6 @@ Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較E
 
 - [Unreal Engine Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules)
 - [Unity Package Manager](https://docs.unity3d.com/Manual/upm-ui.html)
-- [Godot architecture](https://docs.godotengine.org/en/stable/contributing/development/core_and_modules/godot_architecture_diagram.html)
+- [Godot architecture](https://docs.godotengine.org/en/stable/engine_details/architecture/godot_architecture_diagram.html)
 
 外部資料の時点依存情報はArchitecture定数にせず、更新判断とEvidence freshnessを[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)へ委ねる。

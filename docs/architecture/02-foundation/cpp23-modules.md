@@ -377,7 +377,7 @@ Ninja configureは同じXcode bundleのAppleClangとSDKだけを使用し、次�
 CMAKE_SYSTEM_NAME=iOS
 CMAKE_OSX_SYSROOT=iphoneos
 CMAKE_OSX_ARCHITECTURES=arm64
-CMAKE_OSX_DEPLOYMENT_TARGET=17.0
+CMAKE_OSX_DEPLOYMENT_TARGET=<toolchain_lock.profiles[apple_mobile_v1].target.deployment_target>
 CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
 ```
 

@@ -297,7 +297,7 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 - handle resolve count、failure count、retired slot。
 - lease violation、thread-affinity violation。
 
-性能改善を公式採用するには、同一fixtureでP95を5%以上かつ0.20 ms以上、またはpeak memoryを15%以上改善し、correctness、visual、fault、load timeを規定値以上悪化させない。全面pool化、lock-free化、custom allocator化を名称だけで最適化扱いしない。
+性能改善を公式採用するには、[Runtime performance／capacityの共通promotion threshold](../04-runtime/performance-capacity.md#8-measurementregressionpromotion)を満たすか、同一fixtureでpeak memoryを15%以上改善し、correctness、visual、fault、load timeを規定値以上悪化させない。全面pool化、lock-free化、custom allocator化を名称だけで最適化扱いしない。
 
 ## 9. TestとQualification
 

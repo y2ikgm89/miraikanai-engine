@@ -346,7 +346,7 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 - Panel内navigation、selection、camera、foldはProject Undoへ入れない。
 - Continuous interactionは一つのUndo unitへcoalesceする。
 - History Panelはintent、author、revision、affected objects、validation、Receipt、inverse availabilityを表示する。
-- Auto-saveは20秒またはfocus lossでdraft Recoveryを更新する。
+- Auto-save cadenceとfocus-loss triggerは[Project stateの永続化正本](project-state.md#6-source-layoutと永続化)をexactに消費し、Workspace UXで値を再定義しない。
 - Editor crash後は正規Projectを先に開き、Recovery DiffをUserへ提示する。自動Commitしない。
 - GameHost／Worker crashはProblemsとTaskへ表示し、Editor layoutとProject draftを維持する。
 

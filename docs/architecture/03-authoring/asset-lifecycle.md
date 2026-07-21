@@ -520,7 +520,7 @@ AIのread operationはCatalog、Source analysis、flattened Profile、Conversion
 
 AIはAsset ID、Profile ID、Source pathを推測生成しない。未Activated format、未対応Target codec、Catalogにない選択肢には`CapabilityNotActivated`を返す。提案はProfile選択、evidence、変換、保持値、visual／behavior／memory／Package impact、未解決質問、必要Approval、rollbackを含み、自然言語だけでなくPlanとDiagnostic IDを正規出力にする。
 
-外部またはAI生成Assetも通常Importを迂回しない。Provider outputを直接ProjectまたはCacheへ入れずStagingに置き、origin、creator／provider、Tool／model lock参照、request hash、input Asset、terms snapshot、license、commercial review、safety、content credential、modification chainをProvenance recordへ結ぶ。AIが品質または権利を自己承認できない。
+外部またはAI生成Assetも通常Importを迂回しない。Asset固有Provenance recordのcontentは本節だけが所有し、共通Field `origin_uri_or_generation_operation_ref`、`acquired_or_generated_at`、`content_hash`、`creator_or_provider`、`terms_snapshot_ref`、`license`、`rights_confirmation_status`、`commercial_review`、`safety`、`content_credential_ref`、`modification_chain[]`を必須にする。originがgeneration operationの場合は`tool_model_lock_ref`、`request_hash`、`input_asset_refs[]`に加え、採用versionのlockとは別に実行証拠の`generation_tool_receipt_ref`を必須とし、外部取得またはUser提供Sourceではこれらgeneration専用Fieldを持たない。Provider outputを直接ProjectまたはCacheへ入れずStagingに置き、このRecordと共通Evidence envelopeを結ぶ。AIが品質または権利を自己承認できない。
 
 ## 9. Platform specialization
 

@@ -557,7 +557,7 @@ Parent総量、他Domainの残量、loan／backpressureはRuntime ownerだけが
 
 - `T30` UI interaction P95 0.15 ms以下
 - `T90` UI bind／layout／packet P95 0.40 ms以下
-- UI／Composite GPU P95 0.50 ms以下
+- UI／Composite GPUは[Runtime performance／capacityの共通Subsystem budget](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)をexactに消費し、本書で値を再定義しない
 - cached text shaping P95 0.10 ms／1000 grapheme
 - Screen activation P95 100 ms、required Asset loadを除く
 - steady-state UI Runtime allocation 0／frame

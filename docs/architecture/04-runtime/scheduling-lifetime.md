@@ -189,7 +189,7 @@ Audio、VFX、camera、render occlusion、Presentation LODをGameplay authority�
 
 ## 7. Runtime data storageとstructural transaction
 
-Runtime Worldの標準storageはarchetype chunk方式とする。chunk payloadは16 KiB、先頭64-byte alignment、Component列はSoA、location tableは`EntityHandle -> {archetype_id, chunk_id, row, generation}`とする。iterationのcanonical orderは`archetype_id`、`chunk_id`、rowの昇順である。Component addressはchunk移動で無効になる。
+Runtime Worldの標準storageはarchetype chunk方式とし、chunk payload sizeは[Memory／PointersのEngine-owned正本値](../02-foundation/memory-pointers.md#22-既存engineから採用する教訓)をexactに消費して本書で再定義しない。先頭64-byte alignment、Component列はSoA、location tableは`EntityHandle -> {archetype_id, chunk_id, row, generation}`とする。iterationのcanonical orderは`archetype_id`、`chunk_id`、rowの昇順である。Component addressはchunk移動で無効になる。
 
 頻繁に走査するscalar／small vectorをhot component、debug name、Editor metadata、長いstring、可変長payloadをcold tableまたはAssetへ置く。256 byteを超えるComponent、可変長data、non-trivially relocatable objectはchunkへ直接置かずDomain-owned typed handleを格納する。Entityごとのvirtual `Update()`と個別heap objectを標準経路にしない。
 
@@ -234,7 +234,7 @@ command／eventのcanonical delivery keyは`{tick_id, producer_phase_id, produce
 
 async requestは`request_id`、request／deadline tick、owner handle、input revision、target versionを持つ。integration開始時にcompletion queueを一度latchし、requestの次tick以後、request ID順に統合する。deadline超過、cancel済み、owner generation／revision／version不一致を破棄する。Replayはresult内容とaccept tickを記録し、worker完了時刻を再現条件にしない。
 
-authoritative randomnessはversion付きEngine-owned deterministic RNGを使い、Project seed、System stream、job-local logical work IDから導出する。worker indexやsecurity nonceをstream seedに使わない。algorithm parameter、state encoding、Save migrationはMCD fixtureで固定し、変更は新versionとして追加する。credential、session nonce、UUIDには[AI Security／Approval](../01-governance/ai-security-approval.md)とPlatform crypto ownerのCSPRNGを使う。
+authoritative randomnessの共有Contract `DeterministicRngV1`は本書だけが所有するversion付きEngine-owned deterministic RNGであり、Project seed、System stream、job-local logical work IDから導出する。worker indexやsecurity nonceをstream seedに使わない。algorithm parameter、state encoding、Save migrationはMCD fixtureで固定し、変更は新versionとして追加する。credential、session nonce、UUIDには[AI Security／Approval](../01-governance/ai-security-approval.md)とPlatform crypto ownerのCSPRNGを使う。
 
 queueのentry／arena capacity、critical reserve、overflow／drop／delay policyは[Performance／capacity](performance-capacity.md)が所有する。本書のcanonical merge keyとowner fault ruleを、capacity超過を隠すため変更してはならない。
 

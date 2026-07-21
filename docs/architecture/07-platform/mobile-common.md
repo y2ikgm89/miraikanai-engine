@@ -151,7 +151,7 @@ Dynamic resolutionは5%刻み、下限50%とする。直近30 frame中12 frame�
 
 ### 5.3 Frame Generation
 
-Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameがCPU／GPU P95とも16.67 ms以下、real 60 fps、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。touch-to-photonは1000 fps以上のhigh-speed cameraで`240 tap×5 run`を採取し、touch contact frameから指定flash regionの最初の輝度変化までを測る。各runのnearest-rank P95のmedianを判定値とし、Provider-off比の劣化8.33 ms以下かつ絶対値83.33 ms以下を要求する。Receiptがなければ失敗する。30 fps入力をdisplayed 60 fpsにした結果を60 fps capabilityと表示しない。pixel-locked 2D、fullscreen menu、loading、pause、camera cut、rotation／resize／surface regenerationでは無効化する。
+Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameが[Runtime performance／capacityの60 fps共通frame profile](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。touch-to-photonは1000 fps以上のhigh-speed cameraで`240 tap×5 run`を採取し、touch contact frameから指定flash regionの最初の輝度変化までを測る。各runのnearest-rank P95のmedianを判定値とし、Provider-off比の劣化8.33 ms以下かつ絶対値83.33 ms以下を要求する。Receiptがなければ失敗する。30 fps入力をdisplayed 60 fpsにした結果を60 fps capabilityと表示しない。pixel-locked 2D、fullscreen menu、loading、pause、camera cut、rotation／resize／surface regenerationでは無効化する。
 
 ### 5.4 Mobile graphics quality
 

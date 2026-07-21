@@ -125,6 +125,8 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 
 MCDへの永続参照を`McdContractRefV1 { id: string, version: uint32, contract_set_hash: SHA-256 }`へ固定する。`id`のkindと参照Fieldが要求するkindは一致し、`version`は同じContract set内で存在して`status=active`でなければならない。Bare IDは固定済み`contract_set_hash`を入力にするEditor／AIのread-only検索だけで使用でき、候補が厳密に1件でなければ解決しない。Project Source、Cooked Artifact、Save、Replay、Receipt、ChangeSetはbare IDまたはruntime numeric IDを永続参照に使用しない。`GameSystemContractRefV1`は`McdContractRefV1`のうちkindが`game_system`である型付きaliasとする。
 
+Derived Artifactへの永続参照は`ArtifactRefV1 { artifact_kind: string, schema_version: uint32, sha256: SHA-256 }`へ固定する。本型の構造定義は本節だけが正本であり、Domain文書はexact refを消費してFieldを再定義しない。
+
 `status=deprecated`は新規利用を拒否するが、offline migratorが旧Projectを読むための入力Schemaだけに残せる。Runtime、Editor、Game codeへdeprecated branchを生成しない。`retired`はcurrent Contract setの生成対象外である。
 
 ## 6. Requirement定義
@@ -278,14 +280,7 @@ CapabilityはAIとEditorが「何を作れるか」を理解する正規単位�
 
 ### 10.1 Game System定義
 
-MCD kind `game_system`はEngine Capabilityの利用者であるGameplay単位を表す。完全なField、namespace、State owner、dependency、implementation、Bundle規則はGame System／AI Code Generation規約を正本とし、MCDでは`GameSystemSpecV1`として次を必須にする。
-
-- `system_origin`、`semantic_role_ids`、責務／非責務Requirement。
-- Runtime instance scope、State class、authoritative State owner。
-- accepted Command、emitted Event、read Snapshot。
-- required／provided Capability、phase、dependency edge。
-- Implementation Policy、Save／Replay、Target別Budget、fallback。
-- fixture、compatibility invariant、extension policy。
+MCD kind `game_system`はEngine Capabilityの利用者であるGameplay単位を表す。完全なField、namespace、State owner、dependency、implementation、Bundle規則は[Gameplay programming modelの`GameSystemSpecV1`](../03-authoring/gameplay-programming-model.md#3-gamesystemspecv1)だけが所有する。MCDはそのexact Specを登録・検証し、Fieldの部分集合や別Envelopeを再定義しない。
 
 Contract compilerはactive `game_system`集合から`GameSystemCatalogV1`、`GameSystemDependencyGraphV1`、State owner table、C++／TypeScript binding、Editor metadata、System conformance testを生成する。Project-defined Systemも同じkindを使い、`game_system.project.<project_namespace>.<path>`へ登録する。Engine標準Catalogを利用可能Systemの固定Whitelistとして扱わない。
 
@@ -307,7 +302,7 @@ Profileに存在しない値を環境変数やProvider defaultから暗黙補完
 
 ### 11.3 C++ Frontend／Dependency／Build Driver
 
-`CxxFrontendProfileV1`は`cxx23_headers_bootstrap`、`cxx23_modules_probe`、`cxx23_modules_candidate`、`cxx23_modules_shipping`のclosed enum、許可遷移、Promotion可否を持つ。ProviderやAIがProfile IDを追加できず、Build Gatewayが`toolchain.lock.json`のCompiler／STL／CMake bindingと照合する。
+`CxxFrontendProfileV1`のclosed enum、許可遷移、Promotion可否は[C++23／Modules](cpp23-modules.md#4-一方向の移行state)だけが所有する。MCDはexact Profile IDを参照し、ProviderやAIによるProfile ID追加を拒否し、Build Gatewayが`toolchain.lock.json`のCompiler／STL／CMake bindingと照合する。
 
 `CppDependencySetV1`はowner component／Primary Module、public／private import、closed `StdHeaderId`、closed Header例外を正規化して表す。AIはraw include pathやCompiler flagをDependencyとして保存しない。Contract compilerはCX0で個別標準Header、CX1以降でNamed Module／`import std`へ投影し、Source scannerは実Sourceとの一致を検証する。Field、順序、Header例外、Cutover後のProjection停止条件はC++言語・Modules規約を基準とする。
 

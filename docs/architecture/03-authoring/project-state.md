@@ -369,7 +369,7 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 
 大量配置や大量生成のScale intentは、Authoring Documentを無制限なEntity列挙にしてよいという意味ではない。procedural descriptor、Recipe、spatial partition等のbounded schemaを使い、Authoring aggregate自体のhard budgetは常に満たす。一方、Target Runtimeの予測budget未達だけを理由に有効な制作意図を破棄しない。`OptimizationRequired` revisionはSourceとしてCommit、Diff、Undo、AI再提案できるが、対象TargetのPlay開始、Cooked Runtime Package promotion、Shippingには使えない。
 
-`qualification_status`はTargetごとに`Predicted | OptimizationRequired | Qualified`を持つ。`Qualified`にはRuntime規約14.6節の`IntegratedScaleFixtureV1` Receipt hashが必要であり、Source、Scale intent、Representation Plan、Target Profileのいずれかが変われば`Predicted`へ戻す。last valid Derived ArtifactをDevelopment previewで使う場合、現在Sourceの合格結果に見せない。
+`qualification_status`はTargetごとに`Predicted | OptimizationRequired | Qualified`を持つ。`Qualified`には[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)のReceipt hashが必要であり、Source、Scale intent、Representation Plan、Target Profileのいずれかが変われば`Predicted`へ戻す。last valid Derived ArtifactをDevelopment previewで使う場合、現在Sourceの合格結果に見せない。
 
 ## 10. Failure policy
 

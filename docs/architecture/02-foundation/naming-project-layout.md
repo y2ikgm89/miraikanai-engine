@@ -201,9 +201,9 @@ Asset identityはCatalogのStable IDであり、Filenameは人間向けのlocato
 
 ### 7.1 Provenanceと権利
 
-外部取得、User提供、AI生成を問わず、Source候補はorigin URIまたは生成Operation、取得／生成時刻、content hash、宣言license、権利確認状態、生成Model／ToolのReceipt参照を持つ。licenseまたは利用権が不明な候補を`source/`へCommitせず、`staging/`で`diagnostic.asset.rights_unverified`として停止する。
+外部取得、User提供、AI生成を問わず、Source候補は[Asset LifecycleのAsset固有Provenance](../03-authoring/asset-lifecycle.md#8-editorとai-operation)を必須入力とする。licenseまたは利用権が不明な候補を`source/`へCommitせず、`staging/`で`diagnostic.asset.rights_unverified`として停止する。
 
-AI生成物は生成したという事実だけで権利確認済みにならない。Provider規約、入力Assetの権利、出力利用条件をEvidenceへ結び付け、Approval後にProject ChangeSetでSourceへ昇格する。Provenance recordの構造と保持PolicyはGovernance／Asset Ownerが決定し、本書は配置と命名だけを決める。
+AI生成物は生成したという事実だけで権利確認済みにならない。Provider規約、入力Assetの権利、出力利用条件をEvidenceへ結び付け、Approval後にProject ChangeSetでSourceへ昇格する。Asset固有Provenanceのcontentと権利chainはAsset Lifecycle、共通Evidence envelope、grading、retention classは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有し、本書は配置と命名だけを決める。
 
 ## 8. Native Game Code
 

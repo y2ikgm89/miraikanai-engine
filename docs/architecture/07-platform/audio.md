@@ -263,7 +263,7 @@ Stopped -> Opening -> Running -> Interrupted
 
 Audio allocationは[Runtime performance／capacity](../04-runtime/performance-capacity.md)のAudio child scopeへchargeし、本書はshared parent totalやpartitionを複写しない。Voice／stream profile別capacityとcallback固有deadlineは本書が所有する。
 
-- Callback P99 0.25 ms以下、hard 1.00 ms未満
+- Callback deadlineは[Runtime performance／capacityの共通Audio operation budget](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)をexactに消費し、本書で値を再定義しない
 - Callback allocation、blocking lock、I/O、logは0
 - Mix blockはdeadlineの50%以下をsoft target
 - Control command latency P95は2 audio block以内
