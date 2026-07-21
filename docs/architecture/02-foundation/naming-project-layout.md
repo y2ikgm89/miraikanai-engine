@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: 共通語彙、acronym、public型・Operation・Diagnostic・file・directory命名、Engine／Game Project root、Source／Derived／Intermediate／Package配置、generated file、module／namespace／target対応、lint／migration Gate
 - 非正本範囲: 型・Schemaの構造、外部Tool version、Build Driver、Project revision、Asset lifecycle、Domain固有field。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と優先順位
@@ -66,7 +66,7 @@ Booleanは肯定形の状態またはCapabilityを表し、`is_`／`has_`／`can
 
 `Manager`、`Helper`、`Util`、`Common`、`Misc`、`Data`、`Info`だけで責務を表す型を禁止する。型名へownershipを表すときは実際のlifetime契約と一致させ、`Shared`や`Ref`を曖昧な装飾として使わない。
 
-Schema typeはPascalCase＋major suffixを用い、suffixなし最新版aliasを作らない。例: `ProjectChangeSetV1`。Fieldはlowercase snake_case、closed enum valueもlowercase snake_caseとする。構造の正本は[Executable contracts](executable-contracts.md)であり、本書は綴りだけを所有する。
+Schema typeはPascalCase＋major suffixを用い、suffixなし最新版aliasを作らない。例: `ProjectChangeSetV1`。Fieldはlowercase snake_case、closed enum valueもlowercase snake_caseとする。型のdomain schemaと意味は各Domain ownerが所有し、`ProjectChangeSetV1`は[Project state](../03-authoring/project-state.md#5-projectchangesetv1)が所有する。[Executable contracts](executable-contracts.md#8-operation定義)はMCD共通Envelopeと生成規則だけを所有し、本書は綴りだけを所有する。
 
 ### 3.2 Stable IDとOperation
 

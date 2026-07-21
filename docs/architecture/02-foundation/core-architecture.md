@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、Repository境界、Test／CI、Feature開始Gate
 - 非正本範囲: 外部Tool・SDK・Libraryのversion／hash／license／取得元、命名、Memory／Pointer詳細、Runtime scheduling／budget／observability、Schema構造。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と規範
@@ -79,7 +79,7 @@ Preview、Build、Cook、RuntimeはProject revisionを勝手に進めない。Ac
 - callback、job、event配送中の再入的なWorld構造変更を禁止する。
 - 同じProject revision、Target Profile、toolchain lock、seedから同じ正規Artifact hashを得る。性能目的の順序変更が意味結果を変える場合はDomainの明示Contractとfixtureを必要とする。
 
-Runtimeのtick、phase DAG、lifetimeは将来の `../04-runtime/scheduling-lifetime.md`、共通Budget、capacity、backpressureは `../04-runtime/performance-capacity.md` が所有する。ここでは数値を再掲しない。
+Runtimeのtick、phase DAG、lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通Budget、capacity、backpressureは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。ここでは数値を再掲しない。
 
 ## 7. Error、Exception、Assertion
 
@@ -178,7 +178,7 @@ Engine repositoryの正規rootを次に固定する。各Directoryの命名gramm
 
 AI生成のSchema、C++、Build変更も人間作成物と同じlint、compile、test、Authorization、Reviewを通す。AIは未知Fieldの受理、Validation迂回、外部Dependency追加、Toolchain更新、source treeへのGenerated file配置を行えない。
 
-Observability、performance telemetry、regression thresholdは将来の `../04-runtime/debugging-observability-replay.md` と `../04-runtime/performance-capacity.md` が所有する。FoundationはEvidenceへの入力を生成するだけで、数値を再定義しない。
+Observabilityは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、performance telemetryとregression thresholdは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。FoundationはEvidenceへの入力を生成するだけで、数値を再定義しない。
 
 ## 13. Feature実装開始Gate
 

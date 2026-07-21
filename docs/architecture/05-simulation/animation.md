@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Animation Source／Cooked Asset、typed graph、2D clip、3D skeleton／skin／clip、instance／pose ownership、event／root motion、IK、retarget、Animation memory／failure、Editor／AI operation、Animation qualification
 - 非正本範囲: Runtime phase／tick／shared capacity、Physics motion resolution、Collision query semantics、Navigation artifact、Rendering skin execution、LOD共通intent、Asset transaction、external dependency version／build pin、AI authorization。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](collision.md)、[Physics](physics.md)、[Navigation](navigation.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](collision.md)、[Physics](physics.md)、[Navigation](navigation.md)、[LOD](../06-rendering/lod.md)、[World](../06-rendering/world.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
@@ -96,7 +96,7 @@ IKはbase blend後、local-to-model確定前のpose operationとしてGraph outp
 
 Retargetはsource／target Skeleton identity、semantic bone／chain mapping、reference pose、translation scale policy、rotation offset、unmapped-joint policyを検証する。runtime fuzzy name matchingを禁止し、Cook時に完全なmapping tableを生成する。missing required semantic、cyclic chain、incompatible root、non-finite offsetはcookを拒否する。Retarget結果はTarget Skeleton上の通常clip／poseとして扱い、source pointerをinstanceへ保持しない。
 
-Animation presentation LODはpose update、presentation bone set、skinning mode、shadow poseを変更できるが、root motion、hitbox／weapon socket、foot contact、Gameplay event、authoritative boundsを低頻度presentation poseから取得しない。visibilityをGraph clock／transition／event cursor停止の入力にしない。共通LOD intent／resolutionとWorld dormancyは将来のRendering／World ownerへ委譲する。
+Animation presentation LODはpose update、presentation bone set、skinning mode、shadow poseを変更できるが、root motion、hitbox／weapon socket、foot contact、Gameplay event、authoritative boundsを低頻度presentation poseから取得しない。visibilityをGraph clock／transition／event cursor停止の入力にしない。共通LOD intent／resolutionは[LOD](../06-rendering/lod.md)、World dormancyは[World](../06-rendering/world.md)へ委譲する。
 
 Memory contractはAsset payloadのimmutable lease、instance-local state、frame-local pose scratch、published snapshotを別lifetimeにする。long-lived instanceがframe scratchを保持せず、job完了後にborrowをinvalidateする。allocation、shared pool、queue、memory envelope、backpressureの値と測定は[Runtime performance／capacity](../04-runtime/performance-capacity.md)だけが決定する。
 

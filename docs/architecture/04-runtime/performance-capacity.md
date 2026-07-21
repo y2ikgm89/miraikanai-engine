@@ -235,7 +235,7 @@ Network authority variantsは専用仕様、Threat Model、Product activation前
 
 World extent／coordinate／cell／streaming fieldは[World](../06-rendering/world.md)、LOD strategy／predicate／transition fieldは[LOD](../06-rendering/lod.md)、Authoring writer／Document／ChangeSet fieldは[Project state](../03-authoring/project-state.md)、content／build／cook fieldは[Asset lifecycle](../03-authoring/asset-lifecycle.md)と[Core architecture](../02-foundation/core-architecture.md)が所有する。本書はそれらをEnvelopeへexact refで束ねるだけで、field listを複写しない。
 
-Envelope変更は通常の`ProjectChangeSet`であり、Before／After axisと数値、Target、Capability、Artifact、fixture、Decision closure、fidelity差分、再Cook／再Qualification、Save／Replay互換性、last-valid rollback refを必要とする。敵数、Damage、collision、goal、World範囲等を下げる変更は性能最適化ではなくGameplay changeとして人間承認を必要とする。
+Envelope変更は通常の`ProjectChangeSetV1`であり、Before／After axisと数値、Target、Capability、Artifact、fixture、Decision closure、fidelity差分、再Cook／再Qualification、Save／Replay互換性、last-valid rollback refを必要とする。敵数、Damage、collision、goal、World範囲等を下げる変更は性能最適化ではなくGameplay changeとして人間承認を必要とする。
 
 ## 10. Canonical sourceとDomain resolver
 

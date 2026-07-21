@@ -337,7 +337,7 @@ docs/architecture/
 - 共通Budgetを`performance-capacity.md`以外で再定義しない。
 - Approval／Authorizationを`ai-security-approval.md`以外で再定義しない。
 - Evidence／Provenance envelopeを`ai-verification-provenance.md`以外で再定義しない。
-- `StableId`、`ProjectChangeSet`、`GameSystemSpecV1`等の共有Contractは定義箇所が1件で、他はLink参照だけである。
+- `StableId`、`ProjectChangeSetV1`、`GameSystemSpecV1`等の共有Contractは定義箇所が1件で、他はLink参照だけである。
 
 ### 10.4 重複と大きさ
 

@@ -90,7 +90,7 @@ Discovered
   -> Active
 ```
 
-Source解析はProjectを変更しない。Import設定変更はImport Documentへ対する[ProjectChangeSet](project-state.md)であり、Commit後にだけ新しいAsset revisionとJobを作る。Cancel、timeout、worker crash、stale revisionはProject状態を変更せず、旧Active generationを維持する。
+Source解析はProjectを変更しない。Import設定変更はImport Documentへ対する[ProjectChangeSetV1](project-state.md#5-projectchangesetv1)であり、Commit後にだけ新しいAsset revisionとJobを作る。Cancel、timeout、worker crash、stale revisionはProject状態を変更せず、旧Active generationを維持する。
 
 ## 2. Import Profileと検出
 
@@ -516,7 +516,7 @@ Asset BrowserはStable IDをselection modelとし、logical directory、kind、s
 
 Import Inspectorは`Source`、`Analysis`、`Profile`、`Preview`、`Conversion`、`Dependencies`、`Diagnostics`、`History`を持つ。Basic／Advanced viewは同じImport Documentのprojectionであり、別設定を持たない。Import、Preview、Cook、Reimport、bulk migrationをcancel可能なJobとして表示し、stage、progress、current asset、resource limit、Diagnostic countを示す。
 
-AIのread operationはCatalog、Source analysis、flattened Profile、Conversion Report、dependency closure、Reimport Conflictをtyped resultとして返す。proposal operationはProfile、設定変更、Preview、Reimport、bounded bulk migration、placeholder置換、LOD source bindingを[ProjectChangeSet](project-state.md)候補として返す。
+AIのread operationはCatalog、Source analysis、flattened Profile、Conversion Report、dependency closure、Reimport Conflictをtyped resultとして返す。proposal operationはProfile、設定変更、Preview、Reimport、bounded bulk migration、placeholder置換、LOD source bindingを[ProjectChangeSetV1](project-state.md#5-projectchangesetv1)候補として返す。
 
 AIはAsset ID、Profile ID、Source pathを推測生成しない。未Activated format、未対応Target codec、Catalogにない選択肢には`CapabilityNotActivated`を返す。提案はProfile選択、evidence、変換、保持値、visual／behavior／memory／Package impact、未解決質問、必要Approval、rollbackを含み、自然言語だけでなくPlanとDiagnostic IDを正規出力にする。
 

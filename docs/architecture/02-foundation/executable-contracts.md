@@ -3,8 +3,8 @@
 - 文書ID: mirakan.arch.executable-contracts
 - 状態: review
 - 正本範囲: MCD、Requirement、Type、Operation、State machine、Capability、Policy、Diagnostic、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
-- 非正本範囲: 外部Tool・packageのversion／commit／hash／license、Product scope、AI authorization、Evidence envelope、Domain固有runtime semantics。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)
+- 非正本範囲: 外部Tool・packageのversion／commit／hash／license、Product scope、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Project state](../03-authoring/project-state.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -202,6 +202,8 @@ Requirementは次を必須とする。
 浮動小数点の`-0`は`0`へ正規化し、NaN／Infinityを拒否する。Deterministic hash対象のfloatはIEEE 754 bit patternを直接JSON化せず、Typeごとに定義した最短round-trip decimalへ正規化する。
 
 ## 8. Operation定義
+
+本書はMCD Operationの共通Envelope、projection、Contract compilerによる生成規則だけを所有する。`ProjectChangeSetV1`のdomain schema、Operation意味、transaction／Commit規則は[Project state](../03-authoring/project-state.md#5-projectchangesetv1)だけが所有し、本書はsuffixなしaliasまたは別Envelopeを定義しない。
 
 各Operationは次を持つ。
 

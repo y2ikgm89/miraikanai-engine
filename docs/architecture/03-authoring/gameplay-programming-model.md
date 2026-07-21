@@ -198,7 +198,7 @@ Contract compilerはGameplay Algorithm本文を推測生成しない。AI Source
 
 ## 7. Generated bundle
 
-`SystemBundleChangeSetV1`はProjectChangeSet、GameplayDefinitionChangeSet、NativeCodeChangeSet、Contract ChangeSet、Asset ChangeSetを置き換えず、複数Authorityの変更をexact hashで結ぶcoordination envelopeである。この文書だけがBundle schemaと状態遷移を所有する。
+`SystemBundleChangeSetV1`は`ProjectChangeSetV1`、GameplayDefinitionChangeSet、NativeCodeChangeSet、Contract ChangeSet、Asset ChangeSetを置き換えず、複数Authorityの変更をexact hashで結ぶcoordination envelopeである。この文書だけがBundle schemaと状態遷移を所有する。
 
 ```text
 SystemBundleChangeSetV1
@@ -274,7 +274,7 @@ Native buildが成功しただけでactiveにしない。Native Sourceは信頼�
 
 ### 9.2 Promotionとfailure recovery
 
-System Bundleはbase Project revision、base Source revision、Contract setをlockし、全ChangeSet／ArtifactをStagingしてvalidation、Cook、Test、Reviewを終える。Native Sourceがある場合はSource promotion、clean trusted build、ProjectChangeSetの`RegisterNativeModuleRevision` Commit、read-back verificationの順に進む。
+System Bundleはbase Project revision、base Source revision、Contract setをlockし、全ChangeSet／ArtifactをStagingしてvalidation、Cook、Test、Reviewを終える。Native Sourceがある場合はSource promotion、clean trusted build、`ProjectChangeSetV1`の`RegisterNativeModuleRevision` Commit、read-back verificationの順に進む。
 
 Project Commitは[Project state](project-state.md)のtransactionを使う。Definition、Source、Asset、Migration、Testの一部だけをactiveにしない。Graph、Contract set、Implementation set、Cooked package、Native revision、Receiptのhashが一致しなければ旧Implementationを維持する。
 

@@ -2,8 +2,8 @@
 
 - 文書ID: mirakan.arch.project-state
 - 状態: review
-- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSet、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
-- 非正本範囲: Schema基盤、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime scheduling。各Owner文書を参照する
+- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1のdomain schema／意味／transaction、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
+- 非正本範囲: MCD共通Envelope／projection／codegen、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime scheduling。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -11,7 +11,7 @@
 
 Miraikanai Engineの正規Project状態は、Editor widget、Scene Tree表示、AI会話、Runtime World、生成済みC++ binaryのいずれでもない。Schema検証可能なAuthoring Document集合と、単調増加する`ProjectRevision`が正本である。
 
-AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`ProjectChangeSet`を提案する。状態を確定できるのはC++ `AuthoringCommandGateway`だけであり、全Operationを検証し、一つのrevisionとして原子的にCommitする。部分成功、暗黙補正、Editor内部objectの直接serializeを禁止する。
+AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`ProjectChangeSetV1`を提案する。状態を確定できるのはC++ `AuthoringCommandGateway`だけであり、全Operationを検証し、一つのrevisionとして原子的にCommitする。部分成功、暗黙補正、Editor内部objectの直接serializeを禁止する。
 
 本書は次を独自に所有する。
 
@@ -26,8 +26,8 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 
 | 主題 | 正本 |
 |---|---|
-| Project Document、World Model、ChangeSet、Commit、Undo、Recovery | 本書 |
-| MCD型、Operation、Error、Schema projection、Codegen | [Executable contracts](../02-foundation/executable-contracts.md) |
+| Project Document、World Model、`ProjectChangeSetV1`のdomain schema／Operation意味／transaction、Commit、Undo、Recovery | 本書 |
+| MCD型、Operation共通Envelope、Error、Schema projection、Codegen | [Executable contracts](../02-foundation/executable-contracts.md) |
 | ID、memory、pointer、thread、directory、serialization基礎 | [Core architecture](../02-foundation/core-architecture.md)と各Foundation Owner |
 | Runtime World、tick、lease、queue、Asset promotion | Runtime規約 |
 | AI権限、承認、Source sandbox、Promotion | [AI Security／Approval](../01-governance/ai-security-approval.md) |
@@ -190,12 +190,14 @@ Commit後は旧Indexをstaleにし、変更Shardと参照closureだけをcopy-on
 
 AI、Editor、CLIへ返す`SceneSliceV1`は、query ID、Project revision、anchor StableId、選択Shard、field mask、dependency depth、各source hash、選択理由、omitted range、continuation cursorを持つread-only projectionである。任意byte位置で切ったJSON、表示順index、要約だけをChangeSetの根拠にしない。SliceからのOperationもStableIdとexpected Document revisionを必須とし、Gatewayが対象Shardへroutingする。
 
-## 5. ProjectChangeSet
+## 5. ProjectChangeSetV1
 
 ### 5.1 Envelope
 
+`ProjectChangeSetV1`のdomain schema、Operation意味、transaction／Commit規則は本節だけが所有する。[Executable contracts](../02-foundation/executable-contracts.md#8-operation定義)のMCD共通Envelopeと生成規則を消費するが、suffixなし最新版aliasまたは別Envelopeは作らない。
+
 ```text
-ProjectChangeSet
+ProjectChangeSetV1
   schema_version: uint32
   change_set_id: UUIDv7
   request_id: UUIDv7
@@ -257,9 +259,9 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 
 ### 5.4 System／World Bundle
 
-`SystemBundleChangeSetV1`のschema、状態遷移、二段階Activation、Source Promotion後のrecoveryは[Gameplay programming model](gameplay-programming-model.md)だけが所有する。本書はBundleが参照する`ProjectChangeSet`と最終Project Commitだけを所有する。Gatewayは検証済みexact hashを受け取り、`RegisterNativeModuleRevision`と`SetSystemImplementationVariant`を同じProjectChangeSetでCommitする。Bundle自体をCommitして正規Documentを迂回せず、Project Commit失敗時にSource repositoryをrollbackしない。
+`SystemBundleChangeSetV1`のschema、状態遷移、二段階Activation、Source Promotion後のrecoveryは[Gameplay programming model](gameplay-programming-model.md)だけが所有する。本書はBundleが参照する`ProjectChangeSetV1`と最終Project Commitだけを所有する。Gatewayは検証済みexact hashを受け取り、`RegisterNativeModuleRevision`と`SetSystemImplementationVariant`を同じ`ProjectChangeSetV1`でCommitする。Bundle自体をCommitして正規Documentを迂回せず、Project Commit失敗時にSource repositoryをrollbackしない。
 
-World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つのProjectChangeSetへ変換する。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`OptimizationRequired`または非Qualifiedにする。
+World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つの`ProjectChangeSetV1`へ変換する。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`OptimizationRequired`または非Qualifiedにする。
 
 ## 6. Source layoutと永続化
 
@@ -426,4 +428,4 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - [Unreal Engine Transactions](https://dev.epicgames.com/documentation/en-us/unreal-engine/BlueprintAPI/Transactions/BeginTransaction)
 - [Godot Running code in the editor](https://docs.godotengine.org/en/stable/tutorials/plugins/running_code_in_the_editor.html)
 
-外部EngineのProject formatやPrefab実装は採用しない。UnityのEditor変更をUndoへ登録する原則、UnrealのEditor transaction、Godotの永続化owner／unsaved／Undoを明示する原則をEvidenceとし、Miraikanaiでは全経路を`ProjectChangeSet`、`AuthoringSelectionContextV1`、Scene永続化ownerへ統合する。SourceとDerivedの分離、安定ID、決定論的生成を含め、Document、ChangeSet、Commit、Projectionは本書で独自に定義する。
+外部EngineのProject formatやPrefab実装は採用しない。UnityのEditor変更をUndoへ登録する原則、UnrealのEditor transaction、Godotの永続化owner／unsaved／Undoを明示する原則をEvidenceとし、Miraikanaiでは全経路を`ProjectChangeSetV1`、`AuthoringSelectionContextV1`、Scene永続化ownerへ統合する。SourceとDerivedの分離、安定ID、決定論的生成を含め、Document、ChangeSet、Commit、Projectionは本書で独自に定義する。

@@ -69,7 +69,7 @@ EditorClosing  -> terminal
 - `Booting`はToolchain／Dependency lock、built-in Workspace、Accessibility Adapterを検証し、Project Documentを開かない。
 - `ProjectOpening`はmanifest、schema、journal、snapshot、lockをAuthoring規約どおり回復し、成功した一つの`ProjectRevision`からPanelを投影する。途中状態を表示可能Projectにしない。
 - `PlayPreparing`はCommit済みrevisionをcompile／cookし、専用GameHostを起動する。staged draftやAI proposalをRuntime packageへ混入させない。
-- `Playing`のRuntime tweakは一時Session stateで、明示`Apply Back`が新`ProjectChangeSet`としてCommitされるまでProject正本ではない。
+- `Playing`のRuntime tweakは一時Session stateで、明示`Apply Back`が新`ProjectChangeSetV1`としてCommitされるまでProject正本ではない。
 - `PlayStopping`はInput、Audio、GameHost、GPU／Asset leaseをRuntime規約の順序で停止し、GameHost終了確認後だけ`Authoring`へ戻る。
 - `ProjectClosing`はCommit済みjournal／snapshotとEditorUserStateをflushし、Projectを参照するtaskへcancel／detach／blockの宣言済みpolicyを適用する。未Commit draftはRecovery Diffとして保存し、正規revisionへ自動Commitしない。
 - `EditorClosing`は新taskとChangeSet受付を閉じ、Worker／AI／GameHostを停止し、timeout後はchild Processを終了してRecovery receiptを残す。

@@ -592,7 +592,7 @@ Natural-language intent／manual edit
   -> UiAuthoringIntentV1
   -> UiDocument／Composite／Style／Binding proposal
   -> AssetRequirement／GeneratedAssetStaging
-  -> ProjectChangeSet
+  -> ProjectChangeSetV1
   -> schema／semantic／capability／budget validation
   -> responsive／locale／input／accessibility preview matrix
   -> AI Security／Approval ownerのauthorization decision

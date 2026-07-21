@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Debug Session、typed event／counter／snapshot、bounded Store／Index／Query、causality、breakpoint／watch／safe pause、deterministic capture／replay／rewind、crash／hang evidence、remote device bridge、Editor Debug UX、AI diagnosis、Debug qualification
 - 非正本範囲: Runtime phase／tick／lifetime、共通memory／performance／queue budget、AI Risk／authorization／approval、Evidence／Provenance envelope、Project transaction、Subsystem固有state schema、外部Tool／SDK version。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[VFX runtime](../06-rendering/vfx-runtime.md)、[Environment／surfaces](../06-rendering/environment-surfaces.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Audio](../07-platform/audio.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論とauthority
@@ -159,17 +159,17 @@ divergence reportはfirst mismatch Runtime time、System／State Type／Field ID
 
 | Domain | required projection family |
 |---|---|
-| Gameplay | state owner、entrypoint、command／event、delta、task、variant、budget ref |
-| World／Level | active Level、activation closure、cell ref、transition、last-valid state |
-| Physics／Collision | body／shape ref、contact、sleep、constraint、query evidence |
-| Navigation | artifact／tile ref、agent、path、stale／failed result |
-| Animation | graph state、transition、root motion、pose generation、event、LOD ref |
-| Rendering | pass／resource ref、barrier、visibility、draw／dispatch、fallback |
-| Asset | Source／Derived／Package version、dependency、residency、activation |
-| Input／UI／Audio | action／focus／route／voice／device、bounded callback evidence |
-| VFX／Environment／Camera | artifact、seed、bounds、profile、fallback、owner-specific overlay |
+| [Gameplay](../03-authoring/gameplay-programming-model.md) | state owner、entrypoint、command／event、delta、task、variant、budget ref |
+| [World／Level](../06-rendering/world.md) | active Level、activation closure、cell ref、transition、last-valid state |
+| [Physics](../05-simulation/physics.md)／[Collision](../05-simulation/collision.md) | body／shape ref、contact、sleep、constraint、query evidence |
+| [Navigation](../05-simulation/navigation.md) | artifact／tile ref、agent、path、stale／failed result |
+| [Animation](../05-simulation/animation.md) | graph state、transition、root motion、pose generation、event、LOD ref |
+| [Rendering／Render Graph](../06-rendering/render-graph.md) | pass／resource ref、barrier、visibility、draw／dispatch、fallback |
+| [Asset](../03-authoring/asset-lifecycle.md) | Source／Derived／Package version、dependency、residency、activation |
+| [Input](../07-platform/input.md)／[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)／[Audio](../07-platform/audio.md) | action／focus／route／voice／device、bounded callback evidence |
+| [VFX runtime](../06-rendering/vfx-runtime.md)／[Environment／surfaces](../06-rendering/environment-surfaces.md)／[Camera](../06-rendering/camera.md) | artifact、seed、bounds、profile、fallback、owner-specific overlay |
 
-Panel表示名をidentityにせず、typed targetからSource、Requirement、Decision、Build、Testへnavigationできるようにする。Domain固有field、Backend value、Qualificationは各future canonical Ownerへ委譲する。
+Panel表示名をidentityにせず、typed targetからSource、Requirement、Decision、Build、Testへnavigationできるようにする。Domain固有field、Backend value、Qualificationは上表で直接Linkした各canonical Ownerへ委譲する。
 
 ## 12. Editor Debug Workspaceとexternal tool
 
