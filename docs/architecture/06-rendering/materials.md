@@ -17,12 +17,23 @@ Material authoringは人間とAIにsemantic intent、bounded parameter、Preview
 
 ## 2. 制作モデルと正規Authoring object
 
-Authoring surfaceは`MaterialSourceAsset`、`MaterialInstanceSourceAsset`、`VisualStyleProfileAsset`、`ShaderModuleSourceAsset`に分ける。
+Authoring surfaceのcanonical objectを次に固定する。下記と別のAsset名をalias／accepted typeとして設けない。
 
-- `MaterialSourceAsset`: Stable ID、domain、shading model、surface intent、typed parameter declaration、texture／sampler role、graph／module ref、render-state intent。
-- `MaterialInstanceSourceAsset`: parent material ref、parameter override、texture binding、style override、compatibility constraint。
-- `VisualStyleProfileAsset`: palette／tone、shape／edge、surface response、detail／noise、lighting response、post-process hintのsemantic axes。
-- `ShaderModuleSourceAsset`: approved source identity、entry interface、stage、capability requirement、include closure、authoring provenance ref。
+| Object | 正本field／責務 | 変更規則 |
+|---|---|---|
+| `MaterialDefinition` | Stable ID／revision、Domain、Shading Model、surface intent、typed graphまたは承認済みProject module ref、typed parameter declaration、texture／sampler role、render state、compile feature、`ShaderInterface` hash | Graphまたはcompile feature変更で新revision |
+| `MaterialInstance` | Stable ID／revision、parent Definition ref、Texture binding、公開parameter override、style override、compatibility constraint | Domain、Shading Model、Alpha Mode、Depth policyを変更不可 |
+| `MaterialTemplate` | Stable ID／revision、semantic role、既定Definition ref、公開parameter policy | `VisualStyleProfile`がroleごとに選択 |
+| `MaterialSemanticCatalogV1` | role、意味、channel、互換性、例、qualification class | Engine build／Project extensionから生成 |
+| `MaterialNodeCatalogV1` | Nodeの型、意味、cost、Target、制約 | Engine buildから生成しAI変更不可 |
+| `ArtAssetProfile` | Stable ID／revision、Mesh／Sprite／Texture制作規則、Palette、semantic role | Importer、Generator、Validatorが同一revisionを共有 |
+| `AnimationPresentationProfile` | Stable ID／revision、presentation sampling、pose hold、motion accent | Simulation meaningから分離し表示だけを変更 |
+| `VisualStyleProfile` | Material、Light、Camera、Post、VFX、UI、Asset制作規則のStyle契約 | `StyleChangeSet`／Preview／承認を必須とし、下記exact fieldsを使う |
+| `StyleCapabilityManifest` | build ID、Target Profile ID、Quality Profile ID、利用可能なMaterial Domain／Shading Model／Node／Template／Style feature ID、required Capability／Qualification ref | Engine buildから生成しAI／Project data変更不可 |
+| `VisualStyleDecision` | 候補、除外理由、選択理由、未解決事項、権限／委任／confidence | Decision Ledgerへ記録 |
+| `MaterialExplanationV1` | Material判断の根拠、差、cost、fallback | Preview／Plan revisionへ紐付け |
+
+全Source objectはStable ID、schema version、content hash、revisionを持つ。Runtime packageへEditor node位置、UI state、AI prompt、自由形式の判断理由を持ち込まない。
 
 Material graphはclosed typed node family、typed edge、single domain outputを持つ。arbitrary command、file／network access、native include path、Backend pragmaをSource Documentへ埋め込まない。unknown node、cycle、type mismatch、missing output、unbounded loop／resource、domain-incompatible nodeはCook前に拒否する。
 
@@ -160,11 +171,15 @@ Materialは各representationで利用可能なMaterial artifact、feature reduct
 
 Material operationはcreate／update material、create instance、bind texture role、apply style、set semantic parameter、compile preview、explain resolution、validate packageをDomain actionとして登録する。操作は[Executable contracts](../02-foundation/executable-contracts.md)の共通Discovery／Preview／Apply境界と[AI Security／Approval](../01-governance/ai-security-approval.md)のauthorityを使う。
 
+canonical Operation IDは`operation.material.search`、`operation.material.read`、`operation.material.inspect`、`operation.material.preview`、`operation.material.explain`、`operation.material.estimate`、`operation.material.validate`、`operation.material.plan`、`operation.material.create_instance`、`operation.material.assign_template`、`operation.material.set_parameters`、`operation.material.create_definition`、`operation.material.edit_graph`、`operation.material.create_derived_style`、`operation.material.bind_surface_semantics`、`operation.material.propose_project_module`、`operation.material.propose_engine_extension`である。上位operationが下位権限を暗黙取得せず、変更operationはSourceを直接writeしない。
+
 Previewは対象revision、Target Profile、View／Lighting fixture ref、resolved Material／Style、compiled artifact generation、difference summary、diagnosticを返す。Preview結果をApply済みProject stateやProduction qualificationと表示しない。Explainは採用値、継承元、override、fallback、未解決questionをMaterial語彙で示す。
 
 AIの最初のbounded projectionである`MaterialContextSummaryV1`は`material_id`、`revision`、`semantic_role_id`、`template_id`、`definition_id`、`domain`、`shading_model`、`public_parameters[]`、`texture_dependencies[]`、`target_support[]`、`quality_support[]`、`variant_count`、`budget_summary`、`diagnostic_summary`、`available_operation_ids[]`だけを含む。上限超過時は配列を切らずcursorとtotal countを返す。
 
 `MaterialAuthoringPlanV1`はIntentから生成するread-only Proposalであり、base revision、選択したsemantic role／template／definition、typed parameter／texture差分、代替候補と棄却理由、Target差、cost、fallback、risk、必要Approvalを持つ。共通Proposal／ChangeSet envelopeは[Executable contracts](../02-foundation/executable-contracts.md)の正本を再利用し、Plan自体にCommit権限はない。
+
+`VisualStyleDecision`は`request_id`、`decision_authority: explicit_human | delegated_ai | confirmed_recommendation`、optional `delegation_record_id`、`resolved_requirements[]`、`unknowns[]`、`conflicts[]`、`eligible_profile_ids[]`、`rejected_candidates[]`、optional `selected_profile_id`、`selection_reasons[]`、`production_cost_estimate`、`runtime_cost_estimate`、`required_capabilities[]`、`missing_capabilities[]`、`confidence: high | medium | low`、`requires_human_confirmation`を持つ。`delegation_record_id`は一件限定の署名済み委任に限り、medium／low、blocking unknown、conflict、missing capability、budget未計測のいずれかで人間確認を必須とする。
 
 `MaterialExplanationV1`は`request_id`、`material_id`、`source_revision`、`resolved_intents[]`、`selected_semantic_role_id`、`selected_template_id`、`changed_parameters[]`、`selection_reasons[]`、`rejected_candidates[]`、`assumptions[]`、`target_differences[]`、`predicted_cost`、optional `measured_cost`、`fallbacks[]`、`warnings[]`、`required_human_confirmations[]`、`confidence`を持つ。`confidence`はAI自己申告ではなく、unknown／conflict／capability／budget／Preview状態からEngineが再計算する。
 

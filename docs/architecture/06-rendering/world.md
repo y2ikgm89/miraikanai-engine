@@ -136,7 +136,7 @@ Region parent graphはDAGとし、Levelを複数Regionへ同時所属させな�
 
 同じSceneを複数Levelで利用できるが、instance identity、override scope、persistent state ownerを明示する。cross-Level refはpersistent ownerまたはtransition payloadを介し、unloaded instance pointerを保存しない。
 
-`LevelRuntimeStateV1`はLevel gameplay Systemが所有し、`level_ref`、`runtime_instance_id`、`lifecycle_state`、`active_entry_ref`、`objective_state_refs[]`、`activated_system_instance_refs[]`、`authoritative_world_delta_ref`、`completion_outcome`を持つ。`lifecycle_state`は`inactive -> preparing -> ready -> activating -> active -> completing -> deactivating -> inactive`と、`preparing | activating | active | completing | deactivating -> faulted`のclosed state machineである。generation付きruntime handleをSource／Save／Replay headerへ保存しない。
+`LevelRuntimeStateV1`はLevel gameplay Systemが所有し、`level_ref`、`runtime_instance_id`、`lifecycle_state`、`active_entry_ref`、`objective_state_refs[]`、`activated_system_instance_refs[]`、`authoritative_world_delta_ref`、`completion_outcome`を持つ。`lifecycle_state`は`inactive -> preparing -> ready -> activating -> active -> completing -> deactivating -> inactive`と、`preparing | activating | active | completing | deactivating -> faulted`のclosed state machineである。`runtime_instance_id`はgeneration付き`LevelInstanceHandle`で、Source／Save／Replay headerへ保存しない。
 
 ## 6. Spatial Partitionとstreaming-plan authoring
 
@@ -217,7 +217,11 @@ World authoring bundleは対象World／Level／Scene revisions、selected scope�
 
 `WorldAuthoringContextV1`は`project_id`、`project_revision`、`contract_set_hash`、optional `authoring_selection_context_hash`、`world_ref`、`scene_refs[0..256]`、`level_refs[0..256]`、`topology_ref`、`topology_version`、optional `viewport_bounds`、`target_profile_refs[1..32]`、`source_document_refs[1..1024]`、`read_only_derived_artifact_refs[0..1024]`、`capability_refs[0..128]`、`budget_refs[1..64]`、`decision_and_lock_refs[0..128]`、`omitted_ranges[0..128]`、`continuation`を持つread-only projectionである。[Project state](../03-authoring/project-state.md)所有の`AuthoringSelectionContextV1`から生成し、Source／Commit／Replay headerへ保存しない。
 
-World operationはcreate／update World、Scene、Level、Cell intent、compose Scene、move Entity source、edit Layer、generate partition plan、create transition、preview closure、explain Map resolution、validateをDomain actionとして登録する。Applyは[Project state](../03-authoring/project-state.md)のChangeSetを通じ、Runtime cellを直接操作しない。
+Worldの変更operationはcreate／update World、Scene、Level、`SetSpatialPartitionIntent`による`SpatialPartitionIntentV1` Source編集、compose Scene、move Entity source、edit Layer、create transitionだけをDomain actionとして登録する。`GenerateWorldStreamingPlan`はCommit済みSourceから`WorldStreamingPlanV1`を生成するCook jobであり、`PreviewWorldStreamingPlan`／`InspectCellDescriptor`はPlan ID／artifact hash／plan-local `cell_id`を取り読み取り結果だけを返す。
+
+Source Domain Operationは`CreateLevelDefinition`、`SetLevelSourceScenes`、`SetLevelEntryExitContract`、`SetLevelGameplayComposition`、`CreatePortal`／`UpdatePortalContract`／`DeletePortal`、`MoveEntityToScene`、`SetSpatialPartitionIntent`、`SetProceduralWorldDefinition`、`SetMapPresentationDefinition`である。複数Documentの変更はexact ChangeSet hashを`WorldAuthoringBundleV1`で束ね、承認後に一つの`ProjectChangeSet`としてCommitする。Query／Job IDは`mirakan.worlds.resolve_map_intent`、`mirakan.worlds.validate_bundle`、`mirakan.worlds.preview_bundle`で、Source／Derived stateをwriteしない。
+
+`CreateCell`、`UpdateCell`、`DeleteCell`、`SetCellIntent`、`replace_streaming_plan`、plan-local `cell_id`をtargetとする任意field writeは公開または登録しない。未知またはaliasのCell write operationをSource editへ近似変換せず`MIRAKAN-WORLD-DERIVED_CELL_WRITE`で失敗させる。Applyは[Project state](../03-authoring/project-state.md)のChangeSetと`SpatialPartitionIntentV1`だけを対象とし、Derived Plan／Cell descriptor／Runtime cellを直接操作しない。
 
 Previewは対象revision、composition graph、Cell membership／dependency、Target plan、missing closure、estimated capacity class、fallback、diagnosticを示す。authorization、approval、sandboxは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決定する。
 
@@ -248,6 +252,7 @@ World固有diagnosticはWorld／Scene／Level／Entity Stable ID、Plan ID／pla
 | `MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC` | 同じ入力でoutput hash不一致 | Artifact拒否 |
 | `MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT` | Schema／connectivity／playability不合格 | delta破棄 |
 | `MIRAKAN-WORLD-PRESENTATION_AUTHORITY_WRITE` | Map／LOD／visibilityからGameplay write | Build／conformance失敗 |
+| `MIRAKAN-WORLD-DERIVED_CELL_WRITE` | Cell／Streaming Planへの直接／未知write operation | Sourceへ変換せず拒否 |
 | `MIRAKAN-WORLD-CROSS_CELL_POINTER` | 永続pointer／Vendor handle参照 | Source／Cook拒否 |
 | `MIRAKAN-WORLD-BUNDLE_STALE` | base revision／precondition不一致 | 再Resolve要求 |
 | `MIRAKAN-WORLD-TARGET_UNSUPPORTED` | 意味同等fallbackなし | 対象Targetを非対応表示 |
@@ -265,6 +270,7 @@ Qualificationは次のDomain fixtureを持つ。
 - 同じseed／input／Target／Toolchainから同じprocedural output hash、Generator bound、connectivity、entry-to-objective-to-exit reachability、Physics overlap、spawn safety、Navigation query、invalid output／timeout／unsupported Target fallback、Navigation Artifact削除後の再生成。
 - Compact 2D／3D Levelのframe／memory／load／activation hitch、Cell／prefetch比較、worst-case Portal traversal／camera speed、HLOD on／off authority equivalence、cold start／cold streaming。測定法と共有上限はRuntime ownerを使う。
 - AI corpusはMapの6分類、ambiguity／high-impact質問、Scene／Level／Cell／Navigation／Presentation分離、context外の表示名／pathからStable IDを推測しないこと、Source intent以外への直接write拒否を含む。
+- `CreateCell`／`UpdateCell`／`DeleteCell`／`SetCellIntent`／`replace_streaming_plan`／未知aliasはすべて`MIRAKAN-WORLD-DERIVED_CELL_WRITE`となり、`SpatialPartitionIntentV1`や`WorldStreamingPlanV1`のhashが変化しないnegative fixture。
 - `world_authoring_cross_view_v1` 64 scenarioでWorld Outline／Topology Graph／Level Form／Spatial View／AIのDomain Operationとafter-state hashが一致する。
 - `world_authoring_intent_v1` holdout 240件（明確な6分類各30件、曖昧／High Impact 60件）を3 runし、明確Caseの`selected_kind`正解率97%以上、Blocking Caseの`question_required` recall 100%、存在しないStableIdを含むProposal 0件、Scene／Level／Cell identity誤変更0件、Derived／Runtime直接write提案0件とする。
 

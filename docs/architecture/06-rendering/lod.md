@@ -203,6 +203,8 @@ version付き`LodPolicyPresetV1`の初期closed IDは`hero_character | interacti
 
 LOD operationはcreate／update policy、bind representation、apply preset、set importance、preview selection、explain transition、validate closureをDomain actionとして登録する。共通Discovery／Preview／Apply、ChangeSet、approvalは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を使う。
 
+`operation.lod.propose_policy`はSourceを変更しない候補Policy／Before／After予測を返し、`operation.lod.apply_policy`は承認済みPolicy ChangeSetだけを作る。Simulationの`dormant_record`は保持state schema／pending event／wake triggerを含むDomain-owned candidateで、可視性で破棄しない。
+
 Editorはview／Target／Quality／pressure fixtureを切り替え、各subjectのcandidate、selected tier、projected error class、hysteresis state、missing dependency、fallback理由を表示する。Preview selectionをRuntime authoritative stateやProduction qualificationと混同しない。
 
 ## 11. Runtime、determinism、telemetry境界

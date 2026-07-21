@@ -174,6 +174,8 @@ Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_
 
 Lighting operationはcreate light、update physical property、apply lighting intent、bind Source Definition、set shadow intent、preview、explain、validateをDomain actionとして登録する。ApplyはGatewayを通じてProject ChangeSetへ変換し、Runtime componentやRenderer resourceを直接変更しない。
 
+read-only resolver／explanationのcanonical IDは`operation.lighting.resolve_intent`／`operation.lighting.explain_plan`である。それぞれ`ResolvedLightPlanV1`／`LightingPlanExplanationV1`を返し、Light Sourceへwriteしない。
+
 Previewは対象revision、World／Level scope、affected Light Stable IDs、before／after physical values、Renderer compatibility、fallback、diagnosticを表示する。Explainは入力intent、unit conversion、採用candidate、assumption、未解決questionを返す。authorization classとhuman approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決める。
 
 `SceneLightingSummaryV1`はScene／View Family／Target／Visual Style／EnvironmentのID／version、role／type／importance別Light数、Critical Light、上限／現在値／予測cost／overflow、Shadow tier分布、human lock数、active Diagnostic上位数、詳細取得用Stable ID／continuation tokenだけをboundedに返す。`LightingPlanExplanationV1`はLightごとのIntent fieldからSource fieldへの対応、代替案の棄却理由、予測cost、視覚risk、fallbackで失われるcueを返す。

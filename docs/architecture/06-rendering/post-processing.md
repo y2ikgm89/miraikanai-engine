@@ -164,6 +164,8 @@ resolve(
 
 Post Process operationはcreate／update profile、create／update volume、set enabled／effect parameter、apply style hint、preview、explain、validateをDomain actionとして登録する。Profile／AIによるstage変更、Node追加、固定execution order変更をOperationとして公開しない。共通Discovery、Preview、Apply、ChangeSet、authorizationは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
 
+read-only resolver／explanationのcanonical IDは`operation.post_process.resolve_intent`／`operation.post_process.explain_plan`である。それぞれ`ResolvedPostProcessPlanV1`／`PostProcessPlanExplanationV1`を返し、Profile／Volumeへwriteしない。
+
 Previewは対象revision、ViewFamily fixture、contributing Volume、resolved order／parameters、color-space transition、AA compatibility、history reset、fallback、diagnosticを示す。Explainは各値のSource、priority、weight、blend operator、override理由を追跡可能にする。
 
 `PostProcessContextSummaryV1`はView Family／Camera／Target／Visual Style／AA PlanのID／version、active Profile／Volume上位32件、stage別active Node／quality／history、HDR／SDR／layer policy／pixel-locked有無、予測／実測GPU時間／persistent／transient byte、active Diagnostic／fallback、詳細取得用Stable IDだけを返す。`PostProcessPlanExplanationV1`はIntent fieldからNode／parameterへの写像、AA／UI／Accessibility制約、棄却Node、fallbackで失われる見た目、予測cost、Plan hashを返す。
