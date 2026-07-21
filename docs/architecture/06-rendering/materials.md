@@ -29,8 +29,8 @@ Authoring surfaceのcanonical objectを次に固定する。下記と別のAsset
 | `ArtAssetProfile` | Stable ID／revision、Mesh／Sprite／Texture制作規則、Palette、semantic role | Importer、Generator、Validatorが同一revisionを共有 |
 | `AnimationPresentationProfile` | Stable ID／revision、presentation sampling、pose hold、motion accent | Simulation meaningから分離し表示だけを変更 |
 | `VisualStyleProfile` | Material、Light、Camera、Post、VFX、UI、Asset制作規則のStyle契約 | `StyleChangeSet`／Preview／承認を必須とし、下記exact fieldsを使う |
-| `StyleCapabilityManifest` | build ID、Target Profile ID、Quality Profile ID、利用可能なMaterial Domain／Shading Model／Node／Template／Style feature ID、required Capability／Qualification ref | Engine buildから生成しAI／Project data変更不可 |
-| `VisualStyleDecision` | 候補、除外理由、選択理由、未解決事項、権限／委任／confidence | Decision Ledgerへ記録 |
+| `StyleCapabilityManifest` | `engine_build_id`、`target_profile_id`、`quality_profile_id`、利用可能なMaterial Domain／Shading Model／Node／Template／Style feature ID、required Capability／Qualification ref | Engine buildから生成しAI／Project data変更不可 |
+| `VisualStyleDecision` | 候補、除外理由、選択理由、未解決事項、Capability、domain result | Decision Ledger／Governance参照を持ち、authority／approvalは所有しない |
 | `MaterialExplanationV1` | Material判断の根拠、差、cost、fallback | Preview／Plan revisionへ紐付け |
 
 全Source objectはStable ID、schema version、content hash、revisionを持つ。Runtime packageへEditor node位置、UI state、AI prompt、自由形式の判断理由を持ち込まない。
@@ -179,7 +179,9 @@ AIの最初のbounded projectionである`MaterialContextSummaryV1`は`material_
 
 `MaterialAuthoringPlanV1`はIntentから生成するread-only Proposalであり、base revision、選択したsemantic role／template／definition、typed parameter／texture差分、代替候補と棄却理由、Target差、cost、fallback、risk、必要Approvalを持つ。共通Proposal／ChangeSet envelopeは[Executable contracts](../02-foundation/executable-contracts.md)の正本を再利用し、Plan自体にCommit権限はない。
 
-`VisualStyleDecision`は`request_id`、`decision_authority: explicit_human | delegated_ai | confirmed_recommendation`、optional `delegation_record_id`、`resolved_requirements[]`、`unknowns[]`、`conflicts[]`、`eligible_profile_ids[]`、`rejected_candidates[]`、optional `selected_profile_id`、`selection_reasons[]`、`production_cost_estimate`、`runtime_cost_estimate`、`required_capabilities[]`、`missing_capabilities[]`、`confidence: high | medium | low`、`requires_human_confirmation`を持つ。`delegation_record_id`は一件限定の署名済み委任に限り、medium／low、blocking unknown、conflict、missing capability、budget未計測のいずれかで人間確認を必須とする。
+`VisualStyleDecision`はMaterials-domain payloadとして`request_id`、`resolved_requirements[]`、`unknowns[]`、`conflicts[]`、`eligible_profile_ids[]`、`rejected_candidates[]`、optional `selected_profile_id`、`selection_reasons[]`、`production_cost_estimate`、`runtime_cost_estimate`、`required_capabilities[]`、`missing_capabilities[]`、`domain_result`、exact `decision_ledger_entry_ref`、exact `authorization_envelope_hash`を持つ。`decision_ledger_entry_ref`は[Project state](../03-authoring/project-state.md)の`DecisionLedgerDocument`、`authorization_envelope_hash`は[AI Security／Approval](../01-governance/ai-security-approval.md)の署名済み`TaskAuthorizationEnvelope`へのopaque referenceである。権限enum、委任cardinality、承認／人間確認条件、署名／失効規則をMaterialsに定義せずGovernanceの正本を消費する。
+
+旧payloadの`decision_authority`、`delegation_record_id`、`requires_human_confirmation`はMaterials fieldとして非採用である。対応するauthority／delegation／confirmation状態は`TaskAuthorizationEnvelope`とGovernanceが発行する署名済みApproval recordの参照先だけで評価する。
 
 `MaterialExplanationV1`は`request_id`、`material_id`、`source_revision`、`resolved_intents[]`、`selected_semantic_role_id`、`selected_template_id`、`changed_parameters[]`、`selection_reasons[]`、`rejected_candidates[]`、`assumptions[]`、`target_differences[]`、`predicted_cost`、optional `measured_cost`、`fallbacks[]`、`warnings[]`、`required_human_confirmations[]`、`confidence`を持つ。`confidence`はAI自己申告ではなく、unknown／conflict／capability／budget／Preview状態からEngineが再計算する。
 

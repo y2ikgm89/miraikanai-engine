@@ -209,6 +209,8 @@ Resolverは`UnsupportedByRenderer | UnsupportedByTarget | InvalidCombination | M
 
 Temporal historyはViewFamily、algorithm／provider generation、surface generation、extent、projectionへ束縛する。camera cut、teleport、generation／extent／projection／AA方式変更、missing motion inputでは破棄する。Generated frameはauthoritative simulation／render snapshotではなくpresentation outputとして区別し、real frameのmetricへ混ぜない。
 
+`TemporalFrameInputV1`の`frame_id`／`present_id`はreal frameごとに単調増加し、generated frameへ新しいsimulation identityを割り当てない。
+
 Providerはprivate Adapterとして統合し、exact version、hash、license、取得元、build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが固定する。未署名artifact、runtime download、runtime training、無承認更新は本書で別規則を複写せず[AI Security／Approval](../01-governance/ai-security-approval.md)とToolchain ownerへ委譲する。
 
 ## 10. Ray、path、neural capability
@@ -241,6 +243,10 @@ Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfi
 
 Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`／`ShadowGraphV1`と承認済み`ProjectShadowTechniqueV1`は解決後の`ResolvedShadowPlanV1`だけをRendererへ渡す。`ShadowGraphV1`はclosed Pass Templateへoffline compileし、Project techniqueは`ShadowTechniquePortV1`の入力semanticから`shadow_attenuation_linear`を出力する。native command／barrier、runtime shader compile、未宣言accessを禁止する。
 
+Render Graph compilerはTechnique Manifestを通常Passと同じcycle、hazard、lifetime、alias、queue、memory validationへ通す。Manifest申告とshader reflectionまたは実行時resource useが一致しないArtifactはpromotionを拒否する。Running中の不一致は`ShadowTechniqueValidationFailed`を発行し、該当`ResolvedShadowPlanV1`のそれ以降のpassとsubmissionを停止する。同一frameにfallback passを挿入しない。
+
+PlanがGovernanceで承認されたfallback referenceを持つ場合は、次frameのGraph Instanceからそのfallbackへ決定論的に切り替える。承認済みfallbackがなければRenderer faultへ遷移し、該当Planをretry／resumeしない。承認の成立、scope、署名、期限／失効は[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決め、Rendererはそのexact Governance referenceの検証結果だけを消費する。
+
 `RayTracingPortV1`はacceleration-structure build／update、ray query／dispatch、shader／function table、scratch、compaction、timestampだけを公開する。RTGIはEngine-owned `RadianceCachePortV1`を介し、native handleをAssetへ保存しない。`NeuralRenderModelV1`はmodel ID、semantic input／output、architecture version、weight format／SHA-256／provenance、quantization、required feature、scratch／persistent byte、inference cap、fallbackを持ち、runtime download／training／未署名weight／arbitrary operator／network accessを禁止する。
 
 `RendererVisualReceiptV1`はlinear Rec.709 RGB32F比較、UI／pixel-locked bit-exact mask、3D SSIM／RMSE、NaN／Inf、ghost persistenceとframe／camera／exposure／jitter／extent／Provider／driver／SDK／model hashを保存する。`AntiAliasingVisualReceiptV1`は本書のAA reference／baseline、alias energy、edge spread、shimmer、ghost、`unaddressed_alias_class`を追加するDomain projectionである。
@@ -264,6 +270,7 @@ Qualificationはportable raster referenceを必須とし、次のDomain fixture�
 - Native TAA／qualified Providerのmotion、depth、exposure、reactive、UI、HDR、dynamic extent、camera cutと、FG Provider一意Swapchain ownership／停止条件。
 - Provider署名／hash／missing artifact／unsupported driver／initialization／execution failure／teardown、RT Raster fallback、acceleration structure lifetime、Path convergence／deterministic seed、corrupt／unsigned neural model／non-neural fallback。
 - Shadow Graph cycle／上限／unsupported node、未宣言access、interface hash不一致、fallback欠落のnegative testと、各Shadow Planの同一`shadow_attenuation_linear`接続。
+- 同じTechnique Manifest／shader reflection／runtime-use trace／Governance referenceから同じ`ShadowTechniqueValidationFailed`を生成し、promotion拒否、該当Plan停止、当該frameへのfallback挿入0件、承認済みfallbackがある場合は次frame切替、ない場合はRenderer faultとなる決定論fixture。
 - UI／text／pixel-locked layerがdynamic resolution、Temporal Reconstruction、Frame Generationで劣化しないtest。
 - AIが未登録Pass、native resource、unsupported Target feature、arbitrary modelを生成できないconformance。
 

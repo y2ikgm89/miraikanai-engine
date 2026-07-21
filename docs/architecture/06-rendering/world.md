@@ -167,6 +167,8 @@ Cell候補をcanonical finite `bounds.min.x, min.y, min.z, bounds.max.x, max.y, 
 
 共通memory、I/O、worker、queue budget、measurement、backpressureは[Runtime performance／capacity](../04-runtime/performance-capacity.md)だけが所有する。Planはcapacity classとfallback intentを参照するだけで数値を複写しない。Runtime OrchestratorだけがPlanからCell residency／activationを実行する。
 
+Runtime-owned Cell lifecycleの`failed`状態、retry／rollback／evict遷移は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)へ委譲し、World Source／`CellDescriptorV1`のfieldとして保存しない。
+
 ## 7. Level transition intent
 
 Level transitionはsource／target Level、trigger intent、loading presentation ref、persistent entity／state policy、required Cell set、precondition、failure／cancel policyをSourceとして定義する。実行phase、writer、async job、timeout、Save checkpointはRuntime Ownerへ委譲する。
@@ -231,6 +233,10 @@ Previewは対象revision、composition graph、Cell membership／dependency、Ta
 
 World Source revisionとRuntime instance stateを分離する。SaveはWorld／Level／Scene／Entity Stable IDとcompatible source／artifact generationへDomain stateを投影し、Source Document、Runtime pointer、Cell handleを丸ごと保存しない。
 
+Save対象の各Level instanceはGatewayが発行するUUIDv7 `LevelSaveInstanceId`を厳密に1件持つ。同じSource Level `StableId`から複数instanceを作る場合もそれぞれ別の`LevelSaveInstanceId`を発行し、Projectの全session／Save／checkpoint lineageを通じて重複／再利用せず、同じ保存instanceのcheckpoint／migrationを跨いで維持する。Save recordはSource LevelのUUIDv7 `StableId`／definition version、`LevelSaveInstanceId`、active entry Anchor `StableId`、authoritative Domain stateを結び、Runtime handleは含めない。missing／duplicate／不正UUIDv7の`LevelSaveInstanceId`をSave／Load validation errorとする。
+
+Loadは各`LevelSaveInstanceId`に対し現sessionの新しいgeneration付き`LevelInstanceHandle`を厳密に1件割り当て、one-to-one remapをload transactionの間だけ保持する。保存前のhandle value／index／generationを復元または優先せず、異なる`LevelSaveInstanceId`を同じhandleへ結び付けない。`LevelSaveInstanceId`はSave identity、`LevelInstanceHandle`はephemeral Runtime identity、Level `StableId`はSource identityであり、相互に置換しない。
+
 checkpoint時刻、recording、Replay envelope、migration evidenceは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を参照する。本書はWorld identity mapping、persistent owner、missing／renamed／split sourceのDomain migration ruleだけを提供する。
 
 Migrationはold／new Stable ID mapping、semantic change、default／manual resolution、orphan dispositionを明示し、display nameやpathの近似一致で自動復元しない。
@@ -266,6 +272,7 @@ Qualificationは次のDomain fixtureを持つ。
 - `MoveEntityToScene`、`SetLevelSourceScenes`、Cell再Cookがidentity／membershipを暗黙変更しないこと。
 - Topology reachability／trap／cycle／Target fallback、unknown／stale／cross-cell pointer negative test、Undo／redo／crash recovery／concurrent edit conflict。
 - Cell全state transition、cancel、timeout、I/O failure、activation group atomicity、旧Level維持、Level transition／Character transfer／lease解放、Save／Load／Replay state hash。
+- 同じSource Levelの複数saved instance、checkpoint連鎖、missing／duplicate／不正`LevelSaveInstanceId`、Loadごとの新しい`LevelInstanceHandle`、one-to-one remap、保存handle復元拒否を検証するidentity fixture。
 - inactive／resident／active境界からauthoritative処理が漏れず、Presentation／LOD／Camera／GPU結果からauthorityへ逆入力しないこと。
 - 同じseed／input／Target／Toolchainから同じprocedural output hash、Generator bound、connectivity、entry-to-objective-to-exit reachability、Physics overlap、spawn safety、Navigation query、invalid output／timeout／unsupported Target fallback、Navigation Artifact削除後の再生成。
 - Compact 2D／3D Levelのframe／memory／load／activation hitch、Cell／prefetch比較、worst-case Portal traversal／camera speed、HLOD on／off authority equivalence、cold start／cold streaming。測定法と共有上限はRuntime ownerを使う。
