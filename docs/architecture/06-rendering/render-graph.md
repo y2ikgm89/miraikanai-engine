@@ -33,7 +33,24 @@ SnapshotはSource Stable ID、artifact generation、Transform、bounds、visibil
 
 ## 3. Resource modelとRender Graph
 
-Resourceはtexture、buffer、acceleration structure、surface、temporal historyをclosed kindで表し、format class、extent／size、usage、clear semantics、initial／final state、lifetime class、alias eligibility、debug labelを宣言する。Imported resourceはowner、generation、acquire／release conditionを持ち、Graph外のresourceを暗黙captureしない。
+`RenderResourceDesc`を次で固定する。`kind`と`ownership`は独立したclosed enumであり、surface／historyをresource kindへ混在させない。
+
+| Field | 規則 |
+|---|---|
+| `resource_id` | Graph instance内`uint32` |
+| `kind` | `texture | buffer | acceleration_structure` |
+| `ownership` | `transient | imported | persistent | history | external_surface` |
+| `format` | Engine `PixelFormat` closed enum |
+| `extent` | absolute、view-relative、named resource-relative |
+| `mip_count`／`array_layers`／`sample_count` | Target Capability内 |
+| `usage_flags` | attachment、sampled、storage、copy、indirect等 |
+| `memory_class` | device local、upload、readback |
+| `initial_access` | imported／persistentだけ必須 |
+| `clear_value` | attachment clear時だけ、typed |
+| `alias_group` | compilerが生成。Authoring入力不可 |
+| `debug_name_id` | shipping identityに使わない |
+
+Texture extent、mip、format、usageの組合せをTargetごとに検証し、0 size、overflow、unknown format、usage不整合、readback attachmentを拒否する。Imported resourceはowner、generation、acquire／release conditionを持ち、Graph外resourceを暗黙captureしない。
 
 Pass declarationはStable ID、queue class、read／write／read-write access、subresource range、attachment、pipeline key、side-effect class、optional capability requirementを持つ。Pass callbackが宣言外resourceへ触れること、native barrierを発行すること、別queueへworkを隠すことを禁止する。
 
@@ -82,14 +99,40 @@ GPU-driven pathとCPU reference pathは同じvisible item identity、material bi
 
 ## 9. Anti-aliasingとtemporal execution
 
-AA intentはViewFamilyごとの`ResolvedAntiAliasingPlan`へ解決し、一つのViewFamilyでraster sample、temporal provider、jitter sequence、render／display extent policyを共有する。異なる方式を同じsurfaceへ混在させず、必要ならViewFamilyを分離する。
+`RendererProfileResolver`は`AntiAliasingIntentV1`をViewFamilyごとの`ResolvedAntiAliasingPlanV1`へ解決する。同じViewFamilyのCameraはraster sample count、temporal Provider、jitter、render／display extentを共有し、異なる方式は別ViewFamily／render targetとする。
 
-Planはnative raster、multisample raster、spatial filter、temporal reconstructionをclosed familyとして表し、次を宣言する。
+| Field | 規則 |
+|---|---|
+| `source_intent_id`／`source_revision` | 解決元Intent、stale Plan拒否 |
+| `view_family_id`／`scope_resolution` | Project／Camera Profileから最終scopeへ解決した結果 |
+| `raster_samples` | `1 | 2 | 4 | 8`。2以上はForward+のQualified attachment／pipelineだけ |
+| `spatial_method` | `off | fxaa | smaa_1x`。一つだけ |
+| `temporal_method` | `off | mirakan_taa_v1 | mirakan_taau_v1 | qualified_provider_id`。一つだけ |
+| `render_extent`／`display_extent` | Target／Provider制限内。UI／pixel-locked extentを含めない |
+| `jitter_policy` | Engine-owned closed ID。AI／Project dataはsample列を保持しない |
+| `history_reset_mask` | camera cut、teleport、extent、surface、projection、Provider、model、AA方式変更のclosed bit |
+| `excluded_layers` | `ui | text | pixel_locked`を必須集合とする |
+| `required_capabilities` | Backend、renderer、sample count、motion／depth／mask、Provider、HDR Capability ID |
+| `predicted_cost` | pass GPU、bandwidth、persistent／transient byte、Pipeline variant数 |
+| `fallback_chain` | 順序、意味差、User通知、必要な再構築境界 |
+| `decision_trace` | 選択理由、却下method、Constraint／Receipt／baseline ID |
 
-- required inputs: color、depth、motion vector、exposure、reactive／transparency mask。
-- history keyとreset conditions、render／display extent、jitter ownership。
-- incompatible layer／effect／surface conditionsと意味同等fallback。
-- Provider Artifact ref、Capability requirement、qualification receipt ref。
+方式互換を次のclosed tableに固定する。
+
+| Method | 成熟度 | Renderer／入力 | 主用途と制限 |
+|---|---|---|---|
+| `none` | C1 diagnostic | 全Raster | bit-exact検査、AA対象外layer、User明示だけ |
+| `fxaa` | C1 Portable | 全Raster、resolved color | spatial fallback。Tone map後、UI合成前 |
+| `mirakan_taa_v1` | C1 Portable 3D | motion、depth、exposure、jitter、history | native extent temporal AA。Pixel／UI／VR low-latencyでは候補外 |
+| `msaa_2x`／`msaa_4x` | C1 Forward+ | sample可能color／depth、全PSO sample一致 | Geometry edgeとalpha-to-coverage |
+| `smaa_1x` | C2 Portable | resolved color | Temporal禁止時のspatial候補 |
+| `msaa_8x` | C2 optional | Forward+、High／offline実機Gate | 自動選択禁止 |
+| `mirakan_taau_v1` | C2 | `TemporalFrameInputV1` | Engine基準temporal upscale |
+| Qualified DLSS／XeSS／FSR／MetalFX | C2 optional | Provider別Input／署名／license／driver | Providerごとに独立Qualification |
+
+`raster_samples > 1`と`temporal_method != off`を同時使用しない。MSAAとFXAA／SMAAの併用は既定禁止、Hybrid Deferred GBufferのMSAAは禁止、MSAA 8xはLow／Medium／MobileのAuto候補外とする。Alpha-to-coverageをtransparent／texture／specular alias対策と表示しない。Temporalはpre-tonemap scene-linear HDR、FXAA／SMAAはTone map後かつUI composite前に実行する。Dynamic resolution、camera cut、teleport、projection／surface／方式／Provider変更ではhistoryを破棄し、MSAA sample変更はSettings Apply／Loading境界でattachment／Pipeline keyを再構築する。
+
+Resolverは`UnsupportedByRenderer | UnsupportedByTarget | InvalidCombination | MissingMotionVectors | MissingTemporalInput | PixelLockedTemporalForbidden | MsaaSampleUnsupported | ProviderNotQualified | BudgetExceeded | ScopeConflict | RebuildBoundaryRequired`を`AntiAliasingResolutionErrorV1`のclosed codeとして返す。未知方式を近似せず、候補、拒否理由、必要Capability／Receipt、意味差をremediationに含める。
 
 Temporal historyはViewFamily、algorithm／provider generation、surface generation、extent、projectionへ束縛する。camera cut、teleport、generation／extent／projection／AA方式変更、missing motion inputでは破棄する。Generated frameはauthoritative simulation／render snapshotではなくpresentation outputとして区別し、real frameのmetricへ混ぜない。
 
@@ -107,11 +150,33 @@ Editor／AIは[Executable contracts](../02-foundation/executable-contracts.md)�
 
 Renderer固有diagnosticはGraph／pass／resource／ViewFamily／surface generation、Backend-neutral error code、first failing dependency、fallback dispositionを含む。少なくともgraph invalid、resource exhausted、pipeline unavailable、history invalid、surface lost、device fault、provider unavailableを区別する。native result codeやdriver messageはprivate attachmentとして保存し、stable diagnostic codeにしない。
 
+`RendererProviderErrorV1`は`NotInstalled | UnsupportedDevice | UnsupportedDriver | SignatureInvalid | LicenseNotApproved | VersionMismatch | MissingInput | InvalidFormat | InitializationFailed | ExecutionFailed | HistoryInvalid | SwapchainConflict | BudgetExceeded | DeviceFault`のclosed codeを持つ。AAの互換／排他／scope失敗は`AntiAliasingResolutionErrorV1`を使い、Provider障害と混同しない。Running中のProvider failureは同frameで別Providerへ差し替えずgenerationを停止し、次のLoading境界でContextを再生成する。RT／Neural failureも次frameの登録済みRaster／non-neural Graphへ切り替える。
+
 Quality fallbackは意味を明示し、resolution、optional effect、shadow execution、temporal provider、ray／neural profileの順序付き候補から選ぶ。allocation失敗時のsilent quality reduction、draw skip、default material置換を禁止する。共通backpressureとcapacity判定は[Runtime performance／capacity](../04-runtime/performance-capacity.md)へ従う。
 
 ## 12. Qualification
 
-Qualificationはportable raster referenceを必須とし、Graph validation、deterministic compile、resource lifetime、queue transfer、surface recovery、visibility equivalence、AA history reset、Provider fault、pixel-locked compositionをTarget Profileごとに検証する。
+Qualificationはportable raster referenceを必須とし、次のDomain fixtureを持つ。
+
+- Graph cycle、read-before-write、unordered write、subresource overlap、history invalidationのunit／property test。
+- 同一Graph入力からcanonical compile plan hashが一致するdeterminism test。
+- D3D12 Enhanced／legacy、Vulkan、Metalのaccess／barrier conformanceと各validation zero-error fixture。
+- 2D pixel、Realistic、Toon、Pixel Dioramaのgolden image。
+- AA Off／FXAA／SMAA 1x／MSAA 2x・4x・8x／Mirakan TAA／TAAUのthin geometry、foliage、alpha scissor／blend、specular、particle、emissive、skinning、急加速、camera cut、dynamic extent、HDR fixture。
+- AA scope conflict、TAA＋MSAA、Deferred MSAA、unsupported sample count、missing motion／depth、pixel-locked temporal、Settings Apply外rebuildのnegative test。
+- D3D12／Vulkan／MetalでMSAA color／depth sample count、Pipeline key、resolve order、alpha-to-coverage、surface loss後rebuildが一致するBackend conformance。
+- resize、alt-tab、HDR／SDR切替、surface loss、device removed fault injection。
+- GPU OOM、descriptor exhaustion、pipeline miss、corrupt shader、stale Asset generationとlast-use serial前に破棄されないlifetime test。
+- CPU direct／GPU indirect／meshletのvisible result、occlusion history、camera cut、overflow、fallback一致。
+- FOV、projection、resolution、dynamic extent別projected error、CPU／GPU tier、hysteresis、camera cut再選択。
+- Cook分類、Gameplay identity保持、mutable objectのstatic batch混入拒否、HLOD Source順序に依存しないArtifact hash、interactive／Physics／Save／animation混入拒否、HLOD on／offのGameplay一致。
+- Native TAA／qualified Providerのmotion、depth、exposure、reactive、UI、HDR、dynamic extent、camera cutと、FG Provider一意Swapchain ownership／停止条件。
+- Provider署名／hash／missing artifact／unsupported driver／initialization／execution failure／teardown、RT Raster fallback、acceleration structure lifetime、Path convergence／deterministic seed、corrupt／unsigned neural model／non-neural fallback。
+- Shadow Graph cycle／上限／unsupported node、未宣言access、interface hash不一致、fallback欠落のnegative testと、各Shadow Planの同一`shadow_attenuation_linear`接続。
+- UI／text／pixel-locked layerがdynamic resolution、Temporal Reconstruction、Frame Generationで劣化しないtest。
+- AIが未登録Pass、native resource、unsupported Target feature、arbitrary modelを生成できないconformance。
+
+AA visual fixtureは4x linear-resolution SSAA downsampleを静止Reference、AA Offを動的Baselineとする。UI／text／pixel-lockedはbit-exact、NaN／Inf 0 pixel、edge mask内alias energyはOff比20%以上低減、FXAA／SMAA／MSAAのedge spread P95は1.50 display pixel以下、temporal方式は2.00以下、shimmer energy P95はOff比30%以上低減、disocclusion ghostは3 real frameを超えて残らないことを要求する。対象外alias classは失敗でなく明示列挙する。
 
 性能run、visual／replay evidence、receipt envelope、provenance gradingは[Runtime performance／capacity](../04-runtime/performance-capacity.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使い、閾値やfieldを複写しない。Renderer固有fixtureはGraph input、expected pass/resource relation、expected output／fallbackだけを所有する。
 

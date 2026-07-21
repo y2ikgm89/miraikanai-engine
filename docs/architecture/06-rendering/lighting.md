@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Light Source／Component、light type／shape、photometric quantity／unit／color、attenuation／range、shadow intent、Lighting semantic intent／resolver、Lighting固有operation／diagnostic／qualification
 - 非正本範囲: Render pass／cluster／queue／shadow execution、Material shading、Environment composition、Runtime shared capacity、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[World](world.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[World](world.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
@@ -23,25 +23,77 @@ Rendererとの公開境界にはBackend-neutral light data、stable source ident
 
 ## 3. 正本データモデル
 
-`LightSourceDefinition`は次のDomain semanticsを持つ。
+`LightSourceV1`を次に固定する。
 
-- Stable ID、display label、enabled state、layer／channel mask。
-- type: directional、point、spot、area family、environment contribution。
-- transform semanticsとshape: direction、position、radius／extent、cone、emitter geometry。
-- photometric value、declared unit、color mode、linear color／temperature、tint。
-- attenuation model、range policy、near behavior、volumetric participation。
-- shadow intent: casts shadow、quality intent、contact／softness intent、bias intent、fallback policy。
-- mobility intent、importance class、Target compatibility、authoring metadata ref。
+| Field | 型／規約 |
+|---|---|
+| `light_id` | 永続Stable ID。Entity／GPU indexを使わない |
+| `revision` | 楽観的排他とChangeSetのbase revision |
+| `dimension` | `light_2d | light_3d` |
+| `light_type` | `directional | point | spot | rectangle | disk` |
+| `mobility` | `static | stationary | dynamic` |
+| `enabled` | 明示bool。強度0を無効化表現にしない |
+| `transform_ref` | WorldのStable Transform ID。Directionalは位置を意味に使わない |
+| `radiometry` | §4のtagged union |
+| `color_source` | §4のtagged union |
+| `range_m` | 有限局所光の影響半径。Directionalでは禁止 |
+| `spot_shape` | Spotだけのinner／outer angle |
+| `source_radius_m` | Point／Spotの有限Emitter半径 |
+| `emitter_shape` | Rectangle／Diskの物理寸法 |
+| `channel_mask` | 32-bit論理Lighting Channel。予約bitを検証 |
+| `role` | `key`等の意味role。描画計算へ直接使わない |
+| `group_ids` | Semantic group Stable ID、最大8 |
+| `importance` | `critical | important | decorative` |
+| `priority_u8` | 同一importance内0～255 |
+| `shadow_intent_ref` | version付きShadow Intent、nullable |
+| `cookie_asset_id` | 検証済みTexture artifact、nullable |
+| `ies_asset_id` | 検証済みIES artifact、nullable、C2 |
+| `target_policy_ref` | Target別上限／fallback policy |
+| `human_lock_mask` | AIが変更できないfield集合 |
 
-Light typeごとに有効なshape、quantity、unitをclosed matrixで検証する。type不一致fieldを無視せず、unknown enum、非finite値、負の物理量、degenerate direction／shape、invalid cone／rangeを拒否する。
+C1 2Dは`directional | point`、C1 3Dは`directional | point | spot`を許可し、2D spot／area／IESと3D rectangle／disk／IESはC2である。dimensionごとの不正組合せをSchemaで拒否する。
 
 `LightComponent`はWorld entityにSource Definition refとinstance-local overrideを結び、Source Assetを複製しない。override可能fieldはSourceが宣言し、instanceからlight typeやunit semanticsを変更しない。
 
 ## 4. 物理単位と数値規約
 
-Lighting authoringはquantityとunitを必ず組にする。luminous intensity、luminous flux、illuminance、luminance等を無名scalarへ統合せず、Light type／shapeに対応するquantityを使う。変換はshapeとemission distributionを含む明示式に基づき、互換でないquantity間を経験的係数で補正しない。
+`radiometry`は次のtagged unionのどれか一つだけを持つ。
 
-Colorはlinear scene color、chromaticity／temperature、tintの入力modeを区別する。temperatureとRGBの同時authoritative指定を許さず、resolverが一つのcanonical linear emissionへ変換する。display transferやtone mappingは[Post Processing](post-processing.md)の責務でありLight colorへ焼き込まない。
+| Light type | 正規入力 | 単位 |
+|---|---|---|
+| Directional | `illuminance_lux` | lux |
+| Point | `luminous_flux_lm` | lumen |
+| Spot | `luminous_flux_lm`またはqualified IES | lumen／candela distribution |
+| Rectangle／Disk | `luminance_nit` | cd/m² |
+
+単位なし`intensity`を正本にせず、Light type／shapeに対応するquantityを使う。C1 Pointのscalar referenceを次に固定する。
+
+```text
+delta_m = light_position - surface_position
+distance_sq_m2 = dot(delta_m, delta_m)
+distance_m = sqrt(distance_sq_m2)
+d2 = max(distance_sq_m2, max(source_radius_m, 0.01 m)^2)
+x  = saturate(distance_m / range_m)
+w  = x < 1 ? (1 - x^4)^2 : 0
+I_cd = luminous_flux_lm / (4 * pi)
+E_lux = I_cd * w / d2
+```
+
+Spotは単位積分が1となる`SpotDistributionV1`をCook時に生成し、その角度分布へ総光束を配る。inner／outer angleを単純乗算して総光束を変化させない。CPU scalar reference、HLSL、MSL、SPIR-V経路は同一fixtureで相対誤差を検証する。`source_radius_m`はEmitter geometryまたはStyle ProfileからResolverが決め、AIがsingularity回避値を直接指定しない。
+
+`color_source`は`linear_rgb`（scene-linear D65基準、各成分0以上）、`cct`（kelvin 1000～20000、tint -1～1）、`profile_default`（`LightingStyleProfileV1`のrole既定値）のtagged unionである。同じLightへRGBとCCTを同時保存しない。display transferやtone mappingは[Post Processing](post-processing.md)の責務でありLight colorへ焼き込まない。
+
+Geometry制約を次に固定する。
+
+- `range_m`は0より大きくTarget上限以下。
+- Point／Spotの`source_radius_m`は有限な0以上かつ`range_m`以下。
+- Spotは`0 <= inner_angle_deg < outer_angle_deg < 179`。
+- Rectangle／Diskは0より大きい寸法を持つ。
+- Directionalはrange、position attenuation、IESを持たない。
+- Cookie／IESはAsset type、dimension、license、cook statusを検証する。
+- NaN、Inf、denormal依存、負の放射量を拒否する。
+
+違反は`MIRAKAN-LIGHTING-UNIT-MISMATCH`、`MIRAKAN-LIGHTING-COLOR-AMBIGUOUS`、`MIRAKAN-LIGHTING-GEOMETRY-INVALID`、`MIRAKAN-LIGHTING-ASSET-UNQUALIFIED`の該当Domain failureを返す。
 
 座標、角度、距離、normalization、finite validationは[Math／Core utilities](../02-foundation/math-core.md)を使う。source unitをBackend unitへ変換する処理はprivate Adapterに閉じ、round-trip時に元のquantity／unitを保持する。
 
@@ -71,11 +123,34 @@ Previewは対象revision、World／Level scope、affected Light Stable IDs、bef
 
 Lighting固有diagnosticはLight Stable ID、property path、type／shape／unit、Target、error code、remediationを含む。少なくともinvalid quantity、unit mismatch、invalid color、degenerate shape、unsupported light type、shadow intent unsupported、stale source、Renderer rejectionを区別する。
 
+| Closed ID | 意味 |
+|---|---|
+| `MIRAKAN-LIGHTING-SCHEMA-INVALID` | 型、enum、required field不正 |
+| `MIRAKAN-LIGHTING-UNIT-MISMATCH` | Light typeと物理単位が不一致 |
+| `MIRAKAN-LIGHTING-COLOR-AMBIGUOUS` | RGBとCCT等が重複 |
+| `MIRAKAN-LIGHTING-GEOMETRY-INVALID` | range、angle、shape、transform不正 |
+| `MIRAKAN-LIGHTING-ASSET-UNQUALIFIED` | Cookie／IES artifact未検証 |
+| `MIRAKAN-LIGHTING-TARGET-UNSUPPORTED` | Target Capabilityで実行不能 |
+| `MIRAKAN-LIGHTING-BUDGET-EXCEEDED` | Planが割当capacityを満たさない |
+| `MIRAKAN-LIGHTING-CRITICAL-DROPPED` | Critical Light維持不能 |
+| `MIRAKAN-LIGHTING-RUNTIME-OVERFLOW` | 動的selection／cluster上限超過 |
+| `MIRAKAN-LIGHTING-STALE-PLAN` | revision／Catalog／Target変更 |
+| `MIRAKAN-LIGHTING-LOCK-CONFLICT` | human lockとIntentが競合 |
+| `MIRAKAN-LIGHTING-NONDETERMINISTIC` | 同一入力でPlan hash不一致 |
+
 missing Source、invalid physical value、unsupported capabilityをdefault light、arbitrary intensity、shadowなしへ黙って置換しない。fallbackはSourceまたはProject profileに宣言され、意味差と適用scopeを表示する。
 
 ## 9. Qualificationと完了条件
 
-Qualificationは各Light type／shape／unitのvalidationとconversion、color mode、attenuation、instance override、intent resolution、Renderer bridge、unsupported Target、shadow fallback、stale revisionをfixtureで検証する。
+Qualificationは次のDomain fixtureを持つ。
+
+- 全tagged unionのpositive／negative fixture、lux／lumen／candela／nit変換、Point attenuationの距離別golden、Spot distributionの単位積分、RGB／CCT変換の色差。
+- Profile継承／循環／merge、同一入力同一Plan hash、human lock、stale revision、unsupported Target。
+- CPU／GPUのZ境界、cluster所属、overflow selection、2D sprite per-light selectionの一致と安定性。
+- D3D12／Vulkan／Metalで同じlogical Planを実行し、Light snapshot generation／Compact ID lifetime、device loss、surface resize、Target切替を検証する。
+- 最大Light数、最大cluster index、dynamic churnのsoak。run条件はRuntime capacity ownerを使う。
+- 2D unlit、2D normal map、pixel art、PBR室内／屋外、Toon、透明物、VFX混在、極端な小／大scale Sceneでbeauty、contribution、shadow、clusterを比較する。
+- AI corpusは「主人公を暖かく、背景を冷たく」「低価格Androidで雰囲気を極力保つ」「pixel artをぼかさず夜にする」「既存の人手調整Key Lightを変えない」「Shadow costを増やさず敵を読みやすくする」を含み、Schema妥当性、lock保持、Target適合、Plan再現性、説明、visual metricで判定する。
 
 visual／numeric Evidence、Eval、provenance envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。本書はLighting inputとexpected physical／semantic resultだけを所有し、共通gradeやreceipt fieldを再掲しない。
 

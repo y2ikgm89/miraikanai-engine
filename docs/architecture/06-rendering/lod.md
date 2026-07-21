@@ -27,7 +27,22 @@ LOD語彙を次に固定する。
 - `pressure`: Runtime ownerが公開するcapacity signal。LODは測定法や閾値を再定義しない。
 - `HLOD`: 複数subjectを一つのrender representationへ集約する候補。World identityの置換ではない。
 
-LOD0という名前を必ず最高品質と仮定せず、tierにはexplicit quality rankとstable IDを持たせる。distanceのみ、asset filename、array index、Backend feature名を選択の正本にしない。
+Mesh／Sprite geometryのLOD0は常にSourceの最高detailであり、Sourceを削除／上書きしない。別Domainのtierはclass固有IDで表し、geometry LOD indexを暗黙転用しない。distanceのみ、asset filename、Backend feature名を選択の正本にしない。
+
+`LodClassV1`を次のclosed enumとする。同じobjectは複数classのPolicyを持てるが、一classのtierを別classへ転用しない。
+
+| 値 | 意味 | 主なOwner |
+|---|---|---|
+| `geometry_detail` | Mesh／Spriteの幾何・表示detail | Asset／Rendering |
+| `representation` | individual、instanced、proxy、impostor、非表示 | Rendering |
+| `simulation` | Full、契約済み低頻度、dormant record | Runtime／Gameplay |
+| `animation_presentation` | pose評価、skinning、presentation bone | Animation／Rendering |
+| `material_detail` | 承認済みMaterial feature variant | Material／Rendering |
+| `vfx_presentation` | VFX branch、spawn、alive、output detail | Particle／VFX |
+| `surface_detail` | Terrain／Foliage／Water／Snow Surfaceの表示detail | Domain Platform |
+| `geometry_residency` | geometry cluster／LODのresident集合 | Asset／Rendering |
+
+`LodSemanticPriorityV1`は`critical_gameplay_cue | interactive_subject | primary_subject | supporting_subject | decorative | ambient`のclosed enumである。`critical_gameplay_cue`はhit、危険範囲、parry timing、目標状態等に使用し、decorative／ambientを理由にauthoritative stateを削除しない。`experience_role`と矛盾する場合は`MIRAKAN-LOD-SEMANTIC_ROLE_CONFLICT`で拒否する。
 
 ## 3. LOD policyとrepresentation contract
 
@@ -41,11 +56,21 @@ LOD0という名前を必ず最高品質と仮定せず、tierにはexplicit qua
 
 Resolver inputはsubject Stable ID、representation set generation、ViewFamily／view role、projection、viewport extent、bounds、importance、occlusion confidence、Target／Quality、Runtime pressure snapshot、previous selectionを含む。
 
-projected errorは[Math／Core utilities](../02-foundation/math-core.md)の座標／projection意味を使い、CPU／GPU／Editor Previewで同じquantized comparisonを行う。非finite値、invalid bounds、projection欠損では低品質へ黙って落とさずconservative tierまたは明示errorを返す。
+共通metric IDと用途を次に固定する。
+
+| Metric | 用途 | 禁止用途 |
+|---|---|---|
+| `projected_error_px_q16` | Mesh／surface geometry detail | Simulation |
+| `projected_coverage_px_q16` | Representation、VFX、Material presentation | Gameplay relevancy |
+| `distance_mm_u64` | HLOD cell／manual visibility range、bounded surface | FOV／解像度依存のMesh品質判定 |
+| `gameplay_relevance_q16` | Simulation tier | Rendering、occlusion |
+| `budget_pressure_q16` | 同一fidelity内の候補選択 | Gameplay fidelity floorの緩和 |
+
+Cooked thresholdは整数へ量子化し、CPU／GPUは同じ比較方向、境界包含、fixtureを使う。NaN、Inf、負値、非単調thresholdを受理しない。
 
 選択順はminimum semantics、Target capability、error bound、importance、pressure policy、previous selection／hysteresis、Stable ID tie-breakでcanonicalにする。worker completion順、frame timeの単一sample、hash-map iteration順を使わない。
 
-enter／exit境界はdead bandを持ち、boundary付近のthrashを防ぐ。camera cut、teleport、projection／extent changeではselectionを再評価するが、historyを無条件に最低tierへ落とさない。
+`LodTransitionRuleV1`は`from_tier`、`to_tier`、`metric_id`、`enter_threshold`、`exit_threshold`、`minimum_residency_units`、`transition_mode`、`transition_extent`、`camera_cut_policy`、`missing_artifact_policy`を持つ。enter／exitを別に持ち境界往復を防ぐ。Presentationのminimum residencyはreal frame数、Simulationはfixed tick数で、同じunitを共有しない。`transition_mode`は`instant | dither | cross_fade | domain_blend`のclosed enumとし、未対応BackendではProfile登録済みの意味同等fallbackを使う。camera cut、projection／dynamic extent変更では古いvisibility historyを捨て、そのframeに必要なdetailへ即時再選択し、無効historyを理由に低detailを選ばない。
 
 ## 5. Mesh／Sprite geometry LOD
 
@@ -99,6 +124,33 @@ LOD固有telemetryはcandidate／selected tier、transition、thrash、missing�
 
 Diagnosticはsubject／policy／representation Stable ID、View／Target、previous／requested／selected tier、error／importance／pressure class、error code、remediationを含む。少なくともinvalid policy、missing candidate、dependency mismatch、unsupported capability、stale generation、transition incompatible、nonresident、selection oscillationを区別する。
 
-Qualificationはprojection／extent別selection、CPU／GPU resolver equivalence、hysteresis、camera cut、Target fallback、HLOD membership、Simulation handoff、Animation event guarantee、Material compatibility、residency lossをfixtureで検証する。
+| Condition | 結果 |
+|---|---|
+| 非単調level／threshold、NaN／Inf、unit不一致 | ChangeSet／Cook拒否 |
+| fallback closure欠落 | Package promotion拒否 |
+| interactive／mutable objectのHLOD混入 | HLOD Cook拒否 |
+| generated meshのvisual／deformation error超過 | candidate破棄、Source chain／LOD0維持 |
+| GPU selector容量超過／Backend fault | 次frameからCPU direct fallback、Diagnostic |
+| LOD Artifact未resident | 同generationのresident fallback、miss記録 |
+| simulation wake event欠落／queue overflow | hard failure。eventをdropしない |
+| Reference simulation不一致 | Simulation LOD非Promotion |
+| critical VFX cue floor未達 | Policy非Promotion |
+| Target capacity未達 | Source維持、`OptimizationRequired` |
+
+Diagnostic IDを`MIRAKAN-LOD-SCHEMA_UNKNOWN | MIRAKAN-LOD-SEMANTIC_ROLE_CONFLICT | MIRAKAN-LOD-NON_MONOTONIC | MIRAKAN-LOD-MISSING_FALLBACK | MIRAKAN-LOD-UNSUPPORTED_TRANSITION | MIRAKAN-LOD-GENERATION_ERROR_LIMIT | MIRAKAN-LOD-HLOD_INTERACTIVE_SOURCE | MIRAKAN-LOD-SIMULATION_VISIBILITY_INPUT | MIRAKAN-LOD-SIMULATION_EQUIVALENCE | MIRAKAN-LOD-CRITICAL_CUE_FLOOR | MIRAKAN-LOD-RESIDENCY_MISS | MIRAKAN-LOD-CAPACITY_EXCEEDED | MIRAKAN-LOD-TARGET_UNQUALIFIED`に固定する。
+
+Qualificationは次のDomain fixtureを持つ。
+
+- Domain schemaからgenerated C++／TypeScript／binary descriptor／MCP projectionが同じclosed field／enumを表し、unknown field／enum／majorを拒否する。projection mechanicsはFoundation ownerを使う。
+- unit、range、monotonic、fallback closure、Preset version、policy lockのpositive／negative fixture。Human、AI、headless CLIが同じIntentから同じPolicy／Plan hashへ収束する。
+- FOV、orthographic／perspective、resolution、dynamic extent、camera cut、split Editor Viewのprojected-error golden値。
+- CPU direct／GPU indirectのtier、境界包含、hysteresis一致とsilhouette、normal、UV seam、vertex color、material interface、skinning、morph、shadow error fixture。
+- camera path往復時のthrash、pop、cross-fade overdraw、residency miss。
+- Source順序を変えてもHLOD cluster／Artifact hash／proxy boundsが一致し、interactive／mutable Physics／Save／animation objectを拒否する。
+- cell境界、teleport、camera cut、Artifact promotion、memory pressureの同時発生と、HLOD on／offでCollision、Nav、Damage、Save、Replay結果が一致すること。
+- Full referenceと各Production simulation tierのReplay hash、最終count、Damage、goal、pending event一致。enter／exit、minimum residency、wake trigger同時発生、event queue上限、Save／Load直後を検証する。
+- camera、frustum、occlusion、VFX visibility、Target／Quality Profileを変えてもauthoritative simulation結果が一致すること。
+- Animation required bone、root motion、hitbox、event timing、VFX critical cue floor、pixel artのpoint sampling／integer scale／palette／pixel-locked、Terrain／Foliage／WaterのCollision／Nav／CPU Query非逆入力。
+- camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、敵味方VFX、streaming、Asset promotionを同一runで発生させるIntegrated fixture。run条件とEvidence transportはRuntime／Governance ownerを使う。
 
 Evidence envelopeとgradingは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。distance-only selection、tier index coupling、silent hide、authoritative behavior loss、phase／budget複写が残る実装はRelease候補にしない。Capability maturityと導入順は[Product Plan](../00-product/product-plan.md)だけが所有する。

@@ -32,15 +32,79 @@ Material Instanceはparentのdomain／shading model／interfaceを変更せず�
 
 Material semantic vocabularyは物理値と表現intentを分離する。最低限、surface family、opacity behavior、normal response、roughness／specular intent、emissive intent、transmission／subsurface intent、two-sided intent、decal／overlay intentをclosed axesとして扱う。未知語を近い名前へ黙って補正せず、質問、候補、必要Capabilityを返す。
 
-Visual Styleは特定shader graphのpresetではなく、複数MaterialとLighting／Post Processへ解決できるProject-owned semantic profileである。Styleの各axisは`inherit | override | forbid`を区別し、local Material overrideとProject defaultの優先順をcanonical resolverで決める。Style適用がMaterial DomainやTarget Capabilityと矛盾する場合は部分適用せずresolution errorを返す。
+Visual Styleは特定shader graphのpresetではなく、Material、Light、Camera、Post、VFX、UI、Asset制作規則の整合を所有する。`VisualStyleProfile`の最低fieldを次に固定する。
+
+```text
+schema_version
+profile_id
+source_profile_id: optional
+display_name
+scene_dimension
+art_direction
+composition
+composition_variant: native | crisp_sprite_over_high_res_3d | unified_low_resolution
+gameplay_space: canvas_2d | world_3d
+camera_profile_id
+lighting_profile_id
+post_process_profile_id
+vfx_style_profile_id
+ui_style_profile_id
+art_asset_profile_id
+animation_presentation_profile_id
+allowed_material_domains[]
+allowed_shading_models[]
+material_template_by_semantic_role{}
+texture_policy
+  color_texture_encoding: srgb
+  data_texture_encoding: linear
+  default_filter: point | linear | anisotropic
+  mip_policy: none | nearest | linear
+  integer_scale_policy: not_applicable | letterbox | crop | fractional_scale
+  pixels_per_unit: null | positive_number
+  reference_resolution: null | { width: positive_integer, height: positive_integer }
+  transform_policy: unrestricted | axis_aligned_pixel | logical_resolution_rasterized
+  world_texel_density: null | object
+    reference_distance_m: positive_number
+    min_screen_pixel_ratio: positive_number
+    max_screen_pixel_ratio: positive_number
+outline_profile_id: optional
+palette_profile_id: optional
+quality_profile_id
+fallback_policy: forbid | allow_listed
+allowed_fallbacks[]
+style_critical_fields[]
+reference_assets[]
+  asset_id
+  content_hash
+  source_uri_or_local_provenance
+  license_or_usage_basis
+  extracted_attributes[]
+locked_fields[]
+```
+
+Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。`gameplay_space`がPhysics／Navigationの所有空間を決め、見た目からdimensionを推測しない。
+
+`pixel_2d`と`unified_low_resolution`は正整数`reference_resolution`、1以上の`pixels_per_unit`、`not_applicable`以外のinteger scale policyを必須とする。`crisp_sprite_over_high_res_3d`は`reference_resolution = null`としてCamera Profileの出力解像度を使う。`world_texel_density`は`pixel_diorama`でだけ必須で、`min_screen_pixel_ratio <= max_screen_pixel_ratio`、既定0.8～1.2とする。Camera変更時に`reference_distance_m`を暗黙更新しない。
+
+`style_critical_fields`と`locked_fields`はProfile内JSON Pointerである。`fallback_policy = allow_listed`は1件以上のfallback、`forbid`は空配列を必須とする。`license_or_usage_basis`は`user_owned | licensed | public_domain | reference_only`に固定する。利用根拠のないreference AssetをCommitしない。
 
 AI intent resolutionはsource request identity、Project revision、Catalog revision、resolved Material／Style refs、assumption／question、compatibility resultを束ねる。共通envelope fieldやhash表現は[Executable contracts](../02-foundation/executable-contracts.md)を参照し、本書はMaterial固有payloadの意味だけを決める。
 
 ## 4. Material DomainとShading Model
 
-Material Domainはsurface、masked surface、transparent surface、decal、UI／sprite、particle、volumeをclosed familyとして扱う。各Domainは許可node、required output、depth／blend intent、lighting participation、shadow participation、motion-vector requirementを宣言する。
+Graph出力はDomainごとに固定し、任意Render passやGPU resourceへ接続させない。
 
-Shading Modelはunlit、physically based surface、foliage／cloth、subsurface、clear-coat等のEngine-owned semantic familyであり、Backend shader model名ではない。Targetが未対応の場合はMaterial意味が同等な登録済みfallbackだけを使い、opaque化、unlit化、output dropをsilentに行わない。
+| Domain | 許可Shading Model | 主な出力 |
+|---|---|---|
+| `surface_3d` | `pbr_metal_rough`、`toon_surface`、`unlit_surface` | normal、color、opacity、model固有parameter |
+| `sprite_2d` | `sprite_unlit`、`sprite_lit`、`sprite_toon` | premultiplied color、opacity、2D normal、emissive、mask |
+| `hybrid_sprite_3d` | `hybrid_sprite_unlit`、`hybrid_sprite_lit`、`hybrid_sprite_toon` | Sprite出力、depth coverage、shadow coverage |
+| `decal` | `pbr_decal`、`toon_decal` | 許可されたbase color／normal／roughness channel |
+| `vfx` | `vfx_unlit`、`vfx_lit` | color、opacity、distortion、emissive |
+| `ui` | `ui_unlit` | premultiplied color、opacity、clip mask |
+| `post_process` | 登録済みPost node | HDR colorまたはmask。Depth／motionはread-only |
+
+`AlphaMode`は`opaque | mask | blend_premultiplied`に固定し、Instance変更を禁止してDefinitionのcompile featureとする。`blend_premultiplied`はdepth write既定off、`mask`はcoverage判定後にdepthを書く。Domain／Shading Model／output不一致は`MIRAKAN-MATERIAL-DOMAIN_MISMATCH`、AlphaMode／parameter不正は`MIRAKAN-MATERIAL-PARAMETER_INVALID`で拒否し、別familyへ黙って近似しない。
 
 render-stateはraw API enumではなく、cull intent、depth test／write intent、blend semantic、alpha coverage、sort classをtyped intentで表す。[Render Graph](render-graph.md)がTarget capabilityとPass interfaceに照らして実行可能なPipeline keyへ解決する。
 
@@ -76,11 +140,30 @@ Previewは対象revision、Target Profile、View／Lighting fixture ref、resolv
 
 Material固有diagnosticはasset／node／parameter／style axis／variant key、source span、Target、error code、remediationを含む。少なくともunknown semantic、graph cycle、type mismatch、domain mismatch、missing resource、unsupported shading model、variant explosion、compile failure、reflection mismatch、stale bindingを区別する。
 
+Diagnostic IDを`MIRAKAN-MATERIAL-SEMANTIC_ROLE_UNKNOWN | MIRAKAN-MATERIAL-DOMAIN_MISMATCH | MIRAKAN-MATERIAL-GRAPH_INVALID | MIRAKAN-MATERIAL-PARAMETER_INVALID | MIRAKAN-MATERIAL-TEXTURE_ENCODING_MISMATCH | MIRAKAN-MATERIAL-CAPABILITY_NOT_ACTIVATED | MIRAKAN-MATERIAL-BUDGET_EXCEEDED | MIRAKAN-MATERIAL-INTERFACE_MISMATCH | MIRAKAN-MATERIAL-VARIANT_LIMIT | MIRAKAN-MATERIAL-COMPILE_FAILED | MIRAKAN-MATERIAL-STYLE_LOCK_VIOLATION | MIRAKAN-MATERIAL-FALLBACK_REQUIRED | MIRAKAN-MATERIAL-PROVENANCE_MISSING | MIRAKAN-MATERIAL-PREVIEW_STALE | MIRAKAN-MATERIAL-UNAUTHORIZED_SOURCE | MIRAKAN-MATERIAL-COLLISION_NAMESPACE_MISMATCH`に固定する。
+
+Editor previewだけがcompile失敗時に直前のvalid pipelineを明示表示できる。Shippingは不合格Artifact、missing／invalid Materialを含むPackageまたはScene loadを失敗させる。Capability不足時に別Styleへ黙って変更しない。
+
 fallbackはSourceで宣言され、意味差とTarget範囲を持つ。compile失敗、missing texture、capacity不足時にdefault material、opaque、unlit、texture dropへ黙って切り替えない。共通capacity／backpressureは[Runtime performance／capacity](../04-runtime/performance-capacity.md)へ委譲する。
 
 ## 10. Qualificationと完了条件
 
-Qualificationは各Domain／Shading Modelのgolden fixture、graph validation、parameter binding、style resolution、offline compile、reflection、variant closure、missing／corrupt asset、Target fallback、Render Graph interfaceを検証する。
+Qualificationは次のDomain fixtureを持つ。
+
+| 対象 | 必須Test |
+|---|---|
+| PBR | Khronos glTF Asset Generator／Sample Assets／Validator |
+| Toon | Sphere、顔、髪、透明髪、outline、Key／accent Light |
+| Pixel 2D | 720p、1080p、1440p、ultrawide、4Kのscale／letterbox |
+| Pixel Diorama | depth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離 |
+| Compiler | invalid Graph、resource上限、禁止HLSL、binding不一致、cache再現 |
+| Target | Windows、Android、Appleのoffline compile、pipeline、fallback |
+
+同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2／255超のpixelが0.1%未満を既定Gateとする。Cross-vendorはparameter ordering、luminance、finite、outline width、pixel grid等のanalytic invariantを検証する。
+
+Material AI Evalは10 suite（明示Intentのrole／Template、既存Instance最小変更、Template再利用判断、Graph型／単位／色空間、曖昧／矛盾質問、Target／fallback、Variant／resource、禁止HLSL／任意pass、Visual／Collision Material分離、Preview／ChangeSet／undo／redo／recook）、各12 fixture、合計120 fixtureを各3回実行する。hard gate違反、無権限Commit、unsupported成功表示は0件、exact Operation／Type／unit／range、Blocking確認、禁止操作拒否は360／360、role／Template選択100%、Preview hash／undo／redo／recook一致100%を要求する。意味、Schema、画像、GPU性能を別scoreとしhard failureを平均で相殺しない。
+
+Visual Style Resolver Evalは明示、未指定、委任、矛盾、未対応を各12件、合計60 prompt、各3回実行し、hard gate違反と無権限Commit 0件、Blocking質問／明示Style保持／委任scope／unsupported拒否180／180を要求する。
 
 Visual comparison、Evidence envelope、Eval grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。本書はfixtureのMaterial input、expected semantic resolution、allowed visual tolerance classだけを所有し、共通receipt schemaを再定義しない。
 
