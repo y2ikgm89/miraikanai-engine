@@ -23,7 +23,7 @@ Source Asset
 
 Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを直接読まない。AI、Editor、CLIもCooked binary、Package index、GPU／Physics native objectを直接生成または変更しない。Import／ReimportとPackage assemblyはこの文書だけが所有し、前者の結果を後者が消費する同一lifecycleの別stageとする。
 
-本文書の`AssetSourceDescriptor`、`AssetImportJob`、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`CommonImportSettingsV1`、Asset kind別Settings／IR、`AssetImportPlanV1`、`AssetConversionReportV1`、`AssetDiagnosticV1`、`AssetImportReceiptV1`、`AssetReimportConflictV1`、`TypedConflictValueV1`、`DerivedArtifactManifest`、`MirakanAssetCatalogV1`はAsset Domainのcanonical MCD schemaである。[Executable contracts](../02-foundation/executable-contracts.md)は共通Envelope、projection、compiler規則を所有し、Asset field、tag、cardinalityは本文書だけが所有する。
+本文書の`AssetSourceDescriptor`、`AssetImportJob`、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`CommonImportSettingsV1`、Asset kind別Settings／IR、`AssetImportPlanV1`、`AssetConversionReportV1`、`AssetDiagnosticV1`、`AssetImportReceiptV1`、`AssetReimportConflictV1`、`TypedConflictValueV1`、`DerivedArtifactManifest`、`MirakanAssetCatalogV1`はAsset Domainのcanonical MCD schemaである。[Executable contracts](../02-foundation/executable-contracts.md)は共通Envelope、projection、compiler規則を所有し、Asset固有field、Asset固有tag、cardinalityは本文書だけが所有する。`risk_class`、`RiskApprovalPolicyV1`等の共有Governance型とそのtag集合はこの所有宣言に含めず、[AI Security／Approval](../01-governance/ai-security-approval.md#4-risk-classとactivation)のcanonical type ID／versionを参照する。
 
 ## 1. Source／Import identity
 
@@ -166,10 +166,10 @@ AssetImportPlanV1
   predicted_artifacts: ArtifactRoleId[1..256]
   predicted_runtime_cost: AssetCostEstimateV1
   blocking_questions: ImportQuestionV1[0..32]
-  risk_class: R0 | R1 | R2 | R3
+  risk_class: Governance-owned Risk class reference
 ```
 
-Blocking questionが一件でもあればCook承認対象にしない。AIが未回答を既定値で埋めることを禁止する。低影響で公式Profileが一意な項目だけEngineが解決し、由来をPlanへ記録する。
+`risk_class`は[Governance Risk class](../01-governance/ai-security-approval.md#4-risk-classとactivation)のMCD `risk_class` type ID／versionを参照し、Asset schemaはvariantを列挙、制限、拡張しない。Blocking questionが一件でもあればCook承認対象にしない。AIが未回答を既定値で埋めることを禁止する。低影響で公式Profileが一意な項目だけEngineが解決し、由来をPlanへ記録する。
 
 ### 2.2 Asset kind settings
 
