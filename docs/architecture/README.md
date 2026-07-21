@@ -124,7 +124,7 @@
 
 ## 5. Developer toolの分離
 
-Developer tool文書は`docs/developer-tools/`にあり、このIndexのEngine正本一覧には掲載しない。文書体系上の分離理由と扱いは[文書体系再編Decision §5](decisions/2026-07-21-document-system-restructure.md#5-target構造)を参照する。
+Developer tool文書は`docs/developer-tools/`にあり、このIndexのEngine正本一覧には掲載しない。文書体系上の分離理由と扱いは[文書体系再編Decision §5](decisions/2026-07-21-document-system-restructure.md#5-target構造)を参照する。PR #3との履歴成果照合と統合判断は[同Decision §12](decisions/2026-07-21-document-system-restructure.md#12-pr-3履歴成果の正本統合)を参照する。
 
 ## 6. 文書変更規則
 
