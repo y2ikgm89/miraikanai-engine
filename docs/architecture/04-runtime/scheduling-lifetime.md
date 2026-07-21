@@ -140,6 +140,111 @@ Process
 
 `StructuralCommand`は次boundary、`SimulationCommand<P>`は型が宣言するconsume phase、`PresentationCommand`はpresentation build前にseal済みなら同tick、それ以外は次presentation frameへ送る。`AuthoringChangeSet`をRuntime tickへ適用しない。任意phase名、同Subsystem同期再入、implicit last-write-winsを許可しない。
 
+### 4.1 Clock domain、Pause、Gameplay Timer
+
+`GameClockDomainProfileV1`、Pause、Gameplay Timerは本書だけが定義するRuntime contractである。Game System、UI、Audio、Debugging／observability／replay、Save ownerはこれらを消費し、別path、alias、local bool、ad-hoc counterで同じ意味を再定義しない。C1／C2の`fixed_tick_hz`は60だけを許可し、ProfileとReplay headerへ保存する。
+
+```text
+GameClockDomainProfileV1
+  profile_id
+  fixed_tick_hz: 60
+  domains[]
+  pause_policy_ref
+  cinematic_policy_ref
+  replay_policy_ref
+
+ClockDomainEntryV1
+  domain: gameplay | physics | authoritative_animation | cinematic | presentation | ui | audio | real_time | async_io
+  source: fixed_tick | render_delta | monotonic_time | explicit_step
+  paused_behavior: freeze | continue | explicit_step_only
+
+PausePolicyV1
+  policy_id
+  pause_command_ref
+  resume_command_ref
+  pause_state_owner: play_session
+  audio_snapshot_ref
+  input_context_ref
+  async_completion_policy: queue_until_resume
+
+GamePauseCommandV1
+  command_id
+  operation: pause | resume
+  pause_policy_ref
+  requested_tick
+  apply_tick
+
+GamePauseStateSnapshotV1
+  pause_policy_ref
+  clock_profile_ref
+  state: running | paused
+  applied_tick
+  owner: play_session
+
+GameplayTimerDefinitionV1
+  timer_definition_id
+  clock_domain: gameplay | authoritative_animation | cinematic
+  duration_ticks: uint32
+  repeat_policy: one_shot | fixed_interval
+  repeat_interval_ticks: optional uint32
+  max_fire_count: uint32
+  fire_event_ref
+  save_policy: transient | owner_state
+
+GameplayTimerCommandV1
+  command_id
+  operation: schedule | cancel
+  timer_definition_ref
+  owner_ref
+  owner_generation
+  requested_tick
+  instance_id
+
+GameplayTimerSnapshotV1
+  instance_id
+  timer_definition_ref
+  owner_ref
+  deadline_tick
+  fire_count
+  state: scheduled | completed | cancelled | owner_invalidated
+  generation
+
+GameTimeEffectPolicyV1
+  policy_id
+  mode: hit_stop | rational_dilation
+  affected_domains[]
+  activation_owner_ref
+  duration_contract_ref
+  input_policy_ref
+  audio_policy_ref
+  presentation_policy_ref
+  save_replay_policy_ref
+```
+
+通常Pauseのownerは`play_session`だけである。Pause／resumeは`GamePauseCommandV1`をReplayへ`apply_tick`とともに記録し、そのapply tickのboundaryで一括適用する。通常Pauseは`gameplay`、`physics`、`authoritative_animation`を同じtick boundaryでfreezeし、`ui`と`real_time`をcontinueする。`cinematic`、`presentation`、`audio`はProfileで明示し、Gameplay timer、Weapon cadence、Encounter、authoritative VFX cueをwall clock、render frame、Audio sampleへ接続しない。`async_io`はcompletionまでcontinueできるが、World activation、authoritative Command適用、State owner mutationはresume tick boundaryまでqueueする。Pause中のAudioは`audio_snapshot_ref`を原子的に適用し、UI cueと許可されたmusicだけを継続できる。
+
+Saveはauthoritative elapsed tick、clock Profile ref、Game Flow stateを保存し、monotonic time、render delta、pause中の実時間をGameplay stateへ保存しない。ReplayはPause／resume Commandとapply tickを記録し、Pause区間のauthoritative state hashが不変であることを検証する。`GamePauseStateSnapshotV1`はその検証対象のimmutable projectionであり、任意Subsystemはlocal boolで停止状態を所有しない。Debug stepは通常Pauseと別の`explicit_step_only` policyであり、Shipping Game pauseからDebug権限を取得しない。
+
+`capability.gameplay.timer.c1`は2D／3D共通の決定論的Schedulerである。`duration_ticks`は1～`2^31-1`とし、`fixed_interval`は正の`repeat_interval_ticks`と1～1,000,000の`max_fire_count`を必須とする。C1 reference Profileはactive timer 65,536、1 tickの発火4,096をHard上限とする。発火順は`deadline_tick, owner StableId, timer_definition_id, instance_id`の昇順でcanonicalizeし、同tickの登録順、container順、worker完了順を使用しない。
+
+Schedule／cancelは`T30_PrePhysics`で確定する。各T30はowner invalidation、cancel、schedule、deadline fireの順に処理し、各group内を前述canonical keyとCommand IDで整列する。deadline tickと同tickのcancelはfireより先に確定し、cancelled timerをfireしない。deadline fireはその期限tickのT30で通常のtyped Gameplay Eventとして発行する。deadline handlerが同じT30で自身または他timerをscheduleしても、recursive same-tick schedulingを許可しない。
+
+次のrejectはtyped failureであり、silent drop、次tickへの無記録繰越、wall clock fallbackを行わない。
+
+| reject code | condition |
+|---|---|
+| `stale_owner_generation` | `owner_generation`がcurrent owner generationと不一致 |
+| `unknown_timer_event` | `fire_event_ref`が登録済みtyped Gameplay Eventでない |
+| `deadline_tick_overflow` | `requested_tick + duration_ticks`がdeadline表現域を超過 |
+| `active_timer_capacity_exceeded` | active 65,536件で65,537件目をschedule |
+| `fire_per_tick_capacity_exceeded` | 同一tickで4,097件目のdeadline fireが必要 |
+| `invalid_timer_clock_domain` | `clock_domain`が`gameplay`、`authoritative_animation`、`cinematic`以外 |
+| `recursive_same_tick_schedule` | deadline fire中に同じT30へtimerを再帰schedule |
+
+`save_policy=owner_state`のtimerはownerのSave fieldとしてremaining ticks、fire count、Definition ref、generationを保存し、load時のwall clockまたは現在時刻から再計算しない。Replayはschedule／cancel Commandとfire Eventを記録し、deadline、canonical order、state hashを照合する。UI countdownは`GameplayTimerSnapshotV1`のprojectionであり、UI animation終了callbackをauthoritative fire条件にしない。
+
+C1のProduction対象はPauseによるdomain停止だけである。Hit-stop、slow-motion、domainごとのrational dilationは`GameTimeEffectPolicyV1`のC0 schemaとしてowner、対象domain、Save／Replay、Audio／VFX／Input policyを固定するが、C2の個別CapabilityをQualificationするまで有効化しない。任意のfloat time scaleをPhysics `delta_time`やGameplay timerへ直接乗算しない。
+
 ## 5. Render frame、Audio、Asset activation
 
 render frame sequenceは次とする。
