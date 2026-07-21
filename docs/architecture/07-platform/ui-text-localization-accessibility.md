@@ -537,11 +537,11 @@ Platform bridgeはSemantic Node IDとgenerationを使い、UI Runtime pointerを
 LocalPlayerProfileV1
   profile_id
   profile_schema_version
-  settings_document_ref
+  settings_catalog_commit_marker_ref
+  settings_catalog_commit_marker_generation
   input_binding_document_ref
   accessibility_document_ref
   locale_selection
-  save_catalog_ref
   consent_record_refs[]
   created_at_monotonic_context
   migration_history[]
@@ -590,6 +590,8 @@ SettingsApplyTransactionV1
 
 SettingsCatalogCommitMarkerV1
   commit_marker_id
+  commit_generation
+  previous_commit_marker_ref
   settings_document_ref
   settings_revision
   settings_checksum
@@ -598,7 +600,7 @@ SettingsCatalogCommitMarkerV1
   save_catalog_checksum
 ```
 
-`settings_document_ref`は`SettingsDocumentV1`を指す。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、対応するSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
+`settings_catalog_commit_marker_ref`と`settings_catalog_commit_marker_generation`の対が`LocalPlayerProfileV1`の唯一のactive read rootである。Profileはこのmarkerから`SettingsDocumentV1`と`SaveCatalogV1`のpayload referenceを解決し、Settings／Catalog direct refsを独立active rootとして読まない。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、marker経由で解決したSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
 
 Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変更せずProfile scopeのoverrideだけを保存する。有効値は`Project defaults -> Target supported range -> User override`の順で解決する。未対応値を近似せず、該当field pathとTarget capabilityを含むtyped rejectionを返す。旧schemaは登録済み一方向Migrationを通す。future schema、hash不一致、参照欠落ではSettingsDocumentを上書きせず、last-known-goodまたはProject defaultでSafe Modeを起動する。
 
@@ -608,9 +610,9 @@ Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変
 | `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、UI／real-time clockの**ちょうど15秒**以内にkeyboard／controllerで確認されなければ自動Revert |
 | `restart_required` | Renderer Backend、Packageでrestartが必要と宣言されたDevice feature | 現sessionのRuntime stateを変更せず、次回起動候補として保存し、起動失敗時はlast-known-goodへ戻す |
 
-SettingsとSave Catalogは`SettingsCatalogCommitMarkerV1`を同じdurable commit markerとする二相公開で、個別generationを公開しない。第一相ではSettings payloadと対応するSave Catalog entry／generationをstageし、両方をflushしchecksum verifyしてからmarkerをdurableにする。第二相では成功した同一markerをactive rootとしてatomic replaceし、そのmarkerに記録されたSettingsとCatalogの両referenceを同時にpublishする。readerはactive markerから対になる両referenceを一読で解決し、SettingsまたはCatalogを別rootから混在して読まない。
+SettingsとSave Catalogは`SettingsCatalogCommitMarkerV1`を同じdurable commit markerとする二相公開で、個別generationを公開しない。第一相ではSettings payloadと対応するSave Catalog entry／generationをstageし、両方をflushしchecksum verifyしてからmarkerをdurableにする。第二相では成功した同一markerのrefと`commit_generation`をProfileのactive rootとしてatomic replaceし、そのmarkerに記録されたSettingsとCatalogの両referenceを同時にpublishする。readerはactive markerから対になる両referenceを一読で解決し、SettingsまたはCatalogを別rootから混在して読まない。
 
-Catalog update、marker、flush、atomic replace、recoveryのいずれかが失敗した場合はtyped `catalog_commit_failed`としてrejectedとし、staged generationを一方も公開せず、SettingsとCatalogをともに以前のgenerationへ残す。起動時のinterrupted commit recoveryはactive markerと両payload／checksum／generationをreadbackして対を検証する。marker欠落、readback不一致、またはrecovery failureでは新generationをpublishせずprevious active markerを維持し、両方のprior generationを使用する。
+Catalog update、marker、Profile root replace、flush、atomic replace、recoveryのいずれかが失敗した場合はtyped `catalog_commit_failed`としてrejectedとし、staged generationを一方も公開せず、SettingsとCatalogをともに以前のgenerationへ残す。起動時のinterrupted commit recoveryはProfile rootとmarker generation、active marker、両payload／checksumをreadbackして対を検証する。Profile root/marker generationの不一致、marker欠落、readback不一致、またはrecovery failureでは新generationをpublishせず、Profile rootを`previous_commit_marker_ref`の検証済みgenerationへatomicに復旧する。復旧先が検証できなければSafe Modeへ入り、SettingsDocumentまたはSaveCatalogを単独選択せず両方のprior generationを使用する。
 
 Commitはこの二相境界の内側でtemp write、flush、checksum verify、atomic replaceを行う。base revision mismatch、unsupported Target、display mode loss、device loss、audio route loss、storage full、partial writeはtyped failureとして原子的にrejectedとし、部分適用を成功扱いにしない。失敗時はlast-known-goodへatomic revertし、confirmed適用中もUI、確認入力、screen reader、Revert経路を維持して表示不能を成功扱いにしない。
 
@@ -775,7 +777,7 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - 100／125／150／200% DPI、0.75～2.0 UI scale、portrait／landscape、cutout
 - Windows UIA、Android Accessibility、Apple UIAccessibility action
 - keyboard／controller／touch／screen readerでTitle→Settings→Play→Pause→Exit
-- `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのちょうど15秒timeout、restart_required、future schema／hash／reference Safe Mode、`SettingsCatalogCommitMarkerV1`二相公開／split generation不可視／catalog_commit_failed／interrupted recovery、Save Catalog generation／identity禁止
+- `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのちょうど15秒timeout、restart_required、future schema／hash／reference Safe Mode、`SettingsCatalogCommitMarkerV1`二相公開／split generation不可視／catalog_commit_failed／interrupted recovery、Profile marker root／generation mismatch recovery／direct-root禁止、Save Catalog generation／identity禁止
 - glyph atlas eviction／submission lifetime、locale／Font／Style hot reload
 - 131,072 Node、65,536 glyph、8,192 event上限と10分soak
 - Windows、Android、Appleの同じUI fixtureでlogical layout／semantic hash一致
