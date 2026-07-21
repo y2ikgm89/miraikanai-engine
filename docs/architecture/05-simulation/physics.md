@@ -100,20 +100,64 @@ Physics AI surfaceは自然言語を直接Body fieldへ投影せず、`intent ->
 
 ### 5.1 Intentとclosed vocabulary
 
-`PhysicsIntentVocabularyEntryV1`はstable intent ID、gameplay-facing phrase class、required context、resolved role／authority／collision／shape／speed policies、required Capability、question rule、explanation templateを持つ。`PhysicsIntentResolutionV1`はinput intent refs、observed scene facts、selected Capability、resolved semantic fields、questions、assumptions、alternatives、diagnostic、proposed operationsを持つ。
+`PhysicsIntentVocabularyEntryV1`は自然言語の単語をOperationへ直接bindする辞書ではなく、Game文脈から意味候補を絞るversion付きCatalog entryである。mandatory fieldを次へ固定する。
 
-closed vocabularyは次の軸を別々に解決する。
+| Field | 型／規則 |
+|---|---|
+| `semantic_tag` | closed ID |
+| `localized_terms` | locale別の代表語。命令や権限を含めない |
+| `positive_examples` | Tagに一致する短いGameplay文 |
+| `negative_examples` | 表面語が似ても一致しない文 |
+| `candidate_gameplay_roles` | `GameplayPhysicsRoleV1[]` |
+| `question_triggers` | 意味が分岐する条件 |
+| `candidate_capability_ids` | discovery候補。利用可否はManifestで再検査 |
+| `forbidden_mappings` | 自動変換してはならないrole／operation |
+| `rationale_refs` | Architecture requirement／section参照 |
 
-| axis | 例 | 禁止する混同 |
-|---|---|---|
-| Gameplay role | environment、prop、character、projectile、trigger、vehicle、ragdoll | roleからmassを推測して確定 |
-| Motion authority | static、kinematic motor、dynamic、animation proposal、gameplay-driven | visible motionとwriter authorityの混同 |
-| Collision semantics | ignore、overlap、block、query-only | event subscriptionとの混同 |
-| Hit authority | contact event、swept query、overlap、gameplay trace | sensorをauthoritative hitへ暗黙昇格 |
-| Shape strategy | primitive、compound、convex、static mesh、height field | render meshのlive利用 |
-| Speed policy | ordinary、fast-moving、teleporting | speed不明時のCCD断定 |
+`localized_terms`の文字列一致だけでResolutionを確定しない。Vocabulary entryはBackend名、exact dependency version、native setting、thread countを含めず、未登録文字列を新enumとして保存しない。
 
-Vocabulary entryはBackend名、version、native setting、thread countを含めない。同義語はlocale-aware phrase mapからstable intentへ解決し、未登録文字列を新enumとして保存しない。
+`PhysicsIntentResolutionV1`のmandatory schemaは次である。fieldの省略、任意propertyの追加、closed value以外の文字列を拒否する。
+
+```text
+PhysicsIntentResolutionV1
+  source_request_ref: ContentRef
+  source_request_hash: Sha256
+  contract_set_hash: Sha256
+  project_revision: RevisionId
+  target_profile_ids: TargetProfileId[1..16]
+  scene_dimension: two_d | three_d | hybrid
+  hybrid_gameplay_space: optional two_d | three_d
+  gameplay_role: GameplayPhysicsRoleV1
+  motion_authority: PhysicsMotionAuthorityV1
+  collision_semantics: PhysicsCollisionSemanticsV1
+  hit_authority: PhysicsHitAuthorityV1
+  shape_strategy: PhysicsShapeStrategyV1
+  speed_policy: PhysicsSpeedPolicyV1
+  selected_capability_ids: CapabilityId[]
+  selected_operation_ids: OperationId[]
+  blocking_question_ids: QuestionId[]
+  assumptions: AssumptionRecordV1[]
+  rejected_alternatives: RejectedAlternativeV1[]
+  diagnostic_ids: DiagnosticId[]
+  preview_fixture_ids: FixtureId[]
+  cost_estimate_ref: optional CostEstimateRef
+  disposition: ready_to_propose | question_required | capability_unavailable | rejected
+```
+
+`source_request_ref`はAuthoring Task内のaccess-controlled contentを参照し、raw PromptをCatalog、MCD、Receiptへ複製しない。`ready_to_propose`は既存OperationでChangeSetを提案できる意味だけを持ち、Commit authorizationを意味しない。`question_required`はblocking ambiguityが残る結果、`capability_unavailable`は要求を満たすactive Capabilityがない結果、`rejected`はinvalid／forbiddenな要求である。
+
+closed semantic valuesを次へ固定する。一つのResolutionは各軸から一つだけを選ぶ。
+
+| Type | Closed values |
+|---|---|
+| `GameplayPhysicsRoleV1` | `world_static | movable_prop | moving_platform | character | projectile | sensor_volume | camera_blocker | ragdoll | vehicle | destructible | soft_deformable | cloth_fluid_hair` |
+| `PhysicsMotionAuthorityV1` | `static | kinematic_target | dynamic_solver | character_motor | query_driven | presentation_only` |
+| `PhysicsCollisionSemanticsV1` | `solid_block | sensor_notify | query_only | none` |
+| `PhysicsHitAuthorityV1` | `solver_contact | sensor_event | swept_shape_query | overlap_query | gameplay_rule | none` |
+| `PhysicsShapeStrategyV1` | `primitive | compound_primitive | convex | static_triangle_mesh | heightfield | tile_chain_2d | none` |
+| `PhysicsSpeedPolicyV1` | `discrete | continuous_body | authoritative_sweep | teleport` |
+
+複合objectは複数Resolutionと明示関係で表し、合成enumを追加しない。同じobjectへ複数motion authorityを選ばない。Dynamic Bodyへ`static_triangle_mesh`／`heightfield`を選ばず、Sensorをauthoritative hitへ暗黙昇格せず、`teleport`を経路hitの代用にしない。途中経路がGameplayへ必要なら`authoritative_sweep`を使用する。
 
 ### 5.2 Capability discoveryと意味解決
 
@@ -121,13 +165,17 @@ Resolverは[Executable contracts](../02-foundation/executable-contracts.md)のCa
 
 解決順は次である。
 
-1. ユーザー文からgameplay object、motion、contact、hit、speed、dimensionの候補を抽出する。
-2. Scene／Projectの既存World、Body、Collider、Profile、Capabilityをread-only discoveryする。
-3. closed vocabularyへ候補を割り当て、矛盾と欠落を分類する。
-4. gameplay behaviorを変える欠落だけを質問し、安全な欠落はReference assumptionとして明示する。
-5. role、motion authority、collision、hit、shape、speedを独立に確定する。
-6. typed Physics／Collision operationへ投影し、ChangeSet、preview、diagnosticを生成する。
-7. validatorを再実行し、質問、assumption、unavailable Capabilityを結果へ残す。
+1. source requestのcontent hash、Project revision、Contract set hash、Target Profileを取得し、Resolutionへ観測値としてbindする。
+2. ユーザー文からgameplay object、motion、contact、hit、speed、dimensionの候補を抽出する。
+3. Scene／Projectの既存World、Body、Collider、Profile、Capabilityをread-only discoveryする。
+4. closed vocabularyへ候補を割り当て、矛盾と欠落を分類する。
+5. gameplay behaviorを変える欠落だけを`blocking_question_ids`へ入れ、`question_required`にする。安全な欠落だけをReference assumptionとして明示する。
+6. role、motion authority、collision semantics、hit authority、shape strategy、speed policyを独立に確定する。
+7. Target、Capability、Profile、field relation、forbidden mappingを同じValidatorで再検査する。対応不能は`capability_unavailable`、invalid／forbiddenは`rejected`にする。
+8. `ready_to_propose`の場合だけtyped Physics／Collision write OperationとPreview fixtureを返す。
+9. GatewayがProvider出力を同じMCDとValidatorで再計算し、不一致をresolution mismatchとして拒否する。
+
+Resolutionのvalidate、preview、operation proposalの各入口は、現在のsource request hash、Contract set hash、Project revisionを保存済み`source_request_hash`、`contract_set_hash`、`project_revision`と完全一致で再検査する。一つでも異なるResolutionは`stale`として拒否し、selected operation、preview、cost estimateを使用しない。最新source／contract／Project snapshotでCapability discoveryから再解決し、新しいResolution identityを発行する。stale objectをfield単位で更新、別revisionへrebase、Commitへ継続してはならない。
 
 ### 5.3 質問、Assumption、代替案
 
@@ -151,12 +199,14 @@ Diagnosticは少なくとも次を区別する。
 - invalid profile／shape／joint／character relation
 - unsafe speed／hit assumption
 - stale scene／artifact／generation
+- stale source request／Contract set／Project revision
+- Provider／Gateway resolution mismatch
 - operation scope mismatch
 - adapter qualification unavailable
 
 各diagnosticはstable code、対象path、原因、修正候補、blockingか否かを返す。Validation failureを自然言語だけで返さず、unknown intentを最も近い既知roleへ自動確定しない。
 
-AI Evalはvalid intent、question-required intent、conflicting intent、unsupported Capability、adversarial Vendor API要求、stale discovery、preview／commit差分をfixture化する。評価はsemantic resolutionの正解、必要質問、unsupportedの拒否、operation boundedness、diagnosticの再現性を検査する。Evidence、provenance、trace gradingの形式は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけを消費する。
+AI Evalはvalid intent、question-required intent、conflicting intent、unsupported Capability、adversarial Vendor API要求、stale discovery、preview／commit差分をfixture化する。source request hash、Contract set hash、Project revisionを個別に変更したstale fixtureは旧Resolutionのvalidate／preview／proposal拒否と、fresh discoveryからのnew Resolution発行を検査する。評価は全closed enum、4 disposition、mandatory field、semantic resolutionの正解、必要質問、unsupportedの拒否、operation boundedness、diagnosticの再現性を検査する。Evidence、provenance、trace gradingの形式は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけを消費する。
 
 次を採用しない。
 

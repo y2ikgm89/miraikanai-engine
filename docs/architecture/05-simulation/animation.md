@@ -57,11 +57,34 @@ InstanceはEntityごとにGraph state、clock、transition、loop count、event 
 
 Runtimeへの接続はcanonical identifiers `T30_PrePhysics`、`T40_MotionIntent`、`T60_PhysicsIntegrate`、`T80_AnimationFinalize`、`T90_PresentationBuild`、`T110_Publish`を[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)から参照する。順序、tick frequency、writer、publish boundaryは同文書だけが定義し、Animationはphase表や別tickを所有しない。
 
-`RootMotionProposal`はAnimation instance、sample interval、local delta translation／rotation、source state／clip、artifact versionを持つ。root-motion modeは`animation | gameplay_motor | disabled`である。`animation`はMotorがCollisionを解決し、`gameplay_motor`はresolved velocityからin-place poseを選び、`disabled`はroot trackをpresentationにも使わない。proposalはauthoritative Transformではない。
+RuntimeはAnimation instanceへ一つのcanonical `AnimationEvaluationIntervalV1`を供給する。intervalは`interval_id`、tick ref、clock begin／end、direction、traversal kind、loop crossing ordinalを持つ。Runtime execution slotごとの役割や順序は本書で定義せず、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の供給boundaryを消費する。
+
+同じevaluationに属する`RootMotionProposal`、final `SkeletonPose`、`AnimationEvent`抽出は、同一`interval_id`とexact clock begin／endを必ず消費する。root motionだけを別intervalでsampleすること、resolved Physics inputの受領後にpose／event用clockを再計算すること、presentation frameから別intervalを作ることを禁止する。
+
+Animation clockはcanonical intervalごとに一度だけadvanceする。root-motion sampling、clip sampling、blend、IK、pose、bounds、event extractionはintervalのpure consumerであり、個別にclock／loop count／event cursorをadvanceしない。全outputのvalidation成功後にinstance clockとevent cursorをendへ一回commitする。同じ`interval_id`のretryは同じoutputを返すidempotent evaluationとし、二回目のadvanceを行わない。前interval未commitのまま異なるintervalを受けた場合、または同じIDでbegin／endが異なる場合はinstance faultとする。evaluation failureではclockをadvanceせず、partial pose／event／root motionをpublishしない。
+
+`RootMotionProposal`はAnimation instance、canonical interval ID、local delta translation／rotation、source state／clip、artifact versionを持つ。root-motion modeは`animation | gameplay_motor | disabled`である。`animation`はMotorがCollisionを解決し、`gameplay_motor`はAnimation root deltaを0としてresolved velocityからin-place poseを選び、`disabled`はroot trackをpresentationにも使わない。proposalはauthoritative Transformではない。
 
 Physics resolved motion／ragdoll inputはgeneration付きsnapshotとして受け、Animationがnative Bodyをqueryしない。RagdollはPhysics pose inputとAnimation poseをtyped weight policyでblendするが、Physicsは`SkeletonPose`へ直接writeしない。NavigationはAnimation parameter候補をcommand／snapshotで渡せるが、Graph stateを直接変更しない。
 
-`AnimationEvent`はevent contract ID、source instance／state／clip、sample interval、normalized time、loop ordinal、payload ref、Gameplay／Presentation classificationを持つ。同intervalのeventはsample time、track Stable ID、event ordinalでcanonical orderにする。Gameplay eventはauthoritative clock／cursorから一度だけ発行し、visibility、render frame drop、off-screen stateで停止しない。Presentation eventのAudio／VFX結果をGameplayへ逆入力しない。
+`AnimationEvent`はevent contract ID、source instance／state／clip、canonical interval ID、normalized time、loop ordinal、payload ref、Gameplay／Presentation classificationを持つ。Event trackは`event_track_id`とregistered typed Event IDを使う。Event traversal policyは次のclosed contractであり、Clipへ全fieldを明示する。
+
+```text
+AnimationEventTraversalPolicyV1
+  forward: emit_crossed
+  reverse: suppress | emit_reverse
+  seek: suppress
+  editor_scrub: suppress_runtime
+```
+
+| `AnimationTraversalKindV1` | Pose／root motion | Event／cursor policy |
+|---|---|---|
+| `forward` | end poseと`[begin,end]`のroot deltaを同じintervalから評価 | `(begin,end]`のeventをemit。frameを飛び越えても省略しない |
+| `reverse` | end poseと逆方向intervalのroot deltaを評価 | `suppress`はeventを発火せずcursorだけendへ移す。`emit_reverse`は`[end,begin)`を逆順走査して一度ずつemit |
+| `seek` | destination poseを評価し、Runtimeへ渡すroot deltaは0 | crossed eventをGameplay／Presentationとも発火せず、cursorをdestinationへ置いて後続forwardでbackfillしない |
+| `editor_scrub` | isolated Editor preview instanceだけがdestination poseを評価し、root proposalをRuntimeへ送らない | Gameplay／Presentation Runtime eventを発火せずlive instanceのclock／cursorを変更しない。Editor UIはnon-dispatched markerを表示できる |
+
+loop跨ぎはcanonical intervalをtraversal方向のsub-intervalへ分解し、loop ordinalごとに同じpolicyを適用する。forward eventはevent time、track ID、event ID、loop ordinal、reverse eventは逆event time、track ID、event ID、loop ordinalでcanonicalizeする。同じcanonical intervalとpolicyからのretryはeventを再配送しない。Gameplay eventはauthoritative clock／cursorから一度だけ発行し、visibility、render frame drop、off-screen stateで停止しない。Presentation eventのAudio／VFX結果をGameplayへ逆入力しない。
 
 Replayにはparameter snapshot、accepted motion／ragdoll input、Graph／artifact identity、state／clock／cursor、root-motion proposal、Gameplay event、pose hash projectionを供給する。recording ownerは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`であり、Animation固有phaseや旧phase名を設けない。
 
@@ -98,7 +121,18 @@ Risk分類、authorization、commit可否は[AI Security／Approval](../01-gover
 
 ## 6. Qualificationと採用しないもの
 
-Unit／schema fixtureはGraph reachability、parameter type、Skeleton hierarchy、Skin influence、Clip interval、event cursor、root-motion mode、IK chain、retarget mapping、artifact runtime-ID tableを検査する。Runtime fixtureは2D／3D sampling、transition interruption、blend／additive、loop event、root-motion／Motor resolution、ragdoll blend、stale Collision result、LOD invariant、asset swap、lease expiry、job cancellation、save／replay hashを含む。
+Unit／schema fixtureはGraph reachability、parameter type、Skeleton hierarchy、Skin influence、Clip interval、event cursor、root-motion mode、closed traversal policy、IK chain、retarget mapping、artifact runtime-ID tableを検査する。Runtime fixtureは2D／3D sampling、transition interruption、blend／additive、loop event、root-motion／Motor resolution、ragdoll blend、stale Collision result、LOD invariant、asset swap、lease expiry、job cancellation、save／replay hashを含む。
+
+canonical interval fixtureは、root-motion proposal、final pose、event抽出が同じinterval ID／begin／endを持つこと、clock／loop count／event cursorが一度だけcommitされること、同じintervalのretryが同じoutputを返して再advance／再配送しないこと、異なるpayloadを持つduplicate interval IDを拒否することを検査する。failure fixtureはpartial outputをpublishせずclockをadvanceしないことを検査する。
+
+Event fixtureは少なくとも次を固定する。
+
+- forwardでframeを飛び越えた`(begin,end]`のeventをcanonical orderで一度ずつ発火する。
+- forwardのloop跨ぎで各loop ordinalのeventを欠落／重複なく発火する。
+- reverse `suppress`でevent非発火かつcursorだけがendへ進み、`emit_reverse`で`[end,begin)`を逆canonical orderで一度ずつ発火する。
+- seekでGameplay／Presentation eventとroot deltaを抑止し、destination後のforwardで過去eventをbackfillしない。
+- Editor scrubでRuntime event／root proposalを発行せず、live instance clock／cursor／state hashを変更しない。
+- forward、reverse、seek、Editor scrubの各caseをparallel実行、retry、Replay再生してevent sequence、pose hash、root-motion hashが再現する。
 
 Editor／AI fixtureはGraph diff、timeline preview、import／reimport conflict、question-required intent、unsupported operation、diagnostic remediation、manual／AI equivalenceを検査する。private Backend conformanceは同じSource fixtureからEngine-owned pose／event／diagnosticを生成し、public contractにVendor差が漏れないことを確認する。measurementとcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使用する。
 
