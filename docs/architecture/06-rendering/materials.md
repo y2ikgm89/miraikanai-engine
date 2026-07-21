@@ -143,6 +143,41 @@ Graph出力はDomainごとに固定し、任意Render passやGPU resourceへ接�
 
 render-stateはraw API enumではなく、cull intent、depth test／write intent、blend semantic、alpha coverage、sort classをtyped intentで表す。[Render Graph](render-graph.md)がTarget capabilityとPass interfaceに照らして実行可能なPipeline keyへ解決する。
 
+### 4.1 canonical PBRとglTF mapping
+
+`realistic_basic`はScene-linear HDR、物理単位Light、IBLを入力とし、Cook-Torrance BRDFをGGX normal distribution、Smith height-correlated visibility、Schlick Fresnelで評価する。Metallic-Roughness workflowのcanonical入力はbase color、metallic、perceptual roughness、tangent-space normal、occlusion、emissiveである。Authoringのmetallic／perceptual roughnessは0～1、shader内部FP32 roughnessは0.045～1へclampする。Opaque、alpha mask、premultiplied transparent、Environment IBL reflection、shadow、height fog、exposure、tone mappingを同じ意味契約で扱う。
+
+glTF coreと基本extensionは次のMaterials-owned mappingへ固定する。
+
+| glTF入力 | canonical Material意味 |
+|---|---|
+| core base color | Texture RGBをsRGBからscene-linear base colorへdecodeし、Aをopacityとする |
+| core metallic-roughness | data textureのGをperceptual roughness、Bをmetallicとし、R／Aを意味入力に使わない |
+| core normal／occlusion／emissive | normal RGBをtangent-space data、occlusion Rをlinear occlusion、emissive RGBをsRGBからscene-linear emissiveへdecodeする |
+| `KHR_materials_unlit` | `unlit_surface`へ写像し、Light／IBL BRDFを通さずbase color、opacity、emissiveを保持する |
+| `KHR_materials_emissive_strength` | emissive factor／textureへ掛ける非負のscene-linear emission倍率として保持する |
+| `KHR_texture_transform` | 対象texture bindingのUV offset、rotation、scale、texCoord選択として保持し、画像pixelへ破壊的bakeしない |
+
+`realistic_advanced`は`realistic_basic`を意味的基底とし、Local reflection probe、Skin／Cloth／Hair／Eye／Foliage template、Parallax occlusion mappingに加えて次のclosed mappingを持つ。
+
+| glTF extension | canonical advanced feature |
+|---|---|
+| `KHR_materials_clearcoat` | base BRDF上のdielectric coat factor、coat roughness、coat normal |
+| `KHR_materials_sheen` | microfiber sheen colorとsheen roughness |
+| `KHR_materials_specular` | dielectric Fresnel F0のstrength／color。metallicへ暗黙変換しない |
+| `KHR_materials_ior` | dielectric IORとF0の関係 |
+| `KHR_materials_transmission`＋`KHR_materials_volume` | surface transmissionとvolume thickness／attenuation color／distanceを一つの透過意味として保持 |
+| `KHR_materials_anisotropy` | anisotropy strengthとtangent-space direction／rotation |
+| `KHR_materials_iridescence` | thin-film factor、IOR、thickness range |
+| `KHR_materials_dispersion` | transmissive mediumのwavelength dispersion strength |
+| `KHR_materials_variants` | Sourceのprimitive／Material variant対応をcanonical `MaterialVariantSet`へ変換 |
+
+`MaterialVariantSet`はSource variant identity、対象primitive／Material slot、対応するMaterial Definition／Instance Stable IDを保持する決定論的変換結果であり、display name、配列index、Importer内部pointerをidentityにしない。Reimportでは同じSource variant identityを維持し、missing／ambiguous mappingを推測で別Materialへ接続しない。
+
+未知extension、上記mappingを満たせないextension、Targetで未対応のadvanced featureはextension IDを付けた`MIRAKAN-MATERIAL-CAPABILITY_NOT_ACTIVATED` hard failureとしてImportとArtifact promotionを停止する。Governanceで承認されたfallbackがある場合も`MIRAKAN-MATERIAL-FALLBACK_REQUIRED`の別Previewとして提示し、元Importを成功扱いせず、extension／channel／lobeを黙って破棄、近似、downgradeしない。
+
+glTF Parser／Importerのexact version、artifact hash、license、取得元は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)の`toolchain.lock.json`だけが所有する。Source transport、sandbox Job、typed IR、Conversion Report、Receipt、transaction／promotionは[Asset lifecycle](../03-authoring/asset-lifecycle.md)の`AssetImportJob`、`AssetImportPlanV1`、`SceneImportIRV1`、`AssetConversionReportV1`、`AssetImportReceiptV1`だけが所有する。これらはMaterialsのchannel／BRDF／extension／variant意味を変更しない。
+
 ## 5. 表現Profileとparameter binding
 
 公式表現ProfileはProjectのVisual Styleを再利用可能なnamed profileへ固定し、Material assetへの一括上書きではなくresolver inputとして参照する。Profileは対象Domain、required semantic axes、forbidden combination、fallback profile、qualification refを持つ。
