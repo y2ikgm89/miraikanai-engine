@@ -36,7 +36,8 @@ Miraikanai Engineの公式方式は、**契約駆動のhybrid memory management*
 ### 2.2 既存Engineから採用する教訓
 
 - Unreal Engineのように、強参照、弱参照、soft Asset参照、非`UObject`所有を用途別の型へ分ける。ただし、`UPROPERTY`の有無でGC安全性が変わる暗黙契約は導入せず、contract fieldと生成型で明示する。
-- Unity Entitiesのように、Entityをaddressではなくindex＋versionで識別し、同じarchetypeのComponentを16 KiB chunk内の並列配列へ格納する。
+- Unity Entitiesからは、同じComponent集合をarchetypeとしてまとめ、Component種別ごとの配列をchunkへ格納するdata-oriented layoutを採用する。Unity固有のEntity表現やchunk容量は移植しない。
+- Miraikanaiのruntime handleはindex＋generation、ECS archetype chunkは16 KiBを正本とする。これは本書が独立に定めるEngine-owned designであり、Unityの現行実装値を根拠にした判断ではない。handle規則は[§4.3](#43-generation-handle)、chunk容量の継続検証は[§9.3](#93-performanceendurance)に定める。
 - Unity Collectionsのように、一時allocationと永続allocationを寿命で分ける。ただし、hot pathのarena枯渇を一般heapへ暗黙fallbackさせない。
 - Godotの`ObjectID`／`RID`のように、低level subsystemをopaque handleで参照する。ただし、owner、free authority、generation、serialization可否をcontractに含める。
 
@@ -353,15 +354,16 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 9. AIが欠落contractを推測で補わず、Blocking diagnosticを返す。
 10. 生成API、manifest、Provider projection、test fixtureのhashが同一MCDへtraceできる。
 
-## 12. 公式資料と判断
+## 12. 根拠と判断
 
-| 公式資料 | 採用した判断 |
+| 根拠／Owner | 採用した判断 |
 |---|---|
 | [Unreal Engine Object Pointers](https://dev.epicgames.com/documentation/en-us/unreal-engine/object-pointers-in-unreal-engine) | 強、弱、soft、scope strong参照を用途別型へ分離する |
 | [Unreal Engine Smart Pointers](https://dev.epicgames.com/documentation/en-us/unreal-engine/smart-pointers-in-unreal-engine) | non-intrusive unique／shared／weakとreference-count costを区別する |
 | [Unreal Engine Memory and CPU Performance Considerations](https://dev.epicgames.com/documentation/en-us/unreal-engine/common-memory-and-cpu-performance-considerations-in-unreal-engine) | poolは生成破棄costをprofileしたobjectだけに使用する |
 | [Unity Managed Memory](https://docs.unity3d.com/jp/current/Manual/performance-managed-memory-introduction.html) | GC allocation／collection spikeをMiraikanai hot pathへ導入しない |
 | [Unity Unmanaged Memory](https://docs.unity3d.com/ja/current/Manual/performance-unmanaged-memory.html) | temporary、job、persistent allocationを寿命で分ける |
-| [Unity ECS](https://unity.com/ecs) | archetype単位のdata-oriented layoutと軽量なEntity identityを用途別型へ閉じる |
+| [Unity Technical Articles: The DOTS packages and features](https://discussions.unity.com/t/from-the-new-e-book-the-dots-packages-and-features/368224) | 同じComponent集合をarchetypeとしてまとめ、Component種別ごとの配列をchunkへ格納するlayoutだけを外部先例として採用する |
+| [本書 §4.3](#43-generation-handle)／[§9.3](#93-performanceendurance) | index＋generation handleと16 KiB archetype chunkはMiraikanaiが所有する正本値とし、Unityの現行実装仕様として扱わない |
 | [Godot Object ownership](https://docs.godotengine.org/en/stable/engine_details/architecture/object_class.html) | 非ownerの長期保持にraw pointerを使わずIDへ変換する |
 | [Godot RID](https://docs.godotengine.org/en/stable/classes/class_rid.html) | low-level resourceをsession-local opaque handleで公開する |

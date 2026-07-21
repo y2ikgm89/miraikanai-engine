@@ -578,7 +578,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 - [Godot Object／ClassDB／PropertyInfo](https://docs.godotengine.org/en/stable/engine_details/architecture/object_class.html)
 - [Microsoft DirectXMath](https://learn.microsoft.com/en-us/windows/win32/dxmath/directxmath-portal)
 - [HLSL Specification](https://microsoft.github.io/hlsl-specs/specs/index.html)
-- [Khronos glTF Registry](https://registry.khronos.org/glTF/)
+- [Khronos glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)
 - [C++ working draft `std::expected`](https://eel.is/c++draft/expected)
 - [C++ working draft numerics](https://eel.is/c++draft/numerics)
 
