@@ -178,6 +178,54 @@ glTF coreと基本extensionは次のMaterials-owned mappingへ固定する。
 
 glTF Parser／Importerのexact version、artifact hash、license、取得元は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)の`toolchain.lock.json`だけが所有する。Source transport、sandbox Job、typed IR、Conversion Report、Receipt、transaction／promotionは[Asset lifecycle](../03-authoring/asset-lifecycle.md)の`AssetImportJob`、`AssetImportPlanV1`、`SceneImportIRV1`、`AssetConversionReportV1`、`AssetImportReceiptV1`だけが所有する。これらはMaterialsのchannel／BRDF／extension／variant意味を変更しない。
 
+### 4.2 Decal source／command／packet境界
+
+Decalの唯一のSourceは`DecalDefinitionV1`である。`DecalSpawnCommandV1`はRuntimeがSourceまたはauthoritative Eventから発行する要求、`DecalPacketV1`はRender Snapshotへ渡すpresentation recordであり、いずれもGameplay stateではない。Decal Materialは本書の`decal` Domainと閉じたreceiver channelを使い、Render Graphのpass、queue、native resourceを指定しない。
+
+```text
+DecalDefinitionV1
+  decal_id
+  material_instance_ref
+  projection_extents_m
+  receiver_channel_mask
+  surface_normal_limit_rad
+  blend_mode: color | normal | roughness | emissive
+  sort_layer
+  lifetime_policy: authored_static | timed
+  lifetime_seconds
+  fade_seconds
+  budget_class: critical_feedback | gameplay_feedback | ambient
+  target_fallback_ref
+
+DecalSpawnCommandV1
+  command_id
+  decal_definition_ref
+  source_revision
+  source_event_ref: optional
+  world_transform
+  runtime_spawn_sequence
+  target_profile_ref
+
+DecalPacketV1
+  decal_id
+  definition_revision
+  world_transform
+  material_instance_ref
+  receiver_channel_mask
+  blend_mode
+  sort_key
+  lifetime_state
+  fallback_ref
+```
+
+`projection_extents_m`の各軸はfiniteな0.001～16 m、`sort_layer`は0～31とする。`timed`は`lifetime_seconds`を0.016～120 s、`fade_seconds`を0～lifetimeに必須とし、`authored_static`は両値を0に固定して不要fieldの任意値を許可しない。receiverはMaterial／Renderableのclosed channel maskで選ぶ。projection volume内であってもUI、transparent、Particle、Character、terrainへ暗黙投影しない。
+
+C1はForward+のopaque／masked receiverだけへcolor、normal、roughness、emissiveを適用する。transparent receiver、animated atlas、deferred-only DBufferはC2 Capabilityであり、Mobileを含む未対応Targetは`target_fallback_ref`でQualification済みのmesh／particle／UI presentationへ明示的にfallbackする。同一pixelの採択順は`sort_layer`、budget priority、`decal_id`、`runtime_spawn_sequence`の順にcanonicalである。stale `source_revision`、invalid／unsupported receiver、未qualified fallback、capacity超過はそれぞれtyped rejectとし、別Material、receiver、またはsilent dropへ置換しない。
+
+`authored_static`だけがLevel SourceとSave互換identityを持つ。impact等の`timed` DecalはHit／Interaction等のauthoritative Eventから再生成するpresentationであり、Damage、collision、visibility、surface friction、Gameplay state、SaveのいずれもDecalのresidencyまたはrender resultに依存しない。Replayも元Eventから再生成し、Decalの有無でauthoritative state hashを変化させない。
+
+C1 reference Profileはactive 2,048、spawn 128／tick、visible 512／viewをhard boundとする。超過時は`ambient`、`gameplay_feedback`の順にcanonical evictionしてDiagnosticを残す。`critical_feedback`は黙って欠落させず、Target Profileのfallbackへ切替えるか`MIRAKAN-MATERIAL-DECAL_CRITICAL_FALLBACK_REQUIRED`で拒否する。その他のclosed failureは`MIRAKAN-MATERIAL-DECAL_SCHEMA_INVALID | MIRAKAN-MATERIAL-DECAL_STALE_COMMAND | MIRAKAN-MATERIAL-DECAL_RECEIVER_UNSUPPORTED | MIRAKAN-MATERIAL-DECAL_CAPACITY_EXCEEDED`とする。
+
 ## 5. 表現Profileとparameter binding
 
 公式表現ProfileはProjectのVisual Styleを再利用可能なnamed profileへ固定し、Material assetへの一括上書きではなくresolver inputとして参照する。Profileは対象Domain、required semantic axes、forbidden combination、fallback profile、qualification refを持つ。
@@ -226,7 +274,7 @@ AIの最初のbounded projectionである`MaterialContextSummaryV1`は`material_
 
 Material固有diagnosticはasset／node／parameter／style axis／variant key、source span、Target、error code、remediationを含む。少なくともunknown semantic、graph cycle、type mismatch、domain mismatch、missing resource、unsupported shading model、variant explosion、compile failure、reflection mismatch、stale bindingを区別する。
 
-Diagnostic IDを`MIRAKAN-MATERIAL-SEMANTIC_ROLE_UNKNOWN | MIRAKAN-MATERIAL-DOMAIN_MISMATCH | MIRAKAN-MATERIAL-GRAPH_INVALID | MIRAKAN-MATERIAL-PARAMETER_INVALID | MIRAKAN-MATERIAL-TEXTURE_ENCODING_MISMATCH | MIRAKAN-MATERIAL-CAPABILITY_NOT_ACTIVATED | MIRAKAN-MATERIAL-BUDGET_EXCEEDED | MIRAKAN-MATERIAL-INTERFACE_MISMATCH | MIRAKAN-MATERIAL-VARIANT_LIMIT | MIRAKAN-MATERIAL-COMPILE_FAILED | MIRAKAN-MATERIAL-STYLE_LOCK_VIOLATION | MIRAKAN-MATERIAL-FALLBACK_REQUIRED | MIRAKAN-MATERIAL-PROVENANCE_MISSING | MIRAKAN-MATERIAL-PREVIEW_STALE | MIRAKAN-MATERIAL-UNAUTHORIZED_SOURCE | MIRAKAN-MATERIAL-COLLISION_NAMESPACE_MISMATCH`に固定する。
+Diagnostic IDを`MIRAKAN-MATERIAL-SEMANTIC_ROLE_UNKNOWN | MIRAKAN-MATERIAL-DOMAIN_MISMATCH | MIRAKAN-MATERIAL-GRAPH_INVALID | MIRAKAN-MATERIAL-PARAMETER_INVALID | MIRAKAN-MATERIAL-TEXTURE_ENCODING_MISMATCH | MIRAKAN-MATERIAL-CAPABILITY_NOT_ACTIVATED | MIRAKAN-MATERIAL-BUDGET_EXCEEDED | MIRAKAN-MATERIAL-INTERFACE_MISMATCH | MIRAKAN-MATERIAL-VARIANT_LIMIT | MIRAKAN-MATERIAL-COMPILE_FAILED | MIRAKAN-MATERIAL-STYLE_LOCK_VIOLATION | MIRAKAN-MATERIAL-FALLBACK_REQUIRED | MIRAKAN-MATERIAL-PROVENANCE_MISSING | MIRAKAN-MATERIAL-PREVIEW_STALE | MIRAKAN-MATERIAL-UNAUTHORIZED_SOURCE | MIRAKAN-MATERIAL-COLLISION_NAMESPACE_MISMATCH | MIRAKAN-MATERIAL-DECAL_SCHEMA_INVALID | MIRAKAN-MATERIAL-DECAL_STALE_COMMAND | MIRAKAN-MATERIAL-DECAL_RECEIVER_UNSUPPORTED | MIRAKAN-MATERIAL-DECAL_CAPACITY_EXCEEDED | MIRAKAN-MATERIAL-DECAL_CRITICAL_FALLBACK_REQUIRED`に固定する。
 
 Editor previewだけがcompile失敗時に直前のvalid pipelineを明示表示できる。Shippingは不合格Artifact、missing／invalid Materialを含むPackageまたはScene loadを失敗させる。Capability不足時に別Styleへ黙って変更しない。
 
@@ -244,6 +292,7 @@ Qualificationは次のDomain fixtureを持つ。
 | Pixel Diorama | depth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離 |
 | Compiler | invalid Graph、resource上限、禁止HLSL、binding不一致、cache再現 |
 | Target | Windows、Android、Appleのoffline compile、pipeline、fallback |
+| Decal | receiver mask、opaque／masked以外の拒否、同一面sort、timed fade、capacity丁度／+1、critical fallback、camera cut、Level deactivate、Windows／Mobile fallback、Decal不在時のauthoritative state hash一致 |
 
 同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2／255超のpixelが0.1%未満を既定Gateとする。Cross-vendorはparameter ordering、luminance、finite、outline width、pixel grid等のanalytic invariantを検証する。
 

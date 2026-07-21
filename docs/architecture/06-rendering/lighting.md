@@ -170,6 +170,66 @@ resolve(
 
 Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_light_ids[]`、`type_and_flags[]`、`position_and_range[]`、`direction_and_cone[]`、`color_and_radiometry[]`、`shape_parameters[]`、`channel_masks[]`、`shadow_plan_refs[]`、`source_revisions[]`を持つimmutableな論理SoAである。GPU packingはMCD生成`LightGpuRecordV1`とBackend Adapterの所有とし、Snapshotにnative handle／descriptor／GPU addressを含めない。compact indexはgeneration内だけ有効で、Save／Replay／DiagnosticはStable `light_id`を使う。
 
+### 3.4 Production Lighting Bake／Probe
+
+Lightmap、irradiance probe、reflection probeはすべてDerived Assetであり、Source truthではない。AIは`BakeLighting`を要求できるが、bake texelまたはprobe payloadを直接生成・編集しない。Bake／Probeの唯一のowner schemaを次に固定する。
+
+```text
+LightingBakeProfileV1
+  profile_id
+  target_profile_ref
+  lightmap_texel_density_per_m
+  max_lightmap_dimension
+  max_atlas_count
+  irradiance_probe_spacing_m
+  reflection_probe_resolution
+  compression_profile_ref
+  bake_budget_ref
+
+LightingBakeArtifactV1
+  source_revision
+  geometry_hash
+  material_hash
+  light_hash
+  environment_hash
+  bake_profile_hash
+  lightmap_atlas_refs[]
+  lightmap_binding_refs[]
+  irradiance_probe_volume_refs[]
+  reflection_probe_artifact_refs[]
+  validation_report_ref
+  artifact_hash
+
+LightmapBindingV1
+  mesh_submesh_stable_id
+  lightmap_uv_set
+  atlas_rect
+  decode_scale_bias
+
+IrradianceProbeVolumeV1
+  bounds
+  spacing_m
+  priority
+  blend_distance_m
+  validity_mask
+
+ReflectionProbeDefinitionV1
+  bounds_shape: sphere | box
+  bounds
+  capture_origin
+  priority
+  blend_distance_m
+  receiver_channel_mask
+```
+
+Static Meshのlightmap UVは専用UV set、0～1範囲、finite、triangle overlap許容率0%、Cook後解像度で4 texel以上のchart paddingを必須とする。C2 reference値は32 texel／m、atlas最大4,096²、1 Level最大64 atlas、irradiance probe間隔0.5～16 m、reflection cubemap 128²×6である。Source Meshが満たさない場合、Importerは生成候補とLoss Reportを提示できるが、既存UVを無断置換しない。
+
+Probe重複はpriority、volume、Stable IDの順に決定する。未配置領域はC1 Environment IBLへfallbackし、local reflection probeをC1 global IBLと混同しない。geometry、Materialのbaked contribution、static／stationary Light、Environment、Bake Profile、baker toolchain version、quality settingsからSource dependency hashをcanonicalに構成し、そのいずれかのhash変更時だけ該当World Cell Artifactをinvalidateする。
+
+ArtifactはWorld Cell dependencyへ登録し、同一CellのLightmap、irradiance、reflectionをactivation group単位でall-or-nothingにresident化する。UV／probe／Cell dependency closureが不完全、artifactがmissing／stale／corrupt、またはreadback hash不一致なら`MIRAKAN-LIGHTING-BAKE_CLOSURE_INCOMPLETE`、`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`、`MIRAKAN-LIGHTING-BAKE_CELL_ACTIVATION_FAILED`のtyped failureとし、黒Scene、旧Artifact継続、partial atlas／probe適用を禁止する。同じTargetでQualification済みのrealtime Light＋Environment IBLへ明示的にfallbackし、fallback不可ならCell activationを拒否する。
+
+Bakeは同じSource dependency hash、Toolchain、Profile、Targetで同じ`artifact_hash`を得るdeterministic jobである。`validation_report_ref`はUV overlap、leak、seam、probe light leak、dynamic object blend、Cell境界、cold streaming、memory、bake timeを検査したVisual／performance receiptを参照する。fixed Exposureのoffline reference、realtime fallback、Target実機を比較し、Gameplay、Physics、Navigation、Save stateがBake Artifactの存在、residency、結果に依存しないことをQualificationする。
+
 ## 7. AI／Editor operation
 
 Lighting operationはcreate light、update physical property、apply lighting intent、bind Source Definition、set shadow intent、preview、explain、validateをDomain actionとして登録する。ApplyはGatewayを通じてProject ChangeSetへ変換し、Runtime componentやRenderer resourceを直接変更しない。
@@ -200,6 +260,9 @@ Lighting固有diagnosticはLight Stable ID、property path、type／shape／unit
 | `MIRAKAN-LIGHTING-STALE-PLAN` | revision／Catalog／Target変更 |
 | `MIRAKAN-LIGHTING-LOCK-CONFLICT` | human lockとIntentが競合 |
 | `MIRAKAN-LIGHTING-NONDETERMINISTIC` | 同一入力でPlan hash不一致 |
+| `MIRAKAN-LIGHTING-BAKE_CLOSURE_INCOMPLETE` | UV、probe、World Cell dependency closureが不完全 |
+| `MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID` | hash不一致、stale、missing、corrupt Derived Artifact |
+| `MIRAKAN-LIGHTING-BAKE_CELL_ACTIVATION_FAILED` | activation groupのall-or-nothing residencyまたはqualified fallback不能 |
 
 missing Source、invalid physical value、unsupported capabilityをdefault light、arbitrary intensity、shadowなしへ黙って置換しない。fallbackはSourceまたはProject profileに宣言され、意味差と適用scopeを表示する。
 
@@ -214,6 +277,7 @@ Qualificationは次のDomain fixtureを持つ。
 - 最大Light数、最大cluster index、dynamic churnのsoak。run条件はRuntime capacity ownerを使う。
 - 2D unlit、2D normal map、pixel art、PBR室内／屋外、Toon、透明物、VFX混在、極端な小／大scale Sceneでbeauty、contribution、shadow、clusterを比較する。
 - AI corpusは「主人公を暖かく、背景を冷たく」「低価格Androidで雰囲気を極力保つ」「pixel artをぼかさず夜にする」「既存の人手調整Key Lightを変えない」「Shadow costを増やさず敵を読みやすくする」を含み、Schema妥当性、lock保持、Target適合、Plan再現性、説明、visual metricで判定する。
+- Production BakeはUV overlap／padding、atlas exact／+1、probe priority／uncovered IBL、dependency hash invalidation、同一入力のartifact hash、Cell境界／cold streaming、missing／stale／corrupt、partial activation拒否、qualified realtime fallback、offline／fallback／Target比較、Visual／performance receiptをfixture化する。
 
 visual／numeric Evidence、Eval、provenance envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。本書はLighting inputとexpected physical／semantic resultだけを所有し、共通gradeやreceipt fieldを再掲しない。
 
