@@ -463,8 +463,10 @@ World固有diagnosticはWorld／Scene／Level／Entity Stable ID、Plan ID／pla
 | `MIRAKAN-WORLD-TOPOLOGY_INVALID` | cycle、trap、unreachable、参照不正 | Cook／Commit拒否 |
 | `MIRAKAN-WORLD-LEVEL_OWNER_INVALID` | Level gameplay ownerが0または複数 | Activation拒否 |
 | `MIRAKAN-WORLD-STREAMING_PLAN_STALE` | Source／Target／Toolchain hash不一致 | 再Cook要求 |
-| `MIRAKAN-WORLD-LOADING_PLAN_STALE` | dependency closure／Plan generation不一致 | 新session／Planを発行 |
+| `MIRAKAN-WORLD-LOADING_PROGRESS_PLAN_STALE` | dependency closure／generation不一致 | 旧Snapshotを破棄し新sessionを開始 |
 | `MIRAKAN-WORLD-LOADING_PLAN_CAPACITY_EXCEEDED` | work unitが65,535件超 | `loading_plan_capacity_exceeded`、previous Plan／World generation維持 |
+| `MIRAKAN-WORLD-LOADING_CANCEL_REJECTED` | activating以後またはPolicy不許可 | World state不変のtyped rejection |
+| `MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED` | Source／Save／Capability／budgetが再検証不合格 | partial stateを使わずfailure表示を維持 |
 | `MIRAKAN-WORLD-DEPENDENCY_NOT_RESIDENT` | hard dependency不足 | Cellをactiveにしない |
 | `MIRAKAN-WORLD-ACTIVATION_PARTIAL` | activation groupの一部だけ成功 | 全体rollback |
 | `MIRAKAN-WORLD-TILE_SOURCE_INVALID` | duplicate／out-of-range cell、unknown Tile、revision mismatch、overflow、unsupported orientation | Source／Cook拒否 |
@@ -491,7 +493,8 @@ Qualificationは次のDomain fixtureを持つ。
 - `MoveEntityToScene`、`SetLevelSourceScenes`、Cell再Cookがidentity／membershipを暗黙変更しないこと。
 - Topology reachability／trap／cycle／Target fallback、unknown／stale／cross-cell pointer negative test、Undo／redo／crash recovery／concurrent edit conflict。
 - Cell全state transition、cancel、timeout、I/O failure、activation group atomicity、旧Level維持、Level transition／Character transfer／lease解放、Save／Load／Replay state hash。
-- Loadingの実作業unit 65,535 exact／65,536 exact +1、weight合計65,535、同Plan単調進捗、capacity failureでpartial unit非公開、closure変更時の新generation、fake timer拒否、Cancel boundary、明示Retry、input／audio／accessibility projectionを検証する。
+- `loading_progress_contract_v1`: initial boot／Level transition／Save resumeで同じPlan／Snapshot契約を使い、0／10／99／100%の実作業由来進捗、cold I/O、verify failure、0／2,000 msのminimum-display境界、旧Level／Title維持を検証する。
+- Loadingの実作業unit 65,535 exact／65,536 exact +1、weight合計65,535、同Plan単調進捗、capacity failureでpartial unit非公開、closure変更時の新generation、fake timer拒否、prefetch中Cancel、activating以後の`MIRAKAN-WORLD-LOADING_CANCEL_REJECTED`、明示Retryと`MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED`、lease／temporary Artifact解放、input／audio／keyboard／controller／screen reader projectionを検証する。
 - Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、examined tile 16,777,216 exact／16,777,217 exact +1のscan前capacity rejection、D4 single transformのRenderer／pivot／Collision／Navigation／terrain一致、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致を検証する。
 - Blockoutのdimension／segment／assembly／Level bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件fixtureを検証する。
 - 同じSource Levelの複数saved instance、checkpoint連鎖、missing／duplicate／不正`LevelSaveInstanceId`、Loadごとの新しい`LevelInstanceHandle`、one-to-one remap、保存handle復元拒否を検証するidentity fixture。

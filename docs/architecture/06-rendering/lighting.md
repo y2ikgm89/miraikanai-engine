@@ -203,6 +203,7 @@ LightingBakeArtifactV1
 LightmapBindingV1
   mesh_submesh_stable_id
   lightmap_uv_set
+  lightmap_atlas_ref: exact ArtifactRefV1
   atlas_rect
   decode_scale_bias
 
@@ -223,6 +224,8 @@ ReflectionProbeDefinitionV1
 ```
 
 Static Meshのlightmap UVは専用UV set、0～1範囲、finite、triangle overlap許容率0%、Cook後解像度で4 texel以上のchart paddingを必須とする。C2 reference値は32 texel／m、atlas最大4,096²、1 Level最大64 atlas、irradiance probe間隔0.5～16 m、reflection cubemap 128²×6である。Source Meshが満たさない場合、Importerは生成候補とLoss Reportを提示できるが、既存UVを無断置換しない。
+
+各`LightmapBindingV1.lightmap_atlas_ref`は親`LightingBakeArtifactV1`の`lightmap_atlas_refs[]への所属`をexact Artifact identityで検証し、display name、path、配列indexからatlasを推測しない。`atlas_rect`はfiniteなnormalized `{u_min, v_min, u_max, v_max}`で、全成分を0～1、`u_min < u_max`、`v_min < v_max`とし、参照atlasのextent外または面積0を拒否する。`lightmap_binding_refs[]`内で同じbinding refの反復、または同じ`mesh_submesh_stable_id`を複数回束縛する`duplicate binding`を`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`としてArtifact promotion前に拒否する。
 
 Probe重複はpriority、volume、Stable IDの順に決定する。未配置領域はC1 Environment IBLへfallbackし、local reflection probeをC1 global IBLと混同しない。geometry、Materialのbaked contribution、static／stationary Light、Environment、Bake Profile、baker toolchain version、quality settingsからSource dependency hashをcanonicalに構成し、そのいずれかのhash変更時だけ該当World Cell Artifactをinvalidateする。
 
@@ -277,7 +280,7 @@ Qualificationは次のDomain fixtureを持つ。
 - 最大Light数、最大cluster index、dynamic churnのsoak。run条件はRuntime capacity ownerを使う。
 - 2D unlit、2D normal map、pixel art、PBR室内／屋外、Toon、透明物、VFX混在、極端な小／大scale Sceneでbeauty、contribution、shadow、clusterを比較する。
 - AI corpusは「主人公を暖かく、背景を冷たく」「低価格Androidで雰囲気を極力保つ」「pixel artをぼかさず夜にする」「既存の人手調整Key Lightを変えない」「Shadow costを増やさず敵を読みやすくする」を含み、Schema妥当性、lock保持、Target適合、Plan再現性、説明、visual metricで判定する。
-- Production BakeはUV overlap／padding、atlas exact／+1、probe priority／uncovered IBL、dependency hash invalidation、同一入力のartifact hash、Cell境界／cold streaming、missing／stale／corrupt、partial activation拒否、qualified realtime fallback、offline／fallback／Target比較、Visual／performance receiptをfixture化する。
+- Production BakeはUV overlap／padding、atlas exact／+1、binding atlas membership、finite／normalized／non-empty rect、duplicate binding拒否、probe priority／uncovered IBL、dependency hash invalidation、同一入力のartifact hash、Cell境界／cold streaming、missing／stale／corrupt、partial activation拒否、qualified realtime fallback、offline／fallback／Target比較、Visual／performance receiptをfixture化する。
 
 visual／numeric Evidence、Eval、provenance envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。本書はLighting inputとexpected physical／semantic resultだけを所有し、共通gradeやreceipt fieldを再掲しない。
 

@@ -292,7 +292,7 @@ Qualificationは次のDomain fixtureを持つ。
 | Pixel Diorama | depth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離 |
 | Compiler | invalid Graph、resource上限、禁止HLSL、binding不一致、cache再現 |
 | Target | Windows、Android、Appleのoffline compile、pipeline、fallback |
-| Decal | receiver mask、opaque／masked以外の拒否、同一面sort、timed fade、capacity丁度／+1、critical fallback、camera cut、Level deactivate、Windows／Mobile fallback、Decal不在時のauthoritative state hash一致 |
+| Decal | Forward+、MSAA 1x／2x／4x、receiver mask、opaque／masked以外とskinned receiver除外、同一面sort、timed fade、capacity丁度／+1、critical fallback、camera cut、Level deactivate、Windows／Mobile fallback、固定Camera／Materialによるangle／depth bias／normal blend／fadeのgolden regression、Decal不在時のauthoritative state hash一致 |
 
 同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2／255超のpixelが0.1%未満を既定Gateとする。Cross-vendorはparameter ordering、luminance、finite、outline width、pixel grid等のanalytic invariantを検証する。
 
