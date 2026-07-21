@@ -2,8 +2,8 @@
 
 - 文書ID: mirakan.arch.platform-ui-text-localization-accessibility
 - 状態: review
-- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Text storage／input／layout、Localization、glyph cache、Accessibility、UI authoring、UI固有capacity／failure／qualification
-- 非正本範囲: Project ChangeSet／Asset lifecycle、common Renderer execution、Runtime phase／shared budget、Editor shell、Platform lifecycle／safe-area source、external library version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
+- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Text storage／input／layout、Localization、glyph cache、Accessibility、Player Profile／Settings transaction／Save Catalog、UI authoring、UI固有capacity／failure／qualification
+- 非正本範囲: Project ChangeSet／Asset lifecycle、Gameplay Save payload、common Renderer execution、Runtime phase／shared budget、Editor shell／workspace、Account credential、telemetry／AI／network consent、Platform lifecycle／safe-area source、external library version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -529,9 +529,100 @@ Platform bridgeはSemantic Node IDとgenerationを使い、UI Runtime pointerを
 - reduced motion、flash／camera shake settingとのStyle連携
 - timeoutを必要とするUIは延長／停止policyを明示
 
-## 15. Memory、Thread、Performance
+## 15. Player Profile／Settings
 
-### 15.1 Charge
+本書はlocal Player Profile、Settings、apply／revert transaction、Save Catalogの唯一のOwnerである。Gameplay Save payloadの形式／atomicityはRuntime／Platform正本、Editor workspaceはEditor正本、Account credentialはAccount正本、telemetry／AI Provider／network consentは専用Consent Record正本が所有し、Settingsの一般boolへ畳み込まない。
+
+```text
+LocalPlayerProfileV1
+  profile_id
+  profile_schema_version
+  settings_document_ref
+  input_binding_document_ref
+  accessibility_document_ref
+  locale_selection
+  save_catalog_ref
+  consent_record_refs[]
+  created_at_monotonic_context
+  migration_history[]
+```
+
+```text
+SettingsDefaultsV1
+  settings_defaults_id
+  schema_version
+  project_defaults_hash
+  target_supported_ranges_ref
+  display_settings
+  render_quality_selection
+  audio_user_settings
+  input_binding_document
+  accessibility_document
+  locale_selection
+```
+
+```text
+SettingsDocumentV1
+  settings_document_id
+  schema_version
+  revision
+  project_defaults_hash
+  display_settings_ref
+  render_quality_selection_ref
+  audio_user_settings_ref
+  input_binding_document_ref
+  accessibility_document_ref
+  locale_selection
+  last_known_good_snapshot_ref
+  migration_history[]
+
+SettingsApplyTransactionV1
+  transaction_id
+  profile_ref
+  base_settings_revision
+  proposed_settings_hash
+  changed_field_paths[]
+  apply_classes[]
+  confirmation_deadline_monotonic_ms
+  previous_known_good_ref
+  validation_receipt_refs[]
+  result: pending | applied | reverted | restart_required | rejected
+```
+
+`settings_document_ref`は`SettingsDocumentV1`を指す。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、対応するSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
+
+Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変更せずProfile scopeのoverrideだけを保存する。有効値は`Project defaults -> Target supported range -> User override`の順で解決する。未対応値を近似せず、該当field pathとTarget capabilityを含むtyped rejectionを返す。旧schemaは登録済み一方向Migrationを通す。future schema、hash不一致、参照欠落ではSettingsDocumentを上書きせず、last-known-goodまたはProject defaultでSafe Modeを起動する。
+
+| Apply class | 対象 | 規則 |
+|---|---|---|
+| `immediate` | Audio volume／route preference、Input binding、Language、Accessibility、通常のQuality選択 | 全Validator成功後にSubsystemへ同一transaction generationで適用し、atomic保存失敗時は全fieldを以前のgenerationへ戻す |
+| `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、UI／real-time clockの**ちょうど15秒**以内にkeyboard／controllerで確認されなければ自動Revert |
+| `restart_required` | Renderer Backend、Packageでrestartが必要と宣言されたDevice feature | 現sessionのRuntime stateを変更せず、次回起動候補として保存し、起動失敗時はlast-known-goodへ戻す |
+
+Commitはtemp write、flush、checksum verify、atomic replace、Save Catalog generation updateの順に一つのtransactionとして完了させる。base revision mismatch、unsupported Target、display mode loss、device loss、audio route loss、storage full、partial writeはtyped failureとして原子的にrejectedとし、部分適用を成功扱いにしない。失敗時はlast-known-goodへatomic revertし、confirmed適用中もUI、確認入力、screen reader、Revert経路を維持して表示不能を成功扱いにしない。
+
+```text
+SaveCatalogV1
+  save_catalog_id
+  catalog_schema_version
+  profile_ref
+  generation
+  content_package_set_ref
+  checksum
+  slots[]
+    slot_id
+    display_metadata
+    save_schema_version
+    content_package_set_ref
+    checksum
+    status
+```
+
+`SaveCatalogV1`はslot display metadata、generation、schema、content package set、checksum、statusを持つ。native path、pointer、runtime handle、localized display textを永続identityにしない。Save payloadの形式とatomicityはRuntime／Platform正本へ従う。
+
+## 16. Memory、Thread、Performance
+
+### 16.1 Charge
 
 次をUI domainのchild capとし、[Runtime performance／capacity](../04-runtime/performance-capacity.md)のTarget別parent scopeへchargeする。
 
@@ -544,7 +635,7 @@ Platform bridgeはSemantic Node IDとgenerationを使い、UI Runtime pointerを
 
 Parent総量、他Domainの残量、loan／backpressureはRuntime ownerだけが決定する。Mobile Baselineはactive UI／Text CPU 16 MiB、Standard 24 MiB、High 32 MiBを[Mobile Common](mobile-common.md)のaggregate cap内へchargeし、ICU dataとglyph atlasをContent／GPU budgetへ個別記録する。
 
-### 15.2 Thread
+### 16.2 Thread
 
 - UI State／Focus writerはSimulation thread。
 - LayoutはT90 ownerだが、immutable screen／textのpre-layoutとshaping／glyph rasterをWorkerへ出せる。
@@ -553,7 +644,7 @@ Parent総量、他Domainの残量、loan／backpressureはRuntime ownerだけが
 - HarfBuzz buffer、FreeType face access、glyph output bufferのownershipをjobごとに分離する。
 - T90でfile I/O、Font parse、glyph raster、locale data loadを行わない。
 
-### 15.3 Budget
+### 16.3 Budget
 
 - `T30` UI interaction P95 0.15 ms以下
 - `T90` UI bind／layout／packet P95 0.40 ms以下
@@ -565,7 +656,7 @@ Parent総量、他Domainの残量、loan／backpressureはRuntime ownerだけが
 
 本書のdomain ceilingはRuntime ownerの共通frame envelopeを緩和しない。
 
-## 16. AI／Editor Authoring
+## 17. AI／Editor Authoring
 
 AIと人間はUiDocument、Style token、Localization entry、Font Set、ViewModel schema、Interaction、responsive breakpointをtyped ChangeSetで編集する。
 
@@ -582,7 +673,7 @@ UI DesignerはCanvas、Hierarchy、Inspector、Layout／safe-area overlay、Focu
 
 AIがUIを生成する場合、GameSpecの主要flow、Target、safe area、required Action、locale expansion、accessibility、Style lockを先に検証し、見た目だけのScreenshot合格にしない。
 
-### 16.1 AI UI生成workflow
+### 17.1 AI UI生成workflow
 
 内蔵AI、外部MCP Host、手動UI Designerは次の正規workflowへ収束する。
 
@@ -603,7 +694,7 @@ Natural-language intent／manual edit
 
 AIの成果物は説明文やScreenshotではなく、Stable IDを対象にしたtyped Operationである。新IDはGatewayへ`Create*` Operationで要求し、存在しないWidget、Asset、ViewModel field、Action IDを推測しない。AIは`UiDocument`全置換を既定にせず、目的に必要なNode、Binding、Style、Asset参照だけを変更する。
 
-### 16.2 画像・生成Assetの設定
+### 17.2 画像・生成Assetの設定
 
 C1は外部で生成済みの画像を通常Assetと同じImport、license、provenance、safety、quality Gateへ通し、合格したAsset IDだけを`image`、Composite、Styleへ参照できる。C2のAsset generation providerもoutputを`GeneratedAssetStaging`へ置き、Projectへ直接writeしない。
 
@@ -617,19 +708,19 @@ AIは画像生成とUI設定を一つの不可分な成功として扱わず、�
 
 Text、価格、法的同意、認証情報、操作説明を画像へ焼き込まない。AI生成画像の見た目が合格しても、safe area、contrast、locale expansion、focus、semantic tree、Target cookを省略しない。
 
-### 16.3 Preview、authorization参照、競合
+### 17.3 Preview、authorization参照、競合
 
 UI Preview matrixは最低限、Projectのminimum／reference解像度、portrait／landscape、safe area、0.75／1.00／2.00 UI scale、全required locale、keyboard／controller／touch、High Contrast、reduced motionを含む。Screenshot／vision評価は視覚差の補助oracleであり、layout rect、binding type、semantic hash、focus graph、budgetの正規判定を置き換えない。
 
 AI proposal作成中にProject revisionが変わった場合はstaleとしてCommitを禁止し、現在revisionへrebaseして全Validatorを再実行する。Navigation root、required Action、purchase／consent／credential UI、Accessibility semantics、Style lock、Production Asset採用、UiNativeWidget sourceのauthorization classとdelegation可否は[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決定する。本書は判断入力となるUI impactを型付きで提示する。
 
-### 16.4 拡張WidgetをAIが扱う条件
+### 17.4 拡張WidgetをAIが扱う条件
 
 AIはTier 1～3を同じWidget名だけで扱わず、Manifestからproperty、slot、Binding、Interaction、semantic、budget、Target、fallbackを取得する。表現方法は`Builtin／Composite -> Effect Graph -> Native Widget`の順に選び、下位Tierで完了条件を満たせる場合に上位Tierを生成しない。
 
 Tier 3を選ぶ場合、AIは理由、宣言型で不足するCapability、公開contract、Source Diff、test、performance予測、Target差、fallbackを`NativeCodeChangeSet`へ含める。Build成功だけでUIへ登録せず、[Native game module](../03-authoring/native-game-module.md)のPromotion Receiptと`RegisterNativeModuleRevision` Commit後に初めて使用可能にする。
 
-## 17. Failure policy
+## 18. Failure policy
 
 | Failure | 結果 |
 |---|---|
@@ -652,13 +743,13 @@ Tier 3を選ぶ場合、AIは理由、宣言型で不足するCapability、公�
 
 Required system menu UIがfaultした場合はGameを操作不能のまま続行せず、safe fallback screenをEngine-owned fixed Assetから表示する。Fallback screenもbundled Font、Exit／Report action、Accessibility semanticsを持つ。
 
-## 18. Dependency Build境界
+## 19. Dependency Build境界
 
 HarfBuzzはFreeType／ICU integrationを有効にし、不要なoptional integrationとtoolをShippingから除く。FreeTypeは本書が使用するTrueType／OpenType、CFF／CFF2、SFNT範囲だけを、ICU4Cはcommon／i18nとfiltered dataだけをShippingへ含める。exact version、commit、hash、license、取得元、Build option lockは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。更新時は全conformance locale、golden layout、Font raster、package size、memory、performanceを再検証する。
 
 Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject locale set、fallback、number／date／plural、boundary ruleに必要なdataをICU Data Filterで決定論的に絞る。Filter inputとoutput hashをPackage Receiptへ記録する。
 
-## 19. TestとDefinition of Done
+## 20. TestとDefinition of Done
 
 - UiDocument node／depth／cycle／capacity、全Layout kind、responsive／safe area
 - Focus、directional navigation、modal、pointer capture、Widget event、stale hit test
@@ -671,6 +762,7 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - 100／125／150／200% DPI、0.75～2.0 UI scale、portrait／landscape、cutout
 - Windows UIA、Android Accessibility、Apple UIAccessibility action
 - keyboard／controller／touch／screen readerでTitle→Settings→Play→Pause→Exit
+- `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのちょうど15秒timeout、restart_required、future schema／hash／reference Safe Mode、Save Catalog generation／identity禁止
 - glyph atlas eviction／submission lifetime、locale／Font／Style hot reload
 - 131,072 Node、65,536 glyph、8,192 event上限と10分soak
 - Windows、Android、Appleの同じUI fixtureでlogical layout／semantic hash一致
@@ -682,6 +774,6 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 
 C1完了条件は、2D／3D縦切りのTitle、Settings、HUD、Pause、Result、Text Inputを標準Widgetと`UiCompositeDefinition`で構築し、全Target、conformance locale、input方式、accessibility bridgeで操作でき、AI生成と手動編集が同じUiDocument／ChangeSet／Validatorを通り、CPU／GPU／memory hard gateを満たすことである。Tier 2／3はC2 Gateであり、C1完了を偽装するfallbackに使わない。
 
-## 20. 外部依存境界
+## 21. 外部依存境界
 
 Text／Font library、Unicode specification、Platform IME／Accessibility APIのexact release、取得元、integrity、license、一次根拠は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。Miraikanai固有のUI model、Widget、Layout、Binding、Event、domain budget、AI／manual workflowは本書が所有する。
