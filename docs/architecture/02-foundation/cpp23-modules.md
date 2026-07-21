@@ -1,16 +1,11 @@
-# Miraikanai Engine C++23・Named Modules・`import std`移行規約
+# Miraikanai Engine C++23 Modules
 
-- 文書版: 1.3
-- 作成日: 2026-07-20
-- 調査基準日: 2026-07-20
-- 対象: C++言語基準、Named Modules、`import std`、CMake、Toolchain、AI生成C++、全Target移行
-- 状態: ユーザー承認済みのプロジェクト公式規範設計
-- 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
-- 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-- Game実装規約: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
-- Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
-- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-- モバイル規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+- 文書ID: mirakan.arch.cpp23-modules
+- 状態: review
+- 正本範囲: C++23 language profile、Named Module境界、`import std`移行state、CMake module表現、Header例外、BMI identity、Cutover Gate
+- 非正本範囲: Compiler・CMake・Ninja・SDKのexact version／hash／取得元、一般命名・Directory、Memory／Pointer、Native Game ABI、Platform package。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
@@ -41,20 +36,18 @@ ModulesはCompilerが強制するSource公開境界であり、Plugin ABI、Bina
 
 言語Version、Named Module名、CMake統合、Header例外、移行State、正式Cutover Gateは本書が決定する。Memory、Pointer、Exception、Directory一般則は基盤規約、NativeGameModuleのC ABIと信頼境界はNative Game規約、Apple package／署名はモバイル規約が決定する。
 
-## 3. 外部Toolchainの確認結果
+## 3. 外部Toolchain capabilityの扱い
 
-2026年7月20日時点の事実を、プロジェクト判断と分けて記録する。
+Tool、Compiler、SDKのexact release、version、hash、取得元と、そのversionで検証したcapability evidenceは[Toolchain／Dependencies](toolchain-dependencies.md)だけが所有する。本書は検証済みcapabilityに対する製品判断だけを固定する。
 
-| 確認事項 | 事実 | Miraikanaiの判断 |
-|---|---|---|
-| MSVC 14.51 | MicrosoftはC++23完了まで残る項目としてP2564R3とP0533R9を挙げ、`/std:c++23preview`と`/std:c++latest`を提供している | Stable 14.51をHeader準備期のDevelopment／CI bootstrapに固定するが、Production Shipping artifactを作らない |
-| MSVC 14.52 Preview | P2564R3を実装し、Modules／`import std`の複数修正が継続している | PreviewはProbe専用。Shipping、SDK配布、性能正本に使わない |
-| Named Modules | C++20以降で利用でき、MSVCは`.ifc`の構造化表現をimportする方式を提供する | C++23 Source公開境界として正式採用する |
-| `import std` | C++23 Standard Library Module。標準名を公開するが、`assert`、`errno`、`offsetof`、`va_arg`等のmacroを公開しない | 標準名は`import std;`、必要macroは限定Headerで明示する。`std.compat`は採用しない |
-| CMake 4.4 | MSVC 14.34以上、Clang 16以上、clang-cl 19.1以上、GCC 14以上のModule scanを扱う | `FILE_SET CXX_MODULES`を正式なBuild表現とする |
-| CMake 4.4 `import std` | Experimental gateが必要で、現時点ではNinja／Ninja Multi-Configだけが対応する | Probeに限りExperimental gateを隔離利用し、正式期は非Experimental supportを必須にする |
-| CMake Xcode Generator | CMakeの`import std`対応Generatorに含まれない | 正式期のportable Apple C++ Module graphはNinja Multi-Config、XcodeはApp shell／最終Link／Archive／署名を担当する |
-| Header Units | CMakeの既知制限として未対応 | 移行手段にも正式方式にも採用しない |
+| 確認事項 | Miraikanaiの判断 |
+|---|---|
+| Named Modules | C++23 Source公開境界として正式採用する |
+| `import std` | 標準名は`import std;`、必要macroは限定Headerで明示する。`std.compat`は採用しない |
+| Module scan | `FILE_SET CXX_MODULES`を正式なBuild表現とする |
+| Experimental `import std` | Probeに限りExperimental gateを隔離利用し、正式期は非Experimental supportを必須にする |
+| Apple build | portable C++ Module graphとApp shell／最終Link／Archive／署名をDriver Profileで分離する |
+| Header Units | 移行手段にも正式方式にも採用しない |
 
 CompilerやBuild Systemの対応表は「その組合せなら製品に安全」という保証ではない。固定Toolchain、全Target fixture、IDE、Sanitizer、Static Analysis、Package testを本書のGateで追加検証する。
 
@@ -94,9 +87,9 @@ CX3移行後にCompiler defectが見つかった場合は、別Compilerへ暗黙
 
 ### 5.1 CX0の制限付きC++23
 
-CX0はSource言語をC++23とし、Windowsでは固定MSVC 14.51 Stableの`/std:c++23preview`、Android／Apple／secondary CIでは固定Clangの`-std=c++23`を使用する。`/std:c++latest`をCX0の代替にしない。
+CX0はSource言語をC++23とし、Windowsでは[Toolchain／Dependencies](toolchain-dependencies.md)が固定するbootstrap compilerのpreview flag、Android／Apple／secondary CIでは同文書が固定するClangの`-std=c++23`を使用する。`/std:c++latest`をCX0の代替にしない。
 
-MSVC 14.51で未完の次の機能へProduction Sourceを依存させない。
+CX0 compilerで未完の次の機能へProduction Sourceを依存させない。
 
 - P2564R3 `consteval` immediate escalation。
 - P0533R9 `constexpr <cmath>`／`<cstdlib>`。
@@ -264,7 +257,7 @@ Makefiles系は現行CMakeのC++ Module scan対象に含まれず、`import std`
 
 ### 8.4 Experimental gateの隔離
 
-CMake 4.4の`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` tokenは、CX1専用`cmake/experimental/import_std_probe.cmake`だけに置く。Root `CMakeLists.txt`はCX1 Profileのときだけ、このFileを最初の`project(... LANGUAGES CXX)`より前にincludeし、CXX toolchain discovery前にtokenを設定する。exact CMake artifact、token、Generator、Compiler、STL hashを`toolchain.lock.json`へ記録する。
+採用CMakeの`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` tokenは、CX1専用`cmake/experimental/import_std_probe.cmake`だけに置く。Root `CMakeLists.txt`はCX1 Profileのときだけ、このFileを最初の`project(... LANGUAGES CXX)`より前にincludeし、CXX toolchain discovery前にtokenを設定する。exact CMake artifact、token、Generator、Compiler、STL hashは[Toolchain／Dependencies](toolchain-dependencies.md)に従って`toolchain.lock.json`へ記録する。
 
 - Product targetの通常CMake fileでExperimental変数を参照しない。
 - CMake version更新時に以前のtokenを再利用しない。
@@ -440,7 +433,7 @@ CX2は依存DAGの下位から次の順で変換する。
 
 ### 16.1 Toolchain
 
-- Windows Primary compilerがPreviewでないMSVC 14.52以降で、正式な`/std:c++23`を提供する。
+- Windows Primary compilerが[Toolchain／Dependencies](toolchain-dependencies.md)のCX3条件を満たし、正式な`/std:c++23`を提供する。
 - CMakeの`import std`がExperimental tokenなしで利用でき、`CMAKE_CXX_COMPILER_IMPORT_STD`がC++23を列挙する。
 - Windows／Android／AppleのCompiler、STL、SDK、CMake、Ninja、Xcodeをexact version／hashで`toolchain.lock.json`へ固定する。
 - Module dependency scan、`FILE_SET CXX_MODULES`、install／archiveがWindows／Appleの`Ninja Multi-Config`とAndroidのSingle-Config `Ninja`で成功する。
@@ -540,23 +533,11 @@ Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／C
 
 ## 20. 一次資料
 
-- [MSVC Build Tools 14.51 GA告知](https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/)
-- [MSVC Build Tools 14.51のC++23対応状況](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/)
-- [MSVC 14.52 PreviewのP2564R3実装](https://devblogs.microsoft.com/cppblog/msvc-build-tools-preview-updates-may-2026/)
-- [MSVC 14.52 PreviewのModules修正（2026年6月）](https://devblogs.microsoft.com/cppblog/msvc-build-tools-preview-updates-june-2026/)
-- [MSVC 14.52 PreviewのModules修正（2026年7月）](https://devblogs.microsoft.com/cppblog/msvc-build-tools-preview-updates-july-2026/)
-- [Visual Studio 2026 Stable release履歴](https://learn.microsoft.com/en-us/visualstudio/releases/2026/release-history)
+- Compiler、CMake、Ninja、SDKのversion別Evidenceは[Toolchain／Dependencies](toolchain-dependencies.md)を参照する。
 - [Microsoft C++ `module`／`import`／`export`](https://learn.microsoft.com/en-us/cpp/cpp/import-export-module?view=msvc-170)
 - [Microsoft Header／PCH／Header Unit／Named Module比較](https://learn.microsoft.com/en-us/cpp/build/compare-inclusion-methods?view=msvc-170)
 - [Microsoft Standard Library Module tutorial](https://learn.microsoft.com/en-us/cpp/cpp/tutorial-import-stl-named-module?view=msvc-180)
-- [CMake C++ Modules support](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html)
-- [CMake `CXX_MODULE_STD`](https://cmake.org/cmake/help/v4.4/prop_tgt/CXX_MODULE_STD.html)
-- [CMake Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)
-- [CMake Ninja Multi-Config](https://cmake.org/cmake/help/v4.4/generator/Ninja%20Multi-Config.html)
-- [CMake IDE Integration](https://cmake.org/cmake/help/v4.4/guide/ide-integration/index.html)
-- [CMake File API](https://cmake.org/cmake/help/v4.4/manual/cmake-file-api.7.html)
 - [Ninja manual](https://ninja-build.org/manual.html)
-- [CMake toolchain manual: Apple cross compilation](https://cmake.org/cmake/help/v4.4/manual/cmake-toolchains.7.html)
 - [Android CMake／Ninja configuration](https://developer.android.com/studio/projects/configure-cmake)
 - [WG21 P2564R3 `consteval` needs to propagate up](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2564r3.html)
 - [WG21 P0533R9 `constexpr` for `<cmath>` and `<cstdlib>`](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p0533r9.pdf)

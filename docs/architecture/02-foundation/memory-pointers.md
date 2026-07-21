@@ -1,15 +1,11 @@
-# Miraikanai Engine AI可読Memory／Pointerアーキテクチャ規約
+# Miraikanai Engine Memory／Pointers
 
-- 文書版: 1.0
-- 作成日: 2026-07-20
-- 最終更新日: 2026-07-20
-- 対象: Engine C++、Runtime、NativeGameModule、生成C++、Adapter、Editor、Tool、AI Provider projection
-- 状態: プロジェクト公式の規範設計
-- 上位文書: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
-- 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-- Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
-- 実行可能契約規約: [Miraikanai Engine 実行可能契約・Schema・Codegen規約](./2026-07-19-executable-contract-schema-codegen-design.md)
+- 文書ID: mirakan.arch.memory-pointers
+- 状態: review
+- 正本範囲: Pointer taxonomy、ownership、typed handle、lease／view、Memory domain、arena／pool、allocation metadata、OOM、AI contract、failure、telemetry、Qualification
+- 非正本範囲: 外部Library・Tool version／hash／license、Runtime共通budget／phase、GPU residency、一般命名・Directory、Schema共通構造。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 

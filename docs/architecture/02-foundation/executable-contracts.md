@@ -1,34 +1,21 @@
-# Miraikanai Engine 実行可能契約・Schema・Codegen規約
+# Miraikanai Engine Executable Contracts
 
-- 文書版: 1.13
-- 作成日: 2026-07-19
-- 調査基準日: 2026-07-20
-- 対象: Requirement、Capability、Game System、Type、Operation、State Machine、Policy、AI Tool、C++／TypeScript／Cooked binary生成
-- 状態: プロジェクト公式の規範設計レビュー版
-- 上位文書: [Miraikanai Engine AI実装・保守ガバナンス規約](./2026-07-19-ai-engine-development-governance-design.md)
-- Game実装方式: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
-- 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-- Math／Core Utilities正本: [Miraikanai Engine AI可読Math／Core Utilitiesアーキテクチャ規約](./2026-07-20-ai-readable-math-core-utilities-architecture-design.md)
-- C++言語・Modules規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
-- Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
-- 検証規約: [Miraikanai Engine AI検証・評価・来歴規約](./2026-07-19-ai-verification-evaluation-provenance-design.md)
-- LOD正本: [Miraikanai Engine AI可読LODアーキテクチャ規約](./2026-07-20-ai-readable-lod-architecture-design.md)
-- Renderer／Anti-alias実行正本: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
-- Lighting正本: [Miraikanai Engine Lighting／AI Authoringアーキテクチャ規約](./2026-07-20-lighting-ai-authoring-architecture-design.md)
-- Post Process正本: [Miraikanai Engine Post Process／AI Authoringアーキテクチャ規約](./2026-07-20-post-process-ai-authoring-architecture-design.md)
-- Game System正本: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
-- World／Level／Map正本: [Miraikanai Engine World／Level／Map／AI Authoringアーキテクチャ規約](./2026-07-20-world-level-map-ai-authoring-architecture-design.md)
-- Debugging正本: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
+- 文書ID: mirakan.arch.executable-contracts
+- 状態: review
+- 正本範囲: MCD、Requirement、Type、Operation、State machine、Capability、Policy、Diagnostic、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
+- 非正本範囲: 外部Tool・packageのversion／commit／hash／license、Product scope、AI authorization、Evidence envelope、Domain固有runtime semantics。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
 Miraikanai Engineの要件、型、操作、状態遷移、権限、Budget、Diagnosticを、prose、C++ header、TypeScript type、AI Tool Schemaへ別々に手書きしない。Repositoryの`/schemas/mirakan/`に置く**Miraikanai Contract Definition（MCD）**を唯一の機械可読正本とし、次を決定論的に生成する。
 
-- Engine内部検証用JSON Schema 2020-12。
+- [Toolchain／Dependencies](toolchain-dependencies.md)が固定するJSON Schema dialectによるEngine内部検証Schema。
 - C++23 wire type、enum、validator、serializer、dispatch table、Named Module interface、C ABI Header。
 - TypeScript strict type、runtime validator、JSON-RPC binding。
 - GameplayDefinition／CookedGameplayPackageのbinary descriptor、encoder、decoder。
-- MCP 2025-11-25 Tool `inputSchema`／`outputSchema`。
+- 固定MCP protocolのTool `inputSchema`／`outputSchema`。
 - OpenAI strict function／Structured Output向けsubset。
 - Anthropic Tool向けProvider projection。
 - Editor form、Inspector metadata、human-readable reference。
@@ -396,11 +383,11 @@ Merkle leafは正規File pathのUTF-8 byte列を`p`、DocumentのJCS SHA-256 32 
 
 ## 14. Contract compiler
 
-`tools/contract_compiler`は、基盤規約で固定したNode.js／TypeScript ESM toolchainでBuildするfirst-party CLIとする。Runtime dependencyではなく、offline Build toolである。TypeScript compiler programmatic APIへ依存せず、通常の`tsc`でcompiler自身をBuildする。
+`tools/contract_compiler`は、[Toolchain／Dependencies](toolchain-dependencies.md)で固定したJavaScript／TypeScript ESM toolchainでBuildするfirst-party CLIとする。Runtime dependencyではなく、offline Build toolである。TypeScript compiler programmatic APIへ依存せず、通常の`tsc`でcompiler自身をBuildする。
 
-JSON treeには`jsonc-parser@3.3.1`、JCSにはRFC 8785 Appendix GがJavaScript実装として挙げる`canonicalize@3.0.0`をexact dependencyとして採用する。どちらもBuild-only、0 transitive dependencyである。Inputは`Buffer`から`TextDecoder("utf-8", {fatal:true})`でdecodeし、`parseTree`を`disallowComments=true`、`allowTrailingComma=false`で呼ぶ。Tree上の全Property occurrenceを走査してdecoded key重複を拒否した後だけData modelへ変換する。`parse()`または`JSON.parse`で重複情報を失ってから検査してはならない。
+JSON treeとJCS実装は[Toolchain／Dependencies](toolchain-dependencies.md)が固定するBuild-only packageを使う。Inputは`Buffer`から`TextDecoder("utf-8", {fatal:true})`でdecodeし、`parseTree`を`disallowComments=true`、`allowTrailingComma=false`で呼ぶ。Tree上の全Property occurrenceを走査してdecoded key重複を拒否した後だけData modelへ変換する。`parse()`または`JSON.parse`で重複情報を失ってから検査してはならない。
 
-2026-07-19の採用検証では、上記exact packageをNode.js 24 ESMで実行し、comment／trailing comma拒否、`"a"`と`"\u0061"`のProperty occurrence保持、RFC 8785公式Repository commit `19d51d7fe467d4706a3ff08adf8a748f29fc21e0`の6組12 File、合計1,476 byteのinput／output fixtureでbyte一致を確認した。Fixture Artifact rootは13節のleaf／parent framingだけを再利用し、`p`をRepository相対の`testdata/input/<name>`または`testdata/output/<name>`、`d`を各Fixtureの**raw file byte**のSHA-256とする。入力Fixtureは意図的に非canonicalなため、MCD用のJCS document hashへ置き換えない。この定義によるrootは`49ebd08bec39f4da9e2db03cffc76b2de984912fd6fbc66ec4ee33852b7b84fb`である。これは一回限りの保証にせず、同じfixtureを`contract-fast` CIへ固定する。
+固定packageと公式JCS fixture setのversion、commit、artifact rootは[Toolchain／Dependencies](toolchain-dependencies.md)が所有する。採用検証はcomment／trailing comma拒否、`"a"`と`"\u0061"`のProperty occurrence保持、公式input／output fixtureのbyte一致を確認する。Fixture Artifact rootは13節のleaf／parent framingだけを再利用し、`p`をRepository相対の`testdata/input/<name>`または`testdata/output/<name>`、`d`を各Fixtureの**raw file byte**のSHA-256とする。入力Fixtureは意図的に非canonicalなため、MCD用のJCS document hashへ置き換えない。この検証を`contract-fast` CIへ固定する。
 
 処理順序を固定する。
 
@@ -410,7 +397,7 @@ JSON treeには`jsonc-parser@3.3.1`、JCSにはRFC 8785 Appendix GがJavaScript�
 4. 参照解決、cycle、Game System State owner、phase edge、requirement coverageを検査する。
 5. Semantic lintとPolicy lintを実行する。
 6. Canonicalizeして`/schemas/contract.lock.json`と照合する。
-7. Internal JSON Schema 2020-12を生成する。
+7. Toolchain lockが指定するInternal JSON Schema dialectを生成する。
 8. Language bindingを生成する。
 9. Provider／MCP projectionを生成する。
 10. Docs、fixture、transition testを生成する。
@@ -422,7 +409,7 @@ Duplicate-aware走査はString escapeをdecodeした後のKeyで比較するた�
 
 ## 15. Internal JSON Schema projection
 
-Internal validation projectionはJSON Schema Draft 2020-12を使い、`$schema`を必ず明示する。可能な構造制約をすべて表現するが、次は手書きまたは生成semantic validatorへ分離する。
+Internal validation projectionは[Toolchain／Dependencies](toolchain-dependencies.md)が固定するJSON Schema dialectを使い、`$schema`を必ず明示する。可能な構造制約をすべて表現するが、次は手書きまたは生成semantic validatorへ分離する。
 
 - Entity間参照整合性。
 - Target Capabilityの組合せ。
@@ -455,9 +442,9 @@ Provider projectionは次のArtifactを出す。
 
 Constraintを黙って削除しない。未表現Constraintがある場合でもGateway validatorが存在すればProjectionを作れるが、`server_enforced_constraints`へRequirement IDとValidator IDを必ず列挙する。Safety／permission ConstraintにValidatorがなければ生成を失敗させる。
 
-### 16.2 MCP 2025-11-25
+### 16.2 MCP projection
 
-MCP projectionは`inputSchema`と`outputSchema`へJSON Schema 2020-12を明示する。Tool resultは`structuredContent`と互換用の同値JSON textを返す。ServerはOutputを送信前に検証し、Clientが検証しない場合でも安全性が変わらないようにする。
+MCP projectionは`inputSchema`と`outputSchema`へToolchain lockが指定するJSON Schema dialectを明示する。Tool resultは`structuredContent`と互換用の同値JSON textを返す。ServerはOutputを送信前に検証し、Clientが検証しない場合でも安全性が変わらないようにする。
 
 Tool annotationは非信頼表示Hintとして生成する。Access control、Risk、ApprovalはServer Policyで強制する。Tool名は`mirakan.<domain>.<verb>`、ASCII、128文字以下、Repository全体で一意とする。
 
@@ -697,15 +684,13 @@ Lighting／Post ProcessのSearchは既定50件、最大200件、continuation付�
 
 ## 22. 一次資料と採用根拠
 
-- [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12): Engine内部SchemaのDialectとmeta-schema。
-- [JSON Schema 2020-12 Release Notes](https://json-schema.org/draft/2020-12/release-notes): tuple、dynamic reference、unevaluated等のDialect差。
+- JSON Schema dialectのexact versionと取得元は[Toolchain／Dependencies](toolchain-dependencies.md)を参照する。
 - [RFC 8259: The JavaScript Object Notation Data Interchange Format](https://www.rfc-editor.org/rfc/rfc8259): 正本JSONのsyntaxと相互運用基準。
 - [RFC 8785: JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785): Canonical hashのbyte表現。
 - [RFC 4648: Base-N Encodings](https://www.rfc-editor.org/rfc/rfc4648): `bytes_base64url`とSignature転送表現。
 - [Microsoft jsonc-parser](https://github.com/microsoft/node-jsonc-parser): strict option付きTree／scanner APIとProperty occurrence保持。
-- [npm canonicalize](https://www.npmjs.com/package/canonicalize/v/3.0.0): RFC 8785 Appendix G掲載実装の固定Build-only package。
-- [RFC 8785 implementation test data, pinned commit](https://github.com/cyberphone/json-canonicalization/tree/19d51d7fe467d4706a3ff08adf8a748f29fc21e0/testdata): JCSのcross-implementation input／output fixture。
-- [Model Context Protocol 2025-11-25 Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools): `inputSchema`／`outputSchema`、JSON Schema 2020-12 default、structured result、validation。
+- Parser、canonicalizer、JCS fixtureのexact package／commit／hash／取得元は[Toolchain／Dependencies](toolchain-dependencies.md)を参照する。
+- MCP protocolのexact versionと取得元は[Toolchain／Dependencies](toolchain-dependencies.md)を参照する。
 - [OpenAI Function calling: strict mode](https://developers.openai.com/api/docs/guides/function-calling#strict-mode): strict subset、全Field required、`additionalProperties: false`、fallback、cache制約。
 - [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs): Schema adherence、refusal、SchemaとTypeの乖離防止。
 - [Anthropic Define tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools): Tool定義、`input_schema`、説明、Example。
