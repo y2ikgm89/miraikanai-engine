@@ -31,6 +31,46 @@ ModuleはContracts、Render Extract、Graph Compiler、Resource Registry、Pipel
 
 SnapshotはSource Stable ID、artifact generation、Transform、bounds、visibility mask、previous presentation stateをEngine handleで参照する。Rendererはauthoritative World／Physics stateを書き戻さない。Animation skin／poseは[Animation](../05-simulation/animation.md)が公開したgeneration付きsnapshotとして読み、GPU skin executionだけを所有する。
 
+### 2.1 `RenderSnapshot`と`RenderView`
+
+```text
+RenderSnapshot
+  schema_version
+  snapshot_id
+  tick_id
+  project_revision
+  world_generation
+  asset_generation_id
+  view_family[]
+  renderable_2d[]
+  renderable_3d[]
+  light_snapshot: LightSnapshotV1
+  environment
+  water_batch[]
+  weather_presentation
+  snow_surface_batch[]
+  vfx_batch[]
+  ui_snapshot
+  debug_batch
+```
+
+Snapshotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のpublish contractで全体を一度だけpublish後immutableとする。Entity pointer、Component span、native Physics／GPU objectを含めず、ArrayはStable rendering keyでcanonical sortしworker completion順を保存しない。
+
+| `RenderView` field | 型／規則 |
+|---|---|
+| `view_id` | frame内一意`uint32` |
+| `purpose` | `game | editor | shadow | reflection | thumbnail` |
+| `projection` | perspective／orthographicとfinite parameter |
+| `view_transform` | right-handed、meter、finite |
+| `viewport_px`／`scissor_px` | surface範囲内 |
+| `render_scale` | Target Profile範囲 |
+| `layer_mask` | registered 64-bit layer |
+| `visibility_origin` | camera-relative origin |
+| `history_key` | temporal history Stable key |
+| `quality_profile_id` | Cooked Profile |
+
+View capabilityのactivationと導入順は[Product Plan](../00-product/product-plan.md)を参照し、本書はViewごとに独立selection／history stateとdomain qualification evidenceだけを提供する。
+
 ## 3. Resource modelとRender Graph
 
 `RenderResourceDesc`を次で固定する。`kind`と`ownership`は独立したclosed enumであり、surface／historyをresource kindへ混在させない。
@@ -54,12 +94,29 @@ Texture extent、mip、format、usageの組合せをTargetごとに検証し、0
 
 Pass declarationはStable ID、queue class、read／write／read-write access、subresource range、attachment、pipeline key、side-effect class、optional capability requirementを持つ。Pass callbackが宣言外resourceへ触れること、native barrierを発行すること、別queueへworkを隠すことを禁止する。
 
+`RenderPassDescriptor`は`pass_id`、`pass_type`、`queue_class`、`view_scope`、`accesses[]`、`color_attachments[]`、`depth_stencil_attachment`、`execute_template_id`、`parameter_block`、`declared_cost`を持つ。pass type／execute templateはCooked Capability Catalogのclosed IDで、Project／AIはRuntime GPU callback、shader binary、native barrierを追加できない。`ResourceAccess`はresource／subresource、`read | write | read_write`、logical stage／usageを明示し、descriptor外accessはvalidation faultである。
+
 Graph Compilerは少なくとも次を検証する。
 
 - use-before-produce、write conflict、cycle、未宣言access、incompatible format／sample、invalid present path。
 - resource lifetime、transient alias overlap、temporal history generation、surface generation。
 - queue ownership transfer、wait／signal dependency、barrier completeness、pass culling legality。
 - Pipeline interfaceとresource binding reflectionの一致。
+
+compile algorithmは次の固定順である。
+
+1. resource、pass、view、Target Capabilityをschema validationする。
+2. writer一意性、read-before-write、import initial state、feedback loopを検証する。
+3. explicit dependencyとresource hazardからpass DAGを構築する。
+4. `pass_id` tie-breakでcanonical topological sortする。
+5. resourceのfirst／last useとqueue ownershipを計算する。
+6. descriptor完全一致かつlifetime非重複のtransient resourceだけalias候補にする。
+7. cross-queue signal／waitとBackend-neutral barrier planを作る。
+8. compatible attachment passのmerge候補をBackendへ提示する。
+9. transient heap、descriptor、command-list capacityを予約する。
+10. compile keyとGraph diagnosticsを出力する。
+
+cycle、uninitialized read、同一subresource unordered write、unsupported format、capacity超過はGraph全体を拒否し、resourceを別formatへ黙って変換しない。
 
 同じGraph Definition、Target Profile、Capability Signature、Quality inputからは同じcanonical pass order、resource plan、pipeline key集合を生成する。worker completion順、pointer値、hash-map iteration順を計画へ使わない。
 
@@ -119,16 +176,16 @@ GPU-driven pathとCPU reference pathは同じvisible item identity、material bi
 
 方式互換を次のclosed tableに固定する。
 
-| Method | 成熟度 | Renderer／入力 | 主用途と制限 |
+| Method | Qualification class | Renderer／入力 | 主用途と制限 |
 |---|---|---|---|
-| `none` | C1 diagnostic | 全Raster | bit-exact検査、AA対象外layer、User明示だけ |
-| `fxaa` | C1 Portable | 全Raster、resolved color | spatial fallback。Tone map後、UI合成前 |
-| `mirakan_taa_v1` | C1 Portable 3D | motion、depth、exposure、jitter、history | native extent temporal AA。Pixel／UI／VR low-latencyでは候補外 |
-| `msaa_2x`／`msaa_4x` | C1 Forward+ | sample可能color／depth、全PSO sample一致 | Geometry edgeとalpha-to-coverage |
-| `smaa_1x` | C2 Portable | resolved color | Temporal禁止時のspatial候補 |
-| `msaa_8x` | C2 optional | Forward+、High／offline実機Gate | 自動選択禁止 |
-| `mirakan_taau_v1` | C2 | `TemporalFrameInputV1` | Engine基準temporal upscale |
-| Qualified DLSS／XeSS／FSR／MetalFX | C2 optional | Provider別Input／署名／license／driver | Providerごとに独立Qualification |
+| `none` | diagnostic | 全Raster | bit-exact検査、AA対象外layer、User明示だけ |
+| `fxaa` | portable | 全Raster、resolved color | spatial fallback。Tone map後、UI合成前 |
+| `mirakan_taa_v1` | portable 3D | motion、depth、exposure、jitter、history | native extent temporal AA。Pixel／UI／VR low-latencyでは候補外 |
+| `msaa_2x`／`msaa_4x` | portable Forward+ | sample可能color／depth、全PSO sample一致 | Geometry edgeとalpha-to-coverage |
+| `smaa_1x` | optional | resolved color | Temporal禁止時のspatial候補 |
+| `msaa_8x` | optional | Forward+、High／offline実機Gate | 自動選択禁止 |
+| `mirakan_taau_v1` | optional | `TemporalFrameInputV1` | Engine基準temporal upscale |
+| Qualified DLSS／XeSS／FSR／MetalFX | optional | Provider別Input／署名／license／driver | Providerごとに独立Qualification |
 
 `raster_samples > 1`と`temporal_method != off`を同時使用しない。MSAAとFXAA／SMAAの併用は既定禁止、Hybrid Deferred GBufferのMSAAは禁止、MSAA 8xはLow／Medium／MobileのAuto候補外とする。Alpha-to-coverageをtransparent／texture／specular alias対策と表示しない。Temporalはpre-tonemap scene-linear HDR、FXAA／SMAAはTone map後かつUI composite前に実行する。Dynamic resolution、camera cut、teleport、projection／surface／方式／Provider変更ではhistoryを破棄し、MSAA sample変更はSettings Apply／Loading境界でattachment／Pipeline keyを再構築する。
 
@@ -142,7 +199,7 @@ Providerはprivate Adapterとして統合し、exact version、hash、license、
 
 Ray query、ray-traced shadow／reflection／GI、path preview、neural reconstructionは同じRender Graph resource／queue contractへ従うoptional execution profileであり、別Rendererを形成しない。Capability unavailable、history invalid、provider fault時はProfileに登録されたraster／non-neural pathへ次のGraph generationから切り替える。同一frameへ未宣言passを差し込まない。
 
-Acceleration structure、model weight、scratch resourceはgeneration付きArtifact／resourceとして扱う。Project C++やAIへnative acceleration handle、arbitrary operator、network accessを公開しない。Path previewをproduction referenceと表示する条件やCapability maturityは[Product Plan](../00-product/product-plan.md)とqualification receiptに従う。
+Acceleration structure、model weight、scratch resourceはgeneration付きArtifact／resourceとして扱う。Project C++やAIへnative acceleration handle、arbitrary operator、network accessを公開しない。Path previewをproduction referenceと表示するactivation判断は[Product Plan](../00-product/product-plan.md)が本書のqualification evidenceを消費して決定する。
 
 ## 11. Operation、diagnostic、fallback
 
@@ -154,7 +211,23 @@ Renderer固有diagnosticはGraph／pass／resource／ViewFamily／surface genera
 
 Quality fallbackは意味を明示し、resolution、optional effect、shadow execution、temporal provider、ray／neural profileの順序付き候補から選ぶ。allocation失敗時のsilent quality reduction、draw skip、default material置換を禁止する。共通backpressureとcapacity判定は[Runtime performance／capacity](../04-runtime/performance-capacity.md)へ従う。
 
-## 12. Qualification
+## 12. 関連契約の配置
+
+Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfileV1`／`ResolvedLightPlanV1`、[Post Processing](post-processing.md)所有の`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、[LOD](lod.md)所有の`LodIntentV1`／`LodResolutionPlanV1`／`ViewLodContextV1`を解釈し直さず実行する。UI primitiveの`MirakanUiDrawPacketV1`は[Editor UI Framework](../03-authoring/editor-ui-framework.md)、`RuntimeRepresentationPlanV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)、共通`RemediationV1`は[Executable contracts](../02-foundation/executable-contracts.md)、Provider lockの`RendererProviderLockV1`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が正本である。
+
+`RenderRepresentationPlanV1`はRuntime planからCookされ、各Source集合を`individual | instanced | spatial_batch | presentation_batch`の一つに分類し、Source Stable ID集合、plan-local Cell、mobility／interaction、geometry／material key、Domain LOD plan、HLOD chain、bounds、resident／visible上限、Target fallback、visual-equivalence hashを持つ。`VisibilityInstanceV1`はgeometry generation、current／previous transform、bounds、量子化済みerror／threshold、previous presentation tier、material packet、layer、stable render IDだけを持つSoAで、Entity／Component pointer／Gameplay tag／Simulation tierを含めない。
+
+2Dは`Renderer2DExecutionPlanV1`により`SpriteRendererComponentV1`または`TileChunkArtifactV1`からAsset version、bounds、layer／order／Y-sort、material instance、atlas page、mask／blend、Stable rendering IDを持つpacketを抽出する。Source rect／Tile ID配列、texture handle、native descriptor indexをSnapshotへcopyしない。
+
+`RendererCapabilitySignatureV1`はBackend、API／shader version、GPU／driver identity、feature bit、memory budget、display mode、SDK／model generation、signed artifact hashを持つ。`ResolvedRendererProfileV1`はProject要求、Target Profile、そのSignature、Qualification Receiptから一意に解決し、承認済みfallback順を持つ。`RendererOptimizationReceiptV1`は同一input trace／Profile／driver／SDKのBefore／After、capture、visual diffを結ぶ。
+
+Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`／`ShadowGraphV1`と承認済み`ProjectShadowTechniqueV1`は解決後の`ResolvedShadowPlanV1`だけをRendererへ渡す。`ShadowGraphV1`はclosed Pass Templateへoffline compileし、Project techniqueは`ShadowTechniquePortV1`の入力semanticから`shadow_attenuation_linear`を出力する。native command／barrier、runtime shader compile、未宣言accessを禁止する。
+
+`RayTracingPortV1`はacceleration-structure build／update、ray query／dispatch、shader／function table、scratch、compaction、timestampだけを公開する。RTGIはEngine-owned `RadianceCachePortV1`を介し、native handleをAssetへ保存しない。`NeuralRenderModelV1`はmodel ID、semantic input／output、architecture version、weight format／SHA-256／provenance、quantization、required feature、scratch／persistent byte、inference cap、fallbackを持ち、runtime download／training／未署名weight／arbitrary operator／network accessを禁止する。
+
+`RendererVisualReceiptV1`はlinear Rec.709 RGB32F比較、UI／pixel-locked bit-exact mask、3D SSIM／RMSE、NaN／Inf、ghost persistenceとframe／camera／exposure／jitter／extent／Provider／driver／SDK／model hashを保存する。`AntiAliasingVisualReceiptV1`は本書のAA reference／baseline、alias energy、edge spread、shimmer、ghost、`unaddressed_alias_class`を追加するDomain projectionである。
+
+## 13. Qualification
 
 Qualificationはportable raster referenceを必須とし、次のDomain fixtureを持つ。
 
@@ -180,4 +253,4 @@ AA visual fixtureは4x linear-resolution SSAA downsampleを静止Reference、AA 
 
 性能run、visual／replay evidence、receipt envelope、provenance gradingは[Runtime performance／capacity](../04-runtime/performance-capacity.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使い、閾値やfieldを複写しない。Renderer固有fixtureはGraph input、expected pass/resource relation、expected output／fallbackだけを所有する。
 
-Release候補はruntime source compile、undeclared resource access、stale generation use、critical pipeline miss、device recovery leak、unqualified provider activationが0件でなければならない。Capability maturityと導入順は[Product Plan](../00-product/product-plan.md)だけが決定する。
+Release候補はruntime source compile、undeclared resource access、stale generation use、critical pipeline miss、device recovery leak、unqualified provider activationが0件でなければならない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。

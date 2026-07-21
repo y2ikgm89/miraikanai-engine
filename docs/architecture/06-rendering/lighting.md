@@ -11,7 +11,7 @@
 
 LightingはLightの物理意味とauthoring intentをEngine-owned contractに固定する。人間とAIはlight type、shape、photometric quantity、color、attenuation、range、shadow intentを編集し、Renderer Backend、cluster layout、shadow atlas、pass、descriptorを指定しない。
 
-[Render Graph](render-graph.md)は解決済みLight setのselection、cluster／tile assignment、shadow／lighting passとqueue executionを所有する。[Materials](materials.md)はsurface responseを所有する。本書はEnvironmentやCameraのsource modelを再定義せず、将来のOwnerから与えられるenvironment light／exposure contextをtyped inputとして消費する。
+[Render Graph](render-graph.md)は解決済みLight setのselection、cluster／tile assignment、shadow／lighting passとqueue executionを所有する。[Materials](materials.md)はsurface responseを所有する。本書はEnvironmentやCameraのsource modelを再定義せず、revision付き`EnvironmentLightingSummaryV1`／exposure contextをtyped inputとして消費する。
 
 共通Source revision、ChangeSet、operation envelope、projection、approval、Evidenceは[Project state](../03-authoring/project-state.md)、[Executable contracts](../02-foundation/executable-contracts.md)、Governance文書を参照し、本書でfieldやruleを複写しない。
 
@@ -47,13 +47,50 @@ Rendererとの公開境界にはBackend-neutral light data、stable source ident
 | `priority_u8` | 同一importance内0～255 |
 | `shadow_intent_ref` | version付きShadow Intent、nullable |
 | `cookie_asset_id` | 検証済みTexture artifact、nullable |
-| `ies_asset_id` | 検証済みIES artifact、nullable、C2 |
+| `ies_asset_id` | 検証済みIES artifact、nullable、optional capability |
 | `target_policy_ref` | Target別上限／fallback policy |
 | `human_lock_mask` | AIが変更できないfield集合 |
 
-C1 2Dは`directional | point`、C1 3Dは`directional | point | spot`を許可し、2D spot／area／IESと3D rectangle／disk／IESはC2である。dimensionごとの不正組合せをSchemaで拒否する。
+Portable profileの2Dは`directional | point`、3Dは`directional | point | spot`を許可する。2D spot／area／IESと3D rectangle／disk／IESはoptional capabilityとして個別qualificationし、activation／maturityは[Product Plan](../00-product/product-plan.md)が決定する。dimensionごとの不正組合せをSchemaで拒否する。
 
 `LightComponent`はWorld entityにSource Definition refとinstance-local overrideを結び、Source Assetを複製しない。override可能fieldはSourceが宣言し、instanceからlight typeやunit semanticsを変更しない。
+
+### 3.1 `LightIntentV1`
+
+```text
+LightIntentV1
+  intent_id
+  scope
+  role
+  subject_group_ids[]
+  mood
+  contrast
+  coverage
+  direction_intent
+  softness_intent
+  color_intent
+  mobility_intent
+  importance
+  target_selector
+  quality_selector
+  fallback_priority[]
+  constraints
+  base_revision
+```
+
+閉じた語彙は`role: key | fill | rim | environment | practical | accent | effect | decorative`、`mood: neutral | warm | cool | dramatic | soft | high_key | low_key | toon_banded | pixel_crisp | custom_profile`、`contrast: flat | balanced | strong`、`coverage: subject | local | room | outdoor | world`、`direction_intent: camera_left | camera_right | front | back | above | below | world_direction | match_reference`、`softness_intent: hard | balanced | soft`、`mobility_intent: prefer_static | allow_stationary | require_dynamic`とする。
+
+`constraints`はhuman lock保持、追加光源最大数、変更可能group、Shadow非増加、Gameplay-critical material可読性等のtyped constraintだけを実行条件にできる。自由文は説明に限る。
+
+### 3.2 `LightingStyleProfileV1`
+
+Profile ID／version／parent、Default role recipe、`VisualStyleProfile` ref／整合constraint、Targetごとの許可light type／shadow tier、Exposure接続、2D normal lighting／Toon band／Pixel Art quantization方針、color temperature／saturation／contrast range、importance別fallback priority、Preview fixture／Qualification refを持つ。継承は最大4段、cycle禁止、各fieldは`inherit | replace`を明示し、配列を暗黙appendしない。
+
+### 3.3 `ResolvedLightPlanV1`
+
+Resolver出力はIntent／Profile／Catalog／Target Capabilityのversion／hash、追加／更新／削除する`LightSourceV1` exact patch、解決したphysical quantity／color／type／range／mobility／channel／importance／priority、Shadow Intent ref、selection／cluster上限のworst-case proof、予測CPU／GPU時間／persistent・transient byte、保持lock／未充足constraint、採用／棄却／理由／fallback chain、必要Asset cook／Preview／approval／Qualification、`plan_hash`／expiryを持つ。
+
+PlanはProjectを変更しない。ChangeSet Commit後だけSourceを更新し、Catalog、Target Profile、base revisionのいずれかが変われば`MIRAKAN-LIGHTING-STALE-PLAN`として再解決する。approval mechanicsは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
 
 ## 4. 物理単位と数値規約
 
@@ -66,7 +103,7 @@ C1 2Dは`directional | point`、C1 3Dは`directional | point | spot`を許可し
 | Spot | `luminous_flux_lm`またはqualified IES | lumen／candela distribution |
 | Rectangle／Disk | `luminance_nit` | cd/m² |
 
-単位なし`intensity`を正本にせず、Light type／shapeに対応するquantityを使う。C1 Pointのscalar referenceを次に固定する。
+単位なし`intensity`を正本にせず、Light type／shapeに対応するquantityを使う。Portable Pointのscalar referenceを次に固定する。
 
 ```text
 delta_m = light_position - surface_position
@@ -113,11 +150,35 @@ ResolverはProject revision、selected World／Level scope、existing Light refs
 
 同じ入力とCatalog revisionから同じcandidate orderを返し、Entity列挙順やviewportの一時状態へ依存しない。物理constraintとartistic intentが競合する場合はsilent conversionをせず、意味差を示した代替案を返す。
 
+`LightIntentResolverV1`は次の純粋関数契約に固定する。
+
+```text
+resolve(
+  LightIntentV1,
+  LightingStyleProfileV1,
+  VisualStyleProfile,
+  EnvironmentLightingSummaryV1,
+  MaterialReadabilitySummaryV1,
+  SceneLightingSummaryV1,
+  TargetCapabilitySnapshotV1,
+  LightingBudgetEnvelopeV1,
+  PolicySnapshotV1
+) -> ResolvedLightPlanV1 | LightingDiagnosticSetV1
+```
+
+解決順は(1) Schema／Stable ID／base revision／権限、(2) scope／subject／human lock、(3) Visual Style／Environmentのrole recipe、(4) Target適合Light／Shadow／Assetの絞り込み、(5) 物理量／色／配置candidate生成、(6) readability／budget評価、(7) fallback chain、(8) Plan／reason／cost／risk／Preview差分の固定順とする。
+
+Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_light_ids[]`、`type_and_flags[]`、`position_and_range[]`、`direction_and_cone[]`、`color_and_radiometry[]`、`shape_parameters[]`、`channel_masks[]`、`shadow_plan_refs[]`、`source_revisions[]`を持つimmutableな論理SoAである。GPU packingはMCD生成`LightGpuRecordV1`とBackend Adapterの所有とし、Snapshotにnative handle／descriptor／GPU addressを含めない。compact indexはgeneration内だけ有効で、Save／Replay／DiagnosticはStable `light_id`を使う。
+
 ## 7. AI／Editor operation
 
 Lighting operationはcreate light、update physical property、apply lighting intent、bind Source Definition、set shadow intent、preview、explain、validateをDomain actionとして登録する。ApplyはGatewayを通じてProject ChangeSetへ変換し、Runtime componentやRenderer resourceを直接変更しない。
 
 Previewは対象revision、World／Level scope、affected Light Stable IDs、before／after physical values、Renderer compatibility、fallback、diagnosticを表示する。Explainは入力intent、unit conversion、採用candidate、assumption、未解決questionを返す。authorization classとhuman approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決める。
+
+`SceneLightingSummaryV1`はScene／View Family／Target／Visual Style／EnvironmentのID／version、role／type／importance別Light数、Critical Light、上限／現在値／予測cost／overflow、Shadow tier分布、human lock数、active Diagnostic上位数、詳細取得用Stable ID／continuation tokenだけをboundedに返す。`LightingPlanExplanationV1`はLightごとのIntent fieldからSource fieldへの対応、代替案の棄却理由、予測cost、視覚risk、fallbackで失われるcueを返す。
+
+`LightingChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Light差分、対象Stable IDs、risk、Preview hash、必要Approvalを載せるDomain projectionであり、直接Commitしない。`LightingDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとLight property pathを載せる。`EnvironmentLightingSummaryV1`、`MaterialReadabilitySummaryV1`、`TargetCapabilitySnapshotV1`、`LightingBudgetEnvelopeV1`、`PolicySnapshotV1`はそれぞれのOwnerが公開するread-only／revisioned projectionで、Lightingは内容を複写または書き戻さない。
 
 ## 8. Diagnosticとfailure
 
@@ -154,4 +215,4 @@ Qualificationは次のDomain fixtureを持つ。
 
 visual／numeric Evidence、Eval、provenance envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。本書はLighting inputとexpected physical／semantic resultだけを所有し、共通gradeやreceipt fieldを再掲しない。
 
-単位なしintensity、type不一致field、Backend enumのpublic露出、Renderer実行規則の複写、silent clamp／fallbackが残る実装はRelease候補にしない。Capability maturityと実装順は[Product Plan](../00-product/product-plan.md)だけが所有する。
+単位なしintensity、type不一致field、Backend enumのpublic露出、Renderer実行規則の複写、silent clamp／fallbackが残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。

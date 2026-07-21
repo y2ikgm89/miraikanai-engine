@@ -27,11 +27,37 @@ Gameplay component、Physics、Collision、Navigation、Animation、Renderingは
 
 World／Scene／Level／Entity source identityはProject Stable ID、source revision、display labelを分離する。path、filename、display name、array indexをidentityにしない。CellはSource Stable IDを持たずPlan-local `uint32`であり、SceneをLevel、LevelをCell、CellをRuntime chunkと同一視しない。
 
+MCD参照の`McdContractRefV1`は`{id, version, contract_set_hash}`、Derived Artifact参照の`ArtifactRefV1`は`{artifact_kind, schema_version, sha256}`に固定する。Plan-local IDは同じPlan内だけで使い、Plan外のCell参照はPlanの`ArtifactRefV1`と組み合わせる。Levelが構成するGame Systemはexact `GameSystemContractRefV1`で参照し、typed Command／Event／Snapshotで接続する。
+
 ## 3. 「Map」要求の解決規則
 
-Map要求は少なくともworld authoring、level composition、scene shard、navigation data、presentation／UIの候補へ分類する。Resolverは対象Project revision、requested task、scope、candidate canonical types、question／assumption、affected ownersを返す。
+`MapIntentKindV1`は次の6 kindへ閉じる。
 
-曖昧な「マップを作る」「マップを開く」に対して新しい万能Map assetを生成しない。空間contentならWorld／Scene／Level、pathfindingなら[Navigation](../05-simulation/navigation.md)、画面表示なら将来のUI／Camera Ownerへroutingし、本書ではpresentation schemaを定義しない。
+| Kind | 例 | 変更対象 |
+|---|---|---|
+| `world_structure` | 地域接続、町からDungeonへ移動 | `WorldTopologyDefinitionV1` |
+| `playable_level` | Stage、boss room | `LevelDefinitionV1`＋World Source |
+| `streaming` | seamless load、遠方軽量化 | `SpatialPartitionIntentV1`＋Derived Plan |
+| `procedural_layout` | seed生成Dungeon | `ProceduralWorldDefinitionV1` |
+| `navigation` | 歩行領域、飛行経路、NavMesh | [Navigation](../05-simulation/navigation.md) Definition／Profile |
+| `map_presentation` | minimap、world map、marker、fog | presentation request routing |
+
+`MapIntentResolutionV1`は`request_id`、`candidate_kinds[]`、`selected_kind`、`confidence_q16`、`evidence_requirement_ids[]`、`affected_stable_ids[]`、`blocking_questions[]`、`disposition`を持つ。
+
+| Field | 規則 |
+|---|---|
+| `request_id` | UUIDv7 Stable ID。Resolution、Plan、Bundle、Provenanceを結ぶ |
+| `candidate_kinds` | score降順`{kind, confidence_q16, evidence_requirement_ids}`、1～6件、重複不可 |
+| `selected_kind` | `resolved`時は厳密に1件、その他0件 |
+| `confidence_q16` | 0～65,535、1.0を65,535とする |
+| `evidence_requirement_ids` | 1～64件 |
+| `affected_stable_ids` | 実在確認済み、0～1,024件 |
+| `blocking_questions` | 0～7件、各Questionは選択肢2～5件、推奨、影響、変更可能性 |
+| `disposition` | `resolved | question_required | rejected` |
+
+上位2候補差が9,830未満、Save／Level transition／authoritative state／Target／Asset license／memory capacityへ影響、layoutとpresentationの両解釈、新規／既存LevelをStable IDで特定不能のいずれかなら`question_required`とする。
+
+曖昧な「マップを作る」「マップを開く」に対して新しい万能Map assetを生成しない。空間contentならWorld／Scene／Level、pathfindingなら[Navigation](../05-simulation/navigation.md)、画面表示なら本書の`MapPresentationDefinitionV1`へroutingする。
 
 ## 4. Source Document model
 
@@ -110,6 +136,8 @@ Region parent graphはDAGとし、Levelを複数Regionへ同時所属させな�
 
 同じSceneを複数Levelで利用できるが、instance identity、override scope、persistent state ownerを明示する。cross-Level refはpersistent ownerまたはtransition payloadを介し、unloaded instance pointerを保存しない。
 
+`LevelRuntimeStateV1`はLevel gameplay Systemが所有し、`level_ref`、`runtime_instance_id`、`lifecycle_state`、`active_entry_ref`、`objective_state_refs[]`、`activated_system_instance_refs[]`、`authoritative_world_delta_ref`、`completion_outcome`を持つ。`lifecycle_state`は`inactive -> preparing -> ready -> activating -> active -> completing -> deactivating -> inactive`と、`preparing | activating | active | completing | deactivating -> faulted`のclosed state machineである。generation付きruntime handleをSource／Save／Replay headerへ保存しない。
+
 ## 6. Spatial Partitionとstreaming-plan authoring
 
 `SpatialPartitionIntentV1`はCreatorが編集するSourceであり、`partition_intent_id`、厳密に1件の`world_ref`、`spatial_dimension: 2d | 3d`、`interest_source_kinds`（`player | camera | portal | scripted_anchor | network_authority`のsubset）、physical unitとhysteresisを明示する`activation_radius_policy`、together／separate Stable ID set、1～128件のtyped ordered `priority_rules`、0～4,096件の`always_resident_refs`、Stable Entity／Layer／Sceneの`streamable_refs`、Targetごとに厳密に1件の`target_budget_refs`、typed `failure_policy`を持つ。Cell size、chunk file名、GPU heap offset、Backend page IDをSource Intentへ固定しない。
@@ -143,6 +171,8 @@ Cell候補をcanonical finite `bounds.min.x, min.y, min.z, bounds.max.x, max.y, 
 
 Level transitionはsource／target Level、trigger intent、loading presentation ref、persistent entity／state policy、required Cell set、precondition、failure／cancel policyをSourceとして定義する。実行phase、writer、async job、timeout、Save checkpointはRuntime Ownerへ委譲する。
 
+`LevelTransitionRequestV1`は`request_id: uint64`、exact `source_level_instance_ref`、exact `portal_ref`、`target_level_ref`、`target_entry_anchor_ref`、`requesting_system_ref`、`requested_tick: uint64`、`player_or_party_transfer_refs[0..256]`、`precondition_snapshot_hash`、exact `transition_policy_ref`を持つ。`request_id`はWorld runtime instance内で1から単調増加し0 invalid、Save／別session比較に使わない。Portal無効、Source非active、Target／Anchor不一致、stale condition hashをprefetch前に拒否する。
+
 transition中に旧／新LevelのEntity identityを再利用せず、persistent identityは明示されたownerとhandoff recordを持つ。target dependencyが不足する場合は部分Activationやdefault Levelへ黙って進まず、blocking reasonと登録済みfallbackを返す。
 
 ## 8. 参照と依存closure
@@ -157,6 +187,12 @@ Asset artifact、Navigation artifact、LOD／HLOD representation、Renderer mate
 
 Procedural Worldはgenerator Stable ID、typed parameter、seed semantics、input asset refs、bounded output scope、determinism class、generated Source ownership、regeneration／migration policyを持つ。GeneratorはProject Source DocumentへのChangeSetを生成し、Runtime objectやnative resourceを直接生成して正本化しない。
 
+`ProceduralWorldDefinitionV1`は`procedural_world_id`（UUIDv7 Stable ID）、exact `generator_contract_ref`、Qualified Definition／Native variantの`generator_implementation_ref`、`seed_policy: fixed | project_parameter | save_slot | session_derived`、`input_definition_refs` 0～1,024件、`layout_constraint_refs` 1～1,024件、exact `output_schema_ref`、正の`max_generation_steps`／`max_output_entities`、Targetごとに厳密に1件の`time_memory_budget_refs`、`determinism_contract_ref`、`validation_fixture_refs` 1～1,024件、`failure_policy: retry seed | fallback layout | abort`を持つ。budget値はRuntime capacity ownerを参照する。
+
+`GeneratedWorldDeltaV1`は`delta_id`、`procedural_world_ref`、`base_project_revision`、`generator_contract_hash`、`generator_implementation_hash`、`input_hash`、`seed`、`rng_stream_manifest_hash`、`create_records[0..max_output_entities]`、`update_operations[0..max_output_entities * 4]`、`delete_stable_ids[0..max_output_entities]`、`generated_anchor_refs[]`、`generated_portal_refs[]`、`output_bounds`、`generation_step_count`、`output_hash`を持つ。
+
+`delta_id`はTrusted Staging Broker発行UUIDv7 Stable IDである。create recordはGateway割当前の`uint32 local_id`を1から使い、0 invalid、Delta内重複errorとする。検証後にGatewayがlocal IDをStable IDへ対応付け、Sourceへlocal IDを残さない。既存更新／削除は明示allowlistとexpected revisionを必須とし、World全置換、上限超過、absolute path、native pointer、Cooked Artifact本文を拒否する。
+
 同じgenerator version、input revisions、seed、parameterから同じStable ID assignmentとcanonical outputを生成する。random device、wall clock、worker completion順、network responseをdeterministic generatorの入力にしない。
 
 生成結果は通常のScene／Entity／Cell validationとreviewを通り、手編集領域を無断上書きしない。外部Tool／generator versionとartifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)を参照する。
@@ -169,13 +205,23 @@ Navigation queryやWorld movement、Physics body activation、Animation sampling
 
 [LOD](lod.md)はresident candidateからrepresentationを選び、[Render Graph](render-graph.md)はactive Cell由来の`WorldRenderPacket`を実行する。Worldはselection formula、visibility algorithm、render passを所有しない。
 
+`MapPresentationDefinitionV1`は`map_presentation_id: StableId`、`presentation_kind: minimap | world_map | level_map | navigation_overlay`、exact `world_or_level_ref`、`projection_policy: orthographic_2d | authored_2d | projected_3d`、`layer_refs[1..128]`、`marker_style_refs[0..512]`、typed `marker_source_contract_refs`、optional `fog_policy_ref`、`accessibility_profile_refs[1..32]`、exact `localization_namespace_ref`、Targetごとのexact `render_budget_refs`、`fallback_contract`を持つ非authoritative Sourceである。Marker／fog／cursorからWorld／Quest／Objective／Navigation costを直接writeせず、入力はtyped `MapInteractionCommandV1`としてNavigation／Quest ownerへ送る。
+
 ## 11. Authoring bundleとAI／Editor UX
 
 World authoring bundleは対象World／Level／Scene revisions、selected scope、typed Domain document refs、streaming-plan preview ref、validation summaryを束ねる。共通bundle／projection／operation envelopeは[Executable contracts](../02-foundation/executable-contracts.md)の定義を再利用する。
 
+`WorldAuthoringPlanV1`は`plan_id`、`project_revision`、`contract_set_hash`、`map_intent_resolution_hash`、`requirement_ids[1..256]`、`target_profile_ids[1..32]`、`affected_world_refs[1..64]`、`affected_level_refs[0..1024]`、`create_document_kinds[0..64]`、`source_change_kinds[1..6]`、`required_system_refs[0..128]`、`required_capability_refs[0..128]`、`budget_refs[1..64]`、`derived_build_jobs[0..256]`、`validation_fixture_ids[1..1024]`、`assumptions[0..32]`、`blocking_questions[0..7]`、`fallback`、`risk_class`、`disposition`を持つ。`disposition`は`ready_to_stage | question_required | capability_unavailable | target_unsupported | budget_missing | rejected`で、Plan自体にCommit権限はない。
+
+`WorldAuthoringBundleV1`は`bundle_id`、`project_id`、`base_project_revision`、`contract_set_hash`、`map_intent_resolution_hash`、`requirement_ids[]`、`world_document_changeset_hashes[]`、`topology_changeset_hashes[]`、`level_definition_changeset_hashes[]`、`gameplay_definition_changeset_hashes[]`、`system_bundle_hashes[]`、`asset_changeset_hashes[]`、`procedural_delta_hashes[]`、`navigation_intent_changeset_hashes[]`、`map_presentation_changeset_hashes[]`、`expected_derived_artifact_refs[]`、`target_profile_ids[]`、`budget_refs[]`、`fixture_hashes[]`、`risk_class`、`required_gate_ids[]`を持つ。変更本文を埋め込まずStaging hashとStable IDだけを束ねる。
+
+`WorldAuthoringContextV1`は`project_id`、`project_revision`、`contract_set_hash`、optional `authoring_selection_context_hash`、`world_ref`、`scene_refs[0..256]`、`level_refs[0..256]`、`topology_ref`、`topology_version`、optional `viewport_bounds`、`target_profile_refs[1..32]`、`source_document_refs[1..1024]`、`read_only_derived_artifact_refs[0..1024]`、`capability_refs[0..128]`、`budget_refs[1..64]`、`decision_and_lock_refs[0..128]`、`omitted_ranges[0..128]`、`continuation`を持つread-only projectionである。[Project state](../03-authoring/project-state.md)所有の`AuthoringSelectionContextV1`から生成し、Source／Commit／Replay headerへ保存しない。
+
 World operationはcreate／update World、Scene、Level、Cell intent、compose Scene、move Entity source、edit Layer、generate partition plan、create transition、preview closure、explain Map resolution、validateをDomain actionとして登録する。Applyは[Project state](../03-authoring/project-state.md)のChangeSetを通じ、Runtime cellを直接操作しない。
 
 Previewは対象revision、composition graph、Cell membership／dependency、Target plan、missing closure、estimated capacity class、fallback、diagnosticを示す。authorization、approval、sandboxは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決定する。
+
+`WorldQualificationReceiptV1`はSource revision、Topology／Level／Partition hash、Target Profile、Streaming／Navigation／LOD Artifact hash、System graph、fixture、correctness、performance、Review Receiptを結ぶDomain receiptで、共通Evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)の正本を使う。
 
 ## 12. Save、Replay、Migration境界
 
@@ -222,4 +268,4 @@ Qualificationは次のDomain fixtureを持つ。
 - `world_authoring_cross_view_v1` 64 scenarioでWorld Outline／Topology Graph／Level Form／Spatial View／AIのDomain Operationとafter-state hashが一致する。
 - `world_authoring_intent_v1` holdout 240件（明確な6分類各30件、曖昧／High Impact 60件）を3 runし、明確Caseの`selected_kind`正解率97%以上、Blocking Caseの`question_required` recall 100%、存在しないStableIdを含むProposal 0件、Scene／Level／Cell identity誤変更0件、Derived／Runtime直接write提案0件とする。
 
-共通capacity test、Evidence envelope、Eval、provenanceは[Runtime performance／capacity](../04-runtime/performance-capacity.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。万能Map asset、path identity、Runtime pointer保存、silent missing-ref repair、phase／budget／Domain schema複写が残る実装はRelease候補にしない。Capability maturityと導入順は[Product Plan](../00-product/product-plan.md)だけが所有する。
+共通capacity test、Evidence envelope、Eval、provenanceは[Runtime performance／capacity](../04-runtime/performance-capacity.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。万能Map asset、path identity、Runtime pointer保存、silent missing-ref repair、phase／budget／Domain schema複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。

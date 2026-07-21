@@ -11,7 +11,7 @@
 
 LODは距離だけでなく、projected error、semantic importance、view role、quality intent、runtime pressureを入力に、どのrepresentationを選ぶかを一意に所有する。各Subsystemは候補representationとcost／quality metadataを公開し、LOD Resolverが選択、hysteresis、transition、fallbackを決める。
 
-[Render Graph](render-graph.md)は選択済みgeometry／material representationのvisibilityとdraw executionを所有する。[World](world.md)はCell sourceとstreaming planを所有し、Runtime scheduling／capacity ownerがactivationとpressureを決める。Physics、Navigation、Animationは各Domainのbehavior semanticsを所有し、LODが別のDynamics／Nav／Animation規則を作らない。
+[Render Graph](render-graph.md)は選択済みgeometry／material representationのvisibilityとdraw executionを所有する。[World](world.md)はWorld／Scene／Level Sourceと`WorldStreamingPlanV1`内のplan-local Cell descriptorを所有し、Runtime scheduling／capacity ownerがactivationとpressureを決める。Physics、Navigation、Animationは各Domainのbehavior semanticsを所有し、LODが別のDynamics／Nav／Animation規則を作らない。
 
 Asset import、cook、promotion、generation leaseは[Asset lifecycle](../03-authoring/asset-lifecycle.md)だけが所有する。本書はartifactを生成せず、同一source identityへ紐づく候補artifactの選択条件を定義する。
 
@@ -46,7 +46,74 @@ Mesh／Sprite geometryのLOD0は常にSourceの最高detailであり、Sourceを
 
 ## 3. LOD policyとrepresentation contract
 
-`LODPolicy`はsubject／group scope、quality intent、importance class、error metric、enter／exit boundary、minimum／maximum tier、transition policy、pressure response、Target constraint、fallback、qualification refを持つ。
+### 3.1 `LodIntentV1`
+
+```text
+LodIntentV1
+  intent_id
+  owner_stable_id
+  semantic_role
+  semantic_priority
+  gameplay_fidelity_floor
+  visual_fidelity_floor
+  style_profile_id
+  target_profile_set[]
+  expected_peak_resident
+  expected_peak_visible
+  expected_view_distance_m
+  interaction_radius_m
+  locked_capabilities[]
+  allowed_lod_classes[]
+  forbidden_degradations[]
+  policy_set_id
+  source_revision
+```
+
+`expected_view_distance_m`はPreview／fixture入力でruntime switch thresholdではない。gameplay floorは敵味方数、Damage、Collision、Navigation、goal、spawn timing、input response、critical cueをtyped fieldで持ち、visual floorはsilhouette、material feature、animation cue、pixel-art sampling、minimum visible size、critical VFX outputを持つ。`forbidden_degradations`は登録済みCapability IDだけを許可する。
+
+### 3.2 `LodPolicySetV1`
+
+```text
+LodPolicySetV1
+  policy_set_id
+  policy_version
+  intent_id
+  mesh_lod_profile?
+  sprite_lod_profile?
+  representation_lod_profile?
+  simulation_lod_contract?
+  animation_lod_profile?
+  material_lod_profile?
+  vfx_lod_profile?
+  surface_lod_profiles[]
+  residency_lod_profile?
+  preset_provenance?
+  policy_locks[]
+```
+
+Optional fieldがないDomainをdefault推測しない。未使用classは`allowed_lod_classes`から除外し、必要Profile欠損はCook拒否とする。
+
+### 3.3 `LodResolutionPlanV1`
+
+```text
+LodResolutionPlanV1
+  plan_id
+  source_intent_hash
+  source_policy_hash
+  target_profile_id
+  quality_profile_id
+  capability_manifest_hash
+  domain_plans[]
+  fallback_closure[]
+  predicted_cost_before
+  predicted_cost_after
+  fidelity_checks[]
+  unresolved_requirements[]
+  status
+  compiler_version
+```
+
+`domain_plans[]`はDomain固有typed payloadのtagged unionである。unknown tag／major、Target fallback欠損、Source hash不一致を拒否する。Quality ProfileはPresentation実装品質だけを変え、simulation contract、敵数、Damageを変更できない。
 
 `RepresentationDescriptor`はStable ID、Domain kind、source identity、artifact generation ref、quality rank、geometric／semantic error bound、required capability、estimated cost class、dependency closure、transition compatibility、fallback targetを持つ。costの共通測定単位、budget、capacity envelopeは[Runtime performance／capacity](../04-runtime/performance-capacity.md)を参照する。
 
@@ -55,6 +122,8 @@ Mesh／Sprite geometryのLOD0は常にSourceの最高detailであり、Sourceを
 ## 4. 共通選択契約
 
 Resolver inputはsubject Stable ID、representation set generation、ViewFamily／view role、projection、viewport extent、bounds、importance、occlusion confidence、Target／Quality、Runtime pressure snapshot、previous selectionを含む。
+
+`ViewLodContextV1`はprojection、render extent、FOV／orthographic span、view transform、camera cut、Quality Profileから`projected_error_px_q16`と`projected_coverage_px_q16`を生成する。distanceだけをMesh thresholdとせず、CPU／GPUは同じ量子化／境界包含／enter／exit比較を使う。Editor／shadow／reflection Viewは独立したselection／history stateを持つ。
 
 共通metric IDと用途を次に固定する。
 
@@ -74,21 +143,31 @@ Cooked thresholdは整数へ量子化し、CPU／GPUは同じ比較方向、境�
 
 ## 5. Mesh／Sprite geometry LOD
 
+`MeshLodProfileV1`は`profile_id`、`source_mode`、`selection_metric = projected_error_px_q16`、`levels[]`、`transition_rule_set`、`quality_overrides[]`、`skin_policy`、`morph_policy`、`section_policy`、`shadow_policy`、`fallback_geometry`を持つ。`source_mode`は`disabled | source_chain | generated_chain | hybrid_chain`である。
+
+`MeshLodLevelV1`は`level_index`、optional `source_asset_id`、optional `target_triangle_ratio_permille`、optional `maximum_object_error_q24`、`maximum_projected_error_px_q16`、`preserve_boundaries`、`preserve_uv_seams`、`preserve_hard_normals`、`preserve_vertex_color_channels[]`、`required_material_interface_hash`、`expected_triangle_count`、`artifact_role`を持つ。
+
 Mesh／Sprite representationはgeometry artifact ref、bounds／silhouette error、vertex／primitive cost class、material interface、skin／morph compatibility、shadow／collision proxy relationを宣言する。LODはgeometry candidateを選び、meshlet／indirect draw／occlusionの実行は[Render Graph](render-graph.md)へ委譲する。
 
 silhouette、UV、normal／tangent、skin weight、sprite pivot／pixel lockに意味差があるtierは明示する。missing material interfaceやanimation bindingをdefaultへ置換せず、compatible fallbackへ戻す。
 
+`SpriteLodProfileV1`は`source_variant | visibility_only | disabled`を持つ。Pixel artのpoint sampling／integer scale／palette／alpha padding／pixel-lockedをQualityより優先し、Gameplay cueは意味同等variantなしに消さず、atlas page／texture mip／Sprite LODを同一indexにせず、stable pivot／bounds／sort／collision非依存を検証する。
+
 ## 6. Representation LODとHLOD
 
-Representation LODはmesh、impostor、billboard、proxy、hiddenをclosed familyとして扱う。`hidden`はimportance／minimum semanticsが許可した場合だけ候補にし、capacity不足による無断消去を禁止する。
+`RepresentationLodProfileV1`のtierは`individual | instanced | spatial_proxy | impostor | hidden_presentation`のclosed enumだけを使う。`hidden_presentation`はPresentationだけを隠し、Entity、Collision、Damage、Navigation、Save stateを削除しない。individualからinstancedへ変えてもStable Entity identityとauthoritative event routingを保持する。
 
-HLOD descriptorはmember Stable IDs、source World／Cell revision、aggregate bounds、artifact generation、material／lighting assumptions、transition boundary、member fallbackを持つ。HLODをEntity identity、Save owner、Physics／Navigation objectの代替にしない。
+`HlodProfileV1`は`profile_id`、`eligibility_rule`、`spatial_partition_profile`、`cluster_limits`、`proxy_mode`、`proxy_geometry_profile`、`proxy_material_profile`、`transition_rule_set`、`streaming_cell_profile`、`fallback_representation`を持つ。`proxy_mode`は`instanced | merged_mesh | simplified_mesh | impostor`である。対象はstatic transform、`decorative_instance`、mutable Physics／Damage／interaction／Save／animation／root motionなし、Style／Material許可、bounded plan-local Cell descriptorとcluster／geometry／material／texture capacity内をすべて満たす。
 
-World streaming planはCellとHLOD artifactのresidency dependencyを記述し、LOD selectionはresident candidateから選ぶ。必要candidateが非residentの場合のrequest／backpressureは[World](world.md)とRuntime ownerへ返し、unbounded blocking loadを起こさない。
+Clusterは`WorldStreamingPlanV1`の`plan_id`／`artifact_hash`、plan-local `cell_id`、Profile ID、material compatibility、Source Stable ID順から決定論的に生成する。`HlodArtifactV1`はSource Stable ID集合、Source revision hash、bounds、proxy method、geometry／material key、visual error、exact `{plan_id, artifact_hash, cell_id}`、fallbackを持つ。Source、transform、Material、Profile変更時に該当Artifactだけinvalidateする。HLODをEntity identity、Save owner、Physics／Navigation objectの代替にしない。
+
+`WorldStreamingPlanV1`はplan-local Cell descriptorとHLOD artifactのresidency dependencyを記述し、LOD selectionはresident candidateから選ぶ。必要candidateが非residentの場合のrequest／backpressureは[World](world.md)とRuntime ownerへ返し、unbounded blocking loadを起こさない。
 
 ## 7. Simulation LOD境界
 
 Simulation representationはfull、reduced、dormant等のDomain-defined behavior candidate refとsemantic guaranteeを公開できる。LODは候補を選択するが、Physics integration、Collision response、Navigation query、authoritative writer、wake conditionの意味は各Simulation Ownerが所有する。
+
+`SimulationLodContractV1`は`contract_id`、`experience_role`、`tiers[]`、`relevance_inputs[]`、`transition_rules[]`、`wake_triggers[]`、`retained_state_schema`、`queued_event_policy`、`authoritative_equivalence_contract`、`forbidden_changes[]`、`reference_fixture_id`を持つ。Target／QualityはこのGameplay契約を自動的に強めたり弱めたりしない。
 
 render tierとsimulation tierを同一indexで結ばない。off-screenでもauthoritative gameplayに必要なsimulationを停止せず、visibleでもcapacity／Targetが許さないsimulation featureを暗黙有効化しない。tier handoffはpublished state、generation、handoff resultを持つ。
 
@@ -96,19 +175,31 @@ render tierとsimulation tierを同一indexで結ばない。off-screenでもaut
 
 Animationはclip／pose／skin candidateとminimum event／root-motion semanticsを公開し、LODはrepresentationを選ぶ。event、root motion、IK、retargetの意味は[Animation](../05-simulation/animation.md)を参照し、低tierへの遷移でauthoritative eventを欠落させない。
 
+`AnimationLodProfileV1`は`AnimationLodTierV1[]`を持ち、各tierは`tier_id`、`pose_sample_interval_ticks`、`interpolation_mode`、`presentation_bone_set`、`skinning_mode`、`shadow_pose_mode`、`required_bones[]`、`required_events[]`を持つ。required bone／eventを除外するProfileを拒否し、authoritative state machine／root motion／hitbox／weapon socket／foot contact／event timingを低頻度poseから取得しない。
+
 Materialは各tierのcompatible artifactとfeature reductionを[Materials](materials.md)で宣言する。LODはtierを選ぶがshader variantやparameter意味を再定義しない。
 
-VFX候補は将来のVFX Ownerがsimulation／render representationとemission／lifetime guaranteeを宣言するまでDomain opaque refとして扱う。本書は先回りしてVFX schema、budget、execution phaseを定義しない。
+`MaterialLodProfileV1`の各tierはMaterial interface hash、allowed feature mask、texture residency floor、shadow／depth participation、visual equivalence toleranceを持つ。Style-critical ramp、alpha semantics、pixel sampling、combat cue emissiveを削除しない。
+
+`VfxLodProfileV1`は`VfxLodTierV1[]`を持ち、各tierは`tier_id`、`semantic_priority`、`branch_id`、`spawn_scale_permille`、`maximum_alive`、`update_interval`、`renderer_outputs[]`、`simulation_target`、`minimum_cue_contract`を持つ。`critical_gameplay_cue`はshape／timing／minimum visibilityを維持し、ambient effectより先にdropしない。VFX tierはGameplay event数／Damage／Collision／AI perceptionを変更しない。
 
 ## 9. Terrain、Foliage、Water／Surface、residency
 
 Terrain、foliage、water、snow／surfaceはDomain Ownerがtile／patch／cluster representation候補、seam constraint、interaction guaranteeを公開し、LODは選択だけを行う。隣接tierのseam、crack、normal／material continuity、interaction proxyの互換性をdescriptorで検証する。
 
+`TerrainLodProfileV1`はscreen-space geometry error、quadtree patch bounds、neighbor level差上限、skirt／stitch policy、material residency、streaming cellを持ち、render patchはCollision height／Nav tile／Gameplay Surface Stateを置き換えない。`FoliageLodProfileV1`はinstance mesh chain、wind tier、shadow tier、impostor、cluster bounds、per-cell instance上限を持ち、Gameplay Collision subsetを描画LODへ追従させない。
+
+`WaterLodProfileV1`はsurface patch density、wave shading、reflection、underwater presentation、foam／spray VFXのTarget別tierを持ち、CPU Surface Query／Water Volume／浮力／swimming／Damage／Navigation costを変更しない。`SnowSurfaceLodProfileV1`はdynamic field update distance、normal／sparkle detail、降雪VFX density、static mask fallbackを持ち、Gameplay Surface State／friction／movement／foot contact／static coverageを変更しない。
+
 residency requestはartifact generation、priority intent、deadline class、fallback candidateを持つが、queue、memory reservation、backpressure値を本書で決めない。候補のresidencyが失われた場合はgenerationを再検証し、stale GPU／streaming handleを再利用しない。
+
+`GeometryResidencyLodPlanV1`は`requested`、`resident`、`pending`、`fallback_level`、`byte_cost`、`deadline`、`owner_generation`を持つ。要求detailが非residentなら同じAsset generation内で最も近い意味同等resident levelを使い、別generationをframe内で混在させない。
 
 ## 10. Preset、AI contract、Editor UX
 
 LOD Presetはquality intent、importance mapping、error policy、transition policy、Domain overrideをProject-owned assetとして保持する。Preset名から数値やtierを推測せず、resolved policyをPreviewで表示する。
+
+version付き`LodPolicyPresetV1`の初期closed IDは`hero_character | interactive_character | crowd_character | interactive_prop | small_decorative_prop | architecture | foliage | terrain | water_surface | vfx_combat_cue | vfx_ambient | pixel_art_sprite`である。`LodPlanPreviewV1`は対象Stable ID／semantic role、変更する／しないLOD class、Target別tier／threshold／fallback、triangle／draw／instance／memory／overdraw／simulation workのBefore／After、visual／silhouette／animation／critical-cue risk、Gameplay fidelity影響、Artifact／tool version／予測・実測区分、blocking Diagnostic／Approvalを示す。
 
 LOD operationはcreate／update policy、bind representation、apply preset、set importance、preview selection、explain transition、validate closureをDomain actionとして登録する。共通Discovery／Preview／Apply、ChangeSet、approvalは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を使う。
 
@@ -153,4 +244,8 @@ Qualificationは次のDomain fixtureを持つ。
 - Animation required bone、root motion、hitbox、event timing、VFX critical cue floor、pixel artのpoint sampling／integer scale／palette／pixel-locked、Terrain／Foliage／WaterのCollision／Nav／CPU Query非逆入力。
 - camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、敵味方VFX、streaming、Asset promotionを同一runで発生させるIntegrated fixture。run条件とEvidence transportはRuntime／Governance ownerを使う。
 
-Evidence envelopeとgradingは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。distance-only selection、tier index coupling、silent hide、authoritative behavior loss、phase／budget複写が残る実装はRelease候補にしない。Capability maturityと導入順は[Product Plan](../00-product/product-plan.md)だけが所有する。
+Evidence envelopeとgradingは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。distance-only selection、tier index coupling、silent hide、authoritative behavior loss、phase／budget複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
+
+`IntegratedScaleFixtureV1`はcamera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、敵味方VFX、streaming、Asset promotionを同一runで発生させる。`LodQualificationReceiptV1`は`receipt_id`、`plan_hash`、`artifact_hashes[]`、`target_profile`、`device／driver`、`fixture_id／fixture_hash`、`camera_path_hash`、`quality_profile`、`before_metrics`、`after_metrics`、`visual_diff_metrics`、`gameplay_replay_hash`、`fallback_events[]`、`diagnostics[]`、`result`、`toolchain_hash`、`timestamp`を持つ。Evidence envelopeの定義はGovernance正本を使う。
+
+全Domainを一つの`LodProfileV1`や一つの`lod_index`へ畳み込む設計は重複契約として非採用である。Worldの`SpatialPartitionIntentV1`は[World](world.md)が所有し、LODはそのDerived Planに対するrepresentationだけを選ぶ。Gameplay意味の変更が必要な場合はLOD proposalと分離した`GameplayScaleChangeProposalV1`と人間承認を[Executable contracts](../02-foundation/executable-contracts.md)のChangeSet経路へ返し、LODが暗黙Commitしない。

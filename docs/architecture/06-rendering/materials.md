@@ -90,6 +90,30 @@ Engine同梱Profileはimmutable templateである。Project変更時は全field�
 
 AI intent resolutionはsource request identity、Project revision、Catalog revision、resolved Material／Style refs、assumption／question、compatibility resultを束ねる。共通envelope fieldやhash表現は[Executable contracts](../02-foundation/executable-contracts.md)を参照し、本書はMaterial固有payloadの意味だけを決める。
 
+### 3.1 `MaterialSemanticCatalogV1`
+
+```text
+MaterialSemanticCatalogV1
+  schema_version
+  catalog_revision
+  engine_build_id
+  target_profile_ids[]
+  quality_profile_ids[]
+  entries[]
+```
+
+`MaterialSemanticEntryV1`は`semantic_role_id: StableEnumId`、`display_name`、`description`、`search_synonyms[]`、`positive_examples[]`、`counter_examples[]`、`allowed_domains[]`、`allowed_shading_models[]`、`required_texture_channels[]`、`optional_texture_channels[]`、`parameter_semantics[]`、`compatible_style_profile_ids[]`、`required_capabilities[]`、`target_support[]`、`default_template_id`、`allowed_fallback_template_ids[]`、`preview_fixture_ids[]`、`production_maturity`を持つ。`production_maturity`の値とfeature割当は[Product Plan](../00-product/product-plan.md)を参照し本書へ複写しない。
+
+初期role setは`surface.generic | surface.terrain | surface.foliage | surface.water | character.skin | character.hair | character.eye | character.cloth | prop.opaque | prop.transparent | sprite.actor | sprite.environment | sprite.effect | decal.surface | vfx.particle | ui.surface`である。synonym／example／counter-exampleは検索用で正規IDではなく、Asset名や作品名だけでroleを確定しない。Project roleはEngine roleを上書きせず`project.<project_id>.*` namespaceへ追加する。
+
+### 3.2 `MaterialParameterSemanticV1`
+
+`parameter_id: StableId`、`semantic_id: StableEnumId`、`value_type`、`unit`、`color_space: none | linear_rgb | srgb | data`、`valid_range`、`default_value`、`default_provenance`、`compile_time: bool`、`ai_mutable: bool`、`style_critical: bool`、`runtime_mutable: bool`を持つ。AIはexact parameter ID／typeを使い、表示名／shader variable名で変更しない。
+
+### 3.3 `MaterialNodeCatalogV1`
+
+各Node entryは`node_type_id`、`schema_version`、`display_name`、`semantic_description`、`input_ports[]`、`output_ports[]`、`allowed_domains[]`、`allowed_stages[]`、`required_capabilities[]`、`target_support[]`、`static_cost_estimate`、`resource_cost`、`determinism_class`、`failure_codes[]`、`examples[]`、`counter_examples[]`を持つ。Portはtypedで、implicit scalar／vector expansion、linear／sRGB混在、normal／color混在を許可しない。Graph layoutはsemantic hashに含めない。
+
 ## 4. Material DomainとShading Model
 
 Graph出力はDomainごとに固定し、任意Render passやGPU resourceへ接続させない。
@@ -128,6 +152,8 @@ Variant keyはDomain、Shading Model、declared feature、vertex interface、Pas
 
 Materialは各representationで利用可能なMaterial artifact、feature reduction、texture residency requirement、意味同等fallbackを宣言する。[LOD](lod.md)がrepresentationとtransitionを選択し、Materialsはその選択に対応するbindingを返す。
 
+`MaterialLodProfileV1`はtierごとに`material_interface_hash`、`allowed_feature_mask`、`texture_residency_floor`、`shadow_participation`、`depth_participation`、`visual_equivalence_tolerance`を持つ。Runtime shader生成、任意branch削除、Material mergeをLOD selection内で行わない。
+
 距離、projected error、hysteresis、CPU／GPU pressureからMaterial tierを直接選ばない。Material側のfeature reductionはsurface identity、opacity、silhouetteに影響する意味変更を明示し、未宣言のshader simplificationを禁止する。
 
 ## 8. AI／Editor operationとPreview
@@ -135,6 +161,14 @@ Materialは各representationで利用可能なMaterial artifact、feature reduct
 Material operationはcreate／update material、create instance、bind texture role、apply style、set semantic parameter、compile preview、explain resolution、validate packageをDomain actionとして登録する。操作は[Executable contracts](../02-foundation/executable-contracts.md)の共通Discovery／Preview／Apply境界と[AI Security／Approval](../01-governance/ai-security-approval.md)のauthorityを使う。
 
 Previewは対象revision、Target Profile、View／Lighting fixture ref、resolved Material／Style、compiled artifact generation、difference summary、diagnosticを返す。Preview結果をApply済みProject stateやProduction qualificationと表示しない。Explainは採用値、継承元、override、fallback、未解決questionをMaterial語彙で示す。
+
+AIの最初のbounded projectionである`MaterialContextSummaryV1`は`material_id`、`revision`、`semantic_role_id`、`template_id`、`definition_id`、`domain`、`shading_model`、`public_parameters[]`、`texture_dependencies[]`、`target_support[]`、`quality_support[]`、`variant_count`、`budget_summary`、`diagnostic_summary`、`available_operation_ids[]`だけを含む。上限超過時は配列を切らずcursorとtotal countを返す。
+
+`MaterialAuthoringPlanV1`はIntentから生成するread-only Proposalであり、base revision、選択したsemantic role／template／definition、typed parameter／texture差分、代替候補と棄却理由、Target差、cost、fallback、risk、必要Approvalを持つ。共通Proposal／ChangeSet envelopeは[Executable contracts](../02-foundation/executable-contracts.md)の正本を再利用し、Plan自体にCommit権限はない。
+
+`MaterialExplanationV1`は`request_id`、`material_id`、`source_revision`、`resolved_intents[]`、`selected_semantic_role_id`、`selected_template_id`、`changed_parameters[]`、`selection_reasons[]`、`rejected_candidates[]`、`assumptions[]`、`target_differences[]`、`predicted_cost`、optional `measured_cost`、`fallbacks[]`、`warnings[]`、`required_human_confirmations[]`、`confidence`を持つ。`confidence`はAI自己申告ではなく、unknown／conflict／capability／budget／Preview状態からEngineが再計算する。
+
+描画MaterialとCollision Materialは別namespace／Asset／Validatorとする。`SurfaceSemanticBindingV1`は`binding_id: StableId`、`semantic_surface_id: StableEnumId`、optional `render_material_instance_id`、optional `collision_material_2d_id`、optional `collision_material_3d_id`、optional `audio_surface_id`、optional `vfx_surface_id`を持つ明示参照であり、見た目から摩擦／反発／Damage／足音を推測しない。
 
 ## 9. Diagnostic、failure、fallback
 
@@ -167,4 +201,4 @@ Visual Style Resolver Evalは明示、未指定、委任、矛盾、未対応を
 
 Visual comparison、Evidence envelope、Eval grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。本書はfixtureのMaterial input、expected semantic resolution、allowed visual tolerance classだけを所有し、共通receipt schemaを再定義しない。
 
-Runtime source compile、unbounded variant、string dispatch、stale artifact mix、silent default material、unqualified fallbackが残るPackageはRelease候補にしない。Capability maturityと実装順は[Product Plan](../00-product/product-plan.md)だけが決定する。
+Runtime source compile、unbounded variant、string dispatch、stale artifact mix、silent default material、unqualified fallbackが残るPackageはRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。

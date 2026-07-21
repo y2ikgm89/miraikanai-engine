@@ -17,6 +17,35 @@ Camera、Environment、UIのSource schemaは本書の対象外である。それ
 
 ## 2. 正本データモデル
 
+### 2.1 `PostProcessIntentV1`
+
+```text
+PostProcessIntentV1
+  intent_id
+  scope
+  goal
+  target_selector
+  quality_selector
+  exposure_intent
+  tone_intent
+  color_intent
+  bloom_intent
+  focus_intent
+  motion_clarity_intent
+  ambient_occlusion_intent
+  reflection_intent
+  composition_constraints
+  accessibility_constraints
+  fallback_priority[]
+  base_revision
+```
+
+主要語彙は`scope: project_default | view_family | camera_profile | volume`、`goal: balanced | cinematic | gameplay_clarity | low_gpu_cost | low_latency | pixel_crisp | accessibility_safe | offline_reference`、`exposure_intent: manual | stable_auto | responsive_auto | match_reference`、`tone_intent: neutral | filmic | high_contrast | low_contrast | pixel_preserve | custom_profile`、`bloom_intent: off | subtle | balanced | strong`、`focus_intent: off | camera_lens | distance | subject_group`、`motion_clarity_intent: crisp | balanced | cinematic`、`ambient_occlusion_intent: off | subtle | balanced | strong`、`reflection_intent: off | rough_only | balanced | high_quality`に閉じる。
+
+Intentはgoalを表し、kernel radius、tap count、history blend、mip数、Render pass、Shader permutationを持たない。scopeと対象refが一致しない、accessibility constraintとgoalが両立しない、unknown closed value、stale base revisionは`MIRAKAN-POST-SCHEMA-INVALID`または`MIRAKAN-POST-STALE-PLAN`で拒否する。
+
+### 2.2 Profile／Volume
+
 `PostProcessProfileV1`を次に固定する。
 
 ```text
@@ -32,7 +61,7 @@ PostProcessProfileV1
   qualification_receipt_refs[]
 ```
 
-Profile継承は最大4段とし循環を拒否する。各nodeは`inherit | disabled | override`を明示する。配列の暗黙append、自由なnode追加、同じNode IDの重複を禁止する。C1はProfile当たり最大32 `node_settings`、View Family当たり最大32 active Nodeで、Target Profileは上限を下げられるが増やせない。上限超過を切り捨てずfallbackまたはtyped Diagnosticを返す。
+Profile継承は最大4段とし循環を拒否する。各nodeは`inherit | disabled | override`を明示する。配列の暗黙append、自由なnode追加、同じNode IDの重複を禁止する。Portable contractはProfile当たり最大32 `node_settings`、View Family当たり最大32 active Nodeで、Target Profileは上限を下げられるが増やせない。上限超過を切り捨てずfallbackまたはtyped Diagnosticを返す。
 
 `PostProcessCameraOverrideV1`は`base_profile_id`、`base_profile_revision`、field mask、最大16件のpartial `node_settings`だけを持ち、Profile継承、Node追加、stage変更、Target Capability追加はできない。
 
@@ -48,9 +77,9 @@ Volume shapeのgeometryとcontainment queryは既存Simulation contractを利用
 
 Effect Catalogはtone／exposure adaptation、color transform、bloom／glare、depth／motion based effect、lens／camera presentation、stylization、spatial cleanup等をclosed familyとして登録する。各effectはinput color-space、output color-space、required buffers、parameter definition、history requirement、allowed scope、ordering relation、fallbackを宣言する。
 
-`PostProcessNodeCatalogV1`の各Nodeはversion付きNode ID／Capability maturity、入力／出力logical resourceとcolor space、固定execution stage、required Camera／Renderer input、temporal historyの有無／format／reset reason、blend可能parameter／range、対応Target／HDR・SDR／AA mode／layer、予測cost model／persistent・transient byte式、fallback node／disable policy、Visual fixture／conformance test／Qualification refを宣言する。通常ProfileはCatalogにないNodeを作れない。
+`PostProcessNodeCatalogV1`の各Nodeはversion付きNode ID／Product capability status ref、入力／出力logical resourceとcolor space、固定execution stage、required Camera／Renderer input、temporal historyの有無／format／reset reason、blend可能parameter／range、対応Target／HDR・SDR／AA mode／layer、予測cost model／persistent・transient byte式、fallback node／disable policy、Visual fixture／conformance test／Qualification refを宣言する。通常ProfileはCatalogにないNodeを作れない。
 
-C1 Node／parameter contractを次に固定する。
+Portable Node／parameter contractを次に固定する。本書はdomain qualification evidenceだけを出力する。
 
 - `ExposureProfileV1`: `mode: manual_ev100 | histogram_auto`、manual EV100 -16～32、histogram 256 bins、luminance percentile low 0.5%／high 99.5%、middle gray 0.18、output EV100 -6～16、adaptation speedは0より大きい1/second、nullableな検証済みmetering mask。`P15`のWorld HDRだけを測定しUI等を含めない。
 - Tone map mode: `aces_fitted_v1 | neutral_v1 | pixel_preserve_v1`。White BalanceはCCT 1000～20000 K／tint -1～1、Color Grade LUTは検証済み3D LUT／intensity 0～1。`P50`順は`white_balance(scene-linear HDR) -> exposure_and_tone_map -> color_grade_lut(display-linear)`で固定する。
@@ -59,7 +88,7 @@ C1 Node／parameter contractを次に固定する。
 - `DepthOfFieldProfileV1`: focus source、subject groupまたはfocus distance 0.01～100000 m、maximum CoC 0～64 pixel、quality intent。Camera Lens fieldを複写しない。
 - `VignetteProfileV1`: intensity 0～1、roundness 0～1、center。UI、Text、cursor、Accessibility overlayへ適用しない。
 
-SSAO、SSR、高品質DOF、SMAA、Temporal Upscale ProviderはC2で、NodeごとにCapability、reference fallback、Visual fixture、Target実測、disable可能性を必要とする。SSR失敗はreflection probe／Environment fallback、SSAOはGameplay visibilityへ使わない。
+SSAO、SSR、高品質DOF、SMAA、Temporal Upscale Providerはoptional capabilityであり、NodeごとにCapability、reference fallback、Visual fixture、Target実測、disable可能性を必要とする。activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。SSR失敗はreflection probe／Environment fallback、SSAOはGameplay visibilityへ使わない。
 
 実行stageは次の順で固定し、ProfileやAIが並べ替えない。
 
@@ -96,11 +125,15 @@ UIとEditor overlayは既定でscene exposure、temporal reconstruction、depth 
 
 Material／LightingのSource valueをPost Process resolverが書き換えない。exposure compensation等がLightの物理値を変更したように見える場合も、表示変換とScene valueをExplainで分離する。
 
+`PostProcessLayerPolicyV1`は`world_opaque | world_transparent | vfx | pixel_locked_world | ui_text | cursor | accessibility_overlay`を閉じたbit maskとして区別する。World内pixel artはpixel-preserve tone mappingまでとし、Temporal／Bloom／Motion Blur／DOF／Display AAの対象外、UI／Text／cursorはWorld Postの後に合成する。
+
 ## 6. Temporal history intent
 
 Temporal effectはhistory semantic、required input、initialization、reset mask、warm-up disposition、fallbackを宣言する。history keyはViewFamily、effect Stable ID、effect／provider generation、surface generation、extent、projectionへ束縛する。
 
 camera cut、teleport、projection／extent／surface／effect generation変更、missing motion／depthではresetを要求する。実際のresource allocation、barrier、queue、lease、AA provider historyは[Render Graph](render-graph.md)が所有する。本書はhistoryの意味とreset要求だけを決める。
+
+`PostHistoryDescriptorV1`は`node_id`、`view_family_id`、`camera_id`、`algorithm_version`、`extent`、`logical_format`、`quality_revision`、`generation`、`valid_region`を持つ。Camera cut／View Family、extent／dynamic-resolution／format、Node enable／algorithm／quality、AA／Post Plan hash、surface／device generation、projection／jitter／world origin、Replay seek／time discontinuityの非互換変更で必ずresetし、reasonをtelemetry／Replay Evidenceへ記録する。
 
 ## 7. Resolver outputと実行境界
 
@@ -108,11 +141,34 @@ camera cut、teleport、projection／extent／surface／effect generation変更�
 
 RendererはPlan内のEffect Catalog IDを登録済みPass Templateへ展開する。AI、Editor、Project C++がarbitrary pass、shader source、resource alias、queue、native formatをPlanへ挿入することを禁止する。
 
+`PostProcessIntentResolverV1`は次の純粋関数契約に固定する。
+
+```text
+resolve(
+  PostProcessIntentV1,
+  PostProcessProfileV1,
+  PostProcessVolumeSummaryV1,
+  VisualStyleProfile,
+  CameraPresentationSummaryV1,
+  ResolvedAntiAliasingPlanV1,
+  LayerCompositionSummaryV1,
+  TargetCapabilitySnapshotV1,
+  PostProcessBudgetEnvelopeV1,
+  AccessibilityPolicySnapshotV1
+) -> ResolvedPostProcessPlanV1 | PostProcessDiagnosticSetV1
+```
+
+解決順は(1) Schema／base revision／scope／権限、(2) Project／Camera／VolumeのStable sortとProfile合成、(3) Visual Style／Camera／AA／Layer／Accessibility制約、(4) Target適合Node選択、(5) exact parameter／history／resource／cost解決、(6) budget／非互換fallback、(7) Plan／reason／Preview／Approvalの固定順とする。
+
 ## 8. AI／Editor operationとPreview
 
 Post Process operationはcreate／update profile、create／update volume、set enabled／effect parameter、apply style hint、preview、explain、validateをDomain actionとして登録する。Profile／AIによるstage変更、Node追加、固定execution order変更をOperationとして公開しない。共通Discovery、Preview、Apply、ChangeSet、authorizationは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
 
 Previewは対象revision、ViewFamily fixture、contributing Volume、resolved order／parameters、color-space transition、AA compatibility、history reset、fallback、diagnosticを示す。Explainは各値のSource、priority、weight、blend operator、override理由を追跡可能にする。
+
+`PostProcessContextSummaryV1`はView Family／Camera／Target／Visual Style／AA PlanのID／version、active Profile／Volume上位32件、stage別active Node／quality／history、HDR／SDR／layer policy／pixel-locked有無、予測／実測GPU時間／persistent／transient byte、active Diagnostic／fallback、詳細取得用Stable IDだけを返す。`PostProcessPlanExplanationV1`はIntent fieldからNode／parameterへの写像、AA／UI／Accessibility制約、棄却Node、fallbackで失われる見た目、予測cost、Plan hashを返す。
+
+`PostProcessChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Profile／Volume差分、risk、Preview hash、必要Approvalを載せるDomain projectionで、直接Commitしない。`PostProcessDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとEffect property pathを載せる。`PostProcessVolumeSummaryV1`、`CameraPresentationSummaryV1`、`LayerCompositionSummaryV1`、`TargetCapabilitySnapshotV1`、`PostProcessBudgetEnvelopeV1`、`AccessibilityPolicySnapshotV1`は各Ownerの公開するread-only／revisioned projectionで、Post Processは内容を複写または書き戻さない。
 
 ## 9. Diagnostic、failure、fallback
 
@@ -151,4 +207,4 @@ Qualificationは次のDomain fixtureを持つ。
 
 visual Evidence、Eval、provenance envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。本書はPost Process inputとexpected composition／image tolerance classだけを所有し、共通receipt fieldやthresholdを複写しない。
 
-任意pass挿入、insertion順依存、silent effect drop、UIへの暗黙適用、stale history再利用、Render Graph実行規則の複写が残る実装はRelease候補にしない。Capability maturityと実装順は[Product Plan](../00-product/product-plan.md)だけが決定する。
+任意pass挿入、insertion順依存、silent effect drop、UIへの暗黙適用、stale history再利用、Render Graph実行規則の複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
