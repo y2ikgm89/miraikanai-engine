@@ -159,7 +159,7 @@ Phaseは次の順序だけをProduct正本とする。Subsystem Ownerはこの�
 | 8 Production CapabilityとDomain Pack | 一CapabilityずつC2へ昇格 | Authoring、diagnostic、fallback、Qualification closureを満たす |
 | 9 制限付きRuntime生成 | 署名済みbinary内の許可済みdata変更 | 専用Threat Model、server authority、allowlist、quota、fallbackを承認 |
 
-各Phaseは、契約固定、最小fixture、vertical slice、実測、上位bottleneck改善、同一条件の回帰、Capability昇格の順で閉じる。不合格時はSource intentとlast-known-goodを維持し、OptimizationRequiredまたはnot_activatedへ戻す。
+各Phaseは、契約固定、最小fixture、vertical slice、実測、上位bottleneck改善、同一条件の回帰、Capability昇格の順で閉じる。不合格時はSource intentとlast-known-goodを維持し、OptimizationRequiredを状態ではなくDiagnosticとして発行する。Activation stateはcandidate_lockedに留め、利用可能なCandidateを維持できない場合だけnot_activatedへ降格する。
 
 ## 7. Promotion、deactivation、Product completion
 

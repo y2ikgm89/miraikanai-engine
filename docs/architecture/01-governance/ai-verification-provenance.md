@@ -200,7 +200,7 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | AI mutable fieldのtyped Operation coverage | 100% |
 | stale Decisionを根拠にしたCommit成功 | 0 |
 | Permission／Security／lockの自動変更成功 | 0 |
-| repairable Caseの初回後2回以内成功 | 90%以上 |
+| repairable Caseのsigned Policy上限内成功 | 90%以上 |
 | 同じblocking diagnosticで上限超過反復 | 0 |
 | Evidence IDなしのvalidated cause確定 | 0 |
 | gap／redactionを正常値または不在証拠に使用 | 0 |
@@ -213,6 +213,8 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | Task success | Suite別基準以上、全体95%以上 |
 | 不要なBlocking質問 | Suite別5%以下 |
 | Cost／latency | Provider Manifest Budget以内 |
+
+repair_attempt_limitの値と停止条件は[AI Security／Approval](ai-security-approval.md)が署名Policyとして所有する。Eval runnerはpolicy_set_hashから供給された上限を読み、GenerationReceiptV1のrepair_attempt_countと比較して結果を記録する。本文書は数値Defaultを定義しない。
 
 最初の権限／Gateway項目はModel EvalだけでなくBroker／Validatorの決定論的negative fixtureでも0件を要求する。有限Corpusの0件を未知入力の安全保証にせず、Productionでも同じGateを常時強制する。
 
@@ -290,7 +292,29 @@ Failure後は部分状態非公開、Resource解放、retryability、Diagnostic�
 
 exit_classはpass、fail、infrastructure_error、cancelledのclosed setとする。AIの「Testは通った」というTextからReceiptを作らない。Runnerが実ProcessとArtifactを観測した場合だけ発行する。
 
-SystemQualificationReceiptV1とWorldQualificationReceiptV1は、汎用Receiptを一つのSystem／World subject、Contract／Graph／Topology、State owner、Target artifact、Save／Replay、Performance、Fault、Reviewへ束ねる。subject hashが変われば再利用せず、Estimate、Preview、別Target、別Quality、別Toolchainを代用しない。
+SystemQualificationReceiptV1は汎用Verification Receiptを一つのSystem evidence closureへ束ね、次を固定する。
+
+    receipt_id, project_revision, engine_baseline_hash
+    system_contract_ref, system_bundle_hash, implementation_kind
+    capability_scope_hash
+    target_profile_hashes[], definition_package_hashes[]
+    source_tree_hash?, native_artifact_hashes[]
+    project_shader_artifact_hashes[]
+    verification_receipt_hashes[]
+    review_receipt_hashes[]
+    test_evidence_root_hash
+    performance_receipt_hashes[], provenance_root_hash
+    gate_applicability_hash
+    bounded_native_profile_hash?
+    bounded_project_shader_profile_hashes[]
+    gate_policy_hash, result
+    runner_id, signature fields
+
+Target別配列はTarget Profile ID順で件数を一致させ、該当しないoptionalを空hashで表現しない。resultはpass、fail、infrastructure_error、cancelledのclosed setで、pass以外をQualificationに使わない。
+
+SystemQualificationReceiptV1はEvidenceだけを所有し、Authorization、Approval、Promotion、Activation権限を与えない。[AI Security／Approval](ai-security-approval.md)のPolicy ServiceはReceiptの署名、subject、result、freshness、gate_policy_hashを検証し、その完成Record hashをSystemTechnicalAttestationV1のsystem_qualification_receipt_hashへ一方向参照する。AttestationがReceiptのTarget artifact、Test、Performance、Provenance Fieldを複写することを禁止する。
+
+WorldQualificationReceiptV1は汎用Receiptを一つのWorld subject、Topology、State owner、Target artifact、Save／Replay、Performance、Fault、Reviewへ束ねる。System／Worldのsubject hashが変わればReceiptを再利用せず、Estimate、Preview、別Target、別Quality、別Toolchainを代用しない。
 
 ### 7.2 GenerationReceiptV1
 
@@ -405,23 +429,23 @@ Trace欠落、順序不明、redactionで必須判断不能、Artifact hash不�
 
 ## 9. Supply-chain provenance
 
-### 9.1 SLSA／in-toto
+### 9.1 Build provenance
 
-Generation ReceiptとSLSA Build Provenanceを分離する。前者はProposal生成の来歴、後者は信頼済みBuild platformがArtifactを生成した来歴である。
+Generation ReceiptとBuild provenanceを分離する。前者はProposal生成の来歴、後者は信頼済みBuild platformがArtifactを生成した来歴である。
 
-Release CIはin-toto Statement v1とSLSA provenance v1.2を使用し、build definition／type、external parameters、resolved dependencies、builder ID、subject digest、必要Receipt digestを記録する。StatementをDSSE envelopeでTrusted Build Serviceが署名し、AI Workerは署名しない。Build provenance key、内部Receipt key、Release package signing keyを分離する。
+Release CIは[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)が固定するbuild_provenance_profile_idとenvelope_profile_idを参照し、build definition／type、external parameters、resolved dependencies、builder ID、subject digest、必要Receipt digestを記録する。Trusted Build Serviceだけが署名し、AI Workerは署名しない。Build provenance key、内部Receipt key、Release package signing keyを分離する。
 
-Build platformのisolation、signer、control planeを監査する前にSLSA Levelを公称しない。
+Build provenanceのformat、exact version、artifact hash、license、acquisition URLはToolchain Ownerだけが決定する。VerificationReceiptV1とRelease Evidenceは使用したProfile IDとtoolchain_lock_hashを記録し、Profile不一致を拒否する。Build platformのisolation、signer、control planeを監査する前にAssurance Levelを公称しない。
 
 ### 9.2 SBOM
 
-Release artifactごとにSPDX 3.0.1 SBOMを実Build結果から生成する。AIが列挙したDependencyを正本にしない。First-party component、linked library、third-party package、version、取得元、hash、license、relationship、Build／AI provenance参照を含める。
+Release artifactごとにToolchain Ownerが固定するsbom_profile_idを使い、SBOMを実Build結果から生成する。AIが列挙したDependencyを正本にしない。First-party component、linked library、third-party package、version、取得元、hash、license、relationship、Build／AI provenance参照を含める。
 
-破棄可能なModule cache artifactを配布Packageとして列挙しない。SBOMとbinary dependency scanの不一致、unknown／禁止license、hash差、未承認DependencyでReleaseを停止する。
+SBOM formatのexact version、artifact hash、license、acquisition URLは[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。Receiptはsbom_profile_idとtoolchain_lock_hashを記録する。破棄可能なModule cache artifactを配布Packageとして列挙しない。SBOMとbinary dependency scanの不一致、unknown／禁止license、hash差、未承認DependencyでReleaseを停止する。
 
-### 9.3 SARIF／Telemetry
+### 9.3 Diagnostic export／Telemetry
 
-Compiler、static analyzer、security scanner findingをMirakanDiagnosticV1へ正規化し、外部連携用SARIF 2.1.0を生成する。Runtime validation、Game design、Approval errorの正本をSARIFへ移さない。
+Compiler、static analyzer、security scanner findingをMirakanDiagnosticV1へ正規化し、Toolchain Ownerが固定するstatic_finding_exchange_profile_idで外部連携Artifactを生成する。formatのexact version、artifact hash、license、acquisition URLは[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。Runtime validation、Game design、Approval errorの正本を外部交換Artifactへ移さない。
 
 内部Trace IDとReceiptを正本とし、OpenTelemetryは観測Backend Adapterに限定する。Prompt、Source、Tool argument本文を既定exportせず、hash、Risk、duration、token、result、Diagnostic countだけを送る。SDK／Collector／Network停止がBuildやGameの正しさを変えてはならない。
 
@@ -527,11 +551,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 
 ## 16. 一次根拠
 
-- [SLSA Build Provenance v1.2](https://slsa.dev/spec/v1.2/provenance)
-- [in-toto Statement v1](https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md)
-- [DSSE v1.0](https://github.com/secure-systems-lab/dsse/blob/master/protocol.md)
-- [SPDX 3.0.1](https://spdx.github.io/spdx-spec/v3.0.1/)
-- [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
+- [Toolchain／dependencies](../02-foundation/toolchain-dependencies.md): Build provenance、envelope、SBOM、static finding exchangeのProfile ID、exact version、hash、license、acquisition URLの唯一の正本
 - [OpenTelemetry Specification](https://opentelemetry.io/docs/specs/otel/)
 - [OpenAI Trace grading](https://developers.openai.com/api/docs/guides/trace-grading)
 

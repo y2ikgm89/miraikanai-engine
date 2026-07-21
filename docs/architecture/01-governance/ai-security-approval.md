@@ -353,13 +353,13 @@ System Bundle Candidateは実装laneに応じG0–G7を通る。
 
 unexecuted、failed、unknown、expiredが一つでもあればAttestationを発行しない。非適用Gateは固定Policyがnot_applicable_by_policyと理由を出す。AI Profile全体の成功率を個別Candidateのhard Gateへ転用しない。
 
-Builder AI、Reviewer AI、Adversarial Test AIは技術承認できない。Engine-owned Validator／Runnerは個別Gateだけを判定し、Policy Serviceだけが全Gateとhash closureを照合してSystemTechnicalAttestationV1へ署名する。
+Builder AI、Reviewer AI、Adversarial Test AIは技術承認できない。Engine-owned Validator／Runnerは個別Gateを判定し、[AI Verification／Provenance](ai-verification-provenance.md)のSystemQualificationReceiptV1へEvidence closureを束ねる。Policy Serviceだけが、そのReceiptの署名、subject、result、freshness、gate_policy_hashをSecurity Policyと照合し、SystemTechnicalAttestationV1へ署名する。
 
 ### 9.3 Approval hierarchy
 
 | Contract | 対象 | 失効条件／権限 |
 |---|---|---|
-| SystemTechnicalAttestationV1 | 一つのSystem Bundle、implementation kind、Target、Capability、Test、Budget | Source、Definition、Contract、Target、Budget、Baseline、Evidenceの変更で失効。Policy Serviceだけが署名 |
+| SystemTechnicalAttestationV1 | 一つのSystem Bundleに対するPolicy判断とSystemQualificationReceipt hash | 参照Receiptの失効、subject／Policy差、Source、Definition、Contract、Target、Budget、Baseline変更で失効。Policy Serviceだけが署名 |
 | FeatureIntegrationAttestationV1 | 複数Systemで成立するUser-visible Feature | 構成System／Graph／Replay／Save／Budget変更で失効。System適格化を代替しない |
 | HumanGameplayApprovalV1 | system、feature、またはexact game candidate | result Candidate hash、ChangeSet、Requirement、Capability、Preview、Target、制限、期限へ限定 |
 | GameCandidateManifestV1 | baseline、Project revision、全Attestation、Asset、Target artifact、whole-game Gate | 欠落、失敗、stale、Target mismatchなら候補化禁止 |
@@ -369,17 +369,20 @@ SystemTechnicalAttestationV1は次を固定する。
 
     attestation_id, project_revision, engine_baseline_hash
     system_contract_ref, system_bundle_hash, implementation_kind
-    target_profile_hashes[], definition_package_hashes[]
-    source_tree_hash?, native_artifact_hashes[]
-    project_shader_artifact_hashes[]
-    capability_scope_hash, test_evidence_root_hash
-    performance_receipt_hashes[], provenance_root_hash
-    gate_applicability_hash
-    bounded_native_profile_hash?
-    bounded_project_shader_profile_hashes[]
+    capability_scope_hash
+    system_qualification_receipt_hash
     gate_policy_hash, result, signer_identity, signature
 
-implementation_kindはgameplay_definition、native_game_module、hybrid、target_specialized_setのclosed setである。Target別配列はTarget Profile ID順で件数を一致させ、該当しないoptionalを空hashで表現しない。
+implementation_kindはgameplay_definition、native_game_module、hybrid、target_specialized_setのclosed setである。SystemTechnicalAttestationV1はEvidence bundleを再掲せず、exactly oneのSystemQualificationReceiptV1をhash参照する。Policy ServiceはReceiptのproject_revision、engine_baseline_hash、system_contract_ref、system_bundle_hash、implementation_kind、capability_scope_hash、gate_policy_hashがAttestation subjectと一致し、resultがpassで、署名用途がsystem_qualificationであり、失効していない場合だけ署名する。
+
+関係は一方向である。
+
+    Verification Runner
+      -> SystemQualificationReceiptV1 [Evidence closure、権限なし]
+      -> Policy Service validation
+      -> SystemTechnicalAttestationV1 [Policy判断、Receipt hash参照]
+
+SystemQualificationReceiptV1はAuthorization、Approval、Promotion、Activation権限を与えない。SystemTechnicalAttestationV1はReceipt内のTest、Performance、Provenance、Target artifact Fieldを複写せず、Receiptなしでは成立しない。
 
 FeatureIntegrationAttestationV1は次を固定する。
 
@@ -464,7 +467,7 @@ Engine baseline更新は全Attestationを失効させ、明示Migration、全再
 | refusal／incomplete／strict Schema不成立 | Proposalを作らずDiagnostic |
 | Context不足／stale revision | 質問または新Task。Mustを削らない |
 | 同一blocking反復／修復上限 | 自動loop停止、Attempt保持 |
-| Validator crash／Test infrastructure failure | 合格扱いせずinfrastructure_failure |
+| Validator crash／Test infrastructure failure | 合格扱いせずinfrastructure_error |
 | Sandbox／hardware isolation unavailable | Source Workerを起動せず停止 |
 | Baseline hash／signature不一致 | Build／Preview／Activation停止 |
 | Engine private／OS／Vendor API要求 | Source Gate拒否。公開Capabilityへ再設計 |
@@ -518,7 +521,6 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 ## 14. 一次根拠
 
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
-- [SLSA artifact verification](https://slsa.dev/spec/v1.2/verifying-artifacts)
 - [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785)
 - [RFC 7518 JSON Web Algorithms](https://www.rfc-editor.org/rfc/rfc7518)
 
