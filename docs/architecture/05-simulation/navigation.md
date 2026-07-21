@@ -2,8 +2,8 @@
 
 - 文書ID: mirakan.arch.simulation-navigation
 - 状態: review
-- 正本範囲: 2D Grid Navigation、3D Navmesh source／profile／artifact、Navmesh query request／result／status、Navmesh version／lease
-- 非正本範囲: Runtime phase／tick／shared worker／capacity、Physics dynamics、Collision event、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
+- 正本範囲: 2D Grid Navigation、3D Navmesh source／profile／artifact、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract
+- 非正本範囲: Runtime phase／tick／shared worker／capacity、Physics dynamics、Collision event、Character MotorによるTransform解決、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -64,6 +64,49 @@ Dynamic obstacleは前snapshotからbounded update inputを受け、新version�
 `NavWorldHandle`と`NavQueryHandle`はEngine generation handle、`NavMeshVersion`はactive artifact generationのmonotonic runtime identityであり、ProjectのStable IDやartifact content identityを代用しない。`NavWorldLeaseV1`はWorld handle、exact version、immutable Backend world ref、expiry boundaryを束ねる。lease expiry後のresult解釈、version activation中のlive pointer保持、old polygon refのnew version利用を禁止する。
 
 Async resultのdeadlineとacceptanceは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T20_AsyncIntegrate`を参照する。Navigationはphase順序を再定義せず、accepted resultだけを次のGameplay evaluationから利用できる。Replayへはrequest、accepted result、version／artifact identityを供給し、記録はRuntime ownerのcanonical `T100_ReplayCheckpoint`に接続する。
+
+### 4.1 C1 Path Following／Movement Intent
+
+`capability.gameplay.path_following.c1`は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定をNavigation ownerとして所有する。Navigation query resultとCharacter Motorの最終authoritative Transform解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。Character Motorのwriter authorityを奪わない。
+
+```text
+PathFollowRequestV1
+  request_id
+  actor_ref
+  actor_generation
+  goal: WorldPosition2f | WorldPosition3f | StableAnchorRef
+  nav_agent_profile_ref
+  movement_profile_ref
+  arrival_radius_m
+  replan_policy_ref
+  requested_tick
+
+PathFollowerStateV1
+  actor_ref
+  request_id
+  nav_generation
+  path_result_generation
+  waypoint_index
+  status: awaiting_path | following | arrived | blocked | stuck | stale | cancelled
+  last_progress_tick
+  replan_count
+  generation
+
+MovementIntentV1
+  actor_ref
+  actor_generation
+  source_request_id
+  desired_velocity
+  facing_intent
+  valid_for_tick
+  movement_profile_ref
+```
+
+`arrival_radius_m`はfiniteな0.01～10 mとする。C1 waypointは2D Navigation Profileの8,192 cell上限または3D Navigation Profileの256 straight-path point上限に従う。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、Character Motorの連続`blocked`だけがreplan契機であり、`replan_policy_ref`は最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
+
+accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Followingは`T30`でactor当たり一つだけの`MovementIntentV1`を生成し、Character Motorが`T40`でCollision queryとともに解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1はwaypoint追従とCharacter Motor collision responseを提供し、複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2に留める。
+
+ownerが永続化を要求した場合だけSaveへgoal、request semantic、replan countを保存する。waypoint index、Nav path point配列、native query handle、Physics stateは保存しない。Loadは保存済みNav generationやpath進捗を信用せず、同じgoalとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、arrived／stuck／replan Eventを記録する。C1 fixtureは2D enemy seek／attackと3D Navmesh追跡で、goal移動、door閉鎖、stale result、Level deactivate、blocked recovery、Save／Load、Replay一致を検証する。
 
 ## 5. Authoring、AI、diagnostic、recovery
 

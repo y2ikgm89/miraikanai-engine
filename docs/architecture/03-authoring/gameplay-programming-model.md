@@ -2,8 +2,8 @@
 
 - 文書ID: mirakan.arch.gameplay-programming-model
 - 状態: review
-- 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV1、State owner、typed Command／Event／Snapshot Port、Project-defined System、AI実装Plan、Contract codegen、SystemBundleChangeSetV1、実装Variantの検証／Promotion
-- 非正本範囲: Native ABI／entry／lifecycle／Target link／Build identity／Packaging、Project transaction、共有Schema基盤、Runtime scheduling／共通budget、外部Tool・SDK・Libraryの固定値、Domain固有Gameplay schema。各Owner文書を参照する
+- 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV1、State owner、typed Command／Event／Snapshot Port、Perception／Interaction contract、Project-defined System、AI実装Plan、Contract codegen、SystemBundleChangeSetV1、実装Variantの検証／Promotion
+- 非正本範囲: Native ABI／entry／lifecycle／Target link／Build identity／Packaging、Project transaction、共有Schema基盤、Runtime scheduling／共通budget、外部Tool・SDK・Libraryの固定値、Navigation query／Character Motor／Project固有Interaction結果。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Native game module](native-game-module.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -96,6 +96,83 @@ authoritative Definition instance stateはEngine-owned `GameplayStateStore`だ�
 Definition setのlive editはdependency closure全体をStagingし、Capability manifest、State layout、Stable State／node IDが互換で、Cook、semantic fixture、deterministic replayが合格した場合だけRuntime Ownerの安全なboundaryでswap候補にする。不一致時は旧versionを維持して`restart_play`を返す。Native hot unloadをDefinition live editへ含めない。
 
 Shipping Runtime AIが変更できるのは出荷済みCapabilityとSchemaが許可するbounded dataだけである。Capability、Schema、Budgetの追加、C++／Shader／bytecode／binaryの生成／download／load、raw Physics／Render／Network stateの確定、process／shell／filesystem／network／FFIを禁止する。
+
+### 2.4 C1 Perception／Interaction
+
+`capability.gameplay.perception.c1`は2D／3D共通のboundedな視覚・聴覚認識を、`capability.gameplay.interaction.c1`は対象発見、prompt semantic、利用要求、競合制御を所有する。Behavior Tree、Utility AI、Squad共有Blackboard、door／switch／pickup／inspect／talkのProject固有結果は本Systemへ暗黙に含めない。
+
+```text
+PerceptionProfileV1
+  profile_id
+  dimension: world_2d | world_3d
+  sight_range_m
+  horizontal_fov_rad
+  vertical_fov_rad
+  hearing_range_m
+  line_of_sight_query_profile_ref
+  detectable_channel_mask
+  update_interval_ticks
+  memory_duration_ticks
+  max_candidates_per_observer
+  max_visible_targets_per_observer
+  target_selection_policy: nearest | highest_priority_then_nearest
+
+PerceptionStimulusEventV1
+  stimulus_id
+  source_entity_ref
+  kind: sight_candidate | sound | damage | scripted
+  world_position
+  strength_q16
+  emitted_tick
+  channel
+
+PerceptionSnapshotV1
+  observer_ref
+  snapshot_tick
+  visible_targets[]
+  heard_stimuli[]
+  remembered_targets[]
+  query_generation
+  overflow_state
+
+InteractionDefinitionV1
+  interaction_id
+  semantic_role
+  input_action_id
+  prompt_message_key
+  priority: int16
+  max_range_m
+  query_shape_ref
+  line_of_sight_policy: required | not_required
+  concurrency_policy: exclusive | shared
+  activation_command_ref
+  state_owner_ref
+  save_policy: none | owner_state
+  accessibility_cue_refs[]
+
+InteractionRequestV1
+  request_id
+  actor_ref
+  target_ref
+  interaction_ref
+  requested_tick
+  focus_snapshot_generation
+
+InteractionSnapshotV1
+  actor_ref
+  focused_target_ref
+  available_interaction_refs[]
+  rejection_reason
+  generation
+```
+
+Perceptionは距離、FOV、channel filterで候補を先にbounded化し、Collision正本のversion付きRay／Shape QueryだけでLOSを判定する。sight／hearing rangeはfiniteな0～10,000 m、horizontal FOVは0～2π rad、3D vertical FOVは0～π radとし、0 range／0 FOVは該当sense無効を意味する。2Dは`vertical_fov_rad=0`を必須として判定に使用しない。Render visibility、depth buffer、occlusion query、Camera frustum、Particle、Post Processをauthoritative Perceptionへ入力せず、聴覚はAudio mixer実音量ではなくGameplay Systemが発行する`PerceptionStimulusEventV1`だけを使う。
+
+`T30`で候補とQueryを生成し、Physicsが`T40`で処理して、`T60`で正規化した結果を次tickのGameplayが読む。visible target、heard stimulus、memoryを非決定的に切らず、priority、距離の量子化値、source `StableId`、stimulus IDのcanonical順で残した結果と`overflow_state`を返す。C1 reference Profileはobserver当たりcandidates 64、visible targets 16、heard stimuli 16、memory 32、update interval 1～6 ticks、memory 0～600 ticksを許可する。Perception Systemだけがmemory、last confirmed tick、target `StableId`のauthoritative stateを所有し、Save／Replayにはそれらを保存／記録するが、Physics handle、Query result pointer、render objectは保存しない。
+
+Interactionの`max_range_m`はfiniteな0.1～100 mとする。FocusはCollisionの`interaction` semantic sensorとversion付きQueryを使い、range、LOS、priority降順、距離の量子化値、target `StableId`の順で決定する。UIは`prompt_message_key`と`accessibility_cue_refs[]`を提示するだけで、localized文字列やpixel hitからWorldを変更しない。keyboard／controller／touchのUse入力は`InteractionRequestV1`となり、Engine Standard Interaction Systemがactor／target generation、range、LOS、Game Flow、exclusive lease、`state_owner_ref`を再検証して登録済みCommandを発行する。door、switch、pickup等の結果は参照先Game Systemが所有し、common Interaction Systemは任意のProject Componentを書き換えない。
+
+stale Query、target deactivate、range外、LOS遮断、exclusive lease競合は`rejection_reason`によるtyped rejectionとし、別targetへ推測で切り替えない。Focus QueryからUse確定までは最大1 tickだけ許容し、超過Requestは再Queryを要求する。exclusive leaseは確定Commandを発行するtickだけ有効で、継続占有は参照先Game Systemが別のauthoritative stateとして所有する。Saveは`state_owner_ref`のowner stateだけを対象とし、focus、prompt、lease、Physics handleは保存しない。ReplayはRequest、確定Command、rejection reasonを記録する。C1 fixtureはdoor、switch、collision pickup、explicit-use pickup、inspectを2D／3Dで同じContractへ通し、screen reader labelを含むAccessibility cue、pause、Level deactivate、同tick競合を検証する。
 
 ## 3. `GameSystemSpecV1`
 
