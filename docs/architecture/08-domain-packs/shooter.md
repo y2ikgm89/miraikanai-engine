@@ -108,7 +108,7 @@ Feature PackはPublic Contract、Schema、Reference Definition、Validator、AI 
 - Character motor／aim-origin契約。AI behaviorは同じ`RequestFireCommandV1`を使いWeapon Stateを直接writeしない
 - keyboard／mouse、controller
 
-FPS viewはC2 Camera／Weapon Presentation Profileであり、新しいDamage／Weapon契約ではない。
+FPS viewは現在のShooter reference contractの対象外である。将来scope、成熟度、activation、schema／Profile追加の要否は[Product Plan](../00-product/product-plan.md)だけが決定する。
 
 ## 6. 正規Data Model
 
@@ -198,7 +198,7 @@ ShotDeliveryDefinitionV1
 
 hitscanはCollision規約のRay／Shape Castを使う。ProjectileはShooter Projectile Systemのdomain-local recordを使い、C1では各tickの移動segmentをswept Queryとして検証する。Particle collision、depth buffer、render occlusionをHit Evidenceにしない。
 
-`delivery_kind=hitscan`では`projectile_definition_ref`を持たず、Patternの`speed_scale_q16`を全要素1.0、`projectile`ではrefを必須とする。`max_hits_per_activation=[1,64]`かつ`shot_count`以下とし、各Shotは`closest_per_shot`で最大一Hitを生成する。penetration、同一Shotの複数Hit、`ordered_all`はC2とする。Projectileは`lifetime_ticks`またはspawn originから`max_range_m`へ到達した早い方でexpireする。
+`delivery_kind=hitscan`では`projectile_definition_ref`を持たず、Patternの`speed_scale_q16`を全要素1.0、`projectile`ではrefを必須とする。`max_hits_per_activation=[1,64]`かつ`shot_count`以下とし、各Shotは`closest_per_shot`で最大一Hitを生成する。penetration、同一Shotの複数Hit、`ordered_all`は現在のcontractの対象外として拒否する。これらの将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。Projectileは`lifetime_ticks`またはspawn originから`max_range_m`へ到達した早い方でexpireする。
 
 ### 6.5 `ProjectileDefinitionV1`
 
@@ -309,7 +309,7 @@ RadialDamageDefinitionV1
 
 `0 <= inner_radius_m <= outer_radius_m <= 1,000`、`max_targets=[1,256]`とする。`none`はquery refを持たず、`collision_query`は必須とする。候補はdistance、Target Stable IDの順でcanonicalに選び、`max_targets`超過をpartial Damageで継続せず`ShooterQueryCapacityExceeded`としてtickをfaultする。`linear_q16`はinnerで1.0、outerで0.0のQ16倍率とし、Gameplay DamageをVFX radiusから取得しない。
 
-C1のradial originはDeliveryが確定したcanonical Hit位置であり、HitがないActivationではradial Damageを生成しない。timer、remote detonation、persistent area Damageは個別C2契約とする。
+C1のradial originはDeliveryが確定したcanonical Hit位置であり、HitがないActivationではradial Damageを生成しない。timer、remote detonation、persistent area Damageは現在のcontractの対象外であり、将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。
 
 ### 6.10 `TeamPolicyV1`
 
@@ -411,7 +411,7 @@ PickupInstanceStateV1
   collected_tick: optional
 ```
 
-`grant_kind`をdiscriminatorとし、`ammo | health | shield | score`は`grant_amount>0`を必須としてweapon refを持たない。ammoはuint32、health／shieldはfinite binary32のpoints型、scoreはint64とする。`weapon`はweapon refを必須としamountを持たない。C1はone-shot collectionだけとし、respawn、random loot table、inventory weightはC2とする。Pickup Systemはtyped Grant Commandを各State ownerへ送り、Weapon ammo、Vital、Scoreを直接writeしない。
+`grant_kind`をdiscriminatorとし、`ammo | health | shield | score`は`grant_amount>0`を必須としてweapon refを持たない。ammoはuint32、health／shieldはfinite binary32のpoints型、scoreはint64とする。`weapon`はweapon refを必須としamountを持たない。現在のcontractはone-shot collectionだけを扱い、respawn、random loot table、inventory weightは対象外として拒否する。これらの将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。Pickup Systemはtyped Grant Commandを各State ownerへ送り、Weapon ammo、Vital、Scoreを直接writeしない。
 
 ### 6.16 Shooter Game Flow
 
@@ -579,7 +579,7 @@ User Remap、toggle／hold、sensitivity、dead zone、left-handed layoutはInpu
 
 Presentation cueの失敗、Voice不足、VFX drop、Camera unavailableでFire、Damage、Score結果を変更しない。critical cueがownerのcapacity内で出せない場合はPresentation Qualificationを失敗させるが、Gameplay Eventをdropしない。
 
-Camera recoilはC1ではPresentation-onlyであり、Gameplay aim、Shot direction、Collision query、Save transformへ戻さない。将来authoritative recoilを追加する場合は独立`AimStateV2`と専用Profileを必要とする。
+Camera recoilは現在のcontractではPresentation-onlyであり、Gameplay aim、Shot direction、Collision query、Save transformへ戻さない。authoritative recoilは対象外であり、将来scope、activation、schema／Profile判断は[Product Plan](../00-product/product-plan.md)だけが所有する。
 
 ## 11. AI Semantic Contract
 
@@ -836,7 +836,7 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - 全Typeのvalid境界、unknown field、duplicate ID、missing ref、cycle
 - Stable ID／Contract Ref／Artifact Refの混同拒否
 - Fire Mode、Pattern、Delivery、Ammo、Reloadの組合せmatrix
-- C1 ProfileへC2 enum／Fieldを混入したnegative fixture
+- current Profileへunknown／out-of-contract enumまたはFieldを混入したnegative fixture
 - State owner、Command phase、Event delivery、Save closure
 - unknown Diagnostic、unbounded collection、NaN／Inf、overflow
 
@@ -883,7 +883,7 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - authoritative projectileとPresentation particleの混同0
 - hitscan／projectile、ammo、friendly fire、scoreのBlocking不足見逃し0
 - Low Impact既定を不要質問する率5%以下
-- 未対応C2／C3機能をC1成功として返す件数0
+- 対象外Capabilityをcurrent contractの成功として返す件数0
 - AI／手動Editor／Project C++ Commandが同じDefinition hashとRuntime結果へ収束
 - ExplainがField、理由、Assumption、代替、capacity impact、Testを返す
 
@@ -905,10 +905,10 @@ Shooter reference Packは、本文書の全schema、closed enum、境界値、Fi
 
 ## 18. 公式資料
 
-- [Unity Manual: ScriptableObject](https://docs.unity3d.com/6000.5/Documentation/Manual/class-ScriptableObject.html)
-- [Unity Input System: Actions](https://docs.unity3d.com/Packages/com.unity.inputsystem@1.6/manual/Actions.html)
+- [Unity Manual: ScriptableObject](https://docs.unity3d.com/Manual/class-ScriptableObject.html)
+- [Unity Input System](https://github.com/Unity-Technologies/InputSystem)
 - [Unity: Three ways to architect game code with ScriptableObjects](https://unity.com/how-to/architect-game-code-scriptable-objects)
-- [Unity Scripting API: ObjectPool](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Pool.ObjectPool_1.html)
+- [Unity Scripting API: ObjectPool](https://docs.unity3d.com/ScriptReference/Pool.ObjectPool_1.html)
 - [Unreal Engine Gameplay Framework Quick Reference](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-framework-quick-reference-in-unreal-engine)
 - [Unreal Engine: Abilities in Lyra](https://dev.epicgames.com/documentation/unreal-engine/abilities-in-lyra-in-unreal-engine)
 - [Unreal Engine: Lyra Inventory and Equipment](https://dev.epicgames.com/documentation/en-us/unreal-engine/lyra-inventory-and-equipment-in-unreal-engine)

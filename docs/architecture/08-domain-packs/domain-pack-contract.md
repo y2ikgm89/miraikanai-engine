@@ -189,7 +189,7 @@ Domain Pack contractのfixtureは次を最低限含む。
 ## 12. 外部根拠と採用判断
 
 - [Unreal Engine Game Features and Modular Gameplay](https://dev.epicgames.com/documentation/unreal-engine/game-features-and-modular-gameplay-in-unreal-engine)
-- [Unity ScriptableObject](https://docs.unity3d.com/6000.5/Documentation/Manual/class-ScriptableObject.html)
+- [Unity ScriptableObject](https://docs.unity3d.com/Manual/class-ScriptableObject.html)
 - [Godot Nodes and Scenes](https://docs.godotengine.org/en/stable/getting_started/step_by_step/nodes_and_scenes.html)
 - [O3DE Gems](https://docs.o3de.org/docs/user-guide/gems/)
 
