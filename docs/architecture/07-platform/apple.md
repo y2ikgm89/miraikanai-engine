@@ -51,6 +51,8 @@ Shipping crash report metadataはEngine build ID、Target Profile、`MobileCapab
 
 ## 3. Asset packaging、privacy、runtime content
 
+Apple textureはASTC target formatでpackageする。Package validatorは[Mobile Common](mobile-common.md)の7-field texture projection、`target_format = ASTC`、content hash、Target Profileをpayloadと照合する。ASTC artifact不足、format／manifest／payload不一致はpackage promotionを拒否し、別formatへのsilent fallbackやRuntime Basis／Universal Texture transcodeを行わない。Pixel Art／UI／maskはMobile CommonのRGBA8／用途別lossless規則を使う。
+
 `apple_bundle_v1`は`install`をapp bundle、`essential | prefetch | on_demand`を同名policyのself-hosted unmanaged deliveryへ写像する。`essential`を使用しないProjectはfirst playableに必要な全Assetを`install`へ含める。deprecated delivery mechanismを新規採用しない。
 
 `apple_managed_assets_v1`はToolchain／Store policyが許す別minimum-OS variantだけでApple-hosted managed deliveryを使う。bundle variantとmanaged variantのTarget／Distribution ref、package、TestFlight lane、Save compatibilityを分離する。Store size／pack limitsとminimum OSは[Mobile Common](mobile-common.md)の唯一の共通schema `StorePolicyLock`からvalidatorへ注入し、本書に物理lock schemaや時点依存値を複写しない。
@@ -89,7 +91,7 @@ Remote Apple serviceはmutual-authenticated transportでrole別versioned RPC `st
 
 Minimum laneはToolchain profileのminimum iPhone一台とiPad一台、Reference laneはnewer phone／tablet class、High laneはoptional graphics／high-refresh classとする。device交換はsame commit／package／input traceのbridge baselineを残す。Simulatorはfunctional smokeだけで、GPU、audio／touch latency、memory、thermal合否に使わない。
 
-Apple fixtureはclean install／upgrade／uninstall／reinstall、cold／warm start、inactive／background／foreground、termination Save recovery、scene／surface recreation、rotation／safe area、touch／controller／IME、audio route／interruption／media reset、offline Asset interruption／resume／hash mismatch、physical footprint pressure、Metal allocation failure、thermal／battery saver、shader／golden、archive／entitlement／Privacy Manifest、TestFlight installを含む。touch／text fixtureは頻用44×44 pt、補助28×28 pt、既定17 pt、補助11 ptの各下限を検証する。uninstall／reinstall後にstale local stateを復活させず、Distribution／Save compatibility policyどおりの初期状態になることを検証する。Shipping crash fixtureはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed frame／tick、memory／thermal levelの存在と、personal information／conversation body／credentialの不在を検証する。10分performance、30分thermal、2時間enduranceをphysical deviceで行う。
+Apple fixtureはclean install／upgrade／uninstall／reinstall、cold／warm start、inactive／background／foreground、termination Save recovery、scene／surface recreation、rotation／safe area、touch／controller／IME、audio route／interruption／media reset、offline Asset interruption／resume／hash mismatch、physical footprint pressure、Metal allocation failure、thermal／battery saver、shader／golden、archive／entitlement／Privacy Manifest、TestFlight installを含む。texture fixtureはASTC packageの7-field照合、artifact不足／format・payload tamperのpromotion拒否、Runtime transcode不在を検証する。touch／text fixtureは頻用44×44 pt、補助28×28 pt、既定17 pt、補助11 ptの各下限を検証する。uninstall／reinstall後にstale local stateを復活させず、Distribution／Save compatibility policyどおりの初期状態になることを検証する。Shipping crash fixtureはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed frame／tick、memory／thermal levelの存在と、personal information／conversation body／credentialの不在を検証する。10分performance、30分thermal、2時間enduranceをphysical deviceで行う。
 
 | Failure | 結果 |
 |---|---|
@@ -98,6 +100,7 @@ Apple fixtureはclean install／upgrade／uninstall／reinstall、cold／warm st
 | Metal capability不足 | `UnsupportedDevice`、launch拒否 |
 | drawable unavailable | surface unavailableとして待機、GPU faultと混同しない |
 | Metal execution fault | diagnostic＋Save保護、safe fault／exit |
+| ASTC artifact不足／format・manifest不一致 | package promotion拒否、last-valid artifact維持 |
 | control／text minimum違反 | UI／device qualification失敗、release block |
 | crash metadata不足／private data混入 | crash／privacy qualification失敗、release block |
 | uninstall／reinstall fixture不一致 | stale stateを採用せず、release block |

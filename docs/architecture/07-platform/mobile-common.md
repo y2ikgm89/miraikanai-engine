@@ -153,7 +153,47 @@ Dynamic resolutionは5%刻み、下限50%とする。直近30 frame中12 frame�
 
 Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameがCPU／GPU P95とも16.67 ms以下、real 60 fps、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。touch-to-photonは1000 fps以上のhigh-speed cameraで`240 tap×5 run`を採取し、touch contact frameから指定flash regionの最初の輝度変化までを測る。各runのnearest-rank P95のmedianを判定値とし、Provider-off比の劣化8.33 ms以下かつ絶対値83.33 ms以下を要求する。Receiptがなければ失敗する。30 fps入力をdisplayed 60 fpsにした結果を60 fps capabilityと表示しない。pixel-locked 2D、fullscreen menu、loading、pause、camera cut、rotation／resize／surface regenerationでは無効化する。
 
-### 5.4 Asset delivery
+### 5.4 Mobile graphics quality
+
+Mobile graphics quality profileは`Baseline | Standard | High`のclosed setである。各値は次のMobile選択policyを一括して表し、Android／Apple Adapterはこの表を再定義しない。
+
+| 機能 | Baseline | Standard | High |
+|---|---|---|---|
+| Renderer | Forward+ | Forward+ | Forward+／optional hybrid |
+| Shadow technique | SDF 2D／CSM＋atlas | SDF 2D／cached CSM＋atlas | SDF 2D／cached CSM＋atlas＋選択的PCSS |
+| Shadowed directional | 1、2 cascade、1024 atlas | 1、3 cascade、2048 atlas | 1、4 cascade、2048–4096 atlas |
+| Visible local lights | 8、local shadowなし | 32、最大2 shadowed | 64、最大4 shadowed |
+| Fog | height／distance fog | half-resolution volumetric optional | volumetric高品質 |
+| Clouds | 2D layer | reduced volumetric optional | volumetric |
+| Particle | CPUまたは限定GPU | GPU particle | GPU particle高budget |
+| Reflection | probe | probe＋SSR optional | probe＋SSR |
+| Anti-alias／Upscale | FXAA。Qualified MSAA 2xは`minimum_blur`／`minimum_ghosting`／`vr_low_latency`だけ | FXAA fallback。Qualified SMAA 1x、MSAA 2x／4x、Mirakan TAA／TAAU | Mirakan TAAU／Qualified FSR・MetalFX。MSAA 8xは個別Gateだけ |
+| Frame Generation | Off | Off | Qualified `mobile_high`だけ |
+| RT／Neural | Off | Off | 個別Experimental／Qualification後。Raster fallback必須 |
+
+この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず、`High → Standard → Baseline`の順に一段下げ、選択Profile、棄却理由、fallback、omitted reason、Qualification Receiptをdiagnosticへ残す。unknown profileは近い値へ変換せず拒否する。Baselineでも合格しないTargetは`OptimizationRequired`としてShippingを拒否する。2D C1はBaselineで全機能を成立させ、3D C1はscalable subsetを成立させる。Presentation縮退はresolution、shadow、VFX、volumetric、streaming concurrency等だけに適用し、敵味方数、damage、collision、goal、spawn timingその他のauthoritative resultを2D／3Dとも変更しない。
+
+AI／Editorはmethod名を直接推測せず`AntiAliasingIntentV1`を入力し、Rendererの決定的Resolverから得た`ResolvedAntiAliasingPlanV1`、推定GPU／memory／bandwidth費用、fallback、omitted reason、Qualification Receiptを同じChangeSet previewへ表示する。Rendererは表のexecutionを所有し、Mobile Commonはclosed profile値と縮退policyを所有する。
+
+### 5.5 Mobile texture Cook
+
+[Asset lifecycle](../03-authoring/asset-lifecycle.md)のcanonical `DerivedArtifactManifest`とCook／promotion transactionを使用する。Mobile textureのTarget artifact projectionは次の7 fieldを必須とし、新しいgeneric Asset manifest aliasを作らない。
+
+```text
+width
+height
+mip_count
+color_space
+alpha_mode
+target_format
+content_hash
+```
+
+CookはAsset ID／revision、Source content、texture semantic、Target Profile、Toolchain lockからTarget formatを決定的に選択する。同一入力は同じ`target_format`と`content_hash`を生成し、package inspectionはwidth、height、mip count、color space、alpha mode、target format、content hashをCook済みpayloadと照合する。一項目でも不一致、Target format不足、同一Asset IDのTarget対応重複があればCook／promotionを拒否し、last-valid artifactを維持する。Pixel Art／UI／maskはedgeを壊すblock compressionを避け、RGBA8または用途別losslessを選ぶ。Android／Appleのformat mappingとpackage検証は各Platform ownerが所有する。
+
+RuntimeでBasis／Universal TextureからTarget formatへtranscodeすることを禁止する。Basis／Universal Texture入力を使用する場合もoffline CookでTarget artifactへ確定し、Shipping packageへRuntime transcode path、transcoder、汎用intermediateだけのtextureを含めない。
+
+### 5.6 Asset delivery
 
 共通delivery manifestは次である。
 
@@ -207,6 +247,8 @@ Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけ
 | stale surface／touch generation | job／event破棄、Worldは維持 |
 | process kill／partial Save | last complete generationを復旧、partial slot非公開 |
 | Asset chunk hash／signature／dependency mismatch | mount拒否、last-valid namespace維持 |
+| texture target選択／7-field manifest／payload不一致 | Cook／promotion拒否、last-valid artifact維持 |
+| unknown graphics quality／Baseline不合格 | fallback候補とdiagnosticを表示し、`OptimizationRequired`としてShipping拒否 |
 | memory Exhausted／thermal Critical | authoritative stateを維持して縮退、不能ならcheckpoint後safe exit |
 | device bridge mismatch／gap | session拒否またはcomplete chunkだけ確定 |
 | device bridgeの二台目／二Session目／一時間超過 | 接続拒否またはcapture停止、complete chunkをread-only確定しmissing rangeをgap化 |
@@ -214,6 +256,6 @@ Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけ
 | executable content in delivered Asset | package／mount拒否 |
 | Runtime AI validation／moderation failure | Project／Save不変、last-valid content維持 |
 
-共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、structured-data rollbackを含む。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
+共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、structured-data rollbackを含む。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Mobile graphics-quality fixtureは11行×3 profileの全値、unknown拒否、`High → Standard → Baseline`の一段遷移、Baseline不合格、2D C1全機能、3D C1 scalable subset、Presentation縮退前後のauthoritative result一致を検証する。Texture fixtureは同一入力の反復Cookで`target_format`／`content_hash`一致、7 field各tamperの拒否、Target artifact不足／重複、Pixel Art／UI／maskのRGBA8またはlossless、Runtime Basis／Universal Texture transcode path不在を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
 
 Minimum／Reference実機は同一commit、package、input traceでlifecycle、Save、Input、Audio、graphics golden、memory、thermal、deliveryを測る。Emulator／Simulatorはfunctional smoke専用で、GPU、audio／touch latency、memory、thermalの合否に使わない。Evidence envelope、run grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが所有する。

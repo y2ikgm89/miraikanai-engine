@@ -54,6 +54,8 @@ Render Graph、resource access／barrier、`GpuSubmissionSerial`、AA／temporal
 
 offline shader pipelineはToolchain lockのportable source、compiler、validator、optimizerを使い、SPIR-V artifactとminimum reflection metadataだけをpackageする。Shippingへcompiler、shader source、authoring reflectionを含めない。`portable_mobile_v1`はmesh／ray、unbounded bindless、wave-size依存、geometry／tessellationをrequired featureにせず、unsupported materialはexplicit Target fallbackなしにCookしない。
 
+Android textureはPlay texture compression format targetingを使い、同一Asset IDへASTC primary artifactとETC2 fallback artifactを対応付けてpackageする。Package validatorは[Mobile Common](mobile-common.md)の7-field texture projection、`target_format`、content hash、Target ProfileをASTC／ETC2 payloadごとに照合する。ASTCまたはETC2の不足、同一Asset IDへの誤対応、format／manifest／payload不一致はpackage promotionを拒否し、単一artifactへのsilent fallbackやRuntime Basis／Universal Texture transcodeを行わない。Pixel Art／UI／maskはMobile CommonのRGBA8／用途別lossless規則を使う。
+
 `onTrimMemory`とOS pressureは`MemoryPressureLevel`、ADPF／thermal signalはMobile Commonのpressure／thermal levelへ正規化する。API unavailableでもcorrectnessを失わない。Android canonical process footprintはrelease deviceのpackage PIDに対するTOTAL PSSで、RSS、allocator total、Vulkan allocationを別系列として保存し、[Mobile Common](mobile-common.md)のaggregate capへ判定する。
 
 全Shipping native libraryは16 KiB page size compatibleでなければならない。compiler defaultを信用せず、ELF segment alignment、ZIP entry alignment、AAB／generated APKをToolchain lockのinspection toolsで検査する。arm64 hardeningはbranch protection、RELRO、stack protection、FORTIFYを有効にし、例外はPlatform security decisionを必要とする。Development memory sanitizerとShipping sampled allocator diagnosticは別fixtureで検証する。
@@ -83,7 +85,7 @@ Signing Serviceはfixed unsigned AABとgovernance ownerのRelease decision ref�
 
 Minimum laneはToolchain profileのminimum API／Vulkan Profileに合格するarm64 Adreno系1台とMali系1台、Reference laneはcurrent profileのphone／tablet／foldable、High laneはoptional graphics／high-refresh Profileとする。device交換はsame commit／package／input traceのbridge baselineを残す。Emulatorはfunctional smokeだけに使う。
 
-Android fixtureはclean install／upgrade／uninstall、cold／warm start、background／foreground、process kill Save recovery、surface loss／rotation／resize／fold、touch／controller／IME、audio route、offline、PAD interruption／resume／hash mismatch、PSS pressure、GPU allocation failure、thermal／battery saver、Vulkan variant／golden、16 KiB package、permission／privacy scanを含む。touch fixtureはprimary interactive targetの実hit rectangleが48×48 dp以上であることを検証する。10分performance、30分thermal、2時間endurance runをphysical deviceで行う。
+Android fixtureはclean install／upgrade／uninstall、cold／warm start、background／foreground、process kill Save recovery、surface loss／rotation／resize／fold、touch／controller／IME、audio route、offline、PAD interruption／resume／hash mismatch、PSS pressure、GPU allocation failure、thermal／battery saver、Vulkan variant／golden、16 KiB package、permission／privacy scanを含む。texture fixtureは同一Asset IDのASTC primary＋ETC2 fallback package、各7-field照合、片方不足／誤対応／payload tamperのpromotion拒否、Runtime transcode不在を検証する。touch fixtureはprimary interactive targetの実hit rectangleが48×48 dp以上であることを検証する。10分performance、30分thermal、2時間endurance runをphysical deviceで行う。
 
 | Failure | 結果 |
 |---|---|
@@ -91,6 +93,7 @@ Android fixtureはclean install／upgrade／uninstall、cold／warm start、back
 | GameActivity／JNI stale generation | callback／event破棄 |
 | Vulkan baseline不足 | `UnsupportedDevice`、launch拒否 |
 | Vulkan device lost | diagnostic＋Save保護、safe fault／exit |
+| ASTC／ETC2 artifact不足／format・manifest不一致 | package promotion拒否、last-valid artifact維持 |
 | 16 KiB alignment failure | package promotion拒否 |
 | primary interactive targetが48×48 dp未満 | UI／device qualification失敗、release block |
 | PAD partial／hash／dependency failure | mount拒否、last-valid維持 |
