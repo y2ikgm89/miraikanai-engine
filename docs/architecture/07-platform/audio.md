@@ -1,14 +1,11 @@
-# Miraikanai Engine Audio／Mixer／Spatial規約
+# Miraikanai Engine Audio／Mixer／Spatial Contract
 
-- 文書版: 1.3
-- 作成日: 2026-07-19
-- 対象: Audio Asset、Voice、Mixer、Bus、DSP、Streaming、Spatial、XAudio2／Oboe／AudioUnit Adapter
-- 状態: プロジェクト公式の規範設計レビュー版
-- Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
-- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
-- Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
-- Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+- 文書ID: mirakan.arch.platform-audio
+- 状態: review
+- 正本範囲: Audio Assetのdomain意味、Sound Cue、Audio command、Voice、Mixer／Bus／DSP、Spatial、decode／stream／callback、route／interruption、Audio固有capacity／failure／qualification
+- 非正本範囲: Source import／cook／promotion transaction、Runtime phase／shared queue・memory budget、Platform lifecycle、external codec／SDK version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
@@ -23,7 +20,7 @@ C1は48 kHz float32 Engine mix、stereo output、one-shot PCM、Opus music strea
 | 主題 | 正本 |
 |---|---|
 | Audio Asset意味、Voice、Cue、Mixer、Bus、DSP、Spatial、Streaming | 本書 |
-| `T90` command、Audio control／callback、queue、memory、budget | Runtime規約 |
+| Runtime slot、Audio control／callback scheduling、shared queue／memory budget | Runtime owners |
 | Source import、PCM／Opus cook、Asset generation | Asset規約 |
 | Android／Apple device、route、interruption | Mobile規約 |
 
@@ -33,19 +30,19 @@ C1ではvoice chat、microphone capture、speech recognition、MIDI、video sync
 
 MiraikanaiはWwise、FMOD、SoLoud等のAudio middlewareをRuntime、Editor、Cookerの正本に採用しない。Audio Asset schema、Sound Cue、logical Voice、priority／virtualization、Bus／Snapshot、DSP Catalog、Spatial、decode scheduling、stream ring、resampler、Mixer、lifecycle、diagnostic、AI／Editor OperationはEngine-owned実装とする。
 
-OS device出力と標準codecは、独自再実装による互換性・安全性・実機差リスクを避けるため、次の公式API／reference libraryをprivate Adapter内だけで使用する。
+OS device出力と標準codecは、独自再実装による互換性・安全性・実機差リスクを避けるため、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が固定するAPI／libraryをprivate Adapter内だけで使用する。
 
-| 依存 | 固定baseline | 許可する用途 | Engineが保持する正本 |
-|---|---|---|---|
-| XAudio2 | Windows SDK／Agility toolchain lockに一致するOS API | Windows output voice、device、engine／buffer completion callback | PCM ring、logical Voice、Mixer、route policy、callback queue |
-| Oboe | 1.10.0／`a81bb9f87d4105b84b682685d3bfbb5beca371d1` | Android low-latency output stream、device burst／xrun取得 | Mixer、buffer policy、fallback、route／interruption、telemetry |
-| AVAudioSession／AudioUnit | Apple Target SDK lockに一致するsystem framework | session category／route／interruption、render callback、device format | Mixer、logical clock、PCM ring、recovery、background policy |
-| libopus | 1.6.1／source SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1` | Cook時encode、検証済みpacketのRuntime decode | stream manifest、packet／chunk index、pre-roll、loop、memory |
-| libFLAC | 1.5.0／source SHA-256 `f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920` | Asset Import Worker内のnative FLAC decode／metadata／integrity確認 | Source validation、channel policy、conversion、Cooked artifact |
+| 依存 | 許可する用途 | Engineが保持する正本 |
+|---|---|---|
+| XAudio2 | Windows output voice、device、engine／buffer completion callback | PCM ring、logical Voice、Mixer、route policy、callback queue |
+| Oboe | Android low-latency output stream、device burst／xrun取得 | Mixer、buffer policy、fallback、route／interruption、telemetry |
+| AVAudioSession／AudioUnit | session category／route／interruption、render callback、device format | Mixer、logical clock、PCM ring、recovery、background policy |
+| libopus | Cook時encode、検証済みpacketのRuntime decode | stream manifest、packet／chunk index、pre-roll、loop、memory |
+| libFLAC | Asset Import Worker内のnative FLAC decode／metadata／integrity確認 | Source validation、channel policy、conversion、Cooked artifact |
 
 libFLACはSource Importにだけlinkし、GameHostへlinkしない。RuntimeはSource WAV／FLAC／Ogg containerをparseせず、Engine validatorとCookerが生成したPCMまたはOpus packet manifestだけを読む。Vendor型、pointer、callback、error codeをMCD、Cooked format、Game API、AI Operationへ公開しない。
 
-公式資料の推奨値は初期候補であり、Target実機Qualificationを省略する根拠にはしない。Dependency更新はfoundation規約のlock、license、SBOM、Adapter conformance、serialized fixture、performance再検証を通す。
+外部Dependencyの事実はTarget実機Qualificationを省略する根拠にしない。Dependency更新はToolchain ownerの更新Gate、Adapter conformance、serialized fixture、performance再検証を通す。
 
 ## 3. Architecture
 
@@ -99,7 +96,7 @@ Audio Source ImportはAsset Import／AI Authoring／Editor UX規約の`AudioImpo
 
 ### 4.3 Stream
 
-C1 stream codecはlibopus 1.6.1を使う。Cook時に48 kHz、20 ms packetを基本単位とし、`.mirakanpack`内のseek tableとchunk indexを生成する。
+C1 stream codecはToolchain lockのlibopusを使う。Cook時に48 kHz、20 ms packetを基本単位とし、`.mirakanpack`内のseek tableとchunk indexを生成する。
 
 `AudioStreamManifest`はduration、channels、pre-roll、packet／chunk offset、granule／frame mapping、loop、payload hashを持つ。RuntimeはOpus file parserやuntrusted Sourceを読まず、検証済みCooked packetだけをdecodeする。
 
@@ -137,7 +134,7 @@ Random choiceはCue instance seedとdraw countを使い、同じReplay入力でs
 | `SetSnapshot` | registered Mixer Snapshot、transition |
 | `StopAll` | critical command |
 
-Command header／queueはRuntime規約の8192 entry、1 MiB payload、critical reserveを使う。`StopVoice`、`StopOwner`、`StopAll`、device recoveryをcriticalとし、低priority `PlayCue`だけをdropできる。
+Command header／queueは[Runtime performance／capacity](../04-runtime/performance-capacity.md)のAudio command reservationとcritical reserveを使う。`StopVoice`、`StopOwner`、`StopAll`、device recoveryをcriticalとし、低priority `PlayCue`だけをdropできる。
 
 Commandはnative source voice、PCM pointer、file path、function callbackを含めない。
 
@@ -264,7 +261,7 @@ Stopped -> Opening -> Running -> Interrupted
 
 ## 13. MemoryとPerformance
 
-Windows Audio Domain 128 MiB内訳はRuntime規約どおりdecoded／stream ring 96 MiB、voice／control 16 MiB、reserve 16 MiBとする。
+Audio allocationは[Runtime performance／capacity](../04-runtime/performance-capacity.md)のAudio child scopeへchargeし、本書はshared parent totalやpartitionを複写しない。Voice／stream profile別capacityとcallback固有deadlineは本書が所有する。
 
 - Callback P99 0.25 ms以下、hard 1.00 ms未満
 - Callback allocation、blocking lock、I/O、logは0
@@ -309,23 +306,9 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 | Audio deviceなし | `audio_required=false`ならsilent device、trueならPlay拒否 |
 | Callback generation stale | event破棄 |
 
-## 16. 段階実装計画
+## 16. Activation境界
 
-共通契約を全Target向けに先に固定し、実装と合格判定はWindows縦切りを優先する。Android／Appleの未完成Adapterはsilent successを返さず`UnsupportedTarget`とする。
-
-| Phase | 実装範囲 | Exit gate |
-|---|---|---|
-| A0 Audio Contract | `schemas/mirakan/audio/`、Catalog、generated C++／TypeScript／MCP schema、validator、golden fixture | schema round-trip、unknown ID／range／cycle／version拒否、generated hash再現 |
-| A1 Headless Mixer | float32 48 kHz block mixer、gain／fade、Bus DAG、limiter、meter、resampler、offline WAV capture | sample golden、finite、denormal、block boundary、44.1／48／96 kHz resample、bit-stable reference |
-| A2 Voice／Cue／Spatial | handle generation、priority、virtualization、Cue evaluator、Snapshot、2D／3D pan、distance／cone／doppler／occlusion | deterministic Cue selection、capacity／critical reserve、stale generation、spatial golden |
-| A3 Import／Cook／Stream | WAV／RF64 parser、libFLAC Adapter、loudness／true peak、PCM Cook、libopus Cook／decode、manifest、loop／seek | official／adversarial corpus、CRC／bounds、preview＝cook、packet corruption、seam fixture |
-| A4 Windows Vertical Slice | Audio control thread、bounded queues、PCM ring、XAudio2 output Adapter、device recovery、telemetry | Music／SFX／UI／Dialogue／3D Cue、callback hard gate、10分underrun 0、disconnect recovery |
-| A5 AI／Editor／Profiler | Audio Operation、waveform／loop preview、Cue／Bus editor、budget prediction、Voice／stream／route timeline | Manual／AI round-trip、invalid ChangeSet拒否、preview receipt、profiler counter整合 |
-| A6 Android Port | Oboe output Adapter、burst／buffer tuning、route／interruption、thermal／background integration | Baseline／Reference実機でxrun、latency、route、10分／2時間gate |
-| A7 Apple Port | AVAudioSession／RemoteIO AudioUnit Adapter、route／interruption／media reset、background integration | A12 minimum／Reference実機でrender、route、interruption、10分／2時間gate |
-| A8 Cross-platform Qualification | 同一Cooked Cue／Bus contract、2D／3D integrated fixture、package／SBOM／license | Windows／Android／AppleでC1 DoD、Target差分receipt、release gate |
-
-各Phaseは失敗testを先に追加し、最小実装、targeted test、sanitizer／fault injection、performance gate、document／receipt更新の順で完了する。A1〜A3はdevice非依存でCI実行できなければならず、A4以降のAdapter都合をAudio contractへ逆流させない。
+Capability maturityと実装順序は[Product Plan](../00-product/product-plan.md)だけが決定する。本書のContract、Headless Mixer、Voice／Cue／Spatial、Import／Cook／Stream、Windows／Android／Apple output Adapter、AI／Editor、cross-platform qualificationは独立fixtureとして検証し、未完成Adapterはsilent successを返さず`UnsupportedTarget`とする。device-independent Mixer／Cue／Cook fixtureはPlatform AdapterなしでCI実行でき、Adapter都合をAudio contractへ逆流させない。
 
 ## 17. TestとDefinition of Done
 
@@ -342,26 +325,10 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 - callback allocation／lock／I/O 0、P99、underrun 0
 - device disconnect、Bluetooth route、background／foreground、GameHost stop
 - localization fallback、subtitle timing、User volume／mono
-- 10分soak、128 MiB／Mobile budget、8192 command overflow
+- 10分soak、Runtime ownerのAudio scope、shared command reservation overflow
 
 C1完了条件は、2D／3D縦切りでMusic、SFX、UI、Dialogue、3D spatial音をWindows／Android／Appleへ同じCue／Bus contractで再生し、route、stream、memory、callback hard gateを満たすことである。
 
-## 18. 一次資料
+## 18. 外部依存境界
 
-- [XAudio2 Introduction](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-introduction)
-- [XAudio2 Callbacks](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-callbacks)
-- [XAudio2 Audio Graph](https://learn.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-audio-graph)
-- [Android Oboe Low-latency Audio](https://developer.android.com/games/sdk/oboe/low-latency-audio)
-- [Oboe 1.10.0](https://github.com/google/oboe/releases/tag/1.10.0)
-- [Apple AVAudioSession](https://developer.apple.com/documentation/avfaudio/avaudiosession)
-- [Apple Audio Route Changes](https://developer.apple.com/documentation/avfaudio/responding-to-audio-route-changes)
-- [Apple AURenderCallback](https://developer.apple.com/documentation/audiotoolbox/aurendercallback)
-- [Opus 1.6 API](https://opus-codec.org/docs/opus_api-1.6.pdf)
-- [Opus RFC 8251 Test Vectors](https://opus-codec.org/testvectors/)
-- [libFLAC 1.5.0 Stream Decoder](https://xiph.org/flac/api/group__flac__stream__decoder.html)
-- [IETF CELLAR FLAC Decoder Testbench](https://github.com/ietf-wg-cellar/flac-test-files)
-- [WAVEFORMATEXTENSIBLE](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ksmedia/ns-ksmedia-waveformatextensible)
-- [RFC 9639: Free Lossless Audio Codec](https://www.rfc-editor.org/rfc/rfc9639.html)
-- [RFC 7845: Ogg Encapsulation for Opus](https://www.rfc-editor.org/rfc/rfc7845.html)
-
-Platform APIはdevice／callbackの制約を決める。Cue、Voice、Bus、DSP Catalog、Spatial、failureはMiraikanaiが所有する。
+Platform audio API、codec library、test corpusのexact release、commit、hash、license、取得元、一次根拠は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。Cue、Voice、Bus、DSP Catalog、Spatial、callback制約、failureはMiraikanaiの本書が所有する。

@@ -1,30 +1,21 @@
-# Miraikanai Engine UI／Text／Localization／Accessibility規約
+# Miraikanai Engine UI／Text／Localization／Accessibility Contract
 
-- 文書版: 1.4
-- 作成日: 2026-07-19
-- 最終更新日: 2026-07-20
-- 対象: Game UI、Layout、Widget、拡張Widget、AI UI Authoring、Focus、Text、IME、Localization、Font、Accessibility、UI Rendering
-- 状態: プロジェクト公式の規範設計レビュー版
-- Authoring規約: [Miraikanai Engine Authoring Model／Project State規約](./2026-07-19-authoring-model-project-state-design.md)
-- Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- Rendering規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
-- Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
-- Asset Import／AI／Editor規約: [Miraikanai Engine Asset Import／AI Authoring／Editor UXアーキテクチャ規約](./2026-07-20-asset-import-ai-authoring-editor-ux-design.md)
-- Input規約: [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
-- Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
-- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-- Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
-- Platform規約: [Windows](./2026-07-19-windows-platform-distribution-design.md)／[Mobile](./2026-07-19-mobile-platform-architecture-design.md)
+- 文書ID: mirakan.arch.platform-ui-text-localization-accessibility
+- 状態: review
+- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Text storage／input／layout、Localization、glyph cache、Accessibility、UI authoring、UI固有capacity／failure／qualification
+- 非正本範囲: Project ChangeSet／Asset lifecycle、common Renderer execution、Runtime phase／shared budget、Editor shell、Platform lifecycle／safe-area source、external library version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
 Miraikanai EngineのGame UIは、HTML／CSS／JavaScript、webview、汎用Script Widget、immediate-modeの描画命令列を正規形式にしない。Schema検証可能な`UiDocument`、typed `UiViewModel`、C++ Layout／Event Runtime、versioned Style／Font Assetから構築する独自retain-mode UIである。
 
-TextはUTF-8を正規storageとし、次の検証済みLibraryを限定利用する。
+TextはUTF-8を正規storageとし、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が固定する次のLibraryを限定利用する。
 
-- HarfBuzz 14.2.1: OpenType shaping
-- FreeType 2.14.1: bundled Font検証、glyph index／metrics／rasterization
-- ICU4C 78.3: BCP 47 locale、BiDi、grapheme／word／line boundary、plural／number／date／message formatting
+- HarfBuzz: OpenType shaping
+- FreeType: bundled Font検証、glyph index／metrics／rasterization
+- ICU4C: BCP 47 locale、BiDi、grapheme／word／line boundary、plural／number／date／message formatting
 
 Library型、Font object、ICU iterator、glyph atlas pointerをProject、Save、AI、NativeGameModuleへ公開しない。UI Document、Layout、Focus、Event、Binding、Localization schema、Accessibility semantic tree、memory／failureはMiraikanaiが所有する。
 
@@ -43,9 +34,11 @@ Windows Editor shellは本書の`UiRuntimeTree`、Layout、Event、Semantic cont
 | Composite／Effect／Native WidgetのUI契約、AI UI生成workflow | 本書 |
 | Project C++ artifact、C ABI、Source Worker、Build、Promotion | Native Game規約、AI実装・保守ガバナンス規約 |
 
-C1ではHTML／CSS parser、DOM、JavaScript、webview、arbitrary expression binding、Runtime Font download、system Font依存のShipping layout、Rich Text markup parser、SVG Font、font editorを実装しない。C1は標準Widgetと宣言型`UiCompositeDefinition`をProduction対象にする。C2候補はlimited rich text span、MSDF、HRTF字幕連携、advanced vector UI、型付き`UiEffectGraph`、承認済みProject C++による`UiNativeWidget`である。第三者binary Widget、Marketplace、Editor ProcessへProject Widget codeをloadする経路はC1／C2に含めず、C3で別Threat Model、ABI、署名、配布、revocation設計を承認した後だけ検討する。
+C1ではHTML／CSS parser、DOM、JavaScript、webview、arbitrary expression binding、Runtime Font download、system Font依存のShipping layout、Rich Text markup parser、SVG Font、font editorを実装しない。C1は標準Widgetと宣言型`UiCompositeDefinition`をProduction対象にする。C2候補はlimited rich text span、MSDF、HRTF字幕連携、advanced vector UI、型付き`UiEffectGraph`、Governance decision refを持つProject C++による`UiNativeWidget`である。第三者binary Widget、Marketplace、Editor ProcessへProject Widget codeをloadする経路はC1／C2に含めず、C3で別Threat Model、ABI、署名、配布、revocation設計がOwner文書に追加されるまで使用しない。
 
-## 3. Architectureとphase
+## 3. ArchitectureとRuntime mapping
+
+次のslot名と順序は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)への参照であり、本書はphaseを再定義しない。本書が所有するのは各slotへ提出するUI input／output、generation、failureだけである。
 
 ```text
 UiDocument／Style／Localization／Font Assets
@@ -142,7 +135,7 @@ Game UIの自由度は制約解除ではなく、Schemaへ登録する四層の�
 | 0 `Builtin Widget` | Engine MCD | C1 | 4.3節の標準Widget、標準Layout、標準Interaction |
 | 1 `UiCompositeDefinition` | Project Authoring Document | C1 | 標準／登録済みWidgetの構成、named slot、型付きparameter、Binding、Style、Interaction |
 | 2 `UiEffectGraph` | Project Authoring Document | C2 | 閉じたEffect node catalogによるmask、gradient、SDF、noise、distortion、transition、bounded geometry |
-| 3 `UiNativeWidget` | 承認済みNativeGameModule | C2 | 宣言型表現で不足するProject固有のmeasure、presentation、interaction algorithm |
+| 3 `UiNativeWidget` | Governance decision ref付きNativeGameModule | C2 | 宣言型表現で不足するProject固有のmeasure、presentation、interaction algorithm |
 
 `UiCompositeDefinition`は次を持つ。
 
@@ -162,7 +155,7 @@ UiCompositeDefinition
 
 Compositeは展開後も通常のNode、depth、binding、interaction、memory capへchargeする。再帰的Composite cycle、slot多重所有、型不一致、fallback cycleをCookで拒否する。AIとUI DesignerはCompositeを一Widgetとして配置できる一方、Diff、Accessibility、cost previewでは展開結果まで表示できる。
 
-`UiEffectGraph`はEngine登録済みnode、finite parameter、静的loop上限、texture sample上限、primitive上限、Target Capability、reduced-motion fallbackを必須とする。Graphはoffline compileし、Target別の承認済みUI pipelineとparameter blockへ変換する。任意HLSL、raw GPU resource、command list、shader include、Runtime compileを許可しない。
+`UiEffectGraph`はEngine登録済みnode、finite parameter、静的loop上限、texture sample上限、primitive上限、Target Capability、reduced-motion fallbackを必須とする。Graphはoffline compileし、Target別qualified UI pipelineとparameter blockへ変換する。任意HLSL、raw GPU resource、command list、shader include、Runtime compileを許可しない。
 
 `UiNativeWidgetManifestV1`は最低限、次を宣言する。
 
@@ -183,7 +176,7 @@ supported_targets[]
 fallback_widget_type_id
 ```
 
-Native WidgetはNativeGameModule規約のC ABI、Source Worker、R3 Review、Promotionを通ったProject codeだけを使用する。UI Runtimeはvalue型property、Asset handle、bounded scratch、whitelist済みprimitive encoder、承認済みEffect IDだけを渡す。Native codeは`UiRuntimeTree` pointer、Widget object、World pointer、GPU address、Renderer command、filesystem、network、OS APIを取得しない。Interaction結果はregistered `UiCommandId`、presentation結果はbounded primitiveだけとし、失敗時の部分outputを破棄する。
+Native Widgetは[Native game module](../03-authoring/native-game-module.md)のC ABI、Source Worker、Review、Promotionを通ったProject codeだけを使用する。UI Runtimeはvalue型property、Asset handle、bounded scratch、whitelist済みprimitive encoder、qualified Effect IDだけを渡す。Native codeは`UiRuntimeTree` pointer、Widget object、World pointer、GPU address、Renderer command、filesystem、network、OS APIを取得しない。Interaction結果はregistered `UiCommandId`、presentation結果はbounded primitiveだけとし、失敗時の部分outputを破棄する。
 
 Native Widget codeをEditor Processへloadしない。UI DesignerはManifestとfallbackによる静的projectionを表示し、実code Previewは別ProcessのGameHostで実行する。Windows PreviewはGameHost再起動、ShippingとMobileはclean static linkを使用する。Manifest、binary、Contract lock、Target Profileのhash不一致はload前に拒否する。
 
@@ -452,7 +445,7 @@ Fallbackはgrapheme／shaping clusterを分割しない最小runで行う。Fall
 
 C1 color fontはCOLR／CPAL v0を検証対象とする。SVG glyph、CBDT／CBLC PNG、COLR v1、system emojiはC2であり、C1ではmonochrome fallbackをPackageに含める。
 
-Font Source ImportはAsset Import／AI Authoring／Editor UX規約の`FontImportSettingsV1`、`FontImportIRV1`、coverage Preview、Conversion Report、Reimport Conflictを使用する。OpenType 1.9.1のtable directory、offset／length、checksum、cmap、GSUB／GPOS／variation、composite glyph boundsを検証し、required locale／script coverage不足をProduction package blockにする。Font名、埋込みmetadata、license URLだけで利用権を承認せず、Asset License Recordを必須とする。
+Font Source Importは[Asset lifecycle](../03-authoring/asset-lifecycle.md)の`FontImportSettingsV1`、`FontImportIRV1`、coverage Preview、Conversion Report、Reimport Conflictを使用する。Toolchain lockのOpenType baselineに対してtable directory、offset／length、checksum、cmap、GSUB／GPOS／variation、composite glyph boundsを検証し、required locale／script coverage不足をProduction package blockにする。Font名や埋込みmetadataだけで利用権を確定せず、Asset License Recordを必須とする。
 
 ### 12.3 Font sizeとmetrics
 
@@ -540,16 +533,16 @@ Platform bridgeはSemantic Node IDとgenerationを使い、UI Runtime pointerを
 
 ### 15.1 Charge
 
-Windowsでは次を既存Parent budget内のchild capとする。
+次をUI domainのchild capとし、[Runtime performance／capacity](../04-runtime/performance-capacity.md)のTarget別parent scopeへchargeする。
 
 | UI allocation | hard cap／charge |
 |---|---|
-| active UI tree／state／layout／text cache | 32 MiB、Core World／SaveのECS／World 128 MiB child |
+| active UI tree／state／layout／text cache | 32 MiB |
 | UI transient measure／packet | 8 MiB、Frame／Job transient |
-| Localization catalog／ICU filtered runtime data | 24 MiB、Asset streamingのhot cache 192 MiB child。formatted text cacheは上段32 MiBに含む |
+| Localization catalog／ICU filtered runtime data | 24 MiB。formatted text cacheは上段32 MiBに含む |
 | Glyph atlas | 13.1節、GPU texture budget |
 
-Runtime message queue予約後のECS／World残量111 MiBからactive UI 32 MiBを差し引き、79 MiBをEntity／Component状態へ残す。Frame 32 MiBからInput latch 4 MiBとUI transient 8 MiBを差し引き、20 MiBを他のFrame transientへ残す。これはUnassigned headroomを再配分しない。Mobile Baselineはactive UI／Text CPU 16 MiB、Standard 24 MiB、High 32 MiBをaggregate Engine CPU cap内へchargeし、ICU dataとglyph atlasをContent／GPU budgetへ個別記録する。
+Parent総量、他Domainの残量、loan／backpressureはRuntime ownerだけが決定する。Mobile Baselineはactive UI／Text CPU 16 MiB、Standard 24 MiB、High 32 MiBを[Mobile Common](mobile-common.md)のaggregate cap内へchargeし、ICU dataとglyph atlasをContent／GPU budgetへ個別記録する。
 
 ### 15.2 Thread
 
@@ -570,7 +563,7 @@ Runtime message queue予約後のECS／World残量111 MiBからactive UI 32 MiB�
 - steady-state UI Runtime allocation 0／frame
 - 10分soakでglyph page、layout cache、semantic nodeが上限内
 
-Runtime規約のPostPhysics＋Presentation 0.75 ms、full frame 14 msを緩和しない。
+本書のdomain ceilingはRuntime ownerの共通frame envelopeを緩和しない。
 
 ## 16. AI／Editor Authoring
 
@@ -602,7 +595,7 @@ Natural-language intent／manual edit
   -> ProjectChangeSet
   -> schema／semantic／capability／budget validation
   -> responsive／locale／input／accessibility preview matrix
-  -> approval or delegated policy
+  -> AI Security／Approval ownerのauthorization decision
   -> AuthoringCommandGateway commit
 ```
 
@@ -620,21 +613,21 @@ AIは画像生成とUI設定を一つの不可分な成功として扱わず、�
 2. Source、provenance、license、safety receipt
 3. Target別Import／Cook／memory結果
 4. UiDocument／StyleからAsset IDを参照するChangeSet
-5. 画像なし、last-valid、または承認済みplaceholderのfallback
+5. 画像なし、last-valid、またはqualified placeholderのfallback
 
 Text、価格、法的同意、認証情報、操作説明を画像へ焼き込まない。AI生成画像の見た目が合格しても、safe area、contrast、locale expansion、focus、semantic tree、Target cookを省略しない。
 
-### 16.3 Preview、承認、競合
+### 16.3 Preview、authorization参照、競合
 
 UI Preview matrixは最低限、Projectのminimum／reference解像度、portrait／landscape、safe area、0.75／1.00／2.00 UI scale、全required locale、keyboard／controller／touch、High Contrast、reduced motionを含む。Screenshot／vision評価は視覚差の補助oracleであり、layout rect、binding type、semantic hash、focus graph、budgetの正規判定を置き換えない。
 
-AI proposal作成中にProject revisionが変わった場合はstaleとしてCommitを禁止し、現在revisionへrebaseして全Validatorを再実行する。Navigation root、required Action、purchase／consent／credential UI、Accessibility semantics、Style lock、Production Asset採用、UiNativeWidget sourceは人間承認を必須とする。既存Style token内のspacing／color調整、明示fallback選択、既存Composite配置等はAuthorization Envelopeで範囲、回数、Targetを限定した場合だけ自動Commit候補にできる。
+AI proposal作成中にProject revisionが変わった場合はstaleとしてCommitを禁止し、現在revisionへrebaseして全Validatorを再実行する。Navigation root、required Action、purchase／consent／credential UI、Accessibility semantics、Style lock、Production Asset採用、UiNativeWidget sourceのauthorization classとdelegation可否は[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決定する。本書は判断入力となるUI impactを型付きで提示する。
 
 ### 16.4 拡張WidgetをAIが扱う条件
 
 AIはTier 1～3を同じWidget名だけで扱わず、Manifestからproperty、slot、Binding、Interaction、semantic、budget、Target、fallbackを取得する。表現方法は`Builtin／Composite -> Effect Graph -> Native Widget`の順に選び、下位Tierで完了条件を満たせる場合に上位Tierを生成しない。
 
-Tier 3を選ぶ場合、AIは理由、宣言型で不足するCapability、公開contract、Source Diff、test、performance予測、Target差、fallbackを`NativeCodeChangeSet`へ含める。Build成功だけでUIへ登録せず、R3 Promotion Receiptと`RegisterNativeModuleRevision` Commit後に初めて使用可能にする。
+Tier 3を選ぶ場合、AIは理由、宣言型で不足するCapability、公開contract、Source Diff、test、performance予測、Target差、fallbackを`NativeCodeChangeSet`へ含める。Build成功だけでUIへ登録せず、[Native game module](../03-authoring/native-game-module.md)のPromotion Receiptと`RegisterNativeModuleRevision` Commit後に初めて使用可能にする。
 
 ## 17. Failure policy
 
@@ -659,15 +652,9 @@ Tier 3を選ぶ場合、AIは理由、宣言型で不足するCapability、公�
 
 Required system menu UIがfaultした場合はGameを操作不能のまま続行せず、safe fallback screenをEngine-owned fixed Assetから表示する。Fallback screenもbundled Font、Exit／Report action、Accessibility semanticsを持つ。
 
-## 18. Dependency Build規約
+## 18. Dependency Build境界
 
-| Dependency | exact baseline | Build範囲 |
-|---|---|---|
-| HarfBuzz | 14.2.1／`77a832110d40b0179636f5be8f8781f8299d7e50` | FreeType＋ICU integration。GLib、Cairo、Graphite2、docs／toolsをShipping無効 |
-| FreeType | 2.14.1／`3bd82b5f543bc84ccf2b1d0cdb63b95218099ee6` | TrueType／OpenType、CFF／CFF2、SFNT。BZip2、Brotli／WOFF2、PNG、SVG optional moduleをC1無効 |
-| ICU4C | 78.3／`21d1eb0f306e1141c10931e914dfc038c06121da` | `common`＋`i18n`とfiltered data。samples／tests／extras、legacy conversionをShipping無効 |
-
-Source archive hash、patch hash、compiler option、license file hashを`toolchain.lock.json`、vcpkg overlay、SBOMへ固定する。HarfBuzz／FreeType／ICU更新は全conformance locale、golden layout、Font raster、package size、memory、performanceを再検証する。
+HarfBuzzはFreeType／ICU integrationを有効にし、不要なoptional integrationとtoolをShippingから除く。FreeTypeは本書が使用するTrueType／OpenType、CFF／CFF2、SFNT範囲だけを、ICU4Cはcommon／i18nとfiltered dataだけをShippingへ含める。exact version、commit、hash、license、取得元、Build option lockは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。更新時は全conformance locale、golden layout、Font raster、package size、memory、performanceを再検証する。
 
 Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject locale set、fallback、number／date／plural、boundary ruleに必要なdataをICU Data Filterで決定論的に絞る。Filter inputとoutput hashをPackage Receiptへ記録する。
 
@@ -690,26 +677,11 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - Compositeのcycle／slot／parameter／fallback、展開前後Diff、AI／手動往復
 - Effect Graphのnode／sample／loop／primitive cap、Target compile、reduced-motion fallback
 - Native WidgetのABI／manifest／measure／presentation／semantic／fault、GameHost隔離、Target fallback
-- Prompt→UiDocument／AssetRequirement→ChangeSet→Preview matrix→承認→Commit→Undo／Redo
+- Prompt→UiDocument／AssetRequirement→ChangeSet→Preview matrix→Governance decision ref→Commit→Undo／Redo
 - AI生成画像のprovenance／license／safety／Target cookと、missing／reject時fallback
 
 C1完了条件は、2D／3D縦切りのTitle、Settings、HUD、Pause、Result、Text Inputを標準Widgetと`UiCompositeDefinition`で構築し、全Target、conformance locale、input方式、accessibility bridgeで操作でき、AI生成と手動編集が同じUiDocument／ChangeSet／Validatorを通り、CPU／GPU／memory hard gateを満たすことである。Tier 2／3はC2 Gateであり、C1完了を偽装するfallbackに使わない。
 
-## 20. 一次資料
+## 20. 外部依存境界
 
-- [HarfBuzz 14.2.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.1)
-- [HarfBuzz Shaping](https://harfbuzz.github.io/shaping-opentype-features.html)
-- [FreeType 2 Documentation](https://freetype.org/freetype2/docs/)
-- [FreeType Glyph Management](https://freetype.org/freetype2/docs/reference/ft2-glyph_management.html)
-- [ICU User Guide](https://unicode-org.github.io/icu/userguide/)
-- [ICU Boundary Analysis](https://unicode-org.github.io/icu/userguide/boundaryanalysis/)
-- [Unicode Bidirectional Algorithm UAX #9](https://www.unicode.org/reports/tr9/)
-- [Unicode Line Breaking UAX #14](https://www.unicode.org/reports/tr14/)
-- [Unicode Text Segmentation UAX #29](https://www.unicode.org/reports/tr29/)
-- [Unicode Locale Data Markup Language UTS #35](https://www.unicode.org/reports/tr35/)
-- [Microsoft IME requirements](https://learn.microsoft.com/en-us/windows/apps/develop/input/input-method-editor-requirements)
-- [Microsoft UI Automation Providers](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-providersoverview)
-- [Android Accessibility](https://developer.android.com/guide/topics/ui/accessibility)
-- [Apple Accessibility](https://developer.apple.com/accessibility/)
-
-外部LibraryとUnicode規格は文字処理の事実とalgorithmを提供する。Miraikanai固有のUI model、Widget、Layout、Binding、Event、budget、AI／manual workflowは本書が所有する。
+Text／Font library、Unicode specification、Platform IME／Accessibility APIのexact release、取得元、integrity、license、一次根拠は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。Miraikanai固有のUI model、Widget、Layout、Binding、Event、domain budget、AI／manual workflowは本書が所有する。

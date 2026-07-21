@@ -1,27 +1,15 @@
-# Miraikanai Engine Windows Platform／Distribution規約
+# Miraikanai Engine Windows Platform／Distribution Contract
 
-- 文書版: 1.4
-- 作成日: 2026-07-19
-- 最終更新日: 2026-07-21
-- 対象: Windows Editor／Game、Process、Window、Platform Port、Filesystem、Package、Signing、Update、Crash
-- 状態: プロジェクト公式の規範設計レビュー版
-- 基盤規約: [Miraikanai Engine 基盤アーキテクチャ規約](./2026-07-19-engine-foundation-architecture-design.md)
-- Game制作時のEngine不変境界: [Miraikanai Engine 不変Engine境界・初心者向けAI技術承認規約](./2026-07-21-immutable-engine-beginner-ai-approval-design.md)
-- Engine命名正本: [Miraikanai Engine AI可読命名・技術識別子規約](./2026-07-20-ai-readable-engine-naming-convention-design.md)
-- C++言語・Build規約: [Miraikanai Engine C++23・Named Modules・`import std`移行規約](./2026-07-20-cpp23-modules-import-std-transition-design.md)
-- Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- Native Game規約: [Miraikanai Engine NativeGameModuleアーキテクチャ規約](./2026-07-19-native-game-module-architecture-design.md)
-- Renderer規約: [Miraikanai Engine Rendering／Render Graphアーキテクチャ規約](./2026-07-19-rendering-render-graph-architecture-design.md)
-- Asset規約: [Miraikanai Engine Asset Pipeline／Content Package規約](./2026-07-19-asset-pipeline-content-packaging-design.md)
-- Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
-- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
-- Debugging規約: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
-- Player I/O規約: [Input](./2026-07-19-input-action-device-architecture-design.md)／[UI・Text](./2026-07-19-ui-text-localization-accessibility-design.md)／[Audio](./2026-07-19-audio-mixer-spatial-architecture-design.md)
-- Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
+- 文書ID: mirakan.arch.platform-windows
+- 状態: review
+- 正本範囲: Windows Target Profile、process／window／display／lifecycle Adapter、filesystem／user data、Windows package／signing／publication／update、Windows crash／security／qualification
+- 非正本範囲: 外部Tool／SDK／OS／graphics version、共通Runtime budget／phase、Asset lifecycle、Renderer／Input／Audio／UI意味、AI authorization／Evidence envelope。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
-`windows_desktop_v1`はWindows 11 25H2、OS build family 26200以上、x86-64、D3D12、Shader Model 6.6を正式Targetとする。Editorも最初のGame RuntimeもこのTargetから実装する。
+`windows_desktop_v1`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows exact baselineを参照するx86-64 desktop Targetである。Editorも最初のGame RuntimeもこのTargetから実装する。OS、graphics runtime、shader model、SDK、compilerの固定値は本書へ複写しない。
 
 Windows固有APIは`engine/platform/windows`と各Backend Adapterに閉じ、正規Project、GameplayDefinition、NativeGameModule、Save、AI ToolへWin32、COM、HANDLE、HRESULT、GameInput、XAudio2、D3D12型を公開しない。
 
@@ -41,21 +29,21 @@ Development用portable layoutはShipping Distributionではない。Miraikanai�
 | D3D12 resource／frame／device loss | Rendering規約 |
 | Input、IME、UI／Text、Audio意味 | Player I/O規約 |
 | `.mirakanpack`、VFS、Patch／DLC | Asset規約 |
-| C++ toolchain、Agility、memory、security baseline | 基盤規約 |
-| Android／Apple | Mobile規約 |
+| C++ toolchain、SDK／graphics runtime baseline | Toolchain／Dependencies |
+| 共通memory／capacity | Runtime performance／capacity |
+| Android／Apple | Android／Apple規約 |
 
-Windows 10、Windows 11 24H2 Home／Pro、ARM64、Windows on ARM emulation、Xbox／GDK、UWP sandbox、Windows Server、Wine／ProtonをC1正式Targetに含めない。将来追加は別Target Profileと実機／package／performance gateを必要とする。
+Toolchain ownerが固定したbaseline以外のWindows release／edition、ARM64／emulation、Xbox／GDK、UWP sandbox、Windows Server、Wine／ProtonをC1正式Targetに含めない。将来追加は別Target Profileと実機／package／performance gateを必要とする。
 
 ## 3. Target Profile
 
 ```text
 WindowsDesktopTargetProfileV1
   profile_id = windows_desktop_v1
-  minimum_os_build = 26200
+  toolchain_profile_ref
   architecture = x86_64
   executable_model = win32_full_trust
-  graphics = d3d12_sm66
-  enhanced_barriers_required = true
+  renderer_profile_ref
   dpi_awareness = per_monitor_v2
   input_backend = gameinput
   audio_backend = xaudio2
@@ -67,7 +55,7 @@ WindowsDesktopTargetProfileV1
 
 起動時にOS build、CPU architecture、D3D feature、SM、driver、memory budget、display、audio／input availabilityを`PlatformCapabilitySignature`へ記録する。Hard requirement不足は起動を止め、quality fallbackでTarget不足を隠さない。
 
-OS Support期間と累積更新要件は`platform_policy.lock.json`へ取得日、Microsoft URL、最小build、期限を固定し、四半期またはRelease前にEvidence Jobで更新する。
+OS Support期間と累積更新要件はToolchain ownerのPlatform policy lockを参照し、本書は固定build、取得先、更新周期を再定義しない。
 
 ## 4. Process model
 
@@ -80,7 +68,7 @@ OS Support期間と累積更新要件は`platform_policy.lock.json`へ取得日�
 | `mirakan_package_service.exe` | Package assembly／inspection。署名keyなし |
 | `mirakan_crash_collector.exe` | optional out-of-process dump／metadata collection |
 
-Editor起動child tree全体は`EditorSessionJob`でkill-on-job-closeとchild process policyを適用するが、AI／Compiler／WorkerまでEditor memoryへ誤計上しないため、このroot Jobへaggregate memory limitを設定しない。EditorHost＋同時に一つだけのGameHostはRuntime規約のallocator tagとProcess working-set telemetryでaggregate 4 GiB hard gateを適用する。Source／Asset／Shader Workerはsuspended起動後にtask別nested Jobへ割り当ててからresumeし、Source sandbox Profileのcommit memory／CPU／process数上限をOSで強制する。AI Orchestrator、Package Service、Crash CollectorもProcess別budgetを持ち、Editor 4 GiBへ含めない。GameHost終了時にProject C++ job、GPU、Audioをjoinし、timeout時はProcess単位で終了する。
+Editor起動child tree全体は`EditorSessionJob`でkill-on-job-closeとchild process policyを適用するが、AI／Compiler／WorkerまでEditor memoryへ誤計上しないため、このroot Jobへaggregate memory limitを設定しない。EditorHost、GameHost、Source／Asset／Shader Worker、AI Orchestrator、Package Service、Crash Collectorは[Runtime performance／capacity](../04-runtime/performance-capacity.md)のprocess group、allocator tag、working-set telemetry、sandbox capacityへ個別にchargeする。Workerはsuspended起動後にtask別nested Jobへ割り当ててからresumeし、GameHost終了時にProject C++ job、GPU、Audioをjoinし、timeout時はProcess単位で終了する。
 
 Credential、Signing、UploadはBuild Processへ渡さない。Named pipeはUser SID ACL、length prefix、JSON-RPC、message 8 MiB上限、nonce／protocol versionを持つ。
 
@@ -174,7 +162,7 @@ MSIX
 
 - `AppxManifest.xml`、`D3D12/D3D12Core.dll`、Third-party runtime basename、MSIX生成物はTool／Platform所有名として原表記を保持する。それ以外のFirst-party artifactとDirectoryはEngine命名正本のlowercase `snake_case`に従う。
 - Package identity、publisher、version、architecture、minimum OS、capabilityをTarget／Distribution Profileから生成する。
-- default capabilityは0で、実際に必要な宣言だけをRelease ownerが承認する。
+- default capabilityは0で、実際に必要な宣言だけを[AI Security／Approval](../01-governance/ai-security-approval.md)のRelease decision refから生成する。
 - elevation、driver、service、arbitrary startup taskを要求するGameをC1 packageで拒否する。
 - Agility DLL version／hash、executable import、Content root hash、source／debug／compiler非混入をinspectionする。
 - MSIX packageはinstall前に署名が必要で、Store外はTarget環境が信頼する証明書を用いる。
@@ -186,7 +174,7 @@ Editor本体もC2 Production Distributionではfull-trust MSIXを推奨する。
 
 Steam等の外部client向けにはPlatform非依存のDirectory layout、content manifest、launch manifest、redistributable noticeを出す。Install／update／rollback／entitlementは配布clientが所有し、Miraikanai Game内で独自updaterを起動しない。
 
-Layoutの実行fileとDLLへAuthenticode署名を行い、Package Receiptに全file SHA-256を記録する。Platform固有SDK統合は別RepositoryのEngine製品R4変更であり、Game制作Profileから実行または提案せず、NativeGameModuleへ直接linkしない。Baselineに未提供なら`capability_unavailable`とする。
+Layoutの実行fileとDLLへAuthenticode署名を行い、Package Receiptに全file SHA-256を記録する。Platform固有SDK統合は別RepositoryのEngine製品変更であり、authorization classはGovernance ownerを参照する。Game制作Profileから実行または提案せず、NativeGameModuleへ直接linkしない。Baselineに未提供なら`capability_unavailable`とする。
 
 ### 8.3 Development package
 
@@ -200,20 +188,20 @@ Commit済みSource
 -> Target Cook
 -> unsigned layout／MSIX content
 -> Package Inspection
--> Release Authorization
+-> Governance Release decision reference
 -> isolated Signing
 -> signed Package Inspection
 -> Distribution-specific Upload
 -> Receipt verification
 ```
 
-- `clean Build`は`windows_cmake_ninja_multi_v1`、checked-in CMake Preset、`Ninja Multi-Config`だけを使用する。Visual Studio IDEはCMake Presetを利用できるが、Visual Studio／NMake／MinGW／MSYS／Unix Makefilesによる別Product Buildを生成しない。
+- `clean Build`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)の`windows_cmake_ninja_multi_v1` Driver mappingを使用する。IDEからも同じchecked-in entryを使い、別Product Build経路を生成しない。
 - `Development`、`Profile`、`Shipping`、`ASan`は同じGeneratorの明示Configurationであり、C++ Profile、Toolchain hash、Configurationが異なるBuild tree／BMIを共有しない。
 - Editor、AI、CIはBuild Gatewayを呼び、`ninja`または`cmake -G`を直接Product Build入口として公開しない。
 - Build Workerはprivate signing keyを持たない。
-- Signing Serviceは固定Package artifact、identity、Release Authorizationだけを受け取る。
+- Signing Serviceは固定Package artifact、identity、Governance ownerのRelease decision refだけを受け取る。
 - Authenticode／MSIXはSHA-256を使用し、trusted timestamp policyをDistribution Profileへ固定する。
-- private keyはWindows certificate store、HSM、または承認済みSigning serviceからexportしない。
+- private keyはPlatform credential store、HSM、またはGovernance ownerが選択したSigning serviceからexportしない。
 - `signtool verify`、MSIX package validation、malware scan、SBOM／notice、package executable-content scanを行う。
 - Store／Platform upload credentialはSigning keyとSource accessを持たない別Serviceに置く。
 
@@ -246,7 +234,7 @@ Patch apply中は旧Packageを上書きせず、完全検証後にmount setを�
 
 ### 11.2 Upload
 
-C1は自動uploadしない。Userがfileを確認して明示exportできる。C2 online uploadは次を満たす別Capability承認後だけ有効化する。
+C1は自動uploadしない。Userがfileを確認して明示exportできる。online uploadはactivated Capabilityと[AI Security／Approval](../01-governance/ai-security-approval.md)のdecision refがある場合だけ有効化し、本書は次のWindows privacy／transport conformanceを検査する。
 
 - 初回説明とopt-in
 - 送信前のdata category表示
@@ -270,7 +258,7 @@ Crash consentをAnalytics、AI Provider、Marketing consentとまとめない。
 
 ## 13. PerformanceとReliability
 
-Windows Reference hardware、2 GiB CPU、5.5 GiB GPU、1080p60、P95 14 msは基盤／Runtime規約を正本とする。
+[Runtime performance／capacity](../04-runtime/performance-capacity.md)のWindows reference environment、共通CPU／GPU／frame envelope、measurement windowをそのまま使用し、本書では複写しない。
 
 - warm-cache起動→操作可能frame P95 5秒、hard 8秒
 - Scene reload P95 2秒、hard 3秒
@@ -296,7 +284,7 @@ Windows Reference hardware、2 GiB CPU、5.5 GiB GPU、1080p60、P95 14 msは基
 
 ## 15. TestとDefinition of Done
 
-- Windows 11 25H2 build 26200系のminimum／fully patched test
+- Toolchain ownerが固定したminimum／fully patched Windows baseline test
 - OS／D3D／SM／Enhanced Barrier／driver Capability rejection
 - 100／125／150／200% DPI、multi-monitor、resize、Alt+Tab、sleep／session end
 - GameInput／DirectWrite／TSF／UI Automation／OLE／XAudio2／D3D12 Adapter conformance
@@ -310,15 +298,6 @@ Windows Reference hardware、2 GiB CPU、5.5 GiB GPU、1080p60、P95 14 msは基
 
 C1完了条件は、Windows Editorから同一Project revisionをDevelopment Play、signed internal MSIX、managed layoutへBuildし、clean machineでinstall／play／save／crash回収／uninstallでき、Source、credential、debug toolをShippingへ含めないことである。
 
-## 16. 一次資料
+## 16. 外部依存境界
 
-- [Windows 11 Release Information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information)
-- [Windows Packaging Overview](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/packaging/)
-- [What is MSIX?](https://learn.microsoft.com/en-us/windows/msix/overview)
-- [Choose a Windows Distribution Path](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/choose-distribution-path)
-- [Prepare a Desktop App for MSIX](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-prepare)
-- [Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
-- [Collecting User-Mode Dumps](https://learn.microsoft.com/en-us/windows/win32/wer/collecting-user-mode-dumps)
-- [Application Recovery and Restart](https://learn.microsoft.com/en-us/windows/win32/recovery/using-application-recovery-and-restart)
-
-MicrosoftのPackaging推奨はDistribution判断の根拠として使う。Miraikanai固有のTarget Profile、Process分離、Content Package、Signing authority、Crash privacyは本書で規範化する。
+Windows OS、SDK、graphics runtime、Build／package／signing toolのexact baseline、取得元、integrity、license、外部根拠は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。本書はそれらをWindows Adapter、package、qualificationへ写像するEngine contractだけを所有する。

@@ -1,16 +1,11 @@
-# Miraikanai Engine Input／Action／Device規約
+# Miraikanai Engine Input／Action／Device Contract
 
-- 文書版: 1.4
-- 作成日: 2026-07-19
-- 対象: Keyboard、Mouse、Controller、Touch、Pointer、Action Mapping、Remap、Haptics、Replay
-- 状態: プロジェクト公式の規範設計レビュー版
-- Shooter Gameplay連携: [Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約](./2026-07-20-ai-readable-shooter-gameplay-architecture-design.md)
-- Runtime規約: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- UI規約: [Miraikanai Engine UI／Text／Localization／Accessibility規約](./2026-07-19-ui-text-localization-accessibility-design.md)
-- Windows規約: [Miraikanai Engine Windows Platform／Distribution規約](./2026-07-19-windows-platform-distribution-design.md)
-- Mobile規約: [Miraikanai Engine モバイルPlatformアーキテクチャ規約](./2026-07-19-mobile-platform-architecture-design.md)
-- Editor規約: [Miraikanai Engine Editor／Workspace／UX規約](./2026-07-19-editor-workspace-ux-design.md)
-- Editor UI Framework規約: [Miraikanai Engine 独自Editor UI Framework／Shellアーキテクチャ規約](./2026-07-20-editor-ui-framework-architecture-design.md)
+- 文書ID: mirakan.arch.platform-input
+- 状態: review
+- 正本範囲: Input device／reading、Action／Binding／Context、latch semantics、Platform input Adapter、touch／gesture、remap／accessibility、haptics、Input replay、Input固有capacity／failure／qualification
+- 非正本範囲: Runtime phase／shared queue・memory budget、UI／Text event、Platform lifecycle、Tool／SDK version、Product phase、AI authorization／Evidence envelope。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
@@ -25,7 +20,7 @@ Editor UIのpointer、keyboard、IME、Window eventは`PlatformUiEventV1`へ正�
 | 主題 | 正本 |
 |---|---|
 | Device正規化、Action、Binding、Snapshot、Remap、Haptics | 本書 |
-| `T10`、Replay、queue、thread、Platform event source | Runtime規約 |
+| Runtime slot／tick、shared queue／thread／Replay envelope | Runtime owners |
 | Game UI focus／event、Text／IME | UI／Text規約 |
 | Editor UI event、Focus、Command、TSF integration | Editor UI Framework規約 |
 | Android／Apple lifecycle、controller、touch、haptics | Mobile規約 |
@@ -267,7 +262,7 @@ Replay時はPhysical Device readingをGameplayへ混ぜず、Replay `InputSnapsh
 
 ## 13. Capacity、Performance、Memory Budget
 
-`windows_desktop_v1`とC1 mobile profileの論理上限を次に固定する。低性能Targetは同じ上限を黙って縮小せず、Target validationで対応可否を判定する。
+Input domainの論理上限を次に固定する。低性能Targetは同じ上限を黙って縮小せず、Target validationで対応可否を判定する。共通queue、frame、memory envelopeは[Runtime performance／capacity](../04-runtime/performance-capacity.md)を参照する。
 
 | 項目 | C1上限／Gate |
 |---|---:|
@@ -279,13 +274,13 @@ Replay時はPhysical Device readingをGameplayへ混ぜず、Replay `InputSnapsh
 | Active Context stack | 32 |
 | Touch contact | 10 |
 | Transition／Action／tick | 16 |
-| Device reading queue | 全producer合計16,384 record。1 record最大64 byte、payload領域1 MiB |
+| Device reading queue | Input Adapter全producer合計16,384 record。1 record最大64 byte、Input-owned payload arena 1 MiB |
 | `InputSnapshot` | 最大1,024 Action、canonical serialized size 128 KiB |
 | Persistent Input data | 8 MiB。Device descriptor、Action／Binding、calibration、User Remapを含む |
 | Latch transient | 4 MiB。sort、deduplicate、gesture、snapshot stagingを含む |
-| `T10_InputLatch` CPU | Windows referenceのP95 soft 0.35 ms。Runtime規約の`T00＋T10` 0.50 ms内に含む |
+| Input latch CPU | Windows referenceのP95 soft 0.35 ms。[Runtime performance／capacity](../04-runtime/performance-capacity.md)のmeasurement window内で測る |
 
-Persistent 8 MiBはRuntime規約のCore World／Saveにあるsnapshot／bridge 32 MiBへ、Latch transient 4 MiBはFrame／Job transientのFrame 32 MiBへchargeする。Runtime message queue予約後のsnapshot／bridge残量22 MiBからInput 8 MiBを差し引き、14 MiBを他のsnapshot／bridge用途へ残す。Queue、Snapshot、gesture recognizer、Platform Adapter allocationを別Domainへ二重計上しない。Mobileも絶対Process budgetはMobile規約を優先するが、この内部上限とtagは維持する。
+Persistent 8 MiBとLatch transient 4 MiBはRuntime ownerのInput child scopeへchargeする。Queue、Snapshot、gesture recognizer、Platform Adapter allocationを別Domainへ二重計上しない。Mobile aggregate capは[Mobile Common](mobile-common.md)を参照するが、このInput内部上限とtagは維持する。
 
 上限超過は末尾dropやAction切捨てにせず、Cook／Play prepareで静的超過を拒否し、Runtime queue／transition超過はauthoritative session faultとする。Shipping callback／poll pathで一般heap allocation、lock待機、filesystem、log formattingを行わない。
 
@@ -305,71 +300,8 @@ Persistent 8 MiBはRuntime規約のCore World／Saveにあるsnapshot／bridge 3
 
 C1完了条件は、同じ2D／3D ProjectがWindows keyboard／mouse／controller、Android touch／controller、Apple touch／controllerでsemantic Actionを共有し、Remap、Text分離、Replay、disconnectを合格することである。
 
-## 15. 実装計画への引渡し
+## 15. 実装・外部依存境界
 
-最初の着工単位はC1全Platformの一括実装ではなく、共通契約からWindows 2D First Playableまでの縦切りとする。Android／Apple AdapterはWindows縦切りのGate合格後に別実装計画へ分解し、共通契約を変更せず追加できることを開始条件にする。
+Device／Action／Binding／Context／SnapshotのMCD、generated value type、closed Control Catalog、Validator、canonical serialization、Result／DiagnosticはPlatform SDK型を含めない。Windows、Android、Apple Adapterは同じAction resolver、Context、Snapshot、Remap、Replayを再利用し、Game rule、Action ID、Replay formatをforkしない。
 
-実装計画は次の3 Work Packageへ分割する。各Work Packageは独立したReview、Test、Commit、Gateを持ち、後続Packageが前段の未検証内部実装へ依存することを禁止する。
-
-着工前提は、Phase 0 Foundation計画がrepository bootstrap、C++23 toolchain、Build Gateway、CMake component helper、`mirakan_runtime_contracts`、MCD meta-schema／Contract compiler、Result／Diagnostic、fixed phase、bounded queue、memory domainを実装し、それらのGate Receiptを発行済みであることとする。入力計画はこれらを重複実装せず、入力固有schema、component、fixture、Gateだけを所有する。Windows GameInput SDK artifact、version、hash、license、取得手順がDependency lockへ固定されていない場合、WP1を開始しない。
-
-### 15.1 WP0: C0共通契約
-
-対象はDevice／Action／Binding／Context／SnapshotのMCD、生成C++ value type、closed Control Catalog、Validator、canonical serialization、Result／Diagnostic、容量定数である。Platform SDK、GameInput header、Window handle、UI widgetを公開契約へ含めない。
-
-WP0の完了Gateを次に固定する。
-
-- 同一MCDからC++型とbinary descriptorを決定論的に生成できる。
-- Action 1,024件、Binding 4,096件、Context 32件、Snapshot 128 KiBの上限をValidatorとserialization testで強制する。
-- unknown field／enum、重複Stable ID、型不一致Binding、required Action未Binding、非finite値、範囲外値をtyped Diagnosticで拒否する。
-- Platform非依存fixtureから同じcanonical byte列とhashを得る。
-- Public header／Module interfaceにGameInput、Win32、Android、Appleの型またはheaderが漏れていない。
-
-### 15.2 WP1: Windows Input Runtime
-
-対象はGameInput Adapter、Device Hub、preallocated reading／connection queue、`T10_InputLatch`、Action resolver、Context／Focus／Consumption、Windows surface event、`ITextInputService`との分離conformanceである。TSF実装自体はEditor UI Framework／UI・Text計画が所有する。WP1はWP0の生成契約だけをconsumeし、GameInput objectとWin32 valueをAdapter外へ公開しない。
-
-WP1の完了Gateを次に固定する。
-
-- Keyboard、mouse、Xbox系／generic controllerのconnect、reading、disconnectを正規化できる。
-- 同一timestamp時のsequence順、duplicate除去、generation change、canonical release、最大16 transitionを決定論的に処理する。
-- Focus loss、disconnect、stale generation、invalid reading、queue overflowが本書12章どおりの結果になる。
-- Gameplay、Game UI、text entry、system Contextのpriorityとexclusive／focused／shared consumptionをfixtureで証明する。
-- Text／IME eventがAction Snapshotへ混入せず、keyboard readingから文字を生成しない。
-- Shipping callback／poll pathの一般heap allocation、filesystem、log formatting、unbounded lock waitが0件である。
-- Windows reference環境で`T00＋T10` P95 0.50 ms以下、そのうち`T10_InputLatch` P95 0.35 ms以下を満たす。
-
-### 15.3 WP2: Windows 2D First Playable統合
-
-対象はUser Remap、Binding capture、Accessibility setting、Replay、gamepad rumble、標準Game UI navigation、2D top-down shooter First Playable fixtureへの統合である。WP2で仮のkey polling、Device別Gameplay分岐、文字推測、Replay専用Action経路を追加しない。
-
-WP2の完了Gateを次に固定する。
-
-- keyboard／mouseだけ、およびcontrollerだけでTitle、Settings、Play、Pause、Result、Exitを完走できる。
-- Project DefaultとUser Remapを分離し、required Action、reserved shortcut、exclusive conflict、10秒capture timeout、Cancel保持を検証できる。
-- Toggle／hold切替、repeat timing、dead zone／sensitivityをUser settingとして保存・復元できる。
-- Replay中はPhysical Device readingがGameplayへ混入せず、同じAction Snapshot列とauthoritative state hashを得る。
-- Focus loss、controller disconnect、Play stopでrumbleを停止する。
-- 60／120 Hz displayと60 Hz simulationのinput-to-submit測定をReceiptへ記録する。
-- Input規約14章のWindows該当testがすべて成功する。
-
-### 15.4 依存関係とMobileへの引渡し
-
-依存順は`WP0 -> WP1 -> WP2`とする。WP1はWP0 Gate、WP2はWP1 GateのReceipt hashを入力に持つ。Gate不合格のPackageを後続がfallback、temporary flag、test skipで迂回してはならない。
-
-Android／Apple計画はWP2完了後に開始し、WP0のMCD、Action resolver、Context、Snapshot、Remap、Replayを再利用する。Platform固有差分はDevice Reading、surface／lifecycle event、text service、haptic Adapterへ限定する。Mobile対応のためにGame rule、Action ID、Replay formatをforkする変更は入力設計Reviewへ戻す。
-
-最初の実装計画ではtouch／gesture、virtual stick、mobile haptics、Android／Apple実機Gateを実装対象外とする。ただしWP0の型と容量は本書のC1共通上限を保持し、後続Adapterを妨げるWindows専用仮定を禁止する。C2のsensor、adaptive trigger、HD haptics、registered curve、および2章記載の別Device Capabilityは本実装計画へ含めない。
-
-## 16. 一次資料
-
-- [GameInput Introduction](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-overview)
-- [GameInput Readings](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-readings)
-- [GameInput Callbacks](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/advanced/input-callbacks)
-- [Windows IME／Text Input requirements](https://learn.microsoft.com/en-us/windows/apps/develop/input/input-method-editor-requirements)
-- [Android GameActivity](https://developer.android.com/games/agdk/game-activity/get-started)
-- [Android Paddleboat](https://developer.android.com/games/sdk/game-controller/controller)
-- [Apple Game Controller](https://developer.apple.com/documentation/gamecontroller/handling-input-events)
-- [Apple Core Haptics](https://developer.apple.com/documentation/corehaptics)
-
-Platform APIのdevice／callback方式はAdapter実装の根拠とし、Action、Context、Replay、RemapはMiraikanaiが独自に所有する。
+OS input／text／haptics API、SDKのexact version、hash、license、取得元は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。Adapterは本書のnormalization、lifetime、callback、qualification contractへ写像し、native objectを公開しない。
