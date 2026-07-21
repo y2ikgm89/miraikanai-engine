@@ -271,9 +271,24 @@ WaterQueryResultV1
   query_generation
 ```
 
-`WaterQueryPortV1`はpublish済みCPU artifactだけを読み、GPU buffer／depth／SSR／foam／VFXをreadbackしない。Baselineはflat／zero flow、advancedはanalytic wave／flow／depth。Windows 16,384 query／tick、Mobile 4,096／tick、超過はQueueFullで前値へfallbackしない。Physicsがbuoyancy forceを計算する。
+`WaterQueryPortV1`はpublish済みCPU artifactだけを読み、GPU buffer／render depth／SSR／foam／VFX collisionをreadbackしない。Baselineはflat surface／zero flow、advancedはanalytic wave／flow／depthを返す。Windows 16,384 query／tick、Mobile 4,096／tickで、超過は`QueueFull`と`WaterQueryQueueFull`を返し前frame値へfallbackしない。`StaleSnapshot`は`WaterQueryStaleSnapshot`を発行し、`InvalidRequest | BackendFailure | UnsupportedAtLevel | OutsideWater`を`Success`へ置換しない。PhysicsだけがQuery結果からbuoyancy forceを計算し、WaterはBodyへForceを加えない。
 
-`WaterInteractionEventV1`はevent／body ID、position、normal、relative velocity、`enter | exit | impact | wake_request`、VFX seedを持つauthoritative inputである。Splash／foam／ripple／wakeはVFXが生成しWater Queryへ返さない。
+SaveはBody Asset revision、Gameplay water state、解析波の開始tickだけを永続化し、GPU texture、foam、SSR historyを保存しない。Body Asset revision不一致は現在Assetへ黙って読み替えずmigrationまたはload failureとし、解析波は保存した開始tickから同じ生成定数／式で再構築する。Gameplay stateのschema、Save／Replay envelope、checkpointはGameplay／Runtime Ownerを参照し、本書で複写しない。
+
+`WaterInteractionEventV1`はauthoritative Collision／Gameplayだけが生成し、次の7 required scalar fieldをちょうど一つずつ持つ。optional field、配列、unknown fieldを許可しない。
+
+```text
+WaterInteractionEventV1
+  event_id: u64
+  body_id: StableId
+  position: world-space vec3f
+  normal: normalized world-space vec3f
+  relative_velocity_mps: world-space vec3f
+  interaction_kind: enter | exit | impact | wake_request
+  vfx_seed: u64
+```
+
+non-finite position／velocity、非正規normal、存在しないBody、unknown `interaction_kind`、duplicate `event_id`をschema／reference failureとしてEvent全体ごと拒否し、既定kind／seedを生成しない。同tickの配送は[Runtimeのcanonical message order](../04-runtime/scheduling-lifetime.md#10-message-mergeasync-acceptancerandomness)を使い、worker completion順で並べない。Replayは受理済みEventの7 fieldとaccept tickを記録し、同じ`event_id`／`vfx_seed`でVFX／Audioへ再配送する。Splash／foam／ripple／wakeはPresentationであり、Water Query、Damage、buoyancyへ戻さず、GPU生成結果をReplay／Saveへ含めない。
 
 ## 4. Weather state、snow／wetness response
 
@@ -396,9 +411,39 @@ EnvironmentIntentV1
   palette_token: nullable<StablePaletteToken>
 ```
 
-Reference intent mappingはvisibility 20,000／2,000／800／200／50 m、uniform falloff 0、ground-hugging default 0.10、shaft g 0.2／0.5／0.7、neutral／warm／cool `(0.9,0.9,0.9)`／`(0.95,0.88,0.75)`／`(0.78,0.86,0.95)`、cloud coverage 0／0.2／0.5／0.9／1.0。Elevated／local intentはLocal Volume、storm-likeはWeatherを暗黙生成しない。Wind bindingやtime-of-day source不足は推測せず質問する。
+Reference intent mappingを次に閉じる。
 
-Reference Preset IDは`clear_day_v1, temperate_morning_mist_v1, humid_distance_haze_v1, dense_ground_fog_v1, interior_dust_shafts_v1, overcast_volumetric_v1, stylized_tinted_fog_v1, reference_earth_atmosphere_v1`である。Presetはversioned resolver constantsでSource copyではない。Interior dustはbounded room box、density 0.015、albedo `(0.78,0.72,0.62)`、g 0.7、blend distance＝shortest radiusの10%とし、bounds不明は質問へ停止する。
+| Intent | Resolver定数／規則 |
+|---|---|
+| `clear／light_haze／light_mist／fog／dense_fog` | target visibility 20,000／2,000／800／200／50 m |
+| `uniform` | height falloff 0 |
+| `ground_hugging` | Presetに値がなければheight falloff 0.10 `m^-1` |
+| `elevated_layer` | Global Height Fogへ近似せずLocal Fog Volume候補 |
+| `local_only` | Global density 0、Local Fog Volume必須 |
+| shaft `none／subtle／pronounced` | anisotropy 0.2／0.5／0.7。`pronounced`はVolumetric Fog必須 |
+| color `neutral／warm／cool` | fixed linear RGB `(0.9,0.9,0.9)`／`(0.95,0.88,0.75)`／`(0.78,0.86,0.95)` |
+| `inherit_sky` | `albedo_source=inherit_sky` |
+| `palette_token` | 登録済みPalette token必須 |
+| cloud `none／thin／scattered／overcast／storm_like` | coverage 0／0.2／0.5／0.9／1.0 |
+
+Reference Presetは次のversioned constantsとResolver ruleであり、Source copyではない。
+
+| Preset | Intent | Fog source | Capability |
+|---|---|---|---|
+| `clear_day_v1` | clear、uniform、shaftなし | visibility 20,000 m、falloff 0 | Environment core |
+| `temperate_morning_mist_v1` | light_mist、ground_hugging、subtle | visibility 800 m、falloff 0.12、base 1 m | Environment core |
+| `humid_distance_haze_v1` | light_haze、uniform、subtle | visibility 2,000 m、falloff 0.015 | Environment core |
+| `dense_ground_fog_v1` | dense_fog、ground_hugging、subtle | visibility 50 m、falloff 0.25、base 1 m | Environment core |
+| `interior_dust_shafts_v1` | indoor、local_only、pronounced | global density 0、`dust_shafts` Local Volume | Volumetric Fog／Local Volume |
+| `overcast_volumetric_v1` | fog、overcast、subtle | volumetric Fog＋coverage 0.9 | Volumetric Fog／Cloud |
+| `stylized_tinted_fog_v1` | stylized、palette_token | Profile値＋必須Palette token | Environment core／advanced |
+| `reference_earth_atmosphere_v1` | outdoor、inherit time | `ReferenceEarthV1` atmosphere | Atmosphere LUT |
+
+Preset適用は既存human lockを維持する。`typed_overrides`はlockされていないfieldにだけ許可し、closed enum／range／Capability／Target／fallbackを通常のValidatorで再検査する。lock済みfieldの上書き、Presetにないfieldの暗黙補完、unknown override、`stylized_tinted_fog_v1`のPalette token欠落、`reference_earth_atmosphere_v1`へのcustom係数混在を拒否する。明示Target visibilityは候補のtyped overrideにできるがPreset定数自体を変更しない。
+
+`interior_dust_shafts_v1`は選択中room／region boundsをbox shapeへ使い、density multiplier 0.015、albedo `(0.78,0.72,0.62)`、anisotropy 0.7、blend distanceを最短半径の10%とする。bounded regionを一意に取得できなければshapeを推測せずBlocking質問へ停止する。Built-in Cloud Presetは同version `ReferenceCloudAssetsV1`一式を参照し、Project Assetが明示指定された場合だけ全件置換する。部分置換とnoise texel生成を禁止する。
+
+`storm_like`はCloud intentであり雨、雷、風、Gameplay weatherを暗黙生成しない。`gentle／windy／inherit_weather`はversioned Weather bindingがある場合だけ風向／速度を解決し、bindingなしで`still`以外ならBlocking質問を一つ返す。`time_of_day`は既存のversioned Time-of-Day／sun animation sourceへ渡し、sourceなしで`inherit`以外なら登録済みScene Preset提示またはBlocking質問を一つ返す。
 
 `EnvironmentIntentResolver`が返す`EnvironmentIntentCandidateV1`はcandidate／preset ID、typed overrides、required capabilities、estimated cost、assumptions、blocking questions、confidence、contract hashを持つ。そのtyped proposalを`EnvironmentChangeSet`とする。Resolver順はlock／Target／minimum quality除外、explicit intent match、Style／Weather binding、minimum capability、Preset ID byte tie-break。最大3候補で、Gameplay visibility混同、lock conflict、Targetなしは質問へ停止する。
 
@@ -462,8 +507,8 @@ Waterは`WaterInvalidBoundary, WaterBodyOverlapConflict, WaterUnsupportedBodyKin
 
 Validation、Compile、Bake failureではlive root revisionとlive generationを変えず、partial artifactを公開しない。stale bindingはlast valid snapshot＋Diagnostic、budget overflowは規定fallbackかreject、device lossはSource／receiptから再生成する。
 
-Contract qualificationは全Source／operationのvalid／boundary／invalid／unknown／NaN／unit、lock／stale／Capability／fallback／partial custom body、resolver candidate順／ChangeSet／artifact hash determinismを含む。Environment fixturesはclear day、morning mist、dense fog、local dust、sunset atmosphere、overcast cloud、camera cut／extent／origin rebase／sun／weather history、Water／Transparent／Pixel／VFX／UI compositeである。
+Contract qualificationは全Source／operationのvalid／boundary／invalid／unknown／NaN／unit、lock／stale／Capability／fallback／partial custom body、resolver candidate順／ChangeSet／artifact hash determinismを含む。8 Reference Presetはそれぞれ同一Inputから同じcandidate順、typed override、ChangeSet hashと上表のexact constantsを得るfixtureを持ち、lock競合、unknown override、Palette token欠落、bounds不明、Cloud Asset部分置換をnegative fixtureとする。Environment fixturesはclear day、morning mist、dense fog、local dust、sunset atmosphere、overcast cloud、camera cut／extent／origin rebase／sun／weather history、Water／Transparent／Pixel／VFX／UI compositeである。
 
-Water fixturesはbounded pool、river-like mesh、2D tile、lake／river／ocean overlap、flat Volume enter／exit、analytic CPU／GPU tolerance、buoyancy frame-rate independence、probe／SSR／underwater／waterline／flow／depth／foam、LOD invariance、device recovery。Snow fixturesは2D／3D precipitation、Style variants、authoritative contact、fixed-input field hash、page／stamp order、device recovery、Gameplay friction invariance、LOD／static fallbackである。
+Water fixturesはbounded pool、river-like mesh、2D tile、lake／river／ocean overlap、flat Volume enter／exit、analytic CPU／GPU tolerance、buoyancy frame-rate independence、probe／SSR／underwater／waterline／flow／depth／foam、LOD invariance、device recoveryを含む。Query fixtureは全7 status、16,384／4,096境界、QueueFull非fallback、stale generationを検査する。Save／load fixtureはBody Asset revision、Gameplay water state、解析波開始tickから同じqueryを復元し、GPU texture／foam／SSR historyがpayloadにないことを検査する。Interaction fixtureは各closed kindとinvalid field、同tick canonical order、Replay後の7 field／VFX seed一致、VFX／Audio独立配送、Gameplay逆入力0を検査する。Snow fixturesは2D／3D precipitation、Style variants、authoritative contact、fixed-input field hash、page／stamp order、device recovery、Gameplay friction invariance、LOD／static fallbackである。
 
 AI evalはmorning mist、50 m fog、local cave dust、stylized planet request、Gameplay visibility separation、mobile over-budget cloud、ambiguous cinematic request、Water capability mismatch、dynamic Snow costを含み、正しいoperation、質問、lock、fallback、Diagnostic、説明とChangeSet一致を測る。Qualification receiptのTarget、run、Evidence envelope、gradingはAI Verification ownerへ委譲する。

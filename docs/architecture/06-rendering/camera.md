@@ -176,7 +176,9 @@ Camera domain hard capはRig当たりNode 64／Edge 128／Parameter 64、Directo
 
 Gameplay Camera RuntimeはCPU P95 soft 0.25 ms／hard 0.50 ms、memory soft 6 MiB／hard 8 MiB、tick heap allocation 0、collision request／View／tick 1である。Split Viewも合計hard cap内に収める。これらはCamera固有ceilingであり、共通frame／memory envelopeと測定法はRuntime performance ownerへ委譲する。
 
-Failureはinvalid graph／profileでlive revision不変、Director no-matchでdefault、target loss／collision stale／non-finiteで前節のfallback、View cost超過でBase Poseを維持してlow-priority Preview停止とする。
+Camera command queueはactive Gameplay／Cinematic commandだけを対象とし、soft gateはoccupancyが75%未満、hard gateはoverflow countが正確に0である。観測window、warm-up、run集約は[Runtime performance ownerのreference measurement](../04-runtime/performance-capacity.md#8-measurementregressionpromotion)をそのまま使い、本書へ共通測定値を複写しない。Soft pressureではlow-priority Editor Preview commandの生成を止めてBase Poseを維持し、受理済みGameplay commandをdrop／上書き／次tickへ暗黙繰越しない。Hard overflowは`MIRAKAN-CAMERA-BUDGET_EXCEEDED`を発行し、該当runとPlay／Package promotionを失敗させる。
+
+Failureはinvalid graph／profileでlive revision不変、Director no-matchでdefault、target loss／collision stale／non-finiteで前節のfallback、View costまたはcommand queue soft pressureでBase Poseを維持してlow-priority Preview停止とする。
 
 Closed Diagnosticは`MIRAKAN-CAMERA-RIG_CYCLE, MIRAKAN-CAMERA-PORT_TYPE_MISMATCH, MIRAKAN-CAMERA-TARGET_UNAVAILABLE, MIRAKAN-CAMERA-COLLISION_STALE, MIRAKAN-CAMERA-EVALUATION_NON_FINITE, MIRAKAN-CAMERA-FAILSAFE_ACTIVATED, MIRAKAN-CAMERA-BUDGET_EXCEEDED, MIRAKAN-CAMERA-UNAUTHORIZED_OPERATION`である。DiagnosticはRequirement ID、Document／Node／Field path、actual、expected、Capability、Target、fallback、remediationを持つ。
 
@@ -184,7 +186,7 @@ Closed Diagnosticは`MIRAKAN-CAMERA-RIG_CYCLE, MIRAKAN-CAMERA-PORT_TYPE_MISMATCH
 
 WorkspaceはProfile Inspector、Rig Graph、Director／Transition、Sequence／Shot、2D／3D Preview、safe frame／frustum／subject／composition overlay、collision overlay、Base／interpolated／Presentation pose比較、Active Rig／rule／blend／cut／history debugger、AI candidate trace／assumption／cost／Diagnosticを持つ。Widget／canvasをSourceにせず、Previewは同じcompilerとsandbox runtimeを使う。
 
-Contract／runtime fixtureはSchema round-trip、cycle／port／unknown／64・128 boundary／non-finite／unit fuzz、canonical graph hash、Director全組合せ、position／rotation／FOV blend、cut／history、collision generation／stale、target loss／Failsafe、checkpoint hash、Split View isolationを含む。
+Contract／runtime fixtureはSchema round-trip、cycle／port／unknown／64・128 boundary／non-finite／unit fuzz、canonical graph hash、Director全組合せ、position／rotation／FOV blend、cut／history、collision generation／stale、target loss／Failsafe、checkpoint hash、Split View isolationを含む。Camera queue fixtureは同じactive Sceneへbounded command burstとlow-priority Previewを重ね、reference measurement windowの全sampleでoccupancy 75%未満、overflow 0、受理済みGameplay command drop 0、Base Pose／Replay checkpoint hash不変を検証し、overflow fault injectionが`MIRAKAN-CAMERA-BUDGET_EXCEEDED`とpromotion失敗へなることを確認する。
 
 公式Sceneは`camera_pixel_2d_c1_v1, camera_follow_2d_c1_v1, camera_third_person_c1_v1, camera_lock_on_c1_v1, camera_boss_group_c1_v1, camera_motion_comfort_c1_v1, camera_split_view_c2_v1, camera_cinematic_c2_v1`である。fixture名のsuffixはhistorical test IDでありmaturityを定義しない。
 

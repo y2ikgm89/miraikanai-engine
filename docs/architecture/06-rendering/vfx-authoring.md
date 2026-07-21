@@ -114,9 +114,33 @@ Canonical serializationはStable ID byte、field ID、Edge IDの昇順であり�
 
 Closed value typeは`bool, i32, u32, u64, f32, vec2f, vec3f, vec4f, color_linear_rgba, quaternionf, spatial_vector, curve1_ref, gradient_ref, texture2d_ref, mesh_ref, material_ref`である。`spatial_vector`は2Dで`vec2f`、3Dで`vec3f`へspecializeする。距離meter、時間second、角度radian、色linear RGBAとし、NaN／Inf、非正規Quaternion、暗黙scalar／vector変換を拒否する。
 
-StageはEngine-owned `emitter_control`、Source graphの`particle_spawn | particle_update | particle_event`、Engine-owned `render_output`である。previous値はCompiler-declared `PreviousAttribute`だけから読む。
+Stageは次に閉じる。previous値はCompiler-declared `PreviousAttribute`だけから読み、Graph edgeでcycleを作らない。
 
-Portable catalogはInput、Math、Random、Curve、2D／3D spawn shape、Initialize、Update、Sprite2D／Billboard3D／PortableFacingSprite／Flipbook／BasicTrailを持つ。`DivideSafe`と`NormalizeSafe`は絶対値／長さ`1e-8`未満でNodeに明示したfallbackを返す。Advanced catalogはnoise／turbulence、Vector Field、Mesh emission、Depth／SDF／proxy collision、Sub-emitter／GPU event、Mesh／Ribbon／Particle Light、depth fade／distortion、LOD branch、qualified extension operatorを追加する。Scene color sampling、arbitrary texture write、ray tracing、mesh shader、unbounded bindless、GPU readback eventは含めない。
+| Stage | 実行時点 | 読取 | 書込 |
+|---|---|---|---|
+| `emitter_control` | Emitterごと | Parameter、Event、Emitter transform、tick | spawn count、Emitter local state |
+| `particle_spawn` | 新規Particleごと | spawn ID、seed、Parameter、Emitter transform | 初期Particle attribute |
+| `particle_update` | alive Particleごと、fixed step | 現attribute、Parameter、time | 次attribute、alive flag |
+| `particle_event` | advanced条件成立時 | Particle attribute、visual collision result | bounded internal VFX event |
+| `render_output` | Snapshot／Render packet構築時 | 最終attribute、Material parameter | Renderer bindingだけ |
+
+`emitter_control`と`render_output`はEngine-ownedであり任意Source Graphを持たない。Node Catalog entryはNode typeごとに許可Stage、Dimension、version、typed input／output port、literal field、default有無、attribute read／write、Capability、CPU kernel ID、GPU implementation IDを定義する。必須inputは型一致edgeまたは明示literalをちょうど一つ持ち、optional inputだけがCatalog defaultを使える。未知port、未接続必須port、同一target portへの複数edge、Graph外edge、implicit cast、名前によるport解決、配列index自動拡張を拒否する。`output_bindings`はattribute当たり一つだけである。
+
+Portable Node CatalogのIDを次に閉じる。
+
+| 分類 | Portable Node ID |
+|---|---|
+| Input | `Constant, Parameter, Age, NormalizedAge, Lifetime, SpawnId, SimulationStep, EmitterTransform, EventField` |
+| Math | `Add, Subtract, Multiply, DivideSafe, Min, Max, Clamp, Abs, SqrtSafe, Lerp, Remap, Dot, Length, NormalizeSafe, Select` |
+| Random | `Uniform01, Range, UnitDirection2D, UnitDirection3D, RandomColorGradient` |
+| Curve | `SampleCurve, SampleGradient` |
+| Spawn shape 2D | `Point, LineSegment, Rectangle, CirclePerimeter, Disk` |
+| Spawn shape 3D | `Point, LineSegment, Box, SphereSurface, SphereVolume, Cone` |
+| Initialize | `Position, Velocity, Lifetime, Color, Size, Rotation, AngularVelocity, FlipbookFrame` |
+| Update | `IntegrateVelocity, Acceleration, Gravity, LinearDrag, ColorOverLife, SizeOverLife, RotationOverLife, KillByAge` |
+| Output | `Sprite2D, Billboard3D, PortableFacingSprite, Flipbook, BasicTrail` |
+
+`DivideSafe`は分母絶対値が`1e-8`未満、`NormalizeSafe`は長さが`1e-8`未満ならNode parameterで明示したfallbackを返す。Compilerが0除算を0へ置換しない。Advanced catalogはCurl／value noise、turbulence、Vector Field sampling、Mesh surface／volume emission、Depth／Global SDF／VFX collision proxy、collision bounce／friction／kill、visual collision event、Sub-emitter／GPU event、Mesh／Ribbon／Particle Light output、depth fade／soft particle／distortion parameter、camera distance／quality parameter／LOD branch、qualified `VfxExtensionOperatorV1`を追加する。Scene color sampling、arbitrary texture write、ray tracing、mesh shader、unbounded bindless、GPU readback eventは含めない。
 
 | 上限 | Portable | Advanced |
 |---|---:|---:|
@@ -213,6 +237,21 @@ Manifestは対象外Targetを明示し、Production候補には各宣言dimensio
 10. Rendererのoffline shader pipelineへTarget compile／validationを依頼する。
 11. source／compiler／interface／resource／fixture hashを生成する。
 12. Asset lifecycle ownerへtransactional Cookとclosure promotion候補を渡す。
+
+Execution dispositionは`auto | cpu_required | gpu_required | dual_fallback`に閉じ、Compilerがenabled Emitterごとに独立して次の固定順で解決する。同じSystem内のCPU／GPU EmitterはParameter、System seed、Instance transform、lifecycleだけを共有し、Particle storageを共有しない。
+
+| 条件 | 解決 |
+|---|---|
+| Portable Asset | CPU |
+| `cpu_required` | CPU capabilityとdomain budgetがなければ失敗 |
+| `gpu_required` | advanced、compute、storage buffer、atomic counter、indirect draw、shader variantが全てなければ失敗 |
+| `dual_fallback` | CPUとGPUを両方Cookし、Target Quality Manifestが一方を正規選択 |
+| `auto`かつGPU-only Nodeを使用 | GPU。GPU非対応Targetには明示fallback graphが必要 |
+| `auto`かつpeak alive見積り4,096以上 | GPU capabilityがあればGPU、なければCPU domain budget内の場合だけCPU |
+| `auto`かつpeak alive見積り4,095以下 | CPU |
+| `mobile_baseline` | CPUを正規選択。限定GPUはDevice Qualification Receiptで明示enableしたProfileだけ |
+
+Runtimeがframe負荷から実行中stateをCPU／GPU間で移送しない。Target／Qualityごとの決定は[Runtime側のcompiled artifact boundary](vfx-runtime.md#2-compiled-artifact-boundary)へ渡し、Instance開始時に一意に選ぶ。Authoringは解決入力とalgorithmだけを所有し、compiled artifact schemaを再定義しない。
 
 Unsupported Node、layout overflow、shader failure、fallback不足、domain budget超過は該当variantを失敗させる。`VfxGraphIrV1`はdevelopment-only compiler intermediateでSource／Runtime保存しない。`VfxBudgetProfileV1`／`VfxQualityProfileV1`はTarget／Project Source、`VfxBakeCacheV1`はSource artifact hash、seed、fixed delta、frame count、Target formatを持つoffline cacheである。
 
