@@ -214,7 +214,7 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | 不要なBlocking質問 | Suite別5%以下 |
 | Cost／latency | Provider Manifest Budget以内 |
 
-repair_attempt_limitの値と停止条件は[AI Security／Approval](ai-security-approval.md)が署名Policyとして所有する。Eval runnerはpolicy_set_hashから供給された上限を読み、GenerationReceiptV1のrepair_attempt_countと比較して結果を記録する。本文書は数値Defaultを定義しない。
+repair_attempt_limitの値、適用単位、既定値、上限、停止条件は[AI Security／Approval](ai-security-approval.md)が署名PolicyとTaskAuthorizationEnvelopeで所有する。Eval runnerはauthorization_envelope_hashが指す署名済みEnvelopeから上限を読み、そのpolicy_set_hashとの整合性を検証し、GenerationReceiptV1のrepair_attempt_countと比較して結果を記録する。本文書は数値Defaultを定義しない。
 
 最初の権限／Gateway項目はModel EvalだけでなくBroker／Validatorの決定論的negative fixtureでも0件を要求する。有限Corpusの0件を未知入力の安全保証にせず、Productionでも同じGateを常時強制する。
 

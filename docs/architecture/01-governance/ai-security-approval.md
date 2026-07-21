@@ -108,12 +108,26 @@ TaskAuthorizationEnvelopeはPolicy Serviceだけが発行し、AIが作成、変
     dependency_policy
     secret_policy
     resource_limits
+    repair_attempt_limit
     required_gates[]
     required_approvals[]
     long_running_grant?
     signature_algorithm, signature_format, key_id, signature
 
 OperationはID＋versionのexact allowlistとし、wildcardを禁止する。Networkはdeny_all、Dependencyはno_change、AI TaskのSecretはno_secret_accessを既定とする。Pathはread／write／create／deleteを別に許可し、Process tree、CPU、memory、wall time、child count、output sizeをhard limitにする。
+
+repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、Policy Serviceが署名時に確定する。適用単位は同一task_idのTask全体において、初回Proposal後に許可する修復Proposal再提出回数である。初回Proposalは数えず、RepairableFailureからRunningへ戻して次のProposalを提出可能にする時点で1を消費する。GenerationReceiptV1のrepair_attempt_countはTask全体で単調増加し、Envelopeの更新／再発行、Worker、Model、Provider、Attemptの変更、再起動、AwaitingUserInputではresetしない。Goal、Input、Riskまたは権限変更により新Taskと新Envelopeを発行した場合だけ別の適用単位とする。
+
+署名Policyの既定値と上限を次に固定する。Envelopeは該当Riskの値以下へ縮小できるが、増加できない。
+
+| Risk | repair_attempt_limit |
+|---|---:|
+| R0 | 0 |
+| R1 | 2 |
+| R2 | 2 |
+| R3 | 1 |
+| R4 | 0 |
+| R5 | 0 |
 
 通常TaskはR0を含め署名必須である。署名鍵作成前のBootstrapDiscoveryは通常State machine外に置き、local system情報読取り、Key生成、Public key registry初期化だけを許可する。Provider、Project読取り、Worker、任意Path、Network、変更を許可せず、初期化後に再実行できない。
 
@@ -145,7 +159,7 @@ OperationはID＋versionのexact allowlistとし、wildcardを禁止する。Net
 
 AwaitingUserInputはResolvingRequirements、Running、Validatingからだけ入る。Authorization前の回答はSpecification draftを更新できる。Authorization後の回答がGoal、Success criteria、Input、Risk、Operation、Path、Network、Dependency、Gate、Approvalへ影響する場合、元TaskをCancelledにし、新Taskと新Envelopeを作る。
 
-修復はMCD RemediationV1があり、同じInput、Envelope内、permission／security／lock／approval／revision drift以外の場合だけ許可する。初回後の再提出は最大2回。同じblocking diagnostic＋location＋Stable ID集合が再発し、blocking数が減らない場合は即停止する。
+修復はMCD RemediationV1があり、同じInput、Envelope内、permission／security／lock／approval／revision drift以外の場合だけ許可する。修復Proposal再提出はEnvelopeのrepair_attempt_limitを超えてはならない。同じblocking diagnostic＋location＋Stable ID集合が再発し、blocking数が減らない場合は残数があっても即停止する。
 
 Atomic commit、許可済みlong-running verification、Release transactionのcritical section開始後は、Cancel／Expiryで結果不明のまま終了表示しない。完了、rollback、read-backのいずれかへ収束させる。
 
