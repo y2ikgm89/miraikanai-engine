@@ -108,6 +108,36 @@ Feature PackはPublic Contract、Schema、Reference Definition、Validator、AI 
 - Character motor／aim-origin契約。AI behaviorは同じ`RequestFireCommandV1`を使いWeapon Stateを直接writeしない
 - keyboard／mouse、controller
 
+TPS Profileはenemy archetypeと共通Perceptionのmappingだけを次のbindingで所有する。
+
+```text
+ShooterPerceptionBindingV1
+  binding_id
+  enemy_archetype_ref
+  perception_profile_ref
+  hostile_team_filter_ref
+  target_selection_policy: nearest | highest_priority_then_nearest
+  lost_target_behavior: search_last_known | return_to_route
+  fire_intent_policy_ref
+```
+
+視界、聴覚、LOS、memoryは[Gameplay Perception](../03-authoring/gameplay-programming-model.md)の`PerceptionSnapshotV1`から読み、C1は`highest_priority_then_nearest`を使用する。lost targetは上記closed enumだけで解決し、fire intentは`RequestFireCommandV1`へ変換する。Render visibility、reticle、Camera occlusion、Audio Voiceを認識authorityにしない。
+
+### 5.3 共通CapabilityのOwner参照
+
+| Integration責務 | 唯一のOwner |
+|---|---|
+| Gameplay Perception／Interaction | [Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) |
+| Runtime Pause／Gameplay Timer | [Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md) |
+| Path Following | [Navigation](../05-simulation/navigation.md) |
+| Sprite／authoritative Animation | [Animation](../05-simulation/animation.md) |
+| Tilemap／Loading／Blockout | [World](../06-rendering/world.md) |
+| Decal | [Materials](../06-rendering/materials.md) |
+| Lighting／Lighting Bake | [Lighting](../06-rendering/lighting.md) |
+| Platform Settings／local profile／Accessibility | [Game UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md) |
+
+ShooterはこれらのField、capacity値、failure規則を再定義せず、Profile bindingと統合fixtureだけを所有する。
+
 FPS viewは現在のShooter reference contractの対象外である。将来scope、成熟度、activation、schema／Profile追加の要否は[Product Plan](../00-product/product-plan.md)だけが決定する。
 
 ## 6. 正規Data Model
@@ -887,7 +917,18 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - AI／手動Editor／Project C++ Commandが同じDefinition hashとRuntime結果へ収束
 - ExplainがField、理由、Assumption、代替、capacity impact、Testを返す
 
-### 16.7 Performance／Soak
+### 16.7 2D／TPS統合fixture
+
+| Fixture | 必須composition |
+|---|---|
+| `2d_shooter_c1_v1` | 2D top-down Shooter、Tilemap／Loading、Flipbook、Perception／Interaction、Path Following、Pause／Timer、Settings／Accessibility |
+| `tps_shooter_c1_v1` | TPS Shooter、Blockout、Decal／Lighting、Perception／Interaction、Path Following、authoritative Animation、Pause／Timer、Settings／Accessibility |
+
+両fixtureはTitle→Settings→Playing→Paused→Playing→Resultを完走し、設定のapply／revert／last-known-good、perception境界とtarget loss、Nav／observer／ownerのstale generation、同tick Timer／fireのcanonical order、Save／Load／Replay後の同一target・fire intent・state hashを検証する。共通OwnerとShooter Profileが宣言する各capacityのexactとexact +1、dependency failure、unsupported Target、partial applyを注入し、失敗時は各Ownerのtyped result、last-valid generation、authoritative state不変を照合する。共通failure IDや数値はリンク先Ownerから取得し、本書へ複写しない。
+
+2DとTPSの手動作成、AI生成、手動再編集、AI再編集は同じSourceとoperationを使い、Accessibility、keyboard／controller、および2Dのtouchを含むTarget別Receiptへ結び付ける。[Product Planのcross-genre C2 gate](../00-product/product-plan.md)はこれらのReceiptを消費するが、Shooter単独の合格を汎用2D Production表示へ代用しない。
+
+### 16.8 Performance／Soak
 
 - `2d_shooter_c1_v1`、`2d_crowded_battle_v1`、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`をnamed reference scenarioとして固定する
 - 14.2節の2D／TPS Fixtureを各Targetで120秒×5 run

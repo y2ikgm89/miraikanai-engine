@@ -190,6 +190,66 @@ Product milestoneは、機能一覧のcheckだけでは完了しない。
 - 未対応Capability、未実測Target、失効Evidenceを明示し、成功表示しない。
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)のRelease evidence closureが同一Candidateへ結び付く。
 
+### 7.4 C2 coverageとgenre横断Gate
+
+4章の共通C2と各SubsystemがC2と宣言するCapabilityは、次のProduct-owned matrixへ一件ずつ登録する。
+
+```text
+C2CapabilityCoverageMatrixV1
+  matrix_id
+  revision
+  entries[]:
+    capability_id
+    owner_work_package_ref
+    entry_gate_refs[]
+    implementation_symbol_refs[]
+    validator_refs[]
+    fixture_refs[]
+    target_refs[]
+    fallback_ref
+    qualification_receipt_refs[]
+    include_in_product_label: bool
+    lifecycle_state: declared_unscheduled | experimental | qualification_pending | qualified | production
+    defer_reason
+    dependency_refs[]
+    reconsideration_gate_refs[]
+```
+
+`owner_work_package_ref`、`validator_refs[]`、`fixture_refs[]`、`target_refs[]`、`fallback_ref`、`qualification_receipt_refs[]`、`lifecycle_state`は必須である。一つでも空、参照不能、失効、対象Candidateとhash不一致なら`include_in_product_label=false`とし、Production表示を拒否する。Work Packageから外したCapabilityも削除せず、`declared_unscheduled`としてdefer理由、依存、再検討Gateを残す。`lifecycle_state`は3.2節のActivation stateを置換せず、双方が`production`の場合だけProduct labelへ含める。
+
+Phase 8の`WP7a3_2d_product_coverage_c2`がこのmatrixと`capability.product.2d_general_production_c2`を所有する。次の三つをすべて、人間の手動Authoring経路とAI Authoring経路の両方で合格した場合だけ公開し、Phase 3／4のShooter First PlayableからC2へ段階飛越しない。
+
+| Playable fixture | Genre固有の完了条件 |
+|---|---|
+| `2d_shooter_c1_v1` | [Shooter Pack](../08-domain-packs/shooter.md)の2D top-down core loop、敵、Wave、Boss、score |
+| `2d_platformer_c2_v1` | Platformer: 5分以上のTitle→3 room→checkpoint→Result、one-way／moving platform、slope／step／ground snap、continuous collision、room Camera、Flipbook event／hitbox、Game Timer |
+| `2d_puzzle_dialogue_c2_v1` | 戦闘に依存しないTitle→3 room→Puzzle／Dialogue／Choice／Item／Interaction→Result、Focus、Text／Font、Timer付きpuzzle、Loading cancel／retry |
+
+三fixtureは共通して、Title-to-Result、cook／package／clean install launch、Save slot／Load／Replay、keyboard／controller／touch、Localization／Accessibilityを同じrunで検証する。WindowsとMobileのQualification ReceiptはTarget別に保持し、一方、別genre、Editor内Play、manualまたはAI片方のReceiptで代用しない。各Capability rowの必須field欠落、`declared_unscheduled`、未対応Targetが一件でもあれば、個別Capabilityの状態を変えずProduct gateだけをfail closedにする。
+
+Local multiplayerを有効化する場合は、Cameraのsplit viewだけで完了扱いにせず、次のProduct profileでSubsystem closureを追跡する。
+
+```text
+LocalPlaySessionProfileV1
+  profile_id
+  local_player_slots[]
+  player_assignment_policy_ref
+  join_leave_policy_ref
+  input_profile_refs[]
+  game_flow_policy_ref
+  ui_join_prompt_ref
+  ui_focus_policy_ref
+  split_viewport_profile_ref
+  audio_listener_policy_ref
+  local_player_profile_refs[]
+  save_profile_binding_ref
+  target_refs[]
+  integrated_fixture_refs[]
+  qualification_receipt_refs[]
+```
+
+player assignment、join／leave、Input、Game Flow、UI join prompt／focus、split viewport、Audio listener、[Platform Settingsが所有するlocal profile](../07-platform/ui-text-localization-accessibility.md)とSave bindingを一つのintegrated fixtureで閉じる。いずれかの参照またはReceiptが欠ける場合はsingle-player C2を維持し、local multiplayer Capabilityだけを未昇格にする。
+
 ## 8. Future portfolio
 
 次のEntryは境界を早期に認識するが、再編時点ではすべてnot_activatedである。Tierは到達目標であり、実装Schemaではない。正式仕様、Owner、Threat Model、Target、fallback、Qualificationが揃うまで空APIや仮Backendを作らない。
