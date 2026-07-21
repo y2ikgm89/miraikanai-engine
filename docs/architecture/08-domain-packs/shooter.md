@@ -1,26 +1,19 @@
-# Miraikanai Engine AI可読Shooter Gameplay／Weapon／Projectileアーキテクチャ規約
+# Miraikanai Engine Shooter Reference Pack
 
-- 文書版: 1.1
-- 作成日: 2026-07-20
-- 最終更新日: 2026-07-20
-- 対象: single-player Shooter Core、2D top-down shooter C1、3D TPS C1、AI／Editor Authoring、Game System、Save／Replay、Qualification
-- 状態: プロジェクト公式の規範設計レビュー版
-- Product設計: [AIネイティブ独自ゲームエンジン 設計計画書](./2026-07-18-ai-native-game-engine-authoring-design.md)
-- Game System正本: [Miraikanai Engine Game System／AI Code Generationアーキテクチャ規約](./2026-07-20-game-system-ai-codegen-architecture-design.md)
-- Game実装正本: [Miraikanai Engine C++実行コード・構造化ゲームデータ規約](./2026-07-19-cpp-structured-game-data-design.md)
-- Runtime正本: [Miraikanai Engine Runtime連携・寿命・性能規約](./2026-07-19-runtime-integration-lifetime-performance-design.md)
-- Domain Pack正本: [Miraikanai Engine Domain Pack／将来Capability規約](./2026-07-19-domain-pack-future-capability-roadmap.md)
-- Input正本: [Miraikanai Engine Input／Action／Device規約](./2026-07-19-input-action-device-architecture-design.md)
-- Collision正本: [Miraikanai Engine Collision／Colliderアーキテクチャ規約](./2026-07-19-collision-collider-architecture-design.md)
-- Debugging正本: [Miraikanai Engine AI可読Debugging／Observability／Replayアーキテクチャ規約](./2026-07-20-ai-readable-debugging-observability-replay-architecture-design.md)
+- 文書ID: mirakan.arch.domain-pack-shooter
+- 状態: review
+- 正本範囲: Shooter PackのWeapon／Shot／Projectile／Damage／Vital／Team／Pickup／Score／Encounter／Game Flow契約、Profile composition、Shooter intent／operation、domain algorithm／failure／fixture
+- 非正本範囲: Domain Pack lifecycle、共有MCD／Game System envelope、Input／Collision／Physics／Camera／UI／Audio／Asset／VFX schema、Runtime phase／capacity、Product roadmapは各依存先を参照
+- 依存: [Product Plan](../00-product/product-plan.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Camera](../06-rendering/camera.md)、[VFX Runtime](../06-rendering/vfx-runtime.md)、[Input](../07-platform/input.md)、[Audio](../07-platform/audio.md)、[Game UI](../07-platform/ui-text-localization-accessibility.md)、[Domain Pack Contract](domain-pack-contract.md)
+- 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
 Miraikanai EngineのShooter機能は、巨大な`ShooterManager`、Genre別Class hierarchy、Particleを兼用する弾、任意Script callbackとして実装しない。共通の`mirakan.feature.shooter_core.c1`を、独立したWeapon、Shot Delivery、Projectile、Combat、Vital、Score、Encounter、Game Flowの型付き契約として提供し、2D top-downと3D TPSは同じ契約へProfileを適用する。
 
-C1の最初の完成形は、既存`mirakan.domain.2d_action.c1`へ`shooter.profile.2d_top_down.c1`をcomposeした5分遊べるsingle-player 2D top-down shooterとする。Phase 6では同じShooter Coreへ`shooter.profile.tps_single_player.c1`を適用する。2Dと3DでWeapon、Damage、Team、Score、Save、Replayの意味をforkしない。
+C1のreference compositionは、`mirakan.domain.2d_action.c1`へ`shooter.profile.2d_top_down.c1`をcomposeしたsingle-player 2D top-down shooterと、同じShooter Coreへ`shooter.profile.tps_single_player.c1`を適用したsingle-player TPSである。2Dと3DでWeapon、Damage、Team、Score、Save、Replayの意味をforkしない。
 
-人間とAIが編集するのは、version付きDefinition、Semantic Catalog、Requirement、Profileである。実行時はC++23のEngine Standard Game Systemまたは同じPublic Contractへ適合するProject実装が、固定Phase、bounded queue、単一State ownerに従って評価する。
+人間とAIが編集するのは、version付きDefinition、Semantic Catalog、Requirement、Profileである。実行時はC++23のEngine Standard Game Systemまたは同じPublic Contractへ適合するProject実装が、Runtime ownerのscheduling、bounded queue、単一State ownerに従って評価する。
 
 本規約の中心不変条件は次である。
 
@@ -28,7 +21,7 @@ C1の最初の完成形は、既存`mirakan.domain.2d_action.c1`へ`shooter.prof
 2. Fireは、発射可否、弾薬、cadence、capacity、出力Commandを一つの原子的処理として解決する。
 3. Stateは型ごとに厳密に一つのGame Systemだけが所有し、他SystemはCommand、Event、Snapshotだけで接続する。
 4. Target性能に合わせてProjectile数、Damage、敵数、Pattern、Score条件を黙って変更しない。
-5. AIは「銃」「弾」「連射」「強くする」等を文字列類似で即決せず、意味候補、Assumption、Capability、Budget、Testへ解決する。
+5. AIは「銃」「弾」「連射」「強くする」等を文字列類似で即決せず、意味候補、Assumption、Capability、capacity impact、Testへ解決する。
 6. Save／Replay／DebuggingはWeapon、Projectile、Vital、Score、Encounterのauthoritative状態をStable IDとContract versionで再現する。
 
 ## 2. 決定権と境界
@@ -37,64 +30,28 @@ C1の最初の完成形は、既存`mirakan.domain.2d_action.c1`へ`shooter.prof
 |---|---|
 | Shooter語彙、Weapon／Shot／Projectile／Damage／Vital／Score／EncounterのPublic Contract | 本書 |
 | Shooter Intent Resolver、AI質問、Operation、説明、Shooter Eval | 本書 |
-| Shooter Core C1／C2範囲、2D／TPS Profile、Shooter fixture | 本書 |
-| Game System envelope、State owner、dependency graph、Implementation Plan、System Bundle | Game System正本 |
-| GameplayDefinition／Native C++／hybridの選択、Cook、安全制約 | Game実装正本 |
-| tick、Phase、Command／Event順、queue、memory、scale、fault | Runtime正本 |
-| Ray／Shape query、swept projectile、Collision Filter、Hit normalization | Collision正本 |
-| Device、Action、Binding、Remap、InputSnapshot | Input正本 |
-| Camera aim／rig／recoil／shake | Camera規約 |
-| Player／Enemy movement、Character motor、perception、Navigation、behavior | 2D／3D機能計画とPhysics／Navigation／Animation規約。Shooter Profileは必要契約とTemplateだけをcompose |
-| HUD、reticle、score、ammo表示、accessibility | UI規約 |
-| muzzle／trail／impact／explosion表現 | Particle／VFX規約 |
-| shot／impact／reload／music | Audio規約 |
-| Genre Pack適用、更新、競合、Template | Domain Pack正本 |
-| Debug Session、Replay／Rewind、Causality、AI Diagnosis | Debugging正本 |
+| Shooter Core reference schema境界、2D／TPS Profile composition、Shooter fixture | 本書 |
+| Game System envelope、State owner宣言、dependency graph、System Bundle | [Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) |
+| GameplayDefinition／Project C++の選択、Cook、安全制約 | [Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) |
+| tick、phase、Command／Event順、queue、memory、scale、fault | [Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)と[Performance／Capacity](../04-runtime/performance-capacity.md) |
+| Ray／Shape query、swept projectile、Collision Filter、Hit normalization | [Collision](../05-simulation/collision.md) |
+| Device、Action、Binding、Remap、Input Snapshot | [Input](../07-platform/input.md) |
+| Camera aim／rig／recoil／shake | [Camera](../06-rendering/camera.md) |
+| Character motorとmovement | [Physics](../05-simulation/physics.md) |
+| HUD、reticle、score、ammo表示、accessibility | [Game UI](../07-platform/ui-text-localization-accessibility.md) |
+| muzzle／trail／impact／explosion表現 | [VFX Runtime](../06-rendering/vfx-runtime.md) |
+| shot／impact／reload／music | [Audio](../07-platform/audio.md) |
+| Asset import、Cook、package | [Asset Lifecycle](../03-authoring/asset-lifecycle.md) |
+| Pack適用、更新、競合、Template lifecycle | [Domain Pack Contract](domain-pack-contract.md) |
+| Debug Session、Replay／Rewind、Causality、AI Diagnosis | [Debugging／Replay](../04-runtime/debugging-observability-replay.md) |
 
 本書はRenderer、Physics Backend、Input Device、UI Widget、Audio Voiceを再定義しない。Shooter Game Systemは各SubsystemのPublic Portだけを消費し、Vendor object、Render object、native callback、Platform key codeを所有しない。
 
-## 3. C1の対象と対象外
+## 3. Activation境界
 
-### 3.1 `mirakan.feature.shooter_core.c1`
+本文書の型、closed value、algorithm、failure、fixtureは`mirakan.feature.shooter_core.c1`のreference contractである。実際のCapability成熟度、製品Phase、将来機能は[Product Plan](../00-product/product-plan.md)だけが所有する。未有効の機能をunknown enum、optional field、placeholder BackendとしてC1へ流し込まない。
 
-C1は次をProduction候補とする。
-
-- single、automatic、bounded burstのFire Mode
-- hitscanとauthoritative straight projectile
-- single、fixed offsets、even fan、radial、deterministic coneのShot Pattern
-- infinite ammoとmagazine／reserve ammo
-- manual reloadとempty時auto reload
-- primary／secondary Action、1～8 Weapon slot、typed Weapon switch
-- direct Damage、radial Damage、Health、Shield、invulnerability window
-- self／ally／neutral／hostileのTeam relationとfriendly-fire policy
-- defeat、pickup、score、combo、multiplier、session high score
-- Encounter、Wave、Spawn、Boss phase
-- Title、Settings、Ready、Playing、Paused、Result、Restart
-- HUD、reticle、ammo、health、score、critical cue
-- Save／Load、Replay／Rewind、Debug Snapshot
-- 2D top-down Profileと3D single-player TPS Profile
-
-### 3.2 C2候補
-
-- charge、beam、continuous stream、shotgun shell-by-shell reload
-- homing、ricochet、penetration、gravity／ballistic arc、destructible penetration
-- deterministic authored recoilがGameplay aimへ影響するProfile
-- lives、continue、bomb、graze、rank、stage scroll timeline
-- weapon attachment、mod、upgrade、inventory weight
-- aim assist／target friction／snap policy
-- procedural bullet-pattern graph
-- local co-opとsplit input ownership
-
-C2機能は対応するType、State owner、Save、Replay、Budget、Fixtureを本書へ追加し、C1の既存Typeへunknown enumを流し込まない。
-
-### 3.3 C3／別正式仕様
-
-- online multiplayer、replication、prediction、rollback、lag compensation
-- server authority、anti-cheat、matchmaking、backend leaderboard
-- user-generated weapon code、runtime Script、runtime shader generation
-- distributed simulation、cross-platform lockstep
-
-Single-player TPSをmultiplayer-readyと表示しない。将来のNetwork仕様を理由にC1のState owner、Command、Eventを省略することもしない。
+single-player Shooterはnetwork replication、prediction、server authority、matchmakingを含まない。2D／TPS Profileは同じWeapon、Damage、Team、Score、Save、Replay意味を使用し、viewまたはTargetの違いでPublic Contractをforkしない。
 
 ## 4. 正規用語
 
@@ -125,7 +82,7 @@ mirakan.feature.shooter_core.c1
        └─ compose mirakan.domain.tps_single_player.c1
 ```
 
-Feature PackはPublic Contract、Schema、Reference Definition、Validator、AI vocabulary、Test Fixtureを所有する。Profileは既定値、必須Capability、Target budget、Input template、Scene／UI／Audio／VFX templateだけを所有し、Public Contractをforkしない。
+Feature PackはPublic Contract、Schema、Reference Definition、Validator、AI vocabulary、Test Fixtureを所有する。Profileは既定値、必須Capability、scale fixture reference、Input template、Scene／UI／Audio／VFX templateだけを所有し、Public Contractをforkしない。
 
 ### 5.1 `shooter.profile.2d_top_down.c1`
 
@@ -456,6 +413,12 @@ PickupInstanceStateV1
 
 `grant_kind`をdiscriminatorとし、`ammo | health | shield | score`は`grant_amount>0`を必須としてweapon refを持たない。ammoはuint32、health／shieldはfinite binary32のpoints型、scoreはint64とする。`weapon`はweapon refを必須としamountを持たない。C1はone-shot collectionだけとし、respawn、random loot table、inventory weightはC2とする。Pickup Systemはtyped Grant Commandを各State ownerへ送り、Weapon ammo、Vital、Scoreを直接writeしない。
 
+### 6.16 Shooter Game Flow
+
+Shooter Game Flowのclosed stateは`title | settings | ready | playing | paused | result`とする。`restart`はstateではなく、Resultまたは停止済みsessionから新しいPlay sessionを開始するtyped transition actionである。Profileはstateを追加または省略せず、表示画面がないstateもauthoritative遷移として維持する。
+
+Pause、Result、Restartがcadence、reload、Encounter、Save／Replayへ与える効果はGame Flow SystemがShooter Commandとして宣言し、UI visibilityまたはAudio／Animation completionから推測しない。
+
 ## 7. Game SystemとState owner
 
 ### 7.1 Engine Standard System
@@ -476,30 +439,30 @@ PickupInstanceStateV1
 ### 7.2 Runtime data flow
 
 ```text
-T10 InputSnapshot
-  -> T30 Input／AI intent evaluation
+Input Snapshot
+  -> Input／AI intent evaluation
   -> RequestFireCommandV1
   -> Weapon System
        -> hitscan: CollisionQueryRequestV1
-       -> projectile: SpawnShooterProjectileCommandV1 for next T00
+       -> projectile: SpawnShooterProjectileCommandV1
        -> WeaponFireAcceptedEventV1
-  -> T40 Collision query
-  -> T60 CollisionQueryResultV1／Contact normalization
-  -> T70 ShotHitEventV1
+  -> Collision query／normalization
+  -> CollisionQueryResultV1
+  -> ShotHitEventV1
   -> ApplyDamageCommandV1
   -> Combat System
   -> ApplyVitalDeltaCommandV1
   -> Vital System
   -> DamageAppliedEventV1／DefeatEventV1
        -> Score／Encounter／Game Flow
-       -> T90 HUD／Audio／VFX／Camera Presentation
-  -> T100 Replay checkpoint
-  -> T110 immutable Snapshot publish
+       -> HUD／Audio／VFX／Camera Presentation
+  -> Replay checkpoint
+  -> immutable Snapshot publish
 ```
 
-Projectile spawnはWeaponのFire transactionでcapacityを予約し、次の`T00`でShooter Projectile Systemへactivateする。muzzle Audio／VFXは同tick`T90`で開始できるが、Presentation Projectileの位置を次tickのauthoritative Projectile位置として読み戻さない。
+正確な実行phase、message merge、publish時点は[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)を参照する。Projectile spawnはWeaponのFire transactionでcapacityを予約し、Shooter Projectile Systemへ次の有効なactivation境界で渡す。muzzle Audio／VFXはPresentationとして開始できるが、その位置をauthoritative Projectile位置として読み戻さない。
 
-hitscanはT30でqueryを生成し、Collision規約どおりT40で実行、T60でpublish、T70でDamageへ接続する。同じtickに同期Physics objectへ直接raycastするProject callbackを公開しない。
+hitscanはWeapon評価でqueryを生成し、Collision ownerの実行とpublishを経てDamageへ接続する。同期Physics objectへ直接raycastするProject callbackを公開しない。
 
 Pickup overlapはCollisionの正規化EvidenceをPickup Systemが消費し、`pickup_instance_id, collector StableId`順に候補を決める。同じPickupへ同tickに複数collectorが接触した場合はcanonical先頭だけを`pending_grant`へ遷移し、transaction ID付きGrant Commandを対象State ownerへ送る。ownerがgrantを適用して`PickupGrantAcceptedEventV1`を返した時だけ`collected`へ遷移し、full ammo／Health等で`PickupGrantRejectedEventV1`を返した場合は`available`へ戻す。pending中の重複collectionを許可しない。
 
@@ -512,7 +475,7 @@ Pickup overlapはCollisionの正規化EvidenceをPickup Systemが消費し、`pi
 3. ammo cost、Pattern shot count、Projectile spawn数、Collision query数を計算する。
 4. Projectile pool、Collision query capacity、authoritative Command／Event queueの必要capacityを事前予約する。
 5. すべて成功した場合だけammo、cadence state、reload stateを更新する。
-6. hitscan queryまたは次T00 Projectile spawn Commandを全件生成する。
+6. hitscan queryまたは次のProjectile activation用Commandを全件生成する。
 7. `WeaponFireAcceptedEventV1`を一件生成する。
 
 Pattern 64 Shotのうち32 Shotだけを生成するpartial fire、ammoだけを消費してDeliveryを生成しないfire、capacity不足時にcooldownだけを開始するfireを禁止する。
@@ -583,7 +546,7 @@ HUD、AI behavior、Debuggingは必要なbounded Snapshotだけを読む。Rende
 
 ## 9. Input Action Template
 
-Shooter PackはActionの表示名ではなくSemantic roleを提供し、Project適用時にUUIDv7 Action `StableId`を生成する。
+Shooter PackはActionの表示名ではなくdomain-specific Semantic roleを提供し、Action identity、Value schema、Binding、Remap、Snapshotは[Input](../07-platform/input.md)へ委譲する。Project適用時はInput ownerを通じてAction `StableId`を生成する。
 
 | Semantic role | Value | 2D | TPS | Required |
 |---|---|---:|---:|---:|
@@ -598,7 +561,7 @@ Shooter PackはActionの表示名ではなくSemantic roleを提供し、Project
 | `shooter.previous_weapon` | digital | optional | yes | Profile |
 | `shooter.pause` | digital | yes | yes | yes |
 
-Actionから直接Weapon Stateを書き換えず、T10 `InputSnapshot`をT30のControl／Weapon intent evaluatorがtyped Commandへ変換する。AI、Replay、Controller、Keyboard／Mouse、Touchは同じsemantic Actionを使う。
+Actionから直接Weapon Stateを書き換えず、Input SnapshotをControl／Weapon intent evaluatorがtyped Commandへ変換する。AI、Replay、Controller、Keyboard／Mouse、Touchは同じsemantic Actionを使う。
 
 User Remap、toggle／hold、sensitivity、dead zone、left-handed layoutはInput規約が所有する。Difficulty ProfileがUser Remapを変更しない。
 
@@ -614,7 +577,7 @@ User Remap、toggle／hold、sensitivity、dead zone、left-handed layoutはInpu
 | Defeat | score／result | defeat cue | defeat effect | director request |
 | Reload | ammo progress | reload cue | optional prop | none |
 
-Presentation cueの失敗、Voice不足、VFX drop、Camera unavailableでFire、Damage、Score結果を変更しない。critical cueがBudgetで出せない場合はPresentation Qualificationを失敗させるが、Gameplay Eventをdropしない。
+Presentation cueの失敗、Voice不足、VFX drop、Camera unavailableでFire、Damage、Score結果を変更しない。critical cueがownerのcapacity内で出せない場合はPresentation Qualificationを失敗させるが、Gameplay Eventをdropしない。
 
 Camera recoilはC1ではPresentation-onlyであり、Gameplay aim、Shot direction、Collision query、Save transformへ戻さない。将来authoritative recoilを追加する場合は独立`AimStateV2`と専用Profileを必要とする。
 
@@ -700,7 +663,7 @@ ResolverはSource termごとにEvidence Requirement IDとconfidenceを返す。c
 | `operation.shooter.configure_game_flow` | R1 | Title／Ready／Pause／Result／Restart差分 |
 | `operation.shooter.configure_difficulty` | R2 | 許可軸、fidelity floor、capacity差分 |
 | `operation.shooter.apply_profile` | R2 | Pack／Input／UI／Asset closure |
-| `operation.shooter.propose_native_variant` | R3 | Native Source、Test、Budget、Promotion案 |
+| `operation.shooter.propose_native_variant` | R3 | Native Source、Test、capacity evidence、Promotion案 |
 
 AI ProviderへC++ pointer、Runtime handle、unbounded projectile list、raw Physics objectを渡さない。Search／Readは必要なCatalog entryとbounded Snapshotだけを返す。
 
@@ -719,7 +682,7 @@ Shooter Workspaceは専用別Editorではなく、既存Scene、Outliner、Inspe
 
 PreviewはSource Definitionと同じC++ evaluator、Collision query normalization、RNG、Target Profileを使う。Editor専用の簡易弾道式を正解系にしない。
 
-AI変更はRequirement、Before／After、Gameplay差分、Presentation差分、Budget、Testを分けて表示する。「Damage +10」と「muzzle flashを強くする」を同じ変更としてまとめない。
+AI変更はRequirement、Before／After、Gameplay差分、Presentation差分、capacity impact、Testを分けて表示する。「Damage +10」と「muzzle flashを強くする」を同じ変更としてまとめない。
 
 ## 13. Save、Replay、Migration
 
@@ -922,10 +885,11 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - Low Impact既定を不要質問する率5%以下
 - 未対応C2／C3機能をC1成功として返す件数0
 - AI／手動Editor／Project C++ Commandが同じDefinition hashとRuntime結果へ収束
-- ExplainがField、理由、Assumption、代替、Budget、Testを返す
+- ExplainがField、理由、Assumption、代替、capacity impact、Testを返す
 
 ### 16.7 Performance／Soak
 
+- `2d_shooter_c1_v1`、`2d_crowded_battle_v1`、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`をnamed reference scenarioとして固定する
 - 14.2節の2D／TPS Fixtureを各Targetで120秒×5 run
 - 10分soak、spawn／destroy churn、pause／restart、Save／Load
 - CPU／memory／queue／pool high-water、P95／P99／P99.9
@@ -933,68 +897,13 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - Replay hash一致、Presentation degradation時もGameplay一致
 - Project固有Scaleが組込みFixtureを超える場合の再Qualification
 
-## 17. 導入順序
+## 17. Qualification closure
 
-| Work Package | Phase | 成果物 | Promotion Gate |
-|---|---:|---|---|
-| `SH0_contract_fixture` | 0 | Shooter Type、Command／Event／Snapshot、Semantic Catalog、negative fixture | MCD生成、round-trip、owner／phase／Save graph。Runtime Game実装なし |
-| `SH1_headless_core` | 3 | Weapon、Projectile、Combat、Vital、Pickup、Score、Encounterのportable reference | deterministic headless test、Save／Replay、fault、capacity |
-| `SH2_2d_top_down_vertical` | 3 | 5分遊べる2D top-down shooter | Title→Result、3 enemy、Wave、Boss phase、score、`2d_shooter_c1_v1` |
-| `SH3_ai_authoring` | 4 | Prompt→質問→Profile→First Playable→再編集 | Semantic Eval、ChangeSet安全性、manual／AI収束 |
-| `SH4_tps_profile` | 6 | 同じCore Contractのsingle-player TPS | aim、hitscan／projectile、reload、switch、Team、`tps_shooter_c1_v1` |
-| `SH5_mobile` | 7 | 2D、次にTPSのMobile Profile | touch／controller、thermal、memory、Package、Store |
-| `SH6_c2_features` | 8以後 | 個別Feature Pack | 機能ごとの契約、Fixture、Budget、Save／Replay |
+Shooter reference Packは、本文書の全schema、closed enum、境界値、Fire transaction、canonical ordering、State owner、Save／Replay、failureと16節のfixtureを同じPublic Contractで検証する。Domain Packとしてのinstall／apply／update／remove、Project ChangeSet、qualification receiptは[Domain Pack Contract](domain-pack-contract.md)を使い、Capability成熟度と実装順序は[Product Plan](../00-product/product-plan.md)へ委譲する。
 
-後段Packageは前段のPublic ContractとReceiptへ依存し、未検証prototypeまたはProject固有ClassをProduction基盤にしない。
+2D top-downとsingle-player TPSは同じWeapon、Projectile、Damage、Vital、Pickup、Score、Save／Replay契約へ適合する。Profile固有のCamera、Input、UI、Audio、VFX、Asset templateは各ownerのschemaを参照し、同じFieldまたは固定値を本Packへ再定義しない。
 
-## 18. Definition of Done
-
-1. `mirakan.feature.shooter_core.c1`のManifest、Schema、Catalog、Profile、Validator、Fixtureがある。
-2. Weapon、Projectile、Combat、Vital、Pickup、Score、Encounter、Game FlowのState ownerが一意である。
-3. Fire transactionがammo、cadence、capacity、Commandを原子的に処理する。
-4. hitscanとProjectileがCollision正本のQuery、canonical Hit、fixed Phaseを使う。
-5. VFX／Audio／Camera／HUDがauthoritative Gameplayへ逆入力しない。
-6. 2D top-down shooterがTitleからResultまで5分遊べ、Save／Load、Replay、Restartできる。
-7. `2d_shooter_c1_v1`で2,048 live Projectile、256 spawn／tick、authoritative drop 0、1080p60を満たす。
-8. AIが曖昧語をtyped Intent、必要質問、Assumption、Capability、Budget、Testへ解決する。
-9. AI、手動Editor、Project C++が同じPublic ContractとRuntime結果へ収束する。
-10. C2／C3機能を未実装のままC1 Capabilityとして公開しない。
-11. Project intentが基準Fixtureを超える場合に固有Fixtureを生成し、Gameplayを黙って削らない。
-12. DebuggingでInput→Fire→Hit→Damage→Defeat→Scoreの因果をStable ID付きEvidenceとして追跡できる。
-
-## 19. 有名Engineの確認結果と採用判断
-
-### 19.1 Unity
-
-UnityはInput Actionで論理操作とDevice controlを分離し、ScriptableObjectをGameObjectから独立した共有data Assetとして提供する。Unity公式のmodular architecture資料は、単一責務Component、data-driven設計、Event channelによる疎結合を推奨する。
-
-Miraikanaiは、ActionとDeviceの分離、DefinitionをRuntime instanceから分ける原則、疎結合Eventを採用する。一方、任意MonoBehaviour、ScriptableObject instanceをPublic Contract、State owner、Save identityとして直接公開しない。
-
-### 19.2 Unreal Engine／Lyra
-
-Unreal Gameplay FrameworkはGameMode／GameState、Controller、Pawn、HUD、Cameraの責務を分ける。LyraはGameplay Ability Systemを使い、Ability、Attribute、Effect、Tag、Game Phaseを組み合わせ、InventoryとEquipment、Fire／Reload Ability、ammo、Health、Damage、Team、Gameplay Cueを分離する。
-
-Miraikanaiは、Rule／State／Control／Pawn presentationの分離、Weapon Definitionとequipped instanceの分離、DamageをHealth直接writeから分離する原則を採用する。一方、Unreal Class hierarchy、Blueprint VM、GAS replication semantics、Gameplay Tag文字列を実装互換で模倣しない。
-
-### 19.3 Godot
-
-GodotはNodeをSceneへcomposeし、Resourceをdata container、Signalを参照不要の通知として使う。
-
-Miraikanaiは、小さい責務のSystem／Definitionをcomposeする原則を採用する。一方、Scene tree path、untyped Signal名、自由Script callbackをShooter contract、Save identity、Runtime phaseに使用しない。
-
-### 19.4 Miraikanaiの独自判断
-
-有名Engineの共通点は、Shooterという一枚岩のSubsystemを提供することではなく、Input、data、object／component、rule、event、presentationを組み合わせることである。Miraikanaiはその合成性を維持しつつ、AIが安全に扱うために次を追加する。
-
-- exact version付きType、Command、Event、Snapshot
-- State ownerとfixed Phaseの機械検証
-- Semantic Resolver、必要質問、Assumption、禁止推測
-- atomic Fire transactionとbounded capacity
-- Save／Replay／Causalityの同一ID体系
-- GameplayとPresentationの逆依存禁止
-- Target別Scale FixtureとGameplay fidelity floor
-
-## 20. 公式資料
+## 18. 公式資料
 
 - [Unity Manual: ScriptableObject](https://docs.unity3d.com/6000.5/Documentation/Manual/class-ScriptableObject.html)
 - [Unity Input System: Actions](https://docs.unity3d.com/Packages/com.unity.inputsystem@1.6/manual/Actions.html)
@@ -1007,4 +916,4 @@ Miraikanaiは、小さい責務のSystem／Definitionをcomposeする原則を�
 - [Godot: Resources](https://docs.godotengine.org/en/stable/tutorials/scripting/resources.html)
 - [Godot: Using signals](https://docs.godotengine.org/en/stable/getting_started/step_by_step/signals.html)
 
-外部資料は責務分離とAuthoring先例の確認に使用する。MiraikanaiのType、ID、Phase、Risk、Budget、Save、Replay、AI Operationは本規約が決定し、外部EngineのAPI互換性をProduct要件にしない。
+外部資料は責務分離とAuthoring先例の確認に使用する。MiraikanaiのShooter domain Type、State owner、algorithm、failure、Save、Replay、AI Operationは本規約が決定する。共有phase、Risk、budgetは各canonical ownerを参照し、外部EngineのAPI互換性をProduct要件にしない。
