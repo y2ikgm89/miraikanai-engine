@@ -225,7 +225,7 @@ ReflectionProbeDefinitionV1
 
 Static Meshのlightmap UVは専用UV set、0～1範囲、finite、triangle overlap許容率0%、Cook後解像度で4 texel以上のchart paddingを必須とする。C2 reference値は32 texel／m、atlas最大4,096²、1 Level最大64 atlas、irradiance probe間隔0.5～16 m、reflection cubemap 128²×6である。Source Meshが満たさない場合、Importerは生成候補とLoss Reportを提示できるが、既存UVを無断置換しない。
 
-各`LightmapBindingV1.lightmap_atlas_ref`は親`LightingBakeArtifactV1`の`lightmap_atlas_refs[]への所属`をexact Artifact identityで検証し、display name、path、配列indexからatlasを推測しない。`atlas_rect`はfiniteなnormalized `{u_min, v_min, u_max, v_max}`で、全成分を0～1、`u_min < u_max`、`v_min < v_max`とし、参照atlasのextent外または面積0を拒否する。`lightmap_binding_refs[]`内で同じbinding refの反復、または同じ`mesh_submesh_stable_id`を複数回束縛する`duplicate binding`を`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`としてArtifact promotion前に拒否する。
+各`LightmapBindingV1.lightmap_atlas_ref`は親`LightingBakeArtifactV1`の`lightmap_atlas_refs[]`への所属をexact Artifact identityで検証し、display name、path、配列indexからatlasを推測しない。`atlas_rect`はfiniteなnormalized `{u_min, v_min, u_max, v_max}`で、全成分を0～1、`u_min < u_max`、`v_min < v_max`とし、参照atlasのextent外または面積0を拒否する。`lightmap_binding_refs[]`内で同じbinding refの反復、または同じ`mesh_submesh_stable_id`を複数回束縛する`duplicate binding`を`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`としてArtifact promotion前に拒否する。
 
 Probe重複はpriority、volume、Stable IDの順に決定する。未配置領域はC1 Environment IBLへfallbackし、local reflection probeをC1 global IBLと混同しない。geometry、Materialのbaked contribution、static／stationary Light、Environment、Bake Profile、baker toolchain version、quality settingsからSource dependency hashをcanonicalに構成し、そのいずれかのhash変更時だけ該当World Cell Artifactをinvalidateする。
 
