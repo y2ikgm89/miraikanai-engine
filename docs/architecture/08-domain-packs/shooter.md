@@ -51,7 +51,20 @@ C1のreference compositionは、`domain.action_2d`へ`profile.shooter.top_down_2
 
 本文書の型、closed value、algorithm、failure、fixtureは`capability.gameplay.shooter_core`のreference contractである。実際のCapability成熟度、製品Phase、将来機能は[Product Plan](../00-product/product-plan.md)だけが所有する。未有効の機能をunknown enum、optional field、placeholder BackendとしてC1へ流し込まない。
 
-single-player Shooterはnetwork replication、prediction、server authority、matchmakingを含まない。2D／TPS Profileは同じWeapon、Damage、Team、Score、Save、Replay意味を使用し、viewまたはTargetの違いでPublic Contractをforkしない。
+single-player Shooterはnetwork replication、prediction、server authority、matchmakingを含まない。large-session network ShooterはProduct Planの`future.capability.large-session-network-shooter`だけが`planning_only`で追跡し、current Shooter Capability、Phase、Package、Technology Preview claimへ含めない。2D／TPS Profileは同じWeapon、Damage、Team、Score、Save、Replay意味を使用し、viewまたはTargetの違いでPublic Contractをforkしない。
+
+Product Planの`capability.domain.shooter-2d`と`capability.domain.shooter-3d`は本書5節のTarget closureを消費し、次のexact mappingでTarget別`CapabilityTargetActivationV1`行を昇格候補にする。Gate、Requirement、Phase schedulingの正本は[Product Plan §11.4](../00-product/product-plan.md#114-product-phase-registry)であり、本表はShooter Owner側のcross-document conformance mappingである。
+
+| Capability | Target Activation row | Phase Gate | Requirement | Fixture | Freshness |
+|---|---|---|---|---|---|
+| `capability.domain.shooter-2d` | `{capability.domain.shooter-2d, target.windows.desktop}` | `gate.product.phase-3-manual-2d` | `requirement.product.manual-first-playable-2d` | `fixture.product.shooter-2d` | `policy.evidence.target-device.v1` |
+| `capability.domain.shooter-2d` | `{capability.domain.shooter-2d, target.android.mobile}` | `gate.product.phase-7-android-runtime-2d` | `requirement.target.mobile-runtime-2d` | `fixture.product.shooter-2d` | `policy.evidence.target-device.v1` |
+| `capability.domain.shooter-2d` | `{capability.domain.shooter-2d, target.apple.mobile}` | `gate.product.phase-7-apple-runtime-2d` | `requirement.target.mobile-runtime-2d` | `fixture.product.shooter-2d` | `policy.evidence.target-device.v1` |
+| `capability.domain.shooter-3d` | `{capability.domain.shooter-3d, target.windows.desktop}` | `gate.product.phase-6-first-playable-3d` | `requirement.product.first-playable-3d` | `fixture.product.shooter-arena-3d` | `policy.evidence.target-device.v1` |
+| `capability.domain.shooter-3d` | `{capability.domain.shooter-3d, target.android.mobile}` | `gate.product.phase-7-android-runtime-3d` | `requirement.target.mobile-runtime-3d` | `fixture.product.shooter-arena-3d` | `policy.evidence.target-device.v1` |
+| `capability.domain.shooter-3d` | `{capability.domain.shooter-3d, target.apple.mobile}` | `gate.product.phase-7-apple-runtime-3d` | `requirement.target.mobile-runtime-3d` | `fixture.product.shooter-arena-3d` | `policy.evidence.target-device.v1` |
+
+Phase 3／6 ReceiptはWindows行だけ、Phase 7 Receiptは該当するAndroidまたはApple行だけへ適用する。Windows Receipt、反対側Mobile Target、別dimension、Phase 8 C2 genre Receiptの流用を拒否し、OS／driver／device／firmwareまたはpackage artifactが変わった行はProduct Planのfreshness ruleに従って再Qualificationする。
 
 ## 4. 正規用語
 
@@ -148,7 +161,7 @@ ShooterPerceptionBindingV1
 
 ShooterはこれらのField、capacity値、failure規則を再定義せず、Profile bindingと統合fixtureだけを所有する。
 
-FPS viewは現在のShooter reference contractの対象外である。将来scope、成熟度、activation、schema／Profile追加の要否は[Product Plan](../00-product/product-plan.md)だけが決定する。
+FPS viewは現在のShooter reference contractの対象外である。将来scope、成熟度、activation、schema／Profile追加の要否は[Product Plan Future Registry](../00-product/product-plan.md#8-future-portfolio)のexact `future.capability.first-person-shooter-profile`だけが`planning_only`で追跡し、current 3D ShooterまたはTechnology Previewの対応claimへ読み替えない。
 
 ## 6. 正規Data Model
 
@@ -1031,7 +1044,7 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 
 両fixtureはTitle→Settings→Title→Ready→Playing→Paused→Playing→Resultを6.16節の遷移表どおり完走し、設定のapply／revert／last-known-good、perception境界とtarget loss、Nav／observer／ownerのstale generation、同tick Timer／fireのcanonical order、Save／Load／Replay後の同一target・fire intent・state hashを検証する。共通OwnerとShooter Profileが宣言する各capacityのexactとexact +1、dependency failure、unsupported Target、partial applyを注入し、失敗時は各Ownerのtyped result、last-valid generation、authoritative state不変を照合する。共通failure IDや数値はリンク先Ownerから取得し、本書へ複写しない。
 
-2DとTPSの手動作成、AI生成、手動再編集、AI再編集は同じSourceとoperationを使い、Accessibility、keyboard／controller、および2Dのtouchを含むTarget別Receiptへ結び付ける。[Product Planのcross-genre C2 gate](../00-product/product-plan.md)はこれらのReceiptを消費するが、Shooter単独の合格を汎用2D Production表示へ代用しない。
+2DとTPSの手動作成、AI生成、手動再編集、AI再編集は同じSourceとoperationを使い、Accessibility、keyboard／controller、および2Dのtouchを含む3節のTarget別Receiptへ結び付ける。[Product Planのcross-genre C2 gate](../00-product/product-plan.md)はこれらのReceiptを消費するが、Shooter単独の合格を汎用2D Production表示へ代用しない。
 
 ### 16.8 Performance／Soak
 
