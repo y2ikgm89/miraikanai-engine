@@ -344,6 +344,14 @@ Native buildは`NativeModuleBuildEvidenceV1`として次のdomain evidenceだけ
 
 Source、generated Module／C ABI Header、Dependency Set、Build artifact、build evidenceのhashが一つでも一致しなければload候補にしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。Governanceからauthorizationが返らないartifactはinactiveに保ち、Projectは直前のQualified Variantを参照し続ける。
 
+### 9.3 AI生成SourceとCode owner gate
+
+AIが新規Native Sourceを生成または既存Native Sourceを変更する前に、[AI Security／Approval](../01-governance/ai-security-approval.md#94-code-owner-assignmentとapproval)の有効な`CodeOwnerAssignmentV1`をexact module／path scopeへ解決する。Assignment不在、期限切れ、revoked、Scope外、qualification／independence Receipt不成立ではTaskを`AwaitingCodeOwner`、Editorを`awaiting_code_owner`にし、Source Workerを起動しない。
+
+Source生成後は、同じSource revision、exact Diff hash、Target別Build Receipt集合、独立`review_receipt_ref`に対する`CodeOwnerApprovalV1.decision=approved`をPromotion前に必須とする。Diff、base Source revision、generated contract、Dependency Set、Toolchain、Target、Build artifactのいずれかが変われば再Build／再Review／再Approvalする。Gameplay intent承認、AI Reviewer、Compiler成功、prequalified Packの過去承認を新しいDiffのCode owner承認として流用しない。
+
+Beginner MVPはDefinition-firstと既にQualification済みのPack／Variantだけを使用し、新規Native Sourceを生成しない。既存Packはexact package／module hash、license、Target、qualification、revocationを照合し、変更なしで利用する。RequirementがDefinition／Packで成立しない場合はNativeを暗黙生成せず`capability_unavailable`とする。Advanced Project Source ActivationはこのCode owner gate、Source sandbox、G0–G7、Promotionを独立に満たす場合だけ有効であり、Beginner First Playableの合格をActivation根拠にしない。
+
 ## 10. PreviewとPackage
 
 Windows Preview sequenceを次で固定する。
@@ -373,6 +381,8 @@ Save互換検証なしに旧Play stateを新Processへ移さない。Preview art
 | Mobile C++変更 | rebuild、re-sign、reinstallなしのPreviewを禁止 |
 | 未宣言import／未許可Header／Module cycle | Source Gate失敗、Header方式へFallbackしない |
 | `import std`／BMI／Module tooling不成立 | Active C++ Frontend Profile失敗、artifactを生成しない |
+| Code owner Assignment不在／失効／Scope外 | Source Workerを起動せず`AwaitingCodeOwner`。BeginnerはDefinition／prequalified Packへ再Plan |
+| Code owner ApprovalのDiff／revision／Receipt不一致 | Promotion／load拒否、Sourceはinactive Stagingに隔離 |
 | Native Widget manifest／Capability／Target不一致 | Widget callback登録前にreject、UI規約のfallbackへ遷移 |
 | Native Widget callback fault／timeout／capacity超過 | callback output全破棄、GameHost fault、同Module instance再利用禁止 |
 
@@ -402,11 +412,13 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - GameHostを100回再起動し、Editor Processのhandle／memoryが増加しない。
 - Windows Shipping、Android、Appleのclean static-link packageが同じModule revision hashを記録する。
 - AI生成SourceがGovernance authorization前に正規Project／Editor／Shippingへloadされない。
+- AI生成Sourceは有効なScope付き`CodeOwnerAssignmentV1`なしに生成されず、exact Diffの`CodeOwnerApprovalV1`なしにPromotion／loadされない。
+- Beginner Profileでは新規Native Source Taskが0件で、Definition／prequalified Pack不能な要求を`capability_unavailable`として停止する。
 - CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 - C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
 
-C1完了条件は、2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。
+本Native CapabilityのC1完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Code owner gate、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateではない。
 
 C2 UI extension完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として実装し、Governance-authorized source、UI Designer fallback projection、Windows GameHost Preview、Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを合格することである。これはC1 NativeGameModule完了条件を置き換えない。
 

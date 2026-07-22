@@ -5,7 +5,7 @@
 - 正本範囲: AI task authorization、Risk、Trust boundary、不変Engine、Sandbox、Credential、Provider／MCP／CLI security、Preview、人間承認、Activation、Promotion、拒否
 - 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持。これらはAI Verification／Provenanceを参照する
 - 依存: [Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
-- 外部根拠検証日: 2026-07-22
+- 外部根拠検証日: 2026-07-23
 
 ## 1. 結論、優先順位、用語
 
@@ -53,6 +53,7 @@ Game制作とEngine製品開発は別Profile、別Repository、別Authorization�
 | Actor | Trust | 許可する役割 | 禁止 |
 |---|---|---|---|
 | Human Author | 認証済み主体 | 要件、Gameplay approval、手動Proposal | Policy外Token作成、技術Gate代替 |
+| Code Owner | Qualification済みの認証済み主体 | 割当ScopeのNative／Shader exact Diff review、`CodeOwnerApprovalV1`判断 | Gameplay approval代替、自己割当、Scope外承認、Gate／Policy代替 |
 | Editor Shell | 信頼済みClient | Proposal、Diff、Approval要求、typed Command | Validator迂回書込 |
 | Policy Service | 信頼済みAuthority | Risk分類、Policy解決、Envelope／Attestation署名 | Artifact生成、自己Approval |
 | Approval Service | 信頼済みAuthority | 人間認証、exact CandidateへのApproval署名 | 判断代行、Artifact変更 |
@@ -137,10 +138,10 @@ repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、
 
 ### 3.2 Task state machine
 
-正規状態は次の14個だけである。
+正規状態は次の15個だけである。
 
     Draft, ResolvingRequirements, AwaitingAuthorization, Ready
-    Running, Validating, AwaitingApproval, Promoting
+    Running, Validating, AwaitingCodeOwner, AwaitingApproval, Promoting
     AwaitingUserInput
     Completed, Cancelled, Expired, Failed, Rejected
 
@@ -155,15 +156,20 @@ repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、
 - Authorization前にSource Workerまたは変更Toolを起動しない。
 - Envelope外のOperation、Path、Network、Dependencyを実行しない。
 - Input revision、Contract、Policy、Profile、Tool catalogが変わったTaskを継続しない。
+- Native／Shader Source生成前に有効なCode owner assignmentがなく、またはPromotion前にexact DiffへのCode owner approvalがなければ進めない。
 - Approvalは表示したDiff、Gate result、Artifact hashと完全一致するrevisionだけに有効である。
 - Rejected、Failed、ExpiredのArtifactを昇格しない。
 - CompletedはAuthoritative revision／commitのread-back照合後だけにする。
 
 AwaitingUserInputはResolvingRequirements、Running、Validatingからだけ入る。Authorization前の回答はSpecification draftを更新できる。Authorization後の回答がGoal、Success criteria、Input、Risk、Operation、Path、Network、Dependency、Gate、Approvalへ影響する場合、元TaskをCancelledにし、新Taskと新Envelopeを作る。
 
-修復はMCD RemediationV1があり、同じInput、Envelope内、permission／security／lock／approval／revision drift以外の場合だけ許可する。修復再実行はValidatingからRunningへ戻る遷移であり、正規14状態へ状態を追加しない。修復Proposal再提出はEnvelopeのrepair_attempt_limitを超えてはならない。同じblocking diagnostic＋location＋Stable ID集合が再発し、blocking数が減らない場合は残数があっても即停止する。
+`AwaitingCodeOwner`は、Source生成前の`ResolvingRequirements`またはSource検証後の`Validating`からだけ入る。前者は有効な`CodeOwnerAssignmentV1`が得られるかDefinition／事前Qualification済みPackへPlanを再解決するまでSource Workerを起動しない。後者は同じSource revisionとexact Diff hashへの`CodeOwnerApprovalV1`が得られるまでPromotionへ進めない。解決後は元のstateへ戻して全preconditionを再検証し、このstateから`Running`、`Promoting`、`Completed`へ直接遷移しない。Editor projection名は`awaiting_code_owner`とする。
+
+修復はMCD RemediationV1があり、同じInput、Envelope内、permission／security／lock／approval／revision drift以外の場合だけ許可する。修復再実行はValidatingからRunningへ戻る遷移であり、正規15状態へ状態を追加しない。修復Proposal再提出はEnvelopeのrepair_attempt_limitを超えてはならない。同じblocking diagnostic＋location＋Stable ID集合が再発し、blocking数が減らない場合は残数があっても即停止する。
 
 Atomic commit、許可済みlong-running verification、Release transactionのcritical section開始後は、Cancel／Expiryで結果不明のまま終了表示しない。完了、rollback、read-backのいずれかへ収束させる。
+
+本節の15状態はAI Orchestrator TaskのGovernance stateである。[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationTaskV1.state = queued | running | cancel_requested | succeeded | failed | cancelled`は個々のPackage／Device／Play／Debug実行ledgerであり、相互の状態名をaliasにせず、Operation Receiptから親Taskへ結果を投影する。
 
 ## 4. Risk classとActivation
 
@@ -324,7 +330,7 @@ Upload Serviceはsigned artifactとEvidence chainだけを受け取り、Project
 | 接続 | 公式用途 | 権限にならないもの |
 |---|---|---|
 | Provider API | 製品内Chat、質問、計画、構造化Proposal | Project state、Authorization、Schema |
-| local MCP | 外部ClientのQuery／Proposal | Commit、Activation、Provider設定 |
+| MCP（local STDIO／Activation済みStreamable HTTP） | 外部ClientのQuery／Proposal | Commit、Activation、Provider設定 |
 | conformance済みCLI Agent Host＋Worker | 隔離Source編集、Build、Test | main branch、Release、Credential公開 |
 | Optional Plugin | Shortcut、Panel、Prompt／Skill UX | Engine必須機能、Security Policy |
 
@@ -336,11 +342,11 @@ Credential ownerを分離する。
 - 外部Client＋MCP: CredentialはClient／Userが持ち、Engineは受け取らない。
 - Managed CLI: conformance済みHostまたは専用Brokerが持ち、File／Shell childへ渡さない。
 
-Managed modeはExternalClientSecurityProfileにClientのexact version／hash、認証、Credential storage、Process／Tool child分離、Filesystem／Network sandbox、MCP version、期限、conformance resultを固定する。Profile不在、version差、期限切れ、plain EnvironmentへのCredential露出、raw socket利用ではMCP Proposal modeへ降格する。
+Managed modeは`ExternalClientSecurityProfileV1`にClientのexact version／hash、認証、Credential storage、Process／Tool child分離、Filesystem／Network sandbox、MCP version、期限、conformance resultを固定する。Profile不在、version差、期限切れ、plain EnvironmentへのCredential露出、raw socket利用ではMCP Proposal modeへ降格する。
 
 ### 8.1 Provider Manifest、Prompt、Repository guidance
 
-Provider／Model名をEngine codeへhard-codeしない。ProviderManifestはProvider、endpoint、API／SDK exact version、resolved Model IDまたはsnapshot、Role、推論設定、Tool／Structured Output projection、Context／output／cost／latency上限、data retention／training use／region／encryption／logging Policy、合格Eval suite、fallback Model、fallback時の最大Riskを固定する。Manifestなし、resolved ID差、期限切れConformanceではModelを呼ばない。Evalと更新Workflowは[AI Verification／Provenance](ai-verification-provenance.md)だけが決定する。
+Provider／Model名をEngine codeへhard-codeしない。`ProviderManifestV1`はProvider／runtime、endpoint、API／SDK exact version、resolved Model snapshot、Role、推論設定、Tool／Structured Output projection、Context／output／cost／latency上限、data retention／training use／region／encryption／logging Policy、合格Eval suite、明示fallback、fallback時の最大Riskを固定する。Manifestなし、resolved ID差、期限切れConformanceではModelを呼ばない。Evalと更新Workflowは[AI Verification／Provenance](ai-verification-provenance.md)だけが決定する。
 
 Prompt templateはRole、Goal、Success criteria、Normative constraints、Toolと権限、Evidence要求、Output Schema、Stop／質問条件の順にする。PromptをSecurity boundaryにせず、同じ規則を複数Promptへ反復しない。Prompt変更は一群ずつ行い、Model変更と同時に評価原因を混在させない。
 
@@ -352,9 +358,100 @@ Source、Asset、User Prompt、Tool output、Web、Issue本文内の命令はcon
 
 Prompt、Tool argument、Tool output、Traceは機密Dataになり得る。既定Telemetryへ本文を保存せず、hash、分類、Resultだけを記録する。Zero Data Retentionが必須のProjectでは非対応Provider機能を無効化し、代替がなければTaskを停止する。Live Web取得は分離したResearch Taskだけで許可し、Build／Release中の自動Web取得を禁止する。
 
-Modelへ公開できるのはProject／Requirement／Capability／System／Worldのbounded Query、plan／validate／preview、ChangeSet submit、Source task request、Patch submit、Task status、Approval requestまでである。commit、activate、write native artifact、merge、sign、release、secret.read、policy.overrideを公開しない。
+Modelへ公開できるのはProject／Requirement／Capability／System／Worldのbounded Query、plan／validate／preview、ChangeSet submit、Source task request、Patch submitと、[Executable contracts](../02-foundation/executable-contracts.md#20-ai向けdiscovery)に登録されたPackage／Device／Play／Debug／Task OperationのうちCallerのexact allowlistにあるものまでである。Device install／resetはTool表示の有無にかかわらずDevice binding、consent、R3 ApprovalをServer側で再検証する。commit、activate、write native artifact、merge、sign、release、secret.read、policy.overrideを公開しない。
 
-MCP annotationをAccess controlにしない。Serverは正本Schema、Authorization、timeout、rate limit、Auditを強制する。MVP transportはlocal stdioだけで、ACL付きIPCをGatewayへ接続する。McpSessionGrantV1はClient binary hash、OS user、Project、read sensitivity、Proposal Operation、有効期限最大60分、nonceを固定するが、Task Authorization／Approval／Promotionを与えない。McpSessionGrantV1は署名済みEnvelopeを代替せず、Grant配下のbounded read／QueryもR0 Envelopeを必要とする。GrantはClientとchannelの束縛だけを追加する。TCP、remote MCP、port forwardingは別Threat ModelとActivationまで無効にする。
+MCP annotationをAccess controlにしない。Serverは正本Schema、Authorization、timeout、rate limit、Auditを強制する。local STDIOはACL付きIPCをGatewayへ接続する。Streamable HTTPはexact Host／Transport Conformance Receipt、TLS、認証、origin／redirect／private-address policy、session binding、別Threat ModelとActivationがある場合だけ有効にし、単なるport forwardingを許可しない。`McpSessionGrantV1`は署名済みEnvelopeを代替せず、Grant配下のbounded read／QueryもR0 Envelopeを必要とする。GrantはClientとchannelの束縛だけを追加する。
+
+### 8.3 Caller／Provider／Deployment／Model Profile
+
+Caller互換性をHost brandだけで判定しない。正規判定tupleは`{host profile, transport profile, provider/runtime profile, model snapshot, tool projection, authority profile}`であり、次の6型をMCDへ登録する。
+
+```text
+AiCallerContextV1
+  caller_context_id, authenticated_subject_ref
+  host_profile_ref, transport_profile_ref
+  provider_runtime_profile_ref?, model_snapshot_profile_ref?
+  tool_projection_ref, authority_profile_ref
+  mcp_session_grant_ref?, authorization_envelope_hash
+  host_transport_conformance_receipt_ref
+  provider_tool_conformance_receipt_ref?
+  created_at, expires_at
+
+ExternalClientSecurityProfileV1
+  host_profile_id, host_product_id, host_brand_display_name
+  exact_version, client_binary_sha256, os_identity_binding
+  supported_transport_profile_refs[]
+  credential_owner, credential_storage_profile_ref
+  process_child_policy_ref, filesystem_policy_ref, network_policy_ref
+  protocol_versions[], conformance_receipt_refs[]
+  support_state = supported | proposal_only | not_activated
+  issued_at, expires_at, revoked_at?
+
+McpSessionGrantV1
+  grant_id, client_binary_sha256, host_profile_ref, transport_profile_ref
+  os_user_identity_ref, channel_binding_sha256, project_id
+  read_sensitivity_refs[], allowed_proposal_operation_refs[]
+  issued_at, expires_at, nonce, signature_ref
+
+ProviderManifestV1
+  provider_manifest_id, provider_runtime_profile_ref
+  endpoint_identity_ref, api_sdk_exact_version
+  deployment_profile_ref, model_snapshot_profile_ref
+  role, inference_settings_sha256, tool_projection_ref
+  context_limit, output_limit, cost_limit_ref, latency_limit_ref
+  privacy_policy_ref, retention_policy_ref, region_ref?, encryption_profile_ref, logging_policy_ref
+  eval_receipt_ref, conformance_receipt_ref
+  fallback_policy = disabled | explicit_profile
+  fallback_deployment_profile_ref?, fallback_max_risk?
+  issued_at, expires_at, revoked_at?
+
+InferenceDeploymentProfileV1
+  deployment_profile_id, deployment_kind = cloud_endpoint | local_process_ipc
+  provider_runtime_profile_ref, model_snapshot_profile_ref
+  endpoint_identity_ref?, process_artifact_sha256?, weights_manifest_sha256?
+  quantization_id?, quantization_sha256?, model_license_ref?, model_provenance_ref?
+  required_ram_bytes?, required_vram_bytes?, context_limit
+  process_sandbox_profile_ref?, gpu_isolation_profile_ref?
+  ipc_or_loopback_endpoint_ref?, ipc_auth_profile_ref?, network_policy_ref
+  schema_conformance_receipt_ref, tool_conformance_receipt_ref
+  privacy_policy_ref, logging_policy_ref, retention_policy_ref
+  cpu_limit?, memory_limit_bytes?, gpu_memory_limit_bytes?, wall_time_limit_ms, output_limit_bytes
+  exhaustion_policy = reject_before_start | terminate_and_fail
+  fallback_policy = disabled | explicit_profile
+  fallback_deployment_profile_ref?, fallback_requires_user_confirmation
+  issued_at, expires_at, revoked_at?
+
+ModelSnapshotProfileV1
+  model_snapshot_profile_id
+  model_identity_kind = provider_model_id | local_weights
+  exact_provider_model_id?
+  weights_manifest_sha256?, quantization_id?, quantization_sha256?
+  tokenizer_sha256?, license_ref, provenance_ref
+  declared_context_limit, effective_context_limit
+  supported_schema_profile_refs[], supported_tool_projection_refs[]
+  eval_receipt_refs[], issued_at, expires_at, revoked_at?
+```
+
+`McpSessionGrantV1.expires_at`は`issued_at`から最大60分である。6型のoptional Fieldはkind／transportで必要条件を閉じる。`ModelSnapshotProfileV1`は`provider_model_id`なら`exact_provider_model_id`だけ、`local_weights`ならweights／quantizationの3 Fieldだけを必須にして相互混在を拒否する。`local_process_ipc`ではprocess artifact、weights／quantization、model license／provenance、IPC／loopback認証、local resource上限をすべて必須にする。Host display name、Provider名、Model family名は表示metadataであり、Transport、Tool Schema、Authorityを推測する入力にしない。
+
+| Host profile | 許可Transportの扱い | 対応表示条件 |
+|---|---|---|
+| Editor | direct Provider API、local STDIO MCP、またはActivation済みStreamable HTTP | exact組合せのReceiptと製品内Policyが有効 |
+| ChatGPT web | remote Streamable HTTP MCP／Pluginだけ。local STDIO MCPは非対応 | remote Host／Transport Receiptが有効 |
+| ChatGPT Desktop／Codex host | local STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
+| Codex CLI／Codex IDE | local STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
+| Claude Desktop／Claude Code | Profileに列挙したlocal STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
+| Cursor | Profileに列挙したlocal STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
+
+Receipt不在、期限切れ、version／binary／Transport／Schema差では`supported`と表示せず、read／proposal conformanceだけが成立する場合は`proposal_only`、それもなければ`not_activated`とする。Callerの最大Authorityは`query | proposal | managed_source_edit | build_job`のclosed setであり、Approval、Commit、Activation、Signing、ReleaseはどのHost、Provider、Modelにも付与しない。
+
+### 8.4 Local inference境界
+
+Local inferenceは`InferenceDeploymentProfileV1.deployment_kind=local_process_ipc`としてcloud endpointと別Deploymentにする。起動前にweights／quantization hash、license／provenance、必要RAM／VRAM、effective context、process／GPU isolation、IPCまたはloopback mutual authentication、Schema／Tool conformance、privacy／logging／retention、CPU／memory／GPU／時間／出力上限を検証する。上限不足は起動前拒否、実行中超過はprocess tree終了とfailed Receiptに収束させ、System memoryへの無制限spill、GPU共有contextからの隔離省略、Schema非対応Toolの自然言語代替を禁止する。
+
+fallbackは`disabled`またはexact `fallback_deployment_profile_ref`だけである。Localからcloudへ移る場合は送信data class、Provider、region、retention、費用を再Previewし、新しいCaller Context／Authorizationと明示User確認を必要とする。Network到達性、timeout、resource exhaustionを理由にcloudへ暗黙送信した場合は`diagnostic.ai.silent-cloud-fallback-forbidden`で失敗し、元Taskの状態とProjectを不変にする。
+
+Gemma、Kimi、Qwen、DeepSeek、Grok、GLMその他のModel familyごとのEngine branchを作らない。任意のProvider／local runtime／Modelは同じProfileとConformance Receiptで扱い、Receiptがなければ`proposal_only`または`not_activated`とする。外部Conformance済みHostがlocal modelを使う経路と、Miraikanai自身がlocal runtimeを配布・運用するCapabilityを分ける。first-party local inferenceはFuture incubationであり、MVPまたは初心者First PlayableのCompletion Gateにしない。
 
 ## 9. Preview、technical qualification、人間承認
 
@@ -470,6 +567,45 @@ previous_candidate_hashとrollback_candidate_hashは、先行Candidateが存在�
 
 面白さ、操作感、難易度、Art、Game意図は人間のGameplay approval対象であり、CompilerやAIで代替しない。
 
+### 9.4 Code owner assignmentとapproval
+
+Code owner Role registryは次のclosed entryを持ち、Roleの追加またはqualification policy変更はR4 Product Decisionとする。
+
+| Role ID | 対象Scope | 許可する判断 | 分離条件 |
+|---|---|---|---|
+| `role.code_owner.native_module` | assigned Native module／path | bounded C++ exact Diffの承認／拒否 | Source生成者と別subject、または承認済みindependence policy |
+| `role.code_owner.project_shader` | assigned Shader module／Technique／path | Project Shader exact Diffの承認／拒否 | Source生成者と別subject、または承認済みindependence policy |
+| `role.code_owner.independent_source_reviewer` | assignmentが要求するNative／Shader review | `review_receipt_ref`発行 | Builder／生成Model／Source Workerと別subject |
+
+```text
+CodeOwnerAssignmentV1
+  assignment_id
+  subject_identity_ref
+  path_or_module_scope_refs[]
+  qualification_receipt_ref
+  independence_policy_ref
+  valid_from
+  expires_at
+  revoked_at
+
+CodeOwnerApprovalV1
+  assignment_ref
+  exact_diff_hash
+  source_revision
+  build_receipt_refs[]
+  review_receipt_ref
+  decision
+  issued_at
+```
+
+`CodeOwnerAssignmentV1`は認証済みProject role administratorの要求をApproval ServiceがQualification／Scope／independence registryと照合して署名した場合だけ有効である。AI、Source Worker、割当対象者は自己発行／自己revocationできず、Policy Serviceは主体選定を代行せず署名済みAssignmentを検証する。
+
+`CodeOwnerApprovalV1.decision`は`approved | rejected`のclosed enumであり、共通署名、signer identity、revocationは`MirakanSignedRecordV1` envelopeが所有する。Policy ServiceはAssignmentのsubject、Role、Scope、qualification、independence、期間、revocationと、Approvalのexact Diff、Source revision、全Build Receipt、独立Review Receiptを照合する。Source、Diff、Build input、Toolchain、Target、Assignmentのいずれかが変わればApprovalを失効させる。Code owner判断はG0–G7、Technical Attestation、Human Gameplay Approvalのいずれも代替しない。
+
+AIが新規NativeGameModuleまたはProject Shader Sourceを生成する前に有効なAssignmentがなければTaskを`AwaitingCodeOwner`、Editorを`awaiting_code_owner`にしてSource Workerを起動しない。上級者はowner割当を待つかTaskを取消できる。初心者MVPではSource laneへ進めず、同じRequirementをDefinition-firstで再解決し、表現可能ならGameplayDefinition、Qualification済みのexact Pack／Variantがあればprequalified Pack、どちらもなければ`capability_unavailable`にする。fallbackはPlan／Diffへ明示し、新規Native／Shaderを既存Packと偽装しない。
+
+初心者のGameplay intent承認はCode owner承認を代替せず、初心者にC++／Shader Source reviewを要求して代用しない。Beginner First PlayableのDefinition／prequalified Pack gateと、Advanced Project Source Activation、およびExternal AgentのProposal／Source／Promotion gateは独立である。前者の合格を理由に後者をactivateしない。
+
 ## 10. PromotionとActivation
 
 Source Worker終了後、Brokerは返却DeltaをHost Stagingへ適用し、base commitとの差分を再計算する。AI提出File listやguest diffを正本にしない。
@@ -506,6 +642,10 @@ Engine baseline更新は全Attestationを失効させ、明示Migration、全再
 | Human rejection | Rejected終端。修正は新Task |
 | Revision drift | 現Task停止、新ContextとEnvelope |
 | Receipt／hash／Approval mismatch | Security event、Promotion拒否 |
+| Candidate／Device generation／Package Receipt mismatch | Operation開始前に失敗。最新対象へ自動追従しない |
+| Host／Model／Deployment Profile失効 | 新規Tool／推論呼出しを停止し、再Conformanceまで`proposal_only`または`not_activated` |
+| Code owner assignment／approval不在または失効 | `AwaitingCodeOwner`。Source生成／Promotionなし、BeginnerはDefinition／prequalified Packへ再Plan |
+| Local inferenceから未確認cloud fallback | `diagnostic.ai.silent-cloud-fallback-forbidden`、送信0、Project不変 |
 | Runtime fault | Session停止、Artifact invalid化、last-known-goodへRollback |
 | Credential／Authorization侵害成功 | Incident、Provider／Worker停止、Key／Envelope失効、Artifact隔離 |
 
@@ -533,6 +673,15 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - Upload Serviceへの未署名Artifact、古いEvidence、別Application／Channel／Version、過剰Role。
 - 未Activation OperationのTool公開または内部成功。
 - 未適格System、未承認Change、別Candidate hashを含むActivation。
+- `operation.build.request_package`後にProject revisionまたはCandidate rootを差し替え、古いTaskを継続する試行。
+- pair済みDeviceを同名の別Deviceまたは新generationへ交換し、古いinstall／launch／reset／remote Debug grantを再利用する試行。
+- Candidate、Target、artifact hashのいずれかが異なるPackage Receiptによるinstall／reset。
+- consentまたはR3 Approvalなしの`operation.device.install`／`operation.device.reset_data`と、install Approvalをlaunch／smoke／Debugへ権限継承させる試行。
+- Evidence ref不在、別Session／revision、gap隠蔽、reproductionなしの偽`validated_cause`を`operation.debug.validate_finding`へ渡す試行。`diagnostic.debug.finding-evidence-invalid`で拒否する。
+- 期限切れ／失効／binary hash不一致の`ExternalClientSecurityProfileV1`、`ProviderManifestV1`、`InferenceDeploymentProfileV1`、`ModelSnapshotProfileV1`によるTool／推論呼出し。
+- ChatGPT webをlocal STDIO Hostとして登録する試行、またはClaude Desktop／Claude Code／CursorをConformance Receiptなしで`supported`表示する試行。
+- Local runtime timeout、RAM／VRAM不足、Tool Schema不一致を契機に、Preview、User確認、新Authorizationなしでcloudへ送る試行。送信byte 0と`diagnostic.ai.silent-cloud-fallback-forbidden`を確認する。
+- Assignment不在／期限切れ／Scope外／revoked、または別Diff／Source revisionの`CodeOwnerApprovalV1`でNative／Shader生成またはPromotionする試行。
 
 ## 13. 完了条件
 
@@ -540,10 +689,13 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - R0–R5、A0–A3、Task state、修復停止、Expiry、read-backがPolicy testで強制される。
 - Game制作のTool、Filesystem、Worker、ContextからEngine write経路とEngine sourceが除かれる。
 - API、MCP、CLI、EditorのProposalが同じGatewayとPolicyへ到達する。
+- Package／Device／Play／Debug／Taskの14 Operationが同じ`OperationTaskV1` binding、Receipt、cancel規則へ到達する。
+- Host／Transport／Provider runtime／Model snapshot／Tool projection／Authorityが別Profileで評価され、対応表示は有効なConformance Receiptに束縛される。
 - Sandbox不能、Baseline mismatch、Capability不足、Credential分離不成立でfail closedになる。
 - Project data、Bounded Native、Bounded Shaderの境界とG0–G7適用laneが機械検査される。
 - Builder／Reviewer AI、Policy、Approval、Promotion、Activation、Release各Authorityが分離される。
 - 初心者がSourceを読まず、意図、Capability、Evidence、Preview、制限、Rollbackを確認できる。
+- Code owner不在時にNative／Shader Source生成が停止し、初心者がDefinition-first／prequalified Packへ明示的にfallbackする。
 - System、Feature、Game Candidateのhash階層と変更影響失効が強制される。
 - current Candidate、Project revision、Git commit、ReleaseをAIが直接作れない。
 - Security fixtureが正規状態不変を確認する。
@@ -553,5 +705,12 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
 - [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785)
 - [RFC 7518 JSON Web Algorithms](https://www.rfc-editor.org/rfc/rfc7518)
+- [Model Context Protocol 2025-11-25 specification](https://modelcontextprotocol.io/specification/2025-11-25)
+- [OpenAI: Apps in ChatGPT and MCP／Codex client support](https://learn.chatgpt.com/docs/extend/mcp)
+- [Anthropic: Desktop Extensions and local MCP servers](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
+- [Anthropic: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)
+- [Cursor: Model Context Protocol](https://cursor.com/docs/mcp)
+- [Ollama: OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility)
+- [llama.cpp: OpenAI-compatible server and MCP proxy](https://github.com/ggml-org/llama.cpp/tree/master/tools/server)
 
-外部資料はTrust分離、署名、Artifact verificationの根拠であり、Miraikanai固有のRisk、Operation、Approval、Sandbox既定を外部製品へ委ねない。
+外部資料は2026-07-23に検証した。MCPの標準Transport、各Host／runtimeが公開する接続方式、local endpointの性質を確認する根拠であり、Miraikanai固有のRisk、Operation、Approval、Sandbox、Conformance結果を外部製品へ委ねない。OpenAI互換endpointという表示だけではTool／Schema conformanceを意味しない。

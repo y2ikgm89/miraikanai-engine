@@ -305,13 +305,15 @@ ID構文とProject pathは[Naming／Project layout](../02-foundation/naming-proj
 
 ## 6. AI planとcode generation
 
-AIはGameSpecからsemantic roleを抽出し、Catalogを検索し、候補Systemだけを読む。必要なCapabilityだけを追加取得し、既存composition、Project Definition、bounded Native C++の順に比較する。全System、全Schema、全Backend資料を一つのPromptへ投入しない。未知IDをfuzzy補正せず、候補IDとcurrent Contract hashを持つDiagnosticを返す。
+AIはGameSpecからsemantic roleを抽出し、Catalogを検索し、候補Systemだけを読む。必要なCapabilityだけを追加取得し、既存composition、Project Definition、prequalified Pack、bounded Project Sourceの順に比較する。全System、全Schema、全Backend資料を一つのPromptへ投入しない。未知IDをfuzzy補正せず、候補IDとcurrent Contract hashを持つDiagnosticを返す。
 
-`SystemImplementationPlanV1`はPlan ID、Project revision、Contract set hash、System ref、Requirement、Target、candidate Variant、selected Variant、unmet Capability、Behavior Budget ref、Benchmark／equivalence fixture、Save／Replay impact、Build impact、Risk、assumption、rejected alternative、fallback、dispositionを持つ。
+`SystemImplementationPlanV1`はPlan ID、Project revision、Contract set hash、System ref、Requirement、Target、authoring profile、candidate Variant、selected Variant、implementation origin、unmet Capability、Behavior Budget ref、Benchmark／equivalence fixture、Save／Replay impact、Build impact、Risk、assumption、rejected alternative、fallback、optional Code owner assignment ref、dispositionを持つ。
 
-`selected_variant`は`gameplay_definition`、`native_game_module`、`hybrid`、`target_specialized_set`のいずれかである。`disposition`は`ready_to_stage`、`question_required`、`capability_unavailable`、`budget_missing`、`rejected`であり、`ready_to_stage`はCommitまたはPromotion承認ではない。
+`selected_variant`は`gameplay_definition`、`native_game_module`、`hybrid`、`target_specialized_set`のいずれか、`implementation_origin`は`project_definition | prequalified_pack | project_source`のいずれかである。`disposition`は`ready_to_stage`、`awaiting_code_owner`、`question_required`、`capability_unavailable`、`budget_missing`、`rejected`であり、`ready_to_stage`はCommitまたはPromotion承認ではない。
 
-初心者へC++かDefinitionかを質問しない。AIはGame要件の不足だけを質問し、実装方式はPlanへ根拠付きで記録する。上級者は同じSystem BundleからGraph、Table、Form、Source、Profilerを開く。人間が編集したFieldまたはSource hunkをAIが無条件に再生成しない。
+初心者へC++かDefinitionかを質問しない。`authoring_profile=beginner`ではDefinition-firstとし、`implementation_origin`を`project_definition`またはexact Qualification Receiptを持つ`prequalified_pack`に限定する。どちらでも成立しない場合は`capability_unavailable`で停止し、Native／Shaderを暗黙生成しない。`authoring_profile=advanced`で`project_source`を選ぶPlanは、Native moduleまたはProject Shaderのexact scopeに有効な`CodeOwnerAssignmentV1`がなければ`awaiting_code_owner`とし、Source Workerを起動しない。AIはGame要件の不足だけを質問し、実装方式はPlanへ根拠付きで記録する。上級者は同じSystem BundleからGraph、Table、Form、Source、Profilerを開く。人間が編集したFieldまたはSource hunkをAIが無条件に再生成しない。
+
+External Agentが同じPlanを提案しても、Host／Model Conformance、Caller Authorization、Project Source Activation、Code owner、G0–G7、Promotionは別Gateである。Proposal ReceiptをSource生成、Code owner Approval、Activationへ読み替えない。
 
 Contract compilerは`GameSystemSpecV1`から次を決定論的に生成する。
 
@@ -342,11 +344,14 @@ SystemBundleChangeSetV1
   project_changeset_hashes[]
   gameplay_definition_changeset_hashes[]
   native_code_changeset_hashes[]
+  project_shader_changeset_hashes[]
   contract_changeset_hashes[]
   asset_changeset_hashes[]
   migration_artifact_hashes[]
   test_fixture_hashes[]
   implementation_plan_hashes[]
+  code_owner_assignment_refs[]
+  code_owner_approval_refs[]
   dependency_graph_before_hash
   expected_dependency_graph_after_hash
   required_gate_ids[]
@@ -356,7 +361,9 @@ SystemBundleChangeSetV1
 Bundle／ProjectはUUIDv7 `StableId`、Systemはexact `GameSystemContractRefV1`、ChangeSet／Artifact／PlanはSHA-256で参照する。Source本文、Asset binary、巨大JSONを埋め込まず、Staging artifact hashとBroker管理relative pathだけを参照する。全参照は同じProject、Contract set、base revisionへ解決しなければならない。
 
 ```text
-Draft -> Resolved -> Staged -> Validating -> AwaitingReview
+Draft -> Resolved -> Staged -> Validating
+  -> AwaitingReview                                      [Sourceなし]
+  -> AwaitingCodeOwner -> AwaitingReview                 [Native／Shader Sourceあり]
   -> PromotingSource -> BuildingTrustedArtifact
   -> CommittingProject -> Qualified
 
@@ -366,13 +373,13 @@ Source promote完了後の失敗 -> InactiveSourcePromoted
 
 失敗遷移の判定条件は「base Source revisionのpromoteが完了済みか」だけである。`PromotingSource`中にpromoteが完了しないまま失敗した場合は`FailedBeforeActivation`へ、promote完了後の失敗（`BuildingTrustedArtifact`、`CommittingProject`を含む）は`InactiveSourcePromoted`だけへ遷移し、二つの規則を同じ失敗へ重複適用しない。`RetryProjectActivation`と`RevertProposed`はstateではなく`InactiveSourcePromoted`からの遷移actionであり、前者は同一hashで`CommittingProject`へ再入し、後者はReview済みrevertを別のBundleとして提案する。
 
-Native Sourceを含まないBundleはSource promotion／trusted buildを通らずReview後にProject Commitへ進む。Native Sourceを含むBundleだけが二段階Activationを必須とする。`Qualified`だけをactive Implementationとして表示し、Source promotion済みでもProject revisionが参照しないSourceをGameHost、EditorHost、Shippingへloadしない。
+Native／Project Shader Sourceを含まないBundleは`AwaitingCodeOwner`、Source promotion／trusted buildを通らずReview後にProject Commitへ進む。Sourceを含むBundleは、有効なScope付きAssignmentがなければ`AwaitingCodeOwner`で停止し、全Source ChangeSetのexact DiffとSource revisionへ`CodeOwnerApprovalV1.decision=approved`が揃った後だけ`AwaitingReview`へ進む。Sourceを含むBundleだけが二段階Activationを必須とする。`Qualified`だけをactive Implementationとして表示し、Source promotion済みでもProject revisionが参照しないSourceをGameHost、EditorHost、Shippingへloadしない。
 
 Source repositoryとProject revisionを一つのatomic transactionと偽装しない。Source promotion後にProject Commitが失敗してもSource revisionをdelete、reset、force-moveせずinactiveとして記録し、同一hashで再試行するかReview済みrevertを別commitとして提案する。Projectは直前のactive implementationを維持する。
 
 ## 8. ValidationとBuild
 
-Definition経路はSchema、semantic、Capability、State owner、dependency、Target、Budgetを検証し、canonical CookとReference evaluator fixtureを実行する。Native経路は同じPublic Contract conformanceに加え、[Native game module](native-game-module.md)が所有するSource境界、C ABI、entry、lifecycle、Target link、Build identity、Preview、Promotion、Package gateを通す。
+Definition／prequalified Pack経路はSchema、semantic、Capability、State owner、dependency、Target、Budgetを検証し、canonical CookとReference evaluator fixtureを実行する。Packはexact package hash、license、Target、Qualification Receipt、revocationを検証し、変更を加えた時点でprequalified扱いを失う。Native経路は同じPublic Contract conformanceに加え、[Native game module](native-game-module.md)が所有するSource境界、C ABI、entry、lifecycle、Target link、Build identity、Preview、Promotion、Package gateを通す。Project Shader経路はShader OwnerのSource／Technique Gateに加え、Nativeと同じCode owner binding原則を使う。
 
 本書はNative ABI field、entry symbol、function table、memory portのbinary layout、compiler／generator、Target別link方式、Build artifact identityを定義しない。これらをGameplayProgrammingModelまたはGenerated Bundleへ複写せず、Native module revision refとReceipt hashだけを持つ。
 
@@ -386,7 +393,7 @@ Definition経路はSchema、semantic、Capability、State owner、dependency、T
 - generated bindingとSource dependency manifestの一致。
 - stale base revision、Graph hash、Toolchain lockの拒否。
 
-Native buildが成功しただけでactiveにしない。Native Sourceは信頼済みProcess内codeであり、[AI Security／Approval](../01-governance/ai-security-approval.md)のRisk、Review、Promotion authorizationと、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)のEvidence／Receiptを満たす。
+Native／Project Shader buildが成功しただけでactiveにしない。Project Sourceは信頼済みProcessまたはGPU programで実行されるcodeであり、[AI Security／Approval](../01-governance/ai-security-approval.md)のRisk、Code owner assignment／approval、Review、Promotion authorizationと、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)のEvidence／Receiptを満たす。
 
 ## 9. Testingとpromotion
 
@@ -401,12 +408,15 @@ Native buildが成功しただけでactiveにしない。Native Sourceは信頼�
 - Source format、warning、static analysis、sanitizer、unit、property、fuzz、integration、forbidden API／dependency scanはNative OwnerのGateを参照。
 - AIが既存compositionを不要なC++へ昇格せず、Capability不足とbounded Native候補を区別するEval。
 - 未知ID、stale Contract、unsupported Target、人間変更を推測補正しないEval。
+- Beginner Planの`implementation_origin`が`project_definition | prequalified_pack`だけであり、新規Native／Shader Source Taskが0件になるfixture。
+- Code owner Assignment不在／期限切れ／Scope外と、別Diff／Source revision／Build ReceiptのApprovalを拒否し、`awaiting_code_owner`からPromotionへ直行しないfixture。
+- External AgentのProposal ReceiptだけでProject Source Activation、Code owner Approval、Promotionを通過できないfixture。
 
 `SystemQualificationReceiptV1`はSystem ref、Variant hash、Dependency Graph hash、Target Profile、fixture、correctness、performance、Save／Replay、fault、Review Receiptを結ぶ。ReceiptなしにCatalog maturityまたはactive implementationを昇格しない。
 
 ### 9.2 Promotionとfailure recovery
 
-System Bundleはbase Project revision、base Source revision、Contract setをlockし、全ChangeSet／ArtifactをStagingしてvalidation、Cook、Test、Reviewを終える。Native Sourceがある場合はSource promotion、clean trusted build、`ProjectChangeSetV1`の`RegisterNativeModuleRevision` Commit、read-back verificationの順に進む。
+System Bundleはbase Project revision、base Source revision、Contract setをlockし、全ChangeSet／ArtifactをStagingしてvalidation、Cook、Test、Reviewを終える。Native／Project Shader Sourceがある場合はCode owner Approval、Source promotion、clean trusted build、該当Project Source revision登録の`ProjectChangeSetV1` Commit、read-back verificationの順に進む。
 
 Project Commitは[Project state](project-state.md)のtransactionを使う。Definition、Source、Asset、Migration、Testの一部だけをactiveにしない。Graph、Contract set、Implementation set、Cooked package、Native revision、Receiptのhashが一致しなければ旧Implementationを維持する。
 
@@ -418,6 +428,8 @@ Project Commitは[Project state](project-state.md)のtransactionを使う。Defi
 | dependency／same-boundary cycle | Bundle拒否 |
 | Save contract欠落 | Bundle拒否 |
 | stale revision／Contract hash | 再Resolve要求 |
+| Code owner不在／失効／Scope外 | `AwaitingCodeOwner`、Source WorkerまたはPromotionを停止 |
+| Code owner ApprovalのDiff／Source revision／Build Receipt不一致 | Bundle拒否、Sourceはinactive Staging |
 | Cook／Build／Test失敗 | active implementation不変 |
 | Source promotion後Project失敗 | inactive Source保持、retry／revert提案 |
 | Target Variant未Qualified | 対象Targetで非表示 |

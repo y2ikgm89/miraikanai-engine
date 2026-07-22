@@ -306,6 +306,7 @@ AI Partnerは単なるconversation logでなく、次のstateを分けて表示�
 | Plan | System／Scene／Asset／C++の作業単位と依存 |
 | Proposal | 未Commit ChangeSet、Native／Asset Source change |
 | Validation | schema、semantic、budget、Build、Test、Preview |
+| `awaiting_code_owner` | Native／Shader Sourceの対象Scope、必要Role、Assignment／Approvalの不足、待機／取消／Definition・prequalified Pack fallback |
 | Approval | Risk、対象、権限、期限 |
 | Result | Commit revision、Receipt、Playtest、Package／Device installの成果物参照とsmoke結果、rollback |
 
@@ -348,13 +349,15 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 1. 大まかなPromptからGame Briefを抽出する。
 2. High Impact不足だけをGame用語で質問する。
 3. Userが「おまかせ」を選んだ項目はAI仮定と理由をDecision Ledgerへ記録する。
-4. 薄い全体と一つの深いplayable loopを提案する。
+4. 薄い全体と一つの深いplayable loopをDefinition-firstで提案し、適合するQualification済みPackがあればexact Pack／Variantを示す。
 5. Diff、Risk、予測時間／Asset量、Target影響を見せる。
 6. 検証後にCommitし、Playtest結果を自然言語と計測で返す。
 7. 会話で修正し、手動編集があればbase revisionから再読込する。
 8. Playable確認後、Target選択、Package、Device install、smoke結果の提示までを同じ会話journeyで完了できる。各段階は§11の`BackgroundTask`として進み、Receiptと成果物参照をResultへ残す。
 
-初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。
+初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。Code owner不在時は`awaiting_code_owner`を表示し、Source Workerを起動しない。
+
+Package journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、Receiptとして表示する。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
 
 ## 9. Manual editingとAIの往復
 
@@ -379,22 +382,23 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 
 ## 11. Long-running task
 
-Build、Cook、AI生成、Package、Device install、Testは`BackgroundTask`として次を持つ。
+Build、Cook、AI生成、Package、Device install、Testは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationTaskV1`を正本とする`BackgroundTask` projectionとして次を持つ。
 
 ```text
+operation_task_ref
 task_id
-task_kind
-state
+operation_id
+state = queued | running | cancel_requested | succeeded | failed | cancelled
 progress_kind
 completed_units/total_units
 current_stage
 cancel_policy
 log_stream_id
 artifact_refs
-result
+receipt_ref?
 ```
 
-Progress不明なのに擬似percentを表示せず、indeterminateとstageを示す。Cancelは`not_cancelable \| cooperative \| process_terminate`を明示する。Modal dialogでtask完了までUIをblockしない。
+`BackgroundTask`はrequest hash、Project revision、Candidate root、Target、Device identity／generation、Authorization、consent、idempotencyを独自保存せず、`operation_task_ref`からread-only表示する。Progress不明なのに擬似percentを表示せず、indeterminateとstageを示す。Cancelは`not_cancelable \| cooperative \| process_terminate`を明示し、UIのCancel押下を成功表示せず`operation.task.cancel`のReceiptまで追跡する。Modal dialogでtask完了までUIをblockしない。
 
 ## 12. Accessibilityと人間工学
 
@@ -454,6 +458,9 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 | recording budget超過 | policyに従い低priorityからdropし、件数とrangeを必ずEvent化 |
 | Worker timeout | Task failure、cancel／retry、Project revision不変 |
 | Package／Device install失敗 | Task failureとして隔離し、原因（署名、容量、device未接続／未承認）とretry／Target変更候補を提示。Project revision不変 |
+| Candidate／Device generation／Package Receipt drift | Task failure。新しい対象へ自動付替えせず、before／actual identityと再実行入口を提示 |
+| Code owner不在／失効 | `awaiting_code_owner`。Source生成／Promotionを停止し、BeginnerにはDefinition／prequalified Pack fallbackを提示 |
+| local inferenceのcloud fallback要求 | 送信を停止し、Provider／region／privacy／costの新PreviewとAuthorizationを要求。暗黙fallbackはDiagnostic |
 | UI Automation provider failure | Release gate失敗。accessibilityを無効化してShippingしない |
 | Recovery破損 | 隔離し正規Projectだけを開く |
 
@@ -465,7 +472,10 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - mouse、keyboard-only、screen readerで2D Project作成／保存／Play
 - 200% scale、High Contrast、reduced motion、shortcut remap
 - AI CreatorからProductionへ切替えて同じObjectを手動修正し、AI再編集で保持
-- AI CreatorのjourneyだけでTargetを選択してPackageを生成しDevice installし、smoke結果がAI PartnerのResultへ提示される
+- AI CreatorのjourneyだけでTargetを選択し、`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`を別Task／Receiptで完了し、smoke結果がAI PartnerのResultへ提示される
+- stale Candidate、Device generation差替え、Package Receipt不一致、consent／R3 Approvalなしinstall／resetを失敗表示し、Project／Deviceの正規状態が不変
+- BeginnerではDefinition／prequalified PackだけからFirst Playableへ進み、Native／Shader要求は`awaiting_code_owner`または`capability_unavailable`になってSource reviewを要求しない
+- expired Host／Model Profileとsilent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない
 - 既知のqueue overflow、stale handle、asset revision drift、simulation divergenceをSession／Debug Timeline／Causality／Replayで識別し、gapを原因確定へ使わない

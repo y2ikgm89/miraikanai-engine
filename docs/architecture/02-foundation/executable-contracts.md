@@ -5,7 +5,7 @@
 - 正本範囲: MCD、Requirement、Type、Operation、State machine、Capability、Policy、Diagnostic、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
 - 非正本範囲: 外部Tool・packageのversion／commit／hash／license、Product scope、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Project state](../03-authoring/project-state.md)、[Project Shader](../06-rendering/project-shader.md)
-- 外部根拠検証日: 2026-07-22
+- 外部根拠検証日: 2026-07-23
 
 ## 1. 結論
 
@@ -474,6 +474,8 @@ Anthropic projectionはTool `name`、詳細な`description`、`input_schema`、�
 
 Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider固有PluginがMCDを独自変換してはならず、Miraikanai MCP ServerのTool一覧とSchemaを取得する。Source直接編集はMCP Tool権限とは別に、AI実装・保守ガバナンス規約のSource Worker sandboxを適用する。
 
+Tool projectionは[AI Security／Approval](../01-governance/ai-security-approval.md#83-callerproviderdeploymentmodel-profile)の`{host profile, transport profile, provider/runtime profile, model snapshot, tool projection, authority profile}`全組合せに対する有効なConformance Receiptがある場合だけ生成する。Host名またはModel family名によるEngine分岐を作らず、Receiptがない組合せは`proposal_only`または`not_activated`とする。ChatGPT webはremote MCP／Plugin経路であり、local STDIO MCP互換Hostとして扱わない。ChatGPT Desktop／Codex、Claude Desktop／Claude Code、Cursorも、製品名だけで対応済みとせず、exact Host version、Transport、Schema、Result、cancellationのConformance Receiptへ束縛する。
+
 ## 17. Language／Runtime projection
 
 ### 17.1 C++23
@@ -572,16 +574,28 @@ Authoring dataは同じDiscovery原則で次のR0 queryだけを公開する。
 
 全Queryは`project_revision`、`contract_set_hash`、`authoring_index_revision`、`query_hash`、`omitted_ranges`、`continuation_cursor`を返す。別revisionへのfallback、表示index、曖昧な名前だけのtarget確定、任意JSON断片を禁止する。検索結果が複数候補ならAIが名前から推測せず、追加readまたは人間選択を行う。
 
-Build／Play系はBuild Gateway Operationの型付き経路として次のMCD Operationだけを公開する。実行semantics、task順序、Receipt構造は[Core architecture](core-architecture.md)のBuild Gatewayと各Owner文書が所有し、本書はMCD登録、Risk、Provider projection可否だけを所有する。
+Package／Device／Play／Debug／Task系はBuild Gatewayを入口とする次の14個のcanonical MCD Operationだけを公開する。実行semantics、`OperationTaskV1`、task順序、Receipt構造は[Core architecture](core-architecture.md#91-operationtaskv1)のBuild Gatewayと各Domain Owner文書が所有し、本書はMCD登録、Risk、authority、binding、Provider projection可否を所有する。
 
-| MCD Operation | Risk／kind | 結果 |
-|---|---|---|
-| `operation.build.request_cook` | R2 job proposal | expected Project revisionとTarget Profileを必須とし、Staging CandidateへのincrementalなCook／Buildを提案する |
-| `operation.build.status` | R0 query | 実行中／完了Build taskの状態とDiagnosticをbounded取得する |
-| `operation.build.read_receipt` | R0 query | exact Build ReceiptとArtifact hashをread-onlyで取得する |
-| `operation.play.run_fixture` | R1 job | Cook済みStaging Candidateに対するtargeted Testと操作可能Previewを固定fixtureで実行する |
+| MCD Operation | Risk／kind／実行Authority | 必須identity／hash | Side effect | Idempotency／cancel | 成功Receipt／結果 | 代表Failure Diagnostic |
+|---|---|---|---|---|---|---|
+| `operation.build.request_package` | R2 job／Build Gateway | Project revision、Candidate root、Target Profile、Contract／Toolchain lock、Authorization | StagingにTarget packageを生成。Commit／sign／installなし | request hash＋idempotency key。publish前までcooperative cancel | `PackageReceiptV1` | `diagnostic.operation.package-input-mismatch` |
+| `operation.device.install` | R3 command／Device Bridge | Candidate root、Target Profile、Device identity＋generation、exact `PackageReceiptV1`、Authorization、明示consent、R3 Approval | 承認済みpackageを一Deviceへinstall | package hash＋Device generation＋idempotency key。Device transaction commit前だけcancel | `DeviceInstallReceiptV1` | `diagnostic.operation.device-install-binding-mismatch` |
+| `operation.device.launch` | R1 command／Device Bridge | Candidate root、Target Profile、Device identity＋generation、exact `DeviceInstallReceiptV1`、固有Authorization | install済みCandidateのprocess起動 | launch request hash＋idempotency key。process spawn前だけcancel | `DeviceLaunchReceiptV1` | `diagnostic.operation.device-launch-binding-mismatch` |
+| `operation.device.reset_data` | R3 command／Device Bridge | Candidate root、Target Profile、Device identity＋generation、exact `PackageReceiptV1`、Authorization、明示consent、R3 Approval | 対象ApplicationのDevice dataを消去 | package hash＋Device generation＋idempotency key。reset commit前だけcancel | `DeviceDataResetReceiptV1` | `diagnostic.operation.device-reset-consent-required` |
+| `operation.play.run_smoke` | R1 job／Play Service | Project revision、Candidate root、Target Profile、fixture hash、exact Package／Launch Receipt、固有Authorization、remote時のDevice identity＋generation | Candidateに対するbounded smoke sessionを実行 | input hash＋idempotency key。fixture boundaryでcooperative cancel | `SmokeRunReceiptV1` | `diagnostic.operation.smoke-input-mismatch` |
+| `operation.debug.aggregate` | R0 query／Debug Query Service | Project revision、Candidate root、Session、Store／Index generation、bounded selector、remote時のDevice identity＋generation | read-only aggregateを計算 | pure。cancelはquery中断のみ | `DebugAggregateReceiptV1` | `diagnostic.debug.aggregate-input-invalid` |
+| `operation.debug.query` | R0 query／Debug Query Service | Project revision、Candidate root、Session、Store／Index generation、bounded query hash、remote時のDevice identity＋generation | read-only record sliceを返す | pure。cancelはquery中断のみ | `DebugQueryReceiptV1` | `diagnostic.debug.query-input-invalid` |
+| `operation.debug.read_causality` | R0 query／Debug Query Service | Project revision、Candidate root、Session、Index generation、root Evidence refs、bound | read-only causal subgraphを返す | pure。cancelはquery中断のみ | `DebugCausalityReceiptV1` | `diagnostic.debug.causality-input-invalid` |
+| `operation.debug.read_replay_slice` | R0 query／Replay Service | Project revision、Candidate root、Session、Build Receipt、Replay closure／range hash、remote時のDevice identity＋generation | immutable Replay Sliceをmaterialize | request hash＋idempotency key。publish前までcooperative cancel | `ReplaySliceReceiptV1` | `diagnostic.debug.replay-slice-input-invalid` |
+| `operation.debug.validate_finding` | R0 job／Debug Validation Service | Project revision、Candidate root、Session、`DebugFindingV1` hash、Evidence／counterevidence／reproduction closure hash | append-only validation Evidenceを生成。Source／Project変更なし | finding＋closure hashでidempotent。validation step間でcancel | `DebugFindingValidationReceiptV1` | `diagnostic.debug.finding-evidence-invalid` |
+| `operation.debug.support-bundle.generate` | R2 job／Debug Export Service | Project revision、Candidate root、Session、Build Receipt、component／redaction／policy hash、明示consent、Authorization、remote時のDevice identity＋generation | redacted Support BundleをStagingへ生成。uploadなし | manifest input hash＋idempotency key。archive publish前までcooperative cancel | `SupportBundleReceiptV1` | `diagnostic.debug.support-bundle-manifest-mismatch` |
+| `operation.task.status` | R0 query／Build Gateway Task Service | task ID、request hash、Project revision、Candidate root、Authorization | なし。bounded task snapshotを返す | pure。cancel対象外 | `TaskStatusReceiptV1`＋`OperationTaskV1` snapshot | `diagnostic.operation.task-binding-mismatch` |
+| `operation.task.read_receipt` | R0 query／Build Gateway Task Service | terminal task ID、request hash、Project revision、Candidate root、Receipt ref、Authorization | なし。immutable Receiptをread-only取得 | pure。cancel対象外 | `TaskReceiptReadReceiptV1`＋referenced exact Receipt | `diagnostic.operation.task-receipt-mismatch` |
+| `operation.task.cancel` | R1 command／Build Gateway Task Service | task ID、request hash、Project revision、Candidate root、original callerまたは委任済みAuthorization | cancellable taskを`cancel_requested`へ遷移 | task ID＋idempotency key。反復cancelは同じ結果 | `TaskCancellationReceiptV1` | `diagnostic.operation.task-not-cancellable` |
 
-正規Commit、Approval発行、Promotion、Releaseは8節のとおり`trusted_internal`であり、本表のOperationはこれらを代替しない。AIの実行権限は[AI Security／Approval](../01-governance/ai-security-approval.md)が所有する。
+`operation.device.install`と`operation.device.reset_data`はPackage Receipt、Device identity／generation、明示consent、R3 Approvalのいずれかが欠ける入力を開始前に拒否する。`operation.device.launch`、`operation.play.run_smoke`、全`operation.debug.*`はinstall／resetのAuthorization、Approval、consentを継承せず、それぞれのexact Operation allowlistを再評価する。remote debugではhandshake後にDevice generationが変わったTaskを継続しない。
+
+正規Commit、Approval発行、Promotion、Activation、Signing、Releaseは8節のとおり`trusted_internal`であり、本表のOperationはこれらを代替しない。AIの実行権限とCaller Profileは[AI Security／Approval](../01-governance/ai-security-approval.md)が所有する。
 
 LOD Discoveryは`lod_class`、semantic role、Target、Qualityで絞り込み、Intent、該当Domain Policy、fallback、選択metric、現在のqualification statusだけを返す。全DomainのLOD Schemaやruntime telemetryを常に一括送信しない。
 

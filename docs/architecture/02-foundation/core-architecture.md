@@ -117,6 +117,35 @@ Buildを次の閉じた層へ分ける。外部toolのexact versionや取得情�
 
 Editor、AI、CLI、CIはallowlistされたBuild Gateway Operationだけを呼ぶ。AI向けBuild系OperationのMCD登録、Risk、Provider projection可否は[Executable contracts](executable-contracts.md)が所有し、実行semantics、task順序、Receipt構造は本節のBuild Gatewayと各Owner文書が所有する。Generator出力や内部databaseを解析・書換えず、CMake File APIとEngine-owned Receiptを読む。Schema／generated Header／Moduleのcodegen edgeは全Input、Output、Byproduct、Depfile、working directoryを宣言する。Build executorの成功だけでPackage成功やPromotion可能と判定しない。
 
+### 9.1 `OperationTaskV1`
+
+Build Gatewayは[Executable contracts](executable-contracts.md#20-ai向けdiscovery)のPackage／Device／Play／Debug Operationを同じclosed task envelopeで実行する。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は既存Taskを対象にする同期Control Operationであり、入れ子のTaskを新規作成しない。
+
+```text
+OperationTaskV1
+  task_id
+  operation_id
+  request_sha256
+  project_revision
+  candidate_root_sha256
+  target_profile_ref
+  device_identity_ref?
+  device_generation?
+  authorization_envelope_hash
+  consent_record_ref?
+  idempotency_key
+  state = queued | running | cancel_requested | succeeded | failed | cancelled
+  receipt_ref?
+```
+
+`device_identity_ref`と`device_generation`はDeviceまたはremote Debugを対象にするOperationでは対で必須、それ以外では省略する。`consent_record_ref`はOperation Registryが明示consentを要求する場合だけ必須であり、空値や別Operationのconsentで代用しない。`receipt_ref`は非終端stateでは省略し、`succeeded | failed | cancelled`では同じtask ID、request hash、Project revision、Candidate root、Target、Device bindingを持つimmutable Receiptへ必須参照する。失敗詳細はReceiptが参照するtyped `MirakanDiagnosticV1`から取得し、自由文だけをTaskへ保存しない。
+
+Operation Registryに列挙する各Receiptは、少なくともoperation ID、対象task ID、request hash、Project revision、Candidate root、Target、optional Device identity／generation、結果hash、Diagnostic refsを同じ値で束縛する。`TaskStatusReceiptV1`と`TaskReceiptReadReceiptV1`はControl requestと対象Task／Receipt hashを監査する同期read Receipt、`TaskCancellationReceiptV1`はcancel requestと収束結果を監査するControl Receiptであり、いずれも新しい`OperationTaskV1`を作らない。
+
+許可遷移は`queued -> running`、`queued | running -> cancel_requested`、`running -> succeeded | failed`、`cancel_requested -> cancelled | succeeded | failed`だけである。Irreversible boundary通過後のcancelは結果不明にせず、Operationを収束させて`succeeded | failed`とReceiptを返す。Retryは同じcanonical requestなら同じidempotency keyを使い、request hashが異なる場合は新task IDにする。Terminal taskを再実行せず、`operation.task.read_receipt`で結果を読む。
+
+Gatewayはenqueue時と実行直前にProject revision、Candidate root、Target Profile、Authorization、consent、Device identity／generation、入力Receiptのsubject／hash／freshnessを再検証する。一件でもdriftした場合は副作用開始前に失敗し、stale Candidate、Device交換、Package Receipt差替えを「最新」へ自動追従しない。Package生成、install、launch、reset、smoke、Debug、cancelは別Operationであり、前段のAuthorizationやApprovalを後段へ継承しない。
+
 ## 10. Repository境界
 
 Engine repositoryの正規rootを次に固定する。各Directoryの命名grammarとGame Project rootは[Naming／Project layout](naming-project-layout.md)が所有する。
