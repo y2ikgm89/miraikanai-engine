@@ -8,6 +8,8 @@
 
 **Tech Stack:** Markdown architecture contracts, PowerShell, ripgrep, Git, GitHub CLI
 
+**Final status:** Complete via [PR #7](https://github.com/y2ikgm89/miraikanai-engine/pull/7), merged as `40a7b95ee593aeb8df8aedb86aa9d0fce6d20ddf`; post-merge validation and cleanup passed.
+
 ## Global Constraints
 
 - Do not resurrect active files under the removed legacy `docs/superpowers/specs` hierarchy.
@@ -381,15 +383,19 @@ Expected: no source-worktree legacy path is staged.
 
 Completed: commit `10d741c283cc22766227a6267bc849bf97d1aba6` contains the ten reconciled architecture／plan files and no legacy source-worktree path.
 
-- [ ] **Step 4: Push and open a draft PR**
+- [x] **Step 4: Push and open a draft PR**
 
 Push `codex/legacy-branch-reconciliation`, create a draft PR targeting `main`, include checkpoint SHA, source disposition counts, validation evidence, and cleanup list. Mark ready only when GitHub reports `MERGEABLE/CLEAN` and no required check fails.
 
-- [ ] **Step 5: Merge and verify local main**
+Completed: [PR #7](https://github.com/y2ikgm89/miraikanai-engine/pull/7) was created as draft at head `dc00ff381ed1b6c8b1ffeeeb6fcb218a150bd6b4`, then marked ready after GitHub reported `MERGEABLE／CLEAN`; required or reported checks were 0.
+
+- [x] **Step 5: Merge and verify local main**
 
 Merge with expected head SHA, switch to local `main`, and run `git pull --ff-only origin main`. Re-run full Markdown and semantic closure audits against the merged tree.
 
-- [ ] **Step 6: Remove obsolete worktrees and branches**
+Completed: expected head `dc00ff381ed1b6c8b1ffeeeb6fcb218a150bd6b4` merged as `40a7b95ee593aeb8df8aedb86aa9d0fce6d20ddf`. Local／remote `main` matched; 57 Markdown files had 0 format／link errors, semantic closure had 0 missing items, and secret／local-path matches were 0.
+
+- [x] **Step 6: Remove obsolete worktrees and branches**
 
 Before each deletion, verify the associated worktree is clean and the integration merge commit is on `origin/main`. Run cleanup from the main checkout, never from inside either worktree. Then:
 
@@ -398,15 +404,17 @@ $repo = Split-Path -Parent (git rev-parse --path-format=absolute --git-common-di
 git -C $repo worktree remove -- (Join-Path $repo '.worktrees\ai-readable-architecture-closure')
 git -C $repo worktree remove -- (Join-Path $repo '.worktrees\legacy-branch-reconciliation')
 git worktree prune
-git branch -d codex/ai-readable-architecture-closure
-git branch -d codex/c1-gameplay-capability-closure
-git push origin --delete codex/c1-gameplay-capability-closure
-git push origin --delete codex/architecture-document-restructure
+git branch -d codex/legacy-branch-reconciliation
+git branch -D codex/ai-readable-architecture-closure
+git branch -D codex/c1-gameplay-capability-closure
+git push origin --delete codex/legacy-branch-reconciliation codex/c1-gameplay-capability-closure codex/architecture-document-restructure
 ```
 
-Expected: commands succeed without force deletion.
+Expected: worktrees are clean and owned under `.worktrees`; the integration branch deletes normally. The two legacy branches require `-D` because their checkpoint／closed-PR commits are semantically reconciled rather than Git ancestors; force deletion is allowed only after the ledger and PR #3 closure audits pass.
 
-- [ ] **Step 7: Final branch and repository audit**
+Completed: both worktrees were clean, path containment checks passed, the integration head was on `origin/main`, both worktrees were removed, all three local branches were deleted, and the three existing remote branches were deleted.
+
+- [x] **Step 7: Final branch and repository audit**
 
 Run:
 
@@ -420,3 +428,5 @@ git rev-parse origin/main
 ```
 
 Expected: clean `main`, matching local/remote SHA, no obsolete branch refs, and only intentionally active worktrees.
+
+Completed: local branch inventory `main` only, remote branch inventory `main` only, worktree inventory main checkout only, and local／remote SHA both `40a7b95ee593aeb8df8aedb86aa9d0fce6d20ddf`.

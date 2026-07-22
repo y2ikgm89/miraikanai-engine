@@ -4,9 +4,13 @@
 
 **Inventory:** 20 hunks, 448 added lines, 7 deleted lines, 455 changed lines in total. `source_line_count` is additions plus deletions for each hunk.
 
-**Status:** Classification, destination reconciliation, pre-commit validation, and integration commit are complete. PR／merge evidence is pending Task 7.
+**Status:** Complete. Classification, reconciliation, validation, merge, and branch／worktree cleanup all passed.
 
 **Integration commit:** `10d741c283cc22766227a6267bc849bf97d1aba6`
+
+**Integration PR／merge:** [PR #7](https://github.com/y2ikgm89/miraikanai-engine/pull/7), merge commit `40a7b95ee593aeb8df8aedb86aa9d0fce6d20ddf`
+
+**Cleanup evidence:** local／remote branch inventory and worktree inventory contained only `main` after cleanup.
 
 | source_commit | source_path | source_hunk | source_line_count | disposition | canonical_destination | canonical_identifiers | evidence |
 |---|---|---:|---:|---|---|---|---|

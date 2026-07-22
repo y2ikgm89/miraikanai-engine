@@ -4,7 +4,7 @@
 
 **Provenance:** Reconciled from local checkpoint `0e86c0f7d7bc0cabe36ee7871e9ac9b83e925c86` on `codex/ai-readable-architecture-closure`.
 
-**Status:** Tasks 1–5, Task 6 validation, and integration commit `10d741c283cc22766227a6267bc849bf97d1aba6` are complete. PR／merge evidence remains open.
+**Status:** Complete. Integration commit `10d741c283cc22766227a6267bc849bf97d1aba6` was merged by PR #7 as `40a7b95ee593aeb8df8aedb86aa9d0fce6d20ddf`; post-merge validation and legacy cleanup passed.
 
 **Goal:** Add the GameHost outer loop, architecture authority discovery, external-engine terminology resolution, Architecture Explain projection, and AI architecture-comprehension evaluation to their current canonical owners so that humans and AI can explain execution order and responsibility from exact Evidence instead of inference.
 
@@ -164,8 +164,8 @@ Require strict UTF-8, no BOM／CR／trailing whitespace, balanced fences, resolv
 
 Completed: 57 Markdown files, format／link errors 0, semantic-definition violations 0, PR #3 identifier gaps 0, and secret／local-path matches 0. No build or automated-test manifest exists; validation is documentation-only.
 
-- [ ] **Step 4: Record integration evidence**
+- [x] **Step 4: Record integration evidence**
 
 After validation, record the integration commit／PR and keep this plan as audit evidence. Cleanup of the source branch and worktree occurs only after merge and post-merge read-back.
 
-Progress: integration commit `10d741c283cc22766227a6267bc849bf97d1aba6` recorded; PR／merge／cleanup evidence pending.
+Completed: [PR #7](https://github.com/y2ikgm89/miraikanai-engine/pull/7) merged expected head `dc00ff381ed1b6c8b1ffeeeb6fcb218a150bd6b4` as `40a7b95ee593aeb8df8aedb86aa9d0fce6d20ddf`. Local／remote `main` matched, the full validation passed again, both owned worktrees were removed, and all legacy／integration branch refs were deleted.
