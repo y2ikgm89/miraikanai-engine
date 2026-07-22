@@ -470,3 +470,9 @@ TriggerはRevisit日より優先する。Triggerが先に到来した場合は�
 | Official Android evidence | target APIとminimum SDKを分離し、API 29 coverageをPlay Consoleのapp固有Receiptへ接続 | `PASS` |
 
 本追補もEngine runtime実装、Dependency採用、Architecture approval、Capability activation、Release承認を行わない。未確定queueは各行のTrigger到来時に専用ChangeSetで閉じる。
+
+## 2026-07-23 feasibility remediationとの関係
+
+後続の実現可能性監査と修正結果は[実現可能性 Remediation Review](2026-07-23-plan-feasibility-remediation.md)を正本とする。
+
+本Closureのretained Finding 253件がterminalであることは、各Findingのvalidationとdispositionが終端化されたことだけを意味する。Engine runtime実装、build成功、Target Qualification、Capability readiness、Release readinessを意味しない。原レビューが件数だけ報告し、詳細を一度も保持しなかったREFUTED 4件は、今後もFinding ID、主張、根拠を推測で作らず、欠落履歴として扱う。

@@ -42,6 +42,10 @@
 
 Execution receiptはEngine runtime実装、Capability activation、Architecture文書の`approved`昇格を意味しない。
 
+### Post-closure feasibility remediation
+
+2026-07-23の後続監査は[実現可能性 Remediation Review](../../reviews/2026-07-23-plan-feasibility-remediation.md)で管理する。本Planが終端化したretained Finding 253件はdisposition closureであり、Engine実装、build、Target Qualification、Capability readiness、Shipping readinessの完了ではない。原レビューで詳細が保存されなかったREFUTED 4件は、後続監査でも架空のFinding本文、ID、根拠を作成しない。
+
 ---
 
 ## File map
