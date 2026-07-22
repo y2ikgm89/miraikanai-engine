@@ -1620,6 +1620,8 @@ Qualificationはcompile成功またはmicrobenchmark一件で代替しない。�
 
 本設計は一つの巨大Taskとして実装しない。各段階は前段のContractとtest oracleを完了条件にし、未完の下位層をmock成功扱いして上位層を昇格しない。
 
+E0開始前に`architecture/baselines/control-plane-v1.json`をread-backし、`git_tree_id`、Architecture Index、document relation registry、Product registry、identity migration registry、Toolchain lock、Architecture lint artifactの全hash一致を必須とする。不一致、missing、dirty treeは`diagnostic.architecture.baseline-mismatch`で停止する。Branch名、現在HEAD、日時、`latest`をbaseline identityにしない。
+
 | 段階 | 実装範囲 | 入力 | 出力／Gate |
 |---|---|---|---|
 | E0 Contract baseline | ECS正本、MCD schema、ID、Diagnostic、Root／Section binary、Artifact subject／Qualification binding、Port／publication binding、生成物 | 本Decisionと既存Owner | cross-doc／schema／codegen conformance |
@@ -1640,7 +1642,11 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 | Path | 変更 |
 |---|---|
 | `docs/architecture/04-runtime/entity-component-system.md` | 新規正本。§8～§17のnormative contractを配置 |
-| `docs/architecture/README.md` | RuntimeにECSを追加しactive仕様44件へ更新。読順をScheduling前後で明示 |
+| `docs/architecture/01-governance/architecture-governance.md` | ECS文書metadata、Owner、direct `requires`、reciprocal Contract ID、ChangeSet impactを登録 |
+| `docs/architecture/02-foundation/compatibility-evolution.md` | ECS contract major、clean-break ID migration、Save／Runtime Package compatibility classを登録 |
+| `docs/architecture/04-runtime/persistence-save.md` | ECS save projector、persistent identity、tombstone、migration、load stagingの集約Ownerへ接続。ECSがSave transactionを再定義しない |
+| `docs/architecture/04-runtime/runtime-package.md` | Root／Section image、Component／System contract set、layout fingerprint、migration setをRuntime Package closureへ接続 |
+| `docs/architecture/README.md` | RuntimeにECSを追加し、metadataからactive inventoryを再生成する。固定件数を規範にしない |
 | `docs/architecture/00-product/product-plan.md` | ECSをC1 Runtime foundation Capabilityへexact refで接続。詳細を複写しない |
 | `docs/architecture/02-foundation/executable-contracts.md` | ECS MCD kind、R0 operation、生成projectionと`McdCanonicalBinaryV1`の共通wire／cross-language fixtureを正本化 |
 | `docs/architecture/02-foundation/memory-pointers.md` | 16 KiB／64-byte／256-byteのECS固有値を削除しECSへ参照。一般handle／lease規則だけ残す |
@@ -1711,4 +1717,6 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 
 本Decisionの承認は、Engine-owned archetype ECS、正本所有、clean-break名称、Authoring／Runtime分離、System access、structural transaction、Subsystem Port、AI read-only surface、実装段階、Verification Gateへの承認を意味する。
 
-承認後は本Decisionを`ユーザー承認済み`へ更新し、`superpowers:writing-plans`で§19の文書移行とE0 Contract baselineの詳細実装計画を作る。承認前に正規仕様群、schema、Engine codeを変更しない。
+詳細Task、exact file、MCD、C++ interface、test、command、expected result、clean migrationは[Runtime ECS E0 Implementation Plan](../../plans/2026-07-22-runtime-ecs-e0-implementation-plan.md)に事前定義した。同計画の存在は本Decisionの承認、E0実装開始、Capability activationを意味しない。
+
+承認後は本Decisionを`ユーザー承認済み`へ更新し、Control Plane baselineのread-backに成功したclean ChangeSetでE0計画を実行する。承認前に正規仕様群、schema、Engine codeを変更しない。
