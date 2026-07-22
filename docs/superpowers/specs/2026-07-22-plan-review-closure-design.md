@@ -97,9 +97,9 @@
 
 単一の一般regexを全識別子へ適用しない。`naming-project-layout.md`がkind別closed grammarを所有する。
 
-- JSON／schema Field名とMCD `namespace_path` segmentはsnake_caseを使用する。
-- `operation.*`、`diagnostic.*`、`target.*`、`capability.*`はdotでnamespaceを分離する。
-- `phase.*`、`wp.*`、`fixture.*`、`requirement.*`、`fallback.*`など既存Registry logical IDは、各dot segment内のlowercase kebab-caseを許可する。
+- JSON／schema Field名はsnake_caseを使用する。MCD `namespace_path`はJSON Field名ではなくlogical IDなので、Naming正本のkind別grammarを参照する。
+- `operation.*`、`diagnostic.*`、`target.*`、`capability.*`、`requirement.*`はdotでnamespaceを分離し、各segmentはlower snakeまたはlower kebabの一方を使う。
+- `phase.*`、`wp.*`、`fixture.*`、`fallback.*`など既存Registry logical IDは、各dot segment内のlowercase kebab-caseを許可する。
 - 一つのsegment内でsnake_caseとkebab-caseを混在させない。
 - maturity、schema major、profile versionをlogical identityへ埋め込まない。
 - 数字だけ、または数字で始まるsegmentを禁止し、`2d`／`3d`は`general_2d`／`general_3d`など意味を保つ語順へ移行する。

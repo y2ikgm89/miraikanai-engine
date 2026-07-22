@@ -9,7 +9,7 @@
 
 ## 1. 結論
 
-`windows_desktop_v1`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows exact baselineを参照するx86-64 desktop Targetである。Editorも最初のGame RuntimeもこのTargetから実装する。OS、graphics runtime、shader model、SDK、compilerの固定値は本書へ複写しない。
+`target.windows.desktop`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows exact baselineを参照するx86-64 desktop Targetである。Editorも最初のGame RuntimeもこのTargetから実装する。OS、graphics runtime、shader model、SDK、compilerの固定値は本書へ複写しない。
 
 Windows固有APIは`engine/platform/windows`と各Backend Adapterに閉じ、正規Project、GameplayDefinition、NativeGameModule、Save、AI ToolへWin32、COM、HANDLE、HRESULT、GameInput、XAudio2、D3D12型を公開しない。
 
@@ -39,7 +39,8 @@ Toolchain ownerが固定したbaseline以外のWindows release／edition、ARM64
 
 ```text
 WindowsDesktopTargetProfileV1
-  profile_id = windows_desktop_v1
+  profile_id = target.windows.desktop
+  profile_version = 1
   toolchain_profile_ref
   architecture = x86_64
   executable_model = win32_full_trust
@@ -71,7 +72,7 @@ WindowsCapabilitySignatureV1
 
 起動時にOS build、CPU architecture、D3D feature、SM、driver、memory budget、display、audio／input availabilityを`WindowsCapabilitySignatureV1`へ記録する。これはMobileの`MobileCapabilitySignatureV1`とは別のclosed typeであり、旧`PlatformCapabilitySignature`、旧`CapabilitySignature`、alias、別綴りを受理しない。Hard requirement不足は起動を止め、quality fallbackでTarget不足を隠さない。
 
-OS Support期間と累積更新要件はToolchain ownerのPlatform policy lockを参照し、本書は固定build、取得先、更新周期を再定義しない。
+player実行環境のTarget minimum OS（Host OSとは別行のentry）、OS Support期間、累積更新要件は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows baselineを参照し、本書は固定build、取得先、更新周期を再定義しない。§8.1のminimum OS生成と§14のMinimum OS判定は、このTarget minimum OS entryだけを出所とする。
 
 ## 4. Process model
 
@@ -99,7 +100,7 @@ Credential、Signing、UploadはBuild Processへ渡さない。Named pipeはUser
 - resize／DPI／monitor移動はeventへ正規化し、Render surfaceをgeneration付きで再作成する。
 - Alt+Enter、borderless、windowedはtyped Display Commandで切り替える。
 - Exclusive fullscreenをC1で使用しない。
-- minimized、occluded、display offではPresent cadenceを停止／低下させるがSimulation policyを明示する。
+- minimized、occluded、display offではPresent cadenceを停止／低下させる。Simulation policyは§5.2の`application_state`写像表に従い、Present cadence制御だけでsimulationを止めない。
 
 ### 5.2 Lifecycle state
 
@@ -108,6 +109,17 @@ Starting -> ForegroundActive <-> ForegroundInactive
 -> SuspendedForSystemEvent
 -> StopRequested -> Stopped
 ```
+
+Windows stateから[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`への写像は次のとおり固定する。tick停止点、checkpoint、accumulatorの境界policyは同文書の`application_state`表が正本であり、本書は写像だけを所有する。
+
+| Windows state／条件 | `application_state` | 既定Simulation policy |
+|---|---|---|
+| `Starting` | `Starting` | 初期Project／surface準備のみ |
+| `ForegroundActive` | `Active` | 通常実行 |
+| `ForegroundInactive`（focus喪失、可視） | `Active` | simulation継続。desktopではfocus喪失でsimulationを止めない |
+| minimized／occluded／display off | 既定`Active`。Projectがpause opt-inを宣言した場合だけminimizeで`Inactive` | Present cadenceだけを停止／低下。`Inactive`遷移時は正本表どおりcheckpointを要求 |
+| `SuspendedForSystemEvent` | `Suspended` | session end／power event処理中だけ |
+| `StopRequested`／`Stopped` | `Terminating` | checkpoint policy後に安全な破棄順序へ進む |
 
 Windows desktopではMobile suspendを偽装しない。Session end、shutdown、display／device change、power notification、focus、minimizeを別eventとして正規化する。`WM_CLOSE`はStop Requestを生成し、UI threadで長いSave／Buildを同期実行しない。
 
@@ -180,7 +192,9 @@ MSIX
 - Package identity、publisher、version、architecture、minimum OS、capabilityをTarget／Distribution Profileから生成する。
 - default capabilityは0で、実際に必要な宣言だけを[AI Security／Approval](../01-governance/ai-security-approval.md)のRelease decision refから生成する。
 - elevation、driver、service、arbitrary startup taskを要求するGameをC1 packageで拒否する。
-- Agility DLL version／hash、executable import、Content root hash、source／debug／compiler非混入をinspectionする。Project Shaderを含む場合はWindows専用`ProjectShaderArtifactSetV1`のDXIL、Target Profile、Engine baseline、`ProjectShaderQualificationReceiptV1`、artifact／interface hashも一致させる。
+- Agility DLL version／hash、executable import、Content root hash、source／debug／compiler非混入をinspectionする。
+- GameInput runtime redistributableは`<locked_runtime_dependency>.dll`の該当物であり、同梱要否、exact version／hash、取得元は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows baselineが固定する。同梱要否は同書§2.1のTarget minimum OS（未固定）がGameInput runtimeをin-box提供するかの判定に依存し、baseline確定と同じ更新ChangeSetで固定するまで未固定とする。XAudio2 runtimeはOS in-boxであり、redistributable DLLを同梱しない。
+- Project Shaderを含む場合はWindows専用`ProjectShaderArtifactSetV1`のDXIL、Target Profile、Engine baseline、`ProjectShaderQualificationReceiptV1`、artifact／interface hashも一致させる。
 - MSIX packageはinstall前に署名が必要で、Store外はTarget環境が信頼する証明書を用いる。
 - Store提出用packageとdirect／enterprise署名packageのIdentity／Signing Receiptを混在させない。
 
@@ -261,6 +275,8 @@ C1は自動uploadしない。Userがfileを確認して明示exportできる。o
 - offline queue size／age上限
 
 Crash consentをAnalytics、AI Provider、Marketing consentとまとめない。
+
+support bundle（正本は[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md) §14の`SupportBundleV1`）のWindows提出経路は本書が所有する。生成はUserの明示操作でEditorまたはGame内diagnostics UIから行い、保存先は§7のUser data root配下、提出はC1ではUserによるfile exportだけとする。`mirakan_crash_collector.exe`はcrash evidence（minidump、typed crash metadata）の収集だけを所有し、support bundleの構成、redaction、生成operationはDebugging Ownerの定義へ従う。自動uploadは§11.2と同じ条件だけで有効化する。
 
 ## 12. Security
 

@@ -97,9 +97,9 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
     /provider_conformance/
 ```
 
-正本FileはRFC 8259 JSON、UTF-8 without BOM、LF、末尾改行ありとする。JSON5、comment、trailing comma、NaN、Infinity、重複keyを禁止する。人間向け注釈は定義済み`description`、`rationale_refs`、`examples`へ記録する。
+正本FileはRFC 8259 JSON、UTF-8 without BOM、LF、末尾改行ありとする。JSON5、comment、trailing comma、NaN、Infinity、重複keyを禁止する。正本File内のJSON数値literalは±(2^53-1)以内だけを許可する。64-bit整数型のrange境界値やdefaultなどこの範囲を超え得る値はdecimal string表現を必須とし、JSON数値literalで書かない。parse後の値ではIEEE 754 double経由の精度喪失を検出できないため、この範囲検査は数値tokenのraw textに対してcontract lintで行う。人間向け注釈は定義済み`description`、`rationale_refs`、`examples`へ記録する。
 
-非RequirementのFile名は正本IDへ`.mirakan.json`を付けたものとし、例を`operations/operation.authoring.apply_changeset.mirakan.json`とする。RequirementはIDをASCII lowercase化して`-`を`_`へ変換し、`requirements/requirement.mirakan_ai_0001.mirakan.json`とする。この変換以外の略称を許可せず、File pathをIDから決定論的に導出する。同じIDを複数Fileへ定義しない。
+全MCDのFile名は正本IDへ`.mirakan.json`を付け、kindに対応するDirectoryへ置く。例は`operations/operation.authoring.apply_changeset.mirakan.json`、`requirements/requirement.product.authoring-roundtrip.mirakan.json`とする。Requirementだけの変換、略称、legacy連番を作らず、File pathをkindとIDから決定論的に導出する。同じIDを複数Fileへ定義しない。
 
 ## 5. MCD共通Envelope
 
@@ -121,11 +121,13 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 | `supersedes` | `{id, version}` array | 置換対象。空可 |
 | `tags` | lowercase string array | ASCII昇順、重複不可 |
 
-`id`をKind固有の別Fieldへ二重保存しない。`requirement`だけは`MIRAKAN-<DOMAIN>-<4桁以上の番号>`、それ以外は`<kind>.<namespace_path>`を使う。`namespace_path`は2～8個のdot区切りsegmentで、各segmentはASCII lowercase、先頭英字、以後英数字またはunderscore、1～48文字とする。例は`MIRAKAN-AI-0001`、`operation.authoring.apply_changeset`、`capability.render.material.toon_v1`、`game_system.engine.combat`、`remediation.authoring.refresh_context`である。
+`id`をKind固有の別Fieldへ二重保存しない。全Kindは`<kind>.<namespace_path>`を使い、Requirementだけの別文法を作らない。`namespace_path`は2～8個のdot区切りsegmentで、各segmentは[Naming／Project Layout §3.2](naming-project-layout.md#32-stable-idとoperation)のkind別`lower-token-path`に従い、1～48文字とする。例は`requirement.product.authoring-roundtrip`、`operation.authoring.apply_changeset`、`capability.render.material.toon`、`game_system.engine.combat`、`remediation.authoring.refresh_context`である。
 
 MCDへの永続参照を`McdContractRefV1 { id: string, version: uint32, contract_set_hash: SHA-256 }`へ固定する。`id`のkindと参照Fieldが要求するkindは一致し、`version`は同じContract set内で存在して`status=active`でなければならない。Bare IDは固定済み`contract_set_hash`を入力にするEditor／AIのread-only検索だけで使用でき、候補が厳密に1件でなければ解決しない。Project Source、Cooked Artifact、Save、Replay、Receipt、ChangeSetはbare IDまたはruntime numeric IDを永続参照に使用しない。`GameSystemContractRefV1`は`McdContractRefV1`のうちkindが`game_system`である型付きaliasとする。
 
 Derived Artifactへの永続参照は`ArtifactRefV1 { artifact_kind: string, schema_version: uint32, sha256: SHA-256 }`へ固定する。本型の構造定義は本節だけが正本であり、Domain文書はexact refを消費してFieldを再定義しない。
+
+`schema_version`という名のFieldはMCD全域で`uint32`固定とし、本規則を全Domain文書共通の正本とする。SemVer等の互換表現が必要な場合は`schema_version`へ文字列を載せず、`format_version`等の別名Fieldを別途定義する。
 
 `status=deprecated`は新規利用を拒否するが、offline migratorが旧Projectを読むための入力Schemaだけに残せる。Runtime、Editor、Game codeへdeprecated branchを生成しない。`retired`はcurrent Contract setの生成対象外である。
 
@@ -135,7 +137,7 @@ Requirementは次を必須とする。
 
 | Field | 型／値 |
 |---|---|
-| 共通`id` | `MIRAKAN-<DOMAIN>-<4桁以上の番号>` |
+| 共通`id` | `requirement.<namespace_path>`。Naming正本のkind別grammarに従う |
 | `normative_level` | `must`、`must_not`、`should`、`may` |
 | `priority` | `blocking`、`high`、`medium`、`low` |
 | `statement` | 一つの検証可能な規範文 |
@@ -163,7 +165,7 @@ Requirementは次を必須とする。
 | `string` | UTF-8、長さ／pattern制約 |
 | `bytes_base64url` | RFC 4648 URL-safe alphabet、paddingなし |
 | `blob_ref` | Artifact ID、revision、SHA-256、size、media type |
-| `timestamp` | RFC 3339 UTC、秒以下桁をProfileで固定 |
+| `timestamp` | RFC 3339 UTC、秒以下桁数はType constraintで固定し、Profile間で精度を変えない |
 | `duration_ns` | signed int64 nanosecond |
 | `enum` | string-backed、unknown値禁止 |
 | `struct` | named field集合 |
@@ -308,7 +310,7 @@ Profileに存在しない値を環境変数やProvider defaultから暗黙補完
 
 `CppDependencySetV1`はowner component／Primary Module、public／private import、closed `StdHeaderId`、closed Header例外を正規化して表す。AIはraw include pathやCompiler flagをDependencyとして保存しない。Contract compilerはCX0で個別標準Header、CX1以降でNamed Module／`import std`へ投影し、Source scannerは実Sourceとの一致を検証する。Field、順序、Header例外、Cutover後のProjection停止条件はC++言語・Modules規約を基準とする。
 
-`BuildDriverProfileV1`は`driver_profile_id`、`target_profile_id`、`allowed_frontend_profile_ids`、`configure_driver`、`cpp_generator`、`configuration_model`、`package_owner`を持つ。IDと組合せは基盤規約のclosed setだけを許可し、AI、Provider、Project、Environmentが任意Driver、Generator、commandを追加できない。Contract compilerはWindows／Appleのchecked-in CMake Preset検査表、Android Gradle CMake検査表、Build Gateway allowlistへ投影するが、CMake／Gradle SourceそのものをMCDへ埋め込まない。
+`BuildDriverProfileV1`は`driver_profile_id`、`target_profile_id`、`allowed_frontend_profile_ids`、`configure_driver`、`cpp_generator`、`configuration_model`、`package_owner`を持つ。IDと組合せは[Toolchain／Dependencies](toolchain-dependencies.md#3-build-driver-matrix)のBuild Driver matrixのclosed setだけを許可し、AI、Provider、Project、Environmentが任意Driver、Generator、commandを追加できない。Contract compilerはWindows／Appleのchecked-in CMake Preset検査表、Android Gradle CMake検査表、Build Gateway allowlistへ投影するが、CMake／Gradle SourceそのものをMCDへ埋め込まない。
 
 ValidatorはTarget、C++ Frontend Profile、Driver Profileの全組合せを照合し、First-party Makefiles／`ndk-build`、Android Ninja Multi-Config、Generator override、異なるBuild tree identityの再利用を拒否する。
 
@@ -321,7 +323,8 @@ Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MirakanDia
 | Field | 型／規則 |
 |---|---|
 | `diagnostic_version` | 1 |
-| `code` | `MIRAKAN-<DOMAIN>-<NAME>`、不変 |
+| `diagnostic_id` | `diagnostic.<domain>.<condition>`、Repository全体で一意なprimary key |
+| `code` | `MIRAKAN-<DOMAIN>-<CONDITION>`、Naming正本の一対一変換で導出する不変code |
 | `severity` | `info`、`warning`、`error`、`blocking` |
 | `category` | schema、semantic、permission、conflict、build、test、performance、security、provider、infrastructure |
 | `message_key` | Localization key |
@@ -333,7 +336,7 @@ Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MirakanDia
 | `expected`／`actual` | redacted typed value |
 | `remediation_ids` | 機械実行可能または人間向け修正案 |
 | `retryability` | `never`、`after_input`、`after_change`、`transient` |
-| `cause_chain` | 子Diagnostic ID array |
+| `cause_chain` | 子`diagnostic_id` array |
 | `trace_id` | Verification trace参照 |
 
 AIへ返すErrorはこの構造を維持する。Provider向け説明文だけへ変換してcode、location、expected、actualを失わない。Source／static analysis結果はこの形式を正本とし、外部Tool連携用にSARIF 2.1.0へexportする。
@@ -388,7 +391,7 @@ JSON treeとJCS実装は[Toolchain／Dependencies](toolchain-dependencies.md)が
 
 処理順序を固定する。
 
-1. RFC 8259としてparseし、重複keyを拒否する。標準`JSON.parse`だけでは重複keyを検出できないため、UTF-8 byte列へduplicate-aware tokenizerを先に適用し、Object scopeごとのdecoded key一致を検査する。
+1. RFC 8259としてparseし、重複keyを拒否する。標準`JSON.parse`だけでは重複keyを検出できないため、UTF-8 byte列へduplicate-aware tokenizerを先に適用し、Object scopeごとのdecoded key一致を検査する。同時に数値tokenのraw textが4節の±(2^53-1)制約を満たすことを検査し、超過literalを拒否する。
 2. Kind別meta-schemaでvalidateする。
 3. 全IDとversionをindex化する。
 4. 参照解決、cycle、Game System State owner、phase edge、requirement coverageを検査する。
@@ -461,7 +464,7 @@ Schema cacheとData retentionの制約がProject Policyに合わない場合、�
 
 ### 16.4 Anthropic projection
 
-Anthropic projectionはTool `name`、詳細な`description`、`input_schema`、対応Provider versionで利用可能な`strict`等をProvider Manifestから生成する。Providerが受理するJSON Schema keyword集合をconformance testで検出し、未検証keywordを使用しない。
+Anthropic projectionはTool `name`、詳細な`description`、`input_schema`、対応Provider versionで利用可能な`strict`等をProvider Manifestから生成する。Providerが受理するJSON Schema keyword集合をconformance testで検出し、未検証keywordを使用しない。Anthropic APIのexact pinは[Toolchain／Dependencies](toolchain-dependencies.md)が所有し、pinが未固定の間は本projectionを生成対象外とする。その間のAnthropic系接続は16.5節のMCP経路だけを使う。
 
 複雑なToolにはMCDのvalid fixtureから少数の`input_examples`を生成できる。ただし、ExampleはPrompt tokenを消費するため、EvalでTool選択またはargument精度を改善した場合だけProvider Manifestへ有効化する。
 
@@ -554,7 +557,7 @@ AIへ巨大な全Schemaを一括送信しない。次の二段階Discoveryを使
 1. `capabilities.search`がID、title、tag、Target、maturity、短いsummaryを返す。
 2. `capabilities.read`が選択したCapabilityのType、Operation、Constraint、Budget、Exampleを返す。
 
-Search結果は現在Contract setのhashを含む。AIが古いhashのCapabilityでProposalを送った場合、Gatewayはstaleとして拒否し、差分を返す。AIがSchemaにないFieldやOperationを使った場合、fuzzyに推測して補正せず、候補ID付きDiagnosticを返す。
+Search結果は現在Contract setのhashを含む。AIが古いhashのCapabilityでProposalを送った場合、Gatewayはstaleとして拒否し、差分を返す。AIがSchemaにないFieldやOperationを使った場合、fuzzyに推測して補正せず、候補ID付きDiagnosticを返す。検索系Operationのbounded resultは、各表で別値を明示しない限り既定50件、最大200件、continuation付きをbaselineとする。
 
 Authoring dataは同じDiscovery原則で次のR0 queryだけを公開する。
 
@@ -566,6 +569,17 @@ Authoring dataは同じDiscovery原則で次のR0 queryだけを公開する。
 | `operation.authoring.diff` | base／target revisionとStableId scopeからsemantic diff、storage-only diff、continuationを返す |
 
 全Queryは`project_revision`、`contract_set_hash`、`authoring_index_revision`、`query_hash`、`omitted_ranges`、`continuation_cursor`を返す。別revisionへのfallback、表示index、曖昧な名前だけのtarget確定、任意JSON断片を禁止する。検索結果が複数候補ならAIが名前から推測せず、追加readまたは人間選択を行う。
+
+Build／Play系はBuild Gateway Operationの型付き経路として次のMCD Operationだけを公開する。実行semantics、task順序、Receipt構造は[Core architecture](core-architecture.md)のBuild Gatewayと各Owner文書が所有し、本書はMCD登録、Risk、Provider projection可否だけを所有する。
+
+| MCD Operation | Risk／kind | 結果 |
+|---|---|---|
+| `operation.build.request_cook` | R2 job proposal | expected Project revisionとTarget Profileを必須とし、Staging CandidateへのincrementalなCook／Buildを提案する |
+| `operation.build.status` | R0 query | 実行中／完了Build taskの状態とDiagnosticをbounded取得する |
+| `operation.build.read_receipt` | R0 query | exact Build ReceiptとArtifact hashをread-onlyで取得する |
+| `operation.play.run_fixture` | R1 job | Cook済みStaging Candidateに対するtargeted Testと操作可能Previewを固定fixtureで実行する |
+
+正規Commit、Approval発行、Promotion、Releaseは8節のとおり`trusted_internal`であり、本表のOperationはこれらを代替しない。AIの実行権限は[AI Security／Approval](../01-governance/ai-security-approval.md)が所有する。
 
 LOD Discoveryは`lod_class`、semantic role、Target、Qualityで絞り込み、Intent、該当Domain Policy、fallback、選択metric、現在のqualification statusだけを返す。全DomainのLOD Schemaやruntime telemetryを常に一括送信しない。
 
@@ -609,7 +623,7 @@ Anti-alias Discoveryは2D／3D機能計画の意味GoalとRenderer規約の実�
 
 全Anti-alias Query／Proposal結果は`project_revision`、`contract_set_hash`、`capability_signature_hash`、`renderer_profile_revision`、`qualification_receipt_hashes`、`query_hash`を返し、ViewFamilyへ解決した結果は`view_family_id`と`source_intent_revision`も返す。bounded collectionは`omitted_ranges`と`continuation_cursor`を持つ。`plan_change`は`expected_project_revision`、`idempotency_key`、変更理由、対象scopeを必須にし、`preview_change`はProposal hashと同じrevisionを必須にする。stale revision、未知method、未Qualified Target、MSAA×temporal、Hybrid Deferred MSAA、異なるsample countの同一ViewFamily混在、pixel-locked layerへのAA適用をtyped Diagnosticでfail-closedにする。
 
-`AntiAliasingIntentV1`の`mode_policy`は`auto | fixed`、`preferred_method`は`none | fxaa | smaa_1x | msaa | mirakan_taa_v1 | mirakan_taau_v1 | qualified_provider`、`msaa_samples`は`auto | 2 | 4 | 8`のclosed enum／unionとする。`msaa`以外で2／4／8を指定した入力を拒否し、`qualified_provider`はCatalogのexact Provider IDを必須にする。`none`は明示User指定、bit-exact diagnostic、AA対象外layerだけに許可し、AIの性能最適化候補にしない。Provider／MCPへ投影するのは上記五Operationだけであり、`ResolvedAntiAliasingPlanV1` write、arbitrary Render Graph write、Provider install／activate、Settings Apply、Source Promotion、Project CommitをTool listへ含めない。
+`AntiAliasingIntentV1`の`scope`は`project | camera_profile`、`mode_policy`は`auto | fixed`、`selection_policy`は`balanced | low_gpu_cost | minimum_blur | minimum_ghosting | vr_low_latency | pixel_crisp`、`preferred_method`は`none | fxaa | smaa_1x | msaa | mirakan_taa_v1 | mirakan_taau_v1 | qualified_provider`、`msaa_samples`は`auto | 2 | 4 | 8`のclosed enum／unionとする。`scope`は[Render Graph](../06-rendering/render-graph.md) §9の`scope_resolution`が最終scopeへ解決し、`selection_policy`は[Mobile Common](../07-platform/mobile-common.md) §5.1のMobile選択policyキーと同一語彙である。`msaa`以外で2／4／8を指定した入力を拒否し、`qualified_provider`はCatalogのexact Provider IDを必須にする。`none`は明示User指定、bit-exact diagnostic、AA対象外layerだけに許可し、AIの性能最適化候補にしない。Provider／MCPへ投影するのは上記五Operationだけであり、`ResolvedAntiAliasingPlanV1` write、arbitrary Render Graph write、Provider install／activate、Settings Apply、Source Promotion、Project CommitをTool listへ含めない。
 
 Lighting DiscoveryはLighting規約の意味Role、物理単位、Target／Budget制約を次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.lighting.*`を生成する。
 

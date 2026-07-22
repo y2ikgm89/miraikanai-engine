@@ -14,7 +14,7 @@
 - 外部公式資料は外部API／SDK／Toolchain／Platform制約だけを所有し、Miraikanai固有のID、Owner、Phase、Capabilityを所有しない。
 - 機械Diagnostic IDは`diagnostic.<domain>.<condition>`、表示／log codeは`MIRAKAN-<DOMAIN>-<CONDITION>`とする。
 - Targetとtoolchain profileは同じlogical ID `target.*`を使用し、profile versionは`profile_version`へ分離する。
-- JSON／schema FieldとMCD `namespace_path`はsnake_case、Registry logical IDはkind別grammarでlowercase kebab-case segmentを許可する。
+- JSON／schema Fieldはsnake_caseとする。MCD `namespace_path`を含むlogical IDはNaming正本のkind別grammarを使い、lower snakeまたはlower kebabの一方をsegmentごとに許可する。
 - 数字で始まるID segmentは禁止し、旧`2d-*`／`3d-*`は意味を保つ英字開始形へclean migrationする。
 - 既存52ファイルの未コミット差分はレビュー適用結果である。各Taskは対象hunkを読み、無関係なuser変更を置換しない。
 - 未固定dependencyの値を推測しない。公式資料で確認できないものは`unverifiable`または`unfixed`として保持する。
@@ -237,7 +237,7 @@ Expected: 旧profile ID、二つのDiagnostic表現、数字開始fixture IDが�
 | diagnostic code | `MIRAKAN-<UPPER-KEBAB-PATH>` | `MIRAKAN-PRODUCT-AUTHORING-ROUNDTRIP-FAILED` |
 | target | `target.<lower_snake_or_kebab_path>` | `target.windows.desktop` |
 | registry logical ID | `<kind>.<lower-kebab-path>` | `fixture.product.shooter-2d` |
-| MCD namespace_path | dot-separated lower snake segments | `render.material_general_2d` |
+| MCD namespace_path | kind別`lower-token-path` | `render.material_general_2d` |
 ```
 
 `lower-kebab-path`の各segmentは`[a-z][a-z0-9]*(?:-[a-z0-9]+)*`とし、数字開始を拒否する。schema Field名とRegistry IDのseparatorを混同しない。

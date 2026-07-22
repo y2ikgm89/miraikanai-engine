@@ -77,7 +77,7 @@ CxxToolchainBindingV1
   module_cache_policy: toolchain_and_configuration_local
 ```
 
-CX1だけが`experimental_import_std_token`にexact tokenを持ち、他Stateは空文字とする。配列はProfile ID順、重複不可とし、要求TargetにActive ProfileのbindingがなければBuild GatewayはProfile activationを失敗させる。Configure入口、Generator、Configuration identity、Package ownerは基盤規約の`BuildDriverProfileV1`が所有し、C++ Frontend bindingへ重複保存しない。
+CX1だけが`experimental_import_std_token`にexact tokenを持ち、他Stateは空文字とする。配列はProfile ID順、重複不可とし、要求TargetにActive ProfileのbindingがなければBuild GatewayはProfile activationを失敗させる。Configure入口、Generator、Configuration identity、Package ownerは[Toolchain／Dependencies](toolchain-dependencies.md#3-build-driver-matrix)の`BuildDriverProfileV1`が所有し、C++ Frontend bindingへ重複保存しない。
 
 許可遷移は`CX0 -> CX1 -> CX2 -> CX3`だけである。CX1はCX0とCI上で並行実行できるが、同じProduction artifact内でHeader公開APIとModule公開APIを選択可能にしない。CX2は隔離Cutover branchで行い、CX3へ昇格する一つのChangeSetに全変換、生成物更新、Header削除、Gate Receiptを含める。
 
@@ -126,11 +126,12 @@ CX3は各公式Targetで次を満たす。
 
 ## 6. Named Moduleの境界と命名
 
-一つの公開CMake targetは、最大一つのPrimary Named Moduleを所有する。Primary名はlowercase ASCIIとdot区切りの`mirakan.<domain>[.<role>]`とし、CMake aliasと1対1で固定する。
+一つの公開CMake targetは、最大一つのPrimary Named Moduleを所有する。Primary名はlowercase ASCIIとdot区切りとし、`mirakan.<domain>`、`mirakan.<domain>.<role>`、または`mirakan.<domain>.<backend>.adapter`のいずれかの形をとる。CMake aliasと1対1で固定する。公開Aliasを持たないtarget（conformance、benchmark、test）はPrimary Named Moduleを所有しない。
 
 | CMake alias | Primary Named Module |
 |---|---|
 | `mirakan::foundation` | `mirakan.foundation` |
+| `mirakan::math` | `mirakan.math` |
 | `mirakan::runtime_contracts` | `mirakan.runtime.contracts` |
 | `mirakan::gameplay` | `mirakan.gameplay` |
 | `mirakan::native_game` | `mirakan.native_game` |
@@ -162,7 +163,7 @@ CX3は各公式Targetで次を満たす。
 - CMake target DAGとModule graphのedgeを一致させる。どちらか一方にだけ存在する依存をconfigure errorにする。
 - `mirakan.common`、`mirakan.shared`、`mirakan.utils`を作らない。
 - Adapter ModuleをPort／Runtime Moduleからexportしない。Composition Rootだけがconcrete Adapterへ依存する。
-- Module名はSource API identityであり、BMI filename、filesystem path、DLL名、NativeGameModule IDには流用しない。
+- Module名はSource API identityであり、BMI filename、filesystem path、DLL名、NativeGameModule IDには流用しない。§7のModule interface filename（`mirakan.<component>.cppm`）だけを唯一の例外とする。
 
 ## 7. DirectoryとSource配置
 
@@ -216,7 +217,7 @@ set_property(TARGET mirakan_foundation PROPERTY CXX_MODULE_STD ON)
 
 ### 8.2 Build Driver／Generator規則
 
-CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDriverProfileV1`と基盤規約のexact Toolchain bindingに一致する入口だけを公式経路とする。
+CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDriverProfileV1`と[Toolchain／Dependencies](toolchain-dependencies.md#3-build-driver-matrix)のexact Toolchain bindingに一致する入口だけを公式経路とする。
 
 | Target／State | Driver Profile ID | 正規入口 | C++ Generator | Configuration単位 | 後段 |
 |---|---|---|---|---|---|
@@ -377,7 +378,7 @@ Ninja configureは同じXcode bundleのAppleClangとSDKだけを使用し、次�
 CMAKE_SYSTEM_NAME=iOS
 CMAKE_OSX_SYSROOT=iphoneos
 CMAKE_OSX_ARCHITECTURES=arm64
-CMAKE_OSX_DEPLOYMENT_TARGET=<toolchain_lock.profiles[apple_mobile_v1].target.deployment_target>
+CMAKE_OSX_DEPLOYMENT_TARGET=<toolchain_lock.profiles[target.apple.mobile].target.deployment_target>
 CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
 ```
 
@@ -477,7 +478,7 @@ CX2は依存DAGの下位から次の順で変換する。
 - Peak compiler process tree memoryはTool process hard cap内である。
 - 計測値、Compiler trace、Module graph、Cache hit／missをBuild Performance Receiptへ保存する。
 
-性能条件に失敗した場合もModules採用を撤回せず、CX2のまま原因を修正する。Unity Build、PCH、Header Unitで数値だけを補正しない。
+性能条件に失敗した場合もModules採用を撤回せず、CX2のまま原因を修正する。Unity Build、PCH、Header Unitで数値だけを補正しない。同一構成の完全測定cycleで3回連続して不合格となった場合は、閾値と測定方式の再評価をR4承認のADRとして起草する。再評価はModules採用と§4の一方向移行を再検討の対象にしない。5%／10%閾値の妥当性は§18項10のCX0／CX1 Build Performance Receiptを基準測定として検証し、再評価ADRの入力へ含める。
 
 ## 17. FailureとDiagnostic
 

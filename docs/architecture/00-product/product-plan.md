@@ -125,7 +125,7 @@ MVPはEngine機能網羅版ではなく、AI Authoringの安全な往復を証�
 
 MVP First PlayableはTitleから開始し、Player操作、一つのCore loop、敵／課題／Simulation対象、達成可能なGoal、Result／終了、Save／LoadまたはCheckpointを持つ。AI生成GameplayDefinitionを実際の挙動へ使い、適格なProject Native CapabilityとProject Shader ModuleまたはTechniqueをそれぞれ少なくとも一つ使い、人間の手動変更を保持してAIが追加編集できる。
 
-MVPに含める製品能力は、自由Prompt、Blocking／High質問、Game Brief、GameSpec、typed ChangeSet、構造化Scene／Rule／UI／Asset編集、GameplayDefinition、bounded Project C++／Shaderの隔離検証、Engine生成Diff、Approval、Commit、Undo、Replay、競合防止、First Playable、Cook、Package、Install、offline起動、diagnosis、support bundle、data resetである。
+MVPに含める製品能力は、自由Prompt、Blocking／High質問、Game Brief、GameSpec、typed ChangeSet、構造化Scene／Rule／UI／Asset編集、GameplayDefinition、bounded Project C++／Shaderの隔離検証、Engine生成Diff、Approval、Commit、Undo、Replay、競合防止、First Playable、Cook、Package、Install、offline起動、diagnosis、support bundle（正本は[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md) §14の`SupportBundleV1`）、data resetである。
 
 MVPから除外する。
 
@@ -211,23 +211,23 @@ C2CapabilityCoverageMatrixV1
     fallback_ref
     qualification_receipt_refs[]
     include_in_product_label: bool
-    lifecycle_state: declared_unscheduled | experimental | qualification_pending | qualified | production
+    capability_activation_state: not_activated | candidate_locked | qualified | production
     defer_reason
     dependency_refs[]
     reconsideration_gate_refs[]
 ```
 
-`owner_work_package_ref`、`validator_refs[]`、`fixture_refs[]`、`target_refs[]`、`fallback_ref`、`qualification_receipt_refs[]`、`lifecycle_state`は必須である。一つでも空、参照不能、失効、対象Candidateとhash不一致なら`include_in_product_label=false`とし、Production表示を拒否する。Work Packageから外したCapabilityも削除せず、`declared_unscheduled`としてdefer理由、依存、再検討Gateを残す。`lifecycle_state`は3.2節のActivation stateを置換せず、双方が`production`の場合だけProduct labelへ含める。
+`owner_work_package_ref`、`validator_refs[]`、`fixture_refs[]`、`target_refs[]`、`fallback_ref`、`qualification_receipt_refs[]`、`capability_activation_state`は必須である。一つでも空、参照不能、失効、対象Candidateとhash不一致なら`include_in_product_label=false`とし、Production表示を拒否する。Work Packageから外したCapabilityも削除せず、`capability_activation_state=not_activated`のままowner Work Packageの`scheduling_state=deferred`とdefer理由、依存、再検討Gateを残す。`capability_activation_state`は3.2節のActivation stateと同一の単一軸であり、第二のstate軸を持たない。`production`の場合だけProduct labelへ含める。
 
-Phase 8の`wp.product.2d-general-coverage`がこのmatrixと`capability.product.2d_general_production`を所有する。次の三つをすべて、人間の手動Authoring経路とAI Authoring経路の両方で合格した場合だけ公開し、Phase 3／4のShooter First PlayableからC2へ段階飛越しない。
+Phase 8の`wp.product.general-coverage-2d`がこのmatrixと`capability.product.general_production_2d`を所有する。次の三つをすべて、人間の手動Authoring経路とAI Authoring経路の両方で合格した場合だけ公開し、Phase 3／4のShooter First PlayableからC2へ段階飛越しない。
 
 | Playable fixture | Genre固有の完了条件 |
 |---|---|
-| `fixture.product.2d-shooter` | [Shooter Pack](../08-domain-packs/shooter.md)の2D top-down core loop、敵、Wave、Boss、score |
-| `fixture.product.2d-platformer` | Platformer: 5分以上のTitle→3 room→checkpoint→Result、one-way／moving platform、slope／step／ground snap、continuous collision、room Camera、Flipbook event／hitbox、Game Timer |
-| `fixture.product.2d-puzzle-dialogue` | 戦闘に依存しないTitle→3 room→Puzzle／Dialogue／Choice／Item／Interaction→Result、Focus、Text／Font、Timer付きpuzzle、Loading cancel／retry |
+| `fixture.product.shooter-2d` | [Shooter Pack](../08-domain-packs/shooter.md)の2D top-down core loop、敵、Wave、Boss、score |
+| `fixture.product.platformer-2d` | Platformer: 5分以上のTitle→3 room→checkpoint→Result、one-way／moving platform、slope／step／ground snap、continuous collision、room Camera、Flipbook event／hitbox、Game Timer |
+| `fixture.product.puzzle-dialogue-2d` | 戦闘に依存しないTitle→3 room→Puzzle／Dialogue／Choice／Item／Interaction→Result、Focus、Text／Font、Timer付きpuzzle、Loading cancel／retry |
 
-三fixtureは共通して、Title-to-Result、cook／package／clean install launch、Save slot／Load／Replay、keyboard／controller／touch、Localization／Accessibilityを同じrunで検証する。WindowsとMobileのQualification ReceiptはTarget別に保持し、一方、別genre、Editor内Play、manualまたはAI片方のReceiptで代用しない。各Capability rowの必須field欠落、`declared_unscheduled`、未対応Targetが一件でもあれば、個別Capabilityの状態を変えずProduct gateだけをfail closedにする。
+三fixtureは共通して、Title-to-Result、cook／package／clean install launch、Save slot／Load／Replay、keyboard／controller／touch、Localization／Accessibilityを同じrunで検証する。WindowsとMobileのQualification ReceiptはTarget別に保持し、一方、別genre、Editor内Play、manualまたはAI片方のReceiptで代用しない。各Capability rowの必須field欠落、`not_activated`、未対応Targetが一件でもあれば、個別Capabilityの状態を変えずProduct gateだけをfail closedにする。
 
 Local multiplayerを有効化する場合は、Cameraのsplit viewだけで完了扱いにせず、次のProduct profileでSubsystem closureを追跡する。
 
@@ -353,7 +353,7 @@ Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較E
 ```text
 CapabilityRegistryV1
   entries[]: capability_id, target_product_tier, owner_work_package_ref,
-             target_bindings[], fallback_ref, lifecycle_state
+             target_bindings[], fallback_ref, capability_activation_state
   target_bindings[]: target_id, scope(required | optional | excluded)
 
 CapabilityTargetActivationV1
@@ -381,6 +381,8 @@ FallbackRegistryV1
 ```
 
 `defer_reason`と`blocked_reason_ref`は常にFieldを持ち、非該当時は`null`とする。`reconsideration_gate_refs[]`は常に存在し、非deferred時は空配列である。`scheduling_state=deferred`ではnon-empty `defer_reason`と1件以上の`reconsideration_gate_refs[]`、`blocked`ではnon-null `blocked_reason_ref`を必須とする。他stateでこれらを設定した行を拒否する。
+
+`ProductPhaseRegistryV1`の`work_package_refs[]`は、`phase_id`が当該Phaseに一致する全Work Packageの全量列挙である。Phase→Work PackageとWork Package→Phaseの相互参照は双方向で一致させ、片側にのみ現れる参照を拒否する。`WorkPackageRegistryV1`の`fixture_refs[]`は当該Work Packageが実装を提供するfixtureの列挙であり、Work Package単独の完了gateではない。fixtureの合格判定は、そのfixtureを`exit_fixture_refs[]`で参照するPhaseのexit判定が所有する。
 
 ### 11.2 Target Profile registry
 
@@ -416,10 +418,10 @@ Profile versionは更新可能なFieldであり、Target IDへ`v1`を埋め込�
 | `fixture.product.headless-contract-smoke` | `mirakan.arch.product-plan` | `requirement.target.headless-determinism` | `target.headless.host` | 60 |
 | `fixture.product.authoring-transaction` | `mirakan.arch.project-state` | `requirement.product.authoring-roundtrip` | `target.headless.host` | 300 |
 | `fixture.product.windows-empty-scene` | `mirakan.arch.product-plan` | `requirement.target.windows-editor; requirement.target.windows-package` | `target.windows.editor; target.windows.desktop` | 300 |
-| `fixture.product.2d-shooter` | `mirakan.arch.domain-pack-shooter` | `requirement.product.title-to-result; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
-| `fixture.product.2d-platformer` | `mirakan.arch.product-plan` | `requirement.product.c2-2d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
-| `fixture.product.2d-puzzle-dialogue` | `mirakan.arch.product-plan` | `requirement.product.c2-2d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
-| `fixture.product.3d-shooter-arena` | `mirakan.arch.domain-pack-shooter` | `requirement.product.c2-3d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
+| `fixture.product.shooter-2d` | `mirakan.arch.domain-pack-shooter` | `requirement.product.title-to-result; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
+| `fixture.product.platformer-2d` | `mirakan.arch.product-plan` | `requirement.product.c2-2d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
+| `fixture.product.puzzle-dialogue-2d` | `mirakan.arch.product-plan` | `requirement.product.c2-2d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
+| `fixture.product.shooter-arena-3d` | `mirakan.arch.domain-pack-shooter` | `requirement.product.c2-3d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
 | `fixture.product.external-agent-proposal` | `mirakan.arch.ai-security-approval` | `requirement.product.external-agent-boundary` | `target.headless.host` | 120 |
 | `fixture.product.mobile-lifecycle` | `mirakan.arch.platform-mobile-common` | `requirement.target.android-package; requirement.target.apple-package` | `target.android.mobile; target.apple.mobile` | 900 |
 | `fixture.product.runtime-generation-denial` | `mirakan.arch.ai-security-approval` | `requirement.product.runtime-generation-boundary` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
@@ -442,15 +444,17 @@ Profile versionは更新可能なFieldであり、Target IDへ`v1`を埋め込�
 | 0 | `phase.foundation` | `requirement.target.headless-determinism` | `wp.architecture.control-plane; wp.runtime.ecs-e0` | `fixture.product.headless-contract-smoke` |
 | 1 | `phase.headless-authoring` | `requirement.product.authoring-roundtrip` | `wp.authoring.headless-core` | `fixture.product.authoring-transaction` |
 | 2 | `phase.editor-runtime` | `requirement.target.windows-editor; requirement.target.windows-package` | `wp.runtime.d3d12-backend; wp.product.editor-runtime-windows` | `fixture.product.windows-empty-scene` |
-| 3 | `phase.manual-2d` | `requirement.product.title-to-result; requirement.product.save-load-replay` | `wp.domain.shooter-2d` | `fixture.product.2d-shooter` |
-| 4 | `phase.ai-authoring-mvp-a` | `requirement.product.authoring-roundtrip` | `wp.product.ai-authoring-mvp-a` | `fixture.product.2d-shooter` |
+| 3 | `phase.manual-2d` | `requirement.product.title-to-result; requirement.product.save-load-replay` | `wp.domain.shooter-core; wp.domain.shooter-2d` | `fixture.product.shooter-2d` |
+| 4 | `phase.ai-authoring-mvp-a` | `requirement.product.authoring-roundtrip` | `wp.product.ai-authoring-mvp-a` | `fixture.product.shooter-2d` |
 | 5 | `phase.external-agent` | `requirement.product.external-agent-boundary` | `wp.product.external-agent` | `fixture.product.external-agent-proposal` |
-| 6 | `phase.manual-3d-mvp-b` | `requirement.product.c2-3d-coverage` | `wp.domain.shooter-3d` | `fixture.product.3d-shooter-arena` |
+| 6 | `phase.manual-3d-mvp-b` | `requirement.product.c2-3d-coverage` | `wp.domain.shooter-3d` | `fixture.product.shooter-arena-3d` |
 | 7 | `phase.mobile` | `requirement.target.android-package; requirement.target.apple-package` | `wp.platform.mobile-offline` | `fixture.product.mobile-lifecycle` |
-| 8 | `phase.production-capability` | `requirement.product.c2-2d-coverage; requirement.product.c2-3d-coverage` | `wp.product.2d-general-coverage; wp.product.3d-general-coverage; wp.domain.platformer; wp.domain.puzzle-dialogue` | `fixture.product.2d-platformer; fixture.product.2d-puzzle-dialogue; fixture.product.3d-shooter-arena` |
+| 8 | `phase.production-capability` | `requirement.product.c2-2d-coverage; requirement.product.c2-3d-coverage` | `wp.product.general-coverage-2d; wp.product.general-coverage-3d; wp.domain.platformer; wp.domain.puzzle-dialogue; wp.rendering.environment-c2; wp.rendering.vfx-c2; wp.rendering.material-toon; wp.ui.native-widget; wp.gameplay.core-c1; wp.navigation.path-following; wp.runtime.timer` | `fixture.product.platformer-2d; fixture.product.puzzle-dialogue-2d; fixture.product.shooter-arena-3d` |
 | 9 | `phase.runtime-generation` | `requirement.product.runtime-generation-boundary` | `wp.product.runtime-generation` | `fixture.product.runtime-generation-denial` |
 
 Phase 5とPhase 9はこのRegistry行を唯一のscheduling identityとし、本文上の見出しや番号だけで存在を表現しない。
+
+Phase exitのTarget範囲は次で導出する。exit判定は`exit_fixture_refs[]`の各fixtureを、`order_index`が当該Phase以下のPhaseの`outcome_requirement_refs[]`に`qualification_policy_ref`が含まれるTargetと、fixture行の`target_refs[]`の積集合に限って要求する。fixture行の`target_refs[]`は全Phase完了時点の到達範囲であり、単独ではPhase exitのTarget範囲を定義しない。11.7節のC2 gateのように対象Targetを明示列挙するgateは、この導出より優先する。
 
 ### 11.5 Work Package registry
 
@@ -463,68 +467,68 @@ Phase 5とPhase 9はこのRegistry行を唯一のscheduling identityとし、本
 | `wp.authoring.headless-core` | `phase.headless-authoring` | `mirakan.arch.project-state` | `target.headless.host` | `fallback.capability.unavailable` | `fixture.product.authoring-transaction` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
 | `wp.runtime.d3d12-backend` | `phase.editor-runtime` | `mirakan.arch.rendering-render-graph` | `target.windows.editor; target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.windows-empty-scene` | `wp.architecture.control-plane; wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
 | `wp.product.editor-runtime-windows` | `phase.editor-runtime` | `mirakan.arch.product-plan` | `target.windows.editor; target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.windows-empty-scene` | `wp.authoring.headless-core; wp.runtime.d3d12-backend` | `declared` | `null` | `[]` | `null` |
-| `wp.domain.shooter-core` | `phase.manual-2d` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-shooter; fixture.product.3d-shooter-arena` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
-| `wp.domain.shooter-2d` | `phase.manual-2d` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.2d-shooter` | `wp.domain.shooter-core; wp.product.editor-runtime-windows` | `declared` | `null` | `[]` | `null` |
-| `wp.product.ai-authoring-mvp-a` | `phase.ai-authoring-mvp-a` | `mirakan.arch.product-plan` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.2d-shooter` | `wp.domain.shooter-2d` | `declared` | `null` | `[]` | `null` |
+| `wp.domain.shooter-core` | `phase.manual-2d` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.shooter-2d; fixture.product.shooter-arena-3d` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
+| `wp.domain.shooter-2d` | `phase.manual-2d` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-2d` | `wp.domain.shooter-core; wp.product.editor-runtime-windows` | `declared` | `null` | `[]` | `null` |
+| `wp.product.ai-authoring-mvp-a` | `phase.ai-authoring-mvp-a` | `mirakan.arch.product-plan` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-2d` | `wp.domain.shooter-2d` | `declared` | `null` | `[]` | `null` |
 | `wp.product.external-agent` | `phase.external-agent` | `mirakan.arch.ai-security-approval` | `target.headless.host` | `fallback.capability.unavailable` | `fixture.product.external-agent-proposal` | `wp.product.ai-authoring-mvp-a` | `declared` | `null` | `[]` | `null` |
-| `wp.domain.shooter-3d` | `phase.manual-3d-mvp-b` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.3d-shooter-arena` | `wp.domain.shooter-core; wp.product.external-agent` | `declared` | `null` | `[]` | `null` |
+| `wp.domain.shooter-3d` | `phase.manual-3d-mvp-b` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-arena-3d` | `wp.domain.shooter-core; wp.product.external-agent` | `declared` | `null` | `[]` | `null` |
 | `wp.platform.mobile-offline` | `phase.mobile` | `mirakan.arch.platform-mobile-common` | `target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.mobile-lifecycle` | `wp.domain.shooter-3d` | `declared` | `null` | `[]` | `null` |
-| `wp.product.2d-general-coverage` | `phase.production-capability` | `mirakan.arch.product-plan` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-shooter; fixture.product.2d-platformer; fixture.product.2d-puzzle-dialogue` | `wp.platform.mobile-offline` | `declared` | `null` | `[]` | `null` |
-| `wp.product.3d-general-coverage` | `phase.production-capability` | `mirakan.arch.product-plan` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.3d-shooter-arena` | `wp.platform.mobile-offline` | `declared` | `null` | `[]` | `null` |
-| `wp.domain.platformer` | `phase.production-capability` | `mirakan.arch.gameplay-programming-model` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-platformer` | `wp.product.2d-general-coverage` | `declared` | `null` | `[]` | `null` |
-| `wp.domain.puzzle-dialogue` | `phase.production-capability` | `mirakan.arch.gameplay-programming-model` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-puzzle-dialogue` | `wp.product.2d-general-coverage` | `declared` | `null` | `[]` | `null` |
-| `wp.rendering.environment-c2` | `phase.production-capability` | `mirakan.arch.rendering-environment-surfaces` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.rendering.environment-core` | `fixture.product.2d-shooter; fixture.product.3d-shooter-arena` | `wp.product.2d-general-coverage; wp.product.3d-general-coverage` | `declared` | `null` | `[]` | `null` |
-| `wp.rendering.vfx-c2` | `phase.production-capability` | `mirakan.arch.rendering-vfx-runtime` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.rendering.vfx-core` | `fixture.product.2d-shooter; fixture.product.3d-shooter-arena` | `wp.product.2d-general-coverage; wp.product.3d-general-coverage` | `declared` | `null` | `[]` | `null` |
-| `wp.rendering.material-toon` | `phase.production-capability` | `mirakan.arch.rendering-materials` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.rendering.material-default` | `fixture.product.2d-shooter; fixture.product.3d-shooter-arena` | `wp.product.2d-general-coverage; wp.product.3d-general-coverage` | `declared` | `null` | `[]` | `null` |
-| `wp.ui.native-widget` | `phase.production-capability` | `mirakan.arch.platform-ui-text-localization-accessibility` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-puzzle-dialogue` | `wp.product.2d-general-coverage` | `declared` | `null` | `[]` | `null` |
-| `wp.gameplay.core-c1` | `phase.production-capability` | `mirakan.arch.gameplay-programming-model` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-shooter; fixture.product.2d-puzzle-dialogue; fixture.product.3d-shooter-arena` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
-| `wp.navigation.path-following` | `phase.production-capability` | `mirakan.arch.simulation-navigation` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-platformer; fixture.product.3d-shooter-arena` | `wp.gameplay.core-c1` | `declared` | `null` | `[]` | `null` |
-| `wp.runtime.timer` | `phase.production-capability` | `mirakan.arch.runtime-scheduling-lifetime` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.2d-platformer; fixture.product.2d-puzzle-dialogue` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
-| `wp.product.runtime-generation` | `phase.runtime-generation` | `mirakan.arch.ai-security-approval` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.runtime-generation-denial` | `wp.domain.platformer; wp.domain.puzzle-dialogue; wp.product.3d-general-coverage` | `declared` | `null` | `[]` | `null` |
+| `wp.product.general-coverage-2d` | `phase.production-capability` | `mirakan.arch.product-plan` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.shooter-2d; fixture.product.platformer-2d; fixture.product.puzzle-dialogue-2d` | `wp.platform.mobile-offline` | `declared` | `null` | `[]` | `null` |
+| `wp.product.general-coverage-3d` | `phase.production-capability` | `mirakan.arch.product-plan` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.shooter-arena-3d` | `wp.platform.mobile-offline` | `declared` | `null` | `[]` | `null` |
+| `wp.domain.platformer` | `phase.production-capability` | `mirakan.arch.gameplay-programming-model` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.platformer-2d` | `wp.product.general-coverage-2d` | `declared` | `null` | `[]` | `null` |
+| `wp.domain.puzzle-dialogue` | `phase.production-capability` | `mirakan.arch.gameplay-programming-model` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.puzzle-dialogue-2d` | `wp.product.general-coverage-2d` | `declared` | `null` | `[]` | `null` |
+| `wp.rendering.environment-c2` | `phase.production-capability` | `mirakan.arch.rendering-environment-surfaces` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.rendering.environment-core` | `fixture.product.shooter-2d; fixture.product.shooter-arena-3d` | `wp.product.general-coverage-2d; wp.product.general-coverage-3d` | `declared` | `null` | `[]` | `null` |
+| `wp.rendering.vfx-c2` | `phase.production-capability` | `mirakan.arch.rendering-vfx-runtime` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.rendering.vfx-core` | `fixture.product.shooter-2d; fixture.product.shooter-arena-3d` | `wp.product.general-coverage-2d; wp.product.general-coverage-3d` | `declared` | `null` | `[]` | `null` |
+| `wp.rendering.material-toon` | `phase.production-capability` | `mirakan.arch.rendering-materials` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.rendering.material-default` | `fixture.product.shooter-2d; fixture.product.shooter-arena-3d` | `wp.product.general-coverage-2d; wp.product.general-coverage-3d` | `declared` | `null` | `[]` | `null` |
+| `wp.ui.native-widget` | `phase.production-capability` | `mirakan.arch.platform-ui-text-localization-accessibility` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.puzzle-dialogue-2d` | `wp.product.general-coverage-2d` | `declared` | `null` | `[]` | `null` |
+| `wp.gameplay.core-c1` | `phase.production-capability` | `mirakan.arch.gameplay-programming-model` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.shooter-2d; fixture.product.puzzle-dialogue-2d; fixture.product.shooter-arena-3d` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
+| `wp.navigation.path-following` | `phase.production-capability` | `mirakan.arch.simulation-navigation` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.platformer-2d; fixture.product.shooter-arena-3d` | `wp.gameplay.core-c1` | `declared` | `null` | `[]` | `null` |
+| `wp.runtime.timer` | `phase.production-capability` | `mirakan.arch.runtime-scheduling-lifetime` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.platformer-2d; fixture.product.puzzle-dialogue-2d` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
+| `wp.product.runtime-generation` | `phase.runtime-generation` | `mirakan.arch.ai-security-approval` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.runtime-generation-denial` | `wp.domain.platformer; wp.domain.puzzle-dialogue; wp.product.general-coverage-3d` | `declared` | `null` | `[]` | `null` |
 
 ### 11.6 Capability–Target–Fallback registry
 
 全行の初期ActivationはTargetごとに`not_activated`、`candidate_ref=null`、`receipt_refs=[]`、`evidence_freshness=expired`とする。文書更新だけで昇格しない。Target scopeの`Windows`、`Android`、`Apple`はそれぞれ`target.windows.desktop`、`target.android.mobile`、`target.apple.mobile`の略記であり、Registry生成時は略記を保存せずexact IDへ展開する。
 
-| capability_id | tier | owner WP | Target scope | fallback | lifecycle |
+| capability_id | tier | owner WP | Target scope | fallback | activation |
 |---|---|---|---|---|---|
-| `capability.environment.aerial_perspective` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.environment.atmosphere_lut` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.environment.cloud_shadow` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.environment.core` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.rendering.ibl-baked` | `declared_unscheduled` |
-| `capability.environment.dynamic_ibl` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.ibl-baked` | `declared_unscheduled` |
-| `capability.environment.height_fog` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.environment.ibl_baked` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.environment.intent_resolver` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.environment.local_fog_volume` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.environment.sky_hdri` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.rendering.ibl-baked` | `declared_unscheduled` |
-| `capability.environment.volumetric_cloud` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.environment.volumetric_fog` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `declared_unscheduled` |
-| `capability.gameplay.interaction` | C1 | `wp.gameplay.core-c1` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.gameplay.path_following` | C1 | `wp.navigation.path-following` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.gameplay.perception` | C1 | `wp.gameplay.core-c1` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.gameplay.timer` | C1 | `wp.runtime.timer` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.gameplay.shooter_core` | C1 | `wp.domain.shooter-core` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.product.2d_general_production` | C2 | `wp.product.2d-general-coverage` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.product.3d_general_production` | C2 | `wp.product.3d-general-coverage` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.render.material.toon` | C2 | `wp.rendering.material-toon` | Windows required; Android required; Apple required | `fallback.rendering.material-default` | `declared_unscheduled` |
-| `capability.ui.native_widget` | C2 | `wp.ui.native-widget` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.vfx.bake_cache` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `declared_unscheduled` |
-| `capability.vfx.billboard_3d` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-cpu` | `declared_unscheduled` |
-| `capability.vfx.extension_operator` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `declared_unscheduled` |
-| `capability.vfx.mesh_ribbon` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-cpu` | `declared_unscheduled` |
-| `capability.vfx.particle_cpu` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-core` | `declared_unscheduled` |
-| `capability.vfx.particle_gpu` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-cpu` | `declared_unscheduled` |
-| `capability.vfx.particle_light` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `declared_unscheduled` |
-| `capability.vfx.pattern_catalog` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-core` | `declared_unscheduled` |
-| `capability.vfx.semantic_intent` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `declared_unscheduled` |
-| `capability.vfx.sprite_2d` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-cpu` | `declared_unscheduled` |
-| `capability.vfx.system` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-core` | `declared_unscheduled` |
-| `capability.vfx.trail` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-cpu` | `declared_unscheduled` |
-| `capability.vfx.visual_collision` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `declared_unscheduled` |
+| `capability.environment.aerial_perspective` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.environment.atmosphere_lut` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.environment.cloud_shadow` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.environment.core` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.rendering.ibl-baked` | `not_activated` |
+| `capability.environment.dynamic_ibl` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.ibl-baked` | `not_activated` |
+| `capability.environment.height_fog` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.environment.ibl_baked` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.environment.intent_resolver` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.environment.local_fog_volume` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.environment.sky_hdri` | C1 | `wp.rendering.environment-c2` | Windows required; Android required; Apple required | `fallback.rendering.ibl-baked` | `not_activated` |
+| `capability.environment.volumetric_cloud` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.environment.volumetric_fog` | C2 | `wp.rendering.environment-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.environment-core` | `not_activated` |
+| `capability.gameplay.interaction` | C1 | `wp.gameplay.core-c1` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.gameplay.path_following` | C1 | `wp.navigation.path-following` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.gameplay.perception` | C1 | `wp.gameplay.core-c1` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.gameplay.shooter_core` | C1 | `wp.domain.shooter-core` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.gameplay.timer` | C1 | `wp.runtime.timer` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.product.general_production_2d` | C2 | `wp.product.general-coverage-2d` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.product.general_production_3d` | C2 | `wp.product.general-coverage-3d` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.render.material.toon` | C2 | `wp.rendering.material-toon` | Windows required; Android required; Apple required | `fallback.rendering.material-default` | `not_activated` |
+| `capability.ui.native_widget` | C2 | `wp.ui.native-widget` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.vfx.bake_cache` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `not_activated` |
+| `capability.vfx.billboard_3d` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-cpu` | `not_activated` |
+| `capability.vfx.extension_operator` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `not_activated` |
+| `capability.vfx.mesh_ribbon` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-cpu` | `not_activated` |
+| `capability.vfx.particle_cpu` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-core` | `not_activated` |
+| `capability.vfx.particle_gpu` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-cpu` | `not_activated` |
+| `capability.vfx.particle_light` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `not_activated` |
+| `capability.vfx.pattern_catalog` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-core` | `not_activated` |
+| `capability.vfx.semantic_intent` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.vfx.sprite_2d` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-cpu` | `not_activated` |
+| `capability.vfx.system` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-core` | `not_activated` |
+| `capability.vfx.trail` | C1 | `wp.rendering.vfx-c2` | Windows required; Android required; Apple required | `fallback.rendering.vfx-cpu` | `not_activated` |
+| `capability.vfx.visual_collision` | C2 | `wp.rendering.vfx-c2` | Windows required; Android optional; Apple optional | `fallback.rendering.vfx-core` | `not_activated` |
 
-`declared_unscheduled`行の`defer_reason`は「Phase 8の前提Work PackageとTarget Qualificationが未完了」、依存は対応Owner WP、再検討Gateは`phase.production-capability`開始Gateとする。これら三FieldをRegistry生成時に各行へ物理格納し、省略しない。
+`not_activated`行の`defer_reason`は「Phase 8の前提Work PackageとTarget Qualificationが未完了」、依存は対応Owner WP、再検討Gateは`phase.production-capability`開始Gateとする。これら三FieldをRegistry生成時に各行へ物理格納し、省略しない。
 
 ### 11.7 C2 3D gate
 
-`wp.product.3d-general-coverage`は`fixture.product.3d-shooter-arena`だけでProduct C2を宣言しない。初回C2 gateは、同fixtureをWindows、Android、Appleの三Targetでmanual／AI Authoring双方から30分soakし、Title→Result、Save／Load／Replay、package／clean install、controller／touch、Localization／Accessibility、device lossまたはlifecycle recoveryを同一Candidate hashで合格させる。第二の非Shooter 3D fixtureがRegistryへ追加されるまでは`capability.product.3d_general_production`を`declared_unscheduled`に留め、Product labelを`3D First Playable`に限定する。
+`wp.product.general-coverage-3d`は`fixture.product.shooter-arena-3d`だけでProduct C2を宣言しない。初回C2 gateは、同fixtureをWindows、Android、Appleの三Targetでmanual／AI Authoring双方から30分soakし、Title→Result、Save／Load／Replay、package／clean install、controller／touch、Localization／Accessibility、device lossまたはlifecycle recoveryを同一Candidate hashで合格させる。第二の非Shooter 3D fixtureがRegistryへ追加されるまでは`capability.product.general_production_3d`を`not_activated`に留め、Product labelを`3D First Playable`に限定する。

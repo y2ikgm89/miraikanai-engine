@@ -489,7 +489,7 @@ Target profile、native binary、Runtime Package、Application Package、signatu
 | Diagnostic | `diagnostic.<domain>.<condition>` |
 | Driver／Profile | logical IDにversionとmaturityを含めない。Versionは専用Field、exact artifactはlockで解決 |
 
-全IDは7.1のstable dotted ID文字classに一致し、種類ごとの固定prefixを持つ。既存の`.c1`、`_c2`、`production_c2`をCapability IDから除去する。Capabilityのmaturity、Work PackageのPhase、Driver／Profileのversionは別Fieldで保持し、昇格、再計画、更新でlogical IDを変えない。旧IDは同じChangeSet内のoffline migration tableで新IDへ一度だけ写像し、runtime aliasを残さない。
+document ID、MCD object、Product Registry logical IDは[Naming／Project Layout §3.2](../architecture/02-foundation/naming-project-layout.md#32-stable-idとoperation)のkind別grammarに従う。すべてのkindで数字開始segment、同一segment内の`-`／`_`混在、maturity／version埋込みを拒否する。Capabilityのmaturity、Work PackageのPhase、Driver／Profileのversionは別Fieldで保持し、昇格、再計画、更新でlogical IDを変えない。旧IDは同じChangeSet内のoffline migration tableで新IDへ一度だけ写像し、runtime aliasを残さない。
 
 ### 9.2 State axes
 
@@ -737,7 +737,7 @@ Install時にrangeを解決しただけではActivationしない。`DomainPackRe
 
 Pack dependency cycle、欠落、lock未選択の複数解、range外、同一Pack ID別hashを拒否する。Resolverは`latest`を自動選択せず、承認済み選択をexact lockへ書く。Patch／minorはcompatibility fixtureを必須とし、persisted Sourceが変わる場合だけ同一major migrationを追加する。Majorはoffline migrationと明示承認を必要とする。Runtime shim、旧名alias、synthetic dependencyを作らない。
 
-Shooter Packの`feature.*.c1`、Profile／Capability IDからmaturityを除去し、Product PlanのActivation stateでC1を表す。
+Shooter Packの`feature.*.c1`、Profile／Capability IDからmaturityを除去し、C1はRegistryの`target_product_tier`列で表す。現在状態は別軸のActivation stateが持ち、TierをActivation stateで表現しない。
 
 ## 15. Product、Phase、Work Package整合
 
@@ -751,7 +751,7 @@ exit_fixture_refs[], target_refs[]
 schedule_state, completion_receipt_refs[]
 ```
 
-`WP7a3_2d_product_coverage_c2`は`wp.product.coverage-2d`へ一度だけmigrationし、Registryの`phase_id`でPhase 8へ登録する。将来Phaseを移してもIDは変えない。Capability Coverage MatrixはWork Package scheduleとCapability activationを再定義しない。
+2D coverage Work Packageの正本IDはProduct Plan §11.5の`wp.product.general-coverage-2d`であり、Registryの`phase_id`でPhase 8へ登録する。将来Phaseを移してもIDは変えない。旧表記`WP7a3_2d_product_coverage_c2`はactive specに残存しないため、実装計画Appendix Dへmigration rowを作らない。Capability Coverage MatrixはWork Package scheduleとCapability activationを再定義しない。
 
 `requires_work_package_refs`はcycleを禁止し、PrerequisiteのPhase ordinalがConsumerより後なら拒否する。同Phase内はtopological orderを使う。`schedule_state=complete`は全exit fixtureのfresh Receipt、approved Owner document、Target closureが揃う場合だけ許可する。`deferred`はdefer reasonと再検討Gateを必須とし、Registryから削除しない。
 
@@ -770,7 +770,7 @@ Runtime ECS設計のarchetype／SoA、closed transition、single writer、access
 
 1. 「既存Save owner」参照を新Persistence／Save正本へ置換する。
 2. ECS Save sectionはComponent／Entity projectionだけを所有し、slot／aggregate／migration orchestration／file transactionを所有しない。
-3. `DerivedArtifactManifestV2`は、未実装のsuffixなし型から移るなら`DerivedArtifactManifestV1`としてclean定義する。V2を使う場合は実在するreleased V1とmigration履歴を示す。
+3. `DerivedArtifactManifestV2`は、未実装のsuffixなし型から移るなら`DerivedArtifactManifestV1`としてclean定義する。V2を使う場合は実在するreleased V1とmigration履歴を示す。（ECS Decision本文は現行`DerivedArtifactManifestV1`へ統一済みであり、本項のV2→V1改名分は完了している。）
 4. Runtime World Root／Section artifactはRuntime Package manifestとContent Group closureへ接続する。
 5. `McdCanonicalBinaryV1`をCompatibility／EvolutionのSchema evolution規則へ接続する。
 6. `NativeSystemDescriptorV1`変更をNative ABI compatibility classへ登録する。
@@ -856,7 +856,7 @@ Node、npm、CMake、Ninja、LLVM、DXC、vcpkg、Rendering／Physics／Navigati
 | `07-platform/apple.md` | common assembly manifest、App Store submission／release mapping、Save adapter |
 | `07-platform/audio.md` | Save stable identity、Runtime Package／Application Package entry |
 | `07-platform/input.md` | Save／Replay header compatibility、Runtime Package binding |
-| `07-platform/mobile-common.md` | `TargetProfileRefV1`、Save adapter boundary、application package common owner |
+| `07-platform/mobile-common.md` | `TargetProfileRefV1`、Save adapter boundary、application package common owner、suffixなし`DerivedArtifactManifest`参照（§5.5）の`DerivedArtifactManifestV1`統一 |
 | `07-platform/ui-text-localization-accessibility.md` | `AccessibilityPolicySnapshotV1` Owner、Save catalog projection、Package receipt |
 | `07-platform/windows.md` | `UnsignedWindowsPackageV1`、common Receipt、Store submission mapping、Save storage adapter。[D3D12 Companion]後続ChangeSetでHWND／OS lifecycleとD3D12 Surface／Device ownerを分離 |
 | `08-domain-packs/domain-pack-contract.md` | `DomainPackManifestV1`、Engine range、dependency refs、resolved lock、migration |
@@ -999,8 +999,10 @@ architecture_index_sha256
 document_relation_registry_sha256
 product_registry_sha256
 identity_migration_registry_sha256
+architecture_explain_schema_sha256
 toolchain_lock_sha256
 architecture_lint_artifact_sha256
+lint_version
 ```
 
 Runtime ECSとD3D12 Backendはこのread-backが成功するまで開始しない。値は設計時に仮記入せず、clean treeで全lint／test／Index Gateを通したArtifactから生成する。Mismatchは`diagnostic.architecture.baseline-mismatch`で停止し、最新値へ暗黙追従しない。

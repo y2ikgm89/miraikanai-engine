@@ -36,12 +36,15 @@
 | `docs/architecture/07-platform/application-package-release.md` | Target package assembly、sign、staging／publish正本 |
 | `schemas/architecture/document-metadata.schema.json` | Architecture metadata V1 schema |
 | `schemas/architecture/explain-projection.schema.json` | Architecture explain request／projectionのclosed schema |
+| `schemas/architecture/document-relations.schema.json` | document relation registry V1 schema |
+| `schemas/architecture/baseline.schema.json` | baseline handoff V1 schema。field過不足を拒否 |
 | `schemas/product/product-registries.schema.json` | Product registry V1 schema集合 |
-| `architecture/registry/document-relations.v1.json` | 48文書のdirect requiresとreciprocal integration正本 |
+| `architecture/registry/document-relations.v1.json` | 48文書のdirect requires、reciprocal integration、canonical order正本 |
 | `architecture/registry/identity-migration.v1.json` | Appendix Dと一致する旧→新ID mapping |
 | `architecture/registry/product.v1.json` | Product Plan §11のregistry projection |
 | `architecture/migrations/control-plane-v1.json` | legacy header、new metadata、removed edge classificationの監査記録 |
 | `tools/architecture_lint/package.json` | offline、private、scriptなしのtool package |
+| `tools/architecture_lint/package-lock.json` | `npm ci`が必須とするexact dependency lock |
 | `tools/architecture_lint/tsconfig.json` | strict ES module compile設定 |
 | `tools/architecture_lint/src/model.ts` | closed data types |
 | `tools/architecture_lint/src/parse.ts` | UTF-8、H1、metadata JSON、Markdown link parser |
@@ -170,7 +173,7 @@ Diagnosticsは`{diagnostic_id,path,line,document_id}`のUTF-8 byte順でsortし�
 
 **Interfaces:**
 - Consumes: Git tracked tree、Appendix A～D。
-- Produces: `ControlPlaneMigrationV1`。各rowは`path`、`legacy_document_id`、`legacy_dependencies[]`、`new_document_id`、`new_requires[]`、`integration_edge_refs[]`、`removed_transitive_edges[]`、`removed_reference_only_edges[]`を持つ。
+- Produces: `ControlPlaneMigrationV1`。各rowは`path`、`legacy_document_id`、`legacy_dependencies[]`、`new_document_id`、`new_requires[]`、`integration_edge_refs[]`、`replaced_by_integration_edges[]`、`removed_transitive_edges[]`、`removed_reference_only_edges[]`を持つ。
 
 - [ ] **Step 1: failing testを書く**
 
@@ -188,7 +191,7 @@ Expected: exit 1、`ENOENT: architecture/migrations/control-plane-v1.json`。
 
 - [ ] **Step 3: Appendix A～DをそのままJSONへ転記する**
 
-`legacy_dependencies[]`はAppendix A、`new_requires[]`はAppendix B、`integration_edge_refs[]`はAppendix Cから生成する。Legacy edgeのうちAppendix Bのnew graphで同じtargetへ別経路があるedgeだけを`removed_transitive_edges[]`、Decision、比較資料、単なるconsumer参照を`removed_reference_only_edges[]`へ置く。同じedgeを二分類または無分類にしない。
+`legacy_dependencies[]`はAppendix A、`new_requires[]`はAppendix B、`integration_edge_refs[]`はAppendix Cから生成する。`integration_edge_refs[]`はlegacy edge由来か否かを区別しない。Legacy edgeはAppendix Bの分類式で一意に分類し、`removed_transitive`は`removed_transitive_edges[]`、`replaced_by_integrates_with`（例: PP→SEC）は`replaced_by_integration_edges[]`、`removed_reference_only`は`removed_reference_only_edges[]`へ置く。同じedgeを二分類または無分類にしない。
 
 - [ ] **Step 4: testを再実行する**
 
@@ -229,7 +232,7 @@ Expected: exit 1、schema file `ENOENT`。
 
 - [ ] **Step 3: exact schemaを追加する**
 
-Metadataは`additionalProperties=false`、required 10 key、array duplicate禁止、state closed enumを固定する。Work Packageは`defer_reason`、`reconsideration_gate_refs`、`blocked_reason_ref`を常にrequiredとし、state別`if/then`でnull／non-nullを制約する。
+Metadataは`additionalProperties=false`、required 10 key、array duplicate禁止、state closed enumを固定する。Work Packageは`defer_reason`、`reconsideration_gate_refs`、`blocked_reason_ref`を常にrequiredとし、state別`if/then`でnull／non-nullを制約する。ID patternは設計§9.1の2 regex（document ID用と一般logical ID用）を転記し、Appendix DとProduct Plan §11の全新IDが一般logical ID regexに一致するpositive testを加える。
 
 - [ ] **Step 4: testを再実行する**
 
@@ -295,10 +298,39 @@ H1直後に一つのmetadata blockを置き、旧5 list行を同じpatchで削�
 
 Expected: active 48、legacy header 0、metadata block 48、unknown ID 0でPASS。
 
+### Task 4B: 43文書本文のold IDと旧型名を置換する
+
+**Files:**
+- Modify: Appendix Aに列挙した43 active spec
+- Test: `tools/architecture_lint/test/identity-occurrence.test.mjs`
+
+**Interfaces:**
+- Consumes: Appendix D、Control Plane Design §13.2、§19。
+- Produces: 本文中のAppendix D old ID出現0、§13.2旧型名出現0の48 document set。
+
+- [ ] **Step 1: old ID出現を数えるfailing testを書く**
+
+```js
+assert.deepEqual(scanActiveDocs(appendixDOldIds), []);
+```
+
+- [ ] **Step 2: 現状failureを確認する**
+
+Expected: `windows_desktop_v1`（`07-platform/windows.md`、`04-runtime/performance-capacity.md`、`02-foundation/toolchain-dependencies.md`）を含むold ID残存でFAIL。
+
+- [ ] **Step 3: 設計§19の文書別必須変更に従い本文を置換する**
+
+Appendix Dのold IDを新stable IDへ、`TargetProfileRef`等の§13.2改名型とsuffixless型を新型名へ、C2 Matrixの`lifecycle_state`参照を`capability_activation_state`と`owner_work_package_ref`参照へ置換する。Task 4のmetadata blockは変更しない。
+
+- [ ] **Step 4: testを再実行する**
+
+Expected: old ID出現0、旧型名出現0でPASS。Completion Gateの「Appendix Dの全old ID出現数が0」は本Taskで到達する。
+
 ### Task 5: Parserとstable diagnosticを実装する
 
 **Files:**
 - Create: `tools/architecture_lint/package.json`
+- Create: `tools/architecture_lint/package-lock.json`
 - Create: `tools/architecture_lint/tsconfig.json`
 - Create: `tools/architecture_lint/src/model.ts`
 - Create: `tools/architecture_lint/src/parse.ts`
@@ -308,7 +340,7 @@ Expected: active 48、legacy header 0、metadata block 48、unknown ID 0でPASS�
 - Produces: `parseArchitectureDocument(path, bytes)`。
 
 - [ ] **Step 1: BOM、invalid UTF-8、duplicate metadata、trailing comma、legacy headerのnegative testsを書く**
-- [ ] **Step 2: `npm ci --ignore-scripts --offline --no-audit --no-fund`とtestを実行しfailureを確認する**
+- [ ] **Step 2: toolchain lock照合済みtarballでnpm cacheを事前充填し、`npm ci --ignore-scripts --offline --no-audit --no-fund`とtestを実行しfailureを確認する**
 - [ ] **Step 3: Node標準`TextDecoder("utf-8", {fatal:true})`、line scanner、`JSON.parse`でminimal parserを実装する**
 - [ ] **Step 4: `npx tsc --build --force --singleThreaded`を実行する**
 
@@ -321,12 +353,14 @@ Expected: positive 1、negative 5がPASS。
 ### Task 6: DAG、transitive reduction、reciprocal integrationを実装する
 
 **Files:**
+- Create: `architecture/registry/document-relations.v1.json`
+- Create: `schemas/architecture/document-relations.schema.json`
 - Create: `tools/architecture_lint/src/graph.ts`
 - Create: `tools/architecture_lint/test/graph.test.mjs`
 
 **Interfaces:**
-- Consumes: 48 `ArchitectureMetadataV1`。
-- Produces: Appendix Bと同じtopological order、cycle witness、redundant edge witness、reciprocity diagnostic。
+- Consumes: 48 `ArchitectureMetadataV1`、Appendix B～C。
+- Produces: document relation registry、canonical order検証、cycle witness、redundant edge witness、reciprocity diagnostic。
 
 - [ ] **Step 1: cycle、self、missing、redundant、one-way integration fixtureを書く**
 - [ ] **Step 2: test failureを確認する**
@@ -336,7 +370,13 @@ Redundant edge `{a,b}`は、そのedgeだけを除いて`a`から`b`へ到達可
 
 - [ ] **Step 4: Appendix B graphを検査する**
 
-Expected: nodes 48、edges 76、cycle 0、self 0、missing 0、redundant 0、topological orderがAppendix Bと一致。
+Expected: nodes 48、edges 76、cycle 0、self 0、missing 0、redundant 0、Appendix Bのcanonical orderが有効なtopological order（各文書の全`requires`先が順序上より前に並ぶ）であること。lintは順序を独自導出せず、同順位のtie-break規則を持たない。
+
+- [ ] **Step 5: document relation registryを転記して検査する**
+
+Appendix Bの`requires`とcanonical order、Appendix Cのreciprocal integrationを`architecture/registry/document-relations.v1.json`へbyte順JSONで転記する。canonical orderは導出物ではなくregistry格納値である。48文書metadataの`requires`／`integrates_with`とregistryの完全一致（過不足0）を検査する。
+
+Expected: registryがschema valid、metadataとの一致、mismatch fixtureがexact diagnosticで失敗。
 
 ### Task 7: Product registryとID migrationを実装する
 
@@ -434,6 +474,7 @@ Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted
 - Create: `tools/architecture_lint/test/fixtures/graph-invalid/**`
 - Create: `tools/architecture_lint/test/fixtures/registry-invalid/**`
 - Create: `.github/workflows/architecture-lint.yml`
+- Modify: `docs/architecture/02-foundation/toolchain-dependencies.md`
 
 **Interfaces:**
 - Produces: clean checkoutでoffline install→compile→test→lint→Index checkの一方向job。
@@ -441,6 +482,8 @@ Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted
 - [ ] **Step 1: 既存13 Control Plane lint ruleにarchitecture explainのrevision、Owner、Evidence、category bound、edge bound、byte bound、omission、continuation、determinismの9条件を加え、各positive 1／negative 1を列挙するtest matrixを書く**
 - [ ] **Step 2: 各negative fixtureがexact diagnostic IDを一件だけ返すことを確認する**
 - [ ] **Step 3: CIをNode 24.18.0、npm 11.16.0、TypeScript 7.0.2 lockへ固定する**
+
+`toolchain-dependencies.md`の公式JavaScript toolchain利用rootへ`tools/architecture_lint/`を追加し、同文書が要求する`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`、lockfile SHA-256規則を`tools/architecture_lint/package.json`へ適用する。CI workflowはtoolchain lockが固定するtarball（version、URL、size、SHA-256）を取得し、SHA-256照合後にnpm content-addressed cacheへ事前充填してから`npm ci --offline`を実行する。照合失敗はjob失敗とする。
 - [ ] **Step 4: local equivalentを実行する**
 
 ```powershell
@@ -457,13 +500,14 @@ Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0�
 
 **Files:**
 - Create: `architecture/baselines/control-plane-v1.json`
+- Create: `schemas/architecture/baseline.schema.json`
 - Modify: `docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md`
 - Modify: `docs/plans/2026-07-22-ai-readable-d3d12-backend-design.md`
 
 **Interfaces:**
-- Produces: `git_tree_sha256`ではなくGit object formatに従う`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`lint_version`を持つexact handoff。
+- Produces: `git_tree_sha256`ではなくGit object formatに従う`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`lint_version`を持つexact handoff。field集合は設計§28と一致し、`schemas/architecture/baseline.schema.json`が過不足を拒否する。
 
-- [ ] **Step 1: dirty tree拒否とhash mismatch testを書く**
+- [ ] **Step 1: dirty tree拒否、hash mismatch、baseline field過不足のtestを書く**
 - [ ] **Step 2: clean treeで全Gateを再実行する**
 - [ ] **Step 3: baseline JSONを生成し、ECS／D3D12計画へexact refを記録する**
 - [ ] **Step 4: baseline read-backを実行する**
@@ -575,7 +619,7 @@ Expected: 全hash一致。ECS、D3D12、またはarchitecture comprehension Eval
 
 ## Appendix B: Final direct `requires` DAG
 
-この順序はcanonical topological orderである。各`requires`配列はdocument IDのUTF-8 byte順で保存する。表は読みやすさのためAliasを使うが、JSONへAliasを保存しない。
+この順序は`document-relations.v1.json`へ格納するcanonical orderであり、`requires` DAGの有効なtopological orderの一つである。順序は分類やsortの導出物ではなくregistry格納値であり、同順位のtie-break規則を定義しない。lintは「各文書の全`requires`先が順序上より前に並ぶこと」だけを検査する。各`requires`配列はdocument IDのUTF-8 byte順で保存する。表は読みやすさのためAliasを使うが、JSONへAliasを保存しない。
 
 | Order | Alias | Direct requires |
 |---:|---|---|
@@ -684,7 +728,7 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 
 ## Appendix D: Exact identity migration
 
-`migration_kind=clean_replace`、`alias_retention=none`、`effective_change_set=control-plane-v1`を全行へ適用する。新IDのschema／profile versionは各Registryの`format_major`または`profile_version`、maturityはCapability Registryの`target_product_tier`へ移す。
+`migration_kind=clean_replace`、`alias_retention=none`、`effective_change_set=control-plane-v1`を全行へ適用する。新IDのschema／profile versionは各Registryの`format_major`または`profile_version`、maturityはCapability Registryの`target_product_tier`へ移す。旧表記`WP7a3_2d_product_coverage_c2`はactive specに出現しないが、数字開始segmentを除去するためProduct Plan §11.5の`wp.product.2d-general-coverage`は`wp.product.general-coverage-2d`へclean replaceする。
 
 ### D.1 Capability／feature ID 33件（Shooter Coreを含む）
 
@@ -706,7 +750,7 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 | `capability.gameplay.path_following.c1` | `capability.gameplay.path_following` |
 | `capability.gameplay.perception.c1` | `capability.gameplay.perception` |
 | `capability.gameplay.timer.c1` | `capability.gameplay.timer` |
-| `capability.product.2d_general_production_c2` | `capability.product.2d_general_production` |
+| `capability.product.2d_general_production_c2` | `capability.product.general_production_2d` |
 | `capability.render.material.toon_v1` | `capability.render.material.toon` |
 | `capability.ui.native_widget_v1` | `capability.ui.native_widget` |
 | `capability.vfx.bake_cache_v1` | `capability.vfx.bake_cache` |
@@ -724,7 +768,7 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 | `capability.vfx.visual_collision_v1` | `capability.vfx.visual_collision` |
 | `mirakan.feature.shooter_core.c1` | `capability.gameplay.shooter_core` |
 
-`capability.product.3d_general_production`は旧IDが存在しないためmigration rowを作らない。Product Plan Registryへ新規rowとして追加し、§11.7のGateを満たすまで`declared_unscheduled`に留める。
+`capability.product.general_production_3d`は旧IDが存在しないためmigration rowを作らない。Product Plan Registryへ新規rowとして追加し、§11.7のGateを満たすまで`capability_activation_state=not_activated`、owner Work Packageの`scheduling_state=declared`に留める。`declared_unscheduled`等の複合state値と`lifecycle_state`軸は使用しない。
 
 ### D.2 Target、Build Driver、Domain／composition profile
 
@@ -740,9 +784,9 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 | Driver | `apple_modules_probe_ninja_v1` | `driver.apple.modules-probe-ninja` | `profile_version=1` |
 | Driver | `apple_modules_ninja_xcode_v1` | `driver.apple.modules-ninja-xcode` | `profile_version=1` |
 | Driver | `apple_xcode_cloud_v1` | `driver.apple.xcode-cloud` | `profile_version=1` |
-| Domain | `mirakan.domain.2d_action.c1` | `domain.2d_action` | `target_product_tier=C1` |
+| Domain | `mirakan.domain.2d_action.c1` | `domain.action_2d` | `target_product_tier=C1` |
 | Domain | `mirakan.domain.tps_single_player.c1` | `domain.tps_single_player` | `target_product_tier=C1` |
-| Profile | `shooter.profile.2d_top_down.c1` | `profile.shooter.2d_top_down` | `target_product_tier=C1` |
+| Profile | `shooter.profile.2d_top_down.c1` | `profile.shooter.top_down_2d` | `target_product_tier=C1` |
 | Profile | `shooter.profile.tps_single_player.c1` | `profile.shooter.tps_single_player` | `target_product_tier=C1` |
 | Profile | `tps_single_player_c1` | `profile.shooter.tps_single_player` | same rowへmerge、duplicate sourceを拒否 |
 
@@ -779,10 +823,10 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 
 | Old ID | New stable ID |
 |---|---|
-| `2d_shooter_c1_v1` | `fixture.product.2d-shooter` |
-| `2d_platformer_c2_v1` | `fixture.product.2d-platformer` |
-| `2d_puzzle_dialogue_c2_v1` | `fixture.product.2d-puzzle-dialogue` |
-| `tps_shooter_c1_v1` | `fixture.product.3d-shooter-arena` |
+| `2d_shooter_c1_v1` | `fixture.product.shooter-2d` |
+| `2d_platformer_c2_v1` | `fixture.product.platformer-2d` |
+| `2d_puzzle_dialogue_c2_v1` | `fixture.product.puzzle-dialogue-2d` |
+| `tps_shooter_c1_v1` | `fixture.product.shooter-arena-3d` |
 | `d3d12_warp_conformance_v1` | `fixture.rendering.d3d12-warp-conformance` |
 | `debug_known_faults_v1` | `fixture.debug.known-faults` |
 | `clear_day_v1` | `fixture.environment.clear-day` |
@@ -800,6 +844,23 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 | `world_authoring_semantics_v1` | `fixture.world.authoring-semantics` |
 | `loading_progress_contract_v1` | `contract.world.loading-progress` |
 
+### D.5 Numeric-leading logical ID correction
+
+既にRegistryへ導入済みだがNaming正本の数字開始segment禁止に違反するIDは、次のexact mappingでclean replaceする。
+
+| Class | Old ID | New stable ID |
+|---|---|---|
+| Work Package | `wp.product.2d-general-coverage` | `wp.product.general-coverage-2d` |
+| Work Package | `wp.product.3d-general-coverage` | `wp.product.general-coverage-3d` |
+| Capability | `capability.product.2d_general_production` | `capability.product.general_production_2d` |
+| Capability | `capability.product.3d_general_production` | `capability.product.general_production_3d` |
+| Domain | `domain.2d_action` | `domain.action_2d` |
+| Profile | `profile.shooter.2d_top_down` | `profile.shooter.top_down_2d` |
+| Fixture | `fixture.product.2d-shooter` | `fixture.product.shooter-2d` |
+| Fixture | `fixture.product.2d-platformer` | `fixture.product.platformer-2d` |
+| Fixture | `fixture.product.2d-puzzle-dialogue` | `fixture.product.puzzle-dialogue-2d` |
+| Fixture | `fixture.product.3d-shooter-arena` | `fixture.product.shooter-arena-3d` |
+
 Appendix Dにないmaturity／version-bearing lowercase IDをlintが発見した場合、推測変換せず`diagnostic.architecture.identity-migration-missing`を返す。Reviewerがclass、new ID、version destinationを本表へ追加するまでmigrationを停止する。
 
 ## Completion Gate
@@ -808,6 +869,7 @@ Appendix Dにないmaturity／version-bearing lowercase IDをlintが発見した
 - Appendix Aの全legacy edgeがAppendix B／Cの分類式で一度だけ分類される。
 - Appendix Bが48 node、76 edge、cycle／self／missing／redundant各0である。
 - Appendix Cの29 edgeが完全にreciprocalで、Contract ID集合が一致する。
+- `architecture/registry/document-relations.v1.json`が48文書metadataの`requires`／`integrates_with`およびAppendix Bのcanonical orderと完全一致する。
 - Appendix Dの全old ID出現数が0、new IDのorphanが0、runtime aliasが0である。
 - Product RegistryはTarget 5、Phase 10、Capability 34、Work Package 23を参照解決し、missing Target activationをfail closedにする。
 - TypeScript 7.0.2 compileは`--singleThreaded`を使用し、compiler API importが0件である。
