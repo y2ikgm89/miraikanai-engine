@@ -17,12 +17,12 @@
 - `requires`はdirect prerequisiteだけで、cycle、self edge、missing node、redundant transitive edgeを拒否する。
 - `integrates_with`は双方に同じContract ID集合を要求し、片方向、空集合、unknown Contract IDを拒否する。
 - Logical IDへmaturity、Phase、schema／profile versionを埋め込まない。旧IDは本計画Appendix Dの一回限りmigrationだけで変換し、runtime aliasを残さない。
-- Capability activationは`CapabilityTargetActivationV1`の`{capability_id,target_id}` rowだけを保存正本とし、aggregate stateはrequired Target rowの最小stateとしてread-only導出する。
+- Capability activationは`CapabilityTargetActivationV1`の`{capability_id,target_id}` rowだけを保存正本とする。required／optional rowのexact closureがmissing／duplicate／extra 0で成功した後だけ、aggregate stateをrequired Target rowの最小stateとしてread-only導出する。
 - TypeScript 7.0はstable programmatic APIを持たないため、`typescript`をruntime importしない。正式compileは`npx tsc --build --force --singleThreaded`だけを使う。
 - Production dependencyはDraft 2020-12 validation用Ajv `8.20.0`のexact pinだけを許可する。Markdown、SHA-256、path、graph処理はNode標準Libraryで実装し、Ajv plugin、format package、remote resolverを追加しない。
 - 実装完了を文書承認、Capability昇格、Release承認へ流用しない。
 - 別authority ManifestをSchemaまたは互換aliasとして追加しない。authority discoveryは`ArchitectureMetadataV1`、relation registry、Shared canonical contracts、生成Indexから導出する。
-- Task順は`Validator bootstrap -> Metadata／Product schema -> 共通署名／Bootstrap Approval schema・test -> 5 Owner作成 -> Owner明示承認・Bootstrap Approval Record発行 -> 43文書metadata migration -> Product registry生成`を変えない。schema／test作成を人間承認と誤認せず、未承認Ownerまたは失効Bootstrap Approvalを正式Work Packageが使用しない。
+- Task順は`Validator bootstrap -> Metadata／Product schema -> 共通署名／Bootstrap Approval schema・test -> Technical Qualification payload／wrapper schema・test -> 5 Owner作成 -> Owner明示承認・Bootstrap Approval Record発行 -> 43文書metadata migration -> Product registry生成`を変えない。schema／test作成を人間承認と誤認せず、未承認Ownerまたは失効Bootstrap Approvalを正式Work Packageが使用しない。
 
 ---
 
@@ -41,6 +41,7 @@
 | `schemas/architecture/baseline.schema.json` | baseline handoff V1 schema。field過不足を拒否 |
 | `schemas/architecture/control-plane-bootstrap-approval.schema.json` | closed payloadとexact共通署名`$ref`を持つ`ControlPlaneBootstrapApprovalV1` wrapper schema |
 | `schemas/governance/mirakan-signed-record.schema.json` | AI Verification／Provenance所有の`MirakanSignedRecordV1` exact envelope schema |
+| `schemas/governance/technical-qualification-receipt.schema.json` | closed payloadとexact共通署名`$ref`を持つ`TechnicalQualificationReceiptV1` wrapper schema |
 | `schemas/product/product-registries.schema.json` | Product registry V1 schema集合 |
 | `architecture/registry/document-relations.v1.json` | 生成inventory（移行開始時48）のdirect requires、reciprocal integration、source document hash、canonical order正本 |
 | `architecture/registry/identity-migration.v1.json` | Appendix Dと一致する旧→新ID mapping |
@@ -52,6 +53,7 @@
 | `tools/architecture_lint/package-lock.json` | `npm ci`が必須とするexact dependency lock |
 | `tools/architecture_lint/validator-bootstrap.mjs` | Ajv lock／integrity read-back、local `$id` allowlist、Draft 2020-12 compile bootstrap |
 | `tools/architecture_lint/bootstrap-approval.mjs` | Bootstrap payload canonical hash、共通署名、purpose、Signer／Role／Key、revocation、二段階tree read-back |
+| `tools/architecture_lint/technical-qualification-receipt.mjs` | Technical Qualification payload／wrapper、Evidence-derived ID／最古／最新時刻／expiry、purpose／Role／Key／current revocation verifier |
 | `tools/architecture_lint/product-projection-bootstrap.mjs` | Product Plan §11からApproval対象とTask 7 materialize用の同一canonical bytesを生成 |
 | `tools/architecture_lint/tsconfig.json` | strict ES module compile設定 |
 | `tools/architecture_lint/src/model.ts` | closed data types |
@@ -152,6 +154,7 @@ export interface MirakanSignedRecordV1 {
 export interface ControlPlaneBootstrapApprovalPayloadV1 {
   readonly approval_id: string;
   readonly approver_subject_ref: string;
+  /** Exact current Role ID; MUST equal signed_record.signer_role_ref. */
   readonly approval_authority_ref: string;
   readonly git_tree_id: string;
   readonly owner_document_hashes: readonly {
@@ -169,6 +172,24 @@ export interface ControlPlaneBootstrapApprovalPayloadV1 {
 
 export interface ControlPlaneBootstrapApprovalV1 {
   readonly payload: ControlPlaneBootstrapApprovalPayloadV1;
+  /** Exact schema ref: urn:mirakan:schema:governance:mirakan-signed-record:v1 */
+  readonly signed_record: MirakanSignedRecordV1;
+}
+
+export interface TechnicalQualificationReceiptPayloadV1 {
+  readonly receipt_id: string;
+  readonly issuer_subject_ref: string;
+  readonly issued_at: string;
+  readonly freshness_origin_at: string;
+  readonly expires_at: string;
+  readonly freshness_policy_ref: string;
+  readonly revocation_snapshot_ref: string;
+  readonly subject_hash: string;
+  readonly evidence_hashes: readonly string[];
+}
+
+export interface TechnicalQualificationReceiptV1 {
+  readonly payload: TechnicalQualificationReceiptPayloadV1;
   /** Exact schema ref: urn:mirakan:schema:governance:mirakan-signed-record:v1 */
   readonly signed_record: MirakanSignedRecordV1;
 }
@@ -331,7 +352,7 @@ Testは4 sourceをFieldのOwnerどおり照合する。Toolchain lockはversion�
 
 - [ ] **Step 4: validator factoryを実装する**
 
-`ajv/dist/2020`専用classをES moduleのexact specifier `ajv/dist/2020.js`からimportし、resolved fileとpackage versionをread-backして`strict=true`、`allErrors=false`で生成する。package root `ajv`へfallbackしない。`loadSchema` optionを設定せず`compileAsync`をexportしない。登録可能なroot `$id`はDesign §21の7 URNだけとし、compile前に全subschemaをwalkしてfragment-only `$ref`またはallowlist ID＋fragment以外（`http:`、`https:`、`file:`、relative path、unknown URNを含む）を`diagnostic.architecture.schema-ref-not-local`で拒否する。
+`ajv/dist/2020`専用classをES moduleのexact specifier `ajv/dist/2020.js`からimportし、resolved fileとpackage versionをread-backして`strict=true`、`allErrors=false`で生成する。package root `ajv`へfallbackしない。`loadSchema` optionを設定せず`compileAsync`をexportしない。登録可能なroot `$id`はDesign §21の8 URNだけとし、compile前に全subschemaをwalkしてfragment-only `$ref`またはallowlist ID＋fragment以外（`http:`、`https:`、`file:`、relative path、unknown URNを含む）を`diagnostic.architecture.schema-ref-not-local`で拒否する。
 
 - [ ] **Step 5: schema fileに依存しないbootstrap testを通す**
 
@@ -378,7 +399,7 @@ Expected: exit 1、schema file `ENOENT`。
 
 Metadataは`additionalProperties=false`、required 10 key、array duplicate禁止、state closed enumを固定する。Work PackageはProduct Plan §11.1と完全一致する`work_package_id`、`phase_id`、`owner_document_id`、`target_refs[]`、`fallback_ref`、`provided_fixture_refs[]`、`required_capability_refs[]`、`requires_work_package_refs[]`、`scheduling_state`、`defer_reason`、`reconsideration_gate_refs[]`、`blocked_reason_ref`だけを持つ。旧`requirement_refs[]`、`capability_refs[]`、`exit_fixture_refs[]`、`schedule_state`、`completion_receipt_refs[]`はunknown Fieldで拒否する。`scheduling_state`は`declared | ready | active | blocked | deferred | complete`、`deferred`／`blocked`の条件FieldはDesign §15をexactに実装する。
 
-同schemaへ`PhaseFixtureBindingRegistryV1`、`WorkPackageLifecycleRecordV1`、`ProductRiskRegistryV1`、`ProductDecisionGateRegistryV1`、`FutureCapabilityIncubationRegistryV1`を別definitionとして追加し、ReceiptをWork Package entryへ戻さない。Registry semantic validatorは最初に、全`CapabilityRegistryV1.target_bindings[]`のうち`scope=required | optional`の各bindingへexactly one `CapabilityTargetActivationV1 {capability_id,target_id}` rowが存在し、`excluded` bindingにはrowが存在しないことを検査する。requiredまたはoptional rowのmissingはstateへ正規化せず、`diagnostic.product.capability-target-activation-missing`でaggregate前に拒否する。
+同schemaへ`PhaseFixtureBindingRegistryV1`、`WorkPackageLifecycleRecordV1`、`ProductRiskRegistryV1`、`ProductDecisionGateRegistryV1`、`FutureCapabilityIncubationRegistryV1`を別definitionとして追加し、ReceiptをWork Package entryへ戻さない。Registry semantic validatorは最初に、全`CapabilityRegistryV1.target_bindings[]`のうち`scope=required | optional`の各bindingへexactly one `CapabilityTargetActivationV1 {capability_id,target_id}` rowが存在し、`excluded` bindingにはrowが存在しないことを検査する。requiredまたはoptional rowのmissingは`diagnostic.product.capability-target-activation-missing`、同一keyのduplicateは`diagnostic.product.capability-target-activation-duplicate`、bindingにないextra keyまたは`excluded` rowは`diagnostic.product.capability-target-activation-extra`でaggregate前に拒否する。どの失敗もstateへ正規化せず、partial closure、required state列、aggregate結果を返さない。
 
 その後、各Work Packageの`required_capability_refs[]`×`target_refs[]`について、参照Capabilityの`CapabilityRegistryV1.target_bindings[]`に同じ`target_id`かつ`scope=required | optional`のbindingが存在することと、前段検証済みの別Registry rowが存在することを独立に要求する。binding missing／`excluded`とActivation row missingを別diagnosticで拒否する。`scope`はbindingだけに許可し、Activation rowではunknown Fieldとして拒否する。別Targetのauthoring／build host prerequisiteは`requires_work_package_refs[]`だけで表し、runtime Capability closureへ混入させない。Decision Gate stateは`blocked | open | satisfied | retired`に閉じ、Work Packageの`reconsideration_gate_refs[]`、Product Riskの`affected_work_package_refs[]`、Decision Gateの`evidence_refs[]`をexact参照解決する。Product Riskの`revisit_gate_or_date`はProduct正本のdiscriminatorに従い、logical IDなら登録済みPhase／Decision Gate、dateならcanonical dateだけを受理する。ID patternは設計§9.1の2 regex（document ID用と一般logical ID用）を転記し、Appendix DとProduct Plan §11の全新IDが一般logical ID regexに一致するpositive testを加える。全root `$id`と`$ref`はTask 1A allowlist内に限定する。
 
@@ -386,7 +407,7 @@ Metadataは`additionalProperties=false`、required 10 key、array duplicate禁�
 
 - [ ] **Step 5: testを再実行する**
 
-Expected: required／optional双方のinitial Activation rowを持つvalid fixtureがPASSし、unknown key、invalid state、deferred理由欠落、blocked reason欠落、旧Work Package Field混入、Receiptのentry混入、Capability activation scalar、required Capabilityのbinding missing／excluded、required Activation row missing、optional Activation row missing、Activation rowへの`scope`混入、remote `$ref`の各negative fixtureが対象Diagnostic一件でPASS。
+Expected: required／optional双方のinitial Activation rowを持つvalid fixtureがPASSし、unknown key、invalid state、deferred理由欠落、blocked reason欠落、旧Work Package Field混入、Receiptのentry混入、Capability activation scalar、required Capabilityのbinding missing／excluded、required Activation row missing、optional Activation row missing、Activation row duplicate、bindingにないextra row、`excluded` row、Activation rowへの`scope`混入、remote `$ref`の各negative fixtureが対象Diagnostic一件でPASS。
 
 ### Task 2A: 共通署名／Bootstrap Approval schemaとvalidator testを先行作成する
 
@@ -398,21 +419,21 @@ Expected: required／optional双方のinitial Activation rowを持つvalid fixtu
 
 **Interfaces:**
 - Consumes: Task 1A validator、Control Plane Design §6.1、AI Verification／Provenance §7、AI Security／ApprovalのR4／Key／revocation Policy。
-- Produces: `ControlPlaneBootstrapApprovalPayloadV1`のclosed schema、exact `MirakanSignedRecordV1` `$ref`を持つwrapper schema、署名／purpose／subject／Signer／Role／Key／revocation／二段階treeのfail-closed verifier。実Owner approvalとApproval Recordは作成しない。
+- Produces: `ControlPlaneBootstrapApprovalPayloadV1`のclosed schema、exact `MirakanSignedRecordV1` `$ref`を持つwrapper schema、署名／purpose／subject／Signer、payloadとenvelopeのexact Role ID binding、current Role／assignment／R4／independence、Key／revocation／二段階treeのfail-closed verifier。実Owner approvalとApproval Recordは作成しない。
 
 - [ ] **Step 1: Task 1A validatorのimport／lock testを再実行する**
 
 Run: `node --test tools/architecture_lint/test/validator-bootstrap.test.mjs`
 
-Expected: exit 0。7 URN allowlistへ共通署名schemaを登録でき、remote／relative `$ref`拒否を維持する。
+Expected: exit 0。8 URN allowlistへ共通署名schemaを登録でき、remote／relative `$ref`拒否を維持する。
 
 - [ ] **Step 2: schema／verifier未存在で失敗するtestを書く**
 
-Synthetic fixtureは§6の5 document ID、固定hash、固定target tree、test専用P-256 Key、署名済みtest Identity／Role／Key registry、発行時snapshot、単調増加するcurrent snapshotを使う。Production key、実人間identity、将来のApproval値をfixtureへ埋め込まない。positiveは`subject_sha256=SHA-256(JCS(payload))`、`purpose=control_plane_bootstrap_approval`、Signer／Role／Key purpose、snapshot、署名を一つのclosureとして検証する。
+Synthetic fixtureは§6の5 document ID、固定hash、固定target tree、test専用P-256 Key、署名済みtest Identity／Role／Role assignment／Key registry、発行時snapshot、単調増加するcurrent snapshotを使う。Production key、実人間identity、将来のApproval値をfixtureへ埋め込まない。positiveは`payload.approval_authority_ref == signed_record.signer_role_ref`であるcurrent Role ID、`approver_subject_ref`へのcurrent active assignment、R4 Architecture approval許可、AI／workerと5 Ownerの作者／対象Reviewerからのindependence、`subject_sha256=SHA-256(JCS(payload))`、`purpose=control_plane_bootstrap_approval`、Signer／Role／Key purpose、snapshot、署名を一つのclosureとして検証する。
 
-Negativeはmissing `signed_record`、missing `signed_record.signature`、署名byte破損、wrong purpose、wrong subject、Signer不一致、Role不一致、Key purpose不一致、invalid／stale revocation snapshot、current snapshotでRecord／subject／Signer／Role／Key／purposeのいずれかをrevoked、`payload.revoked_at` non-null、target treeへのRecord自己包含を一原因ずつ作る。同じfixtureの複数Fieldを同時に壊さない。
+Negativeはmissing `signed_record`、missing `signed_record.signature`、署名byte破損、wrong purpose、wrong subject、Signer不一致、unknown `approval_authority_ref`、Role assignment missing／expired／revoked、R4 Architecture approval未許可、作者／Reviewerとのindependence不成立、Key Role不一致、Key purpose不一致、invalid／stale revocation snapshot、current snapshotでRecord／subject／Signer／Role／Role assignment／Key／purposeのいずれかをrevoked、`payload.revoked_at` non-null、target treeへのRecord自己包含を一原因ずつ作る。同じfixtureの複数Fieldを同時に壊さない。authority lifecycleまたはauthorization不正は`diagnostic.architecture.bootstrap-approval-authority-invalid`一件で拒否する。
 
-Field間binding専用に二つのfixtureを追加する。一つはpayloadとenvelopeをそれぞれschema validに保ったまま、両方ともcanonical UTCだが`payload.issued_at != signed_record.issued_at`とし、変更後envelopeを有効なpurpose専用Keyで再署名する。もう一つは、両方が署名／sequence validな別snapshotを指す`payload.revocation_snapshot_ref != signed_record.revocation_snapshot_ref`とし、同様にenvelopeを再署名する。各fixtureはその一Field差以外をpositive fixtureと同一にし、個別schema、署名、Key purpose、各snapshot検証が単独では成功しても、exact byte equalityで`diagnostic.architecture.bootstrap-approval-envelope-binding-mismatch`一件を返さなければならない。
+Field間binding専用に三つのfixtureを追加する。一つはpayloadとenvelopeをそれぞれschema validに保ったまま、両方ともcanonical UTCだが`payload.issued_at != signed_record.issued_at`とし、変更後envelopeを有効なpurpose専用Keyで再署名する。もう一つは、両方が署名／sequence validな別snapshotを指す`payload.revocation_snapshot_ref != signed_record.revocation_snapshot_ref`とし、同様にenvelopeを再署名する。最後はpayloadの`approval_authority_ref`とenvelopeの`signer_role_ref`を、それぞれcurrent registryに存在してR4／assignment／Key検証へ単独合格する別Role IDにし、変更後envelopeを再署名する。各fixtureはその一Field差以外をpositive fixtureと同一にし、個別schema、署名、Key purpose、Role／assignment、各snapshot検証が単独では成功しても、exact byte equalityで`diagnostic.architecture.bootstrap-approval-envelope-binding-mismatch`一件を返さなければならない。
 
 - [ ] **Step 3: failureを確認する**
 
@@ -424,11 +445,46 @@ Expected: schema `ENOENT`またはverifier `ERR_MODULE_NOT_FOUND`でexit 1。pla
 
 `mirakan-signed-record.schema.json`はAI Verification／Provenance §7の11 Fieldをすべてrequired、`additionalProperties=false`とする。Bootstrap schemaはrootに`payload`と`signed_record`だけをrequiredとし、payloadをclosed `ControlPlaneBootstrapApprovalPayloadV1` `$defs`、`signed_record`を`urn:mirakan:schema:governance:mirakan-signed-record:v1`へのexact `$ref`にする。署名FieldをBootstrap schemaへinline複写しない。
 
-Verifierはpayload schema、envelope schema、payload JCS hash、exact purpose、Signer／Role／Key registry、Key purpose、issued-at validity、署名、発行時snapshot、current snapshot、target treeの順に検査し、stable diagnosticを一件だけ返す。`payload.approver_subject_ref`／`issued_at`／`revocation_snapshot_ref`とenvelopeの対応Fieldはexact byte equalityを必須にし、各Fieldが単独でvalidでも一件の差を`diagnostic.architecture.bootstrap-approval-envelope-binding-mismatch`で拒否する。target treeはRecord格納前、Recordはそのdescendant treeにだけ置き、target treeのentry closureへRecord自身を含めない。
+Verifierはpayload schema、envelope schema、payload JCS hash、exact purpose、Signer／Role／Role assignment／Key registry、R4 Architecture approval permission、independence、Key purpose、issued-at validity、署名、発行時snapshot、current snapshot、target treeの順に検査し、stable diagnosticを一件だけ返す。`payload.approver_subject_ref`／`approval_authority_ref`／`issued_at`／`revocation_snapshot_ref`とenvelopeの対応Fieldはexact byte equalityを必須にし、各Fieldが単独でvalidでも一件の差を`diagnostic.architecture.bootstrap-approval-envelope-binding-mismatch`で拒否する。`approval_authority_ref`はcurrent Role registryのexact IDとして解決し、Signerへのcurrent active assignment、R4 permission、5 Owner作者／対象ReviewerとAI／実装workerからのindependenceを検証する。unknown Role、assignment missing／expired／revoked、permission／independence不成立、Roleまたはassignmentのcurrent revocationは`diagnostic.architecture.bootstrap-approval-authority-invalid`で拒否する。KeyのRole IDも同じexact Role IDでなければならない。target treeはRecord格納前、Recordはそのdescendant treeにだけ置き、target treeのentry closureへRecord自身を含めない。
 
 - [ ] **Step 5: unit testを通し、発行前状態を固定する**
 
-Expected: synthetic positiveがPASSし、missing envelope／signature、invalid signature、wrong-purpose／wrong-subject／wrong-Signer／wrong-Role／wrong-Key-purpose、invalid snapshot、revoked signature、再署名済みissued-at binding mismatch、再署名済みrevocation-snapshot binding mismatch、self-containing treeの全negativeがそれぞれexact diagnostic一件でPASSする。`architecture/approvals/control-plane-bootstrap.v1.json`は未存在である。
+Expected: synthetic positiveがPASSし、missing envelope／signature、invalid signature、wrong-purpose／wrong-subject／wrong-Signer、unknown authority Role、assignment missing／expired／revoked、R4／independence不成立、wrong-Key-Role／purpose、invalid snapshot、revoked signature、再署名済みauthority-Role／issued-at／revocation-snapshot binding mismatch、self-containing treeの全negativeがそれぞれexact diagnostic一件でPASSする。`architecture/approvals/control-plane-bootstrap.v1.json`は未存在である。
+
+### Task 2B: Technical Qualification Receiptの署名／freshness contractを先行実装する
+
+**Files:**
+- Create: `schemas/governance/technical-qualification-receipt.schema.json`
+- Create: `tools/architecture_lint/technical-qualification-receipt.mjs`
+- Create: `tools/architecture_lint/test/technical-qualification-receipt.test.mjs`
+
+**Interfaces:**
+- Consumes: Task 1A validator、Task 2Aの`MirakanSignedRecordV1` schema／共通Verifier、AI Verification／Provenance §7.2／§10.1、AI Security／ApprovalのIdentity／Role／Public key／revocation Policy。
+- Produces: closed `TechnicalQualificationReceiptPayloadV1`、exact共通署名`$ref`を持つ`TechnicalQualificationReceiptV1`、専用purpose／Role／Key、Evidence-derived ID／最古／最新時刻／expiry、current revocationをfail closedに検証するfactory。
+
+- [ ] **Step 1: signed positiveと一原因negative testを先に書く**
+
+Positiveは異なるcanonical UTC `signed_record.issued_at`を持つ署名済み`result=pass`の用途別Evidence Receipt 2件、固定current input closure、`role.evidence.technical_qualification`、singleton purpose `technical_qualification_receipt`のtest専用P-256 Keyを使う。`freshness_origin_at=min(evidence issued_at)`、`issued_at=max(evidence issued_at)`、`expires_at=freshness_origin_at+max_age_seconds`、`receipt_id=SHA-256(JCS({freshness_policy_ref,subject_hash,evidence_hashes}))`、`subject_sha256=SHA-256(JCS(payload))`をexactに構築し、wrapper署名とcurrent snapshot検証後に`fresh`となることを確認する。Production keyや実Evidenceをfixtureへ入れない。
+
+Negativeはmissing／unknown payload Field、missing `signed_record`／signature、invalid wrapper署名、wrong purpose／subject／issuer／Role／Key purpose、payloadとenvelopeの`issued_at`／`revocation_snapshot_ref`不一致、Evidence 0件／duplicate／unordered、参照Evidenceのwrapper署名不正／non-pass／Runner不適格／current revocation、unknown Policy、`receipt_id`／`freshness_origin_at`／`issued_at`／`expires_at`差、current snapshotのmissing／stale／invalid／sequence gap、current snapshotによるwrapper Record／payload subject／issuer／Role／Key／purpose／Policy／Evidence個別の失効を一原因ずつ作る。
+
+古いEvidence再包装fixtureは、positiveと同じ`freshness_policy_ref`、`subject_hash`、`evidence_hashes[]`を使い、`issued_at`、`freshness_origin_at`、`expires_at`を後ろへ移動、`receipt_id`を別値にし、payloadとenvelopeを有効な専用Keyで再署名する。schema、署名、current subject、Key purposeが単独ではvalidでも、参照Evidenceからの決定論的再導出差により`diagnostic.evidence.technical-qualification-rewrap` exact一件で拒否する。
+
+- [ ] **Step 2: schema／verifier未存在のfailureを確認する**
+
+Run: `node --test tools/architecture_lint/test/technical-qualification-receipt.test.mjs`
+
+Expected: schema `ENOENT`またはverifier `ERR_MODULE_NOT_FOUND`でexit 1。unsignedまたはplaceholder Receiptを作らない。
+
+- [ ] **Step 3: exact schemaとsemantic verifierを実装する**
+
+Schema root `$id`はexact `urn:mirakan:schema:governance:technical-qualification-receipt:v1`とする。rootは`payload`と`signed_record`だけ、payloadはAI Verification／Provenance §7.2の9 Fieldだけを全required、両方に`additionalProperties=false`を適用し、`signed_record`は`urn:mirakan:schema:governance:mirakan-signed-record:v1`へexact `$ref`する。署名Fieldをinline複写しない。
+
+Verifierはwrapper／payload schema、参照Evidenceの完成bytes／hash／schema／署名／purpose／subject／result／Runner eligibility／current revocation、Policy、決定論的`receipt_id`／最古／最新時刻／expiry、payload JCS hash、exact purpose、issuer／Role／Keyとsingleton Key purpose、payload／envelopeのissued-at／revocation-snapshot binding、wrapper署名、発行時／current snapshot、current subject hash、評価時刻の順に検証し、stable diagnosticを一件だけ返す。同じ古いEvidenceの別ID／新時刻／新expiryを正規化またはrenewalにしない。
+
+- [ ] **Step 4: unit testを通す**
+
+Expected: signed positiveがPASSし、全negativeが一原因のexact diagnostic一件でPASSする。同じ古いEvidenceの再包装で`fresh`／`expiring`／expiryのいずれも後方へ移動できない。
 
 ### Task 3: 5つの新Owner正本を追加する
 
@@ -495,7 +551,7 @@ Task 3直後の実文書は`review`である。`architecture/approvals/control-p
 
 - [ ] **Step 2: human review packetを生成して停止する**
 
-`product-projection-bootstrap.mjs`はProduct Plan §11のcanonical表だけをID byte順JSONへ投影し、wall clock、filesystem列挙順、説明文を入力にしない。Task 7はこのmoduleの出力bytesをそのままmaterializeし、別encoderを実装しない。Packetは5 documentの承認後canonical bytes候補とID／SHA-256／lifecycle Approval ref、このmoduleが算出した`product_registry_sha256`、`toolchain_lock_sha256`、Architecture Decision bytesの`decision_sha256`、diff、全Task 1A～3 test結果を含む。AI／worker自身を`approver_subject_ref`にせず、R4資格とindependenceをPolicy Serviceがread-backできる人間承認が返るまで実装を停止する。
+`product-projection-bootstrap.mjs`はProduct Plan §11のcanonical表だけをID byte順JSONへ投影し、wall clock、filesystem列挙順、説明文を入力にしない。Task 7はこのmoduleの出力bytesをそのままmaterializeし、別encoderを実装しない。Packetは5 documentの承認後canonical bytes候補とID／SHA-256／lifecycle Approval ref、このmoduleが算出した`product_registry_sha256`、`toolchain_lock_sha256`、Architecture Decision bytesの`decision_sha256`、diff、全Task 1A～3 test結果に加え、選択するexact `approval_authority_ref` Role ID、そのcurrent Role entry、承認者へのactive assignment、R4 Architecture approval permission、5 Owner作者／対象ReviewerとAI／実装workerからのindependence、Role／assignmentを含むcurrent revocation snapshotを含む。AI／worker自身を`approver_subject_ref`にせず、これらをPolicy Serviceがread-backできる人間承認が返るまで実装を停止する。
 
 - [ ] **Step 3: 明示承認後だけ5 Owner lifecycleとtarget treeを確定する**
 
@@ -503,11 +559,11 @@ Task 3直後の実文書は`review`である。`architecture/approvals/control-p
 
 - [ ] **Step 4: signed Recordを第二段の後続treeへ発行する**
 
-第一段target treeのcurrent bytesから`ControlPlaneBootstrapApprovalPayloadV1`を組み立て、`revoked_at=null`、canonical UTC `issued_at`、発行時`revocation_snapshot_ref`を設定する。payloadのJCS SHA-256をsubject、purposeをexact `control_plane_bootstrap_approval`として、R4承認主体のpurpose専用Keyで`MirakanSignedRecordV1`を発行する。wrapperの`payload`と`signed_record`を`architecture/approvals/control-plane-bootstrap.v1.json`へ書き、第一段commitのdescendantである第二段commitへ格納する。Record自身を第一段treeまたはpayload hash対象外Fieldへ逆参照せず、二段階hashを維持する。承認対象Artifactを変更した場合は古いRecordをcurrent snapshotで失効させ、第一段から再発行する。既存payloadへhashを追記修正しない。
+第一段target treeのcurrent bytesから`ControlPlaneBootstrapApprovalPayloadV1`を組み立て、`payload.approval_authority_ref`を選択済みcurrent Roleのexact ID、`revoked_at=null`、canonical UTC `issued_at`、発行時`revocation_snapshot_ref`に設定する。payloadのJCS SHA-256をsubject、purposeをexact `control_plane_bootstrap_approval`、`signed_record.signer_role_ref`をpayloadと同じexact Role IDとして、そのRoleのcurrent active assignmentを持つR4承認主体のpurpose専用Keyで`MirakanSignedRecordV1`を発行する。wrapperの`payload`と`signed_record`を`architecture/approvals/control-plane-bootstrap.v1.json`へ書き、第一段commitのdescendantである第二段commitへ格納する。Record自身を第一段treeまたはpayload hash対象外Fieldへ逆参照せず、二段階hashを維持する。承認対象Artifact、Role／assignment、permission、independenceが変化した場合は古いRecordをcurrent snapshotで失効させ、第一段から再発行する。既存payloadへhashを追記修正しない。
 
 - [ ] **Step 5: current-state read-backを実行する**
 
-wrapper／payload schema、署名、exact purpose、payload subject hash、Signer、R4 Role、Key所有者／purpose／期間、発行時とcurrent revocation snapshot、承認対象treeが後続treeのancestorであること、5文書bytesとlifecycle Approval、Product registry projection、Toolchain lock、Decisionを現在bytesから再計算する。Approval Recordの追加や無関係fileの後続変更は許すが、承認対象Artifactのdriftを許さない。全一致時だけTask 4を許可し、missing／invalid／wrong-purpose／wrong-subject／RoleまたはKey差／revocation／current bytes差は`diagnostic.architecture.bootstrap-approval-invalid`で停止する。
+wrapper／payload schema、署名、exact purpose、payload subject hash、Signer、`payload.approval_authority_ref == signed_record.signer_role_ref`のexact Role ID equality、current Role entry／Signerへのactive assignment／R4 Architecture approval permission／independence、Key所有者／同一Role／purpose／期間、発行時とcurrent revocation snapshot、承認対象treeが後続treeのancestorであること、5文書bytesとlifecycle Approval、Product registry projection、Toolchain lock、Decisionを現在bytesから再計算する。Approval Recordの追加や無関係fileの後続変更は許すが、承認対象Artifactのdriftを許さない。全一致時だけTask 4を許可し、missing／invalid／wrong-purpose／wrong-subject／unknown authority Role／payload-envelope Role差／assignment missing・expired・revoked／R4・independence不成立／RoleまたはKey差／revocation／current bytes差は`diagnostic.architecture.bootstrap-approval-invalid`で停止する。
 
 Expected: signed positive Recordの発行／read-backとTask 2Aからの全negative fixtureがexact diagnosticでPASSする。5 Ownerは明示承認なしに`approved`へ変化せず、Phase 0 Work Packageは`declared`を維持する。
 
@@ -566,7 +622,7 @@ Expected: `windows_cmake_ninja_multi_v1`等のactive normative old ID残存、�
 
 Appendix Dのold IDを新stable IDへ、`TargetProfileRef`等の§13.2改名型とsuffixless型を新型名へ置換する。C2 Matrixの`lifecycle_state`／`capability_activation_state` scalarを削除し、`CapabilityTargetActivationV1` exact row refsと`owner_work_package_ref`だけを持つread-only projectionへ変更する。Task 4のmetadata blockは変更しない。
 
-同じclean migrationでProject StateのTarget readinessを`predicted | blocked | qualified`、Performance projectionを同じ`TargetReadinessV1` refへ統一し、`optimization_required`と`performance_envelope_unqualified`を`blocked_reason_ref`にだけ保存する。AI Verificationへ`TechnicalQualificationReceiptV1`、3 freshness policy、current time／subject hash／revocation snapshotからの四状態導出を追加する。PascalCase／`not_activated`混入、C1 entity／population未校正の成功扱い、期限切れReceipt再利用はTask 9のnegative fixtureで閉じる。
+同じclean migrationでProject StateのTarget readinessを`predicted | blocked | qualified`、Performance projectionを同じ`TargetReadinessV1` refへ統一し、`optimization_required`と`performance_envelope_unqualified`を`blocked_reason_ref`にだけ保存する。AI Verificationの`TechnicalQualificationReceiptV1`はTask 2Bのclosed payload／wrapper、exact purpose／Role／Key purpose、Evidence-derived ID／最古／最新時刻／expiry、current time／subject hash／revocation snapshotからの四状態導出だけを参照する。PascalCase／`not_activated`混入、C1 entity／population未校正の成功扱い、期限切れReceipt再利用、古いEvidenceの新時刻再包装はTask 9のnegative fixtureで閉じる。
 
 - [ ] **Step 4: testを再実行する**
 
@@ -637,7 +693,7 @@ Expected: registryがschema valid、metadataとの一致、mismatch fixtureがex
 - Consumes: Product Plan §11、Appendix D。
 - Produces: orphan 0のCapability／Target／Phase／Phase gate／Work Package／Requirement／Fixture／Fallback／Product risk／Product decision gate graph、初期0 recordのappend-only Work Package lifecycle、future incubation projection。
 
-- [ ] **Step 1: maturity入りID、Capability target binding missing／excluded、required Activation row missing、optional Activation row missing、Activation rowへの`scope`混入、deferred理由欠落、orphan fixture、旧Work Package Field、cross-target runtime Capability edge、Phase gate範囲外参照、missing Product risk／Decision gate参照、Decision gate invalid state、lifecycle改変のnegative testsを書く**
+- [ ] **Step 1: maturity入りID、Capability target binding missing／excluded、required Activation row missing、optional Activation row missing、Activation row duplicate、bindingにないextra row、`excluded` row、Activation rowへの`scope`混入、deferred理由欠落、orphan fixture、旧Work Package Field、cross-target runtime Capability edge、Phase gate範囲外参照、missing Product risk／Decision gate参照、Decision gate invalid state、lifecycle改変のnegative testsを書く**
 - [ ] **Step 2: failureを確認する**
 - [ ] **Step 3: Task 3Aのcanonical projection bytesを`product.v1.json`へmaterializeし、validatorを実装する**
 
@@ -656,13 +712,25 @@ const missingOptional = validateActivationClosure(
 assert.equal(missingOptional.diagnostics[0].diagnostic_id,
   "diagnostic.product.capability-target-activation-missing");
 assert.equal(missingOptional.required_states, undefined);
+
+const duplicateRequired = validateActivationClosure(
+  validBindings, [...validInitialRowsIncludingOptional, validRequiredRow]);
+assert.equal(duplicateRequired.diagnostics[0].diagnostic_id,
+  "diagnostic.product.capability-target-activation-duplicate");
+assert.equal(duplicateRequired.required_states, undefined);
+
+const extraExcluded = validateActivationClosure(
+  validBindings, [...validInitialRowsIncludingOptional, excludedTargetRow]);
+assert.equal(extraExcluded.diagnostics[0].diagnostic_id,
+  "diagnostic.product.capability-target-activation-extra");
+assert.equal(extraExcluded.required_states, undefined);
 ```
 
-`validateActivationClosure`はrequired／optional binding双方のexact initial rowを検証し、missingならpartial closureやaggregate入力を返さない。`not_activated`は実在する検証済みrowのclosed stateであり、missing row、`null`、`undefined`から合成しない。aggregate入力は前段検証成功後に`scope=required`のrowだけから抽出した`not_activated | candidate_locked | qualified | production`のclosed state列で、optional rowは存在検証するが最小stateの算出には含めない。optional initial rowありのpositiveと、その一行だけを削除したnegativeを必須にし、後者ではaggregate関数を呼ばない。Activation rowへ`scope`を保存しない。
+`validateActivationClosure`はrequired／optional binding双方のexact initial rowと`excluded` row 0件を検証し、missing／duplicate／extraならpartial closureやaggregate入力を返さない。`not_activated`は実在する検証済みrowのclosed stateであり、missing row、`null`、`undefined`から合成しない。aggregate入力は前段検証成功後に`scope=required`のrowだけから抽出した`not_activated | candidate_locked | qualified | production`のclosed state列で、optional rowは存在検証するが最小stateの算出には含めない。positiveにrequired／optional rowをすべて含め、negativeはrequired missing、optional missing、duplicate required、bindingにないextra、`excluded` rowを一原因ずつ作る。各negativeでaggregate関数を呼ばない。Activation rowへ`scope`を保存しない。
 
 - [ ] **Step 5: registry testを実行する**
 
-Expected: Product Plan §11の各canonical表からID setとrow countを独立抽出し、`product.v1.json`のTarget、Requirement、Fixture、Phase、Phase fixture gate、Capability、Capability Target activation、Work Package、Fallback、Product risk、Product decision gate、Future incubation各set／countとexact一致する。固定件数をvalidatorへ埋め込まず、差分時はmissing／extra IDを列挙する。orphan、dependency cycle、後続Phase dependency、maturity-bearing current IDは各0、initial required／optional Target rowはすべて`state=not_activated`、missing rowからのaggregate正規化0、保存aggregate 0、lifecycle record 0とする。Task 3Aの`product_registry_sha256`とmaterialize後bytesのSHA-256が一致しなければBootstrap Approvalを失効させる。
+Expected: Product Plan §11の各canonical表からID setとrow countを独立抽出し、`product.v1.json`のTarget、Requirement、Fixture、Phase、Phase fixture gate、Capability、Capability Target activation、Work Package、Fallback、Product risk、Product decision gate、Future incubation各set／countとexact一致する。固定件数をvalidatorへ埋め込まず、差分時はmissing／extra IDを列挙する。orphan、dependency cycle、後続Phase dependency、maturity-bearing current IDは各0、initial required／optional Target rowはすべて`state=not_activated`、required／optional rowのmissing／duplicate、binding外extra、excluded rowはaggregate inputを一件も生成せずclosure全体を拒否し、valid closureだけ保存aggregate 0、lifecycle record 0とする。Task 3Aの`product_registry_sha256`とmaterialize後bytesのSHA-256が一致しなければBootstrap Approvalを失効させる。
 
 ### Task 8: deterministic Index generatorとCLIを実装する
 
@@ -748,7 +816,7 @@ Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted
 
 Task 1Aで追加済みの公式JavaScript toolchain root、`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`、lockfile SHA-256／registry integrityを再照合する。CI workflowはtoolchain lockが固定するtarball（version、URL、size、SHA-256、registry integrity）を照合後にnpm content-addressed cacheへ事前充填してから`npm ci --offline`を実行する。照合失敗、network fallback、root `ajv` import、`loadSchema`設定はjob失敗とする。
 
-Target readiness fixtureは`predicted | blocked | qualified`以外、PascalCase、`blocked`＋null `blocked_reason_ref`、非`blocked`＋non-null reason、Capability専用`not_activated`混入、fresh Technical Receiptなしの`qualified`を一原因ずつ拒否する。Technical Receipt fixtureは`policy.evidence.contract-ci.v1=604800秒`、`policy.evidence.target-device.v1=259200秒`、`policy.evidence.release.v1=86400秒`と各10% expiring windowをexactに検査し、期限切れ、subject／input hash差、revocation、policy不明、Toolchain／Target／Device driftを一原因ずつ拒否する。`fresh`だけが新しいPhase exit／Qualificationへ使えることを検証する。
+Target readiness fixtureは`predicted | blocked | qualified`以外、PascalCase、`blocked`＋null `blocked_reason_ref`、非`blocked`＋non-null reason、Capability専用`not_activated`混入、fresh Technical Receiptなしの`qualified`を一原因ずつ拒否する。Technical Receipt fixtureはTask 2Bのpositiveをbaseに、`policy.evidence.contract-ci.v1=604800秒`、`policy.evidence.target-device.v1=259200秒`、`policy.evidence.release.v1=86400秒`と各10% expiring windowをexactに検査する。wrapper／payload schema、purpose／subject／issuer／Role／Key purpose／issued-at／revocation binding、Evidence result／署名／current revocation、決定論的ID／最古／最新時刻／expiry、古いEvidenceの新時刻再包装、期限切れ、subject／input hash差、Policy不明、Toolchain／Target／Device drift、current snapshotのmissing／stale／invalid／個別revocationを一原因ずつ拒否する。`fresh`だけが新しいPhase exit／Qualificationへ使えることを検証する。
 
 - [ ] **Step 3A: CI execution profileを解決する**
 
@@ -786,7 +854,7 @@ Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0�
 
 `architecture/registry/document-relations.v1.json`を`schemas/architecture/document-relations.schema.json`で再検証し、registry hash、source document hash、derived node／edge countを同じread-backで照合する。
 
-Expected: 全hash一致かつBootstrap Approvalのwrapper／payload schema、署名、purpose、subject hash、Signer／Role／Key purpose、二段階tree ancestor、current bytes、current revocation read-backがvalid。ECS、D3D12、またはarchitecture comprehension Eval開始時に一つでも不一致なら`diagnostic.architecture.baseline-mismatch`、Approval不正なら`diagnostic.architecture.bootstrap-approval-invalid`で停止する。
+Expected: 全hash一致かつBootstrap Approvalのwrapper／payload schema、署名、purpose、subject hash、Signer、payload／envelopeのexact Role ID equality、current Role／active assignment／R4／independence、Key Role／purpose、二段階tree ancestor、current bytes、current revocation read-backがvalid。ECS、D3D12、またはarchitecture comprehension Eval開始時に一つでも不一致なら`diagnostic.architecture.baseline-mismatch`、Approval不正なら`diagnostic.architecture.bootstrap-approval-invalid`で停止する。
 
 ## Appendix A: Legacy dependency inventory
 
@@ -1148,7 +1216,8 @@ Appendix Dにないmaturity／version-bearing lowercase IDをlintが発見した
 - Appendix Cの29 edgeが完全にreciprocalで、Contract ID集合が一致する。
 - `architecture/registry/document-relations.v1.json`が生成inventory全metadataの`requires`／`integrates_with`、source document hash、Appendix Bのinitial canonical orderと完全一致する。
 - Appendix Dのold IDはnormative active本文で0、Decision／migration authorityの全出現はmigration manifestで一度だけ分類され、new IDのorphan 0、runtime alias 0である。
-- Product RegistryはProduct Plan §11から独立抽出した全Registry ID set／row countとgenerated manifestをexact比較し、missing／extra Target activationと固定件数への依存をfail closedにする。
+- Product RegistryはProduct Plan §11から独立抽出した全Registry ID set／row countとgenerated manifestをexact比較し、missing／duplicate／extra Target activationと固定件数への依存をfail closedにする。
 - TypeScript 7.0.2 compileは`--singleThreaded`を使用し、compiler API importが0件である。
 - Index二回生成のSHA-256が一致し、Git diffが空である。
-- baseline handoffの全hashと、closed payload、exact `MirakanSignedRecordV1`、purpose／subject／Signer／Role／Key purpose、二段階tree、current revocationが有効な`ControlPlaneBootstrapApprovalV1`をECS／D3D12計画がread-backできる。
+- baseline handoffの全hashと、closed payload、exact `MirakanSignedRecordV1`、purpose／subject／Signer、payload／envelopeのexact Role ID equality、current Role／active assignment／R4／independence、Key Role／purpose、二段階tree、current revocationが有効な`ControlPlaneBootstrapApprovalV1`をECS／D3D12計画がread-backできる。
+- `TechnicalQualificationReceiptV1`のclosed payload／wrapper、exact purpose／Role／Key purpose／payload binding、参照Evidence由来の決定論的ID／freshness origin／issued-at／expiry、current revocationをread-backでき、同じ古いEvidenceの再包装でTTLを延長できない。

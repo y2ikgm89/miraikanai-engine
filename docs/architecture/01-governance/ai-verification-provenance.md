@@ -421,21 +421,28 @@ WorldQualificationReceiptV1は汎用Receiptを一つのWorld subject、Topology�
 
 ### 7.2 TechnicalQualificationReceiptV1
 
-Phase exit、Capability qualification、Target readinessへ使用する技術Evidenceは、用途別Receiptの完成hashを次の共通freshness envelopeへ束ねる。
+Phase exit、Capability qualification、Target readinessへ使用する技術Evidenceは、用途別Receiptの完成hashを次のclosed payloadと共通署名envelopeへ束ねる。
 
 ```text
 TechnicalQualificationReceiptV1
-  issued_at
-  expires_at
-  freshness_policy_ref
-  revocation_snapshot_ref
-  subject_hash
-  evidence_hashes[]
+  payload: TechnicalQualificationReceiptPayloadV1
+    receipt_id
+    issuer_subject_ref
+    issued_at
+    freshness_origin_at
+    expires_at
+    freshness_policy_ref
+    revocation_snapshot_ref
+    subject_hash
+    evidence_hashes[]
+  signed_record: MirakanSignedRecordV1
 ```
 
-`subject_hash`は用途別Policyが要求するSource revision、Candidate root、Contract set、Toolchain lock、Target Profile、Device／OS／driver generation、Package、Quality、signing／store declarationのうち該当する全入力を、Field名とnull非該当を含むcanonical closureへしてSHA-256した値である。自由な説明文や部分hashを使わない。`evidence_hashes[]`は完成した用途別Receipt hashの重複なしunsigned byte順集合で、最低1件とする。署名、result=`pass`、Runner／Policy eligibilityは参照先Receiptと共通署名envelopeから検証し、本型がAuthorization、Approval、Activationを与えない。
+`TechnicalQualificationReceiptPayloadV1`とwrapperは全Field required、unknown Field禁止のclosed schemaとする。`signed_record`は`urn:mirakan:schema:governance:mirakan-signed-record:v1`へのexact `$ref`であり、`purpose=technical_qualification_receipt`、`subject_sha256=SHA-256(JCS(payload))`、`signer_subject_ref=payload.issuer_subject_ref`、`signed_record.issued_at=payload.issued_at`、`signed_record.revocation_snapshot_ref=payload.revocation_snapshot_ref`をexact byte equalityで必須とする。`signer_role_ref`はexact `role.evidence.technical_qualification`であり、Public key registryの`key_id`は同じissuer、Role、singleton `allowed_signed_record_purposes=[technical_qualification_receipt]`を持つ。別用途、generic Role／Key、Verification／Approval Keyを代用しない。
 
-`issued_at`／`expires_at`はcanonical UTCで、Policyの`max_age_seconds`に対し`expires_at = issued_at + max_age_seconds`を必須とする。時刻を丸めたりClient local timeを使わない。発行時`revocation_snapshot_ref`だけを信用せず、評価時のcurrent revocation snapshotも入力にする。四状態の決定論的導出と利用規則は§10.1を正本とする。
+`subject_hash`は用途別Policyが要求するSource revision、Candidate root、Contract set、Toolchain lock、Target Profile、Device／OS／driver generation、Package、Quality、signing／store declarationのうち該当する全入力を、Field名とnull非該当を含むcanonical closureへしてSHA-256した値である。自由な説明文や部分hashを使わない。`evidence_hashes[]`は完成した署名済み用途別Receipt hashの重複なしunsigned byte順集合で、最低1件とする。各参照先のwrapper／payload schema、exact purpose、subject、署名、current revocation、result=`pass`、Runner／Policy eligibilityを検証し、一件でもinvalid／stale／revoked／non-passなら本Receiptを発行または使用しない。本型はAuthorization、Approval、Activationを与えない。
+
+`freshness_origin_at`は参照先全Receiptの検証済み`signed_record.issued_at`の最古UTC、`issued_at`は同じ集合の最新UTCとexact一致させる。`receipt_id`は`SHA-256(JCS({freshness_policy_ref, subject_hash, evidence_hashes}))`のlowercase 64桁hexとし、同じPolicy／subject／Evidence closureに別IDを与えない。`expires_at = freshness_origin_at + max_age_seconds`、`freshness_origin_at <= issued_at < expires_at`を必須とし、時刻を丸めたりClient local timeを使わない。同じ古い`evidence_hashes[]`を新しい`receipt_id`／`issued_at`／`freshness_origin_at`／`expires_at`で再包装し、有効期限を延長することを拒否する。発行時`revocation_snapshot_ref`だけを信用せず、評価時のcurrent revocation snapshotも入力にする。current snapshotがwrapper Record、payload subject、issuer、Role、Key、purpose、Policy、または`evidence_hashes[]`の一件を失効した場合は拒否する。四状態の決定論的導出と利用規則は§10.1を正本とする。
 
 ### 7.3 GenerationReceiptV1
 
@@ -582,17 +589,17 @@ Compiler、static analyzer、security scanner findingをMirakanDiagnosticV1へ�
 | `policy.evidence.target-device.v1` | 259200 | 25920 | Target Profile、OS、driver、Device generation、Package |
 | `policy.evidence.release.v1` | 86400 | 8640 | Candidate root、signing policy、store declaration |
 
-Evaluator入力は、検証済みReceipt bytes、信頼済みclockが渡すcanonical UTC `evaluation_time`、Policy-specific current input closureから再計算した`current_subject_hash`、発行時snapshot以後の有効なcurrent revocation snapshotである。wall clock、cached state、呼出元が申告したfreshness stateをReceipt fieldとして信用しない。次の順で一意に評価する。
+Evaluator入力は、検証済みwrapper／payload bytes、参照Evidence Receiptの完成bytes、信頼済みclockが渡すcanonical UTC `evaluation_time`、Policy-specific current input closureから再計算した`current_subject_hash`、発行時snapshot以後の有効なcurrent revocation snapshotである。wall clock、cached state、呼出元が申告したfreshness stateをReceipt fieldとして信用しない。次の順で一意に評価する。
 
-1. schema、署名、参照Receiptの`result=pass`、Policy存在、`issued_at < expires_at`、`expires_at = issued_at + max_age_seconds`、`evaluation_time >= issued_at`、current revocation snapshotの署名／sequenceが成立しなければfreshnessを付与せず、exact validation Diagnosticで拒否する。
-2. current revocation snapshotがReceipt、Signer key、Policy、subject、または`evidence_hashes[]`の一件を失効対象に含む場合は`revoked`。後続条件より優先する。
+1. wrapper／payload schema、payload JCS hash、exact purpose／issuer／Role／Key purpose／issued-at／revocation-snapshot binding、wrapper署名、参照Receipt全件のschema／署名／current revocation／`result=pass`、Policy存在、決定論的`receipt_id`、`freshness_origin_at=min(evidence issued_at)`、`issued_at=max(evidence issued_at)`、`expires_at = freshness_origin_at + max_age_seconds`、`freshness_origin_at <= issued_at < expires_at`、`evaluation_time >= issued_at`、current revocation snapshotの署名／sequenceが成立しなければfreshnessを付与せず、exact validation Diagnosticで拒否する。
+2. current revocation snapshotがwrapper Record、payload subject、issuer、Signer Role、Key、purpose、Policy、または`evidence_hashes[]`の一件を失効対象に含む場合は`revoked`。後続条件より優先する。
 3. `evaluation_time >= expires_at`、`current_subject_hash != subject_hash`、または表のinvalidator変更をcurrent closureへ反映できない場合は`expired`。
 4. 残り秒数`expires_at - evaluation_time <= expiring_window_seconds`なら`expiring`。
 5. それ以外は`fresh`。
 
 新しいPhase exit、Capability qualification、Target readiness `qualified`、Promotion、Release開始に使えるのは`fresh`だけである。`expiring`は既存結果の監視表示とrenewal schedulingに限り、新しいGateを開始しない。`expired`／`revoked`はlast valid表示の由来として参照できても現在Candidateの合格根拠へ再利用しない。評価中に期限を跨ぐJobは完了時に再評価し、開始時の`fresh`を固定しない。
 
-Policy値の変更はR4 Product Decision、Policy Registry revision、新しいrevocation snapshotを必須とし、旧Policyを参照する全Receiptを`revoked`にする。期限切れ、input hash差、revocation、unknown Policy、stale revocation snapshotを一原因ずつ持つnegative fixtureを作り、期限延長、別Target／Device／Packageへの流用、Toolchain変更後の再利用、release Candidate差し替えを拒否する。
+Policy値の変更はR4 Product Decision、Policy Registry revision、新しいrevocation snapshotを必須とし、旧Policyを参照する全Receiptを`revoked`にする。期限切れ、input hash差、wrapper／payload binding差、wrong purpose／Role／Key purpose、参照Evidence non-pass／署名不正／失効、決定論的ID／最古／最新時刻差、同じ古いEvidenceの新時刻再包装、revocation、unknown Policy、stale revocation snapshotを一原因ずつ持つnegative fixtureを作り、期限延長、別Target／Device／Packageへの流用、Toolchain変更後の再利用、release Candidate差し替えを拒否する。
 
 ### 10.2 External Evidence freshness
 
@@ -689,7 +696,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 - Provider／Model／Prompt／Tool更新が一変数比較、canary、rollbackを通る。
 - Verification、Generation、Review、Promotion、Signing、Upload Receiptがcontent hashで連結される。
 - System／World／Project Shader Qualificationがsubject変更、Target差、Evidence期限切れで失効する。
-- `TechnicalQualificationReceiptV1`が3 freshness policyのTTL、input closure、current revocation snapshotから`fresh | expiring | expired | revoked`を決定論的に導出し、`fresh`以外を新しいGateへ使わない。
+- `TechnicalQualificationReceiptV1`がclosed payload／exact共通署名、専用purpose／Role／Key、参照Evidenceの最古／最新署名時刻、3 freshness policyのTTL、input closure、current revocation snapshotから`fresh | expiring | expired | revoked`を決定論的に導出し、古いEvidenceの再包装と`fresh`以外の新しいGate利用を拒否する。
 - Trusted BuildだけがProvenance、sourceなしServiceだけがSigning、Signing keyなしServiceだけがUploadする。
 - 実BuildからSBOMを生成してbinary scanと照合する。
 - External Evidence freshnessとretentionが該当Decisionをfail closedにする。
