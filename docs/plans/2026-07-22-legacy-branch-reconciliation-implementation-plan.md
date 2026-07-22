@@ -366,7 +366,7 @@ ArchitectureComprehensionFixtureV1 canonical definition count = 1
 
 Completed: ledger 20 rows／455 lines／blank 0; PR #3 identifier gaps 0; legacy active-path refs 0; old-manifest active definitions 0; all five canonical definition counts 1.
 
-- [ ] **Step 3: Commit the reconciled implementation**
+- [x] **Step 3: Commit the reconciled implementation**
 
 Run:
 
@@ -378,6 +378,8 @@ git commit -m "docs: reconcile architecture comprehension closure"
 ```
 
 Expected: no source-worktree legacy path is staged.
+
+Completed: commit `10d741c283cc22766227a6267bc849bf97d1aba6` contains the ten reconciled architecture／plan files and no legacy source-worktree path.
 
 - [ ] **Step 4: Push and open a draft PR**
 
