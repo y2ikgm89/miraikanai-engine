@@ -156,25 +156,29 @@ Product RegistryのWork Packageがこの5文書のいずれかを`owner_document
 
 ```text
 ControlPlaneBootstrapApprovalV1
-  approval_id
-  approver_subject_ref
-  approval_authority_ref
-  git_tree_id
-  owner_document_hashes[5]
-    document_id
-    document_sha256
-    lifecycle_approval_ref
-  product_registry_sha256
-  toolchain_lock_sha256
-  decision_sha256
-  issued_at
-  revocation_snapshot_ref
-  revoked_at
+  payload: ControlPlaneBootstrapApprovalPayloadV1
+    approval_id
+    approver_subject_ref
+    approval_authority_ref
+    git_tree_id
+    owner_document_hashes[5]
+      document_id
+      document_sha256
+      lifecycle_approval_ref
+    product_registry_sha256
+    toolchain_lock_sha256
+    decision_sha256
+    issued_at
+    revocation_snapshot_ref
+    revoked_at
+  signed_record: MirakanSignedRecordV1
 ```
 
-`owner_document_hashes[]`のdocument ID集合は§6の5件とset equalityで、配列はdocument IDのunsigned UTF-8 byte順とする。`git_tree_id`は5 Ownerの承認済みbytes、Product Plan registry source、Toolchain lock、承認Decisionが存在する、Approval Record格納直前の承認対象treeである。Record自身を含むtree IDをFieldへ埋め込む自己参照を禁止する。`product_registry_sha256`は[Product Plan §11](../architecture/00-product/product-plan.md#11-product-execution-registries)から同じcanonical encoderで生成する全Registry projection bytesのhashであり、実装計画Task 7がmaterializeする`architecture/registry/product.v1.json`と一致しなければならない。`revoked_at`は必須nullable Fieldで、未失効時だけ`null`とする。
+`ControlPlaneBootstrapApprovalPayloadV1`と外側の`ControlPlaneBootstrapApprovalV1`はともにclosed schemaで、全Fieldをrequired、unknown Fieldを禁止する。`signed_record`は[AI Verification／Provenance §7](../architecture/01-governance/ai-verification-provenance.md#7-evidence-envelope)が所有する`urn:mirakan:schema:governance:mirakan-signed-record:v1`へのexact `$ref`であり、Architecture schemaへ署名Fieldを複写しない。`signed_record.subject_sha256`はpayloadだけのRFC 8785 JCS bytesのSHA-256、`signed_record.purpose`はexact `control_plane_bootstrap_approval`とする。`signed_record.signer_subject_ref`は`payload.approver_subject_ref`とbyte equality、`signed_record.issued_at`と`signed_record.revocation_snapshot_ref`はpayloadの同名Fieldとbyte equalityでなければならない。Signerのcurrent Roleは`payload.approval_authority_ref`が許可する独立R4 Role、KeyはSigner所有かつKey registryの許可purposeがexact `control_plane_bootstrap_approval`であることを発行時と評価時にread-backする。
 
-Recordは文書ごとのlifecycle Approvalを代替せず、AI／workerの自己承認、placeholder Approval、承認対象tree外のDecision、hash計算前の将来値を拒否する。後続treeでは承認対象treeがancestorであることに加え、5 document hash、Product registry projection、Toolchain lock、Decision、承認主体の資格、revocation snapshotを現在bytesから再照合する。これらのいずれかが変化または失効した時点で、`revoked_at=null`でも評価結果を`revoked`とする。Approval Recordの追加や無関係な後続fileだけを理由に失効させず、承認対象Artifactのdriftを見逃さない。失効時はPhase 0の未開始Work Packageを`declared`に維持し、進行中Work Packageは新しいtransitionを停止してPolicyが指定するrollback／再承認へ進む。Record schema、発行／失効Receipt、read-back testが揃う前にmetadata migrationを開始しない。
+`owner_document_hashes[]`のdocument ID集合は§6の5件とset equalityで、配列はdocument IDのunsigned UTF-8 byte順とする。`payload.git_tree_id`は5 Ownerの承認済みbytes、Product Plan registry source、Toolchain lock、承認Decisionが存在する、Approval Record格納直前の承認対象treeである。第一段でこのtarget treeを確定し、第二段でpayloadと署名envelopeを別の後続treeへ格納する。Record自身を含むtree IDをpayloadへ埋め込む自己参照を禁止する。`product_registry_sha256`は[Product Plan §11](../architecture/00-product/product-plan.md#11-product-execution-registries)から同じcanonical encoderで生成する全Registry projection bytesのhashであり、実装計画Task 7がmaterializeする`architecture/registry/product.v1.json`と一致しなければならない。`revoked_at`は必須nullable Fieldで、有効な新規発行payloadでは`null`だけを許可する。後日の失効は署名済みpayloadを書き換えず、current revocation snapshotへ追記する。
+
+Recordは文書ごとのlifecycle Approvalを代替せず、AI／workerの自己承認、placeholder Approval、承認対象tree外のDecision、hash計算前の将来値を拒否する。後続treeでは承認対象treeがancestorであることに加え、payload schema、署名、purpose、subject hash、Signer／Role／Key purpose、5 document hash、Product registry projection、Toolchain lock、Decision、発行時snapshotとcurrent revocation snapshotを現在bytesから再照合する。これらのいずれかが変化、missing、invalidまたは失効した時点で、`payload.revoked_at=null`でも評価結果を`revoked`とする。Approval Recordの追加や無関係な後続fileだけを理由に失効させず、承認対象Artifactのdriftを見逃さない。失効時はPhase 0の未開始Work Packageを`declared`に維持し、進行中Work Packageは新しいtransitionを停止してPolicyが指定するrollback／再承認へ進む。共通署名schema、payload schema、発行／失効Receipt、read-back testが揃う前にmetadata migrationを開始しない。
 
 ### 6.2 Architecture Governance
 
@@ -748,7 +752,7 @@ planned
 | `MirakanSignedRecordV1`の共通envelope／hash chain | AI Verification／Provenance。Algorithm、Key用途、authorization policyはAI Security／Approval |
 | `TechnicalQualificationReceiptV1`、Evidence freshness policy／four-state derivation | AI Verification／Provenance。Target readiness envelopeはProject State、測定内容は各Technical Owner |
 | `CapabilityRegistryV1`、`CapabilityTargetActivationV1`、`ProductPhaseRegistryV1`、`PhaseFixtureBindingRegistryV1`、`WorkPackageRegistryV1`、`WorkPackageLifecycleRecordV1`、`TargetProfileRegistryV1`、`RequirementRegistryV1`、`FixtureRegistryV1`、`FallbackRegistryV1`、`ProductRiskRegistryV1`、`ProductDecisionGateRegistryV1`、`FutureCapabilityIncubationRegistryV1` | Product Plan |
-| `ControlPlaneBootstrapApprovalV1` | Architecture Governance。AI Security／ApprovalのR4主体・Policyを消費するが、Product／Capability Approvalを代替しない |
+| `ControlPlaneBootstrapApprovalPayloadV1`、`ControlPlaneBootstrapApprovalV1` | Architecture Governance。AI Verification／Provenanceの`MirakanSignedRecordV1` schemaとAI Security／ApprovalのR4主体・Key Policyを消費するが、Product／Capability Approvalを代替しない |
 | `SaveSlotManifestV1`、`SaveRootManifestV1`、`SaveCheckpointV1`、`SaveDomainRecordSetV1`、`SaveMigrationPlanV1`、`SaveLoadPlanV1`、`SaveStoragePolicyV1`、`SaveStorageEnvelopeV1`、`PlatformStorageTransactionV1`、Save Receipt群 | Persistence／Save。Key管理／OS crypto実装は各Platform Owner |
 | `RuntimePackageManifestV1`、`RuntimePackageArtifactV1` | Runtime Package |
 | `ApplicationPackageAssemblyManifestV1`、`StoreSubmissionDeclarationV1`、`UnsignedApplicationPackageV1`、Target mapping rule、`PackageValidationReceiptV1`、`TargetPackagePreparationTransactionV1`、`ReleaseTransactionV1`、`ReleaseSigningReceiptV1`、`StoreStagingUploadReceiptV1`、`StoreStagingReadBackReceiptV1`、`TargetPackagePreparationRecordV1`、`StorePublicationReceiptV1`、`ReleaseRolloutCommandV1` | Application Package／Release |
@@ -845,14 +849,16 @@ WorkPackageLifecycleRecordV1
 
 `requires_work_package_refs`はcycleを禁止し、PrerequisiteのPhase ordinalがConsumerより後なら拒否する。同Phase内はtopological orderを使う。`scheduling_state=ready`は全Prerequisiteが`complete`、Ownerがapproved、有効な`ControlPlaneBootstrapApprovalV1`が存在する場合だけ許可する。`scheduling_state=deferred`はnon-empty `defer_reason`と1件以上の`reconsideration_gate_refs[]`、`blocked`はnon-null `blocked_reason_ref`を必須とし、Registryから削除しない。他stateでは`defer_reason=null`、`reconsideration_gate_refs=[]`、`blocked_reason_ref=null`を必須とする。
 
-各Work Packageの`required_capability_refs[]`は、各consumer `target_refs[]`について対応する`CapabilityTargetActivationV1` rowが存在し、そのscopeが`required`または`optional`でなければならない。missingまたは`excluded` rowを要求Capability closureに使ったWork Packageを拒否する。別Targetのauthoring host／build hostが必要な場合は`requires_work_package_refs[]`で順序を表し、consumer Targetに存在しないruntime Capability edgeを作らない。
+各Work Packageの`required_capability_refs[]`は、各consumer `target_refs[]`について二つの独立条件を満たさなければならない。第一に、参照Capabilityの`CapabilityRegistryV1.target_bindings[]`へexact `target_id` bindingが存在し、その`scope`が`required`または`optional`であること。第二に、`CapabilityTargetActivationV1`へexact `{capability_id, target_id}` rowが存在すること。binding missing／`scope=excluded`またはActivation row missingのいずれでも要求Capability closureを拒否する。`scope`はCapability bindingだけの属性で、Activation rowへ追加した場合はunknown Fieldとして拒否する。別Targetのauthoring host／build hostが必要な場合は`requires_work_package_refs[]`で順序を表し、consumer Targetに存在しないruntime Capability edgeを作らない。
 
 Phase Gateは二種類を明示する。
 
 - `contract_fixture_gate`: 後続Target実装前でもheadless schema／negative fixtureとして実行できる。
 - `product_target_gate`: 実Platform、package、install、device Receiptが必要で、該当Phase前には成功扱いにしない。
 
-Phase 4のProject Source Activationは`wp.authoring.project-native-module`（Owner `mirakan.arch.native-game-module`）と`wp.rendering.project-shader`（Owner `mirakan.arch.rendering-project-shader`）をWork Package Registryへ登録し、それぞれ`capability.project.native_module`と`capability.project.shader`を所有させる。両Capabilityは`target.windows.editor`と`target.windows.desktop`だけをrequiredとし、Phase 4の`fixture.product.shooter-2d`がAI Authoring、MVP completion、Source／Diff／Approval／Artifact／Receipt closureを同一Project revisionで検証する。Android／Appleは別Qualificationまで`excluded`であり、Windows Receiptから推論しない。
+Phase 4 `phase.ai-authoring-mvp-a`はDefinition-firstまたは事前Qualification済みPackに限定する。`wp.authoring.prequalified-source-packs`は既存Pack／Variantの選択とprovenanceだけを提供し、このPhaseで新しいNative／Shader Sourceを生成またはactivateしない。`gate.product.phase-4-ai-mvp-a`は`fixture.product.shooter-2d`でAI AuthoringとMVP completionを検証するが、`requirement.product.project-source-activation`を評価しない。
+
+新規Project SourceはPhase 5 `phase.external-agent`で、`wp.authoring.project-native-module`（Owner `mirakan.arch.native-game-module`）と`wp.rendering.project-shader`（Owner `mirakan.arch.rendering-project-shader`）を独立実装し、aggregate `wp.product.project-source-activation`が両方のSource／Diff／Code owner Approval／Target artifact／Qualification Receiptを同一Project revisionへ閉じる。専用`gate.product.phase-5-project-source-activation`だけが`requirement.product.project-source-activation`を評価する。`gate.product.phase-5-external-agent`はProposal-only境界であり、外部Client接続の成功をSource activationの代用にしない。`capability.project.native_module`、`capability.project.shader`、`capability.product.project-source-activation`は`target.windows.editor`と`target.windows.desktop`だけをrequiredとし、Android／Appleは別Qualificationまで`excluded`、Windows Receiptから推論しない。
 
 Scheduling Phase 0のSave／Platform lifecycle項目はcontract fixtureに限定する。Windowsの空Scene save／packageはPhase 2、Android／Apple packageはPhase 7のproduct target gateとする。C++ Modules Phase 0のMobile recipeはcompile／link fixtureであり、Store package合格を意味しない。
 
@@ -965,7 +971,7 @@ Architecture Indexと2 Decisionsも更新対象とする。Decisionは歴史的�
 
 1. legacy inventoryとmigration manifestを固定する。
 2. Ajv 8.20.0をToolchain／package lockへ固定し、Draft 2020-12 validator import、integrity、local `$id` allowlistをschema未存在testより先に検証する。
-3. Metadata／Product／Bootstrap Approval schemaを追加する。
+3. Metadata／Product schema、共通`MirakanSignedRecordV1` schema、Bootstrap Approval payload／wrapper schema、署名／失効negative testを追加する。実Approval Recordはまだ発行しない。
 4. Architecture Governance、Compatibility／Evolution、Persistence／Save、Runtime Package、Application Package／Releaseの5 Ownerを`review`で追加する。
 5. R4人間Review後に5 Ownerをapprovedにし、承認対象Git treeへ束縛した`ControlPlaneBootstrapApprovalV1`を発行・read-backする。未承認ならここで停止する。
 6. 43既存文書をexact metadataへ移行し、Product Plan、Core、Naming、Executable Contracts、Toolchainを新規則へ合わせる。
@@ -993,6 +999,7 @@ urn:mirakan:schema:architecture:document-relations:v1
 urn:mirakan:schema:architecture:baseline:v1
 urn:mirakan:schema:architecture:explain-projection:v1
 urn:mirakan:schema:architecture:control-plane-bootstrap-approval:v1
+urn:mirakan:schema:governance:mirakan-signed-record:v1
 urn:mirakan:schema:product:registries:v1
 ```
 
@@ -1013,8 +1020,8 @@ Validatorは次を検査する。
 11. Save、Runtime Package、Application Package、Candidate／Approval／Activation、Store publication Receiptの必須E2E edge。
 12. Decisionの固定件数を正本Gateとして使用していないこと。
 13. Manifest／Envelope／Package／Candidate参照graphのcycle、self hash、後段identityの前段埋込みがないこと。
-14. `ControlPlaneBootstrapApprovalV1`の承認主体、Git tree、5 Owner hash、Product registry hash、Toolchain lock hash、Decision hash、発行／失効とcurrent bytesの一致。
-15. Product正本と完全一致するWork Package Field集合、Targetごとのrequired Capability closure、Phase fixture binding、append-only lifecycle、`predicted | blocked | qualified` Target readiness、Technical Qualification Receipt freshness。
+14. `ControlPlaneBootstrapApprovalV1`のclosed payload／exact署名schema ref、purpose、subject hash、Signer／Role／Key purpose、Git tree、5 Owner hash、Product registry hash、Toolchain lock hash、Decision hash、発行時／current revocation snapshotとcurrent bytesの一致。
+15. Product正本と完全一致するWork Package Field集合、`CapabilityRegistryV1.target_bindings[]`と別`CapabilityTargetActivationV1` rowの二条件によるTargetごとのrequired Capability closure、Phase fixture binding、append-only lifecycle、`predicted | blocked | qualified` Target readiness、Technical Qualification Receipt freshness。
 
 出力はstable diagnostic ID、document、line、owner、remediationを持ち、同一入力で同一順序とする。CIは生成Indexとの差分とlint errorが一件でもあれば失敗する。
 
@@ -1034,6 +1041,7 @@ D3D12固有のsymbol／mapping／descriptor／Tool Catalog検査はCompanionの[
 | Application Package／Release | subject→manifest→sign→staging read-back→candidate／approval／activation→publish read-back | manifest外file、identity混在、hash差替え、Candidate hash cycle、未承認公開を拒否 |
 | Domain Pack | range＋resolved lock＋Qualification | dependency cycle、lock未選択の複数解、qualifiedでないTargetを拒否 |
 | Product | Work Package→Capability→Receipt closure | orphan WP、maturity入りID、state軸混同を拒否 |
+| Bootstrap Approval | closed payload→`MirakanSignedRecordV1`→二段階Git tree→current read-back | missing／invalid署名、wrong purpose／subject、Signer／Role／Key purpose不一致、revoked signature、自己参照treeを拒否 |
 | ECS prerequisite | 新Ownerへのexact ref | 旧Save owner、unversioned manifest、固定件数前提を拒否 |
 | D3D12 companion boundary | 後続計画へのexact link、一つのD3D12 Backend Owner | 6番目の横断Owner扱い、Render Graph／Windows／UIでのnative contract再定義を拒否 |
 

@@ -323,7 +323,26 @@ Failure後は部分状態非公開、Resource解放、retryability、Diagnostic�
 
 ## 7. Evidence envelope
 
-全署名Recordは[AI Security／Approval](ai-security-approval.md)のMirakanSignedRecordV1 Profileを使い、Signer用途を分離する。Verification keyでApproval／Promotionへ署名できない。Receipt参照hashは署名を含む完成Record全体のJCS SHA-256とする。
+全署名Recordは[AI Security／Approval](ai-security-approval.md)の暗号／Key Policyを消費し、次の`MirakanSignedRecordV1`共通envelopeを使う。唯一のJSON Schema `$id`は`urn:mirakan:schema:governance:mirakan-signed-record:v1`であり、consumer schemaはこのrootをexact `$ref`し、署名Fieldをinline再定義しない。
+
+```text
+MirakanSignedRecordV1
+  envelope_version: 1
+  purpose
+  subject_sha256
+  signer_subject_ref
+  signer_role_ref
+  key_id
+  issued_at
+  revocation_snapshot_ref
+  signature_algorithm
+  signature_format
+  signature
+```
+
+全Fieldは必須、unknown Fieldは禁止する。`subject_sha256`は用途別schemaで閉じたsubject payloadのRFC 8785 JCS bytesをSHA-256したlowercase 64桁hexであり、payloadやそのrefをenvelopeへ複写しない。署名対象は`signature`だけを除く上記envelope FieldのJCS bytesである。`purpose`、`subject_sha256`、Signer、Role、Key、発行時刻、発行時revocation snapshot、algorithm、formatの一つでも変われば署名は成立しない。Receipt参照hashは署名を含む完成Record全体のJCS SHA-256とする。
+
+Verifierはschemaとcanonical encodingを確認した後、現在のsubject payload bytesからhashを再計算し、`purpose`を用途別exact値と比較する。続いて現在のIdentity／Role／Public key registryでSignerとRoleの対応、Key所有者、Keyの許可purpose、algorithm／format、発行時の有効期間を照合して署名を検証し、発行時snapshotとそれ以後のcurrent revocation snapshotの署名／sequenceを検証する。current snapshotがRecord、subject、Signer、Role、Key、purposeのいずれかを失効対象に含む場合は拒否する。missing envelope、invalid signature、wrong purpose、wrong subject、unknown／期限外／用途不一致Key、Role不一致、stale／invalid snapshot、revoked対象をfail closedにする。Verification keyでApproval／Promotionへ署名できない。
 
 ### 7.1 VerificationReceiptV1
 
