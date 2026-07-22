@@ -30,7 +30,7 @@
 
 **Interfaces:**
 - Consumes: 設計§4、§5、§10。
-- Produces: canonical `WorkPackageRegistryV1`、`PhaseFixtureBindingRegistryV1`、Phase 0～8 DAG、`FutureCapabilityIncubationRegistryV1`。
+- Produces: canonical `WorkPackageRegistryV1`、`PhaseFixtureBindingRegistryV1`、Phase 0～9 DAG、`FutureCapabilityIncubationRegistryV1`。
 
 - [ ] **Step 1: schema競合を再現する**
 
@@ -60,7 +60,7 @@ Genre／Rendering／UI／Gameplay provider WPを先行させ、`wp.product.gener
 
 - [ ] **Step 6: Future incubation registryを追加する**
 
-設計§10の13 entryを`planning_only`で登録し、active Capability／Target／Phaseへ参照しないことを明記する。
+設計§10の17 entryを`planning_only`で登録し、active Capability／Target／Phaseへ参照しないことを明記する。FPS、大人数network shooter、AAA photoreal renderingをShooter／network／renderingの既存Capabilityへ暗黙包含しない。
 
 - [ ] **Step 7: Product整合検査を実行する**
 
@@ -185,12 +185,12 @@ MCP 2025-11-25、OpenAI MCP／GPT-5.6、Ajv Draft 2020-12、CMake 4.4、MSVC 14.
 - Modify: `docs/superpowers/plans/2026-07-22-plan-review-closure.md`
 
 **Interfaces:**
-- Consumes: Tasks 1～4の最終diffと検査結果。
+- Consumes: Tasks 1～4とTask 6の最終diffと検査結果。
 - Produces: remediation finding台帳、旧Closureとの関係、Go／No-Go Gate。
 
 - [ ] **Step 1: finding台帳を作成する**
 
-Work Package schema、DAG、Phase binding、Phase 8 dependency、AI Operation、bootstrap approval、Code owner、Target readiness、Freshness、D3D12 CX0、Mobile split、Future incubationを一行一Findingで記録し、changed documentsとverification evidenceを持たせる。
+Work Package schema、DAG、Phase binding、Phase 8 dependency、AI Operation、bootstrap approval、Code owner、Target readiness、Freshness、D3D12 CX0、Mobile split、Critical Path実行計画、Future inceptionを一行一Findingで記録し、changed documentsとverification evidenceを持たせる。
 
 - [ ] **Step 2: 旧Closureの意味を限定する**
 
@@ -219,3 +219,38 @@ Expected: duplicate document ID 0、duplicate Product logical ID 0、unresolved 
 
 設計§11の8条件、外部Evidenceの適用範囲、active state非昇格、Scope外実装がないことを確認する。Critical／Important findingは同一ChangeSetで修正し再検査する。
 
+### Task 6: Critical Pathと将来Capabilityの実行計画を作る
+
+> 実行順序: Task番号は監査laneを維持するため6とするが、本TaskはTask 5の最終Closureより先に完了する。
+
+**Files:**
+- Create: `docs/plans/2026-07-23-critical-path-execution-plan.md`
+- Create: `docs/plans/2026-07-23-future-capability-inception-plan.md`
+
+**Interfaces:**
+- Consumes: Task 1の最終Product Phase／Work Package／Future registry、Task 2～4のControl Plane・AI・Toolchain契約。
+- Produces: Critical Path後半のtask-level plan、AAA／Open World／Online／Console等をactive scopeへ移す前のinception plan。
+
+- [ ] **Step 1: Critical Pathの未計画WPを全量列挙する**
+
+Product registryからtask-level implementation planを持たないWPを抽出し、少なくともECS E1～E7、Headless Authoring、Editor Runtime、2D Shooter、AI Authoring MVP-A、Project Source Activation、External Agent、3D MVP-B、Mobile、C2 aggregateをPhase順に扱う。
+
+- [ ] **Step 2: 各Taskの実行契約を閉じる**
+
+各Taskにprerequisite WP／baseline Receipt、Owner文書、予定成果物path、positive／negative fixture、verification command、completion receipt、rollback／last-valid、blocked diagnosticを必須にする。実装済みとは表示せず全て`planning_only | declared`から開始する。
+
+- [ ] **Step 3: 並列化とGateを明示する**
+
+同一Phase内の安全な並列作業、join gate、Target別fan-out、Code owner／device／signingが必要な停止点をDAGで示す。calendar期間・人数は推測せず相対sizeと実測velocityからだけ更新する。
+
+- [ ] **Step 4: Future capabilityを製品単位へ分解する**
+
+Open World、MMO／online／live service、大人数network shooter、vehicle、ragdoll、crowd、motion warping、AAA rendering、Terrain／Foliage／GI、Console、Web、XR、FPS、Asset generation、first-party local inference、runtime generationについて、architecture／threat model／licensing／Target／operations／positive＋negative fixture／rollbackのinception deliverableを定義する。
+
+- [ ] **Step 5: active registryへの移行条件を固定する**
+
+Future entryはplaceholder APIや空Managerを作らない。Product Decision、Owner、Target、fallback、Requirement、positive＋negative fixture、WP、Risk、qualification policyが同一ChangeSetで揃った場合だけactive registryへ移す。モデル名・Provider名は能力保証に使わない。
+
+- [ ] **Step 6: 正本参照とリンクを検査する**
+
+Product registryのexact IDだけを使い、存在しないWP／Capability／Gateを参照しない。local link、表列、`git diff --check`を検査する。

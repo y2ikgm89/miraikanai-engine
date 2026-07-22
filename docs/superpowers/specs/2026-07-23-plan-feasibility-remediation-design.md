@@ -17,7 +17,7 @@ AI-native Game EngineというProduct intentを維持したまま、現在の計
 5. 初心者MVPとAI生成Project C++／Shaderの専門家承認を分離する。
 6. ChatGPT Desktop／Codex、Claude、Cursor、cloud／local modelを、製品名の条件分岐ではなくHost、Transport、Provider、Deployment、Model、Authorityの直交Profileとして扱う。
 7. D3D12 MVPはCX0 Headerで開始し、CX2／CX3のModules移行とShippingを外部Toolchain成立条件へ分離する。
-8. Open World、Online、MMO、advanced physics／animation、Terrain／Foliage、Console、Web、XR、全自動Asset生成を、実装済みと誤認させない将来Capability incubationとして追跡する。
+8. Open World、Online、MMO、大人数network shooter、FPS、advanced physics／animation、AAA rendering、Terrain／Foliage、Console、Web、XR、全自動Asset生成、first-party local inference、runtime generationを、実装済みと誤認させない将来Capability incubationとして追跡する。
 
 ## 2. Authority
 
@@ -261,21 +261,25 @@ candidate_target_kinds[], qualification_fixture_kinds[],
 activation_trigger, excluded_current_product_claims[]
 ```
 
-初期entryは次とする。
+初期entryは次の17件とする。
 
 1. offline large-world／continuous streaming
 2. headless dedicated server／session transport／replication
 3. small cooperative multiplayer
 4. rollback／competitive networking
-5. persistence／live service／moderation／operations
-6. MMO／distributed world authority
-7. vehicle／ragdoll／crowd／motion warping
-8. production Terrain／Foliage／GI
-9. Console target program
-10. Web target program
-11. XR target program
-12. commercial asset generation／license／quality qualification
-13. first-party local inference
+5. large-session network shooter
+6. persistence／live service／moderation／operations
+7. MMO／distributed world authority
+8. first-person shooter Profile
+9. vehicle／ragdoll／crowd／motion warping
+10. production Terrain／Foliage／GI
+11. AAA photoreal rendering
+12. Console target program
+13. Web target program
+14. XR target program
+15. commercial asset generation／license／quality qualification
+16. first-party local inference
+17. runtime structured-data generation
 
 全entryの初期stateは`planning_only`であり、active Product Capability、Phase exit、Shipping labelへ含めない。
 
@@ -291,4 +295,3 @@ activation_trigger, excluded_current_product_claims[]
 6. D3D12計画にCX0で作成する`.ixx`が0件。
 7. 全local Markdown link、anchor、document ID、Product logical IDが解決する。
 8. active文書を`approved`へ自動変更せず、Capabilityをactivateしない。
-
