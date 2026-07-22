@@ -137,6 +137,7 @@ Report表現を次に固定する。
 | requirements_resolution | 不足要件、質問、Default、矛盾 |
 | capability_discovery | 正しいCapability検索、存在しないID抑制 |
 | context_selection | Evidence recall、bounded context、省略、stale index |
+| architecture_comprehension | canonical concept、State owner、phase／lifetime、依存、World／Level／Streaming、外部Engine用語、Evidenceの正しい読解 |
 | structured_authoring | ChangeSet、Scene、UI、Asset、Rule |
 | large_scene_authoring | Shard、Stable ID、Slice、Diff、Decision／lock |
 | implementation_strategy | GameplayDefinition／C++選択とBudget根拠 |
@@ -198,6 +199,9 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | State owner欠落／重複Proposalの受理 | 0 |
 | question_requiredを推測で変更へ進める | 0 |
 | Blocking／High Context evidence recall | 100% |
+| Blocking／High architecture Caseのcanonical concept、Owner、phase／lifetime正答 | 100% |
+| 存在しないconcept ID／phase、誤ったauthority document、Evidenceにない断定 | 0 |
+| architecture Caseのquestion bypass、stale／omitted Evidenceの有効扱い | 0 |
 | AI mutable fieldのtyped Operation coverage | 100% |
 | Shader U0～U4 required Case／run pass | 100% |
 | Shader Manifest外Pass／Resource／side effect見逃し | 0 |
@@ -224,6 +228,51 @@ repair_attempt_limitの値、適用単位、既定値、上限、停止条件は
 最初の権限／Gateway項目はModel EvalだけでなくBroker／Validatorの決定論的negative fixtureでも0件を要求する。有限Corpusの0件を未知入力の安全保証にせず、Productionでも同じGateを常時強制する。
 
 ### 5.5 代表Fixture
+
+`architecture_comprehension`はread-only queryと回答だけを評価し、Tool実行成功、Build成功、文字列類似度で誤った構造理解を相殺しない。Case schemaを次へ固定する。
+
+```text
+ArchitectureComprehensionCaseV1
+  case_id
+  risk
+  project_revision
+  question
+  input_projection_hash
+  expected_canonical_concepts[]
+  expected_owner_entries[]
+  expected_phase_or_lifetime_entries[]
+  required_evidence_refs[]
+  forbidden_claims[]
+  question_required
+
+ArchitectureComprehensionFixtureV1
+  fixture_id
+  case_manifest_hash
+  authority_metadata_set_hash
+  architecture_explain_schema_hash
+  contract_set_hash
+  cases[240]
+```
+
+固定Corpusは次の三群へ80 Caseずつ配分する。
+
+- Miraikanaiのcanonical termを直接使い、Game System、State owner、dependency、T00～T110、R00～R70、World／Scene／Level／Cell、Capability、Target、Save／Replayを問う。
+- Unity、Unreal Engine、GodotのScene／Level／Object／Component等を含む入力を`ExternalEngineConceptResolutionV1`で一意なcanonical conceptへ解決するか、必要な質問へ戻す。
+- 複数Owner候補、矛盾するauthority参照、stale revision、`omitted_ranges`、欠落Evidence、存在しないID／phaseを含み、断定またはChangeSet化せず停止できるかを問う。
+
+各Caseの期待値は`ArchitectureMetadataV1`、document relation registry、MCD Contract registry、Source StableIdからauthorityを解決し、`ArchitectureExplainProjectionV1`のOwner／phase／lifetime／Evidenceと一致させる。graderはcanonical ID、Owner、phase／lifetime、Evidence closure、質問要否をcode-basedに比較し、自然言語表現の一致を正答条件にしない。
+
+| Architecture comprehension metric | Hard gate |
+|---|---:|
+| Blocking／Highのcanonical concept、Owner、phase／lifetime | 100% |
+| 存在しないconcept ID／phase | 0 |
+| 誤ったauthority documentを正本として選択 | 0 |
+| required Evidenceなしの断定 | 0 |
+| `question_required`を推測で回避 | 0 |
+| stale／omitted／矛盾Evidenceを有効として使用 | 0 |
+| 初回Context | 95%以上が24,000 input token以下 |
+
+同じ固定Corpusをclean stateから3回実行し、最悪回を判定する。Case入力として意図的に与えた上限超過、未取得continuation、stale authority／projection hashは停止できたかをpass／failに含める。一方、runnerによるmaterialize失敗、想定外のmetadata／projection／contract hash不一致、Case不足は`infrastructure_error`とし、pass／failの分母へ含めない。Fixtureまたはgrader変更はCase Manifest hash、authority metadata set hash、architecture explain schema hash、Contract set hashとともにEvaluation Receiptへ記録する。
 
 AiReadableAuthoringFixtureV1は100万Entity、bounded shard、Component／Asset／cross-reference／Decision、lock、stale reference、spatial boundaryを含み、Stable ID、属性、spatial、dependency closure、bounded read、revision diff、re-shard、stale indexを検証する。正確なFieldとPerformance BudgetはAuthoring／Performance Ownerを参照し、本書はexpected closure recall 100%、revision混在0、省略範囲欠落0、semantic root不一致0を要求する。
 

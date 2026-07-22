@@ -309,7 +309,29 @@ Panelは現在selection、open Document、Problems、Playtest結果をContext候
 
 World／Scene／Level編集では、画面captureまたはPanel内部objectをAI Contextの正本にせず、`AuthoringSelectionContextV1`、`WorldAuthoringContextV1`、必要な`SceneSliceV1`をPreviewする。Userは送信前にWorld／Scene／Level Stable ref、Viewport bounds、Target、field mask、omitted rangeを確認できる。Context生成後にProject revisionまたはselectionが変わった場合、pending promptとProposalをstale表示し、自動で新しい対象へ付け替えない。
 
-### 8.2 Interaction mode
+### 8.2 外部Engine用語の入力解決
+
+AI PartnerはUnity、Unreal Engine、Godotなどの用語を入力として受け取れるが、外部製品のObject modelまたは名称をMiraikanaiの正規modelへ永続化しない。Requirement Resolverは要求文脈、Project Capability、Target Profile、canonical Owner registryから次のread-only／DisposableなEvidenceを返す。
+
+```text
+ExternalEngineConceptResolutionV1
+  request_id
+  source_engine_family
+  source_term
+  context_summary_hash
+  candidate_canonical_concepts[]
+  selected_concept?
+  resolution_status = resolved | question_required | unsupported
+  evidence_refs[]
+```
+
+`resolved`は候補が一つで、要求、Project Capability、Target、正規Ownerと矛盾せず、`evidence_refs`がcanonical concept IDと決定根拠を閉じる場合だけ許可する。`selected_concept`は表示名でなくMCDまたは正規仕様のstable concept IDである。
+
+`Unity Scene`、`Unreal Level`、`Godot Scene`は文脈により`SceneDocument`、`LevelDefinition`、`WorldStreamingPlanV1`／Cell、`UiDocument`、Composition Recipeのいずれにもなり得る。候補選択がState owner、Save形式、Level遷移、Streaming、Target Capability、Project構造を変える場合は`question_required`とし、AIは仮定でChangeSetへ進めない。表示呼称だけの低影響差はcanonical termへ正規化できるが、未対応機能は`unsupported`として近似実装へ暗黙変換しない。
+
+外部用語とcanonical conceptの永続的な1対1 alias、互換class、外部Scene path、Hierarchy indexをidentityとして作らない。このResolutionは入力理解のEvidenceであり、Project正本、Commit可能なOperation、Owner登録ではない。
+
+### 8.3 Interaction mode
 
 - `Ask`: 説明、質問、比較だけ。状態変更Proposalを作らない。
 - `Suggest`: ChangeSet／Source changeを作り、Commitしない。
@@ -317,7 +339,7 @@ World／Scene／Level編集では、画面captureまたはPanel内部objectをAI
 
 Mode表示は常時visibleで、prompt本文によって自己昇格しない。AI outputをEngine validationと同じ色／iconにしない。
 
-### 8.3 初心者workflow
+### 8.4 初心者workflow
 
 1. 大まかなPromptからGame Briefを抽出する。
 2. High Impact不足だけをGame用語で質問する。

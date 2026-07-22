@@ -46,6 +46,7 @@ Miraikanai Engineの各Subsystem仕様は、single writer、typed command／even
 13. Runtime ECS Decisionが存在しないSave Owner、Package Owner、型versionを前提にしない。
 14. 外部Tool／SDK／Libraryのrelease、tag object、peeled commit、artifact hashを区別する。
 15. Manifest、Package、Candidate、Receiptのidentity graphに自己参照またはhash cycleがなく、全digestの入力byte列を一意に再構成できる。
+16. 人間とAIが同じexact SourceからOwner、依存、phase／lifetimeを説明でき、上限超過、stale revision、根拠欠落を正常結果として扱わない。
 
 ## 3. 非目標
 
@@ -156,6 +157,7 @@ Gameplay/System `SaveReplayContractV1`
 - Change impact closureと更新単位。
 - Index生成、lint、review、approval、supersede Gate。
 - Decisionとactive specの関係。
+- exact metadata／registry／Source revisionから生成するbounded architecture-explain projection。
 
 AI Risk、Release approval、Evidence内容は既存Governance文書が引き続き所有する。
 
@@ -302,6 +304,41 @@ Consumerは同名型を再定義せず、Owner linkとexact `McdContractRefV1`�
 `active spec`は`docs/architecture/00-product`～`08-domain-packs`にあり、`decisions/`と`superseded/`の配下ではなく、metadataがvalidで、stateが`draft | review | approved`の文書と定義する。`superseded`とDecisionはactive件数へ含めない。
 
 正本件数をDecision本文の完了条件へ固定しない。Indexはdocument metadataから生成し、並び順はDirectory order、文書ID byte順とする。期待件数は検査結果として表示できるが、Architecture invariantにはしない。
+
+### 7.6 Authority discoveryとarchitecture explain projection
+
+旧worktreeにあった別authority Manifestの要件である主題の一意Owner、正本path／anchor、version／content hash、許可されたprojection、MCD参照、変更Review責任は、`ArchitectureMetadataV1`、document relation registry、Shared canonical contracts、生成Architecture Indexへ統合する。別Manifest Schema、互換alias、第二の正本は追加しない。正規authorityはmetadataとregistryのexact entryからのみ解決し、説明文またはAI要約をauthorityへ昇格させない。
+
+Architecture Governanceは、指定Project revisionの構造を人間とAIへ同じEvidenceで提示するread-only／Disposableな`ArchitectureExplainProjectionV1`を生成する。
+
+```text
+ArchitectureExplainProjectionV1
+  project_id
+  project_revision
+  contract_set_hash
+  scope
+  game_system_entries[0..256]
+  state_owner_entries[0..256]
+  dependency_edges[0..1024]
+  runtime_phase_entries[0..256]
+  world_entries[0..256]
+  level_entries[0..256]
+  streaming_entries[0..256]
+  capability_entries[0..256]
+  target_entries[0..256]
+  save_replay_entries[0..256]
+  evidence_refs[1..1024]
+  omitted_ranges[0..128]
+  continuation
+```
+
+入力はexact `ArchitectureMetadataV1` set、document relation registry、Product registry、MCD Contract registry、Commit済みWorld／Level／Streaming Source、Target Profile、Project revisionに限定する。各entryはcanonical concept ID、正規Owner document／Contract、optional runtime phaseまたはlifetime、Source StableId、Source content hash、Evidence参照を保持する。各dependency edgeはsource／target canonical concept ID、relation Contract ID、Owner document、Source StableId／hash、Evidence参照を保持する。自然言語説明、Editor配置、外部Engine用語、AIの推測からOwner、edge、phaseを生成しない。
+
+各categoryは256 entry、dependencyは1,024 edge、全canonical encodingは2 MiBを上限とする。上限超過は要約で隠さず`omitted_ranges`とquery条件・Project revisionへbindingした署名付き`continuation`を返す。別revision、別scope、別field maskへcursorを再利用できず、continuationの署名不一致、Source hash不一致、必要Evidence欠落はfail-closedにする。同一入力とqueryは同一canonical bytesを生成する。
+
+このprojectionはauthority発見と説明のための派生物であり、Project正本、ChangeSet、MCD、Approval、Owner登録を変更しない。変更を行うconsumerはprojection entryを直接Commitせず、canonical Stable ID、typed Operation、expected revisionを正規Gatewayへ再指定する。
+
+`ArchitectureComprehensionCaseV1`と`ArchitectureComprehensionFixtureV1`のSchema、Corpus、grader、昇格GateはAI Verification／Provenanceだけが所有する。Control Planeはexact metadata closure、relation／registry hash、deterministic explain schema hashをEvidence inputとして供給し、Eval期待値または合否を所有しない。Comprehension fixtureはControl Plane baseline read-back後にだけ実行し、stale metadata、omitted Evidence、invalid continuation、存在しないOwner／phaseをnegative Caseとして扱う。
 
 ## 8. Compatibility／Evolution model
 

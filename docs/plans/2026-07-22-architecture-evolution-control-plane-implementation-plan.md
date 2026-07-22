@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 43 active Architecture仕様へ5正本を追加し、48文書をtyped metadata、acyclic direct dependency、closed registry、stable ID、決定論的lintで管理する。
+**Goal:** 43 active Architecture仕様へ5正本を追加し、48文書をtyped metadata、acyclic direct dependency、closed registry、stable ID、決定論的lint、bounded architecture explainで管理する。
 
 **Architecture:** Markdown本文を意味推測せず、H1直後のexact JSON metadata、checked-in registry JSON、migration manifestだけを機械入力にする。TypeScript 7 compiler APIは使わず、dependency-free TypeScript sourceをCLIでcompileしてNode.jsで実行し、同一Git treeから同一diagnostic順と同一generated Indexを得る。
 
@@ -21,6 +21,7 @@
 - TypeScript 7.0はstable programmatic APIを持たないため、`typescript`をruntime importしない。正式compileは`npx tsc --build --force --singleThreaded`だけを使う。
 - 新しいproduction dependencyを追加しない。Markdown、JSON、SHA-256、path、graph処理はNode標準Libraryだけで実装する。
 - 実装完了を文書承認、Capability昇格、Release承認へ流用しない。
+- 別authority ManifestをSchemaまたは互換aliasとして追加しない。authority discoveryは`ArchitectureMetadataV1`、relation registry、Shared canonical contracts、生成Indexから導出する。
 
 ---
 
@@ -34,6 +35,7 @@
 | `docs/architecture/04-runtime/runtime-package.md` | Runtime package manifest、loader、rollback正本 |
 | `docs/architecture/07-platform/application-package-release.md` | Target package assembly、sign、staging／publish正本 |
 | `schemas/architecture/document-metadata.schema.json` | Architecture metadata V1 schema |
+| `schemas/architecture/explain-projection.schema.json` | Architecture explain request／projectionのclosed schema |
 | `schemas/product/product-registries.schema.json` | Product registry V1 schema集合 |
 | `architecture/registry/document-relations.v1.json` | 48文書のdirect requiresとreciprocal integration正本 |
 | `architecture/registry/identity-migration.v1.json` | Appendix Dと一致する旧→新ID mapping |
@@ -46,8 +48,10 @@
 | `tools/architecture_lint/src/graph.ts` | DAG、transitive reduction、reciprocity検査 |
 | `tools/architecture_lint/src/registry.ts` | ID、Owner、Phase、Capability、Target参照検査 |
 | `tools/architecture_lint/src/index-generator.ts` | deterministic Architecture Index生成 |
+| `tools/architecture_lint/src/explain.ts` | bounded architecture explain parser、generator、canonical encoder、continuation検証 |
 | `tools/architecture_lint/src/main.ts` | CLI、diagnostic sort、exit code |
 | `tools/architecture_lint/test/*.test.mjs` | Node test runnerによるpositive／negative test |
+| `tools/architecture_lint/test/fixtures/explain-invalid/**` | stale／omitted／署名／Evidence／上限の単一原因fixture |
 | `tools/architecture_lint/test/fixtures/**` | 1 failureにつき1原因のfixture |
 
 ## 2. Public interfaces
@@ -82,11 +86,76 @@ export interface ArchitectureDiagnosticV1 {
   readonly remediation: string;
 }
 
+export interface ArchitectureExplainEntryV1 {
+  readonly canonical_concept_id: string;
+  readonly owner_document_id: DocumentId;
+  readonly owner_contract_id: ContractId | null;
+  readonly runtime_phase_or_lifetime: string | null;
+  readonly source_stable_id: string;
+  readonly source_content_sha256: string;
+  readonly evidence_refs: readonly string[];
+}
+
+export interface ArchitectureExplainDependencyEdgeV1 {
+  readonly source_canonical_concept_id: string;
+  readonly target_canonical_concept_id: string;
+  readonly relation_contract_id: ContractId;
+  readonly owner_document_id: DocumentId;
+  readonly source_stable_ids: readonly string[];
+  readonly source_content_sha256: string;
+  readonly evidence_refs: readonly string[];
+}
+
+export interface ArchitectureExplainRequestV1 {
+  readonly project_revision: string;
+  readonly scope: string;
+  readonly field_mask: readonly string[];
+  readonly target_profile_ref: string | null;
+  readonly continuation: string | null;
+}
+
+export interface ArchitectureExplainSourceV1 {
+  readonly project_id: string;
+  readonly project_revision: string;
+  readonly contract_set_hash: string;
+  readonly architecture_metadata: readonly ArchitectureMetadataV1[];
+  readonly document_relation_registry_sha256: string;
+  readonly product_registry_sha256: string;
+  readonly contract_registry_sha256: string;
+  readonly world_source_revision_sha256: string;
+  readonly target_source_revision_sha256: string;
+  readonly source_entries: readonly ArchitectureExplainEntryV1[];
+  readonly source_dependency_edges: readonly ArchitectureExplainDependencyEdgeV1[];
+}
+
+export interface ArchitectureExplainProjectionV1 {
+  readonly project_id: string;
+  readonly project_revision: string;
+  readonly contract_set_hash: string;
+  readonly scope: string;
+  readonly game_system_entries: readonly ArchitectureExplainEntryV1[];
+  readonly state_owner_entries: readonly ArchitectureExplainEntryV1[];
+  readonly dependency_edges: readonly ArchitectureExplainDependencyEdgeV1[];
+  readonly runtime_phase_entries: readonly ArchitectureExplainEntryV1[];
+  readonly world_entries: readonly ArchitectureExplainEntryV1[];
+  readonly level_entries: readonly ArchitectureExplainEntryV1[];
+  readonly streaming_entries: readonly ArchitectureExplainEntryV1[];
+  readonly capability_entries: readonly ArchitectureExplainEntryV1[];
+  readonly target_entries: readonly ArchitectureExplainEntryV1[];
+  readonly save_replay_entries: readonly ArchitectureExplainEntryV1[];
+  readonly evidence_refs: readonly string[];
+  readonly omitted_ranges: readonly string[];
+  readonly continuation: string | null;
+}
+
 export function parseArchitectureDocument(path: string, bytes: Uint8Array): ArchitectureMetadataV1;
 export function validateDirectDag(nodes: readonly ArchitectureMetadataV1[]): readonly ArchitectureDiagnosticV1[];
 export function validateReciprocalIntegrations(nodes: readonly ArchitectureMetadataV1[]): readonly ArchitectureDiagnosticV1[];
 export function validateProductRegistries(input: unknown): readonly ArchitectureDiagnosticV1[];
 export function generateArchitectureIndex(nodes: readonly ArchitectureMetadataV1[]): string;
+export function parseArchitectureExplainRequest(input: unknown): ArchitectureExplainRequestV1;
+export function generateArchitectureExplainProjection(request: ArchitectureExplainRequestV1, source: ArchitectureExplainSourceV1): ArchitectureExplainProjectionV1;
+export function encodeArchitectureExplainProjection(projection: ArchitectureExplainProjectionV1): Uint8Array;
 ```
 
 Diagnosticsは`{diagnostic_id,path,line,document_id}`のUTF-8 byte順でsortし、locale、filesystem enumeration、wall clockを使わない。Errorが1件以上ならexit 1、引数／I/O failureはexit 2、cleanはexit 0である。
@@ -313,6 +382,51 @@ Expected: Capability／feature 34（既存33 IDの移行＋新規3D Product Capa
 
 Expected: 2回生成のSHA-256一致、wall-clock文字列0、固定active件数の規範文0。
 
+### Task 8A: bounded architecture explainを実装する
+
+**Files:**
+- Create: `schemas/architecture/explain-projection.schema.json`
+- Create: `tools/architecture_lint/src/explain.ts`
+- Create: `tools/architecture_lint/test/explain.test.mjs`
+- Create: `tools/architecture_lint/test/fixtures/explain-invalid/**`
+- Modify: `tools/architecture_lint/src/main.ts`
+
+**Interfaces:**
+- Consumes: exact Project revision、`ArchitectureMetadataV1` set、document relation registry、Product registry、Contract registry、World／Target Source revision、`ArchitectureExplainRequestV1`。
+- Produces: `ArchitectureExplainProjectionV1` canonical bytes、`explain-architecture` CLI、署名付きcontinuation、stable diagnostic。
+
+**Dependencies and ownership:** Tasks 4、6、7、8のmetadata／graph／registry／Indexが完了してから実行する。`ArchitectureComprehensionCaseV1`／`ArchitectureComprehensionFixtureV1`はAI Verification／Provenance Ownerが定義し、本Taskはその入力となるexact projection bytesとhashだけを供給する。
+
+- [ ] **Step 1: schema／parserのfailing testsを書く**
+
+Valid requestに加え、unknown key、空`field_mask`、stale Project revision、category 257 entry、dependency 1,025 edge、Evidence 0件、128超のomitted range、2 MiB超のcanonical encoding、別scope／revisionへ再利用したcontinuation、署名不一致を一原因ずつfixture化する。
+
+- [ ] **Step 2: module未存在でfailureを確認する**
+
+Run: `node --test tools/architecture_lint/test/explain.test.mjs`
+
+Expected: `ERR_MODULE_NOT_FOUND`でexit 1。
+
+- [ ] **Step 3: parser、generator、canonical encoderを実装する**
+
+metadata、relation、registry、Contract、World、Target、Source revisionがrequest revisionと一致する場合だけ生成する。各entryをcanonical concept ID、Owner document、Owner Contract、phase／lifetime、Source StableId、Source content SHA-256、Evidence refで閉じ、各category 256、dependency 1,024、全体2 MiBを上限とする。同順位はUTF-8 byte順でsortし、filesystem列挙順、locale、wall clock、説明文を入力にしない。
+
+- [ ] **Step 4: omissionとcontinuationを実装する**
+
+上限超過は要約へ置換せずexact `omitted_ranges`を返す。Continuation payloadへProject revision、scope、field mask hash、Target Profile ref、Source closure hash、次offsetを含め、repository-owned signing key profileで署名する。別条件への再利用、署名不一致、Source closure driftは`diagnostic.architecture.explain-continuation-invalid`で拒否する。
+
+- [ ] **Step 5: CLI queryを追加する**
+
+```powershell
+node tools/architecture_lint/dist/main.js explain-architecture --request request.json --source source.json --output projection.json
+```
+
+出力はcanonical UTF-8 bytesだけとし、diagnosticはstderr、validation failureはexit 1、I/O failureはexit 2とする。CLIはProject、Owner、Approval、MCD、ChangeSetを変更しない。
+
+- [ ] **Step 6: deterministic-byteとnegative fixtureを閉じる**
+
+Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted Evidenceの有効扱い、unsigned continuation、summary由来Owner、上限超過の正常完了がすべてexact diagnosticで失敗する。
+
 ### Task 9: CI Gateと全negative fixtureを閉じる
 
 **Files:**
@@ -324,7 +438,7 @@ Expected: 2回生成のSHA-256一致、wall-clock文字列0、固定active件数
 **Interfaces:**
 - Produces: clean checkoutでoffline install→compile→test→lint→Index checkの一方向job。
 
-- [ ] **Step 1: 13 Control Plane lint ruleにつきpositive 1、negative 1を列挙するtest matrixを書く**
+- [ ] **Step 1: 既存13 Control Plane lint ruleにarchitecture explainのrevision、Owner、Evidence、category bound、edge bound、byte bound、omission、continuation、determinismの9条件を加え、各positive 1／negative 1を列挙するtest matrixを書く**
 - [ ] **Step 2: 各negative fixtureがexact diagnostic IDを一件だけ返すことを確認する**
 - [ ] **Step 3: CIをNode 24.18.0、npm 11.16.0、TypeScript 7.0.2 lockへ固定する**
 - [ ] **Step 4: local equivalentを実行する**
@@ -337,7 +451,7 @@ node tools/architecture_lint/dist/main.js check
 node tools/architecture_lint/dist/main.js generate-index --check
 ```
 
-Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0。
+Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0。`explain.test.mjs`を含み、architecture explain negative fixtureの未実行0。
 
 ### Task 10: Baseline handoff Receiptを作る
 
@@ -347,14 +461,14 @@ Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0�
 - Modify: `docs/plans/2026-07-22-ai-readable-d3d12-backend-design.md`
 
 **Interfaces:**
-- Produces: `git_tree_sha256`ではなくGit object formatに従う`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`toolchain_lock_sha256`、`lint_version`を持つexact handoff。
+- Produces: `git_tree_sha256`ではなくGit object formatに従う`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`lint_version`を持つexact handoff。
 
 - [ ] **Step 1: dirty tree拒否とhash mismatch testを書く**
 - [ ] **Step 2: clean treeで全Gateを再実行する**
 - [ ] **Step 3: baseline JSONを生成し、ECS／D3D12計画へexact refを記録する**
 - [ ] **Step 4: baseline read-backを実行する**
 
-Expected: 全hash一致。ECSまたはD3D12開始時に一つでも不一致なら`diagnostic.architecture.baseline-mismatch`で停止する。
+Expected: 全hash一致。ECS、D3D12、またはarchitecture comprehension Eval開始時に一つでも不一致なら`diagnostic.architecture.baseline-mismatch`で停止する。
 
 ## Appendix A: Legacy dependency inventory
 

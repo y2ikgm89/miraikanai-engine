@@ -78,7 +78,7 @@ dirty worktreeとPR #3 branchを削除する。最短だが、未反映6契約�
 ## 6. Execution flow
 
 1. dirty worktreeの6変更文書と未追跡計画を、そのbranch上のlocal checkpoint commitへ保存する。
-2. 207行のDisposition ledgerを作成し、未分類を0にする。
+2. 20 hunk／455 changed lineのDisposition ledgerを作成し、未分類を0にする。
 3. 最新`main`から作ったintegration branchで、未反映の意味だけを4節のOwnerへ移植する。
 4. 5節の計画群を意味移植と同時に更新する。
 5. whole-document validationとsource-to-destination coverage auditを実行する。
@@ -98,7 +98,7 @@ dirty worktreeとPR #3 branchを削除する。最短だが、未反映6契約�
 
 - 全Markdownをstrict UTF-8、BOMなし、LF、末尾空白なし、balanced fence、解決可能なrelative linkとして検証する。
 - `git diff --check`をintegration前後とmerge後に実行する。
-- dirty sourceの207行を`Preserved`、`Merged`、`Removed`へ全件分類し、未分類0件とする。
+- dirty sourceの20 hunk／455 changed lineを`Preserved`、`Merged`、`Removed`へ全件分類し、未分類0件とする。
 - 6識別子が現行Ownerで定義されるか、現行型へmergeされた対応表を持つことを検証する。
 - PR #3の識別子63件が現行`main`で欠落0件であることを再確認する。
 - 旧`docs/superpowers/specs` path、旧Review set固定件数、重複Owner、互換aliasをactive仕様へ追加しない。

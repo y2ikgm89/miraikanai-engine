@@ -18,7 +18,7 @@
 - Do not create compatibility aliases, redirects, duplicate schema definitions, or old Review-set fixed counts.
 - Use the existing architecture validation profile: strict UTF-8, no BOM, LF, no trailing whitespace, balanced fences, resolvable relative Markdown links, no unresolved placeholder markers.
 - Do not remove a branch until its tip or its semantically reconciled replacement is reachable from `origin/main` and all associated worktrees are clean.
-- Execute Tasks 1–7 from the isolated `G:/workspace/development/GameEngine/miraikanai-engine/.worktrees/legacy-branch-reconciliation` worktree on `codex/legacy-branch-reconciliation`; perform final worktree removal from the main checkout.
+- Execute Tasks 1–7 from the isolated `.worktrees/legacy-branch-reconciliation` worktree on `codex/legacy-branch-reconciliation`; perform final worktree removal from the main checkout.
 
 ---
 
@@ -37,12 +37,13 @@
 - Consumes: dirty `codex/ai-readable-architecture-closure` worktree at merge commit `c563d63`.
 - Produces: one local checkpoint commit whose tree exactly contains the six modified documents and one untracked plan.
 
-- [ ] **Step 1: Capture source status and verify the expected seven paths**
+- [x] **Step 1: Capture source status and verify the expected seven paths**
 
 Run:
 
 ```powershell
-$wt = 'G:\workspace\development\GameEngine\miraikanai-engine\.worktrees\ai-readable-architecture-closure'
+$repo = Split-Path -Parent (git rev-parse --path-format=absolute --git-common-dir)
+$wt = Join-Path $repo '.worktrees\ai-readable-architecture-closure'
 git -C $wt status --short
 git -C $wt diff --check
 git -C $wt diff --numstat
@@ -50,7 +51,7 @@ git -C $wt diff --numstat
 
 Expected: six modified specification paths, one untracked plan, no whitespace error.
 
-- [ ] **Step 2: Stage only the seven source paths**
+- [x] **Step 2: Stage only the seven source paths**
 
 Run:
 
@@ -62,7 +63,7 @@ git -C $wt diff --cached --name-status
 
 Expected: exactly seven paths staged.
 
-- [ ] **Step 3: Create the local checkpoint commit**
+- [x] **Step 3: Create the local checkpoint commit**
 
 Run:
 
@@ -74,6 +75,8 @@ git -C $wt status --short --branch
 
 Expected: commit succeeds and source worktree is clean. Do not push this legacy branch.
 
+Completed: local checkpoint `0e86c0f7d7bc0cabe36ee7871e9ac9b83e925c86` contains exactly the seven expected paths; the source worktree is clean and the legacy branch was not pushed.
+
 ### Task 2: Build the complete source disposition ledger
 
 **Files:**
@@ -84,20 +87,21 @@ Expected: commit succeeds and source worktree is clean. Do not push this legacy 
 - Consumes: Task 1 checkpoint commit and the Document System Restructure Decision §12.
 - Produces: file-level and hunk-level `Preserved | Merged | Removed` classification with source commit, destination owner, canonical identifier, and verification evidence.
 
-- [ ] **Step 1: Record exact source evidence**
+- [x] **Step 1: Record exact source evidence**
 
 Run:
 
 ```powershell
-$wt = 'G:\workspace\development\GameEngine\miraikanai-engine\.worktrees\ai-readable-architecture-closure'
+$repo = Split-Path -Parent (git rev-parse --path-format=absolute --git-common-dir)
+$wt = Join-Path $repo '.worktrees\ai-readable-architecture-closure'
 $checkpoint = git -C $wt rev-parse HEAD
 git -C $wt show --stat --oneline $checkpoint
 git -C $wt show --format= --unified=0 $checkpoint
 ```
 
-Expected: 207 inserted/deleted source lines across six specifications plus the 241-line plan are available for classification.
+Expected: 20 source hunks containing 448 added and 7 deleted lines (455 changed lines in total), including the 241-line plan, are available for classification.
 
-- [ ] **Step 2: Create the disposition ledger**
+- [x] **Step 2: Create the disposition ledger**
 
 Write one row for every source diff hunk with these exact columns:
 
@@ -117,11 +121,13 @@ old Core Architecture plan-count edit -> Removed -> superseded by metadata-gener
 old plan -> Merged -> canonical plan under docs/plans with current paths and statuses
 ```
 
-- [ ] **Step 3: Verify ledger closure**
+- [x] **Step 3: Verify ledger closure**
 
 Run a PowerShell audit that sums `source_line_count`, rejects blank disposition/destination/evidence fields, and requires all seven source categories above.
 
 Expected: unclassified hunk count 0 and the source line count equals the checkpoint diff inventory.
+
+Completed: the ledger has 20 rows totaling 455 changed lines, blank required fields 0, and all seven required source categories present.
 
 ### Task 3: Reconcile architecture authority and explain projection with the current Control Plane
 
@@ -134,7 +140,7 @@ Expected: unclassified hunk count 0 and the source line count equals the checkpo
 - Consumes: `ArchitectureMetadataV1`, relation registry, generated Architecture Index, `ProjectRevision`, canonical Source IDs.
 - Produces: bounded architecture-explain projection and query without a duplicate normative manifest.
 
-- [ ] **Step 1: Run the pre-change missing-contract audit**
+- [x] **Step 1: Run the pre-change missing-contract audit**
 
 Run:
 
@@ -144,21 +150,21 @@ rg -n "ArchitectureExplainProjectionV1|authoring.explain_architecture|omitted_ra
 
 Expected: no canonical definition.
 
-- [ ] **Step 2: Extend the Control Plane design**
+- [x] **Step 2: Extend the Control Plane design**
 
 Add `ArchitectureExplainProjectionV1` as a deterministic, disposable projection generated from exact `ArchitectureMetadataV1`, relation-registry, Product-registry, Contract, World, Target, and Source-revision inputs. Preserve the source bounds of 256 entries per category, 1,024 dependency edges, and 2 MiB canonical encoding. Require signed continuation and explicit omitted ranges; prohibit summaries from becoming authority.
 
 State explicitly that the old `NormativeAuthorityManifestV1` is merged into `ArchitectureMetadataV1` plus relation registry and is not an active alias.
 
-- [ ] **Step 3: Extend the Control Plane implementation plan**
+- [x] **Step 3: Extend the Control Plane implementation plan**
 
 Add exact schema, parser, generator, CLI query, negative fixture, deterministic-byte, stale-revision, omitted-range, and CI-gate steps for `ArchitectureExplainProjectionV1`. Update the file map and public interfaces with exact paths and signatures.
 
-- [ ] **Step 4: Add the Project State consumer rule**
+- [x] **Step 4: Add the Project State consumer rule**
 
 Define `authoring.explain_architecture` as read-only. Require `scope`, `field_mask`, optional Target Profile, and exact Project revision; require subsequent mutation to respecify canonical Stable IDs, typed operations, and expected revision. Reject direct mutation from projection entries, natural-language summaries, stale continuation, or omitted evidence.
 
-- [ ] **Step 5: Verify ownership uniqueness**
+- [x] **Step 5: Verify ownership uniqueness**
 
 Run:
 
@@ -167,6 +173,8 @@ rg -n "NormativeAuthorityManifestV1|ArchitectureExplainProjectionV1|authoring.ex
 ```
 
 Expected: no active `NormativeAuthorityManifestV1` definition; one projection definition in the Control Plane design, one implementation-plan interface, and one Project State consumer rule.
+
+Completed: active old-manifest definitions 0, Control Plane projection definitions 1, implementation interfaces 1, and Project State consumer rules 1.
 
 ### Task 4: Port external-engine terminology resolution
 
@@ -179,7 +187,7 @@ Expected: no active `NormativeAuthorityManifestV1` definition; one projection de
 - Consumes: canonical concept IDs, Requirement context, Project Capability, Target Profile, owner registry.
 - Produces: `ExternalEngineConceptResolutionV1` and `question_required` boundary.
 
-- [ ] **Step 1: Run the pre-change missing-contract audit**
+- [x] **Step 1: Run the pre-change missing-contract audit**
 
 Run:
 
@@ -189,19 +197,19 @@ rg -n "ExternalEngineConceptResolutionV1|question_required" docs/architecture/03
 
 Expected: no canonical definition for the external-engine resolver.
 
-- [ ] **Step 2: Define the input-only resolver in Editor／Workspace UX**
+- [x] **Step 2: Define the input-only resolver in Editor／Workspace UX**
 
 Add the exact fields from the checkpoint source: request ID, source engine family, source term, context-summary hash, candidate canonical concepts, selected concept, resolution status, and evidence refs. Keep `resolved | question_required | unsupported` as the closed status set.
 
-- [ ] **Step 3: Preserve ambiguity and non-authority rules**
+- [x] **Step 3: Preserve ambiguity and non-authority rules**
 
 Require a question when Scene／Level／Cell／UI／Composition candidates affect owner, Save, transition, streaming, Target, or Project structure. Prohibit persistent one-to-one aliases, external paths/indexes as identity, and implicit approximation of unsupported features.
 
-- [ ] **Step 4: Add the Project State acceptance boundary**
+- [x] **Step 4: Add the Project State acceptance boundary**
 
 Allow only the selected canonical concept, exact target Stable ID, typed operation, and expected revision into a ChangeSet. The resolver object itself remains read-only evidence and cannot be committed.
 
-- [ ] **Step 5: Verify the port**
+- [x] **Step 5: Verify the port**
 
 Run:
 
@@ -210,6 +218,8 @@ rg -n "ExternalEngineConceptResolutionV1|Unity Scene|Unreal Level|Godot Scene|qu
 ```
 
 Expected: one definition, explicit ambiguity examples, and one ChangeSet boundary.
+
+Completed: resolver definitions 1, explicit cross-engine ambiguity examples 1, and Project State ChangeSet boundaries 1.
 
 ### Task 5: Port the GameHost outer loop contract
 
@@ -221,7 +231,7 @@ Expected: one definition, explicit ambiguity examples, and one ChangeSet boundar
 - Consumes: Application lifecycle, T00–T110, R00–R70, InputSnapshot, RenderSnapshot, PausePolicyV1.
 - Produces: `GameHostLoopStateV1`, rational 60 Hz clock, catch-up/input/pause/surface/fault rules.
 
-- [ ] **Step 1: Run the pre-change missing-contract audit**
+- [x] **Step 1: Run the pre-change missing-contract audit**
 
 Run:
 
@@ -231,7 +241,7 @@ rg -n "GameHostLoopStateV1|single_tick_step|tick_duration_ns" docs/architecture/
 
 Expected: no complete GameHost outer-loop definition.
 
-- [ ] **Step 2: Define `GameHostLoopStateV1` and the rational clock**
+- [x] **Step 2: Define `GameHostLoopStateV1` and the rational clock**
 
 Port the checkpoint fields and use this exact tick-duration formula:
 
@@ -242,19 +252,19 @@ floor((tick_id + 1) * 1,000,000,000 / 60)
 
 Prohibit floating point and repeated `16,666,666 ns` accumulation.
 
-- [ ] **Step 3: Define the outer-loop sequence and catch-up policy**
+- [x] **Step 3: Define the outer-loop sequence and catch-up policy**
 
 Fix lifecycle latch, one monotonic sample, transition, one device sample, zero-to-four complete fixed ticks, latest complete snapshot, presentation-only interpolation, zero-or-one render, retire/wait. Record dropped wall time and never duplicate edge/text/gesture input across catch-up ticks.
 
-- [ ] **Step 4: Separate pause, debug, lifecycle, surface, and headless states**
+- [x] **Step 4: Separate pause, debug, lifecycle, surface, and headless states**
 
 Keep Gameplay pause and Debug pause as separate owners. Apply Debug pause only after T110; execute `single_tick_step` as exactly one T00–T110 sequence. Preserve World on surface loss, stop simulation/render/audio only for Suspend, and run authoritative ticks without render phases for headless.
 
-- [ ] **Step 5: Add fault and qualification cases**
+- [x] **Step 5: Add fault and qualification cases**
 
 Do not publish or render a faulted tick. Add 60-tick exact-second, four-step clamp, input-edge nonduplication, Gameplay pause, Debug step, SurfaceUnavailable, Suspend, headless, stale snapshot, and fault fixtures.
 
-- [ ] **Step 6: Verify the port**
+- [x] **Step 6: Verify the port**
 
 Run:
 
@@ -263,6 +273,8 @@ rg -n "GameHostLoopStateV1|gameplay_clock_mode|debug_execution_mode|single_tick_
 ```
 
 Expected: one complete canonical contract and its qualification cases.
+
+Completed: canonical state definitions 1, rational tick formulas 1, and GameHost qualification matrices 1.
 
 ### Task 6: Port architecture-comprehension evaluation and synchronize plans
 
@@ -278,23 +290,23 @@ Expected: one complete canonical contract and its qualification cases.
 - Consumes: canonical metadata, explain projection, external-term resolution, GameHost contract.
 - Produces: `ArchitectureComprehensionCaseV1`, `ArchitectureComprehensionFixtureV1`, updated executable plans, completed disposition evidence.
 
-- [ ] **Step 1: Define the evaluation contracts**
+- [x] **Step 1: Define the evaluation contracts**
 
 Port the 240-case split: 80 direct canonical terms, 80 external-engine terms, 80 ambiguous/conflicting/stale-evidence cases. Each case holds expected canonical concepts, owner entries, phase/lifetime entries, required evidence refs, forbidden claims, and question requirement.
 
-- [ ] **Step 2: Define grading and hard gates**
+- [x] **Step 2: Define grading and hard gates**
 
 Use code-based canonical-ID comparison rather than string similarity. Require 100% Blocking/High owner and phase/lifetime accuracy; zero fabricated IDs/phases, wrong authority, unsupported claims, question bypass, and stale/omitted evidence acceptance. Run three times and report worst case. Separate runner/materialization/hash failures as infrastructure failures.
 
-- [ ] **Step 3: Canonicalize the old implementation plan**
+- [x] **Step 3: Canonicalize the old implementation plan**
 
 Move the old plan content to `docs/plans/2026-07-21-ai-readable-architecture-comprehension-closure.md`. Replace every legacy path, fixed 46-document count, `NormativeAuthorityManifestV1`, and obsolete execution-mode statement. Preserve the original goal and source commit as provenance. Mark completed only after the destination contract and verification command have passed.
 
-- [ ] **Step 4: Synchronize all affected current plans**
+- [x] **Step 4: Synchronize all affected current plans**
 
 Update the Control Plane design and implementation plan with the final names, schema ownership, Task dependencies, negative fixtures, and completion gates. Update the reconciliation plan and disposition ledger with actual checkpoint and integration commit IDs as they become available.
 
-- [ ] **Step 5: Verify plan freshness**
+- [x] **Step 5: Verify plan freshness**
 
 Run:
 
@@ -304,13 +316,15 @@ rg -n "docs/superpowers/specs|review_set_document_count|NormativeAuthorityManife
 
 Expected: no stale path, fixed old count, obsolete manifest type, or obsolete execution-mode statement.
 
+Completed: canonical Case definitions 1, Fixture definitions 1, 80×3 corpus split 1, and forbidden legacy plan markers 0.
+
 ### Task 7: Validate, publish, merge, and clean up
 
 **Files:**
 - Verify: `docs/**/*.md`
 - Commit: all Task 2–6 destination files
-- Delete after merge: worktree `G:/workspace/development/GameEngine/miraikanai-engine/.worktrees/ai-readable-architecture-closure`
-- Delete after merge: worktree `G:/workspace/development/GameEngine/miraikanai-engine/.worktrees/legacy-branch-reconciliation`
+- Delete after merge: worktree `.worktrees/ai-readable-architecture-closure`
+- Delete after merge: worktree `.worktrees/legacy-branch-reconciliation`
 - Delete after merge: local `codex/ai-readable-architecture-closure`
 - Delete after merge: local and remote `codex/c1-gameplay-capability-closure`
 - Delete after merge: remote `codex/architecture-document-restructure`
@@ -319,18 +333,22 @@ Expected: no stale path, fixed old count, obsolete manifest type, or obsolete ex
 - Consumes: all reconciled contracts, plans, ledger, and passing validation evidence.
 - Produces: merged `main`, synchronized local checkout, no obsolete worktree or branches.
 
-- [ ] **Step 1: Run full documentation validation**
+- [x] **Step 1: Run full documentation validation**
 
 Validate all Markdown as strict UTF-8 without BOM/CR, no trailing whitespace, balanced fences, and resolvable relative `.md` links. Run:
 
 ```powershell
 git diff --check
-rg -n --hidden -g '!.git/**' -g '!.worktrees/**' -g '!.superpowers/**' '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|C:\\Users\\|G:\\workspace\\)' .
+$credentialPattern = '(BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,})'
+$localPathPattern = '(?:C:' + '[/\\]Users[/\\]|G:' + '[/\\]workspace[/\\])'
+rg -n --hidden -g '!.git' -g '!.git/**' -g '!.worktrees/**' -g '!.superpowers/**' "$credentialPattern|$localPathPattern" .
 ```
 
 Expected: validation exit 0 and no secret/local-workspace pattern match.
 
-- [ ] **Step 2: Run semantic closure audits**
+Completed: 57 Markdown files checked; UTF-8／BOM／CR／trailing-whitespace／fence／relative-link errors 0, `git diff --check` errors 0, and secret／local-workspace matches 0.
+
+- [x] **Step 2: Run semantic closure audits**
 
 Require:
 
@@ -345,6 +363,8 @@ GameHostLoopStateV1 canonical definition count = 1
 ArchitectureComprehensionCaseV1 canonical definition count = 1
 ArchitectureComprehensionFixtureV1 canonical definition count = 1
 ```
+
+Completed: ledger 20 rows／455 lines／blank 0; PR #3 identifier gaps 0; legacy active-path refs 0; old-manifest active definitions 0; all five canonical definition counts 1.
 
 - [ ] **Step 3: Commit the reconciled implementation**
 
@@ -372,8 +392,9 @@ Merge with expected head SHA, switch to local `main`, and run `git pull --ff-onl
 Before each deletion, verify the associated worktree is clean and the integration merge commit is on `origin/main`. Run cleanup from the main checkout, never from inside either worktree. Then:
 
 ```powershell
-git worktree remove -- 'G:/workspace/development/GameEngine/miraikanai-engine/.worktrees/ai-readable-architecture-closure'
-git worktree remove -- 'G:/workspace/development/GameEngine/miraikanai-engine/.worktrees/legacy-branch-reconciliation'
+$repo = Split-Path -Parent (git rev-parse --path-format=absolute --git-common-dir)
+git -C $repo worktree remove -- (Join-Path $repo '.worktrees\ai-readable-architecture-closure')
+git -C $repo worktree remove -- (Join-Path $repo '.worktrees\legacy-branch-reconciliation')
 git worktree prune
 git branch -d codex/ai-readable-architecture-closure
 git branch -d codex/c1-gameplay-capability-closure
