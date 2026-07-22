@@ -144,6 +144,22 @@ MVP製品完了はEditor上でSceneが動くことではない。clean environme
 
 Network、Account、Provider、Store loginがなくてもTitleからResultまで成立しなければならない。
 
+### 5.1 開発体制・見積り・risk contract
+
+実績のない人数、AI利用量、runner capacityからcalendar日程を推測しない。計画値は次のclosed contractで保持し、ユーザー入力と実測Receiptが揃うまで`unfixed`を成功可能な値へ置換しない。
+
+| Field | Rule |
+|---|---|
+| `team_assumption_state` | ユーザー入力前は`unfixed`。人数、役割、AI利用量を推測しない |
+| `planning_capacity` | calendar期間を出さず、相対sizeと依存DAGだけを保持する |
+| `phase_estimate` | elapsed timeではなく相対size `S / M / L / XL` |
+| `critical_path` | Control Plane → ECS E0 →（Headless AuthoringとD3D12を並行）→ Editor Runtime → 2D Shooter → Project Source Activation → Authoring MVP-A |
+| `scope_reduction_order` | C2 advanced rendering → non-Shooter packs → mobile shipping。MVP-A contractは削除しない |
+| `risk_owner` | `mirakan.arch.product-plan` |
+| `review_cadence` | 各Phase exitで更新し、仮定を同じCandidateの実測Receiptへ差し替える |
+
+`team_assumption_state=unfixed`では担当者名、完了日、同時実行lane数を出力しない。日程または予算の提示が必要になった時点で、team composition、利用可能runner／device、稼働制約、外部依存を入力として別の承認済みplanning revisionを作る。scope削減は上表の順序でProposal化し、Phase 4のRequirement、Project Source Capability、security／package／support closureを暗黙に落とさない。
+
 ## 6. 単一Phase sequence
 
 Phaseは次の順序だけをProduct正本とする。Subsystem Ownerはこの順序を増殖、並べ替え、別名化しない。Phase内の技術Task、型、Budgetは各Ownerと実装Planが決める。

@@ -147,6 +147,8 @@ Gameplay/System `SaveReplayContractV1`
 
 5文書は初回作成時に`state=review`、`approval_ref=null`とする。本設計の承認をEngine仕様の自動承認へ流用しない。
 
+Product RegistryのWork Packageがこの5文書のいずれかを`owner_document_id`として参照する場合、Owner文書が`state=approved`で、non-null `approval_ref`のDecisionが現在bytesのhash／Git blob IDをread-backできるまで`declared`から遷移させない。開始要求は`diagnostic.architecture.owner-unapproved`（code `MIRAKAN-ARCHITECTURE-OWNER-UNAPPROVED`）で拒否し、未承認Ownerの責務をconsumer文書、実装Plan、暫定schemaへ複写して迂回しない。
+
 ### 6.1 Architecture Governance
 
 `01-governance/architecture-governance.md`は次だけを所有する。

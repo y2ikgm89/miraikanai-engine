@@ -28,6 +28,8 @@ Pack artifactはcanonical manifest、MCD modules、Template、Validator、Fixtur
 
 Pack registry entryは少なくとも`pack_id`、`pack_version`、content hash、signature／provenance reference、Engine contract range、install stateを結ぶ。同じidentity／versionで異なるhashを受理せず、registry mutationはProject stateと分離した原子的操作にする。
 
+Pack kindは`genre | feature`のclosed enumとし、manifestの`pack_kind`で宣言する。`genre`は特定genreのreference composition、Template、reference scenarioを提供するGenre Packである。`feature`は複数Genre Packから再利用するPublic Contract、Schema、Validator、AI vocabularyを提供するFeature Packである(例: [Shooter reference Pack](shooter.md))。全kindは同一のmanifest、install／apply／update／removal lifecycle、registryへ従う。ProfileはPackではなく所有Packのartifactに含まれる構成単位であり、独立したmanifest、install、registry entryを持たず、所有Packの`pack_version`とcontent hashに一体で従う。
+
 ## 3. `DomainPackManifest`
 
 `DomainPackManifest`は次のcanonical fieldを持つ。
@@ -36,6 +38,7 @@ Pack registry entryは少なくとも`pack_id`、`pack_version`、content hash�
 DomainPackManifest
   pack_id: StableId
   pack_version: SemVer
+  pack_kind: genre | feature
   minimum_engine_contract: McdContractRefV1
   supported_target_profile_refs[]
   required_capability_refs[]
@@ -43,6 +46,8 @@ DomainPackManifest
   schema_module_refs[]
   definition_template_refs[]
   scene_ui_asset_template_refs[]
+  reference_asset_entries[]: DomainPackReferenceAssetEntryV1
+  reference_asset_set_sha256
   native_source_template_refs[]
   validator_refs[]
   test_scenario_refs[]
@@ -54,6 +59,10 @@ DomainPackManifest
   provenance_ref
   content_sha256
 ```
+
+`DomainPackReferenceAssetEntryV1`は`reference_asset_id`、`asset_type`、`source_relative_path`、`source_sha256`、`license_ref`、`provenance_ref`、`redistribution_policy_ref`をすべて必須とする。`reference_asset_set_sha256`はentryを`reference_asset_id`のunsigned UTF-8 byte順にcanonical encodingしたbytesと、各Source bytesのhash closureから計算する。Packの`content_sha256`は自己Fieldを除いたcanonical manifest bytes、`reference_asset_set_sha256`、全同梱payloadのcanonical root manifestから計算し、reference assetの追加、削除、license／provenance／redistribution policy変更で必ず変わる。
+
+Install validatorは各`redistribution_policy_ref`がPack配布とProject内利用を明示的に許可し、license／provenance snapshotがPack artifact内で解決できることを検証する。欠落、失効、Source hash不一致、利用範囲外ではPack全体を拒否し、類似Asset、生成Provider、user-provided Assetへ暗黙fallbackしない。[Asset Lifecycle](../03-authoring/asset-lifecycle.md)の`source_kind=domain_pack_reference`はこのentryのexact Pack version／content hash／asset ID／source hashだけを参照する。
 
 全参照はexact versionまたはcontent identityへ固定する。required／optional、Source／Derived、data／native sourceを曖昧なtagで兼用しない。arrayは参照identityのcanonical orderでserializeし、missing ref、duplicate ref、自己依存、dependency cycle、同じCapabilityへの矛盾したversion要求を拒否する。
 
@@ -119,7 +128,19 @@ AiDomainVocabulary
   forbidden_assumptions[]
 ```
 
-`AiPlanningRecipe`はPrompt本文ではなく、RequirementからDocument、Capability、Testへのtyped mappingである。Providerが変わっても同じGateway、Validator、Testを使う。AIはPackを検索、提案、選択できるが、未install Packまたは未有効Capabilityを存在するものとして生成しない。
+`AiPlanningRecipe`はPrompt本文ではなく、RequirementからDocument、Capability、Testへのtyped mappingであり、manifestの`ai_planning_recipe_refs[]`が参照する。canonical fieldは次とする。
+
+```text
+AiPlanningRecipe
+  recipe_id: StableId
+  input_requirement_kinds[]
+  produced_document_template_refs[]
+  required_capability_refs[]
+  generated_test_scenario_refs[]
+  assumption_policy_ref
+```
+
+recipe選択はresolverの解決結果(例: Shooter Packの`ShooterIntentResolutionV1`が持つ`requirement_refs[]`、`selected_feature_pack_ref`、`selected_profile_ref`)と`input_requirement_kinds[]`の型一致で行い、文字列類似で選ばない。Providerが変わっても同じGateway、Validator、Testを使う。AIはPackを検索、提案、選択できるが、未install Packまたは未有効Capabilityを存在するものとして生成しない。
 
 候補間でGameplay、Security、Cost、Target対応が変わる項目は質問し、safe defaultで解決できる項目はAssumptionとしてPreviewへ出す。Pack追加、major update、Native source適用はrisk、dependency closure、Diffを人間へ表示し、[AI Security／Approval](../01-governance/ai-security-approval.md)の承認を迂回しない。
 
@@ -154,18 +175,20 @@ RemovalはProject変更、Cook／Package再生成、registry mutationを別々�
 
 ## 10. Failureとdiagnostic
 
-| Failure | 結果 |
-|---|---|
-| Manifest、signature、hash不正 | Installを拒否し、既存registryを維持 |
-| dependency cycle／version intersectionなし | closure全体を拒否し、cycleまたは競合rangeを列挙 |
-| Engine contract／Target不適合 | `IncompatiblePackVersion`として拒否し、shimを生成しない |
-| required Capabilityなし | Apply／Cookを拒否し、CapabilityとTargetを列挙 |
-| Project identity／Input／Save／UI／Asset conflict | Conflict Diffを提示し、部分適用しない |
-| ChangeSet precondition不一致 | `ApplyDomainPackChangeSet`全体を拒否し、最新revisionから再生成 |
-| Native sourceを含む | Native build／reviewへ隔離し、data applyだけでactivationしない |
-| update migration失敗 | 新revisionをcommitせず、旧versionとProjectを維持 |
-| removal dependencyあり | Removalを拒否し、dependency closureを列挙 |
-| 未有効Capability要求 | blocking gapまたは有効な代替として返し、成功placeholderを作らない |
+| Failure | Diagnostic ID | 結果 |
+|---|---|---|
+| Manifest、signature、hash不正 | `MIRAKAN-PACK-MANIFEST_INVALID` | Installを拒否し、既存registryを維持 |
+| dependency cycle／version intersectionなし | `MIRAKAN-PACK-DEPENDENCY_UNRESOLVED` | closure全体を拒否し、cycleまたは競合rangeを列挙 |
+| Engine contract／Target不適合 | `MIRAKAN-PACK-VERSION_INCOMPATIBLE` | `IncompatiblePackVersion`として拒否し、shimを生成しない |
+| required Capabilityなし | `MIRAKAN-PACK-CAPABILITY_UNAVAILABLE` | Apply／Cookを拒否し、CapabilityとTargetを列挙 |
+| Project identity／Input／Save／UI／Asset conflict | `MIRAKAN-PACK-APPLY_CONFLICT` | Conflict Diffを提示し、部分適用しない |
+| ChangeSet precondition不一致 | `MIRAKAN-PACK-CHANGESET_PRECONDITION_FAILED` | `ApplyDomainPackChangeSet`全体を拒否し、最新revisionから再生成 |
+| Native sourceを含む | `MIRAKAN-PACK-NATIVE_SOURCE_REQUIRES_REVIEW` | Native build／reviewへ隔離し、data applyだけでactivationしない |
+| update migration失敗 | `MIRAKAN-PACK-MIGRATION_FAILED` | 新revisionをcommitせず、旧versionとProjectを維持 |
+| removal dependencyあり | `MIRAKAN-PACK-REMOVAL_BLOCKED` | Removalを拒否し、dependency closureを列挙 |
+| 未有効Capability要求 | `MIRAKAN-PACK-CAPABILITY_INACTIVE` | blocking gapまたは有効な代替として返し、成功placeholderを作らない |
+
+Diagnostic IDは上表のclosed listだけとし、各failure行と一対一に対応する。unknown IDと重複IDを拒否する。
 
 Diagnosticはpack／application identity、version／hash、Project revision、Target、Capability、dependency path、conflict path、failed stage、evidence、remediationを含む。秘密、credential、署名秘密鍵、unbounded Source本文を含めない。
 

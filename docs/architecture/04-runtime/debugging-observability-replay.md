@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.runtime-debugging-observability-replay
 - 状態: review
-- 正本範囲: Debug Session、typed event／counter／snapshot、bounded Store／Index／Query、causality、breakpoint／watch／safe pause、deterministic capture／replay／rewind、crash／hang evidence、remote device bridge、Editor Debug UX、AI diagnosis、Debug qualification
+- 正本範囲: Debug Session、typed event／counter／snapshot、bounded Store／Index／Query、causality、breakpoint／watch／safe pause、deterministic capture／replay／rewind、crash／hang evidence、support bundle（構成artifact、redaction manifest、consent、生成operation）、remote device bridge、Editor Debug UX、AI diagnosis、Debug qualification
 - 非正本範囲: Runtime phase／tick／lifetime、共通memory／performance／queue budget、AI Risk／authorization／approval、Evidence／Provenance envelope、Project transaction、Subsystem固有state schema、外部Tool／SDK version。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[VFX runtime](../06-rendering/vfx-runtime.md)、[Environment／surfaces](../06-rendering/environment-surfaces.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Audio](../07-platform/audio.md)
 - 外部根拠検証日: 2026-07-21
@@ -198,6 +198,48 @@ AIはmissing eventをnon-occurrenceと断定せず、PresentationからGameplay 
 ## 14. Reproduction、Crash、Hang、remote device
 
 `ReproductionBundleV1`はbundle ID／version、issue key、source Session、Project revision、Build／Target ref、optional Replay Slice、required Artifact／Diagnostic／Capture ref、expected oracle、run instruction ref、privacy／license／redaction manifest、expiry、content manifest hash、optional signatureを持つ。Project全体を無条件に複製せず、secret、credential、signing material、private clipboard、prompt、personal dataを含めない。Import時はhash、schema、Build availability、license、privacy、path、size、signatureを検証し隔離Workspaceで開く。
+
+support bundleのschema、redaction、size bound、生成operation、failureは本書だけが所有する。`SupportBundleV1`は[Product Plan](../00-product/product-plan.md)のdiagnosis→support製品E2E終端を成すUser提出用bundleであり、開発内再現用の`ReproductionBundleV1`とは別概念で相互に代用しない。
+
+```text
+SupportBundleV1
+  bundle_id: StableId
+  schema_version: uint32 = 1
+  session_ref
+  project_revision
+  build_receipt_ref
+  target_profile_ref
+  component_artifact_refs: SupportBundleComponentRefV1[1..64]
+  redaction_manifest_ref
+  consent_record_ref
+  policy_ref: exact SupportBundlePolicyV1 ref
+  uncompressed_size_bytes: uint64
+  archive_size_bytes: uint64
+  content_manifest_sha256
+  generated_by_operation_id = operation.debug.support-bundle.generate
+  signature_ref: optional
+
+SupportBundleComponentRefV1
+  component_kind: crash_evidence | hang_evidence | diagnostic_slice | log_slice | capability_summary | environment_summary
+  artifact_ref
+  content_sha256
+  uncompressed_size_bytes: uint64
+  data_class_refs[]
+
+SupportBundlePolicyV1
+  policy_id
+  max_input_bytes: uint64
+  max_archive_bytes: uint64
+  max_file_count: uint32
+  allowed_data_class_refs[]
+  retention_policy_ref
+```
+
+`SupportBundleRedactionManifestV1`は`policy_ref`、入力component hash集合、Field／recordごとの`included | removed | transformed`、data class、rule ID、出力hash、omitted count、gap summaryを持つ。credential、token、private key、password、signing materialは変換せず収集段階で拒否する。redaction後bytesからcomponent／manifest hashとsizeを再計算し、入力hash、出力hash、bundle manifestが一致しなければexportしない。
+
+生成は`operation.debug.support-bundle.generate`だけが行い、対象Session、component Preview、data class、概算／上限bytes、redaction policy、提出先を表示して明示consentを得る。`max_input_bytes`、`max_archive_bytes`、`max_file_count`のいずれかを超える場合は切り詰めて成功扱いせず、対象rangeを狭める新Proposalを返す。最低failureは`diagnostic.debug.support-bundle-consent-required`、`diagnostic.debug.support-bundle-redaction-incomplete`、`diagnostic.debug.support-bundle-size-limit-exceeded`、`diagnostic.debug.support-bundle-artifact-unavailable`、`diagnostic.debug.support-bundle-manifest-mismatch`をclosed IDとして区別する。
+
+Target別の生成UX、保存先、提出transportは各Platform Owner（[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)）が本schemaを投影する。Platform文書は収集可能componentとnative share UIだけを定義し、独自Support Bundle schema、緩いredaction、別size cap、silent uploadを作らない。
 
 Crash recordはPlatform OwnerのCrash envelopeを参照し、Session、Build、last durable sequence、gap、Replay checkpoint、breadcrumbを関連付ける。in-process handlerはpreallocated metadataだけを書き、dump／symbol／Sourceを別Artifactにする。exact binary／module／symbol hashが一致する場合だけsymbolicateし、partial stackを推測補完しない。User actionとGovernance authorizationなしにonline service／Providerへ送らない。
 

@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.toolchain-dependencies
 - 状態: review
-- 正本範囲: 外部Tool・SDK・Library・APIのexact version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock、Dependency採用・更新Gate、Build Driver Profileのclosed set
+- 正本範囲: 外部Tool・SDK・Library・APIのexact version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock、Dependency採用・更新Gate、Build Driver Profileのclosed set、CI実行基盤のrunner／hosting／capacity binding
 - 非正本範囲: Product scope、Subsystem API・型・Budget、Runtime phase、Platform lifecycle、Dependency内部を包むEngine-owned Adapter契約。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)
 - 外部根拠検証日: 2026-07-22
@@ -238,6 +238,7 @@ Repository rootの`toolchain.lock.json`はschema version 6とし、未知Field�
 | `profiles[].resolved_files[]` | tool ID、relative path、size、file version、SHA-256、signer |
 | `profiles[].build.cxx_bindings[]` | Frontend、language standard、compiler flag／full version、STL hash、CMake ID、experimental token、BMI policy、CRT mapping |
 | `profiles[].build.driver_bindings[]` | Driver Profile hash、tool IDs、toolchain file hash、driver config hash |
+| `ci_execution_profiles[]` | Verification laneとrunner／hosting／toolchain／device capacityのbinding。§8.1に従う |
 | `shared.npm` | Node／npm exact version、許可root、lockfile SHA-256、package version／tarball URL／size／integrity |
 | `shared.vcpkg.builtin_baseline` | `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 
@@ -250,6 +251,24 @@ schema version 5から6へのoffline migrationは次のexact mappingだけを許
 | `windows_desktop_v1` | `target.windows.desktop` | `profile_version=1` |
 | `android_mobile_v1` | `target.android.mobile` | `profile_version=1` |
 | `apple_mobile_v1` | `target.apple.mobile` | `profile_version=1` |
+
+### 8.1 CI execution profile
+
+[AI Verification／Provenance §14](../01-governance/ai-verification-provenance.md#14-ci-lanes)がlaneの意味、Trigger、必須Evidenceを所有し、本書はlaneを実行するinfrastructure bindingだけを`CiExecutionProfileV1`として所有する。
+
+| Field | Rule |
+|---|---|
+| `lane_id` | Verification正本のexact lane ID |
+| `runner_class` | `windows_gpu`、`windows_hardware_vm`、`macos_build`、`android_device`、`apple_device`、`portable_linux`のclosed enum |
+| `hosting_mode` | `managed`または`self_hosted` |
+| `toolchain_profile_id` | `target.*`。native laneは`profiles[].profile_id`、`portable_linux`のarchitecture／JavaScript laneだけは`target.headless.host`を参照 |
+| `device_matrix_ref` | physical deviceを使う`android_device`／`apple_device`で必須、他classでは`null` |
+| `capacity_state` | `unfixed`、`qualified`、`unavailable`のclosed enum |
+| `owner` | 調達、credential、patch、quota、保守、incident対応の責任主体。未決定時はliteral `unfixed` |
+
+Entry identityは`{lane_id, runner_class, toolchain_profile_id}`のtupleとし、重複を拒否する。`capacity_state=qualified`はrunner image hash、Toolchain lock hash、isolation profile、同時実行上限、retention、device matrix（該当時）、fresh Qualification Receiptが揃う場合だけ許可する。`unfixed`または`unavailable`、`owner=unfixed`、Receipt失効、device欠落ではlane開始を`diagnostic.toolchain.ci-capacity-unresolved`で拒否し、local runner、別OS、別device、managed／self-hosted間へ暗黙fallbackしない。
+
+ユーザーがrunner契約、self-hosted host、実機pool、担当Ownerをまだ指定していないため、本文書はcapacityや費用を推測しない。Productの見積りは[Product Plan §5.1](../00-product/product-plan.md#51-開発体制見積りrisk-contract)の`team_assumption_state=unfixed`を維持し、必要laneが`qualified`になるまで該当product target gateを開始しない。
 
 ## 9. Dependency採用・更新Gate
 

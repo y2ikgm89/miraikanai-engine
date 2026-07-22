@@ -247,6 +247,14 @@ Expected: valid fixture PASS、unknown key、invalid state、deferred理由欠�
 - Create: `docs/architecture/04-runtime/runtime-package.md`
 - Create: `docs/architecture/07-platform/application-package-release.md`
 
+| Path | document_id | initial state | approval_ref |
+|---|---|---|---|
+| `docs/architecture/01-governance/architecture-governance.md` | `mirakan.arch.architecture-governance` | `review` | `null` |
+| `docs/architecture/02-foundation/compatibility-evolution.md` | `mirakan.arch.compatibility-evolution` | `review` | `null` |
+| `docs/architecture/04-runtime/persistence-save.md` | `mirakan.arch.runtime-persistence-save` | `review` | `null` |
+| `docs/architecture/04-runtime/runtime-package.md` | `mirakan.arch.runtime-package` | `review` | `null` |
+| `docs/architecture/07-platform/application-package-release.md` | `mirakan.arch.platform-application-package-release` | `review` | `null` |
+
 **Interfaces:**
 - Consumes: Control Plane Design §6、§8、§10～13。
 - Produces: Appendix BのIDとrequires、Appendix Cのreciprocal integrationを持つ5 metadata node。
@@ -261,13 +269,19 @@ for (const path of fiveOwnerPaths) assert.equal(existsSync(path), true, path);
 
 Expected: 5 pathを列挙してFAIL。
 
-- [ ] **Step 3: 各正本を作成する**
+- [ ] **Step 3: 表のexact path／document IDで各正本を作成する**
 
-各文書は`state=review`、`approval_ref=null`とし、Owner scope、non-owner scope、Shared canonical contracts、failure、qualification、official evidenceを持つ。型はControl Plane Design §13.1から移し、consumerへ複写しない。
+各文書は`state=review`、`approval_ref=null`とし、Owner scope、non-owner scope、Shared canonical contracts、failure、qualification、official evidenceを持つ。型はControl Plane Design §13.1から移し、consumerへ複写しない。Pathから推測した別ID、`draft`／`approved`への自動昇格、placeholder Approvalを拒否する。
 
-- [ ] **Step 4: metadata testを実行する**
+- [ ] **Step 4: positive／negative metadata testを実行する**
 
-Expected: 5文書のschema、ID、requires、integration reciprocityがPASS。
+Positiveは5文書のschema、exact path↔ID、`state=review`、`approval_ref=null`、requires、integration reciprocityを検証する。Negativeは各文書についてwrong ID、wrong path、`state=approved`＋missing Approval、non-null placeholder Approval、missing reciprocal integrationを一件ずつ注入し、exact diagnosticだけを返すことを検証する。
+
+Expected: positive 5件がPASSし、全negative fixtureが対象diagnostic一件でFAILする。
+
+- [ ] **Step 5: Owner approval start gateを検証する**
+
+5文書をOwnerに持つWork Packageのstartを`state=review`で試し、`diagnostic.architecture.owner-unapproved`一件で拒否して`schedule_state=declared`を維持する。test専用fixtureでのみ、`state=approved`、non-null `approval_ref`、Decision read-back hash一致へ変更し、同じstart gateが通ることを確認する。実文書は本Taskで`review`のままとする。
 
 ### Task 4: 43文書をexact JSON metadataへ一括移行する
 
@@ -484,6 +498,11 @@ Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted
 - [ ] **Step 3: CIをNode 24.18.0、npm 11.16.0、TypeScript 7.0.2 lockへ固定する**
 
 `toolchain-dependencies.md`の公式JavaScript toolchain利用rootへ`tools/architecture_lint/`を追加し、同文書が要求する`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`、lockfile SHA-256規則を`tools/architecture_lint/package.json`へ適用する。CI workflowはtoolchain lockが固定するtarball（version、URL、size、SHA-256）を取得し、SHA-256照合後にnpm content-addressed cacheへ事前充填してから`npm ci --offline`を実行する。照合失敗はjob失敗とする。
+
+- [ ] **Step 3A: CI execution profileを解決する**
+
+Verification正本の`contract-fast` laneを`CiExecutionProfileV1`へ結び、`runner_class=portable_linux`、`toolchain_profile_id=target.headless.host`を要求する。`hosting_mode`、capacity、Ownerはユーザーのrunner契約／self-hosted情報から設定し、推測しない。`capacity_state=qualified`、non-`unfixed` Owner、runner image／Toolchain lock／isolation／capacity Receiptが揃わない現在状態ではworkflow開始を`diagnostic.toolchain.ci-capacity-unresolved`で拒否する。local実行成功やGitHub-hosted runnerの存在をCI Gate完了へ代用せず、別runnerへfallbackしない。
+
 - [ ] **Step 4: local equivalentを実行する**
 
 ```powershell

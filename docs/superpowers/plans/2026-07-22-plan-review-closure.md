@@ -444,8 +444,8 @@ git commit -m "docs: close product execution registry"
 |---|---|
 | `team_assumption_state` | ユーザー入力前は`unfixed`。人数・AI利用量を推測しない |
 | `planning_capacity` | calendar期間を出さず、相対sizeだけを保持する |
-| `phase_estimate` | elapsed timeではなく相対size `S | M | L | XL` |
-| `critical_path` | Control Plane → ECS E0 → D3D12 → Authoring MVP-A |
+| `phase_estimate` | elapsed timeではなく相対size `S / M / L / XL` |
+| `critical_path` | Control Plane → ECS E0 →（Headless AuthoringとD3D12を並行）→ Editor Runtime → 2D Shooter → Project Source Activation → Authoring MVP-A |
 | `scope_reduction_order` | C2 advanced rendering → non-Shooter packs → mobile shipping。MVP-A contractは削除しない |
 | `risk_owner` | `mirakan.arch.product-plan` |
 | `review_cadence` | Phase exitごとに更新し、実測Receiptへ差し替える |
