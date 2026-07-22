@@ -378,13 +378,15 @@ Expected: exit 1、schema file `ENOENT`。
 
 Metadataは`additionalProperties=false`、required 10 key、array duplicate禁止、state closed enumを固定する。Work PackageはProduct Plan §11.1と完全一致する`work_package_id`、`phase_id`、`owner_document_id`、`target_refs[]`、`fallback_ref`、`provided_fixture_refs[]`、`required_capability_refs[]`、`requires_work_package_refs[]`、`scheduling_state`、`defer_reason`、`reconsideration_gate_refs[]`、`blocked_reason_ref`だけを持つ。旧`requirement_refs[]`、`capability_refs[]`、`exit_fixture_refs[]`、`schedule_state`、`completion_receipt_refs[]`はunknown Fieldで拒否する。`scheduling_state`は`declared | ready | active | blocked | deferred | complete`、`deferred`／`blocked`の条件FieldはDesign §15をexactに実装する。
 
-同schemaへ`PhaseFixtureBindingRegistryV1`、`WorkPackageLifecycleRecordV1`、`ProductRiskRegistryV1`、`ProductDecisionGateRegistryV1`、`FutureCapabilityIncubationRegistryV1`を別definitionとして追加し、ReceiptをWork Package entryへ戻さない。Registry semantic validatorは各Work Packageの`required_capability_refs[]`×`target_refs[]`について、参照Capabilityの`CapabilityRegistryV1.target_bindings[]`に同じ`target_id`かつ`scope=required | optional`のbindingが存在することと、別Registryの`CapabilityTargetActivationV1`にexact `{capability_id,target_id}` rowが存在することを独立に要求する。binding missing／`excluded`とActivation row missingを別diagnosticで拒否する。`scope`はbindingだけに許可し、Activation rowではunknown Fieldとして拒否する。別Targetのauthoring／build host prerequisiteは`requires_work_package_refs[]`だけで表し、runtime Capability closureへ混入させない。Decision Gate stateは`blocked | open | satisfied | retired`に閉じ、Work Packageの`reconsideration_gate_refs[]`、Product Riskの`affected_work_package_refs[]`、Decision Gateの`evidence_refs[]`をexact参照解決する。Product Riskの`revisit_gate_or_date`はProduct正本のdiscriminatorに従い、logical IDなら登録済みPhase／Decision Gate、dateならcanonical dateだけを受理する。ID patternは設計§9.1の2 regex（document ID用と一般logical ID用）を転記し、Appendix DとProduct Plan §11の全新IDが一般logical ID regexに一致するpositive testを加える。全root `$id`と`$ref`はTask 1A allowlist内に限定する。
+同schemaへ`PhaseFixtureBindingRegistryV1`、`WorkPackageLifecycleRecordV1`、`ProductRiskRegistryV1`、`ProductDecisionGateRegistryV1`、`FutureCapabilityIncubationRegistryV1`を別definitionとして追加し、ReceiptをWork Package entryへ戻さない。Registry semantic validatorは最初に、全`CapabilityRegistryV1.target_bindings[]`のうち`scope=required | optional`の各bindingへexactly one `CapabilityTargetActivationV1 {capability_id,target_id}` rowが存在し、`excluded` bindingにはrowが存在しないことを検査する。requiredまたはoptional rowのmissingはstateへ正規化せず、`diagnostic.product.capability-target-activation-missing`でaggregate前に拒否する。
 
-`CapabilityRegistryV1`にはtier／Owner／fallbackと`target_bindings[] {target_id, scope}`だけを許可し、`activation_state`、`capability_activation_state`、aggregateをunknown Fieldで拒否する。Activationは`CapabilityTargetActivationV1`のexact `{capability_id,target_id,state,candidate_ref,receipt_refs,evidence_freshness}` rowだけへ保存し、`scope`を同rowへ追加しない。C2 Matrixはそのexact row refsだけを持つread-only projectionとする。
+その後、各Work Packageの`required_capability_refs[]`×`target_refs[]`について、参照Capabilityの`CapabilityRegistryV1.target_bindings[]`に同じ`target_id`かつ`scope=required | optional`のbindingが存在することと、前段検証済みの別Registry rowが存在することを独立に要求する。binding missing／`excluded`とActivation row missingを別diagnosticで拒否する。`scope`はbindingだけに許可し、Activation rowではunknown Fieldとして拒否する。別Targetのauthoring／build host prerequisiteは`requires_work_package_refs[]`だけで表し、runtime Capability closureへ混入させない。Decision Gate stateは`blocked | open | satisfied | retired`に閉じ、Work Packageの`reconsideration_gate_refs[]`、Product Riskの`affected_work_package_refs[]`、Decision Gateの`evidence_refs[]`をexact参照解決する。Product Riskの`revisit_gate_or_date`はProduct正本のdiscriminatorに従い、logical IDなら登録済みPhase／Decision Gate、dateならcanonical dateだけを受理する。ID patternは設計§9.1の2 regex（document ID用と一般logical ID用）を転記し、Appendix DとProduct Plan §11の全新IDが一般logical ID regexに一致するpositive testを加える。全root `$id`と`$ref`はTask 1A allowlist内に限定する。
+
+`CapabilityRegistryV1`にはtier／Owner／fallbackと`target_bindings[] {target_id, scope}`だけを許可し、`activation_state`、`capability_activation_state`、aggregateをunknown Fieldで拒否する。Activationは`CapabilityTargetActivationV1`のexact `{capability_id,target_id,state,candidate_ref,receipt_refs,evidence_freshness}` rowだけへ保存し、`scope`を同rowへ追加しない。required／optional bindingのinitial rowはいずれも`state=not_activated`、`candidate_ref=null`、`receipt_refs=[]`、`evidence_freshness=expired`とし、optionalを省略可能rowと解釈しない。C2 Matrixはそのexact row refsだけを持つread-only projectionとする。
 
 - [ ] **Step 5: testを再実行する**
 
-Expected: valid fixtureがPASSし、unknown key、invalid state、deferred理由欠落、blocked reason欠落、旧Work Package Field混入、Receiptのentry混入、Capability activation scalar、required Capabilityのbinding missing／excluded、Activation row missing、Activation rowへの`scope`混入、remote `$ref`の各negative fixtureが対象Diagnostic一件でPASS。
+Expected: required／optional双方のinitial Activation rowを持つvalid fixtureがPASSし、unknown key、invalid state、deferred理由欠落、blocked reason欠落、旧Work Package Field混入、Receiptのentry混入、Capability activation scalar、required Capabilityのbinding missing／excluded、required Activation row missing、optional Activation row missing、Activation rowへの`scope`混入、remote `$ref`の各negative fixtureが対象Diagnostic一件でPASS。
 
 ### Task 2A: 共通署名／Bootstrap Approval schemaとvalidator testを先行作成する
 
@@ -410,6 +412,8 @@ Synthetic fixtureは§6の5 document ID、固定hash、固定target tree、test�
 
 Negativeはmissing `signed_record`、missing `signed_record.signature`、署名byte破損、wrong purpose、wrong subject、Signer不一致、Role不一致、Key purpose不一致、invalid／stale revocation snapshot、current snapshotでRecord／subject／Signer／Role／Key／purposeのいずれかをrevoked、`payload.revoked_at` non-null、target treeへのRecord自己包含を一原因ずつ作る。同じfixtureの複数Fieldを同時に壊さない。
 
+Field間binding専用に二つのfixtureを追加する。一つはpayloadとenvelopeをそれぞれschema validに保ったまま、両方ともcanonical UTCだが`payload.issued_at != signed_record.issued_at`とし、変更後envelopeを有効なpurpose専用Keyで再署名する。もう一つは、両方が署名／sequence validな別snapshotを指す`payload.revocation_snapshot_ref != signed_record.revocation_snapshot_ref`とし、同様にenvelopeを再署名する。各fixtureはその一Field差以外をpositive fixtureと同一にし、個別schema、署名、Key purpose、各snapshot検証が単独では成功しても、exact byte equalityで`diagnostic.architecture.bootstrap-approval-envelope-binding-mismatch`一件を返さなければならない。
+
 - [ ] **Step 3: failureを確認する**
 
 Run: `node --test tools/architecture_lint/test/bootstrap-approval.test.mjs`
@@ -420,11 +424,11 @@ Expected: schema `ENOENT`またはverifier `ERR_MODULE_NOT_FOUND`でexit 1。pla
 
 `mirakan-signed-record.schema.json`はAI Verification／Provenance §7の11 Fieldをすべてrequired、`additionalProperties=false`とする。Bootstrap schemaはrootに`payload`と`signed_record`だけをrequiredとし、payloadをclosed `ControlPlaneBootstrapApprovalPayloadV1` `$defs`、`signed_record`を`urn:mirakan:schema:governance:mirakan-signed-record:v1`へのexact `$ref`にする。署名FieldをBootstrap schemaへinline複写しない。
 
-Verifierはpayload schema、envelope schema、payload JCS hash、exact purpose、Signer／Role／Key registry、Key purpose、issued-at validity、署名、発行時snapshot、current snapshot、target treeの順に検査し、stable diagnosticを一件だけ返す。`payload.approver_subject_ref`／`issued_at`／`revocation_snapshot_ref`とenvelopeの対応Fieldはbyte equalityを必須にする。target treeはRecord格納前、Recordはそのdescendant treeにだけ置き、target treeのentry closureへRecord自身を含めない。
+Verifierはpayload schema、envelope schema、payload JCS hash、exact purpose、Signer／Role／Key registry、Key purpose、issued-at validity、署名、発行時snapshot、current snapshot、target treeの順に検査し、stable diagnosticを一件だけ返す。`payload.approver_subject_ref`／`issued_at`／`revocation_snapshot_ref`とenvelopeの対応Fieldはexact byte equalityを必須にし、各Fieldが単独でvalidでも一件の差を`diagnostic.architecture.bootstrap-approval-envelope-binding-mismatch`で拒否する。target treeはRecord格納前、Recordはそのdescendant treeにだけ置き、target treeのentry closureへRecord自身を含めない。
 
 - [ ] **Step 5: unit testを通し、発行前状態を固定する**
 
-Expected: synthetic positiveがPASSし、missing envelope／signature、invalid signature、wrong-purpose／wrong-subject／wrong-Signer／wrong-Role／wrong-Key-purpose、invalid snapshot、revoked signature、self-containing treeの全negativeがそれぞれexact diagnostic一件でPASSする。`architecture/approvals/control-plane-bootstrap.v1.json`は未存在である。
+Expected: synthetic positiveがPASSし、missing envelope／signature、invalid signature、wrong-purpose／wrong-subject／wrong-Signer／wrong-Role／wrong-Key-purpose、invalid snapshot、revoked signature、再署名済みissued-at binding mismatch、再署名済みrevocation-snapshot binding mismatch、self-containing treeの全negativeがそれぞれexact diagnostic一件でPASSする。`architecture/approvals/control-plane-bootstrap.v1.json`は未存在である。
 
 ### Task 3: 5つの新Owner正本を追加する
 
@@ -633,23 +637,32 @@ Expected: registryがschema valid、metadataとの一致、mismatch fixtureがex
 - Consumes: Product Plan §11、Appendix D。
 - Produces: orphan 0のCapability／Target／Phase／Phase gate／Work Package／Requirement／Fixture／Fallback／Product risk／Product decision gate graph、初期0 recordのappend-only Work Package lifecycle、future incubation projection。
 
-- [ ] **Step 1: maturity入りID、Capability target binding missing／excluded、別Activation row missing、Activation rowへの`scope`混入、deferred理由欠落、orphan fixture、旧Work Package Field、cross-target runtime Capability edge、Phase gate範囲外参照、missing Product risk／Decision gate参照、Decision gate invalid state、lifecycle改変のnegative testsを書く**
+- [ ] **Step 1: maturity入りID、Capability target binding missing／excluded、required Activation row missing、optional Activation row missing、Activation rowへの`scope`混入、deferred理由欠落、orphan fixture、旧Work Package Field、cross-target runtime Capability edge、Phase gate範囲外参照、missing Product risk／Decision gate参照、Decision gate invalid state、lifecycle改変のnegative testsを書く**
 - [ ] **Step 2: failureを確認する**
 - [ ] **Step 3: Task 3Aのcanonical projection bytesを`product.v1.json`へmaterializeし、validatorを実装する**
 
 Product Planのcurrent bytesから、Phase 4がDefinition-first／`wp.authoring.prequalified-source-packs`／`wp.product.ai-authoring-mvp-a`だけを持ち、新規Native／Shader Source WPと`requirement.product.project-source-activation`を持たないことを検査する。Phase 5には`wp.authoring.project-native-module`、`wp.rendering.project-shader`、aggregate `wp.product.project-source-activation`、専用`gate.product.phase-5-project-source-activation`がすべて存在することを検査する。`gate.product.phase-5-external-agent`は別gateとしてProposal-onlyを維持し、片方で他方を代用したprojectionを拒否する。
-- [ ] **Step 4: aggregate activation testを書く**
+- [ ] **Step 4: Activation closure前段検証とaggregate testを書く**
 
 ```js
+const closure = validateActivationClosure(validBindings, validInitialRowsIncludingOptional);
+assert.deepEqual(closure.required_states, ["not_activated"]);
+assert.equal(aggregateRequiredTargetStates(closure.required_states), "not_activated");
 assert.equal(aggregateRequiredTargetStates(["production", "qualified"]), "qualified");
-assert.equal(aggregateRequiredTargetStates(["production", null]), "not_activated");
+
+const missingOptional = validateActivationClosure(
+  validBindings,
+  validInitialRowsIncludingOptional.filter(row => row.target_id !== optionalTargetId));
+assert.equal(missingOptional.diagnostics[0].diagnostic_id,
+  "diagnostic.product.capability-target-activation-missing");
+assert.equal(missingOptional.required_states, undefined);
 ```
 
-aggregate入力は`CapabilityRegistryV1.target_bindings[]`で`scope=required`を選んだ後、別`CapabilityTargetActivationV1`からexact rowをjoinして得るstate列である。Activation rowへ`scope`を保存しない。
+`validateActivationClosure`はrequired／optional binding双方のexact initial rowを検証し、missingならpartial closureやaggregate入力を返さない。`not_activated`は実在する検証済みrowのclosed stateであり、missing row、`null`、`undefined`から合成しない。aggregate入力は前段検証成功後に`scope=required`のrowだけから抽出した`not_activated | candidate_locked | qualified | production`のclosed state列で、optional rowは存在検証するが最小stateの算出には含めない。optional initial rowありのpositiveと、その一行だけを削除したnegativeを必須にし、後者ではaggregate関数を呼ばない。Activation rowへ`scope`を保存しない。
 
 - [ ] **Step 5: registry testを実行する**
 
-Expected: Product Plan §11の各canonical表からID setとrow countを独立抽出し、`product.v1.json`のTarget、Requirement、Fixture、Phase、Phase fixture gate、Capability、Capability Target activation、Work Package、Fallback、Product risk、Product decision gate、Future incubation各set／countとexact一致する。固定件数をvalidatorへ埋め込まず、差分時はmissing／extra IDを列挙する。orphan、dependency cycle、後続Phase dependency、maturity-bearing current IDは各0、initial required Target rowはすべて`state=not_activated`、保存aggregate 0、lifecycle record 0とする。Task 3Aの`product_registry_sha256`とmaterialize後bytesのSHA-256が一致しなければBootstrap Approvalを失効させる。
+Expected: Product Plan §11の各canonical表からID setとrow countを独立抽出し、`product.v1.json`のTarget、Requirement、Fixture、Phase、Phase fixture gate、Capability、Capability Target activation、Work Package、Fallback、Product risk、Product decision gate、Future incubation各set／countとexact一致する。固定件数をvalidatorへ埋め込まず、差分時はmissing／extra IDを列挙する。orphan、dependency cycle、後続Phase dependency、maturity-bearing current IDは各0、initial required／optional Target rowはすべて`state=not_activated`、missing rowからのaggregate正規化0、保存aggregate 0、lifecycle record 0とする。Task 3Aの`product_registry_sha256`とmaterialize後bytesのSHA-256が一致しなければBootstrap Approvalを失効させる。
 
 ### Task 8: deterministic Index generatorとCLIを実装する
 
