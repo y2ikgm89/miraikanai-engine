@@ -139,6 +139,8 @@ D3D12 Backendは上位Domainの意味、Product activation、共通Budget、OS p
 - Backend-neutral errorとremediation
 - Project Shader／Material／Render GraphのAuthoring Operation
 
+`RendererCapabilityProjectionV1`は、render-graph.md正本の`RendererCapabilitySignatureV1`からAdapter LUID、driver文字列等のnative識別子をfield maskで除外したAuthoring向けredacted projectionであり、定義は§25のrender-graph.md変更で追加する。
+
 `D3d12*` type、native error、driver message、adapter LUID、raw trace、Backend sourceはGame Authoring Tool Catalogへ出さない。
 
 `EngineMaintenanceProfileV1`はR4／A2で次を取得できる。
@@ -159,24 +161,31 @@ engine/rendering/
 ├─ resources/                    # Engine handle registry
 ├─ pipelines/                    # Engine pipeline identity/cache policy
 ├─ surfaces/                     # Backend-neutral surface lease
-└─ backends/
-   └─ d3d12/
-      ├─ contract/               # generated private C++ projection
-      ├─ bootstrap/              # Agility、DXGI、adapter、device
-      ├─ capabilities/           # feature query／resolver
-      ├─ queues/                 # queue、fence、allocator、list
-      ├─ descriptors/            # CPU／shader-visible heap
-      ├─ memory/                 # D3D12MA、upload、readback、residency
-      ├─ resources/              # resource／view／generation registry
-      ├─ barriers/               # Enhanced Barrier mapping／tracking
-      ├─ pipelines/              # root signature／PSO／pipeline library
-      ├─ surfaces/               # DXGI swap chain／present
-      ├─ diagnostics/            # InfoQueue、GBV、DRED、trace
-      └─ qualification/          # fixtures／fault injection adapters
+└─ d3d12/                        # private D3D12 Backend実装
 
 tools/rendering/d3d12_qualification/
 schemas/mirakan/rendering/d3d12/
 ```
+
+`engine/rendering/d3d12/`配下のexact file構成（module interface、実装unit、tests、fixtures）は§34に従い[D3D12 Backend Implementation Plan](2026-07-22-d3d12-backend-implementation-plan.md)の§1 File mapを正本とし、本書は再掲しない。bootstrap、capability、queue、descriptor、memory、barrier、pipeline、surface、diagnostics、qualificationの責務分割は同File mapのResponsibility列が所有する。
+
+設計と実装計画を結ぶ名称は次のclosed tableに固定し、aliasまたは別綴りを作らない。
+
+| Concept | Canonical name／path |
+|---|---|
+| private module | `mirakan.rendering.d3d12.adapter` |
+| implementation root | `engine/rendering/d3d12/` |
+| MCD root | `schemas/mirakan/rendering/d3d12/` |
+| Qualification root | `tools/rendering/d3d12_qualification/` |
+| window handoff | `IApplicationSurface`（Windows Platform Owner） |
+| backend Qualification evidence | `D3d12BackendQualificationReceiptV1` |
+| submission identity | `GpuSubmissionSerialV1{backend_device_generation, queue_id, fence_value}` |
+| diagnostic namespace | `diagnostic.rendering.d3d12.*` |
+| production CMake target | `mirakan_rendering_d3d12` |
+| aggregate test target | `mirakan_d3d12_backend_tests` |
+| CTest label | `rendering.d3d12` |
+
+実装計画§1／§2、CMake、MCD、test registrationはこの表をexact複写する。表と異なる旧型名、別directory、別target名を互換aliasで吸収せず、Architecture lintで拒否する。
 
 Named Moduleは`mirakan.rendering.d3d12.adapter`だけをcomposition rootへ公開する。D3D12 header、WRL／COM helper、DXGI type、D3D12MA typeはGlobal Module Fragmentまたはprivate implementationだけでincludeする。
 
@@ -535,7 +544,7 @@ D3d12BarrierMappingEntryV1 {
 | depth／stencil read | `DEPTH_STENCIL` | `DEPTH_STENCIL_READ` | `DEPTH_STENCIL_READ` |
 | pixel shader sample | `PIXEL_SHADING` | `SHADER_RESOURCE` | `DIRECT_QUEUE_SHADER_RESOURCE` |
 | vertex／mesh shader sample | exact shading stage | `SHADER_RESOURCE` | `DIRECT_QUEUE_SHADER_RESOURCE` |
-| compute shader sample | `COMPUTE_SHADING` | `SHADER_RESOURCE` | `COMPUTE_QUEUE_SHADER_RESOURCE` |
+| compute shader sample | `COMPUTE_SHADING` | `SHADER_RESOURCE` | Queue対応`SHADER_RESOURCE` |
 | UAV graphics／compute | exact shading stage | `UNORDERED_ACCESS` | Queue対応`UNORDERED_ACCESS` |
 | copy source | `COPY` | `COPY_SOURCE` | Queue対応`COPY_SOURCE` |
 | copy destination | `COPY` | `COPY_DEST` | Queue対応`COPY_DEST` |
@@ -548,6 +557,31 @@ D3d12BarrierMappingEntryV1 {
 | constant buffer | consumer stage | `CONSTANT_BUFFER` | Bufferのためlayoutなし |
 | acceleration structure read | `RAYTRACING` | `RAYTRACING_ACCELERATION_STRUCTURE_READ` | Bufferのためlayoutなし |
 | acceleration structure build | build stage | read／write exact mask | Bufferのためlayoutなし |
+
+「Queue対応」layoutは`D3d12BarrierMappingEntryV1.queue_class`をkey入力として解決し、`direct0`実行では`DIRECT_QUEUE_*`、`compute0`実行では`COMPUTE_QUEUE_*`を選ぶ。§12.1によりasync compute未Qualificationでcompute workが`direct0`へ統合された場合も同規則を適用し、compute shader sampleは`DIRECT_QUEUE_SHADER_RESOURCE`へ解決する。
+
+cross-queue resource edgeはbarrierだけで同期したとみなさず、次の`D3d12QueueHandoffV1`をencoding planへexact一件生成する。
+
+```text
+D3d12QueueHandoffV1 {
+  resource_ref
+  producer_queue_id
+  producer_signal_serial: GpuSubmissionSerialV1
+  handoff_layout
+  consumer_queue_id
+  consumer_wait_serial_ref: exact producer_signal_serial
+  transition_queue_id: optional exact queue
+  consumer_layout
+}
+```
+
+1. Producerは最後のwrite／readと必要なflushを完了し、Producer queueで合法なqueue-neutral layout、またはDirect→Compute read-only handoff専用の`DIRECT_QUEUE_GENERIC_READ_COMPUTE_QUEUE_ACCESSIBLE`へtransitionする。
+2. Producer submission完了後にproducer queueが`producer_signal_serial.fence_value`をSignalし、Consumer queueは`consumer_wait_serial_ref`が指す同じserialをWaitする。serialの`backend_device_generation`と`queue_id`はProducerとexact一致させ、CPU polling、別fence値、submission完了順を依存表現に使わない。
+3. Wait後に別layoutが必要なら、`transition_queue_id`で`LayoutBefore`／`LayoutAfter`の双方が合法なbarrierを記録してからConsumer accessを開始する。Direct／Compute共用read layoutへ入る／出るtransitionはDirect queueだけに置き、Compute queueではaccessだけを行う。
+4. Compute→Direct write handoffはCompute queueでqueue-neutral layoutへ移してSignalし、Direct queueがWait後にDirect用layoutへtransitionする。Compute queueへ`DIRECT_QUEUE_*`、Direct queueへ`COMPUTE_QUEUE_*` transitionを記録しない。
+5. 合法なhandoff layout、transition queue、acyclic Signal／Wait edgeを一意に作れない場合はasync computeをDirectへcompile-time統合し、それも不可能なら`diagnostic.rendering.d3d12.barrier-validation-failed`でGraph compileを拒否する。同frameの動的queue切替は行わない。
+
+このprotocolの公式制約は§27のEnhanced Barriers／Command・Fence Evidenceへbindし、queue ownership、fence、wait、transitionの全Fieldを`D3d12EncodingTraceV1`へ残す。
 
 Barrier生成は次の順で一意に決める。
 
@@ -674,6 +708,7 @@ diagnostic.rendering.d3d12.device-create-failed
 diagnostic.rendering.d3d12.capability-query-failed
 diagnostic.rendering.d3d12.enhanced-barriers-required
 diagnostic.rendering.d3d12.queue-create-failed
+diagnostic.rendering.d3d12.queue-wait-cycle
 diagnostic.rendering.d3d12.descriptor-capacity-exceeded
 diagnostic.rendering.d3d12.descriptor-stale
 diagnostic.rendering.d3d12.resource-stale
@@ -689,7 +724,7 @@ diagnostic.rendering.d3d12.device-recovery-failed
 diagnostic.rendering.d3d12.alias-discard-conflict
 ```
 
-旧`MIRAKAN-D3D12-*` 19 IDは同じcondition名の上記dotted IDへ一回限りでclean replaceする。Alias、dual emission、旧ID parserを残さない。`alias-discard-conflict`は新規IDであり旧対応行を持たない。
+旧`MIRAKAN-D3D12-*` 19 IDは同じcondition名の上記dotted IDへ一回限りでclean replaceする。Alias、dual emission、旧ID parserを残さない。`queue-wait-cycle`（Graph compile時のqueue wait cycle拒否）と`alias-discard-conflict`は新規IDであり旧対応行を持たない。
 
 HRESULT値、API名、source location、driver message、DRED nodeはprivate attachmentでありstable diagnostic identityにしない。同じContract failureはdriver wordingに依存せず同じDiagnostic ID、subject ID、remediationを返す。
 
@@ -802,21 +837,36 @@ Graph pass ID
 | NVIDIA | RTX 3060以上の固定driver profile | discrete baseline |
 | AMD | RX 6600以上の固定driver profile | discrete baseline |
 | Intel | Arc A-series固定driver profile | third-vendor baseline |
-| UMA | 必須Profileを満たすqualified UMA device | UMA／shared budget |
-| WARP | OS／SDK固定 | deterministic Development reference、性能Gate対象外 |
+| UMA | 必須Profileを満たすqualified UMA device | optional row。UMA／CacheCoherentUMA shared budget検証用であり、C1 `qualified`判定の必須入力ではない |
+| WARP | app-local WARP redistributable（`Microsoft.Direct3D.WARP`）＋SDK固定 | deterministic Development reference、性能Gate対象外 |
 | Negative | Enhanced BarriersまたはSM 6.6不適合Device／mock | startup rejection |
 
 Hardware model、driver version、OS build、SDK hash、Profile hashをReceiptへ固定する。WARP合格を実GPU合格、単一Vendor合格をWindows合格、Debug Layer zero-errorだけをvisual／performance合格とみなさない。
 
+WARPはinbox実装がOS buildごとに変わるため、OS build下限指定だけではbyte同一性を担保しない。`Microsoft.Direct3D.WARP` redistributableのversionとhashをtoolchain-dependencies.mdのlock表でexact pinし（現時点未固定。pin追加は§25のtoolchain変更で行う）、`fixture.rendering.d3d12-warp-conformance`はapp-local WARP DLLを明示ロードして、そのhashをQualification Receiptへ記録する。
+
 ### 23.5 Performance／soak
 
 - 8時間Editor multi-window soak、resize／HDR／Play開始停止／device recovery。
-- 2D／3D vertical sliceのcold／warm PSO、descriptor peak、transient alias、upload／readback peak。
+- 合成stress fixture（Phase 2）と`fixture.product.shooter-2d`／`fixture.product.shooter-arena-3d`（各Phase 3／6完了後の再Qualification。§29.2の段階化に従う）のcold／warm PSO、descriptor peak、transient alias、upload／readback peak。
 - Direct統合pathとasync compute pathの同一output、frame time、queue overlap。
 - Memory pressure 75／85／95／100%相当でcache eviction、allocation rejection、recovery。
 - 10,000 surface resize、100 device recreation fault run、1,000 pipeline cache invalidation。
 
 共通測定window、warm-up、percentile、regression thresholdはRuntime Performance Ownerを参照し、本書で複写しない。
+
+### 23.6 Phase-owned Qualification
+
+Backend実装の完了とProduct content統合を次の四Gateへ分離する。後段Gateの未実行をPhase 2 Backend C1のfailureにせず、Product Registryが各Phaseで同じBackend Profile／Candidate hashへReceiptを追加する。
+
+| Gate | Required fixture／evidence | Owner phase | Phase 2 completion input |
+|---|---|---|---|
+| Backend C1 | `fixture.product.windows-empty-scene`、`fixture.rendering.d3d12-warp-conformance`、`fixture.rendering.d3d12-hardware-smoke`のNVIDIA／AMD／Intel row、`fixture.rendering.d3d12-device-loss-injection`。合成stressとEditor multi-windowをsubfixtureとして含む | Phase 2 `phase.editor-runtime` | required |
+| Product integration | `fixture.product.shooter-2d` | Phase 3 `phase.manual-2d`とPhase 4 `phase.ai-authoring-mvp-a` | deferred、not evaluated |
+| 3D integration | `fixture.product.shooter-arena-3d` | Phase 6 `phase.manual-3d-mvp-b` | deferred、not evaluated |
+| C2 matrix | Product Registryのcross-genre／multi-target fixture set | Phase 8 `phase.production-capability` | deferred、not evaluated |
+
+Task 13はBackend C1だけを実行して`D3d12BackendQualificationReceiptV1`を発行する。Product integration、3D integration、C2 matrixは同じ数値式を再利用するが、各Product Work PackageのCandidate／Target Receiptであり、D3D12 Backend Work Packageの完了条件へ逆流させない。
 
 ## 24. Architecture／MCD反映順序
 
@@ -842,7 +892,7 @@ Hardware model、driver version、OS build、SDK hash、Profile hashをReceipt�
 | `01-governance/ai-security-approval.md` | A2-only D3D12 Tool Catalog、Authoring非公開negative gate |
 | `01-governance/ai-verification-provenance.md` | Backend Qualification Receipt、hardware／driver／SDK freshness |
 | `02-foundation/core-architecture.md` | Render Graph Portからprivate D3D12 Adapterへの依存方向 |
-| `02-foundation/toolchain-dependencies.md` | pin維持、Agility export／package inspection、D3D12MA 3.2.0 API確認 |
+| `02-foundation/toolchain-dependencies.md` | pin維持、Agility export／package inspection、D3D12MA 3.2.0 API確認、`Microsoft.Direct3D.WARP` redistributableのversion／hash pin追加（値は未固定。lock ChangeSetでexact確定） |
 | `02-foundation/executable-contracts.md` | D3D12 MCD kind、A2-only operation projection、trace bound |
 | `02-foundation/cpp23-modules.md` | `mirakan.rendering.d3d12.adapter`、UI target rename |
 | `02-foundation/naming-project-layout.md` | D3D12 private directoryとVendor表記例外 |
@@ -850,7 +900,7 @@ Hardware model、driver version、OS build、SDK hash、Profile hashをReceipt�
 | `04-runtime/performance-capacity.md` | D3D12 budget telemetry projectionとReference measurement接続 |
 | `04-runtime/debugging-observability-replay.md` | Encoding trace、DRED attachment、device generation相関 |
 | `06-rendering/project-shader.md` | generated D3D12 binding layout／RS／PSO artifact binding |
-| `06-rendering/render-graph.md` | logical plan Owner、D3D12 consumer、Enhanced-only conformance |
+| `06-rendering/render-graph.md` | logical plan Owner、D3D12 consumer、Enhanced-only conformance、`RendererCapabilityProjectionV1`（`RendererCapabilitySignatureV1`のAuthoring向けredacted projection、native識別子除外field mask付き）の定義追加 |
 | `07-platform/windows.md` | HWND OwnerとD3D12 Surface Owner分離、new spec link |
 
 ## 26. Architecture lint追加
@@ -867,14 +917,17 @@ Hardware model、driver version、OS build、SDK hash、Profile hashをReceipt�
 10. D3D12 typeをProject／Save Schemaへ保存せず、Packageにはtyped artifact refだけを保存している。
 11. 旧`MIRAKAN-D3D12-*`、`windows_desktop_v1`、`d3d12_warp_conformance_v1`が0件である。
 12. External evidence ref、authority、verified dateが全Decisionにある。
+13. cross-queue edgeごとに`D3d12QueueHandoffV1`がexact一件あり、Producer SignalとConsumer Waitが同じ`GpuSubmissionSerialV1`を参照し、transition queueで両layoutが合法である。
+14. Task 13のrequired matrixにPhase 3／4／6／8 fixtureがなく、それらがProduct Registryの`deferred_not_evaluated`行として残る。
+15. `mirakan_rendering_d3d12`、`mirakan_d3d12_backend_tests`、`rendering.d3d12`が§7のclosed tableと一致する。
 
 ## 27. 公式一次資料と適用
 
 | 対象 | 一次資料 | 適用 |
 |---|---|---|
-| Agility SDK | [DirectX 12 Agility SDK downloads](https://devblogs.microsoft.com/directx/directx12agility/)、[Getting Started](https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/) | 1.619.4／619確認、EXE export、app-local runtime、Development layer分離 |
+| Agility SDK | [Microsoft NuGet `Microsoft.Direct3D.D3D12` 1.619.4](https://www.nuget.org/packages/Microsoft.Direct3D.D3D12/1.619.4)、[Getting Started](https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/) | stable 1.619.4／SDKVersion 619のartifact identity、EXE export、app-local runtime、Development layer分離。version／nupkg hashはToolchain lockだけが所有 |
 | Capability | [CheckFeatureSupport](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-checkfeaturesupport)、[Hardware Feature Levels](https://learn.microsoft.com/en-us/windows/win32/direct3d12/hardware-feature-levels) | Device作成とoptional query分離、Feature Levelを性能扱いしない |
-| Enhanced Barriers | [DirectX-Specs Enhanced Barriers](https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html) | sync／access／layout分離、optional query、alias、validation |
+| Enhanced Barriers | [DirectX-Specs Enhanced Barriers](https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html) | sync／access／layout分離、optional query、alias／discard ordering、queue-specific layout、Direct限定transition、cross-queue fence／wait、validation |
 | Command／Fence | [Executing and synchronizing command lists](https://learn.microsoft.com/en-us/windows/win32/direct3d12/executing-and-synchronizing-command-lists)、[Recording command lists](https://learn.microsoft.com/en-us/windows/win32/direct3d12/recording-command-lists-and-bundles) | Queue／Fence ownership、Allocator reuse condition |
 | Descriptor | [Descriptors overview](https://learn.microsoft.com/en-us/windows/win32/direct3d12/descriptors-overview)、[Shader-visible heaps](https://learn.microsoft.com/en-us/windows/win32/direct3d12/shader-visible-descriptor-heaps) | handle lifetime、heap、heap switch制約 |
 | Root Signature | [Root Signature limits](https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits)、[Root Signature 1.1](https://learn.microsoft.com/en-us/windows/win32/direct3d12/root-signature-version-1-1) | DWORD cost、static／volatile semantics |
@@ -882,10 +935,12 @@ Hardware model、driver version、OS build、SDK hash、Profile hashをReceipt�
 | Presentation | [For best performance, use DXGI flip model](https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/for-best-performance--use-dxgi-flip-model)、[Variable refresh rate](https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/variable-refresh-rate-displays) | flip model、tearing query、Present flag整合 |
 | HDR | [Use DirectX with Advanced Color](https://learn.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range) | FP16 scRGB general path、color space query |
 | Device fault | [Use DRED to diagnose GPU faults](https://learn.microsoft.com/en-us/windows/win32/direct3d12/use-dred) | Device作成前設定、breadcrumb／page fault、private Evidence |
-| Memory | [D3D12MA 3.2.0](https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/)、[CreateResource3](https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/class_d3_d12_m_a_1_1_allocator.html)、[Optimal allocation](https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/optimal_allocation.html) | one Allocator／Device、Enhanced initial layout、budget／pool／alias規則 |
+| Memory | [D3D12MA 3.2.0 documentation](https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/)、[official repository releases](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases)、[resource aliasing](https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/resource_aliasing.html) | release／header identity、`D3D12MA_RECOMMENDED_ALLOCATOR_FLAGS`、one Allocator／Device、thread-safe default、Enhanced initial layout、budget／pool／alias後の全resource初期化規則 |
 | Unreal | [Render Dependency Graph](https://dev.epicgames.com/documentation/en-us/unreal-engine/render-dependency-graph-in-unreal-engine)、[D3D12DynamicRHI](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/D3D12RHI/ID3D12DynamicRHI) | RDG／RHI分離、validation／trace、native escape非採用 |
 | Unity | [Render Graph fundamentals](https://docs.unity.cn/Packages/com.unity.render-pipelines.core%4017.0/manual/render-graph-fundamentals.html)、[D3D12 native interface](https://github.com/Unity-Technologies/NativeRenderingPlugin/blob/master/PluginSource/source/Unity/IUnityGraphicsD3D12.h) | handle／Graph phase、native plugin公開非採用 |
 | Godot | [Internal rendering architecture](https://docs.godotengine.org/en/stable/engine_details/architecture/internal_rendering_architecture.html)、[RenderingServer](https://docs.godotengine.org/en/stable/classes/class_renderingserver.html) | Server／Device／driver分離、opaque identity |
+
+上表は2026-07-22に公式一次資料へ再照合した。外部資料はAPI／Libraryの合法性、version identity、推奨flagだけを所有する。descriptor 20% headroom、HDR／SDR tolerance、30／60 run、recovery時間、8時間soakはMicrosoft、AMD、D3D12MAの推奨値ではなく、§29で固定するMiraikanai Qualification policyである。
 
 ## 28. Riskとmitigation
 
@@ -904,7 +959,7 @@ Hardware model、driver version、OS build、SDK hash、Profile hashをReceipt�
 
 ## 29. Qualification measurement contract
 
-MicrosoftのAPI仕様はMiraikanai製品の数値合否閾値を規定しない。次の値は公式API制約を満たした上で採用するMiraikanai固有のC1 Product Gateであり、測定開始後に変更しない。変更はBackend Profile revision、理由、旧新比較Receiptを必要とする。
+MicrosoftのAPI仕様はMiraikanai製品の数値合否閾値を規定しない。次の値は公式API制約を満たした上で採用するMiraikanai固有のBackend C1 Qualification policyであり、測定開始後に変更しない。変更はBackend Profile revision、理由、旧新比較Receiptを必要とする。Product contentの昇格は§23.6の後段Gateが別に所有する。
 
 ### 29.1 共通測定条件
 
@@ -915,7 +970,9 @@ MicrosoftのAPI仕様はMiraikanai製品の数値合否閾値を規定しない�
 
 ### 29.2 Descriptor headroom
 
-2D shooter、3D shooter arena、Editor multi-windowの各fixtureで、shader-visible CBV／SRV／UAV heapとSampler heapを別々に測る。各heapの`peak_live_descriptors / configured_capacity`が全runで`<= 0.80`、allocation rejection 0、stale descriptor diagnostic 0を合格条件とする。すなわち最低20% headroomを要求する。0.80超過時はcapacityを暗黙growせずProfile revisionを上げ、同じ30-run matrixを再実行する。
+測定fixtureは§23.6とProduct RegistryのPhaseに従い段階化する。Phase 2のBackend C1 descriptor入力は`fixture.product.windows-empty-scene`、合成stress fixture `fixture.rendering.d3d12-synthetic-stress`（procedural描画負荷でdescriptor／transient alias圧を再現する）、Editor multi-windowの3 fixtureとする。`fixture.product.shooter-2d`はPhase 3／4、`fixture.product.shooter-arena-3d`はPhase 6の完了後に同一Gate式で再Qualificationし、各Product Receiptを更新する。存在しないPhaseのcontent fixtureをBackend C1 candidate生成の前提にしない。
+
+各fixtureで、shader-visible CBV／SRV／UAV heapとSampler heapを別々に測る。各heapの`peak_live_descriptors / configured_capacity`が全runで`<= 0.80`、allocation rejection 0、stale descriptor diagnostic 0を合格条件とする。すなわち最低20% headroomを要求する。0.80超過時はcapacityを暗黙growせずProfile revisionを上げ、同じ30-run matrixを再実行する。
 
 ### 29.3 HDR／SDR visual tolerance
 
