@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:test-driven-development` for each implementation task and `superpowers:verification-before-completion` before recording a lifecycle transition. This plan is executable only after the Control Plane bootstrap approval is valid.
 
-**Goal:** Product PlanのPhase 0～9に登録されたWork Packageを、Control Plane→ECS→Headless Authoring→Windows Editor→2D First Playable→AI MVP-A→External Agent／Project Source→3D First Playable→Mobile→C2 2D→deny-only Runtime generation boundaryの順で、推測なしに実装・検証できるtask-level DAGへ落とす。
+**Goal:** Product PlanのPhase 0～9に登録されたWork Packageを、Control Plane→ECS→Headless Authoring→Windows Editor→2D First Playable→AI MVP-A→External Agent／Project Source→3D First Playable→Mobile→C2 2D→deny-only Runtime generation boundaryのProduct outcome順へ閉じる。deny-only実装はSecurity laneとしてControl Plane後に先行できるが、Phase 9 exitの判定と表示はPhase 8後にfresh Candidateで再評価するtask-level DAGとする。
 
 **Authority:** [Product Plan §11](../architecture/00-product/product-plan.md#11-product-execution-registries)がPhase、Work Package、Capability、Target、Fixture、Gate、scheduling stateの唯一の正本である。本書は実行順、artifact root、test、Receipt、rollbackを定めるconsumerであり、Product registry行を複写してActivationさせない。
 
@@ -13,12 +13,14 @@
 1. 実行開始時にcurrent Product Registry hashをread-backし、本書記載IDの集合と差があれば`diagnostic.architecture.baseline-mismatch`で停止して本書を更新する。古い行へbest effortで合わせない。
 2. `scheduling_state=ready`へ進めるのは、全`requires_work_package_refs[]`が`complete`、Owner文書がapproved、有効な`ControlPlaneBootstrapApprovalV1`がある場合だけである。
 3. Work Package完了はappend-only `WorkPackageLifecycleRecordV1`だけに記録する。Product RegistryへReceipt refやRequirementを追記しない。
-4. Phase completionはそのPhaseの`PhaseFixtureBindingRegistryV1.exit_gate_refs[]`だけが判定する。Work Packageの`provided_fixture_refs[]`だけではPhaseを完了しない。
-5. required／optional Capability Target bindingにexact `CapabilityTargetActivationV1`行がなければaggregate前に停止する。missingを`not_activated`へ補正しない。
-6. Source、Candidate、Contract、Toolchain、Target、Device、policy、Receipt freshnessが同じclosureへ閉じないEvidenceをjoinしない。
-7. failed／cancelled taskはSourceとlast-valid Project revisionを不変にし、staging／intermediateだけを破棄または隔離する。前回Qualified artifactへの明示fallback以外を自動選択しない。
-8. calendar日数、人数、費用は計画値を発明しない。§3のrelative sizeと、同じtask classで得たactual lead time／failure rate／review latencyからだけ予測を更新する。
-9. Portable Work Packageの`complete`とTarget別Capability Activationを同一視しない。Ownerが定義した全Targetのcontract／cross-compile Receiptでportable WPを完了できても、Windows実機ReceiptでAndroid／Appleの`CapabilityTargetActivationV1`を昇格させない。実機利用可能性はPhase 7のexact Target gateが別に所有する。
+4. Phase completionはそのPhaseの`ProductPhaseRegistryV1.exit_gate_refs[]`に列挙された各exact refを`PhaseFixtureBindingRegistryV1.gate_id`へ解決し、その全Gateだけで判定する。Work Packageの`provided_fixture_refs[]`だけではPhaseを完了しない。
+5. Phase `N`のexit successとProduct milestone表示は、同一Product Registry revisionでPhase `0..N-1`の全exit gateが現在も有効な場合だけ公開する。後段WPの技術実装またはlifecycle `complete`を先行できても、先行Phaseをskip、代用、遡及成功させない。
+6. required／optional Capability Target bindingにexact `CapabilityTargetActivationV1`行がなければaggregate前に停止する。missingを`not_activated`へ補正しない。
+7. Source、Candidate、Contract、Toolchain、Target、Device、policy、Receipt freshnessが同じclosureへ閉じないEvidenceをjoinしない。
+8. failed／cancelled taskはSourceとlast-valid Project revisionを不変にし、staging／intermediateだけを破棄または隔離する。前回Qualified artifactへの明示fallback以外を自動選択しない。
+9. calendar日数、人数、費用は計画値を発明しない。§3のrelative sizeと、同じtask classで得たactual lead time／failure rate／review latencyからだけ予測を更新する。
+10. Portable Work Packageの`complete`とTarget別Capability Activationを同一視しない。Ownerが定義した全Targetのcontract／cross-compile Receiptでportable WPを完了できても、Windows実機ReceiptでAndroid／Appleの`CapabilityTargetActivationV1`を昇格させない。実機利用可能性はPhase 7のexact Target gateが別に所有する。
+11. Product Registryのhash、format major、revisionのいずれかが変わった時点で、旧hashへ束縛されたPhase exit、Product milestone、Critical Path Completion Receiptを無効として非表示にする。現行契約はWork Package lifecycleまたはTarget Activation Evidenceの差分carry-forwardを定義しないため、[Future Capability Inception Plan §7.1](2026-07-23-future-capability-inception-plan.md#71-current-approvalとevidenceの再確立)のreset、二段階再承認、全面revalidationを経ない旧Receiptをcurrent成功へ使用しない。
 
 ## 2. Critical path DAG
 
@@ -37,10 +39,12 @@ flowchart TD
     CP7A["CP7A External MCP Proposal"]
     CP7B["CP7B Native / Shader Source Activation"]
     CP8["CP8 3D Systems + Shooter + ECS E5 / E7"]
+    CP9M["CP9M Mobile common dual-target acceptance"]
     CP9A["CP9A Android Vulkan / I-O / ECS E7 / Package"]
     CP9B["CP9B Apple Metal / I-O / ECS E7 / Package"]
     CP10["CP10 C2 2D multi-genre / multi-target"]
-    CP11["CP11 Runtime generation deny-only boundary"]
+    CP11I["CP11-I Runtime generation deny-only implementation"]
+    CP11G["CP11-G Phase 9 exit re-evaluation"]
 
     CP0 --> CP1 --> CP2 --> CP3
     CP3 --> CP4A
@@ -52,14 +56,17 @@ flowchart TD
     CP6B --> CP7A
     CP6B --> CP7B
     CP6B --> CP8
-    CP8 --> CP9A
-    CP8 --> CP9B
+    CP8 --> CP9M
+    CP9M --> CP9A
+    CP9M --> CP9B
     CP9A --> CP10
     CP9B --> CP10
-    CP0 --> CP11
+    CP0 --> CP11I
+    CP11I --> CP11G
+    CP10 -. "Product Phase-order publication barrier" .-> CP11G
 ```
 
-CP7AとCP7Bは同じPhase 5に属するが、Proposal-only external clientとCode owner付きSource生成を相互依存させない。CP9AとCP9Bは共通portable contractまでを共有し、Device／backend／package／ReceiptをTarget間で流用しない。CP11はC2へ依存しないdeny-only境界である。
+CP7AとCP7Bは同じPhase 5に属するが、Proposal-only external clientとCode owner付きSource生成を相互依存させない。CP9MはAndroid／Apple acceptance subtaskを一つのportable WPへjoinし、その後にCP9AとCP9Bを分岐する。両Target laneでDevice／backend／package／Receiptを流用しない。CP11-IはC2 Capability、Receipt、artifactを消費しないdeny-only実装laneである。CP10からCP11-Gへの点線は技術依存ではなくProduct Plan §6のPhase公開順だけを表し、Phase 8の成功をRuntime policyのEvidenceへ流用しない。
 
 ## 3. Work unit and estimation contract
 
@@ -82,8 +89,41 @@ CriticalPathTaskV1
   completion_receipt_policy_ref
   rollback_and_last_valid_ref
   size_band
-  blocked_diagnostic_ref?
+  blocked_diagnostic_ref: exact registered diagnostic ref | null
 ```
+
+`blocked_diagnostic_ref` Fieldは常に存在する。taskがblockedでなければ`null`、prerequisite、Owner approval、Target／Device、Code owner、signing、dependency lock、Receipt freshnessのいずれかで停止した場合は、その原因Ownerが登録済みのexact Diagnostic IDを一件だけ設定する。該当Diagnosticが正本に未登録なら新IDを推測せず`diagnostic.architecture.baseline-mismatch`で計画更新へ戻し、taskを`ready`または`blocked`へ遷移させない。
+
+### 3.1 実行前materialization gate
+
+§5～§14の`CP*`節と`**WP:**`行は複数WPに共通する実行templateであり、`CriticalPathTaskV1` instanceそのものではない。現計画時点は有効なControl Plane baseline、Bootstrap Approval、prerequisite lifecycle headが未materializeのためinstance 0件が正しく、将来hashやrefを仮記入しない。Control Plane bootstrap後、最初のWPを`ready`へ進める前に次のplan-local projectionを生成する。
+
+```text
+CriticalPathCoverageManifestV1
+  product_registry_sha256
+  control_plane_baseline_ref
+  control_plane_bootstrap_approval_ref
+  critical_path_plan_sha256
+  executable_bindings[]
+    work_package_ref
+    template_section_anchor
+  deferred_work_package_refs[]
+```
+
+Manifest rootと`executable_bindings[]` itemは全Field required、unknown Field禁止のclosed schemaとし、全refはcontent-addressed current artifactへ解決する。
+
+`executable_bindings[]`はcurrent `WorkPackageRegistryV1`のnon-deferred WP setとset equalityかつ各WP exactly once、`deferred_work_package_refs[]`はdeferred setとset equalityにする。現baselineでは前者71件、後者は`wp.foundation.cpp23-cx2-cutover`、`wp.foundation.cpp23-cx3-shipping`、`wp.product.general-coverage-3d`の3件、union 74件である。配列はWP IDのunsigned UTF-8 byte順、二集合の重複、unknown、missing、duplicate、`**WP:**`への二重記載、Product Phase mismatchを拒否する。`template_section_anchor`は本書のcurrent file hash内のexact heading fragmentで、表示名やCP番号だけから推測しない。Future migrationでWP setが変わる場合は本書とManifestを同じtarget treeで更新する。
+
+実行時はbindingをgroup単位の一行にせず、各WPの実行直前にexactly one `CriticalPathTaskV1`へ展開する。`work_package_refs[]`のcardinalityは1、`task_plan_id`はその唯一のWP IDとbyte-exactなplan-local projection keyとし、新しいStable ID、Product Registry行、aliasを作らない。各Fieldは次だけから解決する。
+
+- `product_registry_sha256`、`owner_document_refs[]`、`target_refs[]`はcurrent Product rowとexact一致し、Ownerはapproved current bytesである。
+- `prerequisite_lifecycle_record_refs[]`はProduct rowの`requires_work_package_refs[]`順をWP ID byte順へ正規化した各WPのcurrent lifecycle head refで、全headの`to_scheduling_state=complete`とdestination Product hashをread-backする。未完了、missing、extra、旧hashならtaskをmaterializeしない。prerequisiteなしだけ空配列を許す。
+- `baseline_receipt_ref`はcurrent `architecture/baselines/control-plane-v1.json`のcontent-addressed refで、その`control_plane_bootstrap_approval_sha256`がManifestのApproval wrapper hashと一致する。
+- `artifact_roots[]`はtemplateのArtifactsまたはapproved Owner implementation planのFile listから作る。`positive_fixture_refs[]`はtemplateがexact IDで選んだProduct rowの`provided_fixture_refs[]` subsetとOwner登録済みacceptance fixture、`negative_fixture_refs[]`はOwner登録済みsingle-cause negative fixture refだけから作る。`provided_fixture_refs[]`の全量を現在Phaseへ前倒しせず、自由文をrefへ変換せず、zero件、missing、unknown、Owner不一致なら停止する。
+- `build_driver_profile_refs[]`は各`target_refs[]`のcurrent Target Profileから、`verification_commands[]`はそのProfileとregistered fixture commandから生成する。Targetとのset差、手入力compiler／generator、literal placeholderを拒否する。
+- `completion_receipt_policy_ref`と`rollback_and_last_valid_ref`はapproved Owner文書のcurrent exact ref、`size_band`はbinding先template、`blocked_diagnostic_ref`は§3のclosed規則から取得する。Field欠落を空文字列、推定値、group既定値で埋めない。
+
+各materialized rowのJCS hash、Coverage Manifest hash、検証用`VerificationReceiptV1`を一つのfresh `TechnicalQualificationReceiptV1`へ閉じてから実装を開始し、その完成Receipt refを当該WPの`WorkPackageLifecycleRecordV1.receipt_refs[]`へ記録する。同じProduct hash／WPに異なるtask row subjectの成功Receiptを複数受理せず、retryは同じtask row配下の別attempt Receiptとして記録する。group completionは全member WPのcurrent lifecycle headが`complete`の場合だけ、Phase completionは§1.4のGateだけで成立する。現行deferred 3件はCoverageへ残すがtask rowを生成せず、Decision Gate成立後はProduct Plan、本書、Coverage Manifest、Bootstrap Approvalを更新するまで実行しない。
 
 Size bandはcalendar estimateではない。
 
@@ -135,7 +175,7 @@ node tools/architecture_lint/dist/main.js generate-index --check
 git diff --check
 ```
 
-C++／package command lineはTargetごとのexact `BuildDriverProfileV1`から生成し、手入力の別Generator／Compilerへ差し替えない。CTestは各Work Package IDをそのままLabelに持たせ、`ctest --test-dir <resolved build tree> --label-regex '^<exact work_package_id>$' --output-on-failure`をReceiptへ記録する。`<resolved build tree>`と`<exact work_package_id>`は実行前にProfile／Registryから展開した値を保存し、literal placeholderのまま実行しない。
+C++／package command lineはTargetごとのexact `BuildDriverProfileV1`から生成し、手入力の別Generator／Compilerへ差し替えない。CTestは各Work Package IDをLabelに持たせる。`--label-regex`引数はraw IDを連結せず、Stable ID grammar検証後に各`.`をliteral character class `[.]`へ置換し、その他の許可済みlowercase ASCII文字を不変にして先頭`^`／末尾`$`を付ける（例: `wp.runtime.ecs-e0`は`^wp[.]runtime[.]ecs-e0$`）。resolved build tree、raw WP ID、escaped pattern、実行command、selected test name／全labelをReceiptへ保存し、selected testの対象labelがraw WP IDとbyte-exactでない、または別WP labelを含む場合は拒否する。placeholderを残したcommandやshell再解釈される文字列連結を実行しない。
 
 ## 5. Phase 0: Foundation and ECS E1/E2
 
@@ -147,13 +187,15 @@ C++／package command lineはTargetごとのexact `BuildDriverProfileV1`から�
 
 - Positive: `fixture.product.headless-contract-smoke`、E0 contract round-trip、deterministic scheduling、CX0 header build。
 - Negative: bootstrap approval差、dirty tree、old Work Package Field、invalid entity handle、scheduler dependency cycle、Production `.ixx`混入。
-- Completion: 各WPのfresh contract Receipt＋`gate.product.phase-0-headless-contract`。CX1 probeはCX0 completionに数えない。
+- Completion: 各WPのfresh contract Receiptと対応する`WorkPackageLifecycleRecordV1`。Phase GateはCP1／CP2の完了前に要求せず、Phase aggregateである本節末尾だけが評価する。CX1 probeはCX0 completionに数えない。
 - Rollback: Control Plane materialization前のapproved baselineとCX0 Headerをlast-validに維持する。
 - Size: XL。既存三計画を別Candidateで並行完了させない。
 
 ### CP1: ECS E1 storage
 
-**WP:** `wp.runtime.ecs-e1-storage`。**Prerequisite:** `wp.runtime.ecs-e0`のcurrent lifecycle stateが`complete`。
+**WP:** `wp.runtime.ecs-e1-storage`。
+
+**Prerequisite:** `wp.runtime.ecs-e0`のcurrent lifecycle stateが`complete`。
 
 - Artifacts: `engine/runtime/ecs/` storage/archetype/chunk/location components、`tests/contracts/runtime_ecs/`、`tests/performance/runtime_ecs/`。
 - Positive: create/destroy、archetype transition、16 KiB chunk、generation retirement、deterministic layout、allocation failure rollback。
@@ -164,7 +206,9 @@ C++／package command lineはTargetごとのexact `BuildDriverProfileV1`から�
 
 ### CP2: ECS E2 query and mutation
 
-**WP:** `wp.runtime.ecs-e2-query-mutation`。**Prerequisite:** E1 lifecycle Record。
+**WP:** `wp.runtime.ecs-e2-query-mutation`。
+
+**Prerequisite:** E1 lifecycle Record。
 
 - Artifacts: ECS query normalization、access manifest、lease、command merge、structural commit components。
 - Positive: query cache、readonly/write lease、canonical iteration、deferred command batch、conflict-free parallel access。
@@ -182,7 +226,7 @@ Phase 0 exitはCP0～CP2の全WPがcompleteで、同一Candidateの`gate.product
 **WP:** `wp.runtime.ecs-e3-cook-load`、`wp.authoring.project-state-headless`、`wp.authoring.asset-save-headless`、`wp.authoring.headless-core`。
 
 - Artifacts: ECS world image／loader、`authoring/model`、`authoring/changes`、`authoring/assets`、`authoring/build`、Project transaction/recovery tests。
-- Parallelism: E3 world image testsの後、Project State transactionとAsset/Save importerを別componentで並行可能。`wp.authoring.headless-core`がjoinする。
+- Ordering: `wp.runtime.ecs-e3-cook-load`完了後に`wp.authoring.project-state-headless`、その完了後に`wp.authoring.asset-save-headless`、最後に`wp.authoring.headless-core`を実行する。Product Registryの`requires_work_package_refs[]`どおり直列とし、Project StateとAsset／Saveを並行実行しない。
 - Positive: new project→typed change→commit→cook→load→save→reload、二回cook byte一致、manual authoring round-trip。
 - Negative: stale revision、unknown Field、missing Asset、corrupt section、cancel mid-import/cook、disk full、partial commit、recovery snapshotをSource扱いする試行。
 - Completion: `fixture.product.authoring-transaction`、`gate.product.phase-1-authoring-transaction`、4 lifecycle Records。
@@ -300,9 +344,20 @@ Phase 0 exitはCP0～CP2の全WPがcompleteで、同一Candidateの`gate.product
 
 ## 12. Phase 7: Android and Apple mobile closure
 
+### CP9M: Mobile common dual-target acceptance join
+
+**WP:** `wp.platform.mobile-offline`。
+
+- Execution: AndroidとAppleのOwner acceptanceは同じtask row配下のTarget別subtaskとして並行できるが、subtaskはWork Package ID、`CriticalPathTaskV1`、lifecycle transitionを所有しない。両subtaskはexact Target Profile／Build Driver／Device Receiptを別々に保持する。
+- Positive: Android／Appleそれぞれのoffline lifecycle contract、suspend／resume／terminate、Save boundary、networkなしのfailure policy。
+- Negative: 一Target Receiptの他Target流用、一TargetだけでWP complete、cross-target artifact hash、stale OS／device／profile、silent cloud fallback。
+- Completion: 両Targetのfresh Owner acceptance Receiptを一つのcompletion policyでjoinし、`wp.platform.mobile-offline`に対する唯一の`CriticalPathTaskV1`と一回の`WorkPackageLifecycleRecordV1`だけを発行する。
+- Rollback: 一Targetでも不合格ならWPをcompleteにせず、両TargetのActivationを`not_activated`に維持する。
+- Size: L。
+
 ### CP9A: Android
 
-**WP:** `wp.rendering.vulkan-backend`、`wp.platform.mobile-offline`のAndroid row、`wp.platform.mobile-io-ui-android`、`wp.runtime.ecs-e7-android-2d`、`wp.runtime.ecs-e7-android-3d`、`wp.platform.android-package`。
+**WP:** `wp.rendering.vulkan-backend`、`wp.platform.mobile-io-ui-android`、`wp.runtime.ecs-e7-android-2d`、`wp.runtime.ecs-e7-android-3d`、`wp.platform.android-package`。
 
 - Positive: clean package/install/offline launch、lifecycle suspend/resume/terminate、touch/controller/audio/UI、Shooter 2Dと3Dのsame-target run、Vulkan/device loss。
 - Negative: Windows/Apple Receipt流用、Device generation/OS/driver/package drift、background loss、surface recreate、permission denial、ABI/page-size/package failure、2Dだけで3D gate通過。
@@ -312,7 +367,7 @@ Phase 0 exitはCP0～CP2の全WPがcompleteで、同一Candidateの`gate.product
 
 ### CP9B: Apple
 
-**WP:** `wp.rendering.metal-backend`、`wp.platform.mobile-offline`のApple row、`wp.platform.mobile-io-ui-apple`、`wp.runtime.ecs-e7-apple-2d`、`wp.runtime.ecs-e7-apple-3d`、`wp.platform.apple-package`。
+**WP:** `wp.rendering.metal-backend`、`wp.platform.mobile-io-ui-apple`、`wp.runtime.ecs-e7-apple-2d`、`wp.runtime.ecs-e7-apple-3d`、`wp.platform.apple-package`。
 
 - Positive: clean package/install/offline launch、lifecycle、input/audio/UI、Shooter 2D/3D same-target run、Metal/device loss。
 - Negative: Windows/Android Receipt流用、Device/profile/OS/package/signing drift、background suspension、drawable/device loss、permission denial、2Dだけで3D gate通過。
@@ -320,7 +375,7 @@ Phase 0 exitはCP0～CP2の全WPがcompleteで、同一Candidateの`gate.product
 - Rollback: Apple Targetだけをnot activatedに保ち、他Target stateを変更しない。
 - Size: XL。
 
-`wp.platform.mobile-offline`は一つのportable WPであり、Android laneとApple laneから二重のlifecycle transitionを発行しない。両TargetのOwner acceptance Receiptが揃った一回だけ`complete`へ遷移する。一方、Activation EvidenceはAndroid/Apple exact Target行へ別々に発行する。一Targetのfailureで他Target Receiptをrevokedにしないが、aggregate Product labelはrequired Target全行がfresh productionになるまで発行しない。
+`wp.platform.mobile-offline`はCP9Mだけが所有する一つのportable WPであり、CP9A／CP9Bからlifecycle transitionを発行しない。一方、Activation EvidenceはAndroid／Apple exact Target行へ別々に発行する。一Targetのfailureで他Target Receiptをrevokedにしないが、aggregate Product labelはrequired Target全行がfresh productionになるまで発行しない。
 
 ## 13. Phase 8: C2 2D production coverage
 
@@ -339,14 +394,17 @@ Phase 0 exitはCP0～CP2の全WPがcompleteで、同一Candidateの`gate.product
 
 ## 14. Phase 9: deny-only runtime generation boundary
 
-### CP11: Runtime mutation denial
+### CP11-I／CP11-G: Runtime mutation denialとPhase exit publication
 
-**WP:** `wp.product.runtime-generation`。**Prerequisite:** `wp.architecture.control-plane`だけ。C2を要求しない。
+**WP:** `wp.product.runtime-generation`。
+
+**Prerequisite:** `wp.architecture.control-plane`だけ。C2を要求しない。
 
 - Artifacts: Runtime Operation allowlist/deny policy、signed baseline binding、security/conformance fixtures。
 - Positive: runtimeから許可されていないgeneration/mutationが全Targetで拒否され、Project/Save/authoritative Worldが不変。
-- Negative: natural-language fallback、unknown Operation、unsigned payload、quota/authority missing、runtime network/provider call、AI proposalをRuntime Commit扱いする試行。
-- Completion: `fixture.product.runtime-generation-denial`と`gate.product.phase-9-runtime-generation-denial` contract-ci Receipt。
+- Negative: natural-language fallback、unknown Operation、unsigned payload、quota/authority missing、runtime network/provider call、AI proposalをRuntime Commit扱いする試行、Phase 8 exit前にPhase 9 success／milestoneを公開する試行。
+- Implementation completion: CP11-Iは`fixture.product.runtime-generation-denial`の署名済みcontract-ci `TechnicalQualificationReceiptV1`と`wp.product.runtime-generation` lifecycle Recordまでを、`wp.architecture.control-plane`完了後に先行作成できる。これをPhase 9 exit ReceiptまたはProduct milestoneとして公開しない。
+- Phase exit publication: CP11-GはPhase 8の三つのexit gateが同じProduct Registry revisionで有効になった後、CP11-I Evidenceをcurrent Candidate／Policy／Targetへ再bindしてfreshnessを再評価する。stale、Candidate差、Policy差ならfixtureを再実行し、freshな`gate.product.phase-9-runtime-generation-denial` Receiptが得られた場合だけPhase 9 exitを公開する。Phase 8 CapabilityやReceiptをdeny判定の入力にはしない。
 - Rollback: deny-only policyを維持する。positive runtime generationへfallbackしない。
 - Size: M。
 

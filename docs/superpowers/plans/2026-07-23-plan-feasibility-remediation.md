@@ -237,7 +237,7 @@ Product registryからtask-level implementation planを持たないWPを抽出�
 
 - [ ] **Step 2: 各Taskの実行契約を閉じる**
 
-各Taskにprerequisite WP／baseline Receipt、Owner文書、予定成果物path、positive／negative fixture、verification command、completion receipt、rollback／last-valid、blocked diagnosticを必須にする。実装済みとは表示せず全て`planning_only | declared`から開始する。
+各Taskにprerequisite WP／baseline Receipt、Owner文書、予定成果物path、positive／negative fixture、verification command、completion receipt、rollback／last-validと、常在する`blocked_diagnostic_ref` Fieldを必須にする。Fieldは非blocked時`null`、blocked時は登録済みexact Diagnostic ID一件とし、未登録IDを推測しない。Critical PathのWPはProduct正本の`declared | deferred`をそのまま保持し、CX2／CX3／C2 3Dの3件を`declared`へ変えない。Future entryだけを`planning_only`で開始し、Work Package scheduling stateとFuture planning stateを同じclosed setへ混在させない。
 
 - [ ] **Step 3: 並列化とGateを明示する**
 
