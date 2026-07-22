@@ -44,6 +44,21 @@ libFLACはSource Importにだけlinkし、GameHostへlinkしない。RuntimeはS
 
 外部Dependencyの事実はTarget実機Qualificationを省略する根拠にしない。Dependency更新はToolchain ownerの更新Gate、Adapter conformance、serialized fixture、performance再検証を通す。
 
+### 2.2 `AudioRuntimeProfileV1`
+
+```text
+AudioRuntimeProfileV1
+  profile_id
+  schema_version: 1
+  target_profile_ref
+  audio_required: bool
+  mixer_graph_ref
+  output_policy_ref
+  fallback_policy_ref
+```
+
+Project Sourceの`TargetProfileDocument`がTargetごとにexact一件を所有し、Cooked packageへhash付きで投影する。Play prepareは対象TargetのProfile欠落、重複、Target不一致、unknown Fieldを拒否し、`audio_required`の既定値を推測しない。`audio_required=true`ではdevice／format／routeを準備できなければPlayを拒否または既に開始済みのsessionをfaultにし、`false`ではtyped diagnostic付きsilent deviceを許可する。いずれもAudio completionをGameplay authorityへ昇格させない。
+
 ## 3. Architecture
 
 ```text
@@ -172,7 +187,7 @@ Voice slot不足時はcritical UI／dialogue reserved 16 slotを維持し、低p
 - accumulation: float32、denormal flush、finite check
 - final: soft clipではなくMaster limiter後に`[-1,1]`
 
-Deviceが48 kHzを受理しない場合、44.1／48／96 kHzのdevice rateへEngine-owned fixed-coefficient polyphase resamplerで最終変換する。未知rateやchannel layoutをnearestへ黙って変えず、Adapter capability不合格とする。Resampler coefficient、latency、qualityはgolden fixtureで固定する。
+Deviceが48 kHzを受理しない場合、44.1／48／96 kHzのdevice rateへEngine-owned fixed-coefficient polyphase resamplerで最終変換する。既知device channel layoutはmono、stereo、5.1、7.1に固定する。C1のEngine final outputはstereoで、mono deviceへはequal-power downmix、5.1／7.1 deviceへはfront L／R channelへのstereo submitを行う。これ以外のdevice rate（88.2／176.4／192 kHz等）とchannel layoutはnearestへ黙って変えず、Adapter capability不合格とし、挙動は§15の「Device format非対応」に従う。Resampler coefficient、latency、qualityはgolden fixtureで固定する。
 
 ### 8.2 C1 Bus graph
 
@@ -219,7 +234,7 @@ C1 Listenerは一つ。Split-screen／multi-listenerはC2。Transformはright-ha
 | `stereo_spread_m` | `[0,100]` |
 | `occlusion_policy` | off／snapshot |
 
-3D panとdistance attenuationはEngine Mixerが計算する。Dopplerはspeed of sound 343 m/sのReference値をProfileへ保存し、relative velocityがnon-finite／supersonic hard範囲外ならeffectをclampせずcommandをrejectする。
+3D panとdistance attenuationはEngine Mixerが計算する。Dopplerはspeed of sound 343 m/sのReference値をProfileへ保存する。relative velocityがnon-finiteの`SetEmitter`／`SetListener`はcommandをrejectし、Voiceは前回のtransform／velocityを維持する（§15）。supersonic相対速度はShooter規約が許容する正当な入力であり、rejectせずdoppler pitch比率を`[0.5, 2.0]`へ決定的にclampして適用する。
 
 ### 9.2 Occlusion
 
@@ -282,7 +297,7 @@ Audio Editorはwaveform、sample-accurate loop、trim、loudness、true peak、c
 
 AIのAudio Import操作は`asset.inspect_source`、`asset.propose_import_profile`、`asset.request_preview`、`asset.propose_import_settings_change`、`asset.propose_reimport`へ限定する。Ambiguous channel、loop、gain、dialogue localeは質問を返し、file名から確定しない。
 
-Audio Authoring契約は`schemas/mirakan/audio/`のMCDを正本とし、C++、TypeScript、MCP Operation schema、validator、reference docsを生成する。最低限`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
+Audio Authoring契約は`schemas/mirakan/audio/`のMCDを正本とし、C++、TypeScript、MCP Operation schema、validator、reference docsを生成する。最低限`AudioRuntimeProfileV1`、`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
 
 semantic role、Cue parameter、Bus、DSP node、Snapshot、Spatial curve、diagnostic codeは`AudioSemanticCatalogV1`のStable IDへ登録する。表示名、file path、Editor selection、native handleを参照IDにしない。AIとEditorは同じCatalog revisionとvalidatorを使用し、unknown ID、range外、cycle、capacity超過、Target非対応をCommit前に拒否する。
 
@@ -304,6 +319,8 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 | Route／interruption | logical Voice pause、callback外reconfigure |
 | DSP non-finite | blockを出力せずAudio fault、NaNをdeviceへ送らない |
 | Audio deviceなし | `audio_required=false`ならsilent device、trueならPlay拒否 |
+| Device format非対応（rate／channel layout capability不合格） | `audio_required=false`ならsilent device＋typed diagnostic、trueならPlay拒否。nearest formatへ黙って変えない |
+| `SetEmitter`／`SetListener` non-finite | command reject、前回transform／velocity維持、typed diagnostic |
 | Callback generation stale | event破棄 |
 
 ## 16. Activation境界

@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: MirakanUi Core、Editor Shell、Widget／Layout／Style、Event／Focus／Command、UI Rendering、Window／Dock、Text／IME、Semantic Tree、Accessibility bridge、UI ownershipと検証
 - 非正本範囲: Project transaction、Workspace journey、Asset operation、Gameplay model、外部Tool・SDK・Libraryの固定値、Runtime／Rendering／Platform内部。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -230,7 +230,7 @@ ui.{core,layout,events,semantics,text,rendering} <- editor.ui
 editor.ui <- editor.{docking,semantics}
 editor.{ui,docking,semantics} <- editor.shell
 
-ui.* Port <- {ui.d3d12,ui.directwrite,ui.tsf,ui.uia}.adapter
+ui.* Port <- {ui.d3d12,ui.directwrite,ui.tsf,ui.uia,ui.harfbuzz_freetype}.adapter
 editor data-transfer Port <- editor.ole.adapter
 EditorHost composition root
   -> platform.windows
@@ -604,7 +604,7 @@ UIAはassistive technologyとblack-box UI testのWindows標準interfaceである
 - Font scale 200%、High Contrast、reduced motionで全C1 flowを操作可能にする。
 - Tooltipだけにrequired情報を置かない。
 - Drag-only操作にCommand、keyboard、context menuの代替を持つ。
-- Focus indicatorは最低2 logical px、primary actionは最低32×32 logical px。
+- Focus indicatorとprimary action hit targetの最小値は[Editor Workspace UX §12.2](editor-workspace-ux.md#122-sizeとdpi)を正本として消費し、本書で値を再定義しない。
 - Iconにはaccessible nameまたは隣接textを持たせ、形状だけの未知iconをprimary commandにしない。
 
 ## 16. Ownership、Memory、Thread
@@ -631,7 +631,7 @@ Worker resultはProject revision、Panel generation、Tree generation、Style／
 
 ### 16.3 Editor UI budget
 
-Windows Reference hardware、2560×1440、100% DPI、Production Workspaceを初期計測条件とする。
+Windows Reference hardware、2560×1440、100% DPI、Production Workspaceを初期計測条件とする。Reference hardware構成（CPU、RAM、storage、GPU、driver固定方針）の正本は[Performance／Capacity](../04-runtime/performance-capacity.md)であり、本書は構成値を定義しない。
 
 | Budget | C1 hard cap |
 |---|---:|
@@ -646,6 +646,8 @@ Windows Reference hardware、2560×1440、100% DPI、Production Workspaceを初�
 | generated UI vertex／EditorHost／frame | 262,144 |
 | generated UI index／EditorHost／frame | 786,432 |
 | clip depth | 32 |
+
+generated UI vertex／indexへはtriangle meshとbounded cubic Bezier pathのtessellation結果だけを計上する。solid／linear-gradient rect、rounded rect／border、line／polyline、image／nine-slice image、glyph run、texture compositeはinstanced primitiveとしてdraw primitive上限だけへ計上し、vertex／index budgetへ計上しない。primitive上限とvertex／index上限は同時に適用し、先に到達した上限でproducerをtyped capacity errorにする。
 
 PanelのDomain data projection、thumbnail、Scene render target、Source file bufferは上表へ重複計上せず、それぞれEditor／Asset／Rendering／Source budgetへchargeする。上限超過時に一部Controlを黙って消さず、typed capacity error、virtualization不足、owner tagをProblemsへ出す。
 
@@ -719,7 +721,7 @@ C1で任意binary Editor pluginを読み込まない。First-party PanelもComma
 - 10万Asset virtualized Browser
 - 50,000 node Graphのviewport内materialization
 - 8時間Editor soak、1,000 Workspace switch、10,000 dock transaction
-- RTX 3060／RX 6600の両Reference構成でCPU、GPU、memory、allocation、device loss
+- Performance／Capacity規約が定める両Windows Reference構成でCPU、GPU、memory、allocation、device loss
 
 ### 19.5 Dependency negative gate
 
@@ -755,7 +757,7 @@ C1独自Editor UI Frameworkは次をすべて満たした時点で完了する�
 
 1. Editor binaryとSBOMに禁止GUI toolkitが含まれない。
 2. MirakanUi CoreをEditorとGame UIが共有し、Shipping Game closureにEditor targetが含まれない。
-3. Scene、Outliner、Inspector、Asset、Source、Session、Console、Problems、Profiler、Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、AI Partnerが独自Widgetで動作し、Debug dataはDebugging規約のtyped projectionだけを使う。
+3. Scene、Outliner、Inspector、Asset、Source、Session、Console、Problems、Profiler、Animation Timeline、Debug Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、AI Partnerが独自Widgetで動作し、Debug dataはDebugging規約のtyped projectionだけを使う。
 4. Dock、resize、tab reorder、floating、multi-monitor、複数Workspace保存と回復が成立する。
 5. DirectWrite、TSF、UIAをAdapter内へ隔離し、UTF-8／IME／screen readerを満たす。
 6. Human、keyboard、assistive technology、AIが同じtyped Command／ChangeSet／Validationを通る。

@@ -54,6 +54,7 @@ DomainPackManifest
   ai_vocabulary_refs[]
   ai_planning_recipe_refs[]
   performance_profile_refs[]
+  domain_composition_profile_refs[]
   migration_step_refs[]
   license_ref
   provenance_ref
@@ -63,6 +64,24 @@ DomainPackManifest
 `DomainPackReferenceAssetEntryV1`は`reference_asset_id`、`asset_type`、`source_relative_path`、`source_sha256`、`license_ref`、`provenance_ref`、`redistribution_policy_ref`をすべて必須とする。`reference_asset_set_sha256`はentryを`reference_asset_id`のunsigned UTF-8 byte順にcanonical encodingしたbytesと、各Source bytesのhash closureから計算する。Packの`content_sha256`は自己Fieldを除いたcanonical manifest bytes、`reference_asset_set_sha256`、全同梱payloadのcanonical root manifestから計算し、reference assetの追加、削除、license／provenance／redistribution policy変更で必ず変わる。
 
 Install validatorは各`redistribution_policy_ref`がPack配布とProject内利用を明示的に許可し、license／provenance snapshotがPack artifact内で解決できることを検証する。欠落、失効、Source hash不一致、利用範囲外ではPack全体を拒否し、類似Asset、生成Provider、user-provided Assetへ暗黙fallbackしない。[Asset Lifecycle](../03-authoring/asset-lifecycle.md)の`source_kind=domain_pack_reference`はこのentryのexact Pack version／content hash／asset ID／source hashだけを参照する。
+
+### 3.1 `DomainCompositionProfileV1`
+
+```text
+DomainCompositionProfileV1
+  domain_id
+  maturity_tier: C0 | C1 | C2 | C3
+  owner_pack_ref
+  required_capability_refs[1..64]
+  allowed_profile_refs[1..32]
+  fixture_refs[1..32]
+  target_profile_refs[1..16]
+  fallback_ref
+```
+
+`domain_id`は`domain.<lower_snake_case segment>...`のlogical IDで、maturity、Phase、schema／profile versionを埋め込まない。このnamespaceとschemaの意味は本書、各exact entryの内容は`owner_pack_ref`が指すDomain Pack artifactが所有する。`owner_pack_ref`は同じManifest内ではenclosing `DomainPackManifest.pack_id`を値としてcanonicalizeし、文字列`self`をserializeしない。同じinstalled closureでdomain IDのownerは厳密に一Pack、allowed profileはowner artifact内のexact ref、fixture／Target／Capability／fallbackはProduct registryで解決可能でなければならない。
+
+Project applyは選択domainに対してallowed profileをexact一件選び、全required capability、Target、fixture closureを検証する。maturityはProduct Planのtierと一致させるがidentityにせず、上位tier、類似profile、別domainへ暗黙fallbackしない。fallbackはProduct Registryのexact IDだけを許可し、未定義domainをdisplay labelやProfileから合成しない。
 
 全参照はexact versionまたはcontent identityへ固定する。required／optional、Source／Derived、data／native sourceを曖昧なtagで兼用しない。arrayは参照identityのcanonical orderでserializeし、missing ref、duplicate ref、自己依存、dependency cycle、同じCapabilityへの矛盾したversion要求を拒否する。
 

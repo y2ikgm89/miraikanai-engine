@@ -78,11 +78,13 @@ TypedAnimationEventTrackV1
 
 一Clipは1～4,096 frame、各`duration_ticks`は1～60,000、総durationは5,184,000 tick（60 Hzで24時間）以下とする。`default_speed_q16`はQ16.16の`[0.0625, 16.0]`で、0、負値、overflowを拒否する。一時停止はspeed 0へのSource書換えでなく、Animation stateまたはClock Domainのtyped commandを使う。Frameのuntrimmed pivotと`local_offset_m`はfiniteとし、Atlas repack／trim後も見かけ位置、Collider、socketを同じCPU正規座標へCookする。
 
-`forward | reverse | ping_pong`と`once | loop`の組合せをすべて定義する。`once`は終端poseを保持し、`loop`は定義済みseamへ戻る。ping-pongは端frameを折返し時に重複評価せず、3 frameなら`A,B,C,B,A`を一周期とする。1 frame clip、reverse、seek、loop跨ぎ、1 tick内の複数frame通過でも、既存のauthoritative event cursorと`AnimationEventTraversalPolicyV1`を使い、crossed typed Eventを境界順に高々一度だけ発行する。Editor scrubはisolated preview cursorを使いRuntime Eventを発火しない。
+`forward | reverse | ping_pong`と`once | loop`の組合せをすべて定義する。`once`は終端poseを保持し、`loop`は定義済みseamへ戻る。ping-pongは端frameを折返し時に重複評価せず、3 frameなら`A,B,C,B,A`を一周期とする。ping-pong復路はtraversal kind `reverse`のsub-intervalとして評価し、clipの`AnimationEventTraversalPolicyV1.reverse`（`suppress | emit_reverse`）をそのまま適用する。1 frame clip、reverse、seek、loop跨ぎ、1 tick内の複数frame通過でも、既存のauthoritative event cursorと`AnimationEventTraversalPolicyV1`を使い、crossed typed Eventを境界順に高々一度だけ発行する。Editor scrubはisolated preview cursorを使いRuntime Eventを発火しない。
 
 `TypedAnimationEventTrackV1.keys`はtick、event track ID、event key IDの順でcanonicalizeし、duplicate key ID、clip範囲外tick、未登録Event、payload type mismatchを拒否する。任意関数名やimporter文字列をdispatchしない。Gameplay Eventはvisibility、offscreen、GPU culling、Quality tier、presentation update LODでdrop／重複／遅延させない。
 
-`collision_pose_ref`と`socket_pose_set_ref`は登録済みCPU正規poseだけを参照する。Sprite alpha、GPU pose、Renderer visibilityからHitbox／Hurtbox／socketを生成せず、Presentation poseをauthorityへ戻さない。Sensor切替はCollision Ownerのtyped RuleへEventを渡し、AnimationがColliderを直接writeしない。fixtureはforward／reverse／ping-pong、once／loop、端frame、複数境界、Atlas repack、pivot／offset、CPU collision／socket pose、reimport conflict、Save／Replay event sequenceを固定する。
+`collision_pose_ref`と`socket_pose_set_ref`は登録済みCPU正規poseだけを参照する。Sprite alpha、GPU pose、Renderer visibilityからHitbox／Hurtbox／socketを生成せず、Presentation poseをauthorityへ戻さない。Sensor切替はCollision Ownerのtyped RuleへEventを渡し、AnimationがColliderを直接writeしない。fixtureはforward／reverse／ping-pong（ping-pong×reverse policy `suppress`／`emit_reverse`別の期待event列を含む）、once／loop、端frame、複数境界、Atlas repack、pivot／offset、CPU collision／socket pose、reimport conflict、Save／Replay event sequenceを固定する。
+
+`SpriteAnimationClipSourceV1`は`AnimationClip2DSourceAsset`の特殊形ではなく独立したSource Asset種であり、適用範囲は排他とする。sprite frame列だけを持つFlipbookは`SpriteAnimationClipSourceV1`を、transform／color等のproperty trackを要する2D clipは`AnimationClip2DSourceAsset`を使い、同じclipを両形式で二重に正本化しない。Graphのclip sample nodeは両Asset種のCooked 2D clipを参照できる。clip内`playback_mode`／`loop_mode`はclip-local sampling semanticsとしてclip sample node評価に適用し、`once`の終端は終端poseを保持する。state遷移の成立はGraphのtyped conditionとtransition policyだけが決定し、clip側fieldがGraph transitionを暗黙に発火・抑止しない。Graphがclipのplayback／loopを上書きする場合はclip sample nodeのtyped fieldで明示する。
 
 ### 2.3 3D Skeleton、Skin、Clip
 

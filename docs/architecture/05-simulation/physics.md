@@ -34,6 +34,7 @@ Module境界は次の意味へ固定する。
 | `Physics2DWorldProfileV1` | 2D gravity、solver semantics、worker class、Collision profile ref | Project source |
 | `Physics3DWorldProfileV1` | 3D gravity、solver semantics、worker class、Collision profile ref | Project source |
 | `PhysicsBody2DComponent`／`PhysicsBody3DComponent` | motion kind、mass source、damping、sleep／motion policy、Collider ref | World source |
+| `CharacterMotorProfileV1` | Character collider ref、max slope、step height、ground snap距離、slide／step iteration上限、speed上限 | Project source |
 | `PhysicsWorldHandle`／`PhysicsBodyHandle` | Engine generation handle | Runtime only |
 | `PhysicsStateSnapshotV1` | normalized transform、velocity、sleep、joint／character state | immutable tick snapshot |
 | `PhysicsSaveStateV1` | Engine-owned recoverable state | Save stream |
@@ -70,6 +71,10 @@ C1 CharacterはEngine-owned Kinematic Character Motorを使う。Backend固有ch
 
 `CharacterMoveIntentV1`はCharacter handle、consume tick ref、planar displacement、vertical proposal、jump edge、up direction、root-motion proposal、producer metadataを持つ。Stateは`disabled | airborne | grounded | sliding | stepping | ceiling_blocked`、Outputはresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnosticを持つ。
 
+`CharacterMoveIntentV1`の合成は`T40_MotionIntent`でPhysics CoreのCharacter Motorが所有する。MotorはGameplay移動入力、[Navigation](navigation.md)の`MovementIntentV1`、[Animation](animation.md)のroot-motion proposalをactor当たり一つの`CharacterMoveIntentV1`へ合成する。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のCharacter policyに従い、優先順位を暗黙に変更しない。
+
+Motorのmax slope、step height、ground snap距離、iteration上限、speed上限は§2の`CharacterMotorProfileV1`だけが保持し、stage 1が検証するProfileはこのProfileである。`NavAgentProfileV1`のslope／climbとの整合検証は[Navigation](navigation.md)のrequest validationが所有する。
+
 Motor resolverは次のsemantic stagesを固定する。
 
 1. Intent、generation、Profile、finite、speed、World versionを検証する。
@@ -92,7 +97,7 @@ ReplayはRuntime ownerへnormalized command、accepted async input、Profile／a
 
 主要failure classはinvalid profile、unqualified adapter、handle／generation mismatch、command conflict、joint frame invalid、character depenetration failure、native invariant violation、job drain failure、save incompatibilityである。tick publish、fault transition、recovery boundaryはRuntime ownerへ委譲する。共通memory、worker、queue、frame thresholdをここで再定義しない。
 
-Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、character slope／stair／platform、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
+Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、character slope／stair／platform（斜面際のstep、ceilingに接した状態のslide、moving platformからの降車、狭所でのdepenetration発振を含む）、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
 
 ## 5. AI semantics
 

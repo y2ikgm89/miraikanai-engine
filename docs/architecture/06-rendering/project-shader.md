@@ -109,6 +109,8 @@ ProjectShaderModuleV1
 
 `entry_points[]`はEntry ID、Stage、Export ID、threadgroup sizeまたはRaster／Ray interface、required Capabilityを持つ。Stageは`vertex | pixel | compute | mesh | amplification | ray_generation | ray_miss | ray_closest_hit | ray_any_hit | ray_intersection | callable`である。ProfileにないStageをSourceだけで有効化しない。
 
+ray系Stage（`ray_generation | ray_miss | ray_closest_hit | ray_any_hit | ray_intersection | callable`）と`mesh`／`amplification`のApple Target supportは、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のOwnerがApple向け変換経路でのartifact生成可否を検証してQualification Receiptを登録するまで、`ShaderTargetSupportV1`で`unsupported`を既定とする。検証前に当該StageへAppleの`required | optional`を宣言できない。
+
 ### 4.1 Value semantic
 
 `ShaderValueSemanticV1`は次を持つ。
@@ -184,7 +186,7 @@ Techniqueは宣言済みPassとResourceだけを使用する。Sourceまたはru
 
 ## 6. Portable HLSL source profile
 
-初期`source_language_profile_id`は`portable_hlsl_2021_v1`である。exact compiler、translator、validator、commit、artifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が固定し、本書へ複写しない。
+初期`source_language_profile_id`は`shader-profile.portable-hlsl-2021`である。exact compiler、translator、validator、commit、artifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が固定し、本書へ複写しない。
 
 許可するSource dependencyは同じModule closureのproject-relative file、Qualification済みProject Shader Module、Engine public Shader SDKだけである。absolute path、parent traversal、Engine private include、Vendor include、Network、generated build directory、environment-dependent includeを拒否する。
 

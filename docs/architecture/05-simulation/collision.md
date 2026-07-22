@@ -73,9 +73,11 @@ Triangle meshとHeight Fieldはstatic geometry専用である。Visual Meshを�
 
 ## 3. Material、Filter、Sensor
 
-`CollisionMaterialV1`はfriction、restitution、density、surface tag、combine semanticsをEngine語彙で保持する。Vendor material objectやcombine callbackは公開しない。Material変更はAsset version変更であり、live native shapeを外部からmutateしない。
+`CollisionMaterialV1`は`friction`（finite 0～16）、`restitution`（finite 0～1）、positive finite `density`、surface tag、`friction_combine`、`restitution_combine`をEngine語彙で保持する。両combine Fieldのclosed setは`average | min | max | multiply`である。異なるMaterial間で指定が一致すればそのoperator、不一致ならMiraikanaiの優先順`multiply > max > min > average`で上位を一つ選ぶ。operatorはそれぞれ`(a+b)/2`、`min(a,b)`、`max(a,b)`、`a*b`で、計算後にfrictionを0～16、restitutionを0～1へclampし、[Math core](../02-foundation/math-core.md)のcanonical quantizationを一度だけ適用する。densityはpair combineしない。Vendor default、material object、combine callbackを公開せず、Backend結果が本規則と違う場合はAdapterがEngine値へ正規化する。Material変更はAsset version変更であり、live native shapeを外部からmutateしない。
 
 `CollisionFilterProfileV1`はclosed channel ID、include／exclude relation、query visibility、event subscription classを持つ。pair許可は両側Profileから対称に解決し、片側だけが許可するconfigurationをinvalidとする。channel名はauthoring labelであり、Runtime dispatch keyにはstable contract IDを使う。
+
+event subscription class `hit`はsolver contactからの派生である。`hit`を選ぶProfileはtyped hit ruleを必須とし、hit ruleは対象channel集合、最小approach speed閾値（SI単位。0は全contactを許可）、`first_contact_only`（trueなら同一body pair・shape slot pairの継続contactにつき成立時に高々一度だけ発火し、falseならcontact成立ごとに発火する）を持つ。hit判定はcontact manifoldのnormalized approach speedだけを入力とし、Backend固有の判定条件を追加しない。
 
 Filterの決定順は次の意味を持つが、Runtime phase順ではない。
 
@@ -85,7 +87,7 @@ Filterの決定順は次の意味を持つが、Runtime phase順ではない。
 4. sensorならsolver responseを無効にし、overlap semanticsだけを残す。
 5. event subscriptionとquery visibilityを別々に評価する。
 
-Sensorはmass、force、jointを持たず、overlap eventのsourceとなるCollider shape propertyである。SensorをCCD保証やauthoritative hitの代用にしない。Gameplay volume、hitbox、camera obstructionは用途別Profileを使い、hard-coded channel分岐をProject C++へ散在させない。
+Sensorはmass、force、jointを持たず、overlap eventのsourceとなるCollider shape propertyである。SensorをCCD保証やauthoritative hitの代用にしない。Gameplay volume、hitbox、camera obstruction、Interaction Focusの対象発見（interaction）は用途別Profileを使い、hard-coded channel分岐をProject C++へ散在させない。interaction用途のSensor Profileはoverlapとversion付きQueryのsemanticsだけを提供し、solver responseとauthoritative hitを持たない。[Gameplay programming model](../03-authoring/gameplay-programming-model.md) §2.4のFocus Queryは`InteractionDefinitionV1.query_shape_ref`経由で本Profileを参照し、Profile IDを直書きしない。
 
 ## 4. Collision query contract
 
@@ -97,11 +99,19 @@ Sensorはmass、force、jointを持たず、overlap eventのsourceとなるColli
 - closest point
 - broad bounds query
 
-`result mode`は`closest | any | all`である。`all`はcallerが有限のresult boundを渡す。実hitがboundを超えた場合はpartial successを返さず、typed failureにする。QueryはWorldやBodyを変更しない。
+`result mode`は`closest | any | all`である。`all`はcallerが有限のresult boundを渡す。実hitがboundを超えた場合はpartial successを返さず、typed failureにする。QueryはWorldやBodyを変更しない。query kind×result modeの有効組合せとkind別ordering第1 keyは次表で固定し、無効な組合せはtyped failureとして拒否する。
 
-`CollisionQueryResultV1`はrequest ID、observed scene version、status、normalized hitのordered listを持つ。hitはEngine body handle／generation、Entity Stable ID、Collider Asset version、shape slot、subshape index、fraction／distance、position、normal、material／surface tagを持つ。native face、polygon reference、pointer、status bitsは含めない。
+| query kind | 有効result mode | ordering第1 key |
+|---|---|---|
+| ray cast | closest／any／all | fraction |
+| point／shape overlap | any／all | なし |
+| shape cast | closest／any／all | fraction |
+| closest point | closest | distance |
+| broad bounds query | any／all | なし |
 
-結果順は`fraction or distance, packed engine body handle, shape slot, subshape index, point lexicographic`で固定する。同値判定は[Math core](../02-foundation/math-core.md)のquantization／comparison契約を使用する。Queryが観測したscene versionとconsumerが要求したversionが一致しない場合は`stale`として破棄し、現Worldに再解決しない。
+`CollisionQueryResultV1`はrequest ID、observed scene version、status、normalized hitのordered listを持つ。hitはEngine body handle／generation、Entity Stable ID、Collider Asset version、shape slot、subshape index、fraction（ray／shape cast）またはdistance（closest point）、position、normal、material／surface tagを持つ。overlapとbroad bounds queryのhitはfraction／distance fieldを持たない。native face、polygon reference、pointer、status bitsは含めない。
+
+結果順は`kind別ordering第1 key（上表）, Entity Stable ID, shape slot, subshape index, point lexicographic`で固定する。packed engine body handleはsession-localでSaveへ保存されないため、ordering keyへ使わない。Entity Stable ID順の結果はSave／Load跨ぎ、Replay、cross-sessionで再現する。同値判定は[Math core](../02-foundation/math-core.md)のquantization／comparison契約を使用する。Queryが観測したscene versionとconsumerが要求したversionが一致しない場合は`stale`として破棄し、現Worldに再解決しない。
 
 非同期queryのacceptance、deadline、lease、consume slotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の正本に従う。Collision文書は`T20_AsyncIntegrate`等のcanonical identifierを参照するだけで、新しいphaseや別順序を定義しない。
 
@@ -114,12 +124,12 @@ Sensorはmass、force、jointを持たず、overlap eventのsourceとなるColli
 | `ContactEndV1` | solver contactが終了した |
 | `TriggerEnterV1` | Sensor overlapが新しく成立した |
 | `TriggerExitV1` | Sensor overlapが終了した |
-| `CollisionHitV1` | Profileが定めるhit semanticsを満たした |
+| `CollisionHitV1` | subscription class `hit`のProfileが持つhit rule（§3）を満たすsolver contactが成立した |
 | `ColliderRemovedV1` | Body／Collider generationがboundaryでretireした |
 
 共通payloadはtick ref、ordered body pair、両Entity Stable ID、generation、Collider Asset version、shape slot、material／surface tag、event kindを持つ。contact manifoldを持つeventではposition、AからBを向くunit normal、separation、normalized approach speedを格納する。solver impulseはBackend間で意味と観測時点が一致しないためGameplay eventへ含めず、non-authoritative telemetryへ分離する。
 
-Body pairはpacked Engine handleの昇順でA／Bを決める。eventは`event kind, body A, body B, shape slot A, shape slot B, contact point`のcanonical keyで並べる。callback arrival順、native ID、worker completion順は使用しない。End／Exitはmanifoldを持たず、`separated | disabled | profile_changed | teleported`のreasonを持つ。destroyは通常End／Exitではなく`ColliderRemovedV1`で通知する。
+Body pairは両Entity Stable IDの昇順でA／Bを決め、packed Engine handleをpair順へ使わない。eventは`event kind, body A, body B, shape slot A, shape slot B, contact point`のcanonical keyで並べる。callback arrival順、native ID、worker completion順は使用しない。End／Exitはmanifoldを持たず、`separated | disabled | profile_changed | teleported`のreasonを持つ。destroyは通常End／Exitではなく`ColliderRemovedV1`で通知する。
 
 Event subscriptionは`begin_end | persist | hit`を型付きで選ぶ。Sensorへ`persist`や`hit`を指定したconfigurationは拒否する。Runtime queue capacity、overflow、tick publish policyは[Runtime performance／capacity](../04-runtime/performance-capacity.md)の正本を消費し、Collision固有の共有queue値を定義しない。
 

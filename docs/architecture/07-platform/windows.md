@@ -15,8 +15,8 @@ Windows固有APIは`engine/platform/windows`と各Backend Adapterに閉じ、正
 
 生成Gameの公式Distributionは次の二つである。
 
-- `windows_msix_v1`: Microsoft Store、enterprise、直接配布向けの署名済みfull-trust MSIX
-- `windows_managed_layout_v1`: Steam等の外部配布clientがinstall／updateを管理する署名済みDirectory layout
+- `package-profile.windows.msix`: Microsoft Store、enterprise、直接配布向けの署名済みfull-trust MSIX
+- `package-profile.windows.managed-layout`: Steam等の外部配布clientがinstall／updateを管理する署名済みDirectory layout
 
 Development用portable layoutはShipping Distributionではない。Miraikanai独自の常駐auto-updater、kernel driver、system serviceをC1で実装しない。
 
@@ -172,7 +172,7 @@ Installed package、Asset Cache、Project sourceへGame Saveを書かない。Cr
 
 ## 8. Windows package
 
-### 8.1 `windows_msix_v1`
+### 8.1 `package-profile.windows.msix`
 
 full-trust Win32 applicationをMSIXへpackageする。
 
@@ -200,7 +200,7 @@ MSIX
 
 Editor本体もC2 Production Distributionではfull-trust MSIXを推奨する。Phase 0／C1の開発中は署名済みinternal MSIXとportable CI artifactを分け、portable artifactを一般配布物と表現しない。
 
-### 8.2 `windows_managed_layout_v1`
+### 8.2 `package-profile.windows.managed-layout`
 
 Steam等の外部client向けにはPlatform非依存のDirectory layout、content manifest、launch manifest、redistributable noticeを出す。Install／update／rollback／entitlementは配布clientが所有し、Miraikanai Game内で独自updaterを起動しない。
 
@@ -208,7 +208,7 @@ Layoutの実行fileとDLLへAuthenticode署名を行い、Package Receiptに全f
 
 ### 8.3 Development package
 
-`windows_development_layout_v1`はlocal Play／CI専用で、PDB、source map、D3D12 Debug Layer／DRED、validation layer、loose Catalog、Debugging規約のD2／D3 instrumentを含められる。各symbol／captureはBuild Receipt、Module hash、Session IDへ関連付け、絶対source pathやcredentialを共有Bundleへ既定で含めない。Shipping manifestと別ID／directoryを使い、Shipping signing／Store uploadへ昇格できない。
+`package-profile.windows.development-layout`はlocal Play／CI専用で、PDB、source map、D3D12 Debug Layer／DRED、validation layer、loose Catalog、Debugging規約のD2／D3 instrumentを含められる。各symbol／captureはBuild Receipt、Module hash、Session IDへ関連付け、絶対source pathやcredentialを共有Bundleへ既定で含めない。Shipping manifestと別ID／directoryを使い、Shipping signing／Store uploadへ昇格できない。
 
 ## 9. Build、Signing、Publication
 
@@ -225,7 +225,7 @@ Commit済みSource
 -> Receipt verification
 ```
 
-- `clean Build`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)の`windows_cmake_ninja_multi_v1` Driver mappingを使用する。IDEからも同じchecked-in entryを使い、別Product Build経路を生成しない。
+- `clean Build`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)の`driver.windows.cmake-ninja-multi` Driver mappingを使用する。IDEからも同じchecked-in entryを使い、別Product Build経路を生成しない。
 - `Development`、`Profile`、`Shipping`、`ASan`は同じGeneratorの明示Configurationであり、C++ Profile、Toolchain hash、Configurationが異なるBuild tree／BMIを共有しない。
 - Editor、AI、CIはBuild Gatewayを呼び、`ninja`または`cmake -G`を直接Product Build入口として公開しない。
 - Build Workerはprivate signing keyを持たない。

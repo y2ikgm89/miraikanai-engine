@@ -223,6 +223,8 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | 不要なBlocking質問 | Suite別5%以下 |
 | Cost／latency | Provider Manifest Budget以内 |
 
+Task successのSuite別基準の数値は、署名Policyが参照するEval Manifestを正本とし、本文書は全体95%以上の下限だけを定義する。Suite別基準の緩和はCase削除・期待値緩和と同じR3相当、Security SuiteはR4相当とする。
+
 repair_attempt_limitの値、適用単位、既定値、上限、停止条件は[AI Security／Approval](ai-security-approval.md)が署名PolicyとTaskAuthorizationEnvelopeで所有する。Eval runnerはauthorization_envelope_hashが指す署名済みEnvelopeから上限を読み、そのpolicy_set_hashとの整合性を検証し、GenerationReceiptV1のrepair_attempt_countと比較して結果を記録する。本文書は数値Defaultを定義しない。
 
 最初の権限／Gateway項目はModel EvalだけでなくBroker／Validatorの決定論的negative fixtureでも0件を要求する。有限Corpusの0件を未知入力の安全保証にせず、Productionでも同じGateを常時強制する。
@@ -291,6 +293,10 @@ VfxAiAuthoringFixtureV1は明確、Hybrid、High impact、未対応／敵対Case
 7. Incident、Drift、Costを監視する。
 8. 明示昇格またはRollbackする。
 
+Production Baselineが存在しない初回のProfile確立はBootstrapとして扱う。一変数比較の起点がないため手順1と2を適用せず、Candidate Provider Manifestを新IDで作り、Conformance、Eval、Cost、Latency、retentionと人間Reviewを同様に通し、最低Riskのcanaryだけで開始する。以後の変更は本手順に従う。
+
+全CandidateがEval基準を満たさない間は、13.のEval regression動作に従い現Production Baselineを維持する。失敗Caseは人間Reviewし、Caseの削除または期待値緩和が必要な場合は5.2のR3／R4手続きだけで行う。Candidateの再作成は本手順を最初からやり直す。
+
 floating alias、SDK range、Tool Schemaのruntime自動変更をProductionで使わない。API廃止等で複数変数が必要なら、理由、切分け不能範囲、追加canary、rollbackをADRへ記録する。
 
 sentinelはTool Schema acceptance、strict mode、required field／enum／refusal、Tool選択、禁止Tool、latency／cost、resolved model ID、retention／regionを検査する。失敗時は高Risk Taskを止め、Routine BuildはProviderなしで再現する。
@@ -330,12 +336,12 @@ Failure後は部分状態非公開、Resource解放、retryability、Diagnostic�
     input_artifacts[{uri, revision, sha256}]
     contract_set_hash, policy_set_hash
     toolchain_lock_hash
-    cxx_frontend_profile_id
-    build_driver_profile_id
-    build_tree_identity_hash
-    cpp_dependency_set_root_hash
-    module_graph_hash
-    module_cache_identity_hash
+    cxx_frontend_profile_id?
+    build_driver_profile_id?
+    build_tree_identity_hash?
+    cpp_dependency_set_root_hash?
+    module_graph_hash?
+    module_cache_identity_hash?
     command_id
     started_at, finished_at
     exit_class
@@ -343,6 +349,8 @@ Failure後は部分状態非公開、Resource解放、retryability、Diagnostic�
     output_artifacts[{hash, size, media_type}]
     metrics[]
     signature fields
+
+`?`付きの6 FieldはBuild／C++ Gateでだけ必須であり、非Build GateではField自体を省略する。空文字列、zero hash、sentinel profileを非該当の表現に使わない。どのGateがどのFieldを要求するかは署名済みGate Policy hashへ固定し、Runnerは必須Field欠落と非該当Field混入の両方を拒否する。
 
 exit_classはpass、fail、infrastructure_error、cancelledのclosed setとする。AIの「Testは通った」というTextからReceiptを作らない。Runnerが実ProcessとArtifactを観測した場合だけ発行する。
 
@@ -416,7 +424,7 @@ AI OrchestratorがAttemptごとに作成し、Model自身は署名しない。
     started_at, finished_at
     signature fields
 
-署名は「このOrchestratorがこのContextとProvider responseからArtifactを記録した」ことだけを証明し、出力の正しさを保証しない。
+署名は「このOrchestratorがこのContextとProvider responseからArtifactを記録した」ことだけを証明し、出力の正しさを保証しない。署名Keyはgeneration_receipt用途専用のAI Orchestrator Service identityに属し、Key管理と用途分離は[AI Security／Approval](ai-security-approval.md)に従う。
 
 ### 7.3 ReviewReceiptV1
 
@@ -614,7 +622,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 - 必須Gateが署名Policyから生成され、Task／AIが減らせない。
 - Engine-owned、Feature、AI-proposed Testが区別され、Test弱体化を検出する。
 - bounded formal modelと実装transition conformanceがあり、C++全体の証明と誤記しない。
-- 17 Eval suite、public／holdout／adversarial／incident dataset、restricted holdout Serviceがある。
+- 5.1の表に列挙する全Eval suite、public／holdout／adversarial／incident dataset、restricted holdout Serviceがある。
 - fixed Corpus 3 runの最悪回がSuite別hard conditionを満たす。
 - Context evidence、typed Operation、stale Decision、修復停止、Trace gradingをRelease基準へ含める。
 - Provider／Model／Prompt／Tool更新が一変数比較、canary、rollbackを通る。

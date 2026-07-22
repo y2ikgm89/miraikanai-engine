@@ -189,7 +189,7 @@ Terrain、foliage、water、snow／surfaceはDomain Ownerがtile／patch／clust
 
 `TerrainLodProfileV1`はscreen-space geometry error、quadtree patch bounds、neighbor level差上限、skirt／stitch policy、material residency、streaming cellを持ち、render patchはCollision height／Nav tile／Gameplay Surface Stateを置き換えない。`FoliageLodProfileV1`はinstance mesh chain、wind tier、shadow tier、impostor、cluster bounds、per-cell instance上限を持ち、Gameplay Collision subsetを描画LODへ追従させない。
 
-`WaterLodProfileV1`はsurface patch density、wave shading、reflection、underwater presentation、foam／spray VFXのTarget別tierを持ち、CPU Surface Query／Water Volume／浮力／swimming／Damage／Navigation costを変更しない。`SnowSurfaceLodProfileV1`はdynamic field update distance、normal／sparkle detail、降雪VFX density、static mask fallbackを持ち、Gameplay Surface State／friction／movement／foot contact／static coverageを変更しない。
+`WaterLodProfileV1`はsurface patch density、wave shading、reflection、underwater presentation、foam／spray VFXのTarget別tierを持ち、CPU Surface Query／Water Volume／浮力／swimming／Damage／Navigation costを変更しない。`SnowSurfaceLodProfileV1`はdynamic field update distance、normal／sparkle detail、static mask fallbackを持ち、Gameplay Surface State／friction／movement／foot contact／static coverageを変更しない。降雪particle密度の倍率は`vfx_presentation` classの`VfxLodProfileV1`だけが所有し、`SnowfallVfxProfileV1`の`density_scale`はauthored基準値である。
 
 residency requestはartifact generation、priority intent、deadline class、fallback candidateを持つが、queue、memory reservation、backpressure値を本書で決めない。候補のresidencyが失われた場合はgenerationを再検証し、stale GPU／streaming handleを再利用しない。
 

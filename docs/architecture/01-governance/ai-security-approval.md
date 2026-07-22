@@ -116,7 +116,7 @@ TaskAuthorizationEnvelopeはPolicy Serviceだけが発行し、AIが作成、変
 
 OperationはID＋versionのexact allowlistとし、wildcardを禁止する。Networkはdeny_all、Dependencyはno_change、AI TaskのSecretはno_secret_accessを既定とする。Pathはread／write／create／deleteを別に許可し、Process tree、CPU、memory、wall time、child count、output sizeをhard limitにする。
 
-repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、Policy Serviceが署名時に確定する。適用単位は同一task_idのTask全体において、初回Proposal後に許可する修復Proposal再提出回数である。初回Proposalは数えず、RepairableFailureからRunningへ戻して次のProposalを提出可能にする時点で1を消費する。GenerationReceiptV1のrepair_attempt_countはTask全体で単調増加し、Envelopeの更新／再発行、Worker、Model、Provider、Attemptの変更、再起動、AwaitingUserInputではresetしない。Goal、Input、Riskまたは権限変更により新Taskと新Envelopeを発行した場合だけ別の適用単位とする。
+repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、Policy Serviceが署名時に確定する。適用単位は同一task_idのTask全体において、初回Proposal後に許可する修復Proposal再提出回数である。初回Proposalは数えず、Validatingでblocking diagnosticを得てRunningへ戻し、次の修復Proposalを提出可能にする時点で1を消費する。GenerationReceiptV1のrepair_attempt_countはTask全体で単調増加し、Envelopeの更新／再発行、Worker、Model、Provider、Attemptの変更、再起動、AwaitingUserInputではresetしない。Goal、Input、Riskまたは権限変更により新Taskと新Envelopeを発行した場合だけ別の適用単位とする。
 
 署名Policyの既定値と上限を次に固定する。Envelopeは該当Riskの値以下へ縮小できるが、増加できない。
 
@@ -129,9 +129,11 @@ repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、
 | R4 | 0 |
 | R5 | 0 |
 
-通常TaskはR0を含め署名必須である。署名鍵作成前のBootstrapDiscoveryは通常State machine外に置き、local system情報読取り、Key生成、Public key registry初期化だけを許可する。Provider、Project読取り、Worker、任意Path、Network、変更を許可せず、初期化後に再実行できない。
+通常TaskはR0を含め署名必須である。製品内Chat等の連続する読取専用QueryはSession単位のR0 Envelope一つへ束ねてよい。このEnvelopeはread Operation allowlistと有効期限を固定し、Proposal組立へ進む時点で新Taskと新Envelopeを必要とする。署名鍵作成前のBootstrapDiscoveryは通常State machine外に置き、local system情報読取り、Key生成、Public key registry初期化だけを許可する。Provider、Project読取り、Worker、任意Path、Network、変更を許可せず、初期化後に再実行できない。
 
-署名RecordはMirakanSignedRecordV1を使用する。初期ProfileはECDSA P-256／SHA-256、RFC 8785 JCS、P1363固定64 byte、base64url without padding、low-S必須である。unknown field、duplicate key、invalid UTF-8、非有限値、高S、未知／失効／用途不一致／期限外Keyをfail closedで拒否する。秘密鍵は専用Service identityのnon-exportable Key storeへ置き、AI／Workerから分離する。
+署名RecordはMirakanSignedRecordV1を使用する。初期ProfileはECDSA P-256／SHA-256、RFC 8785 JCS、P1363固定64 byte、base64url without padding、low-S必須である。unknown field、duplicate key、invalid UTF-8、非有限値、高S、未知／失効／用途不一致／期限外Keyをfail closedで拒否する。秘密鍵は専用Service identityのnon-exportable Key storeへ置き、AI／Workerから分離する。AI Orchestratorにはgeneration_receipt用途専用のService identityとnon-exportable Keyだけを割り当て、この用途KeyをVerification、Approval、Promotion、Release用途へ流用しない。ActorのSecret保持禁止はProvider Credential等の可搬Secretを指し、このnon-exportable署名identityを含まない。
+
+鍵期限到来時の通常RotationはSecurity incidentではなく、BootstrapDiscoveryの再実行でもない。信頼済みAuthorityが発行する署名済みKeyRotation Operationとして、新Key生成、Public key registry更新、新旧Keyの重複有効期間の設定、失効リスト配布を行う。重複期間中は新旧両Keyでの検証を許可し、期限後の旧Keyは署名用途から除外する。過去Receiptの検証用に旧公開鍵と失効情報をregistryへ保持し、削除しない。侵害時のKey revocationとclean environment再構築を定期Rotationの代替にしない。
 
 ### 3.2 Task state machine
 
@@ -159,7 +161,7 @@ repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、
 
 AwaitingUserInputはResolvingRequirements、Running、Validatingからだけ入る。Authorization前の回答はSpecification draftを更新できる。Authorization後の回答がGoal、Success criteria、Input、Risk、Operation、Path、Network、Dependency、Gate、Approvalへ影響する場合、元TaskをCancelledにし、新Taskと新Envelopeを作る。
 
-修復はMCD RemediationV1があり、同じInput、Envelope内、permission／security／lock／approval／revision drift以外の場合だけ許可する。修復Proposal再提出はEnvelopeのrepair_attempt_limitを超えてはならない。同じblocking diagnostic＋location＋Stable ID集合が再発し、blocking数が減らない場合は残数があっても即停止する。
+修復はMCD RemediationV1があり、同じInput、Envelope内、permission／security／lock／approval／revision drift以外の場合だけ許可する。修復再実行はValidatingからRunningへ戻る遷移であり、正規14状態へ状態を追加しない。修復Proposal再提出はEnvelopeのrepair_attempt_limitを超えてはならない。同じblocking diagnostic＋location＋Stable ID集合が再発し、blocking数が減らない場合は残数があっても即停止する。
 
 Atomic commit、許可済みlong-running verification、Release transactionのcritical section開始後は、Cancel／Expiryで結果不明のまま終了表示しない。完了、rollback、read-backのいずれかへ収束させる。
 
@@ -173,14 +175,14 @@ Riskは変更後の最大影響で決め、AI自己申告で下げない。
 |---|---|---|---|---|
 | R0 | 読取、検索、説明、Report | 可 | 状態変更なし | 不要 |
 | R1 | 文書、非実行Sample、個人Editor layout | 可 | protected branch外かつ全Gate時だけ可 | Owner不要、Gate必須 |
-| R2 | GameSpec、World／Level、Scene、UI、Asset設定、GameplayDefinition、既存System設定 | 可 | 署名済み事前委任内の可逆Operationを非Release branchへ適用する場合だけ | Author 1名または同等Scopeの事前委任 |
+| R2 | GameSpec、World／Level、Scene、UI、Asset設定、GameplayDefinition、既存System設定 | 可 | 署名済み事前委任内の可逆Operationを、Release候補化されていないProject revisionへ昇格する場合だけ | Author 1名または同等Scopeの事前委任 |
 | R3 | Project-defined System、bounded NativeGameModule、Project Shader、互換Schema | 可 | 不可 | G0–G7とPolicy Service署名。開発ProfileではCode owner＋全Gate |
 | R4 | authoritative State owner／Save意味。Engine製品ProfileではEngine core／Extension／Security等 | Project artifact可。Engine sourceはGame制作不可 | 不可 | Project Attestation／Approval。EngineはDomain owner＋独立Reviewer |
 | R5 | merge、tag、sign、Store upload、Production secret、公開Release | Proposalだけ | 禁止 | Human release owner＋分離Pipeline |
 
 Test削除、Assertion緩和、Budget引上げ、Schema制約削除、Approval削除は対象実装と同じか一段高いRiskにする。R5 OperationをModel Tool catalogへ公開しない。
 
-R2事前委任はOperation ID＋version、Path、最大件数／byte、branch、有効期限、rollbackを固定し、Save schema、Public API、Asset license、Dependency、Security、課金、公開配布を含めない。Promotion Serviceは実Diffを再分類し、Envelope超過なら新Authorizationを要求する。
+R2事前委任はOperation ID＋version、対象DocumentのStable ID／Shard等のtyped scope、最大件数／byte、適用先Project、有効期限、rollbackを固定し、Save schema、Public API、Asset license、Dependency、Security、課金、公開配布を含めない。R2構造化編集の適用可否は[Project state](../03-authoring/project-state.md)の語彙(Project revision、Staging Candidate、Release候補化の有無)で判定し、Git branchへ依存しない。branch条件はGit連携を有効化したR1文書系とR3以上のSource系だけに適用する。Promotion Serviceは実Diffを再分類し、Envelope超過なら新Authorizationを要求する。
 
 ### 4.2 Activation Gate
 
@@ -219,9 +221,9 @@ AIの「理解した」という自己申告を状態にしない。GameUndersta
     unresolved_blocking_question_count
     unresolved_high_requirement_count
     unsupported_capability_ids[]
-    disposition
+    disposition: ready_to_stage | capability_unavailable
 
-ready_to_stageにはBlocking／High未解決0、RequirementからSystem／Implementation／Test／Artifactまでの追跡100%、State owner重複0、stale Evidence 0が必要である。Project Shaderを含むSystemは全参照Module／Techniqueに有効な`ShaderUnderstandingClosureV1`と`ProjectShaderQualificationReceiptV1`を必要とし、欠落／stale／Target不一致をGame全体の理解で相殺しない。必須Requirementに未対応Capabilityがあればcapability_unavailableにする。
+`GameUnderstandingClosureV1`は終端Recordであり、未解決のBlocking／High質問を含むdraftからは発行しない。質問中の状態はQuestion／Decision draftが所有し、`disposition`へ第三の状態や自由文字列を追加しない。ready_to_stageにはBlocking／High未解決0、RequirementからSystem／Implementation／Test／Artifactまでの追跡100%、State owner重複0、stale Evidence 0が必要である。Project Shaderを含むSystemは全参照Module／Techniqueに有効な`ShaderUnderstandingClosureV1`と`ProjectShaderQualificationReceiptV1`を必要とし、欠落／stale／Target不一致をGame全体の理解で相殺しない。必須Requirementに未対応Capabilityがあればcapability_unavailableにする。
 
 ## 6. Project data、Project C++／Shader／Native module
 
@@ -296,7 +298,7 @@ Workspace Brokerが許可base commitからHost Stagingを作り、SourceBundleV1
 
 Bundle／Deltaはnormalized Repository-relative path、before／after hash、mode、size、content-addressed blobを持つ。symlink、junction、reparse point、hardlink、ADS、device、sparse file、submodule escape、case collision、reserved device nameを拒否する。任意archiveやguest filesystemをHostへ直接展開しない。
 
-Windows A1／A2のPromotion可能BackendはHyperVIsolatedWorkerV1または同等のremote hardware-VM Workerとする。Generation 2、Secure Boot、immutable base image、Taskごとの一段differencing disk、no NIC、no host mount、no clipboard／device、Task完了後disk破棄を必須にする。Host／guest間はTask nonce、Envelope hash、Bundle hashを照合するbounded protocolだけを使う。
+Windows A1／A2のPromotion可能BackendはHyperVIsolatedWorkerV1または同等のremote hardware-VM Workerとする。Generation 2、Secure Boot、immutable base image、Taskごとの一段differencing disk、no NIC、no host mount、no clipboard／device、Task完了後disk破棄を必須にする。「同等」の判定は同じ必須特性のconformance fixture合格で行い、自己申告にしない。Host／guest間はTask nonce、Envelope hash、Bundle hashを照合するbounded protocolだけを使う。
 
 Networkはdeny_allを既定とし、承認済みcontent-addressed mirrorをInputにする。例外はBroker Proxyのexact domain allowlist、DNS rebinding／Redirect／private address／response size検査を必要とする。Sandbox unavailable時は非隔離へfallbackせず停止する。
 
@@ -352,7 +354,7 @@ Prompt、Tool argument、Tool output、Traceは機密Dataになり得る。既�
 
 Modelへ公開できるのはProject／Requirement／Capability／System／Worldのbounded Query、plan／validate／preview、ChangeSet submit、Source task request、Patch submit、Task status、Approval requestまでである。commit、activate、write native artifact、merge、sign、release、secret.read、policy.overrideを公開しない。
 
-MCP annotationをAccess controlにしない。Serverは正本Schema、Authorization、timeout、rate limit、Auditを強制する。MVP transportはlocal stdioだけで、ACL付きIPCをGatewayへ接続する。McpSessionGrantV1はClient binary hash、OS user、Project、read sensitivity、Proposal Operation、有効期限最大60分、nonceを固定するが、Task Authorization／Approval／Promotionを与えない。TCP、remote MCP、port forwardingは別Threat ModelとActivationまで無効にする。
+MCP annotationをAccess controlにしない。Serverは正本Schema、Authorization、timeout、rate limit、Auditを強制する。MVP transportはlocal stdioだけで、ACL付きIPCをGatewayへ接続する。McpSessionGrantV1はClient binary hash、OS user、Project、read sensitivity、Proposal Operation、有効期限最大60分、nonceを固定するが、Task Authorization／Approval／Promotionを与えない。McpSessionGrantV1は署名済みEnvelopeを代替せず、Grant配下のbounded read／QueryもR0 Envelopeを必要とする。GrantはClientとchannelの束縛だけを追加する。TCP、remote MCP、port forwardingは別Threat ModelとActivationまで無効にする。
 
 ## 9. Preview、technical qualification、人間承認
 
@@ -445,18 +447,20 @@ GameCandidateManifestV1は次を固定する。
     asset_package_hashes[], game_binary_hashes[]
     whole_game_test_receipt_hash
     target_package_receipt_hashes[]
-    rollback_candidate_hash
+    rollback_candidate_hash?
 
 Target別Artifact配列はtarget_profile_hashesと同じ順序、同じ件数にする。Target共通byte列でも各slotへhashを明示し、暗黙fallbackを作らない。
 
 GameActivationReceiptV1は次を固定する。
 
     activation_id
-    previous_candidate_hash, activated_candidate_hash
+    previous_candidate_hash?, activated_candidate_hash
     human_gameplay_approval_hashes[]
     approval_coverage_hash, attestation_closure_hash
-    rollback_candidate_hash, activated_at
+    rollback_candidate_hash?, activated_at
     activation_service_identity, signature
+
+previous_candidate_hashとrollback_candidate_hashは、先行Candidateが存在しない初回Activationだけ省略できる。省略を空hashやplaceholderで表現しない。current pointerが既に存在する場合、Activation Serviceは両Fieldを省略したReceiptの発行を拒否する。初回Activationの起動失敗はlast-known-goodを持たないため、current pointerを未設定へ戻し、該当Candidateを有効化しない。
 
 これらのApproval／Activation構造とAuthorityは本文書が所有する。共通署名Record、Verification／Generation／Review／Promotion Evidence envelope、Receipt hash連結、保持は[AI Verification／Provenance](ai-verification-provenance.md)が所有する。
 

@@ -4,6 +4,8 @@
 
 **Inventory:** 20 hunks, 448 added lines, 7 deleted lines, 455 changed lines in total. `source_line_count` is additions plus deletions for each hunk.
 
+**Task references:** Task numbers in the `evidence` column refer to the tasks of the [Legacy Branch Reconciliation Implementation Plan](2026-07-22-legacy-branch-reconciliation-implementation-plan.md), not any other plan.
+
 **Status:** Complete. Classification, reconciliation, validation, merge, and branch／worktree cleanup all passed.
 
 **Integration commit:** `10d741c283cc22766227a6267bc849bf97d1aba6`

@@ -54,6 +54,8 @@ Texture、Mesh、Animation、Audio、Font、Scene、Quest、Weapon値、UI配置
 - Camera、Audio、VFXのPresentation cue。
 - Item、Weapon、Character、Difficulty、Balance table。
 
+kindごとのField単位schemaの正本所在は次で確定する。Perception／Interactionは本書§2.4、Rule／ECAとFSMは§2.5が所有する。Shooter Coreを使うProjectのWeapon、Encounter／Spawn Plan／Wave、Difficulty、Pickup、Score、Game Flowは[Shooter Reference Pack](../08-domain-packs/shooter.md)の正規Data Modelが所有する。残る汎用kindのV1 schemaは本書が所有し、§2.5のPhase期限までにschema revision、validator、Cooker、fixtureを同時登録する。
+
 Definitionが利用できる操作はMCD Capability IDで列挙する。filesystem、network、process、wall clock、pointer、native SDK、dynamic library、arbitrary reflectionを公開しない。
 
 ### 2.1 汎用言語化を防ぐbounded contract
@@ -62,6 +64,7 @@ Definitionが利用できる操作はMCD Capability IDで列挙する。filesyst
 - 任意loop、recursion、自己書換え、runtime node生成を持たない。
 - cycleはtick／phase境界を越える明示State transitionとして表す。
 - 一つのState Machine instanceは一phaseに最大一回だけauthoritative transitionできる。
+- 同一instanceの評価で複数条件が成立した場合はkindごとのschemaが定めるpriorityとStable ID順でcanonicalに選択する。schema未固定kindをauthoring宣言順やcontainer反復順で代用しない。instance間の実行順とCommand競合の解決は本書§4のCommand受付ContractとRuntime Ownerのcanonical順序規則に従い、本書へ複写しない。
 - Behavior TreeはDefinitionごとにnode visit上限を持つ。
 - Collection、string、blob、Blackboard slot、active task、queue、memoryはMCD上限を必須とする。
 - 待機はcall stack／coroutineで保持せず、`GameplayTask { task_id, state_id, wake_tick, bounded_parameters }`へ保存する。
@@ -99,7 +102,7 @@ Shipping Runtime AIが変更できるのは出荷済みCapabilityとSchemaが許
 
 ### 2.4 C1 Perception／Interaction
 
-`capability.gameplay.perception.c1`は2D／3D共通のboundedな視覚・聴覚認識を、`capability.gameplay.interaction.c1`は対象発見、prompt semantic、利用要求、競合制御を所有する。Behavior Tree、Utility AI、Squad共有Blackboard、door／switch／pickup／inspect／talkのProject固有結果は本Systemへ暗黙に含めない。
+`capability.gameplay.perception`（成熟度C1。maturityはidentityに含めない）は2D／3D共通のboundedな視覚・聴覚認識を、`capability.gameplay.interaction`（同C1）は対象発見、prompt semantic、利用要求、競合制御を所有する。maturity suffixやschema version suffixをcapability IDへ埋め込まず、成熟度はProduct Plan Registryのtierで表す。Behavior Tree、Utility AI、Squad共有Blackboard、door／switch／pickup／inspect／talkのProject固有結果は本Systemへ暗黙に含めない。
 
 ```text
 PerceptionProfileV1
@@ -109,6 +112,7 @@ PerceptionProfileV1
   horizontal_fov_rad
   vertical_fov_rad
   hearing_range_m
+  hearing_strength_threshold_q16
   line_of_sight_query_profile_ref
   detectable_channel_mask
   update_interval_ticks
@@ -116,6 +120,7 @@ PerceptionProfileV1
   max_candidates_per_observer
   max_visible_targets_per_observer
   target_selection_policy: nearest | highest_priority_then_nearest
+  target_priority_field_ref
 
 PerceptionStimulusEventV1
   stimulus_id
@@ -166,13 +171,61 @@ InteractionSnapshotV1
   generation
 ```
 
-Perceptionは距離、FOV、channel filterで候補を先にbounded化し、Collision正本のversion付きRay／Shape QueryだけでLOSを判定する。sight／hearing rangeはfiniteな0～10,000 m、horizontal FOVは0～2π rad、3D vertical FOVは0～π radとし、0 range／0 FOVは該当sense無効を意味する。2Dは`vertical_fov_rad=0`を必須として判定に使用しない。Render visibility、depth buffer、occlusion query、Camera frustum、Particle、Post Processをauthoritative Perceptionへ入力せず、聴覚はAudio mixer実音量ではなくGameplay Systemが発行する`PerceptionStimulusEventV1`だけを使う。
+Perceptionは距離、FOV、channel filterで候補を先にbounded化し、Collision正本のversion付きRay／Shape QueryだけでLOSを判定する。sight／hearing rangeはfiniteな0～10,000 m、horizontal FOVは0～2π rad、3D vertical FOVは0～π radとし、0 range／0 FOVは該当sense無効を意味する。2Dは`vertical_fov_rad=0`を必須として判定に使用しない。Render visibility、depth buffer、occlusion query、Camera frustum、Particle、Post Processをauthoritative Perceptionへ入力せず、聴覚はAudio mixer実音量ではなくGameplay Systemが発行する`PerceptionStimulusEventV1`だけを使う。`strength_q16`は0～65,535へ正規化した強度（0＝無効、65,535＝当該channelの最大強度）である。聴覚判定は`hearing_range_m`内かつ`strength_q16 >= hearing_strength_threshold_q16`のstimulusだけをheardとし、C1では距離減衰を適用せず発行値をそのまま比較する。
 
-`T30`で候補とQueryを生成し、Physicsが`T40`で処理して、`T60`で正規化した結果を次tickのGameplayが読む。visible target、heard stimulus、memoryを非決定的に切らず、priority、距離の量子化値、source `StableId`、stimulus IDのcanonical順で残した結果と`overflow_state`を返す。`overflow_state`は同時発生したcandidates、visible targets、heard stimuli、memoryのoverflow bitを組合せられるclosed bitsetであり、`none = 0`だけをzero値のcanonical表現とする。canonical serializationはflagを宣言順のbit位置で符号化し、unknown bitをrejectしてgeneric fallbackへmapしない。C1 reference Profileはobserver当たりcandidates 64、visible targets 16、heard stimuli 16、memory 32、update interval 1～6 ticks、memory 0～600 ticksを許可する。Perception Systemだけがmemory、last confirmed tick、target `StableId`のauthoritative stateを所有し、Save／Replayにはそれらを保存／記録するが、Physics handle、Query result pointer、render objectは保存しない。
+候補とQueryの生成、Query batch処理、結果の正規化は連続する固定tick phaseで行い、各段のphase割当と実行内容は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のphase表を正本とする。正規化済みの結果は次tickのGameplayが読む。visible target、heard stimulus、memoryを非決定的に切らず、priority、距離の量子化値、source `StableId`、stimulus IDのcanonical順で残した結果と`overflow_state`を返す。Perception／Interactionのcanonical順に使う距離の量子化値はmm単位へfloorした非負整数とし、浮動小数点比較を順序決定に使わない。`highest_priority_then_nearest`のpriorityは`target_priority_field_ref`が指すtyped Component fieldのexact参照から読み、`target_priority_field_ref`を持たないProfileは`highest_priority_then_nearest`を選択できない。`overflow_state`は同時発生したcandidates、visible targets、heard stimuli、memoryのoverflow bitを組合せられるclosed bitsetであり、`none = 0`だけをzero値のcanonical表現とする。canonical serializationはflagを宣言順のbit位置で符号化し、unknown bitをrejectしてgeneric fallbackへmapしない。C1 reference Profileはobserver当たりcandidates 64、visible targets 16、heard stimuli 16、memory 32、update interval 1～6 ticks、memory 0～600 ticksを許可する。Perception Systemだけがmemory、last confirmed tick、target `StableId`のauthoritative stateを所有し、Save／Replayにはそれらを保存／記録するが、Physics handle、Query result pointer、render objectは保存しない。
 
-Interactionの`max_range_m`はfiniteな0.1～100 mとする。FocusはCollisionの`interaction` semantic sensorとversion付きQueryを使い、range、LOS、priority降順、距離の量子化値、target `StableId`の順で決定する。UIは`prompt_message_key`と`accessibility_cue_refs[]`を提示するだけで、localized文字列やpixel hitからWorldを変更しない。keyboard／controller／touchのUse入力は`InteractionRequestV1`となり、Engine Standard Interaction Systemがactor／target generation、range、LOS、Game Flow、exclusive lease、`state_owner_ref`を再検証して登録済みCommandを発行する。door、switch、pickup等の結果は参照先Game Systemが所有し、common Interaction Systemは任意のProject Componentを書き換えない。
+Interactionの`max_range_m`はfiniteな0.1～100 mとする。FocusはCollision Ownerが定義する対象発見用の用途別Sensor Profile（`InteractionDefinitionV1.query_shape_ref`で参照）とversion付きQueryを使い、range、LOS、priority降順、距離の量子化値、target `StableId`の順で決定する。当該Sensor Profileのoverlap／query semanticsは[Collision](../05-simulation/collision.md)が所有し、本書はProfile IDを直書きしない。UIは`prompt_message_key`と`accessibility_cue_refs[]`を提示するだけで、localized文字列やpixel hitからWorldを変更しない。keyboard／controller／touchのUse入力は`InteractionRequestV1`となり、Engine Standard Interaction Systemがactor／target generation、range、LOS、Game Flow、exclusive lease、`state_owner_ref`を再検証して登録済みCommandを発行する。door、switch、pickup等の結果は参照先Game Systemが所有し、common Interaction Systemは任意のProject Componentを書き換えない。
 
 stale Query、target deactivate、range外、LOS遮断、exclusive lease競合は`rejection_reason`によるtyped rejectionとし、別targetへ推測で切り替えない。`rejection_reason`はclosed enumであり、stale focus generation、actor／target deactivate、actor／target generation mismatch、range外、LOS遮断、Game Flow不許可、exclusive lease競合、state owner unavailable、unknown interaction／input actionを別値で返す。canonical serializationは宣言したenum値をそのまま符号化し、unknown enum valueをrejectしてgeneric fallbackへmapしない。Focus QueryからUse確定までは最大1 tickだけ許容し、超過Requestは再Queryを要求する。exclusive leaseは確定Commandを発行するtickだけ有効で、継続占有は参照先Game Systemが別のauthoritative stateとして所有する。Saveは`state_owner_ref`のowner stateだけを対象とし、focus、prompt、lease、Physics handleは保存しない。ReplayはRequest、確定Command、overflow_state、rejection_reasonをcanonical serializationのまま記録して値を保持する。C1 fixtureはdoor、switch、collision pickup、explicit-use pickup、inspectを2D／3Dで同じContractへ通し、screen reader labelを含むAccessibility cue、pause、Level deactivate、同tick競合を検証する。
+
+### 2.5 Rule／ECAとFinite State Machine V1
+
+```text
+GameplayRuleEcaDefinitionV1
+  definition_id
+  schema_version: 1
+  input_snapshot_type_refs[1..32]
+  evaluation_policy: first_match | all_matches
+  max_matches: 1..64
+  rules[1..256]:
+    rule_id
+    priority: int16
+    condition_ref
+    action_command_refs[1..32]
+
+GameplayFiniteStateMachineV1
+  definition_id
+  schema_version: 1
+  initial_state_id
+  states[1..256]:
+    state_id
+    entry_action_command_refs[0..32]
+    exit_action_command_refs[0..32]
+  transitions[0..1024]:
+    transition_id
+    source_state_id
+    trigger_event_type_ref
+    guard_ref?
+    priority: int16
+    target_state_id
+    action_command_refs[0..32]
+```
+
+`condition_ref`と`guard_ref`は登録済みのbounded pure predicateだけを参照し、sealed input snapshotとinstance state以外を読まない。Ruleはpriority降順、同値なら`rule_id`のcanonical UTF-8 byte順で評価する。`first_match`は`max_matches=1`を必須とし、`all_matches`も`max_matches`到達後は同じ順で残した結果とoverflow diagnosticを返す。actionは登録済みtyped Command templateだけであり、全matchの出力を一つのprivate batchとして検証後にatomic publishする。
+
+FSMは一instance、一tickにつき最大一transitionである。active stateに属しtriggerとguardが成立した候補をpriority降順、同値なら`transition_id`のcanonical UTF-8 byte順に並べ、先頭だけを選ぶ。`exit actions -> transition actions -> entry actions`を一つのprivate batchとして検証し、成功時だけactive stateとともにatomic publishする。同tickの再帰transition、entry actionからの同期再評価、container順へのfallbackを禁止する。authoritative FSMのactive state、pending bounded task、accepted triggerはSave／ReplayへStable IDで保存し、runtime indexやpointerを保存しない。
+
+残る汎用kindは次のentry gateまでにV1 schemaを本節へ追加する。期限前でもschema revision、validator、Cooker、migration、fixtureが揃わないkindをProject Source、AI Proposal、Cooked packageで使用できない。
+
+| 汎用kind | schema確定期限 |
+|---|---|
+| Presentation cue | `phase.ai-authoring-mvp-a` entry gate |
+| 汎用Balance table | `phase.ai-authoring-mvp-a` entry gate |
+| bounded Behavior Tree／Blackboard | `phase.manual-3d-mvp-b` entry gate |
+| Ability／Status Effect／Cooldown／Cost | `phase.manual-3d-mvp-b` entry gate |
+| Quest／Objective／Dialogue／Choice | `phase.production-capability` entry gate |
+| UI Flow／Screen transition／Input action mapping | `phase.production-capability` entry gate |
 
 ## 3. `GameSystemSpecV1`
 
@@ -307,10 +360,11 @@ Draft -> Resolved -> Staged -> Validating -> AwaitingReview
   -> PromotingSource -> BuildingTrustedArtifact
   -> CommittingProject -> Qualified
 
-各非終端state -> FailedBeforeActivation | Superseded
-PromotingSource以後の失敗
-  -> InactiveSourcePromoted -> RetryProjectActivation | RevertProposed
+Source promote完了前の各非終端state -> FailedBeforeActivation | Superseded
+Source promote完了後の失敗 -> InactiveSourcePromoted
 ```
+
+失敗遷移の判定条件は「base Source revisionのpromoteが完了済みか」だけである。`PromotingSource`中にpromoteが完了しないまま失敗した場合は`FailedBeforeActivation`へ、promote完了後の失敗（`BuildingTrustedArtifact`、`CommittingProject`を含む）は`InactiveSourcePromoted`だけへ遷移し、二つの規則を同じ失敗へ重複適用しない。`RetryProjectActivation`と`RevertProposed`はstateではなく`InactiveSourcePromoted`からの遷移actionであり、前者は同一hashで`CommittingProject`へ再入し、後者はReview済みrevertを別のBundleとして提案する。
 
 Native Sourceを含まないBundleはSource promotion／trusted buildを通らずReview後にProject Commitへ進む。Native Sourceを含むBundleだけが二段階Activationを必須とする。`Qualified`だけをactive Implementationとして表示し、Source promotion済みでもProject revisionが参照しないSourceをGameHost、EditorHost、Shippingへloadしない。
 
@@ -341,6 +395,7 @@ Native buildが成功しただけでactiveにしない。Native Sourceは信頼�
 - 全Fieldのvalid／invalid／boundary fixtureとMCD projection整合。
 - State owner exactly-one、dependency cycle、undeclared edgeのnegative test。
 - Command／Event／Snapshot、phase access、queue、budget conformance。
+- transition／Rule／Behavior Tree nodeのauthoring宣言順first-match選択をReference evaluatorで検証する順序fixture。
 - Save／Load／Replay state hash、fault、overflow、cancel、restart、Migration。
 - DefinitionとNativeのsemantic equivalence、Target-specialized VariantのGameplay fidelity。
 - Source format、warning、static analysis、sanitizer、unit、property、fuzz、integration、forbidden API／dependency scanはNative OwnerのGateを参照。

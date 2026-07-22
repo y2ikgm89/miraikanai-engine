@@ -617,9 +617,34 @@ runtime_package_ref, content_package_refs[]
 platform_binary_refs[], shader_artifact_refs[]
 resource_manifest_ref, permission_policy_ref
 privacy_policy_ref, entitlement_policy_ref
+store_submission_declaration_ref
 sbom_ref, provenance_ref
 normalized_entries[] { path, size, sha256, executable_kind }
 ```
+
+`store_submission_declaration_ref`は同じTarget／Distributionへ束縛した`StoreSubmissionDeclarationV1`を参照する。型はApplication Package／Release Ownerが所有し、revision 1を次に固定する。
+
+```text
+StoreSubmissionDeclarationV1
+  declaration_id
+  schema_version: 1
+  target_profile_ref
+  distribution_profile_ref
+  store_family: not_applicable | microsoft_store | google_play | apple_app_store
+  content_rating_system_ref?
+  content_rating_answers_artifact_ref?
+  age_rating_result_ref?
+  data_safety_declaration_ref?
+  app_privacy_declaration_ref?
+  privacy_policy_ref?
+  generated_content_policy_ref?
+  reviewer_refs[]
+  receipt_refs[]
+  revision
+  content_sha256
+```
+
+`store_family=not_applicable`はprivate artifact／non-store distributionだけに許可し、`?`付きStore Fieldを持たない。Store familyではcontent rating system、回答Artifact、age rating結果、privacy policy、generated content policy、1件以上のReviewer／Receiptを必須とする。Google Playはさらにdata safety declaration、Apple App Storeはapp privacy declarationを必須とし、他familyのPlatform固有Fieldを持たない。各Platform OwnerはIARC／age rating、Data Safety／App Privacy等の時点依存requirementを`StorePolicyLock`と公式source refへ投影し、共通schema、Candidate identity、提出時read-back規則を再定義しない。Manifestの`privacy_policy_ref`とDeclaration内の同Fieldはbyte equality、Target／Distributionも完全一致を必須とする。
 
 AssemblyはContent／Shaderを独自選択しない。`engine_baseline_hash`、`project_revision`、`game_compatibility_subject_ref`、Target、Runtime Package refを検証し、`content_package_refs[]`と`shader_artifact_refs[]`はRuntime Package closureとset equalityにする。Platform固有Resourceだけを`resource_manifest_ref`へ追加し、Runtime closureとの差分を一般Contentとして隠さない。
 
@@ -697,7 +722,7 @@ planned
 | `CapabilityRegistryV1`、`CapabilityTargetActivationV1`、`ProductPhaseRegistryV1`、`WorkPackageRegistryV1`、`TargetProfileRegistryV1`、`RequirementRegistryV1`、`FixtureRegistryV1`、`FallbackRegistryV1` | Product Plan |
 | `SaveSlotManifestV1`、`SaveRootManifestV1`、`SaveCheckpointV1`、`SaveDomainRecordSetV1`、`SaveMigrationPlanV1`、`SaveLoadPlanV1`、`SaveStoragePolicyV1`、`SaveStorageEnvelopeV1`、`PlatformStorageTransactionV1`、Save Receipt群 | Persistence／Save。Key管理／OS crypto実装は各Platform Owner |
 | `RuntimePackageManifestV1`、`RuntimePackageArtifactV1` | Runtime Package |
-| `ApplicationPackageAssemblyManifestV1`、`UnsignedApplicationPackageV1`、Target mapping rule、`PackageValidationReceiptV1`、`TargetPackagePreparationTransactionV1`、`ReleaseTransactionV1`、`ReleaseSigningReceiptV1`、`StoreStagingUploadReceiptV1`、`StoreStagingReadBackReceiptV1`、`TargetPackagePreparationRecordV1`、`StorePublicationReceiptV1`、`ReleaseRolloutCommandV1` | Application Package／Release |
+| `ApplicationPackageAssemblyManifestV1`、`StoreSubmissionDeclarationV1`、`UnsignedApplicationPackageV1`、Target mapping rule、`PackageValidationReceiptV1`、`TargetPackagePreparationTransactionV1`、`ReleaseTransactionV1`、`ReleaseSigningReceiptV1`、`StoreStagingUploadReceiptV1`、`StoreStagingReadBackReceiptV1`、`TargetPackagePreparationRecordV1`、`StorePublicationReceiptV1`、`ReleaseRolloutCommandV1` | Application Package／Release |
 | `UnsignedWindowsPackageV1`／`UnsignedAndroidPackageV1`／`UnsignedApplePayloadV1`のTarget固有Fieldとformat | Windows／Android／Appleの各Platform Owner |
 | `GameCandidateManifestV1`、`GameActivationReceiptV1`、`HumanGameplayApprovalV1` | AI Security／Approval。Target packageの内部構造は再定義せず、`TargetPackagePreparationRecordV1`を参照 |
 | `DomainPackManifestV1`、`DomainPackResolvedLockV1` | Domain Pack Contract |

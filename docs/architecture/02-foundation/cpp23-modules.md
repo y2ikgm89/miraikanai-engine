@@ -64,6 +64,8 @@ CompilerやBuild Systemの対応表は「その組合せなら製品に安全」
 
 MCD recordは`{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`を持ち、上表から生成する。Compiler、STL、CMakeとの対応はMCDへ埋め込まず、Target別`toolchain.lock.json`の`profiles[].build.cxx_bindings[]`へ次の`CxxToolchainBindingV1`として固定する。Configure入口とGeneratorは別契約の`BuildDriverProfileV1`が所有する。
 
+`shipping_allowed`はProduction Release候補を署名／配布してよいかを表し、Shipping Configurationで内部Buildできるかを表さない。初期値はCX3だけ`true`、CX0～CX2は`false`である。CX0～CX2でも表に許可されたDevelopment／Test／candidate PackageはBuildできるが、Release Activationへ入力できない。CX3の`shipping_allowed=true`もToolchain binding、全Target Gate、Package／Release Receiptを省略する許可ではない。
+
 ```text
 CxxToolchainBindingV1
   frontend_profile_id: closed CxxFrontendProfileId
@@ -221,11 +223,11 @@ CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDri
 
 | Target／State | Driver Profile ID | 正規入口 | C++ Generator | Configuration単位 | 後段 |
 |---|---|---|---|---|---|
-| Windows／CX0–CX3 | `windows_cmake_ninja_multi_v1` | checked-in CMake Preset | `Ninja Multi-Config` | configuration | Windows Distribution |
-| Android／CX0–CX3 | `android_gradle_ninja_v1` | 固定Gradle Wrapper＋`externalNativeBuild.cmake` | `Ninja` | Variant × ABI × C++ ProfileのSingle-Config tree | Gradleが`.so`をAPK／AABへpackage |
-| Apple／CX0 | `apple_cx0_xcode_v1` | checked-in CMake Preset | `Xcode` | Xcode configuration | Xcode |
-| Apple／CX1 | `apple_modules_probe_ninja_v1` | checked-in CMake Preset | `Ninja Multi-Config` | Probe configuration | Packageなし |
-| Apple／CX2–CX3 | `apple_modules_ninja_xcode_v1` | checked-in CMake Preset | `Ninja Multi-Config` | C++ archive configuration | XcodeがC ABI App shell、最終Link、Archiveを所有 |
+| Windows／CX0–CX3 | `driver.windows.cmake-ninja-multi` | checked-in CMake Preset | `Ninja Multi-Config` | configuration | Windows Distribution |
+| Android／CX0–CX3 | `driver.android.gradle-ninja` | 固定Gradle Wrapper＋`externalNativeBuild.cmake` | `Ninja` | Variant × ABI × C++ ProfileのSingle-Config tree | Gradleが`.so`をAPK／AABへpackage |
+| Apple／CX0 | `driver.apple.cx0-xcode` | checked-in CMake Preset | `Xcode` | Xcode configuration | Xcode |
+| Apple／CX1 | `driver.apple.modules-probe-ninja` | checked-in CMake Preset | `Ninja Multi-Config` | Probe configuration | Packageなし |
+| Apple／CX2–CX3 | `driver.apple.modules-ninja-xcode` | checked-in CMake Preset | `Ninja Multi-Config` | C++ archive configuration | XcodeがC ABI App shell、最終Link、Archiveを所有 |
 
 規則:
 

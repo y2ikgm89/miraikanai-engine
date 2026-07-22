@@ -19,10 +19,10 @@ ModuleはContracts、Core、Grid2D、private Navmesh Backend、Authoring、Edito
 
 | Object | 意味 | persistence |
 |---|---|---|
-| `GridNav2DProfileV1` | cell semantics、neighbor policy、clearance class、cost policy | Project source |
+| `GridNav2DProfileV1` | cell semantics、neighbor policy、clearance class、cost policy、`max_path_cells` | Project source |
 | `NavAgentProfileV1` | radius、height、climb、slope、query filter ref | Project source |
 | `NavAreaProfileV1` | stable area ID、traversability、relative cost、tags | Project source |
-| `NavBuildProfile3DV1` | voxel／tile／region／contour／polygon build semantics | Project source |
+| `NavBuildProfile3DV1` | voxel／tile／region／contour／polygon build semantics、`max_straight_path_points` | Project source |
 | `NavSourceSetV1` | canonical static geometry、area、modifier、link source revisions | Project source |
 
 Profile fieldはSI単位とfinite値を使い、agent寸法、cell／voxel寸法、slope、climb、tile relationをcross-field validationする。Vendor default objectをserializeせず、Engine Profileの全意味を保存する。Backendが表現できないProfileはcook failureにし、近い値へsilent adjustmentしない。
@@ -51,7 +51,7 @@ Tile promotionはartifact単位でatomicに行う。部分成功をactive World�
 
 `NavModifierV1`はStable ID、shape ref、area override／exclusion、applicabilityを持つ。`NavOffMeshLinkV1`はStable ID、typed endpoints、direction、agent／area filter、traversal tagを持つ。linkのgameplay実行はGameplay ownerの責務で、Navigationはpath candidateとlink metadataだけを返す。
 
-Dynamic obstacleは前snapshotからbounded update inputを受け、新versionのstaging artifactまたはEngine-owned local avoidance overlayへ反映する。同じRuntime slotのPhysics native Worldを直接queryせず、live Navmeshをcallbackからmutateしない。World streaming固有のcell policyは[World](../06-rendering/world.md)へ委譲し、本書はstreaming phaseや共通capacityを定義しない。
+Dynamic obstacleは前snapshotからbounded update inputを受ける。C1の動的変化（door閉鎖等のNavModifier／area／off-mesh link変更を含む）は、差分re-cookによる新versionのstaging artifactとversion切替だけで反映する。差分buildはsource／Profile identityが変わらないtileのpayload再利用を許すが、artifact identityは新規に発行し、Tile promotionのatomic ruleに従う。Engine-owned local avoidance overlayはC2の複数Agent local avoidance専用であり、C1経路では使わない。obstacle input受領からversion activateまでの反映latency boundは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有し、本書は値を定義しない。同じRuntime slotのPhysics native Worldを直接queryせず、live Navmeshをcallbackからmutateしない。World streaming固有のcell policyは[World](../06-rendering/world.md)へ委譲し、本書はstreaming phaseや共通capacityを定義しない。
 
 ## 4. Query、status、version、lease
 
@@ -67,7 +67,7 @@ Async resultのdeadlineとacceptanceは[Runtime scheduling／lifetime](../04-run
 
 ### 4.1 C1 Path Following／Movement Intent
 
-`capability.gameplay.path_following.c1`は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定をNavigation ownerとして所有する。Navigation query resultとCharacter Motorの最終authoritative Transform解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。Character Motorのwriter authorityを奪わない。
+`capability.gameplay.path_following`（成熟度C1。maturityはidentityに含めない）は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定をNavigation ownerとして所有する。Navigation query resultとCharacter Motorの最終authoritative Transform解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。Character Motorのwriter authorityを奪わない。
 
 ```text
 PathFollowRequestV1
@@ -102,7 +102,7 @@ MovementIntentV1
   movement_profile_ref
 ```
 
-`arrival_radius_m`はfiniteな0.01～10 mとする。C1 waypointは2D Navigation Profileの8,192 cell上限または3D Navigation Profileの256 straight-path point上限に従う。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、Character Motorの連続`blocked`だけがreplan契機であり、`replan_policy_ref`は最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
+`arrival_radius_m`はfiniteな0.01～10 mとする。`movement_profile_ref`は[Physics](physics.md)の`CharacterMotorProfileV1`を参照する。request validationは`nav_agent_profile_ref`のslope／climbと参照先Motor Profileのmax slope／step heightの整合を検査し、navmesh上はtraversableだがMotorが通行できない組合せをinvalid Profile relationとして拒否する。C1 waypointは`GridNav2DProfileV1`の`max_path_cells`（C1上限8,192 cell）または`NavBuildProfile3DV1`の`max_straight_path_points`（C1上限256 point）に従い、上限値の正本はProfile fieldである。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、`PathFollowerStateV1.status`の`blocked`遷移だけがreplan契機である。`blocked`はCharacter Motor stateではなくPath Follower述語であり、Motor Outputのresolved poseから得た実進捗が`MovementIntentV1`の要求displacementに対して`replan_policy_ref`の進捗閾値未満であるtickが、同policyのblocked判定tick数だけ連続した場合に遷移する。`replan_policy_ref`は進捗閾値、blocked判定tick数、最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
 
 accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Followingは`T30`でactor当たり一つだけの`MovementIntentV1`を生成し、Character Motorが`T40`でCollision queryとともに解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1はwaypoint追従とCharacter Motor collision responseを提供し、複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2に留める。
 

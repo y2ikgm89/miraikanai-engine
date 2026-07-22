@@ -408,7 +408,7 @@ foreach ($id in @(
 }
 ```
 
-Expected: 各IDは定義行と少なくとも一つのconsumer行に現れる。Registry全体はRequirement 16、Fixture 10、Phase 10、Work Package 25、Capability 36で、Phase↔Work Package、Capability→Owner WP、各Requirement／Fixture参照の未解決が0件になる。
+Expected: 各IDは定義行と少なくとも一つのconsumer行に現れる。Registry全体はRequirement 16、Fixture 10、Phase 10、Work Package 26、Capability 37で、Phase↔Work Package、Capability→Owner WP、各Requirement／Fixture参照の未解決が0件になる。
 
 - [ ] **Step 7: Task 3コミット**
 
@@ -742,15 +742,25 @@ git commit -m "docs: align d3d12 plan with product phases"
 Run:
 
 ```powershell
-$c = Get-Content -Raw docs/reviews/2026-07-22-plan-review-closure.md
-"unverified=$([regex]::Matches($c, '\| `unverified` \|').Count)"
-"unknown_category=$([regex]::Matches($c, '\| \? \|').Count)"
-"terminal=$([regex]::Matches($c, '\| `(applied|decision_applied|deferred|refuted)` \|').Count)"
+$rows = foreach ($line in Get-Content docs/reviews/2026-07-22-plan-review-closure.md) {
+  if ($line -notmatch '^\| `review\.plan_review_2026_07_22\.finding_\d{3}` \|') { continue }
+  $cells = $line.Split('|')
+  [pscustomobject]@{
+    validation = $cells[4].Trim().Trim('`')
+    category = $cells[6].Trim().Trim('`')
+    disposition = $cells[9].Trim().Trim('`')
+  }
+}
+"rows=$($rows.Count)"
+"unverified=$(($rows | Where-Object validation -eq 'unverified').Count)"
+"unknown_category=$(($rows | Where-Object category -eq '?').Count)"
+"terminal=$(($rows | Where-Object disposition -in @('applied', 'decision_applied', 'deferred', 'refuted')).Count)"
 ```
 
 Expected:
 
 ```text
+rows=253
 unverified=0
 unknown_category=0
 terminal=253
@@ -826,11 +836,66 @@ Expected: `git diff --check` exit 0、`missing_links=0`、`missing_anchors=0`。
 Run:
 
 ```powershell
-rg -n 'windows_desktop_v1|android_mobile_v1|apple_mobile_v1|fixture\.product\.(2d|3d)-' docs/architecture docs/plans
-rg -n '\*\*\[\?\]|UNVERIFIED/high|UNVERIFIED/medium' docs/reviews/2026-07-22-plan-review.md docs/reviews/2026-07-22-plan-review-closure.md
+$migrationPlan = 'docs/plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md'
+$migrationLines = Get-Content $migrationPlan
+$appendixAuthorityStart = ($migrationLines | Select-String '^## Appendix D:').LineNumber
+$appendixStart = ($migrationLines | Select-String '^### D\.1 ').LineNumber
+$appendixEnd = ($migrationLines | Select-String '^## Completion Gate$').LineNumber
+$idMap = @{}
+foreach ($line in $migrationLines[($appendixStart - 1)..($appendixEnd - 2)]) {
+  if ($line -notmatch '^\|' -or $line -match '^\|---|Old ID') { continue }
+  $values = [regex]::Matches($line, '`([^`]+)`') | ForEach-Object { $_.Groups[1].Value }
+  if ($values.Count -ge 2) { $idMap[$values[0]] = $values[1] }
+}
+
+$normativeOldIds = @()
+$allowedOldIds = @()
+foreach ($file in (rg --files docs/architecture docs/plans -g '*.md')) {
+  $lineNumber = 0
+  foreach ($line in Get-Content $file) {
+    $lineNumber++
+    foreach ($oldId in $idMap.Keys) {
+      if (-not $line.Contains($oldId)) { continue }
+      $normalized = $file -replace '\\', '/'
+      $allowed =
+        ($normalized -eq $migrationPlan -and
+          (($lineNumber -ge $appendixAuthorityStart -and $lineNumber -lt $appendixEnd) -or
+           $line -match 'old ID|allowed location')) -or
+        ($normalized -eq 'docs/architecture/02-foundation/toolchain-dependencies.md' -and
+          $line.Contains($idMap[$oldId])) -or
+        ($normalized -eq 'docs/plans/2026-07-22-ai-readable-d3d12-backend-design.md' -and
+          $line -match '旧|置換|0件') -or
+        ($normalized -match '^docs/architecture/decisions/')
+      $hit = "$normalized`:$lineNumber $oldId"
+      if ($allowed) { $allowedOldIds += $hit } else { $normativeOldIds += $hit }
+    }
+  }
+}
+
+$product = Get-Content -Raw docs/architecture/00-product/product-plan.md
+$registry = $product.Substring($product.IndexOf('## 11. Product execution registries'))
+$definedIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($match in [regex]::Matches($registry, '(?m)^\| `(target|requirement|fixture|fallback|wp|capability)\.[^`]+` \|')) {
+  [void]$definedIds.Add($match.Value.Split('`')[1])
+}
+foreach ($match in [regex]::Matches($registry, '(?m)^\| \d+ \| `(phase\.[^`]+)` \|')) {
+  [void]$definedIds.Add($match.Groups[1].Value)
+}
+$registryRefs = [regex]::Matches($registry, '(target|requirement|fixture|fallback|phase|wp|capability)\.[a-z0-9._-]+') |
+  ForEach-Object Value | Sort-Object -Unique
+$unresolvedRegistryRefs = @($registryRefs | Where-Object { -not $definedIds.Contains($_) })
+$reviewMarkers = @(rg -n '\*\*\[\?\]|UNVERIFIED/high|UNVERIFIED/medium' docs/reviews/2026-07-22-plan-review.md docs/reviews/2026-07-22-plan-review-closure.md)
+
+"appendix_d_old_ids=$($idMap.Count)"
+"allowed_migration_or_history=$($allowedOldIds.Count)"
+"normative_old_id_hits=$($normativeOldIds.Count)"
+"unresolved_registry_refs=$($unresolvedRegistryRefs.Count)"
+"unresolved_review_markers=$($reviewMarkers.Count)"
+$normativeOldIds
+$unresolvedRegistryRefs
 ```
 
-Expected: old IDはmigration表と歴史的引用だけ。closureにunknown／unverifiedなし。
+Expected: `normative_old_id_hits=0`、`unresolved_registry_refs=0`、`unresolved_review_markers=0`。old IDはexact migration表、同表を説明するtest／移行文、歴史的Decisionだけに残す。
 
 - [ ] **Step 6: 最終差分をscope別にレビューする**
 

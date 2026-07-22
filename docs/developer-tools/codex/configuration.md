@@ -10,16 +10,16 @@
 
 Codexの公式starting pointはDefault Powerであり、GPT-5.6 SolとMedium reasoningを使う。用途に応じてSmarterまたはFasterへ寄せ、必要な品質を満たす最も低いreasoning effortを選ぶ。これはOpenAIの一般推奨である。
 
-Miraikanaiでは次のproject判断を採用する。通常の個人作業は公式starting point相当、Engine repositoryはSol／High、最難関のread-only調査だけをDeep profileへ分離する。Fast mode、Max、XHighを全作業の既定にしない。設定による品質保証を主張せず、代表taskで速度、使用量、修正品質を再測定する。
+Miraikanaiでは次のproject判断を採用する。通常の個人作業は公式starting point相当、Engine repositoryはSol／XHigh（PR #5で独立承認・マージ済み）、最難関のread-only調査だけをDeep profileへ分離する。Fast modeとMaxを全作業の既定にしない。設定による品質保証を主張せず、代表taskで速度、使用量、修正品質を再測定する。
 
-本書はEngine Architectureではなく個人用Developer Tool Guideである。[Engine Architecture Index](../../architecture/README.md)の42仕様には含めない。ここにあるモデル名、CLI version、推奨は時点依存であり、Engine contractまたはProduct定数ではない。
+本書はEngine Architectureではなく個人用Developer Tool Guideである。[Engine Architecture Index](../../architecture/README.md)の正本一覧には含めない。ここにあるモデル名、CLI version、推奨は時点依存であり、Engine contractまたはProduct定数ではない。
 
 ## 2. 公式baselineとproject判断
 
 | 主題 | 公式baseline | Miraikanai判断 |
 |---|---|---|
 | Model | Default PowerはGPT-5.6 Sol | user defaultは`gpt-5.6`、repositoryは`gpt-5.6-sol`へ明示固定 |
-| Reasoning | Mediumから開始し、必要な時だけ上げる | user Medium、repository High、Deep Max |
+| Reasoning | Mediumから開始し、必要な時だけ上げる | user Medium、repository XHigh、Deep Max |
 | Config scope | user、trusted project、profile、one-off overrideを分離 | 共通値をuser、Engine固有値をproject、特殊用途をprofileへ置く |
 | Approval／sandbox | default permissionから開始し、必要時だけ緩める | interactive作業は`on-request`／`workspace-write` |
 | Windows | native sandboxは`elevated`を推奨 | 管理者権限またはsetup不可の場合だけ`unelevated` |
@@ -80,13 +80,13 @@ max_depth = 1
 #:schema https://developers.openai.com/codex/config-schema.json
 
 model = "gpt-5.6-sol"
-model_reasoning_effort = "high"
+model_reasoning_effort = "xhigh"
 plan_mode_reasoning_effort = "xhigh"
 model_verbosity = "low"
 model_reasoning_summary = "concise"
 ```
 
-これはOpenAIの一般既定ではなく、複数Subsystem、安全境界、長期検証を扱うMiraikanai向けのproject判断である。permission、web search、MCP、agent並列数はrepositoryが強制せず、user／managed policyへ残す。
+`model_reasoning_effort = "xhigh"`はPR #5で独立承認・マージ済みの現行repository決定であり、本節はその決定を転記する。この値を変更する場合は、先に新しい独立承認を得る。これはOpenAIの一般既定ではなく、複数Subsystem、安全境界、長期検証を扱うMiraikanai向けのproject判断である。permission、web search、MCP、agent並列数はrepositoryが強制せず、user／managed policyへ残す。
 
 ## 6. 用途別profile
 
@@ -180,7 +180,7 @@ Codexのmodel catalogがcontext、compaction、tool truncation、capabilityを�
 3. `git rev-parse --show-toplevel`でrepository rootを確定し、project trustを確認する。
 4. user configでは対象keyだけをmergeし、MCP、plugin、app、hook、notification、shell、credential tableを保持する。
 5. legacy profile syntaxとdeprecated／removed keyを削除し、4個の独立profile fileを作成する。
-6. repository `.codex/config.toml`を作成する。
+6. 既存のrepository `.codex/config.toml`とPR #5決定を確認し、§5と差分がなければ変更しない。差分がある場合は独立承認を得てから更新し、承認済み値を黙って巻き戻さない。fileが存在しない場合だけ§5の内容で新規作成する。
 7. TOML parse、公式JSON Schema、Codex runtimeで検証する。
 8. provenance付きconfig readでuser／profile／project／CLIの実効layerを確認する。
 9. 新しいCodex taskで通常設定を確認し、代表taskの品質、所要時間、使用量を比較する。

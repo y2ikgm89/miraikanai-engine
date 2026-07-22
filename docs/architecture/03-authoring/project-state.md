@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1のdomain schema／意味／transaction、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
 - 非正本範囲: MCD共通Envelope／projection／codegen、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime scheduling。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[World／Level／Map](../06-rendering/world.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -29,12 +29,12 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | Project Document、World Model、`ProjectChangeSetV1`のdomain schema／Operation意味／transaction、Commit、Undo、Recovery | 本書 |
 | MCD型、Operation共通Envelope、Error、Schema projection、Codegen | [Executable contracts](../02-foundation/executable-contracts.md) |
 | ID、memory、pointer、thread、directory、serialization基礎 | [Core architecture](../02-foundation/core-architecture.md)と各Foundation Owner |
-| Runtime World、tick、lease、queue、Asset promotion | Runtime規約 |
+| Runtime World、tick、lease、queue、Asset promotion | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
 | AI権限、承認、Source sandbox、Promotion | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Editor panel、workspace、製品操作、人間工学 | [Editor Workspace UX](editor-workspace-ux.md) |
 | Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | [Editor UI Framework](editor-ui-framework.md) |
 | Game System Spec、Implementation Set、System Bundle、二段階Activation | [Gameplay programming model](gameplay-programming-model.md) |
-| World、Scene、Level、Topology、Partition Intent、Procedural World、Map Presentation | World／Level／Map規約 |
+| World、Scene、Level、Topology、Partition Intent、Procedural World、Map Presentation | [World／Level／Map](../06-rendering/world.md) |
 
 本書はGitをProject database、Undo system、runtime content storeとして必須化しない。Git連携は任意の外部version-control機能であり、Commitの成否はGit状態へ依存しない。共同リアルタイム編集、CRDT、branch merge UI、networked multi-user sessionはC3であり、C1／C2のChangeSet契約へ含めない。
 
@@ -56,6 +56,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | `MapPresentationDocument` | minimap／world map／marker／fogの非authoritative UI Source | `map_presentation_id`、document revision |
 | `SystemImplementationSetDocument` | active Game System ref、Implementation Variant、Target selection、configuration | `system_implementation_set_id`、document revision |
 | `UiDocument` | UI tree、style、binding、navigation、localization key | `ui_document_id`、document revision |
+| `LocalizationCatalogDocument` | Localization namespace、key、entry、messageのsource。schema正本は[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md#11-localization)の`LocalizationCatalog` | `localization_catalog_id`、document revision |
 | `GameplayDefinitionDocument` | Rule、state、task、typed Capability参照 | Definition StableId、document revision |
 | `AssetMetadataDocument` | Source identity、import settings、license、provenance、tag | Asset StableId、document revision |
 | `VisualStyleProfileDocument` | 表現四軸、Material、Lighting、Camera、Post、UI style | Profile StableId、document revision |
@@ -269,59 +270,53 @@ World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Packa
 
 ## 6. Source layoutと永続化
 
-Project root全体のPathと命名はGame Project配置・命名規約を正本とし、本書はAuthoring永続化に関係するprojectionを次で固定する。
+Project root全体のPathと命名は[Game Project配置・命名規約](../02-foundation/naming-project-layout.md#5-engine-rootとgame-project-root)を正本とする。Top-level rootは同規約のclosed set（`source/`、`config/`、`packages/`、`derived/`、`intermediate/`、`staging/`、`evidence/`と`mirakan.project.json`）以外を追加しない。旧layout root（`authoring/`、`assets/`、`native/game/`、`.mirakan/`、`build/`）はcanonicalではなく、Gatewayは`LegacyLayoutRoot`としてProject openを拒否する。本書はAuthoring永続化に関係するprojectionを次で固定する。
 
 ```text
 <project>/
 ├─ mirakan.project.json
-├─ authoring/
-│  ├─ game_spec/
-│  ├─ worlds/
-│  ├─ scenes/
-│  ├─ world_topologies/
-│  ├─ levels/
-│  ├─ spatial_intents/
-│  ├─ procedural_worlds/
-│  ├─ map_presentations/
-│  ├─ system_implementations/
+├─ source/
+│  ├─ assets/                  # Source Assetとimport設定。AssetMetadataDocumentをAsset IDで併置
+│  ├─ worlds/                  # World／Scene／Topology／Level／Partition Intent／Procedural World／Map Presentation
 │  ├─ gameplay/
 │  ├─ ui/
 │  ├─ localization/
+│  ├─ native/                  # Native Game Module root
+│  ├─ game_spec/
+│  ├─ system_implementations/
 │  ├─ visual_styles/
 │  ├─ targets/
 │  ├─ decisions/
 │  └─ tests/
-├─ assets/
-│  ├─ source/
-│  └─ metadata/
-├─ native/
-│  └─ game/
-│     ├─ include/
-│     ├─ modules/
-│     ├─ source/
-│     └─ tests/
-├─ .mirakan/
-│  ├─ journal/
+├─ config/
+├─ packages/
+├─ derived/
+│  └─ index/                   # AuthoringContextIndex等の派生Index。source control対象外
+├─ intermediate/
+│  ├─ journal/                 # append-only Commit journal。source control対象外
 │  ├─ snapshots/
-│  ├─ recovery/
-│  ├─ index/               # 派生Index。source control対象外
-│  ├─ staging/             # Import／AI候補。source control対象外
-│  └─ user/
-└─ build/                 # 生成物。source control対象外
+│  ├─ transactions/            # §5.3のtemporary transaction directory
+│  └─ recovery/
+├─ staging/                    # Import／AI候補。source control対象外
+└─ evidence/
 ```
 
 - `mirakan.project.json`とAuthoring MCDはUTF-8 without BOM、LF、重複key禁止、comments禁止、trailing comma禁止とする。
-- Scene sourceは`authoring/scenes/<scene_id>/scene.mirakan.json`と`authoring/scenes/<scene_id>/shards/<shard_id>.mirakan.json`へ置き、IDから決定論的にpathを導出する。表示名、cell名、Entity名をpathへ使わない。
-- Level、Topology、Partition Intent、Procedural World、Map Presentation、System Implementation SetもStable IDから決定論的にpathを導出し、表示名、Region名、Target名をpath identityへ使わない。
+- Scene sourceは`source/worlds/scenes/<scene_id>/scene.mirakan.json`と`source/worlds/scenes/<scene_id>/shards/<shard_id>.mirakan.json`へ置き、IDから決定論的にpathを導出する。表示名、cell名、Entity名をpathへ使わない。
+- World、Level、Topology、Partition Intent、Procedural World、Map Presentationも`source/worlds/`配下でStable IDから決定論的にpathを導出し、表示名、Region名、Target名をpath identityへ使わない。System Implementation Set、Visual Style、Target Profile、Decision、Test Scenarioも同じ規則で各directoryへ置く。
 - `.mirakan.json`は人間Diff用sourceであり、Runtimeは直接読まない。
-- `.mirakan/journal`はChangeSet、base／result revision、before／after hash、inverse Operation、Receipt参照を持つappend-only recordである。
-- 100 Commitまたはjournal 64 MiBの早い方でsnapshotを作る。最新2 snapshotと、それ以後のjournalを最低保持する。
-- Project source保存成功とAsset／Runtime cook成功を同一transactionにしない。Commit済みsourceからDerived Artifactを非同期生成し、失敗時もsource revisionを失わない。
-- Auto-saveは未CommitのEditor draftを`.mirakan/recovery/<user>/<session>`へ20秒ごと、またはfocus loss時に保存する。正規revisionへ自動Commitしない。
+- journal、snapshot、transaction directoryの配置は本書が所有し、Git追跡・配布対象外の`intermediate/`配下へ置く。canonical stateはCommit済み`source/`のDocumentだけであり、journal／snapshotをcanonical sourceへ昇格しない。
+- `intermediate/journal/`はChangeSet、base／result revision、before／after hash、inverse Operation、Receipt参照を持つappend-only recordである。
+- 100 Commitまたはjournal 64 MiBの早い方でsnapshotを`intermediate/snapshots/`へ作る。最新2 snapshotと、それ以後のjournalを最低保持する。
+- §5.3のtemporary transaction directoryは`intermediate/transactions/<change_set_id>/`であり、roll-forward検査の完了後に削除または隔離する。
+- Project source保存成功とAsset／Runtime cook成功を同一transactionにしない。Commit済みsourceからDerived Artifactを非同期に`derived/`へ生成し、失敗時もsource revisionを失わない。
+- Auto-saveは未CommitのEditor draftを`intermediate/recovery/<user>/<session>`へ20秒ごと、またはfocus loss時に保存する。正規revisionへ自動Commitしない。
 
 ## 7. Undo／Redo、外部編集、競合
 
 Undoは過去fileを上書きする操作ではない。Journalのinverse Operationを現在revisionに対する新ChangeSetとして再検証し、新revisionを作る。依存変更により安全に反転できない場合は対象と衝突を表示し、強制適用しない。Redoも同じ規則である。
+
+Undo可能深度は§6のjournal最低保持範囲（最新2 snapshotとそれ以後のjournal）と一致する。保持範囲を超えて破棄済みのjournalへ到達するUndo要求は`UndoHistoryUnavailable`として拒否し、部分的なinverse適用や推測による復元をしない。
 
 外部Editor／IDEの変更はFile watcherが検出し、次を行う。
 
@@ -334,7 +329,7 @@ Undoは過去fileを上書きする操作ではない。Journalのinverse Operat
 
 ## 8. AIと手動編集
 
-- AIは現在revision、関係Document、lock、Capability、Target、budgetを含む`ContextPackV2`を読む。
+- AIは現在revision、関係Document、lock、Capability、Target、budgetを含む`AuthoringContextPackV1`を読む。
 - Context選択は`AuthoringContextIndexV1`と署名対象の`AuthoringContextPlanV1`から行い、選択理由、field mask、omitted range、continuation、source hashを失わない。
 - Editorで選択中のWorld／Scene／Level／Entityを会話Contextへ含める場合は`AuthoringSelectionContextV1`を使い、画面pixel、Hierarchy path、表示名だけを対象識別子にしない。
 - AIは存在しないStableIdを推測せず、`Create*` Operationで新IDを要求する。IDはGatewayが生成して結果mapを返す。
@@ -344,6 +339,8 @@ Undoは過去fileを上書きする操作ではない。Journalのinverse Operat
 - Level 0ではAIが質問と仮定をGame用語で提示し、実装語を初心者へ選ばせない。
 - 手動Inspector、Graph、Code連携もAIと同じDiff、Validation、Undoを使う。
 - AI説明、AI proposal、Engine validation、Commit済み結果を別stateとして表示する。
+
+`AuthoringContextPackV1`と`AuthoringContextPlanV1`のcanonical schemaは本書が所有する。`AuthoringContextPlanV1`はContext選択の署名対象であり、`plan_id`、`project_id`、exact `project_revision`、`contract_set_hash`、参照した`AuthoringContextIndexV1` revision、選択理由、Documentごとのfield mask、source hash、omitted range、optional continuationをfield setとする。`AuthoringContextPackV1`はPlanから決定論的に生成するread-only／DisposableなAI入力projectionであり、`plan_hash`、現在revision、関係Documentの`SceneSliceV1`、optional `AuthoringSelectionContextV1`、lock、Capability、Target、budgetの各参照をfield setとする。両者はProject正本またはUndo対象ではなく、Commit可能なidentityまたはOperationとして受理しない。
 
 Editor／Workspace UXが生成する`ExternalEngineConceptResolutionV1`は入力解決Evidenceであり、Project DocumentまたはChangeSetへ保存しない。Gatewayは外部用語、resolver object、候補配列、外部Scene path／Hierarchy indexをidentityまたはOperationとして受理しない。後続ChangeSetは`selected_concept`のcanonical concept ID、対象StableId、typed Operation、expected Document revisionを再指定しなければならず、`question_required`または`unsupported`のResolutionからProposalを生成してはならない。
 
@@ -371,7 +368,7 @@ representation_plan_hash
 integrated_scale_receipt_hash
 ```
 
-`integrated_scale_receipt_hash`は`Qualified` Targetだけ必須であり、`Predicted`／`OptimizationRequired`では0ではなくfield omissionをcanonical encodingする。未Qualified revisionからPlay／Packageを要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
+`integrated_scale_receipt_hash`は`Qualified` Targetだけ必須であり、`Predicted`／`OptimizationRequired`では0ではなくfield omissionをcanonical encodingする。PlayはDevelopment PlayとQualified promotionを区別する。`Predicted`のTargetはDevelopment Playを開始でき、未実測であることをEditor表示とReceiptへ明示する。[Performance／capacityが所有するqualification計測run](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)はこのDevelopment Play実行モードで行い、Receipt確定後にだけ`Qualified`へ昇格する。`OptimizationRequired`のTargetはDevelopment Playを含むPlay開始を拒否する。未Qualified revisionを`Qualified`扱いのPlay、Cooked Runtime Package promotion、Shippingへ要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
 
 Source revisionと全dependency closureが同じであれば、Cooked Runtime Packageはbyte-for-byte同一でなければならない。Build日時、machine path、user、random IDはartifact本文へ含めずReceiptへ分離する。
 
@@ -394,6 +391,7 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 | Derived cook失敗 | Source revision維持、last valid Derived ArtifactをDevelopment previewだけで明示継続 |
 | External file破損 | Projectへimportせず隔離、最後の正規Documentを維持 |
 | Undo conflict | inverseを適用せず、conflict resolverを表示 |
+| journal保持範囲外へのUndo要求 | `UndoHistoryUnavailable`。inverse Operation不在を明示し、部分適用しない |
 
 ## 11. TestとRelease Gate
 
@@ -404,7 +402,7 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - parent／reference／Recipe cycle、Dimension／Capability／Target不一致
 - Commit各stepへのProcess kill fault injectionとroll-forward／隔離
 - disk full、permission denial、partial write、rename failure
-- Undo／Redo 10,000回後のstate hash一致
+- Undo／Redo 10,000回後のstate hash一致。§6の最低保持journal範囲内の深度で実行し、保持範囲外Undoの`UndoHistoryUnavailable`拒否もあわせて検証する
 - 外部編集三者比較、同field conflict、人間lock保持
 - AI proposalと手動GUI操作が同じcanonical ChangeSetになるconformance
 - 同じ`AuthoringSelectionContextV1`からmouse、keyboard、UI Automation、AIが同じStableId／revisionを対象にし、sort／filter／rename／re-shard後も表示indexまたはscreen coordinateへ退行しないconformance
@@ -413,7 +411,7 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - Re-shard前後で`entity_set_root_hash`とsemantic diffが不変、storage-only Diffだけが生成されるtest
 - Index stale／rebuild中に別revisionのSliceを返さないconcurrency test
 - Decision dependency変更で`InvalidateDecision`／`ReconfirmDecision`不足をrejectし、locked Decisionを別承認なしで変更できないnegative test
-- `Predicted → OptimizationRequired → Qualified`遷移、Receipt invalidation、未Qualified TargetのPlay／Cook／Shipping拒否
+- `Predicted → OptimizationRequired → Qualified`遷移、Receipt invalidation、`Predicted` TargetのDevelopment Play許可と未実測明示、`OptimizationRequired` TargetのPlay拒否、未Qualified TargetのCooked Package promotion／Shipping拒否
 - Game System authoritative State ownerが0件／複数件、stale System Bundle、Source Promotion後Project Commit failureのnegative／recovery test
 - World／Scene／Level／Cell identity、Topology reachability、Portal trap、Map intent ambiguity、Cell activation atomicityのfixture
 - Source Intentから同じTarget別Streaming Plan hashを再生成し、Derived Planの直接編集を拒否するtest

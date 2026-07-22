@@ -64,7 +64,7 @@ UiViewModelSnapshot
 | `T110` | immutable UI PresentationをRenderSnapshotへpublish |
 | `R20` | clip、batch、glyph／image packetを抽出 |
 
-UI interactionはpixel hit resultからWorldを直接変更せず、registered `UiCommandId`を発行する。`T90`で作ったHit Test Snapshotは次tickの`T10／T30`で使用する。Surface generation、Document generation、layout generation不一致のpointer eventはtargetへ配送しない。
+UI interactionはpixel hit resultからWorldを直接変更せず、registered `UiCommandId`を発行する。`T90`で作ったHit Test Snapshotは次tickの`T10／T30`で使用する。`T10`ではInput規約（[Input](input.md) §6）がpointer consumption解決の入力として前tickの`UiHitTestSnapshot`（pointer-over-UI集合）を使用する。Surface generation、Document generation、layout generation不一致のpointer eventはtargetへ配送しない。
 
 ## 4. UiDocument
 
@@ -367,6 +367,8 @@ LocalizationCatalog
     messages_by_locale
 ```
 
+`LocalizationCatalog`の正規Commit経路は[Project state](../03-authoring/project-state.md) §3.1の`LocalizationCatalogDocument`（document_kind）であり、本書がそのschema正本、Project stateがDocument identityとCommitを所有する。
+
 Source `LocalizationKeyId`はUUIDv7 `StableId`で、Source文字列やEnglish本文をkeyにしない。Cookerは一つのexact Localization Catalog Artifact内でKey `StableId`をUUID byte順に並べ、1から`LocalizationKeyRuntimeId uint32`を割り当てる。0はinvalidとし、Runtime IDをSource、Save、別Catalog比較へ使用しない。各messageはICU MessageFormat相当のbounded ASTへoffline Cookする。
 
 ### 11.2 Message AST
@@ -523,11 +525,14 @@ Platform bridgeはSemantic Node IDとgenerationを使い、UI Runtime pointerを
 
 - keyboard／controller／touch／screen readerでCore menuを操作可能
 - focus visible、focus not obscured、keyboard trapなし
-- primary touch target最低44×44 lu、desktop最低32×32 lu
+- primary touch target最低44×44 lu、desktop最低32×32 lu。判定はscale policyとUser UI scale適用後のfinal logical rect（Surface論理空間の`ui_lu`）で行う
+- lu最低値は物理タップ可能性を保証しない。touch targetの物理単位Gate（Android 48×48 dp、Apple 44×44 pt）は[Android](android.md)／[Apple](apple.md)のqualificationが所有し、release blockを含む合否判定はそちらへ従う
 - text 200% UI scale、High Contrast、color以外の状態表現
 - captions、subtitle size／background／speaker option
 - reduced motion、flash／camera shake settingとのStyle連携
 - timeoutを必要とするUIは延長／停止policyを明示
+
+`AccessibilityPolicySnapshotV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、最低fieldとしてrevision、reduced motion、flash／camera shake制限、High Contrast、text／UI scale、caption policyの各有効状態を持つ。[Post Processing](../06-rendering/post-processing.md) §7のresolver入力を含む消費側はfield一覧を複写せず書き戻さない。
 
 ## 15. Player Profile／Settings
 
@@ -607,7 +612,7 @@ Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変
 | Apply class | 対象 | 規則 |
 |---|---|---|
 | `immediate` | Audio volume／route preference、Input binding、Language、Accessibility、通常のQuality選択 | 全Validator成功後にSubsystemへ同一transaction generationで適用し、atomic保存失敗時は全fieldを以前のgenerationへ戻す |
-| `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、UI／real-time clockの**ちょうど15秒**以内にkeyboard／controllerで確認されなければ自動Revert |
+| `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、`confirmation_deadline_monotonic_ms`（monotonic clock、適用時刻＋15.0秒、Gameplay pause非依存）までにkeyboard／controllerで確認されなければ自動Revert。deadline判定の許容誤差は+1 UI frame以内とし、wall clockを判定に使わない |
 | `restart_required` | Renderer Backend、Packageでrestartが必要と宣言されたDevice feature | 現sessionのRuntime stateを変更せず、次回起動候補として保存し、起動失敗時はlast-known-goodへ戻す |
 
 SettingsとSave Catalogは`SettingsCatalogCommitMarkerV1`を同じdurable commit markerとする二相公開で、個別generationを公開しない。第一相ではSettings payloadと対応するSave Catalog entry／generationをstageし、両方をflushしchecksum verifyしてからmarkerをdurableにする。第二相では成功した同一markerのrefと`commit_generation`をProfileのactive rootとしてatomic replaceし、そのmarkerに記録されたSettingsとCatalogの両referenceを同時にpublishする。readerはactive markerから対になる両referenceを一読で解決し、SettingsまたはCatalogを別rootから混在して読まない。
@@ -698,7 +703,7 @@ AIがUIを生成する場合、GameSpecの主要flow、Target、safe area、requ
 
 ```text
 Natural-language intent／manual edit
-  -> AuthoringContextPack
+  -> AuthoringContextPackV1
   -> UiAuthoringIntentV1
   -> UiDocument／Composite／Style／Binding proposal
   -> AssetRequirement／GeneratedAssetStaging
@@ -781,7 +786,7 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - 100／125／150／200% DPI、0.75～2.0 UI scale、portrait／landscape、cutout
 - Windows UIA、Android Accessibility、Apple UIAccessibility action
 - keyboard／controller／touch／screen readerでTitle→Settings→Play→Pause→Exit
-- `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのちょうど15秒timeout、restart_required、future schema／hash／reference Safe Mode、`SettingsCatalogCommitMarkerV1`二相公開／split generation不可視／catalog_commit_failed／interrupted recovery、genesis generation 1／previous absent、first publication failure、bootstrap recovery、non-genesis previous exact +1、Profile marker root／generation mismatch recovery／direct-root禁止、Save Catalog generation／identity禁止
+- `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのmonotonic 15.0秒timeout、restart_required、future schema／hash／reference Safe Mode、`SettingsCatalogCommitMarkerV1`二相公開／split generation不可視／catalog_commit_failed／interrupted recovery、genesis generation 1／previous absent、first publication failure、bootstrap recovery、non-genesis previous exact +1、Profile marker root／generation mismatch recovery／direct-root禁止、Save Catalog generation／identity禁止
 - glyph atlas eviction／submission lifetime、locale／Font／Style hot reload
 - 131,072 Node、65,536 glyph、8,192 event上限と10分soak
 - Windows、Android、Appleの同じUI fixtureでlogical layout／semantic hash一致

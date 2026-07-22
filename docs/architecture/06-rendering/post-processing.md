@@ -42,6 +42,8 @@ PostProcessIntentV1
 
 主要語彙は`scope: project_default | view_family | camera_profile | volume`、`goal: balanced | cinematic | gameplay_clarity | low_gpu_cost | low_latency | pixel_crisp | accessibility_safe | offline_reference`、`exposure_intent: manual | stable_auto | responsive_auto | match_reference`、`tone_intent: neutral | filmic | high_contrast | low_contrast | pixel_preserve | custom_profile`、`bloom_intent: off | subtle | balanced | strong`、`focus_intent: off | camera_lens | distance | subject_group`、`motion_clarity_intent: crisp | balanced | cinematic`、`ambient_occlusion_intent: off | subtle | balanced | strong`、`reflection_intent: off | rough_only | balanced | high_quality`に閉じる。
 
+`fallback_priority`は0～16件の`PostProcessFallbackStepV1`で、array先頭を最高priorityとする。step kindは`reduce_quality | disable_optional_node | substitute_qualified_node | bypass_effect`のclosed setであり、対象Node ref、kind固有parameter、維持するfidelity／Accessibility constraint refを持つ。`reduce_quality`はCatalogの一段低いqualified quality、`disable_optional_node`はCatalogでoptionalなNode、`substitute_qualified_node`はexactな代替Catalog Node ref、`bypass_effect`はeffect family全体がoptionalな場合だけ有効である。同じtarget／kindの重複、空の代替ref、fidelity floorを破るstepをschema validationで拒否する。Resolverは宣言順に一回ずつ試し、最初に全制約とBudgetを満たすstepを採用する。配列外のimplicit fallback、parameter clamp、Node reorder、未qualified代替を行わない。
+
 Intentはgoalを表し、kernel radius、tap count、history blend、mip数、Render pass、Shader permutationを持たない。scopeと対象refが一致しない、accessibility constraintとgoalが両立しない、unknown closed value、stale base revisionは`MIRAKAN-POST-SCHEMA-INVALID`または`MIRAKAN-POST-STALE-PLAN`で拒否する。
 
 ### 2.2 Profile／Volume
@@ -65,7 +67,7 @@ Profile継承は最大4段とし循環を拒否する。各nodeは`inherit | dis
 
 `PostProcessCameraOverrideV1`は`base_profile_id`、`base_profile_revision`、field mask、最大16件のpartial `node_settings`だけを持ち、Profile継承、Node追加、stage変更、Target Capability追加はできない。
 
-`PostProcessVolumeV1`は`volume_id`、`shape_ref`、`profile_id`、`priority_i16`、`blend_radius_m`、`blend_weight`、`unbounded`、`enabled`、`target_selector`を持つ。Viewごとの交差Volumeは最大32とし、`priority -> volume_id`で安定sortする。weightはshape距離から0～1へ決定する。Blend可能fieldだけを線形または定義済みDomain blendし、enum、asset ref、Node enable等は最高priorityかつStable ID最小の一件を選ぶ。競合は`MIRAKAN-POST-VOLUME-CONFLICT`で説明する。
+`PostProcessVolumeV1`は`volume_id`、`shape_ref`、`profile_id`、`priority_i16`、`blend_radius_m`、`blend_weight`、`unbounded`、`enabled`、`target_selector`を持つ。Viewごとの交差Volumeは最大32とし、`priority -> volume_id`で安定sortする。weightは`effective_weight = blend_weight × saturate(1 − exterior_distance / blend_radius_m)`で決定する。`blend_weight`は`[0,1]`、`exterior_distance`はshape表面からの外側距離でshape内部は0、補間は線形でありeasingを使わない。`blend_radius_m = 0`はshape内部で`blend_weight`、外部で0、`unbounded = true`は距離によらず常に`blend_weight`とする。Blend可能fieldだけを線形または定義済みDomain blendし、enum、asset ref、Node enable等は最高priorityかつStable ID最小の一件を選ぶ。競合は`MIRAKAN-POST-VOLUME-CONFLICT`で説明する。
 
 Effect entryはEffect Stable ID、effect kind、enabled intent、parameter override、固定composition stage、Catalog dependency ref、optional Qualification済みProject Shader Technique ref、required input／history、Target capability、fallbackを持つ。Profile／AIはstageや順序を変更できない。raw shader source、native pass、resource handle、command callbackをSourceへ埋め込まない。
 
@@ -170,7 +172,7 @@ Previewは対象revision、ViewFamily fixture、contributing Volume、resolved o
 
 `PostProcessContextSummaryV1`はView Family／Camera／Target／Visual Style／AA PlanのID／version、active Profile／Volume上位32件、stage別active Node／quality／history、Project Technique／Understanding Closure hash、HDR／SDR／layer policy／pixel-locked有無、予測／実測GPU時間／persistent／transient byte、active Diagnostic／fallback、詳細取得用Stable IDだけを返す。`PostProcessPlanExplanationV1`はIntent fieldからNode／parameterへの写像、AA／UI／Accessibility制約、棄却Node、fallbackで失われる見た目、予測cost、Plan hashを返す。Project Technique内部は`ShaderContextSliceV1`で別取得する。
 
-`PostProcessChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Profile／Volume差分、risk、Preview hash、必要Approvalを載せるDomain projectionで、直接Commitしない。`PostProcessDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとEffect property pathを載せる。`PostProcessVolumeSummaryV1`、`CameraPresentationSummaryV1`、`LayerCompositionSummaryV1`、`TargetCapabilitySnapshotV1`、`PostProcessBudgetEnvelopeV1`、`AccessibilityPolicySnapshotV1`は各Ownerの公開するread-only／revisioned projectionで、Post Processは内容を複写または書き戻さない。
+`PostProcessChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Profile／Volume差分、risk、Preview hash、必要Approvalを載せるDomain projectionで、直接Commitしない。`PostProcessDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとEffect property pathを載せる。`PostProcessVolumeSummaryV1`は本書、`CameraPresentationSummaryV1`は[Camera](camera.md)、`LayerCompositionSummaryV1`は[Render Graph](render-graph.md)、`TargetCapabilitySnapshotV1`は共通envelopeを[Executable contracts](../02-foundation/executable-contracts.md)・Target固有entryを各Platform、`PostProcessBudgetEnvelopeV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)、`AccessibilityPolicySnapshotV1`は[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)がOwnerとして公開するread-only／revisioned projectionで、Post Processはfield一覧を複写せず書き戻さない。
 
 ## 9. Diagnostic、failure、fallback
 

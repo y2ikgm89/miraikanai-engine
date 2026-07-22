@@ -125,6 +125,8 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 
 MCDへの永続参照を`McdContractRefV1 { id: string, version: uint32, contract_set_hash: SHA-256 }`へ固定する。`id`のkindと参照Fieldが要求するkindは一致し、`version`は同じContract set内で存在して`status=active`でなければならない。Bare IDは固定済み`contract_set_hash`を入力にするEditor／AIのread-only検索だけで使用でき、候補が厳密に1件でなければ解決しない。Project Source、Cooked Artifact、Save、Replay、Receipt、ChangeSetはbare IDまたはruntime numeric IDを永続参照に使用しない。`GameSystemContractRefV1`は`McdContractRefV1`のうちkindが`game_system`である型付きaliasとする。
 
+`contract_set_hash`はcurrent setへの追随指定ではなく、immutableな`ContractSetSnapshotV1` bytesのexact content hashである。Readerは参照自身のhashでSnapshotを取得し、そのSnapshot内の`{id, version}`だけを検証する。current setへ置換して検証せず、set更新時に既存Source、Save、Replay、Artifactの参照を一括書換えしない。旧Snapshotは、それを参照するretained Project revision、Save、Replay、Artifact、Receiptのretention期間中保持する。旧Snapshot欠落、hash不一致、またはSnapshot内で対象がactiveでない場合はfail closedとする。current setへ移す場合は明示offline migratorが対象objectの新revisionと新`McdContractRefV1`を生成し、旧objectをin-place更新しない。
+
 Derived Artifactへの永続参照は`ArtifactRefV1 { artifact_kind: string, schema_version: uint32, sha256: SHA-256 }`へ固定する。本型の構造定義は本節だけが正本であり、Domain文書はexact refを消費してFieldを再定義しない。
 
 `schema_version`という名のFieldはMCD全域で`uint32`固定とし、本規則を全Domain文書共通の正本とする。SemVer等の互換表現が必要な場合は`schema_version`へ文字列を載せず、`format_version`等の別名Fieldを別途定義する。
@@ -266,7 +268,7 @@ CapabilityはAIとEditorが「何を作れるか」を理解する正規単位�
 
 | Field | 内容 |
 |---|---|
-| 共通`id` | 例`capability.render.material.toon_v1` |
+| 共通`id` | 例`capability.render.material.toon`。maturityとschema versionをIDへ埋め込まない |
 | `maturity` | C0からC3 |
 | `supported_targets` | Target Profile ID |
 | `required_capabilities` | Dependency DAG |
@@ -623,7 +625,7 @@ Anti-alias Discoveryは2D／3D機能計画の意味GoalとRenderer規約の実�
 
 全Anti-alias Query／Proposal結果は`project_revision`、`contract_set_hash`、`capability_signature_hash`、`renderer_profile_revision`、`qualification_receipt_hashes`、`query_hash`を返し、ViewFamilyへ解決した結果は`view_family_id`と`source_intent_revision`も返す。bounded collectionは`omitted_ranges`と`continuation_cursor`を持つ。`plan_change`は`expected_project_revision`、`idempotency_key`、変更理由、対象scopeを必須にし、`preview_change`はProposal hashと同じrevisionを必須にする。stale revision、未知method、未Qualified Target、MSAA×temporal、Hybrid Deferred MSAA、異なるsample countの同一ViewFamily混在、pixel-locked layerへのAA適用をtyped Diagnosticでfail-closedにする。
 
-`AntiAliasingIntentV1`の`scope`は`project | camera_profile`、`mode_policy`は`auto | fixed`、`selection_policy`は`balanced | low_gpu_cost | minimum_blur | minimum_ghosting | vr_low_latency | pixel_crisp`、`preferred_method`は`none | fxaa | smaa_1x | msaa | mirakan_taa_v1 | mirakan_taau_v1 | qualified_provider`、`msaa_samples`は`auto | 2 | 4 | 8`のclosed enum／unionとする。`scope`は[Render Graph](../06-rendering/render-graph.md) §9の`scope_resolution`が最終scopeへ解決し、`selection_policy`は[Mobile Common](../07-platform/mobile-common.md) §5.1のMobile選択policyキーと同一語彙である。`msaa`以外で2／4／8を指定した入力を拒否し、`qualified_provider`はCatalogのexact Provider IDを必須にする。`none`は明示User指定、bit-exact diagnostic、AA対象外layerだけに許可し、AIの性能最適化候補にしない。Provider／MCPへ投影するのは上記五Operationだけであり、`ResolvedAntiAliasingPlanV1` write、arbitrary Render Graph write、Provider install／activate、Settings Apply、Source Promotion、Project CommitをTool listへ含めない。
+`AntiAliasingIntentV1`の`scope`は`project | camera_profile`、`mode_policy`は`auto | fixed`、`selection_policy`は`balanced | low_gpu_cost | minimum_blur | minimum_ghosting | vr_low_latency | pixel_crisp`、`msaa_samples`は`auto | 2 | 4 | 8`のclosed enumとする。`preferred_method`はtagged unionであり、exactly oneの`builtin_method: none | fxaa | smaa_1x | msaa`または`upscaler_profile_ref`を持つ。`upscaler_profile_ref`は`upscaler-profile.mirakan-taa | upscaler-profile.mirakan-taau`またはQualification済みCatalogのexact Profile IDだけを許可し、`qualified_provider`のようなplaceholder値を保存しない。`scope`は[Render Graph](../06-rendering/render-graph.md) §9の`scope_resolution`が最終scopeへ解決し、`selection_policy`は[Mobile Common](../07-platform/mobile-common.md) §5.1のMobile選択policyキーと同一語彙である。`builtin_method != msaa`または`upscaler_profile_ref`選択時に2／4／8を指定した入力を拒否する。`none`は明示User指定、bit-exact diagnostic、AA対象外layerだけに許可し、AIの性能最適化候補にしない。Provider／MCPへ投影するのは上記五Operationだけであり、`ResolvedAntiAliasingPlanV1` write、arbitrary Render Graph write、Provider install／activate、Settings Apply、Source Promotion、Project CommitをTool listへ含めない。
 
 Lighting DiscoveryはLighting規約の意味Role、物理単位、Target／Budget制約を次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.lighting.*`を生成する。
 

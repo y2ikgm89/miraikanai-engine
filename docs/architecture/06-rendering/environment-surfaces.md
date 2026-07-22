@@ -191,6 +191,8 @@ EnvironmentLightingSourceV1
 
 Compensation -8～8 EV、manual／auto range -16～32、min<max。Manualだけmanual EVを持つ。`ExposureRuntimeProfile::ReferenceV1`は256 log-luminance bins、0.5～99.5 percentile、18% gray、brighten 1.5 EV/s、darken 3.0 EV/s。Baked IBLはdiffuse 32²×6 `RGBA16_FLOAT`、specular 256²×6・9 mip `RGBA16_FLOAT`、BRDF LUT 256² `RG16_FLOAT`、HDR sourceを除くpersistent set 8 MiB以下である。
 
+`EnvironmentLightingSummaryV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、[Lighting](lighting.md) §6の`LightIntentResolverV1`入力である。最低fieldとしてrevision、Environment profile ref、`EnvironmentLightingSourceV1`のID／version、`ibl_mode`、`exposure_mode`と実効EV range（min／max、manual時はmanual EV100）、diffuse／specular IBL有効状態、合成後実効cloud coverage、`cast_cloud_shadow`を持つ。revisionは入力SourceのDocument revisionとWeather合成generationから決定的に導出し、同一入力から同一revisionを生成する。消費側はfield一覧を複写せず、Summary経由でSourceへ書き戻さない。
+
 ```text
 WeatherPresentationProfileV1
   profile_id
@@ -198,12 +200,14 @@ WeatherPresentationProfileV1
   precipitation_rate_mmph
   wind_velocity_world_mps
   air_temperature_c
+  cloud_coverage
+  cloud_density_multiplier
   snow_accumulation_rate_mps
   snow_melt_rate_mps
   transition_seconds
 ```
 
-Rangeはprecipitation `[0,500] mm/h`、wind各axis `[-150,150] m/s`、temperature `[-100,100] C`、accumulation／melt `[0,0.01] m/s`、transition `[0,600] s`。`WeatherPresentationSnapshotV1`は同generationをEnvironment、VFX、Snowへpublishし、Gameplay weatherへ逆入力しない。
+Rangeはprecipitation `[0,500] mm/h`、wind各axis `[-150,150] m/s`、temperature `[-100,100] C`、cloud coverage `[0,1]`、cloud density multiplier `[0,10]`、accumulation／melt `[0,0.01] m/s`、transition `[0,600] s`。`WeatherBindingV1.channels`が`cloud_coverage`を含む場合は`CloudSourceV1.coverage`をweather値でoverrideし、`cloud_density`を含む場合は`CloudSourceV1.density_multiplier`へ`cloud_density_multiplier`を乗算する。いずれも`transition_seconds`で補間し、channel未選択のfieldはCloudSourceV1のauthored値を維持する。§5のweather coverage／density history破棄条件はこの合成後の実効値を入力とする。`WeatherPresentationSnapshotV1`は同generationをEnvironment、VFX、Snowへpublishし、Gameplay weatherへ逆入力しない。
 
 ## 3. Water surface／body profile
 
@@ -213,6 +217,7 @@ WaterSystemDocumentV1
   system_id
   bodies: WaterBodyV1[]
   material_profiles[]
+  gravity_mps2
   quality_profile_id
   target_policy
   fallback_variants[]
@@ -247,10 +252,10 @@ DirectionalWaveComponentV1
   steepness: f32          # [0,1]
 
 k = 2*pi/wavelength
-omega = sqrt(project_gravity * k)
+omega = sqrt(gravity_mps2 * k)
 ```
 
-CPU QueryとGPU vertexは同じ生成定数／式を使い、65,536 reference pointsでheight error最大2 mm、normal angle最大0.25 degreeを満たす。`FlowProfileV1`はconstant flowまたはCooked current mapを持ち、RG normalized direction、B `[0,1]` strength、profile max speedを使う。Gameplayはtextureを直接sampleせず同じfieldのCPU artifactを読む。
+`gravity_mps2`は波分散専用のscalar f32 Source定数であり、範囲`[0.1,100] m/s^2`、既定9.80665とする。PhysicsのWorld Profile gravityを暗黙参照せず、2D／3D Projectで同じfieldを使う。CPU QueryとGPU vertexは同じ生成定数／式を使う。各componentの時刻位相`omega*t`はCPUがf64で累積し`[0,2π)`へ折り畳んだ定数としてGPUへ渡し、大きな累積引数のままsinを評価しない。空間位相はworld-origin rebase後のcamera近傍座標で評価する。一致fixtureはorigin±2,048 m、開始tickから24時間相当のtick範囲へ固定した65,536 reference pointsでheight error最大2 mm、normal angle最大0.25 degreeを満たす。`FlowProfileV1`はconstant flowまたはCooked current mapを持ち、RG normalized direction、B `[0,1]` strength、profile max speedを使う。Gameplayはtextureを直接sampleせず同じfieldのCPU artifactを読む。
 
 Depthはoffline terrain／mesh sourceを使い、scene depthをcanonical water depthにしない。ReflectionはIBL、qualified profileでProbe／SSR、UnderwaterはWater Volume overlapからabsorption／scattering／fog／waterlineを選ぶ。Boundary 5 cm以内はprevious Body保持、10 cm外で解除する。
 
@@ -303,7 +308,7 @@ SnowfallVfxProfileV1
   quality_variant[]
 ```
 
-Camera volumeはfinite boxである。BaselineはCPU Billboard、gravity／drag／Color・Size over Life、advancedはGPU Billboard、turbulence、visual collision。Particle hitからaccumulation、friction、footprint、Gameplay eventを生成しない。
+Camera volumeはfinite boxである。`density_scale`はauthored基準値であり、LODによる降雪particle密度の倍率は`vfx_presentation` classの`VfxLodProfileV1`だけが所有する。BaselineはCPU Billboard、gravity／drag／Color・Size over Life、advancedはGPU Billboard、turbulence、visual collision。Particle hitからaccumulation、friction、footprint、Gameplay eventを生成しない。
 
 ```text
 SnowSurfaceDocumentV1
@@ -316,9 +321,9 @@ SnowSurfaceDocumentV1
   fallback_variants[]
 ```
 
-`SnowReceiverV1`はreceiver Stable ID、geometry Asset、world bounds、surface layer、static mask、dynamic enabled、priorityを持つ。Static maskはlinear R8_UNORM、0＝none、255＝full。UVなしMeshはworld projectionを明示しない限りCook error。Material coverageはstatic／dynamic mask、world normal dot up、allow mask、height bias、material retentionを掛け、coverage 0ならsnow layerを描画しない。baselineはgeometry displacementなし。
+`SnowReceiverV1`はreceiver Stable ID、geometry Asset、world bounds、surface layer、static mask、dynamic enabled、priorityを持つ。Static maskはlinear R8_UNORM、0＝none、255＝full。UVなしMeshはworld projectionを明示しない限りCook error。Material coverageはstatic／dynamic mask、world normal dot up、allow mask、height bias、`retention_q16`を掛け、coverage 0ならsnow layerを描画しない。baselineはgeometry displacementなし。
 
-`SnowDynamicFieldProfileV1`はworld-aligned paged atlas、`max_depth_m ∈ [0.01,2.0]`を持つ。Page resolutionは128²、desktop texel 0.25 m／active 256、mobile standard 0.50 m／active 64、format R16G16_UNORM、R=coverage／depth、G=compaction。page keyはinteger world cell `(x,z)`とfield generationでありcamera distanceをidentityにしない。
+`SnowDynamicFieldProfileV1`はworld-aligned paged atlas、`max_depth_m ∈ [0.01,2.0]`、`melt_threshold_c: f32 ∈ [-100,100]`（既定0）、`retention_q16: Q0.16 u16`（既定65,535）をclosed fieldとして持つ。`retention_q16`は`SnowApplyWeather`、`melt_threshold_c`は`SnowResolveMelt`だけが読む。Page resolutionは128²、desktop texel 0.25 m／active 256、mobile standard 0.50 m／active 64、format R16G16_UNORM、R=coverage／depth、G=compaction。page keyはinteger world cell `(x,z)`とfield generationでありcamera distanceをidentityにしない。
 
 Coverage／compactionはQ0.16 `u16`である。
 
@@ -343,7 +348,7 @@ SnowSurfaceInteractionEventV1
   presentation_seed
 ```
 
-Radius `[0.01,5] m`、delta `[-1,1]`、desktop 1,024／tick、mobile 256／tick。Overflowは`priority desc, event_id asc`末尾drop、繰越なし。AccumulationはWeather rate×retention×fixed presentation step、meltはair temperatureがprofile threshold超過時、compactionはstampだけが増やす。GPU pages／全stamp履歴をSaveせず、Weather profile、start tick、static mask revision、bounded authored eventsから再生成する。
+Radius `[0.01,5] m`、delta `[-1,1]`、desktop 1,024／tick、mobile 256／tick。Overflowは`priority desc, event_id asc`末尾drop、繰越なし。AccumulationはWeather rate×`retention_q16`×fixed presentation step、meltはair temperatureが`melt_threshold_c`超過時、compactionはstampだけが増やす。GPU pages／全stamp履歴をSaveせず、Weather profile、start tick、static mask revision、bounded authored eventsから再生成する。
 
 WetnessはWeather rain／sleet、Water interaction、receiver allow maskからMaterial ownerのsurface semanticへtyped inputを出す。Snow coverage／compactionと同じreceiver identityを使うが値をaliasせず、Gameplay friction／surface stateを変更しない。
 
@@ -387,7 +392,7 @@ Dynamic IBLは6 face＋1 diffuse＋9 specular mip＝16 work units、最大1 unit
 
 Fog／Cloud historyはcamera cut、world-origin rebase、internal extent、non-jitter projection、Environment generation、sun 1 frame 5 degree、weather coverage／density max delta 0.20で破棄する。破棄frame weight 0、次7 framesで`min(0.90, valid_frames/8)`まで増やす。編集不可のderived policyである。
 
-Water orderingはOpaque／Lighting、Environment、Water Depth／Surface、Underwater／Waterline、Transparent／World VFXである。Water resource generationをsnapshot dependencyへ含め、LODは`WaterLodProfileV1`／`LodResolutionPlanV1`だけからpatch density、wave shading、reflection、underwater、foam／spray tierを選ぶ。SnowはLOD ownerの`SnowSurfaceLodProfileV1`だけからupdate distance、normal／sparkle、precipitation density、static fallbackを選ぶ。CPU query、Volume、Gameplay water level、Snow page identity／stampをLODで変えない。
+Water orderingはOpaque／Lighting、Environment、Water Depth／Surface、Underwater／Waterline、Transparent／World VFXである。Water resource generationをsnapshot dependencyへ含め、LODは`WaterLodProfileV1`／`LodResolutionPlanV1`だけからpatch density、wave shading、reflection、underwater、foam／spray tierを選ぶ。SnowはLOD ownerの`SnowSurfaceLodProfileV1`だけからupdate distance、normal／sparkle、static fallbackを選び、降雪particle密度は`vfx_presentation` classの`VfxLodProfileV1`だけから選ぶ。CPU query、Volume、Gameplay water level、Snow page identity／stampをLODで変えない。
 
 Snow computeはWorld opaque Materialより前に完了し、same-frame finalized fieldだけをsampleする。Pixel-locked 2Dはatlasでなくexplicit Tile／Sprite snow variantを使う。Device loss時はSource／receiptからpersistent Environment、Water material／mesh／query、Snow mask／manifest／empty fieldを復元し、historyを破棄、bounded warm-upし、one-shot VFXを再発火しない。
 
@@ -395,7 +400,7 @@ Snow computeはWorld opaque Materialより前に完了し、same-frame finalized
 
 共通operation surfaceを一度だけ定義する。Environmentは`operation.environment.inspect_profile, operation.environment.list_presets, operation.environment.resolve_intent, operation.environment.validate_changeset, operation.environment.preview_changeset, operation.environment.estimate_cost, operation.environment.create_profile, operation.environment.apply_preset, operation.environment.set_intent, operation.environment.set_sky, operation.environment.set_sun_moon_link, operation.environment.set_height_distance_fog, operation.environment.set_volumetric_fog, operation.environment.create_local_fog_volume, operation.environment.update_local_fog_volume, operation.environment.delete_local_fog_volume, operation.environment.set_atmosphere_preset, operation.environment.set_custom_atmosphere, operation.environment.set_cloud_layer, operation.environment.set_lighting, operation.environment.bind_weather, operation.environment.generate_fallback, operation.environment.bake, operation.environment.run_qualification`。Waterは`CreateWaterBody, SetWaterBoundary, SetWaveProfile, SetFlowProfile, SetWaterMaterial, SetUnderwaterProfile, PreviewWaterCost`。Weather／Snowは`SetWeatherPresentation, CreateSnowReceiver, PaintStaticSnowMask, SetSnowMaterial, EnableDynamicSnow, PreviewSnowCost`。LOD変更はLOD ownerの`operation.lod.*`へ委譲する。Write operationはProject state ownerの`AuthoringCommandGateway`へ`ProjectChangeSetV1`を渡すだけである。
 
-Environment Capability IDは`capability.environment.core_v1, capability.environment.sky_hdri_v1, capability.environment.height_fog_v1, capability.environment.ibl_baked_v1, capability.environment.atmosphere_lut_v1, capability.environment.aerial_perspective_v1, capability.environment.volumetric_fog_v1, capability.environment.local_fog_volume_v1, capability.environment.volumetric_cloud_v1, capability.environment.dynamic_ibl_v1, capability.environment.cloud_shadow_v1, capability.environment.intent_resolver_v1`に閉じる。共通`capabilities.search`／`capabilities.read` projectionはExecutable contracts ownerを参照し、maturityを本書へ複写しない。
+Environment Capability IDは`capability.environment.core, capability.environment.sky_hdri, capability.environment.height_fog, capability.environment.ibl_baked, capability.environment.atmosphere_lut, capability.environment.aerial_perspective, capability.environment.volumetric_fog, capability.environment.local_fog_volume, capability.environment.volumetric_cloud, capability.environment.dynamic_ibl, capability.environment.cloud_shadow, capability.environment.intent_resolver`に閉じる。共通`capabilities.search`／`capabilities.read` projectionはExecutable contracts ownerを参照し、maturityを本書へ複写しない。
 
 ```text
 EnvironmentIntentV1
@@ -430,18 +435,18 @@ Reference Presetは次のversioned constantsとResolver ruleであり、Source c
 
 | Preset | Intent | Fog source | Capability |
 |---|---|---|---|
-| `clear_day_v1` | clear、uniform、shaftなし | visibility 20,000 m、falloff 0 | Environment core |
-| `temperate_morning_mist_v1` | light_mist、ground_hugging、subtle | visibility 800 m、falloff 0.12、base 1 m | Environment core |
-| `humid_distance_haze_v1` | light_haze、uniform、subtle | visibility 2,000 m、falloff 0.015 | Environment core |
-| `dense_ground_fog_v1` | dense_fog、ground_hugging、subtle | visibility 50 m、falloff 0.25、base 1 m | Environment core |
-| `interior_dust_shafts_v1` | indoor、local_only、pronounced | global density 0、`dust_shafts` Local Volume | Volumetric Fog／Local Volume |
-| `overcast_volumetric_v1` | fog、overcast、subtle | volumetric Fog＋coverage 0.9 | Volumetric Fog／Cloud |
-| `stylized_tinted_fog_v1` | stylized、palette_token | Profile値＋必須Palette token | Environment core／advanced |
-| `reference_earth_atmosphere_v1` | outdoor、inherit time | `ReferenceEarthV1` atmosphere | Atmosphere LUT |
+| `fixture.environment.clear-day` | clear、uniform、shaftなし | visibility 20,000 m、falloff 0 | Environment core |
+| `fixture.environment.temperate-morning-mist` | light_mist、ground_hugging、subtle | visibility 800 m、falloff 0.12、base 1 m | Environment core |
+| `fixture.environment.humid-distance-haze` | light_haze、uniform、subtle | visibility 2,000 m、falloff 0.015 | Environment core |
+| `fixture.environment.dense-ground-fog` | dense_fog、ground_hugging、subtle | visibility 50 m、falloff 0.25、base 1 m | Environment core |
+| `fixture.environment.interior-dust-shafts` | indoor、local_only、pronounced | global density 0、`dust_shafts` Local Volume | Volumetric Fog／Local Volume |
+| `fixture.environment.overcast-volumetric` | fog、overcast、subtle | volumetric Fog＋coverage 0.9 | Volumetric Fog／Cloud |
+| `fixture.environment.stylized-tinted-fog` | stylized、palette_token | Profile値＋必須Palette token | Environment core／advanced |
+| `fixture.environment.reference-earth-atmosphere` | outdoor、inherit time | `ReferenceEarthV1` atmosphere | Atmosphere LUT |
 
-Preset適用は既存human lockを維持する。`typed_overrides`はlockされていないfieldにだけ許可し、closed enum／range／Capability／Target／fallbackを通常のValidatorで再検査する。lock済みfieldの上書き、Presetにないfieldの暗黙補完、unknown override、`stylized_tinted_fog_v1`のPalette token欠落、`reference_earth_atmosphere_v1`へのcustom係数混在を拒否する。明示Target visibilityは候補のtyped overrideにできるがPreset定数自体を変更しない。
+Preset適用は既存human lockを維持する。`typed_overrides`はlockされていないfieldにだけ許可し、closed enum／range／Capability／Target／fallbackを通常のValidatorで再検査する。lock済みfieldの上書き、Presetにないfieldの暗黙補完、unknown override、`fixture.environment.stylized-tinted-fog`のPalette token欠落、`fixture.environment.reference-earth-atmosphere`へのcustom係数混在を拒否する。明示Target visibilityは候補のtyped overrideにできるがPreset定数自体を変更しない。
 
-`interior_dust_shafts_v1`は選択中room／region boundsをbox shapeへ使い、density multiplier 0.015、albedo `(0.78,0.72,0.62)`、anisotropy 0.7、blend distanceを最短半径の10%とする。bounded regionを一意に取得できなければshapeを推測せずBlocking質問へ停止する。Built-in Cloud Presetは同version `ReferenceCloudAssetsV1`一式を参照し、Project Assetが明示指定された場合だけ全件置換する。部分置換とnoise texel生成を禁止する。
+`fixture.environment.interior-dust-shafts`は選択中room／region boundsをbox shapeへ使い、density multiplier 0.015、albedo `(0.78,0.72,0.62)`、anisotropy 0.7、blend distanceを最短半径の10%とする。bounded regionを一意に取得できなければshapeを推測せずBlocking質問へ停止する。Built-in Cloud Presetは同version `ReferenceCloudAssetsV1`一式を参照し、Project Assetが明示指定された場合だけ全件置換する。部分置換とnoise texel生成を禁止する。
 
 `storm_like`はCloud intentであり雨、雷、風、Gameplay weatherを暗黙生成しない。`gentle／windy／inherit_weather`はversioned Weather bindingがある場合だけ風向／速度を解決し、bindingなしで`still`以外ならBlocking質問を一つ返す。`time_of_day`は既存のversioned Time-of-Day／sun animation sourceへ渡し、sourceなしで`inherit`以外なら登録済みScene Preset提示またはBlocking質問を一つ返す。
 
@@ -497,7 +502,7 @@ Water visibility overflowは`semantic_priority desc, projected_coverage_px_q16 d
 | update GPU P95 | 0 | 0.35 ms | 0.25 ms |
 | stamp／tick | VFX／Decal owner | 1,024 | 256 |
 
-Snow fallback順はfootprint detail、field update distance、sparkle、normal detail、precipitation density。Gameplay Surface ID、static coverage、Visual Styleを維持し、missing／nonresident dynamic pageはexplicit static maskへ戻す。Precipitation particleはVFX domainへ一度だけchargeする。すべてのdomain ceilingはRuntime ownerのaggregate envelopeを免除しない。
+Snow fallback順はfootprint detail、field update distance、sparkle、normal detail。Gameplay Surface ID、static coverage、Visual Styleを維持し、missing／nonresident dynamic pageはexplicit static maskへ戻す。Precipitation particleはVFX domainへ一度だけchargeし、その密度fallbackは`VfxLodProfileV1`が所有する。すべてのdomain ceilingはRuntime ownerのaggregate envelopeを免除しない。
 
 ## 8. Diagnostic、failure、qualification
 

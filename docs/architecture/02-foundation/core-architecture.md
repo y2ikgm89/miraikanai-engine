@@ -77,7 +77,7 @@ Preview、Build、Cook、RuntimeはProject revisionを勝手に進めない。Ac
 - Job inputはimmutable snapshotまたはJob lifetime中に固定されたspanとし、captureしたraw owner pointerへ依存しない。
 - cancelは協調的に行い、cancel後のpartial outputを正規Artifactへ昇格しない。
 - callback、job、event配送中の再入的なWorld構造変更を禁止する。
-- 同じProject revision、Target Profile、toolchain lock、seedから同じ正規Artifact hashを得る。性能目的の順序変更が意味結果を変える場合はDomainの明示Contractとfixtureを必要とする。
+- 同じProject revision、Target Profile、toolchain lock、seedから同じ正規Artifact hashを得る。この一致はthread数、Job実行順序、実行時刻に依存してはならない。hash一致の同値クラスはtoolchain lockの`profiles[].host`が定めるHost（OS／architecture）単位とし、異なるHost間のhash一致は各Domainがfixtureで検証したArtifact種別だけに要求する。性能目的の順序変更が意味結果を変える場合はDomainの明示Contractとfixtureを必要とする。
 
 Runtimeのtick、phase DAG、lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通Budget、capacity、backpressureは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。ここでは数値を再掲しない。
 
@@ -115,7 +115,7 @@ Buildを次の閉じた層へ分ける。外部toolのexact versionや取得情�
 | Content Build | Import、Cook、Shader、Derived Data、Target別Content Package | C++ target graph |
 | Platform owner | Platform shell、resource、最終package、archive、署名 | portable C++ source graphの再定義 |
 
-Editor、AI、CLI、CIはallowlistされたBuild Gateway Operationだけを呼ぶ。Generator出力や内部databaseを解析・書換えず、CMake File APIとEngine-owned Receiptを読む。Schema／generated Header／Moduleのcodegen edgeは全Input、Output、Byproduct、Depfile、working directoryを宣言する。Build executorの成功だけでPackage成功やPromotion可能と判定しない。
+Editor、AI、CLI、CIはallowlistされたBuild Gateway Operationだけを呼ぶ。AI向けBuild系OperationのMCD登録、Risk、Provider projection可否は[Executable contracts](executable-contracts.md)が所有し、実行semantics、task順序、Receipt構造は本節のBuild Gatewayと各Owner文書が所有する。Generator出力や内部databaseを解析・書換えず、CMake File APIとEngine-owned Receiptを読む。Schema／generated Header／Moduleのcodegen edgeは全Input、Output、Byproduct、Depfile、working directoryを宣言する。Build executorの成功だけでPackage成功やPromotion可能と判定しない。
 
 ## 10. Repository境界
 
@@ -175,6 +175,8 @@ Engine repositoryの正規rootを次に固定する。各Directoryの命名gramm
 ## 12. Test、CI、AI生成物
 
 全ComponentはUnit testを持ち、Port／Adapter境界はconformance test、永続Artifactはgolden／migration test、Concurrencyはstress／cancel test、hot pathはBenchmarkを持つ。CIはTarget Profile、toolchain lock、configuration別にBuild treeを分離し、clean build、incremental build、sanitizer、contract lint、package inspectionを実行する。
+
+sanitizerは全sanitizerを全Targetで実行する意味ではなく、Toolchain Ownerが固定する該当lane matrixである。Windows MSVC laneはASan、portable Linux Clang laneはASan＋UBSan jobと独立TSan jobを要求する。Concurrency stress／cancel testは全必須Targetで常時実行し、対応laneではsanitizerを重ねる。必須laneの未実行はGate失敗とし、Toolchainが非対応のsanitizerをpass、skip成功、または別sanitizerのReceiptで代用しない。Profile ID、compiler version、sanitizer option、除外理由は[Toolchain／dependencies](toolchain-dependencies.md)とVerification Receiptへ固定する。
 
 AI生成のSchema、C++、Build変更も人間作成物と同じlint、compile、test、Authorization、Reviewを通す。AIは未知Fieldの受理、Validation迂回、外部Dependency追加、Toolchain更新、source treeへのGenerated file配置を行えない。
 

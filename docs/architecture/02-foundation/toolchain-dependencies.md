@@ -62,7 +62,7 @@ AGPのNDK既定値は採用根拠にしない。公式downloadで別version指�
 | SDK | iOS／iPadOS 26.5 |
 | Deployment target | 17.0 |
 | C++ build | CMake 4.4.0。CX0はXcode Generator、CX1 ProbeはNinja Multi-Config 1.13.2、CX2–CX3はNinja C++ archiveとXcode App shell／最終link／archive |
-| Shipping backend | `apple_xcode_cloud_v1`または適合済み`apple_self_hosted_split_v1`だけ |
+| Shipping route | `AppleShippingRouteV1`のallowed tupleだけ。`{ build_driver_ref: driver.apple.xcode-cloud, delivery_profile_ref: none }`または`{ build_driver_ref: driver.apple.modules-ninja-xcode, delivery_profile_ref: delivery-profile.apple.self-hosted-split }` |
 
 ### 2.4 Graphics／shader
 
@@ -115,13 +115,14 @@ OpenAIはGA Modelでも最短6ヶ月通知で退役させるため、Model IDを
 
 | Driver Profile | Target／Frontend | Configure driver | C++ Generator | Package owner |
 |---|---|---|---|---|
-| `windows_cmake_ninja_multi_v1` | Windows／CX0–CX3 | `cmake_preset` | `Ninja Multi-Config` | Windows Platform owner |
-| `android_gradle_ninja_v1` | Android／CX0–CX3 | `gradle_external_native_build` | `Ninja` | Gradle |
-| `apple_cx0_xcode_v1` | Apple／CX0 | `cmake_preset` | `Xcode` | Xcode |
-| `apple_modules_probe_ninja_v1` | Apple／CX1 | `cmake_preset` | `Ninja Multi-Config` | なし、Promotion不可 |
-| `apple_modules_ninja_xcode_v1` | Apple／CX2–CX3 | `cmake_preset` | `Ninja Multi-Config` | Xcode |
+| `driver.windows.cmake-ninja-multi` | Windows／CX0–CX3 | `cmake_preset` | `Ninja Multi-Config` | Windows Platform owner |
+| `driver.android.gradle-ninja` | Android／CX0–CX3 | `gradle_external_native_build` | `Ninja` | Gradle |
+| `driver.apple.cx0-xcode` | Apple／CX0 | `cmake_preset` | `Xcode` | Xcode |
+| `driver.apple.modules-probe-ninja` | Apple／CX1 | `cmake_preset` | `Ninja Multi-Config` | なし、Promotion不可 |
+| `driver.apple.modules-ninja-xcode` | Apple／CX2–CX3 | `cmake_preset` | `Ninja Multi-Config` | Xcode |
+| `driver.apple.xcode-cloud` | Apple／CX2–CX3 Shipping | `xcode_cloud_workflow` | `Ninja Multi-Config`＋`Xcode` | Xcode Cloud |
 
-本matrixは`BuildDriverProfileV1`のDriver Profile IDと許可組合せのclosed setの唯一の正本である。First-party TargetでMakefiles系、raw Makefile、Android `ndk-build`を禁止する。Windows／Appleの通常入口はchecked-in Preset、Androidの通常入口は固定Gradle Wrapperとする。Target、Frontend Profile、Driver、Generator、toolchain hashが異なるBuild tree、object、BMI、log、Receiptを共有しない。
+本matrixは`BuildDriverProfileV1`のDriver Profile IDと許可組合せのclosed setの唯一の正本である。`AppleShippingRouteV1`は`build_driver_ref`とnullableな`delivery_profile_ref`を持ち、§2.3の二tupleだけを許可する。Xcode Cloud routeはchecked-in `ci_scripts`でNinja C++ archiveを作成してXcode App shellへ渡し、managed signing／TestFlight handoffをXcode Cloudへ委譲するため`delivery_profile_ref = none`とする。self-hosted routeだけが`driver.apple.modules-ninja-xcode`と`delivery-profile.apple.self-hosted-split`を組み合わせる。Driver IDとDelivery Profile IDを同じenumへ格納しない。First-party TargetでMakefiles系、raw Makefile、Android `ndk-build`を禁止する。Windows／Appleの通常入口はchecked-in Preset、Androidの通常入口は固定Gradle Wrapperとする。Target、Frontend Profile、Driver、Generator、toolchain hashが異なるBuild tree、object、BMI、log、Receiptを共有しない。
 
 ## 4. Tool artifact lock
 

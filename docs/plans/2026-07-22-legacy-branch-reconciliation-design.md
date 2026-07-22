@@ -15,7 +15,7 @@
 ### 2.1 C1 gameplay branch
 
 - `codex/c1-gameplay-capability-closure`のPR #3はclosed／unmergedである。
-- `9f10ec2`から抽出した版付き型、Capability、Diagnostic等の識別子63件は、現行`main`で欠落0件である。
+- `9f10ec2`から移行判定する識別子の監査台帳は、[Document System Restructure Decision §12.3](../architecture/decisions/2026-07-21-document-system-restructure.md#123-移行対象の完全性)の55型台帳である。全55型は現行`main`で欠落0件である。台帳外の独自抽出件数を監査基準にしない。
 - [Document System Restructure Decision §12](../architecture/decisions/2026-07-21-document-system-restructure.md#12-pr-3履歴成果の正本統合)は、PR #3の63 hunkと55型を現行Ownerへ意味移植したことを正本として記録する。
 - `5d1f1b8`のCodex設定変更は当時棄却されたが、後続PR #5で`model_reasoning_effort = "xhigh"`が独立承認・マージ済みである。
 
@@ -100,7 +100,7 @@ dirty worktreeとPR #3 branchを削除する。最短だが、未反映6契約�
 - `git diff --check`をintegration前後とmerge後に実行する。
 - dirty sourceの20 hunk／455 changed lineを`Preserved`、`Merged`、`Removed`へ全件分類し、未分類0件とする。
 - 6識別子が現行Ownerで定義されるか、現行型へmergeされた対応表を持つことを検証する。
-- PR #3の識別子63件が現行`main`で欠落0件であることを再確認する。
+- Decision §12.3の55型台帳の全型が現行`main`で欠落0件であることを再確認する。
 - 旧`docs/superpowers/specs` path、旧Review set固定件数、重複Owner、互換aliasをactive仕様へ追加しない。
 - common credential、local workspace path、未解決placeholder markerを変更対象へ混入させない。
 - repositoryに自動test／build manifestがない場合は、その事実をPRと最終報告へ記録する。

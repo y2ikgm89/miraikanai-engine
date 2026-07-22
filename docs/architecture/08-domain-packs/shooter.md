@@ -86,6 +86,15 @@ compose方向は1節のreference compositionと同一であり、各Profileを`c
 
 Feature PackはPublic Contract、Schema、Reference Definition、Validator、AI vocabulary、Test Fixtureを所有する。Profileは既定値、必須Capability、scale fixture reference、Input template、Scene／UI／Audio／VFX templateだけを所有し、Public Contractをforkしない。
 
+本Packの`DomainPackManifest.domain_composition_profile_refs[]`は次のexact二entryを持つ。`owner_pack_ref`は両行ともenclosing Manifestの`pack_id`であり、文書IDや表示名をserializeしない。
+
+| domain_id | maturity_tier | required capabilities | allowed profiles | fixtures | targets | fallback |
+|---|---|---|---|---|---|---|
+| `domain.action_2d` | C1 | `capability.gameplay.shooter_core` | `profile.shooter.top_down_2d` | `fixture.product.shooter-2d` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` |
+| `domain.tps_single_player` | C1 | `capability.gameplay.shooter_core` | `profile.shooter.tps_single_player` | `fixture.product.shooter-arena-3d` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` |
+
+この二entryがdomain identity、Profile許可集合、reference fixture、Target closureの正本である。Profile本文はparameterとtemplateを所有するだけでdomain entryを再定義せず、Product Phaseが未到達のTargetはentryから削除せずProduct activation stateで`not_activated`にする。
+
 ### 5.1 `profile.shooter.top_down_2d`
 
 - orthographic／pixel-safe Camera
@@ -174,7 +183,7 @@ FireModeDefinitionV1
   trigger_mode: single | automatic | burst
   activation_count_per_cycle: uint16
   cycle_ticks: uint16
-  cycle_distribution: even_floor_v1 | explicit_offsets_v1
+  cycle_distribution_fixture_ref: fixture.shooter.even-floor | fixture.shooter.explicit-offsets
   activation_offsets_ticks[]: optional
   ammo_cost_per_activation: uint16
   release_policy: stop_unfired | complete_started_cycle
@@ -183,9 +192,9 @@ FireModeDefinitionV1
 
 範囲は`activation_count_per_cycle=[1,3600]`、`cycle_ticks=[1,3600]`、`activation_count_per_cycle <= cycle_ticks`とする。`burst`だけはcountを`[1,32]`へ制限する。C1は一Weaponにつき一tick最大一Activationである。Patternが一Activationから複数Shotを生成する。この上限はper Weapon instanceの不変条件であり、Bindingごとではない。同tickに`primary`と`secondary`の両Bindingが発火許可となった場合は`primary`のActivationだけを実行し、`secondary`を`FireRejectedCadence`で拒否してそのcadence cycle開始tickを次の有効tickへ繰り延べる。この裁定順は固定であり、同じPublic Contractへ適合するすべての実装とReplayで同一結果とする。
 
-`even_floor_v1`はcycle内のActivation `i=[0,count-1]`を`floor(i * cycle_ticks / activation_count_per_cycle)` tickへ配置し、`activation_offsets_ticks`を持たない。`explicit_offsets_v1`は`activation_count_per_cycle`と同数のoffsetを`[0,cycle_ticks-1]`へstrictly increasingで持つ。cycle開始tickとDefinition revisionが同じならscheduleは同じである。「毎秒7発」は`7 activation / 60 tick`へexactに解決し、float timerを累積しない。
+`fixture.shooter.even-floor`はcycle内のActivation `i=[0,count-1]`を`floor(i * cycle_ticks / activation_count_per_cycle)` tickへ配置し、`activation_offsets_ticks`を持たない。`fixture.shooter.explicit-offsets`は`activation_count_per_cycle`と同数のoffsetを`[0,cycle_ticks-1]`へstrictly increasingで持つ。cycle開始tickとDefinition revisionが同じならscheduleは同じである。「毎秒7発」は`7 activation / 60 tick`へexactに解決し、float timerを累積しない。
 
-`single`はcount 1、offset 0で、trigger rising edgeごとに一cycleだけ評価する。`automatic`はtrigger hold中にcycleを反復する。`burst`はrising edgeで一つの有限cycleを開始し、通常は`explicit_offsets_v1`で`[0,5,10]`等を表す。release後の再押下なしに次cycleを開始しない。これによりautomatic cadence、burst内間隔、burst後cooldownを同じscheduleで一意に表す。
+`single`はcount 1、offset 0で、trigger rising edgeごとに一cycleだけ評価する。`automatic`はtrigger hold中にcycleを反復する。`burst`はrising edgeで一つの有限cycleを開始し、通常は`fixture.shooter.explicit-offsets`で`[0,5,10]`等を表す。release後の再押下なしに次cycleを開始しない。これによりautomatic cadence、burst内間隔、burst後cooldownを同じscheduleで一意に表す。
 
 `release_policy`はcycle内の未発射Activationだけへ適用する。`single`／`automatic`は`stop_unfired`、`burst`はGame Briefで`stop_unfired`または`complete_started_cycle`を選ぶ。Weapon switch、reload開始、owner defeat、Game Flow停止は未発射Activationを常にcancelし、消費済みammoと既発射Shotだけを維持する。
 
@@ -847,7 +856,7 @@ Presentation Event欠落をauthoritative divergenceにしない。Damage、Proje
 
 - Field IDをrenameで変更しない。
 - enum意味変更は新Type versionを作る。
-- cadence algorithm変更は`cycle_distribution` versionとReplay migrationを必要とする。
+- cadence algorithm変更は新しい`cycle_distribution_fixture_ref`とReplay migrationを必要とする。既存fixture IDの意味を上書きしない。
 - Projectile Stateを保存対象から外す変更はMajor migrationである。
 - Weapon Definition更新時、live instanceのammoを無言でrefill／truncateしない。Migration Policyを明示する。
 

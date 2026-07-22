@@ -4,14 +4,14 @@
 - 状態: review
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
 - 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
 `NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++23で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。CX0ではModule-ready Header API、CX3ではNamed Modules＋`import std`を使用するが、Process／C ABI／Promotion境界は変えない。
 
-Game制作では`BoundedNativeGameProfileV1`へ適合するModuleだけを許可し、Engine本体、Extension、Adapter、公開SDK、Validator、Policyを変更しない。公開SDKで要求を意味同等に実現できない場合、Native C++で境界を迂回せず`capability_unavailable`とする。
+Game制作では`BoundedNativeGameProfileV1`（§5.3）へ適合するModuleだけを許可し、Engine本体、Extension、Adapter、公開SDK、Validator、Policyを変更しない。公開SDKで要求を意味同等に実現できない場合、Native C++で境界を迂回せず`capability_unavailable`とする。
 
 Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV1`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
 
@@ -138,7 +138,7 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 | `query_batches` | ComponentAccessManifestから生成したimmutable bounded View |
 | `rng_stream` | Engine-owned deterministic RNG Port |
 | `scratch_memory` | callback returnまで有効なsingle-owner Port |
-| `output_writer` | 宣言済みCommand／Event／State deltaだけを受理するprivate writer |
+| `output_writer` | 宣言済みCommand／Event／Structural Commandだけを受理するprivate writer。Component value／System State deltaは受理しない |
 | `lease_epoch` | return時にinvalidateする`uint64` |
 
 `MirakanNativeMemoryPortV1`を次に固定する。
@@ -177,7 +177,8 @@ MCDから生成するProject C++ APIは次を提供する。
 
 - typed Component read view
 - typed immutable snapshot
-- `CommandWriter`、`EventWriter`、`GameplayStateTransaction`
+- `CommandWriter`、`EventWriter`、`StructuralCommandWriter`
+- Manifestのaccessに応じたgenerated `MirakanNativeStateViewV1`（read／read_write）
 - versioned Asset handleとmetadata view
 - deterministic RNG stream
 - fixed C ABIのbounded scratch memory port
@@ -201,6 +202,22 @@ MCDから生成するProject C++ APIは次を提供する。
 Project C++の明示的な`new`／`delete`、`malloc`／`free`を禁止する。Module-owned persistent objectは`MirakanMakePersistent<T>(MirakanNativeMemoryPortV1, tag_id, args...) -> Result<MirakanUniqueOwner<T>>`だけで生成し、per-tick allocationはphase scratch Portだけを使用する。`MirakanUniqueOwner<T>`はmove-onlyで、取得時のPort、size、alignment、tagを保持し、destructorで`T`を一度破棄して同じPortへblockを返す。copy、`release()`による所有raw pointer流出、別Portへの移管を提供しない。
 
 Module内部のPMR containerはMemory Portを包むmodule-owned `std::pmr::memory_resource` Adapterをconstructorで受け取る。通常の`std::make_unique`、default PMR resource、global operator newによってpersistent Portを迂回しない。cross-boundary objectをcaller側でdeleteせず、Shipping static linkでもこの規則を緩和しない。
+
+### 5.3 `BoundedNativeGameProfileV1`
+
+本書はGame制作の許可判定に使う`BoundedNativeGameProfileV1`の唯一のDomain ownerである。ProfileはEngine buildが生成するread-only制約集合であり、Project／Game制作AIは変更できない。Governance文書は本Profileを参照だけする。
+
+| Field | 規則 |
+|---|---|
+| `schema_version`／`profile_id` | MCD共通Envelopeに従うgenerated ID |
+| `engine_public_api_hash` | 適合検査対象のEngine公開APIをexactに固定するSHA-256 |
+| `allowed_named_modules[]` | §5.1のPrimary Named Module集合のclosed subset |
+| `allowed_std_header_ids[]` | `CppDependencySetV1`のclosed `StdHeaderId` allowlist |
+| `forbidden_operation_rule_ids[]` | §5.2のGlobal state／Thread／I-O／明示的allocation禁止に対応するclosed rule ID集合 |
+| `memory_limit_refs[]` | `MirakanNativeMemoryPortV1`の`hard_limit_bytes`等、上限値へのexact参照 |
+| `gate_ids[]` | §12のSource scan／manifest一致検査を含む検査Gate ID集合 |
+
+Profileの各Fieldは本書の各節が所有する規則へのexact参照であり、閾値・上限のNormative値を複写しない。適合はSource Gate（§12のAST／Module graph／link import scan）とload時照合（§7.1のGraph照合）で機械検査し、不適合ModuleはGame制作Taskで登録しない。
 
 ## 6. Lifecycle
 
@@ -239,7 +256,7 @@ Discovered
 | `system_id` | Cooked package内runtime `uint32` ID、generated。永続化／別Package比較禁止 |
 | `system_contract_version` | `GameSystemSpecV1.version`からgenerated |
 | `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
-| `phase_mask` | `RuntimePhaseSetRefV1`。`GameSystemSpecV1`から生成された許可集合だけを消費し、Native側でphaseを追加しない |
+| `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV1`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
 | `read_component_set` | ComponentAccessManifest subset |
 | `write_state_set` | GameplayState field subset |
 | `command_set`／`event_set` | 生成可能な型のsubset |
@@ -250,13 +267,15 @@ Discovered
 | `state_owner_set_hash` | Specのowned State Type集合と一致 |
 | `invoke` | generated no-throw trampoline |
 
+`GameSystemSpecV1.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、Manifest、descriptorの写像不一致をLoad時にModule全体の登録失敗とし、より強いauthorityへ暗黙昇格しない。
+
 Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはtick、fixed delta、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。World commitは成功後にRuntime規約のcanonical merge順で行う。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
 
 Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline tickを持ち、結果はRuntime Ownerが定める結果portと安全境界で検査される。Module独自worker poolを作らない。
 
 ### 7.2 Game UI extension
 
-`UiNativeWidget`は`NativeSystemDescriptorV1`へUI phaseを追加して実装しない。NativeGameModuleの`capability_table`へ登録する`capability.ui.native_widget_v1`から、UI規約の`UiNativeWidgetManifestV1`と次のpure callback tableを取得する。
+`UiNativeWidget`は`NativeSystemDescriptorV1`へUI phaseを追加して実装しない。NativeGameModuleの`capability_table`へ登録する`capability.ui.native_widget`から、UI規約の`UiNativeWidgetManifestV1`と次のpure callback tableを取得する。schema versionはManifest側のschema versionで表し、capability IDへversion suffixを埋め込まない。
 
 | Callback | Owner phase | Input | Output |
 |---|---|---|---|
@@ -361,10 +380,10 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 
 ## 12. Performance、Memory、Security Gate
 
-- Native callbackの時間はSystem ID別に測定し、Gameplay Logic合計P95 1.50 msを緩和しない。
+- Native callbackの時間はSystem ID別に測定し、[Performance／capacity](../04-runtime/performance-capacity.md)が所有するGameplay Logic合計budgetを緩和しない。
 - Runtime callback内allocation countはsteady stateで0をC1目標とし、許可allocationはphase scratchからだけ行う。
 - Persistent、session、scratch、command payloadを別telemetry counterへchargeする。
-- C++化は同一fixtureで構造化実装より5%以上かつmeasurement noiseを超える改善、または表現不能Capabilityを根拠とする。
+- C++化の成立条件は[Gameplay programming model](gameplay-programming-model.md) §1.1の選択境界に従い、性能根拠は[Performance／capacity](../04-runtime/performance-capacity.md)が所有する改善閾値を同一fixtureで満たすこと、または表現不能Capabilityだけとする。閾値のNormative値を本書へ複写しない。
 - ASLR、DEP、CFG、CET互換、stack protection、warnings-as-errors等のWindows Shipping hardeningをEngine binaryと同じにする。
 - Module Sourceに未宣言import、禁止Header、inline assembly、dynamic load、socket、process、environment／registry accessがないことをAST／Module graph／link import scanで検査する。
 - Shipping import table、symbol、Capability manifest、Component access manifestの一致を検証する。

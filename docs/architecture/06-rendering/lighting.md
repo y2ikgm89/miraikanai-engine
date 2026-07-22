@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Light Source／Component、light type／shape、photometric quantity／unit／color、attenuation／range、shadow intent、Lighting semantic intent／resolver、Lighting固有operation／diagnostic／qualification
 - 非正本範囲: Render pass／cluster／queue／shadow execution、Material shading、Environment composition、Runtime shared capacity、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[World](world.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[Environment／Surfaces](environment-surfaces.md)、[World](world.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
@@ -17,7 +17,7 @@ LightingはLightの物理意味とauthoring intentをEngine-owned contractに固
 
 ## 2. Module境界
 
-ModuleはLighting Contracts、Light Source Authoring、Photometric Validation、Intent Resolver、Runtime Light Snapshot Bridge、Editor／AI Projection、Lighting Qualificationに分ける。Runtime BridgeはWorld sourceを直接編集せず、published component revisionからimmutable `ResolvedLightSet`を生成する。
+ModuleはLighting Contracts、Light Source Authoring、Photometric Validation、Intent Resolver、Runtime Light Snapshot Bridge、Editor／AI Projection、Lighting Qualificationに分ける。Runtime BridgeはWorld sourceを直接編集せず、published component revisionからimmutable `ResolvedLightSet`を生成する。`ResolvedLightSet`の唯一のRenderer公開形は§6の`LightSnapshotV1`であり、別名のRenderer入力objectを設けない。
 
 Rendererとの公開境界にはBackend-neutral light data、stable source identity、generation、view eligibility hint、shadow intentだけを渡す。native light object、shadow resource、cluster index、GPU addressはprivate execution stateである。
 
@@ -91,6 +91,91 @@ Profile ID／version／parent、Default role recipe、`VisualStyleProfile` ref�
 Resolver出力はIntent／Profile／Catalog／Target Capabilityのversion／hash、追加／更新／削除する`LightSourceV1` exact patch、解決したphysical quantity／color／type／range／mobility／channel／importance／priority、Shadow Intent ref、selection／cluster上限のworst-case proof、予測CPU／GPU時間／persistent・transient byte、保持lock／未充足constraint、採用／棄却／理由／fallback chain、必要Asset cook／Preview／approval／Qualification、`plan_hash`／expiryを持つ。
 
 PlanはProjectを変更しない。ChangeSet Commit後だけSourceを更新し、Catalog、Target Profile、base revisionのいずれかが変われば`MIRAKAN-LIGHTING-STALE-PLAN`として再解決する。approval mechanicsは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
+
+### 3.4 Shadow authoring
+
+LightingはSource側の`ShadowIntentV1`と`ShadowStyleProfileV1`を所有し、Render GraphはDerived側の`ShadowGraphV1`と`ResolvedShadowPlanV1`を所有する。Source objectへpass、queue、resource、descriptor、native techniqueを保存しない。
+
+```text
+ShadowIntentV1
+  shadow_intent_id, revision, source_light_refs[]
+  coverage: subject | local | view | world
+  softness: hard | balanced | soft
+  quality_intent: disabled | contact | standard | high | ray_qualified | project_technique
+  project_technique_ref: optional ProjectShadowTechniqueV1 ref
+  target_profile_refs[], fallback_priority[], base_project_revision
+
+ShadowStyleProfileV1
+  shadow_style_profile_id, revision, visual_style_profile_ref
+  allowed_quality_intents[], default_quality_by_importance{}
+  capability_requirement_refs[], budget_ref, fallback_refs[]
+  preview_fixture_refs[], qualification_policy_ref
+```
+
+`quality_intent=project_technique`だけが`project_technique_ref`を必須とし、他値では禁止する。`ray_qualified`と`project_technique`はTarget Capabilityとfresh Qualification Receiptを必須とする。`fallback_priority[]`は同Profileの`fallback_refs[]`だけを重複なしで順序付け、未登録fallback、空の必須fallback、Renderer都合のsilent downgradeを拒否する。ResolverはSource refs、Profile、Target、Capability、budget、Qualificationを同一revisionで固定し、Render Graphへexact refだけを渡す。
+
+### 3.5 Production Lighting Bake／Probe
+
+Lightmap、irradiance probe、reflection probeはすべてDerived Assetであり、Source truthではない。AIは`BakeLighting`を要求できるが、bake texelまたはprobe payloadを直接生成・編集しない。Bake／Probeの唯一のowner schemaを次に固定する。
+
+```text
+LightingBakeProfileV1
+  profile_id
+  target_profile_ref
+  lightmap_texel_density_per_m
+  max_lightmap_dimension
+  max_atlas_count
+  irradiance_probe_spacing_m
+  reflection_probe_resolution
+  compression_profile_ref
+  bake_budget_ref
+
+LightingBakeArtifactV1
+  source_revision
+  geometry_hash
+  material_hash
+  light_hash
+  environment_hash
+  bake_profile_hash
+  lightmap_atlas_refs[]
+  lightmap_binding_refs[]
+  irradiance_probe_volume_refs[]
+  reflection_probe_artifact_refs[]
+  validation_report_ref
+  artifact_hash
+
+LightmapBindingV1
+  mesh_submesh_stable_id
+  lightmap_uv_set
+  lightmap_atlas_ref: exact ArtifactRefV1
+  atlas_rect
+  decode_scale_bias
+
+IrradianceProbeVolumeV1
+  bounds
+  spacing_m
+  priority
+  blend_distance_m
+  validity_mask
+
+ReflectionProbeDefinitionV1
+  bounds_shape: sphere | box
+  bounds
+  capture_origin
+  priority
+  blend_distance_m
+  receiver_channel_mask
+```
+
+Static Meshのlightmap UVは専用UV set、0～1範囲、finite、triangle overlap許容率0%、Cook後解像度で4 texel以上のchart paddingを必須とする。C2 reference値は32 texel／m、atlas最大4,096²、1 Level最大64 atlas、irradiance probe間隔0.5～16 m、reflection cubemap 128²×6である。Source Meshが満たさない場合、Importerは生成候補とLoss Reportを提示できるが、既存UVを無断置換しない。
+
+各`LightmapBindingV1.lightmap_atlas_ref`は親`LightingBakeArtifactV1`の`lightmap_atlas_refs[]`への所属をexact Artifact identityで検証し、display name、path、配列indexからatlasを推測しない。`atlas_rect`はfiniteなnormalized `{u_min, v_min, u_max, v_max}`で、全成分を0～1、`u_min < u_max`、`v_min < v_max`とし、参照atlasのextent外または面積0を拒否する。`lightmap_binding_refs[]`内で同じbinding refの反復、または同じ`mesh_submesh_stable_id`を複数回束縛する`duplicate binding`を`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`としてArtifact promotion前に拒否する。
+
+Probe重複はpriority、volume、Stable IDの順に決定する。未配置領域はC1 Environment IBLへfallbackし、local reflection probeをC1 global IBLと混同しない。geometry、Materialのbaked contribution、static／stationary Light、Environment、Bake Profile、baker toolchain version、quality settingsからSource dependency hashをcanonicalに構成し、そのいずれかのhash変更時だけ該当World Cell Artifactをinvalidateする。
+
+ArtifactはWorld Cell dependencyへ登録し、同一CellのLightmap、irradiance、reflectionをactivation group単位でall-or-nothingにresident化する。UV／probe／Cell dependency closureが不完全、artifactがmissing／stale／corrupt、またはreadback hash不一致なら`MIRAKAN-LIGHTING-BAKE_CLOSURE_INCOMPLETE`、`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`、`MIRAKAN-LIGHTING-BAKE_CELL_ACTIVATION_FAILED`のtyped failureとし、黒Scene、旧Artifact継続、partial atlas／probe適用を禁止する。同じTargetでQualification済みのrealtime Light＋Environment IBLへ明示的にfallbackし、fallback不可ならCell activationを拒否する。
+
+Bakeは同じSource dependency hash、Toolchain、Profile、Targetで同じ`artifact_hash`を得るdeterministic jobである。`validation_report_ref`はUV overlap、leak、seam、probe light leak、dynamic object blend、Cell境界、cold streaming、memory、bake timeを検査したVisual／performance receiptを参照する。fixed Exposureのoffline reference、realtime fallback、Target実機を比較し、Gameplay、Physics、Navigation、Save stateがBake Artifactの存在、residency、結果に依存しないことをQualificationする。
 
 ## 4. 物理単位と数値規約
 
@@ -170,69 +255,6 @@ resolve(
 
 Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_light_ids[]`、`type_and_flags[]`、`position_and_range[]`、`direction_and_cone[]`、`color_and_radiometry[]`、`shape_parameters[]`、`channel_masks[]`、`shadow_plan_refs[]`、`source_revisions[]`を持つimmutableな論理SoAである。GPU packingはMCD生成`LightGpuRecordV1`とBackend Adapterの所有とし、Snapshotにnative handle／descriptor／GPU addressを含めない。compact indexはgeneration内だけ有効で、Save／Replay／DiagnosticはStable `light_id`を使う。
 
-### 3.4 Production Lighting Bake／Probe
-
-Lightmap、irradiance probe、reflection probeはすべてDerived Assetであり、Source truthではない。AIは`BakeLighting`を要求できるが、bake texelまたはprobe payloadを直接生成・編集しない。Bake／Probeの唯一のowner schemaを次に固定する。
-
-```text
-LightingBakeProfileV1
-  profile_id
-  target_profile_ref
-  lightmap_texel_density_per_m
-  max_lightmap_dimension
-  max_atlas_count
-  irradiance_probe_spacing_m
-  reflection_probe_resolution
-  compression_profile_ref
-  bake_budget_ref
-
-LightingBakeArtifactV1
-  source_revision
-  geometry_hash
-  material_hash
-  light_hash
-  environment_hash
-  bake_profile_hash
-  lightmap_atlas_refs[]
-  lightmap_binding_refs[]
-  irradiance_probe_volume_refs[]
-  reflection_probe_artifact_refs[]
-  validation_report_ref
-  artifact_hash
-
-LightmapBindingV1
-  mesh_submesh_stable_id
-  lightmap_uv_set
-  lightmap_atlas_ref: exact ArtifactRefV1
-  atlas_rect
-  decode_scale_bias
-
-IrradianceProbeVolumeV1
-  bounds
-  spacing_m
-  priority
-  blend_distance_m
-  validity_mask
-
-ReflectionProbeDefinitionV1
-  bounds_shape: sphere | box
-  bounds
-  capture_origin
-  priority
-  blend_distance_m
-  receiver_channel_mask
-```
-
-Static Meshのlightmap UVは専用UV set、0～1範囲、finite、triangle overlap許容率0%、Cook後解像度で4 texel以上のchart paddingを必須とする。C2 reference値は32 texel／m、atlas最大4,096²、1 Level最大64 atlas、irradiance probe間隔0.5～16 m、reflection cubemap 128²×6である。Source Meshが満たさない場合、Importerは生成候補とLoss Reportを提示できるが、既存UVを無断置換しない。
-
-各`LightmapBindingV1.lightmap_atlas_ref`は親`LightingBakeArtifactV1`の`lightmap_atlas_refs[]`への所属をexact Artifact identityで検証し、display name、path、配列indexからatlasを推測しない。`atlas_rect`はfiniteなnormalized `{u_min, v_min, u_max, v_max}`で、全成分を0～1、`u_min < u_max`、`v_min < v_max`とし、参照atlasのextent外または面積0を拒否する。`lightmap_binding_refs[]`内で同じbinding refの反復、または同じ`mesh_submesh_stable_id`を複数回束縛する`duplicate binding`を`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`としてArtifact promotion前に拒否する。
-
-Probe重複はpriority、volume、Stable IDの順に決定する。未配置領域はC1 Environment IBLへfallbackし、local reflection probeをC1 global IBLと混同しない。geometry、Materialのbaked contribution、static／stationary Light、Environment、Bake Profile、baker toolchain version、quality settingsからSource dependency hashをcanonicalに構成し、そのいずれかのhash変更時だけ該当World Cell Artifactをinvalidateする。
-
-ArtifactはWorld Cell dependencyへ登録し、同一CellのLightmap、irradiance、reflectionをactivation group単位でall-or-nothingにresident化する。UV／probe／Cell dependency closureが不完全、artifactがmissing／stale／corrupt、またはreadback hash不一致なら`MIRAKAN-LIGHTING-BAKE_CLOSURE_INCOMPLETE`、`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`、`MIRAKAN-LIGHTING-BAKE_CELL_ACTIVATION_FAILED`のtyped failureとし、黒Scene、旧Artifact継続、partial atlas／probe適用を禁止する。同じTargetでQualification済みのrealtime Light＋Environment IBLへ明示的にfallbackし、fallback不可ならCell activationを拒否する。
-
-Bakeは同じSource dependency hash、Toolchain、Profile、Targetで同じ`artifact_hash`を得るdeterministic jobである。`validation_report_ref`はUV overlap、leak、seam、probe light leak、dynamic object blend、Cell境界、cold streaming、memory、bake timeを検査したVisual／performance receiptを参照する。fixed Exposureのoffline reference、realtime fallback、Target実機を比較し、Gameplay、Physics、Navigation、Save stateがBake Artifactの存在、residency、結果に依存しないことをQualificationする。
-
 ## 7. AI／Editor operation
 
 Lighting operationはcreate light、update physical property、apply lighting intent、bind Source Definition、set shadow intent、preview、explain、validateをDomain actionとして登録する。ApplyはGatewayを通じてProject ChangeSetへ変換し、Runtime componentやRenderer resourceを直接変更しない。
@@ -243,7 +265,7 @@ Previewは対象revision、World／Level scope、affected Light Stable IDs、bef
 
 `SceneLightingSummaryV1`はScene／View Family／Target／Visual Style／EnvironmentのID／version、role／type／importance別Light数、Critical Light、上限／現在値／予測cost／overflow、Shadow tier分布、human lock数、active Diagnostic上位数、詳細取得用Stable ID／continuation tokenだけをboundedに返す。`LightingPlanExplanationV1`はLightごとのIntent fieldからSource fieldへの対応、代替案の棄却理由、予測cost、視覚risk、fallbackで失われるcueを返す。
 
-`LightingChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Light差分、対象Stable IDs、risk、Preview hash、必要Approvalを載せるDomain projectionであり、直接Commitしない。`LightingDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとLight property pathを載せる。`EnvironmentLightingSummaryV1`、`MaterialReadabilitySummaryV1`、`TargetCapabilitySnapshotV1`、`LightingBudgetEnvelopeV1`、`PolicySnapshotV1`はそれぞれのOwnerが公開するread-only／revisioned projectionで、Lightingは内容を複写または書き戻さない。
+`LightingChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Light差分、対象Stable IDs、risk、Preview hash、必要Approvalを載せるDomain projectionであり、直接Commitしない。`LightingDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとLight property pathを載せる。`EnvironmentLightingSummaryV1`は[Environment／Surfaces](environment-surfaces.md)、`MaterialReadabilitySummaryV1`は[Materials](materials.md) §8が定義・公開するread-only／revisioned projectionである。`TargetCapabilitySnapshotV1`、`LightingBudgetEnvelopeV1`、`PolicySnapshotV1`もそれぞれのOwnerが公開する同種のprojectionであり、Lightingはいずれの内容も複写または書き戻さない。
 
 ## 8. Diagnosticとfailure
 

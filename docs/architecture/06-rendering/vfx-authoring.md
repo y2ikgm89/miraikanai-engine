@@ -56,7 +56,10 @@ VfxSystemDocumentV1
 | `max_events_per_tick` | portable 0、advanced `0..min(max_particles,4096)` |
 | `spawn_graph`／`update_graph`／`event_graph` | 各stage一致。eventはadvancedだけ |
 | `render_outputs` | portable 1～2、advanced 1～4 |
+| `sort_mode` | `none \| spawn_order \| view_depth \| emitter_only`。既定は2D出力`spawn_order`、3D出力`view_depth` |
 | `fixed_bounds` | GPU Productionでfinite必須。2D Rect／3D AABB |
+
+`sort_mode`のsort実行、view depth粒子上限、超過時のCook拒否は[VFX runtimeのGPU sort契約](vfx-runtime.md#5-gpu-simulationrendercollision)が所有する。上限超過Sourceの解消は`sort_mode`の`emitter_only`への明示変更またはadditive Materialへの明示変更だけで行い、Compilerが`sort_mode`を暗黙変更しない。
 
 Rate、Burst、Event spawnは一つのadmissionへ通す。Prewarmはloop／continuousかつpreload対象だけに許可し、動的one-shotは0とする。過去状態が必要なone-shotは`VfxBakeCacheV1`を使う。Sub-emitterは深さ2、親Particle当たり8、生成eventは次stepへだけ渡す。
 
@@ -251,13 +254,15 @@ Execution dispositionは`auto | cpu_required | gpu_required | dual_fallback`に�
 | `auto`かつpeak alive見積り4,095以下 | CPU |
 | `mobile_baseline` | CPUを正規選択。限定GPUはDevice Qualification Receiptで明示enableしたProfileだけ |
 
+peak alive見積りはEmitterごとに粒子数の整数値`min(max_particles, ceil(rate_q32 × lifetime_seconds.max) + Σ bursts.count + max_events_per_tick)`で算出する。丸めは`ceil`だけを使い、上表の閾値比較はこの値で行う。見積りはauthored fieldだけから決まり、runtime実測やframe負荷を入力にしない。
+
 Runtimeがframe負荷から実行中stateをCPU／GPU間で移送しない。Target／Qualityごとの決定は[Runtime側のcompiled artifact boundary](vfx-runtime.md#2-compiled-artifact-boundary)へ渡し、Instance開始時に一意に選ぶ。Authoringは解決入力とalgorithmだけを所有し、compiled artifact schemaを再定義しない。
 
 Unsupported Node、layout overflow、shader failure、fallback不足、domain budget超過は該当variantを失敗させる。`VfxGraphIrV1`はdevelopment-only compiler intermediateでSource／Runtime保存しない。`VfxBudgetProfileV1`／`VfxQualityProfileV1`はTarget／Project Source、`VfxBakeCacheV1`はSource artifact hash、seed、fixed delta、frame count、Target formatを持つoffline cacheである。
 
 Operation IDは`operation.vfx.inspect_system, operation.vfx.inspect_semantic_catalog, operation.vfx.validate_changeset, operation.vfx.validate_semantic_preservation, operation.vfx.preview_changeset, operation.vfx.resolve_effect_intent, operation.vfx.set_effect_intent, operation.vfx.apply_pattern, operation.vfx.create_system, operation.vfx.create_emitter, operation.vfx.update_emitter, operation.vfx.delete_emitter, operation.vfx.add_node, operation.vfx.update_node, operation.vfx.delete_node, operation.vfx.connect_nodes, operation.vfx.disconnect_nodes, operation.vfx.set_curve, operation.vfx.set_gradient, operation.vfx.set_output, operation.vfx.generate_fallback, operation.vfx.capture_bounds, operation.vfx.run_qualification, operation.vfx.propose_extension_operator`である。Write operationは`ProjectChangeSetV1`だけを生成し、live buffer／resource／revisionを書かない。共通envelope、projection、authorizationはFoundation／Governance ownerを参照する。
 
-Capability IDは`capability.vfx.system_v1, capability.vfx.particle_cpu_v1, capability.vfx.particle_gpu_v1, capability.vfx.sprite_2d_v1, capability.vfx.billboard_3d_v1, capability.vfx.trail_v1, capability.vfx.mesh_ribbon_v1, capability.vfx.visual_collision_v1, capability.vfx.particle_light_v1, capability.vfx.bake_cache_v1, capability.vfx.semantic_intent_v1, capability.vfx.pattern_catalog_v1, capability.vfx.extension_operator_v1`に閉じる。利用可能性はProduct activation manifestを読み、本書からmaturityを推測しない。
+Capability IDは`capability.vfx.system, capability.vfx.particle_cpu, capability.vfx.particle_gpu, capability.vfx.sprite_2d, capability.vfx.billboard_3d, capability.vfx.trail, capability.vfx.mesh_ribbon, capability.vfx.visual_collision, capability.vfx.particle_light, capability.vfx.bake_cache, capability.vfx.semantic_intent, capability.vfx.pattern_catalog, capability.vfx.extension_operator`に閉じる。利用可能性はProduct activation manifestを読み、本書からmaturityを推測しない。
 
 Resolverは最大3 Pattern／Graph候補、missing requirement、assumption、Target cost、Cue diffを返す。Scene dimension、Gameplay authority、Target、必須Cue、Extension policyが解決不能なら質問へ停止する。CPU／GPU、thread、buffer、shader model、sort algorithmを初心者へ質問しない。Stack、Graph、Inspector、Curve、Timelineは同じoperationへ収束し、human lockを保つ。
 

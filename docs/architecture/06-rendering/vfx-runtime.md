@@ -104,7 +104,7 @@ VfxGpuTickRecordV1
 
 Parameter blocksは直近8 tickの異なるrevisionをdeduplicateする。GPU Emitterは各fixed stepに1 recordを生成し、外部spawnと内部Event用quotaを同じProject admissionから予約する。IDは外部spawnを先、Sub-emitterを親Emitter ID／親Spawn ID／Event Node ID順に割り当て、unused IDを再利用しない。
 
-Rendererは`last_consumed_tick_sequence`より新しいrecordだけをtick昇順に1 record＝1 fixed stepとして処理する。同じsnapshot再描画でsimulationを重ねず、複数recordを一frameで順次処理する。Paused中はrecordを生成しない。保持範囲を超えるgapはcatch-up dispatchせず、ambient／loopは最新tickからvisual restart、one-shotは再発火せずDiagnosticを残す。
+Rendererは`last_consumed_tick_sequence`より新しいrecordだけをtick昇順に1 record＝1 fixed stepとして処理する。`simulation_step_count`はV1で常に1であり、1以外の値をload時に拒否する。複数stepの圧縮は将来versionで別途定義する。同じsnapshot再描画でsimulationを重ねず、複数recordを一frameで順次処理する。Paused中はrecordを生成しない。保持範囲を超えるgapはcatch-up dispatchせず、ambient／loopは最新tickからvisual restart、one-shotは再発火せずDiagnosticを残す。
 
 ## 4. CPU simulation
 
@@ -128,13 +128,13 @@ Boundsはchunk index順のstable reductionでPosition／Size／Trailを集約し
 
 ## 5. GPU simulation、render、collision
 
-GPU variantはcompute shader、read／write storage buffer、32-bit atomic、indirect argument、explicit dependency、validated shader packageを必要とし、wave size、subgroup幅、mesh shader、ray tracing、unbounded bindlessを前提にしない。Portable GPU artifactは`portable_mobile_v1` shader capability intersection内へ生成する。
+GPU variantはcompute shader、read／write storage buffer、32-bit atomic、indirect argument、explicit dependency、validated shader packageを必要とし、wave size、subgroup幅、mesh shader、ray tracing、unbounded bindlessを前提にしない。Portable GPU artifactは`renderer-profile.portable-mobile` shader capability intersection内へ生成する。
 
 Persistent storageは`ParticleAttributesA/B, AliveIndicesA/B, DeadIndices, EmitterParameters, SpawnRequests, EventCandidates, SubEmitterReady, SubEmitterNext, SortKeys, SortIndices, IndirectArguments, Counters`である。Counterはexplicit buffer storageを使い、CPU readbackで通常draw count／event／Gameplay判断を決めない。
 
 GPU step順は`VfxGpuResetCounters -> VfxGpuUpdateAndCompact -> VfxGpuEventResolve -> VfxGpuAdmitAndSpawn -> SubEmitterReady/SubEmitterNext swap`、全step後に必要時`VfxGpuSort -> VfxGpuBuildIndirect -> VfxDraw`である。Resetはstep一時counterだけを初期化し、alive／dead／Readyを保持する。現step eventはNextへ書き、spawnは前step Readyだけを`VfxGpuTickRecordV1.sub_emitter_spawn_quota`内で消費する。quota超過をcanonical末尾からdropし、繰り越さない。recordがないframeはsimulationせずIndirect／Drawだけを行う。Pass mergeは意味順を変えない。
 
-GPU sortは`none | spawn_order | view_depth | emitter_only`である。view depthはEmitter 65,536、Project 262,144 Particleまで、depth降順かつ同bucket Spawn ID順とする。超過Sourceはemitter-onlyまたはadditive Materialへ明示変更しない限りCook拒否する。
+GPU sortは`none | spawn_order | view_depth | emitter_only`であり、選択は[VFX authoringの`sort_mode`](vfx-authoring.md#21-systememitterparameter)をSource正本とする。view depthはEmitter 65,536、Project 262,144 Particleまで、depth降順かつ同bucket Spawn ID順とする。超過Sourceはemitter-onlyまたはadditive Materialへ明示変更しない限りCook拒否する。
 
 Render outputは`Sprite2D, Billboard3D, PortableFacingSprite, Flipbook, BasicTrail, Mesh, Ribbon, ParticleLight`である。Portable spriteはDimension別へspecializeする。Blendは`premultiplied_alpha | additive | multiply`。Particle LightはRenderer listだけへ出力し、shadow、GI、Physics、Navigation、AI perceptionを変更せず、Project 32／Emitter 4を上限とする。Pixel-locked outputは明示flag、point sampling、integer scaleを必要とする。
 

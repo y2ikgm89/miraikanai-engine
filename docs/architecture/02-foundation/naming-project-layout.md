@@ -184,7 +184,7 @@ Project root discoveryは`mirakan.project.json`の存在とschema validationで�
 | 旧root | disposition | 新destination／Owner | Migration処理と理由 |
 |---|---|---|---|
 | `authoring/` | 移動 | `source/`／Authoring Gateway | Stable IDとDomain kindを保持してAuthoring Sourceへ移す。旧root自体は削除する |
-| `assets/source/` | 移動 | `source/assets/`／Asset Broker | Source Assetとimport設定を移し、Catalog参照を同じChangeSetで書き換える |
+| `assets/source/` | 移動 | `source/assets/`／Asset Gateway | Source Assetとimport設定を移し、Catalog参照を同じChangeSetで書き換える |
 | `assets/metadata/` | 移動 | `source/assets/`／Asset Gateway | 対応Asset subjectのSource metadataとして併置し、Asset IDで一意に解決する。独立metadata rootは残さない |
 | `native/game/` | 移動 | `source/native/`／Source Promotion Service | Module単位を保持して移し、CMake inputとgenerated descriptor参照を同時更新する |
 | `.mirakan/journal/` | 明示削除 | Project State owner、旧内容のProject内destinationなし。新journalは`intermediate/journal/`で新規開始 | 旧local operation logはcanonical sourceではない。Commit済みrevisionだけを正本とし、migration receipt確定後に破棄する |

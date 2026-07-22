@@ -63,6 +63,8 @@ Unknown classはActionへ自動割当せず、Diagnosticsへ表示する。
 
 Digital controlは`up | down`、analogはfinite float `[-1,1]`、triggerは`[0,1]`、pointer／touch positionはsurface pixelとnormalized safe-area座標を両方持つ。NaN、Inf、範囲外、unknown controlをrejectし、clampをDevice calibrationより後のAction processorだけで行う。
 
+相対軸reading（mouse delta、scroll wheel等のdelta control）は、同一Device・同一controlの連続readingをqueue内で決定的にcoalesceする。deltaは加算し、timestamp／sequenceは最後のreadingを採用する。digital transitionとabsolute axisはcoalesceしない。これによりqueue使用量を高polling rate device（例: 8 kHz mouse）と一時的stallの積に比例させず、§13のreading queue上限はcoalescing適用後の最悪流入率×許容stall時間を上回るよう設定する。
+
 ## 4. Action model
 
 ### 4.1 Action
@@ -98,7 +100,7 @@ InputBinding
   priority
 ```
 
-`control_path`はEngine Input Control Catalogのclosed IDであり、Platform key code文字列を正規dataにしない。Bindingは最大4096／Project、Actionは最大1024、同一ActionのBindingは最大32とする。
+`control_path`はEngine Input Control Catalogのclosed IDであり、Platform key code文字列を正規dataにしない。Bindingは最大4096／Project、Actionは最大1024、同一ActionのBindingは最大32とする。Actionの`interactions`は§4.3 closed setから選ぶ重複なしの許可集合で、各Bindingの`interaction`はその集合のexact一要素を必須とする。Bindingごとのinteraction stateは`{binding_id, device_generation}`で分離し、一つのActionを共有する別Bindingのtap／hold／repeat stateを合成または上書きしない。
 
 ### 4.3 C1 interaction
 
@@ -146,7 +148,9 @@ ActionはWeapon、ammo、Projectileを直接変更せず、T10 `InputSnapshot`�
 - `text_entry`
 - `debug`
 
-Active Context stackは`T00`で更新し、tick中は不変とする。Priorityはsystem、text entry、focused UI、gameplay、debugの順で、Debug Shipping無効時は存在しない。
+Active Context stackは`T00`で更新し、tick中は不変とする。Priorityは`system`、`text_entry`、`game_ui`、`gameplay`、`debug`の順で、Debug Shipping無効時は存在しない。
+
+`editor_global`／`editor_view`はEditor Command dispatchに使わず、Play-in-Editor時のGame InputSnapshot経路への転送制御専用とする。`editor_global`はEditor session全体の転送可否、`editor_view`はfocusを持つviewportへの転送可否を制御し、`editor_view`がfocusを持つ間だけ`gameplay`／`game_ui`／`text_entry` Contextを有効化する。Editor UI eventは§1の三経路分離どおり`PlatformUiEventV1`経路が所有し、Shipping Gameは両Contextをactivateしない。
 
 `exclusive` Actionがcontrolをconsumeした場合、低priority Contextへ同じphysical transitionを渡さない。Shared movement stickとUI navigationを同時に有効化する場合は明示`shared` Bindingを必要とする。Focus loss時は全down stateへcanonical releaseを生成し、stuck keyを残さない。
 
@@ -160,9 +164,11 @@ Text entry中もEscape／Cancel等のregistered system Actionだけは利用で�
 2. Platform timestamp、Device sequenceでsortし、重複を除去する。
 3. disconnect／generation changeを先に適用する。
 4. Device calibrationとAction processorを評価する。
-5. Context／focus／consumptionを解決する。
+5. Context／focus／consumptionを解決する。pointer系controlは前tickの`UiHitTestSnapshot`（pointer-over-UI集合、[UI／Text](ui-text-localization-accessibility.md) §3）を入力とし、UI上のpointer down／up transitionは`game_ui` Contextがconsumeして`gameplay` Contextへ渡さない。
 6. Action value、started／performed／cancelled transitionを確定する。
 7. `InputSnapshot`をcanonical Action ID順でsealする。
+
+同一Actionへ複数Binding transitionが入る場合、まずPlatform timestamp昇順、Engine sequence昇順、Binding priority降順、`binding_id`のcanonical UUID byte順へ整列し、その順でAction value type固有のregistered foldを適用する。同じphysical transitionはContext／consumption解決後に一度だけ残し、arbitrary last-write-wins、container順、callback順でmergeしない。
 
 ```text
 InputSnapshot
@@ -178,7 +184,9 @@ InputSnapshot
     last_transition_offset
 ```
 
-Snapshotはtick中immutableで、GameplayはDevice readingを追加pollしない。複数transitionが一tickに入った場合もtap／repeat評価を失わず、Actionごとのbounded transition count最大16を超えたら`InputTransitionOverflow`としてauthoritative sessionをfaultする。
+Snapshotはtick中immutableで、GameplayはDevice readingを追加pollしない。`phase`はfold後に最後に成立したtransitionの`started | performed | cancelled`、transitionがなければ`none`であり、`transition_count`は当該tickで受理した全transition数、`last_transition_offset`は最後の受理位置である。複数transitionが一tickに入った場合もtap／repeat評価を失わず、Actionごとのbounded transition countは最大16とする。超過時は前段のcanonical順の先頭16 transitionを保持し、残りを破棄してActionごとのdropped countとともにtyped `InputTransitionOverflow` diagnosticを発行する。この縮約は決定的でSnapshotへ記録し、authoritative session faultにしない。hitch中に蓄積した正常入力でGameを落とさない。
+
+`input_profile_hash`の対象である「Input Profile」を次で定義する。`InputActionMap` Artifact（`ArtifactRefV1`＋`StableId`↔`RuntimeActionId`対応表）、公式Context定義集合（§5）、interaction timing値（§4.3）、processor既定（§4.4）、composite構成の組であり、hashはこの列挙順のcanonical serializationから計算する。User RemapとDevice構成はInput Profileへ含めない。Replayはnormalized Action value／transitionを記録するため、Remap変更は再生可能性を失わせない。
 
 ## 7. Platform Adapter
 
@@ -246,12 +254,15 @@ Replayはnormalized authoritative Action value／transitionとInput Profile hash
 
 Replay時はPhysical Device readingをGameplayへ混ぜず、Replay `InputSnapshot`をT10 outputとして使用する。Pause／stop等のReplay controlは別System Contextに置く。Profile hash不一致は再生を拒否し、近似mapを行わない。
 
+qualificationが要求する「同一input trace」は`SyntheticInputTraceV1`で供給する。tick offset付きのAction `StableId`／value／transition列、Action Map `ArtifactRefV1`、Input Profile hashを持つversioned MCDであり、AI／CIがGameSpec／Test Scenarioから生成する。再生は本節のReplay `InputSnapshot`注入経路を再利用してT10 outputとし、別のFire経路を作らない（§4.5）。記録由来traceとsynthetic traceは同じschemaへ正規化し、同一trace再生が同一のAction Snapshot／authoritative state hashを生むことをfixtureで検証する。Replay envelope（container／transport）はRuntime ownersの正本であり、本書はtrace内容schemaだけを所有する。
+
 ## 12. Failure policy
 
 | Failure | 結果 |
 |---|---|
 | Device disconnect | release／cancelを生成、player assignmentをunassignedへ |
-| Reading queue overflow | authoritative session fault。入力を黙ってdropしない |
+| Reading queue overflow | authoritative session fault。相対軸coalescing（§3.2）適用後の超過に限り、入力を黙ってdropしない |
+| Transition／Action／tick超過 | 先頭16 transitionを保持、超過分をtyped `InputTransitionOverflow`＋dropped countへ縮約（§6）。session faultにしない |
 | Stale device generation | reading破棄、counter |
 | Invalid value | reading reject、Device diagnostics |
 | Required Action unbound | Play prepare／Remap save拒否 |
@@ -274,7 +285,7 @@ Input domainの論理上限を次に固定する。低性能Targetは同じ上�
 | Active Context stack | 32 |
 | Touch contact | 10 |
 | Transition／Action／tick | 16 |
-| Device reading queue | Input Adapter全producer合計16,384 record。1 record最大64 byte、Input-owned payload arena 1 MiB |
+| Device reading queue | Input Adapter全producer合計16,384 record。1 record最大64 byte、Input-owned payload arena 1 MiB。相対軸readingは§3.2のcoalescing適用後に計上する |
 | `InputSnapshot` | 最大1,024 Action、canonical serialized size 128 KiB |
 | Persistent Input data | 8 MiB。Device descriptor、Action／Binding、calibration、User Remapを含む |
 | Latch transient | 4 MiB。sort、deduplicate、gesture、snapshot stagingを含む |
@@ -282,14 +293,14 @@ Input domainの論理上限を次に固定する。低性能Targetは同じ上�
 
 Persistent 8 MiBとLatch transient 4 MiBはRuntime ownerのInput child scopeへchargeする。Queue、Snapshot、gesture recognizer、Platform Adapter allocationを別Domainへ二重計上しない。Mobile aggregate capは[Mobile Common](mobile-common.md)を参照するが、このInput内部上限とtagは維持する。
 
-上限超過は末尾dropやAction切捨てにせず、Cook／Play prepareで静的超過を拒否し、Runtime queue／transition超過はauthoritative session faultとする。Shipping callback／poll pathで一般heap allocation、lock待機、filesystem、log formattingを行わない。
+上限超過は末尾dropやAction切捨てにせず、Cook／Play prepareで静的超過を拒否し、Runtime queue超過はauthoritative session faultとする。transition超過だけは§6のtyped縮約で処理する。Shipping callback／poll pathで一般heap allocation、lock待機、filesystem、log formattingを行わない。
 
 ## 14. TestとDefinition of Done
 
 - Keyboard、Mouse、Xbox系／generic controller、touch、penのconnect／disconnect
 - press／tap／hold／repeat／chord／toggle、dead zone、composite、conflict
 - Focus／Context／Consumption、text entry中のGameplay漏れ
-- 同tick最大16 transition、queue overflow、stale generation
+- 同tick最大16 transitionと超過縮約、相対軸coalescing、queue overflow、stale generation
 - Windows GameInput callback解除／Reading履歴、Android buffer swap、Apple inactive
 - Controller／keyboard／touchだけでmenu→Play→pause→exit
 - User Remap、required Action、reserved shortcut、left-handed layout

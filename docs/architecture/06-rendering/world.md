@@ -134,6 +134,19 @@ Region parent graphはDAGとし、Levelを複数Regionへ同時所属させな�
 
 `level_game_system_refs`のうち厳密に一つが`level_gameplay` roleのauthoritative ownerである。LevelDefinition自身はObjective進捗、Combat State、Quest State、Character Stateを書かない。
 
+`streaming_policy_ref`のexpected document kindは`LevelStreamingPolicyV1`である。
+
+```text
+LevelStreamingPolicyV1
+  policy_id: StableId
+  partition_intent_ref: exact SpatialPartitionIntentV1 ref、厳密に1件
+  entry_required_scope: entry_anchor_closure | listed_source_refs
+  entry_required_source_refs: bounded array[0..1024]<Scene／Layer／Entityのexact Stable ref>
+  prefetch_priority_class_ref: typed priority class ref
+```
+
+`entry_required_scope=listed_source_refs`時だけ`entry_required_source_refs`を1件以上持ち、`entry_anchor_closure`時は0件とする。CookerはこのPolicyと`SpatialPartitionIntentV1`からTargetごとのrequired Cell setを導出し、Source側でplan-local `cell_id`やactivation group IDを参照しない。priority classの値と測定法は[Runtime performance／capacity](../04-runtime/performance-capacity.md)を参照する。
+
 同じSceneを複数Levelで利用できるが、instance identity、override scope、persistent state ownerを明示する。cross-Level refはpersistent ownerまたはtransition payloadを介し、unloaded instance pointerを保存しない。
 
 `LevelRuntimeStateV1`はLevel gameplay Systemが所有し、`level_ref`、`runtime_instance_id`、`lifecycle_state`、`active_entry_ref`、`objective_state_refs[]`、`activated_system_instance_refs[]`、`authoritative_world_delta_ref`、`completion_outcome`を持つ。`lifecycle_state`は`inactive -> preparing -> ready -> activating -> active -> completing -> deactivating -> inactive`と、`preparing | activating | active | completing | deactivating -> faulted`のclosed state machineである。`runtime_instance_id`はgeneration付き`LevelInstanceHandle`で、Source／Save／Replay headerへ保存しない。
@@ -172,6 +185,21 @@ Runtime-owned Cell lifecycleの`failed`状態、retry／rollback／evict遷移�
 ## 7. Level transition intent
 
 Level transitionはsource／target Level、trigger intent、loading presentation ref、persistent entity／state policy、required Cell set、precondition、failure／cancel policyをSourceとして定義する。実行phase、writer、async job、timeout、Save checkpointはRuntime Ownerへ委譲する。
+
+`transition_policy_ref`のexpected document kindは`LevelTransitionPolicyV1`である。
+
+```text
+LevelTransitionPolicyV1
+  policy_id: StableId
+  presentation_policy_ref: exact LevelTransitionPresentationPolicyV1 ref、厳密に1件
+  persistent_entity_policy: none | listed_transfer
+  persistent_entity_refs: bounded array[0..256]<exact Stable Entity ref>
+  required_scope: target_entry_closure | listed_source_refs
+  required_source_refs: bounded array[0..1024]<Scene／Layer／Entityのexact Stable ref>
+  precondition_definition_refs: bounded array[0..64]<exact condition definition ref>
+```
+
+`persistent_entity_policy=listed_transfer`時だけ`persistent_entity_refs`を1件以上持ち、`none`時は0件とする。`required_scope`はtransfer commit前にresidentでなければならないCell setのSource指定であり、CookerがTargetごとのPlanへ解決する。plan-local `cell_id`やactivation group IDをSourceへ保存しない。failure／cancelの実行規則は§7.1のrollback／Cancel契約へ固定し、本Policyで上書きしない。
 
 `LevelTransitionRequestV1`は`request_id: uint64`、exact `source_level_instance_ref`、exact `portal_ref`、`target_level_ref`、`target_entry_anchor_ref`、`requesting_system_ref`、`requested_tick: uint64`、`player_or_party_transfer_refs[0..256]`、`precondition_snapshot_hash`、exact `transition_policy_ref`を持つ。`request_id`はWorld runtime instance内で1から単調増加し0 invalid、Save／別session比較に使わない。Portal無効、Source非active、Target／Anchor不一致、stale condition hashをprefetch前に拒否する。
 
@@ -377,11 +405,11 @@ TileLayoutCommandV1
   preview_expansion_hash: bytes32
 ```
 
-`TileGridV1`のtexel extentは両軸正、`pixels_per_unit`はfiniteかつ正とする。stagger／hex fieldはorientationと整合しなければならない。C1 orientationは`orthogonal`だけをQualifiedとし、他のorientationと`typed_object_stamp | image | height_semantic`はC2の個別Qualification前に拒否する。`RectI64`／`RectU32`はinclusive min、exclusive maxで、empty、overflow、負のunsigned extentを拒否する。
+`TileGridV1`のtexel extentは両軸正、`pixels_per_unit`はfiniteかつ正とする。stagger／hex fieldはorientationと整合しなければならない。一Tilemapの全`tile_set_sources`が参照するTileSetは`TileGridV1`の全fieldが一致しなければならず、この一致したgridをTilemapのcell格子の正本とする。不一致は`MIRAKAN-WORLD-TILE_SOURCE_INVALID`としてSource／Cookを拒否し、変換で近似しない。C1 orientationは`orthogonal`だけをQualifiedとし、他のorientationと`typed_object_stamp | image | height_semantic`はC2の個別Qualification前に拒否する。`RectI64`／`RectU32`はinclusive min、exclusive maxで、empty、overflow、負のunsigned extentを拒否する。
 
 空cellはrecord欠落で表し、`tile_id=0`等のsentinelを保存しない。chunk extentは各軸8～256の2冪、Referenceは32×32である。`local_coord`は`[0, chunk_extent_tiles)`内で一意とし、cellsを`local_y, local_x, tile_id`、chunksを`chunk_y, chunk_x`でcanonicalizeする。負のWorld tile coordinateはfloor divisionでchunkへ写像し、`local = world - chunk * extent`を必ず非負にする。言語の負剰余を使わない。
 
-C1 boundは一TileSet 65,535 Tile、一Tilemap 64 Layer、全Layer合計16,777,216 occupied cell、一chunk 4,096 draw spanである。Tile animationのdurationは各1～60,000 ms、合計24時間以下とする。重複／範囲外cell、unknown Tile、TileSet revision mismatch、Source bounds／count overflow、unsupported orientation、dangling parent／Tileset、非finite offsetをtyped validation failureとして拒否する。外部global tile ID、配列index、path、表示名をStable Tile IDにしない。
+C1 boundは一TileSet 65,535 Tile、一Tilemap 64 Layer、全Layer合計16,777,216 occupied cell、一chunk 4,096 draw spanである。Tile animationのdurationは各1～60,000 ms、合計24時間以下とする。重複／範囲外cell、unknown Tile、TileSet revision mismatch、TileSet grid不一致、Source bounds／count overflow、unsupported orientation、dangling parent／Tileset、非finite offsetをtyped validation failureとして拒否する。外部global tile ID、配列index、path、表示名をStable Tile IDにしない。
 
 cell `transform`は正方形格子の二面体群D4のclosed enumである。Cookerはcell中心を基準に、Renderer UV、Sprite pivot、Collision polygon、Navigation source、terrain edge／corner tagへ同じD4 transformをちょうど一度適用する。`TileDrawSpanV1.cooked_cell_transform_state`は適用済みを示し、consumerは再適用しない。いずれかのconsumerが同じ変換を表現できない、適用回数または結果hashが一致しない場合は`consumer_transform_mismatch`でclosure全体を失敗させ、Presentationだけを成功させない。`stable_cell_offset`はTilemap ID、Layer ID、World tile coordinate、Tile IDのcanonical hashだけから決め、load順、chunk residency順、worker順をseedにしない。
 
@@ -469,7 +497,7 @@ World固有diagnosticはWorld／Scene／Level／Entity Stable ID、Plan ID／pla
 | `MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED` | Source／Save／Capability／budgetが再検証不合格 | partial stateを使わずfailure表示を維持 |
 | `MIRAKAN-WORLD-DEPENDENCY_NOT_RESIDENT` | hard dependency不足 | Cellをactiveにしない |
 | `MIRAKAN-WORLD-ACTIVATION_PARTIAL` | activation groupの一部だけ成功 | 全体rollback |
-| `MIRAKAN-WORLD-TILE_SOURCE_INVALID` | duplicate／out-of-range cell、unknown Tile、revision mismatch、overflow、unsupported orientation | Source／Cook拒否 |
+| `MIRAKAN-WORLD-TILE_SOURCE_INVALID` | duplicate／out-of-range cell、unknown Tile、revision mismatch、TileSet grid不一致、overflow、unsupported orientation | Source／Cook拒否 |
 | `MIRAKAN-WORLD-TILE_LAYOUT_CAPACITY_EXCEEDED` | region area／candidate／changed countがcommand、Target、C1上限超過 | `tile_layout_capacity_exceeded`、scan前に拒否 |
 | `MIRAKAN-WORLD-TILE_TRANSFORM_MISMATCH` | D4のconsumer結果／適用回数不一致 | 全consumer closureを拒否 |
 | `MIRAKAN-WORLD-TILE_GENERATION_STALE` | Source／Artifact／command generation不一致 | 旧generation維持、再Cook／再Preview |
@@ -489,11 +517,11 @@ Failure時に別Level、Portal、Assetへ名前類似で置換しない。Gamepl
 Qualificationは次のDomain fixtureを持つ。
 
 - 全Domain schemaのvalid／invalid／boundary、UUIDv7 Stable IDのrename／delete／migration、SceneとLevelの多対多参照とowner一意性。
-- `world_authoring_semantics_v1`: 共有Sceneを参照する二Level、一Levelを構成する複数Scene、Targetごとに異なるCell planを同時表現する。
+- `fixture.world.authoring-semantics`: 共有Sceneを参照する二Level、一Levelを構成する複数Scene、Targetごとに異なるCell planを同時表現する。
 - `MoveEntityToScene`、`SetLevelSourceScenes`、Cell再Cookがidentity／membershipを暗黙変更しないこと。
 - Topology reachability／trap／cycle／Target fallback、unknown／stale／cross-cell pointer negative test、Undo／redo／crash recovery／concurrent edit conflict。
 - Cell全state transition、cancel、timeout、I/O failure、activation group atomicity、旧Level維持、Level transition／Character transfer／lease解放、Save／Load／Replay state hash。
-- `loading_progress_contract_v1`: initial boot／Level transition／Save resumeで同じPlan／Snapshot契約を使い、0／10／99／100%の実作業由来進捗、cold I/O、verify failure、0／2,000 msのminimum-display境界、旧Level／Title維持を検証する。
+- `contract.world.loading-progress`: initial boot／Level transition／Save resumeで同じPlan／Snapshot契約を使い、0／10／99／100%の実作業由来進捗、cold I/O、verify failure、0／2,000 msのminimum-display境界、旧Level／Title維持を検証する。
 - Loadingの実作業unit 65,535 exact／65,536 exact +1、weight合計65,535、同Plan単調進捗、capacity failureでpartial unit非公開、closure変更時の新generation、fake timer拒否、prefetch中Cancel、activating以後の`MIRAKAN-WORLD-LOADING_CANCEL_REJECTED`、明示Retryと`MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED`、lease／temporary Artifact解放、input／audio／keyboard／controller／screen reader projectionを検証する。
 - Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、examined tile 16,777,216 exact／16,777,217 exact +1のscan前capacity rejection、D4 single transformのRenderer／pivot／Collision／Navigation／terrain一致、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致を検証する。
 - Blockoutのdimension／segment／assembly／Level bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件fixtureを検証する。
@@ -503,7 +531,7 @@ Qualificationは次のDomain fixtureを持つ。
 - Compact 2D／3D Levelのframe／memory／load／activation hitch、Cell／prefetch比較、worst-case Portal traversal／camera speed、HLOD on／off authority equivalence、cold start／cold streaming。測定法と共有上限はRuntime ownerを使う。
 - AI corpusはMapの6分類、ambiguity／high-impact質問、Scene／Level／Cell／Navigation／Presentation分離、context外の表示名／pathからStable IDを推測しないこと、Source intent以外への直接write拒否を含む。
 - `CreateCell`／`UpdateCell`／`DeleteCell`／`SetCellIntent`／`replace_streaming_plan`／未知aliasはすべて`MIRAKAN-WORLD-DERIVED_CELL_WRITE`となり、`SpatialPartitionIntentV1`や`WorldStreamingPlanV1`のhashが変化しないnegative fixture。
-- `world_authoring_cross_view_v1` 64 scenarioでWorld Outline／Topology Graph／Level Form／Spatial View／AIのDomain Operationとafter-state hashが一致する。
-- `world_authoring_intent_v1` holdout 240件（明確な6分類各30件、曖昧／High Impact 60件）を3 runし、明確Caseの`selected_kind`正解率97%以上、Blocking Caseの`question_required` recall 100%、存在しないStableIdを含むProposal 0件、Scene／Level／Cell identity誤変更0件、Derived／Runtime直接write提案0件とする。
+- `fixture.world.authoring-cross-view` 64 scenarioでWorld Outline／Topology Graph／Level Form／Spatial View／AIのDomain Operationとafter-state hashが一致する。
+- `fixture.world.authoring-intent` holdout 240件（明確な6分類各30件、曖昧／High Impact 60件）を3 runし、明確Caseの`selected_kind`正解率97%以上、Blocking Caseの`question_required` recall 100%、存在しないStableIdを含むProposal 0件、Scene／Level／Cell identity誤変更0件、Derived／Runtime直接write提案0件とする。
 
 共通capacity test、Evidence envelope、Eval、provenanceは[Runtime performance／capacity](../04-runtime/performance-capacity.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。万能Map asset、path identity、Runtime pointer保存、silent missing-ref repair、phase／budget／Domain schema複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。

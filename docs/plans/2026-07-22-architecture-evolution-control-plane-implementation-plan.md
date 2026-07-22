@@ -291,9 +291,11 @@ Expected: 5 pathを列挙してFAIL。
 
 各文書は`state=review`、`approval_ref=null`とし、Owner scope、non-owner scope、Shared canonical contracts、failure、qualification、official evidenceを持つ。型はControl Plane Design §13.1から移し、consumerへ複写しない。Pathから推測した別ID、`draft`／`approved`への自動昇格、placeholder Approvalを拒否する。
 
+`application-package-release.md`はさらにDesign §12.1の`ApplicationPackageAssemblyManifestV1`と`StoreSubmissionDeclarationV1`、Target／Distribution一致、content rating／age rating、Google Play Data Safety、Apple App Privacy、privacy／generated-content policy、Reviewer／Receipt closureを唯一のOwnerとして定義する。Platform文書は時点依存requirementと公式source refだけを投影し、別のsubmission schemaを作らない。
+
 - [ ] **Step 4: positive／negative metadata testを実行する**
 
-Positiveは5文書のschema、exact path↔ID、`state=review`、`approval_ref=null`、requires、integration reciprocityを検証する。Negativeは各文書についてwrong ID、wrong path、`state=approved`＋missing Approval、non-null placeholder Approval、missing reciprocal integrationを一件ずつ注入し、exact diagnosticだけを返すことを検証する。
+Positiveは5文書のschema、exact path↔ID、`state=review`、`approval_ref=null`、requires、integration reciprocityを検証する。Application Package positiveにはnon-store、Google Play、Apple App Storeの三Declarationを含め、AssemblyとのTarget／Distribution／privacy ref一致とrequired receipt closureを検証する。Negativeは各文書についてwrong ID、wrong path、`state=approved`＋missing Approval、non-null placeholder Approval、missing reciprocal integrationを一件ずつ注入する。Application PackageにはさらにDeclaration欠落、Target／Distribution不一致、Google Play Data Safety欠落、Apple App Privacy欠落、rating answer／result欠落、privacy ref不一致、Reviewer／Receipt空を一件ずつ注入し、exact diagnosticだけを返す。
 
 Expected: positive 5件がPASSし、全negative fixtureが対象diagnostic一件でFAILする。
 
@@ -438,7 +440,7 @@ assert.equal(aggregate([{scope:"required",state:"production"}, null]), "not_acti
 
 - [ ] **Step 5: registry testを実行する**
 
-Expected: Capability／feature 36（既存33 IDの移行＋新規3D Product Capability 1＋Project Source Capability 2）、Requirement 16、Work Package 25、Phase 10、Target 5、orphan 0、maturity-bearing current ID 0、initial aggregateはすべて`not_activated`。
+Expected: Capability／feature 37（既存33 IDの移行＋Product coverage Capability 2D／3D各1＋Project Source Capability 2）、Requirement 16、Fixture 10、Work Package 26、Phase 10、Target 5、orphan 0、maturity-bearing current ID 0、initial aggregateはすべて`not_activated`。
 
 ### Task 8: deterministic Index generatorとCLIを実装する
 
@@ -921,7 +923,7 @@ Appendix Dにないmaturity／version-bearing lowercase IDをlintが発見した
 - Appendix Cの29 edgeが完全にreciprocalで、Contract ID集合が一致する。
 - `architecture/registry/document-relations.v1.json`が生成inventory全metadataの`requires`／`integrates_with`、source document hash、Appendix Bのinitial canonical orderと完全一致する。
 - Appendix Dのold IDはnormative active本文で0、Decision／migration authorityの全出現はmigration manifestで一度だけ分類され、new IDのorphan 0、runtime alias 0である。
-- Product RegistryはTarget 5、Requirement 16、Fixture 10、Phase 10、Capability 36、Work Package 25を参照解決し、missing Target activationをfail closedにする。
+- Product RegistryはTarget 5、Requirement 16、Fixture 10、Phase 10、Capability 37、Work Package 26を参照解決し、missing Target activationをfail closedにする。
 - TypeScript 7.0.2 compileは`--singleThreaded`を使用し、compiler API importが0件である。
 - Index二回生成のSHA-256が一致し、Git diffが空である。
 - baseline handoffの全hashをECS／D3D12計画がread-backできる。

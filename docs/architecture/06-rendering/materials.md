@@ -51,9 +51,8 @@ schema_version
 profile_id
 source_profile_id: optional
 display_name
-scene_dimension
-art_direction
-composition
+scene_dimension: two_d | three_d | hybrid
+art_direction: realistic | toon | pixel_2d | pixel_diorama
 composition_variant: native | crisp_sprite_over_high_res_3d | unified_low_resolution
 gameplay_space: canvas_2d | world_3d
 camera_profile_id
@@ -94,9 +93,11 @@ reference_assets[]
 locked_fields[]
 ```
 
-Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。`gameplay_space`がPhysics／Navigationの所有空間を決め、見た目からdimensionを推測しない。
+Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。`gameplay_space`がPhysics／Navigationの所有空間を決め、見た目からdimensionを推測しない。`scene_dimension`と`art_direction`はclosed enumであり、値集合はEngine buildが生成する`StyleCapabilityManifest`のStyle feature IDとして列挙される。Project／AIは値を追加せず、値の追加は署名済みEngine baseline更新である。
 
-`pixel_2d`と`unified_low_resolution`は正整数`reference_resolution`、1以上の`pixels_per_unit`、`not_applicable`以外のinteger scale policyを必須とする。`crisp_sprite_over_high_res_3d`は`reference_resolution = null`としてCamera Profileの出力解像度を使う。`world_texel_density`は`pixel_diorama`でだけ必須で、`min_screen_pixel_ratio <= max_screen_pixel_ratio`、既定0.8～1.2とする。Camera変更時に`reference_distance_m`を暗黙更新しない。
+旧open field `composition`は受理しない。Visual Styleの2D／3D合成方式はclosed `composition_variant`だけが所有し、自由文字列、別名field、未登録variantを拒否する。
+
+`art_direction = pixel_2d`または`composition_variant = unified_low_resolution`の場合は正整数`reference_resolution`、1以上の`pixels_per_unit`、`not_applicable`以外のinteger scale policyを必須とする。`composition_variant = crisp_sprite_over_high_res_3d`は`reference_resolution = null`としてCamera Profileの出力解像度を使う。`world_texel_density`は`art_direction = pixel_diorama`でだけ必須で、`min_screen_pixel_ratio <= max_screen_pixel_ratio`、既定0.8～1.2とする。Camera変更時に`reference_distance_m`を暗黙更新しない。
 
 `style_critical_fields`と`locked_fields`はProfile内JSON Pointerである。`fallback_policy = allow_listed`は1件以上のfallback、`forbid`は空配列を必須とする。`license_or_usage_basis`は`user_owned | licensed | public_domain | reference_only`に固定する。利用根拠のないreference AssetをCommitしない。
 
@@ -146,6 +147,8 @@ render-stateはraw API enumではなく、cull intent、depth test／write inten
 
 ### 4.1 canonical PBRとglTF mapping
 
+`realistic_basic`／`realistic_advanced`は`pbr_metal_rough` Shading Modelのcompile feature tierを表すclosed IDであり、Material Domain、Shading Model、`VisualStyleProfile`の別IDではない。`realistic_basic`は`pbr_metal_rough`の必須基底tier、`realistic_advanced`は`realistic_basic`を包含するoptional上位tierである。tierのactivationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
+
 `realistic_basic`はScene-linear HDR、物理単位Light、IBLを入力とし、Cook-Torrance BRDFをGGX normal distribution、Smith height-correlated visibility、Schlick Fresnelで評価する。Metallic-Roughness workflowのcanonical入力はbase color、metallic、perceptual roughness、tangent-space normal、occlusion、emissiveである。Authoringのmetallic／perceptual roughnessは0～1、shader内部FP32 roughnessは0.045～1へclampする。Opaque、alpha mask、premultiplied transparent、Environment IBL reflection、shadow、height fog、exposure、tone mappingを同じ意味契約で扱う。
 
 glTF coreと基本extensionは次のMaterials-owned mappingへ固定する。
@@ -155,6 +158,8 @@ glTF coreと基本extensionは次のMaterials-owned mappingへ固定する。
 | core base color | Texture RGBをsRGBからscene-linear base colorへdecodeし、Aをopacityとする |
 | core metallic-roughness | data textureのGをperceptual roughness、Bをmetallicとし、R／Aを意味入力に使わない |
 | core normal／occlusion／emissive | normal RGBをtangent-space data、occlusion Rをlinear occlusion、emissive RGBをsRGBからscene-linear emissiveへdecodeする |
+| core `alphaMode`／`alphaCutoff` | `OPAQUE`／`MASK`／`BLEND`を`AlphaMode`の`opaque`／`mask`／`blend_premultiplied`へ写像し、`alphaCutoff`は`mask`のcoverage閾値parameterとして保持する。`BLEND`のstraight alphaはCook時にcanonical変換としてpremultiplied colorへ変換し、Source texture pixelへ破壊的bakeしない |
+| core `doubleSided` | render-stateのcull intent（two-sided intent）として保持し、shading意味を変更しない |
 | `KHR_materials_unlit` | `unlit_surface`へ写像し、Light／IBL BRDFを通さずbase color、opacity、emissiveを保持する |
 | `KHR_materials_emissive_strength` | emissive factor／textureへ掛ける非負のscene-linear emission倍率として保持する |
 | `KHR_texture_transform` | 対象texture bindingのUV offset、rotation、scale、texCoord選択として保持し、画像pixelへ破壊的bakeしない |
@@ -235,6 +240,8 @@ Parameterはscalar、vector、color、texture role、enum、booleanのclosed typ
 
 Texture roleはbase color、normal、mask、emissive、detail等の意味を表し、asset formatやchannel packingはCooked Artifactへ閉じる。Source revisionを跨ぐbinding混在を避け、Material、texture、shader artifactのgeneration closureを一つのpromotion単位として検証する。
 
+RendererへのMaterial frame入力の正式名は`ResolvedMaterialBindingV1`である。renderableごとに`CookedMaterialArtifact`のartifact generation ref、Cook時に解決したcanonical flat parameter set（Stable Parameter ID→typed値）、texture role binding、`ShaderInterface` hash、source revisionを持つimmutable bindingであり、[Render Graph](render-graph.md) §2はこのobjectだけをMaterial入力として受ける。文字列名、descriptor index、native handleを含めない。
+
 ## 6. Material IR、Shader compile、package
 
 CookerはSource GraphをBackend-neutral `MaterialIR`へlowerし、constant folding、dead-node removal、interface validation、variant canonicalizationを行う。Qualification済み`ProjectShaderModuleV1`はSourceを高水準IRへ逆変換せず、Module／Export Stable ID、semantic interface hash、`ShaderFactGraphV1` hashを持つtyped opaque operationとしてIRから参照する。IRはDomain output、typed operation、resource role、uniform layout、feature requirementを持ち、native bytecodeやcompiler-specific metadataをpublic contractにしない。
@@ -258,6 +265,8 @@ Material operationはcreate／update material、create instance、bind texture r
 canonical Operation IDは`operation.material.search`、`operation.material.read`、`operation.material.inspect`、`operation.material.preview`、`operation.material.explain`、`operation.material.estimate`、`operation.material.validate`、`operation.material.plan`、`operation.material.create_instance`、`operation.material.assign_template`、`operation.material.set_parameters`、`operation.material.create_definition`、`operation.material.edit_graph`、`operation.material.create_derived_style`、`operation.material.bind_surface_semantics`である。上位operationが下位権限を暗黙取得せず、変更operationはSourceを直接writeしない。新しいHLSL Module／Techniqueが必要な場合は`MaterialAuthoringPlanV1`がRequirementと推奨Shader Levelを返し、[Project Shader](project-shader.md)のPlan／Propose Operationへ明示handoffする。Material Operation名でProject ShaderまたはEngine Extensionを変更しない。
 
 Previewは対象revision、Target Profile、View／Lighting fixture ref、resolved Material／Style、compiled artifact generation、difference summary、diagnosticを返す。Preview結果をApply済みProject stateやProduction qualificationと表示しない。Explainは採用値、継承元、override、fallback、未解決questionをMaterial語彙で示す。
+
+[Lighting](lighting.md)のIntent Resolver入力である`MaterialReadabilitySummaryV1`は本書所有のread-only／revisioned projectionである。`schema_version`、`project_revision`、`catalog_revision`、`scope_ref`、`entries[]`、`cursor`、`total_count`を持ち、各entryは`material_instance_id`、`revision`、`semantic_role_id`、`domain`、`shading_model`、`gameplay_critical`、§3のsemantic axesのうちopacity behavior／emissive intent／two-sided intent、`style_critical`だけを含む。参照するMaterial revisionまたはCatalog revisionの変更でstaleとし、Lighting側からの書き戻しを受けない。上限超過時は配列を切らずcursorとtotal countを返す。
 
 AIの最初のbounded projectionである`MaterialContextSummaryV1`は`material_id`、`revision`、`semantic_role_id`、`template_id`、`definition_id`、`domain`、`shading_model`、`public_parameters[]`、`texture_dependencies[]`、`project_shader_module_refs[]`、`shader_understanding_closure_hashes[]`、`target_support[]`、`quality_support[]`、`variant_count`、`budget_summary`、`diagnostic_summary`、`available_operation_ids[]`だけを含む。上限超過時は配列を切らずcursorとtotal countを返す。Module内部のsymbol／call／resource／Target差は`ShaderContextSliceV1`を別Queryで取得する。
 

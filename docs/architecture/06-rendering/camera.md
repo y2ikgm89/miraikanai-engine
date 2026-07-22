@@ -32,12 +32,14 @@ CameraProfileDocumentV1
   post_process_override: optional PostProcessCameraOverrideV1
   focus_policy
   culling_far_m
-  output_policy
+  output_policy: CameraOutputPolicyV1
   capability_requirements[]
   locked_fields[]
 ```
 
-`projection`は`perspective | orthographic | pixel_orthographic | physical_perspective`のtagged unionである。AspectをProfileへ重複保存しない。Post Processは`PostProcessProfileV1` Stable IDとowner-defined `PostProcessCameraOverrideV1`だけを参照し、Exposure fieldをCamera形式へ複写しない。
+`projection`は`perspective | orthographic | pixel_orthographic | physical_perspective`のtagged unionである。AspectをProfileへ重複保存しない。Post Processは`PostProcessProfileV1` Stable IDとowner-defined `PostProcessCameraOverrideV1`だけを参照し、Exposure fieldをCamera形式へ複写しない。`focus_policy`は`manual | target_distance | subject_group`に閉じる。`manual`はlens profileのfocus distance、`target_distance`はprimary target bindingへの距離、`subject_group`は[Post Processing](post-processing.md)の`DepthOfFieldProfileV1`のsubject group focusへ接続し、DOF parameterをCamera形式へ複写しない。
+
+`CameraOutputPolicyV1`は`kind: primary_surface | shared_surface_viewport | offscreen_render_target | editor_preview`と、kind別のexact bindingだけを持つtagged unionである。`primary_surface`はPlay Sessionのprimary ViewFamilyを一件だけ選び追加bindingを禁止する。`shared_surface_viewport`は`view_family_ref`と`viewport_profile`、`offscreen_render_target`は`render_target_profile_ref`、`editor_preview`はEditor-owned `preview_session_ref`を必須とし、他kindのbinding fieldを拒否する。`editor_preview`はShipping PackageへCookせず、`offscreen_render_target`をpresent surfaceとして扱わない。未登録kind、暗黙のprimary選択、同一Cameraから複数kindへのfan-outを拒否する。
 
 | Reference profile | 初期値 | Validation |
 |---|---|---|
@@ -105,6 +107,21 @@ Sequenceの公式TrackはCamera binding、Transform／Rig parameter、Lens／foc
 
 `RationalFrameRateV1`は既約な正のnumerator／denominatorを持ち、allowlistは`24/1, 24000/1001, 25/1, 30/1, 30000/1001, 48/1, 50/1, 60/1, 60000/1001, 120/1`である。Labelからrateを推測しない。
 
+`simulation_fixed`のframe→simulation tick写像は整数演算`tick = floor(frame_index × simulation_hz × denominator / numerator)`に固定する。`simulation_hz`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が所有する固定simulation rateである。中間丸めと逆写像を使わず、Gameplayへ影響するTrack評価とcut frame固定はこの写像後のtick IDで行う。simulation rateを整除しないrateでは複数frameが同一tickへ写像されうる。
+
+```text
+CameraComfortProfileV1
+  document_header
+  comfort_profile_id
+  roll_limit_rad
+  max_angular_velocity_rad_s
+  max_angular_acceleration_rad_s2
+  max_fov_change_rate_per_s
+  locked_fields[]
+```
+
+`comfort_profile_ref`と§4のcomfort constraint検査は`CameraComfortProfileV1`だけを参照する。全fieldはfinite、`roll_limit_rad`は`[0, π]` radian、velocity／accelerationは0より大きいradian/s・radian/s²、FOV change rateは`tan(fov/2)`空間の0より大きい1/second変化率とする。本schemaは数値Presetを持たず、安全表示の条件は§4に従う。
+
 ### 2.2 Derived artifactとvalue
 
 `CameraPlanV1`はProfile、Rig、Directorをcanonical compileしたimmutable runtime plan、`CameraSequencePackageV1`はTrack、binding、time transform、cut／blendのCooked packageである。`CameraPreviewReceiptV1`はinput revision、candidate、fixture、metrics、capture／trace hash、`CameraQualificationReceiptV1`はCapability、Target、performance、soak、fault結果を持つ。SourceとDerivedを同じFileへ混在させない。
@@ -123,6 +140,8 @@ CameraPoseV1
 Perspective系はvertical FOV、Orthographic系はvertical sizeを必須とし同時に持たない。Math ownerのfinite、Quaternion canonicalization、failure contractを使う。
 
 `CameraIntentSnapshotV1`はGameplay用logical origin／direction／target／frustum intent、`CameraBasePoseSnapshotV1`はprevious／current Base Pose、Rig／Director generation、cut flag、`CameraPresentationSnapshotV1`はshake／noise／recoil、`CameraRenderViewV1`はRendering ownerが作るinterpolated View／Projection、Viewport、Post ref、history resetである。Render View／GPU matrixをGameplayへ返さない。
+
+`CameraPresentationSummaryV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、最低fieldとして`camera_id`、source revision、projection variant、vertical FOVまたはorthographic vertical size、focus distance、aperture、cut／history reset flag、pixel-locked policyを持つ。[Post Processing](post-processing.md)等のConsumerはfield一覧を複写せず、write backしない。
 
 ## 3. Rig、Director、transition
 
@@ -144,7 +163,7 @@ Shake／Noise／RecoilはGraph Nodeでなく`CameraPresentationProfileV1`のboun
 
 Director selection順はSequence override、typed Gameplay rule、priority降順、specificity降順、Rig ID byte昇順、default Rigである。RuleはGameplayDefinition state／tag、target availability、Camera Volume、Sequence markerだけを参照し、arbitrary callback、Widget state、Renderer visibility、display nameを条件にしない。
 
-Transitionは`cut | smooth_blend | match_pose | match_lens`。default durationは0.35秒、positionはcubic smoothstep `t²(3-2t)`、rotationはshortest-path normalized slerp、vertical FOVは`tan(fov/2)`空間で同じsmoothstepを使う。duration 0は次のCamera evaluation boundaryでcutとなる。Cut、teleport、non-jitter projection、surface／extent変更はRendering ownerのhistory invalidationへ接続する。
+Transitionは`cut | smooth_blend | match_pose | match_lens`。default durationは0.35秒、positionはcubic smoothstep `t²(3-2t)`、rotationはshortest-path normalized slerp、vertical FOVは`tan(fov/2)`空間で同じsmoothstepを使う。`match_pose`は遷移開始tickの現在Base Poseへ遷移先RigのFilter／Damping系Node stateを整合初期化してposition／orientationを連続に保ち、Lens fieldだけを上記補間でblendする。整合不能またはstate初期化がnon-finiteの場合は`smooth_blend`へfallbackする。`match_lens`はposition／orientationをcutし、vertical FOV（`tan(fov/2)`空間）、orthographic vertical size、focus distance、apertureだけを上記補間で連続化し、cutと同じhistory invalidationを接続する。durationは4種共通で、duration 0は次のCamera evaluation boundaryでcutとなる。ただし`match_pose`のduration 0は整合初期化だけを行いblendしない。Cut、teleport、non-jitter projection、surface／extent変更はRendering ownerのhistory invalidationへ接続する。
 
 ## 4. Authoring、runtime、sequence
 
@@ -152,17 +171,25 @@ Transitionは`cut | smooth_blend | match_pose | match_lens`。default duration�
 
 Closed semantic vocabularyはviewpoint `first_person, third_person, top_down, side_view, fixed_view, free_orbit`、movement `follow, orbit, rail, crane, handheld`、composition `center_subject, rule_of_thirds, headroom, look_room, group_framing`、response `dead_zone, look_ahead, soft_follow, responsive_follow`、occlusion `avoid_camera_blocker, reposition, fade_occluder_proposal, cut_on_occlusion`、comfort `comfortable, standard, intense, custom_bounded`、transitionの4値である。自由文の「映画的」「酔いにくい」を保存せずtyped constraints／assumption／questionへ解決する。
 
-Comfortable intentはroll limit 0、horizon stabilization true、angular velocity／acceleration／FOV change rateを`CameraComfortProfile`、shake scaleをAccessibility Profileから読む。数値Presetを人間工学的に安全と表示するにはTarget実測とUser Study evidenceを必要とする。
+Comfortable intentはroll limit 0、horizon stabilization true、angular velocity／acceleration／FOV change rateを`CameraComfortProfileV1`（§2.1）、shake scaleをAccessibility Profileから読む。数値Presetを人間工学的に安全と表示するにはTarget実測とUser Study evidenceを必要とする。
 
 ResolverはIntentから最大3 `CameraPlanCandidateV1`を返す。候補はProfile／Rig／Director／Sequence、Intent-to-field trace、assumption／question／lock、Target cost、Capability／fallback、fixture、composition／comfort／collision metric、差と理由を持つ。scene dimension、gameplay viewpoint、authority、必須subjectが解決不能な場合だけBlocking questionを返す。
 
-Operationは`ResolveCameraIntent, CreateCameraProfile, CreateCameraRig, AddCameraRigNode, ConnectCameraRigNodes, SetCameraDirectorRule, SetCameraPresentationProfile, CreateCameraSequence, PreviewCameraCandidate, AnalyzeCameraComposition`である。WriteはProject ChangeSetだけを生成し、共通operation envelope、authorization、approvalは各Ownerへ委譲する。
+Operation IDは`operation.camera.resolve_intent, operation.camera.create_profile, operation.camera.set_profile_projection, operation.camera.create_rig, operation.camera.add_rig_node, operation.camera.connect_rig_nodes, operation.camera.set_director_rule, operation.camera.set_presentation_profile, operation.camera.create_sequence, operation.camera.preview_candidate, operation.camera.analyze_composition`に閉じる。WriteはProject ChangeSetだけを生成し、共通operation envelope、authorization、approvalは各Ownerへ委譲する。
 
 Validatorはgraph／port／output／limit、unit／range／finite／Quaternion／projection variant、Base RigへのPresentation／Editor Node混入、Stable ID／generation／fallback／default、viewport、Physics query domain ceiling、blocker filter／Sensor exclusion、comfort constraint、pixel integer scale／rotation／jitter、Target／Quality cost、lock／revisionを固定順で検査する。失敗時はChangeSet全体をrejectし、clamp、unknown Node無視、default生成をしない。
 
 Runtime evaluationはInput Snapshot固定、前回versioned collision result統合、Director選択、Rig parameter／state更新、Base Pose候補と次query生成、Presentation channel／cut event構築、Base state checkpoint、immutable publishの依存順を持つ。具体phase名とlifetimeはRuntime scheduling ownerが決定する。CameraはWorld TransformのWriterにならない。
 
-Collision初期値はsphere radius 0.20 m、skin 0.05 m、最大補正10 m、Sensor除外、`camera_blocker` roleである。resultなし1～2 tickは前valid、3 tick目は補正なし。owner generation／Physics scene version不一致をdiscardする。Target loss1 tickはlast valid pose、2 tick目はdefault Rig。non-finiteはlast validを保ち、3 tick連続でprecompiled Failsafeへ切り替える。Default／Failsafe欠落Packageは起動前に拒否する。
+Collision初期値はsphere radius 0.20 m、skin 0.05 m、最大補正10 m、Sensor除外、`camera_blocker` roleである。resultなし1～2 tickは前valid、3 tick目は補正なし。owner generation／Physics scene version不一致をdiscardする。
+
+precompiled FailsafeはEngine同梱の固定Rig（`FixedPosition`＋`FixedAim`＋`PerspectiveLens`構成）からCook時に生成するimmutable `CameraPlanV1`であり、`CameraSequencePackageV1`を含む全Cook出力Packageへ必須含有し、Project dataから置換・無効化しない。Default／Failsafe欠落Packageは起動前に拒否する。Rig fallbackは次の一表に固定する。
+
+| 段階 | Trigger | 遷移先 |
+|---|---|---|
+| 1 | target loss 1 tick、またはnon-finite評価 | last valid poseを維持 |
+| 2 | target loss 2 tick継続 | 当該Rigの`fallback_rig_id`、未設定ならDirectorの`default_rig_id` |
+| 3 | fallback／default Rigも評価不能、またはnon-finite 3 tick連続 | precompiled Failsafe |
 
 Renderingはprevious／current Base Poseをalpha補間後にPresentation、Lens、Viewport、jitterを合成する。Shakeはseed、start tick、duration、translation／rotation amplitude、frequencyを持ち、同時16、translation各軸2 m、rotation各軸20 degree、0～60 Hz、0～30秒を上限とする。Accessibility scaleを最終合成だけへ適用する。
 

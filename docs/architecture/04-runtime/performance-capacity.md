@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: 共通CPU／GPU／memory／queue budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、`ProjectScaleEnvelopeV1`、Target別Scale resolution、非破壊遷移、Qualification
 - 非正本範囲: Runtime phase／tick／lifetime、World cell／coordinate field、LOD policy field、Authoring Document／ChangeSet field、Domain固有budget、外部Tool／SDK／driverの固定値、AI承認、Evidence envelope。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)、[Mobile common](../07-platform/mobile-common.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論とauthority
@@ -30,42 +30,43 @@ memoryは次を区別する。
 
 MiBは`2^20` bytesとする。P50／P95／P99.9はwarm-upを除く全sampleを昇順にし、nearest-rank `ceil(p × N)`番目を採る。欠測は0で補わずAvailabilityとBlocking理由を記録する。各runの値、run集合の選択規則、Target／environment ref、instrumentation tierをEvidenceへ含める。
 
-CPU critical pathはInputを固定した時点から、そのstateを含む最初のrender submission呼出しがreturnするまでとする。該当snapshotがrun中にsubmitされなければhard failureである。GPU frameは当該snapshotの最初のGPU timestampから最終composite timestampまでとし、display sync待機を含めない。real frameとgenerated／displayed frameを分離する。
+CPU critical pathはtickの`T00_BoundaryApply`開始から、そのtickのstateを含む最初のrender submission呼出しがreturnするまでとする。catch-upで中間tickのsnapshotが単独submitされない場合は、そのstateを包含する後続snapshotの最初のsubmissionで測定する。R00～R70を実行しないheadless Targetと、`SurfaceUnavailable`／`Inactive`／`Suspended`区間は本測定の対象外とする。対象runで当該stateを含むsubmissionが一度も発生しなければhard failureである。GPU frameは当該snapshotの最初のGPU timestampから最終composite timestampまでとし、display sync待機を含めない。real frameとgenerated／displayed frameを分離する。
 
 ## 3. CPU memory envelope
 
-`windows_desktop_v1`のactive GameHost共通soft budgetは2,048 MiBとする。
+`target.windows.desktop`（`profile_version` 1）のactive GameHost共通soft budgetは2,048 MiBとする。Target IDは[Product Plan](../00-product/product-plan.md)のTarget Profile registryを正本とし、IDへ`v1`等のversionを埋め込まない。
 
 | Parent domain | Child envelope | MiB |
 |---|---|---:|
 | Core World／Save | ECS・World 128、snapshot／bridge 32、Save／Replay 64、stack／system 32 | 256 |
 | Rendering CPU／upload | render extract 48、VFX CPU 32、shader／material metadata 32、descriptor metadata 16、upload staging 96、reserve 32 | 256 |
 | Physics／Navigation／Animation | Physics 96、Navigation 64、Animation 64、reserve 32 | 256 |
-| Unassigned headroom | 通常allocation、cache、loanへ使用禁止 | 128 |
+| Unassigned headroom | 通常allocation、cache、loanへ使用禁止 | 64 |
+| Debug diagnostics | ingress、Store ring、Index、fault capture専用 | 64 |
 | Audio | decoded／stream ring 96、voice／control 16、reserve 16 | 128 |
 | Asset streaming | compressed cache 256、decode／transcode 256、hot cache 192、dependency metadata 32、reserve 32 | 768 |
 | Frame／Job transient | Frame 32、Render frame slots最大48、Job scratch 40、reserve 8 | 128 |
 | Emergency | diagnostic、journal、controlled shutdown専用 | 128 |
 | **合計** |  | **2,048** |
 
-`windows_editor_v1` process groupの共通soft budgetは4,096 MiBで、active Play Runtime 2,048、Authoring World／undo／revision 512、Asset import／cache client 512、UI／preview／thumbnail 384、AI bridge／schema／diagnostics 256、Editor reserve 384 MiBに分ける。Playしていない間もPlay partitionを長寿命Authoring cacheへ転用しない。Play準備前に必ずevictできる一時bufferだけ最大512 MiBのmode-exclusive loanを利用でき、返却不能ならPlay開始を拒否する。
+`target.windows.editor`（`profile_version` 1）process groupの共通soft budgetは4,096 MiBで、active Play Runtime 2,048、Authoring World／undo／revision 512、Asset import／cache client 512、UI／preview／thumbnail 384、AI bridge／schema／diagnostics 256、Editor reserve 384 MiBに分ける。Playしていない間もPlay partitionを長寿命Authoring cacheへ転用しない。Play準備前に必ずevictできる一時bufferだけ最大512 MiBのmode-exclusive loanを利用でき、返却不能ならPlay開始を拒否する。
 
-Runtime Emergency 128 MiBを除く1,920 MiBを通常global scopeとする。
+Runtime Emergency 128 MiBを除く1,920 MiBを通常global scopeとする。80／90／100%閾値の分母は1,920 MiBである。Unassigned headroom 64 MiBはvendor超過・計測誤差吸収域、Debug diagnostics 64 MiBは§5.1のDebug専用reservationであり、どちらも一般Domainへ配分しない。したがって一般Domainへ配分可能な上限は従来どおり1,792 MiBである。
 
 - 80%: eviction後に戻すtarget。
 - 90%: warning、nonessential cacheとPresentation qualityの縮退を開始。
 - 100%: Domain cap、nonessential allocation拒否。
-- EmergencyとUnassigned headroomを通常処理、cache、quality維持へ貸さない。
+- Emergency、Unassigned headroom、未使用Debug reservationを通常処理、cache、quality維持へ貸さない。
 - 未使用Parent budgetのloanは一load jobまたは最大120 render frameの先着期限までとする。
 - 借用bytesを貸出元、借用先、global totalへ同時記録し、global scopeを超えない。
 - deadline超過loanはconfiguration defectとしてqualificationを失敗させる。
 - 必須allocationはeviction後に一度だけretryし、再失敗したauthoritative transactionをpublishしない。
 
-Frame、render-frame、job scratchはscope完了後に一括resetする。GPU consumerを持つframe slotは全last-use submission完了までresetしない。hot pathのupstream fallbackを一般heapへ流さず、Development／Profileでは発生frameをfailureとして記録する。[Memory／Pointers](../02-foundation/memory-pointers.md)がallocator／pointer semanticsを所有する。
+`target.windows.desktop`のframes-in-flightは3とし、Render frame slotsはslotあたり16 MiBの3面で最大48 MiBを消費する。他Targetのframes-in-flightは各Platform Ownerが定め（mobileは[Mobile common](../07-platform/mobile-common.md)を参照）、本書のmeasurement interfaceへ投影する。Frame、render-frame、job scratchはscope完了後に一括resetする。GPU consumerを持つframe slotは全last-use submission完了までresetしない。hot pathのupstream fallbackを一般heapへ流さず、Development／Profileでは発生frameをfailureとして記録する。[Memory／Pointers](../02-foundation/memory-pointers.md)がallocator／pointer semanticsを所有する。
 
 ## 4. GPU memory envelope
 
-`windows_desktop_v1`のGPU project budgetは`min(5,632 MiB, 0.80 × Platform reported budget)`とする。他TargetはPlatform Ownerが定めるaggregate working-set capを本書のmeasurement interfaceへ投影する。
+`target.windows.desktop`のGPU project budgetは`min(5,632 MiB, 0.80 × Platform reported budget)`とする。他TargetはPlatform Ownerが定めるaggregate working-set capを本書のmeasurement interfaceへ投影する。
 
 | Domain | MiB |
 |---|---:|
@@ -86,33 +87,51 @@ device loss時のcapture／recovery順はScheduling、Renderer、Platform、Debu
 
 ## 5. Queue capacityとbackpressure
 
-次は共通C1 capacity profileのhard reservationであり、Targetを理由に暗黙縮小しない。Projectが変更する場合はmemory envelope、stress、Replay、Domain qualificationを再承認する。
+次は共通C1 capacity profileのhard reservationであり、Targetを理由に暗黙縮小しない。Projectが変更する場合はmemory envelope、stress、Replay、Domain qualificationを再承認する。Runtime contract固有のdeterministic上限（[Scheduling／lifetime](scheduling-lifetime.md) §4.1のGameplay Timer active／fire上限等）は各Owner文書が所有し、本表へ複写しない。その変更も本節と同じ再承認を必要とする。
 
-| Queue／buffer | Entry capacity | Payload arena | max payload／entry | charge | critical reserve |
-|---|---:|---:|---:|---|---:|
-| Structural command | 16,384 / simulation step | 2 MiB | 16 KiB | ECS／World | 0 |
-| Simulation command total | 65,536 / simulation step | 4 MiB | 16 KiB | ECS／World | 0 |
-| Normalized Physics event | 65,536 / simulation step | 4 MiB | 256 B | Physics | 0 |
-| Navigation request／result | each 4,096 / simulation step | each 8 MiB | 64 KiB | Navigation | 0 |
-| Presentation event | 32,768 / simulation step | 4 MiB | 8 KiB | snapshot／bridge | 1,024 entries |
-| Audio command | 8,192 entries | 1 MiB | 4 KiB | Audio | 512 entries |
-| Audio completion | 4,096 entries | 256 KiB | 64 B | Audio | 256 entries |
-| Asset activation | 1,024 / boundary | 1 MiB | 4 KiB | dependency metadata | 64 entries |
+| Queue／buffer | faces | Entry capacity | Payload arena | max payload／entry | charge | critical reserve |
+|---|---:|---:|---:|---:|---|---:|
+| Structural command | 2 | 16,384 / simulation step | 2 MiB | 16 KiB | ECS／World | 0 |
+| Simulation command total | 2 | 65,536 / simulation step | 4 MiB | 16 KiB | ECS／World | 0 |
+| Gameplay event total | 2 | 32,768 / simulation step | 4 MiB | 4 KiB | ECS／World | 0 |
+| Normalized Physics event | 2 | 65,536 / simulation step | 4 MiB | 256 B | Physics | 0 |
+| Navigation request／result | 1 | each 4,096 / simulation step | each 8 MiB | 64 KiB | Navigation | 0 |
+| Presentation event | 2 | 32,768 / simulation step | 4 MiB | 8 KiB | snapshot／bridge | 1,024 entries |
+| Audio command | 1 | 8,192 entries | 1 MiB | 4 KiB | Audio | 512 entries |
+| Audio completion | 1 | 4,096 entries | 256 KiB | 64 B | Audio | 256 entries |
+| Async completion | 1 | 8,192 entries | 512 KiB | 256 B | 所属Domain | 256 entries |
+| Asset activation | 2 | 1,024 / boundary | 1 MiB | 4 KiB | dependency metadata | 64 entries |
 
-headerとarenaを含む起動時commitは合計58.9375 MiBで、所属Domainへchargeする。simulation／boundary bufferはcurrent／nextの二面、Navigationはrequest／resultを各一面、Audioは一つのbounded ringとする。entry数、個別payload、arena bytesのいずれかが先に上限へ達した時点でoverflowとする。
+entry headerは32 bytes／entryとする。起動時commitは`Σ faces × (Entry capacity × 32 B + Payload arena)`で導出し、header 13.9375 MiBとarena 55.75 MiBの合計69.6875 MiBを所属Domainへchargeする。`faces = 2`はcurrent／nextの二面buffer、`faces = 1`は単面またはbounded ringであり、Navigationはrequest／resultの二queueを各一面持つ。Gameplay event totalはdamage、quest、timer fire等のtyped Gameplay Eventの配送queueで、[Scheduling／lifetime](scheduling-lifetime.md) §4.1のtimer deadline fire（1 tick最大4,096件）はこの内数である。Async completionは`IoCompletion`／`AssetWorker` latch sourceのcompletionを運ぶ。entry数、個別payload、arena bytesのいずれかが先に上限へ達した時点でoverflowとする。
+
+Navigationのobstacle input受領からNavigation artifact version activationまでの反映latency bound（simulation tick上限）は本書所有のcapacity項目である。[Navigation](../05-simulation/navigation.md) §3は値の所有を本書へ委譲しており、初期boundは未固定とし、§8のmeasurement／promotion手続きで確定するまで当該boundを前提とするqualificationを合格にしない。
 
 critical bitとpriorityはregistered schema／Capability manifestだけが設定し、Project payload、AI、GameplayDefinitionから昇格できない。criticalはcontrolled shutdown、resource release／retire、generation rollback等のEngine-owned operationに限定する。critical reserveをnoncritical producerへ貸さない。
 
 | class | overflow／pressure behavior |
 |---|---|
-| Structural／Simulation／Physics authoritative | current transactionをpublishせずsession fault |
+| Structural／Simulation／Gameplay event／Physics authoritative | current transactionをpublishせずsession fault |
 | Navigation request | new requestを`QueueFull`で拒否しaccepted resultを失わない |
+| Async completion | new requestの発行を`QueueFull`で拒否しaccepted completionを失わない |
 | Presentation | lowest priorityからdropしgap／countを記録 |
 | Audio | critical stop／releaseを維持しlow-priority playをdrop |
 | Asset activation | next boundaryへ延期しclosureを部分activateしない |
 | Debug telemetry | [Debugging／observability／replay](debugging-observability-replay.md)のgap／capture stop semanticsを使いGameplayへ影響させない |
 
 Presentation／Audioはpriority昇順、同priorityはScheduling Ownerのcanonical message keyで後発からdropする。Asset generationは古いready generationを優先する。Developmentでは80%超をwarning、95%超をcapacity gate failureとする。Shippingでauthoritative recordを黙ってdropしない。
+
+### 5.1 Debug capacity request
+
+`DebugCapacityRequestV1`は`request_id`、Target Profile ref、instrumentation tier、channel set hash、expected duration、ingress entry／arena bytes、Store ring bytes、disk retention bytes、maximum write throughput、critical-path P95 overhead、process CPU overhead、reservation source、backpressure policy refを持つ。本表はMiraikanai C1のProject policyであり、外部SDKの既定値ではない。
+
+| tier | ingress entries | payload arena | Store ring | disk retention / session | max write | critical-path P95増分 | process CPU増分 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `fault_minimal` | 2,048 | 0.5 MiB | 8 MiB | 64 MiB | 4 MiB/s | 0.10 ms | 1% |
+| `baseline` | 8,192 | 2 MiB | 32 MiB | 512 MiB | 16 MiB/s | 0.25 ms | 2% |
+| `interactive` | 32,768 | 8 MiB | 64 MiB | 2,048 MiB | 64 MiB/s | 0.50 ms | 5% |
+| `capture` | 65,536 | 16 MiB | 64 MiB | 8,192 MiB | 256 MiB/s | 1.00 ms | 10% |
+
+ingress headerは32 bytes／entryで、arena、Store ring、Index working setとともにDebug diagnosticsへchargeする。`fault_minimal`と`baseline`は64 MiB reservation内で起動し、`interactive`と`capture`は開始前に未使用のnoncritical Parent envelopeからSession期限付きmode-exclusive loanを明示予約する。loanを確保できなければtier開始を拒否し、EmergencyまたはUnassigned headroomを使わない。CPU増分は同一fixture・同一Buildのtier-off比較で測り、process CPUはlogical processor数で正規化したhost process使用率差とする。entry、arena、ring、disk、throughput、CPUのいずれかが先に上限へ達した場合も、[Debugging／observability／replay](debugging-observability-replay.md)のgap／capture stop semanticsを使い、authoritative Runtimeを遅延させない。
 
 Backpressure actionは`reject | defer | drop_presentation | degrade_presentation | stop_capture | fault_transaction`のclosed setとし、owner、trigger、hysteresis、maximum delay、fallback、counter、recovery predicateを持つ。Source meaningやfidelity floorを変更するactionを自動選択しない。
 
@@ -151,6 +170,8 @@ simulation cadence自体は[Scheduling／lifetime](scheduling-lifetime.md)を参
 | scheduling／sync／OS jitter headroom | 2.00 ms |
 | **Critical-path total** | **14.00 ms** |
 
+上のCPU critical-path group表は`target.windows.desktop`の60 fps cadenceだけを対象とする。mobile 30 fps（1 render frameに最大2 simulation tick）のgroup内訳は各Platform Ownerが定め、本書のmeasurement interfaceへ投影する。
+
 | GPU pass group | P95 soft cap |
 |---|---:|
 | Shadow | 2.00 ms |
@@ -164,7 +185,9 @@ simulation cadence自体は[Scheduling／lifetime](scheduling-lifetime.md)を参
 | Headroom | 2.00 ms |
 | **Total** | **14.00 ms** |
 
-Subsystem固有pass／Domain budgetは各Ownerが上表の内数として割り当てる。未使用pass budgetを無関係な機能へ無制限に転用しない。Temporal reconstruction、frame generation、ray tracing等の追加経路はbase real frame、headroom、memory、visual、fault Gateを満たすTarget限定profileとし、generated frameをreal fpsへ加算して合格を作らない。
+Subsystem固有pass／Domain budgetは各Ownerが上表の内数として割り当てる。未使用pass budgetを無関係な機能へ無制限に転用しない。
+
+`PostProcessBudgetEnvelopeV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、最低fieldとしてrevision、Target Profile ref、Post／Exposure pass groupの内数としてのGPU P95 cap、Post Process用persistent／transient byte上限を持つ。[Post Processing](../06-rendering/post-processing.md) §7のresolver入力はこのprojectionを消費し、field一覧を複写せず書き戻さない。Temporal reconstruction、frame generation、ray tracing等の追加経路はbase real frame、headroom、memory、visual、fault Gateを満たすTarget限定profileとし、generated frameをreal fpsへ加算して合格を作らない。
 
 共通operation budgetはAudio callback P99 0.25 ms以下かつhard 1.00 ms未満、main／render thread activation slice soft 0.50 msかつhard 1.00 ms以下、warm-cache package start P95 soft 5.00 sかつhard 8.00 s、Scene reload P95 soft 2.00 sかつhard 3.00 sとする。
 
@@ -187,6 +210,18 @@ Contract / Budget
 最低metric familyはframe／latency、hitch、Runtime CPU、memory、loading、GPU／streaming、queue／backpressure、correctnessである。Hitchはdeadline、2倍deadline、50 ms超を数え、shader／pipeline、Asset I/O、allocation／page fault、job／queue wait、driver／device、unknownへ分類する。unknownを除外しない。
 
 reference measurementはdeterministic warm-up後、同じ入力traceの120秒runを5回実行し、各run P95のmedianを採り、同じbuildで10分soakを追加する。Scale qualificationは10分runを3回、Production enduranceは2時間runを追加する。Mobile／Platform固有Targetは実機baselineを使い、Emulator／Simulatorで代用しない。
+
+Windows reference environmentのReference hardware構成は次の2構成とし、本表が正本である。消費文書（[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Windows Platform](../07-platform/windows.md)等）は構成値を複写しない。
+
+| 項目 | 構成A | 構成B |
+|---|---|---|
+| GPU | NVIDIA GeForce RTX 3060 | AMD Radeon RX 6600 |
+| CPU世代／コア数 | 未固定 | 未固定 |
+| RAM容量 | 未固定 | 未固定 |
+| Storage | 未固定 | 未固定 |
+| GPU driver固定方針 | 未固定 | 未固定 |
+
+未固定行は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のToolchain baseline追補ChangeSetでexact確定するまで`未固定`とし、当該項目の差に依存する比較・regression判定を承認しない。
 
 新しい高速経路は同一fixtureでP95を5%以上かつ0.20 ms以上改善し、memory peak／allocation countを5%超悪化させず、correctness、visual／audio、fault、startup／hitchのhard Gateを悪化させない場合だけ既定候補へ昇格する。baseline比のframe P95またはmemory peak／allocation countが5%超悪化した変更をregressionとする。
 
@@ -270,7 +305,7 @@ ProviderへProject Commit、Plan write、Capability activation、baseline緩和�
 
 禁止する変更は、Large専用Entity typeへのSource一括変換、Medium／Large別Save fork、cell／shard／build／server IDの混同、HLOD／GPU instanceのSave entity化、unqualified planのProduction表示、Medium fallback削除、性能のための無承認Gameplay変更である。
 
-同じSource revisionとinput traceに対するMedium／Large planはauthoritative System state digest、Save field／Stable ID、Input→Command→Event順序、goal／damage／collision／navigation result、deterministic random stream、Level transition outcomeを一致させる。Presentation bitwise一致は不要でも、visual／audio tolerance、critical cue、event timing、fallback Gateを満たす。
+同じSource revisionとinput traceに対するMedium／Large planは、Save field／Stable ID、Input→Command→Event順序、Level transition outcomeを一致させる。authoritative stateの同値Gateは二層とする。(a) 両planでSimulation LODを適用しないfull fidelity対象entityは、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)の`RuntimeAuthoritativeWorldDigestV1`が定めるtick publish boundaryで採取したentity state hashと、当該entityへ帰属するdeterministic random stream消費を同一tickで一致させる。(b) いずれかのplanでSimulation LODを適用するentityは、[LOD](../06-rendering/lod.md)の`authoritative_equivalence_contract`と`reference_fixture_id`により、goal／damage／collision／navigation resultとwake後のstate収束をsemantic同値として判定する。full fidelity対象集合は両planのSimulation LOD適用集合の補集合として決定的に導出し、runごとに変えない。Presentation bitwise一致は不要でも、visual／audio tolerance、critical cue、event timing、fallback Gateを満たす。
 
 Large World coordinate、continuous streaming、partition-owned multi-writer、distributed build、distributed simulation／authorityは専用Owner仕様がactivationされるまで`not_activated`である。現在のbounded Sourceへ空Manager、server field、RPC、global double座標を先回り追加しない。要求された場合は明示Diagnosticでfail closedする。
 
@@ -290,6 +325,8 @@ fixtureは次を全て満たす。
 
 `large_local_candidate / qualified`にはMedium Gateに加え、利用するLarge Capabilityの専用仕様／Receipt、Project固有traversal／population trace、partition boundary／reference closure／load deadline／memory pressure／recovery、same-source Medium fallback、repartition後のStable ID／Save／Replay、bounded context、incremental／partial Cook同値、10分×3 run、2時間endurance、failure injectionを必要とする。
 
+本節のqualification計測run（§8のScale qualification 10分×3 run、Production endurance 2時間runを含む）は、`Predicted` TargetのDevelopment Play実行モードで実行できる（[Project state](../03-authoring/project-state.md#9-runtime-compile境界)）。計測run自体の開始に`Qualified`を要求せず、Receipt確定後にだけ`Qualified`へ昇格する。
+
 Distributed qualification Gateは本書でactivationしない。専用Authority仕様、Threat Model、server実機、loss／latency／abuse／recovery fixture、人間承認が揃うまでCatalogへactive Gateを掲載しない。
 
 ## 14. Failure、CI、completion
@@ -306,7 +343,7 @@ Distributed qualification Gateは本書でactivationしない。専用Authority�
 | partial Cook／Package失敗 | last valid package維持 |
 | unactivated Authority | fail closed、意味同等single-process alternativeだけ提示 |
 
-CIはbudget hard limit、loan deadline、queue pressure、missing metric、SourceへのRuntime／Derived ID、stale plan／Receipt、fidelity floor低下、partial activation、Presentation→Gameplay逆入力、Medium fallback欠落、unactivated Authority公開を拒否する。
+CIはbudget hard limit、loan deadline、queue pressure、§5のqueue表から導出したcommit合計と記載値の不一致、missing metric、SourceへのRuntime／Derived ID、stale plan／Receipt、fidelity floor低下、partial activation、Presentation→Gameplay逆入力、Medium fallback欠落、unactivated Authority公開を拒否する。
 
 本書のcompletionには、共通budget／capacity／backpressureが一意、Envelopeの五axisとroot contractが一意、Domain fieldのowner委譲が明示、same-source transition fixture、bounded explanation、Target qualification、last-valid recoveryが実行可能であることを必要とする。Product Phase順序、Capability maturity、Governance authorization、Evidence envelopeを本書で再定義しない。
 

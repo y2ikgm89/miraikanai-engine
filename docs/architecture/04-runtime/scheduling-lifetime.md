@@ -2,16 +2,16 @@
 
 - 文書ID: mirakan.arch.runtime-scheduling-lifetime
 - 状態: review
-- 正本範囲: Runtime tick／render phase、固定実行順、job dependency、command／event順序、state writer、handle／borrow／lease、Asset activation、Play／World／frame lifetime、fault recovery
-- 非正本範囲: 共通memory／frame／queue budget、capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
+- 正本範囲: Runtime tick／render phase、固定実行順、job dependency、command／event順序、state writer、handle／borrow／lease、Asset activation、Play／World／frame lifetime、fault recovery、Runtime contract固有のGameplay Timer capacity（§4.1）
+- 非正本範囲: 共通memory／frame／queue budget、共通capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
 
 `RuntimeOrchestrator`だけがRuntimeのphase進行、sealed bufferのmerge、構造変更boundary、version activation、fault遷移を所有する。Subsystemは互いを直接呼ばず、型付きcommand、型付きevent、immutable snapshot、version付きAsset、検査済みasync resultだけで連携する。
 
-本書はRuntime phase、tick、job dependency、lifetime identifierの唯一の正本である。共通memory／performance budget、queue capacity、backpressure、Scale qualificationは[Performance／capacity](performance-capacity.md)だけが決定する。Product PhaseとCapability maturityは[Product Plan](../00-product/product-plan.md)、MCD上の共有型構造は[Executable contracts](../02-foundation/executable-contracts.md)、Project transactionは[Project state](../03-authoring/project-state.md)が決定する。
+本書はRuntime phase、tick、job dependency、lifetime identifierの唯一の正本である。共通memory／performance budget、queue capacity、backpressure、Scale qualificationは[Performance／capacity](performance-capacity.md)だけが決定する。例外として、§4.1のGameplay Timer capacityはRuntime contract固有のdeterministic上限として本書が所有し、共通queue capacityへ含めない。Product PhaseとCapability maturityは[Product Plan](../00-product/product-plan.md)、MCD上の共有型構造は[Executable contracts](../02-foundation/executable-contracts.md)、Project transactionは[Project state](../03-authoring/project-state.md)が決定する。
 
 Runtimeが保証する不変条件は次である。
 
@@ -89,10 +89,11 @@ Editor process stateは次のclosed state machineとする。
 Boot -> ProjectOpening -> Authoring -> PlayPreparing -> Playing
 Playing -> PlayStopping -> Authoring
 Authoring -> ProjectClosing -> Shutdown
-Boot | ProjectOpening | PlayPreparing | Playing | PlayStopping | ProjectClosing -> Faulted
+Boot | ProjectOpening | Authoring | PlayPreparing | Playing | PlayStopping | ProjectClosing -> Faulted
+Faulted -> ProjectClosing | Shutdown
 ```
 
-`Faulted`から同じPlay sessionへ復帰しない。Editor processを継続できる場合はjournalとfault evidenceを保全し、Projectを閉じたsafe shellへ戻す。Shipping GameHostのOS application lifecycleはPlatform Ownerが決定し、OS callbackはWorldを直接変更せずbounded lifecycle eventをOrchestratorへ渡す。
+`Faulted`から同じPlay sessionへ復帰しない。Editor processを継続できる場合はjournalとfault evidenceを保全し、`Faulted -> ProjectClosing`でProjectを閉じ、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)のEditor session machineが定めるProject非保持state（`NoProject`）をsafe shellとして戻る。継続できない場合は`Faulted -> Shutdown`で安全に終了する。Authoring中のGameHost／Worker crashは同文書のTask failure隔離で処理して`Faulted`へ遷移させず、`Authoring -> Faulted`はHost自身がsafe stopできないprocess faultだけに使う。Shipping GameHostのOS application lifecycleはPlatform Ownerが決定し、OS callbackはWorldを直接変更せずbounded lifecycle eventをOrchestratorへ渡す。
 
 `PlayPreparing`はCommit済み`project_revision`を一つ固定し、Runtime package、System Graph、Implementation Set、World／Level／Topology、Target別Plan、Asset／Navigation closureを検証する。最初のactivation group全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview WorldはPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
 
@@ -191,10 +192,10 @@ Headless Targetでは設計上surfaceが存在しないことを`SurfaceUnavaila
 | 0 | `T00_BoundaryApply` | sealed structural command、互換なAsset／GameplayDefinitionSet、検証済みLevel／Cell activationを適用 | 構造変更 |
 | 1 | `T10_InputLatch` | device inputをtick付き`InputSnapshot`へ固定 | Input state |
 | 2 | `T20_AsyncIntegrate` | deadline内のasync resultをversion検査して統合 | 宣言済みresult field |
-| 3 | `T30_PrePhysics` | Gameplay、AI behavior、Cook済みrule／abilityを評価 | Simulation command |
+| 3 | `T30_PrePhysics` | Gameplay、AI behavior、Cook済みrule／abilityを評価し、前tickのsealed snapshotからPerception候補とCollision Query batchを構築 | Simulation command、Perception query batch |
 | 4 | `T40_MotionIntent` | root motion proposal、character motor、kinematic targetを解決 | Physics input |
-| 5 | `T50_PhysicsStep` | 2D／3D Physics fixed step | Physics Adapter内部 |
-| 6 | `T60_PhysicsIntegrate` | native eventをnormalizeしdynamic transformをwrite-back | Physics owner field |
+| 5 | `T50_PhysicsStep` | 2D／3D Physics fixed stepと登録済みPerception Collision Query batchを実行 | Physics Adapter内部、private query result |
+| 6 | `T60_PhysicsIntegrate` | native eventとPerception Query結果をnormalizeし、dynamic transformと次tick用Perception snapshotをwrite-back | Physics owner field、Perception owner field |
 | 7 | `T70_PostPhysics` | contact／trigger配送、damage、quest、post-physics rule | 非構造fieldとcommand |
 | 8 | `T80_AnimationFinalize` | blend、IK、pose、boundsをauthoritative transformから確定 | Animation state |
 | 9 | `T90_PresentationBuild` | Audio、VFX、UI、camera向けbatchを生成 | Presentation buffer |
@@ -202,6 +203,8 @@ Headless Targetでは設計上surfaceが存在しないことを`SurfaceUnavaila
 | 11 | `T110_Publish` | next-boundary commandをsealしimmutable snapshotをpublish | snapshot publish |
 
 `TickPhaseId`のserialized値は順序に対応する`0x0000`～`0x000b`とする。`0xffff`はinvalidである。外部latch sourceは`InputDevice=0x0200`、`IoCompletion=0x0201`、`AudioCallback=0x0202`、`AssetWorker=0x0203`とする。追加、削除、順序変更、値変更はpublic behavior変更であり、ADR、schema migration、Replay fixture、全Domain conformanceを必要とする。
+
+Perception pipelineはT30 candidate／query build、T50 query execution、T60 normalization／publishの三slotへ固定する。T30は直前にpublish済みのWorld／Perception snapshotだけを読み、T50のprivate結果を同じtickのGameplay判断へ戻さない。T60でpublishした`PerceptionSnapshotV1`は次tickのT30から可視とし、query callback、worker完了順、Render visibilityからsame-tick feedback edgeを作らない。
 
 `StructuralCommand`は次boundary、`SimulationCommand<P>`は型が宣言するconsume phase、`PresentationCommand`はpresentation build前にseal済みなら同tick、それ以外は次presentation frameへ送る。`AuthoringChangeSet`をRuntime tickへ適用しない。任意phase名、同Subsystem同期再入、implicit last-write-winsを許可しない。
 
@@ -263,7 +266,12 @@ GameplayTimerCommandV1
   owner_ref
   owner_generation
   requested_tick
-  instance_id
+  instance_id: scheduleではabsent、cancelではexact GameplayTimerInstanceIdV1
+
+GameplayTimerInstanceIdV1
+  owner_ref
+  timer_definition_ref
+  sequence: uint64
 
 GameplayTimerSnapshotV1
   instance_id
@@ -292,7 +300,9 @@ GameTimeEffectPolicyV1
 
 Saveはauthoritative elapsed tick、clock Profile ref、Game Flow stateを保存し、monotonic time、render delta、pause中の実時間をGameplay stateへ保存しない。ReplayはPause／resume Commandとapply tickを記録し、Pause区間のauthoritative state hashが不変であることを検証する。`GamePauseStateSnapshotV1`はその検証対象のimmutable projectionであり、任意Subsystemはlocal boolで停止状態を所有しない。Debug stepは通常Pauseと別の`explicit_step_only` policyであり、Shipping Game pauseからDebug権限を取得しない。
 
-`capability.gameplay.timer.c1`は2D／3D共通の決定論的Schedulerである。`duration_ticks`は1～`2^31-1`とし、`fixed_interval`は正の`repeat_interval_ticks`と1～1,000,000の`max_fire_count`を必須とする。C1 reference Profileはactive timer 65,536、1 tickの発火4,096をHard上限とする。発火順は`deadline_tick, owner StableId, timer_definition_id, instance_id`の昇順でcanonicalizeし、同tickの登録順、container順、worker完了順を使用しない。
+`capability.gameplay.timer`は2D／3D共通の決定論的Schedulerである。`duration_ticks`は1～`2^31-1`とし、`fixed_interval`は正の`repeat_interval_ticks`と1～1,000,000の`max_fire_count`を必須とする。C1 reference Profileはactive timer 65,536、1 tickの発火4,096をHard上限とする。この二値はRuntime contract固有のdeterministic上限として本書が所有し、変更は[Performance／capacity](performance-capacity.md) §5と同じ再承認（memory envelope、stress、Replay、Domain qualification）を必要とする。timer fireの配送は同Ownerが所有するGameplay event queue容量の内数である。発火順は`deadline_tick, owner StableId, timer_definition_id, instance_id`の昇順でcanonicalizeし、同tickの登録順、container順、worker完了順を使用しない。
+
+`instance_id`はcallerが生成しない。SchedulerはT30でschedule Commandを`owner StableId, timer_definition_id, Command ID`の順へcanonicalizeした後、play session内の`{owner StableId, timer_definition_id}`別monotonic sequenceを1から割り当て、三Fieldのtupleを`GameplayTimerInstanceIdV1`とする。cancelled／completed／owner-invalidated IDを同じplay sessionで再利用せず、`uint64` overflowはtyped hard failureである。`save_policy=owner_state`ではactive timerに加えてtuple別next sequenceをowner Save stateへ保存し、load、Replay、worker数の違いで再採番しない。
 
 Schedule／cancelは`T30_PrePhysics`で確定する。各T30はowner invalidation、cancel、schedule、deadline fireの順に処理し、各group内を前述canonical keyとCommand IDで整列する。deadline tickと同tickのcancelはfireより先に確定し、cancelled timerをfireしない。deadline fireはその期限tickのT30で通常のtyped Gameplay Eventとして発行する。deadline handlerが同じT30で自身または他timerをscheduleしても、recursive same-tick schedulingを許可しない。
 
@@ -367,7 +377,7 @@ Runtime Worldの標準storageはarchetype chunk方式とし、chunk payload size
 
 頻繁に走査するscalar／small vectorをhot component、debug name、Editor metadata、長いstring、可変長payloadをcold tableまたはAssetへ置く。256 byteを超えるComponent、可変長data、non-trivially relocatable objectはchunkへ直接置かずDomain-owned typed handleを格納する。Entityごとのvirtual `Update()`と個別heap objectを標準経路にしない。
 
-World queryはmove-onlyな`ReadLease<Component...>`または`WriteLease<Component...>`を返す。write exclusion keyは`{component_type_id, chunk_id, half-open row range}`である。schedulerがcanonicalに非重複rangeを割り当てた場合だけparallel writeを許可する。leaseは生成phaseとWorld epochを持ち、structural mutation、phase終了、tick終了、World破棄で失効する。lease、span、referenceをmember、event、job packetへ保存しない。
+World queryはmove-onlyな`ReadLease<Component...>`または`WriteLease<Component...>`を返す。write exclusion keyは[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md) §9.3が定義する`{component_type_ref, chunk_id, row_begin, row_end}`（half-open row range）を消費し、本書で再定義しない。schedulerがcanonicalに非重複rangeを割り当てた場合だけparallel writeを許可する。leaseは生成phaseとWorld epochを持ち、structural mutation、phase終了、tick終了、World破棄で失効する。lease、span、referenceをmember、event、job packetへ保存しない。
 
 Structural command batchは、全handle、precondition、conflict、destination容量を先に検査・予約し、live location tableを変更せずstaging mutation planへ構築する。全command成功後の単一commit pointでchunk owner、location table、World epochをpublishする。commit前の失敗はstagingだけを破棄し、live Worldを変更しない。
 

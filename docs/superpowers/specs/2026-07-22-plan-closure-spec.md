@@ -74,7 +74,7 @@
 |---|---|
 | 3実装計画が存在しない | `docs/plans/2026-07-22-*-implementation-plan.md`の3件 |
 | 43＋5文書の依存移行表がない | Control Plane Implementation Plan Appendix A～C。48 node、76 direct edge、29 reciprocal integration |
-| Product registry不足 | Product Plan §11.1～§11.6。Target 5、Phase 10、Work Package 23、Capability 34 |
+| Product registry不足 | Product Plan §11.1～§11.7。Target 5、Requirement 16、Fixture 10、Phase 10、Work Package 26、Capability 37 |
 | ID migration不足 | Control Plane Implementation Plan Appendix DとD3D12 Implementation Plan Appendix A |
 | ActivationのTarget scope不足 | Product Plan §3.2、§11.1、§11.6。`{capability_id,target_id}`が正本 |
 | D3D12と5新Owner／Packageが未接続 | D3D12 Design §31～§32、D3D12 Implementation Plan Task 1／12 |

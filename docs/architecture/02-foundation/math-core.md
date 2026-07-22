@@ -74,27 +74,33 @@ MathとCore Utilitiesはほぼ全Subsystemの下位依存であり、ここで�
 
 ### 4.2 Directory
 
+`engine/foundation/`と`engine/math/`は各一つのcomponent rootであり、[C++23 modules](cpp23-modules.md#7-directoryとsource配置)の標準形（CMakeLists.txt、include、modules、source、tests、benchmarks）へ従う。次の概念dirは`source/`配下の実装内部構成（partitionは`modules/`）であり、合成後の正規treeは本節を正本とする。
+
 ```text
 engine/
 ├─ foundation/
-│  ├─ result/
-│  ├─ diagnostics/
-│  ├─ ids/
-│  ├─ hash/
-│  ├─ binary/
-│  ├─ time/
-│  ├─ bounded/
-│  └─ memory/
+│  ├─ modules/
+│  └─ source/
+│     ├─ result/
+│     ├─ diagnostics/
+│     ├─ ids/
+│     ├─ hash/
+│     ├─ binary/
+│     ├─ time/
+│     ├─ bounded/
+│     └─ memory/
 └─ math/
-   ├─ scalar/
-   ├─ units/
-   ├─ linear/
-   ├─ transforms/
-   ├─ geometry/
-   ├─ validation/
-   └─ backends/
+   ├─ modules/
+   └─ source/
       ├─ scalar/
-      └─ qualified/
+      ├─ units/
+      ├─ linear/
+      ├─ transforms/
+      ├─ geometry/
+      ├─ validation/
+      └─ backends/
+         ├─ scalar/
+         └─ qualified/
 ```
 
 `foundation/utils`、`math/helpers`、Root `common`を禁止する。新しい機能は所有する概念名へ置き、既存概念に属さなければ新しい小さな責務targetをReviewする。
@@ -331,7 +337,7 @@ AIは`dot`、`cross`、`inverse`等の低水準Math関数を通常のAuthoring T
 operation.transform.set_world_position
 operation.transform.set_local_rotation
 operation.transform.set_local_scale
-operation.camera.set_perspective
+operation.camera.set_profile_projection
 operation.physics.set_velocity
 operation.asset.set_pixels_per_unit
 operation.ui.set_rect
@@ -379,7 +385,7 @@ Phase 0の`mirakan::math`は、C++23 standard libraryとportable scalar referenc
 
 MicrosoftはDirectXMathをDirectX application向けのSIMD-friendly C++ Mathとして提供し、Windows x86／x64／ARMでSSE、AVX、ARM-NEON最適化を持つ。これはWindows private backend候補として有効だが、Miraikanaiのportable public contractまたはAuthoring表現にはしない。
 
-DirectXMath採用はC2 Dependency／Performance ChangeSetとし、次を満たす場合だけ`engine/math/backends/qualified/directxmath/`へ追加する。
+DirectXMath採用はC2 Dependency／Performance ChangeSetとし、次を満たす場合だけ`engine/math/source/backends/qualified/directxmath/`へ追加する。
 
 - exact source／SDK version、hash、license、Target Profile。
 - scalar referenceとの全golden／property／failure一致。
@@ -465,13 +471,13 @@ Math単体のns改善だけでProduction採用しない。Runtime規約のRefere
 
 | Gate | 必須Target |
 |---|---|
-| M0 Phase 0 | Windows MSVC／clang-cl、scalar reference、WARP Shader conformance |
+| M0 Phase 0 | Windows MSVC／clang-cl、scalar reference、MCD round-trip／invalid fixture |
 | M1 2D C1 | Windows 2D reference scene、Box2D Adapter |
-| M2 3D C1 | Windows RTX 3060／RX 6600、Jolt／Recast／Renderer／Camera |
+| M2 3D C1 | Windows RTX 3060／RX 6600、Jolt／Recast／Renderer／Camera、WARP／HLSL Shader conformance |
 | M3 Mobile | Android arm64 Vulkan、Apple arm64 Metal、NEON／alignment／thermal |
 | M4 Optimized backend | BackendごとのTarget variant、Before／After、fallback |
 
-未合格backendはCapability Manifestへ掲載せず、portable scalar referenceを維持する。
+WARP／HLSL Shader conformanceはD3D12 backend実装（`wp.runtime.d3d12-backend`）を前提とするためM0では実行しない。glTFのmath-level TRS／matrix goldenはM0で実行し、Importer側のconformance closureはAsset Import実装後のentry条件とする。未合格backendはCapability Manifestへ掲載せず、portable scalar referenceを維持する。
 
 ## 14. 実装順序
 
@@ -486,7 +492,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 | `MATH1_scalar_reference` | `mirakan::math` C0 storage／semantic typeとportable scalar演算 | unit、property、golden、MSVC／clang-cl |
 | `MATH2_transform` | matrix、Quaternion、Transform2／3、projection共通部 | compose、inverse、decompose、reversed-Z |
 | `MATH3_projection` | C++／C ABI／Editor／TypeScript／MCP descriptor | deterministic generation、Gateway再検証 |
-| `MATH4_conformance` | glTF／HLSL／Adapter golden fixture | CPU／Shader、layout、invalid input |
+| `MATH4_conformance` | math-level glTF TRS／matrix golden、HLSL／Adapter conformance fixture定義 | CPU golden、layout、invalid input。Shader／Adapter実行conformanceはM1／M2 entryで合格 |
 | `MATH5_baseline` | scalar performance／code size／compile time Receipt | 測定Availability。最適化採用は行わない |
 
 `MATH0_contract`と`FOUNDATION0_core`は並行可能とし、両方の完了を`MATH1_scalar_reference`のEntry Gateにする。その後は`MATH1_scalar_reference → MATH2_transform → MATH3_projection → MATH4_conformance → MATH5_baseline`の順とする。generated C++は`Result`／Diagnostic contract確定後に接続する。

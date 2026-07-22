@@ -123,7 +123,7 @@ Indexはsequence／time、type／channel／severity、target hash／kind、Runti
 
 `DebugQueryResultV1`はrecordに加え、applied filter、scanned／matched／returned count、omitted field、first／last sequence、gap／redaction／clock uncertainty、completeness、next cursor、query cost、Store／Index hashを返す。0件、redacted、not recorded、dropped、not indexedを区別する。
 
-Store ring、disk retention、ingress queue、capture throughput、instrumentation overheadはTarget別Debug capacity requestとして[Performance／capacity](performance-capacity.md)へ提出し、そのownerのreservation／backpressure／measurementを消費する。本書は共通Runtime memory tableやframe thresholdを持たない。
+Store ring、disk retention、ingress queue、capture throughput、instrumentation overheadはTarget別`DebugCapacityRequestV1`として[Performance／capacity](performance-capacity.md#51-debug-capacity-request)へ提出し、そのownerのtier別reservation／backpressure／measurementを消費する。本書は共通Runtime memory tableやframe thresholdを持たない。
 
 ## 8. Causality Graph
 
@@ -245,6 +245,18 @@ Crash recordはPlatform OwnerのCrash envelopeを参照し、Session、Build、l
 
 Hang watchdogはsimulation、render submission、window、audio control、worker poolのheartbeatを分け、last progress、active Runtime time ref、bounded role stack ref、queue depth／oldest item、lock-order state、GPU submission status、last critical Diagnosticを記録する。threadを強制resumeして継続を成功扱いしない。
 
+`HangDetectionPolicyV1`は`policy_id`、schema version、Target Profile ref、role entries、Application／debug execution state条件、evidence profile refを持つ。role entryは`role`、expected cadence ref、minimum missed interval count、minimum no-progress duration、active predicate、exempt state setを必須とする。C1の値は次で固定する。
+
+| role | hang成立条件 | 明示除外 |
+|---|---|---|
+| simulation | Activeかつrunning中、進行なしが`max(120 × expected simulation interval, 2 s)` | gameplay pauseではなくdebug `paused_at_t110`、Inactive、Suspended、Terminating |
+| render submission | 有効surfaceで進行なしが`max(120 × expected render interval, 2 s)` | headless、SurfaceUnavailable、Inactive、Suspended、Terminating |
+| window | visible windowでmessage dispatch／present acknowledgement進行なし5 s | hidden／minimized、Inactive、Suspended、Terminating |
+| audio control | active audio sessionでcontrol sequence進行なし2 s | audio session停止、Suspended、Terminating |
+| worker pool | runnable itemがあり、oldest runnable age 10 s以上かつrole progressなし10 s | queue empty、全itemが外部I/O待機として登録済み、Suspended、Terminating |
+
+watchdogは判定に用いたexpected interval、threshold、ApplicationState、debug execution mode、last progress sequenceをhang evidenceへ値で記録する。該当除外に入っただけで直前のsuspected hangを成功へ変えず、`cleared_by_progress | terminated | evidence_partial`の終端を記録する。Platform watchdogがより短い期限を課す場合は早期capture triggerとして併記するが、本Policyのrole判定をsilentに置換しない。
+
 Remote handshakeはDevice identity、pairing generation、App／Engine／Module hash、Target、Debug Capability、channel、bandwidth／storage capacity ref、clock correlation、privacy stateを持つ。Development／Profile Buildだけがshort-lived mutual-authenticated Sessionで接続できる。Device Bridgeはfilesystem、shell、process、network proxyを提供しない。
 
 transferはcontrolとbulk captureを分け、Counter／Diagnosticを優先し、disconnect時のlocal ring overflowをgapにする。resumeはlast acknowledged chunk hashから行い、sequenceでdeduplicateする。remote mutationはWatch、Capture、Pause／Resume、Replay controlのregistered operationだけとし、C++／shader／native plugin変更はrebuild／reinstallを必要とする。
@@ -269,7 +281,7 @@ Runtime fixtureは[Scheduling／lifetime](scheduling-lifetime.md)の全Runtime o
 
 Replay fixtureはInput、RNG、accepted async resultから同じstate hash、first divergence、recorded／current revision分離、closure／Asset／worker mismatch拒否、gapを含むSessionのpartial表示、child Session isolationを検証する。
 
-`debug_known_faults_v1`は少なくともInput context conflict、Collision filter、stale Nav result、root-motion authority conflict、Asset generation mismatch、Render barrier diagnostic、Audio pressure、Gameplay bounded-execution fault、Level closure不足、RNG divergence、GameHost crash／symbol mismatch、remote disconnect／gapを含む。各caseはobservation、typed Diagnostic、causal path、Replay Slice、correct remediation、forbidden remediation、regression fixtureを持つ。
+`fixture.debug.known-faults`は少なくともInput context conflict、Collision filter、stale Nav result、root-motion authority conflict、Asset generation mismatch、Render barrier diagnostic、Audio pressure、Gameplay bounded-execution fault、Level closure不足、RNG divergence、GameHost crash／symbol mismatch、remote disconnect／gapを含む。各caseはobservation、typed Diagnostic、causal path、Replay Slice、correct remediation、forbidden remediation、regression fixtureを持つ。
 
 AI Eval `debugging_diagnosis`はroot cause top-1 85%以上、top-3 95%以上、Blocking／High Evidence recall 100%、Evidenceなしvalidated cause 0、gap／redaction／revision／Presentation authority誤認0、unknown ID提出0、permission緩和0、2回超repair 0、unreproduced fixed claim 0、関連regression実行100%をC1 targetとする。Corpus／grader／3-run／Receipt構造は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが決定する。
 
