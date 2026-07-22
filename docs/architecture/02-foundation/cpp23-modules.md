@@ -5,7 +5,7 @@
 - 正本範囲: C++23 language profile、Named Module境界、`import std`移行state、CMake module表現、Header例外、BMI identity、Cutover Gate
 - 非正本範囲: Compiler・CMake・Ninja・SDKのexact version／hash／取得元、一般命名・Directory、Memory／Pointer、Native Game ABI、Platform package。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
-- 外部根拠検証日: 2026-07-21
+- 外部根拠検証日: 2026-07-23
 
 ## 1. 結論
 
@@ -57,14 +57,14 @@ CompilerやBuild Systemの対応表は「その組合せなら製品に安全」
 
 | State | Profile ID | Source公開方式 | Standard Library | Artifact用途 |
 |---|---|---|---|---|
-| CX0 | `cxx23_headers_bootstrap` | self-contained Public Header | 標準Header | Development、Test、設計fixture。Production Shipping不可 |
-| CX1 | `cxx23_modules_probe` | 限定Named Module fixture | Named Module内は`import std` | 非PromotionのToolchain／IDE／Build検証だけ |
+| CX0 | `cxx23_headers_bootstrap` | self-contained Public Header | 標準Header | Development、Test、candidate Package、internal Technology Previewだけ。Release Activation不可 |
+| CX1 | `cxx23_modules_probe` | 限定Named Module fixture | Named Module内は`import std` | Development、Test、candidate Package、internal Technology Previewだけ。Release Activation不可 |
 | CX2 | `cxx23_modules_candidate` | 全First-party公開APIをNamed Modulesへ変換したCutover branch | `import std` | 全Target候補検証。公開Release不可 |
 | CX3 | `cxx23_modules_shipping` | Named Modulesが唯一のC++公開方式 | `import std` | Development、Profile、Shipping、ASanの正式方式 |
 
 MCD recordは`{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`を持ち、上表から生成する。Compiler、STL、CMakeとの対応はMCDへ埋め込まず、Target別`toolchain.lock.json`の`profiles[].build.cxx_bindings[]`へ次の`CxxToolchainBindingV1`として固定する。Configure入口とGeneratorは別契約の`BuildDriverProfileV1`が所有する。
 
-`shipping_allowed`はProduction Release候補を署名／配布してよいかを表し、Shipping Configurationで内部Buildできるかを表さない。初期値はCX3だけ`true`、CX0～CX2は`false`である。CX0～CX2でも表に許可されたDevelopment／Test／candidate PackageはBuildできるが、Release Activationへ入力できない。CX3の`shipping_allowed=true`もToolchain binding、全Target Gate、Package／Release Receiptを省略する許可ではない。
+`shipping_allowed`はProduction Release候補を署名／配布してよいかを表し、Shipping Configurationで内部Buildできるかを表さない。初期値はCX3だけ`true`、CX0～CX2は`false`である。CX0／CX1のDevelopment、Test、candidate Package、internal Technology Previewと、CX2の全Target候補検証は内部Evidence生成に限り、Release Activationへ入力できない。CX3の`shipping_allowed=true`もToolchain binding、全Target Gate、Package／Release Receiptを省略する許可ではない。
 
 ```text
 CxxToolchainBindingV1
@@ -153,6 +153,7 @@ CX3は各公式Targetで次を満たす。
 | `mirakan::editor_docking` | `mirakan.editor.docking` |
 | `mirakan::editor_semantics` | `mirakan.editor.semantics` |
 | `mirakan::editor_ole_adapter` | `mirakan.editor.ole.adapter` |
+| `mirakan::rendering_d3d12` | `mirakan.rendering.d3d12.adapter` |
 | `mirakan::<domain>_port` | `mirakan.<domain>.port` |
 | `mirakan::<domain>_runtime` | `mirakan.<domain>.runtime` |
 | `mirakan::<domain>_<backend>_adapter` | `mirakan.<domain>.<backend>.adapter` |
@@ -183,7 +184,7 @@ CX0から次の標準形を使用する。
 └─ benchmarks/
 ```
 
-CX0では`modules/`にCX1 fixture以外の見せかけの空interfaceを置かない。CMake Component登録に将来のPrimary Module名を必須指定し、Header directory、CMake target、Module名の対応を機械検査する。
+CX0では`modules/`にCX1 fixture以外の見せかけの空interfaceを置かず、production targetの`.ixx`／`.cppm`を0件とする。D3D12のCX0 public surfaceは`engine/rendering/d3d12/include/mirakan/rendering/d3d12/backend.hpp`だけであり、`mirakan::rendering_d3d12`のCMake Component登録は将来のPrimary Module名`mirakan.rendering.d3d12.adapter`だけを固定して、存在しないModule interfaceを登録しない。Header directory、CMake target、Module名の対応を機械検査する。
 
 CX2で低level dependencyから`.cppm`を追加し、CX3 Cutover ChangeSetで`include/mirakan/<component>/`のEngine C++公開Headerを削除する。Generated C ABI、Preprocessor bridge、言語bridgeは`include/mirakan/c_api/`、`include/mirakan/preprocessor/`、`include/mirakan/platform_bridge/`へ分離し、Named Module APIと混在させない。
 
@@ -203,7 +204,7 @@ mirakan_add_cpp_component(
 )
 ```
 
-CX0では`MODULE_NAME`だけで将来のPrimary名を固定し、存在するPublic Headerを登録する。存在しない`MODULE_INTERFACE`を指定しない。CX1以降は実在する`.cppm`を`MODULE_INTERFACE`として必須指定し、次のCMake表現へ投影する。
+CX0では`MODULE_NAME`だけで将来のPrimary名を固定し、存在するPublic Headerを登録する。存在しない`MODULE_INTERFACE`を指定しない。CX1は隔離probe targetだけが実在するfixture `.cppm`を`MODULE_INTERFACE`へ登録し、production componentへ投影しない。CX2／CX3では実在するproduction `.cppm`を`MODULE_INTERFACE`として必須指定し、次のCMake表現へ投影する。
 
 ```cmake
 target_sources(mirakan_foundation
@@ -243,7 +244,7 @@ CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDri
 - Editor、AI、CIは`build.ninja`、`build-<Config>.ninja`、`.ninja_deps`、`.ninja_log`を解析または変更せず、CMake File APIとEngine-owned Build ReceiptだけからTarget、Configuration、Artifact、Diagnosticを取得する。
 - checked-in CMake PresetのGenerator、binary directory、toolchain、configurationを正本とし、生成済みNinja fileはBuild treeとともに破棄可能でなければならない。
 
-Makefiles系は現行CMakeのC++ Module scan対象に含まれず、`import std`はNinja系Generatorだけが対応するため、Makeを互換経路として残さない。
+Makefiles系は現行CMakeのC++ Module scan対象に含まれず、`import std`はNinja／Ninja Multi-Configだけが対応するため、Makeを互換経路として残さない。Visual Studio GeneratorはModule scanに対応してもIMPORTED targetのBMIをbuildできないため、`import std`のBMI Shipping経路として使用しない。
 
 ### 8.3 許可するC++ Frontend組合せ
 
@@ -264,7 +265,7 @@ Makefiles系は現行CMakeのC++ Module scan対象に含まれず、`import std`
 
 - Product targetの通常CMake fileでExperimental変数を参照しない。
 - CMake version更新時に以前のtokenを再利用しない。
-- CX1 artifactをEditor、GameHost、Package、NativeGameModule Promotionへ渡さない。
+- CX1 artifactは隔離candidate Packageのlayout／loader testだけに渡し、Editor、GameHost、NativeGameModule Promotion、Release Packageへ渡さない。
 - CMakeが`import std`を正式化した時点でProbe fileとtokenを削除してからCX2へ進む。
 
 ## 9. CX0のModule-ready Header規則
@@ -438,6 +439,7 @@ CX2は依存DAGの下位から次の順で変換する。
 
 - Windows Primary compilerが[Toolchain／Dependencies](toolchain-dependencies.md)のCX3条件を満たし、正式な`/std:c++23`を提供する。
 - CMakeの`import std`がExperimental tokenなしで利用でき、`CMAKE_CXX_COMPILER_IMPORT_STD`がC++23を列挙する。
+- `import std`を使うproduction C++ archiveはNinja／Ninja Multi-Configでbuildし、Visual Studio Generator由来BMIをShipping packageへ含めない。
 - Windows／Android／AppleのCompiler、STL、SDK、CMake、Ninja、Xcodeをexact version／hashで`toolchain.lock.json`へ固定する。
 - Module dependency scan、`FILE_SET CXX_MODULES`、install／archiveがWindows／Appleの`Ninja Multi-Config`とAndroidのSingle-Config `Ninja`で成功する。
 
@@ -514,7 +516,7 @@ Phase 0の実装計画は次を独立taskへ分解する。
 9. Windows Ninja Multi-Config、Android Gradle→Single-Config Ninja、Apple Ninja–XcodeのCX3候補Build recipeとC ABI link fixture。
 10. CX0／CX1 Build Performance Receiptと`VerificationReceiptV1` gate `mirakan.build.ninja_adoption.v1`。no-op、leaf変更、Module interface fan-out、generated Header invalidation、中断復旧、clean／incremental成果物一致を含む。
 
-Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／CI基盤とCX1 probeの再現可能な成功または明示的なToolchain failure Receiptが必要であり、Preview不具合を隠して成功扱いしない。
+Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／Test／candidate Package／internal Technology Preview基盤とCX1 probeの再現可能な成功または明示的なToolchain failure Receiptが必要であり、Preview不具合を隠して成功扱いしない。CX0／CX1のReceiptをRelease Activationへ使用しない。
 
 ## 19. Definition of Done
 

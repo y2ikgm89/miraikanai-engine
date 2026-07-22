@@ -5,7 +5,7 @@
 - 採用方針: Backend-neutral Render Graph＋private D3D12 Backend＋MCD projection（ユーザー承認済み）
 - 対象Baseline: `architecture/baselines/control-plane-v1.json`のread-back済みexact architecture tree、Windows `target.windows.desktop` profile version 1、Agility SDK 1.619.4／SDKVersion 619、D3D12MA 3.2.0
 - 対象AI: `GameAuthoringProfileV1`と`EngineMaintenanceProfileV1`を分離
-- 外部根拠検証日: 2026-07-22
+- 外部根拠検証日: 2026-07-23
 - 上位横断計画: [Architecture Evolution Control Plane Design](2026-07-22-architecture-evolution-control-plane-design.md)
 - 対象外: Engine実装code、MCD compiler実装、Vulkan／Metal Backend詳細設計、既存仕様の承認状態変更
 
@@ -162,18 +162,20 @@ engine/rendering/
 ├─ pipelines/                    # Engine pipeline identity/cache policy
 ├─ surfaces/                     # Backend-neutral surface lease
 └─ d3d12/                        # private D3D12 Backend実装
+   └─ include/mirakan/rendering/d3d12/backend.hpp  # CX0 public surface
 
 tools/rendering/d3d12_qualification/
 schemas/mirakan/rendering/d3d12/
 ```
 
-`engine/rendering/d3d12/`配下のexact file構成（module interface、実装unit、tests、fixtures）は§34に従い[D3D12 Backend Implementation Plan](2026-07-22-d3d12-backend-implementation-plan.md)の§1 File mapを正本とし、本書は再掲しない。bootstrap、capability、queue、descriptor、memory、barrier、pipeline、surface、diagnostics、qualificationの責務分割は同File mapのResponsibility列が所有する。
+`engine/rendering/d3d12/`配下のexact file構成（CX0 public Header、実装unit、tests、fixtures）は§34に従い[D3D12 Backend Implementation Plan](2026-07-22-d3d12-backend-implementation-plan.md)の§1 File mapを正本とし、本書は再掲しない。bootstrap、capability、queue、descriptor、memory、barrier、pipeline、surface、diagnostics、qualificationの責務分割は同File mapのResponsibility列が所有する。
 
 設計と実装計画を結ぶ名称は次のclosed tableに固定し、aliasまたは別綴りを作らない。
 
 | Concept | Canonical name／path |
 |---|---|
-| private module | `mirakan.rendering.d3d12.adapter` |
+| CX0 public surface | `engine/rendering/d3d12/include/mirakan/rendering/d3d12/backend.hpp` |
+| future Primary Named Module | `mirakan.rendering.d3d12.adapter` |
 | implementation root | `engine/rendering/d3d12/` |
 | MCD root | `schemas/mirakan/rendering/d3d12/` |
 | Qualification root | `tools/rendering/d3d12_qualification/` |
@@ -187,7 +189,7 @@ schemas/mirakan/rendering/d3d12/
 
 実装計画§1／§2、CMake、MCD、test registrationはこの表をexact複写する。表と異なる旧型名、別directory、別target名を互換aliasで吸収せず、Architecture lintで拒否する。
 
-Named Moduleは`mirakan.rendering.d3d12.adapter`だけをcomposition rootへ公開する。D3D12 header、WRL／COM helper、DXGI type、D3D12MA typeはGlobal Module Fragmentまたはprivate implementationだけでincludeする。
+CX0のcomposition rootはself-containedな`backend.hpp`だけをincludeする。CMake Componentは将来のPrimary Named Module名`mirakan.rendering.d3d12.adapter`だけを登録し、CX1の隔離fixtureを除いてproduction `.ixx`／`.cppm`を作成しない。CX2 cutover後は同名Named Moduleだけをcomposition rootへ公開する。D3D12 header、WRL／COM helper、DXGI type、D3D12MA typeはCX0ではprivate implementation、CX2以降はGlobal Module Fragmentまたはprivate implementationだけでincludeする。
 
 現在の`mirakan::ui_d3d12_adapter`／`mirakan.ui.d3d12.adapter`は廃止し、`mirakan::ui_render_graph_adapter`／`mirakan.ui.render_graph.adapter`へ置換する。UIは`MirakanUiDrawPacketV1`からlogical UI Passを生成し、vertex／index upload、pipeline、descriptor、clip encode、submissionはD3D12 Backendが所有する。
 
@@ -1011,9 +1013,15 @@ Reference hardwareのexact driver version、Async ComputeをqualifiedにするAd
 
 ## 31. Control Plane baseline binding
 
-D3D12 ChangeSetの最初の入力は`architecture/baselines/control-plane-v1.json`である。開始時に`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`をread-backする。一つでも不一致、missing、dirty treeなら`diagnostic.architecture.baseline-mismatch`で停止する。
+D3D12 ChangeSetの最初の入力は`D3d12BackendChangeSetV1.control_plane_baseline_ref`が解決する`architecture/baselines/control-plane-v1.json`である。Artifactをexact `schemas/architecture/baseline.schema.json`の`ControlPlaneBaselineV1`として検証し、schemaの全`required` Fieldをread-backする。Reader側でField集合を再列挙せず、missing／additional Fieldを拒否し、`architecture_explain_schema_sha256`を含む全artifact hash、`control_plane_bootstrap_approval_sha256`、`lint_version`、Git treeを照合する。Bootstrap Approvalの署名／主体／ancestor／current hash／revocation評価、不一致、missing、dirty treeのいずれかで`diagnostic.architecture.baseline-mismatch`または`diagnostic.architecture.bootstrap-approval-invalid`を発行して停止する。
 
 値を本文へ仮記入しない。Control Plane実装がclean treeから生成したArtifact refを`D3d12BackendChangeSetV1.control_plane_baseline_ref`へexactに格納し、後続Taskはそのrefだけを消費する。別branch名、日時、`latest`、現在HEADの推測で代用しない。
+
+### 31.1 PreviewとRelease Activationの分離
+
+D3D12のCX0 Header実装とCX1 Module fixtureはDevelopment、Test、candidate Package、internal Technology PreviewのEvidence生成だけに使う。Shipping Configurationで内部candidateをbuildしてもRelease Activation入力にはできず、`capability.rendering.d3d12-cx0`のTarget stateを`qualified`または`production`へ昇格しない。
+
+Product cutoverは[Product Plan](../architecture/00-product/product-plan.md)のdeferred `wp.foundation.cpp23-cx2-cutover`／`capability.foundation.cpp23-cx2-cutover`と`wp.foundation.cpp23-cx3-shipping`／`capability.foundation.cpp23-cx3-shipping`、対応するPlanning Decision Gateだけが再開できる。CMakeの非Experimental `import std`、正式`/std:c++23`、全TargetのBuild／Tooling／ABI／Package／Release Receiptのいずれかが未成立ならCX0を維持し、HeaderからModule、またはcandidateからReleaseへ暗黙昇格しない。
 
 ## 32. Five-owner and package closure
 
@@ -1046,9 +1054,11 @@ D3d12RuntimePackageBindingV1 {
 
 1. Main EXEが`D3D12SDKVersion=619`と、末尾`\`を持つ相対subdirectory `D3D12SDKPath=.\D3D12\`をexportする。
 2. `D3D12Core.dll`はEXE直下でなく宣言した`D3D12\`配下にあり、Runtime Packageのexact artifact hashと一致する。
-3. Development packageだけが同一SDKVersionの`D3D12SDKLayers.dll`を含められる。Shipping packageでは存在をhard errorにする。
+3. Development packageだけが同一SDKVersionの`D3D12SDKLayers.dll`を含められる。Shipping Configurationのcandidate Packageでは存在をhard errorにする。
 4. Header include orderはAgility NuGet includeをWindows SDK includeより前にし、link libraryはWindows SDKの`d3d12.lib`を使う。
 5. Package read-backはEXE export、DLL path、file hash、signer、shipping exclusionを検査し、`PackageValidationReceiptV1`へ記録する。
+
+本節のShipping Configurationはpackage layoutのnegative／read-back検証用candidateであり、CX0／CX1のRelease Activation、配布、Product labelを許可しない。公開Releaseへ使えるのはProduct PlanのCX3 Shipping Gateと全Target Release Receiptが成立した後だけである。
 
 Agility SDK preview、別SDKVersionのLayers、EXE直下DLL、System32 DLLへの暗黙fallback、Package外shader／PSOはすべて不合格である。
 

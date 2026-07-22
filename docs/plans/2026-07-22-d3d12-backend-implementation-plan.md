@@ -4,13 +4,13 @@
 
 **Goal:** `CanonicalRenderExecutionPlanV1`をEnhanced BarriersだけでDirect3D 12へencodeし、Windows Editor／GameHostのpackage、fault recovery、Target Qualificationまで閉じるprivate backendを実装する。
 
-**Architecture:** Render Graphがlogical lifetime／hazard／queue intentを所有し、`mirakan.rendering.d3d12.adapter`がControl Plane／Runtime ECS E0 baselineへbindしたnative planへ一方向変換する。Source Policy、Runtime Derived、Evidenceを分離し、D3D12 native型、pointer、cache bytesをProject／Save／AI Authoringへ公開しない。
+**Architecture:** Render Graphがlogical lifetime／hazard／queue intentを所有し、CX0 self-contained Headerのprivate Adapter境界がControl Plane／Runtime ECS E0 baselineへbindしたnative planへ一方向変換する。CMakeは将来のPrimary Named Module `mirakan.rendering.d3d12.adapter`だけを登録する。Source Policy、Runtime Derived、Evidenceを分離し、D3D12 native型、pointer、cache bytesをProject／Save／AI Authoringへ公開しない。
 
-**Tech Stack:** C++23 Modules、CMake 4.4.0、Ninja 1.13.2、Visual Studio Build Tools 2026 18.8.0 build 12009.203、MSVC toolset v14.51（`cl.exe`／`link.exe` 14.51.36231以上）、Windows SDK exact lock、DirectX 12 Agility SDK 1.619.4／SDKVersion 619、DXC 1.9.2602.24、D3D12MA 3.2.0、WARP＋NVIDIA／AMD／Intel実機、CTest。全exact artifact hashは`toolchain-dependencies.md`だけを正本とする。
+**Tech Stack:** C++23 CX0 self-contained Header、CMake 4.4.0、Ninja 1.13.2、Visual Studio Build Tools 2026 18.8.0 build 12009.203、MSVC toolset v14.51（`cl.exe`／`link.exe` 14.51.36231以上、`/std:c++23preview`）、Windows SDK exact lock、DirectX 12 Agility SDK 1.619.4／SDKVersion 619、DXC 1.9.2602.24、D3D12MA 3.2.0、WARP＋NVIDIA／AMD／Intel実機、CTest。全exact artifact hashは`toolchain-dependencies.md`だけを正本とする。CMake 4.4のExperimental `import std`はCX1 fixtureだけに隔離し、本計画のproduction targetでは使わない。
 
 ## Global Constraints
 
-- 開始前に`architecture/baselines/control-plane-v1.json`と`architecture/baselines/runtime-ecs-e0-v1.json`をread-backし、記録された全artifact／toolchain／test hashを検証する。不一致、missing、dirty treeは`diagnostic.architecture.baseline-mismatch`で拒否する。
+- 開始前に`control_plane_baseline_ref`をexact `schemas/architecture/baseline.schema.json`の`ControlPlaneBaselineV1`として検証し、schemaの全`required` Field、全artifact hash、`architecture_explain_schema_sha256`、`control_plane_bootstrap_approval_sha256`、`lint_version`とcurrent revocationをread-backする。`architecture/baselines/runtime-ecs-e0-v1.json`も記録された全artifact／toolchain／test hashを検証する。不一致、Field過不足、Approval不正、missing、dirty treeは`diagnostic.architecture.baseline-mismatch`または`diagnostic.architecture.bootstrap-approval-invalid`で拒否する。
 - MCD contract compilerはRuntime ECS E0 Implementation Plan Task 0の`tools/contract_compiler/**`成果物だけを消費し、`runtime-ecs-e0-v1.json`のcompiler artifact ref／toolchain hash／`runtime_ecs_contract_tests` Receiptとexact一致させる。Task 2はcompilerのunknown field拒否、bound検査、canonical binary生成、negative fixtureへのexact diagnostic発行を前提とする。
 - Target logical IDは`target.windows.desktop`、Backend logical IDは`profile.rendering.d3d12`とし、versionをIDへ埋め込まない。
 - Windows C1 runtime barrier pathはEnhanced Barriersだけとし、legacy `ResourceBarrier` translator／fallbackを製品binaryへ含めない。
@@ -19,7 +19,8 @@
 - Pipeline keyはkind、shader closure、Root Signature、全fixed-function state、RTV slot順、DSV、sample count、sample quality、Target／Backend Profile hashをcanonical bytesへ含める。
 - After-resourceのalias activation `DISCARD`は、before-resource barrierがlayout transitionまたはwrite flushを行う場合に併用しない。
 - Descriptor headroom、HDR／SDR tolerance、device recovery、Pipeline Library採用はD3D12 Design §29の固定式を変更せず使う。
-- Shipping packageから`D3D12SDKLayers.dll`を除外し、`D3D12Core.dll`を`.\D3D12\`配下へexact hashで配置する。
+- Shipping Configurationのcandidate Packageから`D3D12SDKLayers.dll`を除外し、`D3D12Core.dll`を`.\D3D12\`配下へexact hashで配置する。この検査成功をRelease Activationへ流用しない。
+- CX0／CX1成果物はDevelopment、Test、candidate Package、internal Technology Previewだけに使い、Release Activationへ入力しない。本計画ではCX1専用fixture以外の`.ixx`／`.cppm`を作成せず、外部条件不成立時はCX0 Headerを維持する。
 - Runtime source shader compile、WARP production fallback、別Adapterへの無通知切替、無限recovery retry、pipeline cacheのUser data化を禁止する。
 
 ---
@@ -33,7 +34,7 @@
 | `schemas/mirakan/rendering/d3d12/capability-snapshot.mcd` | Device query projection |
 | `schemas/mirakan/rendering/d3d12/encoding-plan.mcd` | pointer-free derived plan／trace |
 | `schemas/mirakan/rendering/d3d12/qualification-receipt.mcd` | Hardware／driver／SDK Evidence |
-| `engine/rendering/d3d12/backend.ixx` | public private-adapter module interface |
+| `engine/rendering/d3d12/include/mirakan/rendering/d3d12/backend.hpp` | CX0 self-contained public private-adapter surface |
 | `engine/rendering/d3d12/device.cpp` | Agility、Factory、Adapter、Device、Capability |
 | `engine/rendering/d3d12/queue.cpp` | Queue、Fence、Allocator／List pool |
 | `engine/rendering/d3d12/memory.cpp` | D3D12MA、budget、resource、alias allocation |
@@ -44,7 +45,7 @@
 | `engine/rendering/d3d12/surface.cpp` | Swap Chain、Present、HDR、resize |
 | `engine/rendering/d3d12/recovery.cpp` | DRED、device generation recovery |
 | `engine/rendering/d3d12/diagnostics.cpp` | HRESULT→stable diagnostic mapping |
-| `engine/rendering/d3d12/CMakeLists.txt` | module target、Agility／D3D12MA binding |
+| `engine/rendering/d3d12/CMakeLists.txt` | CX0 Header target、将来Module名、Agility／D3D12MA binding。production `MODULE_INTERFACE`なし |
 | `tests/rendering/d3d12/*_tests.cpp` | Unit／contract tests |
 | `tests/rendering/d3d12/fixtures/**` | WARP、mock、negative fixtures |
 | `packaging/windows/d3d12-package-policy.json` | DLL path、export、shipping exclusion policy |
@@ -69,9 +70,12 @@ ctest --test-dir build/d3d12 -L '^rendering\.d3d12$' --output-on-failure
 ## 2. Core interfaces
 
 ```cpp
-export module mirakan.rendering.d3d12.adapter;
+#pragma once
 
-export namespace mirakan::rendering::d3d12 {
+#include <cstdint>
+#include <memory>
+
+namespace mirakan::rendering::d3d12 {
   enum class PipelineKind : std::uint8_t { graphics, compute, mesh };
 
   struct BackendCreateInfo final {
@@ -93,6 +97,8 @@ export namespace mirakan::rendering::d3d12 {
 }
 ```
 
+上記は公開宣言の抜粋である。実ファイルは`ArtifactRefV1`、`TargetProfileRefV1`、`McdContractRefV1`、Render Graph plan、Receipt、`Result<T>`の各Ownerが生成または公開するHeaderを明示includeし、推移的includeやforward declarationだけへ依存しない。単独translation unitで`#include <mirakan/rendering/d3d12/backend.hpp>`だけを行うcompile fixtureを必須にする。
+
 `Backend`以外のnative classをexportしない。`D3d12EncodingPlanV1`とReceiptはpointer、COM object、CPU address、GPU virtual addressを含めず、logical resource／pass／submission IDとhashだけを持つ。
 
 型の定義Ownerを次に固定する。
@@ -103,7 +109,7 @@ export namespace mirakan::rendering::d3d12 {
 | `Result<T>` | math-core.md正本（`std::expected<T, Error>`） |
 | `D3d12DeviceFaultReportV1` | Design §8.3 Evidence |
 | `SubmissionReceiptV1`／`PresentReceiptV1`／`DeviceRecoveryReceiptV1` | 本計画新設。Task 2の`encoding-plan.mcd`で定義する |
-| `SurfaceId`／`DiagnosticSink` | 本計画新設。wire型ではなく`backend.ixx`のC++ interface型であり、MCDへ含めない。`SurfaceId`はgeneration付きsurface identity、`DiagnosticSink`はstable diagnostic送出port |
+| `SurfaceId`／`DiagnosticSink` | 本計画新設。wire型ではなく`include/mirakan/rendering/d3d12/backend.hpp`のC++ interface型であり、MCDへ含めない。`SurfaceId`はgeneration付きsurface identity、`DiagnosticSink`はstable diagnostic送出port |
 
 ## 3. Tasks
 
@@ -203,17 +209,21 @@ Expected: positive fixture PASS、negative 4種は各exact diagnostic一件でPA
 ### Task 3: Agility bootstrapとcapability snapshotを実装する
 
 **Files:**
-- Create: `engine/rendering/d3d12/backend.ixx`
+- Create: `engine/rendering/d3d12/include/mirakan/rendering/d3d12/backend.hpp`
+- Create: `engine/rendering/d3d12/CMakeLists.txt`
 - Create: `engine/rendering/d3d12/device.cpp`
 - Create: `engine/rendering/d3d12/diagnostics.cpp`
+- Test: `tests/rendering/d3d12/backend_header_compile_tests.cpp`
 - Test: `tests/rendering/d3d12/device_tests.cpp`
 
 **Interfaces:**
 - Produces: `Backend::create`、`D3d12CapabilitySnapshotV1`。
 
-- [ ] **Step 1: SDKVersion mismatch、missing D3D12Core、unsupported Enhanced Barriers、query E_INVALIDARG testを書く**
-- [ ] **Step 2: WARP testが未実装で失敗することを確認する**
-- [ ] **Step 3: Factory→Adapter rank→Device→feature queryのstate machineを実装する**
+- [ ] **Step 1: Header単独compile、SDKVersion mismatch、missing D3D12Core、unsupported Enhanced Barriers、query E_INVALIDARG testを書く**
+- [ ] **Step 2: HeaderとWARP実装が未作成で失敗することを確認する**
+- [ ] **Step 3: self-contained HeaderとFactory→Adapter rank→Device→feature queryのstate machineを実装する**
+
+`mirakan_add_cpp_component()`へ`TARGET mirakan_rendering_d3d12`、`ALIAS mirakan::rendering_d3d12`、`MODULE_NAME mirakan.rendering.d3d12.adapter`、`HEADER_API_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/include"`を登録する。production `MODULE_INTERFACE`、`.ixx`、`.cppm`は指定しない。
 
 Required query failure／unknownはTarget不適合、optional query `E_INVALIDARG`は`unknown`としActivationしない。Enhanced Barriers false／unknown、SM 6.6未満、required format/sample不適合をrejectする。
 
@@ -374,7 +384,7 @@ Expected: non-finite pixel 0、ΔE／clip率が全閾値内、stale generation u
 
 Expected: Editor 30/30、p95<=10.0s、max<=15.0s。二回目retry 0、Adapter silent switch 0。
 
-### Task 12: Runtime／Application Package bindingを実装する
+### Task 12: Runtime／Application candidate Package bindingを実装する
 
 **Files:**
 - Modify: `docs/architecture/04-runtime/runtime-package.md`
@@ -388,9 +398,9 @@ Expected: Editor 30/30、p95<=10.0s、max<=15.0s。二回目retry 0、Adapter si
 - [ ] **Step 1: wrong SDKVersion、missing slash、EXE-root DLL、Layers in Shipping、hash mismatch testを書く**
 - [ ] **Step 2: failureを確認する**
 - [ ] **Step 3: Design §32のbindingとassembly validatorを実装する**
-- [ ] **Step 4: Development／Shipping packageをbuildしread-backする**
+- [ ] **Step 4: Development／Shipping Configurationのcandidate Packageをbuildしread-backする**
 
-Expected: Main EXE export 619／`.\D3D12\`、Core DLL exact hash、Development Layers version一致、Shipping Layers absent。
+Expected: Main EXE export 619／`.\D3D12\`、Core DLL exact hash、Development Layers version一致、Shipping Configuration candidateのLayers absent。CX0／CX1ではRelease Activation Receiptを発行しない。
 
 ### Task 13: Backend C1 QualificationとCandidate boundaryを閉じる
 
@@ -409,9 +419,9 @@ Expected: Main EXE export 619／`.\D3D12\`、Core DLL exact hash、Development L
 Matrix schemaは`gate_id`、`fixture_id`、`owner_phase_id`、`required_for_task_13`、`hardware_row`、`profile_hash`、`expected_gate_ref`を必須にする。Task 13で`required_for_task_13=true`なのはPhase 2 Backend C1の`fixture.product.windows-empty-scene`、`fixture.rendering.d3d12-warp-conformance`、`fixture.rendering.d3d12-hardware-smoke`のNVIDIA／AMD／Intel row、`fixture.rendering.d3d12-device-loss-injection`だけであり、合成stressとEditor multi-windowはそのsubfixtureとする。UMA rowはoptionalでC1判定へ含めない。`fixture.product.shooter-2d`はPhase 3／4、`fixture.product.shooter-arena-3d`はPhase 6、cross-genre／multi-target fixture setはPhase 8として`required_for_task_13=false`、status `deferred_not_evaluated`で登録する。
 - [ ] **Step 2: Backend C1のstatic／schema、conformance、hardware smoke、fault、performance、soakを実行する**
 - [ ] **Step 3: Receipt hashとCandidate inputをread-backする**
-- [ ] **Step 4: Product RegistryへBackend C1 Receipt refと後段Gateのdeferred行を渡し、`candidate_locked`作成可否だけを報告する**
+- [ ] **Step 4: Product RegistryへBackend C1 Receipt refと後段Gateのdeferred行を渡し、internal `candidate_locked`作成可否だけを報告する**
 
-Expected: Phase 2 Backend C1必須row全合格時だけcandidate input生成。Phase 3／4／6／8 fixtureの未実行はTask 13 failureにせず、deferred rowを消さない。文書、binary、単一GPU合格だけで`qualified`／`production`を書かない。
+Expected: Phase 2 Backend C1必須row全合格時だけinternal candidate input生成。Phase 3／4／6／8 fixtureの未実行はTask 13 failureにせず、deferred rowを消さない。文書、binary、単一GPU合格だけで`qualified`／`production`を書かない。`candidate_locked`もProduct state writerのread-back後だけが設定でき、ReleaseはProduct Planのdeferred CX2 cutover／CX3 Shipping Work PackageとDecision Gateの責務である。
 
 ## Appendix A: Diagnostic clean migration
 
@@ -441,15 +451,15 @@ Expected: Phase 2 Backend C1必須row全合格時だけcandidate input生成。P
 
 ## Completion Gate
 
-- Control PlaneとRuntime ECS E0 baselineの全hashをread-back済みである。
-- D3D12正本、MCD、C++ module、tests、package policyが同じChangeSetへ存在する。
+- Control Plane baselineを`ControlPlaneBaselineV1` schemaで全required Field read-backし、Runtime ECS E0 baselineの全hashもread-back済みである。
+- D3D12正本、MCD、CX0 self-contained Header、tests、package policyが同じChangeSetへ存在し、CX1 fixture以外の`.ixx`／`.cppm`が0件である。
 - production target `mirakan_rendering_d3d12`、aggregate test target `mirakan_d3d12_backend_tests`、CTest label `rendering.d3d12`が§1とexact一致する。
 - Enhanced-only runtime pathでlegacy barrier symbolが0件である。
 - Direct／Compute cross-queue edgeが同じ`GpuSubmissionSerialV1`のSignal／Waitと合法queue上のlayout transitionに閉じる。
 - Graphics／Compute／Mesh PSO closure、RTV order、Sample Count／Qualityのnegative testsが通る。
 - Alias layout transition／write flush＋DISCARD conflictがexact diagnosticで拒否される。
 - Descriptor、HDR／SDR、Recovery、Pipeline LibraryがDesign §29の固定Gateを満たす。
-- Development packageはSDKVersion一致Layers、Shipping packageはLayers 0、Core DLL hash一致である。
+- Development packageはSDKVersion一致Layers、Shipping Configuration candidate PackageはLayers 0、Core DLL hash一致である。この結果だけでRelease Activationしていない。
 - Phase 2 Backend C1の`fixture.product.windows-empty-scene`、`fixture.rendering.d3d12-warp-conformance`、`fixture.rendering.d3d12-hardware-smoke`のNVIDIA／AMD／Intel row、`fixture.rendering.d3d12-device-loss-injection`が完了し、Target別Receiptが同じCandidate inputへbindする。
 - Phase 3／4の`fixture.product.shooter-2d`、Phase 6の`fixture.product.shooter-arena-3d`、Phase 8のC2 matrixはProduct Registryに`deferred_not_evaluated`で残り、Backend C1の完了条件へ混入しない。
 - Product state writerは別Gateであり、本計画が`qualified`／`production`を直接設定していない。

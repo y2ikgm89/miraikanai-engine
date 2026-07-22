@@ -11,7 +11,7 @@
 
 本文書はMiraikanai Engineが採用する外部Tool、SDK、Library、APIのversion、release、commit、artifact size、hash、integrity、license、取得URLを決める唯一の正本である。他のArchitecture仕様はDependency名と本文書へのLinkだけを記載し、固定値を複写しない。
 
-ここにある値は2026-07-21に再検証した初期baselineであり、floatingな「最新」ではない。Vendorの最新推奨とMiraikanaiの採用判断を区別し、更新は本書、lock、CI image、SBOM、Receiptを一つのToolchain更新ChangeSetで変更する。
+ここにある値は2026-07-23に再検証した初期baselineであり、floatingな「最新」ではない。Vendorの最新推奨とMiraikanaiの採用判断を区別し、更新は本書、lock、CI image、SBOM、Receiptを一つのToolchain更新ChangeSetで変更する。
 
 ## 2. Target toolchain baseline
 
@@ -106,6 +106,7 @@ Project、AI、Build scriptはargument、entry profile、register／space、opti
 | 項目 | exact pin／判断 |
 |---|---|
 | Internal validation dialect | JSON Schema Draft 2020-12 |
+| Control Plane lint validator | Ajv 8.20.0。`ajv/dist/2020`、`strict=true`、`allErrors=false`、`loadSchema`未設定、local `$id`／`$ref` allowlistだけを使用 |
 | MCP Tool protocol | Model Context Protocol 2025-11-25 |
 | OpenAI API／SDK | Responses API、official TypeScript SDK 6.48.0 |
 | Anthropic API／SDK | 未固定。MVPのAnthropic系接続は[Executable contracts](executable-contracts.md)のMCP経路（Claude CLI／Desktop→Miraikanai MCP Server）だけとし、direct Provider projection用`provider_profile`はexact pinを確定するDependency ChangeSetまで作成しない |
@@ -138,6 +139,7 @@ OpenAIはGA Modelでも最短6ヶ月通知で退役させるため、Model IDを
 | Node.js 24.18.0 LTS／npm 11.16.0 | [Windows x64 zip](https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip) | 37,176,245 bytes、SHA-256 `0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821` |
 | TypeScript 7.0.2 | npm `typescript@7.0.2` | 365,612 bytes、integrity `sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==` |
 | OpenAI TypeScript SDK 6.48.0 | npm `openai@6.48.0` | commit `ee5bce84fccb97135948a4838255804d4af1b7dd`、1,707,934 bytes、integrity `sha512-KhVp+FyV50QrXNextvL9hIU5l6ox5HYuKQjGVk7lIqprgJol90+dQXWONV6S1lRWsKA1bXjrow8RsUT14M1hNA==` |
+| Ajv 8.20.0 | [exact npm tarball](https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz) | 217,611 bytes、SHA-256 `b2f0b3a893bbb8cc5efb6814f08b1499e19e31d5dd73683f5893382f48f6e7b3`、npm shasum `304b3636add88ba7d936760dd50ece006dea95f9`、integrity `sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==`、MIT |
 | jsonc-parser 3.3.1 | [npm package](https://www.npmjs.com/package/jsonc-parser/v/3.3.1) | commit `3c9b4203d663061d87d4d34dd0004690aef94db5`、27,354 bytes、integrity `sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==`、MIT |
 | canonicalize 3.0.0 | [npm package](https://www.npmjs.com/package/canonicalize/v/3.0.0) | commit `aba9209d044f2729c51141d8a73b11e80816e42c`、6,020 bytes、integrity `sha512-yYLfHyDMIXRyRqsKBRLX023riFLpXY2YOfdtqKXZRZy9qsfOJ9U+4F9YZL7MEzL5+ziN2x2nlBvY/Voi3EBljA==`、Apache-2.0 |
 | RFC 8785 JCS fixture | [official testdata at pinned commit](https://github.com/cyberphone/json-canonicalization/tree/19d51d7fe467d4706a3ff08adf8a748f29fc21e0/testdata) | commit `19d51d7fe467d4706a3ff08adf8a748f29fc21e0`、6組12 file／1,476 bytes、fixture root SHA-256 `49ebd08bec39f4da9e2db03cffc76b2de984912fd6fbc66ec4ee33852b7b84fb` |
@@ -148,11 +150,11 @@ MSVCとWindows SDKは固定bootstrapperからoffline layoutを作り、resolved 
 
 ## 5. JavaScript／AI toolchain boundary
 
-公式JavaScript toolchainはNode.js 24.18.0 LTS archiveと同梱npm 11.16.0の一組である。利用rootを`orchestrator/`、`tools/contract_compiler/`、`tools/contract_lint/`だけに限定し、各`package.json`は`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`を要求する。PATH上のglobal Node、npm、Corepack、Bun、pnpm、Yarnを正規Buildへ混在させない。
+公式JavaScript toolchainはNode.js 24.18.0 LTS archiveと同梱npm 11.16.0の一組である。利用rootを`orchestrator/`、`tools/architecture_lint/`、`tools/contract_compiler/`、`tools/contract_lint/`だけに限定し、各`package.json`は`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`を要求する。PATH上のglobal Node、npm、Corepack、Bun、pnpm、Yarnを正規Buildへ混在させない。
 
 通常Buildは事前充填したcontent-addressed cacheに対し`npm ci --ignore-scripts --offline --no-audit --no-fund`を実行する。install／prepare scriptを必要とするDependencyは専用ADR、exact package hash、閉じたscript allowlist、隔離Dependency Buildを先に承認する。
 
-TypeScript 7.0.2は上記許可root（Orchestrator、contract compiler、contract lint）のcompileとlanguage-service CLIだけに使い、安定公開されていないprogrammatic compiler APIへ製品codeを依存させない。正式Artifactはstrict、single-threaded clean buildで生成する。OpenAI接続はResponses APIと公式TypeScript SDK 6.48.0を使い、strict function callingのSchema制約は[Executable contracts](executable-contracts.md)が所有する。
+TypeScript 7.0.2は上記許可root（Orchestrator、architecture lint、contract compiler、contract lint）のcompileとlanguage-service CLIだけに使い、安定公開されていないprogrammatic compiler APIへ製品codeを依存させない。正式Artifactはstrict、single-threaded clean buildで生成する。Ajv 8.20.0はArchitecture Evolution Control PlaneのDraft 2020-12 schema lintだけに使い、Engine Runtime、C++ contract validator、MCD semantic validation、Authorizationへ持ち込まない。OpenAI接続はResponses APIと公式TypeScript SDK 6.48.0を使い、strict function callingのSchema制約は[Executable contracts](executable-contracts.md)が所有する。
 
 ## 6. External Dependency baseline
 
@@ -173,6 +175,7 @@ TypeScript 7.0.2は上記許可root（Orchestrator、contract compiler、contrac
 | Android | AndroidX Games GameActivity | 4.4.2 | Apache-2.0 | Activity／GameTextInput bridge |
 | Android | AndroidX Games Controller | 2.0.2 | Apache-2.0 | Controller bridge |
 | Android | AndroidX Games Frame Pacing | 2.1.3 | Apache-2.0 | Frame pacing bridge |
+| Control Plane | Ajv | 8.20.0／npm shasum `304b3636add88ba7d936760dd50ece006dea95f9` | MIT | Architecture lintのDraft 2020-12 validationだけ。C++ Runtime validatorではない |
 | Physics | Box2D 3.1.1 | v3.1.1／`8c661469c9507d3ad6fbd2fea3f1aa71669c2fe3` | MIT | private 2D collision／solver kernel |
 | Physics | Jolt Physics 5.6.0 | v5.6.0／`e77f175595e64cb44218cc9d9d56fc365ad0e36a` | MIT | private CPU 3D collision／solver kernel |
 | Navigation | Recast／Detour 1.6.0 | v1.6.0／`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` | zlib | private 3D navmesh build／query kernel、32-bit `dtPolyRef` |
@@ -192,7 +195,7 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 | 要求能力 | 要求元 | 状態 |
 |---|---|---|
 | C++側の厳格JSON parser（duplicate field、invalid UTF-8拒否） | [Executable contracts](executable-contracts.md) §17.1 | 未固定 |
-| JSON Schema Draft 2020-12検証器（contract compiler手順のvalidate） | [Executable contracts](executable-contracts.md) §14 | 未固定 |
+| C++ Runtime側JSON Schema Draft 2020-12検証器（contract compiler手順のruntime validate） | [Executable contracts](executable-contracts.md) §14 | 未固定。Control Plane lint用Ajv 8.20.0とは別Dependency |
 | SHA-256実装（Runtimeのhash検証、canonical hash） | [Core architecture](core-architecture.md) §11、[Executable contracts](executable-contracts.md) §13 | 未固定 |
 | C++ unit test framework | [Core architecture](core-architecture.md) §12 | 未固定 |
 | MCP server実装SDK | [Executable contracts](executable-contracts.md) §16.2 | 未固定 |
@@ -211,7 +214,7 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 | A | Windows Target minimum OS | `mirakan.arch.toolchain-dependencies` | D3D12 Task 12 package binding前 | Agility／Enhanced Barriers／GameInput提供形態、Microsoft support lifecycleを満たすexact build、OS probe、package negative fixtureを持つADR | Windows package promotionを停止／未固定 |
 | A | Microsoft.GameInput | `mirakan.arch.toolchain-dependencies` | Windows Input Adapter実装またはpackage同梱判定前 | Microsoft公式NuGetのexact version、nupkg SHA-256、license、header／runtime DLL manifest、minimum OS別in-box／redist matrix、Input conformance Receipt | `wp.product.editor-runtime-windows`のInput／package Gateを停止／未固定 |
 | B | 厳格C++ JSON parser | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §17.1を使う最初のC++ acceptance path実装前 | exact release／license／hash、duplicate field、invalid UTF-8、trailing bytes、number overflow、depth／size boundのpositive／negative Receipt | 最初のC++ JSON consumerだけを停止／未固定 |
-| B | JSON Schema Draft 2020-12 validator | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §14の最初のruntime validator実装前 | exact release／license／hash、official Draft 2020-12 test suite、unknown dialect／unsupported keyword／recursive ref／bound failure Receipt | 最初のruntime schema consumerだけを停止／未固定 |
+| B | C++ Runtime JSON Schema Draft 2020-12 validator | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §14の最初のruntime validator実装前 | exact release／license／hash、official Draft 2020-12 test suite、unknown dialect／unsupported keyword／recursive ref／bound failure Receipt。Control Plane lint用AjvのReceiptを流用しない | 最初のruntime schema consumerだけを停止／未固定 |
 | B | MCP server SDKまたはfirst-party server boundary | `mirakan.arch.toolchain-dependencies` | `wp.product.external-agent`実装前 | MCP 2025-11-25 conformance、transport／capability negotiation、message bound、cancel／disconnect、license／artifact lock。自作時は実装Directoryとprotocol fixture | Phase 5 external-agent WPを停止／未固定 |
 | B | Android minimum SDK market coverage | `mirakan.arch.platform-android`、閾値承認は`mirakan.arch.product-plan` | `wp.platform.mobile-offline`開始前 | [Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1` | Android Target Gateを停止／Play Console Evidence待ち |
 | C | CX3 stable MSVC cutover | `mirakan.arch.toolchain-dependencies` | CX3 activation proposal前 | Microsoft stable release、正式`/std:c++23`、resolved toolset hash、`import std`／module partition C1001 regression fixture、全Target CX0↔CX3 ABI Receipt | CX3だけを停止しCX0を維持／非Preview v14.52+待ち |
@@ -242,6 +245,7 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 | ICU4C | [78.3 release](https://github.com/unicode-org/icu/releases/tag/release-78.3) | filtered data hashとlicense hashを固定 |
 | DirectXTex | [may2026 release](https://github.com/microsoft/DirectXTex/releases/tag/may2026) | source archive SHA-512とlicense hashをoverlay portで固定 |
 | AndroidX Games | [official release notes](https://developer.android.com/jetpack/androidx/releases/games) | Google Maven artifact checksum、POM、licenseをGradle dependency verificationへ固定 |
+| Ajv 8.20.0 | [Draft 2020-12 documentation](https://ajv.js.org/json-schema.html#draft-2020-12)、[npm metadata](https://registry.npmjs.org/ajv/8.20.0)、[exact tarball](https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz) | §4のexact shasum／integrity／MITをread-backし、Control Plane lintだけへ固定 |
 | JSON Schema／MCP | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12)、[MCP Tools 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) | Dialect／protocol versionをToolchain lockへ記録 |
 | OpenAI | [official SDKs](https://developers.openai.com/api/docs/libraries)、[model reference](https://developers.openai.com/api/docs/models/gpt-5.6-sol) | npm integrityとModel IDをToolchain lockへ記録 |
 
@@ -308,11 +312,12 @@ Entry identityは`{lane_id, runner_class, toolchain_profile_id}`のtupleとし�
 
 ## 10. Context7と公式一次資料
 
-Context7で次のIDを2026-07-21～2026-07-22に解決し、指定queryで確認した。
+Context7で次のIDを2026-07-21～2026-07-23に解決し、指定queryで確認した。
 
 | 対象 | Context7 ID | query／確認結果 |
 |---|---|---|
-| CMake | `/kitware/cmake` | C++ Module scanのGenerator、`import std`、`CXX_MODULE_STD`を照会。Ninja／Ninja Multi-ConfigとVisual Studio Generatorがscanを扱い、`import std`はNinja系に限定され、CMake 4.4時点でもExperimental token（`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD`）を必要とすることを確認 |
+| CMake | `/websites/cmake_cmake_help` | C++ Module scanのGenerator、`import std`、`CXX_MODULE_STD`を照会。`import std`はNinja／Ninja Multi-Configに限定され、Visual Studio GeneratorはIMPORTED targetのBMIをbuildできず、CMake 4.4時点でもExperimental token（`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD`）を必要とすることを確認 |
+| Ajv | `/ajv-validator/ajv` | Draft 2020-12専用class `ajv/dist/2020`、strict mode、`allErrors`を照会。Control Plane lintを`strict=true`／`allErrors=false`／local `$ref`だけへ固定する判断と整合 |
 | Microsoft C++ | `/microsoftdocs/cpp-docs` | named moduleと`import std`を照会。標準header include／header unitとの混在禁止をBuild graph制約として扱う |
 | Box2D | `/erincatto/box2d` | C17、opaque ID handle、substep solver、multithreadingを照会。private Adapter採用と整合 |
 | Jolt Physics | `/jrouwe/joltphysics` | compute backend build optionとmultithread integrationを照会。GPU backendを無効化する採用判断と整合 |
@@ -324,6 +329,17 @@ Context7で次のIDを2026-07-21～2026-07-22に解決し、指定queryで確認
 直接参照する公式資料は[CMake C++ modules](https://cmake.org/cmake/help/latest/manual/cmake-cxxmodules.7.html)、[MSVC `import std` tutorial](https://learn.microsoft.com/en-us/cpp/cpp/tutorial-import-stl-named-module)、[Android 16 KiB page size](https://developer.android.com/guide/practices/page-sizes)、[OpenAI deprecations](https://developers.openai.com/api/docs/deprecations)、[OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling)、[Responses migration](https://developers.openai.com/api/docs/guides/migrate-to-responses)とする。Context7結果は検索補助であり、規範判断はリンク先の公式本文で再確認する。
 
 Context7の内容はmain branchの挙動説明であり、exact release／commitの証拠は上記公式Release pageとtagで補完した。
+
+### 10.1 公式Evidence read-back
+
+| 対象 | 公式URL | 検証日 | Miraikanaiの適用判断 |
+|---|---|---|---|
+| MCP stable specification | [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) | 2026-07-23 | 表示上の`latest`へ追従せずprotocol baselineを`2025-11-25`へ固定し、draft／RCをProductionへ自動採用しない |
+| OpenAI MCP | [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp) | 2026-07-23 | ChatGPT desktop／Codex CLI／IDEのMCP設定経路を確認し、Miraikanaiの外部ClientはMCP 2025-11-25 conformance Gateを別途必須にする |
+| OpenAI GPT-5.6 | [GPT-5.6 migration guidance](https://developers.openai.com/api/docs/guides/upgrading-to-gpt-5p6-sol) | 2026-07-23 | direct Providerの既定explicit modelを`gpt-5.6-sol`、reasoning effortを`medium`とし、ModelSnapshot Profile／Evalなしにaliasへ追従しない |
+| Ajv Draft 2020-12 | [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html#draft-2020-12)、[Ajv 8.20.0 registry metadata](https://registry.npmjs.org/ajv/8.20.0) | 2026-07-23 | `ajv/dist/2020`をControl Plane lintだけへexact lockし、§4のtarball／integrity／MITをread-backする。C++ Runtime validatorの未固定状態は閉じない |
+| CMake C++ Modules | [latest manual](https://cmake.org/cmake/help/latest/manual/cmake-cxxmodules.7.html)、[4.4 manual](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html) | 2026-07-23 | 4.4の`import std`はExperimental opt-inかつNinja／Ninja Multi-Config限定とする。Visual Studio GeneratorのIMPORTED BMIをShipping経路にしない |
+| MSVC C++ language mode | [Microsoft `/std` reference](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version)、[MSVC 14.51 C++23 status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) | 2026-07-23 | v14.51の`/std:c++23preview`はCX0 Development／Test／candidate／internal Technology Previewだけとし、正式`/std:c++23`を提供するstable toolsetまでCX3 Release Activationを拒否する |
 
 Shader toolchainの補完一次根拠は[DXC v1.9.2602.24 release](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2602.24)、[DXC API](https://github.com/microsoft/DirectXShaderCompiler/wiki/Using-dxc.exe-and-dxcompiler.dll)、[DXC HLSL options](https://github.com/microsoft/DirectXShaderCompiler/blob/main/include/dxc/Support/HLSLOptions.td)、[HLSL Specification Working Draft](https://microsoft.github.io/hlsl-specs/specs/index.html)である。Working Draftまたはmain branchの変化をBuild時に自動採用せず、上表のDXC tag／commitと`ShaderCompilerProfileV1`を実行正本にする。
 
