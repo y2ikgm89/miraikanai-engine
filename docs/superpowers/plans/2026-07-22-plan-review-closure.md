@@ -110,6 +110,7 @@ unknown=9
 - source findings: 253 retained findings
 - omitted refuted evidence: 4 findings reported by the original review but not preserved as detail rows
 - terminal validation states: `confirmed | refuted`
+- transitional disposition: `pending`
 - terminal dispositions: `applied | decision_applied | deferred | refuted`
 
 ## Canonical decisions

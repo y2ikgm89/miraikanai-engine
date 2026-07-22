@@ -65,7 +65,7 @@
 | `validation_state` | `confirmed \| refuted`。移行中だけ`unverified`を許可 |
 | `severity` | `high \| medium \| low` |
 | `category` | `gap \| contradiction \| ambiguity \| link_or_id_error \| infeasibility \| improvement \| tech_stack` |
-| `disposition` | `applied \| decision_applied \| deferred \| refuted` |
+| `disposition` | 実行中だけ`pending`を許可。終端値は`applied \| decision_applied \| deferred \| refuted` |
 | `decision_id` | 設計判断が必要な場合のcanonical decision ID。それ以外は`null` |
 | `changed_documents` | 実際に変更した文書path。変更なしは空配列 |
 | `evidence` | 検索、検査command、公式一次資料、または正本sectionへの参照 |
