@@ -39,7 +39,7 @@
 | `schemas/architecture/document-relations.schema.json` | document relation registry V1 schema |
 | `schemas/architecture/baseline.schema.json` | baseline handoff V1 schema。field過不足を拒否 |
 | `schemas/product/product-registries.schema.json` | Product registry V1 schema集合 |
-| `architecture/registry/document-relations.v1.json` | 48文書のdirect requires、reciprocal integration、canonical order正本 |
+| `architecture/registry/document-relations.v1.json` | 生成inventory（移行開始時48）のdirect requires、reciprocal integration、source document hash、canonical order正本 |
 | `architecture/registry/identity-migration.v1.json` | Appendix Dと一致する旧→新ID mapping |
 | `architecture/registry/product.v1.json` | Product Plan §11のregistry projection |
 | `architecture/migrations/control-plane-v1.json` | legacy header、new metadata、removed edge classificationの監査記録 |
@@ -54,7 +54,7 @@
 | `tools/architecture_lint/src/explain.ts` | bounded architecture explain parser、generator、canonical encoder、continuation検証 |
 | `tools/architecture_lint/src/main.ts` | CLI、diagnostic sort、exit code |
 | `tools/architecture_lint/test/*.test.mjs` | Node test runnerによるpositive／negative test |
-| `tools/architecture_lint/test/fixtures/explain-invalid/**` | stale／omitted／署名／Evidence／上限の単一原因fixture |
+| `tools/architecture_lint/test/fixtures/explain-invalid/**` | stale／omitted／continuation hash binding／Evidence／上限の単一原因fixture |
 | `tools/architecture_lint/test/fixtures/**` | 1 failureにつき1原因のfixture |
 
 ## 2. Public interfaces
@@ -77,6 +77,21 @@ export interface ArchitectureMetadataV1 {
   readonly supersedes: readonly DocumentId[];
   readonly approval_ref: string | null;
   readonly external_evidence_verified_at: string | null;
+}
+
+export interface DocumentRelationRegistryV1 {
+  readonly format_version: 1;
+  readonly source_set_sha256: string;
+  readonly canonical_order: readonly DocumentId[];
+  readonly documents: readonly {
+    readonly document_id: DocumentId;
+    readonly source_document_sha256: string;
+    readonly requires: readonly DocumentId[];
+    readonly integrates_with: readonly {
+      readonly document_id: DocumentId;
+      readonly contract_ids: readonly ContractId[];
+    }[];
+  }[];
 }
 
 export interface ArchitectureDiagnosticV1 {
@@ -114,6 +129,8 @@ export interface ArchitectureExplainRequestV1 {
   readonly scope: string;
   readonly field_mask: readonly string[];
   readonly target_profile_ref: string | null;
+  readonly evaluation_time: string;
+  readonly continuation_expires_at: string;
   readonly continuation: string | null;
 }
 
@@ -122,6 +139,7 @@ export interface ArchitectureExplainSourceV1 {
   readonly project_revision: string;
   readonly contract_set_hash: string;
   readonly architecture_metadata: readonly ArchitectureMetadataV1[];
+  readonly document_relation_registry: DocumentRelationRegistryV1;
   readonly document_relation_registry_sha256: string;
   readonly product_registry_sha256: string;
   readonly contract_registry_sha256: string;
@@ -320,17 +338,19 @@ Expected: active 48、legacy header 0、metadata block 48、unknown ID 0でPASS�
 
 **Interfaces:**
 - Consumes: Appendix D、Control Plane Design §13.2、§19。
-- Produces: 本文中のAppendix D old ID出現0、§13.2旧型名出現0の48 document set。
+- Produces: 生成inventoryのnormative本文におけるAppendix D old ID出現0、§13.2旧型名出現0。Decision、Appendix D、identity migration registry、migration manifestにexact locationを登録した歴史的migration表はnormative 0件Gateから除外するが、未分類出現として監査する。
 
 - [ ] **Step 1: old ID出現を数えるfailing testを書く**
 
 ```js
-assert.deepEqual(scanActiveDocs(appendixDOldIds), []);
+const hits = scanIdentityOccurrences(appendixDOldIds);
+assert.deepEqual(hits.normative, []);
+assert.deepEqual(hits.migrationAuthority, migrationManifest.allowedOldIdLocations);
 ```
 
 - [ ] **Step 2: 現状failureを確認する**
 
-Expected: `windows_desktop_v1`（`07-platform/windows.md`、`04-runtime/performance-capacity.md`、`02-foundation/toolchain-dependencies.md`）を含むold ID残存でFAIL。
+Expected: `windows_cmake_ninja_multi_v1`等のactive normative old ID残存、またはmigration authority未分類でFAIL。`toolchain-dependencies.md`のschema 5→6表にある`windows_desktop_v1`はallowed locationとして一度だけ分類され、normative hitには数えない。
 
 - [ ] **Step 3: 設計§19の文書別必須変更に従い本文を置換する**
 
@@ -338,7 +358,7 @@ Appendix Dのold IDを新stable IDへ、`TargetProfileRef`等の§13.2改名型�
 
 - [ ] **Step 4: testを再実行する**
 
-Expected: old ID出現0、旧型名出現0でPASS。Completion Gateの「Appendix Dの全old ID出現数が0」は本Taskで到達する。
+Expected: normative old ID出現0、旧型名出現0、allowed migration occurrenceの未分類／過剰／欠落0でPASS。Completion Gateのold ID条件は本Taskで到達する。
 
 ### Task 5: Parserとstable diagnosticを実装する
 
@@ -373,8 +393,8 @@ Expected: positive 1、negative 5がPASS。
 - Create: `tools/architecture_lint/test/graph.test.mjs`
 
 **Interfaces:**
-- Consumes: 48 `ArchitectureMetadataV1`、Appendix B～C。
-- Produces: document relation registry、canonical order検証、cycle witness、redundant edge witness、reciprocity diagnostic。
+- Consumes: Task 1 migration manifestが列挙する全`ArchitectureMetadataV1`（初期期待48）、Appendix B～C。
+- Produces: `architecture/registry/document-relations.v1.json`と`schemas/architecture/document-relations.schema.json`、canonical order検証、cycle witness、redundant edge witness、reciprocity diagnostic。Task 8AとTask 10はrelationを再導出せず、この出力だけを消費する。
 
 - [ ] **Step 1: cycle、self、missing、redundant、one-way integration fixtureを書く**
 - [ ] **Step 2: test failureを確認する**
@@ -384,11 +404,13 @@ Redundant edge `{a,b}`は、そのedgeだけを除いて`a`から`b`へ到達可
 
 - [ ] **Step 4: Appendix B graphを検査する**
 
-Expected: nodes 48、edges 76、cycle 0、self 0、missing 0、redundant 0、Appendix Bのcanonical orderが有効なtopological order（各文書の全`requires`先が順序上より前に並ぶ）であること。lintは順序を独自導出せず、同順位のtie-break規則を持たない。
+Expected: `nodes = migration manifest rows = metadata document ID set = canonical_order length`（移行開始時48）、initial edges 76、cycle 0、self 0、missing 0、redundant 0、Appendix Bのcanonical orderが有効なtopological order（各文書の全`requires`先が順序上より前に並ぶ）であること。lintは順序を独自導出せず、同順位のtie-break規則を持たない。
 
 - [ ] **Step 5: document relation registryを転記して検査する**
 
-Appendix Bの`requires`とcanonical order、Appendix Cのreciprocal integrationを`architecture/registry/document-relations.v1.json`へbyte順JSONで転記する。canonical orderは導出物ではなくregistry格納値である。48文書metadataの`requires`／`integrates_with`とregistryの完全一致（過不足0）を検査する。
+Appendix Bの`requires`とcanonical order、Appendix Cのreciprocal integrationを`architecture/registry/document-relations.v1.json`へbyte順JSONで転記する。Registryは`format_version=1`、`source_set_sha256`、`canonical_order[]`、`documents[]`を持ち、各document entryへ`document_id`、`source_document_sha256`、direct `requires[]`、`integrates_with[] { document_id, contract_ids[] }`を必須化する。全arrayをIDのunsigned UTF-8 byte順、`canonical_order[]`だけをAppendix Bの格納順とし、unknown Field、duplicate、missing Contract ID、source hash不一致をschema／lintで拒否する。
+
+canonical orderは導出物ではなくregistry格納値である。migration manifestが列挙する全metadataの`requires`／`integrates_with`とregistryの完全一致、`documents[]`と`canonical_order[]`のset equality、各`source_document_sha256`のcurrent bytes一致を検査する。文書数はregistryから導出し、48をschema constにしない。
 
 Expected: registryがschema valid、metadataとの一致、mismatch fixtureがexact diagnosticで失敗。
 
@@ -446,14 +468,14 @@ Expected: 2回生成のSHA-256一致、wall-clock文字列0、固定active件数
 - Modify: `tools/architecture_lint/src/main.ts`
 
 **Interfaces:**
-- Consumes: exact Project revision、`ArchitectureMetadataV1` set、document relation registry、Product registry、Contract registry、World／Target Source revision、`ArchitectureExplainRequestV1`。
-- Produces: `ArchitectureExplainProjectionV1` canonical bytes、`explain-architecture` CLI、署名付きcontinuation、stable diagnostic。
+- Consumes: exact Project revision、`ArchitectureMetadataV1` set、`schemas/architecture/document-relations.schema.json`で検証済みの`architecture/registry/document-relations.v1.json`、Product registry、Contract registry、World／Target Source revision、`ArchitectureExplainRequestV1`。
+- Produces: `ArchitectureExplainProjectionV1` canonical bytes、`explain-architecture` CLI、hash-bound continuation、stable diagnostic。
 
 **Dependencies and ownership:** Tasks 4、6、7、8のmetadata／graph／registry／Indexが完了してから実行する。`ArchitectureComprehensionCaseV1`／`ArchitectureComprehensionFixtureV1`はAI Verification／Provenance Ownerが定義し、本Taskはその入力となるexact projection bytesとhashだけを供給する。
 
 - [ ] **Step 1: schema／parserのfailing testsを書く**
 
-Valid requestに加え、unknown key、空`field_mask`、stale Project revision、category 257 entry、dependency 1,025 edge、Evidence 0件、128超のomitted range、2 MiB超のcanonical encoding、別scope／revisionへ再利用したcontinuation、署名不一致を一原因ずつfixture化する。
+Valid requestに加え、unknown key、空`field_mask`、invalid／missing `evaluation_time`／`continuation_expires_at`、`expires_at <= evaluation_time`、stale Project revision、category 257 entry、dependency 1,025 edge、Evidence 0件、128超のomitted range、2 MiB超のcanonical encoding、別scope／revision／field mask／Target／offsetへ再利用したcontinuation、digest不一致を一原因ずつfixture化する。
 
 - [ ] **Step 2: module未存在でfailureを確認する**
 
@@ -463,11 +485,13 @@ Expected: `ERR_MODULE_NOT_FOUND`でexit 1。
 
 - [ ] **Step 3: parser、generator、canonical encoderを実装する**
 
-metadata、relation、registry、Contract、World、Target、Source revisionがrequest revisionと一致する場合だけ生成する。各entryをcanonical concept ID、Owner document、Owner Contract、phase／lifetime、Source StableId、Source content SHA-256、Evidence refで閉じ、各category 256、dependency 1,024、全体2 MiBを上限とする。同順位はUTF-8 byte順でsortし、filesystem列挙順、locale、wall clock、説明文を入力にしない。
+metadata、`architecture/registry/document-relations.v1.json`、Product／Contract registry、World、Target、Source revisionがrequest revisionと一致する場合だけ生成する。relationをmetadataから再導出せず、Task 6出力bytesと`document_relation_registry_sha256`を照合して消費する。各entryをcanonical concept ID、Owner document、Owner Contract、phase／lifetime、Source StableId、Source content SHA-256、Evidence refで閉じ、各category 256、dependency 1,024、全体2 MiBを上限とする。同順位はUTF-8 byte順でsortし、filesystem列挙順、locale、wall clock、説明文を入力にしない。
 
 - [ ] **Step 4: omissionとcontinuationを実装する**
 
-上限超過は要約へ置換せずexact `omitted_ranges`を返す。Continuation payloadへProject revision、scope、field mask hash、Target Profile ref、Source closure hash、次offsetを含め、repository-owned signing key profileで署名する。別条件への再利用、署名不一致、Source closure driftは`diagnostic.architecture.explain-continuation-invalid`で拒否する。
+上限超過は要約へ置換せずexact `omitted_ranges`を返す。Continuation payloadは`request_hash`、`source_closure_hash`、`revision`、`scope`、`expires_at`を持つ。`request_hash`へcontinuation自体を除くrequest、明示`evaluation_time`、field mask、Target Profile ref、category別next offsetを含め、token digestを`SHA-256(JCS({request_hash, source_closure_hash, revision, scope, expires_at}))`で計算する。`evaluation_time`と`continuation_expires_at`はrequestがcanonical UTCで明示し、generator／encoderはwall clockを読まない。別条件への再利用、digest不一致、Source closure drift、`expires_at <= evaluation_time`、範囲外offsetは`diagnostic.architecture.explain-continuation-invalid`で拒否する。
+
+Repository固有のkey material、secret供給、署名algorithm profileを実装しない。このdigestはread-only cursorの入力binding／破損検出であってauthenticityまたはauthorityではない。digestを再計算できるcallerへ権限を付与せず、Commit／Approvalは既存Approval Contractを通す。
 
 - [ ] **Step 5: CLI queryを追加する**
 
@@ -479,7 +503,7 @@ node tools/architecture_lint/dist/main.js explain-architecture --request request
 
 - [ ] **Step 6: deterministic-byteとnegative fixtureを閉じる**
 
-Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted Evidenceの有効扱い、unsigned continuation、summary由来Owner、上限超過の正常完了がすべてexact diagnosticで失敗する。
+Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted Evidenceの有効扱い、missing／mismatched／expired continuation digest、summary由来Owner、上限超過の正常完了がすべてexact diagnosticで失敗する。
 
 ### Task 9: CI Gateと全negative fixtureを閉じる
 
@@ -526,10 +550,14 @@ Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0�
 **Interfaces:**
 - Produces: `git_tree_sha256`ではなくGit object formatに従う`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`lint_version`を持つexact handoff。field集合は設計§28と一致し、`schemas/architecture/baseline.schema.json`が過不足を拒否する。
 
+文書数／relation edge数はbaseline Fieldとして重複保存せず、hash照合済み`document-relations.v1.json`の`documents[]`、`canonical_order[]`、`requires[]`、`integrates_with[]`からread-back時に導出する。`documents[]`と`canonical_order[]`のset／count不一致、metadata setとの差分、source document hash不一致をbaseline mismatchとする。
+
 - [ ] **Step 1: dirty tree拒否、hash mismatch、baseline field過不足のtestを書く**
 - [ ] **Step 2: clean treeで全Gateを再実行する**
 - [ ] **Step 3: baseline JSONを生成し、ECS／D3D12計画へexact refを記録する**
 - [ ] **Step 4: baseline read-backを実行する**
+
+`architecture/registry/document-relations.v1.json`を`schemas/architecture/document-relations.schema.json`で再検証し、registry hash、source document hash、derived node／edge countを同じread-backで照合する。
 
 Expected: 全hash一致。ECS、D3D12、またはarchitecture comprehension Eval開始時に一つでも不一致なら`diagnostic.architecture.baseline-mismatch`で停止する。
 
@@ -887,12 +915,12 @@ Appendix Dにないmaturity／version-bearing lowercase IDをlintが発見した
 
 ## Completion Gate
 
-- 48 active specすべてが一つのexact metadata blockを持つ。
+- 生成active inventory（移行開始時48）の全specが一つのexact metadata blockを持つ。
 - Appendix Aの全legacy edgeがAppendix B／Cの分類式で一度だけ分類される。
-- Appendix Bが48 node、76 edge、cycle／self／missing／redundant各0である。
+- Appendix B／relation registryが`nodes = migration manifest rows = metadata set = canonical_order length`（初期48）、initial 76 edge、cycle／self／missing／redundant各0である。
 - Appendix Cの29 edgeが完全にreciprocalで、Contract ID集合が一致する。
-- `architecture/registry/document-relations.v1.json`が48文書metadataの`requires`／`integrates_with`およびAppendix Bのcanonical orderと完全一致する。
-- Appendix Dの全old ID出現数が0、new IDのorphanが0、runtime aliasが0である。
+- `architecture/registry/document-relations.v1.json`が生成inventory全metadataの`requires`／`integrates_with`、source document hash、Appendix Bのinitial canonical orderと完全一致する。
+- Appendix Dのold IDはnormative active本文で0、Decision／migration authorityの全出現はmigration manifestで一度だけ分類され、new IDのorphan 0、runtime alias 0である。
 - Product RegistryはTarget 5、Requirement 16、Fixture 10、Phase 10、Capability 36、Work Package 25を参照解決し、missing Target activationをfail closedにする。
 - TypeScript 7.0.2 compileは`--singleThreaded`を使用し、compiler API importが0件である。
 - Index二回生成のSHA-256が一致し、Git diffが空である。

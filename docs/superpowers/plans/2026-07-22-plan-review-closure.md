@@ -527,7 +527,7 @@ Task 6は次を生成する。
 
 ```text
 architecture/registry/document-relations.v1.json
-architecture/schemas/document-relations.v1.schema.json
+schemas/architecture/document-relations.schema.json
 ```
 
 Schemaは`document_id`、direct `requires`、typed reciprocal `integrates_with`、contract ID、source document hashを必須にする。Task 8AとTask 10はこの出力だけを消費する。
@@ -540,7 +540,7 @@ repository-owned key、algorithm、secret供給を削除する。payloadは次�
 SHA-256(JCS({request_hash, source_closure_hash, revision, scope, expires_at}))
 ```
 
-これはauthenticity署名ではなくtamper／replay検出であると明記する。Authorityが必要なcommit／approvalは既存Approval Contractへ委譲する。
+`request_hash`へfield mask、Target、next offsetを含める。これはauthenticity署名ではなく入力binding、破損、誤再利用の検出であり、悪意あるcallerのdigest再計算に対するauthorityを与えないと明記する。Authorityが必要なcommit／approvalは既存Approval Contractへ委譲する。
 
 - [ ] **Step 4: 本文migrationとCompletion Gateを一致させる**
 
@@ -556,7 +556,7 @@ Run:
 
 ```powershell
 rg -n 'repository-owned signing key|signing key profile' docs/plans/2026-07-22-architecture-evolution-control-plane-*.md
-rg -n 'document-relations.v1.json|document-relations.v1.schema.json' docs/plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md
+rg -n 'document-relations.v1.json|document-relations.schema.json' docs/plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md
 git diff --check -- docs/plans/2026-07-22-architecture-evolution-control-plane-*.md
 ```
 

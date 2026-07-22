@@ -336,7 +336,15 @@ ArchitectureExplainProjectionV1
 
 入力はexact `ArchitectureMetadataV1` set、document relation registry、Product registry、MCD Contract registry、Commit済みWorld／Level／Streaming Source、Target Profile、Project revisionに限定する。各entryはcanonical concept ID、正規Owner document／Contract、optional runtime phaseまたはlifetime、Source StableId、Source content hash、Evidence参照を保持する。各dependency edgeはsource／target canonical concept ID、relation Contract ID、Owner document、Source StableId／hash、Evidence参照を保持する。自然言語説明、Editor配置、外部Engine用語、AIの推測からOwner、edge、phaseを生成しない。
 
-各categoryは256 entry、dependencyは1,024 edge、全canonical encodingは2 MiBを上限とする。上限超過は要約で隠さず`omitted_ranges`とquery条件・Project revisionへbindingした署名付き`continuation`を返す。別revision、別scope、別field maskへcursorを再利用できず、continuationの署名不一致、Source hash不一致、必要Evidence欠落はfail-closedにする。同一入力とqueryは同一canonical bytesを生成する。
+各categoryは256 entry、dependencyは1,024 edge、全canonical encodingは2 MiBを上限とする。上限超過は要約で隠さず`omitted_ranges`とhash-bound `continuation`を返す。Continuation payloadは`request_hash`、`source_closure_hash`、`revision`、`scope`、`expires_at`を持ち、token digestを次に固定する。
+
+```text
+SHA-256(JCS({request_hash, source_closure_hash, revision, scope, expires_at}))
+```
+
+`request_hash`はcontinuation自体を除くrequest、明示`evaluation_time`、field mask、Target Profile ref、category別next offsetをcanonical化して含み、`source_closure_hash`はmetadata、document relation、Product／Contract registry、World／Target Sourceのhash closureを含む。`expires_at`と検証時刻`evaluation_time`はrequestの明示入力としてcanonical UTCで固定し、generator／encoderがwall clockから生成しない。`expires_at <= evaluation_time`、別revision、scope、field mask、Target、offset、Source closureへの再利用、digest不一致、範囲外offset、必要Evidence欠落は`diagnostic.architecture.explain-continuation-invalid`でfail closedにする。
+
+このdigestはrepository-owned secretやauthenticity署名ではなく、入力binding、破損、誤再利用を検出するread-only cursor integrity値である。悪意あるcallerによるdigest再計算を権限証明として扱わず、continuationからCommit、Approval、Owner変更のauthorityを得ない。authorityを要する操作は既存Approval Contractへ委譲する。同一入力、明示`expires_at`、Source closureからは同一canonical bytesを生成する。
 
 このprojectionはauthority発見と説明のための派生物であり、Project正本、ChangeSet、MCD、Approval、Owner登録を変更しない。変更を行うconsumerはprojection entryを直接Commitせず、canonical Stable ID、typed Operation、expected revisionを正規Gatewayへ再指定する。
 
@@ -989,7 +997,7 @@ Work Packageは`defer_reason`、`reconsideration_gate_refs[]`、`blocked_reason_
 
 ## 27. Exact migration authority
 
-43＋5文書の旧依存、新direct `requires`、reciprocal `integrates_with`、Contract ID、削除edge分類、canonical topological orderは[Control Plane Implementation Plan Appendix A～C](2026-07-22-architecture-evolution-control-plane-implementation-plan.md#appendix-a-legacy-dependency-inventory)を正本とする。ID移行は同計画Appendix Dを正本とする。
+移行開始時の43既存＋5新規文書について、旧依存、新direct `requires`、reciprocal `integrates_with`、Contract ID、削除edge分類、初期canonical topological orderは[Control Plane Implementation Plan Appendix A～C](2026-07-22-architecture-evolution-control-plane-implementation-plan.md#appendix-a-legacy-dependency-inventory)を正本とする。移行後の文書件数とcanonical orderは生成`document-relations.v1.json`から導出し、48を恒久invariantにしない。ID移行は同計画Appendix Dを正本とする。
 
 設計本文の影響マトリクスは変更scopeを説明するものであり、migration manifestの代用ではない。実装はAppendixを`architecture/migrations/control-plane-v1.json`と`architecture/registry/*.json`へ転記し、全legacy edgeと全old IDを一度だけ分類する。
 
@@ -1009,8 +1017,10 @@ architecture_lint_artifact_sha256
 lint_version
 ```
 
+Baselineへ文書件数やedge件数を重複保存しない。Readerはhash照合済み`document-relations.v1.json`の`documents[]`、`canonical_order[]`、`requires[]`、`integrates_with[]`から件数を導出し、配列間不一致をbaseline mismatchとして拒否する。上記Field集合は実装計画Task 10およびbaseline schemaと完全一致させる。
+
 Runtime ECSとD3D12 Backendはこのread-backが成功するまで開始しない。値は設計時に仮記入せず、clean treeで全lint／test／Index Gateを通したArtifactから生成する。Mismatchは`diagnostic.architecture.baseline-mismatch`で停止し、最新値へ暗黙追従しない。
 
 ## 29. 実装計画
 
-実装Task、exact file map、TypeScript interface、test、command、expected result、48文書DAG、29 reciprocal integration、ID migrationは[Architecture Evolution Control Plane Implementation Plan](2026-07-22-architecture-evolution-control-plane-implementation-plan.md)に固定した。本文書の承認だけで実装完了またはCapability activationを宣言しない。
+実装Task、exact file map、TypeScript interface、test、command、expected result、生成inventory DAG（移行開始時は48文書）、29 initial reciprocal integration、ID migrationは[Architecture Evolution Control Plane Implementation Plan](2026-07-22-architecture-evolution-control-plane-implementation-plan.md)に固定した。本文書の承認だけで実装完了またはCapability activationを宣言しない。
