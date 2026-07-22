@@ -407,9 +407,8 @@ ProviderManifestV1
 
 InferenceDeploymentProfileV1
   deployment_profile_id, deployment_kind = cloud_endpoint | local_process_ipc
-  provider_runtime_profile_ref, model_snapshot_profile_ref
-  endpoint_identity_ref?, process_artifact_sha256?, weights_manifest_sha256?
-  quantization_id?, quantization_sha256?, model_license_ref?, model_provenance_ref?
+  provider_runtime_profile_ref, model_snapshot_profile_ref, model_snapshot_record_sha256
+  endpoint_identity_ref?, process_artifact_sha256?
   required_ram_bytes?, required_vram_bytes?, context_limit
   process_sandbox_profile_ref?, gpu_isolation_profile_ref?
   ipc_or_loopback_endpoint_ref?, ipc_auth_profile_ref?, network_policy_ref
@@ -432,7 +431,7 @@ ModelSnapshotProfileV1
   eval_receipt_refs[], issued_at, expires_at, revoked_at?
 ```
 
-`McpSessionGrantV1.expires_at`は`issued_at`から最大60分である。6型のoptional Fieldはkind／transportで必要条件を閉じる。`ModelSnapshotProfileV1`は`provider_model_id`なら`exact_provider_model_id`だけ、`local_weights`ならweights／quantizationの3 Fieldだけを必須にして相互混在を拒否する。`local_process_ipc`ではprocess artifact、weights／quantization、model license／provenance、IPC／loopback認証、local resource上限をすべて必須にする。Host display name、Provider名、Model family名は表示metadataであり、Transport、Tool Schema、Authorityを推測する入力にしない。
+`McpSessionGrantV1.expires_at`は`issued_at`から最大60分である。6型のoptional Fieldはkind／transportで必要条件を閉じる。`ModelSnapshotProfileV1`のidentity固有Fieldは、`provider_model_id`なら`exact_provider_model_id`だけ、`local_weights`ならweights／quantizationの3 Fieldだけを必須にして相互混在を拒否する。weights、quantization、license、provenanceのidentity正本は`ModelSnapshotProfileV1`だけであり、`InferenceDeploymentProfileV1`へ複写しない。Deploymentの`model_snapshot_profile_ref`はexact profile ID、`model_snapshot_record_sha256`はそのcurrent canonical record bytesを固定し、`ProviderManifestV1.model_snapshot_profile_ref`とも一致しなければならない。`local_process_ipc`ではprocess artifact、`local_weights` Snapshot、IPC／loopback認証、local resource上限をすべて必須にする。Host display name、Provider名、Model family名は表示metadataであり、Transport、Tool Schema、Authorityを推測する入力にしない。
 
 | Host profile | 許可Transportの扱い | 対応表示条件 |
 |---|---|---|
@@ -447,7 +446,7 @@ Receipt不在、期限切れ、version／binary／Transport／Schema差では`su
 
 ### 8.4 Local inference境界
 
-Local inferenceは`InferenceDeploymentProfileV1.deployment_kind=local_process_ipc`としてcloud endpointと別Deploymentにする。起動前にweights／quantization hash、license／provenance、必要RAM／VRAM、effective context、process／GPU isolation、IPCまたはloopback mutual authentication、Schema／Tool conformance、privacy／logging／retention、CPU／memory／GPU／時間／出力上限を検証する。上限不足は起動前拒否、実行中超過はprocess tree終了とfailed Receiptに収束させ、System memoryへの無制限spill、GPU共有contextからの隔離省略、Schema非対応Toolの自然言語代替を禁止する。
+Local inferenceは`InferenceDeploymentProfileV1.deployment_kind=local_process_ipc`としてcloud endpointと別Deploymentにする。起動前に`model_snapshot_profile_ref`と`model_snapshot_record_sha256`からSnapshot bytesをread-backし、`model_identity_kind=local_weights`、weights／quantization hash、license／provenance、expiry／revocation、Eval／Schema／Tool conformanceがすべてcurrentであることを検証する。Deployment側のSchema／Tool conformance Receiptは同じSnapshot hashとtool projectionをsubjectにしなければならず、参照先が`provider_model_id`、record hash差、license／provenance欠落、Receipt失効のいずれかなら`diagnostic.ai.model-snapshot-binding-mismatch`で起動前に拒否する。必要RAM／VRAM、effective context、process／GPU isolation、IPCまたはloopback mutual authentication、privacy／logging／retention、CPU／memory／GPU／時間／出力上限も同時に検証する。上限不足は起動前拒否、実行中超過はprocess tree終了とfailed Receiptに収束させ、System memoryへの無制限spill、GPU共有contextからの隔離省略、Schema非対応Toolの自然言語代替を禁止する。
 
 fallbackは`disabled`またはexact `fallback_deployment_profile_ref`だけである。Localからcloudへ移る場合は送信data class、Provider、region、retention、費用を再Previewし、新しいCaller Context／Authorizationと明示User確認を必要とする。Network到達性、timeout、resource exhaustionを理由にcloudへ暗黙送信した場合は`diagnostic.ai.silent-cloud-fallback-forbidden`で失敗し、元Taskの状態とProjectを不変にする。
 
@@ -569,7 +568,7 @@ previous_candidate_hashとrollback_candidate_hashは、先行Candidateが存在�
 
 ### 9.4 Code owner assignmentとapproval
 
-Code owner Role registryは次のclosed entryを持ち、Roleの追加またはqualification policy変更はR4 Product Decisionとする。
+`CodeOwnerRoleRegistryV1`は`entries[] { role_ref, allowed_scope_kinds[], allowed_decision_kind, required_independence_class }`だけを持つclosed registryである。`allowed_scope_kinds[]`は1件以上、重複なしunsigned byte順で、次の3 entryだけを開始値とし、Roleの追加またはqualification policy変更はR4 Product Decisionとする。
 
 | Role ID | 対象Scope | 許可する判断 | 分離条件 |
 |---|---|---|---|
@@ -581,12 +580,13 @@ Code owner Role registryは次のclosed entryを持ち、Roleの追加またはq
 CodeOwnerAssignmentV1
   assignment_id
   subject_identity_ref
+  role_ref
   path_or_module_scope_refs[]
   qualification_receipt_ref
   independence_policy_ref
   valid_from
   expires_at
-  revoked_at
+  revoked_at: canonical UTC | null
 
 CodeOwnerApprovalV1
   assignment_ref
@@ -598,7 +598,9 @@ CodeOwnerApprovalV1
   issued_at
 ```
 
-`CodeOwnerAssignmentV1`は認証済みProject role administratorの要求をApproval ServiceがQualification／Scope／independence registryと照合して署名した場合だけ有効である。AI、Source Worker、割当対象者は自己発行／自己revocationできず、Policy Serviceは主体選定を代行せず署名済みAssignmentを検証する。
+`CodeOwnerAssignmentV1.role_ref`は`CodeOwnerRoleRegistryV1.role_ref`のexact一件で必須であり、display name、前方一致、ScopeからのRole推測を拒否する。`path_or_module_scope_refs[]`の各refはRole entryの`allowed_scope_kinds[]`の一件に一致し、Native RoleへShader scope、Shader RoleへNative scope、independent reviewerへDiff approvalを与えない。`revoked_at`はField省略を許さないrequired nullableで、`null`だけが未失効を表し、canonical UTC時刻ならその時刻以後revokedである。`valid_from <= evaluation_time < expires_at`かつ`revoked_at=null`の場合だけactiveとし、未来開始、期限切れ、失効を別stateへ推測補正しない。
+
+`CodeOwnerAssignmentV1`は認証済みProject role administratorの要求をApproval ServiceがRole、Qualification／Scope／independence registryと照合して署名した場合だけ有効である。Policy Serviceは署名済みAssignmentのsubject、exact `role_ref`、全Scope、Qualification Receiptのsubject／Role／Scope／freshness、independence policy、期間、current revocation snapshotを毎回read-backする。missing／unknown Role、RoleとScope kindの不一致、QualificationのRole／Scope差、`revoked_at` non-nullではSource Worker起動とApproval使用を拒否する。AI、Source Worker、割当対象者は自己発行／自己revocationできず、Policy Serviceは主体選定を代行しない。
 
 `CodeOwnerApprovalV1.decision`は`approved | rejected`のclosed enumであり、共通署名、signer identity、revocationは`MirakanSignedRecordV1` envelopeが所有する。Policy ServiceはAssignmentのsubject、Role、Scope、qualification、independence、期間、revocationと、Approvalのexact Diff、Source revision、全Build Receipt、独立Review Receiptを照合する。Source、Diff、Build input、Toolchain、Target、Assignmentのいずれかが変わればApprovalを失効させる。Code owner判断はG0–G7、Technical Attestation、Human Gameplay Approvalのいずれも代替しない。
 
@@ -676,12 +678,14 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - `operation.build.request_package`後にProject revisionまたはCandidate rootを差し替え、古いTaskを継続する試行。
 - pair済みDeviceを同名の別Deviceまたは新generationへ交換し、古いinstall／launch／reset／remote Debug grantを再利用する試行。
 - Candidate、Target、artifact hashのいずれかが異なるPackage Receiptによるinstall／reset。
+- InstallのPackage Receipt／artifact、LaunchのInstall Receipt／artifact、SmokeのPackage／Install／Launch Receiptまたはfixtureについて、ref／hash／署名／payload contractを一原因ずつ差し替える試行。各後段を副作用前に拒否する。
+- `OperationReceiptEnvelopeV1`のOperation IDとpayload型不一致、async 11件の`task_id` missing、sync Control 3件の`control_invocation_id` missing、両ID present、Control対象Task IDのEnvelope `task_id`への流用、署名Key用途不一致を一原因ずつ拒否する。
 - consentまたはR3 Approvalなしの`operation.device.install`／`operation.device.reset_data`と、install Approvalをlaunch／smoke／Debugへ権限継承させる試行。
 - Evidence ref不在、別Session／revision、gap隠蔽、reproductionなしの偽`validated_cause`を`operation.debug.validate_finding`へ渡す試行。`diagnostic.debug.finding-evidence-invalid`で拒否する。
-- 期限切れ／失効／binary hash不一致の`ExternalClientSecurityProfileV1`、`ProviderManifestV1`、`InferenceDeploymentProfileV1`、`ModelSnapshotProfileV1`によるTool／推論呼出し。
+- 期限切れ／失効／binary hash不一致の`ExternalClientSecurityProfileV1`、`ProviderManifestV1`、`InferenceDeploymentProfileV1`、`ModelSnapshotProfileV1`によるTool／推論呼出し。Deploymentの`model_snapshot_profile_ref`／`model_snapshot_record_sha256`差、local deploymentから`provider_model_id` Snapshot参照、Snapshotのweights／quantization／license／provenance／Conformance欠落または失効を一原因ずつ拒否する。
 - ChatGPT webをlocal STDIO Hostとして登録する試行、またはClaude Desktop／Claude Code／CursorをConformance Receiptなしで`supported`表示する試行。
 - Local runtime timeout、RAM／VRAM不足、Tool Schema不一致を契機に、Preview、User確認、新Authorizationなしでcloudへ送る試行。送信byte 0と`diagnostic.ai.silent-cloud-fallback-forbidden`を確認する。
-- Assignment不在／期限切れ／Scope外／revoked、または別Diff／Source revisionの`CodeOwnerApprovalV1`でNative／Shader生成またはPromotionする試行。
+- Assignmentの`role_ref`欠落／unknown、Native RoleへのShader scope、Shader RoleへのNative scope、Qualification ReceiptのRole／Scope差、`revoked_at` non-null、期限切れ、または別Diff／Source revisionの`CodeOwnerApprovalV1`でNative／Shader生成またはPromotionする試行。各fixtureは一原因だけを変え、Source Worker起動前またはPromotion前に拒否する。
 
 ## 13. 完了条件
 

@@ -195,14 +195,92 @@ Diagnosis workflowはscope／privacy Preview、Aggregate、narrow Query、Causal
 
 | 順序 | canonical Operation | 必須入力binding | Result／次段 |
 |---:|---|---|---|
-| 1 | `operation.debug.aggregate` | Project revision、Candidate root、Session、Store／Index generation、bounded selector | `DebugAggregateReceiptV1`からtarget／time／type候補を絞る |
-| 2 | `operation.debug.query` | 同じidentity、aggregate Receipt、bounded `DebugQueryV1` hash | `DebugQueryReceiptV1`とrecord／gap／redactionを得る |
-| 3a | `operation.debug.read_causality` | 同じidentity、Query Receipt、root Evidence refs、depth／node bound | `DebugCausalityReceiptV1`とtyped causal subgraphを得る |
-| 3b | `operation.debug.read_replay_slice` | 同じidentity、Build Receipt、Query／Causality refs、Replay closure／range hash | `ReplaySliceReceiptV1`とreproduction／divergence evidenceを得る |
-| 4 | `operation.debug.validate_finding` | 同じidentity、`DebugFindingV1` hash、Evidence／counterevidence／gap／reproduction closure hash | `DebugFindingValidationReceiptV1`がvalidityとexact proposal Operation refを返す |
+| 1 | `operation.debug.aggregate` | Project revision、Candidate root、Target、Session、Build Receipt、Store／Index generation、bounded selector、Authorization | `DebugAggregateReceiptV1`からtarget／time／type候補を絞る |
+| 2 | `operation.debug.query` | 同じidentity、exact Aggregate Receipt ref／hash、bounded `DebugQueryV1` hash、新しいAuthorization | `DebugQueryReceiptV1`とrecord／gap／redactionを得る |
+| 3a | `operation.debug.read_causality` | 同じidentity、exact Query Receipt ref／hash、root Evidence refs、depth／node bound、新しいAuthorization | `DebugCausalityReceiptV1`とtyped causal subgraphを得る |
+| 3b | `operation.debug.read_replay_slice` | 同じidentity、exact Build／Query／Causality Receipt ref／hash、Replay closure／range hash、新しいAuthorization | `ReplaySliceReceiptV1`とreproduction／divergence evidenceを得る |
+| 4 | `operation.debug.validate_finding` | 同じidentity、exact Build／Query／Causality／Replay Receipt ref／hash、`DebugFindingV1` hash、Finding closure hash、新しいAuthorization | `DebugFindingValidationReceiptV1`がvalidityとexact proposal Operation refを返す |
 | 5 | Receiptの`proposal_operation_ref` | validation Receipt、同じrevision／Candidate、Caller allowlist、R1以上の新Authorization | 例: Game Systemは`operation.systems.plan`、Worldは`operation.worlds.plan_change`。Proposalだけを生成 |
 
-Step 3a／3bはFindingのclaimに必要な方または両方を実行するが、どちらも飛ばした理由をvalidation inputへ記録する。`DebugFindingValidationReceiptV1`はtask ID、finding hash、Project revision、Candidate root、Session、Build Receipt、Evidence closure hash、`valid | invalid | insufficient`、optional exact `proposal_operation_ref`、Diagnostic refsを持つ。`valid`かつMCD登録済みのR1 proposal Operationが一意に解決した場合だけrefを返し、汎用`operation.debug.propose`、Source write、Commitを生成しない。Callerの`AiDebugContextV1.allowed_operation_ids`、Authorization Envelope、Receiptのrefが一致しなければStep 5へ進まない。
+Debug Operationの型固有payloadは次だけを持つ。共通identity、request、Authorization、result、Diagnostic、署名は[Core architecture §9.1](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationReceiptEnvelopeV1`が所有する。
+
+```text
+DebugAggregateReceiptPayloadV1
+  build_receipt_ref
+  build_receipt_sha256
+  session_ref
+  store_generation
+  index_generation
+  selector_sha256
+  aggregate_result_sha256?
+
+DebugQueryReceiptPayloadV1
+  debug_aggregate_receipt_ref
+  debug_aggregate_receipt_sha256
+  session_ref
+  store_generation
+  index_generation
+  query_sha256
+  record_slice_sha256?
+  gap_summary_sha256?
+  redaction_manifest_sha256?
+
+DebugCausalityReceiptPayloadV1
+  debug_query_receipt_ref
+  debug_query_receipt_sha256
+  session_ref
+  index_generation
+  root_evidence_refs[]
+  bounds_sha256
+  causal_graph_sha256?
+
+ReplaySliceReceiptPayloadV1
+  build_receipt_ref
+  build_receipt_sha256
+  debug_query_receipt_ref
+  debug_query_receipt_sha256
+  debug_causality_receipt_ref
+  debug_causality_receipt_sha256
+  session_ref
+  replay_closure_sha256
+  range_sha256
+  replay_slice_artifact_ref?
+  replay_slice_sha256?
+
+DebugFindingValidationReceiptPayloadV1
+  build_receipt_ref
+  build_receipt_sha256
+  debug_query_receipt_ref
+  debug_query_receipt_sha256
+  debug_causality_receipt_ref
+  debug_causality_receipt_sha256
+  replay_slice_receipt_ref
+  replay_slice_receipt_sha256
+  session_ref
+  finding_sha256
+  finding_closure_sha256
+  decision? = valid | invalid | insufficient
+  proposal_operation_ref?
+
+SupportBundleReceiptPayloadV1
+  build_receipt_ref
+  build_receipt_sha256
+  session_ref
+  source_debug_receipts[] { receipt_ref, receipt_sha256 }
+  policy_ref
+  consent_record_ref
+  redaction_manifest_ref
+  support_bundle_ref?
+  content_manifest_sha256?
+  archive_artifact_ref?
+  archive_sha256?
+```
+
+全Fieldは`?`を除き必須、`root_evidence_refs[]`と`source_debug_receipts[]`は1件以上、重複なしunsigned byte順で、unknown Fieldは禁止する。Envelopeの`result=succeeded`ではAggregate result、Queryのrecord／gap／redaction、Causality graph、Replay artifact／slice、Finding decision、Support Bundle／content manifest／archiveの各success output groupを全て必須にする。`result=failed | cancelled`では対応groupを全て省略し、`diagnostic_refs[]`を1件以上必須にする。`proposal_operation_ref`は後述のvalid条件だけで許可する。
+
+`source_debug_receipts[]`は`DebugAggregateReceiptV1 | DebugQueryReceiptV1 | DebugCausalityReceiptV1 | ReplaySliceReceiptV1 | DebugFindingValidationReceiptV1`の`result=succeeded`完成Recordだけを受理する。各前段refは署名を含む完成`OperationReceiptEnvelopeV1` Record、その`*_sha256`は同じRecord hashでなければならない。全段のProject revision、Candidate root、Target、Session、Build Receipt、remote Device identity／generationをexact一致させる。Aggregate→Query→Causality→Replay Slice→Finding validationの順を短絡せず、前段のmissing、非success、hash／署名／operation ID／payload contract差、revocation、Store／Index generation差を後段で拒否する。
+
+Finding validationにはCausalityとReplay Sliceの両Receiptを必須にする。Replayまたは必要Evidenceを生成できない場合は前段Diagnosticから新しいvalidation Taskを作り、`decision=insufficient`以外を返さず、`proposal_operation_ref`を省略する。`proposal_operation_ref`は`decision=valid`かつMCD登録済みのR1 proposal Operationが一意に解決した場合だけ許可し、汎用`operation.debug.propose`、Source write、Commitを生成しない。Callerの`AiDebugContextV1.allowed_operation_ids`、新しいAuthorization Envelope、全Receipt ref／hashが一致しなければStep 5へ進まない。
 
 追加instrumentationはchannel、tier、duration、capacity／privacy影響を提示し、Governance authorizationを得て開始する。同じblocking集合が減らない自動repairは2回で停止する。各Operationは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の別`OperationTaskV1`であり、前段のread権限、Device binding、consentを後段へ継承しない。状態確認、Receipt取得、cancelは`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`だけを使う。
 
@@ -250,7 +328,7 @@ SupportBundlePolicyV1
 
 `SupportBundleRedactionManifestV1`は`policy_ref`、入力component hash集合、Field／recordごとの`included | removed | transformed`、data class、rule ID、出力hash、omitted count、gap summaryを持つ。credential、token、private key、password、signing materialは変換せず収集段階で拒否する。redaction後bytesからcomponent／manifest hashとsizeを再計算し、入力hash、出力hash、bundle manifestが一致しなければexportしない。
 
-`SupportBundleReceiptV1`はtask ID、Project revision、Candidate root、Session、Build Receipt、policy／consent／redaction manifest ref、`SupportBundleV1` content manifest hash、archive artifact ref／hash、生成時刻、Diagnostic refsを持つ。BundleとReceiptのCandidate、Session、manifestが一致しなければ成功にしない。
+`SupportBundleReceiptV1`は`OperationReceiptEnvelopeV1<SupportBundleReceiptPayloadV1>`の完成署名Recordである。BundleとReceiptのCandidate、Target、Session、Build Receipt、source Debug Receipt、consent、redaction manifest、content manifest、archive hashが一致しなければ成功にしない。
 
 生成は`operation.debug.support-bundle.generate`だけが行い、対象Session、component Preview、data class、概算／上限bytes、redaction policy、提出先を表示して明示consentを得る。これは上記と同じcanonical Operation Registry、`OperationTaskV1`、task status／Receipt／cancel経路を使うexport branchであり、独自Task APIまたは自由形式Toolにしない。Aggregate／Query Receiptを入力component選択に使えるが、Support Bundle生成をFinding validationまたはProposal成功として扱わない。`max_input_bytes`、`max_archive_bytes`、`max_file_count`のいずれかを超える場合は切り詰めて成功扱いせず、対象rangeを狭める新Proposalを返す。最低failureは`diagnostic.debug.support-bundle-consent-required`、`diagnostic.debug.support-bundle-redaction-incomplete`、`diagnostic.debug.support-bundle-size-limit-exceeded`、`diagnostic.debug.support-bundle-artifact-unavailable`、`diagnostic.debug.support-bundle-manifest-mismatch`をclosed IDとして区別する。
 
@@ -296,7 +374,7 @@ Runtime fixtureは[Scheduling／lifetime](scheduling-lifetime.md)の全Runtime o
 
 Replay fixtureはInput、RNG、accepted async resultから同じstate hash、first divergence、recorded／current revision分離、closure／Asset／worker mismatch拒否、gapを含むSessionのpartial表示、child Session isolationを検証する。
 
-AI Operation fixtureはAggregate→Query→Causality／Replay→Finding validation→exact domain Proposalのtask／Receipt chainを検証する。stale Candidate、別Session／Build／Index generation、remote Device交換、Receipt差替えで後段を停止する。Evidence ref不在、別revision、gap／redaction隠蔽、時間相関だけ、reproductionなしの`validated_cause`を含む偽Findingは`operation.debug.validate_finding`で`diagnostic.debug.finding-evidence-invalid`となり、proposal Operation refを返さずProject stateを不変にする。Support Bundle branchは同じTask APIを使い、consentなし、redaction不完全、manifest mismatchでexport byteを公開しない。
+AI Operation fixtureはAggregate→Query→Causality→Replay→Finding validation→exact domain Proposalのtask／Receipt chainを検証する。QueryのAggregate Receipt、CausalityのQuery Receipt、ReplayのBuild／Query／Causality Receipt、Finding validationのBuild／Query／Causality／Replay Receiptについて、missing、ref hash差、署名差、別operation payload、revocationを一原因ずつ注入して後段を停止する。stale Candidate、別Session／Build／Store／Index generation、remote Device交換、request hash／Authorization差でも拒否する。Evidence ref不在、別revision、gap／redaction隠蔽、時間相関だけ、reproductionなしの`validated_cause`を含む偽Findingは`operation.debug.validate_finding`で`diagnostic.debug.finding-evidence-invalid`となり、proposal Operation refを返さずProject stateを不変にする。Support Bundle branchは同じ署名Envelope／Task APIを使い、source Debug Receipt差、consentなし、redaction不完全、manifest mismatchでexport byteを公開しない。
 
 `fixture.debug.known-faults`は少なくともInput context conflict、Collision filter、stale Nav result、root-motion authority conflict、Asset generation mismatch、Render barrier diagnostic、Audio pressure、Gameplay bounded-execution fault、Level closure不足、RNG divergence、GameHost crash／symbol mismatch、remote disconnect／gapを含む。各caseはobservation、typed Diagnostic、causal path、Replay Slice、correct remediation、forbidden remediation、regression fixtureを持つ。
 

@@ -306,7 +306,7 @@ AI Partnerは単なるconversation logでなく、次のstateを分けて表示�
 | Plan | System／Scene／Asset／C++の作業単位と依存 |
 | Proposal | 未Commit ChangeSet、Native／Asset Source change |
 | Validation | schema、semantic、budget、Build、Test、Preview |
-| `awaiting_code_owner` | Native／Shader Sourceの対象Scope、必要Role、Assignment／Approvalの不足、待機／取消／Definition・prequalified Pack fallback |
+| `awaiting_code_owner` | Native／Shader Sourceの対象Scope、exact `role_ref`、Assignment／Approvalの不足または失効、待機／取消／Definition・prequalified Pack fallback |
 | Approval | Risk、対象、権限、期限 |
 | Result | Commit revision、Receipt、Playtest、Package／Device installの成果物参照とsmoke結果、rollback |
 
@@ -355,9 +355,11 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 7. 会話で修正し、手動編集があればbase revisionから再読込する。
 8. Playable確認後、Target選択、Package、Device install、smoke結果の提示までを同じ会話journeyで完了できる。各段階は§11の`BackgroundTask`として進み、Receiptと成果物参照をResultへ残す。
 
-初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。Code owner不在時は`awaiting_code_owner`を表示し、Source Workerを起動しない。
+初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。EditorはAssignmentのexact `role_ref`、Scope、qualification、期間、`revoked_at=null`をread-backし、Role欠落／unknown、RoleとScope kind不一致、失効では`awaiting_code_owner`を表示してSource Workerを起動しない。
 
-Package journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、Receiptとして表示する。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
+Package journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。後段PanelはPackage artifact hashと前段完成Receipt ref／hashを表示し、InstallはPackage、LaunchはInstall、SmokeはPackage／Install／Launchとfixtureの全bindingが一致するまで成功表示しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
+
+Local inference表示は`InferenceDeploymentProfileV1.model_snapshot_profile_ref`と`model_snapshot_record_sha256`からread-backした`ModelSnapshotProfileV1`だけをModel identity正本にする。weights、quantization、license、provenanceをDeployment表示値から取得せず、Deployment／Snapshot hash差、`local_process_ipc`からprovider model参照、Snapshot／Conformance失効を`not_activated`とDiagnosticで表示する。
 
 ## 9. Manual editingとAIの往復
 
@@ -459,8 +461,8 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 | Worker timeout | Task failure、cancel／retry、Project revision不変 |
 | Package／Device install失敗 | Task failureとして隔離し、原因（署名、容量、device未接続／未承認）とretry／Target変更候補を提示。Project revision不変 |
 | Candidate／Device generation／Package Receipt drift | Task failure。新しい対象へ自動付替えせず、before／actual identityと再実行入口を提示 |
-| Code owner不在／失効 | `awaiting_code_owner`。Source生成／Promotionを停止し、BeginnerにはDefinition／prequalified Pack fallbackを提示 |
-| local inferenceのcloud fallback要求 | 送信を停止し、Provider／region／privacy／costの新PreviewとAuthorizationを要求。暗黙fallbackはDiagnostic |
+| Code owner Role欠落／unknown／Scope不一致／失効 | `awaiting_code_owner`。exact Role／Scope差を表示し、Source生成／Promotionを停止。BeginnerにはDefinition／prequalified Pack fallbackを提示 |
+| local inferenceのSnapshot ref／hash／kind／Evidence不一致またはcloud fallback要求 | 推論と送信を停止し、Snapshot差またはProvider／region／privacy／costの新PreviewとAuthorizationを提示。暗黙補正／fallbackはDiagnostic |
 | UI Automation provider failure | Release gate失敗。accessibilityを無効化してShippingしない |
 | Recovery破損 | 隔離し正規Projectだけを開く |
 
@@ -473,9 +475,10 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - 200% scale、High Contrast、reduced motion、shortcut remap
 - AI CreatorからProductionへ切替えて同じObjectを手動修正し、AI再編集で保持
 - AI CreatorのjourneyだけでTargetを選択し、`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`を別Task／Receiptで完了し、smoke結果がAI PartnerのResultへ提示される
-- stale Candidate、Device generation差替え、Package Receipt不一致、consent／R3 Approvalなしinstall／resetを失敗表示し、Project／Deviceの正規状態が不変
+- Package→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、Project／Deviceの正規状態が不変
 - BeginnerではDefinition／prequalified PackだけからFirst Playableへ進み、Native／Shader要求は`awaiting_code_owner`または`capability_unavailable`になってSource reviewを要求しない
-- expired Host／Model Profileとsilent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
+- Code owner Assignmentのmissing／unknown／wrong-scope `role_ref`とnon-null `revoked_at`を拒否し、`awaiting_code_owner`からSource生成／Promotionへ進めない
+- expired Host／Model Profile、Deployment／Snapshot ref／record hash／kind差、silent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない
 - 既知のqueue overflow、stale handle、asset revision drift、simulation divergenceをSession／Debug Timeline／Causality／Replayで識別し、gapを原因確定へ使わない

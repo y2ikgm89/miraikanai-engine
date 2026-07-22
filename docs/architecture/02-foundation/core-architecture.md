@@ -140,7 +140,138 @@ OperationTaskV1
 
 `device_identity_ref`と`device_generation`はDeviceまたはremote Debugを対象にするOperationでは対で必須、それ以外では省略する。`consent_record_ref`はOperation Registryが明示consentを要求する場合だけ必須であり、空値や別Operationのconsentで代用しない。`receipt_ref`は非終端stateでは省略し、`succeeded | failed | cancelled`では同じtask ID、request hash、Project revision、Candidate root、Target、Device bindingを持つimmutable Receiptへ必須参照する。失敗詳細はReceiptが参照するtyped `MirakanDiagnosticV1`から取得し、自由文だけをTaskへ保存しない。
 
-Operation Registryに列挙する各Receiptは、少なくともoperation ID、対象task ID、request hash、Project revision、Candidate root、Target、optional Device identity／generation、結果hash、Diagnostic refsを同じ値で束縛する。`TaskStatusReceiptV1`と`TaskReceiptReadReceiptV1`はControl requestと対象Task／Receipt hashを監査する同期read Receipt、`TaskCancellationReceiptV1`はcancel requestと収束結果を監査するControl Receiptであり、いずれも新しい`OperationTaskV1`を作らない。
+Operation Registryに列挙する全14 Receiptは、次の共通subjectとOperation固有payloadを一つの署名済みRecordへ閉じる。
+
+```text
+OperationReceiptEnvelopeV1
+  receipt_id
+  operation_id
+  invocation_kind = async_task | synchronous_control
+  task_id?
+  control_invocation_id?
+  request_sha256
+  project_revision
+  candidate_root_sha256
+  target_profile_ref
+  device_identity_ref?
+  device_generation?
+  authorization_envelope_hash
+  payload_contract_ref
+  payload
+  payload_sha256
+  result = succeeded | failed | cancelled
+  diagnostic_refs[]
+  issued_at
+```
+
+`payload`は`payload_contract_ref`が指す次のclosed型一件で、`payload_sha256`はそのcanonical JCS bytesのSHA-256である。Operation IDとpayload型の組合せはclosed mappingであり、unknown Field、別Operationのpayload、型名だけ一致する任意JSONを拒否する。
+
+Package／Device／Play／Debugの11 Operationは`invocation_kind=async_task`、対応する`OperationTaskV1.task_id`を必須とし、`control_invocation_id`を省略する。`operation.task.status | operation.task.read_receipt | operation.task.cancel`は`invocation_kind=synchronous_control`、各同期呼出しに一意な`control_invocation_id`を必須とし、`task_id`を省略する。対象Task identityは型固有payloadの`target_task_id`だけが持つ。discriminatorとOperation IDの不一致、両IDのmissing、両方present、control Operationによる対象Task IDのEnvelope流用をschema negative fixtureで拒否する。
+
+| operation_id | payload contract | 完成Receipt alias |
+|---|---|---|
+| `operation.build.request_package` | `PackageReceiptPayloadV1` | `PackageReceiptV1` |
+| `operation.device.install` | `DeviceInstallReceiptPayloadV1` | `DeviceInstallReceiptV1` |
+| `operation.device.launch` | `DeviceLaunchReceiptPayloadV1` | `DeviceLaunchReceiptV1` |
+| `operation.device.reset_data` | `DeviceDataResetReceiptPayloadV1` | `DeviceDataResetReceiptV1` |
+| `operation.play.run_smoke` | `SmokeRunReceiptPayloadV1` | `SmokeRunReceiptV1` |
+| `operation.debug.aggregate` | `DebugAggregateReceiptPayloadV1` | `DebugAggregateReceiptV1` |
+| `operation.debug.query` | `DebugQueryReceiptPayloadV1` | `DebugQueryReceiptV1` |
+| `operation.debug.read_causality` | `DebugCausalityReceiptPayloadV1` | `DebugCausalityReceiptV1` |
+| `operation.debug.read_replay_slice` | `ReplaySliceReceiptPayloadV1` | `ReplaySliceReceiptV1` |
+| `operation.debug.validate_finding` | `DebugFindingValidationReceiptPayloadV1` | `DebugFindingValidationReceiptV1` |
+| `operation.debug.support-bundle.generate` | `SupportBundleReceiptPayloadV1` | `SupportBundleReceiptV1` |
+| `operation.task.status` | `TaskStatusReceiptPayloadV1` | `TaskStatusReceiptV1` |
+| `operation.task.read_receipt` | `TaskReceiptReadReceiptPayloadV1` | `TaskReceiptReadReceiptV1` |
+| `operation.task.cancel` | `TaskCancellationReceiptPayloadV1` | `TaskCancellationReceiptV1` |
+
+Debug系6 payloadは[Debugging／observability／replay §13](../04-runtime/debugging-observability-replay.md#13-ai-debug-contextとdiagnosis)が所有する。Build Gateway／Device／Play／Task Control payloadは次のFieldだけを持つ。
+
+```text
+PackageReceiptPayloadV1
+  contract_set_hash
+  toolchain_lock_hash
+  package_artifact_ref?
+  package_artifact_sha256?
+  package_manifest_sha256?
+
+DeviceInstallReceiptPayloadV1
+  package_receipt_ref
+  package_receipt_sha256
+  package_artifact_ref
+  package_artifact_sha256
+  consent_record_ref
+  approval_record_ref
+  install_transaction_sha256?
+
+DeviceLaunchReceiptPayloadV1
+  device_install_receipt_ref
+  device_install_receipt_sha256
+  package_artifact_ref
+  package_artifact_sha256
+  launch_descriptor_sha256
+  process_instance_ref?
+
+DeviceDataResetReceiptPayloadV1
+  package_receipt_ref
+  package_receipt_sha256
+  package_artifact_ref
+  package_artifact_sha256
+  consent_record_ref
+  approval_record_ref
+  reset_scope_sha256
+  reset_transaction_sha256?
+
+SmokeRunReceiptPayloadV1
+  package_receipt_ref
+  package_receipt_sha256
+  device_install_receipt_ref
+  device_install_receipt_sha256
+  device_launch_receipt_ref
+  device_launch_receipt_sha256
+  package_artifact_ref
+  package_artifact_sha256
+  fixture_ref
+  fixture_sha256
+  smoke_session_ref?
+  smoke_result_sha256?
+
+TaskStatusReceiptPayloadV1
+  target_task_id
+  target_operation_id
+  target_request_sha256
+  snapshot_sequence?
+  target_state?
+  target_receipt_ref?
+  target_receipt_sha256?
+
+TaskReceiptReadReceiptPayloadV1
+  target_task_id
+  target_operation_id
+  target_request_sha256
+  target_terminal_state?
+  target_receipt_ref
+  target_receipt_sha256
+
+TaskCancellationReceiptPayloadV1
+  target_task_id
+  target_operation_id
+  target_request_sha256
+  target_state_before?
+  converged_state? = cancelled | succeeded | failed
+  target_terminal_receipt_ref?
+  target_terminal_receipt_sha256?
+```
+
+全Fieldは`?`を付けたFieldを除き必須で、配列は重複なしunsigned byte順、unknown Fieldは禁止する。Envelopeの`result=succeeded`では各payloadのsuccess output groupをすべて必須にする。Packageのartifact ref／hash／manifest hash、Installのtransaction hash、Launchのprocess instance、Resetのtransaction hash、Smokeのsession ref／result hash、Statusのsnapshot sequence／target state、Readのtarget terminal state、Cancellationのstate-before／converged state／target terminal Receipt ref／hashが各success output groupである。`result=failed | cancelled`ではそのgroupを全て省略し、`diagnostic_refs[]`を1件以上必須にする。同期ControlのEnvelope resultは`succeeded | failed`だけで、対象Taskがcancelledへ収束してもCancellation Envelope自身は`succeeded`である。
+
+成功した`TaskStatusReceiptPayloadV1`のReceipt ref／hashは対象Taskがterminalの場合だけ対で必須、非terminalでは両方省略する。成功した`TaskCancellationReceiptPayloadV1`は`converged_state`の値にかかわらず対象Task自身のterminal Receipt ref／hashを必須にし、Cancellation Receiptを対象TaskのReceiptとして流用しない。対象Async Operationはcancelled時も同じ`task_id`を持つ型固有terminal Receiptを発行する。
+
+完成した各`*ReceiptV1`は`OperationReceiptEnvelopeV1`をsubjectとする`MirakanSignedRecordV1`である。Async 11 Operationの`OperationTaskV1.receipt_ref`、前段Receipt ref、`*_receipt_sha256`は署名を含む完成Record全体のcanonical hashを指す。同期Control Receiptは`control_invocation_id`で呼出しを監査し、新しい`OperationTaskV1`またはTask receipt refを作らない。共通署名envelope、hash chain、保持は[AI Verification／Provenance §7](../01-governance/ai-verification-provenance.md#7-evidence-envelope)、algorithm、Key用途、Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書へ署名Fieldや独自Provenanceを複写しない。
+
+Package→Install→Launch→Smokeでは全EnvelopeのProject revision、Candidate root、Targetと、全payloadのPackage artifact ref／hashをexact一致させる。各`authorization_envelope_hash`は当該Operation、同じsubject identity、Project／Candidate／Target／Device closureへ有効でなければならず、前段Authorizationを継承しない。Install／Launch／SmokeではDevice identity／generationも一致させ、SmokeはPackage、Install、Launchの`result=succeeded`完成Receipt ref／hashとfixture ref／hashをすべて必須にする。Resetも`result=succeeded`のPackage Receipt／artifact、Device、consent、R3 Approvalへ閉じる。前段Receiptのmissing、非success、署名／hash／subject差、revocation、Device generation差、fixture差を後段の成功として受理しない。
+
+`TaskStatusReceiptV1`と`TaskReceiptReadReceiptV1`はControl requestと対象Task／Receipt hashを監査する同期read Receipt、`TaskCancellationReceiptV1`はcancel requestと収束結果を監査するControl Receiptであり、いずれも新しい`OperationTaskV1`を作らない。
 
 許可遷移は`queued -> running`、`queued | running -> cancel_requested`、`running -> succeeded | failed`、`cancel_requested -> cancelled | succeeded | failed`だけである。Irreversible boundary通過後のcancelは結果不明にせず、Operationを収束させて`succeeded | failed`とReceiptを返す。Retryは同じcanonical requestなら同じidempotency keyを使い、request hashが異なる場合は新task IDにする。Terminal taskを再実行せず、`operation.task.read_receipt`で結果を読む。
 
