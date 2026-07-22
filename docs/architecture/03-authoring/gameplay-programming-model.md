@@ -311,7 +311,7 @@ AIはGameSpecからsemantic roleを抽出し、Catalogを検索し、候補Syste
 
 `selected_variant`は`gameplay_definition`、`native_game_module`、`hybrid`、`target_specialized_set`のいずれか、`implementation_origin`は`project_definition | prequalified_pack | project_source`のいずれかである。`disposition`は`ready_to_stage`、`awaiting_code_owner`、`question_required`、`capability_unavailable`、`budget_missing`、`rejected`であり、`ready_to_stage`はCommitまたはPromotion承認ではない。
 
-初心者へC++かDefinitionかを質問しない。`authoring_profile=beginner`ではDefinition-firstとし、`implementation_origin`を`project_definition`またはexact Qualification Receiptを持つ`prequalified_pack`に限定する。どちらでも成立しない場合は`capability_unavailable`で停止し、Native／Shaderを暗黙生成しない。`authoring_profile=advanced`で`project_source`を選ぶPlanは、Native moduleなら`role.code_owner.native_module`、Project Shaderなら`role.code_owner.project_shader`を持ち、exact scope、current Qualification、`revoked_at=null`が成立する`CodeOwnerAssignmentV1`を必須にする。Role欠落／unknown、Source kindとのRole不一致、Scope外、期限切れ／失効では`awaiting_code_owner`とし、Source Workerを起動しない。AIはGame要件の不足だけを質問し、実装方式はPlanへ根拠付きで記録する。上級者は同じSystem BundleからGraph、Table、Form、Source、Profilerを開く。人間が編集したFieldまたはSource hunkをAIが無条件に再生成しない。
+初心者へC++かDefinitionかを質問しない。`authoring_profile=beginner`ではDefinition-firstとし、`implementation_origin`を`project_definition`またはexact Qualification Receiptを持つ`prequalified_pack`に限定する。どちらでも成立しない場合は`capability_unavailable`で停止し、Native／Shaderを暗黙生成しない。`authoring_profile=advanced`で`project_source`を選ぶPlanは、Native moduleなら`role.code_owner.native_module`、Project Shaderなら`role.code_owner.project_shader`を持ち、closed 9-Field subject、exact scope、current Qualification、`revoked_at=null`が成立する`CodeOwnerAssignmentV1`を必須にする。Policy Serviceが信頼済みrevocation registryの署名済みlatest headをread-backし、Assignment Recordとsubject identityのどちらもcurrent snapshotでactiveな場合だけ受理する。Role欠落／unknown、Source kindとのRole不一致、Scope外、期限切れ／失効、snapshot未検証では`awaiting_code_owner`とし、Source Workerを起動しない。AIはGame要件の不足だけを質問し、実装方式はPlanへ根拠付きで記録する。上級者は同じSystem BundleからGraph、Table、Form、Source、Profilerを開く。人間が編集したFieldまたはSource hunkをAIが無条件に再生成しない。
 
 External Agentが同じPlanを提案しても、Host／Model Conformance、Caller Authorization、Project Source Activation、Code owner、G0–G7、Promotionは別Gateである。Proposal ReceiptをSource生成、Code owner Approval、Activationへ読み替えない。
 
@@ -409,7 +409,7 @@ Native／Project Shader buildが成功しただけでactiveにしない。Projec
 - AIが既存compositionを不要なC++へ昇格せず、Capability不足とbounded Native候補を区別するEval。
 - 未知ID、stale Contract、unsupported Target、人間変更を推測補正しないEval。
 - Beginner Planの`implementation_origin`が`project_definition | prequalified_pack`だけであり、新規Native／Shader Source Taskが0件になるfixture。
-- Code owner Assignment不在、missing／unknown `role_ref`、Native↔Shader wrong-scope Role、期限切れ、non-null `revoked_at`と、別Diff／Source revision／Build ReceiptのApprovalを一原因ずつ拒否し、`awaiting_code_owner`からPromotionへ直行しないfixture。
+- Code owner Assignment不在、missing／unknown `role_ref`、Native↔Shader wrong-scope Role、期限切れ、`revoked_at` Field省略、non-null `revoked_at`、unknown extra Field、current snapshotのAssignment／subject revoke、current snapshotのmissing／stale／invalidと、別Diff／Source revision／Build ReceiptのApprovalを一原因ずつ拒否し、`revoked_at=null`だけで`awaiting_code_owner`からPromotionへ直行しないfixture。
 - External AgentのProposal ReceiptだけでProject Source Activation、Code owner Approval、Promotionを通過できないfixture。
 
 `SystemQualificationReceiptV1`はSystem ref、Variant hash、Dependency Graph hash、Target Profile、fixture、correctness、performance、Save／Replay、fault、Review Receiptを結ぶ。ReceiptなしにCatalog maturityまたはactive implementationを昇格しない。

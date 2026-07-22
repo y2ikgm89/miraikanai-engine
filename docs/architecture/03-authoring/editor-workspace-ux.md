@@ -355,7 +355,7 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 7. 会話で修正し、手動編集があればbase revisionから再読込する。
 8. Playable確認後、Target選択、Package、Device install、smoke結果の提示までを同じ会話journeyで完了できる。各段階は§11の`BackgroundTask`として進み、Receiptと成果物参照をResultへ残す。
 
-初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。EditorはAssignmentのexact `role_ref`、Scope、qualification、期間、`revoked_at=null`をread-backし、Role欠落／unknown、RoleとScope kind不一致、失効では`awaiting_code_owner`を表示してSource Workerを起動しない。
+初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。EditorはAssignmentのclosed 9-Field subject、exact `role_ref`、Scope、qualification、期間、`revoked_at=null`と、信頼済みrevocation registryの署名済みcurrent headをread-backする。Assignment Recordまたはsubject identityのcurrent revocation、snapshot missing／stale／invalid、Role欠落／unknown、RoleとScope kind不一致では`awaiting_code_owner`を表示してSource Workerを起動しない。
 
 Package journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。後段PanelはPackage artifact hashと前段完成Receipt ref／hashを表示し、InstallはPackage、LaunchはInstall、SmokeはPackage／Install／Launchとfixtureの全bindingが一致するまで成功表示しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
 
@@ -477,7 +477,7 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - AI CreatorのjourneyだけでTargetを選択し、`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`を別Task／Receiptで完了し、smoke結果がAI PartnerのResultへ提示される
 - Package→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、Project／Deviceの正規状態が不変
 - BeginnerではDefinition／prequalified PackだけからFirst Playableへ進み、Native／Shader要求は`awaiting_code_owner`または`capability_unavailable`になってSource reviewを要求しない
-- Code owner Assignmentのmissing／unknown／wrong-scope `role_ref`とnon-null `revoked_at`を拒否し、`awaiting_code_owner`からSource生成／Promotionへ進めない
+- Code owner Assignmentのmissing／unknown／wrong-scope `role_ref`、`revoked_at` Field省略、non-null `revoked_at`、unknown extra Field、current snapshotのAssignment／subject revoke、current snapshotのmissing／stale／invalidを一原因ずつ拒否し、`revoked_at=null`だけで`awaiting_code_owner`からSource生成／Promotionへ進めない
 - expired Host／Model Profile、Deployment／Snapshot ref／record hash／kind差、silent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない

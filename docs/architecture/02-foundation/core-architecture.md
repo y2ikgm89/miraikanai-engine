@@ -168,22 +168,24 @@ OperationReceiptEnvelopeV1
 
 Package／Device／Play／Debugの11 Operationは`invocation_kind=async_task`、対応する`OperationTaskV1.task_id`を必須とし、`control_invocation_id`を省略する。`operation.task.status | operation.task.read_receipt | operation.task.cancel`は`invocation_kind=synchronous_control`、各同期呼出しに一意な`control_invocation_id`を必須とし、`task_id`を省略する。対象Task identityは型固有payloadの`target_task_id`だけが持つ。discriminatorとOperation IDの不一致、両IDのmissing、両方present、control Operationによる対象Task IDのEnvelope流用をschema negative fixtureで拒否する。
 
-| operation_id | payload contract | 完成Receipt alias |
-|---|---|---|
-| `operation.build.request_package` | `PackageReceiptPayloadV1` | `PackageReceiptV1` |
-| `operation.device.install` | `DeviceInstallReceiptPayloadV1` | `DeviceInstallReceiptV1` |
-| `operation.device.launch` | `DeviceLaunchReceiptPayloadV1` | `DeviceLaunchReceiptV1` |
-| `operation.device.reset_data` | `DeviceDataResetReceiptPayloadV1` | `DeviceDataResetReceiptV1` |
-| `operation.play.run_smoke` | `SmokeRunReceiptPayloadV1` | `SmokeRunReceiptV1` |
-| `operation.debug.aggregate` | `DebugAggregateReceiptPayloadV1` | `DebugAggregateReceiptV1` |
-| `operation.debug.query` | `DebugQueryReceiptPayloadV1` | `DebugQueryReceiptV1` |
-| `operation.debug.read_causality` | `DebugCausalityReceiptPayloadV1` | `DebugCausalityReceiptV1` |
-| `operation.debug.read_replay_slice` | `ReplaySliceReceiptPayloadV1` | `ReplaySliceReceiptV1` |
-| `operation.debug.validate_finding` | `DebugFindingValidationReceiptPayloadV1` | `DebugFindingValidationReceiptV1` |
-| `operation.debug.support-bundle.generate` | `SupportBundleReceiptPayloadV1` | `SupportBundleReceiptV1` |
-| `operation.task.status` | `TaskStatusReceiptPayloadV1` | `TaskStatusReceiptV1` |
-| `operation.task.read_receipt` | `TaskReceiptReadReceiptPayloadV1` | `TaskReceiptReadReceiptV1` |
-| `operation.task.cancel` | `TaskCancellationReceiptPayloadV1` | `TaskCancellationReceiptV1` |
+| operation_id | signed_record_purpose | payload contract | 完成Receipt alias |
+|---|---|---|---|
+| `operation.build.request_package` | `operation_receipt:operation.build.request_package` | `PackageReceiptPayloadV1` | `PackageReceiptV1` |
+| `operation.device.install` | `operation_receipt:operation.device.install` | `DeviceInstallReceiptPayloadV1` | `DeviceInstallReceiptV1` |
+| `operation.device.launch` | `operation_receipt:operation.device.launch` | `DeviceLaunchReceiptPayloadV1` | `DeviceLaunchReceiptV1` |
+| `operation.device.reset_data` | `operation_receipt:operation.device.reset_data` | `DeviceDataResetReceiptPayloadV1` | `DeviceDataResetReceiptV1` |
+| `operation.play.run_smoke` | `operation_receipt:operation.play.run_smoke` | `SmokeRunReceiptPayloadV1` | `SmokeRunReceiptV1` |
+| `operation.debug.aggregate` | `operation_receipt:operation.debug.aggregate` | `DebugAggregateReceiptPayloadV1` | `DebugAggregateReceiptV1` |
+| `operation.debug.query` | `operation_receipt:operation.debug.query` | `DebugQueryReceiptPayloadV1` | `DebugQueryReceiptV1` |
+| `operation.debug.read_causality` | `operation_receipt:operation.debug.read_causality` | `DebugCausalityReceiptPayloadV1` | `DebugCausalityReceiptV1` |
+| `operation.debug.read_replay_slice` | `operation_receipt:operation.debug.read_replay_slice` | `ReplaySliceReceiptPayloadV1` | `ReplaySliceReceiptV1` |
+| `operation.debug.validate_finding` | `operation_receipt:operation.debug.validate_finding` | `DebugFindingValidationReceiptPayloadV1` | `DebugFindingValidationReceiptV1` |
+| `operation.debug.support-bundle.generate` | `operation_receipt:operation.debug.support-bundle.generate` | `SupportBundleReceiptPayloadV1` | `SupportBundleReceiptV1` |
+| `operation.task.status` | `operation_receipt:operation.task.status` | `TaskStatusReceiptPayloadV1` | `TaskStatusReceiptV1` |
+| `operation.task.read_receipt` | `operation_receipt:operation.task.read_receipt` | `TaskReceiptReadReceiptPayloadV1` | `TaskReceiptReadReceiptV1` |
+| `operation.task.cancel` | `operation_receipt:operation.task.cancel` | `TaskCancellationReceiptPayloadV1` | `TaskCancellationReceiptV1` |
+
+`signed_record_purpose`は`MirakanSignedRecordV1.purpose`のclosed 14値であり、`operation_receipt`や`receipt`等のgeneric値、unknown値、別行の値を許可しない。Verifierは一行をatomic mappingとして選び、purpose、subject `OperationReceiptEnvelopeV1.operation_id`、`payload_contract_ref`、完成Receipt aliasを同一行へ束縛する。4項目の一つでも別行、unknown、欠落なら、payload hashと暗号署名が個別に正しくても完成Receiptとして受理しない。
 
 Debug系6 payloadは[Debugging／observability／replay §13](../04-runtime/debugging-observability-replay.md#13-ai-debug-contextとdiagnosis)が所有する。Build Gateway／Device／Play／Task Control payloadは次のFieldだけを持つ。
 
@@ -267,7 +269,7 @@ TaskCancellationReceiptPayloadV1
 
 成功した`TaskStatusReceiptPayloadV1`のReceipt ref／hashは対象Taskがterminalの場合だけ対で必須、非terminalでは両方省略する。成功した`TaskCancellationReceiptPayloadV1`は`converged_state`の値にかかわらず対象Task自身のterminal Receipt ref／hashを必須にし、Cancellation Receiptを対象TaskのReceiptとして流用しない。対象Async Operationはcancelled時も同じ`task_id`を持つ型固有terminal Receiptを発行する。
 
-完成した各`*ReceiptV1`は`OperationReceiptEnvelopeV1`をsubjectとする`MirakanSignedRecordV1`である。Async 11 Operationの`OperationTaskV1.receipt_ref`、前段Receipt ref、`*_receipt_sha256`は署名を含む完成Record全体のcanonical hashを指す。同期Control Receiptは`control_invocation_id`で呼出しを監査し、新しい`OperationTaskV1`またはTask receipt refを作らない。共通署名envelope、hash chain、保持は[AI Verification／Provenance §7](../01-governance/ai-verification-provenance.md#7-evidence-envelope)、algorithm、Key用途、Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書へ署名Fieldや独自Provenanceを複写しない。
+完成した各`*ReceiptV1`は`OperationReceiptEnvelopeV1`をsubjectとし、上表のexact `signed_record_purpose`を持つ`MirakanSignedRecordV1`である。Async 11 Operationの`OperationTaskV1.receipt_ref`、前段Receipt ref、`*_receipt_sha256`は署名を含む完成Record全体のcanonical hashを指す。同期Control Receiptは`control_invocation_id`で呼出しを監査し、新しい`OperationTaskV1`またはTask receipt refを作らない。共通署名envelope、hash chain、保持は[AI Verification／Provenance §7](../01-governance/ai-verification-provenance.md#7-evidence-envelope)、algorithm、Signer Role／Key用途、Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書へ署名Fieldや独自Provenanceを複写しない。
 
 Package→Install→Launch→Smokeでは全EnvelopeのProject revision、Candidate root、Targetと、全payloadのPackage artifact ref／hashをexact一致させる。各`authorization_envelope_hash`は当該Operation、同じsubject identity、Project／Candidate／Target／Device closureへ有効でなければならず、前段Authorizationを継承しない。Install／Launch／SmokeではDevice identity／generationも一致させ、SmokeはPackage、Install、Launchの`result=succeeded`完成Receipt ref／hashとfixture ref／hashをすべて必須にする。Resetも`result=succeeded`のPackage Receipt／artifact、Device、consent、R3 Approvalへ閉じる。前段Receiptのmissing、非success、署名／hash／subject差、revocation、Device generation差、fixture差を後段の成功として受理しない。
 

@@ -134,6 +134,39 @@ repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、
 
 署名RecordはMirakanSignedRecordV1を使用する。初期ProfileはECDSA P-256／SHA-256、RFC 8785 JCS、P1363固定64 byte、base64url without padding、low-S必須である。unknown field、duplicate key、invalid UTF-8、非有限値、高S、未知／失効／用途不一致／期限外Keyをfail closedで拒否する。秘密鍵は専用Service identityのnon-exportable Key storeへ置き、AI／Workerから分離する。AI Orchestratorにはgeneration_receipt用途専用のService identityとnon-exportable Keyだけを割り当て、この用途KeyをVerification、Approval、Promotion、Release用途へ流用しない。ActorのSecret保持禁止はProvider Credential等の可搬Secretを指し、このnon-exportable署名identityを含まない。
 
+Operation Receiptの署名権限は次のclosed `OperationReceiptSignerPolicyV1`だけが与える。
+
+```text
+OperationReceiptSignerPolicyV1
+  entries[] {
+    operation_id
+    execution_authority
+    signer_role_ref
+    allowed_signed_record_purpose
+  }
+```
+
+全Fieldはrequired、unknown Fieldは禁止し、entriesは次の14件とexact一致させる。
+
+| operation_id | execution_authority | signer_role_ref | allowed_signed_record_purpose |
+|---|---|---|---|
+| `operation.build.request_package` | `build_gateway` | `role.operation_receipt.build_request_package` | `operation_receipt:operation.build.request_package` |
+| `operation.device.install` | `device_bridge` | `role.operation_receipt.device_install` | `operation_receipt:operation.device.install` |
+| `operation.device.launch` | `device_bridge` | `role.operation_receipt.device_launch` | `operation_receipt:operation.device.launch` |
+| `operation.device.reset_data` | `device_bridge` | `role.operation_receipt.device_reset_data` | `operation_receipt:operation.device.reset_data` |
+| `operation.play.run_smoke` | `play_service` | `role.operation_receipt.play_run_smoke` | `operation_receipt:operation.play.run_smoke` |
+| `operation.debug.aggregate` | `debug_query_service` | `role.operation_receipt.debug_aggregate` | `operation_receipt:operation.debug.aggregate` |
+| `operation.debug.query` | `debug_query_service` | `role.operation_receipt.debug_query` | `operation_receipt:operation.debug.query` |
+| `operation.debug.read_causality` | `debug_query_service` | `role.operation_receipt.debug_read_causality` | `operation_receipt:operation.debug.read_causality` |
+| `operation.debug.read_replay_slice` | `replay_service` | `role.operation_receipt.debug_read_replay_slice` | `operation_receipt:operation.debug.read_replay_slice` |
+| `operation.debug.validate_finding` | `debug_validation_service` | `role.operation_receipt.debug_validate_finding` | `operation_receipt:operation.debug.validate_finding` |
+| `operation.debug.support-bundle.generate` | `debug_export_service` | `role.operation_receipt.debug_support_bundle_generate` | `operation_receipt:operation.debug.support-bundle.generate` |
+| `operation.task.status` | `build_gateway_task_service` | `role.operation_receipt.task_status` | `operation_receipt:operation.task.status` |
+| `operation.task.read_receipt` | `build_gateway_task_service` | `role.operation_receipt.task_read_receipt` | `operation_receipt:operation.task.read_receipt` |
+| `operation.task.cancel` | `build_gateway_task_service` | `role.operation_receipt.task_cancel` | `operation_receipt:operation.task.cancel` |
+
+各`signer_role_ref`は同じ行のpurpose一件だけを許可する。Public key registryの各`key_id`も、その実行Authority subject、exact Signer Role、`allowed_signed_record_purposes[]`が同じ一件だけのsingletonでなければならない。同じServiceが複数Operationを実行してもRoleとnon-exportable KeyをOperationごとに分離し、generic Operation Receipt Role／Keyを作らない。通常Rotationで新旧Keyを重複有効にする場合も、両KeyのAuthority、Role、singleton purposeを同一に保つ。Coreの14行mapping、MCDのexecution Authority、本PolicyのOperation／Role／purposeが一致しないRecordをVerifierは拒否する。
+
 鍵期限到来時の通常RotationはSecurity incidentではなく、BootstrapDiscoveryの再実行でもない。信頼済みAuthorityが発行する署名済みKeyRotation Operationとして、新Key生成、Public key registry更新、新旧Keyの重複有効期間の設定、失効リスト配布を行う。重複期間中は新旧両Keyでの検証を許可し、期限後の旧Keyは署名用途から除外する。過去Receiptの検証用に旧公開鍵と失効情報をregistryへ保持し、削除しない。侵害時のKey revocationとclean environment再構築を定期Rotationの代替にしない。
 
 ### 3.2 Task state machine
@@ -598,9 +631,11 @@ CodeOwnerApprovalV1
   issued_at
 ```
 
+`CodeOwnerAssignmentV1`は上記9 Fieldだけを持つclosed subject schemaであり、9 Fieldをすべてrequired、`path_or_module_scope_refs[]`を1件以上の重複なしunsigned byte順、unknown Fieldを拒否とする。`revoked_at`だけがnullableで、Field省略、空文字、sentinel時刻を`null`へ補正しない。このsubjectのcanonical hashを`MirakanSignedRecordV1.subject_sha256`へ束縛し、署名を含む完成Assignment Record hashを参照とrevocation判定に使う。
+
 `CodeOwnerAssignmentV1.role_ref`は`CodeOwnerRoleRegistryV1.role_ref`のexact一件で必須であり、display name、前方一致、ScopeからのRole推測を拒否する。`path_or_module_scope_refs[]`の各refはRole entryの`allowed_scope_kinds[]`の一件に一致し、Native RoleへShader scope、Shader RoleへNative scope、independent reviewerへDiff approvalを与えない。`revoked_at`はField省略を許さないrequired nullableで、`null`だけが未失効を表し、canonical UTC時刻ならその時刻以後revokedである。`valid_from <= evaluation_time < expires_at`かつ`revoked_at=null`の場合だけactiveとし、未来開始、期限切れ、失効を別stateへ推測補正しない。
 
-`CodeOwnerAssignmentV1`は認証済みProject role administratorの要求をApproval ServiceがRole、Qualification／Scope／independence registryと照合して署名した場合だけ有効である。Policy Serviceは署名済みAssignmentのsubject、exact `role_ref`、全Scope、Qualification Receiptのsubject／Role／Scope／freshness、independence policy、期間、current revocation snapshotを毎回read-backする。missing／unknown Role、RoleとScope kindの不一致、QualificationのRole／Scope差、`revoked_at` non-nullではSource Worker起動とApproval使用を拒否する。AI、Source Worker、割当対象者は自己発行／自己revocationできず、Policy Serviceは主体選定を代行しない。
+`CodeOwnerAssignmentV1`は認証済みProject role administratorの要求をApproval ServiceがRole、Qualification／Scope／independence registryと照合して署名した場合だけ有効である。Policy Serviceは署名済みAssignmentのsubject、exact `role_ref`、全Scope、Qualification Receiptのsubject／Role／Scope／freshness、independence policy、期間を検証し、信頼済みrevocation registryの署名済みlatest headをcurrent snapshotとして毎回read-backする。発行時snapshotからcurrent sequenceまでのchainが連続し、current snapshotの署名、issuer、sequence、freshnessが有効であることを必須にする。subject内の`revoked_at=null`でもcurrent snapshotがAssignment Recordまたはsubject identityをrevokedとした場合はSource Worker起動とApproval使用を拒否する。current snapshotのmissing／stale／invalid、sequence rollback／gap、missing／unknown Role、RoleとScope kindの不一致、QualificationのRole／Scope差、`revoked_at` non-nullもfail closedにする。AI、Source Worker、割当対象者は自己発行／自己revocationできず、Policy Serviceは主体選定を代行しない。
 
 `CodeOwnerApprovalV1.decision`は`approved | rejected`のclosed enumであり、共通署名、signer identity、revocationは`MirakanSignedRecordV1` envelopeが所有する。Policy ServiceはAssignmentのsubject、Role、Scope、qualification、independence、期間、revocationと、Approvalのexact Diff、Source revision、全Build Receipt、独立Review Receiptを照合する。Source、Diff、Build input、Toolchain、Target、Assignmentのいずれかが変わればApprovalを失効させる。Code owner判断はG0–G7、Technical Attestation、Human Gameplay Approvalのいずれも代替しない。
 
@@ -679,13 +714,14 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - pair済みDeviceを同名の別Deviceまたは新generationへ交換し、古いinstall／launch／reset／remote Debug grantを再利用する試行。
 - Candidate、Target、artifact hashのいずれかが異なるPackage Receiptによるinstall／reset。
 - InstallのPackage Receipt／artifact、LaunchのInstall Receipt／artifact、SmokeのPackage／Install／Launch Receiptまたはfixtureについて、ref／hash／署名／payload contractを一原因ずつ差し替える試行。各後段を副作用前に拒否する。
-- `OperationReceiptEnvelopeV1`のOperation IDとpayload型不一致、async 11件の`task_id` missing、sync Control 3件の`control_invocation_id` missing、両ID present、Control対象Task IDのEnvelope `task_id`への流用、署名Key用途不一致を一原因ずつ拒否する。
+- Operation Receipt mapping 14件すべてのpositive fixtureで、exact purpose、subject Operation ID、payload contract、完成Receipt alias、execution Authority、Signer Role、singleton-purpose Keyの同一行bindingと署名成功を確認する。
+- 各positive fixtureをbaseに、別Operation purpose、unknown／generic purpose、別実行AuthorityのKeyをそれぞれ一原因だけ変更し、payloadとsubjectが他は同一でも署名検証を拒否する。`OperationReceiptEnvelopeV1`のOperation IDとpayload型不一致、async 11件の`task_id` missing、sync Control 3件の`control_invocation_id` missing、両ID present、Control対象Task IDのEnvelope `task_id`への流用も一原因ずつ拒否する。
 - consentまたはR3 Approvalなしの`operation.device.install`／`operation.device.reset_data`と、install Approvalをlaunch／smoke／Debugへ権限継承させる試行。
 - Evidence ref不在、別Session／revision、gap隠蔽、reproductionなしの偽`validated_cause`を`operation.debug.validate_finding`へ渡す試行。`diagnostic.debug.finding-evidence-invalid`で拒否する。
 - 期限切れ／失効／binary hash不一致の`ExternalClientSecurityProfileV1`、`ProviderManifestV1`、`InferenceDeploymentProfileV1`、`ModelSnapshotProfileV1`によるTool／推論呼出し。Deploymentの`model_snapshot_profile_ref`／`model_snapshot_record_sha256`差、local deploymentから`provider_model_id` Snapshot参照、Snapshotのweights／quantization／license／provenance／Conformance欠落または失効を一原因ずつ拒否する。
 - ChatGPT webをlocal STDIO Hostとして登録する試行、またはClaude Desktop／Claude Code／CursorをConformance Receiptなしで`supported`表示する試行。
 - Local runtime timeout、RAM／VRAM不足、Tool Schema不一致を契機に、Preview、User確認、新Authorizationなしでcloudへ送る試行。送信byte 0と`diagnostic.ai.silent-cloud-fallback-forbidden`を確認する。
-- Assignmentの`role_ref`欠落／unknown、Native RoleへのShader scope、Shader RoleへのNative scope、Qualification ReceiptのRole／Scope差、`revoked_at` non-null、期限切れ、または別Diff／Source revisionの`CodeOwnerApprovalV1`でNative／Shader生成またはPromotionする試行。各fixtureは一原因だけを変え、Source Worker起動前またはPromotion前に拒否する。
+- Assignmentの`role_ref`欠落／unknown、Native RoleへのShader scope、Shader RoleへのNative scope、Qualification ReceiptのRole／Scope差、`revoked_at` Field省略、`revoked_at` non-null、unknown extra Field、期限切れ、current snapshotでAssignment Recordだけをrevoked、current snapshotでsubject identityだけをrevoked、current snapshotのmissing／stale／invalid、または別Diff／Source revisionの`CodeOwnerApprovalV1`を一原因ずつ注入する。各fixtureはSource Worker起動前またはPromotion前に拒否し、`revoked_at=null`でもcurrent snapshot失効を上書きしない。
 
 ## 13. 完了条件
 
