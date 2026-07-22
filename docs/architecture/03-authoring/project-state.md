@@ -167,6 +167,10 @@ AuthoringSelectionContextV1
 
 `AuthoringSelectionContextV1`はCommit済みDocumentと明示的な`EditorUserState`から生成するread-only／DisposableなContextであり、Project正本またはUndo対象ではない。`primary_stable_id`、World／Scene／Level参照は表示名、Hierarchy path、row index、screen coordinateから推測せず、存在確認済みStableIdとrevisionを使う。AIへ渡すContext、Editor command、UI Automation semantic actionは同じContext hashを参照し、操作時には対象StableIdとexpected Document revisionを再指定する。Contextがstale、対象がomitted、lock情報が欠落、またはSource／Derived区分が不明な場合は変更Operationへ昇格しない。
 
+Architecture Governanceが所有する`ArchitectureExplainProjectionV1`はProject Stateの正本ではなく、Commit済みSourceとexact registry closureから生成されるread-only／Disposableなconsumer projectionである。`authoring.explain_architecture`は`scope`、非空`field_mask`、optional `target_profile_ref`、exact `project_revision`を要求し、別revisionへのfallbackを行わない。応答の`omitted_ranges`または署名付き`continuation`が示す未取得範囲をEvidence済みとして扱わず、stale revision、continuation条件不一致、必要Evidence欠落では説明を確定しない。
+
+このqueryまたは自然言語要約からProjectを直接変更してはならない。後続ChangeSetは解決済みcanonical concept、対象StableId、typed Operation、expected Document revisionを正規Gatewayへ再指定する。Projection entry、Owner名、外部用語、表示path、summary textをCommit可能なidentityまたはOperationとして受理しない。
+
 ### 4.3 大規模SceneのShard、Index、Slice
 
 `SceneDocument`は論理aggregateであり、Entity本文を直接無制限に埋め込まない。C1から一つ以上の`SceneEntityShardDocument`をStableId参照し、各Shardは4,096 Entity recordまたはcanonical encoded 8 MiBの早い方を上限とする。単一Entityが上限を超える場合はComponent schema違反としてrejectし、巨大blobをShardへ埋め込まない。
@@ -340,6 +344,8 @@ Undoは過去fileを上書きする操作ではない。Journalのinverse Operat
 - Level 0ではAIが質問と仮定をGame用語で提示し、実装語を初心者へ選ばせない。
 - 手動Inspector、Graph、Code連携もAIと同じDiff、Validation、Undoを使う。
 - AI説明、AI proposal、Engine validation、Commit済み結果を別stateとして表示する。
+
+Editor／Workspace UXが生成する`ExternalEngineConceptResolutionV1`は入力解決Evidenceであり、Project DocumentまたはChangeSetへ保存しない。Gatewayは外部用語、resolver object、候補配列、外部Scene path／Hierarchy indexをidentityまたはOperationとして受理しない。後続ChangeSetは`selected_concept`のcanonical concept ID、対象StableId、typed Operation、expected Document revisionを再指定しなければならず、`question_required`または`unsupported`のResolutionからProposalを生成してはならない。
 
 ## 9. Runtime compile境界
 

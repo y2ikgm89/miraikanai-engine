@@ -115,6 +115,71 @@ Process
 
 短いlifetimeのobjectは長いlifetimeのobjectを所有しない。World破棄は全job、callback、snapshot consumer、Asset lease、GPU submissionの終了または明示fault-retire後だけ行う。
 
+### 3.1 GameHost outer loop、clock、pause
+
+Shipping GameHostとEditor child GameHostは、Platform event、fixed tick、snapshot、render frame、waitを一つのouter loopで接続する。main／window-input threadがloop順序と`GameHostLoopStateV1`を所有し、T00～T110はGame simulation thread、R00～R70はRender submission threadへbounded requestとして一回ずつ委譲する。simulationはpublishまたはfaultのacknowledgement前に次のcatch-up tickを開始しない。OS callback、Worker、Renderer、Audio callbackはouter loopまたはRuntime Worldへ再入せず、bounded event／command／snapshot境界だけを使う。
+
+```text
+GameHostLoopStateV1
+  monotonic_now_ns
+  previous_outer_loop_ns
+  simulation_accumulator_ns
+  tick_id
+  render_frame_id
+  application_state = Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating
+  gameplay_clock_mode = running | paused
+  debug_execution_mode = running | pause_requested | paused_at_t110 | single_tick_step
+  surface_generation
+  last_published_snapshot_tick?
+```
+
+`gameplay_clock_mode`は`PausePolicyV1`／`GamePauseStateSnapshotV1`のconsumer projectionであり、outer loopが別のPause authorityを持つ意味ではない。`debug_execution_mode`はDebuggerが所有し、Shipping Game pauseの権限またはstateとして使用しない。
+
+`monotonic_now_ns`と`previous_outer_loop_ns`はwall-clock時刻、timezone、system clock補正を含まない単調clockである。60 Hzのtick長は浮動小数または切り捨てた`16,666,666 ns`の反復加算を使わず、tickごとに次式で求める。
+
+```text
+tick_duration_ns(tick_id) =
+  floor((tick_id + 1) * 1,000,000,000 / 60)
+  - floor(tick_id * 1,000,000,000 / 60)
+```
+
+これにより60 tickの合計をexactly 1秒とし、`simulation_accumulator_ns`は整数nanosecondだけを保持する。Outer loopの唯一の順序は次である。
+
+```text
+while application_state != Terminating:
+  1. bounded Platform lifecycle eventをdrainし、遷移要求をlatchする
+  2. monotonic clockを一度sampleし、前回との差を求める
+  3. ApplicationState遷移をouter-loop境界へ適用する
+  4. Activeであればdevice inputを一度sampleする
+  5. tick可能ならelapsedをaccumulatorへ加え、0..4回のT00..T110を完了する
+  6. 完全にpublish済みの最新RenderSnapshotをacquireする
+  7. presentation専用interpolationを作る
+  8. surfaceが有効なら0回または1回のR00..R70を実行する
+  9. 完了submission／leaseをretireし、frame paceまたはPlatform eventをwaitする
+```
+
+- `Active`かつ`debug_execution_mode = running | pause_requested`のときだけelapsedをaccumulatorへ加える。Debug再開後の最初のouter loopは停止中wall timeを加えない。
+- 次の`tick_duration_ns(tick_id)`以上のaccumulatorがある間だけ、最大4 tickを実行する。4 tick後にも実行可能なら次tick未満の端数だけを残して超過時間を捨て、`dropped_wall_time_ns`、連続clamp回数、最大accumulatorをtelemetryへ記録する。
+- deviceはActiveなouter loopごとに一度だけsampleする。held stateは同じouter loopのcatch-up tickで再利用できるが、press／release edge、text、gesture eventは最初のeligible tickへだけ割り当て、後続tickへ複製しない。Replayはdevice sample sequenceとsample-to-tick割当を記録する。
+- tickがfaultした場合はそのtickのsnapshotをpublishせず、残りcatch-upとrenderを中止してPlay sessionを`Faulted`へ遷移する。直前snapshotをfault後の新しいframeとして提示しない。
+
+Gameplay pauseは§4.1の`GamePauseCommandV1`と`PausePolicyV1`だけが所有する。`gameplay_clock_mode = paused`でもouter loopとT00～T110のphase boundaryは継続するが、freeze対象domainはdeltaを進めず、Physics solver、Gameplay timer、authoritative animationを§4.1のatomic orderどおりskipする。UI、pause menu、presentation、resume inputは許可された継続domainだけで動作する。
+
+`debug_execution_mode = pause_requested`は実行中tickのT110完了後だけ`paused_at_t110`へ遷移し、成立時にaccumulatorを0へする。`paused_at_t110`ではlive deviceのdebug／Replay controlだけを別System Contextへ渡し、停止中に生じたGameplay edgeを将来tickへqueueしない。`single_tick_step`はpause時に封印したheld stateを新規edgeなしで使うか、Replayの記録済み`InputSnapshot`を使い、wall timeと無関係にexactly 1回のT00～T110をfixed deltaで実行する。publishまたはfault後は`paused_at_t110`へ戻り、公開操作で一部phaseだけを進めない。
+
+Application lifecycleは次の共通policyを持つ。Platform固有の通知対応、checkpoint deadline、surface再生成は各Platform Ownerの追加規則に従う。
+
+| ApplicationState | Authoritative tick | Render | 境界policy |
+|---|---|---|---|
+| `Starting` | なし | なし | 初期Project／surface準備だけを行う |
+| `Active` | clock policyに従う | 有効surfaceで0～1 frame | 通常実行 |
+| `Inactive` | 現在tickのT110後に停止 | なし | checkpointを要求し、accumulatorを0にする |
+| `Suspended` | なし | なし | simulation／render／audio処理を止め、Platform eventをwaitする |
+| `SurfaceUnavailable` | 現在tickのT110後に停止 | なし | Runtime Worldを保持し、surface generation更新を待つ |
+| `Terminating` | 新規tickなし | なし | checkpoint policyを使い、安全な破棄順序へ進む |
+
+Headless Targetでは設計上surfaceが存在しないことを`SurfaceUnavailable`と解釈しない。`Active`のauthoritative tickを継続し、R00～R70だけを実行しない。
+
 ## 4. 60 Hz fixed tickとphase identifier
 
 初期Production Runtimeのsimulationはexactly 60 Hz、`fixed_delta = 1/60 s`とする。別rateは新しいProduct／Architecture decision、Physics／Animation／Replay fixture改訂、全Target qualificationなしに追加しない。wall-clock蓄積から一render frameにつき最大4 stepまでcatch-upし、それ以上はclampしてcounterへ記録する。Game simulation threadがtickの開始と終了を所有し、workerはimmutable inputからprivate resultだけを生成する。
@@ -264,6 +329,8 @@ render frame sequenceは次とする。
 
 `RenderPhaseId`のserialized値は順序に対応する`0x0100`～`0x0107`とする。RenderingはRuntime Worldへ書き戻さず、visibility、occlusion history、temporal historyをSave／Replay hashへ含めない。frames-in-flightと各buffer容量は[Performance／capacity](performance-capacity.md)、Render Graph resource semanticsは[Render Graph](../06-rendering/render-graph.md)が所有する。
 
+Outer loopは完全にpublish済みの最新snapshotだけを取得する。新しいsnapshotがないframeは最後の完全snapshotを再利用し、途中tickまたはfaultしたtickのbufferを読まない。`interpolation_alpha = simulation_accumulator_ns / tick_duration_ns(tick_id)`を`[0, 1)`へ制限し、連続する互換snapshotが揃わない場合は0とする。InterpolationはTransform、camera、Presentation parameterの一時的な描画値だけを生成し、Runtime World、Save、Replay hash、Physics、Gameplayへ書き戻さない。
+
 Audio control threadがvoice lifecycle、routing、stream refillを所有する。audio callbackはpreallocated recordまたはPCM ringへ値を渡すだけで、allocation、file I/O、blocking、World／AI呼出しを行わない。Gameplay通知はcallbackから直接配送せず、外部latch sourceとして次のasync integrationへ渡す。
 
 Asset activationはdependency closure単位の`AssetGenerationId`を使う。CPU payload、GPU upload、Physics／Navigation payload、Audio decodeを含むclosureがreadyになるまでlive bindingを変えない。Simulation用generationはtick boundary、Rendering専用generationはrender promotion boundary、Audio専用generationはaudio control block boundaryでactivateできる。consumerはtransaction途中にlogical Assetを再resolveせず、固定したversion leaseを使う。非互換時は旧generationを維持し`restart_required`を返す。
@@ -376,6 +443,7 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 最低限、次を自動検証する。
 
 - fixed tickとrender sequence、serialized ID、禁止再入、consume／delivery phase。
+- GameHost outer loopのlifecycle→clock→input→0～4 tick→snapshot→0～1 render→retire／wait順、60 tick exactly 1秒、4-step clamp telemetry、input edge非複製、Gameplay pause、Debug pause／single-step、`SurfaceUnavailable`、`Suspended`、headless、stale snapshot、fault非publish。
 - exactly-one State owner、System dependency DAG、same-tick cycle拒否、Implementation Variant同値。
 - structural transactionのpreflight／commit atomicity、canonical iteration／merge。
 - handle generation、wrap retire、random invalid handle、borrow epoch、arena reset後の失効。
@@ -417,4 +485,5 @@ memory／queue容量、benchmark、Scale、observability artifactは各ownerのP
 - partial Asset／Level activation、incompatible live swap、Play中Native Module unload。
 - visibility、LOD、Audio、VFX、GPU resultからGameplay authorityを決めること。
 - faultしたtick、部分structural transaction、不完全snapshotのpublish。
+- OS callback／Worker／Rendererからouter loopまたはRuntime Worldへの再入、catch-up tickへの同一input edge／text／gesture複製、Debug pause中のaccumulator増加。
 - Runtime固有のProduct Phase、共通Budget、Debug Store、Domain schemaの再定義。
