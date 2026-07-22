@@ -335,6 +335,7 @@ Context7の内容はmain branchの挙動説明であり、exact release／commit
 | 対象 | 公式URL | 検証日 | Miraikanaiの適用判断 |
 |---|---|---|---|
 | MCP stable specification | [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) | 2026-07-23 | 表示上の`latest`へ追従せずprotocol baselineを`2025-11-25`へ固定し、draft／RCをProductionへ自動採用しない |
+| MCP Authorization | [MCP 2025-11-25 Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) | 2026-07-23 | Authorizationはoptionalとし、HTTP-based transportで有効化する場合は同仕様のOAuth discovery／token audienceを適用する。STDIO transportは同flowを使わずcredentialをenvironmentから取得する |
 | OpenAI MCP | [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp) | 2026-07-23 | ChatGPT desktop／Codex CLI／IDEのMCP設定経路を確認し、Miraikanaiの外部ClientはMCP 2025-11-25 conformance Gateを別途必須にする |
 | OpenAI GPT-5.6 | [GPT-5.6 migration guidance](https://developers.openai.com/api/docs/guides/upgrading-to-gpt-5p6-sol) | 2026-07-23 | direct Providerの既定explicit modelを`gpt-5.6-sol`、reasoning effortを`medium`とし、ModelSnapshot Profile／Evalなしにaliasへ追従しない |
 | Ajv Draft 2020-12 | [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html#draft-2020-12)、[Ajv 8.20.0 registry metadata](https://registry.npmjs.org/ajv/8.20.0) | 2026-07-23 | `ajv/dist/2020`をControl Plane lintだけへexact lockし、§4のtarball／integrity／MITをread-backする。C++ Runtime validatorの未固定状態は閉じない |
