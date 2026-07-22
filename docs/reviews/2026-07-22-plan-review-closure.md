@@ -110,7 +110,7 @@
 | `review.plan_review_2026_07_22.finding_054` | `docs/architecture/02-foundation/toolchain-dependencies.md:L324` | `CONFIRMED` | `confirmed` | `high` | `gap` | `null` | `null` | `applied` | `["docs/architecture/02-foundation/toolchain-dependencies.md"]` | revalidation.current-owner.v1; current=docs/architecture/02-foundation/toolchain-dependencies.md; diff=git diff ba96f1c -- docs/architecture/02-foundation/toolchain-dependencies.md |
 | `review.plan_review_2026_07_22.finding_055` | `docs/architecture/02-foundation/toolchain-dependencies.md:L328` | `CONFIRMED` | `confirmed` | `medium` | `contradiction` | `null` | `null` | `applied` | `["docs/architecture/02-foundation/toolchain-dependencies.md"]` | revalidation.current-owner.v1; current=docs/architecture/02-foundation/toolchain-dependencies.md; diff=git diff ba96f1c -- docs/architecture/02-foundation/toolchain-dependencies.md |
 | `review.plan_review_2026_07_22.finding_056` | `docs/architecture/02-foundation/toolchain-dependencies.md:L332` | `CONFIRMED` | `confirmed` | `medium` | `gap` | `null` | `null` | `applied` | `["docs/architecture/02-foundation/toolchain-dependencies.md"]` | revalidation.current-owner.v1; current=docs/architecture/02-foundation/toolchain-dependencies.md; diff=git diff ba96f1c -- docs/architecture/02-foundation/toolchain-dependencies.md |
-| `review.plan_review_2026_07_22.finding_057` | `docs/architecture/02-foundation/toolchain-dependencies.md:L336` | `UNVERIFIED` | `confirmed` | `high` | `contradiction` | `null` | `decision.plan_review_2026_07_22.target_profile_identity` | `decision_applied` | `["docs/architecture/02-foundation/toolchain-dependencies.md"]` | decision.plan_review_2026_07_22.target_profile_identity; revalidation.current-owner.v1; current=docs/architecture/02-foundation/toolchain-dependencies.md; diff=git diff ba96f1c -- docs/architecture/02-foundation/toolchain-dependencies.md |
+| `review.plan_review_2026_07_22.finding_057` | `docs/architecture/02-foundation/toolchain-dependencies.md:L336` | `UNVERIFIED` | `confirmed` | `high` | `contradiction` | `null` | `decision.plan_review_2026_07_22.target_profile_identity` | `decision_applied` | `["docs/architecture/02-foundation/toolchain-dependencies.md","docs/architecture/07-platform/apple.md"]` | decision.plan_review_2026_07_22.target_profile_identity; revalidation.current-owner.v1; current=docs/architecture/02-foundation/toolchain-dependencies.md; current=docs/architecture/07-platform/apple.md; diff=git diff ba96f1c -- docs/architecture/02-foundation/toolchain-dependencies.md docs/architecture/07-platform/apple.md |
 | `review.plan_review_2026_07_22.finding_058` | `docs/architecture/02-foundation/toolchain-dependencies.md:L339` | `UNVERIFIED` | `confirmed` | `medium` | `contradiction` | `null` | `null` | `applied` | `["docs/architecture/02-foundation/toolchain-dependencies.md"]` | revalidation.current-owner.v1; current=docs/architecture/02-foundation/toolchain-dependencies.md; diff=git diff ba96f1c -- docs/architecture/02-foundation/toolchain-dependencies.md |
 | `review.plan_review_2026_07_22.finding_059` | `docs/architecture/03-authoring/asset-lifecycle.md:L345` | `CONFIRMED` | `confirmed` | `high` | `gap` | `null` | `null` | `applied` | `["docs/architecture/03-authoring/asset-lifecycle.md"]` | revalidation.current-owner.v1; current=docs/architecture/03-authoring/asset-lifecycle.md; diff=git diff ba96f1c -- docs/architecture/03-authoring/asset-lifecycle.md |
 | `review.plan_review_2026_07_22.finding_060` | `docs/architecture/03-authoring/asset-lifecycle.md:L349` | `CONFIRMED` | `confirmed` | `medium` | `contradiction` | `null` | `null` | `applied` | `["docs/architecture/03-authoring/asset-lifecycle.md"]` | revalidation.current-owner.v1; current=docs/architecture/03-authoring/asset-lifecycle.md; diff=git diff ba96f1c -- docs/architecture/03-authoring/asset-lifecycle.md |
@@ -333,7 +333,7 @@
 | `finding_010` | `confirmed` | Asset Lifecycle §8がMVP-A／Bのsource kindをDomain Pack referenceまたはuser-providedへ閉じ、Domain Pack Contract §3がreference assetのhash、license、provenanceを所有する |
 | `finding_011` | `confirmed`、`finding_001`の重複 | Control Plane Implementation Plan Task 3が`mirakan.arch.architecture-governance`正本を同一ChangeSetで作成してからProduct Registryを消費する |
 | `finding_051` | `confirmed` | Naming／Project Layout §3.2がdocument ID、Operation、Diagnostic、Target、Capability、Requirement、Phase、WP、Fixture、Fallbackのkind別grammarを一意に定義した |
-| `finding_057` | `confirmed` | Toolchain／Dependencies §8は`profiles[].profile_id`を`target.*` logical ID、versionを`profile_version`へ分離し、schema 5→6 migrationを閉じた |
+| `finding_057` | `confirmed` | Toolchain／Dependencies §8は`profiles[].profile_id`を`target.*` logical ID、versionを`profile_version`へ分離し、schema 5→6 migrationを閉じ、Apple Platformも`target.apple.mobile`参照へ統一した |
 | `finding_197` | `confirmed` | Runtime ECS Decision §19は未作成OwnerをControl Plane成果物と明記し、Implementation Plan Task 3がPersistence Saveを含む5正本を作成する |
 | `finding_219` | `confirmed` | D3D12 design §23.6／§29.2はPhase 2をempty scene＋synthetic stressへ限定し、2D／3D contentをPhase 3／6の再Qualificationへ分離した |
 | `finding_222` | `confirmed` | Control Plane design §9.1はdocument IDと一般logical IDのgrammarを分離し、Implementation Plan Task 2へProduct Registry全IDの適合testを追加した |
@@ -351,14 +351,27 @@
 
 ## Deferred work
 
-| Finding | Owner | Trigger | Revisit |
-|---|---|---|---|
-| `finding_069` | `mirakan.arch.editor-ui-framework` | Phase 2 UI adapter実装、C1 Qualification前にDirectWrite raster経路を比較 | 2026-09-30 |
-| `finding_084` | `mirakan.arch.gameplay-programming-model` | Phase 4 Project Native WPでAI repair-loopをQualificationする前にtyped compiler feedbackを設計 | 2026-09-30 |
-| `finding_211` | `mirakan.arch.executable-contracts` | Runtime ECS Task 0／6で現行wireとdeterministic CBOR subsetをprototype比較 | 2026-10-31 |
-| `finding_212` | `mirakan.arch.runtime-entity-component-system` | Runtime ECS Task 6のloader benchmarkでruntime再encode費用を測定し、E0 activation前に判定 | 2026-10-31 |
-| `finding_216` | `mirakan.arch.ai-verification-provenance` | 最初の3×240 corpus実行でfailure triageと再判定手続きを検証 | 2026-09-30 |
-| `finding_253` | `mirakan.arch.runtime-entity-component-system` | Runtime ECS Task 7着手前に7a～7dのreview／rollback境界へ分割 | 2026-09-30 |
+TriggerはRevisit日より優先する。Triggerが先に到来した場合は同日に`deferred`を解除し、必要Evidenceが承認されるまでBlocked consumerを開始または昇格しない。Revisit日は作業開始日ではなく、Trigger未到来でも放置しないための再監査期限である。
+
+| Finding | Owner | Trigger | Required closure evidence | Blocked consumer | Revisit |
+|---|---|---|---|---|---|
+| `finding_069` | `mirakan.arch.editor-ui-framework` | Phase 2 UI adapter実装、C1 Qualification前にDirectWrite raster経路を比較 | 同一fixture／font set／DPIでのraster比較Receiptと採否ADR | Phase 2 UI adapter C1 Qualification | 2026-09-30 |
+| `finding_084` | `mirakan.arch.gameplay-programming-model` | Phase 4 Project Native WPでAI repair-loopをQualificationする前にtyped compiler feedbackを設計 | typed feedback schema、negative fixture、repair-loop Qualification plan | Project Native AI repair-loop Qualification | 2026-09-30 |
+| `finding_211` | `mirakan.arch.executable-contracts` | Runtime ECS Task 0／6で現行wireとdeterministic CBOR subsetをprototype比較 | 同一corpusでのbyte／decode／diagnostic比較Receiptと採否ADR | Runtime ECS Task 6のwire確定 | 2026-10-31 |
+| `finding_212` | `mirakan.arch.runtime-entity-component-system` | Runtime ECS Task 6のloader benchmarkでruntime再encode費用を測定し、E0 activation前に判定 | loader benchmark Receipt、再encode費用、採否ADR | Runtime ECS E0 activation | 2026-10-31 |
+| `finding_216` | `mirakan.arch.ai-verification-provenance` | 最初の3×240 corpus実行でfailure triageと再判定手続きを検証 | corpus Receipt、failure分類、reclassification手順のread-back結果 | AI verification provenanceの該当promotion | 2026-09-30 |
+| `finding_253` | `mirakan.arch.runtime-entity-component-system` | Runtime ECS Task 7着手前に7a～7dのreview／rollback境界へ分割 | 更新済みTask 7、各境界のinput／output／rollback／独立test | Runtime ECS Task 7着手 | 2026-09-30 |
+
+## Known unresolved controls
+
+以下はFindingの終端化後も意図的に残る入力であり、値を推測してclosureしない。exact値の正本はAuthority文書、ここでは再開条件とfail-closed先だけを索引する。
+
+| Scope | Authority | Current control | Earliest trigger | Closure artifact／fail-closed result |
+|---|---|---|---|---|
+| External dependency、Windows minimum OS、CX3 cutover、Android coverage、Anthropic direct route | [Toolchain／Dependencies §6.2](../architecture/02-foundation/toolchain-dependencies.md#62-known-unresolved-decision-queue) | 項目別queue。無関係な先行作業は止めず、最初のconsumerだけを停止 | 各queue行のtrigger | §9準拠ADR／Toolchain lock／Receiptが揃わなければCore §13のFeature実装開始Gateを通さない |
+| Android API 29 market coverage | [Android §5](../architecture/07-platform/android.md#5-device-testsfailurerelease-gate) | 技術baselineと市場coverage主張を分離 | `wp.platform.mobile-offline`開始前 | 承認済み閾値とPlay Console exportを持つ`AndroidMinSdkCoverageReceiptV1`がなければAndroid Target Gateを通さない |
+| Team composition、担当者名、calendar／budget見積り | [Product Plan §5.1](../architecture/00-product/product-plan.md#51-開発体制見積りrisk-contract) | `team_assumption_state=unfixed` | calendarまたはbudget提示前 | 承認済みplanning revisionがなければ人数、完了日、同時lane数を出力しない |
+| CI runner、GPU／macOS host、mobile device pool、capacity owner | [Toolchain／Dependencies §8.1](../architecture/02-foundation/toolchain-dependencies.md#81-ci-execution-profile) | `capacity_state=unfixed`、`owner=unfixed` | 対応するProduct Target Gate開始前 | Qualification Receiptがなければ`diagnostic.toolchain.ci-capacity-unresolved`でlane開始を拒否 |
 
 ## Refuted claims
 
@@ -439,3 +452,21 @@
 | OpenAI official evidence | `https://developers.openai.com/codex/codex-manual.md`を公式fetch scriptで再取得し、cache SHA-256 `F624E9DB60E0781320DB5D4BA600C9B1547DB231E3E4881518EFD1A6EA828797`、`learn.chatgpt.com`参照681行を確認 | `PASS` |
 
 このReceiptはFinding本文や外部事実を追加生成せず、上記Gateの観測値だけを記録する。原レビューで詳細が欠落したREFUTED 4件は引き続き再構成しない。
+
+## Follow-up audit receipt
+
+検証日は2026-07-23（Asia/Tokyo）。この追補は元のFinding dispositionを再判定せず、実行記録、Review-applied map coverage、既知の未確定事項の管理境界を補強した。
+
+| Gate | Observed result | Verdict |
+|---|---|---|
+| Execution plan | checkbox 51／51完了、Task commit subject 8／8存在、未完了marker 0 | `PASS` |
+| Review-applied map coverage | map 52、ledger `changed_documents` unique 52、Finding未参照map文書 0、map外ledger文書 0 | `PASS` |
+| Closure integrity | raw Finding 253、ledger 253、`original_state`順序不一致 0、`unverified=0`、terminal 253、Decision 37、duplicate 4 | `PASS` |
+| Deferred controls | 6／6行にOwner、Trigger、Required Evidence、Blocked consumer、Revisitを記録 | `PASS` |
+| Known unresolved controls | Toolchain queue 12／12行にDecision authority、Trigger、Required Evidence、Blocked consumer／stateを記録。cross-cutting索引4行 | `PASS` |
+| Product Registry | Target 5、Requirement 16、Fixture 10、Fallback 6、Phase 10、Work Package 26、Capability 37、duplicate ID 0、unresolved ref 0 | `PASS` |
+| Identity migration | Appendix D old ID 105、normative active本文のold ID 0 | `PASS` |
+| Markdown reference | Markdown 62、link 1,703、relative link 1,457、missing path 0、missing anchor 0 | `PASS` |
+| Official Android evidence | target APIとminimum SDKを分離し、API 29 coverageをPlay Consoleのapp固有Receiptへ接続 | `PASS` |
+
+本追補もEngine runtime実装、Dependency採用、Architecture approval、Capability activation、Release承認を行わない。未確定queueは各行のTrigger到来時に専用ChangeSetで閉じる。

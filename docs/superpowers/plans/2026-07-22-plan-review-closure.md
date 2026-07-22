@@ -1,6 +1,6 @@
 # Plan Review Closure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking; `- [x]`は実行済みを表す。
 
 **Goal:** 2026-07-22の計画書レビューを監査可能なclosureへ変換し、ID、Product Registry、Owner、Control Plane、Runtime ECS、D3D12の計画を依存順に矛盾なく改善する。
 
@@ -16,10 +16,31 @@
 - Targetとtoolchain profileは同じlogical ID `target.*`を使用し、profile versionは`profile_version`へ分離する。
 - JSON／schema Fieldはsnake_caseとする。MCD `namespace_path`を含むlogical IDはNaming正本のkind別grammarを使い、lower snakeまたはlower kebabの一方をsegmentごとに許可する。
 - 数字で始まるID segmentは禁止し、旧`2d-*`／`3d-*`は意味を保つ英字開始形へclean migrationする。
-- 既存52ファイルの未コミット差分はレビュー適用結果である。各Taskは対象hunkを読み、無関係なuser変更を置換しない。
+- Tasks 2～7のReview-applied scopeは52文書であり、下記Execution receiptのcommitへ収録済みである。追補時も対象hunkを読み、無関係なuser変更を置換しない。
 - 未固定dependencyの値を推測しない。公式資料で確認できないものは`unverifiable`または`unfixed`として保持する。
 - active specの承認状態、Capability activation、Release承認をこの文書改善から自動昇格しない。
 - 現在のsessionではユーザーがagent delegationを依頼していないため、実行時は`superpowers:executing-plans`を使用する。
+
+---
+
+## Execution receipt
+
+- 状態: 2026-07-22完了、2026-07-23追補監査済み
+- 実行済みstep: 51／51
+- Canonical result: [Plan Review Closure](../../reviews/2026-07-22-plan-review-closure.md)
+
+| Task | Commit | Subject |
+|---:|---|---|
+| 1 | `1c5c760` | `docs: normalize plan review closure` |
+| 2 | `357e2a3` | `docs: unify architecture identities` |
+| 3 | `8570e34` | `docs: close product execution registry` |
+| 4 | `3f06ce8` | `docs: assign plan closure owners` |
+| 5 | `5d7b4b1` | `docs: make control plane plan executable` |
+| 6 | `a4f9f64` | `docs: close runtime ecs e0 plan` |
+| 7 | `f30c2e7` | `docs: align d3d12 plan with product phases` |
+| 8 | `5461ecd` | `docs: finalize plan review closure` |
+
+Execution receiptはEngine runtime実装、Capability activation、Architecture文書の`approved`昇格を意味しない。
 
 ---
 
@@ -74,7 +95,7 @@
 - Consumes: 詳細所見の253 finding bullet、要決定46行、設計書§4のclosure schema。
 - Produces: `review.plan_review_2026_07_22.finding_NNN`、`decision.plan_review_2026_07_22.<name>`、終端disposition。
 
-- [ ] **Step 1: 現状の監査不一致を再現する**
+- [x] **Step 1: 現状の監査不一致を再現する**
 
 Run:
 
@@ -99,7 +120,7 @@ decisions=46
 unknown=9
 ```
 
-- [ ] **Step 2: closure台帳の固定headerとField contractを作る**
+- [x] **Step 2: closure台帳の固定headerとField contractを作る**
 
 `docs/reviews/2026-07-22-plan-review-closure.md`へ次を追加する。
 
@@ -130,7 +151,7 @@ unknown=9
 |---|---|---|---|---|---|---|---|---|---|---|
 ```
 
-- [ ] **Step 3: 253 retained findingへdeterministic IDを割り当てる**
+- [x] **Step 3: 253 retained findingへdeterministic IDを割り当てる**
 
 文書順・行順でfinding bulletを列挙し、`finding_001`から`finding_253`まで割り当てる。重複findingも削除せず、`duplicate_of`でcanonical findingへ接続する。`UNVERIFIED`と`PLAUSIBLE`を推測でconfirmedへ変えない。
 
@@ -152,7 +173,7 @@ first=review.plan_review_2026_07_22.finding_001
 last=review.plan_review_2026_07_22.finding_253
 ```
 
-- [ ] **Step 4: review総括の件数表と説明を監査可能にする**
+- [x] **Step 4: review総括の件数表と説明を監査可能にする**
 
 次の区別を明記する。
 
@@ -167,11 +188,11 @@ last=review.plan_review_2026_07_22.finding_253
 
 「対象58 Markdown」は`review_target_markdown`、`active_spec`、`modified_markdown`へ分離し、Gitで再導出できない旧値を現在値として断定しない。「212＋横断22」はfinding件数ではなくedit action件数であることを明記する。
 
-- [ ] **Step 5: 要決定46件をcanonical decision一覧へ置換する**
+- [x] **Step 5: 要決定46件をcanonical decision一覧へ置換する**
 
 総括には重複を除いたcanonical decisionだけを掲載し、旧番号はclosure台帳の`source_items`から追跡可能にする。相反していた旧推奨を現行推奨として併記しない。
 
-- [ ] **Step 6: Task 1検証とコミット**
+- [x] **Step 6: Task 1検証とコミット**
 
 Run:
 
@@ -211,7 +232,7 @@ git commit -m "docs: normalize plan review closure"
 - Consumes: closure design §5.1–§5.4、Product Plan Target registry。
 - Produces: kind別grammar、Diagnostic ID/code mapping、toolchain lock schema migration。
 
-- [ ] **Step 1: 現在の二重文法を失敗Evidenceとして記録する**
+- [x] **Step 1: 現在の二重文法を失敗Evidenceとして記録する**
 
 Run:
 
@@ -224,7 +245,7 @@ rg -n 'fixture\.[^` ]*\.(2d|3d)[-_]' docs/architecture docs/plans
 
 Expected: 旧profile ID、二つのDiagnostic表現、数字開始fixture IDが検出される。
 
-- [ ] **Step 2: kind別grammar表をNaming正本へ追加する**
+- [x] **Step 2: kind別grammar表をNaming正本へ追加する**
 
 追加する表は次とする。
 
@@ -244,7 +265,7 @@ Expected: 旧profile ID、二つのDiagnostic表現、数字開始fixture IDが�
 
 `lower-token-path`の各segmentはlower snakeまたはlower kebabのどちらか一方を使い、一segment内の`_`と`-`混在を拒否する。
 
-- [ ] **Step 3: Diagnostic IDとcodeを別Fieldとして固定する**
+- [x] **Step 3: Diagnostic IDとcodeを別Fieldとして固定する**
 
 `MirakanDiagnosticV1`へ次を固定する。
 
@@ -254,7 +275,7 @@ Expected: 旧profile ID、二つのDiagnostic表現、数字開始fixture IDが�
 | mapping | Naming正本のtoken変換で一対一。alias、裸PascalCase、backend別別名を拒否 |
 ```
 
-- [ ] **Step 4: Target profile IDをlogical Targetへ統一する**
+- [x] **Step 4: Target profile IDをlogical Targetへ統一する**
 
 `toolchain_lock.profiles[].profile_id`のclosed setを次へ置換する。
 
@@ -266,7 +287,7 @@ target.apple.mobile
 
 lock schema majorを更新し、旧3値から新3値へのmigration表を追加する。`cpp23-modules.md`と3 Platform文書も同じIDを参照する。
 
-- [ ] **Step 5: 数字開始Registry IDのexact migrationを追加する**
+- [x] **Step 5: 数字開始Registry IDのexact migrationを追加する**
 
 最低限次を同一ChangeSetで置換する。
 
@@ -283,7 +304,7 @@ lock schema majorを更新し、旧3値から新3値へのmigration表を追加�
 | `wp.product.3d-general-coverage` | `wp.product.general-coverage-3d` |
 ```
 
-- [ ] **Step 6: 公式Toolchain制約を参照化する**
+- [x] **Step 6: 公式Toolchain制約を参照化する**
 
 次を規範ではなく外部制約Evidenceとして記録する。
 
@@ -303,7 +324,7 @@ https://developers.openai.com/api/docs/guides/function-calling
 https://developers.openai.com/api/docs/guides/migrate-to-responses
 ```
 
-- [ ] **Step 7: Task 2検証とコミット**
+- [x] **Step 7: Task 2検証とコミット**
 
 Run:
 
@@ -338,7 +359,7 @@ git commit -m "docs: unify architecture identities"
 - Consumes: Task 2のcanonical ID、既存Target 5件、Phase 0–9。
 - Produces: manual authoring、AI authoring、3D First Playable、MVP completion、Project Source Activationの機械結線。
 
-- [ ] **Step 1: Registry不整合を再現する**
+- [x] **Step 1: Registry不整合を再現する**
 
 Run:
 
@@ -349,7 +370,7 @@ rg -n 'Project Source Activation|support|reset|first-run' docs/architecture/00-p
 
 Expected: Phase 1/4が同じmanual_and_ai Requirementを共有し、Phase 6がC2 Requirementを要求し、MVP chain／Project SourceにRegistry closureがない。
 
-- [ ] **Step 2: Requirement registryへ4件を追加する**
+- [x] **Step 2: Requirement registryへ4件を追加する**
 
 ```markdown
 | `requirement.product.authoring-roundtrip-manual` | `mirakan.arch.product-plan` | `manual_e2e` | `diagnostic.product.authoring-roundtrip-manual-failed` |
@@ -360,14 +381,14 @@ Expected: Phase 1/4が同じmanual_and_ai Requirementを共有し、Phase 6がC2
 
 既存`requirement.product.authoring-roundtrip`はAI経路専用、既存`requirement.product.c2-3d-coverage`はPhase 8専用にする。
 
-- [ ] **Step 3: Fixture registryを更新する**
+- [x] **Step 3: Fixture registryを更新する**
 
 - `fixture.product.authoring-transaction`はmanual Requirementだけを参照する。
 - `fixture.product.shooter-2d`はAI authoring、title-to-result、save-load-replay、MVP completion、Project Source Activationを参照する。
 - `fixture.product.shooter-arena-3d`はFirst Playable 3Dとsave-load-replayを参照する。
 - C2 3D coverageは`shooter-arena-3d`だけで完了せず、Phase 8のcross-genre matrixが複数fixtureを集約する。
 
-- [ ] **Step 4: Phase registryを更新する**
+- [x] **Step 4: Phase registryを更新する**
 
 ```markdown
 | 1 | `phase.headless-authoring` | `requirement.product.authoring-roundtrip-manual` | `wp.authoring.headless-core` | `fixture.product.authoring-transaction` |
@@ -377,7 +398,7 @@ Expected: Phase 1/4が同じmanual_and_ai Requirementを共有し、Phase 6がC2
 
 Phase 8だけが`requirement.product.c2-3d-coverage`を保持する。
 
-- [ ] **Step 5: Project Source CapabilityとWPを登録する**
+- [x] **Step 5: Project Source CapabilityとWPを登録する**
 
 Capability registryへ次を追加する。
 
@@ -390,7 +411,7 @@ capability.project.shader
 
 新規WPは`wp.authoring.project-native-module`と`wp.rendering.project-shader`とし、前者は実在する正本ID `mirakan.arch.native-game-module`、後者は`mirakan.arch.rendering-project-shader`をOwnerにする。MVP-Aでは`target.windows.editor; target.windows.desktop`へ限定し、mobile Targetは別Qualificationまでactivationしない。
 
-- [ ] **Step 6: Registry coverageを検査する**
+- [x] **Step 6: Registry coverageを検査する**
 
 Run:
 
@@ -410,7 +431,7 @@ foreach ($id in @(
 
 Expected: 各IDは定義行と少なくとも一つのconsumer行に現れる。Registry全体はRequirement 16、Fixture 10、Phase 10、Work Package 26、Capability 37で、Phase↔Work Package、Capability→Owner WP、各Requirement／Fixture参照の未解決が0件になる。
 
-- [ ] **Step 7: Task 3コミット**
+- [x] **Step 7: Task 3コミット**
 
 ```powershell
 git diff --check -- docs/architecture/00-product/product-plan.md docs/plans/2026-07-22-architecture-evolution-control-plane-*.md
@@ -435,7 +456,7 @@ git commit -m "docs: close product execution registry"
 - Consumes: 5新Owner正本の計画、Product MVP chain、Task 3 Registry。
 - Produces: CI infrastructure、asset sourcing、support bundle、project riskの一意Owner。
 
-- [ ] **Step 1: Product Planへ開発体制とrisk contractを追加する**
+- [x] **Step 1: Product Planへ開発体制とrisk contractを追加する**
 
 次のFieldを持つ節を追加する。
 
@@ -451,13 +472,13 @@ git commit -m "docs: close product execution registry"
 | `review_cadence` | Phase exitごとに更新し、実測Receiptへ差し替える |
 ```
 
-- [ ] **Step 2: First Playable asset sourcingを閉じる**
+- [x] **Step 2: First Playable asset sourcingを閉じる**
 
 - `asset-lifecycle.md`: sourceは`domain_pack_reference | user_provided | external_generated`のclosed enum。MVP-A/Bでは`domain_pack_reference`と`user_provided`だけを許可し、生成ProviderはC2未満で必須にしない。
 - `domain-pack-contract.md`: reference asset setはPack manifest hashへ含め、license／provenance／redistribution policyを必須にする。
 - 生成Provider不在をsilent fallbackにせず、要求された場合はtyped diagnosticで拒否する。
 
-- [ ] **Step 3: CI実行基盤OwnerをToolchainへ追加する**
+- [x] **Step 3: CI実行基盤OwnerをToolchainへ追加する**
 
 `CiExecutionProfileV1`に次を固定する。
 
@@ -471,15 +492,15 @@ git commit -m "docs: close product execution registry"
 | `owner` | 調達・保守責任主体。未固定ならlane開始を拒否 |
 ```
 
-- [ ] **Step 4: SupportBundleV1のOwnerを明示する**
+- [x] **Step 4: SupportBundleV1のOwnerを明示する**
 
 `debugging-observability-replay.md`がschema、redaction、size cap、生成operation、failureを所有する。Platform文書は収集可能Fieldだけを投影し、独自Support Bundle schemaを定義しない。
 
-- [ ] **Step 5: 5新Owner正本Taskを開始可能にする**
+- [x] **Step 5: 5新Owner正本Taskを開始可能にする**
 
 Control Plane plan Task 3へ各fileの正確なpath、document ID、`state=review`、`approval_ref=null`、positive／negative validationを記載する。Owner未承認時はWork Packageを`declared`のまま保ち、`diagnostic.architecture.owner-unapproved`で開始を拒否する。
 
-- [ ] **Step 6: Task 4検証とコミット**
+- [x] **Step 6: Task 4検証とコミット**
 
 Run:
 
@@ -511,7 +532,7 @@ git commit -m "docs: assign plan closure owners"
 - Consumes: Task 2 ID grammar、Task 3 Product Registry、Task 4 Owner表。
 - Produces: 到達可能なTask graph、document relation registry生成、hash-bound continuation、baseline receipt。
 
-- [ ] **Step 1: 設計／実装planのField差分を列挙する**
+- [x] **Step 1: 設計／実装planのField差分を列挙する**
 
 Run:
 
@@ -521,7 +542,7 @@ rg -n 'document-relations|continuation|signing key|repository-owned|old ID|Compl
 
 Expected: relation registryのconsumerはあるがproducerが不足し、repository-owned signing keyが未定義、old ID 0件Gateと本文移行Taskの境界が不完全。
 
-- [ ] **Step 2: document relation registryのproducerをTask 6へ追加する**
+- [x] **Step 2: document relation registryのproducerをTask 6へ追加する**
 
 Task 6は次を生成する。
 
@@ -532,7 +553,7 @@ schemas/architecture/document-relations.schema.json
 
 Schemaは`document_id`、direct `requires`、typed reciprocal `integrates_with`、contract ID、source document hashを必須にする。Task 8AとTask 10はこの出力だけを消費する。
 
-- [ ] **Step 3: continuation署名をhash bindingへ置換する**
+- [x] **Step 3: continuation署名をhash bindingへ置換する**
 
 repository-owned key、algorithm、secret供給を削除する。payloadは次をhashする。
 
@@ -542,15 +563,15 @@ SHA-256(JCS({request_hash, source_closure_hash, revision, scope, expires_at}))
 
 `request_hash`へfield mask、Target、next offsetを含める。これはauthenticity署名ではなく入力binding、破損、誤再利用の検出であり、悪意あるcallerのdigest再計算に対するauthorityを与えないと明記する。Authorityが必要なcommit／approvalは既存Approval Contractへ委譲する。
 
-- [ ] **Step 4: 本文migrationとCompletion Gateを一致させる**
+- [x] **Step 4: 本文migrationとCompletion Gateを一致させる**
 
 Task 4Bが43 active spec本文、Platform profile ID、Diagnostic ID、numeric-leading IDを更新することを明記し、Appendix Dの全old IDを網羅する。歴史的Decisionとmigration表は0件Gateから除外する。
 
-- [ ] **Step 5: canonical topological orderとbaseline Fieldを一致させる**
+- [x] **Step 5: canonical topological orderとbaseline Fieldを一致させる**
 
 DesignとImplementation Planでbaseline receipt Field名、hash対象、node数導出規則を同じ表へ揃える。件数は固定値ではなく生成registryから導出する。
 
-- [ ] **Step 6: Task 5検証とコミット**
+- [x] **Step 6: Task 5検証とコミット**
 
 Run:
 
@@ -585,7 +606,7 @@ git commit -m "docs: make control plane plan executable"
 - Consumes: Control Plane approved baseline、5新Owner、Task 2 naming。
 - Produces: E0 schema freeze条件、実行context、generation関係、段階化Qualification。
 
-- [ ] **Step 1: E0開始Gateをexact baselineへbindする**
+- [x] **Step 1: E0開始Gateをexact baselineへbindする**
 
 開始条件を次へ限定する。
 
@@ -599,7 +620,7 @@ entity_component_system.state == review
 
 `entity_component_system`はE0 Taskが作る対象なので開始時にapprovedを要求しない。
 
-- [ ] **Step 2: E0 schema freeze前の未定義を閉じる**
+- [x] **Step 2: E0 schema freeze前の未定義を閉じる**
 
 Decisionへ次のclosed規則を追加する。
 
@@ -608,22 +629,22 @@ Decisionへ次のclosed規則を追加する。
 - `RuntimeSystemExecutionContextV1`はtick、phase、partition、read snapshot、write batch、diagnostic sinkを保持する。
 - store generationとparticipant generationの更新順、stale拒否、publish atomicityを一つのtableで固定する。
 
-- [ ] **Step 3: in-memory type naming例外を正本へ接続する**
+- [x] **Step 3: in-memory type naming例外を正本へ接続する**
 
 `RuntimeEntityHandle`等のin-memory value typeはNamingのversion suffix省略categoryへ登録し、ECS Decision内だけの暗黙例外にしない。
 
-- [ ] **Step 4: C1と後段stress Qualificationを分離する**
+- [x] **Step 4: C1と後段stress Qualificationを分離する**
 
 - E0/C1: First Playable fixture、30分soak、正本capacity内entity数。
 - C2/stress: 100万Entity synthetic、2時間endurance、全archetype handoff matrix。
 
 E0 plan Completion GateからC2/stressを外し、将来Qualification WPへ参照する。
 
-- [ ] **Step 5: contract compiler／CTest ownerをTask 0で閉じる**
+- [x] **Step 5: contract compiler／CTest ownerをTask 0で閉じる**
 
 Task 0は作成file、command、positive fixture、negative fixture、後続Taskが消費するtarget名を完全記載する。未存在targetを暗黙前提にしない。
 
-- [ ] **Step 6: Task 6検証とコミット**
+- [x] **Step 6: Task 6検証とコミット**
 
 Run:
 
@@ -658,7 +679,7 @@ git commit -m "docs: close runtime ecs e0 plan"
 - Consumes: Control Plane baseline、ECS E0 handoff、Target profile ID、official DirectX constraints。
 - Produces: Phase 2で実行可能なbackend Qualificationと後段Product Qualificationの分離。
 
-- [ ] **Step 1: 将来fixture依存を再現する**
+- [x] **Step 1: 将来fixture依存を再現する**
 
 Run:
 
@@ -668,7 +689,7 @@ rg -n '2D shooter|3D shooter|shooter-2d|shooter-arena-3d|Task 13|Qualification' 
 
 Expected: Phase 2 backend完了条件がPhase 3／6 content fixtureへ依存している箇所が検出される。
 
-- [ ] **Step 2: Qualificationを二層へ分離する**
+- [x] **Step 2: Qualificationを二層へ分離する**
 
 ```markdown
 | Gate | Fixture | Phase |
@@ -681,22 +702,22 @@ Expected: Phase 2 backend完了条件がPhase 3／6 content fixtureへ依存し�
 
 Task 13はBackend C1だけでD3D12 planを完了し、後段fixtureはProduct Registryが追跡する。
 
-- [ ] **Step 3: compute barrier queue不整合を解消する**
+- [x] **Step 3: compute barrier queue不整合を解消する**
 
 compute sampleはcompute queueで合法なlayoutとsync/accessだけを使用し、Direct queue限定transitionを要求しない。cross-queue handoffはproducer fence、consumer wait、owner queue上のtransitionを明記する。
 
-- [ ] **Step 4: design／implementationのfile mapと型名を一致させる**
+- [x] **Step 4: design／implementationのfile mapと型名を一致させる**
 
 Design §24/§25の既存正本更新13件をTask 1.5のexact checklistへ写し、directory、type、window handoff型、diagnostic ID、test target名を同じ表記にする。
 
-- [ ] **Step 5: 公式DirectX制約をEvidenceへ固定する**
+- [x] **Step 5: 公式DirectX制約をEvidenceへ固定する**
 
 - Agility SDK stable artifactはToolchain lockが所有する。
 - Enhanced Barrierのsync／access／layout、alias／discard orderingはDirectX-Specsを根拠にする。
 - D3D12MAのallocator／budget／aliasing境界はofficial repository releaseとheader contractを根拠にする。
 - 公式資料がMiraikanaiの20% headroomやvisual toleranceを推奨するとは記載しない。それらはMiraikanai Qualification policyとする。
 
-- [ ] **Step 6: Task 7検証とコミット**
+- [x] **Step 6: Task 7検証とコミット**
 
 Run:
 
@@ -727,17 +748,17 @@ git commit -m "docs: align d3d12 plan with product phases"
 - Consumes: Tasks 1–7のcommitとEvidence。
 - Produces: 全253 findingの終端disposition、残余risk、再現可能な検査結果。
 
-- [ ] **Step 1: UNVERIFIED high 10件を最優先で再検証する**
+- [x] **Step 1: UNVERIFIED high 10件を最優先で再検証する**
 
 各findingについて原文引用、現在の正本、他Owner文書を照合し、`confirmed`または`refuted`へ変更する。検証失敗を`confirmed`へ昇格しない。
 
-- [ ] **Step 2: 残るUNVERIFIED 33件とPLAUSIBLE 48件を処理する**
+- [x] **Step 2: 残るUNVERIFIED 33件とPLAUSIBLE 48件を処理する**
 
 - 実害のある参照切れ／Gate不能はconfirmedへ昇格して適用する。
 - style改善だけで正本挙動が変わらないものは`deferred`にする。
 - 重複はcanonical findingのEvidenceを参照し、同じ修正を二重計上しない。
 
-- [ ] **Step 3: closure終端性を検査する**
+- [x] **Step 3: closure終端性を検査する**
 
 Run:
 
@@ -766,7 +787,51 @@ unknown_category=0
 terminal=253
 ```
 
-- [ ] **Step 4: Markdownと相対linkを検査する**
+Review-applied document mapの全行が少なくとも一つのFindingの`changed_documents`から参照され、ledger側にもmap外文書がないことを検査する。
+
+```powershell
+$closure = Get-Content docs/reviews/2026-07-22-plan-review-closure.md
+$mapStart = [Array]::IndexOf($closure, '## Review-applied document map')
+$receiptStart = [Array]::IndexOf($closure, '## Final verification receipt')
+if ($mapStart -lt 0 -or $receiptStart -le $mapStart) { throw 'review-applied map boundary missing' }
+
+$mapDocuments = @(
+  for ($i = $mapStart + 1; $i -lt $receiptStart; $i++) {
+    if ($closure[$i] -match '^- `(?<path>docs/.+\.md)`$') { $Matches.path }
+  }
+) | Sort-Object -Unique
+
+$ledgerDocuments = @(
+  foreach ($line in $closure) {
+    if ($line -notmatch '^\| `review\.plan_review_2026_07_22\.finding_\d{3}` \|') { continue }
+    $cells = $line.Split('|')
+    foreach ($match in [regex]::Matches($cells[10], 'docs/[^"\]]+\.md')) { $match.Value }
+  }
+) | Sort-Object -Unique
+
+$mapWithoutFinding = @($mapDocuments | Where-Object { $_ -notin $ledgerDocuments })
+$findingDocumentsOutsideMap = @($ledgerDocuments | Where-Object { $_ -notin $mapDocuments })
+"review_applied_map=$($mapDocuments.Count)"
+"ledger_changed_documents=$($ledgerDocuments.Count)"
+"map_without_finding=$($mapWithoutFinding.Count)"
+"finding_documents_outside_map=$($findingDocumentsOutsideMap.Count)"
+if ($mapWithoutFinding.Count -ne 0 -or $findingDocumentsOutsideMap.Count -ne 0) {
+  $mapWithoutFinding
+  $findingDocumentsOutsideMap
+  throw 'review-applied map coverage mismatch'
+}
+```
+
+Expected:
+
+```text
+review_applied_map=52
+ledger_changed_documents=52
+map_without_finding=0
+finding_documents_outside_map=0
+```
+
+- [x] **Step 4: Markdownと相対linkを検査する**
 
 Run:
 
@@ -831,7 +896,7 @@ $missingAnchors
 
 Expected: `git diff --check` exit 0、`missing_links=0`、`missing_anchors=0`。
 
-- [ ] **Step 5: old IDとRegistry参照を検査する**
+- [x] **Step 5: old IDとRegistry参照を検査する**
 
 Run:
 
@@ -897,7 +962,7 @@ $unresolvedRegistryRefs
 
 Expected: `normative_old_id_hits=0`、`unresolved_registry_refs=0`、`unresolved_review_markers=0`。old IDはexact migration表、同表を説明するtest／移行文、歴史的Decisionだけに残す。
 
-- [ ] **Step 6: 最終差分をscope別にレビューする**
+- [x] **Step 6: 最終差分をscope別にレビューする**
 
 Run:
 
@@ -909,7 +974,7 @@ git status --short
 
 Expected: 変更はこのplanのFile map内。ユーザーの元差分を消す削除や無関係fileを含まない。
 
-- [ ] **Step 7: final closureをコミットする**
+- [x] **Step 7: final closureをコミットする**
 
 ```powershell
 $reviewAppliedFiles = @(

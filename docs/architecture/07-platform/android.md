@@ -5,7 +5,7 @@
 - 正本範囲: Android Target／Distribution Profile、Toolchain Build mapping、GameActivity／controller／frame-pacing Adapter、Vulkan Target mapping、Android package／Play delivery、lifecycle、permission／privacy、16 KiB page compatibility、Android device qualification／release gate
 - 非正本範囲: exact Tool／SDK／library version・hash・license・URL、Mobile共通schema／lifecycle意味／aggregate cap、Renderer共通contract、Input／Audio／UI意味、Asset lifecycle、AI authorization／Evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
-- 外部根拠検証日: 2026-07-21
+- 外部根拠検証日: 2026-07-23
 
 ## 1. ProfileとBuild mapping
 
@@ -84,6 +84,10 @@ default permissionは0である。Capabilityからmanifest candidateを生成す
 Signing Serviceはfixed unsigned AABとgovernance ownerのRelease decision refだけを受け、Gradle、Source、Build scriptを受け取らない。upload keyとPlay API credentialは別identityへ分け、debug credential／debuggable packageをShipping入力として拒否する。正規AAB署名／verification toolとexact behaviorはToolchain ownerを参照する。`AndroidSigningReceiptV1`はunsigned／signed root、key ref、certificate-chain ref、profile hash、Tool ref、verification resultを持つ。
 
 ## 5. Device tests、failure、release gate
+
+`AndroidMinSdkCoverageReceiptV1`はminimum SDKの市場妥当性だけを所有し、compile／target SDK要件やdevice conformanceの代用にしない。Product Ownerは計測結果を見る前に`target_regions[]`、`form_factors[]`、coverage metric、合格閾値、snapshot freshnessを承認する。Android Ownerは同じAABをPlay Consoleへuploadした後、[Reach and devices](https://support.google.com/googleplay/android-developer/answer/10770882?hl=en)のAndroid version別exportと[Device catalog](https://support.google.com/googleplay/android-developer/answer/7353455?hl=en)のsupported／excluded device exportを取得し、`aab_sha256`、`minimum_sdk`、`target_sdk`、`snapshot_at`、filter、metric、observed coverage、threshold、export SHA-256、Play Console account／app identityの非secret refをReceiptへ記録する。
+
+閾値未承認、AAB未upload、export欠落、filter不一致、snapshot失効、coverage未達のいずれかではAPI 29を市場coverage達成として扱わず、`wp.platform.mobile-offline`のAndroid Target Gateをfail closedにする。公開Web上の一般的なOS分布、Device Catalogのmodel数、target API policy、別appの値を代用しない。minimum SDKを変更する場合はToolchain baseline、manifest、device matrix、Product Registry、Package Receiptを同じChangeSetで更新する。
 
 Minimum laneはToolchain profileのminimum API／Vulkan Profileに合格するarm64 Adreno系1台とMali系1台、Reference laneはcurrent profileのphone／tablet／foldable、High laneはoptional graphics／high-refresh Profileとする。device交換はsame commit／package／input traceのbridge baselineを残す。Emulatorはfunctional smokeだけに使う。
 

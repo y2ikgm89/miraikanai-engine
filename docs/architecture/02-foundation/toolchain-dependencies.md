@@ -5,7 +5,7 @@
 - 正本範囲: 外部Tool・SDK・Library・APIのexact version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock、Dependency採用・更新Gate、Build Driver Profileのclosed set、CI実行基盤のrunner／hosting／capacity binding
 - 非正本範囲: Product scope、Subsystem API・型・Budget、Runtime phase、Platform lifecycle、Dependency内部を包むEngine-owned Adapter契約。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)
-- 外部根拠検証日: 2026-07-22
+- 外部根拠検証日: 2026-07-23
 
 ## 1. 結論と一意所有
 
@@ -52,6 +52,8 @@ AI Source Worker隔離Backend `HyperVIsolatedWorkerV1`（[AI Security／Approval
 | ABI／STL | Shipping `arm64-v8a`、Developmentは必要なCIだけ`x86_64`を追加、全native dependencyを`c++_shared`へ統一 |
 
 AGPのNDK既定値は採用根拠にしない。公式downloadで別version指定が許されることを確認したうえで、Miraikanaiは上表のNDKを明示固定する。
+
+minimum SDK API 29は技術baselineであり、市場coverageの達成主張ではない。Google Playの[Target API要件](https://developer.android.com/google/play/requirements/target-sdk)は2026-08-31以降の新規app／updateへAndroid 16（API 36）以上のtargetを要求するが、minimum SDKを決めない。API 29の継続可否は[Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1`で別途判定し、Receiptなしに「十分な端末をカバーする」と表現しない。
 
 ### 2.3 Apple
 
@@ -196,6 +198,27 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 | MCP server実装SDK | [Executable contracts](executable-contracts.md) §16.2 | 未固定 |
 
 第一party自作を選ぶ場合も9節のGateと同等の検証（公式test vector等）をADRへ記録し、本表の行をexact pinまたは実装先Directoryへ置換する。
+
+### 6.2 Known unresolved decision queue
+
+本queueは未固定値の正本を複製せず、最初のconsumer、必要Evidence、fail-closed境界を索引する。Waveは準備順であり、各行のTriggerが期限である。Triggerが先に到来した行は即時に前倒しする。Architecture Evolution Control Planeはlock済みNode.js／TypeScript CLIと標準Libraryだけを使い、新しいproduction dependencyを要求しないため、本queueのC++／Platform行を理由に`wp.architecture.control-plane`を停止しない。
+
+| Wave | Unresolved input | Decision authority | Trigger／deadline | Required closure evidence | Blocked consumer／current state |
+|---|---|---|---|---|---|
+| A | C++ unit test frameworkまたはfirst-party harness | `mirakan.arch.toolchain-dependencies` | Runtime ECS Task 3で最初のC++ contract testを書く前 | §9のrelease／license／hash／Adapter確認、CTest discovery、failure／filter／parallel実行fixture。自作時は実装Directoryとself-test Receipt | `wp.runtime.ecs-e0`のC++ test着手を停止／未固定 |
+| A | SHA-256 implementation | `mirakan.arch.toolchain-dependencies` | Runtime ECS Task 4のcanonical hash実装前 | exact実装、license／artifact lock、NIST known-answer、incremental／zero-length／large input、cross-target byte一致Receipt | `wp.runtime.ecs-e0`のhash実装を停止／未固定 |
+| A | Microsoft.Direct3D.WARP | `mirakan.arch.toolchain-dependencies` | D3D12 Task 3 WARP conformance着手前 | Microsoft公式NuGetのexact version、nupkg SHA-256、同梱license、Agility互換、Development-only conformance Receipt | `wp.runtime.d3d12-backend` Task 3を停止／未固定 |
+| A | Windows Target minimum OS | `mirakan.arch.toolchain-dependencies` | D3D12 Task 12 package binding前 | Agility／Enhanced Barriers／GameInput提供形態、Microsoft support lifecycleを満たすexact build、OS probe、package negative fixtureを持つADR | Windows package promotionを停止／未固定 |
+| A | Microsoft.GameInput | `mirakan.arch.toolchain-dependencies` | Windows Input Adapter実装またはpackage同梱判定前 | Microsoft公式NuGetのexact version、nupkg SHA-256、license、header／runtime DLL manifest、minimum OS別in-box／redist matrix、Input conformance Receipt | `wp.product.editor-runtime-windows`のInput／package Gateを停止／未固定 |
+| B | 厳格C++ JSON parser | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §17.1を使う最初のC++ acceptance path実装前 | exact release／license／hash、duplicate field、invalid UTF-8、trailing bytes、number overflow、depth／size boundのpositive／negative Receipt | 最初のC++ JSON consumerだけを停止／未固定 |
+| B | JSON Schema Draft 2020-12 validator | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §14の最初のruntime validator実装前 | exact release／license／hash、official Draft 2020-12 test suite、unknown dialect／unsupported keyword／recursive ref／bound failure Receipt | 最初のruntime schema consumerだけを停止／未固定 |
+| B | MCP server SDKまたはfirst-party server boundary | `mirakan.arch.toolchain-dependencies` | `wp.product.external-agent`実装前 | MCP 2025-11-25 conformance、transport／capability negotiation、message bound、cancel／disconnect、license／artifact lock。自作時は実装Directoryとprotocol fixture | Phase 5 external-agent WPを停止／未固定 |
+| B | Android minimum SDK market coverage | `mirakan.arch.platform-android`、閾値承認は`mirakan.arch.product-plan` | `wp.platform.mobile-offline`開始前 | [Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1` | Android Target Gateを停止／Play Console Evidence待ち |
+| C | CX3 stable MSVC cutover | `mirakan.arch.toolchain-dependencies` | CX3 activation proposal前 | Microsoft stable release、正式`/std:c++23`、resolved toolset hash、`import std`／module partition C1001 regression fixture、全Target CX0↔CX3 ABI Receipt | CX3だけを停止しCX0を維持／非Preview v14.52+待ち |
+| C | Anthropic direct API／SDK | `mirakan.arch.toolchain-dependencies` | direct Provider projectionがProduct WPへ登録された時 | official SDK exact version／integrity／license、Provider version、Schema keyword conformance、credential／error／rate-limit fixture | direct projectionだけを停止しMVPはMCP経路を使用／scope未登録 |
+| Per target | CI runner／GPU・macOS host／mobile device poolとcapacity owner | `mirakan.arch.toolchain-dependencies` | 対応するProduct Target Gate開始前 | §8.1のqualified `CiExecutionProfileV1`、non-`unfixed` Owner、runner image／Toolchain lock／device matrix／capacity Receipt | 該当laneを`diagnostic.toolchain.ci-capacity-unresolved`で停止／Owner・capacity input待ち |
+
+各行のclosureは「候補名を本文へ書く」ことではない。§9を満たすADRまたはMeasurement Receipt、exact Toolchain lock、SBOM／notice、positive／negative fixtureを同じChangeSetでread-backできた時だけ未固定の正本行を置換する。候補調査だけでFeature Gateを開かない。
 
 ## 7. Source artifact、license、取得先
 
