@@ -11,7 +11,7 @@
 
 共通budget、capacity envelope、reservation、loan、backpressure、測定法、regression threshold、Scale qualificationは本書だけが決定する。Subsystem Ownerは本書が割り当てたparent budget内の固有配分とquality fallbackを所有し、共通上限を再定義しない。Runtimeのphase／tick／lifetimeは[Scheduling／lifetime](scheduling-lifetime.md)だけが所有する。
 
-性能は平均fpsや推定costではなく、同一Source revision、Target Profile、Quality、Toolchain lock、fixture、input trace、process条件で計測する。correctness、Replay、visual／audio tolerance、fault、memory、hitchのいずれかを悪化させて性能合格を作らない。budget不足時はSource意味を黙って削らず、bounded planまたは`optimization_required`を返す。
+性能は平均fpsや推定costではなく、同一Source revision、Target Profile、Quality、Toolchain lock、fixture、input trace、process条件で計測する。correctness、Replay、visual／audio tolerance、fault、memory、hitchのいずれかを悪化させて性能合格を作らない。budget不足時はSource意味を黙って削らず、bounded planまたはProject Stateの`state=blocked`と登録済み`blocked_reason_ref`を返す。改善可能な未達は`blocked_reason_ref=optimization_required`とする。
 
 本書は外部Tool、SDK、OS、driver、Libraryのversion、hash、license、取得元を固定しない。Benchmark environmentは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のexact baseline refを使い、値を本書へ複写しない。
 
@@ -87,7 +87,7 @@ device loss時のcapture／recovery順はScheduling、Renderer、Platform、Debu
 
 ## 5. Queue capacityとbackpressure
 
-次は共通C1 capacity profileのhard reservationであり、Targetを理由に暗黙縮小しない。Projectが変更する場合はmemory envelope、stress、Replay、Domain qualificationを再承認する。Runtime contract固有のdeterministic上限（[Scheduling／lifetime](scheduling-lifetime.md) §4.1のGameplay Timer active／fire上限等）は各Owner文書が所有し、本表へ複写しない。その変更も本節と同じ再承認を必要とする。
+次は共通C1 queue／buffer capacity profileのhard reservationであり、Targetを理由に暗黙縮小しない。Projectが変更する場合はmemory envelope、stress、Replay、Domain qualificationを再承認する。Runtime contract固有のdeterministic上限（[Scheduling／lifetime](scheduling-lifetime.md) §4.1のGameplay Timer active／fire上限等）は各Owner文書が所有し、本表へ複写しない。その変更も本節と同じ再承認を必要とする。本表はqueue storage上限であり、同時resident／visible Entity、authoritative population、projectile、interactive propの製品capacityを表さず、それらの未校正値を本表から逆算しない。
 
 | Queue／buffer | faces | Entry capacity | Payload arena | max payload／entry | charge | critical reserve |
 |---|---:|---:|---:|---:|---|---:|
@@ -204,7 +204,7 @@ Contract / Budget
   -> Candidate optimization
   -> Before / After + correctness / visual / fault comparison
   -> Governance Evidence
-  -> promote | optimization_required | reject
+  -> promote | blocked(optimization_required) | reject
 ```
 
 最低metric familyはframe／latency、hitch、Runtime CPU、memory、loading、GPU／streaming、queue／backpressure、correctnessである。Hitchはdeadline、2倍deadline、50 ms超を数え、shader／pipeline、Asset I/O、allocation／page fault、job／queue wait、driver／device、unknownへ分類する。unknownを除外しない。
@@ -264,7 +264,17 @@ Network authority variantsは専用仕様、Threat Model、Product activation前
 | `integrated_fixture_refs` | Test Scenario exact ref、1件以上 |
 | `decision_refs` | Scale判断を所有するDecision ref set |
 
-表示用`scale_class`をSourceへ保存しない。Projectionは五axisとEnvelope hashから`compact_reference | medium_candidate | large_local_candidate | distributed_candidate`を決定的に導出し、`predicted | optimization_required | qualified | not_activated`と別表示する。
+表示用`scale_class`をSourceへ保存しない。Projectionは五axisとEnvelope hashから`compact_reference | medium_candidate | large_local_candidate | distributed_candidate`を決定的に導出する。Target readinessは[Project State §3.4](../03-authoring/project-state.md#34-target-readiness)の`TargetReadinessV1`をread-only投影し、`state`は`predicted | blocked | qualified`だけ、性能未達の理由は`blocked_reason_ref`だけに置く。Capability activation専用`not_activated`と`optimization_required`をreadiness stateとして投影しない。
+
+C1の同時Entity／population製品Envelopeは現時点で未校正であり、数値を仮定しない。この項目のOwnerは本書、readiness envelopeのOwnerはProject Stateである。Target Profileごとに次の入力が揃うまでは`state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`を返す。
+
+1. CPU世代／core、RAM、storage、GPU／driver、OS、Device generationを固定した実機Target Profile。
+2. `ProjectScaleEnvelopeV1`のresident／visible object、authoritative actor／projectile／interactive prop、spawn／destroy burstを数値化したProject Requirement。
+3. その数値を丸めず同時発生させる`IntegratedScaleFixtureV1`とcanonical input trace。
+4. Source、Contract、Toolchain、Target、Device、Quality、Representation Planを束ねた同一`input_closure_hash`。
+5. §8／§13のcorrectness、Replay、memory、hitch、fault、10分×3 run、2時間enduranceを通過したfresh `policy.evidence.target-device.v1` Technical Qualification Receipt。
+
+上記Receiptが同じclosureでfreshな場合だけ`qualified`へ遷移できる。安全なRepresentation Planは作れるが製品Envelopeとは別の小規模入力を測定しただけなら、その小規模入力closureに限り`predicted`または`qualified`を判定し、C1製品Envelope全体へ外挿しない。Mobile commonが所有するbaseline 1280×720等のpixel／render budget表は変更せずTarget Profile入力として保持するが、それ単独でEntity／population readinessを解除しない。
 
 `RuntimeScaleIntentV1`はexperience role、total authored、peak live、peak active authoritative、peak spawn per simulation step、peak visible、interaction radius、simultaneous VFX、fidelity floor、Target setを必須とする。unknownを0、最大値、空optional、無制限で表さない。単位は[Math／Core utilities](../02-foundation/math-core.md)のsemantic typeを使い、non-finite、負数、range逆転、Targetなし、fidelity floorなしを拒否する。
 
@@ -285,7 +295,7 @@ Scaleの四層を分離する。
 
 Runtime StateまたはEvidenceからSourceへ値を自動write-backしない。Stable IDはrename、repartition、recook、HLOD、instance化、Simulation LODで変えない。Runtime handle、vendor ID、cell-local／plan-local IDをSource／Saveへ保存しない。Save／Replayはexact Source、Contract、Envelope、Plan hashを使う。
 
-万能な`ScaleManager`を作らない。各Domainは同じEnvelopeと自身のIntentを読み、自身のDerived Planを所有する。`ScalePlanSetV1`はplan本文を埋め込まず、exact Artifact ref、Source revision、Target Profile、Capability signature、dependency edge、qualification statusを束ねるmanifestである。required planのSource／Contract／Target／Capability hashが一件でもstale、missing、unqualifiedなら新setをpublishせずlast-valid playable setを維持する。
+万能な`ScaleManager`を作らない。各Domainは同じEnvelopeと自身のIntentを読み、自身のDerived Planを所有する。`ScalePlanSetV1`はplan本文を埋め込まず、exact Artifact ref、Source revision、Target Profile、Capability signature、dependency edge、`TargetReadinessV1` refを束ねるmanifestである。required planのSource／Contract／Target／Capability hashが一件でもstale、missing、unqualifiedなら新setをpublishせずlast-valid playable setを維持する。
 
 Population resolverはFull Entity、pool、archetype／SoA、instanced Presentation、reduced-frequency simulation、dormant record、aggregate simulation、HLOD、VFX Artifactからclosed strategyを選ぶ。各strategyはentry／exit predicate、owner、state／Save mapping、recovery、fallback、budgetを持つ。distance／visibilityだけでauthoritative actorを削らない。
 
@@ -295,7 +305,7 @@ Scale operationは`search | read_envelope | dependencies | resolve_preview | exp
 
 ProviderへProject Commit、Plan write、Capability activation、baseline緩和、Source直接write、server authority移動を公開しない。Queryはrevision、Envelope hash、Target、Capability signature、index revision、query hash、selected items、omitted ranges、cursor、Governance Evidence refを返す。全World／全Project dumpを行わない。
 
-`ScaleExplanationReceiptV1`はSource revision、Envelope hash、Target、Plan set hash、selected／rejected closed strategy、fidelity proof ref、cost measurement ref、fallback chain、qualification status、invalidation conditionをDomain evidenceとして生成する。共通Receipt envelope、Provenance、署名、保持は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照し、本書で再掲しない。
+`ScaleExplanationReceiptV1`はSource revision、Envelope hash、Target、Plan set hash、selected／rejected closed strategy、fidelity proof ref、cost measurement ref、fallback chain、`TargetReadinessV1` ref、invalidation conditionをDomain evidenceとして生成する。共通Receipt envelope、Provenance、署名、保持は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照し、本書で再掲しない。
 
 最低Diagnosticはmissing envelope、ambiguous requirement、unqualified capability、stale plan、fidelity violation、invalid reference closure、budget exceeded、partial activation rejected、distributed authority not activatedを区別する。unknownを近いenum、0、最大値、current Target defaultへ補正しない。
 
@@ -325,7 +335,7 @@ fixtureは次を全て満たす。
 
 `large_local_candidate / qualified`にはMedium Gateに加え、利用するLarge Capabilityの専用仕様／Receipt、Project固有traversal／population trace、partition boundary／reference closure／load deadline／memory pressure／recovery、same-source Medium fallback、repartition後のStable ID／Save／Replay、bounded context、incremental／partial Cook同値、10分×3 run、2時間endurance、failure injectionを必要とする。
 
-本節のqualification計測run（§8のScale qualification 10分×3 run、Production endurance 2時間runを含む）は、`Predicted` TargetのDevelopment Play実行モードで実行できる（[Project state](../03-authoring/project-state.md#9-runtime-compile境界)）。計測run自体の開始に`Qualified`を要求せず、Receipt確定後にだけ`Qualified`へ昇格する。
+本節のqualification計測run（§8のScale qualification 10分×3 run、Production endurance 2時間runを含む）は、`predicted` TargetのDevelopment Play実行モードで実行できる（[Project state](../03-authoring/project-state.md#9-runtime-compile境界)）。計測run自体の開始に`qualified`を要求せず、同じ`input_closure_hash`へ束縛されたfresh Receipt確定後にだけ`qualified`へ昇格する。`blocked_reason_ref=performance_envelope_unqualified`の製品Envelopeは、§9の5入力を揃えた専用qualification harnessだけを開始でき、通常Development Playを許可しない。
 
 Distributed qualification Gateは本書でactivationしない。専用Authority仕様、Threat Model、server実機、loss／latency／abuse／recovery fixture、人間承認が揃うまでCatalogへactive Gateを掲載しない。
 
@@ -337,13 +347,14 @@ Distributed qualification Gateは本書でactivationしない。専用Authority�
 | Plan compile／migration失敗 | new plan非publish、Sourceとlast valid維持 |
 | activation dependency不足 | authoritative closure全体をinactiveにする |
 | stale Source／Target／Contract | result破棄、current revisionで再計画 |
-| budget超過 | `optimization_required`、fidelityを自動緩和しない |
+| budget超過 | `state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`。fidelityを自動緩和しない |
+| C1 entity／population Envelope未校正 | `state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`。Target実機fixtureとfresh Receiptまで数値を発明しない |
 | Presentation Artifact不足 | approved visual fallback、Gameplay Source維持 |
 | Simulation LOD restore失敗 | Full／last valid fallback、不可能ならactivation拒否 |
 | partial Cook／Package失敗 | last valid package維持 |
 | unactivated Authority | fail closed、意味同等single-process alternativeだけ提示 |
 
-CIはbudget hard limit、loan deadline、queue pressure、§5のqueue表から導出したcommit合計と記載値の不一致、missing metric、SourceへのRuntime／Derived ID、stale plan／Receipt、fidelity floor低下、partial activation、Presentation→Gameplay逆入力、Medium fallback欠落、unactivated Authority公開を拒否する。
+CIはbudget hard limit、loan deadline、queue pressure、§5のqueue表から導出したcommit合計と記載値の不一致、missing metric、SourceへのRuntime／Derived ID、stale plan／Receipt、fidelity floor低下、partial activation、Presentation→Gameplay逆入力、Medium fallback欠落、unactivated Authority公開を拒否する。加えて、C1 entity／population未校正なのに`performance_envelope_unqualified`以外を返すこと、PascalCase readiness、`optimization_required`／`not_activated`のstate混入、`blocked`でreason欠落、fresh Target-device Receiptなしの`qualified`を一原因ずつnegative fixtureで拒否する。
 
 本書のcompletionには、共通budget／capacity／backpressureが一意、Envelopeの五axisとroot contractが一意、Domain fieldのowner委譲が明示、same-source transition fixture、bounded explanation、Target qualification、last-valid recoveryが実行可能であることを必要とする。Product Phase順序、Capability maturity、Governance authorization、Evidence envelopeを本書で再定義しない。
 

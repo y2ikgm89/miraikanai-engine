@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.project-state
 - 状態: review
-- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1のdomain schema／意味／transaction、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
+- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1のdomain schema／意味／transaction、Target readiness envelope、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
 - 非正本範囲: MCD共通Envelope／projection／codegen、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime scheduling。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[World／Level／Map](../06-rendering/world.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 外部根拠検証日: 2026-07-21
@@ -21,6 +21,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 - Source file、snapshot、journal、Undo／Redo、Recovery
 - 外部編集とAI編集の競合
 - Runtime packageへのcompile入力境界
+- Target別`TargetReadinessV1`と`TargetBlockedReasonRegistryV1`。性能測定とEvidence freshnessの意味は各Ownerを参照する
 
 ## 2. 決定権と対象外
 
@@ -108,6 +109,33 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | `superseded_by` | optional Decision StableId |
 
 GatewayはChangeSetの影響closureから、`applies_to`、`evidence_refs`、`decision_dependencies`、`validity_predicates`を決定論的に照合する。成立条件が変わる場合、提案ChangeSetに`InvalidateDecision`または新根拠を伴う`ReconfirmDecision`がなければ`MIRAKAN-DECISION-INVALIDATION_REQUIRED`で全体を拒否し、必要OperationとDecision IDを返す。GatewayがEntryを黙って`needs_review`へ変更してはならない。`locked=true`のDecisionへ影響する変更は、別Authorityが承認した`UnlockDecision`を同じtransactionへ含めない限り拒否する。
+
+### 3.4 Target readiness
+
+Project revisionのTarget別実行可否は次の一型だけで表す。
+
+```text
+TargetReadinessV1
+  target_profile_ref
+  project_revision
+  input_closure_hash
+  state: predicted | blocked | qualified
+  blocked_reason_ref: string | null
+  technical_qualification_receipt_ref: string | null
+```
+
+`input_closure_hash`はSource revision、Scale intent、Representation Plan、Contract set、Toolchain lock、Target Profile、Device generation、Qualification policyのcanonical hash closureである。`predicted`は安全なPlanを生成できるが当該closureの実測Receiptがなく、`blocked_reason_ref=null`、`technical_qualification_receipt_ref=null`とする。`blocked`は現在入力ではPlay／Cook／Shipping promotionを許可できず、登録済みnon-null `blocked_reason_ref`、null Receiptを必須とする。`qualified`は同じ`input_closure_hash`へ束縛されたfresh `TechnicalQualificationReceiptV1`を必須とし、`blocked_reason_ref=null`とする。状態とnullabilityが一致しないRecordを拒否する。
+
+`TargetBlockedReasonRegistryV1`は`reason_id`、`diagnostic_ref`、`owner_document_id`、`blocking_scope`、`recovery_gate_ref`を持ち、本書がenvelopeとID一意性、各Domain Ownerが意味と回復条件を所有する。初期共通entryは次の2件である。
+
+| reason_id | diagnostic_ref | Owner | recovery gate |
+|---|---|---|---|
+| `optimization_required` | `diagnostic.performance.optimization-required` | `mirakan.arch.runtime-performance-capacity` | 同じGameplay fidelity floorを維持するRepresentation Planを再生成し、Target実機fixtureを再測定する |
+| `performance_envelope_unqualified` | `diagnostic.performance.envelope-unqualified` | `mirakan.arch.runtime-performance-capacity` | C1 entity／population envelopeをTarget Profile実機の`IntegratedScaleFixtureV1`で校正し、fresh Target-device Receiptを発行する |
+
+特にC1 entity／population数値が未校正のTargetを推測値で`predicted`または`qualified`にせず、`state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`とする。Performance OwnerがTarget Profile、fixture、input trace、Device generation、測定Receiptを揃えて値を確定するまで解除しない。Mobileのpixel budget／render baselineは別のTarget Profile入力であり、本readiness stateへ合成または置換しない。
+
+wire値はlower snake caseだけを受理する。`Predicted`、`Blocked`、`Qualified`、`OptimizationRequired`等のPascalCaseと、Capability activation専用`not_activated`をTarget readinessへ混入させない。
 
 ## 4. World Model
 
@@ -231,7 +259,7 @@ ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary�
 | Reference | `SetStableReference`、`ClearStableReference` |
 | Recipe | `InstantiateRecipe`、`ApplyRecipeUpdate`、`SetRecipeOverride` |
 | Gameplay／UI／Style | 各Subsystemが登録するtyped Operation |
-| Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。Qualified Contract／Staging hashだけ |
+| Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。`qualified` Contract／Staging hashだけ |
 | World／Level | Topology、Level、Partition Intent、Procedural、Map Presentationの各Domain typed Operation |
 | Asset | `RegisterAssetSource`、`SetImportField`、`ReplaceAssetSourceRevision` |
 | Native C++ | `RegisterNativeModuleRevision`。Source promotion済みhashだけ |
@@ -252,8 +280,8 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 5. 全preconditionとDocument revisionを検証する。
 6. 参照整合、cycle、Capability、Target intersection、Decision invalidation、Domain invariantを検証する。
 7. 変更後aggregateをcopy-on-write stagingへ構築する。
-8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`Predicted`、現在のPlanでは未達なら`OptimizationRequired`を結果revisionへ記録する。`Qualified`は予測から生成せず、既存の有効な統合負荷Receiptを照合できた場合だけ維持する。
-9. Domain dry-runと必要なbackground validation artifactのhashを照合する。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`OptimizationRequired`として記録する。
+8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`state=predicted`、現在のPlanでは未達なら`state=blocked`と登録済み`blocked_reason_ref`を結果revisionへ記録する。`qualified`は予測から生成せず、同じ`input_closure_hash`へ束縛されたfresh統合負荷Receiptを照合できた場合だけ維持する。C1 entity／population envelopeが未校正なら`blocked_reason_ref=performance_envelope_unqualified`とする。
+9. Domain dry-runと必要なbackground validation artifactのhashを照合する。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`として記録する。
 10. 変更Document、inverse Operation、manifest、journal recordを同一temporary transaction directoryへ書く。
 11. 全fileをflushし、transaction manifestを最後に原子的renameする。
 12. 新`ProjectRevision = old + 1`とDocument indexを一つのcommit pointでpublishする。
@@ -266,7 +294,7 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 
 `SystemBundleChangeSetV1`のschema、状態遷移、二段階Activation、Source Promotion後のrecoveryは[Gameplay programming model](gameplay-programming-model.md)だけが所有する。本書はBundleが参照する`ProjectChangeSetV1`と最終Project Commitだけを所有する。Gatewayは検証済みexact hashを受け取り、`RegisterNativeModuleRevision`と`SetSystemImplementationVariant`を同じ`ProjectChangeSetV1`でCommitする。Bundle自体をCommitして正規Documentを迂回せず、Project Commit失敗時にSource repositoryをrollbackしない。
 
-World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つの`ProjectChangeSetV1`へ変換する。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`OptimizationRequired`または非Qualifiedにする。
+World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つの`ProjectChangeSetV1`へ変換する。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`blocked`へ遷移させ、原因に対応する`blocked_reason_ref`を記録する。
 
 ## 6. Source layoutと永続化
 
@@ -365,23 +393,24 @@ contract_lock_hash
 toolchain_lock_hash
 scale_intent_hash
 representation_plan_hash
-integrated_scale_receipt_hash
+technical_qualification_receipt_hash
 ```
 
-`integrated_scale_receipt_hash`は`Qualified` Targetだけ必須であり、`Predicted`／`OptimizationRequired`では0ではなくfield omissionをcanonical encodingする。PlayはDevelopment PlayとQualified promotionを区別する。`Predicted`のTargetはDevelopment Playを開始でき、未実測であることをEditor表示とReceiptへ明示する。[Performance／capacityが所有するqualification計測run](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)はこのDevelopment Play実行モードで行い、Receipt確定後にだけ`Qualified`へ昇格する。`OptimizationRequired`のTargetはDevelopment Playを含むPlay開始を拒否する。未Qualified revisionを`Qualified`扱いのPlay、Cooked Runtime Package promotion、Shippingへ要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
+`technical_qualification_receipt_hash`は`state=qualified`のTargetだけ必須で、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#72-technicalqualificationreceiptv1)の`TechnicalQualificationReceiptV1`完成hashを指す。その`evidence_hashes[]`はPerformance OwnerのIntegrated Scale Receiptを含む。`predicted`／`blocked`では0ではなくfield omissionをcanonical encodingする。PlayはDevelopment Playとqualified promotionを区別する。`predicted`のTargetはDevelopment Playを開始でき、未実測であることをEditor表示とReceiptへ明示する。[Performance／capacityが所有するqualification計測run](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)はこのDevelopment Play実行モードで行い、Receipt確定後にだけ`qualified`へ昇格する。`blocked`のTargetはDevelopment Playを含むPlay開始を拒否する。未qualified revisionをqualified扱いのPlay、Cooked Runtime Package promotion、Shippingへ要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
 
 Source revisionと全dependency closureが同じであれば、Cooked Runtime Packageはbyte-for-byte同一でなければならない。Build日時、machine path、user、random IDはartifact本文へ含めずReceiptへ分離する。
 
-大量配置や大量生成のScale intentは、Authoring Documentを無制限なEntity列挙にしてよいという意味ではない。procedural descriptor、Recipe、spatial partition等のbounded schemaを使い、Authoring aggregate自体のhard budgetは常に満たす。一方、Target Runtimeの予測budget未達だけを理由に有効な制作意図を破棄しない。`OptimizationRequired` revisionはSourceとしてCommit、Diff、Undo、AI再提案できるが、対象TargetのPlay開始、Cooked Runtime Package promotion、Shippingには使えない。
+大量配置や大量生成のScale intentは、Authoring Documentを無制限なEntity列挙にしてよいという意味ではない。procedural descriptor、Recipe、spatial partition等のbounded schemaを使い、Authoring aggregate自体のhard budgetは常に満たす。一方、Target Runtimeの予測budget未達だけを理由に有効な制作意図を破棄しない。`state=blocked`のrevisionもSourceとしてCommit、Diff、Undo、AI再提案できるが、対象TargetのPlay開始、Cooked Runtime Package promotion、Shippingには使えない。改善可能なbudget未達は`blocked_reason_ref=optimization_required`を保持する。
 
-`qualification_status`はTargetごとに`Predicted | OptimizationRequired | Qualified`を持つ。`Qualified`には[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)のReceipt hashが必要であり、Source、Scale intent、Representation Plan、Target Profileのいずれかが変われば`Predicted`へ戻す。last valid Derived ArtifactをDevelopment previewで使う場合、現在Sourceの合格結果に見せない。
+`target_readiness`はTargetごとに§3.4の`predicted | blocked | qualified`だけを持つ。`qualified`には[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)のfresh Receipt hashが必要であり、Source、Scale intent、Representation Plan、Contract set、Toolchain lock、Target Profile、Device generation、Qualification policyのいずれかが変われば、新closureを評価して`predicted`または登録済み理由を持つ`blocked`へ戻す。last valid Derived ArtifactをDevelopment previewで使う場合、現在Sourceの合格結果に見せない。
 
 ## 10. Failure policy
 
 | Failure | 結果 |
 |---|---|
 | Schema／semantic／Authoring hard budget不合格 | ChangeSet全体reject、live revision不変 |
-| Runtime Target予測budget未達 | Source revisionを`OptimizationRequired`でCommit可能。対象TargetのPlay／Cook／Shipping promotionを拒否し、制作意図と最適化候補を維持 |
+| Runtime Target予測budget未達 | Source revisionを`state=blocked`、`blocked_reason_ref=optimization_required`でCommit可能。対象TargetのPlay／Cook／Shipping promotionを拒否し、制作意図と最適化候補を維持 |
+| C1 entity／population製品Envelope未校正 | Source revisionを`state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`でCommit可能。専用qualification harness以外のPlay／Cook／Shipping promotionを拒否 |
 | Stale base revision | `RevisionMismatch`、最新Diff summaryを返す |
 | Document／StableId不足 | `MissingReference`、placeholderへ黙って置換しない |
 | 要求revisionのContext Index未完成 | `IndexNotReady`。別revisionへfallbackせず、bounded retryまたはTask分割 |
@@ -411,7 +440,9 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - Re-shard前後で`entity_set_root_hash`とsemantic diffが不変、storage-only Diffだけが生成されるtest
 - Index stale／rebuild中に別revisionのSliceを返さないconcurrency test
 - Decision dependency変更で`InvalidateDecision`／`ReconfirmDecision`不足をrejectし、locked Decisionを別承認なしで変更できないnegative test
-- `Predicted → OptimizationRequired → Qualified`遷移、Receipt invalidation、`Predicted` TargetのDevelopment Play許可と未実測明示、`OptimizationRequired` TargetのPlay拒否、未Qualified TargetのCooked Package promotion／Shipping拒否
+- `predicted -> blocked(optimization_required) -> predicted -> qualified`遷移、Receipt invalidation、`predicted` TargetのDevelopment Play許可と未実測明示、`blocked` TargetのPlay拒否、未qualified TargetのCooked Package promotion／Shipping拒否
+- C1 entity／population envelope未校正時の`blocked(performance_envelope_unqualified)`、Target Profile実機fixture＋fresh Receiptによる解除、恣意的な数値defaultの拒否
+- Target readinessへの`Predicted`／`Blocked`／`Qualified`／`OptimizationRequired`とCapability専用`not_activated`混入、stateと`blocked_reason_ref`／Receipt nullability不一致を一原因ずつ拒否するnegative fixture
 - Game System authoritative State ownerが0件／複数件、stale System Bundle、Source Promotion後Project Commit failureのnegative／recovery test
 - World／Scene／Level／Cell identity、Topology reachability、Portal trap、Map intent ambiguity、Cell activation atomicityのfixture
 - Source Intentから同じTarget別Streaming Plan hashを再生成し、Derived Planの直接編集を拒否するtest

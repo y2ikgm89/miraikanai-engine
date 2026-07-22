@@ -4,9 +4,9 @@
 
 **Goal:** 43 active Architecture仕様へ5正本を追加し、48文書をtyped metadata、acyclic direct dependency、closed registry、stable ID、決定論的lint、bounded architecture explainで管理する。
 
-**Architecture:** Markdown本文を意味推測せず、H1直後のexact JSON metadata、checked-in registry JSON、migration manifestだけを機械入力にする。TypeScript 7 compiler APIは使わず、dependency-free TypeScript sourceをCLIでcompileしてNode.jsで実行し、同一Git treeから同一diagnostic順と同一generated Indexを得る。
+**Architecture:** Markdown本文を意味推測せず、H1直後のexact JSON metadata、checked-in registry JSON、migration manifestだけを機械入力にする。TypeScript 7 compiler APIは使わず、Ajv 8.20.0のDraft 2020-12 validatorとNode標準LibraryをCLI compile後に実行し、同一Git treeから同一diagnostic順と同一generated Indexを得る。
 
-**Tech Stack:** Node.js 24.18.0 LTS、npm 11.16.0、TypeScript 7.0.2 CLI、`--singleThreaded`、JSON Schema Draft 2020-12、PowerShell 7、Git。
+**Tech Stack:** Node.js 24.18.0 LTS、npm 11.16.0、TypeScript 7.0.2 CLI、`--singleThreaded`、Ajv 8.20.0 (`ajv/dist/2020`)、JSON Schema Draft 2020-12、PowerShell 7、Git。
 
 ## Global Constraints
 
@@ -17,11 +17,12 @@
 - `requires`はdirect prerequisiteだけで、cycle、self edge、missing node、redundant transitive edgeを拒否する。
 - `integrates_with`は双方に同じContract ID集合を要求し、片方向、空集合、unknown Contract IDを拒否する。
 - Logical IDへmaturity、Phase、schema／profile versionを埋め込まない。旧IDは本計画Appendix Dの一回限りmigrationだけで変換し、runtime aliasを残さない。
-- Product stateは`{capability_id,target_id}`単位を正本とし、aggregate stateはrequired Targetの最小stateとして導出する。
+- Capability activationは`CapabilityTargetActivationV1`の`{capability_id,target_id}` rowだけを保存正本とし、aggregate stateはrequired Target rowの最小stateとしてread-only導出する。
 - TypeScript 7.0はstable programmatic APIを持たないため、`typescript`をruntime importしない。正式compileは`npx tsc --build --force --singleThreaded`だけを使う。
-- 新しいproduction dependencyを追加しない。Markdown、JSON、SHA-256、path、graph処理はNode標準Libraryだけで実装する。
+- Production dependencyはDraft 2020-12 validation用Ajv `8.20.0`のexact pinだけを許可する。Markdown、SHA-256、path、graph処理はNode標準Libraryで実装し、Ajv plugin、format package、remote resolverを追加しない。
 - 実装完了を文書承認、Capability昇格、Release承認へ流用しない。
 - 別authority ManifestをSchemaまたは互換aliasとして追加しない。authority discoveryは`ArchitectureMetadataV1`、relation registry、Shared canonical contracts、生成Indexから導出する。
+- Task順は`Validator bootstrap -> schema -> 5 Owner作成 -> Control Plane bootstrap approval -> 43文書metadata migration -> Product registry生成`を変えない。未承認Ownerまたは失効Bootstrap Approvalを正式Work Packageが使用しない。
 
 ---
 
@@ -38,13 +39,18 @@
 | `schemas/architecture/explain-projection.schema.json` | Architecture explain request／projectionのclosed schema |
 | `schemas/architecture/document-relations.schema.json` | document relation registry V1 schema |
 | `schemas/architecture/baseline.schema.json` | baseline handoff V1 schema。field過不足を拒否 |
+| `schemas/architecture/control-plane-bootstrap-approval.schema.json` | `ControlPlaneBootstrapApprovalV1`のclosed schema |
 | `schemas/product/product-registries.schema.json` | Product registry V1 schema集合 |
 | `architecture/registry/document-relations.v1.json` | 生成inventory（移行開始時48）のdirect requires、reciprocal integration、source document hash、canonical order正本 |
 | `architecture/registry/identity-migration.v1.json` | Appendix Dと一致する旧→新ID mapping |
 | `architecture/registry/product.v1.json` | Product Plan §11のregistry projection |
+| `architecture/registry/work-package-lifecycle.v1.jsonl` | append-only `WorkPackageLifecycleRecordV1`。Product registryへReceiptを複写しない |
+| `architecture/approvals/control-plane-bootstrap.v1.json` | 5 Owner、Product registry、Toolchain、Decisionを承認対象Git treeへ束ねるbootstrap Approval。Record自身はtree subject外 |
 | `architecture/migrations/control-plane-v1.json` | legacy header、new metadata、removed edge classificationの監査記録 |
 | `tools/architecture_lint/package.json` | offline、private、scriptなしのtool package |
 | `tools/architecture_lint/package-lock.json` | `npm ci`が必須とするexact dependency lock |
+| `tools/architecture_lint/validator-bootstrap.mjs` | Ajv lock／integrity read-back、local `$id` allowlist、Draft 2020-12 compile bootstrap |
+| `tools/architecture_lint/product-projection-bootstrap.mjs` | Product Plan §11からApproval対象とTask 7 materialize用の同一canonical bytesを生成 |
 | `tools/architecture_lint/tsconfig.json` | strict ES module compile設定 |
 | `tools/architecture_lint/src/model.ts` | closed data types |
 | `tools/architecture_lint/src/parse.ts` | UTF-8、H1、metadata JSON、Markdown link parser |
@@ -92,6 +98,56 @@ export interface DocumentRelationRegistryV1 {
       readonly contract_ids: readonly ContractId[];
     }[];
   }[];
+}
+
+export type WorkPackageSchedulingState =
+  | "declared" | "ready" | "active" | "blocked" | "deferred" | "complete";
+
+export interface WorkPackageRegistryEntryV1 {
+  readonly work_package_id: string;
+  readonly phase_id: string;
+  readonly owner_document_id: DocumentId;
+  readonly target_refs: readonly string[];
+  readonly fallback_ref: string;
+  readonly provided_fixture_refs: readonly string[];
+  readonly required_capability_refs: readonly string[];
+  readonly requires_work_package_refs: readonly string[];
+  readonly scheduling_state: WorkPackageSchedulingState;
+  readonly defer_reason: string | null;
+  readonly reconsideration_gate_refs: readonly string[];
+  readonly blocked_reason_ref: string | null;
+}
+
+export interface WorkPackageLifecycleRecordV1 {
+  readonly lifecycle_record_id: string;
+  readonly work_package_id: string;
+  readonly from_scheduling_state: WorkPackageSchedulingState;
+  readonly to_scheduling_state: WorkPackageSchedulingState;
+  readonly product_registry_sha256: string;
+  readonly candidate_binding_hash: string;
+  readonly transition_policy_ref: string;
+  readonly receipt_refs: readonly string[];
+  readonly decision_ref: string;
+  readonly recorded_by_subject_ref: string;
+  readonly recorded_at: string;
+}
+
+export interface ControlPlaneBootstrapApprovalV1 {
+  readonly approval_id: string;
+  readonly approver_subject_ref: string;
+  readonly approval_authority_ref: string;
+  readonly git_tree_id: string;
+  readonly owner_document_hashes: readonly {
+    readonly document_id: DocumentId;
+    readonly document_sha256: string;
+    readonly lifecycle_approval_ref: string;
+  }[];
+  readonly product_registry_sha256: string;
+  readonly toolchain_lock_sha256: string;
+  readonly decision_sha256: string;
+  readonly issued_at: string;
+  readonly revocation_snapshot_ref: string;
+  readonly revoked_at: string | null;
 }
 
 export interface ArchitectureDiagnosticV1 {
@@ -221,6 +277,47 @@ Run: `git diff --check -- architecture/migrations/control-plane-v1.json tools/ar
 
 Expected: outputなし、exit 0。
 
+### Task 1A: Ajv Draft 2020-12 validatorをbootstrapする
+
+**Files:**
+- Modify: `docs/architecture/02-foundation/toolchain-dependencies.md`
+- Create: `tools/architecture_lint/package.json`
+- Create: `tools/architecture_lint/package-lock.json`
+- Create: `tools/architecture_lint/validator-bootstrap.mjs`
+- Create: `tools/architecture_lint/test/validator-bootstrap.test.mjs`
+
+**Interfaces:**
+- Consumes: Toolchain OwnerのNode 24.18.0／npm 11.16.0 lock、Control Plane Design §21。
+- Produces: Ajv `8.20.0`のoffline install、Draft 2020-12 validator factory、local `$id` allowlist、lock／integrity read-back。Task 2以降はこのfactoryだけを使用する。
+
+- [ ] **Step 1: exact dependency lockを追加する**
+
+`toolchain-dependencies.md`、`package.json`、`package-lock.json`へAjv `8.20.0`、MIT、tarball `https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz`、integrity `sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==`を固定する。`package.json`は`private=true`、exact `engines`、`packageManager=npm@11.16.0`を持ち、Production dependencyは`ajv: 8.20.0`だけとする。transitive dependencyも`package-lock.json`のversion、resolved、integrityで固定し、version range、lifecycle script、optional remote resolverを追加しない。
+
+- [ ] **Step 2: content-addressed cacheからoffline installする**
+
+Toolchain lockが固定するtarballを取得工程でSHA-256／registry integrity照合してnpm cacheへ事前充填し、次を実行する。実装／CI中にregistryへfallbackしない。
+
+```powershell
+npm ci --prefix tools/architecture_lint --ignore-scripts --offline --no-audit --no-fund
+```
+
+- [ ] **Step 3: four-way read-back testを書く**
+
+Testは4 sourceをFieldのOwnerどおり照合する。Toolchain lockはversion、license、tarball URL、size、SHA-256、registry integrity、`package.json`はdirect dependency version=`8.20.0`、`package-lock.json`の`node_modules/ajv` entryはversion、resolved、integrity、install後`node_modules/ajv/package.json`はversion、licenseをread-backする。tarball URL／integrityはToolchain lockとpackage lock、versionは四者、licenseはToolchain lockとinstalled metadataで一致させる。`npm ls --prefix tools/architecture_lint ajv@8.20.0 --json`のexit 0とunexpected root Production dependency 0も要求し、一つでも不一致なら`diagnostic.toolchain.ajv-lock-mismatch`で停止する。
+
+- [ ] **Step 4: validator factoryを実装する**
+
+`ajv/dist/2020`専用classをES moduleのexact specifier `ajv/dist/2020.js`からimportし、resolved fileとpackage versionをread-backして`strict=true`、`allErrors=false`で生成する。package root `ajv`へfallbackしない。`loadSchema` optionを設定せず`compileAsync`をexportしない。登録可能なroot `$id`はDesign §21の6 URNだけとし、compile前に全subschemaをwalkしてfragment-only `$ref`またはallowlist ID＋fragment以外（`http:`、`https:`、`file:`、relative path、unknown URNを含む）を`diagnostic.architecture.schema-ref-not-local`で拒否する。
+
+- [ ] **Step 5: schema fileに依存しないbootstrap testを通す**
+
+embedded minimal Draft 2020-12 schemaで`unevaluatedProperties=false`を検証し、validator class import、draft、strict、single-error、local ref、remote ref拒否を確認する。このTaskではTask 2のschema fileを読まない。
+
+Run: `node --test tools/architecture_lint/test/validator-bootstrap.test.mjs`
+
+Expected: import成功、lock／integrity四者一致、positive 1、negative 4がPASS。これが成功するまでTask 2へ進まない。
+
 ### Task 2: Metadata／Product registry schemaをtest-firstで追加する
 
 **Files:**
@@ -230,9 +327,15 @@ Expected: outputなし、exit 0。
 
 **Interfaces:**
 - Consumes: Control Plane Design §7、Product Plan §11。
-- Produces: unknown property、duplicate logical ID、invalid closed stateを拒否するV1 schema。
+- Produces: unknown property、duplicate logical ID、invalid closed state、Product正本と異なるWork Package Fieldを拒否するV1 schema。
 
-- [ ] **Step 1: valid最小fixtureとinvalid fixtureをtestへ記述する**
+- [ ] **Step 1: Task 1A validatorのimport／lock testを再実行する**
+
+Run: `node --test tools/architecture_lint/test/validator-bootstrap.test.mjs`
+
+Expected: exit 0。Validator importまたはlock照合失敗をschema `ENOENT`で隠さない。
+
+- [ ] **Step 2: valid最小fixtureとinvalid fixtureをtestへ記述する**
 
 ```js
 assert.equal(validateMetadata(validReviewDocument).length, 0);
@@ -242,19 +345,23 @@ assert.match(validateWorkPackage({...validWp, scheduling_state: "deferred", defe
   /^diagnostic\.product\.deferred-reason-missing$/);
 ```
 
-- [ ] **Step 2: schema未存在のfailureを確認する**
+- [ ] **Step 3: schema未存在のfailureを確認する**
 
 Run: `node --test tools/architecture_lint/test/schema.test.mjs`
 
 Expected: exit 1、schema file `ENOENT`。
 
-- [ ] **Step 3: exact schemaを追加する**
+- [ ] **Step 4: exact schemaを追加する**
 
-Metadataは`additionalProperties=false`、required 10 key、array duplicate禁止、state closed enumを固定する。Work Packageは`defer_reason`、`reconsideration_gate_refs`、`blocked_reason_ref`を常にrequiredとし、state別`if/then`でnull／non-nullを制約する。ID patternは設計§9.1の2 regex（document ID用と一般logical ID用）を転記し、Appendix DとProduct Plan §11の全新IDが一般logical ID regexに一致するpositive testを加える。
+Metadataは`additionalProperties=false`、required 10 key、array duplicate禁止、state closed enumを固定する。Work PackageはProduct Plan §11.1と完全一致する`work_package_id`、`phase_id`、`owner_document_id`、`target_refs[]`、`fallback_ref`、`provided_fixture_refs[]`、`required_capability_refs[]`、`requires_work_package_refs[]`、`scheduling_state`、`defer_reason`、`reconsideration_gate_refs[]`、`blocked_reason_ref`だけを持つ。旧`requirement_refs[]`、`capability_refs[]`、`exit_fixture_refs[]`、`schedule_state`、`completion_receipt_refs[]`はunknown Fieldで拒否する。`scheduling_state`は`declared | ready | active | blocked | deferred | complete`、`deferred`／`blocked`の条件FieldはDesign §15をexactに実装する。
 
-- [ ] **Step 4: testを再実行する**
+同schemaへ`PhaseFixtureBindingRegistryV1`、`WorkPackageLifecycleRecordV1`、`ProductRiskRegistryV1`、`ProductDecisionGateRegistryV1`、`FutureCapabilityIncubationRegistryV1`を別definitionとして追加し、ReceiptをWork Package entryへ戻さない。Registry semantic validatorは各Work Packageの`required_capability_refs[]`×`target_refs[]`について`CapabilityTargetActivationV1` rowの存在とscope=`required | optional`を要求し、missing／`excluded`を拒否する。別Targetのauthoring／build host prerequisiteは`requires_work_package_refs[]`だけで表し、runtime Capability closureへ混入させない。Decision Gate stateは`blocked | open | satisfied | retired`に閉じ、Work Packageの`reconsideration_gate_refs[]`、Product Riskの`affected_work_package_refs[]`、Decision Gateの`evidence_refs[]`をexact参照解決する。Product Riskの`revisit_gate_or_date`はProduct正本のdiscriminatorに従い、logical IDなら登録済みPhase／Decision Gate、dateならcanonical dateだけを受理する。ID patternは設計§9.1の2 regex（document ID用と一般logical ID用）を転記し、Appendix DとProduct Plan §11の全新IDが一般logical ID regexに一致するpositive testを加える。全root `$id`と`$ref`はTask 1A allowlist内に限定する。
 
-Expected: valid fixture PASS、unknown key、invalid state、deferred理由欠落、blocked reason欠落の4 negative fixture PASS。
+`CapabilityRegistryV1`にはtier／Owner／fallback等のidentity metadataだけを許可し、`activation_state`、`capability_activation_state`、aggregateをunknown Fieldで拒否する。Activationは`CapabilityTargetActivationV1` rowだけへ保存し、C2 Matrixはそのexact row refsだけを持つread-only projectionとする。
+
+- [ ] **Step 5: testを再実行する**
+
+Expected: valid fixtureがPASSし、unknown key、invalid state、deferred理由欠落、blocked reason欠落、旧Work Package Field混入、Receiptのentry混入、Capability activation scalar、required Capabilityのmissing／excluded Target row、remote `$ref`の各negative fixtureが対象Diagnostic一件でPASS。
 
 ### Task 3: 5つの新Owner正本を追加する
 
@@ -301,7 +408,42 @@ Expected: positive 5件がPASSし、全negative fixtureが対象diagnostic一件
 
 - [ ] **Step 5: Owner approval start gateを検証する**
 
-5文書をOwnerに持つWork Packageのstartを`state=review`で試し、`diagnostic.architecture.owner-unapproved`一件で拒否して`schedule_state=declared`を維持する。test専用fixtureでのみ、`state=approved`、non-null `approval_ref`、Decision read-back hash一致へ変更し、同じstart gateが通ることを確認する。実文書は本Taskで`review`のままとする。
+5文書をOwnerに持つWork Packageのstartを`state=review`で試し、`diagnostic.architecture.owner-unapproved`一件で拒否して`scheduling_state=declared`を維持する。test専用fixtureでのみ、`state=approved`、non-null `approval_ref`、Decision read-back hash一致へ変更し、同じstart gateが通ることを確認する。実文書は本Taskで`review`のままとする。
+
+### Task 3A: Control Plane bootstrap Approvalを発行・read-backする
+
+**Files:**
+- Create: `schemas/architecture/control-plane-bootstrap-approval.schema.json`
+- Create: `architecture/approvals/control-plane-bootstrap.v1.json`
+- Create: `tools/architecture_lint/product-projection-bootstrap.mjs`
+- Create: `tools/architecture_lint/test/bootstrap-approval.test.mjs`
+- Modify after explicit approval: Task 3の5 Owner文書
+
+**Interfaces:**
+- Consumes: Task 1A Toolchain lock、Task 2 schema、Task 3の5 Owner bytes、Product Plan §11 canonical registry projection、R4 Architecture Decision／承認主体。
+- Produces: `ControlPlaneBootstrapApprovalV1`。有効なRecordがない限りTask 4以降とPhase 0 Work Package `ready` transitionを拒否する。
+
+- [ ] **Step 1: closed schemaとnegative fixtureを先に追加する**
+
+SchemaはDesign §6.1のFieldをすべてrequired、`additionalProperties=false`とする。`owner_document_hashes[]`はexact 5件、§6のdocument ID集合とのset equality、ID byte順、duplicate 0をvalidatorで検証する。Negativeはself approval、review文書、missing lifecycle Approval、wrong Git tree、5 Owner hash差、Product registry hash差、Toolchain lock hash差、Decision hash差、revoked主体、`revoked_at` non-nullを一原因ずつ持つ。
+
+- [ ] **Step 2: approval前のfail-closedを確認する**
+
+Task 3直後の実文書は`review`である。`architecture/approvals/control-plane-bootstrap.v1.json`未存在のままTask 4またはPhase 0 `ready` transitionを要求し、`diagnostic.architecture.bootstrap-approval-missing`一件で拒否されることを確認する。placeholder Recordを作って先へ進まない。
+
+- [ ] **Step 3: human review packetを生成して停止する**
+
+`product-projection-bootstrap.mjs`はProduct Plan §11のcanonical表だけをID byte順JSONへ投影し、wall clock、filesystem列挙順、説明文を入力にしない。Task 7はこのmoduleの出力bytesをそのままmaterializeし、別encoderを実装しない。Packetは5 documentの承認後canonical bytes候補とID／SHA-256／lifecycle Approval ref、このmoduleが算出した`product_registry_sha256`、`toolchain_lock_sha256`、Architecture Decision bytesの`decision_sha256`、diff、全Task 1A～3 test結果を含む。AI／worker自身を`approver_subject_ref`にせず、R4資格とindependenceをPolicy Serviceがread-backできる人間承認が返るまで実装を停止する。
+
+- [ ] **Step 4: 明示承認後だけ5 Owner lifecycleとRecordを確定する**
+
+承認済みexact bytesについて各Ownerを`state=approved`、non-null `approval_ref`へ更新し、5 Owner、Product Plan source、Toolchain lock、Decisionを含む承認対象treeをcommitして、その`git_tree_id`を取得する。その後に同じDecisionから`ControlPlaneBootstrapApprovalV1`を発行して別commitへ格納する。Record自身を含むtree IDを埋め込まずhash cycleを作らない。`revoked_at`はFieldを省略せず`null`、`issued_at`はcanonical UTC、`revocation_snapshot_ref`は発行時snapshotを指す。承認対象Artifactを変更した場合はRecordを作り直し、hashを追記修正しない。
+
+- [ ] **Step 5: current-state read-backを実行する**
+
+署名／主体資格、承認対象treeが後続treeのancestorであること、5文書bytesとlifecycle Approval、Product registry projection、Toolchain lock、Decision、current revocation snapshotを再計算する。Approval Recordの追加や無関係fileの後続変更は許すが、承認対象Artifactのdriftを許さない。全一致時だけTask 4を許可し、不一致またはrevocationは`diagnostic.architecture.bootstrap-approval-invalid`で停止する。
+
+Expected: positive 1、negative 10がexact diagnosticでPASSし、5 Ownerは明示承認なしに`approved`へ変化せず、Phase 0 Work Packageは`declared`を維持する。
 
 ### Task 4: 43文書をexact JSON metadataへ一括移行する
 
@@ -356,7 +498,9 @@ Expected: `windows_cmake_ninja_multi_v1`等のactive normative old ID残存、�
 
 - [ ] **Step 3: 設計§19の文書別必須変更に従い本文を置換する**
 
-Appendix Dのold IDを新stable IDへ、`TargetProfileRef`等の§13.2改名型とsuffixless型を新型名へ、C2 Matrixの`lifecycle_state`参照を`capability_activation_state`と`owner_work_package_ref`参照へ置換する。Task 4のmetadata blockは変更しない。
+Appendix Dのold IDを新stable IDへ、`TargetProfileRef`等の§13.2改名型とsuffixless型を新型名へ置換する。C2 Matrixの`lifecycle_state`／`capability_activation_state` scalarを削除し、`CapabilityTargetActivationV1` exact row refsと`owner_work_package_ref`だけを持つread-only projectionへ変更する。Task 4のmetadata blockは変更しない。
+
+同じclean migrationでProject StateのTarget readinessを`predicted | blocked | qualified`、Performance projectionを同じ`TargetReadinessV1` refへ統一し、`optimization_required`と`performance_envelope_unqualified`を`blocked_reason_ref`にだけ保存する。AI Verificationへ`TechnicalQualificationReceiptV1`、3 freshness policy、current time／subject hash／revocation snapshotからの四状態導出を追加する。PascalCase／`not_activated`混入、C1 entity／population未校正の成功扱い、期限切れReceipt再利用はTask 9のnegative fixtureで閉じる。
 
 - [ ] **Step 4: testを再実行する**
 
@@ -365,8 +509,6 @@ Expected: normative old ID出現0、旧型名出現0、allowed migration occurre
 ### Task 5: Parserとstable diagnosticを実装する
 
 **Files:**
-- Create: `tools/architecture_lint/package.json`
-- Create: `tools/architecture_lint/package-lock.json`
 - Create: `tools/architecture_lint/tsconfig.json`
 - Create: `tools/architecture_lint/src/model.ts`
 - Create: `tools/architecture_lint/src/parse.ts`
@@ -376,7 +518,7 @@ Expected: normative old ID出現0、旧型名出現0、allowed migration occurre
 - Produces: `parseArchitectureDocument(path, bytes)`。
 
 - [ ] **Step 1: BOM、invalid UTF-8、duplicate metadata、trailing comma、legacy headerのnegative testsを書く**
-- [ ] **Step 2: toolchain lock照合済みtarballでnpm cacheを事前充填し、`npm ci --ignore-scripts --offline --no-audit --no-fund`とtestを実行しfailureを確認する**
+- [ ] **Step 2: Task 1AのAjv／Toolchain lock read-backを再実行してからparser testのfailureを確認する**
 - [ ] **Step 3: Node標準`TextDecoder("utf-8", {fatal:true})`、line scanner、`JSON.parse`でminimal parserを実装する**
 - [ ] **Step 4: `npx tsc --build --force --singleThreaded`を実行する**
 
@@ -420,17 +562,18 @@ Expected: registryがschema valid、metadataとの一致、mismatch fixtureがex
 
 **Files:**
 - Create: `architecture/registry/product.v1.json`
+- Create: `architecture/registry/work-package-lifecycle.v1.jsonl`
 - Create: `architecture/registry/identity-migration.v1.json`
 - Create: `tools/architecture_lint/src/registry.ts`
 - Create: `tools/architecture_lint/test/registry.test.mjs`
 
 **Interfaces:**
 - Consumes: Product Plan §11、Appendix D。
-- Produces: orphan 0のCapability／Target／Phase／Work Package／Requirement／Fixture／Fallback graph。
+- Produces: orphan 0のCapability／Target／Phase／Phase gate／Work Package／Requirement／Fixture／Fallback／Product risk／Product decision gate graph、初期0 recordのappend-only Work Package lifecycle、future incubation projection。
 
-- [ ] **Step 1: maturity入りID、missing Target activation、deferred理由欠落、orphan fixtureのnegative testsを書く**
+- [ ] **Step 1: maturity入りID、missing Target activation、deferred理由欠落、orphan fixture、旧Work Package Field、required Capabilityのconsumer Target missing／excluded、cross-target runtime Capability edge、Phase gate範囲外参照、missing Product risk／Decision gate参照、Decision gate invalid state、lifecycle改変のnegative testsを書く**
 - [ ] **Step 2: failureを確認する**
-- [ ] **Step 3: Product Plan §11をbyte順JSONへ転記し、validatorを実装する**
+- [ ] **Step 3: Task 3Aのcanonical projection bytesを`product.v1.json`へmaterializeし、validatorを実装する**
 - [ ] **Step 4: aggregate activation testを書く**
 
 ```js
@@ -440,7 +583,7 @@ assert.equal(aggregate([{scope:"required",state:"production"}, null]), "not_acti
 
 - [ ] **Step 5: registry testを実行する**
 
-Expected: Capability／feature 37（既存33 IDの移行＋Product coverage Capability 2D／3D各1＋Project Source Capability 2）、Requirement 16、Fixture 10、Work Package 26、Phase 10、Target 5、orphan 0、maturity-bearing current ID 0、initial aggregateはすべて`not_activated`。
+Expected: Product Plan §11の各canonical表からID setとrow countを独立抽出し、`product.v1.json`のTarget、Requirement、Fixture、Phase、Phase fixture gate、Capability、Capability Target activation、Work Package、Fallback、Product risk、Product decision gate、Future incubation各set／countとexact一致する。固定件数をvalidatorへ埋め込まず、差分時はmissing／extra IDを列挙する。orphan、dependency cycle、後続Phase dependency、maturity-bearing current IDは各0、initial required Target rowはすべて`state=not_activated`、保存aggregate 0、lifecycle record 0とする。Task 3Aの`product_registry_sha256`とmaterialize後bytesのSHA-256が一致しなければBootstrap Approvalを失効させる。
 
 ### Task 8: deterministic Index generatorとCLIを実装する
 
@@ -513,17 +656,20 @@ Expected: shuffled input 100回のSHA-256が一致し、stale revision、omitted
 - Create: `tools/architecture_lint/test/fixtures/metadata-invalid/**`
 - Create: `tools/architecture_lint/test/fixtures/graph-invalid/**`
 - Create: `tools/architecture_lint/test/fixtures/registry-invalid/**`
+- Create: `tools/architecture_lint/test/fixtures/target-readiness-invalid/**`
+- Create: `tools/architecture_lint/test/fixtures/technical-receipt-invalid/**`
 - Create: `.github/workflows/architecture-lint.yml`
-- Modify: `docs/architecture/02-foundation/toolchain-dependencies.md`
 
 **Interfaces:**
 - Produces: clean checkoutでoffline install→compile→test→lint→Index checkの一方向job。
 
-- [ ] **Step 1: 既存13 Control Plane lint ruleにarchitecture explainのrevision、Owner、Evidence、category bound、edge bound、byte bound、omission、continuation、determinismの9条件を加え、各positive 1／negative 1を列挙するtest matrixを書く**
+- [ ] **Step 1: Design §21の15 Control Plane lint ruleにarchitecture explainのrevision、Owner、Evidence、category bound、edge bound、byte bound、omission、continuation、determinismの9条件を加え、各positive 1／negative 1を列挙するtest matrixを書く**
 - [ ] **Step 2: 各negative fixtureがexact diagnostic IDを一件だけ返すことを確認する**
-- [ ] **Step 3: CIをNode 24.18.0、npm 11.16.0、TypeScript 7.0.2 lockへ固定する**
+- [ ] **Step 3: CIをNode 24.18.0、npm 11.16.0、TypeScript 7.0.2、Ajv 8.20.0 lockへ固定する**
 
-`toolchain-dependencies.md`の公式JavaScript toolchain利用rootへ`tools/architecture_lint/`を追加し、同文書が要求する`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`、lockfile SHA-256規則を`tools/architecture_lint/package.json`へ適用する。CI workflowはtoolchain lockが固定するtarball（version、URL、size、SHA-256）を取得し、SHA-256照合後にnpm content-addressed cacheへ事前充填してから`npm ci --offline`を実行する。照合失敗はjob失敗とする。
+Task 1Aで追加済みの公式JavaScript toolchain root、`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`、lockfile SHA-256／registry integrityを再照合する。CI workflowはtoolchain lockが固定するtarball（version、URL、size、SHA-256、registry integrity）を照合後にnpm content-addressed cacheへ事前充填してから`npm ci --offline`を実行する。照合失敗、network fallback、root `ajv` import、`loadSchema`設定はjob失敗とする。
+
+Target readiness fixtureは`predicted | blocked | qualified`以外、PascalCase、`blocked`＋null `blocked_reason_ref`、非`blocked`＋non-null reason、Capability専用`not_activated`混入、fresh Technical Receiptなしの`qualified`を一原因ずつ拒否する。Technical Receipt fixtureは`policy.evidence.contract-ci.v1=604800秒`、`policy.evidence.target-device.v1=259200秒`、`policy.evidence.release.v1=86400秒`と各10% expiring windowをexactに検査し、期限切れ、subject／input hash差、revocation、policy不明、Toolchain／Target／Device driftを一原因ずつ拒否する。`fresh`だけが新しいPhase exit／Qualificationへ使えることを検証する。
 
 - [ ] **Step 3A: CI execution profileを解決する**
 
@@ -550,7 +696,7 @@ Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0�
 - Modify: `docs/plans/2026-07-22-ai-readable-d3d12-backend-design.md`
 
 **Interfaces:**
-- Produces: `git_tree_sha256`ではなくGit object formatに従う`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`lint_version`を持つexact handoff。field集合は設計§28と一致し、`schemas/architecture/baseline.schema.json`が過不足を拒否する。
+- Produces: `git_tree_sha256`ではなくGit object formatに従う`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`control_plane_bootstrap_approval_sha256`、`lint_version`を持つexact handoff。field集合は設計§28と一致し、`schemas/architecture/baseline.schema.json`が過不足を拒否する。
 
 文書数／relation edge数はbaseline Fieldとして重複保存せず、hash照合済み`document-relations.v1.json`の`documents[]`、`canonical_order[]`、`requires[]`、`integrates_with[]`からread-back時に導出する。`documents[]`と`canonical_order[]`のset／count不一致、metadata setとの差分、source document hash不一致をbaseline mismatchとする。
 
@@ -561,7 +707,7 @@ Expected: 全command exit 0、stderr 0、diagnostic error 0、generated diff 0�
 
 `architecture/registry/document-relations.v1.json`を`schemas/architecture/document-relations.schema.json`で再検証し、registry hash、source document hash、derived node／edge countを同じread-backで照合する。
 
-Expected: 全hash一致。ECS、D3D12、またはarchitecture comprehension Eval開始時に一つでも不一致なら`diagnostic.architecture.baseline-mismatch`で停止する。
+Expected: 全hash一致かつBootstrap Approvalの署名／主体／ancestor／current hash／revocation read-backがvalid。ECS、D3D12、またはarchitecture comprehension Eval開始時に一つでも不一致なら`diagnostic.architecture.baseline-mismatch`、Approval不正なら`diagnostic.architecture.bootstrap-approval-invalid`で停止する。
 
 ## Appendix A: Legacy dependency inventory
 
@@ -817,7 +963,7 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 | `capability.vfx.visual_collision_v1` | `capability.vfx.visual_collision` |
 | `mirakan.feature.shooter_core.c1` | `capability.gameplay.shooter_core` |
 
-`capability.product.general_production_3d`は旧IDが存在しないためmigration rowを作らない。Product Plan Registryへ新規rowとして追加し、§11.7のGateを満たすまで`capability_activation_state=not_activated`、owner Work Packageの`scheduling_state=declared`に留める。`declared_unscheduled`等の複合state値と`lifecycle_state`軸は使用しない。
+`capability.product.general_production_3d`は旧IDが存在しないためmigration rowを作らない。Product Plan Registryへ新規rowとして追加し、§11.7のGateを満たすまで全required `CapabilityTargetActivationV1` rowを`state=not_activated`、owner Work PackageをProduct正本のdefer理由と再検討Gateを持つ`scheduling_state=deferred`に留める。Capability registryまたはC2 Matrixへaggregate／scalar activationを保存せず、`declared_unscheduled`等の複合state値と`lifecycle_state`軸は使用しない。
 
 ### D.2 Target、Build Driver、Domain／composition profile
 
@@ -923,7 +1069,7 @@ Appendix Dにないmaturity／version-bearing lowercase IDをlintが発見した
 - Appendix Cの29 edgeが完全にreciprocalで、Contract ID集合が一致する。
 - `architecture/registry/document-relations.v1.json`が生成inventory全metadataの`requires`／`integrates_with`、source document hash、Appendix Bのinitial canonical orderと完全一致する。
 - Appendix Dのold IDはnormative active本文で0、Decision／migration authorityの全出現はmigration manifestで一度だけ分類され、new IDのorphan 0、runtime alias 0である。
-- Product RegistryはTarget 5、Requirement 16、Fixture 10、Phase 10、Capability 37、Work Package 26を参照解決し、missing Target activationをfail closedにする。
+- Product RegistryはProduct Plan §11から独立抽出した全Registry ID set／row countとgenerated manifestをexact比較し、missing／extra Target activationと固定件数への依存をfail closedにする。
 - TypeScript 7.0.2 compileは`--singleThreaded`を使用し、compiler API importが0件である。
 - Index二回生成のSHA-256が一致し、Git diffが空である。
-- baseline handoffの全hashをECS／D3D12計画がread-backできる。
+- baseline handoffの全hashと有効な`ControlPlaneBootstrapApprovalV1`をECS／D3D12計画がread-backできる。

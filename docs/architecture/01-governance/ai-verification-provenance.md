@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.ai-verification-provenance
 - 状態: review
-- 正本範囲: Verification lifecycle、Requirement coverage、AI Eval、public／holdout／adversarial dataset、grader、Evidence envelope、Provenance、Trace grading、Release evidence、保持、失敗
+- 正本範囲: Verification lifecycle、Requirement coverage、AI Eval、public／holdout／adversarial dataset、grader、Evidence envelope、Technical Qualification Receipt／freshness、Provenance、Trace grading、Release evidence、保持、失敗
 - 非正本範囲: AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。これらはAI Security／Approvalを参照する
 - 依存: [AI Security／Approval](ai-security-approval.md)、[Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Project Shader](../06-rendering/project-shader.md)
 - 外部根拠検証日: 2026-07-22
@@ -400,7 +400,25 @@ Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_grap
 
 WorldQualificationReceiptV1は汎用Receiptを一つのWorld subject、Topology、State owner、Target artifact、Save／Replay、Performance、Fault、Reviewへ束ねる。System／Worldのsubject hashが変わればReceiptを再利用せず、Estimate、Preview、別Target、別Quality、別Toolchainを代用しない。
 
-### 7.2 GenerationReceiptV1
+### 7.2 TechnicalQualificationReceiptV1
+
+Phase exit、Capability qualification、Target readinessへ使用する技術Evidenceは、用途別Receiptの完成hashを次の共通freshness envelopeへ束ねる。
+
+```text
+TechnicalQualificationReceiptV1
+  issued_at
+  expires_at
+  freshness_policy_ref
+  revocation_snapshot_ref
+  subject_hash
+  evidence_hashes[]
+```
+
+`subject_hash`は用途別Policyが要求するSource revision、Candidate root、Contract set、Toolchain lock、Target Profile、Device／OS／driver generation、Package、Quality、signing／store declarationのうち該当する全入力を、Field名とnull非該当を含むcanonical closureへしてSHA-256した値である。自由な説明文や部分hashを使わない。`evidence_hashes[]`は完成した用途別Receipt hashの重複なしunsigned byte順集合で、最低1件とする。署名、result=`pass`、Runner／Policy eligibilityは参照先Receiptと共通署名envelopeから検証し、本型がAuthorization、Approval、Activationを与えない。
+
+`issued_at`／`expires_at`はcanonical UTCで、Policyの`max_age_seconds`に対し`expires_at = issued_at + max_age_seconds`を必須とする。時刻を丸めたりClient local timeを使わない。発行時`revocation_snapshot_ref`だけを信用せず、評価時のcurrent revocation snapshotも入力にする。四状態の決定論的導出と利用規則は§10.1を正本とする。
+
+### 7.3 GenerationReceiptV1
 
 AI OrchestratorがAttemptごとに作成し、Model自身は署名しない。
 
@@ -426,7 +444,7 @@ AI OrchestratorがAttemptごとに作成し、Model自身は署名しない。
 
 署名は「このOrchestratorがこのContextとProvider responseからArtifactを記録した」ことだけを証明し、出力の正しさを保証しない。署名Keyはgeneration_receipt用途専用のAI Orchestrator Service identityに属し、Key管理と用途分離は[AI Security／Approval](ai-security-approval.md)に従う。
 
-### 7.3 ReviewReceiptV1
+### 7.4 ReviewReceiptV1
 
     receipt_id, task_id, attempt_id
     reviewer_id, identity_provider, authn_context, role
@@ -443,7 +461,7 @@ decisionはapproved、rejected、changes_requestedである。approved_scopeはO
 
 Approval Serviceはinteractive user presenceまたは組織Identity Providerを検証して署名する。AI reviewerの補助Evidenceは、要求された人間／独立Reviewer identityを代替しない。
 
-### 7.4 PromotionReceiptV1
+### 7.5 PromotionReceiptV1
 
     receipt_id, task_id, attempt_id
     operation_id, idempotency_key
@@ -459,7 +477,7 @@ Approval Serviceはinteractive user presenceまたは組織Identity Providerを�
 
 resultはcommitted、rolled_back、failed_before_commit、infrastructure_errorである。成功はAuthoritative destinationのread-back hash一致を必要とする。
 
-### 7.5 ReleaseSigningReceiptV1
+### 7.6 ReleaseSigningReceiptV1
 
     receipt_id, task_id
     authorization_envelope_hash
@@ -476,7 +494,7 @@ resultはcommitted、rolled_back、failed_before_commit、infrastructure_error�
 
 Platform code signatureと内部Receipt署名を同一視しない。Signing Serviceは受信byteを再hashし、承認rootと一致した場合だけ署名する。Receiptはunsigned rootとsigned rootを一対一に結ぶ。
 
-### 7.6 StoreUploadReceiptV1
+### 7.7 StoreUploadReceiptV1
 
     receipt_id, task_id
     release_signing_receipt_hash
@@ -534,6 +552,30 @@ Compiler、static analyzer、security scanner findingをMirakanDiagnosticV1へ�
 内部Trace IDとReceiptを正本とし、OpenTelemetryは観測Backend Adapterに限定する。Prompt、Source、Tool argument本文を既定exportせず、hash、Risk、duration、token、result、Diagnostic countだけを送る。SDK／Collector／Network停止がBuildやGameの正しさを変えてはならない。
 
 ## 10. External evidence、保持、freshness
+
+### 10.1 Technical Qualification freshness
+
+`TechnicalQualificationReceiptV1`のPolicyは次の3件をclosed Registryとして開始する。TTLとexpiring windowはMiraikanaiのfail-closedな初期運用値であり、外部Vendor推奨ではない。
+
+| freshness_policy_ref | max_age_seconds | expiring_window_seconds | subject hashの追加invalidator |
+|---|---:|---:|---|
+| `policy.evidence.contract-ci.v1` | 604800 | 60480 | Contract set、Toolchain lock、generator artifact |
+| `policy.evidence.target-device.v1` | 259200 | 25920 | Target Profile、OS、driver、Device generation、Package |
+| `policy.evidence.release.v1` | 86400 | 8640 | Candidate root、signing policy、store declaration |
+
+Evaluator入力は、検証済みReceipt bytes、信頼済みclockが渡すcanonical UTC `evaluation_time`、Policy-specific current input closureから再計算した`current_subject_hash`、発行時snapshot以後の有効なcurrent revocation snapshotである。wall clock、cached state、呼出元が申告したfreshness stateをReceipt fieldとして信用しない。次の順で一意に評価する。
+
+1. schema、署名、参照Receiptの`result=pass`、Policy存在、`issued_at < expires_at`、`expires_at = issued_at + max_age_seconds`、`evaluation_time >= issued_at`、current revocation snapshotの署名／sequenceが成立しなければfreshnessを付与せず、exact validation Diagnosticで拒否する。
+2. current revocation snapshotがReceipt、Signer key、Policy、subject、または`evidence_hashes[]`の一件を失効対象に含む場合は`revoked`。後続条件より優先する。
+3. `evaluation_time >= expires_at`、`current_subject_hash != subject_hash`、または表のinvalidator変更をcurrent closureへ反映できない場合は`expired`。
+4. 残り秒数`expires_at - evaluation_time <= expiring_window_seconds`なら`expiring`。
+5. それ以外は`fresh`。
+
+新しいPhase exit、Capability qualification、Target readiness `qualified`、Promotion、Release開始に使えるのは`fresh`だけである。`expiring`は既存結果の監視表示とrenewal schedulingに限り、新しいGateを開始しない。`expired`／`revoked`はlast valid表示の由来として参照できても現在Candidateの合格根拠へ再利用しない。評価中に期限を跨ぐJobは完了時に再評価し、開始時の`fresh`を固定しない。
+
+Policy値の変更はR4 Product Decision、Policy Registry revision、新しいrevocation snapshotを必須とし、旧Policyを参照する全Receiptを`revoked`にする。期限切れ、input hash差、revocation、unknown Policy、stale revocation snapshotを一原因ずつ持つnegative fixtureを作り、期限延長、別Target／Device／Packageへの流用、Toolchain変更後の再利用、release Candidate差し替えを拒否する。
+
+### 10.2 External Evidence freshness
 
 ExternalEvidenceRecordV1はEvidence ID、category、claim、primary source URL、document version、publish／update日、retrieved time、content hash、該当section、Requirement／ADR、Reviewer、freshness deadline、superseded／withdrawn状態を持つ。
 
@@ -628,6 +670,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 - Provider／Model／Prompt／Tool更新が一変数比較、canary、rollbackを通る。
 - Verification、Generation、Review、Promotion、Signing、Upload Receiptがcontent hashで連結される。
 - System／World／Project Shader Qualificationがsubject変更、Target差、Evidence期限切れで失効する。
+- `TechnicalQualificationReceiptV1`が3 freshness policyのTTL、input closure、current revocation snapshotから`fresh | expiring | expired | revoked`を決定論的に導出し、`fresh`以外を新しいGateへ使わない。
 - Trusted BuildだけがProvenance、sourceなしServiceだけがSigning、Signing keyなしServiceだけがUploadする。
 - 実BuildからSBOMを生成してbinary scanと照合する。
 - External Evidence freshnessとretentionが該当Decisionをfail closedにする。

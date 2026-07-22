@@ -47,6 +47,7 @@ Miraikanai Engineの各Subsystem仕様は、single writer、typed command／even
 14. 外部Tool／SDK／Libraryのrelease、tag object、peeled commit、artifact hashを区別する。
 15. Manifest、Package、Candidate、Receiptのidentity graphに自己参照またはhash cycleがなく、全digestの入力byte列を一意に再構成できる。
 16. 人間とAIが同じexact SourceからOwner、依存、phase／lifetimeを説明でき、上限超過、stale revision、根拠欠落を正常結果として扱わない。
+17. 5新Owner、Product registry source、Toolchain lock、承認Decisionを一つの承認対象Git treeへ束ねた有効な`ControlPlaneBootstrapApprovalV1`が存在しない限り、Phase 0のWork Packageを`ready`へ遷移させない。
 
 ## 3. 非目標
 
@@ -149,7 +150,33 @@ Gameplay/System `SaveReplayContractV1`
 
 Product RegistryのWork Packageがこの5文書のいずれかを`owner_document_id`として参照する場合、Owner文書が`state=approved`で、non-null `approval_ref`のDecisionが現在bytesのhash／Git blob IDをread-backできるまで`declared`から遷移させない。開始要求は`diagnostic.architecture.owner-unapproved`（code `MIRAKAN-ARCHITECTURE-OWNER-UNAPPROVED`）で拒否し、未承認Ownerの責務をconsumer文書、実装Plan、暫定schemaへ複写して迂回しない。
 
-### 6.1 Architecture Governance
+### 6.1 Control Plane bootstrap approval
+
+5新Ownerを作成しただけではPhase 0を開始しない。各文書が独立した人間Reviewを経て`state=approved`となり、その`approval_ref`をread-backできた後にだけ、AI／実装workerとは別のR4承認主体が次のRecordを発行する。
+
+```text
+ControlPlaneBootstrapApprovalV1
+  approval_id
+  approver_subject_ref
+  approval_authority_ref
+  git_tree_id
+  owner_document_hashes[5]
+    document_id
+    document_sha256
+    lifecycle_approval_ref
+  product_registry_sha256
+  toolchain_lock_sha256
+  decision_sha256
+  issued_at
+  revocation_snapshot_ref
+  revoked_at
+```
+
+`owner_document_hashes[]`のdocument ID集合は§6の5件とset equalityで、配列はdocument IDのunsigned UTF-8 byte順とする。`git_tree_id`は5 Ownerの承認済みbytes、Product Plan registry source、Toolchain lock、承認Decisionが存在する、Approval Record格納直前の承認対象treeである。Record自身を含むtree IDをFieldへ埋め込む自己参照を禁止する。`product_registry_sha256`は[Product Plan §11](../architecture/00-product/product-plan.md#11-product-execution-registries)から同じcanonical encoderで生成する全Registry projection bytesのhashであり、実装計画Task 7がmaterializeする`architecture/registry/product.v1.json`と一致しなければならない。`revoked_at`は必須nullable Fieldで、未失効時だけ`null`とする。
+
+Recordは文書ごとのlifecycle Approvalを代替せず、AI／workerの自己承認、placeholder Approval、承認対象tree外のDecision、hash計算前の将来値を拒否する。後続treeでは承認対象treeがancestorであることに加え、5 document hash、Product registry projection、Toolchain lock、Decision、承認主体の資格、revocation snapshotを現在bytesから再照合する。これらのいずれかが変化または失効した時点で、`revoked_at=null`でも評価結果を`revoked`とする。Approval Recordの追加や無関係な後続fileだけを理由に失効させず、承認対象Artifactのdriftを見逃さない。失効時はPhase 0の未開始Work Packageを`declared`に維持し、進行中Work Packageは新しいtransitionを停止してPolicyが指定するrollback／再承認へ進む。Record schema、発行／失効Receipt、read-back testが揃う前にmetadata migrationを開始しない。
+
+### 6.2 Architecture Governance
 
 `01-governance/architecture-governance.md`は次だけを所有する。
 
@@ -163,7 +190,7 @@ Product RegistryのWork Packageがこの5文書のいずれかを`owner_document
 
 AI Risk、Release approval、Evidence内容は既存Governance文書が引き続き所有する。
 
-### 6.2 Compatibility／Evolution
+### 6.3 Compatibility／Evolution
 
 `02-foundation/compatibility-evolution.md`は次だけを所有する。
 
@@ -178,7 +205,7 @@ AI Risk、Release approval、Evidence内容は既存Governance文書が引き続
 
 個々のDomain migration algorithmはDomain Ownerが所有し、本書は登録、順序、coverage、failure atomicityを所有する。
 
-### 6.3 Persistence／Save
+### 6.4 Persistence／Save
 
 `04-runtime/persistence-save.md`は次だけを所有する。
 
@@ -192,7 +219,7 @@ AI Risk、Release approval、Evidence内容は既存Governance文書が引き続
 
 各Systemのsaved／derived Field意味は`SaveReplayContractV1`と各Domain Owner、Runtime Entity／Component再構築はECS Owner、file root／atomic replace／journal／cloud transportはPlatform Ownerが所有する。
 
-### 6.4 Runtime Package
+### 6.5 Runtime Package
 
 `04-runtime/runtime-package.md`は次だけを所有する。
 
@@ -205,7 +232,7 @@ AI Risk、Release approval、Evidence内容は既存Governance文書が引き続
 
 Content Package formatはAsset Lifecycle、Platform executable formatは各Platform、Build task orchestrationはBuild Gatewayが所有する。
 
-### 6.5 Application Package／Release
+### 6.6 Application Package／Release
 
 `07-platform/application-package-release.md`は次だけを所有する。
 
@@ -508,14 +535,14 @@ document ID、MCD object、Product Registry logical IDは[Naming／Project Layou
 | Document lifecycle | `draft | review | approved | superseded` | Architecture Governance |
 | Capability product tier | `C0 | C1 | C2 | C3`。到達scopeの分類でありstate transitionではない | Product Plan |
 | Capability activation | `not_activated | candidate_locked | qualified | production` | Product Plan |
-| Work Package scheduling | `declared | scheduled | active | blocked | complete | deferred` | Product Plan |
+| Work Package scheduling | `declared | ready | active | blocked | deferred | complete` | Product Plan |
 | MCD registration | `draft | active | retired` | Executable Contracts |
 | Target readiness | `predicted | blocked | qualified` | Project State |
-| Target blocked reason | closed `TargetBlockedReasonRegistryV1`の`DiagnosticRefV1`。初期共通値は`optimization_required` | 各Domainが値を登録、Project Stateがenvelopeを所有 |
+| Target blocked reason | closed `TargetBlockedReasonRegistryV1`。初期値は`optimization_required | performance_envelope_unqualified`で各entryが`DiagnosticRefV1`を持つ | 各Domainが意味／回復Gateを登録、Project Stateがenvelope／ID一意性を所有 |
 | Evidence freshness | `fresh | expiring | expired | revoked` | AI Verification／Provenance |
 | Dependency adoption | `proposed | locked | qualified | active | rejected | revoked` | Toolchain／Dependencies |
 
-Capabilityは`target_product_tier`と`activation_state`を別Fieldに持つ。C2を目標にしたCapabilityが未実装なら`target_product_tier=C2`かつ`activation_state=not_activated`であり、Tierを実装済み表示に使わない。`C2CapabilityCoverageMatrixV1.lifecycle_state`は廃止し、`capability_activation_state`と`owner_work_package_ref`を参照する。`OptimizationRequired`をCapability activation stateとして使わず、Target readinessの`blocked_reason`として扱う。Dependencyへ`candidate_locked`を使わない。
+`CapabilityRegistryV1`は`target_product_tier`を持つがactivation scalarを持たない。Capability activationの唯一の保存正本は`CapabilityTargetActivationV1`の`{capability_id,target_id}` exact rowであり、aggregateはrequired Target rowの最小stateとしてread-only導出する。C2を目標にした未実装Capabilityは`target_product_tier=C2`で、各required Target rowが`state=not_activated`である。Tierやaggregateを実装済み表示、Receipt、保存stateへ使わない。`C2CapabilityCoverageMatrixV1`はlifecycle／activation Fieldを持たず、対象Capabilityの`CapabilityTargetActivationV1` exact row refsと`owner_work_package_ref`だけを参照するread-only projectionとする。`optimization_required`をCapability activation stateとして使わず、Target readinessの`blocked_reason_ref`として扱う。Dependencyへ`candidate_locked`を使わない。
 
 ## 10. Persistence／Save design
 
@@ -719,7 +746,9 @@ planned
 | `EngineContractVersionV1`、`EngineCompatibilityRangeV1`、`DomainPackCompatibilityRangeV1`、`CompatibilityDecisionV1`、`MigrationCoverageV1`、`SupportPolicyV1`、`GameCompatibilitySubjectV1` | Compatibility／Evolution |
 | `McdContractRefV1`、`ArtifactRefV1`、`Sha256DigestV1`、`ManifestArtifactEnvelopeV1` | Executable Contracts。Compatibility規則を消費するが構造はここだけで定義 |
 | `MirakanSignedRecordV1`の共通envelope／hash chain | AI Verification／Provenance。Algorithm、Key用途、authorization policyはAI Security／Approval |
-| `CapabilityRegistryV1`、`CapabilityTargetActivationV1`、`ProductPhaseRegistryV1`、`WorkPackageRegistryV1`、`TargetProfileRegistryV1`、`RequirementRegistryV1`、`FixtureRegistryV1`、`FallbackRegistryV1` | Product Plan |
+| `TechnicalQualificationReceiptV1`、Evidence freshness policy／four-state derivation | AI Verification／Provenance。Target readiness envelopeはProject State、測定内容は各Technical Owner |
+| `CapabilityRegistryV1`、`CapabilityTargetActivationV1`、`ProductPhaseRegistryV1`、`PhaseFixtureBindingRegistryV1`、`WorkPackageRegistryV1`、`WorkPackageLifecycleRecordV1`、`TargetProfileRegistryV1`、`RequirementRegistryV1`、`FixtureRegistryV1`、`FallbackRegistryV1`、`ProductRiskRegistryV1`、`ProductDecisionGateRegistryV1`、`FutureCapabilityIncubationRegistryV1` | Product Plan |
+| `ControlPlaneBootstrapApprovalV1` | Architecture Governance。AI Security／ApprovalのR4主体・Policyを消費するが、Product／Capability Approvalを代替しない |
 | `SaveSlotManifestV1`、`SaveRootManifestV1`、`SaveCheckpointV1`、`SaveDomainRecordSetV1`、`SaveMigrationPlanV1`、`SaveLoadPlanV1`、`SaveStoragePolicyV1`、`SaveStorageEnvelopeV1`、`PlatformStorageTransactionV1`、Save Receipt群 | Persistence／Save。Key管理／OS crypto実装は各Platform Owner |
 | `RuntimePackageManifestV1`、`RuntimePackageArtifactV1` | Runtime Package |
 | `ApplicationPackageAssemblyManifestV1`、`StoreSubmissionDeclarationV1`、`UnsignedApplicationPackageV1`、Target mapping rule、`PackageValidationReceiptV1`、`TargetPackagePreparationTransactionV1`、`ReleaseTransactionV1`、`ReleaseSigningReceiptV1`、`StoreStagingUploadReceiptV1`、`StoreStagingReadBackReceiptV1`、`TargetPackagePreparationRecordV1`、`StorePublicationReceiptV1`、`ReleaseRolloutCommandV1` | Application Package／Release |
@@ -776,19 +805,47 @@ Shooter Packの`feature.*.c1`、Profile／Capability IDからmaturityを除去�
 
 ## 15. Product、Phase、Work Package整合
 
-Product Planへ`WorkPackageRegistryV1`を追加する。各entryは次を持つ。
+Product Planの`WorkPackageRegistryV1`を唯一のschema正本として消費する。各entryは次のFieldだけを持つ。
 
 ```text
-work_package_id, phase_id, owner_document_id
-requirement_refs[], capability_refs[]
+work_package_id
+phase_id
+owner_document_id
+target_refs[]
+fallback_ref
+provided_fixture_refs[]
+required_capability_refs[]
 requires_work_package_refs[]
-exit_fixture_refs[], target_refs[]
-schedule_state, completion_receipt_refs[]
+scheduling_state
+defer_reason
+reconsideration_gate_refs[]
+blocked_reason_ref
 ```
+
+旧`requirement_refs[]`、`capability_refs[]`、`exit_fixture_refs[]`、`schedule_state`、`completion_receipt_refs[]`をcompatibility aliasとして受理しない。Requirement／Phase completionは`PhaseFixtureBindingRegistryV1`だけが束縛し、`provided_fixture_refs[]`は実装寄与を表すだけでWork Package単独の完了Gateではない。完了を含むstate transitionの監査はRegistry entryへ追記せず、Product Ownerのappend-only `WorkPackageLifecycleRecordV1`へ分離する。
+
+```text
+WorkPackageLifecycleRecordV1
+  lifecycle_record_id
+  work_package_id
+  from_scheduling_state
+  to_scheduling_state
+  product_registry_sha256
+  candidate_binding_hash
+  transition_policy_ref
+  receipt_refs[]
+  decision_ref
+  recorded_by_subject_ref
+  recorded_at
+```
+
+`from_scheduling_state`と`to_scheduling_state`は§9.2のclosed setだけを受理する。`transition_policy_ref`はProduct Ownerが登録したexact policy revision、`receipt_refs[]`はそのtransitionに使用した完成Receipt hashのbyte順集合で、本文や現在値を複写しない。`complete`へのtransitionは全Prerequisiteが`complete`、Owner documentがapproved、Owner固有acceptanceとTarget closureのfresh ReceiptがPolicyを満たす場合だけ許可するが、通常Work PackageへPhase exitを要求しない。Phase completionは`PhaseFixtureBindingRegistryV1`が独立評価し、Phase gate自体を所有するaggregate Work Packageだけが明示PolicyでそのGate Receiptを要求する。Recordを削除／上書きしてRegistry stateを巻き戻さず、補正は前Recordを参照する新Recordで行う。
 
 2D coverage Work Packageの正本IDはProduct Plan §11.5の`wp.product.general-coverage-2d`であり、Registryの`phase_id`でPhase 8へ登録する。将来Phaseを移してもIDは変えない。旧表記`WP7a3_2d_product_coverage_c2`はactive specに残存しないため、実装計画Appendix Dへmigration rowを作らない。Capability Coverage MatrixはWork Package scheduleとCapability activationを再定義しない。
 
-`requires_work_package_refs`はcycleを禁止し、PrerequisiteのPhase ordinalがConsumerより後なら拒否する。同Phase内はtopological orderを使う。`schedule_state=complete`は全exit fixtureのfresh Receipt、approved Owner document、Target closureが揃う場合だけ許可する。`deferred`はdefer reasonと再検討Gateを必須とし、Registryから削除しない。
+`requires_work_package_refs`はcycleを禁止し、PrerequisiteのPhase ordinalがConsumerより後なら拒否する。同Phase内はtopological orderを使う。`scheduling_state=ready`は全Prerequisiteが`complete`、Ownerがapproved、有効な`ControlPlaneBootstrapApprovalV1`が存在する場合だけ許可する。`scheduling_state=deferred`はnon-empty `defer_reason`と1件以上の`reconsideration_gate_refs[]`、`blocked`はnon-null `blocked_reason_ref`を必須とし、Registryから削除しない。他stateでは`defer_reason=null`、`reconsideration_gate_refs=[]`、`blocked_reason_ref=null`を必須とする。
+
+各Work Packageの`required_capability_refs[]`は、各consumer `target_refs[]`について対応する`CapabilityTargetActivationV1` rowが存在し、そのscopeが`required`または`optional`でなければならない。missingまたは`excluded` rowを要求Capability closureに使ったWork Packageを拒否する。別Targetのauthoring host／build hostが必要な場合は`requires_work_package_refs[]`で順序を表し、consumer Targetに存在しないruntime Capability edgeを作らない。
 
 Phase Gateは二種類を明示する。
 
@@ -825,7 +882,7 @@ tag_object: 3bd82b5f543bc84ccf2b1d0cdb63b95218099ee6
 peeled_commit: 526ec5c47b9ebccc4754c85ac0c0cdf7c85a5e9b
 ```
 
-TypeScript 7.0.2はnative compilerでprogrammatic APIを持たないため、既存どおりCLIだけを使用し、正式Artifactでは`--singleThreaded`を固定する。npm artifactはversion、tarball URL、size、SHA-256、registry integrity、metadata response SHA-256を必須lockとする。`registry_provenance_state`は`verified | not_provided`のclosed stateとし、signature／attestationが存在すれば検証失敗を拒否、存在しなければ`not_provided`を明記してofficial repository tag／commitとartifact digestで補完する。`gitHead`はregistry metadataに存在する場合だけexact値、欠落時は`null`とし推測しない。
+TypeScript 7.0.2はnative compilerでprogrammatic APIを持たないため、既存どおりCLIだけを使用し、正式Artifactでは`--singleThreaded`を固定する。Ajv 8.20.0は§21のDraft 2020-12 validationだけに使い、Engine runtime、MCD semantic validation、Authorizationへ持ち込まない。npm artifactはversion、tarball URL、size、SHA-256、registry integrity、metadata response SHA-256を必須lockとする。`registry_provenance_state`は`verified | not_provided`のclosed stateとし、signature／attestationが存在すれば検証失敗を拒否、存在しなければ`not_provided`を明記してofficial repository tag／commitとartifact digestで補完する。`gitHead`はregistry metadataに存在する場合だけexact値、欠落時は`null`とし推測しない。
 
 OpenAI Model IDはimmutable snapshotが提供される場合はsnapshotを使う。非snapshot IDの場合は同じ出力の再現を主張せず、resolved ID、Provider manifest、request parameters、tool／schema hash、Eval、expiry、Receiptで採用判断を再現する。
 
@@ -840,6 +897,7 @@ OpenAI Model IDはimmutable snapshotが提供される場合はsnapshotを使う
 | Canonical hash | [Protocol Buffers serialization is not canonical](https://protobuf.dev/programming-guides/serialization-not-canonical/) | 汎用serializer出力をhash正本にせず、`McdCanonicalBinaryV1`のcanonical bytesだけを使用 |
 | Engine／Extension rangeの比較例 | [Godot `.gdextension` compatibility](https://docs.godotengine.org/en/4.4/tutorials/scripting/gdextension/gdextension_file.html) | minimumだけでなく上限も表せるtyped rangeとexact resolved lockを分離。Godot format自体は採用しない |
 | TypeScript 7 | [Microsoft TypeScript 7.0 announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) | 7.0はstable programmatic APIを持たないためCLIのみ。正式lint buildへ`--singleThreaded`を固定 |
+| JSON Schema validator | [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html#draft-2020-12)、[npm Ajv 8.20.0 metadata](https://registry.npmjs.org/ajv/8.20.0) | Draft 2020-12専用`ajv/dist/2020`、strict validation、single-error、local `$id` allowlist、offline lock／integrity read-back |
 | MCP | [MCP specification 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) | Protocol versionをexact lockし、Tool schema validation、access control、人間確認を既存Governanceへ接続 |
 | OpenAI model | [GPT-5.6 Sol official model reference](https://developers.openai.com/api/docs/models/gpt-5.6-sol) | 2026-07-22時点で別のdated snapshot IDを確認できないため、non-snapshot扱いでresolved ID、Eval、expiry、Receiptを記録 |
 | Android toolchain | [AGP 9.3.0 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes) | Gradle 9.5.0、Build Tools 36.0.0、JDK 17、maximum API 37を既存pinと照合。明示NDK pinは別lockで維持 |
@@ -905,25 +963,40 @@ Architecture Indexと2 Decisionsも更新対象とする。Decisionは歴史的�
 
 一つの巨大な未検証編集として扱わず、次の順序で意味を閉じる。
 
-1. Architecture Governanceを追加し、metadata grammar、state、relation、lint規則を確定する。
-2. Compatibility／Evolutionを追加し、型、ID、artifact class、migration規則を確定する。
-3. Product Plan、Core、Naming、Executable Contracts、Toolchainを新規則へ合わせる。
-4. Persistence／Saveを追加し、Gameplay、Project、Scheduling、Debug、World、Platform、UIを接続する。
-5. Runtime Packageを追加し、Asset、Native、World、Shader、Save migrationを接続する。
-6. Application Package／Releaseを追加し、Governance、Evidence、Windows、Android、Appleを接続する。
-7. Shared projection Ownerを各Domainへ登録し、Rendering／Platform consumerを更新する。
-8. Domain PackとShooterをCompatibility、Save、Packageへ接続する。
-9. Simulation、Rendering、Platformの残りmetadataとcross-referenceを正規化する。
-10. Runtime ECS Decisionを新Ownerへrebaseし、active spec追加前Gateを更新する。
-11. Index、Decision追記、全体lint、リンク、anchor、DAG、Owner、type、ID、Phase、E2E traceを検証する。
+1. legacy inventoryとmigration manifestを固定する。
+2. Ajv 8.20.0をToolchain／package lockへ固定し、Draft 2020-12 validator import、integrity、local `$id` allowlistをschema未存在testより先に検証する。
+3. Metadata／Product／Bootstrap Approval schemaを追加する。
+4. Architecture Governance、Compatibility／Evolution、Persistence／Save、Runtime Package、Application Package／Releaseの5 Ownerを`review`で追加する。
+5. R4人間Review後に5 Ownerをapprovedにし、承認対象Git treeへ束縛した`ControlPlaneBootstrapApprovalV1`を発行・read-backする。未承認ならここで停止する。
+6. 43既存文書をexact metadataへ移行し、Product Plan、Core、Naming、Executable Contracts、Toolchainを新規則へ合わせる。
+7. Bootstrap Approval時と同じcanonical bytesからProduct registryをmaterializeし、Phase gate、Work Package、Target activation、Product risk、Product decision gate、Future incubationを検査する。
+8. Gameplay、Project、Scheduling、Debug、World、Asset、Native、Shader、Windows／Android／Apple／UIを5 Ownerへ接続する。
+9. Shared projection Ownerを各Domainへ登録し、Rendering／Platform consumerを更新する。
+10. Domain Pack、Shooter、Simulation、Rendering、Platformのmetadataとcross-referenceを正規化する。
+11. Runtime ECS Decisionを新Ownerへrebaseし、active spec追加前Gateを更新する。
+12. Index、Decision追記、全体lint、リンク、anchor、DAG、Owner、type、ID、Phase、E2E traceを検証する。
+13. Baseline handoffへBootstrap Approval hashを含む全hashを記録し、current revocation stateとともにread-backする。
 
-各stepは局所lintに合格してから次へ進む。中間状態を`approved`と表示せず、全体ChangeSet完成後にreviewを依頼する。
+各stepは局所lintに合格してから次へ進む。自動処理は文書を`approved`と表示せず、step 5の独立した明示人間Approvalだけが5 Ownerのlifecycleを変更できる。承認後Artifactがdriftした場合は全体完了まで待たずBootstrap Approvalを失効させる。
 
-D3D12 Companionは上記のstep 12として本ChangeSetへ追加しない。step 11合格後のexact architecture hashから別ChangeSetを開始し、Product Phase 2の実装開始前に完了させる。
+D3D12 Companionは上記のstep 14として本ChangeSetへ追加しない。step 13合格後のexact architecture hashから別ChangeSetを開始し、Product Phase 2の実装開始前に完了させる。
 
 ## 21. Architecture lint design
 
-実装計画では、既に固定されたNode.js／TypeScript toolchainだけを使うdependency-free validatorを`tools/architecture_lint/`へ追加する。TypeScript compiler programmatic APIには依存せず、CLIでcompileしたvalidatorをNodeで実行する。
+実装計画では、既に固定されたNode.js／TypeScript toolchainと、JSON Schema Draft 2020-12 validatorとしてAjv `8.20.0`だけをProduction dependencyに持つ`tools/architecture_lint/`を追加する。TypeScript compiler programmatic APIには依存せず、CLIでcompileしたvalidatorをNodeで実行する。AjvはMIT license、npm tarball `https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz`、npm integrity `sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==`へ固定し、Toolchain lock、`package.json`、`package-lock.json`、install後package metadataの四者をread-backする。
+
+Validatorはpackage rootの既定draftに依存せず`ajv/dist/2020`のDraft 2020-12 classを使用する。ES module sourceのexact import specifierは実在fileを指す`ajv/dist/2020.js`とし、これを`ajv/dist/2020` entrypointの実装としてlock／read-backする。`strict=true`、`allErrors=false`とし、`loadSchema`を設定せず、`compileAsync`、network／file URL、実行時schema downloadを禁止する。登録可能なroot `$id`は次のlocal URN allowlistだけで、fragment-only `$ref`またはallowlist ID＋fragment以外をcompile前walkで拒否する。
+
+```text
+urn:mirakan:schema:architecture:document-metadata:v1
+urn:mirakan:schema:architecture:document-relations:v1
+urn:mirakan:schema:architecture:baseline:v1
+urn:mirakan:schema:architecture:explain-projection:v1
+urn:mirakan:schema:architecture:control-plane-bootstrap-approval:v1
+urn:mirakan:schema:product:registries:v1
+```
+
+Schema作成testを先に走らせない。実装順は、Ajv lock／offline install／integrity read-back、`ajv/dist/2020.js` importとembedded minimal Draft 2020-12 schema compile、対象schema未存在test、対象schema作成の順とする。Validator importまたはlock照合が失敗した状態で`ENOENT`を期待結果にしてはならない。
 
 Validatorは次を検査する。
 
@@ -940,10 +1013,12 @@ Validatorは次を検査する。
 11. Save、Runtime Package、Application Package、Candidate／Approval／Activation、Store publication Receiptの必須E2E edge。
 12. Decisionの固定件数を正本Gateとして使用していないこと。
 13. Manifest／Envelope／Package／Candidate参照graphのcycle、self hash、後段identityの前段埋込みがないこと。
+14. `ControlPlaneBootstrapApprovalV1`の承認主体、Git tree、5 Owner hash、Product registry hash、Toolchain lock hash、Decision hash、発行／失効とcurrent bytesの一致。
+15. Product正本と完全一致するWork Package Field集合、Targetごとのrequired Capability closure、Phase fixture binding、append-only lifecycle、`predicted | blocked | qualified` Target readiness、Technical Qualification Receipt freshness。
 
 出力はstable diagnostic ID、document、line、owner、remediationを持ち、同一入力で同一順序とする。CIは生成Indexとの差分とlint errorが一件でもあれば失敗する。
 
-D3D12固有のsymbol／mapping／descriptor／Tool Catalog検査はCompanionの[Architecture lint追加](2026-07-22-ai-readable-d3d12-backend-design.md#26-architecture-lint追加)が所有し、本validatorの13項へ混入させない。本validatorはD3D12正本が追加された後も、文書ID、Ownerの一意性、typed relation、External Evidence refの存在までを共通Gateとして検査する。
+D3D12固有のsymbol／mapping／descriptor／Tool Catalog検査はCompanionの[Architecture lint追加](2026-07-22-ai-readable-d3d12-backend-design.md#26-architecture-lint追加)が所有し、本validatorの15項へ混入させない。本validatorはD3D12正本が追加された後も、文書ID、Ownerの一意性、typed relation、External Evidence refの存在までを共通Gateとして検査する。
 
 ## 22. Verification matrix
 
@@ -957,7 +1032,7 @@ D3D12固有のsymbol／mapping／descriptor／Tool Catalog検査はCompanionの[
 | Save | capture→transform→write→read-back→decrypt／load→digest一致 | partial write、auth／hash mismatch、decompression bound超過、orphan Field、cloud conflict自動mergeを拒否 |
 | Runtime Package | exact closureをload | ABI、Contract、Content、Shader、migration mismatchで全体拒否 |
 | Application Package／Release | subject→manifest→sign→staging read-back→candidate／approval／activation→publish read-back | manifest外file、identity混在、hash差替え、Candidate hash cycle、未承認公開を拒否 |
-| Domain Pack | range＋resolved lock＋Qualification | dependency cycle、lock未選択の複数解、未Qualified Targetを拒否 |
+| Domain Pack | range＋resolved lock＋Qualification | dependency cycle、lock未選択の複数解、qualifiedでないTargetを拒否 |
 | Product | Work Package→Capability→Receipt closure | orphan WP、maturity入りID、state軸混同を拒否 |
 | ECS prerequisite | 新Ownerへのexact ref | 旧Save owner、unversioned manifest、固定件数前提を拒否 |
 | D3D12 companion boundary | 後続計画へのexact link、一つのD3D12 Backend Owner | 6番目の横断Owner扱い、Render Graph／Windows／UIでのnative contract再定義を拒否 |
@@ -1006,19 +1081,24 @@ D3D12固有のsymbol／mapping／descriptor／Tool Catalog検査はCompanionの[
 
 Product-owned execution registryは[Product Plan §11](../architecture/00-product/product-plan.md#11-product-execution-registries)を正本とする。Control Planeは構造と参照整合を検査するが、Product tier、Phase outcome、Target scope、fallback選択を再定義しない。
 
-必須Registryは次の7件である。
+active execution／controlの必須Registryは次の11件である。将来scopeは12番のincubation Registryへ分離する。
 
 1. `CapabilityRegistryV1`
 2. `CapabilityTargetActivationV1`
 3. `ProductPhaseRegistryV1`
-4. `WorkPackageRegistryV1`
-5. `TargetProfileRegistryV1`
-6. `RequirementRegistryV1`／`FixtureRegistryV1`
-7. `FallbackRegistryV1`
+4. `PhaseFixtureBindingRegistryV1`
+5. `WorkPackageRegistryV1`
+6. `TargetProfileRegistryV1`
+7. `RequirementRegistryV1`
+8. `FixtureRegistryV1`
+9. `FallbackRegistryV1`
+10. `ProductRiskRegistryV1`
+11. `ProductDecisionGateRegistryV1`
+12. `FutureCapabilityIncubationRegistryV1`（`planning_only`。active Phase／Capabilityへ含めない）
 
 Capability activationの正本keyは`{capability_id,target_id}`である。required Targetの行が一件でも欠ける場合はaggregateを`not_activated`、全行がある場合は`not_activated < candidate_locked < qualified < production`の最小値とする。AggregateをRegistryへ保存、手動設定、Receiptの代用にしない。
 
-Work Packageは`defer_reason`、`reconsideration_gate_refs[]`、`blocked_reason_ref`を常設Fieldとする。`deferred`で理由または再検討Gate欠落、`blocked`でDiagnostic欠落をfail closedにする。Phase、Capability tier、profile versionをlogical IDへ埋め込まない。
+Work Packageは§15のProduct正本Field集合と完全一致させる。`deferred`で理由または再検討Gate欠落、`blocked`でDiagnostic欠落、旧Fieldの混入をfail closedにする。Phase gateは`PhaseFixtureBindingRegistryV1`から評価し、planning-onlyの再検討条件は`ProductDecisionGateRegistryV1`のexact IDへ閉じ、transition Receiptは`WorkPackageLifecycleRecordV1`だけへ記録する。`ProductRiskRegistryV1`のaffected Work Packageとevidenceを参照解決し、`revisit_gate_or_date`がlogical IDなら登録済みGateへ解決する。Phase、Capability tier、profile versionをlogical IDへ埋め込まない。
 
 ## 27. Exact migration authority
 
@@ -1039,12 +1119,13 @@ identity_migration_registry_sha256
 architecture_explain_schema_sha256
 toolchain_lock_sha256
 architecture_lint_artifact_sha256
+control_plane_bootstrap_approval_sha256
 lint_version
 ```
 
 Baselineへ文書件数やedge件数を重複保存しない。Readerはhash照合済み`document-relations.v1.json`の`documents[]`、`canonical_order[]`、`requires[]`、`integrates_with[]`から件数を導出し、配列間不一致をbaseline mismatchとして拒否する。上記Field集合は実装計画Task 10およびbaseline schemaと完全一致させる。
 
-Runtime ECSとD3D12 Backendはこのread-backが成功するまで開始しない。値は設計時に仮記入せず、clean treeで全lint／test／Index Gateを通したArtifactから生成する。Mismatchは`diagnostic.architecture.baseline-mismatch`で停止し、最新値へ暗黙追従しない。
+Runtime ECSとD3D12 Backendはこのread-backと`ControlPlaneBootstrapApprovalV1`のcurrent revocation評価が成功するまで開始しない。値は設計時に仮記入せず、clean treeで全lint／test／Index Gateを通したArtifactから生成する。Mismatchは`diagnostic.architecture.baseline-mismatch`、Approval失効は`diagnostic.architecture.bootstrap-approval-invalid`で停止し、最新値へ暗黙追従しない。
 
 ## 29. 実装計画
 
