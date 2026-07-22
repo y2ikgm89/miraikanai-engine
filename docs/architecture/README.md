@@ -80,33 +80,34 @@
 |---:|---|---|---|
 | 24 | [Render Graph](06-rendering/render-graph.md) | review | renderer boundary、resource／pass graph、queue、visibility、temporal execution |
 | 25 | [Materials](06-rendering/materials.md) | review | material／shader authoring、semantic intent、compile、package |
-| 26 | [Lighting](06-rendering/lighting.md) | review | light source、photometry、attenuation、shadow intent、lighting semantics |
-| 27 | [Post Processing](06-rendering/post-processing.md) | review | post-process source、volume、effect composition、history intent |
-| 28 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、authoring operation |
-| 29 | [VFX Runtime](06-rendering/vfx-runtime.md) | review | VFX artifact、instance、simulation、render、visual interaction |
-| 30 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
-| 31 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |
-| 32 | [LOD](06-rendering/lod.md) | review | representation selection、transition、fallback、LOD semantics |
-| 33 | [World／Scene／Level／Cell](06-rendering/world.md) | review | World composition、partition、streaming plan、transition、map resolution |
+| 26 | [Project Shader](06-rendering/project-shader.md) | review | bounded HLSL、semantic module、Project Node／Shading Model、Technique、AI理解とShader qualification |
+| 27 | [Lighting](06-rendering/lighting.md) | review | light source、photometry、attenuation、shadow intent、lighting semantics |
+| 28 | [Post Processing](06-rendering/post-processing.md) | review | post-process source、volume、effect composition、history intent |
+| 29 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、authoring operation |
+| 30 | [VFX Runtime](06-rendering/vfx-runtime.md) | review | VFX artifact、instance、simulation、render、visual interaction |
+| 31 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
+| 32 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |
+| 33 | [LOD](06-rendering/lod.md) | review | representation selection、transition、fallback、LOD semantics |
+| 34 | [World／Scene／Level／Cell](06-rendering/world.md) | review | World composition、partition、streaming plan、transition、map resolution |
 
 ### 3.8 Platform
 
 | # | 仕様 | 状態 | 所有責務 |
 |---:|---|---|---|
-| 34 | [Windows](07-platform/windows.md) | review | Windows target、process／window adapter、package、distribution、qualification |
-| 35 | [Mobile Common](07-platform/mobile-common.md) | review | Mobile共通target、port、lifecycle、resource policy、device workflow |
-| 36 | [Android](07-platform/android.md) | review | Android build／runtime adapter、package、store delivery、device qualification |
-| 37 | [Apple](07-platform/apple.md) | review | Apple build／runtime bridge、signing、store、device qualification |
-| 38 | [Input](07-platform/input.md) | review | device、action、binding、context、remap、haptics、input replay |
-| 39 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
-| 40 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、UI authoring |
+| 35 | [Windows](07-platform/windows.md) | review | Windows target、process／window adapter、package、distribution、qualification |
+| 36 | [Mobile Common](07-platform/mobile-common.md) | review | Mobile共通target、port、lifecycle、resource policy、device workflow |
+| 37 | [Android](07-platform/android.md) | review | Android build／runtime adapter、package、store delivery、device qualification |
+| 38 | [Apple](07-platform/apple.md) | review | Apple build／runtime bridge、signing、store、device qualification |
+| 39 | [Input](07-platform/input.md) | review | device、action、binding、context、remap、haptics、input replay |
+| 40 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
+| 41 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、UI authoring |
 
 ### 3.9 Domain Packs
 
 | # | 仕様 | 状態 | 所有責務 |
 |---:|---|---|---|
-| 41 | [Domain Pack Contract](08-domain-packs/domain-pack-contract.md) | review | Pack identity／manifest、dependency、activation、qualification、update、removal |
-| 42 | [Shooter Reference Pack](08-domain-packs/shooter.md) | review | Shooter固有契約、reference composition、domain algorithm／failure／fixture |
+| 42 | [Domain Pack Contract](08-domain-packs/domain-pack-contract.md) | review | Pack identity／manifest、dependency、activation、qualification、update、removal |
+| 43 | [Shooter Reference Pack](08-domain-packs/shooter.md) | review | Shooter固有契約、reference composition、domain algorithm／failure／fixture |
 
 ## 4. ProductからSubsystemへのnavigation
 

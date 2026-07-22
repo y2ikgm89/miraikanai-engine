@@ -4,8 +4,8 @@
 - 状態: review
 - 正本範囲: 外部Tool・SDK・Library・APIのexact version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock、Dependency採用・更新Gate
 - 非正本範囲: Product scope、Subsystem API・型・Budget、Runtime phase、Platform lifecycle、Dependency内部を包むEngine-owned Adapter契約。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)
-- 外部根拠検証日: 2026-07-21
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)
+- 外部根拠検証日: 2026-07-22
 
 ## 1. 結論と一意所有
 
@@ -64,8 +64,33 @@ AGPのNDK既定値は採用根拠にしない。公式downloadで別version指�
 | Target | exact external baseline |
 |---|---|
 | Windows | Direct3D 12、Agility SDK 1.619.4、portable HLSL 2021、DXIL Shader Model 6.6、Root Signature 1.1、Enhanced Barriers必須 |
-| Android | Vulkan 1.1、Android Vulkan Profile 2022、SPIR-V offline validation |
-| Apple | Metal、iOS／iPadOS SDK 26.5でMSL／metallibをoffline生成 |
+| Android | portable HLSL 2021をDXCでSPIR-Vへoffline compileし、Vulkan 1.1、Android Vulkan Profile 2022、SPIRV-Tools validationを通す |
+| Apple | portable HLSL 2021をDXCのSPIR-V intermediate、SPIRV-CrossのMSLへ変換し、iOS／iPadOS SDK 26.5のMetal compilerでmetallibをoffline生成 |
+
+`ShaderCompilerProfileV1`はEngine buildが生成するTarget別closed Profileであり、次を固定する。
+
+```text
+schema_version
+compiler_profile_id
+target_profile_id
+source_language_profile_id
+compiler_lock_ref
+translator_lock_refs[]
+validator_lock_refs[]
+generated_argument_set_hash
+stage_profile_map
+capability_map_hash
+matrix_layout
+clip_depth_convention
+texture_coordinate_convention
+binding_layout_policy_id
+reflection_profile_id
+source_map_profile_id
+optimization_profile_id
+debug_information_profile_id
+```
+
+Project、AI、Build scriptはargument、entry profile、register／space、optimization、layout、extension、validatorを上書きしない。Development／Profile／Shipping差はEngine-owned Profile IDで選び、Source directiveで切り替えない。DXCのpublic compile result、PDB、hash、reflection APIを安定Adapter境界として使い、hidden `-ast-dump` textはversion固定の破棄可能な解析Cacheに限定する。
 
 ### 2.5 External schema／AI protocol
 
@@ -203,7 +228,7 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisher、GitHub a
 
 ## 10. Context7と公式一次資料
 
-Context7で次のIDを2026-07-21に解決し、指定queryで確認した。
+Context7で次のIDを2026-07-21～2026-07-22に解決し、指定queryで確認した。
 
 | 対象 | Context7 ID | query／確認結果 |
 |---|---|---|
@@ -211,8 +236,13 @@ Context7で次のIDを2026-07-21に解決し、指定queryで確認した。
 | Box2D | `/erincatto/box2d` | C17、opaque ID handle、substep solver、multithreadingを照会。private Adapter採用と整合 |
 | Jolt Physics | `/jrouwe/joltphysics` | compute backend build optionとmultithread integrationを照会。GPU backendを無効化する採用判断と整合 |
 | Recast Navigation | `/recastnavigation/recastnavigation` | Recast buildとDetour runtime queryの分離を照会。private Backend境界と整合 |
+| DirectX Shader Compiler | `/microsoft/directxshadercompiler` | `IDxcResult`のobject／PDB／shader hash／reflection出力と`IDxcUtils::CreateReflection`を照会。Fact Graphの安定証拠をpublic APIへ限定する判断と整合 |
+| Unreal Engine 5.8 | `/websites/dev_epicgames_unreal-engine_5_8` | 収録範囲が概説中心だったため、RDG parameter／resource validationとGlobal ShaderはEpic公式5.8本文で補完 |
+| Unity Graphics | `/unity-technologies/graphics` | HLSL function reflectionによるShader Graph Node生成とURP RenderGraph resource宣言を照会。Project Module／Technique分離の比較根拠に使用 |
 
 Context7の内容はmain branchの挙動説明であり、exact release／commitの証拠は上記公式Release pageとtagで補完した。
+
+Shader toolchainの補完一次根拠は[DXC v1.9.2602.24 release](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2602.24)、[DXC API](https://github.com/microsoft/DirectXShaderCompiler/wiki/Using-dxc.exe-and-dxcompiler.dll)、[DXC HLSL options](https://github.com/microsoft/DirectXShaderCompiler/blob/main/include/dxc/Support/HLSLOptions.td)、[HLSL Specification Working Draft](https://microsoft.github.io/hlsl-specs/specs/index.html)である。Working Draftまたはmain branchの変化をBuild時に自動採用せず、上表のDXC tag／commitと`ShaderCompilerProfileV1`を実行正本にする。
 
 CMakeのversion別根拠は[C++ Modules support](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html)、[`CXX_MODULE_STD`](https://cmake.org/cmake/help/v4.4/prop_tgt/CXX_MODULE_STD.html)、[Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)、[Ninja Multi-Config](https://cmake.org/cmake/help/v4.4/generator/Ninja%20Multi-Config.html)、[File API](https://cmake.org/cmake/help/v4.4/manual/cmake-file-api.7.html)で補完した。MSVCのbaselineとCutover条件は[stable release](https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/)、[C++23 support status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/)、[Visual Studio release history](https://learn.microsoft.com/en-us/visualstudio/releases/2026/release-history)を一次根拠とする。
 
@@ -227,3 +257,4 @@ Apple pinは[Xcode 26.6 release notes](https://developer.apple.com/documentation
 - Vendor sourceの手動copy、hashなしdownload、Build中のNetwork取得
 - License未確認、SBOM未記載、public APIへVendor型を露出するDependency
 - Toolchain不一致時のPATH fallback、別Generator fallback、旧version fallback
+- Slang、GLSL、WGSL等の追加Source frontendを初期Project Shader baselineへ併設すること。採用する場合はDependency ChangeSet、言語意味差、全Target artifact／reflection、既存HLSL fixture、rollbackを独立Qualificationする

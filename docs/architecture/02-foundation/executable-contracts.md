@@ -4,8 +4,8 @@
 - 状態: review
 - 正本範囲: MCD、Requirement、Type、Operation、State machine、Capability、Policy、Diagnostic、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
 - 非正本範囲: 外部Tool・packageのversion／commit／hash／license、Product scope、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Project state](../03-authoring/project-state.md)
-- 外部根拠検証日: 2026-07-21
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Project state](../03-authoring/project-state.md)、[Project Shader](../06-rendering/project-shader.md)
+- 外部根拠検証日: 2026-07-22
 
 ## 1. 結論
 
@@ -625,7 +625,7 @@ Lighting DiscoveryはLighting規約の意味Role、物理単位、Target／Budge
 | `operation.lighting.estimate_cost` | R0 query | Target別CPU／GPU／Memory予測とconfidenceを取得 |
 | `operation.lighting.validate_change` | R0 query／job | Schema／semantic／Capability／Budget／lockを検証 |
 
-Lighting結果は`project_revision`、`contract_set_hash`、`lighting_catalog_hash`、`target_capability_hash`、`query_hash`を必須とする。Plan／Previewは`source_intent_revision`、`resolved_plan_hash`、`profile_revision`、`qualification_receipt_hashes`も返す。LightのCommit、native GPU resource／cluster buffer書込み、Shadow Technique追加、Provider activation、Project HLSLはTool listへ含めない。
+Lighting結果は`project_revision`、`contract_set_hash`、`lighting_catalog_hash`、`target_capability_hash`、`query_hash`を必須とする。Plan／Previewは`source_intent_revision`、`resolved_plan_hash`、`profile_revision`、`qualification_receipt_hashes`も返す。LightのCommit、native GPU resource／cluster buffer書込み、Shadow Technique Source追加、Provider activation、Project HLSL変更をLighting Tool listへ含めない。Qualification済みShadow Techniqueの検索／参照は許可し、新規TechniqueはProject Shader Operationへ明示的にhandoffする。
 
 Post Process DiscoveryはPost Process規約のIntent、Profile、Node Catalog、Volume、AA／Layer互換を次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.post_process.*`を生成する。
 
@@ -641,15 +641,45 @@ Post Process DiscoveryはPost Process規約のIntent、Profile、Node Catalog、
 | `operation.post_process.estimate_cost` | R0 query | Target別CPU／GPU／Memory予測とconfidenceを取得 |
 | `operation.post_process.validate_change` | R0 query／job | Schema／stage／AA／Layer／Capability／Budgetを検証 |
 
-Post Process結果は`project_revision`、`contract_set_hash`、`post_node_catalog_hash`、`target_capability_hash`、`anti_aliasing_plan_hash`、`query_hash`を必須とする。Plan／Previewは`resolved_plan_hash`、`profile_revision`、`volume_set_hash`、`qualification_receipt_hashes`も返す。任意Render pass、native resource、history weight、Node stage並替え、Provider activation、Project Shader、Source Promotion、Project CommitはTool listへ含めない。
+Post Process結果は`project_revision`、`contract_set_hash`、`post_node_catalog_hash`、`target_capability_hash`、`anti_aliasing_plan_hash`、`query_hash`を必須とする。Plan／Previewは`resolved_plan_hash`、`profile_revision`、`volume_set_hash`、参照するProject Shader Technique／Understanding Closure hash、`qualification_receipt_hashes`も返す。raw Render pass、native resource、history weight、Node stage並替え、Provider activation、Project Shader Source／Technique mutation、Source Promotion、Project CommitはPost Process Tool listへ含めない。Qualification済みProject TechniqueのCatalog参照だけを許可し、新規TechniqueはProject Shader Operationへ明示的にhandoffする。
 
 Lighting／Post ProcessのSearchは既定50件、最大200件、continuation付きとし、Read／Inspectはfield maskとbounded scopeを必須にする。どちらの`plan_change`も`expected_project_revision`と`idempotency_key`を必須にし、Provider OutputはInternal C++ validatorで完全再検証する。
 
-## 21. Contract compilerのDefinition of Done
+## 21. Project Shader Discovery／Proposal
+
+Project Shaderは[Project Shader](../06-rendering/project-shader.md)の`PublicShaderSdkCatalogV1`、Module、Technique、Fact、Understanding Closureを次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.shaders.*`を生成する。
+
+| MCD Operation | Risk／kind | 結果 |
+|---|---|---|
+| `operation.shader.search` | R0 query | Project／public SDK origin、semantic role、module kind、Stage、Technique Port、Target、Capability、qualificationからStable ID候補を検索 |
+| `operation.shader.read_module` | R0 query | exact Module manifest、Source file index／bounded excerpt、public export、typed value／resource interface、Target、fallbackを取得 |
+| `operation.shader.read_technique` | R0 query | exact Technique、Pass DAG、logical resource、Port、Target、fallbackを取得 |
+| `operation.shader.inspect_symbol` | R0 query | Projectまたはpublic SDKのStable Symbol IDからdeclaration、semantic、type、source span、entry／export、Fact、diagnosticをbounded取得 |
+| `operation.shader.find_callers` | R0 query | caller／callee、Pass／Entry到達性、Target／variant scopeを取得 |
+| `operation.shader.explain_dataflow` | R0 query | value flow、unit／space／color変換、output寄与とEvidenceを取得 |
+| `operation.shader.explain_resource_effects` | R0 query | resource access、side effect、Pass／queue intent、lifetime影響を取得 |
+| `operation.shader.compare_targets` | R0 query | interface、Capability、precision、variant、fallback、Diagnostic差を取得 |
+| `operation.shader.preview` | R0 query／job | exact Source／artifact／Targetでvisual／analytic fixtureを実行 |
+| `operation.shader.parameter_sweep` | R0 query／job | bounded parameter setのcounterfactual、image／invariant／cost差を取得 |
+| `operation.shader.estimate_cost` | R0 query | Target別instruction、resource、variant、GPU／memory予測と根拠を取得 |
+| `operation.shader.validate_contract` | R0 query／job | Profile、semantic、Fact、reflection、Target、fixture、UnderstandingのDiagnosticを取得 |
+| `operation.shader.plan_module` | R1 proposal | Sourceを変更しない`ProjectShaderModulePlanV1`を生成 |
+| `operation.shader.plan_technique` | R1 proposal | Sourceを変更しない`ProjectShaderTechniquePlanV1`を生成 |
+| `operation.shader.propose_module` | R3 source proposal | expected revisionに対するModule Source／contract ChangeSetをStagingへ生成 |
+| `operation.shader.propose_technique` | R3 source proposal | expected revisionに対するTechnique／Module Source ChangeSetをStagingへ生成 |
+
+全結果は`project_revision`、`contract_set_hash`、`bounded_project_shader_profile_hash`、`source_tree_hash`、`query_hash`を必須とする。Factを返すOperationは`fact_graph_hashes[]`、Target結果は`target_profile_hashes[]`と`artifact_set_hashes[]`、Preview／Validate／Proposalは`shader_understanding_closure_hash?`と`verification_receipt_hashes[]`を返す。Closure未生成を空hashで表さず、statusを`not_run | stale | failed | passed`として返す。
+
+Searchは既定50件、最大200件、continuation付き、Read／Inspect／Explainはfield mask、Stable ID、Target／variant scope、最大node／edge／source byteを必須にする。上限超過時は`omitted_ranges`と`continuation_cursor`を返し、GraphまたはSourceを途中で正常完了扱いしない。
+
+Plan／Proposeは`expected_project_revision`、`idempotency_key`、Profile hash、対象Module／Technique Stable ID、Target集合、Requirement、Budget、fixture、fallback、Riskを必須にする。ProposeはSource ChangeSetを作るだけで、compiler command、Project／Engine filesystem直接write、artifact publish、Commit、Activation、Approval、Policy変更を行わない。native handle、descriptor、barrier、queue signal、Compiler option、Engine private include、Manifest外Pass／ResourceをInput／Output Schemaへ投影しない。
+
+## 22. Contract compilerのDefinition of Done
 
 - 全MCD kindのmeta-schemaと最低1件のvalid／invalid fixtureがある。
 - `game_system` kindからCatalog、Dependency Graph、State owner table、C++／TypeScript binding、conformance testを決定論的に生成する。
 - Project-defined SystemがEngine Standardと同じContract validationを通り、固定WhitelistなしでCatalogへ登録できる。
+- Project Shader Operationが同じModule／Technique／Fact／Context／Understanding SchemaからC++、TypeScript、MCP bindingを生成し、R0／R1／R3と禁止Fieldを混同しない。
 - authoritative State owner欠落／重複、System dependency cycle、Presentation逆writeをinvalid fixtureで拒否する。
 - `RemediationV1`のapplicable code、typed Operation template、Risk、Approval、禁止Category、適用上限を生成・検証できる。
 - Duplicate key、unknown field、unbounded collection、untagged unionを拒否する。
@@ -679,7 +709,7 @@ Lighting／Post ProcessのSearchは既定50件、最大200件、continuation付�
 - Post ProcessのIntent／Profile／Camera Override／Volume／Node Catalog／Plan、固定stage、色空間、AA／Layer／history Predicate、`operation.post_process.*`九Operation、bounded resultのvalid／invalid fixtureを同じMCDから生成する。
 - Lighting／Post ProcessのProvider projectionへCommit、native GPU resource、任意Render pass／Shader、history内部値、Capability activationを含めず、Internal validatorが未知fieldと未成熟Capabilityをfail-closedにする。
 
-## 22. 一次資料と採用根拠
+## 23. 一次資料と採用根拠
 
 - JSON Schema dialectのexact versionと取得元は[Toolchain／Dependencies](toolchain-dependencies.md)を参照する。
 - [RFC 8259: The JavaScript Object Notation Data Interchange Format](https://www.rfc-editor.org/rfc/rfc8259): 正本JSONのsyntaxと相互運用基準。
@@ -693,7 +723,7 @@ Lighting／Post ProcessのSearchは既定50件、最大200件、continuation付�
 - [Anthropic Define tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools): Tool定義、`input_schema`、説明、Example。
 - [BCP 14 / RFC 2119 and RFC 8174](https://www.rfc-editor.org/info/bcp14): 規範語の意味。
 
-## 23. 明示的に採用しないもの
+## 24. 明示的に採用しないもの
 
 - C++ classからだけSchemaを生成し、Requirement／権限／State machineを別管理する方式。
 - Provider SDKの型をEngine公開契約にする方式。

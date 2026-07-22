@@ -3,9 +3,9 @@
 - 文書ID: mirakan.arch.rendering-post-processing
 - 状態: review
 - 正本範囲: Post Process Source／Volume、effect catalog／parameter semantics、volume blend／priority／scope、ordered effect composition、history intent、Post Process operation／diagnostic／qualification
-- 非正本範囲: Render pass／resource／queue／AA execution、Material／Lighting semantics、Camera／Environment source、UI composition、Runtime shared capacity、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)
-- 外部根拠検証日: 2026-07-21
+- 非正本範囲: Project Shader Source／Technique、Render pass／resource／queue／AA execution、Material／Lighting semantics、Camera／Environment source、UI composition、Runtime shared capacity、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)
+- 外部根拠検証日: 2026-07-22
 
 ## 1. 結論と所有境界
 
@@ -67,7 +67,7 @@ Profile継承は最大4段とし循環を拒否する。各nodeは`inherit | dis
 
 `PostProcessVolumeV1`は`volume_id`、`shape_ref`、`profile_id`、`priority_i16`、`blend_radius_m`、`blend_weight`、`unbounded`、`enabled`、`target_selector`を持つ。Viewごとの交差Volumeは最大32とし、`priority -> volume_id`で安定sortする。weightはshape距離から0～1へ決定する。Blend可能fieldだけを線形または定義済みDomain blendし、enum、asset ref、Node enable等は最高priorityかつStable ID最小の一件を選ぶ。競合は`MIRAKAN-POST-VOLUME-CONFLICT`で説明する。
 
-Effect entryはEffect Stable ID、effect kind、enabled intent、parameter override、固定composition stage、Catalog dependency ref、required input／history、Target capability、fallbackを持つ。Profile／AIはstageや順序を変更できない。任意shader、native pass、resource handle、command callbackをSourceへ埋め込まない。
+Effect entryはEffect Stable ID、effect kind、enabled intent、parameter override、固定composition stage、Catalog dependency ref、optional Qualification済みProject Shader Technique ref、required input／history、Target capability、fallbackを持つ。Profile／AIはstageや順序を変更できない。raw shader source、native pass、resource handle、command callbackをSourceへ埋め込まない。
 
 Parameterはtyped value、unit／color-space semantics、valid range、blend operator、override stateを持つ。`unset`、明示default、override値を区別し、unknown field、non-finite値、type／unit mismatchを拒否する。
 
@@ -77,7 +77,7 @@ Volume shapeのgeometryとcontainment queryは既存Simulation contractを利用
 
 Effect Catalogはtone／exposure adaptation、color transform、bloom／glare、depth／motion based effect、lens／camera presentation、stylization、spatial cleanup等をclosed familyとして登録する。各effectはinput color-space、output color-space、required buffers、parameter definition、history requirement、allowed scope、ordering relation、fallbackを宣言する。
 
-`PostProcessNodeCatalogV1`の各Nodeはversion付きNode ID／Product capability status ref、入力／出力logical resourceとcolor space、固定execution stage、required Camera／Renderer input、temporal historyの有無／format／reset reason、blend可能parameter／range、対応Target／HDR・SDR／AA mode／layer、予測cost model／persistent・transient byte式、fallback node／disable policy、Visual fixture／conformance test／Qualification refを宣言する。通常ProfileはCatalogにないNodeを作れない。
+`PostProcessNodeCatalogV1`の各Nodeはversion付きNode ID／Product capability status ref、入力／出力logical resourceとcolor space、固定execution stage、required Camera／Renderer input、temporal historyの有無／format／reset reason、blend可能parameter／range、対応Target／HDR・SDR／AA mode／layer、予測cost model／persistent・transient byte式、fallback node／disable policy、Visual fixture／conformance test／Qualification ref、optional Project Shader Technique／Understanding Closure refを宣言する。通常ProfileはCatalogにないNodeを作れず、Project TechniqueはQualification後にProject namespaceのCatalog entryとしてだけ追加する。
 
 Portable Node／parameter contractを次に固定する。本書はdomain qualification evidenceだけを出力する。
 
@@ -137,9 +137,9 @@ camera cut、teleport、projection／extent／surface／effect generation変更�
 
 ## 7. Resolver outputと実行境界
 
-`ResolvedPostProcessPlanV1`は最低限、View Family／Camera／Profile／Volume／Target／AA Planのversion／hash、stage順のversion付きNode ID、全Nodeの解決済みexact parameter、入力／出力logical resource／color space／resolution class、history key／generation／reset条件、Layer inclusion／exclusion、予測CPU／GPU時間／persistent・transient byte、採用／棄却／fallback／非互換理由、Preview／承認／Qualification要否、`plan_hash`／有効期限を持つ。approval mechanicsと共通artifact／projection fieldは[AI Security／Approval](../01-governance/ai-security-approval.md)と[Executable contracts](../02-foundation/executable-contracts.md)を参照する。Planはnative pass listではない。
+`ResolvedPostProcessPlanV1`は最低限、View Family／Camera／Profile／Volume／Target／AA Planのversion／hash、stage順のversion付きNode ID、optional Project Shader Technique artifact／Understanding Closure hash、全Nodeの解決済みexact parameter、入力／出力logical resource／color space／resolution class、history key／generation／reset条件、Layer inclusion／exclusion、予測CPU／GPU時間／persistent・transient byte、採用／棄却／fallback／非互換理由、Preview／承認／Qualification要否、`plan_hash`／有効期限を持つ。approval mechanicsと共通artifact／projection fieldは[AI Security／Approval](../01-governance/ai-security-approval.md)と[Executable contracts](../02-foundation/executable-contracts.md)を参照する。Planはnative pass listではない。
 
-RendererはPlan内のEffect Catalog IDを登録済みPass Templateへ展開する。AI、Editor、Project C++がarbitrary pass、shader source、resource alias、queue、native formatをPlanへ挿入することを禁止する。
+RendererはPlan内のEffect Catalog IDをEngine-owned Pass TemplateまたはQualification済みProject Shader Techniqueへ展開する。AI、Editor、Project C++がPlan本文へraw pass、shader source、resource alias、queue、native formatを挿入することを禁止する。新しいeffect algorithm／複数Passは[Project Shader](project-shader.md)のR3 Source ChangeSetとして別に提案し、Qualification後にだけCatalogから参照する。
 
 `PostProcessIntentResolverV1`は次の純粋関数契約に固定する。
 
@@ -162,13 +162,13 @@ resolve(
 
 ## 8. AI／Editor operationとPreview
 
-Post Process operationはcreate／update profile、create／update volume、set enabled／effect parameter、apply style hint、preview、explain、validateをDomain actionとして登録する。Profile／AIによるstage変更、Node追加、固定execution order変更をOperationとして公開しない。共通Discovery、Preview、Apply、ChangeSet、authorizationは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
+Post Process operationはcreate／update profile、create／update volume、set enabled／effect parameter、apply style hint、preview、explain、validateをDomain actionとして登録する。Profile operationによるstage変更、未登録Node追加、固定execution order変更を公開しない。新しいProject effectは本書のProfile operationではなく[Project Shader](project-shader.md)の`operation.shader.plan_technique`／`propose_technique`を使う。共通Discovery、Preview、Apply、ChangeSet、authorizationは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
 
 read-only resolver／explanationのcanonical IDは`operation.post_process.resolve_intent`／`operation.post_process.explain_plan`である。それぞれ`ResolvedPostProcessPlanV1`／`PostProcessPlanExplanationV1`を返し、Profile／Volumeへwriteしない。
 
 Previewは対象revision、ViewFamily fixture、contributing Volume、resolved order／parameters、color-space transition、AA compatibility、history reset、fallback、diagnosticを示す。Explainは各値のSource、priority、weight、blend operator、override理由を追跡可能にする。
 
-`PostProcessContextSummaryV1`はView Family／Camera／Target／Visual Style／AA PlanのID／version、active Profile／Volume上位32件、stage別active Node／quality／history、HDR／SDR／layer policy／pixel-locked有無、予測／実測GPU時間／persistent／transient byte、active Diagnostic／fallback、詳細取得用Stable IDだけを返す。`PostProcessPlanExplanationV1`はIntent fieldからNode／parameterへの写像、AA／UI／Accessibility制約、棄却Node、fallbackで失われる見た目、予測cost、Plan hashを返す。
+`PostProcessContextSummaryV1`はView Family／Camera／Target／Visual Style／AA PlanのID／version、active Profile／Volume上位32件、stage別active Node／quality／history、Project Technique／Understanding Closure hash、HDR／SDR／layer policy／pixel-locked有無、予測／実測GPU時間／persistent／transient byte、active Diagnostic／fallback、詳細取得用Stable IDだけを返す。`PostProcessPlanExplanationV1`はIntent fieldからNode／parameterへの写像、AA／UI／Accessibility制約、棄却Node、fallbackで失われる見た目、予測cost、Plan hashを返す。Project Technique内部は`ShaderContextSliceV1`で別取得する。
 
 `PostProcessChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Profile／Volume差分、risk、Preview hash、必要Approvalを載せるDomain projectionで、直接Commitしない。`PostProcessDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとEffect property pathを載せる。`PostProcessVolumeSummaryV1`、`CameraPresentationSummaryV1`、`LayerCompositionSummaryV1`、`TargetCapabilitySnapshotV1`、`PostProcessBudgetEnvelopeV1`、`AccessibilityPolicySnapshotV1`は各Ownerの公開するread-only／revisioned projectionで、Post Processは内容を複写または書き戻さない。
 
@@ -209,4 +209,4 @@ Qualificationは次のDomain fixtureを持つ。
 
 visual Evidence、Eval、provenance envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。本書はPost Process inputとexpected composition／image tolerance classだけを所有し、共通receipt fieldやthresholdを複写しない。
 
-任意pass挿入、insertion順依存、silent effect drop、UIへの暗黙適用、stale history再利用、Render Graph実行規則の複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
+Plan本文からのraw pass挿入、insertion順依存、unqualified／stale Project Technique、silent effect drop、UIへの暗黙適用、stale history再利用、Render Graph実行規則の複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
