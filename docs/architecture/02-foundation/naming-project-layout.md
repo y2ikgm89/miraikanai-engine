@@ -68,6 +68,8 @@ Booleanは肯定形の状態またはCapabilityを表し、`is_`／`has_`／`can
 
 Schema typeはPascalCase＋major suffixを用い、suffixなし最新版aliasを作らない。例: `ProjectChangeSetV1`。Fieldはlowercase snake_case、closed enum valueもlowercase snake_caseとする。型のdomain schemaと意味は各Domain ownerが所有し、`ProjectChangeSetV1`は[Project state](../03-authoring/project-state.md#5-projectchangesetv1)が所有する。[Executable contracts](executable-contracts.md#8-operation定義)はMCD共通Envelopeと生成規則だけを所有し、本書は綴りだけを所有する。
 
+Process内だけで使うpublic C++ value typeは、MCD／wire／persistence／native ABIの境界を一切越えず、owner schemaで`serializable = false`と固定されている場合に限り、version suffixを付けない。`RuntimeEntityHandle`と`RuntimeWorldPublicationHandle`がこのcategoryである。境界を越える必要が生じた場合は同名aliasを追加せず、version付きの別Schema typeを定義する。これはSchema typeのsuffix例外ではなく、非Schemaのin-memory typeを分類する命名規則である。
+
 ### 3.2 Stable IDとOperation
 
 Stable IDはlowercase ASCII dot-separated segmentとする。JSON／Schema Field名のsnake_case規則をStable IDへ一律適用せず、kindごとに次のclosed grammarを使う。

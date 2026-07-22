@@ -574,6 +574,7 @@ git commit -m "docs: make control plane plan executable"
 ### Task 6: Runtime ECS E0のbaseline依存とscopeを閉じる
 
 **Files:**
+- Modify: `docs/architecture/02-foundation/naming-project-layout.md:61-72`
 - Modify: `docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md:64-165`
 - Modify: `docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md:383-955`
 - Modify: `docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md:1537-1663`
@@ -628,7 +629,8 @@ Run:
 
 ```powershell
 rg -n 'RuntimeSystemExecutionContextV1|partition_policy|enable bitset|100万|2時間|30分' docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md docs/plans/2026-07-22-runtime-ecs-e0-implementation-plan.md
-git diff --check -- docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md docs/plans/2026-07-22-runtime-ecs-e0-implementation-plan.md
+rg -n 'RuntimeEntityHandle|RuntimeWorldPublicationHandle|serializable = false' docs/architecture/02-foundation/naming-project-layout.md
+git diff --check -- docs/architecture/02-foundation/naming-project-layout.md docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md docs/plans/2026-07-22-runtime-ecs-e0-implementation-plan.md docs/superpowers/plans/2026-07-22-plan-review-closure.md
 ```
 
 Expected: 未定義語がclosed tableへ接続され、E0/C1とC2/stressが別Gateになる。
@@ -636,7 +638,7 @@ Expected: 未定義語がclosed tableへ接続され、E0/C1とC2/stressが別Ga
 Commit:
 
 ```powershell
-git add docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md docs/plans/2026-07-22-runtime-ecs-e0-implementation-plan.md
+git add docs/architecture/02-foundation/naming-project-layout.md docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md docs/plans/2026-07-22-runtime-ecs-e0-implementation-plan.md docs/superpowers/plans/2026-07-22-plan-review-closure.md
 git commit -m "docs: close runtime ecs e0 plan"
 ```
 

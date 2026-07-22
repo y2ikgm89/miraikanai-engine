@@ -10,13 +10,14 @@
 
 ## Global Constraints
 
-- 本Decisionが`ユーザー承認済み`になるまでE0実装を開始しない。計画書の存在を承認とみなさない。
-- 開始前に`architecture/baselines/control-plane-v1.json`の全hashをread-backし、不一致、missing、dirty treeを`diagnostic.architecture.baseline-mismatch`で拒否する。
+- Task 0の共通tooling準備とTask 1のECS正本bootstrapを除き、Task 3以降はTask 2のexact entry gate通過前に開始しない。対象であるECS自身の`approved`を開始条件にしない。
+- 開始条件は`architecture_baseline_receipt_hash != null`、Architecture Governance／Compatibility Evolution／Persistence Saveの各state=`approved`、Entity Component Systemのstate=`review`の五件だけとする。
+- `architecture/baselines/control-plane-v1.json`はexact 9 fieldsをread-backし、baseline不一致、Owner非承認、ECS state不一致、dirty treeをそれぞれstable Diagnostic IDで拒否する。
 - 新正本IDは`mirakan.arch.runtime-entity-component-system`、Work Packageは`wp.runtime.ecs-e0`、初期stateは`review`、Activationは全Targetで`not_activated`とする。
 - Flecs、EnTT、Unity Entities、Unreal Massをdependencyまたは互換APIとして追加しない。
 - C1値はchunk payload 16 KiB、base alignment 64 bytes、inline Component最大256 bytes、Entity handle `uint32 index + uint32 generation`、index 0 invalid、generation wrap retireである。
 - Runtime storage、raw chunk、Runtime handle、pointer、lease、archetype IDをSave／Replayへ永続化しない。
-- Structural operationはcreate、destroy、add、remove、enable_component、enable_entityの六つだけで、一batch一commit point、failure前後live digest不変を要求する。
+- Structural operationは`create_entity`、`destroy_entity`、`add_component`、`remove_component`、`set_component_enabled`、`set_entity_enabled`の六つだけで、一batch一commit point、failure前後live digest不変を要求する。
 - Query order、archetype／chunk／row iteration、command merge、serializationをcanonical化し、thread完了順、address、filesystem順をidentityにしない。
 - AI Runtime operationはR0 read-only captureだけで、mutationはAuthoring ChangeSetを使う。
 - 旧`EntityHandle` alias、旧immutable query batch、旧Component State delta、dual manifest、compatibility wrapperを残さない。
@@ -38,6 +39,8 @@
 | `schemas/runtime/ecs/native-abi.mcd` | fixed-width C ABI descriptor／view／writer contract |
 | `schemas/runtime/ecs/ai-operations.mcd` | authorized R0 capture／query operation |
 | `schemas/runtime/ecs/diagnostics.mcd` | stable ECS diagnostic registry |
+| `tools/contract_compiler/**` | MCD→C++／TypeScript／JSON Schema／MCP projectionを生成するfirst-party contract compiler CLI |
+| `tests/contracts/CMakeLists.txt`、`tests/contracts/runtime_ecs/CMakeLists.txt` | contract test用CMake／CTest harness scaffold |
 | `tests/contracts/runtime_ecs/**` | golden bytes、schema、cross-language、negative fixtures |
 | `models/runtime_ecs/StructuralCommit.tla` | structural transaction atomicity model |
 | `models/runtime_ecs/WorldPublication.tla` | participant prepare／hidden attach／single publish model |
@@ -54,20 +57,21 @@ PersistentEntityIdentityV1
 RuntimeEntityInitializerSpecV1
 RuntimeEntityTemplateV1
 RuntimeArchetypePlanV1
-RuntimeChunkLayoutV1
+RuntimeChunkLayoutFactV1
 RuntimeEntityQuerySpecV1
 RuntimeComponentAccessManifestV1
+RuntimeSystemExecutionContextV1
 StructuralCommandBatchV1
 RuntimeWorldRootImageV1
 RuntimeWorldSectionImageV1
-RuntimeWorldPublicationHandleV1
+RuntimeWorldPublicationHandle
 RuntimePersistentEntityHandoffV1
 RuntimeEntityProjectionV1
 RuntimeComponentProjectionV1
 RuntimeEcsContractGraphV1
 ```
 
-Suffixなしlatest aliasを生成しない。`RuntimeEntityHandle`だけはDecisionで固定したin-memory value typeでありwire schemaではないため`V1` suffix例外とし、Architecture Governanceの例外Registryへ理由とOwnerを登録する。
+Suffixなしlatest aliasを生成しない。§2のうち`RuntimeEntityHandle`と`RuntimeWorldPublicationHandle`はwire schemaではなく、[Naming／Project Layout](../architecture/02-foundation/naming-project-layout.md#31-cとschema-type)が定義する`serializable = false`のprocess-local public C++ value type categoryに属する。ECS内だけのsuffix例外Registryは作らず、境界を越える型はversion付きの別Schema typeとして定義する。
 
 ## 3. Clean migration inventory
 
@@ -85,25 +89,44 @@ Suffixなしlatest aliasを生成しない。`RuntimeEntityHandle`だけはDecis
 
 ## 4. Tasks
 
-### Task 1: Approval／Control Plane baseline Gateを追加する
+### Task 0: Contract compilerとcontract test harnessを準備する
 
 **Files:**
-- Modify: `architecture/registry/document-relations.v1.json`
-- Modify: `architecture/registry/product.v1.json`
-- Test: `tools/architecture_lint/test/ecs-e0-entry-gate.test.mjs`
+- Create: `tools/contract_compiler/package.json`
+- Create: `tools/contract_compiler/package-lock.json`
+- Create: `tools/contract_compiler/tsconfig.json`
+- Create: `tools/contract_compiler/src/main.ts`
+- Create: `tools/contract_compiler/src/parse.ts`
+- Create: `tools/contract_compiler/src/emit.ts`
+- Test: `tools/contract_compiler/test/self-emit.test.mjs`
+- Test fixture (positive): `tools/contract_compiler/test/fixtures/valid/minimal-contract.mcd`
+- Test fixture (negative): `tools/contract_compiler/test/fixtures/invalid/malformed-contract.mcd`
+- Test golden: `tools/contract_compiler/test/golden/minimal-contract/**`
+- Create: `tests/contracts/CMakeLists.txt`
+- Create: `tests/contracts/runtime_ecs/CMakeLists.txt`
 
 **Interfaces:**
-- Consumes: ECS Decision status、Control Plane baseline。
-- Produces: booleanではなくexact failure diagnosticを返すE0 entry gate。
+- Consumes: Toolchain lockのJavaScript／TypeScript ESM toolchainと、Executable Contractsのcanonical binary／生成規則。
+- Produces: Task 3〜11が消費するCLI `node tools/contract_compiler/dist/main.js compile <input.mcd> --out <directory>`、CMake target `runtime_ecs_contract_tests`、CTest name `runtime_ecs.contract`、compiler／harnessのtoolchain hash。
 
-- [ ] **Step 1: pending approval、baseline mismatch、dirty treeの3 negative testsを書く**
-- [ ] **Step 2: 現状がpending approvalで失敗することを確認する**
-- [ ] **Step 3: 承認後だけbaseline read-backへ進むgateを実装する**
-- [ ] **Step 4: clean approved fixtureでPASSすることを確認する**
+- [ ] **Step 1: positive fixtureからC++／TypeScript／JSON Schema／MCPを生成してgoldenと比較し、二回生成bytes一致を検査するself-testを書く**
+- [ ] **Step 2: negative fixtureがsyntax locationを持つtyped parse failureになるtestを書き、compiler未実装で両testが失敗することを確認する**
+- [ ] **Step 3: Node.js標準libraryとlock済みTypeScript CLIだけでcompilerを実装し、production dependencyを追加しない**
+- [ ] **Step 4: `runtime_ecs_contract_tests`と`runtime_ecs.contract`をCMake／CTestへ登録し、後続Taskが名前で参照できることを検査する**
+- [ ] **Step 5: 次のcommandを順に実行し、compiler／harness toolchain hashをTask 11のReceipt入力として記録する**
 
-Expected: pending=`diagnostic.architecture.decision-approval-missing`、mismatch=`diagnostic.architecture.baseline-mismatch`、dirty=`diagnostic.architecture.dirty-baseline`。
+```powershell
+npm ci --prefix tools/contract_compiler --ignore-scripts --offline --no-audit --no-fund
+npx --prefix tools/contract_compiler tsc --build --force --singleThreaded
+node --test tools/contract_compiler/test/self-emit.test.mjs
+cmake -S tests/contracts -B build/contract-tests -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/contract-tests --target runtime_ecs_contract_tests
+ctest --test-dir build/contract-tests -R '^runtime_ecs\.contract$' --output-on-failure
+```
 
-### Task 2: ECS active正本とmetadata relationを作成する
+Expected: self-test PASS、二回生成bytes一致、malformed MCD拒否、CMake targetとCTest nameをexactに発見する。Task 0はECS Decision非依存の共通toolingであり、E0 contract内容を先行実装しない。Task 0のtoolchain hashはE0 Receiptへbindし、既に承認されたControl Plane baselineへ書き戻さない。
+
+### Task 1: ECS active正本とmetadata relationを`review`で作成する
 
 **Files:**
 - Create: `docs/architecture/04-runtime/entity-component-system.md`
@@ -138,7 +161,39 @@ Scheduling metadataには`contract.runtime.ecs-phase-handoff`と`contract.runtim
 
 - [ ] **Step 4: generated Indexとarchitecture lintを実行する**
 
-Expected: active inventory +1、cycle／redundant／Owner duplicate 0、固定件数表記0。
+Expected: active inventory +1、cycle／redundant／Owner duplicate 0、固定件数表記0。ECS metadataは`state = review`、`approval_ref = null`、全Target activation=`not_activated`であり、正本作成をapprovalまたはCapability昇格とみなさない。
+
+### Task 2: Control Plane baselineとOwner stateのE0 entry gateを追加する
+
+**Files:**
+- Modify: `architecture/registry/document-relations.v1.json`
+- Modify: `architecture/registry/product.v1.json`
+- Test: `tools/architecture_lint/test/ecs-e0-entry-gate.test.mjs`
+- Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/valid.json`
+- Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/baseline-mismatch.json`
+- Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/owner-unapproved.json`
+- Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/ecs-not-review.json`
+
+**Interfaces:**
+- Consumes: Task 1のECS `review` metadataと`architecture/baselines/control-plane-v1.json`。
+- Produces: booleanではなくexact failure diagnosticを返すE0 entry gate。Task 3〜11はこのgateを必須predecessorにする。
+
+Entry conditionは次の五件のconjunctionだけである。
+
+```text
+architecture_baseline_receipt_hash != null
+architecture_governance.state == approved
+compatibility_evolution.state == approved
+persistence_save.state == approved
+entity_component_system.state == review
+```
+
+- [ ] **Step 1: baseline hash missing／mismatch、三Ownerの各非承認、ECS state非review、dirty treeのnegative testsを書く**
+- [ ] **Step 2: `control-plane-v1.json`のexact 9 fieldsの過不足とhash mismatchを検出する**
+- [ ] **Step 3: 五条件を評価し、最初のfailureをcanonical diagnostic順で返すgateを実装する**
+- [ ] **Step 4: cleanなvalid fixtureでPASSし、ECSが`approved`でなくても`review`なら到達できることを確認する**
+
+baselineのexact fieldsは`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`lint_version`である。Expected diagnosticはbaseline=`diagnostic.architecture.baseline-mismatch`、Owner=`diagnostic.architecture.owner-unapproved`、ECS state=`diagnostic.architecture.ecs-review-state-required`、dirty=`diagnostic.architecture.dirty-baseline`。Task 0のcompiler／harness hashはE0 Receiptへbindし、Control Plane baselineまたはentry conditionを暗黙拡張しない。
 
 ### Task 3: Component、Entity、Archetype MCDをtest-firstで追加する
 
@@ -151,29 +206,31 @@ Expected: active inventory +1、cycle／redundant／Owner duplicate 0、固定�
 **Interfaces:**
 - Produces: Component／Field ID、handle、initializer、template、archetype、transition、chunk layout schema。
 
-- [ ] **Step 1: index 0、generation wrap、oversize Component、non-trivial Field、unplanned transitionのnegative fixturesを書く**
+- [ ] **Step 1: index 0、generation wrap、oversize Component、non-trivial Field、tag／singletonへのenable bitset、unplanned transitionのnegative fixturesを書く**
 - [ ] **Step 2: schema missing failureを確認する**
 - [ ] **Step 3: Decision §8.1～§8.5のexact fields／bounds／orderingをMCDへ定義する**
 - [ ] **Step 4: generated C++／TypeScript／JSON Schemaのshapeを比較する**
 
-Expected: 16 KiB、64-byte、256-byteがECS schemaに一度だけ存在し、Memory文書では値定義0。
+Expected: 16 KiB、64-byte、256-byteがECS schemaに一度だけ存在し、Memory文書では値定義0。`enable_bit`対応のtrivially stored Componentだけがentity slotごとにexact 1 bitを持ち、tag／singletonのComponent bitsetは0件。
 
-### Task 4: Query、Access、Structural transaction MCDを追加する
+### Task 4: Query、Access、Structural transaction、Diagnostic registry MCDを追加する
 
 **Files:**
 - Create: `schemas/runtime/ecs/query-access.mcd`
 - Create: `schemas/runtime/ecs/structural-command.mcd`
+- Create: `schemas/runtime/ecs/diagnostics.mcd`
 - Test: `tests/contracts/runtime_ecs/query_structural_tests.cpp`
 
 **Interfaces:**
-- Produces: normalized query、access manifest、lease、六operation batch。
+- Produces: normalized query、closed partition policy、`RuntimeSystemExecutionContextV1`、access manifest、lease、六operation batch、ECS Diagnostic ID registry。
 
-- [ ] **Step 1: all／any／none／optional truth tableとsource term permutation testを書く**
+- [ ] **Step 1: all／any／none／optional truth table、source term permutation、`single | fixed_range | deterministic_hash`のpositive／negative partition fixtureを書く**
 - [ ] **Step 2: non-owner write、iteration中mutation、conflict、capacity failure testを書く**
-- [ ] **Step 3: Decision §9～§10のcontractをMCDへ定義する**
-- [ ] **Step 4: canonical hashとfailure atomicity fixtureを実行する**
+- [ ] **Step 3: Decision §9～§10のcontractをMCDへ定義し、execution contextのtick、phase、partition、read snapshot、write batch、diagnostic sinkをexact fieldとして生成する**
+- [ ] **Step 4: Decision §15のDiagnostic IDとdetection stageを`diagnostics.mcd`のclosed registryへ定義し、unknown／duplicate Diagnostic ID拒否のnegative fixtureを追加する**
+- [ ] **Step 5: canonical hashとfailure atomicity fixtureを実行する**
 
-Expected: term順を変えてもquery hash一致、invalid batch前後のlive digest一致、operation enumは6件。
+Expected: term順を変えてもquery hash一致、worker数／完了順を変えてもpartition割当てと結果順が一致、execution context field過不足0、invalid batch前後のlive digest一致、operation enumは6件、Diagnostic ID重複0・unknown ID拒否。
 
 ### Task 5: Root／Section imageとhash非循環を固定する
 
@@ -186,12 +243,12 @@ Expected: term順を変えてもquery hash一致、invalid batch前後のlive di
 **Interfaces:**
 - Produces: inner content image、outer Artifact／Qualification binding、publication handle。
 
-- [ ] **Step 1: self hash、Root final image ref、Receipt-in-inner-image、non-canonical orderのnegative testsを書く**
+- [ ] **Step 1: self hash、Root final image ref、Receipt-in-inner-image、non-canonical order、stale store／participant generation、partial publishのnegative testsを書く**
 - [ ] **Step 2: failureを確認する**
 - [ ] **Step 3: Decision §8.6のbinary layout、content hash、Catalog DAGを実装する**
 - [ ] **Step 4: encode→decode→re-encode golden byte testを実行する**
 
-Expected: byte identical、trailing byte／unknown enum拒否、hash cycle 0。
+Expected: byte identical、trailing byte／unknown enum拒否、hash cycle 0。store generationはowner participant generationと同一counterで、prepare／abortは消費せず、ECSと全storeのpending generationは一回のpublication handle切替えでだけ同時可視になる。
 
 ### Task 6: Save／Replay projectionをPersistence Ownerへ接続する
 
@@ -321,23 +378,35 @@ Expected: Model checking completed、invariant violation 0。Publication model�
 **Interfaces:**
 - Produces: E1が消費するexact baseline。
 
-- [ ] **Step 1: Contract／static、correctness oracle、determinism、integration／AIのE0 subsetをmatrix化する**
+- [ ] **Step 1: Contract／static、correctness oracle、determinism、integration／AIのE0 subsetと、後続C1／C2 Qualification handoffをmatrix化する**
 - [ ] **Step 2: C++／TypeScript／JSON Schema／MCP generationを二回行う**
 - [ ] **Step 3: 全test、architecture lint、TLCを実行する**
 - [ ] **Step 4: baseline JSONを生成しread-backする**
 
 Baselineは`control_plane_baseline_ref`、ECS正本hash、MCD registry hash、generated C++／TypeScript／JSON Schema／MCP hash、golden fixture root hash、TLC model hash、test receipt refsを持つ。
 
+E0はRuntimeを実装しないため、負荷Receiptそのものを完了条件にしない。代わりに次のowner／fixture／負荷条件をbaselineへexact handoffし、後続Work PackageがRuntime実装後に実行する。
+
+| Qualification | Consumer Work Package | Fixture／load | Duration／required evidence |
+|---|---|---|---|
+| C1 | `wp.gameplay.core-c1` | Product RegistryのFirst Playable fixture。entity数はTarget別canonical C1 capacity以内 | 30分連続soak、leak／generation異常／query cache drift／unbounded archetype増加0 |
+| C2／stress | `wp.product.general-coverage-2d`; `wp.product.general-coverage-3d` | 100万Entity synthetic、全archetype、全到達可能persistent handoff matrix | 2時間endurance、C1と同じ異常0、positive／negative handoff coverage 100% |
+
+C2／stress Receiptを`runtime-ecs-e0-v1.json`へ偽装せず、両Consumer Work PackageのCandidate／Target別Qualification Receiptとして保持する。
+
 Expected: 二回生成bytes一致、old symbol 0、orphan contract 0、test error 0。E0は`review`または承認済みContract baselineであり、Runtime Capabilityを自動昇格しない。
 
 ## Completion Gate
 
-- ECS Decisionが承認済みで、Control Plane baselineの全hashをread-backできる。
-- ECS active正本が一Ownerとして存在し、metadata graphのcycle／redundant／reciprocity errorが0である。
-- §2の17 contractがMCD、C++、TypeScript、JSON Schema、MCP projectionで一致する。
+- Task 2のexact五条件を満たし、Control Plane baselineのexact 9 fieldsと`architecture_baseline_receipt_hash`をread-backできる。
+- ECS active正本が`review`またはその後の別approvalで`approved`の一Ownerとして存在し、metadata graphのcycle／redundant／reciprocity errorが0である。E0 baseline生成はapprovalを自動付与しない。
+- §2の19型のうちwire contract 17件がMCD、C++、TypeScript、JSON Schema、MCP projectionで一致する。Naming正本のin-memory value type categoryに属する`RuntimeEntityHandle`と`RuntimeWorldPublicationHandle`はwire表現から除外し、C++ layout fingerprintの一致だけを検証する。
 - 16 KiB、64-byte、256-byteのECS値がECS正本に一度だけ存在する。
+- enable bitset、closed partition policy、execution contextの六責務、store／participant generation表についてpositive／negative fixtureが合格する。
+- ECS Diagnostic IDが`diagnostics.mcd`へ一意登録され、Decision §15 registryとの差分、unknown ID、orphan IDが0である。
 - 旧`EntityHandle` alias、suffixなしAccess Manifest、immutable query batch、Component State deltaが0件である。
 - Query canonicalization、structural atomicity、world image hash非循環、Save projection、Native ABI、AI authorizationのpositive／negative fixtureが合格する。
 - TLCの4 invariantがviolation 0である。
 - `runtime-ecs-e0-v1.json`の全hashをE1計画がread-backできる。
-- Storage kernel、package、Capability activationをE0完了として偽装していない。
+- C1のFirst Playable／canonical capacity／30分soakと、C2／stressの100万Entity／2時間／全archetype handoff matrixが別Consumer Work Packageへbindされ、C2／stress ReceiptをE0完了条件にしていない。
+- Storage kernel、package、C1／C2負荷Receipt、Capability activationをE0完了として偽装していない。

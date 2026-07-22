@@ -15,7 +15,7 @@ Miraikanai Engineは、Engine-ownedのarchetype／SoA／16 KiB chunk ECSをRunti
 
 ECSはEngine全体を置き換えるobject modelではない。ECSが所有するのはPlay中のRuntime Entity identity、Component layout、archetype／chunk、query、access lease、structural transactionだけである。Authoring Document、Asset、System Public Contract、phase順、Subsystem native object、Save schema、Evidence、AI authorizationは既存Ownerが引き続き所有し、ECSはexact referenceとgenerated projectionで接続する。
 
-Public Contractは一つのMachine-readable Canonical DefinitionからC++23 module、Native C ABI descriptor、TypeScript、JSON Schema、Provider／MCP schema、Editor metadata、human reference、conformance fixtureを決定論的に生成する。AIは同じContract Graphを読み、live Runtime ECSを直接変更しない。AIによる変更は既存のtyped Authoring Operationと`ProjectChangeSetV1`だけを通る。
+Public Contractは一つの[Miraikanai Contract Definition（MCD）](../02-foundation/executable-contracts.md)からC++23 module、Native C ABI descriptor、TypeScript、JSON Schema、Provider／MCP schema、Editor metadata、human reference、conformance fixtureを決定論的に生成する。AIは同じContract Graphを読み、live Runtime ECSを直接変更しない。AIによる変更は既存のtyped Authoring Operationと`ProjectChangeSetV1`だけを通る。
 
 ## 2. 「公式推奨」の意味
 
@@ -41,7 +41,7 @@ ISO C++規格、Microsoft、Unity、Epic、Flecs、EnTTのいずれも、すべ�
 | `ComponentAccessManifest`を生成 | schema、access mode、queryとの一致、違反時挙動がない | `RuntimeComponentAccessManifestV1`をECS正本で定義 |
 | `ReadLease`／`WriteLease`でquery | query schema、match、optional、iteration order、cache lifetimeがない | `RuntimeEntityQuerySpecV1`とtyped batchを定義 |
 | Structural commandはstaging後にatomic commit | command集合、競合、temporary entity、failure scopeがない | `StructuralCommandBatchV1`のclosed operationとtransactionを定義 |
-| `SceneEntityRecord`はAuthoring Componentを持つ | Runtime Componentへの変換、layout hash、Target差分がない | `RuntimeEntityProjectionV1`、`RuntimeComponentProjectionV1`、Root／Section imageを定義 |
+| `SceneEntityShardDocument`のEntity recordはAuthoring Componentを持つ | Runtime Componentへの変換、layout hash、Target差分がない | `RuntimeEntityProjectionV1`、`RuntimeComponentProjectionV1`、Root／Section imageを定義 |
 | Game SystemはState ownerとtyped Portを持つ | ECS Component owner、read/write set、structural権限との結合がない | System ContractからAccess ManifestとContract Graphを生成 |
 | Native moduleは`query_batches`を受ける | C++型安全性、ABI layout、lease invalidationの検証がない | generated C++ bindingとC ABI descriptorを同一hashへ束縛 |
 | Renderer等はsnapshot／commandを消費 | どのSystemがECSから抽出し、どこでsealするかが不明 | SubsystemごとのIntegration Systemとphase boundaryを固定 |
@@ -66,7 +66,7 @@ ISO C++規格、Microsoft、Unity、Epic、Flecs、EnTTのいずれも、すべ�
 本設計の導入は次をすべて満たした時に完了する。
 
 - ECS固有の型、値、状態遷移、failure、Gateが新正本に一度だけ定義されている。
-- 現行43件のactive仕様にECS正本を加え、Indexは44件を一度ずつ掲載している。
+- ECS正本がArchitecture Indexへ厳密に一度掲載され、metadata由来のactive inventory再生成がArchitecture lintに合格している。固定件数を完了条件にしない。
 - 旧`EntityHandle`と`ComponentAccessManifest`の曖昧な名称がactive仕様から消えている。
 - Authoring→Compile→Load→Execute→Extract→Save／Replayの全境界に入力、出力、owner、hash、failureがある。
 - 全active Systemがexact `RuntimeComponentAccessManifestV1`を持ち、未宣言accessをgenerated APIから表現できず、ABI迂回はQualification違反になる。
@@ -126,7 +126,7 @@ Authoring Entity／Component (StableId, schema field)
   -> RuntimeComponentProjectionV1
   -> RuntimeWorldCompiler
   -> RuntimeWorldRootImageV1 + RuntimeWorldSectionImageV1 + RuntimeArchetypePlanV1
-  -> DerivedArtifactManifestV2 + RuntimeWorldQualificationBindingV1 + Catalog
+  -> DerivedArtifactManifestV1 + RuntimeWorldQualificationBindingV1 + Catalog
   -> RuntimeWorldLoader
   -> participant prepare + hidden attach
   -> RuntimeWorldPublicationHandle
@@ -157,13 +157,13 @@ Authoring Entity／Component (StableId, schema field)
 | 任意の即時add／remove | `StructuralCommandBatchV1` | phase中APIを公開せず、指定boundaryでatomic commit |
 | Runtime memory dump Save | `SaveReplayContractV1` field projection | raw chunk、padding、handleを永続化しない |
 | live ECS mutation tool | typed Authoring Operation | Runtime用R1／R2 write operationを生成しない |
-| Asset専用`DerivedArtifactManifest` | tagged subjectを持つ`DerivedArtifactManifestV2` | AssetとWorld Artifactを一つのCatalog規則へ移し、旧readerとsynthetic Asset IDを残さない |
+| Asset専用`DerivedArtifactManifest` | tagged subjectを持つ`DerivedArtifactManifestV1` | AssetとWorld Artifactを一つのCatalog規則へ移し、旧readerとsynthetic Asset IDを残さない。released済み旧majorが存在しないため新設名はV1とする |
 | symbolic／`bool` Native ECS descriptor | fixed-width codeの`MirakanNativeEcsColumnViewV1` | C ABIへ`uint32` codeと`abi_version = 1`だけを出す |
 | 全AI channelへ一律MCP grant | `RuntimeEcsAiCallerContextV1` tagged channel | MCP grantをlocal MCPに限定し、製品内／managed CLIは各正本Policyを使う |
 
 旧schema version、redirect、deprecated annotation、compatibility adapter、dual write、best-effort importは作らない。将来の正式release後にContractを変更する場合は、今回のclean breakと混同せず、明示的なversioned migrationを別Decisionで設計する。
 
-`DerivedArtifactManifestV2`と`McdCanonicalBinaryV1`導入時は既存Derived Cache、Catalog、Package、Replay fixtureを全invalidateしてcommitted Sourceからfull recookする。V1 Artifactまたは旧binaryをV2へ変換して再署名せず、Source Document／Asset Import Documentだけを入力にする。
+`DerivedArtifactManifestV1`と`McdCanonicalBinaryV1`導入時は既存Derived Cache、Catalog、Package、Replay fixtureを全invalidateしてcommitted Sourceからfull recookする。旧suffixなしManifestのArtifactまたは旧binaryを新形式へ変換して再署名せず、Source Document／Asset Import Documentだけを入力にする。
 
 ## 8. Canonical object model
 
@@ -206,13 +206,13 @@ RuntimeComponentSpecV1
 
 `tag`はfieldと三つのexternal fieldを持たずsize 0、`inline_value`は三つのexternal fieldを持たず一件以上のdata fieldを持つ。inline valueはfixed-size、standard-layout、trivially copyable、trivially destructible、最大256 bytes、alignment最大64 bytesとする。raw／smart pointer、reference、vtable、function pointer、`std::string`、`std::vector`、PMR container、OS／GPU／vendor handleを含めない。可変長または大容量dataはAsset、Domain-owned store、typed poolのいずれかが所有し、Componentには`typed_external_handle`だけを置く。
 
-`tag`はpresenceだけが意味を持つ。`typed_external_handle`は三つのexternal fieldをすべて必須とし、`field_type_refs[]`はexact handle Type一件だけを持つfixed-width trivial valueである。resolve authority、generation、lifetime、failureをexternal store ContractとPointer Contractへ登録する。handle値は`serializable=false`かつauthoritative digest対象外で、Save／Replay／Networkは`external_state_projector_ref`が出すPersistent Identityとauthoritative Fieldだけを使う。外部objectがauthoritativeならprojectorのSave／digest両projectionを必須とし、ephemeral slot／generationをstateそのものとして比較しない。C1ではshared valueでarchetypeを分割するShared Componentと、Component内dynamic bufferを定義しない。
+`tag`はpresenceだけが意味を持ち、`enablement = structural_presence`だけを選択できる。`typed_external_handle`は三つのexternal fieldをすべて必須とし、`field_type_refs[]`はexact handle Type一件だけを持つfixed-width trivial valueである。resolve authority、generation、lifetime、failureをexternal store ContractとPointer Contractへ登録する。handle値は`serializable=false`かつauthoritative digest対象外で、Save／Replay／Networkは`external_state_projector_ref`が出すPersistent Identityとauthoritative Fieldだけを使う。外部objectがauthoritativeならprojectorのSave／digest両projectionを必須とし、ephemeral slot／generationをstateそのものとして比較しない。C1ではshared valueでarchetypeを分割するShared Componentと、Component内dynamic bufferを定義しない。
 
 `typed_external_handle` Componentへ`read_write` Leaseを生成しない。handle値はComponent存在中immutableで、create／add／persistent handoffのprepared transactionだけが設定する。外部objectの値変更はowner storeのtyped Port／State API、handleの置換は別boundaryのremove後にowner-approved addで行い、raw handle assignmentまたは汎用rebind APIを提供しない。
 
 Archetype Planのadd transitionへ現れるComponentは、ownerが定義する`runtime_add_initializer_contract_ref`と空parameterでもexactな`runtime_add_parameter_schema_ref`を必須とする。このinitializerはComponent valueに加え、`enable_bit`なら初期enable bitも一意に出力する。`typed_external_handle`ならさらに`runtime_add_external_reservation_contract_ref`を必須とし、それ以外はこのFieldを持たない。add transitionへ現れないComponentは三Fieldをすべて持たない。これにより同じComponentのruntime addはsource archetypeに依存しない一つのtyped parameter contractを使い、commit時に選ばれたedgeごとに別schemaを推測しない。
 
-`enable_bit`はComponentを移動せず一時的にquery対象外へできる。`structural_presence`は`enablement_save_policy = not_applicable`、`enable_bit`は`persistent | reset_to_initial`を必ず選ぶ。enable bitの変更はWorld mutationであり、owner SystemのManifestへ宣言し、指定boundaryで適用する。change versionはincremental extractionとdebugの派生metadataであり、authoritative Gameplay分岐、Save field、Stable IDに使わない。
+`enable_bit`はComponentを移動せず一時的にquery対象外へできる。`inline_value`または`typed_external_handle`で`enablement = enable_bit`を選んだComponentは、chunk内のentity slotごとにexact 1 bitを持つ専用bitsetを一件持つ。bit indexはrow indexと同一で、複数Component間で共有しない。`tag`は`structural_presence`だけを選ぶためComponent enable bitsetを持たず、State StoreのsingletonにもECS Component bitsetを割り当てない。Entity enable bitsetはComponent enable bitsetと別の一件である。`structural_presence`は`enablement_save_policy = not_applicable`、`enable_bit`は`persistent | reset_to_initial`を必ず選ぶ。enable bitの変更はWorld mutationであり、owner SystemのManifestへ宣言し、指定boundaryで適用する。change versionはincremental extractionとdebugの派生metadataであり、authoritative Gameplay分岐、Save field、Stable IDに使わない。
 
 `presence_save_policy = persistent`はSave対象Entityの最終Component集合へpresenceを投影し、`reset_to_base`はload時にAuthoring Section／Runtime Templateのbase compositionへ戻す。presentation-only／derived Componentをpersistentにする場合もownerのSave／rebuild Contractが必要で、Save fileが未知Componentを追加する権限にはならない。load後compositionは`RuntimeArchetypePlanV1`に存在し、各差分がComponent owner policyとmigrationに合格しなければならない。
 
@@ -386,7 +386,7 @@ Runtimeは新しいComponent組合せを発見してarchetypeを暗黙生成し�
 
 `RuntimeChunkLayoutFactV1`はlayout algorithm ID、Target ABI、Component Contract hash、row capacity、各列のoffset／stride／size／alignment、Entity列、Entity／Component enable bitset、payload used／slack bytesを持つ。Runtime loaderはCompilerが生成したFactを再解釈せず検証して使う。Factとgenerated C++ layout fingerprintが一つでも不一致ならPlay開始を拒否する。
 
-C1のlayout algorithm IDは`ecs_chunk_soa_v1`である。候補row数`N`ごとに、payload offset 0から`RuntimeEntityHandle[N]`をalignment 8で置き、次にEntity enable bitsetをalignment 8、size `ceil(N / 64) * 8`で置く。続いてnon-tag Component列を`alignment`降順、同値はComponent Type refのcanonical byte順で置く。各列先頭をそのComponent alignmentへ切り上げ、列sizeを`sizeof(Component) * N`とする。最後にComponent enable bitsetをComponent Type ref順、alignment 8、size `ceil(N / 64) * 8`で置く。1以上でpayload使用量が16 KiB以下となる最大`N`をrow capacityとする。Target compilerのcontainer layout、declaration順、link順から列順を推測しない。
+C1のlayout algorithm IDは`ecs_chunk_soa_v1`である。候補row数`N`ごとに、payload offset 0から`RuntimeEntityHandle[N]`をalignment 8で置き、次にEntity enable bitsetをalignment 8、size `ceil(N / 64) * 8`で置く。続いてnon-tag Component列を`alignment`降順、同値はComponent Type refのcanonical byte順で置く。各列先頭をそのComponent alignmentへ切り上げ、列sizeを`sizeof(Component) * N`とする。最後に`enablement = enable_bit`のComponentだけについて、Component enable bitsetをComponent Type ref順、alignment 8、各size `ceil(N / 64) * 8`で置く。`structural_presence`のComponentはbitset列を持たない。1以上でpayload使用量が16 KiB以下となる最大`N`をrow capacityとする。Target compilerのcontainer layout、declaration順、link順から列順を推測しない。
 
 row capacityは16 KiB payloadへ全列とbitsetが収まる最大整数で、0はCompile errorである。Componentの除去またはEntity破棄はchunk末尾rowをgapへmoveし、移動Entityのlocation tableを同じcommitで更新する。Component address、span、row、chunk IDはmove、structural commit、phase終了で無効になる。
 
@@ -453,7 +453,7 @@ RuntimeWorldSectionCatalogEntryV1
 
 Root／SectionはTarget別Cooked Artifactであり、Authoring正本ではない。Pointer、native handle、vtable、compiler process address、Editor metadata、Provider情報を含めない。一つのSectionは[World](../06-rendering/world.md)の一activation groupへ対応し、C1の`section_id`は同Planの`activation_group_id`と同じ`uint32`値で、独立したidentityを作らない。`ordered_cell_refs[]`は同PlanのCell ID昇順である。live／outer cross-record参照は`RuntimeWorldSectionRefV1`を使い、`section_image_hash`単体、表示名、Package offsetをidentityにしない。Root内のcatalogは後述のRoot非依存`section_content_hash`だけを持ち、最終`section_image_hash`またはArtifact keyを含めない。SectionはRootと同じComponent Registry、Entity Construction set、Archetype Planだけを使い、新Type、System、archetype、transitionを持ち込まない。
 
-inner `exact_asset_dependency_refs[]`は`ArtifactSubjectRefV1.kind = asset`だけを許可し、World Root／Section Artifact key、Catalog hash、Qualification Bindingを含めない。World Artifact間の外側dependencyは`DerivedArtifactManifestV2.dependency_keys`とCatalog Launch Setだけが所有する。
+inner `exact_asset_dependency_refs[]`は`ArtifactSubjectRefV1.kind = asset`だけを許可し、World Root／Section Artifact key、Catalog hash、Qualification Bindingを含めない。World Artifact間の外側dependencyは`DerivedArtifactManifestV1.dependency_keys`とCatalog Launch Setだけが所有する。
 
 初回PlayではPackage loaderがRoot、bootstrap activation group、全hard dependency、Target、layout、System implementation、State owner、capacityをstagingで検証し、全体成功時だけWorldをpublishする。部分bootstrap Worldをliveにしない。
 
@@ -538,7 +538,19 @@ RuntimeWorldPublicationRecordV1
 
 CompilerはRootのSystem／State binding、Section entity composition、external store、Subsystem Portからrequired participant setを生成する。`ecs_storage`は厳密に一件、activation-group scopeの各State Store instanceは対応する`game_system_state`、Section dataを持つ各Domain／external storeはowner participantを必須とする。Transactionのreservation集合は影響を受けるrequired participantをhidden attach orderで過不足なく一度ずつ持ち、未知、重複、optional omission、不要participantによる副作用を拒否する。State instanceのinitialize／load／retireも同じpublication generationで可視化し、EntityだけまたはStateだけを先行publishしない。
 
-participant generationは1から始まる`uint64`で、影響を受けたparticipantだけがsuccessful publicationでexact 1増え、未変更participantは同じ値を保つ。prepare／abortで消費せず、0、skip、decrement、wrapを許可しない。overflow前は新publicationを行わずWorld fault／teardownとする。
+participant generationは1から始まる`uint64`で、影響を受けたparticipantだけがsuccessful publication(通常structural commitのpublicationとSection publicationの両方)でexact 1増え、未変更participantは同じ値を保つ。prepare／abortで消費せず、0、skip、decrement、wrapを許可しない。overflow前は新publicationを行わずWorld fault／teardownとする。
+
+external storeの`store generation`は、そのstoreを所有するparticipant generationと同じcounterであり、別counterを持たない。ECS storage generation handle、owner participant generation、external store resolverの更新と可視性は次の一表だけに従う。
+
+| Stage | ECS storage generation | 影響participant／store generation | visibility／stale rule |
+|---|---|---|---|
+| base capture | current publicationのhandleを固定 | current値を`base_*_generation`として固定 | acquireした同一publicationからだけ取得し、World／publication／base generation不一致はstale reject |
+| prepare | pending storageを非公開で構築 | 影響ownerごとに`base + 1`をpending値として予約 | current counterを進めず、prepared object／reservationはconsumerからresolve不可 |
+| pre-attach validation | base handle／epochを再照合 | 全ownerのcurrent値がbase値と一致することを再照合 | 一件でも不一致、欠落、重複、skip、overflowならattach前に全abortしrecoverable replan |
+| hidden attach | pending generation handleへno-fail attach | prepared participant tableへpending値を記録 | publication slotはbaseを指し続け、pending storage／storeを通常resolverへ公開しない |
+| atomic publish | 完成済みpending storage handleをRecordから参照 | 影響ownerだけexact 1増、未変更ownerは据え置き | 一回のrelease storeでpublication handleを切替え、acquire consumerへECSと全storeを同時公開 |
+| abort／pre-publish failure | pending handleを破棄 | current値を消費せず全reservationをabort | base publicationが唯一の可視状態。部分generationは観測不能 |
+| retire | old-publication Lease／fence完了後にold handleをretire | old store objectも同じfence後にownerがretire | 新resolverがold generationを受理せず、old Lease完了前の再利用を禁止 |
 
 四種のgeneration handleはすべてall zero invalid、wrap retireの型別fixed pool handleである。`RuntimeWorldPublicationHandle`のcanonical packed value `(uint64(generation) << 32) | index`だけを一つの`atomic<uint64>` publication slotへ置く。Recordと三つの参照先metadataはpublish前に完成し、old publicationを参照するLease／fence完了までpoolからretireしない。`publication_record_hash`は同FieldをzeroにしたRecordのcanonical bytesをhashする。Record、四handle、record hashはsession-local integrityで、Source、Artifact、Save、Replay、authoritative digest、Entity allocationへ入力しない。ECS storage handleはchunk owner／location／identity／sequence／tombstone table、active Section set handleはcanonical Section refs、participant table handleはparticipant ID→prepared generation mappingを解決する。`ecs_storage_topology_hash`はarchetype／chunk ownershipとside-table topologyだけをhashし、phase中に変わるComponent valueを含めない。各解決時にWorld、Root、type、generation、record／metadata hashを検査する。
 
@@ -647,7 +659,7 @@ ArtifactSubjectRefV1
   world_streaming_plan_ref: optional exact ref # world kind
   activation_group_id: optional uint32        # root=0、section=1..N
 
-DerivedArtifactManifestV2
+DerivedArtifactManifestV1
   artifact_key: sha256
   artifact_subject_ref: ArtifactSubjectRefV1
   artifact_role_id: ClosedArtifactRoleId
@@ -696,9 +708,9 @@ RuntimeWorldLaunchSetV1
 
 tagged subjectのvariant規則はclosedである。`asset`は`asset_id／asset_revision`だけを必須化して全world fieldを持たない。`runtime_world_root`は`world_ref／project_revision／world_streaming_plan_ref`と`activation_group_id = 0`だけを持つ。`runtime_world_section`は同じworld fieldとPlan内の`activation_group_id = 1..N`を持つ。不要field、0以外のRoot group、0のSection groupをrejectする。World variantの`qualification_binding_hash`は厳密に一件、Asset variantはAsset role policyに従う。
 
-`DerivedArtifactManifestV2`は現行`DerivedArtifactManifest`を置換し、旧reader、dual schema、synthetic Asset IDを残さない。Asset subjectだけが従来の`asset_id／asset_revision` variantを使う。World Rootのroleは`runtime_world_root`、Sectionは`runtime_world_section`である。Catalog keyとcanonical orderは`{artifact_subject_ref canonical bytes, artifact_role_id}`へ変更し、そのvalueに[Executable Contracts](../02-foundation/executable-contracts.md)所有のexact `ArtifactRefV1`を一件置く。World loaderはtyped subject＋roleを検索して`ArtifactRefV1`を得る。Domain固有のArtifact ref構造を再定義せず、`asset://` URIはAsset variantだけに使う。
+`DerivedArtifactManifestV1`は現行のsuffixなし`DerivedArtifactManifest`を置換し、旧reader、dual schema、synthetic Asset IDを残さない。Asset subjectだけが従来の`asset_id／asset_revision` variantを使う。World Rootのroleは`runtime_world_root`、Sectionは`runtime_world_section`である。Catalog keyとcanonical orderは`{artifact_subject_ref canonical bytes, artifact_role_id}`へ変更し、そのvalueに[Executable Contracts](../02-foundation/executable-contracts.md)所有のexact `ArtifactRefV1`を一件置く。World loaderはtyped subject＋roleを検索して`ArtifactRefV1`を得る。Domain固有のArtifact ref構造を再定義せず、`asset://` URIはAsset variantだけに使う。
 
-Asset subjectは`producer_kind = asset_importer`、World subjectは`runtime_world_compiler`だけを許可し、World payload alignmentは16に固定する。`artifact_key`は同Fieldをall zeroにしたV2 manifestの`McdCanonicalBinaryV1` bytesとpayload bytesの連結へSHA-256を適用する。`binding_hash`も同Fieldをall zeroにしたQualification Bindingの`McdCanonicalBinaryV1` bytesへSHA-256を適用する。ManifestとBindingのartifact subject／Targetは完全一致しなければならない。Manifestの`qualification_binding_hash`はbinding hashを参照するため一方向であり、Binding内のReceipt／Attestationは`{artifact_subject_ref, subject_image_hash, target_profile_ref, contract_set_hash, qualification_policy_hash, required_gate_set_hash}`だけをsubjectにする。CompilerはArtifact／Binding／inner imageのhash dependency DAGを出力し、cycle、self edge、未解決nodeをCook errorにする。
+Asset subjectは`producer_kind = asset_importer`、World subjectは`runtime_world_compiler`だけを許可し、World payload alignmentは16に固定する。`artifact_key`は同Fieldをall zeroにしたV1 manifestの`McdCanonicalBinaryV1` bytesとpayload bytesの連結へSHA-256を適用する。`binding_hash`も同Fieldをall zeroにしたQualification Bindingの`McdCanonicalBinaryV1` bytesへSHA-256を適用する。ManifestとBindingのartifact subject／Targetは完全一致しなければならない。Manifestの`qualification_binding_hash`はbinding hashを参照するため一方向であり、Binding内のReceipt／Attestationは`{artifact_subject_ref, subject_image_hash, target_profile_ref, contract_set_hash, qualification_policy_hash, required_gate_set_hash}`だけをsubjectにする。CompilerはArtifact／Binding／inner imageのhash dependency DAGを出力し、cycle、self edge、未解決nodeをCook errorにする。
 
 Rootとbootstrap hard-dependency closureは`base` Content Groupへ置く。`WorldStreamingPlanV1.activation_groups[]`はexact `content_group_ref`を必須化し、非bootstrap Sectionはそのgroupへ置く。Sectionのhard dependencyは同じgroup、`base`、またはCatalogが先行mountを保証するgroupだけを参照できる。Package assemblyはこのgroup closureを検証し、依存Sectionを別groupの偶然のmount順へ委ねない。
 
@@ -809,7 +821,8 @@ RuntimeEntityQuerySpecV1
   terms[]: RuntimeEntityQueryTermV1
   entity_enablement: require_enabled | require_disabled | ignore
   ordering: canonical_archetype_chunk_row
-  partition_policy
+  partition_policy: single | fixed_range | deterministic_hash
+  partition_bound_ref: optional exact ref
   result_bound_ref
   query_spec_hash
 
@@ -822,7 +835,17 @@ RuntimeEntityQueryTermV1
 
 `all`はすべて、`any`は全any term中一つ以上、`none`は除外、`optional`はfilterせず存在時だけ列を返す。System queryは`all`または`any` termを最低一つ必要とし、全Entity scanを暗黙許可しない。同じTypeの複数term、ManifestにないType、`none`／`presence`以外の矛盾accessをCompile errorにする。
 
-Compilerはtermを`component_type_ref`のcanonical byte順へ正規化し、Source記述順をquery identityまたはABI列順に使わない。`query_spec_hash`はquery ID、正規化済みterm、Entity enablement、ordering、resolved partition／result boundを`McdCanonicalBinaryV1`でhashする。Batch columnは正規化termのうち`all | any | optional`だけを同順で一件ずつ持ち、`none`はfilterにだけ使ってcolumn descriptorを生成しない。
+Compilerはtermを`component_type_ref`のcanonical byte順へ正規化し、Source記述順をquery identityまたはABI列順に使わない。`query_spec_hash`はquery ID、正規化済みterm、Entity enablement、ordering、partition policy、resolved partition bound、resolved result boundを`McdCanonicalBinaryV1`でhashする。Batch columnは正規化termのうち`all | any | optional`だけを同順で一件ずつ持ち、`none`はfilterにだけ使ってcolumn descriptorを生成しない。
+
+`partition_policy`は次のclosed setであり、partitionを実行するのはSchedulerだけで、Systemまたはbindingがoverrideしない。
+
+| Policy | `partition_bound_ref` | canonical work assignment |
+|---|---|---|
+| `single` | absent | query全体をcanonical順の一つのlogical workとして実行 |
+| `fixed_range` | required | boundが固定する最大row数で、canonical archetype／chunk順にhalf-open row rangeへ分割 |
+| `deterministic_hash` | required | boundが固定するpartition countへ、`SHA-256(McdCanonicalBinaryV1({query_id, archetype_id, chunk_id})) mod partition_count`でchunk単位に割当て |
+
+`fixed_range`の各rangeと`deterministic_hash`の各partition内は`archetype_id, chunk_id, row`順を維持する。boundは1以上のclosed upper boundを解決し、欠落、0、上限超過、policy不一致をContract compile errorにする。worker数、worker index、completion順、address、runtime hash-map順をpartition count、割当て、結果順へ使わない。
 
 `all`／`any`／`none`はstructural presenceを判定する。`enable_bit`を持つ`all | any` termは`require_enabled`を既定とし、明示時は`require_enabled | require_disabled | ignore`を選ぶ。structural-only Componentは`ignore`だけを許可する。`none | optional`は`enablement = ignore`だけを許可し、`none`はenable状態にかかわらずComponentが存在すれば除外する。optional enable状態はColumnに付随するread-only enable maskで読む。
 
@@ -865,7 +888,7 @@ RuntimeComponentAccessManifestV1
 
 Manifestは`GameSystemSpecV1`、State owner、query、structural operation、Implementation VariantからContract compilerが生成し、System codeが拡張しない。write／enablement writeはComponent owner Systemだけに許可するが、`tag`と`typed_external_handle`へvalue `read_write`を生成しない。他Systemはtyped Commandをownerへ送り、同じComponentの共同writerを作らない。
 
-各`query_bindings[]`はquery ref、callback entry ID、許可phase ID集合、`serial | parallel_partitioned`、partition bound refを持つ。ECSを使わないSystemも空のManifestを厳密に一つ持ち、query、Component access、structural permissionを0件とする。空Manifestを理由にunchecked World pointerを渡さない。
+各`query_bindings[]`はquery ref、callback entry ID、許可phase ID集合、Query Specの`partition_policy`と`partition_bound_ref`へのexact refを持つ。bindingはpolicyまたはboundを上書きできず、`single`だけが一つのcallback work、他二policyはScheduler生成partitionを消費する。ECSを使わないSystemも空のManifestを厳密に一つ持ち、query、Component access、structural permissionを0件とする。空Manifestを理由にunchecked World pointerを渡さない。
 
 typed external handleの列readだけではexternal object accessを与えない。resolver／store viewは一致する`external_store_access_refs[]`、participant generation、phase、modeを持つgenerated bindingだけが取得でき、handle generationとcurrent publicationを毎回検査する。store viewもcallback外へ保存できず、Component accessからVendor pointerへ暗黙変換しない。
 
@@ -890,6 +913,34 @@ RuntimeLogicalWorkIdV1
 `work_kind_code`は`0 invalid | 1 query_partition | 2 system_callback | 3 targeted_batch`である。`system_runtime_id／binding_runtime_id／work_ordinal`は常に1以上とする。query partitionはbindingにquery runtime IDを置き、archetype／chunk／row-range ordinalをすべて1以上にする。system callbackはgenerated callback entry runtime ID、archetype／chunkを0、ordinalを1とする。targeted batchはCommand runtime IDと対象partitionのarchetype／chunk／ordinalを1以上にする。不要Fieldへ任意値を入れない。
 
 Rootの`RuntimeSystemBindingAndStateStoreSetV1`はactive System Contract refのcanonical byte順に`system_runtime_id`を1から、`{System ref, callback entry Stable ID}`順にcallback entry runtime IDを1から割り当てる。Executable Contractsはactive Command Type ref順にCommand runtime IDを1から割り当て、§9.1はquery runtime IDを割り当てる。各ID空間は`work_kind_code`で区別し、0 invalid、Root内immutable、Source／Save／AI identityへ保存しない。Module登録順、link順、dispatch順から採番しない。
+
+```text
+RuntimeSystemExecutionContextV1
+  world_instance_handle: RuntimeWorldInstanceHandle
+  base_publication_handle: RuntimeWorldPublicationHandle
+  working_tick: uint64
+  phase_id: uint32
+  partition: RuntimeExecutionPartitionV1
+  read_snapshot_ref: callback-scoped exact ref
+  write_batch_ref: callback-scoped exact ref
+  diagnostic_sink_ref: callback-scoped exact ref
+  logical_work_id: RuntimeLogicalWorkIdV1
+  bound_activation_group_id: optional uint32, 1..N
+  context_token: opaque uint64
+
+RuntimeExecutionPartitionV1
+  policy: single | fixed_range | deterministic_hash
+  partition_ordinal: uint32, 1..partition_count
+  partition_count: uint32, >= 1
+  archetype_id: optional uint32
+  chunk_id: optional uint32
+  row_begin: optional uint32
+  row_end: optional uint32
+```
+
+`RuntimeSystemExecutionContextV1`のschemaはECS正本が所有し、値はSchedulerがcallback invokeごとに束縛して渡す。`partition`はQuery Specのpolicyと一致し、`single`ではcount／ordinalとも1でrange Fieldを持たず、`fixed_range`ではexact chunkと`row_begin < row_end`、`deterministic_hash`ではpartition ordinal／countを必須としてrange Fieldを持たない。`read_snapshot_ref`はbase publication、tick、phaseへ固定したread-only Query／State viewを解決する。`write_batch_ref`はそのlogical work専用のprivate Command／Event／Structural outputを所有し、callback成功後にだけcanonical mergeへ渡す。`diagnostic_sink_ref`はProfileで件数／bytesをbounded化し、World mutationまたはlog-only failureへ変換しない。
+
+System callbackはこのcontextからだけQueryBatch、Lease、`EntityReadPort`、`StructuralCommandWriter`、preparation portを取得し、§8.2のbare `RuntimeEntityHandle`許可境界はこのcontextのWorld束縛で判定する。contextと三つのrefはmove-only・callback-scopedで、copy、heap保存、callbackを越える持ち出しを禁止する。`bound_activation_group_id`は`producer_activation_group` scopeのcreateを発行できるexact一件のactive group(§8.3)を示し、束縛のないcontextはこのFieldを持たない。`context_token`はlease tokenと同じepoch／phase失効検査へ入力するsession-local integrityで、Source、Save、Replayへ保存しない。
 
 Schedulerだけがchunkまたはhalf-open row rangeへpartitionする。write exclusion keyは`{component_type_ref, chunk_id, row_begin, row_end}`で、write／writeおよびwrite／readの交差を同時実行しない。`logical_work_id`は上記variantのfixed-width tupleから生成し、dispatch順に採番しない。並列producerはworker indexではなくこのIDを受け、private output bufferへ書く。
 
@@ -1090,6 +1141,8 @@ RuntimeEntitySpawnPreparationTicketV1
 ```
 
 `RuntimeExternalPreparationRequestKeyV1`は通常Command／Eventとは別のScheduling-owned bounded preparation portでだけ生成する。SchedulerがManifestのpreparation bindingからWorld、request／target tick、phase、target boundary、requester runtime ID、logical work IDを埋め、`request_sequence`を同一logical workのpreparation request内で1からgapなしに付ける。Game Systemはこれらの順序Fieldを任意指定できない。targetはrequestより前にできず、Profileの最大preparation lead以内でなければならない。準備失敗はtyped failure Eventを返してrequestを閉じ、未発行のStructural Command keyやlocal sequenceを予約しない。
+
+`base_store_generation`／`pending_store_generation`は対象external storeのowner participantが持つ§8.6 participant generationと同一のcounterであり、store専用の別counterを導入しない。baseはReservation発行時のcurrent publicationにおける値、pendingはこのReservationを消費するpublicationが公開する値である。このcounterは消費publicationが通常structural commitかSection publicationかを問わず、影響を受けたparticipantでexact 1進む(§8.6)。
 
 `RuntimeSectionReservationHandle`と`RuntimeExternalReservationHandle`はいずれもindex32＋generation32、all zero invalid、wrap retireのruntime-only capability handleであり、Source、Artifact、Save、Replayへ保存しない。Section handleはpreflight完了時のcanonical participant順、external reservationとprepared external handleは`RuntimeExternalPreparationRequestKeyV1`＋Component Type ref順で割り当て、worker完了順を使わない。Section `transaction_hash`はRoot／epoch／pending generation／activation group順のexact Section change／各participant ref・prepared state hash・reserved capacity hash／handoff table hashをhashし、reservation handle値を除外する。Reservation／spawn ticket hashはstale／改変検出用のephemeral integrityで、Entity allocation、authoritative digest、Replay分岐へ入力しない。
 
@@ -1599,11 +1652,24 @@ ECS ProfileはBudget値ではなく、参照するProfile ID、Component制約�
 
 ### 17.4 Performance／endurance Gate
 
+適用時期はCapability成熟度で段階化し、E0／C1 baselineとC2／stress Qualificationを同じCompletion Gateへ混在させない。
+
+E0-defined C1 Gate（E0はcontractを固定し、Runtime実装後に`wp.gameplay.core-c1`が実行）:
+
+- Product RegistryのFirst Playable fixtureを使い、fixtureが参照するTarget ProfileとECS Contract setをReceiptへ固定する。
+- entity数は[Performance／Capacity](../04-runtime/performance-capacity.md)がTarget別に定めるcanonical C1 capacity以内とし、固定のsynthetic件数へ置換しない。
 - 8／16／32 KiB chunkを同一fixtureで比較し、16 KiBを無測定で変更しない。
-- 10万、100万Entityのrepresentative archetype、query、structural churn、streaming fixture。
 - steady-state query iteration allocation 0、一般heap fallback 0。
 - chunk occupancy、cache miss、iteration throughput、structural move bytes、P50／P95／P99.9、peak memoryをTarget別記録。
-- 10分×3 runと2時間enduranceでleak、generation異常、query cache drift、unbounded archetype増加0。
+- 30分連続soakでleak、generation異常、query cache drift、unbounded archetype増加0。
+
+C2／stress Qualification（`wp.product.general-coverage-2d`／`wp.product.general-coverage-3d`）:
+
+- 100万Entity synthetic scale、全archetype、最大宣言query、Section churn。
+- persistent handoffについて到達可能なsource／destination archetypeの全matrixをpositive／negative fixtureで検証する。
+- 2時間enduranceでleak、generation異常、query cache drift、unbounded archetype増加0。
+
+C2／stressは[Product Plan](../00-product/product-plan.md)の共通Runtime C2 fault／soak／scale Qualificationと[Performance／Capacity](../04-runtime/performance-capacity.md)のProduction enduranceを所有する将来Qualification Work Packageで実行し、E0完了またはC1 baselineの条件にしない。
 
 ### 17.5 Integration／AI Gate
 
@@ -1620,24 +1686,34 @@ Qualificationはcompile成功またはmicrobenchmark一件で代替しない。�
 
 本設計は一つの巨大Taskとして実装しない。各段階は前段のContractとtest oracleを完了条件にし、未完の下位層をmock成功扱いして上位層を昇格しない。
 
-E0開始前に`architecture/baselines/control-plane-v1.json`をread-backし、`git_tree_id`、Architecture Index、document relation registry、Product registry、identity migration registry、Toolchain lock、Architecture lint artifactの全hash一致を必須とする。不一致、missing、dirty treeは`diagnostic.architecture.baseline-mismatch`で停止する。Branch名、現在HEAD、日時、`latest`をbaseline identityにしない。
+E0 Task 0はECS内容に依存しないtooling準備、Task 1はECS active正本を`review`で作るbootstrapである。ECS schemaを生成するTask 3以降は、Task 2で次の開始条件をすべて満たした後だけ開始する。ECSはE0が作成・reviewする対象なので開始時に`approved`を要求しない。
+
+| Exact entry condition | Required value |
+|---|---|
+| `architecture_baseline_receipt_hash` | non-null。`architecture/baselines/control-plane-v1.json`のcanonical bytesへbind |
+| `architecture_governance.state` | `approved` |
+| `compatibility_evolution.state` | `approved` |
+| `persistence_save.state` | `approved` |
+| `entity_component_system.state` | `review` |
+
+baseline read-backは[Architecture Evolution Control Plane実装計画](../../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)が固定するexact 9 fields、すなわち`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`lint_version`の過不足なしと全値一致を要求する。baseline hash欠落／不一致は`diagnostic.architecture.baseline-mismatch`、三Ownerの非承認は`diagnostic.architecture.owner-unapproved`、ECSが`review`でない場合は`diagnostic.architecture.ecs-review-state-required`、dirty treeは`diagnostic.architecture.dirty-baseline`で停止する。Branch名、現在HEAD、日時、`latest`をbaseline identityにしない。E3以降が追加Owner approvalを必要とする場合は各段階Gateに置き、E0 entryへ先取りしない。
 
 | 段階 | 実装範囲 | 入力 | 出力／Gate |
 |---|---|---|---|
 | E0 Contract baseline | ECS正本、MCD schema、ID、Diagnostic、Root／Section binary、Artifact subject／Qualification binding、Port／publication binding、生成物 | 本Decisionと既存Owner | cross-doc／schema／codegen conformance |
-| E1 Storage kernel | World state、handle allocator、registry、archetype plan、chunk、location／identity／sequence／tombstone table、State Store、publication Handle／Record | E0 | reference model、failure-atomic storage test |
+| E1 Storage kernel | World state、handle allocator、registry、archetype plan、chunk、location／identity／sequence／tombstone table、State Store、publication Handle／Record | user-approved E0 Contract baseline | reference model、failure-atomic storage test |
 | E2 Query／mutation | query cache、typed lease、partition、StructuralCommandBatch | E1＋Scheduling phase | truth table、race／determinism／transaction test |
 | E3 Cook／load | Entity／Component projection、persistent handoff、layout generator、Root／Section binary、Artifact envelope／binding、loader | E0～E2＋Authoring／Asset | reproducible image、hash非循環、malformed input、Target ABI Gate |
 | E4 Game System binding | Access Manifest、generated C++、Native batch／State ABI、scheduler graph | E0～E3＋Gameplay／Native | generated surface外accessのQualification拒否、1／N worker一致 |
 | E5 Subsystem integration | World Section publication participant、typed external store、Physics、Navigation、Animation、Presentation、Audio、UI Port | E4＋各Domain | all-participant atomic visibility、recoverable preflight fixture、pointer逆流0 |
 | E6 Debug／AI | authorized capture、telemetry、Contract Graph、R0 operations | E0～E5 | sensitivity、bounded context、explainability、provenance Gate |
-| E7 Qualification | scale、Target、endurance、Save／Replay、failure injection | 全段階 | C1 receipt setとproduction昇格判断 |
+| E7 Qualification | scale、Target、endurance、Save／Replay、failure injection | 全段階 | C1 receipt set(§17.4のC1昇格Gate適用分)とproduction昇格判断。§17.4のC2昇格GateはC2昇格時に実行する |
 
 E0承認前にE1以降の実装を開始しない。E1とE3のschema prototypeはE0 fixtureとして作れるが、Production storageまたはpackageとして扱わない。E5はSubsystemごとに並行化できるが、共通ECS／Scheduling Contractをforkしない。
 
 ## 19. 正規仕様の変更計画
 
-ユーザーが本Decisionを承認した後、同一clean-break ChangeSetで次を変更する。
+ユーザーが本Decisionを承認した後、同一clean-break ChangeSetで次を変更する。表中の`architecture-governance.md`、`compatibility-evolution.md`、`persistence-save.md`、`runtime-package.md`の4文書は現時点で未作成であり、[Architecture Evolution Control Plane実装計画](../../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)が新規作成する成果物である。当該4行は既存文書の編集ではなく、同計画完了後の新設文書への登録・接続を意味する。
 
 | Path | 変更 |
 |---|---|
@@ -1653,7 +1729,7 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 | `docs/architecture/01-governance/ai-security-approval.md` | ECS captureのproduct internal／local MCP／managed CLI caller variant、Task Authorization、channel grant、sensitivity／redaction接続を追加 |
 | `docs/architecture/01-governance/ai-verification-provenance.md` | Root／Section inner image hashをQualification subjectとして登録し、Receipt renewalはouter bindingだけを更新する規則を追加 |
 | `docs/architecture/03-authoring/project-state.md` | Authoring Entity／ComponentからRuntime projectionへのrefを追加 |
-| `docs/architecture/03-authoring/asset-lifecycle.md` | `DerivedArtifactManifestV2`のtagged subjectへclean置換し、generic Catalog key／snapshot ref、World Root／Section envelope、Content Group、outer Qualification bindingを正本化 |
+| `docs/architecture/03-authoring/asset-lifecycle.md` | `DerivedArtifactManifestV1`のtagged subjectへclean置換し、generic Catalog key／snapshot ref、World Root／Section envelope、Content Group、outer Qualification bindingを正本化 |
 | `docs/architecture/03-authoring/gameplay-programming-model.md` | GameSystemSpec、Component／State access、Entity lifetime owner、Contract Graphの関係を追加 |
 | `docs/architecture/03-authoring/native-game-module.md` | `RuntimeEntityRefV1`、mutable／readonly列descriptor、State view、Manifest hashへclean rename／接続。immutable query batch／Component State deltaを削除 |
 | `docs/architecture/04-runtime/scheduling-lifetime.md` | ECS storage本文を削除し、新正本参照、World state、participant prepare／hidden attach／single publication boundary、retire fence、process fault接続だけを残す |
@@ -1661,7 +1737,7 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 | `docs/architecture/04-runtime/debugging-observability-replay.md` | ECS capture／diagnostic／Contract Graph transport、authoritative World digest、lifecycle／composition／enable／identity sequence／ephemeral ordinal counter Save／Replay envelopeを追加 |
 | `docs/architecture/05-simulation/*.md` | live pointerを使わないIntegration System／Port参照を整合 |
 | `docs/architecture/06-rendering/*.md` | Presentation extraction、Root／Section streaming、activation group `content_group_ref`、persistent handoff、Subsystem publication participantを整合 |
-| `docs/architecture/07-platform/*.md` | Input／Audio／UIとTarget qualificationを整合し、`mobile-common.md`の旧Artifact Manifest参照をV2 subjectへ移行 |
+| `docs/architecture/07-platform/*.md` | Input／Audio／UIとTarget qualificationを整合し、`mobile-common.md`の旧suffixなしArtifact Manifest参照を`DerivedArtifactManifestV1` subjectへ移行 |
 | `docs/architecture/08-domain-packs/shooter.md` | Shooter固有System／Component compositionをECS正本参照へ変更 |
 
 外部Dependencyを追加しないため`toolchain-dependencies.md`へFlecs／EnTTのpinは追加しない。比較根拠のURLは本DecisionとECS正本の外部根拠節に置き、Runtime manifestへLibrary名を混入させない。
@@ -1691,7 +1767,7 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 21. Section activationは全participantのprepared stateをhidden attachし、`RuntimeWorldPublicationHandle`のrelease storeだけを唯一の可視commit pointにする。
 22. persistent EntityのSection移送は`RuntimePersistentEntityHandoffV1`に全Field dispositionを列挙し、C1ではRuntime handleを維持する。
 23. Root／Section inner imageはQualification Receiptを含めず、outer bindingがimage hashへReceiptを束縛してhash cycleを作らない。
-24. `DerivedArtifactManifestV2`はAsset／World Root／World Sectionのtagged subjectを使い、旧Manifest、synthetic Asset ID、dual Catalog keyを残さない。
+24. `DerivedArtifactManifestV1`はAsset／World Root／World Sectionのtagged subjectを使い、旧Manifest、synthetic Asset ID、dual Catalog keyを残さない。
 25. `typed_external_handle` objectはpublish前Reservationでpreparedし、同じpublication generationで可視化し、Lifecycle Delta後かつconsumer fence完了後にretireする。
 26. Native C ABIのclosed code、presence、versionは固定幅整数で表し、C／C++ `bool`またはcompiler依存enumを渡さない。
 27. Runtime ECS AI operationはTask Authorizationを全channelで要求し、MCP grantは`local_mcp`だけ、製品内とmanaged CLIは各channel固有Policy／attestationを使う。
@@ -1717,6 +1793,6 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 
 本Decisionの承認は、Engine-owned archetype ECS、正本所有、clean-break名称、Authoring／Runtime分離、System access、structural transaction、Subsystem Port、AI read-only surface、実装段階、Verification Gateへの承認を意味する。
 
-詳細Task、exact file、MCD、C++ interface、test、command、expected result、clean migrationは[Runtime ECS E0 Implementation Plan](../../plans/2026-07-22-runtime-ecs-e0-implementation-plan.md)に事前定義した。同計画の存在は本Decisionの承認、E0実装開始、Capability activationを意味しない。
+詳細Task、exact file、MCD、C++ interface、test、command、expected result、clean migrationは[Runtime ECS E0 Implementation Plan](../../plans/2026-07-22-runtime-ecs-e0-implementation-plan.md)に事前定義した。同計画の存在は本Decisionの承認、E0 entry gate通過、Capability activationを意味しない。
 
-承認後は本Decisionを`ユーザー承認済み`へ更新し、Control Plane baselineのread-backに成功したclean ChangeSetでE0計画を実行する。承認前に正規仕様群、schema、Engine codeを変更しない。
+E0は§18のexact五条件で開始し、本DecisionとECS active正本を`review`のままcontract／fixture／baselineとして検証できる。E0完了も自動approvalではない。ユーザー承認後だけ本Decisionとactive正本を`approved`へ更新し、E1 storage kernel以降のRuntime実装とCapability activationへ進む。承認前にE1以降のEngine Runtime codeを変更しない。
