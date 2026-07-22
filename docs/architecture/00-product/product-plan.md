@@ -405,7 +405,11 @@ Profile versionは更新可能なFieldであり、Target IDへ`v1`を埋め込�
 | `requirement.target.windows-package` | `mirakan.arch.platform-windows` | `clean_install_offline_run` | `diagnostic.product.windows-package-gate-failed` |
 | `requirement.target.android-package` | `mirakan.arch.platform-android` | `store_package_device_run` | `diagnostic.product.android-package-gate-failed` |
 | `requirement.target.apple-package` | `mirakan.arch.platform-apple` | `store_package_device_run` | `diagnostic.product.apple-package-gate-failed` |
-| `requirement.product.authoring-roundtrip` | `mirakan.arch.product-plan` | `manual_and_ai_e2e` | `diagnostic.product.authoring-roundtrip-failed` |
+| `requirement.product.authoring-roundtrip-manual` | `mirakan.arch.product-plan` | `manual_e2e` | `diagnostic.product.authoring-roundtrip-manual-failed` |
+| `requirement.product.authoring-roundtrip` | `mirakan.arch.product-plan` | `ai_e2e` | `diagnostic.product.authoring-roundtrip-failed` |
+| `requirement.product.first-playable-3d` | `mirakan.arch.product-plan` | `playable_e2e` | `diagnostic.product.first-playable-3d-incomplete` |
+| `requirement.product.mvp-completion` | `mirakan.arch.product-plan` | `mvp_completion_e2e` | `diagnostic.product.mvp-completion-incomplete` |
+| `requirement.product.project-source-activation` | `mirakan.arch.product-plan` | `source_activation_e2e` | `diagnostic.product.project-source-activation-incomplete` |
 | `requirement.product.title-to-result` | `mirakan.arch.product-plan` | `playable_e2e` | `diagnostic.product.title-to-result-failed` |
 | `requirement.product.save-load-replay` | `mirakan.arch.product-plan` | `state_roundtrip` | `diagnostic.product.save-load-replay-failed` |
 | `requirement.product.c2-2d-coverage` | `mirakan.arch.product-plan` | `cross_genre_matrix` | `diagnostic.product.c2-2d-coverage-incomplete` |
@@ -413,15 +417,17 @@ Profile versionは更新可能なFieldであり、Target IDへ`v1`を埋め込�
 | `requirement.product.external-agent-boundary` | `mirakan.arch.ai-security-approval` | `authorization_conformance` | `diagnostic.product.external-agent-boundary-failed` |
 | `requirement.product.runtime-generation-boundary` | `mirakan.arch.ai-security-approval` | `threat_model_conformance` | `diagnostic.product.runtime-generation-boundary-failed` |
 
+`requirement.product.mvp-completion`は§5の一方向chain全体、すなわちclean environment相当でのcook、package、install／launch、first-run settings、offline play、checkpoint／resume、diagnosis、`SupportBundleV1`取得、data resetを同一Candidate hashで検証する。`requirement.product.project-source-activation`は`capability.project.native_module`と`capability.project.shader`の両方を実際のFirst Playable挙動から使用し、Source、生成Diff、Approval、Target artifact、Qualification Receiptが同一Project revisionへ閉じる場合だけ成功する。
+
 | fixture_id | Owner | requirement_refs | targets | minimum duration seconds |
 |---|---|---|---|---:|
 | `fixture.product.headless-contract-smoke` | `mirakan.arch.product-plan` | `requirement.target.headless-determinism` | `target.headless.host` | 60 |
-| `fixture.product.authoring-transaction` | `mirakan.arch.project-state` | `requirement.product.authoring-roundtrip` | `target.headless.host` | 300 |
+| `fixture.product.authoring-transaction` | `mirakan.arch.project-state` | `requirement.product.authoring-roundtrip-manual` | `target.headless.host` | 300 |
 | `fixture.product.windows-empty-scene` | `mirakan.arch.product-plan` | `requirement.target.windows-editor; requirement.target.windows-package` | `target.windows.editor; target.windows.desktop` | 300 |
-| `fixture.product.shooter-2d` | `mirakan.arch.domain-pack-shooter` | `requirement.product.title-to-result; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
+| `fixture.product.shooter-2d` | `mirakan.arch.domain-pack-shooter` | `requirement.product.authoring-roundtrip; requirement.product.title-to-result; requirement.product.save-load-replay; requirement.product.mvp-completion; requirement.product.project-source-activation` | `target.windows.editor; target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
 | `fixture.product.platformer-2d` | `mirakan.arch.product-plan` | `requirement.product.c2-2d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
 | `fixture.product.puzzle-dialogue-2d` | `mirakan.arch.product-plan` | `requirement.product.c2-2d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
-| `fixture.product.shooter-arena-3d` | `mirakan.arch.domain-pack-shooter` | `requirement.product.c2-3d-coverage; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
+| `fixture.product.shooter-arena-3d` | `mirakan.arch.domain-pack-shooter` | `requirement.product.first-playable-3d; requirement.product.save-load-replay` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
 | `fixture.product.external-agent-proposal` | `mirakan.arch.ai-security-approval` | `requirement.product.external-agent-boundary` | `target.headless.host` | 120 |
 | `fixture.product.mobile-lifecycle` | `mirakan.arch.platform-mobile-common` | `requirement.target.android-package; requirement.target.apple-package` | `target.android.mobile; target.apple.mobile` | 900 |
 | `fixture.product.runtime-generation-denial` | `mirakan.arch.ai-security-approval` | `requirement.product.runtime-generation-boundary` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | 300 |
@@ -442,17 +448,19 @@ Profile versionは更新可能なFieldであり、Target IDへ`v1`を埋め込�
 | order | phase_id | outcome requirements | work packages | exit fixtures |
 |---:|---|---|---|---|
 | 0 | `phase.foundation` | `requirement.target.headless-determinism` | `wp.architecture.control-plane; wp.runtime.ecs-e0` | `fixture.product.headless-contract-smoke` |
-| 1 | `phase.headless-authoring` | `requirement.product.authoring-roundtrip` | `wp.authoring.headless-core` | `fixture.product.authoring-transaction` |
+| 1 | `phase.headless-authoring` | `requirement.product.authoring-roundtrip-manual` | `wp.authoring.headless-core` | `fixture.product.authoring-transaction` |
 | 2 | `phase.editor-runtime` | `requirement.target.windows-editor; requirement.target.windows-package` | `wp.runtime.d3d12-backend; wp.product.editor-runtime-windows` | `fixture.product.windows-empty-scene` |
 | 3 | `phase.manual-2d` | `requirement.product.title-to-result; requirement.product.save-load-replay` | `wp.domain.shooter-core; wp.domain.shooter-2d` | `fixture.product.shooter-2d` |
-| 4 | `phase.ai-authoring-mvp-a` | `requirement.product.authoring-roundtrip` | `wp.product.ai-authoring-mvp-a` | `fixture.product.shooter-2d` |
+| 4 | `phase.ai-authoring-mvp-a` | `requirement.product.authoring-roundtrip; requirement.product.mvp-completion; requirement.product.project-source-activation` | `wp.authoring.project-native-module; wp.rendering.project-shader; wp.product.ai-authoring-mvp-a` | `fixture.product.shooter-2d` |
 | 5 | `phase.external-agent` | `requirement.product.external-agent-boundary` | `wp.product.external-agent` | `fixture.product.external-agent-proposal` |
-| 6 | `phase.manual-3d-mvp-b` | `requirement.product.c2-3d-coverage` | `wp.domain.shooter-3d` | `fixture.product.shooter-arena-3d` |
+| 6 | `phase.manual-3d-mvp-b` | `requirement.product.first-playable-3d` | `wp.domain.shooter-3d` | `fixture.product.shooter-arena-3d` |
 | 7 | `phase.mobile` | `requirement.target.android-package; requirement.target.apple-package` | `wp.platform.mobile-offline` | `fixture.product.mobile-lifecycle` |
 | 8 | `phase.production-capability` | `requirement.product.c2-2d-coverage; requirement.product.c2-3d-coverage` | `wp.product.general-coverage-2d; wp.product.general-coverage-3d; wp.domain.platformer; wp.domain.puzzle-dialogue; wp.rendering.environment-c2; wp.rendering.vfx-c2; wp.rendering.material-toon; wp.ui.native-widget; wp.gameplay.core-c1; wp.navigation.path-following; wp.runtime.timer` | `fixture.product.platformer-2d; fixture.product.puzzle-dialogue-2d; fixture.product.shooter-arena-3d` |
 | 9 | `phase.runtime-generation` | `requirement.product.runtime-generation-boundary` | `wp.product.runtime-generation` | `fixture.product.runtime-generation-denial` |
 
 Phase 5とPhase 9はこのRegistry行を唯一のscheduling identityとし、本文上の見出しや番号だけで存在を表現しない。
+
+Phase 1のproduct Target範囲は`target.headless.host`、Phase 4は`target.windows.editor; target.windows.desktop`、Phase 6は`target.windows.desktop`へ固定する。fixture行に後続Phaseで到達するMobile Targetが含まれていても、前倒しのPhase exit Receiptを要求または成功扱いしない。
 
 Phase exitのTarget範囲は次で導出する。exit判定は`exit_fixture_refs[]`の各fixtureを、`order_index`が当該Phase以下のPhaseの`outcome_requirement_refs[]`に`qualification_policy_ref`が含まれるTargetと、fixture行の`target_refs[]`の積集合に限って要求する。fixture行の`target_refs[]`は全Phase完了時点の到達範囲であり、単独ではPhase exitのTarget範囲を定義しない。11.7節のC2 gateのように対象Targetを明示列挙するgateは、この導出より優先する。
 
@@ -469,7 +477,9 @@ Phase exitのTarget範囲は次で導出する。exit判定は`exit_fixture_refs
 | `wp.product.editor-runtime-windows` | `phase.editor-runtime` | `mirakan.arch.product-plan` | `target.windows.editor; target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.windows-empty-scene` | `wp.authoring.headless-core; wp.runtime.d3d12-backend` | `declared` | `null` | `[]` | `null` |
 | `wp.domain.shooter-core` | `phase.manual-2d` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.shooter-2d; fixture.product.shooter-arena-3d` | `wp.runtime.ecs-e0` | `declared` | `null` | `[]` | `null` |
 | `wp.domain.shooter-2d` | `phase.manual-2d` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-2d` | `wp.domain.shooter-core; wp.product.editor-runtime-windows` | `declared` | `null` | `[]` | `null` |
-| `wp.product.ai-authoring-mvp-a` | `phase.ai-authoring-mvp-a` | `mirakan.arch.product-plan` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-2d` | `wp.domain.shooter-2d` | `declared` | `null` | `[]` | `null` |
+| `wp.authoring.project-native-module` | `phase.ai-authoring-mvp-a` | `mirakan.arch.native-game-module` | `target.windows.editor; target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-2d` | `wp.domain.shooter-2d` | `declared` | `null` | `[]` | `null` |
+| `wp.rendering.project-shader` | `phase.ai-authoring-mvp-a` | `mirakan.arch.rendering-project-shader` | `target.windows.editor; target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-2d` | `wp.domain.shooter-2d` | `declared` | `null` | `[]` | `null` |
+| `wp.product.ai-authoring-mvp-a` | `phase.ai-authoring-mvp-a` | `mirakan.arch.product-plan` | `target.windows.editor; target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-2d` | `wp.authoring.project-native-module; wp.rendering.project-shader` | `declared` | `null` | `[]` | `null` |
 | `wp.product.external-agent` | `phase.external-agent` | `mirakan.arch.ai-security-approval` | `target.headless.host` | `fallback.capability.unavailable` | `fixture.product.external-agent-proposal` | `wp.product.ai-authoring-mvp-a` | `declared` | `null` | `[]` | `null` |
 | `wp.domain.shooter-3d` | `phase.manual-3d-mvp-b` | `mirakan.arch.domain-pack-shooter` | `target.windows.desktop` | `fallback.capability.unavailable` | `fixture.product.shooter-arena-3d` | `wp.domain.shooter-core; wp.product.external-agent` | `declared` | `null` | `[]` | `null` |
 | `wp.platform.mobile-offline` | `phase.mobile` | `mirakan.arch.platform-mobile-common` | `target.android.mobile; target.apple.mobile` | `fallback.capability.unavailable` | `fixture.product.mobile-lifecycle` | `wp.domain.shooter-3d` | `declared` | `null` | `[]` | `null` |
@@ -488,7 +498,7 @@ Phase exitのTarget範囲は次で導出する。exit判定は`exit_fixture_refs
 
 ### 11.6 Capability–Target–Fallback registry
 
-全行の初期ActivationはTargetごとに`not_activated`、`candidate_ref=null`、`receipt_refs=[]`、`evidence_freshness=expired`とする。文書更新だけで昇格しない。Target scopeの`Windows`、`Android`、`Apple`はそれぞれ`target.windows.desktop`、`target.android.mobile`、`target.apple.mobile`の略記であり、Registry生成時は略記を保存せずexact IDへ展開する。
+全行の初期ActivationはTargetごとに`not_activated`、`candidate_ref=null`、`receipt_refs=[]`、`evidence_freshness=expired`とする。文書更新だけで昇格しない。Target scopeの`Windows`、`Windows Editor`、`Android`、`Apple`はそれぞれ`target.windows.desktop`、`target.windows.editor`、`target.android.mobile`、`target.apple.mobile`の略記であり、Registry生成時は略記を保存せずexact IDへ展開する。明記しないTargetは暗黙requiredにせず`excluded`として生成する。
 
 | capability_id | tier | owner WP | Target scope | fallback | activation |
 |---|---|---|---|---|---|
@@ -509,6 +519,8 @@ Phase exitのTarget範囲は次で導出する。exit判定は`exit_fixture_refs
 | `capability.gameplay.perception` | C1 | `wp.gameplay.core-c1` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
 | `capability.gameplay.shooter_core` | C1 | `wp.domain.shooter-core` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
 | `capability.gameplay.timer` | C1 | `wp.runtime.timer` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
+| `capability.project.native_module` | C1 | `wp.authoring.project-native-module` | Windows Editor required; Windows required; Android excluded; Apple excluded | `fallback.capability.unavailable` | `not_activated` |
+| `capability.project.shader` | C1 | `wp.rendering.project-shader` | Windows Editor required; Windows required; Android excluded; Apple excluded | `fallback.capability.unavailable` | `not_activated` |
 | `capability.product.general_production_2d` | C2 | `wp.product.general-coverage-2d` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
 | `capability.product.general_production_3d` | C2 | `wp.product.general-coverage-3d` | Windows required; Android required; Apple required | `fallback.capability.unavailable` | `not_activated` |
 | `capability.render.material.toon` | C2 | `wp.rendering.material-toon` | Windows required; Android required; Apple required | `fallback.rendering.material-default` | `not_activated` |

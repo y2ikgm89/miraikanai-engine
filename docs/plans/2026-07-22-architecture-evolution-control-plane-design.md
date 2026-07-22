@@ -760,6 +760,8 @@ Phase Gateは二種類を明示する。
 - `contract_fixture_gate`: 後続Target実装前でもheadless schema／negative fixtureとして実行できる。
 - `product_target_gate`: 実Platform、package、install、device Receiptが必要で、該当Phase前には成功扱いにしない。
 
+Phase 4のProject Source Activationは`wp.authoring.project-native-module`（Owner `mirakan.arch.native-game-module`）と`wp.rendering.project-shader`（Owner `mirakan.arch.rendering-project-shader`）をWork Package Registryへ登録し、それぞれ`capability.project.native_module`と`capability.project.shader`を所有させる。両Capabilityは`target.windows.editor`と`target.windows.desktop`だけをrequiredとし、Phase 4の`fixture.product.shooter-2d`がAI Authoring、MVP completion、Source／Diff／Approval／Artifact／Receipt closureを同一Project revisionで検証する。Android／Appleは別Qualificationまで`excluded`であり、Windows Receiptから推論しない。
+
 Scheduling Phase 0のSave／Platform lifecycle項目はcontract fixtureに限定する。Windowsの空Scene save／packageはPhase 2、Android／Apple packageはPhase 7のproduct target gateとする。C++ Modules Phase 0のMobile recipeはcompile／link fixtureであり、Store package合格を意味しない。
 
 ## 16. Runtime ECS Decisionとの関係

@@ -877,8 +877,8 @@ peak_simultaneous_presentation_cue
 
 | Profile | active combat actor | live projectile | projectile spawn／tick | hitscan query／tick | 目標 |
 |---|---:|---:|---:|---:|---|
-| `2d_top_down_c1` | 256 | 2,048 | 256 | 128 | 1080p60、authoritative drop 0 |
-| `tps_single_player_c1` | 50 | 256 | 64 | 128 | 1080p60、authoritative drop 0 |
+| `profile.shooter.top_down_2d` | 256 | 2,048 | 256 | 128 | 1080p60、authoritative drop 0 |
+| `profile.shooter.tps_single_player` | 50 | 256 | 64 | 128 | 1080p60、authoritative drop 0 |
 
 この個数はProduct上限ではない。Project intentが上回る場合は[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)をProject固有Envelopeから生成する。
 
@@ -1017,8 +1017,8 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 
 | Fixture | 必須composition |
 |---|---|
-| `2d_shooter_c1_v1` | 2D top-down Shooter、Tilemap／Loading、Flipbook、Perception／Interaction、Path Following、Pause／Timer、Settings／Accessibility |
-| `tps_shooter_c1_v1` | TPS Shooter、Blockout、Decal／Lighting、Perception／Interaction、Path Following、authoritative Animation、Pause／Timer、Settings／Accessibility |
+| `fixture.product.shooter-2d` | 2D top-down Shooter、Tilemap／Loading、Flipbook、Perception／Interaction、Path Following、Pause／Timer、Settings／Accessibility |
+| `fixture.product.shooter-arena-3d` | TPS Shooter、Blockout、Decal／Lighting、Perception／Interaction、Path Following、authoritative Animation、Pause／Timer、Settings／Accessibility |
 
 両fixtureはTitle→Settings→Title→Ready→Playing→Paused→Playing→Resultを6.16節の遷移表どおり完走し、設定のapply／revert／last-known-good、perception境界とtarget loss、Nav／observer／ownerのstale generation、同tick Timer／fireのcanonical order、Save／Load／Replay後の同一target・fire intent・state hashを検証する。共通OwnerとShooter Profileが宣言する各capacityのexactとexact +1、dependency failure、unsupported Target、partial applyを注入し、失敗時は各Ownerのtyped result、last-valid generation、authoritative state不変を照合する。共通failure IDや数値はリンク先Ownerから取得し、本書へ複写しない。
 
@@ -1026,8 +1026,8 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 
 ### 16.8 Performance／Soak
 
-- `2d_shooter_c1_v1`、`2d_crowded_battle_v1`、`tps_shooter_c1_v1`、`3d_crowded_battle_v1`をnamed reference scenarioとして固定する
-- `2d_crowded_battle_v1`／`3d_crowded_battle_v1`は独自compositionを定義せず、対応Profileが14.1節で宣言したpeak scaleのexact値を入力として[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)から生成する
+- `fixture.product.shooter-2d`、`fixture.shooter.crowded-battle-2d`、`fixture.product.shooter-arena-3d`、`fixture.shooter.crowded-battle-3d`をnamed reference scenarioとして固定する
+- `fixture.shooter.crowded-battle-2d`／`fixture.shooter.crowded-battle-3d`は独自compositionを定義せず、対応Profileが14.1節で宣言したpeak scaleのexact値を入力として[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)から生成する
 - 14.2節の2D／TPS Fixtureを各Targetで120秒×5 run
 - 10分soak、spawn／destroy churn、pause／restart、Save／Load
 - CPU／memory／queue／pool high-water、P95／P99／P99.9

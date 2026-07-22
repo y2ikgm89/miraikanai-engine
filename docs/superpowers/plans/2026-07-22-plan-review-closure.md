@@ -371,7 +371,7 @@ Expected: Phase 1/4が同じmanual_and_ai Requirementを共有し、Phase 6がC2
 
 ```markdown
 | 1 | `phase.headless-authoring` | `requirement.product.authoring-roundtrip-manual` | `wp.authoring.headless-core` | `fixture.product.authoring-transaction` |
-| 4 | `phase.ai-authoring-mvp-a` | `requirement.product.authoring-roundtrip; requirement.product.mvp-completion; requirement.product.project-source-activation` | `wp.product.ai-authoring-mvp-a` | `fixture.product.shooter-2d` |
+| 4 | `phase.ai-authoring-mvp-a` | `requirement.product.authoring-roundtrip; requirement.product.mvp-completion; requirement.product.project-source-activation` | `wp.authoring.project-native-module; wp.rendering.project-shader; wp.product.ai-authoring-mvp-a` | `fixture.product.shooter-2d` |
 | 6 | `phase.manual-3d-mvp-b` | `requirement.product.first-playable-3d` | `wp.domain.shooter-3d` | `fixture.product.shooter-arena-3d` |
 ```
 
@@ -388,7 +388,7 @@ capability.project.shader
 
 両CapabilityはPhase 4以前にOwner WP、Target、fallback、fixtureを持つ。既存`native-game-module.md`と`project-shader.md`をOwner文書として参照する。
 
-新規WPは`wp.authoring.project-native-module`と`wp.rendering.project-shader`とし、前者は`mirakan.arch.authoring-native-game-module`、後者は`mirakan.arch.rendering-project-shader`をOwnerにする。MVP-Aでは`target.windows.editor; target.windows.desktop`へ限定し、mobile Targetは別Qualificationまでactivationしない。
+新規WPは`wp.authoring.project-native-module`と`wp.rendering.project-shader`とし、前者は実在する正本ID `mirakan.arch.native-game-module`、後者は`mirakan.arch.rendering-project-shader`をOwnerにする。MVP-Aでは`target.windows.editor; target.windows.desktop`へ限定し、mobile Targetは別Qualificationまでactivationしない。
 
 - [ ] **Step 6: Registry coverageを検査する**
 
@@ -408,7 +408,7 @@ foreach ($id in @(
 }
 ```
 
-Expected: 各IDは定義行と少なくとも一つのconsumer行に現れる。
+Expected: 各IDは定義行と少なくとも一つのconsumer行に現れる。Registry全体はRequirement 16、Fixture 10、Phase 10、Work Package 25、Capability 36で、Phase↔Work Package、Capability→Owner WP、各Requirement／Fixture参照の未解決が0件になる。
 
 - [ ] **Step 7: Task 3コミット**
 

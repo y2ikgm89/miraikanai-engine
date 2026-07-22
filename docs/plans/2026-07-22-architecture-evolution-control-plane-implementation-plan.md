@@ -402,7 +402,7 @@ assert.equal(aggregate([{scope:"required",state:"production"}, null]), "not_acti
 
 - [ ] **Step 5: registry testを実行する**
 
-Expected: Capability／feature 34（既存33 IDの移行＋新規3D Product Capability 1）、Phase 10、Target 5、orphan 0、maturity-bearing current ID 0、initial aggregateはすべて`not_activated`。
+Expected: Capability／feature 36（既存33 IDの移行＋新規3D Product Capability 1＋Project Source Capability 2）、Requirement 16、Work Package 25、Phase 10、Target 5、orphan 0、maturity-bearing current ID 0、initial aggregateはすべて`not_activated`。
 
 ### Task 8: deterministic Index generatorとCLIを実装する
 
@@ -787,6 +787,7 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 | Domain | `mirakan.domain.2d_action.c1` | `domain.action_2d` | `target_product_tier=C1` |
 | Domain | `mirakan.domain.tps_single_player.c1` | `domain.tps_single_player` | `target_product_tier=C1` |
 | Profile | `shooter.profile.2d_top_down.c1` | `profile.shooter.top_down_2d` | `target_product_tier=C1` |
+| Profile | `2d_top_down_c1` | `profile.shooter.top_down_2d` | same rowへmerge、duplicate sourceを拒否 |
 | Profile | `shooter.profile.tps_single_player.c1` | `profile.shooter.tps_single_player` | `target_product_tier=C1` |
 | Profile | `tps_single_player_c1` | `profile.shooter.tps_single_player` | same rowへmerge、duplicate sourceを拒否 |
 
@@ -827,6 +828,8 @@ Appendix Cにない本文Linkはmetadata relationではない。新しいtyped b
 | `2d_platformer_c2_v1` | `fixture.product.platformer-2d` |
 | `2d_puzzle_dialogue_c2_v1` | `fixture.product.puzzle-dialogue-2d` |
 | `tps_shooter_c1_v1` | `fixture.product.shooter-arena-3d` |
+| `2d_crowded_battle_v1` | `fixture.shooter.crowded-battle-2d` |
+| `3d_crowded_battle_v1` | `fixture.shooter.crowded-battle-3d` |
 | `d3d12_warp_conformance_v1` | `fixture.rendering.d3d12-warp-conformance` |
 | `debug_known_faults_v1` | `fixture.debug.known-faults` |
 | `clear_day_v1` | `fixture.environment.clear-day` |
@@ -871,7 +874,7 @@ Appendix Dにないmaturity／version-bearing lowercase IDをlintが発見した
 - Appendix Cの29 edgeが完全にreciprocalで、Contract ID集合が一致する。
 - `architecture/registry/document-relations.v1.json`が48文書metadataの`requires`／`integrates_with`およびAppendix Bのcanonical orderと完全一致する。
 - Appendix Dの全old ID出現数が0、new IDのorphanが0、runtime aliasが0である。
-- Product RegistryはTarget 5、Phase 10、Capability 34、Work Package 23を参照解決し、missing Target activationをfail closedにする。
+- Product RegistryはTarget 5、Requirement 16、Fixture 10、Phase 10、Capability 36、Work Package 25を参照解決し、missing Target activationをfail closedにする。
 - TypeScript 7.0.2 compileは`--singleThreaded`を使用し、compiler API importが0件である。
 - Index二回生成のSHA-256が一致し、Git diffが空である。
 - baseline handoffの全hashをECS／D3D12計画がread-backできる。
