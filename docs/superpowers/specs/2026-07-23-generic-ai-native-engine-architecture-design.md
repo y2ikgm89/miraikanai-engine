@@ -500,6 +500,8 @@ AiCatalogEntryV1
 
 Pack Discoveryの旧八actionは完全なMCD登録を持たないため、current Operation set、Manifest、Service allowlist、Provider／MCP Catalogを空にし、Capabilityを`not_activated`とする。旧`operation.packs.*`名をcurrent identityまたはlegacy aliasとして読まない。future vocabularyは`future.packs.action.*`だけに置き、future work item `activation.pack.ai_operations.v1`が採用するexact set、named input／Result／Receipt、Service／Policy／Validator／Diagnostic、Risk、intent DAG、private-to-public publication、Qualificationを同じContract set transactionで閉じるまで要求をfail closedに拒否する。
 
+[Executable Contracts](../../architecture/02-foundation/executable-contracts.md) §§20～21.1の159候補（当初Discovery／Execution 67件＋回収済みDomain authoring／selection 92件）は18の`PlannedOperationFamilyV1`に属し、各familyのcurrent MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Provider／MCP Tool／alias集合はすべて明示的な空配列、stateは`not_activated`である。current active 14（bootstrap八＋Domain六）とはdisjointで、family固有work itemによるatomic Activation以外の部分登録を許可しない。
+
 `AiTaskContextCapsuleV1`はGame Brief／Spec、選択Catalog entry、Project Slice、依存、制約、Target、Budget、Diagnostic、許可Operation、選択理由、source hash、token estimate、omitted range、continuationを持つread-only／Disposable projectionとする。AIへ全Schema、全Project、全設計書、Security署名内部を一括送信しない。Gatewayがsemantic projectionを返し、Authorization、Provenance、Receipt検証はGateway内で強制する。
 
 Model familyまたはHost brandをEngine機能分岐にしない。同じMCD／Operationへ適合するProvider／ModelをProfileとConformance Receiptで有効化する。Strict Tool Callingへ適合しないModelはread-onlyまたはproposal-onlyに制限し、自然言語をCommit Operationへ推測変換しない。

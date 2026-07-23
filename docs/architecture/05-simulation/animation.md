@@ -157,11 +157,11 @@ Memory contractはAsset payloadのimmutable lease、instance-local state、frame
 
 Failure classはmissing／incompatible Asset、Graph validation failure、stale lease、parameter type mismatch、invalid sample interval、event cursor regression、IK／retarget failure、pose non-finite、job cancellation、snapshot publish failureである。Asset failureはlast valid generation、instance-local recoverable failureはdeclared fallback pose、invariant violationはRuntime fault policyを使う。silent bind pose fallbackでGameplay eventやroot motionを継続しない。
 
-## 5. EditorとAI operations
+## 5. EditorとAI planned actions
 
 Animation EditorはAsset／Graph browser、state／transition graph、timeline、skeleton tree、skin influence view、blend／IK／retarget preview、event／root-motion trace、diagnostic projectionを提供する。表示はSource Documentまたはimmutable Runtime snapshotのProjectionであり、live instanceを独自にmutateしない。手動編集とAIは同じChangeSet、validator、preview、cook、undo／redoを使う。
 
-Operation familyは次を持つ。
+次はStable IDでないplanned semantic action vocabularyであり、current MCD Operation familyではない。
 
 - Asset／Graph／instance／pose／event traceのinspect
 - 2D clip、Skeleton、Skin、3D Clip、Graph、Retarget Profileのcreate／update
@@ -170,7 +170,7 @@ Operation familyは次を持つ。
 - import／reimport mapping、preview、cook
 - fixture生成とqualification report
 
-AIは「idleからrunへ滑らかに」「足を地面へ合わせる」「別Skeletonへclipを移す」等のintentをtyped operationへ解決し、対象Skeleton／Clip、Gameplay event、root-motion authority、Target、品質差が挙動を変える時だけ質問する。Backend job名、compression library、native archiveを選択肢にしない。assumption、affected Asset／Entity、before／after graph、event／root-motion差、failure fallbackをpreviewする。
+Animation ownerのcurrent MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／alias Operation集合はすべて`[]`、Capability stateは`not_activated`である。future work item `activation.animation.authoring_operations.v1`が採用するexact ID集合と完全closureを一transactionで登録するまでdispatchせず、action名からIDを生成しない。Activation後、AIは「idleからrunへ滑らかに」「足を地面へ合わせる」「別Skeletonへclipを移す」等のintentをtyped actionへ解決し、対象Skeleton／Clip、Gameplay event、root-motion authority、Target、品質差が挙動を変える時だけ質問する。Backend job名、compression library、native archiveを選択肢にしない。assumption、affected Asset／Entity、before／after graph、event／root-motion差、failure fallbackをpreviewする。
 
 Risk分類、authorization、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書でApproval表を複写しない。AI eval evidenceとprovenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を消費する。
 

@@ -160,8 +160,6 @@ SemanticActionCommandBindingRecordV1
   evaluator_policy_ref: McdContractRefV1(kind=policy)
   target_system_ref: GameSystemContractRefV1
   context_constraint_refs[1..32]: ContextConstraintRefV1
-  qualification_receipt_refs[1..64]:
-    exact {receipt_id, receipt_version, receipt_content_hash}
   binding_content_hash: SHA-256
 
 SemanticActionCommandBindingRecordRefV1
@@ -182,8 +180,6 @@ SemanticActionCommandBindingContributionV1
   owner_layer: core | feature_pack | genre_pack | project
   owner_ref: exact GameSystemOwnerRefV1 with matching owner_layer
   binding_records[1..1024]: SemanticActionCommandBindingRecordV1
-  qualification_receipt_refs[1..64]:
-    exact {receipt_id, receipt_version, receipt_content_hash}
 
 SemanticActionCommandBindingContributionRefV1
   contribution_id
@@ -200,21 +196,59 @@ SemanticActionCommandBindingRegistryV1
     SemanticActionCommandBindingContributionRefV1
   records[0..4096]: SemanticActionCommandBindingRecordV1
 
-SemanticActionBindingQualificationRecordV1
+SemanticActionBindingQualificationSubjectRefV1
+  subject_kind: record | contribution
+  subject_ref:
+    record: SemanticActionCommandBindingRecordRefV1
+    | contribution: SemanticActionCommandBindingContributionRefV1
+
+SemanticActionBindingQualificationSubjectV1
   qualification_id
   qualification_version: positive uint32
-  qualification_content_hash: SHA-256
   owner_layer: core | feature_pack | genre_pack | project
   owner_ref: exact GameSystemOwnerRefV1 with matching owner_layer
-  subject_ref:
-    SemanticActionCommandBindingRecordRefV1
-    | SemanticActionCommandBindingContributionRefV1
+  qualified_subject_ref:
+    SemanticActionBindingQualificationSubjectRefV1
   target_profile_refs[1..64]
   fixture_refs[1..64]: exact {fixture_id, fixture_version, fixture_content_hash}
   input_closure_hash: SHA-256
   result: pass | fail
-  signed_receipt:
+  qualification_subject_hash: SHA-256
+
+SemanticActionBindingQualificationReceiptV1
+  subject: SemanticActionBindingQualificationSubjectV1
+  signed_record:
     exact MirakanSignedRecordV1(purpose=semantic_action_binding_qualification)
+
+SemanticActionBindingQualificationReceiptRefV1
+  qualification_id
+  qualification_version: positive uint32
+  qualification_subject_hash: SHA-256
+  signed_record_hash: SHA-256
+
+SemanticActionBindingQualificationBindingRefV1
+  qualification_binding_id
+  qualification_binding_version: positive uint32
+  qualification_binding_hash: SHA-256
+
+SemanticActionBindingQualificationBindingV1
+  qualification_binding_id
+  qualification_binding_version: positive uint32
+  qualified_subject_ref:
+    SemanticActionBindingQualificationSubjectRefV1
+  qualification_receipt_ref:
+    SemanticActionBindingQualificationReceiptRefV1
+  qualification_binding_hash: SHA-256
+
+SemanticActionBindingActivationCatalogV1
+  catalog_id: input.semantic_action_binding.activation_catalog.active
+  catalog_version: positive uint32
+  entries[0..8192]:
+    exact {
+      qualified_subject_ref: SemanticActionBindingQualificationSubjectRefV1,
+      qualification_binding_ref:
+        SemanticActionBindingQualificationBindingRefV1}
+  catalog_hash: SHA-256
 
 SemanticActionBindingSelectionDocumentV1
   common Project Document header
@@ -222,20 +256,24 @@ SemanticActionBindingSelectionDocumentV1
   action_map_ref: ArtifactRefV1
   selected_bindings[0..4096]:
     exact {action_stable_id, SemanticActionCommandBindingRecordRefV1}
+  selected_qualification_binding_refs[0..4096]:
+    SemanticActionBindingQualificationBindingRefV1
   selection_content_hash: SHA-256
 ```
 
 Action roleのMCD kindは既存closed kindの`type`である。各role recordは`type.input.semantic_action_role.<owner_namespace>.<role>`のactive MCD type、version、Contract set rootを持ち、そのpayloadがowner、accepted Action value type、Command type、exact `ContextConstraintRefV1`を宣言する。Refの五Fieldは一つのactive `ContextConstraintRecordV1`へexact解決し、latest fallbackを許可しない。Context constraintの三つのContext ID配列はNFC UTF-8 byte順でstrict sortし、duplicate、allowed外required、requiredとexcludedの交差、unknown Context IDを拒否する。未定義`kind=semantic_role`、bare role／Context文字列、Action表示名をcurrent Source／Save／Replayへ受理しない。
 
-record hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_RECORD_V1`、contribution hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_CONTRIBUTION_V1`、それぞれself-excluding canonical bytesを`uint32_be` length framingして計算する。Contributionはownerの完全snapshotであり、全recordの`owner_layer／owner_ref`がContributionとexact equalityでなければならない。Pack ownerはexact `PackContractRefV1`から写像したowner refとnamespace、Project ownerはcompile対象のexact Project tripleから写像したowner refを要求し、Core namespaceまたはowner文字列の自己申告、Feature／Genre layer spoof、cross-owner recordを拒否する。Production Contribution／RecordはQualification Receiptだけを解決し、Fixture bodyは別Qualification recordだけが解決する。
+record hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_RECORD_V1`、contribution hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_CONTRIBUTION_V1`、それぞれself-excluding Receipt-free canonical bytesを`uint32_be` length framingして計算する。Record／ContributionへQualification Receipt／Bindingを埋め込まない。Contributionはownerの完全snapshotであり、全recordの`owner_layer／owner_ref`がContributionとexact equalityでなければならない。Pack ownerはexact `PackContractRefV1`から写像したowner refとnamespace、Project ownerはcompile対象のexact Project tripleから写像したowner refを要求し、Core namespaceまたはowner文字列の自己申告、Feature／Genre layer spoof、cross-owner recordを拒否する。Production Contribution／RecordはFixture bodyもQualification Receiptも解決しない。
 
-materializerはactive owner inventoryからownerごとにexact一件のContributionRefを選び、`owner_layer`のclosed ordinal、owner ID／revision／hash、contribution ID／version／hashの順でstrict sortする。各Contribution内のrecordはrole type ID／version／Contract set hash、context constraint set hash、target System ref、binding ID／versionの順でstrict sortし、flatten後も同じ順へ再sortする。collision keyは`{semantic_action_role_ref, canonical context_constraint_ref set}`であり、異なるownerを含む二件以上、同一binding IDの別hash、同じownerの複数active contributionを優先順位で解決せずRegistry全体を拒否する。Registry hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_REGISTRY_V1`、Registry ID／version、ContributionRef count／全Ref、record count／全record canonical bytesを各`uint32_be` length framingしてSHA-256し、自身だけを除外する。RecordRefはRegistryRef三Fieldとrecord identity／version／hashを一つにbindし、latest recordへfallbackしない。
+materializerはowner inventoryからownerごとにexact一件のReceipt-free ContributionRefを選び、`owner_layer`のclosed ordinal、owner ID／revision／hash、contribution ID／version／hashの順でstrict sortする。各Contribution内のrecordはrole type ID／version／Contract set hash、context constraint set hash、target System ref、binding ID／versionの順でstrict sortし、flatten後も同じ順へ再sortする。collision keyは`{semantic_action_role_ref, canonical context_constraint_ref set}`であり、異なるownerを含む二件以上、同一binding IDの別hash、同じownerの複数active contributionを優先順位で解決せずRegistry全体を拒否する。Registry hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_REGISTRY_V1`、Registry ID／version、ContributionRef count／全Ref、record count／全Receipt-free record canonical bytesを各`uint32_be` length framingしてSHA-256し、自身だけを除外する。RecordRefはRegistryRef三Fieldとrecord identity／version／hashを一つにbindし、latest recordへfallbackしない。
+
+Registry／RecordRef確定後の唯一の生成順は`receipt-free Record／Contribution → Registry／base refs → Qualification subject → signed Receipt → Qualification binding → Activation Catalog／Selection`である。subject hashはASCII `MIRAKAN_SEMANTIC_ACTION_BINDING_QUALIFICATION_SUBJECT_V1`、binding hashはASCII `MIRAKAN_SEMANTIC_ACTION_BINDING_QUALIFICATION_BINDING_V1`、Activation Catalog hashはASCII `MIRAKAN_SEMANTIC_ACTION_BINDING_ACTIVATION_CATALOG_V1`と各自己Fieldを除くcount／length-framed canonical bytesから計算する。Subject／Bindingの`qualified_subject_ref.subject_kind`と対応`subject_ref` branchは同じtagged valueとしてbyte equality、branch外Refはcanonical omissionにする。subjectのowner layer/refは`record` branchでは参照先Record、`contribution` branchでは参照先Contributionの同Fieldとbyte equalityでなければならない。Bindingの`qualified_subject_ref`はReceipt subjectの同Fieldとbyte equalityにする。Activation Catalog entryの`qualified_subject_ref`はBindingの同Fieldとbyte equalityで、各base tagged subjectへexact一Bindingを対応させる。SelectionのRecordRef集合と`qualified_subject_ref.subject_kind=record`のqualification bindingが解決するRecordRef集合をexact set equalityにする。discriminator外branch、両branch混在、branch外Field残存、Record refをContributionとして解釈するcase、Catalog entryのtagまたはRefだけをBindingから置換するcaseを各一原因fixtureで拒否する。Receipt／Binding／CatalogをRecord、Contribution、Registry hashへ戻さない。Productionはsigned Receiptのsubject／result=`pass`／freshness／revocationだけを検証し、Fixture bodyを解決しない。
 
 owner removalは署名済みPack deactivationまたは同じProject commitに含まれるowner-removal recordだけを根拠に、次Registry versionから当該owner Contribution全体を除く。単にContributionが欠落、timeout、invalid、Qualification失敗になっただけでは削除と解釈しない。merge、sort、collision、owner spoof、removal検証のいずれかに失敗した場合はactive Registry、Runtime lookup、Compile Manifestを部分更新せず、last-valid三点を維持する。
 
-Project Sourceの正本は`SemanticActionBindingSelectionDocumentV1`である。ただし選択write surfaceは本Taskで完全登録されていないため、`operation.input.semantic_action_binding.select`をcurrent MCD、Manifest、Service allowlist、Provider／MCP Catalogから除外し、Capability stateを`not_activated`とする。選択要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変にする。future work item `activation.input.semantic_action_binding_selection.v1`はinitial create/upsertとupdate、selection semantic hash、Action StableId／RecordRef canonical sortとduplicate rule、MCD全Field、Policy／Validator／Diagnostic／canonical signed Receipt、private-to-public recoveryを同じContract set transactionで完全登録するまでactivateしない。Binding Registry、Runtime lookup table、Compile Manifestは既存Source＋active owner Contributionからのみ決定的に再materializeし、Registry直接writeを公開しない。
+Project Sourceの正本は`SemanticActionBindingSelectionDocumentV1`である。ただし選択write surfaceは本Taskで完全登録されていないため、`operation.input.semantic_action_binding.select`は[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.input_binding_selection@1`に属するexact一候補であり、current MCD、Owner Manifest、Service allowlist、Policy、Validator、Diagnostic、Receipt、Provider／MCP Catalog、generated alias、legacy aliasの各集合をすべて`[]`、Capability stateを`not_activated`とする。選択要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変にする。future work item `activation.input.semantic_action_binding_selection.v1`はinitial create/upsertとupdate、selection semantic hash、Action StableId／RecordRef canonical sortとduplicate rule、MCD全Field、Policy／Validator／Diagnostic／canonical signed Receipt、private-to-public recoveryを同じContract set transactionで完全登録するまでactivateしない。Binding Registry、Runtime lookup table、Compile Manifestは既存Source＋active owner Contributionからのみ決定的に再materializeし、Registry直接writeを公開しない。
 
-Compile closureはSelection Document ref／hash、Action Map ArtifactRef、RegistryRef、全ContributionRef、全RecordRef、selection set hashを持つ。SaveはAction StableId、Action Map ArtifactRef、Selection Document ref／hash、RecordRefを保存し、Replay headerはそれらとInput Profile hash、各tickのnormalized Action transition／生成Command hashを記録する。Load／Replay／CompileはSource→Registry→Contribution→Record→role type→Context constraint→Command Systemの全ref equalityを再検査する。`fixture.input.semantic-action-binding-roundtrip`は既存Selection reload→Compile→Save／Load→Replayを通し、wrong MCD kind、stale Registry／contribution／record／selection、同role＋Context collision、noncanonical merge、owner removal spoof、cross-owner／layer spoof、ProductionからFixture body参照、SourceとDerived差を各単独原因でrejectする。
+Compile closureはSelection Document ref／hash、Action Map ArtifactRef、RegistryRef、Activation Catalog ref／hash、全ContributionRef、全RecordRef、全Qualification Binding ref、selection set hashを持つ。SaveはAction StableId、Action Map ArtifactRef、Selection Document ref／hash、RecordRef、Qualification Binding refを保存し、Replay headerはそれらとInput Profile hash、各tickのnormalized Action transition／生成Command hashを記録する。Load／Replay／CompileはSource→Registry→Contribution→Record→Qualification subject→signed Receipt→Binding→role type→Context constraint→Command Systemの全ref equalityを再検査する。`fixture.input.semantic-action-binding-roundtrip`は既存Selection reload→Compile→Save／Load→Replayを通し、wrong MCD kind、stale Registry／contribution／record／subject／Receipt／binding／selection、subject owner mismatch、Receipt substitution、同role＋Context collision、noncanonical merge、owner removal spoof、cross-owner／layer spoof、ProductionからFixture body参照、SourceとDerived差を各単独原因でrejectする。
 
 BindingはT10 `InputSnapshot`をT30でregistered typed Commandへ変換するだけで、Domain stateを直接変更しない。Replay、AI、Keyboard／Mouse、Controller、Touchは同じAction／Command経路を使う。個別Genre／Featureのrole、required／optional Action Profile、Command schema、evaluator、Contribution、Qualification record／Fixtureは当該Pack ownerが登録し、Input Coreのschema、binary、fixture inventoryへコピーしない。
 

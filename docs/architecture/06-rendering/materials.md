@@ -125,7 +125,23 @@ MaterialSemanticCatalogV1
 
 ### 3.3 `MaterialNodeCatalogV1`
 
-各Engine Node entryは`node_type_id`、`schema_version`、`display_name`、`semantic_description`、`input_ports[]`、`output_ports[]`、`allowed_domains[]`、`allowed_stages[]`、`required_capabilities[]`、`target_support[]`、`static_cost_estimate`、`resource_cost`、`determinism_class`、`failure_codes[]`、`examples[]`、`counter_examples[]`を持つ。Project entryは同じprojectionに加えて`project_shader_module_ref`、`export_id`、`qualification_receipt_hash`を必須とし、意味とSource境界は[Project Shader](project-shader.md)が所有する。Portはtypedで、implicit scalar／vector expansion、linear／sRGB混在、normal／color混在を許可しない。Graph layoutはsemantic hashに含めない。
+各Engine Node entryは`node_type_id`、`schema_version`、exact `owner_ref`、`display_name`、`semantic_description`、`input_ports[]`、`output_ports[]`、`allowed_domains[]`、`allowed_stages[]`、`required_capabilities[]`、`target_support[]`、`static_cost_estimate`、`resource_cost`、`determinism_class`、`failure_codes[]`、`examples[]`、`counter_examples[]`、self-excluding `node_content_hash`を持つReceipt-free base recordである。Project entryは同じbase projectionに`project_shader_module_ref`と`export_id`だけを追加する。Project Nodeの利用可否は次のroot外projectionが所有する。
+
+```text
+MaterialProjectNodeActivationEntryV1
+  target_support_ref: exact ShaderTargetSupportRefV1
+  project_shader_activation_binding_ref:
+    ProjectShaderActivationBindingRefV1
+
+MaterialProjectNodeActivationProjectionV1
+  projection_id/version
+  node_ref: exact {node_type_id, schema_version, node_content_hash}
+  project_shader_module_ref: ProjectShaderModuleRefV1
+  entries[1..128]: MaterialProjectNodeActivationEntryV1
+  projection_hash: SHA-256
+```
+
+Project Node `owner_ref`と`project_shader_module_ref`が解決するModule ownerはbyte equalityで、NodeのModule ref／export IDは同じModule／public exportへexact解決する。各entryのProject Shader BindingはProjectionと同じModule、entryと同じTarget Support、同じownerを解決し、そのsigned Receipt subjectも同じowner／Module／Target tupleを持たなければならない。entry集合はProject Node `target_support[]`の`required`集合とexact set equality、explicitにactivateする`optional`は0または1 entry、`unsupported`は0 entryとする。entriesはTarget Profile ID／support hash／Binding ID／version／hash順へstrict sortし、duplicate Target／Bindingとsame Targetへの複数Bindingを拒否する。`projection_hash`はASCII `MIRAKAN_MATERIAL_PROJECT_NODE_ACTIVATION_PROJECTION_V1`と自己Fieldだけを除くcount／length-framed canonical bytesから計算する。Node／Module／owner／Target／Bindingのstaleまたはsubstitution、required entry missing／extra、duplicate／順序違反を各一原因fixtureで拒否する。Qualification Receipt／Binding／ProjectionをNode／Catalog／Module hashへ戻さない。意味とSource境界、Module Qualification DAGは[Project Shader](project-shader.md)が所有する。Portはtypedで、implicit scalar／vector expansion、linear／sRGB混在、normal／color混在を許可しない。Graph layoutはsemantic hashに含めない。
 
 ## 4. Material DomainとShading Model
 
@@ -244,7 +260,7 @@ RendererへのMaterial frame入力の正式名は`ResolvedMaterialBindingV1`で�
 
 ## 6. Material IR、Shader compile、package
 
-CookerはSource GraphをBackend-neutral `MaterialIR`へlowerし、constant folding、dead-node removal、interface validation、variant canonicalizationを行う。Qualification済み`ProjectShaderModuleV1`はSourceを高水準IRへ逆変換せず、Module／Export Stable ID、semantic interface hash、`ShaderFactGraphV1` hashを持つtyped opaque operationとしてIRから参照する。IRはDomain output、typed operation、resource role、uniform layout、feature requirementを持ち、native bytecodeやcompiler-specific metadataをpublic contractにしない。
+CookerはSource GraphをBackend-neutral `MaterialIR`へlowerし、constant folding、dead-node removal、interface validation、variant canonicalizationを行う。Qualification済み`ProjectShaderModuleV1`はSourceを高水準IRへ逆変換せず、Module／Export Stable ID、semantic interface hash、`ShaderFactGraphV1` hashを持つtyped opaque IR nodeとしてIRから参照する。IRはDomain output、typed IR node、resource role、uniform layout、feature requirementを持ち、native bytecodeやcompiler-specific metadataをpublic contractにしない。
 
 Shader compileはoffline build／cookだけで実行し、Shipping Runtimeにsource compiler、unapproved source、debug fallback shaderを含めない。compile結果はTarget Profile、Material IR hash、Project Shader Module／Understanding Closure hash、interface generation、toolchain lock ref、binary artifact、reflection summary、diagnosticを束ねる。Project ShaderのSource／Fact／Target conformanceは[Project Shader](project-shader.md)、compiler／translatorのexact version、commit、license、build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
 
@@ -260,9 +276,9 @@ Materialは各representationで利用可能なMaterial artifact、feature reduct
 
 ## 8. AI／Editor operationとPreview
 
-Material operationはcreate／update material、create instance、bind texture role、apply style、set semantic parameter、compile preview、explain resolution、validate packageをDomain actionとして登録する。操作は[Executable contracts](../02-foundation/executable-contracts.md)の共通Discovery／Preview／Apply境界と[AI Security／Approval](../01-governance/ai-security-approval.md)のauthorityを使う。
+Materialのcreate／update、instance、texture role、style、semantic parameter、compile preview、explain、validateは将来のDomain action vocabularyであり、現在のOperation登録ではない。
 
-canonical Operation IDは`operation.material.search`、`operation.material.read`、`operation.material.inspect`、`operation.material.preview`、`operation.material.explain`、`operation.material.estimate`、`operation.material.validate`、`operation.material.plan`、`operation.material.create_instance`、`operation.material.assign_template`、`operation.material.set_parameters`、`operation.material.create_definition`、`operation.material.edit_graph`、`operation.material.create_derived_style`、`operation.material.bind_surface_semantics`である。上位operationが下位権限を暗黙取得せず、変更operationはSourceを直接writeしない。新しいHLSL Module／Techniqueが必要な場合は`MaterialAuthoringPlanV1`がRequirementと推奨Shader Levelを返し、[Project Shader](project-shader.md)のPlan／Propose Operationへ明示handoffする。Material Operation名でProject ShaderまたはEngine Extensionを変更しない。
+予約候補IDは`operation.material.search`、`operation.material.read`、`operation.material.inspect`、`operation.material.preview`、`operation.material.explain`、`operation.material.estimate`、`operation.material.validate`、`operation.material.plan`、`operation.material.create_instance`、`operation.material.assign_template`、`operation.material.set_parameters`、`operation.material.create_definition`、`operation.material.edit_graph`、`operation.material.create_derived_style`、`operation.material.bind_surface_semantics`のexact 15件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.material_authoring@1`だけに属する。Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。`activation.material.authoring_operations.v1`が15件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。上位候補が下位権限を暗黙取得せず、予定変更候補はSourceを直接writeしない。新しいHLSL Module／Techniqueが必要な場合の`MaterialAuthoringPlanV1`とProject Shader handoffも各familyのActivation後にだけ有効であり、Material候補名からProject ShaderまたはEngine Extension権限を生成しない。
 
 Previewは対象revision、Target Profile、View／Lighting fixture ref、resolved Material／Style、compiled artifact generation、difference summary、diagnosticを返す。Preview結果をApply済みProject stateやProduction qualificationと表示しない。Explainは採用値、継承元、override、fallback、未解決questionをMaterial語彙で示す。
 
@@ -306,7 +322,7 @@ Qualificationは次のDomain fixtureを持つ。
 
 同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2／255超のpixelが0.1%未満を既定Gateとする。Cross-vendorはparameter ordering、luminance、finite、outline width、pixel grid等のanalytic invariantを検証する。
 
-Material AI Evalは10 suite（明示Intentのrole／Template、既存Instance最小変更、Template再利用判断、Graph型／単位／色空間、曖昧／矛盾質問、Target／fallback、Variant／resource、Project Node選択と未宣言Shader効果拒否、Visual／Collision Material分離、Preview／ChangeSet／undo／redo／recook）、各12 fixture、合計120 fixtureを各3回実行する。hard gate違反、無権限Commit、unsupported成功表示は0件、exact Operation／Type／unit／range、Blocking確認、禁止操作拒否は360／360、role／Template選択100%、Preview hash／undo／redo／recook一致100%を要求する。Project Shader内部のU0～U4理解は[Project Shader](project-shader.md)のEvalで別に100%閉じ、Material scoreで代替しない。意味、Schema、画像、GPU性能を別scoreとしhard failureを平均で相殺しない。
+Material AI Evalは10 suite（明示Intentのrole／Template、既存Instance最小変更、Template再利用判断、Graph型／単位／色空間、曖昧／矛盾質問、Target／fallback、Variant／resource、Project Node選択と未宣言Shader効果拒否、Visual／Collision Material分離、Preview／ChangeSet／undo／redo／recook）、各12 fixture、合計120 fixtureを各3回実行する。hard gate違反、無権限Commit、unsupported成功表示は0件、exact planned semantic action token／Type／unit／range、Blocking確認、禁止操作拒否は360／360、role／Template選択100%、Preview hash／undo／redo／recook一致100%を要求する。Project Shader内部のU0～U4理解は[Project Shader](project-shader.md)のEvalで別に100%閉じ、Material scoreで代替しない。意味、Schema、画像、GPU性能を別scoreとしhard failureを平均で相殺しない。
 
 Visual Style Resolver Evalは明示、未指定、委任、矛盾、未対応を各12件、合計60 prompt、各3回実行し、hard gate違反と無権限Commit 0件、Blocking質問／明示Style保持／委任scope／unsupported拒否180／180を要求する。
 

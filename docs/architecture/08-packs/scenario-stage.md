@@ -69,7 +69,7 @@ Scope entryは`RuntimeScopeTypeCatalogV1`へ次のexact 7-Field rowで登録す�
 
 保存値は`RuntimeScopeTypeRefV1`、`McdContractRefV1`、`RuntimeScopeOwnerRefV1`のversion／hash付きtyped refであり、表のIDだけを永続化しない。全dependencyをactive Runtime Scope Registryへ実体recordとして登録する。Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
 
-旧Level Systemのscope migrationは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ`runtime_scope.migration_contribution.feature.scenario_stage`として登録する。Production recordは`owner.feature.scenario_stage`、exact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policy、exact signed `{receipt_id=qualification.runtime_scope_migration.feature.scenario_stage, receipt_version=1, receipt_content_hash}`を持つ。Fixture bodyは別owner-typed Qualification recordだけが`fixture.feature.scenario_stage.runtime_scope_migration`を解決する。Core migratorはgeneric record解決だけを行い、Level／Stage ID、Qualification record／Fixture、adapterをCoreへhard-codeしない。
+旧Level Systemのscope migrationは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ`runtime_scope.migration_contribution.feature.scenario_stage`として登録する。Production contributionは`owner.feature.scenario_stage`、exact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policyを持つReceipt-free recordである。Registry／ContributionRef固定後に`qualification.runtime_scope_migration.feature.scenario_stage@1` subject／signed Receiptと`qualification_binding.runtime_scope_migration.feature.scenario_stage@1`をroot外で作る。Fixture bodyはsubjectだけが`fixture.feature.scenario_stage.runtime_scope_migration`を解決する。Core migratorはgeneric record／Binding解決だけを行い、Level／Stage ID、Qualification subject／Fixture、adapterをCoreへhard-codeしない。
 
 ## 5. Transition
 
@@ -181,26 +181,93 @@ StageTransitionCrossOwnerCandidateV1
   exact_transition_ref_set: StageTransitionContractRefSetV1
   candidate_hash: SHA-256
 
+StageTransitionOwnerValidationReceiptPayloadV1
+  owner_kind: stage | world | runtime
+  candidate_hash: SHA-256
+  contract_set_hash: exact candidate.contract_set_hash
+  validated_subset_hash: SHA-256
+  result: pass
+
+StageTransitionOwnerValidationReceiptV1
+  payload: StageTransitionOwnerValidationReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(
+      purpose=scenario_stage_owner_validation,
+      subject_sha256=SHA-256(JCS(payload)))
+
 StageTransitionOwnerValidationReceiptRefV1
   owner_kind: stage | world | runtime
   candidate_hash: SHA-256
-  validated_subset_hash: SHA-256
-  signed_record_ref: exact MirakanSignedRecordRefV1
-  signed_record_hash: SHA-256
+  result: pass
+  payload_subject_sha256: exact SHA-256(JCS(resolved payload))
+  signed_record_ref:
+    exact MirakanSignedRecordRefV1(
+      purpose=scenario_stage_owner_validation,
+      subject_sha256=payload_subject_sha256)
+
+StageTransitionPublicContractInventoryGatePayloadV1
+  gate_id: gate.scenario_stage.public_contract_inventory
+  candidate_hash: SHA-256
+  manifest_public_contract_set_hash: SHA-256
+  stage_owner_public_contract_set_hash: SHA-256
+  result: pass
+
+StageTransitionRuntimePortInventoryGatePayloadV1
+  gate_id: gate.scenario_stage.runtime_port_inventory
+  candidate_hash: SHA-256
+  manifest_runtime_port_set_hash: SHA-256
+  stage_owner_runtime_port_set_hash: SHA-256
+  result: pass
+
+StageTransitionMcdRefSetGatePayloadV1
+  gate_id: gate.scenario_stage.transition_mcd_ref_set
+  candidate_hash: SHA-256
+  candidate_transition_ref_set_hash: SHA-256
+  canonical_transition_ref_set_hash: SHA-256
+  result: pass
+
+StageTransitionPortClosureGatePayloadV1
+  gate_id: gate.scenario_stage.transition_port_closure
+  candidate_hash: SHA-256
+  reachable_cross_owner_ref_set_hash: SHA-256
+  canonical_transition_ref_set_hash: SHA-256
+  result: pass
+
+StageTransitionAggregateProjectionGatePayloadV1
+  gate_id: gate.scenario_stage.aggregate_projection
+  candidate_hash: SHA-256
+  aggregate_public_and_runtime_inventory_hash: SHA-256
+  manifest_public_and_runtime_inventory_hash: SHA-256
+  result: pass
+
+StageTransitionGateReceiptPayloadV1 =
+  public_contract_inventory:
+    StageTransitionPublicContractInventoryGatePayloadV1
+  | runtime_port_inventory:
+    StageTransitionRuntimePortInventoryGatePayloadV1
+  | transition_mcd_ref_set:
+    StageTransitionMcdRefSetGatePayloadV1
+  | transition_port_closure:
+    StageTransitionPortClosureGatePayloadV1
+  | aggregate_projection:
+    StageTransitionAggregateProjectionGatePayloadV1
+
+StageTransitionGateReceiptV1
+  payload: StageTransitionGateReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(
+      purpose=scenario_stage_gate_validation,
+      subject_sha256=SHA-256(JCS(payload)))
 
 StageTransitionGateReceiptRefV1
-  gate_id:
-    gate.scenario_stage.public_contract_inventory
-    | gate.scenario_stage.runtime_port_inventory
-    | gate.scenario_stage.transition_mcd_ref_set
-    | gate.scenario_stage.transition_port_closure
-    | gate.scenario_stage.aggregate_projection
+  gate_id: exact discriminator-selected closed gate ID
   candidate_hash: SHA-256
-  left_set_hash: SHA-256
-  right_set_hash: SHA-256
   result: pass
-  signed_record_ref: exact MirakanSignedRecordRefV1
-  signed_record_hash: SHA-256
+  payload_subject_sha256: exact SHA-256(JCS(resolved payload))
+  signed_record_ref:
+    exact MirakanSignedRecordRefV1(
+      purpose=scenario_stage_gate_validation,
+      subject_sha256=payload_subject_sha256)
 
 StageTransitionCrossOwnerReachableClosureV1
   candidate: StageTransitionCrossOwnerCandidateV1
@@ -211,11 +278,11 @@ StageTransitionCrossOwnerReachableClosureV1
   final_closure_hash: SHA-256
 ```
 
-`candidate_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CROSS_OWNER_CANDIDATE_V1`、candidate version、Contract set hash、Pack ref、三owner root、三owner subset、exact transition ref setをField順にMCD canonical encodeし、各segmentを`uint32_be` length framingしてSHA-256する。自己Fieldだけを除外し、Receipt ref、signature、final closure hashを入力にしない。
+`candidate_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CROSS_OWNER_CANDIDATE_V1`、candidate version、Contract set hash、Pack ref、三owner root、三owner subset、exact transition ref setをField順にMCD canonical encodeし、各segmentを`uint32_be` length framingしてSHA-256する。自己Fieldだけを除外し、Receipt ref、signature、final closure hashを入力にしない。三`validated_subset_hash`はowner kindから一意に選び、`stage = SHA-256(ASCII "MIRAKAN_STAGE_TRANSITION_OWNER_SUBSET_STAGE_V1" || uint32_be(len(MCD canonical candidate.owner_subsets.stage bytes)) || bytes)`、`world`と`runtime`も同じ式でdomainだけを各`MIRAKAN_STAGE_TRANSITION_OWNER_SUBSET_WORLD_V1`／`MIRAKAN_STAGE_TRANSITION_OWNER_SUBSET_RUNTIME_V1`、bytesを対応subsetへ置換した値とexact equalityにする。別owner subset、全candidate hash、表示上のref集合、任意hashを代用しない。
 
-Runtime subsetはgeneric `BoundaryDeliveryContractV1`が`T00_BoundaryApply`で配送することを検証するが、exact五ref集合へ六件目として入れない。Stage validatorは四Stage refのkind／owner／version、World validatorはspatial refのWorld owner／type semantics、Runtime validatorはPort delivery edgeがexact Boundary Delivery refへ到達し、spatial／Locomotion前提を持たないことを検証する。三owner Receiptのcanonical wrapperはpurpose=`scenario_stage_owner_validation`、subject=`candidate_hash`、owner kind、validated subset hash、Contract set hashを署名し、五gate Receiptはpurpose=`scenario_stage_gate_validation`、subject=`candidate_hash`、gate ID、左右set hash、result=`pass`を署名する。いずれも`final_closure_hash`をpayload、subject、signature preimageへ含めない。
+Runtime subsetはgeneric `BoundaryDeliveryContractV1`が`T00_BoundaryApply`で配送することを検証するが、exact五ref集合へ六件目として入れない。Stage validatorは四Stage refのkind／owner／version、World validatorはspatial refのWorld owner／type semantics、Runtime validatorはPort delivery edgeがexact Boundary Delivery refへ到達し、spatial／Locomotion前提を持たないことを検証する。三owner Receipt payloadはcandidate hash、Contract set hash、owner kind、validated subset hash、`result=pass`を閉じ、五gateは上記五exact payload型のどれか一つだけを使う。Payload自身はderived payload hash Fieldを持たず、完成payloadのRFC 8785 JCS bytesをSHA-256した値だけを`MirakanSignedRecordV1.subject_sha256`とReceipt Refの`payload_subject_sha256`に同じ値で保存する。canonical wrapper purposeはowner=`scenario_stage_owner_validation`、gate=`scenario_stage_gate_validation`である。Receipt refはpayloadのowner／gate discriminator、candidate hash、result、payload subject hashと完成wrapperのcanonical `MirakanSignedRecordRefV1`を持ち、payload／wrapper／refの同Fieldをbyte equalityで検査する。discriminator外payload、generic left/right pair、unknown Field、wrong purpose、subject substitution、payloadへderived self hashを再導入するcaseを拒否する。いずれも`final_closure_hash`をpayload、subject、signature preimageへ含めない。
 
-三owner Receiptは`stage, world, runtime`のclosed順、五gate Receiptは下表の順でexact countを要求し、duplicate、missing、extra、同じcandidate hashへの別subject、stale key／revocation、署名不成立を拒否する。`final_closure_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CROSS_OWNER_FINAL_CLOSURE_V1`、candidate hash、三owner Receipt Refの全Field、五gate Receipt Refの全Fieldをこの順に各`uint32_be` length framingしてSHA-256し、自身だけを除外する。Receipt発行後にcandidateを変更せず、final closureを再署名対象へ戻すcycleを作らない。
+三owner Receiptは`stage, world, runtime`のclosed順、五gate Receiptは下表の順でexact countを要求し、全八件の`result=pass`をfinal closureの必須条件にする。duplicate、missing、extra、fail／unknown result、同じcandidate hashへの別subject、payload subject hash／generic signed ref不一致、stale key／revocation、署名不成立を拒否する。`final_closure_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CROSS_OWNER_FINAL_CLOSURE_V1`、candidate hash、三owner Receipt Refの全Field、五gate Receipt Refの全Fieldをこの順に各`uint32_be` length framingしてSHA-256し、自身だけを除外する。Receipt発行後にcandidateを変更せず、final closureを再署名対象へ戻すcycleを作らない。
 
 異種inventoryを一つのset equalityへ混ぜず、次のlike-for-like gateを独立に実行する。
 
@@ -227,7 +294,7 @@ Runtime subsetはgeneric `BoundaryDeliveryContractV1`が`T00_BoundaryApply`で�
 | `gate.scenario_stage.transition_port_closure` | candidateのStage四ref＋World一ref | `StageTransitionContractRefSetV1` exact 5件 | cross-owner reachable set equality |
 | `gate.scenario_stage.aggregate_projection` | Gameplay Features aggregateのScenario Stage public／runtime refs | Pack Manifestの対応するpublic／runtime refs | 各inventoryを別々にset equality |
 
-各gateは同じcandidate hashをsubjectに固有Receiptを発行し、三owner Receipt、五gate Receipt、final closure hashが上記DAGを閉じる場合だけPack apply／Runtime Activationを許可する。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各gateについてmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchに加え、candidate hash mismatch、Receiptがfinal closure hashを含むcycle、Receipt order／count不正を各一原因で拒否し、一gateの成功を別inventoryの成功へ読み替えない。
+各gateは同じcandidate hashをsubjectに固有Receiptを発行し、三owner Receipt、五gate Receipt、final closure hashが上記DAGを閉じる場合だけPack apply／Runtime Activationを許可する。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各gateについてmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchに加え、candidate hash mismatch、owner kindを維持した`validated_subset_hash`の別subset／任意hash差替え、Receiptがfinal closure hashを含むcycle、Receipt order／count不正を各一原因で拒否し、一gateの成功を別inventoryの成功へ読み替えない。
 
 ## 10. Content activationとRuntime state
 

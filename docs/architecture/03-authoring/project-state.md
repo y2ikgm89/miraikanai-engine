@@ -11,13 +11,13 @@
 
 Miraikanai Engineの正規Project状態は、Editor widget、Scene Tree表示、AI会話、Runtime World、生成済みC++ binaryのいずれでもない。Schema検証可能なAuthoring Document集合と、単調増加する`ProjectRevision`が正本である。
 
-AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`ProjectChangeSetV1`を提案する。状態を確定できるのはC++ `AuthoringCommandGateway`だけであり、全Operationを検証し、一つのrevisionとして原子的にCommitする。部分成功、暗黙補正、Editor内部objectの直接serializeを禁止する。
+AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`ProjectChangeSetV1`を提案する。状態を確定できるのはC++ `AuthoringCommandGateway`だけであり、外側のactive MCD Operationと全change primitiveを検証し、一つのrevisionとして原子的にCommitする。部分成功、暗黙補正、Editor内部objectの直接serializeを禁止する。
 
 本書は次を独自に所有する。
 
 - Project aggregateとDocument境界
 - field-level ID、reference、revision、lock
-- ChangeSet Operationとtransaction
+- ChangeSet change primitiveとtransaction
 - Source file、snapshot、journal、Undo／Redo、Recovery
 - 外部編集とAI編集の競合
 - Runtime packageへのcompile入力境界
@@ -27,7 +27,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 
 | 主題 | 正本 |
 |---|---|
-| Project Document、World Model、`ProjectChangeSetV1`のdomain schema／Operation意味／transaction、Commit、Undo、Recovery | 本書 |
+| Project Document、World Model、`ProjectChangeSetV1`のdomain schema／change primitive意味／transaction、Commit、Undo、Recovery | 本書 |
 | MCD型、Operation共通Envelope、Error、Schema projection、Codegen | [Executable contracts](../02-foundation/executable-contracts.md) |
 | ID、memory、pointer、thread、directory、serialization基礎 | [Core architecture](../02-foundation/core-architecture.md)と各Foundation Owner |
 | Runtime World、tick、lease、queue、Asset promotion | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
@@ -348,7 +348,7 @@ positive fixtureはentry／selector／policy create→save→reload→update→c
 | `created_revision`／`confirmed_revision` | `ProjectRevision` |
 | `superseded_by` | optional Decision StableId |
 
-GatewayはChangeSetの影響closureから、`applies_to`、`evidence_refs`、`decision_dependencies`、`validity_predicates`を決定論的に照合する。成立条件が変わる場合、提案ChangeSetに`InvalidateDecision`または新根拠を伴う`ReconfirmDecision`がなければ`MIRAKAN-DECISION-INVALIDATION_REQUIRED`で全体を拒否し、必要OperationとDecision IDを返す。GatewayがEntryを黙って`needs_review`へ変更してはならない。`locked=true`のDecisionへ影響する変更は、別Authorityが承認した`UnlockDecision`を同じtransactionへ含めない限り拒否する。
+GatewayはChangeSetの影響closureから、`applies_to`、`evidence_refs`、`decision_dependencies`、`validity_predicates`を決定論的に照合する。成立条件が変わる場合、提案ChangeSetに`InvalidateDecision`または新根拠を伴う`ReconfirmDecision`がなければ`MIRAKAN-DECISION-INVALIDATION_REQUIRED`で全体を拒否し、必要change primitiveとDecision IDを返す。GatewayがEntryを黙って`needs_review`へ変更してはならない。`locked=true`のDecisionへ影響する変更は、別Authorityが承認した`UnlockDecision`を同じtransactionへ含めない限り拒否する。
 
 ### 3.4 Target readiness
 
@@ -361,10 +361,12 @@ TargetReadinessV1
   input_closure_hash
   state: predicted | blocked | qualified
   blocked_reason_ref: string | null
-  technical_qualification_receipt_ref: string | null
+  technical_qualification_receipt_ref:
+    TechnicalQualificationReceiptRefV1
+    | canonical omission
 ```
 
-`input_closure_hash`はSource revision、Scale intent、Representation Plan、Contract set、Toolchain lock、Target Profile、Device generation、Qualification policyのcanonical hash closureである。`predicted`は安全なPlanを生成できるが当該closureの実測Receiptがなく、`blocked_reason_ref=null`、`technical_qualification_receipt_ref=null`とする。`blocked`は現在入力ではPlay／Cook／Shipping promotionを許可できず、登録済みnon-null `blocked_reason_ref`、null Receiptを必須とする。`qualified`は同じ`input_closure_hash`へ束縛されたfresh `TechnicalQualificationReceiptV1`を必須とし、`blocked_reason_ref=null`とする。状態とnullabilityが一致しないRecordを拒否する。
+`input_closure_hash`はSource revision、Scale intent、Representation Plan、Contract set、Toolchain lock、Target Profile、Device generation、Qualification policyのcanonical hash closureである。Target Readiness record／hash、Qualification Receipt／refをこのpreimageへ含めない。`predicted`は安全なPlanを生成できるが当該closureの実測Receiptがなく、`blocked_reason_ref=null`、`technical_qualification_receipt_ref`をcanonical omissionする。`blocked`は現在入力ではPlay／Cook／Shipping promotionを許可できず、登録済みnon-null `blocked_reason_ref`とReceipt ref omissionを必須とする。`qualified`は先に固定した同じ`input_closure_hash`へ`subject_hash`がbyte equalityで束縛されたfresh `TechnicalQualificationReceiptV1`のexact `TechnicalQualificationReceiptRefV1`を検証後にmaterializeするdownstream projectionで、`blocked_reason_ref=null`、Receipt ref presentを必須とする。Refのreceipt ID／subject hash／signed wrapper refはAI Verification ownerのwrapperへexact解決し、hash-only値、bare ID、別closureのfresh Receiptを拒否する。Receipt subjectへTarget Readiness record／hashを戻さない。状態とField presenceが一致しないRecordを拒否する。
 
 `TargetBlockedReasonRegistryV1`は`reason_id`、`diagnostic_ref`、`owner_document_id`、`blocking_scope`、`recovery_gate_ref`を持ち、本書がenvelopeとID一意性、各Domain Ownerが意味と回復条件を所有する。初期共通entryは次の2件である。
 
@@ -407,10 +409,10 @@ Hierarchy、Outliner、Inspector、Graph、Table、Timeline、UI Designer、AI�
 Projectionは次を保証する。
 
 - StableIdを非表示にしても内部selection keyとして維持する。
-- filter／sort中のdrag操作は表示indexでなくStableIdをOperationへ渡す。
-- 変更は必ずtyped Operationへ変換し、Projection cacheを先に変更しない。
+- filter／sort中のdrag操作は表示indexでなくStableIdをtyped change primitiveへ渡す。
+- 変更は必ずtyped change primitiveへ変換し、Projection cacheを先に変更しない。
 - Commit成功後に新revisionから再投影する。
-- stale read modelからのOperationは`RevisionMismatch`で拒否する。
+- stale read modelからのchange primitiveは`RevisionMismatch`で拒否する。
 
 人間、AI、keyboard automation、assistive technologyが同じ対象を指せるよう、選択状態の機械可読projectionを`AuthoringSelectionContextV1`へ固定する。
 
@@ -434,11 +436,11 @@ AuthoringSelectionContextV1
   continuation
 ```
 
-`AuthoringSelectionContextV1`はCommit済みDocumentと明示的な`EditorUserState`から生成するread-only／DisposableなContextであり、Project正本またはUndo対象ではない。`primary_stable_id`、World／Scene参照とowner-typed Feature selectionは表示名、Hierarchy path、row index、screen coordinateから推測せず、存在確認済みStableId、owner、revisionを使う。Stage selection等はFeature Packが登録したoptional projectionであり、Coreのclosed `document_kind`へ追加しない。AIへ渡すContext、Editor command、UI Automation semantic actionは同じContext hashを参照し、操作時には対象StableIdとexpected Document revisionを再指定する。Contextがstale、対象がomitted、lock情報が欠落、またはSource／Derived区分が不明な場合は変更Operationへ昇格しない。
+`AuthoringSelectionContextV1`はCommit済みDocumentと明示的な`EditorUserState`から生成するread-only／DisposableなContextであり、Project正本またはUndo対象ではない。`primary_stable_id`、World／Scene参照とowner-typed Feature selectionは表示名、Hierarchy path、row index、screen coordinateから推測せず、存在確認済みStableId、owner、revisionを使う。Stage selection等はFeature Packが登録したoptional projectionであり、Coreのclosed `document_kind`へ追加しない。AIへ渡すContext、Editor command、UI Automation semantic actionは同じContext hashを参照し、操作時には対象StableIdとexpected Document revisionを再指定する。Contextがstale、対象がomitted、lock情報が欠落、またはSource／Derived区分が不明な場合はchange primitiveへ昇格しない。
 
 Architecture Governanceが所有する`ArchitectureExplainProjectionV1`はProject Stateの正本ではなく、Commit済みSourceとexact registry closureから生成されるread-only／Disposableなconsumer projectionである。`authoring.explain_architecture`は`scope`、非空`field_mask`、optional `target_profile_ref`、exact `project_revision`を要求し、別revisionへのfallbackを行わない。応答の`omitted_ranges`または署名付き`continuation`が示す未取得範囲をEvidence済みとして扱わず、stale revision、continuation条件不一致、必要Evidence欠落では説明を確定しない。
 
-このqueryまたは自然言語要約からProjectを直接変更してはならない。後続ChangeSetは解決済みcanonical concept、対象StableId、typed Operation、expected Document revisionを正規Gatewayへ再指定する。Projection entry、Owner名、外部用語、表示path、summary textをCommit可能なidentityまたはOperationとして受理しない。
+このqueryまたは自然言語要約からProjectを直接変更してはならない。後続ChangeSetは解決済みcanonical concept、対象StableId、typed change primitive、expected Document revisionを正規Gatewayへ再指定する。Projection entry、Owner名、外部用語、表示path、summary textをCommit可能なidentityまたはchange primitiveとして受理しない。
 
 ### 4.3 大規模SceneのShard、Index、Slice
 
@@ -450,7 +452,7 @@ Architecture Governanceが所有する`ArchitectureExplainProjectionV1`はProjec
 - Re-shardも正規Source変更なので一つの`ProjectRevision`としてCommitするが、Diffは`storage_only`とEntity意味変更を分離する。
 - Shardを跨ぐ親cycle、reference、lock、Decision、Recipe invariantはScene aggregate全体で検証する。
 
-Entityの永続化ownerは、そのrecordを含むShardの`scene_id`で厳密に一つへ決まる。Transform parent、Outliner folder、owner-typed gameplay membership、Streaming Cell、Data Layer相当のtagから永続化ownerを推測しない。Scene間移動は`MoveEntityToScene` Domain Operationだけが、移動元／移動先Scene revision、移動rootと全descendant、移動先のoptional parent、参照、lock、Recipe override、boundsを検証してsubtree recordを移す。subtree内部のparent関係とStableIdを維持し、移動rootの新parentは移動先Scene内またはnullに限定する。owner-typed gameplay membershipまたはRuntime Cell割当は同Operationの暗黙副作用にせず、必要なSource変更を同じChangeSetへ別のtyped Operationとして明示する。
+Entityの永続化ownerは、そのrecordを含むShardの`scene_id`で厳密に一つへ決まる。Transform parent、Outliner folder、owner-typed gameplay membership、Streaming Cell、Data Layer相当のtagから永続化ownerを推測しない。Scene間移動は`MoveEntityToScene` Domain change primitiveだけが、移動元／移動先Scene revision、移動rootと全descendant、移動先のoptional parent、参照、lock、Recipe override、boundsを検証してsubtree recordを移す。subtree内部のparent関係とStableIdを維持し、移動rootの新parentは移動先Scene内またはnullに限定する。owner-typed gameplay membershipまたはRuntime Cell割当は同primitiveの暗黙副作用にせず、必要なSource変更を同じChangeSetへ別のtyped change primitiveとして明示する。
 
 `AuthoringContextIndexV1`はCommit済みrevisionから生成するDisposableな派生Indexであり、正本ではない。`project_revision`、`contract_set_hash`、Document root hash、index schema version、利用するtokenizer ID／manifest hash集合を固定し、次を索引化する。
 
@@ -461,13 +463,13 @@ Entityの永続化ownerは、そのrecordを含むShardの`scene_id`で厳密に
 
 Commit後は旧Indexをstaleにし、変更Shardと参照closureだけをcopy-on-write更新してから新revisionとしてpublishする。要求revisionのIndexがReadyでない場合、別revisionの結果を返さず`MIRAKAN-AUTHORING-INDEX_NOT_READY`とretry hintを返す。
 
-AI、Editor、CLIへ返す`SceneSliceV1`は、query ID、Project revision、anchor StableId、選択Shard、field mask、dependency depth、各source hash、選択理由、omitted range、continuation cursorを持つread-only projectionである。任意byte位置で切ったJSON、表示順index、要約だけをChangeSetの根拠にしない。SliceからのOperationもStableIdとexpected Document revisionを必須とし、Gatewayが対象Shardへroutingする。
+AI、Editor、CLIへ返す`SceneSliceV1`は、query ID、Project revision、anchor StableId、選択Shard、field mask、dependency depth、各source hash、選択理由、omitted range、continuation cursorを持つread-only projectionである。任意byte位置で切ったJSON、表示順index、要約だけをChangeSetの根拠にしない。Sliceからのchange primitiveもStableIdとexpected Document revisionを必須とし、Gatewayが対象Shardへroutingする。
 
 ## 5. ProjectChangeSetV1
 
 ### 5.1 Envelope
 
-`ProjectChangeSetV1`のdomain schema、Operation意味、transaction／Commit規則は本節だけが所有する。[Executable contracts](../02-foundation/executable-contracts.md#8-operation定義)のMCD共通Envelopeと生成規則を消費するが、suffixなし最新版aliasまたは別Envelopeは作らない。
+`ProjectChangeSetV1`のdomain schema、change primitive意味、transaction／Commit規則は本節だけが所有する。[Executable contracts](../02-foundation/executable-contracts.md#8-operation定義)の外側MCD Operation共通Envelopeと生成規則を消費するが、suffixなし最新版aliasまたは別Envelopeは作らない。
 
 ```text
 ProjectChangeSetV1
@@ -480,34 +482,34 @@ ProjectChangeSetV1
   authorization_envelope_hash: sha256
   intent_summary: string
   declared_impact: ImpactSummary
-  operations: ProjectOperation[1..4096]
+  change_primitives: ProjectChangePrimitiveV1[1..4096]
   preconditions: ProjectPrecondition[0..1024]
   evidence_refs: StableId[0..128]
 ```
 
 ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary、C++ source本文、巨大配列を埋め込まず、許可済みStaging fileのcontent hashとrelative pathを参照する。
 
-### 5.2 Operation
+### 5.2 `ProjectChangePrimitiveV1`
 
-全Operationは`operation_id`、closed `operation_type`、target StableId、typed argument、operation内依存、expected document revision、declared costを持つ。
+`ProjectChangePrimitiveV1`はChangeSet内部だけのtagged mutation unionであり、MCD kind `operation`、`operation.*` logical ID、Owner Manifest row、Service allowlist、Provider／MCP Toolではない。全primitiveは`primitive_id`、closed `primitive_type`、target StableId、typed argument、primitive内依存、expected document revision、declared costを持つ。primitive名からMCD Operation IDを生成せず、外側の完全登録済みMCD OperationだけがChangeSetをauthorization／publication境界へ運べる。
 
-| Operation群 | C1 Operation |
+| primitive群 | C1 `primitive_type` |
 |---|---|
 | Document | `CreateDocument`、`DeleteDocument`、`RenameDocument` |
 | Entity | `CreateEntity`、`DeleteEntity`、`ReparentEntity`、`SetSiblingOrder`、`MoveEntityToScene` |
 | Component | `AddComponent`、`RemoveComponent`、`SetComponentField`、`ReplaceComponent` |
 | Reference | `SetStableReference`、`ClearStableReference` |
 | Recipe | `InstantiateRecipe`、`ApplyRecipeUpdate`、`SetRecipeOverride` |
-| Gameplay／UI／Style | 各Subsystemが登録するtyped Operation |
+| Gameplay／UI／Style | 各Subsystemが登録するtyped change primitive |
 | Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。`qualified` Contract／Staging hashだけ |
-| World／owner-typed content | Topology、Partition Intent、Procedural、Map Presentationと登録済みowner namespaceの各Domain typed Operation |
+| World／owner-typed content | Topology、Partition Intent、Procedural、Map Presentationと登録済みowner namespaceの各Domain typed change primitive |
 | Asset | `RegisterAssetSource`、`SetImportField`、`ReplaceAssetSourceRevision` |
 | Native C++ | `RegisterNativeModuleRevision`。Source promotion済みhashだけ |
 | Target／Decision | `SetTargetProfileField`、`RecordDecision`、`LockDecision`、`UnlockDecision`、`InvalidateDecision`、`ReconfirmDecision` |
 
-自由形式の`SetJsonPointer`、任意path write、任意C++ symbol call、任意console commandをOperation Catalogへ登録しない。複数fieldを不変条件とともに変える操作は一つのDomain Operationとし、細かな`SetField`列へ分解して中間不整合を作らない。
+自由形式の`SetJsonPointer`、任意path write、任意C++ symbol call、任意console commandをprimitive unionへ登録しない。複数fieldを不変条件とともに変える変更は一つのDomain primitiveとし、細かな`SetField`列へ分解して中間不整合を作らない。
 
-AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全fieldが一つ以上のtyped OperationまたはDomain Operationから到達可能であることをContract compilerで証明する。Operation coverageが100%でないCapabilityはAI Tool catalogへ昇格しない。AI TaskのPath Grantへ正規Authoring JSONのwrite権限を含めず、AIがSource fileを直接変更してcoverageを迂回する経路を作らない。
+AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全fieldが一つ以上の完全登録済み外側MCD Operationから到達し、そのnamed inputが一つ以上のtyped `ProjectChangePrimitiveV1` branchへ閉じることをContract compilerで証明する。MCD Operation→primitive coverageが100%でないCapabilityはAI Tool catalogへ昇格しない。AI TaskのPath Grantへ正規Authoring JSONのwrite権限を含めず、AIがSource fileを直接変更してcoverageを迂回する経路を作らない。
 
 ### 5.3 Commit algorithm
 
@@ -515,7 +517,7 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 
 1. Envelope、size、authorization、Project IDを検証する。
 2. `base_project_revision == live_project_revision`を検証する。
-3. Operation ID一意性とdependency DAGを検証し、canonical topological orderを作る。
+3. primitive ID一意性とdependency DAGを検証し、canonical topological orderを作る。
 4. MCD schema、enum、range、finite、string、StableId、pathを検証する。
 5. 全preconditionとDocument revisionを検証する。
 6. 参照整合、cycle、Capability、Target intersection、Decision invalidation、Domain invariantを検証する。
@@ -523,7 +525,7 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`state=predicted`、現在のPlanでは未達なら`state=blocked`と登録済み`blocked_reason_ref`を候補revisionへ記録する。`qualified`は予測から生成せず、同じ`input_closure_hash`へ束縛されたfresh統合負荷Receiptを照合できた場合だけ維持する。未校正workload envelopeは`blocked_reason_ref=performance_envelope_unqualified`とする。
 9. Domain dry-runと必要なbackground validation artifactのhashを照合し、Preview／Validation／Domain Receiptの未発行payloadを作る。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`として候補へ記録する。
 10. `PreparedCandidateRefV1`、未発行Receipt payload、予定after stateを束ねた`PreparedCommitEnvelopeV1`を作り、その不変bytesだけへpostcondition v2を評価して`StagedPostconditionReceiptV1`を得る。
-11. 変更Document、inverse Operation、manifest、journal record、全Prepared Receipt payload、staged after state、`PrivateDurableCommitMarkerV1` payloadを同一temporary transaction directoryへ書き、全fileをflushする。
+11. 変更Document、inverse change primitive、manifest、journal record、全Prepared Receipt payload、staged after state、`PrivateDurableCommitMarkerV1` payloadを同一temporary transaction directoryへ書き、全fileをflushする。
 12. transaction manifestを外部readerから到達不能なprivate durable namespaceへ最後に原子的renameし、private Markerをcommit decisionとしてreadbackする。この時点でlive Project head、Document index、公開Receipt、provider-visible Resultを変更しない。
 13. private Marker、Prepared Envelope、全Prepared Receipt payload、request hash、staged postcondition Receipt hashのexact equalityを確認し、Executable Contracts §8.1の固定materialization key／issued-at／revocation snapshot／key context／deterministic signing profileでcanonical `PublishedDomainReceiptV2`／`MirakanSignedRecordV1` wrapperをreceipt storeへput-if-absentする。
 14. signed wrapperをreadbackした後だけ、`PublicPublicationMarkerV1`、after Project head、Document indexを同じexpected predecessorに対する一つのpublic CASでpublishし、Public Markerとsigned Receipt ref／hashをdomain Resultで返す。
@@ -576,7 +578,7 @@ Project root全体のPathと命名は[Game Project配置・命名規約](../02-f
 - World、Topology、Partition Intent、Procedural World、Map Presentationも`source/worlds/`配下でStable IDから決定論的にpathを導出し、表示名、Region名、Target名をpath identityへ使わない。owner-typed Feature Documentは登録済みowner pathへ置き、Core World pathへ偽装しない。System Implementation Set、Visual Style、Target Profile、Decision、Test Scenarioも同じ規則で各directoryへ置く。
 - `.mirakan.json`は人間Diff用sourceであり、Runtimeは直接読まない。
 - journal、snapshot、transaction directoryの配置は本書が所有し、Git追跡・配布対象外の`intermediate/`配下へ置く。canonical stateはCommit済み`source/`のDocumentだけであり、journal／snapshotをcanonical sourceへ昇格しない。
-- `intermediate/journal/`はChangeSet、base／result revision、before／after hash、inverse Operation、Receipt参照を持つappend-only recordである。
+- `intermediate/journal/`はChangeSet、base／result revision、before／after hash、inverse change primitive、Receipt参照を持つappend-only recordである。
 - 100 Commitまたはjournal 64 MiBの早い方でsnapshotを`intermediate/snapshots/`へ作る。最新2 snapshotと、それ以後のjournalを最低保持する。
 - §5.3のtemporary transaction directoryは`intermediate/transactions/<change_set_id>/`であり、roll-forward検査の完了後に削除または隔離する。
 - Project source保存成功とAsset／Runtime cook成功を同一transactionにしない。Commit済みsourceからDerived Artifactを非同期に`derived/`へ生成し、失敗時もsource revisionを失わない。
@@ -584,7 +586,7 @@ Project root全体のPathと命名は[Game Project配置・命名規約](../02-f
 
 ## 7. Undo／Redo、外部編集、競合
 
-Undoは過去fileを上書きする操作ではない。Journalのinverse Operationを現在revisionに対する新ChangeSetとして再検証し、新revisionを作る。依存変更により安全に反転できない場合は対象と衝突を表示し、強制適用しない。Redoも同じ規則である。
+Undoは過去fileを上書きする操作ではない。Journalのinverse change primitiveを現在revisionに対する新ChangeSetとして再検証し、新revisionを作る。依存変更により安全に反転できない場合は対象と衝突を表示し、強制適用しない。Redoも同じ規則である。
 
 Undo可能深度は§6のjournal最低保持範囲（最新2 snapshotとそれ以後のjournal）と一致する。保持範囲を超えて破棄済みのjournalへ到達するUndo要求は`UndoHistoryUnavailable`として拒否し、部分的なinverse適用や推測による復元をしない。
 
@@ -592,7 +594,7 @@ Undo可能深度は§6のjournal最低保持範囲（最新2 snapshotとそれ�
 
 1. UTF-8、syntax、duplicate key、schemaをStagingで検証する。
 2. 最後に認識したbase hash、外部file、現在Project Documentの三者比較を作る。
-3. 差分をtyped Operationへ変換できる場合だけ`ExternalTool` ChangeSetを生成する。
+3. 差分をtyped change primitiveへ変換できる場合だけ`ExternalTool` ChangeSetを生成する。
 4. 人間がEditor内で確認するか、事前承認Policyに合致した場合だけCommitする。
 
 同じfieldへの異なる変更、delete対edit、Recipe更新対override、StableId再利用は自動mergeしない。異なるDocument／異なるfieldで不変条件を共有しない変更だけ自動merge候補にでき、結局は新しいbase revisionで全Validatorを再実行する。
@@ -602,17 +604,17 @@ Undo可能深度は§6のjournal最低保持範囲（最新2 snapshotとそれ�
 - AIは現在revision、関係Document、lock、Capability、Target、budgetを含む`AuthoringContextPackV1`を読む。
 - Context選択は`AuthoringContextIndexV1`と署名対象の`AuthoringContextPlanV1`から行い、選択理由、field mask、omitted range、continuation、source hashを失わない。
 - Editorで選択中のWorld／Scene／owner-typed content／Entityを会話Contextへ含める場合は`AuthoringSelectionContextV1`を使い、画面pixel、Hierarchy path、表示名だけを対象識別子にしない。
-- AIは存在しないStableIdを推測せず、`Create*` Operationで新IDを要求する。IDはGatewayが生成して結果mapを返す。
-- AIは巨大Sceneを全置換せず、目的に必要なOperationだけを提案する。
-- AIは正規Authoring JSONへ直接writeせず、`authoring.search`、`authoring.read`、`authoring.dependencies`、`authoring.diff`とtyped Operationだけを使う。
+- AIは存在しないStableIdを推測せず、`Create*` change primitiveで新IDを要求する。IDはGatewayが生成して結果mapを返す。
+- AIは巨大Sceneを全置換せず、目的に必要なchange primitiveだけを提案する。
+- `authoring.search`、`authoring.read`、`authoring.dependencies`、`authoring.diff`は将来のread-only authoring actionを表すplanning tokenであり、Stable ID、MCD Operation ID、current callableではない。対応familyのatomic Activationまではread action集合をexact 0件とし、AIは正規Authoring JSONへ直接writeしない。Activation後もread actionと、完全登録済み外側MCD Operationのnamed inputへ閉じたtyped change primitiveだけを使う。
 - 人間がlockしたfield、Document、Entity subtreeをAIは変更できない。
 - Level 0ではAIが質問と仮定をGame用語で提示し、実装語を初心者へ選ばせない。
 - 手動Inspector、Graph、Code連携もAIと同じDiff、Validation、Undoを使う。
 - AI説明、AI proposal、Engine validation、Commit済み結果を別stateとして表示する。
 
-`AuthoringContextPackV1`と`AuthoringContextPlanV1`のcanonical schemaは本書が所有する。`AuthoringContextPlanV1`はContext選択の署名対象であり、`plan_id`、`project_id`、exact `project_revision`、`contract_set_hash`、参照した`AuthoringContextIndexV1` revision、選択理由、Documentごとのfield mask、source hash、omitted range、optional continuationをfield setとする。`AuthoringContextPackV1`はPlanから決定論的に生成するread-only／DisposableなAI入力projectionであり、`plan_hash`、現在revision、関係Documentの`SceneSliceV1`、optional `AuthoringSelectionContextV1`、lock、Capability、Target、budgetの各参照をfield setとする。両者はProject正本またはUndo対象ではなく、Commit可能なidentityまたはOperationとして受理しない。
+`AuthoringContextPackV1`と`AuthoringContextPlanV1`のcanonical schemaは本書が所有する。`AuthoringContextPlanV1`はContext選択の署名対象であり、`plan_id`、`project_id`、exact `project_revision`、`contract_set_hash`、参照した`AuthoringContextIndexV1` revision、選択理由、Documentごとのfield mask、source hash、omitted range、optional continuationをfield setとする。`AuthoringContextPackV1`はPlanから決定論的に生成するread-only／DisposableなAI入力projectionであり、`plan_hash`、現在revision、関係Documentの`SceneSliceV1`、optional `AuthoringSelectionContextV1`、lock、Capability、Target、budgetの各参照をfield setとする。両者はProject正本またはUndo対象ではなく、Commit可能なidentityまたはchange primitiveとして受理しない。
 
-Editor／Workspace UXが生成する`ExternalEngineConceptResolutionV1`は入力解決Evidenceであり、Project DocumentまたはChangeSetへ保存しない。Gatewayは外部用語、resolver object、候補配列、外部Scene path／Hierarchy indexをidentityまたはOperationとして受理しない。後続ChangeSetは`selected_concept`のcanonical concept ID、対象StableId、typed Operation、expected Document revisionを再指定しなければならず、`question_required`または`unsupported`のResolutionからProposalを生成してはならない。
+Editor／Workspace UXが生成する`ExternalEngineConceptResolutionV1`は入力解決Evidenceであり、Project DocumentまたはChangeSetへ保存しない。Gatewayは外部用語、resolver object、候補配列、外部Scene path／Hierarchy indexをidentityまたはchange primitiveとして受理しない。後続ChangeSetは`selected_concept`のcanonical concept ID、対象StableId、typed change primitive、expected Document revisionを再指定しなければならず、`question_required`または`unsupported`のResolutionからProposalを生成してはならない。
 
 ## 9. Runtime compile境界
 
@@ -643,7 +645,8 @@ contract_lock_hash
 toolchain_lock_hash
 scale_intent_hash
 representation_plan_hash
-technical_qualification_receipt_hash
+technical_qualification_receipt_ref:
+  TechnicalQualificationReceiptRefV1 | canonical omission
 ```
 
 `selected_runtime_entry_point_ref`、`selected_runtime_entry_point_hash`、`target_selector_hash`、`activation_policy_hash`、`entry_branch_closure_hash`は全branchで共通に必須である。`selected_runtime_entry_point_hash`は§3.1.1のpayload semantic hashだけを意味し、Document content hashと置換しない。選択Runtime Entry closureがowner-typed Provider Binding Documentを一件以上選択する時だけ`selected_provider_binding_set_hash`をcanonical presentとし、0件では省略する。これはGenre固有型をCoreへ埋め込まず、選択Runtime Entryのexact DocumentRef／semantic hash、current Project refのpost-commit revision／document set hash、owner-typed Provider Binding Registry ref／hash、各bindingのexact DocumentRef／content hash、revision非依存binding semantic hash、stable owner identity、implementation System ref、Save／Replay contract refをDocument Stable ID byte順にcanonicalizeした集合hashである。Binding payloadへProject revision／document set hashを埋めず、Projectのunrelated revisionではRegistry／Compile closureだけをrematerializeする。`world` branchでは`world_document_hash`を必須、Topology／Streaming Sourceが存在する時だけ対応hashをcanonical presentとし、`ui_document_hash`を省略する。`ui` branchは`ui_document_hash`を必須にし、World／Topology／streaming hashをcanonical omissionする。`headless` branchはWorld／UI／Topology／streaming hashをcanonical omissionする。
@@ -670,7 +673,7 @@ startup_system_closure_hash?
 
 optional hashは上記tagged branch／count規則に従って存在または省略し、0値をserializeしない。Runtime Packageはこのclosureを格納する外側Artifactであり、Package自身のhashをclosure inputへ含めない。selector hash、activation policy hash、Target Profile hash、System Graph、Implementation Set、selected Provider Binding集合、startup dependency／Target compatibilityの変更はCompile Manifestとbranch closureをinvalidateし、last-valid packageを現在Sourceの合格結果として再利用しない。
 
-`technical_qualification_receipt_hash`は`state=qualified`のTargetだけ必須で、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#72-technicalqualificationreceiptv1)の`TechnicalQualificationReceiptV1`完成hashを指す。その`evidence_hashes[]`はPerformance OwnerのIntegrated Scale Receiptを含む。`predicted`／`blocked`では0ではなくfield omissionをcanonical encodingする。PlayはDevelopment Playとqualified promotionを区別する。`predicted`のTargetはDevelopment Playを開始でき、未実測であることをEditor表示とReceiptへ明示する。[Performance／capacityが所有するqualification計測run](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)はこのDevelopment Play実行モードで行い、Receipt確定後にだけ`qualified`へ昇格する。`blocked`のTargetはDevelopment Playを含むPlay開始を拒否する。未qualified revisionをqualified扱いのPlay、Cooked Runtime Package promotion、Shippingへ要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
+`technical_qualification_receipt_ref`は`state=qualified`のTargetだけ必須で、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#72-technicalqualificationreceiptv1)のexact `TechnicalQualificationReceiptRefV1`を格納する。Refの`subject_hash`は同PackageのTarget readiness `input_closure_hash`とbyte equalityで、そのReceiptの`evidence_hashes[]`はPerformance OwnerのIntegrated Scale Receiptを含む。`predicted`／`blocked`ではzero hash／nullではなくField omissionをcanonical encodingする。PlayはDevelopment Playとqualified promotionを区別する。`predicted`のTargetはDevelopment Playを開始でき、未実測であることをEditor表示とReceiptへ明示する。[Performance／capacityが所有するqualification計測run](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)はこのDevelopment Play実行モードで行い、Receipt確定後にだけ`qualified`へ昇格する。`blocked`のTargetはDevelopment Playを含むPlay開始を拒否する。未qualified revisionをqualified扱いのPlay、Cooked Runtime Package promotion、Shippingへ要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
 
 Source revisionと全dependency closureが同じであれば、Cooked Runtime Packageはbyte-for-byte同一でなければならない。Build日時、machine path、user、random IDはartifact本文へ含めずReceiptへ分離する。
 
@@ -688,20 +691,20 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 | Stale base revision | `RevisionMismatch`、最新Diff summaryを返す |
 | Document／StableId不足 | `MissingReference`、placeholderへ黙って置換しない |
 | 要求revisionのContext Index未完成 | `IndexNotReady`。別revisionへfallbackせず、bounded retryまたはTask分割 |
-| Decision成立条件の変化 | `DecisionInvalidationRequired`。必要Decision Operationを返し、暗黙失効しない |
+| Decision成立条件の変化 | `DecisionInvalidationRequired`。必要Decision change primitiveを返し、暗黙失効しない |
 | Journal／disk full | Commit前にreject、dirty draftをRecoveryへ可能な範囲で保持 |
 | Crash during Commit | 起動時にhash検証し完全transactionだけroll-forward |
 | Derived cook失敗 | Source revision維持、last valid Derived ArtifactをDevelopment previewだけで明示継続 |
 | External file破損 | Projectへimportせず隔離、最後の正規Documentを維持 |
 | Undo conflict | inverseを適用せず、conflict resolverを表示 |
-| journal保持範囲外へのUndo要求 | `UndoHistoryUnavailable`。inverse Operation不在を明示し、部分適用しない |
+| journal保持範囲外へのUndo要求 | `UndoHistoryUnavailable`。inverse change primitive不在を明示し、部分適用しない |
 
 ## 11. TestとRelease Gate
 
 最低限、次を自動化する。
 
 - MCD→C++／TypeScript／JSON／binary round-tripとunknown field拒否
-- 4096 Operation、8 MiB境界、dependency cycle、duplicate ID、stale revision
+- 4096 change primitive、8 MiB境界、dependency cycle、duplicate ID、stale revision
 - parent／reference／Recipe cycle、Dimension／Capability／Target不一致
 - Commit各stepへのProcess kill fault injectionとroll-forward／隔離
 - disk full、permission denial、partial write、rename failure
@@ -709,7 +712,7 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - 外部編集三者比較、同field conflict、人間lock保持
 - AI proposalと手動GUI操作が同じcanonical ChangeSetになるconformance
 - 同じ`AuthoringSelectionContextV1`からmouse、keyboard、UI Automation、AIが同じStableId／revisionを対象にし、sort／filter／rename／re-shard後も表示indexまたはscreen coordinateへ退行しないconformance
-- `ai_mutable=true` fieldのtyped Operation coverage 100%、正規Authoring JSONへのAI write権限0
+- `ai_mutable=true` fieldの外側MCD Operation→typed change primitive coverage 100%、正規Authoring JSONへのAI write権限0
 - 100万Entityを複数Shardへ保存し、StableId、親、参照、Decision、lockを跨いで検索／Slice／部分Diffできるfixture
 - Re-shard前後で`entity_set_root_hash`とsemantic diffが不変、storage-only Diffだけが生成されるtest
 - Index stale／rebuild中に別revisionのSliceを返さないconcurrency test

@@ -189,7 +189,7 @@ Capabilityの昇格には、少なくとも次を必要とする。
 
 1. 一意なOwner、Scope、Target、Requirement、fallback、failure policyがある。
 2. SourceとDerived artifact、authoritative stateとPresentationが分離される。
-3. AI／Editorが使えるtyped Operationと、禁止推論が定義される。
+3. AI／Editorが使える完全登録済みMCD Operation identityと、そのnamed inputへ閉じたtyped change primitive、禁止推論が定義される。
 4. 必須Contract、semantic、policy、build、behavior、performance、fault、security Gateが成功する。
 5. Evidenceが同一Source、Contract、Toolchain、Policy、Target、Qualityのexact hashへ結び付く。
 6. qualifiedはTarget別Receiptと制約、productionはclean package、install、offline run、support、rollback、release Evidenceを持つ。

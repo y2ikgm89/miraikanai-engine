@@ -202,7 +202,7 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | Blocking／High architecture Caseのcanonical concept、Owner、phase／lifetime正答 | 100% |
 | 存在しないconcept ID／phase、誤ったauthority document、Evidenceにない断定 | 0 |
 | architecture Caseのquestion bypass、stale／omitted Evidenceの有効扱い | 0 |
-| AI mutable fieldのtyped Operation coverage | 100% |
+| AI mutable fieldの外側MCD Operation→typed change primitive coverage | 100% |
 | Shader U0～U4 required Case／run pass | 100% |
 | Shader Manifest外Pass／Resource／side effect見逃し | 0 |
 | 存在しないShader symbol／Target／Capabilityの最終提出 | 0 |
@@ -338,16 +338,28 @@ MirakanSignedRecordV1
   signature_algorithm
   signature_format
   signature
+
+MirakanSignedRecordRefV1
+  envelope_schema_id:
+    urn:mirakan:schema:governance:mirakan-signed-record:v1
+  purpose
+  subject_sha256
+  signed_record_hash: SHA-256
 ```
 
-全Fieldは必須、unknown Fieldは禁止する。`subject_sha256`は用途別schemaで閉じたsubject payloadのRFC 8785 JCS bytesをSHA-256したlowercase 64桁hexであり、payloadやそのrefをenvelopeへ複写しない。署名対象は`signature`だけを除く上記envelope FieldのJCS bytesである。`purpose`、`subject_sha256`、Signer、Role、Key、発行時刻、発行時revocation snapshot、algorithm、formatの一つでも変われば署名は成立しない。Receipt参照hashは署名を含む完成Record全体のJCS SHA-256とする。
+全Fieldは必須、unknown Fieldは禁止する。`subject_sha256`は用途別schemaで閉じたsubject payloadのRFC 8785 JCS bytesをSHA-256したlowercase 64桁hexであり、payloadやそのrefをenvelopeへ複写しない。署名対象は`signature`だけを除く上記envelope FieldのJCS bytesである。`purpose`、`subject_sha256`、Signer、Role、Key、発行時刻、発行時revocation snapshot、algorithm、formatの一つでも変われば署名は成立しない。`MirakanSignedRecordRefV1.signed_record_hash`は署名を含む完成Record全体のJCS SHA-256で、refのpurpose／subject hashは同RecordのFieldとbyte equalityでなければならない。別schema ID、purpose／subject不一致、hash-only ref、inline署名Fieldを拒否する。
 
 Verifierはschemaとcanonical encodingを確認した後、現在のsubject payload bytesからhashを再計算し、`purpose`を用途別exact値と比較する。続いて現在のIdentity／Role／Public key registryでSignerとRoleの対応、Key所有者、Keyの許可purpose、algorithm／format、発行時の有効期間を照合して署名を検証し、発行時snapshotとそれ以後のcurrent revocation snapshotの署名／sequenceを検証する。current snapshotがRecord、subject、Signer、Role、Key、purposeのいずれかを失効対象に含む場合は拒否する。missing envelope、invalid signature、wrong purpose、wrong subject、unknown／期限外／用途不一致Key、Role不一致、stale／invalid snapshot、revoked対象をfail closedにする。Verification keyでApproval／Promotionへ署名できない。
+
+Domain Qualification subjectが`qualification_subject_hash`を持つ場合は二段階hashを共通規則とする。まず各DomainのASCII domain separationと、同Fieldだけを除くclosed canonical subject bytesから`qualification_subject_hash`を計算し、完成Subject recordへ格納する。次にwrapperの署名subjectを、そのFieldを含む完成Subject record全体とし、`MirakanSignedRecordV1.subject_sha256 = SHA-256(JCS(completed subject))`を計算する。前者はQualification content identity、後者は署名対象bytesのhashであり別値である。`qualification_subject_hash`を後者へ代用すること、両値のbyte equalityを要求すること、完成Subjectから同Fieldを除いた匿名署名projectionを作ることを禁止する。Qualification Receipt Refの`qualification_subject_hash`は完成Subject内の同Field、`MirakanSignedRecordRefV1.subject_sha256`を持つ場合は完成Subject JCS hash、`signed_record_hash`は完成envelope hashへそれぞれexact一致させる。この二値規則は全`*QualificationSubjectV1`／`*QualificationReceiptV1`に適用し、Domain文書の「subject hash」は修飾なしならcontent identity、`signed_record.subject_sha256`なら完成Subject JCS hashを意味する。
 
 ### 7.1 VerificationReceiptV1
 
 信頼済みRunnerがGateごとに発行する。
 
+```text
+VerificationReceiptV1
+  payload: VerificationReceiptPayloadV1
     receipt_id
     task_id, attempt_id
     gate_id, gate_version
@@ -367,14 +379,19 @@ Verifierはschemaとcanonical encodingを確認した後、現在のsubject payl
     diagnostic_ids[]
     output_artifacts[{hash, size, media_type}]
     metrics[]
-    signature fields
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=verification_receipt)
+```
 
-`?`付きの6 FieldはBuild／C++ Gateでだけ必須であり、非Build GateではField自体を省略する。空文字列、zero hash、sentinel profileを非該当の表現に使わない。どのGateがどのFieldを要求するかは署名済みGate Policy hashへ固定し、Runnerは必須Field欠落と非該当Field混入の両方を拒否する。
+`?`付きの6 FieldはBuild／C++ Gateでだけ必須であり、非Build GateではField自体を省略する。空文字列、zero hash、sentinel profileを非該当の表現に使わない。どのGateがどのFieldを要求するかは署名済みGate Policy hashへ固定し、Runnerは必須Field欠落と非該当Field混入の両方を拒否する。`signed_record.subject_sha256=SHA-256(JCS(payload))`、`signed_record.issued_at=payload.finished_at`をbyte equalityにし、payload内inline署名Fieldまたは別purposeを拒否する。
 
 exit_classはpass、fail、infrastructure_error、cancelledのclosed setとする。AIの「Testは通った」というTextからReceiptを作らない。Runnerが実ProcessとArtifactを観測した場合だけ発行する。
 
 SystemQualificationReceiptV1は汎用Verification Receiptを一つのSystem evidence closureへ束ね、次を固定する。
 
+```text
+SystemQualificationReceiptV1
+  payload: SystemQualificationReceiptPayloadV1
     receipt_id, project_revision, engine_baseline_hash
     system_contract_ref, system_bundle_hash, implementation_kind
     capability_scope_hash
@@ -390,32 +407,38 @@ SystemQualificationReceiptV1は汎用Verification Receiptを一つのSystem evid
     bounded_native_profile_hash?
     bounded_project_shader_profile_hashes[]
     gate_policy_hash, result
-    runner_id, signature fields
+    runner_id
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=system_qualification)
+```
 
-Target別配列はTarget Profile ID順で件数を一致させ、該当しないoptionalを空hashで表現しない。resultはpass、fail、infrastructure_error、cancelledのclosed setで、pass以外をQualificationに使わない。
+Target別配列はTarget Profile ID順で件数を一致させ、該当しないoptionalを空hashで表現しない。resultはpass、fail、infrastructure_error、cancelledのclosed setで、pass以外をQualificationに使わない。`signed_record.subject_sha256=SHA-256(JCS(payload))`を必須にし、payload内inline署名Field、generic purpose、別System payloadへのwrapper substitutionを拒否する。
 
 SystemQualificationReceiptV1はEvidenceだけを所有し、Authorization、Approval、Promotion、Activation権限を与えない。[AI Security／Approval](ai-security-approval.md)のPolicy ServiceはReceiptの署名、subject、result、freshness、gate_policy_hashを検証し、その完成Record hashをSystemTechnicalAttestationV1のsystem_qualification_receipt_hashへ一方向参照する。AttestationがReceiptのTarget artifact、Test、Performance、Provenance Fieldを複写することを禁止する。
 
-`ProjectShaderQualificationReceiptV1`はProject Shader固有Evidenceを一つのSource subjectへ束ね、次を固定する。
+`ProjectShaderQualificationEvidenceClosureV1`はProject Shader固有Evidenceを一つのSource closureへ束ねる署名前のtyped Evidence projectionであり、Project Shader ownerが定義する同名でない`ProjectShaderQualificationReceiptV1`の入力になる。
 
 ```text
-receipt_id, project_revision, engine_baseline_hash
-bounded_project_shader_profile_hash
-public_shader_sdk_catalog_hash
-module_hashes[], technique_hashes[]
-source_tree_hash
-target_profile_hashes[]
-artifact_set_hashes[]
-shader_fact_graph_hashes[]
-shader_understanding_closure_hash
-verification_receipt_hashes[]
-performance_receipt_hashes[]
-provenance_root_hash
-gate_policy_hash, result
-runner_id, signature fields
+ProjectShaderQualificationEvidenceClosureV1
+  evidence_closure_id
+  project_revision, engine_baseline_hash
+  bounded_project_shader_profile_hash
+  public_shader_sdk_catalog_hash
+  module_hashes[], technique_hashes[]
+  source_tree_hash
+  target_profile_hashes[]
+  artifact_set_hashes[]
+  shader_fact_graph_hashes[]
+  shader_understanding_closure_hash
+  verification_receipt_hashes[]
+  performance_receipt_hashes[]
+  provenance_root_hash
+  gate_policy_hash, result
+  runner_id
+  evidence_closure_hash
 ```
 
-Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_graph_hashes[]`はTarget Profile ID順で件数を一致させる。Module／Technique hash、Source、Profile、public Shader SDK Catalog、Target、Compiler Profile、Fact Graph、Understanding Closure、Fixture、Budgetの一つでも変わればReceiptを失効させる。`ShaderUnderstandingClosureV1`はShader意味理解のEvidence、`ProjectShaderQualificationReceiptV1`は全Shader GateのEvidence closureであり、相互に代用しない。
+`evidence_closure_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_EVIDENCE_CLOSURE_V1`と自己Fieldだけを除くcount／length-framed canonical bytesから計算し、`ProjectShaderQualificationReceiptV1`、Activation Binding、Projectionをpreimageへ含めない。Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_graph_hashes[]`はTarget Profile ID順で件数を一致させる。Module／Technique hash、Source、Profile、public Shader SDK Catalog、Target、Compiler Profile、Fact Graph、Understanding Closure、Fixture、Budgetの一つでも変わればClosureを失効させる。Project Shader ownerの`ProjectShaderQualificationSubjectV1.compiler_and_artifact_closure_hash`は対応するClosure hashとbyte equalityにし、そのSubjectをcanonical `ProjectShaderQualificationReceiptV1.signed_record`が署名する。`ShaderUnderstandingClosureV1`、Evidence Closure、Qualification Receiptは別stageであり、相互に代用しない。
 
 WorldQualificationReceiptV1は汎用Receiptを一つのWorld subject、Topology、State owner、Target artifact、Save／Replay、Performance、Fault、Reviewへ束ねる。System／Worldのsubject hashが変わればReceiptを再利用せず、Estimate、Preview、別Target、別Quality、別Toolchainを代用しない。
 
@@ -436,9 +459,16 @@ TechnicalQualificationReceiptV1
     subject_hash
     evidence_hashes[]
   signed_record: MirakanSignedRecordV1
+
+TechnicalQualificationReceiptRefV1
+  receipt_id
+  subject_hash
+  signed_record_ref:
+    exact MirakanSignedRecordRefV1(
+      purpose=technical_qualification_receipt)
 ```
 
-`TechnicalQualificationReceiptPayloadV1`とwrapperは全Field required、unknown Field禁止のclosed schemaとする。`signed_record`は`urn:mirakan:schema:governance:mirakan-signed-record:v1`へのexact `$ref`であり、`purpose=technical_qualification_receipt`、`subject_sha256=SHA-256(JCS(payload))`、`signer_subject_ref=payload.issuer_subject_ref`、`signed_record.issued_at=payload.issued_at`、`signed_record.revocation_snapshot_ref=payload.revocation_snapshot_ref`をexact byte equalityで必須とする。`signer_role_ref`はexact `role.evidence.technical_qualification`であり、Public key registryの`key_id`は同じissuer、Role、singleton `allowed_signed_record_purposes=[technical_qualification_receipt]`を持つ。別用途、generic Role／Key、Verification／Approval Keyを代用しない。
+`TechnicalQualificationReceiptPayloadV1`、wrapper、Refは全Field required、unknown Field禁止のclosed schemaとする。`signed_record`は`urn:mirakan:schema:governance:mirakan-signed-record:v1`へのexact `$ref`であり、`purpose=technical_qualification_receipt`、`subject_sha256=SHA-256(JCS(payload))`、`signer_subject_ref=payload.issuer_subject_ref`、`signed_record.issued_at=payload.issued_at`、`signed_record.revocation_snapshot_ref=payload.revocation_snapshot_ref`をexact byte equalityで必須とする。Refの`receipt_id`／`subject_hash`は解決したpayloadの同Field、`signed_record_ref`は同wrapperのschema ID／purpose／payload hash／完成wrapper hashとbyte equalityにする。hash-only ref、receipt IDだけ、latest wrapper fallbackを拒否する。`signer_role_ref`はexact `role.evidence.technical_qualification`であり、Public key registryの`key_id`は同じissuer、Role、singleton `allowed_signed_record_purposes=[technical_qualification_receipt]`を持つ。別用途、generic Role／Key、Verification／Approval Keyを代用しない。
 
 `subject_hash`は用途別Policyが要求するSource revision、Candidate root、Contract set、Toolchain lock、Target Profile、Device／OS／driver generation、Package、Quality、signing／store declarationのうち該当する全入力を、Field名とnull非該当を含むcanonical closureへしてSHA-256した値である。自由な説明文や部分hashを使わない。`evidence_hashes[]`は完成した署名済み用途別Receipt hashの重複なしunsigned byte順集合で、最低1件とする。各参照先のwrapper／payload schema、exact purpose、subject、署名、current revocation、result=`pass`、Runner／Policy eligibilityを検証し、一件でもinvalid／stale／revoked／non-passなら本Receiptを発行または使用しない。本型はAuthorization、Approval、Activationを与えない。
 
@@ -448,57 +478,67 @@ TechnicalQualificationReceiptV1
 
 AI OrchestratorがAttemptごとに作成し、Model自身は署名しない。
 
-    receipt_id, task_id, attempt_id
-    attempt_reservation_ref, attempt_reservation_sha256
-    attempt_sequence: positive safe integer
-    attempt_kind = initial_proposal | repair_proposal
-    contract_set_hash, policy_set_hash
-    caller_context_ref, caller_context_sha256
-    execution_provenance:
-      {kind: engine_provider_adapter,
-       provider_manifest_binding: GovernedAiProfileBindingV1,
-       inference_deployment_profile_binding: GovernedAiProfileBindingV1,
+```text
+GenerationReceiptPayloadV1
+  receipt_id, task_id, attempt_id
+  attempt_reservation_ref, attempt_reservation_sha256
+  attempt_sequence: positive safe integer
+  attempt_kind = initial_proposal | repair_proposal
+  contract_set_hash, policy_set_hash
+  caller_context_ref, caller_context_sha256
+  execution_provenance:
+    {kind: engine_provider_adapter,
+     provider_manifest_binding: GovernedAiProfileBindingV1,
+     inference_deployment_profile_binding: GovernedAiProfileBindingV1,
+     model_snapshot_profile_binding: GovernedAiProfileBindingV1,
+     model_identity:
+       {kind: provider_model_id, exact_resolved_provider_model_id}
+       | {kind: local_weights,
+          local_model_artifact_manifest_binding: GovernedAiProfileBindingV1},
+     managed_host_execution_attestation_ref: null,
+     managed_host_execution_attestation_sha256: null}
+    | {kind: managed_external_host,
+       provider_manifest_binding: null,
+       inference_deployment_profile_binding: null,
        model_snapshot_profile_binding: GovernedAiProfileBindingV1,
        model_identity:
          {kind: provider_model_id, exact_resolved_provider_model_id}
          | {kind: local_weights,
             local_model_artifact_manifest_binding: GovernedAiProfileBindingV1},
-       managed_host_execution_attestation_ref: null,
-       managed_host_execution_attestation_sha256: null}
-      | {kind: managed_external_host,
-         provider_manifest_binding: null,
-         inference_deployment_profile_binding: null,
-         model_snapshot_profile_binding: GovernedAiProfileBindingV1,
-         model_identity:
-           {kind: provider_model_id, exact_resolved_provider_model_id}
-           | {kind: local_weights,
-              local_model_artifact_manifest_binding: GovernedAiProfileBindingV1},
-         managed_host_execution_attestation_ref: content ref,
-         managed_host_execution_attestation_sha256: lowercase hex 64}
-    prompt_template_hash
-    task_spec_hash, authorization_envelope_hash
-    context_pack_hash, context_plan_hash
-    authoring_index_revision
-    retrieval_trace_root_hash
-    tool_catalog_hash
-    request_parameters_hash
-    generation_result:
-      {kind: completed,
-       response_ids[],
-       exact_response_bytes_sha256,
-       diagnostic_refs[]}
-      | {kind: failed,
-         response_ids: [],
-         exact_response_bytes_sha256: null,
-         diagnostic_refs[1..]}
-    tool_trace_root_hash
-    produced_artifacts[]
-    usage
-    repair_attempt_count, remediation_ids[]
-    authoring_query_latency[]
-    retention_class
-    started_at, finished_at
-    signature fields
+       managed_host_execution_attestation_ref: content ref,
+       managed_host_execution_attestation_sha256: lowercase hex 64}
+  prompt_template_hash
+  task_spec_hash, authorization_envelope_hash
+  context_pack_hash, context_plan_hash
+  authoring_index_revision
+  retrieval_trace_root_hash
+  tool_catalog_hash
+  request_parameters_hash
+  generation_result:
+    {kind: completed,
+     response_ids[],
+     exact_response_bytes_sha256,
+     diagnostic_refs[]}
+    | {kind: failed,
+       response_ids: [],
+       exact_response_bytes_sha256: null,
+       diagnostic_refs[1..]}
+  tool_trace_root_hash
+  produced_artifacts[]
+  usage
+  repair_attempt_count, remediation_ids[]
+  authoring_query_latency[]
+  retention_class
+  started_at, finished_at
+  issuer_subject_ref
+  issuer_role_ref
+  revocation_snapshot_ref
+
+GenerationReceiptV1
+  payload: GenerationReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=generation_receipt)
+```
 
 各`GovernedAiProfileBindingV1`は発行時Head ref／hash／sequenceを含み、Attempt開始時とTool実行時にはAI Security／Approvalのcurrent signed Profile Headへ解決してCaller Contextの同じbindingとbyte-exact一致しなければならない。Head更新後のbindingを新規実行またはPromotionへ使わない。一方、履歴監査では発行時Head chainと当時のvalidityを再検証し、正当なら`authentic_but_stale`として保持するため、currentでないことだけを改竄または過去Receipt無効としない。Generation ReceiptのReservation／Task／Attempt／sequence／kind／repair count／Context／Authorizationはcurrent `state=reserved`の`AiTaskRepairAttemptHeadV1`とbyte-exact一致させ、Result wrapper完成後に同HeadをrecordedへCASできないReceiptをStaging／Evalへ使わない。`engine_provider_adapter`ではProvider Manifestが指すDeployment、Model、ToolとCaller Contextをexact一致させる。`managed_external_host`ではCaller Contextとpost-execution AttestationのModel／Task／attempt／Input／typed resultを一致させ、Provider ManifestまたはEngine-owned Deploymentを捏造しない。cloud/provider identityだけ`exact_resolved_provider_model_id`、local identityだけLocal Model Artifact bindingを持ち、local inferenceへ架空Provider model IDを要求しない。completed branchの`exact_response_bytes_sha256`はProvider／local runtimeまたはmanaged Brokerから受領して永続化する正規response bytes全体のhashで、表示text、response ID、parsed tool callだけのhashを代用しない。Provider呼出し前、timeout、resource、transport failureはfailed branch、空response ID、null response hash、1件以上のtyped Diagnosticで表す。
 
@@ -594,16 +634,25 @@ StandardExternalProposalReceiptV1
 
 ### 7.4 ReviewReceiptV1
 
-    receipt_id, task_id, attempt_id
-    reviewer_id, identity_provider, authn_context, role
-    subject_kind, subject_sha256
-    requirement_coverage_hash
-    verification_receipt_hashes[]
-    decision
-    approved_scope
-    issued_at, expires_at
-    comment_ref
-    signature fields
+```text
+ReviewReceiptPayloadV1
+  receipt_id, task_id, attempt_id
+  reviewer_subject_ref, identity_provider, authn_context
+  reviewer_role_ref
+  subject_kind, subject_sha256
+  requirement_coverage_hash
+  verification_receipt_hashes[]
+  decision
+  approved_scope
+  issued_at, expires_at
+  revocation_snapshot_ref
+  comment_ref
+
+ReviewReceiptV1
+  payload: ReviewReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=review_receipt)
+```
 
 decisionはapproved、rejected、changes_requestedである。approved_scopeはOperation、Path、Target、Riskのexact集合とする。期限なしを禁止し、Authorization期限を超えない。Approval後に一byteでもsubjectが変われば失効する。
 
@@ -611,50 +660,77 @@ Approval Serviceはinteractive user presenceまたは組織Identity Providerを�
 
 ### 7.5 PromotionReceiptV1
 
-    receipt_id, task_id, attempt_id
-    operation_id, idempotency_key
-    source_revision, destination_revision
-    before_tree_hash, after_tree_hash
-    authorization_envelope_hash
-    verification_receipt_hashes[]
-    review_receipt_hashes[]
-    promotion_service_id
-    started_at, committed_at, read_back_at
-    result, read_back_hash
-    signature fields
+```text
+PromotionReceiptPayloadV1
+  receipt_id, task_id, attempt_id
+  operation_id, idempotency_key
+  source_revision, destination_revision
+  before_tree_hash, after_tree_hash
+  authorization_envelope_hash
+  verification_receipt_hashes[]
+  review_receipt_hashes[]
+  promotion_service_subject_ref
+  promotion_service_role_ref
+  started_at, committed_at, read_back_at
+  revocation_snapshot_ref
+  result, read_back_hash
+
+PromotionReceiptV1
+  payload: PromotionReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=promotion_receipt)
+```
 
 resultはcommitted、rolled_back、failed_before_commit、infrastructure_errorである。成功はAuthoritative destinationのread-back hash一致を必要とする。
 
 ### 7.6 ReleaseSigningReceiptV1
 
-    receipt_id, task_id
-    authorization_envelope_hash
-    review_receipt_hashes[]
-    build_receipt_hash, provenance_hash, sbom_hash
-    target_profile_hash, distribution_channel
-    unsigned_artifact_root, unsigned_manifest_hash
-    signing_service_id, signing_profile_id
-    platform_key_id, certificate_chain_hash
-    signing_tool_hashes[], policy_lock_hash
-    signed_artifact_root, verification_result_hash
-    started_at, finished_at, result
-    signature fields
+```text
+ReleaseSigningReceiptPayloadV1
+  receipt_id, task_id
+  authorization_envelope_hash
+  review_receipt_hashes[]
+  build_receipt_hash, provenance_hash, sbom_hash
+  target_profile_hash, distribution_channel
+  unsigned_artifact_root, unsigned_manifest_hash
+  signing_service_subject_ref, signing_service_role_ref
+  signing_profile_id
+  platform_key_id, certificate_chain_hash
+  signing_tool_hashes[], policy_lock_hash
+  signed_artifact_root, verification_result_hash
+  started_at, finished_at, result
+  revocation_snapshot_ref
+
+ReleaseSigningReceiptV1
+  payload: ReleaseSigningReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=release_signing_receipt)
+```
 
 Platform code signatureと内部Receipt署名を同一視しない。Signing Serviceは受信byteを再hashし、承認rootと一致した場合だけ署名する。Receiptはunsigned rootとsigned rootを一対一に結ぶ。
 
 ### 7.7 StoreUploadReceiptV1
 
-    receipt_id, task_id
-    release_signing_receipt_hash
-    signed_artifact_root
-    store, application_id, channel, version
-    store_policy_lock_hash, listing_revision_hash
-    upload_service_id, credential_role_id
-    remote_submission_id, remote_read_back_hash
-    started_at, finished_at, result
-    signature fields
+```text
+StoreUploadReceiptPayloadV1
+  receipt_id, task_id
+  release_signing_receipt_hash
+  signed_artifact_root
+  store, application_id, channel, version
+  store_policy_lock_hash, listing_revision_hash
+  upload_service_subject_ref, upload_service_role_ref
+  credential_role_id
+  remote_submission_id, remote_read_back_hash
+  started_at, finished_at, result
+  revocation_snapshot_ref
 
-Upload成功を公開完了とみなさない。Store processing、review、rolloutは別read-back Eventとして追跡する。
+StoreUploadReceiptV1
+  payload: StoreUploadReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=store_upload_receipt)
+```
+
+Upload成功を公開完了とみなさない。Store processing、review、rolloutは別read-back Eventとして追跡する。上記五wrapperはいずれもinline署名Fieldを持たず、`signed_record.subject_sha256=SHA-256(JCS(payload))`と用途別singleton purposeを必須にする。Generationはissuer subject／Role、`finished_at`、revocation snapshot、Reviewはreviewer subject／Role、`issued_at`、revocation snapshot、Promotionはpromotion service subject／Role、`read_back_at`、revocation snapshot、Release Signingはsigning service subject／Role、`finished_at`、revocation snapshot、Store Uploadはupload service subject／Role、`finished_at`、revocation snapshotを`MirakanSignedRecordV1`のSigner／Role／issued-at／revocation Fieldとそれぞれbyte equalityにする。各発行時刻は当該処理の全入力readback完了以後でなければならず、別purposeの有効Role／Key、payloadにないidentity、時刻の選択変更を許可しない。
 
 ## 8. Trace gradingとchain
 
@@ -814,7 +890,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 - bounded formal modelと実装transition conformanceがあり、C++全体の証明と誤記しない。
 - 5.1の表に列挙する全Eval suite、public／holdout／adversarial／incident dataset、restricted holdout Serviceがある。
 - fixed Corpus 3 runの最悪回がSuite別hard conditionを満たす。
-- Context evidence、typed Operation、stale Decision、修復停止、Trace gradingをRelease基準へ含める。
+- Context evidence、§21.2へ分類済みのexact MCD Operation ref、stale Decision、修復停止、Trace gradingをRelease基準へ含める。
 - Provider／Model／Prompt／Tool更新が一変数比較、canary、rollbackを通る。
 - Verification、Generation、Review、Promotion、Signing、Upload Receiptがcontent hashで連結される。
 - System／World／Project Shader Qualificationがsubject変更、Target差、Evidence期限切れで失効する。

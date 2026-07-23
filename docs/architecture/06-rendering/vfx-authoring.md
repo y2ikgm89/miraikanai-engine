@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.rendering-vfx-authoring
 - 状態: review
-- 正本範囲: VFX Source Document、semantic intent／catalog、typed graph、curve／gradient／random、compiler、VFX固有authoring operation／diagnostic／qualification
+- 正本範囲: VFX Source Document、semantic intent／catalog、typed graph、curve／gradient／random、compiler、VFX固有planned authoring action／diagnostic／qualification
 - 非正本範囲: Project HLSL Module／Technique、compiled execution artifact／instance／CPU・GPU simulation／render execution、LOD共通selection、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[LOD](lod.md)、[VFX runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)
 - 外部根拠検証日: 2026-07-22
@@ -210,6 +210,8 @@ Cue invariant初期集合は`onset_timing, duration_class, directional_readabili
 VfxExtensionManifestV1
   extension_id: StableId
   extension_version: SemVer
+  extension_content_hash: SHA-256
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
   semantic_role_ids: VfxSemanticRoleId[1..32]
   operator_ids: VfxExtensionOperatorId[1..64]
   supported_dimensions: set<d2 | d3 | portable_2d_3d>[1..3]
@@ -219,12 +221,56 @@ VfxExtensionManifestV1
   determinism_class: cpu_repeatable | visual_only
   fallback_pattern_refs: VfxPatternRef[0..16]
   preserved_cue_invariants: VfxCueInvariantId[0..16]
-  qualification_receipt_refs: ReceiptRef[0..64]
+
+VfxExtensionManifestRefV1
+  extension_id: StableId
+  extension_version: SemVer
+  extension_content_hash: SHA-256
+
+VfxExtensionQualificationSubjectV1
+  qualification_id/version
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  extension_ref: exact VfxExtensionManifestRefV1
+  target_profile_refs[1..32]
+  declared_dimensions[1..3]
+  fixture_refs[1..64]: exact fixture ref/version/content_hash
+  input_closure_hash
+  result: pass | fail
+  qualification_subject_hash
+
+VfxExtensionQualificationReceiptV1
+  subject: VfxExtensionQualificationSubjectV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=vfx_extension_qualification)
+
+VfxExtensionActivationBindingRefV1
+  activation_binding_id/version
+  activation_binding_hash: SHA-256
+
+VfxExtensionActivationBindingV1
+  activation_binding_id/version
+  extension_ref: exact VfxExtensionManifestRefV1
+  qualification_receipt_refs[1..64]:
+    exact {qualification_id, qualification_version,
+           qualification_subject_hash, signed_record_hash}
+  activation_binding_hash
+
+VfxExtensionActivationProjectionV1
+  projection_id/version
+  extension_ref: exact VfxExtensionManifestRefV1
+  activation_binding_ref: VfxExtensionActivationBindingRefV1
+  activated_target_profile_refs[1..32]
+  activated_dimensions[1..3]
+  projection_hash: SHA-256
 ```
 
-Manifestは対象外Targetを明示し、Production候補には各宣言dimension／TargetのReceiptを最低1件必要とする。semantic-equivalent intentは同じCueを保つfallbackを必須とし、不足時はCookを拒否する。`VfxExtensionOperatorV1`はtyped ports、stage、dimension、attribute set、bounded scratch、determinismを宣言し、CPUはNative Game Moduleのbounded SoA spanだけ、GPUは[Project Shader](project-shader.md)のS2 `ProjectShaderModuleV1`または`vfx_simulation | vfx_render` Portへ接続するS4 `ProjectShaderTechniqueV1`だけを扱う。allocation、World／Physics、file／network、logging、native GPU API、mutable static stateを禁止する。ExtensionのauthorizationはGovernance ownerへ委譲する。
+`extension_content_hash`はASCII `MIRAKAN_VFX_EXTENSION_MANIFEST_V1`、`qualification_subject_hash`はASCII `MIRAKAN_VFX_EXTENSION_QUALIFICATION_SUBJECT_V1`、`activation_binding_hash`はASCII `MIRAKAN_VFX_EXTENSION_ACTIVATION_BINDING_V1`、`projection_hash`はASCII `MIRAKAN_VFX_EXTENSION_ACTIVATION_PROJECTION_V1`と、それぞれ自己Fieldだけを除くcount／length-framed canonical bytesから計算する。Manifest `owner_ref`はExtensionを寄与するCore／Pack／Project owner recordへexact解決し、Extension ID prefixやsigner自己申告から補完しない。Subject `owner_ref`は`extension_ref`が解決するReceipt-free Manifestの同Fieldとbyte equalityにする。生成順は`receipt-free Manifest → extension ref → Qualification subject → signed Receipt → root外Activation Binding → root外Activation projection`で、Receipt／Binding／Projection／FixtureをManifest hashへ戻さない。
 
-## 4. Compiler、authoring operation、preview
+Projectionの`extension_ref`、解決したBindingの`extension_ref`、各Receipt wrapper内Subjectの`extension_ref`はbyte equalityで、各Subject ownerは解決したManifest `owner_ref`とbyte equalityでなければならない。ProjectionのTarget／dimension集合はstrict sort／uniqueとし、各集合は解決したpass Receipt subject群の`target_profile_refs[]`／`declared_dimensions[]`のunionとexact set equalityにする。各Receipt subjectのTarget／dimensionはManifestの`supported_target_profiles`／`supported_dimensions`のsubsetであり、Production候補ではManifestが宣言した全Target／dimensionをProjection集合へ含める。BindingのReceipt refは`qualification_id`／version／subject hash／signed hashのcanonical順で、duplicate、fail、stale、revoked、別owner／extension subjectを拒否する。ProjectionはBinding refをexact一件だけ持ち、Binding refのID／version／hashを解決したBindingと一致させる。Manifestのowner／Target／dimension一Fieldだけを更新したstale Projection、別ownerの有効Subjectまたは別extensionの有効Bindingへのsubstitution、Target／dimensionの欠落・追加・duplicate・順序違反を各一原因fixtureで拒否する。
+
+Manifestは対象外Targetを明示し、Production候補には上記Projectionが解決する各宣言dimension／Targetのpass Receiptを最低1件必要とする。semantic-equivalent intentは同じCueを保つfallbackを必須とし、不足時はCookを拒否する。`VfxExtensionOperatorV1`はtyped ports、stage、dimension、attribute set、bounded scratch、determinismを宣言し、CPUはNative Game Moduleのbounded SoA spanだけ、GPUは[Project Shader](project-shader.md)のS2 `ProjectShaderModuleV1`または`vfx_simulation | vfx_render` Portへ接続するS4 `ProjectShaderTechniqueV1`だけを扱う。allocation、World／Physics、file／network、logging、native GPU API、mutable static stateを禁止する。ExtensionのauthorizationはGovernance ownerへ委譲する。
+
+## 4. Compiler、planned authoring action、preview
 
 `VfxCompiler`は次の固定順で動く。
 
@@ -260,7 +306,7 @@ Runtimeがframe負荷から実行中stateをCPU／GPU間で移送しない。Tar
 
 Unsupported Node、layout overflow、shader failure、fallback不足、domain budget超過は該当variantを失敗させる。`VfxGraphIrV1`はdevelopment-only compiler intermediateでSource／Runtime保存しない。`VfxBudgetProfileV1`／`VfxQualityProfileV1`はTarget／Project Source、`VfxBakeCacheV1`はSource artifact hash、seed、fixed delta、frame count、Target formatを持つoffline cacheである。
 
-Operation IDは`operation.vfx.inspect_system, operation.vfx.inspect_semantic_catalog, operation.vfx.validate_changeset, operation.vfx.validate_semantic_preservation, operation.vfx.preview_changeset, operation.vfx.resolve_effect_intent, operation.vfx.set_effect_intent, operation.vfx.apply_pattern, operation.vfx.create_system, operation.vfx.create_emitter, operation.vfx.update_emitter, operation.vfx.delete_emitter, operation.vfx.add_node, operation.vfx.update_node, operation.vfx.delete_node, operation.vfx.connect_nodes, operation.vfx.disconnect_nodes, operation.vfx.set_curve, operation.vfx.set_gradient, operation.vfx.set_output, operation.vfx.generate_fallback, operation.vfx.capture_bounds, operation.vfx.run_qualification, operation.vfx.propose_extension_operator`である。Write operationは`ProjectChangeSetV1`だけを生成し、live buffer／resource／revisionを書かない。共通envelope、projection、authorizationはFoundation／Governance ownerを参照する。
+予約候補IDは`operation.vfx.inspect_system, operation.vfx.inspect_semantic_catalog, operation.vfx.validate_changeset, operation.vfx.validate_semantic_preservation, operation.vfx.preview_changeset, operation.vfx.resolve_effect_intent, operation.vfx.set_effect_intent, operation.vfx.apply_pattern, operation.vfx.create_system, operation.vfx.create_emitter, operation.vfx.update_emitter, operation.vfx.delete_emitter, operation.vfx.add_node, operation.vfx.update_node, operation.vfx.delete_node, operation.vfx.connect_nodes, operation.vfx.disconnect_nodes, operation.vfx.set_curve, operation.vfx.set_gradient, operation.vfx.set_output, operation.vfx.generate_fallback, operation.vfx.capture_bounds, operation.vfx.run_qualification, operation.vfx.propose_extension_operator`のexact 24件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.vfx_authoring@1`だけに属する。これらはMCD Operationではなく、Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。`activation.vfx.authoring_operations.v1`が24件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。Write／Preview／Qualification等の記述はActivation審査用の予定意味だけであり、現在の`ProjectChangeSetV1`生成、live buffer／resource／revision変更、共通envelope、projection、authorizationを与えない。
 
 Capability IDは`capability.vfx.system, capability.vfx.particle_cpu, capability.vfx.particle_gpu, capability.vfx.sprite_2d, capability.vfx.billboard_3d, capability.vfx.trail, capability.vfx.mesh_ribbon, capability.vfx.visual_collision, capability.vfx.particle_light, capability.vfx.bake_cache, capability.vfx.semantic_intent, capability.vfx.pattern_catalog, capability.vfx.extension_operator`に閉じる。利用可能性はProduct activation manifestを読み、本書からmaturityを推測しない。
 
@@ -282,4 +328,4 @@ Contract qualificationは全Source型のround-trip、unknown／duplicate／missi
 
 Reference Effectは2D hit spark、fire／smoke、trail、3D hit spark、fire／smoke、rain／snow、magic projectile、explosion、GPU mesh／ribbon、crowded battle compositeを含む。AI／Editor qualificationはsemantic role分解、2D／3D／hybrid、Pattern／LOD／Target／Extension Cue diff、manual／AI ChangeSet一致、lock／stale／unsupported／Gameplay collision拒否、Undo／Redo 10,000回、Cook failureとold generation retireを検証する。
 
-AI fixture hard gateはBlocking／High Impact見落とし0、unknown Role／Node／Operation 0、dimension／temporal／gameplay relation誤解決0、Gameplay逆入力0、Cue破壊0、silent feature removal 0、clear case ChangeSet不一致0、Core外要求のExtension-requiredまたは明示拒否100%、task success 95%以上、不要Blocking質問5%以下である。Evidence envelope、run数、holdout、gradingはAI Verification ownerが決定する。
+AI fixture hard gateはBlocking／High Impact見落とし0、unknown Role／Node／planned semantic action token 0、dimension／temporal／gameplay relation誤解決0、Gameplay逆入力0、Cue破壊0、silent feature removal 0、clear case ChangeSet不一致0、Core外要求のExtension-requiredまたは明示拒否100%、task success 95%以上、不要Blocking質問5%以下である。Evidence envelope、run数、holdout、gradingはAI Verification ownerが決定する。

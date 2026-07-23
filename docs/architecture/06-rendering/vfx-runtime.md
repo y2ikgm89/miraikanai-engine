@@ -170,7 +170,7 @@ PersistentVfxDescriptorV1
   paused
 ```
 
-Particle、GPU buffer、sort、Trail pointは保存しない。Load後prewarmは最大120 step、超過履歴はloop phaseからvisual restartする。[VFX Authoringが所有する`VfxBakeCacheV1`](vfx-authoring.md#4-compilerauthoring-operationpreview)をoffline代替としてexactに消費し、Fieldを再定義しない。GPU stateはReplay digest／authoritative Save／network stateに含めない。
+Particle、GPU buffer、sort、Trail pointは保存しない。Load後prewarmは最大120 step、超過履歴はloop phaseからvisual restartする。[VFX Authoringが所有する`VfxBakeCacheV1`](vfx-authoring.md#4-compilerplanned-authoring-actionpreview)をoffline代替としてexactに消費し、Fieldを再定義しない。GPU stateはReplay digest／authoritative Save／network stateに含めない。
 
 Domain resource ceilingは次である。共通frame／memory envelope、集約測定、backpressureはRuntime capacity ownerへ委譲する。
 

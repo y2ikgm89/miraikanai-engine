@@ -142,8 +142,6 @@ MotionIntentContributionBindingRecordV1
   adapter_output_schema_ref: McdContractRefV1(
     id=type.navigation.adapted_motion_intent, version=1, contract_set_hash)
   compatible_executor_capability_refs[1..64]
-  qualification_receipt_refs[1..64]:
-    exact {receipt_id, receipt_version, receipt_content_hash}
   record_content_hash
 
 MotionIntentContributionBindingRegistryRefV1
@@ -169,8 +167,12 @@ MotionIntentBindingSelectionDocumentV1
   common Project Document header
   selection_id: same StableId as Document header
   selected_executor_provider_ref: MotionExecutorProviderRecordRefV1
+  selected_executor_provider_activation_binding_ref:
+    MotionExecutorProviderActivationBindingRefV1
   selected_binding_record_refs[0..64]:
     MotionIntentContributionBindingRecordRefV1
+  selected_binding_qualification_binding_refs[0..64]:
+    MotionIntentBindingQualificationBindingRefV1
   selection_content_hash: SHA-256
 
 AdaptedMotionIntentV1
@@ -186,25 +188,50 @@ AdaptedMotionIntentV1
     value_schema_ref=type.navigation.adapted_motion_intent@1)
   adapted_intent_hash: SHA-256
 
-MotionIntentBindingQualificationRecordV1
-  qualification_id/version/hash
+MotionIntentBindingQualificationSubjectV1
+  qualification_id
+  qualification_version: positive uint32
   binding_record_ref: MotionIntentContributionBindingRecordRefV1
   owner_ref: GameSystemOwnerRefV1
   target_profile_refs[1..64]
   fixture_refs[1..64]: exact {fixture_id, fixture_version, fixture_content_hash}
   input_closure_hash
   result: pass | fail
-  signed_receipt:
+  qualification_subject_hash: SHA-256
+
+MotionIntentBindingQualificationReceiptV1
+  subject: MotionIntentBindingQualificationSubjectV1
+  signed_record:
     exact MirakanSignedRecordV1(purpose=motion_intent_binding_qualification)
+
+MotionIntentBindingQualificationReceiptRefV1
+  qualification_id
+  qualification_version
+  qualification_subject_hash
+  signed_record_hash
+
+MotionIntentBindingQualificationBindingRefV1
+  qualification_binding_id
+  qualification_binding_version
+  qualification_binding_hash
+
+MotionIntentBindingQualificationBindingV1
+  qualification_binding_id
+  qualification_binding_version
+  binding_record_ref: MotionIntentContributionBindingRecordRefV1
+  qualification_receipt_ref: MotionIntentBindingQualificationReceiptRefV1
+  qualification_binding_hash: SHA-256
 ```
 
 Coreはこのgeneric schema、registry、resolverだけを所有する。`proposal_payload`はdiscriminator外Fieldをcanonical omissionし、reference branchはexact schema／payload hash、inline branchはbound／canonical value hashを検証する。`proposal_hash`はASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_V1`と自身だけを除く全FieldのMCD canonical bytesを`uint32_be` length framingしてSHA-256する。
 
-recordsは`proposal_schema_ref.id`、version、owner layer／owner refのcanonical byte順へstrict sortし、duplicate、同じschemaへの複数active adapter、stale owner／policy／adapter output schema／Qualification Receipt hash、Core ownerを偽装するPack recordを拒否する。record hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_RECORD_V1`とself-excluding canonical bytes、Registry hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、自己Fieldを除外する。`MotionIntentContributionBindingRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only／latest fallbackを許可しない。`MotionIntentContributionBindingRecordRefV1`はRegistry三Field、source／output schema ref、owner layer／ref、record hashを一つにbindし、current Registryからlatest recordを引き直さない。Production Registry／Selection／Runtime Packageはsigned Qualification Receiptだけを検証し、Fixture bodyを解決しない。
+recordsは`proposal_schema_ref.id`、version、owner layer／owner refのcanonical byte順へstrict sortし、duplicate、同じschemaへの複数active adapter、stale owner／policy／adapter output schema、Core ownerを偽装するPack recordを拒否する。record hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_RECORD_V1`とReceipt-free self-excluding canonical bytes、Registry hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、自己Fieldを除外する。`MotionIntentContributionBindingRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only／latest fallbackを許可しない。`MotionIntentContributionBindingRecordRefV1`はRegistry三Field、source／output schema ref、owner layer／ref、record hashを一つにbindし、current Registryからlatest recordを引き直さない。
 
-個別Feature／Genreのproposal schema、adapter policy、binding、Qualification record／Fixtureは当該Pack ownerが登録し、Core binaryまたはCore fixture inventoryへコピーしない。resolverはcurrent Registry ref、producer schema、selected executor capabilityを入力にexact一件を選び、adapter policyをpure evaluationしてexact `AdaptedMotionIntentV1`を生成する。0件／複数binding、output schema mismatch、adapter hash mismatchなら推測変換しない。Project Sourceの正本は`MotionIntentBindingSelectionDocumentV1`であり、Registry、resolver output、Runtime lookup tableは派生物である。ただしwrite surfaceは本Taskでは完全登録されていないため、`operation.navigation.motion_intent_binding.select`をcurrent MCD、Manifest、Service allowlist、Provider／MCP Catalogから除外し、capability stateを`not_activated`にする。選択要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変にする。future work item `activation.navigation.motion_intent_binding_selection.v1`はinitial create/upsertとupdate、selection semantic hash、sort／duplicate、MCD全Field、Policy／Validator／Diagnostic／Receipt、private-to-public recoveryを同じContract set transactionで完全登録するまでactivateしない。Registry reloadは既存Source selectionから決定的に再materializeし、Registryを直接writeするOperationを公開しない。
+Registry／RecordRef固定後、Qualification subject hashはASCII `MIRAKAN_MOTION_INTENT_BINDING_QUALIFICATION_SUBJECT_V1`、Qualification binding hashはASCII `MIRAKAN_MOTION_INTENT_BINDING_QUALIFICATION_BINDING_V1`と各自己Fieldを除くcanonical bytesから計算する。subjectの`owner_ref`は`binding_record_ref`が解決するReceipt-free base recordの`owner_layer／owner_ref` projectionとbyte equality、Qualification BindingのRecordRefはsubjectとbyte equalityでなければならない。signed wrapperは完成subjectだけを署名し、subject／record／Registry hash preimageへwrapper、Receipt ref、Qualification bindingを含めない。生成順は`receipt-free Binding record → Registry／RecordRef → Qualification subject → signed Receipt → Qualification binding → Selection`である。Selectionのrecord ref集合とQualification bindingが解決するrecord ref集合はexact set equalityであり、Production Selection／Runtime Packageはbindingが指すsigned Receiptのsubject／result／freshnessだけを検証し、Fixture bodyを解決しない。subject owner、RecordRef、Receipt subject、signed hash、Binding RecordRefの各一Fieldを別baseへ差し替えるnegative fixtureを持つ。
 
-Compile closureはSelection Document ref／content hash、RegistryRef、全Binding RecordRef、Provider RecordRef、set hashを持つ。Saveは同じselection ref／hashとRecordRef集合、Replay headerはそれらに加えて各tickで実際に使ったRecordRef／source proposal hash／adapted intent hashを記録する。Load／Replay／CompileはSource→Registry→Record→Providerの全ref equalityを再検査し、Registry version／hash、record hash、selection hashがstaleなproposalを再利用しない。`fixture.navigation.motion-intent-binding-roundtrip`は別Qualification record内で既存Selection reload→Compile→Save／Load→Replayを通し、record missing／duplicate／stale Registry／cross-owner／source-output schema spoof／Sourceとderived Registry差を各単独原因でrejectする。
+個別Feature／Genreのproposal schema、adapter policy、binding、Qualification record／Fixtureは当該Pack ownerが登録し、Core binaryまたはCore fixture inventoryへコピーしない。resolverはcurrent Registry ref、producer schema、selected executor capabilityを入力にexact一件を選び、adapter policyをpure evaluationしてexact `AdaptedMotionIntentV1`を生成する。0件／複数binding、output schema mismatch、adapter hash mismatchなら推測変換しない。Project Sourceの正本は`MotionIntentBindingSelectionDocumentV1`であり、Registry、resolver output、Runtime lookup tableは派生物である。ただしwrite surfaceは本Taskでは完全登録されていないため、`operation.navigation.motion_intent_binding.select`は[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.navigation_binding_selection@1`に属するexact一候補であり、current MCD、Owner Manifest、Service allowlist、Policy、Validator、Diagnostic、Receipt、Provider／MCP Catalog、generated alias、legacy aliasの各集合をすべて`[]`、capability stateを`not_activated`にする。選択要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変にする。future work item `activation.navigation.motion_intent_binding_selection.v1`はinitial create/upsertとupdate、selection semantic hash、sort／duplicate、MCD全Field、Policy／Validator／Diagnostic／Receipt、private-to-public recoveryを同じContract set transactionで完全登録するまでactivateしない。Registry reloadは既存Source selectionから決定的に再materializeし、Registryを直接writeするOperationを公開しない。
+
+Compile closureはSelection Document ref／content hash、RegistryRef、全Binding RecordRef、全Qualification Binding ref、Provider RecordRef、Provider Activation Binding ref、exact `ProviderProductionOwnerProjectionRefV1`、exact `ProviderSelectionCompileBindingRefV1`、set hashを持つ。Compile Binding Refは完成BindingのID／version／self-excluding content hashとbyte equalityで、Bindingはcurrent Project containment、Selection、Provider Record、Provider Activation Binding、Owner Projectionの全ref equalityを検証してからだけmaterializeする。Runtime PackageはこのCompile closureとCompile Binding Refをexact inputとして持ち、Project ID／revision／document-set hash、Selection hash、Provider／Activation／Projection hashの一つでもdriftした場合はpackage compileを拒否する。Saveは同じselection ref／hash、RecordRef集合、Binding／Provider Activation Binding集合、Replay headerはそれらに加えて各tickで実際に使ったRecordRef／source proposal hash／adapted intent hashを記録する。Load／Replay／CompileはSource→Registry→Record→Qualification subject／signed Receipt／Binding→Provider Record→Owner Projection→Provider subject／signed Receipt／Activation Binding→Project Compile Bindingの全ref equalityを再検査し、Registry／Catalog version／hash、record／subject／Receipt／binding／Projection／Compile Binding hash、selection hashがstaleなproposalを再利用しない。`fixture.navigation.motion-intent-binding-roundtrip`は別Qualification subject内で既存Selection reload→Compile→Save／Load→Replayを通し、record missing／duplicate／stale Registry／cross-owner／source-output schema spoof／Receipt substitution／Sourceとderived Registry差／Compile BindingまたはOwner Projection欠落を各単独原因でrejectする。
 
 Port transportとgeneric batch publisherをNavigation／Core ownerへ固定する。`game_system.engine.navigation.motion_intent_batch_publisher`はactive Selection DocumentとContribution Registryを読み、全owner contributionをcanonical mergeして、T40でselected Providerへ一回だけ配送する。Character、RTS、board token、Animation等のcontributorは自身のproposalとadapter recordだけを所有し、このpublisher、batch identity、merge orderを所有またはforkしない。これはEventではなくbounded Port messageである。
 
@@ -213,6 +240,21 @@ Port transportとgeneric batch publisherをNavigation／Core ownerへ固定す�
 ```text
 GameSystemSpecV2 game_system.engine.navigation.motion_intent_batch_publisher
   MCD common envelope: all fields
+  id: game_system.engine.navigation.motion_intent_batch_publisher
+  version: 1
+  status: active
+  title: Navigation Motion Intent Batch Publisher
+  description:
+    canonically merge registered owner contributions and publish one
+    selected-provider batch without owning authoritative motion state
+  owners: [owner.core.navigation]
+  requirement_refs:
+    [requirement.navigation.publish_motion_intent_batch@1,
+     requirement.navigation.not_authoritative_motion_writer@1]
+  rationale_refs: [mirakan.arch.simulation-navigation#41-generic-motion-executor-port]
+  since_contract_set: 2
+  supersedes: []
+  tags: [core, motion_intent, navigation, port_publisher]
   owner_layer: core
   owner_ref:
     {owner_layer=core, owner_id=owner.core.navigation,
@@ -253,8 +295,6 @@ GameSystemSpecV2 game_system.engine.navigation.motion_intent_batch_publisher
     [exact budget.navigation.motion_intent_batch_publisher per Target Profile ref/version/hash]
   authoring_surface_ids: []
   fallback_contract: no_fallback; invalid closure leaves last-valid batch unpublished
-  qualification_receipt_refs:
-    [exact qualification receipt for the publisher System contract and Target set]
   compatibility_invariant_refs:
     [exact invariant.navigation.single_batch_publisher ref/version/hash,
      exact invariant.navigation.canonical_contribution_merge ref/version/hash,
@@ -263,7 +303,154 @@ GameSystemSpecV2 game_system.engine.navigation.motion_intent_batch_publisher
   extension_policy: sealed
 ```
 
-表記上の`@1`は`McdContractRefV1 {id, version=1, contract_set_hash}`の短記であり、ID文字列に`@1`を含めない。依存edgeはpublisherがSelection、Binding Registry、Provider Catalog、全contributorのgeneric Portだけを読むことを許可し、Feature／Genre固有proposal schemaへのCore dependencyを許可しない。Core validatorはcurrent System CatalogにこのIDがexact一件、`state_class=derived`、owned state 0件、Save／Replay ref canonical omission、batch emitter exact一件であることを検証する。
+表記上の`@1`は`McdContractRefV1 {id, version=1, contract_set_hash}`の短記であり、ID文字列に`@1`を含めない。依存edgeはpublisherがSelection、Binding Registry、Provider Catalog、全contributorのgeneric Portだけを読むことを許可し、Feature／Genre固有proposal schemaへのCore dependencyを許可しない。Core validatorはcurrent System CatalogにこのReceipt-free Spec IDがexact一件、`state_class=derived`、owned state 0件、Save／Replay ref canonical omission、batch emitter exact一件であることを検証する。Spec／Contract set root確定後のexact `GameSystemActivationBindingRefV1`だけがpublisher System contract／Target setのsigned Qualification Receiptを持ち、Catalog entryはSpec refとActivation Binding refを別Fieldで保持する。
+
+#### 4.1.1 Core publisher補助record closure
+
+上記Specが参照する12件は文字列予約ではなく、次のReceipt-free record inventoryへexactly oneで解決する。二RequirementだけがMCD member、残る10件は`id`、`version=1`、`content_hash`を持つNavigation-owned typed auxiliary recordである。
+
+| exact record | record type | normative content |
+|---|---|---|
+| `semantic_role.navigation.motion_intent_batch_publisher` v1 | `SemanticRoleRecordV1` | registered contributionだけをcanonical mergeし、selected Provider向けbatchを一件発行する |
+| `requirement.navigation.publish_motion_intent_batch` v1 | MCD `requirement` | actor／generation／tickごとにcanonical batchを最大一件publishする`must` |
+| `requirement.navigation.not_authoritative_motion_writer` v1 | MCD `requirement` | Transform、Physics、Gameplay authoritative Stateをwriteしない`must_not` |
+| `dependency.navigation.publisher.selection` v1 | `GameSystemDependencyEdgeV1` | active Selection Documentをread-onlyで読む |
+| `dependency.navigation.publisher.binding_registry` v1 | `GameSystemDependencyEdgeV1` | current contribution Binding Registryをread-onlyで読む |
+| `dependency.navigation.publisher.provider_catalog` v1 | `GameSystemDependencyEdgeV1` | selected Providerをcurrent Provider Catalogへexact解決する |
+| `dependency.navigation.publisher.contributor_port` v1 | `GameSystemDependencyEdgeV1` | generic contribution PortだけをT40で受理する |
+| `implementation_policy.navigation.motion_intent_batch_publisher` v1 | `GameSystemImplementationPolicyV1` | sealed Core C++ implementation、live switch禁止、意味fallbackなし |
+| `budget.navigation.motion_intent_batch_publisher` v1 | `BehaviorBudgetRecordV1` | active Targetごとに一行、actor／generation／tick当たりbatch 1件、entry 16件 |
+| `invariant.navigation.single_batch_publisher` v1 | `CompatibilityInvariantRecordV1` | batch publisherはcurrent Catalogにexact一件 |
+| `invariant.navigation.canonical_contribution_merge` v1 | `CompatibilityInvariantRecordV1` | 全entryはregistered adapter出力でcanonical順 |
+| `invariant.navigation.selected_provider_delivery_once` v1 | `CompatibilityInvariantRecordV1` | selected Providerへの配送はactor／generation／tick当たりexact一回以下 |
+
+全非MCD recordは共通header
+`{record_id, record_version=1, record_content_hash, owner_ref={owner_layer=core,owner_id=owner.core.navigation,owner_revision,owner_content_hash}, status=active, introduced_contract_set_local_ref}`を持つ。`introduced_contract_set_local_ref`はrootを含まないlocal identityである。payload内のMCD edgeはroot確定前には`ContractSetLocalRefV1 {kind,id,version}`、root確定後の外部projectionだけが同じrootの`McdContractRefV1`を使う。各`record_content_hash`はASCII `MIRAKAN_NAVIGATION_GAME_SYSTEM_AUXILIARY_RECORD_V1`、record type ordinal、自己hashだけを除くheaderとtyped payloadのMCD canonical bytesをcount／length frameして計算し、System ref、Contract set root、Qualification Receipt、Activation Bindingをpreimageへ含めない。
+
+```text
+SemanticRoleRecordV1.payload
+  accepted_input_type_local_refs:
+    [type.navigation.motion_intent_contribution v1]
+  emitted_port_message_type_local_refs:
+    [type.navigation.motion_executor_intent_batch v1]
+  allowed_phase_ids: [T40_MotionIntent]
+  responsibility_requirement_local_refs:
+    [requirement.navigation.publish_motion_intent_batch v1]
+  non_responsibility_requirement_local_refs:
+    [requirement.navigation.not_authoritative_motion_writer v1]
+  authoritative_write_type_local_refs: []
+
+GameSystemDependencyEdgeV1.payload
+  source_system_local_ref:
+    {kind=game_system,
+     id=game_system.engine.navigation.motion_intent_batch_publisher,
+     version=1}
+  target_contract_local_ref:
+    selection:
+      {kind=type,
+       id=type.navigation.motion_intent_binding_selection,version=1}
+    | binding_registry:
+      {kind=type,
+       id=type.navigation.motion_intent_contribution_binding_registry,version=1}
+    | provider_catalog:
+      {kind=type,
+       id=type.navigation.motion_executor_provider_catalog,version=1}
+    | contributor_port:
+      {kind=type,id=type.navigation.motion_intent_contribution,version=1}
+  edge_kind: snapshot_read | port_ingress
+  phase_relation: available_before_t40 | accepted_during_t40
+  access: read_only
+  required: true
+  fallback: no_inferred_target
+
+GameSystemImplementationPolicyV1.payload
+  allowed_implementation_kinds: [engine_core_cpp]
+  default_implementation_artifact_ref:
+    {artifact_kind=engine_core_module,
+     logical_id=implementation.engine.navigation.motion_intent_batch_publisher,
+     schema_version=1,sha256}
+  native_eligibility: true
+  replacement_policy: sealed
+  live_switch_policy: forbidden
+  required_target_refs: exact active Project Target set
+  configuration_schema_local_ref:
+    {kind=type,id=type.game_system.empty_configuration,version=1}
+  unavailable_behavior: reject_activation_keep_last_valid
+
+BehaviorBudgetRecordV1.payload
+  target_limits[1..64]:
+    target_profile_ref: exact active Target Profile ref/version/hash
+    max_batches_per_actor_generation_tick: 1
+    max_entries_per_batch: 16
+    max_inline_payload_bytes_per_entry: 65536
+    max_inline_payload_bytes_per_batch: 1048576
+  overflow_behavior: typed_reject_no_partial_publish
+
+CompatibilityInvariantRecordV1.payload
+  predicate_kind:
+    catalog_singleton_by_system_id
+    | canonical_registered_contribution_merge
+    | selected_provider_at_most_once_delivery
+  evaluation_phase: activation | T40_MotionIntent
+  input_contract_local_refs[1..8]
+  expected: true
+  failure_code: MIRAKAN-NAV-MOTION-EXECUTOR-INCOMPATIBLE
+  failure_behavior: reject_without_publishing_partial_batch
+```
+
+四dependency recordは上記unionの各branchをexact一件ずつ使い、`selection`／`binding_registry`／`provider_catalog`は`edge_kind=snapshot_read, phase_relation=available_before_t40`、`contributor_port`だけは`edge_kind=port_ingress, phase_relation=accepted_during_t40`とする。Role、Policy、Budget、Invariantは表のIDとpayload branchを一対一にする。sealed built-inで構成Fieldを持たない本PolicyはGameplay Programming Model所有のcomplete `type.game_system.empty_configuration` v1 LocalRefを使い、root後は同じContract set hash付きexternal refへ投影する。`null`、zero ref、ownerごとのempty Type複写で代用しない。Budgetの`target_limits[]`はactive Project Target Profile集合とexact set equalityで、Target ref canonical順、duplicateなしとし、Target非依存のdefault行やlatest Target lookupを許可しない。
+
+二Requirementは次の全MCD共通EnvelopeとRequirement payloadを持つ。
+
+```text
+mcd_version=1
+kind=requirement
+id=requirement.navigation.publish_motion_intent_batch
+version=1
+status=active
+title=Publish Canonical Motion Intent Batch
+description=Publish at most one canonical selected-provider batch per actor generation and tick
+owners=[owner.core.navigation]
+requirement_refs=[]
+rationale_refs=[mirakan.arch.simulation-navigation#41-generic-motion-executor-port]
+since_contract_set=2
+supersedes=[]
+tags=[motion_intent,navigation,publisher]
+normative_level=must
+priority=blocking
+statement=Validated registered contributions map to at most one canonically ordered selected-provider batch for each actor generation and tick
+scope=[game_system.engine.navigation.motion_intent_batch_publisher,T40_MotionIntent]
+verification_methods=[gate.navigation.motion_intent_batch_publisher.contract,gate.navigation.motion_intent_batch_publisher.runtime]
+acceptance_criteria=[predicate.navigation.batch_count_at_most_one,predicate.navigation.batch_entries_registered_and_canonical]
+failure_code=MIRAKAN-NAV-MOTION-EXECUTOR-INCOMPATIBLE
+source_refs=[{ref=mirakan.arch.simulation-navigation#41-generic-motion-executor-port,authority=project_normative}]
+introduced_by=changeset.architecture.navigation.motion_intent_batch_publisher.v1
+
+mcd_version=1
+kind=requirement
+id=requirement.navigation.not_authoritative_motion_writer
+version=1
+status=active
+title=Do Not Write Authoritative Motion State
+description=Keep the generic publisher outside Transform Physics and Gameplay state ownership
+owners=[owner.core.navigation]
+requirement_refs=[]
+rationale_refs=[mirakan.arch.simulation-navigation#41-generic-motion-executor-port]
+since_contract_set=2
+supersedes=[]
+tags=[authority,boundary,motion_intent,navigation]
+normative_level=must_not
+priority=blocking
+statement=The publisher must not write Transform Physics or Gameplay authoritative state
+scope=[game_system.engine.navigation.motion_intent_batch_publisher,T40_MotionIntent]
+verification_methods=[gate.navigation.motion_intent_batch_publisher.contract,gate.navigation.motion_intent_batch_publisher.authority]
+acceptance_criteria=[predicate.navigation.publisher_authoritative_write_edge_count_zero]
+failure_code=MIRAKAN-NAV-MOTION-EXECUTOR-INCOMPATIBLE
+source_refs=[{ref=mirakan.arch.simulation-navigation#41-generic-motion-executor-port,authority=project_normative}]
+introduced_by=changeset.architecture.navigation.motion_intent_batch_publisher.v1
+```
+
+Contract compilerは二Requirementを`ContractSetMemberLocalRecordV2(member_kind=mcd)`、publisher Specを同じkindの別local memberとして同一`ContractSetSnapshotV2`へ含める。Spec内のRequirement／Type／Capability edgeはlocal identityで解決し、10件の非MCD auxiliary record hashと上記12 refのexact `GameSystemAuxiliaryRefSetV1`をSpec local payloadへ含めてからmember hashとset rootを計算する。root確定後だけ二RequirementとSpecのexternal refをmaterializeする。12件の一件missing／extra／duplicate、wrong owner／type／version／hash、Target budget一行missing／extra、各payload一Field mutation、noncanonical ref順でauxiliary hashまたはContract set rootが変わらないfixtureをrejectし、last-valid Catalogを不変にする。
 
 ```text
 MotionExecutorIntentBatchV1
@@ -339,20 +526,99 @@ MotionExecutorProviderRecordV1
   owner_identity: ProviderOwnerIdentityV1
   usage: production | fixture_only
   port_descriptor: MotionExecutorPortV1
-  implementation_system_ref: GameSystemContractRefV1
+  implementation_system_base_ref:
+    UsageTaggedImplementationSystemBaseRefV1
   supported_target_profile_refs[1..64]
-  qualification_receipt_refs[1..64]
+
+MotionExecutorProviderQualificationSubjectV1
+  qualification_id
+  qualification_version: positive uint32
+  provider_record_ref: MotionExecutorProviderRecordRefV1
+  owner_identity: exact ProviderOwnerIdentityV1
+  production_owner_projection_ref:
+    ProviderProductionOwnerProjectionRefV1
+    | canonical omission when usage=fixture_only
+  implementation_system_ref:
+    exact UsageTaggedImplementationSystemRefV1
+  target_profile_refs[1..64]
+  accepted_intent_schema_refs[1..64]
+  input_closure_hash
+  result: pass | fail
+  qualification_subject_hash: SHA-256
+
+MotionExecutorProviderQualificationReceiptV1
+  subject: MotionExecutorProviderQualificationSubjectV1
+  signed_record:
+    exact MirakanSignedRecordV1(
+      purpose=motion_executor_provider_qualification)
+
+MotionExecutorProviderQualificationReceiptRefV1
+  qualification_id
+  qualification_version: positive uint32
+  qualification_subject_hash: SHA-256
+  signed_record_hash: SHA-256
+
+MotionExecutorProviderActivationBindingRefV1
+  activation_binding_id
+  activation_binding_version: positive uint32
+  activation_binding_hash: SHA-256
+
+MotionExecutorProviderActivationBindingV1
+  activation_binding_id
+  activation_binding_version: positive uint32
+  provider_record_ref: MotionExecutorProviderRecordRefV1
+  qualification_receipt_refs[1..64]:
+    MotionExecutorProviderQualificationReceiptRefV1
+  activation_binding_hash: SHA-256
 
 ProviderOwnerIdentityV1
   owner_layer: core | feature_pack | genre_pack | project | fixture
-  core_component_ref: exact EngineComponentRecordRefV1 | null
+  core_system_owner_ref: exact GameSystemOwnerRefV1 | null
   pack_contract_ref: exact PackContractRefV1 | null
-  project_ref:
-    exact {project_id, project_revision, project_document_set_hash} | null
+  project_identity_ref: exact {project_id} | null
   fixture_owner_ref: exact fixture ref/hash | null
+
+ProviderProductionOwnerProjectionRefV1
+  projection_id
+  projection_version: positive uint32
+  projection_hash: SHA-256
+
+ProviderProductionOwnerProjectionV1
+  projection_id
+  projection_version: positive uint32
+  provider_record_ref: exact MotionExecutorProviderRecordRefV1
+  provider_owner_identity:
+    exact ProviderOwnerIdentityV1(owner_layer != fixture)
+  game_system_owner_ref: exact GameSystemOwnerRefV1
+  projection_hash: SHA-256
+
+ProviderSelectionCompileBindingV1
+  compile_binding_id
+  compile_binding_version: positive uint32
+  project_containment_ref:
+    exact {project_id, project_revision, project_document_set_hash}
+  selection_document_ref/hash:
+    exact MotionIntentBindingSelectionDocumentV1
+  provider_record_ref: exact MotionExecutorProviderRecordRefV1
+  provider_activation_binding_ref:
+    exact MotionExecutorProviderActivationBindingRefV1
+  production_owner_projection_ref:
+    exact ProviderProductionOwnerProjectionRefV1
+  compile_binding_hash: SHA-256
+
+ProviderSelectionCompileBindingRefV1
+  compile_binding_id
+  compile_binding_version: positive uint32
+  compile_binding_hash: SHA-256
 ```
 
-owner unionはdiscriminator外Fieldをnullにする。`owner_layer=feature_pack | genre_pack`は`pack_contract_ref`だけをnon-nullにし、その`PackContractV1.pack_kind`がそれぞれ`feature | genre`、Pack ID／version／content hashがCatalog owner inventoryとexact equalityでなければならない。`usage=production`は`core | feature_pack | genre_pack | project`だけ、`fixture_only`は`fixture`だけを許可する。`implementation_system_ref`の`GameSystemSpecV2.owner_layer／owner_ref`はProvider ownerとexact equalityであり、Core namespaceまたはPack kindの自己申告だけでは所有を証明しない。recordは`provider_content_hash`を除く全FieldのMCD canonical bytesからhashし、CatalogはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_CATALOG_V1`、catalog ID／version、Contract set hash、provider ID／version順でstrict sortしたrecord全体を入力して自己hashを除外する。`MotionExecutorProviderRecordRefV1`はCatalog identity／version／hash／Contract setとrecord identity／version／content hashを一つにbindし、current Catalogからlatest recordを再解決しない。Batch、Selection State、Save、ReplayはこのRecordRefだけを保存し、`provider_binding_ref`＋別hash、Capability ID、表示名で代用しない。Project ownerは現在compile対象Projectとexact equalityでなければならず、cross-project refやpayload自身が主張するProject IDだけでは所有を証明しない。fixture recordをProduction、Project Save、Runtime Packageへ選択しない。
+owner unionはdiscriminator外Fieldをnullにする。`owner_layer=core`は`core_system_owner_ref`だけをnon-nullにし、その`GameSystemOwnerRefV1`は同Provider recordのproduction implementation baseが指すReceipt-free `GameSystemSpecV2.owner_ref`と全Field byte equalityでなければならない。これによりSystem contractとは別のEngine Component identity／Registryを作らない。`owner_layer=feature_pack | genre_pack`は`pack_contract_ref`だけをnon-nullにする。そのRefは[Pack Contract](../08-packs/pack-contract.md)のexact `PackManifestV1 {pack_id,pack_version,content_hash}`へ一件だけ解決し、Manifestの`pack_kind`がそれぞれ`feature | genre`、三FieldがCatalog owner inventoryとbyte equalityでなければならない。未定義の中間`PackContractV1`、bare Pack ID、latest Manifestを介さない。`usage=production`は`core | feature_pack | genre_pack | project`だけ、`fixture_only`は`fixture`だけを許可する。base recordの`implementation_system_base_ref.usage`とQualification subjectの`implementation_system_ref.base_ref.usage`はenclosing usageとexact equalityである。
+
+Production ownerの照合は異型union同士の直接比較を行わず、root外のexact `ProviderProductionOwnerProjectionV1`を介す。CoreはProvider recordのexact `core_system_owner_ref`、Feature／Genreはexact Pack owner inventory、Projectはstable `project_identity_ref`とtrusted Project owner inventoryがそれぞれ登録した一件の`GameSystemOwnerRefV1`へだけ投影できる。Provider `core | feature_pack | genre_pack | project`はGame System `core | feature_pack | genre_pack | project`の同ordinalへ写像し、projectionの`provider_record_ref`は対象Record、provider identityは同Recordの`owner_identity`、`game_system_owner_ref`は参照先`GameSystemSpecV2.owner_ref`とbyte equalityでなければならない。Coreではこの三者に加えてProvider `owner_identity.core_system_owner_ref`も同じOwner refとbyte equalityにする。projection hashはASCII `MIRAKAN_PROVIDER_PRODUCTION_OWNER_PROJECTION_V1`と自己Fieldを除くcanonical bytesから計算する。Provider recordはProjection ref、Project revision、Document-set hashを持たず、production Qualification subjectだけがexact Projection refを持つ。production base branchは`production_system_ref: GameSystemContractRefV1`と`production_system_contract_hash`だけ、fixture-only base branchはProjection Fieldをcanonical omissionして`fixture_system_ref: FixtureImplementationSystemRefV1`だけを持つ。Provider Qualification subjectの`implementation_system_ref.base_ref`はbase recordの`implementation_system_base_ref`とbyte equalityにし、その後段でproductionならexact `production_system_activation_binding_ref`、fixtureならexact `fixture_system_activation_binding_ref`を加える。fixture Registry record／System Qualification subjectの`fixture_owner_ref`はProvider ownerの同型fixture refとexact equalityにする。Core namespace、Pack kind、fixture名の自己申告だけでは所有を証明しない。
+
+recordは`provider_content_hash`を除くReceipt-free全FieldのMCD canonical bytesからhashし、CatalogはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_CATALOG_V1`、catalog ID／version、Contract set hash、provider ID／version順でstrict sortしたrecord全体を入力して自己hashを除外する。`MotionExecutorProviderRecordRefV1`はCatalog identity／version／hash／Contract setとrecord identity／version／content hashを一つにbindし、current Catalogからlatest recordを再解決しない。Catalog／RecordRef固定後、Production Owner Projectionを作り、既に完成したSystem Activation Bindingをbase refへ付加した`UsageTaggedImplementationSystemRefV1`とProjection refをProvider Qualification subjectへだけ入れる。Qualification subject hashはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_QUALIFICATION_SUBJECT_V1`、Activation binding hashはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_ACTIVATION_BINDING_V1`と各自己Fieldを除くcanonical bytesから計算する。subjectの`owner_identity`はbase recordの同Field、Production Projectionは同RecordRef／owner／System owner、`implementation_system_ref.base_ref`はbase recordの`implementation_system_base_ref`とbyte equality、Activation BindingのRecordRefはsubjectとbyte equalityでなければならない。signed wrapperは完成subjectだけを署名し、System／Provider record、Catalog hashへReceipt、Projection、wrapper、System／Provider Activation Bindingを戻さない。生成順は`receipt-free System base → System subject／signed Receipt／Activation Binding; receipt-free Provider record(System base ref only) → Catalog／RecordRef → root外Owner Projection → Provider subject(System Activation Binding＋Owner Projection) → signed Provider Receipt → Provider Activation Binding → Selection Document／Project document-set hash → root外ProviderSelectionCompileBindingV1`である。
+
+Compile Binding hashはASCII `MIRAKAN_PROVIDER_SELECTION_COMPILE_BINDING_V1`と自己Fieldを除くcanonical bytesから計算する。`project_containment_ref`は全production owner branchで現在compileするSelection DocumentのProject tripleとbyte equalityにするが、Provider ownerとの照合はtagged ruleにする。`owner_layer=project`だけがProvider recordのstable `project_identity_ref.project_id`とcontainmentの`project_id`をexact equalityにする。`core`は`project_identity_ref=null`のままProvider core System owner ref→Owner Projection→同じCore Game System ownerを、`feature_pack | genre_pack`は同FieldをnullのままPack Manifest inventory→Owner Projection→同ordinal Pack Game System ownerを検証し、compile対象ProjectはそのProviderを選択するcontainment contextとしてだけ保持する。Core／Pack Providerへ架空のProject IDを補完せず、Project containmentとOwner identityを異型比較しない。全branchでSelection内Provider RecordRef／Activation BindingはCompile Bindingの同Field、Owner ProjectionはReceipt subjectの同Refとbyte equalityである。Compile BindingをSelection、Provider、Catalog、Receipt、Activation Binding、Project document-set hashへ戻さない。Batch、Selection State、Save、Replayはproduction RecordRef、そのRecordRefをexact subjectにするProvider Activation Binding ref、subjectが固定したSystem Activation Binding refを保存し、`provider_binding_ref`＋別hash、Capability ID、表示名で代用しない。fixture record、fixture Activation Binding、`FixtureImplementationSystemRefV1`をProduction Catalog、Project Source／Save／Replay、Compile Manifest、Runtime Packageへ選択しない。全branch共通fixtureはcurrent Project containment、subject owner、System base ref、System Activation Binding、owner projection、Provider RecordRef、signed Receipt、Provider Activation Bindingの各一Field差し替えをrejectする。Project branchはさらにstable Project IDのcross-project substitutionを、Core branchはcore System owner refだけを別valid Core ownerへ差し替えるcaseを、Core／Pack branchは`project_identity_ref`をnon-nullにするdiscriminator外FieldとProject containmentからownerを推論するcaseを一原因ずつrejectする。
 
 `arrival_radius_m`はfiniteな0.01～10 mとする。`executor_capability_ref`は選択Provider Capability、`movement_profile_ref`はそのProvider-owned schemaのinstanceを参照する。request validationは`nav_agent_profile_ref`のslope／climb／clearance semanticsとProviderのcompatibility predicateを検査し、Navigation上はtraversableだがexecutorが通行できない組合せをinvalid Profile relationとして拒否する。C1 waypointは`GridNav2DProfileV1`の`max_path_cells`（C1上限8,192 cell）または`NavBuildProfile3DV1`の`max_straight_path_points`（C1上限256 point）に従い、上限値の正本はProfile fieldである。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、`PathFollowerStateV1.status`の`blocked`遷移だけがreplan契機である。`blocked`はProvider stateではなくPath Follower述語であり、Portの`resolved_motion_schema_ref`に適合する結果から得た実進捗だけが、`MovementIntentV1`の要求displacementに対して`replan_policy_ref`の進捗閾値未満であるtickが、同policyのblocked判定tick数だけ連続した場合に遷移する。Physics snapshot、Transform component、Animation pose、Provider-private stateから進捗を迂回判定しない。`replan_policy_ref`は進捗閾値、blocked判定tick数、最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
 
@@ -360,9 +626,9 @@ accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Following�
 
 ownerが永続化を要求した場合だけSaveへdestination intent、request semantic、`executor_capability_ref`、movement profile identity、replan countを保存する。Scope instance keyとSave identityをruntime generationへ置換しない。waypoint index、Nav path point配列、native query handle、Physics stateは保存しない。Loadは保存済みNav generationやpath進捗を信用せず、同じdestination intentとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、selected executor／profile hash、accepted resolved motion、arrived／stuck／replan Eventを記録する。C1 fixtureは2D moving-anchor follow／interaction-range arrival、3D Navmesh追跡、Physicsなしboard-token、PhysicsなしRTS unitを用い、destination移動、passage閉鎖、stale result、owner scope deactivate、blocked recovery、Save／Load、Replay一致を検証する。
 
-## 5. Authoring、AI、diagnostic、recovery
+## 5. Authoring planned actions、AI、diagnostic、recovery
 
-公開OperationはWorld／Profile／source／artifactのinspect、Grid／Navmesh Profile作成・更新、area／modifier／link作成・更新・削除、cook、query preview、validation、qualification reportに限定する。全writeは[Project state](../03-authoring/project-state.md)のChangeSetを生成し、live Backendへ直接writeしない。EditorとAIは同じSource Document、validator、preview、cook、undo／redoを使う。
+World／Profile／source／artifactのinspect、Grid／Navmesh Profile作成・更新、area／modifier／link作成・更新・削除、cook、query preview、validation、qualification reportはStable IDでないplanned semantic action vocabularyであり、current公開Operationではない。Navigationのcurrent MCD Operation集合は空、exact一件のselection候補は`planning.operation_family.navigation_binding_selection@1`で`not_activated`である。future work item `activation.navigation.authoring_operations.v1`が採用するexact ID集合と完全なMCD／Service／Policy／Validator／Diagnostic／Receipt／publication closureを一transactionで登録するまでaction名からIDを生成せずdispatchしない。Activation後のwriteだけが[Project state](../03-authoring/project-state.md)のChangeSetを生成し、live Backendへ直接writeしない。EditorとAIは同じSource Document、validator、preview、cook、undo／redoを使う。
 
 AIは「どのBackendを使うか」ではなく、2D／3D、移動体の大きさ、登れる段差／傾斜、通行可能area、door／jump link、dynamic obstacle、Targetをゲーム上の言葉で確認する。未指定値はassumptionとしてpreviewに表示する。Risk分類、authorization、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、Approval ruleを再掲しない。
 
@@ -381,9 +647,63 @@ QualificationはGrid rasterization／A*、Profile cross-field validation、canon
 | `provider.fixture.motion_executor.board_token` v1／fixture_only／exact `fixture.navigation.motion-executor.board-token-no-physics` owner | `capability.motion_executor.fixture.board_token` | `type.fixture.motion.board_token_movement_profile` | `[type.navigation.adapted_motion_intent]` | `type.navigation.motion_executor_intent_batch`／`type.fixture.motion.board_token_resolved_motion` | `policy.fixture.motion.board_token_target_dimension` |
 | `provider.fixture.motion_executor.rts_stub` v1／fixture_only／exact `fixture.navigation.motion-executor.rts-stub-no-physics` owner | `capability.motion_executor.fixture.rts_stub` | `type.fixture.motion.rts_stub_movement_profile` | `[type.navigation.adapted_motion_intent]` | `type.navigation.motion_executor_intent_batch`／`type.fixture.motion.rts_stub_resolved_motion` | `policy.fixture.motion.rts_stub_target_dimension` |
 
-両policyはfixture Target allowlist、2D／3D dimension、profile schema、intent subsetを全件検証する。`fixture.navigation.motion-executor.board-token-no-physics`と`fixture.navigation.motion-executor.rts-stub-no-physics`は上記7 Field、Provider identity／version／content hash／owner／usage、Target／dimension policy、diagnostic、Physics dependency 0件を検証する。Physics production recordも同じCatalog schemaへ`usage=production`、Engine owner、exact implementation System／Qualification Receiptで登録する。
+両fixture-only implementation base recordを次の全Fieldで固定する。全`@1` MCD／Target／Fixture refはversionとcontent hashまたはContract set rootを持つexact refであり、空配列もrecord hashへcount 0で含める。
 
-negative fixtureはmissing／duplicate Provider、Provider record order、composition intent subset不成立、profile／Target／dimension incompatibility、stale result、stale Catalog version／hash、stale provider version／content hash、MCD kind／type spoof、payload refとschema不一致、payload hash mismatch、duplicate proposal ID、noncanonical entry order、fixture Provider RecordRefのProduction選択、cross-project owner、self-asserted owner、contribution adapter 0件／複数を一原因ずつ拒否する。root-motionあり／なしの双方を検査し、proposalは必ずregistered generic contribution resolver経由の`MotionExecutorIntentBatchV1`でselected executorへ届く。Provider failure fixtureはPath progress、last-valid resolved motion、Path Follower stateを部分更新しない。
+```text
+FixtureImplementationSystemRecordV1
+  fixture_system_id: fixture_system.navigation.board_token_motion_executor
+  fixture_system_version: 1
+  fixture_owner_ref:
+    {fixture.navigation.motion-executor.board-token-no-physics,1,
+     fixture_content_hash}
+  implementation_artifact_ref:
+    {artifact_kind=fixture_system.navigation.board_token_motion_executor,
+     schema_version=1,sha256}
+  read_type_refs:
+    [type.navigation.adapted_motion_intent@1,
+     type.fixture.motion.board_token_movement_profile@1]
+  accepted_command_type_refs: []
+  accepted_port_message_type_refs:
+    [type.navigation.motion_executor_intent_batch@1]
+  emitted_event_type_refs: []
+  emitted_port_message_type_refs:
+    [type.fixture.motion.board_token_resolved_motion@1]
+  supported_target_profile_refs: [target.headless.host@1]
+  fixture_system_content_hash:
+    SHA-256(MIRAKAN_FIXTURE_IMPLEMENTATION_SYSTEM_RECORD_V1,
+      self-excluding canonical fields)
+
+FixtureImplementationSystemRecordV1
+  fixture_system_id: fixture_system.navigation.rts_stub_motion_executor
+  fixture_system_version: 1
+  fixture_owner_ref:
+    {fixture.navigation.motion-executor.rts-stub-no-physics,1,
+     fixture_content_hash}
+  implementation_artifact_ref:
+    {artifact_kind=fixture_system.navigation.rts_stub_motion_executor,
+     schema_version=1,sha256}
+  read_type_refs:
+    [type.navigation.adapted_motion_intent@1,
+     type.fixture.motion.rts_stub_movement_profile@1]
+  accepted_command_type_refs: []
+  accepted_port_message_type_refs:
+    [type.navigation.motion_executor_intent_batch@1]
+  emitted_event_type_refs: []
+  emitted_port_message_type_refs:
+    [type.fixture.motion.rts_stub_resolved_motion@1]
+  supported_target_profile_refs: [target.headless.host@1]
+  fixture_system_content_hash:
+    SHA-256(MIRAKAN_FIXTURE_IMPLEMENTATION_SYSTEM_RECORD_V1,
+      self-excluding canonical fields)
+```
+
+Registry／System ref確定後、`qualification.fixture_system.navigation.board_token_motion_executor@1`／`qualification.fixture_system.navigation.rts_stub_motion_executor@1`のsubjectは対応System ref、上表owner、`target.headless.host@1`、各fixture一件、input closure、`result=pass`を全Fieldで持つ。canonical signed wrapperを発行後、`activation.fixture_system.navigation.board_token_motion_executor@1`／`activation.fixture_system.navigation.rts_stub_motion_executor@1`が対応System ref＋四FieldQualification Receipt refを持つ。ID／ownerだけからArtifact、Type、Target、Receiptを補完しない。
+
+両policyはfixture Target allowlist、2D／3D dimension、profile schema、intent subsetを全件検証する。`fixture.navigation.motion-executor.board-token-no-physics`と`fixture.navigation.motion-executor.rts-stub-no-physics`は上記7 Field、Provider identity／version／content hash／owner／usage、Target／dimension policy、diagnostic、Physics dependency 0件を検証する。Physics production base recordも同じCatalog schemaへ`usage=production`、Engine owner、exact Receipt-free implementation System base refだけで登録する。Provider Qualification Receipt／Activation BindingとSystem Activation Binding dependencyはCatalog hash確定後のsubject／root外closureだけが保持する。
+
+両fixture Provider base recordの`implementation_system_base_ref`は`usage=fixture_only`、Registry ref=`fixture_implementation_system.registry.active`、各exact `fixture_system.navigation.board_token_motion_executor@1`／`fixture_system.navigation.rts_stub_motion_executor@1` ref／content hashだけを持つ。Catalog／RecordRef確定後、Provider Qualification subjectの`implementation_system_ref`だけが同じbase refと対応するexact Fixture System Activation Binding refを持ち、対応Fixture ownerと両段のQualification subjectがexact equalityである。各Provider自身のReceiptとProvider Activation BindingもProvider base record／Catalog確定後に作る。Physics production base recordは`usage=production`とexact Physics `production_system_ref: GameSystemContractRefV1`＋`production_system_contract_hash`だけを持ち、`production_system_activation_binding_ref`は同じbase refを持つProvider Qualification subjectのdownstream `UsageTaggedImplementationSystemRefV1`だけに存在する。
+
+negative fixtureはmissing／duplicate Provider、Provider record order、composition intent subset不成立、profile／Target／dimension incompatibility、stale result、stale Catalog version／hash、stale provider version／content hash、MCD kind／type spoof、payload refとschema不一致、payload hash mismatch、duplicate proposal ID、noncanonical entry order、fixture Provider RecordRefのProduction選択、cross-project owner、self-asserted owner、contribution adapter 0件／複数に加え、両implementation branchの同時存在／両方欠落、usageとbranch不一致、fixture owner不一致、stale Fixture Registry／record／Qualification subject／signed Receipt／Fixture System Activation Binding hash、stale Provider Qualification subject／signed Receipt／Provider Activation Binding hash、Fixture refのProduction Catalog／Source／Save／Replay／Package混入を一原因ずつ拒否する。root-motionあり／なしの双方を検査し、proposalは必ずregistered generic contribution resolver経由の`MotionExecutorIntentBatchV1`でselected executorへ届く。Provider failure fixtureはPath progress、last-valid resolved motion、Path Follower stateを部分更新しない。
 
 Dependency artifact identityとTarget buildは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定／capacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を消費する。
 

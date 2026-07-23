@@ -82,7 +82,9 @@ ProjectShaderModuleV1
   schema_version
   module_id
   revision
+  module_content_hash
   namespace
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
   module_kind: function | material_node | shader_stage | shader_library
   purpose
   semantic_role_ids[]
@@ -100,12 +102,68 @@ ProjectShaderModuleV1
   variant_dimensions[]
   budget_contract
   invariant_refs[]
-  fixture_refs[]
   fallback_refs[]
   provenance_refs[]
+
+ProjectShaderModuleRefV1
+  module_id
+  revision
+  module_content_hash
+
+ShaderTargetSupportRefV1
+  target_profile_id
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  support_content_hash
+
+ProjectShaderQualificationSubjectV1
+  qualification_id/version
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  module_ref: ProjectShaderModuleRefV1
+  target_support_ref: exact receipt-free ShaderTargetSupportRefV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  fixture_refs[1..128]: exact fixture ref/version/content_hash
+  compiler_and_artifact_closure_hash
+  result: pass | fail
+  qualification_subject_hash
+
+ProjectShaderQualificationReceiptV1
+  subject: ProjectShaderQualificationSubjectV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=project_shader_qualification)
+
+ProjectShaderQualificationReceiptRefV1
+  qualification_id/version
+  qualification_subject_hash
+  signed_record_hash
+
+ProjectShaderActivationBindingRefV1
+  activation_binding_id/version
+  activation_binding_hash
+
+ProjectShaderActivationBindingV1
+  activation_binding_id/version
+  module_ref: exact ProjectShaderModuleRefV1
+  target_support_ref: exact subject target support
+  qualification_receipt_refs[1..128]:
+    ProjectShaderQualificationReceiptRefV1
+  activation_binding_hash
+
+ProjectShaderTargetActivationProjectionEntryV1
+  target_support_ref: exact ShaderTargetSupportRefV1
+  activation_binding_ref: ProjectShaderActivationBindingRefV1
+
+ProjectShaderTargetActivationProjectionV1
+  projection_id/version
+  module_ref: ProjectShaderModuleRefV1
+  entries[1..128]: ProjectShaderTargetActivationProjectionEntryV1
+  projection_hash
 ```
 
-`exports[]`はStable Export ID、HLSL symbol、kind、visibilityを持つ。public exportだけを別Module、Graph、Techniqueから参照できる。Module-relative private symbolを文字列名で外部接続しない。
+`module_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_V1`、`qualification_subject_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_SUBJECT_V1`、`activation_binding_hash`はASCII `MIRAKAN_PROJECT_SHADER_ACTIVATION_BINDING_V1`、`projection_hash`はASCII `MIRAKAN_PROJECT_SHADER_TARGET_ACTIVATION_PROJECTION_V1`と、それぞれ自己Fieldだけを除くcount／length-framed canonical bytesから計算する。Module `owner_ref`はModule ID／namespaceを含むProject containment recordのexact owner tripleであり、表示namespaceやProject ID prefixから補完しない。Subject `owner_ref`は`module_ref`が解決するReceipt-free Moduleの同Field、`compiler_and_artifact_closure_hash`はAI Verification ownerの対応する`ProjectShaderQualificationEvidenceClosureV1.evidence_closure_hash`とbyte equalityにする。Subjectは`target_support_ref.target_profile_id == target_profile_ref.target_profile_id`を必須にし、`target_support_ref`が解決するexact `ShaderTargetSupportV1.target_profile_ref`、Support Ref内の`target_profile_ref`、Subjectの`target_profile_ref`を三者byte equalityにする。Support recordまたはTarget Profile recordをIDだけ、latest、同名Targetへfallbackしない。Fixture／Qualification Receipt／Binding／ProjectionをModuleまたはtarget support hashへ含めない。生成順は`receipt-free Module／Target Support／Target Profile → Module／Support refs → Evidence Closure → Qualification subject → signed Receipt → Activation Binding → root外Target Activation projection`である。
+
+Projection `entries[]`は`target_profile_id`／Target Profile version／content hash／support content hash／Binding ID／version順にstrict sortし、Target Support refのduplicateを拒否する。各entryのBindingはProjectionと同じ`module_ref`を解決し、Bindingの`target_support_ref`はentryの同refとbyte equality、Bindingが解決する全Receipt subjectのowner／Module／Target tupleも同tupleとbyte equalityでなければならない。各tupleでは前段のSupport ID／Support内Target Profile ref／Subject Target Profile refの三者整合性を再検証する。Projection entryのTarget Support集合はModule `target_support[]`の`required`集合とexact set equalityにし、明示的にactivateする`optional`は0または1 entry、`unsupported`は0 entryとする。これによりrequired pairの欠落／追加、別Moduleの有効Binding、別Target Binding、duplicate／順序違反を許さない。Module revision、owner ref、Target Support hash、Target Profile version／hashのいずれかだけを更新したstale Projection、別の有効Project ownerへのsubject owner substitution、cross-module substitution、Support AへTarget Profile Bを組み合わせるsubstitution、required pairの欠落・余分、entry pairの片側入替えを各一原因fixtureで拒否する。`exports[]`はStable Export ID、HLSL symbol、kind、visibilityを持つ。public exportだけを別Module、Graph、Techniqueから参照できる。Module-relative private symbolを文字列名で外部接続しない。
 
 `entry_points[]`はEntry ID、Stage、Export ID、threadgroup sizeまたはRaster／Ray interface、required Capabilityを持つ。Stageは`vertex | pixel | compute | mesh | amplification | ray_generation | ray_miss | ray_closest_hit | ray_any_hit | ray_intersection | callable`である。ProfileにないStageをSourceだけで有効化しない。
 
@@ -147,7 +205,7 @@ default_value: optional
 
 `ShaderVariantDimensionV1`はVariant ID、kind、closed values、default、selection source、mutual-exclusion groupを持つ。kindは`boolean | enum | target_capability | quality_profile`である。自由文字列keyword、runtime文字列、未列挙macro値をVariant identityにしない。全DimensionのCartesian productを暗黙生成せず、`allowed_variant_tuples[]`を列挙しProfile上限と使用closureの両方へ適合させる。
 
-`ShaderTargetSupportV1`はTarget Profile ID、support state、required Capability IDs、Compiler Profile ID、Fallback Stable ID、Qualification Receipt refを持つ。support stateは`required | optional | unsupported`である。`unsupported`へArtifactまたは空Fallbackを対応付けず、`required`は全Gate合格を必須とする。
+`ShaderTargetSupportV1`はTarget Profile ID、exact `target_profile_ref {target_profile_id,target_profile_version,target_profile_content_hash}`、support state、required Capability IDs、Compiler Profile ID、Fallback Stable ID、support content hashを持つReceipt-free declarationである。Target Profile IDは同ref内のIDと一致し、refはTarget Profile Registryのexact一recordへ解決する。support stateは`required | optional | unsupported`である。`unsupported`へArtifactまたは空Fallbackを対応付けず、`required`はroot外`ProjectShaderActivationBindingV1`が指す全Gate pass Receiptを必須とする。Receipt／BindingをSupportまたはModuleへ戻さない。
 
 `ShaderBudgetContractV1`はTarget／Quality別に`max_pass_count`、`max_logical_resource_count`、`max_resource_array_elements`、`max_variant_count`、`max_threadgroup_threads`、`max_dispatch_elements`、`max_transient_bytes`、`max_persistent_bytes`、`max_predicted_gpu_us`、`max_compile_milliseconds`、`runtime_budget_envelope_ref`を持つ。値は[Runtime performance／capacity](../04-runtime/performance-capacity.md)とEngine-generated Profileから解決し、ProjectがTarget上限を引き上げない。Estimateとinstrumented peakを別FieldでReceiptへ記録し、Estimate以下であることだけを合格証拠にしない。
 
@@ -268,7 +326,7 @@ producer_tool_ids[]
 
 ## 8. AI／Editor operationとContext
 
-canonical Operation IDは次である。
+次の16 IDは`planning.operation_family.project_shader_discovery`のreserved candidateであり、current canonical Operationではない。
 
 - `operation.shader.search`
 - `operation.shader.read_module`
@@ -287,41 +345,46 @@ canonical Operation IDは次である。
 - `operation.shader.propose_module`
 - `operation.shader.propose_technique`
 
-Search／Read／Inspect／Explain／Compare／Estimate／ValidateはR0、Preview／Sweepは状態を正規Projectへ反映しないbounded Job、Planはread-only Proposal、ProposeはR3 Source ChangeSetである。Modelへraw filesystem write、compiler command、artifact publish、commit、activation、policy overrideを公開しない。
+current MCD／Manifest／Service allowlist／Policy／Validator closure／Diagnostic／Receipt／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.shader.discovery_proposal_operations.v1`が16件をatomic activateする場合、Search／Read／Inspect／Explain／Compare／Estimate／ValidateはR0、Preview／Sweepは状態を正規Projectへ反映しないbounded Job、Planはread-only Proposal、ProposeはR3 Source ChangeSetとする。Modelへraw filesystem write、compiler command、artifact publish、commit、activation、policy overrideを公開しない。
 
-`ShaderContextSliceV1`はquery hash、Project revision、Profile hash、public Shader SDK Catalog hash、Module／Technique IDとrevision、selected Project symbols、参照するSDK Symbol entry、typed value／resource interfaces、call／value／resource／control edge、Pass relation、`source_excerpts[]`、Target／variant差、budget、diagnostic、fixture／Evidence summary、available Operation ID、omitted range、cursor、total countを持つ。`source_excerpts[]`はproject-relative path、file content hash、start／end span、UTF-8 Source text、truncation stateを持ち、別revisionのtextを同じSliceへ混在させない。配列／byte上限時に黙って切らずcontinuationを返す。
+Activation時の`ShaderContextSliceV1`はquery hash、Project revision、Profile hash、public Shader SDK Catalog hash、Module／Technique IDとrevision、selected Project symbols、参照するSDK Symbol entry、typed value／resource interfaces、call／value／resource／control edge、Pass relation、`source_excerpts[]`、Target／variant差、budget、diagnostic、fixture／Evidence summary、available Operation ID、omitted range、cursor、total countを持つ。`source_excerpts[]`はproject-relative path、file content hash、start／end span、UTF-8 Source text、truncation stateを持ち、別revisionのtextを同じSliceへ混在させない。配列／byte上限時に黙って切らずcontinuationを返す。
 
-AIへはauthoring Sourceのexact excerpt、参照する全public SDK entry、それに対応するpreprocessor input／Fact／source mapを同時に渡す。generated binding、Backend source、Compiler内部AST textをauthoring Sourceとして返さない。Full fileが必要な場合も同じrevision／file hashを保持したbounded sliceをcontinuationで取得し、途中までのSourceを完全なModuleとして扱わない。Engine baselineまたはpublic Shader SDK Catalog hashが変われば、Source未変更でも旧Fact、Context、Understanding Closureをstaleにする。
+Activation後、AIへはauthoring Sourceのexact excerpt、参照する全public SDK entry、それに対応するpreprocessor input／Fact／source mapを同時に渡す。generated binding、Backend source、Compiler内部AST textをauthoring Sourceとして返さない。Full fileが必要な場合も同じrevision／file hashを保持したbounded sliceをcontinuationで取得し、途中までのSourceを完全なModuleとして扱わない。Engine baselineまたはpublic Shader SDK Catalog hashが変われば、Source未変更でも旧Fact、Context、Understanding Closureをstaleにする。
 
-AIは最初にManifestとbounded Fact projectionを読み、必要なsymbol／caller／resource／Target sliceだけを追加取得する。全Repository、全preprocessed source、全variantを一度のContextへ詰めない。人間がSourceを変更した場合、旧Fact、Context、Preview、Understanding Closureをstaleにし、再index前の仮定で上書きしない。
+Activation後もAIは最初にManifestとbounded Fact projectionを読み、必要なsymbol／caller／resource／Target sliceだけを追加取得する。全Repository、全preprocessed source、全variantを一度のContextへ詰めない。人間がSourceを変更した場合、旧Fact、Context、Preview、Understanding Closureをstaleにし、再index前の仮定で上書きしない。
 
 ## 9. `ShaderUnderstandingClosureV1`
 
 AIの「Shaderを理解した」という自己申告を状態にしない。Trusted Runnerが次を固定する。
 
 ```text
-closure_id
-project_revision
-profile_hash
-public_shader_sdk_catalog_hash
-module_hashes[]
-technique_hashes[]
-source_tree_hash
-fact_graph_hashes[]
-target_profile_hashes[]
-artifact_set_hashes[]
-fixture_set_hash
-u0_identity_result
-u1_structure_result
-u2_semantics_result
-u3_behavior_result
-u4_change_impact_result
-verification_receipt_hashes[]
-unresolved_blocker_ids[]
-unsupported_capability_ids[]
-disposition
-runner_id
-signature fields
+ShaderUnderstandingClosurePayloadV1
+  closure_id
+  project_revision
+  profile_hash
+  public_shader_sdk_catalog_hash
+  module_hashes[]
+  technique_hashes[]
+  source_tree_hash
+  fact_graph_hashes[]
+  target_profile_hashes[]
+  artifact_set_hashes[]
+  fixture_set_hash
+  u0_identity_result
+  u1_structure_result
+  u2_semantics_result
+  u3_behavior_result
+  u4_change_impact_result
+  verification_receipt_hashes[]
+  unresolved_blocker_ids[]
+  unsupported_capability_ids[]
+  disposition
+  runner_id
+
+ShaderUnderstandingClosureV1
+  payload: ShaderUnderstandingClosurePayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=shader_understanding_closure)
 ```
 
 | Level | 必須証拠 |
@@ -332,7 +395,7 @@ signature fields
 | U3 Behavior | 必須Fixtureのparameter sweep、counterfactual、analytic／visual invariant、cost classのstructured predictionが測定許容内 |
 | U4 Change impact | 変更対象から影響Module／Pass／Resource／Variant／Target／Fixtureのrequired set recall 100%、未検証対象の安全断定0件、全必須Target Gate合格 |
 
-各resultは`pass | fail | infrastructure_error | not_applicable_by_policy`である。必須Levelのpass以外、Blocker 1件以上、unsupported Capability、stale Evidence、Target欠落があれば`ready_to_stage`にしない。Level別hard failureを平均scoreで相殺しない。ClosureはEvidenceでありAuthorization、Approval、Promotion権限を与えない。
+各resultは`pass | fail | infrastructure_error | not_applicable_by_policy`である。必須Levelのpass以外、Blocker 1件以上、unsupported Capability、stale Evidence、Target欠落があれば`ready_to_stage`にしない。Level別hard failureを平均scoreで相殺しない。Wrapperはinline署名Fieldを持たず、`signed_record.subject_sha256=SHA-256(JCS(payload))`と用途別singleton purposeを検証する。ClosureはEvidenceでありAuthorization、Approval、Promotion権限を与えない。
 
 ## 10. Diagnostic、failure、fallback
 
@@ -364,7 +427,7 @@ MIRAKAN-SHADER-UNAUTHORIZED_SOURCE
 
 Running中にTechnique Manifestと実resource useが不一致になった場合、Rendererはdomain-neutral event `ProjectShaderTechniqueValidationFailed`を発行する。このeventはTechnique／Artifact Set／Target／Graph generation／Pass／Resource Stable ID、declared access／side effect、observed access／side effect、対応する上記Diagnostic ID、fact／runtime-use Evidence hash、停止したsubmission境界を持つ。新しいfallback、復旧pass、再試行権限はeventへ含めない。Shadow等のDomain ownerは同じeventを追加意味へ変換せずDomain projectionを付加できる。
 
-compile失敗、missing resource、Capability不足、Budget超過時にdefault shader、resource drop、pass skip、別format、unlit、別Target artifactへ黙って置換しない。FallbackはSourceでStable ID、Target、意味差、visual／performance tolerance、Qualification Receiptを宣言する。
+compile失敗、missing resource、Capability不足、Budget超過時にdefault shader、resource drop、pass skip、別format、unlit、別Target artifactへ黙って置換しない。Fallback SourceはReceipt-freeでStable ID、Target、意味差、visual／performance toleranceだけを宣言し、利用可否はそのFallback refをsubjectにするroot外Qualification Binding／Receiptが所有する。
 
 Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示して表示できる。Candidate失敗をPreview成功またはProduction利用可能と表示しない。ShippingはPackage検証時に不合格Artifact、missing fallback、interface mismatchを拒否する。
 
@@ -389,7 +452,7 @@ AI Evalはpublic、holdout、adversarial、incident corpusを分離し、各requ
 
 Runtime source compile、undeclared resource、unbounded control／resource／variant、Target artifact混在、stale interface、silent fallback、Understanding Closure欠落が残るCandidateをRelease候補にしない。
 
-全Gateの合否は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有する`ProjectShaderQualificationReceiptV1`へ束ねる。`ShaderUnderstandingClosureV1`だけ、compile成功だけ、Material／RendererのDomain ReceiptだけをProject Shader Qualificationの代替にしない。
+全Gate入力は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有する`ProjectShaderQualificationEvidenceClosureV1`へ束ね、そのhashを本書のowner-typed `ProjectShaderQualificationSubjectV1`へbindしてcanonical `ProjectShaderQualificationReceiptV1` wrapperを発行する。`ShaderUnderstandingClosureV1`だけ、Evidence Closureだけ、compile成功だけ、Material／RendererのDomain ReceiptだけをProject Shader Qualification Receiptの代替にしない。
 
 ## 12. 所有権と連携
 

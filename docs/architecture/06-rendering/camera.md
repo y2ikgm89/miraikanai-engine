@@ -9,7 +9,7 @@
 
 ## 1. 結論と所有境界
 
-CameraはProjection／Lens、Gameplay Rig、Director／Transition、Presentation、Cinematic SequenceをEngine-owned型とStable IDで接続する。AI、人間、Editor、Project C++は同じtyped operationとChangeSetを使い、GPU View、Physics native query、Editor widget stateをSourceにしない。
+CameraはProjection／Lens、Gameplay Rig、Director／Transition、Presentation、Cinematic SequenceをEngine-owned型とStable IDで接続する。AI、人間、Editor、Project C++は同じtyped change primitiveとChangeSetを使い、GPU View、Physics native query、Editor widget stateをSourceにしない。
 
 Gameplay Cameraはfixed simulation inputからdeterministic Base Poseを作る。Render interpolation、temporal jitter、shake／noiseはPresentationへ分離し、Gameplay aim、Physics、Save、AI perceptionへ返さない。Cinematicは同じRig、Lens、Director、TransitionをSequenceから駆動し、Gameplay authorityを持つ評価とpresentation-only評価をclock domainで分離する。
 
@@ -175,7 +175,7 @@ Comfortable intentはroll limit 0、horizon stabilization true、angular velocit
 
 ResolverはIntentから最大3 `CameraPlanCandidateV1`を返す。候補はProfile／Rig／Director／Sequence、Intent-to-field trace、assumption／question／lock、Target cost、Capability／fallback、fixture、composition／comfort／collision metric、差と理由を持つ。scene dimension、gameplay viewpoint、authority、必須subjectが解決不能な場合だけBlocking questionを返す。
 
-Operation IDは`operation.camera.resolve_intent, operation.camera.create_profile, operation.camera.set_profile_projection, operation.camera.create_rig, operation.camera.add_rig_node, operation.camera.connect_rig_nodes, operation.camera.set_director_rule, operation.camera.set_presentation_profile, operation.camera.create_sequence, operation.camera.preview_candidate, operation.camera.analyze_composition`に閉じる。WriteはProject ChangeSetだけを生成し、共通operation envelope、authorization、approvalは各Ownerへ委譲する。
+予約候補IDは`operation.camera.resolve_intent, operation.camera.create_profile, operation.camera.set_profile_projection, operation.camera.create_rig, operation.camera.add_rig_node, operation.camera.connect_rig_nodes, operation.camera.set_director_rule, operation.camera.set_presentation_profile, operation.camera.create_sequence, operation.camera.preview_candidate, operation.camera.analyze_composition`のexact 11件に閉じる。これらは[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.camera_authoring@1`だけに属する未Activation vocabularyであり、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`、Capability stateは`not_activated`である。`activation.camera.authoring_operations.v1`が11件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。表中のWrite／Preview／解析の意味はActivation審査用の予定意味であり、現在のProject ChangeSet生成、authorization、approvalを与えない。
 
 Validatorはgraph／port／output／limit、unit／range／finite／Quaternion／projection variant、Base RigへのPresentation／Editor Node混入、Stable ID／generation／fallback／default、viewport、Physics query domain ceiling、blocker filter／Sensor exclusion、comfort constraint、pixel integer scale／rotation／jitter、Target／Quality cost、lock／revisionを固定順で検査する。失敗時はChangeSet全体をrejectし、clamp、unknown Node無視、default生成をしない。
 
@@ -219,4 +219,4 @@ Contract／runtime fixtureはSchema round-trip、cycle／port／unknown／64・1
 
 Composition gateはprimary subject safe-region 99.9%以上、required visibility missing 0 frame、blocker penetration 0、comfort hard violation 0、pixel non-integer／rotation／temporal jitter 0、cut history-reset漏れ0、non-finite View／Projection 0である。Metric、capture、trace、human rubricを同じPreview Receiptへ結ぶ。
 
-AI corpusはtop-down look-ahead、third-person collision／lock-on、reduced shake、pixel integer scale、boss group framing、multi-shot cut comparison、unsupported Targetを含む。Gateはunknown Node／Field／Operation 0、PresentationのGameplay逆流0、unsafe approximation 0、task success 95%以上、不要Blocking質問5%以下、Capability／assumption未報告0である。Evidenceのrun、holdout、gradingはVerification ownerが決定する。
+AI corpusはtop-down look-ahead、third-person collision／lock-on、reduced shake、pixel integer scale、boss group framing、multi-shot cut comparison、unsupported Targetを含む。Gateはunknown Node／Field／planned semantic action token 0、PresentationのGameplay逆流0、unsafe approximation 0、task success 95%以上、不要Blocking質問5%以下、Capability／assumption未報告0である。Evidenceのrun、holdout、gradingはVerification ownerが決定する。

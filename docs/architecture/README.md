@@ -83,7 +83,7 @@
 | 26 | [Project Shader](06-rendering/project-shader.md) | review | bounded HLSL、semantic module、Project Node／Shading Model、Technique、AI理解とShader qualification |
 | 27 | [Lighting](06-rendering/lighting.md) | review | light source、photometry、attenuation、shadow intent、lighting semantics |
 | 28 | [Post Processing](06-rendering/post-processing.md) | review | post-process source、volume、effect composition、history intent |
-| 29 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、authoring operation |
+| 29 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、planned authoring action |
 | 30 | [VFX Runtime](06-rendering/vfx-runtime.md) | review | VFX artifact、instance、simulation、render、visual interaction |
 | 31 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
 | 32 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |

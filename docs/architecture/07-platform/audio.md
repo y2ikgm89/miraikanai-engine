@@ -295,15 +295,15 @@ AIは音声buffer、XAudio2 voice、Oboe stream、AudioUnit、DSP pointerを生�
 
 Audio Editorはwaveform、sample-accurate loop、trim、loudness、true peak、channel、resident／stream cost、Target codec A／B audition、Cue tree、Bus graph、Voice／stream profiler、spatial preview、underrun／route timelineを持つ。Previewも正式Import Planと同じdecode／resample／encode code、専用Preview Voice capacityを使い、Play sessionのBus／Voiceを直接変更しない。
 
-AIのAudio Import操作は`asset.inspect_source`、`asset.propose_import_profile`、`asset.request_preview`、`asset.propose_import_settings_change`、`asset.propose_reimport`へ限定する。Ambiguous channel、loop、gain、dialogue localeは質問を返し、file名から確定しない。
+`asset.inspect_source`、`asset.propose_import_profile`、`asset.request_preview`、`asset.propose_import_settings_change`、`asset.propose_reimport`はAudio Import向けplanned action tokenであり、MCD Operation Stable ID、current Tool、aliasではない。Ambiguous channel、loop、gain、dialogue localeは将来Activationされたactionでも質問を返し、file名から確定しない。
 
-Audio Authoring契約は`schemas/mirakan/audio/`のMCDを正本とし、C++、TypeScript、MCP Operation schema、validator、reference docsを生成する。最低限`AudioRuntimeProfileV1`、`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
+Audio Authoring data契約は`schemas/mirakan/audio/`のMCDを正本とし、C++、TypeScript、将来Activation後のMCP projection、validator、reference docsを生成する。最低限`AudioRuntimeProfileV1`、`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
 
 semantic role、Cue parameter、Bus、DSP node、Snapshot、Spatial curve、diagnostic codeは`AudioSemanticCatalogV1`のStable IDへ登録する。表示名、file path、Editor selection、native handleを参照IDにしない。AIとEditorは同じCatalog revisionとvalidatorを使用し、unknown ID、range外、cycle、capacity超過、Target非対応をCommit前に拒否する。
 
-Import以外のAI操作は`audio.inspect_cue`、`audio.propose_cue`、`audio.validate_cue`、`audio.request_preview`、`audio.inspect_mixer`、`audio.propose_mixer_change`、`audio.explain_budget`、`audio.diff_revision`に限定する。すべてbase revision、target Stable ID、提案patch、predicted budget、diagnostic、preview／validation receiptを返し、直接Commit、直接Play session変更、native object操作を行わない。
+Import以外の`audio.inspect_cue`、`audio.propose_cue`、`audio.validate_cue`、`audio.request_preview`、`audio.inspect_mixer`、`audio.propose_mixer_change`、`audio.explain_budget`、`audio.diff_revision`もStable IDでないplanned action tokenである。Audio ownerのcurrent MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／alias Operation集合はすべて`[]`、Capability stateは`not_activated`である。future work item `activation.audio.authoring_operations.v1`が採用するexact `operation.*` ID集合、named input／result、完全closureを一transactionで登録するまで、これらのtokenをdispatch keyまたはaliasとして読まない。Activation後も全actionはbase revision、target Stable ID、提案patch、predicted budget、diagnostic、preview／validation receiptを返し、直接Commit、直接Play session変更、native object操作を行わない。
 
-各schemaとOperationにはvalid／invalid golden fixtureを用意する。最低限、footstep random Cue、UI critical Cue、streaming music loop、dialogue locale set、Bus cycle、Cue depth超過、unknown parameter、invalid loop、Voice capacity超過、stale revisionを含める。
+各data schemaと将来Activationするaction contractにはvalid／invalid golden fixtureを用意する。最低限、footstep random Cue、UI critical Cue、streaming music loop、dialogue locale set、Bus cycle、Cue depth超過、unknown parameter、invalid loop、Voice capacity超過、stale revisionを含める。
 
 Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。外部AI生成AudioはAsset規約のStaging、権利、来歴、安全、Importを通す。
 

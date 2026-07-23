@@ -354,7 +354,7 @@ FontImportIRV1
   normalized_table_hashes: FontTableHashV1[1..256]
 ```
 
-旧Aseprite節の`SpriteImportIRV1`名は独立rootとして残さず、frame、tag、duration、slice／pivot、layerを`TextureImportIRV1.sprite_records`とtyped Conversion Reportへ正規化する。Standalone Skeleton／Animationも`SceneImportIRV1.skins`／`animations`の`SkinIRV1`／`AnimationIRV1`を使用する。IRはSource native object、decoder pointer、DCC property bagを保存しない。Source形式が増えてもRuntime Asset schema、AI Operation、Cook入口を分岐させない。
+旧Aseprite節の`SpriteImportIRV1`名は独立rootとして残さず、frame、tag、duration、slice／pivot、layerを`TextureImportIRV1.sprite_records`とtyped Conversion Reportへ正規化する。Standalone Skeleton／Animationも`SceneImportIRV1.skins`／`animations`の`SkinIRV1`／`AnimationIRV1`を使用する。IRはSource native object、decoder pointer、DCC property bagを保存しない。Source形式が増えてもRuntime Asset schema、planned AI action vocabulary、Cook入口を分岐させない。
 
 | Kind | 必須の検出／validation |
 |---|---|
@@ -524,13 +524,13 @@ Source変更は新Asset revisionとImport Jobを作る。依存closure全体をS
 
 Active generationより古い結果、cancel済みJob、owner generation不一致の結果をpublishしない。last-valid generationと必要なretiring generationを保持し、fault時にProject sourceまたはPackage setを破壊しない。
 
-## 8. EditorとAI operation
+## 8. EditorとAI planned actions
 
 Asset BrowserはStable IDをselection modelとし、logical directory、kind、semantic role、tag、license、readiness、Diagnosticでfilterする。Source、Import revision、Active generation、Target residency、dependency／reverse dependencyを表示する。表示row、thumbnail object、screen coordinateをOperation targetにしない。
 
 Import Inspectorは`Source`、`Analysis`、`Profile`、`Preview`、`Conversion`、`Dependencies`、`Diagnostics`、`History`を持つ。Basic／Advanced viewは同じImport Documentのprojectionであり、別設定を持たない。Import、Preview、Cook、Reimport、bulk migrationをcancel可能なJobとして表示し、stage、progress、current asset、resource limit、Diagnostic countを示す。
 
-AIのread operationはCatalog、Source analysis、flattened Profile、Conversion Report、dependency closure、Reimport Conflictをtyped resultとして返す。proposal operationはProfile、設定変更、Preview、Reimport、bounded bulk migration、placeholder置換、LOD source bindingを[ProjectChangeSetV1](project-state.md#5-projectchangesetv1)候補として返す。
+Catalog、Source analysis、flattened Profile、Conversion Report、dependency closure、Reimport Conflictのreadと、Profile／設定変更／Preview／Reimport／bounded bulk migration／placeholder置換／LOD source bindingのproposalは、Stable IDでないplanned semantic action vocabularyである。Asset ownerのcurrent MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／alias Operation集合はすべて`[]`、Capability stateは`not_activated`である。future work item `activation.asset.authoring_operations.v1`が採用するexact ID集合と完全closureを一transactionで登録するまでdispatchせず、action名からIDを生成しない。Activation後のread actionだけがtyped result、proposal actionだけが[ProjectChangeSetV1](project-state.md#5-projectchangesetv1)候補を返し、直接Commitしない。
 
 AIはAsset ID、Profile ID、Source pathを推測生成しない。未Activated format、未対応Target codec、Catalogにない選択肢には`CapabilityNotActivated`を返す。提案はProfile選択、evidence、変換、保持値、visual／behavior／memory／Package impact、未解決質問、必要Approval、rollbackを含み、自然言語だけでなくPlanとDiagnostic IDを正規出力にする。
 
@@ -613,7 +613,7 @@ Asset lifecycleは次のGateをすべて満たすまで対象CapabilityをActiva
 
 ### 12.1 Contractとdeterminism
 
-- MCD type、Profile、Plan、Operation、Diagnostic、stateがC++、Editor、AI Tool、CLIへ同じ正本から生成される。
+- MCD type、Profile、Plan、Activation時に採用するexact Operation candidate、Diagnostic、stateがC++、Editor、AI Tool、CLIへ同じ正本から生成される。
 - 各生成projectionはAsset contract ID、schema version、canonical content hashを記録し、本書の全named contractについてfield名、型、cardinality、closed tagが完全一致する。schema ownership検索で定義文書が本書一つだけであることを検証する。
 - valid／invalid／boundary、truncation、overflow、NaN／Inf、cycle、duplicate、unknown feature fixture。
 - clean二回Import／Cook／Package assemblyでIR、Report、Artifact、Package root hashが一致する。

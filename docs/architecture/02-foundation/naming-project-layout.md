@@ -89,7 +89,7 @@ Logical IDへmaturity、schema major、profile versionを埋め込まない。�
 
 Operation IDの末尾は意味を限定した動詞または動詞句とする。`get`、`list`、`resolve`、`validate`、`plan_change`、`preview`、`commit`を使用でき、`do`、`run`、`process`、`handle`を単独で使わない。
 
-Operationの入力／出力型名は`<Intent>RequestV1`、`<Intent>ResultV1`のように役割を明示する。Provider表示名、localized message、Editor labelをStable IDとして使わない。
+Operationの入力／出力型名は`<Intent>RequestV1`、`<Intent>ResultV1`のように役割を明示する。Provider表示名、localized message、Editor labelをStable IDとして使わない。大文字`Operation`と完全`operation.<lower-token-path>`はMCD logical Operation identity専用語である。ChangeSet内部のtagged mutation unionは`ProjectChangePrimitiveV1`、Domain内の未登録語彙は`planned action vocabulary`と呼び、`registered`／`public`／`current Operation`と記述しない。proseのaction名、C++関数、table row、wildcard prefixからMCD IDを推測生成しない。文書中のcurrent Operation主張は[Executable contracts §21.2](executable-contracts.md#212-architecture内operation-tokenのclosed-partition)のclosed partitionへ解決できなければlint errorである。
 
 ### 3.3 Diagnostic
 
@@ -212,8 +212,8 @@ Migrationは次のfail-closed手順だけを許可する。
 
 | Root | 所有内容 | Git／配布 | 書込み権限 |
 |---|---|---|---|
-| `source/` | Userまたは承認済みOperationが編集する正規入力 | 原則追跡 | Project ChangeSet Gatewayだけ |
-| `config/` | Project選択とTarget別設定 | 追跡 | typed configuration Operationだけ |
+| `source/` | Userまたは完全登録済み外側MCD Operationが運ぶChangeSetで編集する正規入力 | 原則追跡 | Project ChangeSet Gatewayだけ |
+| `config/` | Project選択とTarget別設定 | 追跡 | Project ChangeSet Gatewayのtyped configuration primitiveだけ |
 | `derived/` | Source＋Toolchainから再生成可能なimport／cook出力 | 追跡しない | Build／Content Gateway |
 | `intermediate/` | 一回のtask、compile、import中の一時fileと、Project State所有のsession跨ぎlocal state（`intermediate/journal/`、`intermediate/snapshots/`、`intermediate/transactions/`、`intermediate/recovery/`。projectionは[Project state](../03-authoring/project-state.md) §6） | 追跡・配布しない | task-scoped Workerと各state owner Gateway |
 | `packages/` | 検証済みTarget package候補とmanifest | sourceとして追跡しない | Packaging Gateway |
@@ -232,7 +232,7 @@ Asset identityはCatalogのStable IDであり、Filenameは人間向けのlocato
 
 ### 7.1 Provenanceと権利
 
-外部取得、User提供、AI生成を問わず、Source候補は[Asset LifecycleのAsset固有Provenance](../03-authoring/asset-lifecycle.md#8-editorとai-operation)を必須入力とする。licenseまたは利用権が不明な候補を`source/`へCommitせず、`staging/`で`diagnostic.asset.rights_unverified`として停止する。
+外部取得、User提供、AI生成を問わず、Source候補は[Asset LifecycleのAsset固有Provenance](../03-authoring/asset-lifecycle.md#8-editorとai-planned-actions)を必須入力とする。licenseまたは利用権が不明な候補を`source/`へCommitせず、`staging/`で`diagnostic.asset.rights_unverified`として停止する。
 
 AI生成物は生成したという事実だけで権利確認済みにならない。Provider規約、入力Assetの権利、出力利用条件をEvidenceへ結び付け、Approval後にProject ChangeSetでSourceへ昇格する。Asset固有Provenanceのcontentと権利chainはAsset Lifecycle、共通Evidence envelope、grading、retention classは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有し、本書は配置と命名だけを決める。
 
@@ -277,7 +277,7 @@ Module segment、namespace segment、target segmentを意味の違うaliasへ変
 
 ## 12. Directory／file追加Operation
 
-AI、Editor、Toolは任意File system writeではなく、分類、Owner、正規root、提案Path、identity、expected Project revisionを持つtyped Operationを使う。
+AI、Editor、Toolの将来のDirectory／file追加actionは任意File system writeではなく、分類、Owner、正規root、提案Path、identity、expected Project revisionを持つtyped contractを使う。ただしcurrent Directory／file MCD Operation集合は空であり、以下は将来Activation時のsemantic requirementsであってcurrent callable surfaceではない。完全なMCD／Service／Policy／Validator／Diagnostic／Receipt／publication closureを登録するwork itemなしにaction名からOperation IDを生成しない。
 
 1. Pathをseparator、case、Unicode、reserved name規則で正規化する。
 2. Project root内か、分類に合う許可rootかを検査する。
@@ -301,6 +301,8 @@ AI、Editor、Toolは任意File system writeではなく、分類、Owner、正�
 | `packages/edit_me.json` | PackageをSource化 | `config/`を編集して再Package |
 | `FooV1`とsuffixなし`Foo` | Schema最新版alias | major付き型だけを使用 |
 | `engine/rendering/source/foo.cpp`をGameからinclude | Engine private境界違反 | public module／Portを利用 |
+
+この表の`operation.asset.do`と`operation.asset.source.plan_import`、§3.2の`operation.build.package.validate`は命名のinvalid／correct-directionを説明する非materialized例だけであり、MCD、Manifest、Service、Provider／MCP、planning aliasへ登録しない。
 
 ## 14. Lintとmigration Gate
 

@@ -185,24 +185,28 @@ GPU／system capture AdapterはEngine pass／resource targetをexternal marker�
 
 ## 13. AI Debug ContextとDiagnosis
 
-`AiDebugContextV1`はquestion、Session、revision、Build Receipt、scope target、time range、selected Query／Causality／Replay／Diagnostic ref、capture metadata ref、redaction manifest、gap summary、context bytes／token estimate、allowed operation IDsを持つ。AIはAggregateとProblemsから始め、target／timeを狭める。全Trace、全Project、全Sceneを一度に要求しない。
+本節のDebug六ID、Task三ID、Build／Device／Play IDへのReceipt chainは、[Executable contracts](../02-foundation/executable-contracts.md)の`planning.operation_family.build_device_play_debug_task`に属する未Activation候補である。current MCD／Manifest／Service allowlist／Task／Receipt／Provider／MCP Tool集合は空で、候補IDをdispatchしない。以下のworkflow、payload、Support Bundle、fixtureは`activation.build_gateway.operation_pipeline.v1`が14件をatomic activateする場合の受入条件であり、現在利用可能なDebug workflowを主張しない。
+
+`AiDebugContextV1`はquestion、Session、revision、Build Receipt、scope target、time range、selected Query／Causality／Replay／Diagnostic ref、capture metadata ref、redaction manifest、gap summary、context bytes／token estimate、allowed operation IDsを持つ。Activation後もAIはAggregateとProblemsから始め、target／timeを狭める。全Trace、全Project、全Sceneを一度に要求しない。
 
 `DebugFindingV1`はstable ID／version、`observation | hypothesis | validated_cause | disproved | unresolved`、typed claim、scope、Evidence／counterevidence／gap／causal path ref、reproduction ref、falsification query ref、confidence band、next query、remediation ref、author refを持つ。validated causeにはreproduction refを必須とする。共通Evidence／Provenance fieldはGovernance envelopeから参照し、本型へ複写しない。
 
 validated causeへ昇格できるのは、deterministic Replayとcounterfactual、Engine invariant／validator、exact Platform fault evidenceとDiagnostic cause chain、または人間ReviewerのEvidence承認のいずれかである。時間的相関、LLM confidence、pattern類似、Screenshotだけではhypothesisを超えない。
 
-Diagnosis workflowはscope／privacy Preview、Aggregate、narrow Query、Causality／Replay Slice、hypothesis／falsification、reproduce、Finding validation、governed proposal、関連Replay／test／performance regressionの順である。各段階を次のexact MCD Operationへ束縛し、表示だけの段階名やProvider独自Toolへ置換しない。
+Activation後のDiagnosis workflowはscope／privacy Preview、Aggregate、narrow Query、Causality／Replay Slice、hypothesis／falsification、reproduce、Finding validation、governed proposal、関連Replay／test／performance regressionの順である。各段階を次のexact MCD Operationへ束縛し、表示だけの段階名やProvider独自Toolへ置換しない。
 
-| 順序 | canonical Operation | 必須入力binding | Result／次段 |
+| 順序 | atomic activation時のreserved candidate | 必須入力binding | Result／次段 |
 |---:|---|---|---|
 | 1 | `operation.debug.aggregate` | Project revision、Candidate root、Target、Session、Build Receipt、Store／Index generation、bounded selector、Authorization | `DebugAggregateReceiptV1`からtarget／time／type候補を絞る |
 | 2 | `operation.debug.query` | 同じidentity、exact Aggregate Receipt ref／hash、bounded `DebugQueryV1` hash、新しいAuthorization | `DebugQueryReceiptV1`とrecord／gap／redactionを得る |
 | 3a | `operation.debug.read_causality` | 同じidentity、exact Query Receipt ref／hash、root Evidence refs、depth／node bound、新しいAuthorization | `DebugCausalityReceiptV1`とtyped causal subgraphを得る |
 | 3b | `operation.debug.read_replay_slice` | 同じidentity、exact Build／Query／Causality Receipt ref／hash、Replay closure／range hash、新しいAuthorization | `ReplaySliceReceiptV1`とreproduction／divergence evidenceを得る |
 | 4 | `operation.debug.validate_finding` | 同じidentity、exact Build／Query／Causality／Replay Receipt ref／hash、`DebugFindingV1` hash、Finding closure hash、新しいAuthorization | `DebugFindingValidationReceiptV1`がvalidityとexact proposal Operation refを返す |
-| 5 | Receiptの`proposal_operation_ref` | validation Receipt、同じrevision／Candidate、Caller allowlist、R1以上の新Authorization | 例: Game Systemは`operation.systems.plan`、Worldは`operation.worlds.plan_change`。Proposalだけを生成 |
+| 5 | Receiptの`proposal_operation_ref` | validation Receipt、同じrevision／Candidate、Caller allowlist、R1以上の新Authorization | 対応familyも独立にatomic Activation済みの場合だけ、例としてGame Systemは`operation.systems.plan`、Worldは`operation.worlds.plan_change`でProposalを生成 |
 
-Debug Operationの型固有payloadは次だけを持つ。共通identity、request、Authorization、result、Diagnostic、署名は[Core architecture §9.1](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationReceiptEnvelopeV1`が所有する。
+Activation時のDebug Operation型固有payloadは次だけを持つ。共通identity、request、Authorization、result、Diagnostic、署名は[Core architecture §9.1](../02-foundation/core-architecture.md#91-operationtaskv1)のplanned `OperationReceiptEnvelopeV1`が所有する。
+
+Build familyのActivationはSystems／World familyを暗黙activateしない。Step 4が妥当なFindingを得ても、対応する`planning.operation_family.game_system_discovery`または`planning.operation_family.world_discovery`が未Activationなら`proposal_operation_ref`を省略し、`decision=insufficient`と`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返してProjectを不変にする。文字列ID、別familyのread-only候補、Provider aliasへfallbackしない。
 
 ```text
 DebugAggregateReceiptPayloadV1
@@ -282,7 +286,7 @@ SupportBundleReceiptPayloadV1
 
 Finding validationにはCausalityとReplay Sliceの両Receiptを必須にする。Replayまたは必要Evidenceを生成できない場合は前段Diagnosticから新しいvalidation Taskを作り、`decision=insufficient`以外を返さず、`proposal_operation_ref`を省略する。`proposal_operation_ref`は`decision=valid`かつMCD登録済みのR1 proposal Operationが一意に解決した場合だけ許可し、汎用`operation.debug.propose`、Source write、Commitを生成しない。Callerの`AiDebugContextV1.allowed_operation_ids`、新しいAuthorization Envelope、全Receipt ref／hashが一致しなければStep 5へ進まない。
 
-追加instrumentationはchannel、tier、duration、capacity／privacy影響を提示し、Governance authorizationを得て開始する。同じblocking集合が減らない自動repairは2回で停止する。各Operationは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の別`OperationTaskV1`であり、前段のread権限、Device binding、consentを後段へ継承しない。状態確認、Receipt取得、cancelは`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`だけを使う。
+Activation後、追加instrumentationはchannel、tier、duration、capacity／privacy影響を提示し、Governance authorizationを得て開始する。同じblocking集合が減らない自動repairは2回で停止する。各Operationは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の別`OperationTaskV1`であり、前段のread権限、Device binding、consentを後段へ継承しない。状態確認、Receipt取得、cancelは同時Activationした`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`だけを使う。
 
 AIはmissing eventをnon-occurrenceと断定せず、PresentationからGameplay causeを推定せず、異なるgenerationを同一objectとして連結せず、Debug BuildをShippingへ一般化せず、redacted valueをdefault／emptyとみなさず、recorded Buildとcurrent Sourceを混同しない。
 
@@ -330,7 +334,7 @@ SupportBundlePolicyV1
 
 `SupportBundleReceiptV1`は`OperationReceiptEnvelopeV1<SupportBundleReceiptPayloadV1>`の完成署名Recordである。BundleとReceiptのCandidate、Target、Session、Build Receipt、source Debug Receipt、consent、redaction manifest、content manifest、archive hashが一致しなければ成功にしない。
 
-生成は`operation.debug.support-bundle.generate`だけが行い、対象Session、component Preview、data class、概算／上限bytes、redaction policy、提出先を表示して明示consentを得る。これは上記と同じcanonical Operation Registry、`OperationTaskV1`、task status／Receipt／cancel経路を使うexport branchであり、独自Task APIまたは自由形式Toolにしない。Aggregate／Query Receiptを入力component選択に使えるが、Support Bundle生成をFinding validationまたはProposal成功として扱わない。`max_input_bytes`、`max_archive_bytes`、`max_file_count`のいずれかを超える場合は切り詰めて成功扱いせず、対象rangeを狭める新Proposalを返す。最低failureは`diagnostic.debug.support-bundle-consent-required`、`diagnostic.debug.support-bundle-redaction-incomplete`、`diagnostic.debug.support-bundle-size-limit-exceeded`、`diagnostic.debug.support-bundle-artifact-unavailable`、`diagnostic.debug.support-bundle-manifest-mismatch`をclosed IDとして区別する。
+Atomic activation後の生成は`operation.debug.support-bundle.generate`だけが行い、対象Session、component Preview、data class、概算／上限bytes、redaction policy、提出先を表示して明示consentを得る。これは上記と同じOperation Registry、`OperationTaskV1`、task status／Receipt／cancel経路を使うexport branchであり、独自Task APIまたは自由形式Toolにしない。Aggregate／Query Receiptを入力component選択に使えるが、Support Bundle生成をFinding validationまたはProposal成功として扱わない。`max_input_bytes`、`max_archive_bytes`、`max_file_count`のいずれかを超える場合は切り詰めて成功扱いせず、対象rangeを狭める新Proposalを返す。最低failureは`diagnostic.debug.support-bundle-consent-required`、`diagnostic.debug.support-bundle-redaction-incomplete`、`diagnostic.debug.support-bundle-size-limit-exceeded`、`diagnostic.debug.support-bundle-artifact-unavailable`、`diagnostic.debug.support-bundle-manifest-mismatch`をclosed IDとして区別する。
 
 Target別の生成UX、保存先、提出transportは各Platform Owner（[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)）が本schemaを投影する。Platform文書は収集可能componentとnative share UIだけを定義し、独自Support Bundle schema、緩いredaction、別size cap、silent uploadを作らない。
 
@@ -352,7 +356,7 @@ watchdogは判定に用いたexpected interval、threshold、ApplicationState、
 
 Remote handshakeはDevice identity、pairing generation、App／Engine／Module hash、Target、Debug Capability、channel、bandwidth／storage capacity ref、clock correlation、privacy stateを持つ。Development／Profile Buildだけがshort-lived mutual-authenticated Sessionで接続できる。Device Bridgeはfilesystem、shell、process、network proxyを提供しない。
 
-transferはcontrolとbulk captureを分け、Counter／Diagnosticを優先し、disconnect時のlocal ring overflowをgapにする。resumeはlast acknowledged chunk hashから行い、sequenceでdeduplicateする。remote mutationはWatch、Capture、Pause／Resume、Replay controlのregistered operationだけとし、C++／shader／native plugin変更はrebuild／reinstallを必要とする。
+transferはcontrolとbulk captureを分け、Counter／Diagnosticを優先し、disconnect時のlocal ring overflowをgapにする。resumeはlast acknowledged chunk hashから行い、sequenceでdeduplicateする。remote mutationのWatch、Capture、Pause／Resume、Replay controlは§13のDebug familyがatomic Activationされ、current MCD／Owner Manifest／Service allowlistへ同時登録された後だけ許可する。現在のremote-mutation Operation集合はexact 0件で、候補名やcontrol名によるdispatchを拒否する。C++／shader／native plugin変更はActivation後もrebuild／reinstallを必要とする。
 
 ## 15. Security、privacy、retention、failure
 
@@ -374,7 +378,7 @@ Runtime fixtureは[Scheduling／lifetime](scheduling-lifetime.md)の全Runtime o
 
 Replay fixtureはInput、RNG、accepted async resultから同じstate hash、first divergence、recorded／current revision分離、closure／Asset／worker mismatch拒否、gapを含むSessionのpartial表示、child Session isolationを検証する。
 
-AI Operation fixtureはAggregate→Query→Causality→Replay→Finding validation→exact domain Proposalのtask／Receipt chainを検証する。QueryのAggregate Receipt、CausalityのQuery Receipt、ReplayのBuild／Query／Causality Receipt、Finding validationのBuild／Query／Causality／Replay Receiptについて、missing、ref hash差、署名差、別operation payload、revocationを一原因ずつ注入して後段を停止する。stale Candidate、別Session／Build／Store／Index generation、remote Device交換、request hash／Authorization差でも拒否する。Evidence ref不在、別revision、gap／redaction隠蔽、時間相関だけ、reproductionなしの`validated_cause`を含む偽Findingは`operation.debug.validate_finding`で`diagnostic.debug.finding-evidence-invalid`となり、proposal Operation refを返さずProject stateを不変にする。Support Bundle branchは同じ署名Envelope／Task APIを使い、source Debug Receipt差、consentなし、redaction不完全、manifest mismatchでexport byteを公開しない。
+Atomic activation acceptance fixtureはAggregate→Query→Causality→Replay→Finding validation→exact domain Proposalのtask／Receipt chainを検証する。QueryのAggregate Receipt、CausalityのQuery Receipt、ReplayのBuild／Query／Causality Receipt、Finding validationのBuild／Query／Causality／Replay Receiptについて、missing、ref hash差、署名差、別operation payload、revocationを一原因ずつ注入して後段を停止する。stale Candidate、別Session／Build／Store／Index generation、remote Device交換、request hash／Authorization差でも拒否する。Evidence ref不在、別revision、gap／redaction隠蔽、時間相関だけ、reproductionなしの`validated_cause`を含む偽Findingは`operation.debug.validate_finding`で`diagnostic.debug.finding-evidence-invalid`となり、proposal Operation refを返さずProject stateを不変にする。Support Bundle branchは同じ署名Envelope／Task APIを使い、source Debug Receipt差、consentなし、redaction不完全、manifest mismatchでexport byteを公開しない。current fixtureは14 candidateすべてについてdispatch前の`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`とProject／Task／export byte不変を検査する。
 
 `fixture.debug.known-faults`は少なくともInput context conflict、Collision filter、stale Nav result、root-motion authority conflict、Asset generation mismatch、Render barrier diagnostic、Audio pressure、Gameplay bounded-execution fault、Level closure不足、RNG divergence、GameHost crash／symbol mismatch、remote disconnect／gapを含む。各caseはobservation、typed Diagnostic、causal path、Replay Slice、correct remediation、forbidden remediation、regression fixtureを持つ。
 

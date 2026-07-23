@@ -53,21 +53,78 @@ Intentはgoalを表し、kernel radius、tap count、history blend、mip数、Re
 ```text
 PostProcessProfileV1
   profile_id
-  version
-  parent_profile_id
+  profile_version: positive uint32
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  parent_profile_ref: PostProcessProfileRefV1 | null
   node_settings[]
   output_color_policy
   layer_policy
   target_overrides[]
   human_lock_mask
-  qualification_receipt_refs[]
+  profile_content_hash
+
+PostProcessProfileRefV1
+  profile_id
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+PostProcessCatalogNodeRefV1
+  node_id
+  node_version: positive uint32
+  node_content_hash: SHA-256
+
+PostProcessQualificationSubjectRefV1
+  subject_kind: profile | catalog_node
+  subject_ref:
+    profile: PostProcessProfileRefV1
+    | catalog_node: PostProcessCatalogNodeRefV1
+
+PostProcessQualificationSubjectV1
+  qualification_id/version
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  subject: PostProcessQualificationSubjectRefV1
+  target_profile_refs[1..64]
+  fixture_refs[1..64]: exact fixture ref/version/content_hash
+  input_closure_hash
+  result: pass | fail
+  qualification_subject_hash
+
+PostProcessQualificationReceiptV1
+  subject: PostProcessQualificationSubjectV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=post_process_qualification)
+
+PostProcessQualificationReceiptRefV1
+  qualification_id/version
+  qualification_subject_hash
+  signed_record_hash
+
+PostProcessActivationBindingV1
+  activation_binding_id/version
+  subject: PostProcessQualificationSubjectRefV1
+  qualification_receipt_refs[1..64]:
+    PostProcessQualificationReceiptRefV1
+  activation_binding_hash
+
+PostProcessActivationBindingRefV1
+  activation_binding_id/version
+  activation_binding_hash
+
+PostProcessActivationProjectionV1
+  projection_id/version
+  entries[1..4096]:
+    exact {PostProcessQualificationSubjectRefV1,
+           PostProcessActivationBindingRefV1}
+  projection_hash
 ```
 
-Profile継承は最大4段とし循環を拒否する。各nodeは`inherit | disabled | override`を明示する。配列の暗黙append、自由なnode追加、同じNode IDの重複を禁止する。Portable contractはProfile当たり最大32 `node_settings`、View Family当たり最大32 active Nodeで、Target Profileは上限を下げられるが増やせない。上限超過を切り捨てずfallbackまたはtyped Diagnosticを返す。
+`profile_content_hash`はASCII `MIRAKAN_POST_PROCESS_PROFILE_V1`と自己Fieldだけを除くReceipt-free canonical bytesから計算する。`PostProcessProfileRefV1`と`PostProcessCatalogNodeRefV1`は各完成baseのID、positive version、self-excluding content hashだけを持ち、base自身へRef、Qualification Receipt／Bindingを埋め戻さない。`parent_profile_ref`は同じProfile Registryのexact一recordへID／version／content hashで解決し、rootはnull、非rootはnon-nullとする。Profile継承は最大4段とし循環、same-ID別version fallback、親更新後のstale child hashを拒否する。各nodeは`inherit | disabled | override`を明示する。配列の暗黙append、自由なnode追加、同じNode IDの重複を禁止する。Portable contractはProfile当たり最大32 `node_settings`、View Family当たり最大32 active Nodeで、Target Profileは上限を下げられるが増やせない。上限超過を切り捨てずfallbackまたはtyped Diagnosticを返す。
 
-`PostProcessCameraOverrideV1`は`base_profile_id`、`base_profile_revision`、field mask、最大16件のpartial `node_settings`だけを持ち、Profile継承、Node追加、stage変更、Target Capability追加はできない。
+Profile／Catalog Nodeの生成順は`receipt-free base → base ref → Qualification subject → signed Receipt → Activation Binding → root外Activation projection`である。subject／binding／projection hashは各`MIRAKAN_POST_PROCESS_QUALIFICATION_SUBJECT_V1`／`MIRAKAN_POST_PROCESS_ACTIVATION_BINDING_V1`／`MIRAKAN_POST_PROCESS_ACTIVATION_PROJECTION_V1` domainと自己Fieldを除くcount／length-framed canonical bytesから計算する。Subject `owner_ref`は`profile` branchではRefが解決する`PostProcessProfileV1.owner_ref`、`catalog_node` branchではRefが解決するReceipt-free Node recordの`owner_ref`とbyte equalityにする。Binding subjectとReceipt subjectのtagged Refはbyte equalityで、Receipt／Binding／FixtureをProfile、Node、Catalog hashへ戻さない。Projection `entries[]`はsubject kindのclosed ordinal、subject logical ID／version／content hash、Binding ID／version／hash順へstrict sortし、duplicate subject／Binding refと同じsubjectへの複数Bindingを拒否する。discriminator外Ref、ID／version／content hash欠落、正しいbase refのままSubject ownerだけを別の有効Ownerへ差し替えるcase、Binding subjectだけを別baseへ差し替えるcase、Projection entryのduplicate／same-subject別Binding／順序違反を一原因negative fixtureで拒否する。
 
-`PostProcessVolumeV1`は`volume_id`、`shape_ref`、`profile_id`、`priority_i16`、`blend_radius_m`、`blend_weight`、`unbounded`、`enabled`、`target_selector`を持つ。Viewごとの交差Volumeは最大32とし、`priority -> volume_id`で安定sortする。weightは`effective_weight = blend_weight × saturate(1 − exterior_distance / blend_radius_m)`で決定する。`blend_weight`は`[0,1]`、`exterior_distance`はshape表面からの外側距離でshape内部は0、補間は線形でありeasingを使わない。`blend_radius_m = 0`はshape内部で`blend_weight`、外部で0、`unbounded = true`は距離によらず常に`blend_weight`とする。Blend可能fieldだけを線形または定義済みDomain blendし、enum、asset ref、Node enable等は最高priorityかつStable ID最小の一件を選ぶ。競合は`MIRAKAN-POST-VOLUME-CONFLICT`で説明する。
+`PostProcessCameraOverrideV1`はexact `base_profile_ref: PostProcessProfileRefV1`、field mask、最大16件のpartial `node_settings`だけを持ち、Profile継承、Node追加、stage変更、Target Capability追加はできない。Overrideの使用時closureはbase refをProfile Registryへexact解決し、ID／revisionだけまたはlatest Profileを代用しない。
+
+`PostProcessVolumeV1`は`volume_id`、`shape_ref`、exact `profile_ref: PostProcessProfileRefV1`、`priority_i16`、`blend_radius_m`、`blend_weight`、`unbounded`、`enabled`、`target_selector`を持つ。Volumeの使用時closureもProfile refをexact解決し、Profile更新後の旧Volume closureをstaleにする。親Profile ref、Camera Override base ref、Volume profile refのversionまたはcontent hashだけを差し替える一原因fixtureをそれぞれ拒否する。Viewごとの交差Volumeは最大32とし、`priority -> volume_id`で安定sortする。weightは`effective_weight = blend_weight × saturate(1 − exterior_distance / blend_radius_m)`で決定する。`blend_weight`は`[0,1]`、`exterior_distance`はshape表面からの外側距離でshape内部は0、補間は線形でありeasingを使わない。`blend_radius_m = 0`はshape内部で`blend_weight`、外部で0、`unbounded = true`は距離によらず常に`blend_weight`とする。Blend可能fieldだけを線形または定義済みDomain blendし、enum、asset ref、Node enable等は最高priorityかつStable ID最小の一件を選ぶ。競合は`MIRAKAN-POST-VOLUME-CONFLICT`で説明する。
 
 Effect entryはEffect Stable ID、effect kind、enabled intent、parameter override、固定composition stage、Catalog dependency ref、optional Qualification済みProject Shader Technique ref、required input／history、Target capability、fallbackを持つ。Profile／AIはstageや順序を変更できない。raw shader source、native pass、resource handle、command callbackをSourceへ埋め込まない。
 
@@ -79,7 +136,7 @@ Volume shapeのgeometryとcontainment queryは既存Simulation contractを利用
 
 Effect Catalogはtone／exposure adaptation、color transform、bloom／glare、depth／motion based effect、lens／camera presentation、stylization、spatial cleanup等をclosed familyとして登録する。各effectはinput color-space、output color-space、required buffers、parameter definition、history requirement、allowed scope、ordering relation、fallbackを宣言する。
 
-`PostProcessNodeCatalogV1`の各Nodeはversion付きNode ID／Product capability status ref、入力／出力logical resourceとcolor space、固定execution stage、required Camera／Renderer input、temporal historyの有無／format／reset reason、blend可能parameter／range、対応Target／HDR・SDR／AA mode／layer、予測cost model／persistent・transient byte式、fallback node／disable policy、Visual fixture／conformance test／Qualification ref、optional Project Shader Technique／Understanding Closure refを宣言する。通常ProfileはCatalogにないNodeを作れず、Project TechniqueはQualification後にProject namespaceのCatalog entryとしてだけ追加する。
+`PostProcessNodeCatalogV1`の各Receipt-free Nodeは`node_id`、positive `node_version`、exact `owner_ref={owner_id,owner_revision,owner_content_hash}`、self-excluding `node_content_hash`、Product capability status ref、入力／出力logical resourceとcolor space、固定execution stage、required Camera／Renderer input、temporal historyの有無／format／reset reason、blend可能parameter／range、対応Target／HDR・SDR／AA mode／layer、予測cost model／persistent・transient byte式、fallback node／disable policy、optional Project Shader Technique／Understanding Closure refを宣言する。`node_content_hash`はASCII `MIRAKAN_POST_PROCESS_CATALOG_NODE_V1`と自己Fieldだけを除くlength-framed canonical Node bytesから計算する。Visual fixture／conformance testは別Qualification subject、signed ReceiptとActivation Bindingが所有し、Node／Catalog hashへ含めない。通常ProfileはCatalogにないNodeを作れず、Project TechniqueはQualification後にProject namespaceのCatalog entryとしてだけ追加する。
 
 Portable Node／parameter contractを次に固定する。本書はdomain qualification evidenceだけを出力する。
 
@@ -164,13 +221,13 @@ resolve(
 
 ## 8. AI／Editor operationとPreview
 
-Post Process operationはcreate／update profile、create／update volume、set enabled／effect parameter、apply style hint、preview、explain、validateをDomain actionとして登録する。Profile operationによるstage変更、未登録Node追加、固定execution order変更を公開しない。新しいProject effectは本書のProfile operationではなく[Project Shader](project-shader.md)の`operation.shader.plan_technique`／`propose_technique`を使う。共通Discovery、Preview、Apply、ChangeSet、authorizationは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
+create／update profile、create／update volume、set enabled／effect parameter、apply style hint、preview、explain、validateはStable IDでないDomain planned action vocabularyであり、それ自体はMCD Operationまたはcurrent callable surfaceではない。Post Processの完全IDは次段落の九reserved candidateだけで、current集合は空である。Profile actionによるstage変更、未登録Node追加、固定execution order変更を公開しない。新しいProject effectの将来Proposalは、本書のProfile actionではなく[Project Shader](project-shader.md)のreserved candidate `operation.shader.plan_technique`／`propose_technique`をShader familyのatomic Activation後にだけ使う。共通Discovery、Preview、Apply、ChangeSet、authorizationは各familyのActivation後にだけ[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
 
-read-only resolver／explanationのcanonical IDは`operation.post_process.resolve_intent`／`operation.post_process.explain_plan`である。それぞれ`ResolvedPostProcessPlanV1`／`PostProcessPlanExplanationV1`を返し、Profile／Volumeへwriteしない。
+`operation.post_process.resolve_intent`／`operation.post_process.explain_plan`は`planning.operation_family.post_process_discovery`のreserved candidateであり、current canonical IDではない。九候補のcurrent MCD／Manifest／Service／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.post_process.discovery_operations.v1`がfamily全体をatomic activateする場合、それぞれ`ResolvedPostProcessPlanV1`／`PostProcessPlanExplanationV1`を返し、Profile／Volumeへwriteしない。
 
-Previewは対象revision、ViewFamily fixture、contributing Volume、resolved order／parameters、color-space transition、AA compatibility、history reset、fallback、diagnosticを示す。Explainは各値のSource、priority、weight、blend operator、override理由を追跡可能にする。
+Activation後のPreviewは対象revision、ViewFamily fixture、contributing Volume、resolved order／parameters、color-space transition、AA compatibility、history reset、fallback、diagnosticを示す。Explainは各値のSource、priority、weight、blend operator、override理由を追跡可能にする。
 
-`PostProcessContextSummaryV1`はView Family／Camera／Target／Visual Style／AA PlanのID／version、active Profile／Volume上位32件、stage別active Node／quality／history、Project Technique／Understanding Closure hash、HDR／SDR／layer policy／pixel-locked有無、予測／実測GPU時間／persistent／transient byte、active Diagnostic／fallback、詳細取得用Stable IDだけを返す。`PostProcessPlanExplanationV1`はIntent fieldからNode／parameterへの写像、AA／UI／Accessibility制約、棄却Node、fallbackで失われる見た目、予測cost、Plan hashを返す。Project Technique内部は`ShaderContextSliceV1`で別取得する。
+Activation後の`PostProcessContextSummaryV1`はView Family／Camera／Target／Visual Style／AA PlanのID／version、active Profile／Volume上位32件、stage別active Node／quality／history、Project Technique／Understanding Closure hash、HDR／SDR／layer policy／pixel-locked有無、予測／実測GPU時間／persistent／transient byte、active Diagnostic／fallback、詳細取得用Stable IDだけを返す。`PostProcessPlanExplanationV1`はIntent fieldからNode／parameterへの写像、AA／UI／Accessibility制約、棄却Node、fallbackで失われる見た目、予測cost、Plan hashを返す。Project Technique内部は`ShaderContextSliceV1`で別取得する。
 
 `PostProcessChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Profile／Volume差分、risk、Preview hash、必要Approvalを載せるDomain projectionで、直接Commitしない。`PostProcessDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとEffect property pathを載せる。`PostProcessVolumeSummaryV1`は本書、`CameraPresentationSummaryV1`は[Camera](camera.md)、`LayerCompositionSummaryV1`は[Render Graph](render-graph.md)、`TargetCapabilitySnapshotV1`は共通envelopeを[Executable contracts](../02-foundation/executable-contracts.md)・Target固有entryを各Platform、`PostProcessBudgetEnvelopeV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)、`AccessibilityPolicySnapshotV1`は[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)がOwnerとして公開するread-only／revisioned projectionで、Post Processはfield一覧を複写せず書き戻さない。
 

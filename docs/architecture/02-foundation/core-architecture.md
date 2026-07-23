@@ -44,7 +44,7 @@ Private platform and vendor adapters
 - Hostだけがconcrete Adapterを組み立てる。Domain codeはService Locatorやglobal mutable singletonでAdapterを探索しない。
 - Vendor型、native handle、allocator型を公開API、MCD、永続formatへ露出しない。
 - `EditorHost`はAuthoring状態、`GameHost`はCook済みRuntime状態、`WorkerHost`は隔離されたBuild／Import／Validation taskだけを扱う。
-- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。型付きIPC Operationは[Executable contracts](executable-contracts.md)、Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)に従う。
+- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。現在呼び出せる型付きIPC Operationは[Executable contracts](executable-contracts.md)のcurrent MCDに完全登録されたexact 14 IDだけであり、未Activation候補をIPC名から推測してdispatchしない。Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)に従う。
 
 ## 4. Authoring状態とRuntime状態
 
@@ -54,7 +54,7 @@ Authoringの正規状態はrevision付きProject modelであり、RuntimeはComm
 
 ```text
 Intent / UI / AI proposal
-  -> typed operation
+  -> exact outer MCD Operation plus typed Project change primitives
   -> validation and authorization
   -> Project ChangeSet commit
   -> offline compile / cook
@@ -115,11 +115,13 @@ Buildを次の閉じた層へ分ける。外部toolのexact versionや取得情�
 | Content Build | Import、Cook、Shader、Derived Data、Target別Content Package | C++ target graph |
 | Platform owner | Platform shell、resource、最終package、archive、署名 | portable C++ source graphの再定義 |
 
-Editor、AI、CLI、CIはallowlistされたBuild Gateway Operationだけを呼ぶ。AI向けBuild系OperationのMCD登録、Risk、Provider projection可否は[Executable contracts](executable-contracts.md)が所有し、実行semantics、task順序、Receipt構造は本節のBuild Gatewayと各Owner文書が所有する。Generator出力や内部databaseを解析・書換えず、CMake File APIとEngine-owned Receiptを読む。Schema／generated Header／Moduleのcodegen edgeは全Input、Output、Byproduct、Depfile、working directoryを宣言する。Build executorの成功だけでPackage成功やPromotion可能と判定しない。
+Build Gateway familyのatomic Activation後に限り、Editor、AI、CLI、CIはcurrent MCDとService allowlistへ同時登録されたBuild Gateway Operationだけを呼ぶ。現在のBuild系Operation集合、Owner Manifest、Service allowlist、Provider projectionはexact 0件であり、候補名によるdispatchを拒否する。AI向けBuild系OperationのMCD登録、Risk、Provider projection可否は[Executable contracts](executable-contracts.md)が所有し、Activation後の実行semantics、task順序、Receipt構造は本節のBuild Gatewayと各Owner文書が所有する。Generator出力や内部databaseを解析・書換えず、CMake File APIとEngine-owned Receiptを読む。Schema／generated Header／Moduleのcodegen edgeは全Input、Output、Byproduct、Depfile、working directoryを宣言する。Build executorの成功だけでPackage成功やPromotion可能と判定しない。
 
 ### 9.1 `OperationTaskV1`
 
-Build Gatewayは[Executable contracts](executable-contracts.md#20-ai向けdiscovery)のPackage／Device／Play／Debug Operationを同じclosed task envelopeで実行する。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は既存Taskを対象にする同期Control Operationであり、入れ子のTaskを新規作成しない。
+本節のPackage／Device／Play／Debug／Task Control 14 IDと以下のTask／Receipt型は、[Executable contracts](executable-contracts.md)の`planning.operation_family.build_device_play_debug_task`に属する未Activation候補である。current MCD、Owner Manifest、Service allowlist、Signer Policy、Provider／MCP Tool、`OperationTaskV1` instance、完成Receipt集合はすべて空であり、現在はdispatchしない。以下の現在形は`activation.build_gateway.operation_pipeline.v1`がfamily全体を一つのContract set transactionでactivateした後の受入条件だけを表す。
+
+atomic activation後、Build GatewayはPackage／Device／Play／Debug Operationを同じclosed task envelopeで実行する。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は既存Taskを対象にする同期Control Operationであり、入れ子のTaskを新規作成しない。
 
 ```text
 OperationTaskV1
@@ -140,7 +142,7 @@ OperationTaskV1
 
 `device_identity_ref`と`device_generation`はDeviceまたはremote Debugを対象にするOperationでは対で必須、それ以外では省略する。`consent_record_ref`はOperation Registryが明示consentを要求する場合だけ必須であり、空値や別Operationのconsentで代用しない。`receipt_ref`は非終端stateでは省略し、`succeeded | failed | cancelled`では同じtask ID、request hash、Project revision、Candidate root、Target、Device bindingを持つimmutable Receiptへ必須参照する。失敗詳細はReceiptが参照するtyped `MirakanDiagnosticV1`から取得し、自由文だけをTaskへ保存しない。
 
-Operation Registryに列挙する全14 Receiptは、次の共通subjectとOperation固有payloadを一つの署名済みRecordへ閉じる。
+Activation後にOperation Registryへ同時登録する全14 Receiptは、次の共通subjectとOperation固有payloadを一つの署名済みRecordへ閉じる。
 
 ```text
 OperationReceiptEnvelopeV1
@@ -166,7 +168,7 @@ OperationReceiptEnvelopeV1
 
 `payload`は`payload_contract_ref`が指す次のclosed型一件で、`payload_sha256`はそのcanonical JCS bytesのSHA-256である。Operation IDとpayload型の組合せはclosed mappingであり、unknown Field、別Operationのpayload、型名だけ一致する任意JSONを拒否する。
 
-Package／Device／Play／Debugの11 Operationは`invocation_kind=async_task`、対応する`OperationTaskV1.task_id`を必須とし、`control_invocation_id`を省略する。`operation.task.status | operation.task.read_receipt | operation.task.cancel`は`invocation_kind=synchronous_control`、各同期呼出しに一意な`control_invocation_id`を必須とし、`task_id`を省略する。対象Task identityは型固有payloadの`target_task_id`だけが持つ。discriminatorとOperation IDの不一致、両IDのmissing、両方present、control Operationによる対象Task IDのEnvelope流用をschema negative fixtureで拒否する。
+Activation後、Package／Device／Play／Debugの11 Operationは`invocation_kind=async_task`、対応する`OperationTaskV1.task_id`を必須とし、`control_invocation_id`を省略する。`operation.task.status | operation.task.read_receipt | operation.task.cancel`は`invocation_kind=synchronous_control`、各同期呼出しに一意な`control_invocation_id`を必須とし、`task_id`を省略する。対象Task identityは型固有payloadの`target_task_id`だけが持つ。discriminatorとOperation IDの不一致、両IDのmissing、両方present、control Operationによる対象Task IDのEnvelope流用をschema negative fixtureで拒否する。
 
 | operation_id | signed_record_purpose | payload contract | 完成Receipt alias |
 |---|---|---|---|
@@ -275,7 +277,7 @@ Package→Install→Launch→Smokeでは全EnvelopeのProject revision、Candida
 
 `TaskStatusReceiptV1`と`TaskReceiptReadReceiptV1`はControl requestと対象Task／Receipt hashを監査する同期read Receipt、`TaskCancellationReceiptV1`はcancel requestと収束結果を監査するControl Receiptであり、いずれも新しい`OperationTaskV1`を作らない。
 
-許可遷移は`queued -> running`、`queued | running -> cancel_requested`、`running -> succeeded | failed`、`cancel_requested -> cancelled | succeeded | failed`だけである。Irreversible boundary通過後のcancelは結果不明にせず、Operationを収束させて`succeeded | failed`とReceiptを返す。Retryは同じcanonical requestなら同じidempotency keyを使い、request hashが異なる場合は新task IDにする。Terminal taskを再実行せず、`operation.task.read_receipt`で結果を読む。
+Activation済みTaskの許可遷移は`queued -> running`、`queued | running -> cancel_requested`、`running -> succeeded | failed`、`cancel_requested -> cancelled | succeeded | failed`だけである。Irreversible boundary通過後のcancelは結果不明にせず、Operationを収束させて`succeeded | failed`とReceiptを返す。Retryは同じcanonical requestなら同じidempotency keyを使い、request hashが異なる場合は新task IDにする。Terminal taskを再実行せず、`operation.task.read_receipt`で結果を読む。
 
 Gatewayはenqueue時と実行直前にProject revision、Candidate root、Target Profile、Authorization、consent、Device identity／generation、入力Receiptのsubject／hash／freshnessを再検証する。一件でもdriftした場合は副作用開始前に失敗し、stale Candidate、Device交換、Package Receipt差替えを「最新」へ自動追従しない。Package生成、install、launch、reset、smoke、Debug、cancelは別Operationであり、前段のAuthorizationやApprovalを後段へ継承しない。
 

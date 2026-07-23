@@ -144,6 +144,7 @@ local AI対応は推奨する。ただし「モデルを同梱する」ことと
 - Production recordからFixture body refを除き、別owner-typed Qualification recordのexact signed Receiptだけをconsumeする。`owner_layer`とexact owner refでCore／Feature／Genre／Project dependency legalityを検証する。
 - World Stable-ID allocationは完全登録したinternal Gateway Operationへ、Scenarioはreceipt-free candidate＋三owner／五gate Receipt DAGとgeneric T00 deliveryへ、Shooterはexact八Validator inventoryと三Operation各17 Diagnostic closureへ閉じた。
 - 完全登録できないScenario／Stage authoring、generic Pack AI、Feature authoring、Physics／Navigation／Input selectionはcurrent Manifest／Catalog／allowlistから除外し`not_activated`とした。旧name-only IDをcurrent aliasとして読まない。
+- Executable Contracts §§20～21.1の159候補（当初Discovery／Execution 67件＋既存Domain文書から回収したauthoring／selection 92件）は18 `PlannedOperationFamilyV1`へ閉じ、全current MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Provider／MCP Tool／alias集合を空、stateを`not_activated`とした。current active 14（bootstrap八＋Domain六）との積集合は空で、family単位以外の部分Activationを許可しない。
 
 checkpoint 3のfresh assertionsは`19/19 PASS`、対象Scenario／Packのconcrete name-only current Operationは`0`、Shooterのunexpected Operation familyは`0`、対象五文書のunbalanced fenceは`0`、`git diff --check`は`PASS`である。これは文書契約の検査結果であり、Engine実装、Capability Activation、Target Qualification、Release／Shipping Receiptではない。全scope auditと二つの独立read-only再Reviewが終わるまでTask 2 final closureを主張しない。
 

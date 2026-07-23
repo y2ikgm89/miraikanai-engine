@@ -15,7 +15,7 @@ Miraikanai EngineのMathとCore Utilitiesは、汎用`Vector3`と雑多な`utils
 2. `mirakan::math`はscalar、角度、vector、matrix、quaternion、transform、geometry、数値検証を所有し、`mirakan::foundation`だけへ依存する。
 3. hot path内部ではcompactな`Vec2f`／`Vec3f`／`Mat4f`等を使えるが、AI、Editor、Authoring、Save、Subsystem公開境界では位置、方向、単位、座標空間、正規化条件を持つsemantic typeを使う。
 4. Math／Utilityの正本はMiraikanai Contract Definition（MCD）と本書であり、C++型、Editor metadata、serialization descriptor、MCP／Provider Schema、Validator、Diagnostic、testを同じ定義から生成する。
-5. AIはraw memory、任意matrix、内部SIMD型、Platform math型を直接編集しない。意味付きFieldまたはtyped Operationを提案し、C++ Gatewayが完全再検証する。
+5. AIはraw memory、任意matrix、内部SIMD型、Platform math型を直接編集しない。意味付きFieldまたはtyped Project change primitiveを提案し、C++ Gatewayが完全再検証する。
 6. Phase 0でportable scalar reference、MCD projection、unit／property／golden／cross-language testを完成させる。SIMD、DirectXMath、GPU近似、高度Geometry最適化は実測後の別Promotionとする。
 7. `utils`、`helpers`、`common`という責務不明Directory／namespace／targetを作らない。
 
@@ -247,7 +247,7 @@ Presentation-only mathは、CapabilityとTarget Profileに明示し、reference 
 
 ### 8.1 安全な生成
 
-| Operation | 成功結果 | 失敗 |
+| Math function | 成功結果 | 失敗 |
 |---|---|---|
 | `make_unit_direction(v)` | `UnitDirection*` | `NonFinite`、`ZeroLength`、`BelowMinLength` |
 | `make_normalized_quaternion(q)` | canonical `NormalizedQuaternion` | `NonFinite`、`ZeroLength`、`OutsideNormalizationTolerance` |
@@ -256,11 +256,11 @@ Presentation-only mathは、CapabilityとTarget Profileに明示し、reference 
 | `make_projection(profile)` | typed projection＋culling data | invalid FOV、near／far、viewport、aspect、non-finite |
 | `intersect(query, geometry)` | tagged hit／no-hit | invalid geometry、non-finite query、capacity failure |
 
-失敗可能Operationは`Result<T>`を返す。identity、zero、+X axis、前回値への暗黙fallbackを禁止する。
+失敗可能Math functionは`Result<T>`を返す。identity、zero、+X axis、前回値への暗黙fallbackを禁止する。
 
 ### 8.2 明示fallback
 
-Presentationでfallbackが必要な場合は`normalize_or(v, fallback_unit_direction)`のようにfallbackを必須引数とし、Operation descriptorへ`presentation_only=true`、fallback reason、telemetry IDを持たせる。Authoritative codeではこのAPIを使わない。
+Presentationでfallbackが必要な場合は`normalize_or(v, fallback_unit_direction)`のようにfallbackを必須引数とし、Math callable descriptorへ`presentation_only=true`、fallback reason、telemetry IDを持たせる。Authoritative codeではこのAPIを使わない。
 
 ### 8.3 Diagnostic
 
@@ -331,7 +331,7 @@ AIへ型名だけを渡さず、MCDから次を投影する。
 
 ### 10.2 AIの編集単位
 
-AIは`dot`、`cross`、`inverse`等の低水準Math関数を通常のAuthoring Toolとして呼ばない。AIは次の意味付きOperationを使う。
+AIは`dot`、`cross`、`inverse`等の低水準Math関数を通常のAuthoring Toolとして呼ばない。次の七文字列は将来の意味付きauthoring vocabularyであり、current Operationではない。
 
 ```text
 operation.transform.set_world_position
@@ -343,7 +343,7 @@ operation.asset.set_pixels_per_unit
 operation.ui.set_rect
 ```
 
-Gatewayがsemantic typeを検証し、必要なMath処理を内部で実行する。VFX／Material／GameplayDefinition等でMath Nodeを編集する場合も、Node Catalogに型、unit、zero policy、cost、fallbackを持たせ、任意式文字列を受理しない。
+このうちCamera ownerの`operation.camera.set_profile_projection`は[Executable contracts](executable-contracts.md#211-既存domain文書から回収した未登録operation候補)のCamera family一件だけに属し、残る六件は`planning.operation_family.math_semantic_authoring@1`のexact候補集合である。両familyともCapability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。Gatewayは`activation.math.semantic_authoring_operations.v1`またはCamera側work itemが各familyを完全登録するまでdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。将来ActivationされたGatewayはsemantic typeを検証して必要なMath処理を内部で実行する。VFX／Material／GameplayDefinition等でMath Nodeを編集する場合も、Node Catalogに型、unit、zero policy、cost、fallbackを持たせ、任意式文字列を受理しない。
 
 ### 10.3 Discovery
 
@@ -356,7 +356,7 @@ describe_math_operations(domain, type_ids)
 query_math_diagnostic(code)
 ```
 
-この遅延DiscoveryはTool一覧のtoken量を抑え、現在のTargetとCapabilityに関係する型だけを提示する。検索結果は`contract_set_hash`とType／Operation versionを返し、stale Proposalを拒否する。
+この遅延DiscoveryはTool一覧のtoken量を抑え、現在のTargetとCapabilityに関係する型だけを提示する。これはplanning-only internal discovery actionで、current Tool／MCD Operationではない。将来Activationされた検索結果は`contract_set_hash`とType／planned semantic action descriptor versionを返し、stale Proposalを拒否する。
 
 ### 10.4 Projection
 
@@ -487,7 +487,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 
 | Task | 成果物 | Gate |
 |---|---|---|
-| `MATH0_contract` | Math Type／Operation／Diagnostic MCD、generated descriptor | schema、round-trip、invalid fixture |
+| `MATH0_contract` | Math Type／planned semantic action／Diagnostic MCD candidate、generated descriptor | schema、round-trip、invalid fixture |
 | `FOUNDATION0_core` | Result、Error、Diagnostic、StableId、Hash、Endian、Duration、bounded reader／writer | unit、property、ASan、no-allocation failure path |
 | `MATH1_scalar_reference` | `mirakan::math` C0 storage／semantic typeとportable scalar演算 | unit、property、golden、MSVC／clang-cl |
 | `MATH2_transform` | matrix、Quaternion、Transform2／3、projection共通部 | compose、inverse、decompose、reversed-Z |
@@ -522,12 +522,12 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 4. non-normalized quaternionを黙ってidentityへ置換しない。
 5. singular matrixをTRSとしてCommitしない。
 6. Camera、Physics、RendererのTransform authorityを混同しない。
-7. raw `Vec3f`ではなくDomain Operationを選択する。
-8. stale Type／Operation versionを再検索する。
+7. raw `Vec3f`ではなくDomain typed change primitiveまたはplanned semantic actionを選択する。
+8. stale Type／planned semantic action descriptor versionを再検索する。
 9. failure後に許可Remediationだけを提案し、permission／security failureを自動修復しない。
 10. 未Qualified SIMD／Platform backendをProductionとして選択しない。
 
-通常CaseのType／Operation選択正答率98%以上、unit／space mismatch Commit成功0、silent fallback 0、存在しないMath Operation提出0をC0合格条件とする。
+通常CaseのType／planned semantic action選択正答率98%以上、unit／space mismatch Commit成功0、silent fallback 0、存在しないMath action提出0をC0合格条件とする。
 
 ## 16. Definition of Done
 
@@ -545,7 +545,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 12. AI Evalがunit／space mismatch Commit成功0を満たす。
 13. scalar referenceが常に利用でき、optimized backendを無効化できる。
 14. optimized backendはTarget別ReceiptなしにProduction表示されない。
-15. Requirement Coverage MatrixがType、Operation、Validator、Diagnostic、test、実装Symbol、Receiptを追跡する。
+15. Requirement Coverage MatrixがType、planned semantic action candidate、Validator、Diagnostic、test、実装Symbol、Receiptを追跡する。
 
 ## 17. 主要リスクと対策
 

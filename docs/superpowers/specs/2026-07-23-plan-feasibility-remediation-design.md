@@ -151,7 +151,7 @@ PhaseFixtureBindingRegistryV1
 
 ## 6. AI Operation closure
 
-Build Gatewayへ次のcanonical Operationを追加する。
+次の14 IDは`planning.operation_family.build_device_play_debug_task`のreserved candidateとして記録する。current MCD、Owner Manifest、Trusted Service allowlist、Policy、Validator／closure、Diagnostic／Receipt、Provider／MCP Tool、alias集合はすべて空、Capability stateは`not_activated`である。`activation.build_gateway.operation_pipeline.v1`が14件の完全closureを同じContract set transactionで成立させた場合だけfamily全体をatomic activateし、部分登録、read-only先行公開、name-only aliasを許可しない。
 
 ```text
 operation.build.request_package
@@ -170,7 +170,7 @@ operation.task.read_receipt
 operation.task.cancel
 ```
 
-`device.install`と`device.reset_data`は対象Device identity／generation、Package Receipt、明示consent、Risk R3 Approvalを必須とする。`launch`、`smoke`、Debug queryはこれらの権限を継承せず、各Operationのallowlistを個別評価する。
+Activation後も`device.install`と`device.reset_data`は対象Device identity／generation、Package Receipt、明示consent、Risk R3 Approvalを必須とする。`launch`、`smoke`、Debug queryはこれらの権限を継承せず、各Operationのallowlistを個別評価する。currentでは14候補のdispatchを`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Project／Task／Device状態を不変にする。
 
 ## 7. Host、Provider、Model、local inference
 

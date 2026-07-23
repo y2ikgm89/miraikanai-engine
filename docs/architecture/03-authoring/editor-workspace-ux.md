@@ -48,7 +48,7 @@ EditorHost
 - GameHost crash、device loss、Project C++ faultでEditorHostを終了しない。
 - AI Orchestratorは別Processで、Editor widget IDやnative handleを受け取らない。
 - 長時間Build／Cook／GenerateをUI threadで実行しない。
-- PanelはDomain Serviceのread projectionとtyped Operationだけを使い、private Runtime objectを保持しない。
+- PanelはDomain Serviceのread projectionとtyped Editor command／Project change primitiveだけを使い、private Runtime objectを保持しない。
 
 ### 3.1 Editor session lifecycle
 
@@ -196,27 +196,27 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 - Select、translate、rotate、scale、frame、measure、grid／snapを持つ。
 - 2D／3D coordinate、meter／radian、pixel／PPU表示を明示する。
 - Physics、Collider、Navigation、Light、Camera、VFX、Audio、UI safe areaをoverlayできる。
-- Gizmo操作はtyped Transform Operationを生成し、native transform pointerへwriteしない。
+- Gizmo操作はtyped Transform change primitiveを生成し、native transform pointerへwriteしない。
 - Play中の編集はfieldの`live_edit_policy`を表示し、restart要求を隠さない。
 
 ### 6.3.1 Level Authoring View
 
 Level WorkspaceはWorld／Level／Map規約の同じSourceを次のProjectionで編集する。
 
-| View | 編集対象 | 主Operation／制約 |
+| View | 編集対象 | planned change action／制約 |
 |---|---|---|
 | World Outline | World、Region、Level、Scene | StableId selection。Scene永続化ownerとLevel membershipを別columnで表示 |
 | Topology Graph | Level、Portal、entry／exit Anchor | `CreatePortal`／`UpdatePortalContract`／`DeletePortal`。片側edgeだけを保存しない |
 | Level Form | Source Scene集合、entry／exit、System、Objective、Profile、Budget | `SetLevelSourceScenes`、`SetLevelEntryExitContract`、`SetLevelGameplayComposition` |
-| Spatial View | Entity、Anchor、bounds、Scene owner | Transform Operation、`MoveEntityToScene`。Level membershipとCellを暗黙変更しない |
+| Spatial View | Entity、Anchor、bounds、Scene owner | typed Transform change primitive、`MoveEntityToScene` primitive。Level membershipとCellを暗黙変更しない |
 | Streaming Inspector | Cell、residency、dependency、memory／IO | Target別Derived Planのread-only projection。Source編集欄を持たない |
-| Navigation Overlay | walkability、cost、query、Source／Artifact差 | Source Intentだけをtyped Operationで変更し、Navmesh／tileへwriteしない |
+| Navigation Overlay | walkability、cost、query、Source／Artifact差 | Source Intentだけをtyped change primitiveで変更し、Navmesh／tileへwriteしない |
 | Map Presentation Preview | minimap、world map、marker、fog | Presentation Sourceだけを変更し、Quest／Objective／Navigation authorityへwriteしない |
 | Bundle Review | Requirement、Source Diff、Topology、Target、Budget、Test、Risk | Staging Bundleのaccept／reject。Commit権限を持たない |
 
 各ViewのContext barはProject revision、World／Scene／Level Stable ref、Target、lock、`Source | Staging | Derived read-only | Runtime`を常時表示し、Authoring規約の`AuthoringSelectionContextV1`とWorld規約の`WorldAuthoringContextV1`を同じContext hashで結ぶ。Scene／Outliner／Graph／Form／Inspector間のselection同期はStableIdを使い、screen coordinate、表示row、同名Object、Hierarchy pathを対象identityにしない。
 
-共有Sceneを複数Levelが参照する場合、編集の影響を受ける全LevelとTargetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、Level membership変更は別Operationとして明示する。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
+共有Sceneを複数Levelが参照する場合、編集の影響を受ける全LevelとTargetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、Level membership変更は別change primitiveとして明示する。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
 
 ### 6.4 Source
 
@@ -229,7 +229,7 @@ C1 Source WorkspaceはProject C++／HLSL／MCD JSONのtree、UTF-8 editor、synt
 Asset BrowserとImport Inspectorは[Asset lifecycle](asset-lifecycle.md)が所有するStable ID selection、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`AssetConversionReportV1`、`AssetReimportConflictV1`を投影する。
 
 - Asset Browserはtype、semantic role、tag、license、Production readiness、diagnostic、dependencyでfilterできる。
-- thumbnail、waveform、font sample、3D turntableは選択補助であり、Operation targetにはStable IDを使う。
+- thumbnail、waveform、font sample、3D turntableは選択補助であり、change primitive targetにはStable IDを使う。
 - Import Inspectorは`Source`、`Analysis`、`Profile`、`Preview`、`Conversion`、`Dependencies`、`Diagnostics`、`History`を持つ。
 - Basic viewはProfile候補とHigh Impact質問、Advanced viewは同じDocumentの全型付きfieldとevidenceを表示する。別設定を持たない。
 - 3D PreviewはSource／Engine軸、Root、Pivot、bounds、ground、Hierarchy、Skeleton、Animation rootを表示する。
@@ -353,11 +353,11 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 5. Diff、Risk、予測時間／Asset量、Target影響を見せる。
 6. 検証後にCommitし、Playtest結果を自然言語と計測で返す。
 7. 会話で修正し、手動編集があればbase revisionから再読込する。
-8. Playable確認後、Target選択、Package、Device install、smoke結果の提示までを同じ会話journeyで完了できる。各段階は§11の`BackgroundTask`として進み、Receiptと成果物参照をResultへ残す。
+8. Playable確認後のTarget選択、Package、Device install、smoke結果提示は、Build／Device／Play familyのatomic Activation後にだけ同じ会話journeyで利用できる。currentでは候補Operation／Task／Receipt／UI commandを公開せず、`capability_unavailable`と対応work itemを表示する。Activation後の各段階は§11の`BackgroundTask`として進み、Receiptと成果物参照をResultへ残す。
 
 初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。EditorはAssignmentのclosed 9-Field subject、exact `role_ref`、Scope、qualification、期間、`revoked_at=null`と、信頼済みrevocation registryの署名済みcurrent headをread-backする。Assignment Recordまたはsubject identityのcurrent revocation、snapshot missing／stale／invalid、Role欠落／unknown、RoleとScope kind不一致では`awaiting_code_owner`を表示してSource Workerを起動しない。
 
-Package journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。後段PanelはPackage artifact hashと前段完成Receipt ref／hashを表示し、InstallはPackage、LaunchはInstall、SmokeはPackage／Install／Launchとfixtureの全bindingが一致するまで成功表示しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
+`activation.build_gateway.operation_pipeline.v1`完了後のPackage journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。後段PanelはPackage artifact hashと前段完成Receipt ref／hashを表示し、InstallはPackage、LaunchはInstall、SmokeはPackage／Install／Launchとfixtureの全bindingが一致するまで成功表示しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
 
 Local inference表示はcurrent `InferenceDeploymentProfileV1.model_snapshot_profile_binding`のrecord／issuance Headからread-backした`ModelSnapshotProfileV1`だけをModel identity正本にする。weight shard closure、native／quantized encoding branch、license、provenanceをDeployment表示値から取得せず、Deployment／Snapshot binding差、`local_process_ipc`からprovider model参照、Snapshot／Conformance失効またはstale Headを`not_activated`とDiagnosticで表示する。
 
@@ -368,9 +368,9 @@ Local inference表示はcurrent `InferenceDeploymentProfileV1.model_snapshot_pro
 - 人間変更を既定でAI lockとせず、AIが変更する場合はDiffで明示する。
 - 明示LockはAI、bulk tool、Recipe updateから保護する。
 - AI proposal作成中に人間がCommitした場合、proposalをstaleとして自動Commitを禁止する。
-- `Accept all`だけでなくOperation／Document／field単位のaccept／rejectを提供する。
+- `Accept all`だけでなくchange primitive／Document／field単位のaccept／rejectを提供する。
 - 一部accept後は新ChangeSetを再構築し、全Validatorを再実行する。
-- Playtest中のruntime tweakをApply Backする場合もtyped Authoring Operationへ変換する。
+- Playtest中のruntime tweakをApply Backする場合もtyped Project change primitiveへ変換する。
 
 ## 10. Undo、History、Recovery
 
@@ -400,7 +400,7 @@ artifact_refs
 receipt_ref?
 ```
 
-`BackgroundTask`はrequest hash、Project revision、Candidate root、Target、Device identity／generation、Authorization、consent、idempotencyを独自保存せず、`operation_task_ref`からread-only表示する。Progress不明なのに擬似percentを表示せず、indeterminateとstageを示す。Cancelは`not_cancelable \| cooperative \| process_terminate`を明示し、UIのCancel押下を成功表示せず`operation.task.cancel`のReceiptまで追跡する。Modal dialogでtask完了までUIをblockしない。
+Activation後の`BackgroundTask`はrequest hash、Project revision、Candidate root、Target、Device identity／generation、Authorization、consent、idempotencyを独自保存せず、`operation_task_ref`からread-only表示する。Progress不明なのに擬似percentを表示せず、indeterminateとstageを示す。Cancelは`not_cancelable \| cooperative \| process_terminate`を明示し、UIのCancel押下を成功表示せず`operation.task.cancel`のReceiptまで追跡する。current未Activation時はTask／Cancel controlを表示せず、Modal dialogで擬似task完了までUIをblockしない。
 
 ## 12. Accessibilityと人間工学
 
@@ -452,7 +452,7 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 | corrupt Workspace | last-validまたはbuilt-inへfallback、Project不変 |
 | missing monitor／DPI変化 | windowをwork areaへ回収 |
 | Panel exception／invariant | Panel instanceを閉じProblemsへ記録、Editor stateを部分変更しない |
-| stale projection | Operation reject、最新revisionから再投影 |
+| stale projection | change request reject、最新revisionから再投影 |
 | AI disconnect | Manual Editor継続、pending proposalを保持 |
 | GameHost crash | Editor継続、crash task／last log／再起動を提示 |
 | Debug Store／Index破損 | 完全chunkまで回復し、欠損rangeをgapとして表示。推測で補完しない |
@@ -474,8 +474,8 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - mouse、keyboard-only、screen readerで2D Project作成／保存／Play
 - 200% scale、High Contrast、reduced motion、shortcut remap
 - AI CreatorからProductionへ切替えて同じObjectを手動修正し、AI再編集で保持
-- AI CreatorのjourneyだけでTargetを選択し、`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`を別Task／Receiptで完了し、smoke結果がAI PartnerのResultへ提示される
-- Package→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、Project／Deviceの正規状態が不変
+- Build familyのatomic Activation acceptanceでは、AI CreatorのjourneyだけでTargetを選択し、`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`を別Task／Receiptで完了し、smoke結果がAI PartnerのResultへ提示される
+- 同acceptanceではPackage→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、Project／Deviceの正規状態が不変。current fixtureでは全候補commandが非表示で、直接dispatchが`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`となる
 - BeginnerではDefinition／prequalified PackだけからFirst Playableへ進み、Native／Shader要求は`awaiting_code_owner`または`capability_unavailable`になってSource reviewを要求しない
 - Code owner Assignmentのmissing／unknown／wrong-scope `role_ref`、`revoked_at` Field省略、non-null `revoked_at`、unknown extra Field、current snapshotのAssignment／subject revoke、current snapshotのmissing／stale／invalidを一原因ずつ拒否し、`revoked_at=null`だけで`awaiting_code_owner`からSource生成／Promotionへ進めない
 - expired Host／Model Profile、Deployment／Snapshot bindingのschema ID／logical ID／record ref／hash／revision／issuance Head差、`model_identity.kind`差、silent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
@@ -485,7 +485,7 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - pause要求がT110 safe pointでだけ成立し、tick／render-frame／GameplayDefinition node stepが混同されず、watch値にrevision／timepoint／validityが表示される
 - AI診断のvalidated causeはすべてEvidence IDを持ち、recorded／current混同、presentation→authoritativeの逆因果、再現なし修正成功を0件にする
 - 1920×1080でScene、Outliner、Inspector、Asset、AI Partnerが同時利用可能
-- `fixture.world.authoring-cross-view`の64 scenarioで、World Outline、Topology Graph、Level Form、Spatial View、AIが同じStableId／revision／Domain Operation／after state hashへ収束
+- `fixture.world.authoring-cross-view`の64 scenarioで、World Outline、Topology Graph、Level Form、Spatial View、AIが同じStableId／revision／`WorldSourceChangePrimitiveKindV1` discriminator／after state hashへ収束
 - Scene永続化owner、Level membership、Cell assignmentの表示と変更経路を混同せず、共有Scene変更の影響LevelをCommit前に列挙
 - sort／filter／rename／re-shard／DPI変更後も、mouse、keyboard、UI Automation、AIがscreen coordinateまたは表示rowで別Objectを変更しない
 - Derived read-only／Runtime対象の編集を全Viewで拒否し、Source Intentへの安全な遷移候補を表示

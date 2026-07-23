@@ -13,7 +13,7 @@ Worldは空間、Scene、global composition、persistent entity、任意のspati
 
 World activation、Scene activation、Cell streamingはGameplay goalやResultを要求しない。Scene 0件のprocedural-only World、spatial topologyなしのUI補助World、有限Gameplay進行を持たないcontinuous simulationをvalidとする。
 
-AI、Editor、Project C++はSource Documentとtyped operationを扱い、Runtime cell object、ECS pointer、Renderer resource、Physics／Navigation native handleを直接保存しない。cell activation state／phase／lifetimeはRuntime、capacity／backpressureはPerformance、representation selectionはLODが所有する。
+AI、Editor、Project C++はSource Documentとtyped change primitiveを扱い、Runtime cell object、ECS pointer、Renderer resource、Physics／Navigation native handleを直接保存しない。cell activation state／phase／lifetimeはRuntime、capacity／backpressureはPerformance、representation selectionはLODが所有する。
 
 ## 2. 正規用語とidentity
 
@@ -230,7 +230,7 @@ Asset artifact、Navigation artifact、LOD／HLOD representation、Renderer mate
 
 Procedural Worldはgenerator Stable ID、typed parameter、seed semantics、input asset refs、bounded output scope、determinism class、generated Source ownership、regeneration／migration policyを持つ。GeneratorはProject Source DocumentへのChangeSetを生成し、Runtime objectやnative resourceを直接生成して正本化しない。
 
-`ProceduralWorldDefinitionV1`は`procedural_world_id`（UUIDv7 Stable ID）、exact `generator_contract_ref`、Qualified Definition／Native variantの`generator_implementation_ref`、`seed_policy: fixed | project_parameter | save_slot | session_derived`、`input_definition_refs` 0～1,024件、`layout_constraint_refs` 1～1,024件、exact `output_schema_ref`、正の`max_generation_steps`／`max_output_entities`、Targetごとに厳密に1件の`time_memory_budget_refs`、`determinism_contract_ref`、exact signed `qualification_receipt_refs` 1～1,024件、`selected_validation_provider_bindings[0..64]`、`failure_policy: retry seed | fallback layout | abort`を持つ。budget値はRuntime capacity ownerを参照する。Fixture bodyはowner-typed Procedural World Qualification recordだけが解決し、Production Definition／Runtime PackageはReceiptのsubject／Target／result／freshnessだけを検証する。
+`ProceduralWorldDefinitionV1`は`procedural_world_id`（UUIDv7 Stable ID）、positive `definition_version`、exact `owner_ref={owner_id,owner_revision,owner_content_hash}`、exact `generator_contract_ref`、Qualified Definition／Native variantの`generator_implementation_ref`、`seed_policy: fixed | project_parameter | save_slot | session_derived`、`input_definition_refs` 0～1,024件、`layout_constraint_refs` 1～1,024件、exact `output_schema_ref`、正の`max_generation_steps`／`max_output_entities`、Targetごとに厳密に1件の`time_memory_budget_refs`、`determinism_contract_ref`、`selected_validation_provider_bindings[0..64]`、`failure_policy: retry seed | fallback layout | abort`、self-excluding `definition_content_hash`を持つReceipt-free Sourceである。`definition_content_hash`はASCII `MIRAKAN_PROCEDURAL_WORLD_DEFINITION_V1`と自己Fieldだけを除くlength-framed canonical bytesから計算する。Qualification Receipt／BindingをDefinitionまたはcontent hashへ含めない。budget値はRuntime capacity ownerを参照する。Fixture bodyはowner-typed Procedural World Qualification subjectだけが解決し、Production Definition／Runtime Packageはroot外Activation projectionからReceiptのsubject／Target／result／freshnessだけを検証する。
 
 ```text
 ProceduralValidationProviderBindingV1
@@ -245,25 +245,76 @@ ProceduralValidationProviderBindingV1
   owner_ref
   owner_hash
 
-WorldSourceQualificationRecordV1
+ProceduralWorldDefinitionRefV1
+  procedural_world_id: StableId
+  definition_version: positive uint32
+  definition_content_hash: SHA-256
+
+BlockoutAssemblyRefV1
+  assembly_id: StableId
+  assembly_version: positive uint32
+  assembly_content_hash: SHA-256
+
+WorldAuthoringBundleRefV1
+  bundle_id: StableId
+  bundle_version: positive uint32
+  bundle_content_hash: SHA-256
+
+WorldSourceQualificationSubjectRefV1
+  subject_kind: procedural_world | blockout | world_authoring_bundle
+  subject_ref:
+    procedural_world: ProceduralWorldDefinitionRefV1
+    | blockout: BlockoutAssemblyRefV1
+    | world_authoring_bundle: WorldAuthoringBundleRefV1
+
+WorldSourceQualificationSubjectV1
   qualification_id
   qualification_version: positive uint32
-  qualification_content_hash: SHA-256
   owner_ref: exact {owner_id, owner_revision, owner_content_hash}
-  subject_kind: procedural_world | blockout | world_authoring_bundle
-  subject_ref/hash: exact owner-typed Source or staged Bundle ref
+  subject: WorldSourceQualificationSubjectRefV1
   target_profile_refs[1..64]
   fixture_refs[1..1024]:
     exact {fixture_id, fixture_version, fixture_content_hash}
   input_closure_hash: SHA-256
   result: pass | fail
-  signed_receipt:
+  qualification_subject_hash: SHA-256
+
+WorldSourceQualificationReceiptV1
+  subject: WorldSourceQualificationSubjectV1
+  signed_record:
     exact MirakanSignedRecordV1(purpose=world_source_qualification)
+
+WorldSourceQualificationReceiptRefV1
+  qualification_id
+  qualification_version: positive uint32
+  qualification_subject_hash: SHA-256
+  signed_record_hash: SHA-256
+
+WorldSourceActivationBindingRefV1
+  activation_binding_id
+  activation_binding_version: positive uint32
+  activation_binding_hash: SHA-256
+
+WorldSourceActivationBindingV1
+  activation_binding_id
+  activation_binding_version: positive uint32
+  subject: exact WorldSourceQualificationSubjectRefV1
+  qualification_receipt_refs[1..1024]:
+    WorldSourceQualificationReceiptRefV1
+  activation_binding_hash: SHA-256
+
+WorldSourceActivationProjectionV1
+  projection_id
+  projection_version: positive uint32
+  entries[1..4096]:
+    exact {WorldSourceQualificationSubjectRefV1,
+           WorldSourceActivationBindingRefV1}
+  projection_hash: SHA-256
 ```
 
 binding配列は`validation_kind`、binding Document Stable IDのcanonical byte順でsortし、duplicateを拒否する。Document bytesのidentityは`binding_document_ref.content_hash`だけが表し、resolved closureを同じhashへ多重定義しない。`resolved_binding_closure_hash`は`SHA-256(ASCII "MIRAKAN_WORLD_PROCEDURAL_BINDING_CLOSURE_V1" || validation_kind || binding_document_refの全canonical bytes || owner_ref/hash || provider_contract_ref || output_schema_ref || required_output_count)`である。Document content hashまたはclosure hashの一方だけが一致しても受理せず、owner、provider、output schemaをlatestへ再解決しない。`required_output_count`は0～1,024で、0はprovider実行を要求するが出力recordを要求しないvalidatorだけに使う。Owner名、Capabilityの存在、output field名からproviderを推測選択しない。
 
-Production Source、Plan、Bundleは`WorldSourceQualificationRecordV1`のFixture bodyを解決せず、exact signed Receiptだけを参照する。Fixture集合の変更は新Qualification record／Receiptを発行し、Production hashへFixture refを混入しない。
+全subject kindの生成順は`receipt-free Source／Bundle → base ref → WorldSourceQualificationSubjectV1 → signed Receipt → WorldSourceActivationBindingV1 → root外Activation projection`である。三base Refは同じID／positive version／self-excluding content hashを持つ完成baseへexact一件解決し、latest fallbackや別kind substitutionを許可しない。subject hashはASCII `MIRAKAN_WORLD_SOURCE_QUALIFICATION_SUBJECT_V1`、binding hashはASCII `MIRAKAN_WORLD_SOURCE_ACTIVATION_BINDING_V1`、projection hashはASCII `MIRAKAN_WORLD_SOURCE_ACTIVATION_PROJECTION_V1`と各自己Fieldを除くcount／length-framed canonical bytesから計算する。subject ownerはbranchごとにRefが解決する`ProceduralWorldDefinitionV1.owner_ref`、`BlockoutAssemblyV1.owner_ref`、`WorldAuthoringBundleV1.owner_ref`とbyte equality、Binding subjectはReceipt subjectとbyte equalityでなければならない。Projection `entries[]`はsubject kindのclosed ordinal、subject logical ID／version／content hash、Binding ID／version／hash順へstrict sortし、duplicate subject／Binding refと同じsubjectへの複数Bindingを拒否する。Production Source、Plan、BundleはFixture body、Receipt、Bindingを自身のhash preimageへ含めず、root外Projectionが指すsigned Receiptだけを検証する。Fixture集合の変更は新subject／Receipt／Binding／Projectionを発行し、Production hashへFixture refまたはReceipt refを混入しない。discriminator外Ref、ID／version／hash欠落、正しいbase refのままsubject ownerだけを差し替えるcase、Binding subjectだけを別baseへ差し替えるcase、Projection entryのduplicate／same-subject別Binding／順序違反を一原因で拒否する。
 
 UUID割当前のgenerator出力は次のimmutable `GeneratedWorldSemanticCandidateV1`である。`candidate_id`やStable IDを持たず、exact Project tripleとcontent hashだけで参照する。
 
@@ -281,7 +332,8 @@ GeneratedWorldSemanticCandidateV1
   toolchain_manifest_hash
   rng_stream_manifest_hash
   selected_binding_closure_refs[0..64]
-  determinism_gate_receipt_ref/hash
+  determinism_gate_validation:
+    GeneratedWorldDeterminismGateValidationV1
   local_id_count: uint32
   create_records[local_id_count]:
     consecutive local_id plus owner-typed payload
@@ -301,40 +353,70 @@ GeneratedWorldSemanticCandidateRefV1
     {project_id, expected_project_revision, document_set_hash}
   candidate_content_ref: exact private immutable content ref
   candidate_hash: SHA-256
+
+GeneratedWorldDeterminismGateValidationV1
+  gate_validation_version: 1
+  gate_execution_id: caller-issued UUIDv7
+  gate_owner_ref:
+    exact {owner_id=owner.core.world,owner_revision,owner_content_hash}
+  gate_implementation_artifact_ref:
+    {artifact_kind=world_fresh_process_determinism_validator,
+     schema_version=1,sha256}
+  canonical_input_closure_hash:
+    exact candidate input_closure_hash
+  run_count: 3
+  runs[3]:
+    run_ordinal: 1 | 2 | 3
+    sandbox_boot_nonce: bytes32
+    fresh_process_instance_hash: SHA-256
+    gateway_or_broker_call_count: 0
+    normalized_semantic_graph_bytes_hash: SHA-256
+    canonical_record_order_hash: SHA-256
+    semantic_graph_hash: SHA-256
+    candidate_artifact_semantic_hash: SHA-256
+  result: pass
+  gate_validation_hash: SHA-256
 ```
 
 `local_id_count`は`create_records[]`のlengthと一致し、local IDは1から連続する。0、gap、duplicate、未定義local edge、Stable IDに見えるgenerator生成文字列を拒否する。`semantic_graph_hash`はASCII `MIRAKAN_WORLD_GENERATED_SEMANTIC_GRAPH_V1`、exact candidate Project triple、procedural World ref、generator／input／seed／Target／Toolchain／RNG／binding closure、local-ID正規化create graph、update／delete、Anchor／Portal／validation output、bounds、step countを各`uint32_be` length framingしてSHA-256する。`candidate_artifact_semantic_hash`はStable ID allocationやartifact container metadataを除くCook入力のlocal-ID正規化bytesをASCII `MIRAKAN_WORLD_GENERATED_ARTIFACT_SEMANTIC_V1`でhashする。
 
-`candidate_hash`はASCII `MIRAKAN_WORLD_GENERATED_SEMANTIC_CANDIDATE_V1`と自身を除く全FieldのMCD canonical bytesを`uint32_be` length framingしてSHA-256する。Project ID、expected revision、document set hashの一Fieldでも変われば別candidateである。Refは完成後に外部materializeし、candidate recordへ自己参照で埋め戻さない。random device、wall clock、worker completion順、network response、UUIDをgenerator入力または三hashへ含めない。
+三fresh processはcandidateになる前の同じcanonical generator inputから、上記candidate bodyのうち`determinism_gate_validation`と`candidate_hash`を除いたrun outputを生成する。各runの`semantic_graph_hash`は生成内容と`validation_outputs[]`を含むが、後段のgate validation、process identity、candidate container metadataを含めない。gate runnerは一回のcaller-issued `gate_execution_id`を固定し、各fresh sandboxが起動時に一度だけ生成した`bytes32` nonceから`fresh_process_instance_hash=SHA-256(ASCII "MIRAKAN_WORLD_FRESH_PROCESS_INSTANCE_V1" || gate_execution_id || run_ordinal || sandbox_boot_nonce || gate_implementation_artifact_ref.sha256 || generator implementation hash)`を計算し、三値とnonceのdistinct set equality、ordinal exact `[1,2,3]`、call count 0を検証する。`gate_validation_hash`はASCII `MIRAKAN_WORLD_DETERMINISM_GATE_VALIDATION_V1`と自己Fieldだけを除く完成validation canonical bytesをcount／length frameしてSHA-256する。gate outputはReceiptではなくcandidate-local typed validation evidenceであり、署名済みQualification Receipt、candidate ref、Stable ID allocation refを含めない。
 
-determinism gateは同じcanonical inputをfresh processで3回実行し、Gateway／Brokerを一度も呼ばず、各runのlocal-ID正規化semantic graph bytes、canonical record order、`semantic_graph_hash`、`candidate_artifact_semantic_hash`のbyte equalityだけを比較する。一つでも異なれば`MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC`として候補三件を破棄する。retry seedはfailure policyが許可した新しい明示seedでだけ新candidateを作り、同じseedの不一致を成功へ近似しない。
+三runのnormalized semantic graph bytes、record order、`semantic_graph_hash`、`candidate_artifact_semantic_hash`がそれぞれbyte equalityである場合だけ`result=pass`のgate validationを一件作り、一致したrun outputとvalidationを合わせてcandidateをmaterializeする。`candidate_hash`はASCII `MIRAKAN_WORLD_GENERATED_SEMANTIC_CANDIDATE_V1`と自身を除く全FieldのMCD canonical bytesを`uint32_be` length framingしてSHA-256する。生成順は`three receipt-free run outputs → gate validation → immutable candidate → candidate ref → Stable-ID allocation request`である。Project ID、expected revision、document set hash、gate implementation、input closure、三run evidenceの一Fieldでも変われば別candidateである。Refは完成後に外部materializeし、candidate recordへ自己参照で埋め戻さない。random device、wall clock、worker completion順、network response、UUIDをgenerator入力、`semantic_graph_hash`、`candidate_artifact_semantic_hash`へ含めない。fresh sandbox identityはgate evidence／candidate hashだけに含め、生成semantic bytesへ混ぜない。
 
-三run一致後、callerはUUIDv7 `allocation_request_id`を発行し、次のintent／requestを使ってAuthoring Command Gatewayをexact一回だけ呼ぶ。Gatewayがrequest IDを生成またはcandidate hashから導出してはならない。
+determinism gateは一つでもhash不一致、process identity重複、ordinal missing／extra、Gateway／Broker call count非0、owner／implementation／input closure不一致なら`MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC`として三run outputを破棄し、candidateを作らない。gate validation missing／extra、未定義旧`determinism_gate_receipt_ref`、run一件差し替え、別inputでpassしたvalidation、gate hash不一致をallocation前にrejectする。retry seedはfailure policyが許可した新しい明示seedでだけ新run集合を作り、同じseedの不一致を成功へ近似しない。
+
+三run一致後、callerはUUIDv7 `allocation_request_id`を発行し、次のnamed inputから共通`OperationIntentPayloadV2`／requestを作ってAuthoring Command Gatewayをexact一回だけ呼ぶ。Gatewayがrequest IDを生成またはcandidate hashから導出してはならない。
 
 ```text
-WorldStableIdAllocationIntentV1
+WorldStableIdAllocationInputV1
+  input_type_ref:
+    exact {id=type.world.stable_id_allocation_input,
+           version=1, contract_set_hash}
   operation_ref:
     exact {id=operation.world.allocate_generated_stable_ids,
            version=1, contract_set_hash}
+  contract_set_hash:
+    exact input_type_ref.contract_set_hash = operation_ref.contract_set_hash
   allocation_request_id: caller-issued UUIDv7
-  candidate_project_ref:
-    {project_id, expected_project_revision, document_set_hash}
-  candidate_hash: SHA-256
-  local_id_count: uint32
-  allocated_uuid_count: uint32
-  risk_class: R3
-  operation_intent_hash: SHA-256
-
-WorldStableIdAllocationInputV1
-  allocation_request_id: same caller-issued UUIDv7
   idempotency_key: exact allocation_request_id
-  operation_intent_hash: exact WorldStableIdAllocationIntentV1 hash
   candidate_ref: GeneratedWorldSemanticCandidateRefV1
   candidate_project_ref:
-    exact {project_id, expected_project_revision, document_set_hash}
+    {project_id, expected_project_revision, document_set_hash}
   candidate_hash: exact candidate_ref.candidate_hash
   local_id_count: uint32
   allocated_uuid_count: uint32
+  precondition_policy_refs[1]:
+    exact {id=policy.operation.world.stable_id_allocation.precondition,
+           version=1, contract_set_hash}
+  postcondition_policy_refs[1]:
+    exact {id=policy.operation.world.stable_id_allocation.postcondition,
+           version=1, contract_set_hash}
+  rate_limit_policy_ref:
+    exact {id=policy.world.stable_id_allocation.rate_limit,
+           version=1, contract_set_hash}
+  operation_intent_hash:
+    exact hash of the canonical OperationIntentPayloadV2 projection below
   authorization_binding: exact MutationAuthorizationBindingV2(risk_class=R3)
   request_hash: SHA-256
 
@@ -358,6 +440,7 @@ WorldStableIdAllocationManifestV1
   manifest_hash: SHA-256
 
 PreparedWorldStableIdAllocationReceiptPayloadV1
+  publication_binding: exact PreparedReceiptPublicationBindingV1
   allocation_operation_ref
   operation_intent_hash
   request_hash
@@ -366,12 +449,16 @@ PreparedWorldStableIdAllocationReceiptPayloadV1
   candidate_project_ref:
     {project_id, expected_project_revision, document_set_hash}
   candidate_hash
+  public_after_project_ref:
+    {project_id, project_revision, document_set_hash}
   allocation_manifest_ref/hash
   semantic_graph_hash
   candidate_artifact_semantic_hash
   local_id_count
   allocated_uuid_count
   gateway_service_ref/hash
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
   prepared_receipt_payload_hash: SHA-256
 
 WorldStableIdAllocationReceiptV1
@@ -379,7 +466,7 @@ WorldStableIdAllocationReceiptV1
     exact PublishedDomainReceiptV2 whose prepared_domain_receipt_payload_ref/hash
     resolves PreparedWorldStableIdAllocationReceiptPayloadV1
 
-WorldStableIdAllocationPublicationStateV1
+WorldStableIdAllocationPublicationProjectionV1
   allocation_request_id
   operation_intent_hash
   request_hash
@@ -388,12 +475,13 @@ WorldStableIdAllocationPublicationStateV1
   candidate_hash
   allocation_manifest_ref/hash
   signed_receipt_ref/hash
+  public_publication_marker_ref/hash
   generated_delta_ref/hash
   local_id_count
   allocated_uuid_count
   public_after_project_ref:
     {project_id, project_revision, document_set_hash}
-  publication_state_hash: SHA-256
+  publication_projection_hash: SHA-256
 
 WorldStableIdAllocationResultV1
   disposition: committed | rejected
@@ -410,9 +498,17 @@ WorldStableIdAllocationResultV1
     diagnostics[1..64]: exact DiagnosticCodeRefV1 from Operation errors[]
 ```
 
-`operation_intent_hash`と`request_hash`は[Executable contracts](../02-foundation/executable-contracts.md)の唯一の`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2` DAGを使う。intentはcaller-issued request ID、exact Project triple、candidate hash、両count、Riskを含み、Input、Manifest、prepared Receipt、Publication Stateは同じ値をbyte equalityで持つ。Approval／Predelegationはintent hashへbindし、final request hashを先に要求しない。
+`operation_intent_hash`と`request_hash`は[Executable contracts](../02-foundation/executable-contracts.md)の唯一の`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2` DAGを使う。このDomainはsibling intent型を定義しない。canonical `OperationIntentPayloadV2`は`input_type_ref=WorldStableIdAllocationInputV1.input_type_ref`、`operation_ref=WorldStableIdAllocationInputV1.operation_ref`、`risk_class=R3`、`semantic_input_fields`をInputの`contract_set_hash`、`allocation_request_id`、`idempotency_key`、`candidate_ref`、`candidate_project_ref`、`candidate_hash`、`local_id_count`、`allocated_uuid_count`、`precondition_policy_refs[]`、`postcondition_policy_refs[]`、`rate_limit_policy_ref`のfield ID／presence discriminator込みexact projectionとする。Inputに実在する意味Fieldを追加／削除した場合はこのprojectionも同じschema生成で変わり、手書きallowlistで省略しない。`operation_intent_hash`、`request_hash`、`authorization_binding`だけを除外する。Input、Manifest、prepared Receipt、root外Publication Projectionは同じintent hashをbyte equalityで持つ。Approvalはこのintent hashへbindし、R3なのでPredelegationを拒否し、final request hashを先に要求しない。
 
-`mappings[]`はlocal ID昇順でexact `1..local_id_count`、Stable ID重複なし、`allocated_uuid_count=local_id_count+1`（mapping分＋`delta_id`）とする。Manifest hash、prepared Receipt payload hash、Publication State hashはそれぞれASCII `MIRAKAN_WORLD_STABLE_ID_ALLOCATION_MANIFEST_V1`、`MIRAKAN_WORLD_STABLE_ID_ALLOCATION_RECEIPT_PAYLOAD_V1`、`MIRAKAN_WORLD_STABLE_ID_ALLOCATION_PUBLICATION_STATE_V1`と各self hashを除くcanonical bytesを`uint32_be` length framingして計算する。同じidempotency key＋request hashはbyte-identical Manifest／signed Receipt／Public Marker／Resultを返し、別requestでのkey再利用を拒否する。
+`mappings[]`はlocal ID昇順でexact `1..local_id_count`、Stable ID重複なし、`allocated_uuid_count=local_id_count+1`（mapping分＋`delta_id`）とする。Manifest hash、prepared Receipt payload hash、Publication Projection hashはそれぞれASCII `MIRAKAN_WORLD_STABLE_ID_ALLOCATION_MANIFEST_V1`、`MIRAKAN_WORLD_STABLE_ID_ALLOCATION_RECEIPT_PAYLOAD_V1`、`MIRAKAN_WORLD_STABLE_ID_ALLOCATION_PUBLICATION_PROJECTION_V1`と各self hashを除くcanonical bytesを`uint32_be` length framingして計算する。同じidempotency key＋request hashはbyte-identical Manifest／signed Receipt／Public Marker／Resultを返し、別requestでのkey再利用を拒否する。Prepared payloadの`publication_binding.before_state_ref/hash`は`candidate_project_ref`、`staged_after_state_ref/hash`は`public_after_project_ref`とbyte equalityにする。
+
+このOperationが満たす一つの検証可能な規範を次の完全なMCD Requirement recordへ固定する。
+
+| Requirement MCD共通Envelope exact value | Requirement payload exact value |
+|---|---|
+| `mcd_version=1; kind=requirement; id=requirement.world.generated_stable_id_allocation_atomic; version=1; status=active; title=Atomic Generated World Stable-ID Allocation; description=Require one generated World candidate to publish its allocation mapping, signed receipt, marker, and Project revision as one exactly-once closure; owners=[owner.core.world]; requirement_refs=[]; rationale_refs=[mirakan.arch.rendering-world#9-procedural-world-source]; since_contract_set=1; supersedes=[]; tags=[allocation,atomic,stable_id,world]` | `normative_level=must; priority=blocking; statement=For one immutable candidate, Project triple, operation intent, request, and idempotency key, publish either zero public objects on failure or exactly one mutually bound mapping, generated Delta, signed Receipt, Public Marker, and after Project closure; scope=[artifact.world.generated_delta,phase.authoring.publication]; verification_methods=[gate.world.stable_id_allocation.atomic_publication,gate.world.stable_id_allocation.crash_recovery]; acceptance_criteria=[predicate.world.stable_id_allocation.prepublication_failure_public_count_zero,predicate.world.stable_id_allocation.public_closure_exactly_once]; failure_code={diagnostic.world.stable_id_publication_conflict,MIRAKAN-WORLD-STABLE_ID-PUBLICATION_CONFLICT,1,diagnostic_content_hash}; source_refs=[{authority=project_normative,ref=mirakan.arch.rendering-world#9-procedural-world-source}]; introduced_by=changeset.task2.final_contract_closure` |
+
+RequirementはContract set内部で`ContractSetLocalRefV1(kind=requirement,id=requirement.world.generated_stable_id_allocation_atomic,version=1)`として参照し、root確定後だけ`McdContractRefV1`へmaterializeする。共通EnvelopeまたはRequirement payloadの実在Fieldを一つだけ変えるfixtureはRequirement member hashとset rootを変更し、旧Operation／Policy／Diagnostic external refを解決不能にする。
 
 このinternal Operationを次の一件の完全recordとしてcurrent Contract setへ登録する。
 
@@ -429,11 +525,12 @@ McdOperationContractV1
       the generated World delta into the bound Project
     owners=[owner.core.world]
     requirement_refs=[
-      requirement.world.generated_stable_id_allocation_atomic]
+      {id=requirement.world.generated_stable_id_allocation_atomic,
+       version=1,contract_set_hash}]
     rationale_refs=[mirakan.arch.rendering-world#9-procedural-world-source]
     since_contract_set=1
     supersedes=[]
-    tags=[world,procedural,stable_id,internal_gateway]
+    tags=[internal_gateway,procedural,stable_id,world]
   operation_kind: command
   input_type:
     {id=type.world.stable_id_allocation_input,version=1,contract_set_hash}
@@ -468,9 +565,17 @@ McdOperationContractV1
      version=1,contract_set_hash}
 ```
 
-`type.world.stable_id_allocation_input`、`type.world.stable_id_allocation_result`、`type.world.stable_id_allocation_receipt`は上記named schemaの全Fieldを投影し、anonymous sibling、inline signature、unsigned receipt aliasを生成しない。World owner Manifestのinternal Operation subsetと`service.authoring_command_gateway` allowlistのWorld owner contributionはexact `{operation.world.allocate_generated_stable_ids, version=1}`一件でset equalityとする。Trusted Service local record、Operation local record、下記Policy／Validator／Diagnostic local record、Contract set rootを同じ一方向transactionで再生成し、prefix match、runtime allowlist mutation、Provider／MCP projectionを許可しない。
+`type.world.stable_id_allocation_input`、`type.world.stable_id_allocation_result`、`type.world.stable_id_allocation_receipt`、`type.world.prepared_stable_id_allocation_receipt_payload`はversion 1の別々のexact Type LocalRefで、対応する上記named schemaの全Fieldを投影する。prepared payload Typeと最終Receipt Typeを相互代用せず、anonymous sibling、inline signature、unsigned receipt aliasを生成しない。
 
-pre／postconditionはactive MCD `policy`、`evaluation_mode=pure`、`side_effects=[]`である。preconditionはexact Input、immutable candidate、before Project snapshot、authorization binding、idempotency snapshotだけを受け、Project triple、candidate hash、request ID、count、determinism Receiptを検査する。postconditionはrequest hash、Prepared Candidate、before snapshot、未公開staged after Project、Manifest、Delta、prepared Receipt payloadだけを受け、mapping、全内部ref、document set hash、count、Project publication atomicityを検査する。両Policyは評価中にRegistry、clock、network、UUID generator、private／public Marker、final Receiptをqueryしない。rate policyは`scope=project`、`window_ns=60000000000`、`max_requests=4`、`burst=1`、超過error=`MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED`へ固定する。
+Operationが参照する三Policyは次の完全なactive MCD recordである。表の二列を連結した値が各record全体であり、暗黙既定値、bare ID、説明文からFieldを補完しない。
+
+| Policy MCD共通Envelope exact value | Policy payload exact value |
+|---|---|
+| `mcd_version=1; kind=policy; id=policy.operation.world.stable_id_allocation.precondition; version=1; status=active; title=World Stable-ID Allocation Precondition; description=Validate the exact immutable candidate, Project base, request identity, allocation counts, determinism evidence, authorization, and idempotency snapshot without mutation; owners=[owner.core.world]; requirement_refs=[{id=requirement.world.generated_stable_id_allocation_atomic,version=1,contract_set_hash}]; rationale_refs=[mirakan.arch.rendering-world#9-procedural-world-source]; since_contract_set=1; supersedes=[]; tags=[operation_predicate,pure,stable_id,world]` | `evaluation_mode=pure; side_effects=[]; input_type={id=type.operation.precondition_evaluation_input,version=1,contract_set_hash}; result_type={id=type.operation.predicate_result,version=1,contract_set_hash}` |
+| `mcd_version=1; kind=policy; id=policy.operation.world.stable_id_allocation.postcondition; version=1; status=active; title=World Stable-ID Allocation Postcondition; description=Validate the unpublished mapping, Manifest, Delta, prepared Receipt payload, Project document-set hash, counts, and atomic publication candidate; owners=[owner.core.world]; requirement_refs=[{id=requirement.world.generated_stable_id_allocation_atomic,version=1,contract_set_hash}]; rationale_refs=[mirakan.arch.rendering-world#9-procedural-world-source]; since_contract_set=1; supersedes=[]; tags=[operation_predicate,pure,stable_id,world]` | `evaluation_mode=pure; side_effects=[]; input_type={id=type.operation.postcondition_evaluation_input,version=2,contract_set_hash}; result_type={id=type.operation.predicate_result,version=1,contract_set_hash}` |
+| `mcd_version=1; kind=policy; id=policy.world.stable_id_allocation.rate_limit; version=1; status=active; title=World Stable-ID Allocation Rate Limit; description=Bound stable-ID allocation requests per Project without changing allocation semantics; owners=[owner.core.world]; requirement_refs=[{id=requirement.world.generated_stable_id_allocation_atomic,version=1,contract_set_hash}]; rationale_refs=[mirakan.arch.rendering-world#9-procedural-world-source]; since_contract_set=1; supersedes=[]; tags=[authoring,rate_limit,stable_id,world]` | `policy_ref={id=policy.world.stable_id_allocation.rate_limit,version=1,contract_set_hash}; scope=project; window_ns=60000000000; max_requests=4; burst=1; exceeded_error_ref={diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash}` |
+
+preconditionはexact Input、immutable candidate、before Project snapshot、authorization binding、idempotency snapshotだけを受ける。postconditionはrequest hash、Prepared Candidate、before snapshot、未公開staged after Project、Manifest、Delta、prepared Receipt payloadだけを受ける。両Policyは評価中にRegistry、clock、network、UUID generator、private／public Marker、final Receiptをqueryしない。Contract set内部では三Policyの相互refをLocalRefへ投影し、Manifest／Operation／World owner Policy subsetをexact三件でset equalityにする。三recordの実在Fieldを一つだけ変えるfixtureはPolicy member hashとset rootを変更する。
 
 `WorldStableIdAllocationDiagnosticSetV1`は次のexact `DiagnosticCodeRefV1 {diagnostic_id, code, diagnostic_version=1, diagnostic_content_hash}`集合である。
 
@@ -491,13 +596,61 @@ pre／postconditionはactive MCD `policy`、`evaluation_mode=pure`、`side_effec
 | `diagnostic.world.stable_id_receipt_signing_failed` | `MIRAKAN-WORLD-STABLE_ID-RECEIPT_SIGNING_FAILED` |
 | `diagnostic.world.stable_id_publication_conflict` | `MIRAKAN-WORLD-STABLE_ID-PUBLICATION_CONFLICT` |
 
+World固有六件は次の完全な`DiagnosticLocalRecordV2`である。全rowのexact Owner identity `DiagnosticOwnerLocalRefV1`は`{owner_id=owner.core.world,owner_revision=1,owner_content_hash=SHA-256(MIRAKAN_DIAGNOSTIC_OWNER_LOCAL_IDENTITY_V1, length-framed canonical owner_id／owner_revision)}`であり、表の短記をこの三Fieldへ必ずmaterializeする。World固有alias型を定義しない。World ManifestのDiagnostic local subsetとDiagnostic Registryの同Owner subsetもこの六件でset equalityにする。local recordの`owner_local_ref`と`requirement_local_refs[]`はroot前後ともLocal identity／LocalRefのまま保持し、root確定後に作る外部`DiagnosticCodeRecordV1` projectionだけがexact external Owner refと対応Requirementのexact `McdContractRefV1`をmaterializeする。
+
+| Diagnostic LocalRef | exact `owner_local_ref` | code | severity | category | message_key | exact `requirement_local_refs[]` | retryability | diagnostic_local_content_hash |
+|---|---|---|---|---|---|---|---|---|
+| `{diagnostic.world.generated_candidate_invalid,1}` | `DiagnosticOwnerLocalRefV1` | `MIRAKAN-WORLD-GENERATED_CANDIDATE_INVALID` | `blocking` | `schema` | `diagnostic.world.generated_candidate_invalid.message` | `[{kind=requirement,id=requirement.world.generated_stable_id_allocation_atomic,version=1}]` | `after_input` | `SHA-256(MIRAKAN_DIAGNOSTIC_LOCAL_RECORD_V2, self-excluding local fields)` |
+| `{diagnostic.world.stable_id_project_binding_mismatch,1}` | `DiagnosticOwnerLocalRefV1` | `MIRAKAN-WORLD-STABLE_ID-PROJECT_BINDING_MISMATCH` | `blocking` | `conflict` | `diagnostic.world.stable_id_project_binding_mismatch.message` | `[{kind=requirement,id=requirement.world.generated_stable_id_allocation_atomic,version=1}]` | `after_change` | `SHA-256(MIRAKAN_DIAGNOSTIC_LOCAL_RECORD_V2, self-excluding local fields)` |
+| `{diagnostic.world.stable_id_allocation_count_mismatch,1}` | `DiagnosticOwnerLocalRefV1` | `MIRAKAN-WORLD-STABLE_ID-ALLOCATION_COUNT_MISMATCH` | `blocking` | `semantic` | `diagnostic.world.stable_id_allocation_count_mismatch.message` | `[{kind=requirement,id=requirement.world.generated_stable_id_allocation_atomic,version=1}]` | `after_input` | `SHA-256(MIRAKAN_DIAGNOSTIC_LOCAL_RECORD_V2, self-excluding local fields)` |
+| `{diagnostic.world.stable_id_manifest_invalid,1}` | `DiagnosticOwnerLocalRefV1` | `MIRAKAN-WORLD-STABLE_ID-MANIFEST_INVALID` | `blocking` | `schema` | `diagnostic.world.stable_id_manifest_invalid.message` | `[{kind=requirement,id=requirement.world.generated_stable_id_allocation_atomic,version=1}]` | `after_change` | `SHA-256(MIRAKAN_DIAGNOSTIC_LOCAL_RECORD_V2, self-excluding local fields)` |
+| `{diagnostic.world.stable_id_receipt_signing_failed,1}` | `DiagnosticOwnerLocalRefV1` | `MIRAKAN-WORLD-STABLE_ID-RECEIPT_SIGNING_FAILED` | `error` | `infrastructure` | `diagnostic.world.stable_id_receipt_signing_failed.message` | `[{kind=requirement,id=requirement.world.generated_stable_id_allocation_atomic,version=1}]` | `transient` | `SHA-256(MIRAKAN_DIAGNOSTIC_LOCAL_RECORD_V2, self-excluding local fields)` |
+| `{diagnostic.world.stable_id_publication_conflict,1}` | `DiagnosticOwnerLocalRefV1` | `MIRAKAN-WORLD-STABLE_ID-PUBLICATION_CONFLICT` | `blocking` | `conflict` | `diagnostic.world.stable_id_publication_conflict.message` | `[{kind=requirement,id=requirement.world.generated_stable_id_allocation_atomic,version=1}]` | `after_change` | `SHA-256(MIRAKAN_DIAGNOSTIC_LOCAL_RECORD_V2, self-excluding local fields)` |
+
+生成順は`Owner local identity → diagnostic_local_content_hash → Diagnostic member_hash → Contract set root → 外部DiagnosticCodeRecordV1.diagnostic_content_hash／DiagnosticCodeRefV1`である。外部hashはroot付きRequirement refを含むためlocal hash／member hashと別値であり、等値を要求せず、外部hashをlocal payloadへ戻さない。六recordそれぞれについて`owner_local_ref`を含むcode以外の実在Fieldを一つだけ変えるfixtureを作り、local hash、member hash、set root、外部content hash／四Fieldrefがすべて再生成されることを検証する。
+
 `OperationValidatorClosureV1`はcommon request、authorization、approval、revision／lock、pure predicate、timeout／rate-limitの六Validatorと、`validator.world.generated_candidate_semantics`、`validator.world.stable_id_allocation_postcondition`、`validator.world.stable_id_allocation_publication`のexact九件を持つ。各Validator recordはversion／implementation Artifact／input Type／content hashと上表の明示subsetを持ち、九recordのerror union = closure `reachable_error_refs[]` = Operation `errors[]`を四Fieldset equalityで検査する。candidate validatorはcandidate／Project／count三error、postcondition validatorはcount／Manifest error、publication validatorはReceipt signing／publication errorだけを所有し、common八errorは対応common Validatorへ一件ずつ割り当てる。missing／extra／duplicate／stale ref、説明文からのerror合成をContract set compile failureにする。
 
-postcondition成功後、Prepared Envelope、candidate／validation／prepared Receipt payload、staged Manifest／Delta／after Project、`PrivateDurableCommitMarkerV1`をprivate durable transactionへcommitする。Marker readback後にprepared World payloadを参照するcanonical `PublishedDomainReceiptV2`／`MirakanSignedRecordV1` wrapperをput-if-absentし、署名済みwrapper readback後だけ`PublicPublicationMarkerV1`と`WorldStableIdAllocationPublicationStateV1`、after Project revision、Document indexを一つのpublic CASでatomic publishする。Public Markerの`public_after_state_ref/hash`は同Publication Stateへexact解決するため、Manifest／signed Receipt／Public Marker／public Projectが同じcandidate Project triple、candidate hash、request identity、mapping countをbindする。
+World ownerの完全Manifestを次へ固定する。
 
-private Marker前のfailureはpublic objectを0件、private Marker後かつ署名前のcrashは固定materialization key／issued-at／revocation snapshot／deterministic signing profileで同じwrapper bytesをroll-forward、署名後かつPublic Marker前のcrashは同じexpected predecessorへpublic CASをroll-forwardする。Public Marker後はrollback、alternate signature、二重publicationを許可しない。mappingまたは`delta_id`を部分公開せず、Project head、Document index、generated Delta、Manifest、Receipt、Publication Stateは同じtransactionでall-or-nothingに可視化する。
+```text
+WorldStableIdAllocationOperationManifestV1
+  manifest_id: world.stable_id_allocation.operation_manifest
+  manifest_version: 1
+  operation_local_refs[1]:
+    {kind=operation,id=operation.world.allocate_generated_stable_ids,version=1}
+  type_local_refs[3]:
+    {kind=type,id=type.world.stable_id_allocation_input,version=1}
+    {kind=type,id=type.world.stable_id_allocation_result,version=1}
+    {kind=type,id=type.world.stable_id_allocation_receipt,version=1}
+  requirement_local_refs[1]:
+    {kind=requirement,
+     id=requirement.world.generated_stable_id_allocation_atomic,version=1}
+  policy_local_refs[3]:
+    {kind=policy,
+     id=policy.operation.world.stable_id_allocation.precondition,version=1}
+    {kind=policy,
+     id=policy.operation.world.stable_id_allocation.postcondition,version=1}
+    {kind=policy,id=policy.world.stable_id_allocation.rate_limit,version=1}
+  validator_closure_local_refs[1]:
+    {validator_closure.operation.world.stable_id_allocation,1}
+  diagnostic_local_refs[14]:
+    exact common eight plus World-specific six listed above
+  trusted_service_local_ref: {service.authoring_command_gateway,1}
+  trusted_service_allowlist_operation_local_refs[1]:
+    {kind=operation,id=operation.world.allocate_generated_stable_ids,version=1}
+  provider_projection_local_refs: []
+  mcp_tool_local_refs: []
+  manifest_hash: SHA-256
+```
 
-`GeneratedWorldDeltaV1`はGateway発行`delta_id`、exact allocation Manifest ref／hash、Receipt ref／hash、候補の全入力、mapping適用済みcreate／update／delete、generated Anchor／Portal、typed validation outputs、output bounds、step count、`semantic_graph_hash`、`candidate_artifact_semantic_hash`、`delta_content_hash`を持つ。Source Delta、全内部ref、validation output、Preview、Cook入力、Commit Receiptは一つのManifest mappingだけを共有し、subsystem別再割当、二度目のGateway call、local ID残存を拒否する。`delta_content_hash`はASCII `MIRAKAN_WORLD_GENERATED_DELTA_V1`とself hashを除く全Fieldをhashし、UUIDを除外した再現性の判定には使わない。既存更新／削除は明示allowlistとexpected revisionを必須とし、World全置換、上限超過、absolute path、native pointer、Cooked Artifact本文を拒否する。
+`operation_local_refs[] = World owner active MCD Operation subset = Authoring Command GatewayのWorld owner allowlist contribution`はexact一件、`policy_local_refs[] = Operation pre／post／rate refs`はexact三件、`diagnostic_local_refs[] = Validator error union = closure reachable errors = Operation errors[]`はexact 14件である。World固有Diagnostic六件はDiagnostic RegistryのWorld owner subset、Requirement一件はWorld owner Requirement subsetとそれぞれset equalityにする。`provider_exposure=trusted_internal`なのでProvider／MCP集合はexact空である。Manifest hashはASCII `MIRAKAN_WORLD_STABLE_ID_ALLOCATION_OPERATION_MANIFEST_V1`と自己hashを除く全Fieldのcanonical bytesから計算し、missing／extra／duplicate／order／one-field mutationでcompileをfail closedにする。
+
+postcondition成功後、Prepared Envelope、candidate／validation／prepared Receipt payload、staged Manifest／Delta／Receipt-free after Project、`PrivateDurableCommitMarkerV1`をprivate durable transactionへcommitする。Marker readback後にprepared World payloadを参照するcanonical `PublishedDomainReceiptV2`／`MirakanSignedRecordV1` wrapperをput-if-absentし、署名済みwrapper readback後だけ`PublicPublicationMarkerV1`、Receipt-free after Project revision、Document index、root外`WorldStableIdAllocationPublicationProjectionV1`を一つのpublic CASでatomic publishする。Public Markerの`public_after_state_ref/hash`、Published payloadの`after_state_ref/hash`、private Markerの`staged_after_state_ref/hash`はすべてprepared payloadの`public_after_project_ref`へexact解決する。Publication Projectionだけがsigned Receipt ref／hashとPublic Marker ref／hashを持ち、そのどちらからも参照されない。ProjectionのManifest／Project triple／candidate hash／request identity／mapping countはprepared payload、signed Receipt、Public Marker、public Projectの同値とbyte equalityにする。
+
+private Marker前のfailureはpublic objectを0件、private Marker後かつ署名前のcrashは固定materialization key／issued-at／revocation snapshot／deterministic signing profileで同じwrapper bytesをroll-forward、署名後かつPublic Marker前のcrashは同じexpected predecessorへpublic CASをroll-forwardする。Public Marker後はrollback、alternate signature、二重publicationを許可しない。mappingまたは`delta_id`を部分公開せず、Project head、Document index、generated Delta、Manifest、Receipt、Public Marker、Publication Projectionは同じtransactionでall-or-nothingに可視化する。
+
+`GeneratedWorldDeltaV1`はGateway発行`delta_id`、exact allocation Manifest ref／hash、候補の全入力、mapping適用済みcreate／update／delete、generated Anchor／Portal、typed validation outputs、output bounds、step count、`semantic_graph_hash`、`candidate_artifact_semantic_hash`、`delta_content_hash`を持つReceipt-free staged recordである。signed Receipt ref／hash、private／public Marker、Publication ProjectionをFieldにもhash preimageにも含めない。`delta_content_hash`はASCII `MIRAKAN_WORLD_GENERATED_DELTA_V1`とself hashを除く全Fieldをhashする。private MarkerはこのReceipt-free Delta ref／hashをstaged after-stateの一部として固定し、その後に作るsigned ReceiptとDeltaの結合は`PublicPublicationMarkerV1`およびroot外`WorldStableIdAllocationPublicationProjectionV1`だけが所有する。Source Delta、全内部ref、validation output、Preview、Cook入力、Commit Receiptは一つのManifest mappingだけを共有し、subsystem別再割当、二度目のGateway call、local ID残存を拒否する。UUIDを除外した再現性の判定にはDelta hashを使わない。既存更新／削除は明示allowlistとexpected revisionを必須とし、World全置換、上限超過、absolute path、native pointer、Cooked Artifact本文を拒否する。
 
 生成結果は通常のScene／Entity／Cell validationとreviewを通り、手編集領域を無断上書きしない。Schema不一致、unknown ref、bounds／step／entity上限超過、topology cycle、空間connectivity不成立は常時検証する。条件provider検証のtruth tableを次へ固定する。
 
@@ -677,18 +830,19 @@ PrimitiveMeshSourceV1
 
 BlockoutAssemblyV1
   assembly_id: StableId
+  assembly_version: positive uint32
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
   assembly_transform: finite Transform3f with positive scale
   primitive_instances: bounded array[1..256]<{primitive_ref, local_transform}>
   composition_recipe_ref: optional exact recipe ref
   gameplay_anchor_refs: bounded array[0..256]<StableId>
-  qualification_receipt_refs:
-    bounded array[1..256]<exact signed Qualification Receipt ref>
   source_generation: uint64
+  assembly_content_hash: SHA-256
 ```
 
-各dimensionは0.01～10,000 m、radial segmentsは3～64、height segmentsは1～64、compact spatial assembly全体は4,096 primitive以下とする。assembly／local transformはfinite translation、normalized rotation、正のscaleで、負scale、NaN／Inf、zero-area surface、暗黙boolean由来のnonmanifold、Colliderとwalkable semanticの矛盾を拒否する。Primitiveは通常のTransform、Material、Renderer、Collision、Navigation SourceへCookし、Blockout専用Runtime objectを作らない。
+`assembly_content_hash`はASCII `MIRAKAN_BLOCKOUT_ASSEMBLY_V1`と自己Fieldだけを除くReceipt-free canonical bytesから計算する。Qualificationは完成Assembly refをsubjectにする`WorldSourceQualificationSubjectV1(subject_kind=blockout)`からroot外Bindingを作り、Receipt／BindingをAssemblyへ戻さない。各dimensionは0.01～10,000 m、radial segmentsは3～64、height segmentsは1～64、compact spatial assembly全体は4,096 primitive以下とする。assembly／local transformはfinite translation、normalized rotation、正のscaleで、負scale、NaN／Inf、zero-area surface、暗黙boolean由来のnonmanifold、Colliderとwalkable semanticの矛盾を拒否する。Primitiveは通常のTransform、Material、Renderer、Collision、Navigation SourceへCookし、Blockout専用Runtime objectを作らない。
 
-`CreatePrimitiveMesh | CreateBlockoutAssembly | UpdateBlockoutPrimitive | PromoteBlockoutToMeshAsset`をAI／Editor共通のbounded operationとする。Promotion previewは元Stable ID、generation、pivot、bounds、Material slot、Collider／Navigation semantic、参照元を固定し、承認後に通常Mesh Sourceと対応表をatomic publishする。Sourceが明示選択したconsumer Artifact bindingのall-readyとgeneration一致前にはassembly置換を公開せず、Renderer／Collision／Navigationを固定必須集合にしない。元Sourceを自動削除せず、置換対象はexplicit ChangeSetに列挙する。C1 fixtureはexternal DCCを要求せず、6 primitive、dimension境界、4,096 primitive spatial assembly、Collider／Navigationを選択したcook、Promotion前後のbounds／pivot／Material slot、Undo／Redo、Save／Load、AI／手動operationのafter hash一致を検証する。external DCC Asset 0件のgeneric spatial blockoutのWorld activation smokeを完走できることをGateとする。
+`CreatePrimitiveMesh | CreateBlockoutAssembly | UpdateBlockoutPrimitive | PromoteBlockoutToMeshAsset`はAI／Editor共通のbounded blockoutを説明するplanned semantic action vocabularyであり、Stable ID、MCD Operation、current `WorldSourceChangePrimitiveKindV1` discriminatorではない。current MCD／Owner Manifest／Service allowlist／Provider／MCP Tool集合はこれら四actionについてexact `[]`、Capability stateは`not_activated`である。future work item `activation.world.blockout_authoring.v1`が採用するexact外側MCD Operationとtyped `ProjectChangePrimitiveV1` branch、Policy／Validator／Diagnostic／Receipt／publication closureを同じContract set transactionで登録するまでdispatchしない。Activation後のPromotion previewは元Stable ID、generation、pivot、bounds、Material slot、Collider／Navigation semantic、参照元を固定し、承認後に通常Mesh Sourceと対応表をatomic publishする。Sourceが明示選択したconsumer Artifact bindingのall-readyとgeneration一致前にはassembly置換を公開せず、Renderer／Collision／Navigationを固定必須集合にしない。元Sourceを自動削除せず、置換対象はexplicit ChangeSetに列挙する。C1 fixtureはexternal DCCを要求せず、6 primitive、dimension境界、4,096 primitive spatial assembly、Collider／Navigationを選択したcook、Promotion前後のbounds／pivot／Material slot、Undo／Redo、Save／Load、Activation後のAI／手動change primitiveのafter hash一致を検証する。external DCC Asset 0件のgeneric spatial blockoutのWorld activation smokeを完走できることをGateとする。
 
 ## 11. Authoring bundleとAI／Editor UX
 
@@ -718,8 +872,6 @@ WorldAuthoringPlanV1
       output_schema_ref: McdContractRefV1}>
   budget_refs: bounded array[1..64]<exact budget ref>
   derived_build_jobs: bounded array[0..256]<typed build job>
-  qualification_receipt_refs:
-    bounded array[1..1024]<exact signed Qualification Receipt ref>
   assumptions: bounded array[0..32]<typed assumption>
   blocking_questions: bounded array[0..7]<MapIntentResolutionV1 Question>
   fallback: optional exact fallback ref
@@ -727,11 +879,13 @@ WorldAuthoringPlanV1
   disposition: ready_to_stage | question_required | capability_unavailable | target_unsupported | budget_missing | rejected
 ```
 
-`source_change_kinds`は`world_document | scene_composition | topology | partition | procedural_layout | map_presentation`の6種へ閉じる。既存World編集branchは`affected_world_refs[1..64]`を必須とし、すべてのaffected refが`project_revision`に実在しexpected kindと一致しなければならない。新規World作成branchだけは`affected_world_refs=[]`を許可するが、`create_document_kinds`がclosed World document kindを厳密に一件含み、`source_change_kinds`が`world_document`を含むことを必須にする。新規IDはCommit時にGatewayが発行し、Planへ存在しないWorld IDを先行記録しない。procedural branchの`selected_validation_provider_bindings`はCommit対象`ProceduralWorldDefinitionV1`とbinding Document ref/content hash、resolved closure hash、output schemaのset equalityで一致し、Planだけでproviderを追加・削除しない。`disposition=question_required`だけがQuestionを1～7件持ち、その他は0件とする。Planはread-only／proposal-onlyで、Source、Staging、Derived Artifact、Runtime stateを変更せず、Commit／Approval／Receipt権限を持たない。
+`source_change_kinds`は`world_document | scene_composition | topology | partition | procedural_layout | map_presentation`の6種へ閉じる。既存World編集branchは`affected_world_refs[1..64]`を必須とし、すべてのaffected refが`project_revision`に実在しexpected kindと一致しなければならない。新規World作成branchだけは`affected_world_refs=[]`を許可するが、`create_document_kinds`がclosed World document kindを厳密に一件含み、`source_change_kinds`が`world_document`を含むことを必須にする。新規IDはCommit時にGatewayが発行し、Planへ存在しないWorld IDを先行記録しない。procedural branchの`selected_validation_provider_bindings`はCommit対象`ProceduralWorldDefinitionV1`とbinding Document ref/content hash、resolved closure hash、output schemaのset equalityで一致し、Planだけでproviderを追加・削除しない。`disposition=question_required`だけがQuestionを1～7件持ち、その他は0件とする。PlanはReceipt-free read-only／proposal-onlyで、Source、Staging、Derived Artifact、Runtime stateを変更せず、Commit／Approval／Receipt権限を持たない。
 
 ```text
 WorldAuthoringBundleV1
   bundle_id: StableId
+  bundle_version: positive uint32
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
   project_id: StableId
   base_project_revision: exact Project revision
   contract_set_hash: bytes32
@@ -756,13 +910,12 @@ WorldAuthoringBundleV1
   expected_derived_artifact_refs: bounded array[0..1024]<exact generation-bearing ArtifactRefV1>
   target_profile_ids: bounded array[1..32]<exact Target Profile ID>
   budget_refs: bounded array[1..64]<exact budget ref>
-  qualification_receipt_refs:
-    bounded array[1..1024]<exact signed Qualification Receipt ref>
   risk_class: closed RiskClassV1
   required_gate_ids: bounded array[0..256]<exact Gate ID>
+  bundle_content_hash: SHA-256
 ```
 
-changeset／delta配列は合わせて1件以上を必須とし、owner ref、expected kind、hashの組をcanonical orderで重複なく束ねる。Bundleは変更本文を複写せず、typed refとexact ChangeSet／delta／bundle hashだけを持つimmutable Staging proposalであり、`base_project_revision`不一致を自動rebaseしない。
+changeset／delta配列は合わせて1件以上を必須とし、owner ref、expected kind、hashの組をcanonical orderで重複なく束ねる。`bundle_content_hash`はASCII `MIRAKAN_WORLD_AUTHORING_BUNDLE_V1`と自己Fieldだけを除くReceipt-free canonical bytesから計算する。Bundleは変更本文を複写せず、typed refとexact ChangeSet／delta／bundle hashだけを持つimmutable Staging proposalであり、`base_project_revision`不一致を自動rebaseしない。Qualificationは完成Bundle refをsubjectにする`WorldSourceQualificationSubjectV1(subject_kind=world_authoring_bundle)`とroot外Binding／Projectionへ分離し、Receipt／Fixture／BindingをBundle hashへ戻さない。
 
 ```text
 WorldAuthoringContextV1
@@ -787,15 +940,15 @@ WorldAuthoringContextV1
   continuation: optional hash-bound continuation
 ```
 
-`topology_ref`と`topology_version`は共に存在するか共に省略する。`source_closure_hash`はcanonicalな`source_document_refs`のtyped ref、version、source hashを結ぶ。`continuation`は`omitted_ranges`が1件以上の時だけ存在し、request hash、source closure hash、revision、scopeをbindする。Contextはread-only／Disposable projectionであり、Source Document、ChangeSet／Commit、Save／Replay headerへ保存せず、Commit可能なidentityやOperationとして受理しない。新規World作成中はContextを生成せず、`CreateWorldDocument` Commit成功後の新Project revisionからGateway発行のexact `world_ref`を持つContextだけを生成する。Plan内local ID、表示名、予定pathからWorld IDを推測しない。
+`topology_ref`と`topology_version`は共に存在するか共に省略する。`source_closure_hash`はcanonicalな`source_document_refs`のtyped ref、version、source hashを結ぶ。`continuation`は`omitted_ranges`が1件以上の時だけ存在し、request hash、source closure hash、revision、scopeをbindする。Contextはread-only／Disposable projectionであり、Source Document、ChangeSet／Commit、Save／Replay headerへ保存せず、Commit可能なidentityやchange primitiveとして受理しない。新規World作成中はContextを生成せず、`create_world_document` primitive Commit成功後の新Project revisionからGateway発行のexact `world_ref`を持つContextだけを生成する。Plan内local ID、表示名、予定pathからWorld IDを推測しない。
 
-Source operationは`CreateWorldDocument`、`CreateSceneDocument`、`ComposeScene`、`MoveEntityToScene`、`SetSpatialTopologyDefinition`、`SetSpatialPartitionIntent`、`SetProceduralWorldDefinition`、`SetMapPresentationDefinition`である。consumer-owned Gameplay operationをWorld namespaceへ登録しない。`GenerateWorldStreamingPlan`はCommit済みSourceからDerived Planを作るCook jobで、Preview／Inspectはread-onlyである。
+World Source変更の内部`WorldSourceChangePrimitiveKindV1`は`create_world_document | create_scene_document | compose_scene | move_entity_to_scene | set_spatial_topology_definition | set_spatial_partition_intent | set_procedural_world_definition | set_map_presentation_definition`のexact八discriminatorである。これは`ProjectChangeSetV1`内のtyped `ProjectChangePrimitiveV1` branchであってMCD Operation ID、Manifest row、Service allowlist、Provider／MCP Tool、aliasではなく、primitive名から`operation.*`を生成しない。Worldのcurrent MCD Operationは完全登録済み`operation.world.allocate_generated_stable_ids@1` exact一件、§20のWorld Discovery六件は別の`not_activated` planning familyである。consumer-owned Gameplay change primitiveをWorld branchへ登録しない。`generate_world_streaming_plan`はCommit済みSourceからDerived Planを作るCook job kind、Preview／Inspectはread-only internal actionであり、いずれもMCD Operation identityではない。
 
 AI contextはWorld／Scene／Space、Topology、Cell plan、dependency、Target、budgetだけをbounded projectionする。consumer-owned Gameplay stateや進行単位をWorld contextへ合成しない。
 
 複数Documentの変更は`WorldAuthoringBundleV1`のhashを承認済み`ProjectChangeSetV1`から参照して初めてCommitできる。Validate／Previewはread-onlyで、Plan、Bundle、ContextをCommit結果またはqualification evidenceとして扱わない。`WorldQualificationReceiptV1`はCommit済みSource revision、Topology／Scene／Space／Partition hash、Target Profile、Streaming／Navigation／LOD Artifact hash、system graph、fixture、correctness、performance、Review Receiptを結ぶDomain receiptであり、required Gate完了後だけ発行する。ChangeSet本文、Approval、共通Evidence envelopeの正本をWorldへ複写しない。
 
-`CreateCell`、`UpdateCell`、`DeleteCell`、`SetCellIntent`、`replace_streaming_plan`、plan-local `cell_id`をtargetとする任意field writeは公開または登録しない。未知またはaliasのCell write operationをSource editへ近似変換せず`MIRAKAN-WORLD-DERIVED_CELL_WRITE`で失敗させる。Applyは`SpatialPartitionIntentV1`を含むProject Source ChangeSetだけを対象とし、Derived Plan、Cell descriptor、Runtime cellを直接操作しない。
+`create_cell`、`update_cell`、`delete_cell`、`set_cell_intent`、`replace_streaming_plan`、plan-local `cell_id`をtargetとする任意field writeは`WorldSourceChangePrimitiveKindV1`へ存在せず、公開または登録しない。未知またはaliasのCell write primitive／OperationをSource editへ近似変換せず`MIRAKAN-WORLD-DERIVED_CELL_WRITE`で失敗させる。Applyは`SpatialPartitionIntentV1`を含むProject Source ChangeSetだけを対象とし、Derived Plan、Cell descriptor、Runtime cellを直接操作しない。
 
 ## 12. Save、Replay、Migration境界
 
@@ -848,7 +1001,7 @@ Qualificationは次を含む。
 - fixtureがRenderer／Collision／Navigationを例として明示選択したhard closureでは一要素failureを注入し、`MIRAKAN-WORLD-ACTIVATION_PARTIAL`、target全rollback、source Space／last-valid generation維持、stale Snapshot／progress再利用0件を検証する。別fixtureは任意owner bindingを選択して同じgeneric contractを通し、未選択ownerをhard closureへ暗黙追加しない。
 - Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transform、stable animation phase、明示選択consumer Artifact集合のall-ready atomic publication、stale generation、Preview／Commit hash一致。
 - Blockoutのdimension／segment／assembly bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件。
-- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchain／binding集合をfresh processで3回、Gateway call 0件で実行し、local semantic graph bytes／canonical order／`semantic_graph_hash`／`candidate_artifact_semantic_hash`の一致、Generator bound、connectivityを検証する。合格後だけcaller-issued request IDでGatewayを一回呼び、candidate／intent／request／Manifest／prepared Receipt／Publication StateのProject tripleとcandidate hash、`local_id_count`、`allocated_uuid_count=local_id_count+1`、mapping全件＋`delta_id`を照合する。private Marker→canonical signed wrapper→Public Marker＋Projectのcrash window三箇所、同key retry byte equality、別request reuse、署名前public、partial Project／mapping publication、二回目allocation、local ID残存を拒否する。生成後に選択Artifactを削除して同じ入力から再生成し同じ`semantic_graph_hash`になること、削除中／再生成失敗／各hash単独tamperでは既存last-valid ArtifactとWorld generationを維持する。
+- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchain／binding集合をfresh processで3回、Gateway call 0件で実行し、local semantic graph bytes／canonical order／`semantic_graph_hash`／`candidate_artifact_semantic_hash`の一致、Generator bound、connectivityを検証する。合格後だけcaller-issued request IDでGatewayを一回呼び、candidate／intent／request／Manifest／prepared Receipt／Publication ProjectionのProject tripleとcandidate hash、`local_id_count`、`allocated_uuid_count=local_id_count+1`、mapping全件＋`delta_id`を照合する。private Marker→canonical signed wrapper→Public Marker＋Projectのcrash window三箇所、同key retry byte equality、別request reuse、署名前public、partial Project／mapping publication、二回目allocation、local ID残存を拒否する。さらにPublic Markerのafter stateをProjectionへ置換するcycle fixture、Published payload／private Marker／prepared payloadのoperation、intent、request、idempotency、before／after stateのいずれか一Fieldだけを置換するfixtureを各一原因で拒否する。生成後に選択Artifactを削除して同じ入力から再生成し同じ`semantic_graph_hash`になること、削除中／再生成失敗／各hash単独tamperでは既存last-valid ArtifactとWorld generationを維持する。
 - `fixture.world.procedural-provider-absent-empty`: bindingなし＋output 0件がcanonical skipで成功し、provider／placeholderを生成しない。
 - `fixture.world.procedural-provider-absent-output`: bindingなし＋output 1件をDelta全rejectしlast-validを維持する。
 - `fixture.world.procedural-provider-selected-missing-output`: selected bindingの`required_output_count=1`＋output 0件を全rejectする。
@@ -860,6 +1013,6 @@ Qualificationは次を含む。
 - Compact 2D／3D spatial fixtureでframe／memory／load／activation hitch、Cell／prefetch比較、camera speed、HLOD authority equivalence、cold start／streamingを測定する。
 - AI corpusはMapの6分類（world structure、scene composition、streaming、procedural layout、navigation、map presentation）、ambiguity／high-impact質問、World／Scene／Space／Cell／Navigation／Presentation分離、context外の表示名／pathからStable IDを推測しないこと、Source intent以外への直接write拒否を含む。
 - `CreateCell`／`UpdateCell`／`DeleteCell`／`SetCellIntent`／`replace_streaming_plan`／未知aliasはすべて`MIRAKAN-WORLD-DERIVED_CELL_WRITE`となり、`SpatialPartitionIntentV1`と`WorldStreamingPlanV1`のhashが変化しないnegative fixture。
-- `fixture.world.authoring-cross-view`: World Outline／Topology Graph／Scene Composition／Spatial View／AIのDomain Operationを64 scenarioで比較し、after-state hash一致100%。
+- `fixture.world.authoring-cross-view`: World Outline／Topology Graph／Scene Composition／Spatial View／AIの`WorldSourceChangePrimitiveKindV1`を64 scenarioで比較し、after-state hash一致100%。
 - `fixture.world.authoring-intent`: holdout 240件（明確な6分類各30件、曖昧／High Impact 60件）を3 runし、明確Caseの`selected_kind`正解率97%以上、Blocking Caseの`question_required` recall 100%、存在しないStable IDを含むProposal 0件、World／Scene／Space／Cell identity誤変更0件、Derived／Runtime直接write提案0件。
 - finite Gameplay goal／Resultを持たないendless、continuous simulation、procedural-only Worldがvalidである。

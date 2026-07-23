@@ -37,13 +37,13 @@
 | `feature.interaction@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.interaction]` | `[mirakan.arch.gameplay-programming-model#InteractionDefinitionV1, mirakan.arch.gameplay-programming-model#InteractionRequestV1, mirakan.arch.gameplay-programming-model#InteractionSnapshotV1]`／`[]` | `[mirakan.arch.gameplay-programming-model#Engine-Standard-Interaction-System]`／`[validator.feature.interaction.v1]`／`[fixture.feature.interaction.contract]` |
 | `feature.character_locomotion@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.character_locomotion]` | Feature-owned `[type.feature.character_locomotion.gameplay_motion_intent]`＋Navigation-owned `[type.navigation.motion_intent_contribution, mirakan.arch.simulation-navigation#MotionExecutorPortV1]`／`[type.navigation.motion_intent_contribution]` | `[game_system.extension.feature.character_locomotion.contribution]`／`[validator.feature.character_locomotion.v1]`／`[fixture.feature.character_locomotion.motion_executor]` |
 | `feature.path_following@1` (`pack_kind=feature`) | `[]` | `[capability.simulation.navigation]` | `[capability.gameplay.path_following]` | `[mirakan.arch.simulation-navigation#PathFollowRequestV1, mirakan.arch.simulation-navigation#PathFollowerStateV1, mirakan.arch.simulation-navigation#MovementIntentV1, mirakan.arch.simulation-navigation#MotionExecutorPortV1]`／`[mirakan.arch.simulation-navigation#MotionExecutorPortV1]` | `[mirakan.arch.simulation-navigation#Path-Following]`／`[validator.feature.path_following.v1]`／`[fixture.feature.path_following.executor_stub]` |
-| `feature.scenario_stage@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.scenario_stage]` | exact owner revision／content hash付き`[mirakan.arch.pack-scenario-stage#StageDefinitionV1, mirakan.arch.pack-scenario-stage#CompletionContractV1, mirakan.arch.pack-scenario-stage#StageRuntimeStateV1, mirakan.arch.pack-scenario-stage#StageTransitionDestinationV2, mirakan.arch.pack-scenario-stage#StageTransitionPolicyV1, mirakan.arch.pack-scenario-stage#StageTransitionRequestV2, mirakan.arch.pack-scenario-stage#StageTransitionContractRefSetV1]`／`[mirakan.arch.pack-scenario-stage#StageActivationPortV1, mirakan.arch.pack-scenario-stage#StageTransitionPortV2]` | `[mirakan.arch.pack-scenario-stage#game_system.extension.feature.scenario_stage]`／`[validator.feature.scenario_stage.v1]`／`[fixture.feature.scenario_stage.none, fixture.feature.scenario_stage.explicit_outcomes, fixture.feature.scenario_stage.transition, fixture.feature.scenario_stage.worldless-ui, fixture.feature.scenario_stage.worldless-headless, fixture.feature.scenario_stage.aggregate-manifest-set-equality]` |
+| `feature.scenario_stage@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.scenario_stage]` | exact owner revision／content hash付き`[mirakan.arch.pack-scenario-stage#StageDefinitionV1, mirakan.arch.pack-scenario-stage#CompletionContractV1, mirakan.arch.pack-scenario-stage#StageRuntimeStateV1, mirakan.arch.pack-scenario-stage#StageTransitionDestinationV2, mirakan.arch.pack-scenario-stage#StageTransitionPolicyV1, mirakan.arch.pack-scenario-stage#StageTransitionRequestV2, mirakan.arch.pack-scenario-stage#StageTransitionContractRefSetV1]`／`[mirakan.arch.pack-scenario-stage#StageActivationPortV1, mirakan.arch.pack-scenario-stage#StageTransitionPortV2]` | `[mirakan.arch.pack-scenario-stage#game_system.extension.feature.scenario_stage]`／`[validator.feature.scenario_stage.v1]`／`[fixture.feature.scenario_stage.none, fixture.feature.scenario_stage.explicit_outcomes, fixture.feature.scenario_stage.transition, fixture.feature.scenario_stage.worldless-ui, fixture.feature.scenario_stage.worldless-headless, fixture.feature.scenario_stage.aggregate-manifest-set-equality, fixture.feature.scenario_stage.runtime_scope_migration]` |
 
 `feature.interaction`、`feature.path_following`、`feature.scenario_stage`のrequired capabilityとpublic surfaceは、それぞれ[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Navigation](../05-simulation/navigation.md)、[Scenario／Stage](scenario-stage.md)の既存Ownerへexact refで接続する。Character Locomotionは本書が所有するGameplay intent型だけを登録し、Navigation-owned `MotionIntentContributionV1`／`MotionExecutorPortV1`を外部Ownerへのexact refとして接続する。Feature catalogは参照先OwnerのSchemaを複製しない。
 
 上表の`type.*`／`capability.*`は表示上IDだけを示すが、Manifest保存値はすべて`McdContractRefV1 {id, version, contract_set_hash}`である。Pack refは`PackContractRefV1 {pack_id, pack_version, pack_hash}`、Architecture contract anchorはowner文書revision／content hash付き`ArchitectureContractRefV1`で保存し、bare ID／anchorだけを永続参照にしない。
 
-各embedded Feature PackのOperation／migration inventoryを次へ固定する。current authoring Operation setは空であり、従来提案された共通`operation.feature.*`七件は一度もactivateされていない。current MCD、Core Authoring Gateway Manifest、Service allowlist、Provider／MCP Catalog、各Pack artifactのいずれにも登録せず、各Manifestの`authoring_operation_refs[]=[]`とする。PackはFeature-specific Type、Validator、Qualification record／Fixtureを保持できるが、非活性Operationのinput closureへ寄与したとは扱わない。
+各embedded Feature PackのOperation／migration inventoryを次へ固定する。current authoring Operation setは空であり、従来提案された共通`operation.feature.*`七件は一度もactivateされていない。七exact IDは[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.feature_authoring@1`だけに属し、current MCD、Core Authoring Gateway Manifest、Service allowlist、Policy、Validator、Diagnostic、Receipt、Provider／MCP Catalog、generated alias、legacy alias、各Pack artifactの各集合をすべて`[]`、各Manifestの`authoring_operation_refs[]=[]`とする。PackはFeature-specific Type、Validator、Qualification record／Fixtureを保持できるが、非活性Operationのinput closureへ寄与したとは扱わない。
 
 | Pack | `authoring_operation_refs[]` | `migration_contribution_refs[]` | `migration_step_refs[]` |
 |---|---|---|---|
@@ -58,7 +58,7 @@
 
 Pack artifact内のValidator／fixture集合は上表の`validator_refs[]`／`test_scenario_refs[]`とset equality、上記Contribution集合はactive migration registryのowner subsetとset equalityにする。missing／extra／stale／duplicateをPack install前に拒否する。Scenario Stageは独立owner文書のManifest inventoryだけを正本とし、ここではaggregate set equalityだけを行う。
 
-Scenario Stage aggregateのpublic ref集合はowner文書のPack Manifest public inventory、port ref集合は同Manifest runtime inventoryと、それぞれ独立にset equalityを必須にする。transition MCD exact 5件はowner文書の`StageTransitionContractRefSetV1`とactive MCD Contract set、Port reachable closureの間だけで比較し、public 7件またはruntime port 2件との異種set equalityを行わない。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は五つのlike-for-like gateごとにaggregateだけのref欠落、ownerだけのextra、version／hash stale、duplicateを各一原因で拒否する。
+Scenario Stage aggregateのpublic ref集合はowner文書のPack Manifest public inventory、port ref集合は同Manifest runtime inventory、test scenario ref集合はowner Manifestのexact七件と、それぞれ独立にID／version／content hashのset equalityを必須にする。七件は`none; explicit_outcomes; transition; worldless-ui; worldless-headless; aggregate-manifest-set-equality; runtime_scope_migration`であり、aggregate側の欠落、owner側のextra、stale hashを許可しない。transition MCD exact 5件はowner文書の`StageTransitionContractRefSetV1`とactive MCD Contract set、Port reachable closureの間だけで比較し、public 7件またはruntime port 2件との異種set equalityを行わない。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各like-for-like gateごとにaggregateだけのref欠落、ownerだけのextra、version／hash stale、duplicateを各一原因で拒否する。
 
 `MotionExecutorPortV1`の唯一のcanonical ownerはNavigationである。本書はexact public contract refだけをmanifestへ登録する。Character Locomotion PackはPhysics unavailableでもinstall／validateでき、Physics Kinematic Motion ProviderはC1 reference recipe／qualification Providerを選んだ時だけ依存closureへ入る。consumerはProvider Backend object、native body pointer、render transformへ直接依存せず、Portのtyped intent／resolved resultだけを使う。
 
@@ -106,7 +106,7 @@ FireModeDefinitionV1
 
 範囲は`activation_count_per_cycle=[1,3600]`、`cycle_ticks=[1,3600]`、`activation_count_per_cycle <= cycle_ticks`とする。`burst`だけはcountを`[1,32]`へ制限する。C1は一Weaponにつき一tick最大一Activationである。Patternが一Activationから複数Shotを生成する。この上限はper Weapon instanceの不変条件であり、Bindingごとではない。同tickに`primary`と`secondary`の両Bindingが発火許可となった場合は`primary`のActivationだけを実行し、`secondary`を`FireRejectedCadence`で拒否してそのcadence cycle開始tickを次の有効tickへ繰り延べる。この裁定順は固定であり、同じPublic Contractへ適合するすべての実装とReplayで同一結果とする。
 
-`policy.feature.ranged_combat.cadence.even_floor`はcycle内のActivation `i=[0,count-1]`を`floor(i * cycle_ticks / activation_count_per_cycle)` tickへ配置し、`activation_offsets_ticks`を持たない。`policy.feature.ranged_combat.cadence.explicit_offsets`は`activation_count_per_cycle`と同数のoffsetを`[0,cycle_ticks-1]`へstrictly increasingで持つ。両方ともexact `McdContractRefV1(kind=policy)`であり、対応Fixtureはowner-typed Qualification recordだけが解決し、Production Definitionはsigned Qualification Receiptだけを消費する。cycle開始tickとDefinition revisionが同じならscheduleは同じである。「毎秒7発」は`7 activation / 60 tick`へexactに解決し、float timerを累積しない。
+`policy.feature.ranged_combat.cadence.even_floor`はcycle内のActivation `i=[0,count-1]`を`floor(i * cycle_ticks / activation_count_per_cycle)` tickへ配置し、`activation_offsets_ticks`を持たない。`policy.feature.ranged_combat.cadence.explicit_offsets`は`activation_count_per_cycle`と同数のoffsetを`[0,cycle_ticks-1]`へstrictly increasingで持つ。両方ともexact `McdContractRefV1(kind=policy)`であり、対応Fixtureはowner-typed Qualification subjectだけが解決する。Production DefinitionはReceipt-freeで固定し、root外Activation bindingが指すsigned Qualification Receiptだけを消費する。cycle開始tickとDefinition revisionが同じならscheduleは同じである。「毎秒7発」は`7 activation / 60 tick`へexactに解決し、float timerを累積しない。
 
 `single`はcount 1、offset 0で、trigger rising edgeごとに一cycleだけ評価する。`automatic`はtrigger hold中にcycleを反復する。`burst`はrising edgeで一つの有限cycleを開始し、通常は`policy.feature.ranged_combat.cadence.explicit_offsets`で`[0,5,10]`等を表す。release後の再押下なしに次cycleを開始しない。これによりautomatic cadence、burst内間隔、burst後cooldownを同じscheduleで一意に表す。
 
@@ -470,15 +470,15 @@ GrantRequestPortV1
 
 各scope typeは`RuntimeScopeTypeRefV1 {scope_type_id, scope_type_version=1, scope_type_hash}`、type／policy cellは`McdContractRefV1 {id, version=1, contract_set_hash}`、owner cellは`RuntimeScopeOwnerRefV1 {owner_id, owner_revision, owner_content_hash}`として保存し、表の裸IDを永続化しない。全dependency recordをactive Scope Registryへ登録する。Save identity、Replay identity、ephemeral runtime generationを別Fieldで保持し、複数instanceのStateをSource IDまたはRuntime handleで合成しない。
 
-旧System Sourceのclean migrationはCore tableへFeature IDを追加せず、Gameplay Programming Modelの`RuntimeScopeMigrationContributionRegistryV1`へ各Feature ownerが次のexact recordを登録する。全recordはsource schema `type.game_system.spec` version 1、destination schema version 2、owner固有source-System match policy、auxiliary record migration policy、identity mapping policy、exact signed Qualification Receipt ref、self-excluding content hashを持つ。Fixture bodyは別owner-typed Qualification recordだけが解決する。
+旧System Sourceのclean migrationはCore tableへFeature IDを追加せず、Gameplay Programming Modelの`RuntimeScopeMigrationContributionRegistryV1`へ各Feature ownerが次のexact Receipt-free recordを登録する。全recordはsource schema `type.game_system.spec` version 1、destination schema version 2、owner固有source-System match policy、auxiliary record migration policy、identity mapping policy、self-excluding content hashを持つ。Registry／ContributionRef固定後に別owner-typed Qualification subject／signed Receipt／Qualification Bindingを作り、Fixture bodyはsubjectだけが解決する。
 
-| contribution ID／owner | source match | legacy scope | destination | Qualification Receipt |
+| contribution ID／owner | source match | legacy scope | destination | root外Qualification Binding |
 |---|---|---|---|---|
-| `runtime_scope.migration_contribution.feature.scoring`／`owner.feature.scoring` | exact legacy Score System ref／hash | `play_session` | `scope.feature.scoring.instance` | `qualification.runtime_scope_migration.feature.scoring@1` |
-| `runtime_scope.migration_contribution.feature.encounter_spawn`／`owner.feature.encounter_spawn` | exact legacy Encounter System ref／hash | `encounter_instance` | `scope.feature.encounter_spawn.instance` | `qualification.runtime_scope_migration.feature.encounter_spawn@1` |
-| `runtime_scope.migration_contribution.feature.character_locomotion`／`owner.feature.character_locomotion` | exact legacy Character Locomotion binding System ref／hash | `entity_instance` | `scope.core.entity` | `qualification.runtime_scope_migration.feature.character_locomotion@1` |
+| `runtime_scope.migration_contribution.feature.scoring`／`owner.feature.scoring` | exact legacy Score System ref／hash | `play_session` | `scope.feature.scoring.instance` | `qualification_binding.runtime_scope_migration.feature.scoring@1` |
+| `runtime_scope.migration_contribution.feature.encounter_spawn`／`owner.feature.encounter_spawn` | exact legacy Encounter System ref／hash | `encounter_instance` | `scope.feature.encounter_spawn.instance` | `qualification_binding.runtime_scope_migration.feature.encounter_spawn@1` |
+| `runtime_scope.migration_contribution.feature.character_locomotion`／`owner.feature.character_locomotion` | exact legacy Character Locomotion binding System ref／hash | `entity_instance` | `scope.core.entity` | `qualification_binding.runtime_scope_migration.feature.character_locomotion@1` |
 
-同じlegacy valueの別Systemへ適用せず、0件／複数match、owner／Qualification Receipt／policy hash stale、Source／Save／Replay identity mapping不一致をFeature Qualificationで拒否する。Core migratorはgeneric resolverだけを実行し、この三record、adapter、Qualification record／Fixtureをhard-codeしない。
+同じlegacy valueの別Systemへ適用せず、0件／複数match、owner／Qualification Binding／Receipt／policy hash stale、Source／Save／Replay identity mapping不一致をFeature Qualificationで拒否する。Core migratorはgeneric resolverだけを実行し、この三record、Binding、adapter、Qualification subject／Fixtureをhard-codeしない。
 
 Ranged Combat ownerはShooterその他のconsumerが参照するPort／Eventを次のMCD typeとして登録する。
 
@@ -576,9 +576,6 @@ GameSystemSpecV2
     [{id=budget.feature.character_locomotion.contribution.per_target, version=1, content_hash}]
   authoring_surface_ids: [form, table, graph]
   fallback_contract: no_fallback(reason=invalid Character intent produces no contribution)
-  qualification_receipt_refs:
-    [{receipt_id=qualification.feature.character_locomotion.contribution,
-      receipt_version=1, receipt_content_hash}]
   compatibility_invariant_refs:
     [{id=invariant.character_locomotion.generic_contribution_only, version=1, content_hash},
      {id=invariant.character_locomotion.owner_binding_exact, version=1, content_hash},
@@ -593,7 +590,7 @@ GameSystemSpecV2
 
 ### 4.1.1 Character Locomotion依存record registry
 
-上記で参照するrole／requirement／dependency／policy／budget／Qualification Receipt／invariantは、単なる文字列ではなく次のactive recordを厳密に一件ずつ持つ。MCD requirementは`McdContractRefV1`、それ以外は各typed refの`id, version, content_hash`三点を必須とする。
+上記Specが参照するrole／requirement／dependency／policy／budget／invariantと、Spec固定後にroot外Activation bindingが参照するQualification Receiptは、単なる文字列ではなく次のactive recordを厳密に一件ずつ持つ。MCD requirementは`McdContractRefV1`、Receipt-free補助recordは各typed refの`id, version, content_hash`三点を必須とする。Qualification ReceiptはSpec／補助hashへ含めない。
 
 | exact record | record type | 解決内容 |
 |---|---|---|
@@ -606,9 +603,9 @@ GameSystemSpecV2
 | `implementation_policy.feature.character_locomotion.contribution` v1 | `GameSystemImplementationPolicyV1` | Feature Definition default、Project replacement禁止、live switch禁止、全Targetで同じschema、unavailable=activation reject |
 | `budget.feature.character_locomotion.contribution.per_target` v1 | `BehaviorBudgetRecordV1` | actor当たりCharacter contribution一件、bounded payload／queue、overflow=typed reject |
 | `qualification.feature.character_locomotion.contribution` v1 | `GameSystemQualificationReceiptV1` | separate Qualification recordのsubject／Target／fixture-set resultを署名し、Fixture bodyを含まない |
-| `invariant.character_locomotion.generic_contribution_only` v1 | `InvariantRecordV1` | emitted Port type setはgeneric contribution exact一件、Navigation batchは0件 |
-| `invariant.character_locomotion.owner_binding_exact` v1 | `InvariantRecordV1` | Spec、adapter、binding contributionのFeature owner ref／hashがexact equality |
-| `invariant.character_locomotion.no_authoritative_write` v1 | `InvariantRecordV1` | owned authoritative typeとTransform／Physics write edgeは0件 |
+| `invariant.character_locomotion.generic_contribution_only` v1 | `CompatibilityInvariantRecordV1` | emitted Port type setはgeneric contribution exact一件、Navigation batchは0件 |
+| `invariant.character_locomotion.owner_binding_exact` v1 | `CompatibilityInvariantRecordV1` | Spec、adapter、binding contributionのFeature owner ref／hashがexact equality |
+| `invariant.character_locomotion.no_authoritative_write` v1 | `CompatibilityInvariantRecordV1` | owned authoritative typeとTransform／Physics write edgeは0件 |
 
 非MCD recordの共通headerは`record_id`、`record_version=1`、`record_content_hash`、owner ref／hash、`status=active`、introduced Contract set hashを持つ。各record hashはhash Fieldを除くheaderと次のtyped payloadをMCD canonical encodeして計算する。
 
@@ -620,7 +617,9 @@ SemanticRoleRecordV1.payload
     exact type.navigation.motion_intent_contribution ref
   allowed_phase_ids: [T40_MotionIntent]
   authoritative_write_type_refs: []
-  forbidden_write_owner_refs: [owner.core.transform, owner.engine.physics]
+  forbidden_write_requirement_refs:
+    [exact requirement.non_responsibility.character_locomotion.no_transform_write ref,
+     exact requirement.non_responsibility.character_locomotion.no_physics_write ref]
 
 GameSystemDependencyEdgeV1.payload
   target_contract_ref: exact Navigation generic contribution input ref/revision/hash
@@ -637,10 +636,10 @@ GameSystemImplementationPolicyV1.payload
   native_eligibility: false
   replacement_policy: sealed
   live_switch_policy: forbidden
-  equivalence_qualification_receipt_ref:
-    exact qualification.feature.character_locomotion.contribution ref/hash
   required_target_refs: all active Project Targets
-  configuration_schema_ref: exact empty configuration type ref
+  configuration_schema_ref:
+    exact {id=type.game_system.empty_configuration,
+           version=1,contract_set_hash}
   unavailable_behavior: reject_activation_keep_last_valid
 
 BehaviorBudgetRecordV1.payload
@@ -649,23 +648,61 @@ BehaviorBudgetRecordV1.payload
   overflow_behavior: typed_reject_no_partial_contribution
   target_budget_refs: exact set per active Target
 
-CharacterLocomotionQualificationRecordV1
-  qualification_id/version/content_hash
-  owner_layer: feature_pack
-  owner_ref: exact owner.feature.character_locomotion ref/revision/hash
+CompatibilityInvariantRecordV1.payload
+  predicate_kind:
+    emitted_generic_contribution_only
+    | feature_owner_binding_exact
+    | authoritative_write_edge_count_zero
+  evaluation_phase: activation | T40_MotionIntent
+  input_contract_refs[1..8]: exact version/hash-bound refs
+  expected: true
+  failure_code:
+    MIRAKAN-LOCOMOTION-CONTRIBUTION-INVALID
+    | MIRAKAN-LOCOMOTION-AUTHORITY_VIOLATION
+  failure_behavior: reject_without_partial_contribution
+
+GameSystemQualificationSubjectV1
+  qualification_id: qualification.feature.character_locomotion.contribution
+  qualification_version: 1
+  owner_ref:
+    exact {owner_layer=feature_pack,
+           owner_id=owner.feature.character_locomotion,
+           owner_revision, owner_content_hash}
   system_ref:
     exact game_system.extension.feature.character_locomotion.contribution ref
-  binding_contribution_ref: exact owner-typed Navigation binding contribution ref
+  system_contract_hash: exact system_ref resolved contract hash
   target_profile_refs[1..64]
   fixture_refs[1..64]:
     exact fixture.feature.character_locomotion.* ref/version/content_hash
-  input_closure_hash
+  input_closure_hash:
+    SHA-256(MIRAKAN_CHARACTER_LOCOMOTION_QUALIFICATION_INPUT_V1,
+      exact binding contribution ref, adapter policy ref,
+      invariant refs, Target refs, fixture refs; count/length framed)
   result: pass | fail
-  signed_receipt:
+  qualification_subject_hash: SHA-256
+
+GameSystemQualificationReceiptV1
+  subject: exact completed GameSystemQualificationSubjectV1 above
+  signed_record:
     exact MirakanSignedRecordV1(
       purpose=game_system_qualification,
-      subject=system/binding/Target/fixture-set closure)
+      subject_sha256=SHA-256(JCS(subject)))
+
+GameSystemActivationBindingV1
+  activation_binding_id:
+    activation.game_system.feature.character_locomotion.contribution
+  activation_binding_version: 1
+  system_ref: exact subject.system_ref
+  system_contract_hash: exact subject.system_contract_hash
+  qualification_receipt_refs[1]:
+    {qualification_id=qualification.feature.character_locomotion.contribution,
+     qualification_version=1,
+     qualification_subject_hash=subject.qualification_subject_hash,
+     signed_record_hash=SHA-256(JCS(receipt.signed_record completed bytes))}
+  activation_binding_hash: SHA-256
 ```
+
+Character Locomotionの生成順は`Receipt-free Spec／補助record hash → Contract set root／system_ref → Qualification subject → signed Receipt → Activation binding → GameSystem Catalog projection`だけである。subject owner／System／contract hashは参照先Specの`owner_ref`／external System ref／resolved contract hashとbyte equality、Activation bindingのSystem pairはsubjectとbyte equalityでなければならない。Spec、Implementation Policy、auxiliary set hash、Contract set rootへReceipt／Bindingを戻さない。owner、System、contract hash、binding contribution、Target、fixture、result、subject hash、signed record hashの一Fieldだけをstale／substituteするnegative fixtureを各一件持つ。
 
 四MCD requirementは次の全Fieldを持つ。
 
@@ -676,9 +713,9 @@ CharacterLocomotionQualificationRecordV1
 | `requirement.non_responsibility.character_locomotion.no_transform_write` | must_not／blocking | contribution SystemはTransform owner Stateを書かない | System write set、static＋runtime conformance、Transform write edge=0 | `MIRAKAN-LOCOMOTION-AUTHORITY_VIOLATION` |
 | `requirement.non_responsibility.character_locomotion.no_physics_write` | must_not／blocking | contribution SystemはPhysics State／native objectを書かない | System write set、static＋runtime conformance、Physics write edge=0 | `MIRAKAN-LOCOMOTION-AUTHORITY_VIOLATION` |
 
-各requirementはsource ref=`mirakan.arch.pack-gameplay-features#41-character-locomotion-binding-system`、introduced_by=本Feature contract ChangeSet、owner、version、Contract set hashを持つ。Fixture bodyは`CharacterLocomotionQualificationRecordV1`だけが解決し、production Physics、fixture board／RTS、root motionあり／なし、type spoof／hash／duplicate／order／stale／failureのinput、oracle、不変state hashを列挙する。三Invariant recordは上表の述語、評価phase、input refs、expected Boolean、failure Diagnosticを持ち、自由式を保存しない。
+各requirementはsource ref=`mirakan.arch.pack-gameplay-features#41-character-locomotion-binding-system`、introduced_by=本Feature contract ChangeSet、owner、version、Contract set hashを持つ。禁止対象は上記registered `must_not` Requirement refで表し、未登録owner文字列をSemantic Role payloadへ置かない。Physics ownerを別のtyped owner relationで照合する場合のcanonical identityは`owner.core.physics`だけであり、別namespaceのaliasを作らない。Fixture bodyは上記`GameSystemQualificationSubjectV1`だけが解決し、production Physics、fixture board／RTS、root motionあり／なし、type spoof／hash／duplicate／order／stale／failureのinput、oracle、不変state hashを列挙する。三`CompatibilityInvariantRecordV1`は上表順に三predicate branchを一対一で使い、共通headerの`record_content_hash`とSpecの`CompatibilityInvariantRecordRefV1 {id,version,content_hash}`をbyte equalityで解決する。評価phase、input refs、expected Boolean、failure codeをhashへ含め、旧`InvariantRecordV1`、自由式、bare invariant ID、wrong predicate／owner／hash、三件のmissing／extraを拒否する。
 
-RegistryはID、version順にsortし、duplicate、missing owner、version／hash mismatch、deprecated recordをrejectする。`validator.feature.character_locomotion.v1`はMCD Envelope、owner layer/ref、一Feature-owned input型、Navigation generic contribution型、全typed auxiliary ref、Qualification Receipt、budget、invariantをSpecからexact解決する。Production SpecのFixture ref、Save／Replay ref、selection state、Navigation batch output、Core namespace、`system_origin=engine_standard`、旧`semantic_role_ids`、inline dependency／policy／budget、bare invariant ID、Transform／Physics writeを拒否する。旧Spec v1がselection stateまたはbatch ownershipを主張する場合、current Specへ自動昇格せずoffline migration conflictとしてlast-valid current Specを維持する。
+RegistryはID、version順にsortし、duplicate、missing owner、version／hash mismatch、deprecated recordをrejectする。`validator.feature.character_locomotion.v1`はMCD Envelope、owner layer/ref、一Feature-owned input型、Navigation generic contribution型、全Receipt-free typed auxiliary ref、budget、invariantをSpecからexact解決し、Qualification Receiptはroot外Activation bindingからだけ解決する。Production SpecのQualification／Fixture ref、Save／Replay ref、selection state、Navigation batch output、Core namespace、`system_origin=engine_standard`、旧`semantic_role_ids`、inline dependency／policy／budget、bare invariant ID、Transform／Physics writeを拒否する。旧Spec v1がselection stateまたはbatch ownershipを主張する場合、current Specへ自動昇格せずoffline migration conflictとしてlast-valid current Specを維持する。
 
 ### 4.2 Runtime data flow
 
@@ -819,7 +856,7 @@ Presentation Event欠落をauthoritative divergenceにしない。Damage、Proje
 
 - Field IDをrenameで変更しない。
 - enum意味変更は新Type versionを作る。
-- cadence algorithm変更は新しい`cycle_distribution_policy_ref`、owner Qualification Receipt、Replay migrationを必要とする。既存policy／Fixture IDの意味を上書きしない。
+- cadence algorithm変更は新しい`cycle_distribution_policy_ref`、root外owner Qualification Binding／Receipt、Replay migrationを必要とする。既存policy／Fixture IDの意味を上書きしない。
 - Projectile Stateを保存対象から外す変更はMajor migrationである。
 - Weapon Definition更新時、live instanceのammoを無言でrefill／truncateしない。Migration Policyを明示する。
 
@@ -961,6 +998,7 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 | `fixture.feature.path_following.executor_stub` | Navigation ownerのpath execution port、board-token／RTS stub、missing／incompatible Provider |
 | `fixture.feature.scenario_stage.none` | `completion_mode=none`でcompletion ownerを要求しないStage |
 | `fixture.feature.scenario_stage.aggregate-manifest-set-equality` | Scenario Stage owner／aggregate／Contract Manifestのexact ref set equality |
+| `fixture.feature.scenario_stage.runtime_scope_migration` | owner-typed Level→Stage Scope migration contribution、Save／Replay identity、signed Qualification |
 
 各fixtureはPack単体または宣言済みFeature closureだけでinstall／validate／executeできなければならない。Genre Pack、Genre Profile、product fixture、Genre固有Action roleをtest dependencyへ含めない。manual authoring、AI生成、manual再編集、AI再編集は同じSourceとFeature operationを使い、同じDefinition hash、Receipt、Runtime結果へ収束する。
 
@@ -977,7 +1015,7 @@ Character Locomotion fixtureはPhysics capabilityとPhysics Packが不在でもP
 
 ## 9. Feature authoring operation
 
-current Feature authoring write surfaceは非活性である。Feature Source mutation要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Project／Pack Source、revision、last-valid artifactを変更しない。Genre operationもcomposition、Profile、Game Flow、Action role、統合Qualification bindingの境界を越えてFeature Sourceを直接writeしない。
+current Feature authoring write surfaceは非活性である。Feature Source mutation要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Project／Pack Source、revision、last-valid artifactを変更しない。Genre planned actionも完全登録とActivationまではcallableでなく、composition、Profile、Game Flow、Action role、統合Qualification bindingの境界を越えてFeature Sourceを直接writeしない。
 
 ```text
 Current Feature authoring Operation set = {}
@@ -992,7 +1030,7 @@ Previously proposed, never activated logical IDs:
   operation.feature.validate_contract
 ```
 
-七IDはcurrent MCD、Core Authoring Gateway Manifest、Service allowlist、Provider／MCP Catalog、各Feature Manifestに存在せず、legacy aliasとしても読まない。future work item `activation.feature.authoring_operations.v1`は、採用するexact Operation setを一つに固定し、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Policy／Validator／Diagnostic closure、canonical signed Receipt、private commit→signed wrapper→public publication recovery、Qualificationを同じContract set transactionで完全登録するまでactivateしない。read-only preview／explain／validateを将来別Operationとして採用する場合も、name-only entryを先行公開しない。
+七IDは`planning.operation_family.feature_authoring@1`の予約候補以外に存在せず、current MCD、Core Authoring Gateway Manifest、Service allowlist、Provider／MCP Catalog、各Feature Manifestに存在せず、legacy aliasとしても読まない。Capability stateは`not_activated`で、要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`としてSource不変で拒否する。future work item `activation.feature.authoring_operations.v1`は、採用するexact Operation setを一つに固定し、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Policy／Validator／Diagnostic closure、canonical signed Receipt、private commit→signed wrapper→public publication recovery、Qualificationを同じContract set transactionで完全登録するまでactivateしない。read-only preview／explain／validateを将来別Operationとして採用する場合も、name-only entryを先行公開しない。
 
 ## 10. 公式資料
 

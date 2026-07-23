@@ -23,7 +23,7 @@ ModuleはContracts、Render Extract、Graph Compiler、Resource Registry、Pipel
 
 `GraphicsDevicePort`はadapter／device／surface Capability query、resource／view／sampler／pipeline作成、descriptor／argument binding、command allocator／buffer取得、logical barrier plan encode、queue submit／serial／completion、present／resize／device fault report、budget／residency telemetryだけを公開する。native型をPort header／MCD／Asset metadata／Project C++へ出さない。
 
-公開入力は次のinventoryに限定する。以後の節と他文書はこの表のIDだけを参照する。種別は`frame`（毎frameのimmutable入力）、`resolved`（Owner Resolverの解決済みPlan）、`cook`（Cook由来artifact）である。`AntiAliasingIntentV1`等のtyped operation入力は§11の正本経由であり、frame入力へ混在させない。
+公開入力は次のinventoryに限定する。以後の節と他文書はこの表のIDだけを参照する。種別は`frame`（毎frameのimmutable入力）、`resolved`（Owner Resolverの解決済みPlan）、`cook`（Cook由来artifact）である。`AntiAliasingIntentV1`等のplanned authoring action入力は§11の正本経由であり、frame入力へ混在させない。
 
 | 公開入力 | 種別 | 正本schemaとOwner定義 |
 |---|---|---|
@@ -250,9 +250,9 @@ closed profile IDは`render-path-profile.rt-shadow`、`render-path-profile.rt-re
 
 Acceleration structure、model weight、scratch resourceはgeneration付きArtifact／resourceとして扱う。Project C++やAIへnative acceleration handle、arbitrary operator、network accessを公開しない。Path previewをproduction referenceと表示するactivation判断は[Product Plan](../00-product/product-plan.md)が本書のqualification evidenceを消費して決定する。
 
-## 11. Operation、diagnostic、fallback
+## 11. Planned action vocabulary、diagnostic、fallback
 
-Editor／AIは[Executable contracts](../02-foundation/executable-contracts.md)に登録されたtyped operationを通じ、View／Renderer／AA intent、debug capture要求、qualification run要求を提案する。共通operation envelope、preview projection、approval classはFoundationとGovernanceの正本を参照し、本書では再定義しない。
+View／Renderer intent、debug capture要求、qualification run要求はStable IDでないplanned semantic action vocabularyであり、本書のcurrent MCD Operation集合は空である。AAのexact五IDだけは[Executable contracts](../02-foundation/executable-contracts.md#20-ai向けdiscoveryexecution候補のplanning-record未activation)の`planning.operation_family.rendering_aa_discovery@1`に属し、current MCD／Owner Manifest／Service allowlist／Provider／MCP／alias集合は`[]`、Capability stateは`not_activated`である。各ownerのfuture atomic activation work itemが完全なMCD／Service／Policy／Validator／Diagnostic／Receipt／publication closureを登録するまでEditor／AIへdispatchせず、action名からIDを生成しない。Activation後の共通envelope、preview projection、approval classはFoundationとGovernanceの正本を参照し、本書では再定義しない。
 
 Renderer固有diagnosticはGraph／pass／resource／ViewFamily／surface generation、Backend-neutral error code、first failing dependency、fallback dispositionを含む。少なくともgraph invalid、resource exhausted、pipeline unavailable、history invalid、surface lost、device fault、provider unavailableを区別する。native result codeやdriver messageはprivate attachmentとして保存し、stable diagnostic codeにしない。
 
@@ -268,7 +268,7 @@ Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfi
 
 2Dは`Renderer2DExecutionPlanV1`により`SpriteRendererComponentV1`または`TileChunkArtifactV1`からAsset version、bounds、layer／order／Y-sort、material instance、atlas page、mask／blend、Stable rendering IDを持つpacketを抽出する。Source rect／Tile ID配列、texture handle、native descriptor indexをSnapshotへcopyしない。
 
-`RendererCapabilitySignatureV1`はBackend、API／shader version、GPU／driver identity、feature bit、memory budget、display mode、SDK／model generation、signed artifact hashを持つ。`RendererCapabilityProjectionV1`はそのAuthoring向けredacted projectionであり、Adapter LUID、driver文字列等のnative識別子をEngine build固定のfield maskで除外した集合だけを公開する。Authoring／AI経路はSignature本体を直接読まずこのprojectionを消費する。`ResolvedRendererProfileV1`はProject要求、Target Profile、そのSignature、Qualification Receiptから一意に解決し、承認済みfallback順を持つ。`RendererOptimizationReceiptV1`は同一input trace／Profile／driver／SDKのBefore／After、capture、visual diffを結ぶ。
+`RendererCapabilitySignatureV1`はBackend、API／shader version、GPU／driver identity、feature bit、memory budget、display mode、SDK／model generation、signed artifact hashを持つ。`RendererCapabilityProjectionV1`はそのAuthoring向けredacted projectionであり、Adapter LUID、driver文字列等のnative識別子をEngine build固定のfield maskで除外した集合だけを公開する。Authoring／AI経路はSignature本体を直接読まずこのprojectionを消費する。`ResolvedRendererProfileV1`はProject要求、Target Profile、そのSignature、Qualification Receiptから一意に解決するroot外Derived projectionで、承認済みfallback順を持つ。Receipt subjectは先に固定したCapability Signature／Target artifact closureだけであり、Resolved Profile／Plan hashを含めない。`RendererOptimizationReceiptV1`は同一input trace／Profile／driver／SDKのBefore／After、capture、visual diffを結ぶ。
 
 Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`／`ShadowGraphV1`と承認済み`ProjectShadowTechniqueV1`は解決後の`ResolvedShadowPlanV1`だけをRendererへ渡す。`ProjectShadowTechniqueV1`は`ProjectShaderTechniqueV1`のexact specializationで、`injection_port_id = shadow`、`technique_kind = raster | compute | ray | mixed`、必須出力を`shadow_attenuation_linear`とする。`ShadowTechniquePortV1`は[Project Shader](project-shader.md)の`ProjectShaderTechniquePortV1`の`port_id = shadow` entryであり、同じSchemaを使う別名の契約を作らない。このentryが入力semantic、出力、Layer、history、ordering boundaryを固定する。`ShadowGraphV1`はclosed Pass Templateへoffline compileし、native command／barrier、runtime shader compile、未宣言accessを禁止する。
 
@@ -290,7 +290,7 @@ ResolvedShadowPlanV1
   capability_signature_hash, qualification_receipt_refs[], plan_hash
 ```
 
-`ShadowGraphV1`と`ResolvedShadowPlanV1`はRenderer-owned Derived Artifactであり、Project／AIが直接編集しない。Graph compilerはnode／edgeのStable ID順でcanonicalizeし、cycle、未登録Template、型不一致semantic、上限超過、`shadow_attenuation_linear`以外の最終出力を拒否する。`ResolvedShadowPlanV1`はLighting-owned Source refsと同じProject revision、Target、Capability、budget、Qualificationへ閉じ、欠落時に既定Shadow Graphを生成しない。
+`ShadowGraphV1`と`ResolvedShadowPlanV1`はRenderer-owned root外Derived Artifactであり、Project／AIが直接編集しない。Graph compilerはnode／edgeのStable ID順でcanonicalizeし、cycle、未登録Template、型不一致semantic、上限超過、`shadow_attenuation_linear`以外の最終出力を拒否する。`qualification_receipt_refs[]`は先に固定したCapability Signature／Technique artifactをsubjectにするdownstream evidenceだけで、Receipt subjectへ`plan_hash`を戻さない。`ResolvedShadowPlanV1`はLighting-owned Source refsと同じProject revision、Target、Capability、budget、Qualificationへ閉じ、欠落時に既定Shadow Graphを生成しない。
 
 Render Graph compilerは[Project Shader](project-shader.md)が所有するTechnique Manifestを通常Passと同じcycle、hazard、lifetime、alias、queue、memory validationへ通す。Manifest申告とShader Fact Graph、reflection、実行時resource useが一致しないArtifactはpromotionを拒否する。Running中の不一致は汎用`ProjectShaderTechniqueValidationFailed`とDomain projectionを発行し、該当Techniqueのそれ以降のpassとsubmissionを停止する。ShadowではDomain projectionを`ShadowTechniqueValidationFailed`とする。同一frameにfallback passを挿入しない。
 

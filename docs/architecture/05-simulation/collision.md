@@ -137,7 +137,7 @@ Replayは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)�
 
 ## 6. Authoring、diagnostic、qualification
 
-EditorとAIは同じCollider Source Asset、Project ChangeSet、validator、preview、cook経路を使う。公開操作はgeometry／asset／material／filter／sensor／query profileのinspect、create、update、remove、validate、previewに限定する。Body dynamics、character、solverの操作は[Physics](physics.md)へ渡す。Risk分類、authorization、credential、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書で規則を複写しない。
+EditorとAIは同じCollider Source Asset、Project ChangeSet、validator、preview、cook経路を使う。geometry／asset／material／filter／sensor／query profileのinspect、create、update、remove、validate、previewは将来のsemantic action vocabularyであり、Stable Operation IDでもcurrent公開操作でもない。本書のcurrent MCD／Owner Manifest／Service allowlist／Provider／MCP Operation集合は空で、action名からIDを生成しない。将来work item `activation.collision.authoring_operations.v1`が採用するexact ID集合と完全なMCD／Service／Policy／Validator／Diagnostic／Receipt／publication closureを一transactionで登録するまで、authoring Operation要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。Body dynamics、character、solverのactionは[Physics](physics.md)へ意味上handoffするだけで、Physics Operationを暗黙生成しない。Risk分類、authorization、credential、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書で規則を複写しない。
 
 必須diagnostic classは次である。
 

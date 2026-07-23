@@ -97,23 +97,33 @@ goalは一つの検証可能な結果、success_criteriaは一件以上のRequir
 
 TaskAuthorizationEnvelopeはPolicy Serviceだけが発行し、AIが作成、変更、再署名してはならない。
 
-    envelope_version, task_id, spec_sha256
-    issued_at, not_before, expires_at, nonce
-    risk_class
-    contract_set_hash, policy_set_hash
-    resolved_profile_hashes[]
-    tool_catalog_hash
-    allowed_operations[]
-    path_grants[]
-    network_policy
-    dependency_policy
-    secret_policy
-    resource_limits
-    repair_attempt_limit
-    required_gates[]
-    required_approvals[]
-    long_running_grant?
-    signature_algorithm, signature_format, key_id, signature
+```text
+TaskAuthorizationEnvelopePayloadV1
+  envelope_version, task_id, spec_sha256
+  issued_at, not_before, expires_at, nonce
+  risk_class
+  contract_set_hash, policy_set_hash
+  resolved_profile_hashes[]
+  tool_catalog_hash
+  allowed_operations[]
+  path_grants[]
+  network_policy
+  dependency_policy
+  secret_policy
+  resource_limits
+  repair_attempt_limit
+  required_gates[]
+  required_approvals[]
+  long_running_grant?
+  policy_service_subject_ref
+  policy_service_role_ref
+  revocation_snapshot_ref
+
+TaskAuthorizationEnvelopeV1
+  payload: TaskAuthorizationEnvelopePayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=task_authorization_envelope)
+```
 
 OperationはID＋versionのexact allowlistとし、wildcardを禁止する。Networkはdeny_all、Dependencyはno_change、AI TaskのSecretはno_secret_accessを既定とする。Pathはread／write／create／deleteを別に許可し、Process tree、CPU、memory、wall time、child count、output sizeをhard limitにする。
 
@@ -132,7 +142,7 @@ repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、
 
 通常TaskはR0を含め署名必須である。製品内Chat等の連続する読取専用QueryはSession単位のR0 Envelope一つへ束ねてよい。このEnvelopeはread Operation allowlistと有効期限を固定し、Proposal組立へ進む時点で新Taskと新Envelopeを必要とする。署名鍵作成前のBootstrapDiscoveryは通常State machine外に置き、local system情報読取り、Key生成、Public key registry初期化だけを許可する。Provider、Project読取り、Worker、任意Path、Network、変更を許可せず、初期化後に再実行できない。
 
-署名RecordはMirakanSignedRecordV1を使用する。初期ProfileはECDSA P-256／SHA-256、RFC 8785 JCS、P1363固定64 byte、base64url without padding、low-S必須である。unknown field、duplicate key、invalid UTF-8、非有限値、高S、未知／失効／用途不一致／期限外Keyをfail closedで拒否する。秘密鍵は専用Service identityのnon-exportable Key storeへ置き、AI／Workerから分離する。AI Orchestratorにはgeneration_receipt用途専用のService identityとnon-exportable Keyだけを割り当て、この用途KeyをVerification、Approval、Promotion、Release用途へ流用しない。ActorのSecret保持禁止はProvider Credential等の可搬Secretを指し、このnon-exportable署名identityを含まない。
+署名RecordはMirakanSignedRecordV1を使用する。Task Authorization wrapperは`subject_sha256=SHA-256(JCS(payload))`、`signed_record.signer_subject_ref=payload.policy_service_subject_ref`、`signer_role_ref=payload.policy_service_role_ref`、`issued_at=payload.issued_at`、`revocation_snapshot_ref=payload.revocation_snapshot_ref`をbyte equalityにする。初期ProfileはECDSA P-256／SHA-256、RFC 8785 JCS、P1363固定64 byte、base64url without padding、low-S必須である。unknown field、duplicate key、invalid UTF-8、非有限値、高S、未知／失効／用途不一致／期限外Keyをfail closedで拒否する。秘密鍵は専用Service identityのnon-exportable Key storeへ置き、AI／Workerから分離する。AI Orchestratorにはgeneration_receipt用途専用のService identityとnon-exportable Keyだけを割り当て、この用途KeyをVerification、Approval、Promotion、Release用途へ流用しない。ActorのSecret保持禁止はProvider Credential等の可搬Secretを指し、このnon-exportable署名identityを含まない。
 
 Operation Receiptの署名権限は次のclosed `OperationReceiptSignerPolicyV1`だけが与える。
 
@@ -146,7 +156,7 @@ OperationReceiptSignerPolicyV1
   }
 ```
 
-全Fieldはrequired、unknown Fieldは禁止し、entriesは次の14件とexact一致させる。
+このSigner Policy mappingは`planning.operation_family.build_device_play_debug_task`のActivation受入条件であり、current `OperationReceiptSignerPolicyV1.entries[]`、対応Role／Key／purpose集合は空である。`activation.build_gateway.operation_pipeline.v1`が14 Operation、MCD、Manifest、Service allowlist、Receipt、Diagnostic、Validator closureと同じContract set transactionでactivateする場合だけ、全Fieldをrequired、unknown Fieldを禁止し、entriesを次の14件とexact一致させる。表だけ、Roleだけ、Keyだけの先行materializeを禁止する。
 
 | operation_id | execution_authority | signer_role_ref | allowed_signed_record_purpose |
 |---|---|---|---|
@@ -165,7 +175,7 @@ OperationReceiptSignerPolicyV1
 | `operation.task.read_receipt` | `build_gateway_task_service` | `role.operation_receipt.task_read_receipt` | `operation_receipt:operation.task.read_receipt` |
 | `operation.task.cancel` | `build_gateway_task_service` | `role.operation_receipt.task_cancel` | `operation_receipt:operation.task.cancel` |
 
-各`signer_role_ref`は同じ行のpurpose一件だけを許可する。Public key registryの各`key_id`も、その実行Authority subject、exact Signer Role、`allowed_signed_record_purposes[]`が同じ一件だけのsingletonでなければならない。同じServiceが複数Operationを実行してもRoleとnon-exportable KeyをOperationごとに分離し、generic Operation Receipt Role／Keyを作らない。通常Rotationで新旧Keyを重複有効にする場合も、両KeyのAuthority、Role、singleton purposeを同一に保つ。Coreの14行mapping、MCDのexecution Authority、本PolicyのOperation／Role／purposeが一致しないRecordをVerifierは拒否する。
+Activation後、各`signer_role_ref`は同じ行のpurpose一件だけを許可する。Public key registryの各`key_id`も、その実行Authority subject、exact Signer Role、`allowed_signed_record_purposes[]`が同じ一件だけのsingletonでなければならない。同じServiceが複数Operationを実行してもRoleとnon-exportable KeyをOperationごとに分離し、generic Operation Receipt Role／Keyを作らない。通常Rotationで新旧Keyを重複有効にする場合も、両KeyのAuthority、Role、singleton purposeを同一に保つ。Coreの14行mapping、MCDのexecution Authority、本PolicyのOperation／Role／purposeが一致しないRecordをVerifierは拒否する。
 
 鍵期限到来時の通常RotationはSecurity incidentではなく、BootstrapDiscoveryの再実行でもない。信頼済みAuthorityが発行する署名済みKeyRotation Operationとして、新Key生成、Public key registry更新、新旧Keyの重複有効期間の設定、失効リスト配布を行う。重複期間中は新旧両Keyでの検証を許可し、期限後の旧Keyは署名用途から除外する。過去Receiptの検証用に旧公開鍵と失効情報をregistryへ保持し、削除しない。侵害時のKey revocationとclean environment再構築を定期Rotationの代替にしない。
 
@@ -202,7 +212,7 @@ AwaitingUserInputはResolvingRequirements、Running、Validatingからだけ入�
 
 Atomic commit、許可済みlong-running verification、Release transactionのcritical section開始後は、Cancel／Expiryで結果不明のまま終了表示しない。完了、rollback、read-backのいずれかへ収束させる。
 
-本節の15状態はAI Orchestrator TaskのGovernance stateである。[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationTaskV1.state = queued | running | cancel_requested | succeeded | failed | cancelled`は個々のPackage／Device／Play／Debug実行ledgerであり、相互の状態名をaliasにせず、Operation Receiptから親Taskへ結果を投影する。
+本節の15状態はAI Orchestrator TaskのGovernance stateである。Build familyのatomic Activation後、[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)のplanned `OperationTaskV1.state = queued | running | cancel_requested | succeeded | failed | cancelled`は個々のPackage／Device／Play／Debug実行ledgerになり、相互の状態名をaliasにせず、Operation Receiptから親Taskへ結果を投影する。current `OperationTaskV1` instanceは0件である。
 
 ## 4. Risk classとActivation
 
@@ -412,7 +422,7 @@ Source、Asset、User Prompt、Tool output、Web、Issue本文内の命令はcon
 
 Prompt、Tool argument、Tool output、Traceは機密Dataになり得る。既定Telemetryへ本文を保存せず、hash、分類、Resultだけを記録する。Zero Data Retentionが必須のProjectでは非対応Provider機能を無効化し、代替がなければTaskを停止する。Live Web取得は分離したResearch Taskだけで許可し、Build／Release中の自動Web取得を禁止する。
 
-Modelへ公開できるのはProject／Requirement／Capability／System／Worldのbounded Query、plan／validate／preview、ChangeSet submit、Source task request、Patch submitと、[Executable contracts](../02-foundation/executable-contracts.md#20-ai向けdiscovery)に登録されたPackage／Device／Play／Debug／Task OperationのうちCallerのexact allowlistにあるものまでである。Device install／resetはTool表示の有無にかかわらずDevice binding、consent、R3 ApprovalをServer側で再検証する。commit、activate、write native artifact、merge、sign、release、secret.read、policy.overrideを公開しない。
+ModelへOperationとして公開できるのは、current Contract set、Owner Manifest、Trusted Service allowlist、Provider／MCP projection、Callerのexact allowlistが同じ完全登録済みref集合へ一致するものだけである。Project／Requirement／Capability／System／Worldのbounded Query、plan／validate／preview、ChangeSet submit、Source task request、Patch submitという一般名は、登録済みOperation identityを暗黙生成しない。[Executable contracts](../02-foundation/executable-contracts.md) §§20～21.1のPackage／Device／Play／Debug／Taskと回収済みDomain authoring／selectionを含む159候補は未登録・未公開であり、dispatch前に`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返す。Build familyのatomic Activation後もDevice install／resetはTool表示の有無にかかわらずDevice binding、consent、R3 ApprovalをServer側で再検証する。commit、activate、write native artifact、merge、sign、release、secret.read、policy.overrideを公開しない。
 
 MCP annotationをAccess controlにしない。Serverは正本Schema、Authorization、timeout、rate limit、Auditを強制する。local STDIOはACL付きIPCをGatewayへ接続する。Streamable HTTPはexact Host／Transport Conformance Receipt、TLS、認証、origin／redirect／private-address policy、session binding、別Threat ModelとActivationがある場合だけ有効にし、単なるport forwardingを許可しない。`McpSessionGrantV1`は署名済みEnvelopeを代替せず、Grant配下のbounded read／QueryもR0 Envelopeを必要とする。GrantはClientとchannelの束縛だけを追加する。
 
@@ -928,11 +938,13 @@ LocalInferenceRepeatabilityReceiptV1
 
 `McpSessionGrantPayloadV1.expires_at`は`issued_at`から最大60分である。`grant_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:mcp-session-grant:sha256:<lowercase-hex>`として導出し、完成payloadを`role.mcp-session-grant-service`のsingleton-purpose Keyで署名する。signed recordのsubject、issuer subject／Role、issued_at、revocation snapshotをpayloadとexact一致させ、grantのoperation集合はQuery／Proposalだけに制限する。optional Fieldはkind／transportのtagged branchだけで必要条件を閉じ、local binaryをhosted serviceへ捏造またはその逆をしない。`ModelSnapshotProfileV1.model_identity`の固有Fieldは、`provider_model_id`なら`exact_provider_model_id`、`local_weights`ならcurrent `local_model_artifact_manifest_binding`だけを必須にして相互混在を拒否する。Local manifestは全weight shard、config、tokenizer、chat template、special-token map、license、provenanceとencoding branchをhash closureにし、native FP16／BF16へ架空quantizationを要求しない。identity正本はModel Snapshot＋Local manifestだけであり、`InferenceDeploymentProfileV1`へ複写しない。DeploymentとProvider Manifestの`model_snapshot_profile_binding`はschema／logical ID／record／revision／issuance Headをbyte-exact一致させる。`local_process_ipc`ではprocess artifact、`local_weights` Snapshot、認証済みOS IPCまたはloopback、local resource上限をすべて必須にする。Host display name、Provider名、Model family名は表示metadataであり、Transport、Tool Schema、Authorityを推測する入力にしない。
 
+`InferenceDeploymentProfileV1.deployment.model_import_qualification_receipt_ref`は、receipt-freeな`LocalModelArtifactManifestV1`、`LocalInferenceLoaderProfileV1`、process artifactおよびimport fixture closureを先に固定して発行した`ModelImportQualificationReceiptV1`だけを参照する下流policy projectionである。Receipt payload／subjectはDeployment Profile、その`GovernedAiProfileRecordV1`、issuance Head、Binding、またはそれらのhashを含めてはならず、Deployment ProfileをReceipt subjectへ逆参照する循環をValidatorは拒否する。依存順は`local model／loader／process／fixture closure -> ModelImportQualificationReceiptV1 -> InferenceDeploymentProfileV1 -> GovernedAiProfileRecordV1／Head`の一方向だけとする。
+
 `AiCallerContextV1`はGatewayだけが`role.ai-gateway-context-publisher`／singleton purpose `ai_caller_context`で発行する短命signed contextである。`caller_context_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:ai-caller-context:sha256:<lowercase-hex>`として導出し、signed recordのsubject hash、issued_at=`created_at`、revocation snapshotをexact一致させる。`created_at < expires_at`、current Freshness Policyの`record_kind=ai_caller_context`はexact一件かつ`max_age_seconds <= 600`、`expires_at=min(created_at+max_age_seconds, Authorization／当該branchのGrantまたはSession Attestation／全non-null profile・Receiptのexpiry)`を必須にする。各non-null binding、Grant、Conformance Receipt、Authorization Envelopeを発行時とTool実行直前にread-backし、`expires_at <= evaluation_time`、current Head drift、revocation、別Project／subject／channelでは拒否する。
 
 `host_profile_binding.profile_schema_id`は`standard_external_mcp | managed_external_host`で`ExternalClientSecurityProfileV1`、`engine_provider_adapter`で`EngineAiHostSecurityProfileV1`だけを許す。外部2 routeではHost Profileが列挙するcurrent MCP Transport bindingとContextのbindingをbyte-exact一致させる。Engine routeではEngine Hostが列挙するcurrent Provider Runtime bindingとContextを一致させ、MCP Transportを要求または捏造しない。`standard_external_mcp`はProvider Runtime、Provider Manifest、Inference Deployment、Model、Managed Session Attestation、Provider-Tool Conformanceを全てnullとし、MCP initialize由来のProvider／Model名はunattested metadataだけへ隔離する。`managed_external_host`だけはProvider／Model bindingと実行前`ManagedHostSessionAttestationV1` ref／hashを全non-null、同一Host session／tool projectionへ閉じる。`engine_provider_adapter`はProvider Manifestが指すProvider Runtime、Inference Deployment、Model Snapshot、Tool projectionをContextとbyte-exact一致させる。cloud direct APIとfirst-party local IPCは同じEngine routeのDeployment branchであり、MCP Transport Profileを流用しない。branch間Field流用、裸Context、caller自己署名を拒否する。
 
-route別session bindingもclosedにする。`standard_external_mcp`はfresh `McpSessionGrantV1` ref／hashを両non-nullで必須、`engine_provider_adapter`は両方null、`managed_external_host`は両方nullかつ実行前`ManagedHostSessionAttestationV1`を専用Broker session bindingとして必須にする。effective operation集合は常に `route ceiling ∩ current AiAuthorityProfile.allowed_operation_refs[] ∩ signed TaskAuthorizationEnvelope.allowed_operations[] ∩ Server Policy`、standard MCPではさらに`∩ McpSessionGrant.payload.allowed_proposal_operation_refs[]`である。managed routeではSession Attestationの`allowed_task_kinds[]`／authority classも積集合へ加える。いずれかのmissing、tuple差、空でない超過、より強いcaller申告、Profileの`forbidden_authorities[]`欠落をTool公開前と実行直前に拒否する。
+route別session bindingもclosedにする。`standard_external_mcp`はfresh `McpSessionGrantV1` ref／hashを両non-nullで必須、`engine_provider_adapter`は両方null、`managed_external_host`は両方nullかつ実行前`ManagedHostSessionAttestationV1`を専用Broker session bindingとして必須にする。effective operation集合は常に `route ceiling ∩ current AiAuthorityProfile.allowed_operation_refs[] ∩ signed TaskAuthorizationEnvelope.payload.allowed_operations[] ∩ Server Policy`、standard MCPではさらに`∩ McpSessionGrant.payload.allowed_proposal_operation_refs[]`である。managed routeではSession Attestationの`allowed_task_kinds[]`／authority classも積集合へ加える。いずれかのmissing、tuple差、空でない超過、より強いcaller申告、Profileの`forbidden_authorities[]`欠落をTool公開前と実行直前に拒否する。
 
 Attestation条件は因果順に評価する。query／proposal Authorityはpre／post集合を両方empty exact set、managed edit／build Authorityは`required_pre_execution_attestation_kinds=[managed_host_session]`、`required_post_execution_attestation_kinds=[host_execution]` exact setとする。Tool公開前・実行直前はpre集合だけを検査し、処理後にBrokerがtyped resultを得てからHost Execution Attestationを発行する。Staging受入れ、`GenerationReceiptV1`完成、`ManagedHostOutputAcceptanceReceiptV1`発行の各時点ではpre Attestationを再検証したうえでpost集合も必須にする。post Attestationを実行前Contextへ埋め込むこと、post欠落のresultをStagingへ受け入れること、R4判断やCommitをallowlistへ追加することを拒否する。
 
@@ -994,7 +1006,7 @@ Receipt不在、期限切れ、version／binary／Transport／Schema差では`su
 
 `McpTransportSecurityProfileV1`はtransport kindごとの全Fieldをrequiredにし、他branch Fieldをunknownとして拒否する。local STDIOはbinary hash、OS ACL、IPC identity、credential非継承を、Streamable HTTPはexact origin／TLS／MCP OAuth 2.1 Protected Resource Metadata／Authorization Server Metadata／resource indicator／token audience／redirect／private-address／session bindingを、Secure MCP Tunnelはpublic endpointとexact tunnel client artifact、local service binding、direct inbound禁止を検証する。OIDC subjectはOAuth 2.1 branchの補助identity policyであってOAuth authorizationを置換せず、mTLS-onlyはActivation済みprivate service branchに限定する。`approved_private_service`は別Threat Model、service ref／hash、Activation ref／hashがある場合だけ許し、名前がprivate、localhost、tunnelであることを根拠にしない。全branchでexact MCP protocol version、message／timeout／rate／concurrency／session上限を強制する。External Client Host Profileの`supported_transport_profile_bindings[]`は各current完成Governed MCP Transport Profile recordへ解決し、Profile／Transport／Conformanceのexpiry・revocation・hash差で接続前にfail closedにする。Engine Host ProfileはMCP Transportでなくcurrent Provider Runtime bindingを列挙し、Engine build／process artifact／OS／filesystem／network policy差でEngine routeをfail closedにする。
 
-Managed HostのSource edit／Build出力はそれぞれclosed `ManagedSourceEditResultV1`／`ManagedBuildJobResultV1`として保存し、処理完了後の`HostExecutionAttestationV1` ref／hashを`ManagedHostOutputAcceptanceReceiptV1`のrequired Fieldにする。`attestation_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:host-execution-attestation:sha256:<lowercase-hex>`、session attestation IDは同様に`urn:mirakan:managed-host-session-attestation:sha256:<lowercase-hex>`で導出する。flat result objectの`result_id`は同Fieldを除く完成object JCS hashからSource edit=`urn:mirakan:managed-source-edit-result:sha256:<lowercase-hex>`、Build=`urn:mirakan:managed-build-job-result:sha256:<lowercase-hex>`、Acceptance payloadの`receipt_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:managed-host-output-acceptance-receipt:sha256:<lowercase-hex>`として導出する。post-execution payloadのCaller Context、Task Specification、Authorization Envelope、attempt、Input closure、result branchのkind／schema ID／ref／hashはAcceptance Receiptの同名入力とbyte-exactでなければならず、Broker署名とcurrent revocationを検証後にだけStagingへ受理する。completed Buildの`build_receipt_ref/hash`はCore ArchitectureのEngine-owned `PackageReceiptV1`完成wrapperで、operation ID=`operation.build.request_package`、purpose=`operation_receipt:operation.build.request_package`、Build Gateway signer、result=`succeeded`、同じTask Specification／Authorization／Project revision／Candidate／Target／Toolchain／artifact manifestを必須にする。Host／Broker AttestationはprovenanceでありBuild Receiptを代替しない。Receiptは`service.managed-host-output-acceptor`／singleton purpose `managed_host_output_acceptance`で署名する。standard external MCP、Engine Provider Adapter、proposal-only経路はManaged Host Session／Execution Attestationを両方持てず、空Attestation、事前署名result、kindとresult schema不一致、別attempt／別Input Attestationを拒否する。
+Managed HostのSource edit／Build出力はそれぞれclosed `ManagedSourceEditResultV1`／`ManagedBuildJobResultV1`として保存し、処理完了後の`HostExecutionAttestationV1` ref／hashを`ManagedHostOutputAcceptanceReceiptV1`のrequired Fieldにする。`attestation_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:host-execution-attestation:sha256:<lowercase-hex>`、session attestation IDは同様に`urn:mirakan:managed-host-session-attestation:sha256:<lowercase-hex>`で導出する。flat result objectの`result_id`は同Fieldを除く完成object JCS hashからSource edit=`urn:mirakan:managed-source-edit-result:sha256:<lowercase-hex>`、Build=`urn:mirakan:managed-build-job-result:sha256:<lowercase-hex>`、Acceptance payloadの`receipt_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:managed-host-output-acceptance-receipt:sha256:<lowercase-hex>`として導出する。post-execution payloadのCaller Context、Task Specification、Authorization Envelope、attempt、Input closure、result branchのkind／schema ID／ref／hashはAcceptance Receiptの同名入力とbyte-exactでなければならず、Broker署名とcurrent revocationを検証後にだけStagingへ受理する。Build familyとManaged Host routeの双方が将来Activationされた場合だけ、completed Buildの`build_receipt_ref/hash`はCore ArchitectureのEngine-owned `PackageReceiptV1`完成wrapperで、operation ID=`operation.build.request_package`、purpose=`operation_receipt:operation.build.request_package`、Build Gateway signer、result=`succeeded`、同じTask Specification／Authorization／Project revision／Candidate／Target／Toolchain／artifact manifestを必須にする。Host／Broker AttestationはprovenanceでありBuild Receiptを代替しない。Receiptは`service.managed-host-output-acceptor`／singleton purpose `managed_host_output_acceptance`で署名する。standard external MCP、Engine Provider Adapter、proposal-only経路はManaged Host Session／Execution Attestationを両方持てず、空Attestation、事前署名result、kindとresult schema不一致、別attempt／別Input Attestationを拒否する。
 
 ### 8.4 Local inference境界
 
@@ -1049,11 +1061,23 @@ Builder AI、Reviewer AI、Adversarial Test AIは技術承認できない。Engi
 
 SystemTechnicalAttestationV1は次を固定する。
 
-    attestation_id, project_revision, engine_baseline_hash
-    system_contract_ref, system_bundle_hash, implementation_kind
-    capability_scope_hash
-    system_qualification_receipt_hash
-    gate_policy_hash, result, signer_identity, signature
+```text
+SystemTechnicalAttestationPayloadV1
+  attestation_id, project_revision, engine_baseline_hash
+  system_contract_ref, system_bundle_hash, implementation_kind
+  capability_scope_hash
+  system_qualification_receipt_hash
+  gate_policy_hash, result
+  policy_service_subject_ref
+  policy_service_role_ref
+  issued_at
+  revocation_snapshot_ref
+
+SystemTechnicalAttestationV1
+  payload: SystemTechnicalAttestationPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=system_technical_attestation)
+```
 
 implementation_kindは`gameplay_definition | native_game_module | project_shader_module | project_shader_technique | hybrid | target_specialized_set`のclosed setである。`project_shader_module`はS2／S3 Moduleだけ、`project_shader_technique`はS4／S5 Techniqueを含むSystem、`hybrid`はGameplayDefinition、Native、Project Shaderのうち二種類以上を一つのSystem Bundleへ結ぶ場合に使う。SystemTechnicalAttestationV1はEvidence bundleを再掲せず、exactly oneのSystemQualificationReceiptV1をhash参照する。Policy ServiceはReceiptのproject_revision、engine_baseline_hash、system_contract_ref、system_bundle_hash、implementation_kind、capability_scope_hash、gate_policy_hashがAttestation subjectと一致し、resultがpassで、署名用途がsystem_qualificationであり、失効していない場合だけ署名する。
 
@@ -1068,25 +1092,48 @@ SystemQualificationReceiptV1はAuthorization、Approval、Promotion、Activation
 
 FeatureIntegrationAttestationV1は次を固定する。
 
-    feature_id, requirement_ids[]
-    constituent_system_attestation_hashes[]
-    dependency_graph_hash, integration_test_root_hash
-    replay_root_hash, save_replay_impact_hash
-    behavior_budget_receipt_hashes[]
-    result, signer_identity, signature
+```text
+FeatureIntegrationAttestationPayloadV1
+  feature_id, requirement_ids[]
+  constituent_system_attestation_hashes[]
+  dependency_graph_hash, integration_test_root_hash
+  replay_root_hash, save_replay_impact_hash
+  behavior_budget_receipt_hashes[]
+  result
+  policy_service_subject_ref
+  policy_service_role_ref
+  issued_at
+  revocation_snapshot_ref
+
+FeatureIntegrationAttestationV1
+  payload: FeatureIntegrationAttestationPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=feature_integration_attestation)
+```
 
 HumanGameplayApprovalV1は次を固定する。
 
-    approval_id, approval_subject_kind
-    approval_subject_hashes[]
-    base_game_candidate_hash?
-    result_game_candidate_hash
-    covered_change_set_hash
-    approved_requirement_ids[]
-    approved_capability_scope_hash
-    reviewed_replay_ids[], reviewed_target_profiles[]
-    known_limitation_ids[]
-    approver_identity, issued_at, expires_at, signature
+```text
+HumanGameplayApprovalPayloadV1
+  approval_id, approval_subject_kind
+  approval_subject_hashes[]
+  base_game_candidate_hash?
+  result_game_candidate_hash
+  covered_change_set_hash
+  approved_requirement_ids[]
+  approved_capability_scope_hash
+  reviewed_replay_ids[], reviewed_target_profiles[]
+  known_limitation_ids[]
+  approver_subject_ref
+  approver_role_ref
+  issued_at, expires_at
+  revocation_snapshot_ref
+
+HumanGameplayApprovalV1
+  payload: HumanGameplayApprovalPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=human_gameplay_approval)
+```
 
 approval_subject_kindはsystem_bundle、feature_bundle、game_candidateのclosed setである。Approvalは常にresult Game Candidateへ結び付け、別Candidateへ流用しない。
 
@@ -1107,16 +1154,26 @@ Target別Artifact配列はtarget_profile_hashesと同じ順序、同じ件数に
 
 GameActivationReceiptV1は次を固定する。
 
-    activation_id
-    previous_candidate_hash?, activated_candidate_hash
-    human_gameplay_approval_hashes[]
-    approval_coverage_hash, attestation_closure_hash
-    rollback_candidate_hash?, activated_at
-    activation_service_identity, signature
+```text
+GameActivationReceiptPayloadV1
+  activation_id
+  previous_candidate_hash?, activated_candidate_hash
+  human_gameplay_approval_hashes[]
+  approval_coverage_hash, attestation_closure_hash
+  rollback_candidate_hash?, activated_at
+  activation_service_subject_ref
+  activation_service_role_ref
+  revocation_snapshot_ref
+
+GameActivationReceiptV1
+  payload: GameActivationReceiptPayloadV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=game_activation_receipt)
+```
 
 previous_candidate_hashとrollback_candidate_hashは、先行Candidateが存在しない初回Activationだけ省略できる。省略を空hashやplaceholderで表現しない。current pointerが既に存在する場合、Activation Serviceは両Fieldを省略したReceiptの発行を拒否する。初回Activationの起動失敗はlast-known-goodを持たないため、current pointerを未設定へ戻し、該当Candidateを有効化しない。
 
-これらのApproval／Activation構造とAuthorityは本文書が所有する。共通署名Record、Verification／Generation／Review／Promotion Evidence envelope、Receipt hash連結、保持は[AI Verification／Provenance](ai-verification-provenance.md)が所有する。
+これらのApproval／Activation構造とAuthorityは本文書が所有する。五wrapperはinline署名Fieldを持たず、`signed_record.subject_sha256=SHA-256(JCS(payload))`を必須にする。Task Authorization、System Technical、Feature Integrationは各payloadのPolicy Service subject／Role、`issued_at`、revocation snapshot、Human Approvalはapprover subject／Role、`issued_at`、revocation snapshot、Game ActivationはActivation Service subject／Role、`activated_at`、revocation snapshotを`MirakanSignedRecordV1`の対応Fieldとbyte equalityにする。purposeごとにsingleton Role／Key allowlistを分離し、別purposeの有効wrapper、payload signer自己申告、inline algorithm／key／signatureを代用しない。共通署名Record、Verification／Generation／Review／Promotion Evidence envelope、Receipt hash連結、保持は[AI Verification／Provenance](ai-verification-provenance.md)が所有する。
 
 初回制作はAIがGame全体をStagingで完成できる。System技術適格化とFeature統合検証の後、人間にはexact Game Candidate全体を一回提示できる。更新は変更影響Graphから最小System／Feature closureを求めるが、どのApprovalも最終result Candidate hashとRollback先へ結び付ける。
 
@@ -1157,6 +1214,8 @@ CodeOwnerApprovalV1
 ```
 
 `CodeOwnerAssignmentV1`は上記9 Fieldだけを持つclosed subject schemaであり、9 Fieldをすべてrequired、`path_or_module_scope_refs[]`を1件以上の重複なしunsigned byte順、unknown Fieldを拒否とする。`revoked_at`だけがnullableで、Field省略、空文字、sentinel時刻を`null`へ補正しない。このsubjectのcanonical hashを`MirakanSignedRecordV1.subject_sha256`へ束縛し、署名を含む完成Assignment Record hashを参照とrevocation判定に使う。
+
+`qualification_receipt_ref`は、Assignment発行前に固定したsubject identity、Role、training／eligibility evidence、許可Scope種別およびindependence-class closureをsubjectにするQualification Receiptだけを参照する下流projectionである。Qualification Receiptのsubject／payloadは`assignment_id`、具体的な`path_or_module_scope_refs[]`、Assignment subject hash、完成Assignment Record hash、署名、期間、revocation stateを含めてはならず、AssignmentからReceiptへ戻るedgeは存在しない。依存順は`identity／Role／eligibility／independence qualification closure -> Qualification Receipt -> CodeOwnerAssignmentV1 -> MirakanSignedRecordV1`の一方向だけとし、ReceiptからAssignmentまたは署名済みRecordへの逆参照をPolicy Serviceは拒否する。
 
 `CodeOwnerAssignmentV1.role_ref`は`CodeOwnerRoleRegistryV1.role_ref`のexact一件で必須であり、display name、前方一致、ScopeからのRole推測を拒否する。`path_or_module_scope_refs[]`の各refはRole entryの`allowed_scope_kinds[]`の一件に一致し、Native RoleへShader scope、Shader RoleへNative scope、independent reviewerへDiff approvalを与えない。`revoked_at`はField省略を許さないrequired nullableで、`null`だけが未失効を表し、canonical UTC時刻ならその時刻以後revokedである。`valid_from <= evaluation_time < expires_at`かつ`revoked_at=null`の場合だけactiveとし、未来開始、期限切れ、失効を別stateへ推測補正しない。
 
@@ -1235,14 +1294,15 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - Upload Serviceへの未署名Artifact、古いEvidence、別Application／Channel／Version、過剰Role。
 - 未Activation OperationのTool公開または内部成功。
 - 未適格System、未承認Change、別Candidate hashを含むActivation。
-- `operation.build.request_package`後にProject revisionまたはCandidate rootを差し替え、古いTaskを継続する試行。
-- pair済みDeviceを同名の別Deviceまたは新generationへ交換し、古いinstall／launch／reset／remote Debug grantを再利用する試行。
-- Candidate、Target、artifact hashのいずれかが異なるPackage Receiptによるinstall／reset。
-- InstallのPackage Receipt／artifact、LaunchのInstall Receipt／artifact、SmokeのPackage／Install／Launch Receiptまたはfixtureについて、ref／hash／署名／payload contractを一原因ずつ差し替える試行。各後段を副作用前に拒否する。
-- Operation Receipt mapping 14件すべてのpositive fixtureで、exact purpose、subject Operation ID、payload contract、完成Receipt alias、execution Authority、Signer Role、singleton-purpose Keyの同一行bindingと署名成功を確認する。
-- 各positive fixtureをbaseに、別Operation purpose、unknown／generic purpose、別実行AuthorityのKeyをそれぞれ一原因だけ変更し、payloadとsubjectが他は同一でも署名検証を拒否する。`OperationReceiptEnvelopeV1`のOperation IDとpayload型不一致、async 11件の`task_id` missing、sync Control 3件の`control_invocation_id` missing、両ID present、Control対象Task IDのEnvelope `task_id`への流用も一原因ずつ拒否する。
-- consentまたはR3 Approvalなしの`operation.device.install`／`operation.device.reset_data`と、install Approvalをlaunch／smoke／Debugへ権限継承させる試行。
-- Evidence ref不在、別Session／revision、gap隠蔽、reproductionなしの偽`validated_cause`を`operation.debug.validate_finding`へ渡す試行。`diagnostic.debug.finding-evidence-invalid`で拒否する。
+- 以下のBuild／Device／Play／Debug／Task固有fixtureは`activation.build_gateway.operation_pipeline.v1`のatomic Activation受入条件である。current fixtureは14候補すべてをdispatch前に`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Project／Task／Device／export byte不変を検査する。
+- Activation acceptanceでは`operation.build.request_package`後にProject revisionまたはCandidate rootを差し替え、古いTaskを継続する試行を拒否する。
+- Activation acceptanceではpair済みDeviceを同名の別Deviceまたは新generationへ交換し、古いinstall／launch／reset／remote Debug grantを再利用する試行を拒否する。
+- Activation acceptanceではCandidate、Target、artifact hashのいずれかが異なるPackage Receiptによるinstall／resetを拒否する。
+- Activation acceptanceではInstallのPackage Receipt／artifact、LaunchのInstall Receipt／artifact、SmokeのPackage／Install／Launch Receiptまたはfixtureについて、ref／hash／署名／payload contractを一原因ずつ差し替え、各後段を副作用前に拒否する。
+- Build familyのatomic Activation acceptance fixtureでは、Operation Receipt mapping 14件すべてについてexact purpose、subject Operation ID、payload contract、完成Receipt alias、execution Authority、Signer Role、singleton-purpose Keyの同一行bindingと署名成功を確認する。currentでは14件すべてが未materializeであることを確認する。
+- Activation acceptanceでは各positive fixtureをbaseに、別Operation purpose、unknown／generic purpose、別実行AuthorityのKeyをそれぞれ一原因だけ変更し、payloadとsubjectが他は同一でも署名検証を拒否する。`OperationReceiptEnvelopeV1`のOperation IDとpayload型不一致、async 11件の`task_id` missing、sync Control 3件の`control_invocation_id` missing、両ID present、Control対象Task IDのEnvelope `task_id`への流用も一原因ずつ拒否する。
+- Activation acceptanceではconsentまたはR3 Approvalなしの`operation.device.install`／`operation.device.reset_data`と、install Approvalをlaunch／smoke／Debugへ権限継承させる試行を拒否する。
+- Activation acceptanceではEvidence ref不在、別Session／revision、gap隠蔽、reproductionなしの偽`validated_cause`を`operation.debug.validate_finding`へ渡し、`diagnostic.debug.finding-evidence-invalid`で拒否する。
 - 期限切れ／失効／binary hash不一致の`ExternalClientSecurityProfileV1`、Engine build／process／OS policy差の`EngineAiHostSecurityProfileV1`、またはinvalidな`ProviderManifestV1`、`InferenceDeploymentProfileV1`、`ModelSnapshotProfileV1`によるTool／推論呼出し。routeに対するHost schema差、External routeのMCP Transport欠落、Engine routeのnon-null MCP Transport／Grant、Deployment／Provider Manifestの`model_snapshot_profile_binding`差、issuance Head差、local deploymentから`provider_model_id` Snapshot参照、Snapshotのweight shard／encoding branch／license／provenance／Conformance欠落または失効を一原因ずつ拒否する。
 - Caller ContextのFreshness binding欠落、TTL 600秒超過、source expiryを超えるContext、Profile Head更新後のcurrent実行を拒否し、同じ過去Receiptは履歴監査で`authentic_but_stale`として検証できることを確認する。
 - 全routeのTask Attempt chainで、initialのcount非0、repair Reservationのprevious／sequence／count gap、別Task previous、reserved中の二重開始、stale Head、同一Headへの並行CAS、Host／Transport／Grant／Model／Provider／Attempt変更によるcount reset、上限超過、期限前abort、結果ReceiptとReservation差、unsigned latestを一原因ずつ拒否する。standard MCPではProvider／Model／完全responseを`StandardExternalProposalReceiptV1`へ記録またはGeneration Receiptへ捏造しない。
@@ -1260,7 +1320,7 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - R0–R5、A0–A3、Task state、修復停止、Expiry、read-backがPolicy testで強制される。
 - Game制作のTool、Filesystem、Worker、ContextからEngine write経路とEngine sourceが除かれる。
 - API、MCP、CLI、EditorのProposalが同じGatewayとPolicyへ到達する。
-- Package／Device／Play／Debug／Taskの14 Operationが同じ`OperationTaskV1` binding、Receipt、cancel規則へ到達する。
+- Build familyを将来activateする場合、Package／Device／Play／Debug／Taskの14 Operationが同じ`OperationTaskV1` binding、Receipt、cancel規則へ到達する。currentでは全14候補が未materializeである。
 - Host／Transport／Provider runtime／Model snapshot／Tool projection／Authorityが別Profileで評価され、対応表示は有効なConformance Receiptに束縛される。
 - 全routeのrepair countがsigned Reservation／task-scoped current Head、managed routeのpre／post Attestationが因果順で強制され、route変更や再起動でresetされない。
 - Sandbox不能、Baseline mismatch、Capability不足、Credential分離不成立でfail closedになる。

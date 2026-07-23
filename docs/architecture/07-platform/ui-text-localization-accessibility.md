@@ -716,7 +716,7 @@ Natural-language intent／manual edit
 
 `UiAuthoringIntentV1`は対象Screen／HUD、主要flow、情報優先順位、Target、orientation、safe area、入力方式、locale set、UI scale、Accessibility、Visual Style lock、Asset budget、完了条件を持つ。Blocking不足は質問し、High Impactの見た目または情報構造は最大三候補の低cost Previewを提示する。既存のComposite、Style token、Localization、Assetを検索してから新規生成し、同じ意味のWidgetや画像を無制限に複製しない。
 
-AIの成果物は説明文やScreenshotではなく、Stable IDを対象にしたtyped Operationである。新IDはGatewayへ`Create*` Operationで要求し、存在しないWidget、Asset、ViewModel field、Action IDを推測しない。AIは`UiDocument`全置換を既定にせず、目的に必要なNode、Binding、Style、Asset参照だけを変更する。
+AIの成果物は説明文やScreenshotではなく、Stable IDを対象にしたtyped `ProjectChangePrimitiveV1`である。新IDはGatewayへ`Create*` change primitiveで要求し、存在しないWidget、Asset、ViewModel field、Action IDを推測しない。外側の完全登録済みMCD Operationだけがprimitiveをauthorization／publication境界へ運ぶ。AIは`UiDocument`全置換を既定にせず、目的に必要なNode、Binding、Style、Asset参照だけを変更する。
 
 ### 17.2 画像・生成Assetの設定
 

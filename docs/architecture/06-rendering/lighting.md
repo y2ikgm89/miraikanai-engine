@@ -112,7 +112,7 @@ ShadowStyleProfileV1
   preview_fixture_refs[], qualification_policy_ref
 ```
 
-`quality_intent=project_technique`だけが`project_technique_ref`を必須とし、他値では禁止する。`ray_qualified`と`project_technique`はTarget Capabilityとfresh Qualification Receiptを必須とする。`fallback_priority[]`は同Profileの`fallback_refs[]`だけを重複なしで順序付け、未登録fallback、空の必須fallback、Renderer都合のsilent downgradeを拒否する。ResolverはSource refs、Profile、Target、Capability、budget、Qualificationを同一revisionで固定し、Render Graphへexact refだけを渡す。
+`quality_intent=project_technique`だけが`project_technique_ref`を必須とし、他値では禁止する。`ray_qualified`と`project_technique`はTarget Capabilityとfresh Qualification Receiptを必須とする。Source Intent／Style ProfileはReceipt-freeで、Receiptは先に固定したTechnique／Target artifact closureをsubjectにするroot外Activation Bindingからだけ解決し、Intent／Profile hashまたはReceipt subjectへResolved Plan hashを戻さない。`fallback_priority[]`は同Profileの`fallback_refs[]`だけを重複なしで順序付け、未登録fallback、空の必須fallback、Renderer都合のsilent downgradeを拒否する。ResolverはSource refs、Profile、Target、Capability、budget、Qualificationを同一revisionで固定し、Render Graphへexact refだけを渡す。
 
 ### 3.5 Production Lighting Bake／Probe
 
@@ -257,13 +257,13 @@ Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_
 
 ## 7. AI／Editor operation
 
-Lighting operationはcreate light、update physical property、apply lighting intent、bind Source Definition、set shadow intent、preview、explain、validateをDomain actionとして登録する。ApplyはGatewayを通じてProject ChangeSetへ変換し、Runtime componentやRenderer resourceを直接変更しない。
+create light、update physical property、apply lighting intent、bind Source Definition、set shadow intent、preview、explain、validateはStable IDでないDomain planned action vocabularyであり、それ自体はMCD Operationまたはcurrent callable surfaceではない。Lightingの完全IDは次段落の九reserved candidateだけで、current集合は空である。完全登録済みOperation identityはOwner Manifest／MCD／Service equalityでのみ成立し、action名から生成しない。Applyが将来Activationされた場合もGatewayを通じてProject ChangeSetへ変換し、Runtime componentやRenderer resourceを直接変更しない。
 
-read-only resolver／explanationのcanonical IDは`operation.lighting.resolve_intent`／`operation.lighting.explain_plan`である。それぞれ`ResolvedLightPlanV1`／`LightingPlanExplanationV1`を返し、Light Sourceへwriteしない。
+`operation.lighting.resolve_intent`／`operation.lighting.explain_plan`は`planning.operation_family.lighting_discovery`のreserved candidateであり、current canonical IDではない。九候補のcurrent MCD／Manifest／Service／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.lighting.discovery_operations.v1`がfamily全体をatomic activateする場合、それぞれ`ResolvedLightPlanV1`／`LightingPlanExplanationV1`を返し、Light Sourceへwriteしない。
 
-Previewは対象revision、World／Level scope、affected Light Stable IDs、before／after physical values、Renderer compatibility、fallback、diagnosticを表示する。Explainは入力intent、unit conversion、採用candidate、assumption、未解決questionを返す。authorization classとhuman approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決める。
+Activation後のPreviewは対象revision、World／Level scope、affected Light Stable IDs、before／after physical values、Renderer compatibility、fallback、diagnosticを表示する。Explainは入力intent、unit conversion、採用candidate、assumption、未解決questionを返す。authorization classとhuman approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決める。
 
-`SceneLightingSummaryV1`はScene／View Family／Target／Visual Style／EnvironmentのID／version、role／type／importance別Light数、Critical Light、上限／現在値／予測cost／overflow、Shadow tier分布、human lock数、active Diagnostic上位数、詳細取得用Stable ID／continuation tokenだけをboundedに返す。`LightingPlanExplanationV1`はLightごとのIntent fieldからSource fieldへの対応、代替案の棄却理由、予測cost、視覚risk、fallbackで失われるcueを返す。
+Activation後の`SceneLightingSummaryV1`はScene／View Family／Target／Visual Style／EnvironmentのID／version、role／type／importance別Light数、Critical Light、上限／現在値／予測cost／overflow、Shadow tier分布、human lock数、active Diagnostic上位数、詳細取得用Stable ID／continuation tokenだけをboundedに返す。`LightingPlanExplanationV1`はLightごとのIntent fieldからSource fieldへの対応、代替案の棄却理由、予測cost、視覚risk、fallbackで失われるcueを返す。
 
 `LightingChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Light差分、対象Stable IDs、risk、Preview hash、必要Approvalを載せるDomain projectionであり、直接Commitしない。`LightingDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとLight property pathを載せる。`EnvironmentLightingSummaryV1`は[Environment／Surfaces](environment-surfaces.md)、`MaterialReadabilitySummaryV1`は[Materials](materials.md) §8が定義・公開するread-only／revisioned projectionである。`TargetCapabilitySnapshotV1`、`LightingBudgetEnvelopeV1`、`PolicySnapshotV1`もそれぞれのOwnerが公開する同種のprojectionであり、Lightingはいずれの内容も複写または書き戻さない。
 

@@ -126,7 +126,7 @@ Human pointer／keyboard／IME
 
 AI Provider／MCP／CLI
   -> TaskAuthorizationEnvelope
-  -> typed Editor／Authoring Operation
+  -> typed Editor command／Project change primitive
   -> AuthoringCommandGateway
 
 ProjectRevision + EditorUserState
@@ -142,7 +142,7 @@ ProjectRevision + EditorUserState
 
 規則:
 
-- Human、assistive technology、AIは最終的に同じ`EditorCommandId`またはAuthoring Operationへ収束する。
+- Human、assistive technology、AIは最終的に同じ`EditorCommandId`へ収束し、Project Source変更は同じtyped `ProjectChangePrimitiveV1`を完全登録済み外側MCD Operationのnamed inputへ載せる。
 - AIは`PlatformUiEventV1`、screen coordinate、Widget pointer、HWND、UIA providerを操作経路にしない。
 - UIA client actionはSemantic Nodeに対応する登録済みCommandへ変換し、Widget callbackを直接呼ばない。
 - Editor ViewはProject revisionのread projectionであり、Widget stateをProjectへ直接writeしない。
@@ -375,7 +375,7 @@ EditorCommandRequest
   authorization_context
 ```
 
-`source_kind`はhuman、keyboard、accessibility、AI、automation testを区別する。Projectを変更するCommandは必ずAuthoring Operationへ変換し、base revision、Risk、Validation、Approval、Receiptを省略しない。
+`source_kind`はhuman、keyboard、accessibility、AI、automation testを区別する。Projectを変更するCommandは必ずtyped `ProjectChangePrimitiveV1`へ変換し、完全登録済み外側MCD Operationが要求するbase revision、Risk、Validation、Approval、Receiptを省略しない。
 
 Shortcut、menu、toolbar、context menu、Command palette、AI toolは同じ`EditorCommandId`を参照する。Mouse専用Commandを登録しない。
 
@@ -386,7 +386,7 @@ AIへ提供する`EditorContextSnapshotV1`は、選択されたPanelのSemantic 
 - Widget座標、Draw primitive、Font glyph、native handleを含めない。
 - Password、credential、secret、private clipboard、未許可Sourceを含めない。
 - Context byte上限とredaction resultをReceiptへ記録する。
-- AIはControl IDを説明とfocus requestに使用できるが、状態変更はCommand ID／Authoring Operationで行う。
+- AIはControl IDを説明とfocus requestに使用できるが、状態変更はCommand ID／typed `ProjectChangePrimitiveV1`で行う。
 - `EditorContextSnapshotV1`のgenerationが古いProposalを自動実行しない。
 - Debug Panel選択時もraw trace、画面pixel、無制限event列をこのSnapshotへ埋め込まない。Debugging規約のbounded `AiDebugContextV1`を参照し、Session／Query／Evidence ID／recorded revision／gap／redactionを失わない。
 

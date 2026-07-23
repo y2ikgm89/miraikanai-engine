@@ -83,13 +83,22 @@ PackManifestV1
            contribution_content_hash}
   license_ref
   provenance_ref
+
+PackLocalIdentityV1
+  pack_id
+  pack_version
+
+PackContractRefV1
+  pack_id
+  pack_version
+  content_hash
 ```
 
 `pack_id`はPackの論理identity、`pack_version`はSemVer、`content_hash`は自己Fieldを除くcanonical manifestと同梱payloadのcontent identityである。同じ`pack_id`と`pack_version`に異なる`content_hash`を受理しない。全参照は上記version／hashを含むexact identityへ解決し、arrayは参照identityのcanonical orderでserializeする。unknown、missing、duplicate、曖昧な表示名、`latest`の暗黙選択を拒否する。Pack artifactに含まれるOperation、migration step、migration contribution、Validator、test scenarioは一件残らず対応inventoryに列挙し、payload探索や命名prefixで補完しない。
 
-`minimum_engine_contract_ref`は利用可能性の証拠ではない。active TargetでEngine contract、required Capability、Feature Pack closure、Validator、Test、Qualification Receiptがすべて解決して初めてPackを適用できる。
+`minimum_engine_contract_ref`は利用可能性の証拠ではない。active TargetでEngine contract、required Capability、Feature Pack closure、Validator、Test、root外Recipe Activation Bindingが指すQualification Receiptがすべて解決して初めてPackを適用できる。
 
-`validator_refs[]`と`test_scenario_refs[]`はPack artifact内のinventory、identity resolution、owner／hash検査の一覧であり、列挙した全Validator／Fixtureを全Recipe共通の実行gateにしない。Pack installは全recordのschema、owner、version、hashを検証するが、Project apply／Cook／Qualificationの実行gateは選択Recipeの`validator_refs[]`とexact signed `qualification_receipt_refs[]`だけである。Fixture bodyは別owner-typed Qualification recordだけが解決し、Production Recipe／Runtime Packageは解決しない。Manifest inventoryに存在しても未選択Recipe専用Validator／Fixture、その条件Capability、依存Packをactive closureへ追加しない。
+`validator_refs[]`と`test_scenario_refs[]`はPack artifact内のinventory、identity resolution、owner／hash検査の一覧であり、列挙した全Validator／Fixtureを全Recipe共通の実行gateにしない。Pack installは全Receipt-free recordのschema、owner、version、hashを検証するが、Project apply／Cookの実行gateは選択Recipeの`validator_refs[]`とroot外`PackRecipeActivationBindingV1`が指すexact signed Qualification Receiptだけである。Fixture bodyは別owner-typed Qualification subjectだけが解決し、Production Recipe／Runtime Packageは解決しない。Manifest inventoryに存在しても未選択Recipe専用Validator／Fixture、その条件Capability、依存Packをactive closureへ追加しない。
 
 Pack activation transactionは`PackManifestV1.authoring_operation_refs[]`、active MCD Contract set内でownerが当該PackのOperation LocalRef集合、`TrustedServiceLocalRecordV2.allowed_operation_local_refs[]`へ当該Packが寄与する集合の三者をID／versionでset equalityにする。missing／extra／duplicate／wrong kind／stale version／hash、Service allowlistだけのOperation、ManifestだけのOperationを一件でも検出したらset rootを発行しない。Pack removalも同じtransactionで三集合からexact subsetを除去し、別Pack／Coreのallowlistを変更しない。
 
@@ -109,7 +118,7 @@ CompositionRecipeV1
   recipe_id
   recipe_version
   recipe_hash
-  owner_pack_ref
+  owner_pack_local_identity: exact PackLocalIdentityV1
   required_capability_refs[]
   required_feature_pack_refs[]
   configuration_profile_refs[]
@@ -117,14 +126,11 @@ CompositionRecipeV1
   action_role_set_refs[]
   source_template_refs[]
   validator_refs[]
-  qualification_receipt_refs[]:
-    exact {receipt_id, receipt_version, receipt_content_hash}
   fallback_recipe_ref: CompositionRecipeRef | null
 
-PackRecipeQualificationRecordV1
+PackRecipeQualificationSubjectV1
   qualification_id
   qualification_version: positive uint32
-  qualification_content_hash: SHA-256
   owner_pack_ref: exact PackContractRefV1
   recipe_ref/hash: exact CompositionRecipeV1
   target_profile_refs[1..64]
@@ -132,11 +138,43 @@ PackRecipeQualificationRecordV1
     exact {fixture_id, fixture_version, fixture_content_hash}
   input_closure_hash
   result: pass | fail
-  signed_receipt:
+  qualification_subject_hash: SHA-256
+
+PackRecipeQualificationReceiptV1
+  subject: PackRecipeQualificationSubjectV1
+  signed_record:
     exact MirakanSignedRecordV1(purpose=pack_recipe_qualification)
+
+PackRecipeQualificationReceiptRefV1
+  qualification_id
+  qualification_version: positive uint32
+  qualification_subject_hash: SHA-256
+  signed_record_hash: SHA-256
+
+PackRecipeActivationBindingRefV1
+  activation_binding_id
+  activation_binding_version: positive uint32
+  activation_binding_hash: SHA-256
+
+PackRecipeActivationBindingV1
+  activation_binding_id
+  activation_binding_version: positive uint32
+  recipe_ref/hash: exact receipt-free CompositionRecipeV1
+  qualification_receipt_ref: PackRecipeQualificationReceiptRefV1
+  activation_binding_hash: SHA-256
+
+PackRecipeActivationProjectionV1
+  projection_id
+  projection_version: positive uint32
+  selected_recipe_ref/hash: exact receipt-free CompositionRecipeV1
+  recipe_activation_binding_ref: PackRecipeActivationBindingRefV1
+  dependency_closure_ref/hash: exact RecipeDependencyClosureV1
+  projection_hash: SHA-256
 ```
 
-`recipe_hash`は自己Fieldを除くcanonical recordのSHA-256であり、所有Packの`content_hash`へ含める。全arrayはexact identityのcanonical orderとし、unknown、duplicate、self dependency、Genre Pack ref、Project／FixtureへのProduction dependency、version／hash conflictを拒否する。`validator_refs[]`／`qualification_receipt_refs[]`はこのRecipe選択時だけapply／qualification gateになり、別RecipeのPerception、Stage、full-profile Fixture等を要求しない。ProductionはReceiptのsubject／owner／Recipe／Target／result／freshnessだけを検証し、`PackRecipeQualificationRecordV1.fixture_refs[]`を解決しない。`fallback_recipe_ref`は同じowner Pack内のRecipeだけを指し、fallback cycleを拒否する。fallbackは元RecipeのGameplay意味を暗黙変更せず、Projectが明示選択した時だけ別のdependency closureを解決する。
+`recipe_hash`は自己Fieldを除くReceipt-free canonical recordのSHA-256であり、所有Packの`content_hash`へ含める。Recipeの`owner_pack_local_identity`は所有Manifestの`{pack_id,pack_version}`とbyte equalityにし、Pack `content_hash`、`PackContractRefV1`、Qualification Receipt／Bindingを含めない。Recipe、Profile、Template、Pack Manifestのhash preimageへQualification Receipt／Binding／Fixtureを含めない。全arrayはexact identityのcanonical orderとし、unknown、duplicate、self dependency、Genre Pack ref、Project／FixtureへのProduction dependency、version／hash conflictを拒否する。`validator_refs[]`はこのRecipe選択時だけapply gateになり、別RecipeのPerception、Stage、full-profile Fixture等を要求しない。Productionはroot外Activation BindingからReceiptのsubject／owner／Recipe／Target／result／freshnessだけを検証し、`PackRecipeQualificationSubjectV1.fixture_refs[]`を解決しない。`fallback_recipe_ref`は同じowner Pack内のRecipeだけを指し、fallback cycleを拒否する。fallbackは元RecipeのGameplay意味を暗黙変更せず、Projectが明示選択した時だけ別のdependency closureを解決する。
+
+生成順は`Pack local identity → receipt-free CompositionRecipeV1／recipe hash → Pack Manifest content hash → PackContractRefV1／Recipe ref → PackRecipeQualificationSubjectV1 → signed Receipt → PackRecipeActivationBindingV1 → Project-owned Activation projection`である。subject hashはASCII `MIRAKAN_PACK_RECIPE_QUALIFICATION_SUBJECT_V1`、binding hashはASCII `MIRAKAN_PACK_RECIPE_ACTIVATION_BINDING_V1`、projection hashはASCII `MIRAKAN_PACK_RECIPE_ACTIVATION_PROJECTION_V1`と各自己Fieldを除くcount／length-framed canonical bytesから計算する。Subject `owner_pack_ref`のpack ID／versionはRecipe `owner_pack_local_identity`とbyte equality、content hashはそのRecipeをinventoryに含む完成Manifestの`content_hash`とbyte equalityにする。Binding Recipe pairはsubjectとbyte equalityでなければならない。PackContractRefをRecipe hash preimageへ戻さず、Receipt／Binding／ProjectionをRecipe、Profile、Manifest、Pack content hashへ戻さない。owner local ID/version、Pack hash、Recipe、Target、fixture、subject hash、signed hash、binding hashのstaleまたはsubstitutionを各一原因でrejectする。
 
 選択Recipe `R`のeffective Feature closureは、所有Manifestの`required_feature_pack_refs[]`、`R.required_feature_pack_refs[]`、両集合から到達するFeature Pack DAGの和集合である。resolverは次を生成する。
 
@@ -158,7 +196,7 @@ RecipeDependencyClosureV1
 Feature Packは複数Genre／Projectで再利用する次の要素を提供する。
 
 - Public Contract、Component Schema、Game System Spec
-- Validator、Runtime Port、Authoring Operation
+- Validator、Runtime Port、planned authoring action vocabularyまたは完全登録済みMCD Operation ref
 - AI vocabulary、planning recipe
 - Engine-ownedまたはProject-ownedのreference implementation
 - contract fixture、example、counterexample、performance profile

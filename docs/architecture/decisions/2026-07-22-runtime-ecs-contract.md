@@ -15,7 +15,7 @@ Miraikanai Engineは、Engine-ownedのarchetype／SoA／16 KiB chunk ECSをRunti
 
 ECSはEngine全体を置き換えるobject modelではない。ECSが所有するのはPlay中のRuntime Entity identity、Component layout、archetype／chunk、query、access lease、structural transactionだけである。Authoring Document、Asset、System Public Contract、phase順、Subsystem native object、Save schema、Evidence、AI authorizationは既存Ownerが引き続き所有し、ECSはexact referenceとgenerated projectionで接続する。
 
-Public Contractは一つの[Miraikanai Contract Definition（MCD）](../02-foundation/executable-contracts.md)からC++23 module、Native C ABI descriptor、TypeScript、JSON Schema、Provider／MCP schema、Editor metadata、human reference、conformance fixtureを決定論的に生成する。AIは同じContract Graphを読み、live Runtime ECSを直接変更しない。AIによる変更は既存のtyped Authoring Operationと`ProjectChangeSetV1`だけを通る。
+Public Contractは一つの[Miraikanai Contract Definition（MCD）](../02-foundation/executable-contracts.md)からC++23 module、Native C ABI descriptor、TypeScript、JSON Schema、Provider／MCP schema、Editor metadata、human reference、conformance fixtureを決定論的に生成する。AIは同じContract Graphを読み、live Runtime ECSを直接変更しない。AIによる変更は完全登録済み外側MCD Operationのnamed inputへ閉じたtyped `ProjectChangePrimitiveV1`と`ProjectChangeSetV1`だけを通る。
 
 ## 2. 「公式推奨」の意味
 
@@ -75,7 +75,7 @@ ISO C++規格、Microsoft、Unity、Epic、Flecs、EnTTのいずれも、すべ�
 - 1／2／最大workerでauthoritative state digestとCommand／Event順が一致する。
 - structural transactionへのallocation failure、stale handle、競合注入でlive Worldが部分変更されない。
 - C++、TypeScript、JSON Schema、Provider／MCP、human referenceのContract fingerprintが一致する。
-- AI変更経路のRuntime write operation数が0で、`ai_mutable` Authoring fieldのtyped Operation coverageが100%である。
+- AI変更経路のRuntime write operation数が0で、`ai_mutable` Authoring fieldの外側MCD Operation→typed change primitive coverageが100%である。
 
 ### 4.3 非目的
 
@@ -156,7 +156,7 @@ Authoring Entity／Component (StableId, schema field)
 | 動的に発生し得る任意archetype | `RuntimeArchetypePlanV1` | packageにないcomposition／transitionを拒否 |
 | 任意の即時add／remove | `StructuralCommandBatchV1` | phase中APIを公開せず、指定boundaryでatomic commit |
 | Runtime memory dump Save | `SaveReplayContractV1` field projection | raw chunk、padding、handleを永続化しない |
-| live ECS mutation tool | typed Authoring Operation | Runtime用R1／R2 write operationを生成しない |
+| live ECS mutation tool | typed `ProjectChangePrimitiveV1` | Runtime用R1／R2 write operationを生成しない |
 | Asset専用`DerivedArtifactManifest` | tagged subjectを持つ`DerivedArtifactManifestV1` | AssetとWorld Artifactを一つのCatalog規則へ移し、旧readerとsynthetic Asset IDを残さない。released済み旧majorが存在しないため新設名はV1とする |
 | symbolic／`bool` Native ECS descriptor | fixed-width codeの`MirakanNativeEcsColumnViewV1` | C ABIへ`uint32` codeと`abi_version = 1`だけを出す |
 | 全AI channelへ一律MCP grant | AI Securityのsigned `AiCallerContextV1` execution route | MCP grantを`standard_external_mcp`だけへ限定し、Engine Provider／managed Hostは各正本Profile／Attestationを使う |
@@ -342,7 +342,7 @@ RuntimeEntityTemplateV1
 
 Templateのeffective lifetime ownerはInitializer Specのownerであり、identity policyのissuerも同じownerでなければならない。identity policyが`forbidden`のTemplateは`entity_lifetime_save_policy = not_saved`かつ`entity_enablement_save_policy = not_saved`だけを許可し、scopeは二variantから選べる。`optional | required`は`runtime_scope_policy = world_root_runtime`、lifetime `persistent`、enablement `persistent | reset_to_initial`を必須とし、optional Templateのephemeral instanceも同じroot scopeだがSave対象外である。`producer_activation_group`はidentity forbiddenなephemeral instanceだけに許可し、create producerのexecution contextがexact一件のactive groupへ束縛されていなければ拒否する。callerはscopeをoverrideできない。
 
-AuthoringのComposition RecipeまたはGameplay DefinitionはInitializer／TemplateのSourceになれるが、両方ともDerived Artifactである。AI／Editorは直接編集せず、Sourceへのtyped Authoring Operationを提案する。Root／Section内の一回限り初期Entityもexact Initializer Specとresolved parameter hashを持ち、loader専用の抜け道を作らない。`create_entity`が公開できるのはTemplateだけで、Initializer Specを直接spawn APIへ渡せない。
+AuthoringのComposition RecipeまたはGameplay DefinitionはInitializer／TemplateのSourceになれるが、両方ともDerived Artifactである。AI／Editorは直接編集せず、Sourceへのtyped `ProjectChangePrimitiveV1`を提案する。Root／Section内の一回限り初期Entityもexact Initializer Specとresolved parameter hashを持ち、loader専用の抜け道を作らない。`create_entity`が公開できるのはTemplateだけで、Initializer Specを直接spawn APIへ渡せない。
 
 ### 8.4 `RuntimeArchetypePlanV1`
 
@@ -1494,17 +1494,17 @@ Contract compilerは次のnode／edgeを持つread-only graphを生成する。
 
 各edgeはexact Stable ID／Contract ref、version、phase、delivery、required／optional、fallback、evidence refを持つ。自由文だけで関係を表さない。Graph hashはComponent Registry、System dependency graph、State owner table、Access Manifest、Entity Template／Identity Policy set、Archetype Plan、Section Catalog、participant Contract、persistent handoff、Qualification Policyのhash closureであり、AIだけの別Graphを手編集しない。live publication generation／Entity valueはContract Graph hashへ混ぜず、inspect captureがexact Root／Section／publication／tick refで別に束縛する。
 
-### 14.2 Query operation
+### 14.2 Query operation候補（未採用）
 
-製品内Provider／local MCP／managed CLIへ公開するRuntime ECS operationはR0 read-onlyに限定する。
+本Decisionは状態が`ユーザー確認待ち`であり、次の五IDは採用前の提案語彙だけである。[Executable contracts](../02-foundation/executable-contracts.md#212-architecture内operation-tokenのclosed-partition)の`example_pending_or_rejected` classに属し、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`で、dispatchしない。本Decisionが採用されても、別のatomic activation work itemが五件の完全closureを登録するまではcurrentへ自動昇格しない。
 
-| Operation | 入力 | 出力 |
+| proposed non-current ID | 予定入力 | 予定出力 |
 |---|---|---|
 | `operation.runtime_ecs.search` | semantic role、Type、System、phase、Target、qualification | Stable ref候補と選択理由 |
 | `operation.runtime_ecs.describe_contract` | exact Component／System／Query／Archetype／Template／Identity Policy／Root／Section／Participant／Handoff ref、field mask | bounded Contract Graph slice |
 | `operation.runtime_ecs.inspect_capture` | capture ID、tick、Persistent Entity Identityまたはquery ref、field mask | immutable captured values、redacted field、omitted range、provenance |
 | `operation.runtime_ecs.explain_access` | System ref、Component ref、phase | owner、read／write、dependency、conflict、remediation |
-| `operation.runtime_ecs.explain_failure` | diagnostic ID、trace ref | violated invariant、affected owner、safe next Operation |
+| `operation.runtime_ecs.explain_failure` | diagnostic ID、trace ref | violated invariant、affected owner、safe next planned semantic action |
 
 ```text
 RuntimeEcsAiRequestContextV1
@@ -1516,13 +1516,13 @@ RuntimeEcsAiRequestContextV1
     {capture_id, world_generation, tick, capture_content_sha256}
 ```
 
-全OperationはAI SecurityがGateway署名したcurrent `AiCallerContextV1`と、そのContextに束縛された`TaskAuthorizationEnvelope` hashを必須にする。`engine_provider_adapter`、`standard_external_mcp`、`managed_external_host`のpresence／authority／Profile／Freshness規則をそのまま使い、ECS独自channelまたはgrantを発明しない。standard MCPだけが`McpSessionGrantV1`を持ち、managed routeはfresh `ManagedHostSessionAttestationV1`を持つ。現Product Definitionでmanaged edit／buildは`not_activated`であり、このR0 Queryから権限昇格しない。unknown route、branch間Field混在、stale Head、期限切れ／Project不一致grant、Capture binding差をfail closedで拒否する。R0でもTask authorizationなしの製品内Provider、MCP、CLIへ公開しない。
+将来五候補を完全Activationする場合は、AI SecurityがGateway署名したcurrent `AiCallerContextV1`と、そのContextに束縛された`TaskAuthorizationEnvelope` hashを全named inputへ必須にする。`engine_provider_adapter`、`standard_external_mcp`、`managed_external_host`のpresence／authority／Profile／Freshness規則をそのまま使い、ECS独自channelまたはgrantを発明しない。standard MCPだけが`McpSessionGrantV1`を持ち、managed routeはfresh `ManagedHostSessionAttestationV1`を持つ。現Product Definitionでmanaged edit／buildは`not_activated`であり、この提案R0 Queryから権限昇格しない。unknown route、branch間Field混在、stale Head、期限切れ／Project不一致grant、Capture binding差をfail closedにする。現在はR0であっても製品内Provider、MCP、CLIへ公開せず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でstate不変として拒否する。
 
 live `RuntimeEntityHandle`またはlive memoryをAI tool inputにしない。Debug Ownerがphase boundaryでsealしたimmutable captureか、Authoring StableIdとWorld／tick／revisionを必須にする。検索はbounded result、readはfield mask、node／edge／byte上限、omitted range、continuationを持つ。partial responseを完全なWorldとして扱わない。
 
 各MCD Fieldの`sensitivity = public | project_private | restricted | secret`と`ai_exposure_policy_ref`を、Task Authorization、requested field mask、channel固有Policyのintersectionで評価する。`product_internal`はProvider Policy、`local_mcp`はMCP grantのread sensitivity、`managed_cli`はHost／session grantとProvider利用時のProvider Policyを使う。許可外Fieldは`redacted_fields[]`へField IDとreasonを載せ、default値、null、field不存在へ置換しない。`secret`、User text、Credential、native pointer、raw pathをcapture contextへ含めない。redactionまたはomissionでowner／failure判断に必要なFieldが欠ける場合、AIは完全な説明または変更提案へ昇格せず`insufficient_authorized_context`を返す。
 
-R1／R2の`runtime_ecs.create`、`set_component`、`add_component`、memory write operationは生成しない。AIがEntity／Componentを変更する場合は`operation.authoring.search/read`でSourceを確認し、typed Domain Operationを含む`ProjectChangeSetV1`を提案する。Gateway validation、human approval、Cook、次回Playという既存経路を迂回しない。
+R1／R2の`runtime_ecs.create`、`set_component`、`add_component`、memory write operationは生成しない。`operation.authoring.search`／`operation.authoring.read`は現在`planning.operation_family.authoring_discovery`のreserved candidateであり、MCD／Manifest／Service／Tool集合は空、`not_activated`である。将来familyがatomic Activationされた場合だけ、AIはこれらでSourceを確認し、typed `ProjectChangePrimitiveV1`を含む`ProjectChangeSetV1`を提案する。それまでは別名read Toolへfallbackせず`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返す。Gateway validation、human approval、Cook、次回Playという既存経路を迂回しない。
 
 ### 14.3 AI向け生成物
 
