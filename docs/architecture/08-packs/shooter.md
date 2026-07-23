@@ -36,6 +36,8 @@ Shooter Genre Packは次のFeature Packを参照する。各Public Contract、Sc
 
 Feature Capabilityは必要なcomposition recipeだけが選ぶ。たとえばendless Shooter recipeはScenario／Stageを省略でき、tool-like weapon editorはCombat、Encounter、Worldを要求しない。現在の二つのreference fixtureは開始からResultまでの有限Gameを検証するため、表のFeature Pack closureを使用する。
 
+Shooterのenemy targetingは`capability.gameplay.perception`をrequired Capabilityとして参照し、Public ContractとState ownerは[Gameplay Programming Model §2.4](../03-authoring/gameplay-programming-model.md#24-c1-perceptioninteraction)が所有する。Shooterは`PerceptionProfileV1`、`PerceptionSnapshotV1`、Perception memoryを再定義またはwriteしない。
+
 Genre Packは別Genre Packへ依存しない。複数Genreとの合成はGame Projectが行う。
 
 ## 3. Genre composition
@@ -52,7 +54,32 @@ genre.shooter.third_person_3d
   -> Generic Engine Core
 ```
 
-Shooter Packの`PackManifestV1`は`pack_kind=genre`、`required_feature_pack_refs[]`に現在のreference recipeが使うFeature Pack、`composition_recipe_refs[]`に上記二つのGenre recipe、`configuration_profile_refs[]`に対応Profileを記録する。Profileは独立PackではなくShooter Packのversion／hashに含まれる。
+Shooter Packのcanonical manifest recordは次である。表外の`PackManifestV1` Fieldは[Pack Contract](pack-contract.md)どおりexact identityで解決し、Feature契約をpayloadとして内包しない。
+
+```text
+PackManifestV1
+  pack_id: genre.shooter
+  pack_kind: genre
+  required_feature_pack_refs:
+    [feature.combat@1, feature.ranged_combat@1, feature.encounter_spawn@1,
+     feature.scoring@1, feature.pickup_grant@1, feature.interaction@1,
+     feature.character_locomotion@1, feature.path_following@1,
+     feature.scenario_stage@1]
+  required_capability_refs:
+    [capability.gameplay.perception]
+  composition_recipe_refs:
+    [genre.shooter.top_down_2d, genre.shooter.third_person_3d]
+  configuration_profile_refs:
+    [profile.shooter.top_down_2d, profile.shooter.third_person_3d]
+  public_contract_refs:
+    [ShooterPerceptionBindingV1, ShooterGameFlowV1, ShooterActionRoleSetV1]
+  validator_refs:
+    [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
+  test_scenario_refs:
+    [fixture.product.shooter-2d, fixture.product.shooter-arena-3d]
+```
+
+Profileは独立PackではなくShooter Packのversion／hashに含まれる。recipeがScenario／Stageを省略する場合は`feature.scenario_stage@1`もそのrecipe closureから省略できるが、上記reference fixture closureは有限Gameとして全9 Featureを要求する。
 
 composition recipeはFeature Capability、Profile、GameSpec template、Action role、reference scenarioをexact IDで結ぶ。Feature schema、World、Stage、Runtime Scope、Input Action identityをrecipe内で再定義しない。
 
@@ -75,6 +102,20 @@ composition recipeはFeature Capability、Profile、GameSpec template、Action r
 - third-person向けCamera、Audio、LOD configuration
 - 3D collision／animation／VFX／UIへのbinding
 - `fixture.product.shooter-arena-3d`
+
+両Profileのenemy archetype bindingは次のGenre-owned recordを使う。
+
+```text
+ShooterPerceptionBindingV1
+  binding_id
+  enemy_archetype_ref
+  perception_profile_ref
+  hostile_team_filter_ref
+  lost_target_behavior: search_last_known | return_to_route
+  fire_intent_policy_ref
+```
+
+`perception_profile_ref`はPerception ownerのactive `PerceptionProfileV1`へexactに解決し、target selection policyと`hostile_team_filter_ref`の互換性を検証する。`lost_target_behavior`は上記closed enumだけを許可し、`search_last_known`はbounded Perception memory、`return_to_route`はPath Following portのtyped requestだけを読む。`fire_intent_policy_ref`はvisibleまたは記憶済みtarget evidenceから`RequestFireCommandV1`を生成するpolicyへ解決し、target消失後のfire継続条件と最大tick数を明示しなければならない。Render visibility、Camera frustum、Audio mixer、VFX、native Physics objectをtarget／fire authorityにしたbindingを拒否する。
 
 Camera、Audio、LOD Profileのparameter schemaと実行規則は各Subsystem Ownerが所有する。Shooter Profileは参照とGenre固有の組合せだけを所有し、Camera rig、Audio voice、representation selectionをGameplay authorityにしない。
 
@@ -130,16 +171,17 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 ### 8.1 `fixture.product.shooter-2d`
 
-`genre.shooter.top_down_2d`、`profile.shooter.top_down_2d`、Feature Capability closureを使い、ReadyからPlaying、Paused／resume、Result、restartを検証する。Damage／Vital／Faction、Ranged Combat、Encounter／Spawn、Scoring、Pickup／Grant、Interaction、Character Locomotion、Path Following、Scenario／Stageが各Feature OwnerのPublic Contractだけを使用することを確認する。
+`genre.shooter.top_down_2d`、`profile.shooter.top_down_2d`、Feature Capability closureを使い、ReadyからPlaying、Paused／resume、Result、restartを検証する。Damage／Vital／Faction、Ranged Combat、Encounter／Spawn、Scoring、Pickup／Grant、Interaction、Character Locomotion、Path Following、Scenario／Stageが各Feature OwnerのPublic Contractだけを使用することを確認する。Perception境界の出入り、`search_last_known`／`return_to_route`、target消失後のfire-intent停止tickをfixed inputで検証する。
 
 ### 8.2 `fixture.product.shooter-arena-3d`
 
-`genre.shooter.third_person_3d`、`profile.shooter.third_person_3d`、同じFeature Capability semanticsを使い、third-person Camera／Audio／LOD binding、3D locomotion、path following、Save／Load、Replay、Resultまでを検証する。2D fixtureとFeature schemaをforkしない。
+`genre.shooter.third_person_3d`、`profile.shooter.third_person_3d`、同じFeature Capability semanticsを使い、third-person Camera／Audio／LOD binding、3D locomotion、path following、Save／Load、Replay、Resultまでを検証する。target取得／lost-target／fire-intentのEvent sequenceとReplay hashが2Dと同じowner contractに適合することを確認し、Feature schemaをforkしない。
 
 ### 8.3 Negative fixture
 
 - Shooter Packから別Genre Packへのdependencyを拒否する。
 - Feature CapabilityのSchema／State ownerをShooter側で再宣言したrecipeを拒否する。
+- missing／incompatible `PerceptionProfileV1`、unknown lost-target value、unbounded fire-intent継続を拒否する。
 - Shooter role文字列をInput Action identityまたはSave identityにしたProjectを拒否する。
 - Shooter PackなしのFeature-only Projectをvalidとする。
 - Shooter Pack removal後もCore／Editor／AI／Project source／Build／Packageを成功させる。
@@ -282,19 +324,13 @@ ResolverはSource termごとにEvidence Requirement IDとconfidenceを返す。c
 | `operation.shooter.resolve_intent` | R0 | `ShooterIntentResolutionV1` |
 | `operation.shooter.explain_resolution` | R0 | Field、理由、Assumption、代替、Evidence |
 | `operation.shooter.preview_simulation` | R0 | Headless／visual Preview、Cost、Event trace |
-| `operation.shooter.create_weapon` | R1 | `WeaponDefinitionV1` ChangeSet |
-| `operation.shooter.set_fire_mode` | R1 | Fire Mode差分 |
-| `operation.shooter.set_shot_delivery` | R1 | hitscan／Projectile差分 |
-| `operation.shooter.create_shot_pattern` | R1 | Pattern差分とcapacity見積り |
-| `operation.shooter.set_ammo_reload` | R1 | ammo／reload差分とHUD／Save closure |
-| `operation.shooter.set_damage_policy` | R2 | Damage／Team／Vital差分 |
-| `operation.shooter.create_pickup` | R1 | typed Grantとcollection差分 |
-| `operation.shooter.create_encounter` | R2 | Wave／Spawn／Boss phase差分 |
-| `operation.shooter.set_score_rule` | R1 | Score／Combo差分 |
-| `operation.shooter.configure_game_flow` | R1 | Title／Ready／Pause／Result／Restart差分 |
+| `operation.shooter.compose_recipe` | R2 | Feature ref、Profile、Action role、統合fixture binding |
+| `operation.shooter.configure_game_flow` | R1 | Ready／Pause／Result／Restart差分 |
 | `operation.shooter.configure_difficulty` | R2 | 許可軸、fidelity floor、capacity差分 |
 | `operation.shooter.apply_profile` | R2 | Pack／Input／UI／Asset closure |
 | `operation.shooter.propose_native_variant` | R3 | Native Source、Test、capacity evidence、Promotion案 |
+
+Weapon、Fire Mode、Shot、Damage、Vital、Pickup、Encounter、Scoreその他のFeature Source mutationは[Gameplay Feature Packs §9](gameplay-features.md#9-feature-authoring-operation)のFeature owner operationへ委譲する。Shooter operationはFeature contractのFieldを直接writeせず、Feature ChangeSet Receiptをcomposition recipeへbindする。
 
 AI ProviderへC++ pointer、Runtime handle、unbounded projectile list、raw Physics objectを渡さない。Search／Readは必要なCatalog entryとbounded Snapshotだけを返す。
 
@@ -342,7 +378,7 @@ peak_simultaneous_presentation_cue
 | Profile | active combat actor | live projectile | projectile spawn／tick | hitscan query／tick | 目標 |
 |---|---:|---:|---:|---:|---|
 | `profile.shooter.top_down_2d` | 256 | 2,048 | 256 | 128 | 1080p60、authoritative drop 0 |
-| `profile.shooter.tps_single_player` | 50 | 256 | 64 | 128 | 1080p60、authoritative drop 0 |
+| `profile.shooter.third_person_3d` | 50 | 256 | 64 | 128 | 1080p60、authoritative drop 0 |
 
 この個数はProduct上限ではない。Project intentが上回る場合は[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)をProject固有Envelopeから生成する。
 
@@ -356,6 +392,19 @@ Presentation poolだけが不足した場合はcritical cue priorityに従って
 
 ## 15. Qualification closure
 
-Shooter Genre Packは、logical Feature ownerへ保持した全schema、closed enum、境界値、Fire transaction、canonical ordering、State owner、Save／Replay、failureとfixtureを同じPublic Contractで検証する。Packとしてのinstall／apply／update／remove、Project ChangeSet、qualification receiptは[Pack Contract](pack-contract.md)を使い、Capability成熟度と実装順序は[Product Plan](../00-product/product-plan.md)へ委譲する。
+Shooter Genre PackのQualification owner範囲はcomposition recipe、Profile、Game Flow、Action role、`ShooterPerceptionBindingV1`、Shooter統合fixtureに限定する。Feature schema、closed enum、境界値、Fire transaction、canonical ordering、State owner、Save／Replay、failure、Feature contract fixtureの合否は各Feature ownerが発行したQualification Receiptをconsumeし、Shooter側で再所有または再判定しない。
 
-2D top-downとsingle-player TPSは同じWeapon、Projectile、Damage、Vital、Pickup、Score、Save／Replay契約へ適合する。Profile固有のCamera、Input、UI、Audio、VFX、Asset templateは各ownerのschemaを参照し、同じFieldまたは固定値を本Packへ再定義しない。
+Shooter側は2D top-down／third-person 3Dの両fixtureで、required receipt closure、Perception target selection、lost-target behavior、fire-intent policy、Game Flow、Action role、Profile bindingが接続できることだけを検証する。Packとしてのinstall／apply／update／remove、Project ChangeSet、qualification receiptは[Pack Contract](pack-contract.md)を使い、Capability成熟度と実装順序は[Product Plan](../00-product/product-plan.md)へ委譲する。Profile固有のCamera、Input、UI、Audio、VFX、Asset templateは各ownerのschemaを参照し、同じFieldまたは固定値を本Packへ再定義しない。
+
+## 16. Feature identity migration
+
+旧Genre由来のFeature identityはaliasとして残さず、Feature ownerのmigration stepで次のexact identityへclean renameする。旧Save／Replay／fixture参照はmigration receiptへ記録し、AI catalogは旧名からGenre dependencyを推論しない。
+
+| Old identity | New Feature-owned identity |
+|---|---|
+| `ShooterProjectileStateV1` | `RangedProjectileStateV1` |
+| `SpawnShooterProjectileCommandV1` | `SpawnRangedProjectileCommandV1` |
+| `ShooterProjectileSnapshotV1` | `RangedProjectileSnapshotV1` |
+| `fixture.shooter.even-floor` | `fixture.feature.ranged_combat.even_floor` |
+| `fixture.shooter.explicit-offsets` | `fixture.feature.ranged_combat.explicit_offsets` |
+| `MIRAKAN-SHOOTER-{FEATURE_FAILURE}` | owner別`MIRAKAN-FEATURE-*`／`MIRAKAN-RANGED-COMBAT-*`／`MIRAKAN-COMBAT-*`／`MIRAKAN-PICKUP-GRANT-*`／`MIRAKAN-SCORING-*` |

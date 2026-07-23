@@ -30,7 +30,9 @@
 **Files:**
 - Move: `docs/architecture/08-domain-packs/domain-pack-contract.md` → `docs/architecture/08-packs/pack-contract.md`
 - Move: `docs/architecture/08-domain-packs/shooter.md` → `docs/architecture/08-packs/shooter.md`
+- Create: `docs/architecture/08-packs/gameplay-features.md`
 - Create: `docs/architecture/08-packs/scenario-stage.md`
+- Modify: `docs/architecture/06-rendering/world.md`
 - Modify: `docs/architecture/README.md`
 - Modify: `docs/architecture/00-product/product-plan.md`
 - Modify: current files under `docs/plans/` that link to the moved Pack documents

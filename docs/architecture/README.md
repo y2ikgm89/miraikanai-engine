@@ -88,7 +88,7 @@
 | 31 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
 | 32 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |
 | 33 | [LOD](06-rendering/lod.md) | review | representation selection、transition、fallback、LOD semantics |
-| 34 | [World／Scene／Level／Cell](06-rendering/world.md) | review | World composition、partition、streaming plan、transition、map resolution |
+| 34 | [World／Scene／Space／Cell](06-rendering/world.md) | review | World composition、spatial topology、partition、activation、generic transition |
 
 ### 3.8 Platform
 
