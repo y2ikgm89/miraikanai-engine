@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.runtime-performance-capacity
 - 状態: review
-- 正本範囲: 共通CPU／GPU／memory／queue budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、`ProjectScaleEnvelopeV1`、Target別Scale resolution、非破壊遷移、Qualification
+- 正本範囲: 共通CPU／GPU／memory／queue budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、`ProjectScaleEnvelopeV2`、owner-typed workload resolution、非破壊遷移、Qualification
 - 非正本範囲: Runtime phase／tick／lifetime、World cell／coordinate field、LOD policy field、Authoring Document／ChangeSet field、Domain固有budget、外部Tool／SDK／driverの固定値、AI承認、Evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)、[Mobile common](../07-platform/mobile-common.md)
 - 外部根拠検証日: 2026-07-21
@@ -227,55 +227,270 @@ Windows reference environmentのReference hardware構成は次の2構成とし�
 
 Baseline緩和は最適化と別Reviewとし、過去run分布、旧／新値、原因、quality差、下流Capability影響、[AI Security／Approval](../01-governance/ai-security-approval.md)の人間承認を必要とする。Evidence／Receipt構造、Provenance、保持、freshnessは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが決定する。
 
-## 9. Scale modelと`ProjectScaleEnvelopeV1`
+## 9. Owner-typed workload scale modelと`ProjectScaleEnvelopeV2`
 
-Scaleは一つのboolやclassではなく、`world | population | content | authoring | authority`の五axisと数値Envelopeで表す。各axisは次のclosed orderを持つが、Source wire値は文字列enumとしordinal integerを保存しない。
+ScaleはWorldやGameplayの存在を前提にせず、ownerが登録したworkload domainと数値dimensionの集合で表す。UI-only、strict headless、Editor tool、resource service、content-only Projectは、存在しないWorld／Entity／authoritative gameplay用の偽axisやfidelity floorを作らない。World／spatialは選択domainが明示要求する場合だけ追加する。
 
-| axis | closed values |
-|---|---|
-| world | `bounded_level \| explicit_level_graph \| continuous_partitioned \| planetary_or_space` |
-| population | `full_entity \| pooled_or_batched \| simulation_lod \| distributed_simulation` |
-| content | `single_working_set \| incremental_partitioned \| partial_cook_streamed \| distributed_content_service` |
-| authoring | `single_writer \| optimistic_multi_writer \| partition_owned_multi_writer \| federated_repository` |
-| authority | `single_process \| client_server \| sharded_server` |
+```text
+WorkloadDomainTypeRefV1
+  domain_type_id
+  domain_type_version: positive uint32
+  domain_type_content_hash: SHA-256
 
-Network authority variantsは専用仕様、Threat Model、Product activation前は`not_activated`である。local worker、render process、Asset workerはGameplay authorityを持たず`single_process`のままである。
+WorkloadDomainTypeRecordV1
+  domain_type_id
+  domain_type_version: positive uint32
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  authority_class:
+    authoritative_simulation | presentation | ui | tooling | resource_service
+  spatial_requirement: forbidden | optional | required
+  required_intent_kind_refs[0..32]
+  allowed_scale_dimension_refs[1..256]
+  semantic_requirement_mode:
+    authoritative_equivalence | presentation_fidelity |
+    functional_contract | resource_slo | none
+  reference_fixture_refs[1..64]
+  domain_type_content_hash: SHA-256
 
-`ProjectScaleEnvelopeV1`は次のroot contractを持つ。本型の構造定義は本節だけが正本である。
+WorkloadDomainTypeRegistryRefV1
+  registry_id
+  registry_version
+  registry_content_hash
 
-| Field | Contract |
-|---|---|
-| `scale_envelope_id` | UUIDv7 `StableId` |
-| `project_id` | parent Project UUIDv7 |
-| `schema_version` | current `uint32` |
-| `source_revision` | exact `ProjectRevision` |
-| `target_profile_refs` | exact StableId＋revision／hash、1～16 |
-| `world_axis` | closed world axis |
-| `population_axis` | closed population axis |
-| `content_axis` | closed content axis |
-| `authoring_axis` | closed authoring axis |
-| `authority_axis` | closed authority axis |
-| `world_intent_ref` | World Ownerのexact intent ref |
-| `scale_dimension_registry_ref` | active `RuntimeScaleIntentDimensionRegistryV1` exact ref |
-| `runtime_scale_intent_refs` | `RuntimeScaleIntentV1` exact ref set、1件以上 |
-| `content_intent_ref` | Asset lifecycle Ownerのexact intent ref |
-| `authoring_intent_ref` | Project state Ownerのexact intent ref |
-| `authority_intent_ref` | authority intent exact ref |
-| `gameplay_fidelity_floor_refs` | Requirement／Game System exact ref、1件以上 |
-| `integrated_fixture_refs` | Test Scenario exact ref、1件以上 |
-| `decision_refs` | Scale判断を所有するDecision ref set |
+WorkloadDomainTypeRegistryV1
+  registry_id: performance.workload_domain_type.registry.active
+  registry_version
+  records[1..4096]: WorkloadDomainTypeRecordV1
+  registry_content_hash
 
-表示用`scale_class`をSourceへ保存しない。Projectionは五axisとEnvelope hashから`compact_reference | medium_candidate | large_local_candidate | distributed_candidate`を決定的に導出する。Target readinessは[Project State §3.4](../03-authoring/project-state.md#34-target-readiness)の`TargetReadinessV1`をread-only投影し、`state`は`predicted | blocked | qualified`だけ、性能未達の理由は`blocked_reason_ref`だけに置く。Capability activation専用`not_activated`と`optimization_required`をreadiness stateとして投影しない。
+WorkloadDomainIntentV1
+  intent_id: StableId
+  domain_type_ref: WorkloadDomainTypeRefV1
+  owner_definition_ref/hash
+  dimension_values[1..64]: RuntimeScaleIntentDimensionValueV1
+  requirement_refs[0..64]: McdContractRefV1(kind=requirement)
+  equivalence_or_fidelity_policy_refs[0..64]: McdContractRefV1(kind=policy)
+  fixture_refs[1..64]
+  intent_content_hash
 
-C1の同時Entity／population製品Envelopeは現時点で未校正であり、数値を仮定しない。この項目のOwnerは本書、readiness envelopeのOwnerはProject Stateである。Target Profileごとに次の入力が揃うまでは`state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`を返す。
+ProjectScaleEnvelopeV2
+  scale_envelope_id: StableId
+  project_id: StableId
+  schema_version: 2
+  source_revision: exact ProjectRevision
+  target_profile_refs[1..16]
+  workload_domain_registry_ref: WorkloadDomainTypeRegistryRefV1
+  scale_dimension_registry_ref: RuntimeScaleIntentDimensionRegistryRefV1
+  workload_domain_intents[1..64]: WorkloadDomainIntentV1
+  world_intent_ref: exact World owner intent ref | null
+  content_intent_ref: exact Asset owner intent ref | null
+  authoring_intent_ref: exact Project owner intent ref | null
+  authority_intent_ref: exact authority owner intent ref | null
+  integrated_fixture_refs[1..64]
+  decision_refs[0..64]
+  envelope_hash: SHA-256
+```
+
+`WorkloadDomainTypeRefV1`はRecord外の参照形であり、RecordのID／version／`domain_type_content_hash`からmaterializeする。Record hashはASCII `MIRAKAN_WORKLOAD_DOMAIN_TYPE_RECORD_V1`と当該hash Fieldだけを除くcanonical bytesから計算し、Record自身へhash付きRefを埋め戻さない。Domain registry recordは`domain_type_id`／version順、Envelopeのintentはdomain type ID／intent ID順へstrict sortし、duplicate、same-ID different-hash、owner偽装を拒否する。`spatial_requirement=required`のactive domainが一件以上なら`world_intent_ref`を必須、全active domainが`forbidden`ならnullを必須にする。`optional`が一件以上かつ`required`が0件ならnull／non-nullの両方を許すが、non-nullはexact World owner intentへ解決し、当該optional domainのspatial dimension closureへ含めなければならない。`forbidden` domainへspatial dimensionまたはWorld refを結び付けない。content／authoring／authority intentも、`required_intent_kind_refs[]`が対応kindを要求するactive domain recordがある場合だけnon-nullにする。
+
+`semantic_requirement_mode`が`authoritative_equivalence`ならequivalence policy、`presentation_fidelity`ならfidelity policy、`functional_contract`なら機能Requirement、`resource_slo`ならSLO Requirementを1件以上必須にする。`none`は`authority_class=tooling | resource_service`かつDomain recordが明示許可する場合だけ使用し、他branchのpolicy／requirementをcanonical omissionする。全Project共通のGameplay fidelity floorや最低Entity数を置かない。
+
+初期Core registryはbehavior-neutralな`workload.core.authoritative_simulation`、`workload.core.presentation`、`workload.core.ui`、`workload.core.tooling`、`workload.core.resource_service`だけを持つ。World ownerは必要なProjectに`workload.world.spatial`を寄与し、Feature／Genre／Project ownerは自身のdomainを寄与する。CoreはShooter、enemy、vehicle、level、quest、terrain等の語彙を登録しない。Network authority variantsは専用仕様、Threat Model、Product activation前は`not_activated`である。
+
+`envelope_hash`はASCII `MIRAKAN_PROJECT_SCALE_ENVELOPE_V2`と自己Fieldを除く全Fieldのlength-framed canonical bytesから計算する。表示用`scale_class`をSourceへ保存せず、Projectionはdomain closureとEnvelope hashから`compact_reference | medium_candidate | large_local_candidate | distributed_candidate`を決定的に導出する。Target readinessは[Project State §3.4](../03-authoring/project-state.md#34-target-readiness)の`TargetReadinessV1`をread-only投影し、`state`は`predicted | blocked | qualified`だけ、性能未達の理由は`blocked_reason_ref`だけに置く。
+
+旧`ProjectScaleEnvelopeV1`はoffline migration inputだけで、current Source、Editor、AI projection、Compile Manifestへ登録しない。変換は次の完全なMCD Operationで行う。
+
+```text
+ProjectScaleEnvelopeMigrationManifestV1
+  manifest_id: performance.project_scale_envelope.migration.v1_to_v2
+  manifest_version: 1
+  operation_ref: McdContractRefV1(
+    kind=operation,
+    id=operation.performance.migrate_project_scale_envelope_v1_to_v2,
+    version=1, contract_set_hash)
+  input_type_ref: McdContractRefV1(
+    kind=type, id=type.performance.project_scale_envelope_migration_input,
+    version=1, contract_set_hash)
+  output_type_ref: McdContractRefV1(
+    kind=type, id=type.performance.project_scale_envelope_migration_result,
+    version=1, contract_set_hash)
+  receipt_type_ref: McdContractRefV1(
+    kind=type, id=type.performance.project_scale_envelope_migration_receipt,
+    version=1, contract_set_hash)
+  precondition_policy_ref: McdContractRefV1(
+    kind=policy, id=policy.operation.performance.scale_migration.precondition,
+    version=1, contract_set_hash)
+  postcondition_policy_ref: McdContractRefV1(
+    kind=policy, id=policy.operation.performance.scale_migration.postcondition,
+    version=1, contract_set_hash)
+  validator_closure_ref: OperationValidatorClosureRefV1
+  trusted_service_ref: TrustedServiceRefV1(
+    service_id=service.offline_project_migrator, service_version=1,
+    service_content_hash)
+  trusted_service_allowlist_operation_local_refs[1]:
+    ContractSetLocalRefV1(
+      kind=operation,
+      id=operation.performance.migrate_project_scale_envelope_v1_to_v2,
+      version=1)
+  diagnostic_refs[12]: DiagnosticCodeRefV1
+  fixture_refs[4]: exact {fixture_id, fixture_version, fixture_content_hash}
+  manifest_hash: SHA-256
+
+operation.performance.migrate_project_scale_envelope_v1_to_v2@1
+  MCD common envelope:
+    mcd_version=1; kind=operation;
+    id=operation.performance.migrate_project_scale_envelope_v1_to_v2;
+    version=1; status=active;
+    title=Migrate Project Scale Envelope V1 to V2;
+    description=Atomically migrate one legacy five-axis scale envelope
+      through exact owner-typed workload-domain mappings;
+    owners=[owner.core.performance]; requirement_refs=[];
+    rationale_refs=[mirakan.arch.runtime-performance-capacity#9-owner-typed-workload-scale-modelとprojectscaleenvelopev2];
+    since_contract_set=2; supersedes=[];
+    tags=[authoring,migration,performance]
+  operation_kind: command
+  input_type: McdContractRefV1(
+    kind=type, id=type.performance.project_scale_envelope_migration_input,
+    version=1, contract_set_hash)
+  output_type: McdContractRefV1(
+    kind=type, id=type.performance.project_scale_envelope_migration_result,
+    version=1, contract_set_hash)
+  authority: TrustedServiceRefV1(
+    service_id=service.offline_project_migrator, service_version=1,
+    service_content_hash)
+  risk_class: R3
+  side_effects: [authoring]
+  transaction: authoring_changeset
+  idempotency: idempotent_with_key
+  preconditions:
+    [McdContractRefV1(
+      kind=policy,
+      id=policy.operation.performance.scale_migration.precondition,
+      version=1, contract_set_hash)]
+  postconditions:
+    [McdContractRefV1(
+      kind=policy,
+      id=policy.operation.performance.scale_migration.postcondition,
+      version=1, contract_set_hash)]
+  validator_closure_ref:
+    {closure_id=validator_closure.operation.performance.scale_migration,
+     closure_version=1, closure_content_hash}
+  timeout_ms: 120000
+  rate_limit_policy: McdContractRefV1(
+    kind=policy,
+    id=policy.authoring.performance_scale_migration.rate_limit,
+    version=1, contract_set_hash)
+  audit_level: full_redacted
+  provider_exposure: mcp_proposal
+  receipt_type: McdContractRefV1(
+    kind=type, id=type.performance.project_scale_envelope_migration_receipt,
+    version=1, contract_set_hash)
+  errors[12]: exact DiagnosticCodeRefV1 records for
+    diagnostic.conflict.revision_mismatch
+    diagnostic.authorization.denied
+    diagnostic.approval.required
+    diagnostic.authoring.lock_conflict
+    diagnostic.mcd.operation_predicate_invalid
+    diagnostic.operation.timeout
+    diagnostic.operation.rate_limit_exceeded
+    diagnostic.operation.idempotency_key_reuse
+    diagnostic.performance.scale_v1_source_invalid
+    diagnostic.performance.workload_domain_unresolved
+    diagnostic.performance.scale_migration_ambiguous
+    diagnostic.performance.scale_receipt_binding_mismatch
+
+ProjectScaleEnvelopeMigrationInputV1
+  operation_ref
+  before_project_ref
+  request_hash
+  idempotency_key
+  source_envelope_v1_ref/hash
+  source_axis_and_intent_closure_hash
+  destination_domain_registry_ref
+  destination_dimension_registry_ref
+  selected_domain_mapping_refs[1..64]
+  preview_policy_ref
+  validation_policy_ref
+  authorization_ref/hash
+  mutation_authorization_binding: approval
+
+ProjectScaleEnvelopeMigrationResultV1
+  disposition: migrated | rejected
+  migrated:
+    before_project_ref
+    after_project_ref
+    destination_envelope_v2_ref/hash
+    destination_domain_registry_ref/hash
+    destination_dimension_registry_ref/hash
+    preview_receipt_ref/hash
+    validation_receipt_ref/hash
+    atomic_commit_marker_ref/hash
+    migration_receipt_ref/hash
+  rejected:
+    diagnostics[1..12]: DiagnosticCodeRefV1
+
+PreparedProjectScaleEnvelopeMigrationReceiptPayloadV1
+  operation_ref
+  request_hash
+  idempotency_key
+  before_project_ref
+  after_project_ref
+  source_envelope_v1_ref/hash
+  destination_envelope_v2_ref/hash
+  destination_domain_registry_ref/hash
+  destination_dimension_registry_ref/hash
+  selected_domain_mapping_refs[1..64]
+  omitted_legacy_axis_refs[0..5]
+  preview_receipt_payload_ref/hash
+  validation_receipt_payload_ref/hash
+  diagnostics[0..12]: DiagnosticCodeRefV1
+  prepared_payload_hash
+
+ProjectScaleEnvelopeMigrationReceiptV1
+  prepared_payload_ref/hash:
+    PreparedProjectScaleEnvelopeMigrationReceiptPayloadV1
+  atomic_commit_marker_ref/hash
+  signer_identity_ref/hash
+  signature
+  receipt_hash
+```
+
+Domain固有Diagnosticは次のexact Registry recordである。全rowは`diagnostic_version=1`、`message_key="<diagnostic_id>.message"`、self-excluding `diagnostic_content_hash`を持つ。共通八件は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)の同一recordを参照する。
+
+| Diagnostic ID | code | severity／category／retryability |
+|---|---|---|
+| `diagnostic.performance.scale_v1_source_invalid` | `MIRAKAN-PERFORMANCE-SCALE-V1-SOURCE-INVALID` | blocking／schema／after_input |
+| `diagnostic.performance.workload_domain_unresolved` | `MIRAKAN-PERFORMANCE-WORKLOAD-DOMAIN-UNRESOLVED` | blocking／semantic／after_change |
+| `diagnostic.performance.scale_migration_ambiguous` | `MIRAKAN-PERFORMANCE-SCALE-MIGRATION-AMBIGUOUS` | blocking／semantic／after_input |
+| `diagnostic.performance.scale_receipt_binding_mismatch` | `MIRAKAN-PERFORMANCE-SCALE-RECEIPT-BINDING-MISMATCH` | blocking／semantic／after_change |
+
+`validator_closure.operation.performance.scale_migration@1`は次のexact Validator recordで閉じる。各recordはversion 1、実装Artifact ref／hash、表のinput Type LocalRef、表のDiagnostic LocalRef、self-excluding content hashを持つ。
+
+| Validator | input | exact reachable Diagnostic |
+|---|---|---|
+| `validator.operation.request_envelope` | migration input | idempotency key reuse |
+| `validator.operation.authorization` | migration input | authorization denied |
+| `validator.operation.approval` | migration input | approval required |
+| `validator.operation.revision_and_lock` | migration input | revision mismatch; lock conflict |
+| `validator.operation.pure_predicate` | migration input | operation predicate invalid |
+| `validator.operation.timeout_and_rate_limit` | migration input | timeout; rate limit exceeded |
+| `validator.performance.scale_migration_semantics` | migration input | V1 source invalid; workload domain unresolved; migration ambiguous |
+| `validator.performance.scale_migration_postcondition` | postcondition input v2 | Receipt binding mismatch |
+
+pre／post policyはactive pure MCD、rate policyは`scope=project, window_ns=60000000000, max_requests=4, burst=1`とexact rate-limit Diagnostic refを持つ。wrong-kind、stale version／Contract set／content hash、impure policy、Validator Artifact／input／error mismatchをManifest compile前に拒否する。
+
+旧五axisは名前だけで自動変換しない。World axisはWorld Document／intentが実在する場合だけ`workload.world.spatial`、populationは対応owner recordが一意な場合だけそのdomain、content／authoring／authorityは各Owner intentへ解決する。UI-only、headless tool、resource-only fixtureはWorld／Gameplay domain 0件のV2へ変換できなければならない。`fixture.performance.scale-migration.world-project`、`fixture.performance.scale-migration.ui-only`、`fixture.performance.scale-migration.headless-tool`、`fixture.performance.scale-migration.resource-only`はSource→Preview→Validation→Prepared payload→Commit Marker→readback→signed Receipt→reload→Compileを検証し、0件／複数mapping、偽World生成、Gameplay floor捏造、partial migrationをrejectする。Operation `errors[]`、Validator reachable errors、Manifest `diagnostic_refs[]`は上記12件のID／code／version／content hashでset equalityにする。ManifestのOperation LocalRef集合と`service.offline_project_migrator`へのallowlist contributionはexact一件でset equalityとし、同じContract set transactionでService local recordとset rootを再生成する。Prepared payload hashはASCII `MIRAKAN_PREPARED_PROJECT_SCALE_ENVELOPE_MIGRATION_RECEIPT_PAYLOAD_V1`、外側Receipt hashはASCII `MIRAKAN_PROJECT_SCALE_ENVELOPE_MIGRATION_RECEIPT_V1`とPrepared payload ref／hash、Atomic Commit Marker ref／hash、signer／signatureから計算し、Markerへ外側Receiptを含めない。同じidempotency key＋request hashのretryはbyte-identical Result／Receiptを返し、同じkey＋別requestはidempotency reuse errorでSourceを変更しない。
+
+Project固有の同時workload製品Envelopeは現時点で未校正であり、数値を仮定しない。この項目のOwnerは本書、readiness envelopeのOwnerはProject Stateである。Target Profileごとに次の入力が揃うまでは`state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`を返す。
 
 1. CPU世代／core、RAM、storage、GPU／driver、OS、Device generationを固定した実機Target Profile。
-2. `ProjectScaleEnvelopeV1`が参照する全`RuntimeScaleIntentV1`について、owner-typed instance、lifecycle、event、spatial、presentation dimensionのboundを数値化したProject Requirement。
+2. `ProjectScaleEnvelopeV2`が参照する全`WorkloadDomainIntentV1`について、選択domainが登録したinstance、lifecycle、event、spatial、presentation、UI、tool、resource dimensionのboundを数値化したProject Requirement。
 3. その数値を丸めず同時発生させる`IntegratedScaleFixtureV1`とcanonical input trace。
 4. Source、Contract、Toolchain、Target、Device、Quality、Representation Planを束ねた同一`input_closure_hash`。
 5. §8／§13のcorrectness、Replay、memory、hitch、fault、10分×3 run、2時間enduranceを通過したfresh `policy.evidence.target-device.v1` Technical Qualification Receipt。
 
-上記Receiptが同じclosureでfreshな場合だけ`qualified`へ遷移できる。安全なRepresentation Planは作れるが製品Envelopeとは別の小規模入力を測定しただけなら、その小規模入力closureに限り`predicted`または`qualified`を判定し、C1製品Envelope全体へ外挿しない。Mobile commonが所有するbaseline 1280×720等のpixel／render budget表は変更せずTarget Profile入力として保持するが、それ単独でEntity／population readinessを解除しない。
+上記Receiptが同じclosureでfreshな場合だけ`qualified`へ遷移できる。安全なRepresentation Planは作れるが製品Envelopeとは別の小規模入力を測定しただけなら、その小規模入力closureに限り`predicted`または`qualified`を判定し、製品workload closure全体へ外挿しない。Mobile commonが所有するbaseline pixel／render budget表は変更せずTarget Profile入力として保持するが、それ単独で他domainのreadinessを解除しない。
 
 Scale dimensionは次の型付きregistryで所有する。CoreはGenre／object role／event名を列挙せず、Feature Pack、Genre Pack、Projectが自身の語彙を同じcontractへ寄与する。
 
@@ -400,7 +615,7 @@ ProviderへProject Commit、Plan write、Capability activation、baseline緩和�
 
 許可する変更は、Partition Intent／Target追加、同じSourceからのinstance／batch／HLOD／Simulation LOD生成、Asset closure分割、Authoring re-shard、Build work item分割、Target別residency／fallback追加である。Source Stable ID、Save schema、Gameplay authorityを変えず、Derived Planだけを置換する。
 
-禁止する変更は、Large専用Entity typeへのSource一括変換、Medium／Large別Save fork、cell／shard／build／server IDの混同、HLOD／GPU instanceのSave entity化、unqualified planのProduction表示、Medium fallback削除、性能のための無承認Gameplay変更である。
+禁止する変更は、Large専用owner typeへのSource一括変換、Medium／Large別Save fork、cell／shard／build／server IDの混同、HLOD／GPU instanceのSave authoritative record化、unqualified planのProduction表示、Medium fallback削除、性能のための無承認authoritative semantics変更である。
 
 同じSource revisionとinput traceに対するMedium／Large planは、Save field／Stable ID、Input→Command→Event順序、registered runtime-entry／transition outcomeを一致させる。authoritative stateの同値Gateは二層とする。(a) 両planでSimulation LODを適用しないfull fidelity対象entityは、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)の`RuntimeAuthoritativeWorldDigestV1`が定めるtick publish boundaryで採取したentity state hashと、当該entityへ帰属するdeterministic random stream消費を同一tickで一致させる。(b) いずれかのplanでSimulation LODを適用するentityは、[LOD](../06-rendering/lod.md)の`authoritative_equivalence_contract`と`reference_fixture_id`により、active owner schema registryが定めるauthoritative state／event outcome、registered collision／navigation evidence、wake後のstate収束をsemantic同値として判定する。full fidelity対象集合は両planのSimulation LOD適用集合の補集合として決定的に導出し、runごとに変えない。Presentation bitwise一致は不要でも、visual／audio tolerance、critical cue、event timing、fallback Gateを満たす。
 
@@ -414,11 +629,11 @@ fixtureは次を全て満たす。
 
 1. frame、Subsystem、memory、queue、GPU resource、streamingのhard Gate。
 2. registered authoritative create／retire／state／event record drop 0。
-3. Gameplay state、Replay hash、最終count、outcomeがreferenceと一致。
+3. 各workload ownerが登録したauthoritative state／event、functional result、resource SLO、Replay oracleがreferenceと一致。
 4. Presentation degradationがpriority、style、critical cue floorを満たす。
 5. registered lifecycle burst、streaming boundary、presentation-effect burstのP99.9がdeadlineを満たす。
 
-`medium_candidate / qualified`にはProject固有Envelope、exact runtime-entry／World／owner topology closure、Save／Replay／Package、content totalとactive working setの分離、incremental Import／Cook、Target budget、2時間endurance、migration／load、bounded AI edit、last-valid recoveryを必要とする。
+`medium_candidate / qualified`にはProject固有Envelope、exact runtime-entryと選択workload owner closure、必要な場合だけWorld／spatial closure、Save／Replay／Package、content totalとactive working setの分離、incremental Import／Cook、Target budget、2時間endurance、migration／load、bounded AI edit、last-valid recoveryを必要とする。
 
 `large_local_candidate / qualified`にはMedium Gateに加え、利用するLarge Capabilityの専用仕様／Receipt、Project固有traversal／population trace、partition boundary／reference closure／load deadline／memory pressure／recovery、same-source Medium fallback、repartition後のStable ID／Save／Replay、bounded context、incremental／partial Cook同値、10分×3 run、2時間endurance、failure injectionを必要とする。
 
@@ -435,15 +650,15 @@ Distributed qualification Gateは本書でactivationしない。専用Authority�
 | activation dependency不足 | authoritative closure全体をinactiveにする |
 | stale Source／Target／Contract | result破棄、current revisionで再計画 |
 | budget超過 | `state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`。fidelityを自動緩和しない |
-| C1 entity／population Envelope未校正 | `state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`。Target実機fixtureとfresh Receiptまで数値を発明しない |
+| Project workload Envelope未校正 | `state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`。Target実機fixtureとfresh Receiptまで数値を発明しない |
 | Presentation Artifact不足 | approved visual fallback、Gameplay Source維持 |
 | Simulation LOD restore失敗 | Full／last valid fallback、不可能ならactivation拒否 |
 | partial Cook／Package失敗 | last valid package維持 |
 | unactivated Authority | fail closed、意味同等single-process alternativeだけ提示 |
 
-CIはbudget hard limit、loan deadline、queue pressure、§5のqueue表から導出したcommit合計と記載値の不一致、missing metric、SourceへのRuntime／Derived ID、stale plan／Receipt、fidelity floor低下、partial activation、Presentation→Gameplay逆入力、Medium fallback欠落、unactivated Authority公開を拒否する。加えて、C1 entity／population未校正なのに`performance_envelope_unqualified`以外を返すこと、PascalCase readiness、`optimization_required`／`not_activated`のstate混入、`blocked`でreason欠落、fresh Target-device Receiptなしの`qualified`を一原因ずつnegative fixtureで拒否する。
+CIはbudget hard limit、loan deadline、queue pressure、§5のqueue表から導出したcommit合計と記載値の不一致、missing metric、SourceへのRuntime／Derived ID、stale plan／Receipt、owner requirement低下、partial activation、Presentation→authoritative owner逆入力、Medium fallback欠落、unactivated Authority公開を拒否する。加えて、workload未校正なのに`performance_envelope_unqualified`以外を返すこと、PascalCase readiness、`optimization_required`／`not_activated`のstate混入、`blocked`でreason欠落、fresh Target-device Receiptなしの`qualified`を一原因ずつnegative fixtureで拒否する。
 
-本書のcompletionには、共通budget／capacity／backpressureが一意、Envelopeの五axisとroot contractが一意、Domain fieldのowner委譲が明示、same-source transition fixture、bounded explanation、Target qualification、last-valid recoveryが実行可能であることを必要とする。Product Phase順序、Capability maturity、Governance authorization、Evidence envelopeを本書で再定義しない。
+本書のcompletionには、共通budget／capacity／backpressureが一意、`ProjectScaleEnvelopeV2`とowner-typed workload registryが一意、Worldなし／UI-only／headless／tool／resource-only fixtureがvalid、Domain fieldのowner委譲が明示、same-source transition fixture、bounded explanation、Target qualification、last-valid recoveryが実行可能であることを必要とする。Product Phase順序、Capability maturity、Governance authorization、Evidence envelopeを本書で再定義しない。
 
 ## 15. 明示的に採用しないもの
 

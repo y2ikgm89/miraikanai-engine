@@ -180,7 +180,7 @@ RuntimeEntryOperationCatalogRefV1
 
 Operation RegistryのProject owner集合と上記集合はID／version／Contract set hashのset equalityを必須とする。missing／extra／duplicate、wrong kind、stale version／hash、pre／post policyのwrong kind／missing／staleはCatalog materializationを全rejectする。suffixなしalias、自由JSON write、selector／policyをentry本文へ埋め込むOperationを登録しない。
 
-七input typeのexact fieldを次へ固定する。`common`を展開したGenerated schemaは下記のFieldとpresence ruleへ閉じ、`additionalProperties=false`であり、継承やuntyped extensionとして扱わない。`approval_ref`だけはrisk discriminatorに従いR3でrequired、R2でcanonical omissionとする。
+七input typeのexact fieldを次へ固定する。`common`を展開したGenerated schemaは下記のFieldとpresence ruleへ閉じ、`additionalProperties=false`であり、継承やuntyped extensionとして扱わない。状態を変更するR2は署名済みApprovalまたは同Scopeの署名済みPredelegationを厳密に一つ、R3はApprovalを厳密に一つ持つ。どちらもない入力をcanonical omissionとして受理せず`MIRAKAN-APPROVAL-REQUIRED`で拒否する。
 
 ```text
 RuntimeEntryMutationCommonInputV1
@@ -192,7 +192,9 @@ RuntimeEntryMutationCommonInputV1
   preview_policy_ref: McdContractRefV1(kind=policy)
   validation_policy_ref: McdContractRefV1(kind=policy)
   authorization_ref
-  approval_ref: required for R3, absent for R2
+  mutation_authorization_binding:
+    approval: exact approval_ref/hash
+    | predelegated: exact predelegation_ref/hash
 
 type.project.runtime_entry.create_input
   common
@@ -247,17 +249,38 @@ type.project.runtime_entry_activation_policy.update_input
 
 type.project.runtime_entry.migrate_root_scene_input
   common
-  legacy_project_manifest_ref
-  legacy_root_scene_ref
+  migration_plan_ref: RootSceneMigrationPlanRefV1
+
+RootSceneMigrationPlanRefV1
+  plan_id: StableId
+  plan_version: positive uint32
+  plan_hash: SHA-256
+
+RootSceneMigrationPlanV1
+  plan_id: StableId
+  plan_version: positive uint32
+  project_ref: exact {project_id, expected_project_revision, document_set_hash}
+  legacy_project_manifest_ref/hash
+  legacy_root_scene_ref/hash
   legacy_source_closure_hash
   active_target_profile_refs[1..64]
-  world_creation_plan_hash
-  entry_creation_plan_hash
+  document_mutations[4]:
+    world: exact create-or-update payload hash
+    runtime_target_selector: exact create-or-update payload hash
+    runtime_entry_activation_policy: exact create-or-update payload hash
+    runtime_entry: exact create-or-update payload hash
+  stable_id_allocation_intents[4]:
+    exact {document_kind, allocation_scope, relative_path, requested_identity=null}
+  default_entry_bindings[1..64]:
+    exact {target_profile_ref, runtime_entry_plan_local_ref, is_default=true}
+  plan_hash: SHA-256
 ```
 
-全inputの`request_hash`は`SHA-256(ASCII "MIRAKAN_OPERATION_REQUEST_V1" || request_hash自身を除くGenerated input全FieldのMCD canonical bytes)`である。Operation、Project、Preview／Validation policy、authorization／approval refを含め、callerが一部Fieldだけをhashすることを許可しない。create inputは`project_id`、expected Project revision、idempotency key、identity Fieldを持たないpayload draft、draft hash、allocation scope、relative path、selector／policy exact refsを持つ。GatewayがIDを発行し完成payload semantic hashを出力する。update inputはexact current `DocumentRef`、expected Document revision、before content／semantic hashとidentity固定済みafter payloadを持つ。selector create／updateはcanonical Target ref集合、policy create／updateは全closed semantics、migrationはlegacy Source closure ref／hashを持つ。全inputはPreview要求とValidation policy refを必須にし、Gateway発行前のDocument IDをcallerが権威として自己申告できない。
+全inputの`request_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)が所有する`MIRAKAN_OPERATION_REQUEST_V2`の唯一の式をそのまま使い、本書では別式を定義しない。Operation、Project、Preview／Validation policy、authorization、`mutation_authorization_binding`もそのcanonical inputに含まれる。create inputは`project_id`、expected Project revision、idempotency key、identity Fieldを持たないpayload draft、draft hash、allocation scope、relative path、selector／policy exact refsを持つ。GatewayがIDを発行し完成payload semantic hashを出力する。update inputはexact current `DocumentRef`、expected Document revision、before content／semantic hashとidentity固定済みafter payloadを持つ。selector create／updateはcanonical Target ref集合、policy create／updateは全closed semanticsを持つ。
 
-`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけがbefore／after exact Project ref、exact `mutation_receipt_ref/hash`、Preview／Validation／Commit Receipt ref／hashを持つ。`RuntimeEntryMutationReceiptV1.affected_documents[]`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)のdocument-kind tagged unionであり、通常Operationで一件、root migrationでWorld／selector／policy／entryのexact四branchを持つ。WorldはDocument content hashだけ、entry／selector／policyはcontent hashと各Owner固有semantic hashを記録する。rejected branchだけが、選択Operation recordの`errors[]`とValidator reachable error setの双方に存在する四Field `DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、ID／code／version／hashの一部一致、string error、単数Documentへ四件を圧縮したReceiptを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
+root Scene migrationは`RootSceneMigrationPlanV1`だけをpreimageとする。`plan_hash = SHA-256(ASCII "MIRAKAN_ROOT_SCENE_MIGRATION_PLAN_V1" || uint32_be(len(plan bytes excluding plan_hash)) || plan bytes)`であり、`RootSceneMigrationPlanRefV1`は完成recordの`plan_id`／`plan_version`／`plan_hash`から外部materializeする。Record自身へhash付きPlanRefを埋め戻さない。Gatewayはplan-local四Document mutationと四allocation intentを一対一に解決し、別ID、別path、五件目、欠落、Targetごとの暗黙entry追加を行わない。各active Targetは`default_entry_bindings[]`に厳密に一件あり、四Documentの完成ref、allocation mapping、Target→default mappingをPreview、Prepared Candidate、postcondition、Receiptで同一にする。したがってlegacy closure、Plan hash、四allocationのどれかが変われば別requestとなり、部分migrationを公開できない。
+
+`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけがatomic Commit Marker readback後のbefore／after exact Project ref、exact `mutation_receipt_ref/hash`、Preview／Validation／Commit Marker ref／hashを持つ。`RuntimeEntryMutationReceiptV1.affected_documents[]`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)のdocument-kind tagged unionであり、通常Operationで一件、root migrationでWorld／selector／policy／entryのexact四branchを持つ。WorldはDocument content hashだけ、entry／selector／policyはcontent hashと各Owner固有semantic hashを記録する。root migration Receiptはさらにexact `RootSceneMigrationPlanRefV1`と四allocation mappingを持ち、Planとのset／order equalityを必須にする。rejected branchだけが、選択Operation recordの`errors[]`とValidator reachable error setの双方に存在する四Field `DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、ID／code／version／hashの一部一致、string error、単数Documentへ四件を圧縮したReceiptを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
 
 positive fixtureはentry／selector／policy create→save→reload→update→compileの三identity／二hash照合と、root Scene migration四Document tagged unionのatomic resultを検査する。negative fixtureは三箇所のidentity差を各一件、selector ID／version／count／Target exact refの一Fieldだけを変更して旧`selector_hash`を再利用するmutation、payload semantic hash mismatch、Document content hash mismatch、Target count／array length mismatch、self-hash循環を作るpayload、stale revision、selector／policy cross-kind ref、Operation pre／post policyのwrong kind／missing／stale ref、Diagnostic ID／code／version／hash mismatch、部分migrationをそれぞれ単独原因で拒否し、全経路でrevision不変を検査する。
 
@@ -474,16 +497,17 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 4. MCD schema、enum、range、finite、string、StableId、pathを検証する。
 5. 全preconditionとDocument revisionを検証する。
 6. 参照整合、cycle、Capability、Target intersection、Decision invalidation、Domain invariantを検証する。
-7. 変更後aggregateをcopy-on-write stagingへ構築する。
-8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`state=predicted`、現在のPlanでは未達なら`state=blocked`と登録済み`blocked_reason_ref`を結果revisionへ記録する。`qualified`は予測から生成せず、同じ`input_closure_hash`へ束縛されたfresh統合負荷Receiptを照合できた場合だけ維持する。C1 entity／population envelopeが未校正なら`blocked_reason_ref=performance_envelope_unqualified`とする。
-9. Domain dry-runと必要なbackground validation artifactのhashを照合する。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`として記録する。
-10. 変更Document、inverse Operation、manifest、journal recordを同一temporary transaction directoryへ書く。
-11. 全fileをflushし、transaction manifestを最後に原子的renameする。
-12. 新`ProjectRevision = old + 1`とDocument indexを一つのcommit pointでpublishする。
-13. `AuthoringContextIndexV1`の旧revisionをstaleにし、変更Shardと参照closureの更新Jobを発行する。
-14. Projectionへ`ProjectRevisionCommitted` eventを値として配送する。
+7. 変更後aggregateをcopy-on-write stagingへ構築し、`PreparedCandidateRefV1`を確定する。
+8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`state=predicted`、現在のPlanでは未達なら`state=blocked`と登録済み`blocked_reason_ref`を候補revisionへ記録する。`qualified`は予測から生成せず、同じ`input_closure_hash`へ束縛されたfresh統合負荷Receiptを照合できた場合だけ維持する。未校正workload envelopeは`blocked_reason_ref=performance_envelope_unqualified`とする。
+9. Domain dry-runと必要なbackground validation artifactのhashを照合し、Preview／Validation／Domain Receiptの未発行payloadを作る。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`として候補へ記録する。
+10. `PreparedCandidateRefV1`、未発行Receipt payload、予定after stateを束ねた`PreparedCommitEnvelopeV1`を作り、その不変bytesだけへpostcondition v2を評価して`StagedPostconditionReceiptV1`を得る。
+11. 変更Document、inverse Operation、manifest、journal record、全Receipt payload、Commit Marker payloadを同一temporary transaction directoryへ書き、全fileをflushする。
+12. transaction manifestを最後に原子的renameし、after state、Document index、Receipt payload、`AtomicCommitMarkerV1`を一つのcommit pointでpublishする。MarkerなしのstateまたはReceiptは公開済みと見なさない。
+13. Markerをdurable storeからreadbackし、published after-state hash、全Prepared Receipt payload hash、request hash、staged postcondition Receipt hashのexact equalityを確認する。その後にだけPrepared payload ref／hashとMarker ref／hashを束縛した外側signed Domain Receiptを生成し、そのReceipt ref／hashをdomain Resultで返す。
+14. `AuthoringContextIndexV1`の旧revisionをstaleにし、変更Shardと参照closureの更新Jobを発行する。
+15. Projectionへ`ProjectRevisionCommitted` eventを値として配送する。
 
-1～10の失敗はlive stateを変更しない。11以後にProcessが停止した場合、次回起動時にtransaction manifest、file hash、journal recordの三者を検査し、完全なtransactionだけをroll-forwardする。不完全なtemporary directoryは隔離し、勝手に部分復旧しない。
+1～10の失敗はlive stateと公開Receiptを変更しない。11～12でProcessが停止した場合、次回起動時にtransaction manifest、file hash、journal record、Commit Markerの四者を検査し、完全なtransactionだけをroll-forwardする。不完全なtemporary directoryまたはMarkerなしpayloadは隔離後に非公開廃棄し、勝手に部分復旧しない。Markerがdurableだが外側signed Receiptが未保存の場合はExecutable Contracts §8.1の`receipt_materialization_key`とmaterialization policyを使い、Marker／Prepared payload／after stateをread-backしてexact一度だけReceiptをmaterializeする。既存Receiptはbyte equalityで再利用し、別署名、二重Receipt、overwrite、state rollbackを禁止する。postconditionはCommit Markerや公開Receiptを入力にしないため、postcondition↔Commit Receiptの循環を作らない。
 
 ### 5.4 System／World Bundle
 

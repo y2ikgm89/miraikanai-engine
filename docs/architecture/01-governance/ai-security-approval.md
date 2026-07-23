@@ -214,7 +214,7 @@ Riskは変更後の最大影響で決め、AI自己申告で下げない。
 |---|---|---|---|---|
 | R0 | 読取、検索、説明、Report | 可 | 状態変更なし | 不要 |
 | R1 | 文書、非実行Sample、個人Editor layout | 可 | protected branch外かつ全Gate時だけ可 | Owner不要、Gate必須 |
-| R2 | GameSpec、World／Level、Scene、UI、Asset設定、GameplayDefinition、既存System設定 | 可 | 署名済み事前委任内の可逆Operationを、Release候補化されていないProject revisionへ昇格する場合だけ | Author 1名または同等Scopeの事前委任 |
+| R2 | GameSpec、World／Scene／Space／Topology、owner-typed Project Document、UI、Asset設定、GameplayDefinition、既存System設定 | 可 | 署名済み事前委任内の可逆Operationを、Release候補化されていないProject revisionへ昇格する場合だけ | Author 1名または同等Scopeの事前委任 |
 | R3 | Project-defined System、bounded NativeGameModule、Project Shader、互換Schema | 可 | 不可 | G0–G7とPolicy Service署名。開発ProfileではCode owner＋全Gate |
 | R4 | authoritative State owner／Save意味。Engine製品ProfileではEngine core／Extension／Security等 | Project artifact可。Engine sourceはGame制作不可 | 不可 | Project Attestation／Approval。EngineはDomain owner＋独立Reviewer |
 | R5 | merge、tag、sign、Store upload、Production secret、公開Release | Proposalだけ | 禁止 | Human release owner＋分離Pipeline |
@@ -222,6 +222,21 @@ Riskは変更後の最大影響で決め、AI自己申告で下げない。
 Test削除、Assertion緩和、Budget引上げ、Schema制約削除、Approval削除は対象実装と同じか一段高いRiskにする。R5 OperationをModel Tool catalogへ公開しない。
 
 R2事前委任はOperation ID＋version、対象DocumentのStable ID／Shard等のtyped scope、最大件数／byte、適用先Project、有効期限、rollbackを固定し、Save schema、Public API、Asset license、Dependency、Security、課金、公開配布を含めない。R2構造化編集の適用可否は[Project state](../03-authoring/project-state.md)の語彙(Project revision、Staging Candidate、Release候補化の有無)で判定し、Git branchへ依存しない。branch条件はGit連携を有効化したR1文書系とR3以上のSource系だけに適用する。Promotion Serviceは実Diffを再分類し、Envelope超過なら新Authorizationを要求する。
+
+状態変更Operationの認可presenceは次のtagged contractに一意化する。
+
+```text
+MutationAuthorizationBindingV2
+  risk_class: R2 | R3 | R4 | R5
+  authorization_ref/hash
+  authority_evidence:
+    approval:
+      approval_ref/hash
+    | predelegated:
+      predelegation_ref/hash
+```
+
+R2は`approval | predelegated`の厳密に一方を許可し、Predelegationは上記Scope、Operation、Project、期限、上限、rollbackとrequest hashを全てcoverしなければならない。R3～R5は`approval`だけを許可し、`predelegated` branchを拒否する。状態変更で`authority_evidence`欠落、両branch混在、期限切れ、Scope不足、request hash不一致の場合は、Domainにかかわらずexact `DiagnosticCodeRefV1`の`diagnostic.approval.required / MIRAKAN-APPROVAL-REQUIRED`を返す。`authorization_ref`だけ、optional `approval_ref`、空hash、callerの「承認済み」文字列を代用しない。R0／R1 non-mutationは本型自体をcanonical omissionする。
 
 ### 4.2 Activation Gate
 

@@ -147,20 +147,36 @@ MotionIntentContributionBindingRegistryRefV1
   registry_version
   registry_content_hash
 
+MotionIntentContributionBindingRecordRefV1
+  registry_ref: MotionIntentContributionBindingRegistryRefV1
+  proposal_schema_ref: McdContractRefV1(kind=type)
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  record_content_hash
+
 MotionIntentContributionBindingRegistryV1
   registry_id: motion_intent.contribution_binding.registry.active
   registry_version
   registry_content_hash
   records[0..4096]: MotionIntentContributionBindingRecordV1
+
+MotionIntentBindingSelectionDocumentV1
+  common Project Document header
+  selection_id: same StableId as Document header
+  selected_executor_provider_ref: MotionExecutorProviderRecordRefV1
+  selected_binding_record_refs[0..64]:
+    MotionIntentContributionBindingRecordRefV1
+  selection_content_hash: SHA-256
 ```
 
 Coreはこのgeneric schema、registry、resolverだけを所有する。`proposal_payload`はdiscriminator外Fieldをcanonical omissionし、reference branchはexact schema／payload hash、inline branchはbound／canonical value hashを検証する。`proposal_hash`はASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_V1`と自身だけを除く全FieldのMCD canonical bytesを`uint32_be` length framingしてSHA-256する。
 
-recordsは`proposal_schema_ref.id`、version、owner refのcanonical byte順へstrict sortし、duplicate、同じschemaへの複数active adapter、stale owner／policy／fixture hash、Core ownerを偽装するextension recordを拒否する。record hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_RECORD_V1`とself-excluding canonical bytes、Registry hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、自己Fieldを除外する。`MotionIntentContributionBindingRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only／latest fallbackを許可しない。
+recordsは`proposal_schema_ref.id`、version、owner refのcanonical byte順へstrict sortし、duplicate、同じschemaへの複数active adapter、stale owner／policy／fixture hash、Core ownerを偽装するextension recordを拒否する。record hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_RECORD_V1`とself-excluding canonical bytes、Registry hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、自己Fieldを除外する。`MotionIntentContributionBindingRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only／latest fallbackを許可しない。`MotionIntentContributionBindingRecordRefV1`はRegistry三Field、schema ref、owner三Field、record hashを一つにbindし、current Registryからlatest recordを引き直さない。
 
-個別Feature／Genreのproposal schema、adapter policy、binding、positive fixtureは当該Pack ownerが登録し、Core binaryまたはCore fixture inventoryへコピーしない。resolverはcurrent Registry ref、producer schema、selected executor capabilityを入力にexact一件を選び、0件または複数なら推測変換しない。Compile closure、Runtime activation、Save／Replayは選択Record ref／hashとRegistry refを保存し、Registry version／hashがstaleなproposalを再利用しない。
+個別Feature／Genreのproposal schema、adapter policy、binding、positive fixtureは当該Pack ownerが登録し、Core binaryまたはCore fixture inventoryへコピーしない。resolverはcurrent Registry ref、producer schema、selected executor capabilityを入力にexact一件を選び、0件または複数なら推測変換しない。Project Sourceの正本は`MotionIntentBindingSelectionDocumentV1`であり、Registry、resolver output、Runtime lookup tableは派生物である。`operation.navigation.motion_intent_binding.select@1`だけがexpected Project revision、Selection Document ref／before hash、Provider RecordRef、RecordRef集合、Preview／Validation、`MutationAuthorizationBindingV2`のR2 ApprovalまたはPredelegationを受け、Prepared Candidate経由でSourceを変更する。binding欠落、expired、Scope／request hash不一致はexact `diagnostic.approval.required / MIRAKAN-APPROVAL-REQUIRED`で拒否する。Registry reloadはSource selectionから決定的に再materializeし、Registryを直接writeするOperationを公開しない。
 
-Port transportを次へ固定する。これはEventではなく、T40でbinding Systemからselected Providerへ一回だけ配送するbounded Port messageである。
+Compile closureはSelection Document ref／content hash、RegistryRef、全Binding RecordRef、Provider RecordRef、set hashを持つ。Saveは同じselection ref／hashとRecordRef集合、Replay headerはそれらに加えて各tickで実際に使ったRecordRef／proposal hashを記録する。Load／Replay／CompileはSource→Registry→Record→Providerの全ref equalityを再検査し、Registry version／hash、record hash、selection hashがstaleなproposalを再利用しない。`fixture.navigation.motion-intent-binding-roundtrip`はselect→Commit Marker→reload→Compile→Save／Load→Replayを通し、record missing／duplicate／stale Registry／cross-owner／Sourceとderived Registry差を各単独原因でrejectする。
+
+Port transportとgeneric batch publisherをNavigation／Core ownerへ固定する。`game_system.engine.navigation.motion_intent_batch_publisher`はactive Selection DocumentとContribution Registryを読み、全owner contributionをcanonical mergeして、T40でselected Providerへ一回だけ配送する。Character、RTS、board token、Animation等のcontributorは自身のproposalとadapter recordだけを所有し、このpublisher、batch identity、merge orderを所有またはforkしない。これはEventではなくbounded Port messageである。
 
 ```text
 MotionExecutorIntentBatchV1
@@ -248,7 +264,7 @@ owner unionはdiscriminator外Fieldをnullにする。`usage=production`は`engi
 
 accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Followingは`T30`でactor当たり一つだけの`MovementIntentV1`を生成し、selected Motion Executorが`T40`で解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1 reference recipeはPhysics Kinematic Motion Providerを選択できるが、board-token／RTS executor stubはPhysicsなしで同じPortへ接続できる。複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2に留める。
 
-ownerが永続化を要求した場合だけSaveへgoal、request semantic、`executor_capability_ref`、movement profile identity、replan countを保存する。Scope instance keyとSave identityをruntime generationへ置換しない。waypoint index、Nav path point配列、native query handle、Physics stateは保存しない。Loadは保存済みNav generationやpath進捗を信用せず、同じgoalとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、selected executor／profile hash、accepted resolved motion、arrived／stuck／replan Eventを記録する。C1 fixtureは2D enemy seek／attackと3D Navmesh追跡で、goal移動、door閉鎖、stale result、owner scope deactivate、blocked recovery、Save／Load、Replay一致を検証する。
+ownerが永続化を要求した場合だけSaveへdestination intent、request semantic、`executor_capability_ref`、movement profile identity、replan countを保存する。Scope instance keyとSave identityをruntime generationへ置換しない。waypoint index、Nav path point配列、native query handle、Physics stateは保存しない。Loadは保存済みNav generationやpath進捗を信用せず、同じdestination intentとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、selected executor／profile hash、accepted resolved motion、arrived／stuck／replan Eventを記録する。C1 fixtureは2D moving-anchor follow／interaction-range arrival、3D Navmesh追跡、Physicsなしboard-token、PhysicsなしRTS unitを用い、destination移動、passage閉鎖、stale result、owner scope deactivate、blocked recovery、Save／Load、Replay一致を検証する。
 
 ## 5. Authoring、AI、diagnostic、recovery
 

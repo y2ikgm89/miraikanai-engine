@@ -61,28 +61,37 @@ PackManifestV1
   public_contract_refs[]
   component_schema_refs[]
   game_system_spec_refs[]
-  authoring_operation_refs[]
+  authoring_operation_refs[]:
+    McdContractRefV1(kind=operation)
   runtime_port_refs[]
   configuration_profile_refs[]
   composition_recipe_refs[]
   source_template_refs[]
-  validator_refs[]
-  test_scenario_refs[]
+  validator_refs[]:
+    exact {validator_id, validator_version, validator_content_hash}
+  test_scenario_refs[]:
+    exact {fixture_id, fixture_version, fixture_content_hash}
   example_refs[]
   counterexample_refs[]
   ai_vocabulary_refs[]
   ai_planning_recipe_refs[]
   performance_profile_refs[]
-  migration_step_refs[]
+  migration_step_refs[]:
+    exact {migration_id, migration_version, migration_content_hash}
+  migration_contribution_refs[]:
+    exact {registry_id, contribution_id, contribution_version,
+           contribution_content_hash}
   license_ref
   provenance_ref
 ```
 
-`pack_id`はPackの論理identity、`pack_version`はSemVer、`content_hash`は自己Fieldを除くcanonical manifestと同梱payloadのcontent identityである。同じ`pack_id`と`pack_version`に異なる`content_hash`を受理しない。全参照はexact identityへ解決し、arrayは参照identityのcanonical orderでserializeする。unknown、missing、duplicate、曖昧な表示名、`latest`の暗黙選択を拒否する。
+`pack_id`はPackの論理identity、`pack_version`はSemVer、`content_hash`は自己Fieldを除くcanonical manifestと同梱payloadのcontent identityである。同じ`pack_id`と`pack_version`に異なる`content_hash`を受理しない。全参照は上記version／hashを含むexact identityへ解決し、arrayは参照identityのcanonical orderでserializeする。unknown、missing、duplicate、曖昧な表示名、`latest`の暗黙選択を拒否する。Pack artifactに含まれるOperation、migration step、migration contribution、Validator、test scenarioは一件残らず対応inventoryに列挙し、payload探索や命名prefixで補完しない。
 
 `minimum_engine_contract_ref`は利用可能性の証拠ではない。active TargetでEngine contract、required Capability、Feature Pack closure、Validator、Test、Qualification Receiptがすべて解決して初めてPackを適用できる。
 
 `validator_refs[]`と`test_scenario_refs[]`はPack artifact内のinventory、identity resolution、owner／hash検査の一覧であり、列挙した全Validator／Fixtureを全Recipe共通の実行gateにしない。Pack installは全recordのschema、owner、version、hashを検証するが、Project apply／Cook／Qualificationの実行gateは選択Recipeの`validator_refs[]`と`qualification_fixture_refs[]`だけである。Manifest inventoryに存在しても未選択Recipe専用Validator／Fixture、その条件Capability、依存Packをactive closureへ追加しない。
+
+Pack activation transactionは`PackManifestV1.authoring_operation_refs[]`、active MCD Contract set内でownerが当該PackのOperation LocalRef集合、`TrustedServiceLocalRecordV2.allowed_operation_local_refs[]`へ当該Packが寄与する集合の三者をID／versionでset equalityにする。missing／extra／duplicate／wrong kind／stale version／hash、Service allowlistだけのOperation、ManifestだけのOperationを一件でも検出したらset rootを発行しない。Pack removalも同じtransactionで三集合からexact subsetを除去し、別Pack／Coreのallowlistを変更しない。Validator closureのreachable error集合、Manifest Validator inventory、Operation `errors[]`も対応ownerごとにset equalityを検査する。
 
 ### 3.1 `CompositionRecipeV1`
 

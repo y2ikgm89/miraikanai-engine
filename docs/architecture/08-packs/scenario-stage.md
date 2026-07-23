@@ -130,7 +130,11 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 | `public_contract_refs[]` | version／hash付き`StageDefinitionV1; CompletionContractV1; StageRuntimeStateV1; StageTransitionDestinationV2; StageTransitionPolicyV1; StageTransitionRequestV2; StageTransitionContractRefSetV1` |
 | `runtime_port_refs[]` | version／hash付き`StageActivationPortV1; StageTransitionPortV2` |
 | `configuration_profile_refs[]` | `StageContentActivationPolicyV1; StageSaveReplayPolicyV1` |
-| `test_scenario_refs[]` | `fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless; fixture.feature.scenario_stage.aggregate-manifest-set-equality` |
+| `authoring_operation_refs[]` | version／Contract set root付き`operation.scenario_stage.search; operation.scenario_stage.read; operation.scenario_stage.resolve_intent; operation.scenario_stage.create; operation.scenario_stage.update; operation.scenario_stage.preview; operation.scenario_stage.explain_transition` |
+| `validator_refs[]` | version／content hash付き`validator.feature.scenario_stage.v1` |
+| `migration_contribution_refs[]` | version／content hash付き`runtime_scope.migration_contribution.feature.scenario_stage` |
+| `migration_step_refs[]` | version／content hash付き`migration.feature.scenario_stage.level_contract_to_stage_v1` |
+| `test_scenario_refs[]` | version／content hash付き`fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless; fixture.feature.scenario_stage.aggregate-manifest-set-equality; fixture.feature.scenario_stage.runtime_scope_migration` |
 
 `StageActivationPortV1`はStage instance key、source Stage ref、required nullable World ref、content activation policy、optional requested entry anchor、requested Feature System refsを入力し、activation generationまたはtyped failureを返す。World／Scene／Cell handleをPublic APIへ出さない。
 
@@ -154,14 +158,39 @@ StageTransitionContractRefSetV1
 
 `StageTransitionContractRefSetV1`は上記exact 5 Fieldだけを持ち、generic `refs[]`、optional ref、六件目を許可しない。`ref_set_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CONTRACT_REF_SET_V1`、`ref_set_version`、exact 5 refを上記Field順に`uint32_be` length framingしたMCD canonical bytesから計算し、自己Fieldを除外する。duplicate ID、wrong kind／version／Contract set hash、同じIDの別hash、非canonical Fieldを拒否する。
 
+左辺の到達性を単一ownerの名前検索にしない。次のclosure recordが各Ownerのrootから依存edgeをたどってexact五refをmaterializeする。
+
+```text
+StageTransitionCrossOwnerReachableClosureV1
+  stage_owner_root_ref/hash
+  world_owner_root_ref/hash
+  runtime_owner_root_ref/hash
+  owner_subsets:
+    stage:
+      destination_type_ref
+      request_type_ref
+      policy_type_ref
+      transition_port_type_ref
+    world:
+      spatial_destination_type_ref
+    runtime:
+      delivery_phase_contract_ref/hash
+  exact_transition_ref_set: StageTransitionContractRefSetV1
+  owner_validation_receipts[3]:
+    exact {owner_ref, validated_subset_hash, receipt_ref, receipt_hash}
+  closure_hash
+```
+
+Runtime subsetはdelivery phaseを検証するがexact五ref集合へ六件目として入れない。Stage validatorは四Stage refのkind／owner／version、World validatorはspatial refのWorld owner／type semantics、Runtime validatorはPort delivery edgeがT40／boundary contractに適合することを検証する。全三Receiptが同じContract set rootとclosure hashへbindしなければ到達済みと見なさない。
+
 異種inventoryを一つのset equalityへ混ぜず、次のlike-for-like gateを独立に実行する。
 
 | Gate | 左辺 | 右辺 | equality |
 |---|---|---|---|
 | `gate.scenario_stage.public_contract_inventory` | Pack Manifest `public_contract_refs[]` | Stage owner public contract inventory exact 7件 | ID／version／Contract set hashのset equality |
 | `gate.scenario_stage.runtime_port_inventory` | Pack Manifest `runtime_port_refs[]` | Stage owner runtime port inventory exact 2件 | ID／version／Contract set hashのset equality |
-| `gate.scenario_stage.transition_mcd_ref_set` | active MCD Contract setのStage-transition owner refs | `StageTransitionContractRefSetV1` exact 5件 | ID／kind／version／Contract set hashのset equality |
-| `gate.scenario_stage.transition_port_closure` | `StageTransitionPortV2` descriptorから到達するrequest／policy／destination／spatial／port refs | `StageTransitionContractRefSetV1` exact 5件 | reachable set equality |
+| `gate.scenario_stage.transition_mcd_ref_set` | `StageTransitionCrossOwnerReachableClosureV1.exact_transition_ref_set` | `StageTransitionContractRefSetV1` exact 5件 | ID／kind／version／Contract set hashのset equality |
+| `gate.scenario_stage.transition_port_closure` | owner別三Validation Receiptで承認されたStage四ref＋World一ref | `StageTransitionContractRefSetV1` exact 5件 | cross-owner reachable set equality |
 | `gate.scenario_stage.aggregate_projection` | Gameplay Features aggregateのScenario Stage public／runtime refs | Pack Manifestの対応するpublic／runtime refs | 各inventoryを別々にset equality |
 
 各gateは固有Receiptを発行し、五Receipt全部が同じPack content hash、owner revision、Contract set hashへ閉じる場合だけPack apply／Runtime Activationを許可する。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各gateについてmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchを一原因ずつ拒否し、一gateの成功を別inventoryの成功へ読み替えない。

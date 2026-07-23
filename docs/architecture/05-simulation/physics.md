@@ -153,7 +153,8 @@ PhysicsIntentRoleRefV1
   role_content_hash: SHA-256
 
 PhysicsIntentRoleRecordV1
-  role_ref: PhysicsIntentRoleRefV1
+  role_id
+  role_version: uint32
   owner_ref: exact {owner_id, owner_revision, owner_content_hash}
   status: active | reserved_unsupported | removed
   allowed_motion_authorities[1..5]
@@ -163,6 +164,7 @@ PhysicsIntentRoleRecordV1
   allowed_speed_policies[1..4]
   required_capability_refs[0..32]
   fixture_refs[1..64]
+  role_content_hash: SHA-256
 
 PhysicsIntentRoleRegistryRefV1
   registry_id
@@ -174,11 +176,32 @@ PhysicsIntentRoleRegistryV1
   registry_version
   registry_content_hash
   records[1..4096]: PhysicsIntentRoleRecordV1
+
+PhysicsIntentRoleSelectionDocumentV1
+  common Project Document header
+  selection_id: same StableId as Document header
+  subject_definition_ref/hash
+  selected_role_ref: PhysicsIntentRoleRefV1
+  selected_axis_closure_hash
+  selection_content_hash
 ```
 
-Core初期roleはbehavior-neutralな`role.physics.static_environment`、`role.physics.dynamic_body`、`role.physics.kinematic_body`、`role.physics.sensor`、`role.physics.query_subject`、`role.physics.presentation_proxy`だけである。recordsはrole ID／version／content hash順へstrict sortし、exact duplicate、同一ID／versionの別content hash、同じrole IDのactive record複数、owner namespace偽装、非canonical orderを拒否する。`role_content_hash`はASCII `MIRAKAN_PHYSICS_INTENT_ROLE_RECORD_V1`と、当該hash Fieldだけを除くRecord canonical MCD bytesを`uint32_be` length framingしてSHA-256する。Registry hashはASCII `MIRAKAN_PHYSICS_INTENT_ROLE_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、`registry_content_hash`自身を除外する。`PhysicsIntentRoleRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only、latest version、hash fallbackを許可しない。
+Core初期roleは次のbehavior-neutralなexact六recordだけである。全Refはversion 1、全ownerは`owner.core.physics`のexact revision／content hash、Capabilityとfixtureはversion／Contract set rootまたはcontent hash付きで保存する。
+
+| role ID | allowed motion | allowed collision | allowed hit | allowed shape | allowed speed | required Capability | fixture |
+|---|---|---|---|---|---|---|---|
+| `role.physics.static_environment` | `static` | `solid_block; query_only` | `solver_contact; swept_shape_query; overlap_query; none` | `primitive; compound_primitive; convex; static_triangle_mesh; heightfield; tile_chain_2d` | `discrete` | `capability.simulation.collision` | `fixture.physics.intent-role.static-environment` |
+| `role.physics.dynamic_body` | `dynamic_solver` | `solid_block; sensor_notify` | `solver_contact; sensor_event; none` | `primitive; compound_primitive; convex` | `discrete; continuous_body` | `capability.simulation.physics_dynamics` | `fixture.physics.intent-role.dynamic-body` |
+| `role.physics.kinematic_body` | `kinematic_target` | `solid_block; sensor_notify` | `solver_contact; sensor_event; swept_shape_query; none` | `primitive; compound_primitive; convex` | `discrete; authoritative_sweep; teleport` | `capability.simulation.collision` | `fixture.physics.intent-role.kinematic-body` |
+| `role.physics.sensor` | `static; kinematic_target` | `sensor_notify` | `sensor_event; overlap_query; none` | `primitive; compound_primitive; convex; tile_chain_2d` | `discrete; teleport` | `capability.simulation.collision_query` | `fixture.physics.intent-role.sensor` |
+| `role.physics.query_subject` | `query_driven` | `query_only` | `swept_shape_query; overlap_query; gameplay_rule; none` | `primitive; compound_primitive; convex; tile_chain_2d` | `discrete; authoritative_sweep; teleport` | `capability.simulation.collision_query` | `fixture.physics.intent-role.query-subject` |
+| `role.physics.presentation_proxy` | `presentation_only` | `none` | `none` | `none` | `discrete; teleport` | `capability.presentation.transform_proxy` | `fixture.physics.intent-role.presentation-proxy` |
+
+recordsはrole ID／version順へstrict sortし、exact duplicate、同一ID／versionの別content hash、同じrole IDのactive record複数、owner namespace偽装、非canonical orderを拒否する。`role_content_hash`はASCII `MIRAKAN_PHYSICS_INTENT_ROLE_RECORD_V1`と、当該hash Fieldだけを除くRecord canonical MCD bytesを`uint32_be` length framingしてSHA-256する。Recordはhashを含まないidentity Fieldをpreimageに持ち、外部`PhysicsIntentRoleRefV1`をrecord内へ埋め戻さない。Registry hashはASCII `MIRAKAN_PHYSICS_INTENT_ROLE_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、`registry_content_hash`自身を除外する。`PhysicsIntentRoleRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only、latest version、hash fallbackを許可しない。
 
 Pack／Projectはowner namespace、exact Capability、axis compatibility、fixtureを持つrecordを下向きに登録できる。object vocabulary、具体例、default mappingはcontributorが所有し、Core resolver、Core vocabulary、Core fixture inventoryへコピーしない。role refは候補検索を助ける分類であり、motion／collision／hit／shape／speed各axisの検証を省略または上書きしない。
+
+Project Sourceの選択正本は`PhysicsIntentRoleSelectionDocumentV1`であり、RegistryとResolutionは派生である。`operation.physics.intent_role.select@1`だけがexpected Project revision、Selection Document before ref／hash、subject definition、Role Registry ref、selected RoleRef、五axis closure、Preview／Validation、`MutationAuthorizationBindingV2`のR2 ApprovalまたはPredelegationを受け、Prepared Candidate経由で変更する。binding欠落、expired、Scope／request hash不一致はexact `diagnostic.approval.required / MIRAKAN-APPROVAL-REQUIRED`で拒否する。Compile closure、Save、ReplayはSelection Document ref／hash、RegistryRef、RoleRef、axis closure hashを保存し、reload時にSource→Registry→record→Capability／fixtureを再検査する。
 
 `PhysicsIntentResolutionV1`のmandatory schemaは次である。fieldの省略、任意propertyの追加、closed value以外の文字列を拒否する。
 
@@ -221,7 +244,220 @@ role以外のclosed semantic axisを次へ固定する。一つのResolutionは�
 | `PhysicsShapeStrategyV1` | `primitive \| compound_primitive \| convex \| static_triangle_mesh \| heightfield \| tile_chain_2d \| none` |
 | `PhysicsSpeedPolicyV1` | `discrete \| continuous_body \| authoritative_sweep \| teleport` |
 
-旧`GameplayPhysicsRoleV1` enumはoffline migration inputだけである。`PhysicsIntentRoleMigrationReceiptV1`はsource enum value／schema ref／hash、active `PhysicsIntentRoleRegistryRefV1`、selected owner contribution ref／hashまたはCore role ref、before／after Project ref、axis closure hash、Preview／Validation／Commit ref／hash、`migrated | capability_unavailable | ambiguous | rejected`、Diagnostic、receipt hashを持つ。legacy `world_static | movable_prop | sensor_volume`も既存axisとexact一件のCore roleが一致する場合だけ移行し、object固有legacy値は当該Pack／Project contributionがexact一件存在する場合だけ移行する。未導入Capabilityに対応する旧予約値は`capability_unavailable`でSourceを不変にし、Core active roleへ近似変換しない。current serializer／AI projectionは旧enum値を受理しない。
+旧`GameplayPhysicsRoleV1` enumはoffline migration inputだけである。owner固有変換は次のContribution Registryへ登録し、Core switch文へ追加しない。
+
+```text
+PhysicsIntentRoleMigrationContributionRefV1
+  contribution_id
+  contribution_version
+  contribution_content_hash
+
+PhysicsIntentRoleMigrationContributionRecordV1
+  contribution_id
+  contribution_version
+  owner_ref/hash
+  source_schema_ref: McdContractRefV1(kind=type, version=1)
+  accepted_legacy_values[1..64]
+  destination_role_refs[1..64]: PhysicsIntentRoleRefV1
+  mapping_policy_ref: McdContractRefV1(kind=policy)
+  axis_mapping_policy_ref: McdContractRefV1(kind=policy)
+  fixture_refs[1..64]
+  contribution_content_hash
+
+PhysicsIntentRoleMigrationContributionRegistryRefV1
+  registry_id
+  registry_version
+  registry_content_hash
+
+PhysicsIntentRoleMigrationContributionRegistryV1
+  registry_id: physics.intent_role.migration_contribution.registry.active
+  registry_version
+  records[1..4096]
+  registry_content_hash
+
+PhysicsIntentRoleMigrationManifestV1
+  manifest_id: physics.intent_role.migration.v1_to_registry
+  manifest_version: 1
+  operation_ref: McdContractRefV1(
+    kind=operation, id=operation.physics.intent_role.migrate,
+    version=1, contract_set_hash)
+  input_type_ref: McdContractRefV1(
+    kind=type, id=type.physics.intent_role_migration_input,
+    version=1, contract_set_hash)
+  output_type_ref: McdContractRefV1(
+    kind=type, id=type.physics.intent_role_migration_result,
+    version=1, contract_set_hash)
+  receipt_type_ref: McdContractRefV1(
+    kind=type, id=type.physics.intent_role_migration_receipt,
+    version=1, contract_set_hash)
+  precondition_policy_ref: McdContractRefV1(
+    kind=policy, id=policy.operation.physics.intent_role.migrate.precondition,
+    version=1, contract_set_hash)
+  postcondition_policy_ref: McdContractRefV1(
+    kind=policy, id=policy.operation.physics.intent_role.migrate.postcondition,
+    version=1, contract_set_hash)
+  validator_closure_ref: OperationValidatorClosureRefV1
+  contribution_registry_ref: PhysicsIntentRoleMigrationContributionRegistryRefV1
+  trusted_service_ref: TrustedServiceRefV1(
+    service_id=service.offline_project_migrator, service_version=1,
+    service_content_hash)
+  trusted_service_allowlist_operation_local_refs[1]:
+    ContractSetLocalRefV1(
+      kind=operation, id=operation.physics.intent_role.migrate, version=1)
+  diagnostic_refs[15]: DiagnosticCodeRefV1
+  fixture_refs[1..64]: exact {fixture_id, fixture_version, fixture_content_hash}
+  manifest_hash: SHA-256
+```
+
+Core contributionは`world_static→role.physics.static_environment`、`movable_prop→role.physics.dynamic_body`、`sensor_volume→role.physics.sensor`の三mappingだけを持つ。object固有legacy値は当該Pack／Project contributionがexact一件存在する場合だけ移行する。recordはContribution ID／version順、accepted valueはUTF-8 byte順、destination refはrole ID／version順へstrict sortし、duplicate valueの複数active contribution、stale owner／policy／role／fixture hashをRegistry全体で拒否する。record hashはASCII `MIRAKAN_PHYSICS_ROLE_MIGRATION_CONTRIBUTION_V1`、Registry hashはASCII `MIRAKAN_PHYSICS_ROLE_MIGRATION_CONTRIBUTION_REGISTRY_V1`のself-excluding length-framed canonical bytesである。
+
+```text
+operation.physics.intent_role.migrate@1
+  MCD common envelope:
+    mcd_version=1; kind=operation;
+    id=operation.physics.intent_role.migrate;
+    version=1; status=active;
+    title=Migrate Physics Intent Role;
+    description=Atomically migrate one legacy Physics object role through
+      an exact owner contribution into a typed role Selection Document;
+    owners=[owner.core.physics]; requirement_refs=[];
+    rationale_refs=[mirakan.arch.simulation-physics#5-ai-semantics];
+    since_contract_set=2; supersedes=[]; tags=[authoring,migration,physics]
+  operation_kind: command
+  input_type: McdContractRefV1(
+    kind=type, id=type.physics.intent_role_migration_input,
+    version=1, contract_set_hash)
+  output_type: McdContractRefV1(
+    kind=type, id=type.physics.intent_role_migration_result,
+    version=1, contract_set_hash)
+  authority: TrustedServiceRefV1(
+    service_id=service.offline_project_migrator, service_version=1,
+    service_content_hash)
+  risk_class: R3
+  side_effects: [authoring]
+  idempotency: idempotent_with_key
+  transaction: authoring_changeset
+  preconditions:
+    [McdContractRefV1(
+      kind=policy, id=policy.operation.physics.intent_role.migrate.precondition,
+      version=1, contract_set_hash)]
+  postconditions:
+    [McdContractRefV1(
+      kind=policy, id=policy.operation.physics.intent_role.migrate.postcondition,
+      version=1, contract_set_hash)]
+  validator_closure_ref:
+    {closure_id=validator_closure.operation.physics.intent_role.migrate,
+     closure_version=1, closure_content_hash}
+  timeout_ms: 120000
+  rate_limit_policy: McdContractRefV1(
+    kind=policy, id=policy.authoring.physics_intent_role_migration.rate_limit,
+    version=1, contract_set_hash)
+  audit_level: full_redacted
+  provider_exposure: mcp_proposal
+  receipt_type: McdContractRefV1(
+    kind=type, id=type.physics.intent_role_migration_receipt,
+    version=1, contract_set_hash)
+  errors[15]: exact DiagnosticCodeRefV1 records for
+    diagnostic.conflict.revision_mismatch
+    diagnostic.authorization.denied
+    diagnostic.approval.required
+    diagnostic.authoring.lock_conflict
+    diagnostic.mcd.operation_predicate_invalid
+    diagnostic.operation.timeout
+    diagnostic.operation.rate_limit_exceeded
+    diagnostic.operation.idempotency_key_reuse
+    diagnostic.physics.intent_role.source_invalid
+    diagnostic.physics.intent_role.registry_invalid
+    diagnostic.physics.intent_role.contribution_missing
+    diagnostic.physics.intent_role.contribution_ambiguous
+    diagnostic.physics.intent_role.capability_unavailable
+    diagnostic.physics.intent_role.axis_mapping_invalid
+    diagnostic.physics.intent_role.receipt_binding_mismatch
+
+PhysicsIntentRoleMigrationInputV1
+  operation_ref
+  before_project_ref
+  request_hash
+  idempotency_key
+  source_document_ref/hash
+  source_schema_ref/hash
+  source_legacy_value
+  source_axis_closure_hash
+  destination_role_registry_ref
+  contribution_registry_ref
+  selected_contribution_ref
+  preview_policy_ref
+  validation_policy_ref
+  authorization_ref/hash
+  mutation_authorization_binding: approval
+
+PhysicsIntentRoleMigrationResultV1
+  disposition: migrated | capability_unavailable | ambiguous | rejected
+  migrated:
+    after_project_ref
+    selection_document_ref/hash
+    selected_role_ref
+    axis_closure_hash
+    migration_receipt_ref/hash
+    atomic_commit_marker_ref/hash
+  non-migrated:
+    diagnostics[1..15]
+
+PreparedPhysicsIntentRoleMigrationReceiptPayloadV1
+  operation_ref
+  request_hash
+  idempotency_key
+  source_document_ref/hash
+  source_schema_ref/hash
+  source_legacy_value
+  role_registry_ref
+  contribution_registry_ref
+  selected_contribution_ref
+  before_project_ref
+  after_project_ref
+  selection_document_ref/hash
+  selected_role_ref
+  axis_closure_hash
+  preview_receipt_payload_ref/hash
+  validation_receipt_payload_ref/hash
+  diagnostics[0..15]
+  prepared_payload_hash
+
+PhysicsIntentRoleMigrationReceiptV1
+  prepared_payload_ref/hash:
+    PreparedPhysicsIntentRoleMigrationReceiptPayloadV1
+  atomic_commit_marker_ref/hash
+  signer_identity_ref/hash
+  signature
+  receipt_hash
+```
+
+Domain固有Diagnosticは次のexact Registry recordである。全rowは`diagnostic_version=1`、`message_key="<diagnostic_id>.message"`、self-excluding `diagnostic_content_hash`を持ち、共通八件はExecutable Contractsの同一recordを参照する。
+
+| Diagnostic ID | code | severity／category／retryability |
+|---|---|---|
+| `diagnostic.physics.intent_role.source_invalid` | `MIRAKAN-PHYSICS-INTENT-ROLE-SOURCE-INVALID` | blocking／schema／after_input |
+| `diagnostic.physics.intent_role.registry_invalid` | `MIRAKAN-PHYSICS-INTENT-ROLE-REGISTRY-INVALID` | blocking／schema／after_change |
+| `diagnostic.physics.intent_role.contribution_missing` | `MIRAKAN-PHYSICS-INTENT-ROLE-CONTRIBUTION-MISSING` | blocking／semantic／after_change |
+| `diagnostic.physics.intent_role.contribution_ambiguous` | `MIRAKAN-PHYSICS-INTENT-ROLE-CONTRIBUTION-AMBIGUOUS` | blocking／semantic／after_input |
+| `diagnostic.physics.intent_role.capability_unavailable` | `MIRAKAN-PHYSICS-INTENT-ROLE-CAPABILITY-UNAVAILABLE` | blocking／capability／after_change |
+| `diagnostic.physics.intent_role.axis_mapping_invalid` | `MIRAKAN-PHYSICS-INTENT-ROLE-AXIS-MAPPING-INVALID` | blocking／semantic／after_input |
+| `diagnostic.physics.intent_role.receipt_binding_mismatch` | `MIRAKAN-PHYSICS-INTENT-ROLE-RECEIPT-BINDING-MISMATCH` | blocking／semantic／after_change |
+
+`validator_closure.operation.physics.intent_role.migrate@1`は次のexact Validator recordを持つ。各recordはversion 1、実装Artifact ref／hash、表のinput Type ref、表のDiagnostic ref集合、self-excluding content hashを持ち、ID／version順にsortする。
+
+| Validator | input | exact reachable Diagnostic |
+|---|---|---|
+| `validator.operation.request_envelope` | migration input | idempotency key reuse |
+| `validator.operation.authorization` | migration input | authorization denied |
+| `validator.operation.approval` | migration input | approval required |
+| `validator.operation.revision_and_lock` | migration input | revision mismatch; lock conflict |
+| `validator.operation.pure_predicate` | migration input | operation predicate invalid |
+| `validator.operation.timeout_and_rate_limit` | migration input | timeout; rate limit exceeded |
+| `validator.physics.intent_role.migration_semantics` | migration input | source invalid; registry invalid; contribution missing; contribution ambiguous; capability unavailable; axis mapping invalid |
+| `validator.physics.intent_role.migration_postcondition` | postcondition input v2 | receipt binding mismatch |
+
+request hashはExecutable Contractsの唯一のV2式、Prepared payload hashはASCII `MIRAKAN_PREPARED_PHYSICS_INTENT_ROLE_MIGRATION_RECEIPT_PAYLOAD_V1`、外側Receipt hashはASCII `MIRAKAN_PHYSICS_INTENT_ROLE_MIGRATION_RECEIPT_V1`とPrepared payload ref／hash、Atomic Commit Marker ref／hash、signer／signatureを使う。MarkerはPrepared payloadだけをpublish集合へ含め、外側Receiptを含めない。同じidempotency key＋request hashのretryはbyte-identical Result／Receiptを返し、同じkey＋別requestはidempotency reuse errorでSource不変にする。Validator error union、Operation `errors[]`、Manifest `diagnostic_refs[]`は15 refのset equalityにする。Manifestは上記Operation／Type／Policy／Validator／Registry／Diagnostic／fixtureのexact version／hashを全件持ち、missing／extra／staleをcompile前に拒否する。ManifestのOperation LocalRef集合と`service.offline_project_migrator`へのallowlist contributionはexact一件でset equalityとし、同じContract set transactionでService local recordとset rootを再生成する。未導入Capabilityの旧予約値は`capability_unavailable`でSourceを不変にし、Core active roleへ近似変換しない。current serializer／AI projectionは旧enum値を受理しない。
 
 複合objectは複数Resolutionと明示関係で表し、合成enumを追加しない。同じobjectへ複数motion authorityを選ばない。Dynamic Bodyへ`static_triangle_mesh`／`heightfield`を選ばず、Sensorをauthoritative hitへ暗黙昇格せず、`teleport`を経路hitの代用にしない。途中経路がGameplayへ必要なら`authoritative_sweep`を使用する。
 

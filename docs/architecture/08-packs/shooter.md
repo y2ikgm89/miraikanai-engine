@@ -75,18 +75,32 @@ PackManifestV1
      ShooterGameFlowInteractionEligibilityPolicyV1,
      ShooterActionRoleSetV1, ShooterMinimalActionRoleSetV1,
      ShooterTargetProviderTemplateV1, ShooterTargetProviderBindingDocumentV1,
+     ShooterTargetProviderSelectionDocumentV1,
      ShooterTargetProviderBindingRegistryV1]
+  authoring_operation_refs:
+    [operation.shooter.target_provider_binding.create@1,
+     operation.shooter.target_provider_binding.update@1,
+     operation.shooter.target_provider_binding.select@1]
   validator_refs:
-    [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
+    [validator.genre.shooter.composition@1,
+     validator.genre.shooter.perception_binding@1,
+     validator.genre.shooter.target_provider_binding.create@1,
+     validator.genre.shooter.target_provider_binding.update@1,
+     validator.genre.shooter.target_provider_binding.select@1]
+  migration_contribution_refs:
+    [runtime_scope.migration_contribution.genre.shooter.game_flow@1]
+  migration_step_refs:
+    [migration.genre.shooter.feature_identity@1]
   test_scenario_refs:
-    [fixture.product.shooter-2d, fixture.product.shooter-arena-3d,
-     fixture.genre.shooter.endless-top-down-2d,
-     fixture.genre.shooter.target-practice-minimal,
-     fixture.genre.shooter.target-practice-minimal-no-perception,
-     fixture.genre.shooter.target-practice-minimal-project-provider]
+    [fixture.product.shooter-2d@1, fixture.product.shooter-arena-3d@1,
+     fixture.genre.shooter.endless-top-down-2d@1,
+     fixture.genre.shooter.target-practice-minimal@1,
+     fixture.genre.shooter.target-practice-minimal-no-perception@1,
+     fixture.genre.shooter.target-practice-minimal-project-provider@1,
+     fixture.genre.shooter.runtime_scope_migration@1]
 ```
 
-Profileは独立PackではなくShooter Packのversion／hashに含まれる。ManifestのValidator／Test一覧はPack inventoryであり、選択Recipeだけが自身の`validator_refs[]`／`qualification_fixture_refs[]`を実行gateにする。Pack-level requiredはRanged Combatとその推移Feature DAGだけである。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeだけが持つ条件依存である。
+全`@1`表示はManifest保存時に対応するversion／Contract set rootまたはcontent hashを持つexact refへ展開し、裸IDを保存しない。三Operation inventory、Pack ownerのactive MCD Operation集合、Authoring Command Gateway Service allowlist contributionはset equalityである。Profileは独立PackではなくShooter Packのversion／hashに含まれる。ManifestのValidator／Test一覧はPack inventoryであり、選択Recipeだけが自身の`validator_refs[]`／`qualification_fixture_refs[]`を実行gateにする。Pack-level requiredはRanged Combatとその推移Feature DAGだけである。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeだけが持つ条件依存である。
 
 ```text
 CompositionRecipeV1
@@ -251,6 +265,14 @@ ShooterTargetProviderBindingDocumentV1
   payload: ShooterTargetProviderBindingV1(
     owner_kind=project_owned, usage=project_owned)
 
+ShooterTargetProviderSelectionDocumentV1
+  common Project Document header
+  selection_id: same StableId as Document header
+  project_id: stable parent Project ID
+  selected_bindings[0..256]:
+    ShooterTargetProviderSelectedBindingSourceRecordV1
+  selection_hash: SHA-256
+
 ShooterTargetProviderFixtureBindingRecordV1
   common Fixture Registry record header
   payload: ShooterTargetProviderBindingV1(
@@ -294,6 +316,22 @@ ShooterTargetProviderSelectedBindingRecordV1
   binding_document_ref: ShooterTargetProviderBindingDocumentRefV1
   selected_record_hash: SHA-256
 
+ShooterTargetProviderSelectedBindingSourceRecordV1
+  runtime_entry_ref
+  runtime_entry_content_hash
+  runtime_entry_semantic_hash
+  recipe_ref/hash
+  profile_ref/hash
+  target_profile_ref/hash
+  binding_document_ref: ShooterTargetProviderBindingDocumentRefV1
+  source_record_hash: SHA-256
+
+ShooterTargetProviderSelectionDocumentRefV1
+  stable_id
+  document_revision
+  content_hash
+  selection_hash
+
 ShooterTargetProviderBindingRegistryRefV1
   registry_id
   registry_version: uint64
@@ -307,25 +345,28 @@ ShooterTargetProviderBindingRegistryV1
   project_ref: exact {project_id, project_revision, document_set_hash}
   binding_document_refs[0..1024]:
     ShooterTargetProviderBindingDocumentRefV1
+  selection_document_ref:
+    ShooterTargetProviderSelectionDocumentRefV1
   selected_bindings[0..256]:
     ShooterTargetProviderSelectedBindingRecordV1
 ```
 
-Binding Documentは共通identity ruleに従い、`DocumentRef.stable_id == header.document_id == payload.binding_id`を必須とし、`owner_kind=project_owned`かつ`usage=project_owned`以外を拒否する。Project payloadはstable `project_id`だけをnon-nullにし、Project revision／document set hashを保存しない。所有証明はtrusted Document indexのProject containment、共通headerのparent Project、current `ShooterTargetProviderBindingRegistryV1.project_ref.project_id`、compile対象Project IDの四者exact equalityと、current Registryの`binding_document_refs[]` membershipで行う。payload自身のProject IDだけを証拠にせず、cross-project containment、self-assert spoof、Registry非memberをrejectする。fixture bindingはBinding Documentではなく`ShooterTargetProviderFixtureBindingRecordV1`としてactive Fixture Registryだけに存在し、`FixtureRecordRef.stable_id == header.record_id == payload.binding_id`、exact fixture owner、`owner_kind=fixture_only`、`usage=fixture_only`を必須にする。Project Document／Production Registry／Production Save／Runtime Packageへ登録しない。
+Binding Documentは共通identity ruleに従い、`DocumentRef.stable_id == header.document_id == payload.binding_id`を必須とし、`owner_kind=project_owned`かつ`usage=project_owned`以外を拒否する。Project payloadはstable `project_id`だけをnon-nullにし、Project revision／document set hashを保存しない。Selection Documentも`DocumentRef.stable_id == header.document_id == selection_id`とparent Project containmentを必須にし、Runtime Entry／Recipe／Profile／Target／Bindingの選択を所有する唯一のProject Source正本である。所有証明はtrusted Document indexのProject containment、両Document headerのparent Project、current Registry Project ID、compile対象Project IDのexact equalityで行う。payload自身のProject IDだけを証拠にせず、cross-project containment、self-assert spoofをrejectする。fixture bindingはBinding Documentではなく`ShooterTargetProviderFixtureBindingRecordV1`としてactive Fixture Registryだけに存在し、`FixtureRecordRef.stable_id == header.record_id == payload.binding_id`、exact fixture owner、`owner_kind=fixture_only`、`usage=fixture_only`を必須にする。Project Document／Production Registry／Production Save／Runtime Packageへ登録しない。
 
 `binding_hash`は`SHA-256(ASCII "MIRAKAN_SHOOTER_TARGET_PROVIDER_BINDING_V1" || binding_id || binding_version || template ref/hash || owner_kind || stable project_idまたはfixture owner exact ref || usage || implementation System ref/hash || target data ref/hash || canonical selected Target Profile refs || Save Replay contract ref/hash)`である。Project revision、document set hash、Binding Document header／content hash、Registry revision／hash、Compile Manifest hash、Receipt hashを入力に含めないため、Commit後revisionをpayloadへ戻すfixed pointを作らない。
 
 Production applyはProject-owned Binding Documentのexact ref／content hash／binding semantic hash、template ref／hash、implementation System ref／hash、Save Replay contract ref／hashを必須にする。fixture binding、表示名、似たCollider、同じtemplateの別Project bindingへfallbackしない。
 
-`binding_document_refs[]`は`stable_id` UUID byte、document revision、content hash、binding version、binding hash順、`selected_bindings[]`はruntime entry Stable ID、entry semantic hash、recipe ID／version／hash、profile ID／version／hash、Target Profile ID／version／hash、binding Stable ID順へstrict sortする。duplicate ref、同一Stable ID＋revisionの異なるhash、同じselection keyの複数record、非canonical orderをRegistry全体のerrorにする。各selected recordはcurrent `binding_document_refs[]`のexact一件へ五Field equalityで解決し、trusted Document index／header／payloadとcontent／binding hashを照合する。`selected_record_hash`はASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_SELECTED_BINDING_RECORD_V1`とself hashを除く全Fieldのlength-framed canonical bytesから計算する。
+`binding_document_refs[]`は`stable_id` UUID byte、document revision、content hash、binding version、binding hash順、Selection SourceとDerived Registryの`selected_bindings[]`はruntime entry Stable ID、entry semantic hash、recipe ID／version／hash、profile ID／version／hash、Target Profile ID／version／hash、binding Stable ID順へstrict sortする。duplicate ref、同一Stable ID＋revisionの異なるhash、同じselection keyの複数record、非canonical orderをSource validation／Registry materialization errorにする。各Source recordはcurrent Binding Document exact一件へ解決し、Derived recordはSource recordとBinding Documentからのみmaterializeする。`source_record_hash`はASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_SELECTED_BINDING_SOURCE_RECORD_V1`、`selection_hash`はASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_SELECTION_DOCUMENT_V1`、`selected_record_hash`はASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_SELECTED_BINDING_RECORD_V1`と各self hashを除く全Fieldのlength-framed canonical bytesから計算する。
 
-Registry hashはASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_BINDING_REGISTRY_V1`、registry ID／version、exact Project ref、二配列のcountとcanonical record bytesを順に`uint32_be` length framingし、`registry_hash`自身を除外してSHA-256する。`ShooterTargetProviderBindingRegistryRefV1`は四Fieldすべてをexact解決し、IDだけ、latest version、別Projectの同hashへfallbackしない。
+RegistryはProject reload時にtrusted Document indexのBinding Document集合とexact Selection Documentからのみ再materializeするDerived closureである。Registry hashはASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_BINDING_REGISTRY_V1`、registry ID／version、exact Project ref、Selection Document ref、二配列のcountとcanonical record bytesを順に`uint32_be` length framingし、`registry_hash`自身を除外してSHA-256する。`ShooterTargetProviderBindingRegistryRefV1`は四Fieldすべてをexact解決し、IDだけ、latest version、別Projectの同hashへfallbackしない。Registry直接write、RegistryをSourceへ逆投影、select時のDerived recordだけのmutationを禁止する。
 
 Compile Manifestは次のpayloadをmaterializeする。
 
 ```text
 ShooterSelectedProviderBindingSetHashPayloadV1
   registry_ref: ShooterTargetProviderBindingRegistryRefV1
+  selection_document_ref: ShooterTargetProviderSelectionDocumentRefV1
   project_ref: exact {project_id, project_revision, document_set_hash}
   runtime_entry_ref
   runtime_entry_content_hash
@@ -334,7 +375,7 @@ ShooterSelectedProviderBindingSetHashPayloadV1
   selected_records[]: exact ShooterTargetProviderSelectedBindingRecordV1
 ```
 
-`selected_record_count`は配列長と一致し、recordsはRegistryと同じcanonical順、全recordは同一entry branchかつRegistry memberでなければならない。`selected_provider_binding_set_hash`はASCII `MIRAKAN_SHOOTER_SELECTED_PROVIDER_BINDING_SET_V1`、payloadのself-hashを持たない全Fieldをlength framingしてSHA-256する。Registry ref／hash、post-commit Project revision／document set hash、entry Document content hash／semantic hash、Binding Document五Field ref、selected record hashの一Fieldでも変われば別hashとなり、当該entry branch closureへ入れる。Saveはbinding Document ref五Field、template hash、implementation System ref／hash、target data identity、Save Replay contract hashを保存し、Load／Replayは同じclosureまたは明示migrationを要求する。
+`selected_record_count`は配列長と一致し、recordsはSelection SourceとRegistryの同じcanonical順、全recordは同一entry branchかつSource／Registry memberでなければならない。`selected_provider_binding_set_hash`はASCII `MIRAKAN_SHOOTER_SELECTED_PROVIDER_BINDING_SET_V1`、payloadのself-hashを持たない全Fieldをlength framingしてSHA-256する。Selection Document ref／hash、Registry ref／hash、post-commit Project revision／document set hash、entry Document content hash／semantic hash、Binding Document五Field ref、selected record hashの一Fieldでも変われば別hashとなり、当該entry branch closureへ入れる。SaveはSelection Document ref四Field、binding Document ref五Field、template hash、implementation System ref／hash、target data identity、Save Replay contract hashを保存し、Load／Replayは同じclosureまたは明示migrationを要求する。
 
 fixture-only recordはexact `fixture.genre.shooter.target-practice-minimal` owner、`usage=fixture_only`、fixture implementation System、fixture target data、fixture Target Profileを持つ。このdeterministic implementationはpredeclared query inputとtarget Stable IDからHit Evidenceを返し、World、Physics、Perception、render visibilityへ依存しない。Qualification sandbox内のSave／Load／Replay evidenceだけに使用でき、Production Source／Registry／Save／Packageへの選択を常に拒否する。
 
@@ -350,9 +391,9 @@ ShooterTargetProviderBindingOperationCommonInputV1
   preview_policy_ref: McdContractRefV1(kind=policy)
   validation_policy_ref: McdContractRefV1(kind=policy)
   authorization_ref/hash
-  approval_ref/hash:
-    required when active approval policy escalates this R2 request,
-    otherwise canonical omission
+  mutation_authorization_binding:
+    approval: exact approval_ref/hash
+    | predelegated: exact predelegation_ref/hash
 
 type.genre.shooter.target_provider_binding_create_input
   common
@@ -376,7 +417,10 @@ type.genre.shooter.target_provider_binding_update_input
 
 type.genre.shooter.target_provider_binding_select_input
   common
-  registry_ref/hash
+  selection_document_ref/hash
+  expected_selection_document_revision
+  before_selection_hash
+  derived_registry_ref/hash
   runtime_entry_ref/content_hash
   runtime_entry_semantic_hash
   recipe_ref/hash
@@ -395,9 +439,11 @@ type.genre.shooter.target_provider_binding_mutation_result
     binding_after_ref: ShooterTargetProviderBindingDocumentRefV1
     registry_before_ref: ShooterTargetProviderBindingRegistryRefV1
     registry_after_ref: ShooterTargetProviderBindingRegistryRefV1
+    selection_document_before_ref: ShooterTargetProviderSelectionDocumentRefV1
+    selection_document_after_ref: ShooterTargetProviderSelectionDocumentRefV1
     preview_receipt_ref/hash
     validation_receipt_ref/hash
-    commit_receipt_ref/hash
+    atomic_commit_marker_ref/hash
     mutation_receipt_ref/hash
   rejected:
     diagnostics[1..64]: DiagnosticCodeRefV1
@@ -407,6 +453,8 @@ type.genre.shooter.target_provider_binding_selection_result
   selected:
     before_project_ref
     after_project_ref
+    selection_document_before_ref: ShooterTargetProviderSelectionDocumentRefV1
+    selection_document_after_ref: ShooterTargetProviderSelectionDocumentRefV1
     registry_before_ref: ShooterTargetProviderBindingRegistryRefV1
     registry_after_ref: ShooterTargetProviderBindingRegistryRefV1
     selected_binding_ref: ShooterTargetProviderBindingDocumentRefV1
@@ -414,12 +462,12 @@ type.genre.shooter.target_provider_binding_selection_result
     entry_branch_closure_hash
     preview_receipt_ref/hash
     validation_receipt_ref/hash
-    commit_receipt_ref/hash
+    atomic_commit_marker_ref/hash
     selection_receipt_ref/hash
   rejected:
     diagnostics[1..64]: DiagnosticCodeRefV1
 
-ShooterTargetProviderBindingMutationReceiptV1
+PreparedShooterTargetProviderBindingMutationReceiptPayloadV1
   operation_ref
   request_hash
   idempotency_key
@@ -430,38 +478,56 @@ ShooterTargetProviderBindingMutationReceiptV1
   binding_after_ref: ShooterTargetProviderBindingDocumentRefV1
   registry_before_ref
   registry_after_ref
+  selection_document_before_ref
+  selection_document_after_ref
   owner_identity
   template_ref/hash
   implementation_system_ref/hash
   target_data_ref/hash
   save_replay_contract_ref/hash
-  preview_receipt_ref/hash
-  validation_receipt_ref/hash
-  commit_receipt_ref/hash
+  preview_receipt_payload_ref/hash
+  validation_receipt_payload_ref/hash
   diagnostics[0..64]: DiagnosticCodeRefV1
+  prepared_payload_hash: SHA-256
+
+ShooterTargetProviderBindingMutationReceiptV1
+  prepared_payload_ref/hash:
+    PreparedShooterTargetProviderBindingMutationReceiptPayloadV1
+  atomic_commit_marker_ref/hash
+  signer_identity_ref/hash
+  signature
   receipt_hash: SHA-256
 
-ShooterTargetProviderBindingSelectionReceiptV1
+PreparedShooterTargetProviderBindingSelectionReceiptPayloadV1
   operation_ref
   request_hash
   idempotency_key
   before_project_ref
   after_project_ref
+  selection_document_before_ref: ShooterTargetProviderSelectionDocumentRefV1
+  selection_document_after_ref: ShooterTargetProviderSelectionDocumentRefV1
   registry_before_ref
   registry_after_ref
   selected_record: ShooterTargetProviderSelectedBindingRecordV1
   selected_provider_binding_set_hash
   entry_branch_closure_hash
-  preview_receipt_ref/hash
-  validation_receipt_ref/hash
-  commit_receipt_ref/hash
+  preview_receipt_payload_ref/hash
+  validation_receipt_payload_ref/hash
   diagnostics[0..64]: DiagnosticCodeRefV1
+  prepared_payload_hash: SHA-256
+
+ShooterTargetProviderBindingSelectionReceiptV1
+  prepared_payload_ref/hash:
+    PreparedShooterTargetProviderBindingSelectionReceiptPayloadV1
+  atomic_commit_marker_ref/hash
+  signer_identity_ref/hash
+  signature
   receipt_hash: SHA-256
 ```
 
-各input／output／Receipt type refは`McdContractRefV1 {id, version=1, contract_set_hash}`である。createでは`binding_before_ref=null`、updateではbefore／afterのStable IDが同一、全成功でbefore／after Project IDが同一かつrevisionが一だけ増加する。ResultとReceiptのProject、Binding、Registry、selected set、Preview／Validation／Commit ref／hashはexact equalityである。rejected branchはafter stateと全Receiptをcanonical omissionし、Project、Registry、Save、Compile Manifest、last-valid packageを変更しない。Mutation Receipt hashはASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_BINDING_MUTATION_RECEIPT_V1`、Selection Receipt hashはASCII `MIRAKAN_SHOOTER_TARGET_PROVIDER_BINDING_SELECTION_RECEIPT_V1`とself hashを除くcanonical bytesから計算する。
+各input／output／Receipt type refは`McdContractRefV1 {id, version=1, contract_set_hash}`である。createでは`binding_before_ref=null`、updateではbefore／afterのStable IDが同一、selectではSelection DocumentのStable IDが不変でSource recordが厳密に一件変わる。全成功でbefore／after Project IDが同一かつrevisionが一だけ増加する。Result、Prepared payload、Source／Derived state、Atomic Commit MarkerのProject／Binding／Selection／Registry／selected set hashはexact equalityである。`Preview → Validation → Prepared Candidate／Prepared Commit Envelope → staged postcondition → state＋Prepared payload＋Commit Marker atomic publish → readback → signed Receipt／Result`を使い、postconditionへ公開Receiptを渡さない。MarkerはPrepared payloadだけをpublish集合へ含め、外側signed Receiptを含めない。rejected branchはafter stateと全公開Receiptをcanonical omissionし、Project、Source Selection、Registry、Save、Compile Manifest、last-valid packageを変更しない。Prepared payload hashは各`MIRAKAN_PREPARED_SHOOTER_TARGET_PROVIDER_*_RECEIPT_PAYLOAD_V1`、外側Receipt hashはPrepared payload ref／hash、Marker ref／hash、signer／signatureを各Receipt domainでhashする。
 
-`request_hash`はASCII `MIRAKAN_OPERATION_REQUEST_V1`と、`request_hash`自身を除くinput全Fieldのlength-framed MCD canonical bytesから計算する。同じidempotency key＋request hashのretryはbyte-identical Resultと同じReceipt ref／hashを返し、同じkeyの別requestは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で拒否する。
+`request_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)が所有する唯一の`MIRAKAN_OPERATION_REQUEST_V2`式を使い、本書では式を再定義しない。同じidempotency key＋request hashのretryはbyte-identical Resultと同じReceipt ref／hashを返し、同じkeyの別requestは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で拒否する。
 
 三Operationが使うDiagnostic Registry subsetを次へ固定する。各rowは`diagnostic_version=1`、`message_key="<diagnostic_id>.message"`、self-excluding `diagnostic_content_hash`を持ち、Operationは表の四Fieldがexact equalityの`DiagnosticCodeRefV1`を保存する。
 
@@ -489,11 +555,11 @@ ShooterTargetProviderBindingSelectionReceiptV1
 
 | Operation MCD共通Envelope exact value | Operation固有Field exact value |
 |---|---|
-| `mcd_version=1; kind=operation; id=operation.shooter.target_provider_binding.create; version=1; status=active; title=Create Shooter Target Provider Binding; description=Create one identity-consistent Project-owned target-provider Binding Document; owners=[owner.genre.shooter]; requirement_refs=[]; rationale_refs=[mirakan.arch.pack-shooter#4-provider-binding]; since_contract_set=1; supersedes=[]; tags=[authoring,genre_shooter,target_provider_binding]` | `operation_kind=command; input_type={type.genre.shooter.target_provider_binding_create_input,1,contract_set_hash}; output_type={type.genre.shooter.target_provider_binding_mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.shooter.target_provider_binding.create.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.shooter.target_provider_binding.create.postcondition,1,contract_set_hash}]; errors[]=expanded exact 17-value array defined above; validator_closure_ref={validator_closure.operation.shooter.target_provider_binding.create,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.shooter_target_provider_binding.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.genre.shooter.target_provider_binding_mutation_receipt,1,contract_set_hash}` |
-| `mcd_version=1; kind=operation; id=operation.shooter.target_provider_binding.update; version=1; status=active; title=Update Shooter Target Provider Binding; description=Update one Binding Document while preserving Stable identity; owners=[owner.genre.shooter]; requirement_refs=[]; rationale_refs=[mirakan.arch.pack-shooter#4-provider-binding]; since_contract_set=1; supersedes=[]; tags=[authoring,genre_shooter,target_provider_binding]` | `operation_kind=command; input_type={type.genre.shooter.target_provider_binding_update_input,1,contract_set_hash}; output_type={type.genre.shooter.target_provider_binding_mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.shooter.target_provider_binding.update.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.shooter.target_provider_binding.update.postcondition,1,contract_set_hash}]; errors[]=expanded exact 17-value array defined above; validator_closure_ref={validator_closure.operation.shooter.target_provider_binding.update,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.shooter_target_provider_binding.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.genre.shooter.target_provider_binding_mutation_receipt,1,contract_set_hash}` |
-| `mcd_version=1; kind=operation; id=operation.shooter.target_provider_binding.select; version=1; status=active; title=Select Shooter Target Provider Binding; description=Select one exact Binding for an entry recipe profile and Target branch; owners=[owner.genre.shooter]; requirement_refs=[]; rationale_refs=[mirakan.arch.pack-shooter#4-provider-binding]; since_contract_set=1; supersedes=[]; tags=[authoring,genre_shooter,target_provider_binding]` | `operation_kind=command; input_type={type.genre.shooter.target_provider_binding_select_input,1,contract_set_hash}; output_type={type.genre.shooter.target_provider_binding_selection_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.shooter.target_provider_binding.select.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.shooter.target_provider_binding.select.postcondition,1,contract_set_hash}]; errors[]=expanded exact 17-value array defined above; validator_closure_ref={validator_closure.operation.shooter.target_provider_binding.select,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.shooter_target_provider_binding.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.genre.shooter.target_provider_binding_selection_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.shooter.target_provider_binding.create; version=1; status=active; title=Create Shooter Target Provider Binding; description=Create one identity-consistent Project-owned target-provider Binding Document; owners=[owner.genre.shooter]; requirement_refs=[]; rationale_refs=[mirakan.arch.pack-shooter#4-provider-binding]; since_contract_set=1; supersedes=[]; tags=[authoring,genre_shooter,target_provider_binding]` | `operation_kind=command; input_type={type.genre.shooter.target_provider_binding_create_input,1,contract_set_hash}; output_type={type.genre.shooter.target_provider_binding_mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.shooter.target_provider_binding.create.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.shooter.target_provider_binding.create.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.identity_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_IDENTITY_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.owner_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_OWNER_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.template_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TEMPLATE_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.type_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TYPE_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.hash_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.target_unsupported,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TARGET_UNSUPPORTED,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.fixture_in_production,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_FIXTURE_IN_PRODUCTION,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.registry_invalid,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_REGISTRY_INVALID,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.receipt_binding_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_RECEIPT_BINDING_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.shooter.target_provider_binding.create,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.shooter_target_provider_binding.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.genre.shooter.target_provider_binding_mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.shooter.target_provider_binding.update; version=1; status=active; title=Update Shooter Target Provider Binding; description=Update one Binding Document while preserving Stable identity; owners=[owner.genre.shooter]; requirement_refs=[]; rationale_refs=[mirakan.arch.pack-shooter#4-provider-binding]; since_contract_set=1; supersedes=[]; tags=[authoring,genre_shooter,target_provider_binding]` | `operation_kind=command; input_type={type.genre.shooter.target_provider_binding_update_input,1,contract_set_hash}; output_type={type.genre.shooter.target_provider_binding_mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.shooter.target_provider_binding.update.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.shooter.target_provider_binding.update.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.identity_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_IDENTITY_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.owner_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_OWNER_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.template_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TEMPLATE_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.type_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TYPE_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.hash_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.target_unsupported,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TARGET_UNSUPPORTED,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.fixture_in_production,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_FIXTURE_IN_PRODUCTION,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.registry_invalid,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_REGISTRY_INVALID,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.receipt_binding_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_RECEIPT_BINDING_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.shooter.target_provider_binding.update,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.shooter_target_provider_binding.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.genre.shooter.target_provider_binding_mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.shooter.target_provider_binding.select; version=1; status=active; title=Select Shooter Target Provider Binding; description=Select one exact Binding in the canonical Selection Document for an entry recipe profile and Target branch; owners=[owner.genre.shooter]; requirement_refs=[]; rationale_refs=[mirakan.arch.pack-shooter#4-provider-binding]; since_contract_set=1; supersedes=[]; tags=[authoring,genre_shooter,target_provider_binding]` | `operation_kind=command; input_type={type.genre.shooter.target_provider_binding_select_input,1,contract_set_hash}; output_type={type.genre.shooter.target_provider_binding_selection_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.shooter.target_provider_binding.select.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.shooter.target_provider_binding.select.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.identity_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_IDENTITY_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.owner_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_OWNER_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.template_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TEMPLATE_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.type_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TYPE_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.hash_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.target_unsupported,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TARGET_UNSUPPORTED,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.fixture_in_production,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_FIXTURE_IN_PRODUCTION,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.registry_invalid,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_REGISTRY_INVALID,1,diagnostic_content_hash},{diagnostic.genre.shooter.target_provider.receipt_binding_mismatch,MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_RECEIPT_BINDING_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.shooter.target_provider_binding.select,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.shooter_target_provider_binding.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.genre.shooter.target_provider_binding_selection_receipt,1,contract_set_hash}` |
 
-六pre／postconditionはactive pure `policy` MCDとして上記exact ID、`version=1`、`evaluation_mode=pure`、`side_effects=[]`、共通predicate IO／result typeを持つ。rate policyは`scope=principal_project, window_ns=60000000000, max_requests=60, burst=10`、exceeded errorは上表のexact rate-limit Diagnostic refである。Trusted Service Registryの`service.authoring_command_gateway` recordはPack activation中に三Operation refをallowed setへ含み、Pack removal時に同じRegistry transactionで除去する。stale Service hash、Policy kind／version／Contract set hash、rate payload不一致をRegistry compile errorにする。
+六pre／postconditionはactive pure `policy` MCDとして上記exact ID、`version=1`、`evaluation_mode=pure`、`side_effects=[]`、共通predicate IO／result typeを持つ。rate policyは`scope=principal_project, window_ns=60000000000, max_requests=60, burst=10`、exceeded errorは上表のexact rate-limit Diagnostic refである。Contract set snapshot内部では三Operation、六Policy、Service allowlist、Validator closureの相互edgeをLocalRefで表す。Pack activation中のManifest三Operation LocalRef、Shooter owner MCD Operation集合、`service.authoring_command_gateway`へのallowlist contributionはset equalityで、Pack removal時に同じRegistry transactionでexact subsetを除去する。set root確定後にだけ外部Service／MCD refをmaterializeする。stale Service hash、Policy kind／version／Contract set root、rate payload不一致をRegistry compile errorにする。
 
 三`OperationValidatorClosureV1`を次へ固定する。各validator refは`{validator_id,validator_version=1,validator_content_hash}`である。
 
@@ -605,7 +671,7 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 `fixture.genre.shooter.target-practice-minimal-no-perception`はPerception Validator／Profile、full 2D／TPS fixture、Scenario／Stage、Scoring、Character Locomotion、Path Following、Encounter、Pickup、Interactionを未installにしたregistryからminimal Recipeだけをapply／qualifyするregression fixtureである。Manifest inventoryに`validator.genre.shooter.perception_binding`やfull fixtureが存在しても選択Recipe gateへ追加されないことを検証する。
 
-`fixture.genre.shooter.target-practice-minimal-project-provider`はProduction modeでProject revision NのOperation inputからBinding Documentをcreateし、Commit Receipt／RegistryがN+1のrevision／document set hashを記録した後、N+1をreload→select→cook→Play→Save／Load→Replayする。続けてBindingと無関係なDocumentだけを編集したN+2を作り、binding semantic hashがN+1と同一のまま、N+2 Registry membershipとCompile closureのrevision／document set hashだけを更新して再compileできることを検証する。payloadへN+1／N+2 revisionを戻さずfixed pointを作らない。Project-defined logical target implementationはWorld、Physics、Perceptionを一切installせず、Ranged Combat ownerのexact Collision Query Port／Shot Hit Event type、Project-owned System、target dataだけでdeterministic Hit Evidenceを返す。Compile Manifestとentry closureが`selected_provider_binding_set_hash`を持ち、binding／template／System／Save Replay／target data hashのいずれかを変更するとpackageとReplay closureがinvalidateされることを検証する。
+`fixture.genre.shooter.target-practice-minimal-project-provider`はProduction modeでProject revision NのOperation inputからBinding Documentをcreateし、Atomic Commit Marker readback後のsigned Receipt／Derived RegistryがN+1のrevision／document set hashを記録した後、N+1をreload→select→cook→Play→Save／Load→Replayする。続けてBindingと無関係なDocumentだけを編集したN+2を作り、binding semantic hashがN+1と同一のまま、N+2 Registry membershipとCompile closureのrevision／document set hashだけを更新して再compileできることを検証する。payloadへN+1／N+2 revisionを戻さずfixed pointを作らない。Project-defined logical target implementationはWorld、Physics、Perceptionを一切installせず、Ranged Combat ownerのexact Collision Query Port／Shot Hit Event type、Project-owned System、target dataだけでdeterministic Hit Evidenceを返す。Compile Manifestとentry closureが`selected_provider_binding_set_hash`を持ち、binding／template／System／Save Replay／target data hashのいずれかを変更するとpackageとReplay closureがinvalidateされることを検証する。
 
 ### 8.5 Negative fixture
 

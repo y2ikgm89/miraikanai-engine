@@ -495,7 +495,8 @@ RuntimeScopeGameSystemMigrationInputV1
   preview_policy_ref: McdContractRefV1(kind=policy)
   validation_policy_ref: McdContractRefV1(kind=policy)
   authorization_ref/hash
-  approval_ref/hash
+  mutation_authorization_binding:
+    approval: exact approval_ref/hash
 
 RuntimeScopeGameSystemMigrationResultV1
   disposition: migrated | rejected
@@ -508,12 +509,12 @@ RuntimeScopeGameSystemMigrationResultV1
     auxiliary_ref_set_hash
     preview_receipt_ref/hash
     validation_receipt_ref/hash
-    commit_receipt_ref/hash
+    atomic_commit_marker_ref/hash
     migration_receipt_ref/hash
   rejected:
     diagnostics[1..64]: DiagnosticCodeRefV1
 
-RuntimeScopeMigrationReceiptV1
+PreparedRuntimeScopeMigrationReceiptPayloadV1
   operation_ref: McdContractRefV1(kind=operation)
   request_hash
   idempotency_key
@@ -532,17 +533,23 @@ RuntimeScopeMigrationReceiptV1
   source_instance_identity_mapping_ref/hash
   save_identity_mapping_ref/hash
   replay_identity_mapping_ref/hash
-  preview_receipt_ref/hash
-  validation_receipt_ref/hash
-  commit_receipt_ref/hash
+  preview_receipt_payload_ref/hash
+  validation_receipt_payload_ref/hash
   ephemeral_generation_migrated: false
   diagnostics[0..64]: DiagnosticCodeRefV1
+  prepared_payload_hash: SHA-256
+
+RuntimeScopeMigrationReceiptV1
+  prepared_payload_ref/hash: PreparedRuntimeScopeMigrationReceiptPayloadV1
+  atomic_commit_marker_ref/hash
+  signer_identity_ref/hash
+  signature
   receipt_hash: SHA-256
 ```
 
-`request_hash`は`SHA-256(ASCII "MIRAKAN_OPERATION_REQUEST_V1" || uint32_be(length(input canonical bytes excluding request_hash)) || canonical bytes)`で、Operation、before Project、source／destination schema、Source、Catalog、Contribution Registry／record、scope／auxiliary closure、identity mapping、Preview／Validation、authorization／approvalを全てbindする。`receipt_hash`はASCII `MIRAKAN_RUNTIME_SCOPE_MIGRATION_RECEIPT_V1`、self hashを除くReceipt canonical byte length／bytesから計算する。
+`request_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)の唯一の`MIRAKAN_OPERATION_REQUEST_V2`式を使い、本書では式を再定義しない。Operation、before Project、source／destination schema、Source、Catalog、Contribution Registry／record、scope／auxiliary closure、identity mapping、Preview／Validation、authorization／Approval bindingはそのcanonical inputに含まれる。Prepared payload hashはASCII `MIRAKAN_PREPARED_RUNTIME_SCOPE_MIGRATION_RECEIPT_PAYLOAD_V1`、外側`receipt_hash`はASCII `MIRAKAN_RUNTIME_SCOPE_MIGRATION_RECEIPT_V1`とPrepared payload ref／hash、Atomic Commit Marker ref／hash、signer／signatureから計算する。MarkerはPrepared payloadだけをpublish集合へ含め、外側Receiptを含めない。
 
-`migrated`ではbefore／after Project IDが一致しrevisionが一だけ増加し、ResultとReceiptのafter Project、destination Source、schema、scope、auxiliary set、Preview／Validation／Commit ref／hashがexact equalityでなければならない。PreviewとValidation成功後だけCommit Receiptを発行し、三Receiptのrequest hashはOperation request hashと一致する。`rejected`ではafter Project、destination Source、Commit／migration Receiptをcanonical omissionし、diagnosticsはOperation `errors[]`とreachable Validator error集合のsubset 1～64件にする。成功Receiptのdiagnosticsは同じclosed setのwarning／nonblocking recordだけを0～64件許可する。
+`migrated`ではbefore／after Project IDが一致しrevisionが一だけ増加し、ResultとReceiptのafter Project、destination Source、schema、scope、auxiliary set、Preview／Validation／Atomic Commit Marker ref／hashがexact equalityでなければならない。Preview、Validation、Prepared Candidate、staged postconditionが成功した後だけstateとReceipt payloadをCommit Markerでatomic publishし、readback後にResultを返す。各Receipt payloadのrequest hashはOperation request hashと一致する。`rejected`ではafter Project、destination Source、Commit Marker／migration Receiptをcanonical omissionし、diagnosticsはOperation `errors[]`とreachable Validator error集合のsubset 1～64件にする。成功Receiptのdiagnosticsは同じclosed setのwarning／nonblocking recordだけを0～64件許可する。
 
 同じ`idempotency_key`＋`request_hash`のretryはbyte-identical Resultと同じReceipt ref／hashを返し、同じkeyの別requestは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で拒否する。source／destination schema、Contribution、owner row、七dependency、auxiliary record、Save／Replay mappingの非一意、stale hash、identity collision、Receipt binding不一致は全migrationをrejectし、last-valid Source／Catalog／active instanceを維持する。Core fixtureは四Core contributionをSource／Save／Replay round-tripまで検証する。extension固有mapping／adapter／fixtureは各contributor ownerが登録し、Core fixture inventoryへコピーしない。negative fixtureはsource／destination schema逆転、bare ref、Contribution 0件／複数、removed owner、各dependency hash mismatch、auxiliary sort／duplicate／hash mismatch、Receipt request／Project／Source／mapping mismatch、partial migrationを一原因ずつ拒否する。
 

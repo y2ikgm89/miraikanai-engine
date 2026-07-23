@@ -133,26 +133,57 @@ Processor順序は`normalize -> dead_zone -> invert -> scale -> curve -> clamp -
 Input Coreはgenre固有Action listを所有せず、Action roleをProject／Pack所有のtyped Commandへ結ぶ次のgeneric recordとregistryだけを所有する。Project適用時に各ActionのUUIDv7 `StableId`を生成し、role文字列をRuntime dispatchまたはSave identityにしない。
 
 ```text
-SemanticActionCommandBindingV1
+SemanticActionRoleRefV1
+  role_type_ref: McdContractRefV1(kind=type)
+
+SemanticActionCommandBindingRecordV1
   binding_id: StableId
-  owner_ref/hash
-  semantic_action_role_ref: McdContractRefV1(kind=semantic_role)
+  binding_version: positive uint32
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  semantic_action_role_ref: SemanticActionRoleRefV1
   action_value_schema_ref: McdContractRefV1(kind=type)
   command_schema_ref: McdContractRefV1(kind=type)
   evaluator_policy_ref: McdContractRefV1(kind=policy)
   target_system_ref: GameSystemContractRefV1
-  required_context_refs[1..32]
-  fixture_refs[1..64]
+  required_context_refs[0..32]
+  fixture_refs[1..64]: exact {fixture_id, fixture_version, fixture_content_hash}
   binding_content_hash: SHA-256
+
+SemanticActionCommandBindingRecordRefV1
+  registry_ref: SemanticActionCommandBindingRegistryRefV1
+  binding_id
+  binding_version
+  binding_content_hash
+
+SemanticActionCommandBindingRegistryRefV1
+  registry_id
+  registry_version
+  registry_content_hash
 
 SemanticActionCommandBindingRegistryV1
   registry_id: input.semantic_action_command_binding.registry.active
   registry_version
   registry_content_hash
-  records[0..4096]: SemanticActionCommandBindingV1
+  records[0..4096]: SemanticActionCommandBindingRecordV1
+
+SemanticActionBindingSelectionDocumentV1
+  common Project Document header
+  selection_id: same StableId as Document header
+  action_map_ref: ArtifactRefV1
+  selected_bindings[0..4096]:
+    exact {action_stable_id, SemanticActionCommandBindingRecordRefV1}
+  selection_content_hash: SHA-256
 ```
 
-recordsはrole ID／version、target System ref、binding IDのcanonical byte順へstrict sortし、duplicate、同じrole＋Contextへの複数active binding、stale owner／schema／policy／fixture hash、cross-owner namespace偽装を拒否する。BindingはT10 `InputSnapshot`をT30でregistered typed Commandへ変換するだけで、Domain stateを直接変更しない。Replay、AI、Keyboard／Mouse、Controller、Touchは同じAction／Command経路を使う。個別Genre／Featureのrole、required／optional Action Profile、Command schema、evaluator、fixtureは当該Pack ownerが登録し、Input Coreのschema、binary、fixture inventoryへコピーしない。
+Action roleのMCD kindは既存closed kindの`type`である。各role recordは`type.input.semantic_action_role.<owner_namespace>.<role>`のactive MCD type、version、Contract set rootを持ち、そのpayloadがowner、accepted Action value type、Command type、Context constraintを宣言する。未定義`kind=semantic_role`、bare role文字列、Action表示名をcurrent Source／Save／Replayへ受理しない。
+
+record hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_RECORD_V1`、self-excluding canonical bytes、Registry hashはASCII `MIRAKAN_SEMANTIC_ACTION_COMMAND_BINDING_REGISTRY_V1`、Registry ID／version、record count、全record bytesから計算する。recordsはrole type ID／version、target System ref、binding IDのcanonical byte順へstrict sortし、duplicate、同じrole＋Contextへの複数active binding、stale owner／schema／policy／fixture hash、cross-owner namespace偽装を拒否する。RecordRefはRegistryRef三Fieldとrecord identity／version／hashを一つにbindし、latest recordへfallbackしない。
+
+Project Sourceの正本は`SemanticActionBindingSelectionDocumentV1`である。`operation.input.semantic_action_binding.select@1`はexpected Project revision、Selection Document before ref／hash、Action Map Artifact ref、Action StableId→RecordRef集合、Preview／Validation、`MutationAuthorizationBindingV2`のR2 ApprovalまたはPredelegationを入力に、Prepared Candidate経由でSelection Documentだけを変更する。binding欠落、expired、Scope／request hash不一致はexact `diagnostic.approval.required / MIRAKAN-APPROVAL-REQUIRED`で拒否する。Binding Registry、Runtime lookup table、Compile ManifestはSource＋active Pack contributionから派生し、Registry直接writeを公開しない。
+
+Compile closureはSelection Document ref／hash、Action Map ArtifactRef、RegistryRef、全RecordRef、selection set hashを持つ。SaveはAction StableId、Action Map ArtifactRef、Selection Document ref／hash、RecordRefを保存し、Replay headerはそれらとInput Profile hash、各tickのnormalized Action transition／生成Command hashを記録する。Load／Replay／CompileはSource→Registry→Record→role type→Command Systemの全ref equalityを再検査する。`fixture.input.semantic-action-binding-roundtrip`はselect→Commit Marker→reload→Compile→Save／Load→Replayを通し、wrong MCD kind、stale Registry／record／selection、同role＋Context複数、cross-owner、SourceとDerived差を各単独原因でrejectする。
+
+BindingはT10 `InputSnapshot`をT30でregistered typed Commandへ変換するだけで、Domain stateを直接変更しない。Replay、AI、Keyboard／Mouse、Controller、Touchは同じAction／Command経路を使う。個別Genre／Featureのrole、required／optional Action Profile、Command schema、evaluator、fixtureは当該Pack ownerが登録し、Input Coreのschema、binary、fixture inventoryへコピーしない。
 
 ## 5. Context、Focus、Consumption
 

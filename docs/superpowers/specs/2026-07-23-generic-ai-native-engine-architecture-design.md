@@ -60,19 +60,21 @@ PackManifestV1
   public_contract_refs[]
   component_schema_refs[]
   game_system_spec_refs[]
-  authoring_operation_refs[]
+  authoring_operation_refs[]: exact MCD operation ref/version/set root
   runtime_port_refs[]
   configuration_profile_refs[]
   composition_recipe_refs[]
   source_template_refs[]
-  validator_refs[]
-  test_scenario_refs[]
+  validator_refs[]: exact validator ID/version/content hash
+  test_scenario_refs[]: exact fixture ID/version/content hash
   example_refs[]
   counterexample_refs[]
   ai_vocabulary_refs[]
   ai_planning_recipe_refs[]
   performance_profile_refs[]
-  migration_step_refs[]
+  migration_step_refs[]: exact migration ID/version/content hash
+  migration_contribution_refs[]:
+    exact registry/contribution ID/version/content hash
   license_ref
   provenance_ref
 ```
@@ -98,7 +100,7 @@ CompositionRecipeV1
 
 選択Recipeのeffective closureはManifest共通Feature、Recipe required Feature、両者の推移Feature DAGの和集合である。canonical Recipe／owner Pack／resolved Pack version＋hashから`closure_hash`を生成し、Preview、Project ChangeSet、Cook、Qualification、Save／Replayへ伝播する。未選択Recipeの条件依存はinstall closureへ追加しない。missing、version／hash conflict、Target不適合、unqualified dependency、fallback cycleはRecipe applyを原子的に拒否し、last-valid Recipe activation、Project revision、registry、closure hash、Artifactを維持する。
 
-`PackManifestV1.validator_refs[]`と`test_scenario_refs[]`はPack内で利用可能なValidator／fixtureのidentity inventoryであり、全Recipe共通の実行gateではない。Recipe apply／qualificationで実行するのは選択済み`CompositionRecipeV1.validator_refs[]`と`qualification_fixture_refs[]`だけである。未選択RecipeのValidator、fixture、条件依存を選択Recipeのclosureまたはgateへ追加しない。
+`PackManifestV1`はPack payload内のOperation、migration step／contribution、Validator、fixtureを全件列挙する。Manifest Operation集合、Pack ownerのactive MCD Operation集合、Trusted Service allowlist contributionはset equalityである。`validator_refs[]`と`test_scenario_refs[]`はPack内で利用可能なidentity inventoryであり、全Recipe共通の実行gateではない。Recipe apply／qualificationで実行するのは選択済み`CompositionRecipeV1.validator_refs[]`と`qualification_fixture_refs[]`だけである。
 
 Feature Packは再利用可能なPublic Contract、Schema、Validator、Runtime Port、AI vocabulary、reference implementation、contract fixtureを提供する。Genre PackはFeature Packを組み合わせるcomposition recipe、Genre vocabulary、GameSpec template、Profile、reference scenarioを提供する。Genre Packは新しい汎用Core契約を作らない。
 
@@ -118,7 +120,7 @@ Shooter Packは`pack_kind=genre`とし、次のFeature Packを必要に応じて
 
 Shooter manifestの全Recipe共通依存はRanged CombatとそのFeature DAGだけとする。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeの`required_feature_pack_refs[]`／`required_capability_refs[]`へ置く。AI敵、移動、Score、Pickup、finite Stageを持たないminimal Shooter recipeをvalidとし、既存2D／TPS reference Recipeは従来のeffective closureとPerception bindingを維持する。
 
-minimal target-practiceは既存`genre.shooter.top_down_2d | genre.shooter.third_person_3d`のexact 1件とPack-owned immutable `ShooterTargetProviderTemplateV1`を選ぶ。Production bindingはowner-typed `ShooterTargetProviderBindingDocumentV1`、qualification fixtureはProject Documentではない`ShooterTargetProviderFixtureBindingRecordV1`として分離し、Profile／templateへProject identityを埋め込まない。Project-owned payload ownerはtagged `owner_kind`＋stable `project_id`だけを持ち、revision／document set hashを持たない。所有はtrusted Document index／header containment、current Registry membership、compile対象Project IDで証明する。`ShooterTargetProviderBindingRegistryRefV1`はRegistry ID／version／hash／exact Project refを持ち、Document refsとselected recordsをID／version／hashのstrict sorted setにしてduplicate／same-key conflictを拒否する。selected record hashと`ShooterSelectedProviderBindingSetHashPayloadV1`は別domainでcount／length framingし、entry／Registry／Project／Binding ref全Fieldをbindする。expected base revision／document set hashはOperation input、post-commit値はReceipt／Registry／Compile closureだけに置き、binding semantic hashから除外する。create／update／selectは三つの完全な`McdOperationContractV1`、typed input／Result／Receipt、pure pre／post policy、Service／rate policy、17 exact Diagnostic ref、validator reachable error set equality、request hash／idempotency／Preview／Validation／Commit bindingを持つ。N create→N+1 reload／select／compile、unrelated N+2でbinding hash不変、cross-project／self-assert spoofをfixture化する。`fixture_only`はexact Fixture Registry ownerだけを許可しProduction Source／Registry／Save／Packageへ昇格しない。Ranged Combat ownerのMCD refsは`type.feature.ranged_combat.collision_query_port`と`type.feature.ranged_combat.shot_hit_event` version 1である。World／Physics／PerceptionなしProduction Project provider fixtureまで検証する。
+minimal target-practiceは既存`genre.shooter.top_down_2d | genre.shooter.third_person_3d`のexact 1件とPack-owned immutable `ShooterTargetProviderTemplateV1`を選ぶ。Production bindingはowner-typed `ShooterTargetProviderBindingDocumentV1`、選択正本は`ShooterTargetProviderSelectionDocumentV1`、qualification fixtureはProject Documentではない`ShooterTargetProviderFixtureBindingRecordV1`として分離する。Binding Registryはtrusted Document index内のBinding＋Selection Sourceからreload時に決定的に再materializeするDerived closureで、Registry直接writeやRegistry→Source逆投影を禁止する。Compile／Save／ReplayはSelection Document ref／hash、Binding Document ref／hash、RegistryRef、selected record set hashを束縛する。create／update／selectは三つの完全な`McdOperationContractV1`、typed input／Result／Prepared semantic Receipt payload／外側signed Receipt、pure pre／post policy、Service／rate policy、17 exact Diagnostic実配列、validator reachable error set equality、request hash／idempotencyを持つ。N create→N+1 reload／select／compile、unrelated N+2でbinding hash不変、cross-project／self-assert spoofをfixture化する。`fixture_only`はexact Fixture Registry ownerだけを許可しProduction Source／Registry／Save／Packageへ昇格しない。
 
 次の旧identityを廃止する。
 
@@ -175,7 +177,7 @@ RuntimeEntryActivationPolicyV1
   explicit_deactivation_semantics: graceful_reverse_teardown | immediate_reverse_teardown
 ```
 
-selectorはexact `DocumentRef<TargetProfileDocument>`だけをStable ID／schema／content hash順で持ち、wildcard、tag、表示名、platform名、active Targetの現在値によるlookupを許可しない。`target_profile_ref_count`は配列長と一致し、duplicate／same-ID different-hash／非canonical orderを拒否する。`selector_hash=SHA-256(ASCII "MIRAKAN_RUNTIME_TARGET_SELECTOR_V1" || uint32_be(length(MCD canonical bytes of RuntimeTargetSelectorHashPayloadV1)) || payload bytes)`であり、payloadはhash Fieldを持たない。ID、version、count、ref全Fieldをbindし、ID-only mutation、count mismatch、旧hash再利用を拒否する。entry／selector／policyのcreate／updateとroot scene migrationの七Operation、Scope migration一OperationはMCD Registryへ完全`McdOperationContractV1`として登録する。八recordは共通Envelope、exact input／output／rate-limit／receipt MCD ref、version／hash付きauthority、R2／R3、side effect、idempotency、transaction、16件のpure `policy` pre／post refs、closed `DiagnosticCodeRefV1` set、timeoutを全件明示する。Diagnostic refはID／code／version／content hashをcanonical Registryへexact解決し、各Operationのvalidator error union、reachable errors、`errors[]`をset equalityにする。request hashはdomain separatorと自己Fieldを除く全input、root migration ReceiptはWorldをcontent refだけ、selector／policy／entryをcontent ref＋owner固有semantic hashで記録する。Project ownerは七exact Operation refだけを参照し、metadataを複写しない。
+selectorはexact `DocumentRef<TargetProfileDocument>`だけをStable ID／schema／content hash順で持ち、wildcard、tag、表示名、platform名、active Targetの現在値によるlookupを許可しない。`target_profile_ref_count`は配列長と一致し、duplicate／same-ID different-hash／非canonical orderを拒否する。`selector_hash=SHA-256(ASCII "MIRAKAN_RUNTIME_TARGET_SELECTOR_V1" || uint32_be(length(MCD canonical bytes of RuntimeTargetSelectorHashPayloadV1)) || payload bytes)`であり、payloadはhash Fieldを持たない。ID、version、count、ref全Fieldをbindし、ID-only mutation、count mismatch、旧hash再利用を拒否する。entry／selector／policyのcreate／updateとroot scene migrationの七Operation、Scope migration一OperationはMCD Registryへ完全`McdOperationContractV1`として登録する。八recordは共通Envelope、exact input／output／rate-limit／receipt MCD ref、version／hash付きauthority、R2／R3、side effect、idempotency、transaction、16件のpure `policy` pre／post refs、closed `DiagnosticCodeRefV1` set、timeoutを全件明示する。Diagnostic refはID／code／version／content hashをcanonical Registryへexact解決し、各Operationのvalidator error union、reachable errors、`errors[]`をset equalityにする。`request_hash`はExecutable Contractsのcurrent V2定義だけを参照し、root migration ReceiptはWorldをcontent refだけ、selector／policy／entryをcontent ref＋owner固有semantic hashで記録する。Project ownerは七exact Operation refだけを参照し、metadataを複写しない。
 
 tagged branchは次を強制する。
 
@@ -209,7 +211,7 @@ startup_system_closure_hash?
 
 stop、fault、restartは実際にactivateしたstartup／UI／World／presentation dependency DAGを常にreverse teardownする。activation policyの明示deactivation値はgraceful／immediateな要求だけを選び、stop／fault時のteardown省略や依存順の再定義には使用しない。Project Document identity／selector-policyの二fixtureとRuntime branch activation／reverse teardownの二fixtureを`RuntimeEntryOwnerIntegrationManifestV1`のexact ref／hash mappingで束ね、`fixture.integration.project-runtime-entry.owner-resolution`を合格させる。
 
-旧`root scene`はmigration stagingで`default_for_selected_targets=true`の明示的な`world` entryへ変換し、各active Targetへdefaultを厳密に一件生成する。実行時の暗黙migration、`Level` alias、`ui`／`headless`への近似変換を禁止する。
+旧`root scene`はhash付き`RootSceneMigrationPlanRefV1`が唯一のpreimageである。Planはlegacy closure、World／selector／activation policy／runtime entryのexact四Document mutation、四Stable ID allocation intent、各active Targetのdefault bindingを持つ。Preview、Prepared Candidate、postcondition、Prepared Receipt payloadは同じPlan／allocation mappingを束縛し、Atomic Commit Markerで四Documentを一括publishする。実行時の暗黙migration、`Level` alias、`ui`／`headless`への近似変換を禁止する。
 
 ### 4.2 Generic World
 
@@ -255,7 +257,7 @@ StageDefinitionV1
 
 `spawn_definition_refs[]`はspatial spawnだけに使用し、`world_ref=null`では0件にする。worldless Stageの非空間処理は`stage_game_system_refs[]`とowner-typed contentを使う。`StageContentActivationPolicyV1.content_activation_scope`は`none | entry_anchor_closure | listed_content_refs`であり、`none`はcontent／anchor 0件のsystem-only headless Stageをvalidにする。
 
-Stage transition destinationはMCD `type.feature.scenario_stage.transition_destination` version 2のtagged unionとし、`stage | runtime_entry | world_space | ui | headless | session_end`ごとにexact 1 branchだけを許可する。Request V2はdestinationを持たずexact Policy ref／hashだけを参照する。`runtime_entry`は任意entry、`ui`／`headless`は対応entry kind、`world_space`はworld entry ref／payload semantic hashとWorld-owned `type.world.spatial_transition_destination` refを必須にする。UI Document、headless systems、World／AnchorをStage内で直接指定してRuntime Entry closureを迂回しない。`StageTransitionContractRefSetV1`はdestination／request／policy／World spatial destination／port messageのexact 5 refだけを持つ。transition MCD subset、Port reachable closure、owned public inventory、runtime port inventory、Gameplay Features aggregateを異種混在させず五つのlike-for-like gateで個別比較し、各Receiptが同じPack／owner／Contract set hashへ閉じる場合だけactivateする。六kind round-trip、branch外Field、required anchor欠落、stale World／Topology／Space／Edge／hash、各gateのmissing／extra／stale／duplicateをfixture化する。`fixture.feature.scenario_stage.worldless-ui`と`fixture.feature.scenario_stage.worldless-headless`はstable IDとしてManifest inventoryと選択qualificationへ登録する。
+Stage transition destinationはMCD `type.feature.scenario_stage.transition_destination` version 2のtagged unionとし、`stage | runtime_entry | world_space | ui | headless | session_end`ごとにexact 1 branchだけを許可する。`StageTransitionContractRefSetV1`はStage owner四refとWorld owner一refのexact 5 refだけを持つ。左辺は`StageTransitionCrossOwnerReachableClosureV1`がStage／World／Runtime rootから到達し、owner別Validation Receipt三件を束縛してmaterializeする。Runtime delivery contractはvalidation inputだがexact五refへ六件目として混ぜない。owned public inventory、runtime port inventory、cross-owner MCD set、Port closure、Gameplay Features aggregateを五つのlike-for-like gateで個別比較する。
 
 ## 5. Gameplay、Scope、Locomotion
 
@@ -335,11 +337,11 @@ Navigationはこの7 Field型、`MotionExecutorProviderCatalogV1`／record、`Mo
 
 Batch entriesは1～16件で、各entryが`intent_schema_ref: McdContractRefV1`、payload refまたはinline value identityのtagged union、payload hash、producer Game System ref、proposal IDを持つ。accepted set検査はbatch envelopeでなくentries schema集合だけへ適用する。type spoof、payload hash mismatch、duplicate proposal、noncanonical order、root-motionあり／なしをfixture化する。Gameplay schemaは`type.feature.character_locomotion.gameplay_motion_intent`、Navigationは`type.navigation.movement_intent`、Animationは`type.animation.root_motion_proposal` version 1である。Provider-private派生入力をpublic accepted setへ混ぜない。
 
-`game_system.engine.character_locomotion.binding`はexact MCD共通Envelopeと`runtime_scope_type_ref={scope.core.entity,v1,hash}`を持つFeature-owned `GameSystemSpecV2`である。一般schemaは`semantic_role_refs`、二requirement ref集合、`dependency_edge_refs`、`implementation_policy_ref`、authoritativeだけ必須の`save_replay_contract_ref`、`behavior_budget_refs`、`fixture_refs`、`compatibility_invariant_refs`、self-excluding `auxiliary_ref_set_hash`へ一意化する。arrayはID／version／hashのstrict sorted set、duplicate／same-ID different-hashを拒否し、nonauthoritative Save refはcanonical omissionする。Character ownerがproposal→generic contribution adapter、selected Provider binding、scope migration、fixtureを登録し、CoreへCharacter IDを追加しない。Feature-owned Selection Stateを所有し、Navigation-owned batchを`emitted_port_message_type_refs`でT40に発行する。TransformまたはPhysics stateを直接writeしない。
+`game_system.engine.character_locomotion.binding`はFeature-owned proposal／adapter contributionだけを所有する。Navigation／Core-owned `game_system.engine.navigation.motion_intent_batch_publisher`が全owner contributionをcanonical mergeし、`MotionExecutorIntentBatchV1`をT40に一度だけ発行する。`MotionIntentContributionBindingRecordRefV1`、RegistryRef、`MotionIntentBindingSelectionDocumentV1`をCompile／Save／Replay closureへ保存し、Character、RTS、board-token、Animationがgeneric publisherをforkしない。Physicsなしboard-token／RTSとFeature PackなしPath fixtureを必須にする。
 
 Physics Kinematic Motion Providerの7 FieldはCapability `capability.motion_executor.physics_kinematic`、Profile `type.physics.kinematic_motion_profile`、generic Navigation intent／contribution envelope、transport batch、resolved `type.physics.kinematic_resolved_motion`、compatibility policy、failure diagnosticsで固定する。owner固有proposalはPack-owned adapter recordを介し、Physics descriptorへFeature type IDをhard-codeしない。board-token／RTS fixture Providerも7 Fieldとowner／usage／Target／dimension／diagnosticを完全登録し、Physics dependency 0件を検証する。
 
-Physics AI意味解決もobject名をCore enumへ固定しない。Core-owned `PhysicsIntentRoleRegistryV1`は`role.physics.static_environment`、`role.physics.dynamic_body`、`role.physics.kinematic_body`、`role.physics.sensor`、`role.physics.query_subject`、`role.physics.presentation_proxy`のbehavior-neutral recordだけを持ち、`PhysicsIntentRoleRegistryRefV1`と各Role RefをID／version／content hashへbindする。Pack／Projectはowner namespace、Capability、五つの独立axis（motion／collision／hit／shape／speed）、fixtureを持つrole recordとvocabularyを下向きに登録する。Resolutionは読取時のRegistry Refを保存してvalidate／preview／proposalでcurrent三Fieldexact equalityを再検査する。Core resolverは登録済みRefとaxis compatibilityだけを検証し、Player、弾体、車両、群衆等を既定化しない。旧object固有enumはoffline migrationでexact owner contributionへ解決できる時だけ移行し、近似Core roleへ変換しない。
+Physics AI意味解決もobject名をCore enumへ固定しない。Core-owned `PhysicsIntentRoleRegistryV1`は六roleのowner、五axis allowed set、Capability、fixture、self-excluding record hashを完全materializeし、Record内へ自身のhash付きRoleRefを埋め戻さない。`PhysicsIntentRoleSelectionDocumentV1`をProject Source正本、Registry／Resolutionを派生とする。旧enumは`PhysicsIntentRoleMigrationContributionRegistryV1`と完全なMCD migration Operation／Prepared payload／Receipt／Validator／Manifestを介してexact一件へ移行し、近似Core roleへ変換しない。
 
 `feature.character_locomotion@1`のPack installはPhysicsを要求しない。Physics Kinematic Motion ProviderはC1 reference recipe／qualification providerの一つに限る。Animation root motionもgeneric contribution registryからselected executorへ届き、Providerへ直接提出しない。`gameplay_motor`旧modeはprovider-neutral modeへclean migrationする。T40はselected executor、T50はactive Physics providerがある場合だけ実行する。missing／incompatible provider、stale result、provider failureはtyped failureとし、last-valid stateを維持する。
 
@@ -489,11 +491,25 @@ Pack Discoveryは次のexact OperationをMCDへ登録する。
 
 Model familyまたはHost brandをEngine機能分岐にしない。同じMCD／Operationへ適合するProvider／ModelをProfileとConformance Receiptで有効化する。Strict Tool Callingへ適合しないModelはread-onlyまたはproposal-onlyに制限し、自然言語をCommit Operationへ推測変換しない。
 
+### 8.1 Contract set、request、Commitの非循環DAG
+
+`ContractSetSnapshotV2`だけをcurrent正本とし、Snapshot内部は`ContractSetLocalRefV1 {kind,id,version}`を使う。Operation／Service allowlist／Validator closure／Diagnosticの相互edgeに外部set rootやrecord hashを入れない。生成順は`LocalRef解決 → self-excluding record hash → sorted {LocalRef,record_hash} set root → external McdContractRef／ServiceRef／ValidatorRef materialization`である。Operation表はroot確定後のexternal projectionで、compiler inputは全intra-set refをkind別LocalRefへ機械投影し、Field／cardinality／logical identityのset equalityをfixtureで検証する。
+
+`request_hash`の式、domain、canonical omission規則はExecutable Contractsだけが所有するcurrent V2定義を参照する。選択input schemaの全実在Fieldをencodeし、Project-boundはexact Project ref、projectlessはworkspace／catalog／resource等のOwner登録refを使ってsentinel／null Projectを捏造しない。Project有無で式をversion-upしない。Design／Domain文書は式を複写しない。V1はoffline migration input／retained Receipt auditだけに残す。Task 2はread-only `RequestHashV1ToV2OfflineMigrationRecordV1`／Staging candidateだけを定義し、未登録の状態変更Operation IDを作らない。新Project revisionへの昇格は、完全なService／Policy／Validator／Approval／Commit DAGを持つgeneric schema-migration Operationを後続で登録するまで`capability_unavailable`とする。
+
+mutationは`Preview → Validation → PreparedCandidate／PreparedCommitEnvelope → staged postcondition → AtomicCommitMarkerでstate＋Prepared semantic payloadをatomic publish → readback → signed Domain Receipt／Result`の一方向DAGである。`atomic_commit_plan_hash`はMarker、postcondition Receipt、最終Receiptを除外する。MarkerはPrepared Envelope、staged postcondition、Prepared payloadを参照し、最終Receiptはreadback後にPrepared payload＋Markerを参照する。postconditionがCommit Marker／公開Receiptを読む循環、Markerが最終Receiptをhashする循環を禁止する。
+
+`PreparedCandidateV1`はID、schema、Staging root、before／proposed-after state、prepared Artifact集合からself-excluding content hashを作り、外部`PreparedCandidateRefV1`を完成後にmaterializeする。Marker durable後／外側Receipt保存前のcrashはMarker＋Prepared payload＋after stateをread-backし、Operation、request、Receipt type、payload、Marker、deterministic signing policyから導出したmaterialization keyへatomic put-if-absentする。既存Receiptはbyte equalityで再利用し、別署名、二重Receipt、overwrite、state rollbackを禁止する。MarkerなしPrepared artifactは非公開廃棄する。
+
+R2 mutation inputは`MutationAuthorizationBindingV2`の`approval | predelegated`を厳密に一つ、R3以上はapprovalだけを持つ。欠落／expired／scope mismatchは全Domainで`MIRAKAN-APPROVAL-REQUIRED`とし、Operation error、Validator reachable error、Manifest inventoryをset equalityにする。
+
+Input roleはclosed MCD kind `type`の`SemanticActionRoleRefV1`で表し、未定義kindやbare文字列を受理しない。Project Sourceの正本は`SemanticActionBindingSelectionDocumentV1`、Derived closureは`SemanticActionCommandBindingRegistryV1`であり、`operation.input.semantic_action_binding.select@1`だけがSourceを変更する。Compile／Save／ReplayはSelection Document、Action Map、RegistryRef、全RecordRef、role type、Command Systemをexact closureとして保存し、reload後のSource→Registry→Record equalityを再検査する。
+
 ## 9. Product ScopeとQualification
 
 現時点で未実装のPlatform／大規模機能を、汎用Schemaが存在することだけで対応済みと表示しない。offline single-player、Windows-first、60 Hz baseline等の現在Scopeは許容するが、恒久Core制約にしない。
 
-性能Envelopeはactor／projectile／enemy／damage等のGenre語彙をCore fieldへ固定しない。`RuntimeScaleIntentDimensionRegistryV1`はdimension ID／version／content hash、owner、measurement schema、unit、`authoritative_state | authoritative_event | presentation_only | resource_only`、fidelity／semantic-equivalence、fixtureをexact recordとして解決する。Coreはinstance総数／peak、authoritative active／visible、create／retire per step、authoritative event per step、interaction radius、presentation peakのbehavior-neutral dimensionだけを登録し、Feature／Genre／Projectが役割別instanceやevent別peakを自身のnamespaceで寄与する。`ProjectScaleEnvelopeV1.runtime_scale_intent_refs`はactive Registry refと、dimensionごとのfinite・非負な`minimum_required <= target_value <= maximum_expected`を束ねる。Qualificationは全owner dimensionを同時発生させ、未登録dimension、schema／unit／hash不一致、authoritative equivalence欠落を開始前に拒否する。
+性能正本は`ProjectScaleEnvelopeV2`で、`WorkloadDomainTypeRegistryV1`とowner-typed `WorkloadDomainIntentV1`を束ねる。World／spatialは一件でも`required`なら必須、全domainが`forbidden`なら禁止、`optional`だけならnull／exact World intentの双方を許可する。UI-only、strict headless、tooling、resource-onlyは偽World／Gameplay floorなしでvalidである。semantic modeは`authoritative_equivalence | presentation_fidelity | functional_contract | resource_slo | none`のtagged ruleで、`none`は登録済みtool／resource domainだけに許可する。旧V1は完全なmigration Operation／Prepared payload／Receipt／fixtureでV2へ移し、current Source／projectionへ残さない。Qualificationは全owner dimensionを同時発生させ、未登録dimension、schema／unit／hash不一致、必要なequivalence／fidelity／functional／SLO欠落を開始前に拒否する。
 
 最低Reference／holdout集合を次へ固定する。
 
@@ -501,7 +517,7 @@ Model familyまたはHost brandをEngine機能分岐にしない。同じMCD／O
 - Shooter third-person 3D: 同じFeature契約の3D検証
 - Puzzle／Dialogue 2D: Combatなし
 - Platformer 2D: Character Locomotionの別Genre検証
-- Turn-based zero-character: Player Character、Physics、Level completionを要求しない
+- Turn-based zero-character: Character、Physics、Pack-owned completionを要求しない
 - Endless continuous simulation: Completion／Resultなし
 - UI-only／tool-like: Worldなし
 - Headless simulation: Surface／UIなし
@@ -517,7 +533,7 @@ Release closureはTarget単位に評価する。Windows／Android／Apple／head
 1. Shooter Packを未installまたは削除した状態でCore、Editor、AI、Project C++、Project Shader、Test、Build、Packageが成功する。
 2. Core／Feature文書とProduction dependency graphからShooter Genre IDへの依存が0件である。
 3. Genre PackなしでFeature Packだけを使うProjectがvalidである。
-4. UI-only ProjectがWorld／Levelなし、headless Projectがsurfaceなしでvalidである。
+4. UI-only ProjectがWorld／spatial contentなし、headless Projectがsurfaceなしでvalidである。
 5. finite、endless、turn-based、continuous simulation、tool-like、zero-characterをGame Brief／Specで表現できる。
 6. Path FollowingがCharacter Motor以外のconformance stubへ接続できる。
 7. C1は60/1だけをqualifiedに保ちながら、Core schema変更なしに別Cadence Profileを追加できる。

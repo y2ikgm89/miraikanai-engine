@@ -113,13 +113,13 @@ git commit -m "docs: establish generic pack architecture"
 
 **Interfaces:**
 - Consumes: `PackManifestV1`とScenario／Stage owner。
-- Produces: `RuntimeEntryPointV1`、generic `WorldDocumentV1`、`SpatialTopologyDefinitionV1`、`RuntimeScopeTypeCatalogV1`、`MotionExecutorPortV1`、`PhysicsIntentRoleRegistryV1`、`RuntimeScaleIntentDimensionRegistryV1`。
+- Produces: `RuntimeEntryPointV1`、generic `WorldDocumentV1`、`SpatialTopologyDefinitionV1`、`RuntimeScopeTypeCatalogV1`、`MotionExecutorPortV1`、`PhysicsIntentRoleRegistryV1`／Selection、`ProjectScaleEnvelopeV2`、`WorkloadDomainTypeRegistryV1`、`RuntimeScaleIntentDimensionRegistryV1`。
 
 - [ ] **Step 1: Add Project runtime entry points**
 
 `ProjectManifest`の`root scene`をexact `DocumentRef<RuntimeEntryPointDocumentV1>`の`runtime_entry_point_refs[1..64]`へ置換し、Design §4.1の`RuntimeEntryPointV1`全Field、Project-owned selector／policy Document、共通header、branch validationを追加する。三Documentは`DocumentRef.stable_id == header.document_id == payload ID`を必須にする。selected entry hashはentry payload semantic hash、Document hashはref content hashへ分離する。selectorはhash Fieldを持たない`RuntimeTargetSelectorHashPayloadV1 {selector_id, selector_version, target_profile_ref_count, target_profile_refs[]}`をID／version／hash順へcanonicalizeし、domain separator＋byte length＋payload bytesからhashする。Compile Manifestはowner-typed providerを選んだ時だけ`selected_provider_binding_set_hash`を持ち、post-commit Project revision／document set、Registry、Binding Document content／semantic hashをclosureへ入れる。Runtime Package自己hashをinputへ含めない。
 
-entry／selector／policyのcreate／updateとroot migrationの七Operation、Scope migration一Operationを完全`McdOperationContractV1`として登録する。八recordはMCD共通Envelope、exact input／output／rate-limit／receipt ref、authority、risk、side effect、idempotency、transaction、16 pure policy pre／post refs、closed DiagnosticCodeRef set、timeoutを全行で明示し、カテゴリ散文や別行補完を使わない。Project ownerは七exact Operation refだけを参照する。request hashはdomain separator＋自己Fieldを除く全input、root migration Receiptは四Document tagged before／afterへ固定する。Operation meta-schema／Registry compile、Project↔MCD set equality、predicate wrong-kind／missing／stale fixtureを追加する。
+entry／selector／policyのcreate／updateとroot migrationの七Operation、Scope migration一Operationを完全`McdOperationContractV1`として登録する。八recordはMCD共通Envelope、exact input／output／rate-limit／receipt ref、authority、risk、side effect、idempotency、transaction、16 pure policy pre／post refs、closed DiagnosticCodeRef set、timeoutを全行で明示し、カテゴリ散文や別行補完を使わない。Project ownerは七exact Operation refだけを参照する。`request_hash`はExecutable Contractsが所有するV2式だけを参照し、Domain文書へ別式を複写しない。root migration Receiptは四Document tagged before／afterへ固定する。Operation meta-schema／Registry compile、Project↔MCD set equality、predicate wrong-kind／missing／stale fixtureを追加する。
 
 - [ ] **Step 2: Neutralize the Core World model**
 
@@ -145,9 +145,9 @@ Common Interaction汎用化とRecipe gateを維持する。Shooter target provid
 
 Navigationを7 Field `MotionExecutorPortV1`、Provider-neutral Catalog／record、`MotionExecutorProviderRecordRefV1`、exact transport batchの唯一Ownerにする。RecordRefはCatalog ref/version/hashとprovider ID/version/content hashをbindし、Batch／Selection State／Save／Replayで一意に使う。Physics productionも同refを使い、stale Catalog／provider hash、fixture-in-productionを拒否する。
 
-`GameSystemSpecV2`へ`emitted_port_message_type_refs`を持たせ、Character bindingのMCD Envelope、2 Feature type、Navigation batch、role／3 requirement／dependency／policy／Save Replay／budget／fixture／3 invariantの12 record refをFeature ownerでexact解決する。Coreはgeneric motion contribution／selected executor Portだけを所有し、Character adapter／Provider binding／fixtureをPackへ置く。BatchをEventにしない。Scenario Stageは`StageTransitionContractRefSetV1`をdestination／request／policy／World spatial destination／port messageのexact 5件へ閉じ、public／runtime／global MCD／Port closure／aggregateを別々のlike-for-like gateで検証する。MCD IDはcanonical `<kind>.<lower-token-path>`、version separateへ統一する。
+`GameSystemSpecV2`へ`emitted_port_message_type_refs`を持たせ、Character bindingのMCD Envelope、2 Feature type、role／3 requirement／dependency／policy／Save Replay／budget／fixture／3 invariantをFeature ownerでexact解決する。Characterはproposal／adapter contributionだけを所有し、Navigation／Core-owned `game_system.engine.navigation.motion_intent_batch_publisher`が全owner contributionをcanonical mergeしてBatchを一度だけ発行する。Coreはgeneric motion contribution／selected executor Portを所有し、Character adapter／Provider binding／fixtureをPackへ置く。BatchをEventにしない。Scenario Stageは`StageTransitionCrossOwnerReachableClosureV1`がStage／World／Runtime rootからowner別Validation Receipt付きでmaterializeしたdestination／request／policy／World spatial destination／port messageのexact 5件へ閉じ、Runtime delivery contractを六件目として混ぜない。public／runtime／global MCD／Port closure／aggregateを別々のlike-for-like gateで検証する。MCD IDはcanonical `<kind>.<lower-token-path>`、version separateへ統一する。
 
-Physics AI Coreはbehavior-neutralな`PhysicsIntentRoleRegistryV1`だけを所有し、object／Genre role、default mapping、adapter／fixtureをPack／Project ownerへ移す。role Refとmotion／collision／hit／shape／speed axisを独立検証し、旧object enumはoffline migrationでexact contributionへ一意解決できる時だけ移行する。Performanceは`RuntimeScaleIntentDimensionRegistryV1`とbounded typed valueへ一意化し、Coreにはinstance／lifecycle／event／spatial／presentationの中立dimensionだけを置く。Project EnvelopeとIntegrated fixtureはowner-typed全dimension、measurement schema、unit、fidelity／equivalence、fixture closureを同時に検査し、projectile／actor／damage／goal等をCore field／fixtureへ固定しない。
+Physics AI Coreはbehavior-neutralな`PhysicsIntentRoleRegistryV1`の六つの完全なrole recordを所有し、Project Sourceの`PhysicsIntentRoleSelectionDocumentV1`が選択を固定する。object／Genre role、default mapping、adapter／fixtureはPack／Project ownerへ移す。role Refとmotion／collision／hit／shape／speed axisを独立検証し、旧object enumは完全なmigration contribution Registry、MCD Operation、Validator、Prepared payload、外側Receipt、Manifestを介してexact一件へ一意解決できる時だけ移行する。Performanceのcurrent正本は`ProjectScaleEnvelopeV2`であり、`WorkloadDomainTypeRegistryV1`とowner-typed `WorkloadDomainIntentV1`を束ねる。World／spatialは`required`なら必須、全domainが`forbidden`なら禁止、`optional`だけならnull／exact World intentの双方を許し、UI-only、strict headless、tooling、resource-onlyを偽World／Gameplay floorなしで有効とする。旧V1はoffline migration inputだけに残し、Project EnvelopeとIntegrated fixtureはowner-typed全dimension、measurement schema、unit、fidelity／equivalence／functional contract／resource SLO、fixture closureを同時に検査する。
 
 - [ ] **Step 6: Verify and commit Task 2**
 
@@ -409,3 +409,18 @@ git commit -m "docs: complete generic engine plan audit"
 - MCD common envelope `11`件、typed ref `9`件のlogical ID grammar failure: `0`。
 - 全Markdown `71`件、relative local link `1,478`件、fragment `143`件、missing path／fragment `0`、unbalanced fence `0`。
 - `git diff --check`: `PASS`。一時監査planはcommit対象から削除済み。
+
+### Task 2 final contract-DAG／genericity closure（2026-07-23）
+
+- Audit base: `ace0913249db5e1d664dfa6bc645ee5ba2613b5d`
+- Scope: final re-auditのCritical／Important／Minor指摘とpost-Marker crash recovery。Engine実装、Capability activation、Shipping readinessは未主張。
+- Contract set: `ContractSetLocalRefV1`→self-excluding local record hash→sorted set root→外部MCD／Service／Validator refの一方向生成へ統一し、Operation／Service／Validator closureの相互edgeをLocalRefだけにした。
+- Commit: `PreparedCandidateV1` content identity、Prepared Envelope、staged postcondition、state＋Prepared payload＋Marker publish、readback、外側signed Receipt／Resultへ閉じた。Marker後crashはcanonical materialization-key payloadとdeterministic signing policyのatomic put-if-absentでexact一回回復し、別署名／二重Receipt／rollbackを禁止した。
+- Request: V2式の正本をExecutable Contracts一箇所だけにし、project-bound／projectlessとも選択input schemaの実在Fieldをencodeする。V1はread-only offline migration record／candidateだけで、未登録Operation IDを作らない。
+- Generic runtime: owner-typed `ProjectScaleEnvelopeV2`、optional spatial semantics、六Physics Role＋Selection／migration、Navigation-owned generic motion publisher、Input type-role＋Selection、Shooter Source Selection／Derived Registry、Stage cross-owner exact-five、Root Scene exact-four planを正本化した。
+- Manifest: Pack Operation／Validator／migration／test inventoryとTrusted Service allowlist contributionをexact version／hash／LocalRef set equalityへ閉じた。
+- Fresh contract assertions: `27/27 PASS`。Shooter Operation `3/3`×Diagnostic `17/17`、initial Validator `22/22`、Physics Role `6/6`、Target Selector createのdefault-ambiguous error `0`。
+- Core→Pack exact hard dependency `0`、invalid `McdContractRefV1` kind `0`、旧current alias／省略error／Receipt循環の禁止pattern `0`。
+- 全Markdown `71`件、relative local link `1,482`件、fragment `147`件、missing path／fragment `0`、unbalanced fence `0`。
+- `git diff --check`: `PASS`。
+- Remaining risk: Schema／Registry compiler、Gateway、deterministic signing Store、Runtime、Save／Replay、Build、Target実機qualificationは後続実装／conformance testが必要である。

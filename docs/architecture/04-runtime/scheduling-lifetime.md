@@ -222,7 +222,7 @@ Presentation childが`surface_unavailable`ならR00～R70をskipし、surface ge
 | 4 | `T40_MotionIntent` | root motion proposalとmovement intentをselected Motion Executorで解決 | selected executor input／resolved motion |
 | 5 | `T50_PhysicsStep` | active Physics providerがある場合だけ2D／3D Physics fixed stepと登録済みCollision Query batchを実行 | active Physics Adapter内部、private query result |
 | 6 | `T60_PhysicsIntegrate` | native eventとPerception Query結果をnormalizeし、dynamic transformと次tick用Perception snapshotをwrite-back | Physics owner field、Perception owner field |
-| 7 | `T70_PostPhysics` | contact／trigger配送、damage、quest、post-physics rule | 非構造fieldとcommand |
+| 7 | `T70_PostPhysics` | contact／trigger配送、owner登録済みpost-physics authoritative Event／rule | owner-typed非構造fieldとcommand |
 | 8 | `T80_AnimationFinalize` | blend、IK、pose、boundsをauthoritative transformから確定 | Animation state |
 | 9 | `T90_PresentationBuild` | Audio、VFX、UI、camera向けbatchを生成 | Presentation buffer |
 | 10 | `T100_ReplayCheckpoint` | Input、accepted async result、state hash、checkpointを記録 | Replay stream |
@@ -410,7 +410,7 @@ World queryはmove-onlyな`ReadLease<Component...>`または`WriteLease<Componen
 
 Structural command batchは、全handle、precondition、conflict、destination容量を先に検査・予約し、live location tableを変更せずstaging mutation planへ構築する。全command成功後の単一commit pointでchunk owner、location table、World epochをpublishする。commit前の失敗はstagingだけを破棄し、live Worldを変更しない。
 
-大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV1`とTarget別Representation Planから解決する。World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)が所有し、本書はactivation boundaryとstate ownerだけを決定する。
+大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV2`に登録されたowner-typed workload domainとTarget別Representation Planから解決する。World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)が所有し、本書はactivation boundaryとstate ownerだけを決定する。
 
 ## 8. Handle、borrow、lease、job lifetime
 
@@ -502,7 +502,7 @@ CIはtarget依存DAG違反、Manifest外access、phase外structural mutation、e
 
 AI、GameplayDefinition、Native Game Module、Engine Systemは同じphase、State owner、component access、command／event、lifetime、faultを使う。実装方式を理由に新phase、独自thread pool、直接World write、vendor pointer、unbounded queueを追加しない。新しいphase、queue class、thread role、lifetime classの提案はArchitecture Changeとして扱う。
 
-大量要求は個数だけで拒否せず、[Performance／capacity](performance-capacity.md)のScale Envelope、fidelity floor、Target別Representation Planへ解決する。Presentation-only最適化でGameplayの敵数、Damage、collision、goal、timingを変えない。C++最適化候補も同じSource revision、fixture、Replay、budget、fault Gateで比較する。
+大量要求は個数だけで拒否せず、[Performance／capacity](performance-capacity.md)のowner-typed Workload Envelope、semantic requirement、Target別Representation Planへ解決する。Presentation-only最適化でowner登録済みauthoritative instance／event／interaction／destination／timing semanticsを変えない。C++最適化候補も同じSource revision、fixture、Replay、budget、fault Gateで比較する。
 
 Product Phase 0に必要な本書所有artifactは次である。
 

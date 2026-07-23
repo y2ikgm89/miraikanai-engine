@@ -43,6 +43,21 @@
 
 上表の`type.*`／`capability.*`は表示上IDだけを示すが、Manifest保存値はすべて`McdContractRefV1 {id, version, contract_set_hash}`である。Pack refは`PackContractRefV1 {pack_id, pack_version, pack_hash}`、Architecture contract anchorはowner文書revision／content hash付き`ArchitectureContractRefV1`で保存し、bare ID／anchorだけを永続参照にしない。
 
+各embedded Feature PackのOperation／migration inventoryを次へ固定する。共通`operation.feature.*@1`七件はCore Authoring Gateway所有でPack artifactへ同梱しないため、各Manifestの`authoring_operation_refs[]=[]`である。PackはFeature-specific Type、Validator、fixtureをOperation input closureへ寄与するだけで、Service allowlistへ七Operationを重複追加しない。
+
+| Pack | `authoring_operation_refs[]` | `migration_contribution_refs[]` | `migration_step_refs[]` |
+|---|---|---|---|
+| `feature.combat@1` | `[]` | `[]` | `[]` |
+| `feature.ranged_combat@1` | `[]` | `[]` | `[]` |
+| `feature.encounter_spawn@1` | `[]` | version／hash付き`runtime_scope.migration_contribution.feature.encounter_spawn` | `[]` |
+| `feature.scoring@1` | `[]` | version／hash付き`runtime_scope.migration_contribution.feature.scoring` | `[]` |
+| `feature.pickup_grant@1` | `[]` | `[]` | `[]` |
+| `feature.interaction@1` | `[]` | `[]` | `[]` |
+| `feature.character_locomotion@1` | `[]` | version／hash付き`runtime_scope.migration_contribution.feature.character_locomotion` | `[]` |
+| `feature.path_following@1` | `[]` | `[]` | `[]` |
+
+Pack artifact内のValidator／fixture集合は上表の`validator_refs[]`／`test_scenario_refs[]`とset equality、上記Contribution集合はactive migration registryのowner subsetとset equalityにする。missing／extra／stale／duplicateをPack install前に拒否する。Scenario Stageは独立owner文書のManifest inventoryだけを正本とし、ここではaggregate set equalityだけを行う。
+
 Scenario Stage aggregateのpublic ref集合はowner文書のPack Manifest public inventory、port ref集合は同Manifest runtime inventoryと、それぞれ独立にset equalityを必須にする。transition MCD exact 5件はowner文書の`StageTransitionContractRefSetV1`とactive MCD Contract set、Port reachable closureの間だけで比較し、public 7件またはruntime port 2件との異種set equalityを行わない。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は五つのlike-for-like gateごとにaggregateだけのref欠落、ownerだけのextra、version／hash stale、duplicateを各一原因で拒否する。
 
 `MotionExecutorPortV1`の唯一のcanonical ownerはNavigationである。本書はexact public contract refだけをmanifestへ登録する。Character Locomotion PackはPhysics unavailableでもinstall／validateでき、Physics Kinematic Motion ProviderはC1 reference recipe／qualification Providerを選んだ時だけ依存closureへ入る。consumerはProvider Backend object、native body pointer、render transformへ直接依存せず、Portのtyped intent／resolved resultだけを使う。
@@ -577,7 +592,7 @@ GameSystemSpecV2
   extension_policy: sealed
 ```
 
-本Systemだけが`MotionExecutorSelectionStateV1`を所有し、Navigation-owned `MotionExecutorIntentBatchV1`の正規producerである。Batch自体とPort schemaのOwnerはNavigationであり、Event inventoryへ入れない。Gameplay、Navigation、Animationの全proposalは本Systemのaccepted Commandを通り、selected Providerへ直接提出しない。dependency edgeはNavigation-owned `MotionExecutorPortV1`へのexact contract dependencyであり、System Graphの別ownerへ直接writeしない。Transform、Physics body／state、Provider-private profile、Animation clockへwriteせず、selected ProviderだけがPortのresolved motionをwriteする。`type.feature.character_locomotion.gameplay_motion_intent`からgeneric `type.navigation.motion_intent_contribution`へのadapter policy、selected-executor binding、Physics Kinematic Motion Providerとのcompatibility record、全positive／negative fixtureはこのFeature ownerが`MotionIntentContributionBindingRegistryV1`へ登録する。Navigation／Physics CoreへFeature type IDやadapter fixtureを追加しない。
+本SystemはFeature固有`MotionExecutorSelectionStateV1`とCharacter Locomotion proposalだけを所有する。Navigation-owned `game_system.engine.navigation.motion_intent_batch_publisher`が全owner contributionをcanonical mergeして`MotionExecutorIntentBatchV1`を一度だけ発行するため、本SystemをBatch producerまたはgeneric publisherにしない。Character proposalはgeneric contribution registryへ提出し、selected Providerへ直接提出しない。dependency edgeはNavigation-owned `MotionExecutorPortV1`へのexact contract dependencyであり、System Graphの別ownerへ直接writeしない。Transform、Physics body／state、Provider-private profile、Animation clockへwriteせず、selected ProviderだけがPortのresolved motionをwriteする。`type.feature.character_locomotion.gameplay_motion_intent`からgeneric `type.navigation.motion_intent_contribution`へのadapter policy、Character-owned binding contribution、Physics Kinematic Motion Providerとのcompatibility record、全positive／negative fixtureはこのFeature ownerが`MotionIntentContributionBindingRegistryV1`へ登録する。Navigation／Physics CoreへFeature type IDやadapter fixtureを追加しない。
 
 ### 4.1.1 Character Locomotion依存record registry
 
@@ -960,16 +975,16 @@ Character Locomotion fixtureはPhysics capabilityとPhysics Packが不在でもP
 Feature mutationはFeature ownerのoperationだけが行う。Genre operationはcomposition、Profile、Game Flow、Action roleと統合fixture bindingだけを変更し、Feature Sourceを直接writeしない。
 
 ```text
-operation.feature.create_definition
-operation.feature.update_definition
-operation.feature.configure_system
-operation.feature.bind_runtime_port
-operation.feature.preview_change
-operation.feature.explain_contract
-operation.feature.validate_contract
+operation.feature.create_definition@1
+operation.feature.update_definition@1
+operation.feature.configure_system@1
+operation.feature.bind_runtime_port@1
+operation.feature.preview_change@1
+operation.feature.explain_contract@1
+operation.feature.validate_contract@1
 ```
 
-全mutationは対象`feature.*` pack ID、base revision、changed fields、validator、fixture、rollback tokenを含むChangeSet Receiptを返す。Feature contract qualificationは本節のoperationと8節のFeature fixtureだけが所有する。
+七OperationはCore Authoring Gateway所有の共通MCDで、全mutationは対象`feature.*` Pack exact ref、base revision、changed fields、owner Validator、fixture、rollback tokenを含むChangeSet Receiptを返す。各Feature ManifestのOperation inventoryへ重複所有させない。Feature contract qualificationは本節のOperationと8節のFeature fixtureだけが所有する。
 
 ## 10. 公式資料
 
