@@ -355,7 +355,7 @@ Asset activationはdependency closure単位の`AssetGenerationId`を使う。CPU
 | Dynamic rigid-body transform | Physics integration | Gameplayはcommandだけ提出 |
 | Kinematic transform | Character motor proposalをPhysicsが解決 | Animation／Gameplayはresolved値を読む |
 | Non-physics gameplay transform | owner Gameplay System | Rendererはsnapshotだけ読む |
-| Skeletal pose | Animation finalize | ragdollは別input fieldを提出 |
+| Skeletal pose | Animation finalize | 現行C1／C2はAnimation inputだけを受ける。Ragdoll input fieldは`future.capability.vehicle-ragdoll-crowd-motion-warping`のactive migration後だけ追加できる |
 | UI layout transform | UI layout owner | Rendererはsnapshotだけ読む |
 | Render interpolation／GPU particle | Presentation owner | authoritative Worldへ戻さない |
 
@@ -365,7 +365,7 @@ Physics／Navigation／Animationのcross-subsystem順は次の不変条件を持
 - 2Dと3D Physicsを併用する場合はgenerated Producer Registryのcanonical system orderで逐次step／joinし、同時にvendor Worldをstepしない。
 - native Physics callbackはWorldを変更せず、copied valueをintegrationでStable ID／generation検査後にnormalizeする。
 - Navigation obstacle inputは完了済みPhysics snapshotから取り込み、live Physics objectを参照しない。Nav resultはrequest時のmesh versionとowner generationが一致する場合だけ統合する。
-- Animationはresolved transformからpose／boundsを確定し、Physics Adapterは最終bone poseへ直接writeしない。ragdoll inputは別fieldを通してAnimation ownerが合成する。
+- Animationはresolved transformからpose／boundsを確定し、Physics Adapterは最終bone poseへ直接writeしない。現行C1／C2はRagdoll inputを受けず、要求を`capability_unavailable`で拒否する。`future.capability.vehicle-ragdoll-crowd-motion-warping`がactiveへ昇格した場合も、versioned Ragdoll inputを別fieldで提出しAnimation ownerだけが合成する不変条件を維持する。
 - root motion、Physics event、Navigation result、Animation eventはcommand／eventのcanonical orderへ参加し、vendor callback順を保持しない。
 - Physics、Navigation、Animation固有のshape、solver、path、graph、pose、retarget、memory schemaはそれぞれ[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)が所有する。
 

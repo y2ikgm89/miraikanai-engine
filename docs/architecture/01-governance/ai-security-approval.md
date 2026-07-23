@@ -117,7 +117,7 @@ TaskAuthorizationEnvelopeはPolicy Serviceだけが発行し、AIが作成、変
 
 OperationはID＋versionのexact allowlistとし、wildcardを禁止する。Networkはdeny_all、Dependencyはno_change、AI TaskのSecretはno_secret_accessを既定とする。Pathはread／write／create／deleteを別に許可し、Process tree、CPU、memory、wall time、child count、output sizeをhard limitにする。
 
-repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、Policy Serviceが署名時に確定する。適用単位は同一task_idのTask全体において、初回Proposal後に許可する修復Proposal再提出回数である。初回Proposalは数えず、Validatingでblocking diagnosticを得てRunningへ戻し、次の修復Proposalを提出可能にする時点で1を消費する。GenerationReceiptV1のrepair_attempt_countはTask全体で単調増加し、Envelopeの更新／再発行、Worker、Model、Provider、Attemptの変更、再起動、AwaitingUserInputではresetしない。Goal、Input、Riskまたは権限変更により新Taskと新Envelopeを発行した場合だけ別の適用単位とする。
+repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、Policy Serviceが署名時に確定する。適用単位は同一task_idのTask全体において、初回Proposal後に許可する修復Proposal再提出回数である。初回Proposalは数えず、Validatingでblocking diagnosticを得てRunningへ戻し、次の修復Attemptを予約する時点で1を消費する。全route共通のtask-scoped current `AiTaskRepairAttemptHeadV1.repair_attempt_count`だけを正本とし、Gatewayはsigned `AiTaskAttemptReservationV1`と`state=reserved` Headのexpected-previous CAS成功後にだけProvider／Host実行またはProposal受入れを開始する。Envelopeの更新／再発行、Worker、Host、Transport、Grant、Model、Provider、Attemptの変更、再起動、AwaitingUserInputではresetしない。Goal、Input、Riskまたは権限変更により新Taskと新Envelopeを発行した場合だけ別の適用単位とする。
 
 署名Policyの既定値と上限を次に固定する。Envelopeは該当Riskの値以下へ縮小できるが、増加できない。
 
@@ -375,11 +375,13 @@ Credential ownerを分離する。
 - 外部Client＋MCP: CredentialはClient／Userが持ち、Engineは受け取らない。
 - Managed CLI: conformance済みHostまたは専用Brokerが持ち、File／Shell childへ渡さない。
 
-Managed modeは`ExternalClientSecurityProfileV1`にClientのexact version／hash、認証、Credential storage、Process／Tool child分離、Filesystem／Network sandbox、MCP version、期限、conformance resultを固定する。Profile不在、version差、期限切れ、plain EnvironmentへのCredential露出、raw socket利用ではMCP Proposal modeへ降格する。
+local STDIO MCP serverはOS ACLで束縛したIPCをGatewayへ接続し、Engine／Project Credentialをenvironmentへ渡さない。外部Provider CLIが公式にenvironment tokenだけを受ける場合は、BrokerがTask専用childへだけ短命tokenをprocess creation時に注入し、persistent／global user・machine environment、config file、command line、log、crash dumpへ保存せず、Tool child／grandchildへ継承させず終了時に失効するProfileだけを例外許可する。「plain Environment禁止」はこのBroker外の永続／広域露出を指す。条件を満たせなければmanaged modeを禁止しproposal-onlyにする。
+
+Managed modeは`ExternalClientSecurityProfileV1`のidentity branchに応じ、localではClient exact version／binary hash／OS identity／Process・Filesystem・Network分離、hostedではsurface／release channel／tenant-workspace／plan／admin policy／OAuth-OIDC subject・audience／TLS identityを固定し、共通でMCP version、期限、conformance resultを束縛する。Profile不在、branch必須値差、期限切れ、Broker外environmentへのCredential露出、raw socket利用ではそのManaged Caller Contextを拒否して`not_activated`とする。別途currentなstandard-external-MCP用Host／Transport／Tool／proposal-only Authority Profile、Grant、Conformanceが全て存在する場合だけ、Gatewayが`standard_external_mcp` branchの新しいsigned Caller Contextを発行できる。managed ContextのField削除やin-place権限降格で代用しない。
 
 ### 8.1 Provider Manifest、Prompt、Repository guidance
 
-Provider／Model名をEngine codeへhard-codeしない。`ProviderManifestV1`はProvider／runtime、endpoint、API／SDK exact version、resolved Model snapshot、Role、推論設定、Tool／Structured Output projection、Context／output／cost／latency上限、data retention／training use／region／encryption／logging Policy、合格Eval suite、明示fallback、fallback時の最大Riskを固定する。Manifestなし、resolved ID差、期限切れConformanceではModelを呼ばない。Evalと更新Workflowは[AI Verification／Provenance](ai-verification-provenance.md)だけが決定する。
+Provider／Model名をEngine codeへhard-codeしない。`ProviderManifestV1`は`ProviderRuntimeProfileV1`のtagged adapter（official SDKのexact artifact、raw protocolのexact schema、またはattested external host）、endpoint、resolved Model snapshot、Role、推論設定、Tool／Structured Output projection、Context／output／cost／latency上限、data retention／training use／region／encryption／logging Policy、合格Eval suite、明示fallback、fallback時の最大Riskを固定する。存在しない共通「API／SDK version」を捏造せず、選択branchに必要なversion／artifactだけを検証する。Manifestなし、adapter branch不一致、resolved ID差、期限切れConformanceではModelを呼ばない。Evalと更新Workflowは[AI Verification／Provenance](ai-verification-provenance.md)だけが決定する。
 
 Prompt templateはRole、Goal、Success criteria、Normative constraints、Toolと権限、Evidence要求、Output Schema、Stop／質問条件の順にする。PromptをSecurity boundaryにせず、同じ規則を複数Promptへ反復しない。Prompt変更は一群ずつ行い、Model変更と同時に評価原因を混在させない。
 
@@ -395,95 +397,599 @@ Modelへ公開できるのはProject／Requirement／Capability／System／World
 
 MCP annotationをAccess controlにしない。Serverは正本Schema、Authorization、timeout、rate limit、Auditを強制する。local STDIOはACL付きIPCをGatewayへ接続する。Streamable HTTPはexact Host／Transport Conformance Receipt、TLS、認証、origin／redirect／private-address policy、session binding、別Threat ModelとActivationがある場合だけ有効にし、単なるport forwardingを許可しない。`McpSessionGrantV1`は署名済みEnvelopeを代替せず、Grant配下のbounded read／QueryもR0 Envelopeを必要とする。GrantはClientとchannelの束縛だけを追加する。
 
+MCP 2025-11-25の標準initializeでAuthorityとして検証できるClient情報はprotocol version、capabilities、`clientInfo`等に限られ、上流Provider、Model、local binary hashの暗号学的attestationは得られない。標準外部MCP接続のprovider／model表示は`unattested_optional_metadata`としてAudit UIにだけ出し、Authorization、Eval attribution、Source／Build Receiptへ使わない。`managed_source_edit | build_job`を許す経路は、実行前にMCP外の登録済みBrokerがHost session／Provider runtime／Model snapshot／Tool projection／期限／nonceを署名したfresh `ManagedHostSessionAttestationV1`をCaller Contextへ束縛し、実行後に同Context／Task／Authorization／attempt／Input closure／typed resultを署名した`HostExecutionAttestationV1`をSourceDelta／Build Receiptへ束縛する。Attestation不在時はManaged Contextを拒否し、別途standard routeのHost／Transport／Tool／proposal-only Authority Profile、Grant、Conformanceが全てcurrentな場合だけGatewayが新しい`standard_external_mcp` Caller Contextを発行する。事後resultを実行前Contextへ入れる因果循環、Host自己申告JSON、MCP annotation、Client名をAttestationに読み替えない。
+
 ### 8.3 Caller／Provider／Deployment／Model Profile
 
-Caller互換性をHost brandだけで判定しない。正規判定tupleは`{host profile, transport profile, provider/runtime profile, model snapshot, tool projection, authority profile}`であり、次の6型をMCDへ登録する。
+Caller互換性をHost brandだけで判定しない。正規判定は`execution_route.kind`をdiscriminatorにした次の3 branchだけである。`standard_external_mcp`は外部Host＋MCP Transport＋Tool＋proposal-only Authority＋MCP Grant＋Host/Transport Conformanceを必須にし、上流Provider／Deployment／Modelを必須`null`／unattestedとする。`managed_external_host`は外部Host＋MCP Transport＋Provider Runtime＋Model＋Tool＋Authority＋Host/Transport／Provider-Tool Conformance＋fresh Session Attestationを使う。`engine_provider_adapter`はfirst-party Engine Host＋Provider Runtime＋Provider Manifest＋Inference Deployment＋Model＋Tool＋Authority＋Provider-Tool Conformanceを使い、MCP Transport／Grantを必須`null`にする。cloud direct APIとfirst-party local inferenceはroute kindを増やさず、`engine_provider_adapter`配下の`InferenceDeploymentProfileV1.deployment_kind`で区別する。次のclosed型をMCDへ登録する。
 
 ```text
-AiCallerContextV1
+AiCallerContextPayloadV1
   caller_context_id, authenticated_subject_ref
-  host_profile_ref, transport_profile_ref
-  provider_runtime_profile_ref?, model_snapshot_profile_ref?
-  tool_projection_ref, authority_profile_ref
-  mcp_session_grant_ref?, authorization_envelope_hash
-  host_transport_conformance_receipt_ref
-  provider_tool_conformance_receipt_ref?
-  created_at, expires_at
+  host_profile_binding: GovernedAiProfileBindingV1
+  execution_route:
+    {kind: standard_external_mcp,
+     transport_profile_binding: GovernedAiProfileBindingV1,
+     provider_runtime_profile_binding: null,
+     provider_manifest_binding: null,
+     inference_deployment_profile_binding: null,
+     model_snapshot_profile_binding: null,
+     managed_host_session_attestation_ref: null,
+     managed_host_session_attestation_sha256: null,
+     unattested_optional_metadata_ref: null | content ref,
+     mcp_session_grant_ref: content ref,
+     mcp_session_grant_sha256: lowercase hex 64,
+     host_transport_conformance_receipt_ref: content ref,
+     host_transport_conformance_receipt_sha256: lowercase hex 64,
+     provider_tool_conformance_receipt_ref: null,
+     provider_tool_conformance_receipt_sha256: null,
+     maximum_authority: query | proposal}
+    | {kind: managed_external_host,
+       transport_profile_binding: GovernedAiProfileBindingV1,
+       provider_runtime_profile_binding: GovernedAiProfileBindingV1,
+       provider_manifest_binding: null,
+       inference_deployment_profile_binding: null,
+       model_snapshot_profile_binding: GovernedAiProfileBindingV1,
+       managed_host_session_attestation_ref,
+       managed_host_session_attestation_sha256,
+       unattested_optional_metadata_ref: null,
+       mcp_session_grant_ref: null,
+       mcp_session_grant_sha256: null,
+       host_transport_conformance_receipt_ref: content ref,
+       host_transport_conformance_receipt_sha256: lowercase hex 64,
+       provider_tool_conformance_receipt_ref: content ref,
+       provider_tool_conformance_receipt_sha256: lowercase hex 64,
+       maximum_authority: query | proposal | managed_source_edit | build_job}
+    | {kind: engine_provider_adapter,
+       transport_profile_binding: null,
+       provider_runtime_profile_binding: GovernedAiProfileBindingV1,
+       provider_manifest_binding: GovernedAiProfileBindingV1,
+       inference_deployment_profile_binding: GovernedAiProfileBindingV1,
+       model_snapshot_profile_binding: GovernedAiProfileBindingV1,
+       managed_host_session_attestation_ref: null,
+       managed_host_session_attestation_sha256: null,
+       unattested_optional_metadata_ref: null,
+       mcp_session_grant_ref: null,
+       mcp_session_grant_sha256: null,
+       host_transport_conformance_receipt_ref: null,
+       host_transport_conformance_receipt_sha256: null,
+       provider_tool_conformance_receipt_ref: content ref,
+       provider_tool_conformance_receipt_sha256: lowercase hex 64,
+       maximum_authority: query | proposal}
+  tool_projection_ref, tool_projection_sha256
+  authority_profile_binding: GovernedAiProfileBindingV1
+  freshness_policy_binding: GovernedAiProfileBindingV1
+  authorization_envelope_hash
+  created_at, expires_at, revocation_snapshot_ref
+
+AiCallerContextV1
+  payload: AiCallerContextPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=ai_caller_context)
 
 ExternalClientSecurityProfileV1
   host_profile_id, host_product_id, host_brand_display_name
-  exact_version, client_binary_sha256, os_identity_binding
-  supported_transport_profile_refs[]
-  credential_owner, credential_storage_profile_ref
-  process_child_policy_ref, filesystem_policy_ref, network_policy_ref
+  host_identity_kind = local_binary | hosted_service
+  host_identity:
+    {kind: local_binary,
+     exact_version, client_binary_sha256, os_identity_binding,
+     credential_storage_profile_ref, process_child_policy_ref,
+     filesystem_policy_ref, network_policy_ref}
+    | {kind: hosted_service,
+       service_surface_id, service_release_channel,
+       tenant_workspace_ref, plan_tier_ref, admin_policy_ref,
+       endpoint_identity_ref, oauth_or_oidc_subject_ref,
+       token_audience, tls_identity_ref}
+  supported_transport_profile_bindings[1..]: GovernedAiProfileBindingV1
+  credential_owner
   protocol_versions[], conformance_receipt_refs[]
   support_state = supported | proposal_only | not_activated
-  issued_at, expires_at, revoked_at?
+  issued_at, expires_at, revoked_at
+
+EngineAiHostSecurityProfileV1
+  host_profile_id
+  host_surface = editor_ai_orchestrator | headless_ai_orchestrator
+  engine_build_ref, engine_build_sha256
+  process_artifact_ref, process_artifact_sha256
+  os_identity_binding, process_child_policy_ref
+  filesystem_policy_ref, network_policy_ref
+  supported_provider_runtime_profile_bindings[1..]: GovernedAiProfileBindingV1
+  support_state = supported | not_activated
+  issued_at, expires_at, revoked_at
+
+McpTransportSecurityProfileV1
+  transport_profile_id
+  mcp_protocol_version = 2025-11-25
+  transport_kind = local_stdio | streamable_http | secure_mcp_tunnel
+  transport:
+    {kind: local_stdio,
+     server_binary_ref, server_binary_sha256,
+     os_acl_policy_ref, ipc_endpoint_identity_ref,
+     inherited_credential_policy = none,
+     maximum_message_bytes, request_timeout_ms,
+     rate_limit_per_minute, maximum_concurrent_requests,
+     maximum_session_seconds,
+     conformance_receipt_ref, conformance_receipt_sha256}
+    | {kind: streamable_http,
+       endpoint_origin, endpoint_identity_ref,
+       tls_profile_ref,
+       authorization:
+         {kind: oauth_2_1,
+          protected_resource_metadata_ref, protected_resource_metadata_sha256,
+          authorization_server_metadata_ref, authorization_server_metadata_sha256,
+          resource_indicator, token_audience,
+          oidc_subject_policy_ref: null | content ref}
+         | {kind: approved_private_mtls,
+            mtls_profile_ref, private_service_ref, private_service_sha256,
+            private_service_activation_ref, private_service_activation_sha256},
+       origin_policy_ref, redirect_policy_ref,
+       private_address_policy:
+         {kind: deny}
+         | {kind: approved_private_service,
+            private_service_ref, private_service_sha256,
+            private_service_activation_ref, private_service_activation_sha256},
+       session_binding_policy_ref,
+       maximum_message_bytes, request_timeout_ms,
+       rate_limit_per_minute, maximum_concurrent_requests,
+       maximum_session_seconds,
+       conformance_receipt_ref, conformance_receipt_sha256}
+    | {kind: secure_mcp_tunnel,
+       public_endpoint_origin, tunnel_endpoint_identity_ref,
+       tunnel_client_artifact_ref, tunnel_client_artifact_sha256,
+       local_service_binding_ref, tls_profile_ref,
+       protected_resource_metadata_ref, protected_resource_metadata_sha256,
+       authorization_server_metadata_ref, authorization_server_metadata_sha256,
+       resource_indicator, token_audience,
+       origin_policy_ref, redirect_policy_ref,
+       private_address_policy = tunnel_local_service_only,
+       session_binding_policy_ref, direct_inbound_allowed = false,
+       maximum_message_bytes, request_timeout_ms,
+       rate_limit_per_minute, maximum_concurrent_requests,
+       maximum_session_seconds,
+       conformance_receipt_ref, conformance_receipt_sha256}
+  issued_at, expires_at, revoked_at
+
+AiAuthorityProfileV1
+  authority_profile_id
+  authority_class = query_only | proposal_only | managed_source_edit | build_job
+  allowed_operation_refs[]
+  maximum_risk_class
+  required_evidence_policy_refs[]
+  required_pre_execution_attestation_kinds[] = [] | [managed_host_session]
+  required_post_execution_attestation_kinds[] = [] | [host_execution]
+  forbidden_authorities[] = [approval, commit, activation, signing, release]
+  issued_at, expires_at, revoked_at
+
+AiExecutionFreshnessPolicyV1
+  freshness_policy_id
+  max_age_seconds_by_record_kind[]: {record_kind, max_age_seconds}
+  clock_source_policy_ref
+  issued_at, expires_at, revoked_at
+
+McpSessionGrantPayloadV1
+  grant_id
+  host_profile_binding: GovernedAiProfileBindingV1
+  transport_profile_binding: GovernedAiProfileBindingV1
+  client_identity:
+    {kind: local_binary, client_binary_sha256, os_user_identity_ref,
+     channel_binding_sha256}
+    | {kind: hosted_service, service_session_subject_ref,
+       oauth_or_oidc_subject_ref, token_audience, tls_identity_ref,
+       channel_binding_sha256}
+  project_id
+  read_sensitivity_refs[], allowed_proposal_operation_refs[]
+  issuer_subject_ref, issuer_role_ref
+  issued_at, expires_at, nonce, revocation_snapshot_ref
 
 McpSessionGrantV1
-  grant_id, client_binary_sha256, host_profile_ref, transport_profile_ref
-  os_user_identity_ref, channel_binding_sha256, project_id
-  read_sensitivity_refs[], allowed_proposal_operation_refs[]
-  issued_at, expires_at, nonce, signature_ref
+  payload: McpSessionGrantPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=mcp_session_grant)
+
+ProviderRuntimeProfileV1
+  provider_runtime_profile_id
+  adapter_kind = official_sdk | raw_protocol | external_host_managed
+  adapter:
+    {kind: official_sdk, sdk_name, sdk_exact_version,
+     sdk_artifact_ref, sdk_artifact_sha256}
+    | {kind: raw_protocol, protocol_id, protocol_exact_version,
+       request_response_schema_ref, request_response_schema_sha256}
+    | {kind: external_host_managed,
+       host_profile_binding: GovernedAiProfileBindingV1,
+       required_host_execution_attestation = true}
+  endpoint_identity_ref
+  issued_at, expires_at, revoked_at
 
 ProviderManifestV1
-  provider_manifest_id, provider_runtime_profile_ref
-  endpoint_identity_ref, api_sdk_exact_version
-  deployment_profile_ref, model_snapshot_profile_ref
+  provider_manifest_id
+  provider_runtime_profile_binding: GovernedAiProfileBindingV1
+  endpoint_identity_ref
+  deployment_profile_binding: GovernedAiProfileBindingV1
+  model_snapshot_profile_binding: GovernedAiProfileBindingV1
   role, inference_settings_sha256, tool_projection_ref
   context_limit, output_limit, cost_limit_ref, latency_limit_ref
   privacy_policy_ref, retention_policy_ref, region_ref?, encryption_profile_ref, logging_policy_ref
   eval_receipt_ref, conformance_receipt_ref
-  fallback_policy = disabled | explicit_profile
-  fallback_deployment_profile_ref?, fallback_max_risk?
-  issued_at, expires_at, revoked_at?
+  fallback:
+    {kind: disabled, fallback_deployment_profile_binding: null,
+     fallback_max_risk: null}
+    | {kind: explicit_profile,
+       fallback_deployment_profile_binding: GovernedAiProfileBindingV1,
+       fallback_max_risk}
+  issued_at, expires_at, revoked_at
+
+HostExecutionAttestationPayloadV1
+  attestation_id
+  caller_context_ref, caller_context_sha256
+  host_session_ref, task_id, attempt_id
+  task_specification_ref, task_specification_sha256
+  authorization_envelope_hash
+  input_closure_ref, input_closure_sha256
+  freshness_policy_binding: GovernedAiProfileBindingV1
+  execution_result:
+    {kind: managed_source_edit,
+     result_schema_id = urn:mirakan:schema:ai:managed-source-edit-result:v1,
+     result_ref, result_sha256}
+    | {kind: build_job,
+       result_schema_id = urn:mirakan:schema:ai:managed-build-job-result:v1,
+       result_ref, result_sha256}
+  issued_at, expires_at, revocation_snapshot_ref
+
+HostExecutionAttestationV1
+  payload: HostExecutionAttestationPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=host_execution_attestation)
+
+ManagedHostSessionAttestationPayloadV1
+  session_attestation_id
+  host_profile_binding: GovernedAiProfileBindingV1
+  host_session_ref
+  provider_runtime_profile_binding: GovernedAiProfileBindingV1
+  model_snapshot_profile_binding: GovernedAiProfileBindingV1
+  tool_projection_ref, tool_projection_sha256
+  allowed_task_kinds[1..2]: non-empty subset of [managed_source_edit, build_job]
+  maximum_authority_classes[1..2]: same set as allowed_task_kinds[]
+  freshness_policy_binding: GovernedAiProfileBindingV1
+  nonce
+  issued_at, expires_at, revocation_snapshot_ref
+
+ManagedHostSessionAttestationV1
+  payload: ManagedHostSessionAttestationPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=managed_host_session_attestation)
+
+ManagedSourceEditResultV1
+  result_id
+  result:
+    {kind: completed,
+     source_delta_manifest_ref, source_delta_manifest_sha256,
+     changed_paths_manifest_ref, changed_paths_manifest_sha256,
+     diagnostic_refs[]}
+    | {kind: failed,
+       source_delta_manifest_ref: null, source_delta_manifest_sha256: null,
+       changed_paths_manifest_ref: null, changed_paths_manifest_sha256: null,
+       diagnostic_refs[1..]}
+
+ManagedBuildJobResultV1
+  result_id
+  result:
+    {kind: completed,
+     build_receipt_kind = package_receipt,
+     build_receipt_ref, build_receipt_sha256,
+     artifact_manifest_ref, artifact_manifest_sha256,
+     diagnostic_refs[]}
+    | {kind: failed,
+       build_receipt_ref: null, build_receipt_sha256: null,
+       artifact_manifest_ref: null, artifact_manifest_sha256: null,
+       diagnostic_refs[1..]}
+
+ManagedHostOutputAcceptanceReceiptPayloadV1
+  receipt_id
+  execution_kind = managed_source_edit | build_job
+  caller_context_ref, caller_context_sha256
+  task_id, attempt_id
+  task_specification_ref, task_specification_sha256
+  authorization_envelope_hash
+  input_closure_ref, input_closure_sha256
+  host_execution_attestation_ref, host_execution_attestation_sha256
+  typed_result_ref, typed_result_sha256
+  freshness_policy_binding: GovernedAiProfileBindingV1
+  acceptance_result = accepted_to_staging | rejected
+  accepted_at, expires_at, revocation_snapshot_ref
+
+ManagedHostOutputAcceptanceReceiptV1
+  payload: ManagedHostOutputAcceptanceReceiptPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=managed_host_output_acceptance)
 
 InferenceDeploymentProfileV1
   deployment_profile_id, deployment_kind = cloud_endpoint | local_process_ipc
-  provider_runtime_profile_ref, model_snapshot_profile_ref, model_snapshot_record_sha256
-  endpoint_identity_ref?, process_artifact_sha256?
-  required_ram_bytes?, required_vram_bytes?, context_limit
-  process_sandbox_profile_ref?, gpu_isolation_profile_ref?
-  ipc_or_loopback_endpoint_ref?, ipc_auth_profile_ref?, network_policy_ref
+  provider_runtime_profile_binding: GovernedAiProfileBindingV1
+  model_snapshot_profile_binding: GovernedAiProfileBindingV1
+  deployment:
+    {kind: cloud_endpoint,
+     endpoint_identity_ref, network_policy_ref}
+    | {kind: local_process_ipc,
+       process_artifact_ref, process_artifact_sha256,
+       runtime_loader_profile_binding: GovernedAiProfileBindingV1,
+       model_import_qualification_receipt_ref,
+       model_import_qualification_receipt_sha256,
+       process_sandbox_profile_ref, gpu_isolation_profile_ref,
+       inference_endpoint:
+         {kind: os_ipc,
+          ipc_endpoint_ref, ipc_auth_profile_ref,
+          network_policy = deny_all}
+         | {kind: authenticated_loopback,
+            loopback_origin, loopback_endpoint_identity_ref,
+            ipc_auth_profile_ref,
+            network_policy = exact_loopback_only},
+       required_ram_bytes, required_vram_bytes,
+       cpu_limit, memory_limit_bytes, gpu_memory_limit_bytes,
+       disk_limit_bytes, temp_cache_limit_bytes,
+       maximum_weight_shard_count, maximum_weight_total_bytes,
+       process_child_limit, maximum_batch_size,
+       maximum_concurrent_inference, wall_time_limit_ms,
+       custom_model_code_allowed = false,
+       unsafe_serialization_allowed = false,
+       archive_path_escape_allowed = false,
+       runtime_network_fetch_allowed = false,
+       model_license_acceptance_decision_ref,
+       model_license_acceptance_decision_sha256,
+       output_reproducibility:
+         {kind: not_claimed}
+         | {kind: deterministic_claim,
+            runtime_artifact_sha256, gpu_profile_ref, gpu_profile_sha256,
+            inference_settings_sha256, seed, sampler_profile_ref,
+            sampler_profile_sha256, thread_policy_ref, thread_policy_sha256,
+            repeatability_receipt_ref,
+            repeatability_receipt_sha256}}
+  context_limit
   schema_conformance_receipt_ref, tool_conformance_receipt_ref
   privacy_policy_ref, logging_policy_ref, retention_policy_ref
-  cpu_limit?, memory_limit_bytes?, gpu_memory_limit_bytes?, wall_time_limit_ms, output_limit_bytes
-  exhaustion_policy = reject_before_start | terminate_and_fail
-  fallback_policy = disabled | explicit_profile
-  fallback_deployment_profile_ref?, fallback_requires_user_confirmation
-  issued_at, expires_at, revoked_at?
+  output_limit_bytes
+  preflight_resource_policy = reject_before_start
+  runtime_exhaustion_policy = terminate_process_tree_and_fail
+  fallback:
+    {kind: disabled, fallback_deployment_profile_binding: null,
+     fallback_requires_user_confirmation: false}
+    | {kind: explicit_profile,
+       fallback_deployment_profile_binding: GovernedAiProfileBindingV1,
+       fallback_requires_user_confirmation: true}
+  issued_at, expires_at, revoked_at
+
+ModelLicenseAcceptanceDecisionPayloadV1
+  decision_id
+  local_model_artifact_manifest_binding: GovernedAiProfileBindingV1
+  project_id, project_revision
+  intended_use_profile_ref, intended_use_profile_sha256
+  distribution_plan_ref, distribution_plan_sha256
+  approved_use_kinds[]
+  weight_redistribution = allowed | forbidden
+  output_use = commercial_allowed | noncommercial_only | forbidden
+  required_notices_ref, required_notices_sha256
+  license_ref, license_sha256
+  disposition = approved | rejected
+  approver_subject_ref, approval_authority_ref
+  issued_at, valid_until, revocation_snapshot_ref
+
+ModelLicenseAcceptanceDecisionV1
+  payload: ModelLicenseAcceptanceDecisionPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=model_license_acceptance_decision)
+
+LocalModelArtifactManifestV1
+  manifest_id
+  model_format_id
+  weights_encoding = native_precision | quantized
+  weight_shards[]: {artifact_ref, artifact_sha256, size_bytes}
+  encoding:
+    {kind: native_precision, numeric_format = fp32 | fp16 | bf16}
+    | {kind: quantized, quantization_id, quantization_artifact_ref,
+       quantization_sha256}
+  config_ref, config_sha256
+  tokenizer_ref, tokenizer_sha256
+  chat_template_ref, chat_template_sha256
+  special_token_map_ref, special_token_map_sha256
+  license_ref, license_sha256
+  provenance_ref, provenance_sha256
+  issued_at, expires_at, revoked_at
 
 ModelSnapshotProfileV1
   model_snapshot_profile_id
-  model_identity_kind = provider_model_id | local_weights
-  exact_provider_model_id?
-  weights_manifest_sha256?, quantization_id?, quantization_sha256?
-  tokenizer_sha256?, license_ref, provenance_ref
+  model_identity:
+    {kind: provider_model_id,
+     exact_provider_model_id,
+     provider_terms_ref, provider_terms_sha256,
+     license_ref, license_sha256,
+     provenance_ref, provenance_sha256}
+    | {kind: local_weights,
+       local_model_artifact_manifest_binding: GovernedAiProfileBindingV1}
   declared_context_limit, effective_context_limit
   supported_schema_profile_refs[], supported_tool_projection_refs[]
-  eval_receipt_refs[], issued_at, expires_at, revoked_at?
+  eval_receipt_refs[], issued_at, expires_at, revoked_at
+
+GovernedAiProfileBindingV1
+  profile_schema_id
+  logical_profile_id
+  record_ref, record_sha256
+  revision
+  issuance_head_ref, issuance_head_sha256, issuance_head_sequence
+
+GovernedAiProfileRecordPayloadV1
+  profile_record_id
+  profile_schema_id
+  profile_ref, profile_sha256
+  revision: positive safe integer
+  previous_record_ref: null | content-addressed ref
+  previous_record_sha256: null | lowercase hex 64
+  issuer_subject_ref, issuer_role_ref
+  issued_at, revocation_snapshot_ref
+
+GovernedAiProfileRecordV1
+  payload: GovernedAiProfileRecordPayloadV1
+  signed_record: MirakanSignedRecordV1
+
+GovernedAiProfileHeadPayloadV1
+  head_id
+  profile_schema_id, logical_profile_id
+  current_record_ref, current_record_sha256, current_revision
+  sequence: positive safe integer
+  previous_head_ref: null | content-addressed ref
+  previous_head_sha256: null | lowercase hex 64
+  recorded_at, revocation_snapshot_ref
+
+GovernedAiProfileHeadV1
+  payload: GovernedAiProfileHeadPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=governed_ai_profile_head)
+
+LocalInferenceLoaderProfileV1
+  loader_profile_id
+  runtime_artifact_ref, runtime_artifact_sha256
+  build_toolchain_ref, build_toolchain_sha256
+  supported_model_format_ids[]
+  custom_model_code_allowed = false
+  unsafe_serialization_allowed = false
+  archive_path_policy = normalized_no_escape
+  runtime_network_fetch_allowed = false
+  built_in_file_or_shell_tools_allowed = false
+  mcp_proxy_allowed = false
+  issued_at, expires_at, revoked_at
+
+ModelImportQualificationReceiptPayloadV1
+  receipt_id
+  loader_profile_binding: GovernedAiProfileBindingV1
+  local_model_artifact_manifest_binding: GovernedAiProfileBindingV1
+  process_artifact_ref, process_artifact_sha256
+  import_fixture_refs[]
+  freshness_policy_binding: GovernedAiProfileBindingV1
+  result = pass | fail
+  issued_at, expires_at, revocation_snapshot_ref
+
+ModelImportQualificationReceiptV1
+  payload: ModelImportQualificationReceiptPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=model_import_qualification)
+
+LocalInferenceRunReceiptPayloadV1
+  run_receipt_id
+  runtime_artifact_ref, runtime_artifact_sha256
+  model_snapshot_profile_binding: GovernedAiProfileBindingV1
+  gpu_profile_ref, gpu_profile_sha256
+  inference_settings_sha256, seed
+  sampler_profile_ref, sampler_profile_sha256
+  thread_policy_ref, thread_policy_sha256
+  replay_input_set_ref, replay_input_set_sha256
+  freshness_policy_binding: GovernedAiProfileBindingV1
+  result:
+    {kind: completed,
+     exact_response_bytes_sha256,
+     diagnostic_refs[]}
+    | {kind: failed,
+       exact_response_bytes_sha256: null,
+       diagnostic_refs[1..]}
+  issued_at, expires_at, revocation_snapshot_ref
+
+LocalInferenceRunReceiptV1
+  payload: LocalInferenceRunReceiptPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=local_inference_run)
+
+LocalInferenceRepeatabilityReceiptPayloadV1
+  receipt_id
+  runtime_artifact_sha256
+  model_snapshot_profile_binding: GovernedAiProfileBindingV1
+  gpu_profile_ref, gpu_profile_sha256
+  inference_settings_sha256, seed
+  sampler_profile_ref, sampler_profile_sha256
+  thread_policy_ref, thread_policy_sha256
+  replay_input_set_ref, replay_input_set_sha256
+  freshness_policy_binding: GovernedAiProfileBindingV1
+  run_receipt_refs[3..]: unique content-addressed refs
+  repetition_count = length(run_receipt_refs[])
+  exact_response_bytes_sha256
+  result = byte_equal | mismatch
+  issued_at, expires_at, revocation_snapshot_ref
+
+LocalInferenceRepeatabilityReceiptV1
+  payload: LocalInferenceRepeatabilityReceiptPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=local_inference_repeatability)
 ```
 
-`McpSessionGrantV1.expires_at`は`issued_at`から最大60分である。6型のoptional Fieldはkind／transportで必要条件を閉じる。`ModelSnapshotProfileV1`のidentity固有Fieldは、`provider_model_id`なら`exact_provider_model_id`だけ、`local_weights`ならweights／quantizationの3 Fieldだけを必須にして相互混在を拒否する。weights、quantization、license、provenanceのidentity正本は`ModelSnapshotProfileV1`だけであり、`InferenceDeploymentProfileV1`へ複写しない。Deploymentの`model_snapshot_profile_ref`はexact profile ID、`model_snapshot_record_sha256`はそのcurrent canonical record bytesを固定し、`ProviderManifestV1.model_snapshot_profile_ref`とも一致しなければならない。`local_process_ipc`ではprocess artifact、`local_weights` Snapshot、IPC／loopback認証、local resource上限をすべて必須にする。Host display name、Provider名、Model family名は表示metadataであり、Transport、Tool Schema、Authorityを推測する入力にしない。
+`McpSessionGrantPayloadV1.expires_at`は`issued_at`から最大60分である。`grant_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:mcp-session-grant:sha256:<lowercase-hex>`として導出し、完成payloadを`role.mcp-session-grant-service`のsingleton-purpose Keyで署名する。signed recordのsubject、issuer subject／Role、issued_at、revocation snapshotをpayloadとexact一致させ、grantのoperation集合はQuery／Proposalだけに制限する。optional Fieldはkind／transportのtagged branchだけで必要条件を閉じ、local binaryをhosted serviceへ捏造またはその逆をしない。`ModelSnapshotProfileV1.model_identity`の固有Fieldは、`provider_model_id`なら`exact_provider_model_id`、`local_weights`ならcurrent `local_model_artifact_manifest_binding`だけを必須にして相互混在を拒否する。Local manifestは全weight shard、config、tokenizer、chat template、special-token map、license、provenanceとencoding branchをhash closureにし、native FP16／BF16へ架空quantizationを要求しない。identity正本はModel Snapshot＋Local manifestだけであり、`InferenceDeploymentProfileV1`へ複写しない。DeploymentとProvider Manifestの`model_snapshot_profile_binding`はschema／logical ID／record／revision／issuance Headをbyte-exact一致させる。`local_process_ipc`ではprocess artifact、`local_weights` Snapshot、認証済みOS IPCまたはloopback、local resource上限をすべて必須にする。Host display name、Provider名、Model family名は表示metadataであり、Transport、Tool Schema、Authorityを推測する入力にしない。
+
+`AiCallerContextV1`はGatewayだけが`role.ai-gateway-context-publisher`／singleton purpose `ai_caller_context`で発行する短命signed contextである。`caller_context_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:ai-caller-context:sha256:<lowercase-hex>`として導出し、signed recordのsubject hash、issued_at=`created_at`、revocation snapshotをexact一致させる。`created_at < expires_at`、current Freshness Policyの`record_kind=ai_caller_context`はexact一件かつ`max_age_seconds <= 600`、`expires_at=min(created_at+max_age_seconds, Authorization／当該branchのGrantまたはSession Attestation／全non-null profile・Receiptのexpiry)`を必須にする。各non-null binding、Grant、Conformance Receipt、Authorization Envelopeを発行時とTool実行直前にread-backし、`expires_at <= evaluation_time`、current Head drift、revocation、別Project／subject／channelでは拒否する。
+
+`host_profile_binding.profile_schema_id`は`standard_external_mcp | managed_external_host`で`ExternalClientSecurityProfileV1`、`engine_provider_adapter`で`EngineAiHostSecurityProfileV1`だけを許す。外部2 routeではHost Profileが列挙するcurrent MCP Transport bindingとContextのbindingをbyte-exact一致させる。Engine routeではEngine Hostが列挙するcurrent Provider Runtime bindingとContextを一致させ、MCP Transportを要求または捏造しない。`standard_external_mcp`はProvider Runtime、Provider Manifest、Inference Deployment、Model、Managed Session Attestation、Provider-Tool Conformanceを全てnullとし、MCP initialize由来のProvider／Model名はunattested metadataだけへ隔離する。`managed_external_host`だけはProvider／Model bindingと実行前`ManagedHostSessionAttestationV1` ref／hashを全non-null、同一Host session／tool projectionへ閉じる。`engine_provider_adapter`はProvider Manifestが指すProvider Runtime、Inference Deployment、Model Snapshot、Tool projectionをContextとbyte-exact一致させる。cloud direct APIとfirst-party local IPCは同じEngine routeのDeployment branchであり、MCP Transport Profileを流用しない。branch間Field流用、裸Context、caller自己署名を拒否する。
+
+route別session bindingもclosedにする。`standard_external_mcp`はfresh `McpSessionGrantV1` ref／hashを両non-nullで必須、`engine_provider_adapter`は両方null、`managed_external_host`は両方nullかつ実行前`ManagedHostSessionAttestationV1`を専用Broker session bindingとして必須にする。effective operation集合は常に `route ceiling ∩ current AiAuthorityProfile.allowed_operation_refs[] ∩ signed TaskAuthorizationEnvelope.allowed_operations[] ∩ Server Policy`、standard MCPではさらに`∩ McpSessionGrant.payload.allowed_proposal_operation_refs[]`である。managed routeではSession Attestationの`allowed_task_kinds[]`／authority classも積集合へ加える。いずれかのmissing、tuple差、空でない超過、より強いcaller申告、Profileの`forbidden_authorities[]`欠落をTool公開前と実行直前に拒否する。
+
+Attestation条件は因果順に評価する。query／proposal Authorityはpre／post集合を両方empty exact set、managed edit／build Authorityは`required_pre_execution_attestation_kinds=[managed_host_session]`、`required_post_execution_attestation_kinds=[host_execution]` exact setとする。Tool公開前・実行直前はpre集合だけを検査し、処理後にBrokerがtyped resultを得てからHost Execution Attestationを発行する。Staging受入れ、`GenerationReceiptV1`完成、`ManagedHostOutputAcceptanceReceiptV1`発行の各時点ではpre Attestationを再検証したうえでpost集合も必須にする。post Attestationを実行前Contextへ埋め込むこと、post欠落のresultをStagingへ受け入れること、R4判断やCommitをallowlistへ追加することを拒否する。
+
+次のprofile payloadは必ず`GovernedAiProfileRecordV1`で署名し、payload単体や自己申告`support_state`をcurrentにしない。
+
+| profile schema | exact purpose | issuer Role |
+|---|---|---|
+| `ExternalClientSecurityProfileV1` | `external_client_security_profile` | `role.ai-profile-security.r4` |
+| `EngineAiHostSecurityProfileV1` | `engine_ai_host_security_profile` | `role.ai-profile-security.r4` |
+| `McpTransportSecurityProfileV1` | `mcp_transport_security_profile` | `role.ai-transport-security.r4` |
+| `AiAuthorityProfileV1` | `ai_authority_profile` | `role.ai-authority-policy.r4` |
+| `AiExecutionFreshnessPolicyV1` | `ai_execution_freshness_policy` | `role.ai-execution-freshness-policy.r4` |
+| `ProviderRuntimeProfileV1` | `provider_runtime_profile` | `role.ai-provider-runtime-owner.r4` |
+| `ProviderManifestV1` | `provider_manifest` | `role.ai-provider-profile-owner.r4` |
+| `InferenceDeploymentProfileV1` | `inference_deployment_profile` | `role.ai-deployment-profile-owner.r4` |
+| `ModelSnapshotProfileV1` | `model_snapshot_profile` | `role.ai-model-profile-owner.r4` |
+| `LocalModelArtifactManifestV1` | `local_model_artifact_manifest` | `role.ai-model-artifact-publisher` |
+| `LocalInferenceLoaderProfileV1` | `local_inference_loader_profile` | `role.ai-local-runtime-security.r4` |
+
+各logical profile IDごとに初回revision 1／previous=null、以後current完成wrapper ref／hashとexact `N+1`を持つrecord chainを作る。`profile_record_id`は同Fieldを除く完成`GovernedAiProfileRecordPayloadV1`のJCS hashから`urn:mirakan:governed-ai-profile-record:sha256:<lowercase-hex>`として導出する。`signed_record.subject_sha256`はprofile単体でなくIDを含む完成Record payload JCS hash、Signer subject／Role、issued_at、revocation snapshot、上表purposeをouter payloadとexact一致させる。`profile_ref/hash`は完成profile bytesへ解決し、Local Model Artifactを含む全profileで`profile.issued_at=record.payload.issued_at`、profile expiry／revocation Fieldとcurrent stateを検証する。全Governed profileの`revoked_at`は省略不能な`canonical UTC | null`で、current利用は`null`だけを許す。省略、空文字、sentinel、non-null、profileとcurrent revocation snapshotの不一致を拒否する。これにより署名済みprofileを維持したrevision／previous／issuer差替えを拒否する。
+
+Record chainに加えてlogical profile IDごとの完成`GovernedAiProfileHeadV1`を必須にする。genesisはsequence 1／previous=null／current revision 1、後続はcurrent完成Headをprevious、sequenceとrevisionをexact `N+1`にし、`service.ai-profile-head-publisher`／`role.ai-profile-head-publisher`／singleton purpose `governed_ai_profile_head`で署名してexpected previousへのsingle CASを行う。`head_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:governed-ai-profile-head:sha256:<lowercase-hex>`として導出する。Bindingは発行時Head wrapper ref／hash／sequenceと、そのHeadが指すschema、logical ID、record ref／hash、revisionをexact固定する。新規実行、Authorization、Staging受入れ、Promotionでは発行時Headがcurrent Headと同一でなければ`stale`として拒否する。履歴監査では発行時Headから署名chainを再生し、当時有効なら`authentic_but_stale`として過去Receiptを保持するが、新規権限またはcurrent性能主張へ再利用しない。Head更新だけで過去Receiptを改竄扱いまたは削除せず、filesystem `latest`、mutable logical ID、古いbindingのcurrent利用を拒否する。unknown／expired／revoked Role、assignment、Key、branch、gap、同内容revision bumpも拒否する。
+
+`McpSessionGrantV1`、`AiCallerContextV1`、`ManagedHostSessionAttestationV1`、`HostExecutionAttestationV1`は各専用Role／purposeで別途署名し、同じprofile chainへ混ぜない。Managed Host Sessionは登録Brokerの`role.managed-host-session-attestor`／purpose `managed_host_session_attestation`、post-executionは`role.managed-host-execution-attestor`／purpose `host_execution_attestation`を使い、payload JCS subject、型別issued_at、revocation snapshotをexact一致させる。
+
+Profile外のsecurity recordは次のexact署名行だけを許す。全wrapperで`subject_sha256=SHA-256(JCS(payload))`、Signer subject／Role、singleton purpose Key、型別issued_at、payloadのrevocation snapshot、発行時と評価時のcurrent revocationを検証する。
+
+| record | exact purpose | issuer Role | signed time | 利用可能result |
+|---|---|---|---|---|
+| `McpSessionGrantV1` | `mcp_session_grant` | `role.mcp-session-grant-service` | payload `issued_at` | expiry内のquery／proposal grant |
+| `AiCallerContextV1` | `ai_caller_context` | `role.ai-gateway-context-publisher` | payload `created_at` | route/profile/envelope積集合がnon-empty |
+| `AiTaskAttemptReservationV1` | `ai_task_attempt_reservation` | `role.ai-gateway-task-attempt-reservation` | payload `reserved_at` | current terminal Head、上限内count、current Context／Authorization |
+| `AiTaskRepairAttemptHeadV1` | `ai_task_repair_attempt_head` | `role.ai-gateway-task-repair-attempt-head` | payload `recorded_at` | expected-previous CAS成功、closed reserved／recorded／aborted state |
+| `StandardExternalProposalReceiptV1` | `standard_external_proposal_receipt` | `role.ai-gateway-standard-external-proposal-receipt` | payload `received_at` | current reserved Head／Context／Grant、typed Proposal |
+| `ManagedHostSessionAttestationV1` | `managed_host_session_attestation` | `role.managed-host-session-attestor` | payload `issued_at` | allowed task kindだけ |
+| `HostExecutionAttestationV1` | `host_execution_attestation` | `role.managed-host-execution-attestor` | payload `issued_at` | typed resultの完成branch |
+| `ManagedHostOutputAcceptanceReceiptV1` | `managed_host_output_acceptance` | `role.managed-host-output-acceptor` | payload `accepted_at` | `accepted_to_staging`かつtyped result=`completed`だけ |
+| `ModelImportQualificationReceiptV1` | `model_import_qualification` | `role.ai-model-import-qualifier` | payload `issued_at` | `pass`だけ |
+| `LocalInferenceRunReceiptV1` | `local_inference_run` | `role.ai-local-inference-runner` | payload `issued_at` | result kind=`completed`だけ |
+| `LocalInferenceRepeatabilityReceiptV1` | `local_inference_repeatability` | `role.ai-repeatability-runner` | payload `issued_at` | `byte_equal`だけ |
+| `ModelLicenseAcceptanceDecisionV1` | `model_license_acceptance_decision` | `role.model-license-acceptance.r4` | payload `issued_at` | `approved`だけ |
+
+Freshness-bearing recordはcurrent `AiExecutionFreshnessPolicyV1` bindingの該当`record_kind`が一件だけ存在し、`expires_at = min(issued_at + max_age_seconds, 全参照profile／Receiptのexpires_at)`を満たす。Acceptance Receiptでは`issued_at`を`accepted_at`と読む。policy missing／duplicate、caller指定max age、expiry延長再包装、current Head差、source expiry／revocationを拒否する。License Decisionは同式でなくpayloadの`issued_at <= evaluation_time < valid_until`とProject／license driftを継続評価する。
 
 | Host profile | 許可Transportの扱い | 対応表示条件 |
 |---|---|---|
 | Editor | direct Provider API、local STDIO MCP、またはActivation済みStreamable HTTP | exact組合せのReceiptと製品内Policyが有効 |
-| ChatGPT web | remote Streamable HTTP MCP／Pluginだけ。local STDIO MCPは非対応 | remote Host／Transport Receiptが有効 |
-| ChatGPT Desktop／Codex host | local STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
+| ChatGPT Chat／Work | custom MCP appは現行公式提供範囲のChatGPT webからremote Streamable HTTPへ接続する。private network／developer machineはSecure MCP Tunnelを使い、direct local STDIOは不可。desktopのChat／Work UIはcustom MCP appがweb-onlyである間`not_activated` | plan／workspace条件、admin publish／action control、remote Host／TransportまたはSecure MCP Tunnel Receiptが有効 |
+| ChatGPT desktop app内Codex host | Codex modeとしてlocal STDIO MCPまたはStreamable HTTP。ChatGPT Chat／Workのapp接続とは別Host Profile | exact Codex host version／binary／Transport Receiptが有効 |
 | Codex CLI／Codex IDE | local STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
 | Claude Desktop／Claude Code | Profileに列挙したlocal STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
 | Cursor | Profileに列挙したlocal STDIO MCPまたはStreamable HTTP | exact client version／binary／Transport Receiptが有効 |
 
-Receipt不在、期限切れ、version／binary／Transport／Schema差では`supported`と表示せず、read／proposal conformanceだけが成立する場合は`proposal_only`、それもなければ`not_activated`とする。Callerの最大Authorityは`query | proposal | managed_source_edit | build_job`のclosed setであり、Approval、Commit、Activation、Signing、ReleaseはどのHost、Provider、Modelにも付与しない。
+この表は許容するprofile classであり、現時点の具体的なHost／version／binary／Transport組合せを`supported`と宣言しない。初期`ExternalClientSecurityProfileV1`、`EngineAiHostSecurityProfileV1`、Host Conformance Receipt、managed Host attestor、first-party local runtimeのcurrent materialized instanceは0件である。Phase 4のAI CoreはEngine build／process／OS policyとProvider tupleを束縛したEngine Host Profileを、Phase 5 `wp.product.external-agent`は少なくとも一つのexact External Host＋MCP Transport＋Tool Projection＋proposal-only Authority組合せをそれぞれmaterializeし、positive／negative Conformanceを通す。ChatGPT、Codex、Claude、Cursor等の名前だけでは完了しない。`managed_source_edit | build_job` routeは専用Future Work PackageとThreat Model、Broker、session／execution attestor、Engine Build Receipt closureが承認されるまで`not_activated`であり、MVPのstandard external MCP proposal laneへ混ぜない。first-party local inferenceもProduct PlanのFuture entryのままである。
+
+Receipt不在、期限切れ、version／binary／Transport／Schema差では`supported`と表示しない。`proposal_only`を表示できるのは、失効したManaged Contextを降格した場合ではなく、別のcurrent `standard_external_mcp` Host／Transport／Tool／proposal-only Authority Profile、MCP Grant、read／proposal ConformanceからGatewayが新Caller Contextを発行した場合だけである。その標準経路も成立しなければ`not_activated`とする。Callerの最大Authorityは`query | proposal | managed_source_edit | build_job`のclosed setであり、Approval、Commit、Activation、Signing、ReleaseはどのHost、Provider、Modelにも付与しない。
+
+`ExternalClientSecurityProfileV1.host_product_id`はsurface／modeを含むexact IDとし、ChatGPT Chat／Work、ChatGPT desktop app内Codex host、Codex CLI、Codex IDEを別Profileとして発行する。desktop applicationという同じ容器、同じaccount、同じvendorであることを根拠にTransport、設定、権限、Conformance Receiptを共有しない。ChatGPT Chat／Work用remote MCP appをCodex local MCPとして、またはCodex local MCP設定をChatGPT Chat／Work用appとして自動投影しない。
+
+`McpTransportSecurityProfileV1`はtransport kindごとの全Fieldをrequiredにし、他branch Fieldをunknownとして拒否する。local STDIOはbinary hash、OS ACL、IPC identity、credential非継承を、Streamable HTTPはexact origin／TLS／MCP OAuth 2.1 Protected Resource Metadata／Authorization Server Metadata／resource indicator／token audience／redirect／private-address／session bindingを、Secure MCP Tunnelはpublic endpointとexact tunnel client artifact、local service binding、direct inbound禁止を検証する。OIDC subjectはOAuth 2.1 branchの補助identity policyであってOAuth authorizationを置換せず、mTLS-onlyはActivation済みprivate service branchに限定する。`approved_private_service`は別Threat Model、service ref／hash、Activation ref／hashがある場合だけ許し、名前がprivate、localhost、tunnelであることを根拠にしない。全branchでexact MCP protocol version、message／timeout／rate／concurrency／session上限を強制する。External Client Host Profileの`supported_transport_profile_bindings[]`は各current完成Governed MCP Transport Profile recordへ解決し、Profile／Transport／Conformanceのexpiry・revocation・hash差で接続前にfail closedにする。Engine Host ProfileはMCP Transportでなくcurrent Provider Runtime bindingを列挙し、Engine build／process artifact／OS／filesystem／network policy差でEngine routeをfail closedにする。
+
+Managed HostのSource edit／Build出力はそれぞれclosed `ManagedSourceEditResultV1`／`ManagedBuildJobResultV1`として保存し、処理完了後の`HostExecutionAttestationV1` ref／hashを`ManagedHostOutputAcceptanceReceiptV1`のrequired Fieldにする。`attestation_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:host-execution-attestation:sha256:<lowercase-hex>`、session attestation IDは同様に`urn:mirakan:managed-host-session-attestation:sha256:<lowercase-hex>`で導出する。flat result objectの`result_id`は同Fieldを除く完成object JCS hashからSource edit=`urn:mirakan:managed-source-edit-result:sha256:<lowercase-hex>`、Build=`urn:mirakan:managed-build-job-result:sha256:<lowercase-hex>`、Acceptance payloadの`receipt_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:managed-host-output-acceptance-receipt:sha256:<lowercase-hex>`として導出する。post-execution payloadのCaller Context、Task Specification、Authorization Envelope、attempt、Input closure、result branchのkind／schema ID／ref／hashはAcceptance Receiptの同名入力とbyte-exactでなければならず、Broker署名とcurrent revocationを検証後にだけStagingへ受理する。completed Buildの`build_receipt_ref/hash`はCore ArchitectureのEngine-owned `PackageReceiptV1`完成wrapperで、operation ID=`operation.build.request_package`、purpose=`operation_receipt:operation.build.request_package`、Build Gateway signer、result=`succeeded`、同じTask Specification／Authorization／Project revision／Candidate／Target／Toolchain／artifact manifestを必須にする。Host／Broker AttestationはprovenanceでありBuild Receiptを代替しない。Receiptは`service.managed-host-output-acceptor`／singleton purpose `managed_host_output_acceptance`で署名する。standard external MCP、Engine Provider Adapter、proposal-only経路はManaged Host Session／Execution Attestationを両方持てず、空Attestation、事前署名result、kindとresult schema不一致、別attempt／別Input Attestationを拒否する。
 
 ### 8.4 Local inference境界
 
-Local inferenceは`InferenceDeploymentProfileV1.deployment_kind=local_process_ipc`としてcloud endpointと別Deploymentにする。起動前に`model_snapshot_profile_ref`と`model_snapshot_record_sha256`からSnapshot bytesをread-backし、`model_identity_kind=local_weights`、weights／quantization hash、license／provenance、expiry／revocation、Eval／Schema／Tool conformanceがすべてcurrentであることを検証する。Deployment側のSchema／Tool conformance Receiptは同じSnapshot hashとtool projectionをsubjectにしなければならず、参照先が`provider_model_id`、record hash差、license／provenance欠落、Receipt失効のいずれかなら`diagnostic.ai.model-snapshot-binding-mismatch`で起動前に拒否する。必要RAM／VRAM、effective context、process／GPU isolation、IPCまたはloopback mutual authentication、privacy／logging／retention、CPU／memory／GPU／時間／出力上限も同時に検証する。上限不足は起動前拒否、実行中超過はprocess tree終了とfailed Receiptに収束させ、System memoryへの無制限spill、GPU共有contextからの隔離省略、Schema非対応Toolの自然言語代替を禁止する。
+Local inferenceは`InferenceDeploymentProfileV1.deployment_kind=local_process_ipc`のclosed branchとしてcloud endpointと分離する。起動前にcurrent `model_snapshot_profile_binding`からSnapshot／Profile Record／issuance Headをread-backし、`model_identity.kind=local_weights`、current Local Manifest binding、全weight shard closureと選択encoding branch、config／tokenizer／chat template／special-token map、license／provenance、expiry／revocation、Eval／Schema／Tool conformanceがすべてcurrentであることを検証する。Deploymentの`process_artifact_ref/hash`はLoaderの`runtime_artifact_ref/hash`とImport Qualificationのprocess artifactにexact一致し、Import QualificationのLoader／Local Manifest bindingはDeploymentのLoader binding／Snapshot内Manifest bindingと一致し、License DecisionのManifest bindingも同じでなければならない。五辺の一つでも違う、Snapshotが`provider_model_id`、license／provenance欠落、Receipt失効なら`diagnostic.ai.model-snapshot-binding-mismatch`でprocess起動前に拒否する。
 
-fallbackは`disabled`またはexact `fallback_deployment_profile_ref`だけである。Localからcloudへ移る場合は送信data class、Provider、region、retention、費用を再Previewし、新しいCaller Context／Authorizationと明示User確認を必要とする。Network到達性、timeout、resource exhaustionを理由にcloudへ暗黙送信した場合は`diagnostic.ai.silent-cloud-fallback-forbidden`で失敗し、元Taskの状態とProjectを不変にする。
+Local branchはprocess artifact ref／hash、current runtime／loader Profile binding、Import Qualification、process／GPU isolation、mutual-auth endpoint、RAM／VRAM／CPU／memory／GPU／disk／temp cache／shard数・総bytes／child process／batch／concurrent inference／wall-time／output上限を全て必須にする。`os_ipc`はnetwork deny-all、`authenticated_loopback`はexact loopback originだけを許して外部networkをdeny-allにし、両branch混在、wildcard bind、LAN bindを拒否する。Local manifestの`model_format_id`はLoaderの`supported_model_format_ids[]` exact一件に一致しなければならない。custom model code、unsafe serialization、archive path escape、runtime network fetch、built-in file／shell tool、MCP proxyを禁止し、すべてのTool実行をMiraikanai Gatewayへ戻す。llama.cppを候補Adapterにする場合も、公式serverでexperimentalかつuntrusted環境非推奨の`--tools`と`--ui-mcp-proxy`を無効のまま固定する（[公式server README](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)）。loaderがweights/config/tokenizer closure外のartifactを要求すれば拒否する。preflight不足は開始前拒否、実行中超過はprocess tree終了＋failed Receiptへ収束させ、System memoryへの無制限spill、GPU共有contextからの隔離省略、Schema非対応Toolの自然言語代替を禁止する。
 
-Gemma、Kimi、Qwen、DeepSeek、Grok、GLMその他のModel familyごとのEngine branchを作らない。任意のProvider／local runtime／Modelは同じProfileとConformance Receiptで扱い、Receiptがなければ`proposal_only`または`not_activated`とする。外部Conformance済みHostがlocal modelを使う経路と、Miraikanai自身がlocal runtimeを配布・運用するCapabilityを分ける。first-party local inferenceはFuture incubationであり、MVPまたは初心者First PlayableのCompletion Gateにしない。
+License文字列の存在だけではActivationしない。`ModelLicenseAcceptanceDecisionV1`はexact license／manifest／Project revision／intended-use profile／distribution planに対し、game生成、commercial use、weight redistribution、output use、required noticeの各許可をR4 License主体が署名する。`approved_use_kinds[]`は`game_authoring | asset_generation | code_generation | evaluation | redistribution`のclosed subsetとする。Project用途が同集合に含まれ、redistribution／output policyがpackage／distribution planと一致し、Decision／Signer／Role／Key／validity／revocationがcurrentな場合だけlocal deploymentを有効化する。`decision_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:model-license-acceptance:sha256:<lowercase-hex>`として導出し、`role.model-license-acceptance.r4`／singleton purpose `model_license_acceptance_decision`、`subject_sha256=SHA-256(JCS(payload))`、signed issued-at／revocation equalityを必須にする。
+
+Local inferenceは既定で`output_reproducibility.kind=not_claimed`とし、completed実行のexact response bytes hash、runtime／model／settings／seedを署名済み`LocalInferenceRunReceiptV1`へ保存するが、同一出力の再現性を主張しない。preflight／runtime failureはfailed branch、null response hash、1件以上のtyped Diagnosticで表す。`deterministic_claim`だけはruntime artifact、GPU profile、inference settings、seed、sampler、thread policy、replay input setを固定し、最低3件の重複しないfresh completed Run Receiptを列挙する。全Run Receiptの同入力bindingと`exact_response_bytes_sha256`が一致する場合だけRepeatabilityを`byte_equal`にする。未固定hardware／runtime、単一hash自己申告、回数だけの申告でdeterministicと表示しない。
+
+fallbackは`disabled`またはcurrent exact `fallback_deployment_profile_binding`だけである。Localからcloudへ移る場合は送信data class、Provider、region、retention、費用を再Previewし、新しいCaller Context／Authorizationと明示User確認を必要とする。Network到達性、timeout、resource exhaustionを理由にcloudへ暗黙送信した場合は`diagnostic.ai.silent-cloud-fallback-forbidden`で失敗し、元Taskの状態とProjectを不変にする。
+
+Gemma、Kimi、Qwen、DeepSeek、Grok、GLMその他のModel familyごとのEngine branchを作らない。任意のProvider／local runtime／Modelは同じProfileとConformance Receiptで扱う。full-tuple routeのReceiptがなければそのrouteは`not_activated`であり、`proposal_only`へ暗黙降格しない。`proposal_only`は、別のcurrent `standard_external_mcp` profile／Grant／ConformanceからGatewayが新Caller Contextを発行できる場合だけである。外部Conformance済みHostがlocal modelを使う経路と、Miraikanai自身がlocal runtimeを配布・運用するCapabilityを分ける。first-party local inferenceはFuture incubationであり、MVPまたは初心者First PlayableのCompletion Gateにしない。
 
 ## 9. Preview、technical qualification、人間承認
 
@@ -680,7 +1186,7 @@ Engine baseline更新は全Attestationを失効させ、明示Migration、全再
 | Revision drift | 現Task停止、新ContextとEnvelope |
 | Receipt／hash／Approval mismatch | Security event、Promotion拒否 |
 | Candidate／Device generation／Package Receipt mismatch | Operation開始前に失敗。最新対象へ自動追従しない |
-| Host／Model／Deployment Profile失効 | 新規Tool／推論呼出しを停止し、再Conformanceまで`proposal_only`または`not_activated` |
+| Host／Model／Deployment Profile失効 | 当該Caller Contextの新規Tool／推論呼出しを停止して`not_activated`。`proposal_only`は、別のcurrent `standard_external_mcp` Host／Transport／Tool／proposal-only Authority Profile、Grant、ConformanceからGatewayが新Caller Contextを発行した場合だけ |
 | Code owner assignment／approval不在または失効 | `AwaitingCodeOwner`。Source生成／Promotionなし、BeginnerはDefinition／prequalified Packへ再Plan |
 | Local inferenceから未確認cloud fallback | `diagnostic.ai.silent-cloud-fallback-forbidden`、送信0、Project不変 |
 | Runtime fault | Session停止、Artifact invalid化、last-known-goodへRollback |
@@ -718,8 +1224,14 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - 各positive fixtureをbaseに、別Operation purpose、unknown／generic purpose、別実行AuthorityのKeyをそれぞれ一原因だけ変更し、payloadとsubjectが他は同一でも署名検証を拒否する。`OperationReceiptEnvelopeV1`のOperation IDとpayload型不一致、async 11件の`task_id` missing、sync Control 3件の`control_invocation_id` missing、両ID present、Control対象Task IDのEnvelope `task_id`への流用も一原因ずつ拒否する。
 - consentまたはR3 Approvalなしの`operation.device.install`／`operation.device.reset_data`と、install Approvalをlaunch／smoke／Debugへ権限継承させる試行。
 - Evidence ref不在、別Session／revision、gap隠蔽、reproductionなしの偽`validated_cause`を`operation.debug.validate_finding`へ渡す試行。`diagnostic.debug.finding-evidence-invalid`で拒否する。
-- 期限切れ／失効／binary hash不一致の`ExternalClientSecurityProfileV1`、`ProviderManifestV1`、`InferenceDeploymentProfileV1`、`ModelSnapshotProfileV1`によるTool／推論呼出し。Deploymentの`model_snapshot_profile_ref`／`model_snapshot_record_sha256`差、local deploymentから`provider_model_id` Snapshot参照、Snapshotのweights／quantization／license／provenance／Conformance欠落または失効を一原因ずつ拒否する。
-- ChatGPT webをlocal STDIO Hostとして登録する試行、またはClaude Desktop／Claude Code／CursorをConformance Receiptなしで`supported`表示する試行。
+- 期限切れ／失効／binary hash不一致の`ExternalClientSecurityProfileV1`、Engine build／process／OS policy差の`EngineAiHostSecurityProfileV1`、またはinvalidな`ProviderManifestV1`、`InferenceDeploymentProfileV1`、`ModelSnapshotProfileV1`によるTool／推論呼出し。routeに対するHost schema差、External routeのMCP Transport欠落、Engine routeのnon-null MCP Transport／Grant、Deployment／Provider Manifestの`model_snapshot_profile_binding`差、issuance Head差、local deploymentから`provider_model_id` Snapshot参照、Snapshotのweight shard／encoding branch／license／provenance／Conformance欠落または失効を一原因ずつ拒否する。
+- Caller ContextのFreshness binding欠落、TTL 600秒超過、source expiryを超えるContext、Profile Head更新後のcurrent実行を拒否し、同じ過去Receiptは履歴監査で`authentic_but_stale`として検証できることを確認する。
+- 全routeのTask Attempt chainで、initialのcount非0、repair Reservationのprevious／sequence／count gap、別Task previous、reserved中の二重開始、stale Head、同一Headへの並行CAS、Host／Transport／Grant／Model／Provider／Attempt変更によるcount reset、上限超過、期限前abort、結果ReceiptとReservation差、unsigned latestを一原因ずつ拒否する。standard MCPではProvider／Model／完全responseを`StandardExternalProposalReceiptV1`へ記録またはGeneration Receiptへ捏造しない。
+- managed routeでpre Session Attestation欠落の実行開始、実行前の偽post Execution Attestation、処理後post欠落resultのStaging受入れ、別Task／attempt／Input／typed resultを指すpost Attestationを一原因ずつ拒否する。
+- Managed AcceptanceからTask SpecificationまたはAuthorization hashを落とす、Host AttestationだけでBuild成功を申告する、別Project／Candidate／Target／Toolchainの`PackageReceiptV1`を束縛する、failed typed resultをStagingへacceptする試行。
+- Local Deployment、Loader、Import Qualification、Snapshot内Manifest、License Decisionのbindingまたはprocess artifactを一辺だけ差し替える試行。OS IPCでnetworkを許す、loopback branchをwildcard／LANへbindする、built-in file／shell toolまたはMCP proxyを有効化する試行。
+- RepeatabilityでRun Receiptが3件未満、重複ref、入力／runtime／model／settings差、exact response bytes hash差、failed run混在を一原因ずつ拒否する。
+- ChatGPT Chat／Workをdirect local STDIO Hostとして登録する試行、ChatGPT desktopのChat／Work UIをweb-only期間にcustom MCP app対応と表示する試行、ChatGPT Chat／Workとdesktop内Codex hostのProfile／Receiptを流用する試行、またはClaude Desktop／Claude Code／CursorをConformance Receiptなしで`supported`表示する試行。
 - Local runtime timeout、RAM／VRAM不足、Tool Schema不一致を契機に、Preview、User確認、新Authorizationなしでcloudへ送る試行。送信byte 0と`diagnostic.ai.silent-cloud-fallback-forbidden`を確認する。
 - Assignmentの`role_ref`欠落／unknown、Native RoleへのShader scope、Shader RoleへのNative scope、Qualification ReceiptのRole／Scope差、`revoked_at` Field省略、`revoked_at` non-null、unknown extra Field、期限切れ、current snapshotでAssignment Recordだけをrevoked、current snapshotでsubject identityだけをrevoked、current snapshotのmissing／stale／invalid、または別Diff／Source revisionの`CodeOwnerApprovalV1`を一原因ずつ注入する。各fixtureはSource Worker起動前またはPromotion前に拒否し、`revoked_at=null`でもcurrent snapshot失効を上書きしない。
 
@@ -731,6 +1243,7 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - API、MCP、CLI、EditorのProposalが同じGatewayとPolicyへ到達する。
 - Package／Device／Play／Debug／Taskの14 Operationが同じ`OperationTaskV1` binding、Receipt、cancel規則へ到達する。
 - Host／Transport／Provider runtime／Model snapshot／Tool projection／Authorityが別Profileで評価され、対応表示は有効なConformance Receiptに束縛される。
+- 全routeのrepair countがsigned Reservation／task-scoped current Head、managed routeのpre／post Attestationが因果順で強制され、route変更や再起動でresetされない。
 - Sandbox不能、Baseline mismatch、Capability不足、Credential分離不成立でfail closedになる。
 - Project data、Bounded Native、Bounded Shaderの境界とG0–G7適用laneが機械検査される。
 - Builder／Reviewer AI、Policy、Approval、Promotion、Activation、Release各Authorityが分離される。
@@ -746,7 +1259,8 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785)
 - [RFC 7518 JSON Web Algorithms](https://www.rfc-editor.org/rfc/rfc7518)
 - [Model Context Protocol 2025-11-25 specification](https://modelcontextprotocol.io/specification/2025-11-25)
-- [OpenAI: Apps in ChatGPT and MCP／Codex client support](https://learn.chatgpt.com/docs/extend/mcp)
+- [OpenAI: Developer mode and MCP apps in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt)
+- [OpenAI: Codex host MCP support](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 - [Anthropic: Desktop Extensions and local MCP servers](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
 - [Anthropic: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)
 - [Cursor: Model Context Protocol](https://cursor.com/docs/mcp)

@@ -53,7 +53,7 @@ C1のreference compositionは、`domain.action_2d`へ`profile.shooter.top_down_2
 
 single-player Shooterはnetwork replication、prediction、server authority、matchmakingを含まない。large-session network ShooterはProduct Planの`future.capability.large-session-network-shooter`だけが`planning_only`で追跡し、current Shooter Capability、Phase、Package、Technology Preview claimへ含めない。2D／TPS Profileは同じWeapon、Damage、Team、Score、Save、Replay意味を使用し、viewまたはTargetの違いでPublic Contractをforkしない。
 
-Product Planの`capability.domain.shooter-2d`と`capability.domain.shooter-3d`は本書5節のTarget closureを消費し、次のexact mappingでTarget別`CapabilityTargetActivationV1`行を昇格候補にする。Gate、Requirement、Phase schedulingの正本は[Product Plan §11.4](../00-product/product-plan.md#114-product-phase-registry)であり、本表はShooter Owner側のcross-document conformance mappingである。
+Product Planの`capability.domain.shooter-2d`と`capability.domain.shooter-3d`は本書5節のTarget closureを消費し、次のexact mappingでTarget別`CapabilityTargetActivationStateV1`行を昇格候補にする。Gate、Requirement、Phase schedulingの正本は[Product Plan §11.4](../00-product/product-plan.md#114-product-phase-registry)であり、本表はShooter Owner側のcross-document conformance mappingである。
 
 | Capability | Target Activation row | Phase Gate | Requirement | Fixture | Freshness |
 |---|---|---|---|---|---|

@@ -1,6 +1,8 @@
 # Plan Review Closure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking; `- [x]`は実行済みを表す。
+> **Status: completed historical review plan; do not execute.** Its IDs and counts are evidence of the 2026-07-22 review only. Current authority is Product Plan, Control Plane plans, Critical Path, and Future Inception.
+
+> **Historical instruction (superseded; must not be followed):** 当時のagent実行手順とcheckboxは完了記録としてのみ保持する。現行作業の指示として解釈しない。
 
 **Goal:** 2026-07-22の計画書レビューを監査可能なclosureへ変換し、ID、Product Registry、Owner、Control Plane、Runtime ECS、D3D12の計画を依存順に矛盾なく改善する。
 

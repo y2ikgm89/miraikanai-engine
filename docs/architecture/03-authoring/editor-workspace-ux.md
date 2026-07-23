@@ -359,7 +359,7 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 
 Package journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。後段PanelはPackage artifact hashと前段完成Receipt ref／hashを表示し、InstallはPackage、LaunchはInstall、SmokeはPackage／Install／Launchとfixtureの全bindingが一致するまで成功表示しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
 
-Local inference表示は`InferenceDeploymentProfileV1.model_snapshot_profile_ref`と`model_snapshot_record_sha256`からread-backした`ModelSnapshotProfileV1`だけをModel identity正本にする。weights、quantization、license、provenanceをDeployment表示値から取得せず、Deployment／Snapshot hash差、`local_process_ipc`からprovider model参照、Snapshot／Conformance失効を`not_activated`とDiagnosticで表示する。
+Local inference表示はcurrent `InferenceDeploymentProfileV1.model_snapshot_profile_binding`のrecord／issuance Headからread-backした`ModelSnapshotProfileV1`だけをModel identity正本にする。weight shard closure、native／quantized encoding branch、license、provenanceをDeployment表示値から取得せず、Deployment／Snapshot binding差、`local_process_ipc`からprovider model参照、Snapshot／Conformance失効またはstale Headを`not_activated`とDiagnosticで表示する。
 
 ## 9. Manual editingとAIの往復
 
@@ -478,7 +478,7 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - Package→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、Project／Deviceの正規状態が不変
 - BeginnerではDefinition／prequalified PackだけからFirst Playableへ進み、Native／Shader要求は`awaiting_code_owner`または`capability_unavailable`になってSource reviewを要求しない
 - Code owner Assignmentのmissing／unknown／wrong-scope `role_ref`、`revoked_at` Field省略、non-null `revoked_at`、unknown extra Field、current snapshotのAssignment／subject revoke、current snapshotのmissing／stale／invalidを一原因ずつ拒否し、`revoked_at=null`だけで`awaiting_code_owner`からSource生成／Promotionへ進めない
-- expired Host／Model Profile、Deployment／Snapshot ref／record hash／kind差、silent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
+- expired Host／Model Profile、Deployment／Snapshot bindingのschema ID／logical ID／record ref／hash／revision／issuance Head差、`model_identity.kind`差、silent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない
 - 既知のqueue overflow、stale handle、asset revision drift、simulation divergenceをSession／Debug Timeline／Causality／Replayで識別し、gapを原因確定へ使わない

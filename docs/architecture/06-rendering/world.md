@@ -53,7 +53,7 @@ World／Scene／Level／Entity source identityはProject Stable ID、source revi
 | `evidence_requirement_ids` | 1～64件 |
 | `affected_stable_ids` | 実在確認済み、0～1,024件 |
 | `blocking_questions` | 0～7件、各Questionは選択肢2～5件、推奨、影響、変更可能性 |
-| `disposition` | `resolved | question_required | rejected` |
+| `disposition` | `resolved \| question_required \| rejected` |
 
 上位2候補差が9,830未満、Save／Level transition／authoritative state／Target／Asset license／memory capacityへ影響、layoutとpresentationの両解釈、新規／既存LevelをStable IDで特定不能のいずれかなら`question_required`とする。
 

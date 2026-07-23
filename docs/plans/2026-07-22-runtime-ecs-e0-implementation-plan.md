@@ -4,16 +4,16 @@
 
 **Goal:** Engine-owned archetype ECSのE0正本、MCD、generated contract、cross-document ownership、positive／negative fixtureをclean-breakで確定し、E1 storage kernelが推測なく開始できるbaselineを作る。
 
-**Architecture:** E0はRuntime storageを実装せず、Entity／Component／Query／Access／Structural transaction／Cook image／Native ABI／Subsystem Port／Save projection／AI R0 operationのcontractとtest oracleを固定する。ECS固有規則を新Ownerへ一度だけ移し、Memory、Scheduling、Gameplay、Native Moduleは共通原則またはconsumer boundaryだけを保持する。
+**Architecture:** E0はRuntime storageを実装せず、Entity／Component／Query／Access／Structural transaction／Cook image／Native ABI／Subsystem Port／Save projection／AI R0 operationのcontractとtest oracleを固定する。ECS固有のtechnical contractは専用文書へ集約するが、現V1 full-reset migrationの実行可能性を守るためProduct WPのoperational Ownerは`mirakan.arch.runtime-scheduling-lifetime`に維持する。Memory、Scheduling、Gameplay、Native Moduleは共通原則またはconsumer boundaryだけを保持する。
 
 **Tech Stack:** Miraikanai Contract Definition、JSON Schema Draft 2020-12、C++23 generated types、TypeScript generated projection、MCP JSON Schema、Node.js／TypeScript contract compiler、CTest、TLA+／TLC 1.7.4（commit／publication state machine）。
 
 ## Global Constraints
 
-- Task 0の共通tooling準備とTask 1のECS正本bootstrapを除き、Task 3以降はTask 2のexact entry gate通過前に開始しない。対象であるECS自身の`approved`を開始条件にしない。
-- 開始条件は`architecture_baseline_receipt_hash != null`、Architecture Governance／Compatibility Evolution／Persistence Saveの各state=`approved`、Entity Component Systemのstate=`review`の五件だけとする。
-- `architecture/baselines/control-plane-v1.json`はexact 9 fieldsをread-backし、baseline不一致、Owner非承認、ECS state不一致、dirty treeをそれぞれstable Diagnostic IDで拒否する。
-- 新正本IDは`mirakan.arch.runtime-entity-component-system`、Work Packageは`wp.runtime.ecs-e0`、初期stateは`review`、Activationは全Targetで`not_activated`とする。
+- Task 0を含む全Taskは、外部Schedulerがcurrent signed Product snapshotと`CurrentControlPlaneBaselineBindingV1`のE0 Preflight Gateを通し、`wp.runtime.ecs-e0`を`declared->ready->active`へ正当に遷移させた後だけ開始する。Task 0～11の変更はcurrent source treeと分離した一つのauthorized Staging candidateへ累積し、authoritative source／Product currentをTask途中で書き換えない。Plan内TaskをPreflightより先に実行せず、初回Bootstrap Approvalをcurrent authorityとして直接参照しない。
+- 開始条件はcurrent Active Product Definition内の`wp.runtime.ecs-e0` row／definition seed、current lifecycle state=`active`、`wp.runtime.scheduling-core=complete`、Product operational Owner `mirakan.arch.runtime-scheduling-lifetime`と既存Governance／Compatibility／Persistence Owner文書のcurrent approval、current baseline／Toolchain／revocationの全件である。Task 1で新設するECS technical documentのapprovalをE0 entryへ要求しない。
+- baseline bindingの完成wrapperをkind別`bootstrap | rebaseline` schemaでread-backし、active definition hash、Baseline Core、Local Schema Catalog、Authority Binding Source Catalog、Toolchain、Trust closureを検証する。bindingの`subject_git_tree_id`はauthoritative source parentと照合し、Staging candidateはTask Authorizationのchanged-path manifest内かつ同parentのdescendantであることを別に検証する。source側dirty、Staging外変更、stale binding、不一致をstable Diagnostic IDで拒否し、authorized candidate deltaをdirty sourceと誤判定しない。
+- 正本IDは`mirakan.arch.runtime-entity-component-system`、Work Packageは`wp.runtime.ecs-e0`である。Activationはcurrent Product snapshotのTarget行だけが所有し、ECS文書または計画から昇格しない。
 - Flecs、EnTT、Unity Entities、Unreal Massをdependencyまたは互換APIとして追加しない。
 - C1値はchunk payload 16 KiB、base alignment 64 bytes、inline Component最大256 bytes、Entity handle `uint32 index + uint32 generation`、index 0 invalid、generation wrap retireである。
 - Runtime storage、raw chunk、Runtime handle、pointer、lease、archetype IDをSave／Replayへ永続化しない。
@@ -157,43 +157,47 @@ Metadataのdirect `requires`は`["mirakan.arch.runtime-scheduling-lifetime"]`だ
 
 Scheduling metadataには`contract.runtime.ecs-phase-handoff`と`contract.runtime.structural-commit-boundary`をreciprocalに登録する。ECS document IDを既存Ownerの`requires`へ追加しないためcycleを作らない。
 
-同じChangeSetで`wp.runtime.ecs-e0.owner_document_id`を暫定Owner `mirakan.arch.runtime-scheduling-lifetime`から新Owner `mirakan.arch.runtime-entity-component-system`へ置換する。新文書追加前または別ChangeSetでownerだけを変更しない。
+`wp.runtime.ecs-e0.owner_document_id`はcurrent Active Definitionどおり`mirakan.arch.runtime-scheduling-lifetime`に維持する。新ECS文書はtechnical contract Ownerとしてreciprocal relationを持つが、Product operational DecisionのOwner移管を暗黙実施しない。移管はproof-carry-forward migrationがActiveになるか、初回bootstrap対象を拡張する別Product／Architecture Decisionが成立した後の専用Definition migrationへ分離する。
 
 - [ ] **Step 4: generated Indexとarchitecture lintを実行する**
 
-Expected: active inventory +1、cycle／redundant／Owner duplicate 0、固定件数表記0。ECS metadataは`state = review`、`approval_ref = null`、全Target activation=`not_activated`であり、正本作成をapprovalまたはCapability昇格とみなさない。
+Expected: active inventory +1、cycle／redundant／Owner duplicate 0、固定件数表記0。ECS file bytesを`ArchitectureDocumentCoreV1`へ束縛し、post-bootstrap新規文書専用の初回`DocumentLifecycleRecordV1`を`submit_review`（previous Core／Change Manifestなし、from=null、to=`review`）で作る。bootstrap 5 Owner限定の`construction_seed`を使わない。Metadata V2へstate／approval refを書かず、全Target activationはcurrent Product snapshotで`not_activated`のままとし、正本作成をapprovalまたはCapability昇格とみなさない。
 
-### Task 2: Control Plane baselineとOwner stateのE0 entry gateを追加する
+### Task 2: E0 Preflight invariantを実装内でも再検証する
 
 **Files:**
 - Modify: `architecture/registry/document-relations.v1.json`
-- Modify: `architecture/registry/product.v1.json`
+- Generated read-only input: current `ActiveProductDefinitionClosureV1`と`ProductOperationalStateSnapshotV1`
 - Test: `tools/architecture_lint/test/ecs-e0-entry-gate.test.mjs`
 - Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/valid.json`
 - Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/baseline-mismatch.json`
 - Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/owner-unapproved.json`
-- Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/ecs-not-review.json`
+- Test fixture: `tools/architecture_lint/test/fixtures/ecs-entry/ecs-lifecycle-not-review.json`
 
 **Interfaces:**
-- Consumes: Task 1のECS `review` metadataと`architecture/baselines/control-plane-v1.json`。
+- Consumes: current ECS Owner document、`CurrentControlPlaneBaselineBindingV1`、WP row／definition seed／lifecycle head。
 - Produces: booleanではなくexact failure diagnosticを返すE0 entry gate。Task 3〜11はこのgateを必須predecessorにする。
 
-Entry conditionは次の五件のconjunctionだけである。
+Entry conditionは次のclosed conjunctionである。
 
 ```text
-architecture_baseline_receipt_hash != null
-architecture_governance.state == approved
-compatibility_evolution.state == approved
-persistence_save.state == approved
-entity_component_system.state == review
+current_baseline_binding is valid and non-stale
+authoritative source tree matches binding subject tree
+staging candidate descends from source and all changed paths are authorized
+active_product_definition_sha256 == current snapshot value
+wp.runtime.ecs-e0 definition seed is valid
+  wp.runtime.ecs-e0 current lifecycle state == active
+wp.runtime.scheduling-core current lifecycle state == complete
+  Product Owner and existing Governance／Compatibility／Persistence Owners are current approved
+Toolchain and revocation snapshot are current
 ```
 
-- [ ] **Step 1: baseline hash missing／mismatch、三Ownerの各非承認、ECS state非review、dirty treeのnegative testsを書く**
-- [ ] **Step 2: `control-plane-v1.json`のexact 9 fieldsの過不足とhash mismatchを検出する**
-- [ ] **Step 3: 五条件を評価し、最初のfailureをcanonical diagnostic順で返すgateを実装する**
-- [ ] **Step 4: cleanなvalid fixtureでPASSし、ECSが`approved`でなくても`review`なら到達できることを確認する**
+- [ ] **Step 1: baseline hash missing／mismatch、Product Owner＋既存三Ownerそれぞれの非承認、ECS state非review、source dirty／Staging外変更／unauthorized candidate pathのnegative testsを書く**
+- [ ] **Step 2: binding kind別wrapper、Active Definition hash、Core／Catalog／Toolchain hash mismatchを検出する**
+- [ ] **Step 3: closed conjunctionを評価し、最初のfailureをcanonical diagnostic順で返すgateを実装する**
+- [ ] **Step 4: cleanなvalid fixtureでPASSし、ECS technical documentがreviewでもE0は実行でき、WP lifecycleを自動更新しないことを確認する**
 
-baselineのexact fieldsは`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`lint_version`である。Expected diagnosticはbaseline=`diagnostic.architecture.baseline-mismatch`、Owner=`diagnostic.architecture.owner-unapproved`、ECS state=`diagnostic.architecture.ecs-review-state-required`、dirty=`diagnostic.architecture.dirty-baseline`。Task 0のcompiler／harness hashはE0 Receiptへbindし、Control Plane baselineまたはentry conditionを暗黙拡張しない。
+bindingのField集合を本書へ複写せずControl Planeのclosed schemaから検証する。Expected diagnosticはbaseline=`diagnostic.architecture.baseline-mismatch`、Owner=`diagnostic.architecture.owner-unapproved`、WP state／seed=`diagnostic.product.work-package-entry-invalid`、source dirty／Staging逸脱=`diagnostic.architecture.dirty-baseline`とする。Task 0のcompiler／harness hashはE0 Receiptへbindし、Control Plane baselineまたはentry conditionを暗黙拡張しない。
 
 ### Task 3: Component、Entity、Archetype MCDをtest-firstで追加する
 
@@ -376,14 +380,16 @@ Expected: Model checking completed、invariant violation 0。Publication model�
 - Test: `tests/contracts/runtime_ecs/e0_conformance_tests.cpp`
 
 **Interfaces:**
-- Produces: E1が消費するexact baseline。
+- Produces: E1が消費するstable exact baselineと、Git tree外Evidence storeのfinal `TechnicalQualificationReceiptV1`。
 
 - [ ] **Step 1: Contract／static、correctness oracle、determinism、integration／AIのE0 subsetと、後続C1／C2 Qualification handoffをmatrix化する**
 - [ ] **Step 2: C++／TypeScript／JSON Schema／MCP generationを二回行う**
-- [ ] **Step 3: 全test、architecture lint、TLCを実行する**
-- [ ] **Step 4: baseline JSONを生成しread-backする**
+- [ ] **Step 3: 全test、architecture lint、TLCを実行し、結果をpreliminary Evidenceとして固定する**
+- [ ] **Step 4: stable baseline JSONと`ArtifactCandidateBindingV1` candidateを生成し、clean candidate Git treeをread-backする**
+- [ ] **Step 5: affected documentをhuman approveし、same-definition Rebaseline／Product rebindingを完成する**
+- [ ] **Step 6: new current bindingでfinal `TechnicalQualificationReceiptV1`を発行し、artifact／Evidence／bindingをread-backする**
 
-Baselineは`control_plane_baseline_ref`、ECS正本hash、MCD registry hash、generated C++／TypeScript／JSON Schema／MCP hash、golden fixture root hash、TLC model hash、test receipt refsを持つ。
+ECS E0 handoff artifactは`active_product_definition_sha256`、ECS definition seed／Owner document hash、MCD registry hash、generated C++／TypeScript／JSON Schema／MCP hash、golden fixture root hash、TLC model hash、preliminary test Evidence hashを持つが、`current_control_plane_baseline_binding`、Envelope、Product snapshotをinlineしない。Step 5はControl Plane Design §6.1.1.1に従いA2→B2→C2→D2→T2→L2→P2を実行し、`wp.runtime.ecs-e0=active`を含む非Control-Plane stateをparentからbyte-exactに保持する。Step 6のtree外final Receiptはcanonical subject closure `{usage=runtime_ecs_e0_handoff, artifact_ref, artifact_sha256, active_product_definition_sha256, current_control_plane_baseline_binding, owner_document_sha256, contract_set_sha256, toolchain_lock_sha256}`とStep 3の完成Evidence hashesを束縛する。consumerはこのfinal Receiptのbindingがcurrentでfresh／non-revokedであることを再評価し、artifact単体またはpre-rebaseline EvidenceをE1 entryへ使わない。
 
 E0はRuntimeを実装しないため、負荷Receiptそのものを完了条件にしない。代わりに次のowner／fixture／負荷条件をbaselineへexact handoffし、後続Work PackageがRuntime実装後に実行する。
 
@@ -394,12 +400,14 @@ E0はRuntimeを実装しないため、負荷Receiptそのものを完了条件�
 
 C2／stress Receiptを`runtime-ecs-e0-v1.json`へ偽装せず、両Consumer Work PackageのCandidate／Target別Qualification Receiptとして保持する。
 
-Expected: 二回生成bytes一致、old symbol 0、orphan contract 0、test error 0。E0は`review`または承認済みContract baselineであり、Runtime Capabilityを自動昇格しない。
+Expected: 二回生成bytes一致、old symbol 0、orphan contract 0、test error 0。ECS文書approve、same-definition Rebaseline、new-binding final Receiptがこの順で完成する。E0は承認済みContract baselineであり、Runtime Capabilityを自動昇格しない。
 
 ## Completion Gate
 
-- Task 2のexact五条件を満たし、Control Plane baselineのexact 9 fieldsと`architecture_baseline_receipt_hash`をread-backできる。
-- ECS active正本が`review`またはその後の別approvalで`approved`の一Ownerとして存在し、metadata graphのcycle／redundant／reciprocity errorが0である。E0 baseline生成はapprovalを自動付与しない。
+- Task 2のclosed entry conditionを満たし、current baseline binding、Active Definition、WP definition seed／lifecycle headをread-backできる。
+- ECS technical documentのcurrent lifecycle HeadがE0 outputを束縛したhuman `approve`で`approved`となり、metadata graphのcycle／redundant／reciprocity errorが0である。そのApprovalはE1 entry条件であり、E0 entryへ循環させない。E0実装はWP completionまたはActivationを自動付与しない。
+- candidate Git treeに対するsame-definition Rebaseline／Product rebindingがA2→B2→C2→D2→T2→L2→P2で完成し、その間`wp.runtime.ecs-e0=active`を保持している。tree内`runtime-ecs-e0-v1.json`にはbaseline bindingを埋め込まず、artifact hashとnew current bindingはtree外final Receiptだけが結合する。
+- new current bindingへ束縛したfresh E0 Receipt closureに対するScheduling Ownerの`ProductOperationalDecisionV1`（`work_package_owner_acceptance`）と、外部Schedulerがpublishした`WorkPackageLifecycleRecordV1 active->complete`をcurrent Product snapshotからread-backできる。preliminary EvidenceをcompletionまたはE1 entryへ使わず、実装Task自身はDecision／lifecycle Recordを発行しない。
 - §2の19型のうちwire contract 17件がMCD、C++、TypeScript、JSON Schema、MCP projectionで一致する。Naming正本のin-memory value type categoryに属する`RuntimeEntityHandle`と`RuntimeWorldPublicationHandle`はwire表現から除外し、C++ layout fingerprintの一致だけを検証する。
 - 16 KiB、64-byte、256-byteのECS値がECS正本に一度だけ存在する。
 - enable bitset、closed partition policy、execution contextの六責務、store／participant generation表についてpositive／negative fixtureが合格する。

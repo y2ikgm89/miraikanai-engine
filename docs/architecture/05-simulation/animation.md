@@ -106,7 +106,7 @@ Animation clockはcanonical intervalごとに一度だけadvanceする。root-mo
 
 `RootMotionProposal`はAnimation instance、canonical interval ID、local delta translation／rotation、source state／clip、artifact versionを持つ。root-motion modeは`animation | gameplay_motor | disabled`である。`animation`はMotorがCollisionを解決し、`gameplay_motor`はAnimation root deltaを0としてresolved velocityからin-place poseを選び、`disabled`はroot trackをpresentationにも使わない。proposalはauthoritative Transformではない。
 
-Physics resolved motion／ragdoll inputはgeneration付きsnapshotとして受け、Animationがnative Bodyをqueryしない。RagdollはPhysics pose inputとAnimation poseをtyped weight policyでblendするが、Physicsは`SkeletonPose`へ直接writeしない。NavigationはAnimation parameter候補をcommand／snapshotで渡せるが、Graph stateを直接変更しない。
+現行C1／C2はPhysics resolved motionだけをgeneration付きsnapshotとして受け、Animationがnative Bodyをqueryしない。`ragdoll`は`future.capability.vehicle-ragdoll-crowd-motion-warping`の予約語であり、同Future Entryがapproved Future-to-Active Promotion Manifest、Control Plane Rebaseline、Active Definition migrationでactive Capabilityへ昇格し、Ragdoll固有Owner contract、Target binding、Authority、Save／Replay schema、positive／negative fixtureが承認されるまで、Animation input、Graph node、operationとして公開しない。昇格前のRagdoll要求は`capability_unavailable`で拒否し、pose、clock、event cursor、Project／Save／Replay stateを変更しない。将来昇格後もPhysicsは`SkeletonPose`へ直接writeせず、versioned Physics pose inputとAnimation poseの合成はAnimation ownerだけが行う。NavigationはAnimation parameter候補をcommand／snapshotで渡せるが、Graph stateを直接変更しない。
 
 `AnimationEvent`はevent contract ID、source instance／state／clip、canonical interval ID、normalized time、loop ordinal、payload ref、Gameplay／Presentation classificationを持つ。Event trackは`event_track_id`とregistered typed Event IDを使う。Event traversal policyは次のclosed contractであり、Clipへ全fieldを明示する。
 
@@ -127,7 +127,7 @@ AnimationEventTraversalPolicyV1
 
 loop跨ぎはcanonical intervalをtraversal方向のsub-intervalへ分解し、loop ordinalごとに同じpolicyを適用する。forward eventはevent time、track ID、event ID、loop ordinal、reverse eventは逆event time、track ID、event ID、loop ordinalでcanonicalizeする。同じcanonical intervalとpolicyからのretryはeventを再配送しない。Gameplay eventはauthoritative clock／cursorから一度だけ発行し、visibility、render frame drop、off-screen stateで停止しない。Presentation eventのAudio／VFX結果をGameplayへ逆入力しない。
 
-Replayにはparameter snapshot、accepted motion／ragdoll input、Graph／artifact identity、state／clock／cursor、root-motion proposal、Gameplay event、pose hash projectionを供給する。recording ownerは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`であり、Animation固有phaseや旧phase名を設けない。
+現行Replayにはparameter snapshot、accepted motion input、Graph／artifact identity、state／clock／cursor、root-motion proposal、Gameplay event、pose hash projectionを供給する。Ragdoll inputは現行Replay schemaへ含めず、上記Future Entryのactive migration時にversioned schema、旧Save／Replay拒否または明示migration、deterministic fixtureを同時に追加する。recording ownerは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`であり、Animation固有phaseや旧phase名を設けない。
 
 ## 4. IK、retarget、LOD、memory／failure
 
@@ -162,7 +162,7 @@ Risk分類、authorization、commit可否は[AI Security／Approval](../01-gover
 
 ## 6. Qualificationと採用しないもの
 
-Unit／schema fixtureはGraph reachability、parameter type、Skeleton hierarchy、Skin influence、Clip interval、event cursor、root-motion mode、closed traversal policy、IK chain、retarget mapping、artifact runtime-ID tableを検査する。Runtime fixtureは2D／3D sampling、transition interruption、blend／additive、loop event、root-motion／Motor resolution、ragdoll blend、stale Collision result、LOD invariant、asset swap、lease expiry、job cancellation、save／replay hashを含む。
+Unit／schema fixtureはGraph reachability、parameter type、Skeleton hierarchy、Skin influence、Clip interval、event cursor、root-motion mode、closed traversal policy、IK chain、retarget mapping、artifact runtime-ID tableを検査する。Runtime fixtureは2D／3D sampling、transition interruption、blend／additive、loop event、root-motion／Motor resolution、stale Collision result、LOD invariant、asset swap、lease expiry、job cancellation、save／replay hashを含む。現行Ragdoll negative fixtureは、Ragdoll input／Graph node／operationを`capability_unavailable`で拒否し、pose、clock、event cursor、Project revision、Save／Replay hashが不変であることを検査する。Ragdoll blendのpositive fixtureはFuture Entryが`active`へ昇格するまで登録も実行もしない。
 
 canonical interval fixtureは、root-motion proposal、final pose、event抽出が同じinterval ID／begin／endを持つこと、clock／loop count／event cursorが一度だけcommitされること、同じintervalのretryが同じoutputを返して再advance／再配送しないこと、異なるpayloadを持つduplicate interval IDを拒否することを検査する。failure fixtureはpartial outputをpublishせずclockをadvanceしないことを検査する。
 

@@ -3,7 +3,7 @@
 - 作成日: 2026-07-22
 - 状態: 詳細設計レビュー待ち
 - 採用方針: Backend-neutral Render Graph＋private D3D12 Backend＋MCD projection（ユーザー承認済み）
-- 対象Baseline: `architecture/baselines/control-plane-v1.json`のread-back済みexact architecture tree、Windows `target.windows.desktop` profile version 1、Agility SDK 1.619.4／SDKVersion 619、D3D12MA 3.2.0
+- 対象Baseline: current Product snapshot内`CurrentControlPlaneBaselineBindingV1`からread-backしたexact architecture tree、Windows `target.windows.editor; target.windows.desktop`各profile version 1、Agility SDK 1.619.4／SDKVersion 619、D3D12MA 3.2.0
 - 対象AI: `GameAuthoringProfileV1`と`EngineMaintenanceProfileV1`を分離
 - 外部根拠検証日: 2026-07-23
 - 上位横断計画: [Architecture Evolution Control Plane Design](2026-07-22-architecture-evolution-control-plane-design.md)
@@ -859,20 +859,20 @@ WARPはinbox実装がOS buildごとに変わるため、OS build下限指定だ�
 
 ### 23.6 Phase-owned Qualification
 
-Backend実装の完了とProduct content統合を次の四Gateへ分離する。後段Gateの未実行をPhase 2 Backend C1のfailureにせず、Product Registryが各Phaseで同じBackend Profile／Candidate hashへReceiptを追加する。
+Backend実装の完了とProduct content統合を次の四Gateへ分離する。後段Gateの未実行をPhase 2 Backend C1のfailureにしない。各Phaseの完成ReceiptはEvidence storeへ同じBackend Profile／Candidate hash付きでpublishし、Product operational projectionがGate評価時にexact refをread-time解決する。Definition RegistryへReceiptや実行状態を書き戻さない。
 
 | Gate | Required fixture／evidence | Owner phase | Phase 2 completion input |
 |---|---|---|---|
 | Backend C1 | `fixture.product.windows-empty-scene`、`fixture.rendering.d3d12-warp-conformance`、`fixture.rendering.d3d12-hardware-smoke`のNVIDIA／AMD／Intel row、`fixture.rendering.d3d12-device-loss-injection`。合成stressとEditor multi-windowをsubfixtureとして含む | Phase 2 `phase.editor-runtime` | required |
-| Product integration | `fixture.product.shooter-2d` | Phase 3 `phase.manual-2d`とPhase 4 `phase.ai-authoring-mvp-a` | deferred、not evaluated |
-| 3D integration | `fixture.product.shooter-arena-3d` | Phase 6 `phase.manual-3d-mvp-b` | deferred、not evaluated |
-| C2 matrix | Product Registryのcross-genre／multi-target fixture set | Phase 8 `phase.production-capability` | deferred、not evaluated |
+| Product integration | `fixture.product.shooter-2d` | Phase 3 `phase.manual-2d`とPhase 4 `phase.ai-authoring-mvp-a` | not required。Evidence absentならProduct Gateはread-time `unevaluated`／effective `fail` |
+| 3D integration | `fixture.product.shooter-arena-3d` | Phase 6 `phase.manual-3d-mvp-b` | not required。Evidence absentならProduct Gateはread-time `unevaluated`／effective `fail` |
+| C2 matrix | Product Registryのcross-genre／multi-target fixture set | Phase 8 `phase.production-capability` | not required。Evidence absentならProduct Gateはread-time `unevaluated`／effective `fail` |
 
-Task 13はBackend C1だけを実行して`D3d12BackendQualificationReceiptV1`を発行する。Product integration、3D integration、C2 matrixは同じ数値式を再利用するが、各Product Work PackageのCandidate／Target Receiptであり、D3D12 Backend Work Packageの完了条件へ逆流させない。
+Task 13はBackend C1だけを実行する。source binding下の測定結果はpreliminary Evidenceに固定し、candidate treeのsame-definition Rebaseline／Product rebinding後、destination current bindingへTarget別`D3d12BackendQualificationReceiptV1`を発行する。Product integration、3D integration、C2 matrixは同じ数値式を再利用するが、各Product Work PackageのCandidate／Target Receiptであり、D3D12 Backend Work Packageの完了条件へ逆流させない。
 
 ## 24. Architecture／MCD反映順序
 
-1. Architecture Governanceのmetadata grammar確定後、D3D12正本を`review`で追加する。
+1. Architecture GovernanceのMetadata V2 grammar確定後、D3D12 file bytesを`ArchitectureDocumentCoreV1`へ束縛し、post-bootstrap新規文書branchの`DocumentLifecycleRecordV1.submit_review`（previous Core／Change Manifestなし、from=null、to=`review`）でcurrent headを追加する。bootstrap 5 Owner限定の`construction_seed`を使わず、state／approval refをmetadataへ保存しない。
 2. Render Graphに`CanonicalRenderExecutionPlanV1`、D3D12 consumer境界、Enhanced-only Qualificationを明記する。
 3. WindowsからD3D12 resource／frame／device lossを新Ownerへexact linkする。
 4. ToolchainのAgility／DXC／D3D12MA pinと本書のCapability利用を接続する。
@@ -920,7 +920,7 @@ Task 13はBackend C1だけを実行して`D3d12BackendQualificationReceiptV1`を
 11. 旧`MIRAKAN-D3D12-*`、`windows_desktop_v1`、`d3d12_warp_conformance_v1`が0件である。
 12. External evidence ref、authority、verified dateが全Decisionにある。
 13. cross-queue edgeごとに`D3d12QueueHandoffV1`がexact一件あり、Producer SignalとConsumer Waitが同じ`GpuSubmissionSerialV1`を参照し、transition queueで両layoutが合法である。
-14. Task 13のrequired matrixにPhase 3／4／6／8 fixtureがなく、それらがProduct Registryの`deferred_not_evaluated`行として残る。
+14. Task 13の内部matrixでPhase 3／4／6／8 fixtureは`required_for_task_13=false`であり、Product Registry／operational snapshotに未実行stateを書かない。Evidence absent時の後段Gateはread-time `unevaluated`／effective `fail`となる。
 15. `mirakan_rendering_d3d12`、`mirakan_d3d12_backend_tests`、`rendering.d3d12`が§7のclosed tableと一致する。
 
 ## 27. 公式一次資料と適用
@@ -972,7 +972,7 @@ MicrosoftのAPI仕様はMiraikanai製品の数値合否閾値を規定しない�
 
 ### 29.2 Descriptor headroom
 
-測定fixtureは§23.6とProduct RegistryのPhaseに従い段階化する。Phase 2のBackend C1 descriptor入力は`fixture.product.windows-empty-scene`、合成stress fixture `fixture.rendering.d3d12-synthetic-stress`（procedural描画負荷でdescriptor／transient alias圧を再現する）、Editor multi-windowの3 fixtureとする。`fixture.product.shooter-2d`はPhase 3／4、`fixture.product.shooter-arena-3d`はPhase 6の完了後に同一Gate式で再Qualificationし、各Product Receiptを更新する。存在しないPhaseのcontent fixtureをBackend C1 candidate生成の前提にしない。
+測定fixtureは§23.6とProduct RegistryのPhaseに従い段階化する。Phase 2のBackend C1 descriptor入力は`fixture.product.windows-empty-scene`、合成stress fixture `fixture.rendering.d3d12-synthetic-stress`（procedural描画負荷でdescriptor／transient alias圧を再現する）、Editor multi-windowの3 fixtureとする。`fixture.product.shooter-2d`はPhase 3／4、`fixture.product.shooter-arena-3d`はPhase 6の完了後に同一Gate式で再Qualificationし、新しいper-WP ReceiptをEvidence storeへ追加する。既存Receiptを更新せず、存在しないPhaseのcontent fixtureをBackend C1 candidate生成の前提にしない。
 
 各fixtureで、shader-visible CBV／SRV／UAV heapとSampler heapを別々に測る。各heapの`peak_live_descriptors / configured_capacity`が全runで`<= 0.80`、allocation rejection 0、stale descriptor diagnostic 0を合格条件とする。すなわち最低20% headroomを要求する。0.80超過時はcapacityを暗黙growせずProfile revisionを上げ、同じ30-run matrixを再実行する。
 
@@ -1013,9 +1013,9 @@ Reference hardwareのexact driver version、Async ComputeをqualifiedにするAd
 
 ## 31. Control Plane baseline binding
 
-D3D12 ChangeSetの最初の入力は`D3d12BackendChangeSetV1.control_plane_baseline_ref`が解決する`architecture/baselines/control-plane-v1.json`である。Artifactをexact `schemas/architecture/baseline.schema.json`の`ControlPlaneBaselineV1`として検証し、schemaの全`required` Fieldをread-backする。Reader側でField集合を再列挙せず、missing／additional Fieldを拒否し、`architecture_explain_schema_sha256`を含む全artifact hash、`control_plane_bootstrap_approval_sha256`、`lint_version`、Git treeを照合する。Bootstrap Approvalの署名／主体／ancestor／current hash／revocation評価、不一致、missing、dirty treeのいずれかで`diagnostic.architecture.baseline-mismatch`または`diagnostic.architecture.bootstrap-approval-invalid`を発行して停止する。
+D3D12 ChangeSetの最初の入力は`D3d12BackendChangeSetV1.control_plane_baseline_binding`へinline保存したcurrent `CurrentControlPlaneBaselineBindingV1`である。kind=`bootstrap | rebaseline`のclosed branchから完成Approval／Envelope／TransactionとBaseline Coreをread-backし、Active Product Definition、Local Schema Catalog、Authority Binding Source Catalog、Toolchain、Trust／revocation、authoritative source Git treeを照合する。authorized Staging candidateはsource treeのdescendantかつchanged-path manifest内として別検証し、candidate deltaをdirty sourceと誤判定しない。Reader側でField集合を再列挙せず、missing／additional Field、stale current head、hash差、source dirty／Staging逸脱のいずれかで`diagnostic.architecture.baseline-mismatch`または`diagnostic.architecture.rebaseline-approval-invalid`を発行して停止する。初回Bootstrap Approvalを後続Rebaselineの代わりにしない。
 
-値を本文へ仮記入しない。Control Plane実装がclean treeから生成したArtifact refを`D3d12BackendChangeSetV1.control_plane_baseline_ref`へexactに格納し、後続Taskはそのrefだけを消費する。別branch名、日時、`latest`、現在HEADの推測で代用しない。
+値を本文へ仮記入しない。Preflight後にControl Planeがcurrent Product snapshotへpublishしたsource bindingを`D3d12BackendChangeSetV1.control_plane_baseline_binding`へbyte-exactに格納し、Task 2～13のStaging／preliminary Evidenceはそのsource bindingとcandidate ancestryを消費する。candidate tree承認後はControl Plane §6.1.1.1のsame-definition Rebaseline／Product rebindingを完成し、Target別final Receiptだけがdestination current bindingを消費する。旧binding EvidenceはpreliminaryのままWP completion／後続Gateへ使用せず、別branch名、日時、`latest`、現在HEADの推測で代用しない。
 
 ### 31.1 PreviewとRelease Activationの分離
 
@@ -1037,7 +1037,7 @@ Product cutoverは[Product Plan](../architecture/00-product/product-plan.md)のd
 
 ```text
 D3d12RuntimePackageBindingV1 {
-  target_ref: target.windows.desktop
+  target_ref: target.windows.editor | target.windows.desktop
   backend_profile_ref
   agility_package_ref          # Microsoft.Direct3D.D3D12 1.619.4 exact nupkg artifact
   agility_sdk_version: 619
@@ -1049,6 +1049,8 @@ D3d12RuntimePackageBindingV1 {
   qualification_policy_ref
 }
 ```
+
+BindingはTargetごとに一件を作り、exact Target setは`target.windows.editor; target.windows.desktop`である。両BindingのBackend／Agility／Shader closureはsame Candidateへ閉じるが、Editor package／process／surface fixtureとDesktop GameHost package／process／surface fixture、Qualification Receiptを別々に発行する。片側Receipt、同じbinary hash、WARP成功だけで反対Targetをqualifiedにしない。
 
 `ApplicationPackageAssemblyManifestV1`は次を検証する。
 
@@ -1064,7 +1066,7 @@ Agility SDK preview、別SDKVersionのLayers、EXE直下DLL、System32 DLLへの
 
 ## 33. Stable ID migration
 
-- `windows_desktop_v1`は`target.windows.desktop`へ置換し、profile version 1をTarget Profile Registryへ置く。
+- `windows_editor_v1`は`target.windows.editor`、`windows_desktop_v1`は`target.windows.desktop`へ置換し、各profile version 1をTarget Profile Registryへ置く。
 - `d3d12_warp_conformance_v1`は`fixture.rendering.d3d12-warp-conformance`へ置換する。
 - 旧`MIRAKAN-D3D12-*` 19件は§20.2の同condition dotted diagnosticへ置換する。
 - Backend logical IDは`profile.rendering.d3d12`、versionは`D3d12BackendProfileV1.profile_version`へ置く。

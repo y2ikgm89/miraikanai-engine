@@ -233,11 +233,11 @@ Scaleは一つのboolやclassではなく、`world | population | content | auth
 
 | axis | closed values |
 |---|---|
-| world | `bounded_level | explicit_level_graph | continuous_partitioned | planetary_or_space` |
-| population | `full_entity | pooled_or_batched | simulation_lod | distributed_simulation` |
-| content | `single_working_set | incremental_partitioned | partial_cook_streamed | distributed_content_service` |
-| authoring | `single_writer | optimistic_multi_writer | partition_owned_multi_writer | federated_repository` |
-| authority | `single_process | client_server | sharded_server` |
+| world | `bounded_level \| explicit_level_graph \| continuous_partitioned \| planetary_or_space` |
+| population | `full_entity \| pooled_or_batched \| simulation_lod \| distributed_simulation` |
+| content | `single_working_set \| incremental_partitioned \| partial_cook_streamed \| distributed_content_service` |
+| authoring | `single_writer \| optimistic_multi_writer \| partition_owned_multi_writer \| federated_repository` |
+| authority | `single_process \| client_server \| sharded_server` |
 
 Network authority variantsは専用仕様、Threat Model、Product activation前は`not_activated`である。local worker、render process、Asset workerはGameplay authorityを持たず`single_process`のままである。
 

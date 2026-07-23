@@ -159,7 +159,7 @@ Authoring Entity／Component (StableId, schema field)
 | live ECS mutation tool | typed Authoring Operation | Runtime用R1／R2 write operationを生成しない |
 | Asset専用`DerivedArtifactManifest` | tagged subjectを持つ`DerivedArtifactManifestV1` | AssetとWorld Artifactを一つのCatalog規則へ移し、旧readerとsynthetic Asset IDを残さない。released済み旧majorが存在しないため新設名はV1とする |
 | symbolic／`bool` Native ECS descriptor | fixed-width codeの`MirakanNativeEcsColumnViewV1` | C ABIへ`uint32` codeと`abi_version = 1`だけを出す |
-| 全AI channelへ一律MCP grant | `RuntimeEcsAiCallerContextV1` tagged channel | MCP grantをlocal MCPに限定し、製品内／managed CLIは各正本Policyを使う |
+| 全AI channelへ一律MCP grant | AI Securityのsigned `AiCallerContextV1` execution route | MCP grantを`standard_external_mcp`だけへ限定し、Engine Provider／managed Hostは各正本Profile／Attestationを使う |
 
 旧schema version、redirect、deprecated annotation、compatibility adapter、dual write、best-effort importは作らない。将来の正式release後にContractを変更する場合は、今回のclean breakと混同せず、明示的なversioned migrationを別Decisionで設計する。
 
@@ -1507,21 +1507,16 @@ Contract compilerは次のnode／edgeを持つread-only graphを生成する。
 | `operation.runtime_ecs.explain_failure` | diagnostic ID、trace ref | violated invariant、affected owner、safe next Operation |
 
 ```text
-RuntimeEcsAiCallerContextV1
-  channel: product_internal | local_mcp | managed_cli
+RuntimeEcsAiRequestContextV1
+  ai_caller_context_ref, ai_caller_context_sha256
   task_authorization_envelope_hash
   project_revision
   contract_set_hash
-  provider_manifest_hash: optional
-  provider_policy_hash: optional
-  mcp_session_grant_ref: optional
-  external_client_security_profile_ref: optional
-  managed_host_attestation_ref: optional
-  channel_session_grant_ref: optional
-  caller_context_hash
+  capture_binding:
+    {capture_id, world_generation, tick, capture_content_sha256}
 ```
 
-全Operationは署名済み`TaskAuthorizationEnvelope` hashを必須にし、channel variantを混在させない。`product_internal`はexact Provider Manifest／Provider Policyを必須としMCP grantを持たない。`local_mcp`は`McpSessionGrantV1`を必須としProvider fieldとmanaged fieldを持たない。`managed_cli`はexact `ExternalClientSecurityProfile`、conformance済みHost attestation、channel session grantを必須とし、Providerを使う場合だけProvider fieldも要求する。unknown channel、不要field、期限切れ／Project不一致grantはfail closedで拒否する。Capture readはさらにcapture ID、World generation、tick、capture content hashを要求する。R0でもTask authorizationなしの通常Task、製品内Provider、MCP、CLIへ公開しない。
+全OperationはAI SecurityがGateway署名したcurrent `AiCallerContextV1`と、そのContextに束縛された`TaskAuthorizationEnvelope` hashを必須にする。`engine_provider_adapter`、`standard_external_mcp`、`managed_external_host`のpresence／authority／Profile／Freshness規則をそのまま使い、ECS独自channelまたはgrantを発明しない。standard MCPだけが`McpSessionGrantV1`を持ち、managed routeはfresh `ManagedHostSessionAttestationV1`を持つ。現Product Definitionでmanaged edit／buildは`not_activated`であり、このR0 Queryから権限昇格しない。unknown route、branch間Field混在、stale Head、期限切れ／Project不一致grant、Capture binding差をfail closedで拒否する。R0でもTask authorizationなしの製品内Provider、MCP、CLIへ公開しない。
 
 live `RuntimeEntityHandle`またはlive memoryをAI tool inputにしない。Debug Ownerがphase boundaryでsealしたimmutable captureか、Authoring StableIdとWorld／tick／revisionを必須にする。検索はbounded result、readはfield mask、node／edge／byte上限、omitted range、continuationを持つ。partial responseを完全なWorldとして扱わない。
 
@@ -1547,9 +1542,9 @@ AI contextは最初にCatalogとGraphの候補だけを返し、必要なCompone
 | `ECS_ENTITY_INITIALIZER_INVALID` | `cook` | lifetime owner、Component owner、parameter、archetype、external reservation不正 | Cook失敗 |
 | `ECS_ENTITY_TEMPLATE_INVALID` | `cook` | Initializer ref、identity／Save policy、spawn bound不正 | Cook失敗 |
 | `ECS_SOURCE_IDENTITY_CONFLICT` | `cook` | Authoring／Section identity重複またはscope違反 | Cook失敗 |
-| `ECS_PERSISTENT_HANDOFF_INVALID` | `cook | section_preflight` | source／destination、Field disposition、owner、identity重複不正 | Cookまたはpreflight拒否。旧publication維持 |
+| `ECS_PERSISTENT_HANDOFF_INVALID` | `cook \| section_preflight` | source／destination、Field disposition、owner、identity重複不正 | Cookまたはpreflight拒否。旧publication維持 |
 | `ECS_ACCESS_DESCRIPTOR_MISMATCH` | `module_load` | callback、Manifest、query、layout、ABI hash不一致 | Module全体のload拒否 |
-| `ECS_ARTIFACT_QUALIFICATION_BINDING_INVALID` | `play_prepare | section_preflight` | outer署名、subject image hash、policy、Gate、Receipt、freshness不一致 | Play開始またはSection preflight拒否。inner image非publish |
+| `ECS_ARTIFACT_QUALIFICATION_BINDING_INVALID` | `play_prepare \| section_preflight` | outer署名、subject image hash、policy、Gate、Receipt、freshness不一致 | Play開始またはSection preflight拒否。inner image非publish |
 | `ECS_ROOT_IMAGE_INCOMPATIBLE` | `play_prepare` | Root hash、Target、Contract、owner不一致 | Play開始拒否。World非publish |
 | `ECS_SECTION_PREFLIGHT_REJECTED` | `section_preflight` | I/O、capacity、dependency、participant prepare、cancel、stale generation | old World generation維持。全Reservation abort、typed retry／fallback可 |
 | `ECS_ENTITY_WORLD_MISMATCH` | `runtime_access` | `RuntimeEntityRefV1`のWorld不一致 | resolve失敗。null／別World slotへfallbackしない |
@@ -1686,17 +1681,18 @@ Qualificationはcompile成功またはmicrobenchmark一件で代替しない。�
 
 本設計は一つの巨大Taskとして実装しない。各段階は前段のContractとtest oracleを完了条件にし、未完の下位層をmock成功扱いして上位層を昇格しない。
 
-E0 Task 0はECS内容に依存しないtooling準備、Task 1はECS active正本を`review`で作るbootstrapである。ECS schemaを生成するTask 3以降は、Task 2で次の開始条件をすべて満たした後だけ開始する。ECSはE0が作成・reviewする対象なので開始時に`approved`を要求しない。
+E0 Task 0を含む全Taskは、外部Schedulerがcurrent Product／Control Planeから次の開始条件をすべて満たし、`wp.runtime.ecs-e0`を正当に`active`へ進めた後だけ開始する。Task 1で作るECS technical documentはE0中`review`、E0 output後のhuman `approve`をE1 entry条件とし、E0開始条件へ循環させない。文書stateを自己申告せずcurrent approvalとWP lifecycleを別々に検証する。
 
 | Exact entry condition | Required value |
 |---|---|
-| `architecture_baseline_receipt_hash` | non-null。`architecture/baselines/control-plane-v1.json`のcanonical bytesへbind |
-| `architecture_governance.state` | `approved` |
-| `compatibility_evolution.state` | `approved` |
-| `persistence_save.state` | `approved` |
-| `entity_component_system.state` | `review` |
+| `current_control_plane_baseline_binding` | kind別完成wrapperへ解決し、current Product snapshotと一致 |
+| `active_product_definition_sha256` | current Product snapshot／binding／ECS WP definition seedで一致 |
+| Owner approvals | Product operational Owner `runtime-scheduling-lifetime`、Governance、Compatibility／Evolution、Persistence／Saveがcurrent approved。新ECS technical document approvalはE1から必須 |
+| `wp.runtime.scheduling-core` lifecycle | `complete` |
+| `wp.runtime.ecs-e0` lifecycle | `active`かつdefinition seed valid。外部Schedulerが`declared->ready->active`を完了済み |
+| Toolchain／revocation | current、non-stale、non-revoked |
 
-baseline read-backは[Architecture Evolution Control Plane実装計画](../../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)が固定するexact 9 fields、すなわち`git_tree_id`、`architecture_index_sha256`、`document_relation_registry_sha256`、`product_registry_sha256`、`identity_migration_registry_sha256`、`architecture_explain_schema_sha256`、`toolchain_lock_sha256`、`architecture_lint_artifact_sha256`、`lint_version`の過不足なしと全値一致を要求する。baseline hash欠落／不一致は`diagnostic.architecture.baseline-mismatch`、三Ownerの非承認は`diagnostic.architecture.owner-unapproved`、ECSが`review`でない場合は`diagnostic.architecture.ecs-review-state-required`、dirty treeは`diagnostic.architecture.dirty-baseline`で停止する。Branch名、現在HEAD、日時、`latest`をbaseline identityにしない。E3以降が追加Owner approvalを必要とする場合は各段階Gateに置き、E0 entryへ先取りしない。
+baseline read-backは[Architecture Evolution Control Plane実装計画](../../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)とDesignのclosed `CurrentControlPlaneBaselineBindingV1`だけを使い、Reader側でField集合を再定義しない。kind=`bootstrap | rebaseline`の完成Approval／Envelope／Transaction、Baseline Core、Local Schema Catalog、Authority Binding Source Catalog、Toolchain、Trust closure、Active Definition hashを再計算する。欠落／不一致／staleは`diagnostic.architecture.baseline-mismatch`、Owner非承認は`diagnostic.architecture.owner-unapproved`、WP state／seed差は`diagnostic.product.work-package-entry-invalid`、dirty treeは`diagnostic.architecture.dirty-baseline`で停止する。Branch名、現在HEAD、日時、`latest`、初回Bootstrap Approvalの直接参照をbaseline identityにしない。E3以降が追加Owner approvalを必要とする場合は各段階Gateに置き、E0 entryへ先取りしない。
 
 | 段階 | 実装範囲 | 入力 | 出力／Gate |
 |---|---|---|---|

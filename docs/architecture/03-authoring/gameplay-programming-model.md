@@ -71,7 +71,7 @@ Definitionが利用できる操作はMCD Capability IDで列挙する。filesyst
 - 非同期処理はversion付きrequest／resultとして扱う。
 - World変更はtyped Commandへ追加し、callbackから直接適用しない。
 
-上限のないDefinitionはEditor Preview、Cook、Runtime AIの全経路で拒否する。
+上限のないDefinitionはEditor PreviewとCookで拒否する。現行Shipping RuntimeはAI Definition変更経路自体を持たず、bounded／unboundedを問わず全generation／mutation要求をdeny-only policyで拒否する。Future entryがactive化された後も、本上限検査を通らないDefinitionは拒否する。
 
 ### 2.2 Authoring、Cook、Runtime形式
 
@@ -98,7 +98,7 @@ authoritative Definition instance stateはEngine-owned `GameplayStateStore`だ�
 
 Definition setのlive editはdependency closure全体をStagingし、Capability manifest、State layout、Stable State／node IDが互換で、Cook、semantic fixture、deterministic replayが合格した場合だけRuntime Ownerの安全なboundaryでswap候補にする。不一致時は旧versionを維持して`restart_play`を返す。Native hot unloadをDefinition live editへ含めない。
 
-Shipping Runtime AIが変更できるのは出荷済みCapabilityとSchemaが許可するbounded dataだけである。Capability、Schema、Budgetの追加、C++／Shader／bytecode／binaryの生成／download／load、raw Physics／Render／Network stateの確定、process／shell／filesystem／network／FFIを禁止する。
+現行Shipping RuntimeはAIによるbounded data変更を含む全generation／mutation、provider network call、generated contentのdownload／loadをdeny-only policyで拒否し、Project／Save／authoritative Worldを不変に保つ。出荷済みCapabilityとSchemaが許可するbounded data変更を検討できるのは、`future.capability.runtime-structured-data-generation`がactive Product Registry、専用Authority／Threat Model、Target binding、fresh Qualificationを成立させ、本書を同じChangeSetで更新した後だけである。その場合もCapability、Schema、Budgetの追加、C++／Shader／bytecode／binaryの生成／download／load、raw Physics／Render／Network stateの確定、process／shell／filesystem／network／FFIは禁止を維持する。
 
 ### 2.4 C1 Perception／Interaction
 
@@ -313,7 +313,7 @@ AIはGameSpecからsemantic roleを抽出し、Catalogを検索し、候補Syste
 
 初心者へC++かDefinitionかを質問しない。`authoring_profile=beginner`ではDefinition-firstとし、`implementation_origin`を`project_definition`またはexact Qualification Receiptを持つ`prequalified_pack`に限定する。どちらでも成立しない場合は`capability_unavailable`で停止し、Native／Shaderを暗黙生成しない。`authoring_profile=advanced`で`project_source`を選ぶPlanは、Native moduleなら`role.code_owner.native_module`、Project Shaderなら`role.code_owner.project_shader`を持ち、closed 9-Field subject、exact scope、current Qualification、`revoked_at=null`が成立する`CodeOwnerAssignmentV1`を必須にする。Policy Serviceが信頼済みrevocation registryの署名済みlatest headをread-backし、Assignment Recordとsubject identityのどちらもcurrent snapshotでactiveな場合だけ受理する。Role欠落／unknown、Source kindとのRole不一致、Scope外、期限切れ／失効、snapshot未検証では`awaiting_code_owner`とし、Source Workerを起動しない。AIはGame要件の不足だけを質問し、実装方式はPlanへ根拠付きで記録する。上級者は同じSystem BundleからGraph、Table、Form、Source、Profilerを開く。人間が編集したFieldまたはSource hunkをAIが無条件に再生成しない。
 
-External Agentが同じPlanを提案しても、Host／Model Conformance、Caller Authorization、Project Source Activation、Code owner、G0–G7、Promotionは別Gateである。Proposal ReceiptをSource生成、Code owner Approval、Activationへ読み替えない。
+External Agentが同じPlanを提案しても、Host／Model Conformance、Caller Authorization、Project Source Activation、Code owner、G0–G7、Promotionは別Gateである。standard MCPの`StandardExternalProposalReceiptV1`をSource生成、Code owner Approval、Activationへ読み替えない。
 
 Contract compilerは`GameSystemSpecV1`から次を決定論的に生成する。
 
@@ -410,7 +410,7 @@ Native／Project Shader buildが成功しただけでactiveにしない。Projec
 - 未知ID、stale Contract、unsupported Target、人間変更を推測補正しないEval。
 - Beginner Planの`implementation_origin`が`project_definition | prequalified_pack`だけであり、新規Native／Shader Source Taskが0件になるfixture。
 - Code owner Assignment不在、missing／unknown `role_ref`、Native↔Shader wrong-scope Role、期限切れ、`revoked_at` Field省略、non-null `revoked_at`、unknown extra Field、current snapshotのAssignment／subject revoke、current snapshotのmissing／stale／invalidと、別Diff／Source revision／Build ReceiptのApprovalを一原因ずつ拒否し、`revoked_at=null`だけで`awaiting_code_owner`からPromotionへ直行しないfixture。
-- External AgentのProposal ReceiptだけでProject Source Activation、Code owner Approval、Promotionを通過できないfixture。
+- External Agentの`StandardExternalProposalReceiptV1`だけでProject Source Activation、Code owner Approval、Promotionを通過できないfixture。
 
 `SystemQualificationReceiptV1`はSystem ref、Variant hash、Dependency Graph hash、Target Profile、fixture、correctness、performance、Save／Replay、fault、Review Receiptを結ぶ。ReceiptなしにCatalog maturityまたはactive implementationを昇格しない。
 

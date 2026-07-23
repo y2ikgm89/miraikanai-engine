@@ -1,5 +1,7 @@
 # Miraikanai Engine 実現可能性 Remediation 設計
 
+> **状態: superseded historical remediation design。** Current authorityはProduct Active 14／WP75、Future 3／23／Claim52、current Control Plane plans、Critical Path、Future Inception、current remediation Reviewである。本文の17件等は当時のbaseline記録であり実装へ使わない。
+
 - 状態: ユーザー承認済み
 - 承認日: 2026-07-23
 - 承認根拠: 2026-07-23監査結果に対する「公式推奨で計画書を推奨で更新して」
@@ -15,7 +17,7 @@ AI-native Game EngineというProduct intentを維持したまま、現在の計
 3. Phase 0から2D First Playable、AI MVP、3D First Playableへ到達するWork Package DAGが存在する。
 4. AI、Editor、CLI、MCPがCookだけでなくPackage、Install、Launch、Smoke、Diagnosis、Support、Resetまで同じGateway Operationを使用する。
 5. 初心者MVPとAI生成Project C++／Shaderの専門家承認を分離する。
-6. ChatGPT Desktop／Codex、Claude、Cursor、cloud／local modelを、製品名の条件分岐ではなくHost、Transport、Provider、Deployment、Model、Authorityの直交Profileとして扱う。
+6. ChatGPT Chat／Work remote app、ChatGPT desktop app内Codex host、Codex CLI／IDE、Claude、Cursor、cloud／local modelを、製品名の条件分岐ではなくsurface別Host、Transport、Provider、Deployment、Model、Authorityの直交Profileとして扱う。
 7. D3D12 MVPはCX0 Headerで開始し、CX2／CX3のModules移行とShippingを外部Toolchain成立条件へ分離する。
 8. Open World、Online、MMO、大人数network shooter、FPS、advanced physics／animation、AAA rendering、Terrain／Foliage、Console、Web、XR、全自動Asset生成、first-party local inference、runtime generationを、実装済みと誤認させない将来Capability incubationとして追跡する。
 
@@ -185,13 +187,15 @@ ModelSnapshotProfileV1
 
 互換判定単位は`{host profile, transport profile, provider/runtime profile, model snapshot, tool projection, authority profile}`である。
 
-- Host: Editor、ChatGPT Desktop／Codex、Codex CLI、Codex IDE、Claude Desktop、Claude Code、Cursor。
+- Host: Editor、ChatGPT Chat／Work remote app、ChatGPT desktop app内Codex host、Codex CLI、Codex IDE、Claude Desktop、Claude Code、Cursor。
 - Transport: local STDIO MCP、Streamable HTTP、direct Provider API。
 - Deployment: cloud endpointまたはlocal process／IPC。
 - Model: exact provider model ID、またはweights／quantization hash。
 - Authority: query、proposal、managed source edit、build job。Approval、Commit、Activation、Signing、Releaseは常に不可。
 
 Gemma、Kimi、Qwen、DeepSeek、Grok、GLM等をEngine分岐にしない。conformance Receiptがない組合せは`proposal_only`または`not_activated`とする。local runtimeはmodel license／provenance、RAM／VRAM、context、tool schema conformance、process／network sandbox、logging／retention、resource exhaustion、fallbackをProfileへ固定し、silent cloud fallbackを禁止する。
+
+ChatGPT Chat／Workのcustom MCP appは現行公式範囲ではweb-onlyかつremote MCPで、private／local serverはSecure MCP Tunnel経由にする。ChatGPT desktop app内Codex hostはCodex設定を共有する別surfaceとしてlocal STDIO／Streamable HTTPを許容する。両者のHost Profile、Receipt、設定、権限を流用しない。
 
 ## 8. Approval、状態、Freshness
 

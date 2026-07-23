@@ -225,7 +225,7 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 
 Task successのSuite別基準の数値は、署名Policyが参照するEval Manifestを正本とし、本文書は全体95%以上の下限だけを定義する。Suite別基準の緩和はCase削除・期待値緩和と同じR3相当、Security SuiteはR4相当とする。
 
-repair_attempt_limitの値、適用単位、既定値、上限、停止条件は[AI Security／Approval](ai-security-approval.md)が署名PolicyとTaskAuthorizationEnvelopeで所有する。Eval runnerはauthorization_envelope_hashが指す署名済みEnvelopeから上限を読み、そのpolicy_set_hashとの整合性を検証し、GenerationReceiptV1のrepair_attempt_countと比較して結果を記録する。本文書は数値Defaultを定義しない。
+repair_attempt_limitの値、適用単位、既定値、上限、停止条件は[AI Security／Approval](ai-security-approval.md)が署名PolicyとTaskAuthorizationEnvelopeで所有する。Eval runnerはauthorization_envelope_hashが指す署名済みEnvelopeから上限を読み、そのpolicy_set_hashとの整合性を検証し、全routeでtask-scoped current `AiTaskRepairAttemptHeadV1.repair_attempt_count`と比較する。Headが`state=recorded`で、outcomeが評価対象`GenerationReceiptV1 | StandardExternalProposalReceiptV1` wrapperとexact一致する場合だけ結果を記録する。本文書は数値Defaultを定義しない。
 
 最初の権限／Gateway項目はModel EvalだけでなくBroker／Validatorの決定論的negative fixtureでも0件を要求する。有限Corpusの0件を未知入力の安全保証にせず、Productionでも同じGateを常時強制する。
 
@@ -262,7 +262,7 @@ ArchitectureComprehensionFixtureV1
 - Unity、Unreal Engine、GodotのScene／Level／Object／Component等を含む入力を`ExternalEngineConceptResolutionV1`で一意なcanonical conceptへ解決するか、必要な質問へ戻す。
 - 複数Owner候補、矛盾するauthority参照、stale revision、`omitted_ranges`、欠落Evidence、存在しないID／phaseを含み、断定またはChangeSet化せず停止できるかを問う。
 
-各Caseの期待値は`ArchitectureMetadataV1`、document relation registry、MCD Contract registry、Source StableIdからauthorityを解決し、`ArchitectureExplainProjectionV1`のOwner／phase／lifetime／Evidenceと一致させる。graderはcanonical ID、Owner、phase／lifetime、Evidence closure、質問要否をcode-basedに比較し、自然言語表現の一致を正答条件にしない。
+各Caseの期待値は`ArchitectureMetadataV2`、current `DocumentLifecycleRecordV1` Head、document relation registry、MCD Contract registry、Source StableIdからauthorityを解決し、`ArchitectureExplainProjectionV1`のOwner／phase／lifetime／Evidenceと一致させる。graderはcanonical ID、Owner、phase／lifetime、Evidence closure、質問要否をcode-basedに比較し、自然言語表現の一致を正答条件にしない。
 
 | Architecture comprehension metric | Hard gate |
 |---|---:|
@@ -449,8 +449,32 @@ TechnicalQualificationReceiptV1
 AI OrchestratorがAttemptごとに作成し、Model自身は署名しない。
 
     receipt_id, task_id, attempt_id
+    attempt_reservation_ref, attempt_reservation_sha256
+    attempt_sequence: positive safe integer
+    attempt_kind = initial_proposal | repair_proposal
     contract_set_hash, policy_set_hash
-    provider_manifest_hash, resolved_model_id
+    caller_context_ref, caller_context_sha256
+    execution_provenance:
+      {kind: engine_provider_adapter,
+       provider_manifest_binding: GovernedAiProfileBindingV1,
+       inference_deployment_profile_binding: GovernedAiProfileBindingV1,
+       model_snapshot_profile_binding: GovernedAiProfileBindingV1,
+       model_identity:
+         {kind: provider_model_id, exact_resolved_provider_model_id}
+         | {kind: local_weights,
+            local_model_artifact_manifest_binding: GovernedAiProfileBindingV1},
+       managed_host_execution_attestation_ref: null,
+       managed_host_execution_attestation_sha256: null}
+      | {kind: managed_external_host,
+         provider_manifest_binding: null,
+         inference_deployment_profile_binding: null,
+         model_snapshot_profile_binding: GovernedAiProfileBindingV1,
+         model_identity:
+           {kind: provider_model_id, exact_resolved_provider_model_id}
+           | {kind: local_weights,
+              local_model_artifact_manifest_binding: GovernedAiProfileBindingV1},
+         managed_host_execution_attestation_ref: content ref,
+         managed_host_execution_attestation_sha256: lowercase hex 64}
     prompt_template_hash
     task_spec_hash, authorization_envelope_hash
     context_pack_hash, context_plan_hash
@@ -458,7 +482,15 @@ AI OrchestratorがAttemptごとに作成し、Model自身は署名しない。
     retrieval_trace_root_hash
     tool_catalog_hash
     request_parameters_hash
-    response_ids[]
+    generation_result:
+      {kind: completed,
+       response_ids[],
+       exact_response_bytes_sha256,
+       diagnostic_refs[]}
+      | {kind: failed,
+         response_ids: [],
+         exact_response_bytes_sha256: null,
+         diagnostic_refs[1..]}
     tool_trace_root_hash
     produced_artifacts[]
     usage
@@ -468,7 +500,97 @@ AI OrchestratorがAttemptごとに作成し、Model自身は署名しない。
     started_at, finished_at
     signature fields
 
-署名は「このOrchestratorがこのContextとProvider responseからArtifactを記録した」ことだけを証明し、出力の正しさを保証しない。署名Keyはgeneration_receipt用途専用のAI Orchestrator Service identityに属し、Key管理と用途分離は[AI Security／Approval](ai-security-approval.md)に従う。
+各`GovernedAiProfileBindingV1`は発行時Head ref／hash／sequenceを含み、Attempt開始時とTool実行時にはAI Security／Approvalのcurrent signed Profile Headへ解決してCaller Contextの同じbindingとbyte-exact一致しなければならない。Head更新後のbindingを新規実行またはPromotionへ使わない。一方、履歴監査では発行時Head chainと当時のvalidityを再検証し、正当なら`authentic_but_stale`として保持するため、currentでないことだけを改竄または過去Receipt無効としない。Generation ReceiptのReservation／Task／Attempt／sequence／kind／repair count／Context／Authorizationはcurrent `state=reserved`の`AiTaskRepairAttemptHeadV1`とbyte-exact一致させ、Result wrapper完成後に同HeadをrecordedへCASできないReceiptをStaging／Evalへ使わない。`engine_provider_adapter`ではProvider Manifestが指すDeployment、Model、ToolとCaller Contextをexact一致させる。`managed_external_host`ではCaller Contextとpost-execution AttestationのModel／Task／attempt／Input／typed resultを一致させ、Provider ManifestまたはEngine-owned Deploymentを捏造しない。cloud/provider identityだけ`exact_resolved_provider_model_id`、local identityだけLocal Model Artifact bindingを持ち、local inferenceへ架空Provider model IDを要求しない。completed branchの`exact_response_bytes_sha256`はProvider／local runtimeまたはmanaged Brokerから受領して永続化する正規response bytes全体のhashで、表示text、response ID、parsed tool callだけのhashを代用しない。Provider呼出し前、timeout、resource、transport failureはfailed branch、空response ID、null response hash、1件以上のtyped Diagnosticで表す。
+
+`standard_external_mcp`は上流Provider／Deployment／Modelと完全なModel responseをattestできないため`GenerationReceiptV1`を発行しない。Gatewayが実際に受領したTool callはtyped `OperationReceiptEnvelopeV1`、Proposalは次の`StandardExternalProposalReceiptV1`へ記録し、Model出力provenanceまたはEval attributionへ読み替えない。Managed Host routeは完成post-execution Attestation ref／hashを両non-null、Engine Adapterは両nullにする。署名は「このOrchestratorがこのContextとProvider、local runtime、またはattested managed Host Attemptを記録した」ことだけを証明し、出力の正しさを保証しない。署名Keyはgeneration_receipt用途専用のAI Orchestrator Service identityに属し、Key管理と用途分離は[AI Security／Approval](ai-security-approval.md)に従う。
+
+#### 7.3.1 Task-wide Attempt reservation／Head
+
+```text
+AiTaskAttemptReservationPayloadV1
+  reservation_id, task_id, attempt_id
+  attempt_sequence: positive safe integer
+  attempt_kind = initial_proposal | repair_proposal
+  execution_route_kind = engine_provider_adapter | managed_external_host | standard_external_mcp
+  previous_terminal_head_ref: null | content-addressed ref
+  previous_terminal_head_sha256: null | lowercase hex 64
+  caller_context_ref, caller_context_sha256
+  authorization_envelope_hash
+  task_spec_hash, contract_set_hash, policy_set_hash
+  repair_attempt_count: uint8
+  reserved_at, expires_at, revocation_snapshot_ref
+
+AiTaskAttemptReservationV1
+  payload: AiTaskAttemptReservationPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=ai_task_attempt_reservation)
+
+AiTaskRepairAttemptHeadPayloadV1
+  head_id, task_id
+  head_sequence: positive safe integer
+  attempt_sequence: positive safe integer
+  attempt_id
+  repair_attempt_count: uint8
+  state:
+    {kind: reserved,
+     reservation_ref, reservation_sha256,
+     outcome: null,
+     diagnostic_refs: []}
+    | {kind: recorded,
+       reservation_ref, reservation_sha256,
+       outcome:
+         {kind: generation_receipt, receipt_ref, receipt_sha256}
+         | {kind: standard_external_proposal_receipt, receipt_ref, receipt_sha256},
+       diagnostic_refs: []}
+    | {kind: aborted,
+       reservation_ref, reservation_sha256,
+       outcome: null,
+       diagnostic_refs[1..]}
+  previous_head_ref: null | content-addressed ref
+  previous_head_sha256: null | lowercase hex 64
+  recorded_at, revocation_snapshot_ref
+
+AiTaskRepairAttemptHeadV1
+  payload: AiTaskRepairAttemptHeadPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=ai_task_repair_attempt_head)
+```
+
+Taskごとのrepair正本はroute別Receiptのcounterでなくcurrent `AiTaskRepairAttemptHeadV1`一件である。初回Reservationはprevious terminal Head=null、`attempt_sequence=1`、`attempt_kind=initial_proposal`、`repair_attempt_count=0`である。次のReservationはcurrent Headが`recorded | aborted`のときだけ、その完成Headをprevious、attempt sequenceをprevious `N+1`、`attempt_kind=repair_proposal`、repair countをprevious `N+1`として作る。Caller Context、route、Authorization、Task、Contract、Policyをcurrent read-backし、countがEnvelope上限以下かつ`reserved_at < expires_at <= min(Context, Authorization)`の場合だけ、GatewayがReservation wrapperと`state=reserved` Headを作り、current Headへのexpected-previous single CASを成功させてからProvider／local runtime／managed Hostを起動、またはstandard MCP Proposalを受理する。
+
+reserved Headは同Taskの新Reservationを拒否する。結果wrapper完成後は、Generation ReceiptまたはStandard External Proposal ReceiptのReservation／Task／Attempt／sequence／kind／count／Context／Authorizationをbyte-exact照合する。Generationは`reserved_at <= started_at <= finished_at < expires_at`、standard Proposalは`reserved_at <= received_at < expires_at`、recorded Headは結果時刻以上かつ`recorded_at < expires_at`でなければならない。そのwrapperをoutcomeにした`state=recorded` Headをreserved Headへのexpected-previous CASでpublishする。結果wrapperを作れず`evaluation_time >= expires_at`になった場合だけ、Gateway recovery serviceが1件以上のtyped Diagnosticを持つ`aborted` Headを同じreserved Headからpublishできる。recorded／abortedともattemptを消費し、countを巻き戻さない。`recorded`はattempt履歴の完成であって成功判定ではなく、StagingはGeneration `generation_result.kind=completed`またはstandard Proposal `validation_disposition=accepted_for_validation`だけを受理し、failed／rejected outcomeは修復判断にだけ使う。CAS失敗、Host／Transport／Grant／Model／Provider／Attempt変更、process再起動、並行実行でも別Headをcurrentにせず、新規Staging、Eval、修復開始はcurrent recorded Headが指すexact outcomeだけを使う。
+
+`reservation_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:ai-task-attempt-reservation:sha256:<lowercase-hex>`、`head_id`は同様に`urn:mirakan:ai-task-repair-attempt-head:sha256:<lowercase-hex>`として導出する。Reservationは`role.ai-gateway-task-attempt-reservation`／singleton purpose `ai_task_attempt_reservation`、Headは`role.ai-gateway-task-repair-attempt-head`／singleton purpose `ai_task_repair_attempt_head`で署名する。Head genesisは`head_sequence=1`、以後はstate更新ごとにprevious Headのexact `N+1`であり、reserved→recorded／abortedではattempt sequence／ID／repair count／Reservationを保持する。filesystem latest、unsigned lock／counter、route別Headで代替しない。
+
+Head時刻もstateから決定する。`reserved` Headは`recorded_at=Reservation.reserved_at`、`recorded` Headは`recorded_at >= GenerationReceipt.finished_at | StandardExternalProposalReceipt.received_at`かつReservation expiry未満、`aborted` Headは`recorded_at >= Reservation.expires_at`である。genesis以外は`recorded_at > previous Head.recorded_at`を必須にし、同じcanonical clock tickならclockが次tickへ進むまでCASせず結果wrapperをimmutable保留する。Reservation wrapperの`signed_record.issued_at=payload.reserved_at`、全Head wrapperの`signed_record.issued_at=payload.recorded_at`、subject hash、Signer Role、purpose、発行時／評価時revocation snapshotをexact一致させる。stateと時刻の不一致、future time、clock rollback、結果より前のrecorded、expiry前abortを拒否する。
+
+#### 7.3.2 StandardExternalProposalReceiptV1
+
+```text
+StandardExternalProposalReceiptPayloadV1
+  receipt_id, task_id, attempt_id
+  attempt_reservation_ref, attempt_reservation_sha256
+  attempt_sequence: positive safe integer
+  attempt_kind = initial_proposal | repair_proposal
+  caller_context_ref, caller_context_sha256
+  mcp_session_grant_ref, mcp_session_grant_sha256
+  authorization_envelope_hash
+  task_spec_hash, contract_set_hash, policy_set_hash
+  proposal_payload_ref, proposal_payload_sha256
+  received_message_bytes_sha256
+  tool_trace_root_hash
+  repair_attempt_count: uint8
+  remediation_ids[]
+  validation_disposition = accepted_for_validation | rejected_pre_validation
+  diagnostic_refs[]
+  received_at, revocation_snapshot_ref
+
+StandardExternalProposalReceiptV1
+  payload: StandardExternalProposalReceiptPayloadV1
+  signed_record: MirakanSignedRecordV1(purpose=standard_external_proposal_receipt)
+```
+
+このReceiptはstandard external MCPからGatewayが受領したProposal bytesだけを証明し、上流Prompt、Provider、Model、完全なresponseを証明しない。`accepted_for_validation`は`diagnostic_refs[]`がempty、`rejected_pre_validation`は1件以上であり、どちらもReservation済みattemptを消費する。ReceiptのCaller Contextは`execution_route.kind=standard_external_mcp`で、current reserved Headが指すReservation、Grant／Authorization／Task／Policy、attempt sequence／kind／repair countをbyte-exact一致させ、proposal payloadと受領message bytesを別hashで固定する。
+
+`receipt_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:standard-external-proposal-receipt:sha256:<lowercase-hex>`として導出し、`role.ai-gateway-standard-external-proposal-receipt`／singleton purpose `standard_external_proposal_receipt`で署名する。Receipt単体はcurrentを決めず、上記common Headの`state=recorded` outcomeとしてCAS成功した場合だけEval／Stagingへ使う。Generation Receiptの捏造、Receiptだけのretry、別Reservationへの付替えを拒否する。
 
 ### 7.4 ReviewReceiptV1
 
@@ -673,7 +795,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 | contract-fast | MCD／generated変更 | meta-schema、lint、determinism、round-trip、projection |
 | source-targeted | Source変更 | format、compile、targeted test、static |
 | cxx-frontend | C++／Build／Module／Dependency | C++ Profile、Driver matrix、Module、cache isolation、negative fixture |
-| shader-targeted | Project Shader Module／Technique／Profile変更 | HLSL Profile、全Target compile／reflection、Fact、U0～U4、visual／performance／fault |
+| shader-targeted | Project Shader Module／Technique／Profile変更 | HLSL Profile、current Product bindingのrequired Target全件のcompile／reflection、Fact、U0～U4、visual／performance／fault |
 | state-model | State／authority変更 | fast model、transition conformance |
 | ai-profile | Prompt／Model／Tool／Context | Provider conformance、public Eval 3 run |
 | full-windows | R3／R4相当、merge候補 | full build、test、sanitizer、benchmark |

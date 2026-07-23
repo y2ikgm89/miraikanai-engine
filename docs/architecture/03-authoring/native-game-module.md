@@ -5,7 +5,7 @@
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
 - 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
-- 外部根拠検証日: 2026-07-21
+- 外部根拠検証日: 2026-07-23
 
 ## 1. 結論
 
@@ -18,6 +18,8 @@ Native implementationは単独のC++ classを正本にせず、active `GameSyste
 ShippingではProject C++をGame binaryへ静的linkする。Windows Development Previewだけ、同じentry contractを持つDLLを新しい`GameHost` Processの起動時に一度loadできる。in-process unload、binary差替え、live code patchを行わず、変更時はGameHostを終了して再起動する。AndroidではProject static archiveをGame runtime `.so`へ、Appleではstatic archive／objectをapp executableへlinkする。
 
 これによりShipping最適化とattack surface縮小を優先しながら、Windows Editorの反復速度をGameHost再起動で確保する。
+
+公式比較では、Unreal Engine 5.8はProject `Source`のprimary module、Unity 6はnative plug-in境界、GodotはEngine再compileを不要にするGDExtension native libraryをそれぞれ公開している。本設計が採用する共通原則は「固定Engine baseline＋Project-owned extension＋明示ABI／Build／Target別Qualification」だけである。[Unreal Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)、[Unity Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)、[Godot GDExtension](https://docs.godotengine.org/en/latest/engine_details/engine_api/gdextension/what_is_gdextension.html)を比較Evidenceとし、いずれのAPI互換、plugin ecosystem互換、hot reload挙動、機能同等性も保証しない。MiraikanaiのProject C++は本書のbounded ABI、Engine非改変、Process隔離、static Shipping link、Receipt Gateを正本とする。
 
 C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget`として登録できる。ただしこれは一般Widget pluginではなく、UI規約の型付きManifest、bounded primitive、typed command、Accessibility、fallbackを満たすNativeGameModule Capabilityである。Project codeをEditor Processへloadせず、PreviewはGameHostだけで実行する。
 
@@ -410,7 +412,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - Target-specialized Variantが同じPublic System ContractとGameplay fidelity fixtureを通り、意味同等fallbackなしのTargetを非対応にする。
 - Governance authorization後Project Commit失敗時に新Variantをloadせず、直前Qualified Variantを維持する。
 - GameHostを100回再起動し、Editor Processのhandle／memoryが増加しない。
-- Windows Shipping、Android、Appleのclean static-link packageが同じModule revision hashを記録する。
+- Phase 5 C1ではWindows Editor PreviewとWindows Desktopのclean static-link packageが同じModule revision hashを記録する。Android／AppleはProduct Registryで`excluded`のまま、別のTarget Profile、Work Package、Capability Target binding、fresh Target Qualificationが承認されるまで本C1完了条件と対応表示へ含めない。
 - AI生成SourceがGovernance authorization前に正規Project／Editor／Shippingへloadされない。
 - AI生成Sourceはexact `role.code_owner.native_module`、Native Scope、current Qualification、`revoked_at=null`を持つ`CodeOwnerAssignmentV1`なしに生成されず、exact Diffの`CodeOwnerApprovalV1`なしにPromotion／loadされない。missing／unknown／`role.code_owner.project_shader`／Scope差／revokedを一原因ずつ拒否する。
 - Beginner Profileでは新規Native Source Taskが0件で、Definition／prequalified Pack不能な要求を`capability_unavailable`として停止する。
@@ -418,7 +420,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 - C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
 
-本Native CapabilityのC1完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Code owner gate、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateではない。
+本Native CapabilityのC1完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Code owner gate、Windows Editor Preview再起動、Windows Desktop clean static-link artifact、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateでも、Shipping／Release readinessでもない。
 
 C2 UI extension完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として実装し、Governance-authorized source、UI Designer fallback projection、Windows GameHost Preview、Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを合格することである。これはC1 NativeGameModule完了条件を置き換えない。
 

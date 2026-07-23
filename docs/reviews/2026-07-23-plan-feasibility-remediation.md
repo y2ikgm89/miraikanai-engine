@@ -1,81 +1,152 @@
-# Miraikanai Engine 実現可能性 Remediation Review（2026-07-23）
+# Miraikanai Engine 計画実現可能性 Review（2026-07-23、current revision）
 
-- authority: [実現可能性 Remediation 設計](../superpowers/specs/2026-07-23-plan-feasibility-remediation-design.md)
-- execution plan: [実現可能性 Remediation Plan](../superpowers/plans/2026-07-23-plan-feasibility-remediation.md)
-- review baseline: Git commit `a87f35fcec9df0e76cb6240234853575a1276337`
-- scope: Architecture正本、Product Registry、実装計画、外部一次資料との整合
-- excluded: Engine runtime実装、Capability activation、Target Qualification、Release承認
-- decision: `conditional_go_for_implementation_bootstrap_only`
+- scope: Architecture正本、Product／Future definition、AI境界、Control Plane、Critical Path、ECS／D3D12実装計画。
+- excluded: Engine runtime実装、Build、実機Qualification、Capability Activation、Release／Shipping実行。
+- decision: **planning_go / implementation_and_shipping_no_go**。
+- authority: [Product Plan](../architecture/00-product/product-plan.md)、[Control Plane Design](../plans/2026-07-22-architecture-evolution-control-plane-design.md)、[Critical Path](../plans/2026-07-23-critical-path-execution-plan.md)。本Reviewは正本を上書きしない。
 
-## 判定
+## 1. 判定
 
-計画書は、実装計画と最小Bootstrapへ進むための入力としては**条件付きGo**とする。Product、AI操作、Control Plane、D3D12、Critical Path、Future incubationのOwner、Gate、fail-closed条件を同じ正本へ接続し、未成立Capabilityを成立済みと表示しない境界を置いたためである。
+計画書は、Control Planeを最初に実装し、その後にWork PackageをEvidence付きで進める入力としてはGoである。主な理由は次である。
 
-公開Shipping、Production readiness、現在利用可能なCapabilityの主張は**No-Go**である。Engine code、build、実機、性能、Security、Package、Releaseの実行Receiptは本変更で生成していない。Activation Registry／Receiptの実装Artifactはまだmaterializeしておらず、現在の有効なActivation Receiptは0件である。materialize時は全required／optional `CapabilityTargetActivationV1`行を`not_activated`、`candidate_ref=null`、`receipt_refs=[]`、`evidence_freshness=expired`で初期化し、文書承認、Work Package登録、Decision Gate成立から自動昇格させない。
+- Active Product Definition、Future Portfolio、operational stateが別hash domain／署名chainへ分離されている。
+- Engine本体とGame Project Sourceを分離し、Project内C++／Shader生成をStaging→Build→Review→Code Owner Approval→Activationへ閉じている。
+- AIをModel family別にhard-codeせず、Host／Transport／Provider／Deployment／Model／Authority／Freshnessのsigned profile tupleで扱う。
+- ChatGPT／Codex／Claude／Cursor等は製品名だけで対応済みにせず、surface／version／binary／TransportごとのConformanceを要求する。
+- local inferenceは実現可能なadapter境界を持つが、first-party runtimeはFutureかつ`not_activated`で、MVP blockerにしていない。
+- Open World、MMO、large-session network、AAA、Terrain／Foliage／GI、Console／Web／XR等をplanning-only Futureへ残し、Active MVPを過大表示しない。
 
-## 旧Closureの意味
+ただし実装とShippingはNo-Goである。現変更は計画文書であり、Engine binary、Schema generator、Gateway、署名Service、Build、device test、Activation／Release Receiptを生成していない。
 
-[2026-07-22 Plan Review Closure](2026-07-22-plan-review-closure.md)のretained Finding 253件がterminalであることは、各Findingの検証状態と処置が終端化されたという**disposition closure**だけを意味する。Engine実装完了、build成功、Target Qualification、Capability readiness、Release readinessを意味しない。
+## 2. Current exact closure
 
-原レビューが件数だけ報告し、本文を保持しなかったREFUTED 4件は、Finding ID、主張、根拠の詳細が一度も保存されていない。今後も推測で再構成せず、欠落した履歴として件数だけを保持する。
+| Domain | Current invariant |
+|---|---|
+| Active Registry | 14件 |
+| Product Target | 5件 |
+| Requirement | 27件 |
+| Fixture | 13件 |
+| Fallback | 6件 |
+| Phase | 10件 |
+| Phase Gate | 20件 |
+| Release Gate | 5件 |
+| Decision Gate | 4件 |
+| Work Package | 75件 |
+| Capability | 95件 |
+| Activation binding | 273件 |
+| Risk | 9件 |
+| Future Registry | 3件 |
+| Future capability | 23件 |
+| Future claim | 52件 |
+| Future policy | 2件 |
 
-## Remediation finding ledger
+Critical Path coverageは`bootstrap completed 1 + unconditional 70 + conditional deferred 4 = 75`のdisjoint unionである。conditional exact setはCX2、CX3、General Production 3D、Production Release Bindingである。
 
-| finding_id | scope | remediation result | decisive evidence | state／remaining condition |
-|---|---|---|---|---|
-| `remediation.feasibility.product` | Product schema、DAG、Phase Gate、Mobile、C2 | Work Package schema、Phase固有Gate、Target closure、Mobile 2D／3D GateをProduct正本へ統合し、Critical Pathの74 WPへ接続した | [Product Plan](../architecture/00-product/product-plan.md)、commit `454501c`、`f2c7584`、`05dace5`、[Critical Path](../plans/2026-07-23-critical-path-execution-plan.md) | 実装Bootstrap入力として受理。C2 3Dは第二の非Shooter 3D Fixtureがないため`deferred` |
-| `remediation.feasibility.ai-control` | AI Operation、Caller Profile、Code owner | Package、Install、Launch、Smoke、Debug、Support、Reset、Task操作をexact Operationへ閉じ、Host／Transport／Provider／Deployment／Model／Authorityを直交化し、Native／Shader生成をCode owner署名とrevocationへ結んだ | [AI Security／Approval](../architecture/01-governance/ai-security-approval.md)、[Core Architecture](../architecture/02-foundation/core-architecture.md)、[Gameplay Programming Model](../architecture/03-authoring/gameplay-programming-model.md)、commit `1d7d758`、`3a60e4e`、`e8303dc` | Contractは実装可能。Gateway、Policy Service、署名Service、Host conformanceの実装Receiptは未生成 |
-| `remediation.feasibility.control-plane` | Bootstrap、Ajv、Readiness、Freshness | canonical schema、offline Draft 2020-12 validation、Bootstrap AuthorityとSigner Roleのexact binding、署名済みTechnical Qualification、Activation行のmissing／duplicate／extra拒否、Target readiness、Evidence freshnessを明文化した | [Control Plane Design](../plans/2026-07-22-architecture-evolution-control-plane-design.md)、[Control Plane Implementation Plan](../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)、commit `192af5c`、`ee29d8d`、`4539f10`、`2519d33` | 実装Bootstrap入力として受理。schema compiler、Ajv lock、署名／revocation、negative fixtureは実装時に実行必須 |
-| `remediation.feasibility.d3d12` | D3D12 CX0／CX2／CX3 | MVP production sourceをCX0 self-contained Headerへ固定し、CX1 fixture、CX2 cutover、CX3 Shippingを分離した | [C++23 Modules](../architecture/02-foundation/cpp23-modules.md)、[D3D12 Design](../plans/2026-07-22-ai-readable-d3d12-backend-design.md)、[D3D12 Implementation Plan](../plans/2026-07-22-d3d12-backend-implementation-plan.md)、commit `7f352d8`、`d011950` | CX0の実装計画だけ受理。CX2／CX3は`deferred`、ReleaseはNo-Go |
-| `remediation.feasibility.official-evidence` | MCP、OpenAI、Ajv、CMake、MSVC | 外部仕様は公式一次資料で固定し、Miraikanai固有のTTL、Phase、Risk、maturityをVendor推奨と誤記しない境界を明文化した | [Remediation設計 §9](../superpowers/specs/2026-07-23-plan-feasibility-remediation-design.md#9-toolchainと公式根拠)、commit `f39832a` | 実装時にversion、hash、license、公式文書の再確認が必要 |
-| `remediation.feasibility.critical-path` | Phase 0～9 Critical Path | Product Registryの全74 WPをCoverageへ保持し、71 executable WPをper-WP taskへmaterialize、3 deferred WPをDecision Gateまで非実行とし、依存、path、fixture、Receipt、rollback、相対sizeを閉じた | [Critical Path Execution Plan](../plans/2026-07-23-critical-path-execution-plan.md)、commit `c2ae9f3`、`1ece354` | 実装順序として受理。74 WPの完了やCapability成立を示すものではない |
-| `remediation.feasibility.future` | 将来Capability | Open World、Online／MMO、large-session shooter、FPS、advanced physics／animation、AAA、Terrain／Foliage／GI、Console／Web／XR、Asset生成、first-party local inference、runtime generationを17件のinception dossierへ分離した | [Future Capability Inception Plan](../plans/2026-07-23-future-capability-inception-plan.md)、[Product Plan §8](../architecture/00-product/product-plan.md#8-future-portfolio)、commit `c2ae9f3`、`1ece354` | 全17件`planning_only`。実現性、納期、製品品質、Activationを保証しない |
+genesisではActivation 273行すべて`not_activated`、critical Riskはopen、conditional 4 WPはdeferredである。したがってProduction／Shippingは明示的にNo-Goである。
 
-## 公式一次資料との整合
+## 3. AI-native feasibility
 
-| external boundary | adopted planning constraint | official source |
+### 可能にする設計
+
+AIはMCDとbounded QueryでEngine／Project／Capability／System／Worldを検索し、typed plan／ChangeSetをStagingへ提出し、許可されたBuild／Test／Play／Debug Operationを実行できる。全routeのAttemptはsigned Reservation／task-scoped current Headで直列化する。Engine Provider／attested managed Hostの生成結果はGeneration Receiptへ、標準外部MCPから受領したTool callはOperation Receipt、Proposalは上流Model attributionなしの`StandardExternalProposalReceiptV1`へ、検証結果はQualification Receiptへ束縛され、人間はDiff、Evidence、Riskを確認してApproval／Commitを行う。
+
+外部Clientは次の三routeへ分離される。
+
+| Route | Current最大権限 | 条件 |
 |---|---|---|
-| MCP Host／Transport | MCP `2025-11-25`をbaselineとし、local STDIOとStreamable HTTPを別Profileとして扱う | <https://modelcontextprotocol.io/specification/2025-11-25>、<https://learn.chatgpt.com/docs/extend/mcp> |
-| OpenAI model | direct Providerのexplicit既定`gpt-5.6-sol`はdated snapshotではない。non-snapshot IDとしてProfileへ記録し、解決されたmodel ID、Eval、expiry、Conformance Receiptを同じrevisionへ束縛して変更を管理する | <https://developers.openai.com/api/docs/guides/upgrading-to-gpt-5p6-sol> |
-| JSON Schema | Draft 2020-12をAjv 8の2020 entry point、strict、offline local `$ref` allowlistで検証する | <https://ajv.js.org/json-schema.html#draft-2020-12> |
-| C++ Modules | CMake 4.4の`import std`制約をCX1へ隔離し、MVPはCX0 Headerを使う | <https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html> |
-| MSVC C++23 | MSVC 14.51のpreview modeを正式C++23 Shippingの証拠にしない | <https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/> |
+| standard external MCP | query／proposal | exact external Host＋MCP Transport＋Tool＋proposal-only Authority＋MCP Grant＋Host/Transport Conformance。Provider／Deployment／Modelはnull／unattested |
+| Engine Provider Adapter | query／proposal | exact first-party Engine Host＋Provider Runtime／Manifest＋Inference Deployment＋Model＋Tool＋Authority＋Provider-Tool Conformance。MCP Transport／Grantはnull |
+| managed external Host | 将来managed source edit／build | exact external Host＋MCP Transport＋Provider Runtime＋Model＋Tool＋Authority＋Host/Transport／Provider-Tool Conformance＋pre/post Host Attestation＋Engine Build Receipt＋専用Future WP。現状`not_activated` |
 
-外部一次資料は外部仕様だけを所有する。上表からMiraikanaiのCapability、Security、性能、Release品質が成立したとは推論しない。
+Approval、Commit、Activation、Signing、ReleaseはどのModel／Hostにも付与しない。
 
-## 残るBlockerと非保証範囲
+### local AI
 
-1. **CX3 Shipping:** 正式`/std:c++23`、Experimental token不要のCMake経路、全TargetのBuild／Tooling／ABI／Package／Release Receiptが揃うまで`wp.foundation.cpp23-cx3-shipping`は`deferred`、Capabilityは`not_activated`である。CX0／CX1、MSVC 14.51 preview、Visual Studio Generator由来BMIを代用しない。
-2. **C2 3D:** 第二の非Shooter 3D Fixture、C2 Requirement binding、Genre／Rendering／UI provider WP、Owner、Windows／Android／Apple Target closureを一つの承認済みProduct Decisionで登録するまで`wp.product.general-coverage-3d`は`deferred`である。現在の主張上限は`3D First Playable`である。
-3. **Future 17件:** inception dossierは調査と設計開始条件を固定するだけで、Engine API、Work Package Activation、Target対応、性能、商用品質Asset、AAA／MMO規模の実現を保証しない。
-4. **Local AI:** 外部Host／MCPがlocal modelを使うconformance経路は計画に含むが、first-party local inference runtimeは`planning_only`でありMVP blockerではない。Model名ごとのEngine分岐やsilent cloud fallbackは採用しない。
+local AI対応は推奨する。ただし「モデルを同梱する」ことと「外部Hostがlocal modelを使う」ことを分離する。
 
-## Document／commit map
+- 外部Host local model: standard MCP laneでは上流Modelを暗号学的にattestできないため、Modelはopaque／unattestedのままHost／Transport／Tool／proposal-only Authority／Grant Conformanceで利用する。Model固有保証が必要ならmanaged Host attestationまたはfirst-party local runtimeを使う。
+- first-party local inference: Future。runtime／loader artifact、Model Manifest、license Decision、sandbox、OS IPCまたはauthenticated loopback、resource budget、Import／Schema／Tool conformance後にだけActiveへ移行する。
+- llama.cpp等は候補Adapterであり固定採用ではない。選定時はexact artifactをpinし、built-in file／shell toolとMCP proxyを無効にしてMiraikanai Gatewayだけを使う。
+- Gemma、Kimi、Qwen、DeepSeek、Grok、GLM等は同じprofile contractへ入り、family別Engine branchを作らない。
 
-| change group | documents | commits |
+## 4. Game制作自由度
+
+計画上の自由度は段階的である。
+
+| Stage | 実現を狙う範囲 | 保証しない範囲 |
 |---|---|---|
-| Remediation authority | [Design](../superpowers/specs/2026-07-23-plan-feasibility-remediation-design.md)、[Plan](../superpowers/plans/2026-07-23-plan-feasibility-remediation.md) | `f39832a`、`c2ae9f3`、`1ece354` |
-| Product execution | [Product Plan](../architecture/00-product/product-plan.md)、[Shooter Domain Pack](../architecture/08-domain-packs/shooter.md) | `454501c`、`f2c7584`、`05dace5` |
-| AI control | [AI Security／Approval](../architecture/01-governance/ai-security-approval.md)、[Core Architecture](../architecture/02-foundation/core-architecture.md)、[Executable Contracts](../architecture/02-foundation/executable-contracts.md)、[Editor Workspace](../architecture/03-authoring/editor-workspace-ux.md)、[Gameplay Programming Model](../architecture/03-authoring/gameplay-programming-model.md)、[Native Game Module](../architecture/03-authoring/native-game-module.md)、[Debug／Replay](../architecture/04-runtime/debugging-observability-replay.md) | `1d7d758`、`3a60e4e`、`e8303dc` |
-| Control Plane | [Design](../plans/2026-07-22-architecture-evolution-control-plane-design.md)、[Implementation Plan](../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)、[AI Verification](../architecture/01-governance/ai-verification-provenance.md)、[Project State](../architecture/03-authoring/project-state.md)、[Performance／Capacity](../architecture/04-runtime/performance-capacity.md) | `192af5c`、`ee29d8d`、`4539f10`、`2519d33` |
-| D3D12／Toolchain | [Toolchain](../architecture/02-foundation/toolchain-dependencies.md)、[C++23 Modules](../architecture/02-foundation/cpp23-modules.md)、[D3D12 Design](../plans/2026-07-22-ai-readable-d3d12-backend-design.md)、[D3D12 Implementation Plan](../plans/2026-07-22-d3d12-backend-implementation-plan.md) | `7f352d8`、`d011950` |
-| Execution／Future | [Critical Path](../plans/2026-07-23-critical-path-execution-plan.md)、[Future Inception](../plans/2026-07-23-future-capability-inception-plan.md) | `c2ae9f3`、`1ece354` |
+| MVP-A | AI＋手動の2D制作、Title→Result、Save／Load／Replay、Windows Editor／Desktop | Production、汎用3D、Shipping |
+| MVP-B | Windows C1 manual 3D first playable | FPS、Production 3D、AAA |
+| Mobile | Android／Appleの2D／3D lifecycleを各Target Gateで段階的に閉じる | Desktop合格の流用、Console／Web／XR |
+| C2 2D | Shooter＋Platformer＋Puzzle／Dialogueのcross-genre coverage | 全genre、network、large world |
+| Deferred C2 3D | 第二の非Shooter 3D fixtureを追加後のgeneral coverage | 条件成立前はShooter C1だけ |
+| Future | FPS、Open World、network／MMO、advanced simulation、AAA、new platforms、scripting等 | Active migration／Target qualification前の製品claim |
 
-## Verification receipt
+長期的な自由度を確保する要点は、Engine CoreをShooter class hierarchyへ固定せず、Domain Pack、data-driven contract、Project Source module、Target adapter、provider／fallbackへ分けることである。有名Engineと同様にProject側native codeを許すが、Engine内部ABIやprivate APIへ直接依存させない。
 
-このReceiptは計画の内部整合だけを検査し、Engine実装の代替にしない。
+## 5. Control Plane feasibility
 
-| gate | expected invariant | result |
-|---|---|---|
-| Historical closure boundary | retained Finding 253件がterminal、未保存REFUTED 4件を再構成しない | `PASS` |
-| Product registry | duplicate、missing ref、Phase↔WP不整合、DAG cycleが0 | `PASS` |
-| Critical Path coverage | Product Registryと実行計画の74 WP／21 Gateがexact一致し、71 executable bindingはunique、3 deferred WPはDecision Gateまで非実行 | `PASS` |
-| Future coverage | Product RegistryとFuture planの17 `future_capability_id`がexact一致し、全件`planning_only` | `PASS` |
-| Activation boundary | 現在の有効なActivation Receiptは0件。materialization時の全行initial stateが`not_activated`で、文書変更からCapability／Releaseを自動昇格する規則がない | `PASS` |
-| Independent semantic review | Control PlaneとExecution／Futureの最終再監査が各`Critical 0 / Important 0` | `PASS` |
-| Markdown／patch | table列、local link path、`git diff --check`を最終候補で再実行 | `PASS` |
+初回ceremonyはBC0～BC2、Task 0～9（A）、独立Future Portfolio Approval、Construction Decision、Task 10（B）、Bootstrap Approval（C）、Task 10A（D）、Task 10B（E）の一方向である。Future Approvalはplanning-only別hash domainのcurrentだけをpublishし、Task 10Bより先にActive Product operational currentを作らない。
 
-## Final disposition
+主な安全条件:
 
-- **Conditional Go:** Control Plane bootstrap、contract compiler、ECS E0以降、CX0 D3D12、Headless／Editor／2D／AI／3D／MobileをCritical Path順に実装し、各Gateでnegative fixtureとReceipt read-backを実行する。
-- **No-Go:** 現時点のEngine Capability、Target対応、C2 3D、CX3 Shipping、Future 17件、Production／商用品質を利用可能または保証済みと表示する。
+- offline Root、generation-local Root Revocation Head、cross-generation Global Revocation Ledger／Super Head、Recovery Readiness Head、Trust closure、Authority Binding Source Catalog Headを持つ。
+- generation 1はout-of-band witness付きcandidate Root Profile／signed Root Head／local・global revocation genesis／candidate Readinessをclosed例外で検証し、4 current pointerのCAS後に通常検証を通すまでAuthorizationを発行しない。rotation／recoveryはRoot／local／global／Readiness／Trust／Catalogの6 pointer CASで、部分publicationを拒否する。
+- total-compromise recoveryは旧generation全KeyをGlobal Ledgerへ追記し、新Root／recovery-custodian quorum、cooling-off、typed Incident、destination Trust closureを満たす場合だけ新generationへ移る。pointer巻戻しや旧Root単独署名を許さない。
+- development bootstrapとproduction assuranceを分離する。1-of-1 development RootでProduction／Releaseを許可しない。
+- vendor assuranceはfresh CRL／OCSP DER、RFC 10007のCRL issuer `keyUsage+cRLSign`、RFC 9919のSHA-256 CertID、RFC 9654 nonce、same-CA delegated responder、closed responder-revocation methodをtyped journalへ束縛する。first revoked Observationはterminalで、pending quarantine obligationと原子的に記録し、N／F／R／Xのexact oneへrouteする。
+- Readiness quarantineは通常Change Approvalで迂回せず、原因修正のsame-generation三pointerまたはPolicy不変のassurance Rotation六pointerだけを専用Remediation Authorizationで解除する。Root／Recovery不成立時はfull trust resetへ進む。
+- bootstrap時点のAuthorization／Approval expiryはhistorical validityとして検証し、後日の通常expiryでimmutable historyを破壊しない。
+- same-definition変更はRebinding、Active Definition変更はRebaseline＋V1 full reset migrationを使う。
+- Product operational currentはsingle-pointer CAS、Root／Trust系は設計で列挙したatomic multi-pointer CASを使う。同一candidateのcrash／idempotent retryはsigned payloadのevent time、candidate revocation binding、canonical bytes、signatureを固定する一方、各CAS attemptのjournal `publication_time`はfresh取得し、current authority／expiry／expected parentを直前再検証する。drift／window逸脱時はcandidateを変更せずterminal abortし、fresh Authorizationからnew candidateを作る。
+- ReceiptはGit tree外sidecarで、Approval対象へ自己包含しない。
+- bootstrap順序はA→current Future Approval F→Fを署名したConstruction Decision→B→C→D→Eであり、Fのrollback、DecisionのFuture closure／Approval差、Coreの旧F固定を拒否する。
+
+この設計は実装可能だが、暗号／trust／recovery／transaction実装の難度は高い。まずdevelopment bootstrap profileで最小Control Planeを完成し、production assuranceは別Gateで昇格するのが現実的である。
+
+## 6. Remaining blockers
+
+1. **Control Plane implementation:** schema catalog、JCS／hash、signature／revocation、lifecycle、Product projection、CAS、negative fixtureが未実装。
+2. **Toolchain unresolved dependencies:** C++ strict JSON、runtime JSON Schema validator、SHA-256、unit test framework、MCP server boundary等はexact selection前。
+3. **CI／device capacity:** Windows GPU、Android／Apple device、macOS host等のqualified capacity／ownerが必要。
+4. **CX2／CX3:** cross-target Evidenceと正式stable C++23 shipping toolchainが成立するまでdeferred。
+5. **General Production 3D:** 第二の非Shooter 3D fixtureを含むdestination Active Definition migrationが必要。
+6. **Production Release:** Target別support、signing、SBOM／provenance、rollback、device lab、critical Risk closureが必要。
+7. **External Host support:** current materialized Host／version／Transport profileは0件。少なくとも一組をPhase 5でConformanceする。
+8. **Future 23:** Dossierやprototypeは実現保証ではなく、Decision→Rebaseline→full reset→implementation→production Activation→claim releaseが必要。
+
+## 7. Verification status
+
+本Reviewで主張できるのは文書内部のclosureだけである。
+
+| Check | Current status |
+|---|---|
+| Product references／DAG／duplicates／orphan | document audit pass |
+| Product exact counts／Activation reachability | document audit pass |
+| Active／Future／state separation | document audit pass |
+| AI profile／Host／local inference contracts | document audit pass |
+| Control Plane design consistency | independent document audit pass: Critical 0、Important 0、Design／Implementation sync差0 |
+| Markdown links／anchors／tables／fences／encoding／patch whitespace | repository-wide 67 Markdown audit pass |
+| Engine build／tests／device qualification | not run; implementation absent |
+| Capability／Release Receipt | 0 current implementation receipts |
+
+最終機械ReceiptはMarkdown 67件、表448件、Product WP DAG 75/75、Future DAG 23/23、Activation 273行、Content ID 32件、追加Control Plane契約29型を検査した。encoding／fence／local link／anchor／table alignment／ID duplicate／DAG／scope／Owner／Design–Implementation集合／旧仕様語／patch whitespaceの問題は0件である。
+
+`PASS`をEngine動作、性能、安全性、商用品質の証明へ拡張しない。
+
+## 8. Recommended execution order
+
+1. Control Plane development bootstrapを実装・negative testする。
+2. Foundation／Headless Authoringを完成する。
+3. Windows Editor／D3D12／I/O／UI shellを完成する。
+4. Manual 2D→AI MVP-A→external proposal lane→Project Source laneを閉じる。
+5. Manual 3D→mobile→C2 2Dを閉じる。
+6. CX2／CX3、Production 3D、Production ReleaseはDecision Gate成立後だけ開始する。
+7. Future 23は価値／依存／riskで一件ずつ昇格し、MVPへ一括混入させない。
+
+## 9. Final disposition
+
+- **Planning Go:** 現行計画を実装開始の正本入力として使用できる。
+- **Implementation No-Go:** 実行ReceiptがないためEngine機能を完成済みと表示しない。
+- **Shipping No-Go:** Release Gate、critical Risk、Target production Activationが未成立。
+- **Future No-Go:** Future 23を現在利用可能なCapabilityまたは保証済み品質として表示しない。

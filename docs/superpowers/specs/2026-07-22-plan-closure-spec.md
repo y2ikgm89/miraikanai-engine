@@ -1,5 +1,7 @@
 # Miraikanai Engine 計画書完全化仕様
 
+> **状態: historical input／現行実装正本ではない。** 2026-07-22 review scopeの記録として保持し、current Control Plane／Product契約と矛盾する旧名称・件数を実装へ使わない。
+
 - 状態: ユーザー承認済み
 - 承認日: 2026-07-22
 - 選択方式: 正本・Registry先行型

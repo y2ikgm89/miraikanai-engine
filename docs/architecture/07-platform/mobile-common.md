@@ -165,8 +165,8 @@ Mobile graphics quality profileは`Baseline | Standard | High`のclosed setで�
 | `memory_class` | 許可する`render_quality_tier` |
 |---|---|
 | `mobile_baseline` | `Baseline` |
-| `mobile_standard` | `Baseline | Standard` |
-| `mobile_high` | `Baseline | Standard | High` |
+| `mobile_standard` | `Baseline \| Standard` |
+| `mobile_high` | `Baseline \| Standard \| High` |
 
 表外の組合せをCook／Play prepareで拒否し、`mobile_standard + High`等を実機結果から暗黙許可しない。
 
@@ -254,7 +254,7 @@ Mobile共通crash metadata契約は次である。Shipping crash recordはEngine
 
 support bundle（正本は同書§14の`SupportBundleV1`）のMobile提出経路は本書が共通規則を、[Android](android.md)／[Apple](apple.md)がOS固有経路を所有する。生成はUserの明示操作で行い、保存先はapp-scoped storage、提出はC1ではOS標準share機構等のUser操作によるexportだけとする。crash収集経路はcrash evidenceの収集だけを所有し、bundleの構成、redaction、生成operationはDebugging Ownerの定義へ従う。
 
-Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけを変更する。C／C++、native library、platform bytecode、script、shader source／pipeline、dynamic library、FFI、arbitrary Engine callを生成／download／loadしない。Runtime dataは`ContentSafetyProfile`、moderation、age／region policy、rate limit、report、audit ID、rollbackを持ち、network failure時はlast-valid local contentへ戻す。
+現行C1／C2 Mobile Shipping RuntimeはAIによるstructured data生成／mutation、AI provider network call、generated contentのdownload／loadを許可しない。C／C++、native library、platform bytecode、script、shader source／pipeline、dynamic library、FFI、arbitrary Engine callを含む全Runtime generation要求をPhase 9のdeny-only policyで拒否し、Project／Save／authoritative Worldを不変に保つ。`ContentSafetyProfile`、moderation、age／region policy、rate limit、report、audit ID、生成content rollbackは`future.capability.runtime-structured-data-generation`がactive Product Registry、Mobile Target binding、専用Authority／Threat Model、fresh Target Qualificationを一つのChangeSetで成立させた後だけ本書へ追加し、現在のShipping契約として実装しない。
 
 ## 8. Failureと共通qualification
 
@@ -272,8 +272,8 @@ Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけ
 | device bridgeの二台目／二Session目／一時間超過 | 接続拒否またはcapture停止、complete chunkをread-only確定しmissing rangeをgap化 |
 | Platform Adapter破棄順違反 | qualification失敗、device／surfaceの早期解放を禁止し順序とtimeout reasonを診断 |
 | executable content in delivered Asset | package／mount拒否 |
-| Runtime AI validation／moderation failure | Project／Save不変、last-valid content維持 |
+| Runtime AI generation／mutation／provider call要求 | deny-only policyで拒否し、Project／Save／authoritative World不変 |
 
-共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、structured-data rollbackを含む。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Mobile graphics-quality fixtureは11行×3 profileの全値、unknown拒否、`High → Standard → Baseline`の一段遷移、Baseline不合格、2D C1全機能、3D C1 scalable subset、Presentation縮退前後のauthoritative result一致を検証する。Texture fixtureは同一入力の反復Cookで`target_format`／`content_hash`一致、7 field各tamperの拒否、宣言laneのTarget artifact不足／同一lane内重複、Pixel Art／UI／maskのRGBA8またはlossless、Runtime Basis／Universal Texture transcode path不在を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
+共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、Runtime AI generation／mutation／provider call拒否とProject／Save／authoritative World hash不変を含む。positive structured-data generation／moderation／rollback fixtureはFuture entryのactive移行まで含めない。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Mobile graphics-quality fixtureは11行×3 profileの全値、unknown拒否、`High → Standard → Baseline`の一段遷移、Baseline不合格、2D C1全機能、3D C1 scalable subset、Presentation縮退前後のauthoritative result一致を検証する。Texture fixtureは同一入力の反復Cookで`target_format`／`content_hash`一致、7 field各tamperの拒否、宣言laneのTarget artifact不足／同一lane内重複、Pixel Art／UI／maskのRGBA8またはlossless、Runtime Basis／Universal Texture transcode path不在を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
 
 Minimum／Reference実機は同一commit、package、input traceでlifecycle、Save、Input、Audio、graphics golden、memory、thermal、deliveryを測る。Emulator／Simulatorはfunctional smoke専用で、GPU、audio／touch latency、memory、thermalの合否に使わない。Evidence envelope、run grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが所有する。

@@ -1,6 +1,8 @@
 # AI-Readable Architecture Comprehension Closure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to execute this plan task-by-task. Checkboxes record the state of the canonical destinations, not the retired source paths.
+> **Status: historical completion record; do not execute.** Current implementation authority is `ArchitectureMetadataV2`＋`DocumentLifecycleRecordV1` and the 2026-07-22 Control Plane Design／Implementation Plan. V1 names below describe the completed 2026-07-21 baseline only.
+
+> **Historical instruction (superseded; must not be followed):** 当時のagent実行手順とcheckboxは完了記録としてのみ保持する。現行作業の指示として解釈しない。
 
 **Provenance:** Reconciled from local checkpoint `0e86c0f7d7bc0cabe36ee7871e9ac9b83e925c86` on `codex/ai-readable-architecture-closure`.
 

@@ -1,5 +1,7 @@
 # Legacy Branch Reconciliation Design
 
+> **Status: historical／superseded; do not execute.** Current authority is the Control Plane Design／Implementation Plan using `ArchitectureMetadataV2` and current lifecycle／baseline bindings. Terms below record the reconciled legacy baseline only.
+
 - Status: approved direction
 - Date: 2026-07-22
 - Scope: `codex/ai-readable-architecture-closure`、`codex/c1-gameplay-capability-closure`、関連worktree、マージ済みremote branch

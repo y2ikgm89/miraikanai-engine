@@ -29,9 +29,9 @@ Rendererとの公開境界にはBackend-neutral light data、stable source ident
 |---|---|
 | `light_id` | 永続Stable ID。Entity／GPU indexを使わない |
 | `revision` | 楽観的排他とChangeSetのbase revision |
-| `dimension` | `light_2d | light_3d` |
-| `light_type` | `directional | point | spot | rectangle | disk` |
-| `mobility` | `static | stationary | dynamic` |
+| `dimension` | `light_2d \| light_3d` |
+| `light_type` | `directional \| point \| spot \| rectangle \| disk` |
+| `mobility` | `static \| stationary \| dynamic` |
 | `enabled` | 明示bool。強度0を無効化表現にしない |
 | `transform_ref` | WorldのStable Transform ID。Directionalは位置を意味に使わない |
 | `radiometry` | §4のtagged union |
@@ -43,7 +43,7 @@ Rendererとの公開境界にはBackend-neutral light data、stable source ident
 | `channel_mask` | 32-bit論理Lighting Channel。予約bitを検証 |
 | `role` | `key`等の意味role。描画計算へ直接使わない |
 | `group_ids` | Semantic group Stable ID、最大8 |
-| `importance` | `critical | important | decorative` |
+| `importance` | `critical \| important \| decorative` |
 | `priority_u8` | 同一importance内0～255 |
 | `shadow_intent_ref` | version付きShadow Intent、nullable |
 | `cookie_asset_id` | 検証済みTexture artifact、nullable |

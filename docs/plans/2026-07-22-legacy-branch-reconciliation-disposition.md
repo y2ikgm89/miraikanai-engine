@@ -1,5 +1,7 @@
 # Legacy Branch Reconciliation Disposition Ledger
 
+> **Status: immutable historical ledger; not implementation authority.** Current planning uses the 2026-07-22 Control Plane plans and may intentionally use different schema／metadata names.
+
 **Source checkpoint:** `0e86c0f7d7bc0cabe36ee7871e9ac9b83e925c86`
 
 **Inventory:** 20 hunks, 448 added lines, 7 deleted lines, 455 changed lines in total. `source_line_count` is additions plus deletions for each hunk.

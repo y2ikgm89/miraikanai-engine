@@ -66,7 +66,7 @@ EditorHost failureでGameHost stateを壊さない。GameHost crash後もEditorH
 | Field | Contract |
 |---|---|
 | `target_kind` | registered closed kind |
-| `identity_kind` | `source | contract | artifact | runtime_object | domain_local` |
+| `identity_kind` | `source \| contract \| artifact \| runtime_object \| domain_local` |
 | selected identity | kindに対応するexact refを厳密に一つ |
 | `parent_target_ref` | optional typed owner ref |
 | `project_revision` | Source相関時のexact revision |

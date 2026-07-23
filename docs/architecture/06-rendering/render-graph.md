@@ -71,7 +71,7 @@ Snapshotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)
 | `RenderView` field | 型／規則 |
 |---|---|
 | `view_id` | frame内一意`uint32` |
-| `purpose` | `game | editor | shadow | reflection | thumbnail` |
+| `purpose` | `game \| editor \| shadow \| reflection \| thumbnail` |
 | `projection` | perspective／orthographicとfinite parameter |
 | `view_transform` | right-handed、meter、finite |
 | `viewport_px`／`scissor_px` | surface範囲内 |
@@ -90,8 +90,8 @@ View capabilityのactivationと導入順は[Product Plan](../00-product/product-
 | Field | 規則 |
 |---|---|
 | `resource_id` | Graph instance内`uint32` |
-| `kind` | `texture | buffer | acceleration_structure` |
-| `ownership` | `transient | imported | persistent | history | external_surface` |
+| `kind` | `texture \| buffer \| acceleration_structure` |
+| `ownership` | `transient \| imported \| persistent \| history \| external_surface` |
 | `format` | Engine `PixelFormat` closed enum |
 | `extent` | absolute、view-relative、named resource-relative |
 | `mip_count`／`array_layers`／`sample_count` | Target Capability内 |
@@ -188,13 +188,13 @@ lighting pipeline profileは本書所有のclosed IDであり、`forward_plus_v1
 |---|---|
 | `source_intent_id`／`source_revision` | 解決元Intent、stale Plan拒否 |
 | `view_family_id`／`scope_resolution` | Project／Camera Profileから最終scopeへ解決した結果 |
-| `raster_samples` | `1 | 2 | 4 | 8`。2以上はForward+のQualified attachment／pipelineだけ |
-| `spatial_method` | `off | fxaa | smaa_1x`。一つだけ |
-| `temporal_method` | `off`またはexact `upscaler_profile_ref`。後者は`upscaler-profile.mirakan-taa | upscaler-profile.mirakan-taau`またはQualification済みCatalogのexact Profile IDの一つだけ |
+| `raster_samples` | `1 \| 2 \| 4 \| 8`。2以上はForward+のQualified attachment／pipelineだけ |
+| `spatial_method` | `off \| fxaa \| smaa_1x`。一つだけ |
+| `temporal_method` | `off`またはexact `upscaler_profile_ref`。後者は`upscaler-profile.mirakan-taa \| upscaler-profile.mirakan-taau`またはQualification済みCatalogのexact Profile IDの一つだけ |
 | `render_extent`／`display_extent` | Target／Provider制限内。UI／pixel-locked extentを含めない |
 | `jitter_policy` | Engine-owned closed ID。AI／Project dataはsample列を保持しない |
 | `history_reset_mask` | camera cut、teleport、extent、surface、projection、Provider、model、AA方式変更のclosed bit |
-| `excluded_layers` | `ui | text | pixel_locked`を必須集合とする |
+| `excluded_layers` | `ui \| text \| pixel_locked`を必須集合とする |
 | `required_capabilities` | Backend、renderer、sample count、motion／depth／mask、Provider、HDR Capability ID |
 | `predicted_cost` | pass GPU、bandwidth、persistent／transient byte、Pipeline variant数 |
 | `fallback_chain` | 順序、意味差、User通知、必要な再構築境界 |

@@ -1,19 +1,21 @@
 # Plan Feasibility Remediation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: superseded historical remediation plan; do not execute.** Current counts and execution contracts are Product Active 14／WP75、Future 3／23／Claim52, the current Control Plane plans, Critical Path, Future Inception, and the current remediation Review.
+
+> **Historical instruction (superseded; must not be followed):** 当時のagent実行手順とcheckboxは完了記録としてのみ保持する。現行作業の指示として解釈しない。
 
 **Goal:** 2026-07-23監査で確認した実装DAG、schema、Phase gate、AI Operation、Approval、Toolchain、将来Scopeの不整合を、公式一次資料と一つのProject正本へ閉じる。
 
 **Architecture:** Product PlanをPhase／Work Package／Fixture bindingの正本にし、Control Planeと実装計画をそのschemaへ追随させる。AIのHost／Model互換性は直交Profileで表し、Build GatewayだけがPackage／Device／Debug jobを実行する。MVPはCX0 Headerで開始し、Modules Shippingとfirst-party local inferenceは独立Activationにする。
 
-**Tech Stack:** Markdown、PowerShell 7、Node.js 24.11.1、TypeScript 5.9.3、JSON Schema Draft 2020-12、Ajv 8.20.0、MCP 2025-11-25、CMake 4.4、MSVC 14.51 bootstrap。
+**Tech Stack:** Markdown、PowerShell 7、Node.js 24.18.0 LTS、npm 11.16.0、TypeScript 7.0.2 CLI、JSON Schema Draft 2020-12、Ajv 8.20.0、MCP 2025-11-25、CMake 4.4、MSVC 14.51 bootstrap。
 
 ## Global Constraints
 
 - Authorityと型は`docs/superpowers/specs/2026-07-23-plan-feasibility-remediation-design.md`を一字違わず使用する。
 - Product PlanがWork Package、Phase、Fixture、Target、Requirement、Capability、Future incubationの機械正本である。
 - Work Package state Fieldは`scheduling_state`、Fixture寄与Fieldは`provided_fixture_refs[]`とする。
-- Phase completionは`PhaseFixtureBindingRegistryV1`の`exit_gate_refs[]`だけから評価する。
+- Phase completionは`ProductPhaseRegistryV1.exit_gate_refs[]`の各exact refを`PhaseFixtureBindingRegistryV1.gate_id`へ解決し、その全Gateだけから評価する。
 - 外部Brand／Model名をEngineの権限分岐にしない。
 - MCP Production baselineは`2025-11-25`、OpenAI direct既定explicit modelは`gpt-5.6-sol`とする。
 - D3D12 MVPはCX0 self-contained Headerで実装し、`.ixx`／`.cppm`はCX1 fixtureまたはCX2 cutoverまでProduction componentへ追加しない。
@@ -131,7 +133,7 @@ Aggregate→Query→Causality／Replay→Finding validation→Proposalをexact O
 
 - [x] **Step 4: Caller／Provider／Deployment／Model Profileを追加する**
 
-設計§7の6型を定義し、Host brand、Transport、Provider/runtime、Model snapshot、tool projection、authorityを別Fieldにする。ChatGPT webをlocal STDIO対応と表示せず、ChatGPT Desktop／Codex host、Claude Desktop／Code、Cursorはconformance Receiptがある場合だけ対応表示する。
+設計§7の6型を定義し、Host surface、Transport、Provider/runtime、Model snapshot、tool projection、authorityを別Fieldにする。ChatGPT Chat／Workはremote MCP（private／localはSecure MCP Tunnel）でありdirect local STDIO対応と表示しない。ChatGPT desktop app内Codex host、Codex CLI／IDE、Claude Desktop／Code、Cursorはsurface別conformance Receiptがある場合だけ対応表示する。
 
 - [x] **Step 5: local inference境界を追加する**
 

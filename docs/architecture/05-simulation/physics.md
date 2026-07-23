@@ -155,12 +155,14 @@ closed semantic valuesを次へ固定する。一つのResolutionは各軸から
 
 | Type | Closed values |
 |---|---|
-| `GameplayPhysicsRoleV1` | `world_static | movable_prop | moving_platform | character | projectile | sensor_volume | camera_blocker | ragdoll | vehicle | destructible | soft_deformable | cloth_fluid_hair` |
-| `PhysicsMotionAuthorityV1` | `static | kinematic_target | dynamic_solver | character_motor | query_driven | presentation_only` |
-| `PhysicsCollisionSemanticsV1` | `solid_block | sensor_notify | query_only | none` |
-| `PhysicsHitAuthorityV1` | `solver_contact | sensor_event | swept_shape_query | overlap_query | gameplay_rule | none` |
-| `PhysicsShapeStrategyV1` | `primitive | compound_primitive | convex | static_triangle_mesh | heightfield | tile_chain_2d | none` |
-| `PhysicsSpeedPolicyV1` | `discrete | continuous_body | authoritative_sweep | teleport` |
+| `GameplayPhysicsRoleV1` | `world_static \| movable_prop \| moving_platform \| character \| projectile \| sensor_volume \| camera_blocker \| ragdoll \| vehicle \| destructible \| soft_deformable \| cloth_fluid_hair` |
+| `PhysicsMotionAuthorityV1` | `static \| kinematic_target \| dynamic_solver \| character_motor \| query_driven \| presentation_only` |
+| `PhysicsCollisionSemanticsV1` | `solid_block \| sensor_notify \| query_only \| none` |
+| `PhysicsHitAuthorityV1` | `solver_contact \| sensor_event \| swept_shape_query \| overlap_query \| gameplay_rule \| none` |
+| `PhysicsShapeStrategyV1` | `primitive \| compound_primitive \| convex \| static_triangle_mesh \| heightfield \| tile_chain_2d \| none` |
+| `PhysicsSpeedPolicyV1` | `discrete \| continuous_body \| authoritative_sweep \| teleport` |
+
+`ragdoll`、`vehicle`は将来拡張との語彙衝突を防ぐ予約値であり、現行C1／C2のactive Capability、operation、positive fixtureではない。`future.capability.vehicle-ragdoll-crowd-motion-warping`がapproved Future-to-Active Promotion Manifest、Control Plane Rebaseline、Active Definition migrationで機能別active Capabilityへ分割され、Owner contract、Target binding、Authority、Save／Replay、Qualificationが成立するまで、これらのroleを選んだResolutionは必ず`capability_unavailable`とする。予約値がenumに存在することをBackend supportまたはProduct supportの根拠にしてはならない。
 
 複合objectは複数Resolutionと明示関係で表し、合成enumを追加しない。同じobjectへ複数motion authorityを選ばない。Dynamic Bodyへ`static_triangle_mesh`／`heightfield`を選ばず、Sensorをauthoritative hitへ暗黙昇格せず、`teleport`を経路hitの代用にしない。途中経路がGameplayへ必要なら`authoritative_sweep`を使用する。
 

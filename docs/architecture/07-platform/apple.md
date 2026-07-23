@@ -62,7 +62,7 @@ Apple textureはASTC target formatでpackageする。Package validatorは[Mobile
 
 `ProjectPrivacySpec`、`PrivacyInfo.xcprivacy`、required-reason API declaration、embedded third-party SDK privacy manifest／signature、actual binary behaviorを一致させる。telemetry、crash、AI prompt、generated contentを同じconsent purposeにまとめず、credential、token、signing key、personal dataをAI prompt／Build log／crash metadataへ含めない。
 
-Shipping Runtimeはstructured dataだけを変更し、post-review executable code／shader pipelineをdownload／loadしない。Runtime content safety、rollback、offline last-validは[Mobile Common](mobile-common.md)を使用する。
+現行Apple Shipping RuntimeはAI structured data生成／mutation、provider network call、generated contentのdownload／loadを許可せず、[Mobile Common](mobile-common.md)のdeny-only policyでProject／Save／authoritative Worldを不変に保つ。positive Runtime generation、content safety、生成content rollbackはFuture entryのactive Product移行、Apple Target binding、専用Authority／Threat Model、fresh Target Qualification後のChangeSetでだけ追加する。post-review executable code／shader pipelineのdownload／load禁止はその後も維持する。
 
 ## 4. Unsigned Build、Signing、Upload separation
 

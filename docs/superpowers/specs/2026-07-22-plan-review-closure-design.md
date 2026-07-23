@@ -1,5 +1,7 @@
 # Miraikanai Engine 計画書レビュー Closure 設計
 
+> **状態: completed historical review design。** 現行正本はProduct Plan、Control Plane Design／Implementation、Critical Path、Future Inceptionであり、本書の旧件数・型名を実装入力にしない。
+
 - 状態: ユーザー承認済み
 - 承認日: 2026-07-22
 - 選択方式: 依存順 closure 型

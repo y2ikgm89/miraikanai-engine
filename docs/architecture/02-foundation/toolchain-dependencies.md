@@ -112,7 +112,7 @@ Project、AI、Build scriptはargument、entry profile、register／space、opti
 | Anthropic API／SDK | 未固定。MVPのAnthropic系接続は[Executable contracts](executable-contracts.md)のMCP経路（Claude CLI／Desktop→Miraikanai MCP Server）だけとし、direct Provider projection用`provider_profile`はexact pinを確定するDependency ChangeSetまで作成しない |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium` |
 
-OpenAIはGA Modelでも最短6ヶ月通知で退役させるため、Model IDをOrchestrator codeへ埋め込まず、Toolchain lockの設定値としてだけ保持し、退役通知の検出をDependency更新Gateの起動条件へ含める。Responses API固有機能への依存はProvider Adapter一箇所へ閉じる。
+OpenAIの公式deprecation policyは、一般GA modelを原則6か月、specialized GA variantを原則3か月、preview modelを約2週間の場合ありとし、安全・法令・compliance上の例外も認めるため、6か月を最小保証として扱わない。Model IDはOrchestrator codeへ埋め込まずToolchain lockへexplicit固定し、[公式deprecation feed](https://developers.openai.com/api/docs/deprecations)を定期read-backして、通知時にModelSnapshot Evalを期限切れへし、承認済みexplicit fallbackが同じEval／Policy Gateを通るまでdirect Provider routeをfail closedにする。Responses API固有機能への依存はProvider Adapter一箇所へ閉じる。
 
 ## 3. Build Driver matrix
 
@@ -199,6 +199,7 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 | SHA-256実装（Runtimeのhash検証、canonical hash） | [Core architecture](core-architecture.md) §11、[Executable contracts](executable-contracts.md) §13 | 未固定 |
 | C++ unit test framework | [Core architecture](core-architecture.md) §12 | 未固定 |
 | MCP server実装SDK | [Executable contracts](executable-contracts.md) §16.2 | 未固定 |
+| first-party local inference runtime／loader | [AI Security／Approval](../01-governance/ai-security-approval.md) §8.4、Product Planの`future.capability.first-party-local-inference` | 未固定。MVP外、Future promotion前まで`not_activated` |
 
 第一party自作を選ぶ場合も9節のGateと同等の検証（公式test vector等）をADRへ記録し、本表の行をexact pinまたは実装先Directoryへ置換する。
 
@@ -216,6 +217,7 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 | B | 厳格C++ JSON parser | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §17.1を使う最初のC++ acceptance path実装前 | exact release／license／hash、duplicate field、invalid UTF-8、trailing bytes、number overflow、depth／size boundのpositive／negative Receipt | 最初のC++ JSON consumerだけを停止／未固定 |
 | B | C++ Runtime JSON Schema Draft 2020-12 validator | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §14の最初のruntime validator実装前 | exact release／license／hash、official Draft 2020-12 test suite、unknown dialect／unsupported keyword／recursive ref／bound failure Receipt。Control Plane lint用AjvのReceiptを流用しない | 最初のruntime schema consumerだけを停止／未固定 |
 | B | MCP server SDKまたはfirst-party server boundary | `mirakan.arch.toolchain-dependencies` | `wp.product.external-agent`実装前 | MCP 2025-11-25 conformance、transport／capability negotiation、message bound、cancel／disconnect、license／artifact lock。自作時は実装Directoryとprotocol fixture | Phase 5 external-agent WPを停止／未固定 |
+| Future | first-party local inference runtime／loader | `mirakan.arch.toolchain-dependencies`＋`mirakan.arch.ai-security-approval` | `future.capability.first-party-local-inference`のActive promotion proposal前 | exact runtime release／artifact hash／license、DLL・GPU backend closure、supported model format、sandbox、OS IPC／authenticated loopback、CPU／GPU device matrix、Model Import／Schema／Tool Conformance。候補がllama.cppでもbuilt-in file／shell toolとMCP proxyは無効 | first-party local inferenceだけを`not_activated`／MVP・外部Host local model経路は非依存 |
 | B | Android minimum SDK market coverage | `mirakan.arch.platform-android`、閾値承認は`mirakan.arch.product-plan` | `wp.platform.mobile-offline`開始前 | [Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1` | Android Target Gateを停止／Play Console Evidence待ち |
 | C | CX3 stable MSVC cutover | `mirakan.arch.toolchain-dependencies` | CX3 activation proposal前 | Microsoft stable release、正式`/std:c++23`、resolved toolset hash、`import std`／module partition C1001 regression fixture、全Target CX0↔CX3 ABI Receipt | CX3だけを停止しCX0を維持／非Preview v14.52+待ち |
 | C | Anthropic direct API／SDK | `mirakan.arch.toolchain-dependencies` | direct Provider projectionがProduct WPへ登録された時 | official SDK exact version／integrity／license、Provider version、Schema keyword conformance、credential／error／rate-limit fixture | direct projectionだけを停止しMVPはMCP経路を使用／scope未登録 |
@@ -253,12 +255,13 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 
 ## 8. Toolchain lock contract
 
-Repository rootの`toolchain.lock.json`はschema version 6とし、未知Field、`null`、重複ID、相対URL、version range、`latest`、wildcard、複数hash候補を拒否する。Profile、artifact、Driver、resolved fileをIDまたは正規化relative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
+Repository rootの`toolchain.lock.json`はschema version 6とし、未知Field、`null`、重複ID、相対URL、version range、`latest`、wildcard、複数hash候補を拒否する。条件不該当Fieldは`null`でなくtagged branchから省略する。Profile、artifact、Driver、resolved fileをIDまたは正規化relative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
 
 | Field | 規則 |
 |---|---|
 | `lock_schema_version` | `uint32`、値6 |
-| `profiles[].profile_id` | `target.windows.desktop`、`target.android.mobile`、`target.apple.mobile`を各一件。Product Plan Target Profile Registryと同じlogical ID |
+| `profiles[].profile_id` | Product current Targetとset equalityの`target.headless.host`、`target.windows.editor`、`target.windows.desktop`、`target.android.mobile`、`target.apple.mobile`を各一件。headlessはWindows x64 native build/test hostでありOS-genericまたはLinuxを意味しない。EditorとDesktopはartifact refを共有できるが独立Profileとして全Fieldを持つ |
+| `profiles[].profile_kind` | `build_host \| editor_host \| runtime_target`。headless=`build_host`、Windows Editor=`editor_host`、Windows／Android／Apple product runtime=`runtime_target` |
 | `profiles[].profile_version` | `uint32`、初期値1。logical IDへversionを埋め込まない |
 | `profiles[].host` | OS、architecture、minimum version、CI image digest |
 | `profiles[].target.deployment_target` | Target minimum OSのcanonical numeric string。値は各Profileの正本行（`target.apple.mobile`は[§2.3 Apple](#23-apple)のDeployment target行、`target.android.mobile`は[§2.2 Android](#22-android)のminimum SDK行、`target.windows.desktop`は[§2.1 Windows](#21-windows)のTarget minimum OS行）と一致する。正本行が未固定のProfileではField自体を拒否 |
@@ -272,13 +275,15 @@ Repository rootの`toolchain.lock.json`はschema version 6とし、未知Field�
 
 Windows installerはSHA-256に加えてAuthenticode chainとPublisher、GitHub artifactはrelease API digest、tag commit、取得後hash、npm packageはlockfileのintegrityを照合する。不一致はconfigure前に失敗させる。
 
-schema version 5から6へのoffline migrationは次のexact mappingだけを許可する。旧IDをruntime aliasとして保持せず、migration後はold IDを拒否する。
+`profile_kind`はtagged unionである。`build_host`はWindows x64 host OS／architecture／CI image／Build tool fieldsを必須とし`target`／deployment Fieldを禁止する。`editor_host`は§2.1のBuild／Editor Host OSとexact同値のWindows minimum OS、host、Editor driver／artifact fieldsを必須とする。`runtime_target`はTarget OS／architecture／deployment target、Target compiler／SDK／driver fieldsを必須とする。共通artifactをref共有してもProfile objectを省略またはalias化しない。
+
+schema version 5から6を単独の自動offline renameで移行することは禁止する。旧3 profileを次表でrenameするだけでは必須のheadless／editor 2 profileと`profile_kind`を生成できない。表はlegacy inventory分類だけに使い、実移行は5 profileの完成schema6 lock、Active Definition row migration、Control Plane rebaseline、full-reset Product state migrationを一つのChangeSetとして承認する。旧IDをruntime aliasとして保持せず、migration後はold IDを拒否する。
 
 | schema 5 `profile_id` | schema 6 `profile_id` | 追加Field |
 |---|---|---|
-| `windows_desktop_v1` | `target.windows.desktop` | `profile_version=1` |
-| `android_mobile_v1` | `target.android.mobile` | `profile_version=1` |
-| `apple_mobile_v1` | `target.apple.mobile` | `profile_version=1` |
+| `windows_desktop_v1` | `target.windows.desktop` | `profile_version=1, profile_kind=runtime_target` |
+| `android_mobile_v1` | `target.android.mobile` | `profile_version=1, profile_kind=runtime_target` |
+| `apple_mobile_v1` | `target.apple.mobile` | `profile_version=1, profile_kind=runtime_target` |
 
 ### 8.1 CI execution profile
 
@@ -287,14 +292,16 @@ schema version 5から6へのoffline migrationは次のexact mappingだけを許
 | Field | Rule |
 |---|---|
 | `lane_id` | Verification正本のexact lane ID |
-| `runner_class` | `windows_gpu`、`windows_hardware_vm`、`macos_build`、`android_device`、`apple_device`、`portable_linux`のclosed enum |
+| `runner_class` | `windows_gpu`、`windows_hardware_vm`、`macos_build`、`android_device`、`apple_device`のclosed enum |
 | `hosting_mode` | `managed`または`self_hosted` |
-| `toolchain_profile_id` | `target.*`。native laneは`profiles[].profile_id`、`portable_linux`のarchitecture／JavaScript laneだけは`target.headless.host`を参照 |
-| `device_matrix_ref` | physical deviceを使う`android_device`／`apple_device`で必須、他classでは`null` |
+| `toolchain_profile_id` | `profiles[].profile_id`のexact `target.*`だけ。architecture／JavaScript laneもcurrent MVPではWindows x64 `target.headless.host`を使う |
+| `device_matrix_ref` | physical deviceを使う`android_device`／`apple_device` branchで必須。他runner branchではField自体を禁止する |
 | `capacity_state` | `unfixed`、`qualified`、`unavailable`のclosed enum |
 | `owner` | 調達、credential、patch、quota、保守、incident対応の責任主体。未決定時はliteral `unfixed` |
 
 Entry identityは`{lane_id, runner_class, toolchain_profile_id}`のtupleとし、重複を拒否する。`capacity_state=qualified`はrunner image hash、Toolchain lock hash、isolation profile、同時実行上限、retention、device matrix（該当時）、fresh Qualification Receiptが揃う場合だけ許可する。`unfixed`または`unavailable`、`owner=unfixed`、Receipt失効、device欠落ではlane開始を`diagnostic.toolchain.ci-capacity-unresolved`で拒否し、local runner、別OS、別device、managed／self-hosted間へ暗黙fallbackしない。
+
+portable Linux CIを導入する場合はProduct Targetを偽装せず、別`ci.host.portable-linux` execution profileとしてdistro、kernel、libc、architecture、container／VM image digest、Node／JavaScript tool hashをすべて固定するDependency ChangeSetを先に承認する。現行lock／runner enumにはこのprofileをmaterializeせず、Linux Product supportはProduct Planのplanning-only Future entryのままとする。
 
 ユーザーがrunner契約、self-hosted host、実機pool、担当Ownerをまだ指定していないため、本文書はcapacityや費用を推測しない。Productの見積りは[Product Plan §5.1](../00-product/product-plan.md#51-開発体制見積りrisk-contract)の`team_assumption_state=unfixed`を維持し、必要laneが`qualified`になるまで該当product target gateを開始しない。
 
@@ -335,8 +342,9 @@ Context7の内容はmain branchの挙動説明であり、exact release／commit
 | 対象 | 公式URL | 検証日 | Miraikanaiの適用判断 |
 |---|---|---|---|
 | MCP stable specification | [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) | 2026-07-23 | 表示上の`latest`へ追従せずprotocol baselineを`2025-11-25`へ固定し、draft／RCをProductionへ自動採用しない |
-| MCP Authorization | [MCP 2025-11-25 Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) | 2026-07-23 | Authorizationはoptionalとし、HTTP-based transportで有効化する場合は同仕様のOAuth discovery／token audienceを適用する。STDIO transportは同flowを使わずcredentialをenvironmentから取得する |
-| OpenAI MCP | [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp) | 2026-07-23 | ChatGPT desktop／Codex CLI／IDEのMCP設定経路を確認し、Miraikanaiの外部ClientはMCP 2025-11-25 conformance Gateを別途必須にする |
+| MCP Authorization | [MCP 2025-11-25 Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) | 2026-07-23 | Authorizationはoptionalとし、HTTP-based transportで有効化する場合は同仕様のOAuth discovery／token audienceを適用する。STDIOはMCP OAuth対象外だが、MiraikanaiではEngine／Project credentialをenvironmentから継承しない。AI Security §8の`none`またはTask専用短命Broker例外だけを許可する |
+| OpenAI ChatGPT MCP app | [Developer mode and MCP apps in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt) | 2026-07-23 | ChatGPT Chat／Workのcustom MCP appは現行web-only、remote MCP接続である。private network／developer machineはSecure MCP Tunnelを使い、direct local MCPとして表示しない。plan／workspace／admin条件もHost Profileへ固定する |
+| OpenAI Codex-hosted MCP | [Codex Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) | 2026-07-23 | ChatGPT desktop app内Codex host、Codex CLI、IDEは共有Codex設定からSTDIO／Streamable HTTPを使える。ChatGPT Chat／Workとは別Profileにし、MiraikanaiのMCP 2025-11-25 conformance Gateを別途必須にする |
 | OpenAI GPT-5.6 | [GPT-5.6 migration guidance](https://developers.openai.com/api/docs/guides/upgrading-to-gpt-5p6-sol) | 2026-07-23 | direct Providerの既定explicit modelを`gpt-5.6-sol`、reasoning effortを`medium`とし、ModelSnapshot Profile／Evalなしにaliasへ追従しない |
 | Ajv Draft 2020-12 | [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html#draft-2020-12)、[Ajv 8.20.0 registry metadata](https://registry.npmjs.org/ajv/8.20.0) | 2026-07-23 | `ajv/dist/2020`をControl Plane lintだけへexact lockし、§4のtarball／integrity／MITをread-backする。C++ Runtime validatorの未固定状態は閉じない |
 | CMake C++ Modules | [latest manual](https://cmake.org/cmake/help/latest/manual/cmake-cxxmodules.7.html)、[4.4 manual](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html) | 2026-07-23 | 4.4の`import std`はExperimental opt-inかつNinja／Ninja Multi-Config限定とする。Visual Studio GeneratorのIMPORTED BMIをShipping経路にしない |

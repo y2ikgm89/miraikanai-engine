@@ -1,6 +1,8 @@
 # Legacy Branch Reconciliation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: completed historical plan; do not execute.** Current implementation authority is the 2026-07-22 Control Plane Design／Implementation Plan with `ArchitectureMetadataV2`, lifecycle sidecars, and current baseline binding.
+
+> **Historical instruction (superseded; must not be followed):** 当時のagent実行手順とcheckboxは完了記録としてのみ保持する。現行作業の指示として解釈しない。
 
 **Goal:** Preserve the dirty legacy worktree, reconcile every unique architecture-comprehension requirement into the current canonical documents and plans, merge the result to `main`, and remove obsolete worktrees and branches without losing information.
 

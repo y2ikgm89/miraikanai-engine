@@ -30,7 +30,7 @@ Solは複雑で曖昧な高価値作業、Terraは日常的な作業とread-heav
 
 ## 3. 設定layerと優先順位
 
-Codexは同じ設定layerをCLI、IDE extension、ChatGPT desktop appで共有する。優先順位は高い順に次である。
+Codexは同じ設定layerをCodex app、CLI、IDE extensionで共有する。ChatGPT Chat／Workのremote MCP app設定とは別であり、この設定layerをChatGPT Chat／Workへ投影しない。優先順位は高い順に次である。
 
 1. CLI flagと`--config`
 2. trusted project内の`.codex/config.toml`。rootからcurrent directoryへ近いlayerが勝つ

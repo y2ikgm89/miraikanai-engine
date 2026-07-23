@@ -375,9 +375,9 @@ Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示し�
 - Schema、Profile、namespace、path、dependency、public Shader SDK conformance。
 - `PublicShaderSdkCatalogV1`の全public symbol coverage、declaration／documentation hash、Project参照closure、private symbol 0件。
 - 許可／禁止HLSL、bounded loop、resource index、variant、atomic／wave／ray Capabilityのpositive／negative fixture。
-- 全Targetのclean offline compile、validator、reflection、source map、artifact hash再現。
+- current Product Registryで当該Capabilityの`scope=required`となる全Targetについて、clean offline compile、validator、reflection、source map、artifact hashを再現する。Phase 5の`capability.project.shader`はWindows Editor／Desktopだけをrequiredとし、Android／Appleは別のProduct Target bindingとfresh Target Qualificationまで`excluded`かつ非対応表示にする。
 - Manifest対static fact／reflection／runtime-use traceのresource、side effect、interface一致。
-- D3D12／Vulkan／Metalのbinding、matrix、clip／depth、precision、texture coordinate、Stage interface差分fixture。
+- required Targetが使用するBackendのbinding、matrix、clip／depth、precision、texture coordinate、Stage interface差分fixture。Phase 5はD3D12だけを評価し、Vulkan／MetalはAndroid／Apple Targetを追加する後続ChangeSetでそれぞれ必須化する。Windows ReceiptからMobile対応を推論しない。
 - Graph／Module／Techniqueのcycle、missing producer、unordered write、history、fallback、capacity fixture。
 - Parameter sweep、counterfactual、NaN／Inf、range端、zero／max resource、deterministic seed。
 - Reference image、analytic invariant、Target別visual tolerance、before／after diff。
