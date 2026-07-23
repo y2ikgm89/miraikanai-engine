@@ -128,7 +128,7 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 | `public_contract_refs[]` | version／hash付き`StageDefinitionV1; CompletionContractV1; StageRuntimeStateV1; StageTransitionDestinationV2; StageTransitionPolicyV1; StageTransitionRequestV2; StageTransitionContractManifestV1` |
 | `runtime_port_refs[]` | version／hash付き`StageActivationPortV1; StageTransitionPortV2` |
 | `configuration_profile_refs[]` | `StageContentActivationPolicyV1; StageSaveReplayPolicyV1` |
-| `test_scenario_refs[]` | `fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless` |
+| `test_scenario_refs[]` | `fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless; fixture.feature.scenario_stage.aggregate-manifest-set-equality` |
 
 `StageActivationPortV1`はStage instance key、source Stage ref、required nullable World ref、content activation policy、optional requested entry anchor、requested Feature System refsを入力し、activation generationまたはtyped failureを返す。World／Scene／Cell handleをPublic APIへ出さない。
 
@@ -150,7 +150,7 @@ StageTransitionContractManifestV1
     McdContractRefV1(id=type.feature.scenario_stage.transition_port_message, version=2, contract_set_hash)
 ```
 
-Pack Manifest、Contract Manifest、active MCD Contract set、StageTransitionPort descriptorのtype ref集合はset equalityで一致し、missing／duplicate／version／hash mismatchをPack applyとRuntime Activationの両方で拒否する。
+Pack Manifest、Contract Manifest、Gameplay Features aggregate manifest、active MCD Contract set、StageTransitionPort descriptorのtype ref集合は同じcanonical owner sourceから生成し、set equalityで一致しなければならない。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`はmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchをPack applyとRuntime Activationの両方で拒否する。
 
 ## 10. Content activationとRuntime state
 

@@ -78,7 +78,21 @@ Provider-private `CharacterMoveIntentV1`はCharacter handle、consume tick ref�
 |---|---|---|---|---|---|---|
 | `capability.motion_executor.physics_character_motor` | `type.physics.character_motor_profile` | `[type.feature.character_locomotion.gameplay_motion_intent, type.navigation.movement_intent, type.animation.root_motion_proposal]` | `type.navigation.motion_executor_intent_batch` | `type.physics.character_resolved_motion` | `policy.physics.character_motor_intent_profile_target_dimension` | `[MIRAKAN-PHYSICS-CHARACTER-MOTOR-INCOMPATIBLE, MIRAKAN-PHYSICS-CHARACTER-MOTOR-RESOLUTION_FAILED, MIRAKAN-PHYSICS-CHARACTER-MOTOR-STALE_RESULT]` |
 
-production recordは`provider_id=provider.engine.physics.character_motor`、`provider_version=1`、self-excluding content hash、Engine Physics componentのexact owner ref／hash、`usage=production`、implementation System ref／hash、Target Profile集合、Qualification Receipt集合を持つ。policyはintent type subset、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityを検証する。root-motion modeが`animation`なのにexact `type.animation.root_motion_proposal`を受理できないrecordはActivation前に拒否する。
+production recordは`provider_id=provider.engine.physics.character_motor`、`provider_version=1`、self-excluding content hash、Engine Physics componentのexact owner ref／hash、`usage=production`、implementation System ref／hash、Target Profile集合、Qualification Receipt集合を持つ。Compile／Activation／Batch／Save／Replayが使用するidentityは次のNavigation-owned RecordRefだけである。
+
+```text
+MotionExecutorProviderRecordRefV1
+  catalog_ref:
+    catalog_id=motion_executor.provider_catalog.active
+    catalog_version=exact compiled version
+    catalog_hash=exact compiled catalog hash
+    contract_set_hash=exact compiled Contract set hash
+  provider_id=provider.engine.physics.character_motor
+  provider_version=1
+  provider_content_hash=exact production record content hash
+```
+
+policyはintent type subset、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityを検証する。root-motion modeが`animation`なのにexact `type.animation.root_motion_proposal`を受理できないrecordはActivation前に拒否する。stale Catalog ref、stale provider content hash、fixture RecordRefへの置換をproduction qualificationで個別に拒否する。
 
 T40のFeature-owned binding SystemはGameplay、Navigation、Animation proposalをNavigation-owned `MotionExecutorIntentBatchV1` Port messageとして提出し、選択済みPhysics Character Motor Providerがentriesのaccepted schemaを一度だけ解決する。Animationを含む全proposalはbinding Systemを経由し、Providerへ直接提出しない。Provider-private `CharacterMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのpublic accepted setへ混ぜない。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のProvider policyに従い、優先順位を暗黙に変更しない。
 

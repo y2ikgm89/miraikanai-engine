@@ -238,9 +238,9 @@ FSMは一instance、一tickにつき最大一transitionである。active state�
 |---|---|
 | MCD共通Envelope | [Executable contracts](../02-foundation/executable-contracts.md)の全Field |
 | `system_origin` | `engine_standard \| project_defined \| engine_extension` |
-| `semantic_role_ids` | version／content hash付き`SemanticRoleRefV1`、1～16件 |
-| `responsibility_requirement_ids` | `McdContractRefV1(kind=requirement)`、1～64件。bare IDを保存しない |
-| `non_responsibility_requirement_ids` | `McdContractRefV1(kind=requirement)`、0～64件。bare IDを保存しない |
+| `semantic_role_refs` | `SemanticRoleRecordRefV1`、1～16件 |
+| `responsibility_requirement_refs` | `McdContractRefV1(kind=requirement)`、1～64件。bare IDを保存しない |
+| `non_responsibility_requirement_refs` | `McdContractRefV1(kind=requirement)`、0～64件。bare IDを保存しない |
 | `runtime_scope_type_ref` | `RuntimeScopeTypeRefV1 {scope_type_id, scope_type_version, scope_type_hash}`。active `RuntimeScopeTypeCatalogV1`のexact entry、厳密に1件 |
 | `state_class` | `authoritative \| derived \| presentation_only \| tooling_only` |
 | `owned_state_type_refs` | exact MCD Type、0～128件 |
@@ -251,15 +251,68 @@ FSMは一instance、一tickにつき最大一transitionである。active state�
 | `provided_capability_refs` | exact Capability、0～128件 |
 | `required_capability_refs` | exact Capability、0～128件 |
 | `allowed_phase_ids` | Runtime phase ID、1～16件 |
-| `dependency_edges` | `GameSystemDependencyEdgeV1`、0～128件 |
-| `implementation_policy` | `GameSystemImplementationPolicyV1` |
-| `save_replay_contract_ref` | authoritative State ownerでは必須 |
-| `behavior_budget_refs` | Target Profileごとのexact参照 |
+| `dependency_edge_refs` | `GameSystemDependencyEdgeRecordRefV1`、0～128件 |
+| `implementation_policy_ref` | `GameSystemImplementationPolicyRecordRefV1`、厳密に1件 |
+| `save_replay_contract_ref` | `SaveReplayContractRecordRefV1`。authoritative State ownerでは必須 |
+| `behavior_budget_refs` | `BehaviorBudgetRecordRefV1`、Target Profileごとのexact参照 |
 | `authoring_surface_ids` | natural language／form／table／graph／timeline／sourceのsubset |
 | `fallback_contract` | 意味同等fallbackまたは`no_fallback`理由 |
-| `fixture_ids` | Engine-owned／Project fixture、1～128件 |
-| `compatibility_invariant_ids` | Predicate ID、1～128件 |
+| `fixture_refs` | `GameSystemFixtureRecordRefV1`、1～128件 |
+| `compatibility_invariant_refs` | `CompatibilityInvariantRecordRefV1`、1～128件 |
 | `extension_policy` | `sealed \| composable \| replaceable` |
+
+非MCD補助record refは次の別型へ閉じ、すべて`id`、`version`、`content_hash`を必須にする。Field名が違う旧inline record、bare ID、`*_ids` aliasをcurrent schemaで読まない。
+
+```text
+SemanticRoleRecordRefV1
+  id
+  version: uint32
+  content_hash: SHA-256
+
+GameSystemDependencyEdgeRecordRefV1
+  id
+  version: uint32
+  content_hash: SHA-256
+
+GameSystemImplementationPolicyRecordRefV1
+  id
+  version: uint32
+  content_hash: SHA-256
+
+SaveReplayContractRecordRefV1
+  id
+  version: uint32
+  content_hash: SHA-256
+
+BehaviorBudgetRecordRefV1
+  id
+  version: uint32
+  content_hash: SHA-256
+
+GameSystemFixtureRecordRefV1
+  id
+  version: uint32
+  content_hash: SHA-256
+
+CompatibilityInvariantRecordRefV1
+  id
+  version: uint32
+  content_hash: SHA-256
+
+GameSystemSpecV2AuxiliaryRefSetV1
+  semantic_role_refs[1..16]: SemanticRoleRecordRefV1
+  responsibility_requirement_refs[1..64]: McdContractRefV1(kind=requirement)
+  non_responsibility_requirement_refs[0..64]: McdContractRefV1(kind=requirement)
+  dependency_edge_refs[0..128]: GameSystemDependencyEdgeRecordRefV1
+  implementation_policy_ref: GameSystemImplementationPolicyRecordRefV1
+  save_replay_contract_ref: SaveReplayContractRecordRefV1
+    | canonical omission when state_class is not authoritative
+  behavior_budget_refs[1..64]: BehaviorBudgetRecordRefV1
+  fixture_refs[1..128]: GameSystemFixtureRecordRefV1
+  compatibility_invariant_refs[1..128]: CompatibilityInvariantRecordRefV1
+```
+
+`type.game_system.spec` version 2だけが上記Fieldをcurrentとして登録する。`semantic_role_refs`、二requirement ref集合、`dependency_edge_refs`、`implementation_policy_ref`、`save_replay_contract_ref`、`behavior_budget_refs`、`fixture_refs`、`compatibility_invariant_refs`はactive recordをexactly oneへ解決し、Specにinline payloadを埋め込まない。補助recordの`content_hash`、MCD requirement／type／CapabilityのContract set hash、Scope hashのどれか一つでもstaleならSystem Catalog全体をrejectする。
 
 一つのSpecはCatalogで解決した一scopeだけを持つ。複数scopeのStateを所有する場合はSystemを分割し、Stable handleまたはtyped Eventで接続する。
 
@@ -364,7 +417,7 @@ Catalog materialization、owner removal、Runtime activationのいずれかで�
 
 `GameSystemSpecV1`旧版の`runtime_instance_scope`を持つSourceは、versioned offline migrationで現行版の`runtime_scope_type_ref`へ一方向変換する。legacy `play_session`は`scope.core.runtime_session`、`world_instance`は`scope.core.world`、`entity_instance`は`scope.core.entity`、`ui_session`は`scope.core.ui_session`へ移す。Stage、Encounter、Scoring、Shooter Game Flowはそれぞれ`scope.feature.scenario_stage.instance`、`scope.feature.encounter_spawn.instance`、`scope.feature.scoring.instance`、`scope.genre.shooter.game_flow.instance`へ移し、`level_instance`／`encounter_instance`、末尾`.instance`を欠くGenre aliasを解決しない。
 
-current validatorは`runtime_instance_scope` Field、legacy enum、IDだけの`runtime_scope_type_ref`、version／hash欠落、current Catalog以外のscope hashをすべて`MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID`でrejectする。migration readerだけが旧Contract setを入力として読み、current deserializerへaliasを残さない。
+current validatorは`runtime_instance_scope` Field、legacy enum、IDだけの`runtime_scope_type_ref`、version／hash欠落、current Catalog以外のscope hashをすべて`MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID`でrejectする。同じversioned migrationは旧`semantic_role_ids`、`responsibility_requirement_ids`、`non_responsibility_requirement_ids`、inline `dependency_edges`／`implementation_policy`／Save Replay contract／behavior budget、bare `fixture_ids`／`compatibility_invariant_ids`を、現行`GameSystemSpecV2AuxiliaryRefSetV1`の全Fieldへexact registry lookupで一方向変換する。旧inline payload hashとresolved record content hashが一意に対応しない場合はmigration conflictとし、migration readerだけが旧Contract setを入力として読み、current deserializerへaliasを残さない。
 
 offline MCD Operationは`operation.runtime_scope.migrate_game_system_v1_to_v2`である。inputは`McdContractRefV1`で`type.runtime_scope.game_system_v1_migration_input` version 1を参照し、旧System Source ref／hash、旧Contract set hash、移行先Catalog ref／hash、resolved owner／instance-key／lifetime／Save Replay／activation／deactivation refs、expected Project revision、idempotency key、Approvalを持つ。outputは`type.runtime_scope.game_system_v1_migration_result` version 1で、新System Source ref／hash、新scope typed ref、新Project revision、Preview／Validation／Commit Receipt ref／hash、`RuntimeScopeMigrationReceiptV1`を持つ。Receiptはbefore System schema ref／hashとlegacy scope value hash、after System schema ref／hashと七dependency ref／hash、Source instance identity mapping、Save identity mapping、Replay identity mapping、ephemeral generation非移行、Diagnosticを記録する。Authority、Risk、transaction、timeoutは[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)に固定する。
 
@@ -373,6 +426,8 @@ RuntimeScopeGameSystemV1MigrationInputV1
   operation_ref: McdContractRefV1(
     id=operation.runtime_scope.migrate_game_system_v1_to_v2, version=1, contract_set_hash)
   project_ref: exact {project_id, expected_project_revision, document_set_hash}
+  contract_set_hash
+  request_hash
   legacy_system_source_ref
   legacy_system_source_hash
   legacy_system_schema_ref
@@ -380,10 +435,13 @@ RuntimeScopeGameSystemV1MigrationInputV1
   destination_catalog_ref: RuntimeScopeCatalogRefV1
   destination_catalog_hash
   resolved_scope_entry: exact seven typed refs
+  resolved_auxiliary_ref_set: GameSystemSpecV2AuxiliaryRefSetV1
   source_instance_identity_mapping_ref
   save_identity_mapping_ref
   replay_identity_mapping_ref
   idempotency_key
+  preview_policy_ref: McdContractRefV1(kind=policy)
+  validation_policy_ref: McdContractRefV1(kind=policy)
   authorization_ref
   approval_ref
 
@@ -409,14 +467,17 @@ RuntimeScopeMigrationReceiptV1
   before_system_schema_ref/hash
   after_system_schema_ref/hash
   legacy_scope_value_hash
+  legacy_auxiliary_payload_hash
   seven_dependency_after_refs/hashes
+  auxiliary_ref_set_after: GameSystemSpecV2AuxiliaryRefSetV1
+  auxiliary_ref_set_after_hash
   source_instance_identity_mapping_ref/hash
   save_identity_mapping_ref/hash
   replay_identity_mapping_ref/hash
   ephemeral_generation_migrated: false
 ```
 
-入力schema revision、owner row、七dependency、Save／Replay mappingが一意でない、hashがstale、または一instanceでもidentity collisionする場合は`MIRAKAN-RUNTIME-SCOPE-MIGRATION_CONFLICT`で全migrationを拒否し、last-valid Source／Catalog／active instanceを維持する。positive fixtureはCore 4 mapping、Stage、Encounter、Scoring、Shooter Game FlowをSave／Replay round-tripまで検証し、negative fixtureは旧Fieldのcurrent入力、bare scope ID、removed owner、wrong owner revision、instance key／lifetime／Save Replay／activation／deactivationの各hash mismatch、partial migrationを一原因ずつ拒否する。
+`request_hash`は`SHA-256(ASCII "MIRAKAN_OPERATION_REQUEST_V1" || request_hash自身を除くinput全FieldのMCD canonical bytes)`である。Operation exact ref、input／output、pre／post policy、authority、risk、closed Diagnostic set、timeout、rate limit、Receiptは[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)の一recordだけを参照し、本書でカテゴリ補完しない。入力schema revision、owner row、七dependency、選択Specの全補助record、Save／Replay mappingが一意でない、hashがstale、または一instanceでもidentity collisionする場合は`MIRAKAN-RUNTIME-SCOPE-MIGRATION_CONFLICT`で全migrationを拒否し、last-valid Source／Catalog／active instanceを維持する。positive fixtureはCore 4 mapping、Stage、Encounter、Scoring、Shooter Game Flowを検証し、Character Locomotionでは12 record exact resolutionとSave／Replay round-tripまで検証する。negative fixtureは旧Fieldのcurrent入力、bare scope／role／dependency／Save Replay／budget／fixture／invariant ID、inline auxiliary payload、removed owner、wrong owner revision、instance key／lifetime／Save Replay／activation／deactivationの各hash mismatch、pre／post policy wrong-kind／missing／stale、partial migrationを一原因ずつ拒否する。
 
 `GameSystemImplementationPolicyV1`は許可Implementation kind、default implementation、Native eligibility、replacement policy、live switch policy、equivalence fixture、required Target、configuration schema、unavailable behaviorを持つ。Native live switchは許可しない。Project overrideもPublic Contract、State、Save field、Replay意味を変更できない。
 

@@ -274,7 +274,7 @@ ShooterTargetProviderBindingV1
 
 ShooterTargetProviderOwnerIdentityV1
   owner_kind: project_owned | fixture_only
-  project_ref: exact {project_id, project_revision, document_set_hash} | null
+  project_id: StableId | null
   fixture_owner_ref: exact {fixture_id, fixture_version, fixture_hash} | null
 
 ShooterTargetProviderBindingRegistryV1
@@ -292,9 +292,11 @@ ShooterTargetProviderBindingRegistryV1
     binding_hash
 ```
 
-Binding Documentは共通identity ruleに従い、`DocumentRef.stable_id == header.document_id == payload.binding_id`を必須とし、`owner_kind=project_owned`かつ`usage=project_owned`以外を拒否する。`project_ref`だけをnon-nullにし、trusted Document headerの親Project、Registry project ref、compile対象current Projectがexact equalityでなければならない。payload自身がcurrent Projectだと主張しても証拠にせず、cross-project ref、self-assert spoof、stale Project revision／document set hashをrejectする。fixture bindingはBinding Documentではなく`ShooterTargetProviderFixtureBindingRecordV1`としてactive Fixture Registryだけに存在し、`FixtureRecordRef.stable_id == header.record_id == payload.binding_id`、exact fixture owner、`owner_kind=fixture_only`、`usage=fixture_only`を必須にする。Project Document／Production Registry／Production Save／Runtime Packageへ登録しない。
+Binding Documentは共通identity ruleに従い、`DocumentRef.stable_id == header.document_id == payload.binding_id`を必須とし、`owner_kind=project_owned`かつ`usage=project_owned`以外を拒否する。Project payloadはstable `project_id`だけをnon-nullにし、Project revision／document set hashを保存しない。所有証明はtrusted Document indexのProject containment、共通headerのparent Project、current `ShooterTargetProviderBindingRegistryV1.project_ref.project_id`、compile対象Project IDの四者exact equalityと、current Registryの`binding_document_refs[]` membershipで行う。payload自身のProject IDだけを証拠にせず、cross-project containment、self-assert spoof、Registry非memberをrejectする。fixture bindingはBinding Documentではなく`ShooterTargetProviderFixtureBindingRecordV1`としてactive Fixture Registryだけに存在し、`FixtureRecordRef.stable_id == header.record_id == payload.binding_id`、exact fixture owner、`owner_kind=fixture_only`、`usage=fixture_only`を必須にする。Project Document／Production Registry／Production Save／Runtime Packageへ登録しない。
 
-Production applyはProject-owned Binding Documentのexact ref／content hash／binding hash、template ref／hash、implementation System ref／hash、Save Replay contract ref／hashを必須にする。fixture binding、表示名、似たCollider、同じtemplateの別Project bindingへfallbackしない。`selected_bindings`はRuntime Entry／recipe／profile／Targetごとにexactly oneで、entry refのDocument content hashとpayload semantic hashを両方照合する。Compile Manifestの`selected_provider_binding_set_hash`と当該entry branch closureへ含める。Saveはbinding Document ref／hash、template hash、implementation System ref／hash、target data identity、Save Replay contract hashを保存し、Load／Replayは同じclosureまたは明示migrationを要求する。
+`binding_hash`は`SHA-256(ASCII "MIRAKAN_SHOOTER_TARGET_PROVIDER_BINDING_V1" || binding_id || binding_version || template ref/hash || owner_kind || stable project_idまたはfixture owner exact ref || usage || implementation System ref/hash || target data ref/hash || canonical selected Target Profile refs || Save Replay contract ref/hash)`である。Project revision、document set hash、Binding Document header／content hash、Registry revision／hash、Compile Manifest hash、Receipt hashを入力に含めないため、Commit後revisionをpayloadへ戻すfixed pointを作らない。
+
+Production applyはProject-owned Binding Documentのexact ref／content hash／binding semantic hash、template ref／hash、implementation System ref／hash、Save Replay contract ref／hashを必須にする。fixture binding、表示名、似たCollider、同じtemplateの別Project bindingへfallbackしない。`selected_bindings`はRuntime Entry／recipe／profile／Targetごとにexactly oneで、entry refのDocument content hashとpayload semantic hashを両方照合する。Registryはpost-commit exact `{project_id, project_revision, document_set_hash}`、Registry hash、binding Document membershipを持つ。Compile Manifestの`selected_provider_binding_set_hash`はcurrent Registry ref／hash、post-commit Project revision／document set hash、各Binding Document ref/content hash／binding semantic hashを含め、当該entry branch closureへ入れる。Saveはbinding Document ref／content hash、binding semantic hash、template hash、implementation System ref／hash、target data identity、Save Replay contract hashを保存し、Load／Replayは同じclosureまたは明示migrationを要求する。
 
 fixture-only recordはexact `fixture.genre.shooter.target-practice-minimal` owner、`usage=fixture_only`、fixture implementation System、fixture target data、fixture Target Profileを持つ。このdeterministic implementationはpredeclared query inputとtarget Stable IDからHit Evidenceを返し、World、Physics、Perception、render visibilityへ依存しない。Qualification sandbox内のSave／Load／Replay evidenceだけに使用でき、Production Source／Registry／Save／Packageへの選択を常に拒否する。
 
@@ -350,7 +352,8 @@ type.genre.shooter.target_provider_binding_select_input
 
 type.genre.shooter.target_provider_binding_mutation_result
   disposition: committed | rejected
-  committed: affected binding ref, before/after Project revision,
+  committed: affected binding ref, before/after exact Project ref
+             including revision/document_set_hash,
              before/after binding hash, Preview/Validation/Commit Receipt refs/hashes
   rejected: diagnostics[1..256]
 
@@ -362,7 +365,7 @@ type.genre.shooter.target_provider_binding_selection_result
   rejected: diagnostics[1..256]
 ```
 
-各input／output type refは`McdContractRefV1 {id, version=1, contract_set_hash}`である。全inputはexpected Project／Document revision、request hash、idempotency key、Preview policyを持つ。Receiptはoperation ref、before／after Project revision、binding before／after ref／hash、owner identity、template／implementation／Save Replay closure hash、Preview／Validation／Commit Receipt ref／hash、Diagnosticを持つ。permission、revision、identity／owner、template、type、hash、Target、fixture-in-production、timeoutを列挙し、失敗時はProject、Registry、Save、Compile Manifest、last-valid packageを変更しない。
+各input／output type refは`McdContractRefV1 {id, version=1, contract_set_hash}`である。expected base Project revision／document set hashはOperation inputだけに存在し、post-commit revision／document set hashはResult Receipt、Registry、Compile closureだけに存在する。全inputはrequest hash、idempotency key、Preview policyを持つ。Receiptはoperation ref、before／after exact Project ref、binding before／after ref／hash、stable owner identity、template／implementation／Save Replay closure hash、Preview／Validation／Commit Receipt ref／hash、Diagnosticを持つ。permission、revision、identity／owner、template、type、hash、Target、fixture-in-production、timeoutを列挙し、失敗時はProject、Registry、Save、Compile Manifest、last-valid packageを変更しない。
 
 三OperationはMCD Registryで`operation_kind=command`、`audit_level=full_redacted`、`rate_limit_policy={id=policy.authoring.shooter_target_provider_binding_rate_limit, version=1, contract_set_hash}`、`provider_exposure=mcp_proposal`とする。errorsは`MIRAKAN-CONFLICT-REVISION_MISMATCH`、`MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_IDENTITY_MISMATCH`、`MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_OWNER_MISMATCH`、`MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TEMPLATE_MISMATCH`、`MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TYPE_MISMATCH`、`MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_HASH_MISMATCH`、`MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_TARGET_UNSUPPORTED`、`MIRAKAN-GENRE-SHOOTER-TARGET_PROVIDER_FIXTURE_IN_PRODUCTION`、permission／lock／approval／timeoutのclosed setで、string-only errorやpartial resultを返さない。
 
@@ -464,7 +467,7 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 `fixture.genre.shooter.target-practice-minimal-no-perception`はPerception Validator／Profile、full 2D／TPS fixture、Scenario／Stage、Scoring、Character Locomotion、Path Following、Encounter、Pickup、Interactionを未installにしたregistryからminimal Recipeだけをapply／qualifyするregression fixtureである。Manifest inventoryに`validator.genre.shooter.perception_binding`やfull fixtureが存在しても選択Recipe gateへ追加されないことを検証する。
 
-`fixture.genre.shooter.target-practice-minimal-project-provider`はProduction modeでcurrent ProjectのBinding Documentをcreate→save→reload→select→cook→Play→Save／Load→Replayする。Project-defined logical target implementationはWorld、Physics、Perceptionを一切installせず、Ranged Combat ownerのexact Collision Query Port／Shot Hit Event type、Project-owned System、target dataだけでdeterministic Hit Evidenceを返す。Compile Manifestとentry closureが`selected_provider_binding_set_hash`を持ち、binding／template／System／Save Replay／target data hashのいずれかを変更するとpackageとReplay closureがinvalidateされることを検証する。
+`fixture.genre.shooter.target-practice-minimal-project-provider`はProduction modeでProject revision NのOperation inputからBinding Documentをcreateし、Commit Receipt／RegistryがN+1のrevision／document set hashを記録した後、N+1をreload→select→cook→Play→Save／Load→Replayする。続けてBindingと無関係なDocumentだけを編集したN+2を作り、binding semantic hashがN+1と同一のまま、N+2 Registry membershipとCompile closureのrevision／document set hashだけを更新して再compileできることを検証する。payloadへN+1／N+2 revisionを戻さずfixed pointを作らない。Project-defined logical target implementationはWorld、Physics、Perceptionを一切installせず、Ranged Combat ownerのexact Collision Query Port／Shot Hit Event type、Project-owned System、target dataだけでdeterministic Hit Evidenceを返す。Compile Manifestとentry closureが`selected_provider_binding_set_hash`を持ち、binding／template／System／Save Replay／target data hashのいずれかを変更するとpackageとReplay closureがinvalidateされることを検証する。
 
 ### 8.5 Negative fixture
 
@@ -475,7 +478,7 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 - Shooter PackなしのFeature-only Projectをvalidとする。
 - Shooter Pack removal後もCore／Editor／AI／Project source／Build／Packageを成功させる。
 - minimal Recipeへ未宣言のPerception／Stage／Score／Locomotionをclosure resolverが追加する実装を拒否する。
-- fixture-only bindingのProduction選択、cross-project Binding Document、payload self-assert owner、stale current Project ref、Binding identity三者不一致、template／implementation／Save Replay hash mismatchを各一原因で拒否する。
+- fixture-only bindingのProduction選択、cross-project Document index containment、payload project ID self-assert spoof、current Registry membership欠落、Operation inputのstale base revision／document set hash、Binding identity三者不一致、payloadへのProject revision／document set hash混入、template／implementation／Save Replay hash mismatchを各一原因で拒否する。
 - 既存2D／TPS RecipeからTask 1時点のFeature closureまたはPerception bindingが欠落した場合、qualificationを拒否する。
 
 Capability成熟度、Phase、Target別Activation、Product claimは[Product Plan](../00-product/product-plan.md)だけが所有する。

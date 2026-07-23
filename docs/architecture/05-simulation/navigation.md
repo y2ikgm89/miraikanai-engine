@@ -127,8 +127,7 @@ MotionExecutorIntentBatchV1
   actor_ref
   actor_generation
   valid_for_tick
-  provider_binding_ref
-  provider_binding_hash
+  provider_record_ref: MotionExecutorProviderRecordRefV1
   entries[1..16]:
     intent_schema_ref: McdContractRefV1(kind=type)
     payload_kind: referenced | inline_value
@@ -166,10 +165,23 @@ NavigationはProvider-neutralな次のCatalog schemaを所有する。Physics、
 
 ```text
 MotionExecutorProviderCatalogV1
+  catalog_id: motion_executor.provider_catalog.active
   catalog_version
   catalog_hash
   contract_set_hash
   records[1..1024]: MotionExecutorProviderRecordV1
+
+MotionExecutorProviderCatalogRefV1
+  catalog_id
+  catalog_version
+  catalog_hash
+  contract_set_hash
+
+MotionExecutorProviderRecordRefV1
+  catalog_ref: MotionExecutorProviderCatalogRefV1
+  provider_id
+  provider_version: uint32
+  provider_content_hash: SHA-256
 
 MotionExecutorProviderRecordV1
   provider_id
@@ -189,7 +201,7 @@ ProviderOwnerIdentityV1
   fixture_owner_ref: exact fixture ref/hash | null
 ```
 
-owner unionはdiscriminator外Fieldをnullにする。`usage=production`は`engine | project`だけ、`fixture_only`は`fixture`だけを許可する。recordは`provider_content_hash`を除く全FieldのMCD canonical bytesからhashし、Catalogはprovider ID、versionのbyte順でstrict sortしたrecord全体、Contract set hash、Catalog versionをhashする。Project ownerは現在compile対象Projectとexact equalityでなければならず、cross-project refやpayload自身が主張するProject IDだけでは所有を証明しない。fixture recordをProduction、Project Save、Runtime Packageへ選択しない。
+owner unionはdiscriminator外Fieldをnullにする。`usage=production`は`engine | project`だけ、`fixture_only`は`fixture`だけを許可する。recordは`provider_content_hash`を除く全FieldのMCD canonical bytesからhashし、CatalogはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_CATALOG_V1`、catalog ID／version、Contract set hash、provider ID／version順でstrict sortしたrecord全体を入力して自己hashを除外する。`MotionExecutorProviderRecordRefV1`はCatalog identity／version／hash／Contract setとrecord identity／version／content hashを一つにbindし、current Catalogからlatest recordを再解決しない。Batch、Selection State、Save、ReplayはこのRecordRefだけを保存し、`provider_binding_ref`＋別hash、Capability ID、表示名で代用しない。Project ownerは現在compile対象Projectとexact equalityでなければならず、cross-project refやpayload自身が主張するProject IDだけでは所有を証明しない。fixture recordをProduction、Project Save、Runtime Packageへ選択しない。
 
 `arrival_radius_m`はfiniteな0.01～10 mとする。`executor_capability_ref`は選択Provider Capability、`movement_profile_ref`はそのProvider-owned schemaのinstanceを参照する。request validationは`nav_agent_profile_ref`のslope／climb／clearance semanticsとProviderのcompatibility predicateを検査し、Navigation上はtraversableだがexecutorが通行できない組合せをinvalid Profile relationとして拒否する。C1 waypointは`GridNav2DProfileV1`の`max_path_cells`（C1上限8,192 cell）または`NavBuildProfile3DV1`の`max_straight_path_points`（C1上限256 point）に従い、上限値の正本はProfile fieldである。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、`PathFollowerStateV1.status`の`blocked`遷移だけがreplan契機である。`blocked`はProvider stateではなくPath Follower述語であり、Portの`resolved_motion_schema_ref`に適合する結果から得た実進捗だけが、`MovementIntentV1`の要求displacementに対して`replan_policy_ref`の進捗閾値未満であるtickが、同policyのblocked判定tick数だけ連続した場合に遷移する。Physics snapshot、Transform component、Animation pose、Provider-private stateから進捗を迂回判定しない。`replan_policy_ref`は進捗閾値、blocked判定tick数、最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
 
@@ -220,7 +232,7 @@ QualificationはGrid rasterization／A*、Profile cross-field validation、canon
 
 両policyはfixture Target allowlist、2D／3D dimension、profile schema、intent subsetを全件検証する。`fixture.navigation.motion-executor.board-token-no-physics`と`fixture.navigation.motion-executor.rts-stub-no-physics`は上記7 Field、Provider identity／version／content hash／owner／usage、Target／dimension policy、diagnostic、Physics dependency 0件を検証する。Physics production recordも同じCatalog schemaへ`usage=production`、Engine owner、exact implementation System／Qualification Receiptで登録する。
 
-negative fixtureはmissing／duplicate Provider、Provider record order、composition intent subset不成立、profile／Target／dimension incompatibility、stale result、MCD kind／type spoof、payload refとschema不一致、payload hash mismatch、duplicate proposal ID、noncanonical entry order、fixture ProviderのProduction選択、cross-project owner、self-asserted ownerを一原因ずつ拒否する。root-motionあり／なしの双方を検査し、proposalは必ずCharacter Locomotion binding経由の`MotionExecutorIntentBatchV1`でselected executorへ届く。Provider failure fixtureはPath progress、last-valid resolved motion、Path Follower stateを部分更新しない。
+negative fixtureはmissing／duplicate Provider、Provider record order、composition intent subset不成立、profile／Target／dimension incompatibility、stale result、stale Catalog version／hash、stale provider version／content hash、MCD kind／type spoof、payload refとschema不一致、payload hash mismatch、duplicate proposal ID、noncanonical entry order、fixture Provider RecordRefのProduction選択、cross-project owner、self-asserted ownerを一原因ずつ拒否する。root-motionあり／なしの双方を検査し、proposalは必ずCharacter Locomotion binding経由の`MotionExecutorIntentBatchV1`でselected executorへ届く。Provider failure fixtureはPath progress、last-valid resolved motion、Path Follower stateを部分更新しない。
 
 Dependency artifact identityとTarget buildは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定／capacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を消費する。
 
