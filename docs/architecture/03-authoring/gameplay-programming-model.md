@@ -152,6 +152,7 @@ InteractionDefinitionV1
   concurrency_policy: exclusive | shared
   activation_command_ref
   state_owner_ref
+  operation_eligibility_policy_ref: optional exact policy ref
   save_policy: none | owner_state
   accessibility_cue_refs[]
 
@@ -167,7 +168,7 @@ InteractionSnapshotV1
   actor_ref
   focused_target_ref
   available_interaction_refs[]
-  rejection_reason: none | stale_focus_generation | actor_deactivated | target_deactivated | actor_generation_mismatch | target_generation_mismatch | out_of_range | line_of_sight_blocked | game_flow_disallowed | exclusive_lease_conflict | unavailable_state_owner | unknown_interaction | unknown_input_action
+  rejection_reason: none | stale_focus_generation | actor_deactivated | target_deactivated | actor_generation_mismatch | target_generation_mismatch | out_of_range | line_of_sight_blocked | policy_denied | exclusive_lease_conflict | unavailable_state_owner | unknown_interaction | unknown_input_action
   generation
 ```
 
@@ -175,9 +176,9 @@ Perceptionは距離、FOV、channel filterで候補を先にbounded化し、Coll
 
 候補とQueryの生成、Query batch処理、結果の正規化は連続する固定tick phaseで行い、各段のphase割当と実行内容は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のphase表を正本とする。正規化済みの結果は次tickのGameplayが読む。visible target、heard stimulus、memoryを非決定的に切らず、priority、距離の量子化値、source `StableId`、stimulus IDのcanonical順で残した結果と`overflow_state`を返す。Perception／Interactionのcanonical順に使う距離の量子化値はmm単位へfloorした非負整数とし、浮動小数点比較を順序決定に使わない。`highest_priority_then_nearest`のpriorityは`target_priority_field_ref`が指すtyped Component fieldのexact参照から読み、`target_priority_field_ref`を持たないProfileは`highest_priority_then_nearest`を選択できない。`overflow_state`は同時発生したcandidates、visible targets、heard stimuli、memoryのoverflow bitを組合せられるclosed bitsetであり、`none = 0`だけをzero値のcanonical表現とする。canonical serializationはflagを宣言順のbit位置で符号化し、unknown bitをrejectしてgeneric fallbackへmapしない。C1 reference Profileはobserver当たりcandidates 64、visible targets 16、heard stimuli 16、memory 32、update interval 1～6 ticks、memory 0～600 ticksを許可する。Perception Systemだけがmemory、last confirmed tick、target `StableId`のauthoritative stateを所有し、Save／Replayにはそれらを保存／記録するが、Physics handle、Query result pointer、render objectは保存しない。
 
-Interactionの`max_range_m`はfiniteな0.1～100 mとする。FocusはCollision Ownerが定義する対象発見用の用途別Sensor Profile（`InteractionDefinitionV1.query_shape_ref`で参照）とversion付きQueryを使い、range、LOS、priority降順、距離の量子化値、target `StableId`の順で決定する。当該Sensor Profileのoverlap／query semanticsは[Collision](../05-simulation/collision.md)が所有し、本書はProfile IDを直書きしない。UIは`prompt_message_key`と`accessibility_cue_refs[]`を提示するだけで、localized文字列やpixel hitからWorldを変更しない。keyboard／controller／touchのUse入力は`InteractionRequestV1`となり、Engine Standard Interaction Systemがactor／target generation、range、LOS、Game Flow、exclusive lease、`state_owner_ref`を再検証して登録済みCommandを発行する。door、switch、pickup等の結果は参照先Game Systemが所有し、common Interaction Systemは任意のProject Componentを書き換えない。
+Interactionの`max_range_m`はfiniteな0.1～100 mとする。FocusはCollision Ownerが定義する対象発見用の用途別Sensor Profile（`InteractionDefinitionV1.query_shape_ref`で参照）とversion付きQueryを使い、range、LOS、priority降順、距離の量子化値、target `StableId`の順で決定する。当該Sensor Profileのoverlap／query semanticsは[Collision](../05-simulation/collision.md)が所有し、本書はProfile IDを直書きしない。UIは`prompt_message_key`と`accessibility_cue_refs[]`を提示するだけで、localized文字列やpixel hitからWorldを変更しない。keyboard／controller／touchのUse入力は`InteractionRequestV1`となり、Engine Standard Interaction Systemがactor／target generation、range、LOS、optional `operation_eligibility_policy_ref`、exclusive lease、`state_owner_ref`を再検証して登録済みCommandを発行する。policyがないneutral Interactionは追加FeatureまたはGenre stateを要求せず、policy ownerの拒否だけをgeneric `policy_denied`で返す。door、switch、pickup等の結果は参照先Game Systemが所有し、common Interaction Systemは任意のProject Componentを書き換えない。
 
-stale Query、target deactivate、range外、LOS遮断、exclusive lease競合は`rejection_reason`によるtyped rejectionとし、別targetへ推測で切り替えない。`rejection_reason`はclosed enumであり、stale focus generation、actor／target deactivate、actor／target generation mismatch、range外、LOS遮断、Game Flow不許可、exclusive lease競合、state owner unavailable、unknown interaction／input actionを別値で返す。canonical serializationは宣言したenum値をそのまま符号化し、unknown enum valueをrejectしてgeneric fallbackへmapしない。Focus QueryからUse確定までは最大1 tickだけ許容し、超過Requestは再Queryを要求する。exclusive leaseは確定Commandを発行するtickだけ有効で、継続占有は参照先Game Systemが別のauthoritative stateとして所有する。Saveは`state_owner_ref`のowner stateだけを対象とし、focus、prompt、lease、Physics handleは保存しない。ReplayはRequest、確定Command、overflow_state、rejection_reasonをcanonical serializationのまま記録して値を保持する。C1 fixtureはdoor、switch、collision pickup、explicit-use pickup、inspectを2D／3Dで同じContractへ通し、screen reader labelを含むAccessibility cue、pause、Level deactivate、同tick競合を検証する。
+stale Query、target deactivate、range外、LOS遮断、policy拒否、exclusive lease競合は`rejection_reason`によるtyped rejectionとし、別targetへ推測で切り替えない。`rejection_reason`はclosed enumであり、stale focus generation、actor／target deactivate、actor／target generation mismatch、range外、LOS遮断、generic policy denial、exclusive lease競合、state owner unavailable、unknown interaction／input actionを別値で返す。canonical serializationは宣言したenum値をそのまま符号化し、unknown enum valueをrejectしてgeneric fallbackへmapしない。Focus QueryからUse確定までは最大1 tickだけ許容し、超過Requestは再Queryを要求する。exclusive leaseは確定Commandを発行するtickだけ有効で、継続占有は参照先Game Systemが別のauthoritative stateとして所有する。Saveは`state_owner_ref`のowner stateだけを対象とし、focus、prompt、lease、Physics handleは保存しない。ReplayはRequest、確定Command、overflow_state、rejection_reasonをcanonical serializationのまま記録して値を保持する。C1 fixtureはdoor、switch、collision pickup、explicit-use pickup、inspectを2D／3Dで同じContractへ通し、screen reader labelを含むAccessibility cue、pause、owner scope deactivate、同tick競合を検証する。Shooter Game Flow eligibility policyはShooter Packだけが提供し、common Interaction manifestまたはSystem Graphへ依存辺を追加しない。
 
 ### 2.5 Rule／ECAとFinite State Machine V1
 
@@ -238,7 +239,7 @@ FSMは一instance、一tickにつき最大一transitionである。active state�
 | `semantic_role_ids` | versioned role ID、1～16件 |
 | `responsibility_requirement_ids` | Requirement ID、1～64件 |
 | `non_responsibility_requirement_ids` | Requirement ID、0～64件 |
-| `runtime_instance_scope` | closed scope、厳密に1件 |
+| `runtime_scope_type_ref` | `RuntimeScopeTypeCatalogV1`のexact scope type ref、厳密に1件 |
 | `state_class` | `authoritative \| derived \| presentation_only \| tooling_only` |
 | `owned_state_type_refs` | exact MCD Type、0～128件 |
 | `read_snapshot_type_refs` | exact MCD Type、0～256件 |
@@ -257,7 +258,37 @@ FSMは一instance、一tickにつき最大一transitionである。active state�
 | `compatibility_invariant_ids` | Predicate ID、1～128件 |
 | `extension_policy` | `sealed \| composable \| replaceable` |
 
-一つのSpecは`play_session`、`world_instance`、`level_instance`、`encounter_instance`、`entity_instance`、`ui_session`のいずれか一scopeだけを持つ。複数scopeのStateを所有する場合はSystemを分割し、Stable handleまたはtyped Eventで接続する。
+一つのSpecはCatalogで解決した一scopeだけを持つ。複数scopeのStateを所有する場合はSystemを分割し、Stable handleまたはtyped Eventで接続する。
+
+### 3.1 `RuntimeScopeTypeCatalogV1`
+
+```text
+RuntimeScopeTypeCatalogV1
+  catalog_version
+  catalog_hash
+  entries[]:
+    scope_type_ref
+    instance_key_schema_ref
+    owner_ref
+    lifetime_ref
+    save_replay_policy_ref
+    activation_condition_ref
+    deactivation_condition_ref
+```
+
+Core entryは次のexact 5件だけである。
+
+- `scope.core.application`
+- `scope.core.runtime_session`
+- `scope.core.world`
+- `scope.core.entity`
+- `scope.core.ui_session`
+
+Feature Packは`scope.feature.<feature>.instance`、Genre Packは自身の内部だけで使用する`scope.genre.<genre>.<scope>.instance`を登録できる。Core／FeatureからGenre scopeへの依存を拒否する。各entryの7 Fieldはすべて必須で、owner availabilityとversion、instance key schema、lifetime、Save／Replay policy schema hash、activation／deactivation conditionをCatalog materializationとRuntime activationの両方で検証する。
+
+unknown、owner unavailable／removed、duplicate、instance-key mismatch、Save／Replay schema hash mismatchはそれぞれtyped rejectionとし、Catalog、System Graph、last-valid active instanceを変更しない。Scope Source identity、Save／Replay instance identity、ephemeral runtime generationを相互に置換しない。
+
+旧enumはclean migrationしaliasを残さない。`play_session`は`scope.core.runtime_session`、`world_instance`は`scope.core.world`、`entity_instance`は`scope.core.entity`、`ui_session`は`scope.core.ui_session`へ移す。Stage、Encounter、Scoring、Shooter Game Flowはそれぞれ`scope.feature.scenario_stage.instance`、`scope.feature.encounter_spawn.instance`、`scope.feature.scoring.instance`、`scope.genre.shooter.game_flow.instance`へ移し、`level_instance`／`encounter_instance`、末尾`.instance`を欠くGenre aliasを解決しない。
 
 `GameSystemImplementationPolicyV1`は許可Implementation kind、default implementation、Native eligibility、replacement policy、live switch policy、equivalence fixture、required Target、configuration schema、unavailable behaviorを持つ。Native live switchは許可しない。Project overrideもPublic Contract、State、Save field、Replay意味を変更できない。
 
@@ -401,6 +432,9 @@ Native／Project Shader buildが成功しただけでactiveにしない。Projec
 
 - 全Fieldのvalid／invalid／boundary fixtureとMCD projection整合。
 - State owner exactly-one、dependency cycle、undeclared edgeのnegative test。
+- Core exact 5 Scope、Feature／Genre owner登録、`play_session`等旧enum clean migration、unknown owner、owner unavailable／removed、duplicate、instance-key mismatch、Save／Replay schema hash mismatchのCatalog fixture。
+- Core／Feature Systemが`scope.genre.<genre>.<scope>.instance`へ依存するnegative fixtureと、Genre内部Systemだけが同scopeを使用するpositive fixture。Shooter用fixtureはexact `scope.genre.shooter.game_flow.instance`だけを解決し、末尾`.instance`を欠くaliasをnegative fixtureで拒否する。
+- neutral Interactionがeligibility policyなしでvalid、registered generic policy denialが`policy_denied`、Shooter policy未installでもcommon Interaction install／実行が成功するfixture。
 - Command／Event／Snapshot、phase access、queue、budget conformance。
 - transition／Rule／Behavior Tree nodeのauthoring宣言順first-match選択をReference evaluatorで検証する順序fixture。
 - Save／Load／Replay state hash、fault、overflow、cancel、restart、Migration。

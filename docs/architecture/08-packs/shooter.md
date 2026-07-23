@@ -34,7 +34,7 @@ Shooter Genre Packは次のFeature Packを参照する。各Public Contract、Sc
 | `feature.path_following` | `capability.gameplay.path_following` | enemy／agent route。Character Motorへ固定しない |
 | `feature.scenario_stage` | `capability.gameplay.scenario_stage` | 有限Stage、Objective、Completion、transition |
 
-Feature Capabilityは必要なcomposition recipeだけが選ぶ。たとえばendless Shooter recipeはScenario／Stageを省略でき、tool-like weapon editorはCombat、Encounter、Worldを要求しない。現在の二つのreference fixtureは開始からResultまでの有限Gameを検証するため、表のFeature Pack closureを使用する。
+Pack-levelのRanged CombatとそのFeature DAG以外のFeature Capabilityは、必要なcomposition recipeだけが選ぶ。たとえばendless Shooter recipeはScenario／Stageを省略でき、Shooter Packを使用しないtool-like weapon editorはCombat、Encounter、Worldを要求しない。現在の二つのreference fixtureは開始からResultまでの有限Gameを検証するため、表のFeature Pack closureを使用する。
 
 Shooterのenemy targetingは`capability.gameplay.perception`をrequired Capabilityとして参照し、Public ContractとState ownerは[Gameplay Programming Model §2.4](../03-authoring/gameplay-programming-model.md#24-c1-perceptioninteraction)が所有する。Shooterは`PerceptionProfileV1`、`PerceptionSnapshotV1`、Perception memoryを再定義またはwriteしない。
 
@@ -60,27 +60,28 @@ Shooter Packのcanonical manifest recordは次である。表外の`PackManifest
 PackManifestV1
   pack_id: genre.shooter
   pack_kind: genre
-  required_feature_pack_refs:
-    [feature.combat@1, feature.ranged_combat@1, feature.encounter_spawn@1,
-     feature.scoring@1, feature.pickup_grant@1, feature.interaction@1,
-     feature.character_locomotion@1, feature.path_following@1]
-  required_capability_refs:
-    [capability.gameplay.perception]
+  required_feature_pack_refs: [feature.ranged_combat@1]
+  required_capability_refs: []
   composition_recipe_refs:
     [recipe.shooter.top_down_2d.finite_stage,
      recipe.shooter.third_person_3d.finite_stage,
-     recipe.shooter.top_down_2d.endless]
+     recipe.shooter.top_down_2d.endless,
+     recipe.shooter.target_practice.minimal]
   configuration_profile_refs:
-    [profile.shooter.top_down_2d, profile.shooter.third_person_3d]
+    [profile.shooter.top_down_2d, profile.shooter.third_person_3d,
+     profile.shooter.target_practice]
   public_contract_refs:
-    [ShooterPerceptionBindingV1, ShooterGameFlowV1, ShooterActionRoleSetV1]
+    [ShooterPerceptionBindingV1, ShooterGameFlowV1,
+     ShooterGameFlowInteractionEligibilityPolicyV1,
+     ShooterActionRoleSetV1, ShooterMinimalActionRoleSetV1]
   validator_refs:
     [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
   test_scenario_refs:
-    [fixture.product.shooter-2d, fixture.product.shooter-arena-3d]
+    [fixture.product.shooter-2d, fixture.product.shooter-arena-3d,
+     fixture.genre.shooter.target-practice-minimal]
 ```
 
-Profileは独立PackではなくShooter Packのversion／hashに含まれる。Scenario／StageはPack-level requiredではなく、有限Gameplay用Recipeだけが持つ条件依存である。
+Profileは独立PackではなくShooter Packのversion／hashに含まれる。Pack-level requiredはRanged Combatとその推移Feature DAGだけである。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeだけが持つ条件依存である。
 
 ```text
 CompositionRecipeV1
@@ -89,7 +90,10 @@ CompositionRecipeV1
   recipe_hash: Sha256(self_excluding_canonical_record)
   owner_pack_ref: genre.shooter
   required_capability_refs: [capability.gameplay.perception]
-  required_feature_pack_refs: [feature.scenario_stage@1]
+  required_feature_pack_refs:
+    [feature.encounter_spawn@1, feature.scoring@1, feature.pickup_grant@1,
+     feature.interaction@1, feature.character_locomotion@1,
+     feature.path_following@1, feature.scenario_stage@1]
   configuration_profile_refs: [profile.shooter.top_down_2d]
   game_spec_template_refs: [template.shooter.top_down_2d.finite_stage]
   action_role_set_refs: [ShooterActionRoleSetV1]
@@ -104,7 +108,10 @@ CompositionRecipeV1
   recipe_hash: Sha256(self_excluding_canonical_record)
   owner_pack_ref: genre.shooter
   required_capability_refs: [capability.gameplay.perception]
-  required_feature_pack_refs: [feature.scenario_stage@1]
+  required_feature_pack_refs:
+    [feature.encounter_spawn@1, feature.scoring@1, feature.pickup_grant@1,
+     feature.interaction@1, feature.character_locomotion@1,
+     feature.path_following@1, feature.scenario_stage@1]
   configuration_profile_refs: [profile.shooter.third_person_3d]
   game_spec_template_refs: [template.shooter.third_person_3d.finite_stage]
   action_role_set_refs: [ShooterActionRoleSetV1]
@@ -119,7 +126,10 @@ CompositionRecipeV1
   recipe_hash: Sha256(self_excluding_canonical_record)
   owner_pack_ref: genre.shooter
   required_capability_refs: [capability.gameplay.perception]
-  required_feature_pack_refs: []
+  required_feature_pack_refs:
+    [feature.encounter_spawn@1, feature.scoring@1, feature.pickup_grant@1,
+     feature.interaction@1, feature.character_locomotion@1,
+     feature.path_following@1]
   configuration_profile_refs: [profile.shooter.top_down_2d]
   game_spec_template_refs: [template.shooter.top_down_2d.endless]
   action_role_set_refs: [ShooterActionRoleSetV1]
@@ -127,9 +137,24 @@ CompositionRecipeV1
   validator_refs: [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
   qualification_fixture_refs: [fixture.genre.shooter.endless-top-down-2d]
   fallback_recipe_ref: null
+
+CompositionRecipeV1
+  recipe_id: recipe.shooter.target_practice.minimal
+  recipe_version: 1.0.0
+  recipe_hash: Sha256(self_excluding_canonical_record)
+  owner_pack_ref: genre.shooter
+  required_capability_refs: []
+  required_feature_pack_refs: []
+  configuration_profile_refs: [profile.shooter.target_practice]
+  game_spec_template_refs: [template.shooter.target_practice.minimal]
+  action_role_set_refs: [ShooterMinimalActionRoleSetV1]
+  source_template_refs: [template.source.shooter.target_practice]
+  validator_refs: [validator.genre.shooter.composition]
+  qualification_fixture_refs: [fixture.genre.shooter.target-practice-minimal]
+  fallback_recipe_ref: null
 ```
 
-`Sha256(self_excluding_canonical_record)`は[Pack Contract §3.1](pack-contract.md#31-compositionrecipev1)の規則により各recordから計算して保存・検証する。有限Recipeのeffective closureだけが`feature.scenario_stage@1`を含み、endless Recipeのclosureには含めない。closure hash不一致またはStage Feature unavailableでは有限Recipe applyだけを`MIRAKAN-PACK-RECIPE-DEPENDENCY_UNRESOLVED`で拒否し、endless Recipeとlast-valid Projectを変更しない。
+`Sha256(self_excluding_canonical_record)`は[Pack Contract §3.1](pack-contract.md#31-compositionrecipev1)の規則により各recordから計算して保存・検証する。有限Recipeのeffective closureだけが`feature.scenario_stage@1`を含み、endless／minimal Recipeのclosureには含めない。既存2D／TPSとendless RecipeはTask 1時点のFeature closureとPerception bindingをRecipe側で維持する。minimal Recipeのeffective closureはPack共通の`feature.ranged_combat@1 -> feature.combat@1`だけで、AI、Stage、Score、Locomotion、Path、Encounter、Pickup、Interactionを含まない。closure hash不一致または条件Feature unavailableでは該当Recipe applyだけを`MIRAKAN-PACK-RECIPE-DEPENDENCY_UNRESOLVED`で拒否し、他Recipeとlast-valid Projectを変更しない。
 
 composition recipeはFeature Capability、Profile、GameSpec template、Action role、reference scenarioをexact IDで結ぶ。Feature schema、World、Stage、Runtime Scope、Input Action identityをrecipe内で再定義しない。
 
@@ -153,6 +178,13 @@ composition recipeはFeature Capability、Profile、GameSpec template、Action r
 - 3D collision／animation／VFX／UIへのbinding
 - `fixture.product.shooter-arena-3d`
 
+### 4.3 `profile.shooter.target_practice`
+
+- stationary／vehicle-mounted／tool-like firing stationのいずれかをProjectが選ぶ
+- `shooter.fire_primary`だけを必須Action roleとし、move／look／AI enemyを要求しない
+- fixed typed targetまたはProject-owned target providerを使用する
+- `fixture.genre.shooter.target-practice-minimal`
+
 両Profileのenemy archetype bindingは次のGenre-owned recordを使う。
 
 ```text
@@ -173,6 +205,8 @@ Camera、Audio、LOD Profileのparameter schemaと実行規則は各Subsystem Ow
 
 Shooter Genre Packが所有するclosed stateは`Ready | Playing | Paused | Result`である。
 
+Shooter Packは`scope.genre.shooter.game_flow.instance`を`RuntimeScopeTypeCatalogV1`へ登録する。entryは`scope_type_ref`、`instance_key_schema_ref`、`owner_ref=genre.shooter`、`lifetime_ref`、`save_replay_policy_ref`、`activation_condition_ref`、`deactivation_condition_ref`を全件持ち、Shooter内部Systemだけが使用できる。旧generic `play_session`と末尾`.instance`を欠くGenre aliasへGame Flow stateを保存せず、Scope Save identity、Replay identity、ephemeral runtime generationを分離する。
+
 | From | To | 条件 |
 |---|---|---|
 | `Ready` | `Playing` | selected entry／Stageのactivationが成功 |
@@ -184,6 +218,8 @@ Shooter Genre Packが所有するclosed stateは`Ready | Playing | Paused | Resu
 表外の遷移とdefault transitionを拒否する。Title、Settings、Menu、LoadingはUI／Runtime entryの状態でありShooter Game Flow stateへ追加しない。Pause非対応Projectでは`Playing -> Paused`を適用せず、Runtime ownerのtyped failureを返す。
 
 Game FlowはFeature Stateを直接writeしない。開始、pause、resume、completion、restartを各Feature ownerへのtyped CommandとSnapshotで接続し、UI visibility、Audio completion、Animation Eventからauthorityを推測しない。Save／Replayは登録済みState ownerと各FeatureのSave／Replay契約が宣言したfieldだけを記録する。
+
+`ShooterGameFlowInteractionEligibilityPolicyV1`は`scope.genre.shooter.game_flow.instance`のsnapshotを読み、Interaction ownerのgeneric eligibility policy contractへallowまたはdenyを返す。deny時のcommon Interaction結果は`policy_denied`であり、Feature側へShooter state、enum、dependencyを追加しない。このpolicyを選択しないneutral InteractionはShooter Game Flowを要求しない。
 
 ## 6. Shooter Action role
 
@@ -199,6 +235,8 @@ Shooter Packは次のsemantic roleを提供する。
 - `shooter.next_weapon`
 - `shooter.previous_weapon`
 - `shooter.pause`
+
+`ShooterMinimalActionRoleSetV1`は`shooter.fire_primary`だけを必須とし、他roleをoptionalにする。Genre vocabularyである点とInput ownerによるStable Action ID生成はfull role setと同じである。
 
 Action roleはGenre vocabularyでありRuntime identityではない。[Input](../07-platform/input.md)がProject適用時にActionのStable ID、value schema、binding、remap、snapshotを所有する。Profileは必要roleとInput templateを宣言できるが、Platform key code、device、dead zone、gestureをShooter契約へ固定しない。
 
@@ -229,9 +267,13 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 ### 8.3 `fixture.genre.shooter.endless-top-down-2d`
 
-`recipe.shooter.top_down_2d.endless`を選択し、effective closureとclosure hashに`feature.scenario_stage@1`が含まれないこと、World／Scene activation後にObjective／Completion／Result routeなしでPlayingを継続できること、Pack registry上にScenario／Stage FeatureがなくてもRecipe apply／Save／Load／Replayが成功することを検証する。
+`recipe.shooter.top_down_2d.endless`を選択し、Task 1時点のEncounter、Scoring、Pickup、Interaction、Locomotion、Path、Perception closureを維持しつつ、effective closureとclosure hashに`feature.scenario_stage@1`が含まれないこと、World／Scene activation後にObjective／Completion／Result routeなしでPlayingを継続できること、Pack registry上にScenario／Stage FeatureがなくてもRecipe apply／Save／Load／Replayが成功することを検証する。
 
-### 8.4 Negative fixture
+### 8.4 `fixture.genre.shooter.target-practice-minimal`
+
+`recipe.shooter.target_practice.minimal`を選択し、effective closureが`feature.ranged_combat@1`と推移依存`feature.combat@1`だけであることを検証する。AI／Perception、Scenario／Stage、Scoring、Character Locomotion、Path Following、Encounter、Pickup、Interactionが未installでも、Pack schema変更なしにRecipe apply、Fire／Hit／Damage、Save／Load／Replayが成功する。stationary target-practice、vehicle gunner、Project-owned PvP actorは同じminimal closureを利用できる。
+
+### 8.5 Negative fixture
 
 - Shooter Packから別Genre Packへのdependencyを拒否する。
 - Feature CapabilityのSchema／State ownerをShooter側で再宣言したrecipeを拒否する。
@@ -239,6 +281,8 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 - Shooter role文字列をInput Action identityまたはSave identityにしたProjectを拒否する。
 - Shooter PackなしのFeature-only Projectをvalidとする。
 - Shooter Pack removal後もCore／Editor／AI／Project source／Build／Packageを成功させる。
+- minimal Recipeへ未宣言のPerception／Stage／Score／Locomotionをclosure resolverが追加する実装を拒否する。
+- 既存2D／TPS RecipeからTask 1時点のFeature closureまたはPerception bindingが欠落した場合、qualificationを拒否する。
 
 Capability成熟度、Phase、Target別Activation、Product claimは[Product Plan](../00-product/product-plan.md)だけが所有する。
 
@@ -442,8 +486,8 @@ Shooter Profileは上表の規模値とRecipe bindingだけを所有する。Wea
 
 | Destination fixture | Profile scale input | 正式な検証 |
 |---|---|---|
-| `fixture.genre.shooter.integrated-scale.top-down-2d` | `profile.shooter.top_down_2d`の§14.1／14.2 exact値 | Genre composition、Profile、Game Flow、Perception bindingをFeature owner receiptと統合 |
-| `fixture.genre.shooter.integrated-scale.third-person-3d` | `profile.shooter.third_person_3d`の§14.1／14.2 exact値 | Genre composition、Profile、Game Flow、Perception bindingをFeature owner receiptと統合 |
+| `fixture.genre.shooter.integrated-scale.top-down-2d` | `profile.shooter.top_down_2d`の§14.1／14.2 exact値 | Genre composition、Profile、`scope.genre.shooter.game_flow.instance`、Perception bindingをFeature owner receiptと統合 |
+| `fixture.genre.shooter.integrated-scale.third-person-3d` | `profile.shooter.third_person_3d`の§14.1／14.2 exact値 | Genre composition、Profile、`scope.genre.shooter.game_flow.instance`、Perception bindingをFeature owner receiptと統合 |
 
 両fixtureは[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)へ上表の規模値を入力し、Feature failure semanticsを複製しない。宣言値不足、非finite、負値、required axis欠落はGenre-owned `MIRAKAN-GENRE-SHOOTER-PROFILE-SCALE-UNDERSPECIFIED`でProfile applyを拒否し、last-valid Profile／Recipe／fixture receiptを維持する。
 

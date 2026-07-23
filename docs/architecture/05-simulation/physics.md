@@ -2,14 +2,14 @@
 
 - 文書ID: mirakan.arch.simulation-physics
 - 状態: review
-- 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、kinematic character motor、kernel Adapter boundary、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
+- 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、Character Locomotion向けPhysics reference Provider、kernel Adapter boundary、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
 - 非正本範囲: Collider geometry／filter／query／event、Runtime phase／tick／capacity、Animation pose、Navigation artifact、external dependency version／build pin、AI authorization／evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](collision.md)、[Navigation](navigation.md)、[Animation](animation.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論とPlatform境界
 
-PhysicsはEngine-owned World、Body、Dynamics command、Joint／Constraint、Character Motor、snapshot、diagnosticを公開し、数値kernelをprivate Adapterへ隔離する。Project C++、GameplayDefinition、AI、EditorへVendorの型、ID、pointer、callback、setting、serializationを公開しない。採用dependencyとexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
+PhysicsはEngine-owned World、Body、Dynamics command、Joint／Constraint、snapshot、diagnosticを公開し、数値kernelをprivate Adapterへ隔離する。Character MotorはCore必須契約ではなく、Character Locomotion Featureが選択できるEngine-owned C1 reference Providerである。Project C++、GameplayDefinition、AI、EditorへVendorの型、ID、pointer、callback、setting、serializationを公開しない。採用dependencyとexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
 
 [Collision](collision.md)はshape、Collider Asset、material、filter、query、contact／trigger／hit semanticsを所有する。Physicsはそれらを消費してWorldを進めるが再定義しない。[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)はcanonical phase、writer、lease、publishを、[Runtime performance／capacity](../04-runtime/performance-capacity.md)は共通capacity、queue、measurementを所有する。
 
@@ -18,7 +18,8 @@ Module境界は次の意味へ固定する。
 | layer | 所有 | 禁止 |
 |---|---|---|
 | Physics Contracts | Engine value、Port、command、event view、snapshot | Vendor型、native callback |
-| Physics Core | World lifecycle、dynamics merge、joint registry、character state、semantic resolver | Vendor include |
+| Physics Core | World lifecycle、dynamics merge、joint registry、semantic resolver | Vendor include |
+| Physics Character Motor Provider | optional Locomotion provider state、profile、intent／result adapter | Navigation Port再定義、Pack install必須化 |
 | Kernel Adapter | Engine valueとnative objectの変換、private table、conformance | World Model、AI、Editorへの依存 |
 | Physics Authoring | Source document、validation、preview、ChangeSet projection | live World直接write |
 | Physics Editor | Authoring／snapshotのProjection | 独自の正本state |
@@ -57,7 +58,7 @@ World lifecycleは`uncreated | validating | ready | stepping | stop_requested | 
 
 Physics executionはRuntimeのcanonical identifiers `T30_PrePhysics`、`T40_MotionIntent`、`T50_PhysicsStep`、`T60_PhysicsIntegrate`、`T70_PostPhysics`への参照で接続する。正確な順序、writer、tick frequencyは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md#4-60-hz-fixed-tickとphase-identifier)だけが決定し、本書はphase tableを再掲しない。
 
-## 3. Joint、Constraint、Character Motor
+## 3. Joint、Constraint、optional Physics Character Motor Provider
 
 `PhysicsJointCommonV1`はjoint Stable ID、World ref、Body A／Bまたはtyped World Anchor、enabled、collide-connected、local frame、optional break semanticsを持つ。Joint kindはtagged unionであり、存在しないfieldをproperty bagへ入れない。World Anchorは専用variantで、null Bodyやmagic handleで代用しない。
 
@@ -65,13 +66,15 @@ Physics executionはRuntimeのcanonical identifiers `T30_PrePhysics`、`T40_Moti
 
 Joint break候補はAdapter結果をSI単位へnormalizeし、Engine Stable IDとtick refを持つ`JointBreakEventV1`へ変換する。配送と次boundaryのcomponent removalはRuntime ownerの順序を消費する。Backend間のreaction値へbitwise一致は要求せず、fixtureで許容されるsemantic rangeを検査する。
 
-### 3.1 Kinematic Character Motor
+### 3.1 Kinematic Character Motor reference Provider
 
-C1 CharacterはEngine-owned Kinematic Character Motorを使う。Backend固有character controllerをProject APIへ公開せず、[Collision](collision.md)のoverlap／shape castだけを利用する。
+C1 reference recipeはEngine-owned Kinematic Character Motor Providerを適格化するが、Character Locomotion Featureのinstall、Path Following、Runtime EntryはこのProviderを要求しない。Backend固有character controllerをProject APIへ公開せず、[Collision](collision.md)のoverlap／shape castだけを利用する。
 
 `CharacterMoveIntentV1`はCharacter handle、consume tick ref、planar displacement、vertical proposal、jump edge、up direction、root-motion proposal、producer metadataを持つ。Stateは`disabled | airborne | grounded | sliding | stepping | ceiling_blocked`、Outputはresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnosticを持つ。
 
-`CharacterMoveIntentV1`の合成は`T40_MotionIntent`でPhysics CoreのCharacter Motorが所有する。MotorはGameplay移動入力、[Navigation](navigation.md)の`MovementIntentV1`、[Animation](animation.md)のroot-motion proposalをactor当たり一つの`CharacterMoveIntentV1`へ合成する。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のCharacter policyに従い、優先順位を暗黙に変更しない。
+Providerは[Navigation](navigation.md)が所有する`MotionExecutorPortV1`のexact public contractへ登録し、`executor_capability_ref=capability.motion_executor.physics_character_motor`、Provider-owned `CharacterMotorProfileV1`、accepted `CharacterMoveIntentV1`、Physics resolved motion schema、compatibility predicate、failure diagnosticを宣言する。Port型を本書で再定義しない。
+
+`CharacterMoveIntentV1`の合成は`T40_MotionIntent`で選択済みPhysics Character Motor Providerが所有する。ProviderはGameplay移動入力、[Navigation](navigation.md)の`MovementIntentV1`、[Animation](animation.md)のroot-motion proposalをactor当たり一つの`CharacterMoveIntentV1`へ合成する。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のProvider policyに従い、優先順位を暗黙に変更しない。
 
 Motorのmax slope、step height、ground snap距離、iteration上限、speed上限は§2の`CharacterMotorProfileV1`だけが保持し、stage 1が検証するProfileはこのProfileである。`NavAgentProfileV1`のslope／climbとの整合検証は[Navigation](navigation.md)のrequest validationが所有する。
 
@@ -87,7 +90,7 @@ Motor resolverは次のsemantic stagesを固定する。
 
 tie-breakは[Collision](collision.md)のnormalized query orderingを使い、native callback順を使わない。Moving platform attachmentはEngine handle、generation、local contact pointだけを保存する。Platform teleport／destroy／generation changeではattachmentを切る。
 
-Root motionは[Animation](animation.md)のproposalであり、`gameplay_only | root_motion_only | additive_bounded`のCharacter policyで合成する。Motorのresolved poseがauthoritativeで、Animationはそれを読む。PhysicsとAnimationがTransformへ二重writeしない。
+Root motionは[Animation](animation.md)からselected Motion Executorへのproposalであり、本Provider選択時は`gameplay_only | root_motion_only | additive_bounded`のProvider policyで合成する。Providerのresolved motionがauthoritativeで、Animationはそれを読む。PhysicsとAnimationがTransformへ二重writeしない。
 
 ## 4. Save、Replay、failure、qualification
 
@@ -97,7 +100,7 @@ ReplayはRuntime ownerへnormalized command、accepted async input、Profile／a
 
 主要failure classはinvalid profile、unqualified adapter、handle／generation mismatch、command conflict、joint frame invalid、character depenetration failure、native invariant violation、job drain failure、save incompatibilityである。tick publish、fault transition、recovery boundaryはRuntime ownerへ委譲する。共通memory、worker、queue、frame thresholdをここで再定義しない。
 
-Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、character slope／stair／platform（斜面際のstep、ceilingに接した状態のslide、moving platformからの降車、狭所でのdepenetration発振を含む）、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
+Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、C1 reference Providerのcharacter slope／stair／platform（斜面際のstep、ceilingに接した状態のslide、moving platformからの降車、狭所でのdepenetration発振を含む）、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。Provider fixtureはNavigationのexact `MotionExecutorPortV1`へのbinding、intent／profile／Target compatibility、stale result、root-motion proposal、provider failure時のlast-valid resolved motion不変を含む。別fixtureはPhysics capability unavailableでもCharacter Locomotion Packのinstallが成功し、Physics Provider選択だけがunavailableになることを検証する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
 
 ## 5. AI semantics
 
@@ -156,7 +159,7 @@ closed semantic valuesを次へ固定する。一つのResolutionは各軸から
 | Type | Closed values |
 |---|---|
 | `GameplayPhysicsRoleV1` | `world_static \| movable_prop \| moving_platform \| character \| projectile \| sensor_volume \| camera_blocker \| ragdoll \| vehicle \| destructible \| soft_deformable \| cloth_fluid_hair` |
-| `PhysicsMotionAuthorityV1` | `static \| kinematic_target \| dynamic_solver \| character_motor \| query_driven \| presentation_only` |
+| `PhysicsMotionAuthorityV1` | `static \| kinematic_target \| dynamic_solver \| query_driven \| presentation_only` |
 | `PhysicsCollisionSemanticsV1` | `solid_block \| sensor_notify \| query_only \| none` |
 | `PhysicsHitAuthorityV1` | `solver_contact \| sensor_event \| swept_shape_query \| overlap_query \| gameplay_rule \| none` |
 | `PhysicsShapeStrategyV1` | `primitive \| compound_primitive \| convex \| static_triangle_mesh \| heightfield \| tile_chain_2d \| none` |
@@ -194,7 +197,7 @@ Authorization、Risk class、commit可否、credentialは[AI Security／Approval
 
 ## 6. Operation、preview、diagnostic、AI eval
 
-Physics operation familyはinspect／discover／validate／preview、World Profile作成／更新、Body dynamics設定、Joint／Constraint作成／更新／削除、Character Motor作成／更新／削除、qualification提案を持つ。Collision geometry／filter／queryのoperationは[Collision](collision.md)へ委譲する。全writeは[Project state](../03-authoring/project-state.md)のChangeSetを作り、live Worldを直接mutateしない。
+Physics operation familyはinspect／discover／validate／preview、World Profile作成／更新、Body dynamics設定、Joint／Constraint作成／更新／削除、Physics Character Motor Provider qualification提案を持つ。Character LocomotionのProvider選択／bindingはFeature operation、Collision geometry／filter／queryのoperationは[Collision](collision.md)へ委譲する。全writeは[Project state](../03-authoring/project-state.md)のChangeSetを作り、live Worldを直接mutateしない。
 
 Previewはbefore／after semantic resolution、affected Entity／Asset、selected assumptions、question state、Capability availability、estimated impact class、diagnostic、rollback boundaryを示す。native setting dumpやVendor object graphをユーザー説明に使わない。Editor手動操作とAI操作は同じDocument、validator、preview、undo／redo、cookを通る。
 

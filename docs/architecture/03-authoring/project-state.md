@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1のdomain schema／意味／transaction、Target readiness envelope、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
 - 非正本範囲: MCD共通Envelope／projection／codegen、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime scheduling。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[World／Level／Map](../06-rendering/world.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[World／Scene／Space／Cell](../06-rendering/world.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -35,7 +35,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | Editor panel、workspace、製品操作、人間工学 | [Editor Workspace UX](editor-workspace-ux.md) |
 | Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | [Editor UI Framework](editor-ui-framework.md) |
 | Game System Spec、Implementation Set、System Bundle、二段階Activation | [Gameplay programming model](gameplay-programming-model.md) |
-| World、Scene、Level、Topology、Partition Intent、Procedural World、Map Presentation | [World／Level／Map](../06-rendering/world.md) |
+| World、Scene、Space、Topology、Partition Intent、Procedural World、Map Presentation | [World／Scene／Space／Cell](../06-rendering/world.md) |
 
 本書はGitをProject database、Undo system、runtime content storeとして必須化しない。Git連携は任意の外部version-control機能であり、Commitの成否はGit状態へ依存しない。共同リアルタイム編集、CRDT、branch merge UI、networked multi-user sessionはC3であり、C1／C2のChangeSet契約へ含めない。
 
@@ -45,13 +45,12 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 
 | Document | 役割 | ID／revision |
 |---|---|---|
-| `ProjectManifest` | Project identity、root scene、Target、Package、Capability、Document index | Projectに一つ、`project_id`、`project_revision` |
+| `ProjectManifest` | Project identity、Runtime entry point、Target、Package、Capability、Document index | Projectに一つ、`project_id`、`project_revision` |
 | `GameSpecDocument` | Genreに依存しない要求、system、content、test、budget、style lock | `game_spec_id`、document revision |
-| `WorldDocument` | Scene／Level／Topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
+| `WorldDocument` | Scene／optional spatial topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
 | `SceneDocument` | collaborative edit shard identity、Shard index、global setting、Composition Recipe root。Gameplay LevelまたはStreaming Cellではない | `scene_id`、document revision |
 | `SceneEntityShardDocument` | 一つのSceneに属するbounded Entity record集合 | `shard_id`、document revision |
-| `WorldTopologyDocument` | Region、Level、Portal、entryの論理Graph | `topology_id`、document revision |
-| `LevelDefinitionDocument` | entry／exit、Objective、Spawn、Encounter、Game System、Profileを持つplay可能単位 | `level_id`、document revision |
+| `WorldTopologyDocument` | Space、transition edge、optional activation entryの論理Graph | `topology_id`、document revision |
 | `SpatialPartitionIntentDocument` | Target非依存のresidency／grouping／priority Intent | `partition_intent_id`、document revision |
 | `ProceduralWorldDefinitionDocument` | generator、seed policy、constraint、bound、fallback | `procedural_world_id`、document revision |
 | `MapPresentationDocument` | minimap／world map／marker／fogの非authoritative UI Source | `map_presentation_id`、document revision |
@@ -67,6 +66,40 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | `TestScenarioDocument` | Preconditions、input、oracle、budget、Target | Scenario StableId、document revision |
 
 `ProjectManifest`はDocument本文を埋め込まず、`DocumentRef { stable_id, document_kind, relative_path, content_hash, schema_version }`だけを持つ。Authoring Document間の参照はStableIdで行い、相対path、配列index、表示名を意味参照に使用しない。
+
+`ProjectManifest.runtime_entry_point_refs`は1～64件を必須とし、World、Scene、Topology、Stageを全Project共通の必須Documentにしない。owner-typed Pack DocumentはCoreのclosed `document_kind`へ追加せず、登録済みowner namespaceを持つ`DocumentRef`としてDocument indexへ投影する。
+
+### 3.1.1 `RuntimeEntryPointV1`
+
+```text
+RuntimeEntryPointV1
+  entry_point_id
+  entry_kind: world | ui | headless
+  target_selector_ref
+  default_for_selected_targets: bool
+  world_ref: WorldDocumentRef | null
+  ui_document_ref: UiDocumentRef | null
+  startup_game_system_refs[]
+  activation_policy_ref
+```
+
+tagged validationは次へ固定する。
+
+- `world`: `world_ref`を厳密に1件、`ui_document_ref=null`、`startup_game_system_refs[0..128]`。参照WorldはScene 0件、Topology nullでもよい。
+- `ui`: `ui_document_ref`を厳密に1件、`world_ref=null`、`startup_game_system_refs[0..128]`。
+- `headless`: `startup_game_system_refs[1..128]`、`world_ref=null`、`ui_document_ref=null`。surfaceを要求しない。
+
+各active Targetは`default_for_selected_targets=true`のselector集合でexactly once被覆され、default entryが厳密に一件へ解決しなければならない。default 0件、default 2件以上、`world_ref`／`ui_document_ref`／surface・spatial fieldのbranch外混在を拒否し、優先順位や登録順で補正しない。`default_for_selected_targets=false`のentryは同じTarget selectorで重複でき、benchmark、menu、game、server等の明示選択肢を共存させる。startup systemは全branchで許可し、branch conflictにしない。
+
+旧単数root sceneはmigration stagingだけで、参照Sceneを含む明示的なWorldと`entry_kind=world`、`default_for_selected_targets=true`のentryへ変換する。各active Targetへdefaultを一件生成し、Previewで新World／entry／Target bindingを示す。Runtimeの暗黙default、`Level` alias、`ui`／`headless`への近似変換は行わない。
+
+| Diagnostic ID | 条件 |
+|---|---|
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_MIGRATION_REQUIRED` | 旧root sceneが残り、明示migrationが未Commit |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID` | schema、ref、count、activation policy不正 |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED` | selectorがunknown／inactive Targetへしか解決しない |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS` | default 0件または2件以上 |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT` | entry kindとbranch fieldが不一致 |
 
 `WorldStreamingPlanV1`、Navigation Artifact、HLOD、Cooked Gameplay Package、generated System Catalog／Dependency GraphはDerived Artifactであり、正規Document種別へ追加しない。CreatorまたはAIがDerived Artifactを直接編集した変更をGatewayは拒否する。
 
@@ -184,7 +217,7 @@ AuthoringSelectionContextV1
   selected_stable_ids[0..1024]
   world_ref optional
   scene_ref optional
-  level_ref optional
+  owner_typed_feature_selection_refs[0..128]
   viewport_bounds optional
   field_mask
   target_profile_ref optional
@@ -194,7 +227,7 @@ AuthoringSelectionContextV1
   continuation
 ```
 
-`AuthoringSelectionContextV1`はCommit済みDocumentと明示的な`EditorUserState`から生成するread-only／DisposableなContextであり、Project正本またはUndo対象ではない。`primary_stable_id`、World／Scene／Level参照は表示名、Hierarchy path、row index、screen coordinateから推測せず、存在確認済みStableIdとrevisionを使う。AIへ渡すContext、Editor command、UI Automation semantic actionは同じContext hashを参照し、操作時には対象StableIdとexpected Document revisionを再指定する。Contextがstale、対象がomitted、lock情報が欠落、またはSource／Derived区分が不明な場合は変更Operationへ昇格しない。
+`AuthoringSelectionContextV1`はCommit済みDocumentと明示的な`EditorUserState`から生成するread-only／DisposableなContextであり、Project正本またはUndo対象ではない。`primary_stable_id`、World／Scene参照とowner-typed Feature selectionは表示名、Hierarchy path、row index、screen coordinateから推測せず、存在確認済みStableId、owner、revisionを使う。Stage selection等はFeature Packが登録したoptional projectionであり、Coreのclosed `document_kind`へ追加しない。AIへ渡すContext、Editor command、UI Automation semantic actionは同じContext hashを参照し、操作時には対象StableIdとexpected Document revisionを再指定する。Contextがstale、対象がomitted、lock情報が欠落、またはSource／Derived区分が不明な場合は変更Operationへ昇格しない。
 
 Architecture Governanceが所有する`ArchitectureExplainProjectionV1`はProject Stateの正本ではなく、Commit済みSourceとexact registry closureから生成されるread-only／Disposableなconsumer projectionである。`authoring.explain_architecture`は`scope`、非空`field_mask`、optional `target_profile_ref`、exact `project_revision`を要求し、別revisionへのfallbackを行わない。応答の`omitted_ranges`または署名付き`continuation`が示す未取得範囲をEvidence済みとして扱わず、stale revision、continuation条件不一致、必要Evidence欠落では説明を確定しない。
 
@@ -210,7 +243,7 @@ Architecture Governanceが所有する`ArchitectureExplainProjectionV1`はProjec
 - Re-shardも正規Source変更なので一つの`ProjectRevision`としてCommitするが、Diffは`storage_only`とEntity意味変更を分離する。
 - Shardを跨ぐ親cycle、reference、lock、Decision、Recipe invariantはScene aggregate全体で検証する。
 
-Entityの永続化ownerは、そのrecordを含むShardの`scene_id`で厳密に一つへ決まる。Transform parent、Outliner folder、Level membership、Streaming Cell、Data Layer相当のtagから永続化ownerを推測しない。Scene間移動は`MoveEntityToScene` Domain Operationだけが、移動元／移動先Scene revision、移動rootと全descendant、移動先のoptional parent、参照、lock、Recipe override、boundsを検証してsubtree recordを移す。subtree内部のparent関係とStableIdを維持し、移動rootの新parentは移動先Scene内またはnullに限定する。Level membershipまたはRuntime Cell割当は同Operationの暗黙副作用にせず、必要なSource変更を同じChangeSetへ別のtyped Operationとして明示する。
+Entityの永続化ownerは、そのrecordを含むShardの`scene_id`で厳密に一つへ決まる。Transform parent、Outliner folder、owner-typed gameplay membership、Streaming Cell、Data Layer相当のtagから永続化ownerを推測しない。Scene間移動は`MoveEntityToScene` Domain Operationだけが、移動元／移動先Scene revision、移動rootと全descendant、移動先のoptional parent、参照、lock、Recipe override、boundsを検証してsubtree recordを移す。subtree内部のparent関係とStableIdを維持し、移動rootの新parentは移動先Scene内またはnullに限定する。owner-typed gameplay membershipまたはRuntime Cell割当は同Operationの暗黙副作用にせず、必要なSource変更を同じChangeSetへ別のtyped Operationとして明示する。
 
 `AuthoringContextIndexV1`はCommit済みrevisionから生成するDisposableな派生Indexであり、正本ではない。`project_revision`、`contract_set_hash`、Document root hash、index schema version、利用するtokenizer ID／manifest hash集合を固定し、次を索引化する。
 
@@ -260,7 +293,7 @@ ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary�
 | Recipe | `InstantiateRecipe`、`ApplyRecipeUpdate`、`SetRecipeOverride` |
 | Gameplay／UI／Style | 各Subsystemが登録するtyped Operation |
 | Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。`qualified` Contract／Staging hashだけ |
-| World／Level | Topology、Level、Partition Intent、Procedural、Map Presentationの各Domain typed Operation |
+| World／owner-typed content | Topology、Partition Intent、Procedural、Map Presentationと登録済みowner namespaceの各Domain typed Operation |
 | Asset | `RegisterAssetSource`、`SetImportField`、`ReplaceAssetSourceRevision` |
 | Native C++ | `RegisterNativeModuleRevision`。Source promotion済みhashだけ |
 | Target／Decision | `SetTargetProfileField`、`RecordDecision`、`LockDecision`、`UnlockDecision`、`InvalidateDecision`、`ReconfirmDecision` |
@@ -305,7 +338,7 @@ Project root全体のPathと命名は[Game Project配置・命名規約](../02-f
 ├─ mirakan.project.json
 ├─ source/
 │  ├─ assets/                  # Source Assetとimport設定。AssetMetadataDocumentをAsset IDで併置
-│  ├─ worlds/                  # World／Scene／Topology／Level／Partition Intent／Procedural World／Map Presentation
+│  ├─ worlds/                  # World／Scene／Topology／Partition Intent／Procedural World／Map Presentation
 │  ├─ gameplay/
 │  ├─ ui/
 │  ├─ localization/
@@ -331,7 +364,7 @@ Project root全体のPathと命名は[Game Project配置・命名規約](../02-f
 
 - `mirakan.project.json`とAuthoring MCDはUTF-8 without BOM、LF、重複key禁止、comments禁止、trailing comma禁止とする。
 - Scene sourceは`source/worlds/scenes/<scene_id>/scene.mirakan.json`と`source/worlds/scenes/<scene_id>/shards/<shard_id>.mirakan.json`へ置き、IDから決定論的にpathを導出する。表示名、cell名、Entity名をpathへ使わない。
-- World、Level、Topology、Partition Intent、Procedural World、Map Presentationも`source/worlds/`配下でStable IDから決定論的にpathを導出し、表示名、Region名、Target名をpath identityへ使わない。System Implementation Set、Visual Style、Target Profile、Decision、Test Scenarioも同じ規則で各directoryへ置く。
+- World、Topology、Partition Intent、Procedural World、Map Presentationも`source/worlds/`配下でStable IDから決定論的にpathを導出し、表示名、Region名、Target名をpath identityへ使わない。owner-typed Feature Documentは登録済みowner pathへ置き、Core World pathへ偽装しない。System Implementation Set、Visual Style、Target Profile、Decision、Test Scenarioも同じ規則で各directoryへ置く。
 - `.mirakan.json`は人間Diff用sourceであり、Runtimeは直接読まない。
 - journal、snapshot、transaction directoryの配置は本書が所有し、Git追跡・配布対象外の`intermediate/`配下へ置く。canonical stateはCommit済み`source/`のDocumentだけであり、journal／snapshotをcanonical sourceへ昇格しない。
 - `intermediate/journal/`はChangeSet、base／result revision、before／after hash、inverse Operation、Receipt参照を持つappend-only recordである。
@@ -359,7 +392,7 @@ Undo可能深度は§6のjournal最低保持範囲（最新2 snapshotとそれ�
 
 - AIは現在revision、関係Document、lock、Capability、Target、budgetを含む`AuthoringContextPackV1`を読む。
 - Context選択は`AuthoringContextIndexV1`と署名対象の`AuthoringContextPlanV1`から行い、選択理由、field mask、omitted range、continuation、source hashを失わない。
-- Editorで選択中のWorld／Scene／Level／Entityを会話Contextへ含める場合は`AuthoringSelectionContextV1`を使い、画面pixel、Hierarchy path、表示名だけを対象識別子にしない。
+- Editorで選択中のWorld／Scene／owner-typed content／Entityを会話Contextへ含める場合は`AuthoringSelectionContextV1`を使い、画面pixel、Hierarchy path、表示名だけを対象識別子にしない。
 - AIは存在しないStableIdを推測せず、`Create*` Operationで新IDを要求する。IDはGatewayが生成して結果mapを返す。
 - AIは巨大Sceneを全置換せず、目的に必要なOperationだけを提案する。
 - AIは正規Authoring JSONへ直接writeせず、`authoring.search`、`authoring.read`、`authoring.dependencies`、`authoring.diff`とtyped Operationだけを使う。
@@ -382,11 +415,16 @@ project_revision
 document_set_hash
 capability_manifest_hash
 target_profile_hash
+selected_runtime_entry_point_ref
+selected_runtime_entry_point_hash
+entry_branch_closure_hash
 game_system_dependency_graph_hash
 system_implementation_set_hash
-world_topology_hash
-level_definition_set_hash
-world_streaming_plan_hash
+world_document_hash: optional
+spatial_topology_hash: optional
+world_streaming_plan_hash: optional
+ui_document_hash: optional
+startup_system_closure_hash: optional
 native_module_revision_hash
 asset_dependency_root_hash
 contract_lock_hash
@@ -395,6 +433,8 @@ scale_intent_hash
 representation_plan_hash
 technical_qualification_receipt_hash
 ```
+
+`selected_runtime_entry_point_ref`、`selected_runtime_entry_point_hash`、`entry_branch_closure_hash`は全branchで共通に必須である。`world` branchでは`world_document_hash`を必須、Topology／Streaming Sourceが存在する時だけ対応hashをcanonical presentとし、`ui_document_hash`と`startup_system_closure_hash`を省略する。`ui` branchは`ui_document_hash`だけを、`headless` branchは`startup_system_closure_hash`だけをbranch固有hashとして必須にし、World／Topology／streaming hashをcanonical omissionする。null、0 hash、空配列をomissionの代用にせず、branch外field混在を`MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT`で拒否する。
 
 `technical_qualification_receipt_hash`は`state=qualified`のTargetだけ必須で、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#72-technicalqualificationreceiptv1)の`TechnicalQualificationReceiptV1`完成hashを指す。その`evidence_hashes[]`はPerformance OwnerのIntegrated Scale Receiptを含む。`predicted`／`blocked`では0ではなくfield omissionをcanonical encodingする。PlayはDevelopment Playとqualified promotionを区別する。`predicted`のTargetはDevelopment Playを開始でき、未実測であることをEditor表示とReceiptへ明示する。[Performance／capacityが所有するqualification計測run](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)はこのDevelopment Play実行モードで行い、Receipt確定後にだけ`qualified`へ昇格する。`blocked`のTargetはDevelopment Playを含むPlay開始を拒否する。未qualified revisionをqualified扱いのPlay、Cooked Runtime Package promotion、Shippingへ要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
 
@@ -444,9 +484,16 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - C1 entity／population envelope未校正時の`blocked(performance_envelope_unqualified)`、Target Profile実機fixture＋fresh Receiptによる解除、恣意的な数値defaultの拒否
 - Target readinessへの`Predicted`／`Blocked`／`Qualified`／`OptimizationRequired`とCapability専用`not_activated`混入、stateと`blocked_reason_ref`／Receipt nullability不一致を一原因ずつ拒否するnegative fixture
 - Game System authoritative State ownerが0件／複数件、stale System Bundle、Source Promotion後Project Commit failureのnegative／recovery test
-- World／Scene／Level／Cell identity、Topology reachability、Portal trap、Map intent ambiguity、Cell activation atomicityのfixture
+- World／Scene／Space／Cell identity、Topology reachability、Portal trap、Map intent ambiguity、Cell activation atomicityのfixture
 - Source Intentから同じTarget別Streaming Plan hashを再生成し、Derived Planの直接編集を拒否するtest
-- `MoveEntityToScene`がsubtreeの永続化owner、Shard、明示したroot parentだけを原子的に変更し、Level membership、subtree内部parent、StableId、Runtime Cellを暗黙変更しないvalid／invalid／Undo test
+- `MoveEntityToScene`がsubtreeの永続化owner、Shard、明示したroot parentだけを原子的に変更し、owner-typed gameplay membership、subtree内部parent、StableId、Runtime Cellを暗黙変更しないvalid／invalid／Undo test
+- `fixture.project.runtime-entry.world-empty`: Scene 0件／Topology nullのWorld entryがvalidでbranch hashだけを出力する
+- `fixture.project.runtime-entry.ui-only`: World／TopologyなしのUI entryがvalidでWorld系hashをcanonical omissionする
+- world／ui entryがstartup system 0件と128件の両境界でvalidになり、startup systemをbranch conflictにしないfixture
+- `fixture.project.runtime-entry.headless`: startup system 1件以上、UI／World／surfaceなしでvalid
+- 同一Targetにdefault 1件とnon-default 2件を登録し、non-default selector overlapを許可して明示選択できるpositive fixture
+- branch field混在、headless startup system 0件、default 0件／2件、unknown／inactive Target selectorを各Diagnosticへ一原因ずつ対応させるnegative fixture
+- 旧root scene migrationがTargetごとに明示World entry一件を生成し、暗黙default、`Level` alias、UI／headless近似を行わないfixture
 - 大量Scale intentをbounded Recipe／partitionでCommitでき、Runtime budget未達時もSource、Diff、Undo、Gameplay fidelity floorを失わない
 - 同一Project revisionを二回compileしたArtifact hash一致
 - 100万Entityのread projectionを変更せず、影響Documentだけを再投影する性能fixture

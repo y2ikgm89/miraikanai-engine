@@ -11,7 +11,7 @@
 
 有限Stage、entry／exit、Objective、Completionが必要なProjectだけが`feature.scenario_stage`を使用する。endless、continuous simulation、tool-like、UI-only、headless等のProjectはこのFeature Packを使用しなくてもvalidである。
 
-Scenario／StageはGeneric Engine CoreのWorldまたはRuntimeへLevel契約を追加しない。Worldは空間、Scene、global composition、persistent entity、任意のspatial topologyだけを所有し、Stageは既存Worldを参照してGameplay上の有限区間を構成する。
+Scenario／StageはGeneric Engine CoreのWorldまたはRuntimeへLevel契約を追加しない。Worldは空間、Scene、global composition、persistent entity、任意のspatial topologyだけを所有する。Stageは必要な場合だけ既存Worldを参照し、UI-only／headless Stageは偽Worldなしに有限workflowを構成する。
 
 本Packは`pack_kind=feature`で、`capability.gameplay.scenario_stage`を提供する。
 
@@ -20,7 +20,7 @@ Scenario／StageはGeneric Engine CoreのWorldまたはRuntimeへLevel契約を�
 ```text
 StageDefinitionV1
   stage_id
-  world_ref
+  world_ref: WorldDocumentRef | null
   content_source_refs[]
   entry_anchor_refs[]
   exit_anchor_refs[]
@@ -34,7 +34,13 @@ StageDefinitionV1
   fallback_contract
 ```
 
-`stage_id`は表示名、World path、配列indexではないstable identityである。`world_ref`は[World](../06-rendering/world.md)の既存Worldを参照し、World schemaを本書で再定義しない。content、anchor、Game System、Objective、Spawn、transitionは各Ownerのexact refであり、Stageが参照先SchemaやState ownerを複写しない。
+`stage_id`は表示名、World path、配列indexではないstable identityである。`world_ref`はrequired nullable fieldであり、[World](../06-rendering/world.md)の既存Worldを参照するかexact `null`を持つ。World schemaを本書で再定義しない。`content_source_refs[]`はowner-typed exact refで、content、anchor、Game System、Objective、Spawn、transitionは各OwnerのSchemaやState ownerを複写しない。
+
+branch validationは次へ固定する。
+
+- world Runtime Entryへ結ぶStageはnon-null exact `world_ref`を必須とし、entry／exit anchorとspatial spawn fieldを参照Worldのkind／revisionへ照合する。
+- UI-only／headless Stageは`world_ref=null`、`entry_anchor_refs=[]`、`exit_anchor_refs=[]`とし、spatial spawn fieldを0件にする。owner-typed `content_source_refs[]`と`stage_game_system_refs[]`、Objective／transition／Save／Replayは利用できる。
+- null Worldをdefault Worldへ補完する、anchorやspatial spawnを表示名で再解決する、UI contentを偽Sceneへ変換する実装を拒否する。
 
 ## 3. Completion tagged rule
 
@@ -53,14 +59,15 @@ CompletionはWorld activation、Scene activation、Cell streamingの前提では
 
 Feature Packは`scope.feature.scenario_stage.instance`をversioned Runtime Scope Type Catalogへ登録する。Coreは`level_instance`をclosed enumへ追加しない。
 
-Scope entryは次を必須にする。
+Scope entryは`RuntimeScopeTypeCatalogV1`の次のFieldを必須にする。
 
-- instance key schema
-- owner
-- lifetime
-- Save／Replay policy
-- activation condition
-- deactivation condition
+- `scope_type_ref=scope.feature.scenario_stage.instance`
+- `instance_key_schema_ref`
+- `owner_ref=feature.scenario_stage`
+- `lifetime_ref`
+- `save_replay_policy_ref`
+- `activation_condition_ref`
+- `deactivation_condition_ref`
 
 Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
 
@@ -81,7 +88,7 @@ destinationはProjectのRuntime entryとWorld／UI／headless契約へ従う。P
 - Replay input／event／snapshot ref
 - migrationと不一致時fallback
 
-Saveは登録済みState ownerとSave／Replay契約が宣言したfieldだけを保存する。World内容、Feature State、Shooter Game FlowをStage所有と推測して複写しない。Load／Replay時にStage definition、World、Feature Pack、policy hashが不一致ならmigrationまたはtyped failureを返し、似たStageへ暗黙fallbackしない。
+Saveは登録済みState ownerとSave／Replay契約が宣言したfieldだけを保存する。World内容、Feature State、Shooter Game FlowをStage所有と推測して複写しない。Load／Replay時にStage definition、Feature Pack、policy hashと、non-nullの場合だけWorld hashが不一致ならmigrationまたはtyped failureを返し、似たStageや偽Worldへ暗黙fallbackしない。
 
 ## 7. AI Operation
 
@@ -104,6 +111,8 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 
 - positive: `completion_mode=none`、`completion_contract=null`、Objective 0件、Result routeなしのendless Stageがvalid
 - positive: `completion_mode=explicit_outcomes`と有効なoutcome contractを持つfinite Stageがvalid
+- positive: `world_ref=null`のfinite Dialogue／Visual Novel／UI workflowがowner-typed UI content、Stage transition、Save／Load／Replayを利用し、World／Scene／Topology／spatial anchorを生成しない
+- positive: `world_ref=null`のheadless workflowがstartup Stage systemsとtyped transitionだけでvalid
 - negative: `completion_mode=none`でnon-null completion contractを持つStageをreject
 - negative: `completion_mode=none`でObjectiveまたはResultを必須とするvalidatorをreject
 - negative: `completion_mode=explicit_outcomes`でcompletion contractがnullのStageをreject
@@ -125,7 +134,7 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 | `configuration_profile_refs[]` | `StageContentActivationPolicyV1; StageSaveReplayPolicyV1` |
 | `test_scenario_refs[]` | `fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition` |
 
-`StageActivationPortV1`はStage instance key、source Stage ref、World ref、content activation policy、requested entry anchor、requested Feature System refsを入力し、activation generationまたはtyped failureを返す。World／Scene／Cell handleをPublic APIへ出さない。
+`StageActivationPortV1`はStage instance key、source Stage ref、required nullable World ref、content activation policy、optional requested entry anchor、requested Feature System refsを入力し、activation generationまたはtyped failureを返す。World／Scene／Cell handleをPublic APIへ出さない。
 
 `StageTransitionPortV1`はsource Stage instance、trigger／outcome、destination、typed transfer subject refs、transition policyを入力とする。Player、Party、Characterを固定型にせず、registered subject contractへ適合する任意のsubjectを扱える。
 
@@ -143,15 +152,15 @@ StageRuntimeStateV1
   stage_ref
   stage_instance_key
   lifecycle_state: inactive | preparing | ready | activating | active | deactivating | faulted
-  active_entry_ref
+  active_entry_ref: AnchorRef | null
   activated_game_system_instance_refs[]
   completion_state_ref: null | CompletionStateRef
   activation_generation
 ```
 
-`listed_content_refs`時だけ`required_content_refs[]`を1件以上持ち、`entry_anchor_closure`時は0件とする。World／Scene／Cellのactivation計画はWorld／Runtime ownerのPublic Portを消費し、Stage側がCell schemaやphase ABIを再定義しない。
+`listed_content_refs`時だけ`required_content_refs[]`を1件以上持ち、`entry_anchor_closure`時は0件とする。`world_ref=null`では`listed_content_refs`だけを許可し、entry anchor closureを拒否する。non-null World branchのWorld／Scene／Cell activation計画はWorld／Runtime ownerのPublic Portを消費し、Stage側がCell schemaやphase ABIを再定義しない。
 
-`completion_mode=none`では`completion_state_ref=null`を許可し、`active`からProject／Runtime要求で直接`deactivating`へ進める。Objective、completion outcome、Result route、`completing` stateを要求しない。`explicit_outcomes`だけが`CompletionContractV1`に基づくcompletion stateを作る。
+`world_ref=null`では`active_entry_ref=null`を必須にし、non-null World branchだけが参照WorldのAnchorを持てる。`completion_mode=none`では`completion_state_ref=null`を許可し、`active`からProject／Runtime要求で直接`deactivating`へ進める。Objective、completion outcome、Result route、`completing` stateを要求しない。`explicit_outcomes`だけが`CompletionContractV1`に基づくcompletion stateを作る。
 
 同じStage Sourceから複数instanceを作れる。`scope.feature.scenario_stage.instance`のinstance keyでStateを分離し、Source Stable ID、Save identity、ephemeral Runtime generationを相互に置換しない。
 
@@ -210,10 +219,10 @@ MigrationはSource ref、Save identity、active entry、Stage-owned State、tran
 
 | Diagnostic ID | 条件 | 結果 |
 |---|---|---|
-| `MIRAKAN-SCENARIO-STAGE-DEFINITION_INVALID` | tagged branch、ref、Scope不正 | Source／Cookを拒否 |
+| `MIRAKAN-SCENARIO-STAGE-DEFINITION_INVALID` | world nullable branch、anchor／spatial spawn、ref、Scope不正 | Source／Cookを拒否 |
 | `MIRAKAN-SCENARIO-STAGE-ACTIVATION_FAILED` | content／Feature closure不成立 | source／last-valid generation維持 |
 | `MIRAKAN-SCENARIO-STAGE-TRANSITION_FAILED` | destination／subject／precondition不正 | partial transition禁止 |
 | `MIRAKAN-SCENARIO-STAGE-SAVE_CONTRACT_MISMATCH` | Source／Scope／State owner不一致 | Saveを開かずbackup維持 |
 | `MIRAKAN-SCENARIO-STAGE-REPLAY_DIVERGENCE` | first Stage-owned divergence | 停止してReproduction Bundle生成 |
 
-Qualificationは`completion_mode=none`と`explicit_outcomes`、複数Stage instance、content activation exact／exact+1、transition success／rollback、typed subject compatibility、Save／Load／Replay、旧Level Source migration、Scenario／Stage Pack removalを含む。Feature PackなしのWorld／endless Projectは引き続きvalidである。
+Qualificationは`completion_mode=none`と`explicit_outcomes`、world／UI-only／headless branch、WorldなしDialogue／Visual Novel workflow、複数Stage instance、content activation exact／exact+1、transition success／rollback、typed subject compatibility、Save／Load／Replay、旧Level Source migration、Scenario／Stage Pack removalを含む。UI／headless branchのanchor／spatial spawn混在をrejectし、Feature PackなしのWorld／endless Projectは引き続きvalidである。

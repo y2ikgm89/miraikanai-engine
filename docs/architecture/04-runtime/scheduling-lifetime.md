@@ -95,7 +95,9 @@ Faulted -> ProjectClosing | Shutdown
 
 `Faulted`から同じPlay sessionへ復帰しない。Editor processを継続できる場合はjournalとfault evidenceを保全し、`Faulted -> ProjectClosing`でProjectを閉じ、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)のEditor session machineが定めるProject非保持state（`NoProject`）をsafe shellとして戻る。継続できない場合は`Faulted -> Shutdown`で安全に終了する。Authoring中のGameHost／Worker crashは同文書のTask failure隔離で処理して`Faulted`へ遷移させず、`Authoring -> Faulted`はHost自身がsafe stopできないprocess faultだけに使う。Shipping GameHostのOS application lifecycleはPlatform Ownerが決定し、OS callbackはWorldを直接変更せずbounded lifecycle eventをOrchestratorへ渡す。
 
-`PlayPreparing`はCommit済み`project_revision`を一つ固定し、Runtime package、System Graph、Implementation Set、World／Level／Topology、Target別Plan、Asset／Navigation closureを検証する。最初のactivation group全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview WorldはPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
+`PlayPreparing`はCommit済み`project_revision`と選択済み`RuntimeEntryPointV1`を一つ固定し、Runtime package、System Graph、Implementation Set、Target別Plan、`entry_branch_closure_hash`を検証する。`world` branchはWorld closure、`ui` branchはUI closure、`headless` branchは1～128件のstartup system closureを検証し、別branchのDocument、Topology、surfaceを常時要求しない。branch activation set全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview Worldは存在する場合だけPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
+
+runtime session配下のWorld instance、UI session、startup system instanceは選択branchごとのoptional childである。`world`はScene 0件／Topology nullでもvalid、`ui`はWorldなし、`headless`はWorld／UI／surfaceなしでvalidとする。branch外fieldを混ぜたpackage、headless startup system 0件、entry hash／branch closure hash不一致はPlay開始を拒否し、last-valid packageとAuthoring revisionを維持する。
 
 Play中のAuthoring変更は新revisionとして保存できるが、Runtimeへ自動適用しない。[Asset lifecycle](../03-authoring/asset-lifecycle.md)またはDomain Ownerが互換性を証明し、本書のboundaryへ提出したtyped activationだけを適用する。`PlayStopping`は新規Input、async request、Presentation submitを止め、worker join、queue seal、Save／Replay finalize、Domain lease release、World破棄、Host resource解放の順で進める。Runtime値をAuthoringへ戻す場合は[Project state](../03-authoring/project-state.md)の別ChangeSetとし、Runtime handle、native ID、GPU handle、internal slotを含めない。
 
@@ -106,11 +108,12 @@ Process
   Project
     Authoring Revision / Asset Registry
       Play Session
-        Runtime World
+        Runtime branch activation set
+          Runtime World? / UI Session? / Startup Systems?
           Tick
             Phase
               Job / Callback
-        Render Frame Slot
+        Render Frame Slot?
           GPU Queue Submission
 ```
 
@@ -130,11 +133,11 @@ GameHostLoopStateV1
   application_state = Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating
   gameplay_clock_mode = running | paused
   debug_execution_mode = running | pause_requested | paused_at_t110 | single_tick_step
-  surface_generation
+  surface_generation?
   last_published_snapshot_tick?
 ```
 
-`gameplay_clock_mode`は`PausePolicyV1`／`GamePauseStateSnapshotV1`のconsumer projectionであり、outer loopが別のPause authorityを持つ意味ではない。`debug_execution_mode`はDebuggerが所有し、Shipping Game pauseの権限またはstateとして使用しない。
+`gameplay_clock_mode`は`PausePolicyV1`／`GamePauseStateSnapshotV1`のconsumer projectionであり、outer loopが別のPause authorityを持つ意味ではない。`debug_execution_mode`はDebuggerが所有し、Shipping Game pauseの権限またはstateとして使用しない。`surface_generation`はsurfaceを持つentry branchだけに存在し、UIでもoffscreen Targetなら省略できる。headlessでは必ず省略し、0やfake generationを作らない。
 
 `monotonic_now_ns`と`previous_outer_loop_ns`はwall-clock時刻、timezone、system clock補正を含まない単調clockである。60 Hzのtick長は浮動小数または切り捨てた`16,666,666 ns`の反復加算を使わず、tickごとに次式で求める。
 
@@ -189,12 +192,12 @@ Headless Targetでは設計上surfaceが存在しないことを`SurfaceUnavaila
 
 | 順序 | Phase ID | 実行内容 | 書込範囲 |
 |---:|---|---|---|
-| 0 | `T00_BoundaryApply` | sealed structural command、互換なAsset／GameplayDefinitionSet、検証済みLevel／Cell activationを適用 | 構造変更 |
+| 0 | `T00_BoundaryApply` | sealed structural command、互換なAsset／GameplayDefinitionSet、検証済みbranch activation set／Cell activationを適用 | 構造変更 |
 | 1 | `T10_InputLatch` | device inputをtick付き`InputSnapshot`へ固定 | Input state |
 | 2 | `T20_AsyncIntegrate` | deadline内のasync resultをversion検査して統合 | 宣言済みresult field |
 | 3 | `T30_PrePhysics` | Gameplay、AI behavior、Cook済みrule／abilityを評価し、前tickのsealed snapshotからPerception候補とCollision Query batchを構築 | Simulation command、Perception query batch |
-| 4 | `T40_MotionIntent` | root motion proposal、character motor、kinematic targetを解決 | Physics input |
-| 5 | `T50_PhysicsStep` | 2D／3D Physics fixed stepと登録済みPerception Collision Query batchを実行 | Physics Adapter内部、private query result |
+| 4 | `T40_MotionIntent` | root motion proposalとmovement intentをselected Motion Executorで解決 | selected executor input／resolved motion |
+| 5 | `T50_PhysicsStep` | active Physics providerがある場合だけ2D／3D Physics fixed stepと登録済みCollision Query batchを実行 | active Physics Adapter内部、private query result |
 | 6 | `T60_PhysicsIntegrate` | native eventとPerception Query結果をnormalizeし、dynamic transformと次tick用Perception snapshotをwrite-back | Physics owner field、Perception owner field |
 | 7 | `T70_PostPhysics` | contact／trigger配送、damage、quest、post-physics rule | 非構造fieldとcommand |
 | 8 | `T80_AnimationFinalize` | blend、IK、pose、boundsをauthoritative transformから確定 | Animation state |
@@ -230,7 +233,7 @@ PausePolicyV1
   policy_id
   pause_command_ref
   resume_command_ref
-  pause_state_owner: play_session
+  pause_state_owner: scope.core.runtime_session
   audio_snapshot_ref
   input_context_ref
   async_completion_policy: queue_until_resume
@@ -247,7 +250,7 @@ GamePauseStateSnapshotV1
   clock_profile_ref
   state: running | paused
   applied_tick
-  owner: play_session
+  owner: scope.core.runtime_session
 
 GameplayTimerDefinitionV1
   timer_definition_id
@@ -296,7 +299,7 @@ GameTimeEffectPolicyV1
 
 `domains[]`は`gameplay`、`physics`、`authoritative_animation`、`cinematic`、`presentation`、`ui`、`audio`、`real_time`、`async_io`のnine closed domains exactly onceを含まなければならない。各entryは`source`と`paused_behavior`のclosed enumの有効値を持ち、当該domainのProfile policyと互換でなければならない。missing、duplicate、invalid enum、またはincompatible entryは`clock_domain_entries_invalid`としてtyped rejectし、Profile、Pause state、Replay headerを変更しない。
 
-通常Pauseのownerは`play_session`だけである。successful Pause／resumeだけが`GamePauseCommandV1`をReplayへ`apply_tick`とともに記録し、そのapply tickのboundaryで一括適用する。`apply_tick`の`T30_PrePhysics`は、(1) pause batchの全Profile／owner／audio snapshot／input context／queue preconditionをvalidate、(2) Pause／resumeをapply、(3) timerのowner invalidation、(4) timer cancel、(5) timer schedule、(6) timer deadline fire、(7) `T40_MotionIntent`、(8) `T50_PhysicsStep`の順で一意に進む。pause batchは同じ`play_session`と`apply_tick`につき一commandだけを許可する。step (1)の不成立、または同tick conflictは`pause_apply_atomicity_failure`としてtyped failureにし、no clock domain, pause owner state, audio snapshot, input context, queued activation state, or Replay record changes。したがって同tickのPauseはfreeze対象の`gameplay`／`authoritative_animation` timerについてstep (3)～(6)を実行せず、`gameplay`／authoritativeの`T40_MotionIntent` pathもadvanceせず、`T50_PhysicsStep`を実行しない。UI／presentationの継続はそれぞれのcontinuing domainだけで行い、authoritative gameplay stateをmutationしない。非freeze domainのtimerはProfileどおり同順で進み、同tickのresumeは全許可domainでstep (3)～(8)をこの順で実行する。Replayはsuccessful command ID、apply tick、適用済みdomain state、T40／T50 skip結果、state hashを記録するため、Pause-apply tickのReplay結果は一意である。通常Pauseは`gameplay`、`physics`、`authoritative_animation`を同じtick boundaryでfreezeし、`ui`と`real_time`をcontinueする。`cinematic`、`presentation`、`audio`はProfileで明示し、Gameplay timer、Weapon cadence、Encounter、authoritative VFX cueをwall clock、render frame、Audio sampleへ接続しない。`async_io`はcompletionまでcontinueできるが、World activation、authoritative Command適用、State owner mutationはresume tick boundaryまでqueueする。Pause中のAudioは`audio_snapshot_ref`を原子的に適用し、UI cueと許可されたmusicだけを継続できる。
+通常Pauseのownerは`scope.core.runtime_session`だけである。successful Pause／resumeだけが`GamePauseCommandV1`をReplayへ`apply_tick`とともに記録し、そのapply tickのboundaryで一括適用する。`apply_tick`の`T30_PrePhysics`は、(1) pause batchの全Profile／owner／audio snapshot／input context／queue preconditionをvalidate、(2) Pause／resumeをapply、(3) timerのowner invalidation、(4) timer cancel、(5) timer schedule、(6) timer deadline fire、(7) `T40_MotionIntent`、(8) active Physics providerがある場合だけ`T50_PhysicsStep`の順で一意に進む。pause batchは同じruntime session scope instanceと`apply_tick`につき一commandだけを許可する。step (1)の不成立、または同tick conflictは`pause_apply_atomicity_failure`としてtyped failureにし、no clock domain, pause owner state, audio snapshot, input context, queued activation state, or Replay record changes。したがって同tickのPauseはfreeze対象の`gameplay`／`authoritative_animation` timerについてstep (3)～(6)を実行せず、`gameplay`／authoritativeの`T40_MotionIntent` pathもadvanceせず、`T50_PhysicsStep`を実行しない。UI／presentationの継続はそれぞれのcontinuing domainだけで行い、authoritative gameplay stateをmutationしない。非freeze domainのtimerはProfileどおり同順で進み、同tickのresumeは全許可domainでstep (3)～(8)をこの順で実行する。Replayはsuccessful command ID、apply tick、適用済みdomain state、T40／T50 skip結果、state hashを記録するため、Pause-apply tickのReplay結果は一意である。通常Pauseは`gameplay`、`physics`、`authoritative_animation`を同じtick boundaryでfreezeし、`ui`と`real_time`をcontinueする。`cinematic`、`presentation`、`audio`はProfileで明示し、Gameplay timer、Weapon cadence、Encounter、authoritative VFX cueをwall clock、render frame、Audio sampleへ接続しない。`async_io`はcompletionまでcontinueできるが、World activation、authoritative Command適用、State owner mutationはresume tick boundaryまでqueueする。Pause中のAudioは`audio_snapshot_ref`を原子的に適用し、UI cueと許可されたmusicだけを継続できる。
 
 Saveはauthoritative elapsed tick、clock Profile ref、Game Flow stateを保存し、monotonic time、render delta、pause中の実時間をGameplay stateへ保存しない。ReplayはPause／resume Commandとapply tickを記録し、Pause区間のauthoritative state hashが不変であることを検証する。`GamePauseStateSnapshotV1`はその検証対象のimmutable projectionであり、任意Subsystemはlocal boolで停止状態を所有しない。Debug stepは通常Pauseと別の`explicit_step_only` policyであり、Shipping Game pauseからDebug権限を取得しない。
 
@@ -353,7 +356,7 @@ Asset activationはdependency closure単位の`AssetGenerationId`を使う。CPU
 |---|---|---|
 | Static entity transform | boundary structural transaction | Simulation／Presentationはread-only |
 | Dynamic rigid-body transform | Physics integration | Gameplayはcommandだけ提出 |
-| Kinematic transform | Character motor proposalをPhysicsが解決 | Animation／Gameplayはresolved値を読む |
+| Executor-resolved transform | selected Motion Executor owner | Animation／Gameplay／Path Followingはregistered `resolved_motion_schema_ref`だけを読む |
 | Non-physics gameplay transform | owner Gameplay System | Rendererはsnapshotだけ読む |
 | Skeletal pose | Animation finalize | 現行C1／C2はAnimation inputだけを受ける。Ragdoll input fieldは`future.capability.vehicle-ragdoll-crowd-motion-warping`のactive migration後だけ追加できる |
 | UI layout transform | UI layout owner | Rendererはsnapshotだけ読む |
@@ -361,7 +364,8 @@ Asset activationはdependency closure単位の`AssetGenerationId`を使う。CPU
 
 Physics／Navigation／Animationのcross-subsystem順は次の不変条件を持つ。
 
-- motion intentがroot-motion intervalを一度固定し、Physicsへtargetを提出する。Animation finalizeは同じintervalを再利用しclockを二重advanceしない。
+- motion intentがroot-motion intervalを一度固定し、selected Motion Executorへproposalを提出する。Animation finalizeは同じintervalを再利用しclockを二重advanceしない。
+- `T40_MotionIntent`はselected executorだけがresolved motionをwriteする。`T50_PhysicsStep`はactive executorまたは別SystemがPhysics providerを選択した時だけ実行し、Physicsなしのboard-token／RTS stubではskipをcanonical Replay結果として記録する。
 - 2Dと3D Physicsを併用する場合はgenerated Producer Registryのcanonical system orderで逐次step／joinし、同時にvendor Worldをstepしない。
 - native Physics callbackはWorldを変更せず、copied valueをintegrationでStable ID／generation検査後にnormalizeする。
 - Navigation obstacle inputは完了済みPhysics snapshotから取り込み、live Physics objectを参照しない。Nav resultはrequest時のmesh versionとowner generationが一致する場合だけ統合する。
@@ -430,7 +434,7 @@ queueのentry／arena capacity、critical reserve、overflow／drop／delay poli
 | authoritative queue fault | tick非publish | Play session fault、Replay evidence保全 |
 | presentation loss | authoritative state継続 | capacity ownerのfallback／counter |
 | stale async／Asset result | result破棄 | current revision／versionで再要求 |
-| activation closure failure | partial publish禁止 | last valid generation／Level維持 |
+| activation closure failure | partial publish禁止 | last valid branch generationを維持 |
 | gameplay evaluation failure | unsealed delta／command破棄 | deterministic faultをReplayへ記録 |
 | device／surface failure | new submit停止またはsurface分離 | Platform／Renderer ownerのrecovery |
 | Save failure | in-memory state変更なし | last valid target／backup／journalを検証 |
@@ -454,10 +458,12 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 
 - fixed tickとrender sequence、serialized ID、禁止再入、consume／delivery phase。
 - GameHost outer loopのlifecycle→clock→input→0～4 tick→snapshot→0～1 render→retire／wait順、60 tick exactly 1秒、4-step clamp telemetry、input edge非複製、Gameplay pause、Debug pause／single-step、`SurfaceUnavailable`、`Suspended`、headless、stale snapshot、fault非publish。
+- `fixture.runtime.entry.world-empty`、`fixture.runtime.entry.ui-only`、`fixture.runtime.entry.headless`でbranch closure、optional child lifetime、surface omission、branch activation setを検証する。
+- branch field混在、headless startup system 0、default 0／2、unknown Target selector、selected entry／branch closure hash不一致をPlay開始前に拒否する。
 - exactly-one State owner、System dependency DAG、same-tick cycle拒否、Implementation Variant同値。
 - structural transactionのpreflight／commit atomicity、canonical iteration／merge。
 - handle generation、wrap retire、random invalid handle、borrow epoch、arena reset後の失効。
-- Physics／Navigation／Animation order、native callback非mutation、stale result拒否、root-motion single advance。
+- selected Motion Executor／Navigation／Animation order、native callback非mutation、stale result拒否、root-motion single advance、Physics providerなしのT50 skip。
 - Asset closure、generation非混在、boundary activation、failure時last valid維持。
 - deterministic Input／async accept／RNGから同じReplay hash。
 - Play stop、fault、Save、device／surface、queue、cancel raceのfailure injection。
@@ -492,7 +498,7 @@ memory／queue容量、benchmark、Scale、observability artifactは各ownerのP
 - worker completion順、pointer、OS thread ID、registration順によるauthoritative順序。
 - Runtime WorldとAuthoring object、Undo buffer、Editor hierarchyのpointer共有。
 - lease、span、native object、GPU addressのjob capture／event／Save格納。
-- partial Asset／Level activation、incompatible live swap、Play中Native Module unload。
+- partial Asset／branch activation、incompatible live swap、Play中Native Module unload。
 - visibility、LOD、Audio、VFX、GPU resultからGameplay authorityを決めること。
 - faultしたtick、部分structural transaction、不完全snapshotのpublish。
 - OS callback／Worker／Rendererからouter loopまたはRuntime Worldへの再入、catch-up tickへの同一input edge／text／gesture複製、Debug pause中のaccumulator増加。

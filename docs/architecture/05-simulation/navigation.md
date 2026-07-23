@@ -2,8 +2,8 @@
 
 - 文書ID: mirakan.arch.simulation-navigation
 - 状態: review
-- 正本範囲: 2D Grid Navigation、3D Navmesh source／profile／artifact、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract
-- 非正本範囲: Runtime phase／tick／shared worker／capacity、Physics dynamics、Collision event、Character MotorによるTransform解決、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
+- 正本範囲: 2D Grid Navigation、3D Navmesh source／profile／artifact、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract、`MotionExecutorPortV1`
+- 非正本範囲: Runtime phase／tick／shared worker／capacity、Physics dynamics、Collision event、selected Motion ExecutorによるTransform解決、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -67,7 +67,7 @@ Async resultのdeadlineとacceptanceは[Runtime scheduling／lifetime](../04-run
 
 ### 4.1 C1 Path Following／Movement Intent
 
-`capability.gameplay.path_following`（成熟度C1。maturityはidentityに含めない）は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定をNavigation ownerとして所有する。Navigation query resultとCharacter Motorの最終authoritative Transform解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。Character Motorのwriter authorityを奪わない。
+`capability.gameplay.path_following`（成熟度C1。maturityはidentityに含めない）は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定をNavigation ownerとして所有する。Navigation query resultとselected Motion Executorの最終authoritative motion解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。selected executorのwriter authorityを奪わない。
 
 ```text
 PathFollowRequestV1
@@ -76,6 +76,7 @@ PathFollowRequestV1
   actor_generation
   goal: WorldPosition2f | WorldPosition3f | StableAnchorRef
   nav_agent_profile_ref
+  executor_capability_ref
   movement_profile_ref
   arrival_radius_m
   replan_policy_ref
@@ -102,11 +103,25 @@ MovementIntentV1
   movement_profile_ref
 ```
 
-`arrival_radius_m`はfiniteな0.01～10 mとする。`movement_profile_ref`は[Physics](physics.md)の`CharacterMotorProfileV1`を参照する。request validationは`nav_agent_profile_ref`のslope／climbと参照先Motor Profileのmax slope／step heightの整合を検査し、navmesh上はtraversableだがMotorが通行できない組合せをinvalid Profile relationとして拒否する。C1 waypointは`GridNav2DProfileV1`の`max_path_cells`（C1上限8,192 cell）または`NavBuildProfile3DV1`の`max_straight_path_points`（C1上限256 point）に従い、上限値の正本はProfile fieldである。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、`PathFollowerStateV1.status`の`blocked`遷移だけがreplan契機である。`blocked`はCharacter Motor stateではなくPath Follower述語であり、Motor Outputのresolved poseから得た実進捗が`MovementIntentV1`の要求displacementに対して`replan_policy_ref`の進捗閾値未満であるtickが、同policyのblocked判定tick数だけ連続した場合に遷移する。`replan_policy_ref`は進捗閾値、blocked判定tick数、最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
+`MotionExecutorPortV1`はNavigationが唯一のcanonical ownerとして次の6 Fieldを固定する。
 
-accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Followingは`T30`でactor当たり一つだけの`MovementIntentV1`を生成し、Character Motorが`T40`でCollision queryとともに解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1はwaypoint追従とCharacter Motor collision responseを提供し、複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2に留める。
+```text
+MotionExecutorPortV1
+  executor_capability_ref
+  movement_profile_schema_ref
+  accepted_intent_schema_refs[]
+  resolved_motion_schema_ref
+  compatibility_predicate_ref
+  failure_diagnostic_refs[]
+```
 
-ownerが永続化を要求した場合だけSaveへgoal、request semantic、replan countを保存する。waypoint index、Nav path point配列、native query handle、Physics stateは保存しない。Loadは保存済みNav generationやpath進捗を信用せず、同じgoalとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、arrived／stuck／replan Eventを記録する。C1 fixtureは2D enemy seek／attackと3D Navmesh追跡で、goal移動、door閉鎖、stale result、Level deactivate、blocked recovery、Save／Load、Replay一致を検証する。
+Providerは6 Fieldすべてをversion／hash付きで登録する。`compatibility_predicate_ref`はPath Follow requestのintent schema、`movement_profile_ref`が`movement_profile_schema_ref`へ適合すること、Target Profile、dimension、required Capabilityを検証する。missing provider、同じCapabilityへのactive provider複数、intent不受理、profile schema不一致、Target不適合はtyped failureであり、別ProviderまたはProfileへ推測fallbackしない。
+
+`arrival_radius_m`はfiniteな0.01～10 mとする。`executor_capability_ref`は選択Provider Capability、`movement_profile_ref`はそのProvider-owned schemaのinstanceを参照する。request validationは`nav_agent_profile_ref`のslope／climb／clearance semanticsとProviderのcompatibility predicateを検査し、Navigation上はtraversableだがexecutorが通行できない組合せをinvalid Profile relationとして拒否する。C1 waypointは`GridNav2DProfileV1`の`max_path_cells`（C1上限8,192 cell）または`NavBuildProfile3DV1`の`max_straight_path_points`（C1上限256 point）に従い、上限値の正本はProfile fieldである。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、`PathFollowerStateV1.status`の`blocked`遷移だけがreplan契機である。`blocked`はProvider stateではなくPath Follower述語であり、Portの`resolved_motion_schema_ref`に適合する結果から得た実進捗だけが、`MovementIntentV1`の要求displacementに対して`replan_policy_ref`の進捗閾値未満であるtickが、同policyのblocked判定tick数だけ連続した場合に遷移する。Physics snapshot、Transform component、Animation pose、Provider-private stateから進捗を迂回判定しない。`replan_policy_ref`は進捗閾値、blocked判定tick数、最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
+
+accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Followingは`T30`でactor当たり一つだけの`MovementIntentV1`を生成し、selected Motion Executorが`T40`で解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1 reference recipeはPhysics Character Motor Providerを選択できるが、board-token／RTS executor stubはPhysicsなしで同じPortへ接続できる。複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2に留める。
+
+ownerが永続化を要求した場合だけSaveへgoal、request semantic、`executor_capability_ref`、movement profile identity、replan countを保存する。Scope instance keyとSave identityをruntime generationへ置換しない。waypoint index、Nav path point配列、native query handle、Physics stateは保存しない。Loadは保存済みNav generationやpath進捗を信用せず、同じgoalとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、selected executor／profile hash、accepted resolved motion、arrived／stuck／replan Eventを記録する。C1 fixtureは2D enemy seek／attackと3D Navmesh追跡で、goal移動、door閉鎖、stale result、owner scope deactivate、blocked recovery、Save／Load、Replay一致を検証する。
 
 ## 5. Authoring、AI、diagnostic、recovery
 
@@ -114,13 +129,15 @@ ownerが永続化を要求した場合だけSaveへgoal、request semantic、rep
 
 AIは「どのBackendを使うか」ではなく、2D／3D、移動体の大きさ、登れる段差／傾斜、通行可能area、door／jump link、dynamic obstacle、Targetをゲーム上の言葉で確認する。未指定値はassumptionとしてpreviewに表示する。Risk分類、authorization、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、Approval ruleを再掲しない。
 
-主要diagnostic classはinvalid Profile relation、source geometry incompatible、tile／grid connectivity failure、area／link reference missing、cook unavailable、artifact incompatible、version mismatch、expired lease、result bound exceeded、Backend invariant violationである。各diagnosticはstable code、source path／Stable ID、原因、remediation候補、active artifactを維持したかを返す。
+主要diagnostic classはinvalid Profile relation、source geometry incompatible、tile／grid connectivity failure、area／link reference missing、cook unavailable、artifact incompatible、version mismatch、expired lease、result bound exceeded、Backend invariant violation、motion executor missing／duplicate／incompatible、stale resolved motion、provider failureである。各diagnosticはstable code、source path／Stable ID、原因、remediation候補、active artifact／last-valid resolved motionを維持したかを返す。
 
 Cook失敗、Worker crash、invalid staging、incompatible promotionではlast valid artifactを維持する。Query Backend faultでは当該requestをfailureにし、active artifactを破壊しない。Runtime fault／publish policy、shared queue／capacity／backpressureはRuntime ownersへ委譲する。
 
 ## 6. Qualificationと採用しないもの
 
 QualificationはGrid rasterization／A*、Profile cross-field validation、canonical triangle conversion、tile seam、area／modifier／off-mesh link、nearest projection、path ordering、no-path、result bound、async stale result、version activation／lease expiry、fault injection、Editor／AI previewを含む。同じfixtureを全private Backendへ与え、Engine result／status／diagnosticが一致することを検査する。
+
+`fixture.navigation.motion-executor.physics-character`はPhysics reference Provider、`fixture.navigation.motion-executor.board-token-no-physics`と`fixture.navigation.motion-executor.rts-stub-no-physics`はPhysics unavailableでのProvider-owned profile／resolved schemaを検証する。negative fixtureはmissing provider、duplicate provider、intent／profile／Target incompatibility、stale resultを一原因ずつ拒否する。root-motion proposal fixtureはselected executorだけが解決し、provider failure fixtureはPath progress、last-valid resolved motion、Path Follower stateを部分更新しないことを検証する。
 
 Dependency artifact identityとTarget buildは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定／capacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を消費する。
 

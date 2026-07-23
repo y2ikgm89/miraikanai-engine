@@ -114,6 +114,8 @@ Shooter Packは`pack_kind=genre`とし、次のFeature Packを必要に応じて
 
 `Ready | Playing | Paused | Result`、Shooter Action Role、Shooter固有Camera／Audio／LOD ProfileはShooter Genre Packが所有する。
 
+Shooter manifestの全Recipe共通依存はRanged CombatとそのFeature DAGだけとする。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeの`required_feature_pack_refs[]`／`required_capability_refs[]`へ置く。AI敵、移動、Score、Pickup、finite Stageを持たないminimal Shooter recipeをvalidとし、既存2D／TPS reference Recipeは従来のeffective closureとPerception bindingを維持する。
+
 次の旧identityを廃止する。
 
 | 旧identity | 移行先 |
@@ -135,6 +137,7 @@ RuntimeEntryPointV1
   entry_point_id
   entry_kind: world | ui | headless
   target_selector_ref
+  default_for_selected_targets: bool
   world_ref: WorldDocumentRef | null
   ui_document_ref: UiDocumentRef | null
   startup_game_system_refs[]
@@ -143,9 +146,15 @@ RuntimeEntryPointV1
 
 tagged branchは次を強制する。
 
-- `world`: `world_ref`だけを必須にする。
-- `ui`: `ui_document_ref`だけを必須にする。Worldは不要。
+- `world`: `world_ref`だけをbranch固有必須refにし、`startup_game_system_refs[0..128]`を許可する。
+- `ui`: `ui_document_ref`だけをbranch固有必須refにし、`startup_game_system_refs[0..128]`を許可する。Worldは不要。
 - `headless`: `startup_game_system_refs[1..128]`を必須にし、World／UI／surfaceを要求しない。
+
+各active Targetについて`default_for_selected_targets=true`のentryだけを対象に`target_selector_ref`の被覆を検査し、default 0件または2件以上を拒否する。non-default entryのselector overlapは許可し、benchmark、menu、game、server等を同Targetへ複数登録できる。Runtimeはdefaultまたは明示選択を推測せず、実際の選択結果を`selected_runtime_entry_point_ref`、`selected_runtime_entry_point_hash`、`entry_branch_closure_hash`としてCompile Manifestへ保存する。World／Topology／streaming hashは選択branchが`world`で対応Sourceが存在する場合だけcanonical presentとし、`ui`／`headless`ではcanonical omissionにする。
+
+`PlayPreparing`は選択entry、Runtime package、System Graph、Target Planと、そのbranch固有closureだけを検証する。`world`はWorld closure、`ui`はUI closure、`headless`はstartup system closureを持つ。branch activation setの準備後に、runtime session配下へWorld instance、UI session、startup systemsをbranch別optionalとして生成する。`surface_generation`はsurfaceを持つbranchだけのtagged stateであり、headless branchへ偽surfaceを作らない。
+
+旧`root scene`はmigration stagingで`default_for_selected_targets=true`の明示的な`world` entryへ変換し、各active Targetへdefaultを厳密に一件生成する。実行時の暗黙migration、`Level` alias、`ui`／`headless`への近似変換を禁止する。
 
 ### 4.2 Generic World
 
@@ -158,6 +167,10 @@ tagged branchは次を強制する。
 
 `SpatialTopologyDefinitionV1`は`space_nodes[]`、`transition_edges[]`、`activation_entry_refs[]`を持つ。entryは0件を許可し、到達不能spaceは`intentionally_isolated=true`で明示する。transition payloadはtyped `transfer_subject_refs[]`を使用し、Player／Partyを固定しない。
 
+Streaming interestはclosedなPlayer enumではなく、owner登録済みtyped interest-source contract refの集合を使用する。observer、entity、camera、scripted anchor等を登録可能とし、unknown／removed ownerを拒否する。
+
+`WorldAuthoringPlanV1.affected_world_refs`は既存World編集branchで1～64件、新規World作成branchでは`create_document_kinds`がWorld作成を厳密に一件宣言する時だけ0件を許可する。新規Worldの`WorldAuthoringContextV1`はCommit成功後にexact `world_ref`付きで生成し、未発行IDを推測しない。
+
 ### 4.3 Optional Scenario／Stage Feature
 
 有限Stage、entry／exit、Objective、Completionが必要なProjectだけがScenario／Stage Feature Packを使用する。
@@ -165,7 +178,7 @@ tagged branchは次を強制する。
 ```text
 StageDefinitionV1
   stage_id
-  world_ref
+  world_ref: WorldDocumentRef | null
   content_source_refs[]
   entry_anchor_refs[]
   exit_anchor_refs[]
@@ -181,6 +194,8 @@ StageDefinitionV1
 
 `completion_mode=none`ではcompletion contract、objective、resultを要求しない。Stage ScopeはFeature Packが`scope.feature.scenario_stage.instance`として登録する。Coreは`level_instance`を列挙しない。
 
+`world_ref`はrequired nullableである。world Runtime Entryへ結ぶStageだけがexact World refを必須とし、UI-only／headless Stageは`world_ref=null`とowner-typed `content_source_refs[]`を使用できる。`entry_anchor_refs[]`、`exit_anchor_refs[]`、spatial spawn fieldは`world_ref=null`で0件、world branchでだけ参照kindを検証する。
+
 ## 5. Gameplay、Scope、Locomotion
 
 ### 5.1 System scope
@@ -195,11 +210,25 @@ Core登録Scopeは次に限定する。
 - `scope.core.entity`
 - `scope.core.ui_session`
 
-Feature Packは`scope.feature.<feature>.instance`を登録できる。Scope entryはinstance key schema、owner、lifetime、Save／Replay policy、activation／deactivation conditionを必須にする。`level_instance`と`encounter_instance`はCore値として残さない。
+```text
+RuntimeScopeTypeCatalogV1
+  catalog_version
+  catalog_hash
+  entries[]:
+    scope_type_ref
+    instance_key_schema_ref
+    owner_ref
+    lifetime_ref
+    save_replay_policy_ref
+    activation_condition_ref
+    deactivation_condition_ref
+```
+
+Core entryは上記5件と完全一致する。Feature Packは`scope.feature.<feature>.instance`、Genre Packは自身の内部だけで使用する`scope.genre.<genre>.<scope>.instance`を登録できる。Shooter Game Flowのexact scope IDは`scope.genre.shooter.game_flow.instance`であり、別名または末尾`.instance`を欠くaliasを残さない。Core／FeatureからGenre scopeへの依存、duplicate、unknown owner、unavailable／removed owner、instance-key schema不一致、Save／Replay schema hash不一致をtyped rejectする。`play_session`等の旧enum aliasは残さない。ScopeのSource／Save identity、Replay identity、ephemeral runtime generationを相互に置換しない。
 
 ### 5.2 InteractionとGame Flow
 
-共通Interaction rejectionは`game_flow_disallowed`を持たない。`operation_eligibility_policy_ref`によるowner判定と、genericな`policy_denied`を使用する。Shooter Game FlowはShooter Pack内だけでInteraction policyを提供する。
+共通Interaction rejectionは`game_flow_disallowed`を持たない。`operation_eligibility_policy_ref`によるowner判定と、genericな`policy_denied`を使用する。Shooter Game FlowはShooter Pack内だけで`scope.genre.shooter.game_flow.instance`を読むInteraction policyを提供する。
 
 Saveは登録済みState ownerと`SaveReplayContractV1`が宣言したfieldだけを保存する。共通Runtimeが常にGame Flow stateを保存してはならない。
 
@@ -218,6 +247,10 @@ MotionExecutorPortV1
 ```
 
 Character MotorはC1で適格化するProviderの一つである。Vehicle、flying、swimming、RTS unit、board token等は別Capability／Providerとして同じPortへ接続できる。Physics CoreはKinematic Character Motorを必須Core機能にせず、Character Locomotion FeatureのEngine-owned reference implementationとして提供する。
+
+Navigationはこの6 Field型の唯一のcanonical ownerである。Path Followingは`executor_capability_ref`とProvider-owned `movement_profile_ref`を要求し、compatibility predicateがintent schema、movement profile、Targetを検証する。path progressは`resolved_motion_schema_ref`の結果だけで判定する。
+
+`feature.character_locomotion@1`のPack installはPhysicsを要求しない。Physics Character MotorはC1 reference recipe／qualification providerの一つに限る。Animation root motionはselected Motion Executorへのproposalであり、`gameplay_motor`旧modeはprovider-neutral modeへclean migrationする。T40はselected executor、T50はactive Physics providerがある場合だけ実行する。missing／incompatible provider、stale result、provider failureはtyped failureとし、last-valid stateを維持する。
 
 ## 6. ClockとPause
 

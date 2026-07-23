@@ -103,7 +103,9 @@ entryから到達不能なSpaceは`intentionally_isolated=true`を必須にす�
 
 ## 6. Spatial Partitionとstreaming-plan authoring
 
-`SpatialPartitionIntentV1`はCreatorが編集するSourceであり、`partition_intent_id`、厳密に1件の`world_ref`、`spatial_dimension: 2d | 3d`、`interest_source_kinds`（`player | camera | portal | scripted_anchor | network_authority`のsubset）、physical unitとhysteresisを明示する`activation_radius_policy`、together／separate Stable ID set、1～128件のtyped ordered `priority_rules`、0～4,096件の`always_resident_refs`、Stable Entity／Layer／Sceneの`streamable_refs`、Targetごとに厳密に1件の`target_budget_refs`、typed `failure_policy`を持つ。Cell size、chunk file名、GPU heap offset、Backend page IDをSource Intentへ固定しない。
+`SpatialPartitionIntentV1`はCreatorが編集するSourceであり、`partition_intent_id`、厳密に1件の`world_ref`、`spatial_dimension: 2d | 3d`、`interest_source_contract_refs[1..128]`、physical unitとhysteresisを明示する`activation_radius_policy`、together／separate Stable ID set、1～128件のtyped ordered `priority_rules`、0～4,096件の`always_resident_refs`、Stable Entity／Layer／Sceneの`streamable_refs`、Targetごとに厳密に1件の`target_budget_refs`、typed `failure_policy`を持つ。Cell size、chunk file名、GPU heap offset、Backend page IDをSource Intentへ固定しない。
+
+各`interest_source_contract_ref`はowner登録済みのtyped contractへexactに解決し、observer、entity、camera、portal observer、scripted anchor、simulation agent等を提供できる。Player／Party／Characterをclosed enumまたは必須sourceにせず、unknown、duplicate、owner unavailable／removed、dimension不一致を`MIRAKAN-WORLD-PARTITION_INVALID`で拒否する。Runtimeはcontractが返すgeneration付きposition／bounds／priorityだけを消費し、owner stateをWorldへ複写しない。
 
 `WorldStreamingPlanV1`はCookerが生成するDerived Artifactであり、Editor／AIは直接編集しない。fieldは`plan_id`、`source_world_revision`、`contract_set_hash`、`target_profile_id`、`toolchain_manifest_hash`、`partition_intent_hash`、`cell_descriptors[]`、`dependency_edges[]`、`activation_groups[]`、`residency_budget`、`canonical_priority_order`、`fallback_plan_ref`、`artifact_hash`である。`residency_budget`の定義と解決値はRuntime capacity ownerを参照する。
 
@@ -394,7 +396,7 @@ WorldAuthoringPlanV1
   map_intent_resolution_hash: bytes32
   requirement_ids: bounded array[1..256]<exact requirement ID>
   target_profile_ids: bounded array[1..32]<exact Target Profile ID>
-  affected_world_refs: bounded array[1..64]<exact World ref>
+  affected_world_refs: bounded array[0..64]<exact World ref>
   affected_scene_refs: bounded array[0..1024]<exact Scene ref>
   affected_space_refs: bounded array[0..1024]<exact Space ref>
   affected_topology_refs: bounded array[0..64]<exact SpatialTopologyDefinitionV1 ref>
@@ -413,7 +415,7 @@ WorldAuthoringPlanV1
   disposition: ready_to_stage | question_required | capability_unavailable | target_unsupported | budget_missing | rejected
 ```
 
-`source_change_kinds`は`world_document | scene_composition | topology | partition | procedural_layout | map_presentation`の6種へ閉じる。すべてのaffected refは`project_revision`に実在しexpected kindが一致しなければならず、新規Documentは`create_document_kinds`とGateway発行IDで表す。`disposition=question_required`だけがQuestionを1～7件持ち、その他は0件とする。Planはread-only／proposal-onlyで、Source、Staging、Derived Artifact、Runtime stateを変更せず、Commit／Approval／Receipt権限を持たない。
+`source_change_kinds`は`world_document | scene_composition | topology | partition | procedural_layout | map_presentation`の6種へ閉じる。既存World編集branchは`affected_world_refs[1..64]`を必須とし、すべてのaffected refが`project_revision`に実在しexpected kindと一致しなければならない。新規World作成branchだけは`affected_world_refs=[]`を許可するが、`create_document_kinds`がclosed World document kindを厳密に一件含み、`source_change_kinds`が`world_document`を含むことを必須にする。新規IDはCommit時にGatewayが発行し、Planへ存在しないWorld IDを先行記録しない。`disposition=question_required`だけがQuestionを1～7件持ち、その他は0件とする。Planはread-only／proposal-onlyで、Source、Staging、Derived Artifact、Runtime stateを変更せず、Commit／Approval／Receipt権限を持たない。
 
 ```text
 WorldAuthoringBundleV1
@@ -466,7 +468,7 @@ WorldAuthoringContextV1
   continuation: optional hash-bound continuation
 ```
 
-`topology_ref`と`topology_version`は共に存在するか共に省略する。`source_closure_hash`はcanonicalな`source_document_refs`のtyped ref、version、source hashを結ぶ。`continuation`は`omitted_ranges`が1件以上の時だけ存在し、request hash、source closure hash、revision、scopeをbindする。Contextはread-only／Disposable projectionであり、Source Document、ChangeSet／Commit、Save／Replay headerへ保存せず、Commit可能なidentityやOperationとして受理しない。
+`topology_ref`と`topology_version`は共に存在するか共に省略する。`source_closure_hash`はcanonicalな`source_document_refs`のtyped ref、version、source hashを結ぶ。`continuation`は`omitted_ranges`が1件以上の時だけ存在し、request hash、source closure hash、revision、scopeをbindする。Contextはread-only／Disposable projectionであり、Source Document、ChangeSet／Commit、Save／Replay headerへ保存せず、Commit可能なidentityやOperationとして受理しない。新規World作成中はContextを生成せず、`CreateWorldDocument` Commit成功後の新Project revisionからGateway発行のexact `world_ref`を持つContextだけを生成する。Plan内local ID、表示名、予定pathからWorld IDを推測しない。
 
 Source operationは`CreateWorldDocument`、`CreateSceneDocument`、`ComposeScene`、`MoveEntityToScene`、`SetSpatialTopologyDefinition`、`SetSpatialPartitionIntent`、`SetProceduralWorldDefinition`、`SetMapPresentationDefinition`である。consumer-owned Gameplay operationをWorld namespaceへ登録しない。`GenerateWorldStreamingPlan`はCommit済みSourceからDerived Planを作るCook jobで、Preview／Inspectはread-onlyである。
 
@@ -517,6 +519,8 @@ World diagnosticはWorld／Scene／Space／Entity Stable ID、Plan ID／plan-loc
 Qualificationは次を含む。
 
 - 全World schemaのvalid／invalid／boundary、UUIDv7 Stable IDのrename／delete／migration、World／Scene／Spaceの多対多ref、0 Scene procedural-only、0 entry topology、intentional isolation。
+- greenfield `WorldAuthoringPlanV1`が`affected_world_refs=[]`＋World作成kind厳密1件でvalid、既存編集は1～64件必須、Commit前Context生成／推測World IDを拒否し、Commit後だけexact `world_ref`付きContextを生成するfixture。
+- Playerなしでcamera observer、scripted anchor、simulation agentのtyped interest-source contractを登録するpositive fixtureと、unknown／removed owner、duplicate、dimension mismatchのnegative fixture。
 - `fixture.world.authoring-semantics`: 共有Sceneを参照する複数World composition、複数Sceneからなる一World、Targetごとに異なるCell plan、Scene移動とCell再Cookがidentity／membershipを暗黙変更しないこと。
 - Topology reachability／cycle／Target fallback、unknown／stale／cross-cell pointer、Undo／Redo、crash recovery、concurrent edit conflict。
 - Cell全state transition、timeout、I/O failure、activation group atomicity、source Space維持、typed subject transfer、Save／Load／Replay state hash。

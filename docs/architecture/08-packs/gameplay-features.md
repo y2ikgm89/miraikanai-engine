@@ -19,7 +19,7 @@
 | `feature.scoring` | `capability.gameplay.scoring` | 本書: Score rule／state |
 | `feature.pickup_grant` | `capability.gameplay.pickup_grant` | 本書: Pickup、typed Grant |
 | `feature.interaction` | `capability.gameplay.interaction` | [Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) |
-| `feature.character_locomotion` | `capability.gameplay.character_locomotion` | [Physics](../05-simulation/physics.md)のMotion Executor／Character implementation境界 |
+| `feature.character_locomotion` | `capability.gameplay.character_locomotion` | [Navigation](../05-simulation/navigation.md)のMotion Executor public contract。Physicsは任意reference Provider |
 | `feature.path_following` | `capability.gameplay.path_following` | [Navigation](../05-simulation/navigation.md) |
 | `feature.scenario_stage` | `capability.gameplay.scenario_stage` | [Scenario／Stage](scenario-stage.md) |
 
@@ -35,26 +35,13 @@
 | `feature.scoring@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.scoring]` | `[ScoreRuleSetV1, ScoreStateV1]`／`[ScoreAwardPortV1]` | `[game_system.engine.score]`／`[validator.feature.scoring.v1]`／`[fixture.feature.scoring.contract]` |
 | `feature.pickup_grant@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.pickup_grant]` | `[PickupDefinitionV1, PickupInstanceStateV1, GrantRequestV1, GrantResultV1]`／`[GrantRequestPortV1]` | `[game_system.engine.pickup]`／`[validator.feature.pickup_grant.v1]`／`[fixture.feature.pickup_grant.provider_neutral]` |
 | `feature.interaction@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.interaction]` | `[mirakan.arch.gameplay-programming-model#InteractionDefinitionV1, mirakan.arch.gameplay-programming-model#InteractionRequestV1, mirakan.arch.gameplay-programming-model#InteractionSnapshotV1]`／`[]` | `[mirakan.arch.gameplay-programming-model#Engine-Standard-Interaction-System]`／`[validator.feature.interaction.v1]`／`[fixture.feature.interaction.contract]` |
-| `feature.character_locomotion@1` (`pack_kind=feature`) | `[]` | `[capability.simulation.physics]` | `[capability.gameplay.character_locomotion]` | `[mirakan.arch.simulation-physics#CharacterMoveIntentV1, mirakan.arch.simulation-physics#PhysicsStateSnapshotV1]`／`[MotionExecutorPortV1]` | `[mirakan.arch.simulation-physics#Character-Motor]`／`[validator.feature.character_locomotion.v1]`／`[fixture.feature.character_locomotion.motion_executor]` |
-| `feature.path_following@1` (`pack_kind=feature`) | `[]` | `[capability.simulation.navigation]` | `[capability.gameplay.path_following]` | `[mirakan.arch.simulation-navigation#PathFollowRequestV1, mirakan.arch.simulation-navigation#PathFollowerStateV1, mirakan.arch.simulation-navigation#MovementIntentV1]`／`[MotionExecutorPortV1]` | `[mirakan.arch.simulation-navigation#Path-Following]`／`[validator.feature.path_following.v1]`／`[fixture.feature.path_following.executor_stub]` |
+| `feature.character_locomotion@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.character_locomotion]` | `[mirakan.arch.simulation-navigation#MotionExecutorPortV1]`／`[mirakan.arch.simulation-navigation#MotionExecutorPortV1]` | `[game_system.engine.character_locomotion.binding]`／`[validator.feature.character_locomotion.v1]`／`[fixture.feature.character_locomotion.motion_executor]` |
+| `feature.path_following@1` (`pack_kind=feature`) | `[]` | `[capability.simulation.navigation]` | `[capability.gameplay.path_following]` | `[mirakan.arch.simulation-navigation#PathFollowRequestV1, mirakan.arch.simulation-navigation#PathFollowerStateV1, mirakan.arch.simulation-navigation#MovementIntentV1, mirakan.arch.simulation-navigation#MotionExecutorPortV1]`／`[mirakan.arch.simulation-navigation#MotionExecutorPortV1]` | `[mirakan.arch.simulation-navigation#Path-Following]`／`[validator.feature.path_following.v1]`／`[fixture.feature.path_following.executor_stub]` |
 | `feature.scenario_stage@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.scenario_stage]` | `[mirakan.arch.pack-scenario-stage#StageDefinitionV1, mirakan.arch.pack-scenario-stage#StageRuntimeStateV1]`／`[mirakan.arch.pack-scenario-stage#StageActivationPortV1, mirakan.arch.pack-scenario-stage#StageTransitionPortV1]` | `[mirakan.arch.pack-scenario-stage#game_system.engine.scenario_stage]`／`[validator.feature.scenario_stage.v1]`／`[fixture.feature.scenario_stage.none]` |
 
-`feature.interaction`、`feature.character_locomotion`、`feature.path_following`、`feature.scenario_stage`のrequired capabilityとpublic surfaceは、それぞれ[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Scenario／Stage](scenario-stage.md)の既存Ownerへexact refで接続する。Feature catalogはそれらのSchemaを複製しない。
+`feature.interaction`、`feature.character_locomotion`、`feature.path_following`、`feature.scenario_stage`のrequired capabilityとpublic surfaceは、それぞれ[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Navigation](../05-simulation/navigation.md)、[Navigation](../05-simulation/navigation.md)、[Scenario／Stage](scenario-stage.md)の既存Ownerへexact refで接続する。Feature catalogはそれらのSchemaを複製しない。
 
-`MotionExecutorPortV1`はC1からのPublic Boundaryであり、次を固定する。
-
-```text
-MotionExecutorPortV1
-  port_id
-  input_contract_ref: mirakan.arch.simulation-physics#CharacterMoveIntentV1
-  output_contract_ref: mirakan.arch.simulation-physics#PhysicsStateSnapshotV1
-  execution_phase_ref
-  implementation_capability_ref: capability.simulation.physics
-  state_owner_ref: mirakan.arch.simulation-physics#Character-Motor
-  max_requests_per_tick
-```
-
-consumerはPhysics Backend object、native body pointer、render transformへ直接依存せず、このportのtyped intent／resultだけを使う。unsupported dimension、capacity超過、stale entity generationはtyped resultとして返し、partial applyを禁止する。
+`MotionExecutorPortV1`の唯一のcanonical ownerはNavigationである。本書はexact public contract refだけをmanifestへ登録する。Character Locomotion PackはPhysics unavailableでもinstall／validateでき、Physics Character MotorはC1 reference recipe／qualification Providerを選んだ時だけ依存closureへ入る。consumerはProvider Backend object、native body pointer、render transformへ直接依存せず、Portのtyped intent／resolved resultだけを使う。
 
 ## 3. Canonical data model
 
@@ -442,15 +429,17 @@ GrantRequestPortV1
 
 | System Contract | Scope | 所有State | 主な責務 |
 |---|---|---|---|
-| `game_system.engine.weapon` | `entity_instance` | `WeaponInstanceStateV1`、`WeaponLoadoutStateV1` | trigger、cadence、ammo、reload、switch、Fire transaction |
-| `game_system.engine.ranged_projectile` | `world_instance` | `RangedProjectileStateV1` collection | spawn、swept query、hit／expire、capacity |
-| `game_system.engine.combat` | `world_instance` | Damage credit ledger | Hit Evidence、Team、Damage rule、creditの検証 |
-| `game_system.engine.vital` | `entity_instance` | `VitalStateV1` | Health、Shield、invulnerability、defeat |
-| `game_system.engine.score` | `play_session` | `ScoreStateV1` | 加点、combo、multiplier、high score |
-| `game_system.engine.pickup` | `world_instance` | `PickupInstanceStateV1` collection | overlap Evidence、provider-neutral typed Grant、one-shot state |
-| `game_system.engine.encounter` | `encounter_instance` | Encounter runtime state | Wave、Spawn、Boss phase、completion |
+| `game_system.engine.weapon` | `scope.core.entity` | `WeaponInstanceStateV1`、`WeaponLoadoutStateV1` | trigger、cadence、ammo、reload、switch、Fire transaction |
+| `game_system.engine.ranged_projectile` | `scope.core.world` | `RangedProjectileStateV1` collection | spawn、swept query、hit／expire、capacity |
+| `game_system.engine.combat` | `scope.core.world` | Damage credit ledger | Hit Evidence、Team、Damage rule、creditの検証 |
+| `game_system.engine.vital` | `scope.core.entity` | `VitalStateV1` | Health、Shield、invulnerability、defeat |
+| `game_system.engine.score` | `scope.feature.scoring.instance` | `ScoreStateV1` | 加点、combo、multiplier、high score |
+| `game_system.engine.pickup` | `scope.core.world` | `PickupInstanceStateV1` collection | overlap Evidence、provider-neutral typed Grant、one-shot state |
+| `game_system.engine.encounter` | `scope.feature.encounter_spawn.instance` | Encounter runtime state | Wave、Spawn、Boss phase、completion |
 
 同じPublic Contractへ適合するProject-defined実装は許可するが、Engine Standardと同時にactiveにしない。WeaponとVitalをCharacter Systemのprivate Fieldへ隠さず、Public State owner tableへ出す。
+
+`feature.scoring`と`feature.encounter_spawn`はそれぞれ`scope.feature.scoring.instance`、`scope.feature.encounter_spawn.instance`を`RuntimeScopeTypeCatalogV1`へ登録し、instance key schema、owner、lifetime、Save／Replay policy、activation／deactivation conditionを全件持つ。旧`play_session`／`encounter_instance`からclean migrationし、aliasを残さない。Save identity、Replay identity、ephemeral runtime generationを別Fieldで保持し、複数instanceのStateをSource IDまたはRuntime handleで合成しない。
 
 ### 4.2 Runtime data flow
 
@@ -729,11 +718,13 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 | `fixture.feature.scoring.contract` | Score／Combo／overflow／persistent state |
 | `fixture.feature.pickup_grant.provider_neutral` | provider 0件、registered provider、unsupported型、rollback |
 | `fixture.feature.interaction.contract` | Interaction ownerのexact public port |
-| `fixture.feature.character_locomotion.motion_executor` | `MotionExecutorPortV1`の2D／3D stub、stale generation |
-| `fixture.feature.path_following.executor_stub` | Navigation ownerのpath execution port |
+| `fixture.feature.character_locomotion.motion_executor` | Navigation-owned PortのPhysicsなし2D／3D stub、optional Physics reference Provider、stale generation |
+| `fixture.feature.path_following.executor_stub` | Navigation ownerのpath execution port、board-token／RTS stub、missing／incompatible Provider |
 | `fixture.feature.scenario_stage.none` | `completion_mode=none`でcompletion ownerを要求しないStage |
 
 各fixtureはPack単体または宣言済みFeature closureだけでinstall／validate／executeできなければならない。Genre Pack、Genre Profile、product fixture、Genre固有Action roleをtest dependencyへ含めない。manual authoring、AI生成、manual再編集、AI再編集は同じSourceとFeature operationを使い、同じDefinition hash、Receipt、Runtime結果へ収束する。
+
+Character Locomotion fixtureはPhysics capabilityとPhysics Packが不在でもPack installを成功させる。Physics Character Motorを選択したC1 reference caseだけがそのProvider qualification receiptを要求し、Provider failure時にlast-valid resolved motionとFeature Stateが不変であることを検証する。
 
 ### 8.8 Performance／Soak
 
