@@ -114,7 +114,7 @@ RuntimeEntryActivationPolicyV1
 
 `target_profile_refs[]`はexact `DocumentRef<TargetProfileDocument>`をStable ID byte順、同IDならschema version／content hash byte順でcanonicalizeし、duplicate Stable ID、同ID別hash、missing／removed Target、schema／hash不一致を拒否する。wildcard、tag、表示名、platform名、active Targetの現在値を使うlookupはselector schemaに存在しない。
 
-`RuntimeTargetSelectorHashPayloadV1`はSource selectorから`selector_hash`を投影しない別MCD typeであり、`target_profile_ref_count == target_profile_refs.length`を必須にする。`RuntimeTargetSelectorHashV1 = SHA-256(ASCII "MIRAKAN_RUNTIME_TARGET_SELECTOR_V1" || uint32_be(length(MCD canonical bytes of RuntimeTargetSelectorHashPayloadV1)) || MCD canonical bytes)`とする。domain、payload byte length、count、各DocumentRefの型付きField境界により連結曖昧性を作らず、hash payload自身にhash Fieldがないためself-exclusionを暗黙Ruleにしない。selector ID、version、count、Target refのID／kind／path／content hash／schema versionのどれか一つだけを変えた場合も別hashにし、旧hash再利用を拒否する。`policy_hash`は自己Fieldを除く全policy Fieldから計算する。
+`RuntimeTargetSelectorHashPayloadV1`はSource selectorから`selector_hash`を投影しない別MCD typeであり、`target_profile_ref_count == target_profile_refs.length`を必須にする。`RuntimeTargetSelectorHashV1 = SHA-256(ASCII "MIRAKAN_RUNTIME_TARGET_SELECTOR_V1" || uint32_be(length(MCD canonical bytes of RuntimeTargetSelectorHashPayloadV1)) || MCD canonical bytes)`とする。domain、payload byte length、count、各DocumentRefの型付きField境界により連結曖昧性を作らず、hash payload自身にhash Fieldがないためself-exclusionを暗黙Ruleにしない。selector ID、version、count、Target refのID／kind／path／content hash／schema versionのどれか一つだけを変えた場合も別hashにし、旧hash再利用を拒否する。
 
 各Runtime Entry系Documentのidentityは三重に複製して別々に解決せず、保存時に次のequalityを必須とする。
 
@@ -128,9 +128,9 @@ DocumentRef.stable_id
 
 hashの意味を次へ一意に固定する。
 
-- `RuntimeEntryPointSemanticHashV1 = SHA-256(MCD canonical bytes of RuntimeEntryPointV1 payload)`。payloadはhash Fieldを持たないため自己参照はない。
+- `RuntimeEntryPointSemanticHashV1 = SHA-256(ASCII "MIRAKAN_RUNTIME_ENTRY_POINT_SEMANTIC_V1" || uint32_be(length(MCD canonical bytes of RuntimeEntryPointV1)) || MCD canonical bytes)`。payloadはhash Fieldを持たず、Field／array countはcanonical bytesへ明示する。
 - `RuntimeTargetSelectorV1.selector_hash`は直前の`RuntimeTargetSelectorHashPayloadV1`式だけを参照し、別の短縮式、Document hash、Target集合だけのhashを定義しない。
-- `RuntimeEntryActivationPolicyV1.policy_hash = SHA-256(MCD canonical bytes of policy payload excluding policy_hash)`。
+- `RuntimeEntryActivationPolicyV1.policy_hash = SHA-256(ASCII "MIRAKAN_RUNTIME_ENTRY_ACTIVATION_POLICY_V1" || uint32_be(length(MCD canonical bytes of policy payload excluding policy_hash)) || MCD canonical bytes)`。唯一のself-exclusionは`policy_hash`自身である。
 - 共通headerの`content_hash`は§3.2どおり、`content_hash`だけを除外したheaderとpayload全体のDocument hashであり、上記semantic hashと同一視しない。
 - Compile Manifestの`selected_runtime_entry_point_hash`は厳密に`RuntimeEntryPointSemanticHashV1`である。選択Documentのexact content hashは`selected_runtime_entry_point_ref.content_hash`に保持し、どちらも照合する。
 
@@ -184,17 +184,16 @@ Operation RegistryのProject owner集合と上記集合はID／version／Contrac
 
 ```text
 RuntimeEntryMutationCommonInputV1
+  input_type_ref: McdContractRefV1(kind=type)
   operation_ref: McdContractRefV1(kind=operation)
   project_ref: exact {project_id, expected_project_revision, document_set_hash}
   contract_set_hash
+  operation_intent_hash
   request_hash
   idempotency_key
   preview_policy_ref: McdContractRefV1(kind=policy)
   validation_policy_ref: McdContractRefV1(kind=policy)
-  authorization_ref
-  mutation_authorization_binding:
-    approval: exact approval_ref/hash
-    | predelegated: exact predelegation_ref/hash
+  mutation_authorization_binding: exact MutationAuthorizationBindingV2
 
 type.project.runtime_entry.create_input
   common
@@ -265,24 +264,47 @@ RootSceneMigrationPlanV1
   legacy_source_closure_hash
   active_target_profile_refs[1..64]
   document_mutations[4]:
-    world: exact create-or-update payload hash
-    runtime_target_selector: exact create-or-update payload hash
-    runtime_entry_activation_policy: exact create-or-update payload hash
-    runtime_entry: exact create-or-update payload hash
-  stable_id_allocation_intents[4]:
-    exact {document_kind, allocation_scope, relative_path, requested_identity=null}
+    exact one RootSceneDocumentMutationV1 for each
+      world | runtime_target_selector |
+      runtime_entry_activation_policy | runtime_entry
+  create_branch_count: uint32[0..4]
   default_entry_bindings[1..64]:
-    exact {target_profile_ref, runtime_entry_plan_local_ref, is_default=true}
+    exact {target_profile_ref,
+           runtime_entry_plan_local_ref: RootScenePlanLocalRefV1(kind=runtime_entry),
+           is_default=true}
   plan_hash: SHA-256
+
+RootScenePlanLocalRefV1
+  plan_id: same StableId as enclosing plan
+  document_kind:
+    world | runtime_target_selector |
+    runtime_entry_activation_policy | runtime_entry
+  local_ordinal: uint32[1..4]
+
+RootSceneDocumentMutationV1
+  plan_local_ref: RootScenePlanLocalRefV1
+  mutation:
+    create:
+      allocation_intent:
+        exact {document_kind, allocation_scope, relative_path,
+               requested_identity=null}
+      payload_draft_without_stable_id_ref/hash
+    | update:
+      current_document_ref: exact DocumentRef including content_hash
+      before_payload_semantic_hash:
+        Worldではcanonical omission |
+        Owner固有Runtime Entry／Selector／Policy hash
+      preserved_identity: exact StableId equal to current_document_ref.stable_id
+      after_payload_with_preserved_identity_ref/hash
 ```
 
-全inputの`request_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)が所有する`MIRAKAN_OPERATION_REQUEST_V2`の唯一の式をそのまま使い、本書では別式を定義しない。Operation、Project、Preview／Validation policy、authorization、`mutation_authorization_binding`もそのcanonical inputに含まれる。create inputは`project_id`、expected Project revision、idempotency key、identity Fieldを持たないpayload draft、draft hash、allocation scope、relative path、selector／policy exact refsを持つ。GatewayがIDを発行し完成payload semantic hashを出力する。update inputはexact current `DocumentRef`、expected Document revision、before content／semantic hashとidentity固定済みafter payloadを持つ。selector create／updateはcanonical Target ref集合、policy create／updateは全closed semanticsを持つ。
+全inputは選択したnamed typeだけを使用し、anonymous sibling shapeを許可しない。`operation_intent_hash`と`request_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)が所有する`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`の唯一のDAGをそのまま使い、本書では別式を定義しない。Operation、Project、Preview／Validation policy、idempotency、全Domain fieldがintentへ入り、binding確定後のfinal requestはintent hashとexact authority evidenceを含む。create inputは`project_id`、expected Project revision、idempotency key、identity Fieldを持たないpayload draft、draft hash、allocation scope、relative path、selector／policy exact refsを持つ。GatewayがIDを発行し完成payload semantic hashを出力する。update inputはexact current `DocumentRef`、expected Document revision、before content／semantic hashとidentity固定済みafter payloadを持つ。selector create／updateはcanonical Target ref集合、policy create／updateは全closed semanticsを持つ。
 
-root Scene migrationは`RootSceneMigrationPlanV1`だけをpreimageとする。`plan_hash = SHA-256(ASCII "MIRAKAN_ROOT_SCENE_MIGRATION_PLAN_V1" || uint32_be(len(plan bytes excluding plan_hash)) || plan bytes)`であり、`RootSceneMigrationPlanRefV1`は完成recordの`plan_id`／`plan_version`／`plan_hash`から外部materializeする。Record自身へhash付きPlanRefを埋め戻さない。Gatewayはplan-local四Document mutationと四allocation intentを一対一に解決し、別ID、別path、五件目、欠落、Targetごとの暗黙entry追加を行わない。各active Targetは`default_entry_bindings[]`に厳密に一件あり、四Documentの完成ref、allocation mapping、Target→default mappingをPreview、Prepared Candidate、postcondition、Receiptで同一にする。したがってlegacy closure、Plan hash、四allocationのどれかが変われば別requestとなり、部分migrationを公開できない。
+root Scene migrationは`RootSceneMigrationPlanV1`だけをDomain preimageとする。`plan_hash = SHA-256(ASCII "MIRAKAN_ROOT_SCENE_MIGRATION_PLAN_V1" || uint32_be(len(plan bytes excluding plan_hash)) || plan bytes)`であり、`RootSceneMigrationPlanRefV1`は完成recordの`plan_id`／`plan_version`／`plan_hash`から外部materializeする。Record自身へhash付きPlanRefを埋め戻さない。四`plan_local_ref`は同じplan ID、上記kind順のordinal 1～4で重複なく、各document kindをexact一件持つ。`create_branch_count`はcreate discriminator件数と一致し、Stable-ID allocation intent／mappingもcreate branchだけから同順でexact同数0～4件を導出する。update branchはcurrent ref／before hash／preserved identityを必須にし、allocation intent／mappingを持たない。Gatewayは別ID、別path、五件目、欠落、update identity差替え、Targetごとの暗黙entry追加を行わない。各active Targetは`default_entry_bindings[]`に厳密に一件あり、そのtyped plan-local refは唯一のruntime entry mutationを指す。四Documentの完成ref、create mapping集合、Target→default mappingをPreview、Prepared Candidate、postcondition、signed Receipt、Public Publication Markerで同一にする。したがってlegacy closure、Plan hash、branch discriminator、create allocationのどれかが変われば別intent／requestとなり、部分migrationを公開できない。
 
-`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけがatomic Commit Marker readback後のbefore／after exact Project ref、exact `mutation_receipt_ref/hash`、Preview／Validation／Commit Marker ref／hashを持つ。`RuntimeEntryMutationReceiptV1.affected_documents[]`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)のdocument-kind tagged unionであり、通常Operationで一件、root migrationでWorld／selector／policy／entryのexact四branchを持つ。WorldはDocument content hashだけ、entry／selector／policyはcontent hashと各Owner固有semantic hashを記録する。root migration Receiptはさらにexact `RootSceneMigrationPlanRefV1`と四allocation mappingを持ち、Planとのset／order equalityを必須にする。rejected branchだけが、選択Operation recordの`errors[]`とValidator reachable error setの双方に存在する四Field `DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、ID／code／version／hashの一部一致、string error、単数Documentへ四件を圧縮したReceiptを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
+`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけが`PublicPublicationMarkerV1` readback後のbefore／after exact Project ref、exact signed `mutation_receipt_ref/hash`、Preview／Validation／Public Marker ref／hashを持つ。`RuntimeEntryMutationReceiptV1`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)のpayload＋canonical `MirakanSignedRecordV1` wrapperをexact reuseし、Domain signer／key／algorithm／signature Fieldをinline定義しない。`affected_documents[]`は同節のdocument-kind tagged unionであり、通常Operationで一件、root migrationでWorld／selector／policy／entryのexact四branchを持つ。WorldはDocument content hashだけ、entry／selector／policyはcontent hashと各Owner固有semantic hashを記録する。root migration Receiptのallocation mapping件数はPlan create branch件数とexact equality、update branchは0 mappingである。rejected branchだけが、選択Operation recordの`errors[]`とValidator reachable error setの双方に存在する四Field `DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、ID／code／version／hashの一部一致、string error、単数Documentへ四件を圧縮したReceiptを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
 
-positive fixtureはentry／selector／policy create→save→reload→update→compileの三identity／二hash照合と、root Scene migration四Document tagged unionのatomic resultを検査する。negative fixtureは三箇所のidentity差を各一件、selector ID／version／count／Target exact refの一Fieldだけを変更して旧`selector_hash`を再利用するmutation、payload semantic hash mismatch、Document content hash mismatch、Target count／array length mismatch、self-hash循環を作るpayload、stale revision、selector／policy cross-kind ref、Operation pre／post policyのwrong kind／missing／stale ref、Diagnostic ID／code／version／hash mismatch、部分migrationをそれぞれ単独原因で拒否し、全経路でrevision不変を検査する。
+positive fixtureはentry／selector／policy create→save→reload→update→compileの三identity／二hash照合と、root Scene migrationのcreate 0～4件を含む四Document tagged union、allocation count equality、signed Receipt後のpublic resultを検査する。negative fixtureは三箇所のidentity差を各一件、selector ID／version／count／Target exact refの一Fieldだけを変更して旧`selector_hash`を再利用するmutation、payload semantic hash mismatch、Document content hash mismatch、Target count／array length mismatch、self-hash循環を作るpayload、stale revision、selector／policy cross-kind ref、Operation pre／post policyのwrong kind／missing／stale ref、Diagnostic ID／code／version／hash mismatch、create allocation欠落／extra、update allocation混入、undefined plan-local ref、署名Receipt前public state、部分migrationをそれぞれ単独原因で拒否し、全経路でrevision不変を検査する。
 
 `WorldStreamingPlanV1`、Navigation Artifact、HLOD、Cooked Gameplay Package、generated System Catalog／Dependency GraphはDerived Artifactであり、正規Document種別へ追加しない。CreatorまたはAIがDerived Artifactを直接編集した変更をGatewayは拒否する。
 

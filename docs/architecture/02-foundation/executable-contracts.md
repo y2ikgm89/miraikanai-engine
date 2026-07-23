@@ -121,7 +121,7 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 | `supersedes` | `{id, version}` array | 置換対象。空可 |
 | `tags` | lowercase string array | ASCII昇順、重複不可 |
 
-`id`をKind固有の別Fieldへ二重保存しない。全Kindは`<kind>.<namespace_path>`を使い、Requirementだけの別文法を作らない。`namespace_path`は2～8個のdot区切りsegmentで、各segmentは[Naming／Project Layout §3.2](naming-project-layout.md#32-stable-idとoperation)のkind別`lower-token-path`に従い、1～48文字とする。例は`requirement.product.authoring-roundtrip`、`operation.authoring.apply_changeset`、`capability.render.material.toon`、`game_system.engine.combat`、`remediation.authoring.refresh_context`である。
+`id`をKind固有の別Fieldへ二重保存しない。全Kindは`<kind>.<namespace_path>`を使い、Requirementだけの別文法を作らない。`namespace_path`は2～8個のdot区切りsegmentで、各segmentは[Naming／Project Layout §3.2](naming-project-layout.md#32-stable-idとoperation)のkind別`lower-token-path`に従い、1～48文字とする。例は`requirement.product.authoring-roundtrip`、`operation.authoring.apply_changeset`、`capability.render.material.toon`、`game_system.extension.feature.combat`、`remediation.authoring.refresh_context`である。
 
 MCDへの外部永続参照を`McdContractRefV1 { id: string, version: uint32, contract_set_hash: SHA-256 }`へ固定する。`id`のkindと参照Fieldが要求するkindは一致し、`version`は同じContract set内で存在して`status=active`でなければならない。Bare IDは固定済み`contract_set_hash`を入力にするEditor／AIのread-only検索だけで使用でき、候補が厳密に1件でなければ解決しない。Project Source、Cooked Artifact、Save、Replay、Receipt、ChangeSetはbare IDまたはruntime numeric IDを永続参照に使用しない。`GameSystemContractRefV1`は`McdContractRefV1`のうちkindが`game_system`である型付きaliasとする。
 

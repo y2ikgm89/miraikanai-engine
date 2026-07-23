@@ -237,6 +237,31 @@ WorkloadDomainTypeRefV1
   domain_type_version: positive uint32
   domain_type_content_hash: SHA-256
 
+WorkloadIntentKindRefV1
+  intent_kind_id
+  intent_kind_version: positive uint32
+  intent_kind_content_hash: SHA-256
+
+WorkloadOwnerDefinitionRefV1
+  definition_id
+  definition_version: positive uint32
+  definition_content_hash: SHA-256
+
+PerformanceTargetProfileRefV1
+  target_profile_id
+  target_profile_version: positive uint32
+  target_profile_content_hash: SHA-256
+
+PerformanceQualificationReceiptRefV1
+  receipt_id
+  receipt_version: positive uint32
+  receipt_content_hash: SHA-256
+
+PerformanceDecisionRecordRefV1
+  decision_id
+  decision_version: positive uint32
+  decision_content_hash: SHA-256
+
 WorkloadDomainTypeRecordV1
   domain_type_id
   domain_type_version: positive uint32
@@ -244,12 +269,12 @@ WorkloadDomainTypeRecordV1
   authority_class:
     authoritative_simulation | presentation | ui | tooling | resource_service
   spatial_requirement: forbidden | optional | required
-  required_intent_kind_refs[0..32]
-  allowed_scale_dimension_refs[1..256]
+  required_intent_kind_refs[0..32]: WorkloadIntentKindRefV1
+  allowed_scale_dimension_refs[1..256]: RuntimeScaleIntentDimensionRefV1
   semantic_requirement_mode:
     authoritative_equivalence | presentation_fidelity |
     functional_contract | resource_slo | none
-  reference_fixture_refs[1..64]
+  qualification_receipt_refs[1..64]: PerformanceQualificationReceiptRefV1
   domain_type_content_hash: SHA-256
 
 WorkloadDomainTypeRegistryRefV1
@@ -266,38 +291,82 @@ WorkloadDomainTypeRegistryV1
 WorkloadDomainIntentV1
   intent_id: StableId
   domain_type_ref: WorkloadDomainTypeRefV1
-  owner_definition_ref/hash
+  owner_definition_ref: WorkloadOwnerDefinitionRefV1
   dimension_values[1..64]: RuntimeScaleIntentDimensionValueV1
   requirement_refs[0..64]: McdContractRefV1(kind=requirement)
   equivalence_or_fidelity_policy_refs[0..64]: McdContractRefV1(kind=policy)
-  fixture_refs[1..64]
+  qualification_receipt_refs[1..64]: PerformanceQualificationReceiptRefV1
   intent_content_hash
+
+SelectedWorkloadDomainRecordBindingV1
+  domain_type_ref: WorkloadDomainTypeRefV1
+  registry_ref: WorkloadDomainTypeRegistryRefV1
+  selected_record_hash: exact domain_type_ref.domain_type_content_hash
+
+OwnerScaleIntentRefV1
+  intent_kind:
+    world | content | authoring | authority
+  intent_ref:
+    world: exact {intent_id, intent_version, intent_content_hash,
+                  owner_id=owner.core.world}
+    | content: exact {intent_id, intent_version, intent_content_hash,
+                     owner_id=owner.core.asset_lifecycle}
+    | authoring: exact {intent_id, intent_version, intent_content_hash,
+                       owner_id=owner.core.project_state}
+    | authority: exact {intent_id, intent_version, intent_content_hash,
+                       owner_id=owner.core.security_approval}
 
 ProjectScaleEnvelopeV2
   scale_envelope_id: StableId
   project_id: StableId
   schema_version: 2
-  source_revision: exact ProjectRevision
-  target_profile_refs[1..16]
+  source_project_ref:
+    exact {project_id, project_revision, document_set_hash}
+  target_profile_refs[1..16]: PerformanceTargetProfileRefV1
   workload_domain_registry_ref: WorkloadDomainTypeRegistryRefV1
   scale_dimension_registry_ref: RuntimeScaleIntentDimensionRegistryRefV1
   workload_domain_intents[1..64]: WorkloadDomainIntentV1
-  world_intent_ref: exact World owner intent ref | null
-  content_intent_ref: exact Asset owner intent ref | null
-  authoring_intent_ref: exact Project owner intent ref | null
-  authority_intent_ref: exact authority owner intent ref | null
-  integrated_fixture_refs[1..64]
-  decision_refs[0..64]
+  selected_domain_record_bindings[1..64]:
+    SelectedWorkloadDomainRecordBindingV1
+  owner_intent_refs[0..4]: OwnerScaleIntentRefV1
+  integrated_qualification_receipt_refs[1..64]:
+    PerformanceQualificationReceiptRefV1
+  decision_refs[0..64]: PerformanceDecisionRecordRefV1
   envelope_hash: SHA-256
+
+PerformanceQualificationRecordV1
+  qualification_id/version/hash
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  subject_kind: workload_domain | workload_intent | integrated_envelope |
+                scale_dimension | migration
+  subject_ref/hash
+  target_profile_refs[1..16]: PerformanceTargetProfileRefV1
+  fixture_refs[1..64]: exact {fixture_id, fixture_version, fixture_content_hash}
+  input_closure_hash
+  result: pass | fail
+  signed_receipt:
+    exact MirakanSignedRecordV1(purpose=performance_qualification)
 ```
 
-`WorkloadDomainTypeRefV1`はRecord外の参照形であり、RecordのID／version／`domain_type_content_hash`からmaterializeする。Record hashはASCII `MIRAKAN_WORKLOAD_DOMAIN_TYPE_RECORD_V1`と当該hash Fieldだけを除くcanonical bytesから計算し、Record自身へhash付きRefを埋め戻さない。Domain registry recordは`domain_type_id`／version順、Envelopeのintentはdomain type ID／intent ID順へstrict sortし、duplicate、same-ID different-hash、owner偽装を拒否する。`spatial_requirement=required`のactive domainが一件以上なら`world_intent_ref`を必須、全active domainが`forbidden`ならnullを必須にする。`optional`が一件以上かつ`required`が0件ならnull／non-nullの両方を許すが、non-nullはexact World owner intentへ解決し、当該optional domainのspatial dimension closureへ含めなければならない。`forbidden` domainへspatial dimensionまたはWorld refを結び付けない。content／authoring／authority intentも、`required_intent_kind_refs[]`が対応kindを要求するactive domain recordがある場合だけnon-nullにする。
+`WorkloadDomainTypeRefV1`はRecord外の参照形であり、RecordのID／version／`domain_type_content_hash`からmaterializeする。Record hashはASCII `MIRAKAN_WORKLOAD_DOMAIN_TYPE_RECORD_V1`と当該hash Fieldだけを除くcanonical bytesから計算し、Record自身へhash付きRefを埋め戻さない。Domain registry recordは`domain_type_id`／version順、Envelopeのintentとselected bindingはdomain type ID／intent ID順、owner intentは上記kind順へstrict sortし、duplicate、same-ID different-hash、owner偽装を拒否する。Envelopeのintent集合、`selected_domain_record_bindings[]`、Registryから選択したrecord集合はdomain type ref／record hashでset equalityを必須にし、各bindingのRegistry refはEnvelopeの一件とbyte equalityでなければならない。これにより選択Registry rowの一Field変更はEnvelope preimageを必ず変更する。
+
+`spatial_requirement=required`のactive domainが一件以上なら`owner_intent_refs[]`にworld branchをexact一件必須、全active domainが`forbidden`ならworld branchを禁止する。`optional`が一件以上かつ`required`が0件ならworld branch有無の両方を許すが、存在時はexact World owner intentへ解決し、当該optional domainのspatial dimension closureへ含めなければならない。`forbidden` domainへspatial dimensionまたはWorld refを結び付けない。content／authoring／authority branchも、`required_intent_kind_refs[]`が対応kindを要求するactive domain recordがある場合だけexact一件を持つ。discriminator外branch、同kind重複、owner不一致、bare refを拒否する。
 
 `semantic_requirement_mode`が`authoritative_equivalence`ならequivalence policy、`presentation_fidelity`ならfidelity policy、`functional_contract`なら機能Requirement、`resource_slo`ならSLO Requirementを1件以上必須にする。`none`は`authority_class=tooling | resource_service`かつDomain recordが明示許可する場合だけ使用し、他branchのpolicy／requirementをcanonical omissionする。全Project共通のGameplay fidelity floorや最低Entity数を置かない。
 
-初期Core registryはbehavior-neutralな`workload.core.authoritative_simulation`、`workload.core.presentation`、`workload.core.ui`、`workload.core.tooling`、`workload.core.resource_service`だけを持つ。World ownerは必要なProjectに`workload.world.spatial`を寄与し、Feature／Genre／Project ownerは自身のdomainを寄与する。CoreはShooter、enemy、vehicle、level、quest、terrain等の語彙を登録しない。Network authority variantsは専用仕様、Threat Model、Product activation前は`not_activated`である。
+初期Core registryは次の完全五recordだけを持つ。全rowは`domain_type_version=1`、exact `owner_ref={owner.core.performance,current revision,content hash}`、表のtyped dimension ref、署名済みQualification Receipt、self-excluding content hashを持つ。`none` branchはtooling／resource serviceだけに許可する。
 
-`envelope_hash`はASCII `MIRAKAN_PROJECT_SCALE_ENVELOPE_V2`と自己Fieldを除く全Fieldのlength-framed canonical bytesから計算する。表示用`scale_class`をSourceへ保存せず、Projectionはdomain closureとEnvelope hashから`compact_reference | medium_candidate | large_local_candidate | distributed_candidate`を決定的に導出する。Target readinessは[Project State §3.4](../03-authoring/project-state.md#34-target-readiness)の`TargetReadinessV1`をread-only投影し、`state`は`predicted | blocked | qualified`だけ、性能未達の理由は`blocked_reason_ref`だけに置く。
+| domain type ID | authority／spatial | required intent kind refs | allowed dimension refs | semantic mode | Qualification Receipt |
+|---|---|---|---|---|---|
+| `workload.core.authoritative_simulation` | `authoritative_simulation`／`optional` | `intent_kind.performance.authoritative_state@1` | `scale.dimension.instance.peak_active_authoritative@1; scale.dimension.lifecycle.peak_create_per_simulation_step@1; scale.dimension.lifecycle.peak_retire_per_simulation_step@1; scale.dimension.event.peak_authoritative_per_simulation_step@1` | `authoritative_equivalence` | `qualification.performance.workload_domain.core.authoritative_simulation@1` |
+| `workload.core.presentation` | `presentation`／`forbidden` | `intent_kind.performance.presentation_fidelity@1` | `scale.dimension.instance.peak_visible@1; scale.dimension.presentation.peak_active@1` | `presentation_fidelity` | `qualification.performance.workload_domain.core.presentation@1` |
+| `workload.core.ui` | `ui`／`forbidden` | `intent_kind.performance.functional_contract@1` | `scale.dimension.instance.peak_live@1; scale.dimension.presentation.peak_active@1` | `functional_contract` | `qualification.performance.workload_domain.core.ui@1` |
+| `workload.core.tooling` | `tooling`／`forbidden` | `[]` | `scale.dimension.instance.total_authored@1; scale.dimension.instance.peak_live@1` | `none` | `qualification.performance.workload_domain.core.tooling@1` |
+| `workload.core.resource_service` | `resource_service`／`forbidden` | `intent_kind.performance.resource_slo@1` | `scale.dimension.instance.total_authored@1; scale.dimension.instance.peak_live@1` | `resource_slo` | `qualification.performance.workload_domain.core.resource_service@1` |
+
+表の`@1`はexact version／content hashまたはContract set root付きrefで保存する。World ownerは必要なProjectに`workload.world.spatial`を寄与し、Feature／Genre／Project ownerは自身のdomainを寄与する。CoreはShooter、enemy、vehicle、level、quest、terrain等の語彙を登録しない。Network authority variantsは専用仕様、Threat Model、Product activation前は`not_activated`である。
+
+`envelope_hash`はASCII `MIRAKAN_PROJECT_SCALE_ENVELOPE_V2`と自己Fieldを除く全Fieldのlength-framed canonical bytesから計算する。selected Registry row hash、exact Project triple、Target、owner intent branch、Qualification Receipt、Decisionの一Fieldでも変われば別Envelopeである。Production Envelope／Domain／Intent／Dimension recordはFixture bodyを解決せず、署名済みQualification Receiptのsubject／result／freshness／revocationだけを検証する。表示用`scale_class`をSourceへ保存せず、Projectionはdomain closureとEnvelope hashから`compact_reference | medium_candidate | large_local_candidate | distributed_candidate`を決定的に導出する。Target readinessは[Project State §3.4](../03-authoring/project-state.md#34-target-readiness)の`TargetReadinessV1`をread-only投影し、`state`は`predicted | blocked | qualified`だけ、性能未達の理由は`blocked_reason_ref`だけに置く。
 
 旧`ProjectScaleEnvelopeV1`はoffline migration inputだけで、current Source、Editor、AI projection、Compile Manifestへ登録しない。変換は次の完全なMCD Operationで行う。
 
@@ -307,7 +376,7 @@ ProjectScaleEnvelopeMigrationManifestV1
   manifest_version: 1
   operation_ref: McdContractRefV1(
     kind=operation,
-    id=operation.performance.migrate_project_scale_envelope_v1_to_v2,
+    id=operation.performance.migrate_project_scale_envelope,
     version=1, contract_set_hash)
   input_type_ref: McdContractRefV1(
     kind=type, id=type.performance.project_scale_envelope_migration_input,
@@ -331,16 +400,17 @@ ProjectScaleEnvelopeMigrationManifestV1
   trusted_service_allowlist_operation_local_refs[1]:
     ContractSetLocalRefV1(
       kind=operation,
-      id=operation.performance.migrate_project_scale_envelope_v1_to_v2,
+      id=operation.performance.migrate_project_scale_envelope,
       version=1)
   diagnostic_refs[12]: DiagnosticCodeRefV1
-  fixture_refs[4]: exact {fixture_id, fixture_version, fixture_content_hash}
+  qualification_receipt_refs[4]:
+    exact PerformanceQualificationReceiptRefV1
   manifest_hash: SHA-256
 
-operation.performance.migrate_project_scale_envelope_v1_to_v2@1
+operation.performance.migrate_project_scale_envelope@1
   MCD common envelope:
     mcd_version=1; kind=operation;
-    id=operation.performance.migrate_project_scale_envelope_v1_to_v2;
+    id=operation.performance.migrate_project_scale_envelope;
     version=1; status=active;
     title=Migrate Project Scale Envelope V1 to V2;
     description=Atomically migrate one legacy five-axis scale envelope
@@ -401,19 +471,27 @@ operation.performance.migrate_project_scale_envelope_v1_to_v2@1
     diagnostic.performance.scale_receipt_binding_mismatch
 
 ProjectScaleEnvelopeMigrationInputV1
-  operation_ref
-  before_project_ref
+  input_type_ref: McdContractRefV1(
+    kind=type, id=type.performance.project_scale_envelope_migration_input,
+    version=1, contract_set_hash)
+  operation_ref: McdContractRefV1(
+    kind=operation, id=operation.performance.migrate_project_scale_envelope,
+    version=1, contract_set_hash)
+  before_project_ref:
+    exact {project_id, expected_project_revision, document_set_hash}
+  operation_intent_hash
   request_hash
   idempotency_key
   source_envelope_v1_ref/hash
   source_axis_and_intent_closure_hash
-  destination_domain_registry_ref
-  destination_dimension_registry_ref
-  selected_domain_mapping_refs[1..64]
-  preview_policy_ref
-  validation_policy_ref
-  authorization_ref/hash
-  mutation_authorization_binding: approval
+  destination_domain_registry_ref: WorkloadDomainTypeRegistryRefV1
+  destination_dimension_registry_ref: RuntimeScaleIntentDimensionRegistryRefV1
+  domain_mapping_registry_ref: ProjectScaleDomainMappingRegistryRefV1
+  selected_domain_mapping_refs[1..64]: ProjectScaleDomainMappingRefV1
+  preview_policy_ref: McdContractRefV1(kind=policy)
+  validation_policy_ref: McdContractRefV1(kind=policy)
+  mutation_authorization_binding: exact MutationAuthorizationBindingV2(
+    risk_class=R3, authority_evidence=approval)
 
 ProjectScaleEnvelopeMigrationResultV1
   disposition: migrated | rejected
@@ -425,13 +503,14 @@ ProjectScaleEnvelopeMigrationResultV1
     destination_dimension_registry_ref/hash
     preview_receipt_ref/hash
     validation_receipt_ref/hash
-    atomic_commit_marker_ref/hash
+    public_publication_marker_ref/hash
     migration_receipt_ref/hash
   rejected:
     diagnostics[1..12]: DiagnosticCodeRefV1
 
 PreparedProjectScaleEnvelopeMigrationReceiptPayloadV1
   operation_ref
+  operation_intent_hash
   request_hash
   idempotency_key
   before_project_ref
@@ -440,21 +519,63 @@ PreparedProjectScaleEnvelopeMigrationReceiptPayloadV1
   destination_envelope_v2_ref/hash
   destination_domain_registry_ref/hash
   destination_dimension_registry_ref/hash
-  selected_domain_mapping_refs[1..64]
+  domain_mapping_registry_ref/hash
+  selected_domain_mapping_refs[1..64]: ProjectScaleDomainMappingRefV1
   omitted_legacy_axis_refs[0..5]
   preview_receipt_payload_ref/hash
   validation_receipt_payload_ref/hash
   diagnostics[0..12]: DiagnosticCodeRefV1
   prepared_payload_hash
 
-ProjectScaleEnvelopeMigrationReceiptV1
+ProjectScaleEnvelopeMigrationReceiptSubjectV1
   prepared_payload_ref/hash:
     PreparedProjectScaleEnvelopeMigrationReceiptPayloadV1
-  atomic_commit_marker_ref/hash
-  signer_identity_ref/hash
-  signature
-  receipt_hash
+  private_commit_marker_hash
+  operation_intent_hash
+  request_hash
+  before_project_ref
+  after_project_ref
+  issued_at
+  revocation_snapshot_ref/hash
+
+ProjectScaleEnvelopeMigrationReceiptV1
+  payload: ProjectScaleEnvelopeMigrationReceiptSubjectV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=operation_domain_receipt)
+
+ProjectScaleDomainMappingRefV1
+  mapping_id
+  mapping_version: positive uint32
+  mapping_content_hash: SHA-256
+
+ProjectScaleDomainMappingRecordV1
+  mapping_id
+  mapping_version: positive uint32
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  source_axis_ref/hash
+  source_intent_predicate_ref: McdContractRefV1(kind=policy)
+  destination_domain_type_ref: WorkloadDomainTypeRefV1
+  destination_intent_schema_ref: McdContractRefV1(kind=type)
+  semantic_field_mapping_policy_ref: McdContractRefV1(kind=policy)
+  qualification_receipt_refs[1..16]:
+    PerformanceQualificationReceiptRefV1
+  mapping_content_hash: SHA-256
+
+ProjectScaleDomainMappingRegistryRefV1
+  registry_id
+  registry_version: positive uint32
+  registry_content_hash: SHA-256
+
+ProjectScaleDomainMappingRegistryV1
+  registry_id: performance.project_scale_domain_mapping.registry.active
+  registry_version: 1
+  records[1..4096]: ProjectScaleDomainMappingRecordV1
+  registry_content_hash: SHA-256
 ```
+
+`ProjectScaleDomainMappingRecordV1.mapping_content_hash`はASCII `MIRAKAN_PROJECT_SCALE_DOMAIN_MAPPING_RECORD_V1`と自己Fieldを除くlength-framed canonical bytes、Registry hashはASCII `MIRAKAN_PROJECT_SCALE_DOMAIN_MAPPING_REGISTRY_V1`、Registry ID／version、record count、mapping ID／version順の全record bytesから計算して自己Fieldを除く。Ref三FieldはRegistry内のexact一件へ解決し、selected ref集合はRegistry member subset、source axis closure、destination Domain intent集合とset equalityでなければならない。0件／複数match、same source predicateへの複数active mapping、noncanonical sort、owner／policy／Domain／Type／Qualification Receipt hash mismatchを全migration rejectにする。
+
+logical Operation IDはversion-neutral `operation.performance.migrate_project_scale_envelope`だけをcurrent MCD／Manifest／Service allowlistへ登録する。レビュー対象の旧綴り`operation.performance.migrate_project_scale_envelope_v1_to_v2`は一度もActivation／materializationされていない計画上の名前であり、alias、redirect、current refを作らない。将来activated legacy artifactが確認された場合だけ、Tool catalog外のoffline alias migration recordとしてsource spellingを保存する。
 
 Domain固有Diagnosticは次のexact Registry recordである。全rowは`diagnostic_version=1`、`message_key="<diagnostic_id>.message"`、self-excluding `diagnostic_content_hash`を持つ。共通八件は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)の同一recordを参照する。
 
@@ -480,7 +601,7 @@ Domain固有Diagnosticは次のexact Registry recordである。全rowは`diagno
 
 pre／post policyはactive pure MCD、rate policyは`scope=project, window_ns=60000000000, max_requests=4, burst=1`とexact rate-limit Diagnostic refを持つ。wrong-kind、stale version／Contract set／content hash、impure policy、Validator Artifact／input／error mismatchをManifest compile前に拒否する。
 
-旧五axisは名前だけで自動変換しない。World axisはWorld Document／intentが実在する場合だけ`workload.world.spatial`、populationは対応owner recordが一意な場合だけそのdomain、content／authoring／authorityは各Owner intentへ解決する。UI-only、headless tool、resource-only fixtureはWorld／Gameplay domain 0件のV2へ変換できなければならない。`fixture.performance.scale-migration.world-project`、`fixture.performance.scale-migration.ui-only`、`fixture.performance.scale-migration.headless-tool`、`fixture.performance.scale-migration.resource-only`はSource→Preview→Validation→Prepared payload→Commit Marker→readback→signed Receipt→reload→Compileを検証し、0件／複数mapping、偽World生成、Gameplay floor捏造、partial migrationをrejectする。Operation `errors[]`、Validator reachable errors、Manifest `diagnostic_refs[]`は上記12件のID／code／version／content hashでset equalityにする。ManifestのOperation LocalRef集合と`service.offline_project_migrator`へのallowlist contributionはexact一件でset equalityとし、同じContract set transactionでService local recordとset rootを再生成する。Prepared payload hashはASCII `MIRAKAN_PREPARED_PROJECT_SCALE_ENVELOPE_MIGRATION_RECEIPT_PAYLOAD_V1`、外側Receipt hashはASCII `MIRAKAN_PROJECT_SCALE_ENVELOPE_MIGRATION_RECEIPT_V1`とPrepared payload ref／hash、Atomic Commit Marker ref／hash、signer／signatureから計算し、Markerへ外側Receiptを含めない。同じidempotency key＋request hashのretryはbyte-identical Result／Receiptを返し、同じkey＋別requestはidempotency reuse errorでSourceを変更しない。
+旧五axisは名前だけで自動変換しない。World axisはWorld Document／intentが実在する場合だけ`workload.world.spatial`、populationは対応owner mapping recordが一意な場合だけそのdomain、content／authoring／authorityは各Owner intentへ解決する。UI-only、headless tool、resource-only fixtureはWorld／Gameplay domain 0件のV2へ変換できなければならない。四fixture bodyは別`PerformanceQualificationRecordV1(subject_kind=migration)`だけが解決し、Production Manifestは対応する四署名Receipt refだけを持つ。QualificationはSource→Preview→Validation→Prepared payload→private marker→signed Receipt→Public Marker＋reload→Compileを検証し、0件／複数mapping、偽World生成、Gameplay floor捏造、partial migrationをrejectする。Operation `errors[]`、Validator reachable errors、Manifest `diagnostic_refs[]`は上記12件のID／code／version／content hashでset equalityにする。ManifestのOperation LocalRef集合と`service.offline_project_migrator`へのallowlist contributionはexact一件でset equalityとし、同じContract set transactionでService local recordとset rootを再生成する。Prepared payload hashはASCII `MIRAKAN_PREPARED_PROJECT_SCALE_ENVELOPE_MIGRATION_RECEIPT_PAYLOAD_V1`、subject hashはASCII `MIRAKAN_PROJECT_SCALE_ENVELOPE_MIGRATION_RECEIPT_SUBJECT_V1`と各self-excluding canonical bytesから計算し、canonical `MirakanSignedRecordV1` wrapper保存後だけPublic Markerとafter Projectを公開する。同じidempotency key＋request hashのretryはbyte-identical Result／signed Receipt／Public Markerを返し、同じkey＋別requestはidempotency reuse errorでSourceを変更しない。
 
 Project固有の同時workload製品Envelopeは現時点で未校正であり、数値を仮定しない。この項目のOwnerは本書、readiness envelopeのOwnerはProject Stateである。Target Profileごとに次の入力が揃うまでは`state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`を返す。
 
@@ -509,8 +630,8 @@ RuntimeScaleIntentDimensionRecordV1 {
   authority_class,
   fidelity_contract_ref?: McdContractRefV1(kind=policy),
   semantic_equivalence_contract_ref?: McdContractRefV1(kind=policy),
-  reference_fixture_refs[1..64]:
-    exact {fixture_id, fixture_version, fixture_content_hash}
+  qualification_receipt_refs[1..64]:
+    PerformanceQualificationReceiptRefV1
 }
 
 RuntimeScaleIntentDimensionRegistryRefV1 {
@@ -531,23 +652,23 @@ RuntimeScaleIntentDimensionRegistryV1 {
 
 Registryのlogical IDは`registry.performance.runtime_scale_intent_dimension`、initial `registry_version=1`とする。`registry_content_hash`はASCII `MIRAKAN_RUNTIME_SCALE_INTENT_DIMENSION_REGISTRY_V1`、Registry ID／version、record count、strict sort済み全Record canonical bytesを各`uint32_be` length framingしてSHA-256し、自己Fieldを除外する。`RuntimeScaleIntentDimensionRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only、latest version、hash fallbackを許可しない。
 
-Core-owned初期Recordは次のexact九件だけとする。表の`count-bound`は`measurement_schema_ref={type.performance.bounded_count, version=1, Contract set hash}`／`unit_ref={unit.count, version=1, semantic type content hash}`、`distance-bound`は`{type.performance.bounded_distance, version=1, Contract set hash}`／`unit_ref={unit.meter, version=1, semantic type content hash}`を表す。全Recordの`owner_ref`は本書のexact document ID／revision／content hash、fixture refはversion／content hash付きexact refである。
+Core-owned初期Recordは次のexact九件だけとする。表の`count-bound`は`measurement_schema_ref={type.performance.bounded_count, version=1, Contract set hash}`／`unit_ref={unit.count, version=1, semantic type content hash}`、`distance-bound`は`{type.performance.bounded_distance, version=1, Contract set hash}`／`unit_ref={unit.meter, version=1, semantic type content hash}`を表す。全Recordの`owner_ref`は本書のexact document ID／revision／content hash、Qualification Receiptはversion／content hash付きexact refである。
 
-| `dimension_id` | schema | `authority_class` | required contract | `reference_fixture_refs` |
+| `dimension_id` | schema | `authority_class` | required contract | `qualification_receipt_refs` |
 |---|---|---|---|---|
-| `scale.dimension.instance.total_authored` | count-bound | `resource_only` | optional refs omitted | `fixture.performance.scale.count-bound` |
-| `scale.dimension.instance.peak_live` | count-bound | `resource_only` | optional refs omitted | `fixture.performance.scale.count-bound` |
-| `scale.dimension.instance.peak_active_authoritative` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-state-bound` |
-| `scale.dimension.instance.peak_visible` | count-bound | `presentation_only` | `policy.performance.presentation-fidelity` | `fixture.performance.scale.presentation-bound` |
-| `scale.dimension.lifecycle.peak_create_per_simulation_step` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-lifecycle-bound` |
-| `scale.dimension.lifecycle.peak_retire_per_simulation_step` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-lifecycle-bound` |
-| `scale.dimension.event.peak_authoritative_per_simulation_step` | count-bound | `authoritative_event` | `policy.performance.authoritative-event-equivalence` | `fixture.performance.scale.authoritative-event-bound` |
-| `scale.dimension.spatial.maximum_interaction_radius` | distance-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-spatial-bound` |
-| `scale.dimension.presentation.peak_active` | count-bound | `presentation_only` | `policy.performance.presentation-fidelity` | `fixture.performance.scale.presentation-bound` |
+| `scale.dimension.instance.total_authored` | count-bound | `resource_only` | optional refs omitted | `qualification.performance.scale.count-bound@1` |
+| `scale.dimension.instance.peak_live` | count-bound | `resource_only` | optional refs omitted | `qualification.performance.scale.count-bound@1` |
+| `scale.dimension.instance.peak_active_authoritative` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `qualification.performance.scale.authoritative-state-bound@1` |
+| `scale.dimension.instance.peak_visible` | count-bound | `presentation_only` | `policy.performance.presentation-fidelity` | `qualification.performance.scale.presentation-bound@1` |
+| `scale.dimension.lifecycle.peak_create_per_simulation_step` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `qualification.performance.scale.authoritative-lifecycle-bound@1` |
+| `scale.dimension.lifecycle.peak_retire_per_simulation_step` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `qualification.performance.scale.authoritative-lifecycle-bound@1` |
+| `scale.dimension.event.peak_authoritative_per_simulation_step` | count-bound | `authoritative_event` | `policy.performance.authoritative-event-equivalence` | `qualification.performance.scale.authoritative-event-bound@1` |
+| `scale.dimension.spatial.maximum_interaction_radius` | distance-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `qualification.performance.scale.authoritative-spatial-bound@1` |
+| `scale.dimension.presentation.peak_active` | count-bound | `presentation_only` | `policy.performance.presentation-fidelity` | `qualification.performance.scale.presentation-bound@1` |
 
 三policy refは本書のexact revision／content hashを持ち、`authoritative-state-equivalence`は§12のstate／random-stream gate、`authoritative-event-equivalence`はowner schemaごとのevent ID／apply step／canonical payload hash／ordering equality、`presentation-fidelity`はowner fixtureのvisual／audio tolerance、critical cue、timing floorを要求する。これらを説明名だけのpolicy、別revisionの同ID、Genre固有の暗黙比較へ置換しない。
 
-Project固有のunit群、役割別instance数、イベント別peak、車両／群衆／弾体等のobject分類はCore enumへ追加せず、所有Pack／Projectが新しいRecord、measurement schema、fidelity／equivalence、fixtureを一緒に登録する。登録されていないdimension、owner不一致、schema不一致、hash不一致は`ambiguous requirement`として拒否する。
+Project固有のunit群、役割別instance数、イベント別peak、車両／群衆／弾体等のobject分類はCore enumへ追加せず、所有Pack／Projectが新しいRecord、measurement schema、fidelity／equivalence、別Qualification record／signed Receiptを一緒に登録する。Production recordはFixture bodyへ依存しない。登録されていないdimension、owner不一致、schema不一致、hash不一致は`ambiguous requirement`として拒否する。
 
 ```text
 BoundedScaleQuantityV1 {
@@ -563,7 +684,7 @@ RuntimeScaleIntentDimensionValueV1 {
   quantity
 }
 
-RuntimeScaleIntentV1 {
+LegacyRuntimeScaleIntentV1 {
   intent_id: UUIDv7 StableId,
   schema_version: uint32,
   owner_definition_ref:
@@ -578,7 +699,9 @@ RuntimeScaleIntentV1 {
 }
 ```
 
-`dimension_values`は`dimension_id`のUTF-8 byte昇順で同一dimensionを拒否し、各RefはEnvelopeの`scale_dimension_registry_ref`へ解決し、`measurement_schema_ref`と`unit_ref`はRecordとexact一致させる。`BoundedScaleQuantityV1`の三値は同じsemantic typeのfiniteかつ非負値で、`minimum_required <= target_value <= maximum_expected`とする。`intent_content_hash`はASCII `MIRAKAN_RUNTIME_SCALE_INTENT_V1`と、自身だけを除いた全Fieldのcanonical MCD bytesを`uint32_be` length framingしてSHA-256する。全ref setはStableId／logical IDのUTF-8 byte昇順かつ重複禁止、Target／fidelity／fixtureは1件以上、semantic equivalenceは0～64件とする。unknownを0、最大値、空optional、無制限へ補正しない。Targetなし、fidelity floorなし、authoritative dimensionに必要なsemantic equivalenceなしを拒否する。
+`LegacyRuntimeScaleIntentV1`は旧`ProjectScaleEnvelopeV1`を読むoffline migration inputだけで、current Source、Editor、AI、Compile、Save、Replay、Registryへ登録しない。旧logical type `RuntimeScaleIntentV1`をcurrent aliasとしてdeserializeせず、上記`ProjectScaleDomainMappingRecordV1`がexact一件対応する場合だけcanonical `WorkloadDomainIntentV1` candidateへ変換する。新しいauthorityはdomain-discriminated `WorkloadDomainIntentV1`だけである。
+
+legacy `dimension_values`は`dimension_id`のUTF-8 byte昇順で同一dimensionを拒否し、各Refはsource Envelopeのdimension Registryへ解決する。`BoundedScaleQuantityV1`の三値は同じsemantic typeのfiniteかつ非負値で、`minimum_required <= target_value <= maximum_expected`とする。legacy `intent_content_hash`はASCII `MIRAKAN_RUNTIME_SCALE_INTENT_V1`と、自身だけを除いた全Fieldのcanonical MCD bytesを`uint32_be` length framingして検証するが、新規生成しない。Target／fidelity／Fixture refはmigration Qualificationだけが読み、destination Production intentへFixture bodyをコピーせずsigned Receiptへ置換する。unknownを0、最大値、空optional、無制限へ補正しない。
 
 World extent／coordinate／cell／streaming fieldは[World](../06-rendering/world.md)、LOD strategy／predicate／transition fieldは[LOD](../06-rendering/lod.md)、Authoring writer／Document／ChangeSet fieldは[Project state](../03-authoring/project-state.md)、content／build／cook fieldは[Asset lifecycle](../03-authoring/asset-lifecycle.md)と[Core architecture](../02-foundation/core-architecture.md)が所有する。本書はそれらをEnvelopeへexact refで束ねるだけで、field listを複写しない。
 
