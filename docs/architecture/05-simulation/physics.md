@@ -72,15 +72,15 @@ C1 reference recipeはEngine-owned Kinematic Character Motor Providerを適格�
 
 Provider-private `CharacterMoveIntentV1`はCharacter handle、consume tick ref、planar displacement、vertical proposal、jump edge、up direction、producer metadataを持つ。これはaccepted public intentではなく、Feature-owned `GameplayMotionIntentV1`、Navigation `MovementIntentV1`、Animation `RootMotionProposalV1`を検証後にPhysics Provider内部で生成するderived inputである。Port、Project Source、Save、Replayへ型参照を公開せず、`RootMotionProposalV1`を内部Fieldへ複写しない。`PhysicsCharacterResolvedMotionV1`はresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnostic、input batch hash、generationを持つ。
 
-`capability.motion_executor.physics_character_motor`はPhysics Provider Catalogが所有する正式Capabilityであり、次のexact 6-Field rowを[Navigation](navigation.md)が所有する`MotionExecutorPortV1`へ登録する。Port型を本書で再定義しない。
+`capability.motion_executor.physics_character_motor`はPhysics Providerが提供する正式Capabilityであり、次のexact 7-Field descriptorを[Navigation](navigation.md)が所有する`MotionExecutorProviderCatalogV1`へproduction recordとして登録する。Port型、transport batch、Provider Catalogを本書で再定義しない。全MCD参照は表のID、`version=1`、選択Contract set hashを持つ`McdContractRefV1`である。
 
-| `executor_capability_ref` | `movement_profile_schema_ref` | `accepted_intent_schema_refs[]` | `resolved_motion_schema_ref` | `compatibility_predicate_ref` | `failure_diagnostic_refs[]` |
-|---|---|---|---|---|---|
-| `capability.motion_executor.physics_character_motor` | `mirakan.schema.physics.CharacterMotorProfileV1@1` | `[mirakan.schema.feature.character_locomotion.GameplayMotionIntentV1@1, mirakan.schema.navigation.MovementIntentV1@1, mirakan.contract.animation.root_motion_proposal@1]` | `mirakan.schema.physics.PhysicsCharacterResolvedMotionV1@1` | `predicate.physics.character_motor.intent_profile_target_dimension@1` | `[MIRAKAN-PHYSICS-CHARACTER-MOTOR-INCOMPATIBLE, MIRAKAN-PHYSICS-CHARACTER-MOTOR-RESOLUTION_FAILED, MIRAKAN-PHYSICS-CHARACTER-MOTOR-STALE_RESULT]` |
+| `executor_capability_ref.id` | `movement_profile_schema_ref.id` | `accepted_intent_schema_refs[].id` | `transport_message_schema_ref.id` | `resolved_motion_schema_ref.id` | `compatibility_predicate_ref.id` | `failure_diagnostic_refs[]` |
+|---|---|---|---|---|---|---|
+| `capability.motion_executor.physics_character_motor` | `type.physics.character_motor_profile` | `[type.feature.character_locomotion.gameplay_motion_intent, type.navigation.movement_intent, type.animation.root_motion_proposal]` | `type.navigation.motion_executor_intent_batch` | `type.physics.character_resolved_motion` | `policy.physics.character_motor_intent_profile_target_dimension` | `[MIRAKAN-PHYSICS-CHARACTER-MOTOR-INCOMPATIBLE, MIRAKAN-PHYSICS-CHARACTER-MOTOR-RESOLUTION_FAILED, MIRAKAN-PHYSICS-CHARACTER-MOTOR-STALE_RESULT]` |
 
-predicateはintent type subset、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityを検証する。root-motion modeが`animation`なのにexact `RootMotionProposalV1` contractを受理できないrowはActivation前に拒否する。
+production recordは`provider_id=provider.engine.physics.character_motor`、`provider_version=1`、self-excluding content hash、Engine Physics componentのexact owner ref／hash、`usage=production`、implementation System ref／hash、Target Profile集合、Qualification Receipt集合を持つ。policyはintent type subset、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityを検証する。root-motion modeが`animation`なのにexact `type.animation.root_motion_proposal`を受理できないrecordはActivation前に拒否する。
 
-T40のFeature-owned binding Systemは`GameplayMotionIntentV1`、[Navigation](navigation.md)の`MovementIntentV1`、[Animation](animation.md)の`RootMotionProposalV1`を`MotionExecutorIntentBatchV1`として提出し、選択済みPhysics Character Motor Providerがaccepted schemaを一度だけ解決する。Provider-private `CharacterMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのdirect accepted setへ混ぜない。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のProvider policyに従い、優先順位を暗黙に変更しない。
+T40のFeature-owned binding SystemはGameplay、Navigation、Animation proposalをNavigation-owned `MotionExecutorIntentBatchV1` Port messageとして提出し、選択済みPhysics Character Motor Providerがentriesのaccepted schemaを一度だけ解決する。Animationを含む全proposalはbinding Systemを経由し、Providerへ直接提出しない。Provider-private `CharacterMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのpublic accepted setへ混ぜない。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のProvider policyに従い、優先順位を暗黙に変更しない。
 
 Motorのmax slope、step height、ground snap距離、iteration上限、speed上限は§2の`CharacterMotorProfileV1`だけが保持し、stage 1が検証するProfileはこのProfileである。`NavAgentProfileV1`のslope／climbとの整合検証は[Navigation](navigation.md)のrequest validationが所有する。
 
@@ -96,7 +96,7 @@ Motor resolverは次のsemantic stagesを固定する。
 
 tie-breakは[Collision](collision.md)のnormalized query orderingを使い、native callback順を使わない。Moving platform attachmentはEngine handle、generation、local contact pointだけを保存する。Platform teleport／destroy／generation changeではattachmentを切る。
 
-Root motionは[Animation](animation.md)からselected Motion Executorへのproposalであり、本Provider選択時は`gameplay_only | root_motion_only | additive_bounded`のProvider policyで合成する。Providerのresolved motionがauthoritativeで、Animationはそれを読む。PhysicsとAnimationがTransformへ二重writeしない。
+Root motionは[Animation](animation.md)からCharacter Locomotion bindingを経由してselected Motion Executorへ届くproposalであり、本Provider選択時は`gameplay_only | root_motion_only | additive_bounded`のProvider policyで合成する。Providerのresolved motionがauthoritativeで、Animationはそれを読む。PhysicsとAnimationがTransformへ二重writeしない。
 
 ## 4. Save、Replay、failure、qualification
 

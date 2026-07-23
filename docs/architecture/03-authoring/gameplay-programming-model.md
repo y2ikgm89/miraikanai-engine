@@ -238,15 +238,16 @@ FSMは一instance、一tickにつき最大一transitionである。active state�
 |---|---|
 | MCD共通Envelope | [Executable contracts](../02-foundation/executable-contracts.md)の全Field |
 | `system_origin` | `engine_standard \| project_defined \| engine_extension` |
-| `semantic_role_ids` | versioned role ID、1～16件 |
-| `responsibility_requirement_ids` | Requirement ID、1～64件 |
-| `non_responsibility_requirement_ids` | Requirement ID、0～64件 |
-| `runtime_scope_type_ref` | `RuntimeScopeTypeCatalogV1`のexact scope type ref、厳密に1件 |
+| `semantic_role_ids` | version／content hash付き`SemanticRoleRefV1`、1～16件 |
+| `responsibility_requirement_ids` | `McdContractRefV1(kind=requirement)`、1～64件。bare IDを保存しない |
+| `non_responsibility_requirement_ids` | `McdContractRefV1(kind=requirement)`、0～64件。bare IDを保存しない |
+| `runtime_scope_type_ref` | `RuntimeScopeTypeRefV1 {scope_type_id, scope_type_version, scope_type_hash}`。active `RuntimeScopeTypeCatalogV1`のexact entry、厳密に1件 |
 | `state_class` | `authoritative \| derived \| presentation_only \| tooling_only` |
 | `owned_state_type_refs` | exact MCD Type、0～128件 |
 | `read_snapshot_type_refs` | exact MCD Type、0～256件 |
 | `accepted_command_type_refs` | exact MCD Type、0～256件 |
 | `emitted_event_type_refs` | exact MCD Type、0～256件 |
+| `emitted_port_message_type_refs` | exact MCD Type、0～256件。Command／Eventではないtyped Port transportだけ |
 | `provided_capability_refs` | exact Capability、0～128件 |
 | `required_capability_refs` | exact Capability、0～128件 |
 | `allowed_phase_ids` | Runtime phase ID、1～16件 |
@@ -266,31 +267,89 @@ FSMは一instance、一tickにつき最大一transitionである。active state�
 
 ```text
 RuntimeScopeTypeCatalogV1
+  catalog_id: runtime_scope.catalog.active
+  catalog_schema_version: 1
   catalog_version
   catalog_hash
+  contract_set_hash
+  dependency_registry_ref: RuntimeScopeDependencyRegistryRefV1
+  dependency_registry_hash
   entries[5..4096]:
-    scope_type_ref
-    instance_key_schema_ref
-    owner_ref
-    lifetime_ref
-    save_replay_policy_ref
-    activation_condition_ref
-    deactivation_condition_ref
+    scope_type_ref: RuntimeScopeTypeRefV1
+    instance_key_schema_ref: McdContractRefV1(kind=type)
+    owner_ref: RuntimeScopeOwnerRefV1
+    lifetime_ref: McdContractRefV1(kind=policy)
+    save_replay_policy_ref: McdContractRefV1(kind=policy)
+    activation_condition_ref: McdContractRefV1(kind=policy)
+    deactivation_condition_ref: McdContractRefV1(kind=policy)
+
+RuntimeScopeTypeRefV1
+  scope_type_id
+  scope_type_version: uint32
+  scope_type_hash: SHA-256
+
+RuntimeScopeOwnerRefV1
+  owner_id
+  owner_revision: uint64
+  owner_content_hash: SHA-256
+
+RuntimeScopeDependencyRegistryRefV1
+  registry_id
+  registry_revision: uint64
+  registry_content_hash: SHA-256
+
+RuntimeScopeCatalogRefV1
+  catalog_id
+  catalog_schema_version: 1
+  catalog_version
+  catalog_hash
+  contract_set_hash
+  dependency_registry_ref: RuntimeScopeDependencyRegistryRefV1
+  dependency_registry_hash
+
+RuntimeScopeOwnerRegistryV1
+  registry_id
+  registry_revision
+  registry_content_hash
+  records[1..8192]:
+    owner_ref: RuntimeScopeOwnerRefV1
+    availability: available | unavailable | removed
+    owning_component_ref: exact ref/version/content_hash
+    allowed_scope_namespaces[1..64]
+    activation_service_ref: exact ref/version/content_hash
+
+RuntimeScopeDependencyRegistryV1
+  registry_id
+  registry_revision
+  registry_content_hash
+  owner_registry_ref: exact ref/revision/content_hash
+  records[1..32768]:
+    dependency_kind:
+      instance_key_schema | lifetime | save_replay |
+      activation | deactivation
+    contract_ref: McdContractRefV1
+    record_content_hash: SHA-256
+    owner_ref: RuntimeScopeOwnerRefV1
+    status: active | deprecated | removed
 ```
 
-Core entryは次のexact 5件だけであり、7 Fieldすべてをこのcanonical rowへ固定する。
+`instance_key_schema_ref`、`lifetime_ref`、`save_replay_policy_ref`、`activation_condition_ref`、`deactivation_condition_ref`は[Executable contracts](../02-foundation/executable-contracts.md#5-mcd共通envelope)の`McdContractRefV1 {id, version, contract_set_hash}`そのものである。`owner_ref`はactive `RuntimeScopeOwnerRegistryV1`へrevision／content hash込みで解決する。CatalogとCatalog refの`dependency_registry_hash`は必ず`dependency_registry_ref.registry_content_hash`と等しく、migration inputの`destination_catalog_hash`も`destination_catalog_ref.catalog_hash`と等しくなければならない。`scope_type_hash`は`scope_type_hash`自身を除く当該entryの六依存refを含むMCD canonical bytesのSHA-256であり、表示名、current owner、latest policyへ再解決しない。
+
+Core entryは次のexact 5件だけである。表は読みやすさのためIDだけを示すが、保存値は全cellについて上記typed refであり、Core初版は`scope_type_version=1`、MCD refは`version=1`、ownerはRegistryが固定したexact revision、全refに対応content／Contract set hashを必須とする。IDだけの表文字列をSource／Save／Replay／Receiptへ保存することを禁止する。
 
 | `scope_type_ref` | `instance_key_schema_ref` | `owner_ref` | `lifetime_ref` | `save_replay_policy_ref` | `activation_condition_ref` | `deactivation_condition_ref` |
 |---|---|---|---|---|---|---|
-| `scope.core.application` | `scope_key.core.application.singleton@1` | `owner.core.runtime` | `lifetime.core.process@1` | `save_replay.scope.core.application.none@1` | `activation.scope.core.application.process_started@1` | `deactivation.scope.core.application.process_stopping@1` |
-| `scope.core.runtime_session` | `scope_key.core.runtime_session.uuidv7@1` | `owner.core.runtime` | `lifetime.core.runtime_session@1` | `save_replay.scope.core.runtime_session@1` | `activation.scope.core.runtime_session.entry_ready@1` | `deactivation.scope.core.runtime_session.stop_or_fault@1` |
-| `scope.core.world` | `scope_key.core.world.instance@1` | `owner.core.world` | `lifetime.core.world_instance@1` | `save_replay.scope.core.world@1` | `activation.scope.core.world.branch_ready@1` | `deactivation.scope.core.world.branch_teardown@1` |
-| `scope.core.entity` | `scope_key.core.entity.stable_id@1` | `owner.core.runtime_ecs` | `lifetime.core.entity@1` | `save_replay.scope.core.entity.owner_state@1` | `activation.scope.core.entity.created@1` | `deactivation.scope.core.entity.destroyed@1` |
-| `scope.core.ui_session` | `scope_key.core.ui_session.uuidv7@1` | `owner.core.ui` | `lifetime.core.ui_session@1` | `save_replay.scope.core.ui_session@1` | `activation.scope.core.ui_session.branch_ready@1` | `deactivation.scope.core.ui_session.branch_teardown@1` |
+| `scope.core.application` | `type.runtime_scope.key.application_singleton` | `owner.core.runtime` | `policy.runtime_scope.lifetime.process` | `policy.runtime_scope.save_replay.application_none` | `policy.runtime_scope.activation.process_started` | `policy.runtime_scope.deactivation.process_stopping` |
+| `scope.core.runtime_session` | `type.runtime_scope.key.runtime_session_uuidv7` | `owner.core.runtime` | `policy.runtime_scope.lifetime.runtime_session` | `policy.runtime_scope.save_replay.runtime_session` | `policy.runtime_scope.activation.entry_ready` | `policy.runtime_scope.deactivation.stop_or_fault` |
+| `scope.core.world` | `type.runtime_scope.key.world_instance` | `owner.core.world` | `policy.runtime_scope.lifetime.world_instance` | `policy.runtime_scope.save_replay.world` | `policy.runtime_scope.activation.world_branch_ready` | `policy.runtime_scope.deactivation.world_branch_teardown` |
+| `scope.core.entity` | `type.runtime_scope.key.entity_stable_id` | `owner.core.runtime_ecs` | `policy.runtime_scope.lifetime.entity` | `policy.runtime_scope.save_replay.entity_owner_state` | `policy.runtime_scope.activation.entity_created` | `policy.runtime_scope.deactivation.entity_destroyed` |
+| `scope.core.ui_session` | `type.runtime_scope.key.ui_session_uuidv7` | `owner.core.ui` | `policy.runtime_scope.lifetime.ui_session` | `policy.runtime_scope.save_replay.ui_session` | `policy.runtime_scope.activation.ui_branch_ready` | `policy.runtime_scope.deactivation.ui_branch_teardown` |
 
 Feature Packは`scope.feature.<feature>.instance`、Genre Packは自身の内部だけで使用する`scope.genre.<genre>.<scope>.instance`を登録できる。Core／FeatureからGenre scopeへの依存を拒否する。各entryの7 Fieldはすべて必須で、owner availabilityとversion、instance key schema、lifetime、Save／Replay policy schema hash、activation／deactivation conditionをCatalog materializationとRuntime activationの両方で検証する。
 
-entryは`scope_type_ref` canonical byte順で厳密にsortし、duplicateを拒否する。`catalog_hash=SHA-256(catalog_version || canonical entries)`とし、配列順、owner revision、7 Fieldのref／version／hashが一つでも異なれば別Catalogである。Core rowの各IDは上表で定義済みのexact valueであり、表示名やowner defaultへ再解決しない。
+`RuntimeScopeOwnerRegistryV1`は上記typed owner recordを、`RuntimeScopeDependencyRegistryV1`は上表で参照する各type／policyの`McdContractRefV1`、record content hash、owner ref／hash、statusをactive recordとして持つ。Owner recordはowner ID／revision、Dependency recordはdependency kind／contract ID／versionのcanonical byte順にstrict sortし、duplicateを拒否する。各Registry content hashはASCII domain separator（`MIRAKAN_RUNTIME_SCOPE_OWNER_REGISTRY_V1`または`MIRAKAN_RUNTIME_SCOPE_DEPENDENCY_REGISTRY_V1`）、自身のID／revision、Dependency Registryではexact Owner Registry ref、record count、全record canonical bytesを順に入力し、`registry_content_hash`自身を除外してSHA-256する。上表5行に現れる全dependencyはこの二Registryへ実体recordを一件ずつ持ち、unknown、duplicate、deprecated、removed、self-asserted ownerを解決済みと扱わない。
+
+entryは`scope_type_ref.scope_type_id`のNFC UTF-8 byte順で厳密にsortし、duplicateを拒否する。`catalog_hash`のexact inputは、ASCII domain separator `MIRAKAN_RUNTIME_SCOPE_CATALOG_V1`、`catalog_id`、`catalog_schema_version`、`catalog_version`、`contract_set_hash`、`dependency_registry_ref`のcanonical bytes、これと同値の`dependency_registry_hash`、entry count、各entryの七typed refをこの順にMCD canonical encodeしたbytesであり、`catalog_hash`自身を除外してSHA-256する。配列順、scope version／hash、owner revision／hash、MCD version／Contract set hashが一つでも異なれば別Catalogである。
 
 | Diagnostic ID | 条件 |
 |---|---|
@@ -301,7 +360,63 @@ entryは`scope_type_ref` canonical byte順で厳密にsortし、duplicateを拒�
 
 Catalog materialization、owner removal、Runtime activationのいずれかで失敗した場合はCatalog、System Graph、last-valid active instance、Save／Replay mappingを変更しない。Scope Source identity、Save／Replay instance identity、ephemeral runtime generationを相互に置換しない。
 
-`GameSystemSpecV1@1.runtime_instance_scope`を持つSourceは、versioned migrationで`GameSystemSpecV1@2.runtime_scope_type_ref`へ一方向変換する。`play_session`は`scope.core.runtime_session`、`world_instance`は`scope.core.world`、`entity_instance`は`scope.core.entity`、`ui_session`は`scope.core.ui_session`へ移す。Stage、Encounter、Scoring、Shooter Game Flowはそれぞれ`scope.feature.scenario_stage.instance`、`scope.feature.encounter_spawn.instance`、`scope.feature.scoring.instance`、`scope.genre.shooter.game_flow.instance`へ移し、`level_instance`／`encounter_instance`、末尾`.instance`を欠くGenre aliasを解決しない。入力schema revision、owner row、Save／Replay mappingが一意でなければ`MIRAKAN-RUNTIME-SCOPE-MIGRATION_CONFLICT`で新revisionを拒否し、last-valid Source／Catalog／active instanceを維持する。
+### 3.1.2 Scope依存recordとoffline migration
+
+`GameSystemSpecV1`旧版の`runtime_instance_scope`を持つSourceは、versioned offline migrationで現行版の`runtime_scope_type_ref`へ一方向変換する。legacy `play_session`は`scope.core.runtime_session`、`world_instance`は`scope.core.world`、`entity_instance`は`scope.core.entity`、`ui_session`は`scope.core.ui_session`へ移す。Stage、Encounter、Scoring、Shooter Game Flowはそれぞれ`scope.feature.scenario_stage.instance`、`scope.feature.encounter_spawn.instance`、`scope.feature.scoring.instance`、`scope.genre.shooter.game_flow.instance`へ移し、`level_instance`／`encounter_instance`、末尾`.instance`を欠くGenre aliasを解決しない。
+
+current validatorは`runtime_instance_scope` Field、legacy enum、IDだけの`runtime_scope_type_ref`、version／hash欠落、current Catalog以外のscope hashをすべて`MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID`でrejectする。migration readerだけが旧Contract setを入力として読み、current deserializerへaliasを残さない。
+
+offline MCD Operationは`operation.runtime_scope.migrate_game_system_v1_to_v2`である。inputは`McdContractRefV1`で`type.runtime_scope.game_system_v1_migration_input` version 1を参照し、旧System Source ref／hash、旧Contract set hash、移行先Catalog ref／hash、resolved owner／instance-key／lifetime／Save Replay／activation／deactivation refs、expected Project revision、idempotency key、Approvalを持つ。outputは`type.runtime_scope.game_system_v1_migration_result` version 1で、新System Source ref／hash、新scope typed ref、新Project revision、Preview／Validation／Commit Receipt ref／hash、`RuntimeScopeMigrationReceiptV1`を持つ。Receiptはbefore System schema ref／hashとlegacy scope value hash、after System schema ref／hashと七dependency ref／hash、Source instance identity mapping、Save identity mapping、Replay identity mapping、ephemeral generation非移行、Diagnosticを記録する。Authority、Risk、transaction、timeoutは[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)に固定する。
+
+```text
+RuntimeScopeGameSystemV1MigrationInputV1
+  operation_ref: McdContractRefV1(
+    id=operation.runtime_scope.migrate_game_system_v1_to_v2, version=1, contract_set_hash)
+  project_ref: exact {project_id, expected_project_revision, document_set_hash}
+  legacy_system_source_ref
+  legacy_system_source_hash
+  legacy_system_schema_ref
+  legacy_contract_set_hash
+  destination_catalog_ref: RuntimeScopeCatalogRefV1
+  destination_catalog_hash
+  resolved_scope_entry: exact seven typed refs
+  source_instance_identity_mapping_ref
+  save_identity_mapping_ref
+  replay_identity_mapping_ref
+  idempotency_key
+  authorization_ref
+  approval_ref
+
+RuntimeScopeGameSystemV1MigrationResultV1
+  disposition: migrated | rejected
+  migrated:
+    new_system_source_ref
+    new_system_source_hash
+    runtime_scope_type_ref: RuntimeScopeTypeRefV1
+    new_project_revision
+    preview_receipt_ref/hash
+    validation_receipt_ref/hash
+    commit_receipt_ref/hash
+    migration_receipt_ref/hash
+  rejected:
+    diagnostics[1..256]
+
+RuntimeScopeMigrationReceiptV1
+  operation_ref
+  request_hash
+  before_project_revision
+  after_project_revision
+  before_system_schema_ref/hash
+  after_system_schema_ref/hash
+  legacy_scope_value_hash
+  seven_dependency_after_refs/hashes
+  source_instance_identity_mapping_ref/hash
+  save_identity_mapping_ref/hash
+  replay_identity_mapping_ref/hash
+  ephemeral_generation_migrated: false
+```
+
+入力schema revision、owner row、七dependency、Save／Replay mappingが一意でない、hashがstale、または一instanceでもidentity collisionする場合は`MIRAKAN-RUNTIME-SCOPE-MIGRATION_CONFLICT`で全migrationを拒否し、last-valid Source／Catalog／active instanceを維持する。positive fixtureはCore 4 mapping、Stage、Encounter、Scoring、Shooter Game FlowをSave／Replay round-tripまで検証し、negative fixtureは旧Fieldのcurrent入力、bare scope ID、removed owner、wrong owner revision、instance key／lifetime／Save Replay／activation／deactivationの各hash mismatch、partial migrationを一原因ずつ拒否する。
 
 `GameSystemImplementationPolicyV1`は許可Implementation kind、default implementation、Native eligibility、replacement policy、live switch policy、equivalence fixture、required Target、configuration schema、unavailable behaviorを持つ。Native live switchは許可しない。Project overrideもPublic Contract、State、Save field、Replay意味を変更できない。
 

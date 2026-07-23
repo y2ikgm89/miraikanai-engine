@@ -138,7 +138,30 @@ Runtime-owned Cell lifecycleの`failed`状態、retry／rollback／evict遷移�
 
 `SpatialTransitionPolicyV1`はpresentation policy ref、persistent subject policy ref、required activation set policy ref、precondition ref、failure policy、cancel policyを持つ。実行phase、writer、async job、timeout、Save checkpointはRuntime Ownerへ委譲する。
 
-`SpatialTransitionRequestV1`は`request_id`、source Space instance ref、transition edge ref、target Space ref、target anchor ref、requesting system ref、requested tick、typed `transfer_subject_refs[]`、precondition snapshot hash、transition policy refを持つ。表示名から対象を再解決せず、stale condition、inactive source、target／anchor mismatchをprefetch前に拒否する。
+World ownerはStageその他のconsumerが再定義しないexact destination型を次へ固定し、MCDへ`{id=type.world.spatial_transition_destination, version=1, contract_set_hash}`として登録する。
+
+```text
+SpatialTransitionDestinationV1
+  destination_id: StableId
+  destination_version: uint32
+  destination_hash: SHA-256(self excluding destination_hash)
+  world_ref: exact WorldDocumentRef(stable_id, schema_version, content_hash)
+  topology_ref: exact SpatialTopologyDefinitionRef(version, content_hash)
+  transition_edge_ref: exact TransitionEdgeRef(version, content_hash)
+  target_space_ref: exact SpaceRef(version, content_hash)
+  target_anchor_ref: AnchorRef(version, content_hash) | null
+
+SpatialTransitionDestinationRefV1
+  destination_id
+  destination_version
+  destination_hash
+  destination_type_ref:
+    McdContractRefV1(id=type.world.spatial_transition_destination, version=1, contract_set_hash)
+```
+
+World、Topology、Edge、target Spaceは同じWorld／Topology revision closureへ属し、Edgeのsource／targetと`target_space_ref`、各content hashが一致しなければならない。Edgeの`target_anchor_requirement=forbidden | optional | required`を唯一のdiscriminatorとし、forbiddenはnull、optionalはnullまたは同target SpaceのAnchor、requiredはnon-null exact Anchorを要求する。表示名、path、current World、latest Space／Edge、別Worldの同名Anchorへ再解決しない。
+
+`SpatialTransitionRequestV1`は`request_id`、source Space instance ref、exact `SpatialTransitionDestinationRefV1`、requesting system ref、requested tick、typed `transfer_subject_refs[]`、precondition snapshot hash、transition policy ref／hashを持つ。Edge／Space／AnchorをRequestへ複製しない。表示名から対象を再解決せず、stale World／Topology／Edge／Space／Anchor、hash mismatch、inactive sourceをprefetch前に拒否する。
 
 transition中に旧／新SpaceのEntity identityを再利用しない。persistent identityは明示ownerとhandoff recordを持つ。target dependency不足時はpartial activationやdefault destinationへ進まず、blocking reasonとfallbackを返す。
 
@@ -151,6 +174,7 @@ LoadingProgressPlanV1
   plan_id: DerivedPlanId
   subject_kind: initial_activation | spatial_transition | resume_save
   subject_request_ref: exact generation-bearing typed request ref
+  selected_dependency_binding_refs[0..65535]: WorldDependencyBindingRefV1
   dependency_closure_hash: bytes32
   work_units: bounded array[1..65,535]<{
     kind: io_bytes | artifact_verify | dependency_ready | activation_group | state_transfer,
@@ -169,15 +193,27 @@ LoadingProgressSnapshotV1
   can_retry: bool
   failure_reason: optional typed failure
   generation: uint64
+
+WorldDependencyBindingRefV1
+  binding_id
+  binding_version
+  binding_hash
+  owner_ref
+  owner_hash
+  dependency_kind: artifact | game_system | service
+  dependency_ref
+  dependency_content_hash
+  dependency_generation
+  readiness_policy_ref: McdContractRefV1(kind=policy)
 ```
 
-`subject_kind`と`subject_request_ref`はtagged ruleで、initial activation、spatial transition、Save resumeの選択kindとexact request kind／generationを一致させる。work unit kindは上記5種だけで、各unitはexact対象refと正のweightを必須とする。確定したdependency closureのcanonical dependency順、同一dependency内のkind enum順、target ref canonical byte順で並べ、同じ`{kind, exact_target_ref}`を重複させない。positive weight合計は厳密に65,535とする。65,535 unitは全weightが正で正規化可能なら受理し、65,536 unit以上は`MIRAKAN-WORLD-LOADING_PLAN_CAPACITY_EXCEEDED`としてPlan materialization前に拒否する。省略、結合、truncateで成功へ近似せず、previous valid PlanとWorld generationを維持してpartial Plan／unitを公開しない。
+`subject_kind`と`subject_request_ref`はtagged ruleで、initial activation、spatial transition、Save resumeの選択kindとexact request kind／generationを一致させる。dependency bindingはbinding ID／version順でstrict sortし、Source／Target選択から生成した集合とset equalityにする。work unit kindは上記5種だけで、各unitはexact対象refと正のweightを必須とする。確定したdependency closureのcanonical dependency順、同一dependency内のkind enum順、target ref canonical byte順で並べ、同じ`{kind, exact_target_ref}`を重複させない。positive weight合計は厳密に65,535とする。65,535 unitは全weightが正で正規化可能なら受理し、65,536 unit以上は`MIRAKAN-WORLD-LOADING_PLAN_CAPACITY_EXCEEDED`としてPlan materialization前に拒否する。省略、結合、truncateで成功へ近似せず、previous valid PlanとWorld generationを維持してpartial Plan／unitを公開しない。
 
 `completed_weight_q16`は0～65,535で、同じexact Plan generationでは完了済みunitのweightだけを加算して単調非減少とする。`phase=complete`は`completed_weight_q16=65,535`かつ`can_cancel=false`かつ`can_retry=false`、`phase=failed`は`failure_reason`を厳密に1件、その他phaseは0件とする。`can_cancel=true`はPolicyが許可した`prefetching | resident`だけ、`can_retry=true`はtyped failureとexplicit retry policyがある`failed`だけである。Snapshotのsession generation、`progress_plan_ref.generation`、`generation`は一致し、fake timer、frame count、UI animation、spinner、未列挙jobを進捗へ混ぜない。
 
 Source、Target、Toolchain、partition intentのいずれかのhashが変わったPlanは`MIRAKAN-WORLD-STREAMING_PLAN_STALE`、dependency closureまたはgenerationが変わったProgress Plan／Snapshotは`MIRAKAN-WORLD-LOADING_PROGRESS_PLAN_STALE`で拒否する。barを巻き戻して古いgenerationを再利用せず、新しいPlan、request、session、generationを発行する。
 
-I/O／verifyはreal-time domainで進められるが、activationとtyped subject transferは正規tick boundaryでatomic commitする。Renderer／Collision／Navigationを含むhard dependency closureがall-readyになった後だけactivation group全体をpublishする。一部だけ成功した場合は`MIRAKAN-WORLD-ACTIVATION_PARTIAL`としてtarget全体をrollbackし、source Spaceとlast-valid generationをactiveのまま維持する。旧Spaceを先に破棄して空Worldを露出せず、target active後にsubjectをtransferし、その後にsourceをdeactivateする。
+I/O／verifyはreal-time domainで進められるが、activationとtyped subject transferは正規tick boundaryでatomic commitする。選択Source／Targetが明示した`selected_dependency_binding_refs[]`だけをhard dependency closureへ入れ、各bindingのowner、Artifact／System ref、generation、readiness predicateをexactに検証する。Renderer、Collision、Navigationその他のOwnerを名前で常時追加しない。選択bindingがall-readyになった後だけactivation group全体をpublishする。一部だけ成功した場合は`MIRAKAN-WORLD-ACTIVATION_PARTIAL`としてtarget全体をrollbackし、source Spaceとlast-valid generationをactiveのまま維持する。旧Spaceを先に破棄して空Worldを露出せず、target active後にsubjectをtransferし、その後にsourceをdeactivateする。
 
 Cancelはpolicyが許可しphaseが`prefetching | resident`以下の時だけ受理し、activating以後または不許可時は`MIRAKAN-WORLD-LOADING_CANCEL_REJECTED`としてWorld state不変のtyped rejectionを返す。受理後はinflight I/Oをcancelまたはbounded drainし、leaseとtemporary Artifactを解放する。Retryは明示操作だけで新request／session identityを発行し、Source revision、condition、artifact checksum、Target Capability、storage／memory budgetを再検証する。不合格は`MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED`とし、partial activation、古いSnapshot、古いprogressを使用しない。Loading UI、Audio、読み上げはauthorityへ逆入力しない。
 
@@ -194,9 +230,24 @@ Asset artifact、Navigation artifact、LOD／HLOD representation、Renderer mate
 
 Procedural Worldはgenerator Stable ID、typed parameter、seed semantics、input asset refs、bounded output scope、determinism class、generated Source ownership、regeneration／migration policyを持つ。GeneratorはProject Source DocumentへのChangeSetを生成し、Runtime objectやnative resourceを直接生成して正本化しない。
 
-`ProceduralWorldDefinitionV1`は`procedural_world_id`（UUIDv7 Stable ID）、exact `generator_contract_ref`、Qualified Definition／Native variantの`generator_implementation_ref`、`seed_policy: fixed | project_parameter | save_slot | session_derived`、`input_definition_refs` 0～1,024件、`layout_constraint_refs` 1～1,024件、exact `output_schema_ref`、正の`max_generation_steps`／`max_output_entities`、Targetごとに厳密に1件の`time_memory_budget_refs`、`determinism_contract_ref`、`validation_fixture_refs` 1～1,024件、`failure_policy: retry seed | fallback layout | abort`を持つ。budget値はRuntime capacity ownerを参照する。
+`ProceduralWorldDefinitionV1`は`procedural_world_id`（UUIDv7 Stable ID）、exact `generator_contract_ref`、Qualified Definition／Native variantの`generator_implementation_ref`、`seed_policy: fixed | project_parameter | save_slot | session_derived`、`input_definition_refs` 0～1,024件、`layout_constraint_refs` 1～1,024件、exact `output_schema_ref`、正の`max_generation_steps`／`max_output_entities`、Targetごとに厳密に1件の`time_memory_budget_refs`、`determinism_contract_ref`、`validation_fixture_refs` 1～1,024件、`selected_validation_provider_bindings[0..64]`、`failure_policy: retry seed | fallback layout | abort`を持つ。budget値はRuntime capacity ownerを参照する。
 
-`GeneratedWorldDeltaV1`は`delta_id`、`procedural_world_ref`、`base_project_revision`、`generator_contract_hash`、`generator_implementation_hash`、`input_hash`、`seed`、`rng_stream_manifest_hash`、`create_records[0..max_output_entities]`、`update_operations[0..max_output_entities * 4]`、`delete_stable_ids[0..max_output_entities]`、`generated_anchor_refs[]`、`generated_portal_refs[]`、optional typed `physics_overlap_output_refs[]`、`spawn_safety_output_refs[]`、`navigation_query_output_refs[]`、`output_bounds`、`generation_step_count`、`output_hash`を持つ。
+```text
+ProceduralValidationProviderBindingV1
+  validation_kind:
+    physics_overlap | spawn_safety | navigation_query | owner_extension
+  binding_ref: exact owner-typed ProviderBindingDocumentRef
+  binding_hash: SHA-256
+  provider_contract_ref: McdContractRefV1
+  output_schema_ref: McdContractRefV1(kind=type)
+  required_output_count: uint32
+  owner_ref
+  owner_hash
+```
+
+binding配列は`validation_kind`、binding Stable IDのcanonical byte順でsortし、duplicateを拒否する。`binding_hash`は参照Document content hashと、owner／provider／output schemaのresolved closure hashの両方に一致しなければならない。`required_output_count`は0～1,024で、0はprovider実行を要求するが出力recordを要求しないvalidatorだけに使う。Owner名、Capabilityの存在、output field名からproviderを推測選択しない。
+
+`GeneratedWorldDeltaV1`は`delta_id`、`procedural_world_ref`、`base_project_revision`、`generator_contract_hash`、`generator_implementation_hash`、`input_hash`、`seed`、`rng_stream_manifest_hash`、`create_records[0..max_output_entities]`、`update_operations[0..max_output_entities * 4]`、`delete_stable_ids[0..max_output_entities]`、`generated_anchor_refs[]`、`generated_portal_refs[]`、typed `validation_outputs[0..65536]`、`output_bounds`、`generation_step_count`、`output_hash`を持つ。各`validation_outputs[]`はbinding ref／hash、exact output schema ref、output value ref／hashを持ち、binding配列順、output Stable ID順でcanonicalizeする。
 
 `delta_id`はTrusted Staging Broker発行UUIDv7 Stable IDである。create recordはGateway割当前の`uint32 local_id`を1から使い、0 invalid、Delta内重複errorとする。検証後にGatewayがlocal IDをStable IDへ対応付け、Sourceへlocal IDを残さない。既存更新／削除は明示allowlistとexpected revisionを必須とし、World全置換、上限超過、absolute path、native pointer、Cooked Artifact本文を拒否する。
 
@@ -204,7 +255,17 @@ Procedural Worldはgenerator Stable ID、typed parameter、seed semantics、inpu
 
 同じcanonical inputをfresh processで3回実行し、Stable ID assignment、record order、output hashが一度でも異なれば`MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC`として全Deltaを拒否する。retry seedはfailure policyが許可した新しい明示seedでだけ新Deltaを作り、同じseedの不一致を成功へ近似しない。
 
-生成結果は通常のScene／Entity／Cell validationとreviewを通り、手編集領域を無断上書きしない。Schema不一致、unknown ref、bounds／step／entity上限超過、topology cycle、空間connectivity不成立は常時検証する。Physics overlap、spawn safety、Navigation queryは対応するtyped output refが1件以上あり、そのowner contractがinstalled／selected closureへ存在する場合だけ条件実行する。対応Capability／owner／output refがすべて不在なら当該検証をcanonical skipとし、failureまたはplaceholder providerにしない。refが存在するのにowner missing／removed、schema／hash不一致、またはselected検証がfailureなら`MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT`としてDelta全体を破棄し、部分Sourceをpublishしない。timeout、unsupported Target、fallback layoutもtyped resultとし、last-valid Source／Artifactを維持する。外部Tool／generator versionとartifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)を参照する。
+生成結果は通常のScene／Entity／Cell validationとreviewを通り、手編集領域を無断上書きしない。Schema不一致、unknown ref、bounds／step／entity上限超過、topology cycle、空間connectivity不成立は常時検証する。条件provider検証のtruth tableを次へ固定する。
+
+| selected binding | 対応output | 結果 |
+|---|---|---|
+| absent | empty | canonical skip。provider、placeholder、failureを生成しない |
+| absent | non-empty | output owner不明としてDelta全体reject |
+| selected | `count < required_output_count` | required output欠落としてDelta全体reject |
+| selected、exact ref／hash／schema valid | required count以上で全output valid | providerを一回実行しvalidation成功 |
+| selectedだがref／owner／hash／schema stale、またはprovider result invalid／failure | 任意 | `MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT`でDelta全体reject |
+
+一bindingでもrejectならcreate／update／deleteを一件もpublishせず、Project revision、last-valid Source、Derived Artifact、World generationを維持する。同じgenerator version、input revisions、seed、Target、Toolchain、binding setで再生成した場合、provider選択とoutput hashを含むcanonical Delta hashが一致しなければならない。再生成中のArtifact削除、provider timeout、hash mismatch、unsupported Target、fallback layoutもtyped resultとし、失敗時はlast-validを維持する。外部Tool／generator versionとartifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)を参照する。
 
 ## 10. Navigation、Simulation、Renderingとの境界
 
@@ -349,11 +410,11 @@ C1 boundは一TileSet 65,535 Tile、一Tilemap 64 Layer、全Layer合計16,777,2
 
 cell `transform`は正方形格子の二面体群D4のclosed enumである。Cookerはcell中心を基準に、Renderer UV、Sprite pivot、Collision polygon、Navigation source、terrain edge／corner tagへ同じD4 transformをちょうど一度適用する。`TileDrawSpanV1.cooked_cell_transform_state`は適用済みを示し、consumerは再適用しない。いずれかのconsumerが同じ変換を表現できない、適用回数または結果hashが一致しない場合は`consumer_transform_mismatch`でclosure全体を失敗させ、Presentationだけを成功させない。`stable_cell_offset`はTilemap ID、Layer ID、World tile coordinate、Tile IDのcanonical hashだけから決め、load順、chunk residency順、worker順をseedにしない。
 
-Tile editはimmutableな新Artifactを、変更region外周1 tile、terrain dependency radius、Collider seam、Navigation overlapまで再Cookする。Renderer、Collision、Navigationのrequired ArtifactがすべてReadyで、dependency hashとsource generationが一致した後だけ、World activation groupとTilemap generationを一つのpublication boundaryでatomic publishする。Presentation-only変更でCollision／Navigationを再利用する場合もexact dependency hashを検証する。一つでもfailed／cancelled／staleなら旧generationを維持し、partial artifact、空Tile、無衝突状態を公開しない。active authoritative regionのCollider／NavigationをPresentationより先にevictせず、Cell all-or-nothing activationをchunk単位へ弱めない。
+Tile editはimmutableな新Artifactを、変更region外周1 tile、terrain dependency radius、明示選択されたconsumer bindingのdependency radiusまで再Cookする。Tilemap Sourceが選択したRenderer、Collision、Navigationその他のrequired bindingだけがすべてReadyで、dependency hashとsource generationが一致した後、World activation groupとTilemap generationを一つのpublication boundaryでatomic publishする。未選択consumerをhard closureへ追加しない。Presentation-only変更で選択済みauthoritative Artifactを再利用する場合もexact dependency hashを検証する。一つでもfailed／cancelled／staleなら旧generationを維持し、partial artifact、空Tile、無衝突状態を公開しない。active authoritative regionの選択ArtifactをPresentationより先にevictせず、Cell all-or-nothing activationをchunk単位へ弱めない。
 
 AIとEditorは同じbounded `TileLayoutCommandV1`を使い、AIが巨大なtile ID配列を直接生成することを拒否する。`region`のinclusive-min／exclusive-max areaはoverflow-safeなwide integerで事前計算し、canonical preflightはcell payloadのscanやcandidate materializationなしに決定論的なexpansion candidate countを導出する。region areaとcandidate countはそれぞれ`max_examined_tile_count`、Target Profileのcommand examined-tile limit、C1全Layer ceiling 16,777,216以下でなければならず、`max_changed_tile_count <= max_examined_tile_count`も必須とする。16,777,216 examined tileは他の二上限も許せば受理し、exact +1の16,777,217、area積overflow、いずれかの上限超過はscan／expansion開始前にtyped `tile_layout_capacity_exceeded`で拒否する。
 
-Engineはaccepted commandだけをexpected revision／generation上で決定論的に展開し、allowed set、接続、到達性、変更数を検証する。capacity failureでregionをtruncate、sample、分割、近似せず、candidate、changed tile、Artifactを部分公開しない。Commit直前に同じ入力から再展開し、canonical preview expansion hashと一致しなければ`preview_commit_hash_mismatch`として拒否する。stale generation、unknown Tile、revision mismatchもtyped rejectionであり、全拒否経路でprevious Tilemap／World generationと既存Renderer／Collision／Navigation Artifactを維持する。
+Engineはaccepted commandだけをexpected revision／generation上で決定論的に展開し、allowed set、接続、到達性、変更数を検証する。capacity failureでregionをtruncate、sample、分割、近似せず、candidate、changed tile、Artifactを部分公開しない。Commit直前に同じ入力から再展開し、canonical preview expansion hashと一致しなければ`preview_commit_hash_mismatch`として拒否する。stale generation、unknown Tile、revision mismatchもtyped rejectionであり、全拒否経路でprevious Tilemap／World generationと既存の明示選択consumer Artifactを維持する。
 
 ### 10.2 Engine-native 3D Blockout
 
@@ -382,7 +443,7 @@ BlockoutAssemblyV1
 
 各dimensionは0.01～10,000 m、radial segmentsは3～64、height segmentsは1～64、compact spatial assembly全体は4,096 primitive以下とする。assembly／local transformはfinite translation、normalized rotation、正のscaleで、負scale、NaN／Inf、zero-area surface、暗黙boolean由来のnonmanifold、Colliderとwalkable semanticの矛盾を拒否する。Primitiveは通常のTransform、Material、Renderer、Collision、Navigation SourceへCookし、Blockout専用Runtime objectを作らない。
 
-`CreatePrimitiveMesh | CreateBlockoutAssembly | UpdateBlockoutPrimitive | PromoteBlockoutToMeshAsset`をAI／Editor共通のbounded operationとする。Promotion previewは元Stable ID、generation、pivot、bounds、Material slot、Collider／Navigation semantic、参照元を固定し、承認後に通常Mesh Sourceと対応表をatomic publishする。Renderer／Collision／Navigation Artifactのall-readyとgeneration一致前にはassembly置換を公開しない。元Sourceを自動削除せず、置換対象はexplicit ChangeSetに列挙する。C1 fixtureはexternal DCCを要求せず、6 primitive、dimension境界、4,096 primitive spatial assembly、Collider／Navigation cook、Promotion前後のbounds／pivot／Material slot、Undo／Redo、Save／Load、AI／手動operationのafter hash一致を検証する。external DCC Asset 0件のarenaのWorld activation smokeを完走できることをGateとする。
+`CreatePrimitiveMesh | CreateBlockoutAssembly | UpdateBlockoutPrimitive | PromoteBlockoutToMeshAsset`をAI／Editor共通のbounded operationとする。Promotion previewは元Stable ID、generation、pivot、bounds、Material slot、Collider／Navigation semantic、参照元を固定し、承認後に通常Mesh Sourceと対応表をatomic publishする。Sourceが明示選択したconsumer Artifact bindingのall-readyとgeneration一致前にはassembly置換を公開せず、Renderer／Collision／Navigationを固定必須集合にしない。元Sourceを自動削除せず、置換対象はexplicit ChangeSetに列挙する。C1 fixtureはexternal DCCを要求せず、6 primitive、dimension境界、4,096 primitive spatial assembly、Collider／Navigationを選択したcook、Promotion前後のbounds／pivot／Material slot、Undo／Redo、Save／Load、AI／手動operationのafter hash一致を検証する。external DCC Asset 0件のarenaのWorld activation smokeを完走できることをGateとする。
 
 ## 11. Authoring bundleとAI／Editor UX
 
@@ -405,6 +466,8 @@ WorldAuthoringPlanV1
   source_change_kinds: bounded array[1..6]<closed source change kind>
   required_system_refs: bounded array[0..128]<exact system ref>
   required_capability_refs: bounded array[0..128]<exact Capability ref>
+  selected_validation_provider_bindings:
+    bounded array[0..64]<{exact binding ref, binding hash, output_schema_ref: McdContractRefV1}>
   budget_refs: bounded array[1..64]<exact budget ref>
   derived_build_jobs: bounded array[0..256]<typed build job>
   validation_fixture_ids: bounded array[1..1024]<exact fixture ID>
@@ -415,7 +478,7 @@ WorldAuthoringPlanV1
   disposition: ready_to_stage | question_required | capability_unavailable | target_unsupported | budget_missing | rejected
 ```
 
-`source_change_kinds`は`world_document | scene_composition | topology | partition | procedural_layout | map_presentation`の6種へ閉じる。既存World編集branchは`affected_world_refs[1..64]`を必須とし、すべてのaffected refが`project_revision`に実在しexpected kindと一致しなければならない。新規World作成branchだけは`affected_world_refs=[]`を許可するが、`create_document_kinds`がclosed World document kindを厳密に一件含み、`source_change_kinds`が`world_document`を含むことを必須にする。新規IDはCommit時にGatewayが発行し、Planへ存在しないWorld IDを先行記録しない。`disposition=question_required`だけがQuestionを1～7件持ち、その他は0件とする。Planはread-only／proposal-onlyで、Source、Staging、Derived Artifact、Runtime stateを変更せず、Commit／Approval／Receipt権限を持たない。
+`source_change_kinds`は`world_document | scene_composition | topology | partition | procedural_layout | map_presentation`の6種へ閉じる。既存World編集branchは`affected_world_refs[1..64]`を必須とし、すべてのaffected refが`project_revision`に実在しexpected kindと一致しなければならない。新規World作成branchだけは`affected_world_refs=[]`を許可するが、`create_document_kinds`がclosed World document kindを厳密に一件含み、`source_change_kinds`が`world_document`を含むことを必須にする。新規IDはCommit時にGatewayが発行し、Planへ存在しないWorld IDを先行記録しない。procedural branchの`selected_validation_provider_bindings`はCommit対象`ProceduralWorldDefinitionV1`とref／hash／output schemaのset equalityで一致し、Planだけでproviderを追加・削除しない。`disposition=question_required`だけがQuestionを1～7件持ち、その他は0件とする。Planはread-only／proposal-onlyで、Source、Staging、Derived Artifact、Runtime stateを変更せず、Commit／Approval／Receipt権限を持たない。
 
 ```text
 WorldAuthoringBundleV1
@@ -513,7 +576,7 @@ World diagnosticはWorld／Scene／Space／Entity Stable ID、Plan ID／plan-loc
 | `MIRAKAN-WORLD-TILE_LAYOUT_CAPACITY_EXCEEDED` | region／candidate／changed count上限超過 | scan前に拒否 |
 | `MIRAKAN-WORLD-TILE_TRANSFORM_MISMATCH` | D4 consumer結果／適用回数不一致 | 全consumer closure拒否 |
 | `MIRAKAN-WORLD-TILE_GENERATION_STALE` | Source／Artifact／command generation不一致 | 旧generation維持 |
-| `MIRAKAN-WORLD-TILE_ARTIFACT_PARTIAL` | Renderer／Collision／Navigationがall-readyでない | publication拒否 |
+| `MIRAKAN-WORLD-TILE_ARTIFACT_PARTIAL` | 明示選択されたconsumer Artifact bindingがall-readyでない | publication拒否 |
 | `MIRAKAN-WORLD-TILE_PREVIEW_STALE` | Preview／Commit再展開hash不一致 | Command拒否 |
 
 Qualificationは次を含む。
@@ -526,11 +589,17 @@ Qualificationは次を含む。
 - Cell全state transition、timeout、I/O failure、activation group atomicity、source Space維持、typed subject transfer、Save／Load／Replay state hash。
 - `contract.world.loading-progress`: initial activation、Space transition、Save resumeで同じPlan／Snapshot契約を使い、0／10／99／100%の実作業由来進捗、cold I/O、verify failure、0／2,000 ms minimum display、source Space維持を検証する。
 - Loading work unit 65,535 exact／65,536 exact+1、weight合計65,535、同Plan単調進捗、capacity failure時のpartial unit非公開、closure変更時の新generation、fake timer拒否、prefetch中Cancel、activating以後の`MIRAKAN-WORLD-LOADING_CANCEL_REJECTED`、明示Retryと`MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED`、lease／temporary Artifact解放、input／audio／keyboard／controller／screen reader projection。
-- fixtureがRenderer／Collision／Navigationを明示選択したhard closureでは一要素failureを注入し、`MIRAKAN-WORLD-ACTIVATION_PARTIAL`、target全rollback、source Space／last-valid generation維持、stale Snapshot／progress再利用0件を検証する。未選択ownerをhard closureへ暗黙追加しない。
-- Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transform、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致。
+- fixtureがRenderer／Collision／Navigationを例として明示選択したhard closureでは一要素failureを注入し、`MIRAKAN-WORLD-ACTIVATION_PARTIAL`、target全rollback、source Space／last-valid generation維持、stale Snapshot／progress再利用0件を検証する。別fixtureは任意owner bindingを選択して同じgeneric contractを通し、未選択ownerをhard closureへ暗黙追加しない。
+- Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transform、stable animation phase、明示選択consumer Artifact集合のall-ready atomic publication、stale generation、Preview／Commit hash一致。
 - Blockoutのdimension／segment／assembly bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件。
-- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchainをfresh processで3回実行して同じStable ID／canonical output／output hash、Generator bound、connectivityと、typed output refで明示選択したPhysics overlap／spawn safety／Navigation queryを検証する。生成後にNavigation Artifactを削除して同じ入力から再生成し、同じcanonical output／Artifact hashになること、削除中／再生成失敗／hash不一致では既存last-valid ArtifactとWorld generationを維持すること、invalid output／timeout／unsupported Target fallbackを検証する。
-- `fixture.world.procedural-core-only`: Physics、Navigation、spawn provider、対応typed output refsをすべて0件にしたprocedural-only Worldがcore schema／connectivity／bound検証だけで成功し、missing provider failure、偽Artifact、placeholder queryを生成しない。
+- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchain／binding集合をfresh processで3回実行して同じStable ID／canonical output／output hash、Generator bound、connectivityを検証する。生成後に選択Artifactを削除して同じ入力から再生成し同じcanonical output／Artifact hashになること、削除中／再生成失敗／hash不一致では既存last-valid ArtifactとWorld generationを維持する。
+- `fixture.world.procedural-provider-absent-empty`: bindingなし＋output 0件がcanonical skipで成功し、provider／placeholderを生成しない。
+- `fixture.world.procedural-provider-absent-output`: bindingなし＋output 1件をDelta全rejectしlast-validを維持する。
+- `fixture.world.procedural-provider-selected-missing-output`: selected bindingの`required_output_count=1`＋output 0件を全rejectする。
+- `fixture.world.procedural-provider-selected-valid`: exact binding ref／hash／output schema＋valid outputで一回だけ実行し成功する。
+- `fixture.world.procedural-provider-selected-invalid`: stale binding／owner／schema／hash、provider failure、invalid outputを各単独原因で全rejectしlast-validを維持する。
+- `fixture.world.procedural-core-only`: Physics、Navigation、spawn provider、selected binding、対応outputをすべて0件にしたprocedural-only Worldがcore schema／connectivity／bound検証だけで成功し、同seed再生成で同じDelta／Artifact hashになり、missing provider failure、偽Artifact、placeholder queryを生成しない。
+- Spatial transition fixtureは全consumerで`type.world.spatial_transition_destination`をround-tripし、anchor optional／requiredのpositive、branch外Field、required anchor欠落、stale World／Topology／Space／Edge／Anchor、destination hash mismatchを各一原因で拒否する。
 - `fixture.world.presentation-authority`: Map／World presentation、LOD、visibility、Camera、GPU結果からauthoritative writeを試みる全経路が`MIRAKAN-WORLD-PRESENTATION_AUTHORITY_WRITE`となり、Source／Runtime state hashが不変である。
 - Compact 2D／3D spatial fixtureでframe／memory／load／activation hitch、Cell／prefetch比較、camera speed、HLOD authority equivalence、cold start／streamingを測定する。
 - AI corpusはMapの6分類（world structure、scene composition、streaming、procedural layout、navigation、map presentation）、ambiguity／high-impact質問、World／Scene／Space／Cell／Navigation／Presentation分離、context外の表示名／pathからStable IDを推測しないこと、Source intent以外への直接write拒否を含む。

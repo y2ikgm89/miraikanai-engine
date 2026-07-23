@@ -63,15 +63,13 @@ Scope entryは`RuntimeScopeTypeCatalogV1`へ次のexact 7-Field rowで登録す�
 
 | `scope_type_ref` | `instance_key_schema_ref` | `owner_ref` | `lifetime_ref` | `save_replay_policy_ref` | `activation_condition_ref` | `deactivation_condition_ref` |
 |---|---|---|---|---|---|---|
-| `scope.feature.scenario_stage.instance` | `scope_key.feature.scenario_stage.uuidv7@1` | `owner.feature.scenario_stage` | `lifetime.feature.scenario_stage.instance@1` | `save_replay.scope.feature.scenario_stage@1` | `activation.scope.feature.scenario_stage.request_ready@1` | `deactivation.scope.feature.scenario_stage.transition_stop_or_fault@1` |
+| `scope.feature.scenario_stage.instance` | `type.runtime_scope.key.feature_scenario_stage_uuidv7` | `owner.feature.scenario_stage` | `policy.runtime_scope.lifetime.feature_scenario_stage_instance` | `policy.runtime_scope.save_replay.feature_scenario_stage` | `policy.runtime_scope.activation.feature_scenario_stage_request_ready` | `policy.runtime_scope.deactivation.feature_scenario_stage_transition_stop_or_fault` |
 
-Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
+保存値は`RuntimeScopeTypeRefV1`、`McdContractRefV1`、`RuntimeScopeOwnerRefV1`のversion／hash付きtyped refであり、表のIDだけを永続化しない。全dependencyをactive Runtime Scope Registryへ実体recordとして登録する。Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
 
 ## 5. Transition
 
-`transition_policy_refs[]`はtyped transition policyへの参照であり、World／Scene／Cellのtransition payloadを再定義しない。policyはsource Stage instance、trigger／outcome、destination kind、destination ref、transfer subject refs、failure fallbackを解決する。
-
-destinationはProjectのRuntime entryとWorld／UI／headless契約へ従う。Player／Party／Characterを固定payloadにせず、transfer対象は参照先のtyped subject contractを使う。遷移準備またはactivationが失敗した場合は`fallback_contract`に従い、source Stageのlast-valid stateを破棄しない。
+`transition_policy_refs[]`は§11のexact `StageTransitionPolicyV1` ref／hashであり、World／Scene／Cellのtransition payloadを再定義しない。Requestはpolicy ref／hashだけを指定し、destinationを複製しない。destinationのtagged union、Runtime Entry経由、World-owned spatial type、typed subject、failure rollbackは§11だけを正本とする。Player／Party／Characterを固定payloadにしない。
 
 ## 6. Save／Replay
 
@@ -127,14 +125,32 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 | `pack_kind` | `feature` |
 | `required_feature_pack_refs[]` | `[]` |
 | `provided_capability_refs[]` | `capability.gameplay.scenario_stage` |
-| `public_contract_refs[]` | `StageDefinitionV1; CompletionContractV1; StageRuntimeStateV1; StageTransitionDestinationV1` |
-| `runtime_port_refs[]` | `StageActivationPortV1; StageTransitionPortV1` |
+| `public_contract_refs[]` | version／hash付き`StageDefinitionV1; CompletionContractV1; StageRuntimeStateV1; StageTransitionDestinationV2; StageTransitionPolicyV1; StageTransitionRequestV2; StageTransitionContractManifestV1` |
+| `runtime_port_refs[]` | version／hash付き`StageActivationPortV1; StageTransitionPortV2` |
 | `configuration_profile_refs[]` | `StageContentActivationPolicyV1; StageSaveReplayPolicyV1` |
 | `test_scenario_refs[]` | `fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless` |
 
 `StageActivationPortV1`はStage instance key、source Stage ref、required nullable World ref、content activation policy、optional requested entry anchor、requested Feature System refsを入力し、activation generationまたはtyped failureを返す。World／Scene／Cell handleをPublic APIへ出さない。
 
-`StageTransitionPortV1`はsource Stage instance、trigger／outcome、destination、typed transfer subject refs、transition policyを入力とする。Player、Party、Characterを固定型にせず、registered subject contractへ適合する任意のsubjectを扱える。
+`StageTransitionPortV2`はsource Stage instance、trigger／outcome、exact transition policy ref／hash、typed transfer subject refsを入力とする。destinationはPolicyから解決し、Port messageへ複製しない。Player、Party、Characterを固定型にせず、registered subject contractへ適合する任意のsubjectを扱える。旧V1のinline destinationはoffline migration inputだけで、current Port inventoryへ登録しない。
+
+```text
+StageTransitionContractManifestV1
+  manifest_version: 1
+  manifest_hash
+  destination_type_ref:
+    McdContractRefV1(id=type.feature.scenario_stage.transition_destination, version=2, contract_set_hash)
+  request_type_ref:
+    McdContractRefV1(id=type.feature.scenario_stage.transition_request, version=2, contract_set_hash)
+  policy_type_ref:
+    McdContractRefV1(id=type.feature.scenario_stage.transition_policy, version=1, contract_set_hash)
+  spatial_destination_type_ref:
+    McdContractRefV1(id=type.world.spatial_transition_destination, version=1, contract_set_hash)
+  transition_port_type_ref:
+    McdContractRefV1(id=type.feature.scenario_stage.transition_port_message, version=2, contract_set_hash)
+```
+
+Pack Manifest、Contract Manifest、active MCD Contract set、StageTransitionPort descriptorのtype ref集合はset equalityで一致し、missing／duplicate／version／hash mismatchをPack applyとRuntime Activationの両方で拒否する。
 
 ## 10. Content activationとRuntime state
 
@@ -165,52 +181,56 @@ StageRuntimeStateV1
 ## 11. Stage transition contract
 
 ```text
-StageTransitionDestinationV1
+StageTransitionDestinationV2
   destination_kind: stage | runtime_entry | world_space | ui | headless | session_end
   stage_ref: StageDefinitionRef | null
+  stage_hash: SHA-256 | null
   runtime_entry_ref: RuntimeEntryPointDocumentRef | null
-  world_space_ref: SpatialTransitionDestinationRef | null
-  ui_document_ref: UiDocumentRef | null
-  headless_startup_system_refs[0..128]
-  spatial_anchor_ref: AnchorRef | null
+  runtime_entry_hash: RuntimeEntryPointSemanticHashV1 | null
+  spatial_destination_type_ref: McdContractRefV1 | null
+  spatial_destination_ref: SpatialTransitionDestinationRefV1 | null
 
 StageTransitionPolicyV1
   policy_id
-  destination: StageTransitionDestinationV1
+  policy_version
+  policy_hash
+  destination: StageTransitionDestinationV2
   presentation_policy_ref
   persistent_subject_policy_ref
   precondition_ref
   failure_policy
   cancel_policy
 
-StageTransitionRequestV1
+StageTransitionRequestV2
   request_id
   source_stage_instance_ref
   trigger_or_outcome_ref
-  destination: StageTransitionDestinationV1
   requesting_system_ref
   requested_tick
   transfer_subject_refs[]
   precondition_snapshot_hash
   transition_policy_ref
+  transition_policy_hash
 ```
 
-`destination_kind`は全destination fieldのdiscriminatorである。
+`StageTransitionDestinationV2`、`StageTransitionPolicyV1`、`StageTransitionRequestV2`はそれぞれManifestに示した`McdContractRefV1`で参照する。`destination_kind`は全destination fieldのdiscriminatorであり、Requestはdestinationを一切持たずexact Policy ref／hashだけを指定する。Policy hashはhash Field自身を除く全Policy Field、destination中の各semantic hash／Document content hashを含むMCD canonical bytesから計算する。
 
 | kind | non-null／non-empty Field | null／empty Field |
 |---|---|---|
-| `world_space` | `world_space_ref`、`spatial_anchor_ref`をexact各1件 | stage／runtime entry／UIはnull、headless systems 0件 |
-| `ui` | `ui_document_ref` exact 1件 | spatial anchorを含む他destinationはnull／0件 |
-| `headless` | `headless_startup_system_refs[1..128]` | spatial anchorを含む他destinationはnull |
-| `session_end` | なし | destination／target／anchor相当Fieldを全件null／0件 |
-| `stage` | `stage_ref` exact 1件 | 他destination refはnull、headless systems 0件。解決先Stageがworld branchかつ`entry_anchor_closure`ならanchor必須、それ以外はanchor null |
-| `runtime_entry` | `runtime_entry_ref` exact 1件 | 他destination refはnull、headless systems 0件。解決entryがworldならanchorはexact 0～1件、ui／headlessならanchor null |
+| `stage` | exact `stage_ref`＋`stage_hash` | Runtime Entry／spatial三Fieldはnull。Stage ownerがStage content closureを解決 |
+| `runtime_entry` | exact `runtime_entry_ref`＋payload semantic `runtime_entry_hash` | Stage／spatial三Fieldはnull。解決entry kindはworld／ui／headlessのいずれも可 |
+| `world_space` | exact `runtime_entry_ref`＋hash、`spatial_destination_type_ref={id=type.world.spatial_transition_destination, version=1, contract_set_hash}`、exact `spatial_destination_ref` | Stageはnull。entry kindはworldだけ |
+| `ui` | exact `runtime_entry_ref`＋hash | Stage／spatial三Fieldはnull。entry kindはuiだけ |
+| `headless` | exact `runtime_entry_ref`＋hash | Stage／spatial三Fieldはnull。entry kindはheadlessだけ |
+| `session_end` | なし | Stage／Runtime Entry／spatial三Fieldを全件null |
 
-PolicyとRequestは同じcanonical destination record／hashを持ち、RequestがkindまたはFieldを上書きしない。矛盾Field、別branch anchor、session endへのtarget、ui／headlessへのspatial payloadを`MIRAKAN-SCENARIO-STAGE-TRANSITION_FAILED`でactivation前に拒否する。
+UI Document、headless startup systems、World ref、AnchorをStage destinationへ直接持たせず、すべてRuntime EntryまたはWorld-owned `SpatialTransitionDestinationV1`のcompile済みclosureを通す。`world_space`はruntime entryが参照するWorldとspatial destinationのWorldがexact equalityであること、entry selectorが現在Targetを含むこと、World／Topology／Edge／Space／Anchor version／hashが一致することをactivation前に検証する。`ui`／`headless`もentry kindを検証し、Stageがstartup closureを再構成しない。
 
 `transfer_subject_refs[]`はregistered typed subjectだけを受理し、display roleやowner推測でPlayer／Partyへ変換しない。destinationがWorld Spaceの場合は[World](../06-rendering/world.md)のgeneric spatial transition port、別Stageの場合は`StageActivationPortV1`を使う。
 
 target dependency不足、stale precondition、unknown destination、subject incompatibilityではpartial activationせず、source Stageとlast-valid World generationを維持する。Loading progress／cancel／retryの表示契約はWorld／Runtimeのgeneric Loading projectionを参照し、Stage outcomeをLoading UIから推測しない。
+
+qualificationは六kindを各一件round-tripし、`runtime_entry`ではworld／ui／headless各subcaseも検証する。negative fixtureはdiscriminator外Field、Requestへのinline destination、Policy hash mismatch、Runtime Entry payload／Document hash mismatch、ui／headless entry kind mismatch、world_spaceのnon-world entry、spatial type ref kind／version／Contract set mismatch、required anchor欠落、stale World／Topology／Space／Edge／Anchor、spatial destination hash mismatch、session_end payloadを各単独原因で拒否し、source Stage／World／Project revisionを不変にする。
 
 ## 12. Save identityとmigration
 
@@ -225,8 +245,8 @@ target dependency不足、stale precondition、unknown destination、subject inc
 | `LevelDefinitionV1` | `StageDefinitionV1` |
 | `LevelStreamingPolicyV1` | `StageContentActivationPolicyV1` |
 | `LevelRuntimeStateV1` | `StageRuntimeStateV1` |
-| `LevelTransitionPolicyV1` | `StageTransitionPolicyV1` |
-| `LevelTransitionRequestV1` | `StageTransitionRequestV1` |
+| `LevelTransitionPolicyV1` | `StageTransitionPolicyV1`＋`StageTransitionDestinationV2` |
+| `LevelTransitionRequestV1` | `StageTransitionRequestV2`（inline destinationをPolicy ref／hashへ分離） |
 | `level_gameplay` owner role | owner明示の`stage_game_system_refs[]`とStage Scope |
 | `player_or_party_transfer_refs[]` | typed `transfer_subject_refs[]` |
 | required `completion_contract` | tagged `completion_mode`＋nullable `completion_contract` |
@@ -243,4 +263,4 @@ MigrationはSource ref、Save identity、active entry、Stage-owned State、tran
 | `MIRAKAN-SCENARIO-STAGE-SAVE_CONTRACT_MISMATCH` | Source／Scope／State owner不一致 | Saveを開かずbackup維持 |
 | `MIRAKAN-SCENARIO-STAGE-REPLAY_DIVERGENCE` | first Stage-owned divergence | 停止してReproduction Bundle生成 |
 
-Qualificationは`completion_mode=none`と`explicit_outcomes`、world branch、`fixture.feature.scenario_stage.worldless-ui`、`fixture.feature.scenario_stage.worldless-headless`、WorldなしDialogue／Visual Novel workflow、複数Stage instance、content activation exact／exact+1、`none` system-only、全destination kindのtagged transition positive／negative、transition success／rollback、typed subject compatibility、Save／Load／Replay、旧Level Source migration、Scenario／Stage Pack removalを含む。UI／headless branchのanchor／spatial spawn混在、session_endのdestination payload、world_space anchor欠落、Policy／Request destination不一致をrejectし、Feature PackなしのWorld／endless Projectは引き続きvalidである。
+Qualificationは`completion_mode=none`と`explicit_outcomes`、world branch、`fixture.feature.scenario_stage.worldless-ui`、`fixture.feature.scenario_stage.worldless-headless`、WorldなしDialogue／Visual Novel workflow、複数Stage instance、content activation exact／exact+1、`none` system-only、全六destination kindのtagged transition positive／negative、transition success／rollback、typed subject compatibility、Save／Load／Replay、旧Level Source migration、Scenario／Stage Pack removalを含む。UI／headless branchのanchor／spatial spawn混在、session_endのdestination payload、world_space required anchor欠落、Request inline destination、Policy ref／hash不一致をrejectし、Feature PackなしのWorld／endless Projectは引き続きvalidである。

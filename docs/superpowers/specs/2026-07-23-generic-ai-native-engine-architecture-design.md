@@ -118,7 +118,7 @@ Shooter Packは`pack_kind=genre`とし、次のFeature Packを必要に応じて
 
 Shooter manifestの全Recipe共通依存はRanged CombatとそのFeature DAGだけとする。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeの`required_feature_pack_refs[]`／`required_capability_refs[]`へ置く。AI敵、移動、Score、Pickup、finite Stageを持たないminimal Shooter recipeをvalidとし、既存2D／TPS reference Recipeは従来のeffective closureとPerception bindingを維持する。
 
-minimal target-practiceは既存`genre.shooter.top_down_2d | genre.shooter.third_person_3d`のexact 1件と、version／hash付き`ShooterTargetProviderV1` bindingを選ぶ。Production applyはProject-owned compatible providerのexact ref／hashだけを許可する。組込み`provider.genre.shooter.fixture.stationary_target@1`は2D、fixture-only、deterministic Collision Query／Hit Evidence providerであり、World、Physics、Perception、render visibilityへ依存せず、`fixture.genre.shooter.target-practice-minimal`と`fixture.genre.shooter.target-practice-minimal-no-perception`だけで使用できる。後者はManifest inventoryにPerception Validator／full fixtureが存在してもminimal Recipe gateへ追加されないことを検証する。
+minimal target-practiceは既存`genre.shooter.top_down_2d | genre.shooter.third_person_3d`のexact 1件とPack-owned immutable `ShooterTargetProviderTemplateV1`を選ぶ。Production bindingはowner-typed `ShooterTargetProviderBindingDocumentV1`、qualification fixtureはProject Documentではない`ShooterTargetProviderFixtureBindingRecordV1`として分離し、Profile／templateへProject identityを埋め込まない。Productionはcurrent Projectとexact equalityのtagged `project_owned` owner、binding／template／implementation System／Save Replay ref／version／hashを必須とし、cross-project／self-assert spoofを拒否する。`fixture_only`はexact Fixture Registry ownerだけを許可しProduction Source／Registry／Save／Packageへ昇格しない。Ranged Combat ownerのMCD refsは`type.feature.ranged_combat.collision_query_port`と`type.feature.ranged_combat.shot_hit_event` version 1である。create／update／select Operation、Binding Registry、Save／Replay、Compile Manifestの`selected_provider_binding_set_hash`を閉じ、World／Physics／PerceptionなしProduction Project provider fixtureまで検証する。
 
 次の旧identityを廃止する。
 
@@ -150,6 +150,8 @@ RuntimeEntryPointV1
 
 `runtime_entry_point_refs[]`はexact `DocumentRef<RuntimeEntryPointDocumentV1>`であり、entryは本文をManifestへ埋め込まない。`RuntimeEntryPointDocumentV1`、`RuntimeTargetSelectorDocumentV1`、`RuntimeEntryActivationPolicyDocumentV1`は共通Document headerの`relative_path`と`content_hash`を持つProject-owned Sourceである。entryの`target_selector_ref`と`activation_policy_ref`は各Documentへのexact ref／schema version／content hashで解決する。
 
+三Documentは`DocumentRef.stable_id == header.document_id == payload.entry_point_id | selector_id | policy_id`を必須とする。`selected_runtime_entry_point_hash`はDocument hashでなく、hash Fieldを持たない`RuntimeEntryPointV1` payloadのMCD canonical semantic hashだけを意味する。Document hashはrefの`content_hash`、selector／policy hashは各hash Field自身を除くpayload hashであり、相互代用しない。
+
 ```text
 RuntimeTargetSelectorV1
   selector_id
@@ -167,7 +169,7 @@ RuntimeEntryActivationPolicyV1
   explicit_deactivation_semantics: graceful_reverse_teardown | immediate_reverse_teardown
 ```
 
-selectorはexact `DocumentRef<TargetProfileDocument>`だけをStable ID byte順で持ち、wildcard、tag、表示名、platform名、active Targetの現在値によるlookupを許可しない。duplicate、missing／removed、schema／hash不一致、明示選択Targetの非membershipをtyped rejectする。selector／policyのcreate／updateとroot scene migrationは別のversioned Project Operationであり、entry本文へのuntyped field writeで代用しない。
+selectorはexact `DocumentRef<TargetProfileDocument>`だけをStable ID byte順で持ち、wildcard、tag、表示名、platform名、active Targetの現在値によるlookupを許可しない。duplicate、missing／removed、schema／hash不一致、明示選択Targetの非membershipをtyped rejectする。entry／selector／policyのcreate／updateとroot scene migrationの七OperationはProject closed CatalogとMCD Operation Registryへ、canonical `operation.*` ID、`McdContractRefV1` input／output、AuthoringCommandGateway authority、R2／R3、Authoring side effect、key付きidempotency、authoring transaction、pre／postcondition、列挙error、30,000／120,000 ms timeout、Preview／Validation／Commitを結ぶ`RuntimeEntryMutationReceiptV1`まで完全登録する。
 
 tagged branchは次を強制する。
 
@@ -175,7 +177,7 @@ tagged branchは次を強制する。
 - `ui`: `ui_document_ref`だけをbranch固有必須refにし、`startup_game_system_refs[0..128]`を許可する。Worldは不要。
 - `headless`: `startup_game_system_refs[1..128]`を必須にし、World／UI／surfaceを要求しない。
 
-各active Targetについて`default_for_selected_targets=true`のentryだけを対象に`target_selector_ref`の被覆を検査し、default 0件または2件以上を拒否する。default selector集合とactive Target集合はset equalityで一致させ、inactive extra Targetも拒否する。non-default entryのselector overlapは許可し、benchmark、menu、game、server等を同Targetへ複数登録できる。Runtimeはdefaultまたは明示選択を推測せず、実際の選択結果を`selected_runtime_entry_point_ref`、`selected_runtime_entry_point_hash`、`target_selector_hash`、`activation_policy_hash`、`entry_branch_closure_hash`としてCompile Manifestへ保存する。World／Topology／streaming hashは選択branchが`world`で対応Sourceが存在する場合だけcanonical presentとし、`ui`／`headless`ではcanonical omissionにする。
+各active Targetについて`default_for_selected_targets=true`のentryだけを対象に`target_selector_ref`の被覆を検査し、default 0件または2件以上を拒否する。default selector集合とactive Target集合はset equalityで一致させ、inactive extra Targetも拒否する。non-default entryのselector overlapは許可し、benchmark、menu、game、server等を同Targetへ複数登録できる。Runtimeはdefaultまたは明示選択を推測せず、実際の選択結果を`selected_runtime_entry_point_ref`、`selected_runtime_entry_point_hash`、`target_selector_hash`、`activation_policy_hash`、`entry_branch_closure_hash`としてCompile Manifestへ保存する。owner-typed Provider Bindingを一件以上選んだ時だけ`selected_provider_binding_set_hash`をcanonical presentにし、entry closureへ入れる。World／Topology／streaming hashは選択branchが`world`で対応Sourceが存在する場合だけcanonical presentとし、`ui`／`headless`ではcanonical omissionにする。
 
 `entry_branch_closure_hash`は次の順序付きcanonical inputだけから計算する。
 
@@ -187,6 +189,7 @@ activation_policy_hash
 target_profile_hash
 game_system_dependency_graph_hash
 system_implementation_set_hash
+selected_provider_binding_set_hash?
 world_document_hash?
 ui_document_hash?
 spatial_topology_hash?
@@ -196,9 +199,9 @@ startup_system_closure_hash?
 
 選択branchの全startup system closureは存在する全推移hard dependency、Implementation Variant、State owner relation、Target compatibilityを含む。startup systemsが空でもbranch rootは上記共通hashとbranch固有hashで確定する。Runtime Packageはこのclosureを格納する外側Artifactであり、Package自身のhashをclosure inputへ含めない。未選択branch Fieldや未選択Recipe inventoryも含めない。
 
-`PlayPreparing`は選択entry、Runtime package、System Graph、Target Planと、そのbranch固有closureだけを検証する。`world`はWorld closure、`ui`はUI closure、`headless`はstartup system closureを持つ。branch activation setの準備後に、runtime session配下へWorld instance、UI session、startup systemsをbranch別optionalとして生成する。`surface_generation`はsurfaceを持つbranchだけのtagged stateであり、headless branchへ偽surfaceを作らない。Host／Platform control threadがouter loopを所有し、window threadを暗黙ownerにしない。Input SourceとPresentationが未登録ならinput／render workを省略し、strict headlessではWindow／Surface／RenderSnapshot／Render thread dependencyを0件にする。
+`PlayPreparing`は選択entry、Runtime package、System Graph、Target Planと、そのbranch固有closureだけを検証する。`world`はWorld closure、`ui`はUI closure、`headless`はstartup system closureを持つ。branch activation setの準備後に、runtime session配下へWorld instance、UI session、startup systemsをbranch別optionalとして生成する。`Starting`はbranch activation setを準備し、選択された場合だけPresentation child／surfaceを準備する。`surface_unavailable`はApplication stateでなくoptional Presentation child stateで、simulationを暗黙停止しない。`surface_generation`はsurfaceを持つPresentationだけのtagged fieldであり、headless branchへ偽surfaceを作らない。Host／Platform control threadがouter loopを所有し、window threadを暗黙ownerにしない。Input SourceとPresentationが未登録ならinput／render workを省略し、strict headlessではWindow／Surface／RenderSnapshot／Render thread dependencyを0件にする。
 
-stop、fault、restartは実際にactivateしたstartup／UI／World／presentation dependency DAGを常にreverse teardownする。activation policyの明示deactivation値はgraceful／immediateな要求だけを選び、stop／fault時のteardown省略や依存順の再定義には使用しない。`fixture.integration.project-runtime-entry.owner-resolution`とworld／UI／headlessのstop／fault／restart fixtureでDocument owner、branch owner、reverse teardownを検証する。
+stop、fault、restartは実際にactivateしたstartup／UI／World／presentation dependency DAGを常にreverse teardownする。activation policyの明示deactivation値はgraceful／immediateな要求だけを選び、stop／fault時のteardown省略や依存順の再定義には使用しない。Project Document identity／selector-policyの二fixtureとRuntime branch activation／reverse teardownの二fixtureを`RuntimeEntryOwnerIntegrationManifestV1`のexact ref／hash mappingで束ね、`fixture.integration.project-runtime-entry.owner-resolution`を合格させる。
 
 旧`root scene`はmigration stagingで`default_for_selected_targets=true`の明示的な`world` entryへ変換し、各active Targetへdefaultを厳密に一件生成する。実行時の暗黙migration、`Level` alias、`ui`／`headless`への近似変換を禁止する。
 
@@ -211,13 +214,13 @@ stop、fault、restartは実際にactivateしたstartup／UI／World／presentat
 - Level、Objective、Completion、Encounter、player／party transferをCore Worldから除去する。
 - World activation、Scene activation、Cell streamingはObjectiveやResultを要求しない。
 
-`SpatialTopologyDefinitionV1`は`space_nodes[]`、`transition_edges[]`、`activation_entry_refs[]`を持つ。entryは0件を許可し、到達不能spaceは`intentionally_isolated=true`で明示する。transition payloadはtyped `transfer_subject_refs[]`を使用し、Player／Partyを固定しない。
+`SpatialTopologyDefinitionV1`は`space_nodes[]`、`transition_edges[]`、`activation_entry_refs[]`を持つ。entryは0件を許可し、到達不能spaceは`intentionally_isolated=true`で明示する。World ownerはMCD `type.world.spatial_transition_destination` version 1を登録し、exact World／Topology／Edge／target Space ref、各version／hash、Edge policyに従うoptional／required Anchorを一recordへ閉じる。transition Requestはそのtyped refを参照しFieldを複製しない。transition payloadはtyped `transfer_subject_refs[]`を使用し、Player／Partyを固定しない。
 
 Streaming interestはclosedなPlayer enumではなく、owner登録済みtyped interest-source contract refの集合を使用する。observer、entity、camera、scripted anchor等を登録可能とし、unknown／removed ownerを拒否する。
 
 `WorldAuthoringPlanV1.affected_world_refs`は既存World編集branchで1～64件、新規World作成branchでは`create_document_kinds`がWorld作成を厳密に一件宣言する時だけ0件を許可する。新規Worldの`WorldAuthoringContextV1`はCommit成功後にexact `world_ref`付きで生成し、未発行IDを推測しない。
 
-procedural generator outputは、Worldがexact provider ref／hashを明示選択した時だけ、そのProviderが宣言したoptional Physics source、spawn、Navigation sourceのtyped output schemaとowner availabilityを検証する。該当output refまたはownerが未選択なら検査をcanonical skipし、Core-only procedural Worldをvalidにする。hard closureへ含めるのは明示選択されたProvider outputだけであり、`fixture.world.procedural-core-only`はPhysics／spawn／Navigation providerなしで同一seed再生成hashとlast-valid維持を検証する。
+`ProceduralWorldDefinitionV1`と`WorldAuthoringPlanV1`は同じ`selected_validation_provider_bindings[]`のexact binding ref／hash／output MCD schema集合を持つ。truth tableはabsent+empty=skip、absent+nonempty=reject、selected+required output不足=reject、selected+valid=execute／accept、selected+stale／invalid／failure=Delta全rejectである。hard closureへ含めるのはWorld／Tile／Blockoutが明示選択したgeneric dependency bindingだけであり、Renderer／Collision／Navigationを名前で常時列挙しない。同seed／input／Target／Toolchain／binding集合は同じDelta／Artifact hashを再生成し、失敗時はlast-valid Source／Artifact／World generationを維持する。五truth-table fixtureと`fixture.world.procedural-core-only`を必須にする。
 
 ### 4.3 Optional Scenario／Stage Feature
 
@@ -246,13 +249,13 @@ StageDefinitionV1
 
 `spawn_definition_refs[]`はspatial spawnだけに使用し、`world_ref=null`では0件にする。worldless Stageの非空間処理は`stage_game_system_refs[]`とowner-typed contentを使う。`StageContentActivationPolicyV1.content_activation_scope`は`none | entry_anchor_closure | listed_content_refs`であり、`none`はcontent／anchor 0件のsystem-only headless Stageをvalidにする。
 
-Stage transition destinationは`StageTransitionDestinationV1`のtagged unionとし、`stage | runtime_entry | world_space | ui | headless | session_end`ごとにexact 1 branchだけを許可する。spatial anchorは`world_space`、または解決先Stageがworld branchかつentry-anchor closureを要求する場合だけ存在できる。UI／headless／session endへ偽World／anchorを追加しない。`fixture.feature.scenario_stage.worldless-ui`と`fixture.feature.scenario_stage.worldless-headless`はstable IDとしてManifest inventoryと選択qualificationへ登録する。
+Stage transition destinationはMCD `type.feature.scenario_stage.transition_destination` version 2のtagged unionとし、`stage | runtime_entry | world_space | ui | headless | session_end`ごとにexact 1 branchだけを許可する。Request V2はdestinationを持たずexact Policy ref／hashだけを参照する。`runtime_entry`は任意entry、`ui`／`headless`は対応entry kind、`world_space`はworld entry ref／payload semantic hashとWorld-owned `type.world.spatial_transition_destination` refを必須にする。UI Document、headless systems、World／AnchorをStage内で直接指定してRuntime Entry closureを迂回しない。Policy／Request／Destination／PortのMCD ref集合を`StageTransitionContractManifestV1`とPack Manifestでset equality検証し、六kind round-trip、branch外Field、required anchor欠落、stale World／Topology／Space／Edge／hashをfixture化する。`fixture.feature.scenario_stage.worldless-ui`と`fixture.feature.scenario_stage.worldless-headless`はstable IDとしてManifest inventoryと選択qualificationへ登録する。
 
 ## 5. Gameplay、Scope、Locomotion
 
 ### 5.1 System scope
 
-`GameSystemSpecV1.runtime_instance_scope`のclosed enumを、versioned `RuntimeScopeTypeCatalogV1`参照へ置換する。
+旧版`GameSystemSpecV1.runtime_instance_scope`のclosed enumを、現行`runtime_scope_type_ref: RuntimeScopeTypeRefV1`へ置換する。
 
 Core登録Scopeは次に限定する。
 
@@ -264,29 +267,37 @@ Core登録Scopeは次に限定する。
 
 ```text
 RuntimeScopeTypeCatalogV1
+  catalog_id: runtime_scope.catalog.active
+  catalog_schema_version: 1
   catalog_version
   catalog_hash
+  contract_set_hash
+  dependency_registry_ref: RuntimeScopeDependencyRegistryRefV1(
+    registry_id, registry_revision, registry_content_hash)
+  dependency_registry_hash
   entries[5..4096]:
-    scope_type_ref
-    instance_key_schema_ref
-    owner_ref
-    lifetime_ref
-    save_replay_policy_ref
-    activation_condition_ref
-    deactivation_condition_ref
+    scope_type_ref: RuntimeScopeTypeRefV1(scope_type_id, scope_type_version, scope_type_hash)
+    instance_key_schema_ref: McdContractRefV1(kind=type)
+    owner_ref: RuntimeScopeOwnerRefV1(owner_id, owner_revision, owner_content_hash)
+    lifetime_ref: McdContractRefV1(kind=policy)
+    save_replay_policy_ref: McdContractRefV1(kind=policy)
+    activation_condition_ref: McdContractRefV1(kind=policy)
+    deactivation_condition_ref: McdContractRefV1(kind=policy)
 ```
 
 Core entryは次のexact 5 rowと完全一致する。
 
 | `scope_type_ref` | `instance_key_schema_ref` | `owner_ref` | `lifetime_ref` | `save_replay_policy_ref` | `activation_condition_ref` | `deactivation_condition_ref` |
 |---|---|---|---|---|---|---|
-| `scope.core.application` | `scope_key.core.application.singleton@1` | `owner.core.runtime` | `lifetime.core.process@1` | `save_replay.scope.core.application.none@1` | `activation.scope.core.application.process_started@1` | `deactivation.scope.core.application.process_stopping@1` |
-| `scope.core.runtime_session` | `scope_key.core.runtime_session.uuidv7@1` | `owner.core.runtime` | `lifetime.core.runtime_session@1` | `save_replay.scope.core.runtime_session@1` | `activation.scope.core.runtime_session.entry_ready@1` | `deactivation.scope.core.runtime_session.stop_or_fault@1` |
-| `scope.core.world` | `scope_key.core.world.instance@1` | `owner.core.world` | `lifetime.core.world_instance@1` | `save_replay.scope.core.world@1` | `activation.scope.core.world.branch_ready@1` | `deactivation.scope.core.world.branch_teardown@1` |
-| `scope.core.entity` | `scope_key.core.entity.stable_id@1` | `owner.core.runtime_ecs` | `lifetime.core.entity@1` | `save_replay.scope.core.entity.owner_state@1` | `activation.scope.core.entity.created@1` | `deactivation.scope.core.entity.destroyed@1` |
-| `scope.core.ui_session` | `scope_key.core.ui_session.uuidv7@1` | `owner.core.ui` | `lifetime.core.ui_session@1` | `save_replay.scope.core.ui_session@1` | `activation.scope.core.ui_session.branch_ready@1` | `deactivation.scope.core.ui_session.branch_teardown@1` |
+| `scope.core.application` | `type.runtime_scope.key.application_singleton` | `owner.core.runtime` | `policy.runtime_scope.lifetime.process` | `policy.runtime_scope.save_replay.application_none` | `policy.runtime_scope.activation.process_started` | `policy.runtime_scope.deactivation.process_stopping` |
+| `scope.core.runtime_session` | `type.runtime_scope.key.runtime_session_uuidv7` | `owner.core.runtime` | `policy.runtime_scope.lifetime.runtime_session` | `policy.runtime_scope.save_replay.runtime_session` | `policy.runtime_scope.activation.entry_ready` | `policy.runtime_scope.deactivation.stop_or_fault` |
+| `scope.core.world` | `type.runtime_scope.key.world_instance` | `owner.core.world` | `policy.runtime_scope.lifetime.world_instance` | `policy.runtime_scope.save_replay.world` | `policy.runtime_scope.activation.world_branch_ready` | `policy.runtime_scope.deactivation.world_branch_teardown` |
+| `scope.core.entity` | `type.runtime_scope.key.entity_stable_id` | `owner.core.runtime_ecs` | `policy.runtime_scope.lifetime.entity` | `policy.runtime_scope.save_replay.entity_owner_state` | `policy.runtime_scope.activation.entity_created` | `policy.runtime_scope.deactivation.entity_destroyed` |
+| `scope.core.ui_session` | `type.runtime_scope.key.ui_session_uuidv7` | `owner.core.ui` | `policy.runtime_scope.lifetime.ui_session` | `policy.runtime_scope.save_replay.ui_session` | `policy.runtime_scope.activation.ui_branch_ready` | `policy.runtime_scope.deactivation.ui_branch_teardown` |
 
-entryは`scope_type_ref` canonical byte順にsortし、`catalog_hash=SHA-256(catalog_version || canonical entries)`とする。Feature Packは`scope.feature.<feature>.instance`、Genre Packは自身の内部だけで使用する`scope.genre.<genre>.<scope>.instance`を登録できる。Scenario Stage、Encounter、Scoring、Shooter Game Flowは各owner文書のexact 7-Field rowを登録し、Shooter Game Flowのexact scope IDは`scope.genre.shooter.game_flow.instance`である。Core／FeatureからGenre scopeへの依存、duplicate、unknown owner、unavailable／removed owner、instance-key schema不一致、Save／Replay schema hash不一致を`MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID`、`MIRAKAN-RUNTIME-SCOPE-OWNER_UNAVAILABLE`、`MIRAKAN-RUNTIME-SCOPE-VERSION_HASH_MISMATCH`、`MIRAKAN-RUNTIME-SCOPE-MIGRATION_CONFLICT`でtyped rejectする。`GameSystemSpecV1@1.runtime_instance_scope`は`GameSystemSpecV1@2.runtime_scope_type_ref`へclean migrationし、`play_session`等の旧enum aliasは残さない。ScopeのSource／Save identity、Replay identity、ephemeral runtime generationを相互に置換しない。
+表はID表示だけで、保存値はscope version／hash、MCD version／Contract set hash、owner revision／content hashを全cellに持つ。active Owner／Dependency Registryは全refを実体recordとして解決し、Registry ref／hashのexact equalityとself-excluding canonical Registry hashを検証する。entryはscope ID byte順にsortし、Catalog hashはdomain separator、catalog ID、schema／catalog version、Contract set hash、Dependency Registry ref canonical bytes／同値hash、entry count、七typed refのcanonical bytesをexact inputにして自己hashを除外する。Feature Packは`scope.feature.<feature>.instance`、Genre Packは自身の内部だけで使用する`scope.genre.<genre>.<scope>.instance`を登録できる。Scenario Stage、Encounter、Scoring、Shooter Game Flowは各owner文書のexact 7-Field rowを登録し、Shooter Game Flowのexact scope IDは`scope.genre.shooter.game_flow.instance`である。Core／FeatureからGenre scopeへの依存、duplicate、unknown owner、unavailable／removed owner、各dependency version／hash不一致を四Scope Diagnosticでtyped rejectする。
+
+旧`runtime_instance_scope`はcurrent validatorが常にrejectし、offline `operation.runtime_scope.migrate_game_system_v1_to_v2`だけが旧Contract setを読む。Operationはexact MCD input／output type、OfflineProjectMigrator authority、R3、Authoring transaction、pre／postcondition、120,000 ms timeout、`RuntimeScopeMigrationReceiptV1`を持ち、Source／Save／Replay identity mappingとephemeral generation非移行を記録する。旧enum aliasをcurrent resolverへ残さない。
 
 ### 5.2 InteractionとGame Flow
 
@@ -302,25 +313,27 @@ Navigation Path FollowingをCharacter Motorへ固定しない。
 
 ```text
 MotionExecutorPortV1
-  executor_capability_ref
-  movement_profile_schema_ref
-  accepted_intent_schema_refs[]
-  resolved_motion_schema_ref
-  compatibility_predicate_ref
-  failure_diagnostic_refs[]
+  executor_capability_ref: McdContractRefV1(kind=capability)
+  movement_profile_schema_ref: McdContractRefV1(kind=type)
+  accepted_intent_schema_refs[1..64]: McdContractRefV1(kind=type)
+  transport_message_schema_ref:
+    McdContractRefV1(id=type.navigation.motion_executor_intent_batch, version=1, contract_set_hash)
+  resolved_motion_schema_ref: McdContractRefV1(kind=type)
+  compatibility_predicate_ref: McdContractRefV1(kind=policy)
+  failure_diagnostic_refs[1..32]
 ```
 
 Character MotorはC1で適格化するProviderの一つである。Vehicle、flying、swimming、RTS unit、board token等は別Capability／Providerとして同じPortへ接続できる。Physics CoreはKinematic Character Motorを必須Core機能にせず、Character Locomotion FeatureのEngine-owned reference implementationとして提供する。
 
-Navigationはこの6 Field型の唯一のcanonical ownerである。Path Followingは`executor_capability_ref`とProvider-owned `movement_profile_ref`を要求し、compatibility predicateがintent schema、movement profile、Targetを検証する。path progressは`resolved_motion_schema_ref`の結果だけで判定する。
+Navigationはこの7 Field型、`MotionExecutorProviderCatalogV1`／record、`MotionExecutorIntentBatchV1`の唯一のcanonical ownerである。Catalog recordはprovider identity／version／content hash、tagged owner identity、production／fixture usage、7 Field descriptor、implementation System、Target、Qualification Receiptを持つ。Physics production、board-token／RTS fixtureは同じCatalogへ登録し、fixtureをProductionへ選択しない。Path Followingは`executor_capability_ref`とProvider-owned `movement_profile_ref`を要求し、compatibility policyがintent schema、movement profile、Targetを検証する。path progressは`resolved_motion_schema_ref`の結果だけで判定する。
 
-selected compositionがT40へ直接提出し得るintent schema集合は、selected Providerの`accepted_intent_schema_refs[]`のsubsetでなければならない。Gameplay direct schemaは`mirakan.schema.feature.character_locomotion.GameplayMotionIntentV1@1`、Navigationは`mirakan.schema.navigation.MovementIntentV1@1`、Animation root motionは`mirakan.contract.animation.root_motion_proposal@1`である。Provider-private派生入力をpublic accepted setへ混ぜない。
+Batch entriesは1～16件で、各entryが`intent_schema_ref: McdContractRefV1`、payload refまたはinline value identityのtagged union、payload hash、producer Game System ref、proposal IDを持つ。accepted set検査はbatch envelopeでなくentries schema集合だけへ適用する。type spoof、payload hash mismatch、duplicate proposal、noncanonical order、root-motionあり／なしをfixture化する。Gameplay schemaは`type.feature.character_locomotion.gameplay_motion_intent`、Navigationは`type.navigation.movement_intent`、Animationは`type.animation.root_motion_proposal` version 1である。Provider-private派生入力をpublic accepted setへ混ぜない。
 
-`game_system.engine.character_locomotion.binding`は`scope.core.entity`のfully registered `GameSystemSpecV1`であり、`mirakan.state.feature.character_locomotion.MotionExecutorSelectionStateV1@1`を所有し、上記3 proposal schemaを受理して`mirakan.contract.feature.character_locomotion.MotionExecutorIntentBatchV1@1`をT40で発行する。MCD共通Envelope、origin、role、responsibility／non-responsibility、read／write型、Capability、phase、dependency edge、Implementation policy、Save／Replay、budget、authoring surface、fallback、fixture、invariant、extension policyを全件登録し、TransformまたはPhysics stateを直接writeしない。
+`game_system.engine.character_locomotion.binding`はexact MCD共通Envelopeと`runtime_scope_type_ref={scope.core.entity,v1,hash}`を持つfully registered `GameSystemSpecV1`である。Feature-owned Selection Stateを所有し、上記3 proposal schemaをCommandとして受理し、Navigation-owned batchを`emitted_port_message_type_refs`でT40に発行する。Eventとして登録しない。role、3 requirement、dependency、Implementation policy、Save／Replay、budget、fixture、3 invariantは全てversion／content hash付きactive recordを持つ。Animationを含む全proposalはbinding経由とし、TransformまたはPhysics stateを直接writeしない。
 
-Physics Character Motor Providerの6 Fieldは、Capability `capability.motion_executor.physics_character_motor`、Profile `mirakan.schema.physics.CharacterMotorProfileV1@1`、accepted intent exact 3件、resolved motion `mirakan.schema.physics.PhysicsCharacterResolvedMotionV1@1`、compatibility predicate、failure diagnosticsで固定する。root-motion execution modeがProviderのaccepted policyにない場合はactivationを拒否する。board-token／RTS fixture Providerも6 Field、Target／dimension predicate、diagnosticを完全登録し、Physics dependency 0件を検証する。
+Physics Character Motor Providerの7 FieldはCapability `capability.motion_executor.physics_character_motor`、Profile `type.physics.character_motor_profile`、accepted intent exact 3件、transport batch、resolved `type.physics.character_resolved_motion`、compatibility policy、failure diagnosticsで固定する。root-motion execution modeがProviderのaccepted policyにない場合はactivationを拒否する。board-token／RTS fixture Providerも7 Fieldとowner／usage／Target／dimension／diagnosticを完全登録し、Physics dependency 0件を検証する。
 
-`feature.character_locomotion@1`のPack installはPhysicsを要求しない。Physics Character MotorはC1 reference recipe／qualification providerの一つに限る。Animation root motionはselected Motion Executorへの`RootMotionProposalV1` proposalであり、`gameplay_motor`旧modeはprovider-neutral modeへclean migrationする。T40はselected executor、T50はactive Physics providerがある場合だけ実行する。missing／incompatible provider、stale result、provider failureはtyped failureとし、last-valid stateを維持する。
+`feature.character_locomotion@1`のPack installはPhysicsを要求しない。Physics Character MotorはC1 reference recipe／qualification providerの一つに限る。Animation root motionはCharacter Locomotion bindingを経由する`RootMotionProposalV1`であり、Providerへ直接提出しない。`gameplay_motor`旧modeはprovider-neutral modeへclean migrationする。T40はselected executor、T50はactive Physics providerがある場合だけ実行する。missing／incompatible provider、stale result、provider failureはtyped failureとし、last-valid stateを維持する。
 
 ## 6. ClockとPause
 

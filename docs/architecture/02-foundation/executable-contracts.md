@@ -115,7 +115,7 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 | `title` | UTF-8 string | 人間向け短い名称 |
 | `description` | UTF-8 string | 対象と非対象を明示 |
 | `owners` | Owner ID array | 1件以上 |
-| `requirement_refs` | Requirement ID array | 自身がrequirementの場合は空 |
+| `requirement_refs` | `McdContractRefV1(kind=requirement)` array | 自身がrequirementの場合は空。bare IDを保存しない |
 | `rationale_refs` | ADR／spec anchor array | 最低1件 |
 | `since_contract_set` | uint32 | 初回導入Contract set |
 | `supersedes` | `{id, version}` array | 置換対象。空可 |
@@ -234,6 +234,24 @@ Requirementは次を必須とする。
 MCPへ公開するOperationは`provider_exposure=mcp_proposal`に限定する。正規Commit、Approval発行、Promotion、Releaseは`trusted_internal`とし、Provider projectionを生成しない。
 
 Authoring Typeのfieldは`mutability = immutable | human_mutable | ai_mutable`と、変更可能なOperation ID集合を持つ。Contract compilerは`ai_mutable` fieldからtyped CommandまたはDomain Operationへの到達性を全件検査し、coverageが100%でなければ該当CapabilityのProvider／MCP projectionを生成しない。自由形式のJSON Pointer write、任意path write、Operationを迂回するSource writeをcoverageとして数えない。
+
+### 8.1 Project Runtime Entry／Runtime Scopeの正規Operation登録
+
+[Project state](../03-authoring/project-state.md#311-runtime-entryのidentityhashoperation)が意味とtransactionを所有するRuntime Entry七Operationを、MCD Operation Registryへ次のexact recordで登録する。`input_type`／`output_type`は裸IDではなく、いずれも`McdContractRefV1 {id, version, contract_set_hash}`であり、下表のID、`version=1`、実行Taskが固定したimmutable Contract set hashを持つ。表外の既定補完を行わない。
+
+| `id` | `input_type.id` | `output_type.id` | authority／risk | side effect／idempotency／transaction | precondition／postcondition | errors／timeout／Receipt |
+|---|---|---|---|---|---|---|
+| `operation.project.runtime_entry.create` | `type.project.runtime_entry.create_input` | `type.project.runtime_entry.mutation_result` | `AuthoringCommandGateway`／R2 | Authoring／`idempotent_with_key`／`authoring_changeset` | expected Project revision、identityを除くpayload draft／draft hash、allocation scope valid／Gateway発行IDを三箇所へ投影した新Documentをatomic Commit | Runtime Entry共通Diagnostic＋revision／permission／conflict、30,000 ms、`RuntimeEntryMutationReceiptV1` |
+| `operation.project.runtime_entry.update` | `type.project.runtime_entry.update_input` | `type.project.runtime_entry.mutation_result` | `AuthoringCommandGateway`／R2 | Authoring／`idempotent_with_key`／`authoring_changeset` | exact Document ref／hash／revisionとpayload semantic hash一致／同一Document IDの新revisionをatomic Commit | 同上、30,000 ms、`RuntimeEntryMutationReceiptV1` |
+| `operation.project.runtime_target_selector.create` | `type.project.runtime_target_selector.create_input` | `type.project.runtime_entry.mutation_result` | `AuthoringCommandGateway`／R2 | Authoring／`idempotent_with_key`／`authoring_changeset` | expected Project revision、identityを除くdraft hash、canonical Target集合 valid／Gateway発行selector identity三者一致、default coverage再検証後Commit | 同上、30,000 ms、`RuntimeEntryMutationReceiptV1` |
+| `operation.project.runtime_target_selector.update` | `type.project.runtime_target_selector.update_input` | `type.project.runtime_entry.mutation_result` | `AuthoringCommandGateway`／R2 | Authoring／`idempotent_with_key`／`authoring_changeset` | exact selector ref／hash／revision valid／全consumerとdefault coverageを再materialize | 同上、30,000 ms、`RuntimeEntryMutationReceiptV1` |
+| `operation.project.runtime_entry_activation_policy.create` | `type.project.runtime_entry_activation_policy.create_input` | `type.project.runtime_entry.mutation_result` | `AuthoringCommandGateway`／R2 | Authoring／`idempotent_with_key`／`authoring_changeset` | expected Project revisionとidentityを除くpolicy draft hash valid／Gateway発行policy identity三者一致でCommit | 同上、30,000 ms、`RuntimeEntryMutationReceiptV1` |
+| `operation.project.runtime_entry_activation_policy.update` | `type.project.runtime_entry_activation_policy.update_input` | `type.project.runtime_entry.mutation_result` | `AuthoringCommandGateway`／R2 | Authoring／`idempotent_with_key`／`authoring_changeset` | exact policy ref／hash／revision valid／全consumerをinvalidateして新revisionをCommit | 同上、30,000 ms、`RuntimeEntryMutationReceiptV1` |
+| `operation.project.runtime_entry.migrate_root_scene` | `type.project.runtime_entry.migrate_root_scene_input` | `type.project.runtime_entry.mutation_result` | `AuthoringCommandGateway`／R3 | Authoring／`idempotent_with_key`／`authoring_changeset` | exact legacy Source closure、expected revision、Approval valid／World、selector、policy、entryを一transactionでCommit | migration／共通Diagnostic＋revision／permission／conflict、120,000 ms、`RuntimeEntryMutationReceiptV1` |
+
+全七recordの`operation_kind=command`、`audit_level=full_redacted`、`rate_limit_policy`はexact `McdContractRefV1`で`policy.authoring.runtime_entry.rate_limit` version 1、`provider_exposure=mcp_proposal`である。MCP projectionはCommit authorityを渡さず、Proposalを同じOperation inputへ投影し、GatewayがApproval、revision、hashを再検証する。`RuntimeEntryMutationReceiptV1`はoperation ref、request hash、idempotency key、before／after Project revision、affected Document ref／before hash／after hash、payload semantic hash、Preview ref／hash、Validation Receipt ref／hash、Commit Receipt ref／hash、Diagnostic集合を持つ。createのbefore ref／hashだけをcanonical omissionし、nullやzero hashで代用しない。
+
+[Gameplay programming model](../03-authoring/gameplay-programming-model.md#312-scope依存recordとoffline-migration)が所有するoffline migrationは、`operation.runtime_scope.migrate_game_system_v1_to_v2`、`input_type={id=type.runtime_scope.game_system_v1_migration_input, version=1, contract_set_hash}`、`output_type={id=type.runtime_scope.game_system_v1_migration_result, version=1, contract_set_hash}`として登録する。authorityは`OfflineProjectMigrator`、R3、`operation_kind=job`、side effectはAuthoring、`idempotent_with_key`、transactionは`authoring_changeset`、timeoutは120,000 msである。preconditionはexact旧Source ref／hash、旧Contract set、移行先Catalog ref／hash、owner／Save／Replay mapping、expected Project revision、Approval、postconditionは新`GameSystemSpecV1` revisionと`RuntimeScopeMigrationReceiptV1`のatomic publishである。conflict、unknown／removed owner、hash不一致、非一意mapping、stale revision、permission、timeoutを列挙し、in-place rewrite、部分migration、旧aliasのcurrent validationを許可しない。
 
 ## 9. State machine定義
 

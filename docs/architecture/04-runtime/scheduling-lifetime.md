@@ -95,9 +95,32 @@ Faulted -> ProjectClosing | Shutdown
 
 `Faulted`から同じPlay sessionへ復帰しない。Editor processを継続できる場合はjournalとfault evidenceを保全し、`Faulted -> ProjectClosing`でProjectを閉じ、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)のEditor session machineが定めるProject非保持state（`NoProject`）をsafe shellとして戻る。継続できない場合は`Faulted -> Shutdown`で安全に終了する。Authoring中のGameHost／Worker crashは同文書のTask failure隔離で処理して`Faulted`へ遷移させず、`Authoring -> Faulted`はHost自身がsafe stopできないprocess faultだけに使う。Shipping GameHostのOS application lifecycleはPlatform Ownerが決定し、OS callbackはWorldを直接変更せずbounded lifecycle eventをOrchestratorへ渡す。
 
-`PlayPreparing`はCommit済み`project_revision`と選択済み`RuntimeEntryPointDocumentV1`を一つ固定し、Runtime package、System Graph、Implementation Set、Target別Plan、target selector hash、activation policy hash、`entry_branch_closure_hash`を検証する。`world` branchはWorld closure、`ui` branchはUI closure、`headless` branchはWorld／UI closureを要求しない。startup systemが1件以上なら全branchで`startup_system_closure_hash`を検証し、headlessでは必須、world／uiの0件だけcanonical omissionとする。startup closureはtransitive System dependency、Implementation Variant、State owner、Target compatibilityを含む。別branchのDocument、Topology、surfaceを常時要求せず、branch activation set全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview Worldは存在する場合だけPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
+`PlayPreparing`はCommit済み`project_revision`と選択済み`RuntimeEntryPointDocumentV1`を一つ固定し、Runtime package、System Graph、Implementation Set、Target別Plan、target selector hash、activation policy hash、optional selected provider binding set hash、`entry_branch_closure_hash`を検証する。binding set hashがpresentなら全binding Document ref／content hash、semantic hash、tagged owner identity、implementation System、Save／Replay contractをcurrent Project／Targetへ照合し、0件ならField omissionを要求する。`world` branchはWorld closure、`ui` branchはUI closure、`headless` branchはWorld／UI closureを要求しない。startup systemが1件以上なら全branchで`startup_system_closure_hash`を検証し、headlessでは必須、world／uiの0件だけcanonical omissionとする。startup closureはtransitive System dependency、Implementation Variant、State owner、Target compatibilityを含む。別branchのDocument、Topology、surfaceを常時要求せず、branch activation set全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview Worldは存在する場合だけPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
 
 runtime session配下のWorld instance、UI session、startup system instanceは選択branchごとのoptional childである。`world`はScene 0件／Topology nullでもvalid、`ui`はWorldなし、`headless`はWorld／UI／surfaceなしでvalidとする。branch外fieldを混ぜたpackage、headless startup system 0件、entry hash／branch closure hash不一致はPlay開始を拒否し、last-valid packageとAuthoring revisionを維持する。
+
+Project ownerとRuntime ownerのfixtureを名前の類似で結ばず、次のexact integration mappingを登録する。
+
+```text
+RuntimeEntryOwnerIntegrationManifestV1
+  manifest_version: 1
+  manifest_hash
+  project_owner_fixture_refs:
+    [fixture.project.runtime_entry.document_identity,
+     fixture.project.runtime_entry.selector_policy_resolution]
+  runtime_owner_fixture_refs:
+    [fixture.runtime.runtime_entry.branch_activation,
+     fixture.runtime.runtime_entry.reverse_teardown]
+  mappings:
+    - project fixture ref/hash
+      runtime fixture ref/hash
+      entry kind
+      compile manifest hash
+      expected branch closure hash
+      expected owner receipt refs/hashes
+```
+
+二つのProject owner fixtureと二つのRuntime owner fixtureは各Owner文書で独立に合格し、integration manifestの全mappingがref／hash一致した時だけ`fixture.integration.project-runtime-entry.owner-resolution`を合格にする。一系統のfixtureを他Ownerの合格証拠として再利用せず、missing／duplicate／stale mappingをPlay readinessで拒否する。
 
 Play中のAuthoring変更は新revisionとして保存できるが、Runtimeへ自動適用しない。[Asset lifecycle](../03-authoring/asset-lifecycle.md)またはDomain Ownerが互換性を証明し、本書のboundaryへ提出したtyped activationだけを適用する。`PlayStopping`、Play fault、restartは新規Input、async request、Presentation submitを止め、worker join、queue seal、Save／Replay finalize後、branch activation setのactual dependency DAGをreverse topological orderでteardownする。順序対象はstartup system instance、UI session、World instance、optional Presentation target／surfaceであり、存在しないbranch childを生成して破棄順へ加えない。全lease／submission retire後だけHost resourceを解放する。Runtime値をAuthoringへ戻す場合は[Project state](../03-authoring/project-state.md)の別ChangeSetとし、Runtime handle、native ID、GPU handle、internal slotを含めない。
 
@@ -131,14 +154,14 @@ GameHostLoopStateV1
   tick_id
   presentation_state: absent | active | surface_unavailable
   render_frame_id?
-  application_state = Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating
+  application_state = Starting | Active | Inactive | Suspended | Terminating
   gameplay_clock_mode = running | paused
   debug_execution_mode = running | pause_requested | paused_at_t110 | single_tick_step
   surface_generation?
   last_published_render_snapshot_tick?
 ```
 
-`gameplay_clock_mode`は`PausePolicyV1`／`GamePauseStateSnapshotV1`のconsumer projectionであり、outer loopが別のPause authorityを持つ意味ではない。`debug_execution_mode`はDebuggerが所有し、Shipping Game pauseの権限またはstateとして使用しない。`presentation_state=absent`では`render_frame_id`、`surface_generation`、`last_published_render_snapshot_tick`を全件省略し、RenderSnapshot acquire／interpolation／R00～R70へ依存しない。`active | surface_unavailable`はPresentation branch／Targetが明示選択された場合だけ使用し、surfaceを持たないoffscreen presentationでは`surface_generation`だけを省略できる。strict headlessはWindow、Surface、RenderSnapshot、Render thread dependencyを0件にし、0やfake generationを作らない。
+`gameplay_clock_mode`は`PausePolicyV1`／`GamePauseStateSnapshotV1`のconsumer projectionであり、outer loopが別のPause authorityを持つ意味ではない。`debug_execution_mode`はDebuggerが所有し、Shipping Game pauseの権限またはstateとして使用しない。`presentation_state=absent`では`render_frame_id`、`surface_generation`、`last_published_render_snapshot_tick`を全件省略し、RenderSnapshot acquire／interpolation／R00～R70へ依存しない。`active | surface_unavailable`はPresentation targetがbranch activation setへ明示選択された場合だけ使用し、surfaceを持たないoffscreen presentationでは`surface_generation`だけを省略できる。`surface_unavailable`はApplication lifecycle stateではなくoptional Presentation childの状態であり、simulation branchのactivationやtickを暗黙停止しない。strict headlessはWindow、Surface、RenderSnapshot、Render thread dependencyを0件にし、0やfake generationを作らない。
 
 `monotonic_now_ns`と`previous_outer_loop_ns`はwall-clock時刻、timezone、system clock補正を含まない単調clockである。60 Hzのtick長は浮動小数または切り捨てた`16,666,666 ns`の反復加算を使わず、tickごとに次式で求める。
 
@@ -176,14 +199,13 @@ Application lifecycleは次の共通policyを持つ。Platform固有の通知対
 
 | ApplicationState | Authoritative tick | Render | 境界policy |
 |---|---|---|---|
-| `Starting` | なし | なし | 初期Project／surface準備だけを行う |
+| `Starting` | なし | なし | 選択Runtime Entryのbranch activation setを準備し、明示選択された場合だけPresentation target／surfaceを準備する |
 | `Active` | clock policyに従う | 有効surfaceで0～1 frame | 通常実行 |
 | `Inactive` | 現在tickのT110後に停止 | なし | checkpointを要求し、accumulatorを0にする |
 | `Suspended` | なし | なし | simulation／render／audio処理を止め、Platform eventをwaitする |
-| `SurfaceUnavailable` | 現在tickのT110後に停止 | なし | Runtime Worldを保持し、surface generation更新を待つ |
 | `Terminating` | 新規tickなし | なし | checkpoint policyを使い、安全な破棄順序へ進む |
 
-Headless Targetでは設計上surfaceが存在しないことを`SurfaceUnavailable`と解釈しない。`Active`のauthoritative tickを継続し、R00～R70だけを実行しない。
+Presentation childが`surface_unavailable`ならR00～R70をskipし、surface generation更新を待つが、Applicationは`Active`のままauthoritative tickを継続する。Platformがinactive／suspendを別lifecycle eventとして通知した場合だけ対応するApplication Stateへ遷移する。Headless Targetでは設計上surfaceが存在しないため`presentation_state=absent`であり、`surface_unavailable`を生成しない。
 
 ## 4. 60 Hz fixed tickとphase identifier
 
@@ -367,7 +389,7 @@ Asset activationはdependency closure単位の`AssetGenerationId`を使う。CPU
 
 Physics／Navigation／Animationのcross-subsystem順は次の不変条件を持つ。
 
-- motion intentがroot-motion intervalを一度固定し、selected Motion Executorへproposalを提出する。Animation finalizeは同じintervalを再利用しclockを二重advanceしない。
+- motion intentがroot-motion intervalを一度固定し、Character Locomotion bindingがNavigation-owned Port batchでselected Motion Executorへproposalを提出する。AnimationからProviderへ直接提出せず、Animation finalizeは同じintervalを再利用しclockを二重advanceしない。
 - `T40_MotionIntent`はselected executorだけがresolved motionをwriteする。`T50_PhysicsStep`はactive executorまたは別SystemがPhysics providerを選択した時だけ実行し、Physicsなしのboard-token／RTS stubではskipをcanonical Replay結果として記録する。
 - 2Dと3D Physicsを併用する場合はgenerated Producer Registryのcanonical system orderで逐次step／joinし、同時にvendor Worldをstepしない。
 - native Physics callbackはWorldを変更せず、copied valueをintegrationでStable ID／generation検査後にnormalizeする。
@@ -460,7 +482,7 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 最低限、次を自動検証する。
 
 - fixed tickとrender sequence、serialized ID、禁止再入、consume／delivery phase。
-- GameHost outer loopのlifecycle→clock→optional input→0～4 tick→optional presentation snapshot／0～1 render→retire／wait順、60 tick exactly 1秒、4-step clamp telemetry、input edge非複製、Input Source 0件、Gameplay pause、Debug pause／single-step、`SurfaceUnavailable`、`Suspended`、strict headless、stale snapshot、fault非publish。
+- GameHost outer loopのlifecycle→clock→optional input→0～4 tick→optional presentation snapshot／0～1 render→retire／wait順、60 tick exactly 1秒、4-step clamp telemetry、input edge非複製、Input Source 0件、Gameplay pause、Debug pause／single-step、optional `presentation_state=surface_unavailable`、Application `Suspended`、strict headless、stale snapshot、fault非publish。
 - `fixture.runtime.entry.world-empty`、`fixture.runtime.entry.ui-only`、`fixture.runtime.entry.headless`でbranch closure、optional child lifetime、startup system closure、surface／RenderSnapshot omission、branch activation setを検証する。
 - `fixture.integration.project-runtime-entry.owner-resolution`でProject-owned entry／selector／activation policyのref、schema、hash、Target membershipとCompile Manifestをread-backする。
 - world／ui／headlessのstop、fault、restartでstartup systems、UI session、World、optional Presentationをactual dependencyのreverse orderでteardownし、strict headlessのWindow／Surface／Render thread依存が0件であるfixture。

@@ -11,7 +11,7 @@
 
 AnimationはEngine-owned Asset、Graph、Instance、Pose、Event、Root Motion proposal、IK、Retarget contractを公開し、sampling／compression Backendをprivate Adapterへ隔離する。Project C++、GameplayDefinition、AI、Editor、RenderingへVendor job、runtime object、pointer、archive formatを公開しない。dependencyのexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
 
-Animationはauthoritative motion Transformを書かず、Navigationを進めず、Collision queryを再定義しない。root motionは[Navigation](navigation.md)の`MotionExecutorPortV1`で選択されたMotion Executorへのproposalであり、registered resolved motionを受けてposeを確定する。実行順とwriterは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)だけが所有する。
+Animationはauthoritative motion Transformを書かず、Navigationを進めず、Collision queryを再定義しない。root motionはCharacter Locomotion bindingを経由し、[Navigation](navigation.md)の`MotionExecutorPortV1`で選択されたMotion Executorへ届くproposalである。Animationはregistered resolved motionを受けてposeを確定する。実行順とwriterは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)だけが所有する。
 
 Module境界はContracts、Asset Cook、Graph Runtime、Pose／IK／Retarget Core、private Backend Adapter、Authoring、Editor Projection、Qualification Toolに分ける。Runtime Graphはimmutable Cooked Assetとinstance-local stateだけを読み、Source DocumentやEditor objectを参照しない。
 
@@ -104,7 +104,7 @@ RuntimeはAnimation instanceへ一つのcanonical `AnimationEvaluationIntervalV1
 
 Animation clockはcanonical intervalごとに一度だけadvanceする。root-motion sampling、clip sampling、blend、IK、pose、bounds、event extractionはintervalのpure consumerであり、個別にclock／loop count／event cursorをadvanceしない。全outputのvalidation成功後にinstance clockとevent cursorをendへ一回commitする。同じ`interval_id`のretryは同じoutputを返すidempotent evaluationとし、二回目のadvanceを行わない。前interval未commitのまま異なるintervalを受けた場合、または同じIDでbegin／endが異なる場合はinstance faultとする。evaluation failureではclockをadvanceせず、partial pose／event／root motionをpublishしない。
 
-`RootMotionProposalV1`のexact MCD contract IDは`mirakan.contract.animation.root_motion_proposal@1`であり、schemaを次へ固定する。
+`RootMotionProposalV1`のexact MCD refは`McdContractRefV1 {id=type.animation.root_motion_proposal, version=1, contract_set_hash}`であり、schemaを次へ固定する。IDへPascalCaseまたは`@1`を埋め込まない。
 
 ```text
 RootMotionProposalV1
@@ -119,7 +119,7 @@ RootMotionProposalV1
   selected_executor_capability_ref
 ```
 
-root-motion modeは`animation | executor_driven | disabled`である。`animation`は`RootMotionProposalV1`をselected executorへ直接提出し、executorが自身のcontractで解決する。selected Providerの`accepted_intent_schema_refs[]`が`mirakan.contract.animation.root_motion_proposal@1`を含まなければActivation前にtyped rejectし、Animation clock、pose、event cursor、last-valid resolved motionを変更しない。`executor_driven`はAnimation root deltaを0としてregistered resolved motionからin-place poseを選び、`disabled`はroot trackをpresentationにも使わない。旧`gameplay_motor`は同じ意味の`executor_driven`へclean migrationし、aliasとして読まない。proposalはauthoritative Transformではない。
+root-motion modeは`animation | executor_driven | disabled`である。`animation`は`RootMotionProposalV1`を`game_system.engine.character_locomotion.binding`へtyped Commandとして提出し、bindingだけが[Navigation](navigation.md)の`MotionExecutorIntentBatchV1`へ包んでselected executorへ配送する。Animationからselected executorへのdirect submissionは禁止する。selected Providerの`accepted_intent_schema_refs[]`がexact `type.animation.root_motion_proposal` version／Contract set hashを含まなければActivation前にtyped rejectし、Animation clock、pose、event cursor、last-valid resolved motionを変更しない。`executor_driven`はAnimation root deltaを0としてregistered resolved motionからin-place poseを選び、`disabled`はroot trackをpresentationにも使わない。旧`gameplay_motor`は同じ意味の`executor_driven`へclean migrationし、aliasとして読まない。proposalはauthoritative Transformではない。
 
 現行C1／C2はselected Motion Executorの`resolved_motion_schema_ref`へ適合するgeneration付きsnapshotだけを受け、AnimationがProvider-private state、native Body、Transform componentをqueryしない。`ragdoll`は`future.capability.vehicle-ragdoll-crowd-motion-warping`の予約語であり、同Future Entryがapproved Future-to-Active Promotion Manifest、Control Plane Rebaseline、Active Definition migrationでactive Capabilityへ昇格し、Ragdoll固有Owner contract、Target binding、Authority、Save／Replay schema、positive／negative fixtureが承認されるまで、Animation input、Graph node、operationとして公開しない。昇格前のRagdoll要求は`capability_unavailable`で拒否し、pose、clock、event cursor、Project／Save／Replay stateを変更しない。将来昇格後もPhysicsは`SkeletonPose`へ直接writeせず、versioned Physics pose inputとAnimation poseの合成はAnimation ownerだけが行う。NavigationはAnimation parameter候補をcommand／snapshotで渡せるが、Graph stateを直接変更しない。
 
