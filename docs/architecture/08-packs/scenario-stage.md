@@ -59,6 +59,8 @@ CompletionはWorld activation、Scene activation、Cell streamingの前提では
 
 Feature Packは`scope.feature.scenario_stage.instance`をversioned Runtime Scope Type Catalogへ登録する。Coreは`level_instance`をclosed enumへ追加しない。
 
+Stage lifecycleを所有するSystem IDは`game_system.extension.feature.scenario_stage`であり、`GameSystemSpecV2.owner_layer=feature_pack`、exact `owner.feature.scenario_stage` ref／revision／content hash、`system_origin=owner_package`を必須にする。Core namespaceまたはGenre／Project ownerを自己申告するSpecを拒否する。
+
 Scope entryは`RuntimeScopeTypeCatalogV1`へ次のexact 7-Field rowで登録する。
 
 | `scope_type_ref` | `instance_key_schema_ref` | `owner_ref` | `lifetime_ref` | `save_replay_policy_ref` | `activation_condition_ref` | `deactivation_condition_ref` |
@@ -67,7 +69,7 @@ Scope entryは`RuntimeScopeTypeCatalogV1`へ次のexact 7-Field rowで登録す�
 
 保存値は`RuntimeScopeTypeRefV1`、`McdContractRefV1`、`RuntimeScopeOwnerRefV1`のversion／hash付きtyped refであり、表のIDだけを永続化しない。全dependencyをactive Runtime Scope Registryへ実体recordとして登録する。Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
 
-旧Level Systemのscope migrationは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ`runtime_scope.migration_contribution.feature.scenario_stage`として登録する。recordは`owner.feature.scenario_stage`、exact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policy、`fixture.feature.scenario_stage.runtime_scope_migration`を持つ。Core migratorはgeneric record解決だけを行い、Level／Stage ID、fixture、adapterをCoreへhard-codeしない。
+旧Level Systemのscope migrationは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ`runtime_scope.migration_contribution.feature.scenario_stage`として登録する。Production recordは`owner.feature.scenario_stage`、exact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policy、exact signed `{receipt_id=qualification.runtime_scope_migration.feature.scenario_stage, receipt_version=1, receipt_content_hash}`を持つ。Fixture bodyは別owner-typed Qualification recordだけが`fixture.feature.scenario_stage.runtime_scope_migration`を解決する。Core migratorはgeneric record解決だけを行い、Level／Stage ID、Qualification record／Fixture、adapterをCoreへhard-codeしない。
 
 ## 5. Transition
 
@@ -88,18 +90,16 @@ Saveは登録済みState ownerとSave／Replay契約が宣言したfieldだけ�
 
 ## 7. AI Operation
 
-MCDへ次のexact Operationを登録する。
+Scenario／Stage authoring surfaceは本Taskで完全登録されていないため、current Operation setを空に固定する。
 
-- `operation.scenario_stage.create`
-- `operation.scenario_stage.read`
-- `operation.scenario_stage.plan_update`
-- `operation.scenario_stage.preview_update`
-- `operation.scenario_stage.validate`
-- `operation.scenario_stage.explain_transition`
+```text
+Current Scenario/Stage authoring Operation set = {}
+Capability state = not_activated
+```
 
-create／updateは[Project State](../03-authoring/project-state.md)のValidation、Staging、Approval、Receiptを通る。AIは有限Gameという自然言語だけでCompletion outcomeを捏造せず、`completion_mode`、outcome、destination、Save／Replayへの影響が未確定なら質問またはAssumptionとしてPreviewする。
+従来記載された六件の候補setとManifestの七件setはどちらも一度もactivateされておらず、current MCD、Pack Manifest、Service allowlist、Provider／MCP Catalog、Policy／Validator／Diagnostic／Receipt inventoryから全件除外する。legacy aliasとしても読まない。authoring要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Stage／Project Source、revision、last-valid artifactを変更しない。
 
-AI contextはselected Stage、World、参照Feature、Scope、transition、Save／Replay policy、Diagnosticだけをsemantic projectionし、全Projectまたは全Schemaを無制限に送信しない。
+future work item `activation.scenario_stage.authoring.v1`は採用するexact Operation setを一つに固定し、read-onlyとmutationを含む各OperationのMCD全Field、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Service allowlist、Risk／side effect／idempotency／transaction、pure pre／post Policy、closed Diagnostic、Validator closure、rate／timeout、canonical signed Receipt、private commit→signed wrapper→public publication recovery、positive／negative Qualificationを同じContract set transactionで完全登録するまでactivateしない。将来AI contextを有効化する場合もselected Stage、World、参照Feature、Scope、transition、Save／Replay policy、Diagnosticだけをsemantic projectionし、全Projectまたは全Schemaを無制限に送信しない。
 
 ## 8. Fixture
 
@@ -130,7 +130,7 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 | `public_contract_refs[]` | version／hash付き`StageDefinitionV1; CompletionContractV1; StageRuntimeStateV1; StageTransitionDestinationV2; StageTransitionPolicyV1; StageTransitionRequestV2; StageTransitionContractRefSetV1` |
 | `runtime_port_refs[]` | version／hash付き`StageActivationPortV1; StageTransitionPortV2` |
 | `configuration_profile_refs[]` | `StageContentActivationPolicyV1; StageSaveReplayPolicyV1` |
-| `authoring_operation_refs[]` | version／Contract set root付き`operation.scenario_stage.search; operation.scenario_stage.read; operation.scenario_stage.resolve_intent; operation.scenario_stage.create; operation.scenario_stage.update; operation.scenario_stage.preview; operation.scenario_stage.explain_transition` |
+| `authoring_operation_refs[]` | `[]`。Scenario／Stage authoring Capabilityは`not_activated` |
 | `validator_refs[]` | version／content hash付き`validator.feature.scenario_stage.v1` |
 | `migration_contribution_refs[]` | version／content hash付き`runtime_scope.migration_contribution.feature.scenario_stage` |
 | `migration_step_refs[]` | version／content hash付き`migration.feature.scenario_stage.level_contract_to_stage_v1` |
@@ -158,13 +158,16 @@ StageTransitionContractRefSetV1
 
 `StageTransitionContractRefSetV1`は上記exact 5 Fieldだけを持ち、generic `refs[]`、optional ref、六件目を許可しない。`ref_set_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CONTRACT_REF_SET_V1`、`ref_set_version`、exact 5 refを上記Field順に`uint32_be` length framingしたMCD canonical bytesから計算し、自己Fieldを除外する。duplicate ID、wrong kind／version／Contract set hash、同じIDの別hash、非canonical Fieldを拒否する。
 
-左辺の到達性を単一ownerの名前検索にしない。次のclosure recordが各Ownerのrootから依存edgeをたどってexact五refをmaterializeする。
+左辺の到達性を単一ownerの名前検索にしない。まずReceiptを一切含まないcandidateを各Owner rootから決定的にmaterializeし、そのimmutable subjectへReceiptを発行してからfinal closureを構成する。
 
 ```text
-StageTransitionCrossOwnerReachableClosureV1
-  stage_owner_root_ref/hash
-  world_owner_root_ref/hash
-  runtime_owner_root_ref/hash
+StageTransitionCrossOwnerCandidateV1
+  candidate_version: 1
+  contract_set_hash: SHA-256
+  pack_ref: exact PackContractRefV1
+  stage_owner_root_ref: exact {owner_id, owner_revision, owner_content_hash}
+  world_owner_root_ref: exact {owner_id, owner_revision, owner_content_hash}
+  runtime_owner_root_ref: exact {owner_id, owner_revision, owner_content_hash}
   owner_subsets:
     stage:
       destination_type_ref
@@ -174,14 +177,45 @@ StageTransitionCrossOwnerReachableClosureV1
     world:
       spatial_destination_type_ref
     runtime:
-      delivery_phase_contract_ref/hash
+      boundary_delivery_contract_ref: exact BoundaryDeliveryContractRefV1
   exact_transition_ref_set: StageTransitionContractRefSetV1
-  owner_validation_receipts[3]:
-    exact {owner_ref, validated_subset_hash, receipt_ref, receipt_hash}
-  closure_hash
+  candidate_hash: SHA-256
+
+StageTransitionOwnerValidationReceiptRefV1
+  owner_kind: stage | world | runtime
+  candidate_hash: SHA-256
+  validated_subset_hash: SHA-256
+  signed_record_ref: exact MirakanSignedRecordRefV1
+  signed_record_hash: SHA-256
+
+StageTransitionGateReceiptRefV1
+  gate_id:
+    gate.scenario_stage.public_contract_inventory
+    | gate.scenario_stage.runtime_port_inventory
+    | gate.scenario_stage.transition_mcd_ref_set
+    | gate.scenario_stage.transition_port_closure
+    | gate.scenario_stage.aggregate_projection
+  candidate_hash: SHA-256
+  left_set_hash: SHA-256
+  right_set_hash: SHA-256
+  result: pass
+  signed_record_ref: exact MirakanSignedRecordRefV1
+  signed_record_hash: SHA-256
+
+StageTransitionCrossOwnerReachableClosureV1
+  candidate: StageTransitionCrossOwnerCandidateV1
+  candidate_hash: exact candidate.candidate_hash
+  owner_validation_receipt_refs[3]:
+    StageTransitionOwnerValidationReceiptRefV1
+  gate_receipt_refs[5]: StageTransitionGateReceiptRefV1
+  final_closure_hash: SHA-256
 ```
 
-Runtime subsetはdelivery phaseを検証するがexact五ref集合へ六件目として入れない。Stage validatorは四Stage refのkind／owner／version、World validatorはspatial refのWorld owner／type semantics、Runtime validatorはPort delivery edgeがT40／boundary contractに適合することを検証する。全三Receiptが同じContract set rootとclosure hashへbindしなければ到達済みと見なさない。
+`candidate_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CROSS_OWNER_CANDIDATE_V1`、candidate version、Contract set hash、Pack ref、三owner root、三owner subset、exact transition ref setをField順にMCD canonical encodeし、各segmentを`uint32_be` length framingしてSHA-256する。自己Fieldだけを除外し、Receipt ref、signature、final closure hashを入力にしない。
+
+Runtime subsetはgeneric `BoundaryDeliveryContractV1`が`T00_BoundaryApply`で配送することを検証するが、exact五ref集合へ六件目として入れない。Stage validatorは四Stage refのkind／owner／version、World validatorはspatial refのWorld owner／type semantics、Runtime validatorはPort delivery edgeがexact Boundary Delivery refへ到達し、spatial／Locomotion前提を持たないことを検証する。三owner Receiptのcanonical wrapperはpurpose=`scenario_stage_owner_validation`、subject=`candidate_hash`、owner kind、validated subset hash、Contract set hashを署名し、五gate Receiptはpurpose=`scenario_stage_gate_validation`、subject=`candidate_hash`、gate ID、左右set hash、result=`pass`を署名する。いずれも`final_closure_hash`をpayload、subject、signature preimageへ含めない。
+
+三owner Receiptは`stage, world, runtime`のclosed順、五gate Receiptは下表の順でexact countを要求し、duplicate、missing、extra、同じcandidate hashへの別subject、stale key／revocation、署名不成立を拒否する。`final_closure_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CROSS_OWNER_FINAL_CLOSURE_V1`、candidate hash、三owner Receipt Refの全Field、五gate Receipt Refの全Fieldをこの順に各`uint32_be` length framingしてSHA-256し、自身だけを除外する。Receipt発行後にcandidateを変更せず、final closureを再署名対象へ戻すcycleを作らない。
 
 異種inventoryを一つのset equalityへ混ぜず、次のlike-for-like gateを独立に実行する。
 
@@ -189,11 +223,11 @@ Runtime subsetはdelivery phaseを検証するがexact五ref集合へ六件目�
 |---|---|---|---|
 | `gate.scenario_stage.public_contract_inventory` | Pack Manifest `public_contract_refs[]` | Stage owner public contract inventory exact 7件 | ID／version／Contract set hashのset equality |
 | `gate.scenario_stage.runtime_port_inventory` | Pack Manifest `runtime_port_refs[]` | Stage owner runtime port inventory exact 2件 | ID／version／Contract set hashのset equality |
-| `gate.scenario_stage.transition_mcd_ref_set` | `StageTransitionCrossOwnerReachableClosureV1.exact_transition_ref_set` | `StageTransitionContractRefSetV1` exact 5件 | ID／kind／version／Contract set hashのset equality |
-| `gate.scenario_stage.transition_port_closure` | owner別三Validation Receiptで承認されたStage四ref＋World一ref | `StageTransitionContractRefSetV1` exact 5件 | cross-owner reachable set equality |
+| `gate.scenario_stage.transition_mcd_ref_set` | `StageTransitionCrossOwnerCandidateV1.exact_transition_ref_set` | `StageTransitionContractRefSetV1` exact 5件 | ID／kind／version／Contract set hashのset equality |
+| `gate.scenario_stage.transition_port_closure` | candidateのStage四ref＋World一ref | `StageTransitionContractRefSetV1` exact 5件 | cross-owner reachable set equality |
 | `gate.scenario_stage.aggregate_projection` | Gameplay Features aggregateのScenario Stage public／runtime refs | Pack Manifestの対応するpublic／runtime refs | 各inventoryを別々にset equality |
 
-各gateは固有Receiptを発行し、五Receipt全部が同じPack content hash、owner revision、Contract set hashへ閉じる場合だけPack apply／Runtime Activationを許可する。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各gateについてmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchを一原因ずつ拒否し、一gateの成功を別inventoryの成功へ読み替えない。
+各gateは同じcandidate hashをsubjectに固有Receiptを発行し、三owner Receipt、五gate Receipt、final closure hashが上記DAGを閉じる場合だけPack apply／Runtime Activationを許可する。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各gateについてmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchに加え、candidate hash mismatch、Receiptがfinal closure hashを含むcycle、Receipt order／count不正を各一原因で拒否し、一gateの成功を別inventoryの成功へ読み替えない。
 
 ## 10. Content activationとRuntime state
 
@@ -261,19 +295,19 @@ StageTransitionRequestV2
 | kind | non-null／non-empty Field | null／empty Field |
 |---|---|---|
 | `stage` | exact `stage_ref`＋`stage_hash` | Runtime Entry／spatial三Fieldはnull。Stage ownerがStage content closureを解決 |
-| `runtime_entry` | exact `runtime_entry_ref`＋payload semantic `runtime_entry_hash` | Stage／spatial三Fieldはnull。解決entry kindはworld／ui／headlessのいずれも可 |
+| `runtime_entry` | exact `runtime_entry_ref`＋payload semantic `runtime_entry_hash` | Stage／spatial三Fieldはnull。解決entry kindはworldだけで、特定spatial destinationを指定しない |
 | `world_space` | exact `runtime_entry_ref`＋hash、`spatial_destination_type_ref={id=type.world.spatial_transition_destination, version=1, contract_set_hash}`、exact `spatial_destination_ref` | Stageはnull。entry kindはworldだけ |
 | `ui` | exact `runtime_entry_ref`＋hash | Stage／spatial三Fieldはnull。entry kindはuiだけ |
 | `headless` | exact `runtime_entry_ref`＋hash | Stage／spatial三Fieldはnull。entry kindはheadlessだけ |
 | `session_end` | なし | Stage／Runtime Entry／spatial三Fieldを全件null |
 
-UI Document、headless startup systems、World ref、AnchorをStage destinationへ直接持たせず、すべてRuntime EntryまたはWorld-owned `SpatialTransitionDestinationV1`のcompile済みclosureを通す。`world_space`はruntime entryが参照するWorldとspatial destinationのWorldがexact equalityであること、entry selectorが現在Targetを含むこと、World／Topology／Edge／Space／Anchor version／hashが一致することをactivation前に検証する。`ui`／`headless`もentry kindを検証し、Stageがstartup closureを再構成しない。
+UI Document、headless startup systems、World ref、AnchorをStage destinationへ直接持たせず、すべてRuntime EntryまたはWorld-owned `SpatialTransitionDestinationV1`のcompile済みclosureを通す。`runtime_entry`はworld entry全体への非spatial遷移、`world_space`は同じworld entryに加えてexact spatial destinationを持つ遷移、`ui`と`headless`は各entry kind専用であり、六branchの受理集合は相互排他的である。`world_space`はruntime entryが参照するWorldとspatial destinationのWorldがexact equalityであること、entry selectorが現在Targetを含むこと、World／Topology／Edge／Space／Anchor version／hashが一致することをactivation前に検証する。`ui`／`headless`もentry kindを検証し、Stageがstartup closureを再構成しない。
 
-`transfer_subject_refs[]`はregistered typed subjectだけを受理し、display roleやowner推測でPlayer／Partyへ変換しない。destinationがWorld Spaceの場合は[World](../06-rendering/world.md)のgeneric spatial transition port、別Stageの場合は`StageActivationPortV1`を使う。
+`transfer_subject_refs[]`はregistered typed subjectだけを受理し、display roleやowner推測でPlayer／Partyへ変換しない。destinationがWorld Spaceの場合は[World](../06-rendering/world.md)のgeneric spatial transition port、別Stageの場合は`StageActivationPortV1`を使う。いずれのbranchもsealed transition payloadを[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)のregistered `BoundaryDeliveryContractV1`へ渡し、次のeligible `T00_BoundaryApply`で適用する。Stage側にT40／Motion Executor／Locomotion dependencyを追加しない。
 
 target dependency不足、stale precondition、unknown destination、subject incompatibilityではpartial activationせず、source Stageとlast-valid World generationを維持する。Loading progress／cancel／retryの表示契約はWorld／Runtimeのgeneric Loading projectionを参照し、Stage outcomeをLoading UIから推測しない。
 
-qualificationは六kindを各一件round-tripし、`runtime_entry`ではworld／ui／headless各subcaseも検証する。negative fixtureはdiscriminator外Field、Requestへのinline destination、Policy hash mismatch、Runtime Entry payload／Document hash mismatch、ui／headless entry kind mismatch、world_spaceのnon-world entry、spatial type ref kind／version／Contract set mismatch、required anchor欠落、stale World／Topology／Space／Edge／Anchor、spatial destination hash mismatch、session_end payloadを各単独原因で拒否し、source Stage／World／Project revisionを不変にする。
+qualificationは六kindを各一件round-tripし、`runtime_entry`はworld／spatialなしだけを検証する。negative fixtureはruntime_entryへのui／headless entryまたはspatial ref、discriminator外Field、Requestへのinline destination、Policy hash mismatch、Runtime Entry payload／Document hash mismatch、ui／headless entry kind mismatch、world_spaceのnon-world entry、spatial type ref kind／version／Contract set mismatch、required anchor欠落、stale World／Topology／Space／Edge／Anchor、spatial destination hash mismatch、session_end payloadを各単独原因で拒否し、source Stage／World／Project revisionを不変にする。
 
 ## 12. Save identityとmigration
 

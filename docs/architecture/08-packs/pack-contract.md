@@ -89,9 +89,16 @@ PackManifestV1
 
 `minimum_engine_contract_ref`は利用可能性の証拠ではない。active TargetでEngine contract、required Capability、Feature Pack closure、Validator、Test、Qualification Receiptがすべて解決して初めてPackを適用できる。
 
-`validator_refs[]`と`test_scenario_refs[]`はPack artifact内のinventory、identity resolution、owner／hash検査の一覧であり、列挙した全Validator／Fixtureを全Recipe共通の実行gateにしない。Pack installは全recordのschema、owner、version、hashを検証するが、Project apply／Cook／Qualificationの実行gateは選択Recipeの`validator_refs[]`と`qualification_fixture_refs[]`だけである。Manifest inventoryに存在しても未選択Recipe専用Validator／Fixture、その条件Capability、依存Packをactive closureへ追加しない。
+`validator_refs[]`と`test_scenario_refs[]`はPack artifact内のinventory、identity resolution、owner／hash検査の一覧であり、列挙した全Validator／Fixtureを全Recipe共通の実行gateにしない。Pack installは全recordのschema、owner、version、hashを検証するが、Project apply／Cook／Qualificationの実行gateは選択Recipeの`validator_refs[]`とexact signed `qualification_receipt_refs[]`だけである。Fixture bodyは別owner-typed Qualification recordだけが解決し、Production Recipe／Runtime Packageは解決しない。Manifest inventoryに存在しても未選択Recipe専用Validator／Fixture、その条件Capability、依存Packをactive closureへ追加しない。
 
-Pack activation transactionは`PackManifestV1.authoring_operation_refs[]`、active MCD Contract set内でownerが当該PackのOperation LocalRef集合、`TrustedServiceLocalRecordV2.allowed_operation_local_refs[]`へ当該Packが寄与する集合の三者をID／versionでset equalityにする。missing／extra／duplicate／wrong kind／stale version／hash、Service allowlistだけのOperation、ManifestだけのOperationを一件でも検出したらset rootを発行しない。Pack removalも同じtransactionで三集合からexact subsetを除去し、別Pack／Coreのallowlistを変更しない。Validator closureのreachable error集合、Manifest Validator inventory、Operation `errors[]`も対応ownerごとにset equalityを検査する。
+Pack activation transactionは`PackManifestV1.authoring_operation_refs[]`、active MCD Contract set内でownerが当該PackのOperation LocalRef集合、`TrustedServiceLocalRecordV2.allowed_operation_local_refs[]`へ当該Packが寄与する集合の三者をID／versionでset equalityにする。missing／extra／duplicate／wrong kind／stale version／hash、Service allowlistだけのOperation、ManifestだけのOperationを一件でも検出したらset rootを発行しない。Pack removalも同じtransactionで三集合からexact subsetを除去し、別Pack／Coreのallowlistを変更しない。
+
+Validator gateは異種集合を混ぜず、次の二equalitiesを独立に検査する。
+
+1. `PackManifestV1.validator_refs[] = Validator Registryの当該Pack owner record subset`（Validator ID／version／content hash）。
+2. 各Operationについて`OperationValidatorClosureV1.validator_refs[]が宣言するValidator error_refs[] union = closure.reachable_error_refs[] = McdOperationContractV1.errors[]`（Diagnostic ID／code／version／content hash）。
+
+Manifest Validator inventoryをDiagnostic集合、closure reachable error集合をValidator inventoryと比較しない。一方だけの成功を他方へ読み替えず、missing／extra／duplicate／stale refを各gateで別Diagnosticにする。
 
 ### 3.1 `CompositionRecipeV1`
 
@@ -110,11 +117,26 @@ CompositionRecipeV1
   action_role_set_refs[]
   source_template_refs[]
   validator_refs[]
-  qualification_fixture_refs[]
+  qualification_receipt_refs[]:
+    exact {receipt_id, receipt_version, receipt_content_hash}
   fallback_recipe_ref: CompositionRecipeRef | null
+
+PackRecipeQualificationRecordV1
+  qualification_id
+  qualification_version: positive uint32
+  qualification_content_hash: SHA-256
+  owner_pack_ref: exact PackContractRefV1
+  recipe_ref/hash: exact CompositionRecipeV1
+  target_profile_refs[1..64]
+  fixture_refs[1..256]:
+    exact {fixture_id, fixture_version, fixture_content_hash}
+  input_closure_hash
+  result: pass | fail
+  signed_receipt:
+    exact MirakanSignedRecordV1(purpose=pack_recipe_qualification)
 ```
 
-`recipe_hash`は自己Fieldを除くcanonical recordのSHA-256であり、所有Packの`content_hash`へ含める。全arrayはexact identityのcanonical orderとし、unknown、duplicate、self dependency、Genre Pack ref、Project／FixtureへのProduction dependency、version／hash conflictを拒否する。`validator_refs[]`／`qualification_fixture_refs[]`はこのRecipe選択時だけapply／qualification gateになり、別RecipeのPerception、Stage、full-profile fixture等を要求しない。`fallback_recipe_ref`は同じowner Pack内のRecipeだけを指し、fallback cycleを拒否する。fallbackは元RecipeのGameplay意味を暗黙変更せず、Projectが明示選択した時だけ別のdependency closureを解決する。
+`recipe_hash`は自己Fieldを除くcanonical recordのSHA-256であり、所有Packの`content_hash`へ含める。全arrayはexact identityのcanonical orderとし、unknown、duplicate、self dependency、Genre Pack ref、Project／FixtureへのProduction dependency、version／hash conflictを拒否する。`validator_refs[]`／`qualification_receipt_refs[]`はこのRecipe選択時だけapply／qualification gateになり、別RecipeのPerception、Stage、full-profile Fixture等を要求しない。ProductionはReceiptのsubject／owner／Recipe／Target／result／freshnessだけを検証し、`PackRecipeQualificationRecordV1.fixture_refs[]`を解決しない。`fallback_recipe_ref`は同じowner Pack内のRecipeだけを指し、fallback cycleを拒否する。fallbackは元RecipeのGameplay意味を暗黙変更せず、Projectが明示選択した時だけ別のdependency closureを解決する。
 
 選択Recipe `R`のeffective Feature closureは、所有Manifestの`required_feature_pack_refs[]`、`R.required_feature_pack_refs[]`、両集合から到達するFeature Pack DAGの和集合である。resolverは次を生成する。
 
@@ -191,18 +213,22 @@ Shooter Genre Packを未installまたは削除した状態でも、Core、Editor
 
 ## 7. AI discoveryとoperation
 
-AIは自然言語からPack IDを推測してcommitしない。MCDへ次のexact Operationを登録し、同じValidation、Staging、Approval、ReceiptをEditor内AI、local inference、cloud Provider、外部MCP Client、CLIへ適用する。
+AIは自然言語からPack IDを推測してcommitしない。本節で従来name-onlyに列挙した八actionは完全なMCD登録を持たないため、current Operation setを空にしてCapability stateを`not_activated`とする。current MCD、Pack Manifest、Trusted Service allowlist、Provider／MCP Catalogから除外し、旧`operation.packs.*`名をlegacy aliasとして読まない。
 
-- `operation.packs.search`
-- `operation.packs.read`
-- `operation.packs.resolve_dependencies`
-- `operation.packs.explain_composition`
-- `operation.packs.plan_apply`
-- `operation.packs.preview_apply`
-- `operation.packs.validate`
-- `operation.packs.plan_remove`
+```text
+Current generic Pack AI Operation set = {}
+Future vocabulary:
+  future.packs.action.search
+  future.packs.action.read
+  future.packs.action.resolve_dependencies
+  future.packs.action.explain_composition
+  future.packs.action.plan_apply
+  future.packs.action.preview_apply
+  future.packs.action.validate
+  future.packs.action.plan_remove
+```
 
-依存、影響、migration、fallbackの説明は`pack_id`、`pack_version`、`content_hash`、Capability ID、Feature Pack edge、Project revisionを含む。Strict Tool Callingに適合しないProviderはread-onlyまたはproposal-onlyとし、自然言語をCommit Operationへ推測変換しない。
+要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でProject／Pack registry不変として拒否する。future work item `activation.pack.ai_operations.v1`は採用するexact Operation set、MCD全Field、named input／result、Service／Policy／Validator／Diagnostic／Receipt、Risk、authorization intent DAG、private-to-public recovery、Qualificationを同じContract set transactionで完全登録するまでactivateしない。将来の依存、影響、migration、fallbackの説明は`pack_id`、`pack_version`、`content_hash`、Capability ID、Feature Pack edge、Project revisionを含め、Strict Tool Callingに適合しないProviderをCommit Operationへ推測変換しない。
 
 ## 8. Diagnosticとfixture
 

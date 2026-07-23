@@ -234,6 +234,33 @@ Perception pipelineはT30 candidate／query build、T50 query execution、T60 no
 
 `StructuralCommand`は次boundary、`SimulationCommand<P>`は型が宣言するconsume phase、`PresentationCommand`はpresentation build前にseal済みなら同tick、それ以外は次presentation frameへ送る。`AuthoringChangeSet`をRuntime tickへ適用しない。任意phase名、同Subsystem同期再入、implicit last-write-winsを許可しない。
 
+Stage、UI、headless workflowを含むDomain間遷移のgeneric deliveryはRuntime ownerの次のregistered contractだけを使う。exact MCD refは`McdContractRefV1 {id=type.runtime.boundary_delivery, version=1, contract_set_hash}`であり、T40やLocomotion、World／spatial anchorを前提にしない。
+
+```text
+BoundaryDeliveryContractRefV1
+  contract_type_ref:
+    McdContractRefV1(id=type.runtime.boundary_delivery,
+                     version=1, contract_set_hash)
+  runtime_owner_revision: positive uint64
+  contract_content_hash: SHA-256
+
+BoundaryDeliveryContractV1
+  delivery_id: StableId
+  idempotency_key: StableId
+  source_contract_ref: exact typed owner contract ref
+  destination_contract_ref: exact typed owner contract ref
+  payload_schema_ref: McdContractRefV1(kind=type)
+  sealed_payload_ref: exact typed immutable value ref
+  sealed_payload_hash: SHA-256
+  source_generation: positive uint64
+  requested_apply_tick: uint64
+  precondition_snapshot_hash: SHA-256
+  failure_policy: reject_keep_source_active
+  delivery_content_hash: SHA-256
+```
+
+`delivery_content_hash`はASCII `MIRAKAN_RUNTIME_BOUNDARY_DELIVERY_V1`と自身を除く全FieldのMCD canonical bytesを各`uint32_be` length framingしてSHA-256する。producerはT110までにrecordをsealし、Runtimeは`requested_apply_tick`の`T00_BoundaryApply`でsource generation、destination contract、payload schema／hash、preconditionを再検証してexactly once適用する。同じidempotency key＋同じhashは同じ結果を返し、別hashはconflictである。同tick recordはdestination contract ref、source contract ref、delivery IDのcanonical byte順でstrict sortし、duplicate、stale generation、unknown owner／schema、partial destination activationを拒否してsourceとlast-valid destination generationを維持する。payloadのDomain意味は各Ownerが検証し、Runtime contract自体へWorld、Scene、spatial anchor、Character、Motion Executor、UI widget、headless processのFieldまたは仮定を追加しない。
+
 ### 4.1 Clock domain、Pause、Gameplay Timer
 
 `GameClockDomainProfileV1`、Pause、Gameplay Timerは本書だけが定義するRuntime contractである。Game System、UI、Audio、Debugging／observability／replay、Save ownerはこれらを消費し、別path、alias、local bool、ad-hoc counterで同じ意味を再定義しない。C1／C2の`fixed_tick_hz`は60だけを許可し、ProfileとReplay headerへ保存する。
