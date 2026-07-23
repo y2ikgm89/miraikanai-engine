@@ -255,6 +255,18 @@ WorkPackageTaskPlanV1
 
 `execution_mode=standard`は`wp.product.production-release-binding`以外の74 WPだけに、同WPはProduct Planの全273行判定から導出した二modeだけに使う。呼出元指定、自由文字列、source／destinationでのmode取り違えを拒否する。完了Receiptは計画、source、output、Toolchain、Target、Candidate、test結果をexactに束縛する。ただしmigration-authoring modeは完了Receiptを発行せずmigrationでepochを置換する。test skip、assertion緩和、budget引上げ、別Target Receipt、古いProfile、説明文だけのpassを拒否する。
 
+### 8.1 Generic contract implementation handoff
+
+Wave 1～5でMCD compiler、Gateway、Project mutation、Pack／AI surfaceを実装するTaskは、Architecture正本のcurrent contractを次の順で実装する。
+
+1. `ContractSetSnapshotV2`のclosed local-member unionへMCD、Diagnostic、Trusted Service、Validator、Operation Validator Closureを収録し、全cross-member edgeをLocalRefで解決してからset rootと外部refをmaterializeする。
+2. 全named Operation inputは`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`の一方向DAGを使う。Approval／Predelegationをfinal request hashへbindせず、未Activationだった循環shapeのcompat readerを作らない。
+3. state-changing Operationは`Prepared -> staged postcondition -> private durable commit marker -> canonical signed wrapper -> PublicPublicationMarkerV1＋public state`だけを許可し、signed ReceiptのないProject／Registry／Runtime current headを公開しない。
+4. current MCD／Manifest／Service allowlistへ入れるのは全Field、named I/O／Receipt、Policy、Diagnostic、Validator、rate／timeout、crash recovery、Qualificationが閉じたOperationだけとする。Scenario／Stage authoring、generic Pack AI、Feature authoring、Physics／Navigation／Input selectionはcurrent `not_activated`を維持し、future activation work itemのcomplete setなしに名前だけを復活させない。
+5. Production Source／Recipe／Registry／Runtime PackageはFixture bodyを解決しない。owner-typed Qualification recordがFixture集合を所有し、Productionはexact signed Qualification Receiptだけを検証する。
+
+このhandoffは実装順序であり、文書内schemaの存在、WP checkbox、Staging artifactをEngine実装完了、Capability Activation、Target Qualification、Release／Shipping Evidenceへ読み替えない。
+
 ## 9. Release／Shipping判定
 
 現Definitionの初期状態はShipping No-Goである。理由は少なくとも次である。

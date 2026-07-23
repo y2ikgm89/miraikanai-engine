@@ -114,6 +114,7 @@ local AI対応は推奨する。ただし「モデルを同梱する」ことと
 6. **Production Release:** Target別support、signing、SBOM／provenance、rollback、device lab、critical Risk closureが必要。
 7. **External Host support:** current materialized Host／version／Transport profileは0件。少なくとも一組をPhase 5でConformanceする。
 8. **Future 23:** Dossierやprototypeは実現保証ではなく、Decision→Rebaseline→full reset→implementation→production Activation→claim releaseが必要。
+9. **Generic contract implementation:** Review 1／2で修正したclosed Contract Set compiler、intent／authorization／request DAG、private-to-public publication、World allocation、owner-typed Qualification分離は文書契約であり、Schema／Registry compiler、Gateway、signing Store、Runtime、Save／Replay、negative fixtureを後続WPで実装する必要がある。
 
 ## 7. Verification status
 
@@ -126,11 +127,25 @@ local AI対応は推奨する。ただし「モデルを同梱する」ことと
 | Active／Future／state separation | document audit pass |
 | AI profile／Host／local inference contracts | document audit pass |
 | Control Plane design consistency | independent document audit pass: Critical 0、Important 0、Design／Implementation sync差0 |
+| Task 2 Review 1／2 contract remediation | checkpoint commits `efee59f`／`bb49a46`／`76d1aa0`へ反映。全scope auditと独立read-only再Reviewはfinal closure前の必須gate |
 | Markdown links／anchors／tables／fences／encoding／patch whitespace | repository-wide 67 Markdown audit pass |
 | Engine build／tests／device qualification | not run; implementation absent |
 | Capability／Release Receipt | 0 current implementation receipts |
 
 最終機械ReceiptはMarkdown 67件、表448件、Product WP DAG 75/75、Future DAG 23/23、Activation 273行、Content ID 32件、追加Control Plane契約29型を検査した。encoding／fence／local link／anchor／table alignment／ID duplicate／DAG／scope／Owner／Design–Implementation集合／旧仕様語／patch whitespaceの問題は0件である。
+
+### 7.1 Task 2 Review 1／2 remediation（2026-07-24）
+
+対象rangeは`0386626a95f1534389cb4f2a6ec71ff254d06b68..0e08066905a9719664a0e97d33b4aad976a72c26`である。Independent Review 1 `Critical 9／Important 5／Minor 2`、Independent Review 2 `Critical 11／Important 11／Minor 3`とcontroller追加要件を統合し、次をArchitecture正本へ反映した。
+
+- 認可はreceipt-free `operation_intent_hash`を先に作り、Approval／Predelegationを同hashへbindし、binding確定後にfinal `request_hash`を作る。循環形V2は未Activationであったため互換readerを作らない。
+- Contract Set rootはMCDだけでなくDiagnostic、Trusted Service、Validator、Operation Validator Closureの全normative local memberをhashする。
+- public stateはprivate durable marker、canonical `MirakanSignedRecordV1` wrapper、Public Markerの順でのみ可視化する。Domain独自inline signature、unsigned payload authority、alternate signature、public後rollbackを許可しない。
+- Production recordからFixture body refを除き、別owner-typed Qualification recordのexact signed Receiptだけをconsumeする。`owner_layer`とexact owner refでCore／Feature／Genre／Project dependency legalityを検証する。
+- World Stable-ID allocationは完全登録したinternal Gateway Operationへ、Scenarioはreceipt-free candidate＋三owner／五gate Receipt DAGとgeneric T00 deliveryへ、Shooterはexact八Validator inventoryと三Operation各17 Diagnostic closureへ閉じた。
+- 完全登録できないScenario／Stage authoring、generic Pack AI、Feature authoring、Physics／Navigation／Input selectionはcurrent Manifest／Catalog／allowlistから除外し`not_activated`とした。旧name-only IDをcurrent aliasとして読まない。
+
+checkpoint 3のfresh assertionsは`19/19 PASS`、対象Scenario／Packのconcrete name-only current Operationは`0`、Shooterのunexpected Operation familyは`0`、対象五文書のunbalanced fenceは`0`、`git diff --check`は`PASS`である。これは文書契約の検査結果であり、Engine実装、Capability Activation、Target Qualification、Release／Shipping Receiptではない。全scope auditと二つの独立read-only再Reviewが終わるまでTask 2 final closureを主張しない。
 
 `PASS`をEngine動作、性能、安全性、商用品質の証明へ拡張しない。
 

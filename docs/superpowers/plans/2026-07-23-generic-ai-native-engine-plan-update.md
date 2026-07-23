@@ -127,7 +127,7 @@ entry／selector／policyのcreate／updateとroot migrationの七Operation、Sc
 
 `WorldAuthoringPlanV1.affected_world_refs`は既存編集1～64件、新規World作成kind厳密1件のbranchだけ0件を許可する。`WorldAuthoringContextV1`はCommit後だけexact World ref付きで生成する。`StageDefinitionV1.world_ref`をrequired nullableにし、world branchだけanchor／spatial spawnを許可する。WorldなしDialogue／Visual Novel／UI workflowとheadless StageのSave／Replay／transition fixtureを追加する。
 
-`ProceduralWorldDefinitionV1`／`WorldAuthoringPlanV1`／precommit `GeneratedWorldSemanticCandidateV1`へexact Binding Document ref/content hashと別`resolved_binding_closure_hash`、output schemaを伝播する。fresh 3-runはGateway／Broker call 0件でlocal-ID正規化graph bytes、order、`semantic_graph_hash`、candidate Artifact semantic hashだけを比較する。合格後にGatewayを一度だけ呼び、local ID全件と`delta_id`を一つのallocation Manifest／Receiptで発行し、Source／validation／Preview／Cook／Commitが同じmappingを共有する。二回目allocation、local ID残存、各hash単独tamperを拒否する。truth table五fixture、last-valid維持、明示選択generic hard closure、World-owned spatial destinationを維持する。
+`ProceduralWorldDefinitionV1`／`WorldAuthoringPlanV1`／precommit `GeneratedWorldSemanticCandidateV1`へexact Binding Document ref/content hashと別`resolved_binding_closure_hash`、output schemaを伝播し、Production recordはFixture bodyでなくowner-typed Qualification Receiptだけを参照する。fresh 3-runはGateway／Broker call 0件でlocal-ID正規化graph bytes、order、`semantic_graph_hash`、candidate Artifact semantic hashだけを比較する。candidate hashへexact `{project_id, expected_project_revision, document_set_hash}`とcountを含め、caller-issued request IDをintent subjectへ入れる。合格後は完全登録したinternal `operation.world.allocate_generated_stable_ids@1`を一度だけ呼び、Manifest／prepared Receipt／Publication State／Public Markerが同じcandidate／Project triple／intent／requestと`allocated_uuid_count=local_id_count+1`をbindする。private Marker→canonical signed wrapper→Public Marker＋Projectの順で、local ID全件と`delta_id`を一つのpublicationへ閉じる。Source／validation／Preview／Cook／Commitが同じmappingを共有し、二回目allocation、partial publication、local ID残存、各hash単独tamperを拒否する。truth table五fixture、last-valid維持、明示選択generic hard closure、World-owned spatial destinationを維持する。
 
 Stage transitionはDestination V2六kind、Policy V1、Request V2、Port V2へ固定する。RequestはPolicy ref／hashだけを持ちdestinationを複製しない。ui／headless／world-spaceはexact Runtime Entry ref／payload hashを通し、world-spaceだけWorld-owned spatial destination MCD refを追加する。Policy／Request／Destination／Port inventory、六kind round-trip、branch外Field、missing anchor、stale World／Space／Edge／hash fixtureを閉じる。
 
@@ -145,7 +145,7 @@ Common Interaction汎用化とRecipe gateを維持する。Shooter target provid
 
 Navigationを7 Field `MotionExecutorPortV1`、Provider-neutral Catalog／record、`MotionExecutorProviderRecordRefV1`、exact transport batchの唯一Ownerにする。RecordRefはCatalog ref/version/hashとprovider ID/version/content hashをbindし、Batch／Selection State／Save／Replayで一意に使う。Physics productionも同refを使い、stale Catalog／provider hash、fixture-in-productionを拒否する。
 
-`GameSystemSpecV2`へ`emitted_port_message_type_refs`を持たせ、Character bindingのMCD Envelope、2 Feature type、role／3 requirement／dependency／policy／Save Replay／budget／fixture／3 invariantをFeature ownerでexact解決する。Characterはproposal／adapter contributionだけを所有し、Navigation／Core-owned `game_system.engine.navigation.motion_intent_batch_publisher`が全owner contributionをcanonical mergeしてBatchを一度だけ発行する。Coreはgeneric motion contribution／selected executor Portを所有し、Character adapter／Provider binding／fixtureをPackへ置く。BatchをEventにしない。Scenario Stageは`StageTransitionCrossOwnerReachableClosureV1`がStage／World／Runtime rootからowner別Validation Receipt付きでmaterializeしたdestination／request／policy／World spatial destination／port messageのexact 5件へ閉じ、Runtime delivery contractを六件目として混ぜない。public／runtime／global MCD／Port closure／aggregateを別々のlike-for-like gateで検証する。MCD IDはcanonical `<kind>.<lower-token-path>`、version separateへ統一する。
+`GameSystemSpecV2`へ`emitted_port_message_type_refs`を持たせ、`game_system.extension.feature.character_locomotion.contribution`のMCD Envelope、2 Feature type、role／3 requirement／dependency／policy／Save Replay／budget／Qualification／3 invariantを`owner_layer=feature_pack`とexact Feature owner refで解決する。Characterはproposal／adapter contributionだけを所有し、Navigation／Core-owned `game_system.engine.navigation.motion_intent_batch_publisher`が全owner contributionをcanonical mergeしてBatchを一度だけ発行する。Coreはgeneric motion contribution／selected executor Portを所有し、Character adapter／Provider binding／FixtureはPack-owned Qualification recordへ置く。BatchをEventにしない。Scenario StageはReceipt-free `StageTransitionCrossOwnerCandidateV1`を先にhashし、三owner Receiptと五gate Receiptを同じcandidateへ発行してからfinal closureを作る。Receiptはfinal closure hashを署名対象に戻さない。destination／request／policy／World spatial destination／port messageのexact 5件とRuntime `BoundaryDeliveryContractV1`を分離し、sealed payloadをT00で配送する。public／runtime／global MCD／Port closure／aggregateを別々のlike-for-like gateで検証する。Scenario authoringはcurrent set／Manifestを空、Capabilityを`not_activated`とし、MCD IDはcanonical `<kind>.<lower-token-path>`、version separateへ統一する。
 
 Physics AI Coreはbehavior-neutralな`PhysicsIntentRoleRegistryV1`の六つの完全なrole recordを所有し、Project Sourceの`PhysicsIntentRoleSelectionDocumentV1`が選択を固定する。object／Genre role、default mapping、adapter／fixtureはPack／Project ownerへ移す。role Refとmotion／collision／hit／shape／speed axisを独立検証し、旧object enumは完全なmigration contribution Registry、MCD Operation、Validator、Prepared payload、外側Receipt、Manifestを介してexact一件へ一意解決できる時だけ移行する。Performanceのcurrent正本は`ProjectScaleEnvelopeV2`であり、`WorkloadDomainTypeRegistryV1`とowner-typed `WorkloadDomainIntentV1`を束ねる。World／spatialは`required`なら必須、全domainが`forbidden`なら禁止、`optional`だけならnull／exact World intentの双方を許し、UI-only、strict headless、tooling、resource-onlyを偽World／Gameplay floorなしで有効とする。旧V1はoffline migration inputだけに残し、Project EnvelopeとIntegrated fixtureはowner-typed全dimension、measurement schema、unit、fidelity／equivalence／functional contract／resource SLO、fixture closureを同時に検査する。
 
@@ -240,7 +240,7 @@ git commit -m "docs: generalize cadence pause and platform semantics"
 
 **Interfaces:**
 - Consumes: `PackManifestV1`、Runtime Entry、Scope、Cadence。
-- Produces: `GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`、`AiCatalogEntryV1`、`AiTaskContextCapsuleV1`、`operation.packs.*`、holdout Eval。
+- Produces: `GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`、`AiCatalogEntryV1`、`AiTaskContextCapsuleV1`、exact 8 Pack AI Operationの完全登録／atomic activation、holdout Eval。
 
 - [ ] **Step 1: Register field-level game understanding inputs**
 
@@ -252,7 +252,18 @@ Executable ContractsへDesign §8の`AiCatalogEntryV1`全FieldとContract compil
 
 - [ ] **Step 3: Add Pack Discovery operations**
 
-8個の`operation.packs.*`をRisk、input identity、side effect、Receipt／result、failure Diagnostic付きで登録する。Search／read／explainはread-only、plan／preview／validate／removeはProject ChangeSetを直接CommitせずProposal／Stagingだけを生成する。
+preconditionはcurrent Pack AI Operation setが空、Capabilityが`not_activated`であることとする。Task 4は`activation.pack.ai_operations.v1`で次のexact八件を一つのpostcondition setとして登録する。
+
+- `operation.packs.search`
+- `operation.packs.read`
+- `operation.packs.resolve_dependencies`
+- `operation.packs.explain_composition`
+- `operation.packs.plan_apply`
+- `operation.packs.preview_apply`
+- `operation.packs.validate`
+- `operation.packs.plan_remove`
+
+各OperationのMCD全Field、named input／Result、Service allowlist、Risk、side effect、idempotency、transaction、pure pre／post Policy、closed Diagnostic、Validator closure、rate／timeout、canonical signed Receipt、intent→authorization→request DAG、private Marker→signed wrapper→Public Marker recovery、Qualificationを同じContract set transactionへ完全登録し、Manifest exact八件、Pack owner MCD subset、Service contributionをset equalityにできた場合だけ八件をatomic activateする。一件でも不完全なら八件すべてをempty／`not_activated`のまま維持し、部分登録、名前だけのCatalog entry、自然言語からのidentity推測を許可しない。
 
 - [ ] **Step 4: Add bounded task context**
 
@@ -267,11 +278,13 @@ AI VerificationとProduct Phase Gateへturn-based zero-character、endless conti
 Run:
 
 ```powershell
+rg -n 'Current generic Pack AI Operation set = \{\}|Capability stateを`not_activated`' docs/architecture/08-packs/pack-contract.md
 rg -n 'GameIntentDraftV1|GameBriefV1|GameSpecDocumentV1|AiCatalogEntryV1|AiTaskContextCapsuleV1|operation\.packs\.(search|read|resolve_dependencies|explain_composition|plan_apply|preview_apply|validate|plan_remove)' docs/architecture --glob '*.md'
+rg -n 'MutationAuthorizationBindingV2|PublishedDomainReceiptV2|PublicPublicationMarkerV1|OperationValidatorClosureV1|activation\.pack\.ai_operations\.v1' docs/architecture --glob '*.md'
 git diff --check
 ```
 
-Expected: 5 Schema名と8 Operationが各canonical ownerに存在し、`git diff --check` exit 0。
+Expected before Task 4: Pack Contractのcurrent setは空、Capabilityは`not_activated`。Expected after Task 4 candidate validation: 5 Schema名とexact八Operationがcanonical ownerに存在し、各MCD／Service／Policy／Validator／Diagnostic／Receipt／DAG assertionがpassする。activation transaction後はManifest八件 = Pack owner MCD八件 = Service contribution八件で、empty-set assertionをexact-eight assertionへ置換する。一件でも不一致ならtransactionを発行せずbefore stateを維持する。`git diff --check` exit 0、旧循環request shapeのcompat reader 0。
 
 Commit:
 
@@ -399,28 +412,19 @@ git commit -m "docs: complete generic engine plan audit"
 - Work branch: `codex/plan-review-closure`
 - Completion requires: Tasks 1～6 reviewed、full link／identity／dependency／count audit current、`git diff --check` exit 0。
 
-### Task 2 independent audit closure（2026-07-23）
+### Task 2 Review 1／2 remediation record（2026-07-24）
 
-- Audit base: `0386626a95f1534389cb4f2a6ec71ff254d06b68`
-- Scope: Critical 3／Important 7／Minor 2の文書契約closure。Engine実装、Capability activation、Shipping readinessは未主張。
-- Closed roots: Diagnostic／Service／Policy／Operation Registry、八Operation reachable-error equality、generic Scope migration contribution、current `GameSystemSpecV2`、auxiliary set、Selector hash、Stage exact-five／five-gate、World precommit three-run／single allocation、Shooter Registry／three Operation、root Receipt union、Physics neutral Role Registry、owner-typed Scale Dimension Registry。
-- Fresh contract assertions: `35/35 PASS`。
-- Core→Pack forbidden exact ref、old active contract identity、Physics object／Genre hardcode、Performance旧Genre scale field: 各`0`。
-- MCD common envelope `11`件、typed ref `9`件のlogical ID grammar failure: `0`。
-- 全Markdown `71`件、relative local link `1,478`件、fragment `143`件、missing path／fragment `0`、unbalanced fence `0`。
-- `git diff --check`: `PASS`。一時監査planはcommit対象から削除済み。
-
-### Task 2 final contract-DAG／genericity closure（2026-07-23）
-
-- Audit base: `ace0913249db5e1d664dfa6bc645ee5ba2613b5d`
-- Scope: final re-auditのCritical／Important／Minor指摘とpost-Marker crash recovery。Engine実装、Capability activation、Shipping readinessは未主張。
-- Contract set: `ContractSetLocalRefV1`→self-excluding local record hash→sorted set root→外部MCD／Service／Validator refの一方向生成へ統一し、Operation／Service／Validator closureの相互edgeをLocalRefだけにした。
-- Commit: `PreparedCandidateV1` content identity、Prepared Envelope、staged postcondition、state＋Prepared payload＋Marker publish、readback、外側signed Receipt／Resultへ閉じた。Marker後crashはcanonical materialization-key payloadとdeterministic signing policyのatomic put-if-absentでexact一回回復し、別署名／二重Receipt／rollbackを禁止した。
-- Request: V2式の正本をExecutable Contracts一箇所だけにし、project-bound／projectlessとも選択input schemaの実在Fieldをencodeする。V1はread-only offline migration record／candidateだけで、未登録Operation IDを作らない。
-- Generic runtime: owner-typed `ProjectScaleEnvelopeV2`、optional spatial semantics、六Physics Role＋Selection／migration、Navigation-owned generic motion publisher、Input type-role＋Selection、Shooter Source Selection／Derived Registry、Stage cross-owner exact-five、Root Scene exact-four planを正本化した。
-- Manifest: Pack Operation／Validator／migration／test inventoryとTrusted Service allowlist contributionをexact version／hash／LocalRef set equalityへ閉じた。
-- Fresh contract assertions: `27/27 PASS`。Shooter Operation `3/3`×Diagnostic `17/17`、initial Validator `22/22`、Physics Role `6/6`、Target Selector createのdefault-ambiguous error `0`。
-- Core→Pack exact hard dependency `0`、invalid `McdContractRefV1` kind `0`、旧current alias／省略error／Receipt循環の禁止pattern `0`。
-- 全Markdown `71`件、relative local link `1,482`件、fragment `147`件、missing path／fragment `0`、unbalanced fence `0`。
-- `git diff --check`: `PASS`。
-- Remaining risk: Schema／Registry compiler、Gateway、deterministic signing Store、Runtime、Save／Replay、Build、Target実機qualificationは後続実装／conformance testが必要である。
+- Reviewed input range: `0386626a95f1534389cb4f2a6ec71ff254d06b68..0e08066905a9719664a0e97d33b4aad976a72c26`。
+- Review input: Independent Review 1 `Critical 9／Important 5／Minor 2`、Independent Review 2 `Critical 11／Important 11／Minor 3`、controller／review-controller追加要件。重複findingは一つのroot contract修正へ統合し、重要度を相殺しない。
+- Checkpoint commits:
+  - `efee59f`: intent→authorization→request、closed Contract Set member root、private marker→canonical signed wrapper→public marker。
+  - `bb49a46`: owner layer／Feature namespace、Production–Fixture分離、Physics／Navigation／Input／Performance／Runtime Scopeのtyped contract。
+  - `76d1aa0`: World Stable-ID完全Operation、Scenario receipt-free candidate／T00 delivery、Shooter Validator 8-record equality、Pack Validator equality。
+- Authorization: `MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`へ固定した。Approval／Predelegationはintent hashだけへbindし、final request hashとの固定点を作らない。循環形V2は未Activationだったため同versionを修正し、Task 4はcompat readerを実装しない。
+- Contract／publication: MCD、Diagnostic、Trusted Service、Validator、Operation Validator Closureをclosed local-member unionへ含め、root確定後だけ外部refをmaterializeする。state mutationは`Prepared -> staged postcondition -> private durable marker -> PublishedDomainReceiptV2／MirakanSignedRecordV1 -> PublicPublicationMarkerV1＋public state`だけを許可する。
+- Honest activation: World Stable-ID、Runtime Entry／Scope、Performance migration、Physics migration、Shooter target-provider三件は完全recordをcurrentに維持する。Scenario／Stage authoring、generic Pack AI、Feature authoring、Physics／Navigation／Input selectionはcurrent set／Manifest／allowlistから除外し`not_activated`とした。旧name-only IDをaliasとして読まない。
+- Genericity／ownership: Production recordからFixture body refを除きowner-typed Qualification Receiptへ分離した。Feature／Genre／Projectをtyped `owner_layer`とexact owner refで検証し、Feature Systemを`game_system.extension.feature.*`へ置いた。Navigation Core publisherだけがcanonical motion batchを発行する。
+- World／Scenario／Shooter: World candidateからPublic Markerまで一つのProject triple／candidate／count／request identityへ閉じた。Scenarioはreceipt-free candidate→三owner Receipt＋五gate Receipt→final closureとし、generic T00 boundary deliveryを使用する。Shooter Manifest Validator inventoryとShooter owner Registry subsetをexact八件、各OperationのValidator error union／reachable errors／`errors[17]`を別gateで一致させた。
+- Checkpoint 3 fresh assertions: `19/19 PASS`、Scenario／Pack concrete name-only current Operation `0`、Shooter unexpected Operation family `0`、対象五文書のunbalanced fence `0`、`git diff --check` `PASS`。
+- Current disposition: 文書契約remediationはcheckpointへ反映済み。全scope assertion／Markdown link・fragment検査と二つの独立read-only再Reviewを完了するまでTask 2 final closureとは扱わない。
+- Non-claim: Engine implementation、Schema／Registry compiler、Gateway、signing Store、Runtime、Save／Replay、Build、Target実機Qualification、Capability Activation、Release／Shipping readinessは未実施・未主張である。判定は`planning_go / implementation_and_shipping_no_go`を維持する。

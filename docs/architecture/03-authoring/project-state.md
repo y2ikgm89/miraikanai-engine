@@ -523,13 +523,14 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`state=predicted`、現在のPlanでは未達なら`state=blocked`と登録済み`blocked_reason_ref`を候補revisionへ記録する。`qualified`は予測から生成せず、同じ`input_closure_hash`へ束縛されたfresh統合負荷Receiptを照合できた場合だけ維持する。未校正workload envelopeは`blocked_reason_ref=performance_envelope_unqualified`とする。
 9. Domain dry-runと必要なbackground validation artifactのhashを照合し、Preview／Validation／Domain Receiptの未発行payloadを作る。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`として候補へ記録する。
 10. `PreparedCandidateRefV1`、未発行Receipt payload、予定after stateを束ねた`PreparedCommitEnvelopeV1`を作り、その不変bytesだけへpostcondition v2を評価して`StagedPostconditionReceiptV1`を得る。
-11. 変更Document、inverse Operation、manifest、journal record、全Receipt payload、Commit Marker payloadを同一temporary transaction directoryへ書き、全fileをflushする。
-12. transaction manifestを最後に原子的renameし、after state、Document index、Receipt payload、`AtomicCommitMarkerV1`を一つのcommit pointでpublishする。MarkerなしのstateまたはReceiptは公開済みと見なさない。
-13. Markerをdurable storeからreadbackし、published after-state hash、全Prepared Receipt payload hash、request hash、staged postcondition Receipt hashのexact equalityを確認する。その後にだけPrepared payload ref／hashとMarker ref／hashを束縛した外側signed Domain Receiptを生成し、そのReceipt ref／hashをdomain Resultで返す。
-14. `AuthoringContextIndexV1`の旧revisionをstaleにし、変更Shardと参照closureの更新Jobを発行する。
-15. Projectionへ`ProjectRevisionCommitted` eventを値として配送する。
+11. 変更Document、inverse Operation、manifest、journal record、全Prepared Receipt payload、staged after state、`PrivateDurableCommitMarkerV1` payloadを同一temporary transaction directoryへ書き、全fileをflushする。
+12. transaction manifestを外部readerから到達不能なprivate durable namespaceへ最後に原子的renameし、private Markerをcommit decisionとしてreadbackする。この時点でlive Project head、Document index、公開Receipt、provider-visible Resultを変更しない。
+13. private Marker、Prepared Envelope、全Prepared Receipt payload、request hash、staged postcondition Receipt hashのexact equalityを確認し、Executable Contracts §8.1の固定materialization key／issued-at／revocation snapshot／key context／deterministic signing profileでcanonical `PublishedDomainReceiptV2`／`MirakanSignedRecordV1` wrapperをreceipt storeへput-if-absentする。
+14. signed wrapperをreadbackした後だけ、`PublicPublicationMarkerV1`、after Project head、Document indexを同じexpected predecessorに対する一つのpublic CASでpublishし、Public Markerとsigned Receipt ref／hashをdomain Resultで返す。
+15. `AuthoringContextIndexV1`の旧revisionをstaleにし、変更Shardと参照closureの更新Jobを発行する。
+16. Projectionへ`ProjectRevisionCommitted` eventを値として配送する。
 
-1～10の失敗はlive stateと公開Receiptを変更しない。11～12でProcessが停止した場合、次回起動時にtransaction manifest、file hash、journal record、Commit Markerの四者を検査し、完全なtransactionだけをroll-forwardする。不完全なtemporary directoryまたはMarkerなしpayloadは隔離後に非公開廃棄し、勝手に部分復旧しない。Markerがdurableだが外側signed Receiptが未保存の場合はExecutable Contracts §8.1の`receipt_materialization_key`とmaterialization policyを使い、Marker／Prepared payload／after stateをread-backしてexact一度だけReceiptをmaterializeする。既存Receiptはbyte equalityで再利用し、別署名、二重Receipt、overwrite、state rollbackを禁止する。postconditionはCommit Markerや公開Receiptを入力にしないため、postcondition↔Commit Receiptの循環を作らない。
+1～10の失敗はlive stateと公開Receiptを変更しない。11～12でProcessが停止した場合、次回起動時にprivate transaction manifest、file hash、journal record、private Markerの四者を検査し、完全なtransactionだけをroll-forwardする。不完全なtemporary directoryまたはMarkerなしpayloadは隔離後に非公開廃棄し、部分復旧しない。private Markerがdurableだがsigned wrapperが未保存の場合は同じimmutable preimageからbyte-identical wrapperをexact一度だけmaterializeし、wrapper保存後かつPublic Marker前のcrashは同じexpected predecessorへpublic CASをroll-forwardする。既存wrapperはbyte equalityで再利用し、alternate signature、二重publication、overwrite、public後rollbackを禁止する。postconditionはprivate／public Marker、signed Receipt、公開後stateを入力にせず、private Marker、unsigned payload、receipt-store単独存在をpublic authorityにしない。
 
 ### 5.4 System／World Bundle
 

@@ -706,7 +706,8 @@ SystemBundleChangeSetV1
   contract_changeset_hashes[]
   asset_changeset_hashes[]
   migration_artifact_hashes[]
-  test_fixture_hashes[]
+  qualification_receipt_refs[]:
+    exact owner-typed signed Qualification Receipt ref/version/content hash
   implementation_plan_hashes[]
   code_owner_assignment_refs[]
   code_owner_approval_refs[]
@@ -716,7 +717,7 @@ SystemBundleChangeSetV1
   risk_class
 ```
 
-Bundle／ProjectはUUIDv7 `StableId`、Systemはexact `GameSystemContractRefV1`、ChangeSet／Artifact／PlanはSHA-256で参照する。Source本文、Asset binary、巨大JSONを埋め込まず、Staging artifact hashとBroker管理relative pathだけを参照する。全参照は同じProject、Contract set、base revisionへ解決しなければならない。
+Bundle／ProjectはUUIDv7 `StableId`、Systemはexact `GameSystemContractRefV1`、ChangeSet／Artifact／PlanはSHA-256で参照する。Source本文、Asset binary、巨大JSONを埋め込まず、Staging artifact hashとBroker管理relative pathだけを参照する。Fixture bodyはowner-typed Qualification recordだけが解決し、Bundleはsigned Receiptのsubject／owner／System／Target／input closure／result／freshnessだけを検証する。全参照は同じProject、Contract set、base revisionへ解決しなければならない。
 
 ```text
 Draft -> Resolved -> Staged -> Validating
