@@ -82,7 +82,45 @@ PackManifestV1
 
 `minimum_engine_contract_ref`は利用可能性の証拠ではない。active TargetでEngine contract、required Capability、Feature Pack closure、Validator、Test、Qualification Receiptがすべて解決して初めてPackを適用できる。
 
-### 3.1 Feature Pack
+### 3.1 `CompositionRecipeV1`
+
+Pack全体で常時必要なFeature dependencyと、選択したcompositionだけが必要なFeature dependencyを分離する。`PackManifestV1.required_feature_pack_refs[]`は全Recipe共通のunconditional edge、`CompositionRecipeV1.required_feature_pack_refs[]`は当該RecipeをProjectへ適用する時だけ有効なconditional edgeである。
+
+```text
+CompositionRecipeV1
+  recipe_id
+  recipe_version
+  recipe_hash
+  owner_pack_ref
+  required_capability_refs[]
+  required_feature_pack_refs[]
+  configuration_profile_refs[]
+  game_spec_template_refs[]
+  action_role_set_refs[]
+  source_template_refs[]
+  validator_refs[]
+  qualification_fixture_refs[]
+  fallback_recipe_ref: CompositionRecipeRef | null
+```
+
+`recipe_hash`は自己Fieldを除くcanonical recordのSHA-256であり、所有Packの`content_hash`へ含める。全arrayはexact identityのcanonical orderとし、unknown、duplicate、self dependency、Genre Pack ref、Project／FixtureへのProduction dependency、version／hash conflictを拒否する。`fallback_recipe_ref`は同じowner Pack内のRecipeだけを指し、fallback cycleを拒否する。fallbackは元RecipeのGameplay意味を暗黙変更せず、Projectが明示選択した時だけ別のdependency closureを解決する。
+
+選択Recipe `R`のeffective Feature closureは、所有Manifestの`required_feature_pack_refs[]`、`R.required_feature_pack_refs[]`、両集合から到達するFeature Pack DAGの和集合である。resolverは次を生成する。
+
+```text
+RecipeDependencyClosureV1
+  selected_recipe_ref
+  owner_pack_content_hash
+  manifest_required_feature_pack_refs[]
+  recipe_required_feature_pack_refs[]
+  transitive_feature_pack_refs[]
+  resolved_pack_version_and_hash_refs[]
+  closure_hash
+```
+
+`closure_hash`は上記Fieldのcanonical serializationから計算し、Preview、Project ChangeSet、Cook、Qualification Receipt、Save／Replay headerへ同じ値を伝播する。Pack install時は全Recipe recordのschema、hash、参照kind、所有関係を検証するが、未選択Recipeのconditional dependencyをinstalled closureへ暗黙追加しない。Project apply／Cook時は選択Recipeのeffective closureを原子的に解決し、一件でもmissing、incompatible、unqualified、Target不適合なら`MIRAKAN-PACK-RECIPE-DEPENDENCY_UNRESOLVED`で拒否する。Project revision、active Recipe、registry head、installed closure、Cooked Artifactは変更せず、直前のlast-valid Recipe activationとclosure hashを維持する。partial Recipe applyとmissing Featureのplaceholderを禁止する。
+
+### 3.2 Feature Pack
 
 Feature Packは複数Genre／Projectで再利用する次の要素を提供する。
 
@@ -94,7 +132,7 @@ Feature Packは複数Genre／Projectで再利用する次の要素を提供す�
 
 Feature Packの`required_feature_pack_refs[]`は別Feature Packだけを指す。Feature PackはGenre固有Profile、Genre vocabulary、Game Project、Fixtureの内容を参照しない。
 
-### 3.2 Genre Pack
+### 3.3 Genre Pack
 
 Genre PackはFeature Packを組み合わせる次の要素だけを提供する。
 
@@ -103,7 +141,7 @@ Genre PackはFeature Packを組み合わせる次の要素だけを提供する�
 - Genre固有configuration Profile
 - reference scenarioとGenre fixture binding
 
-Genre Packは新しい汎用Core契約を作らず、Feature CapabilityのPublic Contract、Schema、State owner、Runtime Portを複写しない。`required_feature_pack_refs[]`はFeature Packだけを指し、別Genre Packを指せない。
+Genre Packは新しい汎用Core契約を作らず、Feature CapabilityのPublic Contract、Schema、State owner、Runtime Portを複写しない。ManifestとRecipeの`required_feature_pack_refs[]`はFeature Packだけを指し、別Genre Packを指せない。条件依存をManifestのunconditional edgeへ昇格させず、使用するRecipe recordへ記録する。
 
 ## 4. Installとdependency resolution
 
@@ -111,8 +149,8 @@ Installは次の順で原子的に評価する。
 
 1. artifact bounds、canonical manifest、`content_hash`、license、provenance、signatureを検証する。
 2. `minimum_engine_contract_ref`、Target intersection、required Capabilityを検証する。
-3. Feature Pack DAGを解決し、Genre間dependency、cycle、version／hash conflictを拒否する。
-4. Public Contract、Schema、Profile、Recipe、Template、Validator、Fixtureの全参照をload前に検証する。
+3. Manifest共通Feature Pack DAGを解決し、Genre間dependency、cycle、version／hash conflictを拒否する。
+4. Public Contract、Schema、Profile、`CompositionRecipeV1`、Template、Validator、Fixtureの全参照kind／hash／ownerをload前に検証する。未選択Recipeのconditional dependencyはinstalled closureへ追加しない。
 5. 全検証成功時だけPack registry revisionをcommitする。
 
 失敗時はregistry、Project、installed Pack closureを変更せず、直前のlast-valid registry headとartifactを維持する。部分install、依存の暗黙追加、Genre間のsynthetic edge、未有効Capabilityのplaceholderを禁止する。
@@ -161,10 +199,11 @@ AIは自然言語からPack IDを推測してcommitしない。MCDへ次のexact
 |---|---|---|
 | Manifest／hash／license／provenance不正 | `MIRAKAN-PACK-MANIFEST_INVALID` | Installを拒否しlast-valid registryを維持 |
 | Feature dependency cycle／version conflict | `MIRAKAN-PACK-DEPENDENCY_UNRESOLVED` | closureを拒否しcycleまたは競合rangeを列挙 |
+| 選択Recipe dependencyのmissing／incompatible／unqualified | `MIRAKAN-PACK-RECIPE-DEPENDENCY_UNRESOLVED` | Recipe applyを拒否しlast-valid Recipe closureを維持 |
 | Genre Pack間dependency | `MIRAKAN-PACK-GENRE_DEPENDENCY_FORBIDDEN` | edgeを拒否しGame Project compositionを案内 |
 | Engine contract／Target不適合 | `MIRAKAN-PACK-VERSION_INCOMPATIBLE` | Applyを拒否しshimを生成しない |
 | required Capabilityなし | `MIRAKAN-PACK-CAPABILITY_UNAVAILABLE` | Apply／Cookを拒否しTargetとCapabilityを列挙 |
 | migration失敗 | `MIRAKAN-PACK-MIGRATION_FAILED` | 新revisionをcommitせずlast-validを維持 |
 | live dependencyあり | `MIRAKAN-PACK-REMOVAL_BLOCKED` | Removalを拒否しdependency closureを列挙 |
 
-Pack contract fixtureは最低限、manifest round-trip、全Field presence、feature DAG／cycle／diamond、Genre間dependency拒否、Genre PackなしのFeature-only Project、install／update／removal rollback、migration失敗時のlast-valid維持、Shooter未install時のCore／Editor／AI／Build／Package成功を含む。Reference Game／FixtureがProduction artifactへ逆依存しないこともdependency graphで検査する。
+Pack contract fixtureは最低限、manifest／`CompositionRecipeV1` round-trip、全Field presence、feature DAG／cycle／diamond、Manifest共通closureと選択Recipe conditional closureのhash、未選択Recipe dependency非install、Recipe missing／version conflict／Target不適合時のlast-valid維持、fallback cycle、Genre間dependency拒否、Genre PackなしのFeature-only Project、install／update／removal rollback、migration失敗時のlast-valid維持、Shooter未install時のCore／Editor／AI／Build／Package成功を含む。Reference Game／FixtureがProduction artifactへ逆依存しないこともdependency graphで検査する。

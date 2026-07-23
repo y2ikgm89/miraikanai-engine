@@ -3,15 +3,15 @@
 - 文書ID: mirakan.arch.rendering-world
 - 状態: review
 - 正本範囲: World／Scene／Spaceのsource identity、global composition、persistent entity、optional spatial topology、Cellのplan-local identity、partition／streaming-plan authoring、spatial transition／Loading presentation、Tilemap、Engine-native Blockout、procedural source、Map要求resolution
-- 非正本範囲: Stage／Objective／Completion／Encounter／Gameplay progression、Runtime cell phase／shared capacity、ECS／Gameplay component schema、Physics／Navigation behavior、Render／LOD execution、Asset transaction、Save／Replay envelope、AI authorizationは各Ownerを参照
-- 依存: [Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)、optional consumer: [Scenario／Stage Feature Pack](../08-packs/scenario-stage.md)
+- 非正本範囲: consumer-owned Gameplay progression、Runtime cell phase／shared capacity、ECS／Gameplay component schema、Physics／Navigation behavior、Render／LOD execution、Asset transaction、Save／Replay envelope、AI authorizationは各Ownerを参照
+- 依存: [Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)
 - 外部根拠検証日: 2026-07-23
 
 ## 1. 結論と所有境界
 
-Worldは空間、Scene、global composition、persistent entity、任意のspatial topologyだけを所有する。有限Stage、entry／exit、Gameplay goal、outcome、Spawn、Stage transitionは[Scenario／Stage Feature Pack](../08-packs/scenario-stage.md)だけが所有し、Worldは同Featureを必須にしない。
+Worldは空間、Scene、global composition、persistent entity、任意のspatial topologyだけを所有する。Gameplay goal、outcome、spawn、進行単位はconsumer-owned stateであり、World activationへ必須にしない。
 
-World activation、Scene activation、Cell streamingはGameplay goalやResultを要求しない。Scene 0件のprocedural-only World、spatial topologyなしのUI補助World、Scenario／Stage Packなしのendless simulationをvalidとする。
+World activation、Scene activation、Cell streamingはGameplay goalやResultを要求しない。Scene 0件のprocedural-only World、spatial topologyなしのUI補助World、有限Gameplay進行を持たないcontinuous simulationをvalidとする。
 
 AI、Editor、Project C++はSource Documentとtyped operationを扱い、Runtime cell object、ECS pointer、Renderer resource、Physics／Navigation native handleを直接保存しない。cell activation state／phase／lifetimeはRuntime、capacity／backpressureはPerformance、representation selectionはLODが所有する。
 
@@ -23,7 +23,7 @@ AI、Editor、Project C++はSource Documentとtyped operationを扱い、Runtime
 - `Cell`: streaming、residency、activation planの空間／logical partition unit。
 - `Entity source`: Stable IDを持つWorld content record。Runtime entity instanceではない。
 - `Layer`: visibility／authoring／variant selectionのorthogonal grouping。
-- `Map`: user request語でありcanonical object typeではない。resolverがWorld／Scene／Space／navigation／presentation／optional Scenarioへ分類する。
+- `Map`: user request語でありcanonical object typeではない。resolverがWorld structure／Scene composition／Space／navigation／presentationへ分類する。
 
 World／Scene／Space／Entity source identityはProject Stable ID、source revision、display labelを分離する。path、filename、display name、array indexをidentityにしない。CellはSource Stable IDを持たずPlan-local `uint32`であり、Scene、Space、Cell、Runtime chunkを同一視しない。
 
@@ -34,7 +34,7 @@ World／Scene／Space／Entity source identityはProject Stable ID、source revi
 | Kind | 例 | 変更対象 |
 |---|---|---|
 | `world_structure` | 地域接続、町からDungeonへ移動 | `SpatialTopologyDefinitionV1` |
-| `scenario_stage` | finite stage、boss room、outcome | [Scenario／Stage Feature Pack](../08-packs/scenario-stage.md) |
+| `scene_composition` | 複数Sceneの配置、再利用source shard | `SceneDocumentV1`＋World composition |
 | `streaming` | seamless load、遠方軽量化 | `SpatialPartitionIntentV1`＋Derived Plan |
 | `procedural_layout` | seed生成Dungeon | `ProceduralWorldDefinitionV1` |
 | `navigation` | 歩行領域、飛行経路、NavMesh | [Navigation](../05-simulation/navigation.md) |
@@ -42,7 +42,7 @@ World／Scene／Space／Entity source identityはProject Stable ID、source revi
 
 `MapIntentResolutionV1`は`request_id`、`candidate_kinds[]`、`selected_kind`、`confidence_q16`、`evidence_requirement_ids[]`、`affected_stable_ids[]`、`blocking_questions[]`、`disposition: resolved | question_required | rejected`を持つ。上位2候補差が9,830未満、Save／spatial transition／authoritative state／Target／Asset license／memory capacityへ影響、layoutとpresentationの両解釈、Stable IDを特定不能のいずれかなら`question_required`とする。
 
-曖昧な「マップを作る」「マップを開く」に万能Map assetを生成しない。空間contentはWorld／Scene／Space、finite gameplayはScenario／Stage、pathfindingはNavigation、画面表示はMap Presentationへroutingする。
+曖昧な「マップを作る」「マップを開く」に万能Map assetを生成しない。空間contentはWorld／Scene／Space、source shard構成はScene composition、pathfindingはNavigation、画面表示はMap Presentationへroutingする。
 
 ## 4. Source Document model
 
@@ -61,7 +61,7 @@ WorldDocumentV1
 
 `SceneDocumentV1`は`scene_id`、optional `document_bounds`、`entity_refs[0..1048576]`、`space_membership_refs[]`、`layer_refs[]`、`source_dependency_refs[]`、`edit_ownership`を持つ。Scene境界はRuntime streaming境界を強制せず、Cookerは複数Sceneを一Cellへまとめることも一Sceneを複数Cellへ分割することもできる。
 
-Entity sourceはStable ID、Transform source、parent ref、Feature component document refs、Layer／tag、authoring metadata refを持つ。Gameplay／Physics／Navigation／Rendering fieldは各Ownerを参照し、World共通recordへflattenしない。
+Entity sourceはStable ID、Transform source、parent ref、owner-typed component document refs、Layer／tag、authoring metadata refを持つ。Gameplay／Physics／Navigation／Rendering fieldは各Ownerを参照し、World共通recordへflattenしない。
 
 ## 5. Spatial topology
 
@@ -76,7 +76,7 @@ SpatialTopologyDefinitionV1
 
 `transition_edges[]`はsource／target Space、anchor refs、direction、condition policy ref、activation hint、fallback、typed `transfer_subject_refs[]` schema refを持つ。`transfer_subject_refs[]`はCharacter、Player、Partyへ固定せず、Entity、camera observer、simulation agent、board token等のregistered subject contractを参照できる。bidirectional edgeはCook時に二つの正規有向edgeへ展開する。
 
-entryから到達不能なSpaceは`intentionally_isolated=true`を必須にする。missing ref、duplicate edge identity、parent cycle、孤立宣言なしの到達不能Space、fallbackなしのTarget非対応edgeを`MIRAKAN-WORLD-TOPOLOGY_INVALID`で拒否する。Topology activationはScene／Cell dependency closureだけを解決し、Scenario outcomeを評価しない。
+entryから到達不能なSpaceは`intentionally_isolated=true`を必須にする。missing ref、duplicate edge identity、parent cycle、孤立宣言なしの到達不能Space、fallbackなしのTarget非対応edgeを`MIRAKAN-WORLD-TOPOLOGY_INVALID`で拒否する。Topology activationはScene／Cell dependency closureだけを解決し、consumer-owned outcomeを評価しない。
 
 
 ## 6. Spatial Partitionとstreaming-plan authoring
@@ -124,7 +124,11 @@ transition中に旧／新SpaceのEntity identityを再利用しない。persiste
 
 `LoadingProgressPlanV1`は確定したdependency closureを1～65,535 work unitへcanonicalizeし、positive weight合計を65,535へnormalizeする。`LoadingProgressSnapshotV1`はgeneration、phase、completed weight、current message、cancel／retry可否、typed failureを持つ。同じgenerationの進捗は実完了unitだけで単調非減少とし、fake timer、frame count、spinnerを混ぜない。65,536 unit以上は`loading_plan_capacity_exceeded`でPlan materialization前に拒否し、truncateしない。
 
-I/O／verifyはreal-time domainで進められるが、activationとtyped subject transferは正規tick boundaryでatomic commitする。target closure失敗時は全rollbackしてsource Spaceをactiveのまま維持する。Cancel／Retryはpolicyとphaseを検証し、新request／session identityでSource revision、condition、Target Capability、storage／memory budgetを再検証する。Loading UI、Audio、読み上げはauthorityへ逆入力しない。
+Source、Target、Toolchain、partition intentのいずれかのhashが変わったPlanは`MIRAKAN-WORLD-STREAMING_PLAN_STALE`、dependency closureまたはgenerationが変わったProgress Plan／Snapshotは`MIRAKAN-WORLD-LOADING_PROGRESS_PLAN_STALE`で拒否する。barを巻き戻して古いgenerationを再利用せず、新しいPlan、request、session、generationを発行する。
+
+I/O／verifyはreal-time domainで進められるが、activationとtyped subject transferは正規tick boundaryでatomic commitする。Renderer／Collision／Navigationを含むhard dependency closureがall-readyになった後だけactivation group全体をpublishする。一部だけ成功した場合は`MIRAKAN-WORLD-ACTIVATION_PARTIAL`としてtarget全体をrollbackし、source Spaceとlast-valid generationをactiveのまま維持する。旧Spaceを先に破棄して空Worldを露出せず、target active後にsubjectをtransferし、その後にsourceをdeactivateする。
+
+Cancelはpolicyが許可しphaseが`prefetching | resident`以下の時だけ受理し、activating以後または不許可時は`MIRAKAN-WORLD-LOADING_CANCEL_REJECTED`としてWorld state不変のtyped rejectionを返す。受理後はinflight I/Oをcancelまたはbounded drainし、leaseとtemporary Artifactを解放する。Retryは明示操作だけで新request／session identityを発行し、Source revision、condition、artifact checksum、Target Capability、storage／memory budgetを再検証する。不合格は`MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED`とし、partial activation、古いSnapshot、古いprogressを使用しない。Loading UI、Audio、読み上げはauthorityへ逆入力しない。
 
 
 ## 8. 参照と依存closure
@@ -147,7 +151,9 @@ Procedural Worldはgenerator Stable ID、typed parameter、seed semantics、inpu
 
 同じgenerator version、input revisions、seed、parameterから同じStable ID assignmentとcanonical outputを生成する。random device、wall clock、worker completion順、network responseをdeterministic generatorの入力にしない。
 
-生成結果は通常のScene／Entity／Cell validationとreviewを通り、手編集領域を無断上書きしない。外部Tool／generator versionとartifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)を参照する。
+同じcanonical inputをfresh processで3回実行し、Stable ID assignment、record order、output hashが一度でも異なれば`MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC`として全Deltaを拒否する。retry seedはfailure policyが許可した新しい明示seedでだけ新Deltaを作り、同じseedの不一致を成功へ近似しない。
+
+生成結果は通常のScene／Entity／Cell validationとreviewを通り、手編集領域を無断上書きしない。Schema不一致、unknown ref、bounds／step／entity上限超過、topology cycle、空間connectivity不成立、Physics overlap、spawn safety、Navigation query failureは`MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT`としてDelta全体を破棄し、部分Sourceをpublishしない。timeout、unsupported Target、fallback layoutもtyped resultとし、last-valid Source／Artifactを維持する。外部Tool／generator versionとartifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)を参照する。
 
 ## 10. Navigation、Simulation、Renderingとの境界
 
@@ -157,11 +163,13 @@ Navigation queryやWorld movement、Physics body activation、Animation sampling
 
 [LOD](lod.md)はresident candidateからrepresentationを選び、[Render Graph](render-graph.md)はactive Cell由来の`WorldRenderPacket`を実行する。Worldはselection formula、visibility algorithm、render passを所有しない。
 
-`MapPresentationDefinitionV1`は`map_presentation_id: StableId`、`presentation_kind: minimap | world_map | space_map | navigation_overlay`、exact `spatial_subject_ref`、`projection_policy: orthographic_2d | authored_2d | projected_3d`、`layer_refs[1..128]`、`marker_style_refs[0..512]`、typed `marker_source_contract_refs`、optional `fog_policy_ref`、`accessibility_profile_refs[1..32]`、exact `localization_namespace_ref`、Targetごとのexact `render_budget_refs`、`fallback_contract`を持つ非authoritative Sourceである。Marker／fog／cursorからWorld／Feature State／Navigation costを直接writeせず、入力はtyped `MapInteractionCommandV1`としてNavigation／Quest ownerへ送る。
+`MapPresentationDefinitionV1`は`map_presentation_id: StableId`、`presentation_kind: minimap | world_map | space_map | navigation_overlay`、exact `spatial_subject_ref`、`projection_policy: orthographic_2d | authored_2d | projected_3d`、`layer_refs[1..128]`、`marker_style_refs[0..512]`、typed `marker_source_contract_refs`、optional `fog_policy_ref`、`accessibility_profile_refs[1..32]`、exact `localization_namespace_ref`、Targetごとのexact `render_budget_refs`、`fallback_contract`を持つ非authoritative Sourceである。Marker／fog／cursorからWorld state、consumer-owned Gameplay state、Navigation costを直接writeせず、入力はtyped `MapInteractionCommandV1`として登録済みcommand ownerへ送る。
+
+Map／World presentation、LOD、visibility、Camera、GPU resultからWorld、Space、Cell、persistent entity、consumer-owned stateへ直接writeする実装は`MIRAKAN-WORLD-PRESENTATION_AUTHORITY_WRITE`としてBuild／conformanceを失敗させる。presentation projectionの欠落、degradation、frame dropはauthoritative activation、transfer、Source revisionを変更しない。
 
 ### 10.1 Tilemap source、cook、publication
 
-Tile chunkはTilemap内部のedit、cook、culling単位であり、World Cell、Region、Space、activation groupではない。Tilemapはresident／active CellのAsset closureへ参加するが、chunk単独でEntity、Feature State、transition、authoritative gameplayをactivateしない。次の12型をWorldの唯一の正本とする。
+Tile chunkはTilemap内部のedit、cook、culling単位であり、World Cell、Region、Space、activation groupではない。Tilemapはresident／active CellのAsset closureへ参加するが、chunk単独でEntity、consumer-owned state、transition、authoritative gameplayをactivateしない。次の12型をWorldの唯一の正本とする。
 
 ```text
 TileGridV1
@@ -327,17 +335,19 @@ BlockoutAssemblyV1
 
 ## 11. Authoring bundleとAI／Editor UX
 
-World authoring bundleは対象World／Scene／Space revision、selected scope、typed Feature document refs、streaming-plan preview、validation summaryを束ねる。`WorldAuthoringPlanV1`はWorld／Scene／Space refs、partition／procedural／presentation change、required Capability、budget、fixture、assumption、blocking question、fallback、risk、dispositionを持つがCommit権限を持たない。
+World authoring bundleは対象World／Scene／Space revision、selected scope、owner-typed document refs、streaming-plan preview、validation summaryを束ねる。`WorldAuthoringPlanV1`はWorld／Scene／Space refs、partition／procedural／presentation change、required Capability、budget、fixture、assumption、blocking question、fallback、risk、dispositionを持つがCommit権限を持たない。
 
-Source operationは`CreateWorldDocument`、`CreateSceneDocument`、`ComposeScene`、`MoveEntityToScene`、`SetSpatialTopologyDefinition`、`SetSpatialPartitionIntent`、`SetProceduralWorldDefinition`、`SetMapPresentationDefinition`である。Stage operationをWorld namespaceへ登録しない。`GenerateWorldStreamingPlan`はCommit済みSourceからDerived Planを作るCook jobで、Preview／Inspectはread-onlyである。
+Source operationは`CreateWorldDocument`、`CreateSceneDocument`、`ComposeScene`、`MoveEntityToScene`、`SetSpatialTopologyDefinition`、`SetSpatialPartitionIntent`、`SetProceduralWorldDefinition`、`SetMapPresentationDefinition`である。consumer-owned Gameplay operationをWorld namespaceへ登録しない。`GenerateWorldStreamingPlan`はCommit済みSourceからDerived Planを作るCook jobで、Preview／Inspectはread-onlyである。
 
-AI contextはWorld／Scene／Space、Topology、Cell plan、dependency、Target、budgetだけをbounded projectionし、Scenario／Stage Featureが選択された場合は同Ownerへのlinkだけを返す。
+AI contextはWorld／Scene／Space、Topology、Cell plan、dependency、Target、budgetだけをbounded projectionする。consumer-owned Gameplay stateや進行単位をWorld contextへ合成しない。
+
+`CreateCell`、`UpdateCell`、`DeleteCell`、`SetCellIntent`、`replace_streaming_plan`、plan-local `cell_id`をtargetとする任意field writeは公開または登録しない。未知またはaliasのCell write operationをSource editへ近似変換せず`MIRAKAN-WORLD-DERIVED_CELL_WRITE`で失敗させる。Applyは`SpatialPartitionIntentV1`を含むProject Source ChangeSetだけを対象とし、Derived Plan、Cell descriptor、Runtime cellを直接操作しない。
 
 ## 12. Save、Replay、Migration境界
 
 World Source revisionとRuntime instance stateを分離する。SaveはWorld／Scene／Space／persistent Entity Stable IDとcompatible source／artifact generationだけを投影し、Source Document、Runtime pointer、Cell handleを保存しない。
 
-Save／Replay fieldはregistered State ownerとSave／Replay契約が列挙したものだけを含む。WorldはStage instance、Gameplay goal、outcome、Encounter、Game Flowを保存しない。checkpoint、recording、Replay envelope、migration evidenceは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を参照する。
+Save／Replay fieldはregistered State ownerとSave／Replay契約が列挙したものだけを含む。Worldはconsumer-owned Gameplay goal、outcome、progression、flow stateを保存しない。checkpoint、recording、Replay envelope、migration evidenceは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を参照する。
 
 ## 13. Diagnostic、failure、qualification
 
@@ -345,17 +355,48 @@ World diagnosticはWorld／Scene／Space／Entity Stable ID、Plan ID／plan-loc
 
 | Diagnostic ID | 条件 | 結果 |
 |---|---|---|
+| `MIRAKAN-WORLD-MAP_INTENT_AMBIGUOUS` | Map意味が一意でない | 候補とblocking questionを返す |
 | `MIRAKAN-WORLD-UNKNOWN_STABLE_ID` | World／Scene／Space／Anchor不明 | fuzzy適用せず拒否 |
 | `MIRAKAN-WORLD-TOPOLOGY_INVALID` | cycle、unknown edge、未宣言isolated Space | Sourceを拒否 |
 | `MIRAKAN-WORLD-PARTITION_INVALID` | Cell bound、dependency、activation group不正 | Planをpublishしない |
+| `MIRAKAN-WORLD-STREAMING_PLAN_STALE` | Source／Target／Toolchain／partition hash不一致 | stale Planを破棄し再Cook要求 |
+| `MIRAKAN-WORLD-LOADING_PROGRESS_PLAN_STALE` | dependency closure／generation不一致 | 旧Snapshotを破棄し新session開始 |
 | `MIRAKAN-WORLD-LOADING_PLAN_CAPACITY_EXCEEDED` | 65,536 unit以上 | previous valid Planを維持 |
-| `MIRAKAN-WORLD-ACTIVATION_FAILED` | dependencyまたはsubject transfer失敗 | target rollback、source維持 |
+| `MIRAKAN-WORLD-LOADING_CANCEL_REJECTED` | activating以後またはPolicy不許可 | World state不変のtyped rejection |
+| `MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED` | Source／artifact／Capability／budget再検証不合格 | partial stateを使わずfailure表示維持 |
+| `MIRAKAN-WORLD-DEPENDENCY_NOT_RESIDENT` | hard dependency不足 | activation groupをactiveにしない |
+| `MIRAKAN-WORLD-ACTIVATION_PARTIAL` | activation groupの一部だけ成功 | target全体rollback、source維持 |
+| `MIRAKAN-WORLD-BUDGET_EXCEEDED` | residency／I/O／hitch上限超過 | fallbackまたはactivation中止 |
+| `MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC` | 同じcanonical入力でoutput hash不一致 | Delta／Artifact拒否 |
+| `MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT` | Schema／bounds／connectivity／simulation validation不合格 | Delta全体破棄 |
+| `MIRAKAN-WORLD-PRESENTATION_AUTHORITY_WRITE` | Map／World presentation、LOD、visibilityからauthoritative write | Build／conformance失敗 |
+| `MIRAKAN-WORLD-DERIVED_CELL_WRITE` | Cell／Streaming Planへの直接／未知write operation | Sourceへ変換せず拒否 |
+| `MIRAKAN-WORLD-CROSS_CELL_POINTER` | 永続pointer／Vendor handle参照 | Source／Cook拒否 |
+| `MIRAKAN-WORLD-BUNDLE_STALE` | base revision／precondition不一致 | 再Resolve要求 |
+| `MIRAKAN-WORLD-TARGET_UNSUPPORTED` | 意味同等fallbackなし | 対象Targetを非対応表示 |
+| `MIRAKAN-WORLD-TILE_SOURCE_INVALID` | Tile／grid／orientation／revision不正 | Source／Cook拒否 |
+| `MIRAKAN-WORLD-TILE_LAYOUT_CAPACITY_EXCEEDED` | region／candidate／changed count上限超過 | scan前に拒否 |
+| `MIRAKAN-WORLD-TILE_TRANSFORM_MISMATCH` | D4 consumer結果／適用回数不一致 | 全consumer closure拒否 |
+| `MIRAKAN-WORLD-TILE_GENERATION_STALE` | Source／Artifact／command generation不一致 | 旧generation維持 |
+| `MIRAKAN-WORLD-TILE_ARTIFACT_PARTIAL` | Renderer／Collision／Navigationがall-readyでない | publication拒否 |
+| `MIRAKAN-WORLD-TILE_PREVIEW_STALE` | Preview／Commit再展開hash不一致 | Command拒否 |
 
 Qualificationは次を含む。
 
-- World／Scene／Space／Cell identity、0 Scene procedural-only、0 entry topology、intentional isolation。
-- Cell state transition、cancel、timeout、I/O failure、activation group atomicity、source Space維持、typed subject transfer、Save／Replay state hash。
-- Tilemapのgrid／D4 transform／capacity／atomic publicationとAI／manual after hash一致。
+- 全World schemaのvalid／invalid／boundary、UUIDv7 Stable IDのrename／delete／migration、World／Scene／Spaceの多対多ref、0 Scene procedural-only、0 entry topology、intentional isolation。
+- `fixture.world.authoring-semantics`: 共有Sceneを参照する複数World composition、複数Sceneからなる一World、Targetごとに異なるCell plan、Scene移動とCell再Cookがidentity／membershipを暗黙変更しないこと。
+- Topology reachability／cycle／Target fallback、unknown／stale／cross-cell pointer、Undo／Redo、crash recovery、concurrent edit conflict。
+- Cell全state transition、timeout、I/O failure、activation group atomicity、source Space維持、typed subject transfer、Save／Load／Replay state hash。
+- `contract.world.loading-progress`: initial activation、Space transition、Save resumeで同じPlan／Snapshot契約を使い、0／10／99／100%の実作業由来進捗、cold I/O、verify failure、0／2,000 ms minimum display、source Space維持を検証する。
+- Loading work unit 65,535 exact／65,536 exact+1、weight合計65,535、同Plan単調進捗、capacity failure時のpartial unit非公開、closure変更時の新generation、fake timer拒否、prefetch中Cancel、activating以後の`MIRAKAN-WORLD-LOADING_CANCEL_REJECTED`、明示Retryと`MIRAKAN-WORLD-LOADING_RETRY_REVALIDATION_FAILED`、lease／temporary Artifact解放、input／audio／keyboard／controller／screen reader projection。
+- Renderer／Collision／Navigation hard closureの一要素failureを注入し、`MIRAKAN-WORLD-ACTIVATION_PARTIAL`、target全rollback、source Space／last-valid generation維持、stale Snapshot／progress再利用0件を検証する。
+- Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transform、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致。
 - Blockoutのdimension／segment／assembly bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件。
-- Compact 2D／3D spatial fixtureのframe／memory／load／activation hitch、Cell／prefetch比較、camera speed、HLOD authority equivalence、cold start／streaming。
-- Scenario／Stage Packなしのendless、continuous simulation、procedural-only Worldがvalidで、Gameplay goalやResultを要求しない。
+- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchainをfresh processで3回実行して同じStable ID／output hash、Generator bound、connectivity、Physics overlap、spawn safety、Navigation query、invalid output／timeout／unsupported Target fallback、last-valid維持を検証する。
+- `fixture.world.presentation-authority`: Map／World presentation、LOD、visibility、Camera、GPU結果からauthoritative writeを試みる全経路が`MIRAKAN-WORLD-PRESENTATION_AUTHORITY_WRITE`となり、Source／Runtime state hashが不変である。
+- Compact 2D／3D spatial fixtureでframe／memory／load／activation hitch、Cell／prefetch比較、camera speed、HLOD authority equivalence、cold start／streamingを測定する。
+- AI corpusはMapの6分類（world structure、scene composition、streaming、procedural layout、navigation、map presentation）、ambiguity／high-impact質問、World／Scene／Space／Cell／Navigation／Presentation分離、context外の表示名／pathからStable IDを推測しないこと、Source intent以外への直接write拒否を含む。
+- `CreateCell`／`UpdateCell`／`DeleteCell`／`SetCellIntent`／`replace_streaming_plan`／未知aliasはすべて`MIRAKAN-WORLD-DERIVED_CELL_WRITE`となり、`SpatialPartitionIntentV1`と`WorldStreamingPlanV1`のhashが変化しないnegative fixture。
+- `fixture.world.authoring-cross-view`: World Outline／Topology Graph／Scene Composition／Spatial View／AIのDomain Operationを64 scenarioで比較し、after-state hash一致100%。
+- `fixture.world.authoring-intent`: holdout 240件（明確な6分類各30件、曖昧／High Impact 60件）を3 runし、明確Caseの`selected_kind`正解率97%以上、Blocking Caseの`question_required` recall 100%、存在しないStable IDを含むProposal 0件、World／Scene／Space／Cell identity誤変更0件、Derived／Runtime直接write提案0件。
+- finite Gameplay goal／Resultを持たないendless、continuous simulation、procedural-only Worldがvalidである。

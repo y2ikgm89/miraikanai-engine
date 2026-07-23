@@ -636,9 +636,12 @@ MIRAKAN-PICKUP-GRANT-FAILED
 MIRAKAN-SCORING-OVERFLOW
 MIRAKAN-FEATURE-SAVE_CONTRACT_MISMATCH
 MIRAKAN-FEATURE-REPLAY_DIVERGENCE
+MIRAKAN-FEATURE-PRESENTATION_AUTHORITY_VIOLATION
 ```
 
 DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、actual、expected、Capability、Target、State owner、Evidence ID、修正候補を持つ。
+
+`MIRAKAN-FEATURE-PRESENTATION_AUTHORITY_VIOLATION`はRender、Audio、VFX、Camera、UI、presentation-only EventまたはfixtureからFeature-owned authoritative State／Command結果へwriteまたは逆入力した時の共通Diagnosticである。Build／conformanceを失敗させ、authoritative State、last-valid Source、Feature receiptを維持する。
 
 ### 7.3 Failure policy
 

@@ -63,12 +63,13 @@ PackManifestV1
   required_feature_pack_refs:
     [feature.combat@1, feature.ranged_combat@1, feature.encounter_spawn@1,
      feature.scoring@1, feature.pickup_grant@1, feature.interaction@1,
-     feature.character_locomotion@1, feature.path_following@1,
-     feature.scenario_stage@1]
+     feature.character_locomotion@1, feature.path_following@1]
   required_capability_refs:
     [capability.gameplay.perception]
   composition_recipe_refs:
-    [genre.shooter.top_down_2d, genre.shooter.third_person_3d]
+    [recipe.shooter.top_down_2d.finite_stage,
+     recipe.shooter.third_person_3d.finite_stage,
+     recipe.shooter.top_down_2d.endless]
   configuration_profile_refs:
     [profile.shooter.top_down_2d, profile.shooter.third_person_3d]
   public_contract_refs:
@@ -79,7 +80,56 @@ PackManifestV1
     [fixture.product.shooter-2d, fixture.product.shooter-arena-3d]
 ```
 
-Profileは独立PackではなくShooter Packのversion／hashに含まれる。recipeがScenario／Stageを省略する場合は`feature.scenario_stage@1`もそのrecipe closureから省略できるが、上記reference fixture closureは有限Gameとして全9 Featureを要求する。
+Profileは独立PackではなくShooter Packのversion／hashに含まれる。Scenario／StageはPack-level requiredではなく、有限Gameplay用Recipeだけが持つ条件依存である。
+
+```text
+CompositionRecipeV1
+  recipe_id: recipe.shooter.top_down_2d.finite_stage
+  recipe_version: 1.0.0
+  recipe_hash: Sha256(self_excluding_canonical_record)
+  owner_pack_ref: genre.shooter
+  required_capability_refs: [capability.gameplay.perception]
+  required_feature_pack_refs: [feature.scenario_stage@1]
+  configuration_profile_refs: [profile.shooter.top_down_2d]
+  game_spec_template_refs: [template.shooter.top_down_2d.finite_stage]
+  action_role_set_refs: [ShooterActionRoleSetV1]
+  source_template_refs: [template.source.shooter.top_down_2d]
+  validator_refs: [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
+  qualification_fixture_refs: [fixture.product.shooter-2d]
+  fallback_recipe_ref: null
+
+CompositionRecipeV1
+  recipe_id: recipe.shooter.third_person_3d.finite_stage
+  recipe_version: 1.0.0
+  recipe_hash: Sha256(self_excluding_canonical_record)
+  owner_pack_ref: genre.shooter
+  required_capability_refs: [capability.gameplay.perception]
+  required_feature_pack_refs: [feature.scenario_stage@1]
+  configuration_profile_refs: [profile.shooter.third_person_3d]
+  game_spec_template_refs: [template.shooter.third_person_3d.finite_stage]
+  action_role_set_refs: [ShooterActionRoleSetV1]
+  source_template_refs: [template.source.shooter.third_person_3d]
+  validator_refs: [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
+  qualification_fixture_refs: [fixture.product.shooter-arena-3d]
+  fallback_recipe_ref: null
+
+CompositionRecipeV1
+  recipe_id: recipe.shooter.top_down_2d.endless
+  recipe_version: 1.0.0
+  recipe_hash: Sha256(self_excluding_canonical_record)
+  owner_pack_ref: genre.shooter
+  required_capability_refs: [capability.gameplay.perception]
+  required_feature_pack_refs: []
+  configuration_profile_refs: [profile.shooter.top_down_2d]
+  game_spec_template_refs: [template.shooter.top_down_2d.endless]
+  action_role_set_refs: [ShooterActionRoleSetV1]
+  source_template_refs: [template.source.shooter.top_down_2d]
+  validator_refs: [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
+  qualification_fixture_refs: [fixture.genre.shooter.endless-top-down-2d]
+  fallback_recipe_ref: null
+```
+
+`Sha256(self_excluding_canonical_record)`は[Pack Contract §3.1](pack-contract.md#31-compositionrecipev1)の規則により各recordから計算して保存・検証する。有限Recipeのeffective closureだけが`feature.scenario_stage@1`を含み、endless Recipeのclosureには含めない。closure hash不一致またはStage Feature unavailableでは有限Recipe applyだけを`MIRAKAN-PACK-RECIPE-DEPENDENCY_UNRESOLVED`で拒否し、endless Recipeとlast-valid Projectを変更しない。
 
 composition recipeはFeature Capability、Profile、GameSpec template、Action role、reference scenarioをexact IDで結ぶ。Feature schema、World、Stage、Runtime Scope、Input Action identityをrecipe内で再定義しない。
 
@@ -177,7 +227,11 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 `genre.shooter.third_person_3d`、`profile.shooter.third_person_3d`、同じFeature Capability semanticsを使い、third-person Camera／Audio／LOD binding、3D locomotion、path following、Save／Load、Replay、Resultまでを検証する。target取得／lost-target／fire-intentのEvent sequenceとReplay hashが2Dと同じowner contractに適合することを確認し、Feature schemaをforkしない。
 
-### 8.3 Negative fixture
+### 8.3 `fixture.genre.shooter.endless-top-down-2d`
+
+`recipe.shooter.top_down_2d.endless`を選択し、effective closureとclosure hashに`feature.scenario_stage@1`が含まれないこと、World／Scene activation後にObjective／Completion／Result routeなしでPlayingを継続できること、Pack registry上にScenario／Stage FeatureがなくてもRecipe apply／Save／Load／Replayが成功することを検証する。
+
+### 8.4 Negative fixture
 
 - Shooter Packから別Genre Packへのdependencyを拒否する。
 - Feature CapabilityのSchema／State ownerをShooter側で再宣言したrecipeを拒否する。
@@ -382,13 +436,24 @@ peak_simultaneous_presentation_cue
 
 この個数はProduct上限ではない。Project intentが上回る場合は[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)をProject固有Envelopeから生成する。
 
-### 14.3 Pool
+Shooter Profileは上表の規模値とRecipe bindingだけを所有する。Weapon／Projectile／Damage／Pickup／Event queueのreservation、pool、capacity failure、rollback、Diagnosticは[Gameplay Feature Packs §4～8](gameplay-features.md#4-game-systemとstate-owner)と[Performance／Capacity](../04-runtime/performance-capacity.md)が所有し、本書は挙動または失敗型を再定義しない。
 
-Weapon／Projectile／Damage credit／Pickup transactionのRuntime storageはPlay prepareまたはLoading boundaryでProfile capacityを予約する。Poolはprivate実装であり、SourceのProjectile最大数、敵数、Weapon数、Pickup数を下げる理由にしない。
+### 14.3 Genre integrated-scale fixture
 
-Projectile pool不足時はPattern全体を`ShooterProjectileCapacityExceeded`で拒否し、ammo／cadenceを変更しない。Authoritative Event queue overflowではEventをdrop、merge、sampleせずSessionをfaultする。
+| Destination fixture | Profile scale input | 正式な検証 |
+|---|---|---|
+| `fixture.genre.shooter.integrated-scale.top-down-2d` | `profile.shooter.top_down_2d`の§14.1／14.2 exact値 | Genre composition、Profile、Game Flow、Perception bindingをFeature owner receiptと統合 |
+| `fixture.genre.shooter.integrated-scale.third-person-3d` | `profile.shooter.third_person_3d`の§14.1／14.2 exact値 | Genre composition、Profile、Game Flow、Perception bindingをFeature owner receiptと統合 |
 
-Presentation poolだけが不足した場合はcritical cue priorityに従ってPresentationを縮退できるが、Fire、Hit、Damage、Scoreを変更しない。
+両fixtureは[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)へ上表の規模値を入力し、Feature failure semanticsを複製しない。宣言値不足、非finite、負値、required axis欠落はGenre-owned `MIRAKAN-GENRE-SHOOTER-PROFILE-SCALE-UNDERSPECIFIED`でProfile applyを拒否し、last-valid Profile／Recipe／fixture receiptを維持する。
+
+### 14.4 Genre-owned diagnostic
+
+| Current Diagnostic ID | Owner | 条件 | 結果 |
+|---|---|---|---|
+| `MIRAKAN-GENRE-SHOOTER-PROFILE-SCALE-UNDERSPECIFIED` | `genre.shooter` | §14.1 required axis欠落、非finite／負値、§14.2 fixture input未解決 | Profile／Recipe applyを拒否しlast-valid Genre receiptを維持 |
+
+Feature Definition、State owner、Fire transaction、Projectile／query／queue capacity、Damage、Pickup、Score、Feature Save／Replay、Feature presentation authorityのDiagnosticは本表へ追加せず、[Gameplay Feature Packs §7](gameplay-features.md#7-failureとdiagnostic)を参照する。
 
 ## 15. Qualification closure
 
@@ -400,11 +465,29 @@ Shooter側は2D top-down／third-person 3Dの両fixtureで、required receipt cl
 
 旧Genre由来のFeature identityはaliasとして残さず、Feature ownerのmigration stepで次のexact identityへclean renameする。旧Save／Replay／fixture参照はmigration receiptへ記録し、AI catalogは旧名からGenre dependencyを推論しない。
 
-| Old identity | New Feature-owned identity |
-|---|---|
-| `ShooterProjectileStateV1` | `RangedProjectileStateV1` |
-| `SpawnShooterProjectileCommandV1` | `SpawnRangedProjectileCommandV1` |
-| `ShooterProjectileSnapshotV1` | `RangedProjectileSnapshotV1` |
-| `fixture.shooter.even-floor` | `fixture.feature.ranged_combat.even_floor` |
-| `fixture.shooter.explicit-offsets` | `fixture.feature.ranged_combat.explicit_offsets` |
-| `MIRAKAN-SHOOTER-{FEATURE_FAILURE}` | owner別`MIRAKAN-FEATURE-*`／`MIRAKAN-RANGED-COMBAT-*`／`MIRAKAN-COMBAT-*`／`MIRAKAN-PICKUP-GRANT-*`／`MIRAKAN-SCORING-*` |
+| Legacy source identity | Exact destination identity | Migration owner |
+|---|---|---|
+| `ShooterProjectileStateV1` | `RangedProjectileStateV1` | `feature.ranged_combat` |
+| `SpawnShooterProjectileCommandV1` | `SpawnRangedProjectileCommandV1` | `feature.ranged_combat` |
+| `ShooterProjectileSnapshotV1` | `RangedProjectileSnapshotV1` | `feature.ranged_combat` |
+| `fixture.shooter.even-floor` | `fixture.feature.ranged_combat.even_floor` | `feature.ranged_combat` |
+| `fixture.shooter.explicit-offsets` | `fixture.feature.ranged_combat.explicit_offsets` | `feature.ranged_combat` |
+| `MIRAKAN-SHOOTER-DEFINITION_INVALID` | `MIRAKAN-FEATURE-DEFINITION_INVALID` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-CONTRACT_VERSION_MISMATCH` | `MIRAKAN-FEATURE-CONTRACT_VERSION_MISMATCH` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-CAPABILITY_UNAVAILABLE` | `MIRAKAN-FEATURE-CAPABILITY_UNAVAILABLE` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-STATE_OWNER_CONFLICT` | `MIRAKAN-FEATURE-STATE_OWNER_CONFLICT` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-FIRE_TRANSACTION_FAILED` | `MIRAKAN-RANGED-COMBAT-FIRE_TRANSACTION_FAILED` | `feature.ranged_combat` |
+| `MIRAKAN-SHOOTER-PROJECTILE_CAPACITY_EXCEEDED` | `MIRAKAN-RANGED-COMBAT-PROJECTILE_CAPACITY_EXCEEDED` | `feature.ranged_combat` |
+| `MIRAKAN-SHOOTER-QUERY_CAPACITY_EXCEEDED` | `MIRAKAN-RANGED-COMBAT-QUERY_CAPACITY_EXCEEDED` | `feature.ranged_combat` |
+| `MIRAKAN-SHOOTER-AUTHORITATIVE_QUEUE_OVERFLOW` | `MIRAKAN-FEATURE-AUTHORITATIVE_QUEUE_OVERFLOW` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-DAMAGE_TARGET_INVALID` | `MIRAKAN-COMBAT-DAMAGE_TARGET_INVALID` | `feature.combat` |
+| `MIRAKAN-SHOOTER-PICKUP_GRANT_FAILED` | `MIRAKAN-PICKUP-GRANT-FAILED` | `feature.pickup_grant` |
+| `MIRAKAN-SHOOTER-SCORE_OVERFLOW` | `MIRAKAN-SCORING-OVERFLOW` | `feature.scoring` |
+| `MIRAKAN-SHOOTER-SAVE_CONTRACT_MISMATCH` | `MIRAKAN-FEATURE-SAVE_CONTRACT_MISMATCH` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-REPLAY_DIVERGENCE` | `MIRAKAN-FEATURE-REPLAY_DIVERGENCE` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-PRESENTATION_AUTHORITY_VIOLATION` | `MIRAKAN-FEATURE-PRESENTATION_AUTHORITY_VIOLATION` | referenced Feature owner |
+| `MIRAKAN-SHOOTER-PROFILE_SCALE_UNDERSPECIFIED` | `MIRAKAN-GENRE-SHOOTER-PROFILE-SCALE-UNDERSPECIFIED` | `genre.shooter` |
+| `fixture.shooter.crowded-battle-2d` | `fixture.genre.shooter.integrated-scale.top-down-2d` | `genre.shooter` |
+| `fixture.shooter.crowded-battle-3d` | `fixture.genre.shooter.integrated-scale.third-person-3d` | `genre.shooter` |
+
+上記source identityはこのmigration表にexactly one rowだけ存在し、alias／wildcard／prefix fallbackで照合しない。migration stepはsource identityとdestination identityの双方を完全一致で記録し、unknown legacy identityを最も近いdestinationへ推測変換しない。

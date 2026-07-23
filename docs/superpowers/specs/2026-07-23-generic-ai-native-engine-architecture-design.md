@@ -77,6 +77,27 @@ PackManifestV1
   provenance_ref
 ```
 
+Pack全Recipeに共通するFeature依存だけを`PackManifestV1.required_feature_pack_refs[]`へ置く。選択したcompositionだけが必要とする条件依存は次の正規型へ置く。
+
+```text
+CompositionRecipeV1
+  recipe_id
+  recipe_version
+  recipe_hash
+  owner_pack_ref
+  required_capability_refs[]
+  required_feature_pack_refs[]
+  configuration_profile_refs[]
+  game_spec_template_refs[]
+  action_role_set_refs[]
+  source_template_refs[]
+  validator_refs[]
+  qualification_fixture_refs[]
+  fallback_recipe_ref: CompositionRecipeRef | null
+```
+
+選択Recipeのeffective closureはManifest共通Feature、Recipe required Feature、両者の推移Feature DAGの和集合である。canonical Recipe／owner Pack／resolved Pack version＋hashから`closure_hash`を生成し、Preview、Project ChangeSet、Cook、Qualification、Save／Replayへ伝播する。未選択Recipeの条件依存はinstall closureへ追加しない。missing、version／hash conflict、Target不適合、unqualified dependency、fallback cycleはRecipe applyを原子的に拒否し、last-valid Recipe activation、Project revision、registry、closure hash、Artifactを維持する。
+
 Feature Packは再利用可能なPublic Contract、Schema、Validator、Runtime Port、AI vocabulary、reference implementation、contract fixtureを提供する。Genre PackはFeature Packを組み合わせるcomposition recipe、Genre vocabulary、GameSpec template、Profile、reference scenarioを提供する。Genre Packは新しい汎用Core契約を作らない。
 
 Shooter Packは`pack_kind=genre`とし、次のFeature Packを必要に応じて構成する。
@@ -89,7 +110,7 @@ Shooter Packは`pack_kind=genre`とし、次のFeature Packを必要に応じて
 - Interaction
 - Character Locomotion
 - Path Following
-- Scenario／Stage Flow
+- Scenario／Stage Flow（有限Gameplay用Recipeだけの条件依存）
 
 `Ready | Playing | Paused | Result`、Shooter Action Role、Shooter固有Camera／Audio／LOD ProfileはShooter Genre Packが所有する。
 

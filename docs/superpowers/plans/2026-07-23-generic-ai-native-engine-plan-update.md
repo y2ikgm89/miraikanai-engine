@@ -35,6 +35,7 @@
 - Modify: `docs/architecture/06-rendering/world.md`
 - Modify: `docs/architecture/README.md`
 - Modify: `docs/architecture/00-product/product-plan.md`
+- Modify: `docs/superpowers/specs/2026-07-23-generic-ai-native-engine-architecture-design.md`
 - Modify: current files under `docs/plans/` that link to the moved Pack documents
 
 **Interfaces:**
@@ -53,15 +54,15 @@ Expected: current正本とcurrent planに旧path／旧identityが存在する。
 
 - [ ] **Step 2: Move and rewrite the Pack contract**
 
-`pack-contract.md`へDesign §2～3の依存規則、`PackManifestV1`全Field、Feature／Genreの責務、Profile ownership、install／update／removal時のdependency／migration／last-valid規則を記載する。Feature間依存だけをDAGとして許可し、Genre間依存を拒否する。旧`DomainPackManifest` aliasを残さない。
+`pack-contract.md`へDesign §2～3の依存規則、`PackManifestV1`全Field、`CompositionRecipeV1.required_feature_pack_refs[]`、Recipe closure／hash／validation failure／last-valid規則、Feature／Genreの責務、Profile ownership、install／update／removal時のdependency／migration／last-valid規則を記載する。Feature間依存だけをDAGとして許可し、Genre間依存を拒否する。未選択Recipeの条件依存をinstalled closureへ追加せず、旧`DomainPackManifest` aliasを残さない。
 
 - [ ] **Step 3: Convert Shooter into a Genre Pack**
 
-`shooter.md`の正本範囲をShooter固有composition、Profile、Game Flow、Action role、Shooter fixtureへ限定する。Damage／Vital／Faction、Ranged Combat、Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／StageをFeature Capability参照へ変換する。`genre.shooter.top_down_2d`と`genre.shooter.third_person_3d`を正規identityにする。
+`shooter.md`の正本範囲をShooter固有composition、Profile scale、Game Flow、Action role、Shooter fixtureへ限定する。Damage／Vital／Faction、Ranged Combat、Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path FollowingをPack共通Feature参照へ変換し、Scenario／Stageは有限Recipeだけの`CompositionRecipeV1.required_feature_pack_refs[]`へ置く。endless Recipeでは同依存を省略する。Feature pool／capacity failureを再定義せず、旧Shooter診断15件とcrowded fixture 2件をexact 1:1 migration tableへ記録する。`genre.shooter.top_down_2d`と`genre.shooter.third_person_3d`を正規identityにする。
 
 - [ ] **Step 4: Add the optional Scenario／Stage Feature owner**
 
-`scenario-stage.md`へDesign §4.3の`StageDefinitionV1`、`completion_mode` tagged rule、Stage Scope、transition、Save／Replay、AI Operation、fixture、`completion_mode=none` negative／positive caseを記載する。World／RuntimeへLevel契約を再定義しない。
+`scenario-stage.md`へDesign §4.3の`StageDefinitionV1`、`completion_mode` tagged rule、Stage Scope、transition、Save／Replay、AI Operation、fixture、`completion_mode=none` negative／positive caseを記載する。World／RuntimeへLevel契約を再定義せず、依存方向をScenario／StageからWorldへの一方向にする。WorldからScenario／Stageの文書名、Pack identity、linkを参照しない。Worldにはstreaming stale／cancel／retry／partial activation、procedural nondeterminism／invalid output、presentation authority、derived Cell writeのDiagnosticと汎用fixture／acceptanceを保持する。
 
 - [ ] **Step 5: Update navigation and Product references**
 
@@ -73,10 +74,12 @@ Run:
 
 ```powershell
 rg -n '08-domain-packs|DomainPackManifest|capability\.gameplay\.shooter_core|domain\.action_2d|domain\.tps_single_player' docs/architecture docs/plans --glob '*.md'
+rg -n 'scenario-stage|pack-scenario|Scenario/Stage|Scenario／Stage' docs/architecture/06-rendering/world.md
+rg -n 'ShooterProjectileCapacityExceeded' docs/architecture/08-packs/shooter.md
 git diff --check
 ```
 
-Expected: historical引用を除くcurrent Architecture／current planの旧path／旧identityが0件、`git diff --check` exit 0。
+Expected: historical引用を除くcurrent Architecture／current planの旧path／旧identityが0件、WorldからScenario／Stage参照0件、Shooter Feature capacity failure再定義0件、旧15 Diagnosticと旧crowded fixture 2件がmigration tableで各1件、`git diff --check` exit 0。
 
 Commit:
 
