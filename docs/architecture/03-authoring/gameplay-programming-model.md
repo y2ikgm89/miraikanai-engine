@@ -54,7 +54,7 @@ Texture、Mesh、Animation、Audio、Font、Scene、Quest、Weapon値、UI配置
 - Camera、Audio、VFXのPresentation cue。
 - Item、Weapon、Character、Difficulty、Balance table。
 
-kindごとのField単位schemaの正本所在は次で確定する。Perception／Interactionは本書§2.4、Rule／ECAとFSMは§2.5が所有する。Shooter Coreを使うProjectのWeapon、Encounter／Spawn Plan／Wave、Difficulty、Pickup、Score、Game Flowは[Shooter Reference Pack](../08-domain-packs/shooter.md)の正規Data Modelが所有する。残る汎用kindのV1 schemaは本書が所有し、§2.5のPhase期限までにschema revision、validator、Cooker、fixtureを同時登録する。
+kindごとのField単位schemaの正本所在は次で確定する。Perception／Interactionは本書§2.4、Rule／ECAとFSMは§2.5が所有する。[Shooter Genre Pack](../08-packs/shooter.md)はWeapon、Encounter／Spawn、Pickup、Score等を所有せず、対応するFeature Capabilityのcomposition、Profile、Game Flow、Action roleだけを所有する。Combat、Ranged Combat、Encounter／Spawn、Scoring、Pickup／Grantの旧Shooter詳細は[Gameplay Feature Packs](../08-packs/gameplay-features.md)へcontract identityを維持して移管する。残る汎用kindのV1 schemaは本書または参照するFeature Packが所有し、§2.5のPhase期限までにschema revision、validator、Cooker、fixtureを同時登録する。
 
 Definitionが利用できる操作はMCD Capability IDで列挙する。filesystem、network、process、wall clock、pointer、native SDK、dynamic library、arbitrary reflectionを公開しない。
 
@@ -435,7 +435,7 @@ Project Commitは[Project state](project-state.md)のtransactionを使う。Defi
 | Target Variant未Qualified | 対象Targetで非表示 |
 | runtime Port／phase違反 | output破棄、typed session fault |
 
-Capabilityの導入順、Game System一覧の製品Phase、MVP、Domain Pack maturityは[Product Plan](../00-product/product-plan.md)と各Domain Ownerが所有する。本書は空Class群、固定Phase表、Genre固有System一覧を実装開始条件として複写しない。
+Capabilityの導入順、Game System一覧の製品Phase、MVP、Pack maturityは[Product Plan](../00-product/product-plan.md)と各Pack Ownerが所有する。本書は空Class群、固定Phase表、Genre固有System一覧を実装開始条件として複写しない。
 
 ## 10. 禁止する固定階層とunrestricted scripting runtime
 

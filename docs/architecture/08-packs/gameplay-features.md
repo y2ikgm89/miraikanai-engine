@@ -1,0 +1,711 @@
+# Miraikanai Engine Gameplay Feature Packs
+
+- 文書ID: mirakan.arch.pack-gameplay-features
+- 状態: review
+- 正本範囲: reusable Gameplay Feature Capabilityのcanonical owner catalog、Public Contract、Schema、State owner、Command／Event／Snapshot、Save／Replay、failure、fixture
+- 非正本範囲: Genre composition、Shooter Profile／Game Flow／Action role、Pack lifecycle、共通Subsystem契約、Product roadmapは各Ownerを参照
+- 依存: [Pack Contract](pack-contract.md)、[Scenario／Stage](scenario-stage.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Input](../07-platform/input.md)
+- 外部根拠検証日: 2026-07-23
+
+## 1. 結論
+
+本書はShooterから再利用可能なGameplay契約を分離したcanonical Feature owner catalogである。Shooter、Platformer、Puzzle、別Genre、Genre PackなしのGame Projectは同じPublic Contractを直接利用できる。文書移管でcontract identity、Field、closed enum、algorithm、Save／Replay、failure、fixtureを変更しない。
+
+| Feature Pack owner | Provided Capability | Canonical contract location |
+|---|---|---|
+| `feature.combat` | `capability.gameplay.combat` | 本書: Damage、Vital、Faction／Team |
+| `feature.ranged_combat` | `capability.gameplay.ranged_combat` | 本書: Weapon、Shot、Projectile、Ammo／Reload |
+| `feature.encounter_spawn` | `capability.gameplay.encounter_spawn` | 本書: Encounter、Spawn |
+| `feature.scoring` | `capability.gameplay.scoring` | 本書: Score rule／state |
+| `feature.pickup_grant` | `capability.gameplay.pickup_grant` | 本書: Pickup、typed Grant |
+| `feature.interaction` | `capability.gameplay.interaction` | [Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) |
+| `feature.character_locomotion` | `capability.gameplay.character_locomotion` | [Physics](../05-simulation/physics.md)のMotion Executor／Character implementation境界 |
+| `feature.path_following` | `capability.gameplay.path_following` | [Navigation](../05-simulation/navigation.md) |
+| `feature.scenario_stage` | `capability.gameplay.scenario_stage` | [Scenario／Stage](scenario-stage.md) |
+
+## 2. Ownershipとcompatibility
+
+本書のembedded contractは上表のFeature Pack ownerごとに分離して`PackManifestV1`の`public_contract_refs[]`、`component_schema_refs[]`、`game_system_spec_refs[]`、`runtime_port_refs[]`、`validator_refs[]`、`test_scenario_refs[]`へ登録する。文書を共有してもFeature Pack間のdependency edgeを省略せず、Feature間依存はDAG、Genreへの逆依存は0件とする。
+
+既存の`MIRAKAN-SHOOTER-*` Diagnostic IDと`fixture.shooter.*` IDは互換性維持のため現revisionで保持する。名前からShooter ownershipを推論してはならない。改名はaliasではなく、migration step、consumer update、Save／Replay compatibility、fixture、deprecation期限を伴う後続revisionでだけ行う。
+
+## 3. Canonical data model
+
+すべてのSource objectはUUIDv7 `StableId`、MCD Typeはexact `McdContractRefV1`、Derived Artifactは`ArtifactRefV1`を使う。表示名、Asset path、C++型名、配列indexをidentityにしない。
+
+### 3.1 `WeaponDefinitionV1`
+
+```text
+WeaponDefinitionV1
+  weapon_definition_id: StableId
+  technical_name
+  semantic_tags[]
+  fire_bindings[1..2]:
+    semantic_role: primary | secondary
+    fire_mode_ref
+    shot_delivery_ref
+    shot_pattern_ref
+    damage_spec_ref
+    presentation_cue_ref
+  ammo_policy_ref
+  reload_policy_ref
+  allowed_slot_tags[1..8]
+  target_profile_constraints[]
+```
+
+`primary` Bindingはexactly one、`secondary`はzero or oneとし、配列indexから役割を推測しない。`WeaponDefinitionV1`は調整dataであり、owner Entity、現在弾数、cooldown、reload進行を持たない。C++ function名、callback、Physics Body pointer、VFX instanceを参照しない。
+
+### 3.2 `FireModeDefinitionV1`
+
+```text
+FireModeDefinitionV1
+  trigger_mode: single | automatic | burst
+  activation_count_per_cycle: uint16
+  cycle_ticks: uint16
+  cycle_distribution_fixture_ref: fixture.shooter.even-floor | fixture.shooter.explicit-offsets
+  activation_offsets_ticks[]: optional
+  ammo_cost_per_activation: uint16
+  release_policy: stop_unfired | complete_started_cycle
+  fire_while_reloading: false
+```
+
+範囲は`activation_count_per_cycle=[1,3600]`、`cycle_ticks=[1,3600]`、`activation_count_per_cycle <= cycle_ticks`とする。`burst`だけはcountを`[1,32]`へ制限する。C1は一Weaponにつき一tick最大一Activationである。Patternが一Activationから複数Shotを生成する。この上限はper Weapon instanceの不変条件であり、Bindingごとではない。同tickに`primary`と`secondary`の両Bindingが発火許可となった場合は`primary`のActivationだけを実行し、`secondary`を`FireRejectedCadence`で拒否してそのcadence cycle開始tickを次の有効tickへ繰り延べる。この裁定順は固定であり、同じPublic Contractへ適合するすべての実装とReplayで同一結果とする。
+
+`fixture.shooter.even-floor`はcycle内のActivation `i=[0,count-1]`を`floor(i * cycle_ticks / activation_count_per_cycle)` tickへ配置し、`activation_offsets_ticks`を持たない。`fixture.shooter.explicit-offsets`は`activation_count_per_cycle`と同数のoffsetを`[0,cycle_ticks-1]`へstrictly increasingで持つ。cycle開始tickとDefinition revisionが同じならscheduleは同じである。「毎秒7発」は`7 activation / 60 tick`へexactに解決し、float timerを累積しない。
+
+`single`はcount 1、offset 0で、trigger rising edgeごとに一cycleだけ評価する。`automatic`はtrigger hold中にcycleを反復する。`burst`はrising edgeで一つの有限cycleを開始し、通常は`fixture.shooter.explicit-offsets`で`[0,5,10]`等を表す。release後の再押下なしに次cycleを開始しない。これによりautomatic cadence、burst内間隔、burst後cooldownを同じscheduleで一意に表す。
+
+`release_policy`はcycle内の未発射Activationだけへ適用する。`single`／`automatic`は`stop_unfired`、`burst`はGame Briefで`stop_unfired`または`complete_started_cycle`を選ぶ。Weapon switch、reload開始、owner defeat、Game Flow停止は未発射Activationを常にcancelし、消費済みammoと既発射Shotだけを維持する。
+
+### 3.3 `ShotPatternDefinitionV1`
+
+```text
+ShotPatternDefinitionV1
+  pattern_kind: single | fixed_offsets | even_fan | radial | deterministic_cone
+  shot_count: uint8
+  origin_offsets[]
+  speed_scale_q16[]
+  fixed_direction_offsets_turn_q16[]: optional
+  fan_start_turn_q16: optional
+  fan_end_turn_q16: optional
+  radial_phase_turn_q16: optional
+  cone_half_angle_turn_q16: optional
+  deterministic_rng_stream_id: optional
+```
+
+`shot_count=[1,64]`とし、originとspeed配列は1または`shot_count`要素で、1要素は全Shotへbroadcastする。`shot_count`はhitscan ray数とProjectile spawn数の両方に使い、名前だけでDeliveryを推測しない。角度はturn単位のsigned Q16、倍率はunsigned Q16 `[0.0625,16]`とする。
+
+- `single`: `shot_count=1`で、方向offset 0。5つのoptional angle／RNG Fieldを持たない。
+- `fixed_offsets`: `fixed_direction_offsets_turn_q16`を`shot_count`個持ち、他のangle／RNG Fieldを持たない。
+- `even_fan`: start／endを必須とし、端点込みで等分する。count 1ではstartとendの一致を要求する。
+- `radial`: phaseを必須とし、Profile forwardを0として一周をcount等分する。
+- `deterministic_cone`: half angleとauthoritative `DeterministicRngV1`の登録済みstreamを必須とし、他のangle Fieldを持たない。
+
+VFX RNG、render frame、wall clock、Entity pointer、container iteration順をPatternへ使わない。
+
+### 3.4 `ShotDeliveryDefinitionV1`
+
+```text
+ShotDeliveryDefinitionV1
+  delivery_kind: hitscan | projectile
+  max_range_m
+  collision_query_profile_ref
+  projectile_definition_ref: optional
+  max_hits_per_activation
+  hit_selection: closest_per_shot
+```
+
+hitscanはCollision規約のRay／Shape Castを使う。ProjectileはShooter Projectile Systemのdomain-local recordを使い、C1では各tickの移動segmentをswept Queryとして検証する。Particle collision、depth buffer、render occlusionをHit Evidenceにしない。
+
+`delivery_kind=hitscan`では`projectile_definition_ref`を持たず、Patternの`speed_scale_q16`を全要素1.0、`projectile`ではrefを必須とする。`max_hits_per_activation=[1,64]`かつ`shot_count`以下とし、各Shotは`closest_per_shot`で最大一Hitを生成する。penetration、同一Shotの複数Hit、`ordered_all`は現在のcontractの対象外として拒否する。これらの将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。Projectileは`lifetime_ticks`またはspawn originから`max_range_m`へ到達した早い方でexpireする。
+
+### 3.5 `ProjectileDefinitionV1`
+
+```text
+ProjectileDefinitionV1
+  projectile_definition_id: StableId
+  dimension: two_d | three_d
+  speed_mps
+  lifetime_ticks
+  query_shape_ref
+  collision_query_profile_ref
+  owner_ignore_ticks
+  on_hit_policy: stop
+  presentation_cue_ref
+```
+
+`speed_mps=(0,10,000]`、`lifetime_ticks=[1,36,000]`、`owner_ignore_ticks=[0,60]`とする。C1 Projectileはscale、arbitrary acceleration、homing target、bounce count、Physics Backend objectを持たない。
+
+Runtime recordは少なくとも次を持つ。
+
+```text
+ShooterProjectileStateV1
+  projectile_spawn_id: uint64
+  definition_ref
+  delivery_definition_ref
+  owner_entity_ref
+  owner_team_ref
+  position_m
+  direction_unit
+  speed_mps
+  age_ticks
+  rng_draw_count
+  status: pending | active | hit | expired
+```
+
+`projectile_spawn_id`はPlay session内でShooter Projectile Systemが単調増加させ、0を使わない。Pool slot、pointer、Physics handleをSave／Replay identityにしない。
+
+`delivery_definition_ref`はspawn元の`ShotDeliveryDefinitionV1`を指す。`max_range_m`によるexpireは、C1の直線・等速運動を前提に`speed_mps`と`age_ticks`から導出した移動距離と、`delivery_definition_ref`が示す`max_range_m`だけで判定する。spawn originの保存を必要とせず、Save／Load後も同じcanonical recordから同じexpire tickへ再決定できる。
+
+### 3.6 `AmmoPolicyV1`と`ReloadPolicyV1`
+
+```text
+AmmoPolicyV1
+  ammo_kind: infinite | magazine_reserve
+  magazine_capacity
+  initial_magazine
+  reserve_capacity
+  initial_reserve
+
+ReloadPolicyV1
+  reload_kind: none | full_magazine
+  duration_ticks: optional
+  trigger_policy: manual | manual_or_empty, optional
+  interruption: not_interruptible | cancel_preserve_ammo, optional
+```
+
+capacityは`[0,65,535]`とし、initial値は対応capacity以下とする。`infinite`は4つのcapacity／initial Fieldを0、`ReloadPolicyV1.reload_kind=none`とし、ammo FieldをRuntime State／HUD／Saveへ作らない。`magazine_reserve`は`magazine_capacity>=1`を要求する。`reload_kind=none`では3つのoptional Fieldを持たず、`full_magazine`では`duration_ticks=[1,36,000]`とtrigger／interruptionをすべて必須とする。C1 reloadは完了時に必要量をreserveからmagazineへ一度だけ移し、animation eventやAudio completionをauthoritative完了条件にしない。
+
+### 3.7 `WeaponInstanceStateV1`と`WeaponLoadoutStateV1`
+
+```text
+WeaponInstanceStateV1
+  weapon_instance_id: StableId
+  owner_entity_ref
+  definition_ref
+  slot_index
+  magazine_ammo: optional
+  reserve_ammo: optional
+  fire_binding_states[1..2]:
+    semantic_role: primary | secondary
+    cadence_cycle_start_tick
+    cadence_activation_index
+    trigger_held
+  reload_state
+  reload_complete_tick
+  enabled
+```
+
+`magazine_reserve`だけが二つのammo Fieldを持ち、`infinite`では持たない。Binding StateはDefinitionのsemantic roleとexactに一致し、primary／secondaryのcadenceやhold状態を共有しない。Weapon SystemだけがこのTypeを所有する。HUD、Character、Input、VFXは直接writeせずSnapshotまたはEventを使う。
+
+owner Entityごとのslot集合は`WeaponLoadoutStateV1`が所有する。
+
+```text
+WeaponLoadoutStateV1
+  owner_entity_ref
+  slots[1..8]:
+    slot_index: uint8
+    weapon_instance_ref: optional
+  active_slot_index: uint8
+```
+
+slot数はProfileが`[1,8]`で宣言し、`slot_index`は`[0,slot数-1]`で重複しない。`active_slot_index`は装備済みslotだけを指す。Weapon SystemだけがこのTypeをwriteする。初期装備はProfile Templateが`slot_index`ごとの`weapon_definition_ref`列として宣言し、Runtimeが暗黙生成しない。
+
+`GrantWeaponCommandV1`は空きslotのうち最小`slot_index`へ割り当てる。既に所持する`WeaponDefinitionV1`を重複取得した場合はWeaponを追加せず、当該instanceのreserve ammoが`reserve_capacity`未満なら取得Definitionの`initial_magazine + initial_reserve`をcapacityまで加算してacceptし、既にcapacityなら`PickupGrantRejectedNoCapacity`で拒否する(`infinite`では変化なしでacceptする)。全slotが使用中の新規Weapon grantは`PickupGrantRejectedNoCapacity`であり、4.2節の規則でPickupを`available`へ戻す。`next_weapon`／`previous_weapon`は装備済みslotだけを対象に`slot_index`の昇順／降順でwrap巡回する。
+
+### 3.8 `DamageSpecV1`
+
+```text
+DamageSpecV1
+  damage_spec_id: StableId
+  damage_type_ref
+  base_damage_points
+  application_kind: direct | radial
+  radial_damage_ref: optional
+  shield_interaction
+  invulnerability_interaction
+  team_policy_ref
+  hit_reaction_tag
+  defeat_credit_policy
+```
+
+全数値はfinite binary32とし、`base_damage_points=[0,1.0e9]`である。`direct`は`radial_damage_ref`を持たず、`radial`は必須とする。negative DamageをHealingとして再解釈しない。Healingは`GrantVitalCommandV1`(5.1節)を使い、Damage経路で表現しない。`defeat_credit_policy`のclosed valueは`last_hit`だけとする。assist配分、寄与比例、時間減衰creditは現在のcontractの対象外として拒否し、将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。
+
+### 3.9 `RadialDamageDefinitionV1`
+
+```text
+RadialDamageDefinitionV1
+  radial_damage_id: StableId
+  inner_radius_m
+  outer_radius_m
+  falloff: step | linear_q16
+  max_targets: uint16
+  occlusion_policy: none | collision_query
+  occlusion_query_profile_ref: optional
+```
+
+`0 <= inner_radius_m <= outer_radius_m <= 1,000`、`max_targets=[1,256]`とする。`none`はquery refを持たず、`collision_query`は必須とする。候補はdistance、Target Stable IDの順でcanonicalに選び、`max_targets`超過をpartial Damageで継続せず`ShooterQueryCapacityExceeded`としてtickをfaultする。`linear_q16`はinnerで1.0、outerで0.0のQ16倍率とし、Gameplay DamageをVFX radiusから取得しない。
+
+C1のradial originはDeliveryが確定したcanonical Hit位置であり、HitがないActivationではradial Damageを生成しない。timer、remote detonation、persistent area Damageは現在のcontractの対象外であり、将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。
+
+### 3.10 `TeamPolicyV1`
+
+Relationは`self | ally | neutral | hostile`のclosed enumとする。Policyは各Relationへ`ignore | block_without_damage | apply_damage`を一つ指定する。C1既定はself／ally=`ignore`、neutral=`block_without_damage`、hostile=`apply_damage`である。
+
+friendly fireの変更はGame BriefのHigh Impact項目であり、AIが武器単位の見た目や難易度要求から推測して変更しない。
+
+### 3.11 `VitalStateV1`
+
+```text
+VitalStateV1
+  owner_entity_ref
+  health_points
+  max_health_points
+  shield_points
+  max_shield_points
+  invulnerable_until_tick
+  life_state: alive | defeated
+  last_damage_credit
+```
+
+Vital SystemだけがHealth、Shield、invulnerability、defeatを書き込む。Combat SystemはHit EvidenceとPolicyを検証して`ApplyVitalDeltaCommandV1`を生成し、Vital Stateを直接変更しない。Presentation Gameplay Cueは`DamageAppliedEventV1`と`DefeatEventV1`を購読する。
+
+Combat Systemが所有するDamage credit ledgerは、targetごとに最新の`DamageCreditRecordV1`を一件保持する。
+
+```text
+DamageCreditRecordV1
+  target_entity_ref
+  credited_entity_ref
+  credited_team_ref
+  damage_spec_ref
+  credit_tick
+```
+
+`VitalStateV1.last_damage_credit`は同recordへの参照であり、`defeat_credit_policy=last_hit`の確定、`DefeatEventV1`のcredit、Score加点の根拠に使う。creditはDamage適用が確定したtickだけで更新し、blockされたDamageでは更新しない。
+
+### 3.12 `ScoreRuleDefinitionV1`と`ScoreStateV1`
+
+```text
+ScoreRuleDefinitionV1
+  rule_id: StableId
+  event_kind: defeat | pickup_collected | objective_completed | wave_completed | boss_defeated
+  base_points: int64
+  combo_increment
+  combo_expire_ticks
+  multiplier_curve_ref: optional
+  target_filter: optional
+    hostile_team_filter_ref: optional
+    enemy_archetype_refs[0..64]
+
+ScoreMultiplierCurveV1
+  curve_id: StableId
+  points[1..16]:
+    combo_count_threshold: uint32
+    multiplier_q16
+
+ScoreStateV1
+  participant_ref
+  current_score: int64
+  combo_count: uint32
+  multiplier_q16
+  combo_expire_tick
+  session_high_score: int64
+  persistent_high_score: int64
+```
+
+Score SystemだけがScore Stateを所有する。Score加算は`DamageApplied`ではなく、Ruleが`event_kind`で指定した確定Eventだけから行う。`event_kind`は上記closed enumだけを許可し、unknown enumを拒否する。同じDefeatをHit数だけ重複加点しない。
+
+`multiplier_curve_ref`は`ScoreMultiplierCurveV1`だけを参照する。curveの`combo_count_threshold`は先頭0のstrictly increasingとし、現在comboに対する倍率は閾値以下で最大の点をstepとして使い、補間しない。`target_filter`を持つRuleは、filterに合致しない確定Eventへ適用しない。
+
+`int64` overflowをsaturateまたはwrapせず`ShooterScoreOverflow`としてPlay sessionをfaultする。persistent high scoreはSave generationへ含める。
+
+### 3.13 `EncounterPatternDefinitionV1`
+
+```text
+EncounterPatternDefinitionV1
+  encounter_id: StableId
+  phases[1..64]: EncounterPhaseV1
+  waves[1..256]: EncounterWaveV1
+  spawn_groups[1..1024]: SpawnGroupV1
+  completion_condition: all_defeated | goal_reached | time_expired | boss_defeated
+  goal_ref: optional
+  time_limit_ticks: optional
+  boss_phase_refs[0..32]
+  difficulty_profile_ref
+  rng_stream_ids[]
+
+EncounterPhaseV1
+  phase_id: StableId
+  wave_refs[1..256]
+
+EncounterWaveV1
+  wave_id: StableId
+  start_tick
+  spawn_group_refs[1..1024]
+
+SpawnGroupV1
+  spawn_group_id: StableId
+  enemy_archetype_ref
+  spawn_transform_ref
+  spawn_count: uint16
+  spawn_start_offset_ticks
+  spawn_interval_ticks
+```
+
+各waveは丁度一つのphaseの`wave_refs`に、各spawn groupは丁度一つのwaveの`spawn_group_refs`に現れ、未参照と重複参照を拒否する。`boss_phase_refs`は`phases`のsubsetである。tickはEncounter開始を0とし、`start_tick=[0,36,000]`、`spawn_start_offset_ticks=[0,36,000]`、`spawn_interval_ticks=[0,3600]`、`spawn_count=[1,256]`とする。`spawn_count>=2`は`spawn_interval_ticks>=1`を要求する。
+
+`completion_condition`はclosed enumであり、`goal_reached`だけが`goal_ref`を必須として他では持たない。`time_expired`だけが`time_limit_ticks=[1,36,000]`を必須として他では持たない。`boss_defeated`は`boss_phase_refs`が非空であることを要求する。
+
+Spawn順、Wave遷移、Boss phaseはfixed tick、Stable ID順、登録済みRNG streamで決める。VFX completion、Audio duration、Animationのpresentation-only Notifyを進行条件にしない。
+
+### 3.14 `PickupDefinitionV1`と`PickupInstanceStateV1`
+
+```text
+PickupDefinitionV1
+  pickup_definition_id: StableId
+  grant_kind: ammo | health | shield | score | weapon
+  grant_amount: uint32 | binary32 | int64, optional by grant_kind
+  weapon_definition_ref: optional
+  collection_filter_ref
+  presentation_cue_ref
+
+PickupInstanceStateV1
+  pickup_instance_id: StableId
+  definition_ref
+  state: available | pending_grant | collected
+  grant_transaction_id: optional
+  pending_collector_ref: optional
+  collected_by_ref: optional
+  collected_tick: optional
+```
+
+`grant_kind`をdiscriminatorとし、`ammo | health | shield | score`は`grant_amount>0`を必須としてweapon refを持たない。ammoはuint32、health／shieldはfinite binary32のpoints型、scoreはint64とする。`weapon`はweapon refを必須としamountを持たない。現在のcontractはone-shot collectionだけを扱い、respawn、random loot table、inventory weightは対象外として拒否する。これらの将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。Pickup Systemはtyped Grant Commandを各State ownerへ送り、Weapon ammo、Vital、Scoreを直接writeしない。
+
+`grant_kind`とtyped Grant Commandの対応は`ammo`→`GrantAmmoCommandV1`、`weapon`→`GrantWeaponCommandV1`、`health | shield`→`GrantVitalCommandV1`、`score`→`AwardScoreCommandV1`である。`GrantVitalCommandV1`は`vital_kind: health | shield`、finite binary32の`amount>0`、`grant_transaction_id`を持ち、Vital Systemだけがconsumeする。3.8節のHealingも同じ`GrantVitalCommandV1`を使う。対応Vitalが既にmax値の場合は`PickupGrantRejectedEventV1`、それ以外はmaxまで適用して`PickupGrantAcceptedEventV1`を返し、4.2節のGrant transaction規則へ従う。
+
+## 4. Game SystemとState owner
+
+### 4.1 Engine Standard System
+
+| System Contract | Scope | 所有State | 主な責務 |
+|---|---|---|---|
+| `game_system.engine.weapon` | `entity_instance` | `WeaponInstanceStateV1`、`WeaponLoadoutStateV1` | trigger、cadence、ammo、reload、switch、Fire transaction |
+| `game_system.engine.shooter_projectile` | `world_instance` | `ShooterProjectileStateV1` collection | spawn、swept query、hit／expire、capacity |
+| `game_system.engine.combat` | `world_instance` | Damage credit ledger | Hit Evidence、Team、Damage rule、creditの検証 |
+| `game_system.engine.vital` | `entity_instance` | `VitalStateV1` | Health、Shield、invulnerability、defeat |
+| `game_system.engine.score` | `play_session` | `ScoreStateV1` | 加点、combo、multiplier、high score |
+| `game_system.engine.pickup` | `world_instance` | `PickupInstanceStateV1` collection | overlap Evidence、collection、typed Grant、one-shot state |
+| `game_system.engine.encounter` | `encounter_instance` | Encounter runtime state | Wave、Spawn、Boss phase、completion |
+
+同じPublic Contractへ適合するProject-defined実装は許可するが、Engine Standardと同時にactiveにしない。WeaponとVitalをCharacter Systemのprivate Fieldへ隠さず、Public State owner tableへ出す。
+
+### 4.2 Runtime data flow
+
+```text
+Input Snapshot
+  -> Input／AI intent evaluation
+  -> RequestFireCommandV1
+  -> Weapon System
+       -> hitscan: CollisionQueryRequestV1
+       -> projectile: SpawnShooterProjectileCommandV1
+       -> WeaponFireAcceptedEventV1
+  -> Collision query／normalization
+  -> CollisionQueryResultV1
+  -> ShotHitEventV1
+  -> ApplyDamageCommandV1
+  -> Combat System
+  -> ApplyVitalDeltaCommandV1
+  -> Vital System
+  -> DamageAppliedEventV1／DefeatEventV1
+       -> Score／Encounter／Game Flow
+       -> HUD／Audio／VFX／Camera Presentation
+  -> Replay checkpoint
+  -> immutable Snapshot publish
+```
+
+正確な実行phase、message merge、publish時点は[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)を参照する。Projectile spawnはWeaponのFire transactionでcapacityを予約し、Shooter Projectile Systemへ次の有効なactivation境界で渡す。muzzle Audio／VFXはPresentationとして開始できるが、その位置をauthoritative Projectile位置として読み戻さない。
+
+hitscanはWeapon評価でqueryを生成し、Collision ownerの実行とpublishを経てDamageへ接続する。同期Physics objectへ直接raycastするProject callbackを公開しない。
+
+Pickup overlapはCollisionの正規化EvidenceをPickup Systemが消費し、`pickup_instance_id, collector StableId`順に候補を決める。同じPickupへ同tickに複数collectorが接触した場合はcanonical先頭だけを`pending_grant`へ遷移し、transaction ID付きGrant Commandを対象State ownerへ送る。ownerがgrantを適用して`PickupGrantAcceptedEventV1`を返した時だけ`collected`へ遷移し、full ammo／Health等で`PickupGrantRejectedEventV1`を返した場合は`available`へ戻す。pending中の重複collectionを許可しない。
+
+### 4.3 Fire transaction
+
+一つの`RequestFireCommandV1`は次の順で原子的に評価する。
+
+1. owner、Weapon instance、Definition revision、active slot、primary／secondary Binding roleを検証する。
+2. Game Flow、Vital、Weapon enabled、reload、trigger、cadenceを検証する。
+3. ammo cost、Pattern shot count、Projectile spawn数、Collision query数を計算する。
+4. Projectile pool、Collision query capacity、authoritative Command／Event queueの必要capacityを事前予約する。
+5. すべて成功した場合だけammo、cadence state、reload stateを更新する。
+6. hitscan queryまたは次のProjectile activation用Commandを全件生成する。
+7. `WeaponFireAcceptedEventV1`を一件生成する。
+
+Pattern 64 Shotのうち32 Shotだけを生成するpartial fire、ammoだけを消費してDeliveryを生成しないfire、capacity不足時にcooldownだけを開始するfireを禁止する。
+
+Presentation cue capacityはFire成立条件へ含めない。`WeaponFireAcceptedEventV1`の購読側がcritical cue priorityに従って別途予約し、不足してもauthoritative Fire結果をrollbackしない。
+
+cooldown、reload中、ammo不足、Game Flow停止は通常の`FireRejectedReasonV1`でありSession faultではない。Schema破損、State owner conflict、予約後のcapacity invariant違反はfaultである。
+
+## 5. Command、Event、Snapshot
+
+### 5.1 Command
+
+```text
+RequestFireCommandV1
+ReleaseFireCommandV1
+RequestReloadCommandV1
+RequestWeaponSwitchCommandV1
+SpawnShooterProjectileCommandV1
+ApplyDamageCommandV1
+ApplyVitalDeltaCommandV1
+RequestPickupCollectionCommandV1
+GrantAmmoCommandV1
+GrantWeaponCommandV1
+GrantVitalCommandV1
+AwardScoreCommandV1
+AdvanceEncounterCommandV1
+SetShooterGameFlowCommandV1
+```
+
+各Commandはproducer、target owner、consume phase、combine policy、conflict key、capacity contributionをMCDへ宣言する。
+
+### 5.2 Event
+
+```text
+WeaponFireAcceptedEventV1
+WeaponFireRejectedEventV1
+WeaponReloadStartedEventV1
+WeaponReloadCompletedEventV1
+WeaponSwitchedEventV1
+PickupGrantAcceptedEventV1
+PickupGrantRejectedEventV1
+PickupCollectedEventV1
+ShotHitEventV1
+ProjectileExpiredEventV1
+DamageAppliedEventV1
+DamageBlockedEventV1
+DefeatEventV1
+ScoreChangedEventV1
+ComboChangedEventV1
+WaveStartedEventV1
+WaveCompletedEventV1
+BossPhaseChangedEventV1
+ShooterResultReachedEventV1
+```
+
+Eventは原因となるCommand ID、tick、producer System、owner／target Stable ID、Definition revision、Evidence refを持つ。Display text、localized string、VFX Asset pathをauthoritative Eventへ入れない。
+
+### 5.3 Snapshot
+
+- `WeaponSnapshotV1`: active slot、ammo、reload、next activation、enabled
+- `ShooterProjectileSnapshotV1`: count、canonical projectile records、capacity
+- `VitalSnapshotV1`: Health、Shield、invulnerability、life state
+- `ScoreSnapshotV1`: score、combo、multiplier、high score
+- `PickupSnapshotV1`: available／pending／collected、transaction、collector、collection tick
+- `EncounterSnapshotV1`: encounter、phase、wave、remaining authoritative actor
+- `ShooterGameFlowSnapshotV1`: state、transition reason、result
+
+HUD、AI behavior、Debuggingは必要なbounded Snapshotだけを読む。Render、Audio、VFXはPresentation projectionを使い、authoritative ownerを直接queryしない。
+
+## 6. Save、Replay、Migration
+
+### 6.1 Save対象
+
+- active Weapon loadout、Weapon instance、slot、ammo、cadence、reload
+- active authoritative Projectileのcanonical record
+- Vital State
+- Pickup available／pending／collected stateとgrant transaction
+- Score／Combo／persistent high score
+- Encounter phase、Wave、Spawn ordinal、RNG stream state
+- Shooter Game Flow
+- active Definition、System Graph、Implementation Set、Profile hash
+
+SaveはProjectileを`projectile_spawn_id`順、WeaponをStable ID順、Entity StateをStable ID順に並べる。Pool slot、Runtime handle、Physics native ID、VFX instance、Audio Voice、Camera shakeを保存しない。
+
+### 6.2 Replay
+
+ReplayはInputSnapshot、accepted external result、Definition／Profile hash、RNG stream state、Command／Event oracle、periodic authoritative state hashを記録する。
+
+最低限次のcausal chainをQueryできる。
+
+```text
+Input transition
+  -> RequestFire
+  -> Fire accepted／rejected
+  -> Query／Projectile
+  -> Shot hit
+  -> Damage applied／blocked
+  -> Defeat
+  -> Score／Encounter／Result
+```
+
+Presentation Event欠落をauthoritative divergenceにしない。Damage、Projectile、Scoreの差異をPresentation-onlyとして無視しない。
+
+### 6.3 Migration
+
+- Field IDをrenameで変更しない。
+- enum意味変更は新Type versionを作る。
+- cadence algorithm変更は新しい`cycle_distribution_fixture_ref`とReplay migrationを必要とする。既存fixture IDの意味を上書きしない。
+- Projectile Stateを保存対象から外す変更はMajor migrationである。
+- Weapon Definition更新時、live instanceのammoを無言でrefill／truncateしない。Migration Policyを明示する。
+
+## 7. FailureとDiagnostic
+
+### 7.1 通常結果
+
+```text
+FireRejectedDisabled
+FireRejectedGameFlow
+FireRejectedDefeated
+FireRejectedCadence
+FireRejectedReloading
+FireRejectedAmmo
+ReloadRejectedFull
+ReloadRejectedNoReserve
+WeaponSwitchRejectedUnavailable
+PickupCollectionRejectedUnavailable
+PickupCollectionRejectedFilter
+PickupGrantRejectedNoCapacity
+DamageBlockedTeamPolicy
+DamageBlockedInvulnerability
+ShotNoHit
+ProjectileExpired
+```
+
+これらは想定可能なGameplay結果であり、Console errorまたはSession faultにしない。必要なPresentation cueとDebug Eventを持てる。
+
+### 7.2 Diagnostic ID
+
+```text
+MIRAKAN-SHOOTER-DEFINITION_INVALID
+MIRAKAN-SHOOTER-CONTRACT_VERSION_MISMATCH
+MIRAKAN-SHOOTER-CAPABILITY_UNAVAILABLE
+MIRAKAN-SHOOTER-STATE_OWNER_CONFLICT
+MIRAKAN-SHOOTER-FIRE_TRANSACTION_FAILED
+MIRAKAN-SHOOTER-PROJECTILE_CAPACITY_EXCEEDED
+MIRAKAN-SHOOTER-QUERY_CAPACITY_EXCEEDED
+MIRAKAN-SHOOTER-AUTHORITATIVE_QUEUE_OVERFLOW
+MIRAKAN-SHOOTER-DAMAGE_TARGET_INVALID
+MIRAKAN-SHOOTER-PICKUP_GRANT_FAILED
+MIRAKAN-SHOOTER-SCORE_OVERFLOW
+MIRAKAN-SHOOTER-SAVE_CONTRACT_MISMATCH
+MIRAKAN-SHOOTER-REPLAY_DIVERGENCE
+MIRAKAN-SHOOTER-PRESENTATION_AUTHORITY_VIOLATION
+MIRAKAN-SHOOTER-PROFILE_SCALE_UNDERSPECIFIED
+```
+
+DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、actual、expected、Capability、Target、State owner、Evidence ID、修正候補を持つ。
+
+### 7.3 Failure policy
+
+| Failure | 結果 |
+|---|---|
+| Definition／Contract不正 | ChangeSet／Cookを拒否し、last-valid Artifactを維持 |
+| State owner重複 | System Bundleをactivateしない |
+| Fire capacity不足 | Fire transaction全体を拒否し、authoritative State不変 |
+| Query result overflow | partial hitを使わずtick fault |
+| Damage target stale | Damageを適用せずtyped stale resultを記録 |
+| Pickup Grant通常拒否 | Pickupをavailableへ戻し、authoritative grantを適用しない |
+| Pickup Grant queue／invariant失敗 | pending transactionを保持してSession fault。dropしてcollected扱いにしない |
+| Score overflow | saturate／wrapせずSession fault |
+| Save mismatch | Saveを開かずbackupを維持 |
+| Replay divergence | first divergenceで停止しReproduction Bundleを生成可能にする |
+| Presentation failure | Gameplay継続。critical cue Gateは別途失敗 |
+| AIの未対応Capability要求 | Blocking gapとして質問または対応Profileを提示 |
+
+## 8. TestとQualification
+
+### 8.1 Contract／Schema
+
+- 全Typeのvalid境界、unknown field、duplicate ID、missing ref、cycle
+- Stable ID／Contract Ref／Artifact Refの混同拒否
+- Fire Mode、Pattern、Delivery、Ammo、Reloadの組合せmatrix
+- current Profileへunknown／out-of-contract enumまたはFieldを混入したnegative fixture
+- State owner、Command phase、Event delivery、Save closure
+- unknown Diagnostic、unbounded collection、NaN／Inf、overflow
+
+### 8.2 Fire／Weapon
+
+- single、automatic、1／2／32 burst
+- cadence 1／7／10／60 activation per 60 tickを1,000 cycle実行
+- press、hold、release、reload、switch、pause、defeatの境界
+- primary／secondary両trigger同時holdの同tick arbitration(primaryのActivation、secondary側`FireRejectedCadence`と繰延)
+- ammo 0／1／capacity、reserve 0／1／capacity
+- Pattern 1／63／64 Shot、hitscan／Projectileそれぞれのcapacity丁度／capacity+1
+- capacity失敗時にammo、cadence、reload、Eventが不変
+
+### 8.3 Shot／Collision
+
+- 2D／3D hitscan `closest_per_shot`、multi-shot時のcanonical ordering
+- straight projectile、thin target、owner ignore、lifetime境界
+- same fraction hitのcanonical ordering
+- team relation matrix、sensor／solid、initial overlap
+- Particle／depth／Camera occlusionをHitへ使う依存を拒否
+- hitscanとprojectileが同じDamage Specで同じTarget結果を得るfixture
+
+### 8.4 Damage／Vital／Score
+
+- Health、Shield、invulnerability、exact zero、overkill、defeat一回
+- self／ally／neutral／hostile matrix
+- friendly fire変更のHigh Impact質問
+- direct／radial Damageの境界
+- ammo／health／shield／score／weapon Pickup、同tick競合、Grant失敗rollback
+- Defeat credit、同一Defeat重複加点0
+- combo開始／継続／expire、multiplier、high score Save／Load
+- Score int64 overflow fault
+
+### 8.5 Encounter／Game Flow
+
+- Ready→Playing→Paused→Playing→Result→Restart
+- Wave 1／256、Spawn group 1／1,024、Boss phase 0／32
+- enemy全滅、goal、time、Boss defeatのcompletion
+- pause中cadence／reload／Encounter clockがProfileどおり停止
+- Save／Load後に同じWave、RNG、Projectile、Score結果
+
+### 8.6 AI Eval
+
+- 「銃」「弾」「ビーム」「連射」「三方向」「弾幕」「強く」「軽く」のcanonical resolution
+- authoritative projectileとPresentation particleの混同0
+- hitscan／projectile、ammo、friendly fire、scoreのBlocking不足見逃し0
+- Low Impact既定を不要質問する率5%以下
+- 対象外Capabilityをcurrent contractの成功として返す件数0
+- AI／手動Editor／Project C++ Commandが同じDefinition hashとRuntime結果へ収束
+- ExplainがField、理由、Assumption、代替、capacity impact、Testを返す
+
+### 8.7 2D／TPS統合fixture
+
+| Fixture | 必須composition |
+|---|---|
+| `fixture.product.shooter-2d` | 2D top-down Shooter、Tilemap／Loading、Flipbook、Perception／Interaction、Path Following、Pause／Timer、Settings／Accessibility |
+| `fixture.product.shooter-arena-3d` | TPS Shooter、Blockout、Decal／Lighting、Perception／Interaction、Path Following、authoritative Animation、Pause／Timer、Settings／Accessibility |
+
+両fixtureはReady→Playing→Paused→Playing→Result→Readyを[Shooter Genre Pack §5](shooter.md)の遷移表どおり完走し、設定のapply／revert／last-known-good、perception境界とtarget loss、Nav／observer／ownerのstale generation、同tick Timer／fireのcanonical order、Save／Load／Replay後の同一target・fire intent・state hashを検証する。共通OwnerとShooter Profileが宣言する各capacityのexactとexact +1、dependency failure、unsupported Target、partial applyを注入し、失敗時は各Ownerのtyped result、last-valid generation、authoritative state不変を照合する。共通failure IDや数値はリンク先Ownerから取得し、本書へ複写しない。
+
+2DとTPSの手動作成、AI生成、手動再編集、AI再編集は同じSourceとoperationを使い、Accessibility、keyboard／controller、および2Dのtouchを含む3節のTarget別Receiptへ結び付ける。[Product Planのcross-genre C2 gate](../00-product/product-plan.md)はこれらのReceiptを消費するが、Shooter単独の合格を汎用2D Production表示へ代用しない。
+
+### 8.8 Performance／Soak
+
+- `fixture.product.shooter-2d`、`fixture.shooter.crowded-battle-2d`、`fixture.product.shooter-arena-3d`、`fixture.shooter.crowded-battle-3d`をnamed reference scenarioとして固定する
+- `fixture.shooter.crowded-battle-2d`／`fixture.shooter.crowded-battle-3d`は独自compositionを定義せず、対応Profileが[Shooter Genre Pack §14.1](shooter.md)で宣言したpeak scaleのexact値を入力として[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)から生成する
+- [Shooter Genre Pack §14.2](shooter.md)の2D／TPS Fixtureを各Targetで120秒×5 run
+- 10分soak、spawn／destroy churn、pause／restart、Save／Load
+- CPU／memory／queue／pool high-water、P95／P99／P99.9
+- authoritative Fire／Projectile／Hit／Damage／Score drop 0
+- Replay hash一致、Presentation degradation時もGameplay一致
+- Project固有Scaleが組込みFixtureを超える場合の再Qualification
+
+## 9. 公式資料
+
+- [Unity Manual: ScriptableObject](https://docs.unity3d.com/Manual/class-ScriptableObject.html)
+- [Unity Input System](https://github.com/Unity-Technologies/InputSystem)
+- [Unity: Three ways to architect game code with ScriptableObjects](https://unity.com/how-to/architect-game-code-scriptable-objects)
+- [Unity Scripting API: ObjectPool](https://docs.unity3d.com/ScriptReference/Pool.ObjectPool_1.html)
+- [Unreal Engine Gameplay Framework Quick Reference](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-framework-quick-reference-in-unreal-engine)
+- [Unreal Engine: Abilities in Lyra](https://dev.epicgames.com/documentation/unreal-engine/abilities-in-lyra-in-unreal-engine)
+- [Unreal Engine: Lyra Inventory and Equipment](https://dev.epicgames.com/documentation/en-us/unreal-engine/lyra-inventory-and-equipment-in-unreal-engine)
+- [Godot: Nodes and Scenes](https://docs.godotengine.org/en/stable/getting_started/step_by_step/nodes_and_scenes.html)
+- [Godot: Resources](https://docs.godotengine.org/en/stable/tutorials/scripting/resources.html)
+- [Godot: Using signals](https://docs.godotengine.org/en/stable/getting_started/step_by_step/signals.html)
+
+外部資料は責務分離とAuthoring先例の確認に使用する。MiraikanaiのFeature Type、State owner、algorithm、failure、Save、Replayは本規約、Shooter固有AI OperationとProfileは[紐付くGenre Pack](shooter.md)が決定する。共有phase、Risk、budgetは各canonical ownerを参照し、外部EngineのAPI互換性をProduct要件にしない。

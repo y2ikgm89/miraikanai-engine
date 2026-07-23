@@ -12,7 +12,7 @@
 Miraikanai Engineの各Subsystem仕様は、single writer、typed command／event／snapshot、Source／Derived分離、Target別Qualification、negative fixture、last-valid rollbackを既に強く定義している。一方で、機能追加や契約変更が複数Subsystemへ波及するときに必要な次の横断Ownerが欠けている。
 
 1. Architecture文書のlifecycle、typed relation、Owner、変更影響を決めるOwner。
-2. Public Contract、Project、Save、Domain Pack、ABI、Packageの互換性と進化を決めるOwner。
+2. Public Contract、Project、Save、Pack、ABI、Packageの互換性と進化を決めるOwner。
 3. System別Save projectionを一つの永続transactionへ集約するOwner。
 4. Cook済みRuntimeをload可能なRuntime Packageへ束ねるOwner。
 5. Runtime／Content／Shader／Platform artifactをApplication Package、署名、提出へ束ねるOwner。
@@ -39,7 +39,7 @@ Miraikanai Engineの各Subsystem仕様は、single writer、typed command／even
 6. 文書状態、Capability product tier、Capability activation、Work Package scheduling、Contract registration、Target readiness、Evidence freshness、Dependency adoptionが別dimension／state machineとして定義される。
 7. `Authoring -> Cook -> Runtime Package -> Application Package -> Sign -> staging upload/read-back -> Game Candidate -> Human Approval／Activation -> Store submit/publish/read-back`が型付きmanifestとReceiptで閉じる。
 8. `Gameplay/System Save Contract -> Runtime checkpoint -> Save aggregate -> Platform atomic storage -> staged load/publish`が型付きcontractで閉じる。
-9. Domain PackのEngine compatibility range、Pack dependency、resolved lock、migration、exact Qualificationがmanifestから検証できる。
+9. Packのminimum Engine contract、Feature dependency DAG、resolved lock、migration、exact Qualificationがmanifestから検証できる。
 10. Pre-1.0 clean breakとreleased user data保護、Post-1.0 SemVer、migration、support policyの適用対象がartifact classごとに決まる。
 11. Product Phase 0～9、Work Package、Capability、Owner、fixture、Target、fallbackの参照にorphanがない。
 12. Index件数、Local link／anchor、文書ID、Owner、DAG、型名、ID文法、Phase参照を機械検査できる。
@@ -2066,10 +2066,10 @@ AI Risk、Release approval、Evidence内容は既存Governance文書が引き続
 - Engine public surfaceの分類。
 - Pre-1.0とPost-1.0のversion policy。
 - Schema major／minor／patch、Field identity、enum、extension point規則。
-- Project、Save、Replay、Domain Pack、Native ABI、Runtime／Application Packageの互換方向。
+- Project、Save、Replay、Pack、Native ABI、Runtime／Application Packageの互換方向。
 - Migration graph、deprecation、support window、revocation。
-- Target非依存の`GameCompatibilitySubjectV1`。Project revision、Engine baseline、Contract／Content／Save／Domain Pack closureを一つの互換subjectへ固定する。
-- `EngineContractVersionV1`、`EngineCompatibilityRangeV1`、`DomainPackCompatibilityRangeV1`、`CompatibilityDecisionV1`、`MigrationCoverageV1`、`SupportPolicyV1`。
+- Target非依存の`GameCompatibilitySubjectV1`。Project revision、Engine baseline、Contract／Content／Save／Pack closureを一つの互換subjectへ固定する。
+- `EngineContractVersionV1`、`EngineCompatibilityRangeV1`、`PackCompatibilityRangeV1`、`CompatibilityDecisionV1`、`MigrationCoverageV1`、`SupportPolicyV1`。
 - Change classificationと必須verification closure。
 
 個々のDomain migration algorithmはDomain Ownerが所有し、本書は登録、順序、coverage、failure atomicityを所有する。
@@ -2257,7 +2257,7 @@ Consumerは同名型を再定義せず、Owner linkとexact `McdContractRefV1`�
 
 ### 7.5 Indexと件数
 
-`active spec`は`docs/architecture/00-product`～`08-domain-packs`にあり、`decisions/`と`superseded/`の配下ではなく、`ArchitectureMetadataV2`がvalidで、current完成`DocumentLifecycleRecordV1` headのstateが`draft | review | approved`の文書と定義する。metadata内にstate／Approvalを探さない。Lifecycle headが`superseded`の文書とDecisionはactive件数へ含めない。
+`active spec`は`docs/architecture/00-product`～`08-packs`にあり、`decisions/`と`superseded/`の配下ではなく、`ArchitectureMetadataV2`がvalidで、current完成`DocumentLifecycleRecordV1` headのstateが`draft | review | approved`の文書と定義する。metadata内にstate／Approvalを探さない。Lifecycle headが`superseded`の文書とDecisionはactive件数へ含めない。
 
 正本件数をDecision本文の完了条件へ固定しない。Indexはdocument metadataから生成し、並び順はDirectory order、文書ID byte順とする。期待件数は検査結果として表示できるが、Architecture invariantにはしない。
 
@@ -2371,7 +2371,7 @@ Live IPCでrevision negotiationが必要な場合、双方が列挙したexact `
 | Save | 同じ`save_compatibility_epoch`で一度Shippingしたversionを後続releaseが読めることを必須化 |
 | Replay | exact baseline／contract setを原則とし、明示Replay migrationがある場合だけcross-version再生 |
 | User setting／profile | Saveと同じくmigrationまたは明示reset approvalが必要 |
-| Domain Pack Source | declared Engine range、Pack dependency range、migration、exact target qualification |
+| Pack Source | minimum Engine contract、Feature dependency DAG、migration、exact target qualification |
 | Native Game binary | exact ABI profile／contract set。Sourceからrebuildし、暗黙binary shimを作らない |
 | Public C++ source API | Post-1.0はSemVer。BMIをToolchain間配布しない |
 
@@ -2382,7 +2382,7 @@ Live IPCでrevision negotiationが必要な場合、双方が列挙したexact `
 - Pre-1.0の未Shipping内部artifactはclean break可能だが、外部配布済みProject／Save／User settingにはこの例外を適用しない。
 - Public C++ source APIとPublic Contractは同じEngine major内の全released minor／patchをsupportする。削除は次majorだけで行い、security emergencyを除き少なくとも一つ前のminorでdeprecation diagnosticとmigration guideを出す。
 - Project Sourceはcurrent majorと直前majorからcurrent majorへのdirect offline migrationをsupportする。それ以前は署名・hash固定したarchived migratorをmajor順に適用し、元revisionを上書きしない。
-- Saveは同じepochの全Shipping revision、Replayはexact baseline、Domain Packはmanifestが宣言したrangeだけをsupportする。
+- Saveは同じepochの全Shipping revision、Replayはexact baseline、Packはmanifestが宣言したminimum Engine contractとdependency closureだけをsupportする。
 - Security revokeは通常windowを短縮できるが、Product／Security Decision、影響inventory、safe replacement、User通知、rollback可否を必須とする。
 
 ### 8.4 Change classification
@@ -2396,7 +2396,7 @@ Live IPCでrevision negotiationが必要な場合、双方が列挙したexact `
 | `breaking_released` | Public major／Save epoch／ABI break | Product Decision、support plan、migrationまたは明示非互換、全Target Qualification |
 | `security_revoke` | compromised key／dependency／provider | fail closed、deactivation、affected inventory、safe replacement、incident Evidence |
 
-`ArchitectureChangeSetV1`はchanged document、contract、Field、Capability、Target、Package、Save、Domain Pack、fixture、migration、approvalのclosureを持つ。影響項目が空であることを「影響なし」の根拠にせず、lintとOwner reviewで照合する。
+`ArchitectureChangeSetV1`はchanged document、contract、Field、Capability、Target、Package、Save、Pack、fixture、migration、approvalのclosureを持つ。影響項目が空であることを「影響なし」の根拠にせず、lintとOwner reviewで照合する。
 
 ### 8.5 Canonical byte列とhash
 
@@ -2419,7 +2419,7 @@ engine_release_version, engine_baseline_hash
 contract_set_hash, gameplay_contract_set_hash
 content_semantic_set_hash, project_shader_semantic_set_hash
 save_compatibility_epoch, save_schema_set_hash, migration_set_hash
-domain_pack_resolved_lock_hash
+pack_resolved_lock_hash
 compatibility_policy_ref, source_provenance_ref
 ```
 
@@ -2431,7 +2431,7 @@ Target profile、native binary、Runtime Package、Application Package、signatu
 
 1. Product Planへmaturityなしのstable Capability ID、`target_product_tier`、Owner、fallback、対象外を登録し、Activationは`not_activated`から開始する。
 2. 既存Ownerで意味が閉じるかを確認し、閉じなければArchitecture Decisionで新Ownerと非Owner範囲を決める。共有型をconsumer文書へ先に書かない。
-3. `ArchitectureChangeSetV1`でartifact class、Schema、Save、Replay、Runtime Package、Application Package、Target、Domain Pack、Security、Performanceへのimpact closureを列挙する。
+3. `ArchitectureChangeSetV1`でartifact class、Schema、Save、Replay、Runtime Package、Application Package、Target、Pack、Security、Performanceへのimpact closureを列挙する。
 4. 新しい独立ContractはV1で追加する。既存Contract変更は8.2の分類に従い、additive revisionまたはnew major＋migrationを選ぶ。
 5. Feature選択はCapability Registryとtyped composition manifestだけで行う。散在するboolean、directory scan、registration order、Backend存在をActivation条件にしない。
 6. Source、Runtime、Save／Replay、Package、Target adapterをtyped Portで接続し、feature absent、unsupported Target、stale Receipt、migration欠落、partial failureのnegative fixtureを先に定義する。
@@ -2478,7 +2478,7 @@ document ID、MCD object、Product Registry logical IDは[Naming／Project Layou
 | Contract | Owner responsibility |
 |---|---|
 | `SaveSlotManifestV1` | User-visible slot identity、active generation、timestampsの非権威metadata、conflict state |
-| `SaveRootManifestV1` | `GameCompatibilitySubjectV1`、Engine／Contract／Content／Domain Pack closure、Save epoch、checkpoint ref |
+| `SaveRootManifestV1` | `GameCompatibilitySubjectV1`、Engine／Contract／Content／Pack closure、Save epoch、checkpoint ref |
 | `SaveCheckpointV1` | published tick、World set、System record set、RNG／clock、authoritative digest |
 | `SaveDomainRecordSetV1` | owner別bounded record envelope。Domain field意味はOwner Contract参照 |
 | `SaveMigrationPlanV1` | source／destination revision、ordered steps、owner、precondition、rollback |
@@ -2495,7 +2495,7 @@ document ID、MCD object、Product Registry logical IDは[Naming／Project Layou
 
 1. GameplayまたはUIがtyped Save requestを発行する。
 2. Scheduling Ownerが許可されたpublished tick boundaryを選ぶ。
-3. Persistence coordinatorがactive Root、Section、System、Save contract、Content、Domain Pack lockをfreezeする。
+3. Persistence coordinatorがactive Root、Section、System、Save contract、Content、Pack lockをfreezeする。
 4. 各Owner projectorが`SaveReplayContractV1`に列挙されたFieldだけをcanonical recordへ出力する。
 5. ECS OwnerはPersistent Identity、lifecycle、composition、enablement、Field projectionを出し、raw handle／chunk／row／paddingを出さない。
 6. Persistence coordinatorが全recordのOwner、schema、bound、ordering、digest、cross-referenceを検証する。
@@ -2510,7 +2510,7 @@ document ID、MCD object、Product Registry logical IDは[Naming／Project Layou
 1. `SaveStorageEnvelopeV1`をbounded parseし、stored size、stored digest、trust／authentication、key versionを検証する。
 2. Policy bound内でdecrypt／decompressし、canonical payload sizeとdigestを検証する。
 3. `SaveRootManifestV1`のSave epoch、`GameCompatibilitySubjectV1`、Schema set、checkpoint refを検証する。
-4. exact Runtime Package、Content Package、Domain Pack lockとmigration coverageを解決する。
+4. exact Runtime Package、Content Package、Pack lockとmigration coverageを解決する。
 5. `SaveMigrationPlanV1`をsource revisionからdestination revisionまで一意に構成する。0経路または複数経路は拒否する。
 6. World／System State／external reservationを非公開stagingへ構築する。
 7. Domain owner順ではなく、明示migration dependency DAGのtopological orderでmigrationする。
@@ -2546,15 +2546,15 @@ content_package_refs[]
 project_shader_artifact_refs[]
 save_compatibility_epoch
 save_schema_set_hash, migration_set_hash
-domain_pack_lock_hash
+pack_lock_hash
 entrypoint_ref, dependency_entries[]
 ```
 
-Manifest内で`GameCompatibilitySubjectV1`と重複するEngine、Project、Contract、Save、Domain Pack Fieldはすべてsubjectの値とbyte equalityにし、片側だけの更新を拒否する。重複Fieldはloaderのearly diagnosticとTarget package検索用projectionであり、別Authorityではない。
+Manifest内で`GameCompatibilitySubjectV1`と重複するEngine、Project、Contract、Save、Pack Fieldはすべてsubjectの値とbyte equalityにし、片側だけの更新を拒否する。重複Fieldはloaderのearly diagnosticとTarget package検索用projectionであり、別Authorityではない。
 
 `RuntimePackageArtifactV1`は`ManifestArtifactEnvelopeV1`を使い、`runtime_package_manifest_ref: ArtifactRefV1`、`payload_root_sha256`、entry count、`runtime_trust_profile_ref`、optional `MirakanSignedRecordV1` refをManifest外で保持する。Development profileでもdigest検証は必須で、Shipping profileはTarget policyが要求する署名またはplatform trust Receiptを必須とする。
 
-LoaderはEnvelope、Manifest hash、payload root、trust／signature、Engine baseline、Compatibility subject、Target、ABI、Contract、System、World、Content、Shader、Save migration、Domain Packの順に検証する。順序はdiagnosticの一意性のため固定し、一つでも不一致なら何もactivateしない。
+LoaderはEnvelope、Manifest hash、payload root、trust／signature、Engine baseline、Compatibility subject、Target、ABI、Contract、System、World、Content、Shader、Save migration、Packの順に検証する。順序はdiagnosticの一意性のため固定し、一つでも不一致なら何もactivateしない。
 
 Development loose layoutも同じmanifestとvalidationを使用する。Path scanやDirectory存在だけでload可否を決めない。Runtime Packageはimmutableであり、hot reloadは新generationをstagingしてsafe boundaryで全closureを切り替える。
 
@@ -2670,7 +2670,7 @@ planned
 | Contract | 唯一のOwner |
 |---|---|
 | Architecture metadata JSON schema、`ArchitectureChangeSetV1` | Architecture Governance |
-| `EngineContractVersionV1`、`EngineCompatibilityRangeV1`、`DomainPackCompatibilityRangeV1`、`CompatibilityDecisionV1`、`MigrationCoverageV1`、`SupportPolicyV1`、`GameCompatibilitySubjectV1` | Compatibility／Evolution |
+| `EngineContractVersionV1`、`EngineCompatibilityRangeV1`、`PackCompatibilityRangeV1`、`CompatibilityDecisionV1`、`MigrationCoverageV1`、`SupportPolicyV1`、`GameCompatibilitySubjectV1` | Compatibility／Evolution |
 | `McdContractRefV1`、`ArtifactRefV1`、`Sha256DigestV1`、`ManifestArtifactEnvelopeV1` | Executable Contracts。Compatibility規則を消費するが構造はここだけで定義 |
 | `MirakanSignedRecordV1`の共通envelope／hash chain | AI Verification／Provenance。Algorithm、Key用途、authorization policyはAI Security／Approval |
 | `TechnicalQualificationReceiptPayloadV1`、`TechnicalQualificationReceiptV1`、Evidence freshness policy／four-state derivation | AI Verification／Provenance。共通`MirakanSignedRecordV1`とAI Security／ApprovalのKey Policyを消費する。Target readiness envelopeはProject State、測定内容は各Technical Owner |
@@ -2682,7 +2682,7 @@ planned
 | `ApplicationPackageAssemblyManifestV1`、`StoreSubmissionDeclarationV1`、`UnsignedApplicationPackageV1`、Target mapping rule、`PackageValidationReceiptV1`、`TargetPackagePreparationTransactionV1`、`ReleaseTransactionV1`、`ReleaseSigningReceiptV1`、`StoreStagingUploadReceiptV1`、`StoreStagingReadBackReceiptV1`、`TargetPackagePreparationRecordV1`、`StorePublicationReceiptV1`、`ReleaseRolloutCommandV1` | Application Package／Release |
 | `UnsignedWindowsPackageV1`／`UnsignedAndroidPackageV1`／`UnsignedApplePayloadV1`のTarget固有Fieldとformat | Windows／Android／Appleの各Platform Owner |
 | `GameCandidateManifestV1`、`GameActivationReceiptV1`、`HumanGameplayApprovalV1` | AI Security／Approval。Target packageの内部構造は再定義せず、`TargetPackagePreparationRecordV1`を参照 |
-| `DomainPackManifestV1`、`DomainPackResolvedLockV1` | Domain Pack Contract |
+| `PackManifestV1`、`PackResolvedLockV1` | Pack Contract |
 
 Owner一意性の機械正本は、完成`LocalSchemaCatalogV1.members[]`のうち`owner_document_id=mirakan.arch.architecture-governance`であるschema ID集合である。上表のArchitecture Governance行は可読用family要約であり列挙正本ではない。Validatorはこの集合をArchitecture Governance文書のschema宣言集合とset equality比較し、さらに`OfflineGovernanceSchemaCatalogV1.members[]`の同Owner subsetとfull Local Catalogの同じschema ref／hash／signature slotがbyte-exact包含されることを検証する。missing／extra／duplicate Owner、unknown owner document、family略記からの型推論を拒否し、Bootstrap Materialization PlanのTask 0／2 unionもfull member集合とset equalityにする。
 
@@ -2708,30 +2708,41 @@ Owner一意性の機械正本は、完成`LocalSchemaCatalogV1.members[]`のう�
 
 Consumer文書にはfield一覧を複写せず、Owner link、revision、freshness、read-only、write-back禁止だけを残す。
 
-## 14. Domain Pack evolution
+## 14. Pack evolution
 
-`DomainPackManifest`は`DomainPackManifestV1`へ改名し、V1 revision 1の必須Fieldを次へ固定する。追加は8.2のadditive規則だけで行う。
+`PackManifestV1`のV1 revision 1は[Pack Contract](../architecture/08-packs/pack-contract.md)が所有する次の必須Fieldへ固定する。ConsumerはFieldを追加、別名化、互換alias化しない。
 
 ```text
-pack_id, pack_version
-engine_compatibility_range: EngineCompatibilityRangeV1
-pack_dependencies[]
-  pack_id
-  version_range: DomainPackCompatibilityRangeV1
-  dependency_kind: required | optional
-  activation_capability_ref
-contract_refs[], capability_refs[]
+pack_id, pack_version, pack_kind, content_hash
+minimum_engine_contract_ref
+supported_target_profile_refs[]
+required_capability_refs[]
+required_feature_pack_refs[]
+provided_capability_refs[]
+public_contract_refs[]
+component_schema_refs[]
+game_system_spec_refs[]
+authoring_operation_refs[]
+runtime_port_refs[]
+configuration_profile_refs[]
+composition_recipe_refs[]
+source_template_refs[]
+validator_refs[]
+test_scenario_refs[]
+example_refs[]
+counterexample_refs[]
+ai_vocabulary_refs[]
+ai_planning_recipe_refs[]
+performance_profile_refs[]
 migration_step_refs[]
-qualification_policy_ref
+license_ref, provenance_ref
 ```
 
-`pack_version`はSemVer 2.0.0のvalid versionとし、`production` Activationではpre-releaseを拒否する。Candidate／qualified profileでpre-releaseを使う場合はrangeのprerelease許可flagとQualification policyの両方を必須とする。`EngineCompatibilityRangeV1`と`DomainPackCompatibilityRangeV1`は自由形式文字列やnpmのloose rangeを使わず、normalized lower bound、upper bound、各inclusive flag、prerelease許可flagのtyped tupleとする。Unbounded sideは明示`null`、空集合と全version集合を別stateで表し、Build時にexact versionとartifact hashへ解決する。`dependency_kind=required`では`activation_capability_ref=null`、`optional`ではnon-nullを必須とする。Optional dependencyはそのCapabilityが明示選択された場合だけclosureへ入り、Installed packageやnetwork結果から自動Activationしない。
+`pack_kind`は`feature | genre`のclosed enumとする。Feature間依存だけをDAGとして許可し、Genre Pack間dependencyを拒否する。`pack_version`はSemVer 2.0.0のvalid version、`content_hash`はexact artifact identityであり、同一Pack ID／versionの別hash、dependency cycle、欠落、lock未選択の複数解を拒否する。Resolverは`latest`を自動選択せず、`PackResolvedLockV1`へexact Pack version、content hash、Engine baseline、Contract set、Feature dependency closureを固定し、そのlockに対するTarget別Qualification Receiptを要求する。
 
-Install時にrangeを解決しただけではActivationしない。`DomainPackResolvedLockV1`がexact Pack version、artifact hash、Engine baseline、Contract set、dependency closureを固定し、そのexact lockに対するTarget別Qualification Receiptが必要である。
+Patch／minorでもpersisted Source、Save／Replay、Profile、Recipeが変わる場合はmigrationと再Qualificationを要求する。Majorはoffline migrationと明示承認を必要とする。失敗時は旧Pack version、Project revision、registry head、last-valid artifactを維持し、Runtime shim、旧名alias、synthetic dependencyを作らない。
 
-Pack dependency cycle、欠落、lock未選択の複数解、range外、同一Pack ID別hashを拒否する。Resolverは`latest`を自動選択せず、承認済み選択をexact lockへ書く。Patch／minorはcompatibility fixtureを必須とし、persisted Sourceが変わる場合だけ同一major migrationを追加する。Majorはoffline migrationと明示承認を必要とする。Runtime shim、旧名alias、synthetic dependencyを作らない。
-
-Shooter Packの`feature.*.c1`、Profile／Capability IDからmaturityを除去し、C1はRegistryの`target_product_tier`列で表す。現在状態は別軸のActivation stateが持ち、TierをActivation stateで表現しない。
+Shooterは`pack_kind=genre`であり、Profile／Capability IDからmaturityを除去する。C1はRegistryの`target_product_tier`列、現在状態は別軸のActivation stateが持つ。
 
 ## 15. Product、Phase、Work Package整合
 
@@ -2874,8 +2885,10 @@ Node、npm、CMake、Ninja、LLVM、DXC、vcpkg、Rendering／Physics／Navigati
 | `07-platform/mobile-common.md` | `TargetProfileRefV1`、Save adapter boundary、application package common owner、suffixなし`DerivedArtifactManifest`参照（§5.5）の`DerivedArtifactManifestV1`統一 |
 | `07-platform/ui-text-localization-accessibility.md` | `AccessibilityPolicySnapshotV1` Owner、Save catalog projection、Package receipt |
 | `07-platform/windows.md` | `UnsignedWindowsPackageV1`、common Receipt、Store submission mapping、Save storage adapter。[D3D12 Companion]後続ChangeSetでHWND／OS lifecycleとD3D12 Surface／Device ownerを分離 |
-| `08-domain-packs/domain-pack-contract.md` | `DomainPackManifestV1`、Engine range、dependency refs、resolved lock、migration |
-| `08-domain-packs/shooter.md` | maturity非依存ID、Pack lock、Save／Package／cross-profile fixture |
+| `08-packs/pack-contract.md` | `PackManifestV1`、4層dependency、resolved lock、migration、last-valid |
+| `08-packs/gameplay-features.md` | reusable Gameplay Feature owner、旧Shooter詳細契約のidentity維持と移管 |
+| `08-packs/shooter.md` | Shooter Genre identity、Feature Capability mapping、Profile、cross-profile fixture |
+| `08-packs/scenario-stage.md` | optional Stage、completion tagged rule、Scope、Save／Replay |
 
 Architecture Indexとsigned inventoryに列挙された全関連Decisionも更新対象とする。Decisionは歴史的判断を改竄せず、staleな固定件数には追記で現在の生成Indexを正本とすることを明示する。Runtime ECS Decisionは未承認設計なので本文を直接修正できる。
 
@@ -2971,7 +2984,7 @@ D3D12固有のsymbol／mapping／descriptor／Tool Catalog検査はCompanionの[
 | Save | capture→transform→write→read-back→decrypt／load→digest一致 | partial write、auth／hash mismatch、decompression bound超過、orphan Field、cloud conflict自動mergeを拒否 |
 | Runtime Package | exact closureをload | ABI、Contract、Content、Shader、migration mismatchで全体拒否 |
 | Application Package／Release | subject→manifest→sign→staging read-back→candidate／approval／activation→publish read-back | manifest外file、identity混在、hash差替え、Candidate hash cycle、未承認公開を拒否 |
-| Domain Pack | range＋resolved lock＋Qualification | dependency cycle、lock未選択の複数解、qualifiedでないTargetを拒否 |
+| Pack | minimum Engine contract＋Feature dependency DAG＋resolved lock＋Qualification | dependency cycle、Genre間dependency、lock未選択の複数解、qualifiedでないTargetを拒否 |
 | Product | Work Package→Capability→Receipt closure | orphan WP、maturity入りID、state軸混同、Activation rowのmissing／duplicate／extraをaggregate前に拒否 |
 | Technical Qualification | closed payload→exact `MirakanSignedRecordV1`→Evidence-derived freshness | wrong purpose／Role／Key purpose、payload／envelope binding差、non-pass／revoked Evidence、古いEvidenceの新時刻再包装を拒否 |
 | Bootstrap Approval | closed payload→exact authority Role binding／current assignment→`MirakanSignedRecordV1`→二段階Git tree→current read-back | missing／invalid署名、wrong purpose／subject、unknown authority Role、payload／envelope Role差、assignment missing／expired／revoked、R4権限またはindependence不成立、Role／Key purpose不一致、revoked signature、自己参照treeを拒否 |
@@ -3011,7 +3024,7 @@ D3D12固有のsymbol／mapping／descriptor／Tool Catalog検査はCompanionの[
 - SaveとReplay、Runtime PackageとContent Package、Application PackageとPlatform formatが混同されていない。
 - Capability、Work Package、Document、Contract、Target、Evidence、Dependencyのstate axisが分離されている。
 - Shared projectionの全Ownerが決まっている。
-- Domain Pack rangeとexact Qualificationが両方必要になっている。
+- Packのminimum Engine contract、exact dependency closure、exact Qualificationがすべて必要になっている。
 - Manifest、Package、Candidateのhash graphに自己参照と循環がない。
 - Technical QualificationのTTLが署名済み参照Evidenceの時刻だけから導出され、同じ古いEvidenceの再包装で延長できない。
 - Work PackageのPhase、Capabilityのmaturity、Profileのversionがlogical IDに入っていない。

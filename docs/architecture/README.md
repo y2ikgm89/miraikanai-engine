@@ -13,7 +13,7 @@
 3. [Foundation](#33-foundation)で共通architecture、契約、toolchain、命名、言語、math、memoryを確認する。
 4. 制作機能は[Authoring](#34-authoring)、実行制御は[Runtime](#35-runtime)を先に読む。
 5. 機能実装では[Simulation](#36-simulation)、[Rendering](#37-rendering)、[Platform](#38-platform)から該当ownerを読む。
-6. Genre固有compositionは最後に[Domain Packs](#39-domain-packs)を読み、参照するSubsystem ownerへ戻る。
+6. 再利用FeatureとGenre固有compositionは最後に[Packs](#39-packs)を読み、参照するSubsystem ownerへ戻る。
 
 個別変更では最初から全仕様を読む必要はない。正本範囲、非正本範囲、依存linkを辿り、変更する概念のownerと直接依存だけをreviewする。
 
@@ -102,12 +102,14 @@
 | 40 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
 | 41 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、UI authoring |
 
-### 3.9 Domain Packs
+### 3.9 Packs
 
 | # | 仕様 | 状態 | 所有責務 |
 |---:|---|---|---|
-| 42 | [Domain Pack Contract](08-domain-packs/domain-pack-contract.md) | review | Pack identity／manifest、dependency、activation、qualification、update、removal |
-| 43 | [Shooter Reference Pack](08-domain-packs/shooter.md) | review | Shooter固有契約、reference composition、domain algorithm／failure／fixture |
+| 42 | [Pack Contract](08-packs/pack-contract.md) | review | 4層Pack構造、`PackManifestV1`、dependency、install、update、removal |
+| 43 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role、fixture |
+| 44 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | Combat、Ranged Combat、Encounter、Scoring、Pickupのcanonical contract catalog |
+| 45 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
 
 ## 4. ProductからSubsystemへのnavigation
 
@@ -121,7 +123,7 @@
 | 物理的Game挙動 | [Simulation](#36-simulation) | [Runtime](#35-runtime)、[Rendering](#37-rendering) |
 | 描画、Camera、World表現 | [Rendering](#37-rendering) | [Runtime](#35-runtime)、[Platform](#38-platform) |
 | OS、device、Input、Audio、Game UI | [Platform](#38-platform) | [Foundation](#33-foundation)、[Runtime](#35-runtime) |
-| Genre／Feature composition | [Domain Packs](#39-domain-packs) | compositionが参照する全Subsystem |
+| Genre／Feature composition | [Packs](#39-packs) | compositionが参照する全Subsystem |
 
 ## 5. Developer toolの分離
 
