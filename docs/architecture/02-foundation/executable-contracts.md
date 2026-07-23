@@ -133,24 +133,37 @@ ContractSetLocalRefV1
   id: canonical MCD ID
   version: positive uint32
 
-ContractSetLocalRecordV2
-  local_ref: ContractSetLocalRefV1
+ContractSetMemberKindV2 =
+  mcd | diagnostic | trusted_service | validator |
+  operation_validator_closure
+
+ContractSetMemberLocalIdentityV2
+  member_kind: ContractSetMemberKindV2
+  local_identity:
+    mcd: ContractSetLocalRefV1
+    | diagnostic: DiagnosticLocalRefV1
+    | trusted_service: TrustedServiceLocalRefV1
+    | validator: ValidatorLocalRefV1
+    | operation_validator_closure: OperationValidatorClosureLocalRefV1
+
+ContractSetMemberLocalRecordV2
+  member_identity: ContractSetMemberLocalIdentityV2
   canonical_payload:
-    当該recordの全Field。ただしContract set内の相互参照は
-    ContractSetLocalRefV1またはkind固有LocalRefで、set root／外部refを含まない
-  record_hash: SHA-256
+    当該memberの全normative Field。ただしContract set内の相互参照は
+    上記五local identityのいずれかで、set root／外部refを含まない
+  member_hash: SHA-256
 
 ContractSetSnapshotV2
   contract_set_id
   snapshot_version: 2
   parent_contract_set_hash: SHA-256 | null
-  records[1..65536]: ContractSetLocalRecordV2
+  members[1..65536]: ContractSetMemberLocalRecordV2
   contract_set_hash: SHA-256
 ```
 
-生成DAGは厳密に`LocalRef集合を解決・sort → 各canonical payloadをhash → {LocalRef, record_hash}列からset rootをhash → 外部McdContractRefV1をmaterialize`の順である。`record_hash = SHA-256(ASCII "MIRAKAN_CONTRACT_SET_LOCAL_RECORD_V2" || uint32_be(len(canonical bytes excluding record_hash)) || canonical bytes)`、`contract_set_hash = SHA-256(ASCII "MIRAKAN_CONTRACT_SET_SNAPSHOT_V2" || uint32_be(len(snapshot preimage)) || snapshot preimage)`とし、snapshot preimageはID、version、parent、record count、`kind／id／version`順の`{local_ref,record_hash}`だけを持つ。`record_hash`自身、`contract_set_hash`自身、外部`McdContractRefV1`、外部Service／Validator refはどのhash preimageにも入れない。
+生成DAGは厳密に`五kindのlocal identity集合を解決 → 全cross-member edgeをlocal ref化 → 各canonical payloadをhash → {member kind, local identity, member hash}列からset rootをhash → 外部refをmaterialize`の順である。member hashのdomain separatorはkindごとに`MIRAKAN_CONTRACT_SET_MCD_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_DIAGNOSTIC_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_TRUSTED_SERVICE_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_VALIDATOR_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_OPERATION_VALIDATOR_CLOSURE_MEMBER_V2`とし、`member_hash = SHA-256(domain || uint32_be(len(canonical bytes excluding member_hash)) || canonical bytes)`で計算する。`contract_set_hash = SHA-256(ASCII "MIRAKAN_CONTRACT_SET_SNAPSHOT_V2" || uint32_be(len(snapshot preimage)) || snapshot preimage)`とし、snapshot preimageはID、snapshot version、parent、member count、`member_kind`の上記enum順、同kind内のlocal identity canonical byte順へstrict sortした`{member_kind, local_identity, member_hash}`だけを持つ。duplicate identity、same identity／different hash、非canonical order、未解決local edgeを拒否する。`member_hash`自身、`contract_set_hash`自身、外部`McdContractRefV1`、`DiagnosticCodeRefV1`、`TrustedServiceRefV1`、`ValidatorRecordRefV1`、`OperationValidatorClosureRefV1`はどのlocal hash preimageにも入れない。
 
-Operation→Service、Service→allowed Operation、Operation→Validator closure、closure→Operation、Validator→Type／Diagnosticのような相互edgeはすべてsnapshot内部でLocalRefを使う。record hash確定後にだけ、Readerは`{id,version,contract_set_hash}`を外部参照として発行し、必要ならSnapshot内の`record_hash`も照合する。したがってService allowlistやValidator closureを更新すると関連record hashとset rootは変わるが、hash fixed pointは発生しない。旧Snapshotを参照するretained Project revision、Save、Replay、Artifact、Receiptの期間中は旧rootを保持し、欠落、root不一致、LocalRef未解決、record hash不一致、inactive targetをfail closedとする。current setへの移行は明示offline migratorが新revisionと新`McdContractRefV1`を生成し、旧objectをin-place更新しない。
+Operation→Service、Service→allowed Operation、Operation→Validator closure、closure→Operation、Validator→Type／Diagnosticのような相互edgeはすべてsnapshot内部で上記local refを使う。全member hashとset root確定後にだけ、Readerは`McdContractRefV1`、`DiagnosticCodeRefV1`、`TrustedServiceRefV1`、`ValidatorRecordRefV1`、`OperationValidatorClosureRefV1`をmaterializeする。外部refはlocal memberまたはrootへfeed backしない。したがってMCD、Diagnostic、Service allowlist、Validator、Validator closureのどのnormative byteが変わっても該当member hashとset rootが変わり、hash fixed pointは発生しない。旧Snapshotを参照するretained Project revision、Save、Replay、Artifact、Receiptの期間中は旧rootを保持し、欠落、root不一致、local ref未解決、member hash不一致、inactive targetをfail closedとする。current setへの移行は明示offline migratorが新revisionと新external refを生成し、旧objectをin-place更新しない。
 
 Derived Artifactへの永続参照は`ArtifactRefV1 { artifact_kind: string, schema_version: uint32, sha256: SHA-256 }`へ固定する。本型の構造定義は本節だけが正本であり、Domain文書はexact refを消費してFieldを再定義しない。
 
@@ -361,13 +374,12 @@ OperationValidatorClosureV1
 OperationPreconditionEvaluationInputV1
   operation_ref: McdContractRefV1(kind=operation)
   operation_input_ref/hash
+  operation_intent_hash
   request_hash
   before_snapshot_refs[1..64]/hashes
-  authorization_ref
   mutation_authorization_binding:
-    approval: exact approval_ref/hash
-    | predelegated: exact predelegation_ref/hash
-    | not_required: only R0/R1 non-mutation
+    exact MutationAuthorizationBindingV2
+    | canonical omission: only R0/R1 non-mutation
 
 PreparedCandidateRefV1
   candidate_id
@@ -385,12 +397,34 @@ PreparedCandidateV1
 
 PublishedReceiptMaterializationPolicyV1
   policy_ref: McdContractRefV1(kind=policy)
-  signer_identity_ref/hash
-  signing_key_version
-  deterministic_signature_profile_ref/hash
+  signing_profile_ref/hash: PublishedReceiptSigningProfileRefV1
+  signer_subject_ref/hash
+  signer_role_ref/hash
+  key_id
+  public_key_registry_snapshot_ref/hash
+  key_retention_policy_ref/hash
+  recovery_policy_ref/hash
   receipt_canonical_schema_ref: McdContractRefV1(kind=type)
   receipt_store_namespace_ref/hash
   policy_content_hash: SHA-256
+
+PublishedReceiptSigningProfileRefV1
+  profile_id
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+PublishedReceiptSigningProfileV1
+  profile_id: signing_profile.operation_receipt.ecdsa_p256_rfc6979
+  profile_version: 1
+  signature_algorithm: ecdsa-p256-sha256
+  signature_format: ieee-p1363-raw
+  nonce_derivation: rfc6979-sha256
+  low_s_required: true
+  canonical_subject: JCS(PublishedDomainReceiptPayloadV2)
+  issued_at_source: exact prepared payload issued_at
+  revocation_snapshot_source: exact prepared payload revocation_snapshot_ref/hash
+  retry_rule: same subject/key/context produces byte-identical wrapper
+  profile_content_hash: SHA-256
 
 PublishedReceiptMaterializationKeyPayloadV1
   operation_ref: McdContractRefV1(kind=operation)
@@ -399,7 +433,7 @@ PublishedReceiptMaterializationKeyPayloadV1
   prepared_payload_count: 3
   prepared_payloads[3]:
     exact {payload_type_ref, payload_content_ref, payload_content_hash}
-  atomic_commit_marker_ref/hash
+  private_commit_marker_hash
   materialization_policy_ref:
     exact {policy_ref, policy_content_hash}
 
@@ -443,25 +477,51 @@ StagedPostconditionReceiptV1
   predicate_evidence_hash | diagnostics[1..64]
   receipt_payload_hash
 
-AtomicCommitMarkerV1
+PrivateDurableCommitMarkerV1
   marker_id
   operation_ref
   request_hash
   prepared_commit_envelope_ref/hash
   before_state_ref/hash
-  published_after_state_ref/hash
-  published_prepared_receipt_payload_count: 3
-  published_prepared_receipt_payloads[3]:
+  staged_after_state_ref/hash
+  staged_prepared_receipt_payload_count: 3
+  staged_prepared_receipt_payloads[3]:
     exact {payload_type_ref, payload_content_ref, payload_content_hash}
   staged_postcondition_receipt_ref/hash
+  visibility: private_internal
   marker_hash
 
-PublishedDomainReceiptV2
+PublishedDomainReceiptPayloadV2
   prepared_domain_receipt_payload_ref/hash
-  atomic_commit_marker_ref/hash
-  signer_identity_ref/hash
-  signature
-  published_receipt_hash
+  private_commit_marker_hash
+  operation_ref
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  before_state_ref/hash
+  after_state_ref/hash
+  issued_at
+  revocation_snapshot_ref/hash
+  payload_hash
+
+PublishedDomainReceiptV2
+  payload: PublishedDomainReceiptPayloadV2
+  signed_record:
+    exact MirakanSignedRecordV1
+
+PublicPublicationMarkerV1
+  publication_id
+  operation_ref
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  private_commit_marker_hash
+  signed_domain_receipt_ref/hash
+  before_state_ref/hash
+  public_after_state_ref/hash
+  expected_previous_publication_ref/hash | null
+  publication_sequence: positive uint64
+  marker_hash
 
 OperationPredicateResultV1
   disposition: satisfied | rejected
@@ -480,7 +540,7 @@ OperationRateLimitPolicyV1
   exceeded_error_ref: DiagnosticCodeRefV1
 ```
 
-`TrustedServiceLocalRecordV2.service_content_hash`はLocalRefと自己Fieldを除くrecordから計算し、Registry hashはASCII `MIRAKAN_TRUSTED_SERVICE_REGISTRY_V2`、Registry ID／version、record count、`service_id`／version順record bytesを`uint32_be` length framingして計算する。duplicate／stale／hash mismatch、OperationのLocalRefがServiceの`allowed_operation_local_refs[]`にない状態を拒否する。Core-only初期Registryの二recordは次のcanonical recordであり、`executable_identity_ref/hash`、`isolation_profile_local_ref`、Capability LocalRef、allowlistを省略しない。
+`TrustedServiceLocalRecordV2.service_content_hash`はLocalRefと自己Fieldを除くrecordから計算し、その値は同recordのContract Set `member_hash`とbyte equalityでなければならない。Registry hashはASCII `MIRAKAN_TRUSTED_SERVICE_REGISTRY_V2`、Registry ID／version、record count、`service_id`／version順record bytesを`uint32_be` length framingして計算する。duplicate／stale／hash mismatch、OperationのLocalRefがServiceの`allowed_operation_local_refs[]`にない状態を拒否する。Core-only初期Registryの二recordは次のcanonical recordであり、`executable_identity_ref/hash`、`isolation_profile_local_ref`、Capability LocalRef、allowlistを省略しない。
 
 | Service LocalRef | executable identity | exact allowed Operation LocalRefs | authority Capability LocalRefs | isolation profile LocalRef |
 |---|---|---|---|---|
@@ -491,15 +551,17 @@ OperationRateLimitPolicyV1
 
 predicate IO/resultのexact MCD Typeは`type.operation.precondition_evaluation_input` version 1、`type.operation.postcondition_evaluation_input` version 2、`type.operation.predicate_result` version 1である。旧postcondition input v1はoffline Receipt auditだけに残し、current Operation／Policy／projectionから参照しない。三current Type recordは上記Field、presence、boundを完全投影し、bare snapshot ID、評価中のRegistry query、時計、network、mutable pointer、published Commit Receiptを許可しない。rate-limit policyは`policy.authoring.runtime_entry.rate_limit` version 1と`policy.authoring.runtime_scope_migration.rate_limit` version 1をactive MCD recordとして登録し、前者は`scope=principal_project, window_ns=60000000000, max_requests=120, burst=20`、後者は`scope=project, window_ns=60000000000, max_requests=4, burst=1`、どちらも`exceeded_error_ref={diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash}`を持つ。Policy共通Envelope、payload、Type三record、Service二recordのmissing／wrong-kind／stale version／stale Contract set／content hash mismatchをOperation Registry compile errorにする。
 
-`PreparedCandidateV1.candidate_content_hash`はASCII `MIRAKAN_PREPARED_CANDIDATE_V1`、candidate hash自身を除く全Fieldのcanonical bytesを`uint32_be` length framingして計算する。`PreparedCandidateRefV1`は完成candidateのID、schema ref、content hashの三者をexactにbindし、Record自身へhash付きRefを埋め戻さない。Staging root、before／proposed-after state、prepared Artifact集合の一Fieldでも変われば別Refになり、candidate IDだけ、latest candidate、別Staging rootの同IDへfallbackしない。`PublishedReceiptMaterializationPolicyV1.policy_content_hash`はASCII `MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_POLICY_V1`と自己Fieldを除くcanonical bytesから計算し、EnvelopeはMCD policy refとpayload content hashの両方を束縛する。
+`PreparedCandidateV1.candidate_content_hash`はASCII `MIRAKAN_PREPARED_CANDIDATE_V1`、candidate hash自身を除く全Fieldのcanonical bytesを`uint32_be` length framingして計算する。`PreparedCandidateRefV1`は完成candidateのID、schema ref、content hashの三者をexactにbindし、Record自身へhash付きRefを埋め戻さない。Staging root、before／proposed-after state、prepared Artifact集合の一Fieldでも変われば別Refになり、candidate IDだけ、latest candidate、別Staging rootの同IDへfallbackしない。`PublishedReceiptSigningProfileV1.profile_content_hash`はASCII `MIRAKAN_PUBLISHED_RECEIPT_SIGNING_PROFILE_V1`、`PublishedReceiptMaterializationPolicyV1.policy_content_hash`はASCII `MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_POLICY_V1`と各自己Fieldを除くcanonical bytesから計算し、EnvelopeはMCD policy refとpayload content hashの両方を束縛する。Key retention policyは署名済みwrapper bytes、検証用public key、profile、発行時revocation snapshotをProject retention期間以上保持し、private key消失時に別Keyで再署名しない。Recovery policyは保存済みwrapperのbyte-exact復旧またはfail-closedだけを許し、issued-at更新、revocation snapshot差替え、alternate signatureを禁止する。
 
-Commandの唯一のpublish順は`Preview → Validation → PreparedCandidate／PreparedCommitEnvelope → staged postcondition → atomic commit-marker publish(state＋prepared receipt payloads) → readback → signed Domain Result／Receipt`である。`AtomicCommitPlanPayloadV1.prepared_payload_count`は配列長と一致し、membersはtype ref、content ref、hash順へstrict sortしてduplicate／same-ref different-hashを拒否する。EnvelopeのPreview／Validation／Domain payload refsはPlan payload集合とset equality、EnvelopeのCandidate／policyはPlanの同Fieldとexact equalityでなければならない。`atomic_commit_plan_hash = SHA-256(ASCII "MIRAKAN_ATOMIC_COMMIT_PLAN_V1" || uint32_be(len(MCD canonical plan payload bytes)) || plan payload bytes)`とし、Prepared Envelope自身、staged postcondition Receipt、Commit Marker、最終signed Receiptをplan payloadへ含めない。`envelope_hash`はASCII `MIRAKAN_PREPARED_COMMIT_ENVELOPE_V1`と自己Fieldを除くEnvelope canonical bytes、`receipt_payload_hash`はASCII `MIRAKAN_STAGED_POSTCONDITION_RECEIPT_V1`と自己Fieldを除くReceipt canonical bytes、`marker_hash`はASCII `MIRAKAN_ATOMIC_COMMIT_MARKER_V1`と自己Fieldを除くMarker canonical bytesを各length-frameして計算する。Markerのbefore／published-after state、prepared payload集合はPlan／Candidateとexact equalityでなければならない。postconditionは未発行StagingとPrepared Receipt payloadだけを読み、Commit Marker、公開後state、最終Receiptを入力にしない。
+Commandの唯一のpublish順は`Preview → Validation → PreparedCandidate／PreparedCommitEnvelope → staged postcondition → private durable commit marker → canonical signed Domain Receipt store → public publication marker＋after state`である。`AtomicCommitPlanPayloadV1.prepared_payload_count`は配列長と一致し、membersはtype ref、content ref、hash順へstrict sortしてduplicate／same-ref different-hashを拒否する。EnvelopeのPreview／Validation／Domain payload refsはPlan payload集合とset equality、EnvelopeのCandidate／policyはPlanの同Fieldとexact equalityでなければならない。`atomic_commit_plan_hash = SHA-256(ASCII "MIRAKAN_ATOMIC_COMMIT_PLAN_V1" || uint32_be(len(MCD canonical plan payload bytes)) || plan payload bytes)`とし、Prepared Envelope自身、staged postcondition Receipt、private Marker、signed Receipt、public Markerをplan payloadへ含めない。`envelope_hash`はASCII `MIRAKAN_PREPARED_COMMIT_ENVELOPE_V1`、`receipt_payload_hash`はASCII `MIRAKAN_STAGED_POSTCONDITION_RECEIPT_V1`、private `marker_hash`はASCII `MIRAKAN_PRIVATE_DURABLE_COMMIT_MARKER_V1`、public `marker_hash`はASCII `MIRAKAN_PUBLIC_PUBLICATION_MARKER_V1`と各自己Fieldを除くcanonical bytesをlength-frameして計算する。private Markerのbefore／staged-after state、prepared payload集合はPlan／Candidateとexact equalityでなければならない。postconditionは未発行StagingとPrepared Receipt payloadだけを読み、private／public Marker、公開後state、最終Receiptを入力にしない。
 
-Gatewayはpostcondition success後、after state、Prepared Envelope、Preview／Validation／Domain semantic payload、Staged Postcondition Receipt、`AtomicCommitMarkerV1`を一つのdurable transactionでpublishする。Marker preimageはPrepared Envelope ref／hash、staged postcondition ref／hash、prepared payload ref／hashを束縛するが、Marker自身と最終`PublishedDomainReceiptV2`を含めない。readback後にだけ外側のsigned Domain Receiptが`{prepared_domain_receipt_payload_ref/hash, atomic_commit_marker_ref/hash}`を参照し、Domain ResultはそのReceiptを返す。これにより`Envelope → staged postcondition → Marker → Published Receipt／Result`の一方向DAGとなる。postcondition failureまたはMarker publish失敗はafter stateと全公開Receiptを0件にし、prepared payloadを権限証拠として外部公開しない。
+Gatewayはpostcondition success後、Prepared Envelope、Preview／Validation／Domain semantic payload、Staged Postcondition Receipt、staged after state、`PrivateDurableCommitMarkerV1`を外部readerから到達不能なprivate durable transactionへcommitする。この時点でProject／Registry／Runtime current head、Document index、provider-visible Resultは一切変えない。private Marker preimageはPrepared Envelope ref／hash、staged postcondition ref／hash、prepared payload ref／hashを束縛するが、Marker自身、signed Receipt、public Markerを含めない。readback後、`PublishedDomainReceiptPayloadV2`を完成し、AI Verification／Provenanceが所有する`MirakanSignedRecordV1`をexact `$ref`する`PublishedDomainReceiptV2` wrapperをreceipt storeへput-if-absentする。inline signer／key／algorithm／signature FieldをDomain receiptに定義しない。`signed_record.purpose=operation_domain_receipt`、`subject_sha256=SHA-256(JCS(payload))`、signer subject／Role、issued-at、revocation snapshotはpayloadとMaterialization policyへbyte equalityでなければならない。
 
-Markerのdurable publish後、readbackまたは外側Receipt保存前にProcessが停止してもstateをrollbackしない。recoveryはMarker、Prepared Envelope、Prepared payload、staged postcondition、published after stateをread-backして全hashを再検査する。Markerと`PublishedReceiptMaterializationKeyPayloadV1`のpayload countは各配列長と一致させ、両membersはpayload type refのID／version／Contract set root、payload content refのcanonical bytes、content hash順へstrict sortする。duplicate、same-ref different-hash、両集合のmissing／extraを拒否する。`key_payload_bytes`はこのclosed payloadをMCD canonical encodeしたbytesで、`receipt_materialization_key = SHA-256(ASCII "MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_V1" || uint32_be(len(key_payload_bytes)) || key_payload_bytes)`とし、key自身をpayloadへ含めない。裸ref列の連結、parallel array、container順、表示順をpreimageにしない。Materialization policyはsigner identity／Key version、deterministic signature profile、Receipt canonicalizationを固定し、同keyのatomic put-if-absentで外側Receiptをexact一度だけ保存する。既存Receiptがあればbyte equalityを検査して同じResultを返し、欠落時だけ同一preimageから生成する。別署名、二重Receipt、既存bytesのoverwrite、durable Marker後のstate rollbackを禁止し、不一致はintegrity faultとして隔離する。MarkerなしのPrepared artifactは非公開のまま破棄し、Receiptまたは認可証拠へ昇格しない。同じidempotency key＋request hashのretryはこのmaterialization keyへ解決してbyte-identical Receipt／Resultを返し、同じkey＋別requestは通常のidempotency reuse errorで拒否する。
+署名済みwrapperの保存／readback後だけ、Gatewayは`PublicPublicationMarkerV1`とafter stateを一つのpublic CAS transactionでpublishする。Public Markerはprivate marker hashとexact signed wrapper ref／hashを束縛し、Project／Registry／Runtime current headはPublic Markerが指すafter stateだけをcurrentとして解決する。Domain ResultはPublic Markerとsigned wrapperを返し、unsigned prepared payload、private Marker、receipt-store単独存在をstate authorityにしない。これにより`candidate → staged postcondition → private marker → signed wrapper → public marker/state`の一方向DAGとなる。postcondition failureまたはprivate commit失敗はpublic state／Receipt／Public Markerを0件にし、prepared payloadを権限証拠として外部公開しない。
 
-Snapshot preimageでは`OperationValidatorClosureLocalRecordV2`だけを使い、Operation、Validator、Diagnosticへの全edgeをLocalRefにする。`closure_local_record_hash`はASCII `MIRAKAN_OPERATION_VALIDATOR_CLOSURE_LOCAL_RECORD_V2`、self-excluding canonical bytesから計算する。set root確定後にだけLocalRefを外部Operation ref、`ValidatorRecordRefV1`、`DiagnosticCodeRefV1`へ投影し、`OperationValidatorClosureV1`を作る。`closure_content_hash`はASCII `MIRAKAN_OPERATION_VALIDATOR_CLOSURE_V1`、外部closureの`closure_content_hash`自身を除くcanonical bytesから計算し、完成後にだけ`OperationValidatorClosureRefV1`をmaterializeする。この外部hashとRefはSnapshot preimageへ戻さない。外部closureのvalidator refはValidator Registryへexact解決し、各Validator recordが宣言する`error_refs[]`のunionをID／code／version／hash順へcanonicalizeした集合が`reachable_error_refs[]`と一致しなければならない。さらにその集合とOperation `errors[]`をset equalityで比較し、missing errorと到達不能extra errorの双方でOperation Registry全体を拒否する。`reachable_error_set_hash`はLocal形ではASCII `MIRAKAN_OPERATION_REACHABLE_ERROR_LOCAL_SET_V2`とDiagnostic LocalRef集合、外部形ではASCII `MIRAKAN_OPERATION_REACHABLE_ERROR_SET_V1`と各四Fieldrefから別々に計算し、どちらもerror countとcanonical bytesを`uint32_be` length framingして自己Fieldを入力にしない。compilerはLocalと外部のlogical Diagnostic集合が一対一であることも検査する。
+private Markerのdurable commit後、signed wrapper保存前に停止した場合、recoveryはprivate Marker、Prepared Envelope、Prepared payload、staged postcondition、staged after stateをread-backし、同じmaterialization key、固定issued-at／revocation／Key context、deterministic profileから同じwrapper bytesを作る。wrapper保存後かつPublic Marker前に停止した場合、wrapper byte／signature／current revocationとprivate preimageを再検証し、同じexpected public predecessorへのCASをroll-forwardする。Public Marker後はrollbackせず、同じidempotency key＋request hashのretryへ同じResult／wrapper／Public Markerを返す。Markerと`PublishedReceiptMaterializationKeyPayloadV1`のpayload countは各配列長と一致させ、両membersはpayload type refのID／version／Contract set root、payload content refのcanonical bytes、content hash順へstrict sortする。duplicate、same-ref different-hash、両集合のmissing／extraを拒否する。`key_payload_bytes`はこのclosed payloadをMCD canonical encodeしたbytesで、`receipt_materialization_key = SHA-256(ASCII "MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_V1" || uint32_be(len(key_payload_bytes)) || key_payload_bytes)`とし、key自身をpayloadへ含めない。別wrapper、alternate signature、二重Public Marker、既存bytes overwrite、署名なしpublish、public後rollbackをintegrity faultとして隔離する。private MarkerなしのPrepared artifactは非公開のまま破棄する。
+
+Snapshot preimageでは`OperationValidatorClosureLocalRecordV2`を`member_kind=operation_validator_closure`としてroot化し、Operation、Validator、Diagnosticへの全edgeをLocalRefにする。`closure_local_record_hash`は当該memberの`member_hash`とbyte equalityである。set root確定後にだけLocalRefを外部Operation ref、`ValidatorRecordRefV1`、`DiagnosticCodeRefV1`へ投影し、`OperationValidatorClosureV1`を作る。`closure_content_hash`はASCII `MIRAKAN_OPERATION_VALIDATOR_CLOSURE_V1`、外部closureの`closure_content_hash`自身を除くcanonical bytesから計算し、完成後にだけ`OperationValidatorClosureRefV1`をmaterializeする。この外部hashとRefはSnapshot preimageへ戻さない。外部closureのvalidator refはValidator Registryへexact解決し、各Validator recordが宣言する`error_refs[]`のunionをID／code／version／hash順へcanonicalizeした集合が`reachable_error_refs[]`と一致しなければならない。さらにその集合とOperation `errors[]`をset equalityで比較し、missing errorと到達不能extra errorの双方でOperation Registry全体を拒否する。`reachable_error_set_hash`はLocal形ではASCII `MIRAKAN_OPERATION_REACHABLE_ERROR_LOCAL_SET_V2`とDiagnostic LocalRef集合、外部形ではASCII `MIRAKAN_OPERATION_REACHABLE_ERROR_SET_V1`と各四Fieldrefから別々に計算し、どちらもerror countとcanonical bytesを`uint32_be` length framingして自己Fieldを入力にしない。compilerはLocalと外部のlogical Diagnostic集合が一対一であることも検査する。
 
 Snapshot内部の正本は`ValidatorLocalRecordV2 {validator_local_ref, implementation_artifact_ref/hash, input_type_local_ref, error_local_refs[1..64], validator_content_hash}`である。Type／Diagnosticは`ContractSetLocalRefV1`を使い、外部MCD refやset rootをrecord hashへ含めない。`validator_content_hash = SHA-256(ASCII "MIRAKAN_VALIDATOR_LOCAL_RECORD_V2" || uint32_be(len(self-excluding canonical bytes)) || bytes)`、Validator Registry hashはASCII `MIRAKAN_VALIDATOR_REGISTRY_V2`、Registry ID／version、record count、validator ID／version順record bytesから計算する。duplicate、same-ID different-hash、非canonical sort、実装Artifact missing／hash mismatch、input type kind／version mismatch、Diagnostic LocalRef未解決を拒否する。外部`ValidatorRecordRefV1`はset root確定後にmaterializeし、Snapshot preimageへ戻さない。
 
@@ -533,7 +595,7 @@ Snapshot内部の正本は`ValidatorLocalRecordV2 {validator_local_ref, implemen
 | `diagnostic.runtime_scope.contribution_invalid` | `MIRAKAN-RUNTIME-SCOPE-CONTRIBUTION_INVALID` | blocking／schema／after_change |
 | `diagnostic.runtime_scope.receipt_binding_mismatch` | `MIRAKAN-RUNTIME-SCOPE-RECEIPT_BINDING_MISMATCH` | blocking／semantic／after_change |
 
-下表はset root確定後のexternal materialized projectionである。表中の`{id,1,contract_set_hash}`は三Fieldを持つexact `McdContractRefV1`、Service refは`{service_id,service_version,service_content_hash}`、Diagnostic refは`{diagnostic_id,code,diagnostic_version,diagnostic_content_hash}`である。各行の外部MCD共通Envelopeは省略せず表内に全値を持つが、この外部形を`ContractSetLocalRecordV2.canonical_payload`へ直接hashしない。
+下表はset root確定後のexternal materialized projectionである。表中の`{id,1,contract_set_hash}`は三Fieldを持つexact `McdContractRefV1`、Service refは`{service_id,service_version,service_content_hash}`、Diagnostic refは`{diagnostic_id,code,diagnostic_version,diagnostic_content_hash}`である。各行の外部MCD共通Envelopeは省略せず表内に全値を持つが、この外部形を`ContractSetMemberLocalRecordV2.canonical_payload`へ直接hashしない。
 
 Snapshot compiler inputへのField projectionを次へ固定する。
 
@@ -625,7 +687,13 @@ Registryは上表をValidator IDのNFC UTF-8 byte順、version順へstrict sort�
 
 各rowは`operation_local_ref`と`reachable_error_refs`を含むcanonical recordを保存する。fixtureは各Domain Validatorから一codeを削除、到達不能codeをOperationへ追加、ID同じcode違い、code同じID違い、Diagnostic hash stale、Validator hash staleを一原因ずつ注入し、set／ref equality不成立でRegistry全体を拒否する。特にRuntime Entry create／update／root migrationは`MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT`、Runtime Entry create／update、Target Selector update、root migrationは`MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS`がsemantic Validatorから到達することをfixtureで証明する。Target Selector createは既存entryへattachしないためdefault coverageを変更せず、このDiagnosticをerrors／reachable setへ含めない。
 
-`request_hash`の唯一の正本は本段落である。全Operation inputについて、`domain = ASCII "MIRAKAN_OPERATION_REQUEST_V2"`、`canonical_input_without_request_hash = MCD canonical encode(選択input schemaに存在する全Fieldからrequest_hash Fieldだけを除外)`とし、`request_hash = SHA-256(domain || uint32_be(len(canonical_input_without_request_hash)) || canonical_input_without_request_hash)`で計算する。Project-bound inputはOperation ref、exact Project ref、policy refs、authorization、`mutation_authorization_binding`、Contract set root、全presence discriminatorを含む。projectless inputはProject refをschemaへ追加せず、後続Ownerが登録するexact workspace／catalog／resource ref等、そのinput schemaに実在する全Fieldを含む。sentinel／null Projectを捏造しない。input Type ref／schema discriminatorが異なるOperationは別canonical bytesになり、Project有無の差だけでrequest hash式をversion-upしない。field順またはomission ruleが変われば別requestである。Domain文書はこの式を複写せず本節を参照する。
+Operation認可とrequest identityの唯一のDAGは本段落である。全Operation inputは選択したnamed input typeから`OperationIntentPayloadV2 {input_type_ref, operation_ref, risk_class, semantic_input_fields}`を作る。`semantic_input_fields`はそのschemaに存在する全意味Fieldをfield ID／presence discriminator込みで持ち、`operation_intent_hash`、`request_hash`、`MutationAuthorizationBindingV2`全体だけを除外する。別置き`authorization_ref`、anonymous approval shape、evidence hashをintentへ残さない。`operation_intent_hash = SHA-256(ASCII "MIRAKAN_OPERATION_INTENT_V2" || uint32_be(len(intent canonical bytes excluding operation_intent_hash)) || intent canonical bytes)`とし、count／array lengthはMCD canonical bytesへ明示、self-exclusionはintent hash自身だけである。Authorization、Approval、Predelegationはこの完成intent hashを共通subjectとして署名する。
+
+状態変更inputは再計算済みintent hashとexact `MutationAuthorizationBindingV2`を必須にし、bindingのintent hash／risk／Operation／Project Scopeを照合する。R2はApprovalまたはPredelegationのexact一方、R3～R5はApprovalだけを許可する。R0／R1 non-mutationはbinding Field自体をcanonical omissionする。binding確定後、全Operation inputについて`canonical_input_without_request_hash = MCD canonical encode(選択input schemaに存在する全Fieldからrequest_hash Fieldだけを除外)`、`request_hash = SHA-256(ASCII "MIRAKAN_OPERATION_REQUEST_V2" || uint32_be(len(canonical_input_without_request_hash)) || canonical_input_without_request_hash)`で計算する。したがってfinal requestはintent hashとexact authority evidenceを含むが、evidenceはfinal request hashをsubjectにせず固定点を作らない。
+
+Project-bound inputはOperation ref、input type ref、exact Project ref、policy refs、intent hash、named binding、Contract set root、全presence discriminatorを含む。projectless inputはProject refをschemaへ追加せず、後続Ownerが登録するexact workspace／catalog／resource ref等、そのinput schemaに実在する全Fieldを含む。sentinel／null Projectを捏造しない。input Type ref／schema discriminatorが異なるOperationは別canonical bytesになり、Project有無の差だけでhash式をversion-upしない。Domain文書は匿名sibling shapeや別式を定義しない。
+
+`MIRAKAN_OPERATION_REQUEST_V2`と`MIRAKAN_OPERATION_INTENT_V2`は本計画更新時点でEngine、Project、Tool catalog、Receipt storeへ一度もActivation／materializationされていない設計契約であるため、version名を維持してActivation前に修正する。レビュー対象だった循環形のV2 bytesは永続artifactではなく、migration sourceとして受理しない。既存V1 retained artifactだけは直後のoffline-only migration recordで扱い、Task 4はこの二段階DAGとnamed bindingを実装入力とし、旧循環shapeの互換readerを作らない。
 
 旧domain `MIRAKAN_OPERATION_REQUEST_V1`はretained Receiptの検証とoffline migration inputだけに許可する。Task 2では状態変更Operationを半登録せず、次の非current migration algorithm recordだけを定義する。
 
@@ -659,6 +727,7 @@ RequestHashV1ToV2MigrationCandidateV1
 ```text
 PreparedRuntimeEntryMutationReceiptPayloadV1
   operation_ref: McdContractRefV1(kind=operation)
+  operation_intent_hash
   request_hash
   idempotency_key
   before_project_ref: exact {project_id, project_revision, document_set_hash}
@@ -671,13 +740,21 @@ PreparedRuntimeEntryMutationReceiptPayloadV1
   diagnostics[0..64]: DiagnosticCodeRefV1
   prepared_payload_hash: SHA-256
 
-RuntimeEntryMutationReceiptV1
+RuntimeEntryMutationReceiptSubjectV1
   prepared_payload_ref/hash:
     PreparedRuntimeEntryMutationReceiptPayloadV1
-  atomic_commit_marker_ref/hash
-  signer_identity_ref/hash
-  signature
-  receipt_hash: SHA-256
+  private_commit_marker_hash
+  operation_intent_hash
+  request_hash
+  before_project_ref
+  after_project_ref
+  issued_at
+  revocation_snapshot_ref/hash
+
+RuntimeEntryMutationReceiptV1
+  payload: RuntimeEntryMutationReceiptSubjectV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=operation_domain_receipt)
 
 AffectedDocumentMutationV1
   change_kind: created | updated
@@ -703,7 +780,7 @@ AffectedDocumentMutationV1
 
 discriminator外branch Fieldを禁止する。`created`は選択branchの全before Fieldをcanonical omissionし、`updated`は選択branchの全before Fieldを必須にしてbefore／after Stable IDを一致させる。Worldへ普遍的なpayload semantic hashが存在すると仮定せず、Document content hashだけをexact ref内で記録する。entry、selector、activation policyは各Ownerが定義する別semantic hash型を使用し、generic `payload_semantic_hash`へ混同しない。
 
-通常create／updateは対象一件、root Scene migrationは`world`、`runtime_target_selector`、`runtime_entry_activation_policy`、`runtime_entry`をこの順でexact一件ずつ持つ。通常Operationはplan refをnull、allocation mappingを空にし、root migrationはProject Stateのexact `RootSceneMigrationPlanRefV1`とplanの四allocation intentへ一対一対応するmapping四件を必須にする。missing／duplicate／extra kind、null、zero hash、単数`affected_document`への圧縮を拒否する。`prepared_payload_hash`はASCII `MIRAKAN_PREPARED_RUNTIME_ENTRY_MUTATION_RECEIPT_PAYLOAD_V1`とself-excluding payload、外側`receipt_hash`はASCII `MIRAKAN_RUNTIME_ENTRY_MUTATION_RECEIPT_V1`とPrepared payload ref／hash、Atomic Commit Marker ref／hash、signer／signatureから計算する。MarkerはPrepared payloadだけをpublish集合へ含め、外側Receiptを含めない。同じ`idempotency_key`＋`request_hash`のretryは同じResult／Receipt refとhashを返し、同じkeyの別request hashは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で一切変更せず拒否する。
+通常create／updateは対象一件、root Scene migrationは`world`、`runtime_target_selector`、`runtime_entry_activation_policy`、`runtime_entry`をこの順でexact一件ずつ持つ。通常Operationはplan refをnull、allocation mappingを空にする。root migrationのallocation mapping件数はProject Stateのexact `RootSceneMigrationPlanV1.document_mutations[]`にある`create` branch件数とexact equalityで0～4件、各create branchのallocation intentと一対一対応し、`update` branchはmappingを持たない。missing／duplicate／extra kind、null、zero hash、create count不一致、updateへのallocation、単数`affected_document`への圧縮を拒否する。`prepared_payload_hash`はASCII `MIRAKAN_PREPARED_RUNTIME_ENTRY_MUTATION_RECEIPT_PAYLOAD_V1`とself-excluding payload、subjectはASCII `MIRAKAN_RUNTIME_ENTRY_MUTATION_RECEIPT_SUBJECT_V1`と全Fieldのlength-framed canonical bytesから計算し、`RuntimeEntryMutationReceiptV1.signed_record`はAI Verification／Provenanceのcanonical `MirakanSignedRecordV1`をexact reuseする。署名済みwrapper保存後、`PublicPublicationMarkerV1`とafter Projectを同じpublic CASで発行する。private Marker、prepared payload、unsigned subjectだけを公開authorityにせず、同じ`idempotency_key`＋`request_hash`のretryは同じResult／signed Receipt／Public Markerを返し、同じkeyの別request hashは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で一切変更せず拒否する。
 
 Operation Registry compilerは八Operation ID、16 predicate policy ID、二rate-limit policy ID、三predicate Type、全domain input／output／receipt ref、Service二record、SideEffect enum、Diagnostic ref、Validator closureをexact Contract set／各Registryへ解決する。pre／postcondition refがmissing、`kind!=policy`、version／Contract set hash stale、policyが`evaluation_mode!=pure`、side effect非空、IO／result Type不一致、Service allowlist不一致、rate-limit payload不一致、Diagnostic四Field不一致、またはerrors／reachable set不一致ならRegistry全体を拒否する。fixtureは八Operationのmeta-schema compileとProject ownerとのset equalityに加え、各参照のwrong-kind、missing、stale version、stale Contract set／content hash、impure policyを一原因ずつ拒否する。
 
@@ -1224,6 +1301,10 @@ Plan／Proposeは`expected_project_revision`、`idempotency_key`、Profile hash�
 - Providerで表現できないConstraintがManifestから欠落しない。
 - Provider Outputが必ずInternal validatorで再検証される。
 - 全Operation errorが列挙され、string-only errorを持たない。
+- 全active OperationについてOwner Manifest Operation集合、MCD Operation集合、Trusted Service allowlist owner contribution、Policy ref、Validator closure、Diagnostic reachable union、Receipt Type、Provider projection集合をそれぞれlike-for-likeで比較し、完全登録済みか明示`not_activated`の厳密に一方である。name-only、partial row、prefix展開を拒否する。
+- `MIRAKAN_OPERATION_INTENT_V2` payloadから認可証拠へのedge、認可証拠からnamed `MutationAuthorizationBindingV2`へのedge、binding確定後の`MIRAKAN_OPERATION_REQUEST_V2`へのedgeが一方向であり、Approval／Predelegationからfinal request hashへのedgeが0件である。
+- `ContractSetSnapshotV2.members[]`はMCD、Diagnostic、Trusted Service、Validator、Operation Validator Closureの全normative local memberとset equalityであり、各kindの一member byteを変えるmutation fixtureでset rootが必ず変わる。全cross-member edgeはlocal refだけで解決し、root確定前のexternal refを拒否する。
+- 全state-changing Operationは`private durable commit marker -> MirakanSignedRecordV1 wrapper -> PublicPublicationMarkerV1＋public state`の順だけを持ち、署名済みwrapperなしのpublic current head、inline Domain signature、別Receipt substitution、二重publication、public後rollbackをcrash-window fixtureで拒否する。
 - `ai_mutable` Authoring fieldのtyped Operation coverageが100%で、未到達fieldを持つCapabilityのProvider projectionを拒否する。
 - `AuthoringSelectionContextV1`と`WorldAuthoringContextV1`がC++／TypeScript／JSON Schema／MCPへ同じfield ID、bound、Source／Derived区分で生成される。
 - World Discovery六Operationがexact revision／hash、omitted range、continuation、typed Diagnosticを返し、screen coordinate、表示row、Hierarchy pathだけのtarget指定を拒否する。

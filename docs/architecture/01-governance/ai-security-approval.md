@@ -227,16 +227,20 @@ R2事前委任はOperation ID＋version、対象DocumentのStable ID／Shard等�
 
 ```text
 MutationAuthorizationBindingV2
+  operation_intent_hash: SHA-256
   risk_class: R2 | R3 | R4 | R5
-  authorization_ref/hash
+  authorization_ref
+  authorization_hash: SHA-256
   authority_evidence:
     approval:
-      approval_ref/hash
+      approval_ref
+      approval_hash: SHA-256
     | predelegated:
-      predelegation_ref/hash
+      predelegation_ref
+      predelegation_hash: SHA-256
 ```
 
-R2は`approval | predelegated`の厳密に一方を許可し、Predelegationは上記Scope、Operation、Project、期限、上限、rollbackとrequest hashを全てcoverしなければならない。R3～R5は`approval`だけを許可し、`predelegated` branchを拒否する。状態変更で`authority_evidence`欠落、両branch混在、期限切れ、Scope不足、request hash不一致の場合は、Domainにかかわらずexact `DiagnosticCodeRefV1`の`diagnostic.approval.required / MIRAKAN-APPROVAL-REQUIRED`を返す。`authorization_ref`だけ、optional `approval_ref`、空hash、callerの「承認済み」文字列を代用しない。R0／R1 non-mutationは本型自体をcanonical omissionする。
+`operation_intent_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)の`MIRAKAN_OPERATION_INTENT_V2`だけで再計算する。Authorization、Approval、Predelegationは同じintent hashをsubjectとして署名し、後段の`request_hash`をsubjectにしない。Policy Serviceはbindingのintent hash／risk、exact Authorization ref／hash、選択evidence ref／hashを署名subjectとbyte equalityで照合する。R2は`approval | predelegated`の厳密に一方を許可し、Predelegationは上記Scope、Operation、Project、期限、上限、rollbackとoperation intentを全てcoverしなければならない。R3～R5は`approval`だけを許可し、`predelegated` branchを拒否する。状態変更で`authority_evidence`欠落、両branch混在、期限切れ、Scope不足、intent hash／risk不一致の場合は、Domainにかかわらずexact `DiagnosticCodeRefV1`の`diagnostic.approval.required / MIRAKAN-APPROVAL-REQUIRED`を返す。`authorization_ref`だけ、optional `approval_ref`、空hash、callerの「承認済み」文字列を代用しない。R0／R1 non-mutationは本型自体をcanonical omissionする。
 
 ### 4.2 Activation Gate
 
