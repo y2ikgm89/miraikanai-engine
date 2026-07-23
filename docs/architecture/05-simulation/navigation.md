@@ -117,7 +117,48 @@ MotionExecutorPortV1
   failure_diagnostic_refs[1..32]: DiagnosticCodeRefV1
 ```
 
-`MovementIntentV1`の正規MCD参照は`{id=type.navigation.movement_intent, version=1, contract_set_hash}`である。Animation proposalは`{id=type.animation.root_motion_proposal, version=1, contract_set_hash}`、Character Locomotion gameplay proposalは`{id=type.feature.character_locomotion.gameplay_motion_intent, version=1, contract_set_hash}`を使う。`mirakan.schema.*`、`mirakan.contract.*`、PascalCaseを含むID、ID文字列内の`@1`はcurrent Contract setで無効である。
+`MovementIntentV1`の正規MCD参照は`{id=type.navigation.movement_intent, version=1, contract_set_hash}`、generic contribution envelopeは`{id=type.navigation.motion_intent_contribution, version=1, contract_set_hash}`である。Animation等のproducer固有proposal schemaはCoreのaccepted typeへhard-codeせず、次のregistryにowner付きで登録する。`mirakan.schema.*`、`mirakan.contract.*`、PascalCaseを含むID、ID文字列内の`@1`はcurrent Contract setで無効である。
+
+```text
+MotionIntentContributionV1
+  contribution_id: StableId
+  motion_subject_ref
+  motion_subject_generation
+  valid_for_tick
+  producer_system_ref: GameSystemContractRefV1
+  proposal_schema_ref: McdContractRefV1(kind=type)
+  proposal_payload:
+    kind: referenced
+      proposal_ref: TypedValueRefV1
+    | kind: inline
+      proposal_value: BoundedTypedValueV1
+  proposal_hash: SHA-256
+
+MotionIntentContributionBindingRecordV1
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  proposal_schema_ref: McdContractRefV1(kind=type)
+  adapter_policy_ref: McdContractRefV1(kind=policy)
+  compatible_executor_capability_refs[1..64]
+  fixture_refs[1..64]
+  record_content_hash
+
+MotionIntentContributionBindingRegistryRefV1
+  registry_id
+  registry_version
+  registry_content_hash
+
+MotionIntentContributionBindingRegistryV1
+  registry_id: motion_intent.contribution_binding.registry.active
+  registry_version
+  registry_content_hash
+  records[0..4096]: MotionIntentContributionBindingRecordV1
+```
+
+Coreはこのgeneric schema、registry、resolverだけを所有する。`proposal_payload`はdiscriminator外Fieldをcanonical omissionし、reference branchはexact schema／payload hash、inline branchはbound／canonical value hashを検証する。`proposal_hash`はASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_V1`と自身だけを除く全FieldのMCD canonical bytesを`uint32_be` length framingしてSHA-256する。
+
+recordsは`proposal_schema_ref.id`、version、owner refのcanonical byte順へstrict sortし、duplicate、同じschemaへの複数active adapter、stale owner／policy／fixture hash、Core ownerを偽装するextension recordを拒否する。record hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_RECORD_V1`とself-excluding canonical bytes、Registry hashはASCII `MIRAKAN_MOTION_INTENT_CONTRIBUTION_BINDING_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、自己Fieldを除外する。`MotionIntentContributionBindingRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only／latest fallbackを許可しない。
+
+個別Feature／Genreのproposal schema、adapter policy、binding、positive fixtureは当該Pack ownerが登録し、Core binaryまたはCore fixture inventoryへコピーしない。resolverはcurrent Registry ref、producer schema、selected executor capabilityを入力にexact一件を選び、0件または複数なら推測変換しない。Compile closure、Runtime activation、Save／Replayは選択Record ref／hashとRegistry refを保存し、Registry version／hashがstaleなproposalを再利用しない。
 
 Port transportを次へ固定する。これはEventではなく、T40でbinding Systemからselected Providerへ一回だけ配送するbounded Port messageである。
 
@@ -205,7 +246,7 @@ owner unionはdiscriminator外Fieldをnullにする。`usage=production`は`engi
 
 `arrival_radius_m`はfiniteな0.01～10 mとする。`executor_capability_ref`は選択Provider Capability、`movement_profile_ref`はそのProvider-owned schemaのinstanceを参照する。request validationは`nav_agent_profile_ref`のslope／climb／clearance semanticsとProviderのcompatibility predicateを検査し、Navigation上はtraversableだがexecutorが通行できない組合せをinvalid Profile relationとして拒否する。C1 waypointは`GridNav2DProfileV1`の`max_path_cells`（C1上限8,192 cell）または`NavBuildProfile3DV1`の`max_straight_path_points`（C1上限256 point）に従い、上限値の正本はProfile fieldである。path resultはNav generation、actor generation、request IDがすべて一致した場合だけ統合し、不一致は`stale`としてtypedに扱い、異なるrequestへ推測で転用しない。goal移動、Nav generation変更、path corridor逸脱、`PathFollowerStateV1.status`の`blocked`遷移だけがreplan契機である。`blocked`はProvider stateではなくPath Follower述語であり、Portの`resolved_motion_schema_ref`に適合する結果から得た実進捗だけが、`MovementIntentV1`の要求displacementに対して`replan_policy_ref`の進捗閾値未満であるtickが、同policyのblocked判定tick数だけ連続した場合に遷移する。Physics snapshot、Transform component、Animation pose、Provider-private stateから進捗を迂回判定しない。`replan_policy_ref`は進捗閾値、blocked判定tick数、最短replan間隔、最大replan回数、stuck tick上限を必須とする。上限到達時は`stuck`へ遷移してboundedに停止し、毎tick無制限queryを発行しない。
 
-accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Followingは`T30`でactor当たり一つだけの`MovementIntentV1`を生成し、selected Motion Executorが`T40`で解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1 reference recipeはPhysics Character Motor Providerを選択できるが、board-token／RTS executor stubはPhysicsなしで同じPortへ接続できる。複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2に留める。
+accepted Navigation resultを`T20_AsyncIntegrate`で統合し、Path Followingは`T30`でactor当たり一つだけの`MovementIntentV1`を生成し、selected Motion Executorが`T40`で解決する。`MovementIntentV1`はproposalであり、actual displacement、grounding、slide、collision responseを所有しない。C1 reference recipeはPhysics Kinematic Motion Providerを選択できるが、board-token／RTS executor stubはPhysicsなしで同じPortへ接続できる。複数Agentのlocal avoidance、flow field、shared corridor optimizationはC2に留める。
 
 ownerが永続化を要求した場合だけSaveへgoal、request semantic、`executor_capability_ref`、movement profile identity、replan countを保存する。Scope instance keyとSave identityをruntime generationへ置換しない。waypoint index、Nav path point配列、native query handle、Physics stateは保存しない。Loadは保存済みNav generationやpath進捗を信用せず、同じgoalとProfileから再queryする。ReplayはRequest、採用path result hash、Movement Intent、selected executor／profile hash、accepted resolved motion、arrived／stuck／replan Eventを記録する。C1 fixtureは2D enemy seek／attackと3D Navmesh追跡で、goal移動、door閉鎖、stale result、owner scope deactivate、blocked recovery、Save／Load、Replay一致を検証する。
 
@@ -223,7 +264,7 @@ Cook失敗、Worker crash、invalid staging、incompatible promotionではlast v
 
 QualificationはGrid rasterization／A*、Profile cross-field validation、canonical triangle conversion、tile seam、area／modifier／off-mesh link、nearest projection、path ordering、no-path、result bound、async stale result、version activation／lease expiry、fault injection、Editor／AI previewを含む。同じfixtureを全private Backendへ与え、Engine result／status／diagnosticが一致することを検査する。
 
-`fixture.navigation.motion-executor.physics-character`はPhysics reference Providerを検証する。Physics unavailable用の二つのfixture-only Provider recordは`MotionExecutorProviderCatalogV1`へ次の値で登録し、Production選択またはProject Saveへ昇格しない。表中の全MCD IDは`version=1`とfixture Contract set hashを持つ`McdContractRefV1`、Provider／owner／fixtureはversion／content hash付きexact refである。
+`fixture.navigation.motion-executor.physics-kinematic`はPhysics reference Providerを検証する。Physics unavailable用の二つのfixture-only Provider recordは`MotionExecutorProviderCatalogV1`へ次の値で登録し、Production選択またはProject Saveへ昇格しない。表中の全MCD IDは`version=1`とfixture Contract set hashを持つ`McdContractRefV1`、Provider／owner／fixtureはversion／content hash付きexact refである。
 
 | Provider ID／usage／owner | `executor_capability_ref.id` | `movement_profile_schema_ref.id` | `accepted_intent_schema_refs[].id` | transport／resolved type ID | compatibility policy ID |
 |---|---|---|---|---|---|
@@ -232,7 +273,7 @@ QualificationはGrid rasterization／A*、Profile cross-field validation、canon
 
 両policyはfixture Target allowlist、2D／3D dimension、profile schema、intent subsetを全件検証する。`fixture.navigation.motion-executor.board-token-no-physics`と`fixture.navigation.motion-executor.rts-stub-no-physics`は上記7 Field、Provider identity／version／content hash／owner／usage、Target／dimension policy、diagnostic、Physics dependency 0件を検証する。Physics production recordも同じCatalog schemaへ`usage=production`、Engine owner、exact implementation System／Qualification Receiptで登録する。
 
-negative fixtureはmissing／duplicate Provider、Provider record order、composition intent subset不成立、profile／Target／dimension incompatibility、stale result、stale Catalog version／hash、stale provider version／content hash、MCD kind／type spoof、payload refとschema不一致、payload hash mismatch、duplicate proposal ID、noncanonical entry order、fixture Provider RecordRefのProduction選択、cross-project owner、self-asserted ownerを一原因ずつ拒否する。root-motionあり／なしの双方を検査し、proposalは必ずCharacter Locomotion binding経由の`MotionExecutorIntentBatchV1`でselected executorへ届く。Provider failure fixtureはPath progress、last-valid resolved motion、Path Follower stateを部分更新しない。
+negative fixtureはmissing／duplicate Provider、Provider record order、composition intent subset不成立、profile／Target／dimension incompatibility、stale result、stale Catalog version／hash、stale provider version／content hash、MCD kind／type spoof、payload refとschema不一致、payload hash mismatch、duplicate proposal ID、noncanonical entry order、fixture Provider RecordRefのProduction選択、cross-project owner、self-asserted owner、contribution adapter 0件／複数を一原因ずつ拒否する。root-motionあり／なしの双方を検査し、proposalは必ずregistered generic contribution resolver経由の`MotionExecutorIntentBatchV1`でselected executorへ届く。Provider failure fixtureはPath progress、last-valid resolved motion、Path Follower stateを部分更新しない。
 
 Dependency artifact identityとTarget buildは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定／capacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を消費する。
 

@@ -99,6 +99,7 @@ git commit -m "docs: establish generic pack architecture"
 - Modify: `docs/architecture/03-authoring/project-state.md`
 - Modify: `docs/architecture/03-authoring/gameplay-programming-model.md`
 - Modify: `docs/architecture/04-runtime/scheduling-lifetime.md`
+- Modify: `docs/architecture/04-runtime/performance-capacity.md`
 - Modify: `docs/architecture/05-simulation/physics.md`
 - Modify: `docs/architecture/05-simulation/navigation.md`
 - Modify: `docs/architecture/05-simulation/animation.md`
@@ -112,11 +113,11 @@ git commit -m "docs: establish generic pack architecture"
 
 **Interfaces:**
 - Consumes: `PackManifestV1`とScenario／Stage owner。
-- Produces: `RuntimeEntryPointV1`、generic `WorldDocumentV1`、`SpatialTopologyDefinitionV1`、`RuntimeScopeTypeCatalogV1`、`MotionExecutorPortV1`。
+- Produces: `RuntimeEntryPointV1`、generic `WorldDocumentV1`、`SpatialTopologyDefinitionV1`、`RuntimeScopeTypeCatalogV1`、`MotionExecutorPortV1`、`PhysicsIntentRoleRegistryV1`、`RuntimeScaleIntentDimensionRegistryV1`。
 
 - [ ] **Step 1: Add Project runtime entry points**
 
-`ProjectManifest`の`root scene`をexact `DocumentRef<RuntimeEntryPointDocumentV1>`の`runtime_entry_point_refs[1..64]`へ置換し、Design §4.1の`RuntimeEntryPointV1`全Field、Project-owned selector／policy Document、共通header、branch validationを追加する。三Documentは`DocumentRef.stable_id == header.document_id == payload ID`を必須にする。selected entry hashはentry payload semantic hash、Document hashはref content hashへ分離し、selector hashはdomain separator＋selector ID＋version＋canonical Target refsから自己hashを除外して一意化する。Compile Manifestはowner-typed providerを選んだ時だけ`selected_provider_binding_set_hash`を持ち、post-commit Project revision／document set、Registry、Binding Document content／semantic hashをclosureへ入れる。Runtime Package自己hashをinputへ含めない。
+`ProjectManifest`の`root scene`をexact `DocumentRef<RuntimeEntryPointDocumentV1>`の`runtime_entry_point_refs[1..64]`へ置換し、Design §4.1の`RuntimeEntryPointV1`全Field、Project-owned selector／policy Document、共通header、branch validationを追加する。三Documentは`DocumentRef.stable_id == header.document_id == payload ID`を必須にする。selected entry hashはentry payload semantic hash、Document hashはref content hashへ分離する。selectorはhash Fieldを持たない`RuntimeTargetSelectorHashPayloadV1 {selector_id, selector_version, target_profile_ref_count, target_profile_refs[]}`をID／version／hash順へcanonicalizeし、domain separator＋byte length＋payload bytesからhashする。Compile Manifestはowner-typed providerを選んだ時だけ`selected_provider_binding_set_hash`を持ち、post-commit Project revision／document set、Registry、Binding Document content／semantic hashをclosureへ入れる。Runtime Package自己hashをinputへ含めない。
 
 entry／selector／policyのcreate／updateとroot migrationの七Operation、Scope migration一Operationを完全`McdOperationContractV1`として登録する。八recordはMCD共通Envelope、exact input／output／rate-limit／receipt ref、authority、risk、side effect、idempotency、transaction、16 pure policy pre／post refs、closed DiagnosticCodeRef set、timeoutを全行で明示し、カテゴリ散文や別行補完を使わない。Project ownerは七exact Operation refだけを参照する。request hashはdomain separator＋自己Fieldを除く全input、root migration Receiptは四Document tagged before／afterへ固定する。Operation meta-schema／Registry compile、Project↔MCD set equality、predicate wrong-kind／missing／stale fixtureを追加する。
 
@@ -126,7 +127,7 @@ entry／selector／policyのcreate／updateとroot migrationの七Operation、Sc
 
 `WorldAuthoringPlanV1.affected_world_refs`は既存編集1～64件、新規World作成kind厳密1件のbranchだけ0件を許可する。`WorldAuthoringContextV1`はCommit後だけexact World ref付きで生成する。`StageDefinitionV1.world_ref`をrequired nullableにし、world branchだけanchor／spatial spawnを許可する。WorldなしDialogue／Visual Novel／UI workflowとheadless StageのSave／Replay／transition fixtureを追加する。
 
-`ProceduralWorldDefinitionV1`／`WorldAuthoringPlanV1`／Deltaへexact Binding Document ref/content hashと別`resolved_binding_closure_hash`、output schemaを伝播する。closure hashはdomain separator＋Document ref＋owner／provider／output closure、`delta_semantic_hash`はgenerator／input／seed／Target／Toolchain／binding／outputから計算してBroker UUIDv7を除外する。fresh 3-runは異なるdelta IDでもsemantic／Artifact hash一致、各hash単独tamper拒否を検証する。truth table五fixture、last-valid維持、明示選択generic hard closure、World-owned spatial destinationを維持する。
+`ProceduralWorldDefinitionV1`／`WorldAuthoringPlanV1`／precommit `GeneratedWorldSemanticCandidateV1`へexact Binding Document ref/content hashと別`resolved_binding_closure_hash`、output schemaを伝播する。fresh 3-runはGateway／Broker call 0件でlocal-ID正規化graph bytes、order、`semantic_graph_hash`、candidate Artifact semantic hashだけを比較する。合格後にGatewayを一度だけ呼び、local ID全件と`delta_id`を一つのallocation Manifest／Receiptで発行し、Source／validation／Preview／Cook／Commitが同じmappingを共有する。二回目allocation、local ID残存、各hash単独tamperを拒否する。truth table五fixture、last-valid維持、明示選択generic hard closure、World-owned spatial destinationを維持する。
 
 Stage transitionはDestination V2六kind、Policy V1、Request V2、Port V2へ固定する。RequestはPolicy ref／hashだけを持ちdestinationを複製しない。ui／headless／world-spaceはexact Runtime Entry ref／payload hashを通し、world-spaceだけWorld-owned spatial destination MCD refを追加する。Policy／Request／Destination／Port inventory、六kind round-trip、branch外Field、missing anchor、stale World／Space／Edge／hash fixtureを閉じる。
 
@@ -136,7 +137,7 @@ Stage transitionはDestination V2六kind、Policy V1、Request V2、Port V2へ�
 
 - [ ] **Step 4: Replace the closed gameplay scope enum**
 
-`GameSystemSpecV1`へversion／hash付き`RuntimeScopeTypeRefV1`を導入し、Scope 7 Fieldをtyped ref化する。さらに一般schemaを`semantic_role_refs`、requirement refs、`dependency_edge_refs`、`implementation_policy_ref`、Save Replay／budget／fixture／invariant refsへ一意化し、非MCD refを各`{id,version,content_hash}`へ閉じる。current validatorは旧`*_ids`／inline／bare Fieldをrejectし、existing offline v1→v2 migrationだけが旧Contract setを読み、Source／Save／Replay identityと補助record refsを移行する。
+current `GameSystemSpecV2`へversion／hash付き`RuntimeScopeTypeRefV1`を導入し、Scope 7 Fieldをtyped ref化する。さらに一般schemaを`semantic_role_refs`、requirement refs、`dependency_edge_refs`、`implementation_policy_ref`、authoritativeだけ必須のSave Replay、budget／fixture／invariant refs、`auxiliary_ref_set_hash`へ一意化し、非MCD refを各`{id,version,content_hash}`へ閉じる。arrayはID／version／hash strict sorted set、duplicate／same-ID different-hashを拒否し、nonauthoritative Save refはcanonical omissionする。`GameSystemSpecV1`はoffline sourceだけで、`operation.runtime_scope.migrate_game_system` inputがsource schema version 1／destination version 2をexact指定する。Coreはgeneric contribution registryだけ、Feature／Genre mapping／adapter／fixtureは各Pack ownerが登録する。
 
 Common Interaction汎用化とRecipe gateを維持する。Shooter target provider payload ownerはtagged kind＋stable project IDだけとし、expected base revision／document setはOperation input、post-commit値はReceipt／Registry／Compile closureだけへ置く。Binding semantic hashからrevisionを除外し、Document containment／Registry membershipで所有証明する。N create→N+1 reload／select／compile、unrelated N+2、cross-project／self-assert spoof、World／Physics／PerceptionなしProduction fixtureを追加する。
 
@@ -144,7 +145,9 @@ Common Interaction汎用化とRecipe gateを維持する。Shooter target provid
 
 Navigationを7 Field `MotionExecutorPortV1`、Provider-neutral Catalog／record、`MotionExecutorProviderRecordRefV1`、exact transport batchの唯一Ownerにする。RecordRefはCatalog ref/version/hashとprovider ID/version/content hashをbindし、Batch／Selection State／Save／Replayで一意に使う。Physics productionも同refを使い、stale Catalog／provider hash、fixture-in-productionを拒否する。
 
-`GameSystemSpecV1`へ`emitted_port_message_type_refs`を追加し、Character bindingのMCD Envelope、2 Feature type、Navigation batch、role／3 requirement／dependency／policy／Save Replay／budget／fixture／3 invariantの12 record refをexact解決する。BatchをEventにせず、Animationを含む全proposalをbinding経由にする。Scenario Stage aggregateは`StageTransitionContractManifestV1`を含むexact owner ref集合を同じcanonical sourceから生成しset equality fixtureを持つ。MCD IDはcanonical `<kind>.<lower-token-path>`、version separateへ統一する。
+`GameSystemSpecV2`へ`emitted_port_message_type_refs`を持たせ、Character bindingのMCD Envelope、2 Feature type、Navigation batch、role／3 requirement／dependency／policy／Save Replay／budget／fixture／3 invariantの12 record refをFeature ownerでexact解決する。Coreはgeneric motion contribution／selected executor Portだけを所有し、Character adapter／Provider binding／fixtureをPackへ置く。BatchをEventにしない。Scenario Stageは`StageTransitionContractRefSetV1`をdestination／request／policy／World spatial destination／port messageのexact 5件へ閉じ、public／runtime／global MCD／Port closure／aggregateを別々のlike-for-like gateで検証する。MCD IDはcanonical `<kind>.<lower-token-path>`、version separateへ統一する。
+
+Physics AI Coreはbehavior-neutralな`PhysicsIntentRoleRegistryV1`だけを所有し、object／Genre role、default mapping、adapter／fixtureをPack／Project ownerへ移す。role Refとmotion／collision／hit／shape／speed axisを独立検証し、旧object enumはoffline migrationでexact contributionへ一意解決できる時だけ移行する。Performanceは`RuntimeScaleIntentDimensionRegistryV1`とbounded typed valueへ一意化し、Coreにはinstance／lifecycle／event／spatial／presentationの中立dimensionだけを置く。Project EnvelopeとIntegrated fixtureはowner-typed全dimension、measurement schema、unit、fidelity／equivalence、fixture closureを同時に検査し、projectile／actor／damage／goal等をCore field／fixtureへ固定しない。
 
 - [ ] **Step 6: Verify and commit Task 2**
 
@@ -179,6 +182,7 @@ git commit -m "docs: eliminate remaining runtime contract ambiguity"
 - Modify: `docs/architecture/06-rendering/lod.md`
 - Modify: `docs/architecture/07-platform/input.md`
 - Modify: `docs/architecture/07-platform/audio.md`
+- Modify: `docs/architecture/03-authoring/native-game-module.md`
 - Modify: `docs/architecture/08-packs/shooter.md`
 - Modify: `docs/architecture/00-product/product-plan.md`
 
@@ -188,7 +192,7 @@ git commit -m "docs: eliminate remaining runtime contract ambiguity"
 
 - [ ] **Step 1: Introduce the cadence profile**
 
-Design §6の`SimulationCadenceProfileV1`をRuntime正本へ追加する。60 Hz専用式を`rate_numerator_hz/rate_denominator`の有理数式へ一般化し、C1／C2 active値を`60/1`、catch-up 4とする。alternate rate／explicit stepは未適格化時に`capability_unavailable`とする。Replay headerとProfile hashの一致を必須にする。
+Design §6の`SimulationCadenceProfileV1`をRuntime正本へ追加する。60 Hz専用式を`rate_numerator_hz/rate_denominator`の有理数式へ一般化し、C1／C2 active値を`60/1`、catch-up 4とする。alternate rate／explicit stepは未適格化時に`capability_unavailable`とする。Replay headerとProfile hashの一致を必須にする。Native ABI freeze前に`MirakanNativeInvokeContextV1.fixed_delta_numerator／denominator`をfixed／explicit-step tagged cadence inputへ移行し、descriptor、Source binding、Replay、fixtureを同時更新する。単数`fixed delta`を恒久ABIにしない。
 
 - [ ] **Step 2: Remove independent 60 literals**
 
@@ -200,7 +204,7 @@ VFX lifetime／delta、Input latency fixture、Timer／Replay記述をCadence Pr
 
 - [ ] **Step 4: Move Genre vocabulary to Shooter**
 
-Input CoreからShooter Semantic Action Templateを削除し、Pack-owned semantic action template extension contractだけを残す。`PlayerLookInput`を`ViewControlInput`、`recoil_channels[]`をgeneric `view_impulse_channels[]`へ変更する。AudioのShooter supersonic記述、LODのWeapon／Combat presetをgeneric bound／critical-authoritative cueへ置換し、Shooter具体値はShooter Packへ移す。
+Input CoreからShooter Semantic Action Templateを削除し、owner付きsemantic action→typed Command binding registryだけを残す。role、required／optional Action Profile、evaluator、fixtureは各Pack ownerが登録する。`PlayerLookInput`を`ViewControlInput`、`recoil_channels[]`をgeneric `view_impulse_channels[]`へ変更する。AudioのShooter supersonic記述、LODのWeapon／Combat presetをgeneric bound／critical-authoritative cueへ置換し、Shooter具体値はShooter Packへ移す。
 
 - [ ] **Step 5: Register cadence Future inception**
 
@@ -394,3 +398,14 @@ git commit -m "docs: complete generic engine plan audit"
 - Baseline: `acf967e`
 - Work branch: `codex/plan-review-closure`
 - Completion requires: Tasks 1～6 reviewed、full link／identity／dependency／count audit current、`git diff --check` exit 0。
+
+### Task 2 independent audit closure（2026-07-23）
+
+- Audit base: `0386626a95f1534389cb4f2a6ec71ff254d06b68`
+- Scope: Critical 3／Important 7／Minor 2の文書契約closure。Engine実装、Capability activation、Shipping readinessは未主張。
+- Closed roots: Diagnostic／Service／Policy／Operation Registry、八Operation reachable-error equality、generic Scope migration contribution、current `GameSystemSpecV2`、auxiliary set、Selector hash、Stage exact-five／five-gate、World precommit three-run／single allocation、Shooter Registry／three Operation、root Receipt union、Physics neutral Role Registry、owner-typed Scale Dimension Registry。
+- Fresh contract assertions: `35/35 PASS`。
+- Core→Pack forbidden exact ref、old active contract identity、Physics object／Genre hardcode、Performance旧Genre scale field: 各`0`。
+- MCD common envelope `11`件、typed ref `9`件のlogical ID grammar failure: `0`。
+- 全Markdown `71`件、relative local link `1,478`件、fragment `143`件、missing path／fragment `0`、unbalanced fence `0`。
+- `git diff --check`: `PASS`。一時監査planはcommit対象から削除済み。

@@ -389,7 +389,7 @@ Asset activationはdependency closure単位の`AssetGenerationId`を使う。CPU
 
 Physics／Navigation／Animationのcross-subsystem順は次の不変条件を持つ。
 
-- motion intentがroot-motion intervalを一度固定し、Character Locomotion bindingがNavigation-owned Port batchでselected Motion Executorへproposalを提出する。AnimationからProviderへ直接提出せず、Animation finalizeは同じintervalを再利用しclockを二重advanceしない。
+- motion intent集約がroot-motion intervalを一度固定し、registered `MotionIntentContributionV1`をNavigation-owned Port batchでselected Motion Executorへ提出する。個別contributorからProviderへ直接提出せず、Animation finalizeは同じintervalを再利用しclockを二重advanceしない。
 - `T40_MotionIntent`はselected executorだけがresolved motionをwriteする。`T50_PhysicsStep`はactive executorまたは別SystemがPhysics providerを選択した時だけ実行し、Physicsなしのboard-token／RTS stubではskipをcanonical Replay結果として記録する。
 - 2Dと3D Physicsを併用する場合はgenerated Producer Registryのcanonical system orderで逐次step／joinし、同時にvendor Worldをstepしない。
 - native Physics callbackはWorldを変更せず、copied valueをintegrationでStable ID／generation検査後にnormalizeする。

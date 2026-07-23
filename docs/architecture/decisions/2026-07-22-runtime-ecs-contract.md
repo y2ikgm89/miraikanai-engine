@@ -297,7 +297,7 @@ C1のComponent内`RuntimeEntityHandle`はすべてsame-Worldの`weak_checked`参
 
 `RuntimeEntityHandle` fieldは`serializable=false`であり、Save projectorは対応するPersistent Entity Identity、Replay／authoritative digest projectorはPersistent Identityまたは`RuntimeEphemeralEntityOrdinal`へ置換するか、そのrelationをderivedとして明示除外する。raw index／generationをcross-session digestへ入れない。persistent identityを持たないtargetへのrelationをSaveへ近似せず、required relationならSave validationを失敗させる。
 
-World／Level／Encounter scopeのStateを「singleton Entity」へ偽装しない。これらは`GameSystemSpecV1.runtime_instance_scope`に対応するSystem-owned State Storeまたはtyped Resource Portが所有する。Command、Event、Snapshotも一時Component／tagとして配送せず、Scheduling Ownerのtyped queueを使う。
+World／extension-owned scopeのStateを「singleton Entity」へ偽装しない。これらはcurrent `GameSystemSpecV2.runtime_scope_type_ref`に対応するSystem-owned State Storeまたはtyped Resource Portが所有する。Command、Event、Snapshotも一時Component／tagとして配送せず、Scheduling Ownerのtyped queueを使う。
 
 各EntityはWorld-owned side metadataにexact `lifetime_owner_system_ref`と`RuntimeEntityScopeRefV1`を一つずつ持つ。lifetime ownerだけがそのEntityのdestroyを要求できる。scopeはAuthoring Section／handoffまたはTemplateの`runtime_scope_policy`からだけ設定し、通常Commandで変更しない。Component ownerはComponent値、add／remove／enableを所有し、Entity lifetimeまたはscopeを暗黙所有しない。初期Authoring Entityとruntime spawnのownerは、いずれも使用するInitializer Specが決める。
 
@@ -886,7 +886,7 @@ RuntimeComponentAccessManifestV1
   manifest_hash
 ```
 
-Manifestは`GameSystemSpecV1`、State owner、query、structural operation、Implementation VariantからContract compilerが生成し、System codeが拡張しない。write／enablement writeはComponent owner Systemだけに許可するが、`tag`と`typed_external_handle`へvalue `read_write`を生成しない。他Systemはtyped Commandをownerへ送り、同じComponentの共同writerを作らない。
+Manifestは`GameSystemSpecV2`、State owner、query、structural operation、Implementation VariantからContract compilerが生成し、System codeが拡張しない。write／enablement writeはComponent owner Systemだけに許可するが、`tag`と`typed_external_handle`へvalue `read_write`を生成しない。他Systemはtyped Commandをownerへ送り、同じComponentの共同writerを作らない。
 
 各`query_bindings[]`はquery ref、callback entry ID、許可phase ID集合、Query Specの`partition_policy`と`partition_bound_ref`へのexact refを持つ。bindingはpolicyまたはboundを上書きできず、`single`だけが一つのcallback work、他二policyはScheduler生成partitionを消費する。ECSを使わないSystemも空のManifestを厳密に一つ持ち、query、Component access、structural permissionを0件とする。空Manifestを理由にunchecked World pointerを渡さない。
 
@@ -958,7 +958,7 @@ Handle指定の少数Entityを読む場合はManifest-declared `EntityReadPort<T
 
 ### 9.5 System-owned State Store
 
-World／Level／Encounter等のglobal Stateはsingleton Entityにせず、`GameSystemSpecV1.owned_state_type_refs`から生成する次のRuntime storageへ置く。Stateの意味とSave fieldはGameplay Programming Model、Runtime instance storageとaccessはECS正本が所有する。
+World／extension-owned scope等のglobal Stateはsingleton Entityにせず、`GameSystemSpecV2.owned_state_type_refs`から生成する次のRuntime storageへ置く。Stateの意味とSave fieldはGameplay Programming Model、Runtime instance storageとaccessはECS正本が所有する。
 
 ```text
 RuntimeSystemStateStoreSpecV1
@@ -1377,7 +1377,7 @@ RuntimeSubsystemPortBindingV1
 | World streaming | Cell activation／deactivation intent、Root／Section Artifact ref | participant Reservationと`RuntimeSectionPublicationTransactionV1` | streaming workerからlive chunk変更、個別Entity commandでunload代用 |
 | Debug／Replay | bounded captured ECS snapshot、Contract Graph、diagnostic | control requestはScheduling ownerへ | Debug UIからComponent memory write |
 
-各Integration Systemも通常の`GameSystemSpecV1`、Manifest、phase、State owner、Budget、fixtureを持つ。Section publicationへ参加するDomainはPort bindingとは別に`RuntimeSectionPublicationParticipantV1`を一件持ち、通常tick data flowとpublication lifecycleを同じcallbackへ混在させない。Adapter固有schemaは各Domain Owner、ECSへのdata placementとleaseはECS Owner、順序はScheduling Ownerが決める。二つの文書が同じFieldまたはphaseを再定義しない。
+各Integration Systemも通常の`GameSystemSpecV2`、Manifest、phase、State owner、Budget、fixtureを持つ。Section publicationへ参加するDomainはPort bindingとは別に`RuntimeSectionPublicationParticipantV1`を一件持ち、通常tick data flowとpublication lifecycleを同じcallbackへ混在させない。Adapter固有schemaは各Domain Owner、ECSへのdata placementとleaseはECS Owner、順序はScheduling Ownerが決める。二つの文書が同じFieldまたはphaseを再定義しない。
 
 ## 13. C++23 APIとNative ABI
 

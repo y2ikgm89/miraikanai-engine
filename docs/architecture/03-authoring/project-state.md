@@ -92,8 +92,15 @@ RuntimeEntryPointV1
 RuntimeTargetSelectorV1
   selector_id
   selector_version
-  selector_hash
+  selector_hash: RuntimeTargetSelectorHashV1
   target_profile_refs[1..64]
+
+RuntimeTargetSelectorHashPayloadV1
+  selector_id
+  selector_version
+  target_profile_ref_count: uint32
+  target_profile_refs[1..64]:
+    exact DocumentRef<TargetProfileDocument>
 
 RuntimeEntryActivationPolicyV1
   policy_id
@@ -105,7 +112,9 @@ RuntimeEntryActivationPolicyV1
   explicit_deactivation_semantics: graceful_reverse_teardown | immediate_reverse_teardown
 ```
 
-`target_profile_refs[]`はexact `DocumentRef<TargetProfileDocument>`をStable ID byte順でcanonicalizeし、duplicate、missing／removed Target、schema／hash不一致を拒否する。wildcard、tag、表示名、platform名、active Targetの現在値を使うlookupはselector schemaに存在しない。`selector_hash`は`SHA-256(ASCII "MIRAKAN_RUNTIME_TARGET_SELECTOR_V1" || selector_id UUIDv7 bytes || selector_version || canonical target_profile_refs exact DocumentRef bytes)`へ唯一化し、`selector_hash`自身を入力から除く。selector IDだけを変えたpayloadは必ず別hashになり、旧hashの再利用を拒否する。`policy_hash`は自己Fieldを除く全policy Fieldから計算する。
+`target_profile_refs[]`はexact `DocumentRef<TargetProfileDocument>`をStable ID byte順、同IDならschema version／content hash byte順でcanonicalizeし、duplicate Stable ID、同ID別hash、missing／removed Target、schema／hash不一致を拒否する。wildcard、tag、表示名、platform名、active Targetの現在値を使うlookupはselector schemaに存在しない。
+
+`RuntimeTargetSelectorHashPayloadV1`はSource selectorから`selector_hash`を投影しない別MCD typeであり、`target_profile_ref_count == target_profile_refs.length`を必須にする。`RuntimeTargetSelectorHashV1 = SHA-256(ASCII "MIRAKAN_RUNTIME_TARGET_SELECTOR_V1" || uint32_be(length(MCD canonical bytes of RuntimeTargetSelectorHashPayloadV1)) || MCD canonical bytes)`とする。domain、payload byte length、count、各DocumentRefの型付きField境界により連結曖昧性を作らず、hash payload自身にhash Fieldがないためself-exclusionを暗黙Ruleにしない。selector ID、version、count、Target refのID／kind／path／content hash／schema versionのどれか一つだけを変えた場合も別hashにし、旧hash再利用を拒否する。`policy_hash`は自己Fieldを除く全policy Fieldから計算する。
 
 各Runtime Entry系Documentのidentityは三重に複製して別々に解決せず、保存時に次のequalityを必須とする。
 
@@ -120,7 +129,7 @@ DocumentRef.stable_id
 hashの意味を次へ一意に固定する。
 
 - `RuntimeEntryPointSemanticHashV1 = SHA-256(MCD canonical bytes of RuntimeEntryPointV1 payload)`。payloadはhash Fieldを持たないため自己参照はない。
-- `RuntimeTargetSelectorV1.selector_hash`は直前の唯一式を参照し、別の短縮式、Document hash、Target集合だけのhashを定義しない。
+- `RuntimeTargetSelectorV1.selector_hash`は直前の`RuntimeTargetSelectorHashPayloadV1`式だけを参照し、別の短縮式、Document hash、Target集合だけのhashを定義しない。
 - `RuntimeEntryActivationPolicyV1.policy_hash = SHA-256(MCD canonical bytes of policy payload excluding policy_hash)`。
 - 共通headerの`content_hash`は§3.2どおり、`content_hash`だけを除外したheaderとpayload全体のDocument hashであり、上記semantic hashと同一視しない。
 - Compile Manifestの`selected_runtime_entry_point_hash`は厳密に`RuntimeEntryPointSemanticHashV1`である。選択Documentのexact content hashは`selected_runtime_entry_point_ref.content_hash`に保持し、どちらも照合する。
@@ -148,6 +157,7 @@ selector documentのrevision／hashまたはTarget Profile集合が変わると�
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT` | entry kindとbranch fieldが不一致 |
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE` | entry／selector／policy／Targetのexact DocumentRefがmissing／removed |
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_DOCUMENT_HASH_MISMATCH` | DocumentRefのcontent hashが現在revisionと不一致 |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH` | entry／selector／policyのOwner固有semantic hashがcanonical payloadと不一致 |
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH` | entry／selector／policyのschema versionまたはref kind不一致 |
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_EXPLICIT_TARGET_MISMATCH` | 明示選択Targetがentry selector集合のmemberでない |
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH` | DocumentRef、header、payloadのUUIDv7 identityが一致しない |
@@ -247,9 +257,9 @@ type.project.runtime_entry.migrate_root_scene_input
 
 全inputの`request_hash`は`SHA-256(ASCII "MIRAKAN_OPERATION_REQUEST_V1" || request_hash自身を除くGenerated input全FieldのMCD canonical bytes)`である。Operation、Project、Preview／Validation policy、authorization／approval refを含め、callerが一部Fieldだけをhashすることを許可しない。create inputは`project_id`、expected Project revision、idempotency key、identity Fieldを持たないpayload draft、draft hash、allocation scope、relative path、selector／policy exact refsを持つ。GatewayがIDを発行し完成payload semantic hashを出力する。update inputはexact current `DocumentRef`、expected Document revision、before content／semantic hashとidentity固定済みafter payloadを持つ。selector create／updateはcanonical Target ref集合、policy create／updateは全closed semantics、migrationはlegacy Source closure ref／hashを持つ。全inputはPreview要求とValidation policy refを必須にし、Gateway発行前のDocument IDをcallerが権威として自己申告できない。
 
-`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけがbefore／after Project revision、exact `mutation_receipt_ref/hash`、Preview／Validation／Commit Receipt ref／hashを持つ。`RuntimeEntryMutationReceiptV1.affected_documents[]`は通常Operationで一件、root migrationでWorld／selector／policy／entryのexact四件を持ち、各要素を`created | updated`でtag付けしてbefore omission／presenceを決める。rejected branchだけが、選択Operation recordの`errors[]`に存在する`DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、string error、単数Documentへ四件を圧縮したReceiptを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
+`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけがbefore／after exact Project ref、exact `mutation_receipt_ref/hash`、Preview／Validation／Commit Receipt ref／hashを持つ。`RuntimeEntryMutationReceiptV1.affected_documents[]`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)のdocument-kind tagged unionであり、通常Operationで一件、root migrationでWorld／selector／policy／entryのexact四branchを持つ。WorldはDocument content hashだけ、entry／selector／policyはcontent hashと各Owner固有semantic hashを記録する。rejected branchだけが、選択Operation recordの`errors[]`とValidator reachable error setの双方に存在する四Field `DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、ID／code／version／hashの一部一致、string error、単数Documentへ四件を圧縮したReceiptを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
 
-positive fixtureはentry／selector／policy create→save→reload→update→compileの三identity／二hash照合と、root Scene migration四Documentのatomic resultを検査する。negative fixtureは三箇所のidentity差を各一件、selector IDだけを変更して旧`selector_hash`を再利用するmutation、payload semantic hash mismatch、Document content hash mismatch、self-hash循環を作るpayload、stale revision、selector／policy cross-kind ref、Operation pre／post policyのwrong kind／missing／stale ref、部分migrationをそれぞれ単独原因で拒否し、全経路でrevision不変を検査する。
+positive fixtureはentry／selector／policy create→save→reload→update→compileの三identity／二hash照合と、root Scene migration四Document tagged unionのatomic resultを検査する。negative fixtureは三箇所のidentity差を各一件、selector ID／version／count／Target exact refの一Fieldだけを変更して旧`selector_hash`を再利用するmutation、payload semantic hash mismatch、Document content hash mismatch、Target count／array length mismatch、self-hash循環を作るpayload、stale revision、selector／policy cross-kind ref、Operation pre／post policyのwrong kind／missing／stale ref、Diagnostic ID／code／version／hash mismatch、部分migrationをそれぞれ単独原因で拒否し、全経路でrevision不変を検査する。
 
 `WorldStreamingPlanV1`、Navigation Artifact、HLOD、Cooked Gameplay Package、generated System Catalog／Dependency GraphはDerived Artifactであり、正規Document種別へ追加しない。CreatorまたはAIがDerived Artifactを直接編集した変更をGatewayは拒否する。
 

@@ -282,7 +282,7 @@ Game制作Tool catalogへEngine source patch、Engine module／Extension／Adapt
 ### 6.2 許可するProject artifact
 
 - Game Brief、GameSpec、Requirement、Decision。
-- GameSystemSpecV1、Project-defined System Contract。
+- GameSystemSpecV2、Project-defined System Contract。
 - GameplayDefinition、World、Level、Scene、UI、Asset、Material、Animation、Audio設定。
 - Project Test、Fixture、Benchmark、Replay、Save migration。
 - BoundedNativeGameProfileV1に適合するNativeGameModule。

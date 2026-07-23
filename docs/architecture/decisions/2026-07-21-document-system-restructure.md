@@ -333,7 +333,7 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 - 共通Budgetを`performance-capacity.md`以外で再定義しない。
 - Approval／Authorizationを`ai-security-approval.md`以外で再定義しない。
 - Evidence／Provenance envelopeを`ai-verification-provenance.md`以外で再定義しない。
-- `StableId`、`ProjectChangeSetV1`、`GameSystemSpecV1`等の共有Contractは定義箇所が1件で、他はLink参照だけである。
+- `StableId`、`ProjectChangeSetV1`、current `GameSystemSpecV2`等の共有Contractは定義箇所が1件で、他はLink参照だけである。旧`GameSystemSpecV1`はoffline migration inputだけに残す。
 
 ### 10.4 重複と大きさ
 

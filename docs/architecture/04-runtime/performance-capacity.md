@@ -77,7 +77,7 @@ Runtime Emergency 128 MiBを除く1,920 MiBを通常global scopeとする。80�
 | Emergency reserve | 256 |
 | **合計** | **5,632** |
 
-Platform budgetが小さい場合はcritical resourceとEmergencyを先に確保し、Presentation-only texture mip、streaming distance、shadow、transient resolutionの順にDomain Ownerの承認済みfallbackを適用する。Gameplay state、collision、goal、timingをGPU pressureから変更しない。
+Platform budgetが小さい場合はcritical resourceとEmergencyを先に確保し、Presentation-only texture mip、streaming distance、shadow、transient resolutionの順にDomain Ownerの承認済みfallbackを適用する。owner-typed authoritative state／event outcome、registered collision evidence、simulation timingをGPU pressureから変更しない。
 
 resource作成はcommitted／resident bytes、metadata、upload、main／render stallへchargeする。nonessential allocationはPlatform budget内でだけ許可する。全allocation走査は明示capture時だけ行い、毎frameはaggregate counterを使う。resource作成完了を即時live化せず、[Scheduling／lifetime](scheduling-lifetime.md)のactivation boundaryへ提出する。
 
@@ -87,7 +87,7 @@ device loss時のcapture／recovery順はScheduling、Renderer、Platform、Debu
 
 ## 5. Queue capacityとbackpressure
 
-次は共通C1 queue／buffer capacity profileのhard reservationであり、Targetを理由に暗黙縮小しない。Projectが変更する場合はmemory envelope、stress、Replay、Domain qualificationを再承認する。Runtime contract固有のdeterministic上限（[Scheduling／lifetime](scheduling-lifetime.md) §4.1のGameplay Timer active／fire上限等）は各Owner文書が所有し、本表へ複写しない。その変更も本節と同じ再承認を必要とする。本表はqueue storage上限であり、同時resident／visible Entity、authoritative population、projectile、interactive propの製品capacityを表さず、それらの未校正値を本表から逆算しない。
+次は共通C1 queue／buffer capacity profileのhard reservationであり、Targetを理由に暗黙縮小しない。Projectが変更する場合はmemory envelope、stress、Replay、Domain qualificationを再承認する。Runtime contract固有のdeterministic上限（[Scheduling／lifetime](scheduling-lifetime.md) §4.1のGameplay Timer active／fire上限等）は各Owner文書が所有し、本表へ複写しない。その変更も本節と同じ再承認を必要とする。本表はqueue storage上限であり、同時resident／visible Entity、owner-typed authoritative／presentation instance、lifecycle burstの製品capacityを表さず、それらの未校正値を本表から逆算しない。
 
 | Queue／buffer | faces | Entry capacity | Payload arena | max payload／entry | charge | critical reserve |
 |---|---:|---:|---:|---:|---|---:|
@@ -102,7 +102,7 @@ device loss時のcapture／recovery順はScheduling、Renderer、Platform、Debu
 | Async completion | 1 | 8,192 entries | 512 KiB | 256 B | 所属Domain | 256 entries |
 | Asset activation | 2 | 1,024 / boundary | 1 MiB | 4 KiB | dependency metadata | 64 entries |
 
-entry headerは32 bytes／entryとする。起動時commitは`Σ faces × (Entry capacity × 32 B + Payload arena)`で導出し、header 13.9375 MiBとarena 55.75 MiBの合計69.6875 MiBを所属Domainへchargeする。`faces = 2`はcurrent／nextの二面buffer、`faces = 1`は単面またはbounded ringであり、Navigationはrequest／resultの二queueを各一面持つ。Gameplay event totalはdamage、quest、timer fire等のtyped Gameplay Eventの配送queueで、[Scheduling／lifetime](scheduling-lifetime.md) §4.1のtimer deadline fire（1 tick最大4,096件）はこの内数である。Async completionは`IoCompletion`／`AssetWorker` latch sourceのcompletionを運ぶ。entry数、個別payload、arena bytesのいずれかが先に上限へ達した時点でoverflowとする。
+entry headerは32 bytes／entryとする。起動時commitは`Σ faces × (Entry capacity × 32 B + Payload arena)`で導出し、header 13.9375 MiBとarena 55.75 MiBの合計69.6875 MiBを所属Domainへchargeする。`faces = 2`はcurrent／nextの二面buffer、`faces = 1`は単面またはbounded ringであり、Navigationはrequest／resultの二queueを各一面持つ。Gameplay event totalは、active owner schema registryに登録されたtyped authoritative Game Eventの配送queueである。[Scheduling／lifetime](scheduling-lifetime.md) §4.1のtimer deadline fire（1 tick最大4,096件）も登録済みeventとしてこの内数に含める。Async completionは`IoCompletion`／`AssetWorker` latch sourceのcompletionを運ぶ。entry数、個別payload、arena bytesのいずれかが先に上限へ達した時点でoverflowとする。
 
 Navigationのobstacle input受領からNavigation artifact version activationまでの反映latency bound（simulation tick上限）は本書所有のcapacity項目である。[Navigation](../05-simulation/navigation.md) §3は値の所有を本書へ委譲しており、初期boundは未固定とし、§8のmeasurement／promotion手続きで確定するまで当該boundを前提とするqualificationを合格にしない。
 
@@ -256,7 +256,8 @@ Network authority variantsは専用仕様、Threat Model、Product activation前
 | `authoring_axis` | closed authoring axis |
 | `authority_axis` | closed authority axis |
 | `world_intent_ref` | World Ownerのexact intent ref |
-| `population_intent_refs` | `RuntimeScaleIntentV1` exact ref set、1件以上 |
+| `scale_dimension_registry_ref` | active `RuntimeScaleIntentDimensionRegistryV1` exact ref |
+| `runtime_scale_intent_refs` | `RuntimeScaleIntentV1` exact ref set、1件以上 |
 | `content_intent_ref` | Asset lifecycle Ownerのexact intent ref |
 | `authoring_intent_ref` | Project state Ownerのexact intent ref |
 | `authority_intent_ref` | authority intent exact ref |
@@ -269,18 +270,104 @@ Network authority variantsは専用仕様、Threat Model、Product activation前
 C1の同時Entity／population製品Envelopeは現時点で未校正であり、数値を仮定しない。この項目のOwnerは本書、readiness envelopeのOwnerはProject Stateである。Target Profileごとに次の入力が揃うまでは`state=blocked`、`blocked_reason_ref=performance_envelope_unqualified`を返す。
 
 1. CPU世代／core、RAM、storage、GPU／driver、OS、Device generationを固定した実機Target Profile。
-2. `ProjectScaleEnvelopeV1`のresident／visible object、authoritative actor／projectile／interactive prop、spawn／destroy burstを数値化したProject Requirement。
+2. `ProjectScaleEnvelopeV1`が参照する全`RuntimeScaleIntentV1`について、owner-typed instance、lifecycle、event、spatial、presentation dimensionのboundを数値化したProject Requirement。
 3. その数値を丸めず同時発生させる`IntegratedScaleFixtureV1`とcanonical input trace。
 4. Source、Contract、Toolchain、Target、Device、Quality、Representation Planを束ねた同一`input_closure_hash`。
 5. §8／§13のcorrectness、Replay、memory、hitch、fault、10分×3 run、2時間enduranceを通過したfresh `policy.evidence.target-device.v1` Technical Qualification Receipt。
 
 上記Receiptが同じclosureでfreshな場合だけ`qualified`へ遷移できる。安全なRepresentation Planは作れるが製品Envelopeとは別の小規模入力を測定しただけなら、その小規模入力closureに限り`predicted`または`qualified`を判定し、C1製品Envelope全体へ外挿しない。Mobile commonが所有するbaseline 1280×720等のpixel／render budget表は変更せずTarget Profile入力として保持するが、それ単独でEntity／population readinessを解除しない。
 
-`RuntimeScaleIntentV1`はexperience role、total authored、peak live、peak active authoritative、peak spawn per simulation step、peak visible、interaction radius、simultaneous VFX、fidelity floor、Target setを必須とする。unknownを0、最大値、空optional、無制限で表さない。単位は[Math／Core utilities](../02-foundation/math-core.md)のsemantic typeを使い、non-finite、負数、range逆転、Targetなし、fidelity floorなしを拒否する。
+Scale dimensionは次の型付きregistryで所有する。CoreはGenre／object role／event名を列挙せず、Feature Pack、Genre Pack、Projectが自身の語彙を同じcontractへ寄与する。
+
+```text
+RuntimeScaleIntentDimensionRefV1 {
+  dimension_id,
+  dimension_version,
+  dimension_content_hash
+}
+
+RuntimeScaleIntentDimensionRecordV1 {
+  dimension_ref,
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash},
+  measurement_schema_ref: McdContractRefV1(kind=type),
+  unit_ref: exact {semantic_type_id, semantic_type_version, semantic_type_content_hash},
+  authority_class,
+  fidelity_contract_ref?: McdContractRefV1(kind=policy),
+  semantic_equivalence_contract_ref?: McdContractRefV1(kind=policy),
+  reference_fixture_refs[1..64]:
+    exact {fixture_id, fixture_version, fixture_content_hash}
+}
+
+RuntimeScaleIntentDimensionRegistryRefV1 {
+  registry_id,
+  registry_version,
+  registry_content_hash
+}
+
+RuntimeScaleIntentDimensionRegistryV1 {
+  registry_id,
+  registry_version,
+  records[1..4096],
+  registry_content_hash
+}
+```
+
+`dimension_id`はowner namespaceを含むversion非依存logical ID、`dimension_version`は正の`uint32`とする。`dimension_content_hash`はASCII `MIRAKAN_RUNTIME_SCALE_INTENT_DIMENSION_RECORD_V1`と、当該hash Fieldだけを除くRecord canonical MCD bytesを`uint32_be` length framingしてSHA-256する。`authority_class`は`authoritative_state | authoritative_event | presentation_only | resource_only`のclosed enumとする。`records`は`dimension_id`のUTF-8 byte昇順、同一IDまたは同一Ref重複を拒否し、RefはRegistry内でちょうど一件へ解決する。`authoritative_state | authoritative_event`は`semantic_equivalence_contract_ref`必須、`presentation_only`は`fidelity_contract_ref`必須、該当しないoptionalはcanonical omissionする。
+
+Registryのlogical IDは`registry.performance.runtime_scale_intent_dimension`、initial `registry_version=1`とする。`registry_content_hash`はASCII `MIRAKAN_RUNTIME_SCALE_INTENT_DIMENSION_REGISTRY_V1`、Registry ID／version、record count、strict sort済み全Record canonical bytesを各`uint32_be` length framingしてSHA-256し、自己Fieldを除外する。`RuntimeScaleIntentDimensionRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only、latest version、hash fallbackを許可しない。
+
+Core-owned初期Recordは次のexact九件だけとする。表の`count-bound`は`measurement_schema_ref={type.performance.bounded_count, version=1, Contract set hash}`／`unit_ref={unit.count, version=1, semantic type content hash}`、`distance-bound`は`{type.performance.bounded_distance, version=1, Contract set hash}`／`unit_ref={unit.meter, version=1, semantic type content hash}`を表す。全Recordの`owner_ref`は本書のexact document ID／revision／content hash、fixture refはversion／content hash付きexact refである。
+
+| `dimension_id` | schema | `authority_class` | required contract | `reference_fixture_refs` |
+|---|---|---|---|---|
+| `scale.dimension.instance.total_authored` | count-bound | `resource_only` | optional refs omitted | `fixture.performance.scale.count-bound` |
+| `scale.dimension.instance.peak_live` | count-bound | `resource_only` | optional refs omitted | `fixture.performance.scale.count-bound` |
+| `scale.dimension.instance.peak_active_authoritative` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-state-bound` |
+| `scale.dimension.instance.peak_visible` | count-bound | `presentation_only` | `policy.performance.presentation-fidelity` | `fixture.performance.scale.presentation-bound` |
+| `scale.dimension.lifecycle.peak_create_per_simulation_step` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-lifecycle-bound` |
+| `scale.dimension.lifecycle.peak_retire_per_simulation_step` | count-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-lifecycle-bound` |
+| `scale.dimension.event.peak_authoritative_per_simulation_step` | count-bound | `authoritative_event` | `policy.performance.authoritative-event-equivalence` | `fixture.performance.scale.authoritative-event-bound` |
+| `scale.dimension.spatial.maximum_interaction_radius` | distance-bound | `authoritative_state` | `policy.performance.authoritative-state-equivalence` | `fixture.performance.scale.authoritative-spatial-bound` |
+| `scale.dimension.presentation.peak_active` | count-bound | `presentation_only` | `policy.performance.presentation-fidelity` | `fixture.performance.scale.presentation-bound` |
+
+三policy refは本書のexact revision／content hashを持ち、`authoritative-state-equivalence`は§12のstate／random-stream gate、`authoritative-event-equivalence`はowner schemaごとのevent ID／apply step／canonical payload hash／ordering equality、`presentation-fidelity`はowner fixtureのvisual／audio tolerance、critical cue、timing floorを要求する。これらを説明名だけのpolicy、別revisionの同ID、Genre固有の暗黙比較へ置換しない。
+
+Project固有のunit群、役割別instance数、イベント別peak、車両／群衆／弾体等のobject分類はCore enumへ追加せず、所有Pack／Projectが新しいRecord、measurement schema、fidelity／equivalence、fixtureを一緒に登録する。登録されていないdimension、owner不一致、schema不一致、hash不一致は`ambiguous requirement`として拒否する。
+
+```text
+BoundedScaleQuantityV1 {
+  unit_ref,
+  minimum_required,
+  target_value,
+  maximum_expected
+}
+
+RuntimeScaleIntentDimensionValueV1 {
+  dimension_ref,
+  measurement_schema_ref,
+  quantity
+}
+
+RuntimeScaleIntentV1 {
+  intent_id: UUIDv7 StableId,
+  schema_version: uint32,
+  owner_definition_ref:
+    exact {definition_id, definition_version, definition_content_hash},
+  dimension_values[1..64],
+  target_profile_refs[1..16]: exact Target Profile refs,
+  fidelity_floor_refs[1..64]: McdContractRefV1(kind=requirement),
+  semantic_equivalence_refs[0..64]: McdContractRefV1(kind=policy),
+  reference_fixture_refs[1..64]:
+    exact {fixture_id, fixture_version, fixture_content_hash},
+  intent_content_hash: SHA-256
+}
+```
+
+`dimension_values`は`dimension_id`のUTF-8 byte昇順で同一dimensionを拒否し、各RefはEnvelopeの`scale_dimension_registry_ref`へ解決し、`measurement_schema_ref`と`unit_ref`はRecordとexact一致させる。`BoundedScaleQuantityV1`の三値は同じsemantic typeのfiniteかつ非負値で、`minimum_required <= target_value <= maximum_expected`とする。`intent_content_hash`はASCII `MIRAKAN_RUNTIME_SCALE_INTENT_V1`と、自身だけを除いた全Fieldのcanonical MCD bytesを`uint32_be` length framingしてSHA-256する。全ref setはStableId／logical IDのUTF-8 byte昇順かつ重複禁止、Target／fidelity／fixtureは1件以上、semantic equivalenceは0～64件とする。unknownを0、最大値、空optional、無制限へ補正しない。Targetなし、fidelity floorなし、authoritative dimensionに必要なsemantic equivalenceなしを拒否する。
 
 World extent／coordinate／cell／streaming fieldは[World](../06-rendering/world.md)、LOD strategy／predicate／transition fieldは[LOD](../06-rendering/lod.md)、Authoring writer／Document／ChangeSet fieldは[Project state](../03-authoring/project-state.md)、content／build／cook fieldは[Asset lifecycle](../03-authoring/asset-lifecycle.md)と[Core architecture](../02-foundation/core-architecture.md)が所有する。本書はそれらをEnvelopeへexact refで束ねるだけで、field listを複写しない。
 
-Envelope変更は通常の`ProjectChangeSetV1`であり、Before／After axisと数値、Target、Capability、Artifact、fixture、Decision closure、fidelity差分、再Cook／再Qualification、Save／Replay互換性、last-valid rollback refを必要とする。敵数、Damage、collision、goal、World範囲等を下げる変更は性能最適化ではなくGameplay changeとして人間承認を必要とする。
+Envelope変更は通常の`ProjectChangeSetV1`であり、Before／After axisとdimension値、Target、Capability、Artifact、fixture、Decision closure、fidelity差分、再Cook／再Qualification、Save／Replay互換性、last-valid rollback refを必要とする。owner-typed authoritative instance／event bound、semantic-equivalence requirement、registered collision evidence、World範囲等を下げる変更は性能最適化ではなくGame behavior changeとして人間承認を必要とする。
 
 ## 10. Canonical sourceとDomain resolver
 
@@ -297,7 +384,7 @@ Runtime StateまたはEvidenceからSourceへ値を自動write-backしない。S
 
 万能な`ScaleManager`を作らない。各Domainは同じEnvelopeと自身のIntentを読み、自身のDerived Planを所有する。`ScalePlanSetV1`はplan本文を埋め込まず、exact Artifact ref、Source revision、Target Profile、Capability signature、dependency edge、`TargetReadinessV1` refを束ねるmanifestである。required planのSource／Contract／Target／Capability hashが一件でもstale、missing、unqualifiedなら新setをpublishせずlast-valid playable setを維持する。
 
-Population resolverはFull Entity、pool、archetype／SoA、instanced Presentation、reduced-frequency simulation、dormant record、aggregate simulation、HLOD、VFX Artifactからclosed strategyを選ぶ。各strategyはentry／exit predicate、owner、state／Save mapping、recovery、fallback、budgetを持つ。distance／visibilityだけでauthoritative actorを削らない。
+Population resolverはFull Entity、pool、archetype／SoA、instanced Presentation、reduced-frequency simulation、dormant record、aggregate simulation、HLOD、presentation-effect Artifactからclosed strategyを選ぶ。各strategyはentry／exit predicate、owner、state／Save mapping、recovery、fallback、budgetを持つ。distance／visibilityだけでauthoritative instanceを削らない。
 
 ## 11. AI scale operationとbounded explanation
 
@@ -315,23 +402,23 @@ ProviderへProject Commit、Plan write、Capability activation、baseline緩和�
 
 禁止する変更は、Large専用Entity typeへのSource一括変換、Medium／Large別Save fork、cell／shard／build／server IDの混同、HLOD／GPU instanceのSave entity化、unqualified planのProduction表示、Medium fallback削除、性能のための無承認Gameplay変更である。
 
-同じSource revisionとinput traceに対するMedium／Large planは、Save field／Stable ID、Input→Command→Event順序、Level transition outcomeを一致させる。authoritative stateの同値Gateは二層とする。(a) 両planでSimulation LODを適用しないfull fidelity対象entityは、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)の`RuntimeAuthoritativeWorldDigestV1`が定めるtick publish boundaryで採取したentity state hashと、当該entityへ帰属するdeterministic random stream消費を同一tickで一致させる。(b) いずれかのplanでSimulation LODを適用するentityは、[LOD](../06-rendering/lod.md)の`authoritative_equivalence_contract`と`reference_fixture_id`により、goal／damage／collision／navigation resultとwake後のstate収束をsemantic同値として判定する。full fidelity対象集合は両planのSimulation LOD適用集合の補集合として決定的に導出し、runごとに変えない。Presentation bitwise一致は不要でも、visual／audio tolerance、critical cue、event timing、fallback Gateを満たす。
+同じSource revisionとinput traceに対するMedium／Large planは、Save field／Stable ID、Input→Command→Event順序、registered runtime-entry／transition outcomeを一致させる。authoritative stateの同値Gateは二層とする。(a) 両planでSimulation LODを適用しないfull fidelity対象entityは、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)の`RuntimeAuthoritativeWorldDigestV1`が定めるtick publish boundaryで採取したentity state hashと、当該entityへ帰属するdeterministic random stream消費を同一tickで一致させる。(b) いずれかのplanでSimulation LODを適用するentityは、[LOD](../06-rendering/lod.md)の`authoritative_equivalence_contract`と`reference_fixture_id`により、active owner schema registryが定めるauthoritative state／event outcome、registered collision／navigation evidence、wake後のstate収束をsemantic同値として判定する。full fidelity対象集合は両planのSimulation LOD適用集合の補集合として決定的に導出し、runごとに変えない。Presentation bitwise一致は不要でも、visual／audio tolerance、critical cue、event timing、fallback Gateを満たす。
 
 Large World coordinate、continuous streaming、partition-owned multi-writer、distributed build、distributed simulation／authorityは専用Owner仕様がactivationされるまで`not_activated`である。現在のbounded Sourceへ空Manager、server field、RPC、global double座標を先回り追加しない。要求された場合は明示Diagnosticでfail closedする。
 
 ## 13. Integrated fixtureとqualification
 
-共有Contract `IntegratedScaleFixtureV1`は本節だけが所有し、各ProjectのEnvelopeから、実際に同時発生し得るresident／visible object、authoritative actor／projectile／interactive prop、spawn／destroy burst、Physics contact、Navigation request、Animation、Gameplay、VFX、Audio、camera、streaming、LOD、Asset activationを一つのdeterministic integrated fixtureへ生成する。Subsystem最大値を別runへ分離して同時性を隠さない。Compilerが個数を丸めて合格しやすくしない。
+共有Contract `IntegratedScaleFixtureV1`は本節だけが所有し、各ProjectのEnvelopeとactive `RuntimeScaleIntentDimensionRegistryV1`から、全owner-typed instance dimension、create／retire lifecycle dimension、authoritative event dimension、Physics／Navigation／Animation、Game System、presentation effect、Audio、view、streaming、LOD、Asset activationを、実際に同時発生し得る一つのdeterministic integrated fixtureへ生成する。Subsystem最大値を別runへ分離して同時性を隠さず、Compilerは宣言された`maximum_expected`を丸めない。未登録dimensionまたはfixture recipe欠落はqualification開始前に拒否する。
 
 fixtureは次を全て満たす。
 
 1. frame、Subsystem、memory、queue、GPU resource、streamingのhard Gate。
-2. authoritative spawn、damage、collision、goal event drop 0。
+2. registered authoritative create／retire／state／event record drop 0。
 3. Gameplay state、Replay hash、最終count、outcomeがreferenceと一致。
 4. Presentation degradationがpriority、style、critical cue floorを満たす。
-5. spawn、streaming boundary、VFX burstのP99.9がdeadlineを満たす。
+5. registered lifecycle burst、streaming boundary、presentation-effect burstのP99.9がdeadlineを満たす。
 
-`medium_candidate / qualified`にはProject固有Envelope、explicit Level graph、Save／Replay／Package、content totalとactive working setの分離、incremental Import／Cook、Target budget、2時間endurance、migration／load、bounded AI edit、last-valid recoveryを必要とする。
+`medium_candidate / qualified`にはProject固有Envelope、exact runtime-entry／World／owner topology closure、Save／Replay／Package、content totalとactive working setの分離、incremental Import／Cook、Target budget、2時間endurance、migration／load、bounded AI edit、last-valid recoveryを必要とする。
 
 `large_local_candidate / qualified`にはMedium Gateに加え、利用するLarge Capabilityの専用仕様／Receipt、Project固有traversal／population trace、partition boundary／reference closure／load deadline／memory pressure／recovery、same-source Medium fallback、repartition後のStable ID／Save／Replay、bounded context、incremental／partial Cook同値、10分×3 run、2時間endurance、failure injectionを必要とする。
 

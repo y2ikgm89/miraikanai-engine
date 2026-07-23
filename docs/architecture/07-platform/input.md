@@ -128,13 +128,31 @@ Tap最大時間は既定0.25 s、Hold最小0.40 s、Repeat初回0.40 s／間隔0
 
 Processor順序は`normalize -> dead_zone -> invert -> scale -> curve -> clamp -> composite`の登録順で固定し、Bindingごとの任意function chainを許可しない。
 
-### 4.5 Shooter Semantic Action Template
+### 4.5 Semantic Action-to-Command Binding
 
-Shooter Packは`shooter.move`、`shooter.aim`、`shooter.look`、`shooter.fire_primary`、`shooter.fire_secondary`、`shooter.aim_mode`、`shooter.reload`、`shooter.next_weapon`、`shooter.previous_weapon`、`shooter.pause`のsemantic roleを提供する。Project適用時に各ActionのUUIDv7 `StableId`を生成し、role文字列をRuntime dispatchまたはSave identityにしない。
+Input Coreはgenre固有Action listを所有せず、Action roleをProject／Pack所有のtyped Commandへ結ぶ次のgeneric recordとregistryだけを所有する。Project適用時に各ActionのUUIDv7 `StableId`を生成し、role文字列をRuntime dispatchまたはSave identityにしない。
 
-2D top-down Profileはmove、aim、fire primary、pause、TPS Profileはmove、look、fire primary、aim mode、reload、next／previous weapon、pauseをrequiredとする。secondary fire、2D reload、2D Weapon switchはProfileがoptionalにできる。
+```text
+SemanticActionCommandBindingV1
+  binding_id: StableId
+  owner_ref/hash
+  semantic_action_role_ref: McdContractRefV1(kind=semantic_role)
+  action_value_schema_ref: McdContractRefV1(kind=type)
+  command_schema_ref: McdContractRefV1(kind=type)
+  evaluator_policy_ref: McdContractRefV1(kind=policy)
+  target_system_ref: GameSystemContractRefV1
+  required_context_refs[1..32]
+  fixture_refs[1..64]
+  binding_content_hash: SHA-256
 
-ActionはWeapon、ammo、Projectileを直接変更せず、T10 `InputSnapshot`をT30のControl／Weapon intent evaluatorがShooter規約のtyped Commandへ変換する。Replay、AI、Keyboard／Mouse、Controller、Touchで別のFire経路を作らない。
+SemanticActionCommandBindingRegistryV1
+  registry_id: input.semantic_action_command_binding.registry.active
+  registry_version
+  registry_content_hash
+  records[0..4096]: SemanticActionCommandBindingV1
+```
+
+recordsはrole ID／version、target System ref、binding IDのcanonical byte順へstrict sortし、duplicate、同じrole＋Contextへの複数active binding、stale owner／schema／policy／fixture hash、cross-owner namespace偽装を拒否する。BindingはT10 `InputSnapshot`をT30でregistered typed Commandへ変換するだけで、Domain stateを直接変更しない。Replay、AI、Keyboard／Mouse、Controller、Touchは同じAction／Command経路を使う。個別Genre／Featureのrole、required／optional Action Profile、Command schema、evaluator、fixtureは当該Pack ownerが登録し、Input Coreのschema、binary、fixture inventoryへコピーしない。
 
 ## 5. Context、Focus、Consumption
 
@@ -304,7 +322,7 @@ Persistent 8 MiBとLatch transient 4 MiBはRuntime ownerのInput child scopeへc
 - Windows GameInput callback解除／Reading履歴、Android buffer swap、Apple inactive
 - Controller／keyboard／touchだけでmenu→Play→pause→exit
 - User Remap、required Action、reserved shortcut、left-handed layout
-- 2D top-down／TPS Shooter Action Template、hold／release Fire、reload、Weapon switch、pause
+- Project／Pack所有Action Profileのrequired／optional role、hold／release／repeat、semantic binding 0件／複数、owner／schema／policy hash不一致
 - Replayで同じAction Snapshot／authoritative state hash
 - Haptic stop、disconnect、unsupported device
 - 60／120 Hz display、60 Hz simulationでinput-to-submit測定

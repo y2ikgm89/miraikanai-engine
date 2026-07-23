@@ -2,14 +2,14 @@
 
 - 文書ID: mirakan.arch.simulation-physics
 - 状態: review
-- 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、Character Locomotion向けPhysics reference Provider、kernel Adapter boundary、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
+- 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、generic Kinematic Motion reference Provider、kernel Adapter boundary、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
 - 非正本範囲: Collider geometry／filter／query／event、Runtime phase／tick／capacity、Animation pose、Navigation artifact、external dependency version／build pin、AI authorization／evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](collision.md)、[Navigation](navigation.md)、[Animation](animation.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論とPlatform境界
 
-PhysicsはEngine-owned World、Body、Dynamics command、Joint／Constraint、snapshot、diagnosticを公開し、数値kernelをprivate Adapterへ隔離する。Character MotorはCore必須契約ではなく、Character Locomotion Featureが選択できるEngine-owned C1 reference Providerである。Project C++、GameplayDefinition、AI、EditorへVendorの型、ID、pointer、callback、setting、serializationを公開しない。採用dependencyとexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
+PhysicsはEngine-owned World、Body、Dynamics command、Joint／Constraint、snapshot、diagnosticを公開し、数値kernelをprivate Adapterへ隔離する。Kinematic Motion ExecutorはCore必須契約ではなく、任意のregistered compositionが選択できるEngine-owned C1 reference Providerである。Project C++、GameplayDefinition、AI、EditorへVendorの型、ID、pointer、callback、setting、serializationを公開しない。採用dependencyとexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
 
 [Collision](collision.md)はshape、Collider Asset、material、filter、query、contact／trigger／hit semanticsを所有する。Physicsはそれらを消費してWorldを進めるが再定義しない。[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)はcanonical phase、writer、lease、publishを、[Runtime performance／capacity](../04-runtime/performance-capacity.md)は共通capacity、queue、measurementを所有する。
 
@@ -19,7 +19,7 @@ Module境界は次の意味へ固定する。
 |---|---|---|
 | Physics Contracts | Engine value、Port、command、event view、snapshot | Vendor型、native callback |
 | Physics Core | World lifecycle、dynamics merge、joint registry、semantic resolver | Vendor include |
-| Physics Character Motor Provider | optional Locomotion provider state、profile、intent／result adapter | Navigation Port再定義、Pack install必須化 |
+| Physics Kinematic Motion Provider | optional executor state、profile、intent／result adapter | Navigation Port再定義、Pack install必須化 |
 | Kernel Adapter | Engine valueとnative objectの変換、private table、conformance | World Model、AI、Editorへの依存 |
 | Physics Authoring | Source document、validation、preview、ChangeSet projection | live World直接write |
 | Physics Editor | Authoring／snapshotのProjection | 独自の正本state |
@@ -35,9 +35,9 @@ Module境界は次の意味へ固定する。
 | `Physics2DWorldProfileV1` | 2D gravity、solver semantics、worker class、Collision profile ref | Project source |
 | `Physics3DWorldProfileV1` | 3D gravity、solver semantics、worker class、Collision profile ref | Project source |
 | `PhysicsBody2DComponent`／`PhysicsBody3DComponent` | motion kind、mass source、damping、sleep／motion policy、Collider ref | World source |
-| `CharacterMotorProfileV1` | Character collider ref、max slope、step height、ground snap距離、slide／step iteration上限、speed上限 | Project source |
+| `KinematicMotionProfileV1` | actor collider ref、max slope、step height、ground snap距離、slide／step iteration上限、speed上限 | Project source |
 | `PhysicsWorldHandle`／`PhysicsBodyHandle` | Engine generation handle | Runtime only |
-| `PhysicsStateSnapshotV1` | normalized transform、velocity、sleep、joint／character state | immutable tick snapshot |
+| `PhysicsStateSnapshotV1` | normalized transform、velocity、sleep、joint／kinematic-executor state | immutable tick snapshot |
 | `PhysicsSaveStateV1` | Engine-owned recoverable state | Save stream |
 
 2Dと3Dは別Worldであり、同じEntityへ両dimensionのBodyを付与しない。Body kindは`static | kinematic | dynamic`のclosed enumである。Visual scaleをnative Bodyへ渡さず、Collider geometryは[Collision](collision.md)のCooked Assetに焼き込む。finiteでない値、範囲外のmass／velocity、generation mismatchは明示failureにし、silent clampやnative defaultへのfallbackをしない。
@@ -58,7 +58,7 @@ World lifecycleは`uncreated | validating | ready | stepping | stop_requested | 
 
 Physics executionはRuntimeのcanonical identifiers `T30_PrePhysics`、`T40_MotionIntent`、`T50_PhysicsStep`、`T60_PhysicsIntegrate`、`T70_PostPhysics`への参照で接続する。正確な順序、writer、tick frequencyは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md#4-60-hz-fixed-tickとphase-identifier)だけが決定し、本書はphase tableを再掲しない。
 
-## 3. Joint、Constraint、optional Physics Character Motor Provider
+## 3. Joint、Constraint、optional Physics Kinematic Motion Provider
 
 `PhysicsJointCommonV1`はjoint Stable ID、World ref、Body A／Bまたはtyped World Anchor、enabled、collide-connected、local frame、optional break semanticsを持つ。Joint kindはtagged unionであり、存在しないfieldをproperty bagへ入れない。World Anchorは専用variantで、null Bodyやmagic handleで代用しない。
 
@@ -66,19 +66,19 @@ Physics executionはRuntimeのcanonical identifiers `T30_PrePhysics`、`T40_Moti
 
 Joint break候補はAdapter結果をSI単位へnormalizeし、Engine Stable IDとtick refを持つ`JointBreakEventV1`へ変換する。配送と次boundaryのcomponent removalはRuntime ownerの順序を消費する。Backend間のreaction値へbitwise一致は要求せず、fixtureで許容されるsemantic rangeを検査する。
 
-### 3.1 Kinematic Character Motor reference Provider
+### 3.1 Kinematic Motion reference Provider
 
-C1 reference recipeはEngine-owned Kinematic Character Motor Providerを適格化するが、Character Locomotion Featureのinstall、Path Following、Runtime EntryはこのProviderを要求しない。Backend固有character controllerをProject APIへ公開せず、[Collision](collision.md)のoverlap／shape castだけを利用する。
+C1 reference recipeはEngine-owned Kinematic Motion Providerを適格化するが、任意Packのinstall、Path Following、Runtime EntryはこのProviderを要求しない。Backend固有controllerをProject APIへ公開せず、[Collision](collision.md)のoverlap／shape castだけを利用する。
 
-Provider-private `CharacterMoveIntentV1`はCharacter handle、consume tick ref、planar displacement、vertical proposal、jump edge、up direction、producer metadataを持つ。これはaccepted public intentではなく、Feature-owned `GameplayMotionIntentV1`、Navigation `MovementIntentV1`、Animation `RootMotionProposalV1`を検証後にPhysics Provider内部で生成するderived inputである。Port、Project Source、Save、Replayへ型参照を公開せず、`RootMotionProposalV1`を内部Fieldへ複写しない。`PhysicsCharacterResolvedMotionV1`はresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnostic、input batch hash、generationを持つ。
+Provider-private `KinematicMoveIntentV1`はactor handle、consume tick ref、planar displacement、vertical proposal、edge-triggered motion flags、up direction、producer metadataを持つ。これはaccepted public intentではなく、Navigation `MovementIntentV1`とowner登録済み`MotionIntentContributionV1`を検証後にPhysics Provider内部で生成するderived inputである。Port、Project Source、Save、Replayへ型参照を公開せず、producer固有proposalを内部Fieldへ複写しない。`PhysicsKinematicResolvedMotionV1`はresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnostic、input batch hash、generationを持つ。
 
-`capability.motion_executor.physics_character_motor`はPhysics Providerが提供する正式Capabilityであり、次のexact 7-Field descriptorを[Navigation](navigation.md)が所有する`MotionExecutorProviderCatalogV1`へproduction recordとして登録する。Port型、transport batch、Provider Catalogを本書で再定義しない。全MCD参照は表のID、`version=1`、選択Contract set hashを持つ`McdContractRefV1`である。
+`capability.motion_executor.physics_kinematic`はPhysics Providerが提供する正式Capabilityであり、次のexact 7-Field descriptorを[Navigation](navigation.md)が所有する`MotionExecutorProviderCatalogV1`へproduction recordとして登録する。Port型、transport batch、contribution registry、Provider Catalogを本書で再定義しない。全MCD参照は表のID、`version=1`、選択Contract set hashを持つ`McdContractRefV1`である。
 
 | `executor_capability_ref.id` | `movement_profile_schema_ref.id` | `accepted_intent_schema_refs[].id` | `transport_message_schema_ref.id` | `resolved_motion_schema_ref.id` | `compatibility_predicate_ref.id` | `failure_diagnostic_refs[]` |
 |---|---|---|---|---|---|---|
-| `capability.motion_executor.physics_character_motor` | `type.physics.character_motor_profile` | `[type.feature.character_locomotion.gameplay_motion_intent, type.navigation.movement_intent, type.animation.root_motion_proposal]` | `type.navigation.motion_executor_intent_batch` | `type.physics.character_resolved_motion` | `policy.physics.character_motor_intent_profile_target_dimension` | `[MIRAKAN-PHYSICS-CHARACTER-MOTOR-INCOMPATIBLE, MIRAKAN-PHYSICS-CHARACTER-MOTOR-RESOLUTION_FAILED, MIRAKAN-PHYSICS-CHARACTER-MOTOR-STALE_RESULT]` |
+| `capability.motion_executor.physics_kinematic` | `type.physics.kinematic_motion_profile` | `[type.navigation.movement_intent, type.navigation.motion_intent_contribution]` | `type.navigation.motion_executor_intent_batch` | `type.physics.kinematic_resolved_motion` | `policy.physics.kinematic_motion_intent_profile_target_dimension` | `[MIRAKAN-PHYSICS-KINEMATIC-MOTION-INCOMPATIBLE, MIRAKAN-PHYSICS-KINEMATIC-MOTION-RESOLUTION_FAILED, MIRAKAN-PHYSICS-KINEMATIC-MOTION-STALE_RESULT]` |
 
-production recordは`provider_id=provider.engine.physics.character_motor`、`provider_version=1`、self-excluding content hash、Engine Physics componentのexact owner ref／hash、`usage=production`、implementation System ref／hash、Target Profile集合、Qualification Receipt集合を持つ。Compile／Activation／Batch／Save／Replayが使用するidentityは次のNavigation-owned RecordRefだけである。
+production recordは`provider_id=provider.engine.physics.kinematic_motion`、`provider_version=1`、self-excluding content hash、Engine Physics componentのexact owner ref／hash、`usage=production`、implementation System ref／hash、Target Profile集合、Qualification Receipt集合を持つ。Compile／Activation／Batch／Save／Replayが使用するidentityは次のNavigation-owned RecordRefだけである。
 
 ```text
 MotionExecutorProviderRecordRefV1
@@ -87,18 +87,18 @@ MotionExecutorProviderRecordRefV1
     catalog_version=exact compiled version
     catalog_hash=exact compiled catalog hash
     contract_set_hash=exact compiled Contract set hash
-  provider_id=provider.engine.physics.character_motor
+  provider_id=provider.engine.physics.kinematic_motion
   provider_version=1
   provider_content_hash=exact production record content hash
 ```
 
-policyはintent type subset、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityを検証する。root-motion modeが`animation`なのにexact `type.animation.root_motion_proposal`を受理できないrecordはActivation前に拒否する。stale Catalog ref、stale provider content hash、fixture RecordRefへの置換をproduction qualificationで個別に拒否する。
+policyはintent type subset、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityを検証する。owner固有proposalはNavigationのgeneric contribution envelopeとexact adapter recordを介し、Physics recordへowner固有type IDを追加しない。stale Catalog ref、stale provider content hash、fixture RecordRefへの置換をproduction qualificationで個別に拒否する。
 
-T40のFeature-owned binding SystemはGameplay、Navigation、Animation proposalをNavigation-owned `MotionExecutorIntentBatchV1` Port messageとして提出し、選択済みPhysics Character Motor Providerがentriesのaccepted schemaを一度だけ解決する。Animationを含む全proposalはbinding Systemを経由し、Providerへ直接提出しない。Provider-private `CharacterMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのpublic accepted setへ混ぜない。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のProvider policyに従い、優先順位を暗黙に変更しない。
+T40のgeneric contribution resolverはNavigationとowner登録済みproposalをNavigation-owned `MotionExecutorIntentBatchV1` Port messageとして提出し、選択済みPhysics Kinematic Motion Providerがentriesのaccepted schemaを一度だけ解決する。全proposalはregistryで一意に選んだadapterを経由し、Providerへ直接提出しない。Provider-private `KinematicMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのpublic accepted setへ混ぜない。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickの複数proposalは各adapter policyとcanonical producer順で解決し、不採用のintentをtyped resultとしてproducerへ返す。合成優先順位をProvider内で暗黙に変更しない。
 
-Motorのmax slope、step height、ground snap距離、iteration上限、speed上限は§2の`CharacterMotorProfileV1`だけが保持し、stage 1が検証するProfileはこのProfileである。`NavAgentProfileV1`のslope／climbとの整合検証は[Navigation](navigation.md)のrequest validationが所有する。
+Executorのmax slope、step height、ground snap距離、iteration上限、speed上限は§2の`KinematicMotionProfileV1`だけが保持し、stage 1が検証するProfileはこのProfileである。`NavAgentProfileV1`のslope／climbとの整合検証は[Navigation](navigation.md)のrequest validationが所有する。
 
-Motor resolverは次のsemantic stagesを固定する。
+Kinematic resolverは次のsemantic stagesを固定する。
 
 1. Intent、generation、Profile、finite、speed、World versionを検証する。
 2. 前snapshotのground attachmentをgeneration付きで再検査する。
@@ -110,17 +110,17 @@ Motor resolverは次のsemantic stagesを固定する。
 
 tie-breakは[Collision](collision.md)のnormalized query orderingを使い、native callback順を使わない。Moving platform attachmentはEngine handle、generation、local contact pointだけを保存する。Platform teleport／destroy／generation changeではattachmentを切る。
 
-Root motionは[Animation](animation.md)からCharacter Locomotion bindingを経由してselected Motion Executorへ届くproposalであり、本Provider選択時は`gameplay_only | root_motion_only | additive_bounded`のProvider policyで合成する。Providerのresolved motionがauthoritativeで、Animationはそれを読む。PhysicsとAnimationがTransformへ二重writeしない。
+Root motionは[Animation](animation.md)からgeneric contribution resolverを経由してselected Motion Executorへ届くproposalであり、本Provider選択時はregistered adapter policyと`proposal_only | root_motion_only | additive_bounded`のProvider policyで合成する。Providerのresolved motionがauthoritativeで、Animationはそれを読む。PhysicsとAnimationがTransformへ二重writeしない。
 
 ## 4. Save、Replay、failure、qualification
 
-SaveはEngine-owned World／Body／Joint／Character state、Profile identity、Collider Asset identityを保存し、native serializationやpointerを保存しない。Loadはschema、toolchain lock compatibility、Asset identity、finite value、generation relationを検証してstaging Worldを構築し、fixture validation後にcompatible boundaryで置換する。失敗時はactive Worldを維持する。
+SaveはEngine-owned World／Body／Joint／kinematic executor state、Profile identity、Collider Asset identityを保存し、native serializationやpointerを保存しない。Loadはschema、toolchain lock compatibility、Asset identity、finite value、generation relationを検証してstaging Worldを構築し、fixture validation後にcompatible boundaryで置換する。失敗時はactive Worldを維持する。
 
 ReplayはRuntime ownerへnormalized command、accepted async input、Profile／artifact identity、state hash、snapshot projectionを供給する。記録slotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`だけを参照し、Physics固有phaseを設けない。Replay environmentとdebug streamは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を消費する。
 
-主要failure classはinvalid profile、unqualified adapter、handle／generation mismatch、command conflict、joint frame invalid、character depenetration failure、native invariant violation、job drain failure、save incompatibilityである。tick publish、fault transition、recovery boundaryはRuntime ownerへ委譲する。共通memory、worker、queue、frame thresholdをここで再定義しない。
+主要failure classはinvalid profile、unqualified adapter、handle／generation mismatch、command conflict、joint frame invalid、kinematic depenetration failure、native invariant violation、job drain failure、save incompatibilityである。tick publish、fault transition、recovery boundaryはRuntime ownerへ委譲する。共通memory、worker、queue、frame thresholdをここで再定義しない。
 
-Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、C1 reference Providerのcharacter slope／stair／platform（斜面際のstep、ceilingに接した状態のslide、moving platformからの降車、狭所でのdepenetration発振を含む）、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。Provider fixtureはNavigationのexact `MotionExecutorPortV1`へのbinding、intent／profile／Target compatibility、stale result、root-motion proposal、provider failure時のlast-valid resolved motion不変を含む。別fixtureはPhysics capability unavailableでもCharacter Locomotion Packのinstallが成功し、Physics Provider選択だけがunavailableになることを検証する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
+Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、C1 reference Providerのslope／stair／kinematic support surface（斜面際のstep、ceilingに接した状態のslide、移動support bodyからの離脱、狭所でのdepenetration発振を含む）、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。Provider fixtureはNavigationのexact `MotionExecutorPortV1`へのbinding、intent／profile／Target compatibility、stale result、generic contribution、provider failure時のlast-valid resolved motion不変を含む。別fixtureはPhysics capability unavailableでも任意Packのinstallが成功し、Physics Provider選択だけがunavailableになることを検証する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
 
 ## 5. AI semantics
 
@@ -136,13 +136,49 @@ Physics AI surfaceは自然言語を直接Body fieldへ投影せず、`intent ->
 | `localized_terms` | locale別の代表語。命令や権限を含めない |
 | `positive_examples` | Tagに一致する短いGameplay文 |
 | `negative_examples` | 表面語が似ても一致しない文 |
-| `candidate_gameplay_roles` | `GameplayPhysicsRoleV1[]` |
+| `candidate_physics_role_refs` | `PhysicsIntentRoleRefV1[]`。owner／version／hash付き |
 | `question_triggers` | 意味が分岐する条件 |
 | `candidate_capability_ids` | discovery候補。利用可否はManifestで再検査 |
 | `forbidden_mappings` | 自動変換してはならないrole／operation |
 | `rationale_refs` | Architecture requirement／section参照 |
 
 `localized_terms`の文字列一致だけでResolutionを確定しない。Vocabulary entryはBackend名、exact dependency version、native setting、thread countを含めず、未登録文字列を新enumとして保存しない。
+
+Physics Coreはobject／Genre名のclosed enumを所有せず、次のrole registryだけを所有する。
+
+```text
+PhysicsIntentRoleRefV1
+  role_id
+  role_version: uint32
+  role_content_hash: SHA-256
+
+PhysicsIntentRoleRecordV1
+  role_ref: PhysicsIntentRoleRefV1
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  status: active | reserved_unsupported | removed
+  allowed_motion_authorities[1..5]
+  allowed_collision_semantics[1..4]
+  allowed_hit_authorities[1..6]
+  allowed_shape_strategies[1..7]
+  allowed_speed_policies[1..4]
+  required_capability_refs[0..32]
+  fixture_refs[1..64]
+
+PhysicsIntentRoleRegistryRefV1
+  registry_id
+  registry_version
+  registry_content_hash
+
+PhysicsIntentRoleRegistryV1
+  registry_id: physics.intent_role.registry.active
+  registry_version
+  registry_content_hash
+  records[1..4096]: PhysicsIntentRoleRecordV1
+```
+
+Core初期roleはbehavior-neutralな`role.physics.static_environment`、`role.physics.dynamic_body`、`role.physics.kinematic_body`、`role.physics.sensor`、`role.physics.query_subject`、`role.physics.presentation_proxy`だけである。recordsはrole ID／version／content hash順へstrict sortし、exact duplicate、同一ID／versionの別content hash、同じrole IDのactive record複数、owner namespace偽装、非canonical orderを拒否する。`role_content_hash`はASCII `MIRAKAN_PHYSICS_INTENT_ROLE_RECORD_V1`と、当該hash Fieldだけを除くRecord canonical MCD bytesを`uint32_be` length framingしてSHA-256する。Registry hashはASCII `MIRAKAN_PHYSICS_INTENT_ROLE_REGISTRY_V1`、Registry ID／version、record count、全record canonical bytesを各`uint32_be` length framingしてSHA-256し、`registry_content_hash`自身を除外する。`PhysicsIntentRoleRegistryRefV1`は三Fieldすべてを同一active Registryへexact解決し、ID-only、latest version、hash fallbackを許可しない。
+
+Pack／Projectはowner namespace、exact Capability、axis compatibility、fixtureを持つrecordを下向きに登録できる。object vocabulary、具体例、default mappingはcontributorが所有し、Core resolver、Core vocabulary、Core fixture inventoryへコピーしない。role refは候補検索を助ける分類であり、motion／collision／hit／shape／speed各axisの検証を省略または上書きしない。
 
 `PhysicsIntentResolutionV1`のmandatory schemaは次である。fieldの省略、任意propertyの追加、closed value以外の文字列を拒否する。
 
@@ -153,9 +189,10 @@ PhysicsIntentResolutionV1
   contract_set_hash: Sha256
   project_revision: RevisionId
   target_profile_ids: TargetProfileId[1..16]
+  physics_role_registry_ref: PhysicsIntentRoleRegistryRefV1
   scene_dimension: two_d | three_d | hybrid
   hybrid_gameplay_space: optional two_d | three_d
-  gameplay_role: GameplayPhysicsRoleV1
+  physics_role_ref: PhysicsIntentRoleRefV1
   motion_authority: PhysicsMotionAuthorityV1
   collision_semantics: PhysicsCollisionSemanticsV1
   hit_authority: PhysicsHitAuthorityV1
@@ -172,64 +209,63 @@ PhysicsIntentResolutionV1
   disposition: ready_to_propose | question_required | capability_unavailable | rejected
 ```
 
-`source_request_ref`はAuthoring Task内のaccess-controlled contentを参照し、raw PromptをCatalog、MCD、Receiptへ複製しない。`ready_to_propose`は既存OperationでChangeSetを提案できる意味だけを持ち、Commit authorizationを意味しない。`question_required`はblocking ambiguityが残る結果、`capability_unavailable`は要求を満たすactive Capabilityがない結果、`rejected`はinvalid／forbiddenな要求である。
+`source_request_ref`はAuthoring Task内のaccess-controlled contentを参照し、raw PromptをCatalog、MCD、Receiptへ複製しない。`physics_role_registry_ref`は候補生成時に読んだactive Registryを固定し、validate／preview／proposal時にcurrent Registry refと三Fieldexact equalityで再検査する。`ready_to_propose`は既存OperationでChangeSetを提案できる意味だけを持ち、Commit authorizationを意味しない。`question_required`はblocking ambiguityが残る結果、`capability_unavailable`は要求を満たすactive Capabilityがない結果、`rejected`はinvalid／forbiddenな要求である。
 
-closed semantic valuesを次へ固定する。一つのResolutionは各軸から一つだけを選ぶ。
+role以外のclosed semantic axisを次へ固定する。一つのResolutionは各軸から一つだけを選び、role recordのallowed setと照合する。
 
 | Type | Closed values |
 |---|---|
-| `GameplayPhysicsRoleV1` | `world_static \| movable_prop \| moving_platform \| character \| projectile \| sensor_volume \| camera_blocker \| ragdoll \| vehicle \| destructible \| soft_deformable \| cloth_fluid_hair` |
 | `PhysicsMotionAuthorityV1` | `static \| kinematic_target \| dynamic_solver \| query_driven \| presentation_only` |
 | `PhysicsCollisionSemanticsV1` | `solid_block \| sensor_notify \| query_only \| none` |
 | `PhysicsHitAuthorityV1` | `solver_contact \| sensor_event \| swept_shape_query \| overlap_query \| gameplay_rule \| none` |
 | `PhysicsShapeStrategyV1` | `primitive \| compound_primitive \| convex \| static_triangle_mesh \| heightfield \| tile_chain_2d \| none` |
 | `PhysicsSpeedPolicyV1` | `discrete \| continuous_body \| authoritative_sweep \| teleport` |
 
-`ragdoll`、`vehicle`は将来拡張との語彙衝突を防ぐ予約値であり、現行C1／C2のactive Capability、operation、positive fixtureではない。`future.capability.vehicle-ragdoll-crowd-motion-warping`がapproved Future-to-Active Promotion Manifest、Control Plane Rebaseline、Active Definition migrationで機能別active Capabilityへ分割され、Owner contract、Target binding、Authority、Save／Replay、Qualificationが成立するまで、これらのroleを選んだResolutionは必ず`capability_unavailable`とする。予約値がenumに存在することをBackend supportまたはProduct supportの根拠にしてはならない。
+旧`GameplayPhysicsRoleV1` enumはoffline migration inputだけである。`PhysicsIntentRoleMigrationReceiptV1`はsource enum value／schema ref／hash、active `PhysicsIntentRoleRegistryRefV1`、selected owner contribution ref／hashまたはCore role ref、before／after Project ref、axis closure hash、Preview／Validation／Commit ref／hash、`migrated | capability_unavailable | ambiguous | rejected`、Diagnostic、receipt hashを持つ。legacy `world_static | movable_prop | sensor_volume`も既存axisとexact一件のCore roleが一致する場合だけ移行し、object固有legacy値は当該Pack／Project contributionがexact一件存在する場合だけ移行する。未導入Capabilityに対応する旧予約値は`capability_unavailable`でSourceを不変にし、Core active roleへ近似変換しない。current serializer／AI projectionは旧enum値を受理しない。
 
 複合objectは複数Resolutionと明示関係で表し、合成enumを追加しない。同じobjectへ複数motion authorityを選ばない。Dynamic Bodyへ`static_triangle_mesh`／`heightfield`を選ばず、Sensorをauthoritative hitへ暗黙昇格せず、`teleport`を経路hitの代用にしない。途中経路がGameplayへ必要なら`authoritative_sweep`を使用する。
 
 ### 5.2 Capability discoveryと意味解決
 
-Resolverは[Executable contracts](../02-foundation/executable-contracts.md)のCapability registryから、scene dimension、active maturity、Target、World Profile、Collision capability、authoring permissionを読み、利用可能なEngine operationだけを提示する。Backend featureをCapabilityとして直接表示しない。unsupportedなvehicle／ragdoll等は`capability_unavailable`とし、近い既存operationへsilent downgradeしない。
+Resolverは[Executable contracts](../02-foundation/executable-contracts.md)のCapability registryから、scene dimension、active maturity、Target、World Profile、Collision capability、authoring permission、Physics Intent Role Registryを読み、利用可能なEngine operationだけを提示する。Backend featureをCapabilityとして直接表示しない。unknown／removed／reserved-unsupported role、required Capability不足は`capability_unavailable`とし、近いCore roleまたは既存operationへsilent downgradeしない。
 
 解決順は次である。
 
-1. source requestのcontent hash、Project revision、Contract set hash、Target Profileを取得し、Resolutionへ観測値としてbindする。
-2. ユーザー文からgameplay object、motion、contact、hit、speed、dimensionの候補を抽出する。
+1. source requestのcontent hash、Project revision、Contract set hash、Target Profile、active Physics Intent Role Registry refを取得し、Resolutionへ観測値としてbindする。
+2. ユーザー文からowner vocabulary候補と、motion、contact、hit、shape、speed、dimensionの独立候補を抽出する。
 3. Scene／Projectの既存World、Body、Collider、Profile、Capabilityをread-only discoveryする。
-4. closed vocabularyへ候補を割り当て、矛盾と欠落を分類する。
+4. exact owner role refとclosed axisへ候補を割り当て、矛盾と欠落を分類する。
 5. gameplay behaviorを変える欠落だけを`blocking_question_ids`へ入れ、`question_required`にする。安全な欠落だけをReference assumptionとして明示する。
-6. role、motion authority、collision semantics、hit authority、shape strategy、speed policyを独立に確定する。
+6. role ref、motion authority、collision semantics、hit authority、shape strategy、speed policyを独立に確定する。
 7. Target、Capability、Profile、field relation、forbidden mappingを同じValidatorで再検査する。対応不能は`capability_unavailable`、invalid／forbiddenは`rejected`にする。
 8. `ready_to_propose`の場合だけtyped Physics／Collision write OperationとPreview fixtureを返す。
 9. GatewayがProvider出力を同じMCDとValidatorで再計算し、不一致をresolution mismatchとして拒否する。
 
-Resolutionのvalidate、preview、operation proposalの各入口は、現在のsource request hash、Contract set hash、Project revisionを保存済み`source_request_hash`、`contract_set_hash`、`project_revision`と完全一致で再検査する。一つでも異なるResolutionは`stale`として拒否し、selected operation、preview、cost estimateを使用しない。最新source／contract／Project snapshotでCapability discoveryから再解決し、新しいResolution identityを発行する。stale objectをfield単位で更新、別revisionへrebase、Commitへ継続してはならない。
+Resolutionのvalidate、preview、operation proposalの各入口は、現在のsource request hash、Contract set hash、Project revision、Physics Intent Role Registry refを保存済み`source_request_hash`、`contract_set_hash`、`project_revision`、`physics_role_registry_ref`と完全一致で再検査する。一つでも異なるResolutionは`stale`として拒否し、selected operation、preview、cost estimateを使用しない。最新source／contract／Project／Registry snapshotでCapability discoveryから再解決し、新しいResolution identityを発行する。stale objectをfield単位で更新、別revisionへrebase、Commitへ継続してはならない。
 
 ### 5.3 質問、Assumption、代替案
 
-2D／3D／hybrid gameplay space、Player motion class、authoritative hit方式、高速object、moving platform、壊れるJoint、mobile target、概算同時object数が挙動を変える場合は質問する。質問は「どのsolverを使うか」ではなく、ゲーム上の選択肢、影響、推奨案を示す。
+2D／3D／hybrid gameplay space、motion authority、contact／hit authority、shape class、高速移動policy、kinematic support relation、壊れるJoint、Target Profile、概算同時instance数が挙動を変える場合は質問する。質問は「どのsolverを使うか」や特定object名を前提にせず、観測可能な挙動の選択肢、影響、推奨案を示す。
 
-明示情報がない通常の床／壁、一般prop、Player、projectileにはReference assumption候補を提示できるが、確定値として隠さない。各assumptionはsource intent、理由、影響を持ち、previewから変更できる。安全な選択肢が複数ある場合はtyped alternativeを最大限界内で提示し、候補ごとの差分を示す。
+明示情報がない場合もobject名からstatic／dynamic、solid／sensor、solver／query、discrete／continuousを既定化しない。Reference assumptionは登録済みrole recordと独立axisの候補として提示し、source intent、根拠、影響、owner refを持たせてPreviewから変更できるようにする。安全な選択肢が複数ある場合はtyped alternativeを最大限界内で提示し、候補ごとの差分を示す。
 
 Authorization、Risk class、commit可否、credentialは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決定する。本書はoperationの意味とvalidationを定め、approval表を複写しない。
 
 ## 6. Operation、preview、diagnostic、AI eval
 
-Physics operation familyはinspect／discover／validate／preview、World Profile作成／更新、Body dynamics設定、Joint／Constraint作成／更新／削除、Physics Character Motor Provider qualification提案を持つ。Character LocomotionのProvider選択／bindingはFeature operation、Collision geometry／filter／queryのoperationは[Collision](collision.md)へ委譲する。全writeは[Project state](../03-authoring/project-state.md)のChangeSetを作り、live Worldを直接mutateしない。
+Physics operation familyはinspect／discover／validate／preview、World Profile作成／更新、Body dynamics設定、Joint／Constraint作成／更新／削除、Physics Kinematic Motion Provider qualification提案を持つ。owner固有proposalのadapter／Provider bindingは当該PackまたはProject operation、Collision geometry／filter／queryのoperationは[Collision](collision.md)へ委譲する。全writeは[Project state](../03-authoring/project-state.md)のChangeSetを作り、live Worldを直接mutateしない。
 
 Previewはbefore／after semantic resolution、affected Entity／Asset、selected assumptions、question state、Capability availability、estimated impact class、diagnostic、rollback boundaryを示す。native setting dumpやVendor object graphをユーザー説明に使わない。Editor手動操作とAI操作は同じDocument、validator、preview、undo／redo、cookを通る。
 
 Diagnosticは少なくとも次を区別する。
 
-- `MIRAKAN-PHYSICS-CHARACTER-MOTOR-INCOMPATIBLE`: intent subset、Profile、Target、dimension、Collision query relation不一致
-- `MIRAKAN-PHYSICS-CHARACTER-MOTOR-RESOLUTION_FAILED`: bounded resolverがvalid resolved motionを生成できない
-- `MIRAKAN-PHYSICS-CHARACTER-MOTOR-STALE_RESULT`: actor／intent batch／profile／provider generation不一致
+- `MIRAKAN-PHYSICS-KINEMATIC-MOTION-INCOMPATIBLE`: intent subset、Profile、Target、dimension、Collision query relation不一致
+- `MIRAKAN-PHYSICS-KINEMATIC-MOTION-RESOLUTION_FAILED`: bounded resolverがvalid resolved motionを生成できない
+- `MIRAKAN-PHYSICS-KINEMATIC-MOTION-STALE_RESULT`: motion subject／intent batch／profile／provider generation不一致
 - ambiguous intent／question required
 - conflicting role／motion／collision semantics
 - Capability unavailable／Target unsupported
-- invalid profile／shape／joint／character relation
+- invalid profile／shape／joint／kinematic support relation
 - unsafe speed／hit assumption
 - stale scene／artifact／generation
 - stale source request／Contract set／Project revision

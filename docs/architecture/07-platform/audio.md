@@ -234,7 +234,7 @@ C1 Listenerは一つ。Split-screen／multi-listenerはC2。Transformはright-ha
 | `stereo_spread_m` | `[0,100]` |
 | `occlusion_policy` | off／snapshot |
 
-3D panとdistance attenuationはEngine Mixerが計算する。Dopplerはspeed of sound 343 m/sのReference値をProfileへ保存する。relative velocityがnon-finiteの`SetEmitter`／`SetListener`はcommandをrejectし、Voiceは前回のtransform／velocityを維持する（§15）。supersonic相対速度はShooter規約が許容する正当な入力であり、rejectせずdoppler pitch比率を`[0.5, 2.0]`へ決定的にclampして適用する。
+3D panとdistance attenuationはEngine Mixerが計算する。Dopplerはspeed of sound 343 m/sのReference値をProfileへ保存する。relative velocityがnon-finiteの`SetEmitter`／`SetListener`はcommandをrejectし、Voiceは前回のtransform／velocityを維持する（§15）。有限の相対速度はゲームジャンルに関係なくvalid inputであり、音速以上でもrejectせずdoppler pitch比率を`[0.5, 2.0]`へ決定的にclampして適用する。
 
 ### 9.2 Occlusion
 

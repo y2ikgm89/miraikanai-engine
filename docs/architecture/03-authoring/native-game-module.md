@@ -3,7 +3,7 @@
 - 文書ID: mirakan.arch.native-game-module
 - 状態: review
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
-- 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
+- 非正本範囲: GameplayDefinition、GameSystemSpecV2、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 外部根拠検証日: 2026-07-23
 
@@ -13,7 +13,7 @@
 
 Game制作では`BoundedNativeGameProfileV1`（§5.3）へ適合するModuleだけを許可し、Engine本体、Extension、Adapter、公開SDK、Validator、Policyを変更しない。公開SDKで要求を意味同等に実現できない場合、Native C++で境界を迂回せず`capability_unavailable`とする。
 
-Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV1`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
+Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV2`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
 
 ShippingではProject C++をGame binaryへ静的linkする。Windows Development Previewだけ、同じentry contractを持つDLLを新しい`GameHost` Processの起動時に一度loadできる。in-process unload、binary差替え、live code patchを行わず、変更時はGameHostを終了して再起動する。AndroidではProject static archiveをGame runtime `.so`へ、Appleではstatic archive／objectをapp executableへlinkする。
 
@@ -27,7 +27,7 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 
 | 主題 | 正本 |
 |---|---|
-| C++／GameplayDefinition選択、GameSystemSpecV1、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
+| C++／GameplayDefinition選択、GameSystemSpecV2、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
 | NativeGameModule artifact、ABI、entry、lifecycle、Build、Package | 本書 |
 | C++ language、compiler、memory、pointer、exception、target DAG | [C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md) |
 | tick phase／fixed delta値、World lease、command／event、queue、failure | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
@@ -256,9 +256,9 @@ Discovered
 | Field | 規則 |
 |---|---|
 | `system_id` | Cooked package内runtime `uint32` ID、generated。永続化／別Package比較禁止 |
-| `system_contract_version` | `GameSystemSpecV1.version`からgenerated |
+| `system_contract_version` | `GameSystemSpecV2.version`からgenerated |
 | `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
-| `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV1`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
+| `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV2`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
 | `read_component_set` | ComponentAccessManifest subset |
 | `write_state_set` | GameplayState field subset |
 | `command_set`／`event_set` | 生成可能な型のsubset |
@@ -269,9 +269,11 @@ Discovered
 | `state_owner_set_hash` | Specのowned State Type集合と一致 |
 | `invoke` | generated no-throw trampoline |
 
-`GameSystemSpecV1.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、Manifest、descriptorの写像不一致をLoad時にModule全体の登録失敗とし、より強いauthorityへ暗黙昇格しない。
+`GameSystemSpecV2.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、Manifest、descriptorの写像不一致をLoad時にModule全体の登録失敗とし、より強いauthorityへ暗黙昇格しない。
 
-Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはtick、fixed delta、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。World commitは成功後にRuntime規約のcanonical merge順で行う。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
+Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはtick、current cadence interval、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。authoritative runtime state／Command／Event publicationはcallback成功後だけRuntime規約のcanonical merge順で行い、Worldを持たないUI-only／headless branchにも同じ規則を適用する。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
+
+現行`MirakanNativeInvokeContextV1`の`fixed_delta_numerator／denominator`は60/1 fixed Cadence baseline用の暫定Fieldである。Clock／Cadence migration TaskはABI freeze前にこれをfixed／explicit-stepのtagged cadence inputへ移行し、Source／descriptor／Replay／fixtureを同時更新する。単数`fixed delta`を全Game System、UI-only、headless、将来Cadenceの恒久前提として扱わない。
 
 Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline tickを持ち、結果はRuntime Ownerが定める結果portと安全境界で検査される。Module独自worker poolを作らない。
 

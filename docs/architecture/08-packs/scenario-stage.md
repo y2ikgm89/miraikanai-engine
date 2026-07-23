@@ -67,6 +67,8 @@ Scope entryは`RuntimeScopeTypeCatalogV1`へ次のexact 7-Field rowで登録す�
 
 保存値は`RuntimeScopeTypeRefV1`、`McdContractRefV1`、`RuntimeScopeOwnerRefV1`のversion／hash付きtyped refであり、表のIDだけを永続化しない。全dependencyをactive Runtime Scope Registryへ実体recordとして登録する。Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
 
+旧Level Systemのscope migrationは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ`runtime_scope.migration_contribution.feature.scenario_stage`として登録する。recordは`owner.feature.scenario_stage`、exact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policy、`fixture.feature.scenario_stage.runtime_scope_migration`を持つ。Core migratorはgeneric record解決だけを行い、Level／Stage ID、fixture、adapterをCoreへhard-codeしない。
+
 ## 5. Transition
 
 `transition_policy_refs[]`は§11のexact `StageTransitionPolicyV1` ref／hashであり、World／Scene／Cellのtransition payloadを再定義しない。Requestはpolicy ref／hashだけを指定し、destinationを複製しない。destinationのtagged union、Runtime Entry経由、World-owned spatial type、typed subject、failure rollbackは§11だけを正本とする。Player／Party／Characterを固定payloadにしない。
@@ -125,7 +127,7 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 | `pack_kind` | `feature` |
 | `required_feature_pack_refs[]` | `[]` |
 | `provided_capability_refs[]` | `capability.gameplay.scenario_stage` |
-| `public_contract_refs[]` | version／hash付き`StageDefinitionV1; CompletionContractV1; StageRuntimeStateV1; StageTransitionDestinationV2; StageTransitionPolicyV1; StageTransitionRequestV2; StageTransitionContractManifestV1` |
+| `public_contract_refs[]` | version／hash付き`StageDefinitionV1; CompletionContractV1; StageRuntimeStateV1; StageTransitionDestinationV2; StageTransitionPolicyV1; StageTransitionRequestV2; StageTransitionContractRefSetV1` |
 | `runtime_port_refs[]` | version／hash付き`StageActivationPortV1; StageTransitionPortV2` |
 | `configuration_profile_refs[]` | `StageContentActivationPolicyV1; StageSaveReplayPolicyV1` |
 | `test_scenario_refs[]` | `fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless; fixture.feature.scenario_stage.aggregate-manifest-set-equality` |
@@ -135,9 +137,9 @@ AI contextはselected Stage、World、参照Feature、Scope、transition、Save�
 `StageTransitionPortV2`はsource Stage instance、trigger／outcome、exact transition policy ref／hash、typed transfer subject refsを入力とする。destinationはPolicyから解決し、Port messageへ複製しない。Player、Party、Characterを固定型にせず、registered subject contractへ適合する任意のsubjectを扱える。旧V1のinline destinationはoffline migration inputだけで、current Port inventoryへ登録しない。
 
 ```text
-StageTransitionContractManifestV1
-  manifest_version: 1
-  manifest_hash
+StageTransitionContractRefSetV1
+  ref_set_version: 1
+  ref_set_hash
   destination_type_ref:
     McdContractRefV1(id=type.feature.scenario_stage.transition_destination, version=2, contract_set_hash)
   request_type_ref:
@@ -150,7 +152,19 @@ StageTransitionContractManifestV1
     McdContractRefV1(id=type.feature.scenario_stage.transition_port_message, version=2, contract_set_hash)
 ```
 
-Pack Manifest、Contract Manifest、Gameplay Features aggregate manifest、active MCD Contract set、StageTransitionPort descriptorのtype ref集合は同じcanonical owner sourceから生成し、set equalityで一致しなければならない。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`はmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchをPack applyとRuntime Activationの両方で拒否する。
+`StageTransitionContractRefSetV1`は上記exact 5 Fieldだけを持ち、generic `refs[]`、optional ref、六件目を許可しない。`ref_set_hash`はASCII `MIRAKAN_STAGE_TRANSITION_CONTRACT_REF_SET_V1`、`ref_set_version`、exact 5 refを上記Field順に`uint32_be` length framingしたMCD canonical bytesから計算し、自己Fieldを除外する。duplicate ID、wrong kind／version／Contract set hash、同じIDの別hash、非canonical Fieldを拒否する。
+
+異種inventoryを一つのset equalityへ混ぜず、次のlike-for-like gateを独立に実行する。
+
+| Gate | 左辺 | 右辺 | equality |
+|---|---|---|---|
+| `gate.scenario_stage.public_contract_inventory` | Pack Manifest `public_contract_refs[]` | Stage owner public contract inventory exact 7件 | ID／version／Contract set hashのset equality |
+| `gate.scenario_stage.runtime_port_inventory` | Pack Manifest `runtime_port_refs[]` | Stage owner runtime port inventory exact 2件 | ID／version／Contract set hashのset equality |
+| `gate.scenario_stage.transition_mcd_ref_set` | active MCD Contract setのStage-transition owner refs | `StageTransitionContractRefSetV1` exact 5件 | ID／kind／version／Contract set hashのset equality |
+| `gate.scenario_stage.transition_port_closure` | `StageTransitionPortV2` descriptorから到達するrequest／policy／destination／spatial／port refs | `StageTransitionContractRefSetV1` exact 5件 | reachable set equality |
+| `gate.scenario_stage.aggregate_projection` | Gameplay Features aggregateのScenario Stage public／runtime refs | Pack Manifestの対応するpublic／runtime refs | 各inventoryを別々にset equality |
+
+各gateは固有Receiptを発行し、五Receipt全部が同じPack content hash、owner revision、Contract set hashへ閉じる場合だけPack apply／Runtime Activationを許可する。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各gateについてmissing／extra／duplicate／version／Contract set hash／Architecture owner revision／content hash mismatchを一原因ずつ拒否し、一gateの成功を別inventoryの成功へ読み替えない。
 
 ## 10. Content activationとRuntime state
 
@@ -213,7 +227,7 @@ StageTransitionRequestV2
   transition_policy_hash
 ```
 
-`StageTransitionDestinationV2`、`StageTransitionPolicyV1`、`StageTransitionRequestV2`はそれぞれManifestに示した`McdContractRefV1`で参照する。`destination_kind`は全destination fieldのdiscriminatorであり、Requestはdestinationを一切持たずexact Policy ref／hashだけを指定する。Policy hashはhash Field自身を除く全Policy Field、destination中の各semantic hash／Document content hashを含むMCD canonical bytesから計算する。
+`StageTransitionDestinationV2`、`StageTransitionPolicyV1`、`StageTransitionRequestV2`はそれぞれ`StageTransitionContractRefSetV1`に示した`McdContractRefV1`で参照する。`destination_kind`は全destination fieldのdiscriminatorであり、Requestはdestinationを一切持たずexact Policy ref／hashだけを指定する。Policy hashはhash Field自身を除く全Policy Field、destination中の各semantic hash／Document content hashを含むMCD canonical bytesから計算する。
 
 | kind | non-null／non-empty Field | null／empty Field |
 |---|---|---|

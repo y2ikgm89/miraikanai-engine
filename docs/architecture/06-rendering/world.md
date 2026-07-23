@@ -248,13 +248,44 @@ ProceduralValidationProviderBindingV1
 
 binding配列は`validation_kind`、binding Document Stable IDのcanonical byte順でsortし、duplicateを拒否する。Document bytesのidentityは`binding_document_ref.content_hash`だけが表し、resolved closureを同じhashへ多重定義しない。`resolved_binding_closure_hash`は`SHA-256(ASCII "MIRAKAN_WORLD_PROCEDURAL_BINDING_CLOSURE_V1" || validation_kind || binding_document_refの全canonical bytes || owner_ref/hash || provider_contract_ref || output_schema_ref || required_output_count)`である。Document content hashまたはclosure hashの一方だけが一致しても受理せず、owner、provider、output schemaをlatestへ再解決しない。`required_output_count`は0～1,024で、0はprovider実行を要求するが出力recordを要求しないvalidatorだけに使う。Owner名、Capabilityの存在、output field名からproviderを推測選択しない。
 
-`GeneratedWorldDeltaV1`は`delta_id`、`procedural_world_ref`、`base_project_revision`、`generator_contract_hash`、`generator_implementation_hash`、`input_hash`、`seed`、`target_profile_ref/hash`、`toolchain_manifest_hash`、`rng_stream_manifest_hash`、`selected_validation_provider_bindings[]`、`create_records[0..max_output_entities]`、`update_operations[0..max_output_entities * 4]`、`delete_stable_ids[0..max_output_entities]`、`generated_anchor_refs[]`、`generated_portal_refs[]`、typed `validation_outputs[0..65536]`、`output_bounds`、`generation_step_count`、`delta_semantic_hash`を持つ。各bindingはexact Document ref/content hashとresolved closure hashを保持し、各`validation_outputs[]`は同じbinding Document ref/content hash、resolved closure hash、exact output schema ref、output value ref／hashを持ち、binding配列順、output Stable ID順でcanonicalizeする。
+UUID割当前のgenerator出力は`GeneratedWorldSemanticCandidateV1`である。これは`candidate_id`やStable IDを持たず、`procedural_world_ref`、base Project、generator／input／seed／Target／Toolchain／RNG／binding closure、`create_records[]`の連続`uint32 local_id`、local IDだけで結ぶ新規record間edge、既存Stable IDへのupdate／delete、local IDで表すgenerated anchor／portal／validation output、bounds、step count、`semantic_graph_hash`、`candidate_artifact_semantic_hash`を持つ。local IDは1から連続し、0、gap、duplicate、未定義local edge、Stable IDに見えるgenerator生成文字列を拒否する。
 
-`delta_id`はTrusted Staging Broker発行UUIDv7 Stable IDである。create recordはGateway割当前の`uint32 local_id`を1から使い、0 invalid、Delta内重複errorとする。検証後にGatewayがlocal IDをStable IDへ対応付け、Sourceへlocal IDを残さない。既存更新／削除は明示allowlistとexpected revisionを必須とし、World全置換、上限超過、absolute path、native pointer、Cooked Artifact本文を拒否する。
+`semantic_graph_hash`は`SHA-256(ASCII "MIRAKAN_WORLD_GENERATED_SEMANTIC_GRAPH_V1" || procedural World exact ref || base Project revision || generator contract／implementation hash || input revisions／input hash || seed || Target ref/hash || Toolchain manifest hash || RNG stream manifest hash || binding closure集合 || local-ID正規化create graph || update／delete records || local-ID正規化Anchor／Portal／validation outputs || output bounds || generation step count)`である。`candidate_artifact_semantic_hash`はStable ID allocationやartifact container metadataを除くCook入力のlocal-ID正規化bytesを、ASCII `MIRAKAN_WORLD_GENERATED_ARTIFACT_SEMANTIC_V1`でhashする。random device、wall clock、worker completion順、network response、UUIDをgenerator入力または両hashへ含めない。
 
-`delta_semantic_hash`は`SHA-256(ASCII "MIRAKAN_WORLD_GENERATED_DELTA_SEMANTIC_V1" || procedural World exact ref || base Project revision || generator contract／implementation hash || input revisions／input hash || seed || Target ref/hash || Toolchain manifest hash || RNG stream manifest hash || binding Document ref/content hash／resolved closure hash集合 || create／update／delete canonical records || generated Anchor／Portal refs || validation outputs || output bounds || generation step count)`であり、Broker発行`delta_id`を入力に含めない。同じgenerator version、input revisions、seed、parameterから同じStable ID assignmentとcanonical outputを生成する。random device、wall clock、worker completion順、network responseをdeterministic generatorの入力にしない。
+determinism gateは同じcanonical inputをfresh processで3回実行し、Gateway／Brokerを一度も呼ばず、各runのlocal-ID正規化semantic graph bytes、canonical record order、`semantic_graph_hash`、`candidate_artifact_semantic_hash`のbyte equalityだけを比較する。一つでも異なれば`MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC`として候補三件を破棄する。retry seedはfailure policyが許可した新しい明示seedでだけ新candidateを作り、同じseedの不一致を成功へ近似しない。
 
-同じcanonical inputをfresh processで3回実行し、各runで異なるBroker UUIDv7 `delta_id`を発行してもStable ID assignment、record order、`delta_semantic_hash`、Cooked Artifact hashが一度でも異なれば`MIRAKAN-WORLD-PROCEDURAL_NONDETERMINISTIC`として全Deltaを拒否する。retry seedはfailure policyが許可した新しい明示seedでだけ新Deltaを作り、同じseedの不一致を成功へ近似しない。
+三run一致後、Authoring Command Gatewayをexact一回だけ呼び、次を同じrequest／receiptで発行する。
+
+```text
+WorldStableIdAllocationManifestV1
+  allocation_request_id: UUIDv7
+  project_ref/revision/document_set_hash
+  procedural_world_ref
+  semantic_graph_hash
+  candidate_artifact_semantic_hash
+  local_id_count
+  mappings[local_id_count]:
+    local_id: uint32
+    stable_id: UUIDv7
+  delta_id: UUIDv7
+  manifest_hash: SHA-256
+
+WorldStableIdAllocationReceiptV1
+  allocation_operation_ref
+  request_hash
+  idempotency_key
+  allocation_manifest_ref/hash
+  project_ref/revision/document_set_hash
+  semantic_graph_hash
+  local_id_count
+  allocated_uuid_count
+  gateway_service_ref/hash
+  receipt_hash: SHA-256
+```
+
+`mappings[]`はlocal ID昇順でexact `1..local_id_count`、Stable ID重複なし、`allocated_uuid_count=local_id_count+1`（mapping分＋`delta_id`）とする。Manifest hashはASCII `MIRAKAN_WORLD_STABLE_ID_ALLOCATION_MANIFEST_V1`、Receipt hashはASCII `MIRAKAN_WORLD_STABLE_ID_ALLOCATION_RECEIPT_V1`と各self hashを除くcanonical bytesから計算する。同じidempotency key＋request hashはbyte-identical Manifest／Receiptを返し、別requestでのkey再利用を拒否する。
+
+`GeneratedWorldDeltaV1`はGateway発行`delta_id`、exact allocation Manifest ref／hash、Receipt ref／hash、候補の全入力、mapping適用済みcreate／update／delete、generated Anchor／Portal、typed validation outputs、output bounds、step count、`semantic_graph_hash`、`candidate_artifact_semantic_hash`、`delta_content_hash`を持つ。Source Delta、全内部ref、validation output、Preview、Cook入力、Commit Receiptは一つのManifest mappingだけを共有し、subsystem別再割当、二度目のGateway call、local ID残存を拒否する。`delta_content_hash`はASCII `MIRAKAN_WORLD_GENERATED_DELTA_V1`とself hashを除く全Fieldをhashし、UUIDを除外した再現性の判定には使わない。既存更新／削除は明示allowlistとexpected revisionを必須とし、World全置換、上限超過、absolute path、native pointer、Cooked Artifact本文を拒否する。
 
 生成結果は通常のScene／Entity／Cell validationとreviewを通り、手編集領域を無断上書きしない。Schema不一致、unknown ref、bounds／step／entity上限超過、topology cycle、空間connectivity不成立は常時検証する。条件provider検証のtruth tableを次へ固定する。
 
@@ -266,7 +297,7 @@ binding配列は`validation_kind`、binding Document Stable IDのcanonical byte�
 | selected、Document ref/content hash／resolved closure hash／schema valid | required count以上で全output valid | providerを一回実行しvalidation成功 |
 | selectedだがDocument／owner／closure／schema stale、またはprovider result invalid／failure | 任意 | `MIRAKAN-WORLD-PROCEDURAL_INVALID_OUTPUT`でDelta全体reject |
 
-一bindingでもrejectならcreate／update／deleteを一件もpublishせず、Project revision、last-valid Source、Derived Artifact、World generationを維持する。同じgenerator version、input revisions、seed、Target、Toolchain、binding setで再生成した場合、provider選択を含む`delta_semantic_hash`とCooked Artifact hashが一致しなければならない。binding Document content hash、resolved closure hash、owner hash、provider Contract set hash、output schema hash、validation output hash、delta semantic hashを各一Fieldだけtamperするnegative fixtureを持ち、別hashの一致で補償しない。再生成中のArtifact削除、provider timeout、hash mismatch、unsupported Target、fallback layoutもtyped resultとし、失敗時はlast-validを維持する。外部Tool／generator versionとartifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)を参照する。
+一bindingでもrejectならcreate／update／deleteを一件もpublishせず、Project revision、last-valid Source、Derived Artifact、World generationを維持する。同じgenerator version、input revisions、seed、Target、Toolchain、binding setで再生成した場合、provider選択を含むlocal semantic graphとcandidate Artifact semantic hashが一致しなければならない。binding Document content hash、resolved closure hash、owner hash、provider Contract set hash、output schema hash、validation output hash、semantic graph hash、allocation mapping hashを各一Fieldだけtamperするnegative fixtureを持ち、別hashの一致で補償しない。再生成中のArtifact削除、provider timeout、hash mismatch、unsupported Target、fallback layoutもtyped resultとし、失敗時はlast-validを維持する。外部Tool／generator versionとartifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)を参照する。
 
 ## 10. Navigation、Simulation、Renderingとの境界
 
@@ -499,7 +530,13 @@ WorldAuthoringBundleV1
   owner_typed_document_changeset_hashes: bounded array[0..1024]<{expected document kind, exact owner-typed document ref, ChangeSet hash}>
   system_bundle_hashes: bounded array[0..128]<{exact system ref, bundle hash}>
   asset_changeset_hashes: bounded array[0..1024]<{exact Asset ref, ChangeSet hash}>
-  procedural_delta_hashes: bounded array[0..1024]<{exact ProceduralWorldDefinitionV1 ref, delta_semantic_hash}>
+  procedural_delta_refs: bounded array[0..1024]<
+    {exact ProceduralWorldDefinitionV1 ref,
+     delta_id,
+     allocation_manifest_ref/hash,
+     semantic_graph_hash,
+     candidate_artifact_semantic_hash,
+     delta_content_hash}>
   navigation_intent_changeset_hashes: bounded array[0..1024]<{exact navigation owner ref, ChangeSet hash}>
   map_presentation_changeset_hashes: bounded array[0..1024]<{exact MapPresentationDefinitionV1 ref, ChangeSet hash}>
   expected_derived_artifact_refs: bounded array[0..1024]<exact generation-bearing ArtifactRefV1>
@@ -596,7 +633,7 @@ Qualificationは次を含む。
 - fixtureがRenderer／Collision／Navigationを例として明示選択したhard closureでは一要素failureを注入し、`MIRAKAN-WORLD-ACTIVATION_PARTIAL`、target全rollback、source Space／last-valid generation維持、stale Snapshot／progress再利用0件を検証する。別fixtureは任意owner bindingを選択して同じgeneric contractを通し、未選択ownerをhard closureへ暗黙追加しない。
 - Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transform、stable animation phase、明示選択consumer Artifact集合のall-ready atomic publication、stale generation、Preview／Commit hash一致。
 - Blockoutのdimension／segment／assembly bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件。
-- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchain／binding集合をfresh processで3回実行し、異なるBroker `delta_id`でも同じStable ID／canonical output／`delta_semantic_hash`／Artifact hash、Generator bound、connectivityを検証する。生成後に選択Artifactを削除して同じ入力から再生成し同じsemantic／Artifact hashになること、削除中／再生成失敗／各hash単独tamperでは既存last-valid ArtifactとWorld generationを維持する。
+- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchain／binding集合をfresh processで3回、Gateway call 0件で実行し、local semantic graph bytes／canonical order／`semantic_graph_hash`／candidate Artifact semantic hashの一致、Generator bound、connectivityを検証する。合格後だけGatewayを一回呼び、mapping全件＋`delta_id`を一つのManifest／Receiptで発行し、Source／validation／Preview／Cook／Commitが同じmappingを使うこと、二回目allocationとlocal ID残存を拒否する。生成後に選択Artifactを削除して同じ入力から再生成し同じsemantic hashになること、削除中／再生成失敗／各hash単独tamperでは既存last-valid ArtifactとWorld generationを維持する。
 - `fixture.world.procedural-provider-absent-empty`: bindingなし＋output 0件がcanonical skipで成功し、provider／placeholderを生成しない。
 - `fixture.world.procedural-provider-absent-output`: bindingなし＋output 1件をDelta全rejectしlast-validを維持する。
 - `fixture.world.procedural-provider-selected-missing-output`: selected bindingの`required_output_count=1`＋output 0件を全rejectする。
