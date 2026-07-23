@@ -73,15 +73,18 @@ PackManifestV1
   public_contract_refs:
     [ShooterPerceptionBindingV1, ShooterGameFlowV1,
      ShooterGameFlowInteractionEligibilityPolicyV1,
-     ShooterActionRoleSetV1, ShooterMinimalActionRoleSetV1]
+     ShooterActionRoleSetV1, ShooterMinimalActionRoleSetV1,
+     ShooterTargetProviderV1]
   validator_refs:
     [validator.genre.shooter.composition, validator.genre.shooter.perception_binding]
   test_scenario_refs:
     [fixture.product.shooter-2d, fixture.product.shooter-arena-3d,
-     fixture.genre.shooter.target-practice-minimal]
+     fixture.genre.shooter.endless-top-down-2d,
+     fixture.genre.shooter.target-practice-minimal,
+     fixture.genre.shooter.target-practice-minimal-no-perception]
 ```
 
-Profileは独立PackではなくShooter Packのversion／hashに含まれる。Pack-level requiredはRanged Combatとその推移Feature DAGだけである。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeだけが持つ条件依存である。
+Profileは独立PackではなくShooter Packのversion／hashに含まれる。ManifestのValidator／Test一覧はPack inventoryであり、選択Recipeだけが自身の`validator_refs[]`／`qualification_fixture_refs[]`を実行gateにする。Pack-level requiredはRanged Combatとその推移Feature DAGだけである。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeだけが持つ条件依存である。
 
 ```text
 CompositionRecipeV1
@@ -150,7 +153,9 @@ CompositionRecipeV1
   action_role_set_refs: [ShooterMinimalActionRoleSetV1]
   source_template_refs: [template.source.shooter.target_practice]
   validator_refs: [validator.genre.shooter.composition]
-  qualification_fixture_refs: [fixture.genre.shooter.target-practice-minimal]
+  qualification_fixture_refs:
+    [fixture.genre.shooter.target-practice-minimal,
+     fixture.genre.shooter.target-practice-minimal-no-perception]
   fallback_recipe_ref: null
 ```
 
@@ -180,12 +185,55 @@ composition recipeはFeature Capability、Profile、GameSpec template、Action r
 
 ### 4.3 `profile.shooter.target_practice`
 
-- stationary／vehicle-mounted／tool-like firing stationのいずれかをProjectが選ぶ
-- `shooter.fire_primary`だけを必須Action roleとし、move／look／AI enemyを要求しない
-- fixed typed targetまたはProject-owned target providerを使用する
-- `fixture.genre.shooter.target-practice-minimal`
+```text
+ShooterTargetPracticeProfileV1
+  profile_id: profile.shooter.target_practice
+  profile_version: 1.0.0
+  profile_hash
+  genre_ref: genre.shooter.top_down_2d | genre.shooter.third_person_3d
+  target_provider_binding_ref
+  target_provider_binding_hash
+  target_provider_usage: fixture_only | project_owned
+  required_action_role_refs: [shooter.fire_primary]
+```
 
-両Profileのenemy archetype bindingは次のGenre-owned recordを使う。
+一recordの`genre_ref`は既存二Genre identityのexact 1件であり、組込みstationary fixture recordは`genre.shooter.top_down_2d`を選ぶ。stationary／vehicle-mounted／tool-like firing stationのいずれでもmove／look／AI enemyを要求しない。Production applyは`target_provider_usage=project_owned`とProject-owned compatible providerのexact ref／hashを必須にし、fixture provider、表示名、似たColliderへ推測fallbackしない。
+
+Target provider contractは次へ固定する。
+
+```text
+ShooterTargetProviderV1
+  provider_id
+  provider_version
+  provider_hash
+  target_schema_ref
+  collision_query_port_ref
+  hit_evidence_schema_ref
+  supported_target_profile_refs[1..64]
+  supported_dimensions[1..2]: 2d | 3d
+  compatibility_predicate_ref
+  provider_usage: fixture_only | project_owned
+```
+
+組込みfixture recordは次のexact値を持つ。
+
+```text
+ShooterTargetProviderV1
+  provider_id: provider.genre.shooter.fixture.stationary_target@1
+  provider_version: 1.0.0
+  provider_hash: Sha256(self_excluding_provider_hash)
+  target_schema_ref: fixture.schema.genre.shooter.stationary_target@1
+  collision_query_port_ref: mirakan.port.feature.ranged_combat.CollisionQueryPortV1@1
+  hit_evidence_schema_ref: mirakan.event.feature.ranged_combat.ShotHitEventV1@1
+  supported_target_profile_refs: [fixture.target.genre.shooter.target-practice-2d@1]
+  supported_dimensions: [2d]
+  compatibility_predicate_ref: predicate.genre.shooter.fixture.stationary_target_2d@1
+  provider_usage: fixture_only
+```
+
+このdeterministic recordはpredeclared query inputとtarget Stable IDからHit Evidenceを返し、World、Physics、Perception、render visibilityへ依存しない。`fixture.target.genre.shooter.target-practice-2d@1`はfixture内だけに存在する2D Target Profileであり、Project Target Profileへfallbackしない。このrecordは`fixture.genre.shooter.target-practice-minimal`と`fixture.genre.shooter.target-practice-minimal-no-perception`だけで使用でき、Production Project Source／Save／Packageへのbindingを拒否する。
+
+top-down／third-personのenemy finite 2 Profileだけが次のGenre-owned perception recordを使う。target-practice Profileは選択RecipeにPerception Capabilityがなく、このbindingを要求しない。
 
 ```text
 ShooterPerceptionBindingV1
@@ -205,7 +253,13 @@ Camera、Audio、LOD Profileのparameter schemaと実行規則は各Subsystem Ow
 
 Shooter Genre Packが所有するclosed stateは`Ready | Playing | Paused | Result`である。
 
-Shooter Packは`scope.genre.shooter.game_flow.instance`を`RuntimeScopeTypeCatalogV1`へ登録する。entryは`scope_type_ref`、`instance_key_schema_ref`、`owner_ref=genre.shooter`、`lifetime_ref`、`save_replay_policy_ref`、`activation_condition_ref`、`deactivation_condition_ref`を全件持ち、Shooter内部Systemだけが使用できる。旧generic `play_session`と末尾`.instance`を欠くGenre aliasへGame Flow stateを保存せず、Scope Save identity、Replay identity、ephemeral runtime generationを分離する。
+Shooter Packは`RuntimeScopeTypeCatalogV1`へ次のexact rowを登録する。
+
+| `scope_type_ref` | `instance_key_schema_ref` | `owner_ref` | `lifetime_ref` | `save_replay_policy_ref` | `activation_condition_ref` | `deactivation_condition_ref` |
+|---|---|---|---|---|---|---|
+| `scope.genre.shooter.game_flow.instance` | `scope_key.genre.shooter.game_flow.uuidv7@1` | `owner.genre.shooter` | `lifetime.genre.shooter.game_flow.instance@1` | `save_replay.scope.genre.shooter.game_flow@1` | `activation.scope.genre.shooter.game_flow.entry_ready@1` | `deactivation.scope.genre.shooter.game_flow.stop_or_fault@1` |
+
+Shooter内部Systemだけがこのscopeを使用できる。旧generic `play_session`と末尾`.instance`を欠くGenre aliasへGame Flow stateを保存せず、Scope Save identity、Replay identity、ephemeral runtime generationを分離する。
 
 | From | To | 条件 |
 |---|---|---|
@@ -271,7 +325,9 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 ### 8.4 `fixture.genre.shooter.target-practice-minimal`
 
-`recipe.shooter.target_practice.minimal`を選択し、effective closureが`feature.ranged_combat@1`と推移依存`feature.combat@1`だけであることを検証する。AI／Perception、Scenario／Stage、Scoring、Character Locomotion、Path Following、Encounter、Pickup、Interactionが未installでも、Pack schema変更なしにRecipe apply、Fire／Hit／Damage、Save／Load／Replayが成功する。stationary target-practice、vehicle gunner、Project-owned PvP actorは同じminimal closureを利用できる。
+`recipe.shooter.target_practice.minimal`、`profile.shooter.target_practice`の`genre_ref=genre.shooter.top_down_2d`、exact `provider.genre.shooter.fixture.stationary_target@1` ref／hashを選択し、effective closureが`feature.ranged_combat@1`と推移依存`feature.combat@1`だけであることを検証する。fixture-only CollisionQueryPortがWorld／Physics／Perceptionなしにdeterministic Hit Evidenceを返し、Fire／Hit／Damage、Save／Load／Replayが成功する。stationary target-practice、vehicle gunner、Project-owned PvP actorはProject-owned compatible providerをexact ref／hashで選べば同じminimal closureを利用できる。
+
+`fixture.genre.shooter.target-practice-minimal-no-perception`はPerception Validator／Profile、full 2D／TPS fixture、Scenario／Stage、Scoring、Character Locomotion、Path Following、Encounter、Pickup、Interactionを未installにしたregistryからminimal Recipeだけをapply／qualifyするregression fixtureである。Manifest inventoryに`validator.genre.shooter.perception_binding`やfull fixtureが存在しても選択Recipe gateへ追加されないことを検証する。
 
 ### 8.5 Negative fixture
 

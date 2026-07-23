@@ -46,6 +46,9 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | Document | 役割 | ID／revision |
 |---|---|---|
 | `ProjectManifest` | Project identity、Runtime entry point、Target、Package、Capability、Document index | Projectに一つ、`project_id`、`project_revision` |
+| `RuntimeEntryPointDocumentV1` | `RuntimeEntryPointV1` Source、branch、selector／activation policy参照 | `entry_point_id`、document revision |
+| `RuntimeTargetSelectorDocumentV1` | Runtime Entryが選択可能なexact Target Profile集合 | `selector_id`、document revision |
+| `RuntimeEntryActivationPolicyDocumentV1` | readiness timeout、failure／cancel／deactivation semantics | `policy_id`、document revision |
 | `GameSpecDocument` | Genreに依存しない要求、system、content、test、budget、style lock | `game_spec_id`、document revision |
 | `WorldDocument` | Scene／optional spatial topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
 | `SceneDocument` | collaborative edit shard identity、Shard index、global setting、Composition Recipe root。Gameplay LevelまたはStreaming Cellではない | `scene_id`、document revision |
@@ -67,7 +70,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 
 `ProjectManifest`はDocument本文を埋め込まず、`DocumentRef { stable_id, document_kind, relative_path, content_hash, schema_version }`だけを持つ。Authoring Document間の参照はStableIdで行い、相対path、配列index、表示名を意味参照に使用しない。
 
-`ProjectManifest.runtime_entry_point_refs`は1～64件を必須とし、World、Scene、Topology、Stageを全Project共通の必須Documentにしない。owner-typed Pack DocumentはCoreのclosed `document_kind`へ追加せず、登録済みowner namespaceを持つ`DocumentRef`としてDocument indexへ投影する。
+`ProjectManifest.runtime_entry_point_refs`は1～64件のexact `DocumentRef<RuntimeEntryPointDocumentV1>`を必須とし、各refの`stable_id`、`document_kind`、`schema_version`、`content_hash`をDocument indexと照合する。`RuntimeEntryPointV1.target_selector_ref`はexact `DocumentRef<RuntimeTargetSelectorDocumentV1>`、`activation_policy_ref`はexact `DocumentRef<RuntimeEntryActivationPolicyDocumentV1>`へ解決し、IDだけ、表示名、path、latest revisionを参照にしない。World、Scene、Topology、Stageを全Project共通の必須Documentにしない。owner-typed Pack DocumentはCoreのclosed `document_kind`へ追加せず、登録済みowner namespaceを持つ`DocumentRef`としてDocument indexへ投影する。
 
 ### 3.1.1 `RuntimeEntryPointV1`
 
@@ -83,13 +86,38 @@ RuntimeEntryPointV1
   activation_policy_ref
 ```
 
+`RuntimeEntryPointDocumentV1`は共通Document headerと上記`RuntimeEntryPointV1`を一件だけ持つ。selectorとactivation policyも同様に共通headerを持つ正規Project Sourceであり、Project Manifestへ本文を埋め込まない。
+
+```text
+RuntimeTargetSelectorV1
+  selector_id
+  selector_version
+  selector_hash
+  target_profile_refs[1..64]
+
+RuntimeEntryActivationPolicyV1
+  policy_id
+  policy_version
+  policy_hash
+  readiness_timeout_ms: uint32[1..120000]
+  failure_semantics: reject_activation_keep_last_valid | fault_session_reverse_teardown
+  cancel_semantics: preparing_before_first_publish | not_cancelable
+  explicit_deactivation_semantics: graceful_reverse_teardown | immediate_reverse_teardown
+```
+
+`target_profile_refs[]`はexact `DocumentRef<TargetProfileDocument>`をStable ID byte順でcanonicalizeし、duplicate、missing／removed Target、schema／hash不一致を拒否する。wildcard、tag、表示名、platform名、active Targetの現在値を使うlookupはselector schemaに存在しない。`selector_hash`は自己Fieldを除くversionとcanonical Target ref集合、`policy_hash`は自己Fieldを除く全policy Fieldから計算する。
+
+activation policyはreadiness期限、失敗後のsession処理、graceful／immediateな明示deactivation要求だけを所有する。session stop／faultではpolicy値に関係なくbranch activation setのreverse dependency teardownを常時必須にする。System Graphのdependency、activation順、reverse teardown順を再宣言せず、Scheduling ownerが確定したbranch activation setへclosed semanticsを適用する。
+
 tagged validationは次へ固定する。
 
 - `world`: `world_ref`を厳密に1件、`ui_document_ref=null`、`startup_game_system_refs[0..128]`。参照WorldはScene 0件、Topology nullでもよい。
 - `ui`: `ui_document_ref`を厳密に1件、`world_ref=null`、`startup_game_system_refs[0..128]`。
 - `headless`: `startup_game_system_refs[1..128]`、`world_ref=null`、`ui_document_ref=null`。surfaceを要求しない。
 
-各active Targetは`default_for_selected_targets=true`のselector集合でexactly once被覆され、default entryが厳密に一件へ解決しなければならない。default 0件、default 2件以上、`world_ref`／`ui_document_ref`／surface・spatial fieldのbranch外混在を拒否し、優先順位や登録順で補正しない。`default_for_selected_targets=false`のentryは同じTarget selectorで重複でき、benchmark、menu、game、server等の明示選択肢を共存させる。startup systemは全branchで許可し、branch conflictにしない。
+Commit対象`project_revision`のactive `TargetProfileDocument`集合と、`default_for_selected_targets=true` entryが参照するselector集合の和集合はset equalityで完全一致し、各Targetはexactly once被覆されなければならない。default 0件、default 2件以上、uncovered／inactive extra Target、`world_ref`／`ui_document_ref`／surface・spatial fieldのbranch外混在を拒否し、優先順位や登録順で補正しない。`default_for_selected_targets=false`のentryは同じTarget selectorで重複でき、benchmark、menu、game、server等の明示選択肢を共存させる。明示entry選択でもselected Targetが当該selectorのexact memberでなければならない。startup systemは全branchで許可し、branch conflictにしない。
+
+selector documentのrevision／hashまたはTarget Profile集合が変わると、そのselectorを参照する全entry、default coverage result、Compile Manifest、Cooked Runtime Packageをinvalidateする。旧entry hashや別Target membershipを流用せず、同じProject revisionから再materializeする。
 
 旧単数root sceneはmigration stagingだけで、参照Sceneを含む明示的なWorldと`entry_kind=world`、`default_for_selected_targets=true`のentryへ変換する。各active Targetへdefaultを一件生成し、Previewで新World／entry／Target bindingを示す。Runtimeの暗黙default、`Level` alias、`ui`／`headless`への近似変換は行わない。
 
@@ -100,6 +128,12 @@ tagged validationは次へ固定する。
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED` | selectorがunknown／inactive Targetへしか解決しない |
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS` | default 0件または2件以上 |
 | `MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT` | entry kindとbranch fieldが不一致 |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE` | entry／selector／policy／Targetのexact DocumentRefがmissing／removed |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_DOCUMENT_HASH_MISMATCH` | DocumentRefのcontent hashが現在revisionと不一致 |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH` | entry／selector／policyのschema versionまたはref kind不一致 |
+| `MIRAKAN-PROJECT-RUNTIME_ENTRY_EXPLICIT_TARGET_MISMATCH` | 明示選択Targetがentry selector集合のmemberでない |
+
+MCDへ`operation.project.runtime_entry.create`、`operation.project.runtime_entry.update`、`operation.project.runtime_target_selector.create`、`operation.project.runtime_target_selector.update`、`operation.project.runtime_entry_activation_policy.create`、`operation.project.runtime_entry_activation_policy.update`、`operation.project.runtime_entry.migrate_root_scene`を登録する。全operationはexpected Project／Document revision、exact input ref／hash、Preview、Validation、Commit Receiptを持ち、selector／policyをentry本文のuntyped field writeで変更しない。
 
 `WorldStreamingPlanV1`、Navigation Artifact、HLOD、Cooked Gameplay Package、generated System Catalog／Dependency GraphはDerived Artifactであり、正規Document種別へ追加しない。CreatorまたはAIがDerived Artifactを直接編集した変更をGatewayは拒否する。
 
@@ -118,6 +152,8 @@ tagged validationは次へ固定する。
 | `created_revision` | 最初に追加された`ProjectRevision` |
 | `modified_revision` | 最後に変更された`ProjectRevision` |
 | `display_name` | NFC UTF-8、1～128 grapheme、参照には使わない |
+| `relative_path` | Project root相対の正規path。absolute、`..`、case-fold衝突を拒否。`DocumentRef.relative_path`と同じ値 |
+| `content_hash` | 自己Fieldを除く共通header＋Document payloadのMCD canonical SHA-256 |
 | `source_provenance_ref` | Provenance record StableId |
 | `extension_fields` | 登録済みnamespaceだけ。未知namespaceは保存時に拒否 |
 
@@ -417,6 +453,8 @@ capability_manifest_hash
 target_profile_hash
 selected_runtime_entry_point_ref
 selected_runtime_entry_point_hash
+target_selector_hash
+activation_policy_hash
 entry_branch_closure_hash
 game_system_dependency_graph_hash
 system_implementation_set_hash
@@ -434,7 +472,28 @@ representation_plan_hash
 technical_qualification_receipt_hash
 ```
 
-`selected_runtime_entry_point_ref`、`selected_runtime_entry_point_hash`、`entry_branch_closure_hash`は全branchで共通に必須である。`world` branchでは`world_document_hash`を必須、Topology／Streaming Sourceが存在する時だけ対応hashをcanonical presentとし、`ui_document_hash`と`startup_system_closure_hash`を省略する。`ui` branchは`ui_document_hash`だけを、`headless` branchは`startup_system_closure_hash`だけをbranch固有hashとして必須にし、World／Topology／streaming hashをcanonical omissionする。null、0 hash、空配列をomissionの代用にせず、branch外field混在を`MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT`で拒否する。
+`selected_runtime_entry_point_ref`、`selected_runtime_entry_point_hash`、`target_selector_hash`、`activation_policy_hash`、`entry_branch_closure_hash`は全branchで共通に必須である。`world` branchでは`world_document_hash`を必須、Topology／Streaming Sourceが存在する時だけ対応hashをcanonical presentとし、`ui_document_hash`を省略する。`ui` branchは`ui_document_hash`を必須にし、World／Topology／streaming hashをcanonical omissionする。`headless` branchはWorld／UI／Topology／streaming hashをcanonical omissionする。
+
+`startup_game_system_refs[]`が1件以上なら`startup_system_closure_hash`はworld／ui／headlessの全branchでcanonical present、0件ならworld／uiだけcanonical omissionとする。headlessはstartup system 1～128件を必須にするため常にpresentである。startup closureは各startup Systemの全transitive System dependency、Implementation Variant ref／hash、State owner relation、Target compatibility resultをcanonical System Graph順で含む。null、0 hash、空配列をomissionの代用にせず、branch外field混在を`MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT`で拒否する。
+
+`entry_branch_closure_hash`は次の順序付きcanonical inputだけから計算する。
+
+```text
+entry_kind
+selected_runtime_entry_point_hash
+target_selector_hash
+activation_policy_hash
+target_profile_hash
+game_system_dependency_graph_hash
+system_implementation_set_hash
+world_document_hash?
+ui_document_hash?
+spatial_topology_hash?
+world_streaming_plan_hash?
+startup_system_closure_hash?
+```
+
+optional hashは上記tagged branch／count規則に従って存在または省略し、0値をserializeしない。Runtime Packageはこのclosureを格納する外側Artifactであり、Package自身のhashをclosure inputへ含めない。selector hash、activation policy hash、Target Profile hash、System Graph、Implementation Set、startup dependency／Target compatibilityの変更はCompile Manifestとbranch closureをinvalidateし、last-valid packageを現在Sourceの合格結果として再利用しない。
 
 `technical_qualification_receipt_hash`は`state=qualified`のTargetだけ必須で、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#72-technicalqualificationreceiptv1)の`TechnicalQualificationReceiptV1`完成hashを指す。その`evidence_hashes[]`はPerformance OwnerのIntegrated Scale Receiptを含む。`predicted`／`blocked`では0ではなくfield omissionをcanonical encodingする。PlayはDevelopment Playとqualified promotionを区別する。`predicted`のTargetはDevelopment Playを開始でき、未実測であることをEditor表示とReceiptへ明示する。[Performance／capacityが所有するqualification計測run](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)はこのDevelopment Play実行モードで行い、Receipt確定後にだけ`qualified`へ昇格する。`blocked`のTargetはDevelopment Playを含むPlay開始を拒否する。未qualified revisionをqualified扱いのPlay、Cooked Runtime Package promotion、Shippingへ要求した場合、compilerはlast valid Receiptを流用せず`TargetNotQualified`を返す。
 
@@ -492,7 +551,9 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - world／ui entryがstartup system 0件と128件の両境界でvalidになり、startup systemをbranch conflictにしないfixture
 - `fixture.project.runtime-entry.headless`: startup system 1件以上、UI／World／surfaceなしでvalid
 - 同一Targetにdefault 1件とnon-default 2件を登録し、non-default selector overlapを許可して明示選択できるpositive fixture
-- branch field混在、headless startup system 0件、default 0件／2件、unknown／inactive Target selectorを各Diagnosticへ一原因ずつ対応させるnegative fixture
+- `fixture.integration.project-runtime-entry.owner-resolution`: 3種のProject-owned Document、共通header、exact ref／schema／hash、selector set equality、activation policy hash、Compile ManifestをProject StateとRuntime owner間で照合する
+- world／ui／headlessのstartup system 1件以上で同じtransitive closure hash入力を検査し、world／uiの0件だけomissionするfixture
+- branch field混在、headless startup system 0件、default 0件／2件、unknown／inactive／duplicate Target selector、dangling ref、hash／schema mismatch、explicit Target membership mismatchを各Diagnosticへ一原因ずつ対応させるnegative fixture
 - 旧root scene migrationがTargetごとに明示World entry一件を生成し、暗黙default、`Level` alias、UI／headless近似を行わないfixture
 - 大量Scale intentをbounded Recipe／partitionでCommitでき、Runtime budget未達時もSource、Diff、Undo、Gameplay fidelity floorを失わない
 - 同一Project revisionを二回compileしたArtifact hash一致

@@ -115,9 +115,9 @@ git commit -m "docs: establish generic pack architecture"
 
 - [ ] **Step 1: Add Project runtime entry points**
 
-`ProjectManifest`の`root scene`を`runtime_entry_point_refs[1..64]`へ置換し、Design §4.1の`RuntimeEntryPointV1`全Field、`default_for_selected_targets`、`world | ui | headless` tagged validationを追加する。world／uiのstartup systemは0～128件、headlessは1～128件とする。default=trueのselectorだけがactive Targetをexactly once被覆し、同Targetのnon-default entry重複を許可する。Compile Manifestはselected entry ref／hashとbranch closure hashを共通に持ち、World／Topology／streaming hashをworld branchで存在する時だけcanonical presentとする。World／Scene／Topology／Stageを全Projectの必須Documentにせず、Stage selectionをoptional owner-typed Feature projectionにする。
+`ProjectManifest`の`root scene`をexact `DocumentRef<RuntimeEntryPointDocumentV1>`の`runtime_entry_point_refs[1..64]`へ置換し、Design §4.1の`RuntimeEntryPointV1`全Field、Project-owned `RuntimeTargetSelectorDocumentV1`／`RuntimeEntryActivationPolicyDocumentV1`、共通headerの`relative_path`／`content_hash`、`world | ui | headless` tagged validationを追加する。world／uiのstartup systemは0～128件、headlessは1～128件とする。default=trueのselector集合とactive Target集合をset equalityで検証し、同Targetのnon-default entry重複を許可する。Compile Manifestはselected entry ref／hash、`target_selector_hash`、`activation_policy_hash`、branch closure hashを全branch共通に持つ。`entry_branch_closure_hash`のordered inputは`entry_kind, selected_runtime_entry_point_hash, target_selector_hash, activation_policy_hash, target_profile_hash, game_system_dependency_graph_hash, system_implementation_set_hash, world_document_hash?, ui_document_hash?, spatial_topology_hash?, world_streaming_plan_hash?, startup_system_closure_hash?`へ固定する。Runtime Packageはclosureを格納する外側Artifactであり、自己hashをinputへ含めない。World／Topology／streaming hashはworld branchで存在する時だけcanonical presentとする。World／Scene／Topology／Stageを全Projectの必須Documentにせず、Stage selectionをoptional owner-typed Feature projectionにする。
 
-旧root sceneはmigration stagingで`default_for_selected_targets=true`の明示World entryへ変換する。Runtime暗黙default、Level alias、UI／headless近似を拒否し、5件の`MIRAKAN-PROJECT-RUNTIME_ENTRY_*` Diagnosticとdefault 1＋non-default 2 positive、default 0／2等のnegative fixtureを追加する。
+selector／activation policyのcreate／update Operation、exact ref／schema／hash／明示Target membership用Diagnosticを登録する。旧root sceneはmigration stagingで`default_for_selected_targets=true`の明示World entryへ変換する。Runtime暗黙default、Level alias、UI／headless近似を拒否し、default 1＋non-default 2 positive、default 0／2、dangling ref、hash／schema mismatch等のnegative fixtureを追加する。
 
 - [ ] **Step 2: Neutralize the Core World model**
 
@@ -125,21 +125,23 @@ git commit -m "docs: establish generic pack architecture"
 
 `WorldAuthoringPlanV1.affected_world_refs`は既存編集1～64件、新規World作成kind厳密1件のbranchだけ0件を許可する。`WorldAuthoringContextV1`はCommit後だけexact World ref付きで生成する。`StageDefinitionV1.world_ref`をrequired nullableにし、world branchだけanchor／spatial spawnを許可する。WorldなしDialogue／Visual Novel／UI workflowとheadless StageのSave／Replay／transition fixtureを追加する。
 
+procedural outputは明示選択したProviderのtyped Physics source／spawn／Navigation outputだけを条件検証し、refまたはowner未選択時はcanonical skipする。hard closureへ含めるのも明示選択outputだけとし、`fixture.world.procedural-core-only`でProvider 0件の再生成hash／last-validを検証する。Stage transitionは`StageTransitionDestinationV1` tagged union、content activationは`none`を含むpolicyへ固定し、worldless UI／headlessのstable fixture IDをManifest inventoryへ登録する。
+
 - [ ] **Step 3: Generalize runtime preparation**
 
-`PlayPreparing`は選択Runtime Entry、Runtime package、System Graph、Target Plan、branch固有closureだけを検証する。World／UI session／startup systemsとsurface generationをbranch別optionalにし、first activation groupをbranch activation setへ一般化する。UI-only、headless、Scene 0件／Topology nullのworld branch、同Target non-default entryのpositive fixtureとbranch field混在、headless system 0、default 0／2、unknown selectorのnegative fixtureを記載する。
+`PlayPreparing`は選択Runtime Entry、activation policy hash、Runtime package、System Graph、Target Plan、全startup systemを含むbranch固有closureだけを検証する。World／UI session／startup systemsとsurface generationをbranch別optionalにし、first activation groupをbranch activation setへ一般化する。outer loop ownerをHost／Platform control threadへ固定し、Input Source／Presentationをoptionalにする。strict headlessではWindow／Surface／RenderSnapshot／Render thread dependencyを0件にし、stop／fault／restartは実際にactivateしたbranch DAGを常にreverse teardownする。`fixture.integration.project-runtime-entry.owner-resolution`、UI-only、headless、Scene 0件／Topology nullのworld branch、同Target non-default entryのpositive fixtureとbranch field混在、headless system 0、default 0／2、unknown selectorのnegative fixtureを記載する。
 
 - [ ] **Step 4: Replace the closed gameplay scope enum**
 
-`GameSystemSpecV1`へ`runtime_scope_type_ref`を導入し、version／hashと7必須entry Fieldを持つ`RuntimeScopeTypeCatalogV1`を追加する。Core exact 5、Feature `scope.feature.<feature>.instance`、Genre内部 `scope.genre.<genre>.<scope>.instance`を許可し、Core／Feature→Genre scopeを拒否する。旧enumをaliasなしでclean migrationし、Stage、Encounter、Scoring、Shooter Game FlowをPack-owned Scopeへ移す。Shooter Game Flowはexact `scope.genre.shooter.game_flow.instance`へ固定し、unknown／removed owner、duplicate、instance key、Save／Replay hash、scope identity migrationをfixture化する。
+`GameSystemSpecV1`へ`runtime_scope_type_ref`を導入し、version／hash、`entries[5..4096]`、7必須entry Fieldを持つ`RuntimeScopeTypeCatalogV1`を追加する。Core exact 5の全7-Field row、Feature `scope.feature.<feature>.instance`、Genre内部 `scope.genre.<genre>.<scope>.instance`を固定し、canonical sort／hashとCore／Feature→Genre scope拒否を実装する。`GameSystemSpecV1@1.runtime_instance_scope`を@2へaliasなしでclean migrationし、Stage、Encounter、Scoring、Shooter Game FlowをPack-owned exact rowへ移す。Shooter Game Flowはexact `scope.genre.shooter.game_flow.instance`へ固定し、4件のScope Diagnostic、unknown／removed owner、duplicate、instance key、Save／Replay hash、scope identity migrationをfixture化する。
 
-Common Interactionはoptional eligibility policyとgeneric `policy_denied`を使い、Shooter policyだけをGenre側へ置く。Shooter manifestの全Recipe共通依存をRanged Combatと推移Feature DAGだけにし、他Feature／PerceptionをRecipe条件依存へ移す。既存2D／TPS／endless closureを維持し、no-AI／no-stage／no-score／no-locomotion minimal recipeを追加する。
+Common Interactionはoptional eligibility policyとgeneric `policy_denied`を使い、`InteractionSnapshotV1@1.game_flow_disallowed`を@2へversioned clean migrationし、Shooter policyだけをGenre側へ置く。Shooter manifestの全Recipe共通依存をRanged Combatと推移Feature DAGだけにし、他Feature／PerceptionをRecipe条件依存へ移す。Manifest Validator／Testはinventory、選択RecipeのValidator／qualification fixtureだけをgateとする。既存2D／TPS／endless closureを維持し、no-AI／no-stage／no-score／no-locomotion minimal recipe、no-Perception regression fixture、ProductionのProject-owned exact Target Provider binding、fixture-only deterministic providerを追加する。
 
 - [ ] **Step 5: Add a generic locomotion port**
 
-NavigationをDesign §5.3の6 Field `MotionExecutorPortV1`唯一Ownerにし、Path Followingへ`executor_capability_ref`とProvider-owned `movement_profile_ref`を追加する。compatibility predicateとregistered resolved motionだけで進捗を判定する。Gameplay FeaturesのPhysics固定重複Portを削除し、Character Locomotion manifestからPhysics requiredを外す。
+NavigationをDesign §5.3の6 Field `MotionExecutorPortV1`唯一Ownerにし、Path Followingへ`executor_capability_ref`とProvider-owned `movement_profile_ref`を追加する。選択compositionのdirect intent schema集合がProvider accepted setのsubsetであることをCook／Activationで検証し、compatibility predicateとregistered resolved motionだけで進捗を判定する。Gameplay FeaturesのPhysics固定重複Portを削除し、Character Locomotion manifestからPhysics requiredを外す。
 
-Physics Character MotorはC1 reference Providerだけとし、Physics AI closed enum／operationのCore固定から外す。Animation root motionをselected executorへのproposalへ変更し、`gameplay_motor`をprovider-neutral modeへclean migrationする。T40 writerはselected executor、T50はactive Physics providerがある場合だけとする。Physicsなしboard-token／RTS、missing／incompatible provider、stale result、root motion、provider failure last-valid fixtureを追加する。
+`game_system.engine.character_locomotion.binding`をMCD Envelopeを含む全mandatory FieldとFeature-owned exact intent／state／batch型で登録し、Transform／Physics writeを禁止する。Physics Character MotorはC1 reference Providerだけとし、6-Field rowのpublic accepted setをGameplay／Navigation／Animationのexact 3 schemaへ固定する。Provider-private派生入力をdirect accepted setへ出さない。Animation `RootMotionProposalV1`をexact schema付きselected executor proposalへ変更し、`gameplay_motor`をprovider-neutral modeへclean migrationする。T40 writerはselected executor、T50はactive Physics providerがある場合だけとする。Physicsなしboard-token／RTSの全6-Field row、missing／incompatible provider、stale result、root motion mode reject、provider failure last-valid fixtureを追加する。
 
 - [ ] **Step 6: Verify and commit Task 2**
 
@@ -149,17 +151,19 @@ Run:
 rg -n 'topology_definition_ref.*厳密に1件|level_definition_refs.*1～|level_gameplay|player_or_party_transfer_refs|play_session.*world_instance.*level_instance.*encounter_instance|movement_profile_ref.*CharacterMotorProfileV1|World／Level／Topology' docs/architecture --glob '*.md'
 rg -n 'RuntimeEntryPointV1|default_for_selected_targets|selected_runtime_entry_point_ref|entry_branch_closure_hash|scope\.core\.(application|runtime_session|world|entity|ui_session)|RuntimeScopeTypeCatalogV1|scope\.feature\.|scope\.genre\.|policy_denied|fixture\.genre\.shooter\.target-practice-minimal' docs/architecture --glob '*.md'
 rg -n 'MotionExecutorPortV1|executor_capability_ref|movement_profile_schema_ref|accepted_intent_schema_refs|resolved_motion_schema_ref|compatibility_predicate_ref|failure_diagnostic_refs' docs/architecture docs/superpowers/specs/2026-07-23-generic-ai-native-engine-architecture-design.md --glob '*.md'
+rg -n 'RuntimeTargetSelectorV1|RuntimeEntryActivationPolicyV1|activation_policy_hash|entries\\[5\\.\\.4096\\]|StageTransitionDestinationV1|GameplayMotionIntentV1@1|root_motion_proposal@1|target-practice-minimal-no-perception|procedural-core-only' docs/architecture docs/superpowers --glob '*.md'
+rg -n 'CharacterLocomotionBindingStateV1|accepted_intent_schema_refs:.*CharacterMoveIntentV1|mirakan\.contract\.animation\.root_motion_proposal(?!@1)|両Profile' docs/architecture docs/superpowers --glob '*.md' --pcre2
 rg -n 'scenario-stage|pack-scenario|Scenario/Stage|Scenario／Stage|feature\.' docs/architecture/06-rendering/world.md
 git diff --check
 ```
 
-加えて、変更/current Architecture＋planのrelative Markdown link、Shooter minimal／既存Recipe closure、Runtime Entry tagged fixture、Scope migration、Character Locomotion Physics非依存をPowerShell assertionで検査する。Expected: World→Scenario／Stage／Feature 0、Navigation以外のcanonical Port definition 0、Design 6 Field一致、Core旧固定前提0、broken link 0、`git diff --check` exit 0。
+加えて、変更/current Architecture＋planのrelative Markdown link、Runtime Entry Document owner／selector／policy／compile hash、strict headless／reverse teardown、Scope exact row／migration、Stage union、Shooter minimal／既存Recipe closure／selected gate、Motion accepted set／binding System、World procedural conditional validationをPowerShell assertionで検査する。Expected: World→Scenario／Stage／Feature 0、Navigation以外のcanonical Port definition 0、Design 6 Field一致、Core旧固定前提0、broken link 0、`git diff --check` exit 0。
 
 Commit:
 
 ```powershell
 git add docs/architecture docs/superpowers
-git commit -m "docs: remove stage and locomotion assumptions from core"
+git commit -m "docs: close generic runtime contract gaps"
 ```
 
 ### Task 3: Clock、Pause、Input／Camera／Audio／LODのGenre漏出を除去する
@@ -337,6 +341,7 @@ Run:
 
 ```powershell
 rg -n '08-domain-packs|DomainPackManifest|capability\.gameplay\.shooter_core|domain\.action_2d|domain\.tps_single_player|Shooter Semantic Action Template|PlayerLookInput|recoil_channels|player_or_party_transfer_refs|game_flow_disallowed|Game Flow state|fixed_tick_hz: 60' docs/architecture docs/plans --glob '*.md'
+rg -n 'CharacterLocomotionBindingStateV1|accepted_intent_schema_refs:.*CharacterMoveIntentV1|mirakan\.contract\.animation\.root_motion_proposal(?!@1)|両Profile|relative_source_path' docs/architecture docs/superpowers --glob '*.md' --pcre2
 ```
 
 Expected: 旧identity／旧path／Core漏出0件。Migration表や明示的な禁止例だけが残る場合は、その文脈を個別確認する。

@@ -180,6 +180,8 @@ Interactionの`max_range_m`はfiniteな0.1～100 mとする。FocusはCollision 
 
 stale Query、target deactivate、range外、LOS遮断、policy拒否、exclusive lease競合は`rejection_reason`によるtyped rejectionとし、別targetへ推測で切り替えない。`rejection_reason`はclosed enumであり、stale focus generation、actor／target deactivate、actor／target generation mismatch、range外、LOS遮断、generic policy denial、exclusive lease競合、state owner unavailable、unknown interaction／input actionを別値で返す。canonical serializationは宣言したenum値をそのまま符号化し、unknown enum valueをrejectしてgeneric fallbackへmapしない。Focus QueryからUse確定までは最大1 tickだけ許容し、超過Requestは再Queryを要求する。exclusive leaseは確定Commandを発行するtickだけ有効で、継続占有は参照先Game Systemが別のauthoritative stateとして所有する。Saveは`state_owner_ref`のowner stateだけを対象とし、focus、prompt、lease、Physics handleは保存しない。ReplayはRequest、確定Command、overflow_state、rejection_reasonをcanonical serializationのまま記録して値を保持する。C1 fixtureはdoor、switch、collision pickup、explicit-use pickup、inspectを2D／3Dで同じContractへ通し、screen reader labelを含むAccessibility cue、pause、owner scope deactivate、同tick競合を検証する。Shooter Game Flow eligibility policyはShooter Packだけが提供し、common Interaction manifestまたはSystem Graphへ依存辺を追加しない。
 
+`InteractionSnapshotV1@1.rejection_reason=game_flow_disallowed`は`InteractionSnapshotV1@2.rejection_reason=policy_denied`へversioned clean migrationする。旧値を@2 aliasとしてdeserializeせず、migrationは登録済みeligibility policy ref、owner、schema hashを要求する。policy ownerを一意に解決できないSource／Save／Replayはmigrationを拒否してlast-valid recordを維持する。fixtureは@1→@2 round-trip、policyなしneutral Interaction、Shooter policyありdeny、@2への旧enum直接入力拒否を検証する。
+
 ### 2.5 Rule／ECAとFinite State Machine V1
 
 ```text
@@ -266,7 +268,7 @@ FSMは一instance、一tickにつき最大一transitionである。active state�
 RuntimeScopeTypeCatalogV1
   catalog_version
   catalog_hash
-  entries[]:
+  entries[5..4096]:
     scope_type_ref
     instance_key_schema_ref
     owner_ref
@@ -276,19 +278,30 @@ RuntimeScopeTypeCatalogV1
     deactivation_condition_ref
 ```
 
-Core entryは次のexact 5件だけである。
+Core entryは次のexact 5件だけであり、7 Fieldすべてをこのcanonical rowへ固定する。
 
-- `scope.core.application`
-- `scope.core.runtime_session`
-- `scope.core.world`
-- `scope.core.entity`
-- `scope.core.ui_session`
+| `scope_type_ref` | `instance_key_schema_ref` | `owner_ref` | `lifetime_ref` | `save_replay_policy_ref` | `activation_condition_ref` | `deactivation_condition_ref` |
+|---|---|---|---|---|---|---|
+| `scope.core.application` | `scope_key.core.application.singleton@1` | `owner.core.runtime` | `lifetime.core.process@1` | `save_replay.scope.core.application.none@1` | `activation.scope.core.application.process_started@1` | `deactivation.scope.core.application.process_stopping@1` |
+| `scope.core.runtime_session` | `scope_key.core.runtime_session.uuidv7@1` | `owner.core.runtime` | `lifetime.core.runtime_session@1` | `save_replay.scope.core.runtime_session@1` | `activation.scope.core.runtime_session.entry_ready@1` | `deactivation.scope.core.runtime_session.stop_or_fault@1` |
+| `scope.core.world` | `scope_key.core.world.instance@1` | `owner.core.world` | `lifetime.core.world_instance@1` | `save_replay.scope.core.world@1` | `activation.scope.core.world.branch_ready@1` | `deactivation.scope.core.world.branch_teardown@1` |
+| `scope.core.entity` | `scope_key.core.entity.stable_id@1` | `owner.core.runtime_ecs` | `lifetime.core.entity@1` | `save_replay.scope.core.entity.owner_state@1` | `activation.scope.core.entity.created@1` | `deactivation.scope.core.entity.destroyed@1` |
+| `scope.core.ui_session` | `scope_key.core.ui_session.uuidv7@1` | `owner.core.ui` | `lifetime.core.ui_session@1` | `save_replay.scope.core.ui_session@1` | `activation.scope.core.ui_session.branch_ready@1` | `deactivation.scope.core.ui_session.branch_teardown@1` |
 
 Feature Packは`scope.feature.<feature>.instance`、Genre Packは自身の内部だけで使用する`scope.genre.<genre>.<scope>.instance`を登録できる。Core／FeatureからGenre scopeへの依存を拒否する。各entryの7 Fieldはすべて必須で、owner availabilityとversion、instance key schema、lifetime、Save／Replay policy schema hash、activation／deactivation conditionをCatalog materializationとRuntime activationの両方で検証する。
 
-unknown、owner unavailable／removed、duplicate、instance-key mismatch、Save／Replay schema hash mismatchはそれぞれtyped rejectionとし、Catalog、System Graph、last-valid active instanceを変更しない。Scope Source identity、Save／Replay instance identity、ephemeral runtime generationを相互に置換しない。
+entryは`scope_type_ref` canonical byte順で厳密にsortし、duplicateを拒否する。`catalog_hash=SHA-256(catalog_version || canonical entries)`とし、配列順、owner revision、7 Fieldのref／version／hashが一つでも異なれば別Catalogである。Core rowの各IDは上表で定義済みのexact valueであり、表示名やowner defaultへ再解決しない。
 
-旧enumはclean migrationしaliasを残さない。`play_session`は`scope.core.runtime_session`、`world_instance`は`scope.core.world`、`entity_instance`は`scope.core.entity`、`ui_session`は`scope.core.ui_session`へ移す。Stage、Encounter、Scoring、Shooter Game Flowはそれぞれ`scope.feature.scenario_stage.instance`、`scope.feature.encounter_spawn.instance`、`scope.feature.scoring.instance`、`scope.genre.shooter.game_flow.instance`へ移し、`level_instance`／`encounter_instance`、末尾`.instance`を欠くGenre aliasを解決しない。
+| Diagnostic ID | 条件 |
+|---|---|
+| `MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID` | entry count、sort、duplicate、unknown Field／scope不正 |
+| `MIRAKAN-RUNTIME-SCOPE-OWNER_UNAVAILABLE` | owner missing／removed、activation時unavailable |
+| `MIRAKAN-RUNTIME-SCOPE-VERSION_HASH_MISMATCH` | Catalog／entry／instance key／Save Replay policyのversionまたはhash不一致 |
+| `MIRAKAN-RUNTIME-SCOPE-MIGRATION_CONFLICT` | 旧scope、owner removal、persisted instanceのclean migrationが一意でない |
+
+Catalog materialization、owner removal、Runtime activationのいずれかで失敗した場合はCatalog、System Graph、last-valid active instance、Save／Replay mappingを変更しない。Scope Source identity、Save／Replay instance identity、ephemeral runtime generationを相互に置換しない。
+
+`GameSystemSpecV1@1.runtime_instance_scope`を持つSourceは、versioned migrationで`GameSystemSpecV1@2.runtime_scope_type_ref`へ一方向変換する。`play_session`は`scope.core.runtime_session`、`world_instance`は`scope.core.world`、`entity_instance`は`scope.core.entity`、`ui_session`は`scope.core.ui_session`へ移す。Stage、Encounter、Scoring、Shooter Game Flowはそれぞれ`scope.feature.scenario_stage.instance`、`scope.feature.encounter_spawn.instance`、`scope.feature.scoring.instance`、`scope.genre.shooter.game_flow.instance`へ移し、`level_instance`／`encounter_instance`、末尾`.instance`を欠くGenre aliasを解決しない。入力schema revision、owner row、Save／Replay mappingが一意でなければ`MIRAKAN-RUNTIME-SCOPE-MIGRATION_CONFLICT`で新revisionを拒否し、last-valid Source／Catalog／active instanceを維持する。
 
 `GameSystemImplementationPolicyV1`は許可Implementation kind、default implementation、Native eligibility、replacement policy、live switch policy、equivalence fixture、required Target、configuration schema、unavailable behaviorを持つ。Native live switchは許可しない。Project overrideもPublic Contract、State、Save field、Replay意味を変更できない。
 
@@ -432,7 +445,7 @@ Native／Project Shader buildが成功しただけでactiveにしない。Projec
 
 - 全Fieldのvalid／invalid／boundary fixtureとMCD projection整合。
 - State owner exactly-one、dependency cycle、undeclared edgeのnegative test。
-- Core exact 5 Scope、Feature／Genre owner登録、`play_session`等旧enum clean migration、unknown owner、owner unavailable／removed、duplicate、instance-key mismatch、Save／Replay schema hash mismatchのCatalog fixture。
+- `entries[5..4096]`、Core exact 5の7-Field row、canonical sort／hash、Feature／Genre owner登録、Catalog materialization、owner removal、`GameSystemSpecV1@1.runtime_instance_scope`→`GameSystemSpecV1@2.runtime_scope_type_ref` clean migration、unknown owner、owner unavailable／removed、duplicate、instance-key mismatch、version／Save Replay schema hash mismatch、migration conflictのCatalog fixture。
 - Core／Feature Systemが`scope.genre.<genre>.<scope>.instance`へ依存するnegative fixtureと、Genre内部Systemだけが同scopeを使用するpositive fixture。Shooter用fixtureはexact `scope.genre.shooter.game_flow.instance`だけを解決し、末尾`.instance`を欠くaliasをnegative fixtureで拒否する。
 - neutral Interactionがeligibility policyなしでvalid、registered generic policy denialが`policy_denied`、Shooter policy未installでもcommon Interaction install／実行が成功するfixture。
 - Command／Event／Snapshot、phase access、queue、budget conformance。

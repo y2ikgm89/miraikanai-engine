@@ -70,11 +70,17 @@ Joint break候補はAdapter結果をSI単位へnormalizeし、Engine Stable ID�
 
 C1 reference recipeはEngine-owned Kinematic Character Motor Providerを適格化するが、Character Locomotion Featureのinstall、Path Following、Runtime EntryはこのProviderを要求しない。Backend固有character controllerをProject APIへ公開せず、[Collision](collision.md)のoverlap／shape castだけを利用する。
 
-`CharacterMoveIntentV1`はCharacter handle、consume tick ref、planar displacement、vertical proposal、jump edge、up direction、root-motion proposal、producer metadataを持つ。Stateは`disabled | airborne | grounded | sliding | stepping | ceiling_blocked`、Outputはresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnosticを持つ。
+Provider-private `CharacterMoveIntentV1`はCharacter handle、consume tick ref、planar displacement、vertical proposal、jump edge、up direction、producer metadataを持つ。これはaccepted public intentではなく、Feature-owned `GameplayMotionIntentV1`、Navigation `MovementIntentV1`、Animation `RootMotionProposalV1`を検証後にPhysics Provider内部で生成するderived inputである。Port、Project Source、Save、Replayへ型参照を公開せず、`RootMotionProposalV1`を内部Fieldへ複写しない。`PhysicsCharacterResolvedMotionV1`はresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnostic、input batch hash、generationを持つ。
 
-Providerは[Navigation](navigation.md)が所有する`MotionExecutorPortV1`のexact public contractへ登録し、`executor_capability_ref=capability.motion_executor.physics_character_motor`、Provider-owned `CharacterMotorProfileV1`、accepted `CharacterMoveIntentV1`、Physics resolved motion schema、compatibility predicate、failure diagnosticを宣言する。Port型を本書で再定義しない。
+`capability.motion_executor.physics_character_motor`はPhysics Provider Catalogが所有する正式Capabilityであり、次のexact 6-Field rowを[Navigation](navigation.md)が所有する`MotionExecutorPortV1`へ登録する。Port型を本書で再定義しない。
 
-`CharacterMoveIntentV1`の合成は`T40_MotionIntent`で選択済みPhysics Character Motor Providerが所有する。ProviderはGameplay移動入力、[Navigation](navigation.md)の`MovementIntentV1`、[Animation](animation.md)のroot-motion proposalをactor当たり一つの`CharacterMoveIntentV1`へ合成する。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のProvider policyに従い、優先順位を暗黙に変更しない。
+| `executor_capability_ref` | `movement_profile_schema_ref` | `accepted_intent_schema_refs[]` | `resolved_motion_schema_ref` | `compatibility_predicate_ref` | `failure_diagnostic_refs[]` |
+|---|---|---|---|---|---|
+| `capability.motion_executor.physics_character_motor` | `mirakan.schema.physics.CharacterMotorProfileV1@1` | `[mirakan.schema.feature.character_locomotion.GameplayMotionIntentV1@1, mirakan.schema.navigation.MovementIntentV1@1, mirakan.contract.animation.root_motion_proposal@1]` | `mirakan.schema.physics.PhysicsCharacterResolvedMotionV1@1` | `predicate.physics.character_motor.intent_profile_target_dimension@1` | `[MIRAKAN-PHYSICS-CHARACTER-MOTOR-INCOMPATIBLE, MIRAKAN-PHYSICS-CHARACTER-MOTOR-RESOLUTION_FAILED, MIRAKAN-PHYSICS-CHARACTER-MOTOR-STALE_RESULT]` |
+
+predicateはintent type subset、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityを検証する。root-motion modeが`animation`なのにexact `RootMotionProposalV1` contractを受理できないrowはActivation前に拒否する。
+
+T40のFeature-owned binding Systemは`GameplayMotionIntentV1`、[Navigation](navigation.md)の`MovementIntentV1`、[Animation](animation.md)の`RootMotionProposalV1`を`MotionExecutorIntentBatchV1`として提出し、選択済みPhysics Character Motor Providerがaccepted schemaを一度だけ解決する。Provider-private `CharacterMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのdirect accepted setへ混ぜない。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickにGameplay移動入力と`MovementIntentV1`が競合した場合はGameplay入力を採用し、不採用のintentをtyped resultとしてPath Followerへ返す。root-motionの合成は後述のProvider policyに従い、優先順位を暗黙に変更しない。
 
 Motorのmax slope、step height、ground snap距離、iteration上限、speed上限は§2の`CharacterMotorProfileV1`だけが保持し、stage 1が検証するProfileはこのProfileである。`NavAgentProfileV1`のslope／climbとの整合検証は[Navigation](navigation.md)のrequest validationが所有する。
 
@@ -203,6 +209,9 @@ Previewはbefore／after semantic resolution、affected Entity／Asset、selecte
 
 Diagnosticは少なくとも次を区別する。
 
+- `MIRAKAN-PHYSICS-CHARACTER-MOTOR-INCOMPATIBLE`: intent subset、Profile、Target、dimension、Collision query relation不一致
+- `MIRAKAN-PHYSICS-CHARACTER-MOTOR-RESOLUTION_FAILED`: bounded resolverがvalid resolved motionを生成できない
+- `MIRAKAN-PHYSICS-CHARACTER-MOTOR-STALE_RESULT`: actor／intent batch／profile／provider generation不一致
 - ambiguous intent／question required
 - conflicting role／motion／collision semantics
 - Capability unavailable／Target unsupported

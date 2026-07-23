@@ -95,11 +95,11 @@ Faulted -> ProjectClosing | Shutdown
 
 `Faulted`から同じPlay sessionへ復帰しない。Editor processを継続できる場合はjournalとfault evidenceを保全し、`Faulted -> ProjectClosing`でProjectを閉じ、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)のEditor session machineが定めるProject非保持state（`NoProject`）をsafe shellとして戻る。継続できない場合は`Faulted -> Shutdown`で安全に終了する。Authoring中のGameHost／Worker crashは同文書のTask failure隔離で処理して`Faulted`へ遷移させず、`Authoring -> Faulted`はHost自身がsafe stopできないprocess faultだけに使う。Shipping GameHostのOS application lifecycleはPlatform Ownerが決定し、OS callbackはWorldを直接変更せずbounded lifecycle eventをOrchestratorへ渡す。
 
-`PlayPreparing`はCommit済み`project_revision`と選択済み`RuntimeEntryPointV1`を一つ固定し、Runtime package、System Graph、Implementation Set、Target別Plan、`entry_branch_closure_hash`を検証する。`world` branchはWorld closure、`ui` branchはUI closure、`headless` branchは1～128件のstartup system closureを検証し、別branchのDocument、Topology、surfaceを常時要求しない。branch activation set全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview Worldは存在する場合だけPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
+`PlayPreparing`はCommit済み`project_revision`と選択済み`RuntimeEntryPointDocumentV1`を一つ固定し、Runtime package、System Graph、Implementation Set、Target別Plan、target selector hash、activation policy hash、`entry_branch_closure_hash`を検証する。`world` branchはWorld closure、`ui` branchはUI closure、`headless` branchはWorld／UI closureを要求しない。startup systemが1件以上なら全branchで`startup_system_closure_hash`を検証し、headlessでは必須、world／uiの0件だけcanonical omissionとする。startup closureはtransitive System dependency、Implementation Variant、State owner、Target compatibilityを含む。別branchのDocument、Topology、surfaceを常時要求せず、branch activation set全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview Worldは存在する場合だけPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
 
 runtime session配下のWorld instance、UI session、startup system instanceは選択branchごとのoptional childである。`world`はScene 0件／Topology nullでもvalid、`ui`はWorldなし、`headless`はWorld／UI／surfaceなしでvalidとする。branch外fieldを混ぜたpackage、headless startup system 0件、entry hash／branch closure hash不一致はPlay開始を拒否し、last-valid packageとAuthoring revisionを維持する。
 
-Play中のAuthoring変更は新revisionとして保存できるが、Runtimeへ自動適用しない。[Asset lifecycle](../03-authoring/asset-lifecycle.md)またはDomain Ownerが互換性を証明し、本書のboundaryへ提出したtyped activationだけを適用する。`PlayStopping`は新規Input、async request、Presentation submitを止め、worker join、queue seal、Save／Replay finalize、Domain lease release、World破棄、Host resource解放の順で進める。Runtime値をAuthoringへ戻す場合は[Project state](../03-authoring/project-state.md)の別ChangeSetとし、Runtime handle、native ID、GPU handle、internal slotを含めない。
+Play中のAuthoring変更は新revisionとして保存できるが、Runtimeへ自動適用しない。[Asset lifecycle](../03-authoring/asset-lifecycle.md)またはDomain Ownerが互換性を証明し、本書のboundaryへ提出したtyped activationだけを適用する。`PlayStopping`、Play fault、restartは新規Input、async request、Presentation submitを止め、worker join、queue seal、Save／Replay finalize後、branch activation setのactual dependency DAGをreverse topological orderでteardownする。順序対象はstartup system instance、UI session、World instance、optional Presentation target／surfaceであり、存在しないbranch childを生成して破棄順へ加えない。全lease／submission retire後だけHost resourceを解放する。Runtime値をAuthoringへ戻す場合は[Project state](../03-authoring/project-state.md)の別ChangeSetとし、Runtime handle、native ID、GPU handle、internal slotを含めない。
 
 object lifetimeは長い順に次とする。
 
@@ -121,7 +121,7 @@ Process
 
 ### 3.1 GameHost outer loop、clock、pause
 
-Shipping GameHostとEditor child GameHostは、Platform event、fixed tick、snapshot、render frame、waitを一つのouter loopで接続する。main／window-input threadがloop順序と`GameHostLoopStateV1`を所有し、T00～T110はGame simulation thread、R00～R70はRender submission threadへbounded requestとして一回ずつ委譲する。simulationはpublishまたはfaultのacknowledgement前に次のcatch-up tickを開始しない。OS callback、Worker、Renderer、Audio callbackはouter loopまたはRuntime Worldへ再入せず、bounded event／command／snapshot境界だけを使う。
+Shipping GameHostとEditor child GameHostは、Platform control event、fixed tick、optional input、optional presentation、waitを一つのouter loopで接続する。windowを前提にしないHost／Platform-control threadがloop順序と`GameHostLoopStateV1`を所有し、T00～T110はGame simulation thread、Presentation targetが存在する時だけR00～R70をRender submission threadへbounded requestとして一回ずつ委譲する。simulationはpublishまたはfaultのacknowledgement前に次のcatch-up tickを開始しない。OS callback、Worker、Renderer、Audio callbackはouter loopまたはRuntime Worldへ再入せず、bounded event／command／snapshot境界だけを使う。
 
 ```text
 GameHostLoopStateV1
@@ -129,15 +129,16 @@ GameHostLoopStateV1
   previous_outer_loop_ns
   simulation_accumulator_ns
   tick_id
-  render_frame_id
+  presentation_state: absent | active | surface_unavailable
+  render_frame_id?
   application_state = Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating
   gameplay_clock_mode = running | paused
   debug_execution_mode = running | pause_requested | paused_at_t110 | single_tick_step
   surface_generation?
-  last_published_snapshot_tick?
+  last_published_render_snapshot_tick?
 ```
 
-`gameplay_clock_mode`は`PausePolicyV1`／`GamePauseStateSnapshotV1`のconsumer projectionであり、outer loopが別のPause authorityを持つ意味ではない。`debug_execution_mode`はDebuggerが所有し、Shipping Game pauseの権限またはstateとして使用しない。`surface_generation`はsurfaceを持つentry branchだけに存在し、UIでもoffscreen Targetなら省略できる。headlessでは必ず省略し、0やfake generationを作らない。
+`gameplay_clock_mode`は`PausePolicyV1`／`GamePauseStateSnapshotV1`のconsumer projectionであり、outer loopが別のPause authorityを持つ意味ではない。`debug_execution_mode`はDebuggerが所有し、Shipping Game pauseの権限またはstateとして使用しない。`presentation_state=absent`では`render_frame_id`、`surface_generation`、`last_published_render_snapshot_tick`を全件省略し、RenderSnapshot acquire／interpolation／R00～R70へ依存しない。`active | surface_unavailable`はPresentation branch／Targetが明示選択された場合だけ使用し、surfaceを持たないoffscreen presentationでは`surface_generation`だけを省略できる。strict headlessはWindow、Surface、RenderSnapshot、Render thread dependencyを0件にし、0やfake generationを作らない。
 
 `monotonic_now_ns`と`previous_outer_loop_ns`はwall-clock時刻、timezone、system clock補正を含まない単調clockである。60 Hzのtick長は浮動小数または切り捨てた`16,666,666 ns`の反復加算を使わず、tickごとに次式で求める。
 
@@ -154,17 +155,17 @@ while application_state != Terminating:
   1. bounded Platform lifecycle eventをdrainし、遷移要求をlatchする
   2. monotonic clockを一度sampleし、前回との差を求める
   3. ApplicationState遷移をouter-loop境界へ適用する
-  4. Activeであればdevice inputを一度sampleする
+  4. Activeかつregistered Input Sourceが存在する場合だけinputを一度sampleする
   5. tick可能ならelapsedをaccumulatorへ加え、0..4回のT00..T110を完了する
-  6. 完全にpublish済みの最新RenderSnapshotをacquireする
-  7. presentation専用interpolationを作る
-  8. surfaceが有効なら0回または1回のR00..R70を実行する
+  6. presentation_state != absentの場合だけ完全にpublish済みの最新RenderSnapshotをacquireする
+  7. presentation_state != absentの場合だけpresentation専用interpolationを作る
+  8. presentation_state = activeかつsurfaceが有効なら0回または1回のR00..R70を実行する
   9. 完了submission／leaseをretireし、frame paceまたはPlatform eventをwaitする
 ```
 
 - `Active`かつ`debug_execution_mode = running | pause_requested`のときだけelapsedをaccumulatorへ加える。Debug再開後の最初のouter loopは停止中wall timeを加えない。
 - 次の`tick_duration_ns(tick_id)`以上のaccumulatorがある間だけ、最大4 tickを実行する。4 tick後にも実行可能なら次tick未満の端数だけを残して超過時間を捨て、`dropped_wall_time_ns`、連続clamp回数、最大accumulatorをtelemetryへ記録する。
-- deviceはActiveなouter loopごとに一度だけsampleする。held stateは同じouter loopのcatch-up tickで再利用できるが、press／release edge、text、gesture eventは最初のeligible tickへだけ割り当て、後続tickへ複製しない。Replayはdevice sample sequenceとsample-to-tick割当を記録する。
+- registered Input Sourceが存在する場合だけActiveなouter loopごとに一度sampleする。sourceが0件なら空deviceを生成せずInput sample dependencyを省略する。held stateは同じouter loopのcatch-up tickで再利用できるが、press／release edge、text、gesture eventは最初のeligible tickへだけ割り当て、後続tickへ複製しない。Replayは存在したsourceのsample sequenceとsample-to-tick割当を記録する。
 - tickがfaultした場合はそのtickのsnapshotをpublishせず、残りcatch-upとrenderを中止してPlay sessionを`Faulted`へ遷移する。直前snapshotをfault後の新しいframeとして提示しない。
 
 Gameplay pauseは§4.1の`GamePauseCommandV1`と`PausePolicyV1`だけが所有する。`gameplay_clock_mode = paused`でもouter loopとT00～T110のphase boundaryは継続するが、freeze対象domainはdeltaを進めず、Physics solver、Gameplay timer、authoritative animationを§4.1のatomic orderどおりskipする。UI、pause menu、presentation、resume inputは許可された継続domainだけで動作する。
@@ -327,6 +328,8 @@ C1のProduction対象はPauseによるdomain停止だけである。Hit-stop、s
 
 ## 5. Render frame、Audio、Asset activation
 
+本節のRender sequence、RenderSnapshot acquire、interpolation、`render_frame_id`、`surface_generation`は`presentation_state != absent`のbranchだけに存在するtagged contractである。strict headlessまたはPresentation targetを選択しないbranchは本節へのRuntime dependencyを0件とし、simulation snapshotを偽RenderSnapshotへ変換しない。
+
 render frame sequenceは次とする。
 
 | 順序 | Render phase ID | 契約 |
@@ -457,9 +460,11 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 最低限、次を自動検証する。
 
 - fixed tickとrender sequence、serialized ID、禁止再入、consume／delivery phase。
-- GameHost outer loopのlifecycle→clock→input→0～4 tick→snapshot→0～1 render→retire／wait順、60 tick exactly 1秒、4-step clamp telemetry、input edge非複製、Gameplay pause、Debug pause／single-step、`SurfaceUnavailable`、`Suspended`、headless、stale snapshot、fault非publish。
-- `fixture.runtime.entry.world-empty`、`fixture.runtime.entry.ui-only`、`fixture.runtime.entry.headless`でbranch closure、optional child lifetime、surface omission、branch activation setを検証する。
-- branch field混在、headless startup system 0、default 0／2、unknown Target selector、selected entry／branch closure hash不一致をPlay開始前に拒否する。
+- GameHost outer loopのlifecycle→clock→optional input→0～4 tick→optional presentation snapshot／0～1 render→retire／wait順、60 tick exactly 1秒、4-step clamp telemetry、input edge非複製、Input Source 0件、Gameplay pause、Debug pause／single-step、`SurfaceUnavailable`、`Suspended`、strict headless、stale snapshot、fault非publish。
+- `fixture.runtime.entry.world-empty`、`fixture.runtime.entry.ui-only`、`fixture.runtime.entry.headless`でbranch closure、optional child lifetime、startup system closure、surface／RenderSnapshot omission、branch activation setを検証する。
+- `fixture.integration.project-runtime-entry.owner-resolution`でProject-owned entry／selector／activation policyのref、schema、hash、Target membershipとCompile Manifestをread-backする。
+- world／ui／headlessのstop、fault、restartでstartup systems、UI session、World、optional Presentationをactual dependencyのreverse orderでteardownし、strict headlessのWindow／Surface／Render thread依存が0件であるfixture。
+- branch field混在、headless startup system 0、default 0／2、unknown Target selector、selected entry／selector／activation policy／branch closure hash不一致をPlay開始前に拒否する。
 - exactly-one State owner、System dependency DAG、same-tick cycle拒否、Implementation Variant同値。
 - structural transactionのpreflight／commit atomicity、canonical iteration／merge。
 - handle generation、wrap retire、random invalid handle、borrow epoch、arena reset後の失効。

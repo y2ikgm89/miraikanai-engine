@@ -100,11 +100,26 @@ Runtimeへの接続はcanonical identifiers `T30_PrePhysics`、`T40_MotionIntent
 
 RuntimeはAnimation instanceへ一つのcanonical `AnimationEvaluationIntervalV1`を供給する。intervalは`interval_id`、tick ref、clock begin／end、direction、traversal kind、loop crossing ordinalを持つ。Runtime execution slotごとの役割や順序は本書で定義せず、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の供給boundaryを消費する。
 
-同じevaluationに属する`RootMotionProposal`、final `SkeletonPose`、`AnimationEvent`抽出は、同一`interval_id`とexact clock begin／endを必ず消費する。root motionだけを別intervalでsampleすること、resolved Physics inputの受領後にpose／event用clockを再計算すること、presentation frameから別intervalを作ることを禁止する。
+同じevaluationに属する`RootMotionProposalV1`、final `SkeletonPose`、`AnimationEvent`抽出は、同一`interval_id`とexact clock begin／endを必ず消費する。root motionだけを別intervalでsampleすること、registered resolved motion inputの受領後にpose／event用clockを再計算すること、presentation frameから別intervalを作ることを禁止する。
 
 Animation clockはcanonical intervalごとに一度だけadvanceする。root-motion sampling、clip sampling、blend、IK、pose、bounds、event extractionはintervalのpure consumerであり、個別にclock／loop count／event cursorをadvanceしない。全outputのvalidation成功後にinstance clockとevent cursorをendへ一回commitする。同じ`interval_id`のretryは同じoutputを返すidempotent evaluationとし、二回目のadvanceを行わない。前interval未commitのまま異なるintervalを受けた場合、または同じIDでbegin／endが異なる場合はinstance faultとする。evaluation failureではclockをadvanceせず、partial pose／event／root motionをpublishしない。
 
-`RootMotionProposal`はAnimation instance、canonical interval ID、local delta translation／rotation、source state／clip、artifact version、selected executor capability refを持つ。root-motion modeは`animation | executor_driven | disabled`である。`animation`はroot deltaをselected executorへproposalとして送り、executorが自身のcontractで解決する。`executor_driven`はAnimation root deltaを0としてregistered resolved motionからin-place poseを選び、`disabled`はroot trackをpresentationにも使わない。旧`gameplay_motor`は同じ意味の`executor_driven`へclean migrationし、aliasとして読まない。proposalはauthoritative Transformではない。
+`RootMotionProposalV1`のexact MCD contract IDは`mirakan.contract.animation.root_motion_proposal@1`であり、schemaを次へ固定する。
+
+```text
+RootMotionProposalV1
+  proposal_id
+  animation_instance_ref
+  interval_id
+  local_delta_translation
+  local_delta_rotation
+  source_state_ref
+  source_clip_ref
+  artifact_version_ref
+  selected_executor_capability_ref
+```
+
+root-motion modeは`animation | executor_driven | disabled`である。`animation`は`RootMotionProposalV1`をselected executorへ直接提出し、executorが自身のcontractで解決する。selected Providerの`accepted_intent_schema_refs[]`が`mirakan.contract.animation.root_motion_proposal@1`を含まなければActivation前にtyped rejectし、Animation clock、pose、event cursor、last-valid resolved motionを変更しない。`executor_driven`はAnimation root deltaを0としてregistered resolved motionからin-place poseを選び、`disabled`はroot trackをpresentationにも使わない。旧`gameplay_motor`は同じ意味の`executor_driven`へclean migrationし、aliasとして読まない。proposalはauthoritative Transformではない。
 
 現行C1／C2はselected Motion Executorの`resolved_motion_schema_ref`へ適合するgeneration付きsnapshotだけを受け、AnimationがProvider-private state、native Body、Transform componentをqueryしない。`ragdoll`は`future.capability.vehicle-ragdoll-crowd-motion-warping`の予約語であり、同Future Entryがapproved Future-to-Active Promotion Manifest、Control Plane Rebaseline、Active Definition migrationでactive Capabilityへ昇格し、Ragdoll固有Owner contract、Target binding、Authority、Save／Replay schema、positive／negative fixtureが承認されるまで、Animation input、Graph node、operationとして公開しない。昇格前のRagdoll要求は`capability_unavailable`で拒否し、pose、clock、event cursor、Project／Save／Replay stateを変更しない。将来昇格後もPhysicsは`SkeletonPose`へ直接writeせず、versioned Physics pose inputとAnimation poseの合成はAnimation ownerだけが行う。NavigationはAnimation parameter候補をcommand／snapshotで渡せるが、Graph stateを直接変更しない。
 
@@ -162,7 +177,7 @@ Risk分類、authorization、commit可否は[AI Security／Approval](../01-gover
 
 ## 6. Qualificationと採用しないもの
 
-Unit／schema fixtureはGraph reachability、parameter type、Skeleton hierarchy、Skin influence、Clip interval、event cursor、root-motion mode、旧`gameplay_motor` migration、closed traversal policy、IK chain、retarget mapping、artifact runtime-ID tableを検査する。Runtime fixtureは2D／3D sampling、transition interruption、blend／additive、loop event、root-motion／selected executor resolution、Physicsなしboard-token／RTS stub、stale resolved motion、provider failure時のlast-valid pose／clock不変、stale Collision result、LOD invariant、asset swap、lease expiry、job cancellation、save／replay hashを含む。現行Ragdoll negative fixtureは、Ragdoll input／Graph node／operationを`capability_unavailable`で拒否し、pose、clock、event cursor、Project revision、Save／Replay hashが不変であることを検査する。Ragdoll blendのpositive fixtureはFuture Entryが`active`へ昇格するまで登録も実行もしない。
+Unit／schema fixtureはGraph reachability、parameter type、Skeleton hierarchy、Skin influence、Clip interval、event cursor、`RootMotionProposalV1` exact contract ID／Field、root-motion mode、旧`gameplay_motor` migration、closed traversal policy、IK chain、retarget mapping、artifact runtime-ID tableを検査する。Runtime fixtureは2D／3D sampling、transition interruption、blend／additive、loop event、root-motion／selected executor resolution、`animation` modeでproposal schema未受理時のtyped rejectとclock／pose／event cursor／last-valid不変、Physicsなしboard-token／RTS stub、stale resolved motion、provider failure時のlast-valid pose／clock不変、stale Collision result、LOD invariant、asset swap、lease expiry、job cancellation、save／replay hashを含む。現行Ragdoll negative fixtureは、Ragdoll input／Graph node／operationを`capability_unavailable`で拒否し、pose、clock、event cursor、Project revision、Save／Replay hashが不変であることを検査する。Ragdoll blendのpositive fixtureはFuture Entryが`active`へ昇格するまで登録も実行もしない。
 
 canonical interval fixtureは、root-motion proposal、final pose、event抽出が同じinterval ID／begin／endを持つこと、clock／loop count／event cursorが一度だけcommitされること、同じintervalのretryが同じoutputを返して再advance／再配送しないこと、異なるpayloadを持つduplicate interval IDを拒否することを検査する。failure fixtureはpartial outputをpublishせずclockをadvanceしないことを検査する。
 

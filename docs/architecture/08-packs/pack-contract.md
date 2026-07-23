@@ -82,6 +82,8 @@ PackManifestV1
 
 `minimum_engine_contract_ref`は利用可能性の証拠ではない。active TargetでEngine contract、required Capability、Feature Pack closure、Validator、Test、Qualification Receiptがすべて解決して初めてPackを適用できる。
 
+`validator_refs[]`と`test_scenario_refs[]`はPack artifact内のinventory、identity resolution、owner／hash検査の一覧であり、列挙した全Validator／Fixtureを全Recipe共通の実行gateにしない。Pack installは全recordのschema、owner、version、hashを検証するが、Project apply／Cook／Qualificationの実行gateは選択Recipeの`validator_refs[]`と`qualification_fixture_refs[]`だけである。Manifest inventoryに存在しても未選択Recipe専用Validator／Fixture、その条件Capability、依存Packをactive closureへ追加しない。
+
 ### 3.1 `CompositionRecipeV1`
 
 Pack全体で常時必要なFeature dependencyと、選択したcompositionだけが必要なFeature dependencyを分離する。`PackManifestV1.required_feature_pack_refs[]`は全Recipe共通のunconditional edge、`CompositionRecipeV1.required_feature_pack_refs[]`は当該RecipeをProjectへ適用する時だけ有効なconditional edgeである。
@@ -103,7 +105,7 @@ CompositionRecipeV1
   fallback_recipe_ref: CompositionRecipeRef | null
 ```
 
-`recipe_hash`は自己Fieldを除くcanonical recordのSHA-256であり、所有Packの`content_hash`へ含める。全arrayはexact identityのcanonical orderとし、unknown、duplicate、self dependency、Genre Pack ref、Project／FixtureへのProduction dependency、version／hash conflictを拒否する。`fallback_recipe_ref`は同じowner Pack内のRecipeだけを指し、fallback cycleを拒否する。fallbackは元RecipeのGameplay意味を暗黙変更せず、Projectが明示選択した時だけ別のdependency closureを解決する。
+`recipe_hash`は自己Fieldを除くcanonical recordのSHA-256であり、所有Packの`content_hash`へ含める。全arrayはexact identityのcanonical orderとし、unknown、duplicate、self dependency、Genre Pack ref、Project／FixtureへのProduction dependency、version／hash conflictを拒否する。`validator_refs[]`／`qualification_fixture_refs[]`はこのRecipe選択時だけapply／qualification gateになり、別RecipeのPerception、Stage、full-profile fixture等を要求しない。`fallback_recipe_ref`は同じowner Pack内のRecipeだけを指し、fallback cycleを拒否する。fallbackは元RecipeのGameplay意味を暗黙変更せず、Projectが明示選択した時だけ別のdependency closureを解決する。
 
 選択Recipe `R`のeffective Feature closureは、所有Manifestの`required_feature_pack_refs[]`、`R.required_feature_pack_refs[]`、両集合から到達するFeature Pack DAGの和集合である。resolverは次を生成する。
 
