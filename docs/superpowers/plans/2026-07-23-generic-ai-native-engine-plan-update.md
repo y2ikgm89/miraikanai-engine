@@ -64,6 +64,8 @@ Expected: current正本とcurrent planに旧path／旧identityが存在する。
 
 `scenario-stage.md`へDesign §4.3の`StageDefinitionV1`、`completion_mode` tagged rule、Stage Scope、transition、Save／Replay、AI Operation、fixture、`completion_mode=none` negative／positive caseを記載する。World／RuntimeへLevel契約を再定義せず、依存方向をScenario／StageからWorldへの一方向にする。WorldからScenario／Stageの文書名、Pack identity、linkを参照しない。Worldにはstreaming stale／cancel／retry／partial activation、procedural nondeterminism／invalid output、presentation authority、derived Cell writeのDiagnosticと汎用fixture／acceptanceを保持する。
 
+`world.md`では`MapIntentResolutionV1`の1～6候補、score順、tagged disposition、Evidence／affected Stable ID／Question boundを閉じる。`WorldAuthoringPlanV1`、`WorldAuthoringBundleV1`、`WorldAuthoringContextV1`はWorld／Scene／Space／Topology／owner-typed refへ限定して全Fieldとboundを列挙し、Plan／Bundleをproposal-only、Contextをread-only／Disposableとする。ContextはSource hash、omitted range、hash-bound continuationを持ち、Source／Commit／Replayへ保存しない。Bundleはbounded typed refとChangeSet hashだけを束ね、本文、Commit権限、Receiptを複写しない。`LoadingProgressPlanV1`／`LoadingProgressSnapshotV1`はinitial activation／spatial transition／Save resume共通のclosed subject、work unit、phase、generation、stale／Cancel／Retry／partial規則を持つ。procedural determinism fixtureはNavigation Artifact削除後の同一再生成hashとlast-valid維持まで検証する。
+
 - [ ] **Step 5: Update navigation and Product references**
 
 Architecture Indexを`Packs`へ変更し、新3文書を一度ずつ登録する。Productとcurrent plansのlinkを`08-packs`へ変更し、ShooterをFeature Packの例として扱う記述を0件にする。
@@ -75,11 +77,13 @@ Run:
 ```powershell
 rg -n '08-domain-packs|DomainPackManifest|capability\.gameplay\.shooter_core|domain\.action_2d|domain\.tps_single_player' docs/architecture docs/plans --glob '*.md'
 rg -n 'scenario-stage|pack-scenario|Scenario/Stage|Scenario／Stage' docs/architecture/06-rendering/world.md
+rg -n 'MapIntentResolutionV1|WorldAuthoringPlanV1|WorldAuthoringBundleV1|WorldAuthoringContextV1|LoadingProgressPlanV1|LoadingProgressSnapshotV1' docs/architecture/06-rendering/world.md
+rg -n 'Navigation Artifact.*削除.*再生成.*canonical output.*Artifact hash.*last-valid' docs/architecture/06-rendering/world.md
 rg -n 'ShooterProjectileCapacityExceeded' docs/architecture/08-packs/shooter.md
 git diff --check
 ```
 
-Expected: historical引用を除くcurrent Architecture／current planの旧path／旧identityが0件、WorldからScenario／Stage参照0件、Shooter Feature capacity failure再定義0件、旧15 Diagnosticと旧crowded fixture 2件がmigration tableで各1件、`git diff --check` exit 0。
+Expected: historical引用を除くcurrent Architecture／current planの旧path／旧identityが0件、WorldからScenario／Stage／Pack参照0件、WorldのMap／Authoring／Loading六Schemaと全bound／tagged invariantが検出され、Navigation Artifact再生成fixtureが1件、Shooter Feature capacity failure再定義0件、旧15 Diagnosticと旧crowded fixture 2件がmigration tableで各1件、`git diff --check` exit 0。
 
 Commit:
 

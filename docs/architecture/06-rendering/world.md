@@ -40,7 +40,29 @@ World／Scene／Space／Entity source identityはProject Stable ID、source revi
 | `navigation` | 歩行領域、飛行経路、NavMesh | [Navigation](../05-simulation/navigation.md) |
 | `map_presentation` | minimap、world map、marker、fog | `MapPresentationDefinitionV1` |
 
-`MapIntentResolutionV1`は`request_id`、`candidate_kinds[]`、`selected_kind`、`confidence_q16`、`evidence_requirement_ids[]`、`affected_stable_ids[]`、`blocking_questions[]`、`disposition: resolved | question_required | rejected`を持つ。上位2候補差が9,830未満、Save／spatial transition／authoritative state／Target／Asset license／memory capacityへ影響、layoutとpresentationの両解釈、Stable IDを特定不能のいずれかなら`question_required`とする。
+```text
+MapIntentResolutionV1
+  request_id: UUIDv7 StableId
+  candidate_kinds: bounded array[1..6]<{
+    kind: MapIntentKindV1,
+    confidence_q16: uint16,
+    evidence_requirement_ids: bounded array[1..64]<exact requirement ID>
+  }>
+  selected_kind: optional MapIntentKindV1
+  confidence_q16: uint16
+  evidence_requirement_ids: bounded array[1..64]<exact requirement ID>
+  affected_stable_ids: bounded array[0..1024]<existing exact StableId>
+  blocking_questions: bounded array[0..7]<{
+    question_id: StableId,
+    choices: bounded array[2..5]<{choice_id, impact, changeability}>,
+    recommended_choice_id: exact choice_id
+  }>
+  disposition: resolved | question_required | rejected
+```
+
+`candidate_kinds`は`confidence_q16`のscore降順、同点時は`MapIntentKindV1`のclosed enum順でcanonicalizeし、同じkindの重複を許さない。すべての`confidence_q16`は0～65,535で、top-level値は先頭候補の値と一致させる。各Evidence配列は1～64件で重複不可とし、`affected_stable_ids`はResolution対象のexact Project revisionに実在することをGatewayが検証する。unknown／deleted／revision不一致のIDを候補へ補正せず、`MIRAKAN-WORLD-UNKNOWN_STABLE_ID`で拒否する。
+
+`selected_kind`と`disposition`はtagged ruleである。`resolved`は先頭候補と同じ`selected_kind`を厳密に1件、`blocking_questions`を0件持つ。`question_required`は`selected_kind`を持たず、選択肢2～5件、推奨、影響、後からの変更可能性を備えたQuestionを1～7件持つ。`rejected`は`selected_kind`とQuestionを持たない。上位2候補差が9,830未満、Save／spatial transition／authoritative state／Target／Asset license／memory capacityへ影響、layoutとpresentationの両解釈、Stable IDを特定不能のいずれかなら`question_required`とする。
 
 曖昧な「マップを作る」「マップを開く」に万能Map assetを生成しない。空間contentはWorld／Scene／Space、source shard構成はScene composition、pathfindingはNavigation、画面表示はMap Presentationへroutingする。
 
@@ -122,7 +144,34 @@ transition中に旧／新SpaceのEntity identityを再利用しない。persiste
 
 `SpatialTransitionPresentationPolicyV1`は`mode: seamless | overlay | blocking`、Loading UI、Input context、Audio snapshot、0～2,000 msのminimum display、cancel boundary、failure presentation、explicit retry、Accessibility announcement policyを持つ。
 
-`LoadingProgressPlanV1`は確定したdependency closureを1～65,535 work unitへcanonicalizeし、positive weight合計を65,535へnormalizeする。`LoadingProgressSnapshotV1`はgeneration、phase、completed weight、current message、cancel／retry可否、typed failureを持つ。同じgenerationの進捗は実完了unitだけで単調非減少とし、fake timer、frame count、spinnerを混ぜない。65,536 unit以上は`loading_plan_capacity_exceeded`でPlan materialization前に拒否し、truncateしない。
+```text
+LoadingProgressPlanV1
+  plan_id: DerivedPlanId
+  subject_kind: initial_activation | spatial_transition | resume_save
+  subject_request_ref: exact generation-bearing typed request ref
+  dependency_closure_hash: bytes32
+  work_units: bounded array[1..65,535]<{
+    kind: io_bytes | artifact_verify | dependency_ready | activation_group | state_transfer,
+    exact_target_ref: exact generation-bearing typed ref,
+    positive_weight_q16: uint16 in 1..65,535
+  }>
+  total_weight_q16: 65535
+
+LoadingProgressSnapshotV1
+  loading_session_id: generation-bearing runtime ID
+  progress_plan_ref: exact {plan_id, dependency_closure_hash, generation}
+  phase: validating | prefetching | verifying | resident | activating | transferring | complete | failed | cancelled
+  completed_weight_q16: uint16
+  current_item_message_key: localization key
+  can_cancel: bool
+  can_retry: bool
+  failure_reason: optional typed failure
+  generation: uint64
+```
+
+`subject_kind`と`subject_request_ref`はtagged ruleで、initial activation、spatial transition、Save resumeの選択kindとexact request kind／generationを一致させる。work unit kindは上記5種だけで、各unitはexact対象refと正のweightを必須とする。確定したdependency closureのcanonical dependency順、同一dependency内のkind enum順、target ref canonical byte順で並べ、同じ`{kind, exact_target_ref}`を重複させない。positive weight合計は厳密に65,535とする。65,535 unitは全weightが正で正規化可能なら受理し、65,536 unit以上は`MIRAKAN-WORLD-LOADING_PLAN_CAPACITY_EXCEEDED`としてPlan materialization前に拒否する。省略、結合、truncateで成功へ近似せず、previous valid PlanとWorld generationを維持してpartial Plan／unitを公開しない。
+
+`completed_weight_q16`は0～65,535で、同じexact Plan generationでは完了済みunitのweightだけを加算して単調非減少とする。`phase=complete`は`completed_weight_q16=65,535`かつ`can_cancel=false`かつ`can_retry=false`、`phase=failed`は`failure_reason`を厳密に1件、その他phaseは0件とする。`can_cancel=true`はPolicyが許可した`prefetching | resident`だけ、`can_retry=true`はtyped failureとexplicit retry policyがある`failed`だけである。Snapshotのsession generation、`progress_plan_ref.generation`、`generation`は一致し、fake timer、frame count、UI animation、spinner、未列挙jobを進捗へ混ぜない。
 
 Source、Target、Toolchain、partition intentのいずれかのhashが変わったPlanは`MIRAKAN-WORLD-STREAMING_PLAN_STALE`、dependency closureまたはgenerationが変わったProgress Plan／Snapshotは`MIRAKAN-WORLD-LOADING_PROGRESS_PLAN_STALE`で拒否する。barを巻き戻して古いgenerationを再利用せず、新しいPlan、request、session、generationを発行する。
 
@@ -335,11 +384,95 @@ BlockoutAssemblyV1
 
 ## 11. Authoring bundleとAI／Editor UX
 
-World authoring bundleは対象World／Scene／Space revision、selected scope、owner-typed document refs、streaming-plan preview、validation summaryを束ねる。`WorldAuthoringPlanV1`はWorld／Scene／Space refs、partition／procedural／presentation change、required Capability、budget、fixture、assumption、blocking question、fallback、risk、dispositionを持つがCommit権限を持たない。
+World authoring bundleは対象World／Scene／Space revision、selected scope、owner-typed document refs、streaming-plan preview、validation summaryを束ねる。
+
+```text
+WorldAuthoringPlanV1
+  plan_id: StableId
+  project_revision: exact Project revision
+  contract_set_hash: bytes32
+  map_intent_resolution_hash: bytes32
+  requirement_ids: bounded array[1..256]<exact requirement ID>
+  target_profile_ids: bounded array[1..32]<exact Target Profile ID>
+  affected_world_refs: bounded array[1..64]<exact World ref>
+  affected_scene_refs: bounded array[0..1024]<exact Scene ref>
+  affected_space_refs: bounded array[0..1024]<exact Space ref>
+  affected_topology_refs: bounded array[0..64]<exact SpatialTopologyDefinitionV1 ref>
+  affected_owner_typed_document_refs: bounded array[0..1024]<exact owner-typed document ref>
+  create_document_kinds: bounded array[0..64]<closed owner document kind>
+  source_change_kinds: bounded array[1..6]<closed source change kind>
+  required_system_refs: bounded array[0..128]<exact system ref>
+  required_capability_refs: bounded array[0..128]<exact Capability ref>
+  budget_refs: bounded array[1..64]<exact budget ref>
+  derived_build_jobs: bounded array[0..256]<typed build job>
+  validation_fixture_ids: bounded array[1..1024]<exact fixture ID>
+  assumptions: bounded array[0..32]<typed assumption>
+  blocking_questions: bounded array[0..7]<MapIntentResolutionV1 Question>
+  fallback: optional exact fallback ref
+  risk_class: closed RiskClassV1
+  disposition: ready_to_stage | question_required | capability_unavailable | target_unsupported | budget_missing | rejected
+```
+
+`source_change_kinds`は`world_document | scene_composition | topology | partition | procedural_layout | map_presentation`の6種へ閉じる。すべてのaffected refは`project_revision`に実在しexpected kindが一致しなければならず、新規Documentは`create_document_kinds`とGateway発行IDで表す。`disposition=question_required`だけがQuestionを1～7件持ち、その他は0件とする。Planはread-only／proposal-onlyで、Source、Staging、Derived Artifact、Runtime stateを変更せず、Commit／Approval／Receipt権限を持たない。
+
+```text
+WorldAuthoringBundleV1
+  bundle_id: StableId
+  project_id: StableId
+  base_project_revision: exact Project revision
+  contract_set_hash: bytes32
+  map_intent_resolution_hash: bytes32
+  requirement_ids: bounded array[1..256]<exact requirement ID>
+  world_document_changeset_hashes: bounded array[0..64]<{exact World ref, ChangeSet hash}>
+  scene_document_changeset_hashes: bounded array[0..1024]<{exact Scene ref, ChangeSet hash}>
+  space_definition_changeset_hashes: bounded array[0..1024]<{exact Space ref, ChangeSet hash}>
+  topology_changeset_hashes: bounded array[0..64]<{exact SpatialTopologyDefinitionV1 ref, ChangeSet hash}>
+  owner_typed_document_changeset_hashes: bounded array[0..1024]<{expected document kind, exact owner-typed document ref, ChangeSet hash}>
+  system_bundle_hashes: bounded array[0..128]<{exact system ref, bundle hash}>
+  asset_changeset_hashes: bounded array[0..1024]<{exact Asset ref, ChangeSet hash}>
+  procedural_delta_hashes: bounded array[0..1024]<{exact ProceduralWorldDefinitionV1 ref, delta hash}>
+  navigation_intent_changeset_hashes: bounded array[0..1024]<{exact navigation owner ref, ChangeSet hash}>
+  map_presentation_changeset_hashes: bounded array[0..1024]<{exact MapPresentationDefinitionV1 ref, ChangeSet hash}>
+  expected_derived_artifact_refs: bounded array[0..1024]<exact generation-bearing ArtifactRefV1>
+  target_profile_ids: bounded array[1..32]<exact Target Profile ID>
+  budget_refs: bounded array[1..64]<exact budget ref>
+  fixture_hashes: bounded array[1..1024]<{exact fixture ref, fixture hash}>
+  risk_class: closed RiskClassV1
+  required_gate_ids: bounded array[0..256]<exact Gate ID>
+```
+
+changeset／delta配列は合わせて1件以上を必須とし、owner ref、expected kind、hashの組をcanonical orderで重複なく束ねる。Bundleは変更本文を複写せず、typed refとexact ChangeSet／delta／bundle hashだけを持つimmutable Staging proposalであり、`base_project_revision`不一致を自動rebaseしない。
+
+```text
+WorldAuthoringContextV1
+  project_id: StableId
+  project_revision: exact Project revision
+  contract_set_hash: bytes32
+  authoring_selection_context_hash: optional bytes32
+  world_ref: exact World ref
+  scene_refs: bounded array[0..256]<exact Scene ref>
+  space_refs: bounded array[0..256]<exact Space ref>
+  topology_ref: optional exact SpatialTopologyDefinitionV1 ref
+  topology_version: optional exact version
+  viewport_bounds: optional finite spatial bounds
+  target_profile_refs: bounded array[1..32]<exact Target Profile ref>
+  source_document_refs: bounded array[1..1024]<{expected document kind, exact owner-typed document ref, source_hash: bytes32}>
+  source_closure_hash: bytes32
+  read_only_derived_artifact_refs: bounded array[0..1024]<exact generation-bearing ArtifactRefV1>
+  capability_refs: bounded array[0..128]<exact Capability ref>
+  budget_refs: bounded array[1..64]<exact budget ref>
+  decision_and_lock_refs: bounded array[0..128]<exact decision or lock ref>
+  omitted_ranges: bounded array[0..128]<bounded field range>
+  continuation: optional hash-bound continuation
+```
+
+`topology_ref`と`topology_version`は共に存在するか共に省略する。`source_closure_hash`はcanonicalな`source_document_refs`のtyped ref、version、source hashを結ぶ。`continuation`は`omitted_ranges`が1件以上の時だけ存在し、request hash、source closure hash、revision、scopeをbindする。Contextはread-only／Disposable projectionであり、Source Document、ChangeSet／Commit、Save／Replay headerへ保存せず、Commit可能なidentityやOperationとして受理しない。
 
 Source operationは`CreateWorldDocument`、`CreateSceneDocument`、`ComposeScene`、`MoveEntityToScene`、`SetSpatialTopologyDefinition`、`SetSpatialPartitionIntent`、`SetProceduralWorldDefinition`、`SetMapPresentationDefinition`である。consumer-owned Gameplay operationをWorld namespaceへ登録しない。`GenerateWorldStreamingPlan`はCommit済みSourceからDerived Planを作るCook jobで、Preview／Inspectはread-onlyである。
 
 AI contextはWorld／Scene／Space、Topology、Cell plan、dependency、Target、budgetだけをbounded projectionする。consumer-owned Gameplay stateや進行単位をWorld contextへ合成しない。
+
+複数Documentの変更は`WorldAuthoringBundleV1`のhashを承認済み`ProjectChangeSetV1`から参照して初めてCommitできる。Validate／Previewはread-onlyで、Plan、Bundle、ContextをCommit結果またはqualification evidenceとして扱わない。`WorldQualificationReceiptV1`はCommit済みSource revision、Topology／Scene／Space／Partition hash、Target Profile、Streaming／Navigation／LOD Artifact hash、system graph、fixture、correctness、performance、Review Receiptを結ぶDomain receiptであり、required Gate完了後だけ発行する。ChangeSet本文、Approval、共通Evidence envelopeの正本をWorldへ複写しない。
 
 `CreateCell`、`UpdateCell`、`DeleteCell`、`SetCellIntent`、`replace_streaming_plan`、plan-local `cell_id`をtargetとする任意field writeは公開または登録しない。未知またはaliasのCell write operationをSource editへ近似変換せず`MIRAKAN-WORLD-DERIVED_CELL_WRITE`で失敗させる。Applyは`SpatialPartitionIntentV1`を含むProject Source ChangeSetだけを対象とし、Derived Plan、Cell descriptor、Runtime cellを直接操作しない。
 
@@ -392,7 +525,7 @@ Qualificationは次を含む。
 - Renderer／Collision／Navigation hard closureの一要素failureを注入し、`MIRAKAN-WORLD-ACTIVATION_PARTIAL`、target全rollback、source Space／last-valid generation維持、stale Snapshot／progress再利用0件を検証する。
 - Tilemapのempty cell、負座標floor division、canonical cell／chunk順、C1 exact／plus-one bound、D4 single transform、stable animation phase、三Artifact all-ready atomic publication、stale generation、Preview／Commit hash一致。
 - Blockoutのdimension／segment／assembly bound、semantic矛盾、通常Domain cook、Promotion all-ready、external DCC 0件。
-- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchainをfresh processで3回実行して同じStable ID／output hash、Generator bound、connectivity、Physics overlap、spawn safety、Navigation query、invalid output／timeout／unsupported Target fallback、last-valid維持を検証する。
+- `fixture.world.procedural-determinism`: 同じseed／input／Target／Toolchainをfresh processで3回実行して同じStable ID／canonical output／output hash、Generator bound、connectivity、Physics overlap、spawn safety、Navigation queryを検証する。生成後にNavigation Artifactを削除して同じ入力から再生成し、同じcanonical output／Artifact hashになること、削除中／再生成失敗／hash不一致では既存last-valid ArtifactとWorld generationを維持すること、invalid output／timeout／unsupported Target fallbackを検証する。
 - `fixture.world.presentation-authority`: Map／World presentation、LOD、visibility、Camera、GPU結果からauthoritative writeを試みる全経路が`MIRAKAN-WORLD-PRESENTATION_AUTHORITY_WRITE`となり、Source／Runtime state hashが不変である。
 - Compact 2D／3D spatial fixtureでframe／memory／load／activation hitch、Cell／prefetch比較、camera speed、HLOD authority equivalence、cold start／streamingを測定する。
 - AI corpusはMapの6分類（world structure、scene composition、streaming、procedural layout、navigation、map presentation）、ambiguity／high-impact質問、World／Scene／Space／Cell／Navigation／Presentation分離、context外の表示名／pathからStable IDを推測しないこと、Source intent以外への直接write拒否を含む。
