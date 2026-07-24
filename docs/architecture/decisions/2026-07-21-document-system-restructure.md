@@ -10,7 +10,7 @@
 
 Miraikanai Engineの現行Engine仕様47件を、責務別ディレクトリに配置した42件の正本仕様へ再編する。日付付きの旧Filename、旧Directory、redirect、互換stub、旧Indexは残さない。旧文書はGit履歴だけを移行記録とする。
 
-Engine外の個人用Codex設定資料は`docs/developer-tools/codex/configuration.md`へ分離する。完了済み実装計画2件はactive planではないため削除し、Git履歴だけを記録とする。
+Engine外の個人用Codex設定資料は保持せず、repository設定は`.codex/config.toml`だけを正本とする。完了済み実装計画2件はactive planではないため削除し、Git履歴だけを記録とする。
 
 新しい`docs/architecture/README.md`はIndex、読順、正本一覧、状態一覧だけを所有する。IndexはArchitectureの判断、固定値、契約、Gateを再定義しない。
 
@@ -142,7 +142,7 @@ docs/architecture/
     └── shooter.md
 ```
 
-`docs/developer-tools/codex/configuration.md`はEngine Architecture外に置く。
+個人向けCodex設定資料はEngine Architectureへ含めず、repository設定は`.codex/config.toml`へ限定する。
 
 ## 6. 完全移行表
 
@@ -228,7 +228,7 @@ docs/architecture/
 | 旧文書 | 処理 |
 |---|---|
 | `docs/superpowers/specs/README.md` | `docs/architecture/README.md`へ置換する。旧本文は移植せず、正本一覧と読順を再生成する |
-| `2026-07-18-codex-config-optimization-design.md` | `docs/developer-tools/codex/configuration.md`へ分離する。Engine文書から参照しない |
+| `2026-07-18-codex-config-optimization-design.md` | 削除する。repository設定は`.codex/config.toml`だけに限定し、個人向け説明資料を保持しない |
 | `docs/superpowers/plans/2026-07-18-codex-config-optimization.md` | 削除する。完了記録はGit履歴だけとする |
 | `docs/superpowers/plans/2026-07-20-existing-documentation-naming-directory-unification.md` | 削除する。完了記録はGit履歴だけとする |
 
@@ -313,7 +313,7 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 - `docs/architecture/`にEngine正本42件とIndexが存在する。
 - Active仕様のFilenameに作成日を含めない。
 - `docs/superpowers/specs/`と`docs/superpowers/plans/`にactive文書を残さない。
-- `docs/developer-tools/codex/configuration.md`がEngine IndexまたはEngine正本から参照されない。
+- 個人向けCodex設定資料を保持せず、`.codex/config.toml`をEngine正本として扱わない。
 - 旧Filename、旧Directory、redirect、compatibility stubへの参照が0件である。
 
 ### 10.2 MarkdownとGraph
@@ -333,7 +333,7 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 - 共通Budgetを`performance-capacity.md`以外で再定義しない。
 - Approval／Authorizationを`ai-security-approval.md`以外で再定義しない。
 - Evidence／Provenance envelopeを`ai-verification-provenance.md`以外で再定義しない。
-- `StableId`、`ProjectChangeSetV1`、`GameSystemSpecV1`等の共有Contractは定義箇所が1件で、他はLink参照だけである。
+- `StableId`、`ProjectChangeSetV1`、current `GameSystemSpecV2`等の共有Contractは定義箇所が1件で、他はLink参照だけである。旧`GameSystemSpecV1`はoffline migration inputだけに残す。
 
 ### 10.4 重複と大きさ
 
@@ -441,7 +441,7 @@ PR #3で既に参照され、PR #4に存在する`AntiAliasingIntentV1`、`Reque
 
 現行OpenAI Codex Manualは、必要な品質を満たす最も低いreasoning effortから開始し、複雑性に応じて上げることを推奨する。`high`は複数step、複数source、trade-off、複雑なlogicやedge case向け、`max`／`xhigh`は特に要求の高い推論向けである。
 
-Miraikanaiの[Codex Configuration Guide](../../developer-tools/codex/configuration.md)はこの原則に従い、repository既定をSol／High、PlanをXHigh、最難関の一時作業を別Profileへ分ける。PR #3の全作業XHigh化は、速度・使用量を常時増やし用途分離を失うため棄却する。`.codex/config.toml`は変更しない。
+Miraikanaiの[`.codex/config.toml`](../../../.codex/config.toml)はこの原則に従い、repository既定をSol／High、PlanをXHigh、最難関の一時作業を別Profileへ分ける。PR #3の全作業XHigh化は、速度・使用量を常時増やし用途分離を失うため棄却する。
 
 公式確認先:
 

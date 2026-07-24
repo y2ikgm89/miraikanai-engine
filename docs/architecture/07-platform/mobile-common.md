@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.platform-mobile-common
 - 状態: review
-- 正本範囲: Mobile共通Target schema、Platform Port境界、lifecycle／surface／save／recovery、renderer接続境界、Asset delivery意味、touch／safe area、memory／thermal policy、device workflow、privacy model、共通qualification
+- 正本範囲: Mobile共通Target schema、Platform Port境界、lifecycle／surface／save／recovery、renderer接続境界、Asset delivery意味、touch／safe area、memory／thermal policy、device workflow、privacy model、共通crash metadata、共通qualification
 - 非正本範囲: Android／Apple固有profile値・build・package・store・signing、external Tool／SDK version、共通Runtime phase／budget、Asset import／cook／promotion、Renderer内部契約、Input／Audio／UI domain意味、AI authorization／Evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Android](android.md)、[Apple](apple.md)
 - 外部根拠検証日: 2026-07-21
@@ -100,6 +100,7 @@ Android／Appleのrequirement値、refresh／submission procedureは各Platform 
 | `IContentDeliveryService` | chunk state、progress、verify、mount | 本書の意味、Platform delivery mapping |
 | `IDeviceConditionService` | thermal、power、memory pressure、refresh range | 本書のpolicy、Platform signal mapping |
 | `IPlatformCrypto` | secure random、hash、signature verify | Toolchain-approved Platform Adapter |
+| `IUserDataStore` | save／config／log／cache root分類、atomic write、backup包含区分 | 本書のroot分類とbackup既定、Android／Appleのdirectory mapping |
 
 Public header／module／MCD／Saveへnative graphics handle、JNI／Objective-C object、OS enum、callback pointerを出さない。unsupported APIは意味のないsuccessではなく`UnsupportedCapability`を返す。Project C++はPortを直接includeせず、Engine Capabilityのtyped command／snapshotを使う。
 
@@ -107,7 +108,7 @@ Physical directory名は実装配置であり契約identityではない。`platf
 
 ## 4. Lifecycle、surface、save、recovery
 
-共通lifecycle stateはclosed set `Cold | Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating`である。exact transition slot、tick、job dependency、lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が所有し、本書はPlatform eventの意味を所有する。
+共通lifecycle stateは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`と同一のclosed set `Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating`である。cold startはprocess未起動でありこのstateの外とする。exact transition slot、Simulation Advance、job dependency、lifetimeは同文書が所有し、本書はPlatform eventの意味を所有する。
 
 - `Active`: interaction、simulation、presentationを許可する。
 - `Inactive`: foregroundだがinteraction不可。authoritative simulationをpauseする。
@@ -118,6 +119,8 @@ Physical directory名は実装配置であり契約identityではない。`platf
 `SurfaceGeneration`はsurface create／resize／rotation／recreationごとに単調増加する。Render job、pointer／touch event、drawable／presentはcaptureしたgenerationとcurrent generationが一致する場合だけcommitする。不一致jobは破棄し、World、Save、Asset generationをsurface lossで破棄しない。GPU resourceのretire／history resetは[Render Graph](../06-rendering/render-graph.md)へ委譲する。
 
 OS process killとtermination callback不達を前提とする。Saveはexplicit checkpoint、inactive／background transition、重要transaction commit後にgeneration付きtemporary fileへ完全writeし、flush、checksum、journal commit、atomic replaceする。復帰はschema version、content package set、last complete transaction、checksumを検証し、partial／stale generationをactive slotとして表示しない。Source／Derived lifecycle、Cook／promotion／rollbackは[Asset lifecycle](../03-authoring/asset-lifecycle.md)が所有する。
+
+User data rootは`save | config | log | cache`のclosed分類とし、全rootをapp-private storageへ置く。OS backup（Android Auto Backup、iCloud backup）の包含はsaveとconfigを既定対象、logとcacheを既定除外とし、変更は`ProjectMobileSpec`の宣言だけで行う。cacheはOSがpurgeできる領域として扱い、purgeでsave／configを失わない。具体directory mapping、file protection設定、backup宣言の物理表現はAndroid／Apple ownerが所有する。storage fullまたはuser data write失敗ではSave成功を表示せず、previous slotを維持する。
 
 initial Mobile Runtimeはbackground simulation、network tick、Asset decodeを行わず、Platformが許すbounded checkpoint完了だけを使う。background audio／location／Bluetooth等はactivated `PlatformServiceCapability`なしに有効化しない。
 
@@ -141,25 +144,35 @@ Frames-in-flightは`mobile_baseline`を2、`mobile_standard`と`mobile_high`を3
 
 ### 5.2 Dynamic resolution
 
-| Profile | 最大pixel数 | 基準解像度 |
+| `memory_class` | 最大pixel数 | 基準解像度 |
 |---|---:|---:|
 | `mobile_baseline` | 921,600 | 1280×720 |
 | `mobile_standard` | 2,073,600 | 1920×1080 |
 | `mobile_high` | 3,686,400 | 2560×1440 |
 
-Dynamic resolutionは5%刻み、下限50%とする。直近30 frame中12 frame以上がGPU soft targetを超えるか、Memory／Thermalが`Serious`以上なら直ちに一段下げる。GPUがtargetの80%未満かつMemory／Thermalが`Normal`の状態が15秒連続した場合だけ一段上げ、変更は最大毎秒一段とする。UI、text、pixel-locked layerへ適用しない。temporal method使用時はresolution step、orientation、surface generation、projection、jitter sequence、camera cutのいずれかが変化したframeでhistoryをresetし、reason codeを記録する。
+Dynamic resolutionのscaleは幅と高さそれぞれへ掛けるlinear axis scaleで、5 percentage point刻み、下限50%とする。したがって50% scaleは基準の25% pixel数であり、「5%」をpixel数5%として解釈しない。直近30 frame中12 frame以上がGPU soft targetを超えるか、Memoryが`Severe`以上またはThermalが`Serious`以上なら、次のresolution control boundaryへ一段downをenqueueする。変更は上下とも最大毎秒一段で、一つのpressure signalから複数段を即時適用しない。GPUがtargetの80%未満かつMemory／Thermalが`Normal`／`Nominal`の状態が15秒連続した場合だけ一段上げる。critical allocation failureは当該allocationの拒否と承認済みresource fallbackで処理し、resolution controllerの複数段変更で成功へ偽装しない。UI、text、pixel-locked layerへ適用しない。temporal method使用時はresolution step、orientation、surface generation、projection、jitter sequence、camera cutのいずれかが変化したframeでhistoryをresetし、reason codeを記録する。
 
 ### 5.3 Frame Generation
 
-Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameが[Runtime performance／capacityの60 fps共通frame profile](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。touch-to-photonは1000 fps以上のhigh-speed cameraで`240 tap×5 run`を採取し、touch contact frameから指定flash regionの最初の輝度変化までを測る。各runのnearest-rank P95のmedianを判定値とし、Provider-off比の劣化8.33 ms以下かつ絶対値83.33 ms以下を要求する。Receiptがなければ失敗する。30 fps入力をdisplayed 60 fpsにした結果を60 fps capabilityと表示しない。pixel-locked 2D、fullscreen menu、loading、pause、camera cut、rotation／resize／surface regenerationでは無効化する。
+Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameが[Runtime performance／capacityの60 fps共通frame profile](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。C1 candidateはfuture real frameを待たないextrapolative Providerに限定し、補間のために次real frameを保留するProviderはこの8.33 ms degradation Gateの候補外とする。displayed target rateはreal 60 fpsに対するdisplayed 120 fpsだけとし、他のreal／displayed組合せを候補にしない。
+
+touch-to-photonは1000 fps以上のhigh-speed camera、または1 ms以下の時間分解能を持つphotodiode＋自動tapper治具で`240 tap×5 run`を採取し、touch contact frameから登録済みflash ROIの最初の輝度変化までを測る。接触前20 sampleのlinear-luminance平均をbaseline、標準偏差の5倍とcapture quantization floorの大きい方をcalibrated noise floorとする。接触後、ROI平均linear luminanceのbaseline差がnoise floorを3 sample連続で超えた最初のsampleを「最初の輝度変化」とし、後続2 sampleではなく最初のsample時刻を採る。各runのnearest-rank P95のmedianを判定値とし、Provider-off比の劣化8.33 ms以下かつ絶対値83.33 ms以下を要求する。測定治具、ROI、baseline／noise floor、時間分解能、calibration、判定値をReceiptへ記録し、Receiptがなければ失敗する。30 fps入力をdisplayed 60 fpsにした結果を60 fps capabilityと表示しない。pixel-locked 2D、fullscreen menu、loading、pause、camera cut、rotation／resize／surface regenerationでは無効化する。
 
 ### 5.4 Mobile graphics quality
 
-Mobile graphics quality profileは`Baseline | Standard | High`のclosed setである。各値は次のMobile選択policyを一括して表し、Android／Apple Adapterはこの表を再定義しない。
+Mobile graphics quality profileは`Baseline | Standard | High`のclosed setである。quality profileは§2 `TargetProfileRef`の`render_quality_tier`、`mobile_baseline`等のIDは`memory_class`であり、別軸として扱う。§5.1–§5.3のキーは`memory_class`、本節のキーは`render_quality_tier`である。本表Frame Generation行のHigh列は§5.3のとおりquality Highかつ`memory_class = mobile_high`の両条件を要求する。各値は次のMobile選択policyを一括して表し、Android／Apple Adapterはこの表を再定義しない。
+
+| `memory_class` | 許可する`render_quality_tier` |
+|---|---|
+| `mobile_baseline` | `Baseline` |
+| `mobile_standard` | `Baseline \| Standard` |
+| `mobile_high` | `Baseline \| Standard \| High` |
+
+表外の組合せをCook／Play prepareで拒否し、`mobile_standard + High`等を実機結果から暗黙許可しない。
 
 | 機能 | Baseline | Standard | High |
 |---|---|---|---|
-| Renderer | Forward+ | Forward+ | Forward+／optional hybrid |
+| Renderer profile（[Render Graph](../06-rendering/render-graph.md) §8のclosed ID） | `forward_plus_v1` | `forward_plus_v1` | `forward_plus_v1`／optional `hybrid_deferred_v1` |
 | Shadow technique | SDF 2D／CSM＋atlas | SDF 2D／cached CSM＋atlas | SDF 2D／cached CSM＋atlas＋選択的PCSS |
 | Shadowed directional | 1、2 cascade、1024 atlas | 1、3 cascade、2048 atlas | 1、4 cascade、2048–4096 atlas |
 | Visible local lights | 8、local shadowなし | 32、最大2 shadowed | 64、最大4 shadowed |
@@ -189,7 +202,7 @@ target_format
 content_hash
 ```
 
-CookはAsset ID／revision、Source content、texture semantic、Target Profile、Toolchain lockからTarget formatを決定的に選択する。同一入力は同じ`target_format`と`content_hash`を生成し、package inspectionはwidth、height、mip count、color space、alpha mode、target format、content hashをCook済みpayloadと照合する。一項目でも不一致、Target format不足、同一Asset IDのTarget対応重複があればCook／promotionを拒否し、last-valid artifactを維持する。Pixel Art／UI／maskはedgeを壊すblock compressionを避け、RGBA8または用途別losslessを選ぶ。Android／Appleのformat mappingとpackage検証は各Platform ownerが所有する。
+CookはAsset ID／revision、Source content、texture semantic、Target Profile、Toolchain lockからformat laneごとのTarget formatを決定的に選択する。同一入力は同じ`target_format`と`content_hash`を生成し、package inspectionはwidth、height、mip count、color space、alpha mode、target format、content hashをCook済みpayloadと照合する。Target artifactの重複判定キーは`Asset ID×Target Profile×format lane`である。format laneは`primary | fallback`のclosed setで、Platform ownerは自Targetが要求するlane構成の宣言だけを所有する（例: AndroidのASTC primary＋ETC2 fallback）。一項目でも不一致、宣言laneのTarget format不足、同一lane内の重複があればCook／promotionを拒否し、last-valid artifactを維持する。Pixel Art／UI／maskはedgeを壊すblock compressionを避け、RGBA8または用途別losslessを選ぶ。Android／Appleのformat mappingとpackage検証は各Platform ownerが所有する。
 
 RuntimeでBasis／Universal TextureからTarget formatへtranscodeすることを禁止する。Basis／Universal Texture入力を使用する場合もoffline CookでTarget artifactへ確定し、Shipping packageへRuntime transcode path、transcoder、汎用intermediateだけのtextureを含めない。
 
@@ -231,13 +244,17 @@ Mobile固有aggregate soft release capは次である。正規`ProcessFootprint`
 | `mobile_standard` | 1,536 MiB | 1,152 MiB | 640 MiB | 192 MiB | 320 MiB | 96 MiB |
 | `mobile_high` | 2,560 MiB | 1,920 MiB | 1,024 MiB | 320 MiB | 512 MiB | 128 MiB |
 
-pressure ratioは`max(process/cap, engine_cpu/cap, gpu/cap)`とする。closed levelは`Normal | Constrained | Severe | Exhausted`で、80%からprefetch停止／cache trim、90%からnonessential eviction／allocation拒否、100%またはOS criticalでcheckpointとsafe degradationを行う。Emergency reserveを通常quality維持へ使わず、authoritative Gameplay、Save、network stateを捨てない。
+per-domain capの和がProcess footprint capを超えるのは設計であり、全domainの同時最大使用を許可しない。親子関係は`Render transient ⊂ GPU working set`、`Streaming cache ⊂ Engine CPU`、`Emergency reserve ⊂ Process footprint`である。内数列を親capへ加算せず、Emergency使用bytesも実体がCPUまたはGPUなら該当親へ同時chargeする。`ProcessFootprint`は各Platform ownerの正規footprint定義（[Android](android.md)／[Apple](apple.md)）で測り、GPU working setのOS計上有無はその定義に従う。pressure ratioは`max(process/cap, engine_cpu/cap, gpu/cap)`とし、`process`はProcess footprint列、`engine_cpu`はEngine CPU列、`gpu`はGPU working set列のcapへ対応する。closed levelは`Normal | Constrained | Severe | Exhausted`で、80%からprefetch停止／cache trim、90%からnonessential eviction／allocation拒否、100%またはOS criticalでcheckpointとsafe degradationを行う。Emergency reserveを通常quality維持へ使わず、authoritative Gameplay、Save、network stateを捨てない。
 
 thermal levelは`Nominal | Warm | Serious | Critical`へ正規化する。Warmはpresentation qualityを一段下げ、Seriousはlower render target、volumetric停止、streaming concurrency低下、Criticalはminimum presentation、nonessential download停止、checkpoint後のsafe exitを許可する。回復は15秒以上安定後に一段ずつ行い、瞬間signalで往復しない。敵味方数、damage、collision、goal、spawn timingを端末都合で変えない。
 
 `ProjectPrivacySpec`はdata category、purpose、retention、third-party sharing、account deletion、child-directed settingを持つ。telemetry、crash、AI prompt、generated contentは別purposeとして扱う。credential、access token、signing key、personal dataをAI prompt、Build log、crash dumpへ含めない。Platform manifest／store declarationとの一致は各Platform ownerが検査する。
 
-Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけを変更する。C／C++、native library、platform bytecode、script、shader source／pipeline、dynamic library、FFI、arbitrary Engine callを生成／download／loadしない。Runtime dataは`ContentSafetyProfile`、moderation、age／region policy、rate limit、report、audit ID、rollbackを持ち、network failure時はlast-valid local contentへ戻す。
+Mobile共通crash metadata契約は次である。Shipping crash recordはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed render frame ID／Simulation Advance sequence、memory／thermal levelを必須fieldとし、personal information、conversation body、credential、token、signing key、Project source、AI promptを含めない。収集経路、out-of-process制約、redaction検証、release gateは各Platform ownerが所有し、Crash recordとSession／Replayの関連付けは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を参照する。
+
+support bundle（正本は同書§14の`SupportBundleV1`）のMobile提出経路は本書が共通規則を、[Android](android.md)／[Apple](apple.md)がOS固有経路を所有する。生成はUserの明示操作で行い、保存先はapp-scoped storage、提出はC1ではOS標準share機構等のUser操作によるexportだけとする。crash収集経路はcrash evidenceの収集だけを所有し、bundleの構成、redaction、生成operationはDebugging Ownerの定義へ従う。
+
+現行C1／C2 Mobile Shipping RuntimeはAIによるstructured data生成／mutation、AI provider network call、generated contentのdownload／loadを許可しない。C／C++、native library、platform bytecode、script、shader source／pipeline、dynamic library、FFI、arbitrary Engine callを含む全Runtime generation要求をPhase 9のdeny-only policyで拒否し、Project／Save／authoritative Worldを不変に保つ。`ContentSafetyProfile`、moderation、age／region policy、rate limit、report、audit ID、生成content rollbackは`future.capability.runtime-structured-data-generation`がactive Product Registry、Mobile Target binding、専用Authority／Threat Model、fresh Target Qualificationを一つのChangeSetで成立させた後だけ本書へ追加し、現在のShipping契約として実装しない。
 
 ## 8. Failureと共通qualification
 
@@ -246,6 +263,7 @@ Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけ
 | Unsupported Target／Capability | Cook／launch拒否、required capabilityとremediationを表示 |
 | stale surface／touch generation | job／event破棄、Worldは維持 |
 | process kill／partial Save | last complete generationを復旧、partial slot非公開 |
+| storage full／user data write失敗 | Save成功非表示、previous slot維持 |
 | Asset chunk hash／signature／dependency mismatch | mount拒否、last-valid namespace維持 |
 | texture target選択／7-field manifest／payload不一致 | Cook／promotion拒否、last-valid artifact維持 |
 | unknown graphics quality／Baseline不合格 | fallback候補とdiagnosticを表示し、`OptimizationRequired`としてShipping拒否 |
@@ -254,8 +272,8 @@ Shipping Runtime AIはSchema／Capabilityで許可されたstructured dataだけ
 | device bridgeの二台目／二Session目／一時間超過 | 接続拒否またはcapture停止、complete chunkをread-only確定しmissing rangeをgap化 |
 | Platform Adapter破棄順違反 | qualification失敗、device／surfaceの早期解放を禁止し順序とtimeout reasonを診断 |
 | executable content in delivered Asset | package／mount拒否 |
-| Runtime AI validation／moderation failure | Project／Save不変、last-valid content維持 |
+| Runtime AI generation／mutation／provider call要求 | deny-only policyで拒否し、Project／Save／authoritative World不変 |
 
-共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、structured-data rollbackを含む。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Mobile graphics-quality fixtureは11行×3 profileの全値、unknown拒否、`High → Standard → Baseline`の一段遷移、Baseline不合格、2D C1全機能、3D C1 scalable subset、Presentation縮退前後のauthoritative result一致を検証する。Texture fixtureは同一入力の反復Cookで`target_format`／`content_hash`一致、7 field各tamperの拒否、Target artifact不足／重複、Pixel Art／UI／maskのRGBA8またはlossless、Runtime Basis／Universal Texture transcode path不在を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
+共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、Runtime AI generation／mutation／provider call拒否とProject／Save／authoritative World hash不変を含む。positive structured-data generation／moderation／rollback fixtureはFuture entryのactive移行まで含めない。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Mobile graphics-quality fixtureは11行×3 profileの全値、unknown拒否、`High → Standard → Baseline`の一段遷移、Baseline不合格、2D C1全機能、3D C1 scalable subset、Presentation縮退前後のauthoritative result一致を検証する。Texture fixtureは同一入力の反復Cookで`target_format`／`content_hash`一致、7 field各tamperの拒否、宣言laneのTarget artifact不足／同一lane内重複、Pixel Art／UI／maskのRGBA8またはlossless、Runtime Basis／Universal Texture transcode path不在を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
 
 Minimum／Reference実機は同一commit、package、input traceでlifecycle、Save、Input、Audio、graphics golden、memory、thermal、deliveryを測る。Emulator／Simulatorはfunctional smoke専用で、GPU、audio／touch latency、memory、thermalの合否に使わない。Evidence envelope、run grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが所有する。

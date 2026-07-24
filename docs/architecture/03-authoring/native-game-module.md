@@ -3,21 +3,23 @@
 - 文書ID: mirakan.arch.native-game-module
 - 状態: review
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
-- 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
-- 外部根拠検証日: 2026-07-21
+- 非正本範囲: GameplayDefinition、GameSystemSpecV2、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 外部根拠検証日: 2026-07-23
 
 ## 1. 結論
 
 `NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++23で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。CX0ではModule-ready Header API、CX3ではNamed Modules＋`import std`を使用するが、Process／C ABI／Promotion境界は変えない。
 
-Game制作では`BoundedNativeGameProfileV1`へ適合するModuleだけを許可し、Engine本体、Extension、Adapter、公開SDK、Validator、Policyを変更しない。公開SDKで要求を意味同等に実現できない場合、Native C++で境界を迂回せず`capability_unavailable`とする。
+Game制作では`BoundedNativeGameProfileV1`（§5.3）へ適合するModuleだけを許可し、Engine本体、Extension、Adapter、公開SDK、Validator、Policyを変更しない。公開SDKで要求を意味同等に実現できない場合、Native C++で境界を迂回せず`capability_unavailable`とする。
 
-Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV1`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
+Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV2`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
 
 ShippingではProject C++をGame binaryへ静的linkする。Windows Development Previewだけ、同じentry contractを持つDLLを新しい`GameHost` Processの起動時に一度loadできる。in-process unload、binary差替え、live code patchを行わず、変更時はGameHostを終了して再起動する。AndroidではProject static archiveをGame runtime `.so`へ、Appleではstatic archive／objectをapp executableへlinkする。
 
 これによりShipping最適化とattack surface縮小を優先しながら、Windows Editorの反復速度をGameHost再起動で確保する。
+
+公式比較では、Unreal Engine 5.8はProject `Source`のprimary module、Unity 6はnative plug-in境界、Godot 4.5はEngine再compileを不要にするGDExtension native libraryをそれぞれ公開している。本設計が採用する共通原則は「固定Engine baseline＋Project-owned extension＋明示ABI／Build／Target別Qualification」だけである。[Unreal Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)、[Unity Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)、[Godot 4.5 GDExtension](https://docs.godotengine.org/en/4.5/tutorials/scripting/gdextension/what_is_gdextension.html)を比較Evidenceとし、いずれのAPI互換、plugin ecosystem互換、hot reload挙動、機能同等性も保証しない。MiraikanaiのProject C++は本書のbounded ABI、Engine非改変、Process隔離、static Shipping link、Receipt Gateを正本とする。
 
 C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget`として登録できる。ただしこれは一般Widget pluginではなく、UI規約の型付きManifest、bounded primitive、typed command、Accessibility、fallbackを満たすNativeGameModule Capabilityである。Project codeをEditor Processへloadせず、PreviewはGameHostだけで実行する。
 
@@ -25,10 +27,10 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 
 | 主題 | 正本 |
 |---|---|
-| C++／GameplayDefinition選択、GameSystemSpecV1、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
+| C++／GameplayDefinition選択、GameSystemSpecV2、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
 | NativeGameModule artifact、ABI、entry、lifecycle、Build、Package | 本書 |
 | C++ language、compiler、memory、pointer、exception、target DAG | [C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md) |
-| tick phase／fixed delta値、World lease、command／event、queue、failure | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
+| Simulation Advance／Cadence、phase、World lease、command／event、queue、failure | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
 | Source Worker、Risk、Approval、Promotion authorization | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Game System ID、State owner、Implementation Variant、System Bundle、Target同値性 | [Gameplay programming model](gameplay-programming-model.md) |
 | `UiNativeWidget`のproperty、slot、measure、presentation、interaction、semantic、budget、fallback | UI／Text／Localization／Accessibility規約 |
@@ -127,18 +129,54 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 | `persistent_memory` | `MirakanNativeMemoryPortV1`を値で保持 |
 | `diagnostics` | `MirakanNativeDiagnosticPortV1`を値で保持 |
 
-各System `invoke`には`MirakanNativeInvokeContextV1`を渡す。tick、phase、fixed delta numerator／denominator、immutable query batch、RNG state view、phase-private scratch Port、typed output writerを持ち、callback returnで全View／scratch／writerを無効化する。Project C++がpointer、span、writer、scratch allocationを次のtick、job、callbackへ保持することを禁止し、Development lease epochで検出する。
+各System `invoke`には`MirakanNativeInvokeContextV1`を渡す。step、phase、`MirakanNativeCadenceInputV1`、immutable query batch、RNG state view、phase-private scratch Port、typed output writerを持ち、callback returnで全View／scratch／writerを無効化する。Project C++がpointer、span、writer、scratch allocationを次のstep、job、callbackへ保持することを禁止し、Development lease epochで検出する。
+
+```text
+MirakanNativeTypedContentRefV1
+  struct_size: uint32
+  type_id: generated package-local uint32
+  type_version: uint32
+  type_contract_set_hash: uint8[32]
+  canonical_ref_bytes: call-lifetime canonical byte span
+
+MirakanNativeCadenceInputV1
+  struct_size: uint32
+  cadence_profile_id: generated package-local uint32
+  cadence_profile_version: uint32
+  cadence_profile_content_hash: uint8[32]
+  simulation_advance_interval_hash: uint8[32]
+  advance_sequence: positive uint64
+  cadence:
+    kind: fixed
+      interval_seconds_numerator: positive uint64
+      interval_seconds_denominator: positive uint64
+    | kind: variable
+      interval_seconds_numerator: positive uint64
+      interval_seconds_denominator: positive uint64
+      monotonic_sample_sequence: positive uint64
+    | kind: turn_based
+      accepted_advance_command_ref: MirakanNativeTypedContentRefV1
+      accepted_advance_command_sha256: uint8[32]
+    | kind: explicit_step
+      accepted_step_request_ref: MirakanNativeTypedContentRefV1
+      accepted_step_request_sha256: uint8[32]
+      request_step_ordinal: positive uint16
+      logical_interval_seconds:
+        null | {numerator: positive uint64, denominator: positive uint64}
+```
+
+`cadence`はRuntime Scheduling ownerの`SimulationCadenceProfileV1`と同じclosed discriminatorを使い、別branch FieldをABI payloadへ混在させない。共通Profile identity、`simulation_advance_interval_hash`、`advance_sequence`とbranch値は同じsealed `SimulationAdvanceIntervalV1`から投影し、fixed／variable intervalとexplicit-stepのnon-null logical intervalは既約な正の有理秒である。variableの`monotonic_sample_sequence`も同Intervalからdirect projectionし、Native側でclockをsampleまたは採番しない。`MirakanNativeTypedContentRefV1.canonical_ref_bytes`はScheduling record内のexact `SimulationAdvanceControlRefV1`を`McdCanonicalBinaryV1`でencodeしたcall-lifetime View、`type_id`は同Refの`control_type_ref`をPackage tableへ解決したlocal IDであり、version／Contract set hashも同Type refとbyte equalityにする。turn-basedのCommand Ref／SHA-256、explicit-stepのrequest Ref／SHA-256／ordinalはsealed Intervalの同Fieldから一対一で複写し、独自sequence、display ID、bare hash、直前requestから推測しない。Project C++はRef spanをcallback後へ保持または再解決せず、Profile、kind、interval、advance sequence、Command／request identityを選択または既定化しない。profile IDはPackage内dispatch用で永続化せず、completed Profile refのversion／content hashをBuild、Replay、Save、Qualificationとbyte equalityにする。
 
 | `MirakanNativeInvokeContextV1` Field | 規則 |
 |---|---|
 | `struct_size`、`system_id` | `uint32`。`system_id`はCooked package内だけで有効なgenerated runtime ID、0 invalid |
-| `tick_id`、`invoke_sequence` | `uint64` |
+| `advance_sequence`、`invoke_sequence` | `uint64`。前者は`cadence_input.advance_sequence`とbyte equality |
 | `phase_id` | Runtime規約のserialized `TickPhaseId` |
-| `fixed_delta_numerator`／`fixed_delta_denominator` | `uint32`。Runtime Ownerが供給する既約有理数を読み取り、Native側で既定値を選ばない |
+| `cadence_input` | call中だけ有効なexact `MirakanNativeCadenceInputV1`。ProfileのrateまたはkindをABI literalから推測しない |
 | `query_batches` | ComponentAccessManifestから生成したimmutable bounded View |
 | `rng_stream` | Engine-owned deterministic RNG Port |
 | `scratch_memory` | callback returnまで有効なsingle-owner Port |
-| `output_writer` | 宣言済みCommand／Event／State deltaだけを受理するprivate writer |
+| `output_writer` | 宣言済みCommand／Event／Structural Commandだけを受理するprivate writer。Component value／System State deltaは受理しない |
 | `lease_epoch` | return時にinvalidateする`uint64` |
 
 `MirakanNativeMemoryPortV1`を次に固定する。
@@ -154,7 +192,7 @@ ModuleはentryからHost pointer／spanを保持しない。`create`時に別の
 
 `size`は1以上、`alignment`は1～4096の2冪とし、失敗時は`allocate`がnullを返す。FunctionはC ABIを越えて例外を投げず、persistent PortはEngine workerからの並行callに対応し、invoke scratch Portは当該invokeだけのsingle-ownerである。`deallocate`は取得時と同じPort、size、alignment、tagを必須とし、不一致はDevelopment assertion／Release session faultとする。Moduleはfunction tableをcopyできるが、context lifetimeを越えてcallしない。
 
-`MirakanNativeDiagnosticPortV1`は`{struct_size, context, emit}`だけを持つ。`emit`は`diagnostic_code: uint32`、closed severity enum、system ID、tick／phase、最大8個のMCD scalar argument、任意のUTF-8 detail最大1,024 byteを値copyし、例外を投げない。Detail、表示名、log textをGame rule、dispatch、success判定へ使用せず、Secret、User text、pointer、pathを記録しない。1 invoke当たり64 recordを超えた分はcounterへ集約し、callbackをblockしない。
+`MirakanNativeDiagnosticPortV1`は`{struct_size, context, emit}`だけを持つ。`emit`は`diagnostic_code: uint32`、closed severity enum、system ID、advance sequence／phase、最大8個のMCD scalar argument、任意のUTF-8 detail最大1,024 byteを値copyし、例外を投げない。Detail、表示名、log textをGame rule、dispatch、success判定へ使用せず、Secret、User text、pointer、pathを記録しない。1 invoke当たり64 recordを超えた分はcounterへ集約し、callbackをblockしない。
 
 ## 5. C++ source contract
 
@@ -177,7 +215,8 @@ MCDから生成するProject C++ APIは次を提供する。
 
 - typed Component read view
 - typed immutable snapshot
-- `CommandWriter`、`EventWriter`、`GameplayStateTransaction`
+- `CommandWriter`、`EventWriter`、`StructuralCommandWriter`
+- Manifestのaccessに応じたgenerated `MirakanNativeStateViewV1`（read／read_write）
 - versioned Asset handleとmetadata view
 - deterministic RNG stream
 - fixed C ABIのbounded scratch memory port
@@ -198,9 +237,25 @@ MCDから生成するProject C++ APIは次を提供する。
 | Thread | Moduleによる作成、detach、thread-local service cacheを禁止 |
 | I/O | filesystem、socket、process、clockへの直接accessを禁止 |
 
-Project C++の明示的な`new`／`delete`、`malloc`／`free`を禁止する。Module-owned persistent objectは`MirakanMakePersistent<T>(MirakanNativeMemoryPortV1, tag_id, args...) -> Result<MirakanUniqueOwner<T>>`だけで生成し、per-tick allocationはphase scratch Portだけを使用する。`MirakanUniqueOwner<T>`はmove-onlyで、取得時のPort、size、alignment、tagを保持し、destructorで`T`を一度破棄して同じPortへblockを返す。copy、`release()`による所有raw pointer流出、別Portへの移管を提供しない。
+Project C++の明示的な`new`／`delete`、`malloc`／`free`を禁止する。Module-owned persistent objectは`MirakanMakePersistent<T>(MirakanNativeMemoryPortV1, tag_id, args...) -> Result<MirakanUniqueOwner<T>>`だけで生成し、per-Simulation-Advance allocationはphase scratch Portだけを使用する。`MirakanUniqueOwner<T>`はmove-onlyで、取得時のPort、size、alignment、tagを保持し、destructorで`T`を一度破棄して同じPortへblockを返す。copy、`release()`による所有raw pointer流出、別Portへの移管を提供しない。
 
 Module内部のPMR containerはMemory Portを包むmodule-owned `std::pmr::memory_resource` Adapterをconstructorで受け取る。通常の`std::make_unique`、default PMR resource、global operator newによってpersistent Portを迂回しない。cross-boundary objectをcaller側でdeleteせず、Shipping static linkでもこの規則を緩和しない。
+
+### 5.3 `BoundedNativeGameProfileV1`
+
+本書はGame制作の許可判定に使う`BoundedNativeGameProfileV1`の唯一のDomain ownerである。ProfileはEngine buildが生成するread-only制約集合であり、Project／Game制作AIは変更できない。Governance文書は本Profileを参照だけする。
+
+| Field | 規則 |
+|---|---|
+| `schema_version`／`profile_id` | MCD共通Envelopeに従うgenerated ID |
+| `engine_public_api_hash` | 適合検査対象のEngine公開APIをexactに固定するSHA-256 |
+| `allowed_named_modules[]` | §5.1のPrimary Named Module集合のclosed subset |
+| `allowed_std_header_ids[]` | `CppDependencySetV1`のclosed `StdHeaderId` allowlist |
+| `forbidden_operation_rule_ids[]` | §5.2のGlobal state／Thread／I-O／明示的allocation禁止に対応するclosed rule ID集合 |
+| `memory_limit_refs[]` | `MirakanNativeMemoryPortV1`の`hard_limit_bytes`等、上限値へのexact参照 |
+| `gate_ids[]` | §12のSource scan／manifest一致検査を含む検査Gate ID集合 |
+
+Profileの各Fieldは本書の各節が所有する規則へのexact参照であり、閾値・上限のNormative値を複写しない。適合はSource Gate（§12のAST／Module graph／link import scan）とload時照合（§7.1のGraph照合）で機械検査し、不適合ModuleはGame制作Taskで登録しない。
 
 ## 6. Lifecycle
 
@@ -220,7 +275,7 @@ Discovered
 |---|---|---|
 | `create` | Module context、bounded persistent memory、immutable config copy | World query、thread、file、GPU／Physics access |
 | register | System／Capability descriptor登録 | Entity作成、Runtime state変更 |
-| `prepare_play` | Target／Asset／Component access検証、session-local state確保 | tick実行、async job開始 |
+| `prepare_play` | Target／Asset／Component access検証、session-local state確保 | Simulation Advance実行、async job開始 |
 | Running | 宣言phaseのcallback、typed output作成 | phase外write、再入、構造変更直接実行 |
 | `stop_play` | 新規job停止、owned job join、state破棄準備 | timeout後のbackground access |
 | unregister | System／Capability登録解除 | callback残留 |
@@ -237,9 +292,9 @@ Discovered
 | Field | 規則 |
 |---|---|
 | `system_id` | Cooked package内runtime `uint32` ID、generated。永続化／別Package比較禁止 |
-| `system_contract_version` | `GameSystemSpecV1.version`からgenerated |
+| `system_contract_version` | `GameSystemSpecV2.version`からgenerated |
 | `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
-| `phase_mask` | `RuntimePhaseSetRefV1`。`GameSystemSpecV1`から生成された許可集合だけを消費し、Native側でphaseを追加しない |
+| `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV2`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
 | `read_component_set` | ComponentAccessManifest subset |
 | `write_state_set` | GameplayState field subset |
 | `command_set`／`event_set` | 生成可能な型のsubset |
@@ -250,13 +305,17 @@ Discovered
 | `state_owner_set_hash` | Specのowned State Type集合と一致 |
 | `invoke` | generated no-throw trampoline |
 
-Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはtick、fixed delta、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。World commitは成功後にRuntime規約のcanonical merge順で行う。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
+`GameSystemSpecV2.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、Manifest、descriptorの写像不一致をLoad時にModule全体の登録失敗とし、より強いauthorityへ暗黙昇格しない。
 
-Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline tickを持ち、結果はRuntime Ownerが定める結果portと安全境界で検査される。Module独自worker poolを作らない。
+Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはstep sequence、exact Cadence Profile identity、closed cadence branch input、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。authoritative runtime state／Command／Event publicationはcallback成功後だけRuntime規約のcanonical merge順で行い、Worldを持たないUI-only／headless branchにも同じ規則を適用する。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
+
+旧`fixed_delta_numerator／fixed_delta_denominator` Fieldはtarget `MirakanNativeInvokeContextV1`へ含めない。ABI freeze前のClock／Cadence TaskはSource／descriptor／Replay／fixtureを`MirakanNativeCadenceInputV1`へ同時更新し、reference default `60/1 Hz`をProfile instanceとしてだけ検証する。旧Fieldを互換alias、全Game System、UI-only、headless、将来Cadenceの恒久前提として残さない。
+
+Moduleがworker処理を必要とする場合、Engine Job Portへbounded jobを提出する。JobはWorld viewをcaptureせず、owned input、owner generation、deadline advance sequenceを持ち、結果はRuntime Ownerが定める結果portと安全境界で検査される。Module独自worker poolを作らない。
 
 ### 7.2 Game UI extension
 
-`UiNativeWidget`は`NativeSystemDescriptorV1`へUI phaseを追加して実装しない。NativeGameModuleの`capability_table`へ登録する`capability.ui.native_widget_v1`から、UI規約の`UiNativeWidgetManifestV1`と次のpure callback tableを取得する。
+`UiNativeWidget`は`NativeSystemDescriptorV1`へUI phaseを追加して実装しない。NativeGameModuleの`capability_table`へ登録する`capability.ui.native_widget`から、UI規約の`UiNativeWidgetManifestV1`と次のpure callback tableを取得する。schema versionはManifest側のschema versionで表し、capability IDへversion suffixを埋め込まない。
 
 | Callback | Owner phase | Input | Output |
 |---|---|---|---|
@@ -325,6 +384,127 @@ Native buildは`NativeModuleBuildEvidenceV1`として次のdomain evidenceだけ
 
 Source、generated Module／C ABI Header、Dependency Set、Build artifact、build evidenceのhashが一つでも一致しなければload候補にしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。Governanceからauthorizationが返らないartifactはinactiveに保ち、Projectは直前のQualified Variantを参照し続ける。
 
+### 9.3 AI生成SourceとCode owner gate
+
+AIが新規Native Sourceを生成または既存Native Sourceを変更する前に、[AI Security／Approval](../01-governance/ai-security-approval.md#94-code-owner-assignmentとapproval)の`CodeOwnerAssignmentV1`をexact module／path scopeへ解決する。Assignmentは`role_ref=role.code_owner.native_module`、対象Native module／pathを全量包含するScope、current qualification／independence Receipt、`valid_from <= evaluation_time < expires_at`、`revoked_at=null`をすべて満たさなければならない。Assignment不在、Role欠落／unknown／Shader Role、期限切れ、失効、Scope外、qualification／independence Receipt不成立ではTaskを`AwaitingCodeOwner`、Editorを`awaiting_code_owner`にし、Source Workerを起動しない。
+
+Source生成後は、同じSource revision、exact Diff hash、Target別Build Receipt集合、独立`review_receipt_ref`に対する`CodeOwnerApprovalV1.decision=approved`をPromotion前に必須とする。Diff、base Source revision、generated contract、Dependency Set、Toolchain、Target、Build artifactのいずれかが変われば再Build／再Review／再Approvalする。Gameplay intent承認、AI Reviewer、Compiler成功、prequalified Packの過去承認を新しいDiffのCode owner承認として流用しない。
+
+Beginner MVPはDefinition-firstと既にQualification済みのPack／Variantだけを使用し、新規Native Sourceを生成しない。既存Packはexact package／module hash、license、Target、qualification、revocationを照合し、変更なしで利用する。RequirementがDefinition／Packで成立しない場合はNativeを暗黙生成せず`capability_unavailable`とする。Advanced Project Source ActivationはこのCode owner gate、Source sandbox、G0–G7、Promotionを独立に満たす場合だけ有効であり、Beginner First Playableの合格をActivation根拠にしない。
+
+### 9.4 AI Source task、Patch Proposal、Promotion carrier
+
+[Executable Contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.native_game_module_source`と`planning.operation_family.project_source_promotion`を将来atomic Activationするtarget carrierを次へ固定する。current MCD Operation、Manifest、Service、Policy、Validator、Diagnostic、Receipt、Signer、Provider／MCP projectionはexact `[]`であり、本schemaの存在をSource生成またはPromotion権限として扱わない。
+
+```text
+NativeGameModuleIdentityRefV1
+  project_id: UUIDv7
+  module_id: UUIDv7
+
+NativeGameModuleRevisionRefV1
+  project_id: UUIDv7
+  module_id: UUIDv7
+  module_revision: uint64
+  module_manifest_sha256: Sha256DigestV1
+  source_revision_sha256: Sha256DigestV1
+
+NativeModuleSourceRevisionV1
+  project_id: UUIDv7
+  module_id: UUIDv7
+  source_revision: uint64
+  source_tree_sha256: Sha256DigestV1
+  module_manifest_sha256: Sha256DigestV1
+  source_revision_content_hash: Sha256DigestV1
+
+NativeSourcePathScopeRefV1
+  scope_artifact_ref:
+    exact ArtifactRefV1(
+      artifact_kind=native_source_path_scope, schema_version=1)
+  scope_id: StableId
+  scope_version: uint32
+  scope_content_hash: Sha256DigestV1
+
+BoundedNativeGameProfileRefV1
+  profile_id: StableId
+  profile_schema_version: 1
+  profile_content_hash: Sha256DigestV1
+
+NativeSourceTargetProfileRefV1
+  target_profile_id: StableId
+  target_profile_version: uint32
+  target_profile_content_hash: Sha256DigestV1
+
+NativeSourceRequirementRefV1
+  requirement_id: StableId
+  requirement_version: uint32
+  requirement_content_hash: Sha256DigestV1
+
+NativeModuleSourceTaskV1
+  task_id:
+    urn:mirakan:native-module-source-task:sha256:<lowercase-hex-64>
+  project_id: UUIDv7
+  base_project_revision: uint64
+  source_subject:
+    action: create
+      module_identity_ref: NativeGameModuleIdentityRefV1
+    | action: update
+      module_ref: NativeGameModuleRevisionRefV1
+      base_source_revision_ref:
+        exact ArtifactRefV1(
+          artifact_kind=project_native_source_revision,
+          schema_version=1)
+  path_scope_refs[1..256]: NativeSourcePathScopeRefV1
+  bounded_native_game_profile_ref: BoundedNativeGameProfileRefV1
+  bounded_native_game_profile_sha256: Sha256DigestV1
+  public_sdk_contract_set_hash: Sha256DigestV1
+  engine_public_api_sha256: Sha256DigestV1
+  toolchain_lock_sha256: Sha256DigestV1
+  target_profile_refs[1..64]: NativeSourceTargetProfileRefV1
+  requirement_refs[1..128]: NativeSourceRequirementRefV1
+  code_owner_assignment_ref: CodeOwnerAssignmentRecordRefV1
+  code_owner_assignment_sha256: Sha256DigestV1
+  requested_change_summary: NfcUtf8StringV1(1..4096 bytes)
+  requested_change_summary_sha256: Sha256DigestV1
+  task_input_closure_sha256: Sha256DigestV1
+
+NativeModulePatchProposalV1
+  proposal_id:
+    urn:mirakan:native-module-patch-proposal:sha256:<lowercase-hex-64>
+  source_task_ref:
+    exact ArtifactRefV1(
+      artifact_kind=project_native_source_task, schema_version=1)
+  source_task_sha256: Sha256DigestV1
+  source_bundle_ref: ArtifactRefV1(
+    artifact_kind=source_bundle, schema_version=1)
+  worker_source_delta_ref: ArtifactRefV1(
+    artifact_kind=source_delta, schema_version=1)
+  broker_recomputed_diff_ref: ArtifactRefV1(
+    artifact_kind=broker_recomputed_source_diff, schema_version=1)
+  broker_recomputed_diff_sha256: Sha256DigestV1
+  before_source_tree_sha256: Sha256DigestV1
+  after_source_tree_sha256: Sha256DigestV1
+  changed_path_refs[1..4096]: ProjectSourceChangedPathRefV1
+  dependency_delta_ref: ArtifactRefV1(
+    artifact_kind=native_dependency_delta, schema_version=1)
+  generated_contract_delta_ref: ArtifactRefV1(
+    artifact_kind=generated_contract_delta, schema_version=1)
+  required_build_plan_ref: ArtifactRefV1(
+    artifact_kind=native_build_test_plan, schema_version=1)
+  diagnostic_refs[0..64]: DiagnosticCodeRefV1
+  proposal_sha256: Sha256DigestV1
+
+```
+
+`NativeModuleSourceRevisionV1.source_revision_content_hash = SHA-256(ASCII "MIRAKAN_NATIVE_MODULE_SOURCE_REVISION_V1" || uint32_be(length(closed MCD canonical bytes excluding source_revision_content_hash)) || closed MCD canonical bytes excluding source_revision_content_hash))`とする。`ArtifactRefV1(artifact_kind=project_native_source_revision,schema_version=1).sha256`はこのFieldを含む完成record bytesのSHA-256へ一致させる。`NativeGameModuleRevisionRefV1.source_revision_sha256`は同じ完成record hash、`module_manifest_sha256`はrecord内とbyte equalityにし、Module／Source revisionを別Projectまたは別Moduleへ組み替えない。
+
+`source_subject`は`action`をdiscriminatorとするclosed tagged unionである。`create`はGatewayが予約した未使用の`module_identity_ref`だけを必須にし、`module_ref`と`base_source_revision_ref`をcanonical omissionする。`update`はCommit済みexact `module_ref`と、そのModuleの同じProject／Module ID／source revisionへ解決する`base_source_revision_ref`を必須にし、`module_identity_ref`をcanonical omissionする。createで既存Module ID、updateでmissing／zero／latest base、branch外Field、Project／Module ID差、manifest／source hash差を拒否し、空refを省略の代用にしない。ProposalとPromotionの`revision_transition`はこのactionと一致しなければならない。
+
+`path_scope_refs[]`はAssignmentのexact Scope kind／ref内に全量包含され、各`scope_artifact_ref`をAssignmentの`OperationMutationTypedScopeRefV1.scope_artifact_ref`とbyte equalityにし、解決したNFC正規化済みProject-relative pathまたはModule refのcanonical tuple順、重複禁止である。`NativeSourcePathScopeRefV1.scope_content_hash`はscope ID／versionと解決済みpathまたはModule tupleを含むclosed scope payloadのhashであり、同payloadの完成bytes hashは`scope_artifact_ref.sha256`と一致させる。表示path、glob text、Assignmentの配列indexをidentityにしない。absolute path、`..`、symlink escape、glob expansion後にAssignment外となるpath、Engine／Extension／Adapter／Validator／Policy directoryを拒否する。`changed_path_refs[]`は[Project state](project-state.md#51-envelope)のtyped `ProjectSourceChangedPathRefV1`で、同Ownerが定めるcanonical tuple順を使い、全recordの`source_kind=native_module`、Project一致、closed `BrokerRecomputedSourceDiffV1`とのset equality、全pathのScope包含を必須にする。`source_bundle_ref`はcreateではcanonical empty Native source treeとScope、updateではTaskのbase source revisionとScopeからBrokerが構築したbytesである。`worker_source_delta_ref`はuntrusted worker output、`broker_recomputed_diff_ref`はBrokerがclean StagingへDeltaを適用後に再計算した唯一のApproval対象である。Worker申告Diff hashを`broker_recomputed_diff_sha256`へ複写しない。
+
+Task IDはASCII `MIRAKAN_NATIVE_MODULE_SOURCE_TASK_V1`、Proposal IDは`MIRAKAN_NATIVE_MODULE_PATCH_PROPOSAL_V1`と各自己IDを除く完成canonical bytesからSHA-256を計算して上記URNへ投影する。`bounded_native_game_profile_sha256`、`code_owner_assignment_sha256`、`source_task_sha256`はそれぞれ隣接refが解決する完成record hashとbyte equalityにする。`requested_change_summary_sha256`はNFC UTF-8 summary bytesを`uint32_be` length framingしてASCII `MIRAKAN_NATIVE_REQUESTED_CHANGE_SUMMARY_V1`と連結したSHA-256である。Target、Requirement、Scopeの各ref集合はID／version／content hash順でcanonical sortし、duplicate ID、同ID別hash、latest／display name lookupを拒否する。`proposal_sha256`は同じProposal bytesのdomain-separated digestで、`proposal_id` suffixとbyte equalityを必須にする。ref／隣接hash、Project／revision、before／after tree、Scope、Target、Toolchain、Candidateの一Field差を拒否する。
+
+Promotionの共通`ProjectSourcePromotionSubjectV1`／`ProjectSourcePromotionReceiptV1`は[Project state §5.1](project-state.md#51-envelope)だけが所有する。Promotionは`source.source_kind=native_module`かつ`revision_transition.kind`がTask actionと一致するclosed branch、`trusted_internal`専用で、全changed pathを包含するcurrent `CodeOwnerAssignmentV1`、同じProposal Diffへの`CodeOwnerApprovalV1.decision=approved`、distinct independent reviewer、全TargetのNative Build ReceiptとCandidate Test Receipt、current revocationを再検証する。成功Receipt発行後だけ`RegisterNativeModuleRevision`が同じsource revision refを`ProjectChangeSetV1`へ登録できる。Provider／MCP／standard external clientへ`operation.project_source.promote_revision`を投影せず、Source task／Patch Proposal成功をPromotion、Project Commit、Capability Activationとして表示しない。
+
 ## 10. PreviewとPackage
 
 Windows Preview sequenceを次で固定する。
@@ -354,6 +534,8 @@ Save互換検証なしに旧Play stateを新Processへ移さない。Preview art
 | Mobile C++変更 | rebuild、re-sign、reinstallなしのPreviewを禁止 |
 | 未宣言import／未許可Header／Module cycle | Source Gate失敗、Header方式へFallbackしない |
 | `import std`／BMI／Module tooling不成立 | Active C++ Frontend Profile失敗、artifactを生成しない |
+| Code owner Assignment不在／Role欠落・unknown・Shader Role／失効／Scope外 | Source Workerを起動せず`AwaitingCodeOwner`。BeginnerはDefinition／prequalified Packへ再Plan |
+| Code owner ApprovalのDiff／revision／Receipt不一致 | Promotion／load拒否、Sourceはinactive Stagingに隔離 |
 | Native Widget manifest／Capability／Target不一致 | Widget callback登録前にreject、UI規約のfallbackへ遷移 |
 | Native Widget callback fault／timeout／capacity超過 | callback output全破棄、GameHost fault、同Module instance再利用禁止 |
 
@@ -361,10 +543,10 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 
 ## 12. Performance、Memory、Security Gate
 
-- Native callbackの時間はSystem ID別に測定し、Gameplay Logic合計P95 1.50 msを緩和しない。
+- Native callbackの時間はSystem ID別に測定し、[Performance／capacity](../04-runtime/performance-capacity.md)が所有するGameplay Logic合計budgetを緩和しない。
 - Runtime callback内allocation countはsteady stateで0をC1目標とし、許可allocationはphase scratchからだけ行う。
 - Persistent、session、scratch、command payloadを別telemetry counterへchargeする。
-- C++化は同一fixtureで構造化実装より5%以上かつmeasurement noiseを超える改善、または表現不能Capabilityを根拠とする。
+- C++化の成立条件は[Gameplay programming model](gameplay-programming-model.md) §1.1の選択境界に従い、性能根拠は[Performance／capacity](../04-runtime/performance-capacity.md)が所有する改善閾値を同一fixtureで満たすこと、または表現不能Capabilityだけとする。閾値のNormative値を本書へ複写しない。
 - ASLR、DEP、CFG、CET互換、stack protection、warnings-as-errors等のWindows Shipping hardeningをEngine binaryと同じにする。
 - Module Sourceに未宣言import、禁止Header、inline assembly、dynamic load、socket、process、environment／registry accessがないことをAST／Module graph／link import scanで検査する。
 - Shipping import table、symbol、Capability manifest、Component access manifestの一致を検証する。
@@ -378,16 +560,19 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - phase外write、未宣言Component、invalid handle、queue overflowを拒否する。
 - Definition実装とNative実装でcommand、event、Save、replay意味が一致する。
 - Native descriptorのSystem ID、Contract version、Variant、State owner、phase、accessがactive Game System Graphと一致しない場合にloadを拒否する。
+- Cadence ABIはScheduling Ownerがsealした四branchの`SimulationAdvanceIntervalV1`から全Fieldをdirect projectionする。variableのmonotonic sample sequence、turn-basedのCommand Ref／hash、explicit-stepのrequest Ref／hash／ordinal、Type version／Contract set hashの一Fieldだけを差し替えたfixture、旧`accepted_advance_sequence`／`accepted_step_request_sequence`を持つfixture、Ref spanをcallback後へ保持するfixtureを拒否し、Native callbackを呼ばない。
 - Target-specialized Variantが同じPublic System ContractとGameplay fidelity fixtureを通り、意味同等fallbackなしのTargetを非対応にする。
 - Governance authorization後Project Commit失敗時に新Variantをloadせず、直前Qualified Variantを維持する。
 - GameHostを100回再起動し、Editor Processのhandle／memoryが増加しない。
-- Windows Shipping、Android、Appleのclean static-link packageが同じModule revision hashを記録する。
+- Phase 5 C1ではWindows Editor PreviewとWindows Desktopのclean static-link packageが同じModule revision hashを記録する。Android／AppleはProduct Registryで`excluded`のまま、別のTarget Profile、Work Package、Capability Target binding、fresh Target Qualificationが承認されるまで本C1完了条件と対応表示へ含めない。
 - AI生成SourceがGovernance authorization前に正規Project／Editor／Shippingへloadされない。
+- AI生成Sourceはexact `role.code_owner.native_module`、Native Scope、current Qualification、`revoked_at=null`を持つ`CodeOwnerAssignmentV1`なしに生成されず、exact Diffの`CodeOwnerApprovalV1`なしにPromotion／loadされない。missing／unknown／`role.code_owner.project_shader`／Scope差／revokedを一原因ずつ拒否する。
+- Beginner Profileでは新規Native Source Taskが0件で、Definition／prequalified Pack不能な要求を`capability_unavailable`として停止する。
 - CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 - C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
 
-C1完了条件は、2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Windows Preview再起動、Shipping static link、Definitionとのcontract conformance、fault recoveryをすべて合格することである。
+本Native CapabilityのC1完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Code owner gate、Windows Editor Preview再起動、Windows Desktop clean static-link artifact、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateでも、Shipping／Release readinessでもない。
 
 C2 UI extension完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として実装し、Governance-authorized source、UI Designer fallback projection、Windows GameHost Preview、Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを合格することである。これはC1 NativeGameModule完了条件を置き換えない。
 

@@ -30,7 +30,8 @@ Authoring surfaceのcanonical objectを次に固定する。下記と別のAsset
 | `ArtAssetProfile` | Stable ID／revision、Mesh／Sprite／Texture制作規則、Palette、semantic role | Importer、Generator、Validatorが同一revisionを共有 |
 | `AnimationPresentationProfile` | Stable ID／revision、presentation sampling、pose hold、motion accent | Simulation meaningから分離し表示だけを変更 |
 | `VisualStyleProfile` | Material、Light、Camera、Post、VFX、UI、Asset制作規則のStyle契約 | `StyleChangeSet`／Preview／承認を必須とし、下記exact fieldsを使う |
-| `StyleCapabilityManifest` | `engine_build_id`、`target_profile_id`、`quality_profile_id`、利用可能なMaterial Domain／Shading Model／Node／Template／Style feature ID、required Capability／Qualification ref | Engine buildから生成しAI／Project data変更不可 |
+| `VisualStyleSemanticRegistryV1` | Style axisごとのCore defaultとOwner-qualified Feature／Genre／Project contribution | dependency closureとQualificationから生成しSourceから直接編集不可 |
+| `StyleCapabilityManifest` | `engine_build_id`、`target_profile_id`、`quality_profile_id`、利用可能なMaterial Domain／Shading Model／Node／Template、active Visual Style Registry／Projection ref、required Capability／Qualification ref | Engine buildとProject／Pack dependency closureから生成しAI／Project data変更不可 |
 | `VisualStyleDecision` | 候補、除外理由、選択理由、未解決事項、Capability、domain result | Decision Ledger／Governance参照を持ち、authority／approvalは所有しない |
 | `MaterialExplanationV1` | Material判断の根拠、差、cost、fallback | Preview／Plan revisionへ紐付け |
 
@@ -51,11 +52,14 @@ schema_version
 profile_id
 source_profile_id: optional
 display_name
-scene_dimension
-art_direction
-composition
-composition_variant: native | crisp_sprite_over_high_res_3d | unified_low_resolution
+scene_dimension: two_d | three_d | hybrid
+art_direction_ref: VisualStyleSemanticRefV1(axis_id=art_direction)
+composition_variant_ref: VisualStyleSemanticRefV1(axis_id=composition_variant)
 gameplay_space: canvas_2d | world_3d
+visual_style_semantic_registry_ref:
+  exact {registry_id, registry_version, registry_content_hash}
+visual_style_semantic_activation_projection_ref:
+  exact {projection_id, projection_version, projection_content_hash}
 camera_profile_id
 lighting_profile_id
 post_process_profile_id
@@ -94,11 +98,54 @@ reference_assets[]
 locked_fields[]
 ```
 
-Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。`gameplay_space`がPhysics／Navigationの所有空間を決め、見た目からdimensionを推測しない。
+```text
+VisualStyleSemanticRefV1
+  axis_id: art_direction | composition_variant
+  semantic_id: namespace付きStableId
+  semantic_version: positive uint32
+  semantic_content_hash: SHA-256
 
-`pixel_2d`と`unified_low_resolution`は正整数`reference_resolution`、1以上の`pixels_per_unit`、`not_applicable`以外のinteger scale policyを必須とする。`crisp_sprite_over_high_res_3d`は`reference_resolution = null`としてCamera Profileの出力解像度を使う。`world_texel_density`は`pixel_diorama`でだけ必須で、`min_screen_pixel_ratio <= max_screen_pixel_ratio`、既定0.8～1.2とする。Camera変更時に`reference_distance_m`を暗黙更新しない。
+VisualStyleSemanticContributionV1
+  semantic_ref: VisualStyleSemanticRefV1
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  contribution_layer: core | feature_pack | genre_pack | project
+  display_name
+  semantic_description
+  search_synonyms[]
+  constraint_schema_ref
+  required_profile_role_refs[]
+  required_capability_refs[]
+  target_support_refs[]
+
+VisualStyleSemanticRegistryV1
+  registry_id: registry.material.visual_style_semantic
+  registry_version
+  contributions[1..1024]
+  registry_content_hash: SHA-256
+
+VisualStyleSemanticActivationProjectionV1
+  projection_id
+  projection_version: positive uint32
+  registry_ref: exact {registry_id, registry_version, registry_content_hash}
+  selected_semantic_refs[1..1024]: VisualStyleSemanticRefV1
+  qualification_binding_refs[1..1024]:
+    exact {binding_id, binding_version, binding_content_hash}
+  projection_content_hash: SHA-256
+```
+
+`semantic_content_hash`はASCII `MIRAKAN_VISUAL_STYLE_SEMANTIC_CONTRIBUTION_V1`と自己hashを除くReceipt-free Contribution canonical bytes、Registry hashはASCII `MIRAKAN_VISUAL_STYLE_SEMANTIC_REGISTRY_V1`、Registry ID／version、axis／semantic ID／version順の全Contribution canonical bytesから計算する。selected refsはaxis／semantic ID／version／hash順、Binding refsは解決したsubject refの同じ順にstrict sortし、duplicateを拒否する。Activation Projectionのselected ref集合とQualification Bindingが解決する合格かつfreshなsubject集合はexact set equalityで、Receipt／BindingをContribution／Registry hashへ戻さない。Feature／Genre contributionは所有Pack identity、Project contributionはProject owner identityへexact解決する。各Ownerは自己namespaceだけへ追加でき、Core entryの上書き、同一logical IDの別hash、unknown、stale owner／version／hash、未Qualification、Target／Capability不成立をfail closedにする。Registry materializationはProject／Pack dependency closureを解決したCompilerが行い、Generic Engine CoreからPackへのdependency edgeを生成しない。
+
+Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。`scene_dimension`と`gameplay_space`はRendering／Physics／Navigationの実行空間を分岐するCore structural enumであり、Visual Style contributionから追加または推測しない。表現語彙である`art_direction_ref`と`composition_variant_ref`だけをRegistryで拡張し、同じactive Registry／Activation Projectionへexact解決する。
+
+初期Core defaultは`style.art_direction.realistic@1 | style.art_direction.toon@1 | style.art_direction.pixel_2d@1 | style.art_direction.pixel_diorama@1`と`style.composition.native@1 | style.composition.crisp_sprite_over_high_res_3d@1 | style.composition.unified_low_resolution@1`のexact七entryであり、従来Profileの意味とfixtureを維持する開始値であってclosed上限ではない。Feature／Genre／Projectはwatercolor、voxel、technical visualization等のqualified semantic entryを追加できるが、名前だけでShading Model、Render pass、Camera、Post、VFX、UIを生成せず、Contributionのtyped constraintと`required_profile_role_refs[]`へ完全解決する。unknown／unqualified ref、axis mismatch、0件または複数の意味同等候補はBlocking questionまたはtyped rejectにし、`realistic`、`native`、近い表示名へ黙ってfallbackしない。
+
+旧open field `composition`と旧scalar field `art_direction`／`composition_variant`は新Profileで受理しない。Visual Styleの表現方向と2D／3D合成方式はqualified exact refだけが所有し、自由文字列、別名field、未登録variantを拒否する。実在する旧bytesを移行する場合はsource schema bytes／Owner／Named Algorithm／immutable fixtureを束縛した別の承認済みschema migrationを先にactivateし、旧valueまたは表示名だけで自動変換しない。
+
+`art_direction_ref = style.art_direction.pixel_2d@1`または`composition_variant_ref = style.composition.unified_low_resolution@1`の場合は正整数`reference_resolution`、1以上の`pixels_per_unit`、`not_applicable`以外のinteger scale policyを必須とする。`composition_variant_ref = style.composition.crisp_sprite_over_high_res_3d@1`は`reference_resolution = null`としてCamera Profileの出力解像度を使う。`world_texel_density`は`art_direction_ref = style.art_direction.pixel_diorama@1`でだけ必須で、`min_screen_pixel_ratio <= max_screen_pixel_ratio`、既定0.8～1.2とする。Camera変更時に`reference_distance_m`を暗黙更新しない。追加Contributionは同じ制約を名前から継承せず、自身の`constraint_schema_ref`で必要field、互換性、fallback禁止条件を宣言する。
 
 `style_critical_fields`と`locked_fields`はProfile内JSON Pointerである。`fallback_policy = allow_listed`は1件以上のfallback、`forbid`は空配列を必須とする。`license_or_usage_basis`は`user_owned | licensed | public_domain | reference_only`に固定する。利用根拠のないreference AssetをCommitしない。
+
+上記Registry、Projection、Core default／extension fixtureはtarget contractであり、実装済み、active Gateway surface、Production Qualification済みという主張ではない。
 
 AI intent resolutionはsource request identity、Project revision、Catalog revision、resolved Material／Style refs、assumption／question、compatibility resultを束ねる。共通envelope fieldやhash表現は[Executable contracts](../02-foundation/executable-contracts.md)を参照し、本書はMaterial固有payloadの意味だけを決める。
 
@@ -124,7 +171,23 @@ MaterialSemanticCatalogV1
 
 ### 3.3 `MaterialNodeCatalogV1`
 
-各Engine Node entryは`node_type_id`、`schema_version`、`display_name`、`semantic_description`、`input_ports[]`、`output_ports[]`、`allowed_domains[]`、`allowed_stages[]`、`required_capabilities[]`、`target_support[]`、`static_cost_estimate`、`resource_cost`、`determinism_class`、`failure_codes[]`、`examples[]`、`counter_examples[]`を持つ。Project entryは同じprojectionに加えて`project_shader_module_ref`、`export_id`、`qualification_receipt_hash`を必須とし、意味とSource境界は[Project Shader](project-shader.md)が所有する。Portはtypedで、implicit scalar／vector expansion、linear／sRGB混在、normal／color混在を許可しない。Graph layoutはsemantic hashに含めない。
+各Engine Node entryは`node_type_id`、`schema_version`、exact `owner_ref`、`display_name`、`semantic_description`、`input_ports[]`、`output_ports[]`、`allowed_domains[]`、`allowed_stages[]`、`required_capabilities[]`、`target_support[]`、`static_cost_estimate`、`resource_cost`、`determinism_class`、`failure_codes[]`、`examples[]`、`counter_examples[]`、self-excluding `node_content_hash`を持つReceipt-free base recordである。Project entryは同じbase projectionに`project_shader_module_ref`と`export_id`だけを追加する。Project Nodeの利用可否は次のroot外projectionが所有する。
+
+```text
+MaterialProjectNodeActivationEntryV1
+  target_support_ref: exact ShaderTargetSupportRefV1
+  project_shader_activation_binding_ref:
+    ProjectShaderActivationBindingRefV1
+
+MaterialProjectNodeActivationProjectionV1
+  projection_id/version
+  node_ref: exact {node_type_id, schema_version, node_content_hash}
+  project_shader_module_ref: ProjectShaderModuleRefV1
+  entries[1..128]: MaterialProjectNodeActivationEntryV1
+  projection_hash: SHA-256
+```
+
+Project Node `owner_ref`と`project_shader_module_ref`が解決するModule ownerはbyte equalityで、NodeのModule ref／export IDは同じModule／public exportへexact解決する。各entryのProject Shader BindingはProjectionと同じModule、entryと同じTarget Support、同じownerを解決し、そのsigned Receipt subjectも同じowner／Module／Target tupleを持たなければならない。entry集合はProject Node `target_support[]`の`required`集合とexact set equality、explicitにactivateする`optional`は0または1 entry、`unsupported`は0 entryとする。entriesはTarget Profile ID／support hash／Binding ID／version／hash順へstrict sortし、duplicate Target／Bindingとsame Targetへの複数Bindingを拒否する。`projection_hash`はASCII `MIRAKAN_MATERIAL_PROJECT_NODE_ACTIVATION_PROJECTION_V1`と自己Fieldだけを除くcount／length-framed canonical bytesから計算する。Node／Module／owner／Target／Bindingのstaleまたはsubstitution、required entry missing／extra、duplicate／順序違反を各一原因fixtureで拒否する。Qualification Receipt／Binding／ProjectionをNode／Catalog／Module hashへ戻さない。意味とSource境界、Module Qualification DAGは[Project Shader](project-shader.md)が所有する。Portはtypedで、implicit scalar／vector expansion、linear／sRGB混在、normal／color混在を許可しない。Graph layoutはsemantic hashに含めない。
 
 ## 4. Material DomainとShading Model
 
@@ -146,6 +209,8 @@ render-stateはraw API enumではなく、cull intent、depth test／write inten
 
 ### 4.1 canonical PBRとglTF mapping
 
+`realistic_basic`／`realistic_advanced`は`pbr_metal_rough` Shading Modelのcompile feature tierを表すclosed IDであり、Material Domain、Shading Model、`VisualStyleProfile`の別IDではない。`realistic_basic`は`pbr_metal_rough`の必須基底tier、`realistic_advanced`は`realistic_basic`を包含するoptional上位tierである。tierのactivationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
+
 `realistic_basic`はScene-linear HDR、物理単位Light、IBLを入力とし、Cook-Torrance BRDFをGGX normal distribution、Smith height-correlated visibility、Schlick Fresnelで評価する。Metallic-Roughness workflowのcanonical入力はbase color、metallic、perceptual roughness、tangent-space normal、occlusion、emissiveである。Authoringのmetallic／perceptual roughnessは0～1、shader内部FP32 roughnessは0.045～1へclampする。Opaque、alpha mask、premultiplied transparent、Environment IBL reflection、shadow、height fog、exposure、tone mappingを同じ意味契約で扱う。
 
 glTF coreと基本extensionは次のMaterials-owned mappingへ固定する。
@@ -155,6 +220,8 @@ glTF coreと基本extensionは次のMaterials-owned mappingへ固定する。
 | core base color | Texture RGBをsRGBからscene-linear base colorへdecodeし、Aをopacityとする |
 | core metallic-roughness | data textureのGをperceptual roughness、Bをmetallicとし、R／Aを意味入力に使わない |
 | core normal／occlusion／emissive | normal RGBをtangent-space data、occlusion Rをlinear occlusion、emissive RGBをsRGBからscene-linear emissiveへdecodeする |
+| core `alphaMode`／`alphaCutoff` | `OPAQUE`／`MASK`／`BLEND`を`AlphaMode`の`opaque`／`mask`／`blend_premultiplied`へ写像し、`alphaCutoff`は`mask`のcoverage閾値parameterとして保持する。`BLEND`のstraight alphaはCook時にcanonical変換としてpremultiplied colorへ変換し、Source texture pixelへ破壊的bakeしない |
+| core `doubleSided` | render-stateのcull intent（two-sided intent）として保持し、shading意味を変更しない |
 | `KHR_materials_unlit` | `unlit_surface`へ写像し、Light／IBL BRDFを通さずbase color、opacity、emissiveを保持する |
 | `KHR_materials_emissive_strength` | emissive factor／textureへ掛ける非負のscene-linear emission倍率として保持する |
 | `KHR_texture_transform` | 対象texture bindingのUV offset、rotation、scale、texCoord選択として保持し、画像pixelへ破壊的bakeしない |
@@ -225,7 +292,7 @@ C1はForward+のopaque／masked receiverだけへcolor、normal、roughness、em
 
 `authored_static`だけがLevel SourceとSave互換identityを持つ。impact等の`timed` DecalはHit／Interaction等のauthoritative Eventから再生成するpresentationであり、Damage、collision、visibility、surface friction、Gameplay state、SaveのいずれもDecalのresidencyまたはrender resultに依存しない。Replayも元Eventから再生成し、Decalの有無でauthoritative state hashを変化させない。
 
-C1 reference Profileはactive 2,048、spawn 128／tick、visible 512／viewをhard boundとする。超過時は`ambient`、`gameplay_feedback`の順にcanonical evictionしてDiagnosticを残す。`critical_feedback`は黙って欠落させず、Target Profileのfallbackへ切替えるか`MIRAKAN-MATERIAL-DECAL_CRITICAL_FALLBACK_REQUIRED`で拒否する。その他のclosed failureは`MIRAKAN-MATERIAL-DECAL_SCHEMA_INVALID | MIRAKAN-MATERIAL-DECAL_STALE_COMMAND | MIRAKAN-MATERIAL-DECAL_RECEIVER_UNSUPPORTED | MIRAKAN-MATERIAL-DECAL_CAPACITY_EXCEEDED`とする。
+C1 reference Profileはactive 2,048、spawn 128／presentation update、visible 512／viewをhard boundとする。ここでpresentation updateはMaterial presentation queueのconsume boundaryであり、Simulation Advance、render frame、wall-clock秒へ暗黙変換しない。超過時は`ambient`、`gameplay_feedback`の順にcanonical evictionしてDiagnosticを残す。`critical_feedback`は黙って欠落させず、Target Profileのfallbackへ切替えるか`MIRAKAN-MATERIAL-DECAL_CRITICAL_FALLBACK_REQUIRED`で拒否する。その他のclosed failureは`MIRAKAN-MATERIAL-DECAL_SCHEMA_INVALID | MIRAKAN-MATERIAL-DECAL_STALE_COMMAND | MIRAKAN-MATERIAL-DECAL_RECEIVER_UNSUPPORTED | MIRAKAN-MATERIAL-DECAL_CAPACITY_EXCEEDED`とする。
 
 ## 5. 表現Profileとparameter binding
 
@@ -235,9 +302,11 @@ Parameterはscalar、vector、color、texture role、enum、booleanのclosed typ
 
 Texture roleはbase color、normal、mask、emissive、detail等の意味を表し、asset formatやchannel packingはCooked Artifactへ閉じる。Source revisionを跨ぐbinding混在を避け、Material、texture、shader artifactのgeneration closureを一つのpromotion単位として検証する。
 
+RendererへのMaterial frame入力の正式名は`ResolvedMaterialBindingV1`である。renderableごとに`CookedMaterialArtifact`のartifact generation ref、Cook時に解決したcanonical flat parameter set（Stable Parameter ID→typed値）、texture role binding、`ShaderInterface` hash、source revisionを持つimmutable bindingであり、[Render Graph](render-graph.md) §2はこのobjectだけをMaterial入力として受ける。文字列名、descriptor index、native handleを含めない。
+
 ## 6. Material IR、Shader compile、package
 
-CookerはSource GraphをBackend-neutral `MaterialIR`へlowerし、constant folding、dead-node removal、interface validation、variant canonicalizationを行う。Qualification済み`ProjectShaderModuleV1`はSourceを高水準IRへ逆変換せず、Module／Export Stable ID、semantic interface hash、`ShaderFactGraphV1` hashを持つtyped opaque operationとしてIRから参照する。IRはDomain output、typed operation、resource role、uniform layout、feature requirementを持ち、native bytecodeやcompiler-specific metadataをpublic contractにしない。
+CookerはSource GraphをBackend-neutral `MaterialIR`へlowerし、constant folding、dead-node removal、interface validation、variant canonicalizationを行う。Qualification済み`ProjectShaderModuleV1`はSourceを高水準IRへ逆変換せず、Module／Export Stable ID、semantic interface hash、`ShaderFactGraphV1` hashを持つtyped opaque IR nodeとしてIRから参照する。IRはDomain output、typed IR node、resource role、uniform layout、feature requirementを持ち、native bytecodeやcompiler-specific metadataをpublic contractにしない。
 
 Shader compileはoffline build／cookだけで実行し、Shipping Runtimeにsource compiler、unapproved source、debug fallback shaderを含めない。compile結果はTarget Profile、Material IR hash、Project Shader Module／Understanding Closure hash、interface generation、toolchain lock ref、binary artifact、reflection summary、diagnosticを束ねる。Project ShaderのSource／Fact／Target conformanceは[Project Shader](project-shader.md)、compiler／translatorのexact version、commit、license、build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
 
@@ -253,17 +322,19 @@ Materialは各representationで利用可能なMaterial artifact、feature reduct
 
 ## 8. AI／Editor operationとPreview
 
-Material operationはcreate／update material、create instance、bind texture role、apply style、set semantic parameter、compile preview、explain resolution、validate packageをDomain actionとして登録する。操作は[Executable contracts](../02-foundation/executable-contracts.md)の共通Discovery／Preview／Apply境界と[AI Security／Approval](../01-governance/ai-security-approval.md)のauthorityを使う。
+Materialのcreate／update、instance、texture role、style、semantic parameter、compile preview、explain、validateは将来のDomain action vocabularyであり、現在のOperation登録ではない。
 
-canonical Operation IDは`operation.material.search`、`operation.material.read`、`operation.material.inspect`、`operation.material.preview`、`operation.material.explain`、`operation.material.estimate`、`operation.material.validate`、`operation.material.plan`、`operation.material.create_instance`、`operation.material.assign_template`、`operation.material.set_parameters`、`operation.material.create_definition`、`operation.material.edit_graph`、`operation.material.create_derived_style`、`operation.material.bind_surface_semantics`である。上位operationが下位権限を暗黙取得せず、変更operationはSourceを直接writeしない。新しいHLSL Module／Techniqueが必要な場合は`MaterialAuthoringPlanV1`がRequirementと推奨Shader Levelを返し、[Project Shader](project-shader.md)のPlan／Propose Operationへ明示handoffする。Material Operation名でProject ShaderまたはEngine Extensionを変更しない。
+予約候補IDは`operation.material.search`、`operation.material.read`、`operation.material.inspect`、`operation.material.preview`、`operation.material.explain`、`operation.material.estimate`、`operation.material.validate`、`operation.material.plan`、`operation.material.create_instance`、`operation.material.assign_template`、`operation.material.set_parameters`、`operation.material.create_definition`、`operation.material.edit_graph`、`operation.material.create_derived_style`、`operation.material.bind_surface_semantics`のexact 15件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.material_authoring@1`だけに属する。Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。`operation.material.plan`と`operation.material.create_derived_style`はActivation後にだけactive Visual Style Registryからexact semantic refを選択する予定候補であり、現在のselection権限ではない。Visual Style contribution自体のauthoring／activationは別計画語彙`planning.material.visual_style_semantic_contribution_authoring@1`とし、reserved Operation ID集合`[]`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／CLI／Editor／generated alias／legacy alias集合もexact `[]`、Capability stateも`not_activated`である。Foundationが専用Operationをatomic登録するまで15候補からRegistry登録権限を推測しない。`activation.material.authoring_operations.v1`が15件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。上位候補が下位権限を暗黙取得せず、予定変更候補はSourceを直接writeしない。新しいHLSL Module／Techniqueが必要な場合の`MaterialAuthoringPlanV1`とProject Shader handoffも各familyのActivation後にだけ有効であり、Material候補名からProject ShaderまたはEngine Extension権限を生成しない。
 
 Previewは対象revision、Target Profile、View／Lighting fixture ref、resolved Material／Style、compiled artifact generation、difference summary、diagnosticを返す。Preview結果をApply済みProject stateやProduction qualificationと表示しない。Explainは採用値、継承元、override、fallback、未解決questionをMaterial語彙で示す。
+
+[Lighting](lighting.md)のIntent Resolver入力である`MaterialReadabilitySummaryV1`は本書所有のread-only／revisioned projectionである。`schema_version`、`project_revision`、`catalog_revision`、`scope_ref`、`entries[]`、`cursor`、`total_count`を持ち、各entryは`material_instance_id`、`revision`、`semantic_role_id`、`domain`、`shading_model`、`gameplay_critical`、§3のsemantic axesのうちopacity behavior／emissive intent／two-sided intent、`style_critical`だけを含む。参照するMaterial revisionまたはCatalog revisionの変更でstaleとし、Lighting側からの書き戻しを受けない。上限超過時は配列を切らずcursorとtotal countを返す。
 
 AIの最初のbounded projectionである`MaterialContextSummaryV1`は`material_id`、`revision`、`semantic_role_id`、`template_id`、`definition_id`、`domain`、`shading_model`、`public_parameters[]`、`texture_dependencies[]`、`project_shader_module_refs[]`、`shader_understanding_closure_hashes[]`、`target_support[]`、`quality_support[]`、`variant_count`、`budget_summary`、`diagnostic_summary`、`available_operation_ids[]`だけを含む。上限超過時は配列を切らずcursorとtotal countを返す。Module内部のsymbol／call／resource／Target差は`ShaderContextSliceV1`を別Queryで取得する。
 
 `MaterialAuthoringPlanV1`はIntentから生成するread-only Proposalであり、base revision、選択したsemantic role／template／definition、typed parameter／texture差分、代替候補と棄却理由、Target差、cost、fallback、risk、必要Approval、optional `project_shader_requirement`を持つ。`project_shader_requirement`はRequirement ID、必要なS2～S5 Level、semantic input／output、Target、Budget、fallbackだけを持ち、HLSL SourceやPassを埋め込まない。共通Proposal／ChangeSet envelopeは[Executable contracts](../02-foundation/executable-contracts.md)の正本を再利用し、Plan自体にCommit権限はない。
 
-`VisualStyleDecision`はMaterials-domain payloadとして`request_id`、`resolved_requirements[]`、`unknowns[]`、`conflicts[]`、`eligible_profile_ids[]`、`rejected_candidates[]`、optional `selected_profile_id`、`selection_reasons[]`、`production_cost_estimate`、`runtime_cost_estimate`、`required_capabilities[]`、`missing_capabilities[]`、`domain_result`、exact `decision_ledger_entry_ref`、exact `authorization_envelope_hash`を持つ。`decision_ledger_entry_ref`は[Project state](../03-authoring/project-state.md)の`DecisionLedgerDocument`、`authorization_envelope_hash`は[AI Security／Approval](../01-governance/ai-security-approval.md)の署名済み`TaskAuthorizationEnvelope`へのopaque referenceである。権限enum、委任cardinality、承認／人間確認条件、署名／失効規則をMaterialsに定義せずGovernanceの正本を消費する。
+`VisualStyleDecision`はMaterials-domain payloadとして`request_id`、exact Registry／Activation Projection ref、`resolved_semantic_refs[]`、`resolved_requirements[]`、`unknowns[]`、`conflicts[]`、`eligible_profile_ids[]`、`rejected_candidates[]`、optional `selected_profile_id`、`selection_reasons[]`、`production_cost_estimate`、`runtime_cost_estimate`、`required_capabilities[]`、`missing_capabilities[]`、`domain_result`、exact `decision_ledger_entry_ref`、exact `authorization_envelope_hash`を持つ。`decision_ledger_entry_ref`は[Project state](../03-authoring/project-state.md)の`DecisionLedgerDocument`、`authorization_envelope_hash`は[AI Security／Approval](../01-governance/ai-security-approval.md)の署名済み`TaskAuthorizationEnvelope`へのopaque referenceである。権限enum、委任cardinality、承認／人間確認条件、署名／失効規則をMaterialsに定義せずGovernanceの正本を消費する。
 
 旧payloadの`decision_authority`、`delegation_record_id`、`requires_human_confirmation`はMaterials fieldとして非採用である。対応するauthority／delegation／confirmation状態は`TaskAuthorizationEnvelope`とGovernanceが発行する署名済みApproval recordの参照先だけで評価する。
 
@@ -291,15 +362,16 @@ Qualificationは次のDomain fixtureを持つ。
 | Toon | Sphere、顔、髪、透明髪、outline、Key／accent Light |
 | Pixel 2D | 720p、1080p、1440p、ultrawide、4Kのscale／letterbox |
 | Pixel Diorama | depth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離 |
+| Visual Style Registry | 初期Core七entryの既存Profile／render hash golden、Genre Pack 0件のneutral Project、qualified `project.board_game.paper_cutout@1` contribution。unknown ref、未Qualification、axis違い、owner／hash stale、Core ID上書き、同一ID別hash、Pack未選択、display name／synonymだけの選択を各一原因で拒否 |
 | Compiler | invalid Graph、Project Shader Profile違反、未宣言resource／side effect、binding／reflection不一致、Target差、cache再現 |
 | Target | Windows、Android、Appleのoffline compile、pipeline、fallback |
 | Decal | Forward+、MSAA 1x／2x／4x、receiver mask、opaque／masked以外とskinned receiver除外、同一面sort、timed fade、capacity丁度／+1、critical fallback、camera cut、Level deactivate、Windows／Mobile fallback、固定Camera／Materialによるangle／depth bias／normal blend／fadeのgolden regression、Decal不在時のauthoritative state hash一致 |
 
 同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2／255超のpixelが0.1%未満を既定Gateとする。Cross-vendorはparameter ordering、luminance、finite、outline width、pixel grid等のanalytic invariantを検証する。
 
-Material AI Evalは10 suite（明示Intentのrole／Template、既存Instance最小変更、Template再利用判断、Graph型／単位／色空間、曖昧／矛盾質問、Target／fallback、Variant／resource、Project Node選択と未宣言Shader効果拒否、Visual／Collision Material分離、Preview／ChangeSet／undo／redo／recook）、各12 fixture、合計120 fixtureを各3回実行する。hard gate違反、無権限Commit、unsupported成功表示は0件、exact Operation／Type／unit／range、Blocking確認、禁止操作拒否は360／360、role／Template選択100%、Preview hash／undo／redo／recook一致100%を要求する。Project Shader内部のU0～U4理解は[Project Shader](project-shader.md)のEvalで別に100%閉じ、Material scoreで代替しない。意味、Schema、画像、GPU性能を別scoreとしhard failureを平均で相殺しない。
+Material AI Evalは10 suite（明示Intentのrole／Template、既存Instance最小変更、Template再利用判断、Graph型／単位／色空間、曖昧／矛盾質問、Target／fallback、Variant／resource、Project Node選択と未宣言Shader効果拒否、Visual／Collision Material分離、Preview／ChangeSet／undo／redo／recook）、各12 fixture、合計120 fixtureを各3回実行する。hard gate違反、無権限Commit、unsupported成功表示は0件、exact planned semantic action token／Type／unit／range、Blocking確認、禁止操作拒否は360／360、role／Template選択100%、Preview hash／undo／redo／recook一致100%を要求する。Project Shader内部のU0～U4理解は[Project Shader](project-shader.md)のEvalで別に100%閉じ、Material scoreで代替しない。意味、Schema、画像、GPU性能を別scoreとしhard failureを平均で相殺しない。
 
-Visual Style Resolver Evalは明示、未指定、委任、矛盾、未対応を各12件、合計60 prompt、各3回実行し、hard gate違反と無権限Commit 0件、Blocking質問／明示Style保持／委任scope／unsupported拒否180／180を要求する。
+Visual Style Resolver Evalは明示、未指定、委任、矛盾、未対応を各12件、合計60 prompt、各3回実行し、Core default、Feature／Genre／Project contribution、Pack非選択、neutral non-game Projectを含める。hard gate違反と無権限Commit 0件、Blocking質問／明示Style保持／委任scope／unsupported拒否180／180、Registry／semantic ref／qualificationのexact一致100%を要求する。
 
 Visual comparison、Evidence envelope、Eval grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使う。本書はfixtureのMaterial input、expected semantic resolution、allowed visual tolerance classだけを所有し、共通receipt schemaを再定義しない。
 

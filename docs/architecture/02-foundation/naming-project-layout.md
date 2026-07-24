@@ -68,19 +68,39 @@ Booleanは肯定形の状態またはCapabilityを表し、`is_`／`has_`／`can
 
 Schema typeはPascalCase＋major suffixを用い、suffixなし最新版aliasを作らない。例: `ProjectChangeSetV1`。Fieldはlowercase snake_case、closed enum valueもlowercase snake_caseとする。型のdomain schemaと意味は各Domain ownerが所有し、`ProjectChangeSetV1`は[Project state](../03-authoring/project-state.md#5-projectchangesetv1)が所有する。[Executable contracts](executable-contracts.md#8-operation定義)はMCD共通Envelopeと生成規則だけを所有し、本書は綴りだけを所有する。
 
+Process内だけで使うpublic C++ value typeは、MCD／wire／persistence／native ABIの境界を一切越えず、owner schemaで`serializable = false`と固定されている場合に限り、version suffixを付けない。`RuntimeEntityHandle`と`RuntimeWorldPublicationHandle`がこのcategoryである。境界を越える必要が生じた場合は同名aliasを追加せず、version付きの別Schema typeを定義する。これはSchema typeのsuffix例外ではなく、非Schemaのin-memory typeを分類する命名規則である。
+
 ### 3.2 Stable IDとOperation
 
-Stable IDはlowercase ASCII dot-separated segmentとし、各segmentはlowercase snake_caseを使う。
+Stable IDはlowercase ASCII dot-separated segmentとする。JSON／Schema Field名のsnake_case規則をStable IDへ一律適用せず、kindごとに次のclosed grammarを使う。
 
-```text
-mirakan.<kind>.<domain>.<specific_name>.v<major>
-```
+| kind | canonical grammar | example |
+|---|---|---|
+| Architecture document | `mirakan.arch.<lower-kebab-path>` | `mirakan.arch.product-plan` |
+| Operation | `operation.<lower-token-path>` | `operation.build.package.validate` |
+| Diagnostic ID | `diagnostic.<lower-token-path>` | `diagnostic.product.authoring-roundtrip-failed` |
+| Target | `target.<lower-token-path>` | `target.windows.desktop` |
+| Capability／Requirement／MCD object | `<kind>.<lower-token-path>` | `capability.product.general_production_2d` |
+| Phase／Work Package／Fixture／Fallback | `<kind>.<lower-kebab-path>` | `fixture.product.shooter-2d` |
 
-Operation IDは`operation.<domain>.<resource>.<verb>`、Diagnostic IDは`diagnostic.<domain>.<condition>`を基本形とする。動詞は`get`、`list`、`resolve`、`validate`、`plan_change`、`preview`、`commit`など意味を限定し、`do`、`run`、`process`、`handle`を単独で使わない。
+`lower-kebab-path`の各segmentは`[a-z][a-z0-9]*(?:-[a-z0-9]+)*`、`lower-snake-path`の各segmentは`[a-z][a-z0-9]*(?:_[a-z0-9]+)*`とする。`lower-token-path`はsegmentごとにlower kebabまたはlower snakeの一方を選び、同一segment内の`-`と`_`混在を拒否する。いずれも数字開始segment、空segment、leading／trailing separatorを拒否する。
 
-Operationの入力／出力型名は`<Intent>RequestV1`、`<Intent>ResultV1`のように役割を明示する。Provider表示名、localized message、Editor labelをStable IDとして使わない。
+Logical IDへmaturity、schema major、profile versionを埋め込まない。これらはMCD `version`、Schema type suffix、`profile_version`、Capability Registryのtier Fieldへ分離する。
+
+Operation IDの末尾は意味を限定した動詞または動詞句とする。`get`、`list`、`resolve`、`validate`、`plan_change`、`preview`、`commit`を使用でき、`do`、`run`、`process`、`handle`を単独で使わない。
+
+Operationの入力／出力型名は`<Intent>RequestV1`、`<Intent>ResultV1`のように役割を明示する。Provider表示名、localized message、Editor labelをStable IDとして使わない。大文字`Operation`と完全`operation.<lower-token-path>`はMCD logical Operation identity専用語である。ChangeSet内部のtagged mutation unionは`ProjectChangePrimitiveV1`、Domain内の未登録語彙は`planned action vocabulary`と呼び、`registered`／`public`／`current Operation`と記述しない。proseのaction名、C++関数、table row、wildcard prefixからMCD IDを推測生成しない。文書中のcurrent Operation主張は[Executable contracts §21.2](executable-contracts.md#212-architecture内operation-tokenのclosed-partition)のclosed partitionへ解決できなければlint errorである。
 
 ### 3.3 Diagnostic
+
+Diagnosticは機械参照用IDとlog／UI／support用codeを別Fieldとして持つ。
+
+| Field | Grammar | 役割 |
+|---|---|---|
+| `diagnostic_id` | `diagnostic.<domain>.<condition>` | Repository全体で一意なprimary key |
+| `code` | `MIRAKAN-<DOMAIN>-<CONDITION>` | log、UI、support bundleで使用する不変code |
+
+`diagnostic_id`のdotをhyphenへ、snake separatorをhyphenへ変換してASCII uppercase化すると`code`になる。逆変換で候補が複数になるtokenを登録せず、RegistryはIDとcodeの一対一性を検査する。裸のPascalCase名、backend固有alias、同一codeを共有する複数IDを拒否する。
 
 Diagnostic IDは原因または拒否条件を表し、severityや翻訳文をIDへ埋め込まない。例:
 
@@ -90,7 +110,7 @@ diagnostic.asset.invalid_source_path
 diagnostic.build.toolchain_lock_mismatch
 ```
 
-Messageはlocalized projectionでありidentityではない。動的値、path、UUID、versionをDiagnostic IDへ連結しない。Error codeの構造とcontext fieldはDomain Ownerまたは[Executable contracts](executable-contracts.md)が決める。
+Messageはlocalized projectionでありidentityではない。動的値、path、UUID、versionをDiagnostic IDまたはcodeへ連結しない。Diagnostic envelopeとcontext Fieldは[Executable contracts](executable-contracts.md)が所有し、Domain OwnerはID、code、typed argumentsを登録する。
 
 ## 4. Fileとdirectory naming
 
@@ -105,6 +125,11 @@ Messageはlocalized projectionでありidentityではない。動的値、path�
 | Fixture | intentを表す名前＋`_valid`／`_invalid`等の期待結果 |
 | Benchmark | 対象名＋`_benchmark` |
 | Generated file | generator所有root内で正規type／projection名から決定 |
+
+Filename内のdot区切りは次の二つだけを例外として許可し、他に追加しない。
+
+- Module interface fileは[C++23 modules](cpp23-modules.md#7-directoryとsource配置)が定めるPrimary Named Module名＋`.cppm`とする。例: `mirakan.foundation.cppm`。
+- Project manifestは§5の予約名`mirakan.project.json`とする。
 
 Caseだけが異なる名前、末尾space／dot、reserved device name、Unicode normalizationが異なる同一視名を拒否する。Path segmentはportableなlowercase ASCIIを原則とし、User表示名と物理Pathを分離する。
 
@@ -135,7 +160,13 @@ Engine repository rootは[Core architecture](core-architecture.md)のRepository�
 │  ├─ gameplay/
 │  ├─ ui/
 │  ├─ localization/
-│  └─ native/
+│  ├─ native/
+│  ├─ game_spec/
+│  ├─ system_implementations/
+│  ├─ visual_styles/
+│  ├─ targets/
+│  ├─ decisions/
+│  └─ tests/
 ├─ config/
 ├─ packages/
 ├─ derived/
@@ -153,11 +184,11 @@ Project root discoveryは`mirakan.project.json`の存在とschema validationで�
 | 旧root | disposition | 新destination／Owner | Migration処理と理由 |
 |---|---|---|---|
 | `authoring/` | 移動 | `source/`／Authoring Gateway | Stable IDとDomain kindを保持してAuthoring Sourceへ移す。旧root自体は削除する |
-| `assets/source/` | 移動 | `source/assets/`／Asset Broker | Source Assetとimport設定を移し、Catalog参照を同じChangeSetで書き換える |
+| `assets/source/` | 移動 | `source/assets/`／Asset Gateway | Source Assetとimport設定を移し、Catalog参照を同じChangeSetで書き換える |
 | `assets/metadata/` | 移動 | `source/assets/`／Asset Gateway | 対応Asset subjectのSource metadataとして併置し、Asset IDで一意に解決する。独立metadata rootは残さない |
 | `native/game/` | 移動 | `source/native/`／Source Promotion Service | Module単位を保持して移し、CMake inputとgenerated descriptor参照を同時更新する |
-| `.mirakan/journal/` | 明示削除 | Project State owner、Project内destinationなし | 旧local operation logはcanonical sourceではない。Commit済みrevisionだけを正本とし、migration receipt確定後に破棄する |
-| `.mirakan/snapshots/` | 明示削除 | Project State owner、Project内destinationなし | 旧recovery snapshotを新Sourceとして昇格しない。必要なcanonical revisionを先にCommitし、snapshotは破棄する |
+| `.mirakan/journal/` | 明示削除 | Project State owner、旧内容のProject内destinationなし。新journalは`intermediate/journal/`で新規開始 | 旧local operation logはcanonical sourceではない。Commit済みrevisionだけを正本とし、migration receipt確定後に破棄する |
+| `.mirakan/snapshots/` | 明示削除 | Project State owner、旧内容のProject内destinationなし。新snapshotは`intermediate/snapshots/`で新規作成 | 旧recovery snapshotを新Sourceとして昇格しない。必要なcanonical revisionを先にCommitし、snapshotは破棄する |
 | `.mirakan/recovery/` | 移動 | `intermediate/recovery/`／Editor Recovery | crash recovery用local stateとして移し、Source、Package、Git追跡対象にしない |
 | `.mirakan/index/` | 移動 | `derived/index/`／Indexer | Sourceから再構築可能なindexとして移す。内容hashが不一致なら移さず再生成する |
 | `.mirakan/staging/` | 移動 | `staging/`／Trusted Broker | 未Commit proposal／candidateをAuthorityを変えず隔離rootへ移す。期限切れ・入力不明のcandidateは失敗として破棄する |
@@ -181,10 +212,10 @@ Migrationは次のfail-closed手順だけを許可する。
 
 | Root | 所有内容 | Git／配布 | 書込み権限 |
 |---|---|---|---|
-| `source/` | Userまたは承認済みOperationが編集する正規入力 | 原則追跡 | Project ChangeSet Gatewayだけ |
-| `config/` | Project選択とTarget別設定 | 追跡 | typed configuration Operationだけ |
+| `source/` | Userまたは完全登録済み外側MCD Operationが運ぶChangeSetで編集する正規入力 | 原則追跡 | Project ChangeSet Gatewayだけ |
+| `config/` | Project選択とTarget別設定 | 追跡 | Project ChangeSet Gatewayのtyped configuration primitiveだけ |
 | `derived/` | Source＋Toolchainから再生成可能なimport／cook出力 | 追跡しない | Build／Content Gateway |
-| `intermediate/` | 一回のtask、compile、import中の一時file | 追跡・配布しない | task-scoped Worker |
+| `intermediate/` | 一回のtask、compile、import中の一時fileと、Project State所有のsession跨ぎlocal state（`intermediate/journal/`、`intermediate/snapshots/`、`intermediate/transactions/`、`intermediate/recovery/`。projectionは[Project state](../03-authoring/project-state.md) §6） | 追跡・配布しない | task-scoped Workerと各state owner Gateway |
 | `packages/` | 検証済みTarget package候補とmanifest | sourceとして追跡しない | Packaging Gateway |
 | `staging/` | AI／Import候補、Preview、未Commit proposal | 追跡・Runtime読込しない | 隔離Worker／Proposal Gateway |
 | `evidence/` | Project変更に結び付くReceipt／Provenance参照 | Policyに従い追跡 | Evidence writer |
@@ -201,7 +232,7 @@ Asset identityはCatalogのStable IDであり、Filenameは人間向けのlocato
 
 ### 7.1 Provenanceと権利
 
-外部取得、User提供、AI生成を問わず、Source候補は[Asset LifecycleのAsset固有Provenance](../03-authoring/asset-lifecycle.md#8-editorとai-operation)を必須入力とする。licenseまたは利用権が不明な候補を`source/`へCommitせず、`staging/`で`diagnostic.asset.rights_unverified`として停止する。
+外部取得、User提供、AI生成を問わず、Source候補は[Asset LifecycleのAsset固有Provenance](../03-authoring/asset-lifecycle.md#8-editorとai-planned-actions)を必須入力とする。licenseまたは利用権が不明な候補を`source/`へCommitせず、`staging/`で`diagnostic.asset.rights_unverified`として停止する。
 
 AI生成物は生成したという事実だけで権利確認済みにならない。Provider規約、入力Assetの権利、出力利用条件をEvidenceへ結び付け、Approval後にProject ChangeSetでSourceへ昇格する。Asset固有Provenanceのcontentと権利chainはAsset Lifecycle、共通Evidence envelope、grading、retention classは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有し、本書は配置と命名だけを決める。
 
@@ -246,7 +277,7 @@ Module segment、namespace segment、target segmentを意味の違うaliasへ変
 
 ## 12. Directory／file追加Operation
 
-AI、Editor、Toolは任意File system writeではなく、分類、Owner、正規root、提案Path、identity、expected Project revisionを持つtyped Operationを使う。
+AI、Editor、Toolの将来のDirectory／file追加actionは任意File system writeではなく、分類、Owner、正規root、提案Path、identity、expected Project revisionを持つtyped contractを使う。ただしcurrent Directory／file MCD Operation集合は空であり、以下は将来Activation時のsemantic requirementsであってcurrent callable surfaceではない。完全なMCD／Service／Policy／Validator／Diagnostic／Receipt／publication closureを登録するwork itemなしにaction名からOperation IDを生成しない。
 
 1. Pathをseparator、case、Unicode、reserved name規則で正規化する。
 2. Project root内か、分類に合う許可rootかを検査する。
@@ -267,9 +298,11 @@ AI、Editor、Toolは任意File system writeではなく、分類、Owner、正�
 | `ERR_FILE_42` | Domain、条件、安定性不足 | `diagnostic.asset.invalid_source_path` |
 | `My Game/FinalAssets2/` | display名とPath、世代suffix混在 | Project IDとCatalog identityを分離 |
 | `source/generated/` | SourceとGeneratedのAuthority混同 | `derived/generated/`またはBuild tree |
-| `packages/edit_me.json` | PackageをSource化 | `source/config/`を編集して再Package |
+| `packages/edit_me.json` | PackageをSource化 | `config/`を編集して再Package |
 | `FooV1`とsuffixなし`Foo` | Schema最新版alias | major付き型だけを使用 |
 | `engine/rendering/source/foo.cpp`をGameからinclude | Engine private境界違反 | public module／Portを利用 |
+
+この表の`operation.asset.do`と`operation.asset.source.plan_import`、§3.2の`operation.build.package.validate`は命名のinvalid／correct-directionを説明する非materialized例だけであり、MCD、Manifest、Service、Provider／MCP、planning aliasへ登録しない。
 
 ## 14. Lintとmigration Gate
 

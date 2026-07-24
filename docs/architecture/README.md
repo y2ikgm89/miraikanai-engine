@@ -13,7 +13,7 @@
 3. [Foundation](#33-foundation)で共通architecture、契約、toolchain、命名、言語、math、memoryを確認する。
 4. 制作機能は[Authoring](#34-authoring)、実行制御は[Runtime](#35-runtime)を先に読む。
 5. 機能実装では[Simulation](#36-simulation)、[Rendering](#37-rendering)、[Platform](#38-platform)から該当ownerを読む。
-6. Genre固有compositionは最後に[Domain Packs](#39-domain-packs)を読み、参照するSubsystem ownerへ戻る。
+6. 再利用FeatureとGenre固有compositionは最後に[Packs](#39-packs)を読み、参照するSubsystem ownerへ戻る。
 
 個別変更では最初から全仕様を読む必要はない。正本範囲、非正本範囲、依存linkを辿り、変更する概念のownerと直接依存だけをreviewする。
 
@@ -61,7 +61,7 @@
 
 | # | 仕様 | 状態 | 所有責務 |
 |---:|---|---|---|
-| 17 | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | review | tick、execution order、job dependency、message order、lifetime |
+| 17 | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | review | Simulation Advance、execution order、job dependency、message order、lifetime |
 | 18 | [Performance／Capacity](04-runtime/performance-capacity.md) | review | 共通capacity、measurement、backpressure、scale、regression |
 | 19 | [Debugging／Observability／Replay](04-runtime/debugging-observability-replay.md) | review | debug、telemetry、causality、capture、replay、crash evidence |
 
@@ -83,12 +83,12 @@
 | 26 | [Project Shader](06-rendering/project-shader.md) | review | bounded HLSL、semantic module、Project Node／Shading Model、Technique、AI理解とShader qualification |
 | 27 | [Lighting](06-rendering/lighting.md) | review | light source、photometry、attenuation、shadow intent、lighting semantics |
 | 28 | [Post Processing](06-rendering/post-processing.md) | review | post-process source、volume、effect composition、history intent |
-| 29 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、authoring operation |
+| 29 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、planned authoring action |
 | 30 | [VFX Runtime](06-rendering/vfx-runtime.md) | review | VFX artifact、instance、simulation、render、visual interaction |
 | 31 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
 | 32 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |
 | 33 | [LOD](06-rendering/lod.md) | review | representation selection、transition、fallback、LOD semantics |
-| 34 | [World／Scene／Level／Cell](06-rendering/world.md) | review | World composition、partition、streaming plan、transition、map resolution |
+| 34 | [World／Scene／Space／Cell](06-rendering/world.md) | review | World composition、spatial topology、partition、activation、generic transition |
 
 ### 3.8 Platform
 
@@ -102,12 +102,14 @@
 | 40 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
 | 41 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、UI authoring |
 
-### 3.9 Domain Packs
+### 3.9 Packs
 
 | # | 仕様 | 状態 | 所有責務 |
 |---:|---|---|---|
-| 42 | [Domain Pack Contract](08-domain-packs/domain-pack-contract.md) | review | Pack identity／manifest、dependency、activation、qualification、update、removal |
-| 43 | [Shooter Reference Pack](08-domain-packs/shooter.md) | review | Shooter固有契約、reference composition、domain algorithm／failure／fixture |
+| 42 | [Pack Contract](08-packs/pack-contract.md) | review | 4層Pack構造、`PackManifestV1`、dependency、install、update、removal |
+| 43 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role、fixture |
+| 44 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | Combat、Ranged Combat、Encounter、Scoring、Pickupのcanonical contract catalog |
+| 45 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
 
 ## 4. ProductからSubsystemへのnavigation
 
@@ -121,11 +123,11 @@
 | 物理的Game挙動 | [Simulation](#36-simulation) | [Runtime](#35-runtime)、[Rendering](#37-rendering) |
 | 描画、Camera、World表現 | [Rendering](#37-rendering) | [Runtime](#35-runtime)、[Platform](#38-platform) |
 | OS、device、Input、Audio、Game UI | [Platform](#38-platform) | [Foundation](#33-foundation)、[Runtime](#35-runtime) |
-| Genre／Feature composition | [Domain Packs](#39-domain-packs) | compositionが参照する全Subsystem |
+| Genre／Feature composition | [Packs](#39-packs) | compositionが参照する全Subsystem |
 
 ## 5. Developer toolの分離
 
-Developer tool文書は`docs/developer-tools/`にあり、このIndexのEngine正本一覧には掲載しない。文書体系上の分離理由と扱いは[文書体系再編Decision §5](decisions/2026-07-21-document-system-restructure.md#5-target構造)を参照する。PR #3との履歴成果照合と統合判断は[同Decision §12](decisions/2026-07-21-document-system-restructure.md#12-pr-3履歴成果の正本統合)を参照する。
+Developer toolの個人向け説明資料は保持しない。repository設定は[`.codex/config.toml`](../../.codex/config.toml)に限定し、このIndexのEngine正本一覧には掲載しない。文書体系上の分離理由と扱いは[文書体系再編Decision §5](decisions/2026-07-21-document-system-restructure.md#5-target構造)を参照する。PR #3との履歴成果照合と統合判断は[同Decision §12](decisions/2026-07-21-document-system-restructure.md#12-pr-3履歴成果の正本統合)を参照する。
 
 ## 6. 文書変更規則
 

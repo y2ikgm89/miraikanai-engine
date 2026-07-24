@@ -5,7 +5,7 @@
 - 正本範囲: MCD、Requirement、Type、Operation、State machine、Capability、Policy、Diagnostic、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
 - 非正本範囲: 外部Tool・packageのversion／commit／hash／license、Product scope、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Project state](../03-authoring/project-state.md)、[Project Shader](../06-rendering/project-shader.md)
-- 外部根拠検証日: 2026-07-22
+- 外部根拠検証日: 2026-07-23
 
 ## 1. 結論
 
@@ -24,9 +24,9 @@ Miraikanai Engineの要件、型、操作、状態遷移、権限、Budget、Dia
 
 Provider向けSchemaは正本ではない。OpenAI、Anthropic、MCP等の対応Dialectやsubsetが異なるため、MCDを一つのProvider形式へ縮退させない。Provider出力はProvider projectionを通過した後も、C++ Command GatewayがMCDの完全な構造制約と意味制約で再検証する。
 
-LODは単一の裸`lod_index`として公開せず、`LodIntentV1`、Domain別Policy、`LodResolutionPlanV1`、`LodQualificationReceiptV1`をMCDへ登録する。`operation.lod.*`は本規約8節のOperation形式、authority、revision、typed errorへ従い、Generated Artifactまたはruntime選択結果を直接編集するCommandを生成しない。
+LODは単一の裸`lod_index`として公開せず、`LodIntentV1`、Domain別Policy、`LodResolutionPlanV1`、`LodQualificationReceiptV1`をMCDへ登録する。`operation.lod.*`はStable IDでない不完全prefixであり、§21.1のexact二候補だけを`not_activated`として予約する。将来そのfamilyをatomic Activationする場合に限り、本規約8節のOperation形式、authority、revision、typed errorへ従い、Generated Artifactまたはruntime選択結果を直接編集するCommandを生成しない。
 
-Anti-aliasも裸のmethod名またはconsole variableとして公開せず、`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、closed method／sample enum、互換Predicate、Target QualificationをMCDへ登録する。AIはIntentとbounded query／proposalだけを扱い、resolved Plan、Render Graph Pass、Provider activation、Pipeline rebuildを直接編集しない。
+Anti-aliasも裸のmethod名またはconsole variableとして公開せず、`AntiAliasingIntentV1`、`ResolvedAntiAliasingPlanV1`、closed method／sample enum、互換Predicate、Target QualificationをMCDへ登録する。§20のAnti-alias五Operation候補は`not_activated`でcurrent Tool集合が空である。familyのatomic Activation後だけAIはIntentとbounded query／proposalを扱え、その場合もresolved Plan、Render Graph Pass、Provider activation、Pipeline rebuildを直接編集しない。
 
 ## 2. 解決する問題
 
@@ -52,7 +52,7 @@ Anti-aliasも裸のmethod名またはconsole variableとして公開せず、`An
 | 人間向けAPI reference | generated docs | 直接編集禁止 |
 | 意図、根拠、例、Architecture説明 | Markdown規約／ADR | 人間／AIがReview経由で編集 |
 | 手書きsemantic validator | C++／TypeScript source | Requirement IDを付けて編集 |
-| Project data | GameSpec／World／Level／System Implementation Set／GameplayDefinition／Asset metadata | 現在Schemaで検証しChangeSet経由 |
+| Project data | GameSpec／World／Scene／Space／Topology／owner-typed Document／System Implementation Set／GameplayDefinition／Asset metadata | 現在Schemaで検証しChangeSet経由 |
 
 MCDは意図の説明を完全に置き換えない。MCDが機械的な合否、Markdown／ADRが理由とTrade-offを決める。両者が矛盾する場合、実行時合否はMCDに従い、矛盾自体をCI errorにする。
 
@@ -97,9 +97,9 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
     /provider_conformance/
 ```
 
-正本FileはRFC 8259 JSON、UTF-8 without BOM、LF、末尾改行ありとする。JSON5、comment、trailing comma、NaN、Infinity、重複keyを禁止する。人間向け注釈は定義済み`description`、`rationale_refs`、`examples`へ記録する。
+正本FileはRFC 8259 JSON、UTF-8 without BOM、LF、末尾改行ありとする。JSON5、comment、trailing comma、NaN、Infinity、重複keyを禁止する。正本File内のJSON数値literalは±(2^53-1)以内だけを許可する。64-bit整数型のrange境界値やdefaultなどこの範囲を超え得る値はdecimal string表現を必須とし、JSON数値literalで書かない。parse後の値ではIEEE 754 double経由の精度喪失を検出できないため、この範囲検査は数値tokenのraw textに対してcontract lintで行う。人間向け注釈は定義済み`description`、`rationale_refs`、`examples`へ記録する。
 
-非RequirementのFile名は正本IDへ`.mirakan.json`を付けたものとし、例を`operations/operation.authoring.apply_changeset.mirakan.json`とする。RequirementはIDをASCII lowercase化して`-`を`_`へ変換し、`requirements/requirement.mirakan_ai_0001.mirakan.json`とする。この変換以外の略称を許可せず、File pathをIDから決定論的に導出する。同じIDを複数Fileへ定義しない。
+全MCDのFile名は正本IDへ`.mirakan.json`を付け、kindに対応するDirectoryへ置く。綴りだけを示す非materialized例は`operations/operation.authoring.apply_changeset.mirakan.json`、`requirements/requirement.product.authoring-roundtrip.mirakan.json`とする。前者は§21.2のexample classでありcurrent／planning Operation登録を意味しない。Requirementだけの変換、略称、legacy連番を作らず、File pathをkindとIDから決定論的に導出する。同じIDを複数Fileへ定義しない。
 
 ## 5. MCD共通Envelope
 
@@ -115,17 +115,111 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 | `title` | UTF-8 string | 人間向け短い名称 |
 | `description` | UTF-8 string | 対象と非対象を明示 |
 | `owners` | Owner ID array | 1件以上 |
-| `requirement_refs` | Requirement ID array | 自身がrequirementの場合は空 |
+| `requirement_refs` | `McdContractRefV1(kind=requirement)` array | 自身がrequirementの場合は空。bare IDを保存しない |
 | `rationale_refs` | ADR／spec anchor array | 最低1件 |
 | `since_contract_set` | uint32 | 初回導入Contract set |
 | `supersedes` | `{id, version}` array | 置換対象。空可 |
 | `tags` | lowercase string array | ASCII昇順、重複不可 |
 
-`id`をKind固有の別Fieldへ二重保存しない。`requirement`だけは`MIRAKAN-<DOMAIN>-<4桁以上の番号>`、それ以外は`<kind>.<namespace_path>`を使う。`namespace_path`は2～8個のdot区切りsegmentで、各segmentはASCII lowercase、先頭英字、以後英数字またはunderscore、1～48文字とする。例は`MIRAKAN-AI-0001`、`operation.authoring.apply_changeset`、`capability.render.material.toon_v1`、`game_system.engine.combat`、`remediation.authoring.refresh_context`である。
+`id`をKind固有の別Fieldへ二重保存しない。全Kindは`<kind>.<namespace_path>`を使い、Requirementだけの別文法を作らない。`namespace_path`は2～8個のdot区切りsegmentで、各segmentは[Naming／Project Layout §3.2](naming-project-layout.md#32-stable-idとoperation)のkind別`lower-token-path`に従い、1～48文字とする。綴り例は`requirement.product.authoring-roundtrip`、非materialized Operation例`operation.authoring.apply_changeset`、`capability.render.material.toon`、`game_system.extension.feature.combat`、`remediation.authoring.refresh_context`であり、例からcurrent recordを生成しない。
 
-MCDへの永続参照を`McdContractRefV1 { id: string, version: uint32, contract_set_hash: SHA-256 }`へ固定する。`id`のkindと参照Fieldが要求するkindは一致し、`version`は同じContract set内で存在して`status=active`でなければならない。Bare IDは固定済み`contract_set_hash`を入力にするEditor／AIのread-only検索だけで使用でき、候補が厳密に1件でなければ解決しない。Project Source、Cooked Artifact、Save、Replay、Receipt、ChangeSetはbare IDまたはruntime numeric IDを永続参照に使用しない。`GameSystemContractRefV1`は`McdContractRefV1`のうちkindが`game_system`である型付きaliasとする。
+MCDへの外部永続参照を`McdContractRefV1 { id: string, version: uint32, contract_set_hash: SHA-256 }`へ固定する。`id`のkindと参照Fieldが要求するkindは一致し、`version`は同じContract set内で存在して`status=active`でなければならない。Bare IDは固定済み`contract_set_hash`を入力にするEditor／AIのread-only検索だけで使用でき、候補が厳密に1件でなければ解決しない。Project Source、Cooked Artifact、Save、Replay、Receipt、ChangeSetはbare IDまたはruntime numeric IDを永続参照に使用しない。`GameSystemContractRefV1`は`McdContractRefV1`のうちkindが`game_system`である型付きaliasとする。
 
-Derived Artifactへの永続参照は`ArtifactRefV1 { artifact_kind: string, schema_version: uint32, sha256: SHA-256 }`へ固定する。本型の構造定義は本節だけが正本であり、Domain文書はexact refを消費してFieldを再定義しない。
+Contract set自身のhashをContract set内のrecordへ埋め込む循環を禁止する。current正本は次の二段階`ContractSetSnapshotV2`であり、旧`ContractSetSnapshotV1`はoffline migratorの入力だけである。
+
+```text
+ContractSetLocalRefV1
+  kind: §5のclosed MCD kind
+  id: canonical MCD ID
+  version: positive uint32
+
+ContractSetMemberKindV2 =
+  mcd | diagnostic | trusted_service | validator |
+  operation_validator_closure
+
+ContractSetMemberLocalIdentityV2
+  member_kind: ContractSetMemberKindV2
+  local_identity:
+    mcd: ContractSetLocalRefV1
+    | diagnostic: DiagnosticLocalRefV1
+    | trusted_service: TrustedServiceLocalRefV1
+    | validator: ValidatorLocalRefV1
+    | operation_validator_closure: OperationValidatorClosureLocalRefV1
+
+ContractSetMemberLocalRecordV2
+  member_identity: ContractSetMemberLocalIdentityV2
+  canonical_payload:
+    当該memberの全normative Field。ただしContract set内の相互参照は
+    上記五local identityのいずれかで、set root／外部refを含まない
+  member_hash: SHA-256
+
+ContractSetSnapshotV2
+  contract_set_id
+  snapshot_version: 2
+  parent_contract_set_hash: SHA-256 | null
+  members[1..65536]: ContractSetMemberLocalRecordV2
+  contract_set_hash: SHA-256
+```
+
+生成DAGは厳密に`五kindのlocal identity集合を解決 → 全cross-member edgeをlocal ref化 → 各canonical payloadをhash → {member kind, local identity, member hash}列からset rootをhash → 外部refをmaterialize`の順である。member hashのdomain separatorはkindごとに`MIRAKAN_CONTRACT_SET_MCD_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_DIAGNOSTIC_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_TRUSTED_SERVICE_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_VALIDATOR_MEMBER_V2`、`MIRAKAN_CONTRACT_SET_OPERATION_VALIDATOR_CLOSURE_MEMBER_V2`とし、`member_hash = SHA-256(domain || uint32_be(len(canonical bytes excluding member_hash)) || canonical bytes)`で計算する。`contract_set_hash = SHA-256(ASCII "MIRAKAN_CONTRACT_SET_SNAPSHOT_V2" || uint32_be(len(snapshot preimage)) || snapshot preimage)`とし、snapshot preimageはID、snapshot version、parent、member count、`member_kind`の上記enum順、同kind内のlocal identity canonical byte順へstrict sortした`{member_kind, local_identity, member_hash}`だけを持つ。duplicate identity、same identity／different hash、非canonical order、未解決local edgeを拒否する。`member_hash`自身、`contract_set_hash`自身、外部`McdContractRefV1`、`DiagnosticCodeRefV1`、`TrustedServiceRefV1`、`ValidatorRecordRefV1`、`OperationValidatorClosureRefV1`はどのlocal hash preimageにも入れない。
+
+Operation→Service、Service→allowed Operation、Operation→Validator closure、closure→Operation、Validator→Type／Diagnosticのような相互edgeはすべてsnapshot内部で上記local refを使う。全member hashとset root確定後にだけ、Readerは`McdContractRefV1`、`DiagnosticCodeRefV1`、`TrustedServiceRefV1`、`ValidatorRecordRefV1`、`OperationValidatorClosureRefV1`をmaterializeする。外部refはlocal memberまたはrootへfeed backしない。したがってMCD、Diagnostic、Service allowlist、Validator、Validator closureのどのnormative byteが変わっても該当member hashとset rootが変わり、hash fixed pointは発生しない。旧Snapshotを参照するretained Project revision、Save、Replay、Artifact、Receiptの期間中は旧rootを保持し、欠落、root不一致、local ref未解決、member hash不一致、inactive targetをfail closedとする。current setへの移行は明示offline migratorが新revisionと新external refを生成し、旧objectをin-place更新しない。
+
+### 5.1 Foundation Definition Closure
+
+Owner identityとnamed algorithmはContract set memberではない独立したdefinition rootであり、次のclosureだけが三rootを結合する。`OwnerIdentityRegistryRefV1`の構造正本は[Gameplay programming modelのOwner identity registry](../03-authoring/gameplay-programming-model.md#owner-identity-registry)だけであり、本書はそのexact型をforward importして再定義しない。`ContractSetSnapshotV2.member_kind`の五kindと`snapshot_version=2`は変更せず、Owner／Algorithm recordまたはそのexternal refをmember preimageへ追加しない。
+
+```text
+NamedAlgorithmRegistryRefV1
+  registry_id: named_algorithm.registry.active
+  registry_version: positive uint32
+  registry_content_hash: SHA-256
+
+FoundationDefinitionClosureV1
+  closure_version: 1
+  contract_set:
+    contract_set_id
+    snapshot_version: 2
+    contract_set_hash: SHA-256
+  owner_identity_registry_ref: OwnerIdentityRegistryRefV1
+  named_algorithm_registry_ref: NamedAlgorithmRegistryRefV1
+  closure_content_hash: SHA-256
+
+FoundationDefinitionClosureRefV1
+  closure_version: 1
+  closure_content_hash: SHA-256
+```
+
+`FoundationDefinitionClosureV1.closure_content_hash = SHA-256(ASCII "MIRAKAN_FOUNDATION_DEFINITION_CLOSURE_V1" || uint32_be(len(RFC 8785 JCS(closed closure object excluding closure_content_hash))) || RFC 8785 JCS(closed closure object excluding closure_content_hash))`とする。全stringはUnicode NFC、SHA-256はlowercase hexadecimal exact 64文字、`closure_version`／`snapshot_version`／Registry versionはJSON safe integer、unknown Fieldは禁止する。Owner rootは[Gameplay programming modelの`OwnerIdentityRegistryV1`](../03-authoring/gameplay-programming-model.md#owner-identity-registry)、Algorithm rootは本節の`NamedAlgorithmRegistryV1`へexact解決し、ID、version、隣接hashを再計算する。生成DAGは`Owner source document→Owner record／Owner Registry root`、`named algorithm definition→Named Algorithm Registry root`、`local MCD／Diagnostic／Trusted Service／Validator／Validator closure→Contract Set root`、`三root→FoundationDefinitionClosureV1`の一方向だけである。Foundation closure、Owner root、Algorithm root、またはそれらのexternal refをContract Set member hash／set rootへ戻さない。三rootのmissing／extra／duplicate、wrong version、隣接hash差、closure self-hash混入をfail closedにする。
+
+Closure verifierは三rootのhash成立だけで成功してはならない。Contract Set内の全active MCD `owners[]`の各bare Owner IDを、Closureが指すOwner Identity Registryのselected `status=active` rowへexact一件解決し、そのrowから`OwnerIdentityLocalRefV1 {owner_id, owner_revision, owner_content_hash}`を投影する。各Owner Manifest contributionも同じ三Fieldと`authority_source`を持つ。set equalityの右辺はRegistry全rowではなく、current Contract Setのactive MCD、Owner Manifest contribution、Diagnostic／Runtime Scope／Game Systemのtyped Owner refから到達するselected-active Owner row subsetを同じ`OwnerIdentityLocalRefV1`へ投影した集合である。MCD bare IDから解決・投影したRef集合、ManifestのRef集合、reachable selected-active rowから投影したRef集合を同型三者でset equalityにする。string ID集合とthree-field Ref集合またはfull row集合を直接比較せず、同じID／stale revision／別content hashを同値にしない。Registryにlifecycle履歴としてselectedされた`deprecated | removed` rowまたはcurrent Contract Setから未参照のactive rowはRegistryに存在できるが、current Contract Set／Manifest／typed recordから参照してはならず、set equalityの右辺へ水増ししない。`authority_source=architecture_document`ではManifestを生成したapproved Architecture Document Registryの`document_id`、`authority_source=project`ではexact Project identityと一致させる。prefix、file path、display name、MCD rationaleからAuthorityを推測しない。
+
+`DiagnosticOwnerLocalRefV1`、`RuntimeScopeOwnerRefV1`、`GameSystemOwnerRefV1`を持つ全local／external recordも同じClosure内のselected active Owner rowへID／revision／identity hashをexact解決し、Game Systemでは`owner_layer`も一致させる。Game System共通Envelopeの`owners[]`は単一`owner_ref.owner_id`とexact equalityにする。missing／multiple／deprecated／removed Owner、同IDのstale revision、同identityで別layer／authority、ManifestとRegistryのOwner差をClosure compile failureにする。retained Contract Setは同時代のretained Owner Registry／Closureで監査できるが、current dispatchへ流用しない。このcross-root resolutionはOwner refをContract Set hash preimageへ戻さず、Closure検証後の受入predicateとして実行する。
+
+Foundation closureは[Product Plan §11](../00-product/product-plan.md#11-product-execution-registries)のcurrent `CurrentControlPlaneBaselineBindingV1`が解決するBaseline／Rebaseline Coreへref／hashで束縛し、その後にApproval／Envelope／Transaction、Product current CASへ進む。別系統のTrust authorityは六Registryからexact 15-member `TrustRegistryClosureV1`を生成し、Foundation closureへ混入しない。Control PlaneはFoundation closureとTrust closureの双方を検証するが、互いをhash preimageへ戻さない。
+
+Digest、Derived Artifact ref、共通Manifest envelopeの構造正本を本節だけへ固定する。
+
+```text
+Sha256DigestV1
+  wire: exact 32 bytes
+  JSON/text projection: lowercase hexadecimal exact 64 characters
+
+ArtifactRefV1
+  artifact_kind: canonical string
+  schema_version: positive uint32
+  sha256: Sha256DigestV1
+
+ManifestArtifactEnvelopeV1
+  manifest_ref: ArtifactRefV1
+  payload_root_sha256: Sha256DigestV1
+  entry_count: uint32
+  trust_profile_ref: McdContractRefV1(kind=profile)
+```
+
+`ArtifactRefV1.sha256`は完成immutable artifact bytesのSHA-256だけであり、path、URI、`latest`、content size、format major／minor、後段signatureを持たない。format metadataとcontent sizeはartifact kind固有のManifest、payload全体のroot／entry count／Trust bindingは`ManifestArtifactEnvelopeV1`へ置く。Manifest自身をpayload entryへ含めず、Envelope自身のref／signatureをEnvelopeへ戻さない。Domain文書はこれらexact型を消費し、`content_sha256`等の別名、追加Fieldを持つ同名V1、digest表示形式ごとのsibling型を再定義しない。
+
+`schema_version`という名のFieldはMCD全域で`uint32`固定とし、本規則を全Domain文書共通の正本とする。SemVer等の互換表現が必要な場合は`schema_version`へ文字列を載せず、`format_version`等の別名Fieldを別途定義する。
 
 `status=deprecated`は新規利用を拒否するが、offline migratorが旧Projectを読むための入力Schemaだけに残せる。Runtime、Editor、Game codeへdeprecated branchを生成しない。`retired`はcurrent Contract setの生成対象外である。
 
@@ -135,7 +229,7 @@ Requirementは次を必須とする。
 
 | Field | 型／値 |
 |---|---|
-| 共通`id` | `MIRAKAN-<DOMAIN>-<4桁以上の番号>` |
+| 共通`id` | `requirement.<namespace_path>`。Naming正本のkind別grammarに従う |
 | `normative_level` | `must`、`must_not`、`should`、`may` |
 | `priority` | `blocking`、`high`、`medium`、`low` |
 | `statement` | 一つの検証可能な規範文 |
@@ -163,7 +257,7 @@ Requirementは次を必須とする。
 | `string` | UTF-8、長さ／pattern制約 |
 | `bytes_base64url` | RFC 4648 URL-safe alphabet、paddingなし |
 | `blob_ref` | Artifact ID、revision、SHA-256、size、media type |
-| `timestamp` | RFC 3339 UTC、秒以下桁をProfileで固定 |
+| `timestamp` | RFC 3339 UTC、秒以下桁数はType constraintで固定し、Profile間で精度を変えない |
 | `duration_ns` | signed int64 nanosecond |
 | `enum` | string-backed、unknown値禁止 |
 | `struct` | named field集合 |
@@ -201,6 +295,50 @@ Requirementは次を必須とする。
 
 浮動小数点の`-0`は`0`へ正規化し、NaN／Infinityを拒否する。Deterministic hash対象のfloatはIEEE 754 bit patternを直接JSON化せず、Typeごとに定義した最短round-trip decimalへ正規化する。
 
+### 7.4 `McdCanonicalBinaryV1`
+
+永続／hash入力へ使うMCD binary encodingの唯一の正本を次のclosed profileへ固定する。runtime ECS、Project state、Save、Replay、Package、Named Algorithmはこのprofileをexact importし、独自の同名encoder、serializer既定値、説明文字列`mcd_canonical_binary`だけを正本にしない。
+
+```text
+McdCanonicalBinaryV1
+  profile_id: profile.mcd_canonical_binary
+  profile_version: 1
+  byte_order: little_endian
+  alignment_padding: forbidden
+  length_and_count_prefix: uint32_le
+  accumulated_length_arithmetic: checked_uint64
+  struct_order: ascending_field_id
+  struct_presence: required_and_optional_bitset_lsb_first_zero_tail
+  collection_rules:
+    array_order=semantic
+    set_order=unsigned_lexicographic_canonical_element_bytes
+    map_order=unsigned_lexicographic_canonical_key_bytes
+    duplicate=reject
+  scalar_rules:
+    bool=uint8_0_or_1
+    integer=declared_width_little_endian
+    float=declared_ieee754_width_little_endian_finite_normalize_negative_zero
+    fixed_bytes=declared_raw_length
+    variable_bytes_and_string=uint32_length_then_bytes
+  union_rules:
+    tagged_union=closed_canonical_string_discriminator_then_one_payload
+    nullable=uint8_0_or_1_then_value_when_1
+  decoder_rules:
+    exact_descriptor=true
+    bounds_before_allocation=true
+    unknown_field=false
+    noncanonical_order=false
+    nonzero_tail_bit=false
+    trailing_byte=false
+    partial_object_on_error=false
+    decode_reencode_byte_equality=true
+  profile_content_hash: SHA-256
+```
+
+`profile_content_hash = SHA-256(ASCII "MIRAKAN_MCD_CANONICAL_BINARY_V1" || uint32_be(len(RFC 8785 JCS(closed profile object excluding profile_content_hash))) || RFC 8785 JCS(closed profile object excluding profile_content_hash))`とする。Profile objectのstringはNFC、digestはlowercase hexadecimal exact 64文字、uint32はsafe JSON integerである。可変bytes／UTF-8 string／decimal string／string-backed closed enumは`uint32_le byte_length`とbytes、stringはencode前とdecode後にUTF-8／NFC／pattern／decimal canonical constraintを検査する。struct presence bitは全FieldをField ID順へ割り当て、requiredは1、optional absentは0、present値だけを同じ順でencodeする。unknown／duplicate Field用の拡張領域を作らない。
+
+arrayはcountと意味順要素、setはcountと各canonical element bytesのunsigned lexicographic strict順、mapはcountとcanonical key bytes strict順のkey/valueを持つ。tagged unionはclosed discriminatorと選択payload exact一件、nullableは0または1に続き1の場合だけ値を持つ。decoderはdescriptor、nesting depth、collection bound、payload sizeを先に検査し、underflow／overflow／constraint違反／非canonical順／duplicate／nonzero tail／trailing byteを一件でも検出したら部分objectを返さない。decode後の同profile再encode bytesが入力と一致しない値を拒否する。top-level Typeは呼出側のexact `McdContractRefV1(kind=type)`が選び、payload内の表示名、filesystem順、platform ABI、pointer、ambient current schemaから推測しない。
+
 ## 8. Operation定義
 
 本書はMCD Operationの共通Envelope、projection、Contract compilerによる生成規則だけを所有する。`ProjectChangeSetV1`のdomain schema、Operation意味、transaction／Commit規則は[Project state](../03-authoring/project-state.md#5-projectchangesetv1)だけが所有し、本書はsuffixなしaliasまたは別Envelopeを定義しない。
@@ -209,27 +347,1352 @@ Requirementは次を必須とする。
 
 | Field | 内容 |
 |---|---|
-| 共通`id` | `operation.<domain>.<lower_snake_name>` |
+| 共通`id` | 全MCDと同じ`<kind>.<lower-token-path>`。Operationでは先頭が`operation`で、versionをID文字列へ埋め込まない |
 | `operation_kind` | `query`、`command`、`event`、`job` |
-| `input_type`／`output_type` | exact Type ID＋version |
-| `authority` | 実行できる信頼済みService |
+| `input_type`／`output_type` | `McdContractRefV1(kind=type)` |
+| `authority` | `TrustedServiceRefV1 {service_id, service_version, service_content_hash}` |
 | `risk_class` | R0からR5 |
 | `side_effects` | Authoring、Source、Network、Process、Release等の集合 |
 | `idempotency` | `pure`、`idempotent_with_key`、`non_idempotent` |
 | `transaction` | `none`、`read_snapshot`、`authoring_changeset`、`source_promotion` |
-| `preconditions` | Predicate ID array |
-| `postconditions` | Predicate ID array |
-| `errors` | 列挙済みDiagnostic code |
+| `preconditions` | pure evaluationの`McdContractRefV1(kind=policy)` array |
+| `postconditions` | pure evaluationの`McdContractRefV1(kind=policy)` array |
+| `errors` | `DiagnosticCodeRefV1`のclosed set |
 | `timeout_ms` | uint32、0禁止 |
-| `rate_limit_policy` | Policy ID |
+| `rate_limit_policy` | `McdContractRefV1(kind=policy)` |
 | `audit_level` | `metadata`、`full_redacted`、`restricted` |
 | `provider_exposure` | Provider／MCPへ公開可能か |
+| `receipt_type` | `McdContractRefV1(kind=type)` |
 
 未列挙Exception、stringだけのerror、部分成功を禁止する。部分結果が必要なOperationは、成功項目と失敗項目を型付きResultとして明示する。Commandはexpected base revisionをInputへ必須とし、stale revisionを`MIRAKAN-CONFLICT-REVISION_MISMATCH`で拒否する。
 
 MCPへ公開するOperationは`provider_exposure=mcp_proposal`に限定する。正規Commit、Approval発行、Promotion、Releaseは`trusted_internal`とし、Provider projectionを生成しない。
 
-Authoring Typeのfieldは`mutability = immutable | human_mutable | ai_mutable`と、変更可能なOperation ID集合を持つ。Contract compilerは`ai_mutable` fieldからtyped CommandまたはDomain Operationへの到達性を全件検査し、coverageが100%でなければ該当CapabilityのProvider／MCP projectionを生成しない。自由形式のJSON Pointer write、任意path write、Operationを迂回するSource writeをcoverageとして数えない。
+Authoring Typeのfieldは`mutability = immutable | human_mutable | ai_mutable`と、変更可能な完全登録済み外側MCD Operation ID集合を持つ。Contract compilerは各`ai_mutable` fieldについて、外側MCD Operationのnamed inputからtyped `ProjectChangePrimitiveV1` branchへの到達性を全件検査し、coverageが100%でなければ該当CapabilityのProvider／MCP projectionを生成しない。自由形式のJSON Pointer write、任意path write、外側MCD Operationを迂回するSource writeをcoverageとして数えない。
+
+### 8.1 Project Runtime Entry／Runtime Scopeの正規Operation登録
+
+[Project state](../03-authoring/project-state.md#312-runtime-entryのclosed-operation-catalog)が所有する六Operationだけを、current Contract setの次の`McdOperationContractV1`で登録する。六recordは全Fieldを明示し、Registry compilerは既定値、別行参照、説明語だけのerror、裸IDを補完しない。ProjectのRoot Scene migrationと[Gameplay programming model](../03-authoring/gameplay-programming-model.md#312-scope依存recordとconditional-offline-migration)のRuntime Scope migrationは§8.1.2のconditional legacy migrationであり、このcurrent登録には含めない。
+
+```text
+McdOperationContractV1
+  MCD common envelope: §5の全Field
+  operation_kind: query | command | event | job
+  input_type: McdContractRefV1(kind=type)
+  output_type: McdContractRefV1(kind=type)
+  authority: TrustedServiceRefV1 {service_id, service_version, service_content_hash}
+  risk_class: R0 | R1 | R2 | R3 | R4 | R5
+  side_effects[0..16]: closed SideEffectKindV1
+  idempotency: pure | idempotent_with_key | non_idempotent
+  transaction: none | read_snapshot | authoring_changeset | source_promotion
+  preconditions[1..16]: McdContractRefV1(kind=policy)
+  postconditions[1..16]: McdContractRefV1(kind=policy)
+  errors[1..64]: DiagnosticCodeRefV1
+  validator_closure_ref: OperationValidatorClosureRefV1
+  timeout_ms: uint32
+  rate_limit_policy: McdContractRefV1(kind=policy)
+  audit_level: metadata | full_redacted | restricted
+  provider_exposure: none | mcp_proposal | trusted_internal
+  receipt_type: McdContractRefV1(kind=type)
+
+SideEffectKindV1 =
+  authoring | source | network | process | release
+
+TrustedServiceRefV1
+  service_id
+  service_version: uint32
+  service_content_hash: SHA-256
+
+TrustedServiceLocalRefV1
+  service_id
+  service_version: uint32
+
+TrustedServiceLocalRecordV2
+  local_ref: TrustedServiceLocalRefV1
+  executable_identity_ref/hash
+  allowed_operation_local_refs[1..4096]: ContractSetLocalRefV1(kind=operation)
+  authority_capability_local_refs[1..64]: ContractSetLocalRefV1(kind=capability)
+  isolation_profile_local_ref: ContractSetLocalRefV1(kind=profile)
+  service_local_content_hash: SHA-256
+
+TrustedServiceRecordV1
+  service_id
+  service_version: uint32
+  executable_identity_ref/hash
+  allowed_operation_refs[1..4096]: McdContractRefV1(kind=operation)
+  authority_capability_refs[1..64]: McdContractRefV1(kind=capability)
+  isolation_profile_ref: McdContractRefV1(kind=profile)
+  service_content_hash: SHA-256
+
+TrustedServiceRegistryV2
+  registry_id: trusted_service.registry.active
+  registry_version: 2
+  registry_content_hash: SHA-256
+  records[1..1024]: TrustedServiceLocalRecordV2
+
+ProductionOwnerLayerV1 =
+  core | feature_pack | genre_pack | game_project
+
+OperationCompositionRoleV1 =
+  generic_core_baseline | installed_core_extension |
+  reusable_feature_pack | genre_pack | game_project
+
+OwnerOperationContributionRefV1
+  contribution_id
+  contribution_version: positive uint32
+  contribution_content_hash: SHA-256
+
+OwnerOperationContributionV1
+  contribution_id
+  contribution_version: positive uint32
+  owner_ref: OwnerIdentityLocalRefV1
+  production_owner_layer: ProductionOwnerLayerV1
+  authority_source:
+    architecture_document:
+      document_id
+    | project:
+      project_id
+  operation_local_refs[1..4096]:
+    ContractSetLocalRefV1(kind=operation)
+  contribution_content_hash: SHA-256
+
+OperationCompositionEntryV1
+  operation_local_ref: ContractSetLocalRefV1(kind=operation)
+  owner_ref: OwnerIdentityLocalRefV1
+  production_owner_layer: ProductionOwnerLayerV1
+  composition_role: OperationCompositionRoleV1
+  contribution_origin_ref: OwnerOperationContributionRefV1
+
+GenericCoreOperationBaselineV1
+  artifact_role: production
+  baseline_id: operation_baseline.generic_engine_core.bootstrap
+  baseline_version: positive uint32
+  entry_count: uint32
+  entries[1..4096]: OperationCompositionEntryV1
+  baseline_content_hash: SHA-256
+
+GenericCoreOperationBaselineRefV1
+  baseline_id: operation_baseline.generic_engine_core.bootstrap
+  baseline_version: positive uint32
+  baseline_content_hash: SHA-256
+
+InstalledProductOperationCompositionV1
+  artifact_role: cross_cutting_control_plane
+  composition_id: operation_composition.product.current
+  composition_version: positive uint32
+  generic_core_baseline_ref: GenericCoreOperationBaselineRefV1
+  entry_count: uint32
+  entries[1..4096]: OperationCompositionEntryV1
+  composition_content_hash: SHA-256
+
+InstalledProductOperationCompositionRefV1
+  composition_id: operation_composition.product.current
+  composition_version: positive uint32
+  composition_content_hash: SHA-256
+
+OperationValidatorClosureRefV1
+  closure_id
+  closure_version: uint32
+  closure_content_hash: SHA-256
+
+OperationValidatorClosureLocalRefV1
+  closure_id
+  closure_version: uint32
+
+ValidatorLocalRefV1
+  validator_id
+  validator_version: uint32
+
+DiagnosticLocalRefV1
+  diagnostic_id
+  diagnostic_version: uint32
+
+DiagnosticLocalRecordV2
+  diagnostic_local_ref: DiagnosticLocalRefV1
+  owner_local_ref: DiagnosticOwnerLocalRefV1
+  code: MIRAKAN-<DOMAIN>-<CONDITION>
+  severity: info | warning | error | blocking
+  category:
+    schema | semantic | permission | conflict | build | test |
+    performance | security | provider | infrastructure
+  message_key
+  requirement_local_refs[0..64]:
+    ContractSetLocalRefV1(kind=requirement)
+  retryability: never | after_input | after_change | transient
+  diagnostic_local_content_hash: SHA-256
+
+ValidatorRecordRefV1
+  validator_id
+  validator_version: uint32
+  validator_content_hash: SHA-256
+
+ValidatorLocalRecordV2
+  validator_local_ref: ValidatorLocalRefV1
+  implementation_artifact_ref/hash
+  input_type_local_ref: ContractSetLocalRefV1(kind=type)
+  error_local_refs[1..64]: DiagnosticLocalRefV1
+  validator_local_content_hash: SHA-256
+
+ValidatorRecordV1
+  validator_id
+  validator_version: uint32
+  materialized_from_contract_set_hash: SHA-256
+  implementation_artifact_ref/hash
+  input_type_ref: McdContractRefV1(kind=type)
+  error_refs[1..64]: DiagnosticCodeRefV1
+  validator_content_hash: SHA-256
+
+OperationValidatorClosureLocalRecordV2
+  closure_local_ref: OperationValidatorClosureLocalRefV1
+  operation_local_ref: ContractSetLocalRefV1(kind=operation)
+  validator_local_refs[1..64]: ValidatorLocalRefV1
+  reachable_error_local_refs[1..64]: DiagnosticLocalRefV1
+  reachable_error_set_hash: SHA-256
+  closure_local_record_hash: SHA-256
+
+OperationValidatorClosureV1
+  closure_id
+  closure_version: uint32
+  operation_ref: McdContractRefV1(kind=operation)
+  validator_refs[1..64]: exact ValidatorRecordRefV1
+  reachable_error_refs[1..64]: DiagnosticCodeRefV1
+  reachable_error_set_hash: SHA-256
+  closure_content_hash: SHA-256
+
+OperationPreconditionEvaluationInputV1
+  operation_ref: McdContractRefV1(kind=operation)
+  operation_input_ref/hash
+  operation_intent_hash
+  request_hash
+  before_snapshot_refs[1..64]/hashes
+  mutation_authorization_binding:
+    exact MutationAuthorizationBindingV2
+    | canonical omission: only R0/R1 non-mutation
+
+PreparedCandidateRefV1
+  candidate_id
+  candidate_schema_ref: McdContractRefV1(kind=type)
+  candidate_content_hash: SHA-256
+
+PreparedCandidateV1
+  candidate_id
+  candidate_schema_ref: McdContractRefV1(kind=type)
+  staging_root_hash
+  before_state_ref/hash
+  proposed_after_state_ref/hash
+  prepared_artifact_refs[0..4096]/hashes
+  candidate_content_hash: SHA-256
+
+PublishedReceiptPublicationControlPolicyRefV1
+  policy_id
+  policy_version: positive uint32
+  policy_kind:
+    verification_retention |
+    deterministic_recovery |
+    receipt_store_namespace
+  policy_content_hash: SHA-256
+
+PublishedReceiptPublicationControlPolicyV1
+  policy_id
+  policy_version: positive uint32
+  policy_kind:
+    verification_retention |
+    deterministic_recovery |
+    receipt_store_namespace
+  payload:
+    verification_retention:
+      historical_retention_rule:
+        retain_while_reachable_from_any_retained_root
+      retained_closure_kinds[4]: [
+        authorization_audit_closure
+        receipt_publication_closure
+        schema_definition_closure
+        trust_verification_closure
+      ]
+      prepublication_private_retention_rule:
+        retain_until_public_marker_or_durable_terminal_abort
+      private_key_retention_required: false
+      resign_on_key_loss: forbidden
+      publication_on_retention_preflight_failure: forbidden
+    | deterministic_recovery:
+      allowed_transitions[2]: [
+        private_marker_to_byte_identical_signed_wrapper
+        signed_wrapper_to_expected_predecessor_public_marker
+      ]
+      signature_identity:
+        same_materialization_key_context_subject_and_key
+      broker_journal_commit: before_signature_return
+      fresh_clock_read: forbidden
+      fresh_key_selection: forbidden
+      policy_or_trust_substitution: forbidden
+      alternate_signature: forbidden
+      issued_at_update: forbidden
+      post_publication_rollback: forbidden
+      missing_or_mismatched_state: fail_closed
+    | receipt_store_namespace:
+      namespace_id:
+        urn:mirakan:receipt-store:namespace:published-domain-receipt:v1
+      namespace_version: 1
+      key_derivation:
+        sha256_completed_published_domain_receipt_wrapper_bytes
+      write_semantics: put_if_absent_byte_equality
+      overwrite: forbidden
+      readback_before_public_marker: required
+      deletion_control: verification_retention_policy_only
+      backend_binding: qualified_deployment_private_binding
+      locator_or_credentials_in_record: forbidden
+  policy_content_hash: SHA-256
+
+PublishedReceiptMaterializationPolicyV1
+  materialization_policy_version: 1
+  operation_ref: McdContractRefV1(kind=operation)
+  execution_authority_ref: TrustedServiceRefV1
+  signed_record_purpose: operation_domain_receipt
+  operation_receipt_signer_policy_ref:
+    exact OperationReceiptSignerPolicyRefV1
+  trust_registry_closure_head_ref/hash
+  governance_policy_config_registry_ref/hash
+  trust_registry_closure_ref/hash
+  signing_profile_ref/hash: PublishedReceiptSigningProfileRefV1
+  signer_subject_ref/hash
+  signer_role_ref/hash
+  key_id
+  public_key_registry_snapshot_ref/hash
+  verification_retention_policy_ref:
+    exact PublishedReceiptPublicationControlPolicyRefV1(
+      policy_id=published_receipt_verification_retention_policy.active,
+      policy_kind=verification_retention)
+  recovery_policy_ref:
+    exact PublishedReceiptPublicationControlPolicyRefV1(
+      policy_id=published_receipt_recovery_policy.active,
+      policy_kind=deterministic_recovery)
+  receipt_canonical_schema_ref: McdContractRefV1(kind=type)
+  receipt_store_namespace_policy_ref:
+    exact PublishedReceiptPublicationControlPolicyRefV1(
+      policy_id=published_receipt_store_namespace_policy.active,
+      policy_kind=receipt_store_namespace)
+  policy_content_hash: SHA-256
+
+PublishedReceiptMaterializationPolicyRefV1
+  operation_ref: McdContractRefV1(kind=operation)
+  policy_artifact_ref:
+    ArtifactRefV1(
+      artifact_kind=receipt.published_receipt_materialization_policy,
+      schema_version=1)
+  policy_content_hash: SHA-256
+
+PublishedReceiptSigningProfileRefV1
+  profile_id
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+PublishedReceiptSigningProfileV1
+  profile_id: signing_profile.operation_receipt.ecdsa_p256_rfc6979
+  profile_version: 1
+  signature_algorithm: ecdsa-p256-sha256
+  signature_format: ieee-p1363-raw
+  nonce_derivation: rfc6979-sha256
+  low_s_required: true
+  canonical_subject: JCS(PublishedDomainReceiptPayloadV2)
+  issued_at_source: exact pre-marker materialization context issued_at
+  revocation_snapshot_source:
+    exact pre-marker materialization context revocation_snapshot_ref/hash
+  retry_rule: same subject/key/context produces byte-identical wrapper
+  profile_content_hash: SHA-256
+
+OperationAuthorizationAuditBindingV1
+  binding_version: 1
+  operation_ref: McdContractRefV1(kind=operation)
+  input_type_ref: McdContractRefV1(kind=type)
+  risk_class: R2 | R3 | R4 | R5
+  operation_intent_hash: SHA-256
+  request_hash: SHA-256
+  request_hash_algorithm_binding:
+    exact OperationRequestAlgorithmBindingV1
+  request_input_content_ref:
+    ArtifactRefV1(
+      artifact_kind=operation_request_input,
+      schema_version=1)
+  authorization_ref: TaskAuthorizationEnvelopeRefV1
+  authorization_hash: SHA-256
+  authority_evidence:
+    approval:
+      approval_set_ref: OperationMutationApprovalSetRefV1
+      approval_set_hash: SHA-256
+    | predelegated:
+      predelegation_ref: OperationPredelegationUseRefV1
+      predelegation_hash: SHA-256
+  binding_content_hash: SHA-256
+
+OperationAuthorizationAuditBindingRefV1
+  operation_ref: McdContractRefV1(kind=operation)
+  request_hash: SHA-256
+  binding_artifact_ref:
+    ArtifactRefV1(
+      artifact_kind=receipt.operation_authorization_audit_binding,
+      schema_version=1)
+  binding_content_hash: SHA-256
+
+PublishedReceiptMaterializationContextRefV1
+  context_id
+  context_content_hash: SHA-256
+
+PublishedReceiptMaterializationContextV1
+  context_id
+  operation_ref: McdContractRefV1(kind=operation)
+  operation_intent_hash
+  request_hash
+  request_hash_algorithm_binding:
+    exact OperationRequestAlgorithmBindingV1
+  idempotency_key
+  before_state_ref/hash
+  staged_after_state_ref/hash
+  issued_at
+  revocation_snapshot_ref/hash
+  operation_receipt_signer_policy_ref:
+    exact OperationReceiptSignerPolicyRefV1
+  trust_registry_closure_head_ref/hash
+  governance_policy_config_registry_ref/hash
+  trust_registry_closure_ref/hash
+  authorization_audit_binding_ref:
+    exact OperationAuthorizationAuditBindingRefV1
+  materialization_policy_ref:
+    exact PublishedReceiptMaterializationPolicyRefV1
+  signing_profile_ref/hash
+  signer_subject_ref/hash
+  signer_role_ref/hash
+  key_id
+  public_key_registry_snapshot_ref/hash
+  context_content_hash: SHA-256
+
+PublishedReceiptMaterializationKeyPayloadV1
+  operation_ref: McdContractRefV1(kind=operation)
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  before_state_ref/hash
+  staged_after_state_ref/hash
+  receipt_type_ref: McdContractRefV1(kind=type)
+  prepared_payload_count: 3
+  prepared_payloads[3]:
+    exact {payload_type_ref, payload_content_ref, payload_content_hash}
+  private_commit_marker_hash
+  materialization_policy_ref:
+    exact PublishedReceiptMaterializationPolicyRefV1
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+
+AtomicCommitPlanPayloadV1
+  operation_ref: McdContractRefV1(kind=operation)
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  prepared_candidate_ref: PreparedCandidateRefV1
+  project_source_promotion_authorization_binding_refs[0..1]:
+    ProjectSourcePromotionAuthorizationBindingRefV1
+  before_state_ref/hash
+  proposed_after_state_ref/hash
+  prepared_payload_count: 3
+  prepared_payloads[3]:
+    exact {payload_type_ref, payload_content_ref, payload_content_hash}
+  published_receipt_materialization_policy_ref:
+    exact PublishedReceiptMaterializationPolicyRefV1
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+
+PreparedCommitEnvelopeV1
+  operation_ref: McdContractRefV1(kind=operation)
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  prepared_candidate_ref: PreparedCandidateRefV1
+  project_source_promotion_authorization_binding_refs[0..1]:
+    ProjectSourcePromotionAuthorizationBindingRefV1
+  before_state_ref/hash
+  staged_after_state_ref/hash
+  preview_receipt_payload_ref/hash
+  validation_receipt_payload_ref/hash
+  prepared_domain_receipt_payload_ref/hash
+  published_receipt_materialization_policy_ref:
+    exact PublishedReceiptMaterializationPolicyRefV1
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+  atomic_commit_plan_hash
+  envelope_hash
+
+PreparedReceiptPublicationBindingV1
+  operation_ref: McdContractRefV1(kind=operation)
+  operation_intent_hash
+  request_hash
+  request_hash_algorithm_binding:
+    exact OperationRequestAlgorithmBindingV1
+  idempotency_key
+  project_source_promotion_authorization_binding_refs[0..1]:
+    ProjectSourcePromotionAuthorizationBindingRefV1
+  before_state_ref/hash
+  staged_after_state_ref/hash
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+
+PreparedPreviewReceiptPayloadV1
+  publication_binding: exact PreparedReceiptPublicationBindingV1
+  preview_result_ref/hash
+  disposition: preview_ready
+  prepared_payload_hash: SHA-256
+
+PreparedValidationReceiptPayloadV1
+  publication_binding: exact PreparedReceiptPublicationBindingV1
+  validation_result_ref/hash
+  disposition: satisfied
+  diagnostic_refs: []
+  prepared_payload_hash: SHA-256
+
+OperationPostconditionEvaluationInputV2
+  operation_ref: McdContractRefV1(kind=operation)
+  request_hash
+  prepared_operation_output_ref/hash
+  before_snapshot_refs[1..64]/hashes
+  unpublished_staging_snapshot_refs[1..64]/hashes
+  prepared_commit_envelope_ref/hash
+
+StagedPostconditionReceiptV1
+  evaluated_input_hash
+  prepared_candidate_ref: PreparedCandidateRefV1
+  prepared_commit_envelope_ref/hash
+  disposition: satisfied | rejected
+  predicate_evidence_hash | diagnostics[1..64]
+  receipt_payload_hash
+
+PrivateDurableCommitMarkerV1
+  marker_id
+  operation_ref
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  prepared_commit_envelope_ref/hash
+  before_state_ref/hash
+  staged_after_state_ref/hash
+  staged_prepared_receipt_payload_count: 3
+  staged_prepared_receipt_payloads[3]:
+    exact {payload_type_ref, payload_content_ref, payload_content_hash}
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+  staged_postcondition_receipt_ref/hash
+  visibility: private_internal
+  marker_hash
+
+PublicCommitClosureV1
+  closure_id
+  closure_version: positive uint32
+  operation_ref
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  prepared_candidate_ref: PreparedCandidateRefV1
+  project_source_promotion_authorization_binding_refs[0..1]:
+    ProjectSourcePromotionAuthorizationBindingRefV1
+  domain_commitment:
+    kind: project_change_set_commit
+      project_change_set_ref: ProjectChangeSetArtifactRefV1
+      candidate_root_sha256: Sha256DigestV1
+    | kind: owner_typed_state_commit
+      domain_owner_ref: OwnerIdentityLocalRefV1
+      committed_artifact_refs[1..4096]: ArtifactRefV1
+  before_state_ref/hash
+  public_after_state_ref/hash
+  prepared_commit_envelope_hash
+  private_commit_marker_hash
+  closure_content_hash
+
+PublicCommitClosureRefV1
+  closure_id
+  closure_version: positive uint32
+  closure_ref:
+    exact ContentAddressedRefV1(type=PublicCommitClosureV1)
+  closure_content_hash
+
+PublishedDomainReceiptPayloadV2
+  prepared_domain_receipt_payload_ref/hash
+  private_commit_marker_hash
+  public_commit_closure_ref: PublicCommitClosureRefV1
+  public_commit_closure_hash
+  operation_ref
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  before_state_ref/hash
+  after_state_ref/hash
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+  issued_at
+  revocation_snapshot_ref/hash
+
+PublishedDomainReceiptV2
+  payload: PublishedDomainReceiptPayloadV2
+  signed_record:
+    exact MirakanSignedRecordV1
+
+PublicPublicationMarkerV1
+  publication_id
+  operation_ref
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  private_commit_marker_hash
+  public_commit_closure_ref: PublicCommitClosureRefV1
+  public_commit_closure_hash
+  signed_domain_receipt_ref/hash
+  before_state_ref/hash
+  public_after_state_ref/hash
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+  expected_previous_publication_ref/hash | null
+  publication_sequence: positive uint64
+  marker_hash
+
+PublicPublicationMarkerRefV1
+  publication_id
+  publication_sequence: positive uint64
+  marker_ref:
+    exact ContentAddressedRefV1(type=PublicPublicationMarkerV1)
+  marker_hash: SHA-256
+
+OperationPredicateResultV1
+  disposition: satisfied | rejected
+  satisfied:
+    evaluated_input_hash
+    predicate_evidence_hash
+  rejected:
+    diagnostics[1..64]: DiagnosticCodeRefV1
+
+OperationRateLimitPolicyV1
+  policy_ref: McdContractRefV1(kind=policy)
+  scope: project | principal_project
+  window_ns: uint64
+  max_requests: uint32
+  burst: uint32
+  exceeded_error_ref: DiagnosticCodeRefV1
+```
+
+`PublicCommitClosureV1`はprivate Marker readback後にだけ作るsecret-freeな公開commit commitmentであり、private Marker body、Prepared Envelope body、Authorization／Approval body、Staging payload、PII、secret locatorを含まない。`domain_commitment`はclosed tagged unionである。`project_change_set_commit`はProject Stateのimmutable `ProjectChangeSetArtifactRefV1`と、そのCommit／Build／Packageが共通利用する`candidate_root_sha256`を必須にし、Source registration primitiveが0件でlate binding集合が`[]`でもこのbranchと二Fieldを省略しない。`owner_typed_state_commit`はProject ChangeSetを使わないWorld／Pack／Registry／Runtime mutationだけに使い、current Foundation Closureのselected-active `domain_owner_ref`と、private Markerが束縛したreceipt-free staged after stateからpublic CASで到達可能化するexact `committed_artifact_refs[]`をArtifact ref canonical byte順のstrict sorted setとして持つ。`operation.authoring.changeset.commit`のProject ChangeSet Commitをowner-typed branchへdowngradeすること、表示名やafter-state hashからChangeSet／Candidate rootを推測すること、Receipt／Public Marker／Closure自身をcommitted artifact集合へ含めることを拒否する。
+
+semantic hashと完成object hashを分離する。`closure_id`と`closure_content_hash`の両Fieldをcanonical omissionしたclosed recordをMCD canonical encodeしたbytesを`S`とし、`D = SHA-256(ASCII "MIRAKAN_PUBLIC_COMMIT_CLOSURE_V1" || uint32_be(len(S)) || S)`、`closure_content_hash=D`、`closure_id=urn:mirakan:public-commit-closure:sha256:<lowercase-hex(D)>`の順で導出する。両Fieldを挿入した完成`PublicCommitClosureV1`のRFC 8785 JCS bytesを`C`とし、`closure_object_sha256=SHA-256(C)`を別に計算する。`PublicCommitClosureRefV1.closure_content_hash`はsemantic `D`、`closure_ref.sha256`と`PublishedDomainReceiptPayloadV2`／`PublicPublicationMarkerV1`の隣接`public_commit_closure_hash`は完成object SHA `closure_object_sha256`へbyte equalityにする。semantic hashと完成object SHAの等値、`closure_id`のsemantic preimageへの自己混入、completed-object hashを`closure_content_hash`へ複写する実装を拒否する。
+
+`prepared_candidate_ref`とlate binding集合はPrepared Envelope、before／after stateはprivate Marker、`prepared_commit_envelope_hash`と`private_commit_marker_hash`はreadbackした各完成objectへ一致させる。Project branchのChangeSet／Candidate rootはProject StateのCommit inputおよびCore `BuildProjectPublicationBindingV1(kind=committed_revision)`とbyte equalityにし、owner-typed branchのOwner／Artifact集合は選択Domainのprepared payloadとstaged after stateへexact解決する。Closureはprivate objectをAuthorityへ変換せず、Package等の認可済みconsumerが公開Markerと署名済みReceiptから、Commitが束縛したCandidate、domain commitment、late binding、before／after、Envelope commitmentを型付きで再検証するためだけに使う。
+
+Gatewayはprivate Marker readback後、完成`PublicCommitClosureV1`をimmutable content-addressed public-candidate storeへput-if-absentし、同Closure Ref／完成object hashを`PublishedDomainReceiptPayloadV2`へ入れて署名する。signed wrapper readback後のpublic CASでは、同じClosure body、`PublicPublicationMarkerV1`、Receipt-free after stateをatomic publishし、Marker、signed Receipt payload、ClosureのRef／semantic hash／完成object hash、Operation、request、idempotency、private-marker commitment、domain commitment、before／after stateをbyte equalityにする。Closure bodyまたはsigned Receiptを欠くMarker、別Closureへの差替え、Closureだけの先行public authority、private Marker body／Prepared Envelope bodyの公開昇格を拒否する。これにより公開検証DAGは`PublicPublicationMarkerRefV1 -> PublicPublicationMarkerV1 -> signed Domain Receipt + PublicCommitClosureRefV1 -> PublicCommitClosureV1 -> PreparedCandidateRefV1 + domain_commitment`となり、private audit DAGとはhash commitmentだけで一方向に接続する。
+
+`PublicCommitClosureV1`、`PublicCommitClosureRefV1`、その`domain_commitment` unionは既存Published Domain Receipt／Public Publication Marker root schema内のnested common `$defs`であり、standalone MCD Type、Operation、Policy、Contract Set memberではない。したがってcurrent Generic Core active Operation 6件、Installed Product active Operation 10件、MCD Type／Contract Set member件数と五member-kind unionは不変である。意味Field追加により既存root schema bytes／content hashを更新する場合も同じDefinition／Control Plane transactionで再発行し、Closure名を理由にOperation、Type、Local Schema Catalog rowまたはOwner Manifest contributionを一件加算しない。
+
+`DiagnosticOwnerLocalRefV1.owner_content_hash`はASCII `MIRAKAN_DIAGNOSTIC_OWNER_LOCAL_IDENTITY_V1`、`uint32_be(len(NFC UTF-8 owner_id)) || owner_id bytes`、`uint32_be(8) || uint64_be(owner_revision)`の順から計算し、Gameplay Programming ModelのOwner identity式とbyte equalityにする。これはContract set rootを含まないimmutable local identityであり、Owner identity自身もContract set hash、Diagnostic ref、Diagnostic Registry hashを含めない。`DiagnosticLocalRecordV2.diagnostic_local_content_hash`はASCII `MIRAKAN_DIAGNOSTIC_LOCAL_RECORD_V2`と、同Fieldだけを除きOwner identityとRequirement edgeをLocalRefのまま保持した完成local recordのlength-framed canonical bytesから計算する。Contract setのDiagnostic `member_hash`はこの完成local recordを別domain `MIRAKAN_CONTRACT_SET_DIAGNOSTIC_MEMBER_V2`でhashする別値である。set root確定後、外部`DiagnosticCodeRecordV1.diagnostic_content_hash`はOwnerをexact external owner ref、Requirement edgeを`contract_set_hash`付き`McdContractRefV1`へ投影した外部recordから§12の規則で計算する第三の値であり、local hashまたはmember hashとの等値を要求しない。外部record／hash／refをlocal payload、member hash、set rootへfeed backしない。
+
+`TrustedServiceLocalRecordV2.service_local_content_hash`はASCII `MIRAKAN_TRUSTED_SERVICE_LOCAL_RECORD_V2`と同Fieldだけを除く完成local recordから計算する。Contract Set `member_hash`は別domain `MIRAKAN_CONTRACT_SET_TRUSTED_SERVICE_MEMBER_V2`と、このlocal hashを含む完成local recordから計算する別値であり、両hashのbyte equalityを要求しない。Local Registry hashはASCII `MIRAKAN_TRUSTED_SERVICE_REGISTRY_V2`、Registry ID／version、record count、`service_id`／version順local record bytesを`uint32_be` length framingして計算する。set root確定後だけ、Operation／Capability／isolation profileのLocalRefをroot付きMCD refへ投影して`TrustedServiceRecordV1`を作り、`service_content_hash`をASCII `MIRAKAN_TRUSTED_SERVICE_RECORD_V1`と自己Fieldを除くexternal recordから計算する。`service_local_content_hash → Service member_hash／Local Registry hash → Contract set root → external service_content_hash／TrustedServiceRefV1`の一方向DAGとし、external record／hash／refをlocal record、member、Registry、rootへ戻さない。duplicate／stale／hash mismatch、OperationのLocalRefがServiceの`allowed_operation_local_refs[]`にない状態を拒否する。Generic Engine Core bootstrap baselineの一Service projectionは次であり、`executable_identity_ref/hash`、`isolation_profile_local_ref`、Capability LocalRef、allowlistを省略しない。
+
+| Service LocalRef | executable identity | exact allowed Operation LocalRefs | authority Capability LocalRefs | isolation profile LocalRef |
+|---|---|---|---|---|
+| `{service.authoring_command_gateway,1}` | `{artifact.service.authoring_command_gateway,1,artifact_hash}` | `{operation.project.runtime_entry.create,1}; {operation.project.runtime_entry.update,1}; {operation.project.runtime_entry_activation_policy.create,1}; {operation.project.runtime_entry_activation_policy.update,1}; {operation.project.runtime_target_selector.create,1}; {operation.project.runtime_target_selector.update,1}` | `{capability.authoring.command_gateway,1}` | `{profile.isolation.authoring_command_gateway,1}` |
+
+表のOperation集合は本節の初期六Operationを導入するbootstrap seedであり、current Installed Product snapshotではない。他Domain／Pack由来Operationを暗黙追加せず、§8.2のcurrent Installed Product一recordを正本にする。外部`TrustedServiceRefV1 {service_id,service_version,service_content_hash}`はset root確定後にmaterializeするだけでSnapshot preimageへ戻さない。DomainまたはPack Operationをactivate／removeするContract set transactionは、Owner ManifestのOperation LocalRef集合と当該OwnerがServiceへ寄与するallowlist LocalRef集合のset equalityを検査し、Service local record、Operation local record、set rootを一方向に再生成する。runtime中のallowlist mutation、旧Service hashと新Operationの混在、prefix／owner名による暗黙許可を禁止する。
+
+`OwnerOperationContributionV1`は既存Owner Manifest contributionの型付き正規Envelopeであり、新しいOwner Authorityまたは追加MCD memberではない。`contribution_content_hash = SHA-256(ASCII "MIRAKAN_OWNER_OPERATION_CONTRIBUTION_V1" || uint32_be(len(RFC 8785 JCS(closed contribution excluding contribution_content_hash))) || RFC 8785 JCS(closed contribution excluding contribution_content_hash))`とする。JCS projectionはkeyをUnicode code point順、全stringをNFC、positive uint32をsafe JSON integer、`owner_revision`をcanonical unsigned decimal string、SHA-256をlowercase hexadecimal exact 64文字にする。`ContractSetLocalRefV1`は`{id,kind,version}`を全Field保存し、本文の二Field短記から`kind=operation`を補完してhash入力を変えない。`operation_local_refs[]`はOperation IDのNFC UTF-8 bytes、version `uint32_be`順へstrict sort／uniqueし、`OwnerOperationContributionRefV1`の三Fieldを解決先recordとbyte equalityにする。`owner_ref`は同じFoundation Closureのselected-active Owner rowへ解決し、`production_owner_layer`はOwner rowの`core | feature_pack | genre_pack | project`をそれぞれ`core | feature_pack | genre_pack | game_project`へexact写像する。`authority_source`も同Owner rowとbyte equalityにし、Owner ID prefix、文書path、Operation ID namespaceからlayerまたはsourceを推測しない。
+
+`OperationCompositionEntryV1`の`owner_ref`、`production_owner_layer`、`operation_local_ref`は`contribution_origin_ref`が解決する同一`OwnerOperationContributionV1`に含まれなければならない。Origin refは同じcompile transactionへ入力されたimmutable Owner Manifest contribution artifactをID／version／hashでexact解決し、global latest、file path、Owner IDだけの探索を禁止する。`composition_role`はProduct構成上の役割であり所有レイヤーとは別軸であるため、`owner.core.world`のようなCore所有の任意追加は`installed_core_extension`になり得るが、`genre_pack`所有を`generic_core_baseline`へ昇格できない。Baseline／CompositionのentriesはOperation ID／version順へstrict sort／uniqueし、`entry_count`を配列長と一致させる。`baseline_content_hash = SHA-256(ASCII "MIRAKAN_GENERIC_CORE_OPERATION_BASELINE_V1" || uint32_be(len(RFC 8785 JCS(closed baseline excluding baseline_content_hash))) || RFC 8785 JCS(closed baseline excluding baseline_content_hash))`、`composition_content_hash = SHA-256(ASCII "MIRAKAN_INSTALLED_PRODUCT_OPERATION_COMPOSITION_V1" || uint32_be(len(RFC 8785 JCS(closed composition excluding composition_content_hash))) || RFC 8785 JCS(closed composition excluding composition_content_hash))`とし、同じJCS projection規則を使う。
+
+Baseline／Composition完成bytesはcompile transactionのimmutable content-addressed evidence namespaceへhash keyで保存し、各Refは同namespaceからID／version／hashを全件照合して解決する。承認済みactivation transactionは使用した二Refとcompleted bytesをretentionし、missing bytes、hash mismatch、bare current、別compile transactionからの同ID substitutionを拒否する。Generic Core baselineの`artifact_role=production`はCore bootstrap自身のproduction contract inventory、Installed Product compositionの`artifact_role=cross_cutting_control_plane`は複数Owner／layerを束ねるProduct／Control Plane projectionを表す。後者をGeneric Core production dependency edgeまたはCore ownershipへ投影しない。これら二recordはOwner Manifest／MCD／Serviceのset equalityを型付きで検査するcompiler evidenceで、Operation、Policy、Type、Contract Set memberまたはdispatch Authorityを追加せず、単独Refの存在から実行権限を生成しない。
+
+current Generic Engine Core operation baselineは次のexact recordである。本節の可読用hash短記は次のliteral値だけを表し、短記名または`*_hash`という文字列をwireへ保存しない。
+
+| short name | exact lowercase SHA-256 |
+|---|---|
+| `project_state_owner_hash_v1` | `8629bba70acf6c53968cdbe97a9ccc4043adacb8eef29c9e4303df091f6ee428` |
+| `world_owner_hash_v1` | `02e558a2c554d54711631421e22d449b92c4339c74d1159157620b5e37dc6625` |
+| `shooter_owner_hash_v1` | `a4c910efb5f04c8d8e5f2980e42e3889dbe73ecbd3f7976e39b4ce072ec01bc4` |
+| `project_state_contribution_hash_v1` | `73472e663836be538cc609d20821c491a4e1080eb0d05186d1335efb8d727d8a` |
+| `world_contribution_hash_v1` | `58b56dfefe98655ddb6607f00bafd04bfaa74dd25da1f473a1a1bd6991fd940f` |
+| `shooter_contribution_hash_v1` | `fdf61245348480fb746386f84fd2e56fba52b236922fad7289aa9efe8429732f` |
+| `generic_core_baseline_hash_v1` | `14e723260d7c745ccc79a30060220f01898571bb5aa04d56c162db0a4777a11c` |
+| `installed_product_composition_hash_v1` | `722df325f71678faf4b6a1ae7a683e2181529087b37e93c1f2781e7b701e0a05` |
+
+六entryはすべて`contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}`、`owner_ref={owner.core.project_state,1,project_state_owner_hash_v1}`、`production_owner_layer=core`、`composition_role=generic_core_baseline`を持つ。
+
+次のrecordは本書前段のcanonical `GenericCoreOperationBaselineV1` schemaへcurrent bootstrap値を代入した具体instanceであり、schemaの再定義ではない。
+
+```text
+GenericCoreOperationBaselineV1
+  artifact_role = production
+  baseline_id = operation_baseline.generic_engine_core.bootstrap
+  baseline_version = 1
+  entry_count = 6
+  entries = [
+    {operation_local_ref={operation.project.runtime_entry.create,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_entry.update,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_entry_activation_policy.create,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_entry_activation_policy.update,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_target_selector.create,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_target_selector.update,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+  ]
+  baseline_content_hash =
+    14e723260d7c745ccc79a30060220f01898571bb5aa04d56c162db0a4777a11c
+```
+
+このbaselineのOrigin recordは`contribution_id=contribution.owner.core.project_state.runtime_entry_bootstrap`、`contribution_version=1`、上記六Operation LocalRef、`owner_ref={owner.core.project_state,1,project_state_owner_hash_v1}`、`production_owner_layer=core`、`authority_source.architecture_document.document_id=mirakan.arch.project-state`、`contribution_content_hash=project_state_contribution_hash_v1`をexact値にする。六Operationの追加／欠落／入替え、別Owner／layer／authority source、`composition_role!=generic_core_baseline`、Origin ref hash差をbaseline compile failureにする。
+
+#### 8.1.1 Foundation service dependency MCD records
+
+current Service一recordが参照する未materialized dependencyを、次のexact四MCD local recordとしてcurrent Contract setへ追加する。四record共通のEnvelopeは`mcd_version=1; status=active; requirement_refs=[]; since_contract_set=1; supersedes=[]`であり、残る共通Fieldも次表のliteralを省略せず保存する。本文中の`id@version`は可読用表記だけで、MCD `id`へ`@`またはversionを埋め込まない。
+
+| kind | id | version | title | description | owners | rationale_refs | tags（ASCII昇順） |
+|---|---|---:|---|---|---|---|---|
+| `type` | `type.operation.mutation_authorization_binding` | 2 | `Mutation authorization binding` | `状態変更Operationのintent、risk、Authorization、ApprovalまたはPredelegationを閉じる型` | `[owner.core.security_approval]` | `[mirakan.arch.ai-security-approval#mutation-authorization-binding-v2]` | `[authorization, mutation, security]` |
+| `capability` | `capability.runtime.scheduling` | 1 | `Runtime scheduling` | `Runtime scheduling contractの存在とTarget適用範囲` | `[owner.core.runtime]` | `[mirakan.arch.runtime-scheduling-lifetime]` | `[runtime, scheduling]` |
+| `capability` | `capability.authoring.command_gateway` | 1 | `Authoring command gateway authority` | `Authoring Command Gatewayが完全登録済みOperationを処理するauthority capability` | `[owner.core.project_state]` | `[mirakan.arch.executable-contracts#81-project-runtime-entryruntime-scopeの正規operation登録]` | `[authoring, gateway, service]` |
+| `profile` | `profile.isolation.authoring_command_gateway` | 1 | `Authoring command gateway isolation` | `信頼済みAuthoring Command Gatewayの最小権限隔離profile` | `[owner.core.security_approval]` | `[mirakan.arch.ai-security-approval#73-trusted-service-isolation]` | `[authoring, isolation, service]` |
+
+`type.operation.mutation_authorization_binding@2`のpayload schemaは次のexact `MutationAuthorizationBindingV2`であり、別名Field、optional evidence、R0／R1 branch、同時二branchを許可しない。次のblockは[AI Security Approval](../01-governance/ai-security-approval.md)が所有するcanonical schemaをContract set memberへ写すexact mirrorであり、schemaの再定義ではない。
+
+```text
+MutationAuthorizationBindingV2
+  operation_intent_hash: SHA-256
+  risk_class: R2 | R3 | R4 | R5
+  request_hash_algorithm_binding:
+    exact OperationRequestAlgorithmBindingV1
+  authorization_ref: TaskAuthorizationEnvelopeRefV1
+  authorization_hash: SHA-256
+  authority_evidence:
+    approval:
+      approval_set_ref: OperationMutationApprovalSetRefV1
+      approval_set_hash: SHA-256
+    | predelegated:
+      predelegation_ref: OperationPredelegationUseRefV1
+      predelegation_hash: SHA-256
+```
+
+typed Refとwrapper、署名purpose、Task／Project／typed subject scope grant、intent-bound Approval Set／Predelegation Use、Grant Registry／Consumption Head、current Projector binding exact `[]`の構造正本は[AI Security／ApprovalのMutation authorization binding V2](../01-governance/ai-security-approval.md#mutation-authorization-binding-v2)である。Approval Set隣接hashはRefの`set_content_hash`、Set内各Approval、Grant、Useの隣接hashは各Refの`wrapper_sha256`とbyte equalityにする。R2は`approval | predelegated`のexact一branch、R3～R5は`approval`だけを受理する。裸ref、個別Approval一件、Predelegation Grant単体、別purpose wrapper、scopeだけ一致する別intent、`request_hash_algorithm_binding`欠落を拒否する。本MCD Type recordは同節のPayload／Wrapper／Ref、Approval quorum／Set、Project scope、Consumption Head／Scope Projection、`OperationRequestAlgorithmBindingV1`、それらが使うsmall wire shapeを同record schemaのclosed `$defs`として完全投影し、Wrapperの署名Fieldだけを既存`MirakanSignedRecordV1`へexact `$ref`する。CompilerはAI Security正本とのfield ID／type／presence／bound／purpose equalityを検査する。三signed wrapperのstandalone validationはAI Securityが所有するexact Local Schema Catalog root ID／signature slotを使い、nested `$defs`の存在を署名Authorityへ代用しない。これらは追加MCD Type recordまたはArchitecture Governance Ownerの追加Control Plane top-level contractではないため、Foundation correctionのMCD差分`Type +1`と同Ownerのcontract exact 30を増やさない。`type.operation.mutation_authorization_binding@1`はcurrent recordではなく、v2の`supersedes=[]`を維持して存在を推測しない。
+
+二Capability recordは§10の全Fieldを次のexact値でmaterializeする。Local payload内の`operations[]`と`validators[]`はそれぞれ`ContractSetLocalRefV1`と`ValidatorLocalRefV1`であり、set root確定後だけ外部refへ投影する。
+
+```text
+capability.runtime.scheduling@1
+  maturity: C0
+  supported_targets: [
+    target.android.mobile
+    target.apple.mobile
+    target.headless.host
+    target.windows.desktop
+    target.windows.editor
+  ]
+  required_capabilities: []
+  conflicts: []
+  authoring_types: []
+  operations: []
+  validators: []
+  quality_profiles: []
+  budgets: []
+  failure_modes: [
+    {diagnostic_code: MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED,
+     fallback_id: fallback.capability.unavailable}
+  ]
+  examples: []
+  ai_guidance: []
+
+capability.authoring.command_gateway@1
+  maturity: C0
+  supported_targets: [
+    target.headless.host
+    target.windows.desktop
+    target.windows.editor
+  ]
+  required_capabilities: []
+  conflicts: []
+  authoring_types: []
+  operations: [
+    {operation.project.runtime_entry.create,1}
+    {operation.project.runtime_entry.update,1}
+    {operation.project.runtime_entry_activation_policy.create,1}
+    {operation.project.runtime_entry_activation_policy.update,1}
+    {operation.project.runtime_target_selector.create,1}
+    {operation.project.runtime_target_selector.update,1}
+    {operation.shooter.target_provider_binding.create,1}
+    {operation.shooter.target_provider_binding.select,1}
+    {operation.shooter.target_provider_binding.update,1}
+    {operation.world.allocate_generated_stable_ids,1}
+  ]
+  validators: [
+    {validator.operation.approval,1}
+    {validator.operation.authorization,1}
+    {validator.operation.pure_predicate,1}
+    {validator.operation.request_envelope,1}
+    {validator.operation.revision_and_lock,1}
+    {validator.operation.timeout_and_rate_limit,1}
+  ]
+  quality_profiles: []
+  budgets: []
+  failure_modes: [
+    {diagnostic_code: MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED,
+     fallback_id: fallback.capability.unavailable}
+  ]
+  examples: []
+  ai_guidance: []
+
+```
+
+`capability.runtime.scheduling@1.required_capabilities=[]`はMCD contract semanticsであり、Product Work Packageの実装順依存を削除しない。二recordの`status=active`は「参照可能なMCD契約」を意味するだけで、Product operational Activation、実装、Qualification、Target shippingを主張しない。
+
+二Capabilityの`failure_modes[]`はFoundation rootからProduct rootへの循環を避けるため、二種類のforeign keyを意図的に保持する。`diagnostic_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`はDiagnostic Registry recordではなく、Contract set dispatch前に使うclosed Policy rejection tokenである。`fallback_id=fallback.capability.unavailable`はMCD refではなく、[Product Planの`FallbackRegistryV1`](../00-product/product-plan.md#11-product-execution-registries)へのProduct foreign keyである。Control PlaneのBaseline／Rebaseline verifierはFoundation closureと同時に束縛されたexact `ActiveProductDefinitionBundleV1`からこのfallback rowを一件だけ解決し、`preserves_semantics=false`かつ、その三Field`ProductDiagnosticRefV1`がexact `diagnostic.product.capability-unavailable` version 1のProduct Diagnostic record／hashへ解決することを検査する。missing／multiple／別diagnostic／ID-only ref／hash差／stale Active Product rootではCapabilityをactivateしない。Foundation Contract setへProduct-owned Diagnostic／Fallback refを戻さず、Policy tokenまたは`ProductDiagnosticRefV1`を`DiagnosticCodeRefV1`として偽装しない。
+
+current一Profile recordのpayload schemaは[AI Security／Approvalの`TrustedServiceIsolationProfileV1`](../01-governance/ai-security-approval.md#73-trusted-service-isolation)とし、exact値を次に固定する。
+
+| Field | `profile.isolation.authoring_command_gateway@1` |
+|---|---|
+| `profile_kind` | `trusted_service_isolation` |
+| `base_profile_local_ref` | `null` |
+| `execution_mode` | `in_process_trusted_service` |
+| `network_access` | `denied` |
+| `engine_baseline_access` | `read_only_exact_lock` |
+| `project_store_access` | `transactional_authoring_changeset` |
+| `staging_access` | `private_transaction_candidate` |
+| `project_source_access` | `none` |
+| `host_filesystem_paths` | `[]` |
+| `input_artifact_access` | `exact_content_refs_only` |
+| `output_policy` | `domain_publication_pipeline` |
+| `ephemeral_scratch` | `brokered_bounded_private` |
+| `process_spawn` | `denied` |
+| `environment_access` | `none` |
+| `credential_access` | `brokered_non_exportable_operation_purpose_key` |
+| `secret_export` | `denied` |
+
+`service.offline_project_migrator@1`、`capability.authoring.offline_migration@1`、`profile.isolation.offline_project_migrator@1`は実在legacy inventoryのないcurrent Contract setへmaterializeしない。三者のcurrent LocalRef／external ref／Service allowlist／Signer Policy／Trust row集合はexact `[]`である。将来§8.1.2のlegacy evidence gateを満たしたmigration Operationまたは汎用schema migration familyをatomic activateする同一transactionだけが、実Operation集合を持つ三recordを初めて追加できる。空allowlist Service、Profileだけの先行登録、存在しないlegacy fixtureを理由にしたAuthority生成を拒否する。
+
+このFoundation correctionのcurrent MCD差分はexact `Type +1、Capability +2、Profile +1、合計 +4`である。四recordの一件missing／extra／duplicate、Envelope Field省略、配列順差、Capability Operationと§8.2 Service allowlistのset差、Profile Field差をContract set compile failureにする。
+
+predicate IO/resultのexact MCD Typeは`type.operation.precondition_evaluation_input` version 1、`type.operation.postcondition_evaluation_input` version 2、`type.operation.predicate_result` version 1である。Prepared auxiliary payloadのexact Typeは`type.operation.prepared_preview_receipt_payload` version 1と`type.operation.prepared_validation_receipt_payload` version 1、Mutation authorizationのexact Typeは`type.operation.mutation_authorization_binding` version 2である。旧postcondition input v1はoffline Receipt auditだけに残し、current Operation／Policy／projectionから参照しない。六current Type recordは上記Field、presence、boundを完全投影し、bare snapshot ID、評価中のRegistry query、時計、network、mutable pointer、published Commit Receiptを許可しない。Prepared二Typeの共通Envelopeはそれぞれ`mcd_version=1; kind=type; id=<上記ID>; version=1; status=active; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.executable-contracts#8-operation定義]; since_contract_set=1; supersedes=[]`を持ち、title／description／tagsはID固有、payload schemaは対応するnamed `PreparedPreviewReceiptPayloadV1`／`PreparedValidationReceiptPayloadV1`の全Field、presence、boundをexact投影する。Mutation TypeはAI Security／Approval正本のApproval／Grant／Consumption Head／Predelegation Use／typed Ref／`MutationAuthorizationBindingV2`全wire shapeをclosed `$defs`へ一度だけ投影し、unknown sibling shapeを許可しない。これらは同じMutation Typeのnested definitionでありMCD Type件数へ重複加算しない。三Type LocalRef／local record hash／member hashをContract Setへ含め、root確定後だけ同root付きMCD Type refへmaterializeする。current rate-limit policyは`policy.authoring.runtime_entry.rate_limit` version 1 exact一件で、`scope=principal_project, window_ns=60000000000, max_requests=120, burst=20`、`exceeded_error_ref={diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash}`を持つ。`policy.authoring.runtime_scope_migration.rate_limit`はlegacy activation evidenceが成立するまでcurrent Policy集合へ含めない。Policy共通Envelope、payload、Type六record、Service一recordのmissing／wrong-kind／stale version／stale Contract set／content hash mismatchをOperation Registry compile errorにする。
+
+`PreparedCandidateV1.candidate_content_hash`はASCII `MIRAKAN_PREPARED_CANDIDATE_V1`、candidate hash自身を除く全Fieldのcanonical bytesを`uint32_be` length framingして計算する。`PreparedCandidateRefV1`は完成candidateのID、schema ref、content hashの三者をexactにbindし、Record自身へhash付きRefを埋め戻さない。Staging root、before／proposed-after state、prepared Artifact集合の一Fieldでも変われば別Refになり、candidate IDだけ、latest candidate、別Staging rootの同IDへfallbackしない。`PublishedReceiptSigningProfileV1.profile_content_hash`はASCII `MIRAKAN_PUBLISHED_RECEIPT_SIGNING_PROFILE_V1`、`PublishedReceiptMaterializationPolicyV1.policy_content_hash`はASCII `MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_POLICY_V1`と各自己Fieldを除くclosed recordのRFC 8785 JCS bytesを`uint32_be` length framingして計算する。完成Materialization Policy全体の`policy_object_sha256 = SHA-256(RFC 8785 JCS(completed object including policy_content_hash))`を別に計算し、`PublishedReceiptMaterializationPolicyRefV1.policy_artifact_ref.sha256`とbyte equalityにする。semantic `policy_content_hash`と完成object hashの等値を要求せず、RefをPolicy自身へ埋め戻さない。
+
+三`PublishedReceiptPublicationControlPolicyV1`の`policy_content_hash`は、`verification_retention`がASCII `MIRAKAN_PUBLISHED_RECEIPT_VERIFICATION_RETENTION_POLICY_V1`、`deterministic_recovery`が`MIRAKAN_PUBLISHED_RECEIPT_RECOVERY_POLICY_V1`、`receipt_store_namespace`が`MIRAKAN_PUBLISHED_RECEIPT_STORE_NAMESPACE_POLICY_V1`と、同Fieldだけを除くclosed objectのRFC 8785 JCS bytesをlength-frameして計算する。各完成objectの`policy_object_sha256 = SHA-256(RFC 8785 JCS(completed object including policy_content_hash))`はGovernance Policy Config rowの`policy_ref.sha256`／`policy_sha256`とbyte equalityにし、typed Refの四Fieldは解決objectのID／version／kind／semantic hashとexact equalityにする。
+
+Receipt publicationがGovernance Policy Config Registryから解決するrequired subsetは、AI Security Ownerの`operation_receipt_signer_policy.active` exact一rowと、次のExecutable Contracts Owner exact三rowのdisjoint union、すなわちexact四rowである。これはRegistry全体のrow数ではなく、他のControl Plane Policy rowを削除または上書きしない。
+
+| `policy_id` | `policy_kind` | `policy_schema_id` | `policy_ref.artifact_kind` |
+|---|---|---|---|
+| `published_receipt_verification_retention_policy.active` | `verification_retention` | `urn:mirakan:schema:executable-contracts:published-receipt-publication-control-policy:v1` | `governance.published_receipt_verification_retention_policy` |
+| `published_receipt_recovery_policy.active` | `deterministic_recovery` | `urn:mirakan:schema:executable-contracts:published-receipt-publication-control-policy:v1` | `governance.published_receipt_recovery_policy` |
+| `published_receipt_store_namespace_policy.active` | `receipt_store_namespace` | `urn:mirakan:schema:executable-contracts:published-receipt-publication-control-policy:v1` | `governance.published_receipt_store_namespace_policy` |
+
+三rowの`policy_ref.schema_version=1`、current objectの`policy_version=1`、`policy_ref.sha256=policy_sha256=policy_object_sha256`とする。共通schema annotationは`x-mirakan-governance-policy-id-kind=fixed_logical`、許可ID集合は表のexact三IDである。意味Fieldを変える場合だけobject versionを`N+1`、row bytesが変わる場合だけRegistry revisionを`N+1`へ進め、旧object、旧Registry、旧Trust closure／Headをretentionする。Materialization Policy自身は発行時Trust／Registry／Keyをpinするper-receipt content objectであり、それ自身がpinするGovernance RegistryにもMCD `kind=policy`にも登録しない。登録すると`Materialization Policy → Governance Registry／Contract Set → Materialization Policy`の循環になるためcompile errorとする。
+
+三closed root schema IDはexact `urn:mirakan:schema:executable-contracts:published-receipt-publication-control-policy:v1`、`urn:mirakan:schema:executable-contracts:published-receipt-materialization-policy:v1`、`urn:mirakan:schema:executable-contracts:operation-authorization-audit-binding:v1`である。Ownerは`mirakan.arch.executable-contracts`、Draft 2020-12、unknown Field禁止、signature slot exact `[]`とする。Task 0のschema artifact subsetは増やさず、pre-ceremony full Local Schema Catalog／Materialization Planは三IDをTask 2 ownerとして既にexact列挙し、Task 2 complementだけが完成schema bytesとsemantic verifierをbyte-exact materializeする。Local Schema Catalog rootはexact `+3`、Architecture Governance Ownerの追加contract exact 30、Content ID Registry exact 32、Authority Binding Source Catalog slot集合は不変である。Catalog rowまたはTask 2 setの一件missing／extra、unsigned schemaへのslot追加を拒否する。
+
+`OperationAuthorizationAuditBindingV1.binding_content_hash`はASCII `MIRAKAN_OPERATION_AUTHORIZATION_AUDIT_BINDING_V1`と同Fieldだけを除くclosed recordのRFC 8785 JCS bytesをlength-frameして計算する。完成binding全体の`binding_object_sha256 = SHA-256(RFC 8785 JCS(completed binding including binding_content_hash))`は`OperationAuthorizationAuditBindingRefV1.binding_artifact_ref.sha256`とbyte equalityにし、RefのOperation／request hash／semantic hashを解決bindingへexact一致させる。`request_input_content_ref`は選択input Typeで検証済みの完成final request bytesだけを指し、そのOperation ref、input Type ref、risk、intent、request hash、Algorithm binding、inline `MutationAuthorizationBindingV2`のAuthorization ref／hashとApproval SetまたはPredelegation Use ref／hashをAudit Bindingへbyte equalityで複写する。request input自身へAudit BindingまたはContextを戻さず、固定点を作らない。公開Bindingはrequest body、requester identity、自由文、PIIをinlineせずref／hash commitmentだけを公開し、bodyはimmutable access-controlled CASに保持する。R2はApproval／Predelegationのexact一方、R3～R5はApprovalだけとし、missing／両branch、別Task／intent／scope／request、完成前input、hash-onlyで解決不能なartifactを拒否する。
+
+`PublishedReceiptMaterializationContextV1`は二段階で完成する。まず`context_id`と`context_content_hash`を除いたclosed context recordをRFC 8785 JCSへencodeしたbytesを`B`とし、`D = SHA-256(ASCII "MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_CONTEXT_ID_V1" || uint32_be(len(B)) || B)`、`context_id = "urn:mirakan:published-receipt-materialization-context:sha256:" || lowercase_hex(D)`とする。次にその`context_id`を挿入し`context_content_hash`だけを除いた完成前recordをRFC 8785 JCSへencodeしたbytesを`C`とし、`context_content_hash = SHA-256(ASCII "MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_CONTEXT_V1" || uint32_be(len(C)) || C)`とする。`B`と`C`のFieldは§8のnamed schemaに存在するものだけで、unknown Field、別prefix／domain separator、ID-only lookup、`context_id`または`context_content_hash`の自己混入を拒否する。これにより`context_id`はOperation ref、operation intent hash、request hash、request hash Algorithm binding、idempotency key、before／staged-after state、Authorization Audit Binding、materialization policy、発行時`OperationReceiptSignerPolicyRefV1`、Trust Registry Closure Head、同Headが指すClosureとGovernance Policy Config Registry snapshot、signing profile、Signer／Role／Key、Public key registry snapshot、issued-at、revocation snapshotから機械一意に導出され、caller supplied UUIDや時計の再読取を使わない。
+
+Context作成時は完成`TrustRegistryClosureHeadV1`をref／hashで解決し、そのpayloadが指すClosure pairとContextのTrust closure pairをbyte equalityにする。Closure内のGovernance Policy Config Registry memberからreceipt publication required subset exact四rowをID／schema／ref／hashで解決し、各completed object hashとsemantic hashを再検証する。Signer Policy rowはContextのOperation refをexact一件持ち、execution authority、Signer subject、Role、signed-record purposeが実行ServiceおよびMaterialization Policyと一致しなければならない。三control-policy rowはMaterialization Policyのtyped RefとID／version／kind／semantic hashが一致し、Materialization PolicyのOperation ref／execution authority／purposeはOperation Registry／実行Service／Signer Policy、`receipt_canonical_schema_ref`は同Operation recordの`receipt_type`とbyte equalityにする。ContextのGovernance Registry snapshotはTrust closureの同Registry member、Public key registry snapshotは同Trust closureのPublic Key Registry member、revocation snapshotは同Trust closureが束縛する発行時revocation currentへexact解決する。Contextと全Prepared publication bindingの`request_hash_algorithm_binding`はOperation input内の同bindingとbyte equalityにし、Closure／Registry／Algorithm recordを再解決する。ContextのAuthorization Audit Bindingを解決してfinal request input／`MutationAuthorizationBindingV2`とのequalityを再検証し、ContextのMaterialization Policy、Signer Policy、Trust Head、Governance Registry、Trust closure、profile、Signer／Role／Key／Public key snapshotは解決したMaterialization Policyの同Fieldとbyte equalityでなければならない。
+
+private Marker作成直前と署名Broker呼出し直前にcurrent receipt-publication Policy exact四row、Signer Policy、Trust Head／closure、Key／assignment／revocationをfresh read-backする。Context snapshotから一Fieldでも変わった場合、未署名candidateをterminal abortし、fresh Authorization／Contextから新candidateを作る。既にBroker journalへ完成wrapper bytesがcommit済みのcrash retryだけは同じwrapperを再署名せず復旧できるが、Public Marker CAS前にcurrent Trust Head、Signer Policy、revocation／publication policyを再評価し、失効後の新規公開を許可しない。Verification Retention PolicyはAuthorization audit、Receipt publication、schema definition、Trust verificationの四closureをretained rootから到達する限り保持し、prepublication private stateはPublic Markerまたはdurable terminal abortまで保持する。private key retentionを要求せず、Key消失時に別Keyで再署名しない。Recovery Policyはprivate Marker read-backから同じsemantic hash／完成object SHAのsecret-free `PublicCommitClosureV1` candidateを再materializeまたはreadbackし、同一materialization key／Context／subject／Keyのbyte-exact wrapperを完成する遷移と、保存済みClosure／wrapperから同じClosure body＋Public Marker＋after stateをexpected predecessorへatomic CASする遷移だけを許し、それ以外はfail closedとする。Store Namespace Policyは完成wrapper bytesのSHA-256をkeyとするput-if-absent byte equality、read-back後のClosure＋Public Marker＋after state atomic CAS、Retention Policyだけによる削除制御を強制し、backend locator／credentialをrecordへ保存しない。
+
+Commandの唯一のpublish順は`immutable final request → Authorization Audit Binding → Preview → Validation → per-receipt Materialization Policy／pre-marker Context → receipt-free PreparedCandidate → 必要なprepromotion Evidence／Source Promotion → late source-promotion authorization binding → PreparedCommitEnvelope → staged postcondition → private durable commit marker read-back → secret-free PublicCommitClosure candidate → canonical signed Domain Receipt store → PublicCommitClosure＋public publication marker＋after stateのpublic CAS`である。Source registration primitiveが0件なら`project_source_promotion_authorization_binding_refs=[]`、一件以上ならProject Stateの同じChangeSet／Prepared Candidate／Candidate rootと全source primitiveを束縛するexact一Refだけを許し、Plan、Envelope、三`PreparedReceiptPublicationBindingV1`でbyte-exact set equalityにする。Binding、Promotion Receipt、Build／Test／Review／ApprovalをPrepared Candidateまたはreceipt-free staged after stateのhash preimageへ戻さず、Binding追加後のCandidate／ChangeSet変更を拒否する。
+
+`AtomicCommitPlanPayloadV1.prepared_payload_count`は配列長と一致し、membersはtype ref、content ref、hash順へstrict sortしてduplicate／same-ref different-hashを拒否する。exact三件は`type.operation.prepared_preview_receipt_payload@1`へ解決する`PreparedPreviewReceiptPayloadV1`、`type.operation.prepared_validation_receipt_payload@1`へ解決する`PreparedValidationReceiptPayloadV1`、当該Operationのnamed Domain prepared receipt payloadであり、Plan／Envelope／private Markerでtype ref／content ref／content hashのset equalityを必須にする。三payloadはすべてexact `publication_binding: PreparedReceiptPublicationBindingV1`を持つ。Preview／Validationの`prepared_payload_hash`はそれぞれASCII `MIRAKAN_PREPARED_PREVIEW_RECEIPT_PAYLOAD_V1`／`MIRAKAN_PREPARED_VALIDATION_RECEIPT_PAYLOAD_V1`と自己Fieldを除くcanonical bytesから計算する。Validation rejected、Diagnostic非空、missing preview resultのpayloadはPlanへ入れず、public objectを0件にする。Domain固有の`before_project_ref`／`after_project_ref`等はbindingの`before_state_ref/hash`／`staged_after_state_ref/hash`へ一意に投影し、duplicate Fieldもbyte equalityにする。Envelopeの三payload refsはPlan payload集合とset equality、EnvelopeのCandidate／late binding／policy／ContextはPlanの同Fieldとexact equalityでなければならない。
+
+late source-promotion authorization bindingはimmutable final request／Operation inputのFieldではなく、Prepared Candidate確定後に発行される唯一のlate authorizationである。その集合はPlan、Envelope、三Prepared publication binding、private MarkerからEnvelopeを解決した値の間だけでbyte equalityにし、Operation inputへ逆流させない。Operation ref、intent hash、request hash、request hash Algorithm binding、idempotency key、before state、staged-after state、Authorization Audit Binding、ContextだけをOperation inputを含む全closureで比較する。Candidateのbefore／proposed-after stateも同じbefore／staged-after stateへexact解決する。
+
+`atomic_commit_plan_hash = SHA-256(ASCII "MIRAKAN_ATOMIC_COMMIT_PLAN_V1" || uint32_be(len(MCD canonical plan payload bytes)) || plan payload bytes)`とし、Prepared Envelope自身、staged postcondition Receipt、private Marker、signed Receipt、public Markerをplan payloadへ含めない。`envelope_hash`はASCII `MIRAKAN_PREPARED_COMMIT_ENVELOPE_V1`、`receipt_payload_hash`はASCII `MIRAKAN_STAGED_POSTCONDITION_RECEIPT_V1`、private `marker_hash`はASCII `MIRAKAN_PRIVATE_DURABLE_COMMIT_MARKER_V1`、public `marker_hash`はASCII `MIRAKAN_PUBLIC_PUBLICATION_MARKER_V1`と各自己Fieldを除くcanonical bytesをlength-frameして計算する。postconditionは未発行Staging、Prepared Receipt payload、既に固定されたContextとlate bindingだけを読み、clock／revocation registryを再queryせず、private／public Marker、公開後state、最終Receiptを入力にしない。type refのwrong version／root／kind、preview↔validation type swap、同contentを別typeで再利用するfixtureを各一原因で拒否する。
+
+Gatewayはpostcondition success後、Prepared Envelope、Preview／Validation／Domain semantic payload、Staged Postcondition Receipt、staged after state、`PublishedReceiptMaterializationContextV1`、`PrivateDurableCommitMarkerV1`を外部readerから到達不能なprivate durable transactionへcommitする。この時点でProject／Registry／Runtime current head、Document index、provider-visible Resultは一切変えない。private Marker preimageはPrepared Envelope ref／hash、staged postcondition ref／hash、prepared payload ref／hash、Context ref／hashを束縛するが、Marker自身、`PublicCommitClosureV1`、signed Receipt、public Markerを含めない。
+
+private Markerを完成bytesとしてreadbackし、Prepared Envelope／Candidate／late binding／before／staged-after／Domain prepared payloadとのequalityを再検証した後にだけ、secret-free `PublicCommitClosureV1` candidateを生成してimmutable public-candidate storeへput-if-absentする。Project ChangeSet Commitでは`domain_commitment.kind=project_change_set_commit`とし、Project Stateが固定したexact `project_change_set_ref`／`candidate_root_sha256`を複写する。Source registration primitiveが0件でもこの二Fieldを持ち、late binding集合だけを`[]`にする。その他のmutationは登録済みOwnerとreceipt-free committed Artifact集合を持つ`owner_typed_state_commit`だけを使う。Closureのsemantic hash、完成object SHA、Refを§8の規則で別々に再計算し、Closure candidateだけをpublic current authorityにしない。
+
+その同じClosure Ref／完成object hashを入れて`PublishedDomainReceiptPayloadV2`を完成し、AI Verification／Provenanceが所有する`MirakanSignedRecordV1`をexact `$ref`する`PublishedDomainReceiptV2` wrapperをreceipt storeへput-if-absentする。inline signer／key／algorithm／signature FieldをDomain receiptに定義しない。Published payloadのprepared payload ref／hashはprivate Markerのexact三件集合中のDomain memberへ解決し、Operation ref、intent hash、request hash、idempotency key、before state、after state、Context、Closure ref／完成object hashは解決したDomain publication binding、private Marker、Closure candidateの対応Fieldとbyte equalityにする。Published `after_state_ref/hash`はprivate Markerの`staged_after_state_ref/hash`を名前だけ変えた同一値である。`issued_at`／`revocation_snapshot_ref/hash`は解決したContextの同Fieldとbyte equalityでなければならない。`signed_record.purpose=operation_domain_receipt`、`subject_sha256=SHA-256(JCS(payload))`、signer subject／Role／Keyは完成payloadとContext／Materialization Policyへbyte equalityにする。Published payloadは自己`payload_hash` Fieldを持たず、signed subject hashだけを完成JCS payloadから計算する。
+
+署名済みwrapperの保存／readback後だけ、Gatewayはreadback済みとbyte-identicalな`PublicCommitClosureV1` body、`PublicPublicationMarkerV1`、after stateを一つのpublic CAS transactionでpublishする。Public MarkerのOperation ref、intent hash、request hash、idempotency key、before state、public-after state、Context、private marker hash、Closure Ref／完成object hashはPublished payload、private Marker、Closureの対応Fieldとbyte equalityにし、`signed_domain_receipt_ref/hash`はreadbackしたexact wrapperだけを指す。`public_after_state_ref/hash`はPublished payloadの`after_state_ref/hash`およびprivate Markerの`staged_after_state_ref/hash`と同一である。Closureのsemantic hashはRefの`closure_content_hash`、完成object SHAはRef内`closure_ref.sha256`とMarker／Receiptの隣接`public_commit_closure_hash`へ一致させ、両hashを相互代用しない。
+
+このpublic CASはsecret-free `PublishedReceiptMaterializationContextV1`と、そこから到達するMaterialization Policy、三Publication Control Policy、Signer Policy completed object、Governance Policy Config Registry snapshot、Trust Registry Closure Head／closure／Public Key／revocation snapshot、Signing Profile、Authorization Audit Binding、Public Commit Closureをimmutable content-addressed verification graphへ同時に到達可能化する。Public MarkerのContext ref／hashおよびClosure refからこのpublic部分をoffline解決できない場合はCASを成功させない。Audit Bindingのrequest／Task Authorization／Approval SetまたはPredelegation Useは公開Binding内へbodyをinlineせず、ref／hash commitmentだけを公開する。Public integrity verifierはcommitmentまで、認可済みAudit verifierはaccess-controlled immutable CASからbodyを解決して`MutationAuthorizationBindingV2`とのbyte equalityまで検証する。publication前には両resolverで必要Artifactのdurable存在／hash一致を確認し、匿名公開不能をmissing artifactとして誤判定しない。private Marker、Staging payload、request／AuthorizationのPII body、private key、secret locatorは公開graphへ昇格しない。
+
+このafter stateはPublic Commit Closure、signed Receipt、private／public Marker、publication projectionをFieldにもcontent-hash preimageにも含まないReceipt-free staged stateでなければならず、それらを含むDomain projectionをPublic Markerのafter stateに代用しない。Project／Registry／Runtime current headはPublic Markerが指すこのReceipt-free after stateだけをcurrentとして解決する。Domain Resultまたはroot外publication projectionだけがPublic Marker、Closure、signed wrapperを結合し、unsigned prepared payload、private Marker、Closure candidate store、receipt-store単独存在をstate authorityにしない。これにより`final request → Authorization Audit Binding → Materialization Policy／Context → candidate／Receipt-free staged after state／staged postcondition → private marker read-back → secret-free PublicCommitClosure candidate → signed wrapper → PublicCommitClosure＋public marker＋same after state／verification graphのatomic CAS → root外projection`の一方向DAGとなる。postcondition failureまたはprivate commit失敗はpublic state／Closure／Receipt／Public Markerを0件にし、prepared payloadを権限証拠として外部公開しない。
+
+Receipt publication fixtureは、Materialization Policyの自己Ref埋戻し、同PolicyのMCD／Governance Registry登録、required Policy四rowのmissing／extra／duplicate、三control policyのID／kind／schema／version／Ref swap、semantic hashと完成object hashの混同、retained closure kind欠落、private-key retentionまたは別Key再署名許可、fresh clock／Key／Trustへのrecovery差替え、namespace overwrite／readback省略／locator混入を各一原因で拒否する。Authorization fixtureはAudit Binding欠落、request inputのOperation／Type／intent／request／Algorithm差、inline `MutationAuthorizationBindingV2`とのAuthorization／Evidence差、Approval／Predelegation両branchまたは欠落、PII bodyの公開inline、Context後のBinding差替え、access-controlled bodyのdurable欠落／hash mismatchを各一原因で拒否する。public graph fixtureは三control policyまたはAudit Binding objectの到達不能、private Marker／private key／secret locator／PII bodyの混入、Local Schema Catalog三IDまたはTask 2 materializationの一件欠落、unsigned schemaへのAuthority slot追加、Trust closure memberを15から増減する実装を拒否する。
+
+private Markerのdurable commit後、signed wrapper保存前に停止した場合、recoveryはprivate Marker、Prepared Envelope、Prepared payload、materialization Context、staged postcondition、staged after stateをread-backし、上記identity／state／Context equalityを再検証して同じsemantic hash／完成object SHAの`PublicCommitClosureV1`を再materializeまたはbyte-identical candidateとしてreadbackしてから、同じmaterialization key、Contextに固定されたissued-at／revocation／Key、deterministic profileから同じwrapper bytesを作る。Brokerは`{signer subject, purpose, receipt_materialization_key, subject_sha256, key_id}`をkeyとするdurable idempotency journalをsignature返却前にcommitし、同じkey／contextの再開にはcached byte-exact RFC 6979 signature／wrapperだけを返す。別request／Project／Context／subject／Keyによる同じhandleまたはmaterialization keyの再利用はintegrity faultであり、再署名へfallbackしない。clock、current Key選択、発行時revocation snapshotを再取得しない。wrapper保存後かつPublic Marker前に停止した場合、wrapper byte／signature／current revocation、Closure body、private preimageを再検証し、同じClosure＋Marker＋after stateを同じexpected public predecessorへのCASでroll-forwardする。Public Marker後はrollbackせず、同じidempotency key＋request hashのretryへ同じResult／Closure／wrapper／Public Markerを返す。Markerと`PublishedReceiptMaterializationKeyPayloadV1`のpayload countは各配列長と一致させ、両membersはpayload type refのID／version／Contract set root、payload content refのcanonical bytes、content hash順へstrict sortする。両者のOperation ref、intent hash、request hash、idempotency key、before／staged-after state、ContextもPrepared Envelope／Domain publication bindingとbyte equalityにする。duplicate、same-ref different-hash、両集合のmissing／extra、identity／state／Context substitutionを拒否する。`key_payload_bytes`はこのclosed payloadをMCD canonical encodeしたbytesで、`receipt_materialization_key = SHA-256(ASCII "MIRAKAN_PUBLISHED_RECEIPT_MATERIALIZATION_V1" || uint32_be(len(key_payload_bytes)) || key_payload_bytes)`とし、key自身をpayloadへ含めない。別Closure、別wrapper、alternate signature、二重Public Marker、既存bytes overwrite、署名なしpublish、public後rollbackをintegrity faultとして隔離する。private MarkerなしのPrepared artifactは非公開のまま破棄する。
+
+Snapshot preimageでは`OperationValidatorClosureLocalRecordV2`を`member_kind=operation_validator_closure`としてroot化し、Operation、Validator、Diagnosticへの全edgeをLocalRefにする。`closure_local_record_hash`はASCII `MIRAKAN_OPERATION_VALIDATOR_CLOSURE_LOCAL_RECORD_V2`と同Fieldだけを除くlocal recordから計算する。Contract Set `member_hash`は別domain `MIRAKAN_CONTRACT_SET_OPERATION_VALIDATOR_CLOSURE_MEMBER_V2`と、このlocal hashを含む完成local recordから計算する別値であり、両hashのbyte equalityを要求しない。set root確定後にだけLocalRefを外部Operation ref、`ValidatorRecordRefV1`、`DiagnosticCodeRefV1`へ投影し、`OperationValidatorClosureV1`を作る。`closure_content_hash`はASCII `MIRAKAN_OPERATION_VALIDATOR_CLOSURE_V1`、外部closureの`closure_content_hash`自身を除くcanonical bytesから計算し、完成後にだけ`OperationValidatorClosureRefV1`をmaterializeする。この外部hashとRefはSnapshot preimageへ戻さない。外部closureのvalidator refはValidator Registryへexact解決し、各Validator recordが宣言する`error_refs[]`のunionをID／code／version／hash順へcanonicalizeした集合が`reachable_error_refs[]`と一致しなければならない。さらにその集合とOperation `errors[]`をset equalityで比較し、missing errorと到達不能extra errorの双方でOperation Registry全体を拒否する。`reachable_error_set_hash`はLocal形ではASCII `MIRAKAN_OPERATION_REACHABLE_ERROR_LOCAL_SET_V2`とDiagnostic LocalRef集合、外部形ではASCII `MIRAKAN_OPERATION_REACHABLE_ERROR_SET_V1`と各四Fieldrefから別々に計算し、どちらもerror countとcanonical bytesを`uint32_be` length framingして自己Fieldを入力にしない。compilerはLocalと外部のlogical Diagnostic集合が一対一であることも検査する。
+
+Snapshot内部の正本は`ValidatorLocalRecordV2 {validator_local_ref, implementation_artifact_ref/hash, input_type_local_ref, error_local_refs[1..64], validator_local_content_hash}`である。Type／DiagnosticはLocalRefを使い、外部MCD refやset rootをlocal record hashへ含めない。`validator_local_content_hash = SHA-256(ASCII "MIRAKAN_VALIDATOR_LOCAL_RECORD_V2" || uint32_be(len(self-excluding canonical local bytes)) || local bytes)`、Validator Registry hashはASCII `MIRAKAN_VALIDATOR_REGISTRY_V2`、Registry ID／version、record count、validator ID／version順local record bytesから計算する。Contract SetのValidator `member_hash`は別domain `MIRAKAN_CONTRACT_SET_VALIDATOR_MEMBER_V2`と、このlocal hashを含む完成local recordから計算する第三の値であり、local hashとのbyte equalityを要求しない。duplicate、same-ID different-hash、非canonical sort、実装Artifact missing／hash mismatch、input type kind／version mismatch、Diagnostic LocalRef未解決を拒否する。
+
+set root確定後だけ、compilerはLocalRefを同じrootのexact `McdContractRefV1(kind=type)`／`DiagnosticCodeRefV1`へ一対一投影し、`materialized_from_contract_set_hash=contract_set_hash`を持つ完全な`ValidatorRecordV1`を作る。`validator_content_hash = SHA-256(ASCII "MIRAKAN_VALIDATOR_RECORD_V1" || uint32_be(len(external record canonical bytes excluding validator_content_hash)) || external bytes)`であり、完成後だけ`ValidatorRecordRefV1 {validator_id,validator_version,validator_content_hash}`をmaterializeする。外部recordのinput Type refと全Diagnostic refのContract set rootは`materialized_from_contract_set_hash`と一致し、logical ID／version集合はlocal recordとexact equalityでなければならない。外部record／hash／refはlocal record、Validator Registry、member hash、set rootへ戻さない。別rootのValidator ref代用、local/external集合差、stale root、external hash mismatchをContract set compile errorにする。
+
+current初期Diagnostic Registry subsetは次のexact 22 recordである。このうち六active Operationの`errors[]`／Validator closureからreachableな集合はexact 17 recordで、残るexact五non-operation recordは次の用途だけに閉じる。`diagnostic.project.runtime_entry.migration_required`はlegacy入力を検出してconditional migrationを案内するProject load validator、`diagnostic.project.runtime_entry.explicit_target_mismatch`はruntime target selection validator、`diagnostic.runtime_scope.catalog_invalid`、`.owner_unavailable`、`.version_hash_mismatch`はcurrent generic Runtime Scope Catalogのmaterialization／activation validator専用である。五recordをactive Operationへ暗黙追加せず、Operation reachable集合とRegistry inventoryを混同しない。全rowは`diagnostic_version=1`、`requirement_local_refs=[]`、`message_key="<diagnostic_id>.message"`を持つ完全な`DiagnosticLocalRecordV2`であり、root確定後の外部projectionは`requirement_refs=[]`を持つ。exact Owner local inventoryは既存ownerだけを使う`{owner.core.project_state,1,owner_content_hash}`、`{owner.core.security_approval,1,owner_content_hash}`、`{owner.core.gameplay_programming_model,1,owner_content_hash}`の三件で、各hashは`MIRAKAN_DIAGNOSTIC_OWNER_LOCAL_IDENTITY_V1`規則から計算する。`diagnostic.authorization.denied`と`diagnostic.approval.required`は`owner.core.security_approval`、他の共通六件と`diagnostic.project.runtime_entry.*`は`owner.core.project_state`、三`diagnostic.runtime_scope.*`は`owner.core.gameplay_programming_model`のexact `DiagnosticOwnerLocalRefV1`を`owner_local_ref`へ持ち、外部recordも同じ三Field Owner refへ投影する。各rowはOwnerを含む表の全Fieldからself-excluding `diagnostic_local_content_hash`を計算し、root後は別のself-excluding `diagnostic_content_hash`を計算する。表外code、同じcodeの別ID、説明語から合成したcode、owner prefixから補完したrefをOperation errorとして返さない。
+
+| `diagnostic_id` | `code` | severity／category／retryability |
+|---|---|---|
+| `diagnostic.conflict.revision_mismatch` | `MIRAKAN-CONFLICT-REVISION_MISMATCH` | blocking／conflict／after_change |
+| `diagnostic.authorization.denied` | `MIRAKAN-AUTHORIZATION-DENIED` | blocking／permission／never |
+| `diagnostic.approval.required` | `MIRAKAN-APPROVAL-REQUIRED` | blocking／permission／after_input |
+| `diagnostic.authoring.lock_conflict` | `MIRAKAN-AUTHORING-LOCK_CONFLICT` | blocking／conflict／after_change |
+| `diagnostic.mcd.operation_predicate_invalid` | `MIRAKAN-MCD-OPERATION-PREDICATE_INVALID` | blocking／schema／after_change |
+| `diagnostic.operation.timeout` | `MIRAKAN-OPERATION-TIMEOUT` | error／infrastructure／transient |
+| `diagnostic.operation.rate_limit_exceeded` | `MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED` | error／permission／transient |
+| `diagnostic.operation.idempotency_key_reuse` | `MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE` | blocking／conflict／after_input |
+| `diagnostic.project.runtime_entry.migration_required` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_MIGRATION_REQUIRED` | blocking／semantic／after_change |
+| `diagnostic.project.runtime_entry.invalid` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID` | blocking／semantic／after_input |
+| `diagnostic.project.runtime_entry.target_unresolved` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED` | blocking／semantic／after_change |
+| `diagnostic.project.runtime_entry.default_ambiguous` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS` | blocking／semantic／after_change |
+| `diagnostic.project.runtime_entry.branch_field_conflict` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT` | blocking／schema／after_input |
+| `diagnostic.project.runtime_entry.dangling_reference` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE` | blocking／semantic／after_change |
+| `diagnostic.project.runtime_entry.document_hash_mismatch` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_DOCUMENT_HASH_MISMATCH` | blocking／conflict／after_change |
+| `diagnostic.project.runtime_entry.semantic_hash_mismatch` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH` | blocking／semantic／after_input |
+| `diagnostic.project.runtime_entry.schema_mismatch` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH` | blocking／schema／after_input |
+| `diagnostic.project.runtime_entry.explicit_target_mismatch` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_EXPLICIT_TARGET_MISMATCH` | blocking／semantic／after_input |
+| `diagnostic.project.runtime_entry.identity_mismatch` | `MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH` | blocking／semantic／after_input |
+| `diagnostic.runtime_scope.catalog_invalid` | `MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID` | blocking／schema／after_input |
+| `diagnostic.runtime_scope.owner_unavailable` | `MIRAKAN-RUNTIME-SCOPE-OWNER_UNAVAILABLE` | blocking／semantic／after_change |
+| `diagnostic.runtime_scope.version_hash_mismatch` | `MIRAKAN-RUNTIME-SCOPE-VERSION_HASH_MISMATCH` | blocking／conflict／after_change |
+
+三Runtime Scope DiagnosticはGameplay Programming Modelのcurrent Catalog／Owner／Dependency validatorが直接参照する。`diagnostic.runtime_scope.migration_conflict`、`.contribution_invalid`、`.receipt_binding_mismatch`は§8.1.2候補専用であり、current Diagnostic Registry、Operation error、Validator closure集合はexact `[]`である。current merged Diagnostic Registry inventoryは§8.1の22にWorld固有6とShooter固有9を加えたexact 37 recordである。これは§8.1の22と§8.2 Domain 23のunionから共有common 8を一度だけ数える同じ集合で、その内訳はactive-Operation reachable exact 32とnon-operation exact 5のdisjoint unionである。
+
+下表の先頭六rowだけがset root確定後のcurrent external materialized projectionである。末尾の`operation.project.runtime_entry.migrate_root_scene` rowは§8.1.2候補がsigned legacy evidence gateを満たしてatomic activationされた後のdestination値を保存する設計templateであり、row内`status=active`、Type／Policy／Validator／Service refはcurrent materializationを表さない。候補のcurrent Operation LocalRef／external ref／Owner Manifest／Service allowlist／Provider／MCP集合はexact `[]`である。表中の`{id,1,contract_set_hash}`は三Fieldを持つexact `McdContractRefV1`、Service refは`{service_id,service_version,service_content_hash}`、Diagnostic refは`{diagnostic_id,code,diagnostic_version,diagnostic_content_hash}`である。各current行の外部MCD共通Envelopeは省略せず表内に全値を持つが、この外部形を`ContractSetMemberLocalRecordV2.canonical_payload`へ直接hashしない。
+
+Snapshot compiler inputへのField projectionを次へ固定する。
+
+| external field | snapshot-local exact field |
+|---|---|
+| `input_type; output_type; receipt_type; preconditions[]; postconditions[]; rate_limit_policy; requirement_refs[]` | 各`{kind,id,version}`の`ContractSetLocalRefV1`。`contract_set_hash`を除去 |
+| `authority: TrustedServiceRefV1` | `{service_id,service_version}`の`TrustedServiceLocalRefV1`。`service_content_hash`を除去 |
+| `errors[]: DiagnosticCodeRefV1` | `{diagnostic_id,diagnostic_version}`の`DiagnosticLocalRefV1`。DiagnosticはMCD kindではなく専用Registry recordで、code／content hashは同Registryのlocal record側で検証 |
+| `validator_closure_ref` | `{closure_id,closure_version}`の`OperationValidatorClosureLocalRefV1`。closure content hashを除去 |
+| closure内`operation_ref`／Service内`allowed_operation_refs[]` | Operationの`ContractSetLocalRefV1(kind=operation)` |
+| closure内`validator_refs[]`／`reachable_error_refs[]` | `ValidatorLocalRefV1`／`DiagnosticLocalRefV1`。Validator／Diagnostic content hashを除去 |
+| Validator内input／error ref | `ContractSetLocalRefV1(kind=type)`／`DiagnosticLocalRefV1` |
+
+投影はFieldごとのtotal functionで、external ref一件をLocalRef一件へ変換し、配列cardinality／順序／duplicate statusを変えない。表示placeholder、名前prefix、current/latest lookup、hash欠落の補完を禁止する。compiler fixtureは六Operationについてexternal ref集合からhash Fieldだけを除いたlogical identity集合とlocal payload集合、root確定後に再materializeしたexternal集合をField別にset equalityにし、external hashをLocal preimageへ残す、kind変更、Service／Validatorのhash付き相互edge、配列一件欠落／extra／reorderを各一原因で拒否する。
+
+| Operation MCD共通Envelope exact value | Operation固有Field exact value |
+|---|---|
+| `mcd_version=1; kind=operation; id=operation.project.runtime_entry.create; version=1; status=active; title=Create Runtime Entry; description=Create one identity-consistent Runtime Entry Document; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]; since_contract_set=1; supersedes=[]; tags=[authoring,runtime_entry]` | `operation_kind=command; input_type={type.project.runtime_entry.create_input,1,contract_set_hash}; output_type={type.project.runtime_entry.mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.project.runtime_entry.create.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.project.runtime_entry.create.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.invalid,MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.target_unresolved,MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.default_ambiguous,MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.branch_field_conflict,MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.dangling_reference,MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.semantic_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.schema_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.identity_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.project.runtime_entry.create,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.runtime_entry.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.project.runtime_entry.mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.project.runtime_entry.update; version=1; status=active; title=Update Runtime Entry; description=Update one Runtime Entry Document while preserving its identity; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]; since_contract_set=1; supersedes=[]; tags=[authoring,runtime_entry]` | `operation_kind=command; input_type={type.project.runtime_entry.update_input,1,contract_set_hash}; output_type={type.project.runtime_entry.mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.project.runtime_entry.update.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.project.runtime_entry.update.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.invalid,MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.target_unresolved,MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.default_ambiguous,MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.branch_field_conflict,MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.dangling_reference,MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.document_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_DOCUMENT_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.semantic_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.schema_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.identity_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.project.runtime_entry.update,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.runtime_entry.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.project.runtime_entry.mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.project.runtime_target_selector.create; version=1; status=active; title=Create Runtime Target Selector; description=Create one identity-consistent Target Selector Document without attaching it to an entry; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]; since_contract_set=1; supersedes=[]; tags=[authoring,runtime_entry,target_selector]` | `operation_kind=command; input_type={type.project.runtime_target_selector.create_input,1,contract_set_hash}; output_type={type.project.runtime_entry.mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.project.runtime_target_selector.create.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.project.runtime_target_selector.create.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.invalid,MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.target_unresolved,MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.dangling_reference,MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.semantic_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.schema_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.identity_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.project.runtime_target_selector.create,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.runtime_entry.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.project.runtime_entry.mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.project.runtime_target_selector.update; version=1; status=active; title=Update Runtime Target Selector; description=Update one Target Selector Document and revalidate default coverage; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]; since_contract_set=1; supersedes=[]; tags=[authoring,runtime_entry,target_selector]` | `operation_kind=command; input_type={type.project.runtime_target_selector.update_input,1,contract_set_hash}; output_type={type.project.runtime_entry.mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.project.runtime_target_selector.update.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.project.runtime_target_selector.update.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.invalid,MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.target_unresolved,MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.default_ambiguous,MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.dangling_reference,MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.document_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_DOCUMENT_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.semantic_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.schema_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.identity_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.project.runtime_target_selector.update,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.runtime_entry.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.project.runtime_entry.mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.project.runtime_entry_activation_policy.create; version=1; status=active; title=Create Runtime Entry Activation Policy; description=Create one identity-consistent Runtime Entry Activation Policy Document; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]; since_contract_set=1; supersedes=[]; tags=[activation_policy,authoring,runtime_entry]` | `operation_kind=command; input_type={type.project.runtime_entry_activation_policy.create_input,1,contract_set_hash}; output_type={type.project.runtime_entry.mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.project.runtime_entry_activation_policy.create.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.project.runtime_entry_activation_policy.create.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.invalid,MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.dangling_reference,MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.semantic_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.schema_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.identity_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.project.runtime_entry_activation_policy.create,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.runtime_entry.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.project.runtime_entry.mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.project.runtime_entry_activation_policy.update; version=1; status=active; title=Update Runtime Entry Activation Policy; description=Update one Runtime Entry Activation Policy Document and invalidate consumers; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]; since_contract_set=1; supersedes=[]; tags=[activation_policy,authoring,runtime_entry]` | `operation_kind=command; input_type={type.project.runtime_entry_activation_policy.update_input,1,contract_set_hash}; output_type={type.project.runtime_entry.mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R2; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.project.runtime_entry_activation_policy.update.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.project.runtime_entry_activation_policy.update.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.invalid,MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.dangling_reference,MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.document_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_DOCUMENT_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.semantic_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.schema_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.identity_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.project.runtime_entry_activation_policy.update,1,closure_content_hash}; timeout_ms=30000; rate_limit_policy={policy.authoring.runtime_entry.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.project.runtime_entry.mutation_receipt,1,contract_set_hash}` |
+| `mcd_version=1; kind=operation; id=operation.project.runtime_entry.migrate_root_scene; version=1; status=active; title=Migrate Root Scene to Runtime Entry; description=Atomically create or update World Selector Policy and Runtime Entry Documents from one legacy root Scene closure; owners=[owner.core.project_state]; requirement_refs=[]; rationale_refs=[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]; since_contract_set=1; supersedes=[]; tags=[authoring,migration,runtime_entry]` | `operation_kind=command; input_type={type.project.runtime_entry.migrate_root_scene_input,1,contract_set_hash}; output_type={type.project.runtime_entry.mutation_result,1,contract_set_hash}; authority={service_id=service.authoring_command_gateway,service_version=1,service_content_hash}; risk_class=R3; side_effects=[authoring]; idempotency=idempotent_with_key; transaction=authoring_changeset; preconditions=[{policy.operation.project.runtime_entry.migrate_root_scene.precondition,1,contract_set_hash}]; postconditions=[{policy.operation.project.runtime_entry.migrate_root_scene.postcondition,1,contract_set_hash}]; errors=[{diagnostic.conflict.revision_mismatch,MIRAKAN-CONFLICT-REVISION_MISMATCH,1,diagnostic_content_hash},{diagnostic.authorization.denied,MIRAKAN-AUTHORIZATION-DENIED,1,diagnostic_content_hash},{diagnostic.approval.required,MIRAKAN-APPROVAL-REQUIRED,1,diagnostic_content_hash},{diagnostic.authoring.lock_conflict,MIRAKAN-AUTHORING-LOCK_CONFLICT,1,diagnostic_content_hash},{diagnostic.mcd.operation_predicate_invalid,MIRAKAN-MCD-OPERATION-PREDICATE_INVALID,1,diagnostic_content_hash},{diagnostic.operation.timeout,MIRAKAN-OPERATION-TIMEOUT,1,diagnostic_content_hash},{diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash},{diagnostic.operation.idempotency_key_reuse,MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.migration_required,MIRAKAN-PROJECT-RUNTIME_ENTRY_MIGRATION_REQUIRED,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.invalid,MIRAKAN-PROJECT-RUNTIME_ENTRY_INVALID,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.target_unresolved,MIRAKAN-PROJECT-RUNTIME_ENTRY_TARGET_UNRESOLVED,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.default_ambiguous,MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.branch_field_conflict,MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.dangling_reference,MIRAKAN-PROJECT-RUNTIME_ENTRY_DANGLING_REFERENCE,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.document_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_DOCUMENT_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.semantic_hash_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SEMANTIC_HASH_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.schema_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_SCHEMA_MISMATCH,1,diagnostic_content_hash},{diagnostic.project.runtime_entry.identity_mismatch,MIRAKAN-PROJECT-RUNTIME_ENTRY_IDENTITY_MISMATCH,1,diagnostic_content_hash}]; validator_closure_ref={validator_closure.operation.project.runtime_entry.migrate_root_scene,1,closure_content_hash}; timeout_ms=120000; rate_limit_policy={policy.authoring.runtime_entry.rate_limit,1,contract_set_hash}; audit_level=full_redacted; provider_exposure=mcp_proposal; receipt_type={type.project.runtime_entry.mutation_receipt,1,contract_set_hash}` |
+
+pre／postconditionのcurrent集合は新kindではなく、六active Operationが参照するexact 12件のactive `policy` MCDである。下表のうち`policy.operation.project.runtime_entry.migrate_root_scene.precondition`と`.postcondition`の二rowは§8.1.2候補が将来atomic activationされた後のdestination templateで、current Policy LocalRef／external ref／Owner subsetはexact `[]`である。current 12 recordは`mcd_version=1`、`kind=policy`、`version=1`、`status=active`、`requirement_refs=[]`、`since_contract_set=1`、`supersedes=[]`、`tags=[operation_predicate,pure]`、`evaluation_mode=pure`、`side_effects=[]`、`result_type={id=type.operation.predicate_result,version=1,contract_set_hash}`を持ち、表が各recordの残り全値を明示する。candidate二rowの`status=active` literalはactivation transactionのdestination値であってcurrent状態ではない。preconditionのinput typeはexact Operation input ref／hashとread-only before snapshot refs／hashesを持つ`type.operation.precondition_evaluation_input` version 1、postconditionはrequest hash、prepared output、before snapshot、未発行Staging snapshot、Prepared Commit Envelopeを持つ`type.operation.postcondition_evaluation_input` version 2である。どちらもcanonical immutable valueだけを入力にし、Project／Registry／clock／networkを評価中にqueryしない。postconditionへCommit Markerまたは公開Receipt refを渡さない。
+
+| policy `id` | title／description | owners／rationale／exact input type |
+|---|---|---|
+| `policy.operation.project.runtime_entry.create.precondition` | Create Runtime Entry Precondition／expected Project revision、draft hash、allocation、selector、policyを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.precondition_evaluation_input,1,contract_set_hash}` |
+| `policy.operation.project.runtime_entry.create.postcondition` | Create Runtime Entry Postcondition／identity三者一致の未発行Document一件とrevision増分候補を検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.postcondition_evaluation_input,2,contract_set_hash}` |
+| `policy.operation.project.runtime_entry.update.precondition` | Update Runtime Entry Precondition／current ref、revision、content hash、semantic hashを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.precondition_evaluation_input,1,contract_set_hash}` |
+| `policy.operation.project.runtime_entry.update.postcondition` | Update Runtime Entry Postcondition／同ID新revision候補とconsumer invalidationを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.postcondition_evaluation_input,2,contract_set_hash}` |
+| `policy.operation.project.runtime_target_selector.create.precondition` | Create Target Selector Precondition／draft、Target集合、Project revisionを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.precondition_evaluation_input,1,contract_set_hash}` |
+| `policy.operation.project.runtime_target_selector.create.postcondition` | Create Target Selector Postcondition／未発行selector identity、hash、Project containmentを検証。entry attach／default coverageは変更しない | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.postcondition_evaluation_input,2,contract_set_hash}` |
+| `policy.operation.project.runtime_target_selector.update.precondition` | Update Target Selector Precondition／current selector identity、hash、Target集合を検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.precondition_evaluation_input,1,contract_set_hash}` |
+| `policy.operation.project.runtime_target_selector.update.postcondition` | Update Target Selector Postcondition／同ID新revision候補と全consumer coverageを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.postcondition_evaluation_input,2,contract_set_hash}` |
+| `policy.operation.project.runtime_entry_activation_policy.create.precondition` | Create Activation Policy Precondition／closed policy draft、hash、Project revisionを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.precondition_evaluation_input,1,contract_set_hash}` |
+| `policy.operation.project.runtime_entry_activation_policy.create.postcondition` | Create Activation Policy Postcondition／未発行policy identity三者一致と新revision候補を検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.postcondition_evaluation_input,2,contract_set_hash}` |
+| `policy.operation.project.runtime_entry_activation_policy.update.precondition` | Update Activation Policy Precondition／current policy ref、revision、content／policy hashを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.precondition_evaluation_input,1,contract_set_hash}` |
+| `policy.operation.project.runtime_entry_activation_policy.update.postcondition` | Update Activation Policy Postcondition／同ID新revision候補とconsumer invalidationを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.postcondition_evaluation_input,2,contract_set_hash}` |
+| `policy.operation.project.runtime_entry.migrate_root_scene.precondition` | Root Scene Migration Precondition／legacy closure、active Target、Approval、Project revisionを検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.precondition_evaluation_input,1,contract_set_hash}` |
+| `policy.operation.project.runtime_entry.migrate_root_scene.postcondition` | Root Scene Migration Postcondition／未発行World、selector、policy、entryの四Document候補を検証 | `[owner.core.project_state]`／`[mirakan.arch.project-state#312-runtime-entryのclosed-operation-catalog]`／`{type.operation.postcondition_evaluation_input,2,contract_set_hash}` |
+
+current六`OperationValidatorClosureV1`を次へ固定する。表のRoot Scene migration closure一rowは§8.1.2候補のpost-activation destination templateで、current closure LocalRef／external ref集合はexact `[]`である。表内の各Validator refは`{validator_id,validator_version=1,validator_content_hash}`、closure refは`{closure_id,closure_version=1,closure_content_hash}`である。`reachable_error_refs`は表が指す当該Operationの完全な`errors[]`四Fieldref集合そのもので、Validator Registryの`error_refs[]` unionからmaterializeし、別の共通error categoryやcode prefix展開を行わない。
+
+| closure ref／operation ref | exact `validator_refs[]` | `reachable_error_refs` |
+|---|---|---|
+| `validator_closure.operation.project.runtime_entry.create`／`operation.project.runtime_entry.create` v1 | `validator.operation.request_envelope; validator.operation.authorization; validator.operation.approval; validator.operation.revision_and_lock; validator.operation.pure_predicate; validator.operation.timeout_and_rate_limit; validator.project.runtime_entry.create_semantics; validator.project.runtime_entry.create_postcondition` | exact `errors[]` set of `operation.project.runtime_entry.create` v1 |
+| `validator_closure.operation.project.runtime_entry.update`／`operation.project.runtime_entry.update` v1 | `validator.operation.request_envelope; validator.operation.authorization; validator.operation.approval; validator.operation.revision_and_lock; validator.operation.pure_predicate; validator.operation.timeout_and_rate_limit; validator.project.runtime_entry.update_semantics; validator.project.runtime_entry.update_postcondition` | exact `errors[]` set of `operation.project.runtime_entry.update` v1 |
+| `validator_closure.operation.project.runtime_target_selector.create`／`operation.project.runtime_target_selector.create` v1 | `validator.operation.request_envelope; validator.operation.authorization; validator.operation.approval; validator.operation.revision_and_lock; validator.operation.pure_predicate; validator.operation.timeout_and_rate_limit; validator.project.runtime_target_selector.create_semantics; validator.project.runtime_target_selector.create_postcondition` | exact `errors[]` set of `operation.project.runtime_target_selector.create` v1 |
+| `validator_closure.operation.project.runtime_target_selector.update`／`operation.project.runtime_target_selector.update` v1 | `validator.operation.request_envelope; validator.operation.authorization; validator.operation.approval; validator.operation.revision_and_lock; validator.operation.pure_predicate; validator.operation.timeout_and_rate_limit; validator.project.runtime_target_selector.update_semantics; validator.project.runtime_target_selector.update_postcondition` | exact `errors[]` set of `operation.project.runtime_target_selector.update` v1 |
+| `validator_closure.operation.project.runtime_entry_activation_policy.create`／`operation.project.runtime_entry_activation_policy.create` v1 | `validator.operation.request_envelope; validator.operation.authorization; validator.operation.approval; validator.operation.revision_and_lock; validator.operation.pure_predicate; validator.operation.timeout_and_rate_limit; validator.project.runtime_entry_activation_policy.create_semantics; validator.project.runtime_entry_activation_policy.create_postcondition` | exact `errors[]` set of `operation.project.runtime_entry_activation_policy.create` v1 |
+| `validator_closure.operation.project.runtime_entry_activation_policy.update`／`operation.project.runtime_entry_activation_policy.update` v1 | `validator.operation.request_envelope; validator.operation.authorization; validator.operation.approval; validator.operation.revision_and_lock; validator.operation.pure_predicate; validator.operation.timeout_and_rate_limit; validator.project.runtime_entry_activation_policy.update_semantics; validator.project.runtime_entry_activation_policy.update_postcondition` | exact `errors[]` set of `operation.project.runtime_entry_activation_policy.update` v1 |
+| `validator_closure.operation.project.runtime_entry.migrate_root_scene`／`operation.project.runtime_entry.migrate_root_scene` v1 | `validator.operation.request_envelope; validator.operation.authorization; validator.operation.approval; validator.operation.revision_and_lock; validator.operation.pure_predicate; validator.operation.timeout_and_rate_limit; validator.project.runtime_entry.root_scene_migration_semantics; validator.project.runtime_entry.root_scene_migration_postcondition` | exact `errors[]` set of `operation.project.runtime_entry.migrate_root_scene` v1 |
+
+current六closureから到達する全18 Validator local recordを次へmaterializeする。表末尾の`validator.project.runtime_entry.root_scene_migration_semantics`と`validator.project.runtime_entry.root_scene_migration_postcondition`は§8.1.2候補のpost-activation destination templateで、current Validator LocalRef／external ref集合はexact `[]`である。current 18 rowは`validator_version=1`、`implementation_artifact_ref={artifact.validator.<validator_id suffix>,1,artifact_hash}`、表のinput Type LocalRef、表のDiagnostic LocalRef配列、self-excluding `validator_local_content_hash`を持つ。表中のDiagnosticはすべて`kind=remediation`ではなくDiagnostic Registryのtyped LocalRefで、ID／version 1を保存する。空欄、省略、code prefix展開、Operation error集合への遅延参照を許可しない。set root後の外部18 `ValidatorRecordV1`は同じlogical rowをroot付きType／Diagnostic refsへ投影し、各外部`validator_content_hash`を別計算する。
+
+| Validator ID | input Type LocalRef | exact `error_local_refs[]` Diagnostic ID |
+|---|---|---|
+| `validator.operation.request_envelope` | `type.operation.precondition_evaluation_input@1` | `diagnostic.operation.idempotency_key_reuse` |
+| `validator.operation.authorization` | `type.operation.precondition_evaluation_input@1` | `diagnostic.authorization.denied` |
+| `validator.operation.approval` | `type.operation.precondition_evaluation_input@1` | `diagnostic.approval.required` |
+| `validator.operation.revision_and_lock` | `type.operation.precondition_evaluation_input@1` | `diagnostic.conflict.revision_mismatch; diagnostic.authoring.lock_conflict` |
+| `validator.operation.pure_predicate` | `type.operation.precondition_evaluation_input@1` | `diagnostic.mcd.operation_predicate_invalid` |
+| `validator.operation.timeout_and_rate_limit` | `type.operation.precondition_evaluation_input@1` | `diagnostic.operation.timeout; diagnostic.operation.rate_limit_exceeded` |
+| `validator.project.runtime_entry.create_semantics` | `type.project.runtime_entry.create_input@1` | `diagnostic.project.runtime_entry.invalid; diagnostic.project.runtime_entry.target_unresolved; diagnostic.project.runtime_entry.default_ambiguous; diagnostic.project.runtime_entry.branch_field_conflict; diagnostic.project.runtime_entry.dangling_reference` |
+| `validator.project.runtime_entry.create_postcondition` | `type.operation.postcondition_evaluation_input@2` | `diagnostic.project.runtime_entry.semantic_hash_mismatch; diagnostic.project.runtime_entry.schema_mismatch; diagnostic.project.runtime_entry.identity_mismatch` |
+| `validator.project.runtime_entry.update_semantics` | `type.project.runtime_entry.update_input@1` | `diagnostic.project.runtime_entry.invalid; diagnostic.project.runtime_entry.target_unresolved; diagnostic.project.runtime_entry.default_ambiguous; diagnostic.project.runtime_entry.branch_field_conflict; diagnostic.project.runtime_entry.dangling_reference` |
+| `validator.project.runtime_entry.update_postcondition` | `type.operation.postcondition_evaluation_input@2` | `diagnostic.project.runtime_entry.document_hash_mismatch; diagnostic.project.runtime_entry.semantic_hash_mismatch; diagnostic.project.runtime_entry.schema_mismatch; diagnostic.project.runtime_entry.identity_mismatch` |
+| `validator.project.runtime_target_selector.create_semantics` | `type.project.runtime_target_selector.create_input@1` | `diagnostic.project.runtime_entry.invalid; diagnostic.project.runtime_entry.target_unresolved; diagnostic.project.runtime_entry.dangling_reference` |
+| `validator.project.runtime_target_selector.create_postcondition` | `type.operation.postcondition_evaluation_input@2` | `diagnostic.project.runtime_entry.semantic_hash_mismatch; diagnostic.project.runtime_entry.schema_mismatch; diagnostic.project.runtime_entry.identity_mismatch` |
+| `validator.project.runtime_target_selector.update_semantics` | `type.project.runtime_target_selector.update_input@1` | `diagnostic.project.runtime_entry.invalid; diagnostic.project.runtime_entry.target_unresolved; diagnostic.project.runtime_entry.default_ambiguous; diagnostic.project.runtime_entry.dangling_reference` |
+| `validator.project.runtime_target_selector.update_postcondition` | `type.operation.postcondition_evaluation_input@2` | `diagnostic.project.runtime_entry.document_hash_mismatch; diagnostic.project.runtime_entry.semantic_hash_mismatch; diagnostic.project.runtime_entry.schema_mismatch; diagnostic.project.runtime_entry.identity_mismatch` |
+| `validator.project.runtime_entry_activation_policy.create_semantics` | `type.project.runtime_entry_activation_policy.create_input@1` | `diagnostic.project.runtime_entry.invalid; diagnostic.project.runtime_entry.dangling_reference` |
+| `validator.project.runtime_entry_activation_policy.create_postcondition` | `type.operation.postcondition_evaluation_input@2` | `diagnostic.project.runtime_entry.semantic_hash_mismatch; diagnostic.project.runtime_entry.schema_mismatch; diagnostic.project.runtime_entry.identity_mismatch` |
+| `validator.project.runtime_entry_activation_policy.update_semantics` | `type.project.runtime_entry_activation_policy.update_input@1` | `diagnostic.project.runtime_entry.invalid; diagnostic.project.runtime_entry.dangling_reference` |
+| `validator.project.runtime_entry_activation_policy.update_postcondition` | `type.operation.postcondition_evaluation_input@2` | `diagnostic.project.runtime_entry.document_hash_mismatch; diagnostic.project.runtime_entry.semantic_hash_mismatch; diagnostic.project.runtime_entry.schema_mismatch; diagnostic.project.runtime_entry.identity_mismatch` |
+| `validator.project.runtime_entry.root_scene_migration_semantics` | `type.project.runtime_entry.migrate_root_scene_input@1` | `diagnostic.project.runtime_entry.migration_required; diagnostic.project.runtime_entry.invalid; diagnostic.project.runtime_entry.target_unresolved; diagnostic.project.runtime_entry.default_ambiguous; diagnostic.project.runtime_entry.branch_field_conflict; diagnostic.project.runtime_entry.dangling_reference` |
+| `validator.project.runtime_entry.root_scene_migration_postcondition` | `type.operation.postcondition_evaluation_input@2` | `diagnostic.project.runtime_entry.document_hash_mismatch; diagnostic.project.runtime_entry.semantic_hash_mismatch; diagnostic.project.runtime_entry.schema_mismatch; diagnostic.project.runtime_entry.identity_mismatch` |
+
+Registryはcurrent 18 rowをValidator IDのNFC UTF-8 byte順、version順へstrict sortする。各Artifact refは実行Targetのsigned implementation inventoryへexact一件、input LocalRefはactive Type recordへexact一件、各Diagnostic LocalRefはactive Diagnostic Registry recordへexact一件解決する。18件以外、candidate二rowの混入、missing、extra、duplicate、same-ID別hash、非canonical order、artifact／input／error hash不一致をRegistry全体のcompile errorにする。
+
+各current rowは`operation_local_ref`と`reachable_error_refs`を含むcanonical recordを保存する。fixtureは各Domain Validatorから一codeを削除、到達不能codeをOperationへ追加、ID同じcode違い、code同じID違い、Diagnostic hash stale、Validator hash staleを一原因ずつ注入し、set／ref equality不成立でRegistry全体を拒否する。Runtime Entry create／updateは`MIRAKAN-PROJECT-RUNTIME_ENTRY_BRANCH_FIELD_CONFLICT`、Runtime Entry create／updateとTarget Selector updateは`MIRAKAN-PROJECT-RUNTIME_ENTRY_DEFAULT_AMBIGUOUS`がsemantic Validatorから到達することをfixtureで証明する。Target Selector createは既存entryへattachしないためdefault coverageを変更せず、このDiagnosticをerrors／reachable setへ含めない。Root Scene migrationの同検証は§8.1.2 inventory成立後のactivation fixtureでのみ実行する。
+
+Request hashの解釈を説明文または実装名へ委ねず、次のnamed algorithmと一件Registryへ固定する。これはMCD kindを追加せず、Contract set外の独立definition rootである。
+
+```text
+NamedAlgorithmRefV1
+  algorithm_id
+  algorithm_version: positive uint32
+  algorithm_content_hash: SHA-256
+
+OperationRequestHashAlgorithmV2
+  algorithm_id: algorithm.operation_request_hash
+  algorithm_version: 2
+  algorithm_kind: hash
+  input_projection: selected_named_input_all_actual_fields
+  excluded_fields: [request_hash]
+  canonical_encoding_profile:
+    exact McdCanonicalBinaryV1(
+      profile_id=profile.mcd_canonical_binary,
+      profile_version=1,
+      profile_content_hash)
+  domain_separator_ascii: MIRAKAN_OPERATION_REQUEST_V2
+  length_framing: uint32_be_single_payload
+  digest: sha256
+  output: sha256_bytes
+  algorithm_content_hash: SHA-256
+
+NamedAlgorithmRegistryV1
+  registry_id: named_algorithm.registry.active
+  registry_version: positive uint32
+  record_count: uint32
+  records[1..1024]: named algorithm records
+  registry_content_hash: SHA-256
+
+OperationRequestAlgorithmBindingV1
+  foundation_definition_closure_ref:
+    FoundationDefinitionClosureRefV1
+  request_hash_algorithm_ref:
+    NamedAlgorithmRefV1(
+      algorithm_id=algorithm.operation_request_hash,
+      algorithm_version=positive uint32 selected by the
+      referenced Closure's Named Algorithm Registry)
+```
+
+`algorithm_content_hash = SHA-256(ASCII "MIRAKAN_NAMED_ALGORITHM_RECORD_V1" || uint32_be(len(RFC 8785 JCS(closed algorithm record excluding algorithm_content_hash))) || RFC 8785 JCS(closed algorithm record excluding algorithm_content_hash))`、`registry_content_hash = SHA-256(ASCII "MIRAKAN_NAMED_ALGORITHM_REGISTRY_V1" || uint32_be(len(RFC 8785 JCS(closed registry excluding registry_content_hash))) || RFC 8785 JCS(closed registry excluding registry_content_hash))`とする。全stringはNFC、digestはlowercase hexadecimal exact 64文字、uint32はJSON safe integer、unknown Fieldは禁止する。Registryは`algorithm_id`のNFC UTF-8 bytes／version順にstrict sortし、`record_count`を配列長と一致させる。current初期Registryは`registry_version=1`、`record_count=1`、exact集合は上記v2一recordだけであり、その`canonical_encoding_profile`は§7.4の完成Profile object／hashとbyte equalityにする。実装関数名、Provider、platform、bare `mcd_canonical_binary` token、任意digest aliasからAlgorithmまたはencoding規則を生成しない。missing／extra／duplicate、same ID／version different hash、Profile version／hash mismatch、self-hash混入を拒否する。
+
+全retained Registry revisionにおいて同じ`{algorithm_id, algorithm_version}`の完成record bytesと`algorithm_content_hash`はbyte-identicalでなければならない。current Registryは各`algorithm_id`にexact一つのselected versionだけを持ち、同じAlgorithm IDの複数version併存を拒否する。意味Fieldを一つでも変更する場合は`algorithm_version`をexact `N+1`へ進め、新record、新Named Algorithm Registry root、新Foundation Definition Closureを発行する。同じID／versionで別hash、Registry versionだけ進めたin-place再定義、旧record削除後のversion再利用を拒否する。旧versionはそれを含む旧Registry root／Foundation Closureと共にretentionし、current Registryへ併存させない。Registryのrow集合が変わるときだけ`registry_version=N+1`とし、同一bytesを別Registry versionとして発行しない。
+
+`OperationRequestAlgorithmBindingV1`はClosure refが解決するNamed Algorithm Registryからexact Algorithm refを一件解決し、隣接Algorithm hashとinline `McdCanonicalBinaryV1` Profile hashを再計算する。Binding schemaはpositive Algorithm versionを持ち、current初期値だけをexact v2にする。将来semantic変更時はAlgorithm recordをv3、Registry rootとFoundation ClosureをN+1へ進めるが、Binding V1のField shapeは変更しない。Closureが指すContract set rootはOperation inputのcurrent execution MCD ref rootと一致させる。さらに`MutationAuthorizationBindingV2`が参照する署名済みTask Authorization Envelopeを解決し、bindingのClosure ref、Envelopeの`foundation_definition_closure_ref`、Envelopeへinline束縛した`CurrentControlPlaneBaselineBindingV1`から解決するClosure、dispatch直前のcurrent Product operational headのBaseline bindingから解決するClosureを全てbyte equalityにする。Algorithm refだけをambient current Registryから補完すること、同じContract Setを持つretained／stale別Closure、別Owner rootまたはAlgorithm root、latest lookup、ID／versionだけの一致を拒否する。このbindingは全状態変更inputの`MutationAuthorizationBindingV2.request_hash_algorithm_binding`と、その公開Receipt chainの`PublishedReceiptMaterializationContextV1`／`PreparedReceiptPublicationBindingV1`へbyte-exactに保存する。
+
+唯一のcross-root例外は、Operation input schemaが`retained_source_mcd_ref`と`source_foundation_definition_closure_ref`を両方requiredとして明示したoffline migration branchである。`retained_source_mcd_ref`はexact `McdContractRefV1` Field名であり、Input、Inputがcontent refで選択するmigration contribution、Prepared Domain Receiptに同Fieldが複写される場合は全出現値をbyte equalityにする。別名、schema annotationだけ、bare ID、`source_*`というprefix推測では代用しない。全`retained_source_mcd_ref`のContract set、同refから読むSource recordのOwner ref、source ClosureのNamed Algorithm refはその一つのretained source Closureだけへ解決する。current execution Operation／input／output／Policy／Validator／Diagnostic／destination schema、Contributionのdestination ref／policy、Algorithm bindingの全refはdestination current Closureへ解決する。source Closure自体はrequest semantic inputに含め、全retained source refと同時代rootでなければならない。任意の別root ref、source Closure省略、source refをcurrent rootへalias、destination refをsource rootへdowngrade、複数source Closure、同名Fieldの値差、bare retained latestを拒否する。この例外はmigration Operationがsource bytesをread-onlyで検査するためだけで、source Contractのdispatch authorityまたはcurrent activationを復活させない。
+
+Operation認可とrequest identityの唯一のDAGは本段落である。全Operation inputは選択したnamed input typeから`OperationIntentPayloadV2 {input_type_ref, operation_ref, risk_class, semantic_input_fields}`を作る。`semantic_input_fields`はそのschemaに存在する全意味Fieldをfield ID／presence discriminator込みで持ち、`operation_intent_hash`、`request_hash`、`MutationAuthorizationBindingV2`全体だけを除外する。別置き`authorization_ref`、anonymous approval shape、evidence hashをintentへ残さない。`operation_intent_hash = SHA-256(ASCII "MIRAKAN_OPERATION_INTENT_V2" || uint32_be(len(intent canonical bytes excluding operation_intent_hash)) || intent canonical bytes)`とし、count／array lengthはMCD canonical bytesへ明示、self-exclusionはintent hash自身だけである。Task Authorizationはこのintentを直接署名せずscope coverageを与える。Operation Mutation ApprovalまたはPolicy Service発行のPredelegation Useだけが完成intent hashをpayloadへ含めて署名する。
+
+R2～R5のauthoritative Project／Source／Release変更inputは再計算済みintent hashとexact `MutationAuthorizationBindingV2`を必須にし、bindingのintent hash／risk／Operation／Project Scope、typed Authorization／ApprovalまたはPredelegation Use、Algorithm bindingを照合する。R2はApprovalまたはPredelegation Useのexact一方、R3～R5はApprovalだけを許可する。R0 queryとauthoritative stateを変えないR1はbinding Field自体をcanonical omissionする。将来のR1 Task control等は当該familyの別typed control authorizationを完全登録し、本型へ暗黙昇格しない。binding確定後、全R2～R5 mutation inputについてbinding内`OperationRequestAlgorithmBindingV1`からexact `OperationRequestHashAlgorithmV2`を解決し、`canonical_input_without_request_hash = MCD canonical encode(選択input schemaに存在する全Fieldからrequest_hash Fieldだけを除外)`、`request_hash = SHA-256(ASCII "MIRAKAN_OPERATION_REQUEST_V2" || uint32_be(len(canonical_input_without_request_hash)) || canonical_input_without_request_hash)`で計算する。したがってfinal requestはintent hash、exact authority evidence、Closure-bound Algorithm refを含むが、evidenceはfinal request hashをsubjectにせず固定点を作らない。ambient Registry、実装default、Provider hintからAlgorithmを選ばない。式のbytesは従来定義から変更せず、named recordがその唯一の機械解釈を与える。
+
+Project-bound inputはOperation ref、input type ref、exact Project ref、policy refs、intent hash、named binding、Contract set root、全presence discriminatorを含む。projectless inputはProject refをschemaへ追加せず、後続Ownerが登録するexact workspace／catalog／resource ref等、そのinput schemaに実在する全Fieldを含む。sentinel／null Projectを捏造しない。input Type ref／schema discriminatorが異なるOperationは別canonical bytesになり、Project有無の差だけでhash式をversion-upしない。Domain文書は匿名sibling shapeや別式を定義しない。
+
+`MIRAKAN_OPERATION_REQUEST_V2`と`MIRAKAN_OPERATION_INTENT_V2`は本計画更新時点でEngine、Project、Tool catalog、Receipt storeへ一度もActivation／materializationされていない設計契約であるため、version名を維持してActivation前に修正する。レビュー対象だった循環形のV2 bytesは永続artifactではなく、migration sourceとして受理しない。既存V1 retained artifactだけは直後のoffline-only migration recordで扱い、Task 4はこの二段階DAGとnamed bindingを実装入力とし、旧循環shapeの互換readerを作らない。
+
+旧domain `MIRAKAN_OPERATION_REQUEST_V1`はretained Receiptの検証とoffline migration inputだけに許可する。Task 2では状態変更Operationを半登録せず、次の非current migration algorithm recordだけを定義する。
+
+```text
+RequestHashV1ToV2OfflineMigrationRecordV1
+  migration_id: migration.contracts.request_hash_v1_to_v2
+  migration_version: 1
+  source_request_domain: MIRAKAN_OPERATION_REQUEST_V1
+  destination_request_domain: MIRAKAN_OPERATION_REQUEST_V2
+  source_input_schema_ref/hash
+  destination_input_schema_ref/hash
+  algorithm_artifact_ref/hash
+  semantic_field_equality_policy_ref/hash
+  fixture_refs[1..64]
+  migration_record_hash: SHA-256
+
+RequestHashV1ToV2MigrationCandidateV1
+  migration_record_ref/hash
+  source_input_ref/hash
+  source_contract_set_hash
+  source_request_hash
+  destination_canonical_input_ref/hash
+  destination_contract_set_hash
+  destination_request_hash
+  semantic_field_equality_evidence_ref/hash
+  candidate_hash: SHA-256
+```
+
+本recordはMCD `operation`ではなく、Tool catalog、Trusted Service allowlist、current Operation／Policy／Validator Registryへ登録しない。algorithmは旧input bytes、旧hash、旧Contract set rootをread-onlyで検査し、意味Fieldを変えないV2 canonical candidateとequality evidenceだけをStagingへ生成する。Project revision、idempotency store、Receipt、Commit Markerを生成または変更しない。将来のgeneric schema-migration Operationが完全なMCD／Service／Policy／Validator／Approval／Commit DAGを伴って登録された場合だけ、このcandidateを入力に新Project revisionへ昇格できる。それまではV1 Projectを`migration_required / capability_unavailable`としてfail closedにする。`migration_record_hash`と`candidate_hash`は各ASCII `MIRAKAN_REQUEST_HASH_V1_TO_V2_OFFLINE_MIGRATION_RECORD_V1`、`MIRAKAN_REQUEST_HASH_V1_TO_V2_MIGRATION_CANDIDATE_V1`と自己Fieldを除くlength-framed canonical bytesから計算する。current Editor／MCP／CLI／Save／Replay／idempotency storeはV1 request hashを新規生成せず、V1とV2を同一keyとして比較しない。
+
+```text
+PreparedRuntimeEntryMutationReceiptPayloadV1
+  publication_binding: exact PreparedReceiptPublicationBindingV1
+  operation_ref: McdContractRefV1(kind=operation)
+  operation_intent_hash
+  request_hash
+  idempotency_key
+  before_project_ref: exact {project_id, project_revision, document_set_hash}
+  after_project_ref: exact {project_id, project_revision, document_set_hash}
+  affected_documents[1..4]: AffectedDocumentMutationV1
+  root_scene_migration_plan_ref: RootSceneMigrationPlanRefV1 | null
+  stable_id_allocation_mappings[0..4]
+  preview_receipt_payload_ref/hash
+  validation_receipt_payload_ref/hash
+  materialization_context_ref/hash:
+    PublishedReceiptMaterializationContextRefV1
+  diagnostics[0..64]: DiagnosticCodeRefV1
+  prepared_payload_hash: SHA-256
+
+RuntimeEntryMutationReceiptV1
+  published_receipt:
+    exact PublishedDomainReceiptV2 whose
+    prepared_domain_receipt_payload_ref/hash resolves
+    PreparedRuntimeEntryMutationReceiptPayloadV1
+
+AffectedDocumentMutationV1
+  change_kind: created | updated
+  document_kind: world
+    before_world_document_ref: exact DocumentRef including content_hash | omitted
+    after_world_document_ref: exact DocumentRef including content_hash
+  | runtime_entry
+    before_runtime_entry_document_ref: exact DocumentRef including content_hash | omitted
+    before_runtime_entry_semantic_hash: RuntimeEntryPointSemanticHashV1 | omitted
+    after_runtime_entry_document_ref: exact DocumentRef including content_hash
+    after_runtime_entry_semantic_hash: RuntimeEntryPointSemanticHashV1
+  | runtime_target_selector
+    before_selector_document_ref: exact DocumentRef including content_hash | omitted
+    before_selector_hash: RuntimeTargetSelectorHashV1 | omitted
+    after_selector_document_ref: exact DocumentRef including content_hash
+    after_selector_hash: RuntimeTargetSelectorHashV1
+  | runtime_entry_activation_policy
+    before_activation_policy_document_ref: exact DocumentRef including content_hash | omitted
+    before_activation_policy_hash: RuntimeEntryActivationPolicyHashV1 | omitted
+    after_activation_policy_document_ref: exact DocumentRef including content_hash
+    after_activation_policy_hash: RuntimeEntryActivationPolicyHashV1
+```
+
+discriminator外branch Fieldを禁止する。`created`は選択branchの全before Fieldをcanonical omissionし、`updated`は選択branchの全before Fieldを必須にしてbefore／after Stable IDを一致させる。Worldへ普遍的なpayload semantic hashが存在すると仮定せず、Document content hashだけをexact ref内で記録する。entry、selector、activation policyは各Ownerが定義する別semantic hash型を使用し、generic `payload_semantic_hash`へ混同しない。
+
+current六create／update Operationは対象exact一件を持ち、`root_scene_migration_plan_ref=null`、allocation mappingを空にする。§8.1.2のRoot Scene候補がsigned inventoryを満たしてatomic activateされた後だけ、`world`、`runtime_target_selector`、`runtime_entry_activation_policy`、`runtime_entry`をこの順でexact一件ずつ持つbranchを許す。そのbranchのallocation mapping件数はProject Stateのexact `RootSceneMigrationPlanV1.document_mutations[]`にある`create` discriminator件数とexact equalityで0～4件、各create branchのallocation intentと一対一対応し、`update` branchはmappingを持たない。candidate未activation時のnon-null plan、missing／duplicate／extra kind、null、zero hash、create count不一致、updateへのallocation、単数`affected_document`への圧縮を拒否する。`prepared_payload_hash`はASCII `MIRAKAN_PREPARED_RUNTIME_ENTRY_MUTATION_RECEIPT_PAYLOAD_V1`とself-excluding payloadから計算する。唯一のsigned subjectは共通`PublishedDomainReceiptPayloadV2`の完成JCS bytesであり、Domain固有Subject／署名wrapperを作らない。公開手順は本節共通正本の`private Marker read-back → owner_typed_state_commitのsecret-free PublicCommitClosure candidate → signed Receipt → PublicCommitClosure＋PublicPublicationMarkerV1＋after Projectのatomic public CAS`をexact reuseし、別のDomain手順を定義しない。private Marker、prepared payload、Closure candidate storeだけを公開authorityにせず、同じ`idempotency_key`＋`request_hash`のretryは同じResult／Closure／signed Receipt／Public Markerを返し、同じkeyの別request hashは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で一切変更せず拒否する。
+
+Operation Registry compilerは六Operation ID、12 predicate policy ID、一rate-limit policy ID、三predicate Type、二Prepared auxiliary payload Type、一Mutation authorization Type、全domain input／output／receipt ref、Service一record、SideEffect enum、Diagnostic ref、Validator closureをexact Contract set／各Registryへ解決する。pre／postcondition refがmissing、`kind!=policy`、version／Contract set hash stale、policyが`evaluation_mode!=pure`、side effect非空、IO／result Type不一致、Prepared auxiliary／Mutation authorization Typeまたはschema不一致、Service allowlist不一致、rate-limit payload不一致、Diagnostic四Field不一致、またはerrors／reachable set不一致ならRegistry全体を拒否する。fixtureは六Operationのmeta-schema compileとProject ownerとのset equalityに加え、各参照のwrong-kind、missing、stale version、stale Contract set／content hash、impure policyを一原因ずつ拒否する。
+
+### 8.1.2 Conditional legacy migration evidence gate
+
+次の四IDは設計候補を保持するが、planning ledger上のstateが`not_activated`である`conditional_legacy_migration`で、current Contract Set memberではない。current MCD Operation、Owner Manifest Operation、Trusted Service allowlist、Policy、Validator、Validator closure、migration専用Diagnostic、Receipt Type、Provider、MCP、CLI／Editor command、alias、Signer Policyの各投影集合はすべてexact `[]`とし、文字列が文書に存在することをactivationと解釈しない。Project load／Runtime Catalogのcurrent非Operation Diagnosticは§8.1のexact五recordだけで、candidate activationを意味しない。destination template内の`status=active` literalは将来のatomic activation後だけに適用する。
+
+```text
+operation.project.runtime_entry.migrate_root_scene@1
+operation.runtime_scope.migrate_game_system@1
+operation.performance.migrate_project_scale_envelope@1
+operation.physics.intent_role.migrate@1
+```
+
+四候補を一件でもactivateする前提は、対象Project群から採取して署名した`LegacyMigrationInventoryV1`である。Inventoryは最低でも、対象Operation LocalRef、source Project ID、source Contract set root、source Owner Registry ref／hash、source Named Algorithm Registry ref／hash、source Foundation Definition Closure ref／hash、旧MCD local record／common envelope／payloadのcanonical bytesとhash、retained source artifact ref／hash、destination Contract set候補、採取主体、採取時刻、署名Purposeをclosed Fieldとして持つ。各source refは実在するimmutable Artifactへ解決し、相互のroot、Owner、Algorithm、Type、Artifact hashをbyte equalityで検証する。旧bytes、source Snapshot、Registry、Closureのどれかが欠ける場合はInventoryを推測生成せず、候補を`not_activated`のまま保つ。Root Scene候補のbare `legacy_project_manifest_ref/hash`、`legacy_root_scene_ref/hash`、`legacy_source_closure_hash`はこのInventoryを満たさず、typed retained source MCD refとFoundation Closure refへ置換されるまで受理しない。
+
+activationは一つのContract set transactionで、対象Operation、Owner Manifest contribution、入力／出力／prepared／final Receipt Type、Policy、Validator、Validator closure、Diagnostic、実legacy fixtureとnegative fixture、Trusted Service allowlist、Provider／MCP投影、Signer Policyを同時にmaterializeする。offline実行が必要な最初のactivationだけは、`service.offline_project_migrator@1`、`capability.authoring.offline_migration@1`、`profile.isolation.offline_project_migrator@1`とそのTrust assignment／non-exportable purpose keyも同じtransactionへ含める。空allowlist Service、OperationのないCapability／Profile、資格検証前のalias、存在しないlegacy bytesを補う互換shimは認めない。このgateを満たすまでは、後続のOwner文書にある詳細migration schemaはdestination設計templateであり、current executable contractではない。
+
+### 8.2 Current Installed Product active Operation closure
+
+§8.1のGeneric Engine Core bootstrap六件に加えてcurrent Contract setへ存在するDomain OperationはWorld一件とShooter Genre Pack三件だけであり、current Installed Productのactive Operation総数はexact 10件である。§8.1.2のconditional legacy migration四件、§§20～21のplanning candidate 191件、非活性Scenario vocabulary、§21.2のexample／pending／rejected ID、legacy aliasはこの集合に含めない。
+
+current `InstalledProductOperationCompositionV1`は次のexact三Origin contribution／十entryである。表は§8.1のliteral hash短記を使い、解決先`OwnerOperationContributionV1`および同じFoundation Closureのselected-active Owner identityとbyte equalityにする。
+
+| Origin contribution | owner_ref | production_owner_layer | composition_role | exact active Operation LocalRef集合 | exact active Policy LocalRef数 |
+|---|---|---|---|---|---:|
+| `{contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}` | `{owner.core.project_state,1,project_state_owner_hash_v1}` | `core` | `generic_core_baseline` | `{operation.project.runtime_entry.create,1}; {operation.project.runtime_entry.update,1}; {operation.project.runtime_entry_activation_policy.create,1}; {operation.project.runtime_entry_activation_policy.update,1}; {operation.project.runtime_target_selector.create,1}; {operation.project.runtime_target_selector.update,1}` | 13 |
+| `{contribution.owner.core.world.generated_stable_id_allocation,1,world_contribution_hash_v1}` | `{owner.core.world,1,world_owner_hash_v1}` | `core` | `installed_core_extension` | `{operation.world.allocate_generated_stable_ids,1}` | 3 |
+| `{contribution.owner.genre.shooter.target_provider_binding,1,shooter_contribution_hash_v1}` | `{owner.genre.shooter,1,shooter_owner_hash_v1}` | `genre_pack` | `genre_pack` | `{operation.shooter.target_provider_binding.create,1}; {operation.shooter.target_provider_binding.select,1}; {operation.shooter.target_provider_binding.update,1}` | 7 |
+
+Project State Originのauthority sourceは`architecture_document.document_id=mirakan.arch.project-state`、Worldは`mirakan.arch.rendering-world`、Shooterは`mirakan.arch.pack-shooter`である。各Origin recordの`operation_local_refs[]`は表のexact集合、owner／layer／authority sourceは同じOwner Identity Registry rowとbyte equalityにする。current compositionは次のclosed recordへmaterializeし、十entryの各行は上表のowner／layer／role／Origin refを省略せず持つ。
+
+次のrecordは本書前段のcanonical `InstalledProductOperationCompositionV1` schemaへcurrent Installed Product値を代入した具体instanceであり、schemaの再定義ではない。
+
+```text
+InstalledProductOperationCompositionV1
+  artifact_role = cross_cutting_control_plane
+  composition_id = operation_composition.product.current
+  composition_version = 1
+  generic_core_baseline_ref = {
+    operation_baseline.generic_engine_core.bootstrap,
+    1,
+    generic_core_baseline_hash_v1
+  }
+  entry_count = 10
+  entries = [
+    {operation_local_ref={operation.project.runtime_entry.create,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_entry.update,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_entry_activation_policy.create,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_entry_activation_policy.update,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_target_selector.create,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.project.runtime_target_selector.update,1},
+     owner_ref={owner.core.project_state,1,project_state_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=generic_core_baseline,
+     contribution_origin_ref={contribution.owner.core.project_state.runtime_entry_bootstrap,1,project_state_contribution_hash_v1}}
+    {operation_local_ref={operation.shooter.target_provider_binding.create,1},
+     owner_ref={owner.genre.shooter,1,shooter_owner_hash_v1},
+     production_owner_layer=genre_pack,
+     composition_role=genre_pack,
+     contribution_origin_ref={contribution.owner.genre.shooter.target_provider_binding,1,shooter_contribution_hash_v1}}
+    {operation_local_ref={operation.shooter.target_provider_binding.select,1},
+     owner_ref={owner.genre.shooter,1,shooter_owner_hash_v1},
+     production_owner_layer=genre_pack,
+     composition_role=genre_pack,
+     contribution_origin_ref={contribution.owner.genre.shooter.target_provider_binding,1,shooter_contribution_hash_v1}}
+    {operation_local_ref={operation.shooter.target_provider_binding.update,1},
+     owner_ref={owner.genre.shooter,1,shooter_owner_hash_v1},
+     production_owner_layer=genre_pack,
+     composition_role=genre_pack,
+     contribution_origin_ref={contribution.owner.genre.shooter.target_provider_binding,1,shooter_contribution_hash_v1}}
+    {operation_local_ref={operation.world.allocate_generated_stable_ids,1},
+     owner_ref={owner.core.world,1,world_owner_hash_v1},
+     production_owner_layer=core,
+     composition_role=installed_core_extension,
+     contribution_origin_ref={contribution.owner.core.world.generated_stable_id_allocation,1,world_contribution_hash_v1}}
+  ]
+  composition_content_hash =
+    722df325f71678faf4b6a1ae7a683e2181529087b37e93c1f2781e7b701e0a05
+```
+
+`generic_core_baseline_ref`は§8.1のexact六entry baselineへ解決し、その六`OperationCompositionEntryV1`はcurrent composition内の同一bytes entryとset equalityにする。current compositionの残り四entryはWorld／Shooter Originのunionとexact equalityにし、十entry全体をcurrent active MCD Operation LocalRef集合、全Owner Manifest contribution union、Authoring Command Gatewayのallowlistへ同型setで比較する。Baseline refのmissing／stale、baseline entryの上書き、同じOperationの別Origin、owner／layer／role差、Origin一件missing／extra、件数だけ十件の別IDをcompile failureにする。
+
+各Ownerについて、`Owner Manifest Operation LocalRefs = active MCD Operation LocalRefs = Trusted Service allowlist owner contribution`をID／versionで比較する。さらに各Operationの`preconditions[] ∪ postconditions[] ∪ {rate_limit_policy}`はOwner文書が列挙するPolicy LocalRef subset、`errors[]`はValidator closureのreachable Diagnostic LocalRef union、`receipt_type`はOwner Manifest Receipt Type、`authority`はallowlistを持つService local recordとexact equalityでなければならない。Worldの`provider_exposure=trusted_internal`ではProvider／MCP projection集合を空、他三件の`provider_exposure=mcp_proposal`では完全登録済みOperation ref集合と生成projection集合をexact equalityにする。prefix、説明文、family名から集合を展開しない。
+
+current `TrustedServiceRegistryV2`の一`TrustedServiceLocalRecordV2`は、`InstalledProductOperationCompositionV1.entries[]`を同じContract set transactionでmergeした次のexact LocalRef配列を持つ。配列はOperation IDのASCII byte昇順、同IDではversion昇順であり、別順序、件数だけ一致する別ID、prefix展開を拒否する。
+
+```text
+service.authoring_command_gateway@1
+  allowed_operation_local_refs[10] = [
+    {operation.project.runtime_entry.create,1}
+    {operation.project.runtime_entry.update,1}
+    {operation.project.runtime_entry_activation_policy.create,1}
+    {operation.project.runtime_entry_activation_policy.update,1}
+    {operation.project.runtime_target_selector.create,1}
+    {operation.project.runtime_target_selector.update,1}
+    {operation.shooter.target_provider_binding.create,1}
+    {operation.shooter.target_provider_binding.select,1}
+    {operation.shooter.target_provider_binding.update,1}
+    {operation.world.allocate_generated_stable_ids,1}
+  ]
+  service_local_content_hash =
+    SHA-256(MIRAKAN_TRUSTED_SERVICE_LOCAL_RECORD_V2,
+      self-excluding canonical current merged TrustedServiceLocalRecordV2)
+```
+
+`service_local_content_hash`は上記配列と既存のexecutable identity、Capability、isolation profileを含む完成local recordから再計算する。Service member hashと`TrustedServiceRegistryV2.registry_content_hash`を別domainで生成し、Contract set root確定後にだけroot付きOperation／Capability／profile refを持つ一つの外部`TrustedServiceRecordV1.service_content_hash`と`TrustedServiceRefV1`を生成する。local hash、member hash、Registry hash、external hashの等値を要求せず、後段の値を前段preimageへ戻さない。bootstrap hashの再利用、Domain contributionだけの別record、10件の一件欠落／追加／入替えをcompile failureにする。
+
+`allowed_operation_local_refs[10]`はcontract-activeな最大allowlistであって、それだけではdispatch authorityにならない。current Installed compositionに許可するoperational stage集合は、初期exact `[]`、`activation.foundation.operation_domain_receipt_pipeline.v1`後のProject State Origin exact六件、`activation.installed_product.operation_composition_extensions.v1`後のProject State＋World＋Shooter三Origin exact十件だけである。Runtime projectorはcurrent Signer Policyで同Serviceへ割り当てられたOperation集合をOrigin別に逆引きし、選択した各`OwnerOperationContributionV1.operation_local_refs[]`を全件含むこと、そのunionがSigner集合とset equality、full allowlistのsubset、同一Candidateのfresh Qualification集合とset equalityであることを毎dispatch検証する。`[] -> 6 -> 10`以外の集合、Origin内部分集合、allowlistだけのAuthority合成を拒否する。extension時はbaseline六もextension四と同じWave 3 Candidateで再Qualificationするが、baseline Operation／Origin／Signer／Role／assignment／Key bytesは変更せず、World／Shooter四rowだけを追加する。これによりContract set／baseline／composition／Service hashを変更せず、operational stateとSigner／Trust currentだけを段階的に進める。
+
+Shooter Genre Packを将来取り外す場合は、承認済みdefinition migrationで`contribution.owner.genre.shooter.target_provider_binding`のexact三entryだけをInstalled Product composition、MCD current集合、Owner Manifest contribution union、Service allowlist、Provider／MCP projection、Signer Policy destination、Trust／Foundation closureから同時に除去し、composition／Service／Contract set／Closureのversionとhashを再発行する。このtransactionは`GenericCoreOperationBaselineV1`、Project State Origin、baseline六entryおよびその`baseline_content_hash`を変更してはならない。Shooter removalをCore baseline migrationとして扱うこと、Shooter三entryを`core`または`generic_core_baseline`へ付替えること、旧三Operationをaliasとしてcurrentに残すことを拒否する。これは将来の構成変更規則であり、current Installed Productのactive 10、conditional 4、reserved 191という現行件数を変更しない。
+
+四OperationのContract set closureは、Operation 4件、参照Policy 10件、下表のdirect reachable Type exact 19件、World Requirement 1件、Service owner contribution、Validator local record、Operation Validator Closure local record、reachable Diagnostic exact 23件をすべて`ContractSetSnapshotV2.members[]`へ実recordとして含める。Type 19件は§8.1と共有するcommon六件を一度だけ数え、Owner固有13件とのdisjoint unionにする。各Typeはcomplete MCD local record、self-excluding local hash、Type member hashを持ち、nested schema refも同じSnapshot内のexact LocalRefへ再帰解決する。外部root付きType ref、bare ID、同名別versionをmember preimageへ入れない。
+
+| Type owner | exact件数 | exact Type LocalRef ID集合（全version 1、postconditionとmutation authorizationだけversion 2） |
+|---|---:|---|
+| Common publication／predicate／authorization | 6 | `type.operation.mutation_authorization_binding; type.operation.precondition_evaluation_input; type.operation.postcondition_evaluation_input; type.operation.predicate_result; type.operation.prepared_preview_receipt_payload; type.operation.prepared_validation_receipt_payload` |
+| World | 4 | `type.world.stable_id_allocation_input; type.world.stable_id_allocation_result; type.world.stable_id_allocation_receipt; type.world.prepared_stable_id_allocation_receipt_payload` |
+| Shooter | 9 | `type.genre.shooter.target_provider_binding_create_input; type.genre.shooter.target_provider_binding_update_input; type.genre.shooter.target_provider_binding_select_input; type.genre.shooter.target_provider_binding_mutation_result; type.genre.shooter.target_provider_binding_selection_result; type.genre.shooter.target_provider_binding_mutation_receipt; type.genre.shooter.target_provider_binding_selection_receipt; type.genre.shooter.prepared_target_provider_binding_mutation_receipt_payload; type.genre.shooter.prepared_target_provider_binding_selection_receipt_payload` |
+
+各Ownerのprepared Domain payload Type recordは対応named `Prepared*ReceiptPayloadV1`の全Fieldをexact投影し、その`publication_binding`を通じてcommon二Prepared auxiliary payloadと同じOperation／intent／request／idempotency／before／after／Contextへbindする。最終Receipt Typeとprepared payload Typeは別LocalRefであり、相互代用しない。19件の一件missing／extra／duplicate、common TypeのOwnerごとの複写、prepared↔final Receipt Type swap、wrong version／kind／schema hashをContract set compile failureにする。
+
+Diagnostic 23件はcommon 8件とowner固有15件のdisjoint unionで、owner固有subsetを次に固定する。
+
+| Owner | exact固有件数 | exact Diagnostic ID集合 |
+|---|---:|---|
+| World | 6 | `diagnostic.world.generated_candidate_invalid; diagnostic.world.stable_id_project_binding_mismatch; diagnostic.world.stable_id_allocation_count_mismatch; diagnostic.world.stable_id_manifest_invalid; diagnostic.world.stable_id_receipt_signing_failed; diagnostic.world.stable_id_publication_conflict` |
+| Shooter | 9 | `diagnostic.genre.shooter.target_provider.identity_mismatch; diagnostic.genre.shooter.target_provider.owner_mismatch; diagnostic.genre.shooter.target_provider.template_mismatch; diagnostic.genre.shooter.target_provider.type_mismatch; diagnostic.genre.shooter.target_provider.hash_mismatch; diagnostic.genre.shooter.target_provider.target_unsupported; diagnostic.genre.shooter.target_provider.fixture_in_production; diagnostic.genre.shooter.target_provider.registry_invalid; diagnostic.genre.shooter.target_provider.receipt_binding_mismatch` |
+
+common exact 8件は`diagnostic.conflict.revision_mismatch; diagnostic.authorization.denied; diagnostic.approval.required; diagnostic.authoring.lock_conflict; diagnostic.mcd.operation_predicate_invalid; diagnostic.operation.timeout; diagnostic.operation.rate_limit_exceeded; diagnostic.operation.idempotency_key_reuse`である。各Owner Manifest Diagnostic subset、各Operation `errors[]`、Validator reachable union、Snapshot Diagnostic local memberのlogical集合をset equalityにし、Shooterのcomposition／profile等、active三Operationの17-ref closureに到達しない別Diagnosticを23件へ混入させない。
+
+fixtureは型ごとに実在するFieldだけを変異させる。10 Policyはcommon envelopeまたはpredicate／rate payload、World Requirementはcommon envelopeまたはRequirement payload、23 Diagnosticの各recordは`owner_local_ref`、`code`、`severity`、`category`、`message_key`、`requirement_local_refs`、`retryability`のいずれか一Fieldだけを変えるcaseを最低一件ずつ生成し、該当local hash、member hash、Contract set root、外部record hashが変わり、旧Manifest／Service／Policy／Validator／Diagnostic／Receipt external refとのset equalityが失敗することを検証する。Owner ref mutationは別の有効Owner identityへ変更した場合も該当Owner Manifest subsetとのequalityを失敗させる。23件の一件missing／extra／重複／cross-owner substitution、bare ID、name-only active record、root確定前のexternal ref、member byte変更後も同じrootを受理する実装を拒否する。
+
+current Installed Product active Operation closureの全体summaryは次のexact値である。Operation `10 = Generic Core baseline 6 + installed Core extension 1 + Genre Pack 3`（従来集計の`bootstrap 6 + Domain 4`と同じ集合）、direct reachable Type `27 = bootstrap 14 + Domain 19 - shared common 6`、active Policy `23 = bootstrap 13 + Domain 10`、active-Operation reachable Diagnostic `32 = bootstrap 17 + Domain 23 - shared common 8`、active-Operation reachable Validator `27 = shared common 6 + Project固有12 + World固有3 + Shooter固有6`、Operation Validator Closure `10`、Trusted Service `1`である。current Diagnostic Registry inventoryはactive reachable 32とnon-operation 5のdisjoint unionでexact 37であり、reachable countと混同しない。compiler fixtureは各集合の一件missing／extra、共有commonの二重計上、conditional legacy四件の混入、World publication Validator欠落を一原因ずつ拒否する。
+
+### 8.3 Qualification依存のclosed分類
+
+current文書、schema、plan、specに現れる`qualification_receipt*`／Qualification Receipt参照は、compilerが次の三classのexact一つへ分類する。未分類、複数class、名前だけからの推測を拒否する。
+
+| class | 許可するedge | current exact対象 |
+|---|---|---|
+| `receipt_free_base` | Receipt／wrapper／Binding／Activation projection／Fixture refへのedgeは0件。self hash、Registry hash、Contract set rootを先に確定する | Game System Spec／auxiliary、current Runtime Scope Catalog／Owner／Dependency、Performance Domain／Intent／Envelope／Dimension、Input Binding Record／Contribution、Physics Role、Navigation Provider（`UsageTaggedImplementationSystemBaseRefV1`だけ）／Binding、Procedural World／Blockout／World Plan／Bundle／generated Delta、Pack Recipe／Profile／Manifest、Project Shader Module／Target Support、Material／Post Process Node／Profile、VFX Extension Manifest。Runtime Scope／Physics migration ContributionとPerformance migration Mapping instanceは含めない |
+| `safe_downstream_projection` | 完成base refをsubjectにするQualification subject→signed Receipt→Bindingの後段、またはそのBindingを消費するSelection／Manifest／Compile／Save／Replay／Derived resolution。Receipt subjectから当該projectionへ到達するedgeは0件 | 各current owner-typed Qualification subject／Receipt／Activation Binding、Game System／Fixture System Activation Binding、System base refにそのActivation Bindingを加えた`UsageTaggedImplementationSystemRefV1`、同refを依存として署名するMotion Executor Provider subject、Shooter Target Provider Binding、current Runtime Scope／Performance／Physics／Input activation catalog、Pack Recipe／World／Project Shader／Material Project Node／Post Process／VFX activation projection、Operation Manifest、Project `TargetReadinessV1(state=qualified)`、Renderer／Lighting／LOD resolved plan・evidence、Governance Attestation／Product gate／Toolchain qualified capacity。Runtime Scope／Physics migration BindingおよびPerformance `subject_kind=migration` instanceは含めない |
+| `historical_or_planning` | current Registry、Catalog、Manifest、Service allowlist、Runtime Packageへprojectionされないread-only記録だけ | retained ADRの旧shape、Product Planのplanning-only Future／Local multiplayer profile、§§20–21の未Activation candidate、§8.1.2四conditional legacy migrationのdestination schema、Runtime Scope／Physics migration Contribution・Qualification Binding・Activation Catalog／Manifest、Performance migration Mapping・`subject_kind=migration` Qualification instance、Pack固有migration contribution／binding／fixture |
+
+`safe_downstream_projection`はDAG stageごとのclosed unionである。Qualification Subject stageは共通`QualificationSubjectValidatorV1`がbase ref／subject ref、owner、Target集合、dependency集合を検証し、signed ReceiptまたはBinding refを入力にしない。signed Receipt stageは`QualificationReceiptValidatorV1`が完成Subject hash、wrapper purpose／subject／署名／freshness／revocationを検証し、Bindingを入力にしない。`TargetReadinessV1`、Technical Qualification、Attestation、Product gate等のdirect Evidence consumerは`DirectEvidenceProjectionValidatorV1`が先に固定したartifact／input closureとexact typed Receipt refのsubject／wrapperを照合し、存在しないDomain Activation Bindingを要求しない。この三stageへ後段Fieldを追加して循環させることをcompile failureにする。
+
+次のvalidation-only normalized viewへtotalに写像する対象は、上表のconcrete Activation／Qualification Bindingと、そのBinding refを直接保持または解決する外部consumer projectionだけである。Subject／Receipt stageとdirect Evidence consumerはこのviewの対象外で、上記stage別validatorを使う。viewは永続MCD、base、Receipt、Binding、ProjectionのFieldではなく、hash preimageや新しい参照edgeを作らない。
+
+```text
+QualificationActivationBindingEnvelopeV1
+  consumer_base_ref_canonical_hash: SHA-256
+  binding_base_ref_canonical_hash: SHA-256
+  subject_base_ref_canonical_hash: SHA-256
+  receipt_subject_base_ref_canonical_hashes[1..256]: SHA-256
+  signed_receipt_ref_set_hash: SHA-256
+  owner_ref_canonical_hash: SHA-256
+  subject_owner_ref_canonical_hash: SHA-256
+  target_ref_set_hash: SHA-256
+  receipt_target_ref_set_hash: SHA-256
+  dependency_ref_set_hash: SHA-256
+  receipt_dependency_ref_set_hash: SHA-256
+  binding_generation: {binding_id, binding_version, binding_content_hash}
+```
+
+各hashは解決済みDomain typed valueまたはstrict sort／unique済みtyped集合のcount／length-framed canonical bytesから導出し、該当集合が空のDomainもcanonical empty-set hashを必須にする。共通`QualificationActivationBindingValidatorV1`はconsumer／Binding／Subject／全Receipt subjectのbase hashをbyte equality、owner hashをbyte equality、target／dependency set hashをexact equality、Receipt ref集合をpass／fresh／non-revoked／strict sort／unique、generation tupleを解決済みBinding refとexact equalityにする。BindingまたはBinding consumerのDomain固有schemaにconsumer base、owner、target、dependencyのいずれかを導出するFieldがなく、そのDomain契約でもcanonical emptyと宣言されていない場合はadapter未定義としてcompile failureにする。このviewのhash同士をDomain base、Subject、Receiptへ保存しない。
+
+同じBinding validator fixture matrixを上表の全concrete BindingとBinding-consuming外部consumer projectionへ適用する。fixtureはstale base revision／content hash、別の有効base／owner／target／dependency／Bindingへのsubstitution、Receipt subject一件だけの差替え、Receipt missing／extra／duplicate／順序違反、target／dependency missing／extra、generation ID／version／hash不一致を各一原因で変異し、全件をrejectしなければならない。Subject stageはbase／owner／target／dependencyのsubstitution、Receipt stageはsubject／purpose／署名／freshness／revocation、direct Evidence stageはartifact closure／typed Receipt subject／wrapper refのsubstitutionを各専用matrixで拒否する。Domain契約がより強いpairing、cardinality、set-equality規則を持つ場合はそのfixtureを追加し、該当stageの共通matrixを省略しない。
+
+`safe_downstream_projection`に属する、Field名として`qualification_receipt*`を現在保持するexact schemaは、`InferenceDeploymentProfileV1`、`SystemQualificationReceiptV1`、`SystemTechnicalAttestationV1`、`CodeOwnerAssignmentV1`、`GameSystemActivationBindingV1`、`FixtureImplementationSystemActivationBindingV1`、`SystemBundleChangeSetV1`、`TargetReadinessV1`とqualified Runtime Package Target closure、`PerformanceQualificationBindingV1`のmigration以外のsubject instance、`MotionIntentBindingQualificationBindingV1`、`MotionExecutorProviderActivationBindingV1`、`PhysicsIntentRoleActivationBindingV1`、ephemeral `PhysicsIntentResolutionV1`、`PostProcessActivationBindingV1`、`ProjectShaderActivationBindingV1`、`ResolvedShadowPlanV1`、`VfxExtensionActivationBindingV1`、`WorldSourceActivationBindingV1`、`SemanticActionBindingQualificationBindingV1`、`PackRecipeActivationBindingV1`である。各Domainの同名concrete instanceはこのschemaのinstanceであり、別classを作らない。これ以外のcurrent architecture schemaへ同名Fieldを追加する変更は、この分類表を同じContract set transactionでversion-upしない限りcompile failureとする。
+
+`historical_or_planning`のexact残存schemaはProduct Planの`LocalPlaySessionProfileV1`、retained ADRの`RuntimeWorldQualificationBindingV1`、§8.1.2の`RootSceneMigrationPlanV1`／`RuntimeScopeMigrationQualificationBindingV1`／`PhysicsIntentRoleMigrationQualificationBindingV1`、`PerformanceQualificationBindingV1(subject_kind=migration)`およびそれらを消費するmigration Activation Catalog／Manifestである。これらの文書内にある説明上のQualification／Receipt文字列も同classであり、current schema集合を増やさない。`docs/architecture`のproseに現れるField名以外のQualification／Receipt文字列は、上記safe schemaの検証規則、Receipt wrapper自身、または§§20–21の未Activation work itemを説明する参照であって、新しいedgeをmaterializeしない。
+
+`receipt_free_base`のcurrent schema集合に`qualification_receipt_ref(s)`、`signed_receipt`、`MirakanSignedRecordV1`、Qualification／Activation Binding ref、fixture body refが一件でも存在すればcompile failureであり、current許容件数はexact 0である。compilerはField名検索だけでなく、各Qualification Receipt subjectから全hash／ref edgeを逆向きにwalkし、subjectがbindするbase self hash／Registry root／Contract set rootのpreimageへReceipt、wrapper、Binding、Activation projectionが到達しないことを検証する。許可する唯一の順序は`receipt-free base → base ref/root → Qualification subject → signed Receipt → root外Binding → downstream projection`である。
+
+`safe_downstream_projection`はReceipt refをhashへ含められるが、そのprojection hashを同Receipt subject、base ref、base Registry、Contract set rootへ戻してはならない。Project StateのTechnical Qualification、Renderer／LightingのResolved plan、AI Verification／SecurityのAttestation、Product gate、Toolchain capacityは先に固定したartifact／input closureをsubjectにするEvidence projectionであり、projection自身をsubjectにしない。`historical_or_planning`はActivation時に自動昇格せず、将来current化するtransactionで同じDAGへ書き直す。fixtureは各classの誤分類、baseへのReceipt一Field追加、subjectへのdownstream hash追加、Bindingから別baseへのsubstitutionを一原因ずつrejectする。
 
 ## 9. State machine定義
 
@@ -264,7 +1727,7 @@ CapabilityはAIとEditorが「何を作れるか」を理解する正規単位�
 
 | Field | 内容 |
 |---|---|
-| 共通`id` | 例`capability.render.material.toon_v1` |
+| 共通`id` | 例`capability.render.material.toon`。maturityとschema versionをIDへ埋め込まない |
 | `maturity` | C0からC3 |
 | `supported_targets` | Target Profile ID |
 | `required_capabilities` | Dependency DAG |
@@ -282,7 +1745,7 @@ CapabilityはAIとEditorが「何を作れるか」を理解する正規単位�
 
 ### 10.1 Game System定義
 
-MCD kind `game_system`はEngine Capabilityの利用者であるGameplay単位を表す。完全なField、namespace、State owner、dependency、implementation、Bundle規則は[Gameplay programming modelの`GameSystemSpecV1`](../03-authoring/gameplay-programming-model.md#3-gamesystemspecv1)だけが所有する。MCDはそのexact Specを登録・検証し、Fieldの部分集合や別Envelopeを再定義しない。
+MCD kind `game_system`はEngine Capabilityの利用者であるGameplay単位を表す。完全なField、namespace、State owner、dependency、implementation、Bundle規則は[Gameplay programming modelの`GameSystemSpecV2`](../03-authoring/gameplay-programming-model.md#3-gamesystemspecv2)だけが所有する。MCDはそのexact Specを登録・検証し、Fieldの部分集合や別Envelopeを再定義しない。
 
 Contract compilerはactive `game_system`集合から`GameSystemCatalogV1`、`GameSystemDependencyGraphV1`、State owner table、C++／TypeScript binding、Editor metadata、System conformance testを生成する。Project-defined Systemも同じkindを使い、`game_system.project.<project_namespace>.<path>`へ登録する。Engine標準Catalogを利用可能Systemの固定Whitelistとして扱わない。
 
@@ -308,7 +1771,7 @@ Profileに存在しない値を環境変数やProvider defaultから暗黙補完
 
 `CppDependencySetV1`はowner component／Primary Module、public／private import、closed `StdHeaderId`、closed Header例外を正規化して表す。AIはraw include pathやCompiler flagをDependencyとして保存しない。Contract compilerはCX0で個別標準Header、CX1以降でNamed Module／`import std`へ投影し、Source scannerは実Sourceとの一致を検証する。Field、順序、Header例外、Cutover後のProjection停止条件はC++言語・Modules規約を基準とする。
 
-`BuildDriverProfileV1`は`driver_profile_id`、`target_profile_id`、`allowed_frontend_profile_ids`、`configure_driver`、`cpp_generator`、`configuration_model`、`package_owner`を持つ。IDと組合せは基盤規約のclosed setだけを許可し、AI、Provider、Project、Environmentが任意Driver、Generator、commandを追加できない。Contract compilerはWindows／Appleのchecked-in CMake Preset検査表、Android Gradle CMake検査表、Build Gateway allowlistへ投影するが、CMake／Gradle SourceそのものをMCDへ埋め込まない。
+`BuildDriverProfileV1`は`driver_profile_id`、`target_profile_id`、`allowed_frontend_profile_ids`、`configure_driver`、`cpp_generator`、`configuration_model`、`package_owner`を持つ。IDと組合せは[Toolchain／Dependencies](toolchain-dependencies.md#3-build-driver-matrix)のBuild Driver matrixのclosed setだけを許可し、AI、Provider、Project、Environmentが任意Driver、Generator、commandを追加できない。Contract compilerはWindows／Appleのchecked-in CMake Preset検査表、Android Gradle CMake検査表、Build Gateway allowlistへ投影するが、CMake／Gradle SourceそのものをMCDへ埋め込まない。
 
 ValidatorはTarget、C++ Frontend Profile、Driver Profileの全組合せを照合し、First-party Makefiles／`ndk-build`、Android Ninja Multi-Config、Generator override、異なるBuild tree identityの再利用を拒否する。
 
@@ -318,13 +1781,50 @@ ValidatorはTarget、C++ Frontend Profile、Driver Profileの全組合せを照�
 
 Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MirakanDiagnosticV1`を返す。
 
+Diagnostic codeの正本は次のRegistry recordである。Operation、Validator、Result、Receiptは裸codeを保存せず、四FieldがRegistry recordとexact equalityの`DiagnosticCodeRefV1`だけを使う。
+
+```text
+DiagnosticCodeRecordV1
+  diagnostic_id: diagnostic.<lower-token-path>
+  code: MIRAKAN-<DOMAIN>-<CONDITION>
+  diagnostic_version: uint32
+  owner_ref:
+    exact {owner_id, owner_revision, owner_content_hash}
+  severity: info | warning | error | blocking
+  category:
+    schema | semantic | permission | conflict | build | test |
+    performance | security | provider | infrastructure
+  message_key
+  requirement_refs[0..64]: McdContractRefV1(kind=requirement)
+  retryability: never | after_input | after_change | transient
+  diagnostic_content_hash: SHA-256
+
+DiagnosticCodeRefV1
+  diagnostic_id
+  code
+  diagnostic_version: uint32
+  diagnostic_content_hash: SHA-256
+
+DiagnosticCodeRegistryRefV1
+  registry_id
+  registry_version: uint32
+  registry_content_hash: SHA-256
+
+DiagnosticCodeRegistryV1
+  registry_id: diagnostic_code.registry.active
+  registry_version: uint32
+  registry_content_hash: SHA-256
+  records[1..65536]: DiagnosticCodeRecordV1
+```
+
+`diagnostic_id`と`code`は一対一であり、同じIDの別code、同じcodeの別ID、同じID／versionの別content hashを拒否する。`owner_ref`はroot前の`DiagnosticOwnerLocalRefV1`と三Fieldexact equalityであり、owner IDのprefixやManifest membershipから補完しない。recordは`diagnostic_content_hash`を除く全Field、Registryは`registry_content_hash`を除きASCII `MIRAKAN_DIAGNOSTIC_CODE_REGISTRY_V1`、Registry ID／version、record count、`diagnostic_id`のNFC UTF-8 byte順にstrict sortしたrecord canonical bytesを、各byte列の`uint32_be` length付きでhashする。duplicate、非canonical order、unknown version、owner mismatch、hash mismatchではRegistry全体をfail closedにする。`DiagnosticCodeRefV1`は四Fieldすべてを同一recordへ解決し、IDだけまたはcodeだけが一致するrefを受理しない。
+
 | Field | 型／規則 |
 |---|---|
-| `diagnostic_version` | 1 |
-| `code` | `MIRAKAN-<DOMAIN>-<NAME>`、不変 |
-| `severity` | `info`、`warning`、`error`、`blocking` |
-| `category` | schema、semantic、permission、conflict、build、test、performance、security、provider、infrastructure |
-| `message_key` | Localization key |
+| `code_ref` | exact `DiagnosticCodeRefV1`。instance内でID／code／versionを再宣言しない |
+| `severity` | `code_ref`解決先recordとexact equalityの`info \| warning \| error \| blocking` |
+| `category` | `code_ref`解決先recordとexact equalityのclosed category |
+| `message_key` | `code_ref`解決先recordとexact equalityのLocalization key |
 | `arguments` | primitive map。完成文だけを保存しない |
 | `artifact_id`／`revision` | 対象 |
 | `location` | JSON Pointerまたはnormalized source location |
@@ -332,13 +1832,13 @@ Engine、Contract compiler、Provider adapter、MCP、CLIは共通の`MirakanDia
 | `requirement_ids` | 1件以上。Infrastructureだけ例外 |
 | `expected`／`actual` | redacted typed value |
 | `remediation_ids` | 機械実行可能または人間向け修正案 |
-| `retryability` | `never`、`after_input`、`after_change`、`transient` |
-| `cause_chain` | 子Diagnostic ID array |
+| `retryability` | `code_ref`解決先recordとexact equalityの`never \| after_input \| after_change \| transient` |
+| `cause_chain` | 子`DiagnosticCodeRefV1` array。裸ID／codeを許可しない |
 | `trace_id` | Verification trace参照 |
 
 AIへ返すErrorはこの構造を維持する。Provider向け説明文だけへ変換してcode、location、expected、actualを失わない。Source／static analysis結果はこの形式を正本とし、外部Tool連携用にSARIF 2.1.0へexportする。
 
-`MirakanDiagnosticV1`は検証結果と修復入口の正本であり、Debug Event全般の代替ではない。Debugging規約の`DebugEventEnvelopeV1`は必要時に`diagnostic_id`／`cause_chain`／`trace_id`を参照し、severity、location、expected／actualを別Schemaへ重複保存しない。反対に高頻度counter、span、frame marker、domain snapshotを`MirakanDiagnosticV1`として発行してはならない。
+`MirakanDiagnosticV1`は検証結果と修復入口の正本であり、Debug Event全般の代替ではない。Debugging規約の`DebugEventEnvelopeV1`は必要時に`code_ref`／`cause_chain`／`trace_id`を参照し、severity、location、expected／actualを別Schemaへ重複保存しない。反対に高頻度counter、span、frame marker、domain snapshotを`MirakanDiagnosticV1`として発行してはならない。
 
 ### 12.2 `RemediationV1`
 
@@ -347,7 +1847,7 @@ AIへ返すErrorはこの構造を維持する。Provider向け説明文だけ�
 | Field | 規則 |
 |---|---|
 | `id`／`version` | `remediation.<domain>.<lower_snake_name>`、意味変更ごとにversion増加 |
-| `applicable_codes` | `MirakanDiagnosticV1.code`のclosed set |
+| `applicable_codes` | exact `DiagnosticCodeRefV1`のclosed set |
 | `required_queries` | exact query Operation ID＋version、field mask、最大件数 |
 | `operation_template` | typed Command ID＋固定field／placeholder定義。任意JSON禁止 |
 | `preconditions`／`postconditions` | Predicate ID array |
@@ -388,7 +1888,7 @@ JSON treeとJCS実装は[Toolchain／Dependencies](toolchain-dependencies.md)が
 
 処理順序を固定する。
 
-1. RFC 8259としてparseし、重複keyを拒否する。標準`JSON.parse`だけでは重複keyを検出できないため、UTF-8 byte列へduplicate-aware tokenizerを先に適用し、Object scopeごとのdecoded key一致を検査する。
+1. RFC 8259としてparseし、重複keyを拒否する。標準`JSON.parse`だけでは重複keyを検出できないため、UTF-8 byte列へduplicate-aware tokenizerを先に適用し、Object scopeごとのdecoded key一致を検査する。同時に数値tokenのraw textが4節の±(2^53-1)制約を満たすことを検査し、超過literalを拒否する。
 2. Kind別meta-schemaでvalidateする。
 3. 全IDとversionをindex化する。
 4. 参照解決、cycle、Game System State owner、phase edge、requirement coverageを検査する。
@@ -412,7 +1912,7 @@ Internal validation projectionは[Toolchain／Dependencies](toolchain-dependenci
 - Target Capabilityの組合せ。
 - Runtime phaseとwriter authority。
 - Game Systemのauthoritative State owner、dependency cycle、Implementation Variant conformance。
-- World／Scene／Level／Cell identity、Topology、Streaming PlanのSource／Derived境界。
+- World／Scene／Space／Topology identity、owner-typed content、Streaming PlanのSource／Derived境界。
 - Asset revisionの存在。
 - CPU／GPU／memory budget。
 - Permission、Approval、Risk。
@@ -461,13 +1961,15 @@ Schema cacheとData retentionの制約がProject Policyに合わない場合、�
 
 ### 16.4 Anthropic projection
 
-Anthropic projectionはTool `name`、詳細な`description`、`input_schema`、対応Provider versionで利用可能な`strict`等をProvider Manifestから生成する。Providerが受理するJSON Schema keyword集合をconformance testで検出し、未検証keywordを使用しない。
+Anthropic projectionはTool `name`、詳細な`description`、`input_schema`、対応Provider versionで利用可能な`strict`等をProvider Manifestから生成する。Providerが受理するJSON Schema keyword集合をconformance testで検出し、未検証keywordを使用しない。Anthropic APIのexact pinは[Toolchain／Dependencies](toolchain-dependencies.md)が所有し、pinが未固定の間は本projectionを生成対象外とする。その間のAnthropic系接続は16.5節のMCP経路だけを使う。
 
 複雑なToolにはMCDのvalid fixtureから少数の`input_examples`を生成できる。ただし、ExampleはPrompt tokenを消費するため、EvalでTool選択またはargument精度を改善した場合だけProvider Manifestへ有効化する。
 
 ### 16.5 CLI／Desktop App
 
-Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider固有PluginがMCDを独自変換してはならず、Miraikanai MCP ServerのTool一覧とSchemaを取得する。Source直接編集はMCP Tool権限とは別に、AI実装・保守ガバナンス規約のSource Worker sandboxを適用する。
+Codex／Claude等のCLIと対応Desktop Hostは原則MCP projectionを使う。hosted ChatGPT Workのplugin remote MCP Toolと、ChatGPT desktop appのCodex hostが使うlocal Codex MCP設定は別surfaceであり、相互互換とみなさない。Provider固有PluginがMCDを独自変換してはならず、Miraikanai MCP ServerのTool一覧とSchemaを取得する。Source直接編集はMCP Tool権限とは別に、AI実装・保守ガバナンス規約のSource Worker sandboxを適用する。
+
+Tool projectionは[AI Security／Approval](../01-governance/ai-security-approval.md#83-callerproviderdeploymentmodel-profile)が所有するexecution route別closed tupleとbyte equalityなcurrent Conformance Receiptがある場合だけ生成する。`standard_external_mcp`は`{external Host profile, MCP Transport profile, tool projection, proposal-only Authority profile, MCP Grant, Host/Transport Conformance, Schema/Eval Conformance}`を必須にし、Provider Runtime／Manifest、Inference Deployment、managed deployment identity、Model Snapshot、Provider-Tool Conformanceをnull／unattestedにする。`managed_external_host`は`{external Host, MCP Transport, Provider Runtime, managed deployment identity, Model Snapshot, tool projection, Authority, Host/Transport Conformance, Provider-Tool Conformance, Schema/Eval Conformance, fresh Host Session Attestation}`を必須にし、managed deployment identityをCaller Context、三Receiptのsubject tuple、Provider snapshot、Session／Execution Attestationでbyte equalityにする。`engine_provider_adapter`は`{first-party Engine Host, Provider Runtime, Provider Manifest, Inference Deployment, Model Snapshot, tool projection, Authority, Provider-Tool Conformance, Schema/Eval Conformance}`を必須にし、managed deployment identity、MCP Transport／Grant、Host/Transport Conformanceをnullにする。cloud direct APIとfirst-party local IPCはEngine routeのDeployment branchで区別し、MCP Transportを捏造しない。Host名またはModel family名によるEngine分岐を作らず、routeに必要なReceipt／Grant／Attestationがない組合せは、別途current proposal-only Contextを再発行できなければ`not_activated`とする。hosted ChatGPT Workはpluginが束ねるremote MCP Toolを使い、local Codex `config.toml`またはdirect local STDIO Hostとして扱わない。ChatGPT desktop appのCodex host、Codex CLI／IDE、Claude Desktop／Claude Code、Cursorも、製品名だけで対応済みとせず、exact surface／Host version、Transport、Schema、Result、cancellationのConformance Receiptへ束縛する。
 
 ## 17. Language／Runtime projection
 
@@ -499,7 +2001,7 @@ Codex／Claude等のCLIとDesktop Appは原則MCP projectionを使う。Provider
 - Field ID、wire type、offset、length、alignment、collection上限、Capability ID、State IDをContract setから生成する。
 - Pointer、vtable、native padding、source path、filesystem、network、native library情報をencodeしない。
 - GameplayDefinitionのWorld変更はtyped commandへ投影し、Runtime規約のconsume phaseで適用する。
-- State Machineは一phase一transition、Behavior Treeは`max_node_visits_per_tick`必須、collectionは固定上限という規約をgenerated validatorへ含める。
+- State Machineは一phase一transition、Behavior Treeは`max_node_visits_per_simulation_advance`必須、collectionは固定上限という規約をgenerated validatorへ含める。ここでSimulation Advanceは選択済み`SimulationCadenceProfileV1`の一更新であり、fixed tick、render frame、wall-clock時間へ暗黙変換しない。
 - Binary headerへContract set、Definition set、Capability manifest、State layoutのhashを記録する。
 - Decode errorはMirakanDiagnosticへ変換し、部分objectをRuntimeへ公開しない。
 
@@ -547,59 +2049,145 @@ Schema変更は次を同一ChangeSetへ含める。
 - Provider conformance結果。
 - 影響するGame sample、Editor、GameplayDefinition、C++ callerの更新。
 
-## 20. AI向けDiscovery
+## 20. AI向けDiscovery／Execution候補のplanning record（未Activation）
 
-AIへ巨大な全Schemaを一括送信しない。次の二段階Discoveryを使う。
+Activation後の受入条件として、AIへ巨大な全Schemaを一括送信せず、次の二段階planned Discovery semanticsを使う。
 
-1. `capabilities.search`がID、title、tag、Target、maturity、短いsummaryを返す。
-2. `capabilities.read`が選択したCapabilityのType、Operation、Constraint、Budget、Exampleを返す。
+1. Capability検索段階がID、title、tag、Target、maturity、短いsummaryを返す。
+2. Capability詳細読取段階が選択したCapabilityのType、Operation、Constraint、Budget、Exampleを返す。
 
-Search結果は現在Contract setのhashを含む。AIが古いhashのCapabilityでProposalを送った場合、Gatewayはstaleとして拒否し、差分を返す。AIがSchemaにないFieldやOperationを使った場合、fuzzyに推測して補正せず、候補ID付きDiagnosticを返す。
+Activation後のSearch結果はその時点のContract set hashを含む。AIが古いhashのCapabilityでProposalを送った場合、Gatewayはstaleとして拒否し、差分を返す。AIがSchemaにないFieldや完全登録済みでないOperationを使った場合、fuzzyに推測して補正せず、候補ID付きDiagnosticを返す。planned検索actionのbounded result受入値は、各表で別値を明示しない限り既定50件、最大200件、continuation付きとする。Activation前のcurrent Search／Read Operation集合は空であり、この挙動をcallableとみなさない。
 
-Authoring dataは同じDiscovery原則で次のR0 queryだけを公開する。
+以下の§§20～21に現れる191個の`operation.*`文字列は実行契約ではなく、将来の語彙衝突を防ぐ予約候補である。最初の八family 67件はDiscovery／Execution候補、後続十family 92件は既存Domain文書から回収した未登録authoring／selection候補、末尾六family 32件はAI制作E2EのChangeSet／Source／Build／GameplayDefinition／Asset実行carrier候補である。MCD document、Owner Manifest、Contract set member、Trusted Service allowlist、Provider projection、MCP alias、CLI／Editor commandのいずれにも存在せず、全familyのcurrent集合は空、Capability stateは`not_activated`である。別途§8.1／§8.2で完全登録したcurrent active 10 Operationは維持し、このplanning ledgerへ移動しない。§8.1.2のconditional legacy migration四件もplanning ledgerへ重複登録しない。
 
-| Operation | 結果 |
+```text
+PlannedOperationFamilyV1
+  planning_record_id
+  planning_record_version: 1
+  family_id
+  reserved_candidate_ids[1..64]
+  reserved_candidate_count: exact array count
+  capability_state: not_activated
+  current_owner_manifest_operation_local_refs: []
+  current_mcd_operation_local_refs: []
+  current_trusted_service_allowlist_local_refs: []
+  current_policy_local_refs: []
+  current_validator_local_refs: []
+  current_validator_closure_local_refs: []
+  current_diagnostic_local_refs: []
+  current_receipt_type_local_refs: []
+  current_provider_projection_refs: []
+  current_mcp_tool_refs: []
+  generated_aliases: []
+  legacy_aliases: []
+  activation_work_item_id
+  activation_mode: atomic_family_contract_set_transaction
+  unavailable_error_code: MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED
+  planning_record_hash: SHA-256
+```
+
+`PlannedOperationFamilyV1`はMCD kindではなく、`ContractSetSnapshotV2`、Tool catalog、Package、Save、Replayへ入れないclosed planning recordである。hashはASCII `MIRAKAN_PLANNED_OPERATION_FAMILY_V1`と自己hashを除く全Fieldのlength-framed canonical bytesから計算する。候補要求はGateway dispatch前に上記errorで拒否し、Project／Source／Registry／Taskを変更しない。familyの一部だけ、name-only record、aliasだけ、read-only候補だけを先行activateしない。
+
+| planning_record_id | version | family_id | exact候補数 | atomic activation work item |
+|---|---:|---|---:|---|
+| `planning.operation_family.authoring_discovery` | 1 | `authoring_discovery` | 4 | `activation.authoring.discovery_operations.v1` |
+| `planning.operation_family.build_device_play_debug_task` | 1 | `build_device_play_debug_task` | 14 | `activation.build_gateway.operation_pipeline.v1` |
+| `planning.operation_family.game_system_discovery` | 1 | `game_system_discovery` | 4 | `activation.systems.discovery_operations.v1` |
+| `planning.operation_family.world_discovery` | 1 | `world_discovery` | 6 | `activation.worlds.discovery_operations.v1` |
+| `planning.operation_family.rendering_aa_discovery` | 1 | `rendering_aa_discovery` | 5 | `activation.rendering.aa.discovery_operations.v1` |
+| `planning.operation_family.lighting_discovery` | 1 | `lighting_discovery` | 9 | `activation.lighting.discovery_operations.v1` |
+| `planning.operation_family.post_process_discovery` | 1 | `post_process_discovery` | 9 | `activation.post_process.discovery_operations.v1` |
+| `planning.operation_family.project_shader_discovery` | 1 | `project_shader_discovery` | 16 | `activation.shader.discovery_proposal_operations.v1` |
+| `planning.operation_family.math_semantic_authoring` | 1 | `math_semantic_authoring` | 6 | `activation.math.semantic_authoring_operations.v1` |
+| `planning.operation_family.camera_authoring` | 1 | `camera_authoring` | 11 | `activation.camera.authoring_operations.v1` |
+| `planning.operation_family.material_authoring` | 1 | `material_authoring` | 15 | `activation.material.authoring_operations.v1` |
+| `planning.operation_family.vfx_authoring` | 1 | `vfx_authoring` | 24 | `activation.vfx.authoring_operations.v1` |
+| `planning.operation_family.environment_authoring` | 1 | `environment_authoring` | 24 | `activation.environment.authoring_operations.v1` |
+| `planning.operation_family.lod_authoring` | 1 | `lod_authoring` | 2 | `activation.lod.authoring_operations.v1` |
+| `planning.operation_family.input_binding_selection` | 1 | `input_binding_selection` | 1 | `activation.input.semantic_action_binding_selection.v1` |
+| `planning.operation_family.navigation_binding_selection` | 1 | `navigation_binding_selection` | 1 | `activation.navigation.motion_intent_binding_selection.v1` |
+| `planning.operation_family.physics_role_selection` | 1 | `physics_role_selection` | 1 | `activation.physics.intent_role_selection.v1` |
+| `planning.operation_family.feature_authoring` | 1 | `feature_authoring` | 7 | `activation.feature.authoring_operations.v1` |
+| `planning.operation_family.authoring_changeset_execution` | 1 | `authoring_changeset_execution` | 4 | `activation.authoring.changeset_execution.v1` |
+| `planning.operation_family.native_game_module_source` | 1 | `native_game_module_source` | 5 | `activation.native_game_module.source_operations.v1` |
+| `planning.operation_family.project_source_promotion` | 1 | `project_source_promotion` | 1 | `activation.project_source.promotion_operations.v1` |
+| `planning.operation_family.build_candidate_test` | 1 | `build_candidate_test` | 6 | `activation.build.candidate_test_operations.v1` |
+| `planning.operation_family.gameplay_definition_authoring` | 1 | `gameplay_definition_authoring` | 6 | `activation.gameplay_definition.authoring_operations.v1` |
+| `planning.operation_family.asset_authoring` | 1 | `asset_authoring` | 10 | `activation.asset.authoring_operations.v1` |
+
+上表24行と、この後に文書順で現れる第一列見出しが`reserved candidate ID`の24表を同じindexでzipするclosed expansion ruleを正本とする。各`PlannedOperationFamilyV1` instanceは、ledger列から`planning_record_id`、`planning_record_version`、`family_id`、`reserved_candidate_count`、`activation_work_item_id`を、対応候補表の第一列から行順を保った`reserved_candidate_ids[]`をmaterializeする。残る全Fieldは上のschemaに書かれたliteral、すなわち`capability_state=not_activated`、十のcurrent集合と二つのalias集合すべて`[]`、`activation_mode=atomic_family_contract_set_transaction`、`unavailable_error_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`をField省略なしでmaterializeし、その後にだけ`planning_record_hash`を計算する。これは既定値補完ではない。ledger／候補表が24対24でない、候補数不一致、候補ID重複、別familyへの同一ID混入、literal Fieldの省略／変更、empty集合の省略をplanning record compile failureにする。
+
+各work itemは、そのfamilyの採用exact ID集合、各OperationのMCD共通Envelope全Field、named input／result／Receipt Type、authority Serviceとallowlist、Risk、side effect、idempotency、transaction、pure pre／post Policy、rate／timeout、closed Diagnostic、Validator／closure、Provider exposure、canonical signed Receipt、private-to-public recovery、positive／negative Qualification、Owner Manifest／MCD／Service／Provider／aliasのlike-for-like equalityを同じContract set transactionで完備した場合だけfamily全体をactivateできる。候補IDを削除または分割する場合もplanning recordをversion-upし、実在しないIDをlegacy aliasにしない。以下の表の「予定意味」はactivation後に採用可否を再審査する入力であり、現行動作を記述しない。
+
+Authoring dataの同じDiscovery原則について、次の四つをplanning candidateとして予約する。
+
+| reserved candidate ID | 予定意味 |
 |---|---|
 | `operation.authoring.search` | kind、tag、Component、name token、spatial boundからStableId候補とscore理由を返す |
 | `operation.authoring.read` | StableId、field mask、expected revisionからbounded `SceneSliceV1`またはDocument projectionを返す |
 | `operation.authoring.dependencies` | inbound／outbound、Requirement、Capability、Decision、lockのbounded closureを返す |
 | `operation.authoring.diff` | base／target revisionとStableId scopeからsemantic diff、storage-only diff、continuationを返す |
 
-全Queryは`project_revision`、`contract_set_hash`、`authoring_index_revision`、`query_hash`、`omitted_ranges`、`continuation_cursor`を返す。別revisionへのfallback、表示index、曖昧な名前だけのtarget確定、任意JSON断片を禁止する。検索結果が複数候補ならAIが名前から推測せず、追加readまたは人間選択を行う。
+activation work itemがこのexact四件を採用する場合、全Queryは`project_revision`、`contract_set_hash`、`authoring_index_revision`、`query_hash`、`omitted_ranges`、`continuation_cursor`を返す契約にし、別revisionへのfallback、表示index、曖昧な名前だけのtarget確定、任意JSON断片を禁止する。それまでは四IDのdispatch、追加read、aliasのmaterializeを行わない。
+
+Package／Device／Play／Debug／Task系はBuild Gatewayを入口候補とする次の14 IDをplanning recordへ予約する。これらはcanonical MCDでも公開Operationでもなく、[Core architecture](core-architecture.md#91-operationtaskv1)のplanned task／Receipt mappingはActivation後の意味候補に留まる。
+
+| reserved candidate ID | 予定Risk／kind／実行Authority | 予定必須identity／hash | 予定Side effect | 予定Idempotency／cancel | 予定成功Receipt／結果 | 予定Failure Diagnostic |
+|---|---|---|---|---|---|---|
+| `operation.build.request_package` | R2 job／Build Gateway | Project revision、Candidate root、Target Profile、Contract／Toolchain lock、request hash、Authorization | StagingにTarget packageを生成。Commit／sign／installなし | request hash＋idempotency key。publish前までcooperative cancel | `PackageReceiptV1` | `diagnostic.operation.package-input-mismatch` |
+| `operation.device.install` | R3 command／Device Bridge | Project revision、Candidate root、Target、Device identity＋generation、exact `PackageReceiptV1` ref／hash＋package artifact ref／hash、request hash、Authorization、明示consent、R3 Approval | 承認済みpackageを一Deviceへinstall | package hash＋Device generation＋idempotency key。Device transaction commit前だけcancel | `DeviceInstallReceiptV1` | `diagnostic.operation.device-install-binding-mismatch` |
+| `operation.device.launch` | R1 command／Device Bridge | Project revision、Candidate root、Target、Device identity＋generation、exact `DeviceInstallReceiptV1` ref／hash＋package artifact ref／hash、request hash、固有Authorization | install済みCandidateのprocess起動 | launch request hash＋idempotency key。process spawn前だけcancel | `DeviceLaunchReceiptV1` | `diagnostic.operation.device-launch-binding-mismatch` |
+| `operation.device.reset_data` | R3 command／Device Bridge | Project revision、Candidate root、Target、Device identity＋generation、exact `PackageReceiptV1` ref／hash＋package artifact ref／hash、request hash、Authorization、明示consent、R3 Approval | 対象ApplicationのDevice dataを消去 | package hash＋Device generation＋idempotency key。reset commit前だけcancel | `DeviceDataResetReceiptV1` | `diagnostic.operation.device-reset-consent-required` |
+| `operation.play.run_smoke` | R1 job／Play Service | Project revision、Candidate root、Target、Device identity＋generation、exact Package／Install／Launch Receipt ref／hash、package artifact ref／hash、fixture ref／hash、request hash、固有Authorization | Candidateに対するbounded smoke sessionを実行 | input hash＋idempotency key。fixture boundaryでcooperative cancel | `SmokeRunReceiptV1` | `diagnostic.operation.smoke-input-mismatch` |
+| `operation.debug.aggregate` | R0 query／Debug Query Service | Project revision、Candidate root、Target、Session、exact Build Receipt ref／hash、Store／Index generation、bounded selector hash、request hash、Authorization、remote Device identity＋generation | read-only aggregateを計算 | pure。cancelはquery中断のみ | `DebugAggregateReceiptV1` | `diagnostic.debug.aggregate-input-invalid` |
+| `operation.debug.query` | R0 query／Debug Query Service | Project revision、Candidate root、Target、Session、Store／Index generation、remote Device identity＋generation、exact `DebugAggregateReceiptV1` ref／hash、bounded query hash、request hash、新Authorization | read-only record sliceを返す | pure。cancelはquery中断のみ | `DebugQueryReceiptV1` | `diagnostic.debug.query-input-invalid` |
+| `operation.debug.read_causality` | R0 query／Debug Query Service | Project revision、Candidate root、Target、Session、Index generation、remote Device identity＋generation、exact `DebugQueryReceiptV1` ref／hash、root Evidence refs、bound hash、request hash、新Authorization | read-only causal subgraphを返す | pure。cancelはquery中断のみ | `DebugCausalityReceiptV1` | `diagnostic.debug.causality-input-invalid` |
+| `operation.debug.read_replay_slice` | R0 query／Replay Service | Project revision、Candidate root、Target、Session、remote Device identity＋generation、exact Build Receipt、`DebugQueryReceiptV1`、`DebugCausalityReceiptV1`の各ref／hash、Replay closure／range hash、request hash、新Authorization | immutable Replay Sliceをmaterialize | request hash＋idempotency key。publish前までcooperative cancel | `ReplaySliceReceiptV1` | `diagnostic.debug.replay-slice-input-invalid` |
+| `operation.debug.validate_finding` | R0 job／Debug Validation Service | Project revision、Candidate root、Target、Session、remote Device identity＋generation、exact Build Receipt、`DebugQueryReceiptV1`、`DebugCausalityReceiptV1`、`ReplaySliceReceiptV1`の各ref／hash、`DebugFindingV1` hash、Finding closure hash、request hash、新Authorization | append-only validation Evidenceを生成。Source／Project変更なし | finding＋closure hashでidempotent。validation step間でcancel | `DebugFindingValidationReceiptV1` | `diagnostic.debug.finding-evidence-invalid` |
+| `operation.debug.support-bundle.generate` | R2 job／Debug Export Service | Project revision、Candidate root、Target、Session、exact Build Receipt ref／hash、source Debug Receipt ref／hash集合、component／redaction／policy hash、request hash、明示consent、Authorization、remote Device identity＋generation | redacted Support BundleをStagingへ生成。uploadなし | manifest input hash＋idempotency key。archive publish前までcooperative cancel | `SupportBundleReceiptV1` | `diagnostic.debug.support-bundle-manifest-mismatch` |
+| `operation.task.status` | R0 query／Build Gateway Task Service | control invocation ID、target task／operation ID、target request hash、Project revision、Candidate root、control request hash、Authorization | なし。bounded task snapshotを返す | pure。cancel対象外 | `TaskStatusReceiptV1`＋`OperationTaskV1` snapshot | `diagnostic.operation.task-binding-mismatch` |
+| `operation.task.read_receipt` | R0 query／Build Gateway Task Service | control invocation ID、terminal task／operation ID、target request hash、Project revision、Candidate root、exact terminal Receipt ref／hash、control request hash、Authorization | なし。immutable Receiptをread-only取得 | pure。cancel対象外 | `TaskReceiptReadReceiptV1`＋referenced exact Receipt | `diagnostic.operation.task-receipt-mismatch` |
+| `operation.task.cancel` | R1 command／Build Gateway Task Service | control invocation ID、target task／operation ID、target request hash、Project revision、Candidate root、cancel request hash、original callerまたは委任済みAuthorization | cancellable taskを`cancel_requested`へ遷移 | task ID＋idempotency key。反復cancelは同じ結果 | `TaskCancellationReceiptV1` | `diagnostic.operation.task-not-cancellable` |
+
+`diagnostic.operation.task-not-cancellable`は上表のplanned `operation.task.cancel`だけに予約した語彙であり、current `DiagnosticLocalRecordV2`、Service allowlist、Validator、Validator closure、Operation `errors[]`のいずれにも存在しない。したがって§8.2のcommon Diagnostic exact 8件およびreachable Diagnostic exact 23件へ加えない。Task control familyのatomic Activation transactionがDiagnostic四Field、Owner、Requirement、Validator、Operation、Receiptを同時にmaterializeするまで、このID単体またはDiagnostic recordだけを先行activateしない。
+
+activation work itemがexact 14件を採用する場合、各成功Receiptは[Core architecture §9.1](core-architecture.md#91-operationtaskv1)のplanned 14行mappingからexact `signed_record_purpose`、`OperationReceiptEnvelopeV1.operation_id`、型固有payload contract、完成Receipt型を一行で選ぶ完成`MirakanSignedRecordV1`とする。前段Receipt refとhash、purpose、payload contract、Project／Candidate／Target／Device identity＋generation、request hash、Authorizationの一つでも異なれば後段を開始しない。install／resetのconsent／Approval非継承やDevice generation driftも同じactivation transactionのfixtureで閉じる。現在はReceipt、Task、allowlist、remote sessionを一件もmaterializeしない。
+
+将来このfamilyをactivateしても、正規Commit、Approval発行、Promotion、Activation、Signing、Releaseは8節の`trusted_internal`境界を代替しない。AIの実行権限とCaller Profileは[AI Security／Approval](../01-governance/ai-security-approval.md)が所有する。
 
 LOD Discoveryは`lod_class`、semantic role、Target、Qualityで絞り込み、Intent、該当Domain Policy、fallback、選択metric、現在のqualification statusだけを返す。全DomainのLOD Schemaやruntime telemetryを常に一括送信しない。
 
-Game System Discoveryは次のMCD OperationからProvider別Tool名を生成する。MCP／製品表示上のaliasはそれぞれ`mirakan.systems.search`、`mirakan.systems.read`、`mirakan.systems.plan`、`mirakan.systems.validate_bundle`とする。
+Game System Discoveryは次の四IDをplanning candidateとして予約する。current MCP／製品Tool名、generated alias、legacy aliasの集合は空である。
 
-| MCD Operation | Authority | 結果 |
+| reserved candidate ID | 予定Authority | 予定意味 |
 |---|---|---|
 | `operation.systems.search` | R0 query | Role、Target、maturity、originでCatalog entryを検索 |
 | `operation.systems.read` | R0 query | exact System Contract、constraint、budget、fixtureを取得 |
 | `operation.systems.plan` | R1 proposal | `SystemImplementationPlanV1`を提案 |
 | `operation.systems.validate_bundle` | R0 query／job | Staging `SystemBundleChangeSetV1`を検証 |
 
-World Discoveryも次のMCD Operationを正本とし、同じInput／Output Schemaから`mirakan.worlds.*` aliasを生成する。
+World Discoveryも次の六IDをplanning candidateとして予約する。alias、Input／Output Schema、Provider projectionはcurrent集合に存在しない。
 
-| MCD Operation | Authority | 結果 |
+| reserved candidate ID | 予定Authority | 予定意味 |
 |---|---|---|
-| `operation.worlds.search` | R0 query | kind、role、tag、Target、spatial boundからWorld／Region／Level／Scene候補、StableId、score理由を返す |
+| `operation.worlds.search` | R0 query | kind、role、tag、Target、spatial boundからWorld／Scene／Space／Topology／owner-typed候補、StableId、score理由を返す |
 | `operation.worlds.read` | R0 query | exact Stable ref、field mask、Viewport、Targetからbounded `WorldAuthoringContextV1`を返す |
 | `operation.worlds.resolve_map_intent` | R0 query／R1 proposal | 6分類候補、Evidence、`resolved \| question_required \| rejected`を返す |
-| `operation.worlds.plan_change` | R1 proposal | allowed Domain Operation ID／version、precondition、Budget、fixtureを持つ`WorldAuthoringPlanV1`を返す |
+| `operation.worlds.plan_change` | R1 proposal | allowed `WorldSourceChangePrimitiveKindV1` discriminator、precondition、Budget、fixtureを持つ`WorldAuthoringPlanV1`を返す |
 | `operation.worlds.validate_bundle` | R0 query／job | Staging BundleのSchema、semantic、reference、ownership、Topology、Budget Diagnosticを返す |
-| `operation.worlds.preview_bundle` | R0 query／job | Source／Topology／Level／Target別Derived差分、playability、performance、fallback比較を返す |
+| `operation.worlds.preview_bundle` | R0 query／job | Source／Topology／Space／owner-typed content／Target別Derived差分、activation、performance、fallback比較を返す |
 
-`operation.worlds.read`はAuthoring規約の`AuthoringSelectionContextV1` hashを任意入力として受けられるが、screen coordinate、表示row、Hierarchy path、表示名だけをtargetへ変換しない。出力はProject revision、Contract set hash、Source Document hash、Source／Staging／Derived read-only／Runtime区分、omitted range、continuationを必須とする。Derived Artifactはread-only refだけを返し、Cell、Navmesh、HLOD、Runtime handleのwrite Operation Schemaを生成しない。
+activation work itemが`operation.worlds.read`を採用する場合はAuthoring規約の`AuthoringSelectionContextV1` hashを任意入力として受けられるが、screen coordinate、表示row、Hierarchy path、表示名だけをtargetへ変換しない。出力はProject revision、Contract set hash、Source Document hash、Source／Staging／Derived read-only／Runtime区分、omitted range、continuationを必須とする。Derived Artifactはread-only refだけを返し、Cell、Navmesh、HLOD、Runtime handleのwrite primitive schemaを生成しない。
 
-`operation.worlds.plan_change`が返すDomain OperationはWorld規約のCatalogに存在し、`ai_mutable` field coverage、expected Document revision、precondition hash、Risk、Approval、inverse availabilityを満たすものだけにする。`MoveEntityToScene`、`SetLevelSourceScenes`、Target別Cell生成を相互代替にせず、Scene永続化owner、Level membership、Cell assignmentを別constraintとしてProvider Schemaとserver-enforced semantic validatorへ投影する。
+activation後に`operation.worlds.plan_change`を採用する場合、返すchange primitive discriminatorはWorld規約の`WorldSourceChangePrimitiveKindV1` Catalogに存在し、`ai_mutable` field coverage、expected Document revision、precondition hash、Risk、Approval、inverse availabilityを満たすものだけにする。behavior-neutralな予定語彙は`CreateWorld | UpdateWorldComposition | CreateScene | UpdateSceneComposition | DefineSpace | UpdateTopology | BindOwnerTypedDocument`へ限定し、Scene永続化owner、World composition membership、Space／Topology relation、Derived Cell assignmentを別constraintとしてProvider Schemaとserver-enforced semantic validatorへ投影する。これらは現在公開されていない。`Level`、`SetLevelSourceScenes`、`playable_level`はcurrent Core MCD Operation／primitive kind／constraintではなく、Pack-owned migration inputにだけ存在できる。
 
-World CapabilityのMCD `examples`は最低でも、明確な`playable_level`、曖昧で`question_required`、共有Scene変更の影響Level列挙、Derived Cell直接write拒否、stale revision拒否を各1件含む。Exampleは説明文だけでなく、exact Input、expected disposition／Operation ID、expected Diagnostic code、変更されないinvariantを持つ。
+World CapabilityのMCD `examples`は最低でも、明確な`world_structure`、曖昧で`question_required`、共有Scene変更の影響World列挙、Derived Cell直接write拒否、stale revision拒否を各1件含む。Exampleは説明文だけでなく、exact Input、expected disposition／Activation後のexact MCD Operation IDまたはchange primitive discriminator、expected Diagnostic code、変更されないinvariantを持つ。Pack-owned Stage等のcontent概念をCore World kindまたは暗黙空間前提として登録しない。
 
 `MapIntentResolutionV1.disposition=question_required`をCommit可能Proposalへ自動変換しない。System／WorldのActivation、Source Promotion、Project Commit OperationはProvider projectionへ含めない。
 
-Anti-alias Discoveryは2D／3D機能計画の意味GoalとRenderer規約の実行制約を、次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.rendering.aa.search`、`mirakan.rendering.aa.read`、`mirakan.rendering.aa.resolve_intent`、`mirakan.rendering.aa.plan_change`、`mirakan.rendering.aa.preview_change`を生成する。
+Anti-alias Discoveryは2D／3D機能計画の意味GoalとRenderer規約の実行制約について次の五IDをplanning candidateとして予約する。current MCP aliasやProvider Toolをmaterializeしない。
 
-| MCD Operation | Risk／kind | 結果 |
+| reserved candidate ID | 予定Risk／kind | 予定意味 |
 |---|---|---|
 | `operation.rendering.aa.search` | R0 query | 意味Goal、Target、Renderer、Quality、maturityからIntent／method候補を検索し、候補ID、短い適合理由、制約要約を返す |
 | `operation.rendering.aa.read` | R0 query | exact Intent／method／Profileの互換Predicate、sample count、layer scope、cost model、fallback、Diagnostic、必要Qualificationを返す |
@@ -607,13 +2195,13 @@ Anti-alias Discoveryは2D／3D機能計画の意味GoalとRenderer規約の実�
 | `operation.rendering.aa.plan_change` | R1 proposal | expected Project revisionに対するtyped `AntiAliasingChangeSetProposalV1`だけを生成する。Commit、Provider activation、Pipeline rebuildは行わない |
 | `operation.rendering.aa.preview_change` | R0 query／job | ProposalをStagingで検証し、resolved Plan差分、Graph／history影響、GPU／memory／bandwidth見積り、visual fixture要求、fallback、必要Receiptを返す |
 
-全Anti-alias Query／Proposal結果は`project_revision`、`contract_set_hash`、`capability_signature_hash`、`renderer_profile_revision`、`qualification_receipt_hashes`、`query_hash`を返し、ViewFamilyへ解決した結果は`view_family_id`と`source_intent_revision`も返す。bounded collectionは`omitted_ranges`と`continuation_cursor`を持つ。`plan_change`は`expected_project_revision`、`idempotency_key`、変更理由、対象scopeを必須にし、`preview_change`はProposal hashと同じrevisionを必須にする。stale revision、未知method、未Qualified Target、MSAA×temporal、Hybrid Deferred MSAA、異なるsample countの同一ViewFamily混在、pixel-locked layerへのAA適用をtyped Diagnosticでfail-closedにする。
+activation work itemが五件を採用する場合、全Anti-alias Query／Proposal結果は`project_revision`、`contract_set_hash`、`capability_signature_hash`、`renderer_profile_revision`、`qualification_receipt_hashes`、`query_hash`を返し、ViewFamilyへ解決した結果は`view_family_id`と`source_intent_revision`も返す。bounded collection、revision、互換性、typed Diagnosticの規則も同じtransactionで登録する。
 
-`AntiAliasingIntentV1`の`mode_policy`は`auto | fixed`、`preferred_method`は`none | fxaa | smaa_1x | msaa | mirakan_taa_v1 | mirakan_taau_v1 | qualified_provider`、`msaa_samples`は`auto | 2 | 4 | 8`のclosed enum／unionとする。`msaa`以外で2／4／8を指定した入力を拒否し、`qualified_provider`はCatalogのexact Provider IDを必須にする。`none`は明示User指定、bit-exact diagnostic、AA対象外layerだけに許可し、AIの性能最適化候補にしない。Provider／MCPへ投影するのは上記五Operationだけであり、`ResolvedAntiAliasingPlanV1` write、arbitrary Render Graph write、Provider install／activate、Settings Apply、Source Promotion、Project CommitをTool listへ含めない。
+`AntiAliasingIntentV1`のclosed enum／tagged union規則はOperation Activationと独立したDomain契約として維持する。将来のProvider／MCP投影を採用する場合も候補五件以外を混ぜず、`ResolvedAntiAliasingPlanV1` write、arbitrary Render Graph write、Provider install／activate、Settings Apply、Source Promotion、Project CommitをTool listへ含めない。
 
-Lighting DiscoveryはLighting規約の意味Role、物理単位、Target／Budget制約を次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.lighting.*`を生成する。
+Lighting DiscoveryはLighting規約の意味Role、物理単位、Target／Budget制約について次の九IDをplanning candidateとして予約する。current MCP aliasをmaterializeしない。
 
-| MCD Operation | Risk／kind | 結果 |
+| reserved candidate ID | 予定Risk／kind | 予定意味 |
 |---|---|---|
 | `operation.lighting.search` | R0 query | Light／Profile／role／Target／maturityを検索 |
 | `operation.lighting.read` | R0 query | field mask付きSource／Intent／Profile／Planを取得 |
@@ -625,11 +2213,11 @@ Lighting DiscoveryはLighting規約の意味Role、物理単位、Target／Budge
 | `operation.lighting.estimate_cost` | R0 query | Target別CPU／GPU／Memory予測とconfidenceを取得 |
 | `operation.lighting.validate_change` | R0 query／job | Schema／semantic／Capability／Budget／lockを検証 |
 
-Lighting結果は`project_revision`、`contract_set_hash`、`lighting_catalog_hash`、`target_capability_hash`、`query_hash`を必須とする。Plan／Previewは`source_intent_revision`、`resolved_plan_hash`、`profile_revision`、`qualification_receipt_hashes`も返す。LightのCommit、native GPU resource／cluster buffer書込み、Shadow Technique Source追加、Provider activation、Project HLSL変更をLighting Tool listへ含めない。Qualification済みShadow Techniqueの検索／参照は許可し、新規TechniqueはProject Shader Operationへ明示的にhandoffする。
+activation後に九件を採用する場合、結果は`project_revision`、`contract_set_hash`、`lighting_catalog_hash`、`target_capability_hash`、`query_hash`を必須とし、Plan／Previewは追加closure hashを返す。LightのCommit、native GPU resource／cluster buffer書込み、Shadow Technique Source追加、Provider activation、Project HLSL変更をTool listへ含めない。新規TechniqueへのhandoffもProject Shader familyが別途activateされた場合だけ可能である。
 
-Post Process DiscoveryはPost Process規約のIntent、Profile、Node Catalog、Volume、AA／Layer互換を次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.post_process.*`を生成する。
+Post Process DiscoveryはIntent、Profile、Node Catalog、Volume、AA／Layer互換について次の九IDをplanning candidateとして予約する。current MCP aliasをmaterializeしない。
 
-| MCD Operation | Risk／kind | 結果 |
+| reserved candidate ID | 予定Risk／kind | 予定意味 |
 |---|---|---|
 | `operation.post_process.search` | R0 query | Profile／Volume／Node／Target／maturityを検索 |
 | `operation.post_process.read` | R0 query | field mask付きIntent／Profile／Volume／Planを取得 |
@@ -641,15 +2229,15 @@ Post Process DiscoveryはPost Process規約のIntent、Profile、Node Catalog、
 | `operation.post_process.estimate_cost` | R0 query | Target別CPU／GPU／Memory予測とconfidenceを取得 |
 | `operation.post_process.validate_change` | R0 query／job | Schema／stage／AA／Layer／Capability／Budgetを検証 |
 
-Post Process結果は`project_revision`、`contract_set_hash`、`post_node_catalog_hash`、`target_capability_hash`、`anti_aliasing_plan_hash`、`query_hash`を必須とする。Plan／Previewは`resolved_plan_hash`、`profile_revision`、`volume_set_hash`、参照するProject Shader Technique／Understanding Closure hash、`qualification_receipt_hashes`も返す。raw Render pass、native resource、history weight、Node stage並替え、Provider activation、Project Shader Source／Technique mutation、Source Promotion、Project CommitはPost Process Tool listへ含めない。Qualification済みProject TechniqueのCatalog参照だけを許可し、新規TechniqueはProject Shader Operationへ明示的にhandoffする。
+activation後に九件を採用する場合、結果は`project_revision`、`contract_set_hash`、`post_node_catalog_hash`、`target_capability_hash`、`anti_aliasing_plan_hash`、`query_hash`を必須とし、Plan／Previewは追加closure hashを返す。raw Render pass、native resource、history weight、Node stage並替え、Provider activation、Project Shader Source／Technique mutation、Source Promotion、Project CommitはTool listへ含めない。Project Shaderへのhandoffは同familyのActivationを前提とする。
 
-Lighting／Post ProcessのSearchは既定50件、最大200件、continuation付きとし、Read／Inspectはfield maskとbounded scopeを必須にする。どちらの`plan_change`も`expected_project_revision`と`idempotency_key`を必須にし、Provider OutputはInternal C++ validatorで完全再検証する。
+Lighting／Post Process familyを将来activateする場合、Searchは既定50件、最大200件、continuation付き、Read／Inspectはfield maskとbounded scope、`plan_change`は`expected_project_revision`と`idempotency_key`を必須にし、Provider OutputをInternal validatorで完全再検証する。
 
-## 21. Project Shader Discovery／Proposal
+## 21. Project Shader Discovery／Proposal候補のplanning record（未Activation）
 
-Project Shaderは[Project Shader](../06-rendering/project-shader.md)の`PublicShaderSdkCatalogV1`、Module、Technique、Fact、Understanding Closureを次のbounded MCD Operationへ投影する。MCP aliasは同じInput／Output Schemaから`mirakan.shaders.*`を生成する。
+Project Shaderは[Project Shader](../06-rendering/project-shader.md)の`PublicShaderSdkCatalogV1`、Module、Technique、Fact、Understanding Closureについて次の16 IDをplanning candidateとして予約する。current MCP aliasをmaterializeしない。
 
-| MCD Operation | Risk／kind | 結果 |
+| reserved candidate ID | 予定Risk／kind | 予定意味 |
 |---|---|---|
 | `operation.shader.search` | R0 query | Project／public SDK origin、semantic role、module kind、Stage、Technique Port、Target、Capability、qualificationからStable ID候補を検索 |
 | `operation.shader.read_module` | R0 query | exact Module manifest、Source file index／bounded excerpt、public export、typed value／resource interface、Target、fallbackを取得 |
@@ -668,46 +2256,302 @@ Project Shaderは[Project Shader](../06-rendering/project-shader.md)の`PublicSh
 | `operation.shader.propose_module` | R3 source proposal | expected revisionに対するModule Source／contract ChangeSetをStagingへ生成 |
 | `operation.shader.propose_technique` | R3 source proposal | expected revisionに対するTechnique／Module Source ChangeSetをStagingへ生成 |
 
-全結果は`project_revision`、`contract_set_hash`、`bounded_project_shader_profile_hash`、`source_tree_hash`、`query_hash`を必須とする。Factを返すOperationは`fact_graph_hashes[]`、Target結果は`target_profile_hashes[]`と`artifact_set_hashes[]`、Preview／Validate／Proposalは`shader_understanding_closure_hash?`と`verification_receipt_hashes[]`を返す。Closure未生成を空hashで表さず、statusを`not_run | stale | failed | passed`として返す。
+activation work itemが16件を採用する場合、全結果は`project_revision`、`contract_set_hash`、`bounded_project_shader_profile_hash`、`source_tree_hash`、`query_hash`を必須とし、Fact／Target／Preview／Validate／Proposalごとのclosure hashをnamed Resultへ閉じる。Closure未生成を空hashで表さず、statusを`not_run | stale | failed | passed`として返す。
 
-Searchは既定50件、最大200件、continuation付き、Read／Inspect／Explainはfield mask、Stable ID、Target／variant scope、最大node／edge／source byteを必須にする。上限超過時は`omitted_ranges`と`continuation_cursor`を返し、GraphまたはSourceを途中で正常完了扱いしない。
+activation後のSearchは既定50件、最大200件、continuation付き、Read／Inspect／Explainはfield mask、Stable ID、Target／variant scope、最大node／edge／source byteを必須にする。上限超過時は`omitted_ranges`と`continuation_cursor`を返し、GraphまたはSourceを途中で正常完了扱いしない。
 
-Plan／Proposeは`expected_project_revision`、`idempotency_key`、Profile hash、対象Module／Technique Stable ID、Target集合、Requirement、Budget、fixture、fallback、Riskを必須にする。ProposeはSource ChangeSetを作るだけで、compiler command、Project／Engine filesystem直接write、artifact publish、Commit、Activation、Approval、Policy変更を行わない。native handle、descriptor、barrier、queue signal、Compiler option、Engine private include、Manifest外Pass／ResourceをInput／Output Schemaへ投影しない。
+activation後のPlan／Proposeは`expected_project_revision`、`idempotency_key`、Profile hash、対象Module／Technique Stable ID、Target集合、Requirement、Budget、fixture、fallback、Riskを必須にする。ProposeはSource ChangeSetだけに限定し、compiler command、Project／Engine filesystem直接write、artifact publish、Commit、Activation、Approval、Policy変更を行わない。現在はPlan／Proposeを含む16件すべてを拒否する。
+
+### 21.1 既存Domain文書から回収した未登録Operation候補
+
+次の十表92件は、既存Domain文書が過去にcurrent／canonical／registeredとして記述していたname-only surfaceを、§20の`PlannedOperationFamilyV1`へ回収したclosed candidate集合である。各表は上のledger後半十行と同じ順で対応する。これらは予約語彙であってMCD Operationではなく、全current集合とalias集合は明示`[]`、Capability stateは`not_activated`である。要求はGateway dispatch前に`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Source、Project、Registry、Taskを変更しない。
+
+Math semantic authoringは次の六IDだけを予約する。Math文書にある`operation.camera.set_profile_projection`はCamera ownerの次表に属する同一候補への参照であり、Math familyへ複製しない。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.transform.set_world_position` | semantic positionの変更Proposal |
+| `operation.transform.set_local_rotation` | semantic local rotationの変更Proposal |
+| `operation.transform.set_local_scale` | semantic positive scaleの変更Proposal |
+| `operation.physics.set_velocity` | Physics ownerへ渡すsemantic velocity変更Proposal |
+| `operation.asset.set_pixels_per_unit` | Asset ownerへ渡すpixel density変更Proposal |
+| `operation.ui.set_rect` | UI ownerへ渡すsemantic rectangle変更Proposal |
+
+Camera authoringは次の11 IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.camera.resolve_intent` | Camera intentのread-only解決 |
+| `operation.camera.create_profile` | Camera Profile作成Proposal |
+| `operation.camera.set_profile_projection` | Projection semantic変更Proposal |
+| `operation.camera.create_rig` | Rig作成Proposal |
+| `operation.camera.add_rig_node` | typed Rig Node追加Proposal |
+| `operation.camera.connect_rig_nodes` | typed Port接続Proposal |
+| `operation.camera.set_director_rule` | Director rule変更Proposal |
+| `operation.camera.set_presentation_profile` | Presentation Profile変更Proposal |
+| `operation.camera.create_sequence` | Cinematic Sequence作成Proposal |
+| `operation.camera.preview_candidate` | Staging candidateのPreview |
+| `operation.camera.analyze_composition` | compositionのread-only解析 |
+
+Material authoringは次の15 IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.material.search` | Material Catalog検索 |
+| `operation.material.read` | bounded Material読取 |
+| `operation.material.inspect` | Material closure検査 |
+| `operation.material.preview` | Staging Material Preview |
+| `operation.material.explain` | semantic resolution説明 |
+| `operation.material.estimate` | Target別cost見積り |
+| `operation.material.validate` | Material closure検証 |
+| `operation.material.plan` | read-only変更Plan |
+| `operation.material.create_instance` | Instance作成Proposal |
+| `operation.material.assign_template` | Template割当Proposal |
+| `operation.material.set_parameters` | typed parameter変更Proposal |
+| `operation.material.create_definition` | Definition作成Proposal |
+| `operation.material.edit_graph` | typed Graph変更Proposal |
+| `operation.material.create_derived_style` | 派生Style作成Proposal |
+| `operation.material.bind_surface_semantics` | Surface semantic binding Proposal |
+
+VFX authoringは次の24 IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.vfx.inspect_system` | VFX System検査 |
+| `operation.vfx.inspect_semantic_catalog` | semantic Catalog検査 |
+| `operation.vfx.validate_changeset` | ChangeSet構造検証 |
+| `operation.vfx.validate_semantic_preservation` | Cue semantic保存検証 |
+| `operation.vfx.preview_changeset` | Staging Preview |
+| `operation.vfx.resolve_effect_intent` | Effect intentのread-only解決 |
+| `operation.vfx.set_effect_intent` | Effect intent変更Proposal |
+| `operation.vfx.apply_pattern` | Pattern適用Proposal |
+| `operation.vfx.create_system` | System作成Proposal |
+| `operation.vfx.create_emitter` | Emitter作成Proposal |
+| `operation.vfx.update_emitter` | Emitter更新Proposal |
+| `operation.vfx.delete_emitter` | Emitter削除Proposal |
+| `operation.vfx.add_node` | typed Node追加Proposal |
+| `operation.vfx.update_node` | typed Node更新Proposal |
+| `operation.vfx.delete_node` | typed Node削除Proposal |
+| `operation.vfx.connect_nodes` | typed Port接続Proposal |
+| `operation.vfx.disconnect_nodes` | typed Port切断Proposal |
+| `operation.vfx.set_curve` | bounded Curve変更Proposal |
+| `operation.vfx.set_gradient` | bounded Gradient変更Proposal |
+| `operation.vfx.set_output` | Output変更Proposal |
+| `operation.vfx.generate_fallback` | explicit fallback生成Proposal |
+| `operation.vfx.capture_bounds` | bounded bounds capture |
+| `operation.vfx.run_qualification` | Qualification実行Proposal |
+| `operation.vfx.propose_extension_operator` | Extension operator Source Proposal |
+
+Environment authoringは次の24 IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.environment.inspect_profile` | Environment Profile検査 |
+| `operation.environment.list_presets` | bounded Preset列挙 |
+| `operation.environment.resolve_intent` | Environment intentのread-only解決 |
+| `operation.environment.validate_changeset` | ChangeSet検証 |
+| `operation.environment.preview_changeset` | Staging Preview |
+| `operation.environment.estimate_cost` | Target別cost見積り |
+| `operation.environment.create_profile` | Profile作成Proposal |
+| `operation.environment.apply_preset` | Preset適用Proposal |
+| `operation.environment.set_intent` | Intent変更Proposal |
+| `operation.environment.set_sky` | Sky変更Proposal |
+| `operation.environment.set_sun_moon_link` | Sun／Moon relation変更Proposal |
+| `operation.environment.set_height_distance_fog` | Height／distance fog変更Proposal |
+| `operation.environment.set_volumetric_fog` | Volumetric fog変更Proposal |
+| `operation.environment.create_local_fog_volume` | Local Fog Volume作成Proposal |
+| `operation.environment.update_local_fog_volume` | Local Fog Volume更新Proposal |
+| `operation.environment.delete_local_fog_volume` | Local Fog Volume削除Proposal |
+| `operation.environment.set_atmosphere_preset` | Atmosphere Preset変更Proposal |
+| `operation.environment.set_custom_atmosphere` | Custom Atmosphere変更Proposal |
+| `operation.environment.set_cloud_layer` | Cloud Layer変更Proposal |
+| `operation.environment.set_lighting` | Environment lighting変更Proposal |
+| `operation.environment.bind_weather` | Weather binding Proposal |
+| `operation.environment.generate_fallback` | explicit fallback生成Proposal |
+| `operation.environment.bake` | offline bake Proposal |
+| `operation.environment.run_qualification` | Qualification実行Proposal |
+
+LOD authoringは次の二IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.lod.propose_policy` | read-only Policy Proposal |
+| `operation.lod.apply_policy` | 承認済みPolicy ChangeSet Proposal |
+
+Input selectionは次の一IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.input.semantic_action_binding.select` | Semantic Action Binding Selection作成／更新Proposal |
+
+Navigation selectionは次の一IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.navigation.motion_intent_binding.select` | Motion Intent Binding Selection作成／更新Proposal |
+
+Physics role selectionは次の一IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.physics.intent_role.select` | Physics Intent Role Selection作成／更新Proposal |
+
+Feature authoringは次の七IDだけを予約する。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.feature.create_definition` | Feature Definition作成Proposal |
+| `operation.feature.update_definition` | Feature Definition更新Proposal |
+| `operation.feature.configure_system` | Feature System設定Proposal |
+| `operation.feature.bind_runtime_port` | Runtime Port binding Proposal |
+| `operation.feature.preview_change` | Feature変更Preview |
+| `operation.feature.explain_contract` | Feature Contract説明 |
+| `operation.feature.validate_contract` | Feature Contract検証 |
+
+AI制作E2Eで`ProjectChangeSetV1`を外側のMCD Operationへ運ぶcarrierは次の四IDだけを予約する。`operation.authoring.apply_changeset`は§21.2の説明例／rejected classのまま維持し、alias、旧名、fallbackとして再利用しない。`commit`はActivation後も`trusted_internal`だけが人間Approvalを再検証して実行し、Provider／MCP／外部CLI Tool projectionをexact `[]`にする。
+
+| reserved candidate ID | 予定Authority／意味 |
+|---|---|
+| `operation.authoring.changeset.propose` | R1 proposal。bounded primitiveからimmutable `ProjectChangeSetArtifactRefV1`とProposal結果を生成しProjectを変更しない |
+| `operation.authoring.changeset.validate` | R0 validation。base revision、Scope、primitive reachability、schema／semantic boundを検証してsigned Validation Receipt候補を返す |
+| `operation.authoring.changeset.preview` | R0 preview。canonical ChangeSet hashへ閉じたDiff／impact／invalidated consumerとPreview Receipt候補を返す |
+| `operation.authoring.changeset.commit` | trusted-internal R3 commit。fresh Approval、Validation／Preview、same ChangeSet／Candidateを再検証し既存atomic Project publication algorithmだけを呼ぶ |
+
+Project C++ Sourceの外部Client向けquery／proposal surfaceは次の五IDだけを予約する。Source Worker出力は直接Project Sourceへ書かず、Broker再計算Diffを持つ`NativeModulePatchProposalV1`候補までに限定する。
+
+| reserved candidate ID | 予定Authority／意味 |
+|---|---|
+| `operation.native_module.search` | R0 query。Module、public SDK surface、Contract、Target、qualificationからbounded候補を返す |
+| `operation.native_module.read` | R0 query。許可されたModule／path ScopeのSourceBundle ref、hash、omission、continuationを返す |
+| `operation.native_module.inspect_contract` | R0 query。public SDK／ABI／Toolchain／Target互換性と禁止dependencyを説明する |
+| `operation.native_module.plan` | R1 proposal。typed Source Task、path Scope、test plan、Code Owner assignment requirementを生成する |
+| `operation.native_module.propose_patch` | R1 proposal。isolated Worker結果をBroker再検算し、before／after tree hashとtyped Deltaを持つPatch Proposalを返す |
+
+Source revisionのPromotionは次の一IDだけを予約する。Activation後もProvider／MCP／standard external clientへ投影せず、独立Review、Code Owner Approval、Build／Test ReceiptをGatewayが再検証する`trusted_internal` Operationとする。
+
+| reserved candidate ID | 予定Authority／意味 |
+|---|---|
+| `operation.project_source.promote_revision` | trusted-internal R3。approved Native／Shader source candidateをimmutable Project Source revisionへ昇格しsigned Promotion Receiptを発行する |
+
+Project CandidateのValidate／Cook／Source build／統合build／Testは次の六IDだけを予約する。既存`build_device_play_debug_task` familyのPackage／Install／Launch／Smoke／Debug／Task 14件へ先行し、全結果をsame Project revision、Candidate root、Target、Toolchainへ閉じる。Packageはこの六familyの必要Receiptを欠く場合に成功できない。
+
+| reserved candidate ID | 予定Authority／意味 |
+|---|---|
+| `operation.build.request_validate` | R2 job request。Project revision／Candidateのschema、reference、policy、target closureを検証する |
+| `operation.build.request_cook` | R2 job request。validated CandidateからTarget-bound Cooked closureを生成する |
+| `operation.build.request_native_module` | R2 job request。selected Native Source revisionをpublic SDK／ABI／Toolchain lockで隔離Build／Testする |
+| `operation.build.request_project_shader` | R2 job request。selected Shader Source revisionをTarget／Renderer／Toolchain lockで隔離Build／Testする |
+| `operation.build.request_game_candidate` | R2 job request。Validate／Cook／必要Source Build Receiptを同一Candidateへ統合する |
+| `operation.test.request_run` | R2 job request。fixture／test plan／Targetをbounded指定しCandidate Test Receipt候補を返す |
+
+この六IDのdestination execution contractは[Core architecture §9.2](core-architecture.md#92-build-candidatetestのtyped-execution-closure)だけが所有する。`activation.build.candidate_test_operations.v1`は六件を部分集合化せず、同節のnamed Input exact六型、`BuildCandidateOperationTaskV1`、`OperationReceiptEnvelopeV1` mapping exact六行、success／failure／cancel payload exact六型、完成Receipt alias／exact purpose、`build_gateway | candidate_test_service` allowlist、Operation別Signer Role／singleton-purpose Key、Project revision／Candidate／Target／Toolchain／Source closure、idempotency／cancel fixture、Validate→Cook／Source Build→Game Candidate→Test→Packageのset-equality fixtureを一つのContract set transactionへ含める。Operation Registry、Owner Manifest、Service allowlist、Signer Policy、Input Type、Receipt Type、Validator closure、Diagnostic reachable setの各Operation ID集合はこの六IDとset equalityでなければならない。`build_device_play_debug_task`の14件は別familyとして保持し、Package purpose、Task ControlのActivation、同じexecution Authorityを六件のmaterialization根拠にしない。current familyは`not_activated`で全投影集合exact `[]`、Provider／MCP／CLI／Editor aliasもexact `[]`であり、Schema名、Receipt名、後段参照からdispatchしない。
+
+GameplayDefinitionのauthoring surfaceは次の六IDだけを予約する。外部Clientは検索、計画、Proposal、Validation、Previewまでで、Project変更は上記ChangeSet carrierだけを通す。
+
+| reserved candidate ID | 予定Authority／意味 |
+|---|---|
+| `operation.gameplay_definition.search` | R0 query。kind、Capability、owner layer、tag、Targetからbounded Definition候補を返す |
+| `operation.gameplay_definition.read` | R0 query。exact revision／hash、field mask、dependency、omissionを返す |
+| `operation.gameplay_definition.plan` | R1 proposal。typed Definition delta、質問、assumption、validation planを生成する |
+| `operation.gameplay_definition.propose` | R1 proposal。bounded Definition primitiveをChangeSet候補へ追加する |
+| `operation.gameplay_definition.validate` | R0 validation。schema、owner、Port、state writer、Target互換性を検証する |
+| `operation.gameplay_definition.preview` | R0 preview。Definition diff、System Graph impact、Save／Replay／Cook invalidationを返す |
+
+Asset authoring surfaceは次の十IDだけを予約する。Importer実行結果、Derived Asset、Registry、Source publicationを直接変更せず、Project ChangeSetとAsset Ownerのatomic publicationへ渡すProposal／Validationだけを作る。
+
+| reserved candidate ID | 予定Authority／意味 |
+|---|---|
+| `operation.asset.search` | R0 query。role、kind、tag、license、Target、qualificationからbounded Asset候補を返す |
+| `operation.asset.read` | R0 query。Source／Derived identity、revision、dependency、field mask、omissionを返す |
+| `operation.asset.analyze_source` | R0 analysis。format、semantic role、license、security、import capabilityを副作用なしで解析する |
+| `operation.asset.plan_import` | R1 proposal。Importer、Profile、Target、validation、fallbackをtyped planへ閉じる |
+| `operation.asset.propose_import_settings` | R1 proposal。Importer-owned closed settings deltaを生成する |
+| `operation.asset.preview_import` | R0 preview。staging import、Diff、diagnostic、budget impactを返しpublishしない |
+| `operation.asset.propose_reimport` | R1 proposal。source／profile driftをexact revisionへ束縛した再import候補を作る |
+| `operation.asset.resolve_reimport_conflict` | R1 proposal。closed conflict choicesとEvidenceを返し推測mergeしない |
+| `operation.asset.plan_bulk_migration` | R1 proposal。bounded item集合、batch、rollback、failure policyを作る |
+| `operation.asset.validate_import` | R0 validation。Source、Importer、Derived、license、Target、budget、dependency closureを検証する |
+
+既存92件と追加32件についてもfamily単位のatomic activationだけを許可する。Math文書からCamera候補への一回のcross-owner参照を除き、191件全体の候補IDは重複なしである。`67 + 6 + 11 + 15 + 24 + 24 + 2 + 1 + 1 + 1 + 7 + 4 + 5 + 1 + 6 + 6 + 10 = 191`、planning family数は`8 + 10 + 6 = 24`であり、count、ID union、全empty current集合、work itemをcompiler fixtureでexact比較する。
+
+### 21.2 Architecture内`operation.*` tokenのclosed partition
+
+Contract lintは`docs/architecture/**/*.md`からまず完全なStable ID tokenを切り出し、complete tokenのkind prefixがexact `operation`であるものだけをOperation IDとして分類する。`policy.operation.*`、`validator.operation.*`、`validator_closure.operation.*`、`diagnostic.operation.*`、`type.operation.*`の内部substringは、それぞれ別kindの完全IDであってOperation IDではない。`operations/<id>.mirakan.json`というFile例はpathとsuffixを除いた`<id>`を分類する。`operation.lod.*`、`operation.feature.*`、`operation.packs.*`、`operation.shooter.*`のようなwildcard／不完全prefixはStable IDではなく、MCD ref、alias、dispatch keyとして必ず拒否する。
+
+current architectureで完全なOperation IDとして現れるtokenは、次の互いに素な四classのexact一つへ分類する。
+
+| class | exact集合／件数 | materialization |
+|---|---|---|
+| `active_complete` | §8.1／§8.2の10件 | 完全なcurrent MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt closureだけ |
+| `reserved_not_activated` | §§20～21.1の24 family、191件 | `PlannedOperationFamilyV1`だけ。全current集合／alias集合`[]` |
+| `conditional_legacy_migration` | §8.1.2の4件 | destination設計templateだけ。全current投影集合`[]`、signed legacy inventory成立後に限りatomic activation |
+| `example_pending_or_rejected` | 下表の11件 | current／planning／alias集合すべて`[]`。dispatch拒否 |
+
+`conditional_legacy_migration`のexact集合は`operation.project.runtime_entry.migrate_root_scene`、`operation.runtime_scope.migrate_game_system`、`operation.performance.migrate_project_scale_envelope`、`operation.physics.intent_role.migrate`であり、すべてversion 1候補である。versionをID文字列へ埋めた`operation.performance.migrate_project_scale_envelope_v1_to_v2`は別IDであり、下表のrejected classに留める。
+
+| exact non-current ID | reason |
+|---|---|
+| `operation.authoring.apply_changeset` | MCD filename／ID grammarの説明例だけ |
+| `operation.build.package.validate` | Naming grammarの説明例だけ |
+| `operation.asset.source.plan_import` | Namingのcorrect-direction例だけ |
+| `operation.asset.do` | 明示invalid naming例 |
+| `operation.debug.propose` | Debug findingからのgeneric proposalとして明示禁止 |
+| `operation.performance.migrate_project_scale_envelope_v1_to_v2` | 一度もactivateされていないversion埋込み旧綴り |
+| `operation.runtime_ecs.search` | ユーザー確認待ちADRの提案語彙 |
+| `operation.runtime_ecs.describe_contract` | ユーザー確認待ちADRの提案語彙 |
+| `operation.runtime_ecs.inspect_capture` | ユーザー確認待ちADRの提案語彙 |
+| `operation.runtime_ecs.explain_access` | ユーザー確認待ちADRの提案語彙 |
+| `operation.runtime_ecs.explain_failure` | ユーザー確認待ちADRの提案語彙 |
+
+lintは完全ID token集合について`active_complete ∪ reserved_not_activated ∪ conditional_legacy_migration ∪ example_pending_or_rejected`とのset equality、四classのpairwise intersectionが空、current時点の未分類件数exact 0を検査する。説明上のaction名、C++関数、future tokenをOperationへ推測昇格しない。新しい完全`operation.*` tokenを文書へ追加する変更は、同じ変更で完全Activation closure、Field省略なしのplanning family record、または§8.1.2と同等のlegacy evidence gateを持つconditional recordのexact一つへ追加しなければ失敗する。
+
+さらにprose claim lintは全architecture文書の`registered Operation`、`current Operation`、`public Operation`、`Operationを使う／公開する／登録する`に相当する現在形を検査する。MCDを意味するclaimはexact完全ID、version、`active_complete` membershipを必須とし、family名、action名、PascalCase variantだけのclaimを拒否する。ChangeSet内mutationはexact `ProjectChangePrimitiveV1`等の`*Primitive*`／`*JobKind*` discriminator、未登録Domain語彙は`planned semantic action vocabulary`＋current全投影集合`[]`＋`not_activated`＋future atomic work itemを必須にしてMCD Operation claimから除外する。説明対象が将来Activation後の挙動なら`Activation後`を明記する。これら三形のどれにも分類できない現在形Operation claimの許容件数はexact 0である。
 
 ## 22. Contract compilerのDefinition of Done
 
 - 全MCD kindのmeta-schemaと最低1件のvalid／invalid fixtureがある。
 - `game_system` kindからCatalog、Dependency Graph、State owner table、C++／TypeScript binding、conformance testを決定論的に生成する。
 - Project-defined SystemがEngine Standardと同じContract validationを通り、固定WhitelistなしでCatalogへ登録できる。
-- Project Shader Operationが同じModule／Technique／Fact／Context／Understanding SchemaからC++、TypeScript、MCP bindingを生成し、R0／R1／R3と禁止Fieldを混同しない。
+- Project Shader planning familyをactivateするwork itemは、同じModule／Technique／Fact／Context／Understanding SchemaからC++、TypeScript、MCP bindingを生成し、R0／R1／R3と禁止Fieldを混同しないことを同じtransactionで検証する。Activation前はbinding集合を空に保つ。
 - authoritative State owner欠落／重複、System dependency cycle、Presentation逆writeをinvalid fixtureで拒否する。
-- `RemediationV1`のapplicable code、typed Operation template、Risk、Approval、禁止Category、適用上限を生成・検証できる。
+- `RemediationV1`のapplicable code、§21.2へ分類済みexact MCD Operation ref付きtemplate、Risk、Approval、禁止Category、適用上限を生成・検証できる。
 - Duplicate key、unknown field、unbounded collection、untagged unionを拒否する。
 - 同一Inputから二回生成したTree hashが一致する。
 - C++／TypeScript／Cooked binary／MCP／OpenAI／Anthropic projectionが一つのMCDから生成される。
 - Providerで表現できないConstraintがManifestから欠落しない。
 - Provider Outputが必ずInternal validatorで再検証される。
 - 全Operation errorが列挙され、string-only errorを持たない。
-- `ai_mutable` Authoring fieldのtyped Operation coverageが100%で、未到達fieldを持つCapabilityのProvider projectionを拒否する。
-- `AuthoringSelectionContextV1`と`WorldAuthoringContextV1`がC++／TypeScript／JSON Schema／MCPへ同じfield ID、bound、Source／Derived区分で生成される。
-- World Discovery六Operationがexact revision／hash、omitted range、continuation、typed Diagnosticを返し、screen coordinate、表示row、Hierarchy pathだけのtarget指定を拒否する。
-- Scene永続化owner、Level membership、Cell assignmentを別constraintとして生成し、`MoveEntityToScene`、`SetLevelSourceScenes`、Derived Cell writeを相互代替できないinvalid fixtureを持つ。
-- World Capabilityの必須ExampleがProvider projectionとInternal validatorで同じdisposition、Operation ID、Diagnostic code、非変更invariantへ収束する。
+- 全active OperationについてOwner Manifest Operation集合、MCD Operation集合、Trusted Service allowlist owner contribution、Policy ref、Validator closure、Diagnostic reachable union、Receipt Type、Provider projection集合をそれぞれlike-for-likeで比較し、完全登録済みか明示`not_activated`の厳密に一方である。name-only、partial row、prefix展開を拒否する。
+- `GenericCoreOperationBaselineV1`がProject State Origin exact一件／bootstrap exact六entry、`InstalledProductOperationCompositionV1`がProject State／World／Shooter exact三Origin／active exact十entryを持ち、各entryのOperation、Owner、`production_owner_layer`、`composition_role`、`contribution_origin_ref`をOwner Manifest／Owner Registry／MCD／Service allowlistへset equalityにする。Shooter Origin exact三entryを除くmigration fixtureでInstalled Product側のversion／hashだけが変わり、Generic Core baseline ref／bytes／hashが不変であることを検証する。
+- `MIRAKAN_OPERATION_INTENT_V2` payloadからTask Authorization scope coverageおよびintent-bound Approval Set／Predelegation Useへのedge、両証拠とClosure-bound `OperationRequestAlgorithmBindingV1`からnamed `MutationAuthorizationBindingV2`へのedge、binding確定後の`MIRAKAN_OPERATION_REQUEST_V2`へのedgeが一方向である。Approval Set／Predelegation Useからfinal request hashへのedge、個別ApprovalのBinding利用、ambient Algorithm／encoding profile lookup、裸refが0件である。
+- Task Authorization Envelope、Operation Algorithm binding、current Control Plane Baseline bindingのFoundation Closure refがbyte equalityであり、同じContract Set rootを持つretained Closure、別Owner root、別Algorithm root、stale Product headを一原因ずつ注入したfixtureがdispatch前に失敗する。
+- R2 Predelegation Grantの初期Consumption Head、Use wrapper、次Headを一方向chainへし、各Useのtyped scope／件数／byteがimmutable CandidateのProject Change Primitive projectionと一致する。二つの並行Useが同じprevious Headから上限内を各々主張してもCAS成功は一件だけで、累積上限超過、overflow、stale Head、未committed Use、Use再利用をfixtureで拒否する。
+- `ContractSetSnapshotV2.members[]`はMCD、Diagnostic、Trusted Service、Validator、Operation Validator Closureの全normative local memberとset equalityであり、各kindの一member byteを変えるmutation fixtureでset rootが必ず変わる。全cross-member edgeはlocal refだけで解決し、root確定前のexternal refを拒否する。
+- Foundation Closure verifierは全active MCD `owners[]`、Owner Manifest contribution、Diagnostic／Runtime Scope／Game Systemのtyped Owner refをClosure内Owner Registryのreachable selected-active row subsetへ解決してset equalityにする。Registry lifecycle上のunreferenced active／deprecated／removed rowをcurrent参照集合へ水増しせず、missing／deprecated／removed／stale revision／wrong layer／wrong authority sourceを各一原因で拒否する。
+- 全state-changing Operationは`private durable commit marker read-back -> secret-free PublicCommitClosureV1 candidate -> MirakanSignedRecordV1 wrapper -> PublicCommitClosureV1＋PublicPublicationMarkerV1＋public stateのatomic CAS`の順だけを持つ。Project ChangeSet branchの`project_change_set_ref`／`candidate_root_sha256`欠落、Source primitive 0件時のbranch省略、semantic／完成object hash混同、Closureなし／署名済みwrapperなしのpublic current head、inline Domain signature、別Receipt／Closure substitution、二重publication、public後rollbackをcrash-window fixtureで拒否する。
+- `ai_mutable` Authoring fieldの外側MCD Operation→typed `ProjectChangePrimitiveV1` coverageが100%で、未到達fieldを持つCapabilityのProvider projectionを拒否する。
+- Authoring／World planning familyのatomic activation work itemは、`AuthoringSelectionContextV1`と`WorldAuthoringContextV1`をC++／TypeScript／JSON Schema／MCPへ同じfield ID、bound、Source／Derived区分で生成する。Activation前は両Contextのcurrent Provider／MCP projectionを生成しない。
+- World planning familyのatomic activation work itemは、予約候補六Operationがexact revision／hash、omitted range、continuation、typed Diagnosticを返し、screen coordinate、表示row、Hierarchy pathだけのtarget指定を拒否するfixtureを同じtransactionで通す。Activation前は六Operation、Provider／MCP projection、alias集合を空に保つ。
+- Scene永続化owner、World composition membership、Space／Topology relation、Derived Cell assignmentを別constraintとして生成し、`MoveEntityToScene`、`UpdateWorldComposition`、Derived Cell writeを相互代替できないinvalid fixtureを持つ。
+- World planning familyのatomic activation work itemは、World Capabilityの必須ExampleをProvider projectionとInternal validatorで同じdisposition、Operation ID、Diagnostic code、非変更invariantへ収束させる。Activation前はこのExampleをcurrent Operation成功例として公開しない。
 - 全State machineにinvalid transition testがある。
 - Cross-language round-tripとboundary fixtureが通る。
 - Generated fileの直接編集をCIが検出する。
 - Contract lock、Toolchain lock、Generated output hashがVerification Receiptへ記録される。
 - `BuildDriverProfileV1`のvalid／invalid fixtureがあり、Makefiles、Android Multi-Config、Generator override、Driver／Target不一致を拒否する。
 - Migrationなしの破壊的永続Schema変更をCIが拒否する。
-- `authoring.search`／`read`／`dependencies`／`diff`がrevision、field mask、省略範囲、continuationを保持し、stale Indexと曖昧targetを拒否する。
-- `systems.*`と`worlds.*`がContract／Project revision、Target、maturity、bounded resultを保持し、Activation／Commit authorityをProviderへ投影しない。
+- Authoring planning familyのactivation fixtureは`search`／`read`／`dependencies`／`diff`がrevision、field mask、省略範囲、continuationを保持し、stale Indexと曖昧targetを拒否することを検証する。Activation前のcurrent集合は空である。
+- Game System／World planning familyのactivation fixtureはContract／Project revision、Target、maturity、bounded resultを保持し、Activation／Commit authorityをProviderへ投影しないことを検証する。Activation前のcurrent集合は空である。
 - LODの全closed enum、Domain別tagged union、enter／exit threshold、fallback、Operation errorにvalid／invalid fixtureがあり、presentation LODからauthoritative stateへ逆入力するReferenceをsemantic validatorが拒否する。
 - Anti-aliasのIntent／method／sample／scope／dispositionがclosed enum／tagged unionであり、FXAA／SMAA／MSAA／Mirakan TAA／TAAUとQualified Providerの互換Predicate、fallback、history reset、Target Qualificationを同じMCDから生成する。
-- `operation.rendering.aa.*`五OperationのC++／TypeScript／MCP／Provider projection、bounded result、stale revision、ambiguous／unsupported result、valid／invalid fixtureが一致し、Provider activation／Pipeline rebuild／Commit OperationをProviderへ投影しない。
+- Anti-alias planning familyのatomic activation fixtureは候補五件のC++／TypeScript／MCP／Provider projection、bounded result、stale revision、ambiguous／unsupported result、valid／invalid fixtureを一致させ、Provider activation／Pipeline rebuild／Commit OperationをProviderへ投影しない。Activation前の五候補はcurrent projectionを持たない。
 - MSAA×temporal、Hybrid Deferred MSAA、未対応sample count、同一ViewFamilyのsample count混在、pixel-locked layer適用をInternal semantic validatorが同じDiagnostic code familyで拒否する。
-- LightingのSource／Intent／Profile／Plan／Snapshot、物理単位tagged union、`operation.lighting.*`九Operation、bounded result、stale／lock／Target／Budget／overflowのvalid／invalid fixtureを同じMCDから生成する。
-- Post ProcessのIntent／Profile／Camera Override／Volume／Node Catalog／Plan、固定stage、色空間、AA／Layer／history Predicate、`operation.post_process.*`九Operation、bounded resultのvalid／invalid fixtureを同じMCDから生成する。
-- Lighting／Post ProcessのProvider projectionへCommit、native GPU resource、任意Render pass／Shader、history内部値、Capability activationを含めず、Internal validatorが未知fieldと未成熟Capabilityをfail-closedにする。
+- Lighting planning familyのatomic activation fixtureはSource／Intent／Profile／Plan／Snapshot、物理単位tagged union、候補九件、bounded result、stale／lock／Target／Budget／overflowのvalid／invalid fixtureを同じMCDから生成する。Activation前の候補集合は空である。
+- Post Process planning familyのatomic activation fixtureはIntent／Profile／Camera Override／Volume／Node Catalog／Plan、固定stage、色空間、AA／Layer／history Predicate、候補九件、bounded resultのvalid／invalid fixtureを同じMCDから生成する。Activation前の候補集合は空である。
+- Lighting／Post Processをactivateする場合もProvider projectionへCommit、native GPU resource、任意Render pass／Shader、history内部値、Capability activationを含めず、Internal validatorが未知fieldと未成熟Capabilityをfail-closedにする。
+- §§20～21.1のclosed expansion ruleから24 `PlannedOperationFamilyV1`をField省略なしでmaterializeし、ledger／候補表が24対24、候補countが`4+14+4+6+5+9+9+16+6+11+15+24+24+2+1+1+1+7+4+5+1+6+6+10=191`、全current集合とalias集合が明示的な空配列、Capability stateが`not_activated`、family固有activation work itemが一件であることを検査する。191候補の一件でもMCD／Manifest／Service／Provider／MCP current集合へ混入したfixture、empty Fieldを省略して暗黙既定値にしたfixture、§8.1／§8.2のactive 10件をplanning集合へ移したfixtureを拒否する。
+- Architecture内の完全な`operation.*` ID tokenを§21.2の四classへexact partitionし、active 10、reserved 191、conditional legacy migration 4、example／pending／rejected 11、pairwise intersection 0、未分類0を検査する。conditional四件についてcurrent MCD／Manifest／Service／Policy／Validator／migration専用Diagnostic／Receipt／Provider／MCP／alias集合がすべてexact `[]`であることも検査する。current非Operation Diagnostic exact五recordはcandidate集合へ含めない。別kind ID内の`operation.*` substring、不完全prefix、action名をOperation IDとして数えず、逆に完全IDをsubstring扱いで見落とさない。
+- 全architecture proseのcurrent／registered／public Operation claimを§21.2のclaim lintへ通し、active完全ID、内部Primitive／Job kind、または明示`not_activated` planned actionのexact一つへ分類する。未分類の現在形claim、IDのないregistered family、Activation前候補を「使う」とする記述を0件にする。
 
 ## 23. 一次資料と採用根拠
 

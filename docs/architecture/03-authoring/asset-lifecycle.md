@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Asset source／import identity、Import Profile／Plan／IR、Preview／Conversion Report、Reimport／dependency invalidation、Derived／Cooked artifact、Catalog／Content Package assembly／content addressing、Asset promotion、Editor／AI Asset operation、Asset diagnostics／qualification
 - 非正本範囲: Project transaction、共有Schema基盤、外部Tool・SDK・Libraryのversion／hash／license／取得元、Runtime scheduling／lease／capacity、各DomainのRuntime意味。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[World契約](../06-rendering/world.md)
 - 外部根拠検証日: 2026-07-21
 
 AssetをEditorが直接読むSource fileではなく、次の閉じたlifecycleとして扱う。
@@ -30,7 +30,7 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 ### 1.1 Assetの四層
 
 1. **Source Asset**: 人間、DCC、AIが作る原本。Project source tree内の相対pathとbytesを持つ。
-2. **Import Document**: Stable ID、Source解析、意味、Profile、権利、来歴、revisionを持つAuthoring source。
+2. **Import Document**: Stable ID、Source解析、意味、Profile、権利、来歴、revisionを持つAuthoring source。[Project state §3.1](project-state.md#31-正規document)の`AssetMetadataDocument`と同一のDocumentであり、そのcanonical本文schemaが本文書所有の`AssetSourceDescriptor`である。Project stateは役割とID／revision規律を、本文書がfield setを所有する。
 3. **Derived Artifact**: 明示Targetへ決定論的にCookしたimmutable runtime product。
 4. **Catalog／Content Package**: 配布、mount、依存closure、content addressingの単位。
 
@@ -43,6 +43,8 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 | `asset_id` | UUIDv7 `StableId` |
 | `asset_type` | closed Asset Type ID |
 | `asset_revision` | `uint64` |
+| `source_kind` | `domain_pack_reference`、`user_provided`、`external_generated`のclosed enum |
+| `source_origin` | `source_kind`で判別するclosed payload。以下の必須Fieldだけを持つ |
 | `source_relative_path` | Project source root内のcanonical relative path |
 | `source_sha256` | Source file bytesのSHA-256 |
 | `source_media_type` | closed allowlist enum |
@@ -51,8 +53,10 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 | `declared_dependencies` | `AssetDependencyRefV1[0..4096]`。各要素は`AssetId`＋role |
 | `license_record_id` | `StableId`、必須 |
 | `provenance_record_id` | `StableId`、必須 |
-| `safety_receipt_id` | `optional StableId`。外部／AI生成時は必須 |
+| `safety_receipt_id` | `optional StableId`。`external_generated`では必須 |
 | `editor_tags` | `ClosedAssetTagId[0..64]` |
+
+`source_origin`は`domain_pack_reference`で`pack_id`、`pack_version`、`pack_content_sha256`、`reference_asset_id`、`reference_asset_sha256`、`user_provided`で`project_source_record_id`と`ingest_receipt_ref`、`external_generated`で`generation_operation_ref`、`tool_model_lock_ref`、`generation_tool_receipt_ref`を必須とする。別kindのField、自由形式provider名、remote URLを混在させず、kind変更は新`asset_revision`とApprovalを必要とする。
 
 Pathは`/`へ正規化し、absolute path、drive、UNC、`..`、empty segment、NUL、reserved device name、case-fold衝突を拒否する。logical path比較はUnicode NFCとProject canonical keyを使い、同一keyの二つのSourceを許可しない。Source dependencyはBrokerが解決したmanifestへ閉じ、Importerが実行中に任意pathを探索してはならない。
 
@@ -77,18 +81,27 @@ AssetImportJob
 
 `AssetImportJobLimitsV1`はCPU time、wall time、commit memory、output bytes、output file countのpositive hard limitだけを持つ。Job keyは上記tupleのcanonical bytesから作る。Timestamp、machine path、user、worker completion順をcache identityにしない。`import_profile_hash`はflatten済みProfile hash、`importer_version_hash`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のexact lockを参照するhashであり、本文書へ外部versionを複写しない。
 
-```text
-Discovered
-  -> Analyzing
-  -> NeedsProfile | AnalysisRejected
-  -> Planned
-  -> Previewing
-  -> AwaitingApproval | PreviewRejected
-  -> Cooking
-  -> Validating
-  -> ReadyToPromote | CookRejected
-  -> Active
-```
+Job状態はclosed setであり、許可遷移を次表だけに限定する。
+
+| from | to | 条件 |
+|---|---|---|
+| `Discovered` | `Analyzing` | Job実行開始 |
+| `Analyzing` | `Planned` | Analysis成功かつProfile確定済み |
+| `Analyzing` | `NeedsProfile` | Analysis成功だがProfile未確定（`AmbiguousSemanticRole`等） |
+| `Analyzing` | `AnalysisRejected` | Analysis失敗 |
+| `Planned` | `Previewing` | Plan成立、blocking question 0件 |
+| `Previewing` | `AwaitingApproval` | Preview成功かつ`RiskApprovalPolicyV1`がApproval必要と判定 |
+| `Previewing` | `Cooking` | Preview成功かつ`RiskApprovalPolicyV1`がApproval不要と判定。skip判定と根拠をReceiptへ記録 |
+| `Previewing` | `PreviewRejected` | Preview失敗 |
+| `AwaitingApproval` | `Cooking` | Approval取得 |
+| `AwaitingApproval` | `PreviewRejected` | Approval却下 |
+| `Cooking` | `Validating` | Cook出力完了 |
+| `Cooking`／`Validating` | `CookRejected` | Cookまたはvalidation失敗 |
+| `Validating` | `ReadyToPromote` | validation合格 |
+| `ReadyToPromote` | `Active` | [Hot reload／promotion](#7-hot-reloadpromotion)のpromotion boundary成立 |
+| 全非終端state | `Cancelled` | Cancel、timeout、worker crash、stale revision |
+
+`Active`は成功の終端、`NeedsProfile`、`AnalysisRejected`、`PreviewRejected`、`CookRejected`、`Cancelled`は非成功の終端であり、同一Jobで成功pathへ再入しない。再試行はSourceまたはProfile変更のCommitが作る新しいJobとして`Discovered`から始め、Analysis結果の再利用はJob key cacheだけで行う。
 
 Source解析はProjectを変更しない。Import設定変更はImport Documentへ対する[ProjectChangeSetV1](project-state.md#5-projectchangesetv1)であり、Commit後にだけ新しいAsset revisionとJobを作る。Cancel、timeout、worker crash、stale revisionはProject状態を変更せず、旧Active generationを維持する。
 
@@ -119,7 +132,7 @@ Source名、Directory、DCC名だけからsemantic roleを確定しない。規�
 ```text
 AssetImportProfileV1
   profile_id: StableId
-  schema_version: SemVer
+  schema_version: uint32
   asset_kind: texture | sprite | scene_3d | mesh | skeleton
             | animation | audio | font
   target_profile_scope: StableId[1..16]
@@ -194,7 +207,7 @@ TextureImportSettingsV1
 ```text
 SpriteImportSettingsV1
   rect_mode: SpriteRectModeV1
-  rects: SpriteRectV1[0..65536]
+  rects: SpriteRectV1[0..65535]
   grid_cell: optional SpriteGridCellV1
   grid_margin: optional Extent2uV1
   grid_spacing: optional Extent2uV1
@@ -307,7 +320,7 @@ TextureImportIRV1
   semantic_role: ClosedTextureRoleId
   channel_mapping: TextureChannelMappingV1
   decoded_level_hashes: sha256[1..32]
-  sprite_records: SpriteRecordIRV1[0..65536]
+  sprite_records: SpriteRecordIRV1[0..65535]
 
 SceneImportIRV1
   scene_roots: SceneNodeId[1..256]
@@ -341,16 +354,17 @@ FontImportIRV1
   normalized_table_hashes: FontTableHashV1[1..256]
 ```
 
-旧Aseprite節の`SpriteImportIRV1`名は独立rootとして残さず、frame、tag、duration、slice／pivot、layerを`TextureImportIRV1.sprite_records`とtyped Conversion Reportへ正規化する。Standalone Skeleton／Animationも`SceneImportIRV1.skins`／`animations`の`SkinIRV1`／`AnimationIRV1`を使用する。IRはSource native object、decoder pointer、DCC property bagを保存しない。Source形式が増えてもRuntime Asset schema、AI Operation、Cook入口を分岐させない。
+旧Aseprite節の`SpriteImportIRV1`名は独立rootとして残さず、frame、tag、duration、slice／pivot、layerを`TextureImportIRV1.sprite_records`とtyped Conversion Reportへ正規化する。Standalone Skeleton／Animationも`SceneImportIRV1.skins`／`animations`の`SkinIRV1`／`AnimationIRV1`を使用する。IRはSource native object、decoder pointer、DCC property bagを保存しない。Source形式が増えてもRuntime Asset schema、planned AI action vocabulary、Cook入口を分岐させない。
 
 | Kind | 必須の検出／validation |
 |---|---|
 | Texture／Sprite | dimension、level、channel、alpha、color encoding、normal convention、Sprite rect／pivot／PPU、atlas bound |
-| TileSet／Tilemap | Stable Tile／Layer ID、grid、orientation、chunk、property schema、Collider／Navigation生成closure |
 | Scene／Mesh | accessor bounds、node cycle、finite transform、extension allowlist、index、degenerate、bounds、skin influence |
 | Skeleton／Animation | stable joint path、parent cycle、bind pose、key順、Quaternion、root motion、Skeleton generation |
 | Audio | sample rate、channel layout、duration、sample finite、loop point、decoded／stream cost |
 | Font | table bounds、glyph／script coverage、variation、embedding permission、outline bounds |
+
+TileSet／TilemapはEngine-native authoring経路であり、[World契約 §10.1](../06-rendering/world.md#101-tilemap-sourcecookpublication)の12型とそのvalidationが唯一の正本である。外部tilemap formatのimportは採用せず、本表へTileSet／Tilemap行を複写しない。Asset lifecycleはTileSetが参照するSpriteが本表のTexture／Sprite経路でimport済みであることだけを保証する。
 
 Scene Importのcanonical spaceは右手系、`+Y` up、`+Z` object forward、meter、radian、column vector、`T * R * S`である。Hierarchy、root transform、pivot、placement、frontはSource意図を保持し、unit変換はSource metadataに基づく明示処理だけを適用する。非分解可能transformや意味不明な変換を推測で補正しない。
 
@@ -393,7 +407,7 @@ Asset種別Previewは少なくとも次を示す。
 
 PreviewはSource、Profile、Target、Artifact、consumer impactを同時に比較できなければ承認可能状態にしない。Editor scrubはGameplay、Audio、VFXのauthoritative Eventを発火しない。
 
-`AssetImportReceiptV1`はSource／Profile／Plan／IR／Artifact／Preview／Approval／Toolchain／Validatorの各hash、Target、実行budget、全Diagnostic count、Package eligibilityを一つのhash chainで結ぶ。この列挙がReceiptのclosed field setであり、生成projectionはfieldを追加せずschema versionを上げる。Receipt不在、hash不一致、未承認Loss、Development-only Tool混入のArtifactをPackage候補にしない。
+`AssetImportReceiptV1`はSource／Profile／Plan／IR／Artifact／Preview／Approval／Toolchain／Validatorの各hash、生成Hostの識別（toolchain lock `profiles[].host`に対応するOS／architecture）、Target、実行budget、全Diagnostic count、Package eligibilityを一つのhash chainで結ぶ。この列挙がReceiptのclosed field setであり、生成projectionはfieldを追加せずschema versionを上げる。Artifact hashの一致比較は[Core architecture](../02-foundation/core-architecture.md) §6の決定性同値クラスに従い、同一Host識別のReceipt間だけで行う。異なるHost間の一致は同節のfixture検証済みArtifact種別だけに要求する。Receipt不在、hash不一致、未承認Loss、Development-only Tool混入のArtifactをPackage候補にしない。
 
 ## 4. Reimportと依存invalidation
 
@@ -436,7 +450,7 @@ asset_id: StableId
 asset_revision: uint64
 artifact_role_id: ClosedArtifactRoleId
 target_profile_id: StableId
-schema_version: SemVer
+schema_version: uint32
 payload_hash: sha256
 payload_size: uint64
 alignment: positive_uint32
@@ -486,7 +500,7 @@ Package root hashはhash fieldをzero化したHeader、block hash table、canoni
 Package assemblyはImportの後段であり、この文書が唯一所有する。
 
 1. Commit済みProject revisionとTarget Profileを固定する。
-2. Root Scene、always-loaded resource、Content GroupからAsset rootを列挙する。
+2. `ProjectManifest.runtime_entry_point_refs`からTarget別に選択したexact Runtime Entryを解決し、その`world_ref`／`ui_document_ref`／`startup_game_system_refs`のtransitive Source closure、always-loaded resource、Content GroupからAsset rootを列挙する。単数Root Scene、表示名、path、`latest`をcurrent reachability rootにしない。
 3. Hard dependency closureを解決し、missing、cycle、Target不一致を拒否する。
 4. Artifact hashとLicense／Provenance／Safety Receiptを照合する。
 5. Content Groupごとにcanonical Asset ID／role順で配置する。
@@ -510,17 +524,19 @@ Source変更は新Asset revisionとImport Jobを作る。依存closure全体をS
 
 Active generationより古い結果、cancel済みJob、owner generation不一致の結果をpublishしない。last-valid generationと必要なretiring generationを保持し、fault時にProject sourceまたはPackage setを破壊しない。
 
-## 8. EditorとAI operation
+## 8. EditorとAI planned actions
 
 Asset BrowserはStable IDをselection modelとし、logical directory、kind、semantic role、tag、license、readiness、Diagnosticでfilterする。Source、Import revision、Active generation、Target residency、dependency／reverse dependencyを表示する。表示row、thumbnail object、screen coordinateをOperation targetにしない。
 
 Import Inspectorは`Source`、`Analysis`、`Profile`、`Preview`、`Conversion`、`Dependencies`、`Diagnostics`、`History`を持つ。Basic／Advanced viewは同じImport Documentのprojectionであり、別設定を持たない。Import、Preview、Cook、Reimport、bulk migrationをcancel可能なJobとして表示し、stage、progress、current asset、resource limit、Diagnostic countを示す。
 
-AIのread operationはCatalog、Source analysis、flattened Profile、Conversion Report、dependency closure、Reimport Conflictをtyped resultとして返す。proposal operationはProfile、設定変更、Preview、Reimport、bounded bulk migration、placeholder置換、LOD source bindingを[ProjectChangeSetV1](project-state.md#5-projectchangesetv1)候補として返す。
+Catalog、Source analysis、flattened Profile、Conversion Report、dependency closure、Reimport Conflictのreadと、Profile／設定変更／Preview／Reimport／bounded bulk migration／placeholder置換／LOD source bindingのproposalは、Stable IDでないplanned semantic action vocabularyである。Asset ownerのcurrent MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／alias Operation集合はすべて`[]`、Capability stateは`not_activated`である。future work item `activation.asset.authoring_operations.v1`が採用するexact ID集合と完全closureを一transactionで登録するまでdispatchせず、action名からIDを生成しない。Activation後のread actionだけがtyped result、proposal actionだけが[ProjectChangeSetV1](project-state.md#5-projectchangesetv1)候補を返し、直接Commitしない。
 
 AIはAsset ID、Profile ID、Source pathを推測生成しない。未Activated format、未対応Target codec、Catalogにない選択肢には`CapabilityNotActivated`を返す。提案はProfile選択、evidence、変換、保持値、visual／behavior／memory／Package impact、未解決質問、必要Approval、rollbackを含み、自然言語だけでなくPlanとDiagnostic IDを正規出力にする。
 
 外部またはAI生成Assetも通常Importを迂回しない。Asset固有Provenance recordのcontentは本節だけが所有し、共通Field `origin_uri_or_generation_operation_ref`、`acquired_or_generated_at`、`content_hash`、`creator_or_provider`、`terms_snapshot_ref`、`license`、`rights_confirmation_status`、`commercial_review`、`safety`、`content_credential_ref`、`modification_chain[]`を必須にする。originがgeneration operationの場合は`tool_model_lock_ref`、`request_hash`、`input_asset_refs[]`に加え、採用versionのlockとは別に実行証拠の`generation_tool_receipt_ref`を必須とし、外部取得またはUser提供Sourceではこれらgeneration専用Fieldを持たない。Provider outputを直接ProjectまたはCacheへ入れずStagingに置き、このRecordと共通Evidence envelopeを結ぶ。AIが品質または権利を自己承認できない。
+
+[Product Plan](../00-product/product-plan.md)のMVP-A／MVP-Bでは`source_kind=domain_pack_reference | user_provided`だけを許可する。Asset生成ProviderはC2未満のPhase exit前提にせず、`external_generated`が明示要求されたのにqualified Provider、権利Record、safety Receiptのいずれかがない場合は`diagnostic.asset.external-generation-unavailable`を返してProposalを拒否する。Pack reference、user-provided placeholder、別Providerへ暗黙fallbackせず、元の要求とProject sourceを変更しない。
 
 ## 9. Platform specialization
 
@@ -597,7 +613,7 @@ Asset lifecycleは次のGateをすべて満たすまで対象CapabilityをActiva
 
 ### 12.1 Contractとdeterminism
 
-- MCD type、Profile、Plan、Operation、Diagnostic、stateがC++、Editor、AI Tool、CLIへ同じ正本から生成される。
+- MCD type、Profile、Plan、Activation時に採用するexact Operation candidate、Diagnostic、stateがC++、Editor、AI Tool、CLIへ同じ正本から生成される。
 - 各生成projectionはAsset contract ID、schema version、canonical content hashを記録し、本書の全named contractについてfield名、型、cardinality、closed tagが完全一致する。schema ownership検索で定義文書が本書一つだけであることを検証する。
 - valid／invalid／boundary、truncation、overflow、NaN／Inf、cycle、duplicate、unknown feature fixture。
 - clean二回Import／Cook／Package assemblyでIR、Report、Artifact、Package root hashが一致する。

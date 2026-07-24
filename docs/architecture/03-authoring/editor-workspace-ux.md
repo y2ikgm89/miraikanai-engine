@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Editor process model、Shell配置、Panel／Workspace、制作journey、AI Partner UX、手動編集との往復、Error／Recovery UX、初心者／上級者projection、AccessibilityとEditor操作性能
 - 非正本範囲: Widget／Layout実装、Project transaction、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -48,7 +48,7 @@ EditorHost
 - GameHost crash、device loss、Project C++ faultでEditorHostを終了しない。
 - AI Orchestratorは別Processで、Editor widget IDやnative handleを受け取らない。
 - 長時間Build／Cook／GenerateをUI threadで実行しない。
-- PanelはDomain Serviceのread projectionとtyped Operationだけを使い、private Runtime objectを保持しない。
+- PanelはDomain Serviceのread projectionとtyped Editor command／Project change primitiveだけを使い、private Runtime objectを保持しない。
 
 ### 3.1 Editor session lifecycle
 
@@ -102,7 +102,7 @@ Menu／toolbar actionも`EditorCommandId`へ登録し、mouse専用処理を持�
 |           |                                      +---------------+
 |           |                                      | AI Partner    |
 +-----------+--------------------------------------+---------------+
-|           | Asset / Console / Build / Timeline 260               |
+|           | Asset / Console / Build / Animation Timeline 260     |
 +------------------------------------------------------------------+
 | Status 24                                                        |
 +------------------------------------------------------------------+
@@ -164,11 +164,13 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 | World | Scene／Canvas、Game、World Outline、Hierarchy／Outliner、Inspector、Topology Graph、Level Form、Streaming Inspector、Map Presentation Preview、Bundle Review |
 | Content | Asset Browser、Import、Visual Style、Material |
 | Logic | Gameplay Definition Graph／Table／Form、UI Designer、Source |
-| Motion | Timeline、Animation Graph |
+| Motion | Animation Timeline、Animation Graph |
 | Simulation | Physics／Collision、Navigation、Simulation Monitor |
 | Production | Build／Package、Target／Device、Test／Playtest |
-| Diagnostics | Session、Console、Problems、Profiler、Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、Render Graph、History／Diff、External Tools |
-| AI | AI Partner、Question／Decision、Task／Receipt |
+| Diagnostics | Session、Console、Problems、Profiler、Debug Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、Render Graph、History／Diff、External Tools |
+| AI | AI Partner、Game Brief、Question／Decision、Task／Receipt |
+
+本表がC1 Panel catalogの唯一の正本である。Workspace初期構成、Command palette、`Window > Find Panel`、AIの対象解決は本表の正式名だけを使う。Panel type IDは`panel.<group>.<lower-kebab-name>`に閉じる。`Animation Timeline`（Motion）は`panel.motion.animation-timeline`、`Debug Timeline`（Diagnostics）は`panel.diagnostics.debug-timeline`であり、単一の`panel.timeline`または表示名だけの「Timeline」Panelを定義しない。
 
 同じ機能を初心者用と上級者用に別実装しない。初心者Workspaceではadvanced Panelを初期非表示にし、AIが必要時に理由とともに開く提案をする。
 
@@ -194,27 +196,27 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 - Select、translate、rotate、scale、frame、measure、grid／snapを持つ。
 - 2D／3D coordinate、meter／radian、pixel／PPU表示を明示する。
 - Physics、Collider、Navigation、Light、Camera、VFX、Audio、UI safe areaをoverlayできる。
-- Gizmo操作はtyped Transform Operationを生成し、native transform pointerへwriteしない。
+- Gizmo操作はtyped Transform change primitiveを生成し、native transform pointerへwriteしない。
 - Play中の編集はfieldの`live_edit_policy`を表示し、restart要求を隠さない。
 
 ### 6.3.1 Level Authoring View
 
 Level WorkspaceはWorld／Level／Map規約の同じSourceを次のProjectionで編集する。
 
-| View | 編集対象 | 主Operation／制約 |
+| View | 編集対象 | planned change action／制約 |
 |---|---|---|
 | World Outline | World、Region、Level、Scene | StableId selection。Scene永続化ownerとLevel membershipを別columnで表示 |
 | Topology Graph | Level、Portal、entry／exit Anchor | `CreatePortal`／`UpdatePortalContract`／`DeletePortal`。片側edgeだけを保存しない |
 | Level Form | Source Scene集合、entry／exit、System、Objective、Profile、Budget | `SetLevelSourceScenes`、`SetLevelEntryExitContract`、`SetLevelGameplayComposition` |
-| Spatial View | Entity、Anchor、bounds、Scene owner | Transform Operation、`MoveEntityToScene`。Level membershipとCellを暗黙変更しない |
+| Spatial View | Entity、Anchor、bounds、Scene owner | typed Transform change primitive、`MoveEntityToScene` primitive。Level membershipとCellを暗黙変更しない |
 | Streaming Inspector | Cell、residency、dependency、memory／IO | Target別Derived Planのread-only projection。Source編集欄を持たない |
-| Navigation Overlay | walkability、cost、query、Source／Artifact差 | Source Intentだけをtyped Operationで変更し、Navmesh／tileへwriteしない |
+| Navigation Overlay | walkability、cost、query、Source／Artifact差 | Source Intentだけをtyped change primitiveで変更し、Navmesh／tileへwriteしない |
 | Map Presentation Preview | minimap、world map、marker、fog | Presentation Sourceだけを変更し、Quest／Objective／Navigation authorityへwriteしない |
 | Bundle Review | Requirement、Source Diff、Topology、Target、Budget、Test、Risk | Staging Bundleのaccept／reject。Commit権限を持たない |
 
 各ViewのContext barはProject revision、World／Scene／Level Stable ref、Target、lock、`Source | Staging | Derived read-only | Runtime`を常時表示し、Authoring規約の`AuthoringSelectionContextV1`とWorld規約の`WorldAuthoringContextV1`を同じContext hashで結ぶ。Scene／Outliner／Graph／Form／Inspector間のselection同期はStableIdを使い、screen coordinate、表示row、同名Object、Hierarchy pathを対象identityにしない。
 
-共有Sceneを複数Levelが参照する場合、編集の影響を受ける全LevelとTargetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、Level membership変更は別Operationとして明示する。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
+共有Sceneを複数Levelが参照する場合、編集の影響を受ける全LevelとTargetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、Level membership変更は別change primitiveとして明示する。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
 
 ### 6.4 Source
 
@@ -227,7 +229,7 @@ C1 Source WorkspaceはProject C++／HLSL／MCD JSONのtree、UTF-8 editor、synt
 Asset BrowserとImport Inspectorは[Asset lifecycle](asset-lifecycle.md)が所有するStable ID selection、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`AssetConversionReportV1`、`AssetReimportConflictV1`を投影する。
 
 - Asset Browserはtype、semantic role、tag、license、Production readiness、diagnostic、dependencyでfilterできる。
-- thumbnail、waveform、font sample、3D turntableは選択補助であり、Operation targetにはStable IDを使う。
+- thumbnail、waveform、font sample、3D turntableは選択補助であり、change primitive targetにはStable IDを使う。
 - Import Inspectorは`Source`、`Analysis`、`Profile`、`Preview`、`Conversion`、`Dependencies`、`Diagnostics`、`History`を持つ。
 - Basic viewはProfile候補とHigh Impact質問、Advanced viewは同じDocumentの全型付きfieldとevidenceを表示する。別設定を持たない。
 - 3D PreviewはSource／Engine軸、Root、Pivot、bounds、ground、Hierarchy、Skeleton、Animation rootを表示する。
@@ -239,12 +241,12 @@ Asset BrowserとImport Inspectorは[Asset lifecycle](asset-lifecycle.md)が所�
 
 ### 6.6 Debugging
 
-Debug WorkspaceはDebugging Ownerのtyped Storeを投影し、Panelごとに独自log parser、別timestamp、別Object identityを持たない。選択したSession、Project revision、Build、Target、tick／frame、recorded／current stateを上部Context barで固定表示する。
+Debug WorkspaceはDebugging Ownerのtyped Storeを投影し、Panelごとに独自log parser、別timestamp、別Object identityを持たない。選択したSession、Project revision、Build、Target、Simulation Advance sequence／render frame ID、recorded／current stateを上部Context barで固定表示する。
 
 - Sessionは接続、recording tier、retention、gap、redaction、remote trust、crash／hang状態を表示する。
 - Console／ProblemsはDebugging Ownerが所有する`DebugEventEnvelopeV1`と`MirakanDiagnosticV1`をseverity／domain／phase／Stable IDでfilterし、元Event、Snapshot、source map、Replay pointへ移動できる。
-- Profiler／Timeline／Causalityはcounter／span／event／causal edgeを同じtimepointへ整列し、presentation結果をauthoritative causeとして逆向きに結ばない。
-- Breakpoint／Watchはtarget、condition、scope、hit count、suspend policyを型付きで表示する。Runtime pauseは要求時点で即時停止せずT110 safe pointで成立させ、tick step／render-frame step／GameplayDefinition node stepを区別する。
+- Profiler／Debug Timeline／Causalityはcounter／span／event／causal edgeを同じtimepointへ整列し、presentation結果をauthoritative causeとして逆向きに結ばない。
+- Breakpoint／Watchはtarget、condition、scope、hit count、suspend policyを型付きで表示する。Runtime pauseは要求時点で即時停止せずT110 safe pointで成立させ、Simulation Advance step／render-frame step／GameplayDefinition node stepを区別する。
 - Replayはrecord→scrub→inspect、first divergence、recorded／current revision差分、欠損rangeを表示する。gapまたはredactionを値なしの正常状態として扱わない。
 - Reproductionは選択Evidenceからbounded BundleをPreviewし、含有／除外file、secret／PII scan、hash、retention、export先を承認前に示す。
 - External ToolsはIDE、PIX、RenderDoc、Perfetto、Instruments等を`ExternalDebuggerLaunchDescriptorV1`から起動し、Session／Process／Build／capture IDを戻す。外部Toolの表示だけをEngineの正本にしない。
@@ -256,16 +258,18 @@ Debug WorkspaceはDebugging Ownerのtyped Storeを投影し、Panelごとに独�
 
 | Workspace | 主対象 | 初期構成 |
 |---|---|---|
-| `AI Creator` | 初心者、高水準指示 | Game Brief、Preview、AI Partner、Question、Diff／Validation |
-| `Production` | 通常制作 | Scene、Outliner、Inspector、Asset、AI Partner |
-| `Level` | Level designer | World Outline、Scene、Outliner、Topology Graph、Level Form、Inspector、Streaming Inspector、Navigation／Physics、Map Preview、Bundle Review、AI Partner |
-| `Gameplay Logic` | Designer／Programmer | Definition、Source、API、Test、Console、AI Partner |
-| `Rendering` | Technical artist | Scene、Material、Style、Light、Render Graph、GPU Profiler |
-| `Animation` | Animator | Scene、Timeline、Animation Graph、Asset、Inspector |
-| `UI` | UI designer | UI Designer、Hierarchy、Inspector、Localization、Preview |
-| `Debug` | Programmer／QA | Game、Session、Problems、Console、Profiler、Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、AI Partner |
+| `AI Creator` | 初心者、高水準指示 | Game Brief、Game、AI Partner、Question／Decision、History／Diff、Problems |
+| `Production` | 通常制作 | Scene／Canvas、Hierarchy／Outliner、Inspector、Asset Browser、Console、Build／Package、Animation Timeline、AI Partner |
+| `Level` | Level designer | World Outline、Scene／Canvas、Hierarchy／Outliner、Topology Graph、Level Form、Inspector、Streaming Inspector、Navigation、Physics／Collision、Map Presentation Preview、Bundle Review、AI Partner |
+| `Gameplay Logic` | Designer／Programmer | Gameplay Definition Graph／Table／Form、Source、Test／Playtest、Console、AI Partner |
+| `Rendering` | Technical artist | Scene／Canvas、Material、Visual Style、Render Graph、Profiler |
+| `Animation` | Animator | Scene／Canvas、Animation Timeline、Animation Graph、Asset Browser、Inspector |
+| `UI` | UI designer | UI Designer、Hierarchy／Outliner、Inspector、Game |
+| `Debug` | Programmer／QA | Game、Session、Problems、Console、Profiler、Debug Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、AI Partner |
 
-`AI Creator`は正式に採用する。AIを前面に出すが、Preview、質問、Diff、validation、戻し方を常に同時表示し、chatだけで状態を隠さない。いつでも`Production`へ切り替えられ、Project変換を行わない。
+初期構成は§6 Panel catalogの正式名だけを使い、catalog外のPanel名を追加しない。play preview相当は`Game` Panel、Diff／validation相当は`History／Diff`と`Problems`、generated API referenceは`Source` Panel内機能、Light調整は`Scene／Canvas` overlayと`Inspector`、Localization previewは`UI Designer`内機能であり、独立Panelにしない。
+
+`AI Creator`は正式に採用する。AIを前面に出すが、Game preview、質問、Diff、validation、戻し方を常に同時表示し、chatだけで状態を隠さない。いつでも`Production`へ切り替えられ、Project変換を行わない。
 
 ### 7.2 保存形式
 
@@ -287,7 +291,7 @@ monitor_signature
 schema_version
 ```
 
-Project内の保存先はGame Project配置・命名規約に従う`.mirakan/user/<user_id>/workspaces/`とし、代替はOS user configとする。Project共有は明示export／importだけにする。built-inはimmutable、User Workspaceは複数作成、複製、rename、delete、exportできる。Workspace切替は未Commit Project draftを破棄しない。
+保存先は[Naming／Project layout](../02-foundation/naming-project-layout.md)が定めるProject外のUser data root（OS user config配下、Editor User Profile owner）とし、WorkspaceをProject rootへ保存しない。Project共有は明示export／importだけにする。built-inはimmutable、User Workspaceは複数作成、複製、rename、delete、exportできる。Workspace切替は未Commit Project draftを破棄しない。
 
 ## 8. AI Partner
 
@@ -302,8 +306,9 @@ AI Partnerは単なるconversation logでなく、次のstateを分けて表示�
 | Plan | System／Scene／Asset／C++の作業単位と依存 |
 | Proposal | 未Commit ChangeSet、Native／Asset Source change |
 | Validation | schema、semantic、budget、Build、Test、Preview |
+| `awaiting_code_owner` | Native／Shader Sourceの対象Scope、exact `role_ref`、Assignment／Approvalの不足または失効、待機／取消／Definition・prequalified Pack fallback |
 | Approval | Risk、対象、権限、期限 |
-| Result | Commit revision、Receipt、Playtest、rollback |
+| Result | Commit revision、Receipt、Playtest、Package／Device installの成果物参照とsmoke結果、rollback |
 
 Panelは現在selection、open Document、Problems、Playtest結果をContext候補として表示し、送信前にUserが除外できる。Project全体を毎回Providerへ送らない。
 
@@ -344,12 +349,17 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 1. 大まかなPromptからGame Briefを抽出する。
 2. High Impact不足だけをGame用語で質問する。
 3. Userが「おまかせ」を選んだ項目はAI仮定と理由をDecision Ledgerへ記録する。
-4. 薄い全体と一つの深いplayable loopを提案する。
+4. 薄い全体と一つの深いplayable loopをDefinition-firstで提案し、適合するQualification済みPackがあればexact Pack／Variantを示す。
 5. Diff、Risk、予測時間／Asset量、Target影響を見せる。
 6. 検証後にCommitし、Playtest結果を自然言語と計測で返す。
 7. 会話で修正し、手動編集があればbase revisionから再読込する。
+8. Playable確認後のTarget選択、Package、Device install、smoke結果提示は、Build／Device／Play familyのatomic Activation後にだけ同じ会話journeyで利用できる。currentでは候補Operation／Task／Receipt／UI commandを公開せず、`capability_unavailable`と対応work itemを表示する。Activation後の各段階は§11の`BackgroundTask`として進み、Receiptと成果物参照をResultへ残す。
 
-初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。
+初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。EditorはAssignmentのclosed 9-Field subject、exact `role_ref`、Scope、qualification、期間、`revoked_at=null`と、信頼済みrevocation registryの署名済みcurrent headをread-backする。Assignment Recordまたはsubject identityのcurrent revocation、snapshot missing／stale／invalid、Role欠落／unknown、RoleとScope kind不一致では`awaiting_code_owner`を表示してSource Workerを起動しない。
+
+`activation.build_gateway.operation_pipeline.v1`完了後のPackage journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。後段PanelはPackage artifact hashと前段完成Receipt ref／hashを表示し、InstallはPackage、LaunchはInstall、SmokeはPackage／Install／Launchとfixtureの全bindingが一致するまで成功表示しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
+
+Local inference表示はcurrent `InferenceDeploymentProfileV1.model_snapshot_profile_binding`のrecord／issuance Headからread-backした`ModelSnapshotProfileV1`だけをModel identity正本にする。weight shard closure、native／quantized encoding branch、license、provenanceをDeployment表示値から取得せず、Deployment／Snapshot binding差、`local_process_ipc`からprovider model参照、Snapshot／Conformance失効またはstale Headを`not_activated`とDiagnosticで表示する。
 
 ## 9. Manual editingとAIの往復
 
@@ -358,9 +368,9 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 - 人間変更を既定でAI lockとせず、AIが変更する場合はDiffで明示する。
 - 明示LockはAI、bulk tool、Recipe updateから保護する。
 - AI proposal作成中に人間がCommitした場合、proposalをstaleとして自動Commitを禁止する。
-- `Accept all`だけでなくOperation／Document／field単位のaccept／rejectを提供する。
+- `Accept all`だけでなくchange primitive／Document／field単位のaccept／rejectを提供する。
 - 一部accept後は新ChangeSetを再構築し、全Validatorを再実行する。
-- Playtest中のruntime tweakをApply Backする場合もtyped Authoring Operationへ変換する。
+- Playtest中のruntime tweakをApply Backする場合もtyped Project change primitiveへ変換する。
 
 ## 10. Undo、History、Recovery
 
@@ -374,22 +384,23 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 
 ## 11. Long-running task
 
-Build、Cook、AI生成、Package、Device install、Testは`BackgroundTask`として次を持つ。
+Build、Cook、AI生成、Package、Device install、Testは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationTaskV1`を正本とする`BackgroundTask` projectionとして次を持つ。
 
 ```text
+operation_task_ref
 task_id
-task_kind
-state
+operation_id
+state = queued | running | cancel_requested | succeeded | failed | cancelled
 progress_kind
 completed_units/total_units
 current_stage
 cancel_policy
 log_stream_id
 artifact_refs
-result
+receipt_ref?
 ```
 
-Progress不明なのに擬似percentを表示せず、indeterminateとstageを示す。Cancelは`not_cancelable \| cooperative \| process_terminate`を明示する。Modal dialogでtask完了までUIをblockしない。
+Activation後の`BackgroundTask`はrequest hash、Project revision、Candidate root、Target、Device identity／generation、Authorization、consent、idempotencyを独自保存せず、`operation_task_ref`からread-only表示する。Progress不明なのに擬似percentを表示せず、indeterminateとstageを示す。Cancelは`not_cancelable \| cooperative \| process_terminate`を明示し、UIのCancel押下を成功表示せず`operation.task.cancel`のReceiptまで追跡する。current未Activation時はTask／Cancel controlを表示せず、Modal dialogで擬似task完了までUIをblockしない。
 
 ## 12. Accessibilityと人間工学
 
@@ -408,7 +419,7 @@ Progress不明なのに擬似percentを表示せず、indeterminateとstageを�
 
 ### 12.2 SizeとDPI
 
-- layout test: 1920×1080、2560×1440、100／125／150／200% DPI
+- layout test: 1920×1080、2560×1440、100／125／150／175／200／250% DPI
 - C1 minimum Editor window: 1280×720 logical px
 - toolbar／primary action hit target: 最低32×32 logical px
 - dense row: 24 logical px、comfortable mode: 32 logical px
@@ -428,7 +439,9 @@ Textを画像へ焼き込まず、UI scale 200%でclip、重なり、off-screen 
 | 100万Entity filtered Outliner initial result | 500 ms以下 |
 | 10万Asset search initial result | 200 ms以下 |
 | UI thread blocking task | 50 ms超を0件 |
-| EditorHost＋同時に一つのGameHost aggregate memory | 4 GiB hard cap内 |
+| EditorHost＋同時に一つのGameHost aggregate memory | `target.windows.editor` process group soft budget内 |
+
+Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capacity.md#3-cpu-memory-envelope)の`target.windows.editor`（`profile_version` 1）process group（metric区分、内訳、80／90／100%段階挙動を含む）をexactに消費し、本書で値と段階挙動を再定義しない。GPU memoryは同規約§4の別envelopeである。計測法・Reference環境の正本も同規約とToolchain baselineであり、本書は定義しない。
 
 検索、thumbnail、validation、projection rebuildはcancel可能なbackground jobを使い、結果統合時にProject revisionとPanel generationを再検査する。
 
@@ -439,13 +452,17 @@ Textを画像へ焼き込まず、UI scale 200%でclip、重なり、off-screen 
 | corrupt Workspace | last-validまたはbuilt-inへfallback、Project不変 |
 | missing monitor／DPI変化 | windowをwork areaへ回収 |
 | Panel exception／invariant | Panel instanceを閉じProblemsへ記録、Editor stateを部分変更しない |
-| stale projection | Operation reject、最新revisionから再投影 |
+| stale projection | change request reject、最新revisionから再投影 |
 | AI disconnect | Manual Editor継続、pending proposalを保持 |
 | GameHost crash | Editor継続、crash task／last log／再起動を提示 |
 | Debug Store／Index破損 | 完全chunkまで回復し、欠損rangeをgapとして表示。推測で補完しない |
 | remote capture切断 | partial captureをread-onlyで確定し、未受信range、handshake、Targetを表示 |
 | recording budget超過 | policyに従い低priorityからdropし、件数とrangeを必ずEvent化 |
 | Worker timeout | Task failure、cancel／retry、Project revision不変 |
+| Package／Device install失敗 | Task failureとして隔離し、原因（署名、容量、device未接続／未承認）とretry／Target変更候補を提示。Project revision不変 |
+| Candidate／Device generation／Package Receipt drift | Task failure。新しい対象へ自動付替えせず、before／actual identityと再実行入口を提示 |
+| Code owner Role欠落／unknown／Scope不一致／失効 | `awaiting_code_owner`。exact Role／Scope差を表示し、Source生成／Promotionを停止。BeginnerにはDefinition／prequalified Pack fallbackを提示 |
+| local inferenceのSnapshot ref／hash／kind／Evidence不一致またはcloud fallback要求 | 推論と送信を停止し、Snapshot差またはProvider／region／privacy／costの新PreviewとAuthorizationを提示。暗黙補正／fallbackはDiagnostic |
 | UI Automation provider failure | Release gate失敗。accessibilityを無効化してShippingしない |
 | Recovery破損 | 隔離し正規Projectだけを開く |
 
@@ -457,13 +474,18 @@ Textを画像へ焼き込まず、UI scale 200%でclip、重なり、off-screen 
 - mouse、keyboard-only、screen readerで2D Project作成／保存／Play
 - 200% scale、High Contrast、reduced motion、shortcut remap
 - AI CreatorからProductionへ切替えて同じObjectを手動修正し、AI再編集で保持
+- Build familyのatomic Activation acceptanceでは、AI CreatorのjourneyだけでTargetを選択し、`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`を別Task／Receiptで完了し、smoke結果がAI PartnerのResultへ提示される
+- 同acceptanceではPackage→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、Project／Deviceの正規状態が不変。current fixtureでは全候補commandが非表示で、直接dispatchが`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`となる
+- BeginnerではDefinition／prequalified PackだけからFirst Playableへ進み、Native／Shader要求は`awaiting_code_owner`または`capability_unavailable`になってSource reviewを要求しない
+- Code owner Assignmentのmissing／unknown／wrong-scope `role_ref`、`revoked_at` Field省略、non-null `revoked_at`、unknown extra Field、current snapshotのAssignment／subject revoke、current snapshotのmissing／stale／invalidを一原因ずつ拒否し、`revoked_at=null`だけで`awaiting_code_owner`からSource生成／Promotionへ進めない
+- expired Host／Model Profile、Deployment／Snapshot bindingのschema ID／logical ID／record ref／hash／revision／issuance Head差、`model_identity.kind`差、silent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない
-- 既知のqueue overflow、stale handle、asset revision drift、simulation divergenceをSession／Timeline／Causality／Replayで識別し、gapを原因確定へ使わない
-- pause要求がT110 safe pointでだけ成立し、tick／render-frame／GameplayDefinition node stepが混同されず、watch値にrevision／timepoint／validityが表示される
+- 既知のqueue overflow、stale handle、asset revision drift、simulation divergenceをSession／Debug Timeline／Causality／Replayで識別し、gapを原因確定へ使わない
+- pause要求がT110 safe pointでだけ成立し、Simulation Advance／render-frame／GameplayDefinition node stepが混同されず、watch値にrevision／timepoint／validityが表示される
 - AI診断のvalidated causeはすべてEvidence IDを持ち、recorded／current混同、presentation→authoritativeの逆因果、再現なし修正成功を0件にする
 - 1920×1080でScene、Outliner、Inspector、Asset、AI Partnerが同時利用可能
-- `world_authoring_cross_view_v1`の64 scenarioで、World Outline、Topology Graph、Level Form、Spatial View、AIが同じStableId／revision／Domain Operation／after state hashへ収束
+- `fixture.world.authoring-cross-view`の64 scenarioで、World Outline、Topology Graph、Level Form、Spatial View、AIが同じStableId／revision／`WorldSourceChangePrimitiveKindV1` discriminator／after state hashへ収束
 - Scene永続化owner、Level membership、Cell assignmentの表示と変更経路を混同せず、共有Scene変更の影響LevelをCommit前に列挙
 - sort／filter／rename／re-shard／DPI変更後も、mouse、keyboard、UI Automation、AIがscreen coordinateまたは表示rowで別Objectを変更しない
 - Derived read-only／Runtime対象の編集を全Viewで拒否し、Source Intentへの安全な遷移候補を表示

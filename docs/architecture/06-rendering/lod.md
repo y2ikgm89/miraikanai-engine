@@ -69,7 +69,7 @@ LodIntentV1
   source_revision
 ```
 
-`expected_view_distance_m`はPreview／fixture入力でruntime switch thresholdではない。gameplay floorは敵味方数、Damage、Collision、Navigation、goal、spawn timing、input response、critical cueをtyped fieldで持ち、visual floorはsilhouette、material feature、animation cue、pixel-art sampling、minimum visible size、critical VFX outputを持つ。`forbidden_degradations`は登録済みCapability IDだけを許可する。
+`expected_view_distance_m`はPreview／fixture入力でruntime switch thresholdではない。gameplay floorはowner-typed authoritative instance数、Damage、Collision、Navigation、goal、spawn timing、input response、critical cueをtyped fieldで持ち、visual floorはsilhouette、material feature、animation cue、pixel-art sampling、minimum visible size、critical VFX outputを持つ。`forbidden_degradations`は登録済みCapability IDだけを許可する。
 
 ### 3.2 `LodPolicySetV1`
 
@@ -87,7 +87,7 @@ LodPolicySetV1
   vfx_lod_profile?
   surface_lod_profiles[]
   residency_lod_profile?
-  preset_provenance?
+  preset_provenance?: LodPolicyPresetSelectionV1
   policy_locks[]
 ```
 
@@ -113,7 +113,7 @@ LodResolutionPlanV1
   compiler_version
 ```
 
-`domain_plans[]`はDomain固有typed payloadのtagged unionである。unknown tag／major、Target fallback欠損、Source hash不一致を拒否する。Quality ProfileはPresentation実装品質だけを変え、simulation contract、敵数、Damageを変更できない。
+`domain_plans[]`はDomain固有typed payloadのtagged unionである。unknown tag／major、Target fallback欠損、Source hash不一致を拒否する。Quality ProfileはPresentation実装品質だけを変え、simulation contract、owner-typed authoritative instance数、Damageを変更できない。
 
 `RepresentationDescriptor`はStable ID、Domain kind、source identity、artifact generation ref、quality rank、geometric／semantic error bound、required capability、estimated cost class、dependency closure、transition compatibility、fallback targetを持つ。costの共通測定単位、budget、capacity envelopeは[Runtime performance／capacity](../04-runtime/performance-capacity.md)を参照する。
 
@@ -139,7 +139,7 @@ Cooked thresholdは整数へ量子化し、CPU／GPUは同じ比較方向、境�
 
 選択順はminimum semantics、Target capability、error bound、importance、pressure policy、previous selection／hysteresis、Stable ID tie-breakでcanonicalにする。worker completion順、frame timeの単一sample、hash-map iteration順を使わない。
 
-`LodTransitionRuleV1`は`from_tier`、`to_tier`、`metric_id`、`enter_threshold`、`exit_threshold`、`minimum_residency_units`、`transition_mode`、`transition_extent`、`camera_cut_policy`、`missing_artifact_policy`を持つ。enter／exitを別に持ち境界往復を防ぐ。Presentationのminimum residencyはreal frame数、Simulationはfixed tick数で、同じunitを共有しない。`transition_mode`は`instant | dither | cross_fade | domain_blend`のclosed enumとし、未対応BackendではProfile登録済みの意味同等fallbackを使う。camera cut、projection／dynamic extent変更では古いvisibility historyを捨て、そのframeに必要なdetailへ即時再選択し、無効historyを理由に低detailを選ばない。
+`LodTransitionRuleV1`は`from_tier`、`to_tier`、`metric_id`、`enter_threshold`、`exit_threshold`、`minimum_residency`、`transition_mode`、`transition_extent`、`camera_cut_policy`、`missing_artifact_policy`を持つ。`minimum_residency`はclosed tagged unionで、Presentation branch=`{kind=presentation_frames, count: positive uint32}`、Simulation branch=`{kind=simulation_advances, count: positive uint32, cadence_profile_ref: SimulationCadenceProfileRefV1}`とする。enter／exitを別に持ち境界往復を防ぐ。Presentation frameとSimulation Advanceを同じunitとして比較せず、Simulation branchのProfile refはRuntime選択値およびSave／Replay closureとbyte equalityにする。Cadence rate、wall time、Genreからcountを換算しない。`transition_mode`は`instant | dither | cross_fade | domain_blend`のclosed enumとし、未対応BackendではProfile登録済みの意味同等fallbackを使う。camera cut、projection／dynamic extent変更では古いvisibility historyを捨て、そのframeに必要なdetailへ即時再選択し、無効historyを理由に低detailを選ばない。
 
 ## 5. Mesh／Sprite geometry LOD
 
@@ -175,13 +175,13 @@ render tierとsimulation tierを同一indexで結ばない。off-screenでもaut
 
 Animationはclip／pose／skin candidateとminimum event／root-motion semanticsを公開し、LODはrepresentationを選ぶ。event、root motion、IK、retargetの意味は[Animation](../05-simulation/animation.md)を参照し、低tierへの遷移でauthoritative eventを欠落させない。
 
-`AnimationLodProfileV1`は`AnimationLodTierV1[]`を持ち、各tierは`tier_id`、`pose_sample_interval_ticks`、`interpolation_mode`、`presentation_bone_set`、`skinning_mode`、`shadow_pose_mode`、`required_bones[]`、`required_events[]`を持つ。required bone／eventを除外するProfileを拒否し、authoritative state machine／root motion／hitbox／weapon socket／foot contact／event timingを低頻度poseから取得しない。
+`AnimationLodProfileV1`は`AnimationLodTierV1[]`を持ち、各tierは`tier_id`、`presentation_pose_sample_interval_frames: positive u32`、`interpolation_mode`、`presentation_bone_set`、`skinning_mode`、`shadow_pose_mode`、`required_bones[]`、`required_events[]`を持つ。このintervalはPresentation render frameだけを数え、Simulation Advance、Animation clip timebase tick、秒へ換算しない。required bone／eventを除外するProfileを拒否し、authoritative state machine／root motion／hitbox／authoritative attachment socket／foot contact／event timingを低頻度poseから取得しない。
 
 Materialは各tierのcompatible artifactとfeature reductionを[Materials](materials.md)で宣言する。LODはtierを選ぶがshader variantやparameter意味を再定義しない。
 
-[Materialsが所有する`MaterialLodProfileV1`](materials.md#7-material-lod境界)をexactに消費し、Fieldを再定義しない。Style-critical ramp、alpha semantics、pixel sampling、combat cue emissiveを削除しない。
+[Materialsが所有する`MaterialLodProfileV1`](materials.md#7-material-lod境界)をexactに消費し、Fieldを再定義しない。Style-critical ramp、alpha semantics、pixel sampling、critical-cue emissiveを削除しない。
 
-`VfxLodProfileV1`は`VfxLodTierV1[]`を持ち、各tierは`tier_id`、`semantic_priority`、`branch_id`、`spawn_scale_permille`、`maximum_alive`、`update_interval`、`renderer_outputs[]`、`simulation_target`、`minimum_cue_contract`を持つ。`critical_gameplay_cue`はshape／timing／minimum visibilityを維持し、ambient effectより先にdropしない。VFX tierはGameplay event数／Damage／Collision／AI perceptionを変更しない。
+`VfxLodProfileV1`は`VfxLodTierV1[]`を持ち、各tierは`tier_id`、`semantic_priority`、`branch_id`、`spawn_scale_permille`、`maximum_alive`、`update_interval={kind=simulation_advances,count: positive u32,cadence_profile_ref: SimulationCadenceProfileRefV1}`、`renderer_outputs[]`、`simulation_target`、`minimum_cue_contract`を持つ。intervalは選択ProfileのSimulation Advance数だけを意味し、render frame、秒、表示Hzへ変換しない。current `fixed_rational_advance_v1` VFX artifactは`count=1`だけを受理し、`count>1`はmulti-advance integrationを定義する新Artifact versionとCadence別Qualificationがactiveになるまで`vfx_lod_update_interval_not_qualified`で拒否する。`critical_gameplay_cue`はshape／timing／minimum visibilityを維持し、ambient effectより先にdropしない。VFX tierはGameplay event数／Damage／Collision／AI perceptionを変更しない。
 
 ## 9. Terrain、Foliage、Water／Surface、residency
 
@@ -189,7 +189,7 @@ Terrain、foliage、water、snow／surfaceはDomain Ownerがtile／patch／clust
 
 `TerrainLodProfileV1`はscreen-space geometry error、quadtree patch bounds、neighbor level差上限、skirt／stitch policy、material residency、streaming cellを持ち、render patchはCollision height／Nav tile／Gameplay Surface Stateを置き換えない。`FoliageLodProfileV1`はinstance mesh chain、wind tier、shadow tier、impostor、cluster bounds、per-cell instance上限を持ち、Gameplay Collision subsetを描画LODへ追従させない。
 
-`WaterLodProfileV1`はsurface patch density、wave shading、reflection、underwater presentation、foam／spray VFXのTarget別tierを持ち、CPU Surface Query／Water Volume／浮力／swimming／Damage／Navigation costを変更しない。`SnowSurfaceLodProfileV1`はdynamic field update distance、normal／sparkle detail、降雪VFX density、static mask fallbackを持ち、Gameplay Surface State／friction／movement／foot contact／static coverageを変更しない。
+`WaterLodProfileV1`はsurface patch density、wave shading、reflection、underwater presentation、foam／spray VFXのTarget別tierを持ち、CPU Surface Query／Water Volume／浮力／swimming／Damage／Navigation costを変更しない。`SnowSurfaceLodProfileV1`はdynamic field update distance、normal／sparkle detail、static mask fallbackを持ち、Gameplay Surface State／friction／movement／foot contact／static coverageを変更しない。降雪particle密度の倍率は`vfx_presentation` classの`VfxLodProfileV1`だけが所有し、`SnowfallVfxProfileV1`の`density_scale`はauthored基準値である。
 
 residency requestはartifact generation、priority intent、deadline class、fallback candidateを持つが、queue、memory reservation、backpressure値を本書で決めない。候補のresidencyが失われた場合はgenerationを再検証し、stale GPU／streaming handleを再利用しない。
 
@@ -197,19 +197,86 @@ residency requestはartifact generation、priority intent、deadline class、fal
 
 ## 10. Preset、AI contract、Editor UX
 
-LOD Presetはquality intent、importance mapping、error policy、transition policy、Domain overrideをProject-owned assetとして保持する。Preset名から数値やtierを推測せず、resolved policyをPreviewで表示する。
+LOD Preset定義はOwner-qualified contributionとしてRegistryに保持し、Projectはexact `LodPolicyPresetSelectionV1`と解決済みPolicyだけをProject-owned assetへ保存する。Preset名から数値やtierを推測せず、resolved policyをPreviewで表示する。
 
-version付き`LodPolicyPresetV1`の初期closed IDは`hero_character | interactive_character | crowd_character | interactive_prop | small_decorative_prop | architecture | foliage | terrain | water_surface | vfx_combat_cue | vfx_ambient | pixel_art_sprite`である。`LodPlanPreviewV1`は対象Stable ID／semantic role、変更する／しないLOD class、Target別tier／threshold／fallback、triangle／draw／instance／memory／overdraw／simulation workのBefore／After、visual／silhouette／animation／critical-cue risk、Gameplay fidelity影響、Artifact／tool version／予測・実測区分、blocking Diagnostic／Approvalを示す。
+Preset vocabularyはCore closed enumにせず、次のOwner-qualified Registryへ合成する。
 
-LOD operationはcreate／update policy、bind representation、apply preset、set importance、preview selection、explain transition、validate closureをDomain actionとして登録する。共通Discovery／Preview／Apply、ChangeSet、approvalは[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)を使う。
+```text
+LodPolicyPresetRefV1
+  preset_id: namespace付きStableId
+  preset_version: positive uint32
+  preset_content_hash: SHA-256
 
-`operation.lod.propose_policy`はSourceを変更しない候補Policy／Before／After予測を返し、`operation.lod.apply_policy`は承認済みPolicy ChangeSetだけを作る。Simulationの`dormant_record`は保持state schema／pending event／wake triggerを含むDomain-owned candidateで、可視性で破棄しない。
+LodPolicyPresetV1
+  preset_ref: LodPolicyPresetRefV1
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  contribution_layer: core | feature_pack | genre_pack | project
+  semantic_description
+  applicability_schema_ref
+  policy_fragment_ref
+  required_capability_refs[]
+  target_support_refs[]
+
+LodPolicyPresetRegistryV1
+  registry_id: registry.lod.policy_preset
+  registry_version
+  presets[1..1024]
+  registry_content_hash: SHA-256
+
+LodPolicyPresetActivationProjectionV1
+  projection_id
+  projection_version: positive uint32
+  registry_ref: exact {registry_id, registry_version, registry_content_hash}
+  selected_preset_refs[1..1024]: LodPolicyPresetRefV1
+  qualification_binding_refs[1..1024]:
+    exact {binding_id, binding_version, binding_content_hash}
+  projection_content_hash: SHA-256
+
+LodPolicyPresetSelectionV1
+  registry_ref: exact {registry_id, registry_version, registry_content_hash}
+  activation_projection_ref:
+    exact {projection_id, projection_version, projection_content_hash}
+  preset_ref: LodPolicyPresetRefV1
+  preset_qualification_binding_ref:
+    exact {binding_id, binding_version, binding_content_hash}
+```
+
+`preset_content_hash`はASCII `MIRAKAN_LOD_POLICY_PRESET_V1`と自己hashを除くReceipt-free Preset canonical bytes、Registry hashはASCII `MIRAKAN_LOD_POLICY_PRESET_REGISTRY_V1`、Registry ID／version、Preset ID／version順の全Preset canonical bytesから計算する。selected refsはPreset ID／version／hash順、Binding refsは解決したsubject refの同じ順にstrict sortし、duplicateを拒否する。Activation Projectionのselected ref集合とQualification Bindingが解決する合格かつfreshなsubject集合はexact set equalityで、Receipt／BindingをPreset／Registry hashへ戻さない。Feature／Genre contributionは所有Pack identity、Project contributionはProject owner identityへexact解決する。自己namespace外ID、Coreまたは他Owner entryの上書き、duplicate、unknown、stale owner／version／hash、unqualified entry、Target／Capability不成立をfail closedにする。Registry materializationはProject／Pack dependency closureを解決したCompilerが行い、Generic Engine CoreからPackへのdependency edgeを生成しない。
+
+Core required defaultはGenre／object classを仮定しない`lod.preset.core.primary_subject@1 | lod.preset.core.interactive_subject@1 | lod.preset.core.supporting_subject@1 | lod.preset.core.decorative_subject@1 | lod.preset.core.critical_presentation_cue@1 | lod.preset.core.ambient_presentation@1`のexact六件である。従来defaultは次のexact contributionへ移し、同じ意味とresolved policyをgolden fixtureで維持する。
+
+| 従来suffix | canonical `preset_id@version` | `contribution_layer`／logical owner |
+|---|---|---|
+| `hero_character` | `lod.preset.hero_character@1` | `feature_pack`／`feature.character_locomotion@1` |
+| `interactive_character` | `lod.preset.interactive_character@1` | `feature_pack`／`feature.character_locomotion@1` |
+| `crowd_character` | `lod.preset.crowd_character@1` | `feature_pack`／`feature.character_locomotion@1` |
+| `interactive_prop` | `lod.preset.interactive_prop@1` | `feature_pack`／`feature.interaction@1` |
+| `small_decorative_prop` | `lod.preset.small_decorative_prop@1` | `core`／`mirakan.arch.rendering-lod` |
+| `architecture` | `lod.preset.architecture@1` | `core`／`mirakan.arch.rendering-lod` |
+| `foliage` | `lod.preset.foliage@1` | `core`／`mirakan.arch.rendering-lod` |
+| `terrain` | `lod.preset.terrain@1` | `core`／`mirakan.arch.rendering-lod` |
+| `water_surface` | `lod.preset.water_surface@1` | `core`／`mirakan.arch.rendering-lod` |
+| `vfx_combat_cue` | `lod.preset.vfx_combat_cue@1` | `feature_pack`／`feature.combat@1` |
+| `vfx_ambient` | `lod.preset.vfx_ambient@1` | `core`／`mirakan.arch.rendering-lod` |
+| `pixel_art_sprite` | `lod.preset.pixel_art_sprite@1` | `core`／`mirakan.arch.rendering-lod` |
+
+表のlogical ownerはmaterialization時にversion／content hashを含むexact `owner_ref`またはPack identityへ解決する。Core互換entryはCore required六件とは別のoptional default、Feature entryは該当Packを選択したProjectだけのcandidateである。いずれも全Projectの暗黙default、名前fallbackにはせず、該当Contributionを選択しないProjectでは候補に現れない。これによりboard／puzzle／simulation／tool ProjectがCharacter、Crowd、Combat vocabularyへ依存せず、必要なPackだけが固有Presetを追加できる。
+
+従来suffixは互換fixtureの説明にだけ残し、新SourceのPreset refまたはaliasとして受理しない。実在する旧bytesを移行する場合はsource schema bytes／Owner／Named Algorithm／immutable fixtureを束縛した別の承認済みschema migrationを先にactivateし、suffixまたはsemantic roleだけで自動変換しない。
+
+`LodPlanPreviewV1`は対象Stable ID／semantic role、exact Preset ref／owner／qualification、変更する／しないLOD class、Target別tier／threshold／fallback、triangle／draw／instance／memory／overdraw／simulation workのBefore／After、visual／silhouette／animation／critical-cue risk、Gameplay fidelity影響、Artifact／tool version／予測・実測区分、blocking Diagnostic／Approvalを示す。表示名、suffix、semantic roleからPresetを推測しない。
+
+上記Registry、Projection、Core／compatibility default、extension fixtureはtarget contractであり、実装済み、active Gateway surface、Production Qualification済みという主張ではない。
+
+LODのcreate／update policy、bind representation、apply preset、set importance、preview selection、explain transition、validate closureは将来のDomain action vocabularyであり、現在のOperation登録ではない。
+
+`operation.lod.propose_policy`と`operation.lod.apply_policy`は[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.lod_authoring@1`に属するexact二候補である。Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。前者はActivation後にだけPreset selectionを含むProposalを返す予定で、現在のselection権限ではない。Preset contribution自体のauthoring／activationは別計画語彙`planning.lod.policy_preset_contribution_authoring@1`とし、reserved Operation ID集合`[]`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／CLI／Editor／generated alias／legacy alias集合もexact `[]`、Capability stateも`not_activated`である。Foundationが専用Operationをatomic登録するまで二候補からRegistry登録権限を推測しない。`activation.lod.authoring_operations.v1`が二件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。候補Policy／Before／After予測と承認済みPolicy ChangeSetはActivation後の予定結果であってcurrent動作ではない。Simulationの`dormant_record`は保持state schema／pending event／wake triggerを含むDomain-owned candidateで、可視性で破棄しない。
 
 Editorはview／Target／Quality／pressure fixtureを切り替え、各subjectのcandidate、selected tier、projected error class、hysteresis state、missing dependency、fallback理由を表示する。Preview selectionをRuntime authoritative stateやProduction qualificationと混同しない。
 
 ## 11. Runtime、determinism、telemetry境界
 
-LOD evaluationの実行slot、snapshot、writer、job dependency、handoff lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)を参照し、phase表やtick frequencyを複写しない。selectionは同一input snapshotでdeterministicにし、Replayにはinput identityとselection／reasonをDomain projectionとして供給する。
+LOD evaluationの実行slot、snapshot、writer、job dependency、handoff lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)を参照し、phase表やSimulation Cadenceを複写しない。selectionは同一input snapshotでdeterministicにし、Replayにはinput identityとselection／reasonをDomain projectionとして供給する。
 
 LOD固有telemetryはcandidate／selected tier、transition、thrash、missing／nonresident representation、fallback reasonを公開する。共通frame、memory、queue、capacity、regression測定とEvidence envelopeはRuntime／Governance ownerへ委譲する。
 
@@ -236,6 +303,7 @@ Qualificationは次のDomain fixtureを持つ。
 
 - Domain schemaからgenerated C++／TypeScript／binary descriptor／MCP projectionが同じclosed field／enumを表し、unknown field／enum／majorを拒否する。projection mechanicsはFoundation ownerを使う。
 - unit、range、monotonic、fallback closure、Preset version、policy lockのpositive／negative fixture。Human、AI、headless CLIが同じIntentから同じPolicy／Plan hashへ収束する。
+- Preset RegistryはCore neutral六件と従来default十二suffixのresolved policyをgolden fixtureで維持し、Genre Pack 0件のneutral Project、qualified `project.board_game.token@1` contributionをpositiveで検証する。unknown ref、Qualification欠落、owner／hash stale、Core ID上書き、同一ID別hash、Pack未選択、表示名／suffixからの暗黙選択を各一原因negativeとしてSource／last-valid Registry不変で拒否する。
 - FOV、orthographic／perspective、resolution、dynamic extent、camera cut、split Editor Viewのprojected-error golden値。
 - CPU direct／GPU indirectのtier、境界包含、hysteresis一致とsilhouette、normal、UV seam、vertex color、material interface、skinning、morph、shadow error fixture。
 - camera path往復時のthrash、pop、cross-fade overdraw、residency miss。
@@ -244,10 +312,10 @@ Qualificationは次のDomain fixtureを持つ。
 - Full referenceと各Production simulation tierのReplay hash、最終count、Damage、goal、pending event一致。enter／exit、minimum residency、wake trigger同時発生、event queue上限、Save／Load直後を検証する。
 - camera、frustum、occlusion、VFX visibility、Target／Quality Profileを変えてもauthoritative simulation結果が一致すること。
 - Animation required bone、root motion、hitbox、event timing、VFX critical cue floor、pixel artのpoint sampling／integer scale／palette／pixel-locked、Terrain／Foliage／WaterのCollision／Nav／CPU Query非逆入力。
-- camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、敵味方VFX、streaming、Asset promotionを同一runで発生させるIntegrated fixture。run条件とEvidence transportはRuntime／Governance ownerを使う。
+- camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、owner-typed authoritative subject／critical presentation VFX、streaming、Asset promotionを同一runで発生させるIntegrated fixture。run条件とEvidence transportはRuntime／Governance ownerを使う。
 
 Evidence envelopeとgradingは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。distance-only selection、tier index coupling、silent hide、authoritative behavior loss、phase／budget複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
 
-[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)を使い、camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、敵味方VFX、streaming、Asset promotionを同一runで発生させる。`LodQualificationReceiptV1`は`receipt_id`、`plan_hash`、`artifact_hashes[]`、`target_profile`、`device／driver`、`fixture_id／fixture_hash`、`camera_path_hash`、`quality_profile`、`before_metrics`、`after_metrics`、`visual_diff_metrics`、`gameplay_replay_hash`、`fallback_events[]`、`diagnostics[]`、`result`、`toolchain_hash`、`timestamp`を持つ。Evidence envelopeの定義は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)の正本を使う。
+[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)を使い、camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、owner-typed authoritative subject／critical presentation VFX、streaming、Asset promotionを同一runで発生させる。`LodQualificationReceiptV1`は`receipt_id`、先に固定したReceipt-free `plan_hash`、`artifact_hashes[]`、`target_profile`、`device／driver`、exact `fixture_id／fixture_version／fixture_content_hash`、`camera_path_hash`、`quality_profile`、`before_metrics`、`after_metrics`、`visual_diff_metrics`、`gameplay_replay_hash`、`fallback_events[]`、`diagnostics[]`、`result`、`toolchain_hash`、`timestamp`を持つ。Receiptまたはwrapper hashをLOD Plan preimageへ戻さない。Evidence envelopeの定義は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)の正本を使う。
 
 全Domainを一つの`LodProfileV1`や一つの`lod_index`へ畳み込む設計は重複契約として非採用である。Worldの`SpatialPartitionIntentV1`は[World](world.md)が所有し、LODはそのDerived Planに対するrepresentationだけを選ぶ。Gameplay意味の変更が必要な場合はLOD proposalと分離した`GameplayScaleChangeProposalV1`と人間承認を[Executable contracts](../02-foundation/executable-contracts.md)のChangeSet経路へ返し、LODが暗黙Commitしない。

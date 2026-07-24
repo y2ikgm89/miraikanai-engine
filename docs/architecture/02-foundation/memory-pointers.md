@@ -158,8 +158,8 @@ Process global default PMR resourceを変更しない。ResourceはComposition R
 | Path | 許可allocation | 枯渇時 |
 |---|---|---|
 | Render submission | RenderFrame arena／事前予約pool | frame fault。一般heap fallback禁止 |
-| Physics step | Physics scratch／pool | tick非publish、Physics fault |
-| Navigation query batch | Job scratch／lease pool | request失敗またはtick規約のfault |
+| Physics step | Physics scratch／pool | advance非publish、Physics fault |
+| Navigation query batch | Job scratch／lease pool | request失敗またはSimulation Advance規約のfault |
 | Animation sample／blend | instance／job scratch | animation result非publish |
 | Audio callback | preallocated ring／bufferだけ | zero-fill＋underrun diagnostic |
 | Entity iteration | 既存chunk／query scratchだけ | iteration開始前に拒否 |
@@ -197,7 +197,7 @@ contract_id
 type_id
 ownership = value | unique_owner | shared_immutable | borrow | lease | handle
 nullability = non_null | nullable | invalid_zero
-lifetime = scope | callback | phase | tick | frame | job | submission | session | persistent
+lifetime = scope | callback | phase | simulation_advance | frame | job | submission | session | persistent
 owner_id
 thread_affinity
 access = read | write | read_write
@@ -273,11 +273,22 @@ AIはcontract IDから許可型とfactoryを選ぶ。判断不能時はraw point
 | `MIRAKAN-MEMORY-CONTRACT_MISSING` | allocation siteにcontractなし | Build failure | 未昇格artifactに含めない |
 | `MIRAKAN-MEMORY-DOMAIN_MISMATCH` | free元、domain、tag不一致 | fail-fast | session fault |
 | `MIRAKAN-MEMORY-BUDGET_EXCEEDED` | hard cap超過 | allocation拒否＋capture | 規定evict後一度retry、再失敗はdomain fault |
+| `MIRAKAN-MEMORY-CONSTRUCTION_FAILED` | `MirakanMakePersistent`のconstructor失敗 | 取得blockを同一Portへ返却しtyped failure | typed failure。partial objectを公開しない |
 | `MIRAKAN-MEMORY-HOT_PATH_FALLBACK` | hot pathが一般heapを要求 | performance test failure | fallbackせず当該phase fault |
-| `MIRAKAN-POINTER-STALE_HANDLE` | generation不一致 | owner／create／destroy tickを表示 | typed failure |
+| `MIRAKAN-POINTER-STALE_HANDLE` | generation不一致 | owner／create／destroy advance sequenceを表示 | typed failure |
 | `MIRAKAN-POINTER-BORROW_EXPIRED` | epoch／phase失効後access | fail-fast | invalid actionをpublishしない |
 | `MIRAKAN-POINTER-THREAD_AFFINITY` | 非owner threadでresolve／access | fail-fast | command／job resultをreject |
 | `MIRAKAN-POINTER-UNSAFE_CAPABILITY_REQUIRED` | unsafe API権限なし | Build failure | artifact promotion拒否 |
+| `MIRAKAN-POINTER-CONTRACT_MISSING` | 公開parameter／return／fieldにcontractなし | Build failure | 未昇格artifactに含めない |
+
+C++公開`Error` enumerator（PascalCase）とDiagnostic codeは次の1:1対応を正本とし、対応を持たないErrorまたはcodeを追加しない。
+
+| Error | Diagnostic code |
+|---|---|
+| `MemoryBudgetExceeded` | `MIRAKAN-MEMORY-BUDGET_EXCEEDED` |
+| `NativeObjectConstructionFailed` | `MIRAKAN-MEMORY-CONSTRUCTION_FAILED` |
+| `MissingMemoryContract` | `MIRAKAN-MEMORY-CONTRACT_MISSING` |
+| `MissingPointerContract` | `MIRAKAN-POINTER-CONTRACT_MISSING` |
 
 OOM diagnostic用storageはEmergency reserveから事前確保し、OOM pathで一般container、format allocation、logger queue拡張を行わない。
 
