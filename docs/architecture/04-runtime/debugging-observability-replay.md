@@ -3,7 +3,7 @@
 - 文書ID: mirakan.arch.runtime-debugging-observability-replay
 - 状態: review
 - 正本範囲: Debug Session、typed event／counter／snapshot、bounded Store／Index／Query、causality、breakpoint／watch／safe pause、deterministic capture／replay／rewind、crash／hang evidence、support bundle（構成artifact、redaction manifest、consent、生成operation）、remote device bridge、Editor Debug UX、AI diagnosis、Debug qualification
-- 非正本範囲: Runtime phase／tick／lifetime、共通memory／performance／queue budget、AI Risk／authorization／approval、Evidence／Provenance envelope、Project transaction、Subsystem固有state schema、外部Tool／SDK version。各Owner文書を参照する
+- 非正本範囲: Runtime phase／Simulation Advance／lifetime、共通memory／performance／queue budget、AI Risk／authorization／approval、Evidence／Provenance envelope、Project transaction、Subsystem固有state schema、外部Tool／SDK version。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[VFX runtime](../06-rendering/vfx-runtime.md)、[Environment／surfaces](../06-rendering/environment-surfaces.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Audio](../07-platform/audio.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -11,7 +11,7 @@
 
 Debuggingは自由文Logを大量に収集して原因を推測する機能ではない。Project revision、Build、Session、World、runtime time point、System、Entity、Asset、Command、Event、State delta、Diagnosticをtyped identityで相互参照するEngine-owned Evidence surfaceである。Console、Problems、Profiler、Timeline、Breakpoint、Watch、Overlay、Replay、Crash解析、AI diagnosisは同じcanonical recordを読む。
 
-本書はDebug dataの生成／格納／検索／再現／投影を所有する。Runtime phase、tick、pause可能boundary、lifetimeは[Scheduling／lifetime](scheduling-lifetime.md)を消費する。runtime memory、frame、queue、instrumentation overhead、backpressureの合否は[Performance／capacity](performance-capacity.md)を消費し、本書で共通budgetを再定義しない。AI操作のRisk、authorization、approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)、Evidence／Provenance／Receipt envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが定義する。
+本書はDebug dataの生成／格納／検索／再現／投影を所有する。Runtime phase、Simulation Advance、pause可能boundary、lifetimeは[Scheduling／lifetime](scheduling-lifetime.md)を消費する。runtime memory、frame、queue、instrumentation overhead、backpressureの合否は[Performance／capacity](performance-capacity.md)を消費し、本書で共通budgetを再定義しない。AI操作のRisk、authorization、approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)、Evidence／Provenance／Receipt envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが定義する。
 
 Debug Queryはread-onlyである。AI Findingから修正候補を作る場合も、[Project state](../03-authoring/project-state.md)のChangeSet、Governance authorization、Staging、Test、Replay regressionを迂回しない。
 
@@ -75,9 +75,61 @@ EditorHost failureでGameHost stateを壊さない。GameHost crash後もEditorH
 
 runtime object refは`{debug_session_id, runtime_instance_id, handle{index,generation}}`で、当該Session外で比較／永続化しない。domain-local refはowner Artifact／Stable ref、Domain Contract ref、bounded valueを併記する。SourceとRuntimeの相関は二つのtarget refとtyped edgeで表し、一つのidentityへ混在させない。pointer、vendor handle、registration順をpublic identityにしない。
 
-`DebugTimePointV1`はsession、monotonic sequence、Scheduling Ownerのruntime time ref、optional monotonic／wall time、clock domainを持つ。authoritative順序はmonotonic sequenceとRuntime orderを使い、wall timeを使わない。CPU、GPU、Audio、Device clockはoffset、drift、maximum error、valid intervalを持つ`ClockCorrelationV1`なしに同時刻とみなさない。
+`DebugTimePointV1`はsession、monotonic sequence、Scheduling Ownerのexact `RuntimeTimeRefV1`、optional monotonic／wall time、clock domainを持つ。authoritative順序はmonotonic sequenceとRuntime orderを使い、wall timeを使わない。simulation branchはCadence Profile Ref、Interval Ref／completed SHA、advance sequence、optional `TickPhaseId`、presentation branchはrender frame ID、optional `RenderPhaseId`だけを使い、両branch Fieldを混在させない。CPU、GPU、Audio、Device clockはoffset、drift、maximum error、valid intervalを持つ`ClockCorrelationV1`なしに同時刻とみなさない。
 
-`DebugSessionDescriptorV1`はsession ID、Project／revision、Play session、Build Receipt ref、Target Profile、process set、tier、channel set、retention／privacy profile ref、capture reason、start／end、completeness、gap summaryを持つ。同一Sessionへ異なるProject revision、Build、Targetを混在させない。GameHost restartは新Sessionまたは明示child Sessionとする。
+```text
+DebugSessionDescriptorRefV1
+  session_id: StableId
+  descriptor_version: positive uint32
+  descriptor_content_hash: SHA-256
+
+DebugSessionStartPointV1
+  start:
+    kind: before_first_runtime_time
+      start_record_sequence: uint64 = 0
+    | kind: correlated_runtime_time
+      start_record_sequence: uint64 = 0
+      runtime_time_ref: RuntimeTimeRefV1
+
+DebugSessionDescriptorV1
+  session_id: StableId
+  descriptor_version: positive uint32
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  play_session_id: StableId
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  initial_process_set_hash: SHA-256
+  instrumentation_tier:
+    fault_minimal | baseline | interactive | capture
+  channel_set_hash: SHA-256
+  retention_profile_ref
+  privacy_profile_ref
+  capture_reason_ref
+  start_point: DebugSessionStartPointV1
+  descriptor_content_hash: SHA-256
+
+DebugSessionClosureRefV1
+  session_id: StableId
+  closure_version: positive uint32
+  closure_content_hash: SHA-256
+
+DebugSessionClosureV1
+  session_id: StableId
+  closure_version: uint32 = 1
+  debug_session_ref: DebugSessionDescriptorRefV1
+  end_record_sequence: uint64
+  end_runtime_time_ref: null | RuntimeTimeRefV1
+  completeness: complete | partial | truncated | crashed
+  gap_summary_hash: SHA-256
+  closure_content_hash: SHA-256
+```
+
+`DebugSessionDescriptorV1`は開始時に一度だけcommitするimmutable identity recordであり、停止、gap、crash、Index完成によってversionまたはhashを更新しない。`start_point.kind=before_first_runtime_time`はGameHost／headless Sessionが最初のSimulation AdvanceまたはPresentation frameより前に開始するbranchで、Runtime timeを捏造しない。`correlated_runtime_time`だけが開始時に既にcompletedなexact `RuntimeTimeRefV1`を持てる。両branchの`start_record_sequence`は0であり、最初のDebug recordは1から始める。`descriptor_content_hash`はASCII `MIRAKAN_DEBUG_SESSION_DESCRIPTOR_V1`と同Fieldだけを除くclosed DescriptorのMCD canonical bytesを`uint32_be` length framingしてSHA-256し、Refは完成DescriptorのID／version／self-excluding hashからrecord外でmaterializeする。Build Receipt Refはcompleted signed recordへ解決し、隣接SHAは同じcompleted record全bytesのSHA-256である。同一Sessionへ異なるProject triple、Build、Targetを混在させない。GameHost restartは新Descriptorまたは明示child Sessionとする。
+
+`DebugSessionClosureV1`はproducer停止とdurable record境界確定後に同一Sessionへexact一件だけ作るimmutable終了Recordである。`session_id`はDescriptorとbyte equality、`end_record_sequence`は0以上のlast durable Debug record sequence、`end_runtime_time_ref`は終了時にcompleted Runtime timeが存在する場合だけnon-nullにする。最初のRuntime time前の拒否／crash、strict headlessのtime-less lifecycle終端へ偽のsimulation／presentation branchを作らない。`closure_content_hash`はASCII `MIRAKAN_DEBUG_SESSION_CLOSURE_V1`と同Fieldだけを除くclosed Closureのcanonical bytesから計算し、Closure Refは完成Recordからrecord外でmaterializeする。Closure未存在は`recording | finalizing`を意味し得るだけで、`complete`と推測しない。Replay Header、Range Artifact、Slice、Debug Receiptは不変Descriptor Refを束縛し、終了後の完全性／gapを判定するconsumerだけが対応Closure Refを別入力として要求する。Closure RefをDescriptorまたはReplay Header hashへ埋め戻さない。
 
 `DebugEventTypeV1`はtype ID／version、channel、category、bounded payload schema ref、maximum payload、priority、retention class、privacy class、causal policy、Shipping policyを登録する。未登録型、unbounded string／array、pointer、native handle、secret fieldをemitしない。large binaryはcontent-addressed Capture Artifactを参照する。
 
@@ -93,9 +145,9 @@ Recording | PausedAtSafeBoundary -> Truncated | Crashed
 Finalizing -> Partial
 ```
 
-StartはrequestされたTarget、reason、tier、channel、duration、retention／privacy profileをGovernance authorization、Build Capability、Target、Performance capacity、device trust、consentへ照合し、fixed ingressを準備してdescriptorとstart markerをcommitしてからrecordを受け付ける。本書はRisk値、承認者、authorization envelopeを再定義しない。
+StartはrequestされたTarget、reason、tier、channel、duration、retention／privacy profileをGovernance authorization、Build Capability、Target、Performance capacity、device trust、consentへ照合し、fixed ingressを準備してimmutable Descriptorとstart markerをcommitしてからrecordを受け付ける。本書はRisk値、承認者、authorization envelopeを再定義しない。
 
-Stopはexplicit request、profile limit、safe breakpoint、process exit、crash、critical recorder failureで開始し、producer停止、queue drain、footer、gap summary、artifact hash、Indexの順にfinalizeする。Crash時にnormal footerを捏造せずlast durable sequenceを記録する。Index失敗時にraw chunkを保持できても、AIへunindexed full scanを許可しない。
+Stopはexplicit request、profile limit、safe breakpoint、process exit、crash、critical recorder failureで開始し、producer停止、queue drain、footer、gap summary、artifact hash、Index、immutable Closureの順にfinalizeする。Crash時にnormal footerを捏造せずlast durable sequenceをClosureへ記録する。Index失敗時にraw chunkを保持できても、AIへunindexed full scanを許可しない。finalization retryは同じDescriptor Ref、end sequence、optional end Runtime time、completeness、gap hashから同じClosure bytesを再現し、別Closure version、latest探索、Descriptor更新を行わない。
 
 live pauseは[Scheduling／lifetime](scheduling-lifetime.md)のpublish safe boundary後だけ成立する。worker callback、Physics step、Audio callback、Render submission途中のWorldをInspectorへ公開しない。Pause中はauthoritative World read-only、Presentation camera／timelineは独立、GameplayDefinition node stepはcopied stateとdiscard-only outputを使う。
 
@@ -105,7 +157,7 @@ live pauseは[Scheduling／lifetime](scheduling-lifetime.md)のpublish safe boun
 
 Diagnosticは[Executable contracts](../02-foundation/executable-contracts.md)の`MirakanDiagnosticV1`を参照し、code、expected／actual、location、remediation、cause chainをDebug eventへ複写しない。Platform validator IDはBackend evidenceとして保持し、Miraikanai Diagnostic codeと分離する。
 
-`DebugSpanV1`はregistered name ID、parent、start／end、status、target、Runtime time ref、budget ref、actualを持つ。動的文字列やEntity IDをspan nameへ埋め込まない。異なるclock domainのspanはcorrelation errorを超えて厳密な順序を主張しない。
+`DebugSpanV1`はregistered name ID、parent、start／end、status、target、exact `RuntimeTimeRefV1`、budget ref、actualを持つ。動的文字列やEntity IDをspan nameへ埋め込まない。異なるclock domainのspanはcorrelation errorを超えて厳密な順序を主張しない。
 
 `DebugCounterDefinitionV1`はcounter ID／version、unit、value type、aggregation、scope kind、sampling policy、optional expected range、Performance budget ref、privacy、Shipping policyを持つ。aggregationは`gauge | monotonic_sum | histogram | duration | ratio`である。共通soft／hard budget値をcounter定義へ複写しない。Editor graphとheadless Gateは同じcounter IDと[Performance／capacity](performance-capacity.md)のbudget refを使う。
 
@@ -117,7 +169,7 @@ World debug shapeは`point | line | polyline | ray | aabb | obb | circle | spher
 
 canonical Storeはappend-only chunkである。Chunkはsession、channel、sequence／time range、schema set hash、compression ref、byte count、content hash、previous chunk hashを持つ。footer未完成chunkはlast complete recordまでrecoverする。CaptureをProject Sourceへ自動保存せず、User dataまたはCI artifact storeへ置く。external formatへexportしてもcanonical recordのretention stateを追跡する。
 
-Indexはsequence／time、type／channel／severity、target hash／kind、Runtime time ref、System／Entity／Component／Asset、Diagnostic、trace／span／correlation／parent、breakpoint／watch、Replay checkpoint／state hashを持つ。session、Store root hash、schema set hash、index generationが一致しないIndexをstaleとして拒否する。
+Indexはsequence／time、type／channel／severity、target hash／kind、exact `RuntimeTimeRefV1`、System／Entity／Component／Asset、Diagnostic、trace／span／correlation／parent、breakpoint／watch、Replay checkpoint／state hashを持つ。session、Store root hash、schema set hash、index generationが一致しないIndexをstaleとして拒否する。
 
 `DebugQueryV1`はexact session／index generation、bounded sequence／time range、最大64 target selector、最大256 type／channel selector、最大32 correlation ref、required field mask、canonical order、result count／byte limit、opaque cursor、registered aggregateを持つ。defaultは256 record／256 KiB、hard上限は4,096 record／4 MiBとする。AI Tool一回の返却は256 recordまたは256 KiBの小さい方で、広い調査はAggregate→narrow Query→Replay Sliceの順にする。
 
@@ -141,13 +193,190 @@ hit policyは`first | every | after_count | every_n | once_per_target_generation
 
 `DebugWatchV1`はStable target、MCD field path、sample boundary ref、interval、history capacity、comparison predicate、privacy classを持つ。pointer chain、native offset、任意expressionを使わない。target generation変更でretiredとし、新objectへ自動追従しない。containerはcount、hash、bounded sliceだけを返す。
 
-`StepTick`はScheduling Ownerのcomplete fixed tickを最後まで実行してsafe boundaryへ戻る。`StepRenderFrame`はWorldを固定しPresentationだけを進める。GameplayDefinition node stepはcopied state／discard-only journalでだけ許可する。live phase途中step、live GPU event step、Engineによるsource-line stepを提供しない。
+```text
+DebugSimulationAdvanceRequestV1
+  request_id: StableId
+  request_version: 1
+  debug_session_ref: DebugSessionDescriptorRefV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  expected_next_advance_sequence: positive uint64
+  control:
+    kind: fixed
+    | kind: variable
+      requested_logical_duration_seconds: ReducedPositiveRationalV1
+    | kind: turn_based
+      advance_command_ref: SimulationAdvanceControlRefV1
+      advance_command_sha256: SHA-256
+    | kind: explicit_step
+      step_request_ref: SimulationAdvanceControlRefV1
+      step_request_sha256: SHA-256
+      requested_step_ordinal: positive uint16
+  request_content_hash: SHA-256
+```
+
+`request_content_hash`はASCII `MIRAKAN_DEBUG_SIMULATION_ADVANCE_REQUEST_V1`と同Fieldだけを除くclosed requestのMCD canonical bytesを`uint32_be` length framingして計算する。Debuggerはこのtyped requestだけを提出し、`SimulationAdvanceIntervalV1`、そのhash、accepted Command／request Field、advance sequenceを生成しない。Scheduling Ownerだけがcurrent Debug Session authorization／safe boundary、selected Profile ref、expected next sequence、branch equalityを検証する。fixedはProfileからdurationを導出し、variableはrequested durationがProfileのmin／max内かつ当該Profile／Targetのdebug-step Qualificationがfreshな場合だけ採用する。turn-basedはCommand ref／hashの`control_type_ref`がProfileの`advance_command_type_ref`へ解決され未消費であること、explicit-stepはrequest ref／hashの`control_type_ref`がProfileの`step_request_type_ref`へ解決され、requested count、ordinal、未消費状態がvalidであることを検証する。成功時だけScheduling Ownerが次sequenceの`SimulationAdvanceIntervalV1`を生成・sealし、turn／explicit branchのRef／hash／ordinalをrequestからbyte equalityで投影してDebuggerへ返す。失敗時はintervalとWorld stateを生成しない。
+
+`StepSimulationAdvance`はScheduling Ownerが返したsealed `SimulationAdvanceIntervalV1`一件だけを入力に、選択CadenceでT00～T110のcomplete advanceを最後まで実行してsafe boundaryへ戻る。fixed／variableはrecord内のexact rational durationを使い、turn-based／explicit-stepは登録済みCommand／requestがScheduling Ownerに受理済みの場合だけ進め、待機中にDebug側が疑似advanceまたは`1/60`秒を生成しない。`StepRenderFrame`はWorldを固定しPresentationだけを進める。GameplayDefinition node stepはcopied state／discard-only journalでだけ許可する。live phase途中step、live GPU event step、Engineによるsource-line stepを提供しない。
 
 ## 10. Deterministic capture、Replay、Rewind
 
 authoritative Replayは[Scheduling／lifetime](scheduling-lifetime.md)が定めるProject／Build／Contract／System set、Input、RNG、accepted async resultとaccept time、command／event oracle、state hash、checkpoint、deterministic faultを記録する。OS raw packet、pointer、GPU output、wall time、Presentation cacheをauthoritative inputにしない。
 
-`ReplaySliceV1`はslice ID、source Session、Build Receipt ref、Project revision、start checkpoint、start／end Runtime time ref、Input／async／RNG range ref、expected state hash／Diagnostic、required Asset version、redaction manifest、content hashを持つ。問題直前のcheckpointから観測可能な最小rangeを選ぶ。required closure不足をportable reproductionと表示しない。
+```text
+SimulationAdvanceIntervalChunkRefV1
+  stream_id: StableId
+  stream_version: positive uint32
+  chunk_index: uint32
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  first_advance_sequence: positive uint64
+  last_advance_sequence_inclusive: positive uint64
+  interval_count: positive uint32
+  chunk_content_hash: SHA-256
+
+SimulationAdvanceIntervalChunkV1
+  stream_id: StableId
+  stream_version: positive uint32
+  chunk_index: uint32
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  first_advance_sequence: positive uint64
+  last_advance_sequence_inclusive: positive uint64
+  interval_records[1..4096]: SimulationAdvanceIntervalV1
+  chunk_content_hash: SHA-256
+
+SimulationAdvanceIntervalStreamRefV1
+  stream_id: StableId
+  stream_version: positive uint32
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  first_advance_sequence: positive uint64
+  last_advance_sequence_inclusive: positive uint64
+  interval_count: positive uint64
+  chunk_count: positive uint32
+  stream_content_hash: SHA-256
+
+SimulationAdvanceIntervalStreamV1
+  stream_id: StableId
+  stream_version: positive uint32
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  first_advance_sequence: positive uint64
+  last_advance_sequence_inclusive: positive uint64
+  interval_count: positive uint64
+  chunk_refs[1..1048576]: SimulationAdvanceIntervalChunkRefV1
+  stream_content_hash: SHA-256
+
+AuthoritativeReplayRangeArtifactRefV1
+  kind: checkpoint | input | accepted_async | rng
+  debug_session_ref: DebugSessionDescriptorRefV1
+  start_advance_sequence: positive uint64
+  end_advance_sequence_inclusive: positive uint64
+  artifact_schema_ref: McdContractRefV1(kind=type)
+  artifact_ref: ArtifactRefV1
+  artifact_completed_sha256: SHA-256
+  range_ref_content_hash: SHA-256
+
+AuthoritativeReplayDomainProjectionRefV1
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  projection_type_ref: McdContractRefV1(kind=type)
+  projection_id: StableId
+  projection_version: positive uint32
+  projection_content_hash: SHA-256
+
+AuthoritativeReplayHeaderRefV1
+  header_id: StableId
+  header_version: positive uint32
+  header_content_hash: SHA-256
+
+AuthoritativeReplayHeaderV1
+  header_id: StableId
+  header_version: positive uint32
+  debug_session_ref: DebugSessionDescriptorRefV1
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  contract_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  game_clock_domain_profile_ref: GameClockDomainProfileRefV1
+  physics_substep_activation_binding_ref:
+    null | PhysicsSubstepActivationBindingRefV1
+  interval_stream_ref: SimulationAdvanceIntervalStreamRefV1
+  range_artifact_refs[4..4096]:
+    AuthoritativeReplayRangeArtifactRefV1
+  range_artifact_set_hash: SHA-256
+  domain_replay_projection_refs[0..65536]:
+    AuthoritativeReplayDomainProjectionRefV1
+  domain_replay_projection_set_hash: SHA-256
+  header_content_hash: SHA-256
+
+AuthoritativeReplayDomainBindingRefV1
+  binding_id: StableId
+  binding_version: positive uint32
+  binding_content_hash: SHA-256
+
+AuthoritativeReplayDomainBindingV1
+  binding_id: StableId
+  binding_version: positive uint32
+  authoritative_replay_header_ref: AuthoritativeReplayHeaderRefV1
+  domain_replay_projection_ref:
+    AuthoritativeReplayDomainProjectionRefV1
+  binding_content_hash: SHA-256
+
+SimulationAdvanceIntervalRangeClosureV1
+  authoritative_replay_header_ref: AuthoritativeReplayHeaderRefV1
+  interval_stream_ref: SimulationAdvanceIntervalStreamRefV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  start_advance_sequence: positive uint64
+  end_advance_sequence_inclusive: positive uint64
+  interval_count: positive uint64
+  source_chunk_refs[1..1048576]: SimulationAdvanceIntervalChunkRefV1
+  interval_records[1..1048576]: SimulationAdvanceIntervalV1
+  range_content_hash: SHA-256
+
+ReplaySliceV1
+  slice_id: StableId
+  slice_version: positive uint32
+  debug_session_ref: DebugSessionDescriptorRefV1
+  authoritative_replay_header_ref: AuthoritativeReplayHeaderRefV1
+  authoritative_replay_header_sha256: SHA-256
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  interval_stream_ref: SimulationAdvanceIntervalStreamRefV1
+  start_checkpoint_ref:
+    AuthoritativeReplayRangeArtifactRefV1(kind=checkpoint)
+  start_runtime_time_ref: RuntimeTimeRefV1(kind=simulation)
+  end_runtime_time_ref: RuntimeTimeRefV1(kind=simulation)
+  simulation_advance_range: SimulationAdvanceIntervalRangeClosureV1
+  input_range_ref:
+    AuthoritativeReplayRangeArtifactRefV1(kind=input)
+  accepted_async_range_ref:
+    AuthoritativeReplayRangeArtifactRefV1(kind=accepted_async)
+  rng_range_ref:
+    AuthoritativeReplayRangeArtifactRefV1(kind=rng)
+  range_artifact_set_hash: SHA-256
+  expected_state_hash: SHA-256
+  diagnostic_refs[0..256]
+  required_asset_version_refs[0..65536]
+  redaction_manifest_ref
+  slice_content_hash: SHA-256
+```
+
+各Chunkはcompleted `SimulationAdvanceIntervalV1`のfull canonical recordを保持し、`chunk_content_hash`はASCII `MIRAKAN_SIMULATION_ADVANCE_INTERVAL_CHUNK_V1`と同Fieldだけを除く全FieldのMCD canonical bytesを`uint32_be` length framingしてSHA-256する。recordの`advance_sequence`は`first_advance_sequence`から1ずつ増え、末尾、件数、全`cadence_profile_ref`、各`interval_content_hash`を再計算して一致させる。Chunk Refは完成Chunkからrecord外でmaterializeする。
+
+StreamのChunk Refは`chunk_index` 0開始の昇順で、先頭から末尾までgap、duplicate、overlapなく連続し、全interval countとrangeをexactに覆う。`stream_content_hash`はASCII `MIRAKAN_SIMULATION_ADVANCE_INTERVAL_STREAM_V1`と自己hashを除くStream全Fieldのcanonical bytesから計算し、Stream Refは完成Streamのidentity、Profile、range、count、self-excluding hashからrecord外でmaterializeする。
+
+`AuthoritativeReplayRangeArtifactRefV1.range_ref_content_hash`はASCII `MIRAKAN_AUTHORITATIVE_REPLAY_RANGE_ARTIFACT_REF_V1`と同Fieldだけを除くclosed Ref canonical bytesから計算する。`artifact_ref`と隣接SHAは同じcompleted artifact全bytesへ解決し、全RefのSessionはHeaderとbyte equality、rangeはStream内でなければならない。HeaderのRange Refは`kind, start, end, artifact_schema_ref, artifact_ref`のcanonical byte順、duplicateなしで、checkpoint／input／accepted_async／rngを各1件以上含む。`range_artifact_set_hash`はASCII `MIRAKAN_AUTHORITATIVE_REPLAY_RANGE_ARTIFACT_SET_V1`、件数、全Ref canonical bytesをlength framingして計算する。
+
+HeaderのDebug Session、Game Candidate Build Receipt／completed signed SHA、exact Project triple `{project_id, project_revision, project_document_set_hash}`、`TargetProfileRefV1`はDescriptor／Build／Runtime Packageとbyte equalityである。`cadence_profile_ref`、Game Clock Domain Profileが選択するCadence Ref、Stream RefのProfileもbyte equalityにする。Substep Binding RefはRuntime PackageおよびCadence ProfileのSubstep Ref nullabilityと一致し、non-null時は同じCadence／Substep／Targetを束縛するpassかつfreshなPhysics owner Bindingへ解決する。
+
+Domain Replay Projection base recordへHeader Refを埋め戻すとhash cycleになるため禁止する。Headerの`domain_replay_projection_refs[]`はreceipt-free completed Projectionだけをcanonical順、duplicateなしで保持し、set hashはASCII `MIRAKAN_AUTHORITATIVE_REPLAY_DOMAIN_PROJECTION_SET_V1`、件数、全Ref canonical bytesから計算する。`header_content_hash`はASCII `MIRAKAN_AUTHORITATIVE_REPLAY_HEADER_V1`と自己hashを除く全Fieldから計算し、Header Refは完成Headerからrecord外でmaterializeする。その後だけroot外`AuthoritativeReplayDomainBindingV1`を作り、Binding hashはASCII `MIRAKAN_AUTHORITATIVE_REPLAY_DOMAIN_BINDING_V1`と自己hashを除くcanonical bytesから計算する。生成順は`receipt-free Domain Projection／Interval Chunk／Range Artifact → Stream／Projection set／Artifact set → Header／Ref → Domain Binding`であり、Header／BindingをProjection hashへ戻さない。IDだけ、latest、表示Hz、Genre、別Project／Build／Sessionの同名Profileへfallbackしない。
+
+Range ClosureはHeaderが指す同じStreamの連続部分だけを表し、source Chunk Refは元Streamと同順、full interval recordsは解決したChunkの該当recordとbyte equalityで、start／end／countをgapなくexactに覆う。`range_content_hash`はASCII `MIRAKAN_SIMULATION_ADVANCE_INTERVAL_RANGE_CLOSURE_V1`と自己hashを除く全Fieldから計算する。`ReplaySliceV1`のSession、Build／completed SHA、Project triple、Target、Cadence、StreamはHeaderとbyte equalityで、start／end `RuntimeTimeRefV1`はsimulation branchだけを使い、各Interval Ref／completed SHA／sequenceがRangeの先頭／末尾recordと一致する。四Range Artifact RefはHeader member、同Sessionで、input／accepted_async／rngはSlice rangeをexactに覆い、checkpointはstart以下の最新recordを指す。Sliceの`range_artifact_set_hash`はこのexact四RefからHeaderと同じset algorithmで再計算する。`slice_content_hash`はASCII `MIRAKAN_REPLAY_SLICE_V1`と自己hashを除く全Fieldから計算し、Header Ref／完成Header SHA、Cadence Profile、Stream Ref、range／artifact set hashをそのまま束縛する。問題直前のcheckpointから観測可能な最小rangeを選び、required closure不足、partial Chunk、Profile推測、Interval欠落をportable reproductionと表示しない。各Domainのreceipt-free Replay ProjectionはHeader memberで、root外Domain Bindingを介してHeaderのCadence Profile Ref、該当Interval Ref／completed SHA／sequenceとbyte equalityにし、独自Headerまたはrate推測を作らない。
 
 Rewindはrecord済みSnapshot／Event／State sampleをtimelineで閲覧する機能で、live Worldを過去へ戻して継続する機能ではない。recorded object trackをscrubし、Overlay、Watch、Diagnostic、Causalityを同じtime pointへ同期する。current Projectとrecorded revisionを常時区別する。過去から再実行する場合はcheckpointからchild Replay Sessionを開始する。
 
@@ -200,91 +429,231 @@ Activation後のDiagnosis workflowはscope／privacy Preview、Aggregate、narro
 | 1 | `operation.debug.aggregate` | Project revision、Candidate root、Target、Session、Build Receipt、Store／Index generation、bounded selector、Authorization | `DebugAggregateReceiptV1`からtarget／time／type候補を絞る |
 | 2 | `operation.debug.query` | 同じidentity、exact Aggregate Receipt ref／hash、bounded `DebugQueryV1` hash、新しいAuthorization | `DebugQueryReceiptV1`とrecord／gap／redactionを得る |
 | 3a | `operation.debug.read_causality` | 同じidentity、exact Query Receipt ref／hash、root Evidence refs、depth／node bound、新しいAuthorization | `DebugCausalityReceiptV1`とtyped causal subgraphを得る |
-| 3b | `operation.debug.read_replay_slice` | 同じidentity、exact Build／Query／Causality Receipt ref／hash、Replay closure／range hash、新しいAuthorization | `ReplaySliceReceiptV1`とreproduction／divergence evidenceを得る |
+| 3b | `operation.debug.read_replay_slice` | 同じidentity、exact Build／Query／Causality Receipt ref／hash、Authoritative Replay Header Ref／SHA、Cadence Profile Ref、Interval Stream Ref、連続range closure hash、新しいAuthorization | `ReplaySliceReceiptV1`とreproduction／divergence evidenceを得る |
 | 4 | `operation.debug.validate_finding` | 同じidentity、exact Build／Query／Causality／Replay Receipt ref／hash、`DebugFindingV1` hash、Finding closure hash、新しいAuthorization | `DebugFindingValidationReceiptV1`がvalidityとexact proposal Operation refを返す |
 | 5 | Receiptの`proposal_operation_ref` | validation Receipt、同じrevision／Candidate、Caller allowlist、R1以上の新Authorization | 対応familyも独立にatomic Activation済みの場合だけ、例としてGame Systemは`operation.systems.plan`、Worldは`operation.worlds.plan_change`でProposalを生成 |
 
-Activation時のDebug Operation型固有payloadは次だけを持つ。共通identity、request、Authorization、result、Diagnostic、署名は[Core architecture §9.1](../02-foundation/core-architecture.md#91-operationtaskv1)のplanned `OperationReceiptEnvelopeV1`が所有する。
+Activation時のDebug Operation型固有payloadは次だけを持つ。request、Authorization、result、Diagnostic、署名を含む共通Envelope fieldは[Core architecture §9.1](../02-foundation/core-architecture.md#91-operationtaskv1)のplanned `OperationReceiptEnvelopeV1`が所有する。以下のDebug evidence identity fieldはEnvelopeの共通identityを置換するものではなく、解決したSession／Build／Project／Targetと後段artifactをbyte equalityで束縛する型付きpayload projectionである。
 
-Build familyのActivationはSystems／World familyを暗黙activateしない。Step 4が妥当なFindingを得ても、対応する`planning.operation_family.game_system_discovery`または`planning.operation_family.world_discovery`が未Activationなら`proposal_operation_ref`を省略し、`decision=insufficient`と`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返してProjectを不変にする。文字列ID、別familyのread-only候補、Provider aliasへfallbackしない。
+Build familyのActivationはSystems／World familyを暗黙activateしない。Step 4が妥当なFindingを得ても、対応する`planning.operation_family.game_system_discovery`または`planning.operation_family.world_discovery`が未Activationなら`outcome={kind:succeeded, decision:{kind:insufficient}}`と`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`を返してProjectを不変にする。`proposal_operation_ref` Field、文字列ID、別familyのread-only候補、Provider aliasへfallbackしない。
 
 ```text
+DebugOperationReceiptRefV1
+  receipt_kind:
+    aggregate | query | causality | replay_slice |
+    finding_validation | support_bundle
+  operation_ref: McdContractRefV1(kind=operation)
+  task_id: UUIDv7
+  signed_record_ref:
+    MirakanSignedRecordRefV1(purpose=debug_operation_receipt)
+
+DebugEvidenceRefV1
+  debug_session_ref: DebugSessionDescriptorRefV1
+  record_type_ref: McdContractRefV1(kind=type)
+  store_generation: positive uint64
+  record_sequence: positive uint64
+  record_content_hash: SHA-256
+  evidence_ref_content_hash: SHA-256
+
 DebugAggregateReceiptPayloadV1
-  build_receipt_ref
-  build_receipt_sha256
-  session_ref
-  store_generation
-  index_generation
-  selector_sha256
-  aggregate_result_sha256?
+  debug_session_ref: DebugSessionDescriptorRefV1
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  store_generation: positive uint64
+  index_generation: positive uint64
+  selector_sha256: SHA-256
+  outcome:
+    kind: succeeded
+      aggregate_result_ref:
+        ArtifactRefV1(artifact_kind=debug_aggregate_result,
+                      schema_version=1)
+      aggregate_result_sha256: SHA-256
+    | kind: failed
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
+    | kind: cancelled
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
 
 DebugQueryReceiptPayloadV1
-  debug_aggregate_receipt_ref
-  debug_aggregate_receipt_sha256
-  session_ref
-  store_generation
-  index_generation
-  query_sha256
-  record_slice_sha256?
-  gap_summary_sha256?
-  redaction_manifest_sha256?
+  debug_session_ref: DebugSessionDescriptorRefV1
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  debug_aggregate_receipt_ref:
+    DebugOperationReceiptRefV1(receipt_kind=aggregate)
+  debug_aggregate_receipt_sha256: SHA-256
+  store_generation: positive uint64
+  index_generation: positive uint64
+  query_sha256: SHA-256
+  outcome:
+    kind: succeeded
+      record_slice_ref:
+        ArtifactRefV1(artifact_kind=debug_record_slice,
+                      schema_version=1)
+      record_slice_sha256: SHA-256
+      gap_summary_ref:
+        ArtifactRefV1(artifact_kind=debug_gap_summary,
+                      schema_version=1)
+      gap_summary_sha256: SHA-256
+      redaction_manifest_ref:
+        ArtifactRefV1(artifact_kind=debug_redaction_manifest,
+                      schema_version=1)
+      redaction_manifest_sha256: SHA-256
+    | kind: failed
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
+    | kind: cancelled
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
 
 DebugCausalityReceiptPayloadV1
-  debug_query_receipt_ref
-  debug_query_receipt_sha256
-  session_ref
-  index_generation
-  root_evidence_refs[]
-  bounds_sha256
-  causal_graph_sha256?
+  debug_session_ref: DebugSessionDescriptorRefV1
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  debug_query_receipt_ref:
+    DebugOperationReceiptRefV1(receipt_kind=query)
+  debug_query_receipt_sha256: SHA-256
+  index_generation: positive uint64
+  root_evidence_refs[1..16]: DebugEvidenceRefV1
+  bounds_sha256: SHA-256
+  outcome:
+    kind: succeeded
+      causal_graph_ref:
+        ArtifactRefV1(artifact_kind=debug_causality_graph,
+                      schema_version=1)
+      causal_graph_sha256: SHA-256
+    | kind: failed
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
+    | kind: cancelled
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
 
 ReplaySliceReceiptPayloadV1
-  build_receipt_ref
-  build_receipt_sha256
-  debug_query_receipt_ref
-  debug_query_receipt_sha256
-  debug_causality_receipt_ref
-  debug_causality_receipt_sha256
-  session_ref
-  replay_closure_sha256
-  range_sha256
-  replay_slice_artifact_ref?
-  replay_slice_sha256?
+  debug_session_ref: DebugSessionDescriptorRefV1
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  debug_query_receipt_ref:
+    DebugOperationReceiptRefV1(receipt_kind=query)
+  debug_query_receipt_sha256: SHA-256
+  debug_causality_receipt_ref:
+    DebugOperationReceiptRefV1(receipt_kind=causality)
+  debug_causality_receipt_sha256: SHA-256
+  authoritative_replay_header_ref: AuthoritativeReplayHeaderRefV1
+  authoritative_replay_header_sha256: SHA-256
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  interval_stream_ref: SimulationAdvanceIntervalStreamRefV1
+  start_advance_sequence: positive uint64
+  end_advance_sequence_inclusive: positive uint64
+  interval_count: positive uint64
+  slice_content_hash: SHA-256
+  simulation_advance_range_sha256: SHA-256
+  range_artifact_set_hash: SHA-256
+  outcome:
+    kind: succeeded
+      replay_slice_artifact_ref:
+        ArtifactRefV1(artifact_kind=replay_slice, schema_version=1)
+      replay_slice_sha256: SHA-256
+    | kind: failed
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
+    | kind: cancelled
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
 
 DebugFindingValidationReceiptPayloadV1
-  build_receipt_ref
-  build_receipt_sha256
-  debug_query_receipt_ref
-  debug_query_receipt_sha256
-  debug_causality_receipt_ref
-  debug_causality_receipt_sha256
-  replay_slice_receipt_ref
-  replay_slice_receipt_sha256
-  session_ref
-  finding_sha256
-  finding_closure_sha256
-  decision? = valid | invalid | insufficient
-  proposal_operation_ref?
+  debug_session_ref: DebugSessionDescriptorRefV1
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  debug_query_receipt_ref:
+    DebugOperationReceiptRefV1(receipt_kind=query)
+  debug_query_receipt_sha256: SHA-256
+  debug_causality_receipt_ref:
+    DebugOperationReceiptRefV1(receipt_kind=causality)
+  debug_causality_receipt_sha256: SHA-256
+  replay_slice_receipt_ref:
+    DebugOperationReceiptRefV1(receipt_kind=replay_slice)
+  replay_slice_receipt_sha256: SHA-256
+  finding_ref:
+    ArtifactRefV1(artifact_kind=debug_finding, schema_version=1)
+  finding_sha256: SHA-256
+  finding_closure_ref:
+    ArtifactRefV1(artifact_kind=debug_finding_closure,
+                  schema_version=1)
+  finding_closure_sha256: SHA-256
+  outcome:
+    kind: succeeded
+      decision:
+        kind: valid
+          proposal_operation_ref:
+            McdContractRefV1(kind=operation,status=active)
+        | kind: invalid
+        | kind: insufficient
+    | kind: failed
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
+    | kind: cancelled
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
 
 SupportBundleReceiptPayloadV1
-  build_receipt_ref
-  build_receipt_sha256
-  session_ref
-  source_debug_receipts[] { receipt_ref, receipt_sha256 }
-  policy_ref
-  consent_record_ref
-  redaction_manifest_ref
-  support_bundle_ref?
-  content_manifest_sha256?
-  archive_artifact_ref?
-  archive_sha256?
+  debug_session_ref: DebugSessionDescriptorRefV1
+  debug_session_closure_ref: DebugSessionClosureRefV1
+  debug_session_closure_sha256: SHA-256
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  source_debug_receipts[1..64]:
+    receipt_ref: DebugOperationReceiptRefV1
+    receipt_sha256: SHA-256
+  policy_ref: SupportBundlePolicyRefV1
+  consent_record_ref:
+    MirakanSignedRecordRefV1(purpose=support_bundle_consent)
+  redaction_manifest_ref:
+    ArtifactRefV1(artifact_kind=support_bundle_redaction_manifest,
+                  schema_version=1)
+  redaction_manifest_sha256: SHA-256
+  outcome:
+    kind: succeeded
+      support_bundle_ref:
+        ArtifactRefV1(artifact_kind=support_bundle, schema_version=1)
+      support_bundle_sha256: SHA-256
+      content_manifest_ref:
+        ArtifactRefV1(artifact_kind=support_bundle_content_manifest,
+                      schema_version=1)
+      content_manifest_sha256: SHA-256
+      archive_artifact_ref:
+        ArtifactRefV1(artifact_kind=support_bundle_archive,
+                      schema_version=1)
+      archive_sha256: SHA-256
+    | kind: failed
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
+    | kind: cancelled
+      diagnostic_refs[1..64]: DiagnosticCodeRefV1
 ```
 
-全Fieldは`?`を除き必須、`root_evidence_refs[]`と`source_debug_receipts[]`は1件以上、重複なしunsigned byte順で、unknown Fieldは禁止する。Envelopeの`result=succeeded`ではAggregate result、Queryのrecord／gap／redaction、Causality graph、Replay artifact／slice、Finding decision、Support Bundle／content manifest／archiveの各success output groupを全て必須にする。`result=failed | cancelled`では対応groupを全て省略し、`diagnostic_refs[]`を1件以上必須にする。`proposal_operation_ref`は後述のvalid条件だけで許可する。
+全objectはclosed、全Fieldは必須、unknown Fieldは禁止する。`DebugOperationReceiptRefV1.receipt_kind`は`aggregate→operation.debug.aggregate`、`query→operation.debug.query`、`causality→operation.debug.read_causality`、`replay_slice→operation.debug.read_replay_slice`、`finding_validation→operation.debug.validate_finding`、`support_bundle→operation.debug.support-bundle.generate`へ一意に対応し、`signed_record_ref`は同Operation、Task、Payload Typeのcompleted signed `OperationReceiptEnvelopeV1`へ解決する。各隣接`*_receipt_sha256`は`MirakanSignedRecordRefV1.signed_record_hash`および同じ完成Record全bytesのSHA-256とbyte equalityにする。`DebugEvidenceRefV1.evidence_ref_content_hash`はASCII `MIRAKAN_DEBUG_EVIDENCE_REF_V1`と同Fieldだけを除くclosed Ref canonical bytesから計算し、Session／Store generation／record sequence／Type／content hashの一Fieldでも異なるrecordへfallbackしない。
 
-`source_debug_receipts[]`は`DebugAggregateReceiptV1 | DebugQueryReceiptV1 | DebugCausalityReceiptV1 | ReplaySliceReceiptV1 | DebugFindingValidationReceiptV1`の`result=succeeded`完成Recordだけを受理する。各前段refは署名を含む完成`OperationReceiptEnvelopeV1` Record、その`*_sha256`は同じRecord hashでなければならない。全段のProject revision、Candidate root、Target、Session、Build Receipt、remote Device identity／generationをexact一致させる。Aggregate→Query→Causality→Replay Slice→Finding validationの順を短絡せず、前段のmissing、非success、hash／署名／operation ID／payload contract差、revocation、Store／Index generation差を後段で拒否する。
+全PayloadのDebug Session Ref、Game Candidate Build Receipt Ref／completed signed SHA、exact Project triple `{project_id, project_revision, project_document_set_hash}`、Target Profile RefはDescriptor、Envelope、前段Receiptおよび生成Artifactとbyte equalityでなければならない。`store_generation`と`index_generation`は1開始で、同じReceipt chain内で減少させず、Query／Causalityが参照する前段のexact generationと一致させる。`root_evidence_refs[]`は1～16件、`source_debug_receipts[]`は1～64件で、各型のcanonical ref bytes順、duplicateなしとする。全Artifact Refの隣接SHAは`ArtifactRefV1.sha256`および解決したcompleted artifact bytesと一致させる。
 
-Finding validationにはCausalityとReplay Sliceの両Receiptを必須にする。Replayまたは必要Evidenceを生成できない場合は前段Diagnosticから新しいvalidation Taskを作り、`decision=insufficient`以外を返さず、`proposal_operation_ref`を省略する。`proposal_operation_ref`は`decision=valid`かつMCD登録済みのR1 proposal Operationが一意に解決した場合だけ許可し、汎用`operation.debug.propose`、Source write、Commitを生成しない。Callerの`AiDebugContextV1.allowed_operation_ids`、新しいAuthorization Envelope、全Receipt ref／hashが一致しなければStep 5へ進まない。
+Payload `outcome.kind`はEnvelopeの`result`とbyte equalityである。`succeeded` branchだけが当該success output groupを全Field必須で持ち、`failed | cancelled` branchはsuccess Fieldを一つも持たず、Envelopeと同一の`DiagnosticCodeRefV1[1..64]`を持つ。他branch Field混在、`?`によるpartial success、empty Diagnosticを拒否する。Replay successではPayloadのHeader Ref／completed Header SHA、Cadence Profile Ref、Interval Stream Ref、start／end／count、Slice content hash、Range SHA、Range Artifact set hashが解決した`ReplaySliceV1`および`SimulationAdvanceIntervalRangeClosureV1`の同Fieldとbyte equalityでなければならない。Findingの`proposal_operation_ref`は`succeeded.valid`だけで必須、`invalid | insufficient | failed | cancelled`ではField自体を禁止する。
+
+`source_debug_receipts[]`は`DebugAggregateReceiptV1 | DebugQueryReceiptV1 | DebugCausalityReceiptV1 | ReplaySliceReceiptV1 | DebugFindingValidationReceiptV1`の`result=succeeded`完成Recordだけを受理する。各前段refは署名を含む完成`OperationReceiptEnvelopeV1` Record、その`*_sha256`は同じRecord hashでなければならない。全段のexact Project triple、Candidate root、typed Target、typed Debug Session、typed Game Candidate Build Receipt／completed signed SHA、remote Device identity／generationを一致させる。Aggregate→Query→Causality→Replay Slice→Finding validationの順を短絡せず、前段のmissing、非success、hash／署名／operation ID／payload contract差、revocation、Store／Index generation差を後段で拒否する。
+
+Finding validationにはCausalityとReplay Sliceの両Receiptを必須にする。Replayまたは必要Evidenceを生成できない場合は前段Diagnosticから新しいvalidation Taskを作り、`outcome={kind:succeeded, decision:{kind:insufficient}}`以外を返さない。`proposal_operation_ref`は`decision.kind=valid`かつMCD登録済みのR1 proposal Operationが一意に解決した場合だけ必須とし、汎用`operation.debug.propose`、Source write、Commitを生成しない。Callerの`AiDebugContextV1.allowed_operation_ids`、新しいAuthorization Envelope、全Receipt ref／hashが一致しなければStep 5へ進まない。
 
 Activation後、追加instrumentationはchannel、tier、duration、capacity／privacy影響を提示し、Governance authorizationを得て開始する。同じblocking集合が減らない自動repairは2回で停止する。各Operationは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の別`OperationTaskV1`であり、前段のread権限、Device binding、consentを後段へ継承しない。状態確認、Receipt取得、cancelは同時Activationした`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`だけを使う。
 
@@ -297,42 +666,101 @@ AIはmissing eventをnon-occurrenceと断定せず、PresentationからGameplay 
 support bundleのschema、redaction、size bound、生成operation、failureは本書だけが所有する。`SupportBundleV1`は[Product Plan](../00-product/product-plan.md)のdiagnosis→support製品E2E終端を成すUser提出用bundleであり、開発内再現用の`ReproductionBundleV1`とは別概念で相互に代用しない。
 
 ```text
+SupportBundlePolicyRefV1
+  policy_id: StableId
+  policy_version: positive uint32
+  policy_content_hash: SHA-256
+
+SupportBundleDataClassRefV1
+  privacy_profile_ref:
+    ArtifactRefV1(artifact_kind=privacy_profile, schema_version=1)
+  data_class_id: StableId
+  data_class_version: positive uint32
+  data_class_content_hash: SHA-256
+
 SupportBundleV1
   bundle_id: StableId
   schema_version: uint32 = 1
-  session_ref
-  project_revision
-  build_receipt_ref
-  target_profile_ref
-  component_artifact_refs: SupportBundleComponentRefV1[1..64]
-  redaction_manifest_ref
-  consent_record_ref
-  policy_ref: exact SupportBundlePolicyV1 ref
+  debug_session_ref: DebugSessionDescriptorRefV1
+  debug_session_closure_ref: DebugSessionClosureRefV1
+  debug_session_closure_sha256: SHA-256
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  component_artifact_refs[1..64]: SupportBundleComponentRefV1
+  redaction_manifest_ref:
+    ArtifactRefV1(artifact_kind=support_bundle_redaction_manifest,
+                  schema_version=1)
+  redaction_manifest_sha256: SHA-256
+  consent_record_ref:
+    MirakanSignedRecordRefV1(purpose=support_bundle_consent)
+  policy_ref: SupportBundlePolicyRefV1
   uncompressed_size_bytes: uint64
   archive_size_bytes: uint64
-  content_manifest_sha256
-  generated_by_operation_id = operation.debug.support-bundle.generate
-  signature_ref: optional
+  content_manifest_ref:
+    ArtifactRefV1(artifact_kind=support_bundle_content_manifest,
+                  schema_version=1)
+  content_manifest_sha256: SHA-256
+  archive_artifact_ref:
+    ArtifactRefV1(artifact_kind=support_bundle_archive,
+                  schema_version=1)
+  archive_sha256: SHA-256
+  generated_by_operation_ref:
+    McdContractRefV1(
+      kind=operation,
+      operation_id=operation.debug.support-bundle.generate)
+  bundle_content_hash: SHA-256
 
 SupportBundleComponentRefV1
-  component_kind: crash_evidence | hang_evidence | diagnostic_slice | log_slice | capability_summary | environment_summary
-  artifact_ref
-  content_sha256
+  component_kind:
+    crash_evidence | hang_evidence | diagnostic_slice | log_slice |
+    capability_summary | environment_summary
+  artifact_ref:
+    ArtifactRefV1(artifact_kind=support_bundle_component,
+                  schema_version=1)
+  content_sha256: SHA-256
   uncompressed_size_bytes: uint64
-  data_class_refs[]
+  data_class_refs[1..32]: SupportBundleDataClassRefV1
+  component_ref_content_hash: SHA-256
 
 SupportBundlePolicyV1
-  policy_id
-  max_input_bytes: uint64
-  max_archive_bytes: uint64
-  max_file_count: uint32
-  allowed_data_class_refs[]
-  retention_policy_ref
+  policy_id: StableId
+  policy_version: positive uint32
+  privacy_profile_ref:
+    ArtifactRefV1(artifact_kind=privacy_profile, schema_version=1)
+  max_input_bytes: uint64[1..18446744073709551615]
+  max_archive_bytes: uint64[1..18446744073709551615]
+  max_file_count: uint32[1..65536]
+  allowed_data_class_refs[1..64]: SupportBundleDataClassRefV1
+  retention_policy_ref: McdContractRefV1(kind=policy)
+  policy_content_hash: SHA-256
+
+SupportBundleRedactionManifestV1
+  policy_ref: SupportBundlePolicyRefV1
+  input_component_refs[1..64]: SupportBundleComponentRefV1
+  redaction_entries[1..4096]:
+    component_ref_content_hash: SHA-256
+    field_path: CanonicalJsonPointer
+    action: included | removed | transformed
+    data_class_ref: SupportBundleDataClassRefV1
+    rule_ref: McdContractRefV1(kind=policy)
+    output_value_sha256: null | SHA-256
+  output_component_refs[1..64]: SupportBundleComponentRefV1
+  omitted_count: uint64
+  gap_summary_ref:
+    ArtifactRefV1(artifact_kind=debug_gap_summary, schema_version=1)
+  gap_summary_sha256: SHA-256
+  manifest_content_hash: SHA-256
 ```
 
-`SupportBundleRedactionManifestV1`は`policy_ref`、入力component hash集合、Field／recordごとの`included | removed | transformed`、data class、rule ID、出力hash、omitted count、gap summaryを持つ。credential、token、private key、password、signing materialは変換せず収集段階で拒否する。redaction後bytesからcomponent／manifest hashとsizeを再計算し、入力hash、出力hash、bundle manifestが一致しなければexportしない。
+各`SupportBundle*RefV1`のcontent hashは型名に対応するASCII domain `MIRAKAN_SUPPORT_BUNDLE_POLICY_V1`、`MIRAKAN_SUPPORT_BUNDLE_COMPONENT_REF_V1`、`MIRAKAN_SUPPORT_BUNDLE_V1`と各自己hash Fieldだけを除くclosed canonical bytesから計算する。Policy Refは完成Policyから、Component Refは完成component referenceからrecord外でmaterializeする。Data Class RefはPolicyの同じPrivacy Profile memberへexact解決し、allowed集合外、別Profile、ID-only、latestへfallbackしない。Component／Policy／Data Class配列は各Ref canonical bytes順へstrict sortし、duplicateを拒否する。全Artifact Refの`sha256`と隣接SHAは同じcompleted bytesに一致し、BundleのComponent集合、Redaction Manifestのoutput集合、Content Manifest、Archiveのentry集合はexact set equalityである。`bundle_content_hash`は外部Operation Receipt／署名を入力にせず、completed receipt-free Bundleから計算する。
 
-`SupportBundleReceiptV1`は`OperationReceiptEnvelopeV1<SupportBundleReceiptPayloadV1>`の完成署名Recordである。BundleとReceiptのCandidate、Target、Session、Build Receipt、source Debug Receipt、consent、redaction manifest、content manifest、archive hashが一致しなければ成功にしない。
+`SupportBundleRedactionManifestV1`は入力／出力component、Field／recordごとの`included | removed | transformed`、data class、rule、出力hash、omitted count、gap summaryを上記bound内で閉じる。`included | transformed`は`output_value_sha256`を必須、`removed`はnullにし、他branch Field混在を拒否する。credential、token、private key、password、signing materialは変換せず収集段階で拒否する。redaction後bytesからcomponent／manifest hashとsizeを再計算し、入力hash、出力hash、bundle manifestが一致しなければexportしない。`manifest_content_hash`はASCII `MIRAKAN_SUPPORT_BUNDLE_REDACTION_MANIFEST_V1`と同Fieldだけを除くclosed bytesから計算する。
+
+`SupportBundleReceiptV1`は`OperationReceiptEnvelopeV1<SupportBundleReceiptPayloadV1>`の完成署名Recordである。BundleとReceiptのCandidate、typed Target、typed Debug Session Descriptor／Closure、typed Game Candidate Build Receipt／completed signed SHA、exact Project triple、source Debug Receipt、Policy、consent、redaction manifest、content manifest、archive hashが一致しなければ成功にしない。ClosureはDescriptorと同一Sessionのcompleted hash-valid Recordで、Bundleのcompleteness／gap表示はClosureからだけ取得する。
 
 Atomic activation後の生成は`operation.debug.support-bundle.generate`だけが行い、対象Session、component Preview、data class、概算／上限bytes、redaction policy、提出先を表示して明示consentを得る。これは上記と同じOperation Registry、`OperationTaskV1`、task status／Receipt／cancel経路を使うexport branchであり、独自Task APIまたは自由形式Toolにしない。Aggregate／Query Receiptを入力component選択に使えるが、Support Bundle生成をFinding validationまたはProposal成功として扱わない。`max_input_bytes`、`max_archive_bytes`、`max_file_count`のいずれかを超える場合は切り詰めて成功扱いせず、対象rangeを狭める新Proposalを返す。最低failureは`diagnostic.debug.support-bundle-consent-required`、`diagnostic.debug.support-bundle-redaction-incomplete`、`diagnostic.debug.support-bundle-size-limit-exceeded`、`diagnostic.debug.support-bundle-artifact-unavailable`、`diagnostic.debug.support-bundle-manifest-mismatch`をclosed IDとして区別する。
 
@@ -340,19 +768,46 @@ Target別の生成UX、保存先、提出transportは各Platform Owner（[Window
 
 Crash recordはPlatform OwnerのCrash envelopeを参照し、Session、Build、last durable sequence、gap、Replay checkpoint、breadcrumbを関連付ける。in-process handlerはpreallocated metadataだけを書き、dump／symbol／Sourceを別Artifactにする。exact binary／module／symbol hashが一致する場合だけsymbolicateし、partial stackを推測補完しない。User actionとGovernance authorizationなしにonline service／Providerへ送らない。
 
-Hang watchdogはsimulation、render submission、window、audio control、worker poolのheartbeatを分け、last progress、active Runtime time ref、bounded role stack ref、queue depth／oldest item、lock-order state、GPU submission status、last critical Diagnosticを記録する。threadを強制resumeして継続を成功扱いしない。
+Hang watchdogはsimulation、render submission、window、audio control、worker poolのheartbeatを分け、last progress、active exact `RuntimeTimeRefV1`、bounded role stack ref、queue depth／oldest item、lock-order state、GPU submission status、last critical Diagnosticを記録する。threadを強制resumeして継続を成功扱いしない。
 
-`HangDetectionPolicyV1`は`policy_id`、schema version、Target Profile ref、role entries、Application／debug execution state条件、evidence profile refを持つ。role entryは`role`、expected cadence ref、minimum missed interval count、minimum no-progress duration、active predicate、exempt state setを必須とする。C1の値は次で固定する。
+`HangDetectionPolicyV1`は`policy_id`、schema version、Target Profile ref、role entries、Application／debug execution state条件、evidence profile refを持つ。role entryは`role`、次のclosed `HangSimulationProgressExpectationV1`または非simulation role固有expectation、minimum no-progress duration、active predicate、exempt state setを必須とする。
+
+```text
+HangSimulationProgressExpectationV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  expectation:
+    kind: fixed_periodic
+      expected_logical_duration_seconds: ReducedPositiveRationalV1
+      minimum_missed_advance_count: positive uint32
+    | kind: variable_periodic
+      minimum_logical_duration_seconds: ReducedPositiveRationalV1
+      maximum_logical_duration_seconds: ReducedPositiveRationalV1
+      minimum_missed_advance_count: positive uint32
+    | kind: turn_command_driven
+      accepted_advance_command_ref: SimulationAdvanceControlRefV1
+      accepted_advance_command_sha256: SHA-256
+      simulation_advance_interval_hash: SHA-256
+    | kind: explicit_request_driven
+      accepted_step_request_ref: SimulationAdvanceControlRefV1
+      accepted_step_request_sha256: SHA-256
+      request_step_ordinal: positive uint16
+      simulation_advance_interval_hash: SHA-256
+```
+
+simulation roleは選択したProfileとbyte equalityのbranchだけを使う。fixed expectationはProfileの`rate_hz.denominator / rate_hz.numerator`を既約化した値、variableのmin／maxはProfileの両Fieldとbyte equalityにし、表示Hz、前回sample、wall-time観測から補完しない。turn／explicitはScheduling OwnerがsealしたIntervalをhashで解決し、そのInterval内の`SimulationAdvanceControlRefV1`、completed control SHA、explicit ordinalとbyte equalityにする。accepted command sequence ref、accepted request sequence ref、bare control ID、直前requestからのordinal推測を禁止する。Command／request未受理の待機stateはactive predicate=falseであり、周期intervalを捏造してhang判定しない。C1の値は次で固定する。
 
 | role | hang成立条件 | 明示除外 |
 |---|---|---|
-| simulation | Activeかつrunning中、進行なしが`max(120 × expected simulation interval, 2 s)` | gameplay pauseではなくdebug `paused_at_t110`、Inactive、Suspended、Terminating |
+| simulation fixed | Activeかつrunning中、進行なしが`max(120 × expected_logical_duration_seconds, 2 s)` | gameplay pauseではなくdebug `paused_at_t110`、Inactive、Suspended、Terminating |
+| simulation variable | Activeかつrunning中、進行なしが`max(120 × maximum_logical_duration_seconds, 2 s)` | gameplay pauseではなくdebug `paused_at_t110`、Inactive、Suspended、Terminating |
+| simulation turn-based | accepted advance CommandがpendingなのにT110 publish／fault acknowledgementなし2 s | advance Command待機中、debug `paused_at_t110`、Inactive、Suspended、Terminating |
+| simulation explicit-step | accepted requestの未完step ordinalがあるのにT110 publish／fault acknowledgementなし2 s | step request待機中、debug `paused_at_t110`、Inactive、Suspended、Terminating |
 | render submission | 有効surfaceで進行なしが`max(120 × expected render interval, 2 s)` | headless、SurfaceUnavailable、Inactive、Suspended、Terminating |
 | window | visible windowでmessage dispatch／present acknowledgement進行なし5 s | hidden／minimized、Inactive、Suspended、Terminating |
 | audio control | active audio sessionでcontrol sequence進行なし2 s | audio session停止、Suspended、Terminating |
 | worker pool | runnable itemがあり、oldest runnable age 10 s以上かつrole progressなし10 s | queue empty、全itemが外部I/O待機として登録済み、Suspended、Terminating |
 
-watchdogは判定に用いたexpected interval、threshold、ApplicationState、debug execution mode、last progress sequenceをhang evidenceへ値で記録する。該当除外に入っただけで直前のsuspected hangを成功へ変えず、`cleared_by_progress | terminated | evidence_partial`の終端を記録する。Platform watchdogがより短い期限を課す場合は早期capture triggerとして併記するが、本Policyのrole判定をsilentに置換しない。
+watchdogは判定に用いたCadence Profile Ref、exact expectation branch、fixed durationまたはvariable min／max、turn／explicitではControl Ref＋completed SHA＋sealed Interval hash、explicit ordinal、threshold、ApplicationState、debug execution mode、last progress sequenceをhang evidenceへ値で記録する。Profile content hashだけを別Fieldへ複写せずRef全体を保存し、accepted command／request sequence refを生成しない。該当除外に入っただけで直前のsuspected hangを成功へ変えず、`cleared_by_progress | terminated | evidence_partial`の終端を記録する。Platform watchdogがより短い期限を課す場合は早期capture triggerとして併記するが、本Policyのrole判定をsilentに置換しない。
 
 Remote handshakeはDevice identity、pairing generation、App／Engine／Module hash、Target、Debug Capability、channel、bandwidth／storage capacity ref、clock correlation、privacy stateを持つ。Development／Profile Buildだけがshort-lived mutual-authenticated Sessionで接続できる。Device Bridgeはfilesystem、shell、process、network proxyを提供しない。
 
@@ -372,13 +827,13 @@ pressure時は`critical | high | normal | verbose`のregistered priorityを使�
 
 ## 16. Test、AI Eval、qualification
 
-Contract fixtureは全Typeのvalid／invalid／boundary、canonical encoding／hash／crash recovery、pointer／native handle／unbounded field／secret拒否、target generation、event registry、counter unit、Query／cursor／Index stale、gap／redactionを検証する。
+Contract fixtureは全Typeのvalid／invalid／boundary、canonical encoding／hash／crash recovery、pointer／native handle／unbounded field／secret拒否、target generation、event registry、counter unit、Query／cursor／Index stale、gap／redactionを検証する。Debug Sessionは最初のRuntime time前に`before_first_runtime_time` Descriptorを作るcase、completed Runtime timeへ相関した開始case、終了後に同じDescriptor Refを維持して外部Closureだけを一件作るcaseを受理し、開始前の偽Runtime time、Descriptorへのend／completeness／gap埋込み、終了時Descriptor更新、Closure二重発行、Descriptor／Closure Session差を拒否する。
 
-Runtime fixtureは[Scheduling／lifetime](scheduling-lifetime.md)の全Runtime orderへのtime ref対応、parallel emitのcanonical sequence、priority drop、safe pause／complete tick step／render step、sandbox node step、Store／Panel crash非干渉、callback hot path allocation／block 0を検証する。instrumentation overhead、memory、disk、queue、soakは[Performance／capacity](performance-capacity.md)のcurrent Gateで測定する。
+Runtime fixtureは[Scheduling／lifetime](scheduling-lifetime.md)の全Runtime orderへのtime ref対応、parallel emitのcanonical sequence、priority drop、safe pause／complete Simulation Advance step／render step、sandbox node step、Store／Panel crash非干渉、callback hot path allocation／block 0を検証する。Debug stepでは四branchのRequest→Scheduling検証→sealed Interval投影を検査し、Debugger生成Interval、Profile／expected sequence差、variable範囲外、wrong Command／request type、Ref／hash差、消費済みcontrol、explicit ordinal 0／上限超過を各一原因で拒否してInterval／World state 0件変更を確認する。Hang fixtureはfixed duration、variable min／max、turn Control Ref＋completed SHA＋Interval hash、explicit request Ref＋completed SHA＋ordinal＋Interval hashを検証し、旧sequence ref、bare ID、Profile／branch差、待機中の偽periodic expectationを拒否する。instrumentation overhead、memory、disk、queue、soakは[Performance／capacity](performance-capacity.md)のcurrent Gateで測定する。
 
-Replay fixtureはInput、RNG、accepted async resultから同じstate hash、first divergence、recorded／current revision分離、closure／Asset／worker mismatch拒否、gapを含むSessionのpartial表示、child Session isolationを検証する。
+Replay fixtureはInput、RNG、accepted async resultから同じstate hash、first divergence、recorded／current revision分離、closure／Asset／worker mismatch拒否、gapを含むSessionのpartial表示、child Session isolationを検証する。Interval StreamはProfile一致、chunk index／range、sequence 1開始・gapless、full canonical Interval record／self hash、chunk／stream hashをpositive fixtureで検査する。Header／Slice／Receiptはtyped Debug Session、Game Candidate Build Receipt／completed signed SHA、exact Project triple、typed Targetのbyte equalityをpositive fixtureで固定する。Range Artifactはcheckpoint／input／accepted_async／rng各kind、artifact schema／Ref／completed SHA、range、Session、canonical order、duplicateなし、set hashを検証する。Profile差、interval missing／duplicate／reorder／gap、chunk overlap／欠落、interval hash／duration／accepted Control Ref／completed SHA／ordinalの一Field差、fixed／turn／explicit branch置換、Header／Stream／Range Artifact／Range Closure／Slice／ReceiptのSession・Build・Project triple・Target・Profile・Ref・kind・schema・artifact SHA・start・end・count・set／content hash差を各一原因でReplay開始前に拒否する。Domain Replayは生成順`receipt-free Projection → Projection set／Header／Ref → root外Domain Binding`をpositive fixtureで検査し、ProjectionへのHeader／Binding埋戻し、Projection membership欠落、別Header／Projectionを結ぶBinding、Binding hash差を拒否する。
 
-Atomic activation acceptance fixtureはAggregate→Query→Causality→Replay→Finding validation→exact domain Proposalのtask／Receipt chainを検証する。QueryのAggregate Receipt、CausalityのQuery Receipt、ReplayのBuild／Query／Causality Receipt、Finding validationのBuild／Query／Causality／Replay Receiptについて、missing、ref hash差、署名差、別operation payload、revocationを一原因ずつ注入して後段を停止する。stale Candidate、別Session／Build／Store／Index generation、remote Device交換、request hash／Authorization差でも拒否する。Evidence ref不在、別revision、gap／redaction隠蔽、時間相関だけ、reproductionなしの`validated_cause`を含む偽Findingは`operation.debug.validate_finding`で`diagnostic.debug.finding-evidence-invalid`となり、proposal Operation refを返さずProject stateを不変にする。Support Bundle branchは同じ署名Envelope／Task APIを使い、source Debug Receipt差、consentなし、redaction不完全、manifest mismatchでexport byteを公開しない。current fixtureは14 candidateすべてについてdispatch前の`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`とProject／Task／export byte不変を検査する。
+Atomic activation acceptance fixtureはAggregate→Query→Causality→Replay→Finding validation→exact domain Proposalのtask／Receipt chainを検証する。QueryのAggregate Receipt、CausalityのQuery Receipt、ReplayのBuild／Query／Causality Receipt、Finding validationのBuild／Query／Causality／Replay Receiptについて、missing、typed receipt kind／Operation／Task差、completed SHA差、署名差、別operation payload、revocationを一原因ずつ注入して後段を停止する。全Receipt payloadのtyped Session／Build Ref／completed SHA／Project triple／Targetを前段、Descriptor、Header、Sliceから一Fieldずつ差し替えるfixtureを持つ。各Payload outcomeとEnvelope resultの差、success output欠落／他branch混入、failed／cancelledのempty／65件目Diagnostic、generation 0、root Evidence 0／17件、source Receipt 0／65件も拒否する。Replay ReceiptのHeader Ref／completed SHA、Cadence Profile Ref、Stream Ref、range start／end／count／Range SHA／Range Artifact set hash／Slice content hash差も後段を停止する。stale Candidate、別Session／Build／Project document set／Target／Store／Index generation、remote Device交換、request hash／Authorization差でも拒否する。Evidence ref不在、別revision、gap／redaction隠蔽、時間相関だけ、reproductionなしの`validated_cause`を含む偽Findingは`operation.debug.validate_finding`で`diagnostic.debug.finding-evidence-invalid`となり、proposal Operation refを返さずProject stateを不変にする。Support Bundle branchは同じ署名Envelope／Task APIを使い、Descriptor／Closure差またはClosure欠落、source Debug Receipt差、consentなし、Policy／Data Class不一致、redaction action branch混在、component／manifest／archive set差、size／file／entry bound超過でexport byteを公開しない。current fixtureは14 candidateすべてについてdispatch前の`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`とProject／Task／export byte不変を検査する。
 
 `fixture.debug.known-faults`は少なくともInput context conflict、Collision filter、stale Nav result、root-motion authority conflict、Asset generation mismatch、Render barrier diagnostic、Audio pressure、Gameplay bounded-execution fault、Level closure不足、RNG divergence、GameHost crash／symbol mismatch、remote disconnect／gapを含む。各caseはobservation、typed Diagnostic、causal path、Replay Slice、correct remediation、forbidden remediation、regression fixtureを持つ。
 

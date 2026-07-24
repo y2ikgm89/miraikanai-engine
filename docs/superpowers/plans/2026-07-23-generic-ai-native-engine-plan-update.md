@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status: partial documentation remediation; not an Engine implementation plan.** Task 2 is not final until its listed independent checks close. Engine／schema compiler／Gateway／Signer／Runtime／Target Qualification／Capability Activation／Release／Shipping は未実施・未主張である。実行入口と current authority は[計画書の実行権限・準備状況](../../plans/README.md)を参照する。
+
 **Goal:** 承認済みの4層構造とAI可読契約を全current Architecture正本、Product Registry、実行計画へ同期し、Shooterおよび有限Level前提を汎用Coreから除去する。
 
 **Architecture:** `Generic Engine Core -> Reusable Feature Packs -> optional Genre Packs -> Game Projects`だけをProduction依存階層とし、Reference Gamesは検証Projectに限定する。World／Runtime／GameplayはGenre-neutral contractを所有し、Scenario／Stage、Character Locomotion、Shooterを任意Packへ分離する。AIはMCDから生成したCatalog、bounded Context Capsule、型付きPack Operationを使用する。
@@ -15,7 +17,7 @@
 - CoreはPack／Project／Fixtureへ、Feature PackはGenre／Project／Fixtureへ、Genre Packは別Genre／Project／Fixtureへ依存しない。
 - Game ProjectはGenre Packを使わずFeature Packを直接利用できる。
 - `capability.gameplay.shooter_core`、`domain.action_2d`、`domain.tps_single_player`、`DomainPackManifest`をcurrent正本から廃止する。
-- `GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`はPlayer、Character、Combat、Objective、Completion、World、Genre Packを必須にしない。
+- `GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`はPlayer、Character、Combat、Objective、Completion、World、Genre Packを必須にしない。これらと`QuestionRecordV1`、`AssumptionRecordV1`、`DecisionRecordV1`、`GameUnderstandingClosureV1`、`AiCatalogEntryV1`、`AiTaskContextCapsuleV1`は全Field required、明示nullable／tagged branch、bounded collection、canonical ordering、self-excluding hash、exact typed ref、unknown-field rejectを持つ同一closed-schema profileでcompileする。
 - C1／C2で適格化するSimulation cadenceは`fixed 60/1`だけだが、Core schemaは`SimulationCadenceProfileV1`を使用し、60をABIへ固定しない。
 - 現在のoffline single-player、Windows-first、Mobile、60 Hz等のProduct Scopeは対応済み表示を拡大せず、恒久Core制約からだけ分離する。
 - active Architecture文書の状態は`review`を維持する。
@@ -119,7 +121,7 @@ git commit -m "docs: establish generic pack architecture"
 
 `ProjectManifest`の`root scene`をexact `DocumentRef<RuntimeEntryPointDocumentV1>`の`runtime_entry_point_refs[1..64]`へ置換し、Design §4.1の`RuntimeEntryPointV1`全Field、Project-owned selector／policy Document、共通header、branch validationを追加する。三Documentは`DocumentRef.stable_id == header.document_id == payload ID`を必須にする。selected entry hashはentry payload semantic hash、Document hashはref content hashへ分離する。selectorはhash Fieldを持たない`RuntimeTargetSelectorHashPayloadV1 {selector_id, selector_version, target_profile_ref_count, target_profile_refs[]}`をID／version／hash順へcanonicalizeし、domain separator＋byte length＋payload bytesからhashする。Compile Manifestはowner-typed providerを選んだ時だけ`selected_provider_binding_set_hash`を持ち、post-commit Project revision／document set、Registry、Binding Document content／semantic hashをclosureへ入れる。Runtime Package自己hashをinputへ含めない。
 
-entry／selector／policyのcreate／updateとroot migrationの七Operation、Scope migration一Operationを完全`McdOperationContractV1`として登録する。八recordはMCD共通Envelope、exact input／output／rate-limit／receipt ref、authority、risk、side effect、idempotency、transaction、16 pure policy pre／post refs、closed DiagnosticCodeRef set、timeoutを全行で明示し、カテゴリ散文や別行補完を使わない。Project ownerは七exact Operation refだけを参照する。`request_hash`はExecutable Contractsが所有するV2式だけを参照し、Domain文書へ別式を複写しない。root migration Receiptは四Document tagged before／afterへ固定する。Operation meta-schema／Registry compile、Project↔MCD set equality、predicate wrong-kind／missing／stale fixtureを追加する。
+entry／selector／policyのcreate／update exact六Operationだけをcurrentの完全`McdOperationContractV1`として登録する。六recordはMCD共通Envelope、exact input／output／rate-limit／receipt ref、authority、risk、side effect、idempotency、transaction、12 pure policy pre／post refs、closed DiagnosticCodeRef set、timeoutを全行で明示し、カテゴリ散文や別行補完を使わない。Project ownerは六exact active Operation refだけを参照する。Root Scene／Runtime Scope／Performance Scale／Physics Intent Role migrationはconditional legacy exact四件へ降格し、current MCD／Manifest／Service／Policy／Validator／migration専用Diagnostic／Receipt／Provider／MCP／alias／Signer集合をexact `[]`にする。`request_hash`はExecutable Contractsが所有するV2式だけを参照し、Domain文書へ別式を複写しない。Root migrationの四Document Receiptは実signed Inventory成立後のdestination acceptance templateに限定する。Operation meta-schema／Registry compile、Project↔MCD set equality、predicate wrong-kind／missing／stale、candidate混入fixtureを追加する。
 
 - [ ] **Step 2: Neutralize the Core World model**
 
@@ -127,7 +129,7 @@ entry／selector／policyのcreate／updateとroot migrationの七Operation、Sc
 
 `WorldAuthoringPlanV1.affected_world_refs`は既存編集1～64件、新規World作成kind厳密1件のbranchだけ0件を許可する。`WorldAuthoringContextV1`はCommit後だけexact World ref付きで生成する。`StageDefinitionV1.world_ref`をrequired nullableにし、world branchだけanchor／spatial spawnを許可する。WorldなしDialogue／Visual Novel／UI workflowとheadless StageのSave／Replay／transition fixtureを追加する。
 
-`ProceduralWorldDefinitionV1`／`WorldAuthoringPlanV1`／precommit `GeneratedWorldSemanticCandidateV1`へexact Binding Document ref/content hashと別`resolved_binding_closure_hash`、output schemaを伝播し、Production recordはFixture bodyでなくowner-typed Qualification Receiptだけを参照する。fresh 3-runはGateway／Broker call 0件でlocal-ID正規化graph bytes、order、`semantic_graph_hash`、candidate Artifact semantic hashだけを比較する。candidate hashへexact `{project_id, expected_project_revision, document_set_hash}`とcountを含め、caller-issued request IDをintent subjectへ入れる。合格後は完全登録したinternal `operation.world.allocate_generated_stable_ids@1`を一度だけ呼び、Manifest／prepared Receipt／Publication State／Public Markerが同じcandidate／Project triple／intent／requestと`allocated_uuid_count=local_id_count+1`をbindする。private Marker→canonical signed wrapper→Public Marker＋Projectの順で、local ID全件と`delta_id`を一つのpublicationへ閉じる。Source／validation／Preview／Cook／Commitが同じmappingを共有し、二回目allocation、partial publication、local ID残存、各hash単独tamperを拒否する。truth table五fixture、last-valid維持、明示選択generic hard closure、World-owned spatial destinationを維持する。
+`ProceduralWorldDefinitionV1`／`WorldAuthoringPlanV1`／precommit `GeneratedWorldSemanticCandidateV1`へexact Binding Document ref/content hashと別`resolved_binding_closure_hash`、output schemaを伝播し、Production recordはFixture bodyでなくowner-typed Qualification Receiptだけを参照する。fresh 3-runはGateway／Broker call 0件でlocal-ID正規化graph bytes、order、`semantic_graph_hash`、candidate Artifact semantic hashだけを比較する。candidate hashへexact `{project_id, expected_project_revision, document_set_hash}`とcountを含め、caller-issued request IDをintent subjectへ入れる。合格後は完全登録したinternal `operation.world.allocate_generated_stable_ids@1`を一度だけ呼び、Manifest／prepared Receipt／Publication State／Public Markerが同じcandidate／Project triple／intent／requestと`allocated_uuid_count=local_id_count+1`をbindする。公開は[Executable Contracts §8](../../architecture/02-foundation/executable-contracts.md#8-operation定義)をexact reuseし、`private Marker read-back → World ownerとreceipt-free Delta／Manifestを束縛するowner_typed_state_commitのsecret-free PublicCommitClosureV1 candidate → canonical signed wrapper → PublicCommitClosureV1＋PublicPublicationMarkerV1＋Projectのatomic public CAS`だけでlocal ID全件と`delta_id`を一つのpublicationへ閉じる。Source／validation／Preview／Cook／Commitが同じmappingを共有し、Closureなしのpublic authority、二回目allocation、partial publication、local ID残存、各hash単独tamperを拒否する。truth table五fixture、last-valid維持、明示選択generic hard closure、World-owned spatial destinationを維持する。
 
 Stage transitionはDestination V2六kind、Policy V1、Request V2、Port V2へ固定する。RequestはPolicy ref／hashだけを持ちdestinationを複製しない。ui／headless／world-spaceはexact Runtime Entry ref／payload hashを通し、world-spaceだけWorld-owned spatial destination MCD refを追加する。Policy／Request／Destination／Port inventory、六kind round-trip、branch外Field、missing anchor、stale World／Space／Edge／hash fixtureを閉じる。
 
@@ -147,7 +149,7 @@ Navigationを7 Field `MotionExecutorPortV1`、Provider-neutral Catalog／record�
 
 `GameSystemSpecV2`へ`emitted_port_message_type_refs`を持たせ、`game_system.extension.feature.character_locomotion.contribution`のMCD Envelope、2 Feature type、role／3 requirement／dependency／policy／Save Replay／budget／Qualification／3 invariantを`owner_layer=feature_pack`とexact Feature owner refで解決する。Characterはproposal／adapter contributionだけを所有し、Navigation／Core-owned `game_system.engine.navigation.motion_intent_batch_publisher`が全owner contributionをcanonical mergeしてBatchを一度だけ発行する。Coreはgeneric motion contribution／selected executor Portを所有し、Character adapter／Provider binding／FixtureはPack-owned Qualification recordへ置く。BatchをEventにしない。Scenario StageはReceipt-free `StageTransitionCrossOwnerCandidateV1`を先にhashし、三owner Receiptと五gate Receiptを同じcandidateへ発行してからfinal closureを作る。Receiptはfinal closure hashを署名対象に戻さない。destination／request／policy／World spatial destination／port messageのexact 5件とRuntime `BoundaryDeliveryContractV1`を分離し、sealed payloadをT00で配送する。public／runtime／global MCD／Port closure／aggregateを別々のlike-for-like gateで検証する。Scenario authoringはcurrent set／Manifestを空、Capabilityを`not_activated`とし、MCD IDはcanonical `<kind>.<lower-token-path>`、version separateへ統一する。
 
-Physics AI Coreはbehavior-neutralな`PhysicsIntentRoleRegistryV1`の六つの完全なrole recordを所有し、Project Sourceの`PhysicsIntentRoleSelectionDocumentV1`が選択を固定する。object／Genre role、default mapping、adapter／fixtureはPack／Project ownerへ移す。role Refとmotion／collision／hit／shape／speed axisを独立検証し、旧object enumは完全なmigration contribution Registry、MCD Operation、Validator、Prepared payload、外側Receipt、Manifestを介してexact一件へ一意解決できる時だけ移行する。Performanceのcurrent正本は`ProjectScaleEnvelopeV2`であり、`WorkloadDomainTypeRegistryV1`とowner-typed `WorkloadDomainIntentV1`を束ねる。World／spatialは`required`なら必須、全domainが`forbidden`なら禁止、`optional`だけならnull／exact World intentの双方を許し、UI-only、strict headless、tooling、resource-onlyを偽World／Gameplay floorなしで有効とする。旧V1はoffline migration inputだけに残し、Project EnvelopeとIntegrated fixtureはowner-typed全dimension、measurement schema、unit、fidelity／equivalence／functional contract／resource SLO、fixture closureを同時に検査する。
+Physics AI Coreはbehavior-neutralな`PhysicsIntentRoleRegistryV1`の六つの完全なrole recordを所有し、Project Sourceの`PhysicsIntentRoleSelectionDocumentV1`が選択を固定する。object／Genre role、default mapping、adapter／fixtureはPack／Project ownerへ移す。role Refとmotion／collision／hit／shape／speed axisを独立検証する。旧object enum用migration contribution Registry、MCD Operation、Validator、Prepared payload、外側Receipt、Manifestはcurrent exact `[]`のdestination templateで、実signed Inventoryを満たすatomic activation後だけexact一件へ一意解決する。Performanceのcurrent正本は`ProjectScaleEnvelopeV2`であり、`WorkloadDomainTypeRegistryV1`とowner-typed `WorkloadDomainIntentV1`を束ねる。World／spatialは`required`なら必須、全domainが`forbidden`なら禁止、`optional`だけならnull／exact World intentの双方を許し、UI-only、strict headless、tooling、resource-onlyを偽World／Gameplay floorなしで有効とする。旧V1はcurrent memberではなく、実Inventoryがsource bytes／Closureを証明した場合だけconditional migration inputとしてretainedできる。Project EnvelopeとIntegrated fixtureはowner-typed全dimension、measurement schema、unit、fidelity／equivalence／functional contract／resource SLO、fixture closureを同時に検査する。
 
 - [ ] **Step 6: Verify and commit Task 2**
 
@@ -234,57 +236,81 @@ git commit -m "docs: generalize cadence pause and platform semantics"
 - Modify: `docs/architecture/01-governance/ai-security-approval.md`
 - Modify: `docs/architecture/01-governance/ai-verification-provenance.md`
 - Modify: `docs/architecture/02-foundation/executable-contracts.md`
+- Modify: `docs/architecture/02-foundation/core-architecture.md`
 - Modify: `docs/architecture/03-authoring/project-state.md`
+- Modify: `docs/architecture/03-authoring/native-game-module.md`
+- Modify: `docs/architecture/06-rendering/project-shader.md`
 - Modify: `docs/architecture/08-packs/pack-contract.md`
 - Modify: `docs/architecture/00-product/product-plan.md`
 
 **Interfaces:**
 - Consumes: `PackManifestV1`、Runtime Entry、Scope、Cadence。
-- Produces: `GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`、`AiCatalogEntryV1`、`AiTaskContextCapsuleV1`、exact 8 Pack AI Operationの完全登録／atomic activation、holdout Eval。
+- Produces: `GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`、`QuestionRecordV1`、`AssumptionRecordV1`、`DecisionRecordV1`、`GameUnderstandingClosureV1`、`AiCatalogEntryV1`、`AiTaskContextCapsuleV1`、Pack AI future action exact 8件と`activation.pack.ai_operations.v1`の未Activation destination acceptance contract、AI制作E2Eの24 planning family／191候補とProduct Activation Matrix、holdout Eval。Engine実装とOperation Activationは別Work Packageである。
 
 - [ ] **Step 1: Register field-level game understanding inputs**
 
-Project StateへDesign §7の3 Schemaを完全なfield cardinalityとtagged validation付きで追加する。AI SecurityはSchemaを参照し、GameIntent→Brief→Spec→Understanding Closureのstate transition、質問上限、unsupported dispositionを所有する。Player／Character／World／Combat／Objective／Completion／Genre Packを必須にしない。
+Design §§7～8の九Schemaを一つのMCD compiler profileへ登録する。全top-level／nested Fieldをrequired、明示`| null`だけnullable、tagged unionをexact一branch、unknown Field禁止とし、scalar type／byte bound、collection cardinality、canonical ordering／unique、typed refのlogical ID／schema version／content hash exact解決、`MIRAKAN_CLOSED_RECORD_V1/<SchemaName>`自己Field除外hashをSchemaごとにcompileする。Project StateはGameIntent／Brief／Spec、AI SecurityはQuestion／Assumption／Decision／Understanding Closure、Executable ContractsはCatalog projection、Authoring Context IndexはCapsule projectionを各Owner正本へmaterializeするが、同名shadow schemaを作らない。Player／Character／World／Combat／Objective／Completion／Genre Packを必須にしない。
+
+Medium questionをDefaultで進める場合は、`AssumptionRecordV1`のtyped `default_value_ref`、`default_basis_refs[1..32]`、有限`expires_at`、`revalidation_condition_refs[1..32]`、accepted Decisionを全て必須にする。根拠0、無期限sentinel、再検証条件0、期限切れ、同一Questionへの複数active assumptionを拒否する。Decision／質問回答／summaryの自由文からOperation、Authority、Targetまたは実行先を導出しない。
 
 - [ ] **Step 2: Add the generated AI Catalog**
 
-Executable ContractsへDesign §8の`AiCatalogEntryV1`全FieldとContract compiler projectionを追加する。owner、layer、purpose／non-goal、I/O、State、Scope、phase、read/write、dependency、Target、maturity、budget、Operation、Risk、Diagnostic、example／counterexample、migration、Project SDKを欠落不可にする。
+Executable ContractsへDesign §8の`AiCatalogEntryV1`全FieldとContract compiler projectionを追加する。`production_owner_layer=core | feature_pack | genre_pack | game_project`と`artifact_role=production | cross_cutting_control_plane | reference_game | fixture | qualification`を独立必須二軸にし、owner、architecture layer、purpose／non-goal、I/O、State、Scope、phase、read/write、dependency、Target、maturity、budget、Operation、Risk、Diagnostic、example／counterexample、migration、Project SDKを欠落不可にする。Provider／Model／Host／Deploymentは別々のtyped ref集合にし、brand／model family／Host表示名ごとのschema branchを禁止する。
 
-- [ ] **Step 3: Add Pack Discovery operations**
+- [ ] **Step 3: Close the Pack Discovery activation candidate without activating it**
 
-preconditionはcurrent Pack AI Operation setが空、Capabilityが`not_activated`であることとする。Task 4は`activation.pack.ai_operations.v1`で次のexact八件を一つのpostcondition setとして登録する。
+preconditionとpostconditionの双方でcurrent Pack AI Operation／Manifest／Service allowlist／Provider／MCP集合をexact `[]`、Capabilityを`not_activated`に維持する。Task 4は実装またはContract Set transactionを生成せず、future work item `activation.pack.ai_operations.v1`が採否を決める次のfuture action vocabulary exact八件とdestination acceptance contractだけを記録する。
 
-- `operation.packs.search`
-- `operation.packs.read`
-- `operation.packs.resolve_dependencies`
-- `operation.packs.explain_composition`
-- `operation.packs.plan_apply`
-- `operation.packs.preview_apply`
-- `operation.packs.validate`
-- `operation.packs.plan_remove`
+- `future.packs.action.search`
+- `future.packs.action.read`
+- `future.packs.action.resolve_dependencies`
+- `future.packs.action.explain_composition`
+- `future.packs.action.plan_apply`
+- `future.packs.action.preview_apply`
+- `future.packs.action.validate`
+- `future.packs.action.plan_remove`
 
-各OperationのMCD全Field、named input／Result、Service allowlist、Risk、side effect、idempotency、transaction、pure pre／post Policy、closed Diagnostic、Validator closure、rate／timeout、canonical signed Receipt、intent→authorization→request DAG、private Marker→signed wrapper→Public Marker recovery、Qualificationを同じContract set transactionへ完全登録し、Manifest exact八件、Pack owner MCD subset、Service contributionをset equalityにできた場合だけ八件をatomic activateする。一件でも不完全なら八件すべてをempty／`not_activated`のまま維持し、部分登録、名前だけのCatalog entry、自然言語からのidentity推測を許可しない。
+destination acceptance contractは、将来採用するStable Operation IDのexact集合、各MCD全Field、named input／Result、Service allowlist、Risk、side effect、idempotency、transaction、pure pre／post Policy、closed Diagnostic、Validator closure、rate／timeout、canonical signed Receipt、intent→authorization→request DAG、Authorization Audit Binding、[Executable Contracts §8](../../architecture/02-foundation/executable-contracts.md#8-operation定義)の`private Marker read-back → secret-free PublicCommitClosure candidate → signed wrapper → PublicCommitClosure＋Public Marker＋after stateのatomic CAS` recovery、実Service artifact、Target Qualificationを同じContract set／Trust／Product transactionへ完全登録し、Manifest集合 = Pack owner MCD集合 = Service contribution集合をset equalityにできた場合だけatomic activationを許可する。future action IDをOperation IDへ機械変換せず、実装／Qualification Evidenceのない本Taskではtransactionを発行しない。部分登録、名前だけのCatalog entry、自然言語からのidentity推測を許可しない。
 
 - [ ] **Step 4: Add bounded task context**
 
-`AiTaskContextCapsuleV1`をAuthoring Context Indexから生成するread-only／Disposable projectionとして追加する。選択理由、source hash、field mask、token estimate、omitted range、continuation、allowed operation IDsを保持し、Security署名内部や全Schemaを通常Creative Contextへ送らない。
+`AiTaskContextCapsuleV1`をAuthoring Context Indexから生成するread-only／Disposable projectionとして追加する。Task Authorization ref、Brief／Spec、Catalog selection、Project Slice、依存、制約、Target、Provider／Model／Host／Deploymentの独立四軸、Budget、Diagnostic、選択理由、source ref set hash、canonical field mask、token estimate、bounded omitted range、closed continuation branch、active `allowed_operation_refs[]`を保持する。allowed OperationはTask Authorization、Catalog、current Caller／Service projectionのtyped ref集合の積集合だけから生成し、自由文、Provider／Model／Host／Deployment名、continuation tokenから補完しない。Security署名内部や全Schemaを通常Creative Contextへ送らない。
 
-- [ ] **Step 5: Add genre-neutral holdout fixtures**
+- [ ] **Step 5: Close the AI production execution DAG without claiming activation**
+
+Executable Contractsの既存18 family／159候補を保持し、ChangeSet execution 4、Native Source 5、shared Source Promotion 1、Candidate Build／Test 6、GameplayDefinition 6、Asset 10の六family／32候補を追加して、planning exact 24 family／191候補へ閉じる。current active 10、conditional legacy 4、example／pending／rejected 11との積集合を0にし、追加familyのMCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Signer／Provider／MCP／alias集合を全てexact `[]`、stateを`not_activated`にする。`operation.authoring.apply_changeset`は説明例／rejectedのまま維持する。
+
+Project Stateに`ProjectChangeSetArtifactRefV1`、Proposal／Validation／Preview Receipt、Native／Shader共通`ProjectSourcePromotionReceiptV1`とShader登録primitiveを、Native／Shader Ownerにtyped Source Task／Broker再計算Patch Proposalを追加する。Source Buildは`prepromotion_candidate | promoted_revision`、Game Candidateは`prepromotion_project_source | promoted_project_source`のclosed branchに分け、Promotionは前者のBuild／Candidate Testだけ、PackageはPromotionへ閉じた後者だけを受理する。Core ArchitectureのPackage成功payloadはProject Validation、Cook、Game Candidate Build、Candidate Test、選択SourceのPromotion／Native／Shader Build Receiptをsame Project／Candidate／Target／Toolchainで必須にし、Promotion→Build→Promotionの循環を拒否する。
+
+Product `CapabilityTargetActivationBindingRegistryV1`内へ別Registryを増やさず`AiCapabilityActivationMatrixV1`を格納し、positive十Capability、Runtime generation deny-only一Capability、各planning family ref／version／hash、全candidate ID set hash、activation work item、execution host、artifact Target、Provider projection policyを293 rowへ決定的に展開する。必要familyの一件でもcurrent operationalでなければWP／fixture成功だけでCapabilityを`qualified`へ進めない。`operation.authoring.changeset.commit`と`operation.project_source.promote_revision`は将来Activation後も`trusted_internal`、Provider／MCP／standard external CLI projection exact `[]`にする。
+
+- [ ] **Step 6: Add genre-neutral holdout fixtures**
 
 AI VerificationとProduct Phase Gateへturn-based zero-character、endless continuous simulation、UI-only／tool-like、headless simulationを登録する。Phase 4にはCombatなしでzero-characterまたはWorldなしの中立Fixtureを最低1件含める。未知ID、`question_required`回避、Genre Pack強制、偽Level／偽Completion生成をfailure metricにする。
 
-- [ ] **Step 6: Verify and commit Task 4**
+- [ ] **Step 7: Verify and commit Task 4**
 
 Run:
 
 ```powershell
 rg -n 'Current generic Pack AI Operation set = \{\}|Capability stateを`not_activated`' docs/architecture/08-packs/pack-contract.md
-rg -n 'GameIntentDraftV1|GameBriefV1|GameSpecDocumentV1|AiCatalogEntryV1|AiTaskContextCapsuleV1|operation\.packs\.(search|read|resolve_dependencies|explain_composition|plan_apply|preview_apply|validate|plan_remove)' docs/architecture --glob '*.md'
+rg -n 'GameIntentDraftV1|GameBriefV1|GameSpecDocumentV1|QuestionRecordV1|AssumptionRecordV1|DecisionRecordV1|GameUnderstandingClosureV1|AiCatalogEntryV1|AiTaskContextCapsuleV1|future\.packs\.action\.(search|read|resolve_dependencies|explain_composition|plan_apply|preview_apply|validate|plan_remove)' docs/architecture --glob '*.md'
 rg -n 'MutationAuthorizationBindingV2|PublishedDomainReceiptV2|PublicPublicationMarkerV1|OperationValidatorClosureV1|activation\.pack\.ai_operations\.v1' docs/architecture --glob '*.md'
+rg -n 'AiCapabilityActivationMatrixV1|ExecutionSurfaceBindingV1|ProjectChangeSetArtifactRefV1|ProjectSourcePromotionReceiptV1|ProjectShaderPatchProposalV1|NativeModulePatchProposalV1' docs/architecture --glob '*.md'
+rg -n '24 family|191候補|operation\.authoring\.changeset\.commit|operation\.project_source\.promote_revision' docs/architecture docs/plans docs/superpowers --glob '*.md'
 git diff --check
 ```
 
-Expected before Task 4: Pack Contractのcurrent setは空、Capabilityは`not_activated`。Expected after Task 4 candidate validation: 5 Schema名とexact八Operationがcanonical ownerに存在し、各MCD／Service／Policy／Validator／Diagnostic／Receipt／DAG assertionがpassする。activation transaction後はManifest八件 = Pack owner MCD八件 = Service contribution八件で、empty-set assertionをexact-eight assertionへ置換する。一件でも不一致ならtransactionを発行せずbefore stateを維持する。`git diff --check` exit 0、旧循環request shapeのcompat reader 0。
+Task 4 schema acceptanceは九Schema全件について次を必須にする。
+
+- MCD→Draft 2020-12 schema compile成功、全required／bounds／tagged branch／ref kindがcompiler outputとfield-level set equality。
+- 各Schemaの最小／最大positive fixture、unknown Field一件追加、required Field一件欠落、wrong type、null不正、bound下限／上限超過、union sibling混在、ref wrong-kind／wrong-version／wrong-hash、配列duplicate／非canonical順を各々一原因だけ変えたnegative fixture。全negativeがrejectされ、複数原因fixtureで代替しない。
+- `parse -> McdCanonicalBinaryV1 -> emit -> parse`のcanonical round-tripでbytes不変、自己Field除外hash再計算一致、field順／取得順だけを変えた入力の同一canonical bytes、意味Field一件だけを変えた入力のhash差を検証する。
+- Medium Assumptionのdefault根拠欠落、期限欠落／無期限／期限切れ、再検証条件欠落、同一Questionの複数active、Decision自由文からのTarget／Operation補完をsingle-cause fixtureで拒否する。
+- Catalogのowner-layer／artifact-role混同、Provider／Model／Host／Deployment軸の結合、brand branch、Capsuleの自由文allowed Operation、source hash／field mask／continuation差替えをsingle-cause fixtureで拒否する。
+- planning ledger 24対24、candidate exact 191、四class partition、Matrix positive十／deny-only一、required family部分Activation、Signer-only／Provider-only／alias-only Activation、Commit／Promotion外部投影、execution host／artifact Target圧縮、Package前段Receipt欠落を各一原因fixtureで拒否する。
+
+Expected before／after Task 4: Pack Contractのcurrent Operation／Manifest／Service／Provider／MCP setはexact空、Capabilityは`not_activated`のままである。九Schema、future action vocabulary exact八件、activation destination acceptance contract、AI E2E 24 family／191候補、Product Matrixがcanonical ownerに存在し、旧`operation.packs.*` current identity／aliasは0件とする。別の実装Work Packageが実Service artifact、完全MCD closure、Trust、Qualificationを生成してatomic activationを成功させた将来だけ、Manifest集合 = Pack owner MCD集合 = Service contribution集合またはProduct execution predicateをoperationalへ切り替える。本Taskはそのtransactionを発行せずempty-set assertionを置換しない。schema compile、unknown-field reject、canonical round-trip／hash、全single-cause negative fixture、`git diff --check` exit 0、旧循環request shapeのcompat reader 0。
 
 Commit:
 
@@ -305,11 +331,11 @@ git commit -m "docs: close generic AI understanding contracts"
 
 **Interfaces:**
 - Consumes: 全更新済みArchitecture正本。
-- Produces: Shooter非依存DAG、Target-local Release closure、更新済みcounts／status、current plan navigation。
+- Produces: Core→Feature／Genre reverse edge 0のDAG、Target-local Release closure、更新済みcounts／status、current plan navigation。
 
 - [ ] **Step 1: Rebuild Product Pack and fixture dependencies**
 
-Shooter以外のWPからShooter fixture／Capabilityへのdirect dependencyを除去する。AI、Project C++、Project Shader、Build、Mobile、general coverageはGenre-neutral fixtureまたは必要Feature Capabilityへ依存させる。Shooter Reference GameだけがShooter Genre Capabilityへ依存する。
+Production owner layerがGeneric Engine CoreであるWPから、全Feature Pack／Genre Pack CapabilityとWPへの`required_capability_refs[]`／`requires_work_package_refs[]` direct／transitive edgeを除去する。Timer、World、Collision、Animation、Navigation、ECS E5／E6／E7、AI、Debug／Replay、Project C++、Project Shader、Build、Mobile、PackageはGenre-neutral fixtureで独立Qualificationし、Reference Game fixtureの利用をproduction dependencyへ変換しない。`capability.runtime.timer`と`capability.simulation.navigation`はCore、Interaction／Path FollowingはReusable Feature Pack、Shooter 2D／3DはGenre Packへ一意に所有させる。Shooter Reference GameだけがShooter Genre Capabilityをrequired edgeに持つ。
 
 - [ ] **Step 2: Separate generic network futures**
 
@@ -321,7 +347,7 @@ Windows、Android、Apple、headlessのpackage／release Work PackageとRelease 
 
 - [ ] **Step 4: Recompute registries and current plans**
 
-追加・分割したCapability、Fixture、Gate、WP、Future entryのexact countをProduct Planから再集計し、Critical Path、Control Plane、Future Inceptionの固定count／ID／dependencyを更新する。Reviewは新設計反映後も`planning_go / implementation_and_shipping_no_go`であることと、Engine実装未実施を明記する。
+追加・分割したCapability、Fixture、Gate、WP、Future entryのexact countをProduct Planから再集計し、Critical Path、Control Plane、Future Inceptionの固定count／ID／dependencyを更新する。本Task入力時点のActive exact closureはTarget 5、Requirement 29、Fixture 15、Fallback 6、Phase 10、Phase Gate 22、Release Gate 5、Decision Gate 4、WP 75、Capability 102、Activation binding 293、Risk 9であり、生成器は件数だけでなくID集合と全参照closureを再計算する。Reviewは新設計反映後も`planning_go / implementation_and_shipping_no_go`であることと、Engine実装未実施を明記する。
 
 - [ ] **Step 5: Add explicit genericity gates**
 
@@ -333,11 +359,13 @@ Run:
 
 ```powershell
 rg -n 'future\.capability\.(small-cooperative-multiplayer|rollback-competitive-networking).*capability\.gameplay\.shooter|wp\.product\.production-release-binding' docs/architecture/00-product/product-plan.md
+rg -n '^\| `wp\.(runtime|rendering|simulation|platform|authoring)\.[^|]+`.*(capability\.domain\.shooter|wp\.domain\.shooter|capability\.gameplay\.(interaction|path_following))' docs/architecture/00-product/product-plan.md
+rg -n 'capability\.gameplay\.timer|wp\.navigation\.path-following' docs/architecture docs/plans docs/superpowers
 rg -n 'Active Product Definition|Work Package|Future capability|Phase Gate|Release Gate' docs/architecture/00-product/product-plan.md docs/plans/2026-07-23-critical-path-execution-plan.md docs/reviews/2026-07-23-plan-feasibility-remediation.md
 git diff --check
 ```
 
-Expected: generic Network FutureのShooter prerequisite 0、旧全Target release binding 0、current count記述がProduct正本と一致、`git diff --check` exit 0。
+Expected: generic Network FutureのShooter prerequisite 0、Core→Feature／Genre required edge 0、旧Timer／Navigation ID 0、旧全Target release binding 0、current count記述がProduct正本と一致、`git diff --check` exit 0。
 
 Commit:
 
@@ -417,14 +445,14 @@ git commit -m "docs: complete generic engine plan audit"
 - Reviewed input range: `0386626a95f1534389cb4f2a6ec71ff254d06b68..0e08066905a9719664a0e97d33b4aad976a72c26`。
 - Review input: Independent Review 1 `Critical 9／Important 5／Minor 2`、Independent Review 2 `Critical 11／Important 11／Minor 3`、controller／review-controller追加要件。重複findingは一つのroot contract修正へ統合し、重要度を相殺しない。
 - Checkpoint commits:
-  - `efee59f`: intent→authorization→request、closed Contract Set member root、private marker→canonical signed wrapper→public marker。
+  - `efee59f`: intent→authorization→request、closed Contract Set member root、当時のprivate-to-public publication ordering。このcheckpoint表現は後続remediationで[Executable Contracts §8](../../architecture/02-foundation/executable-contracts.md#8-operation定義)のPublic Commit Closure付き手順へ置換され、現行正本としては使用しない。
   - `bb49a46`: owner layer／Feature namespace、Production–Fixture分離、Physics／Navigation／Input／Performance／Runtime Scopeのtyped contract。
   - `76d1aa0`: World Stable-ID完全Operation、Scenario receipt-free candidate／T00 delivery、Shooter Validator 8-record equality、Pack Validator equality。
 - Authorization: `MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`へ固定した。Approval／Predelegationはintent hashだけへbindし、final request hashとの固定点を作らない。循環形V2は未Activationだったため同versionを修正し、Task 4はcompat readerを実装しない。
-- Contract／publication: MCD、Diagnostic、Trusted Service、Validator、Operation Validator Closureをclosed local-member unionへ含め、root確定後だけ外部refをmaterializeする。state mutationは`Prepared -> staged postcondition -> private durable marker -> PublishedDomainReceiptV2／MirakanSignedRecordV1 -> PublicPublicationMarkerV1＋public state`だけを許可する。
-- Honest activation: World Stable-ID、Runtime Entry／Scope、Performance migration、Physics migration、Shooter target-provider三件から成るcurrent active 14（bootstrap八＋Domain六）は完全recordを維持する。Executable Contracts §§20～21.1の別159候補（当初67件＋回収済みDomain authoring／selection 92件）は18 `PlannedOperationFamilyV1`へ閉じ、各current MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Provider／MCP Tool／alias集合を空、stateを`not_activated`とし、active 14との積集合を空にした。Feature authoringとPhysics／Navigation／Input selectionはこの159件に含み、Scenario／Stage authoringとgeneric Pack AIのStable IDでないfuture vocabularyもcurrent set／Manifest／allowlistから除外し`not_activated`とした。旧name-only IDをaliasとして読まず、family単位以外の部分Activationを許可しない。
+- Contract／publication: MCD、Diagnostic、Trusted Service、Validator、Operation Validator Closureをclosed local-member unionへ含め、root確定後だけ外部refをmaterializeする。state mutationは[Executable Contracts §8](../../architecture/02-foundation/executable-contracts.md#8-operation定義)を唯一の正本とする`Prepared → staged postcondition → private durable marker read-back → secret-free PublicCommitClosureV1 candidate → PublishedDomainReceiptV2／MirakanSignedRecordV1 → PublicCommitClosureV1＋PublicPublicationMarkerV1＋public stateのatomic CAS`だけを許可する。
+- Honest activation: Runtime Entry create／update六件を`GenericCoreOperationBaselineV1`、World Stable-ID一件をInstalled Core extension、Shooter target-provider三件をGenre Pack contributionとして分けたcurrent contract-active 10だけが完全recordを持つ。current Signer Policyは空なのでoperationalは0である。Root Scene／Runtime Scope／Performance Scale／Physics Intent Role migrationはconditional legacy exact四件で、実signed inventory gateまで全current投影集合を空にする。Executable Contracts §§20～21.1の別191候補（当初67件＋回収済みDomain authoring／selection 92件＋AI E2E closure 32件）は24 `PlannedOperationFamilyV1`へ閉じ、各current MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Provider／MCP Tool／alias集合を空、stateを`not_activated`とし、active 10／conditional 4との積集合を空にした。Feature authoringとPhysics／Navigation／Input selectionはこの191件に含み、Scenario／Stage authoringとgeneric Pack AIのStable IDでないfuture vocabularyもcurrent set／Manifest／allowlistから除外し`not_activated`とした。旧name-only IDをaliasとして読まず、family単位またはlegacy evidence gate以外の部分Activationを許可しない。
 - Genericity／ownership: Production recordからFixture body refを除きowner-typed Qualification Receiptへ分離した。Feature／Genre／Projectをtyped `owner_layer`とexact owner refで検証し、Feature Systemを`game_system.extension.feature.*`へ置いた。Navigation Core publisherだけがcanonical motion batchを発行する。
-- World／Scenario／Shooter: World candidateからPublic Markerまで一つのProject triple／candidate／count／request identityへ閉じた。Scenarioはreceipt-free candidate→三owner Receipt＋五gate Receipt→final closureとし、generic T00 boundary deliveryを使用する。Shooter Manifest Validator inventoryとShooter owner Registry subsetをexact八件、各OperationのValidator error union／reachable errors／`errors[17]`を別gateで一致させた。
+- World／Scenario／Shooter: World candidateから`PublicCommitClosureV1`＋Public Markerまで一つのProject triple／candidate／count／request identityへ閉じた。Scenarioはreceipt-free candidate→三owner Receipt＋五gate Receipt→final closureとし、generic T00 boundary deliveryを使用する。Shooter Manifest Validator inventoryとShooter owner Registry subsetをexact八件、各OperationのValidator error union／reachable errors／`errors[17]`を別gateで一致させた。
 - Checkpoint 3 fresh assertions: `19/19 PASS`、Scenario／Pack concrete name-only current Operation `0`、Shooter unexpected Operation family `0`、対象五文書のunbalanced fence `0`、`git diff --check` `PASS`。
 - Current disposition: 文書契約remediationはcheckpointへ反映済み。全scope assertion／Markdown link・fragment検査と二つの独立read-only再Reviewを完了するまでTask 2 final closureとは扱わない。
 - Non-claim: Engine implementation、Schema／Registry compiler、Gateway、signing Store、Runtime、Save／Replay、Build、Target実機Qualification、Capability Activation、Release／Shipping readinessは未実施・未主張である。判定は`planning_go / implementation_and_shipping_no_go`を維持する。

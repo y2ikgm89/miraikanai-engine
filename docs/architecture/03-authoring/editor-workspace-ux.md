@@ -241,12 +241,12 @@ Asset BrowserとImport Inspectorは[Asset lifecycle](asset-lifecycle.md)が所�
 
 ### 6.6 Debugging
 
-Debug WorkspaceはDebugging Ownerのtyped Storeを投影し、Panelごとに独自log parser、別timestamp、別Object identityを持たない。選択したSession、Project revision、Build、Target、tick／frame、recorded／current stateを上部Context barで固定表示する。
+Debug WorkspaceはDebugging Ownerのtyped Storeを投影し、Panelごとに独自log parser、別timestamp、別Object identityを持たない。選択したSession、Project revision、Build、Target、Simulation Advance sequence／render frame ID、recorded／current stateを上部Context barで固定表示する。
 
 - Sessionは接続、recording tier、retention、gap、redaction、remote trust、crash／hang状態を表示する。
 - Console／ProblemsはDebugging Ownerが所有する`DebugEventEnvelopeV1`と`MirakanDiagnosticV1`をseverity／domain／phase／Stable IDでfilterし、元Event、Snapshot、source map、Replay pointへ移動できる。
 - Profiler／Debug Timeline／Causalityはcounter／span／event／causal edgeを同じtimepointへ整列し、presentation結果をauthoritative causeとして逆向きに結ばない。
-- Breakpoint／Watchはtarget、condition、scope、hit count、suspend policyを型付きで表示する。Runtime pauseは要求時点で即時停止せずT110 safe pointで成立させ、tick step／render-frame step／GameplayDefinition node stepを区別する。
+- Breakpoint／Watchはtarget、condition、scope、hit count、suspend policyを型付きで表示する。Runtime pauseは要求時点で即時停止せずT110 safe pointで成立させ、Simulation Advance step／render-frame step／GameplayDefinition node stepを区別する。
 - Replayはrecord→scrub→inspect、first divergence、recorded／current revision差分、欠損rangeを表示する。gapまたはredactionを値なしの正常状態として扱わない。
 - Reproductionは選択Evidenceからbounded BundleをPreviewし、含有／除外file、secret／PII scan、hash、retention、export先を承認前に示す。
 - External ToolsはIDE、PIX、RenderDoc、Perfetto、Instruments等を`ExternalDebuggerLaunchDescriptorV1`から起動し、Session／Process／Build／capture IDを戻す。外部Toolの表示だけをEngineの正本にしない。
@@ -482,7 +482,7 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - stale proposal、部分accept、human lock、Undo／Redo、external IDE conflict
 - GameHost／AI／Asset Worker crash中もProjectとlayoutを失わない
 - 既知のqueue overflow、stale handle、asset revision drift、simulation divergenceをSession／Debug Timeline／Causality／Replayで識別し、gapを原因確定へ使わない
-- pause要求がT110 safe pointでだけ成立し、tick／render-frame／GameplayDefinition node stepが混同されず、watch値にrevision／timepoint／validityが表示される
+- pause要求がT110 safe pointでだけ成立し、Simulation Advance／render-frame／GameplayDefinition node stepが混同されず、watch値にrevision／timepoint／validityが表示される
 - AI診断のvalidated causeはすべてEvidence IDを持ち、recorded／current混同、presentation→authoritativeの逆因果、再現なし修正成功を0件にする
 - 1920×1080でScene、Outliner、Inspector、Asset、AI Partnerが同時利用可能
 - `fixture.world.authoring-cross-view`の64 scenarioで、World Outline、Topology Graph、Level Form、Spatial View、AIが同じStableId／revision／`WorldSourceChangePrimitiveKindV1` discriminator／after state hashへ収束

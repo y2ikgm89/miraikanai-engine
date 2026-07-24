@@ -27,7 +27,7 @@ Game Project
   -> Generic Engine Core
 ```
 
-Game ProjectはGenre Packを使用せず、Feature Packを直接構成できる。Shooter-firstは実装順序にすぎず、Core、Editor、AI、Project C++、Project Shader、Test、Build、Package、Network、Releaseの成立条件にShooter Genre Packを置かない。
+Game ProjectはGenre Packを使用せず、Feature Packを直接構成できる。Shooter-firstは実装順序にすぎず、Core、Editor、AI、Project C++、Project Shader、Test、Build、Package、Network、Releaseの成立条件にShooter Genre Packを置かない。ProductのShooter／Platformer／Puzzle-Dialogue等のGateはbundled Reference Game coverageを資格化するnonblocking trackであり、Generic EngineのRelease Gate、CX3 shipping、production-release bindingから参照しない。
 
 ## 2. 層と依存規則
 

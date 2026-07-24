@@ -30,7 +30,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | Project Document、World Model、`ProjectChangeSetV1`のdomain schema／change primitive意味／transaction、Commit、Undo、Recovery | 本書 |
 | MCD型、Operation共通Envelope、Error、Schema projection、Codegen | [Executable contracts](../02-foundation/executable-contracts.md) |
 | ID、memory、pointer、thread、directory、serialization基礎 | [Core architecture](../02-foundation/core-architecture.md)と各Foundation Owner |
-| Runtime World、tick、lease、queue、Asset promotion | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
+| Runtime World、Simulation Advance、lease、queue、Asset promotion | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
 | AI権限、承認、Source sandbox、Promotion | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Editor panel、workspace、製品操作、人間工学 | [Editor Workspace UX](editor-workspace-ux.md) |
 | Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | [Editor UI Framework](editor-ui-framework.md) |
@@ -146,7 +146,7 @@ Commit対象`project_revision`のactive `TargetProfileDocument`集合と、`defa
 
 selector documentのrevision／hashまたはTarget Profile集合が変わると、そのselectorを参照する全entry、default coverage result、Compile Manifest、Cooked Runtime Packageをinvalidateする。旧entry hashや別Target membershipを流用せず、同じProject revisionから再materializeする。
 
-旧単数root sceneはmigration stagingだけで、参照Sceneを含む明示的なWorldと`entry_kind=world`、`default_for_selected_targets=true`のentryへ変換する。各active Targetへdefaultを一件生成し、Previewで新World／entry／Target bindingを示す。Runtimeの暗黙default、`Level` alias、`ui`／`headless`への近似変換は行わない。
+旧単数root sceneを検出したProjectは`MIRAKAN-PROJECT-RUNTIME_ENTRY_MIGRATION_REQUIRED`でcurrent load／compileをfail closedにし、正規Projectへ暗黙変換しない。`operation.project.runtime_entry.migrate_root_scene@1`は[Executable contracts §8.1.2](../02-foundation/executable-contracts.md#812-conditional-legacy-migration-evidence-gate)のconditional legacy migrationで、current MCD／Manifest／Service／Provider／MCP／alias集合はexact `[]`である。実在する旧Project Manifest／Root Sceneのschema bytes、source Contract Set／Owner／Named Algorithm／Foundation Closure、immutable fixtureを束縛したsigned inventoryが成立した将来のatomic activationだけが、参照Sceneを含む明示World、`entry_kind=world`、Targetごとのexact default entryへ変換できる。Runtimeの暗黙default、`Level` alias、`ui`／`headless`への近似変換はactivation後も禁止する。
 
 | Diagnostic ID | 条件 |
 |---|---|
@@ -164,23 +164,22 @@ selector documentのrevision／hashまたはTarget Profile集合が変わると�
 
 ### 3.1.2 Runtime Entryのclosed Operation Catalog
 
-Project ownerが許可するOperation集合は次のexact七refだけである。各要素は`McdContractRefV1 {id, version=1, contract_set_hash}`で、MCD共通Envelope、input／output、pure pre／postcondition policy、authority、risk、side effect、idempotency、transaction、closed Diagnostic set、timeout、rate limit、audit、Provider exposure、Receiptの正本は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)だけが所有する。Project ownerはこれらのFieldを再宣言または補完しない。
+Project ownerがcurrentで許可するOperation集合は次のexact六refだけである。各要素は`McdContractRefV1 {id, version=1, contract_set_hash}`で、MCD共通Envelope、input／output、pure pre／postcondition policy、authority、risk、side effect、idempotency、transaction、closed Diagnostic set、timeout、rate limit、audit、Provider exposure、Receiptの正本は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)だけが所有する。Project ownerはこれらのFieldを再宣言または補完しない。
 
 ```text
 RuntimeEntryOperationCatalogRefV1
-  operation_refs[7]:
+  operation_refs[6]:
     {id=operation.project.runtime_entry.create, version=1, contract_set_hash}
     {id=operation.project.runtime_entry.update, version=1, contract_set_hash}
     {id=operation.project.runtime_target_selector.create, version=1, contract_set_hash}
     {id=operation.project.runtime_target_selector.update, version=1, contract_set_hash}
     {id=operation.project.runtime_entry_activation_policy.create, version=1, contract_set_hash}
     {id=operation.project.runtime_entry_activation_policy.update, version=1, contract_set_hash}
-    {id=operation.project.runtime_entry.migrate_root_scene, version=1, contract_set_hash}
 ```
 
-Operation RegistryのProject owner集合と上記集合はID／version／Contract set hashのset equalityを必須とする。missing／extra／duplicate、wrong kind、stale version／hash、pre／post policyのwrong kind／missing／staleはCatalog materializationを全rejectする。suffixなしalias、自由JSON write、selector／policyをentry本文へ埋め込むOperationを登録しない。
+Operation RegistryのProject owner集合と上記集合はID／version／Contract set hashのset equalityを必須とする。Root Scene migration候補を含むmissing／extra／duplicate、wrong kind、stale version／hash、pre／post policyのwrong kind／missing／staleはCatalog materializationを全rejectする。suffixなしalias、自由JSON write、selector／policyをentry本文へ埋め込むOperationを登録しない。
 
-七input typeのexact fieldを次へ固定する。`common`を展開したGenerated schemaは下記のFieldとpresence ruleへ閉じ、`additionalProperties=false`であり、継承やuntyped extensionとして扱わない。状態を変更するR2は署名済みApprovalまたは同Scopeの署名済みPredelegationを厳密に一つ、R3はApprovalを厳密に一つ持つ。どちらもない入力をcanonical omissionとして受理せず`MIRAKAN-APPROVAL-REQUIRED`で拒否する。
+current六input typeのexact fieldを次へ固定する。`common`を展開したGenerated schemaは下記のFieldとpresence ruleへ閉じ、`additionalProperties=false`であり、継承やuntyped extensionとして扱わない。状態を変更するR2は署名済みApprovalまたは同Scopeの署名済みPredelegationを厳密に一つ持つ。どちらもない入力をcanonical omissionとして受理せず`MIRAKAN-APPROVAL-REQUIRED`で拒否する。コードブロック末尾のRoot Scene migration schemaはpost-activation destination templateであり、current Type LocalRef／external ref／Generated schema集合はexact `[]`である。
 
 ```text
 RuntimeEntryMutationCommonInputV1
@@ -259,9 +258,15 @@ RootSceneMigrationPlanV1
   plan_id: StableId
   plan_version: positive uint32
   project_ref: exact {project_id, expected_project_revision, document_set_hash}
-  legacy_project_manifest_ref/hash
-  legacy_root_scene_ref/hash
-  legacy_source_closure_hash
+  legacy_inventory_ref/hash: exact LegacyMigrationInventoryRefV1
+  source_foundation_definition_closure_ref:
+    exact FoundationDefinitionClosureRefV1
+  retained_source_project_manifest_mcd_ref:
+    exact McdContractRefV1(kind=type, contract_set_hash=source root)
+  retained_source_root_scene_mcd_ref:
+    exact McdContractRefV1(kind=type, contract_set_hash=source root)
+  legacy_project_manifest_artifact_ref/hash
+  legacy_root_scene_artifact_ref/hash
   active_target_profile_refs[1..64]
   document_mutations[4]:
     exact one RootSceneDocumentMutationV1 for each
@@ -298,13 +303,13 @@ RootSceneDocumentMutationV1
       after_payload_with_preserved_identity_ref/hash
 ```
 
-全inputは選択したnamed typeだけを使用し、anonymous sibling shapeを許可しない。`operation_intent_hash`と`request_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)が所有する`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`の唯一のDAGをそのまま使い、本書では別式を定義しない。Operation、Project、Preview／Validation policy、idempotency、全Domain fieldがintentへ入り、binding確定後のfinal requestはintent hashとexact authority evidenceを含む。create inputは`project_id`、expected Project revision、idempotency key、identity Fieldを持たないpayload draft、draft hash、allocation scope、relative path、selector／policy exact refsを持つ。GatewayがIDを発行し完成payload semantic hashを出力する。update inputはexact current `DocumentRef`、expected Document revision、before content／semantic hashとidentity固定済みafter payloadを持つ。selector create／updateはcanonical Target ref集合、policy create／updateは全closed semanticsを持つ。
+current全inputは選択したnamed typeだけを使用し、anonymous sibling shapeを許可しない。`operation_intent_hash`と`request_hash`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)が所有する`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`の唯一のDAGをそのまま使い、本書では別式を定義しない。Operation、Project、Preview／Validation policy、idempotency、全Domain fieldがintentへ入り、binding確定後のfinal requestはintent hashとexact authority evidenceを含む。create inputは`project_id`、expected Project revision、idempotency key、identity Fieldを持たないpayload draft、draft hash、allocation scope、relative path、selector／policy exact refsを持つ。GatewayがIDを発行し完成payload semantic hashを出力する。update inputはexact current `DocumentRef`、expected Document revision、before content／semantic hashとidentity固定済みafter payloadを持つ。selector create／updateはcanonical Target ref集合、policy create／updateは全closed semanticsを持つ。
 
-root Scene migrationは`RootSceneMigrationPlanV1`だけをDomain preimageとする。`plan_hash = SHA-256(ASCII "MIRAKAN_ROOT_SCENE_MIGRATION_PLAN_V1" || uint32_be(len(plan bytes excluding plan_hash)) || plan bytes)`であり、`RootSceneMigrationPlanRefV1`は完成recordの`plan_id`／`plan_version`／`plan_hash`から外部materializeする。Record自身へhash付きPlanRefを埋め戻さない。四`plan_local_ref`は同じplan ID、上記kind順のordinal 1～4で重複なく、各document kindをexact一件持つ。`create_branch_count`はcreate discriminator件数と一致し、Stable-ID allocation intent／mappingもcreate branchだけから同順でexact同数0～4件を導出する。update branchはcurrent ref／before hash／preserved identityを必須にし、allocation intent／mappingを持たない。Gatewayは別ID、別path、五件目、欠落、update identity差替え、Targetごとの暗黙entry追加を行わない。各active Targetは`default_entry_bindings[]`に厳密に一件あり、そのtyped plan-local refは唯一のruntime entry mutationを指す。四Documentの完成ref、create mapping集合、Target→default mappingをPreview、Prepared Candidate、postcondition、signed Receipt、Public Publication Markerで同一にする。したがってlegacy closure、Plan hash、branch discriminator、create allocationのどれかが変われば別intent／requestとなり、部分migrationを公開できない。
+Root Scene migration候補をactivateする場合、`RootSceneMigrationPlanV1`は上記signed Inventoryとsource Foundation ClosureをDomain preimageへ必須にする。二retained source MCD ref、二legacy Artifact、Inventory、Closureのsource Contract set rootはbyte equalityで、Closureから同時代Owner Registry／Named Algorithm Registry／schema bytes／decoder Artifactへexact解決しなければならない。bare `legacy_source_closure_hash`、current schemaへの別名解決、未知旧bytesの推測decodeを拒否する。`plan_hash = SHA-256(ASCII "MIRAKAN_ROOT_SCENE_MIGRATION_PLAN_V1" || uint32_be(len(plan bytes excluding plan_hash)) || plan bytes)`であり、`RootSceneMigrationPlanRefV1`は完成recordの`plan_id`／`plan_version`／`plan_hash`から外部materializeする。Record自身へhash付きPlanRefを埋め戻さない。四`plan_local_ref`は同じplan ID、上記kind順のordinal 1～4で重複なく、各document kindをexact一件持つ。`create_branch_count`はcreate discriminator件数と一致し、Stable-ID allocation intent／mappingもcreate branchだけから同順でexact同数0～4件を導出する。update branchはcurrent ref／before hash／preserved identityを必須にし、allocation intent／mappingを持たない。Gatewayは別ID、別path、五件目、欠落、update identity差替え、Targetごとの暗黙entry追加を行わない。各active Targetは`default_entry_bindings[]`に厳密に一件あり、そのtyped plan-local refは唯一のruntime entry mutationを指す。四Documentの完成ref、create mapping集合、Target→default mappingをPreview、Prepared Candidate、postcondition、Executable Contracts §8の`PublicCommitClosureV1.domain_commitment`、signed Receipt、Public Publication Markerで同一にする。公開順序は同正本の`private Marker read-back → secret-free PublicCommitClosure candidate → signed Receipt → PublicCommitClosure＋Public Marker＋四Documentのatomic CAS`だけを使う。Inventory、source Closure、legacy Artifact、Plan hash、branch discriminator、create allocationのどれかが変われば別intent／requestとなり、部分migrationを公開できない。この段落は§8.1.2 gate成立後のacceptance criteriaで、current callable behaviorではない。
 
-`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけが`PublicPublicationMarkerV1` readback後のbefore／after exact Project ref、exact signed `mutation_receipt_ref/hash`、Preview／Validation／Public Marker ref／hashを持つ。`RuntimeEntryMutationReceiptV1`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)のpayload＋canonical `MirakanSignedRecordV1` wrapperをexact reuseし、Domain signer／key／algorithm／signature Fieldをinline定義しない。`affected_documents[]`は同節のdocument-kind tagged unionであり、通常Operationで一件、root migrationでWorld／selector／policy／entryのexact四branchを持つ。WorldはDocument content hashだけ、entry／selector／policyはcontent hashと各Owner固有semantic hashを記録する。root migration Receiptのallocation mapping件数はPlan create branch件数とexact equality、update branchは0 mappingである。rejected branchだけが、選択Operation recordの`errors[]`とValidator reachable error setの双方に存在する四Field `DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、ID／code／version／hashの一部一致、string error、単数Documentへ四件を圧縮したReceiptを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
+`type.project.runtime_entry.mutation_result`は`disposition=committed | rejected`のtagged unionである。committed branchだけが`PublicPublicationMarkerV1` readback後のbefore／after exact Project ref、exact signed `mutation_receipt_ref/hash`、Preview／Validation／Public Marker ref／hashを持ち、Public MarkerとReceiptの同一`PublicCommitClosureRefV1`を完成`PublicCommitClosureV1`へ解決する。`RuntimeEntryMutationReceiptV1`は[Executable contracts §8.1](../02-foundation/executable-contracts.md#81-project-runtime-entryruntime-scopeの正規operation登録)のpayload＋canonical `MirakanSignedRecordV1` wrapperをexact reuseし、Domain signer／key／algorithm／signature Fieldをinline定義しない。current六Operationの`affected_documents[]`はexact一件である。WorldはDocument content hashだけ、entry／selector／policyはcontent hashと各Owner固有semantic hashを記録する。Root Scene候補が将来activateされた場合だけWorld／selector／policy／entryのexact四branchとPlan create branch数に等しいallocation mappingを許し、update branchは0 mappingとする。rejected branchだけが、選択active Operation recordの`errors[]`とValidator reachable error setの双方に存在する四Field `DiagnosticCodeRefV1`を1～64件持つ。Registry外Diagnostic、ID／code／version／hashの一部一致、string error、current Operationの複数Document、candidate未activation時のPlan refを拒否する。失敗時はProject revision、Document index、default coverage、Compile Manifest、last-valid Runtime Packageを一切変更しない。
 
-positive fixtureはentry／selector／policy create→save→reload→update→compileの三identity／二hash照合と、root Scene migrationのcreate 0～4件を含む四Document tagged union、allocation count equality、signed Receipt後のpublic resultを検査する。negative fixtureは三箇所のidentity差を各一件、selector ID／version／count／Target exact refの一Fieldだけを変更して旧`selector_hash`を再利用するmutation、payload semantic hash mismatch、Document content hash mismatch、Target count／array length mismatch、self-hash循環を作るpayload、stale revision、selector／policy cross-kind ref、Operation pre／post policyのwrong kind／missing／stale ref、Diagnostic ID／code／version／hash mismatch、create allocation欠落／extra、update allocation混入、undefined plan-local ref、署名Receipt前public state、部分migrationをそれぞれ単独原因で拒否し、全経路でrevision不変を検査する。
+current positive fixtureはentry／selector／policy create→save→reload→update→compileの三identity／二hash照合を検査する。negative fixtureは三箇所のidentity差を各一件、selector ID／version／count／Target exact refの一Fieldだけを変更して旧`selector_hash`を再利用するmutation、payload semantic hash mismatch、Document content hash mismatch、Target count／array length mismatch、self-hash循環を作るpayload、stale revision、selector／policy cross-kind ref、Operation pre／post policyのwrong kind／missing／stale ref、Diagnostic ID／code／version／hash mismatch、current Operationへのmigration Plan混入、署名Receipt前public stateをそれぞれ単独原因で拒否し、全経路でrevision不変を検査する。Root Scene候補のfixture current ref集合はexact `[]`であり、signed Inventory成立後のatomic activation fixtureだけが実legacy bytes、source wrong-root／Owner／Algorithm／schema／decoder、create 0～4件の四Document tagged union、allocation count equality、部分migration拒否、signed Receipt後のpublic resultを検査する。
 
 `WorldStreamingPlanV1`、Navigation Artifact、HLOD、Cooked Gameplay Package、generated System Catalog／Dependency GraphはDerived Artifactであり、正規Document種別へ追加しない。CreatorまたはAIがDerived Artifactを直接編集した変更をGatewayは拒否する。
 
@@ -489,6 +494,272 @@ ProjectChangeSetV1
 
 ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary、C++ source本文、巨大配列を埋め込まず、許可済みStaging fileのcontent hashとrelative pathを参照する。
 
+AI／Editor／CLI／MCPが同じChangeSet bytesをProposal、Validation、Preview、Commitへ運ぶためのtarget carrierを次へ固定する。これは[Executable Contracts §21.1](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)末尾の`planning.operation_family.authoring_changeset_execution`を将来atomic ActivationするためのDomain schemaであり、current MCD Operation、Manifest、Service、Policy、Validator、Diagnostic、Receipt、Signer、Provider／MCP投影集合はexact `[]`、Capability stateは`not_activated`である。
+
+```text
+ProjectRevisionBindingV1
+  project_id: UUIDv7
+  project_revision: uint64
+  document_set_sha256: Sha256DigestV1
+
+ProjectChangeSetArtifactRefV1
+  change_set_schema_ref: McdContractRefV1(
+    id=type.project.change_set, version=1, contract_set_hash)
+  change_set_id: UUIDv7
+  project_id: UUIDv7
+  base_project_revision: uint64
+  artifact_ref: ArtifactRefV1(
+    artifact_kind=project_change_set, schema_version=1)
+  canonical_change_set_sha256: Sha256DigestV1
+  primitive_set_sha256: Sha256DigestV1
+
+ProjectChangeSetProposalResultV1
+  disposition:
+    kind: proposed
+      change_set_ref: ProjectChangeSetArtifactRefV1
+      question_record_refs[0..128]
+      assumption_record_refs[0..128]
+      diagnostic_refs[0..64]
+    | kind: question_required
+      question_record_refs[1..128]
+      diagnostic_refs[0..64]
+    | kind: rejected
+      diagnostic_refs[1..64]
+
+ProjectChangeSetValidationSubjectV1
+  validation_id:
+    urn:mirakan:project-changeset-validation:sha256:<lowercase-hex-64>
+  change_set_ref: ProjectChangeSetArtifactRefV1
+  project_revision_binding: ProjectRevisionBindingV1
+  contract_set_hash: Sha256DigestV1
+  target_profile_refs[0..64]
+  reachable_primitive_type_refs[1..4096]
+  operation_to_primitive_coverage_sha256: Sha256DigestV1
+  input_closure_sha256: Sha256DigestV1
+  result: pass | fail
+  diagnostic_refs[0..64]
+  validated_at
+
+ProjectChangeSetValidationReceiptV1
+  subject: ProjectChangeSetValidationSubjectV1
+  signed_record: MirakanSignedRecordV1(
+    purpose=project_changeset_validation)
+
+ProjectChangeSetPreviewSubjectV1
+  preview_id:
+    urn:mirakan:project-changeset-preview:sha256:<lowercase-hex-64>
+  change_set_ref: ProjectChangeSetArtifactRefV1
+  project_revision_binding: ProjectRevisionBindingV1
+  diff_artifact_ref: ArtifactRefV1(
+    artifact_kind=project_changeset_diff, schema_version=1)
+  impact_summary_ref: ArtifactRefV1(
+    artifact_kind=project_changeset_impact_summary, schema_version=1)
+  invalidated_consumer_manifest_ref: ArtifactRefV1(
+    artifact_kind=project_invalidated_consumer_manifest, schema_version=1)
+  input_closure_sha256: Sha256DigestV1
+  disposition: previewable | blocked
+  diagnostic_refs[0..64]
+  previewed_at
+
+ProjectChangeSetPreviewReceiptV1
+  subject: ProjectChangeSetPreviewSubjectV1
+  signed_record: MirakanSignedRecordV1(
+    purpose=project_changeset_preview)
+
+ProjectTargetProfileRefV1
+  target_profile_id: StableId
+  target_profile_version: uint32
+  target_profile_content_hash: Sha256DigestV1
+
+ProjectSourceChangedPathRecordV1
+  source_kind: native_module | project_shader
+  project_id: UUIDv7
+  project_relative_path: NfcUtf8StringV1(1..1024 bytes)
+  change_kind: create | modify | delete
+  before_blob_sha256: null | Sha256DigestV1
+  after_blob_sha256: null | Sha256DigestV1
+  path_record_content_hash: Sha256DigestV1
+
+ProjectSourceChangedPathRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_source_changed_path, schema_version=1)
+
+BrokerRecomputedSourceDiffV1
+  source_kind: native_module | project_shader
+  project_id: UUIDv7
+  before_source_tree_sha256: Sha256DigestV1
+  after_source_tree_sha256: Sha256DigestV1
+  changed_path_refs[1..4096]: ProjectSourceChangedPathRefV1
+  diff_content_hash: Sha256DigestV1
+
+NativeModuleSourceTaskArtifactRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_native_source_task, schema_version=1)
+
+NativeModulePatchProposalArtifactRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_native_patch_proposal, schema_version=1)
+
+NativeModuleSourceRevisionArtifactRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_native_source_revision, schema_version=1)
+
+ProjectShaderSourceTaskArtifactRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_shader_source_task, schema_version=1)
+
+ProjectShaderPatchProposalArtifactRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_shader_patch_proposal, schema_version=1)
+
+ProjectShaderSourceRevisionArtifactRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_shader_source_revision, schema_version=1)
+
+ProjectSourceRegistrationIntentV1
+  registration_intent_id:
+    urn:mirakan:project-source-registration-intent:sha256:<lowercase-hex-64>
+  project_id: UUIDv7
+  base_project_revision: uint64
+  primitive_id: UUIDv7
+  source:
+    {source_kind: native_module,
+     source_task_ref: NativeModuleSourceTaskArtifactRefV1,
+     patch_proposal_ref: NativeModulePatchProposalArtifactRefV1,
+     candidate_source_revision_ref:
+       NativeModuleSourceRevisionArtifactRefV1}
+    | {source_kind: project_shader,
+       source_task_ref: ProjectShaderSourceTaskArtifactRefV1,
+       patch_proposal_ref: ProjectShaderPatchProposalArtifactRefV1,
+       candidate_source_revision_ref:
+         ProjectShaderSourceRevisionArtifactRefV1}
+  revision_transition_kind: create | update
+  before_source_revision_ref:
+    null | NativeModuleSourceRevisionArtifactRefV1
+         | ProjectShaderSourceRevisionArtifactRefV1
+  broker_recomputed_diff_ref:
+    exact ArtifactRefV1(
+      artifact_kind=broker_recomputed_source_diff, schema_version=1)
+  before_source_tree_sha256: Sha256DigestV1
+  candidate_source_tree_sha256: Sha256DigestV1
+  target_profile_refs[1..64]: ProjectTargetProfileRefV1
+  toolchain_lock_sha256: Sha256DigestV1
+  registration_intent_content_hash: Sha256DigestV1
+
+ProjectSourceRegistrationIntentRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_source_registration_intent,
+    schema_version=1)
+
+ProjectSourcePromotionSubjectV1
+  promotion_id:
+    urn:mirakan:project-source-promotion:sha256:<lowercase-hex-64>
+  project_id: UUIDv7
+  base_project_revision: uint64
+  project_change_set_ref: ProjectChangeSetArtifactRefV1
+  prepared_candidate_ref: PreparedCandidateRefV1
+  registration_intent_ref: ProjectSourceRegistrationIntentRefV1
+  source:
+    source_kind: native_module
+      source_task_ref: NativeModuleSourceTaskArtifactRefV1
+      patch_proposal_ref: NativeModulePatchProposalArtifactRefV1
+      revision_transition:
+        kind: create
+          promoted_source_revision_ref:
+            NativeModuleSourceRevisionArtifactRefV1
+        | kind: update
+          before_source_revision_ref:
+            NativeModuleSourceRevisionArtifactRefV1
+          promoted_source_revision_ref:
+            NativeModuleSourceRevisionArtifactRefV1
+      build_receipt_refs[1..64]:
+        NativeModuleBuildReceiptRefV1
+    | source_kind: project_shader
+      source_task_ref: ProjectShaderSourceTaskArtifactRefV1
+      patch_proposal_ref: ProjectShaderPatchProposalArtifactRefV1
+      revision_transition:
+        kind: create
+          promoted_source_revision_ref:
+            ProjectShaderSourceRevisionArtifactRefV1
+        | kind: update
+          before_source_revision_ref:
+            ProjectShaderSourceRevisionArtifactRefV1
+          promoted_source_revision_ref:
+            ProjectShaderSourceRevisionArtifactRefV1
+      build_receipt_refs[1..64]:
+        ProjectShaderBuildReceiptRefV1
+  broker_recomputed_diff_ref:
+    exact ArtifactRefV1(
+      artifact_kind=broker_recomputed_source_diff, schema_version=1)
+  before_source_tree_sha256: Sha256DigestV1
+  promoted_source_tree_sha256: Sha256DigestV1
+  test_receipt_refs[1..64]: CandidateTestReceiptRefV1
+  independent_review_receipt_ref:
+    IndependentSourceReviewReceiptRefV1
+  code_owner_assignment_ref: CodeOwnerAssignmentRecordRefV1
+  code_owner_approval_ref: CodeOwnerApprovalRecordRefV1
+  candidate_root_sha256: Sha256DigestV1
+  target_profile_refs[1..64]: ProjectTargetProfileRefV1
+  toolchain_lock_sha256: Sha256DigestV1
+  promoted_at
+
+ProjectSourcePromotionReceiptV1
+  subject: ProjectSourcePromotionSubjectV1
+  signed_record: MirakanSignedRecordV1(
+    purpose=project_source_promotion)
+
+ProjectSourcePromotionReceiptRefV1
+  exact MirakanSignedRecordRefV1(
+    purpose=project_source_promotion)
+
+ProjectSourcePromotionAuthorizationEntryV1
+  primitive_id: UUIDv7
+  registration_intent_ref: ProjectSourceRegistrationIntentRefV1
+  promotion_receipt_ref: ProjectSourcePromotionReceiptRefV1
+
+ProjectSourcePromotionAuthorizationBindingV1
+  binding_id:
+    urn:mirakan:project-source-promotion-authorization:sha256:<lowercase-hex-64>
+  binding_version: positive uint32
+  project_id: UUIDv7
+  base_project_revision: uint64
+  project_change_set_ref: ProjectChangeSetArtifactRefV1
+  prepared_candidate_ref: PreparedCandidateRefV1
+  candidate_root_sha256: Sha256DigestV1
+  entry_count: positive uint32
+  entries[1..256]: ProjectSourcePromotionAuthorizationEntryV1
+  binding_content_hash: Sha256DigestV1
+
+ProjectSourcePromotionAuthorizationBindingRefV1
+  exact ArtifactRefV1(
+    artifact_kind=project_source_promotion_authorization_binding,
+    schema_version=1)
+```
+
+`artifact_ref.sha256`は完成`ProjectChangeSetV1` canonical bytesへ解決し、`canonical_change_set_sha256`はASCII `MIRAKAN_PROJECT_CHANGE_SET_V1`、全Fieldを宣言順にMCD canonical encodeしたbytesを`uint32_be` length framingしてSHA-256する。両digestはbyte equalityでなければならない。`primitive_set_sha256`はprimitiveをdependency DAGのcanonical topological order、同順位を`primitive_id` UUID bytes順に並べ、各完成primitive canonical bytesを同じframingでhashする。filesystem順、入力配列順、表示順、JSON text、intent summaryだけをidentityにしない。RefのID／Project／revision／各hashの一Fieldでもartifactと不一致なら全routeを拒否する。
+
+Proposalのtagged branch外Fieldはcanonical omissionする。Question／Assumption／Diagnostic／Target／primitive type ref集合は各typed refのcanonical tuple順、重複禁止である。Validation IDはASCII `MIRAKAN_PROJECT_CHANGESET_VALIDATION_SUBJECT_V1`、Preview IDは`MIRAKAN_PROJECT_CHANGESET_PREVIEW_SUBJECT_V1`と各自己IDを除く完成subject canonical bytesからSHA-256を計算して上記URNへ投影する。任意UUID、時刻、署名wrapperをID derivationへ使わない。Activation work itemはDiff、Impact Summary、Invalidated Consumer Manifestのclosed entry schema、exact ID derivation、Local Schema Catalog、purpose、Signer、validity、revocation、Receipt ref型を同じContract set transactionで固定する。`operation.authoring.changeset.commit`の成功結果は新しいCommit Receipt型を作らず、§5.3の完成`PublicCommitClosureV1`、`PublishedDomainReceiptV2`、`PublicPublicationMarkerV1`、before／after Project refを再利用する。三型はExecutable Contracts §8のnested common schemaであり、Project Operation／MCD Type／Contract Set member件数を増やさない。
+
+Promotion IDはASCII `MIRAKAN_PROJECT_SOURCE_PROMOTION_SUBJECT_V1`と自己IDを除く完成subject canonical bytesから導出する。`project_change_set_ref`はPrepared Candidateが束縛するreceipt-free ChangeSet、`prepared_candidate_ref`と`candidate_root_sha256`はprepromotion Build／Testのexact Candidate、`registration_intent_ref`は対象source registration primitiveのtyped argumentとbyte equalityにする。`source`は`source_kind`をdiscriminatorとするclosed tagged unionで、Native／ShaderのTask、Proposal、Source revision、Build Receiptを上記のexact kind／schema version／purpose以外へ差し替えられない。Native Source revision refは[Native game module §9.4](native-game-module.md#94-ai-source-taskpatch-proposalpromotion-carrier)の`NativeModuleSourceRevisionV1`、Shader Source revision refは[Project Shader §8](../06-rendering/project-shader.md#8-aieditor-operationとcontext)の`ProjectShaderSourceRevisionV1`へ解決し、Artifact refのSHA-256を完成record bytesへ照合する。IntentのProject／base revision、Task／Proposal、Candidate Source revision、Diff、tree、Target、ToolchainとPromotion subjectの対応Fieldをbyte equalityにし、Promotion時にChangeSet、Prepared Candidate、Intentを再生成しない。
+
+`ProjectSourceChangedPathRecordV1`と`BrokerRecomputedSourceDiffV1`はclosed objectである。pathはNFC正規化したProject-relative `/` 区切りとし、absolute path、drive／UNC prefix、空segment、`.`／`..`、NUL、symlink escapeを拒否する。`create`は`before_blob_sha256=null`かつafter non-null、`modify`は両方non-nullかつ非同値、`delete`はbefore non-nullかつafter nullだけを許す。`path_record_content_hash = SHA-256(ASCII "MIRAKAN_PROJECT_SOURCE_CHANGED_PATH_V1" || uint32_be(len(closed MCD canonical bytes excluding path_record_content_hash)) || closed bytes)`とし、`ProjectSourceChangedPathRefV1.sha256`は同Fieldを含む完成record bytesのSHA-256へ一致させる。
+
+Diffの`changed_path_refs[]`は各refを完成Path recordへ解決し、`{project_relative_pathのNFC UTF-8 bytes, change_kind enum order=create|modify|delete, ref.sha256 bytes}`のtupleでstrict昇順にする。同じProject-relative pathのduplicateはref／change kindが異なっても拒否する。全Path recordの`source_kind`／`project_id`はDiffと一致し、Diffのbefore／after treeはPath集合をcanonical path順へ適用した再計算結果と一致しなければならない。`diff_content_hash = SHA-256(ASCII "MIRAKAN_BROKER_RECOMPUTED_SOURCE_DIFF_V1" || uint32_be(len(closed MCD canonical bytes excluding diff_content_hash)) || closed bytes)`とし、`ArtifactRefV1(artifact_kind=broker_recomputed_source_diff,schema_version=1).sha256`は同Fieldを含む完成Diff bytesのSHA-256へ一致させる。Proposalのtyped ref集合、source kind、Project、before／after treeはこのDiff recordとbyte equalityにし、Worker申告path、表示path、scopeだけ、missing／extra／duplicate／未正規順pathを受理しない。
+
+`ProjectSourceRegistrationIntentV1`はPromotion Receiptを含まないimmutable semantic inputである。`registration_intent_content_hash`はASCII `MIRAKAN_PROJECT_SOURCE_REGISTRATION_INTENT_V1`と自己ID／hash Fieldを除くclosed recordのMCD canonical bytesを`uint32_be` length framingして計算し、`registration_intent_id`は同digestから上記URNへ投影する。Artifact refのSHA-256はID／content hashを含む完成record bytesと一致させる。`revision_transition_kind=create`では`before_source_revision_ref=null`かつcandidate revision 1、`update`ではsource kindに一致するbefore refをnon-null、同Stable IDのcandidate revisionをexact `N+1`にする。IntentのProject／base revision、Task／Proposal、Candidate Source revision、Broker Diff、before／candidate tree、Target、Toolchainは外側Task、ChangeSet、Prepared Candidate、prepromotion Build／Testとbyte equalityにし、Receipt、Approval、Promotion、Commit Markerをhash preimageへ戻さない。
+
+`revision_transition.kind=create`では`before_source_revision_ref`をcanonical omissionし、`base_project_revision`時点に同じSource Stable IDが存在しないこと、promoted recordの`source_revision=1`を必須にする。`kind=update`ではbefore refを必須にし、そのresolved Project／Source Stable ID／revision／tree hashがTaskのbaseと一致し、promoted refは同じStable IDの厳密な`source_revision=N+1`でなければならない。createでbefore ref、updateでbefore ref省略、空ref／zero revision／latest aliasによる補完、branch外Field、異種refを拒否する。
+
+`NativeEmptySourceTreeHashV1 = SHA-256(ASCII "MIRAKAN_EMPTY_NATIVE_SOURCE_TREE_V1" || uint32_be(0))`、`ProjectShaderEmptySourceTreeHashV1 = SHA-256(ASCII "MIRAKAN_EMPTY_PROJECT_SHADER_SOURCE_TREE_V1" || uint32_be(0))`とする。createの`before_source_tree_sha256`はsource kindに対応するこのexact値、updateはbefore refが解決するtree hashとbyte equalityにし、Field自体は両branchで必須とする。空directoryのfilesystem列挙結果、空文字列、zero digest、別domainのempty hashを代用しない。
+
+`promoted_source_revision_ref`はprepromotion Build／Testが検査したimmutable Candidate Source revisionと同じArtifact refであり、Promotion時にSource bytes、record、hash、revisionを再生成しない。Promotion成功は同refをProject Source Registryへ到達可能化する状態遷移であり、別hashのcopy、Build後の修正、同revision別treeを拒否する。
+
+`target_profile_refs[]`はTarget Profile ID／version／content hash順、`build_receipt_refs[]`はresolved Target tuple／Source kind／Source revision ref／signed record hash順、`test_receipt_refs[]`はresolved Target tuple／Test Plan ref／signed record hash順にcanonicalizeし、同じTarget Profile ref、同じ完成wrapper、同じTest Plan／Target pairのduplicateをそれぞれ拒否する。Build／Test refは[Core architecture](../02-foundation/core-architecture.md)のcanonical aliasを再利用し、Native Buildはexact `purpose=operation_receipt:operation.build.request_native_module`、Shader Buildは`purpose=operation_receipt:operation.build.request_project_shader`、Candidate Testは`purpose=operation_receipt:operation.test.request_run`以外を拒否する。Promotionが受理する全Build Receiptは`source_authorization.kind=prepromotion_candidate`、全Candidate Test Receiptが参照するGame Candidate Build Receiptは`source_build_closure.kind=prepromotion_project_source`でなければならない。各Receipt subjectが束縛するTask、Proposal、Broker Diff、Assignment、Project、`prepared_candidate_ref`／Candidate root、Target、Toolchain、Candidate Source revision、Registration IntentをPromotion subjectとbyte equalityにする。Promotion Receiptを要求するBuild／Game Candidate branchを前提Evidenceにせず、`receipt-free Intent／ChangeSet -> Prepared Candidate -> prepromotion Build／Candidate Test -> independent review／Code Owner Approval -> Promotion -> late authorization binding -> Prepared Commit Envelope`のDAGを循環なしで固定する。`independent_review_receipt_ref`はSource Worker／Builder／Code Ownerと分離されたreviewerの同じBroker Diff、`code_owner_assignment_ref`と`code_owner_approval_ref`は[AI Security／Approval §9.4](../01-governance/ai-security-approval.md#94-code-owner-assignmentとapproval)の完成subjectと署名済みwrapperへ解決し、ApprovalのAssignment、Diff、Source revision、Build／Review集合を本subjectとexact一致させる。hashだけ、purposeなし、別purposeの有効署名、裸subject refを受理しない。
+
+Promotion signerはAI／Worker／Providerではなく、[AI Security／Approval](../01-governance/ai-security-approval.md)が所有するpurpose専用trusted internal Serviceである。current Code Owner Assignment、同じBroker Diffへのapproved Code Owner Approval、distinct independent review、全required TargetのBuild／Test Receipt、Project／Candidate／Toolchain／before-after tree equalityを副作用前とpublication直前に再検証する。成功Receipt後だけ対応Source登録primitiveを許可し、Provider／MCPへPromotionを投影しない。
+
+`ProjectSourcePromotionAuthorizationBindingV1`はPromotion後、Project Commit前にだけ生成するcontent-addressed late authorization artifactである。`entries[]`を`primitive_id` UUID bytes順へstrict sortし、ChangeSet内のNative／Shader registration primitive集合とexact set equalityにする。各entryのIntentはprimitiveのtyped argument、Promotion ReceiptのChangeSet／Prepared Candidate／Candidate root／Intent／Source revisionはBindingとbyte equalityで、Receipt resultと署名、Code Owner／Review／Build／Test closure、expiry／revocationを再検証する。`binding_content_hash`はASCII `MIRAKAN_PROJECT_SOURCE_PROMOTION_AUTHORIZATION_BINDING_V1`と自己ID／hash Fieldを除くclosed recordのMCD canonical bytesを`uint32_be` length framingして計算し、`binding_id`を同digestから上記URNへ投影する。Artifact refのSHA-256はID／content hashを含む完成record bytesへ一致させる。source registration primitiveが0件ならBinding Ref集合はexact `[]`、一件以上なら同じChangeSet／Prepared Candidateに対するBinding Ref exact一件だけを`AtomicCommitPlanPayloadV1`、`PreparedCommitEnvelopeV1`、`PreparedReceiptPublicationBindingV1`へ保存する。ReceiptをPrepared Candidateへ後付けする、Candidate hashを再計算する、複数Bindingへ分割する、別Candidate／ChangeSetのReceiptを混ぜる実装を拒否する。
+
 ### 5.2 `ProjectChangePrimitiveV1`
 
 `ProjectChangePrimitiveV1`はChangeSet内部だけのtagged mutation unionであり、MCD kind `operation`、`operation.*` logical ID、Owner Manifest row、Service allowlist、Provider／MCP Toolではない。全primitiveは`primitive_id`、closed `primitive_type`、target StableId、typed argument、primitive内依存、expected document revision、declared costを持つ。primitive名からMCD Operation IDを生成せず、外側の完全登録済みMCD OperationだけがChangeSetをauthorization／publication境界へ運べる。
@@ -504,12 +775,13 @@ ChangeSet全体のcanonical encoded sizeは8 MiB以下とする。Asset binary�
 | Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。`qualified` Contract／Staging hashだけ |
 | World／owner-typed content | Topology、Partition Intent、Procedural、Map Presentationと登録済みowner namespaceの各Domain typed change primitive |
 | Asset | `RegisterAssetSource`、`SetImportField`、`ReplaceAssetSourceRevision` |
-| Native C++ | `RegisterNativeModuleRevision`。Source promotion済みhashだけ |
+| Native C++ | `RegisterNativeModuleRevision`。receipt-free `ProjectSourceRegistrationIntentRefV1`とCandidate Source revisionだけ。Promotionはlate authorization bindingで検証 |
+| Project Shader | `RegisterProjectShaderModuleRevision`、`RegisterProjectShaderTechniqueRevision`。receipt-free Registration Intent、Candidate Source revision、Technique／Port compatibility closureだけ。Promotion／Target別Buildはlate bindingで検証 |
 | Target／Decision | `SetTargetProfileField`、`RecordDecision`、`LockDecision`、`UnlockDecision`、`InvalidateDecision`、`ReconfirmDecision` |
 
 自由形式の`SetJsonPointer`、任意path write、任意C++ symbol call、任意console commandをprimitive unionへ登録しない。複数fieldを不変条件とともに変える変更は一つのDomain primitiveとし、細かな`SetField`列へ分解して中間不整合を作らない。
 
-AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全fieldが一つ以上の完全登録済み外側MCD Operationから到達し、そのnamed inputが一つ以上のtyped `ProjectChangePrimitiveV1` branchへ閉じることをContract compilerで証明する。MCD Operation→primitive coverageが100%でないCapabilityはAI Tool catalogへ昇格しない。AI TaskのPath Grantへ正規Authoring JSONのwrite権限を含めず、AIがSource fileを直接変更してcoverageを迂回する経路を作らない。
+AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全fieldが一つ以上の完全登録済み外側MCD Operationから到達し、そのnamed inputが一つ以上のtyped `ProjectChangePrimitiveV1` branchへ閉じることをContract compilerで証明する。MCD Operation→primitive coverageが100%でないCapabilityはAI Tool catalogへ昇格しない。`RegisterNativeModuleRevision`／`RegisterProjectShaderModuleRevision`／`RegisterProjectShaderTechniqueRevision`のprimitiveはBroker検証済みreceipt-free `ProjectSourceRegistrationIntentRefV1`とCandidate Source revisionを持ち、Step 1～9／`PreparedCandidateV1`のhash preimageへPromotion Receipt、Build／Test Receipt、Code Owner Approvalを含めない。これらの後発EvidenceはStep 10直前に`ProjectSourcePromotionAuthorizationBindingV1`から全source registration primitiveへexact一件ずつ対応付けて検証する。Source本文、Worker自己申告Diff、未昇格artifact、missing／extra／duplicate bindingを受理しない。AI TaskのPath Grantへ正規Authoring JSONのwrite権限を含めず、AIがSource fileを直接変更してcoverageを迂回する経路を作らない。
 
 ### 5.3 Commit algorithm
 
@@ -524,21 +796,24 @@ AIへ公開する全Authoring Capabilityは、MCDで`ai_mutable=true`の全field
 7. 変更後aggregateをcopy-on-write stagingへ構築し、`PreparedCandidateRefV1`を確定する。
 8. Authoring aggregate自体のmemory／schema hard budgetとRisk policyを検証する。Runtime Targetのrender、physics、nav、VFX、package予測costは、安全なRepresentation Planがありestimate内でも未実測なら`state=predicted`、現在のPlanでは未達なら`state=blocked`と登録済み`blocked_reason_ref`を候補revisionへ記録する。`qualified`は予測から生成せず、同じ`input_closure_hash`へ束縛されたfresh統合負荷Receiptを照合できた場合だけ維持する。未校正workload envelopeは`blocked_reason_ref=performance_envelope_unqualified`とする。
 9. Domain dry-runと必要なbackground validation artifactのhashを照合し、Preview／Validation／Domain Receiptの未発行payloadを作る。schema、safety、boundedness、不変条件の失敗はrejectし、Target performance／capacityだけの未達は`state=blocked`、改善可能なら`blocked_reason_ref=optimization_required`として候補へ記録する。
-10. `PreparedCandidateRefV1`、未発行Receipt payload、予定after stateを束ねた`PreparedCommitEnvelopeV1`を作り、その不変bytesだけへpostcondition v2を評価して`StagedPostconditionReceiptV1`を得る。
+9a. Source registration primitiveがある場合だけ、ここでCommit algorithmを一時停止し、不変`PreparedCandidateRefV1`に対するprepromotion Build／Test、独立Review、Code Owner Approval、Promotionを完了して`ProjectSourcePromotionAuthorizationBindingRefV1` exact一件を生成する。ない場合はlate authorization Ref集合をexact `[]`にする。
+10. `PreparedCandidateRefV1`、late authorization binding Ref集合、未発行Receipt payload、予定after stateを束ねた`PreparedCommitEnvelopeV1`を作り、その不変bytesだけへpostcondition v2を評価して`StagedPostconditionReceiptV1`を得る。BindingはEnvelopeのauthorization closureであってPrepared Candidateまたはstaged after stateを変更しない。
 11. 変更Document、inverse change primitive、manifest、journal record、全Prepared Receipt payload、staged after state、`PrivateDurableCommitMarkerV1` payloadを同一temporary transaction directoryへ書き、全fileをflushする。
 12. transaction manifestを外部readerから到達不能なprivate durable namespaceへ最後に原子的renameし、private Markerをcommit decisionとしてreadbackする。この時点でlive Project head、Document index、公開Receipt、provider-visible Resultを変更しない。
-13. private Marker、Prepared Envelope、全Prepared Receipt payload、request hash、staged postcondition Receipt hashのexact equalityを確認し、Executable Contracts §8.1の固定materialization key／issued-at／revocation snapshot／key context／deterministic signing profileでcanonical `PublishedDomainReceiptV2`／`MirakanSignedRecordV1` wrapperをreceipt storeへput-if-absentする。
-14. signed wrapperをreadbackした後だけ、`PublicPublicationMarkerV1`、after Project head、Document indexを同じexpected predecessorに対する一つのpublic CASでpublishし、Public Markerとsigned Receipt ref／hashをdomain Resultで返す。
+13. private Marker、Prepared Envelope、全Prepared Receipt payload、request hash、staged postcondition Receipt hashのexact equalityを確認する。次に[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)のnested common schemaからsecret-free `PublicCommitClosureV1` candidateを作り、`domain_commitment.kind=project_change_set_commit`、exact `project_change_set_ref`、`candidate_root_sha256`、Prepared Candidate、late binding集合、before／after Project、Envelope／private Marker commitmentを固定する。Source registration primitiveが0件でもProject branchとChangeSet／Candidate rootを必須にし、late binding集合だけを`[]`にする。Closureのsemantic hashと完成object SHAを分離してcandidate storeへput-if-absentした後、そのClosure Ref／完成object hashを含むcanonical `PublishedDomainReceiptV2`／`MirakanSignedRecordV1` wrapperを同節の固定materialization key／issued-at／revocation snapshot／key context／deterministic signing profileでreceipt storeへput-if-absentする。
+14. signed wrapperをreadbackした後だけ、同じ`PublicCommitClosureV1` body、`PublicPublicationMarkerV1`、after Project head、Document indexを同じexpected predecessorに対する一つのpublic CASでpublishし、Closure、Public Marker、signed Receiptの同一Ref／semantic hash／完成object hashを検証してdomain Resultで返す。Closureだけ、Markerだけ、Project headだけを先行公開しない。
 15. `AuthoringContextIndexV1`の旧revisionをstaleにし、変更Shardと参照closureの更新Jobを発行する。
 16. Projectionへ`ProjectRevisionCommitted` eventを値として配送する。
 
-1～10の失敗はlive stateと公開Receiptを変更しない。11～12でProcessが停止した場合、次回起動時にprivate transaction manifest、file hash、journal record、private Markerの四者を検査し、完全なtransactionだけをroll-forwardする。不完全なtemporary directoryまたはMarkerなしpayloadは隔離後に非公開廃棄し、部分復旧しない。private Markerがdurableだがsigned wrapperが未保存の場合は同じimmutable preimageからbyte-identical wrapperをexact一度だけmaterializeし、wrapper保存後かつPublic Marker前のcrashは同じexpected predecessorへpublic CASをroll-forwardする。既存wrapperはbyte equalityで再利用し、alternate signature、二重publication、overwrite、public後rollbackを禁止する。postconditionはprivate／public Marker、signed Receipt、公開後stateを入力にせず、private Marker、unsigned payload、receipt-store単独存在をpublic authorityにしない。
+1～10の失敗はlive stateと公開Closure／Receiptを変更しない。11～12でProcessが停止した場合、次回起動時にprivate transaction manifest、file hash、journal record、private Markerの四者を検査し、完全なtransactionだけをroll-forwardする。不完全なtemporary directoryまたはMarkerなしpayloadは隔離後に非公開廃棄し、部分復旧しない。private Markerがdurableだがsigned wrapperが未保存の場合は同じimmutable preimageからbyte-identical `PublicCommitClosureV1` candidateとwrapperをexact一度だけmaterializeし、wrapper保存後かつPublic Marker前のcrashは同じClosure＋Marker＋after Projectを同じexpected predecessorへのpublic CASでroll-forwardする。既存Closure／wrapperはbyte equalityで再利用し、別Closure、alternate signature、二重publication、overwrite、public後rollbackを禁止する。postconditionはClosure、private／public Marker、signed Receipt、公開後stateを入力にせず、private Marker、unsigned payload、Closure candidate store、receipt-store単独存在をpublic authorityにしない。
+
+Source変更のprepromotion Build／Candidate Testは、receipt-free Registration Intentを含むlive base Project revision `N`の不変`ProjectChangeSetArtifactRefV1`／`PreparedCandidateRefV1`、Candidate root、未昇格Source revisionに対してStep 9aで実行する。これはSource Promotion専用Evidenceであり最終Packageではない。`BuildProjectRevisionRefV1.project_revision=N`を予定after Project revision `N+1`と同一視せず、prepromotion Receipt、Promotion Receipt、late authorization Binding、Package artifactを`PreparedCandidateV1`またはその`prepared_artifact_refs[]`へ戻さない。Promotion後はBindingをStep 10のEnvelopeへ追加するだけでCandidate／ChangeSet／staged after stateを一byteも変更せず、Step 10～14のpublic CASがexact promoted Source ref、Candidate root、Project ChangeSet、Bindingを`PublicCommitClosureV1.domain_commitment.project_change_set_commit`へ束縛して`N -> N+1`を完成する。Source primitiveが0件でも同Project branch、ChangeSet、Candidate rootは残り、late binding集合だけが空である。そのClosure＋Public Marker発行後だけ、committed Project revision `N+1`を入力に最終Validate／Cook／Game Candidate Build／Candidate Test／Packageを実行する。Package成功はpost-commit Projectを変更せず、失敗時はProject `N+1`とSource promotion headを維持して対象Targetを`blocked`にし、last-valid Packageを新revisionの成功結果へ流用しない。
 
 ### 5.4 System／World Bundle
 
 `SystemBundleChangeSetV1`のschema、状態遷移、二段階Activation、Source Promotion後のrecoveryは[Gameplay programming model](gameplay-programming-model.md)だけが所有する。本書はBundleが参照する`ProjectChangeSetV1`と最終Project Commitだけを所有する。Gatewayは検証済みexact hashを受け取り、`RegisterNativeModuleRevision`と`SetSystemImplementationVariant`を同じ`ProjectChangeSetV1`でCommitする。Bundle自体をCommitして正規Documentを迂回せず、Project Commit失敗時にSource repositoryをrollbackしない。
 
-World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つの`ProjectChangeSetV1`へ変換する。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`blocked`へ遷移させ、原因に対応する`blocked_reason_ref`を記録する。
+World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／非公開trial Package Artifactを試作し、Topology、playability、budget、failure fixtureを検証してからSource Document群を一つの`ProjectChangeSetV1`へ変換する。trial Artifactはfinal Package／Package Receiptではなく`PreparedCandidateV1.prepared_artifact_refs[]`またはRelease入力へ入れない。Derived Artifactの生成失敗でSource revisionを部分Commitせず、Commit後の非同期再Cook失敗時はSourceを維持して該当Targetを`blocked`へ遷移させ、原因に対応する`blocked_reason_ref`を記録する。
 
 ## 6. Source layoutと永続化
 
@@ -733,7 +1008,7 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - `fixture.integration.project-runtime-entry.owner-resolution`: 上記Project二系統とRuntime branch activation／reverse teardown二系統のexact fixture ref／hash、Compile Manifest、expected branch closure、owner Receipt mappingを照合する
 - world／ui／headlessのstartup system 1件以上で同じtransitive closure hash入力を検査し、world／uiの0件だけomissionするfixture
 - branch field混在、headless startup system 0件、default 0件／2件、unknown／inactive／duplicate Target selector、dangling ref、payload／Document hash、identity三者、schema、explicit Target membership mismatchを各Diagnosticへ一原因ずつ対応させるnegative fixture
-- 旧root scene migrationがTargetごとに明示World entry一件を生成し、暗黙default、`Level` alias、UI／headless近似を行わないfixture
+- Root Scene conditional migrationのcurrent fixture ref集合がexact `[]`であること、および将来activation fixtureが実legacy inventoryからTargetごとに明示World entry一件を生成し、暗黙default、`Level` alias、UI／headless近似を行わないこと
 - 大量Scale intentをbounded Recipe／partitionでCommitでき、Runtime budget未達時もSource、Diff、Undo、Gameplay fidelity floorを失わない
 - 同一Project revisionを二回compileしたArtifact hash一致
 - 100万Entityのread projectionを変更せず、影響Documentだけを再投影する性能fixture

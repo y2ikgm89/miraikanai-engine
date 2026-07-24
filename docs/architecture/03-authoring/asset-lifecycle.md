@@ -500,7 +500,7 @@ Package root hashはhash fieldをzero化したHeader、block hash table、canoni
 Package assemblyはImportの後段であり、この文書が唯一所有する。
 
 1. Commit済みProject revisionとTarget Profileを固定する。
-2. Root Scene、always-loaded resource、Content GroupからAsset rootを列挙する。
+2. `ProjectManifest.runtime_entry_point_refs`からTarget別に選択したexact Runtime Entryを解決し、その`world_ref`／`ui_document_ref`／`startup_game_system_refs`のtransitive Source closure、always-loaded resource、Content GroupからAsset rootを列挙する。単数Root Scene、表示名、path、`latest`をcurrent reachability rootにしない。
 3. Hard dependency closureを解決し、missing、cycle、Target不一致を拒否する。
 4. Artifact hashとLicense／Provenance／Safety Receiptを照合する。
 5. Content Groupごとにcanonical Asset ID／role順で配置する。

@@ -3,7 +3,7 @@
 - 文書ID: mirakan.arch.simulation-collision
 - 状態: review
 - 正本範囲: 2D／3D geometry、Collider Source／Cooked Asset、Collision Material／Filter／Sensor、query request／result、contact／trigger／hit event semantics
-- 非正本範囲: Body dynamics、solver、joint、character motor、Runtime phase／tick／lifetime、共通capacity／backpressure、Asset transaction、AI authorization。各Owner文書を参照する
+- 非正本範囲: Body dynamics、solver、joint、character motor、Runtime phase／Simulation Advance／lifetime、共通capacity／backpressure、Asset transaction、AI authorization。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math core](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](physics.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -87,7 +87,7 @@ Filterの決定順は次の意味を持つが、Runtime phase順ではない。
 4. sensorならsolver responseを無効にし、overlap semanticsだけを残す。
 5. event subscriptionとquery visibilityを別々に評価する。
 
-Sensorはmass、force、jointを持たず、overlap eventのsourceとなるCollider shape propertyである。SensorをCCD保証やauthoritative hitの代用にしない。Gameplay volume、hitbox、camera obstruction、Interaction Focusの対象発見（interaction）は用途別Profileを使い、hard-coded channel分岐をProject C++へ散在させない。interaction用途のSensor Profileはoverlapとversion付きQueryのsemanticsだけを提供し、solver responseとauthoritative hitを持たない。[Gameplay programming model](../03-authoring/gameplay-programming-model.md) §2.4のFocus Queryは`InteractionDefinitionV1.query_shape_ref`経由で本Profileを参照し、Profile IDを直書きしない。
+Sensorはmass、force、jointを持たず、overlap eventのsourceとなるCollider shape propertyである。SensorをCCD保証やauthoritative hitの代用にしない。Gameplay volume、hitbox、camera obstruction、Interaction Focusの対象発見（interaction）は用途別Profileを使い、hard-coded channel分岐をProject C++へ散在させない。interaction用途のSensor Profileはoverlapとversion付きQueryのsemanticsだけを提供し、solver responseとauthoritative hitを持たない。[Gameplay programming model](../03-authoring/gameplay-programming-model.md) §2.4の`spatial` Focus Queryだけが`InteractionDefinitionV1.space_binding.payload.query_shape_ref`経由で本Profileを参照し、Profile IDを直書きしない。`logical | ui` InteractionはCollision Sensor Profileを持たない。
 
 ## 4. Collision query contract
 
@@ -127,11 +127,11 @@ Sensorはmass、force、jointを持たず、overlap eventのsourceとなるColli
 | `CollisionHitV1` | subscription class `hit`のProfileが持つhit rule（§3）を満たすsolver contactが成立した |
 | `ColliderRemovedV1` | Body／Collider generationがboundaryでretireした |
 
-共通payloadはtick ref、ordered body pair、両Entity Stable ID、generation、Collider Asset version、shape slot、material／surface tag、event kindを持つ。contact manifoldを持つeventではposition、AからBを向くunit normal、separation、normalized approach speedを格納する。solver impulseはBackend間で意味と観測時点が一致しないためGameplay eventへ含めず、non-authoritative telemetryへ分離する。
+共通payloadは`cadence_profile_ref`、`simulation_advance_interval_hash`、`advance_sequence`、ordered body pair、両Entity Stable ID、generation、Collider Asset version、shape slot、material／surface tag、event kindを持つ。Cadence三Fieldはcontactを生成したcanonical `SimulationAdvanceIntervalV1`の同値とbyte equalityにする。contact manifoldを持つeventではposition、AからBを向くunit normal、separation、normalized approach speedを格納する。solver impulseはBackend間で意味と観測時点が一致しないためGameplay eventへ含めず、non-authoritative telemetryへ分離する。
 
 Body pairは両Entity Stable IDの昇順でA／Bを決め、packed Engine handleをpair順へ使わない。eventは`event kind, body A, body B, shape slot A, shape slot B, contact point`のcanonical keyで並べる。callback arrival順、native ID、worker completion順は使用しない。End／Exitはmanifoldを持たず、`separated | disabled | profile_changed | teleported`のreasonを持つ。destroyは通常End／Exitではなく`ColliderRemovedV1`で通知する。
 
-Event subscriptionは`begin_end | persist | hit`を型付きで選ぶ。Sensorへ`persist`や`hit`を指定したconfigurationは拒否する。Runtime queue capacity、overflow、tick publish policyは[Runtime performance／capacity](../04-runtime/performance-capacity.md)の正本を消費し、Collision固有の共有queue値を定義しない。
+Event subscriptionは`begin_end | persist | hit`を型付きで選ぶ。Sensorへ`persist`や`hit`を指定したconfigurationは拒否する。Runtime queue capacity、overflow、Simulation Advance publish policyは[Runtime performance／capacity](../04-runtime/performance-capacity.md)の正本を消費し、Collision固有の共有queue値を定義しない。
 
 Replayは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が所有するcanonical `T100_ReplayCheckpoint`に、正規化済みcommand／event、Collider generation、event pair stateの参照を供給する。旧phase名や別のReplay ownerを設けない。
 

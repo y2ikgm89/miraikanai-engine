@@ -1,6 +1,6 @@
 # Miraikanai Engine 実現可能性 Remediation 設計
 
-> **状態: superseded historical remediation design。** Current authorityはProduct Active 14／WP75、Future 3／23／Claim52、current Control Plane plans、Critical Path、Future Inception、current remediation Reviewである。本文の17件等は当時のbaseline記録であり実装へ使わない。
+> **状態: superseded historical remediation design。** Current authorityはProduct Active 14／WP75、Future 3／25／Claim57、current Control Plane plans、Critical Path、Future Inception、current remediation Reviewである。本文の17件等は当時のbaseline記録であり実装へ使わない。
 
 - 状態: ユーザー承認済み
 - 承認日: 2026-07-23
@@ -17,7 +17,7 @@ AI-native Game EngineというProduct intentを維持したまま、現在の計
 3. Phase 0から2D First Playable、AI MVP、3D First Playableへ到達するWork Package DAGが存在する。
 4. AI、Editor、CLI、MCPがCookだけでなくPackage、Install、Launch、Smoke、Diagnosis、Support、Resetまで同じGateway Operationを使用する。
 5. 初心者MVPとAI生成Project C++／Shaderの専門家承認を分離する。
-6. ChatGPT Chat／Work remote app、ChatGPT desktop app内Codex host、Codex CLI／IDE、Claude、Cursor、cloud／local modelを、製品名の条件分岐ではなくsurface別Host、Transport、Provider、Deployment、Model、Authorityの直交Profileとして扱う。
+6. hosted ChatGPT Work plugin、ChatGPT desktop appのCodex host、Codex CLI／IDE、Claude、Cursor、cloud／local modelを、製品名の条件分岐ではなくsurface別Host、Transport、Provider、Deployment、Model、Authorityの直交Profileとして扱う。
 7. D3D12 MVPはCX0 Headerで開始し、CX2／CX3のModules移行とShippingを外部Toolchain成立条件へ分離する。
 8. Open World、Online、MMO、大人数network shooter、FPS、advanced physics／animation、AAA rendering、Terrain／Foliage、Console、Web、XR、全自動Asset生成、first-party local inference、runtime generationを、実装済みと誤認させない将来Capability incubationとして追跡する。
 
@@ -63,7 +63,7 @@ WorkPackageRegistryV1
     owner_document_id
     target_refs[]
     fallback_ref
-    provided_fixture_refs[]
+    provided_fixture_refs[]: ProvidedFixtureRefV1
     required_capability_refs[]
     requires_work_package_refs[]
     scheduling_state
@@ -74,7 +74,7 @@ WorkPackageRegistryV1
 
 - `scheduling_state`のclosed値は`declared | ready | active | blocked | deferred | complete`とする。
 - RequirementとPhase completionはWork Packageへ複写しない。
-- `provided_fixture_refs[]`は実装寄与を表し、Work Package単独の完了Gateではない。
+- `provided_fixture_refs[]`はProduct Plan正本のtagged `ProvidedFixtureRefV1`だけを使う。`product_fixture`はProduct Gate候補、owner component manifest／version／content hash付き`component_qualification_fixture`はWP内部Qualification専用であり、裸IDまたは相互代用を拒否する。いずれも実装寄与であってWork Package単独の完了Gateではない。
 - 完了Receiptはappend-onlyな`WorkPackageLifecycleRecordV1`が所有する。
 
 ### 4.2 Phase Fixture binding
@@ -95,7 +95,7 @@ PhaseFixtureBindingRegistryV1
 
 `ProductPhaseRegistryV1.exit_fixture_refs[]`は`exit_gate_refs[]`へ置換する。GateはFixtureの`requirement_refs[]`と`target_refs[]`のsubsetだけを参照でき、範囲外参照を拒否する。
 
-`candidate_binding_policy_ref=policy.product.same-candidate.v1`はProject revision、Candidate root hash、Contract set hash、Toolchain lock、Target Profileを全Receiptで一致させる。`freshness_policy_ref`は§8の決定論的Freshness policyを参照する。
+`candidate_binding_policy_ref=policy.product.same-candidate.v1`はProduct Planのclosed `ProductCandidateBindingPolicyLiteralV1`が許す唯一の固定literalであり、Registry rowではない。Project revision、Candidate root hash、Contract set hash、Toolchain lock、Target Profileを全Receiptで一致させる。`freshness_policy_ref`は§8の決定論的Freshness policyを参照する。
 
 ## 5. 実装DAG
 
@@ -187,7 +187,7 @@ ModelSnapshotProfileV1
 
 互換判定単位は`{host profile, transport profile, provider/runtime profile, model snapshot, tool projection, authority profile}`である。
 
-- Host: Editor、ChatGPT Chat／Work remote app、ChatGPT desktop app内Codex host、Codex CLI、Codex IDE、Claude Desktop、Claude Code、Cursor。
+- Host: Editor、hosted ChatGPT Work plugin、ChatGPT desktop appのCodex host、Codex CLI、Codex IDE、Claude Desktop、Claude Code、Cursor。
 - Transport: local STDIO MCP、Streamable HTTP、direct Provider API。
 - Deployment: cloud endpointまたはlocal process／IPC。
 - Model: exact provider model ID、またはweights／quantization hash。
@@ -195,7 +195,7 @@ ModelSnapshotProfileV1
 
 Gemma、Kimi、Qwen、DeepSeek、Grok、GLM等をEngine分岐にしない。conformance Receiptがない組合せは`proposal_only`または`not_activated`とする。local runtimeはmodel license／provenance、RAM／VRAM、context、tool schema conformance、process／network sandbox、logging／retention、resource exhaustion、fallbackをProfileへ固定し、silent cloud fallbackを禁止する。
 
-ChatGPT Chat／Workのcustom MCP appは現行公式範囲ではweb-onlyかつremote MCPで、private／local serverはSecure MCP Tunnel経由にする。ChatGPT desktop app内Codex hostはCodex設定を共有する別surfaceとしてlocal STDIO／Streamable HTTPを許容する。両者のHost Profile、Receipt、設定、権限を流用しない。
+hosted ChatGPT Workはpluginが束ねるremote MCP Toolを使い、local Codex設定／direct local STDIOを読まない。ChatGPT desktop appのCodex hostはCodex CLI／IDEと同じCodex MCP config layerを共有する別surfaceとしてlocal STDIO／Streamable HTTPを許容する。両者のHost Profile、Receipt、設定、権限を流用しない。
 
 ## 8. Approval、状態、Freshness
 

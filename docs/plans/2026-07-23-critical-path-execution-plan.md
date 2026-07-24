@@ -2,6 +2,8 @@
 
 > Product Planのapproved Active Definitionを実装へ展開する実行計画。本書はWork Packageの完了、Capability Activation、Release、Shippingを自己承認しない。
 
+> **Status: execution-order consumer, not execution authority.** 実行入口、official-source の採用境界、historical 文書の扱いは[計画書の実行権限・準備状況](README.md)に従う。Wave は優先順であり、current Product snapshot／Owner／Task Authorization による lifecycle state を置換しない。
+
 ## 1. 結論
 
 初回Control Plane bootstrap後の実行対象はProduct Planの75 Work Package全件である。ただし一括queueにはしない。
@@ -127,10 +129,13 @@ Waveは優先順であり、正本dependency DAGを上書きしない。同じWa
 - [ ] current snapshot sequence 1以上をread-backする。
 - [ ] `wp.architecture.control-plane` lifecycle sequence 1 `complete`とdefinition seedを検証する。
 - [ ] Coverage Manifest V2を発行する。
+- [ ] Control Plane Task 6 がpublication前に materialize したapproved Architecture Document Registry、Architecture Dependency Source Set／Edge Registry compiler、append-only Conformance Record Store、独立`role.architecture-dependency-conformance-validator` Signer／Key／revocation closureを current snapshot からread-backする。Owner 103、Source／Edge 516、production graph cycle 0、Core→Shooter reachability 0と全negative fixtureを**read-onlyで再計算**し、同Candidate／Product／Foundation／baseline／compositionを束縛した`ArchitectureDependencyConformanceReportV1(result.kind=pass)`をsidecarへ発行する。Report は completed `wp.architecture.control-plane`、Product snapshot、Operation Authorityを変更せず、Wave 1 のreadiness evidenceだけに使う。
 
 ### Wave 1 — Foundation／Headless authoring
 
-- [ ] CX0 Toolchain、Math／Memory、Runtime Scheduling、ECS E0–E3を順に閉じる。
+- [ ] Generic Core baseline exact 6とcurrent Installed Product composition exact 10の定義、MCD／Owner contribution／Service allowlist／Trust／Receipt publication実装を準備する。Project State Origin六Operationが同じCandidateでTechnical Qualificationを満たした後、`activation.foundation.operation_domain_receipt_pipeline.v1`でbaseline六のSigner Policy／Role／assignment／Key／Service authority／Publication Control closureだけを一括materializeし、currentを`contract-active 10 / operational 6`へatomic遷移する。World一＋Shooter三のextension四はSigner Policyへ追加せず`contract-active / not operational`を維持し、baseline六の部分Activationを拒否する。
+- [ ] CX0 Toolchain、Math／Memory、Runtime Scheduling、ECS **E0 contract baseline**を順に閉じる。E0のentryはRuntime ECS E0 Planのcurrent baseline／active WP条件で判定し、新ECS technical documentのapprovalをE0開始前に推測して要求しない。
+- [ ] E0 Task 11のhuman approval、same-definition Rebaseline、new current binding、final Receiptが揃った後だけE1–E3を順に開始する。E0 draft、preliminary Evidence、plan checkboxをE1 entryやCapability Activationへ読み替えない。
 - [ ] Project State、Asset Save、Headless Coreを閉じる。
 - [ ] headless determinismとauthoring transaction Gateを同一Candidateで通す。
 
@@ -141,24 +146,31 @@ Waveは優先順であり、正本dependency DAGを上書きしない。同じWa
 
 ### Wave 3 — Manual 2D first playable
 
-- [ ] Gameplay、Timer、2D World／Camera、Collision／Physics／Animation、Navigationを閉じる。
-- [ ] ECS E5 2D、Shooter Core／2Dを統合する。
+- [ ] Gameplay Core、Runtime Timer、2D World／Camera、Collision／Physics／Animation、Navigation CoreをFeature／Genre required edgeなしで閉じる。
+- [ ] `fixture.product.genreless-core-2d`で全optional Feature／Genre Pack uninstall、zero-character／noncombat holdoutを実行し、同じCandidate／Product／Foundation／baseline／compositionのfresh `ArchitectureDependencyConformanceReportV1(result.kind=pass)`でCore→Feature／Genre required edgeおよびCore→Shooter production reachability 0を検証する。
+- [ ] ECS E5 2DをCore subsystemだけで閉じた後、Reusable Feature PackとShooter Genre Pack／2D Reference Gameをconsumerとして統合する。
+- [ ] Generic Core六、World core extension一、Shooter Genre三の全十OperationをWave 3の同じCandidateでfresh再Qualificationし、Wave 1 baseline六のSigner／Trust／Policy rowをbyte-exactに保持したうえで、`activation.installed_product.operation_composition_extensions.v1`によりWorld一＋Shooter三のextension四だけをSigner Policy／Role／assignment／Keyへ一括追加する。完了後のInstalled Product operational snapshotとSigner destinationをexact十件でset equalityにし、Wave 1 CandidateとのEvidence混在、extension一～三件だけの部分追加、baseline row再発行、Shooter未qualified entryを拒否する。
 - [ ] Title→Result、Save／Load／Replayを含むmanual 2D Gateを通す。
 
-Shooterはreference Domain Packであり、Engine coreをShooter仕様へ固定しない。Genre固有型をCore公開契約へ入れず、後続C2でPlatformerとPuzzle／Dialogueを別fixtureとして使う。
+ShooterはoptionalなShooter Genre Packと、それをconsumerとして使う2D／TPS Reference Gameである。Engine CoreをShooter仕様へ固定せず、Genre固有型をCore公開契約へ入れない。後続C2ではPlatformerとPuzzle／Dialogueを独立したGenre／Project fixtureとして使う。
 
 ### Wave 4 — AI-native authoring MVP-A
 
-- [ ] AI Core、Debug／Replay、ECS E6、prequalified Source Pack、Windows E7 2Dを閉じる。
-- [ ] typed Query→Plan→Validate→Preview→ChangeSet→Staging→Test→Human Approval→Commit／Rollbackの一方向chainを通す。
+- [ ] exact八family、`planning.operation_family.authoring_discovery`、`planning.operation_family.game_system_discovery`、`planning.operation_family.world_discovery`、`planning.operation_family.gameplay_definition_authoring`、`planning.operation_family.asset_authoring`、`planning.operation_family.authoring_changeset_execution`、`planning.operation_family.build_candidate_test`、`planning.operation_family.build_device_play_debug_task`を各family単位のMCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Signer／Trust／Provider closureでatomic activateする。列挙集合とのset equalityを必須とし、略称、prefix、family count、部分ActivationをWave失敗にする。
+- [ ] AI Core、Debug／Replay、ECS E6、prequalified Source Pack、Windows E7 2Dを閉じ、Product `ExecutionSurfaceBindingV1`が必要family全件をcurrent `operational`へ再解決できることを確認する。
+- [ ] Engine Provider Adapterのexact Engine Host＋Provider Runtime／Manifest＋Inference Deployment＋Model＋Tool Projection＋proposal-only Authority Profileをmaterializeし、Provider／Tool ConformanceとSchema／Eval Conformanceを同じsubject tuple／Target／Case inventoryでpassさせる。
+- [ ] typed Query→Plan→ChangeSet Proposal→Validate→Preview→Human Approval→trusted-internal Commit→Candidate Validate／Cook／Build／Test→Package／Launch／Debug→修正Proposalの一方向chainを通す。
+- [ ] MVP-A Thin Slice は別allowlistや別Product stateを作らない。上記exact八familyのatomic Activationと`AiCapabilityActivationMatrixV1`／`ExecutionSurfaceBindingV1`のcurrent operational read-back**後**に、固定したprompt／manual edit／human Approval／trusted-internal Commit／play oracleの同一Candidate witnessを発行する。八familyの一部だけをThin Slice名義でactivateすることを拒否する。
+- [ ] `fixture.product.genreless-ai-project`のzero-character／noncombat／WorldなしUI／logic branchとShooter 2D branchを同じOperation／Validation／Debug／Build DAGで別々に完走する。
 - [ ] AI／manual roundtrip、MVP completion、Title→Result、Save／Load／ReplayをGateで明示評価する。
 
 ### Wave 5 — External agent and Project source lane
 
-- [ ] standard external MCPの少なくとも一つのexact Host＋Transport＋Tool Projectionをproposal-onlyでConformanceする。
+- [ ] standard external MCPの少なくとも一つのexact Host＋Transport＋Tool Projection＋proposal-only Authority Profile＋MCP Grantをmaterializeし、Host／Transport ConformanceとSchema／Eval Conformanceを同じsubject tuple／Target／Case inventoryでpassさせる。Provider／Deployment／Model／Provider-Tool Receiptはnull／unattestedに維持する。
 - [ ] current materialized Hostが0件の間は外部Client supportを主張しない。
-- [ ] Native Game Module／Project ShaderをEngine本体外のProject Source Stagingで生成・Build・Review・Code Owner Approval・activateできるlaneを閉じる。
-- [ ] managed external Host edit／buildとfirst-party local inferenceはFutureのまま混ぜない。
+- [ ] Wave 4でActivation済みのChangeSet 4／Candidate Build・Test 6 closureをexact read-backし、未ActivationのNative Source 5、Project Shader 16、shared Source Promotion 1だけをfamily単位でatomic activateする。Native Game Module／Project ShaderをEngine本体外のProject Source StagingでTask→Worker→Broker再計算Diff→Build／Test→独立Review→Code Owner Approval→trusted-internal Promotion→Project ChangeSet登録できるlaneを閉じる。
+- [ ] standard external MCPのExternal Tool CatalogはQuery／Plan／Proposal／Validate／Previewだけを含み、外部からのBuild／Test／Debug希望はtyped Proposalとして記録する。実行は人間承認後にEngine-owned Orchestratorが別Task Authorizationで行い、外部HostはQueryでReceiptを読む。`operation.build.*`、`operation.test.*`、`operation.debug.*`、`operation.authoring.changeset.commit`、`operation.project_source.promote_revision`、Approval、Activation、Signing、Releaseの外部projectionをexact 0件にする。
+- [ ] managed external Host edit／buildは`future.capability.managed-external-host-execution`、first-party local inferenceは`future.capability.first-party-local-inference`として別々に`planning_only`を維持し、通常のproposal-only Host conformanceへ混ぜない。
 
 ### Wave 6 — Manual 3D MVP-B
 
@@ -174,6 +186,7 @@ Shooterはreference Domain Packであり、Engine coreをShooter仕様へ固定�
 
 ### Wave 8 — General 2D Production capability
 
+- [ ] `feature_authoring`、`camera_authoring`、`material_authoring`、`vfx_authoring`、`environment_authoring`、`input_binding_selection`、`navigation_binding_selection`、`physics_role_selection`のexact 8 familyを、各MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Signer／Trust／Provider closureとProduct `ExecutionSurfaceBindingV1` read-backを含むatomic transactionでactivateする。8件の一つでも`operational`でなければGeneral 2Dをqualifiedへ進めない。
 - [ ] Platformer、Puzzle／Dialogue、Environment、VFX、Material、native UIのC2 provider WPを閉じる。
 - [ ] Shooter、Platformer、Puzzle／Dialogueの三fixtureをWindows／Android／Appleで同一Candidateへ閉じる。
 - [ ] CX2／CX3とProduction release bindingはconditional templateに従い、未解除ならPhase 8のdeferred行として残す。
@@ -206,30 +219,31 @@ Shooterはreference Domain Packであり、Engine coreをShooter仕様へ固定�
 3. A2→B2→C2→D2→T2→L2→P2でV1 full-reset migrationを一回CASする。完成`ActiveProductDefinitionMigrationV1`だけがdestinationのapproved definition-change class Evidenceになる。
 4. destinationではsource lifecycle／Activation／Gate／Risk Evidenceをcarry-forwardせず、Control Plane WP以外をgenesisから再実行し、Phase 6を同じdestination Definition／Candidateへfresh re-Qualificationする。
 5. destination currentで`gate.product.reconsider-c2-3d`をfresh Phase 6 Evidence＋完成definition-change classから再評価し、別R4 Product Decision後だけ`wp.product.general-coverage-3d`を`deferred->declared`へ進める。
+6. Wave 4／8でoperational化したfamilyをexact read-backし、General Production 3Dだけが追加要求する`rendering_aa_discovery`、`lighting_discovery`、`post_process_discovery`、`math_semantic_authoring`、`lod_authoring`のexact五familyをSigner／Trust／Provider／Target qualificationと同じatomic closureでactivateする。五件の一つでも非operationalならGeneral 3Dをqualifiedへ進めない。
 
 source DefinitionのGateはdefinition-change class不在のためeffective failであり、source内のunavailable 3D activation 3行を昇格しない。destination migration publicationとdeferred-release publicationを同じCASへまとめない。
 
 ### C4 — Production release binding
 
 1. CX3とGeneral 2D WP complete、Phase 0／2／7／8 Gate、release policy／artifact plan Evidenceを要求する。
-2. Product Plan OwnerとApplication Package／Release Ownerが、completed prerequisite WPのcurrent Receiptからsupport／rollback／signing／SBOM-provenance policy Evidenceとartifact／device-lab／store plan Evidenceを同WP開始前に独立発行する。不足時はsource Gateをblockedに保つ。source currentのActivation Binding全273行が`disabled_current_definition`／empty gate exact setであることからmode=`production_release_migration_authoring`を導出し、Gate satisfied＋Product Decisionで`wp.product.production-release-binding`を宣言する。同WPは上記Evidence ref／hashをread-backしてTarget別projectionとdestination Definition candidateへ組み込むだけで、Evidenceを自己生成しない。source WPは`active`までで、`complete`／Artifact Candidate／Release Evidence化を禁止する。
-3. destinationでは全273 Activation bindingの`production_policy`を`disabled_current_definition`からTarget一致の`all_release_gates`へ変更し、Product Release Gateに変更があれば同じsigned row migration manifestへ含める。このDefinition変更をoptionalにしない。
+2. Product Plan OwnerとApplication Package／Release Ownerが、completed prerequisite WPのcurrent Receiptからsupport／rollback／signing／SBOM-provenance policy Evidenceとartifact／device-lab／store plan Evidenceを同WP開始前に独立発行する。不足時はsource Gateをblockedに保つ。source currentのActivation Binding全293行が`disabled_current_definition`／empty gate exact setであることからmode=`production_release_migration_authoring`を導出し、Gate satisfied＋Product Decisionで`wp.product.production-release-binding`を宣言する。同WPは上記Evidence ref／hashをread-backしてTarget別projectionとdestination Definition candidateへ組み込むだけで、Evidenceを自己生成しない。source WPは`active`までで、`complete`／Artifact Candidate／Release Evidence化を禁止する。
+3. destinationでは全293 Activation bindingの`production_policy`を`disabled_current_definition`からTarget一致の`all_release_gates`へ変更し、Product Release Gateに変更があれば同じsigned row migration manifestへ含める。このDefinition変更をoptionalにしない。
 4. A2→B2→C2→D2→T2→L2→P2でV1 full-reset migrationを一回CASし、source WP completion／Activation／Gate／Risk Evidenceをcarry-forwardしない。
-5. destination currentのActivation Binding全273行が各Target exact一件の`all_release_gates`であることからmode=`production_release_binding_qualification`を導出する。Critical Path prerequisiteをgenesisから再実行し、Gate satisfied＋別Product Decisionで同WPを再宣言する。このmodeではDefinition／Registry／migration artifact変更を禁止し、同じCandidateへfresh Target／package／support／rollback／signing／SBOM-provenance／device-lab Evidenceを閉じ、独立Owner acceptance付きArtifact CandidateでだけWPをcompleteする。
+5. destination currentのActivation Binding全293行が各Target exact一件の`all_release_gates`であることからmode=`production_release_binding_qualification`を導出する。Critical Path prerequisiteをgenesisから再実行し、Gate satisfied＋別Product Decisionで同WPを再宣言する。このmodeではDefinition／Registry／migration artifact変更を禁止し、同じCandidateへfresh Target／package／support／rollback／signing／SBOM-provenance／device-lab Evidenceを閉じ、独立Owner acceptance付きArtifact CandidateでだけWPをcompleteする。
 6. 5 Release GateはPhase 9 deny Gate、destination currentのrequired WP、same Candidate、fresh Target Evidence、critical Risk predicateを毎回再評価し、成功後だけTarget別`qualified->production`とhuman Release Approvalを別transitionで行う。
 
 ## 7. AI execution policy
 
-AIは次を実行できる。
+必要Operation familyのatomic ActivationとProduct `ExecutionSurfaceBindingV1`のcurrent operational判定が成立した後だけ、AIは次を要求できる。current planning stateでは24 family／191候補が全て`not_activated`であり、以下をcallableと表示しない。
 
 - bounded Architecture／Product Query。
 - task specificationとChangeSet proposal。
 - Staging内のProject data編集、許可されたSource task request、Build／Test／Debug Operation。
 - Receipt収集と差分説明。
 
-AIはApproval、Commit、Activation、Signing、Release、Policy overrideを行わない。Engine repositoryまたはcurrent Project storageへの外部Client direct writeは公式boundary外であり、External patchとして全検証へ戻す。
+AIはApproval発行、Commit実行、Source Promotion、Activation、Signing、Release、Policy overrideを行わない。人間Approval後のCommit／PromotionはEngine-owned trusted internal Gatewayが実行し、AIは結果Receiptを読み次のPlanを提案できる。Engine repositoryまたはcurrent Project storageへの外部Client direct writeは公式boundary外であり、External patchとして全検証へ戻す。
 
-Model／Host対応はfamily別branchを作らず、signed profile tupleとConformanceで決める。Gemma、Kimi、Qwen、DeepSeek、Grok、GLM等は同じprovider／local profile契約へ入り、Profile／Receipt不在なら`proposal_only | not_activated`である。
+Model／Host対応はfamily別branchを作らず、signed profile tupleとConformanceで決める。Gemma、Kimi、Qwen、DeepSeek、Grok、GLM等は同じprovider／local profile契約へ入る。当該routeのProfileまたは必須Receiptが一件でも不在なら、そのrouteは必ず`not_activated`である。`proposal_only`にできるのは、別のcurrent standard MCP routeがproposal-only Authorityを含むfull tupleとexact二Receipt（`HostTransportConformanceReceiptV1`、`SchemaEvalConformanceReceiptV1`）を持ち、そのtupleから新しいCaller Contextを発行できる場合だけであり、不成立routeの自動降格ではない。
 
 ## 8. Required verification per WP
 
@@ -253,7 +267,7 @@ WorkPackageTaskPlanV1
   authorization_envelope_hash
 ```
 
-`execution_mode=standard`は`wp.product.production-release-binding`以外の74 WPだけに、同WPはProduct Planの全273行判定から導出した二modeだけに使う。呼出元指定、自由文字列、source／destinationでのmode取り違えを拒否する。完了Receiptは計画、source、output、Toolchain、Target、Candidate、test結果をexactに束縛する。ただしmigration-authoring modeは完了Receiptを発行せずmigrationでepochを置換する。test skip、assertion緩和、budget引上げ、別Target Receipt、古いProfile、説明文だけのpassを拒否する。
+`execution_mode=standard`は`wp.product.production-release-binding`以外の74 WPだけに、同WPはProduct Planの全293行判定から導出した二modeだけに使う。呼出元指定、自由文字列、source／destinationでのmode取り違えを拒否する。完了Receiptは計画、source、output、Toolchain、Target、Candidate、test結果をexactに束縛する。ただしmigration-authoring modeは完了Receiptを発行せずmigrationでepochを置換する。test skip、assertion緩和、budget引上げ、別Target Receipt、古いProfile、説明文だけのpassを拒否する。
 
 ### 8.1 Generic contract implementation handoff
 
@@ -261,8 +275,8 @@ Wave 1～5でMCD compiler、Gateway、Project mutation、Pack／AI surfaceを実
 
 1. `ContractSetSnapshotV2`のclosed local-member unionへMCD、Diagnostic、Trusted Service、Validator、Operation Validator Closureを収録し、全cross-member edgeをLocalRefで解決してからset rootと外部refをmaterializeする。
 2. 全named Operation inputは`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`の一方向DAGを使う。Approval／Predelegationをfinal request hashへbindせず、未Activationだった循環shapeのcompat readerを作らない。
-3. state-changing Operationは`Prepared -> staged postcondition -> private durable commit marker -> canonical signed wrapper -> PublicPublicationMarkerV1＋public state`だけを許可し、signed ReceiptのないProject／Registry／Runtime current headを公開しない。
-4. current MCD／Manifest／Service allowlistへ入れるのは全Field、named I/O／Receipt、Policy、Diagnostic、Validator、rate／timeout、crash recovery、Qualificationが閉じたOperationだけとする。Scenario／Stage authoring、generic Pack AI、Feature authoring、Physics／Navigation／Input selectionはcurrent `not_activated`を維持し、future activation work itemのcomplete setなしに名前だけを復活させない。
+3. state-changing Operationは[Executable Contracts §8](../architecture/02-foundation/executable-contracts.md#8-operation定義)を唯一の正本として、`Prepared → staged postcondition → private durable commit marker read-back → secret-free PublicCommitClosureV1 candidate → canonical signed wrapper → PublicCommitClosureV1＋PublicPublicationMarkerV1＋after stateのatomic public CAS`だけを許可する。Project ChangeSet CommitはClosureの`domain_commitment.kind=project_change_set_commit`にexact ChangeSet ref／Candidate rootを必須化し、Source primitive 0件でもtyped branchを省略しない。Closureまたはsigned ReceiptのないProject／Registry／Runtime current headを公開せず、nested common Closure schemaを新しいMCD Operation／Type／Contract Set memberとして数えない。
+4. current MCD／Manifest／Service allowlistへ入れるのは全Field、named I/O／Receipt、Policy、Diagnostic、Validator、rate／timeout、crash recovery、Qualificationが閉じたOperationだけとする。Wave 4／5が必要とするAI E2E familyは各activation work itemのcomplete setでだけactiveへ移し、その他のScenario／Stage authoring、generic Pack AI、Feature authoring、Physics／Navigation／Input selectionは該当Waveまでcurrent `not_activated`を維持する。名前、Schema、Provider aliasだけを復活させない。
 5. Production Source／Recipe／Registry／Runtime PackageはFixture bodyを解決しない。owner-typed Qualification recordがFixture集合を所有し、Productionはexact signed Qualification Receiptだけを検証する。
 
 このhandoffは実装順序であり、文書内schemaの存在、WP checkbox、Staging artifactをEngine実装完了、Capability Activation、Target Qualification、Release／Shipping Evidenceへ読み替えない。
@@ -272,7 +286,8 @@ Wave 1～5でMCD compiler、Gateway、Project mutation、Pack／AI surfaceを実
 現Definitionの初期状態はShipping No-Goである。理由は少なくとも次である。
 
 - 4 conditional WPがdeferred。
-- Activation 273行がgenesisで`not_activated`。
+- Activation 293行がgenesisで`not_activated`。
+- AI E2Eを含むplanning 24 family／191 Operation候補が全て`not_activated`で、ChangeSet／Build／Debug／Sourceの公開実行surfaceは0件。
 - Product Planのcritical Riskがopenで、Release predicateは`mitigated | closed`だけを許す。
 - Product Release GateのTarget Receipt、support／rollback／signing closureが未作成。
 

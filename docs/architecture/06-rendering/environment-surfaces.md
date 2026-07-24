@@ -255,7 +255,7 @@ k = 2*pi/wavelength
 omega = sqrt(gravity_mps2 * k)
 ```
 
-`gravity_mps2`は波分散専用のscalar f32 Source定数であり、範囲`[0.1,100] m/s^2`、既定9.80665とする。PhysicsのWorld Profile gravityを暗黙参照せず、2D／3D Projectで同じfieldを使う。CPU QueryとGPU vertexは同じ生成定数／式を使う。各componentの時刻位相`omega*t`はCPUがf64で累積し`[0,2π)`へ折り畳んだ定数としてGPUへ渡し、大きな累積引数のままsinを評価しない。空間位相はworld-origin rebase後のcamera近傍座標で評価する。一致fixtureはorigin±2,048 m、開始tickから24時間相当のtick範囲へ固定した65,536 reference pointsでheight error最大2 mm、normal angle最大0.25 degreeを満たす。`FlowProfileV1`はconstant flowまたはCooked current mapを持ち、RG normalized direction、B `[0,1]` strength、profile max speedを使う。Gameplayはtextureを直接sampleせず同じfieldのCPU artifactを読む。
+`gravity_mps2`は波分散専用のscalar f32 Source定数であり、範囲`[0.1,100] m/s^2`、既定9.80665とする。PhysicsのWorld Profile gravityを暗黙参照せず、2D／3D Projectで同じfieldを使う。CPU QueryとGPU vertexは同じ生成定数／式を使う。各componentの時刻位相`omega*t`はScheduling Ownerの`SimulationAdvanceIntervalV1.interval.logical_duration_seconds`から得た同じtime stateをCPUがf64で累積し`[0,2π)`へ折り畳んだ定数としてGPUへ渡し、大きな累積引数のままsinを評価しない。duration-null Cadenceではqualified advance-driven wave policyなしに進めない。空間位相はworld-origin rebase後のcamera近傍座標で評価する。一致fixtureはorigin±2,048 m、開始advanceからexact 24時間相当のProfile／Interval列へ固定した65,536 reference pointsでheight error最大2 mm、normal angle最大0.25 degreeを満たす。`FlowProfileV1`はconstant flowまたはCooked current mapを持ち、RG normalized direction、B `[0,1]` strength、profile max speedを使う。Gameplayはtextureを直接sampleせず同じfieldのCPU artifactを読む。
 
 Depthはoffline terrain／mesh sourceを使い、scene depthをcanonical water depthにしない。ReflectionはIBL、qualified profileでProbe／SSR、UnderwaterはWater Volume overlapからabsorption／scattering／fog／waterlineを選ぶ。Boundary 5 cm以内はprevious Body保持、10 cm外で解除する。
 
@@ -264,7 +264,9 @@ WaterQueryRequestV1
   query_id: u64
   position_world_m: vec3f
   body_layer_mask: u64
-  snapshot_tick: u64
+  simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_hash: SHA-256
+  snapshot_advance_sequence: u64
 
 WaterQueryResultV1
   status: Success | OutsideWater | UnsupportedAtLevel | StaleSnapshot | InvalidRequest | QueueFull | BackendFailure
@@ -276,9 +278,9 @@ WaterQueryResultV1
   query_generation
 ```
 
-`WaterQueryPortV1`はpublish済みCPU artifactだけを読み、GPU buffer／render depth／SSR／foam／VFX collisionをreadbackしない。Baselineはflat surface／zero flow、advancedはanalytic wave／flow／depthを返す。Windows 16,384 query／tick、Mobile 4,096／tickで、超過は`QueueFull`と`WaterQueryQueueFull`を返し前frame値へfallbackしない。`StaleSnapshot`は`WaterQueryStaleSnapshot`を発行し、`InvalidRequest | BackendFailure | UnsupportedAtLevel | OutsideWater`を`Success`へ置換しない。PhysicsだけがQuery結果からbuoyancy forceを計算し、WaterはBodyへForceを加えない。
+`WaterQueryPortV1`はpublish済みCPU artifactだけを読み、GPU buffer／render depth／SSR／foam／VFX collisionをreadbackしない。RequestのProfile ref／Interval hash／advance sequenceは同じpublish snapshotとbyte equalityにする。Baselineはflat surface／zero flow、advancedはanalytic wave／flow／depthを返す。Windows 16,384 query／advance、Mobile 4,096／advanceで、超過は`QueueFull`と`WaterQueryQueueFull`を返し前frame値へfallbackしない。`StaleSnapshot`は`WaterQueryStaleSnapshot`を発行し、`InvalidRequest | BackendFailure | UnsupportedAtLevel | OutsideWater`を`Success`へ置換しない。PhysicsだけがQuery結果からbuoyancy forceを計算し、WaterはBodyへForceを加えない。
 
-SaveはBody Asset revision、Gameplay water state、解析波の開始tickだけを永続化し、GPU texture、foam、SSR historyを保存しない。Body Asset revision不一致は現在Assetへ黙って読み替えずmigrationまたはload failureとし、解析波は保存した開始tickから同じ生成定数／式で再構築する。Gameplay stateのschema、Save／Replay envelope、checkpointはGameplay／Runtime Ownerを参照し、本書で複写しない。
+SaveはBody Asset revision、Gameplay water state、解析波のCadence Profile ref／hash、開始advance sequence、exact elapsed-time accumulatorだけを永続化し、GPU texture、foam、SSR historyを保存しない。Body Asset revisionまたはCadence Profile不一致は現在値へ黙って読み替えずmigrationまたはload failureとし、解析波は保存したtime stateから同じ生成定数／式で再構築する。Gameplay stateのschema、Save／Replay envelope、checkpointはGameplay／Runtime Ownerを参照し、本書で複写しない。
 
 `WaterInteractionEventV1`はauthoritative Collision／Gameplayだけが生成し、次の7 required scalar fieldをちょうど一つずつ持つ。optional field、配列、unknown fieldを許可しない。
 
@@ -293,7 +295,7 @@ WaterInteractionEventV1
   vfx_seed: u64
 ```
 
-non-finite position／velocity、非正規normal、存在しないBody、unknown `interaction_kind`、duplicate `event_id`をschema／reference failureとしてEvent全体ごと拒否し、既定kind／seedを生成しない。同tickの配送は[Runtimeのcanonical message order](../04-runtime/scheduling-lifetime.md#10-message-mergeasync-acceptancerandomness)を使い、worker completion順で並べない。Replayは受理済みEventの7 fieldとaccept tickを記録し、同じ`event_id`／`vfx_seed`でVFX／Audioへ再配送する。Splash／foam／ripple／wakeはPresentationであり、Water Query、Damage、buoyancyへ戻さず、GPU生成結果をReplay／Saveへ含めない。
+non-finite position／velocity、非正規normal、存在しないBody、unknown `interaction_kind`、duplicate `event_id`をschema／reference failureとしてEvent全体ごと拒否し、既定kind／seedを生成しない。同一advanceの配送は[Runtimeのcanonical message order](../04-runtime/scheduling-lifetime.md#10-message-mergeasync-acceptancerandomness)を使い、worker completion順で並べない。Replay envelopeは受理済みEventの7 fieldとaccept advance sequence／Interval hashを記録し、同じ`event_id`／`vfx_seed`でVFX／Audioへ再配送する。Splash／foam／ripple／wakeはPresentationであり、Water Query、Damage、buoyancyへ戻さず、GPU生成結果をReplay／Saveへ含めない。
 
 ## 4. Weather state、snow／wetness response
 
@@ -329,7 +331,8 @@ Coverage／compactionはQ0.16 `u16`である。
 
 ```text
 weather_delta = round_ties_to_even(
-  clamp(rate_mps * fixed_step_seconds / max_depth_m, 0, 1) * 65535)
+  clamp(rate_mps * logical_duration_seconds * retention_q16
+        / (max_depth_m * 65535), 0, 1) * 65535)
 next = saturate_to_u16(signed_i32(current) + signed_q0_16_delta)
 ```
 
@@ -338,6 +341,9 @@ Pass順は`SnowResetNewPages -> SnowApplyWeather -> SnowApplyStamps -> SnowResol
 ```text
 SnowSurfaceInteractionEventV1
   event_id
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_hash: SHA-256
+  advance_sequence: positive u64
   receiver_id
   position_world_m
   direction_world
@@ -348,7 +354,9 @@ SnowSurfaceInteractionEventV1
   presentation_seed
 ```
 
-Radius `[0.01,5] m`、delta `[-1,1]`、desktop 1,024／tick、mobile 256／tick。Overflowは`priority desc, event_id asc`末尾drop、繰越なし。AccumulationはWeather rate×`retention_q16`×fixed presentation step、meltはair temperatureが`melt_threshold_c`超過時、compactionはstampだけが増やす。GPU pages／全stamp履歴をSaveせず、Weather profile、start tick、static mask revision、bounded authored eventsから再生成する。
+Snow field updateはScheduling Ownerの一件の`SimulationAdvanceIntervalV1`を消費し、EventのProfile ref／interval hash／advance sequenceは同recordとbyte equalityにする。`logical_duration_seconds`は同recordのnon-null exact rational durationだけを使い、Cadence rate、render frame、wall time、表示名、直前値から推測しない。duration-nullのturn-based／explicit-stepでは`SnowApplyWeather`と時間依存meltを進めず、0秒へ変換した計算結果として扱わない。受理済みstampだけをcanonical順で適用し、時間依存Snow更新は対応するCadence別Qualificationが追加されるまで`cadence_profile_not_qualified`とする。
+
+Radius `[0.01,5] m`、delta `[-1,1]`、desktop 1,024／Simulation Advance、mobile 256／Simulation Advance。Overflowは`priority desc, event_id asc`末尾drop、繰越なし。AccumulationはWeather rate×`retention_q16`×同recordのduration、meltはair temperatureが`melt_threshold_c`超過時、compactionはstampだけが増やす。Dynamic GPU pages、elapsed accumulator、start sequence、全stamp履歴はPresentation-onlyでありSave contractからcanonical omissionとする。Loadはstatic maskとcurrent Weather snapshotから空のdynamic fieldを明示的に開始し、load前のfootprint／compaction再現を保証済みと表示しない。Replayでvisual field再現を要求するProfileは全`SimulationAdvanceIntervalV1` recordと受理済みEvent三Fieldを記録し、欠落時はcomplete visual Replayを名乗らない。
 
 WetnessはWeather rain／sleet、Water interaction、receiver allow maskからMaterial ownerのsurface semanticへtyped inputを出す。Snow coverage／compactionと同じreceiver identityを使うが値をaliasせず、Gameplay friction／surface stateを変更しない。
 
@@ -500,7 +508,7 @@ Water visibility overflowは`semantic_priority desc, projected_coverage_px_q16 d
 | receiver | 1,024 | 8,192 | 2,048 |
 | field persistent／transient | 0 | 24／8 MiB | 6／4 MiB |
 | update GPU P95 | 0 | 0.35 ms | 0.25 ms |
-| stamp／tick | VFX／Decal owner | 1,024 | 256 |
+| stamp／Simulation Advance | VFX／Decal owner | 1,024 | 256 |
 
 Snow fallback順はfootprint detail、field update distance、sparkle、normal detail。Gameplay Surface ID、static coverage、Visual Styleを維持し、missing／nonresident dynamic pageはexplicit static maskへ戻す。Precipitation particleはVFX domainへ一度だけchargeし、その密度fallbackは`VfxLodProfileV1`が所有する。すべてのdomain ceilingはRuntime ownerのaggregate envelopeを免除しない。
 
@@ -514,6 +522,6 @@ Validation、Compile、Bake failureではlive root revisionとlive generationを
 
 Contract qualificationは全Source／operationのvalid／boundary／invalid／unknown／NaN／unit、lock／stale／Capability／fallback／partial custom body、resolver candidate順／ChangeSet／artifact hash determinismを含む。8 Reference Presetはそれぞれ同一Inputから同じcandidate順、typed override、ChangeSet hashと上表のexact constantsを得るfixtureを持ち、lock競合、unknown override、Palette token欠落、bounds不明、Cloud Asset部分置換をnegative fixtureとする。Environment fixturesはclear day、morning mist、dense fog、local dust、sunset atmosphere、overcast cloud、camera cut／extent／origin rebase／sun／weather history、Water／Transparent／Pixel／VFX／UI compositeである。
 
-Water fixturesはbounded pool、river-like mesh、2D tile、lake／river／ocean overlap、flat Volume enter／exit、analytic CPU／GPU tolerance、buoyancy frame-rate independence、probe／SSR／underwater／waterline／flow／depth／foam、LOD invariance、device recoveryを含む。Query fixtureは全7 status、16,384／4,096境界、QueueFull非fallback、stale generationを検査する。Save／load fixtureはBody Asset revision、Gameplay water state、解析波開始tickから同じqueryを復元し、GPU texture／foam／SSR historyがpayloadにないことを検査する。Interaction fixtureは各closed kindとinvalid field、同tick canonical order、Replay後の7 field／VFX seed一致、VFX／Audio独立配送、Gameplay逆入力0を検査する。Snow fixturesは2D／3D precipitation、Style variants、authoritative contact、fixed-input field hash、page／stamp order、device recovery、Gameplay friction invariance、LOD／static fallbackである。
+Water fixturesはbounded pool、river-like mesh、2D tile、lake／river／ocean overlap、flat Volume enter／exit、analytic CPU／GPU tolerance、buoyancy frame-rate independence、probe／SSR／underwater／waterline／flow／depth／foam、LOD invariance、device recoveryを含む。Query fixtureは全7 status、16,384／4,096境界、QueueFull非fallback、stale generationを検査する。Save／load fixtureはBody Asset revision、Gameplay water state、解析波開始advanceから同じqueryを復元し、GPU texture／foam／SSR historyがpayloadにないことを検査する。Interaction fixtureは各closed kindとinvalid field、同一Simulation Advance内のcanonical order、Replay後の7 field／VFX seed一致、VFX／Audio独立配送、Gameplay逆入力0を検査する。Snow fixturesは2D／3D precipitation、Style variants、authoritative contact、exact `SimulationAdvanceIntervalV1`列を固定したfield hash、duration-null時のtime pass停止、page／stamp order、Save canonical omission／load reset、complete／incomplete visual Replay判定、device recovery、Gameplay friction invariance、LOD／static fallbackである。
 
 AI evalはmorning mist、50 m fog、local cave dust、stylized planet request、Gameplay visibility separation、mobile over-budget cloud、ambiguous cinematic request、Water capability mismatch、dynamic Snow costを含み、正しいoperation、質問、lock、fallback、Diagnostic、説明とChangeSet一致を測る。Qualification receiptのTarget、run、Evidence envelope、gradingはAI Verification ownerへ委譲する。

@@ -69,7 +69,7 @@ Scope entryは`RuntimeScopeTypeCatalogV1`へ次のexact 7-Field rowで登録す�
 
 保存値は`RuntimeScopeTypeRefV1`、`McdContractRefV1`、`RuntimeScopeOwnerRefV1`のversion／hash付きtyped refであり、表のIDだけを永続化しない。全dependencyをactive Runtime Scope Registryへ実体recordとして登録する。Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
 
-旧Level Systemのscope migrationは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ`runtime_scope.migration_contribution.feature.scenario_stage`として登録する。Production contributionは`owner.feature.scenario_stage`、exact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policyを持つReceipt-free recordである。Registry／ContributionRef固定後に`qualification.runtime_scope_migration.feature.scenario_stage@1` subject／signed Receiptと`qualification_binding.runtime_scope_migration.feature.scenario_stage@1`をroot外で作る。Fixture bodyはsubjectだけが`fixture.feature.scenario_stage.runtime_scope_migration`を解決する。Core migratorはgeneric record／Binding解決だけを行い、Level／Stage ID、Qualification subject／Fixture、adapterをCoreへhard-codeしない。
+旧Level System scopeの実在bytesは現計画から証明されていない。`runtime_scope.migration_contribution.feature.scenario_stage@1`はcurrent Pack memberではなく、Gameplay Programming Model §3.1.2のconditional legacy migrationがsigned `LegacyMigrationInventoryV1` gateを満たしてatomic activationされる場合だけ追加できるdestination candidateである。現時点のContribution／Qualification subject／Receipt／Binding／Activation Catalog／migration fixture inventoryはすべてexact `[]`で、`fixture.feature.scenario_stage.runtime_scope_migration@1`もcurrent `test_scenario_refs[]`へ含めない。Activation transactionでは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ同recordを登録する。Production contribution destinationは`owner.feature.scenario_stage`、Inventoryが束縛したexact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policyを持つReceipt-free recordである。Registry／ContributionRef固定後に`qualification.runtime_scope_migration.feature.scenario_stage@1` subject／signed Receiptと`qualification_binding.runtime_scope_migration.feature.scenario_stage@1`をroot外で作る。Fixture bodyはsubjectだけが`fixture.feature.scenario_stage.runtime_scope_migration`を解決する。Activation後のCore migratorはgeneric record／Binding解決だけを行い、Level／Stage ID、Qualification subject／Fixture、adapterをCoreへhard-codeしない。
 
 ## 5. Transition
 
@@ -99,7 +99,7 @@ Capability state = not_activated
 
 従来記載された六件の候補setとManifestの七件setはどちらも一度もactivateされておらず、current MCD、Pack Manifest、Service allowlist、Provider／MCP Catalog、Policy／Validator／Diagnostic／Receipt inventoryから全件除外する。legacy aliasとしても読まない。authoring要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Stage／Project Source、revision、last-valid artifactを変更しない。
 
-future work item `activation.scenario_stage.authoring.v1`は採用するexact Operation setを一つに固定し、read-onlyとmutationを含む各OperationのMCD全Field、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Service allowlist、Risk／side effect／idempotency／transaction、pure pre／post Policy、closed Diagnostic、Validator closure、rate／timeout、canonical signed Receipt、private commit→signed wrapper→public publication recovery、positive／negative Qualificationを同じContract set transactionで完全登録するまでactivateしない。将来AI contextを有効化する場合もselected Stage、World、参照Feature、Scope、transition、Save／Replay policy、Diagnosticだけをsemantic projectionし、全Projectまたは全Schemaを無制限に送信しない。
+future work item `activation.scenario_stage.authoring.v1`は採用するexact Operation setを一つに固定し、read-onlyとmutationを含む各OperationのMCD全Field、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Service allowlist、Risk／side effect／idempotency／transaction、pure pre／post Policy、closed Diagnostic、Validator closure、rate／timeout、canonical signed Receipt、positive／negative Qualificationを同じContract set transactionで完全登録するまでactivateしない。state-changing Operationのpublication／crash recoveryは[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)をcanonical reuseし、`private Marker read-back → secret-free PublicCommitClosureV1 candidate → signed wrapper read-back → PublicCommitClosureV1＋PublicPublicationMarkerV1＋after stateのatomic CAS`へ固定する。Closureは`domain_commitment.kind=owner_typed_state_commit`、exact `owner.feature.scenario_stage` ref、Prepared payloadが束縛したreceipt-free committed artifact ref集合を持ち、Ref／hash規則を本書へ複写しない。Closure bodyまたは同Closureを束縛するsigned wrapperを欠くPublic Marker／after-state current authorityを拒否する。read-only Operationはstate-changing publicationを発生させない。将来AI contextを有効化する場合もselected Stage、World、参照Feature、Scope、transition、Save／Replay policy、Diagnosticだけをsemantic projectionし、全Projectまたは全Schemaを無制限に送信しない。
 
 ## 8. Fixture
 
@@ -132,9 +132,11 @@ future work item `activation.scenario_stage.authoring.v1`は採用するexact Op
 | `configuration_profile_refs[]` | `StageContentActivationPolicyV1; StageSaveReplayPolicyV1` |
 | `authoring_operation_refs[]` | `[]`。Scenario／Stage authoring Capabilityは`not_activated` |
 | `validator_refs[]` | version／content hash付き`validator.feature.scenario_stage.v1` |
-| `migration_contribution_refs[]` | version／content hash付き`runtime_scope.migration_contribution.feature.scenario_stage` |
+| `migration_contribution_refs[]` | `[]`。Runtime Scope legacy migrationはconditional candidate |
 | `migration_step_refs[]` | version／content hash付き`migration.feature.scenario_stage.level_contract_to_stage_v1` |
-| `test_scenario_refs[]` | version／content hash付き`fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless; fixture.feature.scenario_stage.aggregate-manifest-set-equality; fixture.feature.scenario_stage.runtime_scope_migration` |
+| `test_scenario_refs[]` | version／content hash付き`fixture.feature.scenario_stage.none; fixture.feature.scenario_stage.explicit_outcomes; fixture.feature.scenario_stage.transition; fixture.feature.scenario_stage.worldless-ui; fixture.feature.scenario_stage.worldless-headless; fixture.feature.scenario_stage.aggregate-manifest-set-equality` |
+
+current `test_scenario_refs[]`は上表のexact六件である。conditional activation後のdestination Pack Manifestだけが`migration_contribution_refs[]`へ`runtime_scope.migration_contribution.feature.scenario_stage@1`、`test_scenario_refs[]`へ`fixture.feature.scenario_stage.runtime_scope_migration@1`を同じtransactionで追加できる。どちらか一方だけの追加、signed Inventoryと異なるlegacy source ref／hash、activation前のFixture実行を拒否する。
 
 `StageActivationPortV1`はStage instance key、source Stage ref、required nullable World ref、content activation policy、optional requested entry anchor、requested Feature System refsを入力し、activation generationまたはtyped failureを返す。World／Scene／Cell handleをPublic APIへ出さない。
 
@@ -350,7 +352,7 @@ StageTransitionRequestV2
   source_stage_instance_ref
   trigger_or_outcome_ref
   requesting_system_ref
-  requested_tick
+  requested_advance_sequence
   transfer_subject_refs[]
   precondition_snapshot_hash
   transition_policy_ref

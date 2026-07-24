@@ -11,7 +11,7 @@
 
 VFX Runtimeはoffline compiled artifactだけをleaseし、Source Graph、Node source、shader source、compiler、JITを読まない。CPU／GPU Emitterは同じSystemのparameter、seed、transform、lifecycleを共有できるが、Particle storageを共有せず、実行中stateをbackend間で移送しない。
 
-RuntimeはVFXをPresentationとして実行し、World／Physicsへwrite backしない。Runtime phase、job dependency、publish lifetime、command envelopeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通capacity／measurement／backpressureは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、pass／resource／queue／barrier／surface compositionは[Render Graph](render-graph.md)が所有する。本書はその境界内のVFX fixed-step semantics、storage、domain resource ceiling、degradationだけを決定する。
+RuntimeはVFXをPresentationとして実行し、World／Physicsへwrite backしない。Runtime phase、job dependency、publish lifetime、command envelopeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通capacity／measurement／backpressureは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、pass／resource／queue／barrier／surface compositionは[Render Graph](render-graph.md)が所有する。本書はその境界内のVFX Cadence binding、storage、domain resource ceiling、degradationだけを決定する。V1 execution artifactはfixed rational Cadenceだけを表現し、variable／turn-based／explicit-stepを60 Hzへ代入しない。
 
 ## 2. Compiled artifact boundary
 
@@ -23,6 +23,8 @@ VfxSystemArtifactManifestV1
   source_content_hash
   target_profile_id
   quality_profile_id
+  simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
+  timing_contract: fixed_rational_advance_v1
   emitter_artifact_refs[1..32]
   parameter_layout_hash
   lifecycle_descriptor
@@ -37,6 +39,8 @@ VfxExecutionArtifactV1
   node_catalog_version
   target_profile_id
   quality_profile_id
+  simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
+  timing_contract: fixed_rational_advance_v1
   spatial_domain: d2 | d3
   execution_target: cpu | gpu
   parameter_layout_hash
@@ -52,7 +56,7 @@ VfxExecutionArtifactV1
   verification_receipt_refs[]
 ```
 
-Manifestは全enabled Emitterの選択Dimension artifactがReadyの場合だけReadyになる。keyはSystem、Emitter、Dimension、execution target、Target、Quality、Toolchain、Source closureを含み、Source／compiler hash違いを再利用しない。RuntimeはTarget／Quality manifestが選んだartifactをinstance開始時に一度選び、frame負荷でCPU／GPUを切り替えない。
+Manifestは全enabled Emitterの選択Dimension artifactがReadyの場合だけReadyになる。keyはSystem、Emitter、Dimension、execution target、Target、Quality、Toolchain、Source closure、完成`SimulationCadenceProfileRefV1`を含み、Source／compiler／Cadence hash違いを再利用しない。全Emitter artifact、Runtime Package、Save／Replay closureのProfile refはManifestとbyte equalityにする。V1は解決先が`cadence.kind=fixed`でTarget別VFX Qualificationがfreshな場合だけloadし、他kindまたは未資格Profileを`cadence_profile_not_qualified`でinstance開始前に拒否する。RuntimeはTarget／Quality manifestが選んだartifactをinstance開始時に一度選び、frame負荷でCPU／GPUを切り替えない。
 
 `VfxCpuProgramV1`は事前compile済みclosed C++ kernel IDとimmutable parameter blockのtyped順序であり、bytecode／scriptではない。loop、recursion、file／network／OS API、reflection、allocation instructionを持たず、kernelごとのattribute access、scratch byte、dimension、stageをmanifestへ固定する。unknown kernel、manifest hash、parameter block size不一致をload前に拒否する。
 
@@ -62,23 +66,25 @@ Manifestは全enabled Emitterの選択Dimension artifactがReadyの場合だけR
 
 Lifecycleは`Unloaded -> Ready -> Prewarming -> Running -> Draining -> Complete`、live stateから`Stopped | Faulted`、`Running <-> Paused`である。Readyはartifact lease、slot、parameter block、buffer容量を確保済み、Prewarmingはpreload対象のhidden instanceだけ、Drainingはspawn停止後alive 0まで更新、Stoppedは次publishでretire、Pausedはage／rate accumulator／stepを進めず、FaultedはWorld不変のまま処理を止める。prewarm 0もzero-work Prewarmingを通る。
 
-CPU Prewarmは通常fixed-step kernel、GPU Prewarmはpublish当たり最大8 `VfxGpuTickRecordV1`のhidden compute batchとし、fence完了後だけ次batchへ進む。surface unavailableではGPU Prewarmを開始せずcompiled CPU fallbackを選ぶかloadを失敗させる。全stepを一dispatchへ圧縮しない。
+CPU Prewarmは通常advance kernel、GPU Prewarmはpublish当たり最大8 `VfxGpuAdvanceRecordV1`のhidden compute batchとし、fence完了後だけ次batchへ進む。surface unavailableではGPU Prewarmを開始せずcompiled CPU fallbackを選ぶかloadを失敗させる。全advanceを一dispatchへ圧縮しない。
 
 Runtime commandは`SpawnVfxSystemV1`（asset、transform source、event payload、parameter block、importance）、`StopVfxSystemV1`（handle、`immediate | drain`）、`PauseVfxSystemV1`、`ResumeVfxSystemV1`、`SetVfxParameterV1`（handle、parameter ID、typed value）、`SetVfxTransformV1`（handle、finite transform）である。seed、drop priority、merge順はEngineが解決し、critical権限をVFX commandへ与えない。
 
-Rate emissionはEmitter stateに`accumulator_q32:u64`と`division_remainder:u8`（0～59）を持ち、各fixed stepに次を順に行う。rateを0へ変更した時だけ両stateを0へresetする。BurstとEvent countをこのspawnへ加えた後に一つのadmissionへ通し、dropを繰り越さない。
+Rate emissionはEmitter stateに`accumulator_q32:u64`と`division_remainder:u64`を持ち、fixed Cadence `rate_hz=n/d`の各advanceに次をchecked `uint128`で順に行う。`0 <= division_remainder < n`を不変条件とし、rateを0へ変更した時だけ両stateを0へresetする。BurstとEvent countをこのspawnへ加えた後に一つのadmissionへ通し、dropを繰り越さない。
 
 ```text
-numerator = rate_q32 + division_remainder
-accumulator_q32 += floor(numerator / 60)
-division_remainder = numerator mod 60
+numerator_q32 = rate_q32 * d + division_remainder
+accumulator_q32 += floor(numerator_q32 / n)
+division_remainder = numerator_q32 mod n
 spawn = accumulator_q32 >> 32
 accumulator_q32 &= 0xffffffff
 ```
 
 ```text
 VfxBatchSnapshotV1
-  snapshot_tick: u64
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  snapshot_simulation_advance_interval_hash: SHA-256
+  snapshot_advance_sequence: positive u64
   cpu_draw_batches[]
   gpu_emitter_records[]
 
@@ -89,11 +95,13 @@ VfxGpuEmitterRecordV1
   current_transform
   event_payload
   parameter_blocks[1..8]
-  last_tick_sequence: u64
-  tick_records[0..8]
+  last_advance_sequence: u64
+  advance_records[0..8]
 
-VfxGpuTickRecordV1
-  tick_id: u64
+VfxGpuAdvanceRecordV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_hash: SHA-256
+  advance_sequence: positive u64
   first_reserved_spawn_id: u64
   external_spawn_count: u32
   sub_emitter_spawn_quota: u32
@@ -102,9 +110,9 @@ VfxGpuTickRecordV1
   simulation_step_count: u8 = 1
 ```
 
-Parameter blocksは直近8 tickの異なるrevisionをdeduplicateする。GPU Emitterは各fixed stepに1 recordを生成し、外部spawnと内部Event用quotaを同じProject admissionから予約する。IDは外部spawnを先、Sub-emitterを親Emitter ID／親Spawn ID／Event Node ID順に割り当て、unused IDを再利用しない。
+Batch SnapshotのProfile ref／snapshot interval hash／snapshot sequenceは、Snapshotをsealした最新`SimulationAdvanceIntervalV1`の同三値とbyte equalityにする。各`advance_records[]`は自身が表す個別IntervalのProfile ref／interval hash／sequenceとbyte equalityにし、Batchの最新hashを過去Recordへ複写しない。Parameter blocksは直近8 advanceの異なるrevisionをdeduplicateする。GPU Emitterは各advanceに1 recordを生成し、外部spawnと内部Event用quotaを同じProject admissionから予約する。IDは外部spawnを先、Sub-emitterを親Emitter ID／親Spawn ID／Event Node ID順に割り当て、unused IDを再利用しない。
 
-Rendererは`last_consumed_tick_sequence`より新しいrecordだけをtick昇順に1 record＝1 fixed stepとして処理する。`simulation_step_count`はV1で常に1であり、1以外の値をload時に拒否する。複数stepの圧縮は将来versionで別途定義する。同じsnapshot再描画でsimulationを重ねず、複数recordを一frameで順次処理する。Paused中はrecordを生成しない。保持範囲を超えるgapはcatch-up dispatchせず、ambient／loopは最新tickからvisual restart、one-shotは再発火せずDiagnosticを残す。
+Rendererは`last_consumed_advance_sequence`より新しいrecordだけをadvance sequence昇順に1 record＝1 Simulation Advanceとして処理する。`simulation_step_count`はV1で常に1であり、1以外の値をload時に拒否する。複数advanceの圧縮は将来versionで別途定義する。同じsnapshot再描画でsimulationを重ねず、複数recordを一frameで順次処理する。Paused中はrecordを生成しない。保持範囲を超えるgapはcatch-up dispatchせず、ambient／loopは最新advanceからvisual restart、one-shotは再発火せずDiagnosticを残す。
 
 ## 4. CPU simulation
 
@@ -120,7 +128,7 @@ Stable update algorithmは次の順である。
 6. admitted particleをSpawn ID順に空slotへage 0で初期化する。
 7. 空chunkだけをinstance poolへ返す。
 
-swap-and-pop、completion順append、unordered reductionを使わない。fixed stepは`dt=1/60 s`、`v_next=v+a*dt`、`p_next=p+v_next*dt`、linear dragは`v_next*=max(0,1-drag_per_second*dt)`、dragは`[0,60]`である。lifetimeは`clamp(ceil(lifetime_seconds*60),1,216000)` stepへspawn時に量子化し、Age／Lifetime秒はstepを60で割る。
+swap-and-pop、completion順append、unordered reductionを使わない。各advanceの`dt`はProfileのfixed `rate_hz=n/d`から得るexact rational `d/n s`で、deterministic numeric policyが定める一回のconversionだけを使う。`v_next=v+a*dt`、`p_next=p+v_next*dt`、linear dragは`v_next*=max(0,1-drag_per_second*dt)`とし、`0 <= drag_per_second <= n/d`をCookで検証する。lifetimeは`clamp(ceil(lifetime_seconds*n/d),1,ceil(3600*n/d))` advanceへspawn時にchecked `uint64`で量子化し、上限が`uint32`へ収まらないProfileを拒否する。Age／Lifetime秒は`steps*d/n`のexact rational projectionであり、60で除算しない。
 
 各stepは「既存aliveのage増加、update、death候補、visual event確定、stable compact、新規spawn」の順であり、新規Particleは生成stepにupdateしない。CPU Target profileはfloat reassociation／implicit FMA contractionを禁止し、scalar referenceとoptimized kernelを同じfixtureで比較する。
 
@@ -132,7 +140,7 @@ GPU variantはcompute shader、read／write storage buffer、32-bit atomic、ind
 
 Persistent storageは`ParticleAttributesA/B, AliveIndicesA/B, DeadIndices, EmitterParameters, SpawnRequests, EventCandidates, SubEmitterReady, SubEmitterNext, SortKeys, SortIndices, IndirectArguments, Counters`である。Counterはexplicit buffer storageを使い、CPU readbackで通常draw count／event／Gameplay判断を決めない。
 
-GPU step順は`VfxGpuResetCounters -> VfxGpuUpdateAndCompact -> VfxGpuEventResolve -> VfxGpuAdmitAndSpawn -> SubEmitterReady/SubEmitterNext swap`、全step後に必要時`VfxGpuSort -> VfxGpuBuildIndirect -> VfxDraw`である。Resetはstep一時counterだけを初期化し、alive／dead／Readyを保持する。現step eventはNextへ書き、spawnは前step Readyだけを`VfxGpuTickRecordV1.sub_emitter_spawn_quota`内で消費する。quota超過をcanonical末尾からdropし、繰り越さない。recordがないframeはsimulationせずIndirect／Drawだけを行う。Pass mergeは意味順を変えない。
+GPU advance順は`VfxGpuResetCounters -> VfxGpuUpdateAndCompact -> VfxGpuEventResolve -> VfxGpuAdmitAndSpawn -> SubEmitterReady/SubEmitterNext swap`、全advance後に必要時`VfxGpuSort -> VfxGpuBuildIndirect -> VfxDraw`である。Resetはadvance一時counterだけを初期化し、alive／dead／Readyを保持する。現advance eventはNextへ書き、spawnは前advance Readyだけを`VfxGpuAdvanceRecordV1.sub_emitter_spawn_quota`内で消費する。quota超過をcanonical末尾からdropし、繰り越さない。recordがないframeはsimulationせずIndirect／Drawだけを行う。Pass mergeは意味順を変えない。
 
 GPU sortは`none | spawn_order | view_depth | emitter_only`であり、選択は[VFX authoringの`sort_mode`](vfx-authoring.md#21-systememitterparameter)をSource正本とする。view depthはEmitter 65,536、Project 262,144 Particleまで、depth降順かつ同bucket Spawn ID順とする。超過Sourceはemitter-onlyまたはadditive Materialへ明示変更しない限りCook拒否する。
 
@@ -142,7 +150,7 @@ Visual collision sourceはscene depth、versioned global SDF、`VfxCollisionProx
 
 ```text
 VfxCollisionProxySnapshotV1
-  snapshot_tick: u64
+  snapshot_advance_sequence: u64
   generation: u64
   proxy2d[0..4096]
   proxy3d[0..2048]
@@ -153,7 +161,7 @@ VfxCollisionProxySnapshotV1
 
 CPU／proxy collisionはprevious→current swept point／sphereで1 step最大1 hit、最小TOI、同値Stable ID昇順を選ぶ。bounce／friction／kill／Eventを明示し、未指定はhit point clamp＋normal velocity zeroとする。Visual resultはGameplayへ返さない。
 
-Event候補は親Emitter Stable ID、親Spawn ID、Route Stable ID順、max超過末尾dropである。CPU Eventは次presentation step、GPU Eventは同一execution islandの次stepへだけ配送し、GPU→CPU／CPU→GPU edgeを拒否する。`WaterInteractionEventV1`や`SnowSurfaceInteractionEventV1`等のauthoritative eventを入力にできるが、VFX eventからDamage、Quest、Save、Audio正規eventを生成しない。
+Event候補は親Emitter Stable ID、親Spawn ID、Route Stable ID順、max超過末尾dropである。CPU／GPU Eventはいずれも同じCadenceの次Simulation Advanceだけへ配送し、そのadvanceのexact Profile ref／Interval hash／sequenceへ束縛する。render frame、presentation step、catch-up dispatch数から配送時点を推測せず、GPU→CPU／CPU→GPU edgeを拒否する。`WaterInteractionEventV1`や`SnowSurfaceInteractionEventV1`等のauthoritative eventを入力にできるが、VFX eventからDamage、Quest、Save、Audio正規eventを生成しない。
 
 ## 6. Persistence、resource ceiling、degradation
 
@@ -166,11 +174,12 @@ PersistentVfxDescriptorV1
   spatial_domain
   parameter_block
   system_seed
-  start_tick
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  start_advance_sequence
   paused
 ```
 
-Particle、GPU buffer、sort、Trail pointは保存しない。Load後prewarmは最大120 step、超過履歴はloop phaseからvisual restartする。[VFX Authoringが所有する`VfxBakeCacheV1`](vfx-authoring.md#4-compilerplanned-authoring-actionpreview)をoffline代替としてexactに消費し、Fieldを再定義しない。GPU stateはReplay digest／authoritative Save／network stateに含めない。
+Particle、GPU buffer、sort、Trail pointは保存しない。Load時はDescriptor、Runtime Package、Artifact、current Profile refのbyte equalityを検証する。Load後prewarmは最大120 advance、超過履歴はloop phaseからvisual restartする。[VFX Authoringが所有する`VfxBakeCacheV1`](vfx-authoring.md#4-compilerplanned-authoring-actionpreview)をoffline代替としてexactに消費し、Fieldを再定義しない。GPU stateはReplay digest／authoritative Save／network stateに含めない。
 
 Domain resource ceilingは次である。共通frame／memory envelope、集約測定、backpressureはRuntime capacity ownerへ委譲する。
 
@@ -194,11 +203,11 @@ Domain resource ceilingは次である。共通frame／memory envelope、集約�
 
 System slotは`min(4096, CPU active emitter ceiling + GPU active emitter ceiling)`である。
 
-Capacityは`ceil(max_particles/256)*256`へ丸め、各SoA arrayを`align_up(sizeof(attribute)*capacity,64)`で計上する。CPUはcurrent／next、alive index、dead mask、rate、event、Trail、metadata、GPUはpersistent buffers、Trail、transient event／sort／prefix／draw scratchのsimultaneous peakを含む。Eventは`max_events_per_tick * align16(payload size)`、payload最大256 byte。Texture／Mesh／Material／Shader packageを重複計上しない。estimateよりinstrumented peakが大きいArtifactはqualification失敗である。
+Capacityは`ceil(max_particles/256)*256`へ丸め、各SoA arrayを`align_up(sizeof(attribute)*capacity,64)`で計上する。CPUはcurrent／next、alive index、dead mask、rate、event、Trail、metadata、GPUはpersistent buffers、Trail、transient event／sort／prefix／draw scratchのsimultaneous peakを含む。Eventは`max_events_per_advance * align16(payload size)`、payload最大256 byte。Texture／Mesh／Material／Shader packageを重複計上しない。estimateよりinstrumented peakが大きいArtifactはqualification失敗である。
 
 Overdraw ratioは`particle pixel shader invocations / internal output pixels`、`<=4` pass、`>4` warning、`>8` proposal／Cook rejectとする。Fallbackは[LOD](lod.md)の`VfxLodProfileV1`／`VfxLodTierV1`だけを使い、branch、spawn scale、alive、update interval、render output、execution target、minimum Cueを明示する。Runtimeは未登録variantを合成しない。
 
-突発spawnは`semantic_priority desc, projected_coverage_px_q16 desc, emitter Stable ID asc, Spawn ID asc`末尾をdropし、次stepへ繰り越さない。`ParticleSpawnDropped{emitter,tick,reason,count}`へ集計する。critical Cueのshape／timing／minimum visibilityをambientより先に削らず、敵味方を一律に差別化しない。Thermal signalは一段ずつqualified tierを下げられるが、Project dataから無効化しない。
+突発spawnは`semantic_priority desc, projected_coverage_px_q16 desc, emitter Stable ID asc, Spawn ID asc`末尾をdropし、次advanceへ繰り越さない。`ParticleSpawnDropped{emitter,advance_sequence,reason,count}`へ集計する。critical Cueのshape／timing／minimum visibilityをambientより先に削らず、敵味方を一律に差別化しない。Thermal signalは一段ずつqualified tierを下げられるが、Project dataから無効化しない。
 
 Artifact promotion後の新instanceだけ新generationを使い、live instanceは旧leaseをCompleteまで保持する。Graph hot swapでalive layoutを置換しない。全CPU job、snapshot、GPU serial、lease終了後にretireする。Device faultではGPU submitを止め、ambientだけdescriptorからrestart、one-shotは非再発火、CPU stateはWorld lifetimeが維持される場合だけ保持する。
 
@@ -206,6 +215,6 @@ Artifact promotion後の新instanceだけ新generationを使い、live instance�
 
 Runtime closed Diagnosticは`VfxBoundsEscape, VfxCollisionProxyOverflow, VfxInstancePoolFull, VfxSpawnDropped, VfxEventOverflow, VfxGpuCounterOverflow, VfxGpuTimelineGap, VfxGpuFault, VfxDeviceRecoveryRestarted`である。RuntimeはCapability／artifact mismatchでinstanceを開始せず、NaN／Infまたはcounter overflowでinstanceをFaultedへ移し、pool fullではlowest-priority new spawnを拒否する。GPU faultはRenderer recoveryへ渡し、authoritative Worldを変更しない。
 
-CPU qualificationは1／255／256／257／8,192 particle、rate／burst／loop／pause／drain／parameter／prewarm、lifetime境界、fixed seed 100 run、worker順変更、scalar／optimized一致、allocation 0、bounds、soakを含む。GPU qualificationはresource hazard、zero／capacity／capacity+1、counter wrap拒否、indirect draw、output golden、collision tolerance、Ready／Next非再入、surface／device recovery、LOD hysteresis、snapshot再描画、multi-record、9-tick gapを含む。
+CPU qualificationは1／255／256／257／8,192 particle、fixed rational 60/1および別rateでのrate／remainder／burst／loop／pause／drain／parameter／prewarm、lifetime境界、fixed seed 100 run、worker順変更、scalar／optimized一致、allocation 0、bounds、soakを含む。GPU qualificationはresource hazard、zero／capacity／capacity+1、counter wrap拒否、indirect draw、output golden、collision tolerance、Ready／Next非再入、surface／device recovery、LOD hysteresis、snapshot再描画、multi-record、1 render frame内の複数advance catch-upでもCPU／GPU Eventの次advance配送が一致するfixture、9-advance gapを含む。current pass対象は60/1だけで、別rate fixtureはFuture capability promotion時のdestination evidenceである。
 
 Water／Weather／Snow、Audio、Cameraとのintegrationは一つのauthoritative eventを各Presentation ownerへ独立配送し、VFX結果を逆入力しない。Resource、performance、fault結果は同一Target／Quality／Artifact hashへ結び、Evidence envelopeはAI Verification ownerへ委譲する。

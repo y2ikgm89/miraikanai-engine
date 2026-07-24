@@ -2,6 +2,8 @@
 
 > **Status: executable draft, not yet authorized.** Preflight D0だけは専用Architecture ChangeSet authorizationで実行でき、文書staging／approval／same-definition Rebaseline以外を変更しない。実装Task 2～13はD3D12 technical documentのcurrent human approval、current Product WP lifecycle=`active`、Task Authorizationが揃った後だけ許可する。本書の存在をApproval／WP stateへ読み替えない。
 
+> **実行入口・公式根拠:** [計画書の実行権限・準備状況](README.md)と[Toolchain／Dependencies](../architecture/02-foundation/toolchain-dependencies.md)を先に read-back する。公式資料は制約の根拠であり、SDK／WARP／OS の floating な最新版を採用する権限ではない。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `CanonicalRenderExecutionPlanV1`をEnhanced BarriersだけでDirect3D 12へencodeし、Windows Editor／GameHostのpackage、fault recovery、Target Qualificationまで閉じるprivate backendを実装する。
@@ -18,6 +20,7 @@
 - required Target logical ID exact setは`target.windows.editor; target.windows.desktop`、Backend logical IDは`profile.rendering.d3d12`とし、versionをIDへ埋め込まない。Build、package、fixture、Qualification ReceiptをTargetごとに分け、片側成功を他方へ流用しない。
 - Windows C1 runtime barrier pathはEnhanced Barriersだけとし、legacy `ResourceBarrier` translator／fallbackを製品binaryへ含めない。
 - Agility SDKはstable `Microsoft.Direct3D.D3D12` 1.619.4、`D3D12SDKVersion=619`をexact lockする。Preview SDKを混在させない。
+- `Microsoft.Direct3D.WARP`のexact version／nupkg hash／licenseがToolchain ChangeSetで固定されるまでTask 3のWARP conformanceを開始しない。Windows Target minimum OSが同じChangeSetでfixedになるまでTask 12のpackage／Target qualificationを開始しない。
 - D3D12MAは3.2.0、一Device一Allocator、`D3D12MA_RECOMMENDED_ALLOCATOR_FLAGS`、thread-safe既定とし、`SINGLETHREADED`を使わない。
 - Pipeline keyはkind、shader closure、Root Signature、全fixed-function state、RTV slot順、DSV、sample count、sample quality、Target／Backend Profile hashをcanonical bytesへ含める。
 - After-resourceのalias activation `DISCARD`は、before-resource barrierがlayout transitionまたはwrite flushを行う場合に併用しない。

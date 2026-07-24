@@ -34,12 +34,12 @@
 | `feature.encounter_spawn@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.encounter_spawn]` | `[EncounterDefinitionV1, EncounterPhaseV1, EncounterWaveV1, SpawnGroupV1]`／`[]` | `[game_system.extension.feature.encounter]`／`[validator.feature.encounter_spawn.v1]`／`[fixture.feature.encounter_spawn.contract]` |
 | `feature.scoring@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.scoring]` | `[ScoreRuleSetV1, ScoreStateV1]`／`[ScoreAwardPortV1]` | `[game_system.extension.feature.score]`／`[validator.feature.scoring.v1]`／`[fixture.feature.scoring.contract]` |
 | `feature.pickup_grant@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.pickup_grant]` | `[PickupDefinitionV1, PickupInstanceStateV1, GrantRequestV1, GrantResultV1]`／`[GrantRequestPortV1]` | `[game_system.extension.feature.pickup]`／`[validator.feature.pickup_grant.v1]`／`[fixture.feature.pickup_grant.provider_neutral]` |
-| `feature.interaction@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.interaction]` | `[mirakan.arch.gameplay-programming-model#InteractionDefinitionV1, mirakan.arch.gameplay-programming-model#InteractionRequestV1, mirakan.arch.gameplay-programming-model#InteractionSnapshotV1]`／`[]` | `[mirakan.arch.gameplay-programming-model#Engine-Standard-Interaction-System]`／`[validator.feature.interaction.v1]`／`[fixture.feature.interaction.contract]` |
+| `feature.interaction@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.interaction]` | exact owner revision／content hash付き`[mirakan.arch.gameplay-programming-model#InteractionSpaceSemanticRefV1, mirakan.arch.gameplay-programming-model#InteractionSpaceSemanticContributionV1, mirakan.arch.gameplay-programming-model#InteractionSpaceSemanticRegistryV1, mirakan.arch.gameplay-programming-model#InteractionSpaceSemanticActivationProjectionV1, mirakan.arch.gameplay-programming-model#InteractionSpaceBindingV1, mirakan.arch.gameplay-programming-model#SpatialInteractionBindingV1, mirakan.arch.gameplay-programming-model#LogicalInteractionBindingV1, mirakan.arch.gameplay-programming-model#UiInteractionBindingV1, mirakan.arch.gameplay-programming-model#InteractionDefinitionV1, mirakan.arch.gameplay-programming-model#InteractionRequestV1, mirakan.arch.gameplay-programming-model#InteractionSnapshotV1]`／`[]` | exact `GameSystemContractRefV1(game_system.extension.feature.interaction.standard@1)`／`[validator.feature.interaction.v1]`／`[fixture.feature.interaction.contract]` |
 | `feature.character_locomotion@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.character_locomotion]` | Feature-owned `[type.feature.character_locomotion.gameplay_motion_intent]`＋Navigation-owned `[type.navigation.motion_intent_contribution, mirakan.arch.simulation-navigation#MotionExecutorPortV1]`／`[type.navigation.motion_intent_contribution]` | `[game_system.extension.feature.character_locomotion.contribution]`／`[validator.feature.character_locomotion.v1]`／`[fixture.feature.character_locomotion.motion_executor]` |
 | `feature.path_following@1` (`pack_kind=feature`) | `[]` | `[capability.simulation.navigation]` | `[capability.gameplay.path_following]` | `[mirakan.arch.simulation-navigation#PathFollowRequestV1, mirakan.arch.simulation-navigation#PathFollowerStateV1, mirakan.arch.simulation-navigation#MovementIntentV1, mirakan.arch.simulation-navigation#MotionExecutorPortV1]`／`[mirakan.arch.simulation-navigation#MotionExecutorPortV1]` | `[mirakan.arch.simulation-navigation#Path-Following]`／`[validator.feature.path_following.v1]`／`[fixture.feature.path_following.executor_stub]` |
-| `feature.scenario_stage@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.scenario_stage]` | exact owner revision／content hash付き`[mirakan.arch.pack-scenario-stage#StageDefinitionV1, mirakan.arch.pack-scenario-stage#CompletionContractV1, mirakan.arch.pack-scenario-stage#StageRuntimeStateV1, mirakan.arch.pack-scenario-stage#StageTransitionDestinationV2, mirakan.arch.pack-scenario-stage#StageTransitionPolicyV1, mirakan.arch.pack-scenario-stage#StageTransitionRequestV2, mirakan.arch.pack-scenario-stage#StageTransitionContractRefSetV1]`／`[mirakan.arch.pack-scenario-stage#StageActivationPortV1, mirakan.arch.pack-scenario-stage#StageTransitionPortV2]` | `[mirakan.arch.pack-scenario-stage#game_system.extension.feature.scenario_stage]`／`[validator.feature.scenario_stage.v1]`／`[fixture.feature.scenario_stage.none, fixture.feature.scenario_stage.explicit_outcomes, fixture.feature.scenario_stage.transition, fixture.feature.scenario_stage.worldless-ui, fixture.feature.scenario_stage.worldless-headless, fixture.feature.scenario_stage.aggregate-manifest-set-equality, fixture.feature.scenario_stage.runtime_scope_migration]` |
+| `feature.scenario_stage@1` (`pack_kind=feature`) | `[]` | `[]` | `[capability.gameplay.scenario_stage]` | exact owner revision／content hash付き`[mirakan.arch.pack-scenario-stage#StageDefinitionV1, mirakan.arch.pack-scenario-stage#CompletionContractV1, mirakan.arch.pack-scenario-stage#StageRuntimeStateV1, mirakan.arch.pack-scenario-stage#StageTransitionDestinationV2, mirakan.arch.pack-scenario-stage#StageTransitionPolicyV1, mirakan.arch.pack-scenario-stage#StageTransitionRequestV2, mirakan.arch.pack-scenario-stage#StageTransitionContractRefSetV1]`／`[mirakan.arch.pack-scenario-stage#StageActivationPortV1, mirakan.arch.pack-scenario-stage#StageTransitionPortV2]` | `[mirakan.arch.pack-scenario-stage#game_system.extension.feature.scenario_stage]`／`[validator.feature.scenario_stage.v1]`／`[fixture.feature.scenario_stage.none, fixture.feature.scenario_stage.explicit_outcomes, fixture.feature.scenario_stage.transition, fixture.feature.scenario_stage.worldless-ui, fixture.feature.scenario_stage.worldless-headless, fixture.feature.scenario_stage.aggregate-manifest-set-equality]` |
 
-`feature.interaction`、`feature.path_following`、`feature.scenario_stage`のrequired capabilityとpublic surfaceは、それぞれ[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Navigation](../05-simulation/navigation.md)、[Scenario／Stage](scenario-stage.md)の既存Ownerへexact refで接続する。Character Locomotionは本書が所有するGameplay intent型だけを登録し、Navigation-owned `MotionIntentContributionV1`／`MotionExecutorPortV1`を外部Ownerへのexact refとして接続する。Feature catalogは参照先OwnerのSchemaを複製しない。
+`feature.interaction`、`feature.path_following`、`feature.scenario_stage`のrequired capabilityとpublic surfaceは、それぞれ[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Navigation](../05-simulation/navigation.md)、[Scenario／Stage](scenario-stage.md)の既存Ownerへexact refで接続する。Interaction Packは`InteractionSpaceSemanticRegistryV1`の初期三Contributionを`owner.feature.interaction`のexact revision／content hashで所有し、`spatial | logical | ui`を同じCapabilityの排他的bindingとして提供する。Core、Genre、Reference Gameをrequired dependencyへ追加せず、Genre／Project contributionはRegistry materialization時のowner-qualified extensionに限定する。Character Locomotionは本書が所有するGameplay intent型だけを登録し、Navigation-owned `MotionIntentContributionV1`／`MotionExecutorPortV1`を外部Ownerへのexact refとして接続する。Feature catalogは参照先OwnerのSchemaを複製しない。
 
 上表の`type.*`／`capability.*`は表示上IDだけを示すが、Manifest保存値はすべて`McdContractRefV1 {id, version, contract_set_hash}`である。Pack refは`PackContractRefV1 {pack_id, pack_version, pack_hash}`、Architecture contract anchorはowner文書revision／content hash付き`ArchitectureContractRefV1`で保存し、bare ID／anchorだけを永続参照にしない。
 
@@ -49,22 +49,24 @@
 |---|---|---|---|
 | `feature.combat@1` | `[]` | `[]` | `[]` |
 | `feature.ranged_combat@1` | `[]` | `[]` | `[]` |
-| `feature.encounter_spawn@1` | `[]` | version／hash付き`runtime_scope.migration_contribution.feature.encounter_spawn` | `[]` |
-| `feature.scoring@1` | `[]` | version／hash付き`runtime_scope.migration_contribution.feature.scoring` | `[]` |
+| `feature.encounter_spawn@1` | `[]` | `[]` | `[]` |
+| `feature.scoring@1` | `[]` | `[]` | `[]` |
 | `feature.pickup_grant@1` | `[]` | `[]` | `[]` |
 | `feature.interaction@1` | `[]` | `[]` | `[]` |
-| `feature.character_locomotion@1` | `[]` | version／hash付き`runtime_scope.migration_contribution.feature.character_locomotion` | `[]` |
+| `feature.character_locomotion@1` | `[]` | `[]` | `[]` |
 | `feature.path_following@1` | `[]` | `[]` | `[]` |
 
-Pack artifact内のValidator／fixture集合は上表の`validator_refs[]`／`test_scenario_refs[]`とset equality、上記Contribution集合はactive migration registryのowner subsetとset equalityにする。missing／extra／stale／duplicateをPack install前に拒否する。Scenario Stageは独立owner文書のManifest inventoryだけを正本とし、ここではaggregate set equalityだけを行う。
+Pack artifact内のValidator／fixture集合は上表の`validator_refs[]`／`test_scenario_refs[]`とset equalityにする。Runtime Scope migrationはconditional legacy migrationであるため、current Pack artifactの`migration_contribution_refs[]`、Migration Contribution RegistryのFeature owner subset、migration固有Qualification Binding／Activation Catalog集合はすべてexact `[]`である。Scenario Stageは独立owner文書のManifest inventoryだけを正本とし、ここではaggregate set equalityだけを行う。
 
-Scenario Stage aggregateのpublic ref集合はowner文書のPack Manifest public inventory、port ref集合は同Manifest runtime inventory、test scenario ref集合はowner Manifestのexact七件と、それぞれ独立にID／version／content hashのset equalityを必須にする。七件は`none; explicit_outcomes; transition; worldless-ui; worldless-headless; aggregate-manifest-set-equality; runtime_scope_migration`であり、aggregate側の欠落、owner側のextra、stale hashを許可しない。transition MCD exact 5件はowner文書の`StageTransitionContractRefSetV1`とactive MCD Contract set、Port reachable closureの間だけで比較し、public 7件またはruntime port 2件との異種set equalityを行わない。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各like-for-like gateごとにaggregateだけのref欠落、ownerだけのextra、version／hash stale、duplicateを各一原因で拒否する。
+Scenario Stage aggregateのpublic ref集合はowner文書のPack Manifest public inventory、port ref集合は同Manifest runtime inventory、test scenario ref集合はowner Manifestのcurrent exact六件と、それぞれ独立にID／version／content hashのset equalityを必須にする。六件は`none; explicit_outcomes; transition; worldless-ui; worldless-headless; aggregate-manifest-set-equality`であり、aggregate側の欠落、owner側のextra、stale hashを許可しない。`runtime_scope_migration` fixtureはsigned legacy evidence gate成立後のdestination inventoryだけに属する。transition MCD exact 5件はowner文書の`StageTransitionContractRefSetV1`とactive MCD Contract set、Port reachable closureの間だけで比較し、public 7件またはruntime port 2件との異種set equalityを行わない。`fixture.feature.scenario_stage.aggregate-manifest-set-equality`は各like-for-like gateごとにaggregateだけのref欠落、ownerだけのextra、version／hash stale、duplicateを各一原因で拒否する。
 
 `MotionExecutorPortV1`の唯一のcanonical ownerはNavigationである。本書はexact public contract refだけをmanifestへ登録する。Character Locomotion PackはPhysics unavailableでもinstall／validateでき、Physics Kinematic Motion ProviderはC1 reference recipe／qualification Providerを選んだ時だけ依存closureへ入る。consumerはProvider Backend object、native body pointer、render transformへ直接依存せず、Portのtyped intent／resolved resultだけを使う。
 
 ## 3. Canonical data model
 
 すべてのSource objectはUUIDv7 `StableId`、MCD Typeはexact `McdContractRefV1`、Derived Artifactは`ArtifactRefV1`を使う。表示名、Asset path、C++型名、配列indexをidentityにしない。
+
+時間またはSimulation Advanceを使うFeatureは、Compile時にroot外`FeatureRuntimeTimebaseBindingV1`へ`Project revision／document-set hash、PackContractRefV1、Composition Recipe ref／hash、SimulationCadenceProfileRefV1、GameClockDomainProfileRefV1、timebase consumer Type ref集合、Target別Qualification Binding集合、binding hash`を固定する。両Profile Refは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md#41-clock-domainpausegameplay-timer)の完成base recordからrecord外でmaterializeされたexact ID／version／self-excluding content hashであり、Binding内のCadence Profile RefはGame Clock Domain Profileが選択する同Refとbyte equalityにする。Definition／Pack ManifestへProject固有ProfileやReceiptを埋め戻さず、Runtime Package、Save、Replayは同じBinding ref／hashを保存する。以下の`*_advances`は常に選択Cadenceにおける`SimulationAdvanceIntervalV1.advance_sequence`差であり、秒、render frameまたは固定60 Hzを意味しない。速度等のSI時間積分は各Advance recordのnon-null exact rational durationを使い、duration-null Profileでは対応するadvance-driven branchとQualificationがなければ`cadence_profile_not_qualified`でActivation前に拒否する。current C1／C2でこのFeature集合がqualifiedなのはreference `fixed 60/1` Profileだけであり、別rate／variable／turn-based／explicit-step対応は`future.capability.alternate-simulation-cadence-and-substep`のconsumer migrationとTarget別fixture完了後に限る。
 
 ### 3.1 `WeaponDefinitionV1`
 
@@ -93,20 +95,26 @@ WeaponDefinitionV1
 ```text
 FireModeDefinitionV1
   trigger_mode: single | automatic | burst
-  activation_count_per_cycle: uint16
-  cycle_ticks: uint16
-  cycle_distribution_policy_ref:
-    policy.feature.ranged_combat.cadence.even_floor
-    | policy.feature.ranged_combat.cadence.explicit_offsets
-  activation_offsets_ticks[]: optional
+  cadence:
+    kind: rate_per_second
+      activation_rate_hz: ReducedPositiveRationalV1
+      distribution_policy_ref:
+        policy.feature.ranged_combat.cadence.even_floor
+    | kind: advance_cycle
+      activation_count_per_cycle: uint16
+      cycle_advances: uint16
+      distribution_policy_ref:
+        policy.feature.ranged_combat.cadence.even_floor
+        | policy.feature.ranged_combat.cadence.explicit_offsets
+      activation_offsets_advances[]: optional
   ammo_cost_per_activation: uint16
   release_policy: stop_unfired | complete_started_cycle
   fire_while_reloading: false
 ```
 
-範囲は`activation_count_per_cycle=[1,3600]`、`cycle_ticks=[1,3600]`、`activation_count_per_cycle <= cycle_ticks`とする。`burst`だけはcountを`[1,32]`へ制限する。C1は一Weaponにつき一tick最大一Activationである。Patternが一Activationから複数Shotを生成する。この上限はper Weapon instanceの不変条件であり、Bindingごとではない。同tickに`primary`と`secondary`の両Bindingが発火許可となった場合は`primary`のActivationだけを実行し、`secondary`を`FireRejectedCadence`で拒否してそのcadence cycle開始tickを次の有効tickへ繰り延べる。この裁定順は固定であり、同じPublic Contractへ適合するすべての実装とReplayで同一結果とする。
+`rate_per_second.activation_rate_hz`は既約なpositive rationalとする。Source rateを`p/q Hz`、Compile先のfixed Cadenceを`n/d Hz`とした場合、`raw_count=p×d`、`raw_cycle=q×n`、`g=gcd(raw_count,raw_cycle)`、Cooked schedule=`activation_count_per_cycle=raw_count/g`、`cycle_advances=raw_cycle/g`としてchecked `uint64`でexact導出する。導出後count／cycleが各`[1,3600]`かつcount<=cycleでなければTarget／Profile Qualificationを拒否する。`advance_cycle`も同じ範囲と不等式をSourceで要求する。`burst`だけはcountを`[1,32]`へ制限し、current `automatic`は`rate_per_second`、`single | burst`は`advance_cycle`を使う。C1は一Weaponにつき一advance最大一Activationである。Patternが一Activationから複数Shotを生成する。この上限はper Weapon instanceの不変条件であり、Bindingごとではない。同一advanceに`primary`と`secondary`の両Bindingが発火許可となった場合は`primary`のActivationだけを実行し、`secondary`を`FireRejectedCadence`で拒否してそのcadence cycle開始advanceを次の有効advanceへ繰り延べる。この裁定順は固定であり、同じPublic Contractへ適合するすべての実装とReplayで同一結果とする。
 
-`policy.feature.ranged_combat.cadence.even_floor`はcycle内のActivation `i=[0,count-1]`を`floor(i * cycle_ticks / activation_count_per_cycle)` tickへ配置し、`activation_offsets_ticks`を持たない。`policy.feature.ranged_combat.cadence.explicit_offsets`は`activation_count_per_cycle`と同数のoffsetを`[0,cycle_ticks-1]`へstrictly increasingで持つ。両方ともexact `McdContractRefV1(kind=policy)`であり、対応Fixtureはowner-typed Qualification subjectだけが解決する。Production DefinitionはReceipt-freeで固定し、root外Activation bindingが指すsigned Qualification Receiptだけを消費する。cycle開始tickとDefinition revisionが同じならscheduleは同じである。「毎秒7発」は`7 activation / 60 tick`へexactに解決し、float timerを累積しない。
+`policy.feature.ranged_combat.cadence.even_floor`はCooked cycle内のActivation `i=[0,count-1]`を`floor(i × cycle_advances / activation_count_per_cycle)` advanceへ配置し、`activation_offsets_advances`を持たない。`policy.feature.ranged_combat.cadence.explicit_offsets`は`activation_count_per_cycle`と同数のoffsetを`[0,cycle_advances-1]`へstrictly increasingで持つ。両方ともexact `McdContractRefV1(kind=policy)`であり、対応Fixtureはowner-typed Qualification subjectだけが解決する。Production DefinitionはReceipt-freeで固定し、root外Activation bindingが指すsigned Qualification Receiptだけを消費する。cycle開始advance、Cadence Profile ref／hash、Definition revisionが同じならscheduleは同じである。「毎秒7発」はSourceで`activation_rate_hz=7/1`とし、fixed `60/1 Hz`では上式によりexact `7 activation / 60 advances`、fixed `120/1 Hz`では`7 / 120 advances`へderiveする。Profileを変えずに60 literalを埋め込む、float timerを累積する、variable／duration-null Profileへ同scheduleを暗黙適用することを禁止する。
 
 `single`はcount 1、offset 0で、trigger rising edgeごとに一cycleだけ評価する。`automatic`はtrigger hold中にcycleを反復する。`burst`はrising edgeで一つの有限cycleを開始し、通常は`policy.feature.ranged_combat.cadence.explicit_offsets`で`[0,5,10]`等を表す。release後の再押下なしに次cycleを開始しない。これによりautomatic cadence、burst内間隔、burst後cooldownを同じscheduleで一意に表す。
 
@@ -150,9 +158,9 @@ ShotDeliveryDefinitionV1
   hit_selection: closest_per_shot
 ```
 
-hitscanはCollision規約のRay／Shape Castを使う。ProjectileはRanged Projectile Systemのdomain-local recordを使い、C1では各tickの移動segmentをswept Queryとして検証する。Particle collision、depth buffer、render occlusionをHit Evidenceにしない。
+hitscanはCollision規約のRay／Shape Castを使う。ProjectileはRanged Projectile Systemのdomain-local recordを使い、C1では各advanceの移動segmentをswept Queryとして検証する。Particle collision、depth buffer、render occlusionをHit Evidenceにしない。
 
-`delivery_kind=hitscan`では`projectile_definition_ref`を持たず、Patternの`speed_scale_q16`を全要素1.0、`projectile`ではrefを必須とする。`max_hits_per_activation=[1,64]`かつ`shot_count`以下とし、各Shotは`closest_per_shot`で最大一Hitを生成する。penetration、同一Shotの複数Hit、`ordered_all`は現在のcontractの対象外として拒否する。これらの将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。Projectileは`lifetime_ticks`またはspawn originから`max_range_m`へ到達した早い方でexpireする。
+`delivery_kind=hitscan`では`projectile_definition_ref`を持たず、Patternの`speed_scale_q16`を全要素1.0、`projectile`ではrefを必須とする。`max_hits_per_activation=[1,64]`かつ`shot_count`以下とし、各Shotは`closest_per_shot`で最大一Hitを生成する。penetration、同一Shotの複数Hit、`ordered_all`は現在のcontractの対象外として拒否する。これらの将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。Projectileは`lifetime_advances`またはspawn時からの積算距離が`max_range_m`へ到達した早い方でexpireする。
 
 ### 3.5 `ProjectileDefinitionV1`
 
@@ -161,15 +169,15 @@ ProjectileDefinitionV1
   projectile_definition_id: StableId
   dimension: two_d | three_d
   speed_mps
-  lifetime_ticks
+  lifetime_advances
   query_shape_ref
   collision_query_profile_ref
-  owner_ignore_ticks
+  owner_ignore_advances
   on_hit_policy: stop
   presentation_cue_ref
 ```
 
-`speed_mps=(0,10,000]`、`lifetime_ticks=[1,36,000]`、`owner_ignore_ticks=[0,60]`とする。C1 Projectileはscale、arbitrary acceleration、homing target、bounce count、Physics Backend objectを持たない。
+`speed_mps=(0,10,000]`、`lifetime_advances=[1,36,000]`、`owner_ignore_advances=[0,60]`とする。C1 Projectileはscale、arbitrary acceleration、homing target、bounce count、Physics Backend objectを持たない。
 
 Runtime recordは少なくとも次を持つ。
 
@@ -183,14 +191,15 @@ RangedProjectileStateV1
   position_m
   direction_unit
   speed_mps
-  age_ticks
+  age_advances
+  traveled_distance_m
   rng_draw_count
   status: pending | active | hit | expired
 ```
 
 `projectile_spawn_id`はPlay session内でRanged Projectile Systemが単調増加させ、0を使わない。Pool slot、pointer、Physics handleをSave／Replay identityにしない。
 
-`delivery_definition_ref`はspawn元の`ShotDeliveryDefinitionV1`を指す。`max_range_m`によるexpireは、C1の直線・等速運動を前提に`speed_mps`と`age_ticks`から導出した移動距離と、`delivery_definition_ref`が示す`max_range_m`だけで判定する。spawn originの保存を必要とせず、Save／Load後も同じcanonical recordから同じexpire tickへ再決定できる。
+`delivery_definition_ref`はspawn元の`ShotDeliveryDefinitionV1`を指す。各advanceの移動距離は`speed_mps × SimulationAdvanceIntervalV1.interval.logical_duration_seconds`をchecked deterministic numeric policyで積算し、`traveled_distance_m`をauthoritative State／Save／Replayへ保存する。durationがnullなら対応advance-driven Projectile policyなしに実行しない。`max_range_m`によるexpireは、この積算距離と`delivery_definition_ref`が示す`max_range_m`だけで判定する。spawn originの保存を必要とせず、Save／Load後も同じInterval record列から同じexpire advanceへ再決定できる。
 
 ### 3.6 `AmmoPolicyV1`と`ReloadPolicyV1`
 
@@ -204,12 +213,12 @@ AmmoPolicyV1
 
 ReloadPolicyV1
   reload_kind: none | full_magazine
-  duration_ticks: optional
+  duration_advances: optional
   trigger_policy: manual | manual_or_empty, optional
   interruption: not_interruptible | cancel_preserve_ammo, optional
 ```
 
-capacityは`[0,65,535]`とし、initial値は対応capacity以下とする。`infinite`は4つのcapacity／initial Fieldを0、`ReloadPolicyV1.reload_kind=none`とし、ammo FieldをRuntime State／HUD／Saveへ作らない。`magazine_reserve`は`magazine_capacity>=1`を要求する。`reload_kind=none`では3つのoptional Fieldを持たず、`full_magazine`では`duration_ticks=[1,36,000]`とtrigger／interruptionをすべて必須とする。C1 reloadは完了時に必要量をreserveからmagazineへ一度だけ移し、animation eventやAudio completionをauthoritative完了条件にしない。
+capacityは`[0,65,535]`とし、initial値は対応capacity以下とする。`infinite`は4つのcapacity／initial Fieldを0、`ReloadPolicyV1.reload_kind=none`とし、ammo FieldをRuntime State／HUD／Saveへ作らない。`magazine_reserve`は`magazine_capacity>=1`を要求する。`reload_kind=none`では3つのoptional Fieldを持たず、`full_magazine`では`duration_advances=[1,36,000]`とtrigger／interruptionをすべて必須とする。C1 reloadは完了時に必要量をreserveからmagazineへ一度だけ移し、animation eventやAudio completionをauthoritative完了条件にしない。
 
 ### 3.7 `WeaponInstanceStateV1`と`WeaponLoadoutStateV1`
 
@@ -223,11 +232,11 @@ WeaponInstanceStateV1
   reserve_ammo: optional
   fire_binding_states[1..2]:
     semantic_role: primary | secondary
-    cadence_cycle_start_tick
+    cadence_cycle_start_advance
     cadence_activation_index
     trigger_held
   reload_state
-  reload_complete_tick
+  reload_complete_advance
   enabled
 ```
 
@@ -279,7 +288,7 @@ RadialDamageDefinitionV1
   occlusion_query_profile_ref: optional
 ```
 
-`0 <= inner_radius_m <= outer_radius_m <= 1,000`、`max_targets=[1,256]`とする。`none`はquery refを持たず、`collision_query`は必須とする。候補はdistance、Target Stable IDの順でcanonicalに選び、`max_targets`超過をpartial Damageで継続せず`CombatQueryCapacityExceeded`としてtickをfaultする。`linear_q16`はinnerで1.0、outerで0.0のQ16倍率とし、Gameplay DamageをVFX radiusから取得しない。
+`0 <= inner_radius_m <= outer_radius_m <= 1,000`、`max_targets=[1,256]`とする。`none`はquery refを持たず、`collision_query`は必須とする。候補はdistance、Target Stable IDの順でcanonicalに選び、`max_targets`超過をpartial Damageで継続せず`CombatQueryCapacityExceeded`として当該advanceをfaultする。`linear_q16`はinnerで1.0、outerで0.0のQ16倍率とし、Gameplay DamageをVFX radiusから取得しない。
 
 C1のradial originはDeliveryが確定したcanonical Hit位置であり、HitがないActivationではradial Damageを生成しない。timer、remote detonation、persistent area Damageは現在のcontractの対象外であり、将来scopeまたはschema判断は[Product Plan](../00-product/product-plan.md)へ委譲する。
 
@@ -298,7 +307,7 @@ VitalStateV1
   max_health_points
   shield_points
   max_shield_points
-  invulnerable_until_tick
+  invulnerable_until_advance
   life_state: alive | defeated
   last_damage_credit
 ```
@@ -313,10 +322,10 @@ DamageCreditRecordV1
   credited_entity_ref
   credited_team_ref
   damage_spec_ref
-  credit_tick
+  credit_advance
 ```
 
-`VitalStateV1.last_damage_credit`は同recordへの参照であり、`defeat_credit_policy=last_hit`の確定、`DefeatEventV1`のcredit、Score加点の根拠に使う。creditはDamage適用が確定したtickだけで更新し、blockされたDamageでは更新しない。
+`VitalStateV1.last_damage_credit`は同recordへの参照であり、`defeat_credit_policy=last_hit`の確定、`DefeatEventV1`のcredit、Score加点の根拠に使う。creditはDamage適用が確定したadvanceだけで更新し、blockされたDamageでは更新しない。
 
 ### 3.12 `ScoreRuleDefinitionV1`と`ScoreStateV1`
 
@@ -326,7 +335,7 @@ ScoreRuleDefinitionV1
   event_kind: defeat | pickup_collected | objective_completed | wave_completed | boss_defeated
   base_points: int64
   combo_increment
-  combo_expire_ticks
+  combo_expire_advances
   multiplier_curve_ref: optional
   target_filter: optional
     hostile_team_filter_ref: optional
@@ -343,7 +352,7 @@ ScoreStateV1
   current_score: int64
   combo_count: uint32
   multiplier_q16
-  combo_expire_tick
+  combo_expire_advance
   session_high_score: int64
   persistent_high_score: int64
 ```
@@ -364,7 +373,7 @@ EncounterPatternDefinitionV1
   spawn_groups[1..1024]: SpawnGroupV1
   completion_condition: all_defeated | goal_reached | time_expired | boss_defeated
   goal_ref: optional
-  time_limit_ticks: optional
+  time_limit_advances: optional
   boss_phase_refs[0..32]
   difficulty_profile_ref
   rng_stream_ids[]
@@ -375,7 +384,7 @@ EncounterPhaseV1
 
 EncounterWaveV1
   wave_id: StableId
-  start_tick
+  start_advance
   spawn_group_refs[1..1024]
 
 SpawnGroupV1
@@ -383,15 +392,15 @@ SpawnGroupV1
   enemy_archetype_ref
   spawn_transform_ref
   spawn_count: uint16
-  spawn_start_offset_ticks
-  spawn_interval_ticks
+  spawn_start_offset_advances
+  spawn_interval_advances
 ```
 
-各waveは丁度一つのphaseの`wave_refs`に、各spawn groupは丁度一つのwaveの`spawn_group_refs`に現れ、未参照と重複参照を拒否する。`boss_phase_refs`は`phases`のsubsetである。tickはEncounter開始を0とし、`start_tick=[0,36,000]`、`spawn_start_offset_ticks=[0,36,000]`、`spawn_interval_ticks=[0,3600]`、`spawn_count=[1,256]`とする。`spawn_count>=2`は`spawn_interval_ticks>=1`を要求する。
+各waveは丁度一つのphaseの`wave_refs`に、各spawn groupは丁度一つのwaveの`spawn_group_refs`に現れ、未参照と重複参照を拒否する。`boss_phase_refs`は`phases`のsubsetである。advance offsetはEncounter開始を0とし、`start_advance=[0,36,000]`、`spawn_start_offset_advances=[0,36,000]`、`spawn_interval_advances=[0,3600]`、`spawn_count=[1,256]`とする。`spawn_count>=2`は`spawn_interval_advances>=1`を要求する。
 
-`completion_condition`はclosed enumであり、`goal_reached`だけが`goal_ref`を必須として他では持たない。`time_expired`だけが`time_limit_ticks=[1,36,000]`を必須として他では持たない。`boss_defeated`は`boss_phase_refs`が非空であることを要求する。
+`completion_condition`はclosed enumであり、`goal_reached`だけが`goal_ref`を必須として他では持たない。`time_expired`だけが`time_limit_advances=[1,36,000]`を必須として他では持たない。`boss_defeated`は`boss_phase_refs`が非空であることを要求する。
 
-Spawn順、Wave遷移、Boss phaseはfixed tick、Stable ID順、登録済みRNG streamで決める。VFX completion、Audio duration、Animationのpresentation-only Notifyを進行条件にしない。
+Spawn順、Wave遷移、Boss phaseは選択Cadenceのadvance sequence、Stable ID順、登録済みRNG streamで決める。Definitionは`FeatureRuntimeTimebaseBindingV1`と異なるCadence Profileへ再生せず、VFX completion、Audio duration、Animationのpresentation-only Notifyを進行条件にしない。
 
 ### 3.14 `PickupDefinitionV1`、`GrantRequestV1`、`PickupInstanceStateV1`
 
@@ -424,7 +433,7 @@ PickupInstanceStateV1
   grant_transaction_id: optional
   pending_collector_ref: optional
   collected_by_ref: optional
-  collected_tick: optional
+  collected_advance: optional
 ```
 
 `feature.pickup_grant`はGrant providerの型、State、capacityを知らない。Definitionは登録済み`grant_type_ref`とtyped payloadだけを保持し、grant種別からWeapon、Vital、Scoreその他のCapabilityを推論しない。このためmanifestのrequired Feature／Capabilityは空であり、providerが0件でもPackをinstallできる。
@@ -437,12 +446,12 @@ GrantRequestPortV1
   result_contract_ref: GrantResultV1
   provider_state_owner_ref
   consume_phase_ref
-  max_requests_per_tick
+  max_requests_per_advance
 ```
 
 各provider FeatureまたはProjectは自身のmanifestから`GrantRequestPortV1`実装を登録する。同じ`grant_type_ref`へのactive providerはexactly oneとし、未登録型は`rejected_unsupported_type`、capacity不足は`rejected_no_capacity`を返す。Pickup Systemはprovider Stateを直接writeしない。
 
-同一Pickupへ同tickに複数collectorが接触した場合は`pickup_instance_id, collector StableId`順の先頭だけを`pending_grant`へ遷移する。providerが`accepted`を返した時だけ`collected`へ進み、通常拒否では`available`へ戻す。pending中の重複collectionを禁止し、queue／invariant失敗はpending transactionを保持してSession faultとする。現在のcontractはone-shot collectionだけを扱い、respawn、random loot table、inventory weightは対象外として拒否する。
+同一Pickupへ同一advanceに複数collectorが接触した場合は`pickup_instance_id, collector StableId`順の先頭だけを`pending_grant`へ遷移する。providerが`accepted`を返した時だけ`collected`へ進み、通常拒否では`available`へ戻す。pending中の重複collectionを禁止し、queue／invariant失敗はpending transactionを保持してSession faultとする。現在のcontractはone-shot collectionだけを扱い、respawn、random loot table、inventory weightは対象外として拒否する。
 
 ## 4. Game SystemとState owner
 
@@ -470,7 +479,7 @@ GrantRequestPortV1
 
 各scope typeは`RuntimeScopeTypeRefV1 {scope_type_id, scope_type_version=1, scope_type_hash}`、type／policy cellは`McdContractRefV1 {id, version=1, contract_set_hash}`、owner cellは`RuntimeScopeOwnerRefV1 {owner_id, owner_revision, owner_content_hash}`として保存し、表の裸IDを永続化しない。全dependency recordをactive Scope Registryへ登録する。Save identity、Replay identity、ephemeral runtime generationを別Fieldで保持し、複数instanceのStateをSource IDまたはRuntime handleで合成しない。
 
-旧System Sourceのclean migrationはCore tableへFeature IDを追加せず、Gameplay Programming Modelの`RuntimeScopeMigrationContributionRegistryV1`へ各Feature ownerが次のexact Receipt-free recordを登録する。全recordはsource schema `type.game_system.spec` version 1、destination schema version 2、owner固有source-System match policy、auxiliary record migration policy、identity mapping policy、self-excluding content hashを持つ。Registry／ContributionRef固定後に別owner-typed Qualification subject／signed Receipt／Qualification Bindingを作り、Fixture bodyはsubjectだけが解決する。
+旧System Sourceの実在bytesは現計画から証明されていない。次の三rowはcurrent Pack memberではなく、Gameplay Programming Model §3.1.2のconditional legacy migrationがsigned `LegacyMigrationInventoryV1` gateを満たしてatomic activationされる場合だけ追加できるdestination templateである。currentの三Pack `migration_contribution_refs[]`、Feature owner Contribution Registry subset、Qualification subject／Receipt／Binding、Activation Catalog集合はすべてexact `[]`である。Activation transactionではCore tableへFeature IDを追加せず、Gameplay Programming Modelの`RuntimeScopeMigrationContributionRegistryV1`へ各Feature ownerが次のexact Receipt-free recordを登録する。全recordはInventoryが束縛したsource schema `type.game_system.spec` version 1、destination schema version 2、owner固有source-System match policy、auxiliary record migration policy、identity mapping policy、self-excluding content hashを持つ。Registry／ContributionRef固定後に別owner-typed Qualification subject／signed Receipt／Qualification Bindingを作り、Fixture bodyはsubjectだけが解決する。
 
 | contribution ID／owner | source match | legacy scope | destination | root外Qualification Binding |
 |---|---|---|---|---|
@@ -478,7 +487,7 @@ GrantRequestPortV1
 | `runtime_scope.migration_contribution.feature.encounter_spawn`／`owner.feature.encounter_spawn` | exact legacy Encounter System ref／hash | `encounter_instance` | `scope.feature.encounter_spawn.instance` | `qualification_binding.runtime_scope_migration.feature.encounter_spawn@1` |
 | `runtime_scope.migration_contribution.feature.character_locomotion`／`owner.feature.character_locomotion` | exact legacy Character Locomotion binding System ref／hash | `entity_instance` | `scope.core.entity` | `qualification_binding.runtime_scope_migration.feature.character_locomotion@1` |
 
-同じlegacy valueの別Systemへ適用せず、0件／複数match、owner／Qualification Binding／Receipt／policy hash stale、Source／Save／Replay identity mapping不一致をFeature Qualificationで拒否する。Core migratorはgeneric resolverだけを実行し、この三record、Binding、adapter、Qualification subject／Fixtureをhard-codeしない。
+Activation Qualificationは同じlegacy valueの別Systemへ適用せず、0件／複数match、owner／Qualification Binding／Receipt／policy hash stale、Source／Save／Replay identity mapping不一致を拒否する。Activation後のCore migratorはgeneric resolverだけを実行し、この三record、Binding、adapter、Qualification subject／Fixtureをhard-codeしない。
 
 Ranged Combat ownerはShooterその他のconsumerが参照するPort／Eventを次のMCD typeとして登録する。
 
@@ -497,7 +506,7 @@ ShotHitEventV1
   target_ref
   normalized_collision_evidence_ref
   producer_system_ref
-  accepted_tick
+  accepted_advance
 ```
 
 Port descriptorのexact MCD refは`{id=type.feature.ranged_combat.collision_query_port, version=1, contract_set_hash}`であり、request／result schema、Collision owner、consume phase、capacity、failure Diagnosticを閉じる。Genre Pack、Project provider、fixtureはこの三refを再定義せず、version／Contract set hash込みで参照する。旧`mirakan.port.*`、`mirakan.event.*`、PascalCase ID、ID内`@1`をcurrent validatorはrejectする。
@@ -511,13 +520,15 @@ GameplayMotionIntentV1
   actor_generation
   desired_linear_motion
   desired_angular_motion
-  valid_for_tick
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_hash: SHA-256
+  valid_for_advance_sequence
   movement_profile_ref
 ```
 
 exact MCD refは`{id=type.feature.character_locomotion.gameplay_motion_intent, version=1, contract_set_hash}`である。出力はNavigation-owned `{id=type.navigation.motion_intent_contribution, version=1, contract_set_hash}`、最終transportはCore publisherだけが発行する`type.navigation.motion_executor_intent_batch`である。旧案`type.feature.character_locomotion.motion_executor_selection_state`はactivateされておらず、current MCD／Source／Save／Replayに登録もaliasも持たない。selected Provider identityはNavigationのSelection Documentとbatch closureだけが所有する。IDに`mirakan.schema`／`mirakan.contract`、PascalCase、`@1`を含めない。
 
-`game_system.extension.feature.character_locomotion.contribution`の全mandatory Fieldは次へ固定する。
+`game_system.extension.feature.character_locomotion.contribution`の全mandatory Fieldは次へ固定する。次のrecordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `GameSystemSpecV2` schemaのCharacter Locomotion具体instanceであり、schemaの再定義ではない。
 
 ```text
 GameSystemSpecV2
@@ -626,7 +637,7 @@ GameSystemDependencyEdgeV1.payload
   edge_kind: port_target
   transport_type_ref: exact type.navigation.motion_intent_contribution v1
   phase_relation: same_phase_t40_before_core_batch_publisher
-  delivery: at_most_once_per_actor_generation_tick
+  delivery: at_most_once_per_actor_generation_advance
   required: true
   fallback: no_fallback
 
@@ -643,7 +654,7 @@ GameSystemImplementationPolicyV1.payload
   unavailable_behavior: reject_activation_keep_last_valid
 
 BehaviorBudgetRecordV1.payload
-  max_contributions_per_actor_generation_tick: 1
+  max_contributions_per_actor_generation_advance: 1
   max_inline_payload_bytes_per_entry: 65536
   overflow_behavior: typed_reject_no_partial_contribution
   target_budget_refs: exact set per active Target
@@ -661,6 +672,11 @@ CompatibilityInvariantRecordV1.payload
     | MIRAKAN-LOCOMOTION-AUTHORITY_VIOLATION
   failure_behavior: reject_without_partial_contribution
 
+```
+
+次の三recordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `GameSystemQualificationSubjectV1`、`GameSystemQualificationReceiptV1`、`GameSystemActivationBindingV1` schemaのCharacter Locomotion具体instanceであり、schemaの再定義ではない。
+
+```text
 GameSystemQualificationSubjectV1
   qualification_id: qualification.feature.character_locomotion.contribution
   qualification_version: 1
@@ -769,6 +785,8 @@ cooldown、reload中、ammo不足、operation eligibility policy denialは通常
 
 ### 5.1 Command
 
+次のblockは既に本書で定義したCommand schemaを列挙するsymbol inventoryであり、`GrantRequestV1`を含め型を再定義しない。
+
 ```text
 RequestFireCommandV1
 ReleaseFireCommandV1
@@ -785,6 +803,8 @@ AdvanceEncounterCommandV1
 各Commandはproducer、target owner、consume phase、combine policy、conflict key、capacity contributionをMCDへ宣言する。
 
 ### 5.2 Event
+
+次のblockは既に本書で定義したEvent／result schemaを列挙するsymbol inventoryであり、`GrantResultV1`および`ShotHitEventV1`を含め型を再定義しない。
 
 ```text
 WeaponFireAcceptedEventV1
@@ -806,7 +826,7 @@ WaveCompletedEventV1
 BossPhaseChangedEventV1
 ```
 
-Eventは原因となるCommand ID、tick、producer System、owner／target Stable ID、Definition revision、Evidence refを持つ。Display text、localized string、VFX Asset pathをauthoritative Eventへ入れない。
+Eventは原因となるCommand ID、Cadence Profile ref、Simulation Advance interval hash／sequence、producer System、owner／target Stable ID、Definition revision、Evidence refを持つ。Display text、localized string、VFX Asset pathをauthoritative Eventへ入れない。
 
 ### 5.3 Snapshot
 
@@ -814,7 +834,7 @@ Eventは原因となるCommand ID、tick、producer System、owner／target Stab
 - `RangedProjectileSnapshotV1`: count、canonical projectile records、capacity
 - `VitalSnapshotV1`: Health、Shield、invulnerability、life state
 - `ScoreSnapshotV1`: score、combo、multiplier、high score
-- `PickupSnapshotV1`: available／pending／collected、transaction、collector、collection tick
+- `PickupSnapshotV1`: available／pending／collected、transaction、collector、collection advance
 - `EncounterSnapshotV1`: encounter、phase、wave、remaining authoritative actor
 
 HUD、AI behavior、Debuggingは必要なbounded Snapshotだけを読む。Render、Audio、VFXはPresentation projectionを使い、authoritative ownerを直接queryしない。
@@ -904,7 +924,7 @@ MIRAKAN-FEATURE-REPLAY_DIVERGENCE
 MIRAKAN-FEATURE-PRESENTATION_AUTHORITY_VIOLATION
 ```
 
-DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、actual、expected、Capability、Target、State owner、Evidence ID、修正候補を持つ。
+DiagnosticはRequirement ID、Definition／Field path、System、Cadence Profile／advance sequence／phase、actual、expected、Capability、Target、State owner、Evidence ID、修正候補を持つ。
 
 `MIRAKAN-FEATURE-PRESENTATION_AUTHORITY_VIOLATION`はRender、Audio、VFX、Camera、UI、presentation-only EventまたはfixtureからFeature-owned authoritative State／Command結果へwriteまたは逆入力した時の共通Diagnosticである。Build／conformanceを失敗させ、authoritative State、last-valid Source、Feature receiptを維持する。
 
@@ -915,7 +935,7 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 | Definition／Contract不正 | ChangeSet／Cookを拒否し、last-valid Artifactを維持 |
 | State owner重複 | System Bundleをactivateしない |
 | Fire capacity不足 | Fire transaction全体を拒否し、authoritative State不変 |
-| Query result overflow | partial hitを使わずtick fault |
+| Query result overflow | partial hitを使わずadvance fault |
 | Damage target stale | Damageを適用せずtyped stale resultを記録 |
 | Pickup Grant通常拒否 | Pickupをavailableへ戻し、authoritative grantを適用しない |
 | Pickup Grant queue／invariant失敗 | pending transactionを保持してSession fault。dropしてcollected扱いにしない |
@@ -939,9 +959,9 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 ### 8.2 Fire／Weapon
 
 - single、automatic、1／2／32 burst
-- cadence 1／7／10／60 activation per 60 tickを1,000 cycle実行
+- fixed 60/1と120/1 ProfileでSource rate 1／7／10／60 Hzをexact Cooked cycleへ変換し1,000 cycle実行
 - press、hold、release、reload、switch、pause、defeatの境界
-- primary／secondary両trigger同時holdの同tick arbitration(primaryのActivation、secondary側`FireRejectedCadence`と繰延)
+- primary／secondary両trigger同時holdの同一advance arbitration（primaryのActivation、secondary側`FireRejectedCadence`と繰延）
 - ammo 0／1／capacity、reserve 0／1／capacity
 - Pattern 1／63／64 Shot、hitscan／Projectileそれぞれのcapacity丁度／capacity+1
 - capacity失敗時にammo、cadence、reload、Eventが不変
@@ -961,7 +981,7 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 - self／ally／neutral／hostile matrix
 - friendly fire変更のHigh Impact質問
 - direct／radial Damageの境界
-- ammo／health／shield／score／weapon Pickup、同tick競合、Grant失敗rollback
+- ammo／health／shield／score／weapon Pickup、同一advance競合、Grant失敗rollback
 - Defeat credit、同一Defeat重複加点0
 - combo開始／継続／expire、multiplier、high score Save／Load
 - Score int64 overflow fault
@@ -993,12 +1013,12 @@ DiagnosticはRequirement ID、Definition／Field path、System、tick／phase、
 | `fixture.feature.encounter_spawn.contract` | phase／wave／spawn ordering、completion evidence |
 | `fixture.feature.scoring.contract` | Score／Combo／overflow／persistent state |
 | `fixture.feature.pickup_grant.provider_neutral` | provider 0件、registered provider、unsupported型、rollback |
-| `fixture.feature.interaction.contract` | Interaction ownerのexact public port |
+| `fixture.feature.interaction.contract` | Interaction ownerのexact public contract、初期`spatial`／`logical`／`ui`三Contribution、排他的typed binding、World／Collisionなしlogical／ui、branch mismatch／空間Field偽装拒否 |
 | `fixture.feature.character_locomotion.motion_executor` | Navigation-owned PortのPhysicsなし2D／3D stub、optional Physics reference Provider、stale generation |
 | `fixture.feature.path_following.executor_stub` | Navigation ownerのpath execution port、board-token／RTS stub、missing／incompatible Provider |
 | `fixture.feature.scenario_stage.none` | `completion_mode=none`でcompletion ownerを要求しないStage |
 | `fixture.feature.scenario_stage.aggregate-manifest-set-equality` | Scenario Stage owner／aggregate／Contract Manifestのexact ref set equality |
-| `fixture.feature.scenario_stage.runtime_scope_migration` | owner-typed Level→Stage Scope migration contribution、Save／Replay identity、signed Qualification |
+| `fixture.feature.scenario_stage.runtime_scope_migration` | conditional legacy migration activation用destination fixture。current Pack `test_scenario_refs[]`には含めない |
 
 各fixtureはPack単体または宣言済みFeature closureだけでinstall／validate／executeできなければならない。Genre Pack、Genre Profile、product fixture、Genre固有Action roleをtest dependencyへ含めない。manual authoring、AI生成、manual再編集、AI再編集は同じSourceとFeature operationを使い、同じDefinition hash、Receipt、Runtime結果へ収束する。
 
@@ -1030,7 +1050,7 @@ Previously proposed, never activated logical IDs:
   operation.feature.validate_contract
 ```
 
-七IDは`planning.operation_family.feature_authoring@1`の予約候補以外に存在せず、current MCD、Core Authoring Gateway Manifest、Service allowlist、Provider／MCP Catalog、各Feature Manifestに存在せず、legacy aliasとしても読まない。Capability stateは`not_activated`で、要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`としてSource不変で拒否する。future work item `activation.feature.authoring_operations.v1`は、採用するexact Operation setを一つに固定し、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Policy／Validator／Diagnostic closure、canonical signed Receipt、private commit→signed wrapper→public publication recovery、Qualificationを同じContract set transactionで完全登録するまでactivateしない。read-only preview／explain／validateを将来別Operationとして採用する場合も、name-only entryを先行公開しない。
+七IDは`planning.operation_family.feature_authoring@1`の予約候補以外に存在せず、current MCD、Core Authoring Gateway Manifest、Service allowlist、Provider／MCP Catalog、各Feature Manifestに存在せず、legacy aliasとしても読まない。Capability stateは`not_activated`で、要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`としてSource不変で拒否する。future work item `activation.feature.authoring_operations.v1`は、採用するexact Operation setを一つに固定し、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Policy／Validator／Diagnostic closure、canonical signed Receipt、Qualificationを同じContract set transactionで完全登録するまでactivateしない。state-changing Operationのpublication／crash recoveryは[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)をcanonical reuseし、`private Marker read-back → secret-free PublicCommitClosureV1 candidate → signed wrapper read-back → PublicCommitClosureV1＋PublicPublicationMarkerV1＋after stateのatomic CAS`へ固定する。Closureは`domain_commitment.kind=owner_typed_state_commit`、exact selected Feature owner、Prepared payloadが束縛したreceipt-free committed artifact ref集合を持ち、Ref／hash規則を本書へ複写しない。Closure bodyまたは同Closureを束縛するsigned wrapperを欠くPublic Marker／after-state current authorityを拒否する。read-only preview／explain／validateを将来別Operationとして採用する場合も、name-only entryを先行公開せず、state-changing publicationを発生させない。
 
 ## 10. 公式資料
 

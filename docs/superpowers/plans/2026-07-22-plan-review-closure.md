@@ -632,7 +632,7 @@ Decisionへ次のclosed規則を追加する。
 
 - enable bitsetはtrivially stored componentのentity slotごとに一bit、tag／singletonには割り当てない。
 - `partition_policy`は`single | fixed_range | deterministic_hash`。
-- `RuntimeSystemExecutionContextV1`はtick、phase、partition、read snapshot、write batch、diagnostic sinkを保持する。
+- `RuntimeSystemExecutionContextV1`は`working_advance_sequence`、phase、partition、read snapshot、write batch、diagnostic sinkを保持する。
 - store generationとparticipant generationの更新順、stale拒否、publish atomicityを一つのtableで固定する。
 
 - [x] **Step 3: in-memory type naming例外を正本へ接続する**

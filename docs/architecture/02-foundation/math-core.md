@@ -49,7 +49,7 @@ MathとCore Utilitiesはほぼ全Subsystemの下位依存であり、ここで�
 ### 3.2 他文書が決定する事項
 
 - 製品のhandedness、up／forward、meter／radian、clip／depth、matrix合成規約は2D／3D機能計画。
-- Replay保証範囲、fixed tick、authoritative RNG algorithm、state hashはRuntime規約。
+- Replay保証範囲、Simulation Cadence／Advance、authoritative RNG algorithm、state hashはRuntime規約。
 - MCD共通Field、Projection、canonical JSON、Provider制約は実行可能契約規約。
 - ownership、handle、lease、allocator、memory budgetはMemory／Pointer規約。
 - Physics tolerance、collision geometry、solver値はCollision／Physics規約。
@@ -206,7 +206,7 @@ wire_layout
 | C1／C2 Runtime transform、Physics公開値、Rendering、Animation、VFX | `float32` |
 | Project／MCD wireの一般物理量 | Domainが指定する`float32`または`float64`、finite必須 |
 | Import解析、offline fit、Camera calibration、誤差評価 | 必要な処理だけ`float64` |
-| ID、tick、size、offset、count | 明示幅integer |
+| ID、Simulation Advance sequence、size、offset、count | 明示幅integer |
 | 金額、固定小数、丸め禁止量 | integer minor unitまたは`decimal_string` |
 
 `double`を「念のため」全Runtimeへ導入しない。`float64`から`float32`へ縮小する境界はrange、rounding、loss metricをConversion Reportへ記録する。

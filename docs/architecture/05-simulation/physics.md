@@ -3,7 +3,7 @@
 - 文書ID: mirakan.arch.simulation-physics
 - 状態: review
 - 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、generic Kinematic Motion reference Provider、kernel Adapter boundary、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
-- 非正本範囲: Collider geometry／filter／query／event、Runtime phase／tick／capacity、Animation pose、Navigation artifact、external dependency version／build pin、AI authorization／evidence envelope。各Owner文書を参照する
+- 非正本範囲: Collider geometry／filter／query／event、Runtime phase／Simulation Advance／capacity、Animation pose、Navigation artifact、external dependency version／build pin、AI authorization／evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](collision.md)、[Navigation](navigation.md)、[Animation](animation.md)
 - 外部根拠検証日: 2026-07-21
 
@@ -25,7 +25,7 @@ Module境界は次の意味へ固定する。
 | Physics Editor | Authoring／snapshotのProjection | 独自の正本state |
 | Qualification Tool | Backend fixture、comparison、measurement | Shipping Gameへの常時link |
 
-`PhysicsWorldOwner`だけがnative WorldとEngine handle mappingを所有する。native pointer、lock、callback view、collectorはfunction／job／tick境界を越えて保持しない。callbackはpreallocated local bufferへcopyするだけで、allocation、logging、World mutation、Gameplay dispatchを行わない。全native jobをjoinし、normalizeが完了した後だけRuntimeへ結果を渡す。
+`PhysicsWorldOwner`だけがnative WorldとEngine handle mappingを所有する。native pointer、lock、callback view、collectorはfunction／job／Simulation Advance境界を越えて保持しない。callbackはpreallocated local bufferへcopyするだけで、allocation、logging、World mutation、Gameplay dispatchを行わない。全native jobをjoinし、normalizeが完了した後だけRuntimeへ結果を渡す。
 
 ## 2. World、Body dynamics、command
 
@@ -37,16 +37,221 @@ Module境界は次の意味へ固定する。
 | `PhysicsBody2DComponent`／`PhysicsBody3DComponent` | motion kind、mass source、damping、sleep／motion policy、Collider ref | World source |
 | `KinematicMotionProfileV1` | actor collider ref、max slope、step height、ground snap距離、slide／step iteration上限、speed上限 | Project source |
 | `PhysicsWorldHandle`／`PhysicsBodyHandle` | Engine generation handle | Runtime only |
-| `PhysicsStateSnapshotV1` | normalized transform、velocity、sleep、joint／kinematic-executor state | immutable tick snapshot |
+| `PhysicsStateSnapshotV1` | normalized transform、velocity、sleep、joint／kinematic-executor state | immutable Simulation Advance snapshot |
 | `PhysicsSaveStateV1` | Engine-owned recoverable state | Save stream |
+
+### 2.1 Physics substep Profile
+
+Physicsはsubstepの意味とpartitionだけを所有し、outer Simulation Advance、Cadence選択、phase、publishは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が所有する。型を次へ固定する。
+
+```text
+PhysicsSubstepProfileRefV1
+  profile_id: namespace付きStableId
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+PhysicsSubstepDimensionEntryV1
+  dimension: d2 | d3
+  substep_count: uint8[1..16]
+
+PhysicsSubstepProfileV1
+  profile_id: namespace付きStableId
+  profile_version: positive uint32
+  interval_requirement: non_null_logical_duration
+  partition_policy: equal_rational_partition
+  dimension_entries[1..2]: PhysicsSubstepDimensionEntryV1
+  profile_content_hash: SHA-256
+
+PhysicsSubstepIntervalInputV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_hash: SHA-256
+  physics_substep_profile_ref: PhysicsSubstepProfileRefV1
+  advance_sequence: positive uint64
+  dimension: d2 | d3
+  substep_ordinal: positive uint8
+  substep_interval_seconds: ReducedPositiveRationalV1
+
+PhysicsSubstepQualificationReceiptRefV1
+  qualification_id: StableId
+  qualification_version: positive uint32
+  qualification_subject_hash: SHA-256
+  signed_record_hash: SHA-256
+
+PhysicsSubstepQualificationSubjectV1
+  qualification_id: StableId
+  qualification_version: positive uint32
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  physics_substep_profile_ref: PhysicsSubstepProfileRefV1
+  target_profile_ref: exact version/hash-bound Target ref
+  fixture_refs[1..64]: exact {fixture_id, fixture_version, fixture_content_hash}
+  input_closure_hash: SHA-256
+  result: pass | fail
+  qualification_subject_hash: SHA-256
+
+PhysicsSubstepQualificationReceiptV1
+  subject: PhysicsSubstepQualificationSubjectV1
+  signed_record:
+    exact MirakanSignedRecordV1(purpose=physics_substep_qualification)
+
+PhysicsSubstepActivationBindingRefV1
+  activation_binding_id: StableId
+  activation_binding_version: positive uint32
+  activation_binding_hash: SHA-256
+
+PhysicsSubstepActivationBindingV1
+  activation_binding_id: StableId
+  activation_binding_version: positive uint32
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  physics_substep_profile_ref: PhysicsSubstepProfileRefV1
+  target_profile_ref: exact version/hash-bound Target ref
+  qualification_receipt_ref: PhysicsSubstepQualificationReceiptRefV1
+  freshness_policy_ref
+  activation_binding_hash: SHA-256
+```
+
+`profile_content_hash`はASCII `MIRAKAN_PHYSICS_SUBSTEP_PROFILE_V1`と、同Fieldだけを除くclosed recordのRFC 8785 JCS bytesを`uint32_be` length framingしてSHA-256する。Refは完成base recordのID／version／self-excluding content hashからrecord外でmaterializeし、base record自身へ埋め戻さない。`dimension_entries[]`はactive Physics Worldのdimension集合とexact set equality、`d2`、`d3`の順へstrict sortし、duplicate、逆順、選択されていないdimension、count 0または17以上を拒否する。
+
+Qualification subject hashはASCII `MIRAKAN_PHYSICS_SUBSTEP_QUALIFICATION_SUBJECT_V1`、Activation Binding hashはASCII `MIRAKAN_PHYSICS_SUBSTEP_ACTIVATION_BINDING_V1`と各自己hash Fieldだけを除くclosed canonical bytesから計算する。生成順は`Receipt-free PhysicsSubstepProfile → Profile Ref／Cadence Profile → Target別Qualification subject → signed Receipt → root外Activation Binding／Binding Ref → Runtime Package`である。Binding三RefはReceipt subjectのCadence、Substep、Targetとbyte equalityで、Receiptのsubject hash／signed record hash、`result=pass`、freshness／revocationを検証する。Receipt、Binding、Fixture bodyをSubstep ProfileまたはCadence Profileのcontent hashへ埋め戻さず、Production Runtime PackageはProfile RefとBinding Refを別Fieldで保持する。
+
+T50は一つのsealed `SimulationAdvanceIntervalV1`の正のlogical duration `D={numerator,denominator}`を、選択dimension entryの`substep_count = C`に従いordinal `1..C`の各`D/C`へexact rational partitionする。`g=gcd(numerator,C)`、`substep={numerator/g, denominator*(C/g)}`の順でcross-reduceしてからchecked multiplicationし、既約化後の分子／分母が`ReducedPositiveRationalV1`の各`uint32`表現域へ収まらないProfile／Interval組合せはT50前に`physics_substep_interval_overflow`で拒否する。wrap、saturate、float、別rateへの近似を使わない。全`PhysicsSubstepIntervalInputV1`は同じCadence Profile ref、outer interval hash、advance sequence、Substep Profile refへbyte equalityでbindし、ordinal順に実行する。substepは新しいSimulation Advance、Input sample、Timer boundary、event delivery boundaryまたはpublish boundaryを生成せず、T60は全substep完了後にouter advanceにつきexact一回だけ結果を統合する。null duration、dimension entry不足、Profile／Target Qualification不足、Cadence／outer interval／Substep Profile ref不一致ではfallbackせず`cadence_profile_not_qualified`としてT50開始前に拒否する。
+
+current reference `fixed 60/1` Cadenceは`physics_substep_profile_ref=null`かつouter advance当たり一回のPhysics solveだけをProduction Qualification対象とし、current Substep Qualification subject／Receipt／Activation Binding集合はexact `[]`である。non-null Profileは`future.capability.alternate-simulation-cadence-and-substep`がactiveになり、選択する全`{Cadence Profile Ref, PhysicsSubstepProfileRef, Target Profile Ref}`へpassかつfreshな`PhysicsSubstepActivationBindingRefV1`を同じactivation transactionで登録し、Runtime Package、typed Save header、`AuthoritativeReplayHeaderV1`／Domain Replay closureが同じProfile／Binding Refへ閉じるまでplanning-onlyである。Activation前は`cadence_profile_not_qualified`を返し、暗黙のBackend既定substepへ変換しない。
 
 2Dと3Dは別Worldであり、同じEntityへ両dimensionのBodyを付与しない。Body kindは`static | kinematic | dynamic`のclosed enumである。Visual scaleをnative Bodyへ渡さず、Collider geometryは[Collision](collision.md)のCooked Assetに焼き込む。finiteでない値、範囲外のmass／velocity、generation mismatchは明示failureにし、silent clampやnative defaultへのfallbackをしない。
 
 World lifecycleは`uncreated | validating | ready | stepping | stop_requested | draining | destroyed | faulted`のEngine stateで表す。active WorldのProfile、worker class、solver semanticsをlive mutateしない。compatible changeはRuntime boundaryで新generationをactivateし、incompatible changeはPlay停止を要求する。native state名はpublic lifecycleへ露出しない。
 
-### 2.1 Dynamics command
+### 2.2 Immutable state snapshot
 
-`PhysicsDynamicsCommandV1`はtarget handle／expected generation、consume tick ref、producer metadata、priority、tagged payloadを持つ。payloadは次のclosed command familyである。
+`PhysicsStateSnapshotV1`は名前だけのprojectionではなく、T60でnormalize済みの一World／一Simulation Advanceを表す次のclosed schemaである。
+
+```text
+PhysicsBodySnapshotRefV1
+  entity_stable_id: StableId
+  body_id: StableId
+  body_generation: positive uint64
+
+PhysicsWorldProfileRefV1
+  dimension: d2 | d3
+  profile_id: StableId
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+PhysicsBodySnapshotStateV1
+  body_ref: PhysicsBodySnapshotRefV1
+  motion_kind: static | kinematic | dynamic
+  state:
+    | kind: d2
+      position: WorldPosition2f
+      rotation: Radians
+      linear_velocity: Velocity2f(world)
+      angular_velocity_radians_per_second: finite float32
+    | kind: d3
+      position: WorldPosition3f
+      rotation: NormalizedQuaternion
+      linear_velocity: Velocity3f(world)
+      angular_velocity: AngularVelocity3f(world)
+  sleep_state: not_applicable | awake | sleeping
+
+PhysicsJointCoordinateSnapshotV1
+  coordinate_ordinal: uint16
+  state:
+    | kind: linear
+      position_m: finite float32
+      velocity_m_per_second: finite float32
+    | kind: angular
+      position_radians: finite float32
+      velocity_radians_per_second: finite float32
+  limit_state: inactive | lower | upper
+  motor_state: disabled | enabled
+
+PhysicsJointSnapshotStateV1
+  joint_id: StableId
+  joint_generation: positive uint64
+  joint_kind:
+    d2_distance | d2_revolute | d2_prismatic | d2_weld |
+    d3_fixed | d3_point | d3_distance | d3_hinge |
+    d3_slider | d3_swing_twist
+  body_a_ref: PhysicsBodySnapshotRefV1
+  body_b:
+    | kind: body
+      body_ref: PhysicsBodySnapshotRefV1
+    | kind: world_anchor
+  lifecycle_state: active | disabled | broken_pending_removal
+  coordinate_states[0..6]: PhysicsJointCoordinateSnapshotV1
+
+PhysicsKinematicExecutorSnapshotStateV1
+  actor_body_ref: PhysicsBodySnapshotRefV1
+  provider_record_ref: MotionExecutorProviderRecordRefV1
+  provider_activation_binding_ref:
+    MotionExecutorProviderActivationBindingRefV1
+  provider_generation: positive uint64
+  motion_profile_ref:
+    exact {profile_id, profile_version, profile_content_hash}
+  motion_state: grounded | sliding | airborne
+  resolved_state:
+    | kind: d2
+      position: WorldPosition2f
+      rotation: Radians
+      linear_velocity: Velocity2f(world)
+      ground_attachment:
+        null |
+        {body_ref: PhysicsBodySnapshotRefV1,
+         local_contact: LocalPosition2f,
+         world_normal: UnitDirection2f,
+         platform_displacement: Displacement2f(world)}
+    | kind: d3
+      position: WorldPosition3f
+      rotation: NormalizedQuaternion
+      linear_velocity: Velocity3f(world)
+      ground_attachment:
+        null |
+        {body_ref: PhysicsBodySnapshotRefV1,
+         local_contact: LocalPosition3f,
+         world_normal: UnitDirection3f,
+         platform_displacement: Displacement3f(world)}
+  source_intent_batch_hash: SHA-256
+  resolved_motion_generation: positive uint64
+
+PhysicsStateSnapshotV1
+  schema_version: 1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_ref: SimulationAdvanceIntervalRefV1
+  simulation_advance_interval_sha256: SHA-256
+  advance_sequence: positive uint64
+  physics_substep_profile_ref: null | PhysicsSubstepProfileRefV1
+  physics_substep_activation_binding_ref:
+    null | PhysicsSubstepActivationBindingRefV1
+  world_id: namespace付きStableId
+  world_dimension: d2 | d3
+  world_generation: positive uint64
+  physics_world_profile_ref: PhysicsWorldProfileRefV1
+  physics_world_profile_activation_generation: positive uint64
+  body_states[0..65536]: PhysicsBodySnapshotStateV1
+  joint_states[0..65536]: PhysicsJointSnapshotStateV1
+  kinematic_executor_states[0..65536]:
+    PhysicsKinematicExecutorSnapshotStateV1
+  snapshot_content_hash: SHA-256
+
+PhysicsStateSnapshotRefV1
+  cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_ref: SimulationAdvanceIntervalRefV1
+  world_id: namespace付きStableId
+  world_generation: positive uint64
+  physics_world_profile_ref: PhysicsWorldProfileRefV1
+  physics_world_profile_activation_generation: positive uint64
+  snapshot_content_hash: SHA-256
+```
+
+snapshotはT60で全native jobをjoinした後、生成元のcompleted `SimulationAdvanceIntervalV1`からだけ構築する。`cadence_profile_ref`、`simulation_advance_interval_ref.cadence_profile_ref`、生成元Intervalの同Fieldはbyte equality、`advance_sequence`はRefと生成元Intervalの同Fieldへbyte equalityである。Refの`interval_content_hash`は生成元Intervalのself-excluding semantic `interval_content_hash`と一致させ、隣接する`simulation_advance_interval_sha256`はそのhash Fieldを含むcompleted Interval全canonical bytesのSHA-256と一致させる。semantic content hashとcompleted-object SHAを相互代用しない。World／World Profileのidentityとactivation generation、Substep Profile／BindingはそのIntervalを実行したactive runtime selectionと一致させ、`physics_world_profile_ref.dimension`は`world_dimension`と同じにする。T50途中のstate、別World、別Profile generation、別advanceの値を混在させない。
+
+bodyは`body_ref.entity_stable_id, body_ref.body_id, body_ref.body_generation`、jointは`joint_id, joint_generation`、kinematic executorは`actor_body_ref`のcanonical byte順へstrict sortする。joint coordinateは`coordinate_ordinal`昇順で、ordinal集合は解決したjoint family schemaとexact set equalityにする。duplicate、逆順、wrong-dimension variant、存在しないBody ref、generation不一致、同一Bodyの2D／3D重複を拒否する。各arrayの上限を超える場合はsnapshotを切り詰めず、`physics_snapshot_capacity_exceeded`で当該authoritative advanceのpublishをfaultする。staticはzero velocityかつ`sleep_state=not_applicable`、kinematicも`sleep_state=not_applicable`、dynamicだけが`awake | sleeping`を持つ。全数値は[Math core](../02-foundation/math-core.md)のSI単位、finite、normalization、canonical quantizationを通し、native padding、pointer、solver island、cache、worker順、Backend enumを含めない。
+
+`snapshot_content_hash`はASCII `MIRAKAN_PHYSICS_STATE_SNAPSHOT_V1`と同Fieldだけを除く上記closed recordのMCD canonical bytesを各`uint32_be` length framingしてSHA-256する。Refは完成snapshotからrecord外でmaterializeし、snapshot自身へ埋め戻さない。consumerは要求時にexpected `PhysicsStateSnapshotRefV1`またはその全Fieldと等価なtyped expectationを渡し、Interval Ref、advance sequence、World generation、World Profile ref／activation generation、snapshot hashの一件でも異なるsnapshotを`physics_snapshot_stale`で副作用前に拒否する。次advanceで直前snapshotを読むpipelineは直前のexact Refをexpected値として明示し、`latest`、ID-only lookup、current generationへの再解決、cross-advance rebaseを行わない。
+
+### 2.3 Dynamics command
+
+`PhysicsDynamicsCommandV1`はtarget handle／expected generation、`cadence_profile_ref`、`simulation_advance_interval_hash`、`consume_advance_sequence`、producer metadata、priority、tagged payloadを持つ。payloadは次のclosed command familyである。
 
 - force／torque／impulse
 - bounded linear／angular velocity assignment
@@ -56,7 +261,7 @@ World lifecycleは`uncreated | validating | ready | stepping | stop_requested | 
 
 同一Bodyへのcommandは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical merge keyを消費する。Teleportと通常motion commandの競合、generation不一致、wrong body kind、wrong dimensionはtyped conflictとして全体を拒否する。Force、Impulse、velocityを暗黙変換しない。command arena、queue、overflow値をPhysicsで持たない。
 
-Physics executionはRuntimeのcanonical identifiers `T30_PrePhysics`、`T40_MotionIntent`、`T50_PhysicsStep`、`T60_PhysicsIntegrate`、`T70_PostPhysics`への参照で接続する。正確な順序、writer、tick frequencyは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md#4-60-hz-fixed-tickとphase-identifier)だけが決定し、本書はphase tableを再掲しない。
+Physics executionはRuntimeのcanonical identifiers `T30_PrePhysics`、`T40_MotionIntent`、`T50_PhysicsStep`、`T60_PhysicsIntegrate`、`T70_PostPhysics`への参照で接続する。正確な順序、writer、Simulation Cadenceは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md#4-simulation-cadenceとphase-identifier)だけが決定し、本書はphase tableを再掲しない。
 
 ## 3. Joint、Constraint、optional Physics Kinematic Motion Provider
 
@@ -64,13 +269,13 @@ Physics executionはRuntimeのcanonical identifiers `T30_PrePhysics`、`T40_Moti
 
 2D C1 familyはdistance、revolute、prismatic、weld、3D C1 familyはfixed、point、distance、hinge、slider、swing-twistを持つ。各familyはSI単位、normalized axis、orthogonal frame、ordered limit、finite motor targetを検証する。Vendor enum値、constraint pointer、reaction callbackは保存しない。新familyはCapability、schema、Editor、AI vocabulary、fixtureを同時に追加する。
 
-Joint break候補はAdapter結果をSI単位へnormalizeし、Engine Stable IDとtick refを持つ`JointBreakEventV1`へ変換する。配送と次boundaryのcomponent removalはRuntime ownerの順序を消費する。Backend間のreaction値へbitwise一致は要求せず、fixtureで許容されるsemantic rangeを検査する。
+Joint break候補はAdapter結果をSI単位へnormalizeし、Engine Stable ID、`cadence_profile_ref`、`simulation_advance_interval_hash`、`advance_sequence`を持つ`JointBreakEventV1`へ変換する。三Fieldはbreak候補を生成したcanonical `SimulationAdvanceIntervalV1`の同値とbyte equalityにする。配送と次boundaryのcomponent removalはRuntime ownerの順序を消費する。Backend間のreaction値へbitwise一致は要求せず、fixtureで許容されるsemantic rangeを検査する。
 
 ### 3.1 Kinematic Motion reference Provider
 
 C1 reference recipeはEngine-owned Kinematic Motion Providerを適格化するが、任意Packのinstall、Path Following、Runtime EntryはこのProviderを要求しない。Backend固有controllerをProject APIへ公開せず、[Collision](collision.md)のoverlap／shape castだけを利用する。
 
-Provider-private `KinematicMoveIntentV1`はactor handle、consume tick ref、planar displacement、vertical proposal、edge-triggered motion flags、up direction、producer metadataを持つ。これはaccepted public intentではなく、owner adapterがNavigation `MovementIntentV1`または`MotionIntentContributionV1`を検証してexact `AdaptedMotionIntentV1`へ変換し、generic resolverが封印したbatchをPhysics Providerが受理した後にだけ生成するderived inputである。raw二型はadapter source metadataでありProvider accepted setへ入れない。Port、Project Source、Save、Replayへprivate型参照を公開せず、producer固有proposalを内部Fieldへ複写しない。`PhysicsKinematicResolvedMotionV1`はresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnostic、input batch hash、generationを持つ。
+Provider-private `KinematicMoveIntentV1`はactor handle、consume advance sequence、Cadence Profile ref、Simulation Advance interval hash、planar displacement、vertical proposal、edge-triggered motion flags、up direction、producer metadataを持つ。これはaccepted public intentではなく、owner adapterがNavigation `MovementIntentV1`または`MotionIntentContributionV1`を検証してexact `AdaptedMotionIntentV1`へ変換し、generic resolverが封印したbatchをPhysics Providerが受理した後にだけ生成するderived inputである。raw二型はadapter source metadataでありProvider accepted setへ入れない。Port、Project Source、Save、Replayへprivate型参照を公開せず、producer固有proposalを内部Fieldへ複写しない。`PhysicsKinematicResolvedMotionV1`はresolved pose／velocity、state、ground handle／generation／normal／relative point、platform delta、hit summary、diagnostic、input batch hash、generationを持つ。
 
 `capability.motion_executor.physics_kinematic`はPhysics Providerが提供する正式Capabilityであり、次のexact 7-Field descriptorを[Navigation](navigation.md)が所有する`MotionExecutorProviderCatalogV1`へproduction recordとして登録する。Port型、transport batch、contribution registry、Provider Catalogを本書で再定義しない。全MCD参照は表のID、`version=1`、選択Contract set hashを持つ`McdContractRefV1`である。
 
@@ -80,7 +285,7 @@ Provider-private `KinematicMoveIntentV1`はactor handle、consume tick ref、pla
 
 #### 3.1.1 Production implementation System contract
 
-production Providerの実装先は未指定の「Physics System」ではなく、exact `game_system.engine.physics.kinematic_motion_executor` v1である。これはNavigation Selection／batch ownershipやPhysics authoritative Stateを持たず、検証済みbatchとProfile／Collision snapshotからresolved motion Portを導出するReceipt-free `GameSystemSpecV2`である。全`@1`は同じContract set rootを持つexact MCD refの表示短記であり、ID文字列へ`@1`を含めない。
+production Providerの実装先は未指定の「Physics System」ではなく、exact `game_system.engine.physics.kinematic_motion_executor` v1である。これはNavigation Selection／batch ownershipやPhysics authoritative Stateを持たず、検証済みbatchとProfile／Collision snapshotからresolved motion Portを導出するReceipt-free `GameSystemSpecV2`である。次のrecordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical schemaのPhysics具体instanceであり、schemaの再定義ではない。全`@1`は同じContract set rootを持つexact MCD refの表示短記であり、ID文字列へ`@1`を含めない。
 
 ```text
 GameSystemSpecV2
@@ -167,7 +372,7 @@ Specの10件の補助参照は次のactive inventoryへexactly oneで解決す�
 | `implementation_policy.physics.kinematic_motion_executor` v1 | `GameSystemImplementationPolicyV1` | sealed Engine Core C++ reference implementation、live switch禁止 |
 | `budget.physics.kinematic_motion_executor` v1 | `BehaviorBudgetRecordV1` | active Targetごとのbatch／entry／profile iteration bound |
 | `invariant.physics.kinematic_motion_executor.adapted_input_only` v1 | `CompatibilityInvariantRecordV1` | accepted setはadapted intent exact一型 |
-| `invariant.physics.kinematic_motion_executor.single_resolution` v1 | `CompatibilityInvariantRecordV1` | actor／generation／tick当たりProvider callとresultは最大一件 |
+| `invariant.physics.kinematic_motion_executor.single_resolution` v1 | `CompatibilityInvariantRecordV1` | actor／generation／advance当たりProvider callとresultは最大一件 |
 | `invariant.physics.kinematic_motion_executor.no_navigation_authority` v1 | `CompatibilityInvariantRecordV1` | Selection／binding writeとNavigation batch emissionは0件 |
 
 非MCD recordの共通headerは`{record_id,record_version=1,record_content_hash,owner_ref={owner_layer=core,owner_id=owner.core.physics,owner_revision,owner_content_hash},status=active,introduced_contract_set_local_ref}`である。MCD edgeはroot前に`ContractSetLocalRefV1`、root後のprojectionだけが同root付きexternal refを使う。各hashはASCII `MIRAKAN_PHYSICS_GAME_SYSTEM_AUXILIARY_RECORD_V1`、record type ordinal、自己hashを除くheaderとtyped payloadのMCD canonical bytesをcount／length frameして計算し、System／Provider Qualification Receipt、Activation Binding、Provider Catalog hashを含めない。
@@ -218,7 +423,7 @@ GameSystemImplementationPolicyV1.payload
 BehaviorBudgetRecordV1.payload
   target_limits[1..64]:
     target_profile_ref: exact Provider supported Target ref/version/hash
-    max_batches_per_actor_generation_tick: 1
+    max_batches_per_actor_generation_advance: 1
     max_entries_per_batch: 16
     max_inline_payload_bytes_per_entry: 65536
     max_slide_iterations:
@@ -291,7 +496,7 @@ source_refs=[{ref=mirakan.arch.simulation-physics#31-kinematic-motion-reference-
 introduced_by=changeset.architecture.physics.kinematic_motion_executor.v1
 ```
 
-Contract compilerは二RequirementとSpecを同じ`ContractSetSnapshotV2`のMCD local memberとして含め、全MCD edgeをlocal identityで解決し、8件のtyped auxiliary record hashと10 refのexact `GameSystemAuxiliaryRefSetV1`をSpec local payloadへ含めてからmember hash／set rootを計算する。root確定後にだけ次のSystem ref、Qualification、signed Receipt、Activation Bindingを順にmaterializeする。
+Contract compilerは二RequirementとSpecを同じ`ContractSetSnapshotV2`のMCD local memberとして含め、全MCD edgeをlocal identityで解決し、8件のtyped auxiliary record hashと10 refのexact `GameSystemAuxiliaryRefSetV1`をSpec local payloadへ含めてからmember hash／set rootを計算する。root確定後にだけ次のSystem ref、Qualification、signed Receipt、Activation Bindingを順にmaterializeする。後三recordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `GameSystemQualificationSubjectV1`、`GameSystemQualificationReceiptV1`、`GameSystemActivationBindingV1` schemaのPhysics具体instanceであり、schemaの再定義ではない。
 
 ```text
 GameSystemContractRefV1
@@ -346,7 +551,7 @@ GameSystemActivationBindingV1
       self-excluding canonical binding bytes)
 ```
 
-production base recordは`provider_id=provider.engine.physics.kinematic_motion`、`provider_version=1`、self-excluding content hash、`owner_identity={owner_layer=core,core_system_owner_ref=上記Specのexact owner_ref,他branch=null}`、`usage=production`、`UsageTaggedImplementationSystemBaseRefV1(usage=production, production_system_ref={id=game_system.engine.physics.kinematic_motion_executor,version=1,contract_set_hash}, production_system_contract_hash=exact resolved System contract hash)`、Target Profile集合を持ち、System／Provider Qualification ReceiptまたはActivation Bindingを含めない。base record／Catalog／RecordRefを固定した後、Provider Qualification subjectだけが同じSystem base refに`production_system_activation_binding_ref={activation_binding_id=activation.game_system.physics.kinematic_motion_executor,activation_binding_version=1,activation_binding_hash}`を加えた`UsageTaggedImplementationSystemRefV1`を持つ。Providerの`owner_identity.core_system_owner_ref`、System refが解決するSpec owner、`ProviderProductionOwnerProjectionV1.game_system_owner_ref`は全Field byte equalityである。Compile／Activation／Batch／Save／Replayが使用するidentityは次のNavigation-owned RecordRef、そのRecordRefをsubjectにするexact Provider Activation Binding ref、Provider subjectが固定したこのSystem Activation Binding refの組である。
+production base recordは`provider_id=provider.engine.physics.kinematic_motion`、`provider_version=1`、self-excluding content hash、`owner_identity={owner_layer=core,core_system_owner_ref=上記Specのexact owner_ref,他branch=null}`、`usage=production`、`UsageTaggedImplementationSystemBaseRefV1(usage=production, production_system_ref={id=game_system.engine.physics.kinematic_motion_executor,version=1,contract_set_hash}, production_system_contract_hash=exact resolved System contract hash)`、Target Profile集合を持ち、System／Provider Qualification ReceiptまたはActivation Bindingを含めない。base record／Catalog／RecordRefを固定した後、Provider Qualification subjectだけが同じSystem base refに`production_system_activation_binding_ref={activation_binding_id=activation.game_system.physics.kinematic_motion_executor,activation_binding_version=1,activation_binding_hash}`を加えた`UsageTaggedImplementationSystemRefV1`を持つ。Providerの`owner_identity.core_system_owner_ref`、System refが解決するSpec owner、`ProviderProductionOwnerProjectionV1.game_system_owner_ref`は全Field byte equalityである。Compile／Activation／Batch／Save／Replayが使用するidentityは次のNavigation-owned RecordRef、そのRecordRefをsubjectにするexact Provider Activation Binding ref、Provider subjectが固定したこのSystem Activation Binding refの組である。次のrecordは[Navigation](navigation.md)が所有するcanonical `MotionExecutorProviderRecordRefV1` schemaのPhysics具体instanceであり、schemaの再定義ではない。
 
 ```text
 MotionExecutorProviderRecordRefV1
@@ -362,7 +567,7 @@ MotionExecutorProviderRecordRefV1
 
 policyはaccepted setがexact `[type.navigation.adapted_motion_intent@1]`、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityであることを検証する。このsingletonへの変更によりreceipt-free `provider.engine.physics.kinematic_motion@1` content hash、Provider Catalog hash、RecordRefを先に更新し、その固定RecordRefと既存System Activation BindingからProvider Qualification subject／input closure／signed Receipt／Provider Activation Binding、Compile／Activation／Save／Replay closureを順に更新する。System／Provider Receipt／Activation BindingをProvider base recordまたはCatalog hashへ戻さない。owner固有proposalはNavigationのgeneric contribution envelopeとexact adapter recordを介し、Physics recordへraw source typeまたはowner固有type IDを追加しない。stale Catalog ref、stale provider content hash、System base／Activation Binding mismatch、fixture RecordRefへの置換をproduction qualificationで個別に拒否する。
 
-T40のgeneric contribution resolverはNavigationとowner登録済みproposalをadapterでexact `AdaptedMotionIntentV1`へ変換し、Navigation-owned `MotionExecutorIntentBatchV1` Port messageとして提出する。選択済みPhysics Kinematic Motion Providerは全entryの`adapted_intent_schema_ref`がexact `type.navigation.adapted_motion_intent@1`であることを一度だけ検証する。`source_schema_ref`はprovenance metadataでありaccepted schema判定に使わない。全proposalはregistryで一意に選んだadapterを経由し、Providerへ直接提出しない。Provider-private `KinematicMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのpublic accepted setへ混ぜない。`MovementIntentV1`の`desired_velocity`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のfixed tick deltaを乗算してplanar displacementへ変換する。同一tickの複数proposalは各adapter policyとcanonical producer順で解決し、不採用のintentをtyped resultとしてproducerへ返す。合成優先順位をProvider内で暗黙に変更しない。
+T40のgeneric contribution resolverはNavigationとowner登録済みproposalをadapterでexact `AdaptedMotionIntentV1`へ変換し、Navigation-owned `MotionExecutorIntentBatchV1` Port messageとして提出する。選択済みPhysics Kinematic Motion Providerは全entryの`adapted_intent_schema_ref`がexact `type.navigation.adapted_motion_intent@1`であることを一度だけ検証する。`source_schema_ref`はprovenance metadataでありaccepted schema判定に使わない。全proposalはregistryで一意に選んだadapterを経由し、Providerへ直接提出しない。Provider-private `KinematicMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのpublic accepted setへ混ぜない。`MovementIntentV1.motion_request.kind=velocity`は同じ[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`SimulationAdvanceIntervalV1.interval.logical_duration_seconds`がnon-nullの場合だけ、そのexact rational durationを乗算してplanar displacementへ変換する。`displacement_per_advance`は値をそのまま使い、duration-null turn-based／explicit-stepを0秒または`1/60`秒へ変換しない。Cadence Profile ref、interval hash、advance sequence、Provider Qualificationの一件でも不一致ならT50前に拒否する。同一advanceの複数proposalは各adapter policyとcanonical producer順で解決し、不採用のintentをtyped resultとしてproducerへ返す。合成優先順位をProvider内で暗黙に変更しない。
 
 Executorのmax slope、step height、ground snap距離、iteration上限、speed上限は§2の`KinematicMotionProfileV1`だけが保持し、stage 1が検証するProfileはこのProfileである。`NavAgentProfileV1`のslope／climbとの整合検証は[Navigation](navigation.md)のrequest validationが所有する。
 
@@ -382,13 +587,40 @@ Root motionは[Animation](animation.md)からgeneric contribution resolverを経
 
 ## 4. Save、Replay、failure、qualification
 
-SaveはEngine-owned World／Body／Joint／kinematic executor state、Profile identity、Collider Asset identityを保存し、native serializationやpointerを保存しない。Loadはschema、toolchain lock compatibility、Asset identity、finite value、generation relationを検証してstaging Worldを構築し、fixture validation後にcompatible boundaryで置換する。失敗時はactive Worldを維持する。
+```text
+PhysicsColliderArtifactSaveRefV1
+  artifact_ref: ArtifactRefV1
+  source_asset_id: StableId
+  source_asset_revision: uint64
+  source_asset_content_hash: SHA-256
 
-ReplayはRuntime ownerへnormalized command、accepted async input、Profile／artifact identity、state hash、snapshot projectionを供給する。記録slotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`だけを参照し、Physics固有phaseを設けない。Replay environmentとdebug streamは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を消費する。
+PhysicsSaveStateV1
+  projection_id: StableId
+  projection_version: positive uint32
+  schema_version: 1
+  physics_state_snapshot: PhysicsStateSnapshotV1
+  collider_asset_refs[0..65536]:
+    PhysicsColliderArtifactSaveRefV1
+  projection_content_hash: SHA-256
+```
 
-主要failure classはinvalid profile、unqualified adapter、handle／generation mismatch、command conflict、joint frame invalid、kinematic depenetration failure、native invariant violation、job drain failure、save incompatibilityである。tick publish、fault transition、recovery boundaryはRuntime ownerへ委譲する。共通memory、worker、queue、frame thresholdをここで再定義しない。
+SaveはEngine-owned World／Body／Joint／kinematic executor stateを§2.2の一つのcompleted `PhysicsStateSnapshotV1`として保存し、native serialization、pointer、Backend substep state、未commitのT50途中state、snapshotと並行する別state arrayを保存しない。`projection_content_hash`はASCII `MIRAKAN_PHYSICS_SAVE_STATE_V1`と同Fieldだけを除くclosed canonical bytesから計算する。完成Projectionは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のroot外`AuthoritativeSaveDomainBindingV1`によってexact completed Headerへ結ばれ、Headerのstate-owner Projection Ref集合に本Projectionのowner／Type／ID／version／content hashがexact一件存在しなければならない。Header／BindingをProjectionへ埋め戻さない。snapshotの`cadence_profile_ref`はHeaderの`simulation_cadence_profile_ref`、`simulation_advance_interval_ref`は`last_committed_simulation_advance_interval_ref`、`simulation_advance_interval_sha256`は`last_committed_simulation_advance_interval_sha256`、`physics_substep_activation_binding_ref`はHeaderの同Fieldとそれぞれbyte equalityにする。snapshotのSubstep Profile RefはBinding subjectのSubstep Refと一致させる。null branchではsnapshotのSubstep Profile／Bindingがともにnullで、outer advance一回solveの契約と一致しなければならない。
 
-Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、C1 reference Providerのslope／stair／kinematic support surface（斜面際のstep、ceilingに接した状態のslide、移動support bodyからの離脱、狭所でのdepenetration発振を含む）、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。`fixture.navigation.motion-executor.physics-kinematic@1`はreceipt-free Provider record／Catalogを先に固定し、そのexact RecordRef、implementation System Activation Binding、Target、adapted singleton accepted setを`qualification.navigation.motion-executor.physics-kinematic@1` subjectへbindする。signed Receiptはsubjectだけを署名し、Provider Activation BindingがRecordRef＋Receipt refを保持する。positive batchは`adapted_intent_schema_ref=type.navigation.adapted_motion_intent@1`でProvider call exact一回、raw `type.navigation.movement_intent@1`または`type.navigation.motion_intent_contribution@1`へ一Fieldだけ変えた二fixtureはProvider call前にrejectする。accepted setへのraw型追加、RecordRef／Qualification subject／Receipt／Activation Binding hash staleもrejectし、last-valid resolved motion、Path Follower state、Catalogを不変にする。別fixtureはPhysics capability unavailableでも任意Packのinstallが成功し、Physics Provider選択だけがunavailableになることを検証する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
+`collider_asset_refs[]`は`source_asset_id, source_asset_revision, source_asset_content_hash, artifact_ref`のcanonical byte順へstrict sortし、duplicateを拒否する。各`artifact_ref`はexact completed `CookedColliderAssetV1`へ解決し、解決済みartifactのSource Asset identity三Fieldを隣接三Fieldとbyte equalityにする。集合はsnapshotのWorld generationを復元するためactive World definitionが参照するCooked Collider Asset集合とexact set equalityにし、unused／missing ref、path、`latest`、別revision／content hashへの再解決を拒否する。65,537件目を切り詰めず`physics_save_capacity_exceeded`でSaveを不成立にする。
+
+Loadはschema、toolchain lock compatibility、snapshot content hash、World／Substep Profile、Cadence、last Interval semantic hash／completed SHA、Collider Asset identity、finite value、generation relationを検証してstaging Worldを構築し、fixture validation後にcompatible Simulation Advance boundaryで置換する。Header／Profile／Interval／Binding／Projection／snapshot不一致をcurrent値、Backend default、fixed 60/1へ読み替えず、明示migrationまたは`physics_save_incompatible`で拒否する。失敗時はactive Worldを維持する。
+
+ReplayはRuntime ownerへnormalized command、accepted async input、Profile／artifact identity、state hash、snapshot projectionを供給する。Physicsのreceipt-free Replay Projectionは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)の`AuthoritativeReplayDomainProjectionRefV1`としてHeaderのProjection集合へexact一件登録し、Header Ref／Binding RefをProjection base recordへ埋め込まない。Header完成後だけroot外`AuthoritativeReplayDomainBindingV1`がexact `AuthoritativeReplayHeaderRefV1`とPhysics Projection Refを結び、HeaderのCadence／Substep Binding、該当`SimulationAdvanceIntervalRefV1`／completed SHA／sequenceとProjectionをbyte equalityにする。生成順を`receipt-free Physics Projection → Projection set／Header／Ref → Domain Binding`に固定し、Header／BindingをProjection hashへ戻さない。記録slotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`だけを参照し、Physics固有phaseを設けない。
+
+主要failure classはinvalid profile、unqualified adapter、handle／generation mismatch、command conflict、joint frame invalid、kinematic depenetration failure、native invariant violation、job drain failure、save incompatibilityである。Simulation Advance publish、fault transition、recovery boundaryはRuntime ownerへ委譲する。共通memory、worker、queue、frame thresholdをここで再定義しない。
+
+Qualificationは全private Backendへ同じWorld lifecycle、stack、sleep／wake、joint、break、C1 reference Providerのslope／stair／kinematic support surface（斜面際のstep、ceilingに接した状態のslide、移動support bodyからの離脱、狭所でのdepenetration発振を含む）、save／load、replay hash、fuzz、fault injectionを与える。Engine contractの結果、ordering、diagnostic、lifetimeが一致することを検査する。Substep fixtureはnull Profileでouter advance当たりsolve一回、count 2／3／16で全exact rational subintervalの和がouter durationと一致しordinal順、T60／publishがouter advance当たり一回であることを検査する。`denominator*(C/g)`が`uint32`最大値ちょうどに収まる境界と1超過する境界を含め、後者だけを`physics_substep_interval_overflow`で副作用前に拒否する。自己Ref埋込み、dimension欠落／duplicate／逆順、count 0／17、null duration、Cadence／interval hash／Target／Qualification差、substep単位のInput sample／Timer／event delivery／publishを各一原因で拒否する。`fixture.navigation.motion-executor.physics-kinematic@1`はreceipt-free Provider record／Catalogを先に固定し、そのexact RecordRef、implementation System Activation Binding、Target、adapted singleton accepted setを`qualification.navigation.motion-executor.physics-kinematic@1` subjectへbindする。signed Receiptはsubjectだけを署名し、Provider Activation BindingがRecordRef＋Receipt refを保持する。positive batchは`adapted_intent_schema_ref=type.navigation.adapted_motion_intent@1`でProvider call exact一回、raw `type.navigation.movement_intent@1`または`type.navigation.motion_intent_contribution@1`へ一Fieldだけ変えた二fixtureはProvider call前にrejectする。accepted setへのraw型追加、RecordRef／Qualification subject／Receipt／Activation Binding hash staleもrejectし、last-valid resolved motion、Path Follower state、Catalogを不変にする。別fixtureはPhysics capability unavailableでも任意Packのinstallが成功し、Physics Provider選択だけがunavailableになることを検証する。Dependency build、exact binary identity、license、target matrixは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、測定とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。
+
+Snapshot fixtureは同じcompleted Intervalから作ったnormalized body／joint／kinematic stateとself-excluding hashをpositive caseとし、Cadence、Interval Ref semantic hash、completed-object SHA、advance sequence、World generation、World Profile identity／activation generation、Substep Binding、array order、body／ground ref generation、snapshot hashを各一Fieldだけ変えたcaseを`physics_snapshot_stale`またはschema failureでpublish／consume前に拒否する。各arrayは上限ちょうどを受理し一件超過を`physics_snapshot_capacity_exceeded`で拒否し、partial snapshot、`latest`再解決、cross-advance rebaseを0件とする。
+
+Save fixtureは同じsnapshotとCollider Artifact集合をDomain BindingでHeaderへ結ぶcaseを受理し、HeaderのCadence／Interval Ref／completed SHA／Substep Binding、snapshot hash、Collider Source identity／Artifact bytes、Collider集合順／set equalityを各一Fieldだけ変えたcaseを`physics_save_incompatible`でLoad staging前に拒否する。Collider arrayは65,536件ちょうどをschemaとして受理し、65,537件目を`physics_save_capacity_exceeded`でSave生成前に拒否する。
+
+Replay fixtureは生成順`receipt-free Physics Projection → Projection set／Header／Ref → root外 AuthoritativeReplayDomainBindingV1`を受理し、HeaderのCadence／Substep Binding／Interval Ref／completed SHA／sequence、Projection membership、Binding hashを各一Fieldだけ変えたcase、Projection base recordへのHeader／Binding埋戻し、別Header／Projectionを結ぶBindingをReplay開始前に拒否する。
 
 ## 5. AI semantics
 
@@ -585,7 +817,9 @@ role以外のclosed semantic axisを次へ固定する。一つのResolutionは�
 | `PhysicsShapeStrategyV1` | `primitive \| compound_primitive \| convex \| static_triangle_mesh \| heightfield \| tile_chain_2d \| none` |
 | `PhysicsSpeedPolicyV1` | `discrete \| continuous_body \| authoritative_sweep \| teleport` |
 
-旧`GameplayPhysicsRoleV1` enumはoffline migration inputだけである。owner固有変換は次のContribution Registryへ登録し、Core switch文へ追加しない。
+`GameplayPhysicsRoleV1` enumのcanonical bytesとそれを使用する旧Project／Documentが実在することは現計画からは証明されておらず、current Source、Editor、AI projection、Compile、deserializerへ登録しない。`operation.physics.intent_role.migrate@1`は[Executable Contracts §8.1.2](../02-foundation/executable-contracts.md#812-conditional-legacy-migration-evidence-gate)のconditional legacy migrationで、current状態は`not_activated`である。この移行に固有のcurrent MCD／Owner Manifest／Service allowlist／Policy／Validator／migration Diagnostic／Operation Receipt／Provider／MCP／alias、migration Qualification subject／Receipt／Binding、Activation Catalog／projection subset、Contribution record／Registry、Migration Manifest集合はすべてexact `[]`である。`service.offline_project_migrator`、`capability.authoring.offline_migration`、`profile.isolation.offline_project_migrator`のcurrent集合もexact `[]`で、移行要求をdispatchしない。
+
+将来Activationするには、実在する旧enum schema／Project／Document bytes、旧MCD local record／common envelope／payload、source `ContractSetSnapshotV2`、Owner Identity Registry、Named Algorithm Registry、`FoundationDefinitionClosureV1`、全retained artifact ref／hash、正負fixtureを推測なしで列挙したsigned `LegacyMigrationInventoryV1`が§8.1.2 gateを満たさなければならない。その同じ承認済みContract set transactionだけが、Operation／Type／Policy／Validator／migration Diagnostic／Receipt、offline Service／Capability／Isolation Profile、Service allowlist、Contribution Registry／records、Qualification Receipt／Binding、Manifest、Provider／MCP projectionを完全closureとして同時にmaterializeできる。owner固有変換をCore switch文へ追加しない。以下のschemaとrecord値はpost-activation destination templateであり、block内の`status=active`、Service ref、Policy ref、Provider exposureをcurrent refまたはcurrent product surfaceとして解釈しない。
 
 ```text
 PhysicsIntentRoleMigrationContributionRefV1
@@ -597,7 +831,9 @@ PhysicsIntentRoleMigrationContributionRecordV1
   contribution_id
   contribution_version
   owner_ref/hash
-  source_schema_ref: McdContractRefV1(kind=type, version=1)
+  retained_source_mcd_ref: McdContractRefV1(
+    kind=type, id=type.physics.legacy_gameplay_role,
+    version=1, source_contract_set_hash)
   accepted_legacy_values[1..64]
   destination_role_refs[1..64]: PhysicsIntentRoleRefV1
   mapping_policy_ref: McdContractRefV1(kind=policy)
@@ -690,7 +926,7 @@ PhysicsIntentRoleMigrationManifestV1
   manifest_hash: SHA-256
 ```
 
-Core contributionは次の完全三Receipt-free recordだけを持つ。全rowは`contribution_version=1`、`owner_ref={owner.core.physics,current revision,content hash}`、source schema=`{type.physics.legacy_gameplay_role,1,source Contract set hash}`を持ち、表のPolicy／Role refはexact version／hashを保存する。
+Activation後のdestination Core contribution候補は次の完全三Receipt-free recordだけを持つ。全rowは`contribution_version=1`、`owner_ref={owner.core.physics,destination owner revision,content hash}`、source schema=`{type.physics.legacy_gameplay_role,1,source Contract set hash}`を持ち、表のPolicy／Role refはexact version／hashを保存する。表の三rowはcurrent Registry memberではなく、現時点のcurrent contribution集合はexact `[]`である。
 
 | contribution ID | accepted legacy values | destination role refs | mapping policy | axis mapping policy |
 |---|---|---|---|---|
@@ -698,7 +934,7 @@ Core contributionは次の完全三Receipt-free recordだけを持つ。全row�
 | `physics.intent_role.migration_contribution.core.movable_prop` | `[movable_prop]` | `[role.physics.dynamic_body@1]` | `policy.physics.intent_role.migration.movable_prop@1` | `policy.physics.intent_role.axis.movable_prop@1` |
 | `physics.intent_role.migration_contribution.core.sensor_volume` | `[sensor_volume]` | `[role.physics.sensor@1]` | `policy.physics.intent_role.migration.sensor_volume@1` | `policy.physics.intent_role.axis.sensor_volume@1` |
 
-object固有legacy値は当該Pack／Project contributionがexact一件存在する場合だけ移行する。recordはContribution ID／version順、accepted valueはUTF-8 byte順、destination refはrole ID／version順へstrict sortし、duplicate valueの複数active contribution、stale owner／policy／roleをRegistry全体で拒否する。record hashはASCII `MIRAKAN_PHYSICS_ROLE_MIGRATION_CONTRIBUTION_V1`、Registry hashはASCII `MIRAKAN_PHYSICS_ROLE_MIGRATION_CONTRIBUTION_REGISTRY_V1`のself-excluding Receipt-free length-framed canonical bytesである。生成順は`receipt-free Contribution → Registry／ContributionRef → Migration Qualification subject → signed Receipt → Qualification Binding → Migration Manifest`であり、subject ownerはbase owner、Binding ContributionRefはsubjectとbyte equalityにする。Manifest binding集合と選択Contribution集合はexact set equalityで、Receipt／BindingをContribution／Registry hashへ戻さない。Production migration recordはFixture bodyを解決せず、Bindingが指すsigned Receiptのsubject／result=`pass`／freshnessだけを検証する。三Core rowは同logical suffixの`qualification.physics.intent-role-migration.*@1`とBindingをexact一件ずつ持つ。
+Activation後、object固有legacy値はsigned Inventoryに束縛され、当該Pack／Project contributionがexact一件存在する場合だけ移行する。recordはContribution ID／version順、accepted valueはUTF-8 byte順、destination refはrole ID／version順へstrict sortし、duplicate valueの複数active contribution、stale owner／policy／roleをRegistry全体で拒否する。record hashはASCII `MIRAKAN_PHYSICS_ROLE_MIGRATION_CONTRIBUTION_V1`、Registry hashはASCII `MIRAKAN_PHYSICS_ROLE_MIGRATION_CONTRIBUTION_REGISTRY_V1`のself-excluding Receipt-free length-framed canonical bytesである。生成順は`receipt-free Contribution → Registry／ContributionRef → Migration Qualification subject → signed Receipt → Qualification Binding → Migration Manifest`であり、subject ownerはbase owner、Binding ContributionRefはsubjectとbyte equalityにする。Manifest binding集合と選択Contribution集合はexact set equalityで、Receipt／BindingをContribution／Registry hashへ戻さない。Production migration recordはFixture bodyを解決せず、Bindingが指すsigned Receiptのsubject／result=`pass`／freshnessだけを検証する。三Core rowは同logical suffixの`qualification.physics.intent-role-migration.*@1`とBindingをexact一件ずつ持つ。
 
 ```text
 operation.physics.intent_role.migrate@1
@@ -776,7 +1012,11 @@ PhysicsIntentRoleMigrationInputV1
   request_hash
   idempotency_key
   source_document_ref/hash
-  source_schema_ref/hash
+  source_foundation_definition_closure_ref:
+    FoundationDefinitionClosureRefV1
+  retained_source_mcd_ref: McdContractRefV1(
+    kind=type, id=type.physics.legacy_gameplay_role,
+    version=1, source_contract_set_hash)
   source_legacy_value
   source_axis_closure_hash
   destination_role_registry_ref
@@ -806,7 +1046,11 @@ PreparedPhysicsIntentRoleMigrationReceiptPayloadV1
   request_hash
   idempotency_key
   source_document_ref/hash
-  source_schema_ref/hash
+  source_foundation_definition_closure_ref:
+    FoundationDefinitionClosureRefV1
+  retained_source_mcd_ref: McdContractRefV1(
+    kind=type, id=type.physics.legacy_gameplay_role,
+    version=1, source_contract_set_hash)
   source_legacy_value
   role_registry_ref
   contribution_registry_ref
@@ -830,7 +1074,7 @@ PhysicsIntentRoleMigrationReceiptV1
     PreparedPhysicsIntentRoleMigrationReceiptPayloadV1
 ```
 
-Operationが参照する三Policyは次の完全なactive MCD recordである。表の二列を連結した値が各record全体であり、暗黙既定値、bare ID、説明文からFieldを補完しない。
+Activation後にOperationが参照する三Policyのdestination値は次の完全なactive MCD recordである。表の`status=active`はatomic activation完了後の値だけを表し、current Policy集合はexact `[]`である。表の二列を連結した値が各record全体であり、暗黙既定値、bare ID、説明文からFieldを補完しない。
 
 | Policy MCD共通Envelope exact value | Policy payload exact value |
 |---|---|
@@ -838,9 +1082,9 @@ Operationが参照する三Policyは次の完全なactive MCD recordである。
 | `mcd_version=1; kind=policy; id=policy.operation.physics.intent_role.migrate.postcondition; version=1; status=active; title=Physics Intent Role Migration Postcondition; description=Validate the unpublished Selection Document, exact role and axis closure, prepared Receipt payload, and atomic Project revision increment; owners=[owner.core.physics]; requirement_refs=[]; rationale_refs=[mirakan.arch.simulation-physics#5-ai-semantics]; since_contract_set=2; supersedes=[]; tags=[operation_predicate,physics,pure]` | `evaluation_mode=pure; side_effects=[]; input_type={id=type.operation.postcondition_evaluation_input,version=2,contract_set_hash}; result_type={id=type.operation.predicate_result,version=1,contract_set_hash}` |
 | `mcd_version=1; kind=policy; id=policy.authoring.physics_intent_role_migration.rate_limit; version=1; status=active; title=Physics Intent Role Migration Rate Limit; description=Bound migration requests per Project without changing role resolution semantics; owners=[owner.core.physics]; requirement_refs=[]; rationale_refs=[mirakan.arch.simulation-physics#5-ai-semantics]; since_contract_set=2; supersedes=[]; tags=[authoring,physics,rate_limit]` | `policy_ref={id=policy.authoring.physics_intent_role_migration.rate_limit,version=1,contract_set_hash}; scope=project; window_ns=60000000000; max_requests=4; burst=1; exceeded_error_ref={diagnostic.operation.rate_limit_exceeded,MIRAKAN-OPERATION-RATE_LIMIT_EXCEEDED,1,diagnostic_content_hash}` |
 
-Contract set内部では三Policyを`ContractSetLocalRefV1(kind=policy)`へ投影し、self refはlocal identityだけにする。Manifest三Policy ref、Operationのpre／post／rate ref、Physics ownerのPolicy local subsetはexact三件でset equalityである。三recordの共通Envelopeまたはpayloadの実在Fieldを一つだけ変えるfixtureはPolicy member hashとset rootを変更し、旧Manifest／Operation external refを解決不能にする。
+Activation destination Contract set内部では三Policyを`ContractSetLocalRefV1(kind=policy)`へ投影し、self refはlocal identityだけにする。Manifest三Policy ref、Operationのpre／post／rate ref、Physics ownerのPolicy local subsetはexact三件でset equalityである。三recordの共通Envelopeまたはpayloadの実在Fieldを一つだけ変えるfixtureはPolicy member hashとset rootを変更し、旧Manifest／Operation external refを解決不能にする。
 
-Domain固有Diagnosticは次の完全な`DiagnosticLocalRecordV2`である。全rowは`diagnostic_version=1`、`owner_local_ref={owner_id=owner.core.physics,owner_revision=1,owner_content_hash=SHA-256(MIRAKAN_DIAGNOSTIC_OWNER_LOCAL_IDENTITY_V1, length-framed canonical owner ID／revision)}`、`requirement_local_refs=[]`、`message_key="<diagnostic_id>.message"`、Ownerを含むself-excluding `diagnostic_local_content_hash`を持つ。root確定後だけ同じ三Field Owner ref、`requirement_refs=[]`、別のself-excluding `diagnostic_content_hash`を持つ外部Registry recordへ投影する。共通八件はExecutable Contractsの同一recordを参照する。
+Activation後のmigration固有Diagnostic destination値は次の完全な`DiagnosticLocalRecordV2`である。current migration Diagnostic集合はexact `[]`である。全rowは`diagnostic_version=1`、`owner_local_ref={owner_id=owner.core.physics,owner_revision=1,owner_content_hash=SHA-256(MIRAKAN_DIAGNOSTIC_OWNER_LOCAL_IDENTITY_V1, length-framed canonical owner ID／revision)}`、`requirement_local_refs=[]`、`message_key="<diagnostic_id>.message"`、Ownerを含むself-excluding `diagnostic_local_content_hash`を持つ。root確定後だけ同じ三Field Owner ref、`requirement_refs=[]`、別のself-excluding `diagnostic_content_hash`を持つ外部Registry recordへ投影する。共通八件はActivation先Foundationの共通recordを参照し、本書のcurrent Diagnosticへ複写しない。
 
 | Diagnostic ID | code | severity／category／retryability |
 |---|---|---|
@@ -852,7 +1096,7 @@ Domain固有Diagnosticは次の完全な`DiagnosticLocalRecordV2`である。全
 | `diagnostic.physics.intent_role.axis_mapping_invalid` | `MIRAKAN-PHYSICS-INTENT-ROLE-AXIS-MAPPING-INVALID` | blocking／semantic／after_input |
 | `diagnostic.physics.intent_role.receipt_binding_mismatch` | `MIRAKAN-PHYSICS-INTENT-ROLE-RECEIPT-BINDING-MISMATCH` | blocking／semantic／after_change |
 
-`validator_closure.operation.physics.intent_role.migrate@1`は次のexact Validator recordを持つ。各recordはversion 1、実装Artifact ref／hash、表のinput Type ref、表のDiagnostic ref集合、self-excluding content hashを持ち、ID／version順にsortする。
+Activation後の`validator_closure.operation.physics.intent_role.migrate@1` destinationは次のexact Validator recordを持つ。current Validator／Validator closure集合はexact `[]`である。各recordはversion 1、実装Artifact ref／hash、表のinput Type ref、表のDiagnostic ref集合、self-excluding content hashを持ち、ID／version順にsortする。
 
 | Validator | input | exact reachable Diagnostic |
 |---|---|---|
@@ -865,7 +1109,9 @@ Domain固有Diagnosticは次の完全な`DiagnosticLocalRecordV2`である。全
 | `validator.physics.intent_role.migration_semantics` | migration input | source invalid; registry invalid; contribution missing; contribution ambiguous; capability unavailable; axis mapping invalid |
 | `validator.physics.intent_role.migration_postcondition` | postcondition input v2 | receipt binding mismatch |
 
-intent／request hashはExecutable Contractsの唯一の`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`を使う。Prepared payload Typeはexact `type.physics.prepared_intent_role_migration_receipt_payload@1`、hashはASCII `MIRAKAN_PREPARED_PHYSICS_INTENT_ROLE_MIGRATION_RECEIPT_PAYLOAD_V1`とself-excluding canonical bytesを使い、最終Receipt Typeと相互代用しない。唯一のsigned subject／wrapperは共通`PublishedDomainReceiptPayloadV2`／`PublishedDomainReceiptV2`であり、Domain固有Subject／alternate wrapperを作らない。private marker後に署名済みwrapperを保存してからPublic Markerとafter Projectを公開する。同じidempotency key＋request hashのretryはbyte-identical Result／signed Receipt／Public Markerを返し、同じkey＋別requestはidempotency reuse errorでSource不変にする。Validator error union、Operation `errors[]`、Manifest `diagnostic_refs[]`は15 refのset equalityにする。Manifestは上記Operation／Type／Policy／Validator／Registry／Diagnosticのexact version／hashと、選択Contributionごとのexact `PhysicsIntentRoleMigrationQualificationBindingRefV1`を全件持つ。各Bindingは同じContribution refをsubjectにする署名済みReceiptへexact解決し、ManifestがReceipt refまたはFixture bodyを直接保持しない。missing／extra／staleをcompile前に拒否する。ManifestのOperation LocalRef集合と`service.offline_project_migrator`へのallowlist contributionはexact一件でset equalityとし、同じContract set transactionでService local recordとset rootを再生成する。未導入Capabilityの旧予約値は`capability_unavailable`でSourceを不変にし、Core active roleへ近似変換しない。current serializer／AI projectionは旧enum値を受理しない。
+Activation後のintent／request hashはExecutable Contractsの唯一の`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`を使う。Input、選択`PhysicsIntentRoleMigrationContributionRecordV1`、Prepared payloadの`retained_source_mcd_ref`はbyte equalityで、InputとPrepared payloadの`source_foundation_definition_closure_ref`もbyte equalityにする。source Closureはexact `{type.physics.legacy_gameplay_role,1,source_contract_set_hash}`、signed Inventoryが列挙したlegacy Source record／Owner、同時代Named Algorithm Registryを解決する。Operation／input／output／Policy／Validator／Diagnostic、destination Role Registry、Contributionのmapping／axis policy、request Algorithm bindingはdispatch時のdestination Foundation Closureだけへ解決する。両source Fieldをintent semantic inputとPublic Receiptから到達するPrepared payloadへ保持し、missing、旧`source_schema_ref`別名、wrong source root、同じContract Setの別Owner／Algorithm root、Input–Contribution–Receipt差、sourceをdestinationへalias、destination downgradeを一原因ずつ拒否する。
+
+Activation後のPrepared payload Typeはexact `type.physics.prepared_intent_role_migration_receipt_payload@1`、hashはASCII `MIRAKAN_PREPARED_PHYSICS_INTENT_ROLE_MIGRATION_RECEIPT_PAYLOAD_V1`とself-excluding canonical bytesを使い、最終Receipt Typeと相互代用しない。唯一のsigned subject／wrapperは共通`PublishedDomainReceiptPayloadV2`／`PublishedDomainReceiptV2`であり、Domain固有Subject／alternate wrapperを作らない。publicationは[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)をcanonical reuseし、`private Marker read-back → secret-free PublicCommitClosureV1 candidate → signed wrapper read-back → PublicCommitClosureV1＋PublicPublicationMarkerV1＋after Projectのatomic CAS`の順に固定する。Closureの`domain_commitment.kind`は`owner_typed_state_commit`、`domain_owner_ref`はcurrent Foundation Closureが解決するexact `owner.core.physics` ref、committed artifact集合はPrepared payloadが束縛したreceipt-free Selection Document／関連artifact ref集合とし、Closure Ref／hashの規則は同節から参照して本書で複写しない。Closure bodyまたは同Closureを束縛するsigned wrapperを欠くPublic Marker／after-state current authorityを拒否する。同じidempotency key＋request hashのretryはbyte-identical Result／`PublicCommitClosureV1`／signed Receipt／Public Markerを返し、同じkey＋別requestはidempotency reuse errorでSource不変にする。Validator error union、Operation `errors[]`、Manifest `diagnostic_refs[]`は15 refのset equalityにする。Manifestは上記Operation／Type／Policy／Validator／Registry／Diagnosticのexact version／hashと、選択Contributionごとのexact `PhysicsIntentRoleMigrationQualificationBindingRefV1`を全件持つ。各Bindingは同じContribution refをsubjectにする署名済みReceiptへexact解決し、ManifestがReceipt refまたはFixture bodyを直接保持しない。missing／extra／staleをcompile前に拒否する。ManifestのOperation LocalRef集合と`service.offline_project_migrator`へのallowlist contributionはexact一件でset equalityとし、同じatomic activation transactionでService local recordとset rootを生成する。未導入Capabilityの旧予約値は`capability_unavailable`でSourceを不変にし、Core active roleへ近似変換しない。current serializer／AI projectionは旧enum値を受理しない。
 
 複合objectは複数Resolutionと明示関係で表し、合成enumを追加しない。同じobjectへ複数motion authorityを選ばない。Dynamic Bodyへ`static_triangle_mesh`／`heightfield`を選ばず、Sensorをauthoritative hitへ暗黙昇格せず、`teleport`を経路hitの代用にしない。途中経路がGameplayへ必要なら`authoritative_sweep`を使用する。
 
@@ -897,7 +1143,7 @@ Authorization、Risk class、commit可否、credentialは[AI Security／Approval
 
 ## 6. Operation、preview、diagnostic、AI eval
 
-inspect／discover／validate／preview、World Profile作成／更新、Body dynamics設定、Joint／Constraint作成／更新／削除、Physics Kinematic Motion Provider qualification提案はsemantic action vocabularyであり、それ自体はStable Operation IDまたはcurrent公開Operationではない。Physicsのcurrent Operationは完全登録済み`operation.physics.intent_role.migrate@1` exact一件、未Activation候補は`planning.operation_family.physics_role_selection@1`のselect exact一件だけであり、action名から追加ID、Manifest row、Service allowlist、Provider／MCP Toolを生成しない。owner固有proposalのadapter／Provider binding actionは当該PackまたはProject、Collision geometry／filter／query actionは[Collision](collision.md)へ意味上handoffするだけでOperation権限を暗黙生成しない。将来完全登録されたwriteだけが[Project state](../03-authoring/project-state.md)のChangeSetを作り、live Worldを直接mutateしない。
+inspect／discover／validate／preview、World Profile作成／更新、Body dynamics設定、Joint／Constraint作成／更新／削除、Physics Kinematic Motion Provider qualification提案はsemantic action vocabularyであり、それ自体はStable Operation IDまたはcurrent公開Operationではない。Physics ownerのcurrent MCD Operation集合はexact `[]`である。`operation.physics.intent_role.migrate@1`は§5のdestination templateを持つconditional legacy migration exact一件、`planning.operation_family.physics_role_selection@1`のselectは別の未Activation候補 exact一件であり、どちらもcurrent Operationへ数えない。action名から追加ID、Manifest row、Service allowlist、Provider／MCP Toolを生成しない。owner固有proposalのadapter／Provider binding actionは当該PackまたはProject、Collision geometry／filter／query actionは[Collision](collision.md)へ意味上handoffするだけでOperation権限を暗黙生成しない。将来完全登録されたwriteだけが[Project state](../03-authoring/project-state.md)のChangeSetを作り、live Worldを直接mutateしない。
 
 Activation後のPreviewはbefore／after semantic resolution、affected Entity／Asset、selected assumptions、question state、Capability availability、estimated impact class、diagnostic、rollback boundaryを示す。native setting dumpやVendor object graphをユーザー説明に使わない。Editor手動actionとAI actionは同じDocument、validator、preview、undo／redo、cookを通る。
 

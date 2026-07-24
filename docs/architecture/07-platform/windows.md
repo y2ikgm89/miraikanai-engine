@@ -110,7 +110,7 @@ Starting -> ForegroundActive <-> ForegroundInactive
 -> StopRequested -> Stopped
 ```
 
-Windows stateから[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`への写像は次のとおり固定する。tick停止点、checkpoint、accumulatorの境界policyは同文書の`application_state`表が正本であり、本書は写像だけを所有する。
+Windows stateから[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`への写像は次のとおり固定する。Simulation Advance停止点、checkpoint、accumulatorの境界policyは同文書の`application_state`表が正本であり、本書は写像だけを所有する。
 
 | Windows state／条件 | `application_state` | 既定Simulation policy |
 |---|---|---|

@@ -1,6 +1,6 @@
 # Plan Feasibility Remediation Implementation Plan
 
-> **Status: superseded historical remediation plan; do not execute.** Current counts and execution contracts are Product Active 14／WP75、Future 3／23／Claim52, the current Control Plane plans, Critical Path, Future Inception, and the current remediation Review.
+> **Status: superseded historical remediation plan; do not execute.** Current counts and execution contracts are Product Active 14／WP75、Future 3／25／Claim57, the current Control Plane plans, Critical Path, Future Inception, and the current remediation Review.
 
 > **Historical instruction (superseded; must not be followed):** 当時のagent実行手順とcheckboxは完了記録としてのみ保持する。現行作業の指示として解釈しない。
 
@@ -14,7 +14,7 @@
 
 - Authorityと型は`docs/superpowers/specs/2026-07-23-plan-feasibility-remediation-design.md`を一字違わず使用する。
 - Product PlanがWork Package、Phase、Fixture、Target、Requirement、Capability、Future incubationの機械正本である。
-- Work Package state Fieldは`scheduling_state`、Fixture寄与Fieldは`provided_fixture_refs[]`とする。
+- Work Package state Fieldは`scheduling_state`、Fixture寄与FieldはProduct Plan正本のtyped `provided_fixture_refs[]: ProvidedFixtureRefV1`とする。
 - Phase completionは`ProductPhaseRegistryV1.exit_gate_refs[]`の各exact refを`PhaseFixtureBindingRegistryV1.gate_id`へ解決し、その全Gateだけから評価する。
 - 外部Brand／Model名をEngineの権限分岐にしない。
 - MCP Production baselineは`2025-11-25`、OpenAI direct既定explicit modelは`gpt-5.6-sol`とする。
@@ -50,7 +50,7 @@ Expected: ProductとControl Planeで異なるField名を検出する。
 
 - [x] **Step 3: Phase gate表を追加する**
 
-10 Phaseすべてについて`gate_id`、Phase、Fixture、評価Requirement、Target、`policy.product.same-candidate.v1`、適切な§8 freshness policyを列挙する。Phase 3はmanual 2D Requirementだけ、Phase 4はAI MVP Requirementだけ、Phase 6はFirst Playable 3Dだけ、Phase 8はC2 Requirementだけを評価する。
+10 Phaseすべてについて`gate_id`、Phase、Fixture、評価Requirement、Target、固定literal `policy.product.same-candidate.v1`、適切な§8 freshness policyを列挙する。Phase 3はmanual 2D Requirementだけ、Phase 4はAI MVP Requirementだけ、Phase 6はFirst Playable 3Dだけ、Phase 8はC2 Requirementだけを評価する。
 
 - [x] **Step 4: Phase 0～7のWork Package DAGを閉じる**
 
@@ -133,7 +133,7 @@ Aggregate→Query→Causality／Replay→Finding validation→Proposalをexact O
 
 - [x] **Step 4: Caller／Provider／Deployment／Model Profileを追加する**
 
-設計§7の6型を定義し、Host surface、Transport、Provider/runtime、Model snapshot、tool projection、authorityを別Fieldにする。ChatGPT Chat／Workはremote MCP（private／localはSecure MCP Tunnel）でありdirect local STDIO対応と表示しない。ChatGPT desktop app内Codex host、Codex CLI／IDE、Claude Desktop／Code、Cursorはsurface別conformance Receiptがある場合だけ対応表示する。
+設計§7の6型を定義し、Host surface、Transport、Provider/runtime、Model snapshot、tool projection、authorityを別Fieldにする。hosted ChatGPT Workはplugin remote MCP Toolを使い、local Codex設定／direct local STDIO対応と表示しない。ChatGPT desktop appのCodex host、Codex CLI／IDE、Claude Desktop／Code、Cursorはsurface別conformance Receiptがある場合だけ対応表示する。
 
 - [x] **Step 5: local inference境界を追加する**
 

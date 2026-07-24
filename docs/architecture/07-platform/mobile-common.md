@@ -108,7 +108,7 @@ Physical directory名は実装配置であり契約identityではない。`platf
 
 ## 4. Lifecycle、surface、save、recovery
 
-共通lifecycle stateは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`と同一のclosed set `Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating`である。cold startはprocess未起動でありこのstateの外とする。exact transition slot、tick、job dependency、lifetimeは同文書が所有し、本書はPlatform eventの意味を所有する。
+共通lifecycle stateは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`と同一のclosed set `Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating`である。cold startはprocess未起動でありこのstateの外とする。exact transition slot、Simulation Advance、job dependency、lifetimeは同文書が所有し、本書はPlatform eventの意味を所有する。
 
 - `Active`: interaction、simulation、presentationを許可する。
 - `Inactive`: foregroundだがinteraction不可。authoritative simulationをpauseする。
@@ -250,7 +250,7 @@ thermal levelは`Nominal | Warm | Serious | Critical`へ正規化する。Warm�
 
 `ProjectPrivacySpec`はdata category、purpose、retention、third-party sharing、account deletion、child-directed settingを持つ。telemetry、crash、AI prompt、generated contentは別purposeとして扱う。credential、access token、signing key、personal dataをAI prompt、Build log、crash dumpへ含めない。Platform manifest／store declarationとの一致は各Platform ownerが検査する。
 
-Mobile共通crash metadata契約は次である。Shipping crash recordはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed frame／tick、memory／thermal levelを必須fieldとし、personal information、conversation body、credential、token、signing key、Project source、AI promptを含めない。収集経路、out-of-process制約、redaction検証、release gateは各Platform ownerが所有し、Crash recordとSession／Replayの関連付けは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を参照する。
+Mobile共通crash metadata契約は次である。Shipping crash recordはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed render frame ID／Simulation Advance sequence、memory／thermal levelを必須fieldとし、personal information、conversation body、credential、token、signing key、Project source、AI promptを含めない。収集経路、out-of-process制約、redaction検証、release gateは各Platform ownerが所有し、Crash recordとSession／Replayの関連付けは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を参照する。
 
 support bundle（正本は同書§14の`SupportBundleV1`）のMobile提出経路は本書が共通規則を、[Android](android.md)／[Apple](apple.md)がOS固有経路を所有する。生成はUserの明示操作で行い、保存先はapp-scoped storage、提出はC1ではOS標準share機構等のUser操作によるexportだけとする。crash収集経路はcrash evidenceの収集だけを所有し、bundleの構成、redaction、生成operationはDebugging Ownerの定義へ従う。
 

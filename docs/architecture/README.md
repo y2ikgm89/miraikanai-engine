@@ -61,7 +61,7 @@
 
 | # | 仕様 | 状態 | 所有責務 |
 |---:|---|---|---|
-| 17 | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | review | tick、execution order、job dependency、message order、lifetime |
+| 17 | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | review | Simulation Advance、execution order、job dependency、message order、lifetime |
 | 18 | [Performance／Capacity](04-runtime/performance-capacity.md) | review | 共通capacity、measurement、backpressure、scale、regression |
 | 19 | [Debugging／Observability／Replay](04-runtime/debugging-observability-replay.md) | review | debug、telemetry、causality、capture、replay、crash evidence |
 

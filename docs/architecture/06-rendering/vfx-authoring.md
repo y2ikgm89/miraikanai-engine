@@ -26,7 +26,7 @@ VfxSystemDocumentV1
   effect_intent_ref: StableId
   spatial_domain: d2 | d3 | portable_2d_3d
   loop_mode: once | loop | continuous
-  duration_seconds: optional finite f32
+  duration_seconds: null | ReducedPositiveRationalV1
   seed_policy: fixed | per_instance | from_presentation_event
   fixed_seed: optional u64
   public_parameters: VfxParameterV1[0..64]
@@ -39,7 +39,7 @@ VfxSystemDocumentV1
   capability_requirements: CapabilityId[0..32]
 ```
 
-`once`／`loop`は`duration_seconds`を必須とし`[1/60,3600]`秒、`continuous`はnullとする。enabled Emitterは最低1件、portable profileは最大16、advanced profileは最大32 Emitterである。Portable Sourceはdimension-polymorphic Nodeだけを持ち、2D／3D Artifactを別生成する。Dimension-specific instanceは`d2 | d3`を明示し、layerや親Entityから推測しない。System参照cycleを拒否する。
+`once`／`loop`はexact rational `duration_seconds`を必須とし`[1/48000,3600]`秒、`continuous`はnullとする。enabled Emitterは最低1件、portable profileは最大16、advanced profileは最大32 Emitterである。Portable Sourceはdimension-polymorphic Nodeだけを持ち、2D／3D Artifactを別生成する。Dimension-specific instanceは`d2 | d3`を明示し、layerや親Entityから推測しない。System参照cycleを拒否する。
 
 `VfxEmitterV1`は次のfieldを持つ。
 
@@ -50,10 +50,10 @@ VfxSystemDocumentV1
 | `simulation_space` | `local \| world`。実行中変更不可 |
 | `max_particles` | `u32`、選択Budget内 |
 | `semantic_priority` | LOD ownerの`LodSemanticPriorityV1`。Event registry上限を超えない |
-| `rate_q32`／`bursts` | Q32.32 particles/s／`{tick_offset,count}`最大256 |
-| `lifetime_seconds` | min／maxがfinite、`[1/60,3600]`、min≤max |
-| `prewarm_seconds` | portable `[0,2]`、advanced `[0,5]` |
-| `max_events_per_tick` | portable 0、advanced `0..min(max_particles,4096)` |
+| `rate_q32`／`bursts` | Q32.32 particles/s／`{offset_seconds: 0 \| ReducedPositiveRationalV1,count}`最大256 |
+| `lifetime_seconds` | min／maxがexact rational、`[1/48000,3600]`、min≤max |
+| `prewarm_seconds` | `0 \| ReducedPositiveRationalV1`、portable `[0,2]`、advanced `[0,5]` |
+| `max_events_per_advance` | portable 0、advanced `0..min(max_particles,4096)` |
 | `spawn_graph`／`update_graph`／`event_graph` | 各stage一致。eventはadvancedだけ |
 | `render_outputs` | portable 1～2、advanced 1～4 |
 | `sort_mode` | `none \| spawn_order \| view_depth \| emitter_only`。既定は2D出力`spawn_order`、3D出力`view_depth` |
@@ -61,7 +61,7 @@ VfxSystemDocumentV1
 
 `sort_mode`のsort実行、view depth粒子上限、超過時のCook拒否は[VFX runtimeのGPU sort契約](vfx-runtime.md#5-gpu-simulationrendercollision)が所有する。上限超過Sourceの解消は`sort_mode`の`emitter_only`への明示変更またはadditive Materialへの明示変更だけで行い、Compilerが`sort_mode`を暗黙変更しない。
 
-Rate、Burst、Event spawnは一つのadmissionへ通す。Prewarmはloop／continuousかつpreload対象だけに許可し、動的one-shotは0とする。過去状態が必要なone-shotは`VfxBakeCacheV1`を使う。Sub-emitterは深さ2、親Particle当たり8、生成eventは次stepへだけ渡す。
+Rate、Burst、Event spawnは一つのadmissionへ通す。Prewarmはloop／continuousかつpreload対象だけに許可し、動的one-shotは0とする。過去状態が必要なone-shotは`VfxBakeCacheV1`を使う。Sub-emitterは深さ2、親Particle当たり8、生成eventは次Simulation Advanceへだけ渡す。
 
 `VfxParameterV1`は`parameter_id`、closed `value_type`、型一致finite `default_value`、numeric min／maxまたはenum allowlist、`update_rate: instance_start | presentation_frame`、registered `semantic_role`、`exposure: hidden | inspector | gameplay | ai`を持つ。Particle直接write、pointer、array、string、Entity、native resourceをparameterにしない。
 
@@ -121,9 +121,9 @@ Stageは次に閉じる。previous値はCompiler-declared `PreviousAttribute`だ
 
 | Stage | 実行時点 | 読取 | 書込 |
 |---|---|---|---|
-| `emitter_control` | Emitterごと | Parameter、Event、Emitter transform、tick | spawn count、Emitter local state |
+| `emitter_control` | Emitterごと | Parameter、Event、Emitter transform、Simulation Advance record | spawn count、Emitter local state |
 | `particle_spawn` | 新規Particleごと | spawn ID、seed、Parameter、Emitter transform | 初期Particle attribute |
-| `particle_update` | alive Particleごと、fixed step | 現attribute、Parameter、time | 次attribute、alive flag |
+| `particle_update` | alive Particleごと、qualified Simulation Advance | 現attribute、Parameter、time | 次attribute、alive flag |
 | `particle_event` | advanced条件成立時 | Particle attribute、visual collision result | bounded internal VFX event |
 | `render_output` | Snapshot／Render packet構築時 | 最終attribute、Material parameter | Renderer bindingだけ |
 
@@ -133,7 +133,7 @@ Portable Node CatalogのIDを次に閉じる。
 
 | 分類 | Portable Node ID |
 |---|---|
-| Input | `Constant, Parameter, Age, NormalizedAge, Lifetime, SpawnId, SimulationStep, EmitterTransform, EventField` |
+| Input | `Constant, Parameter, Age, NormalizedAge, Lifetime, SpawnId, SimulationAdvance, EmitterTransform, EventField` |
 | Math | `Add, Subtract, Multiply, DivideSafe, Min, Max, Clamp, Abs, SqrtSafe, Lerp, Remap, Dot, Length, NormalizeSafe, Select` |
 | Random | `Uniform01, Range, UnitDirection2D, UnitDirection3D, RandomColorGradient` |
 | Curve | `SampleCurve, SampleGradient` |
@@ -187,7 +187,7 @@ VfxEffectIntentV1
   style_role_ids: StableId[0..16]
   target_selector
   scale_envelope: {maximum_concurrent_instances, maximum_visible_instances,
-                   maximum_spawn_per_second, maximum_burst_per_tick}
+                   maximum_spawn_per_second, maximum_burst_per_advance}
   semantic_priority: LodSemanticPriorityV1
   minimum_cue_contract: MinimumCueContractV1
   fallback_policy: semantic_equivalent_only | approval_required | no_fallback
@@ -195,7 +195,7 @@ VfxEffectIntentV1
 
 MinimumCueContractV1
   required_invariants: VfxCueInvariantId[0..16]
-  minimum_visible_steps: u32
+  minimum_visible_advances: u32
   minimum_projected_coverage_px_q16: optional u32
   required_contrast_class: optional low | medium | high
 ```
@@ -274,7 +274,7 @@ Manifestは対象外Targetを明示し、Production候補には上記Projection�
 
 `VfxCompiler`は次の固定順で動く。
 
-1. Document、Stable ID、range、Asset ref、Targetを検証する。
+1. Document、Stable ID、range、Asset ref、Target、完成`SimulationCadenceProfileRefV1`を検証する。
 2. stage、type、dimension、attribute access、cycleを検証する。
 3. Node Catalog versionとCapabilityを検証する。
 4. Emitter／System／Projectのdomain cost、memory、spawn、renderer、overdraw estimateを検証する。
@@ -284,7 +284,7 @@ Manifestは対象外Targetを明示し、Production候補には上記Projection�
 8. execution policy、Node requirement、Target capability、domain thresholdsからvariantを解決する。
 9. CPUはclosed kernel plan、GPUはportable shader IRとEngine-owned Pass TemplateまたはQualification済みProject Shader Module／Technique参照を生成する。
 10. [Project Shader](project-shader.md)のoffline compile／Fact／Understanding validationとRenderer pipeline compileを依頼する。
-11. source／compiler／interface／resource／fixture hashを生成する。
+11. source／compiler／interface／resource／fixture／Cadence Profile hashを生成する。
 12. Asset lifecycle ownerへtransactional Cookとclosure promotion候補を渡す。
 
 Execution dispositionは`auto | cpu_required | gpu_required | dual_fallback`に閉じ、Compilerがenabled Emitterごとに独立して次の固定順で解決する。同じSystem内のCPU／GPU EmitterはParameter、System seed、Instance transform、lifecycleだけを共有し、Particle storageを共有しない。
@@ -300,11 +300,22 @@ Execution dispositionは`auto | cpu_required | gpu_required | dual_fallback`に�
 | `auto`かつpeak alive見積り4,095以下 | CPU |
 | `mobile_baseline` | CPUを正規選択。限定GPUはDevice Qualification Receiptで明示enableしたProfileだけ |
 
-peak alive見積りはEmitterごとに粒子数の整数値`min(max_particles, ceil(rate_q32 × lifetime_seconds.max) + Σ bursts.count + max_events_per_tick)`で算出する。丸めは`ceil`だけを使い、上表の閾値比較はこの値で行う。見積りはauthored fieldだけから決まり、runtime実測やframe負荷を入力にしない。
+peak alive見積りはEmitterごとに、選択fixed Cadence `rate_hz=n/d`とexact `lifetime_seconds.max=L_num/L_den`から次をchecked integer／exact rationalで求める。
+
+```text
+lifetime_advances = ceil(L_num * n / (L_den * d))
+rate_alive = ceil(rate_q32 * L_num / (2^32 * L_den))
+burst_alive = max_burst_particles_in_any_exact_lifetime_window(
+  bursts, loop_mode, duration_seconds, lifetime_seconds.max)
+event_alive = event_spawn_upper_bound_per_advance * lifetime_advances
+peak_alive = min(max_particles, rate_alive + burst_alive + event_alive)
+```
+
+`rate_q32`はQ32.32 raw integerなので`2^32`除算を省略しない。`burst_alive`は`once | continuous`ではSource burst時刻列、`loop`ではexact `duration_seconds`で反復した時刻列から、長さ`lifetime_seconds.max`の任意half-open windowに入る最大countを計算し、単純な一周期合計へ縮退しない。`event_spawn_upper_bound_per_advance`は`max_events_per_advance`、event graphのbounded route数、Sub-emitterの親Particle当たり8上限からCompilerがchecked integerで導出し、有限上限を証明できないgraphを拒否する。Sub-emitter target自身のRate／Burst／EventはそのEmitter側でも別に見積もる。全加算／乗算overflow、zero denominator、`lifetime_advances`のRuntime表現域超過はCook拒否とする。上表の閾値比較は`peak_alive`で行い、見積りはauthored fieldと完成Cadence Profileだけから決まり、runtime実測やframe負荷を入力にしない。
 
 Runtimeがframe負荷から実行中stateをCPU／GPU間で移送しない。Target／Qualityごとの決定は[Runtime側のcompiled artifact boundary](vfx-runtime.md#2-compiled-artifact-boundary)へ渡し、Instance開始時に一意に選ぶ。Authoringは解決入力とalgorithmだけを所有し、compiled artifact schemaを再定義しない。
 
-Unsupported Node、layout overflow、shader failure、fallback不足、domain budget超過は該当variantを失敗させる。`VfxGraphIrV1`はdevelopment-only compiler intermediateでSource／Runtime保存しない。`VfxBudgetProfileV1`／`VfxQualityProfileV1`はTarget／Project Source、`VfxBakeCacheV1`はSource artifact hash、seed、fixed delta、frame count、Target formatを持つoffline cacheである。
+Unsupported Node、layout overflow、shader failure、fallback不足、domain budget超過は該当variantを失敗させる。`VfxGraphIrV1`はdevelopment-only compiler intermediateでSource／Runtime保存しない。`VfxBudgetProfileV1`／`VfxQualityProfileV1`はTarget／Project Source、`VfxBakeCacheV1`はSource artifact hash、seed、exact `SimulationCadenceProfileRefV1`、strict連続な`SimulationAdvanceIntervalV1` canonical record／`interval_content_hash`列またはfixed Profileから決定的に生成したadvance count、Target formatを持つoffline cacheである。raw fixed delta、表示Hz、frame countだけをcache keyにせず、ProfileまたはInterval hash差を再利用しない。V1 Bakeはfixed rational Profileだけを受理し、他kindは対応Future Qualificationまで`cadence_profile_not_qualified`とする。
 
 予約候補IDは`operation.vfx.inspect_system, operation.vfx.inspect_semantic_catalog, operation.vfx.validate_changeset, operation.vfx.validate_semantic_preservation, operation.vfx.preview_changeset, operation.vfx.resolve_effect_intent, operation.vfx.set_effect_intent, operation.vfx.apply_pattern, operation.vfx.create_system, operation.vfx.create_emitter, operation.vfx.update_emitter, operation.vfx.delete_emitter, operation.vfx.add_node, operation.vfx.update_node, operation.vfx.delete_node, operation.vfx.connect_nodes, operation.vfx.disconnect_nodes, operation.vfx.set_curve, operation.vfx.set_gradient, operation.vfx.set_output, operation.vfx.generate_fallback, operation.vfx.capture_bounds, operation.vfx.run_qualification, operation.vfx.propose_extension_operator`のexact 24件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.vfx_authoring@1`だけに属する。これらはMCD Operationではなく、Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。`activation.vfx.authoring_operations.v1`が24件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。Write／Preview／Qualification等の記述はActivation審査用の予定意味だけであり、現在の`ProjectChangeSetV1`生成、live buffer／resource／revision変更、共通envelope、projection、authorizationを与えない。
 
@@ -312,7 +323,7 @@ Capability IDは`capability.vfx.system, capability.vfx.particle_cpu, capability.
 
 Resolverは最大3 Pattern／Graph候補、missing requirement、assumption、Target cost、Cue diffを返す。Scene dimension、Gameplay authority、Target、必須Cue、Extension policyが解決不能なら質問へ停止する。CPU／GPU、thread、buffer、shader model、sort algorithmを初心者へ質問しない。Stack、Graph、Inspector、Curve、Timelineは同じoperationへ収束し、human lockを保つ。
 
-Previewはfixed seed、fixed simulation step、Reference Qualityを既定とし、seed、Target、Quality、artifact kind、bounds、velocity、collision proxy、count、drop、time、memory、overdraw、sort costを表示する。StackとGraphは別Sourceを持たない。`VfxAiAuthoringFixtureV1`は360 caseで、240 clear、40 hybrid、40 ambiguous／high-impact、40 unsupported／adversarialとする。各caseはIntent、allowed Pattern、required question、forbidden operation、Target、Budget、golden Cue、expected Diagnostic、canonical ChangeSet hash集合を持つ。
+Previewはfixed seed、明示選択したqualified `SimulationCadenceProfileRefV1`、Reference Qualityを既定とし、seed、Cadence Profile、Target、Quality、artifact kind、bounds、velocity、collision proxy、count、drop、time、memory、overdraw、sort costを表示する。StackとGraphは別Sourceを持たない。`VfxAiAuthoringFixtureV1`は360 caseで、240 clear、40 hybrid、40 ambiguous／high-impact、40 unsupported／adversarialとする。各caseはIntent、allowed Pattern、required question、forbidden operation、Target、Budget、golden Cue、expected Diagnostic、canonical ChangeSet hash集合を持つ。
 
 ## 5. Diagnostic、failure、versioning
 

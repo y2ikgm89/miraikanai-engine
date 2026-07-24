@@ -54,7 +54,7 @@ genre.shooter.third_person_3d
   -> Generic Engine Core
 ```
 
-Shooter Packのcanonical manifest recordは次である。表外の`PackManifestV1` Fieldは[Pack Contract](pack-contract.md)どおりexact identityで解決し、Feature契約をpayloadとして内包しない。
+次は[Pack Contract](pack-contract.md)が所有するcanonical `PackManifestV1` schemaへShooter値を代入したpartial value projection／具体instanceであり、schemaの再定義ではない。表外FieldもPack Contractどおりexact identityで解決し、Feature契約をpayloadとして内包しない。
 
 ```text
 PackManifestV1
@@ -92,7 +92,7 @@ PackManifestV1
       validator.genre.shooter.target_provider_binding.select_semantics@1,
       validator.genre.shooter.target_provider_binding.select_postcondition@1]
   migration_contribution_refs:
-    [runtime_scope.migration_contribution.genre.shooter.game_flow@1]
+    []
   migration_step_refs:
     [migration.genre.shooter.feature_identity@1]
   test_scenario_refs:
@@ -100,11 +100,10 @@ PackManifestV1
      fixture.genre.shooter.endless-top-down-2d@1,
      fixture.genre.shooter.target-practice-minimal@1,
      fixture.genre.shooter.target-practice-minimal-no-perception@1,
-     fixture.genre.shooter.target-practice-minimal-project-provider@1,
-     fixture.genre.shooter.runtime_scope_migration@1]
+     fixture.genre.shooter.target-practice-minimal-project-provider@1]
 ```
 
-全`@1`表示はManifest保存時に対応するversion／Contract set rootまたはcontent hashを持つexact refへ展開し、裸IDを保存しない。三Operation inventory、Pack ownerのactive MCD Operation集合、Authoring Command Gateway Service allowlist contributionはset equalityである。Manifest `validator_refs[]`はShooter Validator Registryの`owner_ref=owner.genre.shooter` subsetとexact 8-ref set equalityであり、common Operation ValidatorをPack inventoryへ複写しない。Profileは独立PackではなくShooter Packのversion／hashに含まれる。ManifestのValidator／Test一覧はPack inventoryであり、選択Recipeは自身の`validator_refs[]`とroot外`PackRecipeActivationBindingV1`が指すsigned Receiptだけを実行gateにする。Fixture bodyは別Qualification subjectだけが解決し、Production Recipe／Runtime Packageは解決しない。Pack-level requiredはRanged Combatとその推移Feature DAGだけである。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeだけが持つ条件依存である。
+全`@1`表示はManifest保存時に対応するversion／Contract set rootまたはcontent hashを持つexact refへ展開し、裸IDを保存しない。三Operation inventory、Pack ownerのactive MCD Operation集合、Authoring Command Gateway Service allowlist contributionはset equalityである。Manifest `validator_refs[]`はShooter Validator Registryの`owner_ref=owner.genre.shooter` subsetとexact 8-ref set equalityであり、common Operation ValidatorをPack inventoryへ複写しない。Profileは独立PackではなくShooter Packのversion／hashに含まれる。ManifestのValidator／Test一覧はPack inventoryであり、選択Recipeは自身の`validator_refs[]`とroot外`PackRecipeActivationBindingV1`が指すsigned Receiptだけを実行gateにする。Fixture bodyは別Qualification subjectだけが解決し、Production Recipe／Runtime Packageは解決しない。Pack-level requiredはRanged Combatとその推移Feature DAGだけである。Encounter、Scoring、Pickup、Interaction、Character Locomotion、Path Following、Scenario／Stage、Perceptionは、それらを使用するRecipeだけが持つ条件依存である。Runtime Scope legacy migrationはcurrent Pack inventoryへ含めず、`migration_contribution_refs=[]`、migration固有Qualification Binding／Activation Catalog集合もexact `[]`である。次の四`CompositionRecipeV1`は[Pack Contract §3.1](pack-contract.md#31-compositionrecipev1)のcanonical schemaを満たすShooter具体instanceであり、後続するPack Recipe Qualification／Activation三recordは同じ節のcanonical schemaに対するShooter owner制約付きvalue projectionである。いずれもschemaの再定義ではない。
 
 ```text
 CompositionRecipeV1
@@ -257,7 +256,7 @@ ShooterTargetProviderTemplateV1
   save_replay_requirement_ref
 ```
 
-組込みstationary templateは次のexact値を持つ。
+組込みstationary templateは次のexact値を持つ。これは直前のcanonical `ShooterTargetProviderTemplateV1` schemaへ値を代入したbuilt-in instanceであり、schemaの再定義ではない。
 
 ```text
 ShooterTargetProviderTemplateV1
@@ -402,7 +401,7 @@ ShooterSelectedProviderBindingSetHashPayloadV1
 
 `selected_record_count`は配列長と一致し、recordsはSelection SourceとRegistryの同じcanonical順、全recordは同一entry branchかつSource／Registry memberでなければならない。`selected_provider_binding_set_hash`はASCII `MIRAKAN_SHOOTER_SELECTED_PROVIDER_BINDING_SET_V1`、payloadのself-hashを持たない全Fieldをlength framingしてSHA-256する。Selection Document ref／hash、Registry ref／hash、post-commit Project revision／document set hash、entry Document content hash／semantic hash、Binding Document五Field ref、selected record hashの一Fieldでも変われば別hashとなり、当該entry branch closureへ入れる。Production SaveはSelection Document ref四Field、binding Document ref五Field、template hash、production System ref／contract hash、target data identity、Save Replay contract hashを保存し、Load／Replayは同じclosureまたは明示migrationを要求する。fixture System refを保存しない。
 
-fixture-only binding recordはexact `fixture.genre.shooter.target-practice-minimal` owner、`usage=fixture_only`、`fixture_system.genre.shooter.stationary_target_provider@1`のexact `FixtureImplementationSystemRefV1`＋`activation.fixture_system.genre.shooter.stationary_target_provider@1`、fixture target data、fixture Target Profileを持つ。implementation base recordを次の全Fieldで固定し、空配列もhashへcount 0で含める。
+fixture-only binding recordはexact `fixture.genre.shooter.target-practice-minimal` owner、`usage=fixture_only`、`fixture_system.genre.shooter.stationary_target_provider@1`のexact `FixtureImplementationSystemRefV1`＋`activation.fixture_system.genre.shooter.stationary_target_provider@1`、fixture target data、fixture Target Profileを持つ。implementation base recordを次の全Fieldで固定する。これは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `FixtureImplementationSystemRecordV1` schemaのShooter fixture具体instanceであり、schemaの再定義ではない。空配列もhashへcount 0で含める。
 
 ```text
 FixtureImplementationSystemRecordV1
@@ -582,11 +581,11 @@ ShooterTargetProviderBindingSelectionReceiptV1
 
 各input／output／Receipt type refは`McdContractRefV1 {id, version=1, contract_set_hash}`である。`input_type_ref`は選択したcreate／update／select named Typeとexact equalityで、anonymous sibling shapeを許可しない。`operation_intent_hash`と`request_hash`は`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`の唯一のDAGを使い、Approval／Predelegationをfinal request hashへ逆向きにbindしない。createでは`binding_before_ref=null`、updateではbefore／afterのStable IDが同一、selectではSelection DocumentのStable IDが不変でSource recordが厳密に一件変わる。全成功でbefore／after Project IDが同一かつrevisionが一だけ増加する。
 
-Result、Prepared payload、Source／Derived state、private Marker、signed Receipt、Public MarkerのProject／Binding／Selection／Registry／selected set hashはexact equalityである。唯一の順序は`Preview → Validation → Prepared Candidate／Prepared Commit Envelope → staged postcondition → private durable commit marker → canonical PublishedDomainReceiptV2／MirakanSignedRecordV1 wrapper → PublicPublicationMarkerV1＋after Project`である。private Marker時点でSource current head、Registry、Resultを公開せず、wrapper保存／readback後にだけPublic Markerとafter Projectをpublic CASする。rejected branchはafter state、signed Receipt、Public Markerをcanonical omissionし、Project、Source Selection、Registry、Save、Compile Manifest、last-valid packageを変更しない。Prepared payload Typeはmutationがexact `type.genre.shooter.prepared_target_provider_binding_mutation_receipt_payload@1`、selectionがexact `type.genre.shooter.prepared_target_provider_binding_selection_receipt_payload@1`であり、最終Receipt Typeと相互代用しない。各payload hashは対応する`MIRAKAN_PREPARED_SHOOTER_TARGET_PROVIDER_*_RECEIPT_PAYLOAD_V1`とself-excluding canonical bytesから計算し、Domain signer／key／algorithm／signature Fieldをinline定義しない。
+Result、Prepared payload、Source／Derived state、private Marker、`PublicCommitClosureV1`、signed Receipt、Public MarkerのProject／Binding／Selection／Registry／selected set hashはexact equalityである。公開schema、hash、順序は[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)を唯一の正本とし、Shooter側へ同名型を複写しない。唯一の順序は`Preview → Validation → Prepared Candidate／Prepared Commit Envelope → staged postcondition → private durable commit marker read-back → Shooter ownerとreceipt-free Binding／Selection／Registry artifactを持つowner_typed_state_commitのsecret-free PublicCommitClosure candidate → canonical PublishedDomainReceiptV2／MirakanSignedRecordV1 wrapper → PublicCommitClosure＋PublicPublicationMarkerV1＋after Projectのatomic public CAS`である。private Marker時点またはClosure candidate storeだけではSource current head、Registry、Resultを公開せず、wrapper保存／readback後にだけ同じClosure body、Public Marker、after Projectをpublic CASする。成功ResultのPublic Markerとsigned Receiptは同一`PublicCommitClosureRefV1`／完成object hashを解決し、Ref内semantic hashと完成object SHAを相互代用しない。rejected branchはafter state、Closure、signed Receipt、Public Markerをcanonical omissionし、Project、Source Selection、Registry、Save、Compile Manifest、last-valid packageを変更しない。Prepared payload Typeはmutationがexact `type.genre.shooter.prepared_target_provider_binding_mutation_receipt_payload@1`、selectionがexact `type.genre.shooter.prepared_target_provider_binding_selection_receipt_payload@1`であり、最終Receipt Typeと相互代用しない。各payload hashは対応する`MIRAKAN_PREPARED_SHOOTER_TARGET_PROVIDER_*_RECEIPT_PAYLOAD_V1`とself-excluding canonical bytesから計算し、Domain signer／key／algorithm／signature Fieldをinline定義しない。
 
-private Marker後かつwrapper前のcrashは固定materialization key／issued-at／revocation snapshot／deterministic signing profileで同じwrapper bytesをroll-forwardし、wrapper後かつPublic Marker前は同じexpected predecessorへpublic CASをroll-forwardする。Public Marker後のrollback、alternate signature、二重publication、unsigned prepared payloadによるcurrent head更新を拒否する。
+private Marker後かつwrapper前のcrashは同じsemantic hash／完成object SHAのClosure candidateと、固定materialization key／issued-at／revocation snapshot／deterministic signing profileによる同じwrapper bytesへroll-forwardする。wrapper後かつPublic Marker前は同じClosure＋Marker＋after Projectを同じexpected predecessorへpublic CASする。Public Marker後の別Closure、rollback、alternate signature、二重publication、unsigned prepared payload／Closure candidateだけによるcurrent head更新を拒否する。
 
-同じidempotency key＋request hashのretryはbyte-identical Resultと同じsigned Receipt／Public Marker ref／hashを返し、同じkeyの別requestは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で拒否する。
+同じidempotency key＋request hashのretryはbyte-identical Resultと同じClosure／signed Receipt／Public Marker ref／hashを返し、同じkeyの別requestは`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で拒否する。
 
 三Operationが使うDiagnostic Registry subsetを次へ固定する。Shooter固有九件は完全な`DiagnosticLocalRecordV2`であり、各rowは`diagnostic_version=1`、`owner_local_ref={owner_id=owner.genre.shooter,owner_revision=1,owner_content_hash=SHA-256(MIRAKAN_DIAGNOSTIC_OWNER_LOCAL_IDENTITY_V1, length-framed canonical owner ID／revision)}`、`requirement_local_refs=[]`、`message_key="<diagnostic_id>.message"`、Ownerを含むself-excluding `diagnostic_local_content_hash`を持つ。root確定後だけ同じ三Field Owner ref、`requirement_refs=[]`、別のself-excluding `diagnostic_content_hash`を持つ外部Registry recordへ投影する。共通八件はExecutable Contractsの既存owner付きrecordをexact reuseし、Shooter ownerへ付け替えない。Operationは表の四Fieldがexact equalityの`DiagnosticCodeRefV1`を保存する。
 
@@ -671,7 +670,7 @@ ShooterPerceptionBindingV1
   fire_intent_policy_ref
 ```
 
-`perception_profile_ref`はPerception ownerのactive `PerceptionProfileV1`へexactに解決し、target selection policyと`hostile_team_filter_ref`の互換性を検証する。`lost_target_behavior`は上記closed enumだけを許可し、`search_last_known`はbounded Perception memory、`return_to_route`はPath Following portのtyped requestだけを読む。`fire_intent_policy_ref`はvisibleまたは記憶済みtarget evidenceから`RequestFireCommandV1`を生成するpolicyへ解決し、target消失後のfire継続条件と最大tick数を明示しなければならない。Render visibility、Camera frustum、Audio mixer、VFX、native Physics objectをtarget／fire authorityにしたbindingを拒否する。
+`perception_profile_ref`はPerception ownerのactive `PerceptionProfileV1`へexactに解決し、target selection policyと`hostile_team_filter_ref`の互換性を検証する。`lost_target_behavior`は上記closed enumだけを許可し、`search_last_known`はbounded Perception memory、`return_to_route`はPath Following portのtyped requestだけを読む。`fire_intent_policy_ref`はvisibleまたは記憶済みtarget evidenceから`RequestFireCommandV1`を生成するpolicyへ解決し、target消失後のfire継続条件と最大Simulation Advance数を明示しなければならない。Render visibility、Camera frustum、Audio mixer、VFX、native Physics objectをtarget／fire authorityにしたbindingを拒否する。
 
 Camera、Audio、LOD Profileのparameter schemaと実行規則は各Subsystem Ownerが所有する。Shooter Profileは参照とGenre固有の組合せだけを所有し、Camera rig、Audio voice、representation selectionをGameplay authorityにしない。
 
@@ -687,7 +686,7 @@ Shooter Packは`RuntimeScopeTypeCatalogV1`へ次のexact rowを登録する。
 
 保存値はversion／hash付き`RuntimeScopeTypeRefV1`、`McdContractRefV1`、`RuntimeScopeOwnerRefV1`であり、表のIDだけを永続化しない。全dependencyをactive Scope Registryへ登録する。Shooter内部Systemだけがこのscopeを使用できる。旧generic `play_session`と末尾`.instance`を欠くGenre aliasへGame Flow stateを保存せず、Scope Save identity、Replay identity、ephemeral runtime generationを分離する。
 
-Shooter ownerは`RuntimeScopeMigrationContributionRegistryV1`へ`runtime_scope.migration_contribution.genre.shooter.game_flow`を登録する。Production contributionはowner `owner.genre.shooter`、exact legacy Shooter Game Flow System ref／hashを検査するsource match policy、source schema `type.game_system.spec` version 1、destination version 2、legacy value `play_session`、destination `scope.genre.shooter.game_flow.instance`、Shooter-owned auxiliary／identity migration policyを持つReceipt-free recordである。Registry／ContributionRef固定後に`qualification.runtime_scope_migration.genre.shooter.game_flow@1` subject／signed Receiptと`qualification_binding.runtime_scope_migration.genre.shooter.game_flow@1`をroot外で作る。`fixture.genre.shooter.runtime_scope_migration`はsubjectだけが解決する。末尾`.instance`欠落alias、同じ`play_session`を持つ非Shooter System、owner／Binding／Receipt／policy hash stale、Save／Replay mapping衝突をShooter Qualificationで拒否し、Core migration table／binary／Fixture inventoryへShooter IDを追加しない。
+`runtime_scope.migration_contribution.genre.shooter.game_flow@1`はcurrent Pack memberではなく、Gameplay Programming Model §3.1.2のconditional legacy migrationがsigned `LegacyMigrationInventoryV1` gateを満たしてatomic activationされる場合だけ追加できるdestination candidateである。現時点のContribution／Qualification subject／Receipt／Binding／Activation Catalog／migration fixture inventoryはすべてexact `[]`で、`fixture.genre.shooter.runtime_scope_migration@1`もcurrent `test_scenario_refs[]`へ含めない。Activation transactionではShooter ownerが`RuntimeScopeMigrationContributionRegistryV1`へ同recordを登録する。Production contribution destinationはowner `owner.genre.shooter`、Inventoryが束縛したexact legacy Shooter Game Flow System ref／hashを検査するsource match policy、source schema `type.game_system.spec` version 1、destination version 2、legacy value `play_session`、destination `scope.genre.shooter.game_flow.instance`、Shooter-owned auxiliary／identity migration policyを持つReceipt-free recordである。Registry／ContributionRef固定後に`qualification.runtime_scope_migration.genre.shooter.game_flow@1` subject／signed Receiptと`qualification_binding.runtime_scope_migration.genre.shooter.game_flow@1`をroot外で作る。Fixture bodyはsubjectだけが`fixture.genre.shooter.runtime_scope_migration`を解決する。末尾`.instance`欠落alias、同じ`play_session`を持つ非Shooter System、owner／Binding／Receipt／policy hash stale、Save／Replay mapping衝突をShooter Qualificationで拒否し、Core migration table／binary／Fixture inventoryへShooter IDを追加しない。
 
 | From | To | 条件 |
 |---|---|---|
@@ -741,7 +740,7 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 ### 8.1 `fixture.product.shooter-2d`
 
-`genre.shooter.top_down_2d`、`profile.shooter.top_down_2d`、Feature Capability closureを使い、ReadyからPlaying、Paused／resume、Result、restartを検証する。Damage／Vital／Faction、Ranged Combat、Encounter／Spawn、Scoring、Pickup／Grant、Interaction、Character Locomotion、Path Following、Scenario／Stageが各Feature OwnerのPublic Contractだけを使用することを確認する。Perception境界の出入り、`search_last_known`／`return_to_route`、target消失後のfire-intent停止tickをfixed inputで検証する。
+`genre.shooter.top_down_2d`、`profile.shooter.top_down_2d`、Feature Capability closureを使い、ReadyからPlaying、Paused／resume、Result、restartを検証する。Damage／Vital／Faction、Ranged Combat、Encounter／Spawn、Scoring、Pickup／Grant、Interaction、Character Locomotion、Path Following、Scenario／Stageが各Feature OwnerのPublic Contractだけを使用することを確認する。Perception境界の出入り、`search_last_known`／`return_to_route`、target消失後のfire-intent停止advanceをfixed inputで検証する。
 
 ### 8.2 `fixture.product.shooter-arena-3d`
 
@@ -757,7 +756,7 @@ AIはFeature schemaをShooter schemaとして複写せず、Feature OwnerのCata
 
 `fixture.genre.shooter.target-practice-minimal-no-perception`はPerception Validator／Profile、full 2D／TPS fixture、Scenario／Stage、Scoring、Character Locomotion、Path Following、Encounter、Pickup、Interactionを未installにしたregistryからminimal Recipeだけをapply／qualifyするregression fixtureである。Manifest inventoryに`validator.genre.shooter.perception_binding`やfull fixtureが存在しても選択Recipe gateへ追加されないことを検証する。
 
-`fixture.genre.shooter.target-practice-minimal-project-provider`はProduction modeでProject revision NのOperation inputからBinding Documentをcreateし、private Marker→canonical signed wrapper→Public Marker＋Projectの順をreadbackしてN+1のrevision／document set hashを確認した後、N+1をreload→select→cook→Play→Save／Load→Replayする。各crash window、署名前public、alternate signature、二重publicationをrejectする。続けてBindingと無関係なDocumentだけを編集したN+2を作り、binding semantic hashがN+1と同一のまま、N+2 Registry membershipとCompile closureのrevision／document set hashだけを更新して再compileできることを検証する。payloadへN+1／N+2 revisionを戻さずfixed pointを作らない。Project-defined logical target implementationはWorld、Physics、Perceptionを一切installせず、Ranged Combat ownerのexact Collision Query Port／Shot Hit Event type、Project-owned System、target dataだけでdeterministic Hit Evidenceを返す。Compile Manifestとentry closureが`selected_provider_binding_set_hash`を持ち、binding／template／System／Save Replay／target data hashのいずれかを変更するとpackageとReplay closureがinvalidateされることを検証する。
+`fixture.genre.shooter.target-practice-minimal-project-provider`はProduction modeでProject revision NのOperation inputからBinding Documentをcreateし、`private Marker read-back→owner-typed PublicCommitClosure candidate→canonical signed wrapper→Closure＋Public Marker＋Projectのatomic CAS`をreadbackしてN+1のrevision／document set hashを確認した後、N+1をreload→select→cook→Play→Save／Load→Replayする。各crash window、Closure欠落／差替え、semantic hashと完成object SHAの混同、署名前public、alternate signature、二重publicationをrejectする。続けてBindingと無関係なDocumentだけを編集したN+2を作り、binding semantic hashがN+1と同一のまま、N+2 Registry membershipとCompile closureのrevision／document set hashだけを更新して再compileできることを検証する。payloadへN+1／N+2 revisionを戻さずfixed pointを作らない。Project-defined logical target implementationはWorld、Physics、Perceptionを一切installせず、Ranged Combat ownerのexact Collision Query Port／Shot Hit Event type、Project-owned System、target dataだけでdeterministic Hit Evidenceを返す。Compile Manifestとentry closureが`selected_provider_binding_set_hash`を持ち、binding／template／System／Save Replay／target data hashのいずれかを変更するとpackageとReplay closureがinvalidateされることを検証する。
 
 ### 8.5 Negative fixture
 
@@ -926,7 +925,7 @@ AI ProviderへC++ pointer、Runtime handle、unbounded projectile list、raw Phy
 Shooter Workspaceは専用別Editorではなく、既存Scene、Outliner、Inspector、Graph、Table、AI Partnerへ次のProjectionを追加する。
 
 - Weapon Inspector: cadence、ammo、reload、Delivery、Damage、Cue
-- Shot Pattern Preview: origin、direction、tick、capacity、Hit candidate
+- Shot Pattern Preview: origin、direction、Simulation Advance、capacity、Hit candidate
 - Encounter Timeline: Phase、Wave、Spawn、Boss transition
 - Damage／Team Matrix: Relation、block、apply、credit
 - Score Rule Table: Event、Filter、point、combo、multiplier
@@ -944,16 +943,16 @@ AI変更はRequirement、Before／After、Gameplay差分、Presentation差分、
 
 ```text
 peak_live_weapon_instance
-peak_fire_request_per_tick
-peak_shot_activation_per_tick
-peak_projectile_spawn_per_tick
+peak_fire_request_per_simulation_advance
+peak_shot_activation_per_simulation_advance
+peak_projectile_spawn_per_simulation_advance
 peak_live_authoritative_projectile
-peak_hitscan_query_per_tick
-peak_shot_hit_per_tick
-peak_damage_event_per_tick
-peak_score_event_per_tick
+peak_hitscan_query_per_simulation_advance
+peak_shot_hit_per_simulation_advance
+peak_damage_event_per_simulation_advance
+peak_score_event_per_simulation_advance
 peak_live_pickup
-peak_pickup_collection_per_tick
+peak_pickup_collection_per_simulation_advance
 peak_enemy_and_ally
 peak_simultaneous_presentation_cue
 ```
@@ -962,7 +961,7 @@ peak_simultaneous_presentation_cue
 
 ### 14.2 C1組込み最低Fixture
 
-| Profile | active combat actor | live projectile | projectile spawn／tick | hitscan query／tick | 目標 |
+| Profile | active combat actor | live projectile | projectile spawn／Simulation Advance | hitscan query／Simulation Advance | 目標 |
 |---|---:|---:|---:|---:|---|
 | `profile.shooter.top_down_2d` | 256 | 2,048 | 256 | 128 | 1080p60、authoritative drop 0 |
 | `profile.shooter.third_person_3d` | 50 | 256 | 64 | 128 | 1080p60、authoritative drop 0 |

@@ -7,6 +7,7 @@
 - 対象AI: `GameAuthoringProfileV1`と`EngineMaintenanceProfileV1`を分離
 - 外部根拠検証日: 2026-07-23
 - 上位横断計画: [Architecture Evolution Control Plane Design](2026-07-22-architecture-evolution-control-plane-design.md)
+- 実行入口・公式根拠: [計画書の実行権限・準備状況](README.md)。公式資料は設計制約の根拠であり、exact version／hash／licenseの採用正本は[Toolchain／Dependencies](../architecture/02-foundation/toolchain-dependencies.md)
 - 対象外: Engine実装code、MCD compiler実装、Vulkan／Metal Backend詳細設計、既存仕様の承認状態変更
 
 ## 1. 結論

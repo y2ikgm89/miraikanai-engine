@@ -64,7 +64,7 @@ UiViewModelSnapshot
 | `T110` | immutable UI PresentationをRenderSnapshotへpublish |
 | `R20` | clip、batch、glyph／image packetを抽出 |
 
-UI interactionはpixel hit resultからWorldを直接変更せず、registered `UiCommandId`を発行する。`T90`で作ったHit Test Snapshotは次tickの`T10／T30`で使用する。`T10`ではInput規約（[Input](input.md) §6）がpointer consumption解決の入力として前tickの`UiHitTestSnapshot`（pointer-over-UI集合）を使用する。Surface generation、Document generation、layout generation不一致のpointer eventはtargetへ配送しない。
+UI interactionはpixel hit resultからWorldを直接変更せず、registered `UiCommandId`を発行する。`T90`で作ったHit Test Snapshotは次Simulation Advanceの`T10／T30`で使用する。`T10`ではInput規約（[Input](input.md) §6）がpointer consumption解決の入力として前advanceの`UiHitTestSnapshot`（pointer-over-UI集合）を使用する。Surface generation、Document generation、layout generation不一致のpointer eventはtargetへ配送しない。
 
 ## 4. UiDocument
 
@@ -237,7 +237,7 @@ Layout dirty propagationは変更Nodeから必要ancestor／descendantだけへ�
 | draw primitive／frame | 131,072 |
 | visible glyph／frame | 65,536 |
 | focusable node／scope | 16,384 |
-| UI interaction／tick | 8,192 |
+| UI interaction／Simulation Advance | 8,192 |
 
 上限超過を一部非表示にして成功させず、Screen activation／Frameをtyped `UiCapacityExceeded`で失敗させる。
 

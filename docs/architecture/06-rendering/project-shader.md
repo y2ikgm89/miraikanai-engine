@@ -216,6 +216,7 @@ ProjectShaderTechniqueV1
   schema_version
   technique_id
   revision
+  technique_content_hash
   namespace
   purpose
   technique_kind: raster | compute | ray | mixed
@@ -231,6 +232,8 @@ ProjectShaderTechniqueV1
   fallback_refs[]
   provenance_refs[]
 ```
+
+`technique_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_TECHNIQUE_V1`と、同Fieldだけを除く完成`ProjectShaderTechniqueV1`のcount／length-framed canonical bytesからSHA-256する。Technique ID、revision、namespace、Port、Resource／Pass DAG、Target、Budget、Fixture、Fallback、Provenanceの一Fieldでも変われば旧hashを再利用しない。
 
 `injection_port_id`はEngine-owned closed IDであり、少なくとも`material_surface | shadow | post_process_pre_tonemap | post_process_post_tonemap | vfx_simulation | vfx_render | environment_surface | project_render_domain`を区別する。Portは利用可能なScene／View semantic、許可出力、Layer、history、ordering boundaryを定義し、Projectが文字列stage名で挿入位置を作らない。
 
@@ -345,7 +348,122 @@ producer_tool_ids[]
 - `operation.shader.propose_module`
 - `operation.shader.propose_technique`
 
-current MCD／Manifest／Service allowlist／Policy／Validator closure／Diagnostic／Receipt／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.shader.discovery_proposal_operations.v1`が16件をatomic activateする場合、Search／Read／Inspect／Explain／Compare／Estimate／ValidateはR0、Preview／Sweepは状態を正規Projectへ反映しないbounded Job、Planはread-only Proposal、ProposeはR3 Source ChangeSetとする。Modelへraw filesystem write、compiler command、artifact publish、commit、activation、policy overrideを公開しない。
+current MCD／Manifest／Service allowlist／Policy／Validator closure／Diagnostic／Receipt／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.shader.discovery_proposal_operations.v1`が16件をatomic activateする場合、Search／Read／Inspect／Explain／Compare／Estimate／ValidateはR0、Preview／Sweepは状態を正規Projectへ反映しないbounded Job、Planはread-only Proposal、ProposeはR1 Patch Proposalとする。ProposeはSource revision、Project、Artifactを変更せず、Broker再計算Diffを持つ下記`ProjectShaderPatchProposalV1`だけを返す。Source Promotionは[Executable Contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の別family `operation.project_source.promote_revision`がCode Owner ApprovalとBuild／Test Receiptを再検証する`trusted_internal` route、Project登録は[Project state](../03-authoring/project-state.md#52-projectchangeprimitivev1)のShader二primitiveを含むChangeSet routeだけを使う。Modelへraw filesystem write、compiler command、artifact publish、commit、promotion、activation、policy overrideを公開しない。
+
+Plan／ProposeがSource Workerへ渡すtarget carrierを次へ固定する。Schemaの存在はOperation ActivationまたはSource write権限を意味しない。
+
+```text
+ProjectShaderModuleIdentityRefV1
+  project_id: UUIDv7
+  module_id: UUIDv7
+
+ProjectShaderTechniqueIdentityRefV1
+  project_id: UUIDv7
+  technique_id: UUIDv7
+
+ProjectShaderTechniqueRevisionRefV1
+  technique_id: UUIDv7
+  revision: uint64
+  technique_content_hash: Sha256DigestV1
+
+ProjectShaderSourceRevisionV1
+  project_id: UUIDv7
+  source_subject:
+    kind: module
+      module_ref: ProjectShaderModuleRefV1
+    | kind: technique
+      technique_ref: ProjectShaderTechniqueRevisionRefV1
+  source_revision: uint64
+  source_tree_sha256: Sha256DigestV1
+  source_revision_content_hash: Sha256DigestV1
+
+ProjectShaderSourcePathScopeRefV1
+  scope_artifact_ref:
+    exact ArtifactRefV1(
+      artifact_kind=project_shader_source_path_scope,
+      schema_version=1)
+  scope_id: StableId
+  scope_version: uint32
+  scope_content_hash: Sha256DigestV1
+
+BoundedProjectShaderProfileRefV1
+  profile_id: StableId
+  profile_schema_version: 1
+  profile_content_hash: Sha256DigestV1
+
+ProjectShaderSourceTargetProfileRefV1
+  target_profile_id: StableId
+  target_profile_version: uint32
+  target_profile_content_hash: Sha256DigestV1
+
+ProjectShaderSourceRequirementRefV1
+  requirement_id: StableId
+  requirement_version: uint32
+  requirement_content_hash: Sha256DigestV1
+
+ProjectShaderSourceTaskV1
+  task_id:
+    urn:mirakan:project-shader-source-task:sha256:<lowercase-hex-64>
+  project_id: UUIDv7
+  base_project_revision: uint64
+  source_subject:
+    action: create_module
+      module_identity_ref: ProjectShaderModuleIdentityRefV1
+    | action: update_module
+      module_ref: ProjectShaderModuleRefV1
+      base_source_revision_ref:
+        exact ArtifactRefV1(
+          artifact_kind=project_shader_source_revision,
+          schema_version=1)
+    | action: create_technique
+      technique_identity_ref: ProjectShaderTechniqueIdentityRefV1
+    | action: update_technique
+      technique_ref: ProjectShaderTechniqueRevisionRefV1
+      base_source_revision_ref:
+        exact ArtifactRefV1(
+          artifact_kind=project_shader_source_revision,
+          schema_version=1)
+  path_scope_refs[1..256]: ProjectShaderSourcePathScopeRefV1
+  shader_authoring_profile_ref: BoundedProjectShaderProfileRefV1
+  shader_authoring_profile_sha256: Sha256DigestV1
+  public_shader_sdk_catalog_sha256: Sha256DigestV1
+  contract_set_hash: Sha256DigestV1
+  toolchain_lock_sha256: Sha256DigestV1
+  target_profile_refs[1..64]: ProjectShaderSourceTargetProfileRefV1
+  requirement_refs[1..128]: ProjectShaderSourceRequirementRefV1
+  code_owner_assignment_ref: CodeOwnerAssignmentRecordRefV1
+  task_input_closure_sha256: Sha256DigestV1
+
+ProjectShaderPatchProposalV1
+  proposal_id:
+    urn:mirakan:project-shader-patch-proposal:sha256:<lowercase-hex-64>
+  source_task_ref:
+    exact ArtifactRefV1(
+      artifact_kind=project_shader_source_task, schema_version=1)
+  source_bundle_ref: ArtifactRefV1(
+    artifact_kind=source_bundle, schema_version=1)
+  worker_source_delta_ref: ArtifactRefV1(
+    artifact_kind=source_delta, schema_version=1)
+  broker_recomputed_diff_ref: ArtifactRefV1(
+    artifact_kind=broker_recomputed_source_diff, schema_version=1)
+  before_source_tree_sha256: Sha256DigestV1
+  after_source_tree_sha256: Sha256DigestV1
+  changed_path_refs[1..4096]: ProjectSourceChangedPathRefV1
+  module_manifest_candidate_ref: null | ArtifactRefV1(
+    artifact_kind=project_shader_module_manifest_candidate, schema_version=1)
+  technique_manifest_candidate_ref: null | ArtifactRefV1(
+    artifact_kind=project_shader_technique_manifest_candidate, schema_version=1)
+  required_build_plan_ref: ArtifactRefV1(
+    artifact_kind=project_shader_build_test_plan, schema_version=1)
+  diagnostic_refs[0..64]: DiagnosticCodeRefV1
+  proposal_sha256: Sha256DigestV1
+```
+
+`ProjectShaderSourceRevisionV1.source_revision_content_hash = SHA-256(ASCII "MIRAKAN_PROJECT_SHADER_SOURCE_REVISION_V1" || uint32_be(length(closed MCD canonical bytes excluding source_revision_content_hash)) || closed MCD canonical bytes excluding source_revision_content_hash))`とする。`ArtifactRefV1(artifact_kind=project_shader_source_revision,schema_version=1).sha256`はこのFieldを含む完成record bytesのSHA-256へ一致させる。Task／Proposal／Promotionはresolved recordのProject、Module／Technique kind、Stable ID、revision、content hash、source treeを隣接refとbyte equalityにし、cross-kindまたは別ProjectのSource revisionを受理しない。
+
+`source_subject`は`action`をdiscriminatorとするclosed tagged unionである。`create_module | create_technique`はGatewayが予約した未使用identityだけを必須にし、revision refと`base_source_revision_ref`をcanonical omissionする。`update_module | update_technique`はCommit済みexact revision refと、その同じProject／subject Stable ID／revisionへ解決するbase refを必須にし、identity refをcanonical omissionする。createで既存ID、updateでmissing／zero／latest base、ModuleとTechniqueのcross-kind ref、branch外Field、Project／subject ID／revision／content hash不一致を拒否し、空refを省略の代用にしない。ProposalはModule actionでModule manifest候補だけnon-null、Technique actionでTechnique manifest候補だけnon-nullにし、Promotionの`revision_transition.kind`をcreate／update actionと一致させる。
+
+Task IDはASCII `MIRAKAN_PROJECT_SHADER_SOURCE_TASK_V1`、Proposal ID／hashは`MIRAKAN_PROJECT_SHADER_PATCH_PROPOSAL_V1`と各自己Fieldを除くcanonical bytesから導出する。`shader_authoring_profile_sha256`はprofile refが解決する完成profile hashとbyte equalityにする。Path Scope、Target、Requirementの各ref集合はID／version／content hash順でcanonical sortし、duplicate ID、同ID別hash、latest／display name lookupを拒否する。Path Scopeは`scope_artifact_ref`をAssignmentの`OperationMutationTypedScopeRefV1.scope_artifact_ref`とbyte equalityにし、完成scope payload hashを同artifact refのSHA-256へ一致させる。Scopeを解決したPathはProject-relative、Assignment Scope内、canonical sort／uniqueで、Engine Shader、Backend、generated binding、Compiler directoryを拒否する。`changed_path_refs[]`は[Project state](../03-authoring/project-state.md#51-envelope)のtyped `ProjectSourceChangedPathRefV1`で、同Ownerが定めるcanonical tuple順を使い、全recordの`source_kind=project_shader`、Project一致、closed `BrokerRecomputedSourceDiffV1`とのset equality、全pathのScope包含を必須にする。createの`source_bundle_ref`／`before_source_tree_sha256`はcanonical empty Project Shader source tree、updateはexact base Source revisionへ解決し、空refまたは別subject treeを使わない。Worker DeltaをApproval対象にせず、clean Stagingへ適用してBrokerが再計算したDiffだけを`ProjectSourcePromotionSubjectV1.source.source_kind=project_shader`かつTask actionと一致する`revision_transition.kind`へ渡す。Promotion Receipt、Target別Shader Build／Test Receipt、Code Owner Approvalの一つでも欠けるSourceをChangeSet primitiveへ変換しない。
 
 Activation時の`ShaderContextSliceV1`はquery hash、Project revision、Profile hash、public Shader SDK Catalog hash、Module／Technique IDとrevision、selected Project symbols、参照するSDK Symbol entry、typed value／resource interfaces、call／value／resource／control edge、Pass relation、`source_excerpts[]`、Target／variant差、budget、diagnostic、fixture／Evidence summary、available Operation ID、omitted range、cursor、total countを持つ。`source_excerpts[]`はproject-relative path、file content hash、start／end span、UTF-8 Source text、truncation stateを持ち、別revisionのtextを同じSliceへ混在させない。配列／byte上限時に黙って切らずcontinuationを返す。
 

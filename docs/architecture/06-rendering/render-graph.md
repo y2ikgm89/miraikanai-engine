@@ -13,7 +13,7 @@ RendererはProject C++、Gameplay、Editor、AIからnative API object、command
 
 宣言的`RenderGraphDefinition`はresource／pass／view／dependencyだけを持ち、`render_graph` moduleがcanonical execution planへcompileする。Engine-owned Pass Templateと[Project Shader](project-shader.md)でQualification済みのTechnique ManifestだけをDefinitionへ展開し、callback外access、native barrier／queue signal、Backend objectを埋め込まない。
 
-Runtime phase、tick、job dependency、submission lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通CPU／GPU／memory budgetと測定法は[Runtime performance／capacity](../04-runtime/performance-capacity.md)だけが決定する。本書はRenderer固有のresource pressure、fallback、correctnessを定義するが、共通値や測定envelopeを複写しない。
+Runtime phase、Simulation Advance、job dependency、submission lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通CPU／GPU／memory budgetと測定法は[Runtime performance／capacity](../04-runtime/performance-capacity.md)だけが決定する。本書はRenderer固有のresource pressure、fallback、correctnessを定義するが、共通値や測定envelopeを複写しない。
 
 Materialのshading意味、Lightの物理意味、Post Processのvolume／effect composition、LOD representation選択、World source／streaming planは各同階層Ownerが決定する。Rendererは解決済み入力を実行し、他DomainのSource Documentを解釈しない。
 
@@ -49,7 +49,9 @@ Renderableの`RenderObjectKey`は`{renderable_type_id, pipeline_key, material_ke
 RenderSnapshot
   schema_version
   snapshot_id
-  tick_id
+  simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
+  simulation_advance_interval_hash: SHA-256
+  advance_sequence
   project_revision
   world_generation
   asset_generation_id
@@ -66,7 +68,7 @@ RenderSnapshot
   debug_batch
 ```
 
-Snapshotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のpublish contractで全体を一度だけpublish後immutableとする。Entity pointer、Component span、native Physics／GPU objectを含めず、ArrayはStable rendering keyでcanonical sortしworker completion順を保存しない。
+Snapshotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のpublish contractで全体を一度だけpublish後immutableとする。先頭のCadence Profile ref、Interval hash、advance sequenceは同じpublish対象`SimulationAdvanceIntervalV1`とbyte equalityにし、Presentation側でrateまたはdurationを補完しない。Entity pointer、Component span、native Physics／GPU objectを含めず、ArrayはStable rendering keyでcanonical sortしworker completion順を保存しない。
 
 | `RenderView` field | 型／規則 |
 |---|---|
@@ -144,7 +146,7 @@ queue classはgraphics、async compute、copyをEngine語彙として公開し�
 
 Transient resourceはcompile済みintervalの範囲だけ生存し、aliasはformat／alignment／queue overlap／clear semanticsが互換な場合に限る。Persistent resource、streaming resource、temporal history、swapchain surfaceはgeneration付きleaseで参照し、Device reset、resize、provider change、artifact promotionを跨ぐstale handleを拒否する。
 
-Graph planは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が公開するRenderer execution slotで実行する。本書は共通phase表、writer順、tick frequencyを再掲せず、slot inputがimmutableであることと、leaseが記録した最後の全queue `GpuSubmissionSerial`完了後にだけ解放することを要求する。
+Graph planは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が公開するRenderer execution slotで実行する。本書は共通phase表、writer順、Simulation Cadenceを再掲せず、slot inputがimmutableであることと、leaseが記録した最後の全queue `GpuSubmissionSerial`完了後にだけ解放することを要求する。
 
 ## 5. Frame lifecycle、surface、recovery
 

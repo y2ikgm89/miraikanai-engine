@@ -2,16 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status: E0 contract-baseline executable draft, not yet authorized.** 実行入口、公式根拠、E0／E1 approval boundary は[計画書の実行権限・準備状況](README.md)に従う。本書の checkbox、Task 11 の成果物、ECS technical document の存在だけでWP／Capability／Releaseを昇格しない。
+
 **Goal:** Engine-owned archetype ECSのE0正本、MCD、generated contract、cross-document ownership、positive／negative fixtureをclean-breakで確定し、E1 storage kernelが推測なく開始できるbaselineを作る。
 
 **Architecture:** E0はRuntime storageを実装せず、Entity／Component／Query／Access／Structural transaction／Cook image／Native ABI／Subsystem Port／Save projection／AI R0 operationのcontractとtest oracleを固定する。ECS固有のtechnical contractは専用文書へ集約するが、現V1 full-reset migrationの実行可能性を守るためProduct WPのoperational Ownerは`mirakan.arch.runtime-scheduling-lifetime`に維持する。Memory、Scheduling、Gameplay、Native Moduleは共通原則またはconsumer boundaryだけを保持する。
 
-**Tech Stack:** Miraikanai Contract Definition、JSON Schema Draft 2020-12、C++23 generated types、TypeScript generated projection、MCP JSON Schema、Node.js／TypeScript contract compiler、CTest、TLA+／TLC 1.7.4（commit／publication state machine）。
+**Tech Stack:** Miraikanai Contract Definition、JSON Schema Draft 2020-12、C++23 generated types、TypeScript generated projection、MCP JSON Schema、Node.js／TypeScript contract compiler、CTest、TLA+／TLC 1.7.4（commit／publication state machine）。TLC と Java runner は[Toolchain／Dependencies](../architecture/02-foundation/toolchain-dependencies.md)の exact jar／Microsoft OpenJDK lock だけを使う。
 
 ## Global Constraints
 
 - Task 0を含む全Taskは、外部Schedulerがcurrent signed Product snapshotと`CurrentControlPlaneBaselineBindingV1`のE0 Preflight Gateを通し、`wp.runtime.ecs-e0`を`declared->ready->active`へ正当に遷移させた後だけ開始する。Task 0～11の変更はcurrent source treeと分離した一つのauthorized Staging candidateへ累積し、authoritative source／Product currentをTask途中で書き換えない。Plan内TaskをPreflightより先に実行せず、初回Bootstrap Approvalをcurrent authorityとして直接参照しない。
 - 開始条件はcurrent Active Product Definition内の`wp.runtime.ecs-e0` row／definition seed、current lifecycle state=`active`、`wp.runtime.scheduling-core=complete`、Product operational Owner `mirakan.arch.runtime-scheduling-lifetime`と既存Governance／Compatibility／Persistence Owner文書のcurrent approval、current baseline／Toolchain／revocationの全件である。Task 1で新設するECS technical documentのapprovalをE0 entryへ要求しない。
+- E0 Task 11でaffected ECS technical documentのhuman approval、same-definition Rebaseline、new current binding、final `TechnicalQualificationReceiptV1`を閉じた後だけ、E1以降のstorage／runtime実装を別WPのentry候補にできる。E0の途中approvalやdraft documentをE1 entry、Capability Activation、Product currentの根拠にしない。
+- TLC実行はToolchain lockが検証した Java runner と `tla2tools-1.7.4.jar` の組だけを使う。PATH上の任意Java、別versionのjar、plugin／network fetchを混在させた結果はEvidenceとして受理しない。
 - baseline bindingの完成wrapperをkind別`bootstrap | rebaseline` schemaでread-backし、active definition hash、Baseline Core、Local Schema Catalog、Authority Binding Source Catalog、Toolchain、Trust closureを検証する。bindingの`subject_git_tree_id`はauthoritative source parentと照合し、Staging candidateはTask Authorizationのchanged-path manifest内かつ同parentのdescendantであることを別に検証する。source側dirty、Staging外変更、stale binding、不一致をstable Diagnostic IDで拒否し、authorized candidate deltaをdirty sourceと誤判定しない。
 - 正本IDは`mirakan.arch.runtime-entity-component-system`、Work Packageは`wp.runtime.ecs-e0`である。Activationはcurrent Product snapshotのTarget行だけが所有し、ECS文書または計画から昇格しない。
 - Flecs、EnTT、Unity Entities、Unreal Massをdependencyまたは互換APIとして追加しない。
@@ -369,7 +373,7 @@ PublicationHandleIsSingleCommitPoint
 - [ ] **Step 3: E0 state machineを正しく記述する**
 - [ ] **Step 4: TLCを実行する**
 
-Run: `java -jar tools/tla/tla2tools-1.7.4.jar -config models/runtime_ecs/StructuralCommit.cfg models/runtime_ecs/StructuralCommit.tla`
+Run: `<Toolchain lockで検証済みのJava runner> -jar tools/tla/tla2tools-1.7.4.jar -config models/runtime_ecs/StructuralCommit.cfg models/runtime_ecs/StructuralCommit.tla`
 
 Expected: Model checking completed、invariant violation 0。Publication modelも同じ結果。
 
