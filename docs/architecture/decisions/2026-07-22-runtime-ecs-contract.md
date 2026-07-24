@@ -1684,7 +1684,7 @@ E0 Task 0を含む全Taskは、外部Schedulerがcurrent Product／Control Plane
 | `wp.runtime.ecs-e0` lifecycle | `active`かつdefinition seed valid。外部Schedulerが`declared->ready->active`を完了済み |
 | Toolchain／revocation | current、non-stale、non-revoked |
 
-baseline read-backは[Architecture Evolution Control Plane実装計画](../../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)とDesignのclosed `CurrentControlPlaneBaselineBindingV1`だけを使い、Reader側でField集合を再定義しない。kind=`bootstrap | rebaseline`の完成Approval／Envelope／Transaction、Baseline Core、Local Schema Catalog、Authority Binding Source Catalog、Toolchain、Trust closure、Active Definition hashを再計算する。欠落／不一致／staleは`diagnostic.architecture.baseline-mismatch`、Owner非承認は`diagnostic.architecture.owner-unapproved`、WP state／seed差は`diagnostic.product.work-package-entry-invalid`、dirty treeは`diagnostic.architecture.dirty-baseline`で停止する。Branch名、現在HEAD、日時、`latest`、初回Bootstrap Approvalの直接参照をbaseline identityにしない。E3以降が追加Owner approvalを必要とする場合は各段階Gateに置き、E0 entryへ先取りしない。
+baseline read-backは[Product Plan §11](../00-product/product-plan.md#11-product-execution-registries)のcurrent `CurrentControlPlaneBaselineBindingV1`と[Executable Contracts](../02-foundation/executable-contracts.md)の`FoundationDefinitionClosureV1`だけを使い、Reader側でField集合を再定義しない。kind=`bootstrap | rebaseline`の完成Approval／Envelope／Transaction、Baseline Core、Local Schema Catalog、Authority Binding Source Catalog、Toolchain、Trust closure、Active Definition hashを再計算する。欠落／不一致／staleは`diagnostic.architecture.baseline-mismatch`、Owner非承認は`diagnostic.architecture.owner-unapproved`、WP state／seed差は`diagnostic.product.work-package-entry-invalid`、dirty treeは`diagnostic.architecture.dirty-baseline`で停止する。Branch名、現在HEAD、日時、`latest`、初回Bootstrap Approvalの直接参照をbaseline identityにしない。E3以降が追加Owner approvalを必要とする場合は各段階Gateに置き、E0 entryへ先取りしない。
 
 | 段階 | 実装範囲 | 入力 | 出力／Gate |
 |---|---|---|---|
@@ -1701,7 +1701,7 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 
 ## 19. 正規仕様の変更計画
 
-ユーザーが本Decisionを承認した後、同一clean-break ChangeSetで次を変更する。表中の`architecture-governance.md`、`compatibility-evolution.md`、`persistence-save.md`、`runtime-package.md`の4文書は現時点で未作成であり、[Architecture Evolution Control Plane実装計画](../../plans/2026-07-22-architecture-evolution-control-plane-implementation-plan.md)が新規作成する成果物である。当該4行は既存文書の編集ではなく、同計画完了後の新設文書への登録・接続を意味する。
+ユーザーが本Decisionを承認した後、同一clean-break ChangeSetで次を変更する。表中の`architecture-governance.md`、`compatibility-evolution.md`、`persistence-save.md`、`runtime-package.md`の4文書は現時点で未作成であり、Control Plane Work Packageが新規作成する成果物である。当該4行は既存文書の編集ではなく、同Work Package完了後の新設文書への登録・接続を意味する。
 
 | Path | 変更 |
 |---|---|
@@ -1781,6 +1781,6 @@ E0承認前にE1以降の実装を開始しない。E1とE3のschema prototype�
 
 本Decisionの承認は、Engine-owned archetype ECS、正本所有、clean-break名称、Authoring／Runtime分離、System access、structural transaction、Subsystem Port、AI read-only surface、実装段階、Verification Gateへの承認を意味する。
 
-詳細Task、exact file、MCD、C++ interface、test、command、expected result、clean migrationは[Runtime ECS E0 Implementation Plan](../../plans/2026-07-22-runtime-ecs-e0-implementation-plan.md)に事前定義した。同計画の存在は本Decisionの承認、E0 entry gate通過、Capability activationを意味しない。
+詳細Task、exact file、MCD、C++ interface、test、command、expected result、clean migrationはE0開始時に§18～§20とcurrent Product／Control Plane snapshotからqualified Task Planとして生成・承認する。Task Planの存在は本Decisionの承認、E0 entry gate通過、Capability activationを意味しない。
 
 E0は§18のexact五条件で開始し、本DecisionとECS active正本を`review`のままcontract／fixture／baselineとして検証できる。E0完了も自動approvalではない。ユーザー承認後だけ本Decisionとactive正本を`approved`へ更新し、E1 storage kernel以降のRuntime実装とCapability activationへ進む。承認前にE1以降のEngine Runtime codeを変更しない。
