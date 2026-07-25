@@ -231,8 +231,27 @@ The generated and First-party C++ Gate rejects:
 
 Private implementation may use a measured exception only through an ADR that
 contains the exact Target Profile、fixture、baseline, improvement, and static
-rule suppression scope. Generated public APIs and Native ABI do not inherit a
-private exception.
+rule suppression scope. Generated public C++ APIs do not inherit a private
+exception.
+
+The Native C ABI is not a direct `transfer_form` projection. It continues to
+use Native Game Module's fixed-width standard-layout values、opaque handles、
+C function tables, and caller-owned bounded buffers:
+
+- no C ABI declaration contains a C++ reference、`std::span`, STL／PMR type,
+  `Result<T>`, exception, or owner wrapper;
+- a C++ `bounded_view` becomes the existing C ABI pointer／byte-or-element
+  count shape with an explicit call lifetime;
+- `unique_owner` and `move_sink` never cross the C ABI; cross-boundary
+  ownership uses the existing Memory Port、opaque handle, or caller-owned
+  output buffer;
+- the generated C++ adapter validates pointer、count、alignment、lifetime, and
+  `PointerContractV1`, creates the `std::span` or bounded view only for the
+  call, and does not retain it.
+
+The adapter's C++ side must satisfy `CppValueTransferPolicyV1`; the C ABI wire
+shape remains owned by Native Game Module. A private exception cannot weaken
+either side.
 
 Return-by-value relies on standard copy elision and NRVO. Code returns the
 named local directly. Explicit move remains valid for ownership hand-off,
@@ -240,8 +259,10 @@ container insertion, and a declared sink after the last pre-move access.
 
 ## 6. Generic container and allocation contract
 
-`MemoryContractV1` is extended before materialization with the following
-required Fields for every container owner and allocation site.
+`MemoryContractV1` keeps all existing allocation、budget、phase、thread、OOM,
+and telemetry Fields. Before materialization it adds the six layout／access
+Fields below and replaces the prose-only `capacity_source` choices with the
+shown closed enum. It does not add a second `capacity_source` Field.
 
 ```text
 storage_layout:
@@ -770,7 +791,7 @@ Free-form warning text cannot convert any failure into success.
 |---|---|
 | C++23 Modules | Generated and First-party C++ obey the value-transfer static Gate |
 | Gameplay Programming Model | Component schema and Game System manifests supply the access-cohort inputs |
-| Native Game Module | Public generated APIs and persistent factory calls consume the transfer／memory policies |
+| Native Game Module | C++ adapters and persistent factory calls consume the transfer／memory policies; fixed C ABI shapes remain owned here and expose no C++ reference／STL type |
 | Scheduling／Lifetime | Query dispatch reserves before callback and structural deltas apply only at the existing boundary |
 | Runtime Package | World capacity and layout plans bind exact ECS／Memory Contract refs |
 | Debugging／Observability／Replay | Carry mandatory data-oriented metrics without addresses、rows, or live leases |
@@ -836,7 +857,13 @@ The coordinated document update is complete only when all checks pass.
     compares two complete campaigns with byte-equal measurement inputs.
 19. Every Diagnostic ID、code、owner, and argument schema in §13 is registered
     once, and ID-to-code transformation is one-to-one.
-20. Git diff review shows no unrelated edits introduced by this work.
+20. `MemoryContractV1` retains every existing Field, has exactly one
+    `capacity_source` Field with the closed values in §6, and adds exactly the
+    six declared layout／access Fields.
+21. Generated C ABI declarations contain no C++ reference、`std::span`,
+    STL／PMR type、`Result<T>`, exception, or owner wrapper; their generated
+    C++ adapters still satisfy the transfer and pointer policies.
+22. Git diff review shows no unrelated edits introduced by this work.
 
 ## 16. Official external basis
 
