@@ -263,7 +263,8 @@ Expected: one-file commit and exact four-type closure.
 ```powershell
 $path = 'docs/architecture/02-foundation/memory-pointers.md'
 foreach ($token in @('storage_layout','element_storage','access_pattern','growth_policy','address_stability','hot_path')) {
-  if (rg -q "^$token$" $path) { throw "Precondition failed: $token already present" }
+  $pattern = '^\s+' + [regex]::Escape($token) + ':'
+  if (rg -q $pattern $path) { throw "Precondition failed: $token already present" }
 }
 Write-Error 'Expected failure: MemoryContractV1 lacks the six layout/access Fields.'
 ```
@@ -307,15 +308,94 @@ MemoryContractV1
   hot_path: bool
 ```
 
-State explicitly that the first fourteen existing semantic Fields are retained, `capacity_source` is one closed Field, and the final six are additions.
+State explicitly that all fifteen existing Fields are retained,
+`capacity_source` remains one Field whose prose choices become the closed enum,
+and the final six layout／access Fields are additions.
 
-- [ ] **Step 3: Add `### 6.3 CppValueTransferPolicyV1`**
+- [ ] **Step 3: Add the closed generic container and allocation rules**
 
-Insert the complete schema from design §5, including `policy_version`,
-`contract_set_ref`, exact Target Profile, Toolchain hash, ABI facts,
-`callable_key`, `subject`, `ordinal`, MCD type ref, pointer contract ID,
-semantic, transfer form, value class, moved-from policy, binding hash, and
-policy hash.
+Immediately after `MemoryContractV1`, add these ten normative rules:
+
+```markdown
+1. `std::vector<T>` is the default dynamic container for non-ECS contiguous inline values only when the default System memory resource is allowed by the exact `MemoryContractV1`.
+2. `std::pmr::vector<T>` is allowed only with a Composition Root-injected resource whose lifetime exceeds the container. Never change the process-global default PMR resource.
+3. ECS columns use ECS-private chunk storage and generated bounded views. They are not independent vectors with independent allocations.
+4. `std::vector<Handle<T>>` and `std::vector<T*>` provide contiguous references only; they never satisfy `storage_layout=contiguous_inline`.
+5. Reserve known cardinality before entering a hot phase. Calling `reserve()` inside a hot callback is a Contract failure even if no reallocation occurs.
+6. A pointer、reference、iterator, or span invalidated by reallocation never crosses its owning scope or structural boundary.
+7. `storage_layout=node_based` is prohibited for sequential hot traversal. It is allowed only for infrequent control-plane lookup or a measured exception with integrated Evidence.
+8. Pooling is limited to private fixed-size objects with stable churn and measured improvement. Do not pool a cheap C++ value without Evidence.
+9. Frame、RenderFrame, and Job scratch use bounded arenas reset at the existing lifetime boundary. Exhaustion never falls through to the general heap.
+10. Hot callback general-heap allocation count and upstream fallback count are both exactly `0`.
+```
+
+Add a compact decision table mapping each container owner to
+`storage_layout`, `element_storage`, `access_pattern`, `capacity_source`,
+`growth_policy`, `address_stability`, `hot_path`, and the owning
+`MemoryContractV1.contract_id`. Do not prescribe one container globally
+without this per-owner record.
+
+- [ ] **Step 4: Add `### 6.3 CppValueTransferPolicyV1`**
+
+Insert this exact schema:
+
+```text
+CppValueTransferPolicyV1
+  policy_version: 1
+  contract_set_ref: ContractSetRefV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version,
+           target_profile_content_hash}
+  toolchain_lock_sha256: SHA-256
+  target_abi_facts:
+    data_model: ilp32 | lp64 | llp64
+    abi_word_bytes: 4 | 8
+    pointer_bytes: 4 | 8
+  bindings[1..65536]:
+    callable_key:
+      api_contract_id: StableId
+      api_contract_version: positive uint32
+      api_contract_hash: SHA-256
+    subject: parameter | return_value
+    ordinal: optional uint16
+    type_ref: McdContractRefV1(kind=type)
+    pointer_contract_id: StableId
+    semantic: input | input_output | output | sink | bounded_range
+    transfer_form:
+      value | const_borrow | mutable_borrow | return_value
+      | move_sink | bounded_view | unique_owner
+    value_class:
+      scalar | enumeration | typed_handle | compact_trivial
+      | bounded_view | nontrivial | move_only
+    moved_from_policy: not_applicable | destroy_or_assign_only
+    binding_hash: SHA-256
+  policy_hash: SHA-256
+```
+
+`callable_key` identifies the source API contract and never hashes the
+generated C++ signature. `pointer_contract_id` resolves exactly once within
+`contract_set_ref`; missing, multiple, or cross-Contract-set resolution is a
+compile failure. ABI facts come only from the exact Target／Toolchain and are
+verified against `sizeof`, `alignof`, C++ traits, data model, word size, and
+pointer size before materialization.
+
+Compute each `binding_hash` as:
+
+```text
+SHA-256(
+  ASCII "MIRAKAN_CPP_VALUE_TRANSFER_BINDING_V1"
+  || uint32_be(len(canonical binding bytes excluding binding_hash))
+  || canonical binding bytes excluding binding_hash
+)
+```
+
+Strict-sort and deduplicate bindings by
+`{callable_key canonical bytes, subject enum, ordinal presence, ordinal}`, then
+compute `policy_hash` with the same framing and ASCII domain
+`MIRAKAN_CPP_VALUE_TRANSFER_POLICY_V1`, excluding only `policy_hash`.
+Materialize instances only after the immutable Contract Set root exists; never
+insert an instance whose `contract_set_ref` points back into that root's
+preimage.
 
 Include this closed rule table:
 
@@ -330,9 +410,29 @@ Include this closed rule table:
 | move-only unique owner sink | value |
 | unconditional non-owner sink | `T&&`, moved exactly once |
 
-Add the exact static rejection list and the return-by-value／NRVO rule from design §5.
+Add this exact static rejection list:
 
-- [ ] **Step 4: Renumber existing generated-output and AI subsections**
+```text
+const T&&
+return std::move(local) when local is copy-elision eligible
+std::move from a const object
+conditional move from a sink
+moved-from access other than destruction or assignment
+by-value input of an unqualified nontrivial type
+const T& for scalar, enum, or typed handle without an approved measured exception
+non-const reference parameter that is never written
+output parameter where an ordinary return value is sufficient
+shared_ptr parameter that neither expresses nor retains shared ownership
+```
+
+Return-by-value relies on copy elision and NRVO, so return a named local
+directly. Explicit move remains valid for ownership hand-off, container
+insertion, and a declared sink after the final pre-move access. A private
+measured exception requires an ADR containing the exact Target Profile,
+fixture, baseline, improvement, and static suppression scope; generated public
+APIs never inherit it.
+
+- [ ] **Step 5: Renumber existing generated-output and AI subsections**
 
 Rename current `### 6.3 生成物` to `### 6.4 生成物` and current
 `### 6.4 AI生成規則` to `### 6.5 AI生成規則`.
@@ -346,9 +446,9 @@ PointerMemoryConsumerBindingManifest.bin
 CppValueTransferPolicyManifest.bin
 ```
 
-Add AST／clang-tidy rule generation for every rejection in Step 3.
+Add AST／clang-tidy rule generation for every rejection in Step 4.
 
-- [ ] **Step 5: Add four exact Memory diagnostics**
+- [ ] **Step 6: Add four exact Memory diagnostics**
 
 In `## 7. FailureとDiagnostic`, register:
 
@@ -373,7 +473,7 @@ arguments = campaign_hash, scenario_id, payload_bytes, observed_count
 The first two are Build／static failures. The latter two are Performance Gate
 failures and do not publish callback output.
 
-- [ ] **Step 6: Extend metrics, negative tests, introduction order, and DoD**
+- [ ] **Step 7: Extend metrics, negative tests, introduction order, and DoD**
 
 Add these exact requirements:
 
@@ -385,13 +485,17 @@ Add these exact requirements:
 - Definition of Doneは四Type、四manifest、全generated C++ consumer、C ABI adapter分離を検査する。
 ```
 
-- [ ] **Step 7: Verify canonical ownership and commit only Memory／Pointers**
+- [ ] **Step 8: Verify canonical ownership and commit only Memory／Pointers**
 
 ```powershell
 $path = 'docs/architecture/02-foundation/memory-pointers.md'
 foreach ($token in @(
   'CppValueTransferPolicyV1',
   'CppValueTransferPolicyManifest.bin',
+  'MIRAKAN_CPP_VALUE_TRANSFER_POLICY_V1',
+  'MIRAKAN_CPP_VALUE_TRANSFER_BINDING_V1',
+  'std::vector<T>',
+  'std::pmr::vector<T>',
   'MIRAKAN-MEMORY-VALUE-TRANSFER-BINDING-MISSING',
   'MIRAKAN-MEMORY-HOT-CALLBACK-UPSTREAM-FALLBACK',
   'measured_p999_headroom',

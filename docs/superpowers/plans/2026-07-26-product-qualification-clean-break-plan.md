@@ -39,6 +39,7 @@ Runtime plan and before Task 2:
 $targets = @(
   'docs/architecture/04-runtime/performance-capacity.md',
   'docs/architecture/02-foundation/compatibility-evolution.md',
+  'docs/architecture/01-governance/ai-verification-provenance.md',
   'docs/architecture/00-product/product-plan.md'
 )
 foreach ($path in $targets) {
@@ -74,6 +75,7 @@ Product destination projection before all Runtime tasks pass.
 |---|---|
 | `docs/architecture/04-runtime/performance-capacity.md` | Qualification profile, campaign, metric IDs, sampling, predicates, promotion |
 | `docs/architecture/02-foundation/compatibility-evolution.md` | Consumer inventory, source-preserving recook, cutover rejection |
+| `docs/architecture/01-governance/ai-verification-provenance.md` | Cross-Target release-evidence aggregation for the existing Product classes |
 | `docs/architecture/00-product/product-plan.md` | Destination Requirement／Fixture／Gate／risk／Work Package and owner projection |
 | All files from the prerequisite plans | Final cross-document linkage and ownership audit |
 
@@ -83,6 +85,8 @@ Product destination projection before all Runtime tasks pass.
 
 **Files:**
 - Modify: `docs/architecture/00-product/product-plan.md:1438-1447`
+- Modify: `docs/architecture/01-governance/ai-verification-provenance.md:5-6`
+- Modify: `docs/architecture/01-governance/ai-verification-provenance.md:802-851`
 
 **Interfaces:**
 - Consumes: the 52-entry Architecture Document Inventory, Product evidence
@@ -149,7 +153,60 @@ provenance; Windows, Android, and Apple remain the semantic owners of their
 Target-specific package, install, offline, signing, upload, rollback, and
 device results.
 
-- [ ] **Step 3: Replace the orphan owner prose**
+- [ ] **Step 3: Bind AI Verification to the Target package owners**
+
+Add direct dependencies from AI Verification／Provenance to:
+
+```text
+../07-platform/windows.md
+../07-platform/android.md
+../07-platform/apple.md
+```
+
+After `### 7.7 StoreUploadReceiptV1`, add
+`### 7.8 Product release evidence class aggregation` with these exact
+predicates:
+
+```text
+evidence.class.package-install-offline-rollback-qualification
+  requested_target:
+    target.windows.desktop | target.android.mobile | target.apple.mobile
+  required_input:
+    exact fresh Target-owner package Receipt
+    exact package artifact hash and signature state
+    clean install and launch result
+    offline-run result
+    rollback rehearsal result
+  equality:
+    Candidate, Active Product Definition, Contract Set, Toolchain lock,
+    Target Profile, package artifact
+  issuer_exclusion:
+    wp.product.production-release-binding, its Task, and its Candidate
+
+evidence.class.product-release-artifact-plan-valid
+  requested_targets:
+    [target.windows.desktop, target.android.mobile, target.apple.mobile]
+  required_input:
+    content-addressed artifact plan
+    Target-lab plan
+    signing/upload identity separation
+    Store-staging plan
+    rollback plan
+    exact Windows/Android/Apple owner Review Receipt set
+  equality:
+    Candidate, Active Product Definition, Contract Set, Toolchain lock,
+    Target Profile set
+  issuer_exclusion:
+    wp.product.production-release-binding, its Task, and its Candidate
+```
+
+The first class uses `policy.evidence.target-device.v1`; the second uses
+`policy.evidence.contract-ci.v1`. Missing Target-owner Receipt, wrong Target,
+mixed Candidate, stale／revoked input, incomplete Target set, or self-issued
+Evidence fails closed. The aggregation owns no Target package schema, signing,
+upload, Store, device, or rollback semantics.
+
+- [ ] **Step 4: Replace the orphan owner prose**
 
 Replace `Application Package／Release Owner` with
 `AI Verification／Provenance Release Evidence Owner`. Add:
@@ -158,7 +215,7 @@ Replace `Application Package／Release Owner` with
 同OwnerはWindows、Android、Apple各Ownerのfresh Target-specific Receiptをexact set equalityで集約してEvidence classを発行するだけで、Target package schema、signing、upload、rollback、Store policyを所有または上書きしない。`wp.product.production-release-binding`、そのTask、またはCandidateはこのEvidenceを自己発行できない。
 ```
 
-- [ ] **Step 4: Verify all document refs resolve**
+- [ ] **Step 5: Verify all document refs and owner definitions resolve**
 
 ```powershell
 $files = @(rg --files docs/architecture -g '*.md')
@@ -185,31 +242,50 @@ foreach ($file in $files) {
 if ($unresolved.Count) {
   throw "Unresolved Architecture document refs:`n$($unresolved -join "`n")"
 }
-$count = (
-  rg -o --fixed-strings 'mirakan.arch.ai-verification-provenance' `
-    'docs/architecture/00-product/product-plan.md' |
-    Measure-Object
-).Count
-if ($count -lt 2) { throw 'The two release-evidence classes were not rebound.' }
+$productLines = Get-Content 'docs/architecture/00-product/product-plan.md'
+foreach ($evidenceClassId in @(
+  'evidence.class.package-install-offline-rollback-qualification',
+  'evidence.class.product-release-artifact-plan-valid'
+)) {
+  $needle = '| `' + $evidenceClassId +
+    '` | `mirakan.arch.ai-verification-provenance` |'
+  $matches = @($productLines | Where-Object { $_.Contains($needle) })
+  if ($matches.Count -ne 1) {
+    throw "Expected one exact owner row for $evidenceClassId, got $($matches.Count)"
+  }
+  $verificationMatches = @(
+    rg -n --fixed-strings $evidenceClassId `
+      'docs/architecture/01-governance/ai-verification-provenance.md'
+  )
+  if ($verificationMatches.Count -ne 1) {
+    throw "Expected one canonical Verification predicate for $evidenceClassId, got $($verificationMatches.Count)"
+  }
+}
 ```
 
 Expected: zero unresolved Architecture document refs and both evidence classes
 bound to the existing Verification owner.
 
-- [ ] **Step 5: Commit only the Product owner correction**
+- [ ] **Step 6: Commit only the owner correction and definition**
 
 ```powershell
-$path = 'docs/architecture/00-product/product-plan.md'
-git diff --check -- $path
-git add -- $path
+$paths = @(
+  'docs/architecture/00-product/product-plan.md',
+  'docs/architecture/01-governance/ai-verification-provenance.md'
+)
+foreach ($path in $paths) { git diff --check -- $path }
+git add -- $paths
 $staged = @(git diff --cached --name-only)
-if ($staged.Count -ne 1 -or $staged[0] -ne $path) {
+if (
+  $staged.Count -ne 2 -or
+  @($staged | Where-Object { $paths -notcontains $_ }).Count -ne 0
+) {
   throw "Unexpected staged paths: $($staged -join ', ')"
 }
-git commit --only -m "docs: resolve product release evidence owner" -- $path
+git commit --only -m "docs: resolve product release evidence owner" -- $paths
 ```
 
-Expected: one-file commit; no Product Registry ID, evidence-class ID, package
+Expected: two-file commit; no Product Registry ID, evidence-class ID, package
 semantic owner, or document count changes.
 
 ---
@@ -284,6 +360,29 @@ RuntimeDataOrientedQualificationCampaignV1
 The profile does not embed a Candidate. The campaign's
 `ArtifactCandidateBindingV1` Target member, Contract Set, and Toolchain must be
 byte-equal to the profile and to both sample／correctness artifacts.
+
+Compute self-excluding hashes with the MCD canonical encoding and exact domains:
+
+```text
+profile_hash =
+  SHA-256(
+    ASCII "MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_PROFILE_V1"
+    || uint32_be(len(canonical profile bytes excluding profile_hash))
+    || canonical profile bytes excluding profile_hash
+  )
+
+campaign_hash =
+  SHA-256(
+    ASCII "MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_CAMPAIGN_V1"
+    || uint32_be(len(canonical campaign bytes excluding campaign_hash))
+    || canonical campaign bytes excluding campaign_hash
+  )
+```
+
+Finalize the Contract Set root before materializing either record. Do not
+insert a profile or campaign instance into the Contract Set preimage that it
+references. Product signed wrappers continue to use RFC 8785 JCS and must not
+substitute JCS bytes for these MCD hashes.
 
 - [ ] **Step 3: Register the closed mandatory metric set**
 
@@ -435,6 +534,8 @@ $path = 'docs/architecture/04-runtime/performance-capacity.md'
 foreach ($token in @(
   'RuntimeDataOrientedQualificationProfileV1',
   'RuntimeDataOrientedQualificationCampaignV1',
+  'MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_PROFILE_V1',
+  'MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_CAMPAIGN_V1',
   'runtime_ecs_data_oriented_metrics_v1',
   'metric.runtime.ecs.failure-atomicity',
   'MIRAKAN-PERFORMANCE-ECS-REQUIRED-METRIC-MISSING',
@@ -646,11 +747,12 @@ PointerMemoryConsumerBindingV1
 CppValueTransferPolicyV1
 ```
 
-Require `MemoryContractV1` to retain its existing Fields, contain exactly one
-closed `capacity_source`, and add exactly `storage_layout`,
-`element_storage`, `access_pattern`, `growth_policy`, `address_stability`, and
-`hot_path`. Leave the current source Requirement prose and Registry row
-unchanged until the atomic migration.
+Bind the Requirement to the exact `MemoryContractV1` Type member ref and schema
+hash in the same four-Type Contract Set, plus the fresh
+`fixture.foundation.memory-pointer-contract` Receipt that proves the
+retained-Field、single-`capacity_source`、six-layout/access-Field invariant.
+Product Plan must not copy the Memory Field list. Leave the current source
+Requirement prose and Registry row unchanged until the atomic migration.
 
 - [ ] **Step 4: Add the exact destination owner migration**
 
@@ -781,7 +883,6 @@ Expected: one-file commit and no operational activation.
 - Verify: every canonical and direct-consumer file from all three plans
 - Verify without normative duplication:
   - `docs/architecture/01-governance/architecture-governance.md`
-  - `docs/architecture/01-governance/ai-verification-provenance.md`
   - `docs/architecture/02-foundation/toolchain-dependencies.md`
   - `docs/architecture/03-authoring/asset-lifecycle.md`
   - `docs/architecture/03-authoring/project-state.md`
@@ -844,7 +945,73 @@ foreach ($file in $files) {
 if ($broken.Count) { throw "Broken relative links:`n$($broken -join "`n")" }
 ```
 
-Expected: zero broken links.
+Validate fragments against GitHub-style heading slugs:
+
+```powershell
+function Get-ArchitectureHeadingSlug(
+  [string]$text,
+  [hashtable]$seen
+) {
+  $slug = [regex]::Replace($text, '<[^>]+>', '').ToLowerInvariant()
+  $slug = $slug.Replace('-', 'zzhyphensentinelzz')
+  $slug = $slug.Replace('_', 'zzunderscoresentinelzz')
+  $slug = [regex]::Replace($slug, '[\p{P}\p{S}]', '')
+  $slug = $slug.Replace('zzhyphensentinelzz', '-')
+  $slug = $slug.Replace('zzunderscoresentinelzz', '_')
+  $slug = [regex]::Replace($slug, '\s+', '-').Trim('-')
+  if ($seen.ContainsKey($slug)) {
+    $seen[$slug]++
+    return "$slug-$($seen[$slug])"
+  }
+  $seen[$slug] = 0
+  return $slug
+}
+
+$anchorMaps = @{}
+foreach ($file in $files) {
+  $seen = @{}
+  $anchors = @{}
+  foreach ($line in Get-Content $file) {
+    if ($line -match '^#{1,6}\s+(.+?)\s*#*\s*$') {
+      $anchors[(Get-ArchitectureHeadingSlug $matches[1] $seen)] = $true
+    }
+  }
+  $anchorMaps[(Resolve-Path $file).Path] = $anchors
+}
+
+$brokenAnchors = @()
+foreach ($file in $files) {
+  $content = Get-Content -Raw $file
+  foreach ($match in [regex]::Matches($content, '\]\(([^)]+)\)')) {
+    $raw = $match.Groups[1].Value.Trim()
+    if ($raw -match '^(https?://|mailto:)') { continue }
+    $destination = ($raw -split '\s+"')[0]
+    if (-not $destination.Contains('#')) { continue }
+    $parts = $destination.Split('#', 2)
+    $pathPart = $parts[0]
+    $fragment = [Uri]::UnescapeDataString($parts[1])
+    if (-not $fragment) { continue }
+    if ($pathPart) {
+      $resolved = [IO.Path]::GetFullPath(
+        (Join-Path (Split-Path $file) $pathPart)
+      )
+    } else {
+      $resolved = (Resolve-Path $file).Path
+    }
+    if (
+      -not $anchorMaps.ContainsKey($resolved) -or
+      -not $anchorMaps[$resolved].ContainsKey($fragment)
+    ) {
+      $brokenAnchors += "$file -> $destination"
+    }
+  }
+}
+if ($brokenAnchors.Count) {
+  throw "Broken heading anchors:`n$($brokenAnchors -join "`n")"
+}
+```
+
+Expected: zero unresolved document IDs, relative paths, and heading anchors.
 
 - [ ] **Step 3: Verify the three canonical schema owners**
 
@@ -859,6 +1026,27 @@ foreach ($entry in $expect.GetEnumerator()) {
   $owners = @(rg -l $entry.Key $architectureFiles | ForEach-Object { $_ -replace '\\','/' })
   if ($owners.Count -ne 1 -or $owners[0] -ne $entry.Value) {
     throw "Owner mismatch for $($entry.Key): $($owners -join ', ')"
+  }
+}
+$domainOwners = @{
+  'MIRAKAN_CPP_VALUE_TRANSFER_POLICY_V1' =
+    'docs/architecture/02-foundation/memory-pointers.md'
+  'MIRAKAN_CPP_VALUE_TRANSFER_BINDING_V1' =
+    'docs/architecture/02-foundation/memory-pointers.md'
+  'MIRAKAN_RUNTIME_COMPONENT_LAYOUT_POLICY_V1' =
+    'docs/architecture/04-runtime/entity-component-system.md'
+  'MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_PROFILE_V1' =
+    'docs/architecture/04-runtime/performance-capacity.md'
+  'MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_CAMPAIGN_V1' =
+    'docs/architecture/04-runtime/performance-capacity.md'
+}
+foreach ($entry in $domainOwners.GetEnumerator()) {
+  $owners = @(
+    rg -l --fixed-strings $entry.Key $architectureFiles |
+      ForEach-Object { $_ -replace '\\','/' }
+  )
+  if ($owners.Count -ne 1 -or $owners[0] -ne $entry.Value) {
+    throw "Hash-domain owner mismatch for $($entry.Key): $($owners -join ', ')"
   }
 }
 ```
@@ -1006,8 +1194,12 @@ Compatibility removal inventory, and benchmark comparison are allowed.
 
 - [ ] **Step 10: Verify no normative duplication in indirect consumers**
 
-Review Governance, AI Verification, Toolchain, Project State, Asset Lifecycle,
-Persistence, Simulation, Rendering, Platform, Pack, and Architecture Index:
+First verify that AI Verification／Provenance defines the two Product release
+evidence-class predicates exactly once, consumes exact Windows／Android／Apple
+owner Receipts, and does not own Target package semantics.
+
+Then review Governance, Toolchain, Project State, Asset Lifecycle, Persistence,
+Simulation, Rendering, Platform, Pack, and Architecture Index:
 
 - owner-transfer and Receipt-freshness rules still cover the new refs;
 - exact compiler／SDK versions remain Toolchain-owned;
@@ -1022,6 +1214,7 @@ Persistence, Simulation, Rendering, Platform, Pack, and Architecture Index:
 ```powershell
 $changed = @(
   'docs/architecture/00-product/product-plan.md',
+  'docs/architecture/01-governance/ai-verification-provenance.md',
   'docs/architecture/02-foundation/core-architecture.md',
   'docs/architecture/02-foundation/executable-contracts.md',
   'docs/architecture/02-foundation/memory-pointers.md',

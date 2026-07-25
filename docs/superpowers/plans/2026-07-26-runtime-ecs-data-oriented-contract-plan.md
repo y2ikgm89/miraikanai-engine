@@ -34,8 +34,8 @@
 
 ## Execution Preflight
 
-After the Foundation plan and before Task 1, validate the implementation
-worktree:
+After the Foundation plan and Product／Qualification Task 1, then before this
+plan's Task 1, validate the implementation worktree:
 
 ```powershell
 $targets = @(
@@ -126,6 +126,20 @@ RuntimeComponentLayoutPolicyV1
 State that `access_cohort_hash` is derived from the exact active System
 manifests, query refs, phase refs, and read／write sets. It is never a manually
 assigned hot／cold label.
+
+Compute `policy_hash` as:
+
+```text
+SHA-256(
+  ASCII "MIRAKAN_RUNTIME_COMPONENT_LAYOUT_POLICY_V1"
+  || uint32_be(len(canonical policy bytes excluding policy_hash))
+  || canonical policy bytes excluding policy_hash
+)
+```
+
+Materialize the policy only after the immutable Contract Set root exists. Bare
+ID, `latest`, ambient current, same-name substitution, and
+same-logical-key／version different-hash refs are invalid.
 
 - [ ] **Step 3: Add the closed layout-review algorithm**
 
@@ -231,6 +245,7 @@ metric set, hard predicates, and 8／16／32 KiB characterization.
 $path = 'docs/architecture/04-runtime/entity-component-system.md'
 foreach ($token in @(
   'RuntimeComponentLayoutPolicyV1',
+  'MIRAKAN_RUNTIME_COMPONENT_LAYOUT_POLICY_V1',
   'component_schema_revision_required',
   'ecs_chunk_soa_v1',
   'MIRAKAN-RUNTIME-ECS-QUERY-CACHE-INVALID',
@@ -608,9 +623,29 @@ Record the 2026-07-26 approval with:
 - source-preserving recook clean break with inventory requirement;
 - complete 90-run, three-soak, 12,600-second qualification.
 
-Reference the approved design and the official C++／Unity Entities／Unreal／EnTT
-primary sources already recorded there. Do not copy vendor wording or claim the
-Miraikanai numeric target is universally optimal.
+Set `外部根拠検証日` to `2026-07-26` and add these exact primary references to
+the comparison-evidence section:
+
+```text
+https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines
+https://eel.is/c++draft/vector
+https://eel.is/c++draft/class.copy.elision
+https://eel.is/c++draft/views.span
+https://eel.is/c++draft/mem.res
+https://learn.microsoft.com/en-us/cpp/build/reference/zc-nrvo
+https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/concepts-archetypes.html
+https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/performance-chunk-allocations.html
+https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/concepts-structural-changes.html
+https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/systems-entity-command-buffers.html
+https://dev.epicgames.com/documentation/unreal-engine/common-memory-and-cpu-performance-considerations-in-unreal-engine
+https://dev.epicgames.com/documentation/unreal-engine/introduction-to-performance-profiling-and-configuration-in-unreal-engine
+https://github.com/skypjack/entt/blob/v3.16.0/docs/md/entity.md
+```
+
+Retain the existing official Flecs query comparison if its pinned version and
+link still resolve. Label every vendor source as comparison evidence only. Do
+not copy vendor wording or claim a vendor API, chunk size, storage backend, or
+the Miraikanai numeric target is universally optimal.
 
 - [ ] **Step 3: Preserve decision-vs-activation separation**
 
