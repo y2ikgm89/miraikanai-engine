@@ -105,9 +105,11 @@ ref and add only their domain-specific input or output.
 
 ### 4.1 Common identity, reference, and hash rules
 
-Every planned top-level record in this design has a Stable ID、positive
-version, and self-excluding SHA-256 content hash. Canonical bytes use the MCD
-canonical encoding owned by Executable Contracts. Product signed wrappers
+Every planned top-level record in this design has a closed logical key、
+positive version, and self-excluding SHA-256 content hash. It does not invent
+an opaque Stable ID when the existing logical key is already the exact Target、
+Contract Set、Component schema, or Candidate binding. Canonical bytes use the
+MCD canonical encoding owned by Executable Contracts. Product signed wrappers
 continue to use Product Plan's existing RFC 8785 JCS rules; the two encodings
 are not substituted for one another.
 
@@ -136,11 +138,13 @@ calculated before the enclosing policy hash. Value-transfer bindings are
 strictly sorted and unique by
 `{callable_key canonical bytes, subject enum, ordinal presence, ordinal}`.
 
-Every reference resolves by ID、version, and content hash inside the declared
-Contract Set or Product Definition. Bare ID、`latest`、ambient current,
-same-name substitution, and same-ID／version different-hash are invalid. A
-schema shown inline as `exact {...}` is a nested reference shape and does not
-create an additional standalone Type or owner.
+Existing MCD／Product references continue to resolve by ID、version, and
+content hash inside the declared Contract Set or Product Definition. New
+content-addressed artifact references contain the exact logical-key Fields
+shown in this design plus version and content hash. Bare ID、`latest`、ambient
+current, same-name substitution, and same-logical-key／version different-hash
+are invalid. A schema shown inline as `exact {...}` is a nested reference
+shape and does not create an additional standalone Type or owner.
 
 ## 5. C++ value-transfer contract
 
@@ -148,7 +152,6 @@ Memory／Pointers owns the following planned type.
 
 ```text
 CppValueTransferPolicyV1
-  policy_id: StableId
   policy_version: 1
   contract_set_ref: ContractSetRefV1
   target_profile_ref:
@@ -289,7 +292,6 @@ Runtime ECS owns the following planned type.
 
 ```text
 RuntimeComponentLayoutPolicyV1
-  policy_id: StableId
   policy_version: 1
   component_schema_ref: ComponentSchemaRefV1
   storage_class:
@@ -307,7 +309,8 @@ RuntimeComponentLayoutPolicyV1
     accepted_inline | accepted_tag | accepted_external
     | component_schema_revision_required
   qualification_profile_ref:
-    exact {profile_id, profile_version, profile_hash}
+    exact {profile_version, target_profile_ref, contract_set_ref,
+           toolchain_lock_sha256, profile_hash}
   policy_hash: SHA-256
 ```
 
@@ -381,7 +384,6 @@ Performance／Capacity owns:
 
 ```text
 RuntimeDataOrientedQualificationProfileV1
-  profile_id: StableId
   profile_version: 1
   target_profile_ref:
     exact {target_profile_id, target_profile_version,
@@ -404,10 +406,10 @@ RuntimeDataOrientedQualificationProfileV1
   profile_hash: SHA-256
 
 RuntimeDataOrientedQualificationCampaignV1
-  campaign_id: StableId
   campaign_version: 1
   profile_ref:
-    exact {profile_id, profile_version, profile_hash}
+    exact {profile_version, target_profile_ref, contract_set_ref,
+           toolchain_lock_sha256, profile_hash}
   artifact_candidate_binding_ref: content-addressed ref
   artifact_candidate_binding_sha256: SHA-256
   input_trace_ref: content-addressed ref
@@ -439,6 +441,26 @@ profile version 1, not unresolved Registry refs. Their exact members are the
 sampling rule、mandatory metric list, and hard-predicate list below. A future
 member change requires a profile version increase; prose or a caller-provided
 name cannot extend any set.
+
+`runtime_ecs_warmup_5x120s_median_p95_10m_soak_v1` expands to this exact
+sampling matrix:
+
+1. Each of the three layout candidates runs each of the six scenarios.
+2. Each scenario／layout cell uses five fresh-process runs.
+3. Each run discards ten deterministic scenario cycles, then measures exactly
+   120 seconds.
+4. Each metric's run P95 uses nearest rank `ceil(0.95 * N)` over all valid
+   post-warm-up samples. The campaign value is the third value after sorting
+   the five run P95 values.
+5. Each layout candidate has one additional fresh-process 600-second composite
+   soak after ten discarded warm-up cycles. The composite trace repeats the
+   six scenarios in the declared `scenario_ids` order with fixed inputs.
+6. The campaign therefore contains exactly 90 measured run results and three
+   soak results. Its measured duration is exactly 12,600 seconds, excluding
+   warm-up and setup.
+7. Missing run、missing soak、process reuse、scenario reorder、sample
+   substitution、NaN／infinite value, counter overflow, or environment drift
+   makes the campaign `infrastructure_error`.
 
 The scenarios use synthetic, bounded Component schemas representing Position、
 Velocity、Lifetime, and cold metadata. They are test contracts, not new
@@ -506,9 +528,17 @@ campaign passes all hard predicates and either:
 If neither candidate dominates, the current qualified layout remains selected.
 No automatic layout switch occurs at Runtime.
 
+The first clean implementation has no previously qualified Shipping ECS
+candidate and therefore does not invent a zero baseline or claim an
+improvement percentage. Initial qualification must pass the complete
+characterization matrix and all hard predicates with the selected 16 KiB
+layout. The baseline／candidate promotion rule applies only after that initial
+layout has a qualified campaign.
+
 ## 10. Product Plan integration
 
-Product Plan adds these rows without treating them as implemented or active.
+The destination Active Product Definition adds these rows without treating
+them as implemented or active.
 
 ```text
 requirement.runtime.ecs-data-oriented-core
@@ -516,6 +546,55 @@ fixture.runtime.ecs-data-oriented-core
 gate.product.phase-0-ecs-data-oriented-core
 risk.product.ecs-data-oriented-regression
 ```
+
+These are destination rows of the same approved Product Definition Migration
+that applies `RuntimeEcsCanonicalizationChangeSetV1` and its Owner reference
+migration. They are not inserted into the current source Definition while
+Runtime ECS remains a `review` target and the current ECS Work Package owner is
+Scheduling／Lifetime. The source Definition and its operational snapshot
+remain byte-equal until the atomic migration is approved and applied.
+
+### 10.1 Exact destination Registry changes
+
+The destination Registry changes are closed:
+
+| Registry | Exact addition or replacement |
+|---|---|
+| `RequirementRegistryV1` | `{requirement_id=requirement.runtime.ecs-data-oriented-core, owner_document_id=mirakan.arch.runtime-entity-component-system, verification_kind=runtime_ecs_data_oriented_qualification, failure_diagnostic_id=diagnostic.product.ecs-data-oriented-core-failed}` |
+| `FixtureRegistryV1` | `{fixture_id=fixture.runtime.ecs-data-oriented-core, owner_document_id=mirakan.arch.runtime-entity-component-system, requirement_refs=[requirement.runtime.ecs-data-oriented-core], target_refs=[target.headless.host,target.windows.desktop,target.android.mobile,target.apple.mobile], minimum_duration_seconds=12600}` |
+| `PhaseFixtureBindingRegistryV1` | `{gate_id=gate.product.phase-0-ecs-data-oriented-core, phase_id=phase.foundation, fixture_id=fixture.runtime.ecs-data-oriented-core, evaluated_requirement_refs=[requirement.runtime.ecs-data-oriented-core], target_refs=[target.headless.host], candidate_binding_policy_ref=policy.product.same-candidate.v1, freshness_policy_ref=policy.evidence.contract-ci.v1}` |
+| `ProductPhaseRegistryV1` `phase.foundation` | append the new Requirement to `outcome_requirement_refs[]` and the new Gate to `exit_gate_refs[]`; `work_package_refs[]` is unchanged |
+| `WorkPackageRegistryV1` | append `{kind=product_fixture, fixture_id=fixture.runtime.ecs-data-oriented-core}` to `provided_fixture_refs[]` of `wp.foundation.memory-pointers`, `wp.runtime.scheduling-core`, `wp.runtime.ecs-e0`, `wp.runtime.ecs-e1-storage`, and `wp.runtime.ecs-e2-query-mutation`; all other Fields remain unchanged except the coordinated Owner replacements below |
+
+The Fixture target set is deliberately broader than the Phase 0 Gate target
+set. The Headless Gate evaluates only `target.headless.host`; later Windows、
+Android, and Apple qualification reruns the same Fixture on an allowed exact
+Target and uses `policy.evidence.target-device.v1`. A Headless Receipt is never
+substituted for those Target-specific runs.
+
+The same destination Owner reference migration replaces
+`owner_document_id=mirakan.arch.runtime-scheduling-lifetime` with
+`mirakan.arch.runtime-entity-component-system` only for
+`wp.runtime.ecs-e0`、`wp.runtime.ecs-e1-storage`, and
+`wp.runtime.ecs-e2-query-mutation`. It does not change the owners of
+`wp.foundation.memory-pointers` or `wp.runtime.scheduling-core`, add a Work
+Package／Capability, or alter the existing Work Package dependency chain.
+
+The destination risk row is:
+
+| Field | Exact value |
+|---|---|
+| `risk_id` | `risk.product.ecs-data-oriented-regression` |
+| `owner_document_id` | `mirakan.arch.runtime-entity-component-system` |
+| `affected_work_package_refs[]` | `wp.foundation.memory-pointers; wp.runtime.scheduling-core; wp.runtime.ecs-e0; wp.runtime.ecs-e1-storage; wp.runtime.ecs-e2-query-mutation` |
+| `trigger` | missing layout policy、dual Shipping layout、hot callback allocation／fallback、unbounded archetype growth、missing campaign cell／metric, or wrong-Target Receipt substitution |
+| `likelihood` | `high` |
+| `impact` | `critical` |
+| `mitigation` | require the destination Phase 0 Gate、complete campaign、hard predicates, and fresh Target-specific reruns |
+| `contingency` | reject the affected ECS Work Package transition and dependent Runtime activation; retain the last qualified layout without an alternate Shipping fallback |
+| `monitor_gate_refs[]` | `gate.product.phase-0-ecs-data-oriented-core` |
+| `genesis_state` | `open` |
+| `revisit_gate_or_date` | `{kind=phase_gate, ref=gate.product.phase-0-ecs-data-oriented-core}` |
 
 `requirement.runtime.ecs-data-oriented-core` is owned by Runtime ECS with
 Performance／Capacity as qualification owner. It requires:
@@ -528,15 +607,15 @@ Performance／Capacity as qualification owner. It requires:
 - 8／16／32 KiB characterization bound to the same Candidate;
 - no Shipping AoS、sparse-set、object graph, or general-heap fallback path.
 
-`fixture.runtime.ecs-data-oriented-core` is a Headless C0 fixture and is also
-reused as an input by later Target-specific ECS qualification. Reuse means
-rerunning the same semantic scenario on the target Candidate; a Headless
+`fixture.runtime.ecs-data-oriented-core` is evaluated first as a Headless C0
+fixture and is rerun by later Target-specific ECS qualification. Reuse means
+rerunning the same 12,600-second campaign on the target Candidate; a Headless
 Receipt is never reused as Windows、Android, or Apple performance evidence.
 
 `gate.product.phase-0-ecs-data-oriented-core` uses
 `policy.product.same-candidate.v1` and
-`policy.evidence.contract-ci.v1`. Phase 0 includes the new Requirement and
-Gate. The Phase Fixture Gate evaluates only its declared Requirement、
+`policy.evidence.contract-ci.v1`. Destination Phase 0 includes the new
+Requirement and Gate. The Phase Fixture Gate evaluates only its declared Requirement、
 fixture、Target、Candidate binding, and freshness because
 `PhaseFixtureBindingRegistryV1` has no Work Package state Field. Phase 0 exit
 separately requires every non-deferred Work Package listed by
@@ -556,11 +635,10 @@ Work Package responsibilities are:
 | `wp.runtime.ecs-e2-query-mutation` | cached query、contiguous dispatch、allocation-free callback、deferred structural transaction |
 | later `wp.runtime.ecs-e7-*` | rerun the qualified profile on the exact Target and device Evidence policy |
 
-`risk.product.ecs-data-oriented-regression` is `high／critical`. Its trigger is
-any missing layout policy、dual Shipping layout、hot allocation、unbounded
-archetype growth、missing metric, or target Receipt substitution. Mitigation is
-the new Phase 0 Gate plus Target-specific reruns. Containment rejects the
-affected ECS Work Package transition and all dependent Runtime activation.
+The exact `risk.product.ecs-data-oriented-regression` row above is the only
+Product risk definition for this change. Prose in owner documents references
+that row and does not redefine its trigger、severity、mitigation, or
+containment.
 
 ## 11. Compatibility and clean break
 
@@ -646,24 +724,28 @@ layout or authoritative Component state.
 
 ## 13. Failure and diagnostics
 
-The exact Diagnostic IDs are added by their canonical owners during Contract
-materialization. The design requires one stable Diagnostic for each condition:
+The canonical owners add the following exact Diagnostics in the same Contract
+or Product Definition transaction as their consumers. The code is the
+Naming／Project Layout transformation of the ID; alternate underscore codes or
+local aliases are not retained.
 
-| Condition | Required result |
-|---|---|
-| Missing value-transfer binding | Build／Contract compile failure |
-| Invalid pass form or move use | Static Gate failure |
-| Hot callback allocation or fallback | Performance Gate failure; callback result not published |
-| Component schema has incompatible access cohorts | `component_schema_revision_required`; no silent split |
-| Chunk capacity is zero | Cook／Contract compile failure |
-| Unbounded archetype or tag permutation | Layout qualification failure |
-| Query cache contains row or address state | Contract／negative fixture failure |
-| Direct structural mutation during iteration | Typed rejection |
-| Structural capacity failure | Previous World remains published |
-| Required metric missing | Qualification failure |
-| Wrong Target Receipt reused | Product Gate failure |
-| Consumer Inventory unresolved | Clean-break application rejected |
-| Retained external consumer discovered | Switch to separately approved finite migration |
+| Owner | Diagnostic ID／code | Required typed arguments | Required result |
+|---|---|---|---|
+| `mirakan.arch.memory-pointers` | `diagnostic.memory.value-transfer-binding-missing`／`MIRAKAN-MEMORY-VALUE-TRANSFER-BINDING-MISSING` | `api_contract_id; api_contract_version; subject; ordinal?` | Build／Contract compile failure |
+| `mirakan.arch.memory-pointers` | `diagnostic.memory.value-transfer-invalid`／`MIRAKAN-MEMORY-VALUE-TRANSFER-INVALID` | `api_contract_id; subject; ordinal?; rule_id` | Static Gate failure |
+| `mirakan.arch.memory-pointers` | `diagnostic.memory.hot-callback-allocation`／`MIRAKAN-MEMORY-HOT-CALLBACK-ALLOCATION` | `campaign_hash; scenario_id; payload_bytes; observed_count` | Performance Gate failure; callback result not published |
+| `mirakan.arch.memory-pointers` | `diagnostic.memory.hot-callback-upstream-fallback`／`MIRAKAN-MEMORY-HOT-CALLBACK-UPSTREAM-FALLBACK` | `campaign_hash; scenario_id; payload_bytes; observed_count` | Performance Gate failure; callback result not published |
+| `mirakan.arch.runtime-entity-component-system` | `diagnostic.runtime.ecs-component-schema-revision-required`／`MIRAKAN-RUNTIME-ECS-COMPONENT-SCHEMA-REVISION-REQUIRED` | `component_schema_ref; access_cohort_hash` | `component_schema_revision_required`; no silent split |
+| `mirakan.arch.runtime-entity-component-system` | `diagnostic.runtime.ecs-chunk-capacity-zero`／`MIRAKAN-RUNTIME-ECS-CHUNK-CAPACITY-ZERO` | `archetype_id; column_layout_hash; payload_bytes` | Cook／Contract compile failure |
+| `mirakan.arch.runtime-entity-component-system` | `diagnostic.runtime.ecs-archetype-permutation-unbounded`／`MIRAKAN-RUNTIME-ECS-ARCHETYPE-PERMUTATION-UNBOUNDED` | `component_schema_ref; observed_count; declared_bound` | Layout qualification failure |
+| `mirakan.arch.runtime-entity-component-system` | `diagnostic.runtime.ecs-query-cache-invalid`／`MIRAKAN-RUNTIME-ECS-QUERY-CACHE-INVALID` | `query_ref; invalid_member_kind` | Contract／negative fixture failure |
+| `mirakan.arch.runtime-entity-component-system` | `diagnostic.runtime.ecs-structural-mutation-during-iteration`／`MIRAKAN-RUNTIME-ECS-STRUCTURAL-MUTATION-DURING-ITERATION` | `system_ref; operation_kind; logical_work_id` | Typed rejection |
+| `mirakan.arch.runtime-entity-component-system` | `diagnostic.runtime.ecs-structural-capacity-exceeded`／`MIRAKAN-RUNTIME-ECS-STRUCTURAL-CAPACITY-EXCEEDED` | `boundary_ref; required_bytes; available_bytes` | Previous World remains published |
+| `mirakan.arch.runtime-performance-capacity` | `diagnostic.performance.ecs-required-metric-missing`／`MIRAKAN-PERFORMANCE-ECS-REQUIRED-METRIC-MISSING` | `campaign_hash; scenario_id; payload_bytes; metric_id` | Qualification failure |
+| `mirakan.arch.product-plan` | `diagnostic.product.ecs-target-receipt-mismatch`／`MIRAKAN-PRODUCT-ECS-TARGET-RECEIPT-MISMATCH` | `campaign_hash; expected_target_ref; actual_target_ref` | Product Gate failure |
+| `mirakan.arch.compatibility-evolution` | `diagnostic.compatibility.ecs-consumer-inventory-unresolved`／`MIRAKAN-COMPATIBILITY-ECS-CONSUMER-INVENTORY-UNRESOLVED` | `change_set_ref; discovery_scope; discovery_state` | Clean-break application rejected |
+| `mirakan.arch.compatibility-evolution` | `diagnostic.compatibility.ecs-retained-external-consumer`／`MIRAKAN-COMPATIBILITY-ECS-RETAINED-EXTERNAL-CONSUMER` | `change_set_ref; consumer_class; consumer_ref` | Switch to separately approved finite migration |
+| `mirakan.arch.runtime-entity-component-system` | `diagnostic.product.ecs-data-oriented-core-failed`／`MIRAKAN-PRODUCT-ECS-DATA-ORIENTED-CORE-FAILED` | `requirement_id; campaign_hash; target_profile_ref; failed_diagnostic_refs[1..64]` | Aggregate Requirement evaluation fails |
 
 Free-form warning text cannot convert any failure into success.
 
@@ -726,10 +808,10 @@ The coordinated document update is complete only when all checks pass.
    `RuntimeDataOrientedQualificationProfileV1` each have one canonical owner.
 6. Product Requirement、Fixture、Gate、Work Package、Capability dependency,
    and risk refs resolve bidirectionally with no orphan ID.
-7. Phase 0 contains the new Requirement and Gate; the Gate remains a pure
-   `PhaseFixtureBindingRegistryV1` row, while Phase exit independently requires
-   current `complete` lifecycle heads for every listed Work Package, including
-   E1 and E2.
+7. Destination Phase 0 contains the new Requirement and Gate; the Gate remains
+   a pure `PhaseFixtureBindingRegistryV1` row, while Phase exit independently
+   requires current `complete` lifecycle heads for every listed Work Package,
+   including E1 and E2.
 8. Target-specific qualification requires a fresh Target Receipt and cannot
    reuse Headless evidence.
 9. Hot callback allocation and fallback predicates are exact zero in Memory、
@@ -744,7 +826,17 @@ The coordinated document update is complete only when all checks pass.
 15. Official external references are primary sources and vendor-specific
     values are labelled as comparison evidence rather than Miraikanai
     authority.
-16. Git diff review shows no unrelated edits introduced by this work.
+16. The source Product Definition remains byte-equal until the coordinated
+    ECS canonicalization、Owner reference migration, and destination Product
+    Definition Migration are approved and atomically applied.
+17. Each campaign contains exactly 90 measured run results、three soak
+    results, and 12,600 measured seconds; no missing cell is normalized to
+    zero or pass.
+18. Initial qualification does not fabricate a baseline; later promotion
+    compares two complete campaigns with byte-equal measurement inputs.
+19. Every Diagnostic ID、code、owner, and argument schema in §13 is registered
+    once, and ID-to-code transformation is one-to-one.
+20. Git diff review shows no unrelated edits introduced by this work.
 
 ## 16. Official external basis
 
