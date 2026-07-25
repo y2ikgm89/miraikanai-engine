@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Normative design: `docs/superpowers/specs/2026-07-26-data-oriented-runtime-optimization-design.md`.
-- Prerequisite before Task 1:
+- Prerequisite before Task 0:
   `docs/superpowers/plans/2026-07-26-foundation-value-memory-contract-plan.md`.
 - Prerequisite before Task 2:
   complete `docs/superpowers/plans/2026-07-26-runtime-ecs-data-oriented-contract-plan.md`.
@@ -32,7 +32,7 @@
 
 ## Execution Preflight
 
-Run once after the Foundation plan and before Task 1, then rerun after the
+Run once after the Foundation plan and before Task 0, then rerun after the
 Runtime plan and before Task 2:
 
 ```powershell
@@ -58,10 +58,12 @@ Compatibility／Evolution document as though it were created by this plan.
 Use this exact acyclic order:
 
 1. complete the Foundation plan;
-2. execute Task 1 of this plan to establish the Performance-owned profile,
+2. execute Task 0 of this plan to close the existing unresolved Product
+   evidence-owner reference;
+3. execute Task 1 of this plan to establish the Performance-owned profile,
    campaign, metric IDs, and Diagnostic;
-3. complete the Runtime ECS plan, including its Debugging consumer;
-4. return here for Tasks 2–4.
+4. complete the Runtime ECS plan, including its Debugging consumer;
+5. return here for Tasks 2–4.
 
 Do not execute Runtime Task 5 before this plan's Task 1, and do not apply the
 Product destination projection before all Runtime tasks pass.
@@ -74,6 +76,141 @@ Product destination projection before all Runtime tasks pass.
 | `docs/architecture/02-foundation/compatibility-evolution.md` | Consumer inventory, source-preserving recook, cutover rejection |
 | `docs/architecture/00-product/product-plan.md` | Destination Requirement／Fixture／Gate／risk／Work Package and owner projection |
 | All files from the prerequisite plans | Final cross-document linkage and ownership audit |
+
+---
+
+### Task 0: Resolve the current Product release-evidence owner
+
+**Files:**
+- Modify: `docs/architecture/00-product/product-plan.md:1438-1447`
+
+**Interfaces:**
+- Consumes: the 52-entry Architecture Document Inventory, Product evidence
+  class definitions, AI Verification／Provenance release-evidence authority,
+  Windows／Android／Apple package-owner Receipts.
+- Produces: zero unresolved `mirakan.arch.*` document refs and an independent
+  cross-Target Release Evidence owner; no new Architecture document or
+  document ID.
+
+- [ ] **Step 1: Reproduce the one unresolved document reference**
+
+```powershell
+$files = @(rg --files docs/architecture -g '*.md')
+$documentIds = @{}
+foreach ($file in $files) {
+  $match = Select-String -Path $file -Pattern '^- 文書ID:\s*(\S+)' |
+    Select-Object -First 1
+  if ($match) {
+    $documentIds[$match.Matches[0].Groups[1].Value] = $file
+  }
+}
+$refs = foreach ($file in $files) {
+  $content = Get-Content -Raw $file
+  foreach ($match in [regex]::Matches(
+    $content,
+    'mirakan\.(?:arch|decision)\.[a-z0-9-]+'
+  )) {
+    $match.Value
+  }
+}
+$unresolved = @(
+  $refs |
+    Sort-Object -Unique |
+    Where-Object { -not $documentIds.ContainsKey($_) }
+)
+if (
+  $unresolved.Count -ne 1 -or
+  $unresolved[0] -ne 'mirakan.arch.platform-application-package-release'
+) {
+  throw "Baseline drift: unresolved refs are $($unresolved -join ', ')"
+}
+Write-Error 'Expected failure: Product release evidence names a nonexistent Architecture owner.'
+```
+
+Expected: FAIL after proving the only unresolved ref is
+`mirakan.arch.platform-application-package-release`.
+
+- [ ] **Step 2: Replace the two nonexistent owner refs**
+
+In `ProductDecisionGateRegistryV1.evidence_class_definitions[]`, change only
+these owner cells:
+
+```text
+evidence.class.package-install-offline-rollback-qualification
+  owner_document_id = mirakan.arch.ai-verification-provenance
+
+evidence.class.product-release-artifact-plan-valid
+  owner_document_id = mirakan.arch.ai-verification-provenance
+```
+
+Do not create a 53rd Architecture document. AI Verification／Provenance already
+owns Release Evidence, signed Evidence envelopes, Receipt freshness, and
+provenance; Windows, Android, and Apple remain the semantic owners of their
+Target-specific package, install, offline, signing, upload, rollback, and
+device results.
+
+- [ ] **Step 3: Replace the orphan owner prose**
+
+Replace `Application Package／Release Owner` with
+`AI Verification／Provenance Release Evidence Owner`. Add:
+
+```markdown
+同OwnerはWindows、Android、Apple各Ownerのfresh Target-specific Receiptをexact set equalityで集約してEvidence classを発行するだけで、Target package schema、signing、upload、rollback、Store policyを所有または上書きしない。`wp.product.production-release-binding`、そのTask、またはCandidateはこのEvidenceを自己発行できない。
+```
+
+- [ ] **Step 4: Verify all document refs resolve**
+
+```powershell
+$files = @(rg --files docs/architecture -g '*.md')
+$documentIds = @{}
+foreach ($file in $files) {
+  $match = Select-String -Path $file -Pattern '^- 文書ID:\s*(\S+)' |
+    Select-Object -First 1
+  if ($match) {
+    $documentIds[$match.Matches[0].Groups[1].Value] = $file
+  }
+}
+$unresolved = @()
+foreach ($file in $files) {
+  $content = Get-Content -Raw $file
+  foreach ($match in [regex]::Matches(
+    $content,
+    'mirakan\.(?:arch|decision)\.[a-z0-9-]+'
+  )) {
+    if (-not $documentIds.ContainsKey($match.Value)) {
+      $unresolved += "$file -> $($match.Value)"
+    }
+  }
+}
+if ($unresolved.Count) {
+  throw "Unresolved Architecture document refs:`n$($unresolved -join "`n")"
+}
+$count = (
+  rg -o --fixed-strings 'mirakan.arch.ai-verification-provenance' `
+    'docs/architecture/00-product/product-plan.md' |
+    Measure-Object
+).Count
+if ($count -lt 2) { throw 'The two release-evidence classes were not rebound.' }
+```
+
+Expected: zero unresolved Architecture document refs and both evidence classes
+bound to the existing Verification owner.
+
+- [ ] **Step 5: Commit only the Product owner correction**
+
+```powershell
+$path = 'docs/architecture/00-product/product-plan.md'
+git diff --check -- $path
+git add -- $path
+$staged = @(git diff --cached --name-only)
+if ($staged.Count -ne 1 -or $staged[0] -ne $path) {
+  throw "Unexpected staged paths: $($staged -join ', ')"
+}
+git commit --only -m "docs: resolve product release evidence owner" -- $path
+```
+
+Expected: one-file commit; no Product Registry ID, evidence-class ID, package
+semantic owner, or document count changes.
 
 ---
 
@@ -673,7 +810,27 @@ if ($ids.Count -ne 52) { throw "Expected 52 Architecture document IDs, got $($id
 
 Expected: exactly 52 unique IDs.
 
-- [ ] **Step 2: Verify all relative Markdown links**
+- [ ] **Step 2: Verify all document-ID refs and relative Markdown links**
+
+```powershell
+$documentIdSet = @{}
+foreach ($record in $ids) { $documentIdSet[$record.Id] = $record.File }
+$unresolvedDocumentRefs = @()
+foreach ($file in $files) {
+  $content = Get-Content -Raw $file
+  foreach ($match in [regex]::Matches(
+    $content,
+    'mirakan\.(?:arch|decision)\.[a-z0-9-]+'
+  )) {
+    if (-not $documentIdSet.ContainsKey($match.Value)) {
+      $unresolvedDocumentRefs += "$file -> $($match.Value)"
+    }
+  }
+}
+if ($unresolvedDocumentRefs.Count) {
+  throw "Unresolved document refs:`n$($unresolvedDocumentRefs -join "`n")"
+}
+```
 
 ```powershell
 $broken = @()
@@ -884,11 +1041,12 @@ if (-not $firstTaskCommit) { throw 'First plan commit was not found.' }
 $baselineCommit = git rev-parse "$firstTaskCommit^"
 git diff --check "$baselineCommit..HEAD" -- $changed
 git status --short
-git log --oneline -14
+git log --oneline -15
 ```
 
 Expected: no whitespace errors; fourteen scoped document commits if every
-planned file required a change; unrelated user changes remain intact.
+planned file required a change, plus the one pre-existing Product owner
+correction; unrelated user changes remain intact.
 
 - [ ] **Step 12: Record the completion report**
 
