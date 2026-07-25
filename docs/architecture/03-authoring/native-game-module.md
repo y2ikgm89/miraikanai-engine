@@ -3,8 +3,8 @@
 - 文書ID: mirakan.arch.native-game-module
 - 状態: review
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
-- 非正本範囲: GameplayDefinition、GameSystemSpecV2、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 非正本範囲: GameplayDefinition、GameSystemSpecV2、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime ECS storage・query・access manifest、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 外部根拠検証日: 2026-07-23
 
 ## 1. 結論
@@ -173,7 +173,7 @@ MirakanNativeCadenceInputV1
 | `advance_sequence`、`invoke_sequence` | `uint64`。前者は`cadence_input.advance_sequence`とbyte equality |
 | `phase_id` | Runtime規約のserialized `TickPhaseId` |
 | `cadence_input` | call中だけ有効なexact `MirakanNativeCadenceInputV1`。ProfileのrateまたはkindをABI literalから推測しない |
-| `query_batches` | ComponentAccessManifestから生成したimmutable bounded View |
+| `query_batches` | [Runtime ECS](../04-runtime/entity-component-system.md)の`RuntimeComponentAccessManifestV1`と`RuntimeQueryDispatchPlanV1`から生成したimmutable bounded View |
 | `rng_stream` | Engine-owned deterministic RNG Port |
 | `scratch_memory` | callback returnまで有効なsingle-owner Port |
 | `output_writer` | 宣言済みCommand／Event／Structural Commandだけを受理するprivate writer。Component value／System State deltaは受理しない |
@@ -223,7 +223,9 @@ MCDから生成するProject C++ APIは次を提供する。
 - telemetry counter／span
 - typed Result／Error
 
-公開APIはEngine object pointerを返さない。`EntityHandle`、`AssetVersionHandle`、`NativeSystemHandle`はindex＋generationまたはopaque fixed-width valueであり、保存や別session再利用を禁止する。
+公開APIはEngine object pointerを返さない。`RuntimeEntityHandle`、`AssetVersionHandle`、`NativeSystemHandle`はindex＋generationまたはopaque fixed-width valueであり、保存や別session再利用を禁止する。callbackを越えるEntity参照は[Runtime ECS](../04-runtime/entity-component-system.md)の`RuntimeEntityRefV1`へ投影する。
+
+Runtime ECS正本化でNative ABIがrelease、external client、retained artifactから読まれる可能性がある場合、それは`native_abi` consumerとして[Compatibility／Evolution](../02-foundation/compatibility-evolution.md#42-ecs-consumer-inventory-boundary)へrecordする。本文書のC ABI規約だけから公開済みconsumer、old reader、compatibility windowが存在すると推測しない。complete Consumer Inventoryとscope Requirementのpass fulfillmentがsource rebuildまたはversioned migrationの条件を証明するまで、ABI aliasや旧handle projectionを追加しない。
 
 ### 5.2 STL、RTTI、Exception
 
@@ -295,7 +297,7 @@ Discovered
 | `system_contract_version` | `GameSystemSpecV2.version`からgenerated |
 | `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
 | `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV2`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
-| `read_component_set` | ComponentAccessManifest subset |
+| `read_component_set` | `RuntimeComponentAccessManifestV1`のread setかつcallbackのquery dispatch selectionに一致するsubset |
 | `write_state_set` | GameplayState field subset |
 | `command_set`／`event_set` | 生成可能な型のsubset |
 | `max_instances` | finite hard bound |
@@ -571,6 +573,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 - C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
+- ECS format migrationを伴うNative ABI変更では、native_abi Consumer Inventory record、全Evidence Requirementのpass satisfaction binding、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じqualification closureへexact解決しなければload／releaseを許可しない。
 
 本Native CapabilityのC1完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Code owner gate、Windows Editor Preview再起動、Windows Desktop clean static-link artifact、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateでも、Shipping／Release readinessでもない。
 

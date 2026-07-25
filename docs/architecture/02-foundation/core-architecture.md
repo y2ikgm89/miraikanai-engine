@@ -736,7 +736,7 @@ Feature実装は次を満たすまで開始しない。
 
 1. Product scope、Capability maturity、Owner文書が確定している。
 2. Target Profile、Frontend Profile、Build Driver、Toolchain lockが一意に解決する。
-3. Foundation、Math、Memory、Executable Contractの最低限Targetがbuildとtestに合格する。
+3. Foundation、Math Core、Memory／Pointers、Executable Contractの最低限Targetがbuildとtestに合格し、Productの`gate.product.phase-0-memory-pointer-contract`がcontract closure、consumer binding、保存／job captureのnegative fixture、supported sanitizer Evidence、hot path fallback 0 baselineを同一Candidateで検査する。未対応sanitizer laneをpassへ代用しない。
 4. Project state変更が唯一のtyped Gatewayを通り、直接File mutationのnegative testがある。
 5. External dependencyのlicense、source、artifact hash、SBOM、Adapter boundaryが検証済みである。
 6. clean／incremental／cancel recovery、sanitizer、package inspectionのReceiptがある。

@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Gameplay／Cinematic CameraのProfile、Rig、Director、Presentation、Sequence、typed authoring、Base Pose runtime、Camera固有budget／diagnostic／qualification
 - 非正本範囲: Capability maturity／roadmap、Render View execution／temporal history、Post Process schema、Physics query execution、Runtime phase／shared capacity、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan（Recording／Timecode／Genlock／Virtual Productionはnot_activated）](../00-product/product-plan.md#8-future-portfolio)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Post Processing](post-processing.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan（Recording／Timecode／Genlock／Virtual Productionはnot_activated）](../00-product/product-plan.md#8-future-portfolio)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](world.md)、[Render Graph](render-graph.md)、[Post Processing](post-processing.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
@@ -24,7 +24,7 @@ CameraProfileDocumentV1
   document_header
   camera_profile_id
   display_name
-  scene_dimension
+  compatible_world_space: WorldSpaceCompatibilityV1
   projection
   lens_profile
   viewport_profile
@@ -36,6 +36,8 @@ CameraProfileDocumentV1
   capability_requirements[]
   locked_fields[]
 ```
+
+`compatible_world_space`は[World](world.md)が所有するreusable compatibility constraintであり、Cameraがscene dimensionやhybrid gameplay authorityを所有・選択するfieldではない。Worldを参照するCamera解決では、入力`WorldSpaceProfileRefV1`がそのconstraintを満たすことを検証し、選択済みexact refを`CameraPlanCandidateV1`とCooked `CameraPlanV1`へ記録する。compatibleでないProfile、stale ref、WorldなしのGameplay／Cinematic Cameraを拒否し、2D／3DをCamera既定値から推測しない。UI-only／Editor preview CameraはWorldを要さないが、Worldを読むPreviewは同じ検証を行う。
 
 `projection`は`perspective | orthographic | pixel_orthographic | physical_perspective`のtagged unionである。AspectをProfileへ重複保存しない。Post Processは`PostProcessProfileV1` Stable IDとowner-defined `PostProcessCameraOverrideV1`だけを参照し、Exposure fieldをCamera形式へ複写しない。`focus_policy`は`manual | target_distance | subject_group`に閉じる。`manual`はlens profileのfocus distance、`target_distance`はprimary target bindingへの距離、`subject_group`は[Post Processing](post-processing.md)の`DepthOfFieldProfileV1`のsubject group focusへ接続し、DOF parameterをCamera形式へ複写しない。
 
@@ -218,7 +220,7 @@ CameraSemanticActivationProjectionV1
 
 Comfortable intentはroll limit 0、horizon stabilization true、angular velocity／acceleration／FOV change rateを`CameraComfortProfileV1`（§2.1）、view impulse／view noise scaleをAccessibility Profileから読む。数値Presetを人間工学的に安全と表示するにはTarget実測とUser Study evidenceを必要とする。
 
-ResolverはIntentから最大3 `CameraPlanCandidateV1`を返す。候補はProfile／Rig／Director／Sequence、Intent-to-field trace、assumption／question／lock、Target cost、Capability／fallback、fixture、composition／comfort／collision metric、差と理由を持つ。scene dimension、gameplay viewpoint、authority、必須subjectが解決不能な場合だけBlocking questionを返す。
+ResolverはIntentから最大3 `CameraPlanCandidateV1`を返す。候補はProfile／Rig／Director／Sequence、exact `WorldSpaceProfileRefV1`またはWorld不要の明示、Intent-to-field trace、assumption／question／lock、Target cost、Capability／fallback、fixture、composition／comfort／collision metric、差と理由を持つ。World compatibility、gameplay viewpoint、authority、必須subjectが解決不能な場合だけBlocking questionを返す。
 
 予約候補IDは`operation.camera.resolve_intent, operation.camera.create_profile, operation.camera.set_profile_projection, operation.camera.create_rig, operation.camera.add_rig_node, operation.camera.connect_rig_nodes, operation.camera.set_director_rule, operation.camera.set_presentation_profile, operation.camera.create_sequence, operation.camera.preview_candidate, operation.camera.analyze_composition`のexact 11件に閉じる。これらは[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.camera_authoring@1`だけに属する未Activation vocabularyであり、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`、Capability stateは`not_activated`である。`operation.camera.resolve_intent`はActivation後にだけRegistry selectionを行う予定候補であり、現在のselection権限ではない。Registry contribution自体のauthoring／activationは別計画語彙`planning.camera.semantic_registry_contribution_authoring@1`とし、reserved Operation ID集合`[]`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／CLI／Editor／generated alias／legacy alias集合もexact `[]`、Capability stateも`not_activated`である。Foundationが専用Operationをatomic登録するまで、既存11候補からContribution登録権限を推測しない。`activation.camera.authoring_operations.v1`が11件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。表中のWrite／Preview／解析の意味はActivation審査用の予定意味であり、現在のProject ChangeSet生成、authorization、approvalを与えない。
 

@@ -4,12 +4,12 @@
 - 状態: review
 - 正本範囲: 2D Grid Navigation、3D Navmesh source／profile／artifact、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract、`MotionExecutorPortV1`
 - 非正本範囲: Runtime phase／Simulation Advance／shared worker／capacity、Physics dynamics、Collision event、selected Motion ExecutorによるTransform解決、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論とPlatform境界
 
-Navigationは2D Gridと3D NavmeshのEngine-owned profile、artifact、query、version、leaseを公開し、build／query Backendをprivate Adapterへ隔離する。Project C++、GameplayDefinition、AI、Editor、SaveへVendor config、mesh／query object、polygon reference、status bits、allocator、callback、binary formatを公開しない。dependencyのexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
+Navigationは[World](../06-rendering/world.md)のexact `WorldSpaceProfileRefV1`から選ばれる2D Gridまたは3D NavmeshのEngine-owned profile、artifact、query、version、leaseを公開し、build／query Backendをprivate Adapterへ隔離する。Project C++、GameplayDefinition、AI、Editor、SaveへVendor config、mesh／query object、polygon reference、status bits、allocator、callback、binary formatを公開しない。query lease、job scratch、artifact versionの一般Pointer／Memory Contractは[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingを消費し、Navmesh固有のversion／stale判定は本書だけが所有する。dependencyのexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
 
 NavigationはWorld Transformを書かず、Physicsをstepせず、Animation poseを選ばない。[Collision](collision.md)のstatic geometry／filterをsourceとしてcookし、[Physics](physics.md)の前snapshotからdynamic obstacle inputを受ける。cross-subsystem order、async acceptance、shared worker、lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)を消費する。
 
@@ -23,9 +23,9 @@ ModuleはContracts、Core、Grid2D、private Navmesh Backend、Authoring、Edito
 | `NavAgentProfileV1` | radius、height、climb、slope、query filter ref | Project source |
 | `NavAreaProfileV1` | stable area ID、traversability、relative cost、tags | Project source |
 | `NavBuildProfile3DV1` | voxel／tile／region／contour／polygon build semantics、`max_straight_path_points` | Project source |
-| `NavSourceSetV1` | canonical static geometry、area、modifier、link source revisions | Project source |
+| `NavSourceSetV1` | exact World Document ref／`WorldSpaceProfileRefV1`、canonical static geometry、area、modifier、link source revisions | Project source |
 
-Profile fieldはSI単位とfinite値を使い、agent寸法、cell／voxel寸法、slope、climb、tile relationをcross-field validationする。Vendor default objectをserializeせず、Engine Profileの全意味を保存する。Backendが表現できないProfileはcook failureにし、近い値へsilent adjustmentしない。
+Profile fieldはSI単位とfinite値を使い、agent寸法、cell／voxel寸法、slope、climb、tile relationをcross-field validationする。`NavSourceSetV1.world_space_profile_ref`はsource Worldのexact Profile refとbyte equalityにし、World Profileが導く2D／3D authorityだけがGrid／Navmesh buildを選ぶ。`GridNav2DProfileV1`と`NavBuildProfile3DV1`はそれぞれのWorld Profileに対するcompatibility／build semanticsを表すが、独立したscene dimensionまたはhybrid gameplay authorityを保存・推測しない。Vendor default objectをserializeせず、Engine Profileの全意味を保存する。Backendが表現できないProfileはcook failureにし、近い値へsilent adjustmentしない。
 
 ### 2.1 Grid2D
 
@@ -33,7 +33,7 @@ Grid2Dは3D Navmesh Backendへ依存しない。Source boundsをcellへrasterize
 
 Path queryはprojected start／end、agent clearance、area filter、hard result boundを検証し、canonical A* tie-breakを使う。同scoreではcell coordinate、direction ID、insertion-independent parent keyで決め、heap allocation orderを使わない。Gridのpartial rebuildはstaging artifactを完成させてからversion単位でactivateし、live cell arrayをquery中にmutateしない。
 
-`GridNav2DArtifactV1`はsource/profile identity、origin、extent、dimensions、cell payload、link table、diagnostic summaryを持つimmutable Derived Assetである。Renderer tile mapやPhysics broadphaseをlive backing storeとして参照しない。
+`GridNav2DArtifactV1`はexact `world_space_profile_ref`、source/profile identity、origin、extent、dimensions、cell payload、link table、diagnostic summaryを持つimmutable Derived Assetである。Grid dimensionはそのProfileからのDerived projectionであり、Renderer tile mapやPhysics broadphaseをlive backing storeとして参照しない。
 
 ## 3. 3D Navmesh cookとartifact
 
@@ -45,7 +45,7 @@ Path queryはprojected start／end、agent clearance、area filter、hard result
 4. tile seam、connectivity、area、link endpoint、hard boundを検査する。
 5. manifest、diagnostic、source mappingを付けたimmutable artifactをpublish候補にする。
 
-`CookedNavWorldV1`はartifact ID、schema ref、source set／Profile identity、coordinate frame、tile directory、area table、link table、Backend-private payload refs、build diagnostic summaryを持つ。Backend-private tile bytesはEngine query contractからopaqueであり、Save、Project C++、AIへ公開しない。
+`CookedNavWorldV1`はartifact ID、schema ref、exact `world_space_profile_ref`、source set／Profile identity、coordinate frame、tile directory、area table、link table、Backend-private payload refs、build diagnostic summaryを持つ。Navmesh dimensionはそのProfileからのDerived projectionであり、Backend-private tile bytesはEngine query contractからopaqueで、Save、Project C++、AIへ公開しない。
 
 Tile promotionはartifact単位でatomicに行う。部分成功をactive Worldへ混在させない。Source geometry、Profile、area table、Backend lockのいずれかが変われば新しいartifact identityを要求する。Reimport／cook／promotion／rollbackは[Asset lifecycle](../03-authoring/asset-lifecycle.md)を消費する。
 
@@ -55,13 +55,13 @@ Dynamic obstacleは前snapshotからbounded update inputを受ける。C1の動�
 
 ## 4. Query、status、version、lease
 
-`NavQueryRequestV1`はrequest ID、Nav World handle／expected version、query kind、start／end、Agent Profile ref、area filter、hard result bound、deadline／producer metadataを持つ。query kindはpath、nearest navigable point、random reachable point、ray／visibility on nav domain、distance-to-boundaryのclosed setである。
+`NavQueryRequestV1`はrequest ID、Nav World handle／expected version、exact `WorldSpaceProfileRefV1`、query kind、start／end、Agent Profile ref、area filter、hard result bound、deadline／producer metadataを持つ。requestのProfile refはactive `GridNav2DArtifactV1`または`CookedNavWorldV1`の同refとbyte equalityにし、query kindはpath、nearest navigable point、random reachable point、ray／visibility on nav domain、distance-to-boundaryのclosed setである。
 
 `NavQueryResultV1`はrequest ID、observed `NavMeshVersion`、normalized status、projected endpoints、ordered corridor／points、area／link metadata、diagnosticを持つ。公開結果へnative polygon ref、tile pointer、raw status bitsを含めない。Resultはobserved versionと同じlease中だけ解釈でき、別versionへpolygon identityを再利用しない。
 
 `NavQueryStatusV1`は`success | no_path | invalid_request | version_mismatch | result_bound_exceeded | unavailable | cancelled | backend_failure`のclosed enumである。Result bound超過はpartial successにせず、`no_path`とBackend failureを区別する。Pathのcanonical tie-breakはtotal cost、projected endpoint distance、Engine polygon／cell key、point lexicographicを使い、native traversal順を使わない。
 
-`NavWorldHandle`と`NavQueryHandle`はEngine generation handle、`NavMeshVersion`はactive artifact generationのmonotonic runtime identityであり、ProjectのStable IDやartifact content identityを代用しない。`NavWorldLeaseV1`はWorld handle、exact version、immutable Backend world ref、expiry boundaryを束ねる。lease expiry後のresult解釈、version activation中のlive pointer保持、old polygon refのnew version利用を禁止する。
+`NavWorldHandle`と`NavQueryHandle`はEngine generation handle、`NavMeshVersion`はactive artifact generationのmonotonic runtime identityであり、ProjectのStable IDやartifact content identityを代用しない。`NavWorldLeaseV1`はWorld handle、exact version、exact `WorldSpaceProfileRefV1`、immutable Backend world ref、expiry boundaryを束ねる。lease expiry後のresult解釈、version activation中のlive pointer保持、old polygon refのnew version利用を禁止する。
 
 Async resultのdeadlineとacceptanceは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T20_AsyncIntegrate`を参照する。Navigationはphase順序を再定義せず、accepted resultだけを次のGameplay evaluationから利用できる。Replayへはrequest、accepted result、version／artifact identityを供給し、記録はRuntime ownerのcanonical `T100_ReplayCheckpoint`に接続する。
 
@@ -74,6 +74,7 @@ PathFollowRequestV1
   request_id
   actor_ref
   actor_generation
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
   goal: WorldPosition2f | WorldPosition3f | StableAnchorRef
   nav_agent_profile_ref
   executor_capability_ref
@@ -505,7 +506,7 @@ BoundedTypedValueV1
 
 `payload_kind=referenced`は`payload_ref`だけをnon-nullにし、value／value identityをnullにする。`inline_value`は`payload_value`と`payload_value_identity`をnon-null、refをnullにする。inline canonical bytesは`adapted_intent_schema_ref`でdecode／再encodeしてbyte一致し、value／identity／entryの三hashが一致しなければならない。`payload_ref.value_schema_ref`またはinline value／identityのschema refはentryの`adapted_intent_schema_ref`とexact equalityである。`source_proposal_schema_ref`、source hash、binding refはadapter inputとexact equality、payloadは同bindingが出力した`AdaptedMotionIntentV1.adapted_value/hash`とexact equalityでなければならない。entriesはadapted schema ID／version、source proposal schema ID／version、proposal ID、producer System refのcanonical byte順でstrict sortし、duplicate proposal ID、同一payload identityの重複、source／output type spoof、adapter substitution、payload hash不一致をrejectする。
 
-selected compositionが生成するsource proposal schema集合はBinding Registryにexact一件ずつ解決し、batchが運ぶ`entries[].adapted_intent_schema_ref`集合だけをselected Providerの`accepted_intent_schema_refs[]`とsubset比較する。元のAnimation／Feature proposal schemaをProvider accepted setへ直接比較しない。Cook、Runtime Activation、各batch受理の三箇所でsource→binding→adapted output→Provider accepted setの全edgeを検査する。root motionを生成しないcompositionはroot-motion source bindingを集合へ加えず、Animation `mode=animation`を選ぶcompositionだけがexact source bindingを要求する。`compatibility_predicate_ref`はadapted intent schema、`movement_profile_ref`が`movement_profile_schema_ref`へ適合すること、Target Profile、dimension、required Capabilityを検証する。missing provider、同じCapabilityへのactive provider複数、source bindingなし、adapted intent不受理、profile schema不一致、Target不適合はtyped failureであり、別ProviderまたはProfileへ推測fallbackしない。
+selected compositionが生成するsource proposal schema集合はBinding Registryにexact一件ずつ解決し、batchが運ぶ`entries[].adapted_intent_schema_ref`集合だけをselected Providerの`accepted_intent_schema_refs[]`とsubset比較する。元のAnimation／Feature proposal schemaをProvider accepted setへ直接比較しない。Cook、Runtime Activation、各batch受理の三箇所でsource→binding→adapted output→Provider accepted setの全edgeを検査する。root motionを生成しないcompositionはroot-motion source bindingを集合へ加えず、Animation `mode=animation`を選ぶcompositionだけがexact source bindingを要求する。`compatibility_predicate_ref`はadapted intent schema、`movement_profile_ref`が`movement_profile_schema_ref`へ適合すること、Target Profile、exact World Space Profile、required Capabilityを検証する。missing provider、同じCapabilityへのactive provider複数、source bindingなし、adapted intent不受理、profile schema不一致、Target不適合はtyped failureであり、別ProviderまたはProfileへ推測fallbackしない。
 
 ### 4.2 Motion Executor Provider Catalog
 
@@ -642,15 +643,15 @@ ownerが永続化を要求した場合だけSaveへdestination intent、request 
 
 World／Profile／source／artifactのinspect、Grid／Navmesh Profile作成・更新、area／modifier／link作成・更新・削除、cook、query preview、validation、qualification reportはStable IDでないplanned semantic action vocabularyであり、current公開Operationではない。Navigationのcurrent MCD Operation集合は空、exact一件のselection候補は`planning.operation_family.navigation_binding_selection@1`で`not_activated`である。future work item `activation.navigation.authoring_operations.v1`が採用するexact ID集合と完全なMCD／Service／Policy／Validator／Diagnostic／Receipt／publication closureを一transactionで登録するまでaction名からIDを生成せずdispatchしない。Activation後のwriteだけが[Project state](../03-authoring/project-state.md)のChangeSetを生成し、live Backendへ直接writeしない。EditorとAIは同じSource Document、validator、preview、cook、undo／redoを使う。
 
-AIは「どのBackendを使うか」ではなく、2D／3D、移動体の大きさ、登れる段差／傾斜、通行可能area、door／jump link、dynamic obstacle、Targetをゲーム上の言葉で確認する。未指定値はassumptionとしてpreviewに表示する。Risk分類、authorization、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、Approval ruleを再掲しない。
+AIは「どのBackendを使うか」ではなく、選択済みWorld Space Profile、移動体の大きさ、登れる段差／傾斜、通行可能area、door／jump link、dynamic obstacle、Targetをゲーム上の言葉で確認する。World Profileがexactに選択済みなら2D／3DをNavigation側で再選択しない。未指定値はassumptionとしてpreviewに表示する。Risk分類、authorization、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、Approval ruleを再掲しない。
 
-主要diagnostic classはinvalid Profile relation、source geometry incompatible、tile／grid connectivity failure、area／link reference missing、cook unavailable、artifact incompatible、version mismatch、expired lease、result bound exceeded、Backend invariant violation、motion executor missing／duplicate／incompatible、stale resolved motion、provider failureである。Motion Executor共通codeは`MIRAKAN-NAV-MOTION-EXECUTOR-INCOMPATIBLE`と`MIRAKAN-NAV-MOTION-EXECUTOR-STALE_RESULT`へ固定する。前者はintent subset／Profile／Target／dimension不一致、後者はactor／request／provider generation不一致を表す。各diagnosticはstable code、source path／Stable ID、原因、remediation候補、active artifact／last-valid resolved motionを維持したかを返す。
+主要diagnostic classはinvalid Profile relation、World Space Profile mismatch、source geometry incompatible、tile／grid connectivity failure、area／link reference missing、cook unavailable、artifact incompatible、version mismatch、expired lease、result bound exceeded、Backend invariant violation、motion executor missing／duplicate／incompatible、stale resolved motion、provider failureである。Motion Executor共通codeは`MIRAKAN-NAV-MOTION-EXECUTOR-INCOMPATIBLE`と`MIRAKAN-NAV-MOTION-EXECUTOR-STALE_RESULT`へ固定する。前者はintent subset／exact World Profile／Target不一致、後者はactor／request／provider generation不一致を表す。各diagnosticはstable code、source path／Stable ID、原因、remediation候補、active artifact／last-valid resolved motionを維持したかを返す。
 
 Cook失敗、Worker crash、invalid staging、incompatible promotionではlast valid artifactを維持する。Query Backend faultでは当該requestをfailureにし、active artifactを破壊しない。Runtime fault／publish policy、shared queue／capacity／backpressureはRuntime ownersへ委譲する。
 
 ## 6. Qualificationと採用しないもの
 
-QualificationはGrid rasterization／A*、Profile cross-field validation、canonical triangle conversion、tile seam、area／modifier／off-mesh link、nearest projection、path ordering、no-path、result bound、async stale result、version activation／lease expiry、fault injection、Editor／AI previewを含む。同じfixtureを全private Backendへ与え、Engine result／status／diagnosticが一致することを検査する。
+QualificationはGrid rasterization／A*、Profile cross-field validation、exact World Space ProfileからのGrid／Navmesh selection、canonical triangle conversion、tile seam、area／modifier／off-mesh link、nearest projection、path ordering、no-path、result bound、async stale result、version activation／lease expiry、fault injection、Editor／AI previewを含む。同じfixtureを全private Backendへ与え、Engine result／status／diagnosticが一致することを検査する。missing／stale World Profile、Grid／Navmesh profile mismatch、hybrid Worldのnon-authoritative gameplay branch選択を各一原因negative fixtureにする。
 
 `fixture.navigation.motion-executor.physics-kinematic`はPhysics reference Providerを検証する。Physics unavailable用の二つのfixture-only Provider recordは`MotionExecutorProviderCatalogV1`へ次の値で登録し、Production選択またはProject Saveへ昇格しない。表中の全MCD IDは`version=1`とfixture Contract set hashを持つ`McdContractRefV1`、Provider／owner／fixtureはversion／content hash付きexact refである。
 
@@ -711,7 +712,7 @@ FixtureImplementationSystemRecordV1
 
 Registry／System ref確定後、`qualification.fixture_system.navigation.board_token_motion_executor@1`／`qualification.fixture_system.navigation.rts_stub_motion_executor@1`のsubjectは対応System ref、上表owner、`target.headless.host@1`、各fixture一件、input closure、`result=pass`を全Fieldで持つ。canonical signed wrapperを発行後、`activation.fixture_system.navigation.board_token_motion_executor@1`／`activation.fixture_system.navigation.rts_stub_motion_executor@1`が対応System ref＋四FieldQualification Receipt refを持つ。ID／ownerだけからArtifact、Type、Target、Receiptを補完しない。
 
-両policyはfixture Target allowlist、2D／3D dimension、profile schema、intent subsetを全件検証する。`fixture.navigation.motion-executor.board-token-no-physics`と`fixture.navigation.motion-executor.rts-stub-no-physics`は上記7 Field、Provider identity／version／content hash／owner／usage、Target／dimension policy、diagnostic、Physics dependency 0件を検証する。Physics production base recordも同じCatalog schemaへ`usage=production`、Engine owner、exact Receipt-free implementation System base refだけで登録する。Provider Qualification Receipt／Activation BindingとSystem Activation Binding dependencyはCatalog hash確定後のsubject／root外closureだけが保持する。
+両policyはfixture Target allowlist、World Profileから導く2D／3D execution、profile schema、intent subsetを全件検証する。`fixture.navigation.motion-executor.board-token-no-physics`と`fixture.navigation.motion-executor.rts-stub-no-physics`は上記7 Field、Provider identity／version／content hash／owner／usage、Target／World Profile compatibility policy、diagnostic、Physics dependency 0件を検証する。Physics production base recordも同じCatalog schemaへ`usage=production`、Engine owner、exact Receipt-free implementation System base refだけで登録する。Provider Qualification Receipt／Activation BindingとSystem Activation Binding dependencyはCatalog hash確定後のsubject／root外closureだけが保持する。
 
 両fixture Provider base recordの`implementation_system_base_ref`は`usage=fixture_only`、Registry ref=`fixture_implementation_system.registry.active`、各exact `fixture_system.navigation.board_token_motion_executor@1`／`fixture_system.navigation.rts_stub_motion_executor@1` ref／content hashだけを持つ。Catalog／RecordRef確定後、Provider Qualification subjectの`implementation_system_ref`だけが同じbase refと対応するexact Fixture System Activation Binding refを持ち、対応Fixture ownerと両段のQualification subjectがexact equalityである。各Provider自身のReceiptとProvider Activation BindingもProvider base record／Catalog確定後に作る。Physics production base recordは`usage=production`とexact Physics `production_system_ref: GameSystemContractRefV1`＋`production_system_contract_hash`だけを持ち、`production_system_activation_binding_ref`は同じbase refを持つProvider Qualification subjectのdownstream `UsageTaggedImplementationSystemRefV1`だけに存在する。
 

@@ -29,7 +29,7 @@ Rendererとの公開境界にはBackend-neutral light data、stable source ident
 |---|---|
 | `light_id` | 永続Stable ID。Entity／GPU indexを使わない |
 | `revision` | 楽観的排他とChangeSetのbase revision |
-| `dimension` | `light_2d \| light_3d` |
+| `compatible_world_space` | `WorldSpaceCompatibilityV1`。Light Sourceはstructural dimensionを所有しない |
 | `light_type` | `directional \| point \| spot \| rectangle \| disk` |
 | `mobility` | `static \| stationary \| dynamic` |
 | `enabled` | 明示bool。強度0を無効化表現にしない |
@@ -51,7 +51,7 @@ Rendererとの公開境界にはBackend-neutral light data、stable source ident
 | `target_policy_ref` | Target別上限／fallback policy |
 | `human_lock_mask` | AIが変更できないfield集合 |
 
-Portable profileの2Dは`directional | point`、3Dは`directional | point | spot`を許可する。2D spot／area／IESと3D rectangle／disk／IESはoptional capabilityとして個別qualificationし、activation／maturityは[Product Plan](../00-product/product-plan.md)が決定する。dimensionごとの不正組合せをSchemaで拒否する。
+`LightComponent`はexact `WorldSpaceProfileRefV1`を持つWorldにだけattachでき、`LightSourceV1.compatible_world_space`とWorld Profileの一致を検証する。portable profileではWorld Profileから導く2Dで`directional | point`、3Dで`directional | point | spot`を許可する。2D spot／area／IESと3D rectangle／disk／IESはoptional capabilityとして個別qualificationし、activation／maturityは[Product Plan](../00-product/product-plan.md)が決定する。World Profile、Light compatibility、type／shapeの不正組合せをSchemaで拒否し、Light Sourceの既定やasset名からdimensionを推測しない。
 
 `LightComponent`はWorld entityにSource Definition refとinstance-local overrideを結び、Source Assetを複製しない。override可能fieldはSourceが宣言し、instanceからlight typeやunit semanticsを変更しない。
 
@@ -84,11 +84,11 @@ LightIntentV1
 
 ### 3.2 `LightingStyleProfileV1`
 
-Profile ID／version／parent、Default role recipe、`VisualStyleProfile` ref／整合constraint、Targetごとの許可light type／shadow tier、Exposure接続、2D normal lighting／Toon band／Pixel Art quantization方針、color temperature／saturation／contrast range、importance別fallback priority、Preview fixture／Qualification refを持つ。継承は最大4段、cycle禁止、各fieldは`inherit | replace`を明示し、配列を暗黙appendしない。
+Profile ID／version／parent、Default role recipe、`VisualStyleProfile` ref／整合constraint、Targetごとの許可light type／shadow tier、Exposure接続、2D normal lighting／Pixel Art quantization方針、color temperature／saturation／contrast range、importance別fallback priority、Preview fixture／Qualification refを持つ。Toonを使う場合はVisual Styleが指すexact `ToonShadingProfileRefV1`をinputとして消費するだけで、band、ramp、specular、rim、shadow、energy parameterを複写・上書きしない。継承は最大4段、cycle禁止、各fieldは`inherit | replace`を明示し、配列を暗黙appendしない。
 
 ### 3.3 `ResolvedLightPlanV1`
 
-Resolver出力はIntent／Profile／Catalog／Target Capabilityのversion／hash、追加／更新／削除する`LightSourceV1` exact patch、解決したphysical quantity／color／type／range／mobility／channel／importance／priority、Shadow Intent ref、selection／cluster上限のworst-case proof、予測CPU／GPU時間／persistent・transient byte、保持lock／未充足constraint、採用／棄却／理由／fallback chain、必要Asset cook／Preview／approval／Qualification、`plan_hash`／expiryを持つ。
+Resolver出力はIntent／Profile／Catalog／Target Capabilityのversion／hash、exact `WorldSpaceProfileRefV1`、適用時はexact `ToonShadingProfileRefV1`、追加／更新／削除する`LightSourceV1` exact patch、解決したphysical quantity／color／type／range／mobility／channel／importance／priority、Shadow Intent ref、selection／cluster上限のworst-case proof、予測CPU／GPU時間／persistent・transient byte、保持lock／未充足constraint、採用／棄却／理由／fallback chain、必要Asset cook／Preview／approval／Qualification、`plan_hash`／expiryを持つ。Toon responseはPlanにparameter展開せず、profile refとそのTarget-qualified fixture結果だけを記録する。
 
 PlanはProjectを変更しない。ChangeSet Commit後だけSourceを更新し、Catalog、Target Profile、base revisionのいずれかが変われば`MIRAKAN-LIGHTING-STALE-PLAN`として再解決する。approval mechanicsは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
 
@@ -242,6 +242,8 @@ resolve(
   LightIntentV1,
   LightingStyleProfileV1,
   VisualStyleProfile,
+  WorldSpaceProfileRefV1,
+  ToonShadingProfileV1 | null,
   EnvironmentLightingSummaryV1,
   MaterialReadabilitySummaryV1,
   SceneLightingSummaryV1,
@@ -251,7 +253,7 @@ resolve(
 ) -> ResolvedLightPlanV1 | LightingDiagnosticSetV1
 ```
 
-解決順は(1) Schema／Stable ID／base revision／権限、(2) scope／subject／human lock、(3) Visual Style／Environmentのrole recipe、(4) Target適合Light／Shadow／Assetの絞り込み、(5) 物理量／色／配置candidate生成、(6) readability／budget評価、(7) fallback chain、(8) Plan／reason／cost／risk／Preview差分の固定順とする。
+解決順は(1) Schema／Stable ID／base revision／権限、(2) exact World Profile／scope／subject／human lock、(3) Visual Style／Toon response／Environmentのrole recipe、(4) Target適合Light／Shadow／Assetの絞り込み、(5) 物理量／色／配置candidate生成、(6) readability／budget評価、(7) fallback chain、(8) Plan／reason／cost／risk／Preview差分の固定順とする。Toon Profileがnullである場合、Toon Shading Modelを使うMaterialを対象にした`toon_banded` candidateを生成しない。
 
 Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_light_ids[]`、`type_and_flags[]`、`position_and_range[]`、`direction_and_cone[]`、`color_and_radiometry[]`、`shape_parameters[]`、`channel_masks[]`、`shadow_plan_refs[]`、`source_revisions[]`を持つimmutableな論理SoAである。GPU packingはMCD生成`LightGpuRecordV1`とBackend Adapterの所有とし、Snapshotにnative handle／descriptor／GPU addressを含めない。compact indexはgeneration内だけ有効で、Save／Replay／DiagnosticはStable `light_id`を使う。
 
@@ -279,6 +281,7 @@ Lighting固有diagnosticはLight Stable ID、property path、type／shape／unit
 | `MIRAKAN-LIGHTING-GEOMETRY-INVALID` | range、angle、shape、transform不正 |
 | `MIRAKAN-LIGHTING-ASSET-UNQUALIFIED` | Cookie／IES artifact未検証 |
 | `MIRAKAN-LIGHTING-TARGET-UNSUPPORTED` | Target Capabilityで実行不能 |
+| `MIRAKAN-LIGHTING-WORLD_INCOMPATIBLE` | exact World ProfileとLight／Toon compatibilityが不一致 |
 | `MIRAKAN-LIGHTING-BUDGET-EXCEEDED` | Planが割当capacityを満たさない |
 | `MIRAKAN-LIGHTING-CRITICAL-DROPPED` | Critical Light維持不能 |
 | `MIRAKAN-LIGHTING-RUNTIME-OVERFLOW` | 動的selection／cluster上限超過 |
@@ -300,7 +303,7 @@ Qualificationは次のDomain fixtureを持つ。
 - CPU／GPUのZ境界、cluster所属、overflow selection、2D sprite per-light selectionの一致と安定性。
 - D3D12／Vulkan／Metalで同じlogical Planを実行し、Light snapshot generation／Compact ID lifetime、device loss、surface resize、Target切替を検証する。
 - 最大Light数、最大cluster index、dynamic churnのsoak。run条件はRuntime capacity ownerを使う。
-- 2D unlit、2D normal map、pixel art、PBR室内／屋外、Toon、透明物、VFX混在、極端な小／大scale Sceneでbeauty、contribution、shadow、clusterを比較する。
+- 2D unlit、2D normal map、pixel art、PBR室内／屋外、Toon、透明物、VFX混在、極端な小／大scale Sceneでbeauty、contribution、shadow、clusterを比較する。Toonはanalytic band／rampのsignal・filter・clamp・channel境界、key／fill／rim／accent、cast／receive shadow、energy cap、World Profile／Target fallbackをMaterial側fixtureと同じexact profile refで検証する。
 - AI corpusは「主人公を暖かく、背景を冷たく」「低価格Androidで雰囲気を極力保つ」「pixel artをぼかさず夜にする」「既存の人手調整Key Lightを変えない」「Shadow costを増やさず敵を読みやすくする」を含み、Schema妥当性、lock保持、Target適合、Plan再現性、説明、visual metricで判定する。
 - Production BakeはUV overlap／padding、atlas exact／+1、binding atlas membership、finite／normalized／non-empty rect、duplicate binding拒否、probe priority／uncovered IBL、dependency hash invalidation、同一入力のartifact hash、Cell境界／cold streaming、missing／stale／corrupt、partial activation拒否、qualified realtime fallback、offline／fallback／Target比較、Visual／performance receiptをfixture化する。
 

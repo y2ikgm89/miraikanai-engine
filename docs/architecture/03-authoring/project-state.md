@@ -3,8 +3,8 @@
 - 文書ID: mirakan.arch.project-state
 - 状態: review
 - 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1のdomain schema／意味／transaction、Target readiness envelope、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
-- 非正本範囲: MCD共通Envelope／projection／codegen、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime scheduling。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[World／Scene／Space／Cell](../06-rendering/world.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 非正本範囲: MCD共通Envelope／projection／codegen、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI／Build、Runtime ECS storage／identity、Runtime Package binary、Save／Replay、Runtime scheduling。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay programming model](gameplay-programming-model.md)、[Native game module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[World／Scene／Space／Cell](../06-rendering/world.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
@@ -29,11 +29,16 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 |---|---|
 | Project Document、World Model、`ProjectChangeSetV1`のdomain schema／change primitive意味／transaction、Commit、Undo、Recovery | 本書 |
 | MCD型、Operation共通Envelope、Error、Schema projection、Codegen | [Executable contracts](../02-foundation/executable-contracts.md) |
-| ID、memory、pointer、thread、directory、serialization基礎 | [Core architecture](../02-foundation/core-architecture.md)と各Foundation Owner |
-| Runtime World、Simulation Advance、lease、queue、Asset promotion | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
+| ID、thread、directory、serialization基礎 | [Core architecture](../02-foundation/core-architecture.md)と各Foundation Owner |
+| pointer／lease／allocatorの公開・保存・capture規則 | [Memory／Pointers](../02-foundation/memory-pointers.md)の`PointerMemoryConsumerBindingV1` |
+| Runtime ECS storage／Entity identity／query／lease／structural transaction | [Runtime ECS](../04-runtime/entity-component-system.md) |
+| Runtime World Root／Section image、Package binary、loader | [Runtime Package](../04-runtime/runtime-package.md) |
+| Save／Replay record、persistent identity projection、reconstruction | [Persistence／Save](../04-runtime/persistence-save.md) |
+| Simulation Advance、phase、queue、Asset activation boundary | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
 | AI権限、承認、Source sandbox、Promotion | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Editor panel、workspace、製品操作、人間工学 | [Editor Workspace UX](editor-workspace-ux.md) |
 | Editor Widget、Semantic Snapshot、UI eventからtyped Commandへの変換 | [Editor UI Framework](editor-ui-framework.md) |
+| Localization Catalog schema、BCP 47、source locale／fallback、Editor／Game Catalog境界 | [UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md) |
 | Game System Spec、Implementation Set、System Bundle、二段階Activation | [Gameplay programming model](gameplay-programming-model.md) |
 | World、Scene、Space、Topology、Partition Intent、Procedural World、Map Presentation | [World／Scene／Space／Cell](../06-rendering/world.md) |
 
@@ -50,7 +55,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | `RuntimeTargetSelectorDocumentV1` | Runtime Entryが選択可能なexact Target Profile集合 | `selector_id`、document revision |
 | `RuntimeEntryActivationPolicyDocumentV1` | readiness timeout、failure／cancel／deactivation semantics | `policy_id`、document revision |
 | `GameSpecDocument` | Genreに依存しない要求、system、content、test、budget、style lock | `game_spec_id`、document revision |
-| `WorldDocument` | Scene／optional spatial topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
+| `WorldDocument` | exact `WorldSpaceProfileRefV1`、Scene／optional spatial topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
 | `SceneDocument` | collaborative edit shard identity、Shard index、global setting、Composition Recipe root。Gameplay LevelまたはStreaming Cellではない | `scene_id`、document revision |
 | `SceneEntityShardDocument` | 一つのSceneに属するbounded Entity record集合 | `shard_id`、document revision |
 | `WorldTopologyDocument` | Space、transition edge、optional activation entryの論理Graph | `topology_id`、document revision |
@@ -68,9 +73,13 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | `DecisionLedgerDocument` | 判断値、由来、理由、approval、lock、依存 | Entry StableId、document revision |
 | `TestScenarioDocument` | Preconditions、input、oracle、budget、Target | Scenario StableId、document revision |
 
+`LocalizationCatalogDocument.source_locale`は各Catalogが宣言するGame／Project contentの原文localeであり、Editor表示locale、AI返答locale、OS localeから推測または同期しない。Projectは日本語その他のlocaleをsourceにでき、Editor Preferenceを変更してもCatalog DocumentまたはProject revisionを変更しない。Editor自身のCatalogはProject Document indexへ登録せず、Game Packageへ混入させない。
+
+共通headerの`display_name`、Asset／Entity名、台詞、Localization source message、User comment、Promptその他のUser／Project原文は入力されたNFC UTF-8と宣言localeを保持する。AIまたはEditorは英語の正規技術語彙を理由に自動翻訳、transliteration、canonical Englishへの置換を行わない。翻訳は対象Localization entryまたはUserが明示した別Fieldへのtyped ChangeSetとしてだけ提案できる。
+
 `ProjectManifest`はDocument本文を埋め込まず、`DocumentRef { stable_id, document_kind, relative_path, content_hash, schema_version }`だけを持つ。Authoring Document間の参照はStableIdで行い、相対path、配列index、表示名を意味参照に使用しない。
 
-`ProjectManifest.runtime_entry_point_refs`は1～64件のexact `DocumentRef<RuntimeEntryPointDocumentV1>`を必須とし、各refの`stable_id`、`document_kind`、`schema_version`、`content_hash`をDocument indexと照合する。`RuntimeEntryPointV1.target_selector_ref`はexact `DocumentRef<RuntimeTargetSelectorDocumentV1>`、`activation_policy_ref`はexact `DocumentRef<RuntimeEntryActivationPolicyDocumentV1>`へ解決し、IDだけ、表示名、path、latest revisionを参照にしない。World、Scene、Topology、Stageを全Project共通の必須Documentにしない。owner-typed Pack DocumentはCoreのclosed `document_kind`へ追加せず、登録済みowner namespaceを持つ`DocumentRef`としてDocument indexへ投影する。
+`ProjectManifest.runtime_entry_point_refs`は1～64件のexact `DocumentRef<RuntimeEntryPointDocumentV1>`を必須とし、各refの`stable_id`、`document_kind`、`schema_version`、`content_hash`をDocument indexと照合する。`RuntimeEntryPointV1.target_selector_ref`はexact `DocumentRef<RuntimeTargetSelectorDocumentV1>`、`activation_policy_ref`はexact `DocumentRef<RuntimeEntryActivationPolicyDocumentV1>`へ解決し、IDだけ、表示名、path、latest revisionを参照にしない。World Space Profileは[World](../06-rendering/world.md)の`WorldDocumentV1.world_space_profile_ref`にだけ保持し、Project ManifestまたはRuntime Entryへglobal／copied dimension fieldを追加しない。World、Scene、Topology、Stageを全Project共通の必須Documentにしない。owner-typed Pack DocumentはCoreのclosed `document_kind`へ追加せず、登録済みowner namespaceを持つ`DocumentRef`としてDocument indexへ投影する。
 
 ### 3.1.1 `RuntimeEntryPointV1`
 
@@ -138,9 +147,9 @@ activation policyはreadiness期限、失敗後のsession処理、graceful／imm
 
 tagged validationは次へ固定する。
 
-- `world`: `world_ref`を厳密に1件、`ui_document_ref=null`、`startup_game_system_refs[0..128]`。参照WorldはScene 0件、Topology nullでもよい。
-- `ui`: `ui_document_ref`を厳密に1件、`world_ref=null`、`startup_game_system_refs[0..128]`。
-- `headless`: `startup_game_system_refs[1..128]`、`world_ref=null`、`ui_document_ref=null`。surfaceを要求しない。
+- `world`: `world_ref`を厳密に1件、`ui_document_ref=null`、`startup_game_system_refs[0..128]`。参照WorldはScene 0件、Topology nullでもよいが、exact `WorldSpaceProfileRefV1`を必須にし、そのProfile hashをWorld Document hash closure内で照合する。Runtime EntryはProfileを複写しない。
+- `ui`: `ui_document_ref`を厳密に1件、`world_ref=null`、`startup_game_system_refs[0..128]`。World／World Space Profileを要求しない。
+- `headless`: `startup_game_system_refs[1..128]`、`world_ref=null`、`ui_document_ref=null`。surfaceとWorld／World Space Profileを要求しない。
 
 Commit対象`project_revision`のactive `TargetProfileDocument`集合と、`default_for_selected_targets=true` entryが参照するselector集合の和集合はset equalityで完全一致し、各Targetはexactly once被覆されなければならない。default 0件、default 2件以上、uncovered／inactive extra Target、`world_ref`／`ui_document_ref`／surface・spatial fieldのbranch外混在を拒否し、優先順位や登録順で補正しない。`default_for_selected_targets=false`のentryは同じTarget selectorで重複でき、benchmark、menu、game、server等の明示選択肢を共存させる。明示entry選択でもselected Targetが当該selectorのexact memberでなければならない。startup systemは全branchで許可し、branch conflictにしない。
 
@@ -442,6 +451,8 @@ AuthoringSelectionContextV1
 ```
 
 `AuthoringSelectionContextV1`はCommit済みDocumentと明示的な`EditorUserState`から生成するread-only／DisposableなContextであり、Project正本またはUndo対象ではない。`primary_stable_id`、World／Scene参照とowner-typed Feature selectionは表示名、Hierarchy path、row index、screen coordinateから推測せず、存在確認済みStableId、owner、revisionを使う。Stage selection等はFeature Packが登録したoptional projectionであり、Coreのclosed `document_kind`へ追加しない。AIへ渡すContext、Editor command、UI Automation semantic actionは同じContext hashを参照し、操作時には対象StableIdとexpected Document revisionを再指定する。Contextがstale、対象がomitted、lock情報が欠落、またはSource／Derived区分が不明な場合はchange primitiveへ昇格しない。
+
+Canonical formでは`selected_stable_ids`と`owner_typed_feature_selection_refs`をduplicateなしのStable ID canonical orderにし、同じ集合から一つのContext hashだけを得る。`selected_stable_ids`が空なら`primary_stable_id`はnull、非空なら`primary_stable_id`はその集合に含まれるexact一件でなければならない。削除後にprimaryだけが失効した場合はcanonical orderの先頭を新primaryにし、集合が空ならnullにする。keyboard focus、hover、range anchor、focus column、scroll anchor、inline draft、Panel pinはView／Panelの`EditorUserState`であり、本Contextへ混入させない。UI Frameworkが複数種類の選択を束ねる場合も、本ContextのAuthoring target集合をAsset、Graph element、Diagnostic、Runtime objectへ拡張してはならない。
 
 Architecture Governanceが所有する`ArchitectureExplainProjectionV1`はProject Stateの正本ではなく、Commit済みSourceとexact registry closureから生成されるread-only／Disposableなconsumer projectionである。`authoring.explain_architecture`は`scope`、非空`field_mask`、optional `target_profile_ref`、exact `project_revision`を要求し、別revisionへのfallbackを行わない。応答の`omitted_ranges`または署名付き`continuation`が示す未取得範囲をEvidence済みとして扱わず、stale revision、continuation条件不一致、必要Evidence欠落では説明を確定しない。
 
@@ -883,6 +894,7 @@ Undo可能深度は§6のjournal最低保持範囲（最新2 snapshotとそれ�
 - AIは巨大Sceneを全置換せず、目的に必要なchange primitiveだけを提案する。
 - `authoring.search`、`authoring.read`、`authoring.dependencies`、`authoring.diff`は将来のread-only authoring actionを表すplanning tokenであり、Stable ID、MCD Operation ID、current callableではない。対応familyのatomic Activationまではread action集合をexact 0件とし、AIは正規Authoring JSONへ直接writeしない。Activation後もread actionと、完全登録済み外側MCD Operationのnamed inputへ閉じたtyped change primitiveだけを使う。
 - 人間がlockしたfield、Document、Entity subtreeをAIは変更できない。
+- Editor表示localeまたはAI返答localeの変更をProject変更として扱わず、User／Project原文を暗黙翻訳しない。翻訳Proposalは元Fieldと翻訳先Field、source／target locale、expected Document revisionをtyped change primitiveで明示する。
 - Level 0ではAIが質問と仮定をGame用語で提示し、実装語を初心者へ選ばせない。
 - 手動Inspector、Graph、Code連携もAIと同じDiff、Validation、Undoを使う。
 - AI説明、AI proposal、Engine validation、Commit済み結果を別stateとして表示する。
@@ -999,7 +1011,8 @@ Source revisionと全dependency closureが同じであれば、Cooked Runtime Pa
 - World／Scene／Space／Cell identity、Topology reachability、Portal trap、Map intent ambiguity、Cell activation atomicityのfixture
 - Source Intentから同じTarget別Streaming Plan hashを再生成し、Derived Planの直接編集を拒否するtest
 - `MoveEntityToScene`がsubtreeの永続化owner、Shard、明示したroot parentだけを原子的に変更し、owner-typed gameplay membership、subtree内部parent、StableId、Runtime Cellを暗黙変更しないvalid／invalid／Undo test
-- `fixture.project.runtime-entry.world-empty`: Scene 0件／Topology nullのWorld entryがvalidでbranch hashだけを出力する
+- `fixture.project.runtime-entry.world-empty`: Scene 0件／Topology nullかつexact World Space Profileを持つWorld entryがvalidでbranch hashだけを出力する
+- `fixture.project.runtime-entry.world-space-profile`: World refからexact Profile ID／version／hashを解決し、missing／stale／copied dimensionを各一原因で拒否する
 - `fixture.project.runtime-entry.ui-only`: World／TopologyなしのUI entryがvalidでWorld系hashをcanonical omissionする
 - world／ui entryがstartup system 0件と128件の両境界でvalidになり、startup systemをbranch conflictにしないfixture
 - `fixture.project.runtime-entry.headless`: startup system 1件以上、UI／World／surfaceなしでvalid

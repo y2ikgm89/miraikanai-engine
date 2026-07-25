@@ -4,12 +4,12 @@
 - 状態: review
 - 正本範囲: 2D／3D geometry、Collider Source／Cooked Asset、Collision Material／Filter／Sensor、query request／result、contact／trigger／hit event semantics
 - 非正本範囲: Body dynamics、solver、joint、character motor、Runtime phase／Simulation Advance／lifetime、共通capacity／backpressure、Asset transaction、AI authorization。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math core](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](physics.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math core](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](physics.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
 
-Collisionは「何に当たるか、どう絞り込むか、何を返すか」だけを所有する。2D／3D shape、Collider Asset、material、filter、sensor、query、normalized eventはEngine-owned contractであり、native solverの型、pointer、callback、subshape IDを公開しない。
+Collisionは「何に当たるか、どう絞り込むか、何を返すか」だけを所有する。2D／3D shape、Collider Asset、material、filter、sensor、query、normalized eventはEngine-owned contractであり、native solverの型、pointer、callback、subshape IDを公開しない。query resultのEngine handle、Asset lease、private Adapter allocationは[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingを使い、Collision固有のversion／hit順／invalidate条件だけを本書が定める。
 
 Bodyのmotion authority、mass、force、constraint、character motion、World stepは[Physics](physics.md)が所有する。CollisionはPhysicsを進行させず、Runtimeのcanonical execution slotを再定義しない。Asset import／reimport／promotionは[Asset lifecycle](../03-authoring/asset-lifecycle.md)、command／eventのmergeとleaseは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通上限とoverflow policyは[Runtime performance／capacity](../04-runtime/performance-capacity.md)を消費する。
 

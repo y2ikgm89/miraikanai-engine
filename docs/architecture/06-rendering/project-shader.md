@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.rendering-project-shader
 - 状態: review
-- 正本範囲: bounded Project Shaderの自由度境界、HLSL source／semantic module、Project Node／Shading Model、Project Shader Technique、宣言的resource／pass、compile fact、AI context／operation、Shader Understanding Closure、Shader固有diagnostic／qualification
+- 正本範囲: Typed IR／bounded HLSL Project Shaderの自由度境界、semantic module、Project Node／Shading Model、Project Shader Technique、宣言的resource／pass、compile fact、AI context／operation、Shader Understanding Closure、Shader固有diagnostic／qualification
 - 非正本範囲: Engine shader実装、native graphics API、Render Graph実行algorithm、Material／Lighting／Post Process／VFXのauthoring意味、Tool／compilerのexact version、AI authorization／Approval、共通Evidence envelope、Project transaction。各Owner文書を参照する
 - 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core Utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[VFX authoring](vfx-authoring.md)
 - 外部根拠検証日: 2026-07-22
@@ -13,7 +13,7 @@ Project Shaderは、署名済みimmutable Engine baselineとnative Backendを変
 
 「最大自由度」はnative APIを無制限に公開する意味ではない。Projectが変更できるalgorithm／data flow／pass compositionを最大化し、resource lifetime、queue／barrier、descriptor、compiler option、Backend objectの所有をEngineへ固定する意味である。既存のEngine-owned Portで表現できない新Backendまたはnative API extensionはGame制作中に迂回せず`capability_unavailable`とする。
 
-HLSL textだけを正本またはAI理解の証拠にしない。一つのProject Shader revisionは、意味を宣言する`ProjectShaderModuleV1`または`ProjectShaderTechniqueV1`、その実装Source、compilerが観測した`ShaderFactGraphV1`、Target artifact、fixture／measurement Evidenceのclosureである。宣言と観測事実が一致しないCandidateをcompile成功だけで昇格しない。
+HLSL textだけを正本またはAI理解の証拠にしない。各`ProjectShaderModuleV1`は`typed_ir`または`bounded_hlsl`を一つだけ宣言する。`typed_ir`では`TypedShaderIrV1`が構造・意味の正本で、生成HLSL／source map／DXC reflectionは同一性とpublic compiled-interfaceの照合証拠である。`bounded_hlsl`では宣言semantic、手書きSource、compilerが観測した`ShaderFactGraphV1`、Target artifact、fixture／measurement Evidenceが理解closureを構成する。宣言と観測事実が一致しないCandidateをcompile成功だけで昇格しない。
 
 Shipping Runtimeはoffline compiled artifactだけを読む。Shader source、authoring semantic、compiler、AST、JIT、runtime download、未承認variant生成をPackageへ含めない。
 
@@ -24,6 +24,7 @@ Shipping Runtimeはoffline compiled artifactだけを読む。Shader source、au
 | `BoundedProjectShaderProfileV1` | Source language、公開Shader SDK、許可Stage／Port／Resource／副作用／上限、Target、Compiler Profile、Qualification Policy | Engine buildが生成し、Project／AI変更不可 |
 | `PublicShaderSdkCatalogV1` | Project HLSLから参照できる全Engine公開symbolの宣言、semantic、効果、Capability、Target、Evidence | Engine buildが生成し、Project／AI変更不可 |
 | `ProjectShaderModuleV1` | Function、Node、Stage、Libraryのsemantic interfaceとSource closure | Project Source。R3 ChangeSet |
+| `TypedShaderIrV1` | Engine-generated shader textのcanonical structural／semantic source | Project Source。R3 ChangeSet |
 | `ProjectShaderTechniqueV1` | Engine-owned injection Portへ接続するlogical resourceとPass DAG | Project Source。R3 ChangeSet |
 | `ProjectShaderNodeCatalogV1` | Qualification済みProject Node／Shading Modelの検索、型、意味、Target、cost | Module／Technique artifactから生成 |
 | `ShaderFactGraphV1` | Compiler／reflection／validator／runtime-use traceが観測した構造と効果 | Trusted Shader Workerが生成 |
@@ -83,14 +84,19 @@ ProjectShaderModuleV1
   module_id
   revision
   module_content_hash
+  interface_content_hash
   namespace
   owner_ref: exact {owner_id, owner_revision, owner_content_hash}
   module_kind: function | material_node | shader_stage | shader_library
+  understanding_mode: typed_ir | bounded_hlsl
   purpose
   semantic_role_ids[]
+  typed_ir_ref: TypedShaderIrRefV1
+    | required only when understanding_mode=typed_ir
   source_files[]
     project_relative_path
     content_hash
+    | required only when understanding_mode=bounded_hlsl
   dependency_module_refs[]
   exports[]
   entry_points[]
@@ -100,6 +106,7 @@ ProjectShaderModuleV1
   required_capability_ids[]
   target_support[]
   variant_dimensions[]
+  allowed_variant_tuples[]: ShaderVariantTupleV1
   budget_contract
   invariant_refs[]
   fallback_refs[]
@@ -109,6 +116,16 @@ ProjectShaderModuleRefV1
   module_id
   revision
   module_content_hash
+
+ProjectShaderModuleInterfaceRefV1
+  module_id
+  revision
+  interface_content_hash
+
+TypedShaderIrRefV1
+  ir_id: StableId
+  ir_version: positive uint32
+  ir_content_hash: SHA-256
 
 ShaderTargetSupportRefV1
   target_profile_id
@@ -161,9 +178,32 @@ ProjectShaderTargetActivationProjectionV1
   projection_hash
 ```
 
-`module_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_V1`、`qualification_subject_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_SUBJECT_V1`、`activation_binding_hash`はASCII `MIRAKAN_PROJECT_SHADER_ACTIVATION_BINDING_V1`、`projection_hash`はASCII `MIRAKAN_PROJECT_SHADER_TARGET_ACTIVATION_PROJECTION_V1`と、それぞれ自己Fieldだけを除くcount／length-framed canonical bytesから計算する。Module `owner_ref`はModule ID／namespaceを含むProject containment recordのexact owner tripleであり、表示namespaceやProject ID prefixから補完しない。Subject `owner_ref`は`module_ref`が解決するReceipt-free Moduleの同Field、`compiler_and_artifact_closure_hash`はAI Verification ownerの対応する`ProjectShaderQualificationEvidenceClosureV1.evidence_closure_hash`とbyte equalityにする。Subjectは`target_support_ref.target_profile_id == target_profile_ref.target_profile_id`を必須にし、`target_support_ref`が解決するexact `ShaderTargetSupportV1.target_profile_ref`、Support Ref内の`target_profile_ref`、Subjectの`target_profile_ref`を三者byte equalityにする。Support recordまたはTarget Profile recordをIDだけ、latest、同名Targetへfallbackしない。Fixture／Qualification Receipt／Binding／ProjectionをModuleまたはtarget support hashへ含めない。生成順は`receipt-free Module／Target Support／Target Profile → Module／Support refs → Evidence Closure → Qualification subject → signed Receipt → Activation Binding → root外Target Activation projection`である。
+`module_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_V1`、`qualification_subject_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_SUBJECT_V1`、`activation_binding_hash`はASCII `MIRAKAN_PROJECT_SHADER_ACTIVATION_BINDING_V1`、`projection_hash`はASCII `MIRAKAN_PROJECT_SHADER_TARGET_ACTIVATION_PROJECTION_V1`と、それぞれ自己Fieldだけを除くcount／length-framed canonical bytesから計算する。`interface_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_INTERFACE_V1`と、module ID／revision／namespace／owner／kind／purpose／semantic role／export／entry／value／resource／side effect／Capability／Target support／variant dimensions／allowed variant tuples／budget／invariant／fallbackのreceipt-free canonical interface bytesから計算し、`module_content_hash`、`typed_ir_ref`、`source_files[]`、provenanceを含めない。これによりTyped IRは循環hashなしにexact semantic interfaceへbindできる。Module `owner_ref`はModule ID／namespaceを含むProject containment recordのexact owner tripleであり、表示namespaceやProject ID prefixから補完しない。Subject `owner_ref`は`module_ref`が解決するReceipt-free Moduleの同Field、`compiler_and_artifact_closure_hash`はAI Verification ownerの対応する`ProjectShaderQualificationEvidenceClosureV1.evidence_closure_hash`とbyte equalityにする。Subjectは`target_support_ref.target_profile_id == target_profile_ref.target_profile_id`を必須にし、`target_support_ref`が解決するexact `ShaderTargetSupportV1.target_profile_ref`、Support Ref内の`target_profile_ref`、Subjectの`target_profile_ref`を三者byte equalityにする。Support recordまたはTarget Profile recordをIDだけ、latest、同名Targetへfallbackしない。Fixture／Qualification Receipt／Binding／ProjectionをModuleまたはtarget support hashへ含めない。生成順は`receipt-free Module／Target Support／Target Profile → Module／Support refs → Evidence Closure → Qualification subject → signed Receipt → Activation Binding → root外Target Activation projection`である。
 
 Projection `entries[]`は`target_profile_id`／Target Profile version／content hash／support content hash／Binding ID／version順にstrict sortし、Target Support refのduplicateを拒否する。各entryのBindingはProjectionと同じ`module_ref`を解決し、Bindingの`target_support_ref`はentryの同refとbyte equality、Bindingが解決する全Receipt subjectのowner／Module／Target tupleも同tupleとbyte equalityでなければならない。各tupleでは前段のSupport ID／Support内Target Profile ref／Subject Target Profile refの三者整合性を再検証する。Projection entryのTarget Support集合はModule `target_support[]`の`required`集合とexact set equalityにし、明示的にactivateする`optional`は0または1 entry、`unsupported`は0 entryとする。これによりrequired pairの欠落／追加、別Moduleの有効Binding、別Target Binding、duplicate／順序違反を許さない。Module revision、owner ref、Target Support hash、Target Profile version／hashのいずれかだけを更新したstale Projection、別の有効Project ownerへのsubject owner substitution、cross-module substitution、Support AへTarget Profile Bを組み合わせるsubstitution、required pairの欠落・余分、entry pairの片側入替えを各一原因fixtureで拒否する。`exports[]`はStable Export ID、HLSL symbol、kind、visibilityを持つ。public exportだけを別Module、Graph、Techniqueから参照できる。Module-relative private symbolを文字列名で外部接続しない。
+
+```text
+TypedShaderIrV1
+  ir_id: StableId
+  ir_version: positive uint32
+  module_interface_ref: exact ProjectShaderModuleInterfaceRefV1
+  entry_points[1..128]
+  typed_values[0..65536]
+  typed_resources[0..4096]
+  nodes[1..65536]
+  control_regions[0..16384]
+  call_edges[0..131072]
+  value_edges[0..262144]
+  resource_access_edges[0..65536]
+  side_effects[0..4096]
+  variant_dimensions[0..64]
+  source_origin_intents[0..65536]
+  ir_content_hash: SHA-256
+```
+
+`TypedShaderIrV1`はEngine-generated HLSLのcanonical semantic sourceである。node／operation catalogはclosed、各valueはtype、unit、coordinate space、color space、range、precisionを明示し、control flowはstructuredかつfinite、resource accessとside effectはcode generation前に宣言する。全arrayはstable node／edge key順でstrict sortしduplicateを拒否する。`ir_content_hash`はASCII `MIRAKAN_TYPED_SHADER_IR_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。
+
+`understanding_mode=typed_ir`では`typed_ir_ref`を必須、`source_files[]`をcanonical omissionにし、生成HLSL／source mapはexact IR revisionからDerived Artifactとしてだけ生成する。生成後の手書き変更、別Source substitution、IRと異なるentry／resource／side effectの注入を拒否する。`understanding_mode=bounded_hlsl`では`source_files[]`を1件以上必須、`typed_ir_ref`をcanonical omissionにする。混在Moduleを作らず、Techniqueが両modeのModuleを組み合わせる場合は各Moduleのmodeとauthorityをclosureへ個別記録する。
 
 `entry_points[]`はEntry ID、Stage、Export ID、threadgroup sizeまたはRaster／Ray interface、required Capabilityを持つ。Stageは`vertex | pixel | compute | mesh | amplification | ray_generation | ray_miss | ray_closest_hit | ray_any_hit | ray_intersection | callable`である。ProfileにないStageをSourceだけで有効化しない。
 
@@ -203,7 +243,29 @@ default_value: optional
 
 ### 4.3 Variant、Target、Budget
 
-`ShaderVariantDimensionV1`はVariant ID、kind、closed values、default、selection source、mutual-exclusion groupを持つ。kindは`boolean | enum | target_capability | quality_profile`である。自由文字列keyword、runtime文字列、未列挙macro値をVariant identityにしない。全DimensionのCartesian productを暗黙生成せず、`allowed_variant_tuples[]`を列挙しProfile上限と使用closureの両方へ適合させる。
+```text
+ShaderVariantDimensionV1
+  variant_id: StableId
+  kind: boolean | enum | target_capability | quality_profile
+  closed_values[1..64]
+  default_value
+  selection_source
+  mutual_exclusion_group: optional StableId
+
+ShaderVariantSelectionV1
+  variant_id: StableId
+  selected_value: one closed value of the exact dimension
+
+ShaderVariantTupleV1
+  selections[0..64]: ShaderVariantSelectionV1
+  tuple_content_hash: SHA-256
+
+ShaderVariantTupleRefV1
+  module_ref: exact ProjectShaderModuleRefV1
+  tuple_content_hash: SHA-256
+```
+
+`ShaderVariantDimensionV1`はVariant ID、kind、closed values、default、selection source、mutual-exclusion groupを持つ。自由文字列keyword、runtime文字列、未列挙macro値をVariant identityにしない。`ShaderVariantTupleV1.selections[]`はVariant ID順にstrict sort／uniqueとし、Moduleが宣言する全Dimensionを厳密に一件ずつ持つ。tupleはModuleの`allowed_variant_tuples[]`のcompleted canonical bytesと一致し、`ShaderVariantTupleRefV1.module_ref`がそのModuleへexact解決する場合だけCoverageから参照できる。全DimensionのCartesian productを暗黙生成しない。`tuple_content_hash`はASCII `MIRAKAN_SHADER_VARIANT_TUPLE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。
 
 `ShaderTargetSupportV1`はTarget Profile ID、exact `target_profile_ref {target_profile_id,target_profile_version,target_profile_content_hash}`、support state、required Capability IDs、Compiler Profile ID、Fallback Stable ID、support content hashを持つReceipt-free declarationである。Target Profile IDは同ref内のIDと一致し、refはTarget Profile Registryのexact一recordへ解決する。support stateは`required | optional | unsupported`である。`unsupported`へArtifactまたは空Fallbackを対応付けず、`required`はroot外`ProjectShaderActivationBindingV1`が指す全Gate pass Receiptを必須とする。Receipt／BindingをSupportまたはModuleへ戻さない。
 
@@ -245,30 +307,48 @@ ProjectShaderTechniqueV1
 
 Techniqueは宣言済みPassとResourceだけを使用する。Sourceまたはruntime-use traceがManifest外Resource、追加dispatch、native barrier、別queue workを観測した場合、Technique全体を不合格にする。Running中の不一致は該当Techniqueの以後のpass／submissionを停止し、同一frameへfallbackを挿入しない。承認済みfallbackがある場合だけ次のGraph generationから切り替える。
 
-## 6. Portable HLSL source profile
+## 6. Portable HLSL source profileとTyped IR code generation
 
 初期`source_language_profile_id`は`shader-profile.portable-hlsl-2021`である。exact compiler、translator、validator、commit、artifact hashは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が固定し、本書へ複写しない。
 
-許可するSource dependencyは同じModule closureのproject-relative file、Qualification済みProject Shader Module、Engine public Shader SDKだけである。absolute path、parent traversal、Engine private include、Vendor include、Network、generated build directory、environment-dependent includeを拒否する。
+`bounded_hlsl`の許可するSource dependencyは同じModule closureのproject-relative file、Qualification済みProject Shader Module、Engine public Shader SDKだけである。absolute path、parent traversal、Engine private include、Vendor include、Network、generated build directory、environment-dependent includeを拒否する。`typed_ir`は手書きSource dependencyを持たず、Engine-owned generatorがexact IR、public Shader SDK、Target Compiler Profileから生成したHLSLとsource mapだけをCompiler入力にする。
 
-Preprocessor symbolはModule manifestのvariant dimension、Target Capability、Engine public Shader SDKが生成した値だけを条件入力にできる。Source-local helper macroは外部状態を読まず、variantを増やすmacroは全値をManifestへ列挙する。Project指定`#pragma`、register／space固定、compiler flag、Backend conditional、unknown extensionを禁止する。
+`bounded_hlsl`のPreprocessor symbolはModule manifestのvariant dimension、Target Capability、Engine public Shader SDKが生成した値だけを条件入力にできる。Source-local helper macroは外部状態を読まず、variantを増やすmacroは全値をManifestへ列挙する。Project指定`#pragma`、register／space固定、compiler flag、Backend conditional、unknown extensionを禁止する。
 
-Loopはcompile-time finite bound、またはbinding時にProfile上限へ検証されるbounded parameterを上限式に持つcanonical loopだけを許可する。無上限`while`／`do`、再帰、自己変更、device address、unbounded bindless、function pointerによる未列挙dispatchを禁止する。Wave／Subgroup、atomic、derivative、ray operation、indirect operationはCapabilityとside effectを宣言し、Target fallbackを持つ。
+`bounded_hlsl`のLoopはcompile-time finite bound、またはbinding時にProfile上限へ検証されるbounded parameterを上限式に持つcanonical loopだけを許可する。無上限`while`／`do`、再帰、自己変更、device address、unbounded bindless、function pointerによる未列挙dispatchを禁止する。Wave／Subgroup、atomic、derivative、ray operation、indirect operationはCapabilityとside effectを宣言し、Target fallbackを持つ。
 
-Matrix layout、clip／depth convention、texture coordinate origin、front-face、precision lowering、binding layoutはEngine public Shader SDKが生成する。Project SourceがTarget別の暗黙規約を再実装しない。
+Typed IR generatorはclosed node／operation catalog以外を展開せず、IR外のtext template input、generated HLSLへの手書きpatch、Target別semantic substitutionを受理しない。生成HLSLとsource mapはexact `{ir_id, ir_version, ir_content_hash}`、public Shader SDK Catalog hash、Compiler Profile hash、Target Profile hashを含むDerived Artifact hashへbindする。Matrix layout、clip／depth convention、texture coordinate origin、front-face、precision lowering、binding layoutはEngine public Shader SDKが生成する。`bounded_hlsl` Sourceも`typed_ir` generatorもTarget別の暗黙規約を再実装しない。
 
 ## 7. Compile、Fact Graph、contract conformance
 
 Shader Workerは次の固定順でCandidateを処理する。
 
-1. Profile、Schema、Source path、dependency closureを検証する。
-2. Preprocessし、全include／macro input／variantをhashで固定する。
-3. Source frontendでsymbol、type、call、control、resource candidateを抽出する。
-4. Targetごとにcompile、validate、reflection、source mapを生成する。
-5. DXIL、SPIR-V、MSL／Metal artifact間のinterface、resource、Stage、precision、Capabilityを照合する。
-6. Manifest、compiler reflection、static fact、runtime-use traceを照合する。
-7. fixture、parameter sweep、visual／analytic invariant、performance、fault testを実行する。
+1. Profile、Schema、Module mode、dependency closureを検証する。
+2. `typed_ir`はIRのclosed catalog、type／unit／space／range、finite control、resource／side effect、canonical hashを検証してHLSL／source mapを生成する。`bounded_hlsl`はpreprocessし、全include／macro input／variantをhashで固定する。
+3. `typed_ir`はIR node／edgeからstructural factを作り、`bounded_hlsl`はSource frontendでsymbol、type、call、control、resource candidateを抽出する。
+4. Targetごとにcompile、validate、public reflection、source mapを生成する。
+5. DXIL、SPIR-V、MSL／Metal artifact間のpublic interface、resource、Stage、precision、Capabilityを照合する。
+6. `typed_ir`ではIR、generated source map、public reflection、static fact、runtime-use traceを照合する。`bounded_hlsl`ではManifest、public reflection、static fact、runtime-use traceを照合する。
+7. fixture、parameter sweep、visual／analytic invariant、performance、fault testを、Target／variant／fixtureのexact tupleごとに実行する。
 8. `ProjectShaderArtifactSetV1`とVerification Receiptを組み立てる。
+
+```text
+ShaderUnderstandingInputV1
+  module_ref: ProjectShaderModuleRefV1
+  understanding_mode: typed_ir | bounded_hlsl
+  typed_ir_ref: TypedShaderIrRefV1
+    | required only for typed_ir
+  bounded_source_tree_hash: SHA-256
+    | required only for bounded_hlsl
+  generated_source_tree_hash: SHA-256
+    | required only for typed_ir
+
+ShaderUnderstandingInputClosureV1
+  inputs[1..4096]: ShaderUnderstandingInputV1
+  input_closure_hash: SHA-256
+```
+
+`inputs[]`はModule ID／revision／content hash順へstrict sortし、同じModuleの重複またはmodeとbranch fieldの矛盾を拒否する。`input_closure_hash`はASCII `MIRAKAN_SHADER_UNDERSTANDING_INPUT_CLOSURE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。`typed_ir`のgenerated source hashはsemantic authorityではなく、IRからの再生成同一性を検査するDerived identityである。
 
 `ProjectShaderArtifactSetV1`は次を固定する。
 
@@ -280,7 +360,7 @@ bounded_project_shader_profile_hash
 public_shader_sdk_catalog_hash
 module_hashes[]
 technique_hashes[]
-source_tree_hash
+shader_understanding_input_closure_hash
 target_profile_hash
 compiler_profile_hash
 binary_artifacts[]
@@ -294,7 +374,7 @@ verification_receipt_hashes[]
 provenance_root_hash
 ```
 
-`binary_artifacts[]`はkind、content hash、size、entry／Stage setを持ち、native pathやtimestampをidentityにしない。Artifact Setは一Target専用であり、DXIL、SPIR-V、metallib等の別Target payloadを一つのRuntime選択肢として混在させない。Development-only reflection／source map／FactはShipping payloadへ含めず、Package Catalogから署名済みReceipt hashだけを参照する。
+`binary_artifacts[]`はkind、content hash、size、entry／Stage set、exact `ShaderVariantTupleRefV1`を持ち、native pathやtimestampをidentityにしない。各tuple refはArtifact SetのModuleへexact解決し、同じTarget／variantを別artifactへ推測で流用しない。Artifact Setは一Target専用であり、DXIL、SPIR-V、metallib等の別Target payloadを一つのRuntime選択肢として混在させない。Development-only reflection／source map／FactはShipping payloadへ含めず、Package Catalogから署名済みReceipt hashだけを参照する。
 
 Shader binaryは実行codeに準じるTarget application artifactであり、[Asset lifecycle](../03-authoring/asset-lifecycle.md)のContent Package、Content Patch、DLC、managed Asset deliveryへ格納しない。Project Shader更新は対象TargetのApplication updateとして配布し、Application package validatorがArtifact Set、Target Profile、Engine baseline、Qualification Receipt、署名のhash closureを照合する。Material／VFX／Post等のContent artifactはShader binaryを内包せず、同じApplication build内のQualification済みArtifact IDだけを参照する。
 
@@ -306,7 +386,7 @@ project_revision
 profile_hash
 public_shader_sdk_catalog_hash
 module_or_technique_hash
-source_tree_hash
+shader_understanding_input_closure_hash
 preprocessed_source_hashes[]
 symbols[]
 public_sdk_symbol_refs[]
@@ -323,7 +403,7 @@ diagnostics[]
 producer_tool_ids[]
 ```
 
-各FactはStable Fact ID、kind、subject Stable ID、source span、producer、Target／variant scopeを持つ。Compilerのpublic reflection、validator結果、artifact inspection、runtime-use traceを合否証拠にする。Compiler内部ASTのtext dumpはversion固定Adapter内の補助Cacheに限定し、public contract、Stable ID、長期保存Artifact、単独の合否Authorityにしない。
+各FactはStable Fact ID、kind、subject Stable ID、source span、producer、exact Target Profile ref、exact `ShaderVariantTupleRefV1`を持つ。Compilerのpublic reflectionはentry signature、constant、resource、compiled interfaceの観測証拠だけに使い、`typed_ir`のstructural／semantic authorityまたは挙動同値の証明に昇格させない。validator結果、artifact inspection、runtime-use traceは同じく観測・実行証拠である。Compiler内部ASTのtext dumpはversion固定Adapter内の補助Cacheに限定し、public contract、Stable ID、長期保存Artifact、単独の合否Authorityにしない。
 
 宣言とFactの不一致、Target間interface差、source map欠落、同じ入力からFact Graph hash不一致をhard failureにする。Compilerの一Target成功、AIの説明、Source commentを不一致の代替証拠にしない。
 
@@ -463,17 +543,76 @@ ProjectShaderPatchProposalV1
 
 `source_subject`は`action`をdiscriminatorとするclosed tagged unionである。`create_module | create_technique`はGatewayが予約した未使用identityだけを必須にし、revision refと`base_source_revision_ref`をcanonical omissionする。`update_module | update_technique`はCommit済みexact revision refと、その同じProject／subject Stable ID／revisionへ解決するbase refを必須にし、identity refをcanonical omissionする。createで既存ID、updateでmissing／zero／latest base、ModuleとTechniqueのcross-kind ref、branch外Field、Project／subject ID／revision／content hash不一致を拒否し、空refを省略の代用にしない。ProposalはModule actionでModule manifest候補だけnon-null、Technique actionでTechnique manifest候補だけnon-nullにし、Promotionの`revision_transition.kind`をcreate／update actionと一致させる。
 
-Task IDはASCII `MIRAKAN_PROJECT_SHADER_SOURCE_TASK_V1`、Proposal ID／hashは`MIRAKAN_PROJECT_SHADER_PATCH_PROPOSAL_V1`と各自己Fieldを除くcanonical bytesから導出する。`shader_authoring_profile_sha256`はprofile refが解決する完成profile hashとbyte equalityにする。Path Scope、Target、Requirementの各ref集合はID／version／content hash順でcanonical sortし、duplicate ID、同ID別hash、latest／display name lookupを拒否する。Path Scopeは`scope_artifact_ref`をAssignmentの`OperationMutationTypedScopeRefV1.scope_artifact_ref`とbyte equalityにし、完成scope payload hashを同artifact refのSHA-256へ一致させる。Scopeを解決したPathはProject-relative、Assignment Scope内、canonical sort／uniqueで、Engine Shader、Backend、generated binding、Compiler directoryを拒否する。`changed_path_refs[]`は[Project state](../03-authoring/project-state.md#51-envelope)のtyped `ProjectSourceChangedPathRefV1`で、同Ownerが定めるcanonical tuple順を使い、全recordの`source_kind=project_shader`、Project一致、closed `BrokerRecomputedSourceDiffV1`とのset equality、全pathのScope包含を必須にする。createの`source_bundle_ref`／`before_source_tree_sha256`はcanonical empty Project Shader source tree、updateはexact base Source revisionへ解決し、空refまたは別subject treeを使わない。Worker DeltaをApproval対象にせず、clean Stagingへ適用してBrokerが再計算したDiffだけを`ProjectSourcePromotionSubjectV1.source.source_kind=project_shader`かつTask actionと一致する`revision_transition.kind`へ渡す。Promotion Receipt、Target別Shader Build／Test Receipt、Code Owner Approvalの一つでも欠けるSourceをChangeSet primitiveへ変換しない。
+Task IDはASCII `MIRAKAN_PROJECT_SHADER_SOURCE_TASK_V1`、Proposal ID／hashは`MIRAKAN_PROJECT_SHADER_PATCH_PROPOSAL_V1`と各自己Fieldを除くcanonical bytesから導出する。`shader_authoring_profile_sha256`はprofile refが解決する完成profile hashとbyte equalityにする。Path Scope、Target、Requirementの各ref集合はID／version／content hash順でcanonical sortし、duplicate ID、同ID別hash、latest／display name lookupを拒否する。Path Scopeは`scope_artifact_ref`をAssignmentの`OperationMutationTypedScopeRefV1.scope_artifact_ref`とbyte equalityにし、完成scope payload hashを同artifact refのSHA-256へ一致させる。Scopeを解決したPathはProject-relative、Assignment Scope内、canonical sort／uniqueで、Engine Shader、Backend、generated binding、Compiler directoryを拒否する。`changed_path_refs[]`は[Project state](../03-authoring/project-state.md#51-envelope)のtyped `ProjectSourceChangedPathRefV1`で、同Ownerが定めるcanonical tuple順を使い、全recordの`source_kind=project_shader`、Project一致、closed `BrokerRecomputedSourceDiffV1`とのset equality、全pathのScope包含を必須にする。createの`source_bundle_ref`／`before_source_tree_sha256`はcanonical empty Project Shader source tree、updateはexact base Source revisionへ解決し、空refまたは別subject treeを使わない。Worker DeltaをApproval対象にせず、clean Stagingへ適用してBrokerが再計算したDiffだけを`ProjectSourcePromotionSubjectV1.source.source_kind=project_shader`かつTask actionと一致する`revision_transition.kind`へ渡す。`bounded_hlsl`はPromotion Receipt、Target別Shader Build／Test Receipt、Code Owner Approvalの一つでも欠けるSourceをChangeSet primitiveへ変換しない。
 
-Activation時の`ShaderContextSliceV1`はquery hash、Project revision、Profile hash、public Shader SDK Catalog hash、Module／Technique IDとrevision、selected Project symbols、参照するSDK Symbol entry、typed value／resource interfaces、call／value／resource／control edge、Pass relation、`source_excerpts[]`、Target／variant差、budget、diagnostic、fixture／Evidence summary、available Operation ID、omitted range、cursor、total countを持つ。`source_excerpts[]`はproject-relative path、file content hash、start／end span、UTF-8 Source text、truncation stateを持ち、別revisionのtextを同じSliceへ混在させない。配列／byte上限時に黙って切らずcontinuationを返す。
+上記のpath／source-bundle／diff carrierは`bounded_hlsl`だけに適用する。`typed_ir`はexact `TypedShaderIrRefV1`とIR canonical bytesをModule revisionへbindし、generated HLSLをpath scope、Source Bundle、human review対象へ見せない。Typed IR authoring write surfaceはcurrent MCDで未登録であり、専用OperationがModule／IR atomic revision、Validator、Receipt、ChangeSet primitiveを完全登録するまで`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`としてSource不変にする。これは通常のautomated staging可否を先取りしてwrite権限を与えるものではない。
 
-Activation後、AIへはauthoring Sourceのexact excerpt、参照する全public SDK entry、それに対応するpreprocessor input／Fact／source mapを同時に渡す。generated binding、Backend source、Compiler内部AST textをauthoring Sourceとして返さない。Full fileが必要な場合も同じrevision／file hashを保持したbounded sliceをcontinuationで取得し、途中までのSourceを完全なModuleとして扱わない。Engine baselineまたはpublic Shader SDK Catalog hashが変われば、Source未変更でも旧Fact、Context、Understanding Closureをstaleにする。
+Activation時の`ShaderContextSliceV1`はquery hash、Project revision、Profile hash、public Shader SDK Catalog hash、Module／Technique IDとrevision、`ShaderUnderstandingInputClosureV1` ref、selected Project symbols、参照するSDK Symbol entry、typed value／resource interfaces、call／value／resource／control edge、Pass relation、`typed_ir_slices[]`または`source_excerpts[]`、exact Target Profile refs、`selected_variant_tuple_refs[]`、budget、diagnostic、fixture／Evidence summary、available Operation ID、omitted range、cursor、total countを持つ。全variant refはSliceのModuleへexact解決し、Target／variant差を表示名やhashだけへ縮約しない。`typed_ir_slices[]`はIR ID／version／hash、canonical node／edge range、source origin intent、truncation stateを、`source_excerpts[]`はproject-relative path、file content hash、start／end span、UTF-8 Source text、truncation stateを持つ。同じSliceに別revision／hashのIRまたはSourceを混在させない。配列／byte上限時に黙って切らずcontinuationを返す。
 
-Activation後もAIは最初にManifestとbounded Fact projectionを読み、必要なsymbol／caller／resource／Target sliceだけを追加取得する。全Repository、全preprocessed source、全variantを一度のContextへ詰めない。人間がSourceを変更した場合、旧Fact、Context、Preview、Understanding Closureをstaleにし、再index前の仮定で上書きしない。
+Activation後、AIへは`typed_ir`ならauthoritative IRのexact slice、`bounded_hlsl`ならauthoring Sourceのexact excerpt、参照する全public SDK entry、それに対応するpreprocessor input／Fact／source mapを同時に渡す。generated binding、generated HLSL、Backend source、Compiler内部AST textをauthoring Sourceまたはcanonical IRとして返さない。Full objectが必要な場合も同じrevision／hashを保持したbounded sliceをcontinuationで取得し、途中までのIR／Sourceを完全なModuleとして扱わない。Engine baseline、public Shader SDK Catalog、IR、bounded Sourceのいずれかが変われば、他が未変更でも旧Fact、Context、Understanding Closureをstaleにする。
+
+Activation後もAIは最初にManifestとbounded Fact projectionを読み、必要なIR／Source、symbol／caller／resource／Target sliceだけを追加取得する。全Repository、全IR、全preprocessed source、全variantを一度のContextへ詰めない。人間またはGenerator inputがIR／Sourceを変更した場合、旧Fact、Context、Preview、Understanding Closureをstaleにし、再index前の仮定で上書きしない。
 
 ## 9. `ShaderUnderstandingClosureV1`
 
 AIの「Shaderを理解した」という自己申告を状態にしない。Trusted Runnerが次を固定する。
+
+```text
+ShaderCoverageCaseKeyV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  variant_tuple_ref: exact ShaderVariantTupleRefV1
+  fixture_ref:
+    exact {fixture_id, fixture_version, fixture_content_hash}
+
+ShaderBehaviorCoverageCaseV1
+  case_key: ShaderCoverageCaseKeyV1
+  analytic_invariant_refs[0..256]
+  visual_invariant_refs[0..256]
+  measurement_receipt_refs[1..256]
+  result: pass
+
+ShaderBehaviorCoverageV1
+  coverage_id: StableId
+  coverage_version: positive uint32
+  module_ref: exact ProjectShaderModuleRefV1
+  fixture_set_ref:
+    exact {fixture_set_id, fixture_set_version, fixture_set_content_hash}
+  cases[1..4096]: ShaderBehaviorCoverageCaseV1
+  coverage_content_hash: SHA-256
+
+ShaderBehaviorCoverageRefV1
+  coverage_id: StableId
+  coverage_version: positive uint32
+  coverage_content_hash: SHA-256
+
+ProjectShaderPassRefV1
+  technique_ref: exact {technique_id, revision, technique_content_hash}
+  pass_id: StableId
+
+ProjectShaderResourceRefV1
+  technique_ref: exact {technique_id, revision, technique_content_hash}
+  resource_id: StableId
+
+ShaderChangeImpactCoverageV1
+  coverage_id: StableId
+  coverage_version: positive uint32
+  module_ref: exact ProjectShaderModuleRefV1
+  dependency_graph_hash: SHA-256
+  required_module_refs[0..1024]: ProjectShaderModuleRefV1
+  required_pass_refs[0..4096]: exact ProjectShaderPassRefV1
+  required_resource_refs[0..4096]: exact ProjectShaderResourceRefV1
+  required_case_keys[1..4096]: ShaderCoverageCaseKeyV1
+  covered_behavior_ref: ShaderBehaviorCoverageRefV1
+  coverage_content_hash: SHA-256
+
+ShaderChangeImpactCoverageRefV1
+  coverage_id: StableId
+  coverage_version: positive uint32
+  coverage_content_hash: SHA-256
+```
+
+Behavior caseはTarget／variant／fixtureのexact tupleだけをcoverし、個別arrayからCartesian productを推論しない。case key、required ref集合はstrict sort／unique、全caseの`variant_tuple_ref.module_ref`は`ShaderBehaviorCoverageV1.module_ref`とbyte equality、`required_case_keys[]`はpassing `covered_behavior_ref` caseのexact subsetでなければならない。`ShaderChangeImpactCoverageV1.module_ref`は`covered_behavior_ref`が解決する同Fieldとbyte equalityにする。`typed_ir`のrequired setはcanonical IR graph、`bounded_hlsl`はdeclared／observed Fact Graphから導く。`ShaderBehaviorCoverageV1`と`ShaderChangeImpactCoverageV1`のhashはそれぞれASCII `MIRAKAN_SHADER_BEHAVIOR_COVERAGE_V1`、`MIRAKAN_SHADER_CHANGE_IMPACT_COVERAGE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。Coverageはauthorization、approval、promotion権限を与えない。
 
 ```text
 ShaderUnderstandingClosurePayloadV1
@@ -481,13 +620,20 @@ ShaderUnderstandingClosurePayloadV1
   project_revision
   profile_hash
   public_shader_sdk_catalog_hash
-  module_hashes[]
+  module_ref: exact ProjectShaderModuleRefV1
   technique_hashes[]
-  source_tree_hash
+  shader_understanding_input_closure_hash
   fact_graph_hashes[]
   target_profile_hashes[]
   artifact_set_hashes[]
-  fixture_set_hash
+  fixture_set_ref:
+    exact {fixture_set_id, fixture_set_version, fixture_set_content_hash}
+  understanding_mode: typed_ir | bounded_hlsl
+  structural_authority:
+    typed_ir_canonical | declared_and_observed_hlsl
+  behavior_coverage_ref: ShaderBehaviorCoverageRefV1
+  change_impact_coverage_ref: ShaderChangeImpactCoverageRefV1
+  review_requirement: engine_generated | code_owner_required
   u0_identity_result
   u1_structure_result
   u2_semantics_result
@@ -505,15 +651,17 @@ ShaderUnderstandingClosureV1
     exact MirakanSignedRecordV1(purpose=shader_understanding_closure)
 ```
 
-| Level | 必須証拠 |
-|---|---|
-| U0 Identity | Module／Technique／Source／Profile／Target／Artifactのexact hashとStable ID一致 |
-| U1 Structure | Entry、Project／SDK symbol、call、value／control flow、Pass、Resource、access、side effect、variantの必要集合を100%再現 |
-| U2 Semantics | 全public value／resource／outputと参照SDK entryのtype、unit、space、color、range、effect、fallbackが完全でFactと一致 |
-| U3 Behavior | 必須Fixtureのparameter sweep、counterfactual、analytic／visual invariant、cost classのstructured predictionが測定許容内 |
-| U4 Change impact | 変更対象から影響Module／Pass／Resource／Variant／Target／Fixtureのrequired set recall 100%、未検証対象の安全断定0件、全必須Target Gate合格 |
+Closureは一Moduleかつ一`understanding_mode`をsubjectとする。`module_ref`は`ShaderUnderstandingInputClosureV1.inputs[]`に厳密に一件存在し、同inputのmode、IRまたはbounded Source branch、Module Manifestと一致しなければならない。`behavior_coverage_ref`と`change_impact_coverage_ref`が解決する`module_ref`、後者の`covered_behavior_ref`、Closureの`fixture_set_ref`はすべて同じModule／fixture setへbyte equalityでbindする。`understanding_mode`と`structural_authority`、`review_requirement`はModule modeから一意に導き、異なるmodeや別Module／fixture／coverageの組合せを拒否する。Techniqueは参照する各Moduleのfresh Closureを別々に束ね、異なるmodeを一つのClosureへ混在させない。
 
-各resultは`pass | fail | infrastructure_error | not_applicable_by_policy`である。必須Levelのpass以外、Blocker 1件以上、unsupported Capability、stale Evidence、Target欠落があれば`ready_to_stage`にしない。Level別hard failureを平均scoreで相殺しない。Wrapperはinline署名Fieldを持たず、`signed_record.subject_sha256=SHA-256(JCS(payload))`と用途別singleton purposeを検証する。ClosureはEvidenceでありAuthorization、Approval、Promotion権限を与えない。
+| Level | `typed_ir` | `bounded_hlsl` |
+|---|---|---|
+| U0 Identity | exact IR／generated source／artifact closure | exact Source／Manifest／artifact closure |
+| U1 Structure | complete canonical IR graph | declared and observed required Fact set。任意Source semanticsの完全性は主張しない |
+| U2 Semantics | complete public IR semantics | complete declared public semanticsとmatching observed interface facts |
+| U3 Behavior | registered fixture／measurement coverage | registered fixture／measurement coverage |
+| U4 Change impact | exact structural dependency closureとregistered behavior coverage | declared／observed dependency closure、registered behavior coverage、Code Owner review |
+
+各resultは`pass | fail | infrastructure_error | not_applicable_by_policy`である。必須Levelのpass以外、Blocker 1件以上、unsupported Capability、stale Evidence、Target欠落、coverage欠落、または`bounded_hlsl`のCode Owner review欠落があれば`ready_to_stage`にしない。Level別hard failureを平均scoreで相殺しない。required set recall 100%はcanonical dependency graphとregistered coverage setだけに適用し、登録fixture外の任意visual consequenceを数学的に完全と主張しない。Reflection成功は`bounded_hlsl`を`typed_ir`へ昇格させない。Wrapperはinline署名Fieldを持たず、`signed_record.subject_sha256=SHA-256(JCS(payload))`と用途別singleton purposeを検証する。ClosureはEvidenceでありAuthorization、Approval、Promotion権限を与えない。
 
 ## 10. Diagnostic、failure、fallback
 
@@ -554,6 +702,8 @@ Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示し�
 最低Qualificationを次に固定する。
 
 - Schema、Profile、namespace、path、dependency、public Shader SDK conformance。
+- `typed_ir`のclosed node／operation catalog、canonical order／hash、type／unit／coordinate／color／range、finite control、declared resource／side effect、IR→generated HLSL／source-map identityのpositive／negative fixture。
+- `bounded_hlsl`のSource／Manifest／public reflection／validator fact境界、Compiler-private AST textをsemantic authorityに使わないこと、Project Shader Code Owner approval必須のfixture。
 - `PublicShaderSdkCatalogV1`の全public symbol coverage、declaration／documentation hash、Project参照closure、private symbol 0件。
 - 許可／禁止HLSL、bounded loop、resource index、variant、atomic／wave／ray Capabilityのpositive／negative fixture。
 - current Product Registryで当該Capabilityの`scope=required`となる全Targetについて、clean offline compile、validator、reflection、source map、artifact hashを再現する。Phase 5の`capability.project.shader`はWindows Editor／Desktopだけをrequiredとし、Android／Appleは別のProduct Target bindingとfresh Target Qualificationまで`excluded`かつ非対応表示にする。
@@ -564,11 +714,12 @@ Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示し�
 - Reference image、analytic invariant、Target別visual tolerance、before／after diff。
 - instruction、occupancy、bandwidth、transient／persistent byte、variant、compile time、runtime GPU budget。
 - timeout、Worker crash、corrupt Source／artifact、stale revision、device loss、runtime-use mismatch、fallback切替のfault fixture。
-- AI EvalのU0～U4、存在しないsymbol／resource／Target抑制、stale Context拒否、禁止Operation拒否、seeded contract／source mismatch検出。
+- readable declared Variant tupleとTarget／variant／fixture exact tupleを持つbehavior coverage、同Module／fixture setへのCoverage／Closure binding、change-impact required setとcovered caseのsubset、stale／missing／cross-Module coverage、fallback cycle、Code Owner review欠落のnegative fixture。
+- AI EvalのU0～U4、存在しないsymbol／resource／Target抑制、stale Context拒否、禁止Operation拒否、seeded contract／IR／Source mismatch検出。
 
 AI Evalはpublic、holdout、adversarial、incident corpusを分離し、各required Caseを3回実行する。hard gate違反、無権限Commit、存在しないStable IDの最終提出、未対応Capabilityの成功表示、Manifest外Resource／Passの見逃しは0件とする。required U0～U4、Target／fallback、Preview／undo／redo／recookのexact一致は全Case／全runで100%を要求する。
 
-Runtime source compile、undeclared resource、unbounded control／resource／variant、Target artifact混在、stale interface、silent fallback、Understanding Closure欠落が残るCandidateをRelease候補にしない。
+Runtime source compile、undeclared resource、unbounded control／resource／variant、Target artifact混在、stale interface、silent fallback、Understanding Closureまたはcoverage欠落、`bounded_hlsl`のCode Owner review欠落が残るCandidateをRelease候補にしない。全required gateがpassした`typed_ir`だけが通常のautomated staging候補になり、`bounded_hlsl`は常にProject Shader Code Owner approval gateを通る。
 
 全Gate入力は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有する`ProjectShaderQualificationEvidenceClosureV1`へ束ね、そのhashを本書のowner-typed `ProjectShaderQualificationSubjectV1`へbindしてcanonical `ProjectShaderQualificationReceiptV1` wrapperを発行する。`ShaderUnderstandingClosureV1`だけ、Evidence Closureだけ、compile成功だけ、Material／RendererのDomain ReceiptだけをProject Shader Qualification Receiptの代替にしない。
 
@@ -583,6 +734,8 @@ Runtime source compile、undeclared resource、unbounded control／resource／va
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)はReceipt、Evidence、Eval corpus、Provenance、freshnessを所有する。
 
 ## 13. 有名Engine／Shader ecosystemとの比較と採用判断
+
+以下の外部資料は設計上の比較根拠だけであり、Miraikanaiは各Engineのsource code、serialized format、public／private API type名、editor label、shader text、互換性約束を複製・移植・互換実装しない。本書のSchema、ID、hash domain、Source／Artifact境界、Qualification ruleはMiraikanai固有である。
 
 | 比較対象 | 公式設計から確認した点 | Miraikanaiで採用する点 | そのまま採用しない点 |
 |---|---|---|---|

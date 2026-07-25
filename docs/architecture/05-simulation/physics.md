@@ -3,13 +3,13 @@
 - 文書ID: mirakan.arch.simulation-physics
 - 状態: review
 - 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、generic Kinematic Motion reference Provider、kernel Adapter boundary、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
-- 非正本範囲: Collider geometry／filter／query／event、Runtime phase／Simulation Advance／capacity、Animation pose、Navigation artifact、external dependency version／build pin、AI authorization／evidence envelope。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](collision.md)、[Navigation](navigation.md)、[Animation](animation.md)
+- 非正本範囲: Collider geometry／filter／query／event、Runtime phase／Simulation Advance／capacity、ECS storage、Save／Replay header・transport、Animation pose、Navigation artifact、external dependency version／build pin、AI authorization／evidence envelope。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[World](../06-rendering/world.md)、[Collision](collision.md)、[Navigation](navigation.md)、[Animation](animation.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論とPlatform境界
 
-PhysicsはEngine-owned World、Body、Dynamics command、Joint／Constraint、snapshot、diagnosticを公開し、数値kernelをprivate Adapterへ隔離する。Kinematic Motion ExecutorはCore必須契約ではなく、任意のregistered compositionが選択できるEngine-owned C1 reference Providerである。Project C++、GameplayDefinition、AI、EditorへVendorの型、ID、pointer、callback、setting、serializationを公開しない。採用dependencyとexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
+PhysicsはEngine-owned World、Body、Dynamics command、Joint／Constraint、snapshot、diagnosticを公開し、数値kernelをprivate Adapterへ隔離する。Kinematic Motion ExecutorはCore必須契約ではなく、任意のregistered compositionが選択できるEngine-owned C1 reference Providerである。Project C++、GameplayDefinition、AI、EditorへVendorの型、ID、pointer、callback、setting、serializationを公開しない。body／joint generation handle、snapshot lease、kernel scratchとretireの一般規則は[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingを消費し、Physics固有のWorld／Body／substep意味は本書が所有する。採用dependencyとexact version／commit／license／build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。
 
 [Collision](collision.md)はshape、Collider Asset、material、filter、query、contact／trigger／hit semanticsを所有する。Physicsはそれらを消費してWorldを進めるが再定義しない。[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)はcanonical phase、writer、lease、publishを、[Runtime performance／capacity](../04-runtime/performance-capacity.md)は共通capacity、queue、measurementを所有する。
 
@@ -40,6 +40,8 @@ Module境界は次の意味へ固定する。
 | `PhysicsStateSnapshotV1` | normalized transform、velocity、sleep、joint／kinematic-executor state | immutable Simulation Advance snapshot |
 | `PhysicsSaveStateV1` | Engine-owned recoverable state | Save stream |
 
+`Physics2DWorldProfileV1`／`Physics3DWorldProfileV1`とBody variantはexecuting semanticsを表す型であり、選択authorityではない。active Physics Worldはexact `WorldSpaceProfileRefV1`から対応variantをderiveし、Physics Profile／Body／Kinematic providerがindependent scene dimensionまたはhybrid gameplay authorityを保存しない。
+
 ### 2.1 Physics substep Profile
 
 Physicsはsubstepの意味とpartitionだけを所有し、outer Simulation Advance、Cadence選択、phase、publishは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が所有する。型を次へ固定する。
@@ -50,8 +52,8 @@ PhysicsSubstepProfileRefV1
   profile_version: positive uint32
   profile_content_hash: SHA-256
 
-PhysicsSubstepDimensionEntryV1
-  dimension: d2 | d3
+PhysicsSubstepWorldSpaceEntryV1
+  compatible_world_space: WorldSpaceCompatibilityV1
   substep_count: uint8[1..16]
 
 PhysicsSubstepProfileV1
@@ -59,7 +61,7 @@ PhysicsSubstepProfileV1
   profile_version: positive uint32
   interval_requirement: non_null_logical_duration
   partition_policy: equal_rational_partition
-  dimension_entries[1..2]: PhysicsSubstepDimensionEntryV1
+  world_space_entries[1..2]: PhysicsSubstepWorldSpaceEntryV1
   profile_content_hash: SHA-256
 
 PhysicsSubstepIntervalInputV1
@@ -67,7 +69,8 @@ PhysicsSubstepIntervalInputV1
   simulation_advance_interval_hash: SHA-256
   physics_substep_profile_ref: PhysicsSubstepProfileRefV1
   advance_sequence: positive uint64
-  dimension: d2 | d3
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
+  resolved_dimension: d2 | d3
   substep_ordinal: positive uint8
   substep_interval_seconds: ReducedPositiveRationalV1
 
@@ -109,15 +112,15 @@ PhysicsSubstepActivationBindingV1
   activation_binding_hash: SHA-256
 ```
 
-`profile_content_hash`はASCII `MIRAKAN_PHYSICS_SUBSTEP_PROFILE_V1`と、同Fieldだけを除くclosed recordのRFC 8785 JCS bytesを`uint32_be` length framingしてSHA-256する。Refは完成base recordのID／version／self-excluding content hashからrecord外でmaterializeし、base record自身へ埋め戻さない。`dimension_entries[]`はactive Physics Worldのdimension集合とexact set equality、`d2`、`d3`の順へstrict sortし、duplicate、逆順、選択されていないdimension、count 0または17以上を拒否する。
+`profile_content_hash`はASCII `MIRAKAN_PHYSICS_SUBSTEP_PROFILE_V1`と、同Fieldだけを除くclosed recordのRFC 8785 JCS bytesを`uint32_be` length framingしてSHA-256する。Refは完成base recordのID／version／self-excluding content hashからrecord外でmaterializeし、base record自身へ埋め戻さない。`world_space_entries[]`はcompatibility predicateのcanonical bytes順へstrict sortし、duplicate／overlapを拒否する。active Physics Worldのexact Profileに一致するentryは厳密に一件でなければならず、`resolved_dimension`はそのWorld Profileから再計算するexecution projectionである。ProfileがWorldのstructural dimensionまたはhybrid authorityを独立に保存・選択しない。
 
 Qualification subject hashはASCII `MIRAKAN_PHYSICS_SUBSTEP_QUALIFICATION_SUBJECT_V1`、Activation Binding hashはASCII `MIRAKAN_PHYSICS_SUBSTEP_ACTIVATION_BINDING_V1`と各自己hash Fieldだけを除くclosed canonical bytesから計算する。生成順は`Receipt-free PhysicsSubstepProfile → Profile Ref／Cadence Profile → Target別Qualification subject → signed Receipt → root外Activation Binding／Binding Ref → Runtime Package`である。Binding三RefはReceipt subjectのCadence、Substep、Targetとbyte equalityで、Receiptのsubject hash／signed record hash、`result=pass`、freshness／revocationを検証する。Receipt、Binding、Fixture bodyをSubstep ProfileまたはCadence Profileのcontent hashへ埋め戻さず、Production Runtime PackageはProfile RefとBinding Refを別Fieldで保持する。
 
-T50は一つのsealed `SimulationAdvanceIntervalV1`の正のlogical duration `D={numerator,denominator}`を、選択dimension entryの`substep_count = C`に従いordinal `1..C`の各`D/C`へexact rational partitionする。`g=gcd(numerator,C)`、`substep={numerator/g, denominator*(C/g)}`の順でcross-reduceしてからchecked multiplicationし、既約化後の分子／分母が`ReducedPositiveRationalV1`の各`uint32`表現域へ収まらないProfile／Interval組合せはT50前に`physics_substep_interval_overflow`で拒否する。wrap、saturate、float、別rateへの近似を使わない。全`PhysicsSubstepIntervalInputV1`は同じCadence Profile ref、outer interval hash、advance sequence、Substep Profile refへbyte equalityでbindし、ordinal順に実行する。substepは新しいSimulation Advance、Input sample、Timer boundary、event delivery boundaryまたはpublish boundaryを生成せず、T60は全substep完了後にouter advanceにつきexact一回だけ結果を統合する。null duration、dimension entry不足、Profile／Target Qualification不足、Cadence／outer interval／Substep Profile ref不一致ではfallbackせず`cadence_profile_not_qualified`としてT50開始前に拒否する。
+T50は一つのsealed `SimulationAdvanceIntervalV1`の正のlogical duration `D={numerator,denominator}`を、exact World Profileに一致するworld-space entryの`substep_count = C`に従いordinal `1..C`の各`D/C`へexact rational partitionする。`g=gcd(numerator,C)`、`substep={numerator/g, denominator*(C/g)}`の順でcross-reduceしてからchecked multiplicationし、既約化後の分子／分母が`ReducedPositiveRationalV1`の各`uint32`表現域へ収まらないProfile／Interval組合せはT50前に`physics_substep_interval_overflow`で拒否する。wrap、saturate、float、別rateへの近似を使わない。全`PhysicsSubstepIntervalInputV1`は同じCadence Profile ref、outer interval hash、advance sequence、Substep Profile ref、exact World Space Profile refへbyte equalityでbindし、ordinal順に実行する。substepは新しいSimulation Advance、Input sample、Timer boundary、event delivery boundaryまたはpublish boundaryを生成せず、T60は全substep完了後にouter advanceにつきexact一回だけ結果を統合する。null duration、World Profile entry不足、Profile／Target Qualification不足、Cadence／outer interval／Substep Profile／World Profile ref不一致ではfallbackせず`cadence_profile_not_qualified`としてT50開始前に拒否する。
 
-current reference `fixed 60/1` Cadenceは`physics_substep_profile_ref=null`かつouter advance当たり一回のPhysics solveだけをProduction Qualification対象とし、current Substep Qualification subject／Receipt／Activation Binding集合はexact `[]`である。non-null Profileは`future.capability.alternate-simulation-cadence-and-substep`がactiveになり、選択する全`{Cadence Profile Ref, PhysicsSubstepProfileRef, Target Profile Ref}`へpassかつfreshな`PhysicsSubstepActivationBindingRefV1`を同じactivation transactionで登録し、Runtime Package、typed Save header、`AuthoritativeReplayHeaderV1`／Domain Replay closureが同じProfile／Binding Refへ閉じるまでplanning-onlyである。Activation前は`cadence_profile_not_qualified`を返し、暗黙のBackend既定substepへ変換しない。
+current reference `fixed 60/1` Cadenceは`physics_substep_profile_ref=null`かつouter advance当たり一回のPhysics solveだけをProduction Qualification対象とし、current Substep Qualification subject／Receipt／Activation Binding集合はexact `[]`である。non-null Profileは`future.capability.alternate-simulation-cadence-and-substep`がactiveになり、選択する全`{Cadence Profile Ref, PhysicsSubstepProfileRef, Target Profile Ref}`へpassかつfreshな`PhysicsSubstepActivationBindingRefV1`を同じactivation transactionで登録し、Runtime Package、typed Save header、[Persistence／Save](../04-runtime/persistence-save.md)の`RuntimeReplayProjectionV1`／Domain Replay bindingが同じProfile／Binding Refへ閉じるまでplanning-onlyである。Activation前は`cadence_profile_not_qualified`を返し、暗黙のBackend既定substepへ変換しない。
 
-2Dと3Dは別Worldであり、同じEntityへ両dimensionのBodyを付与しない。Body kindは`static | kinematic | dynamic`のclosed enumである。Visual scaleをnative Bodyへ渡さず、Collider geometryは[Collision](collision.md)のCooked Assetに焼き込む。finiteでない値、範囲外のmass／velocity、generation mismatchは明示failureにし、silent clampやnative defaultへのfallbackをしない。
+2Dと3DのPhysics authorityは[World](../06-rendering/world.md)のexact `WorldSpaceProfileRefV1`から導く別Worldであり、同じEntityへ両dimensionのBodyを付与しない。`hybrid` Worldも一つの`hybrid_gameplay_space`だけをauthorityにし、二つのPhysics authorityを作らない。Body kindは`static | kinematic | dynamic`のclosed enumである。Visual scaleをnative Bodyへ渡さず、Collider geometryは[Collision](collision.md)のCooked Assetに焼き込む。finiteでない値、範囲外のmass／velocity、generation mismatchは明示failureにし、silent clampやnative defaultへのfallbackをしない。
 
 World lifecycleは`uncreated | validating | ready | stepping | stop_requested | draining | destroyed | faulted`のEngine stateで表す。active WorldのProfile、worker class、solver semanticsをlive mutateしない。compatible changeはRuntime boundaryで新generationをactivateし、incompatible changeはPlay停止を要求する。native state名はpublic lifecycleへ露出しない。
 
@@ -132,7 +135,8 @@ PhysicsBodySnapshotRefV1
   body_generation: positive uint64
 
 PhysicsWorldProfileRefV1
-  dimension: d2 | d3
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
+  resolved_dimension: d2 | d3
   profile_id: StableId
   profile_version: positive uint32
   profile_content_hash: SHA-256
@@ -223,7 +227,8 @@ PhysicsStateSnapshotV1
   physics_substep_activation_binding_ref:
     null | PhysicsSubstepActivationBindingRefV1
   world_id: namespace付きStableId
-  world_dimension: d2 | d3
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
+  resolved_world_dimension: d2 | d3
   world_generation: positive uint64
   physics_world_profile_ref: PhysicsWorldProfileRefV1
   physics_world_profile_activation_generation: positive uint64
@@ -237,13 +242,14 @@ PhysicsStateSnapshotRefV1
   cadence_profile_ref: SimulationCadenceProfileRefV1
   simulation_advance_interval_ref: SimulationAdvanceIntervalRefV1
   world_id: namespace付きStableId
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
   world_generation: positive uint64
   physics_world_profile_ref: PhysicsWorldProfileRefV1
   physics_world_profile_activation_generation: positive uint64
   snapshot_content_hash: SHA-256
 ```
 
-snapshotはT60で全native jobをjoinした後、生成元のcompleted `SimulationAdvanceIntervalV1`からだけ構築する。`cadence_profile_ref`、`simulation_advance_interval_ref.cadence_profile_ref`、生成元Intervalの同Fieldはbyte equality、`advance_sequence`はRefと生成元Intervalの同Fieldへbyte equalityである。Refの`interval_content_hash`は生成元Intervalのself-excluding semantic `interval_content_hash`と一致させ、隣接する`simulation_advance_interval_sha256`はそのhash Fieldを含むcompleted Interval全canonical bytesのSHA-256と一致させる。semantic content hashとcompleted-object SHAを相互代用しない。World／World Profileのidentityとactivation generation、Substep Profile／BindingはそのIntervalを実行したactive runtime selectionと一致させ、`physics_world_profile_ref.dimension`は`world_dimension`と同じにする。T50途中のstate、別World、別Profile generation、別advanceの値を混在させない。
+snapshotはT60で全native jobをjoinした後、生成元のcompleted `SimulationAdvanceIntervalV1`からだけ構築する。`cadence_profile_ref`、`simulation_advance_interval_ref.cadence_profile_ref`、生成元Intervalの同Fieldはbyte equality、`advance_sequence`はRefと生成元Intervalの同Fieldへbyte equalityである。Refの`interval_content_hash`は生成元Intervalのself-excluding semantic `interval_content_hash`と一致させ、隣接する`simulation_advance_interval_sha256`はそのhash Fieldを含むcompleted Interval全canonical bytesのSHA-256と一致させる。semantic content hashとcompleted-object SHAを相互代用しない。World／World Space Profileのidentityとactivation generation、Substep Profile／BindingはそのIntervalを実行したactive runtime selectionと一致させ、`physics_world_profile_ref.world_space_profile_ref`、Snapshot／Refの同refはbyte equalityにする。`resolved_dimension`と`resolved_world_dimension`はそのexact World Profileから再計算するruntime projectionであり、Source authorityではない。T50途中のstate、別World、別Profile generation、別advanceの値を混在させない。
 
 bodyは`body_ref.entity_stable_id, body_ref.body_id, body_ref.body_generation`、jointは`joint_id, joint_generation`、kinematic executorは`actor_body_ref`のcanonical byte順へstrict sortする。joint coordinateは`coordinate_ordinal`昇順で、ordinal集合は解決したjoint family schemaとexact set equalityにする。duplicate、逆順、wrong-dimension variant、存在しないBody ref、generation不一致、同一Bodyの2D／3D重複を拒否する。各arrayの上限を超える場合はsnapshotを切り詰めず、`physics_snapshot_capacity_exceeded`で当該authoritative advanceのpublishをfaultする。staticはzero velocityかつ`sleep_state=not_applicable`、kinematicも`sleep_state=not_applicable`、dynamicだけが`awake | sleeping`を持つ。全数値は[Math core](../02-foundation/math-core.md)のSI単位、finite、normalization、canonical quantizationを通し、native padding、pointer、solver island、cache、worker順、Backend enumを含めない。
 
@@ -365,7 +371,7 @@ Specの10件の補助参照は次のactive inventoryへexactly oneで解決す�
 | exact record | record type | normative content |
 |---|---|---|
 | `semantic_role.physics.kinematic_motion_executor` v1 | `SemanticRoleRecordV1` | validated batchを受理し、bounded Physics resolutionをexact一回実行する |
-| `requirement.physics.kinematic_motion_executor.resolve_batch` v1 | MCD `requirement` | adapted intent、Profile、Target、dimension、Collision closureを検証してresolved motionを返す`must` |
+| `requirement.physics.kinematic_motion_executor.resolve_batch` v1 | MCD `requirement` | adapted intent、Profile、Target、exact World Space Profile、Collision closureを検証してresolved motionを返す`must` |
 | `requirement.physics.kinematic_motion_executor.no_navigation_authority` v1 | MCD `requirement` | Selection、binding、canonical batchを所有・変更・再発行しない`must_not` |
 | `dependency.physics.kinematic_motion_executor.navigation_batch` v1 | `GameSystemDependencyEdgeV1` | Navigation batch Portのexact source dependency |
 | `dependency.physics.kinematic_motion_executor.collision_query` v1 | `GameSystemDependencyEdgeV1` | normalized Collision query capabilityのexact dependency |
@@ -464,7 +470,7 @@ supersedes=[]
 tags=[kinematic_motion,motion_executor,physics]
 normative_level=must
 priority=blocking
-statement=Each accepted batch is validated against adapted intent Profile Target dimension and Collision closure before at most one resolved result is emitted
+statement=Each accepted batch is validated against adapted intent Profile Target exact World Space Profile and Collision closure before at most one resolved result is emitted
 scope=[game_system.engine.physics.kinematic_motion_executor,T40_MotionIntent]
 verification_methods=[gate.physics.kinematic_motion_executor.contract,gate.physics.kinematic_motion_executor.runtime]
 acceptance_criteria=[predicate.physics.accepted_schema_exact,predicate.physics.provider_call_at_most_once,predicate.physics.resolved_result_bounded]
@@ -565,7 +571,7 @@ MotionExecutorProviderRecordRefV1
   provider_content_hash=exact production record content hash
 ```
 
-policyはaccepted setがexact `[type.navigation.adapted_motion_intent@1]`、Profile schema／hash、Target Profile、2D／3D dimension、Collision query availabilityであることを検証する。このsingletonへの変更によりreceipt-free `provider.engine.physics.kinematic_motion@1` content hash、Provider Catalog hash、RecordRefを先に更新し、その固定RecordRefと既存System Activation BindingからProvider Qualification subject／input closure／signed Receipt／Provider Activation Binding、Compile／Activation／Save／Replay closureを順に更新する。System／Provider Receipt／Activation BindingをProvider base recordまたはCatalog hashへ戻さない。owner固有proposalはNavigationのgeneric contribution envelopeとexact adapter recordを介し、Physics recordへraw source typeまたはowner固有type IDを追加しない。stale Catalog ref、stale provider content hash、System base／Activation Binding mismatch、fixture RecordRefへの置換をproduction qualificationで個別に拒否する。
+policyはaccepted setがexact `[type.navigation.adapted_motion_intent@1]`、Profile schema／hash、Target Profile、exact World Space Profile、Collision query availabilityであることを検証する。このsingletonへの変更によりreceipt-free `provider.engine.physics.kinematic_motion@1` content hash、Provider Catalog hash、RecordRefを先に更新し、その固定RecordRefと既存System Activation BindingからProvider Qualification subject／input closure／signed Receipt／Provider Activation Binding、Compile／Activation／Save／Replay closureを順に更新する。System／Provider Receipt／Activation BindingをProvider base recordまたはCatalog hashへ戻さない。owner固有proposalはNavigationのgeneric contribution envelopeとexact adapter recordを介し、Physics recordへraw source typeまたはowner固有type IDを追加しない。stale Catalog ref、stale provider content hash、System base／Activation Binding mismatch、fixture RecordRefへの置換をproduction qualificationで個別に拒否する。
 
 T40のgeneric contribution resolverはNavigationとowner登録済みproposalをadapterでexact `AdaptedMotionIntentV1`へ変換し、Navigation-owned `MotionExecutorIntentBatchV1` Port messageとして提出する。選択済みPhysics Kinematic Motion Providerは全entryの`adapted_intent_schema_ref`がexact `type.navigation.adapted_motion_intent@1`であることを一度だけ検証する。`source_schema_ref`はprovenance metadataでありaccepted schema判定に使わない。全proposalはregistryで一意に選んだadapterを経由し、Providerへ直接提出しない。Provider-private `KinematicMoveIntentV1`はこの検証済みbatchからだけderiveし、Portのpublic accepted setへ混ぜない。`MovementIntentV1.motion_request.kind=velocity`は同じ[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`SimulationAdvanceIntervalV1.interval.logical_duration_seconds`がnon-nullの場合だけ、そのexact rational durationを乗算してplanar displacementへ変換する。`displacement_per_advance`は値をそのまま使い、duration-null turn-based／explicit-stepを0秒または`1/60`秒へ変換しない。Cadence Profile ref、interval hash、advance sequence、Provider Qualificationの一件でも不一致ならT50前に拒否する。同一advanceの複数proposalは各adapter policyとcanonical producer順で解決し、不採用のintentをtyped resultとしてproducerへ返す。合成優先順位をProvider内で暗黙に変更しない。
 
@@ -604,13 +610,13 @@ PhysicsSaveStateV1
   projection_content_hash: SHA-256
 ```
 
-SaveはEngine-owned World／Body／Joint／kinematic executor stateを§2.2の一つのcompleted `PhysicsStateSnapshotV1`として保存し、native serialization、pointer、Backend substep state、未commitのT50途中state、snapshotと並行する別state arrayを保存しない。`projection_content_hash`はASCII `MIRAKAN_PHYSICS_SAVE_STATE_V1`と同Fieldだけを除くclosed canonical bytesから計算する。完成Projectionは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のroot外`AuthoritativeSaveDomainBindingV1`によってexact completed Headerへ結ばれ、Headerのstate-owner Projection Ref集合に本Projectionのowner／Type／ID／version／content hashがexact一件存在しなければならない。Header／BindingをProjectionへ埋め戻さない。snapshotの`cadence_profile_ref`はHeaderの`simulation_cadence_profile_ref`、`simulation_advance_interval_ref`は`last_committed_simulation_advance_interval_ref`、`simulation_advance_interval_sha256`は`last_committed_simulation_advance_interval_sha256`、`physics_substep_activation_binding_ref`はHeaderの同Fieldとそれぞれbyte equalityにする。snapshotのSubstep Profile RefはBinding subjectのSubstep Refと一致させる。null branchではsnapshotのSubstep Profile／Bindingがともにnullで、outer advance一回solveの契約と一致しなければならない。
+SaveはEngine-owned World／Body／Joint／kinematic executor stateを§2.2の一つのcompleted `PhysicsStateSnapshotV1`として保存し、native serialization、pointer、Backend substep state、未commitのT50途中state、snapshotと並行する別state arrayを保存しない。`projection_content_hash`はASCII `MIRAKAN_PHYSICS_SAVE_STATE_V1`と同Fieldだけを除くclosed canonical bytesから計算する。完成Projectionは[Persistence／Save](../04-runtime/persistence-save.md#23-timebase-headerとbinding)のroot外`AuthoritativeSaveDomainBindingV1`によってexact completed Headerへ結ばれ、Headerのstate-owner Projection Ref集合に本Projectionのowner／Type／ID／version／content hashがexact一件存在しなければならない。Header／BindingをProjectionへ埋め戻さない。snapshotの`cadence_profile_ref`はHeaderの`simulation_cadence_profile_ref`、`simulation_advance_interval_ref`は`last_committed_simulation_advance_interval_ref`、`simulation_advance_interval_sha256`は`last_committed_simulation_advance_interval_sha256`、`physics_substep_activation_binding_ref`はHeaderの同Fieldとそれぞれbyte equalityにする。snapshotのSubstep Profile RefはBinding subjectのSubstep Refと一致させる。null branchではsnapshotのSubstep Profile／Bindingがともにnullで、outer advance一回solveの契約と一致しなければならない。
 
 `collider_asset_refs[]`は`source_asset_id, source_asset_revision, source_asset_content_hash, artifact_ref`のcanonical byte順へstrict sortし、duplicateを拒否する。各`artifact_ref`はexact completed `CookedColliderAssetV1`へ解決し、解決済みartifactのSource Asset identity三Fieldを隣接三Fieldとbyte equalityにする。集合はsnapshotのWorld generationを復元するためactive World definitionが参照するCooked Collider Asset集合とexact set equalityにし、unused／missing ref、path、`latest`、別revision／content hashへの再解決を拒否する。65,537件目を切り詰めず`physics_save_capacity_exceeded`でSaveを不成立にする。
 
 Loadはschema、toolchain lock compatibility、snapshot content hash、World／Substep Profile、Cadence、last Interval semantic hash／completed SHA、Collider Asset identity、finite value、generation relationを検証してstaging Worldを構築し、fixture validation後にcompatible Simulation Advance boundaryで置換する。Header／Profile／Interval／Binding／Projection／snapshot不一致をcurrent値、Backend default、fixed 60/1へ読み替えず、明示migrationまたは`physics_save_incompatible`で拒否する。失敗時はactive Worldを維持する。
 
-ReplayはRuntime ownerへnormalized command、accepted async input、Profile／artifact identity、state hash、snapshot projectionを供給する。Physicsのreceipt-free Replay Projectionは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)の`AuthoritativeReplayDomainProjectionRefV1`としてHeaderのProjection集合へexact一件登録し、Header Ref／Binding RefをProjection base recordへ埋め込まない。Header完成後だけroot外`AuthoritativeReplayDomainBindingV1`がexact `AuthoritativeReplayHeaderRefV1`とPhysics Projection Refを結び、HeaderのCadence／Substep Binding、該当`SimulationAdvanceIntervalRefV1`／completed SHA／sequenceとProjectionをbyte equalityにする。生成順を`receipt-free Physics Projection → Projection set／Header／Ref → Domain Binding`に固定し、Header／BindingをProjection hashへ戻さない。記録slotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`だけを参照し、Physics固有phaseを設けない。
+ReplayはRuntime ownerへnormalized command、accepted async input、Profile／artifact identity、state hash、snapshot projectionを供給する。Physicsのreceipt-free Replay Projectionは[Persistence／Save](../04-runtime/persistence-save.md#51-replay-transport-binding)の`RuntimeReplayDomainProjectionRefV1`として一意に参照し、完成`RuntimeReplayProjectionV1`とのroot外`RuntimeReplayDomainBindingV1`を持つ。Persistence OwnerだけがBindingを`RuntimeReplayBundleManifestV1`へmembershipとして閉じ、Header／binding／Bundle refをProjection base recordへ埋め戻さない。Cadence／Substep Binding、sealed Interval、Physics projectionの一致をPersistence validationで検証する。記録slotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T100_ReplayCheckpoint`だけを参照し、Physics固有phaseを設けない。
 
 主要failure classはinvalid profile、unqualified adapter、handle／generation mismatch、command conflict、joint frame invalid、kinematic depenetration failure、native invariant violation、job drain failure、save incompatibilityである。Simulation Advance publish、fault transition、recovery boundaryはRuntime ownerへ委譲する。共通memory、worker、queue、frame thresholdをここで再定義しない。
 
@@ -620,7 +626,7 @@ Snapshot fixtureは同じcompleted Intervalから作ったnormalized body／join
 
 Save fixtureは同じsnapshotとCollider Artifact集合をDomain BindingでHeaderへ結ぶcaseを受理し、HeaderのCadence／Interval Ref／completed SHA／Substep Binding、snapshot hash、Collider Source identity／Artifact bytes、Collider集合順／set equalityを各一Fieldだけ変えたcaseを`physics_save_incompatible`でLoad staging前に拒否する。Collider arrayは65,536件ちょうどをschemaとして受理し、65,537件目を`physics_save_capacity_exceeded`でSave生成前に拒否する。
 
-Replay fixtureは生成順`receipt-free Physics Projection → Projection set／Header／Ref → root外 AuthoritativeReplayDomainBindingV1`を受理し、HeaderのCadence／Substep Binding／Interval Ref／completed SHA／sequence、Projection membership、Binding hashを各一Fieldだけ変えたcase、Projection base recordへのHeader／Binding埋戻し、別Header／Projectionを結ぶBindingをReplay開始前に拒否する。
+Replay fixtureは[Persistence／Save](../04-runtime/persistence-save.md#51-replay-transport-binding)の`RuntimeReplayDomainProjectionRefV1`、`RuntimeReplayDomainBindingV1`、`RuntimeReplayBundleManifestV1`を受理し、Replay projectionのCadence／Substep Binding／sealed Interval／digest、Bundle membership、Binding hashを各一Fieldだけ変えたcase、Projection base recordへのbinding／Bundle埋戻し、別Replay／Projectionを結ぶbinding、Bundleのmissing／extraをReplay開始前に拒否する。
 
 ## 5. AI semantics
 
@@ -777,9 +783,7 @@ PhysicsIntentResolutionV1
     exact {target_profile_id, target_profile_version,
            target_profile_content_hash}
   physics_role_registry_ref: PhysicsIntentRoleRegistryRefV1
-  scene_dimension: two_d | three_d | hybrid
-  hybrid_gameplay_space: two_d | three_d
-    | canonical omission unless scene_dimension=hybrid
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
   physics_role_ref: PhysicsIntentRoleRefV1
   motion_authority: PhysicsMotionAuthorityV1
   collision_semantics: PhysicsCollisionSemanticsV1
@@ -1117,12 +1121,12 @@ Activation後のPrepared payload Typeはexact `type.physics.prepared_intent_role
 
 ### 5.2 Capability discoveryと意味解決
 
-Resolverは[Executable contracts](../02-foundation/executable-contracts.md)のCapability registryから、scene dimension、active maturity、Target、World Profile、Collision capability、authoring permission、Physics Intent Role Registryを読み、current MCDへ完全登録済みのexact Operationだけを提示する。Backend featureをCapabilityとして直接表示しない。unknown／removed／reserved-unsupported role、required Capability不足は`capability_unavailable`とし、近いCore roleまたは別のactive Operationへsilent downgradeしない。
+Resolverは[Executable contracts](../02-foundation/executable-contracts.md)のCapability registryから、exact World Space Profile、active maturity、Target、Collision capability、authoring permission、Physics Intent Role Registryを読み、current MCDへ完全登録済みのexact Operationだけを提示する。Backend featureをCapabilityとして直接表示しない。unknown／removed／reserved-unsupported role、required Capability不足は`capability_unavailable`とし、近いCore roleまたは別のactive Operationへsilent downgradeしない。
 
 解決順は次である。
 
 1. source requestのcontent hash、Project revision、Contract set hash、Target Profile、active Physics Intent Role Registry refを取得し、Resolutionへ観測値としてbindする。
-2. ユーザー文からowner vocabulary候補と、motion、contact、hit、shape、speed、dimensionの独立候補を抽出する。
+2. ユーザー文からowner vocabulary候補と、motion、contact、hit、shape、speedの独立候補を抽出し、dimensionはexact World Space Profileからだけ導く。
 3. Scene／Projectの既存World、Body、Collider、Profile、Capabilityをread-only discoveryする。
 4. exact owner role refとclosed axisへ候補を割り当て、矛盾と欠落を分類する。
 5. gameplay behaviorを変える欠落だけを`blocking_question_ids`へ入れ、`question_required`にする。安全な欠落だけをReference assumptionとして明示する。
@@ -1135,7 +1139,7 @@ Resolutionのvalidate、preview、Activation後のoperation proposalの各入口
 
 ### 5.3 質問、Assumption、代替案
 
-2D／3D／hybrid gameplay space、motion authority、contact／hit authority、shape class、高速移動policy、kinematic support relation、壊れるJoint、Target Profile、概算同時instance数が挙動を変える場合は質問する。質問は「どのsolverを使うか」や特定object名を前提にせず、観測可能な挙動の選択肢、影響、推奨案を示す。
+selected World Space Profile、motion authority、contact／hit authority、shape class、高速移動policy、kinematic support relation、壊れるJoint、Target Profile、概算同時instance数が挙動を変える場合は質問する。World Profileが既にexactに選択されている場合、2D／3D／hybrid gameplay spaceをPhysics側から再質問または再選択しない。質問は「どのsolverを使うか」や特定object名を前提にせず、観測可能な挙動の選択肢、影響、推奨案を示す。
 
 明示情報がない場合もobject名からstatic／dynamic、solid／sensor、solver／query、discrete／continuousを既定化しない。Reference assumptionは登録済みrole recordと独立axisの候補として提示し、source intent、根拠、影響、owner refを持たせてPreviewから変更できるようにする。安全な選択肢が複数ある場合はtyped alternativeを最大限界内で提示し、候補ごとの差分を示す。
 
@@ -1149,7 +1153,7 @@ Activation後のPreviewはbefore／after semantic resolution、affected Entity�
 
 Diagnosticは少なくとも次を区別する。
 
-- `MIRAKAN-PHYSICS-KINEMATIC-MOTION-INCOMPATIBLE`: intent subset、Profile、Target、dimension、Collision query relation不一致
+- `MIRAKAN-PHYSICS-KINEMATIC-MOTION-INCOMPATIBLE`: intent subset、Profile、Target、exact World Space Profile、Collision query relation不一致
 - `MIRAKAN-PHYSICS-KINEMATIC-MOTION-RESOLUTION_FAILED`: bounded resolverがvalid resolved motionを生成できない
 - `MIRAKAN-PHYSICS-KINEMATIC-MOTION-STALE_RESULT`: motion subject／intent batch／profile／provider generation不一致
 - ambiguous intent／question required

@@ -4,8 +4,8 @@
 - 状態: review
 - 正本範囲: MCD、Requirement、Type、Operation、State machine、Capability、Policy、Diagnostic、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
 - 非正本範囲: 外部Tool・packageのversion／commit／hash／license、Product scope、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Project state](../03-authoring/project-state.md)、[Project Shader](../06-rendering/project-shader.md)
-- 外部根拠検証日: 2026-07-23
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Memory／Pointers](memory-pointers.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Project state](../03-authoring/project-state.md)、[Project Shader](../06-rendering/project-shader.md)
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論
 
@@ -112,8 +112,8 @@ MCDは意図の説明を完全に置き換えない。MCDが機械的な合否�
 | `id` | string | Kind別Grammarに従う正本ID。Repository全体で一意 |
 | `version` | uint32 | 意味変更ごとに増加、0禁止 |
 | `status` | enum | `draft`、`active`、`deprecated`、`retired` |
-| `title` | UTF-8 string | 人間向け短い名称 |
-| `description` | UTF-8 string | 対象と非対象を明示 |
+| `title` | UTF-8 string | canonical `en-US`の人間／機械向け短い技術名称。localized display identityにしない |
+| `description` | UTF-8 string | canonical `en-US`で対象と非対象を明示。localized helpは別Localization projectionに置く |
 | `owners` | Owner ID array | 1件以上 |
 | `requirement_refs` | `McdContractRefV1(kind=requirement)` array | 自身がrequirementの場合は空。bare IDを保存しない |
 | `rationale_refs` | ADR／spec anchor array | 最低1件 |
@@ -266,12 +266,20 @@ Requirementは次を必須とする。
 | `set` | canonical sort規則を持つ重複なしarray |
 | `map` | canonical string／closed enum keyと最大件数を固定 |
 | `nullable<T>` | 値または`null` |
-| `handle` | ID＋generation。pointerではない |
+| `handle` | ID＋generation。pointerではなく、resolve後のlease／viewの寿命規則は[Memory／Pointers](memory-pointers.md)のContractだけから得る |
 | `asset_ref` | Asset ID＋revision constraint |
 
 `any`、暗黙変換、untagged union、pointer、memory address、platform handle、unbounded collectionを禁止する。Wire上の64-bit整数はProvider／JavaScriptの安全整数範囲を超え得るため、JSON projectionではcanonical decimal stringへ変換し、C++ bindingで範囲検査して整数へ戻す。
 
 `decimal_string`は符号`-`、integer、任意fractionだけを許可し、`+`、指数、不要な先頭0、末尾fraction 0、`-0`を禁止する。Type constraintは`max_fraction_digits`を固定する。同じ数値の`1.2`と`1.20`を別値にしない。金額やFixed-point simulationで固定scale／最小単位が必要な場合は、通貨または単位を持つ専用Typeでinteger minor unitを`int64`／`uint64`として保存し、表示用decimal文字列を正本にしない。`set`のWire表現は各要素のJCS byte列をunsigned byte lexicographic順に並べる。`map`のJSON object keyはUnicode NFC後のUTF-8 byte順で一意にし、Provider projectionがdynamic propertyを表せない場合は`[{key,value}]`へ可逆変換する。この変換をProjection Manifestへ記録する。
+
+### 7.1.1 Pointer／Memory definition closure（Phase 0 planning）
+
+`PointerContractV1`、`MemoryContractV1`、`PointerMemoryConsumerBindingV1`は、[Memory／Pointers](memory-pointers.md)が型の意味、field、consumer Matrixを所有するFoundation typeである。本書はMCDのenvelope、参照解決、生成・hash閉包だけを所有し、同型を別schemaとして複写しない。
+
+Productの`requirement.foundation.memory-pointer-contract`を満たすMCD sourceがmaterializeされるまでは、これらを`active`、現在のgenerated type、または存在済みのmanifestとして扱わない。materialization時には三type、関連Diagnostic、requirement、fixture、static／negative test definitionのlocal member集合をContract Setへ入れ、`PointerMemoryConsumerBindingV1.consumer_document_id`とArchitecture Document Registryのexact解決を必須にする。consumerごとの`reference_form`、保存、job capture、retire／invalidation owner、qualification ownerの欠落、重複、未解決、逆参照差はContract compiler failureとする。
+
+Wire、Save、Replay、Package、Provider projection、job packetにnative address、live pointer、reference、lease、span、writer、allocator objectを投影しない。これらが必要なconsumerは、Memory／Pointersのbindingが許すstable value、typed handle、immutable snapshot、owned packetだけを専用Typeとして投影する。
 
 ### 7.2 Field定義
 
@@ -1891,7 +1899,7 @@ JSON treeとJCS実装は[Toolchain／Dependencies](toolchain-dependencies.md)が
 1. RFC 8259としてparseし、重複keyを拒否する。標準`JSON.parse`だけでは重複keyを検出できないため、UTF-8 byte列へduplicate-aware tokenizerを先に適用し、Object scopeごとのdecoded key一致を検査する。同時に数値tokenのraw textが4節の±(2^53-1)制約を満たすことを検査し、超過literalを拒否する。
 2. Kind別meta-schemaでvalidateする。
 3. 全IDとversionをindex化する。
-4. 参照解決、cycle、Game System State owner、phase edge、requirement coverageを検査する。
+4. 参照解決、cycle、Game System State owner、phase edge、requirement coverage、Pointer／Memory consumer bindingの正逆closureを検査する。
 5. Semantic lintとPolicy lintを実行する。
 6. Canonicalizeして`/schemas/contract.lock.json`と照合する。
 7. Toolchain lockが指定するInternal JSON Schema dialectを生成する。
@@ -2497,11 +2505,11 @@ current architectureで完全なOperation IDとして現れるtokenは、次の�
 | `operation.asset.do` | 明示invalid naming例 |
 | `operation.debug.propose` | Debug findingからのgeneric proposalとして明示禁止 |
 | `operation.performance.migrate_project_scale_envelope_v1_to_v2` | 一度もactivateされていないversion埋込み旧綴り |
-| `operation.runtime_ecs.search` | ユーザー確認待ちADRの提案語彙 |
-| `operation.runtime_ecs.describe_contract` | ユーザー確認待ちADRの提案語彙 |
-| `operation.runtime_ecs.inspect_capture` | ユーザー確認待ちADRの提案語彙 |
-| `operation.runtime_ecs.explain_access` | ユーザー確認待ちADRの提案語彙 |
-| `operation.runtime_ecs.explain_failure` | ユーザー確認待ちADRの提案語彙 |
+| `operation.runtime_ecs.search` | [Runtime ECS target review contract](../04-runtime/entity-component-system.md)の提案語彙。current MCD／Operation／Tool集合は`[]` |
+| `operation.runtime_ecs.describe_contract` | [Runtime ECS target review contract](../04-runtime/entity-component-system.md)の提案語彙。current MCD／Operation／Tool集合は`[]` |
+| `operation.runtime_ecs.inspect_capture` | [Runtime ECS target review contract](../04-runtime/entity-component-system.md)の提案語彙。current MCD／Operation／Tool集合は`[]` |
+| `operation.runtime_ecs.explain_access` | [Runtime ECS target review contract](../04-runtime/entity-component-system.md)の提案語彙。current MCD／Operation／Tool集合は`[]` |
+| `operation.runtime_ecs.explain_failure` | [Runtime ECS target review contract](../04-runtime/entity-component-system.md)の提案語彙。current MCD／Operation／Tool集合は`[]` |
 
 lintは完全ID token集合について`active_complete ∪ reserved_not_activated ∪ conditional_legacy_migration ∪ example_pending_or_rejected`とのset equality、四classのpairwise intersectionが空、current時点の未分類件数exact 0を検査する。説明上のaction名、C++関数、future tokenをOperationへ推測昇格しない。新しい完全`operation.*` tokenを文書へ追加する変更は、同じ変更で完全Activation closure、Field省略なしのplanning family record、または§8.1.2と同等のlegacy evidence gateを持つconditional recordのexact一つへ追加しなければ失敗する。
 
@@ -2510,6 +2518,7 @@ lintは完全ID token集合について`active_complete ∪ reserved_not_activat
 ## 22. Contract compilerのDefinition of Done
 
 - 全MCD kindのmeta-schemaと最低1件のvalid／invalid fixtureがある。
+- Pointer／Memory planning typeをmaterializeするChangeSetは、三type、関連Requirement／Diagnostic／Fixture、consumer Matrixの正逆参照、保存・job capture禁止のnegative fixture、manifest hash closureを同一Contract Setで検査する。未materialize時のcurrent projectionは空であり、planned typeをactive recordとして数えない。
 - `game_system` kindからCatalog、Dependency Graph、State owner table、C++／TypeScript binding、conformance testを決定論的に生成する。
 - Project-defined SystemがEngine Standardと同じContract validationを通り、固定WhitelistなしでCatalogへ登録できる。
 - Project Shader planning familyをactivateするwork itemは、同じModule／Technique／Fact／Context／Understanding SchemaからC++、TypeScript、MCP bindingを生成し、R0／R1／R3と禁止Fieldを混同しないことを同じtransactionで検証する。Activation前はbinding集合を空に保つ。

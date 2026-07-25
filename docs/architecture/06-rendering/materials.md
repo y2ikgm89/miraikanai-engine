@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Material Domain／Shading Modelの意味、Visual Style／表現Profile、semantic material intent、Material Graph／IR／instance、MaterialからProject Shaderへのtyped接続、Material compile／package、Material固有operation／diagnostic／qualification
 - 非正本範囲: Project HLSL source profile／semantic Module／Technique／Shader AI理解、Render pass／queue／AA execution、Lighting物理意味、Post Process composition、LOD共通selection、Asset transaction、Runtime shared capacity、Tool／compiler version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[World](world.md)、[Render Graph](render-graph.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)
 - 外部根拠検証日: 2026-07-22
 
 ## 1. 結論と所有境界
@@ -52,10 +52,9 @@ schema_version
 profile_id
 source_profile_id: optional
 display_name
-scene_dimension: two_d | three_d | hybrid
+compatible_world_space: WorldSpaceCompatibilityV1
 art_direction_ref: VisualStyleSemanticRefV1(axis_id=art_direction)
 composition_variant_ref: VisualStyleSemanticRefV1(axis_id=composition_variant)
-gameplay_space: canvas_2d | world_3d
 visual_style_semantic_registry_ref:
   exact {registry_id, registry_version, registry_content_hash}
 visual_style_semantic_activation_projection_ref:
@@ -83,7 +82,8 @@ texture_policy
     reference_distance_m: positive_number
     min_screen_pixel_ratio: positive_number
     max_screen_pixel_ratio: positive_number
-outline_profile_id: optional
+toon_shading_profile_ref: optional ToonShadingProfileRefV1
+outline_style_profile_ref: optional OutlineStyleProfileRefV1
 palette_profile_id: optional
 quality_profile_id
 fallback_policy: forbid | allow_listed
@@ -135,11 +135,145 @@ VisualStyleSemanticActivationProjectionV1
 
 `semantic_content_hash`はASCII `MIRAKAN_VISUAL_STYLE_SEMANTIC_CONTRIBUTION_V1`と自己hashを除くReceipt-free Contribution canonical bytes、Registry hashはASCII `MIRAKAN_VISUAL_STYLE_SEMANTIC_REGISTRY_V1`、Registry ID／version、axis／semantic ID／version順の全Contribution canonical bytesから計算する。selected refsはaxis／semantic ID／version／hash順、Binding refsは解決したsubject refの同じ順にstrict sortし、duplicateを拒否する。Activation Projectionのselected ref集合とQualification Bindingが解決する合格かつfreshなsubject集合はexact set equalityで、Receipt／BindingをContribution／Registry hashへ戻さない。Feature／Genre contributionは所有Pack identity、Project contributionはProject owner identityへexact解決する。各Ownerは自己namespaceだけへ追加でき、Core entryの上書き、同一logical IDの別hash、unknown、stale owner／version／hash、未Qualification、Target／Capability不成立をfail closedにする。Registry materializationはProject／Pack dependency closureを解決したCompilerが行い、Generic Engine CoreからPackへのdependency edgeを生成しない。
 
-Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。`scene_dimension`と`gameplay_space`はRendering／Physics／Navigationの実行空間を分岐するCore structural enumであり、Visual Style contributionから追加または推測しない。表現語彙である`art_direction_ref`と`composition_variant_ref`だけをRegistryで拡張し、同じactive Registry／Activation Projectionへexact解決する。
+Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。Rendering／Physics／Navigationの実行空間は[World](world.md)のexact `WorldSpaceProfileRefV1`だけが選択する。`VisualStyleProfile`は`compatible_world_space`によって使用可能範囲を宣言できるが、scene dimensionまたはhybrid gameplay authorityを所有・推測・変更しない。表現語彙である`art_direction_ref`と`composition_variant_ref`だけをRegistryで拡張し、同じactive Registry／Activation Projectionへexact解決する。
+
+### 3.1 Toon／Outline semantic contract
+
+ToonとOutlineは特定のshader text、Render pass、native GPU objectではなく、Materialが所有するtyped style intentである。`VisualStyleProfile.toon_shading_profile_ref`は選択されたTemplateが`toon_surface`、`sprite_toon`、`hybrid_sprite_toon`のいずれかを使うとき必須とし、`outline_style_profile_ref`はuntyped IDを使わないexact refとする。LightingはToon responseを消費し、[Render Graph](render-graph.md)はOutline intentをqualified execution techniqueへ解決するが、両者は下記parameterの複製所有者にならない。
+
+```text
+ToonRampRefV1
+  ramp_id: StableId
+  ramp_version: positive uint32
+  source_asset_ref: exact {asset_id, asset_revision, source_sha256}
+  input_signal: diffuse_ndotl_clamped | specular_lobe | shadow_attenuation
+  dimension: one_d
+  sample_filter: point | linear
+  address_mode: clamp
+  channel_semantic: scalar_multiplier | linear_rgb_multiplier
+  color_space: linear_rgb
+  ramp_content_hash: SHA-256
+
+ToonBandResponseV1
+  source: analytic_bands | ramp_asset
+  input_signal: diffuse_ndotl_clamped | specular_lobe | shadow_attenuation
+  band_count: integer in [1, 8] | required only for analytic_bands
+  thresholds[0..7]: strictly increasing finite values in [0, 1]
+    | count = band_count - 1 for analytic_bands
+  softness[1..8]: finite values in [0, 1]
+    | count = band_count for analytic_bands
+  ramp_ref: ToonRampRefV1 | required only for ramp_asset
+
+ToonSpecularResponseV1
+  mode: disabled | analytic_banded | ramp_asset | anisotropic_analytic_banded
+  analytic_band_response: ToonBandResponseV1
+    | required only for analytic_banded or anisotropic_analytic_banded
+  ramp_ref: ToonRampRefV1 | required only for ramp_asset
+  roughness_range: closed finite range within [0.045, 1]
+  anisotropy_range: closed finite range within [-1, 1]
+    | required only for anisotropic_analytic_banded
+
+ToonRimResponseV1
+  mode: disabled | lit_side | shadow_side | view_fresnel
+  width: finite value in [0, 1]
+  softness: finite value in [0, 1]
+  intensity: finite nonnegative value
+
+ToonShadowResponseV1
+  receive_mode: continuous | banded | profile_ramp
+  self_shadow_extinction: finite value in [0, 1]
+  cast_shadow: bool
+  analytic_band_response: ToonBandResponseV1 | required only for banded
+  ramp_ref: ToonRampRefV1 | required only for profile_ramp
+
+ToonEnergyPolicyV1
+  kind: stylized_bounded | physically_bounded
+  max_direct_lighting_multiplier: finite value in (0, 16]
+  max_indirect_lighting_multiplier: finite value in (0, 16]
+
+ToonFeatureSemanticV1
+  role: generic | face | hair | eye | cloth | foliage
+  normal_source: mesh_normal | authored_normal_map | bent_normal_map | role_profile
+  shadow_source: engine_shadow | authored_mask | signed_distance_field | role_profile
+  role_profile_ref: ToonFeatureRoleProfileRefV1
+    | required only when either source is role_profile
+
+ToonFeatureRoleProfileRefV1
+  profile_id: StableId
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+ToonFeatureRoleProfileV1
+  profile_id: StableId
+  profile_version: positive uint32
+  role: generic | face | hair | eye | cloth | foliage
+  normal_source: mesh_normal | authored_normal_map | bent_normal_map
+  normal_texture_role: none | normal | bent_normal
+  shadow_source: engine_shadow | authored_mask | signed_distance_field
+  shadow_texture_role: none | shadow_mask | signed_distance_field
+  compatible_material_domains[1..8]
+  compatible_world_space: WorldSpaceCompatibilityV1
+  required_capability_refs[0..16]: McdContractRefV1(kind=capability)
+  profile_content_hash: SHA-256
+
+ToonShadingProfileRefV1
+  profile_id: StableId
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+ToonShadingProfileV1
+  profile_id: StableId
+  profile_version: positive uint32
+  compatible_material_domains[1..8]
+  compatible_world_space: WorldSpaceCompatibilityV1
+  diffuse_response: ToonBandResponseV1
+  specular_response: ToonSpecularResponseV1
+  rim_response: ToonRimResponseV1
+  shadow_response: ToonShadowResponseV1
+  feature_semantics[0..6]: ToonFeatureSemanticV1
+  energy_policy: ToonEnergyPolicyV1
+  required_capability_refs[0..32]: McdContractRefV1(kind=capability)
+  fallback_profile_refs[0..8]: ToonShadingProfileRefV1
+  profile_content_hash: SHA-256
+```
+
+Rampはlinear RGBの1D data textureであり、入力signal、filter、clamp、channel解釈をfilenameや画像dimensionから推測しない。`ToonBandResponseV1.source=analytic_bands`はanalytic fieldをrequiredかつ`ramp_ref`をcanonical omission、`ramp_asset`はanalytic fieldをcanonical omissionかつ`ramp_ref`をrequiredにする。analytic diffuseは`diffuse_ndotl_clamped`、analytic specularは`specular_lobe`、banded shadowは`shadow_attenuation`だけを受理し、rampも同じsignalでなければならない。`ToonSpecularResponseV1.mode=disabled`はresponse fieldのcanonical omissionとzero contributionを必須にする。analytic modeは`analytic_band_response.source=analytic_bands`、ramp modeは`ramp_ref.input_signal=specular_lobe`を必須とする。Shadowの`continuous`はresponse fieldをomission、`banded`はanalytic response、`profile_ramp`は`shadow_attenuation` rampを必須にする。Rim disabledはwidth／softness／intensityをcanonical zeroにする。
+
+`ToonFeatureSemanticV1`のいずれかのsourceが`role_profile`である場合、`role_profile_ref`は同じrole、Material Domain、exact World Profileにcompatibleな`ToonFeatureRoleProfileV1`へexact解決する。`role_profile`側だけが参照先の対応するnormalまたはshadow source／texture roleへ展開し、もう一方のnon-`role_profile` sourceを上書きしない。`mesh_normal`／`engine_shadow`は対応texture roleを`none`、`authored_normal_map`／`bent_normal_map`はそれぞれ`normal`／`bent_normal`、`authored_mask`／`signed_distance_field`はそれぞれ`shadow_mask`／`signed_distance_field`を必須にする。texture roleはMaterial Instanceのtyped bindingへexact解決し、Asset名、channel名、filenameから補完しない。`ToonFeatureRoleProfileV1.profile_content_hash`はASCII `MIRAKAN_TOON_FEATURE_ROLE_PROFILE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。
+
+`physically_bounded`のdirect／indirect上限はともに1以下、`stylized_bounded`でも16以下である。全fixtureはregistered sweep domain上でnon-negative finite responseとこの上限を検査する。feature roleはuniqueであり、face／hair動作をAsset名またはtexture filenameから推測しない。fallbackはstrict priority、unique、transitively acyclicで、最初のcompatibleかつTarget-qualified refだけを選ぶ。候補がなければ`capability_unavailable`としてfailし、別styleへsilent substitutionしない。`profile_content_hash`はASCII `MIRAKAN_TOON_SHADING_PROFILE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。`ramp_content_hash`は同じ規約でdomain separatorを`MIRAKAN_TOON_RAMP_REF_V1`に置き換えて計算する。
+
+```text
+OutlineStyleProfileRefV1
+  profile_id: StableId
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+OutlineStyleProfileV1
+  profile_id: StableId
+  profile_version: positive uint32
+  compatible_world_space: WorldSpaceCompatibilityV1
+  technique_preference:
+    geometry_only | screen_space_only | hybrid_qualified | disabled
+  geometry_width_semantic: none | object_relative | world_meters
+  geometry_width_value: finite nonnegative value
+  screen_width_pixels: finite nonnegative value
+  depth_threshold: finite nonnegative value
+  normal_threshold: finite value in [0, 1]
+  color: LinearColor4f
+  occlusion_policy: visible_only | silhouette_and_crease | include_occluded
+  temporal_policy: no_history | stable_history_required
+  alpha_policy: respect_coverage | opaque_silhouette_only
+  required_capability_refs[0..16]: McdContractRefV1(kind=capability)
+  fallback_profile_refs[0..8]: OutlineStyleProfileRefV1
+  profile_content_hash: SHA-256
+```
+
+Outline Profileはstyle intentだけを持つ。`compatible_world_space`は再利用可能Profileの互換性だけを宣言し、scene dimensionまたはhybrid gameplay authorityを選択しない。Resolverはexact World Profileがこのconstraintを満たす場合だけ候補を評価する。`geometry_only`はnon-`none` geometry width、zero screen width／depth threshold／normal threshold、`no_history`を必須にする。`screen_space_only`は`geometry_width_semantic=none`、positive screen width、nonzero depthまたはnormal thresholdを、`hybrid_qualified`はnon-`none` geometry widthとpositive screen widthを、`disabled`は全width／threshold zero、`no_history`、empty Capability／fallback setを必須にする。fallbackはstrict priority、unique、acyclic、Target-qualifiedである。`profile_content_hash`はASCII `MIRAKAN_OUTLINE_STYLE_PROFILE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。ProfileはRender pass、resource、Backend objectを作らない。
 
 初期Core defaultは`style.art_direction.realistic@1 | style.art_direction.toon@1 | style.art_direction.pixel_2d@1 | style.art_direction.pixel_diorama@1`と`style.composition.native@1 | style.composition.crisp_sprite_over_high_res_3d@1 | style.composition.unified_low_resolution@1`のexact七entryであり、従来Profileの意味とfixtureを維持する開始値であってclosed上限ではない。Feature／Genre／Projectはwatercolor、voxel、technical visualization等のqualified semantic entryを追加できるが、名前だけでShading Model、Render pass、Camera、Post、VFX、UIを生成せず、Contributionのtyped constraintと`required_profile_role_refs[]`へ完全解決する。unknown／unqualified ref、axis mismatch、0件または複数の意味同等候補はBlocking questionまたはtyped rejectにし、`realistic`、`native`、近い表示名へ黙ってfallbackしない。
 
-旧open field `composition`と旧scalar field `art_direction`／`composition_variant`は新Profileで受理しない。Visual Styleの表現方向と2D／3D合成方式はqualified exact refだけが所有し、自由文字列、別名field、未登録variantを拒否する。実在する旧bytesを移行する場合はsource schema bytes／Owner／Named Algorithm／immutable fixtureを束縛した別の承認済みschema migrationを先にactivateし、旧valueまたは表示名だけで自動変換しない。
+旧open field `composition`と旧scalar field `art_direction`／`composition_variant`、`scene_dimension`、`gameplay_space`、`outline_profile_id`は新Profileで受理しない。Visual Styleの表現方向とpresentation composition方式はqualified exact semantic refだけが所有し、Worldの構造的空間選択はWorld Profileに委譲する。自由文字列、別名field、未登録variantを拒否する。実在する旧bytesを移行する場合はsource schema bytes／Owner／Named Algorithm／immutable fixtureを束縛した別の承認済みschema migrationを先にactivateし、旧valueまたは表示名だけで自動変換しない。
 
 `art_direction_ref = style.art_direction.pixel_2d@1`または`composition_variant_ref = style.composition.unified_low_resolution@1`の場合は正整数`reference_resolution`、1以上の`pixels_per_unit`、`not_applicable`以外のinteger scale policyを必須とする。`composition_variant_ref = style.composition.crisp_sprite_over_high_res_3d@1`は`reference_resolution = null`としてCamera Profileの出力解像度を使う。`world_texel_density`は`art_direction_ref = style.art_direction.pixel_diorama@1`でだけ必須で、`min_screen_pixel_ratio <= max_screen_pixel_ratio`、既定0.8～1.2とする。Camera変更時に`reference_distance_m`を暗黙更新しない。追加Contributionは同じ制約を名前から継承せず、自身の`constraint_schema_ref`で必要field、互換性、fallback禁止条件を宣言する。
 
@@ -149,7 +283,7 @@ Engine同梱Profileはimmutable templateである。Project変更時は全field�
 
 AI intent resolutionはsource request identity、Project revision、Catalog revision、resolved Material／Style refs、assumption／question、compatibility resultを束ねる。共通envelope fieldやhash表現は[Executable contracts](../02-foundation/executable-contracts.md)を参照し、本書はMaterial固有payloadの意味だけを決める。
 
-### 3.1 `MaterialSemanticCatalogV1`
+### 3.2 `MaterialSemanticCatalogV1`
 
 ```text
 MaterialSemanticCatalogV1
@@ -359,7 +493,7 @@ Qualificationは次のDomain fixtureを持つ。
 | 対象 | 必須Test |
 |---|---|
 | PBR | Khronos glTF Asset Generator／Sample Assets／Validator |
-| Toon | Sphere、顔、髪、透明髪、outline、Key／accent Light |
+| Toon／Outline | sphere、face、hair、transparent hair、eye、cloth、foliage、analytic band／ramp signal・filter・clamp・channel、Toon Feature Role Profileのrole／texture role／World compatibility、Key／fill／rim／accent Light、cast／receive shadow、energy cap、geometry-only／screen-space-only／hybrid-qualified／disabled outline、World Profile／Target fallback |
 | Pixel 2D | 720p、1080p、1440p、ultrawide、4Kのscale／letterbox |
 | Pixel Diorama | depth、occlusion、shadow coverage、Fog、DOF、Bloom、TAA分離 |
 | Visual Style Registry | 初期Core七entryの既存Profile／render hash golden、Genre Pack 0件のneutral Project、qualified `project.board_game.paper_cutout@1` contribution。unknown ref、未Qualification、axis違い、owner／hash stale、Core ID上書き、同一ID別hash、Pack未選択、display name／synonymだけの選択を各一原因で拒否 |

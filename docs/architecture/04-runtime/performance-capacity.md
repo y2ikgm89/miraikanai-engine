@@ -3,9 +3,9 @@
 - 文書ID: mirakan.arch.runtime-performance-capacity
 - 状態: review
 - 正本範囲: 共通CPU／GPU／memory／queue budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、`ProjectScaleEnvelopeV2`、owner-typed workload resolution、非破壊遷移、Qualification
-- 非正本範囲: Runtime phase／Simulation Advance／lifetime、World cell／coordinate field、LOD policy field、Authoring Document／ChangeSet field、Domain固有budget、外部Tool／SDK／driverの固定値、AI承認、Evidence envelope。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)、[Mobile common](../07-platform/mobile-common.md)
-- 外部根拠検証日: 2026-07-21
+- 非正本範囲: Runtime phase／Simulation Advance／lifetime、ECS storage／query／digest field、Runtime Package binary、Save／Replay record、World cell／coordinate field、LOD policy field、Authoring Document／ChangeSet field、Domain固有budget、外部Tool／SDK／driverの固定値、AI承認、Evidence envelope。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)、[Mobile common](../07-platform/mobile-common.md)
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論とauthority
 
@@ -189,6 +189,52 @@ Subsystem固有pass／Domain budgetは各Ownerが上表の内数として割り�
 
 `PostProcessBudgetEnvelopeV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、最低fieldとしてrevision、Target Profile ref、Post／Exposure pass groupの内数としてのGPU P95 cap、Post Process用persistent／transient byte上限を持つ。[Post Processing](../06-rendering/post-processing.md) §7のresolver入力はこのprojectionを消費し、field一覧を複写せず書き戻さない。Temporal reconstruction、frame generation、ray tracing等の追加経路はbase real frame、headroom、memory、visual、fault Gateを満たすTarget限定profileとし、generated frameをreal fpsへ加算して合格を作らない。
 
+`RendererBudgetEnvelopeV1`と`LightingBudgetEnvelopeV1`も本書がOwnerとして公開するread-only／revisioned projectionである。
+
+```text
+RendererBudgetEnvelopeV1
+  revision: positive uint64
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  quality_profile_ref:
+    exact {quality_profile_id, quality_profile_version, quality_profile_content_hash}
+  view_family_id: StableId
+  renderer_profile_ref:
+    exact {profile_id, profile_version, profile_content_hash}
+  gpu_p95_cap_us: finite nonnegative microseconds
+  gpu_p95_reserved_us: finite nonnegative microseconds
+  gpu_p95_remaining_us: derived cap - reserved
+  transient_byte_cap: uint64
+  transient_byte_reserved: uint64
+  transient_byte_remaining: derived cap - reserved
+  persistent_byte_cap: uint64
+  persistent_byte_reserved: uint64
+  persistent_byte_remaining: derived cap - reserved
+  content_hash: SHA-256
+
+LightingBudgetEnvelopeV1
+  revision: positive uint64
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  world_level_scope_hash: SHA-256
+  view_family_id: StableId
+  lighting_gpu_p95_cap_us: finite nonnegative microseconds
+  lighting_gpu_p95_reserved_us: finite nonnegative microseconds
+  lighting_gpu_p95_remaining_us: derived cap - reserved
+  shadow_gpu_p95_cap_us: finite nonnegative microseconds
+  shadow_gpu_p95_reserved_us: finite nonnegative microseconds
+  shadow_gpu_p95_remaining_us: derived cap - reserved
+  transient_byte_cap: uint64
+  transient_byte_reserved: uint64
+  transient_byte_remaining: derived cap - reserved
+  persistent_byte_cap: uint64
+  persistent_byte_reserved: uint64
+  persistent_byte_remaining: derived cap - reserved
+  content_hash: SHA-256
+```
+
+全remaining値は同じrevisionの`cap - reserved`から再計算し、負値、別Target／scope／View Familyの混在、stale reservationを拒否する。`content_hash`はそれぞれASCII `MIRAKAN_RENDERER_BUDGET_ENVELOPE_V1`、`MIRAKAN_LIGHTING_BUDGET_ENVELOPE_V1`と自己Fieldを除くlength-framed canonical bytesをSHA-256する。[Render Graph](../06-rendering/render-graph.md)のOutline resolverと[Lighting](../06-rendering/lighting.md)のIntent Resolverはこのprojectionをread-only inputとして消費し、field一覧を複写または書き戻さない。
+
 共通operation budgetはAudio callback P99 0.25 ms以下かつhard 1.00 ms未満、main／render thread activation slice soft 0.50 msかつhard 1.00 ms以下、warm-cache package start P95 soft 5.00 sかつhard 8.00 s、Scene reload P95 soft 2.00 sかつhard 3.00 sとする。
 
 ## 8. Measurement、regression、promotion
@@ -211,21 +257,210 @@ Contract / Budget
 
 reference measurementはdeterministic warm-up後、同じ入力traceの120秒runを5回実行し、各run P95のmedianを採り、同じbuildで10分soakを追加する。Scale qualificationは10分runを3回、Production enduranceは2時間runを追加する。Mobile／Platform固有Targetは実機baselineを使い、Emulator／Simulatorで代用しない。
 
-Windows reference environmentのReference hardware構成は次の2構成とし、本表が正本である。消費文書（[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Windows Platform](../07-platform/windows.md)等）は構成値を複写しない。
+Windows reference environmentのC0 Reference hardware構成は次の2構成とし、本表が正本である。A／BのGPU構成差だけを比較できるよう、CPU、memory、storage、firmware、power planはA／Bで同一SKU・同一設定にする。消費文書（[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Windows Platform](../07-platform/windows.md)等）は構成値を複写しない。
 
 | 項目 | 構成A | 構成B |
 |---|---|---|
 | GPU | NVIDIA GeForce RTX 3060 | AMD Radeon RX 6600 |
-| CPU世代／コア数 | 未固定 | 未固定 |
-| RAM容量 | 未固定 | 未固定 |
-| Storage | 未固定 | 未固定 |
-| GPU driver固定方針 | 未固定 | 未固定 |
+| CPU世代／コア数 | Intel Core i5-12400、6C／12T | Intel Core i5-12400、6C／12T |
+| RAM容量 | 32 GiB DDR4-3200、2×16 GiB dual channel | 32 GiB DDR4-3200、2×16 GiB dual channel |
+| Storage | 1 TB NVMe PCIe 3.0 ×4 | 1 TB NVMe PCIe 3.0 ×4 |
+| Display test topology | 2560×1440・100% single、3840×2160・200% single、両者を跨ぐmulti-monitor move／hot-unplug | 同左 |
+| Editor visual baseline | Dark、standard density、`editor_ui_scale=1.00`、Production Workspace／Reference 01 | 同左 |
+| GPU driver固定方針 | official WHQL packageをclean installし、package version／SHA-256／Authenticode publisher／install mode／power planをToolchain lockへ記録。自動更新を無効化し、変更時はreference profile versionを更新して再計測 | 同左 |
 
-未固定行は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のToolchain baseline追補ChangeSetでexact確定するまで`未固定`とし、当該項目の差に依存する比較・regression判定を承認しない。
+```text
+ReferenceHardwareProfileV1
+  profile_id
+  profile_version
+  qualification_state = characterization_only | locked
+  cpu_sku_stepping_ref
+  motherboard_bios_ref
+  memory_configuration_ref
+  storage_firmware_ref
+  monitor_topology_edid_ref
+  os_image_ref
+  gpu_device_ref
+  gpu_driver_package_ref
+  power_plan_ref
+  toolchain_profile_ref
+  profile_content_hash
+```
+
+`profile_content_hash`はASCII `MIRAKAN_REFERENCE_HARDWARE_PROFILE_V1`と、自己hash Fieldだけを除く全Fieldを宣言順、presence／count／length framing付きcanonical bytesへ直列化してSHA-256する。Refはprofile ID、version、content hashの三つを必須とし、logical IDだけ、GPU名、table row、latest versionを受理しない。
+
+構成A／Bのlogical identityはそれぞれ`profile.performance.windows-reference-a@1`、`profile.performance.windows-reference-b@1`とする。これは表示名やGPU family aliasではなく、CPU stepping、motherboard／BIOS、memory part／timing、storage firmware、monitor EDID、OS image、GPU／driver package、power plan、Toolchain profile refを持つ完成`ReferenceHardwareProfileV1`のID／versionである。現在のC0表から未確定Fieldを推測してcontent hashを作らず、全Fieldとhashがlockされるまでは両Profileを`characterization_only`とし、Reference Fixture materializationをblockして関連Capabilityを`not_activated`に保つ。完成Profileが存在するがCapability対象外の場合のManifest applicability `prohibited`と、Profile未完成を混同しない。UI／Runtime consumerは構成値を複写せず、この二refと完成hashだけを使う。
+
+Reference Fixtureのouter `EditorReferenceEnvironmentProfileV1.reference_hardware_profile_ref`はA／Bの完成Profile一件へ解決し、同Profileの`os_image_ref`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)がHost UI fontのresolved fileを得たCI OS imageとexact一致しなければならない。GPU driver package、monitor topology／EDID、power planはこのPerformance profileだけが所有し、Toolchainの`style_font_generation`またはfont／icon artifact hashへ複写しない。outer Environment Profile、Toolchain OS image、Performance profileの三者が一Fieldでも異なる場合は`infrastructure_error`としてcapture／comparisonを開始しない。これによりfont assetの失効とhardware／display driftを別generationとして保持し、相互hash cycleを作らない。
+
+### 8.1 Editor Reference 01 performance profile
+
+[Editor UI Framework §15.8.5](../03-authoring/editor-ui-framework.md#1585-comparison-profile-registry)の`comparison.editor.performance.absolute-and-regression@1`が消費するPerformance Owner artifactを次で閉じる。これはReference 01専用の計測定義であり、一般Game Runtime、Build、Importのworkloadへ流用しない。
+
+```text
+EditorReferencePerformanceWorkloadProfileV1
+  workload_profile_id
+  workload_profile_version
+  fixture_manifest_ref
+  fixture_manifest_hash
+  hardware_profile_refs[2]
+  hardware_profile_hashes[2]
+  setup_barrier_ref
+  setup_barrier_hash
+  operation_schedule_ref
+  operation_schedule_hash
+  auxiliary_corpus_ref optional
+  auxiliary_corpus_hash optional
+  expected_sample_family_set_ref
+  expected_sample_family_set_hash
+  workload_profile_content_hash
+
+EditorReferencePerformanceSamplePolicyV1
+  sample_policy_id
+  sample_policy_version
+  fresh_process_run_count
+  warmup_cycle_count
+  measured_duration_ns_per_run
+  scheduled_cycle_period_ns
+  percentile_method
+  required_soak_duration_ns
+  sample_policy_content_hash
+
+EditorReferencePerformanceThresholdSetV1
+  threshold_set_id
+  threshold_set_version
+  workload_profile_ref
+  workload_profile_hash
+  thresholds[1..32]:
+    metric_ref
+    statistic = p95 | peak | count
+    relation = less_than_or_equal
+    threshold_value
+    unit_ref
+  relative_regression_ppm_max
+  threshold_set_content_hash
+
+EditorReferencePerformanceAggregationV1
+  aggregation_id
+  aggregation_version
+  run_percentile = p95_nearest_rank
+  across_run_aggregation = median_odd_exact
+  hardware_aggregation = independent_all_pass
+  missing_sample_disposition = infrastructure_error
+  aggregation_content_hash
+
+EditorReferencePerformanceHarnessQualificationV1
+  qualification_id = qualification.editor.performance-harness
+  qualification_version
+  comparator_parameter_ref
+  comparator_parameter_hash
+  hardware_profile_refs[2]
+  hardware_profile_hashes[2]
+  workload_profile_refs[3]
+  workload_profile_hashes[3]
+  sample_policy_ref
+  sample_policy_hash
+  aggregation_ref
+  aggregation_hash
+  absolute_threshold_set_refs[3]
+  absolute_threshold_set_hashes[3]
+  soak_profile_ref
+  soak_profile_hash
+  characterization_result_refs[6]
+  characterization_result_hashes[6]
+  characterization_soak_result_refs[6]
+  characterization_soak_result_hashes[6]
+  verification_receipt_ref
+  verification_receipt_hash
+  result = pass | fail | infrastructure_error
+  qualification_content_hash
+
+EditorReferencePerformanceQualificationV1
+  qualification_id
+  qualification_version
+  comparison_profile_ref
+  comparison_profile_hash
+  hardware_profile_refs[2]
+  hardware_profile_hashes[2]
+  workload_result_refs[6]
+  workload_result_hashes[6]
+  soak_result_refs[6]
+  soak_result_hashes[6]
+  approved_baseline_refs[6]
+  approved_baseline_hashes[6]
+  verification_receipt_ref
+  verification_receipt_hash
+  result = pass | fail | infrastructure_error
+  qualification_content_hash
+```
+
+`sample.editor.ref01.five-by-120s@1`はfresh process五run、各runのtyped setup barrier後にwarm-up十cycleを捨て、120秒を測定し、cycle periodをreal monotonic clockのexact 2秒とする。operationが次periodまでにterminal barrierへ到達しない場合はsampleを欠測へせず、そのoperation latencyを記録した上でrunをfailする。Performance計測はvirtual clockから値を作らず、virtual clockはVisual／Motion stateを固定するためだけに使う。各fresh processは同じCandidate、Contract set、Toolchain lock、hardware profile、OS imageから開始し、run間cacheまたはprocessを流用しない。
+
+##### Windows high-resolution measurement clock
+
+`target.windows.editor`のPerformance Harnessはinterval sourceをWin32 `QueryPerformanceCounter`（QPC）へ固定し、process初期化時に`QueryPerformanceFrequency`を一回だけ取得・cacheする。各measured operationは同じdesignated Harness threadでbarrierの受信後にstart／endを採取し、Evidenceに`clock_source=win32_qpc`、`qpc_frequency_hz`、`start_qpc_tick`、`end_qpc_tick`、checked `delta_qpc_tick`を必須保存する。durationは`{delta_qpc_tick, qpc_frequency_hz}`のexact rationalとして保持し、threshold／aggregate比較はchecked integer演算で行う。float、丸め済みms、wall clock、message timestamp、animation／virtual clockをthreshold入力へ使わない。raw tick値はsystem bootをまたいで比較せず、同じratioへ正規化したdurationだけを比較する。
+
+barrierの順序はproducer threadがHarness threadへsignalし、Harnessが自身のQPC採取点で確定する。異threadで採ったQPC値の±1 tick以内の前後関係からbarrier順序を推論しない。`QueryPerformanceCounter`／`QueryPerformanceFrequency`の失敗、frequency=0、`end_qpc_tick <= start_qpc_tick`、checked subtraction／rational comparisonのoverflow、clock evidence mismatchは`infrastructure_error`であり、0、直前sample、別clockへ置換しない。`RDTSC`／`RDTSCP`、thread-affinity pinning、他machineのtimestampをこの計測または順序決定に使わない。
+
+この規則はMicrosoftの[QueryPerformanceCounter](https://learn.microsoft.com/windows/win32/api/profileapi/nf-profileapi-queryperformancecounter)、[QueryPerformanceFrequency](https://learn.microsoft.com/windows/win32/api/profileapi/nf-profileapi-queryperformancefrequency)、[Acquiring high-resolution time stamps](https://learn.microsoft.com/windows/win32/sysinfo/acquiring-high-resolution-time-stamps)に従う。QPC frequencyがboot中固定であること、変換を遅らせること、異thread timestampの微小な順序不確実性を、このEvidence contractで明示的に吸収する。
+
+`aggregate.editor.ref01.median-of-five-p95@1`は各runのwarm-up後sampleを昇順にし、P95をnearest-rank `ceil(0.95 × N)`で選ぶ。五runのP95を昇順にした三番目を最終値とする。A／Bのsampleは別集合で同じ処理を行い、平均、best hardware、closest baselineで統合しない。五run未満、required metric欠測、NaN、infinite、negative duration、counter overflow、hardware／environment driftは`infrastructure_error`であり、0または直前値で補わない。
+
+`qualification.editor.performance-harness@1`はComparison Profileをback-referenceせず、`parameter.editor.performance.absolute-and-regression@1`、A／B hardware、三Workload、sample、aggregation、三absolute Threshold Set、soakへ直接閉じる。A／B×三workloadのexact六characterization runと六soakがabsolute threshold、sample completeness、deterministic aggregation、run間repeatabilityをpassする場合だけ`result=pass`とする。relative regressionは未承認Baselineが存在しないためこのQualificationでは評価せず、0%差またはpassとして捏造しない。このbaseline非依存Qualificationが完成した後にだけComparison Profile RegistryとInitial Baseline Execution Definitionをmaterializeできる。
+
+Exact workloadは次の三件である。
+
+| workload profile | setup後の120秒schedule | auxiliary corpus |
+|---|---|---|
+| `workload.editor.ref01.open@1` | 下Dockのactive tabをProblems↔Consoleへ2秒ごとに切替、60 measured cycle。各Panel activationからterminal layout／present barrierまでをsampleにし、60回後はProblems activeへ戻す。Asset load時間を含めない | なし |
+| `workload.editor.ref01.steady-state@1` | B選択→A選択、Inspector position.x preview `12.500→13.000 m`→cancel、Dock preview→cancelを2秒ごとに一cycle、60 measured cycle。各cycle末にrevision 42、root、selection／focus A、Workspace不変へ戻す | なし |
+| `workload.editor.ref01.capacity@1` | 偶数cycleは100万Outliner corpusのfilter clear→exact query→initial result、奇数cycleは10万Asset corpusのsearch clear→exact query→initial result。各30 measured sample | `corpus.editor.ref01.capacity@1` |
+
+`corpus.editor.ref01.capacity@1`はfixture seed `2026072501`から事前materializeするimmutable artifactで、exact 1,000,000 Outliner projection recordと100,000 Asset index recordを持つ。record ID、parent、display name、type、tag、search token、expected match setをartifactに保存し、run時の乱数生成、User Project、filesystem scan、network、thumbnail decodeを含めない。Outliner queryはexact 10,000 match、Asset queryはexact 1,000 matchを返し、初期result barrierは最初のvirtualized viewport＋total count＋continuation tokenが同じgenerationでpublishされた時点とする。corpus ref/hash、query ref/hash、expected match-set ref/hashの一件でも未解決ならcapacity workloadを開始しない。
+
+Absolute threshold setは既存UI budgetを次のexact profileへ束縛する。
+
+| threshold set | required metric／final statistic | threshold |
+|---|---|---:|
+| `threshold.editor.ref01.open@1` | Workspace／Panel open latency P95 | `<= 200.00 ms` |
+| 同上 | Full Window layout＋packet CPU P95 | `<= 8.00 ms` |
+| 同上 | UI GPU pass P95 | `<= 1.00 ms` |
+| 同上 | UI thread blocking task `> 50.00 ms` count | `0` |
+| `threshold.editor.ref01.steady-state@1` | Idle UI frame P95 | `<= 16.67 ms` |
+| 同上 | Input→visual response P95 | `<= 50.00 ms` |
+| 同上 | Inspector continuous preview frame P95 | `<= 16.67 ms` |
+| 同上 | dirty subtree event＋style＋layout＋packet CPU P95 | `<= 4.00 ms` |
+| 同上 | UI GPU pass P95 | `<= 1.00 ms` |
+| 同上 | UI thread blocking task `> 50.00 ms` count | `0` |
+| `threshold.editor.ref01.capacity@1` | 100万Entity filtered Outliner initial result P95 | `<= 500.00 ms` |
+| 同上 | 10万Asset search initial result P95 | `<= 200.00 ms` |
+| 同上 | EditorHost＋同時に一つのGameHost aggregate memory peak | `<= target.windows.editor process-group soft budget` |
+| 同上 | UI thread blocking task `> 50.00 ms` count | `0` |
+
+各Threshold Setの`relative_regression_ppm_max=50,000`とし、同じhardware／workload／metricのapproved baselineに対してlatency、memory peak、allocation countのいずれも5%超悪化を許さない。絶対値とrelative guardはANDであり、baselineが遅いことを絶対値違反の免除にせず、絶対値内であっても5%超regressionをpassにしない。count threshold `0`はrelative計算をせず一件でfailする。
+
+五runとは別に、A／Bごとにfresh process一件でwarm-up十cycle後に開始する`soak.editor.ref01.ten-minute@1`は同じworkload scheduleを10分継続し、連続する各120秒windowへ同じabsolute thresholdを適用する。process crash、device／provider generation loss、required metric gap、process-group soft budget超過のいずれか一件でfailし、soak sampleを五runのP95へ混ぜない。Performance passはperformance oracleだけの結果であり、Project root、Semantic、Visual、UIA、Commandのcorrectness passを内包または代用しない。
+
+`qualification.editor.performance-reference@1`はA／B×三workloadのexact六workload result、exact六soak result、exact六approved baselineを持ち、全absolute thresholdとrelative regressionがpass、同じCandidate／Contract／Toolchain、current `VerificationReceiptV1`に閉じる場合だけpassにする。六`approved_baseline_refs/hashes`は[Editor Workspace UX §6.9.1](../03-authoring/editor-workspace-ux.md#691-fixtureeditorreference-011-concrete-manifest)のG00 open A／B、G01 steady-state A／B、G08 capacity A／Bの六Performance coverage entryと一対一に対応し、[Editor UI Framework §15.8.6](../03-authoring/editor-ui-framework.md#1586-baseline-changeevidence-bundle署名)のcurrent Baseline Registry Publicationにあるexpected subject ref/hashだけを受理する。手入力の数値、直前run、threshold file、`latest` artifactをapproved baselineへ読み替えない。三Workload Profile、capacity corpus、setup／terminal barrier、sample、aggregation、三Threshold Set、soak、A／B approved baselineの全ref/hashが同じContract setで解決するまで通常Performance resultをpassにしない。現時点でA／B hardware profileが`characterization_only`である間はHarness Qualification、Comparison Profile Registry、Initial Baseline Execution Definitionをmaterializeせず、数値表を実測Receiptへ読み替えず、関連Capabilityを`not_activated`に保つ。
+
+上表はC0の構成選択であり、C1 performance qualificationではない。CPU stepping、motherboard／BIOS、memory part／timing、storage firmware、monitor EDID、driver package version／hash、OS imageを[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)の`target.windows.editor` profileへexactに束縛するまで、結果はcharacterizationだけとし比較・regression判定を承認しない。GPU差をCPU、memory、display、driver driftで説明したり補正したりしない。
 
 新しい高速経路は同一fixtureでP95を5%以上かつ0.20 ms以上改善し、memory peak／allocation countを5%超悪化させず、correctness、visual／audio、fault、startup／hitchのhard Gateを悪化させない場合だけ既定候補へ昇格する。baseline比のframe P95またはmemory peak／allocation countが5%超悪化した変更をregressionとする。
 
 Baseline緩和は最適化と別Reviewとし、過去run分布、旧／新値、原因、quality差、下流Capability影響、[AI Security／Approval](../01-governance/ai-security-approval.md)の人間承認を必要とする。Evidence／Receipt構造、Provenance、保持、freshnessは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが決定する。
+
+### 8.2 Pointer／Memory qualification profile
+
+[Memory／Pointers](../02-foundation/memory-pointers.md)は型、所有権、allocation policy、telemetry fieldを所有し、本節はそれを性能Evidenceへ束縛する。`requirement.foundation.memory-pointer-contract`のbaselineは、同じCandidate、Contract Set、Toolchain lock、Target Profile、input traceで次を個別metricとして採取する。
+
+- handle resolveのP50／P95／P99、success／stale／invalid count、retire backlog。
+- lease validation latencyとexpired／range／thread-affinity rejection count。
+- hot path allocation count、一般upstream fallback試行数、arena high-water／reset、pool reuse／contention／internal fragmentation。
+- domainごとのcurrent／peak／budget、allocation／free count、OOMとfailure injectionの結果。
+
+hot pathの一般heap fallbackはcount 0をhard predicateとし、unsupported Targetのhardware counter、sanitizer実行、別hardwareの測定値で代用しない。cache miss、branch miss、memory bandwidth等のhardware counterは、Target Profileが対応し同一fixtureで再現可能な場合だけ診断用の補助Evidenceにする。sanitizer laneはmemory safetyの証拠であり、通常performance baselineまたはShipping throughputの測定値として混在させない。
+
+絶対latency値はReference Hardware Profileがlockedになるまで推測で固定しない。Phase 0では同一Targetのfresh baselineとの差、hot path fallback 0、metric completeness、correctness／negative fixtureの全てを満たすことを要求し、後続のTarget qualificationでProfile別のabsolute／regression thresholdへ束縛する。Memory／PointersにないECS layout、GPU residency、Audio callback固有budgetは各Ownerが本書のmetric familyを参照して決定し、ここで再定義しない。
 
 ## 9. Owner-typed workload scale modelと`ProjectScaleEnvelopeV2`
 
@@ -967,7 +1202,7 @@ ProviderへProject Commit、Plan write、Capability activation、baseline緩和�
 
 禁止する変更は、Large専用owner typeへのSource一括変換、Medium／Large別Save fork、cell／shard／build／server IDの混同、HLOD／GPU instanceのSave authoritative record化、unqualified planのProduction表示、Medium fallback削除、性能のための無承認authoritative semantics変更である。
 
-同じSource revisionとinput traceに対するMedium／Large planは、Save field／Stable ID、Input→Command→Event順序、registered runtime-entry／transition outcomeを一致させる。authoritative stateの同値Gateは二層とする。(a) 両planでSimulation LODを適用しないfull fidelity対象entityは、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)の`RuntimeAuthoritativeWorldDigestV1`が定めるSimulation Advance publish boundaryで採取したentity state hashと、当該entityへ帰属するdeterministic random stream消費を同一`advance_sequence`で一致させる。(b) いずれかのplanでSimulation LODを適用するentityは、[LOD](../06-rendering/lod.md)の`authoritative_equivalence_contract`と`reference_fixture_id`により、active owner schema registryが定めるauthoritative state／event outcome、registered collision／navigation evidence、wake後のstate収束をsemantic同値として判定する。full fidelity対象集合は両planのSimulation LOD適用集合の補集合として決定的に導出し、runごとに変えない。Presentation bitwise一致は不要でも、visual／audio tolerance、critical cue、event timing、fallback Gateを満たす。
+同じSource revisionとinput traceに対するMedium／Large planは、Save field／Stable ID、Input→Command→Event順序、registered runtime-entry／transition outcomeを一致させる。authoritative stateの同値Gateは二層とする。(a) 両planでSimulation LODを適用しないfull fidelity対象entityは、[Persistence／Save](persistence-save.md)の`RuntimeAuthoritativeStateDigestV1`が定めるsealed World publicationで採取したentity projection hashと、当該entityへ帰属するdeterministic random stream消費を同一`advance_sequence`で一致させる。(b) いずれかのplanでSimulation LODを適用するentityは、[LOD](../06-rendering/lod.md)の`authoritative_equivalence_contract`と`reference_fixture_id`により、active owner schema registryが定めるauthoritative state／event outcome、registered collision／navigation evidence、wake後のstate収束をsemantic同値として判定する。full fidelity対象集合は両planのSimulation LOD適用集合の補集合として決定的に導出し、runごとに変えない。Presentation bitwise一致は不要でも、visual／audio tolerance、critical cue、event timing、fallback Gateを満たす。
 
 Large World coordinate、continuous streaming、partition-owned multi-writer、distributed build、distributed simulation／authorityは専用Owner仕様がactivationされるまで`not_activated`である。現在のbounded Sourceへ空Manager、server field、RPC、global double座標を先回り追加しない。要求された場合は明示Diagnosticでfail closedする。
 

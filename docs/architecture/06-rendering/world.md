@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: World／Scene／Spaceのsource identity、global composition、persistent entity、optional spatial topology、Cellのplan-local identity、partition／streaming-plan authoring、spatial transition／Loading presentation、Tilemap、Engine-native Blockout、procedural source、Map要求resolution
 - 非正本範囲: consumer-owned Gameplay progression、Runtime cell phase／shared capacity、ECS／Gameplay component schema、Physics／Navigation behavior、Render／LOD execution、Asset transaction、Save／Replay envelope、AI authorizationは各Ownerを参照
-- 依存: [Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)
 - 外部根拠検証日: 2026-07-23
 
 ## 1. 結論と所有境界
@@ -13,7 +13,7 @@ Worldは空間、Scene、global composition、persistent entity、任意のspati
 
 World activation、Scene activation、Cell streamingはGameplay goalやResultを要求しない。Scene 0件のprocedural-only World、spatial topologyなしのUI補助World、有限Gameplay進行を持たないcontinuous simulationをvalidとする。
 
-AI、Editor、Project C++はSource Documentとtyped change primitiveを扱い、Runtime cell object、ECS pointer、Renderer resource、Physics／Navigation native handleを直接保存しない。cell activation state／phase／lifetimeはRuntime、capacity／backpressureはPerformance、representation selectionはLODが所有する。
+AI、Editor、Project C++はSource Documentとtyped change primitiveを扱い、Runtime cell object、ECS pointer、Renderer resource、Physics／Navigation native handleを直接保存しない。cell activation state／phase／lifetimeはRuntime、capacity／backpressureはPerformance、representation selectionはLODが所有する。Cell descriptor、temporary Artifact、streaming request／leaseは[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingを使い、Worldはsource identityとspatial／activation意図だけを所有する。
 
 ## 2. 正規用語とidentity
 
@@ -73,13 +73,41 @@ MapIntentResolutionV1
 ```text
 WorldDocumentV1
   world_id
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
   scene_document_refs[0..65535]
   global_composition_refs[]
   persistent_entity_refs[]
   spatial_topology_definition_ref: SpatialTopologyDefinitionV1 | null
 ```
 
-`scene_document_refs[]`は0件を許可し、procedural-only Worldをvalidとする。`spatial_topology_definition_ref`は0または1件であり、Gameplay progressionを暗黙生成しない。WorldへAsset binary、Navigation mesh、HLOD mesh、Streaming payload、C++ source、Vendor objectを埋め込まない。
+```text
+WorldSpaceProfileV1
+  profile_id: StableId
+  profile_version: positive uint32
+  scene_dimension: two_d | three_d | hybrid
+  hybrid_gameplay_space: two_d | three_d
+    | canonical omission unless scene_dimension=hybrid
+  required_capability_refs[0..32]: McdContractRefV1(kind=capability)
+  profile_content_hash: SHA-256
+
+WorldSpaceProfileRefV1
+  profile_id: StableId
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+WorldSpaceCompatibilityV1
+  supported_scene_dimensions[0..3]:
+    unique subset of {two_d, three_d, hybrid}
+  supported_hybrid_gameplay_spaces[0..2]:
+    unique subset of {two_d, three_d}
+  supports_non_spatial: bool
+```
+
+`WorldDocumentV1`はnon-null exact `world_space_profile_ref`を厳密に一件持ち、Worldのauthoritative spatial modeはその`WorldSpaceProfileV1`だけが一意に所有する。`two_d`と`three_d`は同じdimensionのGameplay／Physics／Navigation意味を選ぶ。`hybrid`は2D／3D presentationを混在できるが、`hybrid_gameplay_space`で指定する一方だけをauthoritative gameplay spaceとし、同一World内で二つのPhysicsまたはNavigation authorityを作らない。真に二authorityを接続する要求は別Worldと明示的cross-World bridge contractを必要とし、本書の`hybrid`で近似しない。
+
+`profile_content_hash`はASCII `MIRAKAN_WORLD_SPACE_PROFILE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。配列はclosed enum ordinal順へstrict sortし、duplicateを拒否する。`supported_hybrid_gameplay_spaces[]`は`hybrid`非対応時にempty、dimension集合と`supports_non_spatial`がともにempty／falseの互換Profileはinvalidである。World Profileが`WorldSpaceCompatibilityV1`を満たすのは、`scene_dimension`が`supported_scene_dimensions[]`に含まれ、かつhybrid時は`hybrid_gameplay_space`も`supported_hybrid_gameplay_spaces[]`に含まれる場合だけである。World不要のconsumerは`supports_non_spatial=true`だけを根拠にでき、Worldを参照するconsumerはそれをspatial compatibilityの代用にしない。座標handedness、axis、unit、angle、matrix規約は[Math／Core utilities](../02-foundation/math-core.md)が所有し、World Profileで変更できない。
+
+`scene_document_refs[]`は0件を許可し、procedural-only Worldをvalidとする。`spatial_topology_definition_ref`は0または1件であり、Gameplay progressionを暗黙生成しない。WorldへAsset binary、Navigation mesh、HLOD mesh、Streaming payload、C++ source、Vendor objectを埋め込まない。UI-only／headless Runtime Entryは[Project state](../03-authoring/project-state.md)のbranch ruleによりWorldを参照しないため、`WorldSpaceProfileV1`も要求しない。
 
 `SceneDocumentV1`は`scene_id`、optional `document_bounds`、`entity_refs[0..1048576]`、`space_membership_refs[]`、`layer_refs[]`、`source_dependency_refs[]`、`edit_ownership`を持つ。Scene境界はRuntime streaming境界を強制せず、Cookerは複数Sceneを一Cellへまとめることも一Sceneを複数Cellへ分割することもできる。
 
@@ -103,13 +131,13 @@ entryから到達不能なSpaceは`intentionally_isolated=true`を必須にす�
 
 ## 6. Spatial Partitionとstreaming-plan authoring
 
-`SpatialPartitionIntentV1`はCreatorが編集するSourceであり、`partition_intent_id`、厳密に1件の`world_ref`、`spatial_dimension: 2d | 3d`、`interest_source_contract_refs[1..128]`、physical unitとhysteresisを明示する`activation_radius_policy`、together／separate Stable ID set、1～128件のtyped ordered `priority_rules`、0～4,096件の`always_resident_refs`、Stable Entity／Layer／Sceneの`streamable_refs`、Targetごとに厳密に1件の`target_budget_refs`、typed `failure_policy`を持つ。Cell size、chunk file名、GPU heap offset、Backend page IDをSource Intentへ固定しない。
+`SpatialPartitionIntentV1`はCreatorが編集するSourceであり、`partition_intent_id`、厳密に1件の`world_ref`、そのWorldが持つexact `world_space_profile_ref`、`interest_source_contract_refs[1..128]`、physical unitとhysteresisを明示する`activation_radius_policy`、together／separate Stable ID set、1～128件のtyped ordered `priority_rules`、0～4,096件の`always_resident_refs`、Stable Entity／Layer／Sceneの`streamable_refs`、Targetごとに厳密に1件の`target_budget_refs`、typed `failure_policy`を持つ。独立した`spatial_dimension` fieldを持たない。Cell size、chunk file名、GPU heap offset、Backend page IDをSource Intentへ固定しない。
 
 各`interest_source_contract_ref`はowner登録済みのtyped contractへexactに解決し、observer、entity、camera、portal observer、scripted anchor、simulation agent等を提供できる。Player／Party／Characterをclosed enumまたは必須sourceにせず、unknown、duplicate、owner unavailable／removed、dimension不一致を`MIRAKAN-WORLD-PARTITION_INVALID`で拒否する。Runtimeはcontractが返すgeneration付きposition／bounds／priorityだけを消費し、owner stateをWorldへ複写しない。
 
-`WorldStreamingPlanV1`はCookerが生成するDerived Artifactであり、Editor／AIは直接編集しない。fieldは`plan_id`、`source_world_revision`、`contract_set_hash`、`target_profile_id`、`toolchain_manifest_hash`、`partition_intent_hash`、`cell_descriptors[]`、`dependency_edges[]`、`activation_groups[]`、`residency_budget`、`canonical_priority_order`、`fallback_plan_ref`、`artifact_hash`である。`residency_budget`の定義と解決値はRuntime capacity ownerを参照する。
+`WorldStreamingPlanV1`はCookerが生成するDerived Artifactであり、Editor／AIは直接編集しない。fieldは`plan_id`、`source_world_revision`、exact `world_space_profile_ref`、`resolved_scene_dimension`、`resolved_hybrid_gameplay_space`（hybrid時だけ）、`contract_set_hash`、`target_profile_id`、`toolchain_manifest_hash`、`partition_intent_hash`、`cell_descriptors[]`、`dependency_edges[]`、`activation_groups[]`、`residency_budget`、`canonical_priority_order`、`fallback_plan_ref`、`artifact_hash`である。resolved fieldは同じexact Profile refからCookerが再計算するcacheable execution projectionであり、Source authorityではない。`residency_budget`の定義と解決値はRuntime capacity ownerを参照する。
 
-`plan_id`は`SHA-256("mirakan.world_streaming_plan.v1" || source_world_revision || contract_set_hash || target_profile_id || toolchain_manifest_hash || partition_intent_hash)`で生成する32 byte `DerivedPlanId`である。`artifact_hash`はcanonical Plan bytesのSHA-256であり、`plan_id`と置換しない。`fallback_plan_ref`はexact `{plan_id, artifact_hash}`を使う。
+`plan_id`は`SHA-256("mirakan.world_streaming_plan.v1" || source_world_revision || world_space_profile_ref.profile_id || world_space_profile_ref.profile_version || world_space_profile_ref.profile_content_hash || contract_set_hash || target_profile_id || toolchain_manifest_hash || partition_intent_hash)`で生成する32 byte `DerivedPlanId`である。`artifact_hash`はcanonical Plan bytesのSHA-256であり、`plan_id`と置換しない。`fallback_plan_ref`はexact `{plan_id, artifact_hash}`を使う。
 
 `CellDescriptorV1`を次へ固定する。CellのSource Stable IDを新設せず、Plan-local IDとSource identityを分離する。
 
@@ -117,7 +145,7 @@ entryから到達不能なSpaceは`intentionally_isolated=true`を必須にす�
 |---|---|
 | `cell_id` | Plan内canonical orderから1..Nを割り当てる`uint32`。0 invalid、Source identity／Save／別Plan比較へ使用しない |
 | `source_refs` | Entity／Scene／Layer／Spaceのexact Stable ref、1～1,048,576件 |
-| `bounds` | finite 2D AABBまたは3D AABB |
+| `bounds` | exact World Space Profileから導くfinite 2D AABBまたは3D AABB |
 | `cpu_bytes`／`gpu_bytes`／`asset_bytes` | 各`uint64`、実Artifact size |
 | `physics_bytes`／`navigation_bytes` | 各`uint64` |
 | `hard_dependency_cell_refs` | 0～4,096件、Plan全体でDAG |
