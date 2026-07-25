@@ -11,6 +11,8 @@
 ## Global Constraints
 
 - Normative design: `docs/superpowers/specs/2026-07-26-data-oriented-runtime-optimization-design.md`.
+- Orchestration entry:
+  `docs/superpowers/plans/2026-07-26-data-oriented-runtime-optimization-master-plan.md`.
 - Prerequisite before Task 0:
   `docs/superpowers/plans/2026-07-26-foundation-value-memory-contract-plan.md`.
 - Prerequisite before Task 2:

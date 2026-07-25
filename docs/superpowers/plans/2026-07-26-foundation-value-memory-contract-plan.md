@@ -11,6 +11,8 @@
 ## Global Constraints
 
 - Normative design: `docs/superpowers/specs/2026-07-26-data-oriented-runtime-optimization-design.md`.
+- Orchestration entry:
+  `docs/superpowers/plans/2026-07-26-data-oriented-runtime-optimization-master-plan.md`.
 - Execution requires an isolated worktree or an explicitly approved baseline in
   which every file listed by this plan is tracked and clean. The current
   workspace contains pre-existing Architecture edits; do not absorb them into

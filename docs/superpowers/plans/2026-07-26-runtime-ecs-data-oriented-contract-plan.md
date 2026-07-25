@@ -11,6 +11,8 @@
 ## Global Constraints
 
 - Normative design: `docs/superpowers/specs/2026-07-26-data-oriented-runtime-optimization-design.md`.
+- Orchestration entry:
+  `docs/superpowers/plans/2026-07-26-data-oriented-runtime-optimization-master-plan.md`.
 - Prerequisites:
   - complete `docs/superpowers/plans/2026-07-26-foundation-value-memory-contract-plan.md`;
   - complete Task 1 of `docs/superpowers/plans/2026-07-26-product-qualification-clean-break-plan.md` so the Performance-owned profile and metric literals exist before Runtime consumers bind them.
