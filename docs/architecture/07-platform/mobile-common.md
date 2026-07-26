@@ -190,7 +190,7 @@ AI／Editorはmethod名を直接推測せず`AntiAliasingIntentV1`を入力し�
 
 ### 5.5 Mobile texture Cook
 
-[Asset lifecycle](../03-authoring/asset-lifecycle.md)のcanonical `DerivedArtifactManifest`とCook／promotion transactionを使用する。Mobile textureのTarget artifact projectionは次の7 fieldを必須とし、新しいgeneric Asset manifest aliasを作らない。
+[Asset lifecycle](../03-authoring/asset-lifecycle.md)のcanonical `DerivedArtifactManifestV1`とCook／promotion transactionを使用する。Mobile textureは`ArtifactSubjectRefV1.kind = asset`だけを対象とし、Target artifact projectionは次の7 fieldを必須とする。新しいgeneric Asset manifest aliasを作らない。
 
 ```text
 width

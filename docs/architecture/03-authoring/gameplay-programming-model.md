@@ -3,13 +3,13 @@
 - 文書ID: mirakan.arch.gameplay-programming-model
 - 状態: review
 - 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV2、State owner、typed Command／Event／Snapshot Port、Perception／Interaction contract、Interaction Space Semantic Registry、Project-defined System、AI実装Plan、Contract codegen、SystemBundleChangeSetV1、実装Variantの検証／Promotion
-- 非正本範囲: Native ABI／entry／lifecycle／Target link／Build identity／Packaging、Project transaction、共有Schema基盤、Runtime scheduling／共通budget、外部Tool・SDK・Libraryの固定値、Navigation query／Character Motor／Project固有Interaction結果。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Native game module](native-game-module.md)
+- 非正本範囲: Native ABI／entry／lifecycle／Target link／Build identity／Packaging、Project transaction、共有Schema基盤、Runtime ECS Entity／Component schema・storage・query・access manifest、Runtime scheduling／共通budget、外部Tool・SDK・Libraryの固定値、Navigation query／Character Motor／Project固有Interaction結果。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Native game module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
 - 外部根拠検証日: 2026-07-21
 
 Miraikanai Engineは、CPU上のEngine／Game実行codeをC++とし、調整頻度の高い挙動と内容を検証可能な構造化`GameplayDefinition`としてAuthoringする。Game Systemは契約固定・実装開放型であり、同じ`GameSystemSpecV2`に対してGameplayDefinition、bounded Project C++、hybrid、Target-specialized setを選べる。
 
-自由にするのはGenre、Core loop、System構成、Algorithm、2D／3D表現である。固定するのはPublic System Contract、State owner、typed Port、lifecycle、Save／Replay意味、Target、Budget参照、Test、failure、fallbackである。Game制作でEngine core、Engine Adapter、署名済みExtensionを変更経路に含めない。公開Capabilityで実現不能な要求は`capability_unavailable`で停止する。
+自由にするのはGenre、Core loop、System構成、Algorithm、2D／3D表現である。固定するのはPublic System Contract、State owner、typed Port、lifecycle、Save／Replay意味、Target、Budget参照、Test、failure、fallbackである。Game制作でEngine core、Engine Adapter、署名済みExtensionを変更経路に含めない。公開Capabilityで実現不能な要求は`capability_unavailable`で停止する。GameplayDefinitionとProject C++のPortは[Memory／Pointers](../02-foundation/memory-pointers.md)のsafe API／bindingを消費し、live pointer、lease、native object、allocatorを公開・保存・async captureしない。
 
 ## 1. 構造化dataとC++のdecision matrix
 
@@ -458,7 +458,7 @@ OwnerIdentityRegistryRefV1
 
 Owner revision不変条件は全Ownerへ一律に適用する。全retained Registry revisionで同じ`{owner_id, owner_revision}`を持つ完成`OwnerIdentityRecordV1` bytesと`owner_record_content_hash`はbyte-identicalでなければならない。current Registryは各`owner_id`にexact一つのselected revisionだけを持ち、同じowner IDの複数revision併存を拒否する。`owner_layer`、`authority_source`のbranchまたは値、`status`を一Fieldでも変更する場合は同じ`owner_id`の`owner_revision`をexact `N+1`へ進め、新Owner record、新Owner Registry root、新Foundation Definition Closureを発行する。同じID／revisionのin-place更新、revision飛越し、旧revision再利用、authorityをowner ID prefixから補完することを拒否する。状態遷移は`active -> deprecated -> removed`だけを許可し、逆行には新Owner IDと明示migrationを要求する。retained Project、Save、Replay、Receipt、Diagnostic、Contract setが参照する旧revisionはその旧Registry root／Foundation Closureと共に保持し、current Registryへ旧rowを併存させずselected revisionだけを新revisionへ移す。
 
-Registry row集合またはrecord bytesが変わる場合だけ`registry_version`をexact `N+1`へ進め、同じRegistry versionで別root、同一bytesの不要なversion増加、複数current rootを拒否する。Registry version更新、Owner revision更新、Contract set／Diagnostic／Game System側のowner ref移行、Foundation Definition Closure更新は一つの承認済みdefinition migrationでset equalityを満たす。Owner recordだけ、aliasだけ、説明文だけを先行current化しない。
+Registry row集合またはrecord bytesが変わる場合だけ`registry_version`をexact `N+1`へ進め、同じRegistry versionで別root、同一bytesの不要なversion増加、複数current rootを拒否する。Registry version更新、Owner revision更新、Contract set／Diagnostic／Game System側のowner ref移行、Foundation Definition Closure更新は、[Architecture Governance](../01-governance/architecture-governance.md#33-definition-migration-binding)のOwner reference migration manifest、Compatibility Consumer Inventory、Compatibility Change、全Evidence Requirementのpass satisfaction binding、Definition Migration bindingを含む一つの承認済みdefinition migrationでset equalityを満たす。Owner recordだけ、aliasだけ、説明文だけを先行current化しない。
 
 current初期Registryは`registry_version=1`、`record_count=17`で、全rowが`owner_revision=1`、`status=active`、`authority_source=architecture_document`の次のexact集合である。
 
@@ -482,7 +482,7 @@ current初期Registryは`registry_version=1`、`record_count=17`で、全rowが`
 | `owner.feature.scoring` | `feature_pack` | `mirakan.arch.pack-gameplay-features` |
 | `owner.genre.shooter` | `genre_pack` | `mirakan.arch.pack-shooter` |
 
-`owner.core.runtime_ecs`のcurrent authority sourceは本書である。将来、承認済みの専用ECS Architecture文書へauthorityを移す場合も上記の一般規則どおり同じOwner IDの`owner_revision`をexact `N+1`へ進め、新Owner record／Registry root／Foundation Definition Closureを発行する。document path変更や表示名変更だけで既存revisionのauthority sourceをin-place更新しない。
+`owner.core.runtime_ecs`のcurrent authority sourceは本書のrevision 1である。target authority documentは[Runtime ECS](../04-runtime/entity-component-system.md)のrevision 2であり、移管条件、対象concept、complete Consumer Inventory、Compatibility Change、Owner reference migration manifest、全Evidence Requirementのpass satisfaction binding、Definition Migration binding、approvalは[Architecture Governance](../01-governance/architecture-governance.md#4-runtime-ecs正本化changeset)の`RuntimeEcsCanonicalizationChangeSetV1`が一意に所有する。同ChangeSetが`applied`になるまで、本書はcurrent source authorityを維持し、target ECS文書を実装済みまたはactive MCDと扱わない。移管時は上記の一般規則どおり同じOwner IDの`owner_revision`をexact `N+1`へ進め、新Owner record／Registry root／Foundation Definition Closureを発行する。document path変更や表示名変更だけで既存revisionのauthority sourceをin-place更新しない。
 
 `owner.core.ai_security`、`owner.core.runtime_scheduling`、`owner.core.ui_text_accessibility`はcurrent Owner IDではなく、それぞれ`owner.core.security_approval`、`owner.core.runtime`、`owner.core.ui`への説明用旧称である。Registry row、MCD owner、Runtime Scope、Diagnostic、Game Systemへaliasを保存せず、追加Ownerとして数えない。
 
@@ -688,8 +688,8 @@ RuntimeScopeDependencyRegistryV1
     owner_ref: RuntimeScopeOwnerRefV1
     status: active | deprecated | removed
 
-# Conditional legacy migration destination types below;
-# not current Contract set members.
+// Conditional legacy migration destination types below;
+// not current Contract set members.
 RuntimeScopeMigrationContributionRefV1
   contribution_id
   contribution_version: uint32

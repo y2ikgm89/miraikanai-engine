@@ -2,9 +2,9 @@
 
 - 文書ID: mirakan.arch.runtime-scheduling-lifetime
 - 状態: review
-- 正本範囲: Simulation Advance／render phase、固定実行順、job dependency、command／event順序、state writer、handle／borrow／lease、Asset activation、Play／World／frame lifetime、fault recovery、authoritative Save timebase header、Runtime contract固有のGameplay Timer capacity（§4.1）
-- 非正本範囲: 共通memory／frame／queue budget、共通capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
+- 正本範囲: Simulation Advance／render phase、固定実行順、job dependency、command／event順序、state writer orchestration、callback lifetime、Asset activation、Play／World／frame lifetime、fault recovery、Saveへ渡すtimebase input、Runtime contract固有のGameplay Timer capacity（§4.1）
+- 非正本範囲: Runtime ECS storage・Entity identity・query・selection・Component lease・access manifest・structural delta、World Package binary、Save／Replay payload、共通memory／frame／queue budget、共通capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論と所有境界
@@ -77,7 +77,7 @@ flowchart BT
 | Runtime Orchestrator | phase、merge、boundary、fault | vendor型、Editor widget |
 | Runtime Package | immutable manifest、loader、Runtime schema | Authoring object、Editor、vendor型 |
 
-`ComponentAccessManifest`は各Systemのread／write setと許可phaseを固定する。Orchestratorはpackage load時に実registrationと照合する。AdapterはWorldへlinkせず、Portが渡した値、handle、owned bufferだけを扱う。Rendering、Audio、VFXはWorld leaseを持たず、snapshotまたはPresentation commandを消費する。
+各SystemのComponent read／write set、query selection、structural permissionは[Runtime ECS](entity-component-system.md)の`RuntimeComponentAccessManifestV1`が所有する。Orchestratorはpackage load時とcallback開始時にmanifest、phase、bindingを照合する。AdapterはWorldへlinkせず、Portが渡した値、typed ref、owned bufferだけを扱う。Rendering、Audio、VFXはWorld leaseを持たず、sealed snapshotまたはPresentation commandを消費する。
 
 Runtime packageは`GameSystemDependencyGraphV1`、`SystemImplementationSetV1`、Contract set hashを持つ。authoritative State Typeごとのactive ownerは厳密に一つでなければならない。Build／Cook edgeはDAG、same-advance write cycleと同phase callback再入は禁止する。次boundaryを越えるcycleは、[Performance／capacity](performance-capacity.md)のcapacity contributionとfailureを宣言し、Replay fixtureに合格した場合だけ許可する。
 
@@ -274,7 +274,7 @@ BoundaryDeliveryContractV1
 
 ### 4.1 Clock domain、Pause、Gameplay Timer
 
-`ClockDomainRegistryV1`、`SimulationCadenceProfileV1`、`GameClockDomainProfileV1`、Pause、Gameplay Timer、`RuntimeTimeRefV1`、`AuthoritativeSaveHeaderV1`は本書だけが定義するRuntime contractである。Game System、UI、Audio、Debugging／observability／replay、Domain Save payload、Platform Save transportはこれらを消費し、別path、alias、local bool、ad-hoc counterで同じ意味を再定義しない。CoreはClock DomainとSimulation Cadenceの共通record／selection規則だけに依存し、Feature Pack、Genre Pack、ProjectのDomain IDやrate literalを列挙または必須参照しない。Profile、Save、Replay header、Native invoke contextは同じCadence Profile ref／hashを保存し、表示上のHzやGenreからCadenceを推測しない。
+`ClockDomainRegistryV1`、`SimulationCadenceProfileV1`、`GameClockDomainProfileV1`、Pause、Gameplay Timer、`RuntimeTimeRefV1`は本書だけが定義するRuntime contractである。`AuthoritativeSaveHeaderV1`、Domain binding、bundle rootは[Persistence／Save](persistence-save.md)が所有し、本書のsealed timebase refを消費する。Game System、UI、Audio、Debugging／observability／replay、Domain Save payload、Platform Save transportはこれらを消費し、別path、alias、local bool、ad-hoc counterで同じ意味を再定義しない。CoreはClock DomainとSimulation Cadenceの共通record／selection規則だけに依存し、Feature Pack、Genre Pack、ProjectのDomain IDやrate literalを列挙または必須参照しない。Profile、Save、Replay header、Native invoke contextは同じCadence Profile ref／hashを保存し、表示上のHzやGenreからCadenceを推測しない。
 
 ```text
 ClockDomainRefV1
@@ -395,60 +395,7 @@ RuntimeTimeRefV1
       render_frame_id: positive uint64
       render_phase_id: null | RenderPhaseId
 
-AuthoritativeSaveStateOwnerProjectionRefV1
-  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
-  projection_type_ref: McdContractRefV1(kind=type)
-  projection_id: StableId
-  projection_version: positive uint32
-  projection_content_hash: SHA-256
-
-AuthoritativeSaveHeaderRefV1
-  header_id: StableId
-  header_version: positive uint32
-  header_content_hash: SHA-256
-
-AuthoritativeSaveHeaderV1
-  header_id: StableId
-  header_version: positive uint32
-  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
-  game_candidate_build_receipt_sha256: SHA-256
-  project_id: UUIDv7
-  project_revision: positive uint64
-  project_document_set_hash: SHA-256
-  contract_set_hash: SHA-256
-  target_profile_ref: TargetProfileRefV1
-  game_clock_domain_profile_ref: GameClockDomainProfileRefV1
-  simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
-  physics_substep_activation_binding_ref:
-    null | PhysicsSubstepActivationBindingRefV1
-  last_committed_simulation_advance_interval_ref:
-    SimulationAdvanceIntervalRefV1
-  last_committed_simulation_advance_interval_sha256: SHA-256
-  state_owner_projection_refs[0..65536]:
-    AuthoritativeSaveStateOwnerProjectionRefV1
-  state_owner_projection_set_hash: SHA-256
-  header_content_hash: SHA-256
-
-AuthoritativeSaveDomainBindingRefV1
-  binding_id: StableId
-  binding_version: positive uint32
-  binding_content_hash: SHA-256
-
-AuthoritativeSaveDomainBindingV1
-  binding_id: StableId
-  binding_version: positive uint32
-  authoritative_save_header_ref: AuthoritativeSaveHeaderRefV1
-  state_owner_projection_ref:
-    AuthoritativeSaveStateOwnerProjectionRefV1
-  binding_content_hash: SHA-256
-
-AuthoritativeSaveBundleManifestV1
-  manifest_id: StableId
-  manifest_version: positive uint32
-  authoritative_save_header_ref: AuthoritativeSaveHeaderRefV1
-  domain_binding_refs[0..65536]:
-    AuthoritativeSaveDomainBindingRefV1
-  manifest_content_hash: SHA-256
+// AuthoritativeSaveHeaderV1 and Save bindings are owned by Persistence／Save.
 
 GameClockDomainProfileRefV1
   profile_id: namespace付きStableId
@@ -585,9 +532,7 @@ GameTimeEffectPolicyV1
 
 `SimulationAdvanceIntervalRefV1`は完成IntervalのCadence Profile Ref、sequence、self-excluding interval content hashからrecord外でmaterializeする。`RuntimeTimeRefV1.simulation`は同じ完成IntervalからRef、完成record全bytesのSHA-256、sequenceをdirect projectionし、三箇所のProfile／sequence／hash解決をbyte equalityにする。`phase_id=null`はadvance boundaryだけを、non-nullは同advance内のcanonical phaseを表す。`presentation`はRender Frameとoptional canonical Render Phaseだけを表し、Simulation sequence、Cadence、wall timeを推測または混在させない。Debug、Replay、Domain eventはこのclosed tagged unionを消費し、裸`Runtime time ref`、整数timestamp、frame-to-advance変換を別定義しない。
 
-`AuthoritativeSaveHeaderV1`はSave payload全体のtimebase／identity正本である。`game_candidate_build_receipt_ref`はCore §9.2のcompleted signed Game Candidate Build Receiptだけへ解決し、隣接SHAは同じ署名済みcompleted record全bytesのSHA-256である。Project identityはexact `{project_id, project_revision, project_document_set_hash}`、Targetはexact `TargetProfileRefV1`で、Build Receipt／Runtime Packageとbyte equalityにする。Game Clock Domain Profileが選択するCadence Ref、HeaderのCadence Ref、last committed Interval RefのCadence Ref、解決したcompleted Interval recordをbyte equalityにし、隣接SHAは同completed Interval全bytesのSHA-256でなければならない。Substep BindingはRuntime Package／GameHostと同じnullabilityおよびexact Refを使う。State-owner Projection Refは`owner_ref, projection_type_ref, projection_id, projection_version, projection_content_hash`のcanonical byte順、duplicateなしとし、`state_owner_projection_set_hash`はASCII `MIRAKAN_AUTHORITATIVE_SAVE_STATE_OWNER_PROJECTION_SET_V1`、件数、全Ref canonical bytesをlength framingして計算する。`header_content_hash`はASCII `MIRAKAN_AUTHORITATIVE_SAVE_HEADER_V1`と同Fieldだけを除く全Header canonical bytesから計算し、Header Refは完成HeaderのID／version／self-excluding hashからrecord外でmaterializeする。
-
-Domain Projection base recordへHeader Refを埋め戻すとhash cycleになるため禁止する。完成Projectionと完成Headerの外側に`AuthoritativeSaveDomainBindingV1`を作り、Binding hashはASCII `MIRAKAN_AUTHORITATIVE_SAVE_DOMAIN_BINDING_V1`と自己hashを除くcanonical bytesから計算する。`AuthoritativeSaveBundleManifestV1`はHeader Refと、HeaderのProjection Ref集合にexact 1対1対応するBinding Ref集合を同じProjection canonical順で保持し、manifest hashはASCII `MIRAKAN_AUTHORITATIVE_SAVE_BUNDLE_MANIFEST_V1`と自己hashを除くcanonical bytesから計算する。生成順は`receipt-free Domain Projection → Projection Ref集合 → AuthoritativeSaveHeader／Ref → Domain Binding／Ref集合 → Bundle Manifest`である。各Bindingが解決するProjectionのCadence／Interval／state-owner identityはHeaderとbyte equalityでなければならず、Header／Binding／ManifestをDomain Projection hashへ戻さない。bare hash、latest Build、表示Hz、別Target／Project revision、Header外Projectionをload時に補完しない。
+Save header、Domain projection binding、bundle rootのfield・hash・生成順は[Persistence／Save](persistence-save.md#23-timebase-headerとbinding)が所有する。Schedulerは完成したCadence Profile、completed Simulation Advance Interval、Pause／Timerのsealed projectionを発行し、Persistenceがそれらをbyte equalityでheaderへ束縛する。SchedulerはSave headerを再定義せず、bare hash、latest Build、表示Hz、別Target／Project revision、Header外Projectionを入力として補完しない。
 
 current reference defaultのpre-hash source notationは`{profile_id=simulation.cadence.reference.fixed_60, profile_version=1, cadence={kind=fixed, rate_hz=60/1, max_catch_up_steps=4, overrun_policy=clamp_and_report}, physics_substep_profile_ref=null}`である。compilerはこのclosed base recordへ`profile_content_hash`を追加して完成させ、その外側に`SimulationCadenceProfileRefV1`をmaterializeする。C1／C2で現在Production Qualification済みと計画するCadenceはこの一件だけで、他rateおよび`variable | turn_based | explicit_step`は対応するCapability、Target、Clock Domain consumer、Save／Replay fixtureのActivationまで`cadence_profile_not_qualified`を返す。これにより60はdefault instanceとして維持し、`SimulationCadenceProfileV1`、`TickPhaseId`、Native Game Module ABIの固定値にはしない。
 
@@ -619,7 +564,7 @@ Clock Domain contributionのauthoring／Project ProfileへのselectionをGateway
 
 global Pauseのownerは`scope.core.runtime_session`だけである。successful Pause／resumeだけが`GamePauseCommandV1`をReplayへ`apply_advance_sequence`とともに記録し、そのouter advanceのboundaryで一括適用する。当該advanceの`T30_PrePhysics`は、(1) pause batchの全Profile／owner／audio snapshot／input context／queue preconditionをvalidate、(2) Pause／resumeをapply、(3) selected `source=simulation_cadence` Domainごとに新stateがfreezeでなければ`domain_advance_sequence`をchecked exactly +1、freezeなら不変、(4) timerのowner invalidation、(5) timer cancel、(6) timer schedule、(7) timer deadline fire、(8) `T40_MotionIntent`、(9) active Physics providerがある場合だけ`T50_PhysicsStep`の順で一意に進む。pause batchは同じruntime session scope instanceと`apply_advance_sequence`につき一commandだけを許可する。step (1)の不成立、同一advance conflict、domain counter overflowは`pause_apply_atomicity_failure`としてtyped failureにし、clock domain counter、pause owner state、audio snapshot、input context、queued activation state、Timer、Replay recordを一切変更しない。同一advanceのPauseはfreeze対象Domainのcounterを進めないが、timerのowner invalidation／cancel／scheduleはstep (4)～(6)で同じcanonical orderのまま処理する。counterが不変なのでstep (7)で新たなdeadline到達を作らず、`gameplay`／authoritativeの`T40_MotionIntent` pathもadvanceせず、`T50_PhysicsStep`を実行しない。UI／presentationの継続はそれぞれのcontinuing domainだけで行い、authoritative gameplay stateをmutationしない。非freeze domainはstep (3)でcounterを一度進めてから同順でTimerを処理し、同一advanceのresumeもresume適用後にfreeze解除対象counterを一度進め、そのdeadlineをstep (7)で発火する。Replayはsuccessful command ID、outer apply sequence、Domainごとのbefore／after counter、適用済みdomain state、Timer command／fire、T40／T50 skip結果、state hashを記録するため、Pause-apply advanceの結果は一意である。reference defaultのglobal Pauseは`gameplay`、`physics`、`authoritative_animation`を同じadvance boundaryでfreezeし、`ui`と`real_time`をcontinueする。`cinematic`、`presentation`、`audio`はProfileで明示し、Gameplay Timer、owner-typed authoritative cadence／scheduled transition／critical cueをwall clock、render frame、Audio sampleへ接続しない。`async_io`はcompletionまでcontinueできるが、World activation、authoritative Command適用、State owner mutationはresume advance boundaryまでqueueする。Pause中のAudioは`audio_snapshot_ref`を原子的に適用し、UI cueと許可されたmusicだけを継続できる。
 
-Saveは`AuthoritativeSaveHeaderV1`、全eligible Domainの`ClockDomainAdvanceStateV1`、Clock／Cadence Profile Ref、および登録済みState ownerと`SaveReplayContractV1`が宣言したFieldだけを保存し、Game Flowを全Projectの必須Stateと推測しない。monotonic time、render delta、Pause中の実時間をGameplay stateへ保存しない。global Pauseを選択した場合だけReplayはPause／resume Commandとouter apply sequence、Domain counter before／afterを記録し、Pause区間でfreeze Domainのcounterとauthoritative state hashが不変であることを検証する。`GamePauseStateSnapshotV1`はその検証対象のimmutable projectionであり、任意Subsystemはlocal boolで停止状態を所有しない。Debug stepは通常Pauseと別の`explicit_step_only` policyであり、Shipping Game pauseからDebug権限を取得しない。
+Save／Replayのrecord、header、bundle root、migrationは[Persistence／Save](persistence-save.md)が所有する。Schedulerは全eligible Domainの`ClockDomainAdvanceStateV1`、Clock／Cadence Profile Ref、登録済みState ownerが宣言したsealed projectionだけを渡し、Game Flowを全Projectの必須Stateと推測しない。monotonic time、render delta、Pause中の実時間をGameplay stateへ保存しない。global Pauseを選択した場合だけReplayはPause／resume Commandとouter apply sequence、Domain counter before／afterを記録し、Pause区間でfreeze Domainのcounterとauthoritative state hashが不変であることを検証する。`GamePauseStateSnapshotV1`はその検証対象のimmutable projectionであり、任意Subsystemはlocal boolで停止状態を所有しない。Debug stepは通常Pauseと別の`explicit_step_only` policyであり、Shipping Game pauseからDebug権限を取得しない。
 
 `capability.runtime.timer`は2D／3D共通かつFeature／Genre非依存のGeneric Engine Core決定論的Schedulerである。Timerが選択できる`clock_domain_ref`はactive Profile memberで、解決したEntryが`source=simulation_cadence`かつ`supported_consumer_kinds`に`gameplay_timer`を含むものだけである。`duration_domain_advances`は1～`2^31-1`、`one_shot`は`repeat_interval_domain_advances=null`、`fixed_interval`は正のnon-null intervalと1～1,000,000の`max_fire_count`を必須とする。このTimerは当該Domainの非freeze advance countを意味し、outer Simulation Advance、秒、wall time、render frameへ読み替えない。秒単位を要求するconsumerはClock Domain＋exact rational durationを使う別typed Definitionを必要とする。C1 reference Profileはactive timer 65,536、一つのouter advanceでの発火4,096をHard上限とする。この二値はRuntime contract固有のdeterministic上限として本書が所有し、変更は[Performance／capacity](performance-capacity.md) §5と同じ再承認（memory envelope、stress、Replay、Domain qualification）を必要とする。timer fireの配送は同Ownerが所有するGameplay event queue容量の内数である。発火順は`clock_domain_ref canonical bytes, deadline_domain_advance_sequence, owner StableId, timer_definition_id, instance_id`の昇順でcanonicalizeし、異なるDomainのcounter値だけを直接比較せず、同一advanceの登録順、container順、worker完了順を使用しない。
 
@@ -639,7 +584,7 @@ Schedule／cancelは`T30_PrePhysics`で確定する。Pause適用とeligible Dom
 | `invalid_timer_clock_domain` | `clock_domain_ref`がactive Registry／Profileにない、Qualification不成立、`source != simulation_cadence`、またはEntryが`gameplay_timer`を許可しない |
 | `recursive_same_advance_schedule` | deadline fire中に同じT30へtimerを再帰schedule |
 
-`GameplayTimerSaveProjectionV1.projection_content_hash`はASCII `MIRAKAN_GAMEPLAY_TIMER_SAVE_PROJECTION_V1`と自己hashを除くclosed canonical bytesから計算する。完成Projectionはroot外`AuthoritativeSaveDomainBindingV1`によってHeaderへ結び、Headerのstate-owner Projection集合にexact一件存在させる。Header／BindingをProjectionへ埋め戻さず、Clock／Cadence Profile、last committed outer IntervalをHeaderとbyte equalityにする。`save_policy=owner_state`のtimerは`deadline_domain_advance_sequence`とcheckpoint時のexact `remaining_domain_advances=max(0, deadline-current)`、fire count、Definition／Domain ref、generationを保存し、load時のouter sequence、wall clockまたは現在時刻から再計算しない。scheduled timerではremaining 1以上、terminal stateでは0とする。ReplayはDomain counter before／after、schedule／cancel Command、deadline／remaining、fire Event、canonical order、state hashを照合する。UI countdownは`GameplayTimerSnapshotV1`のprojectionであり、UI animation終了callbackをauthoritative fire条件にしない。
+`GameplayTimerSaveProjectionV1.projection_content_hash`はASCII `MIRAKAN_GAMEPLAY_TIMER_SAVE_PROJECTION_V1`と自己hashを除くclosed canonical bytesから計算する。完成Projectionは[Persistence／Save](persistence-save.md#23-timebase-headerとbinding)のroot外`AuthoritativeSaveDomainBindingV1`によってHeaderへ結び、Headerのstate-owner Projection集合にexact一件存在させる。Header／BindingをProjectionへ埋め戻さず、Clock／Cadence Profile、last committed outer IntervalをHeaderとbyte equalityにする。`save_policy=owner_state`のtimerは`deadline_domain_advance_sequence`とcheckpoint時のexact `remaining_domain_advances=max(0, deadline-current)`、fire count、Definition／Domain ref、generationを保存し、load時のouter sequence、wall clockまたは現在時刻から再計算しない。scheduled timerではremaining 1以上、terminal stateでは0とする。ReplayはDomain counter before／after、schedule／cancel Command、deadline／remaining、fire Event、canonical order、state hashを照合する。UI countdownは`GameplayTimerSnapshotV1`のprojectionであり、UI animation終了callbackをauthoritative fire条件にしない。
 
 C1のProduction対象はPauseによるdomain停止だけである。Hit-stop、slow-motion、domainごとのrational dilationは`GameTimeEffectPolicyV1`のC0 schemaとしてowner、対象domain、Save／Replay、Audio／VFX／Input policyを固定するが、C2の個別CapabilityをQualificationするまで有効化しない。任意のfloat time scaleをPhysics `delta_time`やGameplay timerへ直接乗算しない。
 
@@ -695,25 +640,21 @@ Physics／Navigation／Animationのcross-subsystem順は次の不変条件を持
 
 Audio、VFX、camera、render occlusion、Presentation LODをGameplay authorityの入力にしない。Gameplayに必要なexplosion、visibility、damage volumeはauthoritative Domain componentとして別に表す。
 
-## 7. Runtime data storageとstructural transaction
+## 7. Runtime ECSとのboundary
 
-Runtime Worldの標準storageはarchetype chunk方式とし、chunk payload sizeは[Memory／PointersのEngine-owned正本値](../02-foundation/memory-pointers.md#22-既存engineから採用する教訓)をexactに消費して本書で再定義しない。先頭64-byte alignment、Component列はSoA、location tableは`EntityHandle -> {archetype_id, chunk_id, row, generation}`とする。iterationのcanonical orderは`archetype_id`、`chunk_id`、rowの昇順である。Component addressはchunk移動で無効になる。
+[Runtime ECS](entity-component-system.md)がEntity identity、Component storage、archetype layout、query selection、Component lease、access manifest、structural deltaとatomic commitを一意に所有する。本書はそれらのfield、chunk容量、row range、handle layoutを再定義しない。
 
-頻繁に走査するscalar／small vectorをhot component、debug name、Editor metadata、長いstring、可変長payloadをcold tableまたはAssetへ置く。256 byteを超えるComponent、可変長data、non-trivially relocatable objectはchunkへ直接置かずDomain-owned typed handleを格納する。Entityごとのvirtual `Update()`と個別heap objectを標準経路にしない。
+Runtime Orchestratorはmanifestに適合するcallbackを許可phaseへ配置し、callback終了後にsealed command／event／structural batchをcanonical boundaryへ渡す。ECSはbatchのpreflightとpublishを行い、Orchestratorはphase進行、DAG、fault遷移、callback lifetimeを所有する。parallel callbackはECS dispatch planが示す非重複selectionだけに限り、worker indexやcompletion順でmerge順を決めない。
 
-World queryはmove-onlyな`ReadLease<Component...>`または`WriteLease<Component...>`を返す。write exclusion keyは[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md) §9.3が定義する`{component_type_ref, chunk_id, row_begin, row_end}`（half-open row range）を消費し、本書で再定義しない。schedulerがcanonicalに非重複rangeを割り当てた場合だけparallel writeを許可する。leaseは生成phaseとWorld epochを持ち、structural mutation、phase終了、Simulation Advance終了、World破棄で失効する。lease、span、referenceをmember、event、job packetへ保存しない。
-
-Structural command batchは、全handle、precondition、conflict、destination容量を先に検査・予約し、live location tableを変更せずstaging mutation planへ構築する。全command成功後の単一commit pointでchunk owner、location table、World epochをpublishする。commit前の失敗はstagingだけを破棄し、live Worldを変更しない。
-
-大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV2`に登録されたowner-typed workload domainとTarget別Representation Planから解決する。World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)が所有し、本書はactivation boundaryとstate ownerだけを決定する。
+regular Component value writeはcallback／phase scope内だけで可視にし、Renderer、Audio、VFX、Debug、AI、Saveはseal済みsnapshot／publicationだけを読む。structural commit前のlocation、presence、new handleを外部へ公開しない。大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV2`、World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)を参照する。
 
 ## 8. Handle、borrow、lease、job lifetime
 
-Runtime handleはtypedな`index32 + generation32`とする。0値はinvalid、valid index／generationは1から始め、slot再利用でgenerationを増やす。wrapするslotは永久retireする。handleはobjectを所有せず、Source／Saveへ保存しない。resolveはowner context内で`Result<ReadLease<T>>`またはimmutable viewを返し、null objectやnative pointerへ暗黙変換しない。
+Schedulerはcallback scope、job capture、lease失効時点を所有する。Runtime Entity handle、Component lease、query selection、structural mutationによる失効の型は[Runtime ECS](entity-component-system.md)を参照する。handleはobjectを所有せず、Source／Saveへ保存せず、null objectやnative pointerへ暗黙変換しない。
 
 | borrow／lease | 有効範囲 | 無効化 |
 |---|---|---|
-| Component lease | 現在phase | structural mutation、phase終了、World破棄 |
+| Component lease | 現在phase。詳細はRuntime ECS | structural mutation、phase終了、World破棄 |
 | CPU frame span | current frameとconsumer job | arena reset |
 | Render frame span | corresponding frame slot | 全submission完了後のreset |
 | Scratch span | current scope／job | scope／job終了 |
@@ -762,7 +703,7 @@ queueのentry／arena capacity、critical reserve、overflow／drop／delay poli
 
 Gameplay evaluationはimmutable state view、private command buffer、state-delta journalを使う。Capability、state schema、command semantics、bounded executionを全て満たした場合だけ一transactionとしてsealする。失敗時はそのevaluationのunsealed outputを全破棄し、既に完了した前phaseの状態を暗黙rollbackしたように扱わない。
 
-Domain Save Projection schemaとfile operationの構造は各Domain／Platform ownerが決定するが、receipt-free Projection base recordへ`AuthoritativeSaveHeaderRefV1`またはBinding Refを埋め込まない。Runtime Save serviceはcompleted Projection集合からHeader／Refを作り、その後だけroot外`AuthoritativeSaveDomainBindingV1`で各Projection Refを同じHeader Refへ結び、`AuthoritativeSaveBundleManifestV1`を唯一のbundle rootとする。Header、全state-owner Projection Ref、全Domain Binding Ref、payload hashをstagingで閉じ、同時reader／writerを許さず、temporary write、flush、再読込検証、atomic replaceまたはrecoverable journal、target再検証、commit recordの順で処理する。Runtime handle、pointer、vendor ID、Header／BindingとProfile／Interval／Projectionが不一致のpayloadをSave validationで拒否する。起動時はHeader hash、schema、Build／Project／Contract／Target、Profile／Interval、Projection set／Binding setがvalidな最新generationだけを選び、同generationの競合を自動選択しない。
+Domain Save Projection schemaとfile operationの構造は各Domain／Platform ownerが決定する。header、binding、bundle root、reader／writer atomicity、load validationは[Persistence／Save](persistence-save.md)が所有する。Schedulerはreceipt-free Projection base recordへHeader／Bindingを埋め込まず、sealed Profile／Intervalとstate-owner projectionを渡すだけである。
 
 Play fault、device loss、Save failure、process crashでもSource revisionとlast valid packageを削除しない。recoveryがSource meaningを変える場合は[Project state](../03-authoring/project-state.md)の別ChangeSetと[AI Security／Approval](../01-governance/ai-security-approval.md)の承認を必要とする。
 
@@ -779,7 +720,7 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 - Simulation Cadence stepとrender sequence、serialized phase ID、禁止再入、consume／delivery phase。
 - GameHost outer loopのlifecycle→clock→optional input→Cadence advance→optional presentation snapshot／0～1 render→retire／wait順。reference default fixed `60/1 Hz`だけは0～4 advances、60 advances exactly 1秒、4-advance clamp telemetryを検証し、全branchでProfile ref／hash、input edge非複製、Input Source 0件、optional global Pause、Debug pause／single-step、optional `presentation_state=surface_unavailable`、Application `Suspended`、strict headless、stale snapshot、fault非publishを検証する。
 - Clock Domainは現在のdefault九entry Profileとglobal Pause／Timer／Replay結果をgolden fixtureで維持し、Core二entryだけのneutral headless fixture、およびqualified `project.board_game.turn_clock@1` contributionを追加したfixtureを検証する。Cadence schemaは四kindのclosed round-trip、fixed rate既約性と`1,000,000,000 Hz`境界／1超過による0 ns拒否、checked partition overflow、variable min／maxのinteger-nanosecond表現、`UINT32_MAX ns`境界／1超過、non-nanosecond bound、sample変換overflow、turn／explicit wall-time禁止、turn Command Typeとexplicit-step request Typeの相互置換、Profile ref／hash不一致、他branch Field混入を検証し、current Qualificationではreference default以外を`cadence_profile_not_qualified`にする。Physics Substepはnull reference defaultと、owner定義のcompleted `PhysicsSubstepProfileRefV1`、Profile self-hash／外部Ref、dimension／count／exact rational partition／Target Qualificationを検査し、undefined generic Profile ref、hash差、暗黙Backend既定へのfallbackを拒否する。Pauseはunsupported＋nullとglobal＋exact refのpositive、逆のnullability、branch混在、unsupported commandをnegative fixtureで検証する。unknown ref、Qualification欠落、owner／hash stale、Core ID上書き、同一logical ID重複、未許可Timer利用、Pack未選択時のPack Domain要求を各一原因negative fixtureでSource／Profile不変として拒否する。
-- Pause／Gameplay Timer fixtureは全eligible Domain counterがPlay開始時`{outer=0, domain=0}`であること、running時に選択された非freeze Domainだけがouter advanceごとにexact一回checked incrementされること、global Pause中もouter counterは進む一方freeze Domain counter／authoritative state hashが不変であること、resume適用advanceではcounterを先に一回進めて到達deadlineを同じT30で発火することを検証する。schedule／owner invalidation／cancel／fireのcanonical順、同advance cancelのfire抑止、fixed intervalの次deadline、instance sequence非再利用、monotonic-time／`gameplay_timer`非対応／未選択／未Qualification Domain拒否、Domain／deadline／instance counter overflow時の副作用0件を各fixtureで固定する。Save／load／Replayは`ClockDomainAdvanceStateV1`、deadline／remaining／fire count、next instance sequenceをreceipt-free `GameplayTimerSaveProjectionV1`からHeader／root外Domain Binding／Bundle Manifestへ閉じ、Profile／Domain／Header／Binding／deadline／remainingを一Fieldずつ差し替えたcase、Pause区間でcounterが進むcase、wall-time再計算をload／Replay開始前に拒否する。
+- Pause／Gameplay Timer fixtureは全eligible Domain counterがPlay開始時`{outer=0, domain=0}`であること、running時に選択された非freeze Domainだけがouter advanceごとにexact一回checked incrementされること、global Pause中もouter counterは進む一方freeze Domain counter／authoritative state hashが不変であること、resume適用advanceではcounterを先に一回進めて到達deadlineを同じT30で発火することを検証する。schedule／owner invalidation／cancel／fireのcanonical順、同advance cancelのfire抑止、fixed intervalの次deadline、instance sequence非再利用、monotonic-time／`gameplay_timer`非対応／未選択／未Qualification Domain拒否、Domain／deadline／instance counter overflow時の副作用0件を各fixtureで固定する。Save／load／Replayはreceipt-free `GameplayTimerSaveProjectionV1`を[Persistence／Save](persistence-save.md)のSave bundleへ渡す。Timer Ownerは`ClockDomainAdvanceStateV1`、deadline／remaining／fire count、next instance sequenceの意味と、Profile／Domain／Timer projection不一致、Pause中のcounter進行、wall-time再計算を拒否するfixtureを所有する。Authoritative Save Header、Domain Binding、Bundle Manifestのshape、hash、生成順、load fallbackはPersistence fixtureだけが検証する。
 - `fixture.runtime.entry.world-empty`、`fixture.runtime.entry.ui-only`、`fixture.runtime.entry.headless`でbranch closure、optional child lifetime、startup system closure、surface／RenderSnapshot omission、branch activation setを検証する。
 - `fixture.integration.project-runtime-entry.owner-resolution`でProject-owned entry／selector／activation policyのref、schema、hash、Target membershipとCompile Manifestをread-backする。
 - world／ui／headlessのstop、fault、restartでstartup systems、UI session、World、optional Presentationをactual dependencyのreverse orderでteardownし、strict headlessのWindow／Surface／Render thread依存が0件であるfixture。
@@ -790,7 +731,7 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 - selected Motion Executor／Navigation／Animation order、native callback非mutation、stale result拒否、root-motion single advance、Physics providerなしのT50 skip。
 - Asset closure、generation非混在、boundary activation、failure時last valid維持。
 - deterministic Input／async accept／RNGから同じReplay hash。
-- Authoritative Save Headerのtyped Game Candidate Build Receipt／completed signed SHA、exact Project triple `{project_id, project_revision, project_document_set_hash}`、Contract set、typed Target、Game Clock／Cadence Profile、optional Substep Binding、last committed Interval Ref／completed SHA、canonical state-owner Projection set／hashをround-tripする。生成順`receipt-free Domain Projection → Header／Ref → root外Domain Binding → Bundle Manifest`を検証し、各一Field差、Header外Projection、Binding欠落／差替え、ProjectionへのHeader／Binding埋戻し、bare hash／latest fallbackをload前に拒否する。
+- Schedulerは[Persistence／Save](persistence-save.md)へtyped Game Candidate Build Receipt、exact Project triple、Contract set、Target、Game Clock／Cadence Profile、optional Substep Binding、last committed Interval、receipt-free state-owner projectionをsealed inputとして渡す。Authoritative Save Header、Domain Binding、Bundle Manifestのclosed shape、hash、生成順、read-backとnegative fixtureはPersistence Ownerだけが所有する。
 - Play stop、fault、Save、device／surface、queue、cancel raceのfailure injection。
 - Platform lifecycleがWorld lifetimeとsurface lifetimeを混同しないこと。
 
@@ -806,10 +747,10 @@ Product Phase 0に必要な本書所有artifactは次である。
 
 1. Runtime Contracts target、Domain Port／Runtime／Adapter依存検査。
 2. Simulation Advance／render phase IDとgenerated conformance table。
-3. Component access manifest、System dependency graph、exactly-one owner fixture。
+3. [Runtime ECS](entity-component-system.md)所有の`RuntimeComponentAccessManifestV1`、System dependency graph、exactly-one owner integration fixture。
 4. command／event canonical merge、consume／delivery、async acceptance fixture。
 5. generation slot、handle、lease、borrow epoch、retire fixture。
-6. structural transactionとWorld storage microfixture。
+6. Runtime ECS structural transactionとWorld storage microfixtureのboundary integration。
 7. Asset generation activationとlast-valid recovery fixture。
 8. deterministic Input／async result／RNG／Replay integration fixture。
 9. Physics／Navigation／Animation cross-subsystem ordering fixture。

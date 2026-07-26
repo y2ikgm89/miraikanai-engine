@@ -1,14 +1,20 @@
 # Miraikanai Engine 設計文書体系再編
 
+- 文書ID: mirakan.decision.architecture-document-system-restructure
+- 状態: normative
+- 正本範囲: Architecture文書体系の再編原則、文書単位の分割・統廃合、旧Path互換を残さない移行方針、Indexの責務
+- 非正本範囲: current Architecture件数、各Domainの型・固定値・runtime挙動、MCD／Operation activation、実装Taskの順序。後続のArchitecture ChangeSetと各Owner文書を参照する
+- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)
+- 外部根拠検証日: 2026-07-24
 - 文書種別: Architecture Decision／再編設計
-- 状態: ユーザー承認済み
+- 承認状態: ユーザー承認済み
 - 承認日: 2026-07-21
-- 対象: `docs/superpowers/specs/`、`docs/superpowers/plans/`、PR #3 `codex/c1-gameplay-capability-closure`、PR #4 `codex/architecture-document-restructure`
+- 対象: `docs/superpowers/specs/`、`docs/superpowers/plans/`、PR #3 `codex/c1-gameplay-capability-closure`、PR #4 `codex/architecture-document-restructure`、後続のArchitecture正本追加・統廃合
 - 実装方針: 後方互換性を設けない一括移行
 
 ## 1. 結論
 
-Miraikanai Engineの現行Engine仕様47件を、責務別ディレクトリに配置した42件の正本仕様へ再編する。日付付きの旧Filename、旧Directory、redirect、互換stub、旧Indexは残さない。旧文書はGit履歴だけを移行記録とする。
+Miraikanai Engineの現行Engine仕様47件を、責務別ディレクトリに配置した42件の正本仕様へ再編する。この42件は2026-07-21の移行基準であり、current Architectureの固定件数ではない。後続の責務分割・統廃合は[Architecture Governance](../01-governance/architecture-governance.md)の`ArchitectureInventoryV1`と`ArchitectureChangeSetV1`で管理する。日付付きの旧Filename、旧Directory、redirect、互換stub、旧Indexは残さない。旧文書はGit履歴だけを移行記録とする。
 
 Engine外の個人用Codex設定資料は保持せず、repository設定は`.codex/config.toml`だけを正本とする。完了済み実装計画2件はactive planではないため削除し、Git履歴だけを記録とする。
 
@@ -26,7 +32,7 @@ Engine外の個人用Codex設定資料は保持せず、repository設定は`.cod
 6. 未決定事項をNormativeな文章へ残さず、将来機能は`not_activated`として閉じる。
 7. 旧Path互換を維持するための重複文書や転送文書を作らない。
 
-再編は、42件のEngine正本、1件のEngine Index、分離したCodex設定資料、再編Decisionだけが残り、後述する検証Gateへ全合格した時に完了する。
+再編の完了条件は固定件数ではなく、当該revisionのArchitecture Inventory、Index、分離したCodex設定資料、Decisionが整合し、後述の検証Gateへ合格することである。
 
 ## 3. 現状調査
 
@@ -80,9 +86,9 @@ Engine仕様だけで約34,000行、約2.5 MiBある。1,000行を超える仕�
 | B. 階層型正本 | 単一責務の42仕様へ統廃合・分割し、責務Directoryへ配置する | 採用。正本一意性、局所変更、読順を両立する |
 | C. 少数の大冊 | 8～12冊へ統合する | 不採用。部分Review、変更競合、AIのbounded retrievalが悪化する |
 
-## 5. Target構造
+## 5. 2026-07-21時点のTarget構造
 
-ActiveなEngine仕様を次へ固定する。
+以下は再編時点のbaseline構造である。current構造は[Architecture Governance](../01-governance/architecture-governance.md)のInventoryとREADMEから得る。後続追加は同じ一意所有規則とChangeSetを満たす場合に限る。
 
 ```text
 docs/architecture/
@@ -93,7 +99,8 @@ docs/architecture/
 │   └── product-plan.md
 ├── 01-governance/
 │   ├── ai-security-approval.md
-│   └── ai-verification-provenance.md
+│   ├── ai-verification-provenance.md
+│   └── architecture-governance.md
 ├── 02-foundation/
 │   ├── core-architecture.md
 │   ├── toolchain-dependencies.md
@@ -101,7 +108,8 @@ docs/architecture/
 │   ├── naming-project-layout.md
 │   ├── cpp23-modules.md
 │   ├── math-core.md
-│   └── memory-pointers.md
+│   ├── memory-pointers.md
+│   └── compatibility-evolution.md
 ├── 03-authoring/
 │   ├── project-state.md
 │   ├── asset-lifecycle.md
@@ -110,6 +118,9 @@ docs/architecture/
 │   ├── gameplay-programming-model.md
 │   └── native-game-module.md
 ├── 04-runtime/
+│   ├── entity-component-system.md
+│   ├── runtime-package.md
+│   ├── persistence-save.md
 │   ├── scheduling-lifetime.md
 │   ├── performance-capacity.md
 │   └── debugging-observability-replay.md
@@ -137,8 +148,10 @@ docs/architecture/
 │   ├── input.md
 │   ├── audio.md
 │   └── ui-text-localization-accessibility.md
-└── 08-domain-packs/
-    ├── domain-pack-contract.md
+└── 08-packs/
+    ├── pack-contract.md
+    ├── gameplay-features.md
+    ├── scenario-stage.md
     └── shooter.md
 ```
 
@@ -289,9 +302,9 @@ docs/architecture/
 
 exact adopted Version、commit、artifact size／hash、license、取得URL、Model ID、SDK compatibility、Toolchain lockの唯一の正本は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)である。本Decisionは監査対象、確認方法、文書配置の結論だけを記録し、exact値、versioned URL、lockを複写しない。
 
-## 9. 実装順序
+## 9. 2026-07-21の移行実行順序（履歴）
 
-本Decisionのユーザーレビュー後、別のImplementation Planを作成して次の順に実行する。
+この節は2026-07-21の再編で完了した履歴上の実行順序である。currentの実装Task Planや新たな実装開始条件を定義しない。
 
 1. Target Directoryと共通Headerを作る。
 2. Product／Governanceを統合し、PhaseとApprovalの正本を一意化する。
@@ -310,7 +323,7 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 
 ### 10.1 InventoryとPath
 
-- `docs/architecture/`にEngine正本42件とIndexが存在する。
+- `docs/architecture/`のcurrent Engine正本とIndexが`ArchitectureInventoryV1`と一致する。42件は移行時baselineとしてのみ検査でき、current固定値にしない。
 - Active仕様のFilenameに作成日を含めない。
 - `docs/superpowers/specs/`と`docs/superpowers/plans/`にactive文書を残さない。
 - 個人向けCodex設定資料を保持せず、`.codex/config.toml`をEngine正本として扱わない。
@@ -321,7 +334,7 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 - 全相対LinkのTargetが存在し、Anchorが存在する。
 - 文書IDが一意である。
 - 全仕様が必須Header Fieldを持つ。
-- Indexから42正本へ到達でき、孤立した正本が0件である。
+- Indexからcurrent Inventoryの全正本へ到達でき、孤立した正本が0件である。
 - 正本間の循環参照は許可するが、Ownershipの循環は許可しない。
 - H1は各Fileに1件だけで、Heading levelを飛ばさない。
 
@@ -339,7 +352,7 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 
 - 120文字以上の同一Paragraph重複が0件である。共通Header labelは除外する。
 - 文字4-gram類似度0.70以上の文書組は手動Reviewし、責務上必要な類似だけを記録する。
-- 1,000行を超えるActive仕様が0件である。
+- 新規または大幅に再編集したActive仕様は原則1,000行未満である。既存の超過文書は`split_required`のChangeSet、分割先、検証を持たない限り新たな正本詳細を追加できない。
 - IndexはSubsystemの数値表、Schema、Phase task、DoDを複写しない。
 
 ### 10.5 曖昧さと外部根拠
@@ -463,8 +476,8 @@ Miraikanaiの[`.codex/config.toml`](../../../.codex/config.toml)はこの原則�
 
 1. `9f10ec2`の591追加行、55削除行、63 hunkをPreserved／Merged／Removedへ全件分類し、未分類を0にする。
 2. 本節の55型が正本で定義または明示棄却され、使用される型は一意Ownerを持つ。
-3. 42正本、Index 1、Decision 1、Codex guideの構成を維持し、active旧文書と互換stubを0にする。
-4. 各正本を1,000行以下とし、必須Header、Document ID、relative link、anchorを検証する。
+3. current Architecture Inventory、Index、Decision、Codex guideの構成を整合させ、active旧文書と互換stubを0にする。
+4. 新規または大幅に再編集した正本を1,000行未満にし、超過する既存文書には`split_required` ChangeSetを要求する。必須Header、Document ID、relative link、anchorを検証する。
 5. 120文字以上のexact paragraph重複0、全861文書pairの4-gram類似度0.70以上0を維持する。
 6. unresolved marker、suffixなしalias、owner不明、stale future ownerを0にする。
 7. Settings、Pause／Timer、Perception、Interaction、Path、Loading、Tile、Flipbook、Decal、Blockout、Lighting Bake、2D／TPS integrated fixtureの正常系、境界、capacity丁度／+1、Save／Replay、failureを保持する。
@@ -472,7 +485,7 @@ Miraikanaiの[`.codex/config.toml`](../../../.codex/config.toml)はこの原則�
 9. task-scoped Reviewとwhole-branch ReviewでCritical／Important／Minorを0にする。
 10. PR #4をpush後にPR #3へ統合先と棄却したCodex設定理由をCommentし、PR #3をCloseする。PR #4が`MERGEABLE / CLEAN`であることを再確認してからReady化・Mergeする。
 
-### 12.7 実装順序
+### 12.7 履歴上の実装順序
 
 1. 63 hunkのDisposition台帳と55型のOwner台帳を作る。
 2. Runtime／Gameplay／Navigation／Platformの横断Contractを移行する。

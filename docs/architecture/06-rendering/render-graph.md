@@ -35,6 +35,7 @@ ModuleはContracts、Render Extract、Graph Compiler、Resource Registry、Pipel
 | `ResolvedRepresentationSet` | frame | 本書のframe入力名。[LOD](lod.md)所有の`LodResolutionPlanV1`／`ViewLodContextV1`に基づくruntime選択結果（representationとtransition state）をViewFamilyごとに整列する |
 | `WorldRenderPacket` | frame | [World](world.md)のactive cell revisionから生成されたrenderable集合 |
 | `ResolvedAntiAliasingPlanV1` | resolved | 本書§9。[Executable contracts](../02-foundation/executable-contracts.md)正本の`AntiAliasingIntentV1`から解決する |
+| `ResolvedOutlineExecutionPlanV1` | resolved | 本書§8.1。[Materials](materials.md)の`OutlineStyleProfileV1`をEngine-owned qualified techniqueへ解決した結果 |
 | `ResolvedShadowPlanV1` | resolved | 本書§12。Shadow authoringの解決結果 |
 | `RenderRepresentationPlanV1` | cook | 本書§12。Runtime planからCookした分類plan |
 | `Renderer2DExecutionPlanV1` | cook | 本書§12。2D packet抽出plan |
@@ -182,6 +183,102 @@ lighting pipeline profileは本書所有のclosed IDであり、`forward_plus_v1
 
 [Post Processing](post-processing.md)はvolume resolve、effect order、parameter compositionを所有する。RendererはPlanのEffect Catalog IDまたはQualification済みProject Shader Technique IDからresource requirement、history lease、AA接続、surface compositeを検証し、Plan本文からraw pass、Shader Source、native resource、未承認順序変更を受けない。
 
+### 8.1 Outline intent resolution
+
+`OutlineStyleProfileV1`は[Materials](materials.md)が所有するstyle intentであり、Rendererはそのfieldをpass、resource、geometry expansion、screen-space sampling APIへ直接公開しない。`OutlineTechniqueCatalogV1`のEngine-ownedかつTarget-qualified entryだけを候補にし、Project Shader Techniqueを含む候補も同じQualification boundaryを通す。
+
+```text
+OutlineQualifiedTechniqueRefV1
+  technique_id: StableId
+  technique_version: positive uint32
+  technique_content_hash: SHA-256
+  qualification_binding_ref:
+    exact {binding_id, binding_version, binding_content_hash}
+
+OutlineTechniqueCatalogEntryRefV1
+  entry_id: StableId
+  entry_version: positive uint32
+  entry_content_hash: SHA-256
+
+OutlineTechniqueCatalogEntryV1
+  entry_id: StableId
+  entry_version: positive uint32
+  qualified_technique_ref: exact OutlineQualifiedTechniqueRefV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  resolved_technique_kind: geometry | screen_space | hybrid
+  compatible_world_space: WorldSpaceCompatibilityV1
+  required_input_kinds[0..3]: unique subset of {depth, normal, coverage}
+  supported_temporal_policies[1..2]:
+    unique subset of {no_history, stable_history_required}
+  allows_msaa: bool
+  allows_spatial_aa: bool
+  allows_temporal_aa: bool
+  required_capability_refs[0..16]: McdContractRefV1(kind=capability)
+  entry_content_hash: SHA-256
+
+OutlineTechniqueCatalogV1
+  catalog_id: StableId
+  catalog_version: positive uint32
+  entries[1..256]: OutlineTechniqueCatalogEntryV1
+  catalog_content_hash: SHA-256
+
+OutlineInputAvailabilityV1
+  view_family_id: StableId
+  graph_generation: positive uint64
+  available_input_kinds[0..3]: unique subset of {depth, normal, coverage}
+  history_available: bool
+  availability_content_hash: SHA-256
+
+ResolvedAntiAliasingPlanRefV1
+  view_family_id: StableId
+  plan_hash: SHA-256
+
+OutlineResolutionDiagnosticV1
+  code:
+    profile_invalid | world_incompatible | target_unsupported |
+    input_unavailable | aa_incompatible | budget_exceeded |
+    fallback_cycle | no_qualified_candidate | stale_input
+  source_outline_style_profile_ref: exact OutlineStyleProfileRefV1
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  rejected_catalog_entry_refs[0..256]: OutlineTechniqueCatalogEntryRefV1
+  remediation_capability_refs[0..16]: McdContractRefV1(kind=capability)
+
+resolve_outline(
+  OutlineStyleProfileV1,
+  WorldSpaceProfileRefV1,
+  TargetCapabilitySnapshotV1,
+  ResolvedAntiAliasingPlanV1,
+  OutlineTechniqueCatalogV1,
+  OutlineInputAvailabilityV1,
+  RendererBudgetEnvelopeV1
+) -> ResolvedOutlineExecutionPlanV1 | OutlineResolutionDiagnosticV1
+
+ResolvedOutlineExecutionPlanV1
+  source_outline_style_profile_ref: OutlineStyleProfileRefV1
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  qualified_technique_ref: OutlineQualifiedTechniqueRefV1 | null
+  source_catalog_entry_ref: OutlineTechniqueCatalogEntryRefV1 | null
+  outline_technique_catalog_hash: SHA-256
+  resolved_technique_kind: geometry | screen_space | hybrid | disabled
+  required_input_kinds[0..3]: unique subset of {depth, normal, coverage}
+  aa_plan_ref: exact ResolvedAntiAliasingPlanRefV1
+  fallback_trace[]
+  predicted_cost
+  qualification_fixture_refs[]
+  plan_hash: SHA-256
+```
+
+`OutlineTechniqueCatalogV1`はEngine-ownedかつQualificationから生成するread-only Catalogであり、Project／AIはentry、Technique、Capability、costを直接追加・変更しない。entryはcontent hash順にstrict sortし、duplicate／stale Qualification Bindingを拒否する。entryのQualification Binding subject Targetはentryの`target_profile_ref`とbyte equalityでなければならない。entry、catalog、availability hashはそれぞれASCII `MIRAKAN_OUTLINE_TECHNIQUE_CATALOG_ENTRY_V1`、`MIRAKAN_OUTLINE_TECHNIQUE_CATALOG_V1`、`MIRAKAN_OUTLINE_INPUT_AVAILABILITY_V1`と自己Fieldを除くlength-framed canonical bytesをSHA-256する。`RendererBudgetEnvelopeV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)が公開するread-only revisioned projectionである。
+
+ResolverはProfileのcross-field validationを先に行い、exact World ProfileがProfileとCatalog entryの両`compatible_world_space`を満たすこと、Target、depth／normal／coverage availability、AA／history compatibility、budget、Capability、strict fallback priorityの順で評価する。outputの`aa_plan_ref`は入力`ResolvedAntiAliasingPlanV1`とbyte equalityで、non-disabled outputのCatalog entry／qualified Techniqueはnon-null、`source_catalog_entry_ref`が解決するentryの`qualified_technique_ref`と`target_profile_ref`はPlanの同Fieldとbyte equality、entryのkind／required inputはPlanの同Fieldとexact equalityでなければならない。Catalog entryのrequired inputは`OutlineInputAvailabilityV1.available_input_kinds[]`のsubset、Profileの`temporal_policy`はentryの`supported_temporal_policies[]`に含まれ、history必須時は`history_available=true`、MSAA／spatial／temporal AAは各entryのallow flagを満たさなければならない。`geometry_only`、`screen_space_only`、`hybrid_qualified`、`disabled`の意味を変更する候補、未qualified Technique、missing required input、AA不整合、budget超過、cycleまたは候補なしのfallbackを拒否する。failureは対応する`OutlineResolutionDiagnosticV1.code`で返す。fallbackはProfileの順序を守り、最初のcompatibleかつTarget-qualified profileだけを選び、silent style substitutionをしない。`disabled`は`resolved_technique_kind=disabled`、canonical nullの`source_catalog_entry_ref`／`qualified_technique_ref`、empty `required_input_kinds[]`だけへ解決でき、隠れたoutline passを作らない。
+
+`ResolvedOutlineExecutionPlanV1`はlogical execution projectionであってSourceではない。`outline_technique_catalog_hash`は入力Catalogのcontent hashとbyte equalityにする。Graph Compilerだけが`qualified_technique_ref`をCooked Pass Templateとresource relationへ展開し、native geometry expansion、screen-space implementation、Backend object、descriptorをProject／AI APIへ出さない。source profile、Catalog、World／Target／AA／Capability／budget／Qualificationのいずれかが変わればPlanをstaleとして再解決する。
+
 ## 9. Anti-aliasingとtemporal execution
 
 `RendererProfileResolver`は`AntiAliasingIntentV1`をViewFamilyごとの`ResolvedAntiAliasingPlanV1`へ解決する。同じViewFamilyのCameraはraster sample count、temporal Provider、jitter、render／display extentを共有し、異なる方式は別ViewFamily／render targetとする。
@@ -189,6 +286,7 @@ lighting pipeline profileは本書所有のclosed IDであり、`forward_plus_v1
 | Field | 規則 |
 |---|---|
 | `source_intent_id`／`source_revision` | 解決元Intent、stale Plan拒否 |
+| `plan_hash` | self-excluding canonical resolved Plan hash。`ResolvedAntiAliasingPlanRefV1`は`view_family_id`とこのhashへexactにbindする |
 | `view_family_id`／`scope_resolution` | Project／Camera Profileから最終scopeへ解決した結果 |
 | `raster_samples` | `1 \| 2 \| 4 \| 8`。2以上はForward+のQualified attachment／pipelineだけ |
 | `spatial_method` | `off \| fxaa \| smaa_1x`。一つだけ |
@@ -323,6 +421,7 @@ Qualificationはportable raster referenceを必須とし、次のDomain fixture�
 - Native TAA／qualified Providerのmotion、depth、exposure、reactive、UI、HDR、dynamic extent、camera cutと、FG Provider一意Swapchain ownership／停止条件。
 - Provider署名／hash／missing artifact／unsupported driver／initialization／execution failure／teardown、RT Raster fallback、acceleration structure lifetime、Path convergence／deterministic seed、corrupt／unsigned neural model／non-neural fallback。
 - Shadow Graph cycle／上限／unsupported node、未宣言access、interface hash不一致、fallback欠落のnegative testと、各Shadow Planの同一`shadow_attenuation_linear`接続。
+- Outlineのgeometry-only／screen-space-only／hybrid-qualified／disabled、Profile／Catalog両方のWorld compatibility、fixed／dynamic resolution、AA off／MSAA／spatial／temporal、depth／normal／coverage欠落、Target／budget fallback、stale profile／input／budget envelope、unqualified technique、fallback cycleのpositive／negative fixture。
 - 同じTechnique Manifest／shader reflection／runtime-use trace／Governance referenceから同じ`ShadowTechniqueValidationFailed`を生成し、promotion拒否、該当Plan停止、当該frameへのfallback挿入0件、承認済みfallbackがある場合は次frame切替、ない場合はRenderer faultとなる決定論fixture。
 - Project ShaderのRaster／Compute／Ray／mixed Techniqueについて、宣言済みStorage access、Pass DAG、Port入出力、Target fallbackが同じcanonical Graphへcompileされ、Manifest外Pass／Resource／side effect、stale Understanding Closureを拒否するfixture。
 - UI／text／pixel-locked layerがdynamic resolution、Temporal Reconstruction、Frame Generationで劣化しないtest。

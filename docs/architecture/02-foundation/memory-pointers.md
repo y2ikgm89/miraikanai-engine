@@ -3,9 +3,9 @@
 - 文書ID: mirakan.arch.memory-pointers
 - 状態: review
 - 正本範囲: Pointer taxonomy、ownership、typed handle、lease／view、Memory domain、arena／pool、allocation metadata、OOM、AI contract、failure、telemetry、Qualification
-- 非正本範囲: 外部Library・Tool version／hash／license、Runtime共通budget／phase、GPU residency、一般命名・Directory、Schema共通構造。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)
-- 外部根拠検証日: 2026-07-21
+- 非正本範囲: 外部Library・Tool version／hash／license、Runtime共通budget／phase、ECS storage layout・query・lease、GPU residency、一般命名・Directory、Schema共通構造。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Compatibility／Evolution](compatibility-evolution.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)、[Product plan](../00-product/product-plan.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論
 
@@ -19,7 +19,7 @@ Miraikanai Engineの公式方式は、**契約駆動のhybrid memory management*
 6. 所有権、寿命、thread、allocation、失効、OOMをMCDの機械可読contractとして保持し、C++ API、static check、diagnostic、testを同じcontractから生成する。
 7. unsafe raw storage操作はFoundation／Adapter private implementationへ隔離し、Capability、Review、sanitizer、benchmarkを通過した場合だけ使用する。
 
-この方式は、Unreal Engineの`UObject` GC、Unityのmanaged GC、Godotのmanual／reference-counted混在を導入する判断ではない。既存Engineから採用するのは、用途別pointer型、generation ID、archetype chunk、temporary allocator、opaque resource handleという実証済みの境界であり、Miraikanai固有のAI可読contractと明示的失敗規則を上位に置く。
+この方式は、Unreal Engineの`UObject` GC、Unityのmanaged GC、Godotのmanual／reference-counted混在を導入する判断ではない。既存Engineから採用するのは、用途別pointer型、generation ID、temporary allocator、opaque resource handleという実証済みの境界であり、Miraikanai固有のAI可読contractと明示的失敗規則を上位に置く。ECS storageの設計は[Runtime ECS](../04-runtime/entity-component-system.md)が所有する。
 
 ## 2. 選択理由
 
@@ -37,7 +37,7 @@ Miraikanai Engineの公式方式は、**契約駆動のhybrid memory management*
 
 - Unreal Engineのように、強参照、弱参照、soft Asset参照、非`UObject`所有を用途別の型へ分ける。ただし、`UPROPERTY`の有無でGC安全性が変わる暗黙契約は導入せず、contract fieldと生成型で明示する。
 - Unity Entitiesからは、同じComponent集合をarchetypeとしてまとめ、Component種別ごとの配列をchunkへ格納するdata-oriented layoutを採用する。Unity固有のEntity表現やchunk容量は移植しない。
-- Miraikanaiのruntime handleはindex＋generation、ECS archetype chunkは16 KiBを正本とする。これは本書が独立に定めるEngine-owned designであり、Unityの現行実装値を根拠にした判断ではない。handle規則は[§4.3](#43-generation-handle)、chunk容量の継続検証は[§9.3](#93-performanceendurance)に定める。
+- Miraikanaiのruntime handleはindex＋generationを使う。Runtime Entity handle、ECS archetype chunk、chunk容量、query lease、継続検証の正本は[Runtime ECS](../04-runtime/entity-component-system.md)と[Performance／Capacity](../04-runtime/performance-capacity.md)であり、本書は一般handle／lease規則だけを所有する。
 - Unity Collectionsのように、一時allocationと永続allocationを寿命で分ける。ただし、hot pathのarena枯渇を一般heapへ暗黙fallbackさせない。
 - Godotの`ObjectID`／`RID`のように、低level subsystemをopaque handleで参照する。ただし、owner、free authority、generation、serialization可否をcontractに含める。
 
@@ -52,6 +52,37 @@ Miraikanai Engineの公式方式は、**契約駆動のhybrid memory management*
 3. phase、lease失効、Runtime budget、failure publishはRuntime規約。
 4. ABI、Module instance lifetime、Memory PortはNativeGameModule規約。
 5. Backend native lifetimeとsubmission retireはRendering／Platform規約。
+
+### 3.1 Cross-owner consumer binding
+
+本書の型名を各Subsystemが自由に再定義したり、参照リンクだけで寿命規則を推測したりしない。Phase 0で`PointerMemoryConsumerBindingV1`をMCDへ追加し、各consumer conceptについて次をclosed fieldで宣言する。
+
+```text
+consumer_document_id
+consumer_concept_id
+reference_form = value | handle | lease | immutable_view | unique_owner | external_adapter
+lifetime_owner_document_id
+allocation_contract_required
+retire_or_invalidation_owner_document_id
+storable_form = none | stable_id | project_id | protocol_id
+job_capture_form = none | value | handle | immutable_snapshot | owned_packet
+qualification_owner_document_id
+```
+
+このbindingは一般Pointer／Memory語彙と各Subsystemの固有意味を混同しないための接続層である。`Handle`、lease、allocation resource、公開禁止型の定義は本書だけが所有し、Entity slot、Asset version、GPU fence、Physics query、Audio callbackなどの固有ID・retire条件・容量値は各Owner文書が所有する。bindingに未登録の公開pointer／view／handle、またはallocation siteは`MissingPointerContract`／`MissingMemoryContract`として扱う。
+
+| consumer領域 | conceptの正本 | bindingで閉じる境界 |
+|---|---|---|
+| Foundation／Contract | [Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Toolchain／Dependencies](toolchain-dependencies.md) | MCD type closure、safe／unsafe境界、sanitizer lane、生成物hash |
+| Runtime | [Runtime ECS](../04-runtime/entity-component-system.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md) | Entity／query lease、job hand-off、Runtime handleの非永続化、load／retire |
+| Authoring | [Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md) | Asset version access、Module owner、Tool-only shared immutable data |
+| Simulation | [Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md) | native adapterの隔離、query／snapshot lease、job scratch、retire |
+| Rendering／Platform | [Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[Audio](../07-platform/audio.md)、[Input](../07-platform/input.md)、[Mobile common](../07-platform/mobile-common.md) | opaque resource handle、submission／callback境界、preallocated buffer、Target adapter |
+| Qualification | [Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Product plan](../00-product/product-plan.md) | telemetry、negative／endurance、Phase 0 gate、Evidence closure |
+
+Save、Replay、Package、AI projection、Network、job packetへlive pointer、reference、lease、span、writer、allocator objectを保存しない。保存可能な値は上表の`storable_form`で明示したStable／Project／Protocol IDだけとし、jobは`job_capture_form`で許可した値、handle、immutable snapshot、owned packetだけを受け渡す。これらの禁止を例外的なlocal wrapper、alias、dual readerで回避しない。
+
+この更新は計画正本のclean breakであり、旧combined Work Package／Capability IDや旧型aliasを新Contractへ接続しない。実装適用前には[Compatibility／Evolution](compatibility-evolution.md)のconsumer inventoryで外部consumerを確認し、zero consumerが検証できた場合だけ旧定義を削除する。検証不能な外部consumerを「互換性不要」と推測して変更することはしない。
 
 ## 4. 公式Pointer taxonomy
 
@@ -243,7 +274,7 @@ source_owner
 Contract compilerは同じMCDから次を決定論的に生成する。
 
 1. C++ safe API型とfunction signature。
-2. `PointerContractManifest.bin`と`MemoryContractManifest.bin`。
+2. `PointerContractManifest.bin`、`MemoryContractManifest.bin`、`PointerMemoryConsumerBindingManifest.bin`。
 3. clang-tidy／AST scan用allowlist。
 4. Development lease／thread／domain assertion。
 5. AI Provider向け、native addressを含まないschema projection。
@@ -307,6 +338,11 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 - GPU committed／resident、alias saving、deferred release bytes／serial backlog。
 - handle resolve count、failure count、retired slot。
 - lease violation、thread-affinity violation。
+- handle resolve latency（P50／P95／P99）、stale／invalid resolve率、retire backlog。
+- lease validation latency、expired／range／thread拒否率。
+- hot path allocation数、upstream fallback試行数、arena reset後のhigh-water、pool contention／reuse／fragmentation。
+
+hardware counter（cache miss、branch miss、memory bandwidth）は、同一Target Profileで再現性を確認できる場合だけ補助Evidenceにする。counter未対応Targetで値を推測したり、sanitizer実行値を通常performance baselineとして採用したりしない。
 
 性能改善を公式採用するには、[Runtime performance／capacityの共通promotion threshold](../04-runtime/performance-capacity.md#8-measurementregressionpromotion)を満たすか、同一fixtureでpeak memoryを15%以上改善し、correctness、visual、fault、load timeを規定値以上悪化させない。全面pool化、lock-free化、custom allocator化を名称だけで最適化扱いしない。
 
@@ -326,12 +362,14 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 - raw owning pointer、明示allocation、Runtime `shared_ptr`、borrow captureをcompile／AST Gateで拒否する。
 - ABI HeaderへSTL、PMR、exception、owner wrapper、native typeが流出しないことをscanする。
 - Contract、generated API、manifestのhash driftを拒否する。
-- ASan poison／unpoison、Full PageHeap、HWASan、GWP-ASan、Apple ASan／TSanをTarget規約どおり実行する。
+- binding Matrixの全consumerが`reference_form`、保存、job capture、retire owner、qualification ownerを明示し、逆参照も一対一で閉じることを検査する。
+- Save／Replay／Package／AI projection／job packetにlive pointer、lease、span、allocator objectが混入するnegative fixtureを拒否する。
+- ASan poison／unpoison、Full PageHeap、HWASan、GWP-ASan、Apple ASan／TSanを、[Toolchain／Dependencies](toolchain-dependencies.md)でTargetごとに実行可能と判定されたlaneだけで実行する。未対応laneをpassとして代用しない。
 
 ### 9.3 performance／endurance
 
 - hot path一般heap allocation 0。
-- ECS 8／16／32 KiB比較は既存Runtime fixtureを使い、16 KiBを無測定で変更しない。
+- ECS layout比較、chunk容量変更、query／structural workloadのfixtureは[Runtime ECS](../04-runtime/entity-component-system.md#10-qualification)と[Performance／Capacity](../04-runtime/performance-capacity.md)が所有する。本書は一般memory telemetryを提供する。
 - 120秒×5 performance run、10分soakを通常Gateとする。
 - Windows release候補は2時間resource churn、Asset hot reload、World create／destroy、GPU retireを追加する。
 - R4 Memory／Pointer変更は最低60分、release候補は対象Targetのendurance規約を満たす。
@@ -339,16 +377,16 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 
 ## 10. 導入順序
 
-1. `PointerContractV1`、`MemoryContractV1`、Diagnostic codeをMCDへ追加する。
+1. `PointerContractV1`、`MemoryContractV1`、`PointerMemoryConsumerBindingV1`、Diagnostic codeをMCDへ追加する。
 2. generation handle、slot registry、`Result`、memory tagをFoundationへ実装する。
 3. System／Tracking／Budget／Failure Resourceを実装する。
 4. Frame／RenderFrame／Scratch arenaとASan poisonを実装する。
 5. `ReadLease`／`WriteLease`、epoch、thread-affinity検査を実装する。
 6. Native Memory Port Adapterと`MirakanUniqueOwner` factoryを実装する。
-7. Contract compilerからC++ API、manifest、static rule、test fixtureを生成する。
-8. ECS 16 KiB archetype chunk、hot path allocation Gate、telemetryを接続する。
+7. Contract compilerからC++ API、三種manifest、static rule、test fixtureを生成する。
+8. ECS Ownerが要求するgeneral memory telemetryとhot path allocation Gateを接続する。ECS layout値やstorage実装を本書で再定義しない。
 9. GPU allocator、submission retire、Asset version leaseを接続する。
-10. Windows、Mobile、Native Module、AI生成negative／performance／endurance Gateを合格させる。
+10. Productの`gate.product.phase-0-memory-pointer-contract`、Windows、Mobile、Native Module、AI生成negative／performance／endurance Gateを合格させる。
 
 後段機能が前段の未実装を独自pointer wrapperやlocal allocatorで迂回してはならない。
 
@@ -364,17 +402,22 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 8. Reference fixtureがCPU／GPU P95、memory、allocation、fragmentation Gateを満たす。
 9. AIが欠落contractを推測で補わず、Blocking diagnosticを返す。
 10. 生成API、manifest、Provider projection、test fixtureのhashが同一MCDへtraceできる。
+11. `PointerMemoryConsumerBindingV1`が全consumer conceptの正方向・逆方向を閉じ、非該当理由もregistered IDで記録する。
+12. Product Phase 0のPointer／Memory gateが、contract closure、negative fixture、supported sanitizer lane、performance baselineのEvidenceを別々に検査する。
 
 ## 12. 根拠と判断
 
 | 根拠／Owner | 採用した判断 |
 |---|---|
+| [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) | raw pointer／referenceを非所有として扱い、single ownershipには`unique_ptr`相当を優先する |
+| [C++ standard library: `unique_ptr`](https://eel.is/c++draft/unique.ptr)／[`span`](https://eel.is/c++draft/views.span)／[memory resources](https://eel.is/c++draft/mem.res) | owner、bounded view、memory resourceを標準語彙で表し、独自の公開pointer型を増やさない |
+| [Microsoft AddressSanitizer](https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170)／[LLVM AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)／[LLVM ThreadSanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) | memory error検出は対応Targetの開発／CI laneへ隔離し、非対応laneの成功を捏造しない |
 | [Unreal Engine Object Pointers](https://dev.epicgames.com/documentation/en-us/unreal-engine/object-pointers-in-unreal-engine) | 強、弱、soft、scope strong参照を用途別型へ分離する |
 | [Unreal Engine Smart Pointers](https://dev.epicgames.com/documentation/en-us/unreal-engine/smart-pointers-in-unreal-engine) | non-intrusive unique／shared／weakとreference-count costを区別する |
 | [Unreal Engine Memory and CPU Performance Considerations](https://dev.epicgames.com/documentation/en-us/unreal-engine/common-memory-and-cpu-performance-considerations-in-unreal-engine) | poolは生成破棄costをprofileしたobjectだけに使用する |
 | [Unity Managed Memory](https://docs.unity3d.com/jp/current/Manual/performance-managed-memory-introduction.html) | GC allocation／collection spikeをMiraikanai hot pathへ導入しない |
 | [Unity Unmanaged Memory](https://docs.unity3d.com/ja/current/Manual/performance-unmanaged-memory.html) | temporary、job、persistent allocationを寿命で分ける |
 | [Unity Technical Articles: The DOTS packages and features](https://discussions.unity.com/t/from-the-new-e-book-the-dots-packages-and-features/368224) | 同じComponent集合をarchetypeとしてまとめ、Component種別ごとの配列をchunkへ格納するlayoutだけを外部先例として採用する |
-| [本書 §4.3](#43-generation-handle)／[§9.3](#93-performanceendurance) | index＋generation handleと16 KiB archetype chunkはMiraikanaiが所有する正本値とし、Unityの現行実装仕様として扱わない |
+| [本書 §4.3](#43-generation-handle)／[Runtime ECS](../04-runtime/entity-component-system.md) | index＋generationという一般handle規則は本書、Runtime Entity handleとECS layoutはRuntime ECSが所有し、Unityの現行実装仕様として扱わない |
 | [Godot Object ownership](https://docs.godotengine.org/en/stable/engine_details/architecture/object_class.html) | 非ownerの長期保持にraw pointerを使わずIDへ変換する |
 | [Godot RID](https://docs.godotengine.org/en/stable/classes/class_rid.html) | low-level resourceをsession-local opaque handleで公開する |

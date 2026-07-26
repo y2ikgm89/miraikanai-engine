@@ -2,12 +2,12 @@
 
 - 文書ID: mirakan.arch.asset-lifecycle
 - 状態: review
-- 正本範囲: Asset source／import identity、Import Profile／Plan／IR、Preview／Conversion Report、Reimport／dependency invalidation、Derived／Cooked artifact、Catalog／Content Package assembly／content addressing、Asset promotion、Editor／AI Asset operation、Asset diagnostics／qualification
-- 非正本範囲: Project transaction、共有Schema基盤、外部Tool・SDK・Libraryのversion／hash／license／取得元、Runtime scheduling／lease／capacity、各DomainのRuntime意味。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[World契約](../06-rendering/world.md)
+- 正本範囲: Asset source／import identity、Import Profile／Plan／IR、Preview／Conversion Report、Reimport／dependency invalidation、Asset／World artifact共通のDerived／Cooked envelope・Catalog・content addressing、Asset Content Package assembly、Asset promotion、Editor／AI Asset operation、Asset diagnostics／qualification
+- 非正本範囲: Project transaction、共有Schema基盤、外部Tool・SDK・Libraryのversion／hash／license／取得元、Runtime scheduling／lease／capacity、ECS storage、World Root／Section payload・Runtime Package binary、Save／Replay、各DomainのRuntime意味。各Owner文書を参照する
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[World契約](../06-rendering/world.md)
 - 外部根拠検証日: 2026-07-21
 
-AssetをEditorが直接読むSource fileではなく、次の閉じたlifecycleとして扱う。
+AssetをEditorが直接読むSource fileではなく、次の閉じたlifecycleとして扱う。Asset versionのgeneration、immutable read lease、promotion後のretireは本書がAsset固有の意味を所有し、公開型、保存／job capture、allocation／fallbackの一般規則は[Memory／Pointers](../02-foundation/memory-pointers.md)の`PointerMemoryConsumerBindingV1`へexactに束縛する。Asset readerがlive payload pointerやleaseをSave／Package／AI projectionへ渡すことはない。
 
 ```text
 Source Asset
@@ -23,7 +23,7 @@ Source Asset
 
 Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを直接読まない。AI、Editor、CLIもCooked binary、Package index、GPU／Physics native objectを直接生成または変更しない。Import／ReimportとPackage assemblyはこの文書だけが所有し、前者の結果を後者が消費する同一lifecycleの別stageとする。
 
-本文書の`AssetSourceDescriptor`、`AssetImportJob`、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`CommonImportSettingsV1`、Asset kind別Settings／IR、`AssetImportPlanV1`、`AssetConversionReportV1`、`AssetDiagnosticV1`、`AssetImportReceiptV1`、`AssetReimportConflictV1`、`TypedConflictValueV1`、`DerivedArtifactManifest`、`MirakanAssetCatalogV1`はAsset Domainのcanonical MCD schemaである。[Executable contracts](../02-foundation/executable-contracts.md)は共通Envelope、projection、compiler規則を所有し、Asset固有field、Asset固有tag、cardinalityは本文書だけが所有する。`risk_class`、`RiskApprovalPolicyV1`等の共有Governance型とそのtag集合はこの所有宣言に含めず、[AI Security／Approval](../01-governance/ai-security-approval.md#4-risk-classとactivation)のcanonical type ID／versionを参照する。
+本文書の`AssetSourceDescriptor`、`AssetImportJob`、`AssetSourceAnalysisV1`、`AssetImportProfileV1`、`CommonImportSettingsV1`、Asset kind別Settings／IR、`AssetImportPlanV1`、`AssetConversionReportV1`、`AssetDiagnosticV1`、`AssetImportReceiptV1`、`AssetReimportConflictV1`、`TypedConflictValueV1`、`ArtifactSubjectRefV1`、`DerivedArtifactManifestV1`、`RuntimeAssetBudgetRefV1`、`MirakanArtifactCatalogV1`はAsset Lifecycle Ownerのcanonical MCD schemaである。[Executable contracts](../02-foundation/executable-contracts.md)は共通Envelope、projection、compiler規則を所有し、Asset固有field、Asset固有tag、cardinalityは本文書だけが所有する。World Root／Sectionのpayload fieldは[Runtime Package](../04-runtime/runtime-package.md)だけが所有する。`risk_class`、`RiskApprovalPolicyV1`等の共有Governance型とそのtag集合はこの所有宣言に含めず、[AI Security／Approval](../01-governance/ai-security-approval.md#4-risk-classとactivation)のcanonical type ID／versionを参照する。
 
 ## 1. Source／Import identity
 
@@ -441,57 +441,79 @@ Reimport、bulk migration、CookのCancel後にpartial outputをArtifact store�
 
 ## 5. Derived／Cooked Artifact
 
-`DerivedArtifactManifest`は次を持つ。
+`ArtifactSubjectRefV1`はgeneric artifactのsubjectを閉じる。
 
 ```text
-DerivedArtifactManifest
-artifact_key: sha256
-asset_id: StableId
-asset_revision: uint64
-artifact_role_id: ClosedArtifactRoleId
-target_profile_id: StableId
-schema_version: uint32
-payload_hash: sha256
-payload_size: uint64
-alignment: positive_uint32
-dependency_keys: sha256[0..4096]
-importer_id: ClosedImporterId
-importer_version_hash: sha256
-toolchain_lock_hash: sha256
-capability_requirements: ClosedCapabilityId[0..256]
-runtime_budget: RuntimeAssetBudgetV1
+ArtifactSubjectRefV1
+  kind: asset | world_root | world_section
+  payload:
+    asset:
+      asset_id: StableId
+      asset_revision: positive uint64
+    world_root:
+      world_root_id: StableId
+      source_project_revision_ref: ProjectRevisionRefV1
+    world_section:
+      world_root_id: StableId
+      world_section_id: StableId
+      section_revision: positive uint64
+
+DerivedArtifactManifestV1
+  artifact_key: SHA-256
+  artifact_subject_ref: ArtifactSubjectRefV1
+  artifact_role_id: ClosedArtifactRoleId
+  target_profile_ref: TargetProfileRefV1
+  schema_version: positive uint32
+  payload_hash: SHA-256
+  payload_size: uint64
+  alignment: positive uint32
+  dependency_keys[0..4096]: SHA-256
+  producer_id: ClosedArtifactProducerId
+  producer_version_hash: SHA-256
+  toolchain_lock_hash: SHA-256
+  capability_requirements[0..256]: ClosedCapabilityId
+  runtime_budget_ref: RuntimeAssetBudgetRefV1
+  manifest_hash: SHA-256
+
+RuntimeAssetBudgetRefV1
+  asset_budget_class_id: AssetBudgetClassId
+  target_profile_ref: TargetProfileRefV1
+  project_scale_envelope_ref: ProjectScaleEnvelopeRefV2
+  budget_ref_hash: SHA-256
 ```
 
-Artifact keyはmanifestとpayloadのcanonical encodingから作る。Payload headerはAsset ID、revision、role、Target、schema、sizeを持ち、unknown major、truncation、trailing bytes、hash mismatchを拒否する。Artifact storeはcontent-addressedかつimmutableであり、成功Artifactを上書きしない。
+`kind = asset`だけがAsset import identityを使う。`world_root`と`world_section`のpayload内容、entity record、section dependency、loader semanticsは[Runtime Package](../04-runtime/runtime-package.md)が定め、Asset Lifecycleはsubject identity、artifact key、dependency closure、Cook、immutability、promotion envelopeだけを所有する。World Artifactへsynthetic Asset ID、asset-only revision、`asset://` URIを与えない。
 
-Hard dependency closureが同一generationでReadyになるまでArtifactをpromotionできない。Geometry、Material、Skeleton、Animation、Physics、Navigation等のDomain artifactは各DomainのSource意味とvalidationを消費し、Asset lifecycleはidentity、dependency、Cook、immutability、promotion envelopeだけを所有する。Backend native pointer、device固有command、driver依存objectをPackageへ保存しない。
+Artifact keyは完成manifestとpayloadのcanonical encodingから作る。Payload headerはsubject、role、Target、schema、sizeを持ち、unknown major、truncation、trailing bytes、hash mismatchを拒否する。Artifact storeはcontent-addressedかつimmutableであり、成功Artifactを上書きしない。
 
-Garbage collectionはProject revision、Package manifest、last-valid generation、active lease、Recovery snapshotからreachabilityを計算した後だけ実行する。SourceからCooked Artifactを逆生成せず、corrupt Cacheはhashで拒否してSourceから再Cookする。
+Hard dependency closureが同一generationでReadyになるまでArtifactをpromotionできない。Geometry、Material、Skeleton、Animation、Physics、Navigation等のDomain artifactは各DomainのSource意味とvalidationを消費する。Backend native pointer、device固有command、driver依存objectをArtifact／Packageへ保存しない。
+
+Garbage collectionはProject revision、Catalog、Package manifest、last-valid generation、active lease、Recovery snapshotからreachabilityを計算した後だけ実行する。SourceからCooked Artifactを逆生成せず、corrupt Cacheはhashで拒否してSourceから再Cookする。
 
 ## 6. Packagingとcontent addressing
 
 ### 6.1 CatalogとVFS
 
-`MirakanAssetCatalogV1`は次を正本field setとする。
+`MirakanArtifactCatalogV1`はAsset／World Artifact共通のCatalogであり、次を正本field setとする。
 
 | Field | 型／規則 |
 |---|---|
 | `catalog_id`／`catalog_version` | UUIDv7／`uint64` |
 | `target_profile_hash` | `sha256`。Packageと一致 |
 | `package_set_hash` | `sha256`。mount closure |
-| `entries` | `AssetCatalogEntryV1[]`。Asset ID＋role順 |
-| `dependencies` | `AssetCatalogDependencyV1[]`。Artifact key順 |
+| `entries` | `ArtifactCatalogEntryV1[]`。`{artifact_subject_ref canonical bytes, artifact_role_id}`順 |
+| `dependencies` | `ArtifactCatalogDependencyV1[]`。Artifact key順 |
 | `content_groups` | `ContentGroupV1[]`。base、optional、level、DLC等 |
 | `capability_requirements` | `ClosedCapabilityId[]`。Target起動前検査 |
 | `root_hash` | canonical catalog SHA-256 |
 
-Runtime参照は`asset://<uuid>/<role>`またはtyped `AssetHandle`を使い、OS pathをGameplayDefinition、Save、Network payloadへ保存しない。
+asset subjectのRuntime参照は`asset://<uuid>/<role>`またはtyped `AssetHandle`を使い、OS pathをGameplayDefinition、Save、Network payloadへ保存しない。World Root／Sectionはtyped `ArtifactRefV1`と`ArtifactSubjectRefV1`で参照し、asset URIまたはAssetHandleへ変換しない。
 
-VFSはContent Packageのread-only mountであり、Save、setting、screenshot、crash dumpを保持しない。高priority Catalogによる置換は同じAsset ID＋role、schema compatibility、Capability、dependency closure、Package integrityがすべて合格する場合だけ許可する。Path一致で別Assetへ置換しない。
+VFSはContent Packageのread-only mountであり、Save、setting、screenshot、crash dumpを保持しない。高priority Catalogによる置換は同じartifact subject＋role、schema compatibility、Capability、dependency closure、Package integrityがすべて合格する場合だけ許可する。Path一致で別Artifactへ置換しない。
 
-### 6.2 Content Package
+### 6.2 Asset Content Package
 
-`Mirakan Content Package V1`はHeader、bounded Payload Block、Indexを持つ。Headerはmagic、format major／minor、Package ID／revision、Target Profile hash、block size、Index位置、Catalog hash、Package root hashを持つ。C1 blockは64 KiB、最終blockだけ短くできる。Artifactをblock boundaryへ配置し、Indexがrange、logical size、payload hash、dependency、Catalog位置を持つ。
+`Mirakan Asset Content Package V1`はAsset／shared dependency artifactのHeader、bounded Payload Block、Indexを持つ。Headerはmagic、format major／minor、Package ID／revision、Target Profile hash、block size、Index位置、Catalog hash、Package root hashを持つ。C1 blockは64 KiB、最終blockだけ短くできる。Artifactをblock boundaryへ配置し、Indexがrange、logical size、payload hash、dependency、Catalog位置を持つ。World Root／Section imageとRuntime Package binaryは[Runtime Package](../04-runtime/runtime-package.md)が別に所有する。
 
 Package root hashはhash fieldをzero化したHeader、block hash table、canonical Indexから作る。Mount前にbounds、overlap、duplicate、integer overflow、path、dependencyを検証する。Package全体のmemory mapを前提にせず、bounded range readを可能にする。
 
@@ -503,7 +525,7 @@ Package assemblyはImportの後段であり、この文書が唯一所有する�
 2. `ProjectManifest.runtime_entry_point_refs`からTarget別に選択したexact Runtime Entryを解決し、その`world_ref`／`ui_document_ref`／`startup_game_system_refs`のtransitive Source closure、always-loaded resource、Content GroupからAsset rootを列挙する。単数Root Scene、表示名、path、`latest`をcurrent reachability rootにしない。
 3. Hard dependency closureを解決し、missing、cycle、Target不一致を拒否する。
 4. Artifact hashとLicense／Provenance／Safety Receiptを照合する。
-5. Content Groupごとにcanonical Asset ID／role順で配置する。
+5. Content Groupごとにcanonical artifact subject／role順で配置する。asset subject以外のpayload layoutをここで再定義しない。
 6. Catalog、Index、SBOM、Notice、Build Receiptを生成する。
 7. clean assemblyを再実行してroot hash一致を検証する。
 8. Platform application packageとPlatform validationへ渡す。

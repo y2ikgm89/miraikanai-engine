@@ -2,10 +2,10 @@
 
 - 文書ID: mirakan.arch.ai-verification-provenance
 - 状態: review
-- 正本範囲: Verification lifecycle、Requirement coverage、AI Eval、public／holdout／adversarial dataset、grader、Evidence envelope、Technical Qualification Receipt／freshness、Provenance、Trace grading、Release evidence、保持、失敗
+- 正本範囲: Verification lifecycle、Requirement coverage、AI Eval、public／holdout／adversarial dataset、grader、Evidence Requirement／fulfillment binding、Evidence envelope、Technical Qualification Receipt／freshness、Provenance、Trace grading、Release evidence、保持、失敗
 - 非正本範囲: AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。これらはAI Security／Approvalを参照する
-- 依存: [AI Security／Approval](ai-security-approval.md)、[Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Project Shader](../06-rendering/project-shader.md)
-- 外部根拠検証日: 2026-07-22
+- 依存: [AI Security／Approval](ai-security-approval.md)、[Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Project state](../03-authoring/project-state.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Project Shader](../06-rendering/project-shader.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 外部根拠検証日: 2026-07-26
 
 ## 1. Evidence原則
 
@@ -150,6 +150,7 @@ Report表現を次に固定する。
 | debugging_diagnosis | Session、Trace、Replay、Causality、gap、revision、Reproduction |
 | security_and_permissions | Prompt injection、権限、Secret、Network、Path |
 | provider_projection | MCP／Provider SchemaとTool call |
+| multilingual_interaction | `en-US`／`ja-JP`／mixed input、reply locale、locale switch、canonical technical identity、paired Tool／ChangeSet invariance |
 | beginner_ux | 平易な質問、説明、承認、復旧 |
 | maintenance_migration | Model／Prompt／Tool／Schema更新回帰 |
 
@@ -203,6 +204,10 @@ Trace gradingは最終回答だけでなく、Tool選択、Tool version、引数
 | 存在しないconcept ID／phase、誤ったauthority document、Evidenceにない断定 | 0 |
 | architecture Caseのquestion bypass、stale／omitted Evidenceの有効扱い | 0 |
 | AI mutable fieldの外側MCD Operation→typed change primitive coverage | 100% |
+| multilingual paired critical CaseのTool選択／typed引数／ChangeSet／semantic hash一致 | 100% |
+| required reply locale不一致 | 0 |
+| localized／翻訳technical identityの最終Tool出力 | 0 |
+| User／Project原文の暗黙翻訳または置換 | 0 |
 | Shader U0～U4 required Case／run pass | 100% |
 | Shader Manifest外Pass／Resource／side effect見逃し | 0 |
 | 存在しないShader symbol／Target／Capabilityの最終提出 | 0 |
@@ -278,6 +283,10 @@ ArchitectureComprehensionFixtureV1
 
 AiReadableAuthoringFixtureV1は100万Entity、bounded shard、Component／Asset／cross-reference／Decision、lock、stale reference、spatial boundaryを含み、Stable ID、属性、spatial、dependency closure、bounded read、revision diff、re-shard、stale indexを検証する。正確なFieldとPerformance BudgetはAuthoring／Performance Ownerを参照し、本書はexpected closure recall 100%、revision混在0、省略範囲欠落0、semantic root不一致0を要求する。
 
+`MultilingualInteractionFixtureV1`は同一intentを`en-US`入力／表示、`ja-JP`入力／表示、`ja-JP`入力＋canonical English technical context、英日mixed inputでpair化し、Editor locale切替、明示AI reply override、unsupported system locale、User-authored日本語名／台詞、missing Editor translation、pseudo localeを含む。各Caseは`input_language_tags[]`、`editor_display_locale`、`requested_reply_locale`、`effective_reply_locale`、original User text hash、canonical semantic context hash、expected Tool／typed argument／ChangeSet invariant、allowed natural-language outcome、forbidden translationを持つ。
+
+paired mutation CaseはStable target、Tool ID／version、typed argument、ChangeSet primitive集合、semantic hashをcode-based exact graderで比較し、全一致を要求する。自然言語説明はbyte equalityにせず、reply locale、functional correctness、Evidence useを別graderで評価する。localized label、英語source text、翻訳文からtargetまたはFieldを逆算したTrace、technical identityを翻訳したTool出力、User／Project原文を明示ChangeSetなしで置換した結果は失敗である。
+
 VisualEffectRoutingFixtureV1は単一Owner、複数Owner、曖昧／競合、Owner逸脱を含み、Owner recall 100%、誤Owner 0、必須dependency欠落0、Visual-onlyからGameplay authorityへの逆流0を要求する。
 
 VfxAiAuthoringFixtureV1は明確、Hybrid、High impact、未対応／敵対Caseを2D／3D、Style、Target、Scale、Cue、Fallback、Extensionで直交させる。unknown ID、逆流、Cue破壊、無言削除を0とし、AI／手動canonical ChangeSet同値性を検査する。Case件数、Catalog、Budgetの正本はVFX Ownersへ置き、Eval Manifestから参照する。
@@ -287,7 +296,7 @@ VfxAiAuthoringFixtureV1は明確、Hybrid、High impact、未対応／敵対Case
 1. 現Production ProfileをBaselineとして凍結する。
 2. Model、Prompt、Tool Schema、Context retrieval、SDKの一変数だけを変更する。
 3. Candidate Provider Manifestを新IDで作る。
-4. Conformance、Eval、Cost、Latency、retentionを実行する。
+4. Conformance、`multilingual_interaction`を含むEval、Cost、Latency、retentionを実行する。
 5. 差分と失敗Caseを人間Reviewする。
 6. 低Risk canaryへ限定する。
 7. Incident、Drift、Costを監視する。
@@ -387,6 +396,111 @@ VerificationReceiptV1
 
 exit_classはpass、fail、infrastructure_error、cancelledのclosed setとする。AIの「Testは通った」というTextからReceiptを作らない。Runnerが実ProcessとArtifactを観測した場合だけ発行する。
 
+#### 7.1.1 Evidence Requirementとfulfillment binding
+
+Architecture ChangeSetやCompatibility Consumer Inventoryが事前に必要とする証明と、実行後に得られた証跡を同じrefで表さない。前者はimmutableなRequirement、後者はそのRequirementを入力にしたfulfillment subjectと署名済みTechnical Qualification Receiptである。
+
+```text
+EvidenceRequirementV1
+  evidence_requirement_id: StableId
+  evidence_requirement_version: positive uint32
+  requirement_owner_ref: OwnerIdentityLocalRefV1
+  subject_ref: immutable content-addressed ref
+  subject_content_hash: SHA-256
+  evidence_kind: repository_tree_inventory | reachable_history_inventory
+               | release_registry_inventory | distribution_registry_inventory
+               | native_abi_registry_inventory | external_api_registry_inventory
+               | consumer_endpoint_inventory | owner_reference_set_equality
+               | definition_closure_set_equality | compatibility_change_validation
+  acceptance_predicate: no_match_in_closed_scope | exact_set_equality
+                      | registry_export_complete | endpoint_inventory_complete
+                      | closure_validation_pass
+  external_registry_authority_profile_ref?:
+    exact ExternalRegistryAuthorityProfileRefV1
+  content_hash: SHA-256
+
+EvidenceRequirementRefV1
+  evidence_requirement_id: StableId
+  evidence_requirement_version: positive uint32
+  content_hash: SHA-256
+
+EvidenceRequirementFulfillmentSubjectV1
+  evidence_requirement_ref: EvidenceRequirementRefV1
+  subject_ref: immutable content-addressed ref
+  subject_content_hash: SHA-256
+  evidence_kind: exact EvidenceRequirementV1 value
+  acceptance_predicate: exact EvidenceRequirementV1 value
+  observed_input_refs[1..64]: sorted unique immutable content-addressed ref
+  result: pass | fail
+  fulfillment_subject_hash: SHA-256(JCS(this subject without this field))
+
+EvidenceSatisfactionBindingV1
+  evidence_requirement_ref: EvidenceRequirementRefV1
+  fulfillment_subject_ref: immutable content-addressed ref
+  qualification_receipt_ref: TechnicalQualificationReceiptRefV1
+  binding_content_hash: SHA-256
+```
+
+`EvidenceRequirementV1`は期待する検証条件だけを所有し、結果、Approval、current化を含まない。`EvidenceRequirementFulfillmentSubjectV1`はRequirement／subject／kind／predicateをbyte-exactに複写し、観測した閉じた入力だけを追加する。対応`TechnicalQualificationReceiptV1`の`subject_hash`はこの`fulfillment_subject_hash`と一致し、参照`evidence_hashes[]`が全てpass、目的、署名、freshness、current revocationが成立するときだけ`EvidenceSatisfactionBindingV1`を有効とする。bindingは`evidence_requirement_ref`ごとにexactly oneとし、Requirementとbindingの集合は、親recordが`complete`、`approved`、または`applied`へ進む時にexact set equalityでなければならない。未署名のshell出力、Markdown表、URL、Issue、AIの説明、空のbindingをfulfillmentにしない。
+
+`not_applicable`はRequirement省略ではない。対象scopeが存在しないことを`no_match_in_closed_scope`または`registry_export_complete`のpass fulfillmentで示した時だけ許し、外部Registryのauthority profile、source authentication、閉じたsnapshot、署名Receiptのいずれかがない場合は`unresolved`を維持する。Architecture Approvalは別のApproval refであり、Evidence RequirementやTechnical Qualification Receiptから推測または代用しない。
+
+#### 7.1.2 外部Registry snapshotとauthority boundary
+
+外部RegistryのURL、browser表示、API response、export fileを、それ自体でfulfillmentにしない。Registryごとに「誰の、どのnamespaceを、どの完了規則で取得したか」をimmutable profileへ固定し、profileに従う閉じたsnapshotをtrusted collectorが検証してからReceiptへ束縛する。これにより、公開ページの一時的な表示、部分page、AIの要約、資格情報を含むshell出力を「consumerなし」の根拠に昇格させない。
+
+```text
+ExternalRegistryAuthorityProfileV1
+  authority_profile_id: StableId
+  authority_profile_version: positive uint32
+  scope_kind: release_registry | distribution_registry
+            | native_abi_registry | external_api_registry
+  authority_identity_ref: immutable content-addressed ref
+  registry_root_uri: canonical HTTPS URI or provider signed-export issuer URI
+  collection_method: authenticated_official_api | provider_signed_export
+  protocol_or_export_version: nonempty ASCII
+  query_scope_hash: SHA-256
+  completeness_rule: exhaustive_pagination | closed_export_manifest
+  source_authentication_policy_ref: immutable content-addressed ref
+  collection_freshness_policy_ref: immutable content-addressed ref
+  retention_policy_ref: immutable content-addressed ref
+  content_hash: SHA-256
+
+ExternalRegistryAuthorityProfileRefV1
+  authority_profile_id: StableId
+  authority_profile_version: positive uint32
+  content_hash: SHA-256
+
+ExternalRegistrySnapshotV1
+  snapshot_id: StableId
+  authority_profile_ref: ExternalRegistryAuthorityProfileRefV1
+  evidence_requirement_ref: EvidenceRequirementRefV1
+  subject_ref: immutable content-addressed ref
+  subject_content_hash: SHA-256
+  query_scope_hash: SHA-256
+  collected_at: canonical UTC instant
+  page_records[1..4096], ordered by page_sequence:
+    page_sequence: positive uint32
+    request_descriptor_hash: SHA-256
+    response_artifact_ref: immutable content-addressed ref
+    response_sha256: SHA-256
+    response_status: uint16
+    continuation_descriptor_hash?: SHA-256
+    parsed_record_count: uint32
+  collection_result: complete | authority_denied | source_error | pagination_incomplete
+  normalized_inventory_ref?: immutable content-addressed ref
+  normalized_inventory_hash?: SHA-256
+  snapshot_content_hash: SHA-256
+```
+
+外部Registry kindの`EvidenceRequirementV1`には`external_registry_authority_profile_ref: ExternalRegistryAuthorityProfileRefV1`を必須にし、他kindではcanonical omissionとする。Requirement、Profile、Snapshotのscope kind、subject ref／hash、`query_scope_hash`はbyte-exactに一致しなければならない。`collection_result=complete`では最終pageまでの連鎖、Profileのsource authentication、response schema、normalization、`normalized_inventory_*`をtrusted collectorが検証する。`authority_denied`、source error、pagination未完、Profile不一致、署名／freshness不成立はpassを発行せず、`unresolved`を維持する。Profileが`provider_signed_export`を選ぶ時はprovider署名も検証するが、`authenticated_official_api`ではProfileが固定するserver identity／credential境界を検証したtrusted collectorの署名Receiptを必要とし、browser画面やAPI URLだけを署名済みexportと読み替えない。
+
+Snapshotのraw responseは必要ならaccess-controlled evidence storeへ置き、Recordにはcontent-addressed refとhashだけを残す。request descriptorはendpoint、API version、query、page sequenceをcanonical化するが、credential、token、cookie、個人情報を含めない。`EvidenceRequirementFulfillmentSubjectV1.observed_input_refs[]`には対応Snapshotと、そのpage closureを検証した`VerificationReceiptV1`の入力／出力を含める。`TechnicalQualificationReceiptV1`はそのpass Receiptを検証して初めてSatisfaction Bindingを発行できる。Snapshot、Verification Receipt、Technical Qualification Receipt、Architecture Approvalは相互に代用しない。
+
+GitHubをrelease authorityとして選ぶ場合、[Releases REST API](https://docs.github.com/en/rest/releases/releases)の全pageを取得した結果はsnapshotのraw inputにできるが、それだけでRegistry closureにはならない。GitHubの[artifact attestation](https://docs.github.com/en/actions/concepts/security/artifact-attestations)は実際に配布するbinary、package、または内容hashを持つmanifestのbuild provenance用であり、検証してもconsumer inventoryの空集合、Registry pageの完全性、Architecture Approvalを証明しない。公式の対象外であるSource／Markdown／個別画像へattestationを作って代用しない。attestationを使うのはrelease artifactが存在する場合だけで、独立したPolicyで検証する。
+
+本節はtarget evidence contractであり、Profile、Snapshot、Receipt、外部照会権限、Artifact attestationを現時点で発行・実行・付与するものではない。
+
 SystemQualificationReceiptV1は汎用Verification Receiptを一つのSystem evidence closureへ束ね、次を固定する。
 
 ```text
@@ -425,11 +539,13 @@ ProjectShaderQualificationEvidenceClosureV1
   bounded_project_shader_profile_hash
   public_shader_sdk_catalog_hash
   module_hashes[], technique_hashes[]
-  source_tree_hash
+  shader_understanding_input_closure_hash
   target_profile_hashes[]
   artifact_set_hashes[]
   shader_fact_graph_hashes[]
   shader_understanding_closure_hash
+  shader_behavior_coverage_hash
+  shader_change_impact_coverage_hash
   verification_receipt_hashes[]
   performance_receipt_hashes[]
   provenance_root_hash
@@ -438,7 +554,7 @@ ProjectShaderQualificationEvidenceClosureV1
   evidence_closure_hash
 ```
 
-`evidence_closure_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_EVIDENCE_CLOSURE_V1`と自己Fieldだけを除くcount／length-framed canonical bytesから計算し、`ProjectShaderQualificationReceiptV1`、Activation Binding、Projectionをpreimageへ含めない。Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_graph_hashes[]`はTarget Profile ID順で件数を一致させる。Module／Technique hash、Source、Profile、public Shader SDK Catalog、Target、Compiler Profile、Fact Graph、Understanding Closure、Fixture、Budgetの一つでも変わればClosureを失効させる。Project Shader ownerの`ProjectShaderQualificationSubjectV1.compiler_and_artifact_closure_hash`は対応するClosure hashとbyte equalityにし、そのSubjectをcanonical `ProjectShaderQualificationReceiptV1.signed_record`が署名する。`ShaderUnderstandingClosureV1`、Evidence Closure、Qualification Receiptは別stageであり、相互に代用しない。
+`evidence_closure_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_EVIDENCE_CLOSURE_V1`と自己Fieldだけを除くcount／length-framed canonical bytesから計算し、`ProjectShaderQualificationReceiptV1`、Activation Binding、Projectionをpreimageへ含めない。Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_graph_hashes[]`はTarget Profile ID順で件数を一致させる。`shader_understanding_closure_hash`が解決するClosureのexact Module refのcontent hashは`module_hashes[]`に厳密に一件存在し、Closureのbehavior／change-impact coverage、後者のcovered behavior、fixture set、input closureは同じModule／fixture setへbyte equalityで閉じなければならない。Module／Technique hash、authoritative input closure、Profile、public Shader SDK Catalog、Target、Compiler Profile、Fact Graph、Understanding Closure、behavior coverage、change-impact coverage、Fixture、Budgetの一つでも変わればClosureを失効させる。`typed_ir`では`ShaderUnderstandingClosureV1`がcanonical IRをstructural authorityとして、`bounded_hlsl`ではdeclared／observed Fact setを限定的structural authorityとして記録する。両modeともbehaviorはexact Target／variant／fixture caseとmeasurement receiptからだけ評価し、reflection成功を意味または挙動の完全証明へ昇格させない。Project Shader ownerの`ProjectShaderQualificationSubjectV1.compiler_and_artifact_closure_hash`は対応するClosure hashとbyte equalityにし、そのSubjectをcanonical `ProjectShaderQualificationReceiptV1.signed_record`が署名する。`ShaderUnderstandingClosureV1`、Evidence Closure、Qualification Receiptは別stageであり、相互に代用しない。
 
 WorldQualificationReceiptV1は汎用Receiptを一つのWorld subject、Topology、State owner、Target artifact、Save／Replay、Performance、Fault、Reviewへ束ねる。System／Worldのsubject hashが変わればReceiptを再利用せず、Estimate、Preview、別Target、別Quality、別Toolchainを代用しない。
 
@@ -805,6 +921,8 @@ ExternalEvidenceRecordV1はEvidence ID、category、claim、primary source URL�
 
 Web全文を無断複製せず、必要Fact、URL、hash、取得日を保存する。
 
+`ExternalEvidenceRecordV1`は外部仕様・Policyを調査するための記録であり、Registryのconsumer有無を示すoperational inventoryではない。後者は§7.1.2の`ExternalRegistrySnapshotV1`、対応`VerificationReceiptV1`、freshな`TechnicalQualificationReceiptV1`を必要とする。snapshotのfreshness originは`collected_at`であり、同じresponse bytesを後から再包装して時刻を更新しない。`collection_freshness_policy_ref`が失効、Profileが変化、subject／query scopeが変化、またはcurrent source-authentication policyを再検証できない場合は、snapshotを新しいBinding／Approvalに使わない。
+
 | Category | 最大Age | 追加条件 |
 |---|---:|---|
 | AI API、Model、Tool Schema、retention | 30日 | Provider更新TaskとRelease前 |
@@ -873,7 +991,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 | cxx-frontend | C++／Build／Module／Dependency | C++ Profile、Driver matrix、Module、cache isolation、negative fixture |
 | shader-targeted | Project Shader Module／Technique／Profile変更 | HLSL Profile、current Product bindingのrequired Target全件のcompile／reflection、Fact、U0～U4、visual／performance／fault |
 | state-model | State／authority変更 | fast model、transition conformance |
-| ai-profile | Prompt／Model／Tool／Context | Provider conformance、public Eval 3 run |
+| ai-profile | Prompt／Model／Tool／Context／translation projection | Provider conformance、`multilingual_interaction`を含むpublic Eval 3 run |
 | full-windows | R3／R4相当、merge候補 | full build、test、sanitizer、benchmark |
 | mobile-device | Mobile影響 | Android／Apple build、device matrix |
 | nightly-assurance | nightly | expanded model、fuzz、fault、soak、adversarial Eval |
@@ -888,7 +1006,7 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 - 必須Gateが署名Policyから生成され、Task／AIが減らせない。
 - Engine-owned、Feature、AI-proposed Testが区別され、Test弱体化を検出する。
 - bounded formal modelと実装transition conformanceがあり、C++全体の証明と誤記しない。
-- 5.1の表に列挙する全Eval suite、public／holdout／adversarial／incident dataset、restricted holdout Serviceがある。
+- 5.1の表に列挙する全Eval suite、`en-US`／`ja-JP` paired multilingual Case、public／holdout／adversarial／incident dataset、restricted holdout Serviceがある。
 - fixed Corpus 3 runの最悪回がSuite別hard conditionを満たす。
 - Context evidence、§21.2へ分類済みのexact MCD Operation ref、stale Decision、修復停止、Trace gradingをRelease基準へ含める。
 - Provider／Model／Prompt／Tool更新が一変数比較、canary、rollbackを通る。
@@ -904,7 +1022,11 @@ Failure Artifactを次Jobへ暗黙再利用しない。部分状態を公開せ�
 ## 16. 一次根拠
 
 - [Toolchain／dependencies](../02-foundation/toolchain-dependencies.md): Build provenance、envelope、SBOM、static finding exchangeのProfile ID、exact version、hash、license、acquisition URLの唯一の正本
+- [GitHub REST API — Releases](https://docs.github.com/en/rest/releases/releases): GitHub release registryを選ぶ場合の公式collection interface
+- [GitHub Artifact attestations](https://docs.github.com/en/actions/concepts/security/artifact-attestations): release artifact provenanceの対象、検証、非保証の境界
 - [OpenTelemetry Specification](https://opentelemetry.io/docs/specs/otel/)
 - [OpenAI Trace grading](https://developers.openai.com/api/docs/guides/trace-grading)
+- [OpenAI Evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices)
+- [M-IFEval: Multilingual Instruction-Following Evaluation](https://aclanthology.org/2025.findings-naacl.344/)
 
 外部形式はinterchange／provenanceの根拠であり、MiraikanaiのAuthorization、Approval、Risk、Capability、Budgetを外部標準へ委ねない。

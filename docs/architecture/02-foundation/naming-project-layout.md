@@ -2,10 +2,10 @@
 
 - 文書ID: mirakan.arch.naming-project-layout
 - 状態: review
-- 正本範囲: 共通語彙、acronym、public型・Operation・Diagnostic・file・directory命名、Engine／Game Project root、Source／Derived／Intermediate／Package配置、generated file、module／namespace／target対応、lint／migration Gate
+- 正本範囲: 共通語彙、acronym、正規技術語彙の人間言語境界、public型・Operation・Diagnostic・file・directory命名、Engine／Game Project root、Source／Derived／Intermediate／Package配置、generated file、module／namespace／target対応、lint／migration Gate
 - 非正本範囲: 型・Schemaの構造、外部Tool version、Build Driver、Project revision、Asset lifecycle、Domain固有field。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)
-- 外部根拠検証日: 2026-07-21
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論と優先順位
 
@@ -51,6 +51,23 @@ Acronymは語として読むものも含め、公開PascalCaseでは`Id`、`Api`
 
 Booleanは肯定形の状態またはCapabilityを表し、`is_`／`has_`／`can_`を用いる。二重否定、`disable_* = false`、意味不明な`flag`を禁止する。単位を持つ数値は`timeout_ms`、`size_bytes`、`frequency_hz`のように単位suffixを付ける。
 
+### 2.1 人間言語の境界
+
+名前を次の四classへ分類し、同じ文字列を複数classの正本として使わない。
+
+| Class | 正規規則 | 例 |
+|---|---|---|
+| 技術identity | 英語ASCIIの正規語。翻訳禁止 | Stable ID、MCD ID、Schema／Field／enum、Operation／Diagnostic code、module、namespace、target、public API、generated code identifier |
+| 機械向け技術prose | `en-US`を正規本文とする | MCD `title`／`description`、Tool description、generated public API summary／doc comment |
+| Product presentation | Localization keyとtyped argumentから解決する | Editor label、menu、help、Diagnostic message、accessible name、AI自然言語返答 |
+| User／Project原文 | 入力されたUTF-8と宣言localeを保持する | Project／Asset／Entity表示名、台詞、Localization source message、Prompt、会話、User comment |
+
+英語は公開ecosystem、検索、SDK、AI Tool Schemaで一つの技術語彙を共有するための正規言語であり、認可境界、意味的正しさ、AI精度の保証ではない。Product presentationを日本語へ解決しても技術identity、typed value、Operation、semantic hashを変えない。localized label、翻訳本文、英語source stringからidentityを推測しない。
+
+Generated public API識別子とgenerated code identifierは英語正規語を使い、generated public API summary／doc commentはcanonical Englishを既定とする。Userが記述したcomment、創作text、固有名詞を自動翻訳または英語へ置換しない。AIは説明だけをUserが選んだ返答localeへ投影できる。
+
+Architecture正本の現在のproseは日本語を維持し、正規技術tokenだけを上表の綴りへ一致させる。翻訳版Architectureは[Architecture Governance](../01-governance/architecture-governance.md)が明示的な正本移管を承認しない限り非正規projectionである。
+
 ## 3. Public type、operation、diagnostic
 
 ### 3.1 C++とSchema type
@@ -68,7 +85,7 @@ Booleanは肯定形の状態またはCapabilityを表し、`is_`／`has_`／`can
 
 Schema typeはPascalCase＋major suffixを用い、suffixなし最新版aliasを作らない。例: `ProjectChangeSetV1`。Fieldはlowercase snake_case、closed enum valueもlowercase snake_caseとする。型のdomain schemaと意味は各Domain ownerが所有し、`ProjectChangeSetV1`は[Project state](../03-authoring/project-state.md#5-projectchangesetv1)が所有する。[Executable contracts](executable-contracts.md#8-operation定義)はMCD共通Envelopeと生成規則だけを所有し、本書は綴りだけを所有する。
 
-Process内だけで使うpublic C++ value typeは、MCD／wire／persistence／native ABIの境界を一切越えず、owner schemaで`serializable = false`と固定されている場合に限り、version suffixを付けない。`RuntimeEntityHandle`と`RuntimeWorldPublicationHandle`がこのcategoryである。境界を越える必要が生じた場合は同名aliasを追加せず、version付きの別Schema typeを定義する。これはSchema typeのsuffix例外ではなく、非Schemaのin-memory typeを分類する命名規則である。
+Process内だけで使うpublic C++ value typeは、MCD／wire／persistence／native ABIの境界を一切越えず、owner schemaで`serializable = false`と固定されている場合に限り、version suffixを付けない。`RuntimeEntityHandle`と`RuntimeWorldInstanceHandle`がこのcategoryである。境界を越える必要が生じた場合は同名aliasを追加せず、version付きの別Schema typeを定義する。これはSchema typeのsuffix例外ではなく、非Schemaのin-memory typeを分類する命名規則である。
 
 ### 3.2 Stable IDとOperation
 

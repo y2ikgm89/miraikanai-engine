@@ -1,0 +1,317 @@
+# Miraikanai Engine Persistence and Save Contract
+
+- 文書ID: mirakan.arch.persistence-save
+- 状態: review
+- 正本範囲: Runtime World Save record、persistent／ephemeral Entity projection、Component lifecycle・enablement projection、authoritative state digest、reconstruction、Replay projection、Save migration・qualification
+- 非正本範囲: ECS storage layout・query・lease、Package binary、generic artifact catalog、debug capture transport、runtime phase／job DAG、Domain field意味、AI authorization。各Owner文書を参照する
+- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)
+- 外部根拠検証日: 2026-07-24
+
+## 1. 状態と結論
+
+Saveはlive ECS memoryのdumpではない。seal済みWorld publicationから、Persistent Entity Identity、canonical Component field projection、lifecycle、enablement、sequence、schema／contract provenanceを持つimmutable record setを生成する。reconstructionはPackage／ECS construction contractを再検証して新しいRuntime Entity handleを作るため、Save内のhandle、chunk location、pointer、worker順を再利用しない。[Memory／Pointers](../02-foundation/memory-pointers.md)のbinding上、live pointer、reference、lease、span、writer、allocator objectはSave／Replay projectionに不許可であり、本書はその禁止をpersistent identityとreconstruction fixtureへ具体化する。
+
+ReplayはSaveと同じpayloadではない。Replayはauthoritative input、accepted async result、structural boundary、digest、advance sequenceを再現可能なprojectionとして記録し、capture transportとdebug UIは[Debugging／Observability／Replay](debugging-observability-replay.md)が所有する。
+
+本書はtarget review Contractであり、Save reader／writer、Replay reader／writer、migrationのcurrent activationを意味しない。current化にはcomplete／zero-verified Consumer Inventory、approved Compatibility Change、Owner reference migration manifest、source／target Foundation Definition Closure、Definition Migration binding、全Evidence Requirementのpass satisfaction binding、qualification evidenceが同一closureで必要である。
+
+## 2. Identityとprojection規則
+
+### 2.1 Persistent identity
+
+```text
+PersistentEntityIdentityV1
+  identity_kind: authoring_entity | world_root_runtime | runtime_spawn
+  identity_value: StableId
+  identity_revision: positive uint64
+  world_root_id: StableId
+  owner_ref: OwnerRefV1
+  identity_hash: SHA-256
+
+PersistentEntityIdentityRefV1
+  identity_kind: authoring_entity | world_root_runtime | runtime_spawn
+  identity_value: StableId
+  identity_revision: positive uint64
+  identity_hash: SHA-256
+```
+
+`authoring_entity`はAuthoring stable identityから解決する。`world_root_runtime`と`runtime_spawn`はRuntime Ownerが明示的に発行するpersistent identityであり、Cook時に将来spawnを予約してはならない。raw `RuntimeEntityHandle`、slot index、generation、chunk ID、rowはpersistent identityではない。
+
+Component fieldはDomain Ownerが定めるpersistence policyに従う。persistent fieldだけをcanonical field encodingへ投影し、derived index、presentation value、native object、credential、pointer、runtime-only handleは保存しない。persistent identityを持たないEntityをSaveへ近似せず、required relationがそのEntityを指すならSave validationを失敗させる。
+
+### 2.2 Save record set
+
+```text
+RuntimeWorldSaveRecordSetV1
+  save_format_version: 1
+  save_id: StableId
+  source_world_publication_ref: RuntimeWorldPublicationRefV1
+  source_project_revision_ref: ProjectRevisionRefV1
+  runtime_package_ref: RuntimePackageRefV1
+  contract_set_ref: ContractSetRefV1
+  save_sequence: positive uint64
+  authoritative_save_header_ref: AuthoritativeSaveHeaderRefV1
+  authoritative_save_bundle_manifest_ref:
+    AuthoritativeSaveBundleManifestRefV1
+  authoritative_digest_ref: RuntimeAuthoritativeStateDigestRefV1
+  entity_records[0..1048576]: RuntimeEntitySaveRecordV1
+  migration_chain_refs[0..64]
+  record_set_hash: SHA-256
+
+RuntimeEntitySaveRecordV1
+  persistent_identity_ref: PersistentEntityIdentityRefV1
+  entity_lifecycle: alive | disabled
+  source_section_id: optional StableId
+  template_ref: EntityTemplateRefV1
+  initializer_spec_ref: InitializerSpecRefV1
+  component_records[0..1024]: RuntimeComponentSaveRecordV1
+  entity_ordinal: uint64
+
+RuntimeComponentSaveRecordV1
+  component_schema_ref: ComponentSchemaRefV1
+  component_presence: present
+  component_enablement: enabled | disabled | not_applicable
+  persisted_field_mask
+  canonical_field_value_ref: CanonicalValueRefV1
+  component_projection_hash: SHA-256
+
+RuntimeWorldSaveRecordSetRefV1
+  save_format_version: positive uint32
+  save_id: StableId
+  record_set_hash: SHA-256
+```
+
+entity recordはpersistent identity canonical bytes順、component recordはComponent schema ref順、fieldはField ID順とする。`entity_ordinal`はsave内のcanonical ordering補助であり、runtime slot、World chunk row、persistent identityの代替ではない。
+
+`component_presence = present`だけをSave recordへ書く。remove済みComponent、derived Component、presentation Componentをmissing fieldとして暗黙復元しない。enablementを持たないComponentは`not_applicable`を使い、nullやzero値で代用しない。
+
+### 2.3 Timebase headerとbinding
+
+Schedulerはcadence、advance sequence、completed intervalを一意に発行する。Save payload全体へそれらを束縛するheader、Domain projection binding、bundle rootは本書が所有する。
+
+```text
+AuthoritativeSaveStateOwnerProjectionRefV1
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  projection_type_ref: McdContractRefV1(kind=type)
+  projection_id: StableId
+  projection_version: positive uint32
+  projection_content_hash: SHA-256
+
+AuthoritativeSaveHeaderRefV1
+  header_id: StableId
+  header_version: positive uint32
+  header_content_hash: SHA-256
+
+AuthoritativeSaveHeaderV1
+  header_id: StableId
+  header_version: positive uint32
+  game_candidate_build_receipt_ref: GameCandidateBuildReceiptRefV1
+  game_candidate_build_receipt_sha256: SHA-256
+  project_id: UUIDv7
+  project_revision: positive uint64
+  project_document_set_hash: SHA-256
+  contract_set_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  game_clock_domain_profile_ref: GameClockDomainProfileRefV1
+  simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
+  physics_substep_activation_binding_ref:
+    null | PhysicsSubstepActivationBindingRefV1
+  last_committed_simulation_advance_interval_ref:
+    SimulationAdvanceIntervalRefV1
+  last_committed_simulation_advance_interval_sha256: SHA-256
+  state_owner_projection_refs[0..65536]:
+    AuthoritativeSaveStateOwnerProjectionRefV1
+  state_owner_projection_set_hash: SHA-256
+  header_content_hash: SHA-256
+
+AuthoritativeSaveDomainBindingRefV1
+  binding_id: StableId
+  binding_version: positive uint32
+  binding_content_hash: SHA-256
+
+AuthoritativeSaveDomainBindingV1
+  binding_id: StableId
+  binding_version: positive uint32
+  authoritative_save_header_ref: AuthoritativeSaveHeaderRefV1
+  state_owner_projection_ref:
+    AuthoritativeSaveStateOwnerProjectionRefV1
+  binding_content_hash: SHA-256
+
+AuthoritativeSaveBundleManifestV1
+  manifest_id: StableId
+  manifest_version: positive uint32
+  authoritative_save_header_ref: AuthoritativeSaveHeaderRefV1
+  domain_binding_refs[0..65536]:
+    AuthoritativeSaveDomainBindingRefV1
+  manifest_content_hash: SHA-256
+
+AuthoritativeSaveBundleManifestRefV1
+  manifest_id: StableId
+  manifest_version: positive uint32
+  manifest_content_hash: SHA-256
+```
+
+headerのProject triple、Target、Contract set、Cadence Profile、last committed interval、substep bindingはRuntime PackageとSchedulerのsealed recordへbyte equalityで解決する。state-owner projection refは`owner_ref, projection_type_ref, projection_id, projection_version, projection_content_hash`のcanonical byte順でuniqueにし、header／binding／manifestは自己hashを除くcanonical bytesからhashする。
+
+Domain Projection base recordへHeader refまたはBinding refを埋め戻してhash cycleを作らない。生成順は`receipt-free Domain Projection → Projection Ref集合 → AuthoritativeSaveHeader／Ref → Domain Binding／Ref集合 → Bundle Manifest`とする。bare hash、latest Build、表示Hz、別Target／Project revision、Header外Projectionをload時に補完しない。
+
+## 3. Authoritative digest
+
+```text
+RuntimeAuthoritativeStateDigestV1
+  digest_version: 1
+  source_world_publication_ref: RuntimeWorldPublicationRefV1
+  world_publication_generation: positive uint64
+  advance_sequence: positive uint64
+  contract_set_ref: ContractSetRefV1
+  persistent_entity_projection_hashes[]:
+    persistent_identity_ref
+    entity_projection_hash
+  excluded_projection_classes[]:
+    ephemeral_entity | derived_index | presentation | native_handle
+  digest_sha256: SHA-256
+
+RuntimeAuthoritativeStateDigestRefV1
+  digest_version: positive uint32
+  source_world_publication_ref: RuntimeWorldPublicationRefV1
+  advance_sequence: positive uint64
+  digest_sha256: SHA-256
+```
+
+digestはcanonical persistent field projectionから計算する。Componentを`sizeof` bytesでhashしない。Entity relationはpersistent identityへ投影するか、ephemeral／derived relationとして除外根拠を明示する。raw handle、chunk layout、worker index、memory address、wall-clock completion timeをdigest入力にしない。
+
+digestはWorldがsealされた後に一度だけ作り、partial value writeやstaging structural deltaから生成しない。Save record、Replay projection、debug evidenceは同じpublication refを示さなければならない。
+
+## 4. Reconstruction
+
+reconstructionは次を順に実行する。
+
+1. Save format major、record set hash、Package、Contract set、Target compatibility、migration chainを検証する。
+2. persistent identityのduplicate、missing required relation、template／initializer mismatch、unknown Component schema、unknown persisted fieldをrejectする。
+3. Runtime Packageが渡す`RuntimeWorldBuildGatewayV1`とECS construction setをstagingする。
+4. entity recordをcanonical orderでtemplateへ展開し、canonical field値とenablementを適用する。
+5. relationをpersistent identityでresolveし、derived indexをowner Systemが再構築する。
+6. ECS structural transactionが新しいWorld publicationをsealした後、digestをread-backしてexpected valueと比較する。
+
+reconstruction中に旧RuntimeEntityHandleを再利用しない。Source section、World Root、runtime spawnのidentity conflictは明示policyなしにmergeせずrejectする。失敗時はlast-valid Save、Source Project revision、current World publicationを破壊しない。
+
+## 5. Replay projection
+
+```text
+RuntimeReplayProjectionV1
+  replay_version: 1
+  source_world_publication_ref: RuntimeWorldPublicationRefV1
+  initial_save_ref: optional RuntimeWorldSaveRecordSetRefV1
+  contract_set_ref: ContractSetRefV1
+  advance_records[0..1048576]:
+    advance_sequence
+    accepted_input_refs[]
+    accepted_async_result_refs[]
+    structural_delta_batch_hash
+    authoritative_digest_ref
+    published_or_faulted: published | faulted
+  replay_hash: SHA-256
+
+RuntimeReplayProjectionRefV1
+  replay_version: positive uint32
+  replay_hash: SHA-256
+```
+
+Replayはprovider callback順、worker completion時刻、live memory、GPU／Physics native callback pointerを記録しない。async resultはrequest identity、accept advance、validated value projectionを記録し、到着時刻を再現条件にしない。faulted advanceは`published_or_faulted = faulted`を残せるが、World publicationやSave snapshotを生成しない。
+
+Replay recordのcapture・保管・閲覧・redactionはDebug Ownerが所有する。本書はReplayに含めるauthoritative semantic projection、digest、Saveとの参照関係だけを所有する。
+
+### 5.1 Replay transport binding
+
+Debug Ownerがrecordをcapture・store・queryする一方、semantic Replayとcapture recordを結ぶ次の型は本書が所有する。Debug Session identity、store location、debug UI、retention policyのfieldはDebug Ownerを参照し、ここで再定義しない。
+
+```text
+RuntimeReplayTransportBindingV1
+  binding_version: 1
+  replay_projection_ref: RuntimeReplayProjectionRefV1
+  debug_session_ref: DebugSessionDescriptorRefV1
+  initial_checkpoint_artifact_ref: optional ArtifactRefV1
+  input_range_artifact_refs[0..4096]: ArtifactRefV1
+  accepted_async_range_artifact_refs[0..4096]: ArtifactRefV1
+  rng_range_artifact_refs[0..4096]: ArtifactRefV1
+  start_advance_sequence: positive uint64
+  end_advance_sequence_inclusive: positive uint64
+  required_asset_version_refs[0..65536]
+  redaction_manifest_ref
+  binding_hash: SHA-256
+
+RuntimeReplayTransportBindingRefV1
+  binding_version: positive uint32
+  binding_hash: SHA-256
+
+RuntimeReplayDomainProjectionRefV1
+  owner_ref: exact {owner_id, owner_revision, owner_content_hash}
+  projection_type_ref: McdContractRefV1(kind=type)
+  projection_id: StableId
+  projection_version: positive uint32
+  projection_content_hash: SHA-256
+
+RuntimeReplayDomainBindingV1
+  binding_version: 1
+  replay_projection_ref: RuntimeReplayProjectionRefV1
+  domain_projection_ref: RuntimeReplayDomainProjectionRefV1
+  binding_hash: SHA-256
+
+RuntimeReplayDomainBindingRefV1
+  binding_version: positive uint32
+  binding_hash: SHA-256
+
+RuntimeReplayBundleManifestV1
+  manifest_id: StableId
+  manifest_version: positive uint32
+  replay_projection_ref: RuntimeReplayProjectionRefV1
+  replay_transport_binding_ref: RuntimeReplayTransportBindingRefV1
+  domain_binding_refs[0..65536]:
+    sorted unique RuntimeReplayDomainBindingRefV1
+  manifest_content_hash: SHA-256
+
+RuntimeReplayBundleManifestRefV1
+  manifest_id: StableId
+  manifest_version: positive uint32
+  manifest_content_hash: SHA-256
+
+ReplaySliceV1
+  slice_id: StableId
+  slice_version: positive uint32
+  replay_bundle_manifest_ref: RuntimeReplayBundleManifestRefV1
+  replay_transport_binding_ref: RuntimeReplayTransportBindingRefV1
+  start_runtime_time_ref: RuntimeTimeRefV1(kind=simulation)
+  end_runtime_time_ref: RuntimeTimeRefV1(kind=simulation)
+  expected_authoritative_digest_ref: RuntimeAuthoritativeStateDigestRefV1
+  diagnostic_refs[0..256]
+  slice_content_hash: SHA-256
+```
+
+range artifactは同じDebug Session、Project／Build／Target、Contract set、advance rangeへ解決し、checkpoint、input、accepted async、RNGのどれが欠けたかをexplicit omissionとして扱う。`ReplaySliceV1`は一つの連続advance rangeだけを参照し、partial capture、Profile推測、Interval欠落、別Session／Project／Buildへのfallbackをportable reproductionとして扱わない。
+
+Save bundleは`AuthoritativeSaveHeaderV1`、domain binding、Save record setを一つのclosureとして結ぶ。Replay bundleは`RuntimeReplayProjectionV1`、transport binding、Domain Replay bindingを同じ方式で結ぶ。いずれもbase projectionへbundle／binding refを埋め戻さず、生成順を`receipt-free Domain Projection → Projection Ref → root Projection／Ref → Binding Ref集合 → Bundle Manifest`とする。Bundleのmissing／extra／別root／別Contract set／別Target／hash差をload、Replay開始、Debug Slice発行前にrejectする。
+
+Save record setの`authoritative_save_header_ref`はBundle ManifestのHeader refと一致し、全Domain Bindingも同じHeader refを持たなければならない。Replay Bundle Manifestのroot Projection refはtransport bindingと全Domain Bindingのroot Projection refに一致し、`ReplaySliceV1`のtransport binding refはBundleのtransport binding refと一致しなければならない。いずれのclosureもlatest検索、外部からのmember補完、hashだけの代用を許可しない。
+
+## 6. Migrationとcompatibility
+
+Save／Replay schema、Component projector、persistent identity policy、digest algorithmを変更する場合は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のCompatibility ChangeSetを必須とする。`save`／`replay` classを含むConsumer Inventoryがcompleteかつzero verifiedで、scope Requirementのpass fulfillmentがrelease済みSave consumerなしを示したtarget ECS clean breakだけが、`source_preserving_recook`の範囲でfixtureを再生成し、old Save／Replay reader、dual schema、handle aliasを残さない。
+
+公開済みSaveまたはReplayを読む必要がある場合は、対象format major、old reader期限、new writer開始点、migration failure、release rollback、evidenceを`versioned_reader_migration`として明記する。readerがfield欠落を旧schemaと推測すること、unknown relationをnull objectへ変換すること、old raw handleをpersistent identityへ変換することを禁止する。
+
+## 7. Qualification
+
+target Persistence／Saveは少なくとも次を証明する。
+
+1. 同じsealed World publicationから同じSave record set、digest、Replay projection hashを二回生成する。
+2. stale／duplicate persistent identity、missing required relation、unknown schema／field、hash mismatch、target／contract mismatchをrejectする。
+3. Saveにraw handle、chunk row、pointer、native bytes、derived／presentation value、credentialを含めない。
+4. reconstructionが新しいRuntimeEntityHandleを発行し、persistent projectionとdigestだけを一致させる。
+5. faulted advance、partial structural transaction、partial value writeからSave／digest／published replay snapshotを作らない。
+6. Save／Replay bundleのmember setがHeader／root Projection、transport、Domain Bindingへexactに解決し、base projectionへのbinding埋戻しを拒否する。
+7. migrationが必要なconsumerをclean breakとして誤分類せず、reader／writer／rollback期限をCompatibility ChangeSetで検証する。
+8. Consumer InventoryのSave／Replay scopeと全Evidence Requirementのpass fulfillment、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じclosureへexact解決する。
+
+## 8. 非目的
+
+本書はSave implementation、storage backend、cloud sync、debug viewer、Task Plan、migration実行を指示しない。実施は対象Ownerの承認済みdefinition migrationとProduct Work Package条件の後に開始できる。

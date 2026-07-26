@@ -4,12 +4,12 @@
 - 状態: review
 - 正本範囲: Audio Assetのdomain意味、Sound Cue、Audio command、Voice、Mixer／Bus／DSP、Spatial、decode／stream／callback、route／interruption、Audio固有capacity／failure／qualification
 - 非正本範囲: Source import／cook／promotion transaction、Runtime phase／shared queue・memory budget、Platform lifecycle、external codec／SDK version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論
 
-Miraikanai EngineはAudioの論理Voice、Bus、Sound Cue、Spatial、priority、streamingを独自に所有する。XAudio2、Oboe、AVAudioSession／AudioUnitはdevice outputとnative lifecycleのAdapterであり、Game、AI、Saveへnative voice／callbackを公開しない。
+Miraikanai EngineはAudioの論理Voice、Bus、Sound Cue、Spatial、priority、streamingを独自に所有する。XAudio2、Oboe、AVAudioSession／AudioUnitはdevice outputとnative lifecycleのAdapterであり、Game、AI、Saveへnative voice／callbackを公開しない。Voice／Asset handle、callback buffer、decode／mix scratch、retireは[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingに従い、callback内のpreallocated buffer規則とAudio固有underrun／route条件は本書が所有する。
 
 Audioはpresentation stateである。Gameplayは「音が終了したcallback」やactual playback cursorをauthoritative判定に使わず、必要なtimingはGameplay clock／typed eventで別管理する。
 

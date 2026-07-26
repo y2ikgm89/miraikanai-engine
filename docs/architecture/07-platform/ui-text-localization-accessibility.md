@@ -2,10 +2,10 @@
 
 - 文書ID: mirakan.arch.platform-ui-text-localization-accessibility
 - 状態: review
-- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Text storage／input／layout、Localization、glyph cache、Accessibility、Player Profile／Settings transaction／Save Catalog、UI authoring、UI固有capacity／failure／qualification
+- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Text storage／input／layout、Game／Editor Localization Catalog schema・BCP 47・fallback、glyph cache、Accessibility、Player Profile／Settings transaction／Save Catalog、UI authoring、UI固有capacity／failure／qualification
 - 非正本範囲: Project ChangeSet／Asset lifecycle、Gameplay Save payload、common Renderer execution、Runtime phase／shared budget、Editor shell／workspace、Account credential、telemetry／AI／network consent、Platform lifecycle／safe-area source、external library version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
-- 外部根拠検証日: 2026-07-21
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論
 
@@ -33,6 +33,7 @@ Windows Editor shellは本書の`UiRuntimeTree`、Layout、Event、Semantic cont
 | Android／Apple lifecycle、safe area、Text Adapter | Mobile規約 |
 | Composite／Effect／Native WidgetのUI契約、AI UI生成workflow | 本書 |
 | Project C++ artifact、C ABI、Source Worker、Build、Promotion | Native Game規約、AI実装・保守ガバナンス規約 |
+| Editor表示／AI返答Preference、system locale解決、会話override | [Editor workspace／UX](../03-authoring/editor-workspace-ux.md#73-editor表示localeとai返答locale) |
 
 C1ではHTML／CSS parser、DOM、JavaScript、webview、arbitrary expression binding、Runtime Font download、system Font依存のShipping layout、Rich Text markup parser、SVG Font、font editorを実装しない。C1は標準Widgetと宣言型`UiCompositeDefinition`をProduction対象にする。C2候補はlimited rich text span、MSDF、HRTF字幕連携、advanced vector UI、型付き`UiEffectGraph`、Governance decision refを持つProject C++による`UiNativeWidget`である。第三者binary Widget、Marketplace、Editor ProcessへProject Widget codeをloadする経路はC1／C2に含めず、C3で別Threat Model、ABI、署名、配布、revocation設計がOwner文書に追加されるまで使用しない。
 
@@ -261,7 +262,7 @@ UiStyleSheet
 
 Rule selectorはWidget Type、Style Class、Stateの三要素だけとし、descendant selector、path selector、arbitrary predicateを禁止する。解決優先順位はEngine default、Visual Style、Document Style、Class、inline overrideで固定する。
 
-Stateはnormal、hover、pressed、focused、disabled、selected、invalid。Color以外にborder、icon、text、focus indicatorの少なくとも一つで意味を示す。
+`State`はDomain stateの単一enumではなく、immutable presentation stateから導く有限のstyle overlayである。Game UIの共通最低overlayは`normal`、`hover`、`pressed`、`focused`、`disabled`、`selected`、`invalid`であり、`invalid`はvalidation errorのpresentationに使う。`read_only`、`warning`、`stale`、proposal、runtime等の追加意味はDomain／Editor側の別axisを保持した上で対応するoverlayを追加し、`disabled`、`invalid`、`selected`へ読み替えない。Editorが使うaxis、overlay順、High Contrast表現は[Editor UI Framework §15.3](../03-authoring/editor-ui-framework.md#153-visual-state-contract)が正本である。Color以外にborder、icon、text、focus indicatorの少なくとも一つで意味を示す。
 
 Style変更はVisualStyleProfile dependency closureとしてPreview／Cookし、Font、UI、Material、Postと部分generationを混在させない。
 
@@ -369,7 +370,22 @@ LocalizationCatalog
 
 `LocalizationCatalog`の正規Commit経路は[Project state](../03-authoring/project-state.md) §3.1の`LocalizationCatalogDocument`（document_kind）であり、本書がそのschema正本、Project stateがDocument identityとCommitを所有する。
 
+Editor自身のLocalizationは同じentry／Message AST／BCP 47 schemaを使用するが、Game Project Catalogと別Artifact、別lifecycleにする。
+
+```text
+EditorLocalizationCatalogProfileV1
+  namespace_id = mirakan.editor
+  source_locale = en-US
+  required_locales = [en-US, ja-JP]
+  final_fallback_locale = en-US
+  catalog_artifact_ref
+```
+
+このProfileはEditor packageだけへ同梱し、Projectの`LocalizationCatalogDocument`、Project revision、Game Content Group、Save、Game Packageへ登録しない。Game CatalogもEditor labelのfallbackに使用しない。§11.4の広いEngine conformance setはText／Localization実装のqualification範囲であり、C1 Editor翻訳を全localeへ提供するProduct promiseではない。
+
 Source `LocalizationKeyId`はUUIDv7 `StableId`で、Source文字列やEnglish本文をkeyにしない。Cookerは一つのexact Localization Catalog Artifact内でKey `StableId`をUUID byte順に並べ、1から`LocalizationKeyRuntimeId uint32`を割り当てる。0はinvalidとし、Runtime IDをSource、Save、別Catalog比較へ使用しない。各messageはICU MessageFormat相当のbounded ASTへoffline Cookする。
+
+`developer_description`はTranslator、Tool、AIが同じ意味とplaceholder contextを参照するcanonical `en-US` technical proseであり、display textでもLocalization keyでもない。翻訳対象の`messages_by_locale`と同じFieldへ混在させず、Userへ表示するhelpは別Localization entryにする。
 
 ### 11.2 Message AST
 
@@ -401,6 +417,8 @@ requested exact locale
 同じlocaleを二度訪れず最大8段とする。Required localeのrequired key不足、argument schema不一致、plural branch不足はPackage build errorである。Optional textだけSource locale fallbackを許可し、Localization diagnosticsへ記録する。
 
 ProjectはShipping locale setを明示し、Asset CookerがLocalization、Font coverage、Audio dialogue、ICU dataを同じContent Groupへ閉包する。
+
+Editor requested localeの選択とUser Preferenceは[Editor Workspace／UX §7.3](../03-authoring/editor-workspace-ux.md#73-editor表示localeとai返答locale)が所有する。Editor Catalog内のfallbackは`requested exact locale -> language-only locale -> en-US`の順、重複なし最大8段である。`en-US`または`ja-JP`のrequired key不足、argument schema不一致、plural branch不足はEditor language-pack build errorにする。optional Editor textだけ`en-US` fallbackを許可し、key、requested locale、resolved localeをtyped Localization Diagnosticへ記録する。
 
 ### 11.4 C1 conformance locale
 
@@ -780,6 +798,8 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - ViewModel type、one-way／two-way proposal、converter、fallback、no arbitrary expression
 - UTF-8、grapheme、combining mark、ZWJ、variation selector、CJK、Arabic／Hebrew BiDi
 - ICU plural／number／date、locale fallback、required key、pseudo localization
+- Editor CatalogとGame CatalogのArtifact／namespace／package closure分離、`en-US`／`ja-JP` required key、optional `en-US` fallback Diagnostic、相互fallback 0件
+- live Editor locale切替でlocalized display／layoutは更新し、Project revision、Stable target、Action、semantic hashを変更しない
 - HarfBuzz shapingとFreeType glyph metrics／raster golden
 - OpenType table bounds／checksum、Font fallback cluster、missing glyph、COLR／CPAL v0、variation、license／required locale coverage
 - IME composition、selection、clipboard、password zeroization／AI exclusion
