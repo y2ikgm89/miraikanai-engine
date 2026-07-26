@@ -558,8 +558,9 @@ layout has a qualified campaign.
 
 ## 10. Product Plan integration
 
-The destination Active Product Definition adds these rows without treating
-them as implemented or active.
+The closed destination projection would add these rows only if separately
+approved and atomically applied; listing them does not make them implemented or
+active.
 
 ```text
 requirement.runtime.ecs-data-oriented-core
@@ -568,12 +569,17 @@ gate.product.phase-0-ecs-data-oriented-core
 risk.product.ecs-data-oriented-regression
 ```
 
-These are destination rows of the same approved Product Definition Migration
-that applies `RuntimeEcsCanonicalizationChangeSetV1` and its Owner reference
-migration. They are not inserted into the current source Definition while
-Runtime ECS remains a `review` target and the current ECS Work Package owner is
-Scheduling／Lifetime. The source Definition and its operational snapshot
-remain byte-equal until the atomic migration is approved and applied.
+These are closed rows of an unmaterialized destination migration candidate
+associated with `RuntimeEcsCanonicalizationChangeSetV1` and its Owner reference
+migration. Under the current Governance profile that Change Set remains
+`state=review`, `contract_activation_effect=none`, with
+`definition_migration_binding_ref` absent; therefore this destination candidate
+is not materialized, approved, or applied. Only if a complete Product Definition
+Migration is separately materialized and approved do its destination rows, the
+Change Set, and the Owner reference migration apply atomically. Until that
+separate approval and atomic application, Runtime ECS remains a `review` target,
+the current ECS Work Package owner remains Scheduling／Lifetime, and the source
+Definition and operational snapshot remain byte-equal.
 
 ### 10.1 Exact destination Registry changes
 
@@ -586,6 +592,15 @@ The destination Registry changes are closed:
 | `PhaseFixtureBindingRegistryV1` | `{gate_id=gate.product.phase-0-ecs-data-oriented-core, phase_id=phase.foundation, fixture_id=fixture.runtime.ecs-data-oriented-core, evaluated_requirement_refs=[requirement.runtime.ecs-data-oriented-core], target_refs=[target.headless.host], candidate_binding_policy_ref=policy.product.same-candidate.v1, freshness_policy_ref=policy.evidence.contract-ci.v1}` |
 | `ProductPhaseRegistryV1` `phase.foundation` | append the new Requirement to `outcome_requirement_refs[]` and the new Gate to `exit_gate_refs[]`; `work_package_refs[]` is unchanged |
 | `WorkPackageRegistryV1` | append `{kind=product_fixture, fixture_id=fixture.runtime.ecs-data-oriented-core}` to `provided_fixture_refs[]` of `wp.foundation.memory-pointers`, `wp.runtime.scheduling-core`, `wp.runtime.ecs-e0`, `wp.runtime.ecs-e1-storage`, and `wp.runtime.ecs-e2-query-mutation`; all other Fields remain unchanged except the coordinated Owner replacements below |
+| `RiskRegistryV1` `risk.product.memory-pointer-contract-drift` | in the destination projection only, replace `mitigation` with `the exact four-Type definition closure [PointerContractV1, MemoryContractV1, PointerMemoryConsumerBindingV1, CppValueTransferPolicyV1], bidirectional consumer Matrix, static／negative fixture, supported sanitizer lane, and hot path fallback 0 are bound to the same Phase 0 Candidate Gate`; retain every other Field byte-equal to the current source row |
+
+The current source Requirement prose for
+`requirement.foundation.memory-pointer-contract`, its `RequirementRegistryV1`
+row, and the current source
+`risk.product.memory-pointer-contract-drift` row remain byte-equal. The
+destination-only risk replacement above is part of the same candidate atomic
+migration and prevents its applied destination from inheriting the current
+`MCDの三Contract` mitigation wording.
 
 The Fixture target set is deliberately broader than the Phase 0 Gate target
 set. The Headless Gate evaluates only `target.headless.host`; later Windows、

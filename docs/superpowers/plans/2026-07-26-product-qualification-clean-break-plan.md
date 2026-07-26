@@ -307,8 +307,12 @@ semantic owner, or document count changes.
 
 ```powershell
 $path = 'docs/architecture/04-runtime/performance-capacity.md'
-if (rg -q '^RuntimeDataOrientedQualificationProfileV1$' $path) {
-  throw 'Precondition failed: data-oriented profile already defined.'
+rg -q '^RuntimeDataOrientedQualificationProfileV1$' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: data-oriented profile already defined.' }
+  1 { break }
+  default { throw "rg failed while checking the profile owner (exit $rgExit)." }
 }
 Write-Error 'Expected failure: Runtime data-oriented qualification has no canonical profile.'
 ```
@@ -543,7 +547,13 @@ foreach ($token in @(
   'MIRAKAN-PERFORMANCE-ECS-REQUIRED-METRIC-MISSING',
   '12,600'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 $metricCount = (rg -o 'metric\.runtime\.ecs\.[a-z0-9-]+' $path | Sort-Object -Unique | Measure-Object).Count
 if ($metricCount -ne 35) { throw "Expected 35 mandatory metric IDs, got $metricCount" }
@@ -572,8 +582,12 @@ Expected: one-file commit, two sole-owned schemas, and 35 mandatory metric IDs.
 
 ```powershell
 $path = 'docs/architecture/02-foundation/compatibility-evolution.md'
-if (rg -q 'old generated API signatures that violate' $path) {
-  throw 'Precondition failed: data-oriented cutover already recorded.'
+rg -q 'old generated API signatures that violate' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: data-oriented cutover already recorded.' }
+  1 { break }
+  default { throw "rg failed while checking the cutover inventory (exit $rgExit)." }
 }
 Write-Error 'Expected failure: Compatibility lacks the complete data-oriented cutover.'
 ```
@@ -671,7 +685,13 @@ foreach ($token in @(
   'MIRAKAN-COMPATIBILITY-ECS-CONSUMER-INVENTORY-UNRESOLVED',
   'MIRAKAN-COMPATIBILITY-ECS-RETAINED-EXTERNAL-CONSUMER'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 git diff --check -- $path
 git add -- $path
@@ -693,24 +713,29 @@ Expected: one-file commit; unresolved consumers still reject application.
 - Modify: `docs/architecture/00-product/product-plan.md:1670-1686`
 
 **Interfaces:**
-- Consumes: approved `RuntimeEcsCanonicalizationChangeSetV1`, owner-reference migration, Performance profile／campaign, current source Registry rows.
-- Produces: exact destination Requirement, Fixture, Phase Gate, Phase additions, Work Package fixture bindings, three owner replacements, one risk, and one Product Diagnostic.
+- Consumes: review-state `RuntimeEcsCanonicalizationChangeSetV1`, an unmaterialized destination migration candidate, owner-reference migration candidate, Performance profile／campaign, and current source Registry rows.
+- Produces: exact destination Requirement, Fixture, Phase Gate, Phase additions, Work Package fixture bindings, three owner replacements, one new risk, one existing-risk mitigation replacement, and one Product Diagnostic.
 
 - [ ] **Step 1: Capture the current source-definition checksum**
 
-Before editing, isolate the existing current Registry code blocks and record
-their SHA-256 hashes in the execution notes:
+Before editing, isolate the current source Requirement prose, its
+`RequirementRegistryV1` row, and the
+`risk.product.memory-pointer-contract-drift` row. Record their exact text in the
+execution notes together with the document hash:
 
 ```powershell
 $path = 'docs/architecture/00-product/product-plan.md'
 $before = (Get-FileHash -Algorithm SHA256 $path).Hash
 "Pre-edit document SHA-256: $before"
 rg -n '^### 11\.[3-7] ' $path
+rg -n --fixed-strings '`requirement.foundation.memory-pointer-contract`は、' $path
+rg -n --fixed-strings '| `requirement.foundation.memory-pointer-contract` |' $path
+rg -n --fixed-strings '| `risk.product.memory-pointer-contract-drift` |' $path
 ```
 
 The document hash will change because a destination projection is added. The
-existing current Registry row bytes inside their code blocks must not be edited;
-review them separately in Step 8.
+three captured current source entries must remain byte-equal; review them
+separately in Step 8.
 
 - [ ] **Step 2: Add a clearly non-active destination section**
 
@@ -719,7 +744,7 @@ After the existing ECS target-owner mapping, add:
 ```markdown
 ### Destination projection: data-oriented ECS core
 
-This subsection is a closed destination projection of the same approved `ActiveProductDefinitionMigrationV1` that applies `RuntimeEcsCanonicalizationChangeSetV1` and its Owner-reference migration. It is not part of the current source Definition and does not change the operational snapshot. The source remains byte-equal until the coordinated migration is approved and atomically applied.
+This subsection is a closed projection of an unmaterialized, unapproved, and unapplied destination migration candidate associated with `RuntimeEcsCanonicalizationChangeSetV1` and its Owner-reference migration. The current Governance profile remains `state=review`, `contract_activation_effect=none`, with `definition_migration_binding_ref` absent. This subsection is not part of the current source Definition and does not change the operational snapshot. Only if a complete Product Definition Migration is separately materialized and approved do the destination projection, Change Set, and Owner-reference migration apply atomically; the source remains byte-equal until that atomic application.
 ```
 
 - [ ] **Step 3: Add exact destination Registry rows**
@@ -754,7 +779,20 @@ hash in the same four-Type Contract Set, plus the fresh
 `fixture.foundation.memory-pointer-contract` Receipt that proves the
 retained-Field、single-`capacity_source`、six-layout/access-Field invariant.
 Product Plan must not copy the Memory Field list. Leave the current source
-Requirement prose and Registry row unchanged until the atomic migration.
+Requirement prose and Requirement Registry row byte-equal until the atomic
+migration.
+
+In the destination projection only, replace the `mitigation` Field of
+`risk.product.memory-pointer-contract-drift` with this exact value:
+
+```text
+the exact four-Type definition closure [PointerContractV1, MemoryContractV1, PointerMemoryConsumerBindingV1, CppValueTransferPolicyV1], bidirectional consumer Matrix, static／negative fixture, supported sanitizer lane, and hot path fallback 0 are bound to the same Phase 0 Candidate Gate
+```
+
+Retain every other Field byte-equal to the current source risk row. Do not edit
+the current source row in §11.7; this explicit replacement exists only in the
+destination projection and applies atomically with the other destination
+changes.
 
 - [ ] **Step 4: Add the exact destination owner migration**
 
@@ -772,7 +810,7 @@ Do not change `wp.foundation.memory-pointers` or
 `wp.runtime.scheduling-core`, add a Work Package／Capability, or alter the
 dependency chain.
 
-- [ ] **Step 5: Add the exact risk row**
+- [ ] **Step 5: Add the exact ECS risk row**
 
 | Field | Exact value |
 |---|---|
@@ -841,6 +879,10 @@ $removedRegistryRows = $diff | Select-String '^-.*(requirement_id=|fixture_id=|g
 if ($removedRegistryRows) {
   throw "Current Registry rows were removed or replaced:`n$($removedRegistryRows -join "`n")"
 }
+$sourceEntryMutations = $diff | Select-String '^-.*(`requirement\.foundation\.memory-pointer-contract`は、|\| `requirement\.foundation\.memory-pointer-contract` \||\| `risk\.product\.memory-pointer-contract-drift` \|)'
+if ($sourceEntryMutations) {
+  throw "Current source Requirement or risk entry changed:`n$($sourceEntryMutations -join "`n")"
+}
 foreach ($token in @(
   'requirement.runtime.ecs-data-oriented-core',
   'fixture.runtime.ecs-data-oriented-core',
@@ -848,11 +890,33 @@ foreach ($token in @(
   'risk.product.ecs-data-oriented-regression',
   'MIRAKAN-PRODUCT-ECS-TARGET-RECEIPT-MISMATCH'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
+}
+$content = Get-Content -Raw $path
+$destination = [regex]::Match(
+  $content,
+  '(?ms)^### Destination projection: data-oriented ECS core\r?\n.*?(?=^### |\z)'
+)
+if (-not $destination.Success) { throw 'Destination projection section is missing.' }
+$riskReplacement = 'the exact four-Type definition closure [PointerContractV1, MemoryContractV1, PointerMemoryConsumerBindingV1, CppValueTransferPolicyV1], bidirectional consumer Matrix, static／negative fixture, supported sanitizer lane, and hot path fallback 0 are bound to the same Phase 0 Candidate Gate'
+if (-not $destination.Value.Contains($riskReplacement)) {
+  throw 'Destination risk mitigation replacement is missing or not exact.'
+}
+$outsideDestination = $content.Remove($destination.Index, $destination.Length)
+if ($outsideDestination.Contains($riskReplacement)) {
+  throw 'Destination risk mitigation replacement escaped the destination section.'
 }
 ```
 
-Expected: destination additions only; no current Registry row deletion.
+Expected: the current source Requirement prose, Requirement Registry row, and
+current source risk row are byte-equal; only the destination projection carries
+the explicit risk replacement and other additions.
 
 - [ ] **Step 9: Verify reference cardinalities and commit only Product Plan**
 
@@ -1069,14 +1133,91 @@ foreach ($type in @(
   'CppValueTransferPolicyV1'
 )) {
   foreach ($file in $foundation) {
-    if (-not (rg -q --fixed-strings $type $file)) { throw "Missing $type in $file" }
+    rg -q --fixed-strings $type $file
+    $rgExit = $LASTEXITCODE
+    switch ($rgExit) {
+      0 { break }
+      1 { throw "Missing $type in $file" }
+      default { throw "rg failed while checking '$file' (exit $rgExit)." }
+    }
   }
 }
-$stale = rg -n '三Contract|三種manifest|Pointer.Memory.*three|three.*Pointer.Memory' docs/architecture
-if ($LASTEXITCODE -eq 0) { throw "Stale three-type wording:`n$stale" }
+
+$productPath = 'docs/architecture/00-product/product-plan.md'
+$projectionCommit = git log -1 --format=%H -- $productPath
+if ($LASTEXITCODE -ne 0 -or -not $projectionCommit) {
+  throw 'Cannot resolve the destination-projection commit.'
+}
+$currentText = (git show "${projectionCommit}:$productPath") -join "`n"
+if ($LASTEXITCODE -ne 0) { throw 'Cannot read Product Plan at the projection commit.' }
+$baselineText = (git show "${projectionCommit}^:$productPath") -join "`n"
+if ($LASTEXITCODE -ne 0) { throw 'Cannot read the pre-projection Product Plan baseline.' }
+
+$riskRowPattern = '(?m)^\| `risk\.product\.memory-pointer-contract-drift` \|.*$'
+$baselineRiskRows = [regex]::Matches($baselineText, $riskRowPattern)
+$currentRiskRows = [regex]::Matches($currentText, $riskRowPattern)
+if ($baselineRiskRows.Count -ne 1 -or $currentRiskRows.Count -ne 1) {
+  throw "Expected one current source risk row in baseline and projection; got $($baselineRiskRows.Count) and $($currentRiskRows.Count)."
+}
+if (-not [string]::Equals(
+  $baselineRiskRows[0].Value,
+  $currentRiskRows[0].Value,
+  [StringComparison]::Ordinal
+)) {
+  throw 'Current source risk row is not byte-equal to the pre-projection baseline.'
+}
+
+$stalePattern = '三Contract|三種manifest|Pointer.Memory.*three|three.*Pointer.Memory'
+$staleOptions = [Text.RegularExpressions.RegexOptions]::IgnoreCase
+$baselineRiskStale = [regex]::Matches(
+  $baselineRiskRows[0].Value,
+  $stalePattern,
+  $staleOptions
+).Count
+$baselineAllStale = [regex]::Matches(
+  $baselineText,
+  $stalePattern,
+  $staleOptions
+).Count
+if ($baselineRiskStale -ne 1 -or $baselineAllStale -ne 1) {
+  throw "Baseline must contain exactly one stale cardinality in the current source risk row; got risk=$baselineRiskStale total=$baselineAllStale."
+}
+
+$destination = [regex]::Match(
+  $currentText,
+  '(?ms)^### Destination projection: data-oriented ECS core\n.*?(?=^### |\z)'
+)
+if (-not $destination.Success) { throw 'Destination projection section is missing.' }
+$destinationStale = [regex]::Matches(
+  $destination.Value,
+  $stalePattern,
+  $staleOptions
+).Count
+$currentRiskStale = [regex]::Matches(
+  $currentRiskRows[0].Value,
+  $stalePattern,
+  $staleOptions
+).Count
+$currentAllStale = [regex]::Matches(
+  $currentText,
+  $stalePattern,
+  $staleOptions
+).Count
+$otherStale = $currentAllStale - $currentRiskStale - $destinationStale
+if ($currentRiskStale -ne 1 -or $destinationStale -ne 0 -or $otherStale -ne 0) {
+  throw "Stale cardinality scope mismatch: source-risk=$currentRiskStale destination=$destinationStale other=$otherStale."
+}
+
+$riskReplacement = 'the exact four-Type definition closure [PointerContractV1, MemoryContractV1, PointerMemoryConsumerBindingV1, CppValueTransferPolicyV1], bidirectional consumer Matrix, static／negative fixture, supported sanitizer lane, and hot path fallback 0 are bound to the same Phase 0 Candidate Gate'
+if (-not $destination.Value.Contains($riskReplacement)) {
+  throw 'Destination does not require the exact four-Type risk mitigation replacement.'
+}
 ```
 
-Expected: exact four-type closure and no stale cardinality.
+Expected: the exact four-Type closure is present; the sole stale cardinality is
+the baseline-byte-equal current source risk row (one), while the destination and
+all other sections contain zero. The destination requires the four-Type
+replacement that becomes effective only with the atomic migration.
 
 - [ ] **Step 5: Verify `MemoryContractV1` retained-plus-six shape**
 
@@ -1125,7 +1266,13 @@ $scenarios = @(
   'query_cache_invalidation'
 )
 foreach ($scenario in $scenarios) {
-  if (-not (rg -q --fixed-strings $scenario $path)) { throw "Missing scenario: $scenario" }
+  rg -q --fixed-strings $scenario $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing scenario: $scenario" }
+    default { throw "rg failed while checking scenario '$scenario' (exit $rgExit)." }
+  }
 }
 $metricCount = (rg -o 'metric\.runtime\.ecs\.[a-z0-9-]+' $path | Sort-Object -Unique | Measure-Object).Count
 if ($metricCount -ne 35) { throw "Expected 35 metrics, got $metricCount" }

@@ -81,8 +81,12 @@ create that baseline by committing pre-existing changes on their behalf.
 
 ```powershell
 $path = 'docs/architecture/02-foundation/core-architecture.md'
-if (rg -q 'CppValueTransferPolicyV1' $path) {
-  throw 'Precondition failed: Core already contains the new routing token.'
+rg -q 'CppValueTransferPolicyV1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: Core already contains the new routing token.' }
+  1 { break }
+  default { throw "rg failed while checking Core routing (exit $rgExit)." }
 }
 Write-Error 'Expected failure: Core does not yet route C++ value transfer.'
 ```
@@ -115,8 +119,12 @@ CIは生成C++ signature、Pointer／Memory manifest、C ABI adapterが同じCon
 $path = 'docs/architecture/02-foundation/core-architecture.md'
 $count = (rg -c 'CppValueTransferPolicyV1' $path)
 if ($count -ne 2) { throw "Expected 2 routing references, got $count" }
-if (rg -q 'target_abi_facts:|transfer_form:|storage_layout:' $path) {
-  throw 'Core duplicated an owner schema.'
+rg -q 'target_abi_facts:|transfer_form:|storage_layout:' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Core duplicated an owner schema.' }
+  1 { break }
+  default { throw "rg failed while checking Core schema duplication (exit $rgExit)." }
 }
 git diff --check -- $path
 ```
@@ -154,11 +162,19 @@ Expected: one-file commit.
 
 ```powershell
 $path = 'docs/architecture/02-foundation/executable-contracts.md'
-if (-not (rg -q 'PointerContractV1.*MemoryContractV1.*PointerMemoryConsumerBindingV1' $path)) {
-  throw 'Existing three-type closure was not found.'
+rg -q 'PointerContractV1.*MemoryContractV1.*PointerMemoryConsumerBindingV1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { break }
+  1 { throw 'Existing three-type closure was not found.' }
+  default { throw "rg failed while checking the existing closure (exit $rgExit)." }
 }
-if (rg -q 'CppValueTransferPolicyManifest\.bin' $path) {
-  throw 'Precondition failed: fourth manifest already exists.'
+rg -q 'CppValueTransferPolicyManifest\.bin' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: fourth manifest already exists.' }
+  1 { break }
+  default { throw "rg failed while checking the fourth manifest (exit $rgExit)." }
 }
 Write-Error 'Expected failure: four-type closure is not materialized.'
 ```
@@ -235,7 +251,13 @@ foreach ($token in @(
   'local_type_refs[4]',
   'source API subject集合とvalue-transfer binding集合'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 git diff --check -- $path
 git add -- $path
@@ -266,7 +288,13 @@ Expected: one-file commit and exact four-type closure.
 $path = 'docs/architecture/02-foundation/memory-pointers.md'
 foreach ($token in @('storage_layout','element_storage','access_pattern','growth_policy','address_stability','hot_path')) {
   $pattern = '^\s+' + [regex]::Escape($token) + ':'
-  if (rg -q $pattern $path) { throw "Precondition failed: $token already present" }
+  rg -q $pattern $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { throw "Precondition failed: $token already present" }
+    1 { break }
+    default { throw "rg failed while checking Field '$token' (exit $rgExit)." }
+  }
 }
 Write-Error 'Expected failure: MemoryContractV1 lacks the six layout/access Fields.'
 ```
@@ -504,7 +532,13 @@ foreach ($token in @(
   'contiguous_inline',
   'destroy_or_assign_only'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 $capacityDefinitions = (rg -n '^  capacity_source:' $path | Measure-Object).Count
 if ($capacityDefinitions -ne 1) { throw "Expected one schema capacity_source, got $capacityDefinitions" }
@@ -534,7 +568,13 @@ Expected: one-file commit; Memory／Pointers contains the sole full schemas.
 
 ```powershell
 $path = 'docs/architecture/02-foundation/cpp23-modules.md'
-if (rg -q 'CppValueTransferPolicyV1' $path) { throw 'Precondition failed: policy already bound.' }
+rg -q 'CppValueTransferPolicyV1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: policy already bound.' }
+  1 { break }
+  default { throw "rg failed while checking the policy binding (exit $rgExit)." }
+}
 Write-Error 'Expected failure: C++23 plan lacks the value-transfer consumer gate.'
 ```
 
@@ -567,9 +607,27 @@ Add `CppValueTransferPolicyManifest.bin` to Phase 0 outputs and require:
 
 ```powershell
 $path = 'docs/architecture/02-foundation/cpp23-modules.md'
-if (-not (rg -q 'CppValueTransferPolicyV1' $path)) { throw 'Policy binding missing.' }
-if (-not (rg -q 'CppValueTransferPolicyManifest\.bin' $path)) { throw 'Manifest missing.' }
-if (rg -q 'target_abi_facts:|transfer_form:|binding_hash:' $path) { throw 'C++23 duplicated the Memory schema.' }
+rg -q 'CppValueTransferPolicyV1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { break }
+  1 { throw 'Policy binding missing.' }
+  default { throw "rg failed while checking the policy binding (exit $rgExit)." }
+}
+rg -q 'CppValueTransferPolicyManifest\.bin' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { break }
+  1 { throw 'Manifest missing.' }
+  default { throw "rg failed while checking the manifest (exit $rgExit)." }
+}
+rg -q 'target_abi_facts:|transfer_form:|binding_hash:' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'C++23 duplicated the Memory schema.' }
+  1 { break }
+  default { throw "rg failed while checking schema duplication (exit $rgExit)." }
+}
 git diff --check -- $path
 git add -- $path
 $staged = @(git diff --cached --name-only)
@@ -596,7 +654,13 @@ Expected: one-file commit.
 
 ```powershell
 $path = 'docs/architecture/03-authoring/native-game-module.md'
-if (rg -q 'CppValueTransferPolicyV1' $path) { throw 'Precondition failed: policy already bound.' }
+rg -q 'CppValueTransferPolicyV1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: policy already bound.' }
+  1 { break }
+  default { throw "rg failed while checking the policy binding (exit $rgExit)." }
+}
 Write-Error 'Expected failure: Native adapter does not yet consume the policy.'
 ```
 
@@ -649,7 +713,13 @@ if ($owners.Count -ne 1 -or $owners[0] -ne 'docs/architecture/02-foundation/memo
   throw "Expected one full schema owner, got: $($owners -join ', ')"
 }
 foreach ($file in $files) {
-  if (-not (rg -q 'CppValueTransferPolicyV1' $file)) { throw "Missing policy route: $file" }
+  rg -q 'CppValueTransferPolicyV1' $file
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing policy route: $file" }
+    default { throw "rg failed while checking '$file' (exit $rgExit)." }
+  }
 }
 ```
 

@@ -89,8 +89,12 @@ documents to a plan commit without that authorization.
 
 ```powershell
 $path = 'docs/architecture/04-runtime/entity-component-system.md'
-if (rg -q '^RuntimeComponentLayoutPolicyV1$' $path) {
-  throw 'Precondition failed: Runtime ECS already owns the planned policy.'
+rg -q '^RuntimeComponentLayoutPolicyV1$' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: Runtime ECS already owns the planned policy.' }
+  1 { break }
+  default { throw "rg failed while checking the policy owner (exit $rgExit)." }
 }
 Write-Error 'Expected failure: RuntimeComponentLayoutPolicyV1 is not defined.'
 ```
@@ -254,7 +258,13 @@ foreach ($token in @(
   'MIRAKAN-RUNTIME-ECS-STRUCTURAL-CAPACITY-EXCEEDED',
   'MIRAKAN-PRODUCT-ECS-DATA-ORIENTED-CORE-FAILED'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 $fallbackClaims = rg -n -i '(fallback (to|uses?) (AoS|sparse-set|object graph)|(AoS|sparse-set|object graph) fallback is (enabled|retained|allowed))' $path
 if ($LASTEXITCODE -eq 0) { throw "Shipping alternate layout claim remains:`n$fallbackClaims" }
@@ -282,7 +292,13 @@ Expected: one-file commit and one full `RuntimeComponentLayoutPolicyV1` owner.
 
 ```powershell
 $path = 'docs/architecture/03-authoring/gameplay-programming-model.md'
-if (rg -q 'access_cohort_hash' $path) { throw 'Precondition failed: derivation already present.' }
+rg -q 'access_cohort_hash' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: derivation already present.' }
+  1 { break }
+  default { throw "rg failed while checking access-cohort derivation (exit $rgExit)." }
+}
 Write-Error 'Expected failure: Game System contracts do not yet derive the ECS access cohort.'
 ```
 
@@ -317,9 +333,21 @@ State that Gameplay Programming Model neither auto-splits fields nor owns
 ```powershell
 $path = 'docs/architecture/03-authoring/gameplay-programming-model.md'
 foreach ($token in @('access_cohort_hash','GameSystemSpecV2','component_schema_revision_required','RuntimeComponentAccessManifestRefV1')) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
-if (rg -q '^RuntimeComponentLayoutPolicyV1$' $path) { throw 'Gameplay duplicated the ECS schema.' }
+rg -q '^RuntimeComponentLayoutPolicyV1$' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Gameplay duplicated the ECS schema.' }
+  1 { break }
+  default { throw "rg failed while checking schema duplication (exit $rgExit)." }
+}
 git diff --check -- $path
 git add -- $path
 $staged = @(git diff --cached --name-only)
@@ -345,8 +373,16 @@ Expected: one-file commit with a deterministic producer contract.
 
 ```powershell
 $path = 'docs/architecture/04-runtime/scheduling-lifetime.md'
-$missing = @('query-plan scratch','upstream fallback','contiguous row range') |
-  Where-Object { -not (rg -q --fixed-strings $_ $path) }
+$missing = @()
+foreach ($predicate in @('query-plan scratch','upstream fallback','contiguous row range')) {
+  rg -q --fixed-strings $predicate $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { $missing += $predicate; break }
+    default { throw "rg failed while checking predicate '$predicate' (exit $rgExit)." }
+  }
+}
 if ($missing.Count -eq 0) { throw 'Precondition failed: scheduling predicates already complete.' }
 Write-Error "Expected failure: missing scheduling predicates: $($missing -join ', ')"
 ```
@@ -406,7 +442,13 @@ foreach ($token in @(
   'one contiguous row range',
   'structural-capacity-exceeded'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 git diff --check -- $path
 git add -- $path
@@ -433,7 +475,13 @@ Expected: one-file commit and fail-closed callback dispatch.
 
 ```powershell
 $path = 'docs/architecture/04-runtime/runtime-package.md'
-if (rg -q 'RuntimeComponentLayoutPolicyV1' $path) { throw 'Precondition failed: package already binds the policy.' }
+rg -q 'RuntimeComponentLayoutPolicyV1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: package already binds the policy.' }
+  1 { break }
+  default { throw "rg failed while checking the package closure (exit $rgExit)." }
+}
 Write-Error 'Expected failure: Runtime Package lacks the Component layout policy binding.'
 ```
 
@@ -495,10 +543,20 @@ foreach ($token in @(
   'old AoS',
   'default PMR'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
-if (rg -q '^RuntimeComponentLayoutPolicyV1$|^MemoryContractV1$' $path) {
-  throw 'Runtime Package duplicated an owner schema.'
+rg -q '^RuntimeComponentLayoutPolicyV1$|^MemoryContractV1$' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Runtime Package duplicated an owner schema.' }
+  1 { break }
+  default { throw "rg failed while checking schema duplication (exit $rgExit)." }
 }
 git diff --check -- $path
 git add -- $path
@@ -525,7 +583,13 @@ Expected: one-file commit with exact package-to-contract closure.
 
 ```powershell
 $path = 'docs/architecture/04-runtime/debugging-observability-replay.md'
-if (rg -q 'runtime_ecs_data_oriented_metrics_v1' $path) { throw 'Precondition failed: metric set already consumed.' }
+rg -q 'runtime_ecs_data_oriented_metrics_v1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: metric set already consumed.' }
+  1 { break }
+  default { throw "rg failed while checking the metric-set consumer (exit $rgExit)." }
+}
 Write-Error 'Expected failure: Debugging does not yet project the ECS metric set.'
 ```
 
@@ -580,7 +644,13 @@ foreach ($token in @(
   'diagnostic.performance.ecs-required-metric-missing',
   'authority back-edge'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 git diff --check -- $path
 git add -- $path
@@ -606,7 +676,13 @@ Expected: one-file commit and a read-only complete metric projection.
 
 ```powershell
 $path = 'docs/architecture/decisions/2026-07-22-runtime-ecs-contract.md'
-if (rg -q 'RuntimeComponentLayoutPolicyV1' $path) { throw 'Precondition failed: decision already records the policy.' }
+rg -q 'RuntimeComponentLayoutPolicyV1' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Precondition failed: decision already records the policy.' }
+  1 { break }
+  default { throw "rg failed while checking the decision record (exit $rgExit)." }
+}
 Write-Error 'Expected failure: ECS decision lacks the approved data-oriented target.'
 ```
 
@@ -667,7 +743,13 @@ foreach ($token in @(
   'source-preserving recook',
   'current Active Product Definition'
 )) {
-  if (-not (rg -q --fixed-strings $token $path)) { throw "Missing token: $token" }
+  rg -q --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Missing token: $token" }
+    default { throw "rg failed while checking token '$token' (exit $rgExit)." }
+  }
 }
 $lineCount = (Get-Content $path).Count
 if ($lineCount -gt 1000) { throw "Decision exceeds 1000 lines: $lineCount" }
@@ -730,7 +812,13 @@ $required = @{
 }
 foreach ($entry in $required.GetEnumerator()) {
   foreach ($token in $entry.Value) {
-    if (-not (rg -q --fixed-strings $token $entry.Key)) { throw "Missing $token in $($entry.Key)" }
+    rg -q --fixed-strings $token $entry.Key
+    $rgExit = $LASTEXITCODE
+    switch ($rgExit) {
+      0 { break }
+      1 { throw "Missing $token in $($entry.Key)" }
+      default { throw "rg failed while checking '$($entry.Key)' (exit $rgExit)." }
+    }
   }
 }
 ```
@@ -742,9 +830,21 @@ Expected: PASS.
 ```powershell
 $path = 'docs/architecture/04-runtime/persistence-save.md'
 foreach ($token in @('raw RuntimeEntityHandle','chunk location','live pointer','Save／Replay projection')) {
-  if (-not (rg -qi --fixed-strings $token $path)) { throw "Persistence audit needs manual review for: $token" }
+  rg -qi --fixed-strings $token $path
+  $rgExit = $LASTEXITCODE
+  switch ($rgExit) {
+    0 { break }
+    1 { throw "Persistence audit needs manual review for: $token" }
+    default { throw "rg failed while checking Persistence token '$token' (exit $rgExit)." }
+  }
 }
-if (rg -q '^RuntimeComponentLayoutPolicyV1$' $path) { throw 'Persistence duplicated the ECS owner schema.' }
+rg -q '^RuntimeComponentLayoutPolicyV1$' $path
+$rgExit = $LASTEXITCODE
+switch ($rgExit) {
+  0 { throw 'Persistence duplicated the ECS owner schema.' }
+  1 { break }
+  default { throw "rg failed while checking Persistence schema duplication (exit $rgExit)." }
+}
 git diff --exit-code -- $path
 ```
 
