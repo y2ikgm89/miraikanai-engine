@@ -22,6 +22,8 @@ Capability成熟度とPhase順序は[Product Plan](../00-product/product-plan.md
 
 Pre-1.0のEngine内部API、source layout、generated formatには旧設計互換layerを作らない。旧APIのalias、旧Directoryへのredirect、二重serializer、二重Build入口を残さず、変更時は同じChangeSetでcaller、fixture、documentationを更新する。
 
+Data-oriented Runtime最適化も同じclean-break規則に従う。C++ value transferとgeneric container／allocationは[Memory／Pointers](memory-pointers.md)、Component列、archetype、query dispatch、structural transactionは[Runtime ECS](../04-runtime/entity-component-system.md)、共通measurementとpromotionは[Performance／Capacity](../04-runtime/performance-capacity.md)だけが所有する。CoreはそれらのField、threshold、Diagnosticを複写しない。旧C++ signature、旧layout、AoS／sparse-set Shipping fallback、dual reader／writerを同じcurrent境界へ残さない。
+
 ただし、Commit済みProject source、Asset provenance、Save data、公開Packageは捨てない。永続形式の変更は、versioned migration、Before／After fixture、rollback可能なProject revision、Evidenceを備える。互換性を持たない対象は未公開のEngine内部設計であり、User dataではない。
 
 ## 3. LayerとHost境界
@@ -97,6 +99,8 @@ Diagnostic IDの命名は[Naming／Project layout](naming-project-layout.md)、E
 ## 8. C++とModule境界
 
 First-party CPU codeはC++23を用いる。言語frontend state、Named Module、`import std`、CMake module edge、BMI identity、Cutoverは[C++23 modules](cpp23-modules.md)を唯一の正本とする。Compiler、CMake、Ninja、SDKのexact pinは[Toolchain／Dependencies](toolchain-dependencies.md)だけが所有する。
+
+Generated／First-party C++ APIは[Memory／Pointers](memory-pointers.md)の`CppValueTransferPolicyV1`へexactに閉じる。Module、Header、Native adapterが独自のby-value／`const T&`／`T&&`／bounded-view規則を持たず、C ABIは[Native Game Module](../03-authoring/native-game-module.md)の固定幅値、opaque handle、caller-owned bufferへ分離する。
 
 Foundationは次だけを共通原則とする。
 
@@ -727,6 +731,8 @@ Engine repositoryの正規rootを次に固定する。各Directoryの命名gramm
 sanitizerは全sanitizerを全Targetで実行する意味ではなく、Toolchain Ownerが固定する該当lane matrixである。Windows MSVC laneはASan、portable Linux Clang laneはASan＋UBSan jobと独立TSan jobを要求する。Concurrency stress／cancel testは全必須Targetで常時実行し、対応laneではsanitizerを重ねる。必須laneの未実行はGate失敗とし、Toolchainが非対応のsanitizerをpass、skip成功、または別sanitizerのReceiptで代用しない。Profile ID、compiler version、sanitizer option、除外理由は[Toolchain／dependencies](toolchain-dependencies.md)とVerification Receiptへ固定する。
 
 AI生成のSchema、C++、Build変更も人間作成物と同じlint、compile、test、Authorization、Reviewを通す。AIは未知Fieldの受理、Validation迂回、外部Dependency追加、Toolchain更新、source treeへのGenerated file配置を行えない。
+
+CIは生成C++ signature、Pointer／Memory manifest、C ABI adapterが同じContract Set、Target Profile、Toolchain lockの`CppValueTransferPolicyV1`へ解決することを検査する。missing／extra binding、別Target policy、C ABIへのC++ reference／STL流出、旧signature aliasをBuild failureにする。
 
 Observabilityは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、performance telemetryとregression thresholdは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。FoundationはEvidenceへの入力を生成するだけで、数値を再定義しない。
 

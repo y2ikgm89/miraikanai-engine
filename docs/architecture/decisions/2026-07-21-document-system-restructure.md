@@ -9,7 +9,7 @@
 - 文書種別: Architecture Decision／再編設計
 - 承認状態: ユーザー承認済み
 - 承認日: 2026-07-21
-- 対象: `docs/superpowers/specs/`、`docs/superpowers/plans/`、PR #3 `codex/c1-gameplay-capability-closure`、PR #4 `codex/architecture-document-restructure`、後続のArchitecture正本追加・統廃合
+- 対象: 旧Superpowers設計文書群、`docs/superpowers/plans/`、PR #3 `codex/c1-gameplay-capability-closure`、PR #4 `codex/architecture-document-restructure`、後続のArchitecture正本追加・統廃合
 - 実装方針: 後方互換性を設けない一括移行
 
 ## 1. 結論
@@ -240,7 +240,7 @@ docs/architecture/
 
 | 旧文書 | 処理 |
 |---|---|
-| `docs/superpowers/specs/README.md` | `docs/architecture/README.md`へ置換する。旧本文は移植せず、正本一覧と読順を再生成する |
+| 旧Superpowers設計Index | `docs/architecture/README.md`へ置換する。旧本文は移植せず、正本一覧と読順を再生成する |
 | `2026-07-18-codex-config-optimization-design.md` | 削除する。repository設定は`.codex/config.toml`だけに限定し、個人向け説明資料を保持しない |
 | `docs/superpowers/plans/2026-07-18-codex-config-optimization.md` | 削除する。完了記録はGit履歴だけとする |
 | `docs/superpowers/plans/2026-07-20-existing-documentation-naming-directory-unification.md` | 削除する。完了記録はGit履歴だけとする |
@@ -325,7 +325,7 @@ exact adopted Version、commit、artifact size／hash、license、取得URL、Mo
 
 - `docs/architecture/`のcurrent Engine正本とIndexが`ArchitectureInventoryV1`と一致する。42件は移行時baselineとしてのみ検査でき、current固定値にしない。
 - Active仕様のFilenameに作成日を含めない。
-- `docs/superpowers/specs/`と`docs/superpowers/plans/`にactive文書を残さない。
+- 旧Superpowers設計領域と`docs/superpowers/plans/`にactive文書を残さない。
 - 個人向けCodex設定資料を保持せず、`.codex/config.toml`をEngine正本として扱わない。
 - 旧Filename、旧Directory、redirect、compatibility stubへの参照が0件である。
 
@@ -407,7 +407,7 @@ GitHub上の履歴は次である。
 | 案 | 内容 | 判断 |
 |---|---|---|
 | A. 意味移植 | PR #3の固有差分を既存Ownerへ再配置し、旧文書は復活させない | 採用。42正本、一意Owner、後方互換なしを維持できる |
-| B. PR #3を先にMerge | 旧`docs/superpowers/specs/`を更新後、PR #4と統合する | 不採用。削除済み旧文書を再導入し、大規模Conflictと二重正本を作る |
+| B. PR #3を先にMerge | 旧Superpowers設計文書を更新後、PR #4と統合する | 不採用。削除済み旧文書を再導入し、大規模Conflictと二重正本を作る |
 | C. PR #3をCloseして破棄 | PR #4をそのままMergeする | 不採用。Pause、Settings、Perception等の承認済み契約を失う |
 
 ### 12.2 正本所有
@@ -497,3 +497,83 @@ Miraikanaiの[`.codex/config.toml`](../../../.codex/config.toml)はこの原則�
 ## 13. 未解決事項
 
 なし。Target構造、全旧文書の移行先、削除対象、正本規則、後方互換性を設けない方針、検証Gateは本Decisionで確定している。
+
+## 14. 2026-07-26 active Superpowers仕様の再統合
+
+2026-07-25から2026-07-26に旧Superpowers設計領域へ追加された4件は、承認済みArchitectureを補正する設計作業には有効だったが、§10.1のactive旧文書0件Gateと、§7.2の一意Owner規則に反してcurrent正本Graph外へ残った。4件を新しい横断正本またはredirectとして移設せず、判断理由は本節、Domain Contractは既存Owner、Product方向はProduct Planへ意味移植する。英語の実装状態文、文書更新表、acceptance checklist、non-goalは、その意味を各OwnerのHeader、failure、qualification、未Activation境界へ統合し、旧文章を第二の正本として複写しない。
+
+### 14.1 AI-readable Rendering設計の節Disposition
+
+- `rendering-contract:1. Status`: design-only／非Activation境界をProduct Plan、World、Materials、Project ShaderのHeaderとcurrent状態へMergedする。
+- `rendering-contract:2. Official design basis`: Engine比較資料を採用Contractと分離し、Toolchain、World、Materials、Project Shaderの外部根拠と本Decisionの判断理由へMergedする。
+- `rendering-contract:3. Ownership correction`: `WorldSpaceProfileV1`をWorld、Project bindingをProject State、consumer compatibilityをPhysics、Navigation、Camera、MaterialsへMergedする。
+- `rendering-contract:4. Typed Toon contract`: Toon／Outline Source semanticsをMaterials、Lighting responseをLighting、execution technique resolutionをRender Graph、budget inputをPerformanceへMergedする。
+- `rendering-contract:5. Typed shader IR and bounded HLSL`: Typed IR／bounded HLSL、Variant、理解closureをProject Shader、compiler observed fact境界をToolchain、coverage EvidenceをAI VerificationへMergedする。
+- `rendering-contract:6. Data flow`: World／Style／Toon／Shaderのauthority flowをWorld、Materials、Project Shader、Render Graphの相対参照へMergedする。
+- `rendering-contract:7. Failure behavior`: owner別typed Diagnostic、fallback禁止、Code Owner reviewをWorld、Materials、Project Shader、AI VerificationへMergedする。
+- `rendering-contract:8. Canonical documents affected`: 本節のowner台帳へMergedし、旧Pathをcurrent文書から参照しない。
+- `rendering-contract:9. Acceptance criteria for the architecture correction`: 19条件を各Ownerのqualificationと§14.5削除GateへMergedする。
+- `rendering-contract:10. Explicit non-goals`: dual-authority World、unbounded shader、DXC意味推測、silent fallback、外部Schema採用の禁止を各Ownerの非正本範囲へMergedする。
+
+### 14.2 Data-oriented Runtime設計の節Disposition
+
+- `data-oriented-runtime:1. Status`: design-only、clean-break条件、非Activation境界をProduct Plan、Compatibility、Runtime ECS DecisionへMergedする。
+- `data-oriented-runtime:2. Decision`: Engine-owned archetype／chunk SoA、明示C++ value transfer、Target qualification方向をCore、Memory、Runtime ECS、PerformanceへMergedする。
+- `data-oriented-runtime:3. Considered approaches`: canonical contract slice採用と全Architecture rewrite棄却を本DecisionおよびRuntime ECS Decisionの判断理由へMergedする。
+- `data-oriented-runtime:4. Owner boundaries`: Product、Core、Executable Contracts、Memory、Compatibility、Runtime ECS、Performance、Runtime ECS Decisionの一意Owner台帳へMergedする。
+- `data-oriented-runtime:5. C++ value-transfer contract`: `CppValueTransferPolicyV1`とbinding／hash／static GateをMemory、Executable Contracts、C++23 Modules、Native Game ModuleへMergedする。
+- `data-oriented-runtime:6. Generic container and allocation contract`: `MemoryContractV1`拡張、container layout、Memory Port、OOM／fallback禁止をMemoryとdirect consumerへMergedする。
+- `data-oriented-runtime:7. Runtime Component layout policy`: `RuntimeComponentLayoutPolicyV1`、chunk SoA、hot／cold cohort、capacity、hashをRuntime ECSへMergedする。
+- `data-oriented-runtime:8. Query, iteration, and structural mutation`: query cache、reserve-before-callback、lease、structural delta境界をRuntime ECS、Scheduling、Gameplay Programming ModelへMergedする。
+- `data-oriented-runtime:9. Data-oriented qualification profile`: `RuntimeDataOrientedQualificationProfileV1`、campaign、metric、candidate projection、promotionをPerformance、Runtime ECS、AI Verification、AI SecurityへMergedする。
+- `data-oriented-runtime:10. Product Plan integration`: Requirement、Fixture、Gate、risk、Work Package、Phase bindingをProduct PlanへMergedする。
+- `data-oriented-runtime:11. Compatibility and clean break`: Consumer Inventory、retained consumer保護、atomic Definition MigrationをCompatibility、Architecture Governance、Runtime ECS DecisionへMergedする。
+- `data-oriented-runtime:12. Data and authority flow`: Contract Setからmaterialization、qualification、Product promotionまでのauthority flowをOwner間参照へMergedする。
+- `data-oriented-runtime:13. Failure and diagnostics`: 13件のDiagnostic ID／code／引数／ownerをProduct、Memory、Compatibility、Runtime ECS、Performanceへ一意登録する。
+- `data-oriented-runtime:14. Coordinated document changes`: 本節のowner台帳へMergedし、Architecture Indexはrouting変更時だけ更新する。
+- `data-oriented-runtime:15. Verification`: 22条件を各Owner qualificationと§14.5削除GateへMergedする。
+- `data-oriented-runtime:16. Official external basis`: C++／ECS比較資料をToolchainとRuntime ECS Decisionへ移し、Vendor値をMiraikanai authorityにしない。
+- `data-oriented-runtime:17. Non-goals`: STL公開強制、Vendor ECS採用、三Shipping layout、AI auto-tuning、既存User data無断削除の禁止を各Ownerの非正本範囲へMergedする。
+
+### 14.3 Editor言語／Localization／AI返答設計の節Disposition
+
+- `editor-language:1. Status`: design-only／非Activation境界をProduct Planと各Owner HeaderへMergedする。
+- `editor-language:2. Decision`: 技術identity、machine-facing prose、Product presentation、User contentの4分類をNamingへMergedする。
+- `editor-language:3. Owner boundaries`: Naming、Executable Contracts、Editor Workspace、Editor UI、UI／Text、Project State、AI Verification、Product Planへ一意配分する。
+- `editor-language:4. Editor language preference`: Editor preference schema、system解決、永続化、切替をEditor Workspace、locale canonicalizationをUI／TextへMergedする。
+- `editor-language:5. AI reply language`: follow-editor／明示override、in-flight境界、Tool payload不変性をEditor Workspace、AI Security、AI VerificationへMergedする。
+- `editor-language:6. Localization catalog separation`: Editor／Game catalog分離、BCP 47、fallback、pseudo locale、build GateをUI／TextへMergedする。
+- `editor-language:7. Technical prose and generated source`: MCD technical proseをExecutable Contracts、identifier／comment規則をNaming、original Project contentをProject StateへMergedする。
+- `editor-language:8. Data flow`: preferenceからEditor projection／AI request／localized presentationまでのflowをOwner間参照へMergedする。
+- `editor-language:9. Failure handling`: unsupported locale、missing translation、corrupt preference、Provider mismatchをEditor Workspace、UI／Text、AI VerificationへMergedする。
+- `editor-language:10. Verification`: paired `en-US`／`ja-JP` fixtureと5 hard GateをAI VerificationへMergedする。
+- `editor-language:11. Coordinated document changes`: 本節のowner台帳とArchitecture Index routingへMergedする。
+- `editor-language:12. Official external basis`: BCP 47、Windows locale、UIA、Unicode、Provider比較をUI／Text、Editor UI、Toolchainの外部根拠へMergedする。
+- `editor-language:13. Non-goals`: identifier翻訳、暗黙User content翻訳、Provider固定、localeをsecurity boundaryとすることを各Ownerで禁止する。
+
+### 14.4 RPG-first Product MVP設計の節Disposition
+
+- `rpg-first-product:1. Status`: 承認済みProduct方向と非Activation境界をProduct PlanへMergedする。
+- `rpg-first-product:2. Decision`: Generic Engine C1とRPG Reference MVPの独立結果、Shooterのtechnical consumer化をProduct PlanへMergedする。
+- `rpg-first-product:3. Why RPG is the better Product MVP`: data-rich authoring、Save／Load、UI／Text／Localization、bounded scopeの選択理由をProduct PlanへMergedする。
+- `rpg-first-product:4. Closed RPG Reference MVP boundary`: playable flow、gameplay coverage、Runtime cadence、explicit exclusionをProduct PlanのMVP正本へMergedする。
+- `rpg-first-product:5. Architecture split`: Generic Core、Reusable RPG Feature、RPG Genre Pack、Reference Gameの分離と未materialize owner禁止をProduct Plan、Pack ContractへMergedする。
+- `rpg-first-product:6. Data and authority flow`: Project Sourceからtyped ChangeSet、Cook、Runtime、ReceiptまでのflowをProduct Planと既存Owner参照へMergedする。
+- `rpg-first-product:7. Failure behavior`: missing Pack、invalid Definition、Save mismatch、AI失敗、package failureの停止境界をProduct PlanへMergedする。
+- `rpg-first-product:8. Qualification strategy`: Generic Core holdout、RPG fixture、Shooter technical fixture、Pack removal isolationをProduct PlanへMergedする。
+- `rpg-first-product:9. Product Plan coordination`: MVP-A、Phase 6、critical path、source／destination separationをProduct PlanへMergedする。
+- `rpg-first-product:10. Documents affected by this design`: Product PlanとPack Contractの一意owner台帳へMergedする。
+- `rpg-first-product:11. Acceptance criteria for the planning correction`: 10条件をProduct PlanのMVP／promotion Gateと§14.5へMergedする。
+- `rpg-first-product:12. Non-goals`: RPG Schema／ID／Work Packageの先行作成、Shooter削除、CoreへのGenre意味混入、実装task生成を禁止する。
+
+### 14.5 削除Gate
+
+4件の旧仕様削除は次をすべて満たす一括変更とする。
+
+1. §14.1から§14.4の全旧H2にDispositionがあり、各named Contractの定義Ownerが一件である。
+2. 旧Superpowers設計Markdownが0件で、Repository全体から旧Directoryまたは4旧Filenameへの参照が0件である。
+3. redirect、compatibility stub、旧本文の全量複写、新しい横断正本を作らない。
+4. Architectureの文書IDが52件かつ一意で、Indexから全current正本へ到達できる。
+5. 全relative Markdown linkとheading anchorが解決し、H1一件、Heading level、normative placeholder、owner境界を検証する。
+6. Rendering 19条件、Data-oriented Runtime 22条件、Editor言語5 hard Gate、RPG planning 10条件を各Ownerのcurrent本文で確認する。
+7. 作業開始前から存在した未コミット変更を保持し、`git diff --check`に合格する。

@@ -334,6 +334,10 @@ ArchitectureExplainProjectionV1
   projection_content_hash: SHA-256
 ```
 
+`ArchitectureExplainProjectionV1`をmaterializeする前提は、`architecture_inventory_ref`が`project_revision_ref`と同じrevisionから生成された完成`ArchitectureInventoryV1`へexact解決し、要求scopeから到達する全Document recordの`canonical_path`、`document_id`、`source_content_hash`、dependency集合がそのrevisionのSourceとbyte equalityになることである。Inventoryが`absent`、stale、部分生成、same-ID different-hash、または要求scopeの到達Documentを欠く場合、Projectionを生成せず、Markdown本文や検索結果を代替Inventoryとして補完しない。§4.1のcurrent snapshotではimmutable generated Inventoryが`absent`であるため、current `ArchitectureExplainProjectionV1`のmaterialized集合はexact `[]`である。
+
+Inventory未materialize時も、認可済みDocument断片を`unverified_document_context`としてread-only参照できるが、Architecture全体、Owner closure、Activation、利用可能Capability、Evidence充足を確定する回答には使わず、[AI Security／Approval](ai-security-approval.md)の`AiTaskContextCapsuleV1`へ`architecture_explain` bindingとして格納しない。materialize後も`omitted_ranges[]`または`continuation != null`のquery型Projectionは取得済み範囲だけを説明でき、完全なArchitecture closureを要求するOperation inputまたは適合Caseを満たさない。
+
 `status = target_review`は設計済みの目標であってcurrent MCDやruntime存在の証拠ではない。`source_or_derived = derived`のprojectionをSourceへ逆書込みしない。AIが取得・説明できることは変更権限を与えず、変更は[AI Security／Approval](ai-security-approval.md)のTask Authorizationと承認済みChangeSetを必要とする。
 
 routeのcanonical enumはAI Securityの`engine_provider_adapter | standard_external_mcp | managed_external_host`だけである。本書はroute aliasを追加しない。MCP、provider、host固有のgrant評価はAI Security Ownerだけが決定する。
@@ -347,7 +351,7 @@ Architecture ChangeSetは少なくとも次を検証する。
 3. split／merge後に旧文書の詳細定義が残らず、移動先Ownerを一意に参照する。
 4. Owner transferはrevision増分、Definition Closure、owner ref migration manifest、Compatibility Consumer Inventory、Compatibility Change、Evidence Requirement／pass fulfillment、Definition Migration binding、Approvalを同一closureで検証する。
 5. 新規の完全な`operation.*` tokenは[Executable contracts](../02-foundation/executable-contracts.md)のclosed partitionへ同じ変更で分類する。本文書だけでOperationを登録しない。
-6. AI projectionはfield mask、sensitivity、redaction、continuationを検証し、raw credential、native pointer、live runtime memoryを含めない。
+6. AI projectionはInventory／Project revision／Source hash、field mask、sensitivity、redaction、omitted range、continuationを検証し、missing／stale InventoryをDocument検索で補完せず、raw credential、native pointer、live runtime memoryを含めない。
 7. Definition Migration SubjectとBindingの生成順がhash cycleを作らず、BindingのApproval subjectがSubjectだけへ束縛され、Requirement／pass fulfillment集合、source／target root、Product active definition hash、owner ref manifestがexact一致する。
 8. line budget、fenced block、見出し階層、リンク、重複document IDをlintする。
 9. 公開handle／lease／view／owner、memory resource、native Adapter allocation、またはそれらの保存・job capture・retire規則を持つDomainは、[Memory／Pointers](../02-foundation/memory-pointers.md)の`PointerMemoryConsumerBindingV1`へconsumer conceptを正逆参照する。一般pointer taxonomy、allocation policy、live pointerの永続化禁止をDomain文書が再定義してはならず、実際に非該当ならownerと理由をclosed recordで明示する。

@@ -646,6 +646,10 @@ Audio、VFX、camera、render occlusion、Presentation LODをGameplay authority�
 
 Runtime Orchestratorはmanifestに適合するcallbackを許可phaseへ配置し、callback終了後にsealed command／event／structural batchをcanonical boundaryへ渡す。ECSはbatchのpreflightとpublishを行い、Orchestratorはphase進行、DAG、fault遷移、callback lifetimeを所有する。parallel callbackはECS dispatch planが示す非重複selectionだけに限り、worker indexやcompletion順でmerge順を決めない。
 
+callback dispatch前に、query-plan scratch、selection mask、workerごとのcommand buffer、merge scratch、output packetをcapacity検査して予約する。各callbackへ渡す実行単位は、一つのchunk内のone contiguous row rangeと、manifestで宣言したcolumnだけである。callback中はgeneral heap allocation、upstream allocator fallback、shared ownership取得、container growthをすべて禁止する。予約capacityは[Runtime Package](runtime-package.md)のWorld planと[Memory／Pointers](../02-foundation/memory-pointers.md)の`MemoryContractV1`から導出し、いずれかが欠ける、または不足する場合はcallbackを一件も開始せずdispatchを拒否する。
+
+structural batchはbounded deltaとして受け取り、canonical sort／merge、全handle／lease／capacity検査を完了してから一度だけcommitする。stale handle、競合、またはcapacity不足で拒否した場合は、直前にpublish済みのWorld、location table、query cache、output packetを維持し、[Runtime ECS](entity-component-system.md)所有の診断を発行する。予約済みstructural capacityを超えた場合は`structural-capacity-exceeded`とし、別backendやgeneral heapで再試行しない。
+
 regular Component value writeはcallback／phase scope内だけで可視にし、Renderer、Audio、VFX、Debug、AI、Saveはseal済みsnapshot／publicationだけを読む。structural commit前のlocation、presence、new handleを外部へ公開しない。大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV2`、World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)を参照する。
 
 ## 8. Handle、borrow、lease、job lifetime
@@ -727,6 +731,11 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 - branch field混在、headless startup system 0、default 0／2、unknown Target selector、selected entry／selector／activation policy／branch closure hash不一致をPlay開始前に拒否する。
 - exactly-one State owner、System dependency DAG、same-advance cycle拒否、Implementation Variant同値。
 - structural transactionのpreflight／commit atomicity、canonical iteration／merge。
+- 単一chunkでone contiguous row rangeだけをdispatchするfixtureと、複数chunkでchunkごとに一実行単位へ分割するfixture。
+- selection maskが非選択rowを隠し、undeclared column accessとcallback中の直接structural mutationを拒否するfixture。
+- worker command buffer、merge scratch、structural capacityの各上限超過をcallback開始前またはatomic commit前に拒否し、`structural-capacity-exceeded`を含むexact診断をread-backするfixture。
+- callback中のgeneral heap allocation、upstream allocator fallback、shared ownership取得、container growthを検出して拒否するfixture。
+- dispatch／merge／commitのいずれかが失敗しても、直前のWorld、location table、query cache、output packetがbitwise-equivalentに維持されるfailure atomicity fixture。
 - handle generation、wrap retire、random invalid handle、borrow epoch、arena reset後の失効。
 - selected Motion Executor／Navigation／Animation order、native callback非mutation、stale result拒否、root-motion single advance、Physics providerなしのT50 skip。
 - Asset closure、generation非混在、boundary activation、failure時last valid維持。

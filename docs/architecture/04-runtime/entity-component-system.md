@@ -62,6 +62,46 @@ Componentのfield構造、semantic owner、persistence policy、sensitivity、ex
 
 inline Componentは最大256 bytes、fixed alignment、bounded field集合を満たす。可変長data、長いtext、Editor metadata、native object、non-trivially relocatable objectはchunkへ直接置かず、AssetまたはDomain-owned typed handleへ移す。native padding、`sizeof(T)` bytes、compiler declaration orderをcanonical hash、Save、Replay、AI captureに使わない。
 
+```text
+RuntimeComponentLayoutPolicyV1
+  policy_version: 1
+  component_schema_ref: ComponentSchemaRefV1
+  storage_class:
+    inline_value | tag | external_handle | derived_index
+  access_manifest_refs[1..4096]:
+    sorted unique RuntimeComponentAccessManifestRefV1
+  access_cohort_hash: SHA-256
+  update_frequency:
+    every_advance | periodic | event_driven | load_only
+  structural_frequency:
+    stable | bounded_transition | burst_candidate
+  inline_bytes: uint32
+  inline_alignment_bytes: uint32
+  layout_disposition:
+    accepted_inline | accepted_tag | accepted_external
+    | component_schema_revision_required
+  qualification_profile_ref:
+    exact {profile_version, target_profile_ref, contract_set_ref,
+           toolchain_lock_sha256, profile_hash}
+  policy_hash: SHA-256
+```
+
+`access_cohort_hash`はexact active Game System manifest、query ref、phase ref、read／write setから決定論的に導出し、手書きhot／cold labelを入力にしない。PolicyはComponentごとに次のlayout reviewを行う。
+
+- 一つのComponent typeを一つのSoA columnへ置く。
+- `inline_value` Componentのfieldはcanonical value layoutを維持する。
+- 同じsemantic ownerとaccess cohortを持つfieldをcolocateする。
+- large cold／infrequent stateをhot Componentから移す場合はDomain-approved schema revisionを必須にする。
+- variable-length data、text、native object、large immutable shared dataはtyped handleへexternalizeする。
+- semanticsがarchetype transitionを必要としないfrequently toggled stateはvalueまたはenablement mutationを使う。
+- unbounded tag combinationとshared-value partitionを拒否する。
+- row capacityがqualified ceilingに達している、またはindirection costが大きい場合、`sizeof`削減だけを理由にsplitしない。
+- authoritative fieldごとにactive writer一件とexplicit persistent projection一件を維持する。
+
+disjoint System cohortが一つのlarge Componentの別fieldを使う場合は`component_schema_revision_required`を返し、自動field rearrange／splitを行わない。
+
+`policy_hash`は`SHA-256(ASCII "MIRAKAN_RUNTIME_COMPONENT_LAYOUT_POLICY_V1" || uint32_be(len(canonical policy bytes excluding policy_hash)) || canonical policy bytes excluding policy_hash)`で計算する。Policy instanceはimmutable Contract Set root確定後だけmaterializeし、bare ID、`latest`、ambient current、same-name substitution、same-logical-key／version different-hashを拒否する。
+
 ## 4. Construction、template、archetype
 
 ### 4.1 Construction set
@@ -100,6 +140,8 @@ target C1のchunk payloadは16 KiB、payload先頭alignmentは64 bytesである�
 row capacityは全列とbitsetが16 KiBへ収まる最大整数であり、0はcompile errorである。Componentのadd／remove、Entity destroy、archetype移動は末尾rowをgapへmoveし、location tableを同一commitで更新する。Component address、row、span、chunk IDはstructural commit、phase終了、World destroyで無効になる。
 
 16 KiBはMiraikanaiのtarget design valueであり、Unity互換の数値ではない。8／16／32 KiBを同一fixtureで比較し、Performance Ownerがevidenceを承認するまで変更しない。
+
+C1 Shippingの唯一のaccepted layoutは、payload 16,384 bytes、payload alignment 64 bytes、inline Component上限256 bytesの`ecs_chunk_soa_v1`である。8,192／16,384／32,768-byte比較がtargetを変更できるのは新しいqualified profileとcontract revisionを通した場合だけで、Runtime fallback pathまたは三Shipping layoutを作らない。
 
 ### 4.3 World build gateway
 
@@ -181,6 +223,8 @@ RuntimeQueryDispatchPlanV1
 `work_units[]`は`archetype_id`、`chunk_id`、`row_begin`の昇順でcanonical orderにする。一つのwork unitは必ず一つのchunk内の連続row rangeであり、selection maskが示すselected rowsだけをcallbackへ公開する。`deterministic_hash`はlogical work assignmentを安定化するためのpolicyであって、複数chunkを一callbackへ束ねる意味ではない。各unitの`logical_work_id`はquery、World epoch、archetype、chunk、row range、selection hashからcanonicalに導出し、worker index、OS scheduling、completion順を入力にしない。
 
 callbackは、selectionされていないrow、別unitのrow、別queryのrowへread／writeできない。work unitの分割・mergeは同じinputから同じplan hashを生成し、callback側の物理メモリ配置を意味へ露出しない。
+
+Cached queryはarchetype membershipだけを保存する。一つのgenerated callbackは一つのchunk内のcontiguous row rangeだけを受け取り、declared columnとimmutable-selected rowだけを公開する。query scratch、selection mask、command buffer、output packetをdispatch前に全量reserveする。Callbackはgeneral heap allocation、upstream allocator fallback、unbounded container growth、shared ownership acquisition、structural mutationを行えない。create、destroy、add、remove、enablement changeはstructural boundary向けbounded deltaにする。
 
 ## 6. Access manifest、lease、state binding
 
@@ -282,7 +326,9 @@ deltaはcallback中にprivate batchへ追加するだけであり、live World�
 
 boundaryはdeltaを`{advance_sequence, producer_phase_id, producer_system_id, producer_logical_work_id, local_sequence}`でcanonical mergeする。commit前にtarget handle／generation、precondition、owner permission、transition、destination capacity、identity collision、budget、dependencyを全件検査し、staging mutation planと必要chunk reservationを構築する。
 
-検査済みdeltaが全て成功した時だけ、chunk row、location table、archetype membership、enablement、World epochを一commit pointでpublishする。一件でも失敗した場合はstagingを破棄し、live Worldを変更しない。partial commit、callback中のdirect mutation、vendor callbackからのWorld mutation、completion順によるmergeを禁止する。
+検査済みdeltaが全て成功した時だけ、chunk row、location table、archetype membership、enablement、World epochを一commit pointでpublishする。一件でも失敗した場合はstagingを破棄し、previous World、location table、query cache、output packet、publication hashを変更しない。partial commit、callback中のdirect mutation、vendor callbackからのWorld mutation、completion順によるmergeを禁止する。成功時はexisting epoch ruleに従い、影響するaddress、row、span、lease、query membershipをinvalidateする。
+
+Stable identityはtyped generation handleだけが持つ。chunk ID、row、address、pool slotをidentity、Save ref、AI targetとして扱わない。Shipping pathにAoS、sparse-set、object-graph、old reader／writer fallbackを残さない。
 
 ## 8. ECS AI contract graph
 
@@ -372,6 +418,12 @@ AI readはrequested field mask、Task Authorization、sensitivity、channel poli
 
 captureはseal済みpublication、bounded node／edge／byte上限、omitted range、continuation、redacted field reasonを持つ。`secret`、user text、credential、raw path、native pointer、live RuntimeEntityHandleをcaptureへ入れない。redactionによりownerまたはfailureを判定できない場合、AIは`insufficient_authorized_context`を返し、完全な説明や変更提案として扱わない。
 
+### 8.2 ECS optimization explanation boundary
+
+ECSのlayout／query／callback最適化は、`RuntimeEcsContractGraphV1`から候補状態を推測せず、[Performance／Capacity §8.4](performance-capacity.md#84-algorithm-optimization-candidate-qualification)の完成`OptimizationDecisionProjectionV1`を別のread-only bindingとして消費する。8／16／32 KiB layout、hot／cold split、query-cache実装、generated zero-allocation callbackは、Source revision、Target Profile、Contract Set、Toolchain lock、fixture、input trace、algorithm revision、implementation variantのいずれかが違えば別Candidateである。Graph node名、chunk payload値、benchmark labelから同一Candidateまたはselected状態を合成しない。
+
+[AI Security／Approval §5](../01-governance/ai-security-approval.md#5-beginner-questionsassumptions理解条件)の`AiTaskContextCapsuleV1`へECS graphとoptimization decisionを同時に束縛する場合、両者のProject lineage／source revision／Target／Contractをexact一致させ、Projectionはcompleteかつfreshでなければならない。missing／stale／revoked Receipt、候補hash差、redactionによりselected／rejected理由を確定できない場合は`insufficient_authorized_context`とし、Graph、raw trace、設計文書、16 KiBのtarget design valueから理由を補完しない。これは説明契約だけであり、ECS Operation、candidate selection、Runtime dispatch、Capability Activation、write権限を追加しない。
+
 ## 9. 他Ownerとの境界
 
 | Owner | ECSが渡すもの | ECSが所有しないもの |
@@ -398,6 +450,48 @@ captureはseal済みpublication、bounded node／edge／byte上限、omitted ran
 | Debug transport／AI capture | `observability_projection` | redacted sealed graph／captureだけ |
 | 外部API／配布先／documentation projection | `external_api`／`documentation` | approved current projectionだけ |
 
+### 9.2 Runtime ECS Diagnostic
+
+```text
+diagnostic.runtime.ecs-component-schema-revision-required
+MIRAKAN-RUNTIME-ECS-COMPONENT-SCHEMA-REVISION-REQUIRED
+arguments = component_schema_ref, access_cohort_hash
+result = component_schema_revision_required; no silent split
+
+diagnostic.runtime.ecs-chunk-capacity-zero
+MIRAKAN-RUNTIME-ECS-CHUNK-CAPACITY-ZERO
+arguments = archetype_id, column_layout_hash, payload_bytes
+result = Cook／Contract compile failure
+
+diagnostic.runtime.ecs-archetype-permutation-unbounded
+MIRAKAN-RUNTIME-ECS-ARCHETYPE-PERMUTATION-UNBOUNDED
+arguments = component_schema_ref, observed_count, declared_bound
+result = Layout qualification failure
+
+diagnostic.runtime.ecs-query-cache-invalid
+MIRAKAN-RUNTIME-ECS-QUERY-CACHE-INVALID
+arguments = query_ref, invalid_member_kind
+result = Contract／negative fixture failure
+
+diagnostic.runtime.ecs-structural-mutation-during-iteration
+MIRAKAN-RUNTIME-ECS-STRUCTURAL-MUTATION-DURING-ITERATION
+arguments = system_ref, operation_kind, logical_work_id
+result = Typed rejection
+
+diagnostic.runtime.ecs-structural-capacity-exceeded
+MIRAKAN-RUNTIME-ECS-STRUCTURAL-CAPACITY-EXCEEDED
+arguments = boundary_ref, required_bytes, available_bytes
+result = Previous World remains published
+
+diagnostic.product.ecs-data-oriented-core-failed
+MIRAKAN-PRODUCT-ECS-DATA-ORIENTED-CORE-FAILED
+arguments = requirement_id, campaign_hash, target_profile_ref,
+            failed_diagnostic_refs[1..64]
+result = aggregate Requirement evaluation fails
+```
+
+Product aggregateはRuntime個別failureを置き換えず、Requirement評価のclosureだけを表す。本書は[Performance／Capacity](performance-capacity.md)の`RuntimeDataOrientedQualificationProfileV1`／`RuntimeDataOrientedQualificationCampaignV1`、`fixture.runtime.ecs-data-oriented-core`、六scenario、complete mandatory metric set、hard predicate、8／16／32 KiB characterizationを参照し、thresholdまたはcampaign schemaを複写しない。
+
 ## 10. Qualification
 
 target ECSは少なくとも次を証明する。
@@ -410,6 +504,8 @@ target ECSは少なくとも次を証明する。
 6. package、Save、Replay、Debug、Native moduleとのowner境界がraw handle、raw pointer、旧aliasを渡さない。
 7. 8／16／32 KiB比較、capacity、fragmentation、structural burst、query cache invalidationをPerformance evidenceで検証する。
 8. Consumer Inventoryの全required scopeがcomplete、unknown consumerがzero verified、全Evidence Requirementがpass fulfillment済みであり、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同一closureへexact解決する。
+9. hot callbackのgeneral-heap allocation countとupstream fallback countが両方exact 0で、query scratch、selection mask、command buffer、output packetがdispatch前に予約される。
+10. `RuntimeComponentLayoutPolicyV1`のaccess cohortがactive System manifest、query、phase、read／write setから再導出でき、manual hot／cold labelまたはautomatic field splitを含まない。
 
 ## 11. 外部一次資料から採る原則
 

@@ -308,12 +308,14 @@ FSMは一instance、一Simulation Advanceにつき最大一transitionである�
 
 | 汎用kind | schema確定期限 |
 |---|---|
-| Presentation cue | `phase.ai-authoring-mvp-a` entry gate |
-| 汎用Balance table | `phase.ai-authoring-mvp-a` entry gate |
+| Presentation cue | `phase.manual-2d` entry gate |
+| 汎用Balance table | `phase.manual-2d` entry gate |
 | bounded Behavior Tree／Blackboard | `phase.manual-3d-mvp-b` entry gate |
-| Ability／Status Effect／Cooldown／Cost | `phase.manual-3d-mvp-b` entry gate |
-| Quest／Objective／Dialogue／Choice | `phase.production-capability` entry gate |
-| UI Flow／Screen transition／Input action mapping | `phase.production-capability` entry gate |
+| Ability／Status Effect／Cooldown／Cost | `phase.manual-2d` entry gate |
+| Quest／Objective／Dialogue／Choice | `phase.manual-2d` entry gate |
+| UI Flow／Screen transition／Input action mapping | `phase.manual-2d` entry gate |
+
+[Product Plan](../00-product/product-plan.md)のRPG-first MVPは上記期限を前倒しするが、Fieldを本表から生成または推測してはならない。各kindはfocused owner designでschema revision、validator、Cooker、migration、fixtureを閉じ、Product Definitionのatomic destinationに登録されるまでProject Source、AI Proposal、Cooked packageで使用不能である。current Shooter Registry／OperationをrenameまたはRPG証拠へ流用しない。
 
 ## 3. `GameSystemSpecV2`
 
@@ -418,6 +420,22 @@ GameSystemAuxiliaryRefSetV1
   compatibility_invariant_refs[1..128]: CompatibilityInvariantRecordRefV1
   auxiliary_ref_set_hash: SHA-256
 ```
+
+### Runtime ECS access cohort projection
+
+Runtime ECSへ渡す`access_cohort_hash`は、同じActive Product Definitionに属するactive `GameSystemSpecV2`、exact query refs、phase refs、Component read／write setsをcanonical sortしてSHA-256化する。inactive、draft、別Contract Set、別TargetのSystemを混ぜない。手書き`hot`／`cold` labelやsource-order hashを入力にしない。
+
+各Componentの`RuntimeComponentAccessManifestRefV1`集合はstrict-sorted uniqueで、missing System、orphan query、undeclared column access、writer conflictをContract compile failureにする。
+
+[Runtime ECS](../04-runtime/entity-component-system.md)のlayout reviewが`component_schema_revision_required`を返した場合、layout compileを停止する。Domain ownerは次を一つのapproved schema revision closureとして行う。
+
+1. semantic nameを持つComponent schema revisionを承認する。
+2. System read／write manifestとqueryを更新する。
+3. authoritative persistence projectionを更新する。
+4. Source-derived artifactをrecookする。
+5. complete data-oriented qualification campaignを再実行する。
+
+Gameplay Programming Modelはfieldを自動splitせず、`RuntimeComponentLayoutPolicyV1`を所有または複写しない。
 
 ### Owner identity registry
 

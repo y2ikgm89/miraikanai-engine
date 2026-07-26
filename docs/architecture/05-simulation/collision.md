@@ -2,10 +2,10 @@
 
 - 文書ID: mirakan.arch.simulation-collision
 - 状態: review
-- 正本範囲: 2D／3D geometry、Collider Source／Cooked Asset、Collision Material／Filter／Sensor、query request／result、contact／trigger／hit event semantics
+- 正本範囲: 2D／3D geometry、Collider Source／Cooked Asset、Collision Material／Filter／Sensor、filter execution placement／early rejection eligibility、query request／result、contact／trigger／hit event semantics
 - 非正本範囲: Body dynamics、solver、joint、character motor、Runtime phase／Simulation Advance／lifetime、共通capacity／backpressure、Asset transaction、AI authorization。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math core](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](physics.md)
-- 外部根拠検証日: 2026-07-21
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論と所有境界
 
@@ -87,6 +87,15 @@ Filterの決定順は次の意味を持つが、Runtime phase順ではない。
 4. sensorならsolver responseを無効にし、overlap semanticsだけを残す。
 5. event subscriptionとquery visibilityを別々に評価する。
 
+この意味順を保持した上で、private Backendの実行配置は、同じ判定を表現できる最も早いstageへ固定する。
+
+1. Engine-owned channel matrix／broadphase layer maskで、candidate pair生成またはbroadphase交差前にrejectする。
+2. 両Profileが必要なpair relationを、shape contact generation／narrow phase前のpair filterでrejectする。
+3. group／shape filterは、1または2で表現できないimmutable shape属性だけに使う。
+4. Contact／manifold listenerでのrejectは、contact作業後のlate filterとして記録し、early-filter改善へ算入しない。
+
+declarative matrixで表現できないcustom filter callbackだけをprivate Adapter内の例外候補とし、thread-safe、deterministic、allocation／logging 0、Gameplay／AI／Asset／World mutation呼出し0をhard predicateにする。callbackはProfile semanticsを変更せず、Backend native ID、pointer、worker indexを判定に使わない。実行stageを変える候補は、input pair、最終`ignore | overlap | block`、sensor、event subscription、query visibilityがreferenceと一致する場合だけ適格である。
+
 Sensorはmass、force、jointを持たず、overlap eventのsourceとなるCollider shape propertyである。SensorをCCD保証やauthoritative hitの代用にしない。Gameplay volume、hitbox、camera obstruction、Interaction Focusの対象発見（interaction）は用途別Profileを使い、hard-coded channel分岐をProject C++へ散在させない。interaction用途のSensor Profileはoverlapとversion付きQueryのsemanticsだけを提供し、solver responseとauthoritative hitを持たない。[Gameplay programming model](../03-authoring/gameplay-programming-model.md) §2.4の`spatial` Focus Queryだけが`InteractionDefinitionV1.space_binding.payload.query_shape_ref`経由で本Profileを参照し、Profile IDを直書きしない。`logical | ui` InteractionはCollision Sensor Profileを持たない。
 
 ## 4. Collision query contract
@@ -139,6 +148,8 @@ Replayは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)�
 
 EditorとAIは同じCollider Source Asset、Project ChangeSet、validator、preview、cook経路を使う。geometry／asset／material／filter／sensor／query profileのinspect、create、update、remove、validate、previewは将来のsemantic action vocabularyであり、Stable Operation IDでもcurrent公開操作でもない。本書のcurrent MCD／Owner Manifest／Service allowlist／Provider／MCP Operation集合は空で、action名からIDを生成しない。将来work item `activation.collision.authoring_operations.v1`が採用するexact ID集合と完全なMCD／Service／Policy／Validator／Diagnostic／Receipt／publication closureを一transactionで登録するまで、authoring Operation要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。Body dynamics、character、solverのactionは[Physics](physics.md)へ意味上handoffするだけで、Physics Operationを暗黙生成しない。Risk分類、authorization、credential、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書で規則を複写しない。
 
+filter最適化のAI／Editor説明は[Runtime performance／capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)の`OptimizationDecisionProjectionV1`をread-onlyで消費する。raw native callback、pair buffer、Backend object、全traceを公開せず、AIはfilter stage、Profile、threshold、candidate selection、Receiptを変更しない。
+
 必須diagnostic classは次である。
 
 - invalid／degenerate geometry
@@ -150,7 +161,7 @@ EditorとAIは同じCollider Source Asset、Project ChangeSet、validator、prev
 - event normalization invariant violation
 - consumed lease／generation mismatch
 
-Qualificationは2D／3D primitive、compound、mesh／height-field cook、filter matrix、sensor enter／exit、query ordering、event ordering、asset swap、stale result、fuzz inputを含む。同じfixtureを全private Backendへ与え、Engine-owned resultとdiagnosticが一致することを検査する。Performanceの測定方法とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使用する。
+Qualificationは2D／3D primitive、compound、mesh／height-field cook、filter matrix、sensor enter／exit、query ordering、event ordering、asset swap、stale result、fuzz inputを含む。同じfixtureを全private Backendへ与え、Engine-owned resultとdiagnosticが一致することを検査する。filter fixtureはinput bounds、candidate pair、broadphase reject、pair-filter reject、shape-filter reject、late-listener reject、narrow-phase／contact成立数をstage別に記録し、early stageへ移した候補でも最終pair relation、sensor、query、eventのsemantic hashをreferenceと一致させる。asymmetric matrix、callback allocation／nondeterminism、late rejectをearly rejectへ誤計上するcaseを一原因ずつ拒否する。Performanceの測定方法とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使用する。
 
 次を採用しない。
 

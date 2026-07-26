@@ -821,3 +821,9 @@ C1完了条件は、2D／3D縦切りのTitle、Settings、HUD、Pause、Result�
 ## 21. 外部依存境界
 
 Text／Font library、Unicode specification、Platform IME／Accessibility APIのexact release、取得元、integrity、license、一次根拠は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが所有する。Miraikanai固有のUI model、Widget、Layout、Binding、Event、domain budget、AI／manual workflowは本書が所有する。
+
+Locale identityとlocalized presentationを分離する外部比較根拠は次である。これらはMiraikanaiのSchema、C1対応locale、fallback順、Catalog lifecycleを定義しない。
+
+- [BCP 47／RFC 5646](https://www.rfc-editor.org/info/rfc5646/)
+- [ICU Locale services](https://unicode-org.github.io/icu/userguide/locale/)
+- [Microsoft Globalization: localizable／non-localizable resourceの外部分離](https://learn.microsoft.com/en-us/globalization/internationalization/externalize-resources)

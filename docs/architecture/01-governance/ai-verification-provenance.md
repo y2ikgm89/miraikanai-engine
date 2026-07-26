@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Verification lifecycle、Requirement coverage、AI Eval、public／holdout／adversarial dataset、grader、Evidence Requirement／fulfillment binding、Evidence envelope、Technical Qualification Receipt／freshness、Provenance、Trace grading、Release evidence、保持、失敗
 - 非正本範囲: AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。これらはAI Security／Approvalを参照する
-- 依存: [AI Security／Approval](ai-security-approval.md)、[Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Project state](../03-authoring/project-state.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Project Shader](../06-rendering/project-shader.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 依存: [AI Security／Approval](ai-security-approval.md)、[Product Plan](../00-product/product-plan.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Project state](../03-authoring/project-state.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Project Shader](../06-rendering/project-shader.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. Evidence原則
@@ -282,6 +282,36 @@ ArchitectureComprehensionFixtureV1
 同じ固定Corpusをclean stateから3回実行し、最悪回を判定する。Case入力として意図的に与えた上限超過、未取得continuation、stale authority／projection hashは停止できたかをpass／failに含める。一方、runnerによるmaterialize失敗、想定外のmetadata／projection／contract hash不一致、Case不足は`infrastructure_error`とし、pass／failの分母へ含めない。Fixtureまたはgrader変更はCase Manifest hash、authority metadata set hash、architecture explain schema hash、Contract set hashとともにEvaluation Receiptへ記録する。
 
 AiReadableAuthoringFixtureV1は100万Entity、bounded shard、Component／Asset／cross-reference／Decision、lock、stale reference、spatial boundaryを含み、Stable ID、属性、spatial、dependency closure、bounded read、revision diff、re-shard、stale indexを検証する。正確なFieldとPerformance BudgetはAuthoring／Performance Ownerを参照し、本書はexpected closure recall 100%、revision混在0、省略範囲欠落0、semantic root不一致0を要求する。
+
+`OptimizationDecisionExplanationFixtureV1`は[Performance／Capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)が所有する完成`OptimizationDecisionProjectionV1`だけを入力にし、自然言語の説得力ではなくtyped ref／state／Evidence使用をcode-basedに採点する。
+
+```text
+OptimizationDecisionExplanationCaseV1
+  case_id: StableId
+  input_projection_ref: OptimizationDecisionProjectionRefV1
+  expected_baseline_candidate_ref: OptimizationCandidateRefV1 | null
+  expected_selected_candidate_ref: OptimizationCandidateRefV1 | null
+  expected_candidate_dispositions[1..32]:
+    {candidate_ref: OptimizationCandidateRefV1,
+     disposition:
+       not_evaluated | rejected | qualified_not_selected | selected}
+  required_evidence_refs[0..64]: OptimizationEvidenceRefV1
+  required_diagnostic_refs[0..32]: DiagnosticCodeRefV1
+  forbidden_claims[1..32]
+  expected_outcome: explain | insufficient_authorized_context
+
+OptimizationDecisionExplanationFixtureV1
+  fixture_id: fixture.ai.optimization-decision-explanation
+  fixture_version: 1
+  projection_schema_hash: SHA-256
+  contract_set_hash: SHA-256
+  cases[11]: OptimizationDecisionExplanationCaseV1
+  fixture_content_hash: SHA-256
+```
+
+exact十一Caseは、(1) selected＋qualified baseline、(2) baseline自身を維持、(3) selectedなしの初回characterization、(4) rejectedのblocking Diagnostic、(5) `not_evaluated`、(6) stale source revision、(7) revoked Receipt、(8) candidate binding hash差替え、(9)複数selected、(10)selection reason欠落、(11)redactionで根拠不足、を各一件持つ。Case 1～5はcandidate ref、disposition、baseline、selection reason、Evidence／Diagnosticをexact一致で説明する。Case 6～10は各一原因のpreflight negativeで、Capsule／Projection verifierがModel呼出し前に拒否し、Provider送信byte、Tool call、Project変更をexact 0にする。Case 11だけは有効なredacted ProjectionをModelへ渡し、勝者、改善値、欠落根拠を補完せず`insufficient_authorized_context`へ停止させる。candidate選択、threshold変更、Receipt補完、Project writeをTool callまたは回答として生成したCaseは0点である。
+
+本Fixtureは`AiConformanceTestSuiteV1(suite_kind=eval)`のrequired Case集合へexactに含めるが、logical IDの予約はFixture／Case／Suite Artifact、Model適合、Operation Activation、利用可能表示を意味しない。current materialized Fixture／Case／Suite／Receipt集合はexact `[]`であり、対応する完成Artifactとfresh pass Receiptが発行されるまでoptimization explanationをProduction対応と判定しない。
 
 `MultilingualInteractionFixtureV1`は同一intentを`en-US`入力／表示、`ja-JP`入力／表示、`ja-JP`入力＋canonical English technical context、英日mixed inputでpair化し、Editor locale切替、明示AI reply override、unsupported system locale、User-authored日本語名／台詞、missing Editor translation、pseudo localeを含む。各Caseは`input_language_tags[]`、`editor_display_locale`、`requested_reply_locale`、`effective_reply_locale`、original User text hash、canonical semantic context hash、expected Tool／typed argument／ChangeSet invariant、allowed natural-language outcome、forbidden translationを持つ。
 
@@ -847,6 +877,43 @@ StoreUploadReceiptV1
 ```
 
 Upload成功を公開完了とみなさない。Store processing、review、rolloutは別read-back Eventとして追跡する。上記五wrapperはいずれもinline署名Fieldを持たず、`signed_record.subject_sha256=SHA-256(JCS(payload))`と用途別singleton purposeを必須にする。Generationはissuer subject／Role、`finished_at`、revocation snapshot、Reviewはreviewer subject／Role、`issued_at`、revocation snapshot、Promotionはpromotion service subject／Role、`read_back_at`、revocation snapshot、Release Signingはsigning service subject／Role、`finished_at`、revocation snapshot、Store Uploadはupload service subject／Role、`finished_at`、revocation snapshotを`MirakanSignedRecordV1`のSigner／Role／issued-at／revocation Fieldとそれぞれbyte equalityにする。各発行時刻は当該処理の全入力readback完了以後でなければならず、別purposeの有効Role／Key、payloadにないidentity、時刻の選択変更を許可しない。
+
+### 7.8 Product release evidence class aggregation
+
+```text
+evidence.class.package-install-offline-rollback-qualification
+  requested_target:
+    target.windows.desktop | target.android.mobile | target.apple.mobile
+  required_input:
+    exact fresh Target-owner package Receipt
+    exact package artifact hash and signature state
+    clean install and launch result
+    offline-run result
+    rollback rehearsal result
+  equality:
+    Candidate, Active Product Definition, Contract Set, Toolchain lock,
+    Target Profile, package artifact
+  issuer_exclusion:
+    wp.product.production-release-binding, its Task, and its Candidate
+
+evidence.class.product-release-artifact-plan-valid
+  requested_targets:
+    [target.windows.desktop, target.android.mobile, target.apple.mobile]
+  required_input:
+    content-addressed artifact plan
+    Target-lab plan
+    signing/upload identity separation
+    Store-staging plan
+    rollback plan
+    exact Windows/Android/Apple owner Review Receipt set
+  equality:
+    Candidate, Active Product Definition, Contract Set, Toolchain lock,
+    Target Profile set
+  issuer_exclusion:
+    wp.product.production-release-binding, its Task, and its Candidate
+```
+
+前者は`policy.evidence.target-device.v1`、後者は`policy.evidence.contract-ci.v1`を使う。Target-owner Receipt欠落、wrong Target、mixed Candidate、stale／revoked input、incomplete Target set、self-issued Evidenceはfail closedとする。本aggregationはTarget package schema、signing、upload、Store、device、rollback semanticsを所有しない。
 
 ## 8. Trace gradingとchain
 

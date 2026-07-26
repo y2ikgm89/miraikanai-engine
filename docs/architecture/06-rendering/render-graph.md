@@ -2,10 +2,10 @@
 
 - 文書ID: mirakan.arch.rendering-render-graph
 - 状態: review
-- 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、surface composition、visibility／geometry execution、lighting pipeline profile、anti-aliasing／temporal execution、Renderer固有failure／qualification
+- 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、visibility／geometry execution、lighting pipeline profile、anti-aliasing／temporal execution、Renderer固有failure／qualification
 - 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
-- 外部根拠検証日: 2026-07-22
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論と所有境界
 
@@ -147,6 +147,10 @@ queue classはgraphics、async compute、copyをEngine語彙として公開し�
 
 Transient resourceはcompile済みintervalの範囲だけ生存し、aliasはformat／alignment／queue overlap／clear semanticsが互換な場合に限る。Persistent resource、streaming resource、temporal history、swapchain surfaceはgeneration付きleaseで参照し、Device reset、resize、provider change、artifact promotionを跨ぐstale handleを拒否する。
 
+同じphysical memoryを異なるtransient resourceへ再利用するcandidateは、size／alignment／heap／format／usage compatibility、全queueでのlifetime非重複、previous resourceのlast access、next resourceのfirst accessをcompile planへ固定する。D3D12 mappingはprevious／next resource間に必要なaliasing barrierを発行し、next resourceの最初の使用で未初期化領域を全てclear／discard／writeする。barrier省略、resource間のdata inheritance、cross-queue overlap、partial first write、compiler外のmanual aliasを禁止する。根拠はMicrosoftの[D3D12 memory aliasing and data inheritance](https://learn.microsoft.com/en-us/windows/win32/direct3d12/memory-aliasing-and-data-inheritance)とし、他Backendでも同じlogical lifetimeとvalidationを満たすnative同期だけをAdapterが選ぶ。
+
+attachmentをrender passとして表現する最適化はTarget別candidateである。Microsoft公式の[D3D12 render passes](https://learn.microsoft.com/en-us/windows/win32/direct3d12/direct3d-12-render-passes)が示すようにtile-based renderer等でoff-chip memory trafficを抑え得るが、全GPUへ普遍的な高速経路としない。同じattachment load／store／resolve／clear semanticsとvisual oracleを保ち、Target／driver別実測がないcandidateは`not_evaluated`である。
+
 Graph planは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が公開するRenderer execution slotで実行する。本書は共通phase表、writer順、Simulation Cadenceを再掲せず、slot inputがimmutableであることと、leaseが記録した最後の全queue `GpuSubmissionSerial`完了後にだけ解放することを要求する。
 
 ## 5. Frame lifecycle、surface、recovery
@@ -170,6 +174,12 @@ Visibility executionはViewのfrustum、layer mask、World packet bounds、[LOD]
 GPU-driven pathとCPU reference pathは同じvisible item identity、material binding、geometry generationを生成しなければならない。HZBやocclusion historyはView／surface／projection generationへ束縛し、camera cut、teleport、extent change、history欠損ではconservative visibleへfallbackする。Work expansion機能を使ってもresource lifetime、queue、barrier、budget ownershipはRender Graphから移さない。
 
 実行path IDは`renderer-profile.cpu-direct`、`renderer-profile.gpu-indirect`、`renderer-profile.gpu-meshlet`、`renderer-profile.gpu-work-graph`で、後3者はそれぞれ`renderer-profile.cpu-direct`または`renderer-profile.gpu-indirect`へfallbackできる。HLODのstatic eligibility roleは`decorative_instance`に限り、Gameplay identity／interactionを変更しない。
+
+candidate評価順は`CPU direct semantic oracle -> GPU frustum／layer／LOD culling＋compaction＋indirect draw -> HZB occlusion -> meshlet／work graph`とする。GPU indirectはCPU referenceとvisible Stable ID集合、material／geometry generation、LOD tier、draw argument countが一致しなければならない。argument／count／compaction bufferのcapacity超過はtyped failureでGraph generationを不成立にし、partial command buffer、silent draw drop、CPU再実行を同frameへ挿入しない。Microsoftの[D3D12 ExecuteIndirect sample](https://learn.microsoft.com/en-us/samples/microsoft/directx-graphics-samples/d3d12-execute-indirect-sample-win32/)はcompute visibility cullingとindirect command compactionの実装比較根拠にだけ使用する。
+
+HZBはconservative occlusionだけを許し、false occlusion（referenceでvisibleなitemを不可視にすること）を0にする。occluder selection、depth convention、mip reduction、reprojection、history validityはalgorithm／profile revisionへ含め、camera cut、teleport、projection／extent／surface generation変更、missing／stale historyでは全candidateをvisible側へ倒す。余分にvisibleなitemはperformance metricへ記録できるが、誤って隠したitemをtoleranceで合格させない。
+
+Target／Profileのqualified primary execution pathはexact一件、未選択なら0件とする。CPU pathはsemantic oracle、または別Qualificationされた明示的fallbackになり得るが、旧／新経路の互換layer、silent fallback、runtime auto-tuning、同frameの二重drawを意味しない。fallbackはProfileにexact ref、発動条件、意味同等Receipt、切替generationを持つ場合だけ次Graph generationで選択する。benchmark candidateは非dispatchableである。
 
 ## 8. Material、Lighting、Post Processとの実行境界
 
@@ -356,6 +366,8 @@ View／Renderer intent、debug capture要求、qualification run要求はStable 
 
 Renderer固有diagnosticはGraph／pass／resource／ViewFamily／surface generation、Backend-neutral error code、first failing dependency、fallback dispositionを含む。少なくともgraph invalid、resource exhausted、pipeline unavailable、history invalid、surface lost、device fault、provider unavailableを区別する。native result codeやdriver messageはprivate attachmentとして保存し、stable diagnostic codeにしない。
 
+optimizationのAI／Editor説明は[Runtime performance／capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)の`OptimizationDecisionProjectionV1`をread-onlyで消費する。AIはnative command／barrier、resource alias、visibility buffer、GPU address、candidate selection、threshold、Receiptを変更せず、raw capture／full traceを直接解釈してselectionを補完しない。Optimization propose／select Operationは現在登録せず、§11のcurrent MCD Operation集合を増やさない。
+
 `RendererProviderErrorV1`は`NotInstalled | UnsupportedDevice | UnsupportedDriver | SignatureInvalid | LicenseNotApproved | VersionMismatch | MissingInput | InvalidFormat | InitializationFailed | ExecutionFailed | HistoryInvalid | SwapchainConflict | BudgetExceeded | DeviceFault`のclosed codeを持つ。AAの互換／排他／scope失敗は`AntiAliasingResolutionErrorV1`を使い、Provider障害と混同しない。Running中のProvider failureは同frameで別Providerへ差し替えずgenerationを停止し、次のLoading境界でContextを再生成する。RT／Neural failureも次frameの登録済みRaster／non-neural Graphへ切り替える。
 
 Quality fallbackは意味を明示し、resolution、optional effect、shadow execution、temporal provider、ray／neural profileの順序付き候補から選ぶ。allocation失敗時のsilent quality reduction、draw skip、default material置換を禁止する。共通backpressureとcapacity判定は[Runtime performance／capacity](../04-runtime/performance-capacity.md)へ従う。
@@ -406,6 +418,8 @@ AA metricの算出仕様は`AntiAliasingVisualReceiptV1`のDomain projectionと�
 
 Qualificationはportable raster referenceを必須とし、次のDomain fixtureを持つ。
 
+algorithm optimization candidateは同じGraph Definition、Render Snapshot、ViewFamily、Target Profile、Capability Signature、driver、Toolchain lock、fixture、input traceで比較し、[Runtime performance／capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)の`OptimizationDecisionProjectionV1`へread-onlyに投影する。最低metricはCPU／GPU P50／P95／P99、command／indirect argument count、visible-set equality／false occlusion、transient logical／physical peak、alias reuse byte、barrier／validation error、history invalidation数である。Target別に一つのprimaryだけを選び、別Target結果から推測しない。
+
 - Graph cycle、read-before-write、unordered write、subresource overlap、history invalidationのunit／property test。
 - 同一Graph入力からcanonical compile plan hashが一致するdeterminism test。
 - D3D12（Enhanced Barriersのみ。legacy barrier laneのconformance fixtureを持たない）、Vulkan、Metalのaccess／barrier conformanceと各validation zero-error fixture。
@@ -415,7 +429,7 @@ Qualificationはportable raster referenceを必須とし、次のDomain fixture�
 - D3D12／Vulkan／MetalでMSAA color／depth sample count、Pipeline key、resolve order、alpha-to-coverage、surface loss後rebuildが一致するBackend conformance。
 - resize、alt-tab、HDR／SDR切替、surface loss、device removed fault injection。
 - GPU OOM、descriptor exhaustion、pipeline miss、corrupt shader、stale Asset generationとlast-use serial前に破棄されないlifetime test。
-- CPU direct／GPU indirect／meshletのvisible result、occlusion history、camera cut、overflow、fallback一致。
+- CPU direct／GPU indirect／meshletのvisible result、occlusion history、camera cut、overflow、fallback一致。alias pairごとのlifetime非重複、全queue completion、aliasing barrier、full first-use initialization、HZB false occlusion 0、indirect capacity一件超過、Target別primary exact一件も検査する。
 - FOV、projection、resolution、dynamic extent別projected error、CPU／GPU tier、hysteresis、camera cut再選択。
 - Cook分類、Gameplay identity保持、mutable objectのstatic batch混入拒否、HLOD Source順序に依存しないArtifact hash、interactive／Physics／Save／animation混入拒否、HLOD on／offのGameplay一致。
 - Native TAA／qualified Providerのmotion、depth、exposure、reactive、UI、HDR、dynamic extent、camera cutと、FG Provider一意Swapchain ownership／停止条件。

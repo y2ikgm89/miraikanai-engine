@@ -52,7 +52,23 @@ RuntimeWorldCapacityRecordV1
 
 capacity recordはWorld build／section publicationに必要な上限とreservationを表す。global capacity envelope、測定方法、backpressureは[Performance／Capacity](performance-capacity.md)が所有し、本recordはそのOwnerが承認したrefを消費する。loaderは予約を超えるSection、Entity、chunk、delta、work unitをstagingへ入れない。
 
-### 3.2 Section entity record set
+### 3.2 Data-oriented construction closure
+
+Package Candidateは次のexact transitive closureをcontent-addressed refで束縛する。
+
+```text
+Package Candidate
+  -> exact RuntimeWorldCapacityRecordV1 ref
+  -> exact RuntimeEntityConstructionSetV1 root
+  -> RuntimeArchetypeLayoutPlanV1 refs
+  -> RuntimeComponentLayoutPolicyV1 refs
+  -> exact Contract Set root
+  -> MemoryContractV1 and PointerMemoryConsumerBindingV1 refs
+```
+
+Package assemblyとloaderは、すべてのrefが同じTarget Profile、Contract Set、Toolchain lock、Component schema version、Candidate rootへ解決することを検証する。Runtime Packageはlayout policyやmemory contractのfield listを複製せず、各Ownerのexact refとroot hashだけを保持する。
+
+### 3.3 Section entity record set
 
 ```text
 RuntimeWorldSectionEntityRecordSetV1
@@ -201,7 +217,11 @@ Loaderは次を順に検査する。
 4. persistent identity、template、initializer、State store binding、capacityを検証する。
 5. 全Sectionとdependencyがreadyである場合だけRuntime Worldへpublishを要求する。
 
+World construction前に、missing／extra／duplicateなlayout policyまたはarchetype layout ref、layout policyと異なるComponent schema hash、alignment／payload計算後のrow capacity 0、unbounded archetype permutationまたはstructural delta capacity、capacity recordに覆われないquery／command／output reservationを拒否する。old AoS、sparse-set、object-graphのPackage section、old generated signature、pointer-backed inline payload、persisted row selection、およびglobal `new`、default PMR、第二のShipping storage backendへのfallbackも拒否する。
+
 load中のimage、decoded record、reservationはstagingだけに存在する。failure、cancel、stale Project revision、missing dependency、capacity不足、identity collisionではlast-valid World publicationを維持し、partial Worldをpublishしない。
+
+上記のいずれかに失敗した場合は、partial Worldも自動修復したPackageもpublishしない。
 
 ### 6.2 Section publication
 
@@ -235,6 +255,8 @@ cache、old Package、old World imageを物理的にいつ消去するかは本�
 ## 8. Qualification
 
 target Runtime Packageは少なくとも次を証明する。
+
+loader／capacity qualification receiptは、同じCandidate、Target、Contract Set、Toolchain、fixture、input traceを持つexact `RuntimeDataOrientedQualificationCampaignV1`を参照し、そのhard-predicate resultを消費する。sampling、metric定義、promotion判定は[Performance／Capacity](performance-capacity.md)が所有し、Runtime Packageは閾値や集計方法を再定義しない。
 
 1. 同じProject revision、Catalog、Target、Contract setから同じRoot／Section image、directory、Package root hashを二回生成する。
 2. bounds、overlap、duplicate key、hash mismatch、target mismatch、Contract mismatch、unknown major、truncation、trailing bytesをrejectする。

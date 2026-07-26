@@ -2,10 +2,10 @@
 
 - 文書ID: mirakan.arch.simulation-physics
 - 状態: review
-- 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、generic Kinematic Motion reference Provider、kernel Adapter boundary、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
+- 正本範囲: Physics World／Body dynamics、solver profile semantics、command、joint／constraint、generic Kinematic Motion reference Provider、kernel Adapter boundary、private Backend optimization eligibility、Physics save／replay projection、Physics AI intent／discovery／resolution／preview／diagnostic／eval
 - 非正本範囲: Collider geometry／filter／query／event、Runtime phase／Simulation Advance／capacity、ECS storage、Save／Replay header・transport、Animation pose、Navigation artifact、external dependency version／build pin、AI authorization／evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[World](../06-rendering/world.md)、[Collision](collision.md)、[Navigation](navigation.md)、[Animation](animation.md)
-- 外部根拠検証日: 2026-07-21
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論とPlatform境界
 
@@ -627,6 +627,26 @@ Snapshot fixtureは同じcompleted Intervalから作ったnormalized body／join
 Save fixtureは同じsnapshotとCollider Artifact集合をDomain BindingでHeaderへ結ぶcaseを受理し、HeaderのCadence／Interval Ref／completed SHA／Substep Binding、snapshot hash、Collider Source identity／Artifact bytes、Collider集合順／set equalityを各一Fieldだけ変えたcaseを`physics_save_incompatible`でLoad staging前に拒否する。Collider arrayは65,536件ちょうどをschemaとして受理し、65,537件目を`physics_save_capacity_exceeded`でSave生成前に拒否する。
 
 Replay fixtureは[Persistence／Save](../04-runtime/persistence-save.md#51-replay-transport-binding)の`RuntimeReplayDomainProjectionRefV1`、`RuntimeReplayDomainBindingV1`、`RuntimeReplayBundleManifestV1`を受理し、Replay projectionのCadence／Substep Binding／sealed Interval／digest、Bundle membership、Binding hashを各一Fieldだけ変えたcase、Projection base recordへのbinding／Bundle埋戻し、別Replay／Projectionを結ぶbinding、Bundleのmissing／extraをReplay開始前に拒否する。
+
+### 4.1 Private Backend optimization eligibility
+
+次表は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が固定するexact Box2D 3.1.1／Jolt 5.6.0へ適用するprivate Adapter候補の適格性条件である。設定値、worker数、allocator容量を全Target共通defaultとして固定せず、Backend release／build option、Target Profile、World／solver／sleep profile、fixture、input traceをcandidate identityへ含める。
+
+| Backend／候補 | 適格性条件 | 禁止／fail-closed条件 |
+|---|---|---|
+| Box2D task system | `b2WorldDef.workerCount`と`enqueueTask`／`finishTask`をTarget別のclosed worker candidate集合から評価する。single-thread referenceと各候補へ同じWorld traceを与え、全taskをWorld境界前にjoinする | callbackからallocation、logging、Gameplay／AI／Asset呼出し、World mutationを行うこと。CPU名からworker数を推測すること |
+| Box2D sleep | World／Body semanticsがsleep／wakeを許すProfileで`enableSleep`の`true`と`false`を別candidateとして測る。resting bodyが多い場合の省力化と、sleep不要Profileで管理costを外す場合の双方を実測する | wake／sleep event、public state、command acceptance、Replay hashを変えること。高速化を理由にProject intentを暗黙変更すること |
+| Box2D body creation | BodyはEngine staging commandが確定したfinal transformで作成し、同一activationでoriginに生成してからtransformを移動する手順を候補にしない | Box2Dに存在しないbulk insertion APIを仮定すること、未検証bodyをlive Worldへ部分追加すること |
+| Jolt job／temporary memory | Engine-owned `JobSystem` worker候補と`TempAllocator`容量をTarget Profileからexactに選び、job wait、temporary high-water、overflow／OOMを記録する | 未bounded allocator、general heap fallback、job未join、worker callbackから上位層を呼ぶこと |
+| Jolt body insertion | 同じactivation transactionで複数Bodyを追加する経路は`BodyInterface::AddBodiesPrepare`／`AddBodiesFinalize`のbatchを使うcandidateを基準とし、single-body commandだけを一件追加経路にする | 複数Bodyを一件ずつ追加してBroadPhase更新を反復すること、Prepare成功後のpartial publish |
+| Jolt BroadPhase | 初期BroadPhase layerは少なくともstatic／dynamicを分離し、追加layerはCollision Profileで表現できず実測改善する場合だけ候補にする。`OptimizeBroadPhase`はbulk初期配置後に公式条件上必要な場合だけ評価する | `OptimizeBroadPhase`を毎frame呼ぶこと、適切なbatch insertion後も無条件に呼ぶこと、layerをGameplay categoryの代用にすること |
+| Jolt／Box2D sleep共通 | active／sleeping body比率、island／activation、step P50／P95／P99、event normalizationを同時に測る | step平均だけで昇格すること、sleeping stateをSave／Replay外のnative既定へ委ねること |
+
+Collision pairを可能な限り早く拒否する意味とstageは[Collision §3](collision.md#3-materialfiltersensor)が所有し、Physicsはそのresolved filter planをBackendのobject／broadphase／pair filterへ写像するだけである。JoltのContactListenerによるrejectはlateかつexpensiveな経路として計測し、early filter改善に数えない。
+
+全候補はEngine-owned state snapshot、normalized event順、Save／Load、Replay hash、failure／lifetime oracleをreferenceと一致させる。performance metricはstep P50／P95／P99、job wait、active／sleep body数、body insertion throughput、temporary allocator high-water／failure、filter stage別pair数を必須にし、共通比較とpromotionは[Runtime performance／capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)へ従う。AI／Editorは同節の`OptimizationDecisionProjectionV1`だけをread／explainし、raw World、Vendor setting／object、worker callback、full trace、candidate selectionを操作しない。optimization propose／select Operationは現在登録せず、本書§6のOperation集合を増やさない。
+
+Box2D公式のtask system／sleep／body creation根拠は[Simulation documentation](https://box2d.org/documentation/md_simulation.html)、Jolt公式のbatch insertion／BroadPhase／JobSystem／sleep根拠は[Jolt Physics 5.6.0 documentation](https://jrouwe.github.io/JoltPhysicsDocs/5.6.0/)とする。reference pathをoracleまたは明示的に別Qualificationされたsemantic fallbackとして保持できるが、public Vendor型、custom solver、旧／新経路の暗黙併載、deprecated alias、runtime自動Backend切替は採用しない。
 
 ## 5. AI semantics
 

@@ -275,9 +275,24 @@ Requirementは次を必須とする。
 
 ### 7.1.1 Pointer／Memory definition closure（Phase 0 planning）
 
-`PointerContractV1`、`MemoryContractV1`、`PointerMemoryConsumerBindingV1`は、[Memory／Pointers](memory-pointers.md)が型の意味、field、consumer Matrixを所有するFoundation typeである。本書はMCDのenvelope、参照解決、生成・hash閉包だけを所有し、同型を別schemaとして複写しない。
+`PointerContractV1`、`MemoryContractV1`、`PointerMemoryConsumerBindingV1`、`CppValueTransferPolicyV1`は、[Memory／Pointers](memory-pointers.md)が型の意味、field、consumer Matrixを所有するFoundation typeである。本書はMCDのenvelope、参照解決、生成・hash閉包だけを所有し、同型を別schemaとして複写しない。
 
-Productの`requirement.foundation.memory-pointer-contract`を満たすMCD sourceがmaterializeされるまでは、これらを`active`、現在のgenerated type、または存在済みのmanifestとして扱わない。materialization時には三type、関連Diagnostic、requirement、fixture、static／negative test definitionのlocal member集合をContract Setへ入れ、`PointerMemoryConsumerBindingV1.consumer_document_id`とArchitecture Document Registryのexact解決を必須にする。consumerごとの`reference_form`、保存、job capture、retire／invalidation owner、qualification ownerの欠落、重複、未解決、逆参照差はContract compiler failureとする。
+```text
+PointerMemoryDefinitionClosureV1
+  local_type_refs[4]:
+    PointerContractV1
+    MemoryContractV1
+    PointerMemoryConsumerBindingV1
+    CppValueTransferPolicyV1
+  local_type_refs are strict-sorted unique McdContractLocalRefV1(kind=type)
+  closure_hash: SHA-256
+```
+
+四TypeのField意味は[Memory／Pointers](memory-pointers.md)だけが所有する。本書はMCD共通Envelope、local record、member hash、Contract Set root、external `McdContractRefV1(kind=type)`へのmaterializationを所有し、Field一覧を再定義しない。
+
+Contract Setは四Type schemaを先に閉じてrootを確定する。`CppValueTransferPolicyV1` instanceはそのimmutable root、exact Target Profile、Toolchain lockに対して後からmaterializeし、自身を同じContract Set preimageへ戻さない。missing／extra／duplicate Type、root確定前instance、別root Type ref、same logical key／version different hashをcompile errorにする。
+
+Productの`requirement.foundation.memory-pointer-contract`を満たすMCD sourceがmaterializeされるまでは、これらを`active`、現在のgenerated type、または存在済みのmanifestとして扱わない。materialization時には四Type、関連Diagnostic、requirement、fixture、static／negative test definitionのlocal member集合をContract Setへ入れ、`PointerMemoryConsumerBindingV1.consumer_document_id`とArchitecture Document Registryのexact解決を必須にする。consumerごとの`reference_form`、保存、job capture、retire／invalidation owner、qualification ownerの欠落、重複、未解決、逆参照差はContract compiler failureとする。
 
 Wire、Save、Replay、Package、Provider projection、job packetにnative address、live pointer、reference、lease、span、writer、allocator objectを投影しない。これらが必要なconsumerは、Memory／Pointersのbindingが許すstable value、typed handle、immutable snapshot、owned packetだけを専用Typeとして投影する。
 
@@ -1908,6 +1923,17 @@ JSON treeとJCS実装は[Toolchain／Dependencies](toolchain-dependencies.md)が
 10. Docs、fixture、transition testを生成する。
 11. Golden output hashと再生成差分を検査する。
 
+Pointer／Memory familyをmaterializeする場合、Contract compilerは次のexact四manifestを同じContract Set rootから生成する。
+
+```text
+PointerContractManifest.bin
+MemoryContractManifest.bin
+PointerMemoryConsumerBindingManifest.bin
+CppValueTransferPolicyManifest.bin
+```
+
+Compilerはsource API contractの`callable_key`とparameter／return subjectを全量列挙し、`CppValueTransferPolicyV1.bindings[]`と正逆set equalityを検査してからC++ signatureを生成する。生成signature hashをpolicy inputへ戻さず、source API contract hashをkeyにする。C ABI projectionはC++ signature projectionと別branchであり、Native Game Module ownerの固定shapeだけを生成する。
+
 Generator plugin方式は初期に採用しない。全Generatorは同一Repository、同一Process、exhaustive dispatchで管理する。外部Provider追加はContract compiler sourceの明示変更とProvider conformance suiteを必要とする。
 
 Duplicate-aware走査はString escapeをdecodeした後のKeyで比較するため、`"a"`と`"\u0061"`も重複として拒否する。ParserとJCSにはRFC 8259／8785のofficial test vector、invalid UTF-8、unpaired surrogate、深さ／byte上限、Property-based differential testを必須にする。Package更新はR3 Dependency Changeであり、同じfixtureからbyte-for-byte同じJCSを出す場合だけ昇格できる。
@@ -1995,6 +2021,8 @@ Tool projectionは[AI Security／Approval](../01-governance/ai-security-approval
 - CX0のGenerated Header、CX1以降のGenerated Module interface、永続C ABI HeaderにInput contract hashを記録する。
 - Generated Sourceのimport／includeは`CppDependencySetV1`からだけ生成し、手書き依存と二重管理しない。
 - CMake Preset／Android Gradle CMake設定のDriver、Generator、Configuration写像は`BuildDriverProfileV1`検査表と一致し、自由文字列のGeneratorを生成しない。
+
+Pointer／Memory familyをmaterializeしたC++ projectionは`PointerContractManifest.bin`、`MemoryContractManifest.bin`、`PointerMemoryConsumerBindingManifest.bin`、`CppValueTransferPolicyManifest.bin`のexact四件を同一Contract Set root、Target Profile、Toolchain lockへ解決し、source API subject集合とvalue-transfer binding集合がset equalityでなければ生成しない。C ABI projectionへC++ reference、`std::span`、STL／PMR、`Result<T>`、exception、owner wrapperを出力しない。
 
 ### 17.2 TypeScript
 
@@ -2518,7 +2546,11 @@ lintは完全ID token集合について`active_complete ∪ reserved_not_activat
 ## 22. Contract compilerのDefinition of Done
 
 - 全MCD kindのmeta-schemaと最低1件のvalid／invalid fixtureがある。
-- Pointer／Memory planning typeをmaterializeするChangeSetは、三type、関連Requirement／Diagnostic／Fixture、consumer Matrixの正逆参照、保存・job capture禁止のnegative fixture、manifest hash closureを同一Contract Setで検査する。未materialize時のcurrent projectionは空であり、planned typeをactive recordとして数えない。
+- Pointer／Memory planning typeをmaterializeするChangeSetは、exact四Type、関連Requirement／Diagnostic／Fixture、consumer Matrixの正逆参照、保存・job capture禁止のnegative fixture、manifest hash closureを同一Contract Setで検査する。未materialize時のcurrent projectionは空であり、planned typeをactive recordとして数えない。
+- Pointer／Memory closureがexact四Typeで、三Type旧closure、五Type以上、missing／extra／duplicate、wrong kind、cross-root refを拒否する。
+- source API subject集合とvalue-transfer binding集合がexact equalityで、unbound parameter／return、orphan binding、ordinal重複を拒否する。
+- Contract Set root確定前のpolicy instance、instanceからrootへのback-edge、generated signature hashをinput keyにするcycleを拒否する。
+- C++ Module／Header projectionとC ABI projectionを分離し、C ABIへreference、`std::span`、STL／PMR、`Result<T>`、exception、owner wrapperを出力しない。
 - `game_system` kindからCatalog、Dependency Graph、State owner table、C++／TypeScript binding、conformance testを決定論的に生成する。
 - Project-defined SystemがEngine Standardと同じContract validationを通り、固定WhitelistなしでCatalogへ登録できる。
 - Project Shader planning familyをactivateするwork itemは、同じModule／Technique／Fact／Context／Understanding SchemaからC++、TypeScript、MCP bindingを生成し、R0／R1／R3と禁止Fieldを混同しないことを同じtransactionで検証する。Activation前はbinding集合を空に保つ。

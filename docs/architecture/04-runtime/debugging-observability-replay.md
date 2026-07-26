@@ -163,6 +163,26 @@ Diagnosticは[Executable contracts](../02-foundation/executable-contracts.md)の
 
 `DebugCounterDefinitionV1`はcounter ID／version、unit、value type、aggregation、scope kind、sampling policy、optional expected range、Performance budget ref、privacy、Shipping policyを持つ。aggregationは`gauge | monotonic_sum | histogram | duration | ratio`である。共通soft／hard budget値をcounter定義へ複写しない。Editor graphとheadless Gateは同じcounter IDと[Performance／capacity](performance-capacity.md)のbudget refを使う。
 
+### 6.1 Runtime ECS data-oriented evidence projection
+
+Debuggingは[Performance／capacity](performance-capacity.md)所有の`runtime_ecs_data_oriented_metrics_v1`に登録されたexact metric IDを使い、次のmetric familyを欠落なく投影する。
+
+- callback general-heap allocation and upstream fallback
+- reserved, committed, live, and peak bytes
+- chunk count, row capacity, occupied rows, and unused payload bytes
+- archetype count and archetype fragmentation
+- selected rows, contiguous work units, and chunk transitions
+- exposed column bytes and useful selected payload bytes
+- query-cache hit, miss, rebuild, and invalidation
+- structural moved rows and structural copy bytes
+- handle resolve and lease-validation P50／P95／P99
+- scenario CPU P50／P95／P99
+- semantic result hash, publication hash, and failure atomicity
+
+local alias、sampling duration、percentile algorithm、pass thresholdは定義しない。各sampleはexact campaign、scenario、payload candidate、Candidate、Target、Contract Set、Toolchain、fixture、input traceのidentityをすべて持ち、欠けたmemberを0へ正規化しない。
+
+Replay、Debug panel、AI summaryはsealed snapshotだけを読む。counter、panel、Replay event、AI summaryからlive Component layout、query membership、structural capacity、authoritative stateへのauthority back-edgeを作らない。
+
 Subsystemは`DebugProjectionPortV1`からsafe-boundary後のbounded immutable `DomainDebugSnapshotEnvelopeV1`を公開する。envelopeはtype／version、session、time、source generation、targets、completeness、omitted field、payloadを持つ。Budgetを超えた場合は範囲を無通知で変えずpartialとomitted fieldを返す。
 
 World debug shapeは`point | line | polyline | ray | aabb | obb | circle | sphere | capsule | cone | frustum | text_anchor`のregistered primitiveだけを許可する。target、time range、space、unit、style tokenを持ち、arbitrary mesh／shaderをDebug pathから実行しない。
@@ -676,6 +696,8 @@ pressure時は`critical | high | normal | verbose`のregistered priorityを使�
 Contract fixtureは全Typeのvalid／invalid／boundary、canonical encoding／hash／crash recovery、pointer／native handle／unbounded field／secret拒否、target generation、event registry、counter unit、Query／cursor／Index stale、gap／redactionを検証する。Debug Sessionは最初のRuntime time前に`before_first_runtime_time` Descriptorを作るcase、completed Runtime timeへ相関した開始case、終了後に同じDescriptor Refを維持して外部Closureだけを一件作るcaseを受理し、開始前の偽Runtime time、Descriptorへのend／completeness／gap埋込み、終了時Descriptor更新、Closure二重発行、Descriptor／Closure Session差を拒否する。
 
 Runtime fixtureは[Scheduling／lifetime](scheduling-lifetime.md)の全Runtime orderへのtime ref対応、parallel emitのcanonical sequence、priority drop、safe pause／complete Simulation Advance step／render step、sandbox node step、Store／Panel crash非干渉、callback hot path allocation／block 0を検証する。Debug stepでは四branchのRequest→Scheduling検証→sealed Interval投影を検査し、Debugger生成Interval、Profile／expected sequence差、variable範囲外、wrong Command／request type、Ref／hash差、消費済みcontrol、explicit ordinal 0／上限超過を各一原因で拒否してInterval／World state 0件変更を確認する。Hang fixtureはfixed duration、variable min／max、turn Control Ref＋completed SHA＋Interval hash、explicit request Ref＋completed SHA＋ordinal＋Interval hashを検証し、旧sequence ref、bare ID、Profile／branch差、待機中の偽periodic expectationを拒否する。instrumentation overhead、memory、disk、queue、soakは[Performance／capacity](performance-capacity.md)のcurrent Gateで測定する。
+
+Runtime ECS qualification fixtureはmandatory metric欠落、NaN／infinite value、counter overflow、wrong Target、wrong Candidate、process reuse、missing campaign cell、Debug-to-Runtime authority back-edgeを一原因ずつ拒否する。mandatory metric欠落は`diagnostic.performance.ecs-required-metric-missing`へexact mappingし、他のinvalid sampleを0またはpassへ補正しない。
 
 Replay fixtureはInput、RNG、accepted async resultから同じstate hashとfirst divergenceを得ること、recorded／current revision分離、closure／Asset／worker mismatch拒否、gapを含むSessionのpartial表示、child Session isolationを検証する。`RuntimeReplayProjectionV1`、`RuntimeReplayTransportBindingV1`、`RuntimeReplayBundleManifestV1`、`ReplaySliceV1`はtyped Debug Session、Build、Project triple、Target、Contract set、連続advance rangeへbyte equalityで解決する。transport bindingのcheckpoint／input／accepted async／RNG／asset version／redaction artifact集合はcanonical order、duplicateなし、range完全性を検証し、missing、extra、別Session／Build／Target／Contract set、hash差、range gap／overlap、redaction隠蔽、base projectionへのbinding埋戻し、別rootを束ねるBundleをReplay開始前に拒否する。Domain Replayはreceipt-free Projectionからroot外Bindingを生成し、Persistence OwnerだけがBundle Manifestへmembershipを閉じる。
 

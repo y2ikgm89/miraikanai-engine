@@ -149,6 +149,49 @@ Runtime ECS正本化の`source_preserving_recook`はreview中の候補classで�
 
 対象の旧名称は、承認・適用後にActive仕様、current Owner Registry、MCD、native ABI、catalog、diagnostic、生成bindingから消す。history、ChangeSetのsource side、migration fixtureの入力識別子だけは旧形式を判別するために保持できるが、それをcurrent type、alias、dispatch keyとして解釈しない。
 
+complete Consumer Inventoryの全retained consumerがcommitted Sourceから再構築できる場合だけ、次のconditional policyを使う。
+
+```text
+change_class = source_preserving_recook
+old_reader_policy = absent
+old_writer_policy = absent
+alias_policy = forbidden
+source_preservation_policy = retain
+regeneration_policy = full_recook | full_rebuild
+rollback_policy = source_rebuild
+```
+
+regeneration inputはcommitted Source、Asset import document、approved Runtime entry documentだけである。stale cache、old package bytes、raw Runtime handle、chunk row、address、old generated bindingを入力にしない。
+
+適用時は次をcurrent boundaryからatomicに除去する。
+
+- legacy or suffixless type aliases
+- object-address or pool-slot identity
+- pointer-backed inline Component payload
+- per-Entity virtual update storage
+- Runtime shared_ptr ownership
+- alternate Shipping AoS／sparse-set storage
+- direct mutation during iteration
+- old query cache entries and persisted row selections
+- dual Package／Save／Replay Runtime-layout projections
+- old generated API signatures that violate `CppValueTransferPolicyV1`
+
+committed Project Source、Asset provenance、published Save、Native ABI consumer、distributed Package、external API consumerは、それぞれのapproved migrationが明示しない限り削除しない。
+
+```text
+diagnostic.compatibility.ecs-consumer-inventory-unresolved
+MIRAKAN-COMPATIBILITY-ECS-CONSUMER-INVENTORY-UNRESOLVED
+arguments = change_set_ref, discovery_scope, discovery_state
+result = clean-break application rejected
+
+diagnostic.compatibility.ecs-retained-external-consumer
+MIRAKAN-COMPATIBILITY-ECS-RETAINED-EXTERNAL-CONSUMER
+arguments = change_set_ref, consumer_class, consumer_ref
+result = switch to separately approved finite migration
+```
+
+release、published Save、Native ABI、distribution、external consumerのいずれかがrebuild不能ならclean breakを停止する。finite reader window、target release、telemetry、rollback、removal Gateを持つ別承認の`versioned_reader_migration`または`external_api_deprecation`へ切り替え、readerを推測または恒久化しない。
+
 ### 4.1 再生成対象
 
 ```text

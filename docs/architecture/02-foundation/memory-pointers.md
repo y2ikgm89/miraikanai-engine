@@ -248,34 +248,152 @@ unsafe_capability_id?
 allocation siteまたはcontainer ownerごとに次を必須にする。
 
 ```text
-contract_id
-charge_domain_id
-memory_resource_class
-allocation_policy
-alignment
-capacity_source
-hard_limit_bytes
-steady_state_allocation_count
-allowed_phases[]
-allowed_threads[]
-reset_or_release_event
-upstream_fallback = forbidden | budgeted_system
-oom_behavior
-telemetry_tag_id
-source_owner
+MemoryContractV1
+  contract_id
+  charge_domain_id
+  memory_resource_class
+  allocation_policy:
+    system | monotonic_arena | size_class_pool
+    | streaming_cache | external_adapter
+  alignment
+  capacity_source:
+    profile | cooked_artifact | fixed_abi | measured_p999_headroom
+  hard_limit_bytes
+  steady_state_allocation_count
+  allowed_phases[]
+  allowed_threads[]
+  reset_or_release_event
+  upstream_fallback: forbidden | budgeted_system
+  oom_behavior
+  telemetry_tag_id
+  source_owner
+  storage_layout:
+    contiguous_inline | contiguous_handle | chunk_column
+    | ring | segmented | node_based | external
+  element_storage: inline_value | typed_handle | external_adapter
+  access_pattern:
+    sequential | indexed | sparse_lookup | producer_consumer | infrequent
+  growth_policy:
+    pre_reserved_fixed | boundary_grow | budgeted_non_hot | forbidden
+  address_stability:
+    not_required | scope_bound | handle_resolved
+  hot_path: bool
 ```
 
-`capacity_source`はProfile、Cooked Artifact、fixed ABI、measured P99.9＋headroomのいずれかである。Source codeの説明なしmagic numberを許可しない。
+従来のallocation、budget、phase、thread、OOM、telemetryに関する15 Fieldはすべて保持する。`capacity_source`は一Fieldだけを持ち、従来proseのProfile、Cooked Artifact、fixed ABI、measured P99.9＋headroomを`profile | cooked_artifact | fixed_abi | measured_p999_headroom`のclosed enumへ固定する。末尾の`storage_layout`、`element_storage`、`access_pattern`、`growth_policy`、`address_stability`、`hot_path`だけが追加Fieldである。Source codeの説明なしmagic numberを許可しない。
 
 `allocation_policy`は`system | monotonic_arena | size_class_pool | streaming_cache | external_adapter`、`upstream_fallback`は`forbidden | budgeted_system`のclosed enumとする。`oom_behavior`はDiagnostic Catalogへ登録されたclosed ID、domain、class、phase、thread、ownerはMCD登録済みIDとし、Providerが自由文字列を追加しない。
 
-### 6.3 生成物
+Generic containerとallocationは次のclosed ruleへ従う。
+
+1. `std::vector<T>`は、exact `MemoryContractV1`がdefault System memory resourceを許すnon-ECS contiguous inline valueにだけ使う。
+2. `std::pmr::vector<T>`はcontainerより長寿命のComposition Root-injected resourceとだけ使い、process-global default PMR resourceを変更しない。
+3. ECS columnはECS-private chunk storageとgenerated bounded viewを使い、独立allocationを持つvectorにしない。
+4. `std::vector<Handle<T>>`と`std::vector<T*>`はcontiguous referenceであり、`storage_layout=contiguous_inline`を満たさない。
+5. known cardinalityはhot phaseへ入る前にreserveする。hot callback内の`reserve()`はreallocationしなくてもContract failureである。
+6. reallocationでinvalidになるpointer、reference、iterator、spanをowning scopeまたはstructural boundaryの外へ出さない。
+7. `storage_layout=node_based`をsequential hot traversalに使わない。infrequent control-plane lookupまたはintegrated Evidenceを持つmeasured exceptionだけを許す。
+8. poolingはstable churnとmeasured improvementを持つprivate fixed-size objectに限定し、cheap C++ valueをEvidenceなしでpoolしない。
+9. Frame、RenderFrame、Job scratchはbounded arenaを既存lifetime boundaryでresetし、exhaustion時にgeneral heapへfallbackしない。
+10. hot callbackのgeneral-heap allocation countとupstream fallback countは両方exact `0`である。
+
+Container ownerは一つのregistered `MemoryContractV1.contract_id`へ解決し、次の組を明示する。
+
+| Owner class | `storage_layout` | `element_storage` | `access_pattern` | `capacity_source` | `growth_policy` | `address_stability` | `hot_path` |
+|---|---|---|---|---|---|---|---|
+| non-ECS dynamic value collection | `contiguous_inline` | `inline_value` | `sequential | indexed` | `profile | measured_p999_headroom` | `boundary_grow | budgeted_non_hot` | `not_required | scope_bound` | owner contract |
+| typed handle collection | `contiguous_handle` | `typed_handle` | `sequential | indexed | sparse_lookup` | owner contract | owner contract | `handle_resolved` | owner contract |
+| ECS Component column | `chunk_column` | `inline_value | typed_handle` | `sequential` | `cooked_artifact | profile` | `pre_reserved_fixed | forbidden` | `scope_bound | handle_resolved` | `true` |
+| command／event queue | `ring | segmented` | `inline_value | typed_handle` | `producer_consumer` | `profile | cooked_artifact` | `pre_reserved_fixed | boundary_grow` | `scope_bound | handle_resolved` | owner contract |
+| infrequent control-plane index | `contiguous_inline | node_based` | `inline_value | typed_handle` | `indexed | sparse_lookup | infrequent` | `profile | measured_p999_headroom` | `budgeted_non_hot` | owner contract | `false` |
+| Vendor／OS adapter | `external` | `external_adapter` | owner contract | `fixed_abi | profile` | `forbidden | budgeted_non_hot` | `scope_bound | handle_resolved` | owner contract |
+
+`owner contract`はそのrowのOwnerが登録するexact Field値であり、ambient defaultを意味しない。上表のunionから一つのclosed valueを選び、選択を`contract_id`のcanonical recordへ含める。
+
+### 6.3 `CppValueTransferPolicyV1`
+
+```text
+CppValueTransferPolicyV1
+  policy_version: 1
+  contract_set_ref: ContractSetRefV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version,
+           target_profile_content_hash}
+  toolchain_lock_sha256: SHA-256
+  target_abi_facts:
+    data_model: ilp32 | lp64 | llp64
+    abi_word_bytes: 4 | 8
+    pointer_bytes: 4 | 8
+  bindings[1..65536]:
+    callable_key:
+      api_contract_id: StableId
+      api_contract_version: positive uint32
+      api_contract_hash: SHA-256
+    subject: parameter | return_value
+    ordinal: optional uint16
+    type_ref: McdContractRefV1(kind=type)
+    pointer_contract_id: StableId
+    semantic: input | input_output | output | sink | bounded_range
+    transfer_form:
+      value | const_borrow | mutable_borrow | return_value
+      | move_sink | bounded_view | unique_owner
+    value_class:
+      scalar | enumeration | typed_handle | compact_trivial
+      | bounded_view | nontrivial | move_only
+    moved_from_policy: not_applicable | destroy_or_assign_only
+    binding_hash: SHA-256
+  policy_hash: SHA-256
+```
+
+`callable_key`はsource API contractを識別し、generated C++ signatureをhashしない。`pointer_contract_id`は`contract_set_ref`内でexact一件へ解決し、missing、multiple、cross-Contract-set resolutionをcompile failureにする。ABI factsはexact Target／Toolchainからだけ取得し、materialization前に`sizeof`、`alignof`、C++ trait、data model、word size、pointer sizeと照合する。
+
+各`binding_hash`は次で計算する。
+
+```text
+SHA-256(
+  ASCII "MIRAKAN_CPP_VALUE_TRANSFER_BINDING_V1"
+  || uint32_be(len(canonical binding bytes excluding binding_hash))
+  || canonical binding bytes excluding binding_hash
+)
+```
+
+Bindingを`{callable_key canonical bytes, subject enum, ordinal presence, ordinal}`でstrict sort／deduplicateした後、自己`policy_hash`だけを除く同じframingとASCII domain `MIRAKAN_CPP_VALUE_TRANSFER_POLICY_V1`で`policy_hash`を計算する。Instanceはimmutable Contract Set root確定後にだけmaterializeし、自身の`contract_set_ref`が同じroot preimageへ戻るinstanceを挿入しない。
+
+| Subject semantics | C++ form |
+|---|---|
+| scalar／enum／typed generation handle input | value |
+| trivially copyable non-owner input up to two Target ABI words | value |
+| other synchronous input | `const T&` |
+| input／output | `T&` |
+| bounded sequence | value-passed `std::span<const T>` or `std::span<T>` |
+| ordinary output | return valueまたは既存`Result<T>` |
+| move-only unique owner sink | value |
+| unconditional non-owner sink | `T&&`、exact一回move |
+
+Static Gateは次をrejectする。
+
+```text
+const T&&
+return std::move(local) when local is copy-elision eligible
+std::move from a const object
+conditional move from a sink
+moved-from access other than destruction or assignment
+by-value input of an unqualified nontrivial type
+const T& for scalar, enum, or typed handle without an approved measured exception
+non-const reference parameter that is never written
+output parameter where an ordinary return value is sufficient
+shared_ptr parameter that neither expresses nor retains shared ownership
+```
+
+Return-by-valueはcopy elision／NRVOへ委ね、named localを直接returnする。explicit moveはownership hand-off、container insertion、最後のpre-move access後のdeclared sinkにだけ使う。private measured exceptionはexact Target Profile、fixture、baseline、improvement、static suppression scopeを持つADRを要求し、generated public APIへ継承しない。
+
+### 6.4 生成物
 
 Contract compilerは同じMCDから次を決定論的に生成する。
 
 1. C++ safe API型とfunction signature。
-2. `PointerContractManifest.bin`、`MemoryContractManifest.bin`、`PointerMemoryConsumerBindingManifest.bin`。
-3. clang-tidy／AST scan用allowlist。
+2. `PointerContractManifest.bin`、`MemoryContractManifest.bin`、`PointerMemoryConsumerBindingManifest.bin`、`CppValueTransferPolicyManifest.bin`。
+3. clang-tidy／AST scan用allowlistと、§6.3の全static rejection rule。
 4. Development lease／thread／domain assertion。
 5. AI Provider向け、native addressを含まないschema projection。
 6. Diagnostic code、argument schema、修正候補。
@@ -283,7 +401,7 @@ Contract compilerは同じMCDから次を決定論的に生成する。
 
 Generated fileを手編集しない。Source contract、generated Header／Module、binary manifestのhash不一致はBuildを拒否する。
 
-### 6.4 AI生成規則
+### 6.5 AI生成規則
 
 AIは次を生成しない。
 
@@ -311,6 +429,28 @@ AIはcontract IDから許可型とfactoryを選ぶ。判断不能時はraw point
 | `MIRAKAN-POINTER-THREAD_AFFINITY` | 非owner threadでresolve／access | fail-fast | command／job resultをreject |
 | `MIRAKAN-POINTER-UNSAFE_CAPABILITY_REQUIRED` | unsafe API権限なし | Build failure | artifact promotion拒否 |
 | `MIRAKAN-POINTER-CONTRACT_MISSING` | 公開parameter／return／fieldにcontractなし | Build failure | 未昇格artifactに含めない |
+
+Value-transfer／hot-callbackのexact Diagnostic登録は次である。
+
+```text
+diagnostic.memory.value-transfer-binding-missing
+MIRAKAN-MEMORY-VALUE-TRANSFER-BINDING-MISSING
+arguments = api_contract_id, api_contract_version, subject, ordinal?
+
+diagnostic.memory.value-transfer-invalid
+MIRAKAN-MEMORY-VALUE-TRANSFER-INVALID
+arguments = api_contract_id, subject, ordinal?, rule_id
+
+diagnostic.memory.hot-callback-allocation
+MIRAKAN-MEMORY-HOT-CALLBACK-ALLOCATION
+arguments = campaign_hash, scenario_id, payload_bytes, observed_count
+
+diagnostic.memory.hot-callback-upstream-fallback
+MIRAKAN-MEMORY-HOT-CALLBACK-UPSTREAM-FALLBACK
+arguments = campaign_hash, scenario_id, payload_bytes, observed_count
+```
+
+先頭二件はBuild／static failure、後二件はPerformance Gate failureであり、failureしたcallback outputをpublishしない。
 
 C++公開`Error` enumerator（PascalCase）とDiagnostic codeは次の1:1対応を正本とし、対応を持たないErrorまたはcodeを追加しない。
 
@@ -341,8 +481,11 @@ Development／Profileはallocationごとにdomain、class、tag、size、alignme
 - handle resolve latency（P50／P95／P99）、stale／invalid resolve率、retire backlog。
 - lease validation latency、expired／range／thread拒否率。
 - hot path allocation数、upstream fallback試行数、arena reset後のhigh-water、pool contention／reuse／fragmentation。
+- container ownerごとのstorage layout、element storage、access pattern、capacity source、growth policy、address stability、hot-path分類。
 
 hardware counter（cache miss、branch miss、memory bandwidth）は、同一Target Profileで再現性を確認できる場合だけ補助Evidenceにする。counter未対応Targetで値を推測したり、sanitizer実行値を通常performance baselineとして採用したりしない。
+
+hot callbackのgeneral-heap allocation countとupstream fallback countは両方exact `0`であり、missing sampleを0へnormalizeしない。
 
 性能改善を公式採用するには、[Runtime performance／capacityの共通promotion threshold](../04-runtime/performance-capacity.md#8-measurementregressionpromotion)を満たすか、同一fixtureでpeak memoryを15%以上改善し、correctness、visual、fault、load timeを規定値以上悪化させない。全面pool化、lock-free化、custom allocator化を名称だけで最適化扱いしない。
 
@@ -363,6 +506,9 @@ hardware counter（cache miss、branch miss、memory bandwidth）は、同一Tar
 - ABI HeaderへSTL、PMR、exception、owner wrapper、native typeが流出しないことをscanする。
 - Contract、generated API、manifestのhash driftを拒否する。
 - binding Matrixの全consumerが`reference_form`、保存、job capture、retire owner、qualification ownerを明示し、逆参照も一対一で閉じることを検査する。
+- source callable subject集合と`CppValueTransferPolicyV1.bindings[]`のset equalityを検査し、unbound／orphan／duplicate ordinalを拒否する。
+- `const T&&`、const objectからのmove、conditional sink move、moved-from reuse、copy-elision可能localへの`return std::move`、unqualified nontrivial by-value、unused mutable reference、不要output parameter、ownershipを表さない`shared_ptr` parameterをrejectする。
+- C ABIへC++ reference、`std::span`、STL／PMR、`Result<T>`、exception、owner wrapperが流出するnegative fixtureを拒否する。
 - Save／Replay／Package／AI projection／job packetにlive pointer、lease、span、allocator objectが混入するnegative fixtureを拒否する。
 - ASan poison／unpoison、Full PageHeap、HWASan、GWP-ASan、Apple ASan／TSanを、[Toolchain／Dependencies](toolchain-dependencies.md)でTargetごとに実行可能と判定されたlaneだけで実行する。未対応laneをpassとして代用しない。
 
@@ -377,13 +523,13 @@ hardware counter（cache miss、branch miss、memory bandwidth）は、同一Tar
 
 ## 10. 導入順序
 
-1. `PointerContractV1`、`MemoryContractV1`、`PointerMemoryConsumerBindingV1`、Diagnostic codeをMCDへ追加する。
+1. `PointerContractV1`、`MemoryContractV1`、`PointerMemoryConsumerBindingV1`、`CppValueTransferPolicyV1`、Diagnostic codeを同じPhase 0 definition closureへ追加する。
 2. generation handle、slot registry、`Result`、memory tagをFoundationへ実装する。
 3. System／Tracking／Budget／Failure Resourceを実装する。
 4. Frame／RenderFrame／Scratch arenaとASan poisonを実装する。
 5. `ReadLease`／`WriteLease`、epoch、thread-affinity検査を実装する。
 6. Native Memory Port Adapterと`MirakanUniqueOwner` factoryを実装する。
-7. Contract compilerからC++ API、三種manifest、static rule、test fixtureを生成する。
+7. Contract compilerからC++ API、四manifest、static rule、test fixtureを生成する。
 8. ECS Ownerが要求するgeneral memory telemetryとhot path allocation Gateを接続する。ECS layout値やstorage実装を本書で再定義しない。
 9. GPU allocator、submission retire、Asset version leaseを接続する。
 10. Productの`gate.product.phase-0-memory-pointer-contract`、Windows、Mobile、Native Module、AI生成negative／performance／endurance Gateを合格させる。
@@ -404,6 +550,8 @@ hardware counter（cache miss、branch miss、memory bandwidth）は、同一Tar
 10. 生成API、manifest、Provider projection、test fixtureのhashが同一MCDへtraceできる。
 11. `PointerMemoryConsumerBindingV1`が全consumer conceptの正方向・逆方向を閉じ、非該当理由もregistered IDで記録する。
 12. Product Phase 0のPointer／Memory gateが、contract closure、negative fixture、supported sanitizer lane、performance baselineのEvidenceを別々に検査する。
+13. Definition closureが`PointerContractV1`、`MemoryContractV1`、`PointerMemoryConsumerBindingV1`、`CppValueTransferPolicyV1`のexact四Typeと四manifestを持ち、全generated C++ consumerが同じpolicyへ解決する。
+14. C ABI adapterはC++ projectionと分離し、固定幅値、opaque handle、caller-owned bufferだけを公開する。
 
 ## 12. 根拠と判断
 

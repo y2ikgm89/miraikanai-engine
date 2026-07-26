@@ -330,6 +330,10 @@ import std;
 
 MCDへ`CppDependencySetV1`を追加し、AIとContract compilerはraw `#include`／`import`文字列ではなく論理依存を扱う。
 
+Generated／First-party C++の全public callable subjectは[Memory／Pointers](memory-pointers.md)の`CppValueTransferPolicyV1`へexact解決する。AI、hand-written Module、CX0 Header、CX3 Moduleで別規則を持たず、missing bindingを推測補完しない。
+
+AST Gateは`const T&&`、const objectからのmove、conditional sink move、destroy／assign以外のmoved-from access、unqualified nontrivial by-value input、scalar／enum／typed handleの理由なき`const T&`、未writeのnon-const ref、returnで足りるoutput parameter、NRVO対象localの`return std::move(local)`を拒否する。
+
 ```text
 CppDependencySetV1
   owner_component_id: StableId
@@ -468,6 +472,9 @@ CX2は依存DAGの下位から次の順で変換する。
 - CX0とCX2の同一fixtureでUnit、Integration、Save、Replay、Golden image、Package、ABI boundaryの結果が一致する。
 - C ABI symbol、NativeGameModule descriptor、serialized ID／field、Save／Replay schemaをModule移行だけで変更しない。
 - Header版とModule版の公開宣言を比較する一時Cutover検査で欠落0件を確認し、CX3 merge時に検査とHeader版を削除する。
+- source API subject集合、`CppValueTransferPolicyV1` binding集合、generated signature集合を同じContract Set、Target Profile、Toolchain lockで一対一にし、各generated output hashを同じSource contractへtraceする。
+- `PointerContractManifest.bin`、`MemoryContractManifest.bin`、`PointerMemoryConsumerBindingManifest.bin`、`CppValueTransferPolicyManifest.bin`をexact四件として解決し、missing／extra／stale manifestをrejectする。
+- C ABI Headerはfixed-width value、opaque handle、function table、caller-owned bufferだけを持ち、C++ reference、`std::span`、STL／PMR、`Result<T>`、exception、owner wrapperを0件にする。
 
 ### 16.5 Build性能
 
@@ -515,6 +522,7 @@ Phase 0の実装計画は次を独立taskへ分解する。
 8. `cxx26_readiness` compile-only CI。
 9. Windows Ninja Multi-Config、Android Gradle→Single-Config Ninja、Apple Ninja–XcodeのCX3候補Build recipeとC ABI link fixture。
 10. CX0／CX1 Build Performance Receiptと`VerificationReceiptV1` gate `mirakan.build.ninja_adoption.v1`。no-op、leaf変更、Module interface fan-out、generated Header invalidation、中断復旧、clean／incremental成果物一致を含む。
+11. `CppValueTransferPolicyManifest.bin`とsource API subject／policy binding／generated signatureのset-equality static Gate。
 
 Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／Test／candidate Package／internal Technology Preview基盤とCX1 probeの再現可能な成功または明示的なToolchain failure Receiptが必要であり、Preview不具合を隠して成功扱いしない。CX0／CX1のReceiptをRelease Activationへ使用しない。
 
@@ -535,6 +543,9 @@ Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／T
 11. CX3 GateがToolchain、全Target、Tooling、正しさ、性能を検証する。
 12. C++26 readinessがShippingと分離されている。
 13. NinjaがCMake生成C++ DAGの実行器へ限定され、Editor統合がCMake File APIとBuild Receiptを使用し、生成Ninja fileを公開契約にしていない。
+14. source API subject集合、policy binding集合、generated signature集合が同じContract Set／Target／Toolchainで一対一である。
+15. C ABI HeaderのC++ reference／STL typeが0件で、fixed-width value、opaque handle、function table、caller-owned bufferだけを持つ。
+16. CX3 cutover時に旧Header signature、alias Module、dual generated APIを残さない。
 
 ## 20. 一次資料
 

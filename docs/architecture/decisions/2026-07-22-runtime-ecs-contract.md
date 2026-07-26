@@ -6,7 +6,7 @@
 - 正本範囲: Engine-owned Runtime ECS採用判断、正本責務の分割先、clean-break採否、current化の承認境界、外部比較資料から採る原則
 - 非正本範囲: ECS Schema・固定値・runtime挙動、Package binary、Save／Replay schema、AI authorization、実装Task Plan、実装。各正本を参照する
 - 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)
-- 外部根拠検証日: 2026-07-24
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 決定
 
@@ -88,13 +88,47 @@ route kindは[AI Security／Approval](../01-governance/ai-security-approval.md)�
 
 このDecisionは新たな`operation.*` ID、Tool、MCP surfaceを追加しない。候補語彙は[Executable contracts](../02-foundation/executable-contracts.md)のclosed partitionで`not_activated`のままとする。
 
-## 8. 比較資料
+## 8. 2026-07-26 approved target addendum
+
+2026-07-26に、target Contractの具体化として`RuntimeComponentLayoutPolicyV1`を承認した。Componentのsemantic schema revisionごとにone Component／one SoA columnを生成し、C1のaccepted target valueは16 KiB chunk、64-byte alignment、256-byte inline Component上限とする。archetype membershipはcached queryだけで解決し、callbackはallocation-freeかつfallbackなし、structural deltaはbounded capacity内でdeferしてatomic publicationする。
+
+責務は次のOwnerへ分割する。
+
+| Owner | approved target responsibility |
+|---|---|
+| Foundation | `MemoryContractV1`、`CppValueTransferPolicyV1`、pointer／allocator closure |
+| Runtime ECS | Component layout policy、archetype layout、query／lease／structural transaction |
+| Performance／Capacity | metric、sampling、90-run campaign、three-soak、promotion hard predicate |
+| Compatibility／Evolution | complete Consumer Inventoryとsource-preserving recook clean break |
+| Product Plan | Active Product Definition、Capability state、Work Package activation |
+
+clean breakはcomplete inventoryを前提に、committed Sourceを保存して全Derived Artifact、World image、Runtime Packageを再cookする。旧AoS／sparse-set／object-graph package、dual reader、old generated signature、Shipping fallbackは残さない。qualificationは同一Candidate／Target／Contract Set／Toolchain／fixture／input traceに束縛したcomplete 90-run、three-soak、合計12,600-second campaignを必要とする。
+
+この承認はtarget contractと実装計画の承認であり、current Active Product Definition、Capability state、Work Package lifecycle head、Runtime Package、Shipping pathを変更しない。Activationにはcanonical Architecture更新、complete Consumer Inventory、同一Candidateのqualification Receipt、atomic Product Definition Migrationが別途必要である。
+
+## 9. 比較資料
 
 [Unity Entitiesのsync point資料](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/performance-sync-points.html)からはstructural changeを予測可能なboundaryにまとめる原則を、[Flecs Queries資料](https://github.com/SanderMertens/flecs/blob/v4.1.2/docs/Queries.md)からはquery cacheとdeferの原則を、[EnTT Entity資料](https://github.com/skypjack/entt/blob/v3.16.0/docs/md/entity.md)からはiteration中変更によるreference無効化の注意を採る。
 
 これらは比較用の公式一次資料であり、Miraikanaiの数値、API、schema、scheduler、binary formatの正本ではない。外部資料の更新は本Decisionを暗黙に変更せず、対象Ownerの外部根拠検証とChangeSetで評価する。
 
-## 9. 承認前の検証
+追加の一次資料は次のとおりである。すべてcomparison evidence onlyであり、vendor API、chunk size、storage backend、またはMiraikanaiの数値targetが普遍的に最適であるとは主張しない。
+
+- [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+- [C++ draft: vector](https://eel.is/c++draft/vector)
+- [C++ draft: copy elision](https://eel.is/c++draft/class.copy.elision)
+- [C++ draft: span](https://eel.is/c++draft/views.span)
+- [C++ draft: memory resources](https://eel.is/c++draft/mem.res)
+- [Microsoft C++ `/Zc:nrvo`](https://learn.microsoft.com/en-us/cpp/build/reference/zc-nrvo)
+- [Unity Entities archetypes](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/concepts-archetypes.html)
+- [Unity Entities chunk allocations](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/performance-chunk-allocations.html)
+- [Unity Entities structural changes](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/concepts-structural-changes.html)
+- [Unity Entities entity command buffers](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/systems-entity-command-buffers.html)
+- [Unreal Engine common memory and CPU performance considerations](https://dev.epicgames.com/documentation/unreal-engine/common-memory-and-cpu-performance-considerations-in-unreal-engine)
+- [Unreal Engine performance profiling and configuration](https://dev.epicgames.com/documentation/unreal-engine/introduction-to-performance-profiling-and-configuration-in-unreal-engine)
+- [EnTT Entity documentation v3.16.0](https://github.com/skypjack/entt/blob/v3.16.0/docs/md/entity.md)
+
+## 10. 承認前の検証
 
 current化前に次を確認する。
 
@@ -107,7 +141,7 @@ current化前に次を確認する。
 7. Consumer Inventory、全Evidence Requirementのpass satisfaction binding、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Product Active Definition migrationが同じclosureへexact解決する。
 8. 実装開始の可否は、このDecisionのreview完了ではなく、approved definition migrationとProduct Work Packageの条件で判断する。
 
-## 10. 計画書上の扱い
+## 11. 計画書上の扱い
 
 このDecisionは実装Task Planではない。ここで定めるのは、正本化を確認するArchitecture上の順序だけである。
 

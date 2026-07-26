@@ -2,10 +2,10 @@
 
 - 文書ID: mirakan.arch.simulation-navigation
 - 状態: review
-- 正本範囲: 2D Grid Navigation、3D Navmesh source／profile／artifact、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract、`MotionExecutorPortV1`
+- 正本範囲: 2D Grid Navigation、canonical A*／高度探索のalgorithm eligibility、3D Navmesh source／profile／artifact、Detour sliced query／version付き結果cache、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract、`MotionExecutorPortV1`
 - 非正本範囲: Runtime phase／Simulation Advance／shared worker／capacity、Physics dynamics、Collision event、selected Motion ExecutorによるTransform解決、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
-- 外部根拠検証日: 2026-07-21
+- 外部根拠検証日: 2026-07-26
 
 ## 1. 結論とPlatform境界
 
@@ -33,6 +33,25 @@ Grid2Dは3D Navmesh Backendへ依存しない。Source boundsをcellへrasterize
 
 Path queryはprojected start／end、agent clearance、area filter、hard result boundを検証し、canonical A* tie-breakを使う。同scoreではcell coordinate、direction ID、insertion-independent parent keyで決め、heap allocation orderを使わない。Gridのpartial rebuildはstaging artifactを完成させてからversion単位でactivateし、live cell arrayをquery中にmutateしない。
 
+canonical A*のproduction candidateは、worker／in-flight queryごとにProfile上限へ予約したnode poolとbinary heapを再利用し、generation tagによるlazy resetを許す。artifactがdense cell indexを提供する場合はそのbounded indexでnode stateを引く。一般heap allocation／fallback、query間のmutable node共有、全node配列の無条件clearは個別metricにし、hot queryの一般heap allocation／fallbackは0をhard predicateにする。memory layoutを変えてもtotal cost、projected endpoint、parent、canonical tie-break、status、ordered path hashを変えない。
+
+path結果cacheはread-throughのDerived optimizationで、exact keyを次へ固定する。
+
+```text
+NavPathCacheKeyV1
+  algorithm_ref
+  algorithm_profile_revision
+  world_space_profile_ref
+  artifact_id／artifact_content_hash／NavMeshVersion
+  agent_profile_ref
+  area_filter_ref／cost_policy_ref／link_policy_ref
+  projected_start／projected_end
+  result_bound
+  key_hash
+```
+
+cache valueはnormalized `NavQueryStatusV1`、projected endpoints、ordered corridor／points、area／link metadata、result hashだけを持ち、native ref／query objectを保持しない。keyの一Field、artifact activation generation、Profile／policy、algorithm revisionが変わればmiss／staleとして破棄し、`nearest`／`latest`／位置許容差で別queryへ流用しない。failure／cancelled／backend_failureはcacheしない。cache障害はquery semanticsを変えず、cache更新は成功結果のpublication後にatomicに行う。
+
 `GridNav2DArtifactV1`はexact `world_space_profile_ref`、source/profile identity、origin、extent、dimensions、cell payload、link table、diagnostic summaryを持つimmutable Derived Assetである。Grid dimensionはそのProfileからのDerived projectionであり、Renderer tile mapやPhysics broadphaseをlive backing storeとして参照しない。
 
 ## 3. 3D Navmesh cookとartifact
@@ -52,6 +71,10 @@ Tile promotionはartifact単位でatomicに行う。部分成功をactive World�
 `NavModifierV1`はStable ID、shape ref、area override／exclusion、applicabilityを持つ。`NavOffMeshLinkV1`はStable ID、typed endpoints、direction、agent／area filter、traversal tagを持つ。linkのgameplay実行はGameplay ownerの責務で、Navigationはpath candidateとlink metadataだけを返す。
 
 Dynamic obstacleは前snapshotからbounded update inputを受ける。C1の動的変化（door閉鎖等のNavModifier／area／off-mesh link変更を含む）は、差分re-cookによる新versionのstaging artifactとversion切替だけで反映する。差分buildはsource／Profile identityが変わらないtileのpayload再利用を許すが、artifact identityは新規に発行し、Tile promotionのatomic ruleに従う。Engine-owned local avoidance overlayはC2の複数Agent local avoidance専用であり、C1経路では使わない。obstacle input受領からversion activateまでの反映latency boundは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有し、本書は値を定義しない。同じRuntime slotのPhysics native Worldを直接queryせず、live Navmeshをcallbackからmutateしない。World streaming固有のcell policyは[World](../06-rendering/world.md)へ委譲し、本書はstreaming phaseや共通capacityを定義しない。
+
+Detour private Adapterのsliced path candidateは、in-flight query／workerごとに専用`dtNavMeshQuery`を持つ。`initSlicedFindPath -> updateSlicedFindPath -> finalizeSlicedFindPath`の開始からfinalizeまで、同じquery objectへ別のsliced queryまたはnon-sliced queryを呼ばない。`dtNavMeshQuery::init(nav,maxNodes)`の`maxNodes`はTarget／query execution Profileが固定する1～65,535のexact値で、pool枯渇はtyped `backend_failure`と一原因diagnosticにし、partial pathをsuccessへ変換しない。`maxIter`は同Profileのadvance／deadline budgetへ固定し、sliced executionは完了時点だけを分割してpath semantics、tie-break、result boundを変更しない。`finalizeSlicedFindPathPartial`はcallerが明示した別query kind／contractがActivationされるまで通常path successに使わない。
+
+`dtTileCache::update`がtouchしたtileはstaging `dtNavMesh`だけへ反映し、`upToDate=true`、全tile／seam／area／link validation、artifact hash完成後にだけ新`NavMeshVersion`としてatomic publishする。途中のstaging navmesh、old／new tile混在、Backend poly refをactive queryへ公開しない。公式制約は[Detour `dtNavMeshQuery`](https://recastnav.com/classdtNavMeshQuery.html)と[`dtTileCache`](https://recastnav.com/classdtTileCache.html)を根拠とする。
 
 ## 4. Query、status、version、lease
 
@@ -645,13 +668,27 @@ World／Profile／source／artifactのinspect、Grid／Navmesh Profile作成・�
 
 AIは「どのBackendを使うか」ではなく、選択済みWorld Space Profile、移動体の大きさ、登れる段差／傾斜、通行可能area、door／jump link、dynamic obstacle、Targetをゲーム上の言葉で確認する。World Profileがexactに選択済みなら2D／3DをNavigation側で再選択しない。未指定値はassumptionとしてpreviewに表示する。Risk分類、authorization、commit可否は[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、Approval ruleを再掲しない。
 
+algorithm optimizationの説明は[Runtime performance／capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)の`OptimizationDecisionProjectionV1`をread-onlyで消費する。AIはA*／Detour／JPS／ALTの選択、cache key、node／iteration bound、artifact version、Receiptを変更せず、raw Backend query object、poly ref、node pool、full traceを受け取らない。説明可能であることをOperation Activationまたはproduction selectionの証拠にしない。
+
 主要diagnostic classはinvalid Profile relation、World Space Profile mismatch、source geometry incompatible、tile／grid connectivity failure、area／link reference missing、cook unavailable、artifact incompatible、version mismatch、expired lease、result bound exceeded、Backend invariant violation、motion executor missing／duplicate／incompatible、stale resolved motion、provider failureである。Motion Executor共通codeは`MIRAKAN-NAV-MOTION-EXECUTOR-INCOMPATIBLE`と`MIRAKAN-NAV-MOTION-EXECUTOR-STALE_RESULT`へ固定する。前者はintent subset／exact World Profile／Target不一致、後者はactor／request／provider generation不一致を表す。各diagnosticはstable code、source path／Stable ID、原因、remediation候補、active artifact／last-valid resolved motionを維持したかを返す。
 
 Cook失敗、Worker crash、invalid staging、incompatible promotionではlast valid artifactを維持する。Query Backend faultでは当該requestをfailureにし、active artifactを破壊しない。Runtime fault／publish policy、shared queue／capacity／backpressureはRuntime ownersへ委譲する。
 
 ## 6. Qualificationと採用しないもの
 
-QualificationはGrid rasterization／A*、Profile cross-field validation、exact World Space ProfileからのGrid／Navmesh selection、canonical triangle conversion、tile seam、area／modifier／off-mesh link、nearest projection、path ordering、no-path、result bound、async stale result、version activation／lease expiry、fault injection、Editor／AI previewを含む。同じfixtureを全private Backendへ与え、Engine result／status／diagnosticが一致することを検査する。missing／stale World Profile、Grid／Navmesh profile mismatch、hybrid Worldのnon-authoritative gameplay branch選択を各一原因negative fixtureにする。
+高度探索候補のeligibilityを次へ固定する。これらはProduct Priorityであってcurrent Operation、production selection、C1要件ではない。
+
+| algorithm | eligible input／必要Evidence | disposition |
+|---|---|---|
+| JPS | uniform-cost Grid、compatibleなsymmetric movement／corner policy、static traversal graph。canonical A*とcost、status、ordered path／tie-breakが一致する場合だけ透明なcandidateにする | `conditional_research` |
+| ALT | immutable weighted／directed graph artifact、landmark selection／preprocessing artifact hash、admissible lower-bound proofを持ち、canonical A*とcost、status、ordered path／tie-breakが一致する場合だけcandidateにする | `conditional_research` |
+| D* Lite | unknown／changing graphに対するrepeated replanning、incremental state lifetime、update ordering、Save／Replay契約を先に定義する必要がある | `deferred` |
+| HPA* | hierarchy／portal／abstract pathのbuild、suboptimalityまたはexact-path contract、dynamic updateを先に定義する必要がある | `deferred` |
+| flow field／local avoidance | 多数Agentのfield共有、crowd motion authority、Physics／Animationとの合成契約が必要でC2以降の別Capabilityである | `deferred` |
+
+JPS／ALTがcanonical resultを保てない場合はtransparent optimizationにせず、新しいalgorithm／profile contract version、専用fixture、Projectの明示選択を要求する。sourceの自動変換、旧A*との暗黙dual shipping、runtime自動切替を行わない。研究根拠は[JPS原論文](https://ojs.aaai.org/index.php/AAAI/article/view/7994)、[ALT原論文](https://www.microsoft.com/en-us/research/publication/computing-the-shortest-path-a-search-meets-graph-theory/)、[D* Lite原論文](https://www.cs.cmu.edu/~maxim/files/dlite_icra02.pdf)とし、Libraryの公式推奨と誤記しない。
+
+QualificationはGrid rasterization／canonical A*、node／heap memory再利用、Profile cross-field validation、exact World Space ProfileからのGrid／Navmesh selection、canonical triangle conversion、tile seam、area／modifier／off-mesh link、nearest projection、path ordering、no-path、result bound、version付きcache hit／miss／stale、Detour sliced budget／out-of-nodes／finalize、tile-cache staging／atomic publish、async stale result、version activation／lease expiry、fault injection、Editor／AI previewを含む。同じfixtureを全private Backendへ与え、Engine result／status／diagnosticが一致することを検査する。missing／stale World Profile、Grid／Navmesh profile mismatch、hybrid Worldのnon-authoritative gameplay branch選択、sliced query object再利用、partial finalizeの通常success化、cache key一Field差、`upToDate=false` publishを各一原因negative fixtureにする。A*／cache metricはP50／P95／P99、node expansion、heap operation、一般allocation／fallback、cache hit／miss／stale、result hashを、Detourはout-of-nodes、iteration、completion advance、tile update／publish latencyを必須にする。
 
 `fixture.navigation.motion-executor.physics-kinematic`はPhysics reference Providerを検証する。Physics unavailable用の二つのfixture-only Provider recordは`MotionExecutorProviderCatalogV1`へ次の値で登録し、Production選択またはProject Saveへ昇格しない。表中の全MCD IDは`version=1`とfixture Contract set hashを持つ`McdContractRefV1`、Provider／owner／fixtureはversion／content hash付きexact refである。
 

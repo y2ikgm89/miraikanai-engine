@@ -2,9 +2,9 @@
 
 - 文書ID: mirakan.arch.product-plan
 - 状態: review
-- 正本範囲: Product intent、非交渉原則、Capability成熟度、Portfolio、MVP、Phase順序、製品昇格・停止・完了Gate
+- 正本範囲: Product intent、非交渉原則、Capability成熟度、Portfolio、Algorithm／Performance最適化のProduct優先度、AI制作理解境界、MVP、Phase順序、製品昇格・停止・完了Gate
 - 非正本範囲: Subsystemの型・Field・API・Backend・既定値・Budget、AI権限と承認、Evidence形式。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)
+- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. Product intent
@@ -23,6 +23,8 @@ Miraikanai Engineは、既存EngineへChat機能を付加する製品ではな�
 8. Runtime structured-data generationはEditor制作型完成だけでは開始せず、`future.capability.runtime-structured-data-generation`のactive移行、Target別Qualification、専用Authority／Threat Model承認後にだけ同じIRとValidatorの再利用を検討する。現在のProduct Phase 9はdeny-onlyである。
 
 対象Userは初心者からC++を扱う上級者までである。両者は互換性のない別Project形式を使わず、同じ正規状態を異なるWorkspaceで見る。
+
+最初のProduct-facing Reference Gameは、Product方向Reviewで承認したcompact 2D command RPGとする。これはGeneric Engine CoreのGenre非依存性、AI Authoringのtyped往復、Save／Load、UI／Text／Localization、data-rich Gameplayを一つのFirst Playableで証明するためのProduct選択であり、RPG意味をCoreへ移す判断ではない。Shooterは高頻度Input、Collision、Physics、ECS、Renderingのtechnical qualification consumerおよび後続Reference Gameとして保持できるが、Product MVP、Generic Engine Release、Core依存の根拠にしない。最初のRPGはMiraikanai独自のReference Gameとし、既存商用RPGの名称、人物、monsters、story、map、music、art、UI、商標その他の保護されたcreative expressionを再利用しない。
 
 ## 2. 非交渉原則と明示的な非目標
 
@@ -108,13 +110,49 @@ AIは次を推論してはならない。
 |---|---|---|---|---|---|
 | 共通Authoring／Project | 正規Project state、ChangeSet、Asset、Gameplay model | 手動とAIの安全な往復 | 大規模Project、拡張Authoring | Multi-User／UGCは現Future portfolio未登録・非対応。検討時はmembership revisionでEntryを先に追加 | [Authoring Owners](#91-authoring) |
 | 共通Runtime | scheduling、lifetime、capacity、debug | 2D／3D sliceを同じ契約で実行 | fault／soak／scale Qualification | distributed／onlineは別Entry | [Runtime Owners](#92-runtimesimulation) |
-| 2D Presentation | 2D Render／Camera／Material契約 | 2D top-down shooter | lighting、VFX、style、fallback | 特殊表現は個別Entry | [Rendering Owners](#93-rendering) |
-| 2D Simulation | Collision、Physics、Grid Navigation、Animation契約 | 2D vertical slice | Target別Kernel／content Qualification | Advanced motionは別Entry | [Simulation Owners](#92-runtimesimulation) |
-| 3D Presentation | Mesh／World／Camera／Material／Light契約 | compact third-person arena | advanced lighting、post、environment、VFX | large worldは登録済みFuture。Virtual Productionは現Future portfolio未登録・非対応 | [Rendering Owners](#93-rendering) |
+| 2D Presentation | 2D Render／Camera／Material契約 | compact 2D command RPG | lighting、VFX、style、fallback | 特殊表現は個別Entry | [Rendering Owners](#93-rendering) |
+| 2D Simulation | Collision、Physics、Grid Navigation、Animation契約 | RPG World移動とcommand battle state | Target別Kernel／content Qualification | Advanced motionは別Entry | [Simulation Owners](#92-runtimesimulation) |
+| 3D Presentation | Mesh／World／Camera／Material／Light契約 | compact 3D technical Reference | advanced lighting、post、environment、VFX | large worldは登録済みFuture。Virtual Productionは現Future portfolio未登録・非対応 | [Rendering Owners](#93-rendering) |
 | 3D Simulation | Collision、Physics、Navigation、Animation契約 | 3D vertical slice | Target別Kernel／content Qualification | Vehicle、Ragdoll等は別Entry | [Simulation Owners](#92-runtimesimulation) |
 | Player I/O | Input、Audio、UI／Text／Accessibility契約 | TitleからResultまでのoffline loop | Platform／locale／device matrix | Online serviceと分離 | [Platform Owners](#94-platformpacks) |
 | Platform | Windows、Mobile共通境界 | Windows offline package | Android／Apple offline | Linux／macOS／Web／Console／XRは独立Future Target Program。active supportではない | [Platform Owners](#94-platformpacks) |
-| Packs | 4層依存とFeature Capability境界 | Shooter Genre Packの2D／3D Profile | 複数Genre／構造で再利用するFeature Pack | Multiplayer CapabilityはGenre-neutralなOnline Gate後 | [Pack Owners](#94-platformpacks) |
+| Packs | 4層依存とFeature Capability境界 | RPG Feature／Genre Packと独立したtechnical fixture | 複数Genre／構造で再利用するFeature Pack | Multiplayer CapabilityはGenre-neutralなOnline Gate後 | [Pack Owners](#94-platformpacks) |
+
+### 4.1 Algorithm／Performance optimization portfolio
+
+次表は同じTarget／Profile／Contract／fixtureで意味同等性と実測差を比較するためのProduct上の優先順位であり、実装順、Work Package、日程、Activation、採用済み経路を表さない。`planning_disposition`は本表だけの列挙で、`candidate_for_qualification | conditional_research | deferred`以外を許さない。行番号、Priority、対象名からStable ID、Operation、Capability、Backend selectionを生成してはならない。
+
+| Priority | 対象 | Product上の候補範囲 | `planning_disposition` | 期待と停止条件 | 主Owner |
+|---|---|---|---|---|---|
+| 1 | ECS／Memory | chunk SoA、zero-allocation callback、query cache、hot／cold分離、8／16／32 KiB candidateの同一fixture比較 | `candidate_for_qualification` | engine全体へ波及する。semantic oracle、allocation／fallback 0、memory／latency Gateを満たさない候補はrejectする | [Performance](../04-runtime/performance-capacity.md)、[ECS](../04-runtime/entity-component-system.md)、[Memory](../02-foundation/memory-pointers.md)、[Runtime ECS Decision](../decisions/2026-07-22-runtime-ecs-contract.md) |
+| 2 | Physics／Collision | Box2D／JoltのTarget別worker候補、sleep profile、Jolt bulk insertion、可能な限り早いdeclarative collision filter | `candidate_for_qualification` | public physics／collision semantics、event順序、Save／Replayを変えずにstep tail latency、挿入、filter costを改善する。Backend固有制約はOwnerが固定する | [Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md) |
+| 3 | Navigation | canonical A*のbounded memory再利用、version付き結果cache、Detour sliced query／tile publish境界 | `candidate_for_qualification` | path queryのP95／P99とallocationを安定させる。path cost、tie-break、status、artifact versionが一致しない候補を採用しない | [Navigation](../05-simulation/navigation.md) |
+| 4 | Rendering | transient aliasing、GPU culling＋indirect draw、HZB、Target別render-pass最適化 | `candidate_for_qualification` | 大量object sceneで有効なTarget／Profileだけを選ぶ。resource lifetime、visible-set oracle、barrier validation、GPU／CPU時間がGateである | [Render Graph](../06-rendering/render-graph.md) |
+| 5 | 高度な探索 | 条件を満たすGridのJPS、immutable weighted graphのALT | `conditional_research` | canonical A*と同じpublic contractを証明できる入力領域だけ。意味が変わる場合は透明な最適化にせず新しいalgorithm／profile contractとする | [Navigation](../05-simulation/navigation.md) |
+| 5後段 | 再計画／階層探索等 | D* Lite、HPA*、flow field、local avoidance | `deferred` | repeated replanning、hierarchy abstraction、群集挙動の契約を先に定義する必要があるため、現Portfolioの高速経路として扱わない | [Navigation](../05-simulation/navigation.md) |
+
+Priorityは影響範囲、期待ROI、意味契約の安定性、依存順を表す。数値改善を予測値だけで昇格せず、[Performance／Capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)のsealed Projectionとfresh Receiptがない行は`not_evaluated`のままにする。
+
+### 4.2 AI production understanding boundary
+
+AIがGame制作時に理解する標準経路は、巨大なMarkdown、全Project dump、live native objectを直接読む方式ではなく、Ownerが正規状態から導出したbounded typed Projectionと登録済みsemantic toolである。AIへ渡せる制作文脈は、目的別に`ArchitectureExplainProjectionV1`、`GameUnderstandingClosureV1`、`AiTaskContextCapsuleV1`、`EditorContextSnapshotV1`、`OptimizationDecisionProjectionV1`へ分割し、各Projectionはschema version、source revision、exact ref／hash、invalidation conditionを持つ。query型Projectionだけがomitted rangeとcursorを明示し、complete型Projectionは欠落Fieldを許さない。Project Sourceと設計文書の必要な抜粋はread-only inputとして利用できるが、Projectionを補完する権威、暗黙default、直接write対象にはしない。
+
+```text
+Canonical Project／Contract／Evidence
+  -> Owner validation
+  -> bounded typed Projection
+  -> AI read／explain／propose
+  -> registered semantic Operation
+  -> ChangeSet
+  -> preview／validate／approve／commit
+  -> read-back／Receipt／new revision
+```
+
+Toolの表示、Provider schema適合、AIの説明成功はAuthorityを付与しない。変更はactiveなOperationが生成したChangeSetだけを通し、raw file edit、任意`set_property`、native handle、memory、shell、`eval`、汎用Python、無制限Project traversal、AI自身によるthreshold緩和／candidate昇格を禁止する。Commit後は新しいProject revision、semantic hash、必要なtest／Receiptをread-backし、要求した変更と一致しなければ成功にしない。現在の設計文書が`review`でOperation集合またはCapabilityが`not_activated`の領域は、AIが説明できても制作利用可能とは扱わない。
+
+current closureではimmutable `ArchitectureInventoryV1`、Architecture Explain Projection、optimization説明用Eval Fixture／Receipt、該当`AiTaskContextCapsuleV1`、optimization explain／propose／select Operationが未materializeまたは未Activationである。したがって§4.2はAI制作経路の目標契約であって現在利用可能な機能一覧ではない。現在状態は[Architecture Governance §4.1／§5](../01-governance/architecture-governance.md#41-現在のapproval-readiness-snapshot)、Capsule schemaとbinding条件は[AI Security／Approval §5](../01-governance/ai-security-approval.md#5-beginner-questionsassumptions理解条件)、optimization ProjectionとEval条件は[Performance／Capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)を正本とし、本書で件数またはActivationを上書きしない。
+
+Target／ProfileごとのPrimary candidateは、qualified selectionが存在する場合にexact一件、存在しない場合は0件である。reference implementationはsemantic oracle、または明示的に別Qualificationされたsemantic fallbackになり得るが、旧経路と新経路の暗黙併載、deprecated reader、alias、silent fallback、runtime自動切替を正当化しない。benchmark candidateはdispatch不能である。選択を変える場合はprofile／algorithm revisionを新設し、public semanticsが変わる場合は新しいcontract versionとして扱う。Source dataは保持するが、旧挙動を温存する互換layerは作らない。
 
 ## 5. MVP scope
 
@@ -122,11 +160,65 @@ MVPはEngine機能網羅版ではなく、AI Authoringの安全な往復を証�
 
 | Milestone | 完了Outcome |
 |---|---|
-| MVP-A | Phase 4完了。Shooter Genre Packと明示したFeature Capability集合を使う2D top-down shooterで、Prompt、質問、Game Brief、First Playable、AI修正、手動修正、AI再編集を一つのProject historyで完走する |
-| MVP-B | Phase 6完了。同じFeature Capability集合を使う3D compact single-player third-person shooter arenaを追加し、Feature契約が2D専用でないことを証明する |
-| Technology Preview | MVP-Bに加え、Release ActivationとProduct completion gateを満たす |
+| MVP-A | Phase 4完了。Genre非依存Core holdoutとcompact 2D command RPGを使い、Prompt、質問、Game Brief、First Playable、AI修正、手動修正、AI再編集を一つのProject historyで完走する |
+| MVP-B | Phase 6完了。MVP-Aを維持したまま3D Shooterをtechnical Referenceとして追加し、3D固有OwnerとFeature契約の非2D依存を検証する。MVP-BはProduct-facing RPG identityまたはGeneric Core依存を変更しない |
+| Technology Preview | MVP-Aに加え、Release ActivationとProduct completion gateを満たす。MVP-Bのtechnical Referenceは独立Evidenceとして報告し、Generic Engine Releaseの前提にしない |
 
-MVP First PlayableはTitleから開始し、Player操作、一つのCore loop、敵／課題／Simulation対象、達成可能なGoal、Result／終了、Save／LoadまたはCheckpointを持つ。AI生成GameplayDefinitionを実際の挙動へ使い、初心者はDefinition-firstと事前Qualification済みNative／Shader Packだけで完走でき、人間の手動変更を保持してAIが追加編集できる。新規AI生成Project Native／Shader SourceのActivationはMVP-Aの成功条件にせず、Phase 5の独立Gateで検証する。
+Product MVPという語はMVP-AのRPG vertical sliceだけを指す。`MVP-B`はcurrent source Registryとのtraceabilityを保つ既存milestone labelであり、本方向では3D Technical Referenceとして扱う。destination Product DefinitionでlabelまたはIDを変更する場合も§5.1.1のatomic migrationを必要とする。
+
+### 5.0 Closed RPG Reference MVP boundary
+
+Product MVPはMiraikanaiの差別化であるtrusted typed AI Authoring loopを優先する。compact RPGはGame Briefからstructured game、data-driven rule／content、AI／manual round-trip、dialogue／UI／Localization／Accessibility、Save／long-lived state／migration、inventory／progression／cross-system referenceのProduct仮説を強く覆う。compact Shooterがより強く覆うhigh-frequency Input／Collision／PhysicsとECS／Rendering frame-budget stressは独立technical fixtureに残す。この選択はRPGが普遍的に最良のEngine benchmarkであるという主張ではない。
+
+MVP First Playableのcomplete pathを次に固定する。
+
+```text
+Title／Continue／Settings
+  -> Town
+  -> Field
+  -> Dungeon
+  -> Boss battle
+  -> Result／Ending
+```
+
+Fixtureは一つのWorld compositionにTown一つ、Field一つ、Dungeon一つ、Boss destination一つを持ち、Loading、Stage transition、Save／Load、ResultはRPG-private代替でなく既存Generic Ownerを使う。Reference Game fixtureは次をすべて含む。
+
+- player-controlled protagonist一人と固定companion一人。recruitまたはparty reorderは持たない。
+- `Attack`、`Skill`、`Item`、`Defend`を持つ一つのdeterministic command battle flow。
+- regular enemy definition四件とBoss definition一件。
+- 宣言済みGameplay valueを変えるdeterministic level-up一回以上と、visibleかつtyped effectを持つequipment変更一回以上。
+- Skill／spell definition三件以上と、bounded durationおよびdeterministic recoveryを持つnegative status effect一件以上。
+- mandatory Quest一本、Quest flag一件と後続dialogueを変えるbounded choice一件。second endingは作らない。
+- currency、price、inventory capacity、accept／rejectを通すbuy-only Shop path一件。
+- checkpoint一件とactive battle外のmanual Save／Load。
+- locale-invariant gameplay identityを保つ`en-US`／`ja-JP` presentation。
+- Windows desktop Targetのkeyboard／controller input。
+- 同じsemantic fixtureに対するcomplete manual Authoring runとcomplete AI／manual round-trip run。
+
+上記件数はReference Game fixtureのclosed boundであり、Generic Core limitまたはpublic engine maximumではない。AI生成GameplayDefinitionを実際の挙動へ使い、初心者はDefinition-firstと事前Qualification済みNative／Shader Packだけで完走でき、人間の手動変更を保持してAIが追加編集できる。新規AI生成Project Native／Shader SourceのActivationはMVP-Aの成功条件にせず、Phase 5の独立Gateで検証する。
+
+```text
+Game Brief
+  -> approved RPG Reference scope
+  -> GameSpec
+  -> typed RPG and generic Source documents
+  -> ChangeSet
+  -> preview／validate／approve／commit
+  -> cooked Runtime artifacts
+  -> play／save／load／replay
+  -> package／install／offline completion
+  -> sealed Evidence
+```
+
+RPG battleはEngine全体のturn-based Simulation cadenceをactivateせず、qualified fixed Simulation profile上のRPG-owned deterministic state machineとしてcommandを既存Runtime boundaryで受理・適用する。Physics、Navigation、Animation、VFX、Input、Replay、Debugはcurrent cadenceを維持し、alternate global cadenceは別Product Capability、全consumer migration、Target別Qualificationなしにactivateしない。
+
+MVPはjob／class change、recruitable／reorderable party、branching ending、crafting、random loot table、procedural dungeon、open-world streaming、complex economy simulation、unrestricted scripting、multiplayer、voice acting／cinematic cutscene、commercial-quality bulk Asset generation、Android／Appleその他Targetをcompletion dependencyとすることを除外する。後続Feature Packを禁止するものではなく、最初のProduct proofへ未Review scopeを混入させないための境界である。
+
+RPG presentationはbattle、Quest、inventory、progression、economyのauthoritative stateを書かず、UIがtyped requestを発行し、owning Gameplay Systemだけが既存Runtime boundaryでvalidate／publishする。AIはbounded semantic projectionを説明し変更を提案できるが、RPG Capability activationを捏造し、Owner validationを迂回し、Runtime memoryを変更し、Shooter成功をRPG Evidenceへ読み替えない。
+
+RPG固有failureはsource preservingかつtypedである。missing RPG owner contractはProduct Definition materialization、missing／stale Feature Pack refはCook／Packageをrejectする。invalid battle command、inventory／currency capacity failure、Quest／dialogue ref mismatchはlast published stateまたはlast valid Project revisionを保ち、partial transactionを作らない。Save schema／content mismatchは承認済みmigrationまたはtyped failureを要求し、類似recordをloadしない。locale mismatchはStable ID、rule、balance、Save identityを変えず、Asset license／provenance欠落はaffected packageをblockして別Assetへsilent substitutionしない。Target／performance Evidence欠落は該当Capabilityを`not_activated`に保つ。
+
+Qualificationは、全Genre／optional Feature Packを外したGenre-neutral Core holdout、TitleからEndingまでのRPG Reference acceptance、高頻度Input／Collision／Physics、ECS、Rendering、soak／failure atomicity／clean packageのtechnical stress fixtureを別Evidence categoryとして保持する。Core holdoutはgenreless WorldとWorldless UI／logic、manual／AI Authoring、Save、Cook、Package、Diagnosticsを通す。RPG acceptanceはdeterministic battle／Replay、progression、equipment、Quest、choice、Shop、Save round-trip、`en-US`／`ja-JP` semantic invariance、manual／AI changeのtyped state収束を通す。一CategoryのReceiptを別Categoryの代用にせず、RPG Referenceをmaximum-scale performance benchmark、technical action fixtureをProduct MVPとして扱わない。
 
 MVPに含める製品能力は、自由Prompt、Blocking／High質問、Game Brief、GameSpec、typed ChangeSet、構造化Scene／Rule／UI／Asset編集、GameplayDefinition、事前Qualification済みNative／Shader Packの選択、Engine生成Diff、Approval、Commit、Undo、Replay、競合防止、First Playable、Cook、Package、Install、offline起動、diagnosis、support bundle（正本は[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md) §14の`SupportBundleV1`）、data resetである。Project C++と`bounded_hlsl`の新規Source隔離検証／Code Owner approval、ならびに`typed_ir`のIR・behavior coverage・Target Qualification gateは、Phase 5の`requirement.product.project-source-activation`が所有する。
 
@@ -135,6 +227,7 @@ MVP Editorは`en-US`を正規source／最終fallback、`en-US`と`ja-JP`をC1表
 MVPから除外する。
 
 - 商用品質の全Asset自動生成、複数Genre同時対応。
+- job／class change、recruit／party reorder、branching ending、crafting、random loot、procedural dungeon、complex economy。
 - Multiplayer、Runtime AI生成、Engine CoreのAI自動変更。
 - Plugin Marketplace、複数Model ProviderのProduction routing。
 - 大規模Open World、Production品質のCloud／GI／Terrain／Foliage。
@@ -158,12 +251,20 @@ Network、Account、Provider、Store loginがなくてもTitleからResultまで
 | `team_assumption_state` | ユーザー入力前は`unfixed`。人数、役割、AI利用量を推測しない |
 | `planning_capacity` | calendar期間を出さず、相対sizeと依存DAGだけを保持する |
 | `phase_estimate` | elapsed timeではなく相対size `S / M / L / XL` |
-| `critical_path` | Control Plane → ECS E0 →（Headless AuthoringとD3D12を並行）→ Editor Runtime → 2D Shooter → Authoring MVP-A。Project Source ActivationはMVP-A後の独立lane |
-| `scope_reduction_order` | C2 advanced rendering → non-Shooter packs → mobile shipping。MVP-A contractは削除しない |
+| `critical_path` | Control Plane → ECS E0 →（Headless AuthoringとD3D12を並行）→ Editor Runtime → Genre非依存Core holdout → compact 2D RPG → Authoring MVP-A。Project Source ActivationとShooter technical qualificationは独立lane |
+| `scope_reduction_order` | C2 advanced rendering → non-RPG Reference coverage → 3D technical Reference → mobile shipping。MVP-AのGenre非依存Core holdoutとRPG Reference contractは削除しない |
 | `risk_owner` | `mirakan.arch.product-plan` |
 | `review_cadence` | 各Phase exitで更新し、仮定を同じCandidateの実測Receiptへ差し替える |
 
 `team_assumption_state=unfixed`では担当者名、完了日、同時実行lane数を出力しない。日程または予算の提示が必要になった時点で、team composition、利用可能runner／device、稼働制約、外部依存を入力として別の承認済みplanning revisionを作る。scope削減は上表の順序でProposal化し、Phase 4のMVP-A Requirement、Phase 5の独立Project Source Capability、security／package／support closureを暗黙に落とさない。
+
+### 5.1.1 RPG-first MVPとcurrent Product Definitionの分離
+
+RPG-firstは承認済みProduct target directionであるが、current Registry row、Installed Product composition、active Operation集合、Capability activation row、Work Package lifecycle headをこの文書編集だけで変更しない。現行Shooter IDをRPGへrenameし、Shooter ReceiptをRPG qualificationへ流用し、未定義のRPG Stable ID／Schema／Capability／Operation／Work Packageを仮登録することを禁止する。
+
+RPG Product Definitionをmaterializeする前に、command battle、actor progression、inventory／equipment、dialogue／quest、currency／shopの再利用可能Owner設計、RPG Genre composition、Reference Game fixture、source／destination全rowをexact分類するProduct Definition Migrationをそれぞれ承認する。Migrationは一つのatomic destinationとして適用し、途中のRegistry状態、CoreへのGenre依存、dual current Product Definitionを作らない。それまではcurrent Shooter Registryをsource baselineとして保持し、RPG Capabilityを`not_activated`から成功可能な状態へ推測しない。
+
+RPG battleはcurrent qualified fixed Simulation profile上のdeterministic state machineとして設計し、Engine全体のturn-based cadenceをMVP要件にしない。alternate cadenceは引き続きFuture capabilityであり、全consumer migrationとTarget別Qualificationなしにactivateしない。
 
 ### 5.2 Editor Reference DesignのDefinition Closure
 
@@ -233,10 +334,10 @@ Phaseは次の順序だけをProduct正本とする。Subsystem Ownerはこの�
 | 0 Foundation契約とToolchain | 契約、Build、Policy、Evidence、測定の最小閉路 | 空Hostとheadless fixtureが固定入力で再現し、未Activationをfail closedにする |
 | 1 Headless Authoring Core | Project state、ChangeSet、validate／stage／commit／undo／replay | 同じ入力から同じstate hashを得て、大規模Projectでもbounded queryが成立 |
 | 2 Editor Shellと共通Runtime | AIなしでEditor、Runtime、Asset、Debugの共通経路とReference DesignのDefinition Closure | 空SceneをWindowsでplay、save、packageでき、実装済みsurfaceのsemantic／scale／accessibility基準が§5.2へ収束する |
-| 3 2D Manual First Playable | 2D top-down shooterを手動制作 | TitleからResult、Save／Load、回帰、Target Gateが成立 |
-| 4 AI Authoring MVP-A | 2DでAIと手動編集の往復。Task／Proposal／Reviewがvalidation、approval、selection、runtime、staleを混同しない | Definition-first／事前Qualification済みPackでMVP-Aが成立し、AI proposalがtyped action／base revision以外からCommitされない |
+| 3 2D Manual First Playable | Genre非依存Core holdoutとcompact 2D command RPGを手動制作 | TitleからEnding、battle、progression、Quest、Shop、Save／Load、回帰、Windows Target Gateが成立 |
+| 4 AI Authoring MVP-A | RPG First PlayableでAIと手動編集の往復。Task／Proposal／Reviewがvalidation、approval、selection、runtime、staleを混同しない | Definition-first／事前Qualification済みPackでMVP-Aが成立し、AI proposalがtyped action／base revision以外からCommitされない |
 | 5 外部Agent接続とProject Source Activation | local MCP／conformance済みClientのProposal-only laneと、新規Native／`bounded_hlsl` Source／`typed_ir` laneを分離 | 外部Clientの権限境界、`bounded_hlsl`のCode Owner gate、`typed_ir`のIR・behavior coverage・Target Qualification gateを独立に検証する |
-| 6 3D First Playable MVP-B | Shooter Genre Packの3D arena | MVP-B、3D固有Owner、Feature契約の非2D依存を実証 |
+| 6 3D Technical Reference MVP-B | Shooter Genre Packのcompact 3D arenaをtechnical Referenceとして検証 | 3D固有OwnerとFeature契約の非2D依存を実証するが、RPG MVPまたはGeneric Engine Releaseの前提にしない |
 | 7 Mobile Platform | Android／Apple offline Target | Store／device／thermal／lifecycle GateをTarget別に通す |
 | 8 Production CapabilityとPack | 一CapabilityずつC2へ昇格 | Authoring、diagnostic、fallback、Qualification closureを満たす |
 | 9 Runtime生成deny-only境界 | Runtimeからの未許可generation／mutationを拒否し、Project／Save／authoritative Worldを不変に保つ | allowlist、署名baseline、authority、quota、network禁止のnegative fixtureを通す。positive Runtime生成はFuture `planning_only`に留める |
@@ -298,7 +399,7 @@ C2CapabilityCoverageMatrixV1 // read-only projection
 
 `target_product_tier=C2`である全Capabilityを例外なく入力集合とし、各`required | optional` bindingからexact `{capability_id, target_id}` keyを一意に導出する。`excluded` bindingは行を生成しない。各keyに対応する`CapabilityTargetActivationStateV1`行が欠落、重複、参照不能、またはC2 Capabilityに対して`row_keys`にないextra Activation keyが存在する場合はprojection全体とProduct labelを拒否し、行の省略、`not_activated`の合成、別Target行の流用を行わない。`state`、`candidate_ref`、`receipt_refs[]`はcurrent operational snapshotからread-onlyで投影する。`derived_evidence_freshness`は保存Fieldではなく、Evidence Ownerのcurrent receipt bytes、input hash、expiry、revocation snapshot、Target identityからQuery時に導出する。matrix固有のstate、Receipt、revision、entry table、`include_in_product_label`を保存しない。Owner、Target scope、fallbackはCapability Registry、defer理由、依存、再検討GateはWork Package Registryからだけ読み、Product labelとmatrix Receiptという二重正本を作らない。
 
-Phase 8の`wp.product.general-coverage-2d`はgenre横断coverageと`capability.product.general_production_2d`を所有するが、projection自体は所有または保存しない。次の三つをすべて、人間の手動Authoring経路とAI Authoring経路の両方で合格した場合だけ公開し、Phase 3／4のShooter First PlayableからC2へ段階飛越しない。
+Phase 8の`wp.product.general-coverage-2d`はgenre横断coverageと`capability.product.general_production_2d`を所有するが、projection自体は所有または保存しない。次の三つをすべて、人間の手動Authoring経路とAI Authoring経路の両方で合格した場合だけ公開し、current source RegistryのShooter First PlayableまたはRPG-first MVPのいずれからもC2へ段階飛越しない。
 
 | Playable fixture | Genre固有の完了条件 |
 |---|---|
@@ -497,6 +598,8 @@ Future IDはactiveな`CapabilityRegistryV1`、`ProductPhaseRegistryV1`、`PhaseF
 - [Shooter Genre Pack](../08-packs/shooter.md)
 - [Scenario／Stage Feature Pack](../08-packs/scenario-stage.md)
 
+RPG-first targetは、Generic Engine Core、command battle／actor progression／inventory・equipment／dialogue・quest／currency・shopを所有するReusable RPG Feature Packs、composition／RPG profile／game flow／command role mapping／Reference fixture bindingを所有するRPG Genre Pack、original content／balance／World composition／localized presentation／acceptance fixtureを所有するRPG Reference Gameの四層に分ける。既存Combat、Interaction、Scenario／Stage、Pickup／Grant、UI、Localization、Save／Replay、Runtime契約はcurrent semanticsが適合する場合だけ再利用し、Shooter契約を暗黙拡張せずGenre意味をCoreへ移さない。Reusable Feature owner、RPG Genre Pack owner、Reference Game ownerは本変更では未materializeであり、focused owner designを承認するまでStable ID、Schema Field、Document ID、Registry、Capability、Operation、Work Packageへ追加しない。
+
 ### 9.5 Foundation／Governance
 
 - [Core architecture](../02-foundation/core-architecture.md)
@@ -509,12 +612,30 @@ Future IDはactiveな`CapabilityRegistryV1`、`ProductPhaseRegistryV1`、`PhaseF
 - [AI Security／Approval](../01-governance/ai-security-approval.md)
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
 
-Primary Product Evidenceは、MVP-A／MVP-BのFirst Playable、clean package／install／offline run、AIと手動編集の往復、Save／Load、Undo／Replay、Target別Qualification、failure／rollback、Release closureである。EvidenceのRecord形式、保持、Trace、SBOM、ProvenanceはVerification Ownerだけが決定する。
+Primary Product Evidenceは、MVP-AのRPG First PlayableとGenre非依存Core holdout、MVP-Bの独立3D technical Reference、clean package／install／offline run、AIと手動編集の往復、Save／Load、Undo／Replay、Target別Qualification、failure／rollback、Release closureである。MVP-BまたはShooter EvidenceをMVP-A、RPG、Genre非依存Coreの代用にしない。EvidenceのRecord形式、保持、Trace、SBOM、ProvenanceはVerification Ownerだけが決定する。
 
 ## 10. 外部比較の使用範囲
 
-Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較Evidenceにだけ使う。MiraikanaiのAPI、Class hierarchy、Scene、Project形式、Editor UX、既定値の根拠にはしない。
+Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較Evidenceにだけ使う。MiraikanaiのAPI、Class hierarchy、Scene、Project形式、Editor UX、既定値の根拠にはしない。比較対象は市場順位の網羅表ではなく、(1) Editor統合AIと段階的permission／Undoを公式公開する商用Engine、(2) reflection／registryから型付きEditor toolを公開する商用Engine、(3) textで差分可能なScene／Resourceと拡張Editor APIを公式公開するopen-source Engine、の三つの制作境界を最小集合で比較できるため選んだ。Engine数、人気、機能数、benchmark順位を設計Evidenceにせず、比較軸を満たさない追加Engineを列挙目的で増やさない。
 
+この比較は非網羅であり、各製品の最新major Editor、AI surface、serialization／reflection APIの公式資料をProduct判断時に再読込する。比較対象の名称または機能が変わってもMiraikanaiの契約を自動変更せず、公式資料で同じ比較軸を再検証し、採用原則が変わる場合だけArchitecture ChangeSetとして扱う。
+
+| Engine | 公式に確認した制作境界 | Miraikanaiへ採る原則 | 採らないもの |
+|---|---|---|---|
+| Unity 6 | Unity AI Open BetaはEditor内のProject文脈を使うAsk／Plan／Agent、permission level、変更確認／Undoを提示する。Editor data変更は`SerializedObject`がdirty、Undo、Prefab overrideを扱う公式経路である | liveだがboundedなsemantic context、段階的権限、preview／Undo、Editor-owned mutation経路 | AIによるraw Asset／Scene file直接編集、UI上のpermission表示だけをAuthorityとすること |
+| Unreal Engine 5.8 | Experimental Unreal MCPはEditor内のToolset Registryから型付きtoolを公開し、Actor／Component／Assetはreflection／Asset Registry／Editor APIで扱う。Python公式資料もOS file APIによるAsset操作を禁止する | reflection-backed projection、登録tool、Editor API、commit後read-back | 任意property setter、汎用Python／console／file edit、localhostであることを認証や承認の代用にすること |
+| Godot 4.x | Node／Scene／Resourceとtext形式`.tscn`、`EditorPlugin`／`ClassDB`により構造が観測可能で差分化しやすい。確認した公式資料にはUnity AI／Unreal MCP相当の内蔵AI authoring authorityはない | 透明でdiff可能なcanonical source、型／UID／NodePathを保つEditor-owned validation | textであることを安全性の証明にすること、subresource／順序／UID制約を無視した直接置換 |
+
+- [Unity AI: Ask／Plan／Agent](https://unity.com/blog/unity-ai-assistant-ask-plan-agent-mode-explained)
+- [Unity AI: Get started](https://unity.com/blog/unity-ai-how-to-get-started)
+- [Unity 6 `SerializedObject`](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/SerializedObject.html)
+- [Unreal Engine 5.8 Unreal MCP](https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor)
+- [Unreal Engine Reflection System](https://dev.epicgames.com/documentation/unreal-engine/reflection-system-in-unreal-engine)
+- [Unreal Engine Asset Registry](https://dev.epicgames.com/documentation/en-us/unreal-engine/asset-registry-in-unreal-engine)
+- [Unreal Editor Python](https://dev.epicgames.com/documentation/en-us/unreal-engine/scripting-the-unreal-editor-using-python)
+- [Godot Nodes and Scenes](https://docs.godotengine.org/en/stable/getting_started/step_by_step/nodes_and_scenes.html)
+- [Godot `.tscn` format](https://docs.godotengine.org/en/latest/engine_details/file_formats/tscn.html)
+- [Godot Editor plugins](https://docs.godotengine.org/en/stable/tutorials/plugins/editor/making_plugins.html)
 - [Unreal Engine 5.8 Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)
 - [Unity 6 Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)
 - [Godot 4.5 GDExtension](https://docs.godotengine.org/en/4.5/tutorials/scripting/gdextension/what_is_gdextension.html)
@@ -527,6 +648,8 @@ Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較E
 ## 11. Product execution registries
 
 本節はControl Plane移行時にMCDへ移すProduct-owned機械正本である。それまではMarkdown表を入力とし、表外のID、暗黙行、前方一致、別名を拒否する。
+
+本節のRegistryはcurrent source Product Definitionを表す。§5.1.1のRPG-first target directionを理由に既存行を逐次改変せず、focused owner designとatomic Product Definition migrationが完了するまでは、Shooter fixture、Work Package、Capability参照をsource baselineとして保持する。RPG向けの未定義ID、Availability、Receiptを本節から推測または生成しない。
 
 ### 11.1 Registry共通規則
 
@@ -1435,16 +1558,16 @@ Planning Decision GateはPhase exit bindingと別Registryであり、`ProductPha
 | `evidence.class.toolchain-lock-exact` | `mirakan.arch.toolchain-dependencies` | `policy.evidence.contract-ci.v1` | `target.headless.host; target.windows.editor; target.windows.desktop; target.android.mobile; target.apple.mobile` | five-profile lock closure、artifact read-back |
 | `evidence.class.cpp23-formal-language-mode` | `mirakan.arch.cpp23-modules` | `policy.evidence.contract-ci.v1` | `target.headless.host; target.windows.editor; target.windows.desktop; target.android.mobile; target.apple.mobile` | non-preview language flag／frontend identity |
 | `evidence.class.cpp23-cross-target-release-readiness` | `mirakan.arch.cpp23-modules` | `policy.evidence.contract-ci.v1` | `target.headless.host; target.windows.editor; target.windows.desktop; target.android.mobile; target.apple.mobile` | release configuration compile／link plan and probes |
-| `evidence.class.package-install-offline-rollback-qualification` | `mirakan.arch.platform-application-package-release` | `policy.evidence.target-device.v1` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | package、install、offline launch、rollback fixtures |
+| `evidence.class.package-install-offline-rollback-qualification` | `mirakan.arch.ai-verification-provenance` | `policy.evidence.target-device.v1` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | package、install、offline launch、rollback fixtures |
 | `evidence.class.active-definition-validation-zero-error` | `mirakan.arch.product-plan` | `policy.evidence.contract-ci.v1` | `target.headless.host` | 14-registry closure validator report |
 | `evidence.class.product-release-policy-ready` | `mirakan.arch.product-plan` | `policy.evidence.contract-ci.v1` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | approved support／rollback／signing／SBOM policy |
-| `evidence.class.product-release-artifact-plan-valid` | `mirakan.arch.platform-application-package-release` | `policy.evidence.contract-ci.v1` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | artifact／Target lab／store staging plan |
+| `evidence.class.product-release-artifact-plan-valid` | `mirakan.arch.ai-verification-provenance` | `policy.evidence.contract-ci.v1` | `target.windows.desktop; target.android.mobile; target.apple.mobile` | artifact／Target lab／store staging plan |
 
 `definition_change_class_definitions[]`は一件だけで、`definition.change.c2-3d-second-fixture-closure`をOwner `mirakan.arch.product-plan`、wrapper `ActiveProductDefinitionMigrationV1`、purpose `active_product_definition_migration`、subject policy `policy.subject.c2-3d-second-fixture-closure`へ束縛する。subject policyは下記第二Fixture closure、row manifest、Rebaseline closure、destination snapshot CASをexact検証する。definitionsのclass ID集合は全Gate `required_*_classes[]`のunionとset equalityにし、missing／extra／duplicate class、wrong wrapper／purpose／Owner／subject policy／freshness／Targetを拒否する。
 
 `ProductDecisionGateRegistryV1`の三配列はrow migration時に一つのtagged logical-row unionとして扱う。`evidence_class_definitions[]`は`row_kind=evidence_class`かつ`logical_id`が`evidence.class.` prefix、`definition_change_class_definitions[]`は`row_kind=definition_change_class`かつ`definition.change.` prefix、`entries[]`は`row_kind=decision_gate`かつ`gate.product.` prefixでなければならない。三集合のlogical IDはRegistry全体でglobal unique、相互disjointであり、`ProductDefinitionRowMigrationManifestV1`は各行を`{registry_id,row_kind,logical_id}`でexactly once列挙する。prefixだけからrow内容を合成せず、wrong kind、二配列重複、manifestのkind欠落を拒否する。
 
-`evaluator_policy`のclosed値は現在`all_of`だけである。`required_work_package_states[].required_state`は`complete`だけ、`required_evidence_classes[]`は上表の`evidence.class.*` 10値、`required_definition_change_classes[]`は`definition.change.c2-3d-second-fixture-closure`だけを受理する。Evidence classは自由文ではなく、classごとにOwnerが発行した完成signed Evidence content refの集合へ解決し、全refが同一Candidate、必要Target closure、current Toolchain lock、current active definition hashへ閉じ、freshかつ非revokedでなければならない。`cpp23-cross-target-release-readiness`と`package-install-offline-rollback-qualification`はCX3 WPを開始できるToolchain／candidate package前提であり、CX3 WP自身が後で発行するRelease Receiptを要求しない。`product-release-policy-ready`はProduct Plan Ownerがcompleted CX3、Genre／Feature Pack未導入のCore／AI holdout Gate、Target package Ownerのcurrent Receiptを入力に独立R4承認したsupport window、rollback、signing／SBOM／provenance policy Evidence、`product-release-artifact-plan-valid`はApplication Package／Release Ownerが同じprerequisite closureを入力に承認したartifact／Target lab／store staging plan Evidenceである。General 2D／3D、Shooter／Platformer／Puzzle-Dialogue等のReference Game Receiptを両Evidenceの必須入力にしない。両Evidenceは`wp.product.production-release-binding`のdeferred→declaredより前に完成し、同WPまたはそのTask／candidateをproducer／subjectにせず、同WPはref／hashをread-backしてdestination projectionへ組み込むだけである。不足時はGateを`blocked`のまま保つ。実Release Receiptはdestination WP実行後の`fixture.product.release-closure`が発行する。`definition.change.c2-3d-second-fixture-closure`は承認済み`ActiveProductDefinitionMigrationV1`のrow migration manifestが、第二の非Shooter 3D Fixture、`requirement.product.c2-3d-coverage` binding、Genre／Rendering／UI provider WP、Owner、Windows／Android／Apple Target bindingを同一destination closureへ追加し、definition validatorがmissing／extra／duplicate／orphan／cycleを0件とした場合だけ成立する。
+`evaluator_policy`のclosed値は現在`all_of`だけである。`required_work_package_states[].required_state`は`complete`だけ、`required_evidence_classes[]`は上表の`evidence.class.*` 10値、`required_definition_change_classes[]`は`definition.change.c2-3d-second-fixture-closure`だけを受理する。Evidence classは自由文ではなく、classごとにOwnerが発行した完成signed Evidence content refの集合へ解決し、全refが同一Candidate、必要Target closure、current Toolchain lock、current active definition hashへ閉じ、freshかつ非revokedでなければならない。`cpp23-cross-target-release-readiness`と`package-install-offline-rollback-qualification`はCX3 WPを開始できるToolchain／candidate package前提であり、CX3 WP自身が後で発行するRelease Receiptを要求しない。`product-release-policy-ready`はProduct Plan Ownerがcompleted CX3、Genre／Feature Pack未導入のCore／AI holdout Gate、Target package Ownerのcurrent Receiptを入力に独立R4承認したsupport window、rollback、signing／SBOM／provenance policy Evidence、`product-release-artifact-plan-valid`はAI Verification／Provenance Release Evidence Ownerが同じprerequisite closureを入力に承認したartifact／Target lab／store staging plan Evidenceである。同OwnerはWindows、Android、Apple各Ownerのfresh Target-specific Receiptをexact set equalityで集約してEvidence classを発行するだけで、Target package schema、signing、upload、rollback、Store policyを所有または上書きしない。`wp.product.production-release-binding`、そのTask、またはCandidateはこのEvidenceを自己発行できない。General 2D／3D、Shooter／Platformer／Puzzle-Dialogue等のReference Game Receiptを両Evidenceの必須入力にしない。両Evidenceは`wp.product.production-release-binding`のdeferred→declaredより前に完成し、同WPまたはそのTask／candidateをproducer／subjectにせず、同WPはref／hashをread-backしてdestination projectionへ組み込むだけである。不足時はGateを`blocked`のまま保つ。実Release Receiptはdestination WP実行後の`fixture.product.release-closure`が発行する。`definition.change.c2-3d-second-fixture-closure`は承認済み`ActiveProductDefinitionMigrationV1`のrow migration manifestが、第二の非Shooter 3D Fixture、`requirement.product.c2-3d-coverage` binding、Genre／Rendering／UI provider WP、Owner、Windows／Android／Apple Target bindingを同一destination closureへ追加し、definition validatorがmissing／extra／duplicate／orphan／cycleを0件とした場合だけ成立する。
 
 Decision評価時は、参照Phase Gateのcurrent fresh success、WP lifecycle headのexact state、Evidence class、definition-change classを`all_of`で毎回再評価する。保存stateが`satisfied`でも、いずれかのEvidenceがexpired／revoked／input hash不一致、Phase Gateが失効、WP stateが不一致になった時点でread-time `effective_state=blocked`とし、defer-releaseへ使わない。`on_satisfied_action`は許可候補を表すだけで自動遷移ではない。exact action一致、current `effective_state=satisfied`、`policy.product.wp.defer-release.v1`、独立Ownerのfresh `ProductOperationalDecisionV1`を揃えた`WorkPackageLifecycleRecordV1`だけが遷移を行い、Activation行の作成または昇格は一切行わない。自然文のpredicateまたはactionを実行入力に使うことを禁止する。
 
@@ -1544,6 +1667,63 @@ Work Package表の`Owner`列はcurrent generated Architecture Document Registry�
 | `ecs-e4-game-system`、`ecs-e5-*-integration` | [Runtime ECS](../04-runtime/entity-component-system.md)＋[Gameplay programming model](../03-authoring/gameplay-programming-model.md) | System binding、Domain integration、current／target Owner transfer |
 | `ecs-e6-debug-ai` | [Runtime ECS](../04-runtime/entity-component-system.md)＋[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)＋[AI Security／Approval](../01-governance/ai-security-approval.md) | sealed projection、debug transport、authorization |
 | `ecs-e7-*-*` | [Runtime ECS](../04-runtime/entity-component-system.md)＋各Platform Owner | Target qualification。Platform-specific runtimeをECS正本へ複写しない |
+
+### Destination projection: data-oriented ECS core
+
+This subsection is a closed projection of an unmaterialized, unapproved, and unapplied destination migration candidate associated with `RuntimeEcsCanonicalizationChangeSetV1` and its Owner-reference migration. The current Governance profile remains `state=review`, `contract_activation_effect=none`, with `definition_migration_binding_ref` absent. This subsection is not part of the current source Definition and does not change the operational snapshot. Only if a complete Product Definition Migration is separately materialized and approved do the destination projection, Change Set, and Owner-reference migration apply atomically; the source remains byte-equal until that atomic application.
+
+| Registry | Exact addition or replacement |
+|---|---|
+| `RequirementRegistryV1` | `{requirement_id=requirement.runtime.ecs-data-oriented-core, owner_document_id=mirakan.arch.runtime-entity-component-system, verification_kind=runtime_ecs_data_oriented_qualification, failure_diagnostic_id=diagnostic.product.ecs-data-oriented-core-failed}` |
+| `FixtureRegistryV1` | `{fixture_id=fixture.runtime.ecs-data-oriented-core, owner_document_id=mirakan.arch.runtime-entity-component-system, requirement_refs=[requirement.runtime.ecs-data-oriented-core], target_refs=[target.headless.host,target.windows.desktop,target.android.mobile,target.apple.mobile], minimum_duration_seconds=12600}` |
+| `PhaseFixtureBindingRegistryV1` | `{gate_id=gate.product.phase-0-ecs-data-oriented-core, phase_id=phase.foundation, fixture_id=fixture.runtime.ecs-data-oriented-core, evaluated_requirement_refs=[requirement.runtime.ecs-data-oriented-core], target_refs=[target.headless.host], candidate_binding_policy_ref=policy.product.same-candidate.v1, freshness_policy_ref=policy.evidence.contract-ci.v1}` |
+| `ProductPhaseRegistryV1` `phase.foundation` | append the new Requirement to `outcome_requirement_refs[]` and the new Gate to `exit_gate_refs[]`; `work_package_refs[]` is unchanged |
+| `WorkPackageRegistryV1` | append `{kind=product_fixture, fixture_id=fixture.runtime.ecs-data-oriented-core}` to `provided_fixture_refs[]` of `wp.foundation.memory-pointers`, `wp.runtime.scheduling-core`, `wp.runtime.ecs-e0`, `wp.runtime.ecs-e1-storage`, and `wp.runtime.ecs-e2-query-mutation`; all other Fields remain unchanged except the coordinated Owner replacements |
+
+Headless Phase 0 GateはWindows、Android、Apple qualificationを代用しない。各Targetはfull 12,600-second fixtureを`policy.evidence.target-device.v1`で再実行する。
+
+destinationにおける`requirement.foundation.memory-pointer-contract`のdefinition closureはexactly次の4 Typeである。
+
+```text
+[PointerContractV1, MemoryContractV1, PointerMemoryConsumerBindingV1, CppValueTransferPolicyV1]
+```
+
+同Requirementは、同じfour-Type Contract Set内のexact `MemoryContractV1` Type member ref／schema hashと、retained-Field、single-`capacity_source`、six-layout／access-Field invariantを証明するfresh `fixture.foundation.memory-pointer-contract` Receiptへ束縛する。Memory field listは本書へ複写しない。
+
+destinationだけで`risk.product.memory-pointer-contract-drift.mitigation`を次のexact valueへ置換し、他Fieldはsource rowとbyte-equalに保つ。
+
+```text
+the exact four-Type definition closure [PointerContractV1, MemoryContractV1, PointerMemoryConsumerBindingV1, CppValueTransferPolicyV1], bidirectional consumer Matrix, static／negative fixture, supported sanitizer lane, and hot path fallback 0 are bound to the same Phase 0 Candidate Gate
+```
+
+Owner-reference migrationは`wp.runtime.ecs-e0`、`wp.runtime.ecs-e1-storage`、`wp.runtime.ecs-e2-query-mutation`の`owner_document_id`だけを`mirakan.arch.runtime-scheduling-lifetime`から`mirakan.arch.runtime-entity-component-system`へ置換する。`wp.foundation.memory-pointers`、`wp.runtime.scheduling-core`、依存chainは変更しない。
+
+destination Requirementはfixture Componentのaccepted `RuntimeComponentLayoutPolicyV1` record、`ecs_chunk_soa_v1`を使う一つの`RuntimeArchetypeLayoutPlanV1`、query／lease／structural contract、全35 mandatory metric ID、全hard predicate、同一Candidateに束縛した8192／16384／32768-byte characterization、Shipping AoS／sparse-set／object graph／general-heap fallback 0を要求する。
+
+| Work Package | Added completion responsibility |
+|---|---|
+| `wp.foundation.memory-pointers` | value-transfer policy、container layout Fields、static and negative Gates |
+| `wp.runtime.ecs-e0` | type、owner、diagnostic, and Contract closure |
+| `wp.runtime.ecs-e1-storage` | chunk SoA、layout policy、capacity、handle、fragmentation metrics |
+| `wp.runtime.ecs-e2-query-mutation` | cached query、contiguous dispatch、allocation-free callback、deferred structural transaction |
+| later `wp.runtime.ecs-e7-*` | rerun the qualified profile on the exact Target and device Evidence policy |
+
+Phase Fixture GateはRequirement、fixture、Target、Candidate、freshnessだけを評価する。Phase exitは別に、E1／E2を含む全non-deferred Work Packageのcurrent lifecycle headが`complete`であることを要求する。
+
+destination `ProductRiskRegistryV1`には次の一行を追加する。risk rowの唯一OwnerはProduct Planであり、他文書はtrigger、severity、mitigation、containmentを複写しない。
+
+| risk_id | owner_document_id | affected_work_package_refs[] | trigger | likelihood | impact | mitigation | contingency | monitor_gate_refs[] | genesis_state | revisit_gate_or_date |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `risk.product.ecs-data-oriented-regression` | `mirakan.arch.runtime-entity-component-system` | `wp.foundation.memory-pointers; wp.runtime.scheduling-core; wp.runtime.ecs-e0; wp.runtime.ecs-e1-storage; wp.runtime.ecs-e2-query-mutation` | missing layout policy、dual Shipping layout、hot callback allocation／fallback、unbounded archetype growth、missing campaign cell／metric, or wrong-Target Receipt substitution | `high` | `critical` | require the destination Phase 0 Gate、complete campaign、hard predicates, and fresh Target-specific reruns | reject the affected ECS Work Package transition and dependent Runtime activation; retain the last qualified layout without an alternate Shipping fallback | `gate.product.phase-0-ecs-data-oriented-core` | `open` | `{kind=phase_gate, ref=gate.product.phase-0-ecs-data-oriented-core}` |
+
+```text
+diagnostic.product.ecs-target-receipt-mismatch
+MIRAKAN-PRODUCT-ECS-TARGET-RECEIPT-MISMATCH
+arguments = campaign_hash, expected_target_ref, actual_target_ref
+result = Product Gate failure
+```
+
+aggregate failureはRuntime ECS所有の`diagnostic.product.ecs-data-oriented-core-failed`を参照し、本書でschemaを複製しない。
 
 `wp.authoring.prequalified-source-packs`は初心者向けDefinition-first経路と、事前Qualification済みNative／Shader Packの選択だけを提供する。Phase 5の`wp.authoring.project-native-module`と`wp.rendering.project-shader`で新規AI生成Sourceを採用する場合は、各Ownerの独立したCode owner approval GateとSource／artifact／Receipt hash closureを必須とし、事前PackのReceiptを代用しない。`wp.product.project-source-activation`は両Source WPを集約するが、`wp.product.external-agent`とは依存もRequirementも共有せず、Proposal-only境界をSource生成の成功扱いにしない。
 

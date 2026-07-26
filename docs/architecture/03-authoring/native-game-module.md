@@ -81,6 +81,8 @@ MirakanGetNativeGameModuleV1(
 - C ABI structは標準layoutの固定幅integer、byte span、opaque handle、function pointerだけを持つ。
 - bool、enumのunderlying size、`wchar_t`、`long`、pointer-sized integerをwire fieldに使わない。
 
+`CppValueTransferPolicyV1`はC ABI shapeを直接生成しない。C ABIは固定幅standard-layout value、opaque handle、C function table、明示pointer＋byte-or-element count、caller-owned output bufferだけを使う。C++ reference、`std::span`、STL／PMR、`Result<T>`、exception、owner wrapperをABIへ出さない。
+
 ### 4.2 Descriptor
 
 `MirakanNativeGameModuleDescriptorV1`は次を持つ。
@@ -210,6 +212,10 @@ std
 ```
 
 `CppDependencySetV1`へpublic／private import、closed `StdHeaderId`、closed Header例外を記録する。CX0は上記論理依存を`include/mirakan/`、個別標準Header、`<build>/generated/mirakan/project_contracts/`へ投影し、CX3はPrimary Named Moduleと`import std;`へ投影する。`engine/**/source`、vendor header、Platform header、generated backend binding、Editor headerをinclude pathへ加えない。CIはCX0のinclude graph／preprocessor trace、CX1以降のModule dependency scan／ASTを検査する。
+
+Generated C++ adapterは[Memory／Pointers](../02-foundation/memory-pointers.md)の`CppValueTransferPolicyV1`、`PointerContractV1`、`MemoryContractV1`へexact解決する。C ABIのpointer／count／alignment／call lifetimeを検証してcall-scope `std::span`またはgenerated bounded viewへ変換し、return後に保持しない。`unique_owner`／`move_sink`はABIを越えず、Memory Port、opaque handle、caller-owned bufferを使う。
+
+Persistent factoryはdefault allocator、global `new`、default PMRへfallbackせず、exact Memory Portと`unique_owner` policyを使う。C++ adapterのprivate measured exceptionはC ABI validationまたはpublic C++ policyを緩和しない。
 
 MCDから生成するProject C++ APIは次を提供する。
 
@@ -552,6 +558,10 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - ASLR、DEP、CFG、CET互換、stack protection、warnings-as-errors等のWindows Shipping hardeningをEngine binaryと同じにする。
 - Module Sourceに未宣言import、禁止Header、inline assembly、dynamic load、socket、process、environment／registry accessがないことをAST／Module graph／link import scanで検査する。
 - Shipping import table、symbol、Capability manifest、Component access manifestの一致を検証する。
+- C ABI Header AST scanでreference、`std::span`、STL／PMR、`Result<T>`、exception、owner wrapperが0件である。
+- pointer nullability、count overflow、alignment mismatch、call-return後view access、Memory Port mismatchを各一原因で拒否する。
+- source C++ callable binding、generated adapter、C ABI descriptor、Contract Set、Target Profile、Toolchain lockのhash不一致でModule全体をloadしない。
+- old signature alias、dual descriptor、old readerをConsumer Inventoryなしで追加しない。
 
 ## 13. TestとDefinition of Done
 
@@ -574,6 +584,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 - C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
 - ECS format migrationを伴うNative ABI変更では、native_abi Consumer Inventory record、全Evidence Requirementのpass satisfaction binding、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じqualification closureへexact解決しなければload／releaseを許可しない。
+- C ABI Header AST scan、pointer／count／alignment fuzz、call-return後view access、Memory Port mismatch、source binding／adapter／descriptor／Contract Set／Target／Toolchain hash不一致のnegative fixtureを通す。
 
 本Native CapabilityのC1完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Code owner gate、Windows Editor Preview再起動、Windows Desktop clean static-link artifact、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateでも、Shipping／Release readinessでもない。
 

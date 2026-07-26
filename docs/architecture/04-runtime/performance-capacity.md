@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.runtime-performance-capacity
 - 状態: review
-- 正本範囲: 共通CPU／GPU／memory／queue budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、`ProjectScaleEnvelopeV2`、owner-typed workload resolution、非破壊遷移、Qualification
+- 正本範囲: 共通CPU／GPU／memory／queue budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、Owner横断algorithm optimization candidate qualification、`OptimizationDecisionProjectionV1`、`ProjectScaleEnvelopeV2`、owner-typed workload resolution、非破壊遷移、Qualification
 - 非正本範囲: Runtime phase／Simulation Advance／lifetime、ECS storage／query／digest field、Runtime Package binary、Save／Replay record、World cell／coordinate field、LOD policy field、Authoring Document／ChangeSet field、Domain固有budget、外部Tool／SDK／driverの固定値、AI承認、Evidence envelope。各Owner文書を参照する
 - 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)、[Mobile common](../07-platform/mobile-common.md)
 - 外部根拠検証日: 2026-07-26
@@ -396,7 +396,7 @@ EditorReferencePerformanceQualificationV1
 
 `sample.editor.ref01.five-by-120s@1`はfresh process五run、各runのtyped setup barrier後にwarm-up十cycleを捨て、120秒を測定し、cycle periodをreal monotonic clockのexact 2秒とする。operationが次periodまでにterminal barrierへ到達しない場合はsampleを欠測へせず、そのoperation latencyを記録した上でrunをfailする。Performance計測はvirtual clockから値を作らず、virtual clockはVisual／Motion stateを固定するためだけに使う。各fresh processは同じCandidate、Contract set、Toolchain lock、hardware profile、OS imageから開始し、run間cacheまたはprocessを流用しない。
 
-##### Windows high-resolution measurement clock
+#### Windows high-resolution measurement clock
 
 `target.windows.editor`のPerformance Harnessはinterval sourceをWin32 `QueryPerformanceCounter`（QPC）へ固定し、process初期化時に`QueryPerformanceFrequency`を一回だけ取得・cacheする。各measured operationは同じdesignated Harness threadでbarrierの受信後にstart／endを採取し、Evidenceに`clock_source=win32_qpc`、`qpc_frequency_hz`、`start_qpc_tick`、`end_qpc_tick`、checked `delta_qpc_tick`を必須保存する。durationは`{delta_qpc_tick, qpc_frequency_hz}`のexact rationalとして保持し、threshold／aggregate比較はchecked integer演算で行う。float、丸め済みms、wall clock、message timestamp、animation／virtual clockをthreshold入力へ使わない。raw tick値はsystem bootをまたいで比較せず、同じratioへ正規化したdurationだけを比較する。
 
@@ -461,6 +461,231 @@ Baseline緩和は最適化と別Reviewとし、過去run分布、旧／新値、
 hot pathの一般heap fallbackはcount 0をhard predicateとし、unsupported Targetのhardware counter、sanitizer実行、別hardwareの測定値で代用しない。cache miss、branch miss、memory bandwidth等のhardware counterは、Target Profileが対応し同一fixtureで再現可能な場合だけ診断用の補助Evidenceにする。sanitizer laneはmemory safetyの証拠であり、通常performance baselineまたはShipping throughputの測定値として混在させない。
 
 絶対latency値はReference Hardware Profileがlockedになるまで推測で固定しない。Phase 0では同一Targetのfresh baselineとの差、hot path fallback 0、metric completeness、correctness／negative fixtureの全てを満たすことを要求し、後続のTarget qualificationでProfile別のabsolute／regression thresholdへ束縛する。Memory／PointersにないECS layout、GPU residency、Audio callback固有budgetは各Ownerが本書のmetric familyを参照して決定し、ここで再定義しない。
+
+### 8.3 Runtime ECS data-oriented qualification
+
+本節だけがRuntime ECS data-oriented qualificationのprofile、campaign、mandatory metric、sampling、promotion predicateを所有する。
+
+```text
+RuntimeDataOrientedQualificationProfileV1
+  profile_version: 1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version,
+           target_profile_content_hash}
+  contract_set_ref: ContractSetRefV1
+  toolchain_lock_sha256: SHA-256
+  fixture_id: fixture.runtime.ecs-data-oriented-core
+  sample_policy: runtime_ecs_warmup_5x120s_median_p95_10m_soak_v1
+  chunk_payload_candidates_bytes: [8192, 16384, 32768]
+  scenario_ids:
+    sequential_motion
+    position_only_projection
+    lifetime_only_scan
+    structural_burst
+    archetype_fragmentation
+    query_cache_invalidation
+  metric_set: runtime_ecs_data_oriented_metrics_v1
+  correctness_oracle:
+    runtime_ecs_semantic_publication_failure_atomicity_v1
+  profile_hash: SHA-256
+
+RuntimeDataOrientedQualificationCampaignV1
+  campaign_version: 1
+  profile_ref:
+    exact {profile_version, target_profile_ref, contract_set_ref,
+           toolchain_lock_sha256, profile_hash}
+  artifact_candidate_binding_ref: content-addressed ref
+  artifact_candidate_binding_sha256: SHA-256
+  input_trace_ref: content-addressed ref
+  input_trace_sha256: SHA-256
+  sample_artifact_ref: content-addressed ref
+  sample_artifact_sha256: SHA-256
+  correctness_artifact_ref: content-addressed ref
+  correctness_artifact_sha256: SHA-256
+  result: pass | fail | infrastructure_error
+  campaign_hash: SHA-256
+```
+
+profileはCandidateを含まない。campaignの`ArtifactCandidateBindingV1` Target member、Contract Set、Toolchainはprofile、sample artifact、correctness artifactとbyte-equalでなければならない。Contract Set rootを先にfinalizeし、それを参照するprofile／campaign instanceをContract Set preimageへ循環挿入しない。hashはMCD canonical encodingを使い、Product signed wrapperのRFC 8785 JCSで代用しない。
+
+```text
+profile_hash =
+  SHA-256(
+    ASCII "MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_PROFILE_V1"
+    || uint32_be(len(canonical profile bytes excluding profile_hash))
+    || canonical profile bytes excluding profile_hash
+  )
+
+campaign_hash =
+  SHA-256(
+    ASCII "MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_CAMPAIGN_V1"
+    || uint32_be(len(canonical campaign bytes excluding campaign_hash))
+    || canonical campaign bytes excluding campaign_hash
+  )
+```
+
+`runtime_ecs_data_oriented_metrics_v1`は次の35 IDからなるclosed mandatory setである。
+
+| Metric ID | Value kind |
+|---|---|
+| `metric.runtime.ecs.callback-general-heap-allocation-count` | `uint64_count` |
+| `metric.runtime.ecs.callback-upstream-fallback-count` | `uint64_count` |
+| `metric.runtime.ecs.memory-reserved-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.memory-committed-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.memory-live-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.memory-peak-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.chunk-count` | `uint64_count` |
+| `metric.runtime.ecs.chunk-row-capacity` | `uint64_count` |
+| `metric.runtime.ecs.chunk-occupied-rows` | `uint64_count` |
+| `metric.runtime.ecs.chunk-unused-payload-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.archetype-count` | `uint64_count` |
+| `metric.runtime.ecs.archetype-fragmentation` | `ratio_rational` |
+| `metric.runtime.ecs.selected-row-count` | `uint64_count` |
+| `metric.runtime.ecs.contiguous-work-unit-count` | `uint64_count` |
+| `metric.runtime.ecs.chunk-transition-count` | `uint64_count` |
+| `metric.runtime.ecs.exposed-column-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.useful-selected-payload-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.query-cache-hit-count` | `uint64_count` |
+| `metric.runtime.ecs.query-cache-miss-count` | `uint64_count` |
+| `metric.runtime.ecs.query-cache-rebuild-count` | `uint64_count` |
+| `metric.runtime.ecs.query-cache-invalidation-count` | `uint64_count` |
+| `metric.runtime.ecs.structural-moved-row-count` | `uint64_count` |
+| `metric.runtime.ecs.structural-copy-bytes` | `uint64_bytes` |
+| `metric.runtime.ecs.handle-resolve-p50-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.handle-resolve-p95-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.handle-resolve-p99-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.lease-validation-p50-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.lease-validation-p95-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.lease-validation-p99-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.scenario-cpu-p50-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.scenario-cpu-p95-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.scenario-cpu-p99-ns` | `uint64_duration_ns` |
+| `metric.runtime.ecs.semantic-result-hash` | `sha256` |
+| `metric.runtime.ecs.publication-hash` | `sha256` |
+| `metric.runtime.ecs.failure-atomicity` | `bool` |
+
+`ratio_rational`はchecked `{numerator:uint64, denominator:uint64}`であり、denominator 0は`infrastructure_error`とする。hardware cache miss、branch miss、bandwidthはsupplementalであり、mandatory IDの代用にしない。
+
+| Scenario | Required observation |
+|---|---|
+| `sequential_motion` | Position＋Velocity columns traverse contiguous row ranges |
+| `position_only_projection` | Velocity、Lifetime、cold metadata are not exposed |
+| `lifetime_only_scan` | Lifetime traversal does not require Position／Velocity payload access |
+| `structural_burst` | bounded create／destroy／add／remove cost and atomic failure |
+| `archetype_fragmentation` | archetype count、chunk occupancy、unused bytes、chunk transitions |
+| `query_cache_invalidation` | hit、miss、rebuild、invalidation after structural commit |
+
+Position、Velocity、Lifetime、cold metadataはsynthetic bounded test schemaであり、Gameplay Component authorityではない。
+
+`runtime_ecs_warmup_5x120s_median_p95_10m_soak_v1`は、3 payload × 6 scenarioについて各cellをfresh process 5 runで測る。各runはdeterministic 10 cycleを捨ててexact 120秒を測定し、nearest rank `ceil(0.95 × N)`でrun P95を選び、5値の昇順3番目を採る。さらにpayloadごとにfresh processで10 cycleを捨てた600秒composite soakを一件行い、scenarioを宣言順と固定inputで反復する。したがって90 measured runs、3 soaks、合計12,600秒である。run／soak欠落、process reuse、scenario reorder、sample substitution、NaN／infinite、overflow、identity mismatch、environment driftは`infrastructure_error`とする。
+
+`runtime_ecs_semantic_publication_failure_atomicity_v1`は、callback general-heap allocation count、callback upstream fallback count、chunk boundaryを跨ぐcallback work unit、unselected／undeclared column access、semantic／publication／failure oracle mismatch、stale handle／expired lease／accepted direct structural mutation、required metric missingがすべて0であることを要求する。全predicateを90 runと3 soakのすべてで満たす。initial selected layoutは16,384 bytesであり、8,192／32,768 bytesの結果が良くてもRuntimeを自動切替しない。
+
+Initial qualification invents neither a zero baseline nor an improvement percentage. It passes only when the selected 16 KiB layout completes the full matrix and every hard predicate.
+
+After an initial qualified layout exists, promotion compares baseline and candidate campaigns with byte-equal profile ref、Target、Contract Set、Toolchain、fixture、input trace、sample policy, and correctness oracle. Candidate refs are intentionally different.
+
+promotionは、integrated P95が5%以上かつ0.20 ms以上改善し、peak memoryとallocation countの悪化が5%以内である場合、またはpeak memoryが15%以上改善し、latency、allocation、correctness、fault、load、presentationが既存Gate内である場合だけ許可する。それ以外はcurrent qualified layoutを維持し、Runtimeでauto-switchしない。
+
+```text
+diagnostic.performance.ecs-required-metric-missing
+MIRAKAN-PERFORMANCE-ECS-REQUIRED-METRIC-MISSING
+arguments = campaign_hash, scenario_id, payload_bytes, metric_id
+result = qualification failure
+```
+
+### 8.4 Algorithm optimization candidate qualification
+
+algorithm／layout／Backend settingの変更は、Ownerが定義するsemantic oracleを一切緩和せず、同じCandidate、Contract Set、Toolchain lock、Target Profile、fixture、input trace、warm-up、sample count、aggregationでbaselineと比較する。predicted／estimated値、別Target、異なるfixture、sanitizer run、直前の`latest` runをpromotion Evidenceへ混在させない。一般高速経路の昇格は§8.1の「P95を5%以上かつ0.20 ms以上改善し、memory peak／allocation countを5%超悪化させず、correctness／fault／startup／hitch hard Gateを悪化させない」を適用し、Owner固有のより厳しいGateは各Owner文書が追加する。
+
+`OptimizationDecisionProjectionV1`はsealed qualification recordから導出するPerformance-owned read-only Projectionであり、AI、Editor、Review toolが候補の状態と根拠を同じ意味で読むためのものとする。Projection自体はSource、selection authority、Receipt、Runtime dispatch tableではない。
+
+```text
+OptimizationCandidateRefV1
+  artifact_candidate_id:
+    exact ArtifactCandidateBindingV1.artifact_candidate_id
+  artifact_candidate_binding_sha256:
+    SHA-256(JCS(completed ArtifactCandidateBindingV1))
+
+OptimizationEvidenceRefV1
+  evidence_role:
+    metric_receipt | semantic_receipt | selection_reason
+  signed_record_ref: MirakanSignedRecordRefV1
+
+OptimizationDecisionProjectionV1
+  schema_version: 1
+  projection_id: StableId
+  projection_revision: positive uint64
+  owner_document_id: StableId
+  source_revision_ref:
+    exact ArtifactCandidateBindingV1.source_revision_ref
+  contract_set_sha256:
+    exact ArtifactCandidateBindingV1.contract_set_sha256
+  target_profile_ref:
+    exact one member of ArtifactCandidateBindingV1.target_profile_refs[]
+  toolchain_lock_sha256: SHA-256
+  fixture_set_ref: ArtifactRefV1
+  input_trace_ref: ArtifactRefV1
+  semantic_oracle_ref: ArtifactRefV1
+  baseline_candidate_ref: OptimizationCandidateRefV1 | null
+  candidates[1..32]:
+    candidate_ref: OptimizationCandidateRefV1
+    algorithm_ref: NamedAlgorithmRefV1
+    implementation_variant_ref: ArtifactRefV1
+    eligibility_predicate_refs[1..32]:
+      McdContractRefV1(kind=policy)
+    metric_receipt_refs[0..64]:
+      OptimizationEvidenceRefV1(evidence_role=metric_receipt)
+    semantic_receipt_refs[0..64]:
+      OptimizationEvidenceRefV1(evidence_role=semantic_receipt)
+    disposition: not_evaluated | rejected | qualified_not_selected | selected
+    blocking_diagnostic_ref: DiagnosticCodeRefV1 | null
+  selected_candidate_ref: OptimizationCandidateRefV1 | null
+  selected_reason_evidence_refs[0..64]:
+    OptimizationEvidenceRefV1(evidence_role=selection_reason)
+  invalidation_condition_refs[1..32]:
+    McdContractRefV1(kind=policy)
+  exposure: read_only
+  projection_content_hash: SHA-256
+
+OptimizationDecisionProjectionRefV1
+  projection_id: StableId
+  projection_revision: positive uint64
+  owner_document_id: StableId
+  source_revision_ref:
+    exact ArtifactCandidateBindingV1.source_revision_ref
+  projection_content_hash: SHA-256
+```
+
+`OptimizationEvidenceRefV1.signed_record_ref`は[AI Verification／Provenance §7](../01-governance/ai-verification-provenance.md#7-evidence-envelope)の完成`MirakanSignedRecordV1`へexact解決し、`purpose`はOwnerが登録したmetric／semantic／selection Receipt purpose、`subject_sha256`は当該Candidate closureを含む完成subject、`signed_record_hash`は署名を含む完成Recordとbyte equalityにする。裸のArtifact ref、hash-only値、別roleのReceipt、AI生成説明を代用しない。
+
+同じ`candidate_ref`は完成`ArtifactCandidateBindingV1`のSource revision、Candidate root、Contract、Toolchain、Target、artifact集合を一意に固定する。algorithm revision、implementation variant、fixture、input traceはcandidate行とProjection rootにexactに閉じ、一Fieldでも変われば別Projection／Candidateである。`baseline_candidate_ref != null`は`candidates[]`内のexact一件へ解決し、`qualified_not_selected | selected`かつ完全Receipt closureでなければならない。初回characterizationだけはnullを許し、改善率または過去Shipping baselineを主張しない。
+
+`selected_candidate_ref != null`なら同じrefの`disposition=selected`がexact一件、`selected_reason_evidence_refs[]`が1件以上あり、nullならselected行とselection reasonは双方0件でなければならない。候補行は次のexact matrixを満たす。
+
+| `disposition` | metric／semantic Receipt | `blocking_diagnostic_ref` | selection reason |
+|---|---|---|---|
+| `not_evaluated` | 双方exact 0件 | exact `null` | 禁止 |
+| `rejected` | 検証済み取得分だけ0～64件。missing分を捏造しない | exact一件。失敗した`eligibility_predicate_refs[]`のうちcanonical ref順で最小のpredicateに登録されたDiagnosticを指す | 禁止 |
+| `qualified_not_selected` | Owner-required完全closure、双方1件以上 | exact `null` | root selection reasonの対象外 |
+| `selected` | Owner-required完全closure、双方1件以上 | exact `null` | rootに1～64件必須 |
+
+全semantic／performance hard predicateは`eligibility_predicate_refs[]`へ一件ずつ登録し、実行完了順ではなくcanonical ref順でrejection Diagnosticを決める。baselineとcandidateの測定環境が一致しない、Receiptがmissing／stale／revoked、oracle不一致、選択が複数、未登録候補、unknown enum、hash不一致ならProjection生成と昇格をfail closedにする。`OptimizationDecisionProjectionRefV1`は完成Projectionのidentity／revision／Owner／source revision／content hashとbyte equalityにし、ID-only、revision-only、`latest`、同revision別hashを拒否する。同じ`projection_id`はrevision 1から開始し、Candidate集合、policy、Receipt、disposition、baseline、selection、invalidation条件の完成bytesが変わるたびexact `N+1`へ進める。read時はsource revision、Target Profile、Toolchain lock、policy ref、全Receiptのfreshness／revocationを再検査し、drift時はstale Projectionを返さず新revisionを要求する。
+
+全objectはclosedで全Field必須、unknown Field禁止とする。`candidates[]`は`artifact_candidate_id, artifact_candidate_binding_sha256`のunsigned byte順、各Evidence arrayは`evidence_role, signed_record_ref.purpose, signed_record_ref.subject_sha256, signed_record_ref.signed_record_hash`順、policy ref配列はMCD canonical ref順へstrict sortし、duplicate／same ID different hashを拒否する。`projection_content_hash`はASCII `MIRAKAN_OPTIMIZATION_DECISION_PROJECTION_V1`と同Fieldだけを除くclosed canonical MCD bytesを`uint32_be` length framingしてSHA-256する。Projection生成時に読んだ全Candidate binding、Receipt、policy、artifactのfreshness／revocationを再検査し、omitted rangeまたは未解決refを許可しない。
+
+Owner別の最低metric familyは次とする。値、absolute threshold、fixture、Backend固有fieldは各Ownerが決定し、本書は共通比較形式だけを所有する。
+
+| Owner領域 | 最低metric family |
+|---|---|
+| ECS／Memory | iteration P50／P95／P99、allocation／一般fallback count、bytes per row、chunk occupancy／fragmentation、query-cache hit／miss／invalidation、structural change cost |
+| Physics／Collision | step P50／P95／P99、job wait、active／sleep body数、body insertion throughput、temporary allocator high-water／failure、candidate pair数とfilter stage別reject数 |
+| Navigation | query P50／P95／P99、node expansion、heap operation、allocation／fallback、cache hit／miss／stale、out-of-nodes、sliced iteration／completion |
+| Rendering | CPU／GPU P50／P95／P99、command／indirect argument数、visible-set equalityとfalse occlusion、transient physical peak、alias／barrier／validation error |
+
+AIはProjectionをread／explainできるが、raw full trace、全Project dump、native object、pointer、address、Backend objectを受け取らず、threshold、eligibility、baseline、selected ref、Receiptを変更または補完しない。将来の提案／選択Operationは[AI Security／Approval](../01-governance/ai-security-approval.md)に従って別途Activationするまで存在せず、current Performance MCD Operation集合は§11のexact状態を維持する。reference implementationはoracle、またはOwnerが別途適格化した明示的semantic fallbackになり得るが、旧／新経路の暗黙併載、deprecated alias、silent fallback、runtime auto-tuningを許可しない。benchmark candidateは非dispatchableである。
+
+AIがこのProjectionを正しく理解することは[AI Verification／Provenance §5.5](../01-governance/ai-verification-provenance.md#55-代表fixture)の`OptimizationDecisionExplanationFixtureV1`で検証する。fixture logical ID、Case、Suite、Receiptが未materializeの間は、Provider／Model／Hostの一般Eval成功をoptimization explanationのEvidenceへ流用せず、AI向けoptimization bindingを利用可能と表示しない。
 
 ## 9. Owner-typed workload scale modelと`ProjectScaleEnvelopeV2`
 
@@ -1194,6 +1419,8 @@ ProviderへProject Commit、Plan write、Capability activation、baseline緩和�
 
 `ScaleExplanationReceiptV1`はSource revision、Envelope hash、Target、Plan set hash、selected／rejected closed strategy、fidelity proof ref、cost measurement ref、fallback chain、`TargetReadinessV1` ref、invalidation conditionをDomain evidenceとして生成する。共通Receipt envelope、Provenance、署名、保持は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照し、本書で再掲しない。
 
+algorithm optimizationの説明は§8.4の`OptimizationDecisionProjectionV1`だけを消費し、raw benchmark logや設計文書の全量をAIへ投入して不足Fieldを推測させない。Project Source／文書抜粋はread-only contextであり、Projectionまたはregistered Operationの代用ではない。AIの説明、Tool visibility、Provider schema適合はselection、promotion、Commit authorityを付与しない。
+
 最低Diagnosticはmissing envelope、ambiguous requirement、unqualified capability、stale plan、fidelity violation、invalid reference closure、budget exceeded、partial activation rejected、distributed authority not activatedを区別する。unknownを近いenum、0、最大値、current Target defaultへ補正しない。
 
 ## 12. MediumからLargeへの非破壊遷移
@@ -1257,3 +1484,5 @@ CIはbudget hard limit、loan deadline、queue pressure、§5のqueue表から�
 - World／LOD／Authoring固有fieldの本書での再定義。
 - Medium／Large別Source／Save、repartitionによるStable ID変更。
 - 未Activated distributed Authority／World／Authoring／Buildの空実装。
+- raw benchmark／log／設計文書／全Project dumpをAIへ渡してcandidate、threshold、Receipt、選択理由を補完させること。
+- AIの自己評価によるpromotion、runtime auto-tuning、全Target／Profileへ一つの高速candidateを既定化すること。

@@ -443,25 +443,30 @@ AIへ提供する`EditorContextSnapshotV1`は、選択されたPanelのSemantic 
 
 ```text
 EditorContextSnapshotV1
+  snapshot_version: 1
+  snapshot_id: StableId
   attention_snapshot_ref
   attention_generation
   semantic_snapshot_ref
   semantic_content_hash
-  project_revision
-  selected_context_refs[0..5]          # typed channel、owner、revision、bounded range
+  project_revision_ref: ProjectRevisionRefV1
+  selected_context_bindings[0..5]: AiTaskContextProjectionBindingV1
   elements[]                         # bounds、draw/style値を除く
   virtual_collections[]              # total、realized、omitted、continuation
   allowed_actions[]                  # command、argument schema、risk、approval、expected revision
   redaction_summary
   context_byte_count
+  snapshot_content_hash: SHA-256
 ```
 
 - Widget座標、Draw primitive、Font glyph、native handle、layout hashを含めない。
 - Password、credential、secret、private clipboard、未許可Sourceを含めない。
 - Context byte上限とredaction resultをReceiptへ記録する。
-- `selected_context_refs`はUserが送信Previewで許可したactive channelと明示的な関連sliceだけに限定する。keyboard focus、hover、range anchor、scroll anchor、Panel pinはauthoritative targetとして含めない。
+- `selected_context_bindings`は[AI Security／Approval §5](../01-governance/ai-security-approval.md#5-beginner-questionsassumptions理解条件)が所有するexact nested shapeを消費し、Userが送信Previewで許可したactive channelと明示的な関連sliceだけに限定する。自己循環を避けるため`binding_kind=editor_context`を禁止し、`authoring_context | architecture_explain | game_understanding | optimization_decision | ai_debug_context`だけを許す。keyboard focus、hover、range anchor、scroll anchor、Panel pinはauthoritative targetとして含めない。
+- `game_understanding | optimization_decision`はcomplete Projectionだけを許す。query型の他bindingは省略範囲とcontinuationを保持し、取得済み範囲だけを説明する。Projection hash、Owner、Project／source revision、invalidation conditionの一件でも不一致ならSnapshot生成をfail closedにし、同kindの`latest`、文書断片、raw traceへ差し替えない。
+- `optimization_decision`はTarget／Profile／Contract／Toolchain／fixture／input traceがPanelの対象と一致するread-only bindingだけを許す。AIはselected／rejected／not-evaluated状態とEvidenceを説明できるが、候補選択、threshold変更、Receipt補完、Project writeを`allowed_actions[]`へ生成しない。将来そのためのOperationが別途Activationされても、Snapshot自身はAuthorityにならない。
 - AIは`element_key`とStable target refを説明・登録済みfocus／reveal request・Context選択に使用できるが、状態変更はCommand ID／typed `ProjectChangePrimitiveV1`で行う。
-- `semantic_content_hash`またはProject revisionが古いProposalを自動実行しない。staleはrebase後に全validatorを再実行するまでCommit不可である。
+- `semantic_content_hash`、Project revision、selected Projectionの一つでも古いProposalを自動実行しない。staleは新しい`AiTaskContextCapsuleV1`を生成し、rebase後に全validatorを再実行するまでCommit不可である。
 - Debug Panel選択時もraw trace、画面pixel、無制限event列をこのSnapshotへ埋め込まない。Debugging規約のbounded `AiDebugContextV1`を参照し、Session／Query／Evidence ID／recorded revision／gap／redactionを失わない。
 
 画面の見た目を評価する必要がある場合だけ、Userが明示許可した次の別artifactを使う。
@@ -1099,7 +1104,7 @@ RegistryにないPatternが必要な場合は既存Patternのslot／variantで�
 
 Conformanceは全状態のScreenshot直積を要求しない。state／Actionの許可規則、target／revision、Pattern／variant解決は全件を機械検査し、visual fixtureは各単独stateと上記必須重畳、Dark、Windowsの四つのbuilt-in contrast theme、compact／standard／comfortable、`editor_ui_scale=1.00／2.00`を既存DPI matrix上で覆う。Screenshotはvisual差だけ、Semantic Snapshotはrole／target／state／Action、Command Receiptは実際の変更経路だけを証明し、相互に代用しない。
 
-##### Cross-pattern Scroll Chrome Contract
+#### Cross-pattern Scroll Chrome Contract
 
 `scrollbar.chrome.editor@1`はTree／List、Asset View、Table、Property／Formのscroll container、Diagnostics、Source／Diffのようにactual scroll viewportを持つPatternの共通contractである。各axisは一つの`logical_extent_lu`、`logical_viewport_lu`、`logical_offset_lu`を持ち、表示状態は`absent | hidden | indicator | revealed | persistent`だけとする。`size.scroll-chrome.reveal-gutter=16 ui_lu`をoverflow axisごとにreserved overlay gutterとして確保し、両axisのcornerもnon-content areaにする。Chromeの表示／非表示、density、DPI、UI scale、motionでviewport／extent／offset、row／field layout、scroll anchor、hit target、selection／focus geometryを再計算しない。
 
