@@ -18,12 +18,18 @@ No runtime code, implementation plan, compatibility migration, Operation activat
 
 ## 2. Official design basis
 
-The following primary sources define the external comparison baseline.
+The following primary sources define the external comparison baseline. They are
+evidence for separating concerns, not templates for this engine. This design
+does not copy external source code, serialized formats, API type names,
+editor labels, shader text, or compatibility promises. Every `V1` schema,
+identity rule, fallback rule, and AI-verification rule below is
+Miraikanai-owned.
 
 ### 2.1 Unity Graphics
 
 - Shader Graph `Target` defines generated-shader compatibility and generation requirements.
-- Sprite Lit／Unlit targets are distinct from general Lit／Unlit targets.
+- Sprite Lit／Unlit shader graphs are documented separately from general
+  Lit／Unlit graphs.
 - Structured C# declarations can generate corresponding HLSL declarations.
 
 Sources:
@@ -31,13 +37,15 @@ Sources:
 - <https://github.com/Unity-Technologies/Graphics/blob/master/Packages/com.unity.shadergraph/Documentation~/Graph-Target.md>
 - <https://github.com/Unity-Technologies/Graphics/blob/master/Packages/com.unity.render-pipelines.core/Documentation~/generating-shader-includes.md>
 - <https://github.com/Unity-Technologies/Graphics/blob/master/Packages/com.unity.shadergraph/Documentation~/Custom-nodes-hlsl-create-node-by-reflection.md>
+- <https://docs.unity3d.com/ja/current/Manual/urp/prebuilt-shader-graphs-urp-sprite-unlit.html>
 
 Adopted principle: target compatibility, authoring structure, and generated shader text are separate concerns.
 
 ### 2.2 Unreal Engine
 
 - Material Domain and Shading Model describe material execution and lighting behavior rather than project-wide 2D／3D identity.
-- Substrate tracks Toon as a shading model with a separate Toon Profile.
+- UE 5.8 exposes experimental Substrate Toon shading with a separate Toon
+  Profile.
 - Toon response exposes structured diffuse／specular ramp behavior and self-shadowing controls.
 
 Sources:
@@ -47,11 +55,32 @@ Sources:
 - <https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes>
 - <https://dev.epicgames.com/documentation/unreal-engine/paper-2d-sprite-material-in-unreal-engine>
 
-Adopted principle: Toon is not merely a display name; it has a typed response profile, while 2D sprite use remains a separate asset／domain concern.
+Adopted principle: Toon is not merely a display name; it needs a typed response
+contract, while 2D sprite use remains a separate asset／domain concern. The
+experimental status of Unreal's current feature is not a maturity claim for
+Miraikanai.
 
-### 2.3 DirectX Shader Compiler
+### 2.3 Godot Engine
 
-DXC public APIs provide compile status, diagnostics, object output, PDB, shader hash, and reflection. Reflection exposes compiled interfaces such as entry signatures, constants, and resources. Compiler-private AST text and debug container internals are not stable public semantic contracts.
+- `canvas_item` and `spatial` identify 2D and 3D shader contexts.
+- `diffuse_toon` and `specular_toon` are render-mode choices inside a spatial
+  shader, rather than project-wide 2D／3D switches.
+
+Sources:
+
+- <https://docs.godotengine.org/en/stable/tutorials/shaders/your_first_shader/your_first_2d_shader.html>
+- <https://docs.godotengine.org/en/stable/tutorials/shaders/shader_reference/spatial_shader.html>
+
+Adopted principle: spatial context and surface-response choice are orthogonal.
+Godot API names and shader syntax are not adopted.
+
+### 2.4 DirectX Shader Compiler
+
+DXC public APIs provide compile status, diagnostics, object output, PDB, shader
+hash, and reflection. Reflection exposes compiled interfaces such as entry
+signatures, constants, and resources. This design therefore treats
+compiler-private AST text and debug-container internals as non-authoritative
+implementation details; that boundary is an engine decision, not a DXC promise.
 
 Sources:
 
@@ -91,24 +120,34 @@ WorldSpaceProfileRefV1
   profile_id: StableId
   profile_version: positive uint32
   profile_content_hash: SHA-256
+
+WorldSpaceCompatibilityV1
+  supported_scene_dimensions[0..3]:
+    unique subset of {two_d, three_d, hybrid}
+  supported_hybrid_gameplay_spaces[0..2]:
+    unique subset of {two_d, three_d}
+  supports_non_spatial: bool
 ```
 
 Rules:
 
 1. `two_d` selects authoritative 2D gameplay and 2D spatial semantics.
 2. `three_d` selects authoritative 3D gameplay and 3D spatial semantics.
-3. `hybrid` permits 2D／3D presentation composition but has exactly one authoritative gameplay space.
+3. `hybrid` means mixed 2D／3D presentation with exactly one authoritative gameplay space. It is not a dual-authority physics or navigation mode.
 4. UI-only and headless Runtime Entries do not invent a World or `WorldSpaceProfileV1`.
 5. A Project may reference multiple Worlds with different profiles; dimension is not forced into a Project-global enum.
-6. Style, Camera, Physics, Navigation, Animation, Collision, and Rendering consume the exact World profile reference and do not persist copied dimension values.
+6. Style, Camera, Physics, Navigation, Animation, Collision, and Renderingのruntime resolution、attachment、Derived／Cooked recordはexact World profile referenceを消費する。再利用可能なSource Profileは`WorldSpaceCompatibilityV1`だけを宣言し、独立したcopied dimension valueを所有しない。
 7. Coordinate handedness, axis, unit, angle, and matrix conventions remain fixed by Math／Core Utilities and are not configurable World-profile fields.
+8. A derived artifact may materialize a resolved dimension only with the exact `WorldSpaceProfileRefV1` and its source hash. The materialized value is cacheable execution data, never an independent source of authority.
+9. A true dual-authority 2D／3D simulation requires separate Worlds and an explicit cross-World bridge contract; it is outside this design.
+10. `profile_content_hash` is `SHA-256(ASCII "MIRAKAN_WORLD_SPACE_PROFILE_V1" || uint32_be(length(receipt-free canonical bytes excluding profile_content_hash)) || canonical bytes)`.
 
 `WorldDocumentV1` changes to:
 
 ```text
 WorldDocumentV1
   world_id
-  world_space_profile_ref: WorldSpaceProfileRefV1
+  world_space_profile_ref: exact WorldSpaceProfileRefV1
   scene_document_refs[0..65535]
   global_composition_refs[]
   persistent_entity_refs[]
@@ -119,15 +158,6 @@ WorldDocumentV1
 
 Reusable profiles declare compatibility without selecting structural state.
 
-```text
-WorldSpaceCompatibilityV1
-  supported_scene_dimensions[0..3]:
-    unique subset of {two_d, three_d, hybrid}
-  supported_hybrid_gameplay_spaces[0..2]:
-    unique subset of {two_d, three_d}
-  supports_non_spatial: bool
-```
-
 Validation rules:
 
 - `supported_hybrid_gameplay_spaces[]` is empty when `hybrid` is absent.
@@ -135,6 +165,7 @@ Validation rules:
 - A selected World profile must match both dimension and hybrid gameplay-space constraints.
 - A non-spatial Runtime Entry may use only profiles with `supports_non_spatial=true`.
 - A compatibility failure is a typed blocking error; it never changes the World profile or silently selects another style.
+- Dimension arrays are closed-set subsets, sorted by closed-enum ordinal, and have no duplicate. `supported_hybrid_gameplay_spaces[]` is sorted in the same way.
 
 `VisualStyleProfile`, `CameraProfileDocumentV1`, and other reusable presentation profiles consume `WorldSpaceCompatibilityV1`. Runtime or authoring resolution additionally receives the exact selected `WorldSpaceProfileRefV1`.
 
@@ -157,11 +188,21 @@ Physics and Navigation resolution records replace copied `scene_dimension`／`hy
 ToonRampRefV1
   ramp_id: StableId
   ramp_version: positive uint32
+  source_asset_ref:
+    exact {asset_id, asset_revision, source_sha256}
+  input_signal:
+    diffuse_ndotl_clamped | specular_lobe | shadow_attenuation
+  dimension: one_d
+  sample_filter: point | linear
+  address_mode: clamp
+  channel_semantic: scalar_multiplier | linear_rgb_multiplier
   ramp_content_hash: SHA-256
   color_space: linear_rgb
 
 ToonBandResponseV1
   source: analytic_bands | ramp_asset
+  input_signal:
+    diffuse_ndotl_clamped | specular_lobe | shadow_attenuation
   band_count: integer in [1, 8]
     | required only for analytic_bands
   thresholds[0..7]: strictly increasing finite values in [0, 1]
@@ -172,12 +213,14 @@ ToonBandResponseV1
     | required only for ramp_asset
 
 ToonSpecularResponseV1
-  mode: disabled | banded | ramp_asset | anisotropic_banded
-  band_response: ToonBandResponseV1
-    | required unless mode=disabled
+  mode: disabled | analytic_banded | ramp_asset | anisotropic_analytic_banded
+  analytic_band_response: ToonBandResponseV1
+    | required only for analytic_banded or anisotropic_analytic_banded
+  ramp_ref: ToonRampRefV1
+    | required only for ramp_asset
   roughness_range: closed finite range within [0.045, 1]
   anisotropy_range: closed finite range within [-1, 1]
-    | required only for anisotropic_banded
+    | required only for anisotropic_analytic_banded
 
 ToonRimResponseV1
   mode: disabled | lit_side | shadow_side | view_fresnel
@@ -189,8 +232,15 @@ ToonShadowResponseV1
   receive_mode: continuous | banded | profile_ramp
   self_shadow_extinction: finite value in [0, 1]
   cast_shadow: bool
+  analytic_band_response: ToonBandResponseV1
+    | required only for banded
   ramp_ref: ToonRampRefV1
     | required only for profile_ramp
+
+ToonEnergyPolicyV1
+  kind: stylized_bounded | physically_bounded
+  max_direct_lighting_multiplier: finite value in (0, 16]
+  max_indirect_lighting_multiplier: finite value in (0, 16]
 
 ToonFeatureSemanticV1
   role: generic | face | hair | eye | cloth | foliage
@@ -204,6 +254,19 @@ ToonFeatureSemanticV1
 ToonFeatureRoleProfileRefV1
   profile_id: StableId
   profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+ToonFeatureRoleProfileV1
+  profile_id: StableId
+  profile_version: positive uint32
+  role: generic | face | hair | eye | cloth | foliage
+  normal_source: mesh_normal | authored_normal_map | bent_normal_map
+  normal_texture_role: none | normal | bent_normal
+  shadow_source: engine_shadow | authored_mask | signed_distance_field
+  shadow_texture_role: none | shadow_mask | signed_distance_field
+  compatible_material_domains[1..8]
+  compatible_world_space: WorldSpaceCompatibilityV1
+  required_capability_refs[0..16]: McdContractRefV1(kind=capability)
   profile_content_hash: SHA-256
 
 ToonShadingProfileRefV1
@@ -220,22 +283,30 @@ ToonShadingProfileV1
   specular_response: ToonSpecularResponseV1
   rim_response: ToonRimResponseV1
   shadow_response: ToonShadowResponseV1
-  feature_semantics[0..16]: ToonFeatureSemanticV1
-  energy_policy: stylized_bounded | physically_bounded
-  required_capability_refs[0..32]
+  feature_semantics[0..6]: ToonFeatureSemanticV1
+  energy_policy: ToonEnergyPolicyV1
+  required_capability_refs[0..32]: McdContractRefV1(kind=capability)
   fallback_profile_refs[0..8]: ToonShadingProfileRefV1
   profile_content_hash: SHA-256
 ```
 
 Rules:
 
-- Profile values are finite and canonicalized before hashing.
-- Ramp assets are data textures in linear color space.
+- Profile values are finite and canonicalized before hashing. `profile_content_hash` is `SHA-256(ASCII "MIRAKAN_TOON_SHADING_PROFILE_V1" || uint32_be(length(receipt-free canonical bytes excluding profile_content_hash)) || canonical bytes)`.
+- `ramp_content_hash` is `SHA-256(ASCII "MIRAKAN_TOON_RAMP_REF_V1" || uint32_be(length(receipt-free canonical bytes excluding ramp_content_hash)) || canonical bytes)`.
+- A ramp is a 1D data texture in linear color space. Its input signal, filter, clamp behavior, and channel interpretation are part of the reference and cannot be inferred from a filename or image dimensions.
+- `ToonBandResponseV1.source=analytic_bands` requires the analytic fields and canonical omission of `ramp_ref`; `ramp_asset` requires canonical omission of the analytic fields and an exact `ramp_ref`.
+- `ToonBandResponseV1.input_signal` is `diffuse_ndotl_clamped` for diffuse, `specular_lobe` for analytic specular, and `shadow_attenuation` for banded shadow response. A `ramp_ref` must use the same signal.
+- `ToonSpecularResponseV1.mode=analytic_banded | anisotropic_analytic_banded` requires `analytic_band_response.source=analytic_bands`; `mode=ramp_asset` requires `ramp_ref.input_signal=specular_lobe`; `disabled` requires canonical omission of both response fields and a canonical zero specular contribution.
+- `ToonShadowResponseV1.receive_mode=banded` requires `analytic_band_response.source=analytic_bands`; `profile_ramp` requires `ramp_ref.input_signal=shadow_attenuation`; `continuous` requires canonical omission of both response fields.
+- `ToonEnergyPolicyV1.kind=physically_bounded` requires both maximum multipliers to be at most `1`; `stylized_bounded` permits values above `1` only up to the declared finite cap. Every qualified fixture checks non-negative finite response and the declared cap over its registered sweep domain.
 - `feature_semantics[]` roles are unique.
+- When either `ToonFeatureSemanticV1` source is `role_profile`, the exact referenced `ToonFeatureRoleProfileV1` must match its role, Material Domain, and selected World compatibility. Only the corresponding normal or shadow side resolves through that profile; a non-`role_profile` side remains unchanged. `mesh_normal`／`engine_shadow` require texture role `none`; the other closed sources require their matching `normal`／`bent_normal`／`shadow_mask`／`signed_distance_field` role. Texture roles resolve to typed Material bindings, never names. `ToonFeatureRoleProfileV1.profile_content_hash` uses the `MIRAKAN_TOON_FEATURE_ROLE_PROFILE_V1` domain with self-excluding length-framed canonical bytes.
 - Face or hair behavior is never inferred from asset names or texture filenames.
 - `ToonRimResponseV1.mode=disabled` requires canonical zero width, softness, and intensity.
 - A profile does not create a Render pass, resource, or Backend object.
 - Unsupported Target behavior requires an explicit qualified fallback or returns `capability_unavailable`.
+- Fallback refs are strict priority order, unique, and acyclic over the transitive fallback graph. The resolver selects the first compatible, Target-qualified ref; a missing eligible candidate is a blocking failure, not a silent style substitution.
 
 ### 4.3 Outline style profile
 
@@ -243,11 +314,13 @@ Rules:
 OutlineStyleProfileV1
   profile_id: StableId
   profile_version: positive uint32
-  technique_intent:
-    geometry_expansion | screen_space | hybrid | disabled
-  width_semantic:
-    object_relative | world_meters | screen_pixels
-  width_value: finite nonnegative value
+  compatible_world_space: WorldSpaceCompatibilityV1
+  technique_preference:
+    geometry_only | screen_space_only | hybrid_qualified | disabled
+  geometry_width_semantic:
+    none | object_relative | world_meters
+  geometry_width_value: finite nonnegative value
+  screen_width_pixels: finite nonnegative value
   depth_threshold: finite nonnegative value
   normal_threshold: finite value in [0, 1]
   color: LinearColor4f
@@ -257,7 +330,7 @@ OutlineStyleProfileV1
     no_history | stable_history_required
   alpha_policy:
     respect_coverage | opaque_silhouette_only
-  required_capability_refs[0..16]
+  required_capability_refs[0..16]: McdContractRefV1(kind=capability)
   fallback_profile_refs[0..8]: OutlineStyleProfileRefV1
   profile_content_hash: SHA-256
 
@@ -267,9 +340,13 @@ OutlineStyleProfileRefV1
   profile_content_hash: SHA-256
 ```
 
-The profile contains style intent only. An Engine-owned resolver maps it to a qualified Render Graph technique based on Target, anti-aliasing plan, depth／normal availability, budget, and fallback policy.
+The profile contains style intent only. `compatible_world_space` declares reusable-profile compatibility but never selects a structural dimension or hybrid gameplay authority. An Engine-owned resolver first validates the exact selected World profile, then maps the intent to a qualified Render Graph technique based on Target, anti-aliasing plan, depth／normal availability, budget, and fallback policy. It never exposes a native geometry-expansion or screen-space implementation as a project API.
 
-`technique_intent=disabled` requires canonical zero width, depth threshold, and normal threshold, `temporal_policy=no_history`, and an empty Capability／fallback set.
+`geometry_only` requires a non-`none` geometry width, zero screen width／depth threshold／normal threshold, and `temporal_policy=no_history`. `screen_space_only` requires `geometry_width_semantic=none`, a positive screen width, and nonzero depth or normal threshold. `hybrid_qualified` requires both a non-`none` geometry width and a positive screen width. `disabled` requires all widths and thresholds to be zero, `temporal_policy=no_history`, and an empty Capability／fallback set.
+
+Outline fallback refs are strict priority order, unique, acyclic, and Target-qualified before the resolver can select one. `profile_content_hash` is `SHA-256(ASCII "MIRAKAN_OUTLINE_STYLE_PROFILE_V1" || uint32_be(length(receipt-free canonical bytes excluding profile_content_hash)) || canonical bytes)`.
+
+Render Graph owns the concrete `OutlineTechniqueCatalogV1`, `OutlineInputAvailabilityV1`, `OutlineResolutionDiagnosticV1`, and `ResolvedOutlineExecutionPlanV1` contracts. The catalog binds each non-disabled technique to World compatibility, required inputs, AA／history support, Capability, and fresh qualification; the resolver consumes the read-only `RendererBudgetEnvelopeV1` owned by Runtime Performance／Capacity. `disabled` is a canonical null-technique plan, not an unrecorded fallback.
 
 `VisualStyleProfile` replaces the untyped `outline_profile_id` with exact `outline_style_profile_ref`. It may optionally reference `toon_shading_profile_ref`, which is required when any selected Material Template uses a Toon Shading Model.
 
@@ -278,10 +355,11 @@ The profile contains style intent only. An Engine-owned resolver maps it to a qu
 Toon qualification includes:
 
 - sphere, face, hair, transparent hair, eye, cloth, and foliage fixtures;
-- analytic-band and ramp-asset boundaries;
+- analytic-band and ramp-asset input-signal／filter／clamp／channel boundaries;
+- Toon Feature Role Profile role／texture-role／World-compatibility positive and negative cases;
 - directional, point, spot, environment, key, fill, rim, and accent lights;
 - cast／receive shadow combinations and self-shadow extinction;
-- geometry, screen-space, hybrid, and disabled outline intent;
+- geometry-only, screen-space-only, hybrid-qualified, and disabled outline intent;
 - fixed and dynamic resolution;
 - no AA, MSAA, spatial AA, and temporal AA compatibility;
 - 2D, 3D, and hybrid World profiles;
@@ -311,17 +389,17 @@ TypedShaderIrV1
   ir_id: StableId
   ir_version: positive uint32
   module_interface_ref
-  entry_points[]
-  typed_values[]
-  typed_resources[]
-  nodes[]
-  control_regions[]
-  call_edges[]
-  value_edges[]
-  resource_access_edges[]
-  side_effects[]
-  variant_dimensions[]
-  source_map_intents[]
+  entry_points[1..128]
+  typed_values[0..65536]
+  typed_resources[0..4096]
+  nodes[1..65536]
+  control_regions[0..16384]
+  call_edges[0..131072]
+  value_edges[0..262144]
+  resource_access_edges[0..65536]
+  side_effects[0..4096]
+  variant_dimensions[0..64]
+  source_origin_intents[0..65536]
   ir_content_hash: SHA-256
 ```
 
@@ -334,6 +412,7 @@ Required properties:
 - deterministic canonical order and hash;
 - generated HLSL and source maps derived from the exact IR revision;
 - no handwritten source substitution after generation.
+- `ir_content_hash` is `SHA-256(ASCII "MIRAKAN_TYPED_SHADER_IR_V1" || uint32_be(length(receipt-free canonical bytes excluding ir_content_hash)) || canonical bytes)`; all arrays are strictly sorted by their stable edge or node key and reject duplicates.
 
 For `typed_ir`, U0 Identity, U1 Structure, and U2 Semantics take the exact IR as their authority. Generated source maps and DXC reflection verify identity and observable compiled-interface agreement. Behavioral equivalence of the generated artifact is evaluated by registered fixtures and measurements rather than inferred from reflection.
 
@@ -358,17 +437,39 @@ Compiler-private AST text, debug-container internals, AI explanation, comments, 
 Coverage records are explicit and revisioned.
 
 ```text
+ShaderVariantSelectionV1
+  variant_id: StableId
+  selected_value: one closed value of the exact dimension
+
+ShaderVariantTupleV1
+  selections[0..64]: ShaderVariantSelectionV1
+  tuple_content_hash: SHA-256
+
+ShaderVariantTupleRefV1
+  module_ref: exact ProjectShaderModuleRefV1
+  tuple_content_hash: SHA-256
+
+ShaderCoverageCaseKeyV1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  variant_tuple_ref: exact ShaderVariantTupleRefV1
+  fixture_ref:
+    exact {fixture_id, fixture_version, fixture_content_hash}
+
+ShaderBehaviorCoverageCaseV1
+  case_key: ShaderCoverageCaseKeyV1
+  analytic_invariant_refs[0..256]
+  visual_invariant_refs[0..256]
+  measurement_receipt_refs[1..256]
+  result: pass
+
 ShaderBehaviorCoverageV1
   coverage_id: StableId
   coverage_version: positive uint32
   module_ref: exact ProjectShaderModuleRefV1
   fixture_set_ref:
     exact {fixture_set_id, fixture_set_version, fixture_set_content_hash}
-  covered_target_profile_refs[1..16]
-  covered_variant_tuples[1..4096]
-  analytic_invariant_refs[0..256]
-  visual_invariant_refs[0..256]
-  measurement_receipt_refs[0..256]
+  cases[1..4096]: ShaderBehaviorCoverageCaseV1
   coverage_content_hash: SHA-256
 
 ShaderBehaviorCoverageRefV1
@@ -376,17 +477,25 @@ ShaderBehaviorCoverageRefV1
   coverage_version: positive uint32
   coverage_content_hash: SHA-256
 
+ProjectShaderPassRefV1
+  technique_ref:
+    exact {technique_id, revision, technique_content_hash}
+  pass_id: StableId
+
+ProjectShaderResourceRefV1
+  technique_ref:
+    exact {technique_id, revision, technique_content_hash}
+  resource_id: StableId
+
 ShaderChangeImpactCoverageV1
   coverage_id: StableId
   coverage_version: positive uint32
   module_ref: exact ProjectShaderModuleRefV1
   dependency_graph_hash: SHA-256
-  required_module_refs[]
-  required_pass_refs[]
-  required_resource_refs[]
-  required_variant_tuples[]
-  required_target_profile_refs[]
-  required_fixture_refs[]
+  required_module_refs[0..1024]: ProjectShaderModuleRefV1
+  required_pass_refs[0..4096]: exact ProjectShaderPassRefV1
+  required_resource_refs[0..4096]: exact ProjectShaderResourceRefV1
+  required_case_keys[1..4096]: ShaderCoverageCaseKeyV1
   covered_behavior_ref: ShaderBehaviorCoverageRefV1
   coverage_content_hash: SHA-256
 
@@ -396,11 +505,14 @@ ShaderChangeImpactCoverageRefV1
   coverage_content_hash: SHA-256
 ```
 
-The required sets are derived from the exact canonical IR graph in `typed_ir` mode and from the declared／observed fact graph in `bounded_hlsl` mode. Coverage records do not grant authorization or promotion authority.
+The Module declares closed Variant Dimensions and `allowed_variant_tuples[]`; each tuple contains every declared Dimension exactly once, is strict-sort／unique, and has a `MIRAKAN_SHADER_VARIANT_TUPLE_V1` self-excluding length-framed hash. The required sets are derived from the exact canonical IR graph in `typed_ir` mode and from the declared／observed fact graph in `bounded_hlsl` mode. A behavior case covers only its exact Target／Variant／Fixture tuple; separate arrays never imply a Cartesian product. The compiled artifact, Fact Graph, runtime-use trace, and measurement receipt for that case carry the same exact Target／Variant ref. Case keys and all required reference arrays are strict-sort／unique. Every case's `variant_tuple_ref.module_ref` equals `ShaderBehaviorCoverageV1.module_ref`; `ShaderChangeImpactCoverageV1.module_ref` equals the module resolved by `covered_behavior_ref`; and `required_case_keys[]` must be an exact subset of passing cases in `covered_behavior_ref`. `ShaderBehaviorCoverageV1.coverage_content_hash` and `ShaderChangeImpactCoverageV1.coverage_content_hash` use their respective `MIRAKAN_SHADER_BEHAVIOR_COVERAGE_V1` and `MIRAKAN_SHADER_CHANGE_IMPACT_COVERAGE_V1` ASCII domains with self-excluding, length-framed canonical bytes. Coverage records do not grant authorization or promotion authority.
 
 `ShaderUnderstandingClosureV1` adds:
 
 ```text
+module_ref: exact ProjectShaderModuleRefV1
+fixture_set_ref:
+  exact {fixture_set_id, fixture_set_version, fixture_set_content_hash}
 understanding_mode: typed_ir | bounded_hlsl
 structural_authority:
   typed_ir_canonical | declared_and_observed_hlsl
@@ -409,6 +521,8 @@ change_impact_coverage_ref: ShaderChangeImpactCoverageRefV1
 review_requirement:
   engine_generated | code_owner_required
 ```
+
+The Closure module ref must occur exactly once in its input closure. Its behavior／change-impact coverage refs, the latter's covered-behavior ref, and its fixture-set ref must all resolve to the same Module／fixture set. Mode, structural authority, and review requirement are derived only from that Module's declared mode; cross-Module, cross-mode, or cross-fixture substitution is blocking.
 
 U-level interpretation becomes:
 
@@ -465,7 +579,8 @@ VisualStyleProfile
 typed_ir:
 TypedShaderIrV1 -> generated HLSL -> DXC -> reflection／artifact
         |                                |
-        +---------- exact match --------+
+        +-- source identity and mapped --+
+            compiled-interface agreement
 
 bounded_hlsl:
 Manifest + HLSL -> validator／DXC／reflection／fixtures
@@ -482,7 +597,7 @@ The following failures are blocking and source-preserving:
 - missing or stale ramp／role／outline profile;
 - unsupported Toon or outline Capability without qualified fallback;
 - non-finite, non-canonical, or invalid band thresholds;
-- Typed IR declaration versus generated HLSL／reflection mismatch;
+- Typed IR versus generated-source identity mismatch, or a mapped public compiled-interface mismatch;
 - handwritten changes to generated HLSL;
 - bounded HLSL missing Code Owner review;
 - stale behavior or change-impact coverage;
@@ -492,7 +607,7 @@ No failure silently changes dimension, shading model, style, outline technique, 
 
 ## 8. Canonical documents affected
 
-After this design is reviewed, the architecture correction is applied only to the following canonical documents:
+The architecture correction is reflected only in the following canonical documents:
 
 - `docs/architecture/03-authoring/project-state.md`
   - register World Space Profile references in the Project document model;
@@ -520,6 +635,8 @@ After this design is reviewed, the architecture correction is applied only to th
   - distinguish canonical structural coverage from empirical behavior coverage.
 - `docs/architecture/00-product/product-plan.md`
   - preserve Phase ordering while reflecting the corrected contracts.
+- `docs/architecture/04-runtime/performance-capacity.md`
+  - own the read-only Renderer／Lighting budget envelopes consumed by the corrected resolvers.
 
 No implementation plan is created as part of this correction.
 
@@ -535,12 +652,17 @@ The canonical-document update is complete only when:
 6. Visual Style references Toon／Outline profiles without owning Render passes;
 7. Project Shader distinguishes `typed_ir` and `bounded_hlsl`;
 8. DXC reflection is limited to observed compiler-interface evidence;
-9. U1／U4 completeness language is limited to canonical graphs and registered coverage;
-10. bounded HLSL always requires Code Owner review;
-11. no document claims that the design is implemented, activated, qualified, or Production-ready;
-12. all affected references, diagnostic ownership, Target fallback rules, and qualification fixtures are internally consistent;
-13. no compatibility migration or schema V2 is added before an actual persisted V1 implementation exists;
-14. no implementation plan or source-code task is created.
+9. every behavior-coverage record binds Target, Variant, Fixture, invariants, and measurements as one exact case rather than implying a Cartesian product;
+10. U1／U4 completeness language is limited to canonical graphs and registered coverage;
+11. bounded HLSL always requires Code Owner review;
+12. external-engine sources are comparison evidence only; no external API schema, serialized format, source code, shader text, or compatibility claim is adopted;
+13. no document claims that the design is implemented, activated, qualified, or Production-ready;
+14. all affected references, diagnostic ownership, Target fallback rules, and qualification fixtures are internally consistent;
+15. no compatibility migration or schema V2 is added before an actual persisted V1 implementation exists;
+16. no implementation plan or source-code task is created.
+17. every introduced Profile／Catalog／resolver input and diagnostic type has a concrete owner and schema rather than an unresolved reference;
+18. Outline compatibility, catalog qualification, input availability, AA／history, budget, disabled state, and diagnostic output are all explicit;
+19. a shader behavior case resolves a readable declared Variant tuple, and all coverage／closure refs bind to the same exact Module and fixture set.
 
 ## 10. Explicit non-goals
 
