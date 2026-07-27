@@ -57,6 +57,7 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 | `RuntimeEntryPresentationBindingDocumentV1` | world Runtime Entryと初期root UiDocumentのtarget-only exact binding | `binding_id`、document revision |
 | `GameSpecDocument` | Genreに依存しない要求、system、content、test、budget、style lock | `game_spec_id`、document revision |
 | `WorldDocument` | exact `WorldSpaceProfileRefV1`、Scene／optional spatial topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
+| `EnvironmentSurfaceDocumentV1` | Environment Profile、World binding、Weather／Water／Snow surface Source root | `document_id`、`source_revision` |
 | `SceneDocument` | collaborative edit shard identity、Shard index、global setting、Composition Recipe root。Gameplay LevelまたはStreaming Cellではない | `scene_id`、document revision |
 | `SceneEntityShardDocument` | 一つのSceneに属するbounded Entity record集合 | `shard_id`、document revision |
 | `WorldTopologyDocument` | Space、transition edge、optional activation entryの論理Graph | `topology_id`、document revision |
@@ -83,6 +84,8 @@ AI、Editor GUI、人間の手動編集、CLI、MCP、外部IDEは同じ`Project
 `ProjectManifest.runtime_entry_point_refs`は1～64件のexact `DocumentRef<RuntimeEntryPointDocumentV1>`を必須とし、各refの`stable_id`、`document_kind`、`schema_version`、`content_hash`をDocument indexと照合する。`RuntimeEntryPointV1.target_selector_ref`はexact `DocumentRef<RuntimeTargetSelectorDocumentV1>`、`activation_policy_ref`はexact `DocumentRef<RuntimeEntryActivationPolicyDocumentV1>`へ解決し、IDだけ、表示名、path、latest revisionを参照にしない。World Space Profileは[World](../06-rendering/world.md)の`WorldDocumentV1.world_space_profile_ref`にだけ保持し、Project ManifestまたはRuntime Entryへglobal／copied dimension fieldを追加しない。World、Scene、Topology、Stageを全Project共通の必須Documentにしない。owner-typed Pack DocumentはCoreのclosed `document_kind`へ追加せず、登録済みowner namespaceを持つ`DocumentRef`としてDocument indexへ投影する。
 
 target `ProjectManifest.runtime_entry_presentation_binding_refs`は0～64件のexact `DocumentRef<RuntimeEntryPresentationBindingDocumentV1>`であり、§3.1.1.1のatomic activation前はField自体をcurrent Manifest schemaへ追加せず、current集合をexact `[]`とする。
+
+`EnvironmentSurfaceDocumentV1`は[Environment／Water／Weather／Snow](../06-rendering/environment-surfaces.md)が所有するCore canonical Documentであり、owner-typed Pack Documentとして扱わない。WorldはEnvironment Profile本文または既定値を複製せず、`global_composition_refs[]`にexact `EnvironmentWorldBindingRefV1`を0件または1件だけ保持する。bindingの`world_id`、Environment Profile ref、Document hash、World側refを検証し、bindingの追加・変更・解除はEnvironment DocumentとWorld Documentを同じ`ProjectChangeSetV1`で原子的に更新する。
 
 ### 3.1.1 `RuntimeEntryPointV1`
 
@@ -814,7 +817,7 @@ Promotion signerはAI／Worker／Providerではなく、[AI Security／Approval]
 | Recipe | `InstantiateRecipe`、`ApplyRecipeUpdate`、`SetRecipeOverride` |
 | Gameplay／UI／Style | 各Subsystemが登録するtyped change primitive |
 | Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。`qualified` Contract／Staging hashだけ |
-| World／owner-typed content | Topology、Partition Intent、Procedural、Map Presentationと登録済みowner namespaceの各Domain typed change primitive |
+| World／Environment／owner-typed content | Topology、Partition Intent、Procedural、Map Presentation、Environment ownerが登録するclosed `EnvironmentChangePrimitiveV1`、登録済みowner namespaceの各Domain typed change primitive。`SetEnvironmentWorldBinding`はEnvironment DocumentとWorld Documentを同じChangeSetで変更 |
 | Asset | `RegisterAssetSource`、`SetImportField`、`ReplaceAssetSourceRevision` |
 | Native C++ | `RegisterNativeModuleRevision`。receipt-free `ProjectSourceRegistrationIntentRefV1`とCandidate Source revisionだけ。Promotionはlate authorization bindingで検証 |
 | Project Shader | `RegisterProjectShaderModuleRevision`、`RegisterProjectShaderTechniqueRevision`。receipt-free Registration Intent、Candidate Source revision、Technique／Port compatibility closureだけ。Promotion／Target別Buildはlate bindingで検証 |
@@ -865,7 +868,7 @@ Project root全体のPathと命名は[Game Project配置・命名規約](../02-f
 ├─ mirakan.project.json
 ├─ source/
 │  ├─ assets/                  # Source Assetとimport設定。AssetMetadataDocumentをAsset IDで併置
-│  ├─ worlds/                  # World／Scene／Topology／Partition Intent／Procedural World／Map Presentation
+│  ├─ worlds/                  # World／Scene／Topology／Partition Intent／Procedural World／Map Presentation／Environment
 │  ├─ gameplay/
 │  ├─ ui/
 │  ├─ localization/
@@ -891,6 +894,7 @@ Project root全体のPathと命名は[Game Project配置・命名規約](../02-f
 
 - `mirakan.project.json`とAuthoring MCDはUTF-8 without BOM、LF、重複key禁止、comments禁止、trailing comma禁止とする。
 - Scene sourceは`source/worlds/scenes/<scene_id>/scene.mirakan.json`と`source/worlds/scenes/<scene_id>/shards/<shard_id>.mirakan.json`へ置き、IDから決定論的にpathを導出する。表示名、cell名、Entity名をpathへ使わない。
+- Environment sourceは`source/worlds/environment/<document_id>/environment-surface.mirakan.json`へ置き、`document_id`から決定論的にpathを導出する。World ID、Profile名、表示名をpath identityへ使わない。
 - World、Topology、Partition Intent、Procedural World、Map Presentationも`source/worlds/`配下でStable IDから決定論的にpathを導出し、表示名、Region名、Target名をpath identityへ使わない。owner-typed Feature Documentは登録済みowner pathへ置き、Core World pathへ偽装しない。System Implementation Set、Visual Style、Target Profile、Decision、Test Scenarioも同じ規則で各directoryへ置く。
 - `.mirakan.json`は人間Diff用sourceであり、Runtimeは直接読まない。
 - journal、snapshot、transaction directoryの配置は本書が所有し、Git追跡・配布対象外の`intermediate/`配下へ置く。canonical stateはCommit済み`source/`のDocumentだけであり、journal／snapshotをcanonical sourceへ昇格しない。

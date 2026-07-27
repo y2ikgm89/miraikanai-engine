@@ -176,7 +176,7 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 
 | Group | C1 Panel |
 |---|---|
-| World | Scene／Canvas、Game、World Outline、Hierarchy／Outliner、Inspector、Topology Graph、Level Form、Streaming Inspector、Map Presentation Preview、Bundle Review |
+| World | Scene／Canvas、Game、World Outline、Hierarchy／Outliner、Inspector、Topology Graph、Level Form、Streaming Inspector、Map Presentation Preview、Environment、Bundle Review |
 | Content | Asset Browser、Import、Visual Style、Material |
 | Logic | Gameplay Definition Graph／Table／Form、UI Designer、Source |
 | Motion | Animation Timeline、Animation Graph |
@@ -196,7 +196,7 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 | role | 代表Panel | 基本構成と見分け方 |
 |---|---|---|
 | `tree_list` | Hierarchy／Outliner、Asset Browser、World Outline | hierarchyは`tree-view／tree-row`、Asset Browserのflat contentは`asset-view`の下でlist=`list-row`、tile=`asset-tile`、columns=`table-view／column-header／table-row`を使う。columnsはDataGrid conformanceがclosedになるまでCapabilityをactivateしない。いずれもrow／grid coordinateではなくStable IDを選択し、view／filter／sort後もselectionを維持する。validation rail、proposal dash、runtime badgeはselected fillの上へ重ねる |
-| `property_form` | Inspector、Import Inspector、Level Form | label・value/control・unit・field statusを同じbaselineに置く。mixedはem dash、unsetは明示`未設定`、read-onlyはlock＋reason、error／warningはfield左railとinline messageで表す。before／afterはfield単位のDiffへ遷移する |
+| `property_form` | Inspector、Import Inspector、Level Form、Environment | label・value/control・unit・field statusを同じbaselineに置く。mixedはem dash、unsetは明示`未設定`、read-onlyはlock＋reason、error／warningはfield左railとinline messageで表す。before／afterはfield単位のDiffへ遷移する |
 | `canvas` | Scene、Game、UI Designer、Map Presentation Preview | `surface.canvas`を背景にし、screen/world座標、camera、Target、`Source／Staging／Derived／Runtime`をcontext barへ固定表示する。selectionはblue outline、runtimeはcyan badge、gizmo／overlayはSceneの正規状態を直接書き換えない |
 | `graph_timeline` | Gameplay Definition Graph、Animation Graph、Animation Timeline、Debug Timeline | graphはnode・port・edge、timelineはtrack・time ruler・keyframeを別semantic roleにする。viewport外はLOD／queryで省略し、50k nodeを一枚のsemantic treeに展開しない。selection、playhead、recorded/current、gapを形状・labelでも区別する |
 | `diagnostics` | Problems、Console、Profiler、Build、Replay、Causality | severity rail＋icon＋message、対象Stable ref、recorded/current revision、timepoint、gap／redactionを一行で追跡できる。errorをAI proposalやselectionと同じviolet／blueにしない |
@@ -260,6 +260,17 @@ Level WorkspaceはWorld／Level／Map規約の同じSourceを次のProjectionで
 各ViewのContext barはProject revision、World／Scene／Level Stable ref、Target、lock、`Source | Staging | Derived read-only | Runtime`を常時表示し、Authoring規約の`AuthoringSelectionContextV1`とWorld規約の`WorldAuthoringContextV1`を同じContext hashで結ぶ。Scene／Outlinerは同じ`authoring_target`をStableIdで共有し、Graph／Form／Inspectorは§6.8のtyped channel、Panel binding、exact relationで関連付ける。一つのselectionへ統合せず、screen coordinate、表示row、同名Object、Hierarchy pathをtarget identityにしない。
 
 共有Sceneを複数Levelが参照する場合、編集の影響を受ける全LevelとTargetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、Level membership変更は別change primitiveとして明示する。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
+
+### 6.3.2 Environment Panel
+
+Environment Panelは[Environment／Water／Weather／Snow](../06-rendering/environment-surfaces.md)の`EnvironmentWorldBindingRefV1`と`EnvironmentProfileRefV1`を選択Worldへexact投影する。上部Context barはProject revision、World ref、binding ref、Profile ref、Target、quality tier、Source／Derived／Runtime状態を常時表示し、配列先頭、表示名、直前のEditor選択からProfileを推測しない。
+
+- 基本表示はIntent／Preset、World binding、visibility、time、cloud、cost、fallback、Diagnosticである。詳細表示は同じcanonical field refのAtmosphere、Height／Volumetric／Local Fog、IBLを追加するだけで、別の簡易設定や既定値を持たない。
+- fieldは`property-row@1`、Preset候補はStable ref付きbounded collection、before／afterはHistory／Diff、視覚結果はScene／Canvasの同じTarget／Profile revisionへ投影する。Panel内に第二のPreview state、Renderer settingまたはLight Sourceコピーを作らない。
+- Environment semantic actionは完全登録済みOperationへ解決できるActivation後だけenabledにする。Water、Weather、SnowのSource projectionは表示できるが、対応Owner familyが未登録の間は`capability_not_activated`理由付きread-only Gapであり、labelやcontrolからfuture Operationを生成しない。
+- Time-of-Dayがsun／moon変更を伴う場合はexact companion `ResolvedLightPlanRefV1`と同じrevision／World／Targetを表示する。Planがmissing／staleならEnvironmentだけのApplyをdisabledにし、質問またはLighting discoveryのActivation不足を示す。
+
+Environment PanelはC1 Panel catalog上の正式な情報設計だが、`fixture.editor.reference-01@1`のexact九Panel instanceへ追加せず、同fixtureの166 coverage entry、九Panel countまたはBaselineを変更しない。Capability activationと専用Reference fixtureはProduct／UI Ownerの別登録が成立するまで未materializedとする。
 
 ### 6.4 Source／Text／Diff
 
@@ -678,7 +689,7 @@ fixtureは三Itemを`pending=none`、`signed=none`から開始し、selection／
 | `Production` | 通常制作 | Scene／Canvas、Hierarchy／Outliner、Inspector、Asset Browser、Console、Build／Package、Animation Timeline、AI Partner |
 | `Level` | Level designer | World Outline、Scene／Canvas、Hierarchy／Outliner、Topology Graph、Level Form、Inspector、Streaming Inspector、Navigation、Physics／Collision、Map Presentation Preview、Bundle Review、AI Partner |
 | `Gameplay Logic` | Designer／Programmer | Gameplay Definition Graph／Table／Form、Source、Test／Playtest、Console、AI Partner |
-| `Rendering` | Technical artist | Scene／Canvas、Material、Visual Style、Render Graph、Profiler |
+| `Rendering` | Technical artist | Scene／Canvas、Material、Visual Style、Environment、Render Graph、Profiler |
 | `Animation` | Animator | Scene／Canvas、Animation Timeline、Animation Graph、Asset Browser、Inspector |
 | `UI` | UI designer | UI Designer、Hierarchy／Outliner、Inspector、Game |
 | `Debug` | Programmer／QA | Game、Session、Problems、Console、Profiler、Debug Timeline、Causality、Breakpoint／Watch、Replay、Reproduction、AI Partner |

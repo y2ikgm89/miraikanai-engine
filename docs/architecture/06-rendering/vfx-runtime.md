@@ -85,6 +85,7 @@ VfxBatchSnapshotV1
   cadence_profile_ref: SimulationCadenceProfileRefV1
   snapshot_simulation_advance_interval_hash: SHA-256
   snapshot_advance_sequence: positive u64
+  weather_presentation_snapshot_ref: nullable<WeatherPresentationSnapshotRefV1>
   cpu_draw_batches[]
   gpu_emitter_records[]
 
@@ -111,6 +112,8 @@ VfxGpuAdvanceRecordV1
 ```
 
 Batch SnapshotのProfile ref／snapshot interval hash／snapshot sequenceは、Snapshotをsealした最新`SimulationAdvanceIntervalV1`の同三値とbyte equalityにする。各`advance_records[]`は自身が表す個別IntervalのProfile ref／interval hash／sequenceとbyte equalityにし、Batchの最新hashを過去Recordへ複写しない。Parameter blocksは直近8 advanceの異なるrevisionをdeduplicateする。GPU Emitterは各advanceに1 recordを生成し、外部spawnと内部Event用quotaを同じProject admissionから予約する。IDは外部spawnを先、Sub-emitterを親Emitter ID／親Spawn ID／Event Node ID順に割り当て、unused IDを再利用しない。
+
+`weather_presentation_snapshot_ref`は[Environment／surfaces](environment-surfaces.md)が所有する同じpublished Environment generationのexact refである。Weather bindingが存在しない時はcanonical nullとし、直前frame、World名、Emitter名または既定天候から補完しない。VFX artifactでtyped Weather presentation inputを宣言したEmitterだけが解決先`WeatherPresentationSnapshotV1`を読み、降水量、温度、風向等をEmitter parameterへ再定義・複製しない。この入力は粒子表現専用であり、Gameplay、Snow accumulation、Water authorityへ逆流させない。
 
 Rendererは`last_consumed_advance_sequence`より新しいrecordだけをadvance sequence昇順に1 record＝1 Simulation Advanceとして処理する。`simulation_step_count`はV1で常に1であり、1以外の値をload時に拒否する。複数advanceの圧縮は将来versionで別途定義する。同じsnapshot再描画でsimulationを重ねず、複数recordを一frameで順次処理する。Paused中はrecordを生成しない。保持範囲を超えるgapはcatch-up dispatchせず、ambient／loopは最新advanceからvisual restart、one-shotは再発火せずDiagnosticを残す。
 
@@ -217,4 +220,4 @@ Runtime closed Diagnosticは`VfxBoundsEscape, VfxCollisionProxyOverflow, VfxInst
 
 CPU qualificationは1／255／256／257／8,192 particle、fixed rational 60/1および別rateでのrate／remainder／burst／loop／pause／drain／parameter／prewarm、lifetime境界、fixed seed 100 run、worker順変更、scalar／optimized一致、allocation 0、bounds、soakを含む。GPU qualificationはresource hazard、zero／capacity／capacity+1、counter wrap拒否、indirect draw、output golden、collision tolerance、Ready／Next非再入、surface／device recovery、LOD hysteresis、snapshot再描画、multi-record、1 render frame内の複数advance catch-upでもCPU／GPU Eventの次advance配送が一致するfixture、9-advance gapを含む。current pass対象は60/1だけで、別rate fixtureはFuture capability promotion時のdestination evidenceである。
 
-Water／Weather／Snow、Audio、Cameraとのintegrationは一つのauthoritative eventを各Presentation ownerへ独立配送し、VFX結果を逆入力しない。Resource、performance、fault結果は同一Target／Quality／Artifact hashへ結び、Evidence envelopeはAI Verification ownerへ委譲する。
+Water／Weather／Snow、Audio、Cameraとのintegrationは一つのauthoritative eventを各Presentation ownerへ独立配送する。Weather駆動表現はexact `WeatherPresentationSnapshotV1`を非authoritative入力として消費し、Snow／Water／Gameplayを進めるauthoritative eventまたは状態として扱わない。VFX結果を他Ownerへ逆入力しない。Resource、performance、fault結果は同一Target／Quality／Artifact hashへ結び、Evidence envelopeはAI Verification ownerへ委譲する。

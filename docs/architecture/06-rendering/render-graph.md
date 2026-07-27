@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、visibility／geometry execution、lighting pipeline profile、anti-aliasing／temporal execution、Renderer固有failure／qualification
 - 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. 結論と所有境界
@@ -31,6 +31,11 @@ ModuleはContracts、Render Extract、Graph Compiler、Resource Registry、Pipel
 | `ViewFamily` | frame | 本書§2.1の`RenderView`集合。同じsurface、render extent policy、AA plan、exposure familyを共有する |
 | `ResolvedMaterialBindingV1` | frame | [Materials](materials.md) §5。`CookedMaterialArtifact`とtyped instance bindingの解決結果 |
 | `LightSnapshotV1` | frame | [Lighting](lighting.md) §6。`ResolvedLightSet`の唯一のRenderer公開形で、`RenderSnapshot.light_snapshot`として受ける |
+| `EnvironmentPresentationSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Environment Profileと完成Artifact generationのprojection |
+| `WaterSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Water surface／underwater／query generationのprojection |
+| `WeatherPresentationSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §2.3。Weather Provider状態の非authoritative presentation projection |
+| `SnowSurfaceBatchV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Snow receiver／page／Material bindingのprojection |
+| `VfxBatchSnapshotV1` | frame | [VFX Runtime](vfx-runtime.md) §3。CPU draw batchとGPU emitter advanceのimmutable projection |
 | `ResolvedPostProcessPlanV1` | resolved | [Post Processing](post-processing.md)が解決したordered effect composition |
 | `ResolvedRepresentationSet` | frame | 本書のframe入力名。[LOD](lod.md)所有の`LodResolutionPlanV1`／`ViewLodContextV1`に基づくruntime選択結果（representationとtransition state）をViewFamilyごとに整列する |
 | `WorldRenderPacket` | frame | [World](world.md)のactive cell revisionから生成されたrenderable集合 |
@@ -60,16 +65,18 @@ RenderSnapshot
   renderable_2d[]
   renderable_3d[]
   light_snapshot: LightSnapshotV1
-  environment
-  water_batch[]
-  weather_presentation
-  snow_surface_batch[]
-  vfx_batch[]
+  environment: nullable<EnvironmentPresentationSnapshotV1>
+  water_snapshot: nullable<WaterSnapshotV1>
+  weather_presentation: nullable<WeatherPresentationSnapshotV1>
+  snow_surface_batch: nullable<SnowSurfaceBatchV1>
+  vfx_batch: nullable<VfxBatchSnapshotV1>
   ui_snapshot
   debug_batch
 ```
 
 Snapshotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のpublish contractで全体を一度だけpublish後immutableとする。先頭のCadence Profile ref、Interval hash、advance sequenceは同じpublish対象`SimulationAdvanceIntervalV1`とbyte equalityにし、Presentation側でrateまたはdurationを補完しない。Entity pointer、Component span、native Physics／GPU objectを含めず、ArrayはStable rendering keyでcanonical sortしworker completion順を保存しない。
+
+Environment bindingが存在する時、`environment`はnon-nullとし、その`weather_snapshot_ref`は`weather_presentation`のexact refとbyte equalityにする。Water／Snow／VFXをpublishする場合は各SnapshotのCadenceまたはWeather refを同じSimulation Advance／Environment generationへ束縛する。bindingまたは各Domain出力が存在しないFieldはcanonical nullであり、Rendererは配列先頭、直前frame、Source Profile、表示名からSnapshotや既定Environmentを補完しない。
 
 | `RenderView` field | 型／規則 |
 |---|---|

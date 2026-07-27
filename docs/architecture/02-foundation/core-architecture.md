@@ -46,7 +46,7 @@ Private platform and vendor adapters
 - Hostだけがconcrete Adapterを組み立てる。Domain codeはService Locatorやglobal mutable singletonでAdapterを探索しない。
 - Vendor型、native handle、allocator型を公開API、MCD、永続formatへ露出しない。
 - `EditorHost`はAuthoring状態、`GameHost`はCook済みRuntime状態、`WorkerHost`は隔離されたBuild／Import／Validation taskだけを扱う。
-- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。現在契約参照できる型付きIPC Operationは[Executable contracts](executable-contracts.md)の`active_complete` exact 10 IDだけであり、同節のconditional legacy migration 4 IDとreserved 191 IDはIPC／Provider／MCPへ投影しない。さらにcurrent Signer Policyがemptyな間は10件もoperationalではなく、Operation名、文書内template、未Activation候補からdispatchを推測しない。Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)に従う。
+- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。現在契約参照できる型付きIPC Operationは[Executable contracts](executable-contracts.md)の`active_complete` exact 10 IDだけであり、同節のconditional legacy migration 4 IDとreserved 192 IDはIPC／Provider／MCPへ投影しない。さらにcurrent Signer Policyがemptyな間は10件もoperationalではなく、Operation名、文書内template、未Activation候補からdispatchを推測しない。Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)に従う。
 
 ## 4. Authoring状態とRuntime状態
 
