@@ -242,14 +242,18 @@ Presentation childが`surface_unavailable`ならR00～R70をskipし、surface ge
 | 7 | `T70_PostPhysics` | contact／trigger配送、owner登録済みpost-physics authoritative Event／rule | owner-typed非構造fieldとcommand |
 | 8 | `T80_AnimationFinalize` | blend、IK、pose、boundsをauthoritative transformから確定 | Animation state |
 | 9 | `T90_PresentationBuild` | Audio、VFX、UI、camera向けbatchを生成 | Presentation buffer |
-| 10 | `T100_ReplayCheckpoint` | Input、accepted async result、state hash、checkpointを記録 | Replay stream |
-| 11 | `T110_Publish` | next-boundary commandをsealしimmutable snapshotをpublish | snapshot publish |
+| 10 | `T100_ReplayCheckpoint` | Input、accepted async result、state hash、checkpoint candidateをprivateに構築 | private Replay packet |
+| 11 | `T110_Publish` | next-boundary commandをsealし、immutable snapshotと対応Replay checkpointをpublish | snapshot／Replay publish |
 
 `TickPhaseId`のserialized値は順序に対応する`0x0000`～`0x000b`とする。`0xffff`はinvalidである。外部latch sourceは`InputDevice=0x0200`、`IoCompletion=0x0201`、`AudioCallback=0x0202`、`AssetWorker=0x0203`とする。追加、削除、順序変更、値変更はpublic behavior変更であり、ADR、schema migration、Replay fixture、全Domain conformanceを必要とする。
+
+T100のcheckpoint candidateはT110成功前にdurable Replay stream、Debug、Save、AIへ公開しない。T110前またはT110 validationでadvanceがfaultした場合はcandidateを破棄し、last published World refに束縛した別のtyped fault recordだけをReplay Evidenceへ追加する。fault recordを成功checkpoint、次advanceの開始state、publication generationの増加として扱わない。
 
 Perception pipelineはT30 candidate／query build、T50 query execution、T60 normalization／publishの三slotへ固定する。T30は直前にpublish済みのWorld／Perception snapshotだけを読み、T50のprivate結果を同じadvanceのGameplay判断へ戻さない。T60でpublishした`PerceptionSnapshotV1`は次advanceのT30から可視とし、query callback、worker完了順、Render visibilityからsame-advance feedback edgeを作らない。
 
 `StructuralCommand`は次boundary、`SimulationCommand<P>`は型が宣言するconsume phase、`PresentationCommand`はpresentation build前にseal済みなら同一advance、それ以外は次presentation frameへ送る。`AuthoringChangeSet`をRuntime advanceへ適用しない。任意phase名、同Subsystem同期再入、implicit last-write-winsを許可しない。
+
+advance `N`で生成したRuntime ECS structural deltaは`N`の`T110_Publish`までにimmutable batchへsealし、exact `requested_apply_advance_sequence=N+1`を持たせる。Orchestratorは`N+1`の`T00_BoundaryApply`でsource publication generationを再検査してECSへ一回だけcommitを要求する。`T110_Publish`は次回batchをlive Worldへ適用せず、`T00_BoundaryApply`は未seal、wrong generation、過去／飛越しadvance、同じlogical boundaryの別hashを受理しない。この二段階以外のphaseでstructural presenceを変更しない。
 
 Stage、UI、headless workflowを含むDomain間遷移のgeneric deliveryはRuntime ownerの次のregistered contractだけを使う。exact MCD refは`McdContractRefV1 {id=type.runtime.boundary_delivery, version=1, contract_set_hash}`であり、T40やLocomotion、World／spatial anchorを前提にしない。
 
@@ -729,11 +733,11 @@ Audio、VFX、camera、render occlusion、Presentation LODをGameplay authority�
 
 [Runtime ECS](entity-component-system.md)がEntity identity、Component storage、archetype layout、query selection、Component lease、access manifest、structural deltaとatomic commitを一意に所有する。本書はそれらのfield、chunk容量、row range、handle layoutを再定義しない。
 
-Runtime Orchestratorはmanifestに適合するcallbackを許可phaseへ配置し、callback終了後にsealed command／event／structural batchをcanonical boundaryへ渡す。ECSはbatchのpreflightとpublishを行い、Orchestratorはphase進行、DAG、fault遷移、callback lifetimeを所有する。parallel callbackはECS dispatch planが示す非重複selectionだけに限り、worker indexやcompletion順でmerge順を決めない。
+Runtime Orchestratorはmanifestに適合するcallbackを許可phaseへ配置し、callback終了後にcommand／event／structural deltaをprivate bufferへ集約し、T110までに次回boundary向けimmutable batchとしてsealする。次advanceのT00でECSはbatchのpreflightとprivate working Worldへのcommitを行い、T110で成功snapshotを外部publicationにする。Orchestratorはphase進行、DAG、fault遷移、callback lifetimeを所有する。parallel callbackはECS dispatch planが示す非重複selectionだけに限り、worker indexやcompletion順でmerge順を決めない。
 
 callback dispatch前に、query-plan scratch、selection mask、workerごとのcommand buffer、merge scratch、output packetをcapacity検査して予約する。各callbackへ渡す実行単位は、一つのchunk内のone contiguous row rangeと、manifestで宣言したcolumnだけである。callback中はgeneral heap allocation、upstream allocator fallback、shared ownership取得、container growthをすべて禁止する。予約capacityは[Runtime Package](runtime-package.md)のWorld planと[Memory／Pointers](../02-foundation/memory-pointers.md)の`MemoryContractV1`から導出し、いずれかが欠ける、または不足する場合はcallbackを一件も開始せずdispatchを拒否する。
 
-structural batchはbounded deltaとして受け取り、canonical sort／merge、全handle／lease／capacity検査を完了してから一度だけcommitする。stale handle、競合、またはcapacity不足で拒否した場合は、直前にpublish済みのWorld、location table、query cache、output packetを維持し、[Runtime ECS](entity-component-system.md)所有の診断を発行する。予約済みstructural capacityを超えた場合は`structural-capacity-exceeded`とし、別backendやgeneral heapで再試行しない。
+T00でstructural batchをbounded deltaとして受け取り、canonical sort／merge、全handle／lease／capacity検査を完了してから一度だけcommitする。stale handle、競合、またはcapacity不足で拒否した場合は、直前にpublish済みのWorld、location table、query cache、output packetを維持し、[Runtime ECS](entity-component-system.md)所有の診断を発行する。予約済みstructural capacityを超えた場合は`structural-capacity-exceeded`とし、別backendやgeneral heapで再試行しない。
 
 regular Component value writeはcallback／phase scope内だけで可視にし、Renderer、Audio、VFX、Debug、AI、Saveはseal済みsnapshot／publicationだけを読む。structural commit前のlocation、presence、new handleを外部へ公開しない。大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV2`、World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)を参照する。
 
@@ -790,7 +794,7 @@ queueのentry／arena capacity、critical reserve、overflow／drop／delay poli
 | Save failure | in-memory state変更なし | last valid target／backup／journalを検証 |
 | Scale plan failure | new plan非publish | Sourceとlast valid planを維持 |
 
-Gameplay evaluationはimmutable state view、private command buffer、state-delta journalを使う。Capability、state schema、command semantics、bounded executionを全て満たした場合だけ一transactionとしてsealする。失敗時はそのevaluationのunsealed outputを全破棄し、既に完了した前phaseの状態を暗黙rollbackしたように扱わない。
+Gameplay evaluationはimmutable state view、private command buffer、state-delta journalを使う。Capability、state schema、command semantics、bounded executionを全て満たした場合だけ一transactionとしてsealする。失敗時はそのevaluationのunsealed outputを全破棄し、既に完了した前phaseのstate-deltaを「rollback成功」と報告しない。faulted advanceのprivate working Worldは外部publicationにも別advanceの開始状態にも使わず、last published Worldをexternal authorityとして維持する。継続する場合は明示的なPlay restartまたはqualified checkpoint recoveryを必要とし、faulted working stateから暗黙継続しない。
 
 Domain Save Projection schemaとfile operationの構造は各Domain／Platform ownerが決定する。header、binding、bundle root、reader／writer atomicity、load validationは[Persistence／Save](persistence-save.md)が所有する。Schedulerはreceipt-free Projection base recordへHeader／Bindingを埋め込まず、sealed Profile／Intervalとstate-owner projectionを渡すだけである。
 

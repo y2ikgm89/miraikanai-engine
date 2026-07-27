@@ -284,7 +284,8 @@ load中のimage、decoded record、reservationはstagingだけに存在する。
 RuntimeWorldSectionPublicationSetV1
   publication_set_version: 1
   world_instance_handle: RuntimeWorldInstanceHandle
-  expected_world_publication_generation: positive uint64
+  expected_world_epoch: positive uint64
+  expected_source_world_publication_generation: uint64
   section_add_refs[0..4096]: RuntimeWorldSectionImageRefV1
   section_remove_ids[0..4096]: StableId
   capacity_record_ref: RuntimeWorldCapacityRecordRefV1
@@ -293,7 +294,7 @@ RuntimeWorldSectionPublicationSetV1
   publication_hash: SHA-256
 ```
 
-section add／removeはRuntime ECS structural transactionと同じpublication boundaryへ参加する。addはentity record、dependency、reservation、identityを先にvalidateし、removeはunload policy、outstanding lease、persistent handoff、external consumer snapshotをvalidateする。全件が成功した時だけsection membershipとWorld publication generationを更新する。
+section add／removeはRuntime ECS structural transactionと同じseal／apply boundaryへ参加する。addはentity record、dependency、reservation、identityを先にvalidateし、removeはunload policy、outstanding lease、persistent handoff、external consumer snapshotをvalidateする。recordはT110までにsealし、指定された次のT00でstructural batchと同じprivate working Worldへatomicにapplyする。T00成功だけではexternal section membershipまたはWorld publication generationを更新せず、Simulation Advance全体が成功したT110 publicationで初めて両方を可視化する。T00後のphaseがfaultした場合はworking section setをpublish／再利用せず、last-valid section publicationを維持する。
 
 Package loaderはvalue writeを観測せず、ECSはdirectory offsetやartifact storeを観測しない。section publicationが失敗した場合、旧section setと旧publication generationを保持する。
 

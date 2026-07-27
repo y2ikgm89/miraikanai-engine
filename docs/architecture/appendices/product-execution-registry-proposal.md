@@ -1055,6 +1055,8 @@ This subsection is a closed projection of an unmaterialized, unapproved, and una
 
 Headless Phase 0 GateはWindows、Android、Apple qualificationを代用しない。各Targetはfull 12,600-second fixtureを`policy.evidence.target-device.v1`で再実行する。
 
+各E7 rerunはartifact Targetだけでなく、exact Target Profile content hash、device identity／hardware profile、OS image、driver／runtime package、Toolchain lock、Contract Set、fixture、input trace、initial absolute threshold set、campaign hashを一つのEvidence subjectへ束縛する。Editor execution Host、別Target、同family device、characterization result、Shooter ReceiptをTarget runtime Receiptへ読み替えない。いずれかが未materializeまたはstaleなら該当E7 Capabilityを`not_activated`に保つ。
+
 destinationにおける`requirement.foundation.memory-pointer-contract`のdefinition closureはexactly次の4 Typeである。
 
 ```text
@@ -1071,7 +1073,7 @@ the exact four-Type definition closure [PointerContractV1, MemoryContractV1, Poi
 
 Owner-reference migrationは`wp.runtime.ecs-e0`、`wp.runtime.ecs-e1-storage`、`wp.runtime.ecs-e2-query-mutation`の`owner_document_id`だけを`mirakan.arch.runtime-scheduling-lifetime`から`mirakan.arch.runtime-entity-component-system`へ置換する。`wp.foundation.memory-pointers`、`wp.runtime.scheduling-core`、依存chainは変更しない。
 
-destination Requirementはfixture Componentのaccepted `RuntimeComponentLayoutPolicyV1` record、`ecs_chunk_soa_v1`を使う一つの`RuntimeArchetypeLayoutPlanV1`、query／lease／structural contract、全35 mandatory metric ID、全hard predicate、同一Candidateに束縛した8192／16384／32768-byte characterization、Shipping AoS／sparse-set／object graph／general-heap fallback 0を要求する。
+destination Requirementはfixture Componentのaccepted `RuntimeComponentLayoutPolicyV1` record、`ecs_chunk_soa_v1`を使う一つの`RuntimeArchetypeLayoutPlanV1`、query／lease／structural contract、全35 mandatory metric ID、全hard predicate、Target別`RuntimeEcsInitialAcceptanceThresholdSetV1`、同一Candidateに束縛した8192／16384／32768-byte characterization、Shipping AoS／sparse-set／object graph／general-heap fallback 0を要求する。
 
 | Work Package | Added completion responsibility |
 |---|---|
@@ -1087,7 +1089,7 @@ destination `ProductRiskRegistryV1`には次の一行を追加する。risk row�
 
 | risk_id | owner_document_id | affected_work_package_refs[] | trigger | likelihood | impact | mitigation | contingency | monitor_gate_refs[] | genesis_state | revisit_gate_or_date |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `risk.product.ecs-data-oriented-regression` | `mirakan.arch.runtime-entity-component-system` | `wp.foundation.memory-pointers; wp.runtime.scheduling-core; wp.runtime.ecs-e0; wp.runtime.ecs-e1-storage; wp.runtime.ecs-e2-query-mutation` | missing layout policy、dual Shipping layout、hot callback allocation／fallback、unbounded archetype growth、missing campaign cell／metric, or wrong-Target Receipt substitution | `high` | `critical` | require the destination Phase 0 Gate、complete campaign、hard predicates, and fresh Target-specific reruns | reject the affected ECS Work Package transition and dependent Runtime activation; retain the last qualified layout without an alternate Shipping fallback | `gate.product.phase-0-ecs-data-oriented-core` | `open` | `{kind=phase_gate, ref=gate.product.phase-0-ecs-data-oriented-core}` |
+| `risk.product.ecs-data-oriented-regression` | `mirakan.arch.product-plan` | `wp.foundation.memory-pointers; wp.runtime.scheduling-core; wp.runtime.ecs-e0; wp.runtime.ecs-e1-storage; wp.runtime.ecs-e2-query-mutation` | missing layout policy、dual Shipping layout、hot callback allocation／fallback、unbounded archetype growth、missing campaign cell／metric, or wrong-Target Receipt substitution | `high` | `critical` | require the destination Phase 0 Gate、complete campaign、hard predicates, and fresh Target-specific reruns | reject the affected ECS Work Package transition and dependent Runtime activation; retain the last qualified layout without an alternate Shipping fallback | `gate.product.phase-0-ecs-data-oriented-core` | `open` | `{kind=phase_gate, ref=gate.product.phase-0-ecs-data-oriented-core}` |
 
 ```text
 diagnostic.product.ecs-target-receipt-mismatch

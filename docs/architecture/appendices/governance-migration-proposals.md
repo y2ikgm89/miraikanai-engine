@@ -9,7 +9,7 @@
 - 正本範囲: Definition移管bindingとRuntime ECS Owner移管ChangeSetの未承認候補
 - 非正本範囲: Governanceの安定規則、Compatibility policy、Runtime ECS semantics、実装Task、実装順序、生成済みArtifactまたは承認結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
+- 関連文書: [Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)
 - 根拠区分: project-decision／provisional。本文の型、ChangeSet、Binding、Evidence集合はRepository Artifactが存在しない設計候補
 - 外部根拠確認日: none
 
@@ -106,6 +106,7 @@ RuntimeEcsCanonicalizationChangeSetV1
 - complete Owner Reference Migration Manifest。
 - 全Evidence Requirementのpass satisfaction binding。
 - Definition Migration Bindingと独立したArchitecture Approval。
+- [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)のcurrent化必須`open-blocker`が0件で、同Reviewが要求するmachine-readable Schema、canonical encoding、hash golden vector、cross-owner正逆参照がtarget Foundation Definition Closureへ含まれること。
 
 `applied`になる前は、`owner.core.runtime_ecs` revision 1と[Gameplay programming model](../03-authoring/gameplay-programming-model.md)がcurrent authorityである。[Runtime ECS](../04-runtime/entity-component-system.md)はtarget Ownerであり、文書の存在を実装、登録または移管完了と解釈しない。
 
@@ -121,6 +122,7 @@ RuntimeEcsCanonicalizationChangeSetV1
 | Owner Reference Migration Manifest | source Closureがない | `absent` |
 | Product active Definition anchors | 完成Definition Artifactがない | `absent` |
 | Evidence fulfillment／Architecture Approval | trusted ReceiptとApproval refがない | `absent` |
+| Runtime ECS design closure | Closure registerは存在するがcurrent化必須`open-blocker`が残る | `incomplete` |
 | Definition Migration Binding／Architecture ChangeSet | 上記入力が不足 | 発行禁止、`contract_activation_effect=none` |
 
 このsnapshotは実装Task、担当、見積りまたは作業順序を定義しない。外部consumerが存在しないことも証明しない。Consumer調査が必要になった場合は、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のauthority profile、snapshot、receipt境界を使用する。

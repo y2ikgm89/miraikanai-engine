@@ -308,7 +308,10 @@ Discovered
 | `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
 | `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV2`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
 | `read_component_set` | `RuntimeComponentAccessManifestV1`のread setかつcallbackのquery dispatch selectionに一致するsubset |
-| `write_state_set` | GameplayState field subset |
+| `write_component_set` | `RuntimeComponentAccessManifestV1`のwrite setかつcallbackのquery dispatch selectionに一致するsubset |
+| `structural_permission_set` | Manifestのoperation kind、target Component／transition、template、apply boundary、count／byte budgetに一致するsubset |
+| `read_state_set` | `GameSystemSpecV2`とstate store bindingが許可するGameplayState field subset |
+| `write_state_set` | `GameSystemSpecV2`のexact active State ownerに属するGameplayState field subset |
 | `command_set`／`event_set` | 生成可能な型のsubset |
 | `max_instances` | finite hard bound |
 | `scratch_bytes` | phaseごとのhard bound |
@@ -317,9 +320,9 @@ Discovered
 | `state_owner_set_hash` | Specのowned State Type集合と一致 |
 | `invoke` | generated no-throw trampoline |
 
-`GameSystemSpecV2.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、Manifest、descriptorの写像不一致をLoad時にModule全体の登録失敗とし、より強いauthorityへ暗黙昇格しない。
+`GameSystemSpecV2.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、ECS Manifest、generated implementation binding、descriptorのread Component、write Component、structural permission、read／write State集合を正逆方向に検査し、descriptorがManifest権限を拡張する場合だけでなく、generated bindingが要求するaccessをdescriptorが欠落させる場合もLoad時にModule全体の登録失敗とする。より強いauthorityへの暗黙昇格、State writeをComponent writeとして代用すること、structural permissionを汎用commandとして代用することを禁止する。
 
-Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはstep sequence、exact Cadence Profile identity、closed cadence branch input、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。authoritative runtime state／Command／Event publicationはcallback成功後だけRuntime規約のcanonical merge順で行い、Worldを持たないUI-only／headless branchにも同じ規則を適用する。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
+Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component read／write access、structural permission、State read／write access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはstep sequence、exact Cadence Profile identity、closed cadence branch input、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。authoritative runtime state／Command／Event publicationはcallback成功後だけRuntime規約のcanonical merge順で行い、Worldを持たないUI-only／headless branchにも同じ規則を適用する。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
 
 旧`fixed_delta_numerator／fixed_delta_denominator` Fieldはtarget `MirakanNativeInvokeContextV1`へ含めない。ABI freeze前のClock／Cadence TaskはSource／descriptor／Replay／fixtureを`MirakanNativeCadenceInputV1`へ同時更新し、reference default `60/1 Hz`をProfile instanceとしてだけ検証する。旧Fieldを互換alias、全Game System、UI-only、headless、将来Cadenceの恒久前提として残さない。
 
@@ -575,7 +578,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - createからdestroyまで各transitionへfailure injectionし、callback／job／allocationが残らない。
 - phase外write、未宣言Component、invalid handle、queue overflowを拒否する。
 - Definition実装とNative実装でcommand、event、Save、replay意味が一致する。
-- Native descriptorのSystem ID、Contract version、Variant、State owner、phase、accessがactive Game System Graphと一致しない場合にloadを拒否する。
+- Native descriptorのSystem ID、Contract version、Variant、State owner、phase、Component read／write、structural permission、State read／write accessがactive Game System Graphと一致しない場合にloadを拒否する。
 - Cadence ABIはScheduling Ownerがsealした四branchの`SimulationAdvanceIntervalV1`から全Fieldをdirect projectionする。variableのmonotonic sample sequence、turn-basedのCommand Ref／hash、explicit-stepのrequest Ref／hash／ordinal、Type version／Contract set hashの一Fieldだけを差し替えたfixture、旧`accepted_advance_sequence`／`accepted_step_request_sequence`を持つfixture、Ref spanをcallback後へ保持するfixtureを拒否し、Native callbackを呼ばない。
 - Target-specialized Variantが同じPublic System ContractとGameplay fidelity fixtureを通り、意味同等fallbackなしのTargetを非対応にする。
 - Governance authorization後Project Commit失敗時に新Variantをloadせず、直前Qualified Variantを維持する。
