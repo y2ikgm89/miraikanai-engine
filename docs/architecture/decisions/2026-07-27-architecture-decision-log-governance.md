@@ -98,8 +98,7 @@ Decisionは簡潔、断定的、対象判断に限定した記述とする。詳
 |---|---|---|
 | `mirakan.decision.architecture-document-system-restructure` | Accepted相当 | 本文を変更・削除しない。旧形式のAccepted履歴として保持する |
 | `mirakan.decision.runtime-ecs-contract` | Proposed相当 | 現行Schema・固定値をOwnerへ一意化し、採用理由とConsequencesへ縮約する |
-| `mirakan.decision.ai-asset-memory-async-alignment` | Proposed相当 | Cross-ownerの判断と境界だけを残し、詳細Contractを各Ownerへ一意化する |
-| `mirakan.decision.simulation-cadence-high-refresh-strategy` | Proposed相当 | Cadence採用原則と比較案だけを残し、Profile・固定値・Gateを各Ownerへ一意化する |
+| `mirakan.decision.architecture-decision-log-governance` | Proposed相当 | 本Decisionの承認とmigration完了を同じReview closureで確認してAccepted相当へ遷移する |
 
 Proposed Decisionの整理はAccepted前のReview修正として行う。Accepted Decisionの形式を揃えるためだけの書換えや削除は行わない。
 
@@ -125,7 +124,7 @@ Proposed Decisionの整理はAccepted前のReview修正として行う。Accepte
 1. [Architecture Governance](../01-governance/architecture-governance.md)へDecision Logの責務、Lifecycle、不変性、Owner文書との分離規則を追加する。
 2. `docs/architecture/decisions/README.md`を追加し、汎用template、Status、Decision一覧を定義する。
 3. Root [Architecture Index](../README.md)で現行仕様一覧とDecision Logを明示的に分離する。
-4. Proposed相当の既存Decision三件を汎用形式へ整理し、Owner文書と重複するSchema、固定値、実装詳細を除く。
+4. Proposed相当のRuntime ECS Decisionを汎用形式へ整理し、Owner文書と重複するSchema、固定値、実装詳細を除く。
 5. DecisionへのHeader dependencyをReviewし、current Contract authorityとして使っている箇所はDomain OwnerまたはGovernance Ownerへ付け替える。
 6. 判断理由として必要なDecision Linkは本文のinformative referenceとして保持する。
 7. Accepted相当の既存Decision本文を変更せず、全Link、Status、文書ID、正本範囲を検証する。
