@@ -522,7 +522,7 @@ Package root hashはhash fieldをzero化したHeader、block hash table、canoni
 Package assemblyはImportの後段であり、この文書が唯一所有する。
 
 1. Commit済みProject revisionとTarget Profileを固定する。
-2. `ProjectManifest.runtime_entry_point_refs`からTarget別に選択したexact Runtime Entryを解決し、その`world_ref`／`ui_document_ref`／`startup_game_system_refs`のtransitive Source closure、always-loaded resource、Content GroupからAsset rootを列挙する。単数Root Scene、表示名、path、`latest`をcurrent reachability rootにしない。
+2. `ProjectManifest.runtime_entry_point_refs`からTarget別に選択したexact Runtime Entryを解決し、その`world_ref`／`ui_document_ref`／`startup_game_system_refs`のtransitive Source closure、always-loaded resource、Content GroupからAsset rootを列挙する。[Project State](project-state.md) §3.1.1.1のatomic activation後にworld entryがexact `RuntimeEntryPresentationBindingV1`を持つ場合だけ、その`root_ui_document_ref`とtransitive UI dependency closureも同じreachability rootへ追加する。current Binding集合はexact `[]`であり、V1 `world.ui_document_ref=null`を緩和、UiDocument名／HUD roleからBindingを推測、Bindingだけを先行使用しない。単数Root Scene、表示名、path、`latest`をcurrent reachability rootにしない。
 3. Hard dependency closureを解決し、missing、cycle、Target不一致を拒否する。
 4. Artifact hashとLicense／Provenance／Safety Receiptを照合する。
 5. Content Groupごとにcanonical artifact subject／role順で配置する。asset subject以外のpayload layoutをここで再定義しない。

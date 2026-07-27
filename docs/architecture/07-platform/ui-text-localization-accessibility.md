@@ -2,9 +2,9 @@
 
 - 文書ID: mirakan.arch.platform-ui-text-localization-accessibility
 - 状態: review
-- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Text storage／input／layout、Game／Editor Localization Catalog schema・BCP 47・fallback、glyph cache、Accessibility、Player Profile／Settings transaction／Save Catalog、UI authoring、UI固有capacity／failure／qualification
+- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Screen definition／instance／Stack／navigation、Text storage／input／layout、Game／Editor Localization Catalog schema・BCP 47・fallback、glyph cache、Accessibility、Player Profile／Settings transaction／Save Catalog、UI authoring、UI固有capacity／failure／qualification
 - 非正本範囲: Project ChangeSet／Asset lifecycle、Gameplay Save payload、common Renderer execution、Runtime phase／shared budget、Editor shell／workspace、Account credential、telemetry／AI／network consent、Platform lifecycle／safe-area source、external library version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. 結論
@@ -83,10 +83,11 @@ UiDocument
   font_set_refs[]
   localization_namespace
   view_model_schema_id
+  screen_navigation_policy_ref
   nodes[]
 ```
 
-1 Documentはnode最大65,535、tree depth最大64、一Nodeの直接child最大4096とする。Source Node IDは基盤規約どおりUUIDv7 `StableId`で、表示名やarray indexをidentityに使わない。Parent cycle、missing root、duplicate ID、orphan nodeをCookで拒否する。
+1 Documentはnode最大65,535、tree depth最大64、一Nodeの直接child最大4096とする。Source Node IDは基盤規約どおりUUIDv7 `StableId`で、表示名やarray indexをidentityに使わない。Parent cycle、missing root、duplicate ID、orphan nodeをCookで拒否する。`screen_navigation_policy_ref`は§8.2のexact `UiScreenNavigationPolicyV1` ref／hashへ解決し、未指定default、Document名、Widget構造からback／modal／duplicate policyを推測しない。
 
 ### 4.2 `UiNode`
 
@@ -294,6 +295,108 @@ Two-wayはViewModel memoryへ直接writeせず、typed `UiCommand`／`SettingCha
 ### 8.2 Screen state
 
 Focus、scroll、selection、expanded、text draft等のpresentation stateは`UiStateStore`がScreen instance IDごとに所有する。Persistent Game stateやSaveが必要な値はUiCommandでGameplay／Setting Storeへ移す。Widget object layoutをSaveへserializeしない。
+
+Screen identity、Stack、navigationは次のclosed contractを使う。
+
+```text
+UiScreenNavigationPolicyV1
+  policy_id: StableId
+  policy_version: positive uint32
+  allowed_placements[1..3]: entry_root | overlay | modal
+  duplicate_policy: reject | focus_existing | replace_existing
+  back_policy: reject | pop | emit_registered_command
+  back_command_id: UiCommandId | null
+  focus_restore_policy: previous_instance | nearest_scope | root_default
+  maximum_instances_per_definition: uint16[1..32]
+  policy_content_hash: SHA-256
+
+UiScreenNavigationPolicyRefV1
+  policy_id: StableId
+  policy_version: positive uint32
+  policy_content_hash: SHA-256
+
+UiScreenDefinitionV1
+  screen_definition_id: StableId
+  definition_version: positive uint32
+  ui_document_ref: exact UiDocumentRef
+  ui_document_content_hash: SHA-256
+  navigation_policy_ref: UiScreenNavigationPolicyRefV1
+  navigation_policy_content_hash: SHA-256
+  definition_content_hash: SHA-256
+
+UiScreenDefinitionRefV1
+  screen_definition_id: StableId
+  definition_version: positive uint32
+  definition_content_hash: SHA-256
+
+UiScreenInstanceRefV1
+  ui_session_id: StableId
+  screen_stack_id: StableId
+  screen_instance_id: StableId
+  instance_generation: positive uint64
+
+UiFocusContextRefV1
+  screen_instance_ref: UiScreenInstanceRefV1
+  document_generation: positive uint64
+  focus_scope_node_id: StableId
+  focused_node_id: StableId | null
+  focus_context_hash: SHA-256
+
+UiScreenStackStateV1
+  ui_session_id: StableId
+  runtime_entry_ref: DocumentRef<RuntimeEntryPointDocumentV1>
+  runtime_entry_semantic_hash: RuntimeEntryPointSemanticHashV1
+  runtime_entry_branch_generation: positive uint64
+  screen_stack_id: StableId
+  stack_generation: positive uint64
+  screen_instances[1..32]:
+    instance_ref: UiScreenInstanceRefV1
+    definition_ref: UiScreenDefinitionRefV1
+    placement: entry_root | overlay | modal
+    focus_context_ref: UiFocusContextRefV1 | null
+  stack_state_hash: SHA-256
+
+UiScreenNavigationRequestV1
+  request_id: StableId
+  idempotency_key: StableId
+  screen_stack_id: StableId
+  expected_runtime_entry_branch_generation: positive uint64
+  expected_stack_generation: positive uint64
+  action: push | pop | replace | present_modal | dismiss_modal
+  destination_screen_definition_ref: UiScreenDefinitionRefV1 | null
+  trigger_ref: exact typed Input Action | UiCommand | accessibility action ref
+  requested_apply_advance_sequence: uint64
+  precondition_snapshot_hash: SHA-256
+  request_content_hash: SHA-256
+
+UiScreenNavigationResultV1
+  request_id: StableId
+  request_content_hash: SHA-256
+  outcome: committed | rejected
+  runtime_entry_branch_generation: positive uint64
+  previous_stack_generation: positive uint64
+  resulting_stack_generation: positive uint64 | null
+  applied_runtime_time_ref: RuntimeTimeRefV1 | null
+  diagnostic_refs[0..64]
+  result_content_hash: SHA-256
+
+UiScreenNavigationResultRefV1
+  request_id: StableId
+  request_content_hash: SHA-256
+  result_content_hash: SHA-256
+```
+
+`UiScreenDefinitionV1`はexact UiDocumentとNavigation PolicyからCookするimmutable runtime definitionであり、Document Stable ID、display label、Widget pathのいずれかだけで再解決しない。`entry_kind=ui`のProject Runtime Entryは自身のexact `ui_document_ref`から初期`entry_root` Screenを一件だけ作る。`world` entryはV1の`ui_document_ref=null`を維持し、Project State §3.1.1.1のatomic activation後にexact `RuntimeEntryPresentationBindingV1`がある場合だけ、その`root_ui_document_ref`からHUD等のrootを作る。Bindingなしworldと`headless`はScreen Stackを作らない。初期rootは`pop`／`dismiss_modal`できず、Runtime Entry replacementだけがrootを含むUI Sessionをteardownできる。
+
+Policyの`allowed_placements[]`はenum ordinal順のsorted uniqueとし、`back_policy=emit_registered_command`だけがexact registered `back_command_id`を必須、他二branchはnullにする。Policy、Definition、Stack state、Navigation Request／Resultの各content hashはASCII `MIRAKAN_UI_SCREEN_NAVIGATION_POLICY_V1`、`MIRAKAN_UI_SCREEN_DEFINITION_V1`、`MIRAKAN_UI_SCREEN_STACK_STATE_V1`、`MIRAKAN_UI_SCREEN_NAVIGATION_REQUEST_V1`、`MIRAKAN_UI_SCREEN_NAVIGATION_RESULT_V1`と、それぞれ自身のhash Fieldを除くMCD canonical bytesをlength framingして計算する。Resultの`outcome=committed`だけが`resulting_stack_generation=previous+1`とapply Runtime timeをpresentにし、`rejected`は両Fieldをnullにする。
+
+`push | replace | present_modal`はdestination definitionをexact一件、`pop | dismiss_modal`はnullだけ受理する。`present_modal`のdestination policyは`modal`を許可し、`dismiss_modal`はtopがmodalの場合だけ受理する。`push`は`overlay`、`replace`はtopがroot以外でdestinationが`overlay | modal`のpolicyと一致する場合だけ許可する。entry rootのreplace／pop／dismissを禁止する。duplicate、maximum instance、back、Focus復旧はdestination／current definitionのexact policyで決定し、登録順や画面名で補正しない。
+
+Navigation requestは[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)の`BoundaryDeliveryContractV1`を通して次のeligible `T00_BoundaryApply`でexactly once適用し、成功時だけ`stack_generation`をexact +1する。同じidempotency key＋同じhashは同じ結果、別hashはconflictである。stale Runtime Entry／Stack generation、unknown definition、policy違反、Focus Context不一致ではStackと`UiStateStore`を変更しない。C1 Screen navigationはcancel requestを持たず、未適用requestを別操作で成功扱いまたは破棄済みに書き換えない。成功時はremoved instanceのpointer capture／IME compositionをcancelし、§9.2のpolicyでFocusを復旧する。
+
+TitleのPlay／Continue、ResultのReturn Title等はregistered `UiCommandId`を発行するだけである。authorized game logic／orchestratorがcommandをexact Runtime Entry refまたはSave bundle refへ解決し、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)の`RuntimeEntryTransitionPortV1`へ提出する。UI RuntimeがWorld／Stage／Saveを直接変更したり、button labelからdestinationを推測したりしない。mouse、keyboard、controller、touch、screen reader、AI testは同じ`UiScreenNavigationRequestV1`または`UiCommandId`へ収束する。
+
+本節のScreen／Stack型と`UiDocument.screen_navigation_policy_ref`はtarget review definitionであり、current UI authoring Operation、MCD Contract Set、Runtime Port、Service／Provider／MCP inventoryを追加またはactivateしない。既存UiDocumentのcurrent readerへFieldを部分追加せず、Project ownerのPresentation Binding、Runtime Entry Package／transition、Consumer Inventory、Compatibility Change、source／target Definition Closure、Definition Migration、qualificationが揃うatomic activationだけがschemaとreader／writerを同時に切り替えられる。
 
 ## 9. Event、Hit Test、Focus
 
@@ -623,7 +726,7 @@ SettingsCatalogCommitMarkerV1
   save_catalog_checksum
 ```
 
-`settings_catalog_commit_marker_ref`と`settings_catalog_commit_marker_generation`の対が`LocalPlayerProfileV1`の唯一のactive read rootである。Profileはこのmarkerから`SettingsDocumentV1`と`SaveCatalogV1`のpayload referenceを解決し、Settings／Catalog direct refsを独立active rootとして読まない。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、marker経由で解決したSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
+`settings_catalog_commit_marker_ref`と`settings_catalog_commit_marker_generation`の対が`LocalPlayerProfileV1`の唯一のactive read rootである。current Profileはこのmarkerから`SettingsDocumentV1`と`SaveCatalogV1`のpayload referenceを解決し、target V2 migration後は同じ一markerからSettingsとexact `SaveCatalogV2`だけを解決する。V1／V2 CatalogまたはSettings／Catalog direct refsを独立active rootとして混在して読まない。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、marker経由で解決したSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
 
 Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変更せずProfile scopeのoverrideだけを保存する。有効値は`Project defaults -> Target supported range -> User override`の順で解決する。未対応値を近似せず、該当field pathとTarget capabilityを含むtyped rejectionを返す。旧schemaは登録済み一方向Migrationを通す。future schema、hash不一致、参照欠落ではSettingsDocumentを上書きせず、検証済みactive marker pairを維持する。有効なpairがまだないbootstrap時だけ、後述のPackage default Settings＋空Catalog pairからSafe Modeを再構築する。
 
@@ -658,9 +761,27 @@ SaveCatalogV1
     content_package_set_ref
     checksum
     status
+
+SaveCatalogV2
+  save_catalog_id
+  catalog_schema_version: 2
+  profile_ref
+  generation
+  content_package_set_ref
+  checksum
+  slots[]
+    slot_id
+    display_metadata
+    save_schema_version
+    runtime_session_save_bundle_ref: RuntimeSessionSaveBundleRefV1
+    content_package_set_ref
+    checksum
+    status
 ```
 
-`SaveCatalogV1`はslot display metadata、generation、schema、content package set、checksum、statusを持つ。native path、pointer、runtime handle、localized display textを永続identityにしない。Save payloadの形式とatomicityはRuntime／Platform正本へ従う。
+current `SaveCatalogV1`はslot display metadata、generation、schema、content package set、checksum、statusだけを持ち、exact Save payload rootを持たないため、deterministic Continueの正本にできない。target `SaveCatalogV2.runtime_session_save_bundle_ref`だけが[Persistence／Save](../04-runtime/persistence-save.md)のimmutable bundle ID／version／content hashへ解決し、`checksum`は保存transport bytesのintegrityを検査する。両者を同一視せず、slot label、timestamp、進捗表示、native path、pointer、runtime handle、localized display textからSave payloadまたはRuntime Entryを推測しない。Save payloadの形式とatomicityはRuntime／Platform正本へ従う。
+
+V1→V2はProfileの`SettingsCatalogCommitMarkerV1`だけを部分更新せず、Settings payload、Catalog V2 payload、全slotのBundle ref、checksum、marker、Profile active root、reader／writerを一つのCompatibility／Definition Migrationでatomic publishする。既存slotにexact Bundle refを証明できなければV2 slotを合成せずmigrationをrejectし、V1とlast-valid Settings pairを維持する。V2 activation後の新Profile bootstrapはslot 0件のV2 genesis Catalogを作り、V1 genesisを新規発行しない。V2 activation前のcurrent Catalog schema、reader／writer、Operation／Service／Provider／MCP inventoryはV1のままで、Continueをavailableと表示しない。
 
 ## 16. Memory、Thread、Performance
 
@@ -806,6 +927,9 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - 100／125／150／200% DPI、0.75～2.0 UI scale、portrait／landscape、cutout
 - Windows UIA、Android Accessibility、Apple UIAccessibility action
 - keyboard／controller／touch／screen readerでTitle→Settings→Play→Pause→Exit
+- UI-only Titleのentry root、Settings push／pop、target Presentation BindingによるWorld＋HUD root、Pause modal、Result UI-only entryについてScreen definition／instance／Stack generationを検証し、V1 world `ui_document_ref`非null、root pop、stale generation、duplicate policy違反、modal外dismiss、同key別requestを副作用なしでrejectする
+- Play／target V2 Continue／Return Titleのmouse／keyboard／controller／touch／screen reader／AI入力が同じregistered `UiCommandId`へ収束し、UI RuntimeからWorld／Stage／Saveへの直接mutationが0件であることを検証する
+- Save Catalog V1がBundle refを持たずContinue unavailableであること、V2が全slotのexact `RuntimeSessionSaveBundleRefV1`を持つこと、V1→V2のslot／Settings／marker／Profile root migrationが部分公開されないことを検証する
 - `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのmonotonic 15.0秒timeout、restart_required、future schema／hash／reference Safe Mode、`SettingsCatalogCommitMarkerV1`二相公開／split generation不可視／catalog_commit_failed／interrupted recovery、genesis generation 1／previous absent、first publication failure、bootstrap recovery、non-genesis previous exact +1、Profile marker root／generation mismatch recovery／direct-root禁止、Save Catalog generation／identity禁止
 - glyph atlas eviction／submission lifetime、locale／Font／Style hot reload
 - 131,072 Node、65,536 glyph、8,192 event上限と10分soak

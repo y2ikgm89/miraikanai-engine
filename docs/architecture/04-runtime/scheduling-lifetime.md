@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.runtime-scheduling-lifetime
 - 状態: review
-- 正本範囲: Simulation Advance／render phase、固定実行順、job dependency、command／event順序、state writer orchestration、callback lifetime、Asset activation、Play／World／frame lifetime、fault recovery、Saveへ渡すtimebase input、Runtime contract固有のGameplay Timer capacity（§4.1）
+- 正本範囲: Simulation Advance／render phase、固定実行順、job dependency、command／event順序、state writer orchestration、callback lifetime、Asset activation、Play／Runtime Entry branch／World／frame lifetime、Runtime Entry transition、fault recovery、Saveへ渡すtimebase input、Runtime contract固有のGameplay Timer capacity（§4.1）
 - 非正本範囲: Runtime ECS storage・Entity identity・query・selection・Component lease・access manifest・structural delta、World Package binary、Save／Replay payload、共通memory／frame／queue budget、共通capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
 - 依存: [Runtime ECS契約Decision](../decisions/2026-07-22-runtime-ecs-contract.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
 - 外部根拠検証日: 2026-07-21
@@ -95,9 +95,11 @@ Faulted -> ProjectClosing | Shutdown
 
 `Faulted`から同じPlay sessionへ復帰しない。Editor processを継続できる場合はjournalとfault evidenceを保全し、`Faulted -> ProjectClosing`でProjectを閉じ、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)のEditor session machineが定めるProject非保持state（`NoProject`）をsafe shellとして戻る。継続できない場合は`Faulted -> Shutdown`で安全に終了する。Authoring中のGameHost／Worker crashは同文書のTask failure隔離で処理して`Faulted`へ遷移させず、`Authoring -> Faulted`はHost自身がsafe stopできないprocess faultだけに使う。Shipping GameHostのOS application lifecycleはPlatform Ownerが決定し、OS callbackはWorldを直接変更せずbounded lifecycle eventをOrchestratorへ渡す。
 
-`PlayPreparing`はCommit済み`project_revision`と選択済み`RuntimeEntryPointDocumentV1`を一つ固定し、Runtime package、System Graph、Implementation Set、Target別Plan、target selector hash、activation policy hash、optional selected provider binding set hash、`entry_branch_closure_hash`を検証する。Runtime Packageは選択`SimulationCadenceProfileRefV1`とTarget Profile Refを必須にし、Cadenceの`physics_substep_profile_ref=null`なら`physics_substep_activation_binding_ref=null`、non-nullならPhysics ownerのpassかつfreshなexact `PhysicsSubstepActivationBindingRefV1`を必須にする。Bindingが解決するCadence／Substep／Target三RefはPackageとbyte equalityでなければならない。binding set hashがpresentならpost-commit Project revision／document set hash、Registry ref／hash／membership、全binding Document ref／content hash、revision非依存semantic hash、tagged stable owner identity、implementation System、Save／Replay contractをcurrent Project／Targetへ照合し、0件ならField omissionを要求する。Binding payload内のProject revisionを所有証明に使わない。`world` branchはWorld closure、`ui` branchはUI closure、`headless` branchはWorld／UI closureを要求しない。startup systemが1件以上なら全branchで`startup_system_closure_hash`を検証し、headlessでは必須、world／uiの0件だけcanonical omissionとする。startup closureはtransitive System dependency、Implementation Variant、State owner、Target compatibilityを含む。別branchのDocument、Topology、surfaceを常時要求せず、branch activation set全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview Worldは存在する場合だけPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
+`PlayPreparing`はCommit済み`project_revision`と選択済み`RuntimeEntryPointDocumentV1`を一つ固定し、`RuntimeEntryPackageV1`、System Graph、Implementation Set、Target別Plan、target selector hash、activation policy hash、optional selected provider binding set hash、`entry_branch_closure_hash`を検証する。Runtime Entry Packageは選択`SimulationCadenceProfileRefV1`とTarget Profile Refを必須にし、Cadenceの`physics_substep_profile_ref=null`なら`physics_substep_activation_binding_ref=null`、non-nullならPhysics ownerのpassかつfreshなexact `PhysicsSubstepActivationBindingRefV1`を必須にする。Bindingが解決するCadence／Substep／Target三RefはPackageとbyte equalityでなければならない。binding set hashがpresentならpost-commit Project revision／document set hash、Registry ref／hash／membership、全binding Document ref／content hash、revision非依存semantic hash、tagged stable owner identity、implementation System、Save／Replay contractをcurrent Project／Targetへ照合し、0件ならField omissionを要求する。Binding payload内のProject revisionを所有証明に使わない。`world` branchはWorld closureと、Project State §3.1.1.1のatomic activation後にexact Presentation Bindingが選択された場合だけUI closureを要求する。`ui` branchはUI closure、`headless` branchはWorld／UI closureを要求しない。startup systemが1件以上なら全branchで`startup_system_closure_hash`を検証し、headlessでは必須、world／uiの0件だけcanonical omissionとする。startup closureはtransitive System dependency、Implementation Variant、State owner、Target compatibilityを含む。別branchのDocument、Topology、surfaceを常時要求せず、branch activation set全体がreadyになるまで`Playing`へ進めない。EditorHostはauthoritative child GameHostを同時に一つだけ管理する。Preview Worldは存在する場合だけPresentation専用で、Save／Replay／Gameplay eventへ参加しない。
 
-runtime session配下のWorld instance、UI session、startup system instanceは選択branchごとのoptional childである。`world`はScene 0件／Topology nullでもvalid、`ui`はWorldなし、`headless`はWorld／UI／surfaceなしでvalidとする。branch外fieldを混ぜたpackage、headless startup system 0件、entry hash／branch closure hash不一致はPlay開始を拒否し、last-valid packageとAuthoring revisionを維持する。
+runtime session配下のWorld instance、UI session、startup system instanceは選択branchごとのoptional childである。`world`はScene 0件／Topology nullでもvalidで、activated exact Presentation BindingがあればUI Sessionも同じbranch generationへ含める。BindingがなければV1規則どおりUI Sessionを要求しない。`ui`はWorldなし、`headless`はWorld／UI／surfaceなしでvalidとする。branch外fieldを混ぜたpackage、headless startup system 0件、entry hash／branch closure hash不一致はPlay開始を拒否し、last-valid packageとAuthoring revisionを維持する。
+
+`Playing`中のRuntime Entry replacementはPlay Sessionを停止／再生成せず、同一Session内でactive branch generationをexact +1する。active branchは常に一件であり、destination staging branchはreadiness完了までauthoritative state、Input target、Presentation、Save rootとして公開しない。UI Screenのpush／pop、同一World内のspatial移動、Stage instanceの切替をRuntime Entry replacementへ近似せず、それぞれのOwner契約を使う。
 
 Project ownerとRuntime ownerのfixtureを名前の類似で結ばず、次のexact integration mappingを登録する。
 
@@ -271,6 +273,85 @@ BoundaryDeliveryContractV1
 ```
 
 `delivery_content_hash`はASCII `MIRAKAN_RUNTIME_BOUNDARY_DELIVERY_V1`と自身を除く全FieldのMCD canonical bytesを各`uint32_be` length framingしてSHA-256する。producerはT110までにrecordをsealし、Runtimeは`requested_apply_advance_sequence`の`T00_BoundaryApply`でsource generation、destination contract、payload schema／hash、preconditionを再検証してexactly once適用する。同じidempotency key＋同じhashは同じ結果を返し、別hashはconflictである。同一advance recordはdestination contract ref、source contract ref、delivery IDのcanonical byte順でstrict sortし、duplicate、stale generation、unknown owner／schema、partial destination activationを拒否してsourceとlast-valid destination generationを維持する。payloadのDomain意味は各Ownerが検証し、Runtime contract自体へWorld、Scene、spatial anchor、Character、Motion Executor、UI widget、headless processのFieldまたは仮定を追加しない。
+
+### 4.0 Runtime Entry transition
+
+Title、Result、gameplay、server等のtop-level branch replacementはRuntime ownerの次のclosed contractだけを使う。Screen navigation、Stage transition、World spatial transitionはこのPortを代用せず、top-level branchが変わる場合だけ各Ownerが本Portへtyped requestを提出する。
+
+```text
+RuntimeEntryTransitionPortV1
+  port_type_ref:
+    McdContractRefV1(id=port.runtime.runtime_entry_transition,
+                     version=1, contract_set_hash)
+  request_type_ref:
+    McdContractRefV1(id=type.runtime.runtime_entry_transition_request,
+                     version=1, contract_set_hash)
+  cancel_request_type_ref:
+    McdContractRefV1(id=type.runtime.runtime_entry_transition_cancel_request,
+                     version=1, contract_set_hash)
+  receipt_type_ref:
+    McdContractRefV1(id=type.runtime.runtime_entry_transition_receipt,
+                     version=1, contract_set_hash)
+
+RuntimeEntryTransitionRequestV1
+  request_id: StableId
+  idempotency_key: StableId
+  play_session_id: StableId
+  source_branch_generation: positive uint64
+  source_runtime_entry_ref:
+    DocumentRef<RuntimeEntryPointDocumentV1>
+  source_runtime_entry_hash: RuntimeEntryPointSemanticHashV1
+  destination_runtime_entry_ref:
+    DocumentRef<RuntimeEntryPointDocumentV1>
+  destination_runtime_entry_hash: RuntimeEntryPointSemanticHashV1
+  destination_entry_branch_closure_hash: SHA-256
+  destination_runtime_entry_package_ref: RuntimeEntryPackageRefV1
+  transition_mode: replace_branch
+  trigger_ref: exact typed command | outcome | load request ref
+  destination_activation_payload_schema_ref:
+    McdContractRefV1(kind=type) | null
+  destination_activation_payload_ref:
+    exact typed immutable value ref | null
+  destination_activation_payload_hash: SHA-256 | null
+  transfer_subject_refs[0..4096]: exact typed immutable subject ref
+  requested_apply_advance_sequence: uint64
+  precondition_snapshot_hash: SHA-256
+  request_content_hash: SHA-256
+
+RuntimeEntryTransitionCancelRequestV1
+  cancel_request_id: StableId
+  idempotency_key: StableId
+  play_session_id: StableId
+  transition_request_id: StableId
+  transition_request_content_hash: SHA-256
+  expected_source_branch_generation: positive uint64
+  cancel_request_content_hash: SHA-256
+
+RuntimeEntryTransitionReceiptV1
+  request_id: StableId
+  request_content_hash: SHA-256
+  outcome: committed | rejected | cancelled_before_commit
+  source_branch_generation: positive uint64
+  destination_branch_generation: positive uint64 | null
+  committed_runtime_time_ref: RuntimeTimeRefV1 | null
+  diagnostic_refs[0..64]
+  receipt_content_hash: SHA-256
+
+RuntimeEntryTransitionReceiptRefV1
+  request_id: StableId
+  request_content_hash: SHA-256
+  receipt_content_hash: SHA-256
+```
+
+`request_content_hash`はASCII `MIRAKAN_RUNTIME_ENTRY_TRANSITION_REQUEST_V1`と自身を除く全FieldのMCD canonical bytesをlength framingして計算する。ReceiptもASCII `MIRAKAN_RUNTIME_ENTRY_TRANSITION_RECEIPT_V1`と自身のhash Fieldを除く全Fieldを同様にhashする。`outcome=committed`だけがdestination generation＝source exact +1とcommit Runtime timeをpresentにし、他二outcomeは両Fieldをnullにする。activation payload三Fieldはall-nullまたはall-presentだけを許可し、Runtimeはpayloadのowner意味を解釈しない。Stage／World、Persistence／Save、Project-owned logic等の提出Ownerがschemaとpayloadをsealし、destination branchのOwner validatorがstaging中に検証する。これによりWorld spatial destination、Stage resume、Save reconstruction等をgeneric Runtime schemaのFieldへ追加しない。
+
+受理後はdestination `RuntimeEntryPackageV1`のProject triple、Target、Contract set、entry ref／semantic hash、branch closure、World／UI／startup closure、activation policy、optional activation payloadをsource branch非公開のstagingで検証する。全dependencyがreadyになった場合だけ、`requested_apply_advance_sequence`以後の最初のeligible `T00_BoundaryApply`でdestination branch generationをsourceのexact +1として一回publishする。publish acknowledgement後にsource branchをactual dependency DAGのreverse topological orderでteardownする。sourceを先に破棄する、Worldだけ新しくUIは旧generation、Loading UIを成功oracleにする、同時に二active branchを公開することを禁止する。
+
+同じidempotency key＋同じrequest hashは同じReceiptを返し、同key別hashはrejectする。Cancel Requestも自身を除く全FieldのMCD canonical bytesをASCII `MIRAKAN_RUNTIME_ENTRY_TRANSITION_CANCEL_REQUEST_V1`とlength framingしてhashし、同key＋同hashをidempotentにする。source generation／entry hash／precondition／Packageがstale、dependency不足、owner payload不正、readiness timeout、commit前のexact Cancel Requestではdestination stagingを破棄し、source branchとlast-valid generationを維持する。別Session／request hash／source generationのCancelはrejectする。commit後cancelは`cancelled_before_commit`へ書き換えず、既存`committed` Receiptを返す。`failure_semantics=fault_session_reverse_teardown`のdestination activation policyだけが検証済みfailure後にSession faultを要求でき、それ以外は`reject_activation_keep_last_valid`である。
+
+Runtime Entry transitionのpositive fixtureはUI-only→World＋HUD、World→UI-only Result、Result→Title、UI-only→headlessを含む。negative fixtureはstale source generation、entry semantic／Document hash差、branch closure／Package差、同key別payload、activation payload三Fieldのnullability差、unknown payload owner、prepare中cancel、commit後cancel、readiness failureを各一原因で注入し、source publication、Input target、Screen Stack、World／Stage generationが部分変更されないことを検証する。Scenario／Stage PackなしのUI-only→World transitionも同じPortで成立しなければならない。
+
+本節はtarget review definitionであり、current MCD Contract Set、Runtime Port Registry、Operation／Service／Provider／MCP allowlistへ上記三Type／一Portを追加しない。Foundation Definition Closure、Consumer Inventory、Compatibility／Definition Migration、Qualificationが同一ChangeSetで成立するまで、Runtime Entry transitionをcurrent availableまたは実装開始可能と表示しない。
 
 ### 4.1 Clock domain、Pause、Gameplay Timer
 
@@ -726,6 +807,9 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 - Clock Domainは現在のdefault九entry Profileとglobal Pause／Timer／Replay結果をgolden fixtureで維持し、Core二entryだけのneutral headless fixture、およびqualified `project.board_game.turn_clock@1` contributionを追加したfixtureを検証する。Cadence schemaは四kindのclosed round-trip、fixed rate既約性と`1,000,000,000 Hz`境界／1超過による0 ns拒否、checked partition overflow、variable min／maxのinteger-nanosecond表現、`UINT32_MAX ns`境界／1超過、non-nanosecond bound、sample変換overflow、turn／explicit wall-time禁止、turn Command Typeとexplicit-step request Typeの相互置換、Profile ref／hash不一致、他branch Field混入を検証し、current Qualificationではreference default以外を`cadence_profile_not_qualified`にする。Physics Substepはnull reference defaultと、owner定義のcompleted `PhysicsSubstepProfileRefV1`、Profile self-hash／外部Ref、dimension／count／exact rational partition／Target Qualificationを検査し、undefined generic Profile ref、hash差、暗黙Backend既定へのfallbackを拒否する。Pauseはunsupported＋nullとglobal＋exact refのpositive、逆のnullability、branch混在、unsupported commandをnegative fixtureで検証する。unknown ref、Qualification欠落、owner／hash stale、Core ID上書き、同一logical ID重複、未許可Timer利用、Pack未選択時のPack Domain要求を各一原因negative fixtureでSource／Profile不変として拒否する。
 - Pause／Gameplay Timer fixtureは全eligible Domain counterがPlay開始時`{outer=0, domain=0}`であること、running時に選択された非freeze Domainだけがouter advanceごとにexact一回checked incrementされること、global Pause中もouter counterは進む一方freeze Domain counter／authoritative state hashが不変であること、resume適用advanceではcounterを先に一回進めて到達deadlineを同じT30で発火することを検証する。schedule／owner invalidation／cancel／fireのcanonical順、同advance cancelのfire抑止、fixed intervalの次deadline、instance sequence非再利用、monotonic-time／`gameplay_timer`非対応／未選択／未Qualification Domain拒否、Domain／deadline／instance counter overflow時の副作用0件を各fixtureで固定する。Save／load／Replayはreceipt-free `GameplayTimerSaveProjectionV1`を[Persistence／Save](persistence-save.md)のSave bundleへ渡す。Timer Ownerは`ClockDomainAdvanceStateV1`、deadline／remaining／fire count、next instance sequenceの意味と、Profile／Domain／Timer projection不一致、Pause中のcounter進行、wall-time再計算を拒否するfixtureを所有する。Authoritative Save Header、Domain Binding、Bundle Manifestのshape、hash、生成順、load fallbackはPersistence fixtureだけが検証する。
 - `fixture.runtime.entry.world-empty`、`fixture.runtime.entry.ui-only`、`fixture.runtime.entry.headless`でbranch closure、optional child lifetime、startup system closure、surface／RenderSnapshot omission、branch activation setを検証する。
+- target `fixture.runtime.entry.world-with-ui-root`でPresentation Binding、World、UI Session、startup systemsを同じbranch generationへpublishし、World-only childまたはUIだけのpartial publicationを拒否する。Binding／Runtime Entry transitionのatomic activation前はcurrent fixture ref集合へ含めない。
+- UI-only Title→World＋HUD、World→UI-only Result、Result→Title、UI-only→headlessの`RuntimeEntryTransitionRequestV1`を同一Play Sessionで検証し、branch generation exact +1、destination-first publish、source reverse teardown、idempotent Receiptをread-backする。
+- stale source generation、entry／Package／branch closure hash差、同key別request、activation payload nullability／owner差、readiness failure、prepare中cancel、commit後cancelを各一原因でrejectし、source World／UI／Stage、Input target、last-valid packageを不変にする。
 - `fixture.integration.project-runtime-entry.owner-resolution`でProject-owned entry／selector／activation policyのref、schema、hash、Target membershipとCompile Manifestをread-backする。
 - world／ui／headlessのstop、fault、restartでstartup systems、UI session、World、optional Presentationをactual dependencyのreverse orderでteardownし、strict headlessのWindow／Surface／Render thread依存が0件であるfixture。
 - branch field混在、headless startup system 0、default 0／2、unknown Target selector、selected entry／selector／activation policy／branch closure hash不一致をPlay開始前に拒否する。

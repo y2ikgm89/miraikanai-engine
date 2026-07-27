@@ -5,7 +5,7 @@
 - 正本範囲: Product intent、非交渉原則、Capability成熟度、Portfolio、Algorithm／Performance最適化のProduct優先度、AI制作理解境界、MVP、Phase順序、製品昇格・停止・完了Gate
 - 非正本範囲: Subsystemの型・Field・API・Backend・既定値・Budget、AI権限と承認、Evidence形式。各Owner文書を参照する
 - 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)
-- 外部根拠検証日: 2026-07-26
+- 外部根拠検証日: 2026-07-27
 
 ## 1. Product intent
 
@@ -180,6 +180,29 @@ Title／Continue／Settings
   -> Boss battle
   -> Result／Ending
 ```
+
+#### 5.0.1 Title-to-Result scene／screen transition definition closure
+
+Product上の「シーン管理」はEditor表示用の総称であり、単一の`SceneManager`型、表示名、filesystem path、配列indexをRuntime authorityにしない。MVPの正規分解は次である。
+
+| Product上の切替 | 正規Owner／契約 | MVPでの一意な扱い |
+|---|---|---|
+| Title起動 | Project／Runtime Entry | Targetのdefaultとして選択されたUI-only Runtime Entryを一件だけactivateし、その`ui_document_ref`をUI Screen Stackのrootにする |
+| Title ↔ Settings | UI | 同じUI-only Runtime Entry内のtyped Screen navigation。Settingsを別World、Stage、Runtime Entryにしない |
+| New Game | Runtime／Scheduling | Title UIのregistered `UiCommandId`をauthorized game logic／orchestratorがexact gameplay Runtime Entry refへ解決し、`RuntimeEntryTransitionPortV1`へ`replace_branch` requestを提出する |
+| Continue | Persistence／Save＋Runtime／Scheduling | target `SaveCatalogV2`のexact slotから`RuntimeSessionSaveBundleV1`を解決し、保存されたRuntime Entry／Package／State owner projection／optional World／Stage projectionを検証して同じRuntime Entry transitionへ渡す。current V1のdisplay metadataから復元先を推測しない |
+| HUD／Pause | Project／UI | gameplay World Runtime Entryへexact `RuntimeEntryPresentationBindingV1`でroot HUD UiDocumentを束縛し、Pauseを同じScreen Stackのmodalとしてpush／dismissする。既存`RuntimeEntryPointV1.entry_kind=world`の`ui_document_ref=null`規則を変更せず、WorldまたはStage stateをUIが直接変更しない |
+| Town → Field → Dungeon → Boss | Scenario／Stage＋World | finite gameplay progressionはtyped Stage transition、同一World内の位置変更はWorld spatial transitionを使う。Scene Documentの切替をgame progressionと同一視しない |
+| Boss → Result／Ending | Scenario／Stage＋Runtime／Scheduling | completion outcomeからexact Result UI-only Runtime Entryへbranch replacementする。ResultをShooter Game Flow、World、Loading UIの暗黙stateにしない |
+| Result → Title | Runtime／Scheduling | registered UI commandからexact Title Runtime Entryへbranch replacementする。新しいPlay Sessionを暗黙生成せず、同じSession内でbranch generationだけを進める |
+
+Runtime Entry replacementはdestination branchを非公開stagingで検証し、次のeligible `T00_BoundaryApply`で一回だけpublishした後にsource branchをreverse teardownする。失敗、stale generation、hash不一致、依存不足、重複request、commit前cancelではsource branchとlast-valid generationを維持し、partial World／UI／Stageを表示しない。commit後cancelは成功を巻き戻さずtyped rejectionとする。Loading表示は進行状況のprojectionであり、遷移成否またはdestination identityの正本ではない。
+
+MVP acceptanceはclean launchから`Title -> Settings -> Title -> New Game -> HUD -> Pause -> Stage progression -> Save -> Result -> Title -> Continue`を同一Candidateで完走し、Continue後に保存されたexact Runtime Entry、Stage instance projection、authoritative state digestへ復元する。keyboard、controller、screen reader、manual test、AI testは同じtyped command／requestと最終Stable ref集合へ収束しなければならない。Scenario／Stage PackなしでもUI-only→World Runtime Entry replacementは成立し、UI-only／headless packageとSave bundleは偽Worldなしでvalidである。
+
+本節はtarget definition closureであり、Operation／Service／Provider／MCPのcurrent activation、Product Phase、Work Package state、Shooter RegistryとRPG destination Product Definitionの切替を行わない。実装開始は既存のActivation／Definition Migration／Qualification gateに従う。
+
+current `SaveCatalogV1`はexact Save Bundle refを持たず、Runtime Entry transition、Presentation Binding、Screen Stackもtarget reviewであるため、本節のContinue／Title-to-Result closureは現時点で`not_activated`である。V1 metadataから仮Continueを作る、既存Runtime Entry V1のworld branch意味を変更する、一部Typeだけを先行current化することを禁止する。
 
 Fixtureは一つのWorld compositionにTown一つ、Field一つ、Dungeon一つ、Boss destination一つを持ち、Loading、Stage transition、Save／Load、ResultはRPG-private代替でなく既存Generic Ownerを使う。Reference Game fixtureは次をすべて含む。
 
@@ -626,16 +649,34 @@ Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較E
 | Unreal Engine 5.8 | Experimental Unreal MCPはEditor内のToolset Registryから型付きtoolを公開し、Actor／Component／Assetはreflection／Asset Registry／Editor APIで扱う。Python公式資料もOS file APIによるAsset操作を禁止する | reflection-backed projection、登録tool、Editor API、commit後read-back | 任意property setter、汎用Python／console／file edit、localhostであることを認証や承認の代用にすること |
 | Godot 4.x | Node／Scene／Resourceとtext形式`.tscn`、`EditorPlugin`／`ClassDB`により構造が観測可能で差分化しやすい。確認した公式資料にはUnity AI／Unreal MCP相当の内蔵AI authoring authorityはない | 透明でdiff可能なcanonical source、型／UID／NodePathを保つEditor-owned validation | textであることを安全性の証明にすること、subresource／順序／UID制約を無視した直接置換 |
 
+scene／screen切替についても公式資料から次の責務分離だけを採用判断へ使う。
+
+| Engine | 公式に確認した切替モデル | Miraikanaiでの対応／差分 |
+|---|---|---|
+| Unity 6 | `SceneManager`がSceneをSingle／Additiveでloadし、Sceneを越えて保持するObjectは`DontDestroyOnLoad`で明示する | top-level切替と永続Sessionを分離する原則は採る。一方、Scene AssetをTitle／Stage／UI／Worldの共通authorityにはせず、Runtime Entry、Stage、World、UI Screenをtyped Owner契約へ分ける |
+| Unreal Engine 5.x | Gameplay FrameworkはGameInstanceをMap load間で保持し、World／LevelをTravel／Streamingする。Common UIはActivatable Widget Stackを持つ | persistent Play Session＋branch travel＋UI Stackの三分離に最も近い。Miraikanaiはさらにexact ref／hash、T00 atomic publish、source保持failureを共通Runtime契約にする |
+| Godot 4.5 | `SceneTree`のcurrent sceneを変更し、global stateやscene switching helperはAutoloadで保持できる | 小規模Projectの単純性は参考にするが、global singletonへdestination、Save、Stage、UI authorityを集約せず、registered PortとOwner validatorを必須にする |
+
+三Engineとも画面切替、永続state、UI navigationを完全に同一Objectへ畳み込むことを要求していない。したがってMiraikanaiは単一`SceneManager`を追加せず、§5.0.1の`Runtime Entry replacement + UI Screen Stack + Stage transition + World spatial transition`を正規分解とする。
+
 - [Unity AI: Ask／Plan／Agent](https://unity.com/blog/unity-ai-assistant-ask-plan-agent-mode-explained)
 - [Unity AI: Get started](https://unity.com/blog/unity-ai-how-to-get-started)
 - [Unity 6 `SerializedObject`](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/SerializedObject.html)
+- [Unity 6 additive Scene load](https://docs.unity3d.com/6000.1/Documentation/ScriptReference/SceneManagement.LoadSceneMode.Additive.html)
+- [Unity 6 multiple Scene editing](https://docs.unity3d.com/ja/6000.0/Manual/setupmultiplescenes.html)
+- [Unity 6 `DontDestroyOnLoad`](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/Object.DontDestroyOnLoad.html)
 - [Unreal Engine 5.8 Unreal MCP](https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor)
 - [Unreal Engine Reflection System](https://dev.epicgames.com/documentation/unreal-engine/reflection-system-in-unreal-engine)
 - [Unreal Engine Asset Registry](https://dev.epicgames.com/documentation/en-us/unreal-engine/asset-registry-in-unreal-engine)
 - [Unreal Editor Python](https://dev.epicgames.com/documentation/en-us/unreal-engine/scripting-the-unreal-editor-using-python)
+- [Unreal Engine Gameplay Framework](https://dev.epicgames.com/documentation/en-us/unreal-engine/gameplay-framework-in-unreal-engine)
+- [Unreal Engine Level Streaming](https://dev.epicgames.com/documentation/unreal-engine/level-streaming-in-unreal-engine)
+- [Unreal Engine Common Activatable Widget Stack](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Plugins/CommonUI/UCommonActivatableWidgetStack)
 - [Godot Nodes and Scenes](https://docs.godotengine.org/en/stable/getting_started/step_by_step/nodes_and_scenes.html)
 - [Godot `.tscn` format](https://docs.godotengine.org/en/latest/engine_details/file_formats/tscn.html)
 - [Godot Editor plugins](https://docs.godotengine.org/en/stable/tutorials/plugins/editor/making_plugins.html)
+- [Godot 4.5 `SceneTree`](https://docs.godotengine.org/en/4.5/classes/class_scenetree.html)
+- [Godot 4.5 Autoload](https://docs.godotengine.org/en/4.5/tutorials/scripting/singletons_autoload.html)
 - [Unreal Engine 5.8 Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)
 - [Unity 6 Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)
 - [Godot 4.5 GDExtension](https://docs.godotengine.org/en/4.5/tutorials/scripting/gdextension/what_is_gdextension.html)
