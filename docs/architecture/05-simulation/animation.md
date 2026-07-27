@@ -43,6 +43,24 @@ Graph node familyはstate machine、clip sample、2D／1D blend、additive blend
 
 Graph validationはreachable output、cycle policy、parameter type、clip／skeleton compatibility、mask joint、transition conflict、event duplication、root-motion source一意性を検査する。同priority transitionはStable IDのcanonical orderで決め、authoring insertion順やworker completion順を使わない。
 
+#### 2.1.1 AI-readable Graph closure
+
+`AnimationGraphDefinitionV1`候補はGraph Stable ID、exact Source revision、Target Skeleton contract ref、typed Parameter定義、closed Node／Port／Edge集合、exact一件のOutput node、event authority、root-motion policy、semantic content hashを持つ。集合はTarget／capacity Ownerが登録する上限を持ち、Stable ID byte順へcanonicalizeする。Parameterはexact value type、unit、finite／range policy、default、latch sourceを持ち、display name、Inspector row、文字列parseで型を決めない。
+
+State Machineはmachine／state／transition Stable ID、exact initial state、typed condition AST、priority、duration、blend curve、interrupt、time synchronization、event policyを持つ。C1 condition ASTはlatched Parameter、constant、comparison、finite boolean compositionだけを受理し、arbitrary callback、function名、clock読取り、Renderer visibility、worker stateを参照しない。遷移blend curveとtime synchronizationはclosed値としてSourceへ明示し、Backend defaultへ委ねない。
+
+AI／Editorが読む`AnimationGraphSemanticProjectionV1`候補はGraph／Artifact revision、Node／Port／Edge Stable ref、Parameter type／unit／value source、active state／transition、Blend sample／weight、sync leader／phase、IK request／result／failure、event／root-motion authority、Diagnostic、completeness／gapをbounded queryで返す。node座標、wire bend、zoom、selection、localized label、screen coordinateをsemantic hashまたはCommand targetへ含めない。Human Inspector、AI、CLI、fixtureは同じProjection queryを使用し、AI専用Graphや文字列DSLを第二正本にしない。
+
+#### 2.1.2 Blend Space、同期、event／root motion
+
+`AnimationBlendSpaceSourceV1`候補はBlend Space Stable ID、Target Skeleton ref、1本または2本のtyped axis、sample集合、interpolation、outside-hull policy、synchronization、event policy、root-motion policyを持つ。AxisはParameter ref、unit、finite min／max、`clamp | reject | wrap`を持ち、`wrap`はpositive periodとcanonical originを必須にする。SampleはStable ID、compatible Clip ref、finite axis position、playback scale、optional phase offset、sync marker track refを持つ。
+
+C1 interpolationは1Dの`linear_1d`と2Dの`delaunay_barycentric_2d`だけである。2D triangulationの同円・同一直線tieはSample Stable ID byte順で解決し、Source配列順、Editor挿入順、floating-point libraryの未規定順を使わない。outside-hullは`clamp_to_hull | reject`をSourceへ必須とする。weightはfinite、non-negative、正規化済みにし、canonical Sample Stable ID順でPoseを合成する。
+
+Synchronizationは`none | normalized_phase | marker_track`を明示する。`marker_track`はmarker Stable ID、cycle order、exact clip timebase tickを持ち、全sampleのmarker semantic sequenceが一致しなければCookを拒否する。leaderはeffective weight降順、同値はSample Stable ID byte昇順で一意に選び、worker完了順で変えない。
+
+Gameplay eventはBlend weightやPresentation frameから生成せず、Graph outputごとにexact一件のauthoritative event sourceまたはstate／sync-group event trackを指定する。Presentation eventだけが`dominant_sample`を選べ、同weight tieはSample Stable ID順とする。Animation root motionをBlendする場合はtranslation／rotation delta、weight normalization、hemisphere、failureを固定したqualified named algorithm refを必須とし、そのrefがなければ`executor_driven | disabled`だけを許可する。
+
 ### 2.2 2D Animation
 
 2D clipはsprite／region、transform、color、visibility、typed gameplay／presentation event trackを持てる。frame numberではなくnormalized intervalとsource sample timeを保持し、variable presentation rateからauthoritative event cursorを逆算しない。Atlas／spriteのasset identityは[Asset lifecycle](../03-authoring/asset-lifecycle.md)を参照する。
@@ -96,6 +114,10 @@ TypedAnimationEventTrackV1
 Skeletonはsingle root policy、acyclic parent relation、unique canonical joint path、finite bind pose、invertible bind relationを検証する。ClipはSkeleton contract ref、time interval、typed translation／rotation／scale track、event、optional root trackを持つ。Skinはmesh section、joint remap、normalized finite influenceを持ち、missing jointやout-of-range influenceをsilent repairしない。
 
 Importは[Asset lifecycle](../03-authoring/asset-lifecycle.md)のScene Import IR、conversion report、preview、reimport conflictを使用する。coordinate／unit conversionはSource-to-Engine transformをreceiptへ残し、Runtime sampleで再変換しない。Cooked payloadはTarget非依存のEngine envelope内へ置き、Backend archiveをpublic schemaにしない。
+
+### 2.4 外部Engine比較から採るCoverage
+
+外部EngineのGraph、Blend Space、State Machine、IK、Retarget、Animation Debug機能は、対象範囲の漏れを発見する比較Evidenceとしてだけ使う。外部API、Node名、Class hierarchy、serialization、既定補間、solver defaultをMiraikanaiのidentityまたは採用済みContractへ変換しない。MiraikanaiではStable ID、typed Port、authority分離、deterministic tie、bounded Projection、failure、QualificationをEngine-owned contractとして閉じる。
 
 ## 3. Instance、pose、event、root motion
 
@@ -193,9 +215,19 @@ AnimationSaveStateV1
 
 ## 4. IK、retarget、LOD、memory／failure
 
-IK requestはsolver kind、ordered chain／joint refs、target／pole transform、weight、iteration class、failure policyをEngine contractで表す。C1 solver familyはtwo-bone、look-at／aim、foot placementを持つ。Collision queryが必要なfoot placementは[Collision](collision.md)のversion付きresultを受け、IKからlive Physics Worldをqueryしない。
+### 4.1 IK request、座標空間、評価順
 
-IKはbase blend後、local-to-model確定前のpose operationとしてGraph outputに適用する。chain missing、target non-finite、singularity、stale Collision resultでは`preserve_input_pose | disable_request | fail_instance`の明示policyを使い、NaN poseをpublishしない。iteration countやscratch上限はTarget profileとRuntime capacity ownerへ委譲し、共有budget値を本書に複写しない。
+IK requestはrequest／Graph node／Animation instance／canonical intervalのexact ref、`two_bone | look_at_aim | foot_placement`、ordered joint chain、target／pole、position／rotation weight、joint-limit profile、solver profile、evaluation ordinal、failure policyを持つ。target／poleはfinite Transformに加え、`world | entity_local | skeleton_model | joint_local`のspace、space subject ref、generationを必須にし、field欠落時にworldまたはmodel spaceを推測しない。
+
+評価順はTarget SkeletonへのRetarget、base Clip／Blend Space、additive、Layer／Mask、IK stage、local-to-model、authoritative bounds／socket projectionである。同じIK stage内はevaluation ordinal、同値はrequest Stable ID byte順に固定する。chain missing、target non-finite、singularity、stale generationでは`preserve_input_pose | disable_request | fail_instance`の明示policyを使い、NaN poseをpublishしない。solver iteration、epsilon、joint limit、scratch上限はqualified solver／Target profileへexact解決し、Backend defaultへ委ねない。
+
+### 4.2 Foot placement query／result binding
+
+Foot placementはAnimationとCollisionの暗黙callbackで接続せず、Animation-owned `AnimationFootPlacementQueryBindingV1`候補と`AnimationFootPlacementResultBindingV1`候補でgeneric `CollisionQueryRequestV1`／`CollisionQueryResultV1`を束縛する。Query BindingはAnimation instance、target interval、foot semantic／joint、last committed pose generation、authoritative subject Transform generation、Collision scene version、query request ref／hash、foot-placement profile refを持つ。Result Bindingは同じidentity集合、exact result ref／hash、observed scene version、normalized hit selection、result status、binding hashを持つ。
+
+canonical接続はT30でlast committed poseと同advanceのsealed Transformからbounded queryを構築し、T50でgeneric Collision queryを実行し、T60でversion／generation検証済みimmutable Result Bindingをstagingへ公開し、T80で同じtarget intervalのIK requestだけが消費する順である。scene／Transform／pose generationがstale、subject motion bound超過、resultがtruncated／failedの場合は明示failure policyを使い、別足、別interval、last-hit、live Physics queryへ差し替えない。同じintervalのretryは同じQuery／Result hashを使い、query再発行または二重IK適用を行わない。
+
+### 4.3 Retarget、LOD、memory／failure
 
 Retargetはsource／target Skeleton identity、semantic bone／chain mapping、reference pose、translation scale policy、rotation offset、unmapped-joint policyを検証する。runtime fuzzy name matchingを禁止し、Cook時に完全なmapping tableを生成する。missing required semantic、cyclic chain、incompatible root、non-finite offsetはcookを拒否する。Retarget結果はTarget Skeleton上の通常clip／poseとして扱い、source pointerをinstanceへ保持しない。
 
@@ -208,6 +240,24 @@ Failure classはmissing／incompatible Asset、Graph validation failure、stale 
 ## 5. EditorとAI planned actions
 
 Animation EditorはAsset／Graph browser、state／transition graph、timeline、skeleton tree、skin influence view、blend／IK／retarget preview、event／root-motion trace、diagnostic projectionを提供する。表示はSource Documentまたはimmutable Runtime snapshotのProjectionであり、live instanceを独自にmutateしない。手動編集とAIは同じChangeSet、validator、preview、cook、undo／redoを使う。
+
+AnimationのAI-readable entry pointは、全文書の自由検索ではなくboundedな`AnimationCapabilitySemanticProjectionV1`候補とする。ProjectionはOwner文書／revision、Capability／Target activation state、supported Asset／Graph node／Blend interpolation／IK solver、required input contract、current callable Operation ref、disabled reason、question-required condition、relevant Qualification／Diagnostic refを返す。current Operation集合は`[]`であり、planned action名、外部Engine機能名、Editor commandからOperation IDを合成しない。
+
+Animation Debug projectionはGraph／Artifact revision、canonical interval、active state／transition、Parameter snapshot、Blend sample／weight／sync leader、IK Query／Result Binding、pose generation／hash、root-motion proposal／resolution、event cursor／emission、LOD ref、capacity／failure、completeness／gapを持つ。[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md#11-domain-debug-projection)のBindingがmaterializeされるまでEditorはSource previewとdisabled reasonだけを表示し、live trace、Replay同期、validated causeを成功表示しない。Debug projectionからGraph state、Parameter、IK target、Runtime clockをmutateするback-edgeを設けない。
+
+### 5.1 MCD／Tool／Debug Binding Definition Closure
+
+Animationの設計契約、実行可能Tool、Debug連携は別のclosureであり、一つの型名またはEditor表示から他を成立済みと推測しない。
+
+| Closure | Animation Ownerが定義するもの | 外部Ownerとのhandoff | 現在状態 |
+|---|---|---|---|
+| Runtime／semantic MCD Type | `RootMotionProposalV1`のplanned local ID／schema、Graph／Blend／IK／Foot-placement／Projectionのcandidate payload、bound、canonical order、failure | [Executable contracts](../02-foundation/executable-contracts.md)がMCD envelope、member materialization、Contract set root、generated codec／schemaの一致を所有 | `RootMotionProposalV1`はID／schemaを設計固定した未materialize契約、その他はcandidateでcurrent memberではない |
+| Authoring Tool | `AnimationCapabilitySemanticProjectionV1`候補、planned action vocabulary、Animation固有input／result意味、preview差分、不変条件 | Executable Contracts、[AI Security／Approval](../01-governance/ai-security-approval.md)、Editor OwnerがOperationからProvider projectionまでを一つのactivation closureへ閉じる | current callable Operation refはexact `[]`、Capabilityは`not_activated` |
+| Debug Binding | `AnimationDebugProjectionV1`候補payload、safe publish point、Animation固有completeness／gap、negative fixture | Debug Ownerが共通Envelope、Binding、Store／Index／Query／Replay連携を所有 | materialized Binding集合はexact `[]`、binding stateは`required_unmaterialized` |
+
+Debug safe publish pointはT80のcommit成功後に公開されたimmutable Animation snapshotである。evaluation failureまたはpartial publishではlast-validをcurrent成功値として偽装せず、対象interval、source generation、omitted field、gap／failureを返す。Debug consumerはrecord／query／compareできるが、Graph state、Parameter、IK target、clock、event cursorへwriteしない。
+
+Definition Closure成立には、MCD Type候補が同じContract set rootのlocal record／envelope／payload／canonical encoding／hash／version／generated projectionへ閉じること、Toolが採用したexact Operation集合についてManifestからaliasまでの完全closureをatomicに持つこと、DebugがAnimation payload Type ref、共通Envelope Type ref、T80 safe-boundary contract、Target、query、capacity、privacy、fixtureを束縛したexact一件のBindingを持つことを要求する。三closureは独立に`not_activated`または`required_unmaterialized`を維持し、一件の成立を他二件のActivation根拠にしない。
 
 次はStable IDでないplanned semantic action vocabularyであり、current MCD Operation familyではない。
 
@@ -239,6 +289,14 @@ Event fixtureは少なくとも次を固定する。
 
 Editor／AI fixtureはGraph diff、timeline preview、import／reimport conflict、question-required intent、unsupported operation、diagnostic remediation、manual／AI equivalenceを検査する。private Backend conformanceは同じSource fixtureからEngine-owned pose／event／diagnosticを生成し、public contractにVendor差が漏れないことを確認する。measurementとcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使用する。
 
+Blend Space fixtureは1D boundary／outside range、2D inside／edge／outside hull、duplicate／collinear／cocircular sample、Source並替え、triangulation tie、weight finite／normalization、wrap seam、normalized phase／marker sync、leader tie、Gameplay event source一意性、Presentation dominant sample、unqualified root-motion blend rejectを固定する。Graph fixtureはcondition AST、transition curve／interrupt／sync、nested State Machine、typed Port、unknown Node kind、layout-only changeでsemantic hash不変を検査する。
+
+IK fixtureは四spaceのtarget／pole、generation差、two-bone reach／pole degeneracy／joint limit、look-at axis／limit、複数request order、zero／one／intermediate weightを固定する。Foot placement fixtureはT30 Query Binding、T50 generic execution、T60 Result Binding、T80 consumptionを同じintervalへ束縛し、stale scene／pose／Transform generation、subject motion bound超過、truncated／failed result、retryでfailure policy、query count、pose／clock／event hashが再現することを検査する。
+
+AI-readable fixtureはCapability／Graph／Debug Projectionのbounded query、Stable ref、type／unit、completeness／gap、disabled reasonを検査し、Human／AI／CLIが同じProjection revisionとChangeSetへ収束すること、layout／locale／selection差でsemantic targetが変わらないこと、current Operation `[]`からCommandが生成されないことを固定する。
+
+Definition Closure fixtureはRuntime／semantic Type、Authoring Tool、Debug Bindingのcurrent集合と状態を別々に照合する。未materialize Typeをcurrent MCD memberとして返す、planned actionからOperation IDを生成する、Operation closureの一部だけを登録する、Debug Bindingなしでlive／recorded traceを成功表示する、一つのclosure成立から他を自動activateするcaseを拒否し、Source／Project／Runtime stateを不変にする。
+
 次を採用しない。
 
 - Vendor animation型、job、pointer、archiveのpublic API化
@@ -246,5 +304,8 @@ Editor／AI fixtureはGraph diff、timeline preview、import／reimport conflict
 - Rendering visibilityからauthoritative clock／event cursorを停止すること
 - Animation TransformとPhysics resolved Transformの二重write
 - IK／foot placementからのlive Physics query
+- Blend Spaceの補間、同期、event、root motionをBackend defaultへ委ねること
+- Graph layout、display name、外部Engine node名からAI Commandを生成すること
+- Debug projectionからlive Animation instanceを変更すること
 - silent bind-pose fallbackでGameplay event／root motionを継続すること
 - Runtime phase／shared capacity、Physics／Navigation／Collision／Rendering責務の再所有
