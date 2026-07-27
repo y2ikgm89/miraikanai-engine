@@ -69,7 +69,7 @@ Project Shaderの表現力を次のclosed levelで分類する。Levelは品質�
 
 | Level | Projectが追加できるもの | 必須接続 |
 |---|---|---|
-| S0 | Material Instance parameter／texture binding | `MaterialParameterSemanticV1` |
+| S0 | `MaterialInstanceV1`のparameter／texture bindingと`MaterialRuntimeOverrideSetV1` | `MaterialParameterSemanticV1`／`MaterialTextureRoleDeclarationV1` |
 | S1 | closed typed Material Graph | `MaterialNodeCatalogV1` |
 | S2 | HLSL function、Project Material Node、Shader Library | `ProjectShaderModuleV1` |
 | S3 | 既存Material Domain内のProject Shading Model、Stage Module | Domain Output Contract＋`ShaderInterface` |
@@ -729,7 +729,7 @@ Runtime source compile、undeclared resource、unbounded control／resource／va
 
 ## 12. 所有権と連携
 
-- [Materials](materials.md)はMaterial Domain、Shading Model入力／出力、parameter／node意味を所有し、Project Module／Node／Shading ModelのSource境界は本書を参照する。
+- [Materials](materials.md)はMaterial Domain、Shading Model入力／出力、PBR conformance profile、parameter／texture role／node意味、Runtime Override、`MaterialIRV1`のopaque Project node、`MaterialBatchCompatibilityKeyV1`を所有する。本書はProject Module／Node／Shading ModelのSource境界、exact Target support、semantic interface／variant factを返すが、Materialのoverride scopeまたはbatching classを決定しない。Materialsが生成する`MaterialProjectNodeActivationProjectionV1`だけがMaterial Catalogでの利用可否を示す。
 - [Render Graph](render-graph.md)はTechnique Manifestからcanonical Pass／Resource plan、queue、barrier、alias、lifetime、submissionを生成し、Project Sourceを解釈し直さない。
 - [Post Processing](post-processing.md)、[VFX authoring](vfx-authoring.md)、[Lighting](lighting.md)は各DomainのIntent／Plan／semantic Portを所有し、native PassまたはShader Sourceを直接受けない。
 - [Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)はcompiler／translator／validatorのexact pinと`ShaderCompilerProfileV1`を所有する。

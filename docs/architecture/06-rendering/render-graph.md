@@ -33,7 +33,7 @@ ModuleはContracts、Render Extract、Graph Compiler、Resource Registry、Pipel
 |---|---|---|
 | `RenderSnapshot` | frame | 本書§2.1。published simulation／world stateから抽出したimmutable frame input |
 | `ViewFamily` | frame | 本書§2.1の`RenderView`集合。同じsurface、render extent policy、AA plan、exposure familyを共有する |
-| `ResolvedMaterialBindingV1` | frame | [Materials](materials.md) §5。`CookedMaterialArtifact`とtyped instance bindingの解決結果 |
+| `ResolvedMaterialBindingV1` | frame | [Materials](materials.md) §5。`CookedMaterialArtifactGenerationRefV1`、typed Instance／Runtime Override、`MaterialBatchCompatibilityKeyV1`の解決結果 |
 | `LightSnapshotV1` | frame | [Lighting](lighting.md) §6。`ResolvedLightSet`の唯一のRenderer公開形で、`RenderSnapshot.light_snapshot`として受ける |
 | `EnvironmentPresentationSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Environment Profileと完成Artifact generationのprojection |
 | `WaterSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Water surface／underwater／query generationのprojection |
@@ -395,7 +395,9 @@ Quality fallbackは意味を明示し、resolution、optional effect、shadow ex
 
 Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfileV1`／`ResolvedLightPlanV1`、[Post Processing](post-processing.md)所有の`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、[LOD](lod.md)所有の`LodIntentV1`／`LodResolutionPlanV1`／`ViewLodContextV1`を解釈し直さず実行する。UI primitiveの`MirakanUiDrawPacketV1`は[Editor UI Framework](../03-authoring/editor-ui-framework.md)、`RuntimeRepresentationPlanV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)、共通`RemediationV1`は[Executable contracts](../02-foundation/executable-contracts.md)、Provider lockの`RendererProviderLockV1`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が正本である。
 
-`RenderRepresentationPlanV1`はRuntime planからCookされ、各Source集合を`individual | instanced | spatial_batch | presentation_batch`の一つに分類し、Source Stable ID集合、plan-local Cell、mobility／interaction、geometry／material key、Domain LOD plan、HLOD chain、bounds、resident／visible上限、Target fallback、visual-equivalence hashを持つ。`VisibilityInstanceV1`はgeometry generation、current／previous transform、bounds、量子化済みerror／threshold、previous presentation tier、material packet、layer、stable render IDだけを持つSoAで、Entity／Component pointer／Gameplay tag／Simulation tierを含めない。
+`RenderRepresentationPlanV1`はRuntime planからCookされ、各Source集合を`individual | instanced | spatial_batch | presentation_batch`の一つに分類し、Source Stable ID集合、plan-local Cell、mobility／interaction、geometry key、[Materials](materials.md)所有のexact `MaterialBatchCompatibilityKeyV1`、Domain LOD plan、HLOD chain、bounds、resident／visible上限、Target fallback、visual-equivalence hashを持つ。`VisibilityInstanceV1`はgeometry generation、current／previous transform、bounds、量子化済みerror／threshold、previous presentation tier、material packet、layer、stable render IDだけを持つSoAで、Entity／Component pointer／Gameplay tag／Simulation tierを含めない。
+
+同じ`MaterialBatchCompatibilityKeyV1`はbatchの必要条件であって十分条件ではない。Rendererはexact geometry generation、vertex／Pass interface、LOD、View、layer、sort class、Target Profileも一致するときだけgroup化し、異なるMaterial keyを同じbatchへ入れない。Material parameter名、値、texture handleを再評価せず、Materialsが宣言したper-render-instance layoutのpayloadだけを参照する。individual／instancedのどちらでもSource Stable ID集合とstable render IDを保ち、batch化をGameplay identityの統合として扱わない。上限超過、stale artifact generation、layout不一致ではgeneration全体をtyped rejectし、silent dropや同一frameの別Material fallbackを行わない。
 
 2Dは`Renderer2DExecutionPlanV1`により`SpriteRendererComponentV1`または`TileChunkArtifactV1`からAsset version、bounds、layer／order／Y-sort、material instance、atlas page、mask／blend、Stable rendering IDを持つpacketを抽出する。Source rect／Tile ID配列、texture handle、native descriptor indexをSnapshotへcopyしない。
 
