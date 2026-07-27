@@ -1,7 +1,7 @@
 # Miraikanai Engine Architecture Decision Log Governance
 
 - 文書ID: mirakan.decision.architecture-decision-log-governance
-- 状態: review
+- 状態: normative
 - 正本範囲: Architecture Decision Recordの役割、Decision Logの配置、状態遷移、不変性、汎用形式、現行Architecture正本との責務分離、既存Decisionの整理方針
 - 非正本範囲: 各DomainのSchema・固定値・runtime挙動、Architecture Inventory Schema、Owner Registry、MCD／Operation activation、実装Taskの順序。各Owner文書と後続ChangeSetを参照する
 - 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Architecture Document System Restructure](2026-07-21-document-system-restructure.md)
@@ -98,7 +98,7 @@ Decisionは簡潔、断定的、対象判断に限定した記述とする。詳
 |---|---|---|
 | `mirakan.decision.architecture-document-system-restructure` | Accepted相当 | 本文を変更・削除しない。旧形式のAccepted履歴として保持する |
 | `mirakan.decision.runtime-ecs-contract` | Proposed相当 | 現行Schema・固定値をOwnerへ一意化し、採用理由とConsequencesへ縮約する |
-| `mirakan.decision.architecture-decision-log-governance` | Proposed相当 | 本Decisionの承認とmigration完了を同じReview closureで確認してAccepted相当へ遷移する |
+| `mirakan.decision.architecture-decision-log-governance` | Accepted | 本Decisionの承認とmigration／Review closureは完了している |
 
 Proposed Decisionの整理はAccepted前のReview修正として行う。Accepted Decisionの形式を揃えるためだけの書換えや削除は行わない。
 

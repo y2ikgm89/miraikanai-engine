@@ -23,7 +23,7 @@ This README is navigation/template only and does not itself make an Architecture
 |---|---|---|---|
 | 2026-07-21 | [Architecture Document System Restructure](2026-07-21-document-system-restructure.md) | `normative` | document-system restructure |
 | 2026-07-22 | [Runtime ECS Contract](2026-07-22-runtime-ecs-contract.md) | `review` | Engine-owned ECS choice |
-| 2026-07-27 | [Architecture Decision Log Governance](2026-07-27-architecture-decision-log-governance.md) | `review` | ADR lifecycle and authority separation |
+| 2026-07-27 | [Architecture Decision Log Governance](2026-07-27-architecture-decision-log-governance.md) | `normative` | ADR lifecycle and authority separation |
 
 ## 4. Template
 
@@ -41,6 +41,9 @@ This README is navigation/template only and does not itself make an Architecture
 ## 5. Update rules
 
 - One significant decision per file.
+- Name each file `YYYY-MM-DD-<slug>.md` and assign the stable document ID `mirakan.decision.<slug>`.
+- Allowed transitions are `review -> normative`, `review -> rejected`, and `normative -> superseded`.
+- `rejected` and `superseded` are terminal states.
 - Do not rewrite accepted/rejected Decision bodies.
-- Create a new Decision for a changed choice and link the supersession.
+- Create a new Decision for a changed choice. Record `Superseded by` in the old Decision and `Supersedes` in the new Decision, each with the counterpart's stable document ID and relative Markdown link.
 - Do not use Decision text as the sole authority for a current Contract.
