@@ -7,7 +7,7 @@
 - 正本範囲: 2D Grid Navigation、canonical A*／高度探索のalgorithm eligibility、3D Navmesh source／profile／artifact、Detour sliced query／version付き結果cache、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract、`MotionExecutorPortV1`
 - 非正本範囲: Runtime phase／Simulation Advance／shared worker／capacity、Physics dynamics、Collision event、selected Motion ExecutorによるTransform解決、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Collision](collision.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
-- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
+- 関連文書: [Navigation Design Alignment Review](../appendices/navigation-design-alignment-review.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -18,6 +18,23 @@ Navigationは[World](../06-rendering/world.md)のexact `WorldSpaceProfileRefV1`�
 NavigationはWorld Transformを書かず、Physicsをstepせず、Animation poseを選ばない。[Collision](collision.md)のstatic geometry／filterをsourceとしてcookし、[Physics](physics.md)の前snapshotからdynamic obstacle inputを受ける。cross-subsystem order、async acceptance、shared worker、lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)を消費する。
 
 ModuleはContracts、Core、Grid2D、private Navmesh Backend、Authoring、Editor Projection、Qualification Toolへ分離する。ContractsはEngine value／Port／request／result／statusだけ、Coreはvalidation／build orchestration／version／lease／status normalizationだけを公開する。Backend名で上位処理を分岐せず、Backend capabilityはprivate conformance inputとして扱う。
+
+<a id="navigation-current-target-reading"></a>
+
+### 1.1 AI／Editor向けcurrent／target読解
+
+本書はtarget contractの正本であり、Repositoryのcurrent実装またはactive Operation inventoryではない。AI、Editor、Project C++、計画書readerは、型名または自然言語上のactionが本文に存在することを実装済み、選択可能、dispatch可能またはqualifiedと解釈してはならない。current／targetの読み分けを次へ固定する。
+
+| 対象 | 読み方 |
+|---|---|
+| Grid／Navmeshのprofile、artifact、query、version、lease | target Engine contract。Repository実装、生成Schema、active Artifactは現在存在しない |
+| `MotionExecutorPortV1`とProvider／binding record | target public contract候補。materialized Contract set、Catalog、Receipt、Activation Bindingが揃うまでactiveではない |
+| inspect、create／update、cook、preview、validate、qualification report | §5のplanned semantic vocabulary。current公開Operationではなくdispatchしない |
+| canonical A*／Detour | production候補の意味とQualification条件。採用済みBackendまたは合格済みcandidateを意味しない |
+| JPS／ALT | §6の`conditional_research`。transparent equalityを証明するまでProject選択またはruntime自動切替を許可しない |
+| D* Lite／HPA*／flow field／local avoidance | §6の`deferred`。C1の暗黙要件またはfallbackにしない |
+
+Ownerも二層を区別する。[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)上、`wp.navigation.core`はNavigation query／artifact／provider portと`capability.simulation.navigation`のProduct実装責務を持ち、`capability.gameplay.path_following`のProduct Capability／実装責務は`wp.gameplay.reusable-features-c1`が持つ。本書は後者のNavigation-facing public contract、query integration、version／stale semantics、Movement Intent境界の正本であり、Feature PackのProduct所有権またはFeature-owned persistent StateをNavigation Coreへ移さない。AI向け評価、主要Engine比較、cross-owner closureは[Navigation Design Alignment Review](../appendices/navigation-design-alignment-review.md)をread-onlyな監査入口とし、同Appendixからactive stateを導出しない。
 
 ## 2. Profile、source、2D Grid
 
@@ -76,6 +93,8 @@ Tile promotionはartifact単位でatomicに行う。部分成功をactive World�
 
 Dynamic obstacleは前snapshotからbounded update inputを受ける。C1の動的変化（door閉鎖等のNavModifier／area／off-mesh link変更を含む）は、差分re-cookによる新versionのstaging artifactとversion切替だけで反映する。差分buildはsource／Profile identityが変わらないtileのpayload再利用を許すが、artifact identityは新規に発行し、Tile promotionのatomic ruleに従う。Engine-owned local avoidance overlayはC2の複数Agent local avoidance専用であり、C1経路では使わない。obstacle input受領からversion activateまでの反映latency boundは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有し、本書は値を定義しない。同じRuntime slotのPhysics native Worldを直接queryせず、live Navmeshをcallbackからmutateしない。World streaming固有のcell policyは[World](../06-rendering/world.md)へ委譲し、本書はstreaming phaseや共通capacityを定義しない。
 
+World streaming連携では、Worldがcandidate Cell／activation group membershipとsource generationを、[Asset lifecycle](../03-authoring/asset-lifecycle.md)がrequired dependency closureのall-readyとimmutable artifact identityを、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)が`T00_BoundaryApply`のatomic適用境界を、Navigationがactive Nav World binding、`NavMeshVersion`、lease／stale semanticsをそれぞれ所有する。selected Navigation payloadが未Ready、World Space Profile／source generation／dependency hash不一致、またはactivation groupの一要素がfailed／cancelled／staleなら、Cell groupとNav World bindingを部分適用せず、直前のactive Cell groupとNavmesh versionを維持する。成功時だけ同じsealed activation setでCell bindingと新Navmesh versionを可視化し、旧versionはNavigation leaseが0になるまでretireしない。NavigationはWorld residency、Cell membership、streaming priorityを変更せず、WorldはBackend tile、polygon ref、query leaseを保持しない。
+
 Detour private Adapterのsliced path candidateは、in-flight query／workerごとに専用`dtNavMeshQuery`を持つ。`initSlicedFindPath -> updateSlicedFindPath -> finalizeSlicedFindPath`の開始からfinalizeまで、同じquery objectへ別のsliced queryまたはnon-sliced queryを呼ばない。`dtNavMeshQuery::init(nav,maxNodes)`の`maxNodes`はTarget／query execution Profileが固定する1～65,535のexact値で、pool枯渇はtyped `backend_failure`と一原因diagnosticにし、partial pathをsuccessへ変換しない。`maxIter`は同Profileのadvance／deadline budgetへ固定し、sliced executionは完了時点だけを分割してpath semantics、tie-break、result boundを変更しない。`finalizeSlicedFindPathPartial`はcallerが明示した別query kind／contractがActivationされるまで通常path successに使わない。
 
 `dtTileCache::update`がtouchしたtileはstaging `dtNavMesh`だけへ反映し、`upToDate=true`、全tile／seam／area／link validation、artifact hash完成後にだけ新`NavMeshVersion`としてatomic publishする。途中のstaging navmesh、old／new tile混在、Backend poly refをactive queryへ公開しない。公式制約は[Detour `dtNavMeshQuery`](https://recastnav.com/classdtNavMeshQuery.html)と[`dtTileCache`](https://recastnav.com/classdtTileCache.html)を根拠とする。
@@ -101,7 +120,7 @@ Async resultのdeadlineとacceptanceは[Runtime scheduling／lifetime](../04-run
 <a id="Path-Following"></a>
 <a id="41-generic-motion-executor-port"></a>
 
-`capability.gameplay.path_following`（成熟度C1。maturityはidentityに含めない）は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定をNavigation ownerとして所有する。Navigation query resultとselected Motion Executorの最終authoritative motion解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。selected executorのwriter authorityを奪わない。
+`capability.gameplay.path_following`（成熟度C1。maturityはidentityに含めない）のProduct Capability／実装ownerは[Gameplay Feature Packs](../08-packs/gameplay-features.md)と`wp.gameplay.reusable-features-c1`である。本書は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定についてNavigation-facing public contractとquery／version integrationだけを所有する。Navigation query resultとselected Motion Executorの最終authoritative motion解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。selected executorのwriter authorityを奪わず、Feature-owned State、Command／Event、Save projectionをNavigation Coreへ移さない。
 
 ```text
 PathFollowRequestV1
