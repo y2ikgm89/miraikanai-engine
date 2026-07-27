@@ -170,6 +170,8 @@ AssetImportProfileV1
 
 Profile inheritanceは一段だけ許可し、最終的なflatten済みProfile hashをJob keyとReceiptへ保存する。Asset kind固有fieldをuntyped property bagへ入れず、tagとvariant不一致をSchema errorにする。
 
+AudioのWAV／FLAC parser、validation、Cook規則は、Productが対象formatを採用し、format identity、Importer／Toolchain lock、semantic scope、Target、loss／security policy、Qualificationを同じDefinition closureへ束縛した後のtarget C1 contractである。`AudioImportSettingsV1`、`AudioImportIRV1`、decoder、Preview、Toolchain lockが存在しても名前付きformatをactivateせず、current採用済み名前付きformat集合はexact `[]`とする。採用前のWAV／FLAC Sourceはformatを推測してCookせず、SourceとProject revisionを不変にして`UnsupportedSourceFormat`または`CapabilityNotActivated`を返す。
+
 ```text
 AssetImportPlanV1
   plan_id: StableId
