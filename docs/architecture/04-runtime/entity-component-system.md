@@ -1,17 +1,21 @@
 # Miraikanai Engine Runtime Entity Component System Contract
 
 - 文書ID: mirakan.arch.runtime-entity-component-system
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Runtime Entity／Component identity、initializer・template・archetype／SoA layout、query・selection・dispatch・cache、Component access manifest、lease、structural transaction、runtime state binding、ECS AI contract graph、ECS固有diagnostic・qualification
 - 非正本範囲: Runtime phase／job DAG、generic artifact envelope／catalog、World package binary、Save／Replay payload、debug transport、AI authorization・route grant、各Domain Componentの意味・field。各Owner文書を参照する
-- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Performance／Capacity](performance-capacity.md)
-- 外部根拠検証日: 2026-07-24
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Performance／Capacity](performance-capacity.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-24
 
 ## 1. 状態と結論
 
 本書はEngine-owned archetype／SoA Runtime ECSの目標正本である。比較対象EngineのAPI、型、保存形式、scheduler、World semanticsを採用しない。採るのは、archetypeにより同じComponent集合を列指向に配置すること、反復利用するqueryをcacheできること、iteration中のstructural mutationをdeferすること、世代付きhandleと宣言的accessを使うことだけである。ECSはEntity／Component固有のhandle、query lease、structural invalidationを所有し、一般pointer taxonomy、leaseの保存／capture禁止、memory resourceは[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingを消費する。ECS独自のwrapperでこれらを再定義しない。
 
-本書の`review`状態と型定義は、ECS runtime、MCD、Operation、Tool、Native ABI、Package reader、Save readerが既にactiveであることを意味しない。[Architecture Governance](../01-governance/architecture-governance.md#4-runtime-ecs正本化changeset)の`RuntimeEcsCanonicalizationChangeSetV1`がapprovedかつappliedになり、complete Consumer Inventory、Compatibility Change、Owner reference migration manifest、Owner Registry revision 2、Foundation Definition Closure、affected Contract set、Definition Migration binding、全Evidence Requirementのpass satisfaction binding、qualification evidenceが同一closureで整合した後だけcurrent化できる。
+本書の`review`状態と型定義は、ECS runtime、MCD、Operation、Tool、Native ABI、Package reader、Save readerが既にactiveであることを意味しない。[Governance Migration Proposals](../appendices/governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)の`RuntimeEcsCanonicalizationChangeSetV1`候補が別途承認され`applied`となり、complete Consumer Inventory、Compatibility Change、Owner reference migration manifest、Owner Registry revision 2、Foundation Definition Closure、affected Contract set、Definition Migration binding、全Evidence Requirementのpass satisfaction binding、qualification evidenceが同一closureで整合した後だけcurrent化できる。
 
 current authorityが移管されるまで、`owner.core.runtime_ecs` revision 1のauthority documentは[Gameplay programming model](../03-authoring/gameplay-programming-model.md)である。本書はその移管先を定義し、実装Task Planや実装手順を定義しない。
 

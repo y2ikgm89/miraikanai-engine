@@ -1,11 +1,15 @@
 # Miraikanai Engine Compatibility and Evolution Contract
 
 - 文書ID: mirakan.arch.compatibility-evolution
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Architecture／Schema／artifact／runtime boundaryの互換性class、consumer inventory、clean-break procedure、reader／writer／aliasの可否、recook／rebuild／migration evidence、互換性ChangeSet
 - 非正本範囲: 個別Domain Schemaのfield、Save payload、Package binary、runtime lease、Product Work Package、外部SDKのversion。各Owner文書を参照する
-- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Product plan](../00-product/product-plan.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)
-- 外部根拠検証日: 2026-07-26
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Executable Contracts](executable-contracts.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Product plan](../00-product/product-plan.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-26
 
 ## 1. 結論
 
@@ -136,7 +140,7 @@ Sourceを保持することはruntime handle、native pointer、chunk location�
 
 ## 4. Runtime ECS canonicalizationの互換性
 
-Runtime ECS正本化の`source_preserving_recook`はreview中の候補classである。これは[Architecture Governance](../01-governance/architecture-governance.md#4-runtime-ecs正本化changeset)の`RuntimeEcsCanonicalizationChangeSetV1`と一対一に結ぶが、completeかつzero verifiedな`CompatibilityConsumerInventoryV1`とapproved Compatibility ChangeSetが生成されるまで承認済みclassではない。同ChangeSetが`applied`になるまではcurrent formatを変更しない。
+Runtime ECS正本化の`source_preserving_recook`はreview中の候補classである。これは[Governance Migration Proposals](../appendices/governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)の`RuntimeEcsCanonicalizationChangeSetV1`候補と一対一に結ぶが、completeかつzero verifiedな`CompatibilityConsumerInventoryV1`とapproved Compatibility ChangeSetが生成されるまで承認済みclassではない。同ChangeSetが`applied`になるまではcurrent formatを変更しない。
 
 | 旧concept | target concept | target Owner | cutover規則 |
 |---|---|---|---|

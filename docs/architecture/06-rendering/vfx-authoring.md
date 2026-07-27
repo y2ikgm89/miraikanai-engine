@@ -1,11 +1,15 @@
 # Miraikanai Engine VFX Authoring Contract
 
 - 文書ID: mirakan.arch.rendering-vfx-authoring
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: VFX Source Document、semantic intent／catalog、typed graph、curve／gradient／random、compiler、VFX固有planned authoring action／diagnostic／qualification
 - 非正本範囲: Project HLSL Module／Technique、compiled execution artifact／instance／CPU・GPU simulation／render execution、LOD共通selection、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[LOD](lod.md)、[VFX runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)
-- 外部根拠検証日: 2026-07-22
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project Shader](project-shader.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Materials](materials.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[LOD](lod.md)、[VFX runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-22
 
 ## 1. 結論と所有境界
 

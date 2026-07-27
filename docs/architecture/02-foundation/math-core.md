@@ -1,15 +1,19 @@
 # Miraikanai Engine Math／Core Utilities
 
 - 文書ID: mirakan.arch.math-core
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Foundation utilityとMath target、semantic／compact型、座標・単位・matrix・quaternion、floating-point、失敗契約、AI projection、Interchange／Shader境界、Qualification
 - 非正本範囲: 外部Library・Tool version／hash／license、一般命名・配置、Memory／Pointer taxonomy、Runtime budget／phase、Product capability maturity。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project Layout](naming-project-layout.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論
 
-Miraikanai EngineのMathとCore Utilitiesは、汎用`Vector3`と雑多な`utils`を全Subsystemへ公開する方式にしない。次を公式方式とする。
+Miraikanai EngineのMathとCore Utilitiesは、汎用`Vector3`と雑多な`utils`を全Subsystemへ公開する方式にしない。次を本プロジェクトの採用候補とする。
 
 1. `mirakan::foundation`はID、Result／Error、Diagnostic、Hash、Endian、Time、bounded access、memory tag等の非数学基盤を所有する。
 2. `mirakan::math`はscalar、角度、vector、matrix、quaternion、transform、geometry、数値検証を所有し、`mirakan::foundation`だけへ依存する。
@@ -140,7 +144,7 @@ canonicalization
 wire_layout
 ```
 
-初期公式typeは次とする。
+初期標準type候補は次とする。
 
 | Semantic type | Storage | 必須意味 |
 |---|---|---|
@@ -201,7 +205,7 @@ wire_layout
 
 ### 7.1 Precision
 
-| 用途 | 公式scalar |
+| 用途 | 標準scalar |
 |---|---|
 | C1／C2 Runtime transform、Physics公開値、Rendering、Animation、VFX | `float32` |
 | Project／MCD wireの一般物理量 | Domainが指定する`float32`または`float64`、finite必須 |
@@ -290,7 +294,7 @@ Diagnosticはfield path、type ID／version、expected unit／space／range、ac
 
 ### 9.1 Foundation所有
 
-| 概念 | 公式表現 |
+| 概念 | 標準表現 |
 |---|---|
 | 成功／失敗 | `Result<T> = std::expected<T, Error>` |
 | 永続ID | RFC 9562 UUIDv7 `StableId` |
@@ -479,38 +483,20 @@ Math単体のns改善だけでProduction採用しない。Runtime規約のRefere
 
 WARP／HLSL Shader conformanceはD3D12 backend実装（`wp.runtime.d3d12-backend`）を前提とするためM0では実行しない。glTFのmath-level TRS／matrix goldenはM0で実行し、Importer側のconformance closureはAsset Import実装後のentry条件とする。未合格backendはCapability Manifestへ掲載せず、portable scalar referenceを維持する。
 
-## 14. 実装順序
+## 14. 設計依存と受入条件
 
-### 14.1 Phase 0 Work Package
+本節は実装Task、担当、作業順またはProduct Phaseを定義しない。Math contractを承認する際の依存関係と、独立に検証すべきsubjectだけを定める。
 
-Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する。
-
-| Task | 成果物 | Gate |
+| Subject | 成立に必要な設計依存 | 必須Evidence |
 |---|---|---|
-| `MATH0_contract` | Math Type／planned semantic action／Diagnostic MCD candidate、generated descriptor | schema、round-trip、invalid fixture |
-| `FOUNDATION0_core` | Result、Error、Diagnostic、StableId、Hash、Endian、Duration、bounded reader／writer | unit、property、ASan、no-allocation failure path |
-| `MATH1_scalar_reference` | `mirakan::math` C0 storage／semantic typeとportable scalar演算 | unit、property、golden、MSVC／clang-cl |
-| `MATH2_transform` | matrix、Quaternion、Transform2／3、projection共通部 | compose、inverse、decompose、reversed-Z |
-| `MATH3_projection` | C++／C ABI／Editor／TypeScript／MCP descriptor | deterministic generation、Gateway再検証 |
-| `MATH4_conformance` | math-level glTF TRS／matrix golden、HLSL／Adapter conformance fixture定義 | CPU golden、layout、invalid input。Shader／Adapter実行conformanceはM1／M2 entryで合格 |
-| `MATH5_baseline` | scalar performance／code size／compile time Receipt | 測定Availability。最適化採用は行わない |
+| Math Type／Diagnostic contract | Foundationの`Result`、`Error`、Stable ID、Hash、Endian、Duration、bounded reader／writer | Schema validation、round-trip、invalid fixture |
+| portable scalar semantics | Math Type contract、floating-point profile | unit、property、golden、MSVC／clang-cl一致 |
+| Transform／projection semantics | scalar semantics、space／unit contract | compose、inverse、decompose、reversed-Z fixture |
+| public projection | immutable Math contract set | C++／C ABI／Editor／TypeScript／MCP descriptorのdeterministic generationとGateway再検証 |
+| cross-domain conformance | 対応Domain contractとTarget capability | glTF TRS／matrix golden、HLSL／Physics／Navigation／Cameraのlayout・invalid-input fixture |
+| optimization candidate | portable scalar baselineと同じSource／fixture | performance、code size、compile timeのBefore／After Receipt。未計測候補をPromotionしない |
 
-`MATH0_contract`と`FOUNDATION0_core`は並行可能とし、両方の完了を`MATH1_scalar_reference`のEntry Gateにする。その後は`MATH1_scalar_reference → MATH2_transform → MATH3_projection → MATH4_conformance → MATH5_baseline`の順とする。generated C++は`Result`／Diagnostic contract確定後に接続する。
-
-### 14.2 Phase 1～2
-
-- Headless Authoringがsemantic TransformをChangeSet、Save、Load、Replayできる。
-- Editor Inspectorがunit、space、range、degree表示、invalid DiagnosticをMCDから生成する。
-- `Rect`／AABB／Ray／Plane／FrustumとC1共通Geometryを追加する。
-- Render Graph、Camera、Asset Importが同じMath descriptorを使用する。
-- Windows private最適化候補はbaseline測定後にprototypeできるが、Promotionしない。
-
-### 14.3 Phase 3以降
-
-- 2D C1でCanvas、Box2D、pixel mapping、Cameraのconformanceを閉じる。
-- 3D C1でRenderer、Jolt、Recast、Animation、glTF、HLSLを閉じる。
-- MobileでARM64、NEON、Vulkan／Metal layoutをQualificationする。
-- C2で実測上位ボトルネックだけにSIMD／Platform backendを追加する。
+Headless Authoring、Editor、Render Graph、Camera、Asset Import、Physics、Navigation、AnimationおよびPlatform Adapterは同じMath descriptorを参照する。各consumerの実装時期はProduct Planまたは別の実装計画で決め、本書へ戻さない。SIMD／Platform backendは、portable scalar semanticsとcross-target equalityを維持し、実測で必要性が示された場合だけ別候補として審査する。
 
 ## 15. AI Eval
 
@@ -529,7 +515,7 @@ Phase 0の`WP0_foundation_measurement`へ次を独立taskとして追加する�
 
 通常CaseのType／planned semantic action選択正答率98%以上、unit／space mismatch Commit成功0、silent fallback 0、存在しないMath action提出0をC0合格条件とする。
 
-## 16. Definition of Done
+## 16. 受入条件
 
 1. `mirakan::foundation`と`mirakan::math`の依存が一方向でcycleがない。
 2. `utils`／`helpers`／`common` targetまたはDirectoryがない。

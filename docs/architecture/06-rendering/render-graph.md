@@ -1,11 +1,15 @@
 # Miraikanai Engine Render Graph Contract
 
 - 文書ID: mirakan.arch.rendering-render-graph
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、visibility／geometry execution、lighting pipeline profile、anti-aliasing／temporal execution、Renderer固有failure／qualification
 - 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
-- 外部根拠検証日: 2026-07-26
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. 結論と所有境界
 
@@ -151,6 +155,14 @@ cycle、uninitialized read、同一subresource unordered write、unsupported for
 ## 4. Queue、barrier、lifetime execution
 
 queue classはgraphics、async compute、copyをEngine語彙として公開し、実Deviceで利用不能なclassはGraph compile時に意味を保ったqueueへ統合するか、明示的にunsupportedを返す。Queue間dependencyはGraph edgeからだけ生成し、Backend固有signal値を保存形式やdiagnostic identityにしない。
+
+### 4.1 D3D12 Enhanced Barriers capability
+
+根拠: official-spec — Microsoftの[`D3D12_FEATURE_DATA_D3D12_OPTIONS12`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ns-d3d12-d3d12_feature_data_d3d12_options12)ではEnhanced Barriersはoptional capabilityであり、`EnhancedBarriersSupported`のfeature queryが必要である。
+
+根拠: project-decision／provisional — MiraikanaiのD3D12候補BackendはEnhanced Barriersだけを使用し、Legacy Resource Barriersとの二重実装を持たない。この互換範囲はPrototypeと対応Device調査前の候補であり、対応済みとは表現しない。
+
+D3D12 Device作成時にOPTIONS12をqueryし、`EnhancedBarriersSupported == TRUE`を確認してからD3D12 Render Graph capabilityを公開する。`FALSE`、query失敗、必要Agility SDKを読み込めない場合は`UnsupportedDevice`としてRenderer初期化前に拒否する。Legacy Barrierへ暗黙fallbackせず、Graph compileまたはsubmissionを開始しない。Capability Signatureはquery結果、Agility SDK version、Adapter／driver identityを保持し、Qualification Receiptは同じSignatureへ束縛する。
 
 Transient resourceはcompile済みintervalの範囲だけ生存し、aliasはformat／alignment／queue overlap／clear semanticsが互換な場合に限る。Persistent resource、streaming resource、temporal history、swapchain surfaceはgeneration付きleaseで参照し、Device reset、resize、provider change、artifact promotionを跨ぐstale handleを拒否する。
 
@@ -429,7 +441,7 @@ algorithm optimization candidateは同じGraph Definition、Render Snapshot、Vi
 
 - Graph cycle、read-before-write、unordered write、subresource overlap、history invalidationのunit／property test。
 - 同一Graph入力からcanonical compile plan hashが一致するdeterminism test。
-- D3D12（Enhanced Barriersのみ。legacy barrier laneのconformance fixtureを持たない）、Vulkan、Metalのaccess／barrier conformanceと各validation zero-error fixture。
+- D3D12はOPTIONS12のpositive／negative feature queryを検証し、positive DeviceだけでEnhanced Barriersのaccess／barrier conformanceを実行する。negative Deviceはsubmission前に`UnsupportedDevice`となることを検証する。Legacy Barrier laneは持たない。Vulkan、Metalは各APIのaccess／barrier conformanceとvalidation zero-errorを検証する。
 - 2D pixel、Realistic、Toon、Pixel Dioramaのgolden image。
 - AA Off／FXAA／SMAA 1x／MSAA 2x・4x・8x／Mirakan TAA／TAAUのthin geometry、foliage、alpha scissor／blend、specular、particle、emissive、skinning、急加速、camera cut、dynamic extent、HDR fixture。
 - AA scope conflict、TAA＋MSAA、Deferred MSAA、unsupported sample count、missing motion／depth、pixel-locked temporal、Settings Apply外rebuildのnegative test。

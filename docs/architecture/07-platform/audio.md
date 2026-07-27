@@ -1,11 +1,15 @@
 # Miraikanai Engine Audio／Mixer／Spatial Contract
 
 - 文書ID: mirakan.arch.platform-audio
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Audio Assetのdomain意味、Sound Cue、Audio command、Voice、Mixer／Bus／DSP、Spatial、decode／stream／callback、route／interruption、Audio固有capacity／failure／qualification
 - 非正本範囲: Source import／cook／promotion transaction、Runtime phase／shared queue・memory budget、Platform lifecycle、external codec／SDK version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論
 
@@ -26,7 +30,7 @@ C1は48 kHz float32 Engine mix、stereo output、one-shot PCM、Opus music strea
 
 C1ではvoice chat、microphone capture、speech recognition、MIDI、video sync、third-party DSP plugin、Runtime arbitrary audio graph code、HRTF、convolution reverb、dynamic music authoringを実装しない。HRTF、advanced reverb、voice chatはC2以降の別Capabilityである。
 
-### 2.1 独自実装と公式依存の境界
+### 2.1 独自実装と外部依存の境界
 
 MiraikanaiはWwise、FMOD、SoLoud等のAudio middlewareをRuntime、Editor、Cookerの正本に採用しない。Audio Asset schema、Sound Cue、logical Voice、priority／virtualization、Bus／Snapshot、DSP Catalog、Spatial、decode scheduling、stream ring、resampler、Mixer、lifecycle、diagnostic、AI／Editor OperationはEngine-owned実装とする。
 
@@ -327,7 +331,7 @@ Runtime AIによる音声生成／downloadはC1／C2 Shippingで禁止する。�
 
 Capability maturityと実装順序は[Product Plan](../00-product/product-plan.md)だけが決定する。本書のContract、Headless Mixer、Voice／Cue／Spatial、Import／Cook／Stream、Windows／Android／Apple output Adapter、AI／Editor、cross-platform qualificationは独立fixtureとして検証し、未完成Adapterはsilent successを返さず`UnsupportedTarget`とする。device-independent Mixer／Cue／Cook fixtureはPlatform AdapterなしでCI実行でき、Adapter都合をAudio contractへ逆流させない。
 
-## 17. TestとDefinition of Done
+## 17. Testと受入条件
 
 - WAV PCM8／16／24／32、float32、RF64、FLAC、Opus Cook、loop、seek、corrupt packet、stale Asset generation
 - WAVEFORMATEXTENSIBLE channel mask、FLAC CRC、Opus pre-skip／output gain／granule mapping

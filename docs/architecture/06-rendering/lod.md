@@ -1,11 +1,15 @@
 # Miraikanai Engine LOD Contract
 
 - 文書ID: mirakan.arch.rendering-lod
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: LOD intent／policy、representation set／tier、projected-error／importance／pressure入力、hysteresis／transition、geometry／HLOD／simulation／animation／material／VFX／terrain representation selection、LOD固有operation／diagnostic／qualification
 - 非正本範囲: representation asset生成／promotion、Render pass／visibility execution、World streaming activation、Simulation behavior、Runtime shared capacity／phase、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[World](world.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[World](world.md)、[Render Graph](render-graph.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[World](world.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論と所有境界
 
@@ -316,6 +320,6 @@ Qualificationは次のDomain fixtureを持つ。
 
 Evidence envelopeとgradingは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を参照する。distance-only selection、tier index coupling、silent hide、authoritative behavior loss、phase／budget複写が残る実装はRelease候補にしない。本書はdomain qualification evidenceを出力し、activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。
 
-[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../04-runtime/performance-capacity.md#13-integrated-fixtureとqualification)を使い、camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、owner-typed authoritative subject／critical presentation VFX、streaming、Asset promotionを同一runで発生させる。`LodQualificationReceiptV1`は`receipt_id`、先に固定したReceipt-free `plan_hash`、`artifact_hashes[]`、`target_profile`、`device／driver`、exact `fixture_id／fixture_version／fixture_content_hash`、`camera_path_hash`、`quality_profile`、`before_metrics`、`after_metrics`、`visual_diff_metrics`、`gameplay_replay_hash`、`fallback_events[]`、`diagnostics[]`、`result`、`toolchain_hash`、`timestamp`を持つ。Receiptまたはwrapper hashをLOD Plan preimageへ戻さない。Evidence envelopeの定義は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)の正本を使う。
+[Performance／capacityが所有する`IntegratedScaleFixtureV1`](../appendices/performance-scale-catalog-proposal.md#13-integrated-fixtureとqualification)を使い、camera移動、LOD／HLOD遷移、spawn burst、Physics／Navigation／Animation、owner-typed authoritative subject／critical presentation VFX、streaming、Asset promotionを同一runで発生させる。`LodQualificationReceiptV1`は`receipt_id`、先に固定したReceipt-free `plan_hash`、`artifact_hashes[]`、`target_profile`、`device／driver`、exact `fixture_id／fixture_version／fixture_content_hash`、`camera_path_hash`、`quality_profile`、`before_metrics`、`after_metrics`、`visual_diff_metrics`、`gameplay_replay_hash`、`fallback_events[]`、`diagnostics[]`、`result`、`toolchain_hash`、`timestamp`を持つ。Receiptまたはwrapper hashをLOD Plan preimageへ戻さない。Evidence envelopeの定義は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)の正本を使う。
 
 全Domainを一つの`LodProfileV1`や一つの`lod_index`へ畳み込む設計は重複契約として非採用である。Worldの`SpatialPartitionIntentV1`は[World](world.md)が所有し、LODはそのDerived Planに対するrepresentationだけを選ぶ。Gameplay意味の変更が必要な場合はLOD proposalと分離した`GameplayScaleChangeProposalV1`と人間承認を[Executable contracts](../02-foundation/executable-contracts.md)のChangeSet経路へ返し、LODが暗黙Commitしない。

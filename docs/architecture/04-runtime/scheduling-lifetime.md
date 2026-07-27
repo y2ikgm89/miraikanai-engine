@@ -1,11 +1,15 @@
 # Miraikanai Engine Runtime Scheduling／Lifetime Contract
 
 - 文書ID: mirakan.arch.runtime-scheduling-lifetime
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Simulation Advance／render phase、固定実行順、job dependency、command／event順序、state writer orchestration、callback lifetime、Asset activation、Play／Runtime Entry branch／World／frame lifetime、Runtime Entry transition、fault recovery、Saveへ渡すtimebase input、Runtime contract固有のGameplay Timer capacity（§4.1）
 - 非正本範囲: Runtime ECS storage・Entity identity・query・selection・Component lease・access manifest・structural delta、World Package binary、Save／Replay payload、共通memory／frame／queue budget、共通capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
-- 依存: [Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
+- 関連文書: [Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論と所有境界
 
@@ -830,13 +834,13 @@ SubsystemはDebug Store、Editor、AIへ依存せず、generated Debug contract�
 
 CIはtarget依存DAG違反、Manifest外access、phase外structural mutation、event／commandへのpointer／unbounded payload、raw owning pointer、一般heap fallback、artifact hash不一致、Runtime handleのSource／Save保存を拒否する。performance／memory／queueの合否は[Performance／capacity](performance-capacity.md)、test Evidenceの形式は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)へ委譲する。
 
-## 14. AI／C++適用とPhase 0 artifacts
+## 14. AI／C++適用とcontract closure
 
 AI、GameplayDefinition、Native Game Module、Engine Systemは同じphase、State owner、component access、command／event、lifetime、faultを使う。実装方式を理由に新phase、独自thread pool、直接World write、vendor pointer、unbounded queueを追加しない。新しいphase、queue class、thread role、lifetime classの提案はArchitecture Changeとして扱う。
 
 大量要求は個数だけで拒否せず、[Performance／capacity](performance-capacity.md)のowner-typed Workload Envelope、semantic requirement、Target別Representation Planへ解決する。Presentation-only最適化でowner登録済みauthoritative instance／event／interaction／destination／timing semanticsを変えない。C++最適化候補も同じSource revision、fixture、Replay、budget、fault Gateで比較する。
 
-Product Phase 0に必要な本書所有artifactは次である。
+本書が所有する候補contract subjectは次である。列挙順は実装順序またはProduct Phaseを意味しない。
 
 1. Runtime Contracts target、Domain Port／Runtime／Adapter依存検査。
 2. Simulation Advance／render phase IDとgenerated conformance table。
@@ -849,7 +853,7 @@ Product Phase 0に必要な本書所有artifactは次である。
 9. Physics／Navigation／Animation cross-subsystem ordering fixture。
 10. Play start／stop、fault、Save、Platform lifecycle conformance。
 
-memory／queue容量、benchmark、Scale、observability artifactは各ownerのPhase 0 requirementを参照し、本書へ複写しない。Product Phaseの順序やmaturityを本書で再定義しない。
+memory／queue容量、benchmark、Scale、observability artifactは各Ownerのcontractを参照し、本書へ複写しない。Product Phase、実装Task、作業順またはmaturityを本書で定義しない。
 
 ## 15. 明示的に採用しないもの
 

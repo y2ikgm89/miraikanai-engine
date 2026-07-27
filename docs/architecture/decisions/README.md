@@ -44,6 +44,6 @@ This README is navigation/template only and does not itself make an Architecture
 - Name each file `YYYY-MM-DD-<slug>.md` and assign the stable document ID `mirakan.decision.<slug>`.
 - Allowed transitions are `review -> normative`, `review -> rejected`, and `normative -> superseded`.
 - `rejected` and `superseded` are terminal states.
-- Do not rewrite accepted/rejected Decision bodies.
+- Do not rewrite `normative`／`rejected` Decision bodies.
 - Create a new Decision for a changed choice. Record `Superseded by` in the old Decision and `Supersedes` in the new Decision, each with the counterpart's stable document ID and relative Markdown link.
 - Do not use Decision text as the sole authority for a current Contract.

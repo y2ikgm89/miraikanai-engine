@@ -1,15 +1,19 @@
 # Miraikanai Engine Memory／Pointers
 
 - 文書ID: mirakan.arch.memory-pointers
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Pointer taxonomy、ownership、typed handle、lease／view、Memory domain、arena／pool、allocation metadata、OOM、AI contract、failure、telemetry、Qualification
 - 非正本範囲: 外部Library・Tool version／hash／license、Runtime共通budget／phase、ECS storage layout・query・lease、GPU residency、一般命名・Directory、Schema共通構造。各Owner文書を参照する
-- 依存: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Compatibility／Evolution](compatibility-evolution.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)、[Product plan](../00-product/product-plan.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 外部根拠検証日: 2026-07-26
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Math／Core Utilities](math-core.md)、[Naming／Project Layout](naming-project-layout.md)
+- 関連文書: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Compatibility／Evolution](compatibility-evolution.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)、[Product plan](../00-product/product-plan.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. 結論
 
-Miraikanai Engineの公式方式は、**契約駆動のhybrid memory management**とする。全面GC、全面reference count、全面custom general-purpose allocatorのいずれも採用しない。
+Miraikanai Engineの採用候補は、**契約駆動のhybrid memory management**とする。これはProject判断であり、外部Vendorの公式推奨を意味しない。全面GC、全面reference count、全面custom general-purpose allocatorのいずれも採用しない。
 
 1. 長寿命C++ objectはRAIIとsingle ownershipを既定にする。
 2. Runtime object、Asset、GPU／Physics／Audio resourceはtyped generation handleで参照する。
@@ -31,7 +35,7 @@ Miraikanai Engineの公式方式は、**契約駆動のhybrid memory management*
 | 全面reference count | localな所有関係を型で表現しやすい | atomic count、cycle、destruction point分散、cache costのためRuntime objectへ不採用 |
 | 全面custom allocator | 全allocationを制御できる | 初期実装Risk、platform allocator／sanitizer互換、profile前の過剰最適化になるため不採用 |
 | 標準heapだけ | 単純で保守しやすい | frame transient、audio、physics、render submissionのallocation／fragmentation制御が不足するため非hot pathの基準としてだけ採用 |
-| 契約駆動hybrid | 寿命別allocator、typed handle、AI validationを分離できる | 公式採用。schema／codegen／telemetryをPhase 0で実装する |
+| 契約駆動hybrid | 寿命別allocator、typed handle、AI validationを分離できる | 本Projectの採用候補。Schema／codegen／telemetryを独立した受入subjectとして検証する |
 
 ### 2.2 既存Engineから採用する教訓
 
@@ -78,17 +82,17 @@ qualification_owner_document_id
 | Authoring | [Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md) | Asset version access、Module owner、Tool-only shared immutable data |
 | Simulation | [Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md) | native adapterの隔離、query／snapshot lease、job scratch、retire |
 | Rendering／Platform | [Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[Audio](../07-platform/audio.md)、[Input](../07-platform/input.md)、[Mobile common](../07-platform/mobile-common.md) | opaque resource handle、submission／callback境界、preallocated buffer、Target adapter |
-| Qualification | [Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Product plan](../00-product/product-plan.md) | telemetry、negative／endurance、Phase 0 gate、Evidence closure |
+| Qualification | [Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Product plan](../00-product/product-plan.md) | telemetry、negative／endurance、受入Gate、Evidence closure |
 
 Save、Replay、Package、AI projection、Network、job packetへlive pointer、reference、lease、span、writer、allocator objectを保存しない。保存可能な値は上表の`storable_form`で明示したStable／Project／Protocol IDだけとし、jobは`job_capture_form`で許可した値、handle、immutable snapshot、owned packetだけを受け渡す。これらの禁止を例外的なlocal wrapper、alias、dual readerで回避しない。
 
-この更新は計画正本のclean breakであり、旧combined Work Package／Capability IDや旧型aliasを新Contractへ接続しない。実装適用前には[Compatibility／Evolution](compatibility-evolution.md)のconsumer inventoryで外部consumerを確認し、zero consumerが検証できた場合だけ旧定義を削除する。検証不能な外部consumerを「互換性不要」と推測して変更することはしない。
+この候補設計は旧combined Work Package／Capability IDや旧型aliasを新Contractへ接続しないclean breakを前提とする。current化の判断前には[Compatibility／Evolution](compatibility-evolution.md)のconsumer inventoryで外部consumerを確認し、zero consumerが検証できた場合だけ旧定義を削除できる。検証不能な外部consumerを「互換性不要」と推測して変更しない。
 
-## 4. 公式Pointer taxonomy
+## 4. 標準Pointer taxonomy
 
 ### 4.1 公開型
 
-| 意味 | 公式表現 | owner | 保存 | Job capture | AI生成 |
+| 意味 | 標準表現 | owner | 保存 | Job capture | AI生成 |
 |---|---|---|---|---|---|
 | 小さな値 | `T` | container／scope | 可 | 可 | 可 |
 | Engine内部single owner | `std::unique_ptr<T>`またはmove-only RAII wrapper | 一つ | session内だけ | owned packet時だけ | Engine保守R4だけ |
@@ -153,7 +157,7 @@ Development／ASan Configurationはaccessごとにphase、epoch、thread、range
 
 Lease、view、span、reference、writer、scratch blockをmember、global、event、command、job packet、lambda capture、coroutine stateへ保存しない。長く保持する必要があるdataは値copy、immutable snapshot、typed handleのいずれかへ変換する。
 
-## 5. 公式Memory architecture
+## 5. 標準Memory architecture
 
 ### 5.1 二軸分類
 
@@ -487,7 +491,7 @@ hardware counter（cache miss、branch miss、memory bandwidth）は、同一Tar
 
 hot callbackのgeneral-heap allocation countとupstream fallback countは両方exact `0`であり、missing sampleを0へnormalizeしない。
 
-性能改善を公式採用するには、[Runtime performance／capacityの共通promotion threshold](../04-runtime/performance-capacity.md#8-measurementregressionpromotion)を満たすか、同一fixtureでpeak memoryを15%以上改善し、correctness、visual、fault、load timeを規定値以上悪化させない。全面pool化、lock-free化、custom allocator化を名称だけで最適化扱いしない。
+性能改善を本Projectの標準候補へ昇格するには、[Runtime performance／capacityの共通promotion threshold](../04-runtime/performance-capacity.md#8-measurementregressionpromotion)を満たすか、同一fixtureでpeak memoryを15%以上改善し、correctness、visual、fault、load timeを規定値以上悪化させない。全面pool化、lock-free化、custom allocator化を名称だけで最適化扱いしない。
 
 ## 9. TestとQualification
 
@@ -536,7 +540,7 @@ hot callbackのgeneral-heap allocation countとupstream fallback countは両方e
 
 後段機能が前段の未実装を独自pointer wrapperやlocal allocatorで迂回してはならない。
 
-## 11. Definition of Done
+## 11. 受入条件
 
 1. Public APIの全pointer／view／handleに`PointerContractV1`がある。
 2. Engine／Vendorの全allocation siteに`MemoryContractV1`または承認済みAdapter mappingがある。
@@ -565,7 +569,7 @@ hot callbackのgeneral-heap allocation countとupstream fallback countは両方e
 | [Unreal Engine Memory and CPU Performance Considerations](https://dev.epicgames.com/documentation/en-us/unreal-engine/common-memory-and-cpu-performance-considerations-in-unreal-engine) | poolは生成破棄costをprofileしたobjectだけに使用する |
 | [Unity Managed Memory](https://docs.unity3d.com/jp/current/Manual/performance-managed-memory-introduction.html) | GC allocation／collection spikeをMiraikanai hot pathへ導入しない |
 | [Unity Unmanaged Memory](https://docs.unity3d.com/ja/current/Manual/performance-unmanaged-memory.html) | temporary、job、persistent allocationを寿命で分ける |
-| [Unity Technical Articles: The DOTS packages and features](https://discussions.unity.com/t/from-the-new-e-book-the-dots-packages-and-features/368224) | 同じComponent集合をarchetypeとしてまとめ、Component種別ごとの配列をchunkへ格納するlayoutだけを外部先例として採用する |
+| [Unity Entities 1.4 manual: Archetypes concepts](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/concepts-archetypes.html) | 同じComponent型集合をarchetypeとしてまとめ、同一archetypeのEntity／Componentをchunkへ格納し、Component型ごとの配列を持つlayoutだけを外部先例として採用する |
 | [本書 §4.3](#43-generation-handle)／[Runtime ECS](../04-runtime/entity-component-system.md) | index＋generationという一般handle規則は本書、Runtime Entity handleとECS layoutはRuntime ECSが所有し、Unityの現行実装仕様として扱わない |
 | [Godot Object ownership](https://docs.godotengine.org/en/stable/engine_details/architecture/object_class.html) | 非ownerの長期保持にraw pointerを使わずIDへ変換する |
 | [Godot RID](https://docs.godotengine.org/en/stable/classes/class_rid.html) | low-level resourceをsession-local opaque handleで公開する |

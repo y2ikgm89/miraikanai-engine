@@ -1,11 +1,15 @@
 # Miraikanai Engine Debugging／Observability／Replay Contract
 
 - 文書ID: mirakan.arch.runtime-debugging-observability-replay
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Debug Session、typed event／counter／snapshot、Runtime Entry／Stage／World spatial／UI Screen transition event、bounded Store／Index／Query、causality、breakpoint／watch／safe pause、deterministic capture／replay／rewind、crash／hang evidence、support bundle（構成artifact、redaction manifest、consent、生成operation）、remote device bridge、Editor Debug UX、AI diagnosis、Debug qualification
 - 非正本範囲: Runtime phase／Simulation Advance／lifetime、Runtime ECS storage／live query・lease、Save／Replay semantic record・digest・reconstruction、Runtime Package binary、共通memory／performance／queue budget、AI Risk／authorization／approval、Evidence／Provenance envelope、Project transaction、Subsystem固有state schema、外部Tool／SDK version。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[VFX runtime](../06-rendering/vfx-runtime.md)、[Environment／surfaces](../06-rendering/environment-surfaces.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Audio](../07-platform/audio.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Performance／Capacity](performance-capacity.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[VFX runtime](../06-rendering/vfx-runtime.md)、[Environment／surfaces](../06-rendering/environment-surfaces.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Audio](../07-platform/audio.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論とauthority
 
@@ -741,18 +745,20 @@ Debug qualificationはContract／Build／Target／instrumentation／retention／
 
 ECS format migrationを伴うqualificationでは、observability Consumer Inventory record、全Evidence Requirementのpass satisfaction binding、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingのrefを同じevidence closureへ束縛する。old capture reader、unredacted export、別Contract setのReplay transportをsilent fallbackにしない。
 
-## 17. Implementation sequenceとcompletion
+## 17. Capability分解と受入closure
 
-実装artifactは`DBG0_contract -> DBG1_flight_recorder -> DBG2_editor_local -> DBG3_replay_causality -> DBG4_ai_diagnosis -> DBG5_remote_shipping`の依存順で進める。Product Phaseへの配置は[Product Plan](../00-product/product-plan.md)が所有し、本書はPhase番号を再定義しない。
+本節は実装順序、Task、担当またはProduct Phaseを定義しない。Debugging capabilityを独立に審査できるcontract subjectへ分解する。
 
-- `DBG0_contract`: target／time／Session／event／counter／Query／gap schema、headless producer→Store→Index→Query。
-- `DBG1_flight_recorder`: fixed ingress、priority、crash recovery、Runtime correlation、Performance capacity接続。
-- `DBG2_editor_local`: local Panel、safe pause／step、Overlay、external IDE／GPU evidence mapping。
-- `DBG3_replay_causality`: Replay Slice、divergence、Causality、Watch history、Reproduction Bundle。
-- `DBG4_ai_diagnosis`: bounded Context、Finding validation、privacy Preview、governed proposal、AI Eval。
-- `DBG5_remote_shipping`: authenticated Device Bridge、resume／gap、Platform Adapter、Shipping scan。
+| Subject | 正本範囲 | 受入条件 |
+|---|---|---|
+| Debug contract | target／time／Session／event／counter／Query／gap schema | exact identity、bounded Query、unknown／invalid input拒否 |
+| Flight recorder | fixed ingress、priority、crash recovery、Runtime correlation | gap・lossの明示、capacity Receipt、failure recovery |
+| Local authoring surface | safe pause／step、Overlay、external IDE／GPU evidence mapping | Runtime authorityを変更しないread-only projection |
+| Replay／causality | Replay Slice、divergence、Causality、Watch history、Reproduction Bundle | deterministic replay、first divergence、minimal reproduction |
+| AI diagnosis | bounded Context、Finding validation、privacy Preview、governed proposal | Evidence-backed Finding、permission不変、AI Eval合格 |
+| Remote／Shipping boundary | authenticated Device Bridge、resume／gap、Platform Adapter、Shipping scan | Target binding、redaction、disconnect recovery、artifact scan |
 
-C1 completionにはexact Session identity、registered record、one-record multiple projection、bounded Query、gap／redaction／clock uncertainty、safe pause／step、deterministic Replay、first divergence、minimal Reproduction Bundle、external evidence mapping、Evidence-backed AI Finding、governed repair、Performance capacity合格、Shipping artifact scan、known-fault／AI Eval合格が必要である。
+統合受入にはexact Session identity、one-record multiple projection、gap／redaction／clock uncertainty、safe pause／step、deterministic Replay、minimal Reproduction Bundle、external evidence mapping、Evidence-backed AI Finding、governed repair、Performance capacity、Shipping artifact scan、known-fault fixtureを同じCandidate closureへ束縛する。各subjectの実装時期は本書の責務外である。
 
 ## 18. 明示的に採用しないもの
 

@@ -1,11 +1,15 @@
 # Miraikanai Engine Camera Contract
 
 - 文書ID: mirakan.arch.rendering-camera
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Gameplay／Cinematic CameraのProfile、Rig、Director、Presentation、Sequence、typed authoring、Base Pose runtime、Camera固有budget／diagnostic／qualification
 - 非正本範囲: Capability maturity／roadmap、Render View execution／temporal history、Post Process schema、Physics query execution、Runtime phase／shared capacity、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [Product Plan（Recording／Timecode／Genlock／Virtual Productionはnot_activated）](../00-product/product-plan.md#8-future-portfolio)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](world.md)、[Render Graph](render-graph.md)、[Post Processing](post-processing.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Math／Core Utilities](../02-foundation/math-core.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)
+- 関連文書: [Product Plan（Recording／Timecode／Genlock／Virtual Productionはnot_activated）](../00-product/product-plan.md#8-future-portfolio)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](world.md)、[Render Graph](render-graph.md)、[Post Processing](post-processing.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論と所有境界
 
@@ -107,7 +111,7 @@ CameraSequenceDocumentV1
 
 Directorは`default_rig_id`を必須とし、一致なしで配列先頭を選ばない。`view_impulse_channels[]`はboundedな一過性translation／rotation impulse、`view_noise_channels[]`はseed付きbounded noiseとして、start condition、duration、amplitude、frequency、priority、combine policyを持つ。意味はowner-qualified cue bindingが宣言し、Core CameraはWeapon、Damage、Explosionその他のGenre原因をchannel IDから推測しない。どちらもBase Rigへ接続しない。
 
-Sequenceの公式TrackはCamera binding、Transform／Rig parameter、Lens／focus／aperture、Director override、cut／blend、Marker／Slate metadata、Subsequence、Presentation View Impulse／View Noiseである。Transform BakeはExport用Derived ArtifactでSourceを上書きしない。`kind=runtime_domain`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md#41-clock-domainpausegameplay-timer)のactive Clock Domain Registry／Profileへexact解決し、Entryが`sequence` consumerを許可しなければならない。Gameplay stateへ影響するTrackは`clock.domain.core.gameplay@1`だけ、他clock結果はPhysics、AI、Save、Gameplay event authorityに使わない。`kind=editor_preview`は`runtime_domain_ref`を禁止してShipping PackageへCookしない。
+Sequenceの標準Track候補はCamera binding、Transform／Rig parameter、Lens／focus／aperture、Director override、cut／blend、Marker／Slate metadata、Subsequence、Presentation View Impulse／View Noiseである。Transform BakeはExport用Derived ArtifactでSourceを上書きしない。`kind=runtime_domain`は[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md#41-clock-domainpausegameplay-timer)のactive Clock Domain Registry／Profileへexact解決し、Entryが`sequence` consumerを許可しなければならない。Gameplay stateへ影響するTrackは`clock.domain.core.gameplay@1`だけ、他clock結果はPhysics、AI、Save、Gameplay event authorityに使わない。`kind=editor_preview`は`runtime_domain_ref`を禁止してShipping PackageへCookしない。
 
 `RationalFrameRateV1`は既約な正のnumerator／denominatorを持ち、allowlistは`24/1, 24000/1001, 25/1, 30/1, 30000/1001, 48/1, 50/1, 60/1, 60000/1001, 120/1`である。Labelからrateを推測しない。
 
@@ -151,7 +155,7 @@ Perspective系はvertical FOV、Orthographic系はvertical sizeを必須とし�
 
 Rigはtyped DAGでcycleを拒否する。Nodeはstable ID、type ID、version、parameter、typed portsを持ち、edgeは同型または明示lossless conversionだけを許可する。Topological tie-breakは`node_type_id, node_id`のUTF-8 byte順、state slotもcanonical順であり、worker／allocation順へ依存しない。Rig上限はNode 64、Edge 128、Parameter 64。一Simulation Advanceのheap allocation、mutation、file／network I/O、native device callを禁止する。
 
-公式Node Catalogは次である。
+標準Node Catalog候補は次である。
 
 | Domain | Node |
 |---|---|
@@ -262,7 +266,7 @@ WorkspaceはProfile Inspector、Rig Graph、Director／Transition、Sequence／S
 
 Contract／runtime fixtureはSchema round-trip、cycle／port／unknown／64・128 boundary／non-finite／unit fuzz、canonical graph hash、Director全組合せ、position／rotation／FOV blend、cut／history、collision generation／stale、target loss／Failsafe、checkpoint hash、Split View isolationを含む。Camera semantic fixtureは初期Core 32 entryから従来と同じPlan hashへ解決するgolden、Genre Pack 0件のneutral fixed-view Project、qualified `project.board_game.overview@1` contributionのpositiveを持つ。unknown ref、unqualified contribution、axis違い、owner／hash stale、Core ID上書き、同一ID別hash、Pack未選択、synonymだけの自動選択を各一原因negativeとしてSource不変で拒否する。Sequence Clock fixtureはGameplay／Cinematic defaultのframe mappingを維持し、unknown／unqualified Domain、Profile非選択、`sequence` consumer不許可、editor preview clockのShipping混入を各一原因で拒否する。Camera queue fixtureは同じactive Sceneへbounded command burstとlow-priority Previewを重ね、reference measurement windowの全sampleでoccupancy 75%未満、overflow 0、受理済みGameplay command drop 0、Base Pose／Replay checkpoint hash不変を検証し、overflow fault injectionが`MIRAKAN-CAMERA-BUDGET_EXCEEDED`とpromotion失敗へなることを確認する。
 
-公式Sceneは`camera_pixel_2d_c1_v1, camera_follow_2d_c1_v1, camera_third_person_c1_v1, camera_lock_on_c1_v1, camera_boss_group_c1_v1, camera_motion_comfort_c1_v1, camera_split_view_c2_v1, camera_cinematic_c2_v1`である。fixture名のsuffixはhistorical test IDでありmaturityを定義しない。
+標準Scene候補は`camera_pixel_2d_c1_v1, camera_follow_2d_c1_v1, camera_third_person_c1_v1, camera_lock_on_c1_v1, camera_boss_group_c1_v1, camera_motion_comfort_c1_v1, camera_split_view_c2_v1, camera_cinematic_c2_v1`である。fixture名のsuffixはhistorical test IDでありmaturityを定義しない。
 
 Composition gateはprimary subject safe-region 99.9%以上、required visibility missing 0 frame、blocker penetration 0、comfort hard violation 0、pixel non-integer／rotation／temporal jitter 0、cut history-reset漏れ0、non-finite View／Projection 0である。Metric、capture、trace、human rubricを同じPreview Receiptへ結ぶ。
 

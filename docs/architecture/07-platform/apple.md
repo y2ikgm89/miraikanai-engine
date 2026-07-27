@@ -1,15 +1,21 @@
 # Miraikanai Engine Apple Platform Contract
 
 - 文書ID: mirakan.arch.platform-apple
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Apple Target／Distribution Profile、Toolchain Build mapping、C ABI／Objective-C++ bridge、UIKit／Metal／Audio Adapter、Apple Asset package、unsigned-build／signing／upload separation、Xcode Cloud mapping、Privacy Manifest、TestFlight／App Store、Apple device qualification／release gate
 - 非正本範囲: exact Tool／SDK／OS／library version・hash・license・URL、Mobile共通schema／lifecycle意味／aggregate cap、Renderer共通contract、Input／Audio／UI意味、Asset lifecycle、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Mobile Common](mobile-common.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. Profile、Build mapping、C ABI boundary
 
-`target.apple.mobile`はiPhone／iPadのarm64 Shipping Targetである。`package-profile.apple.bundle`はbundle＋self-hosted unmanaged delivery、`package-profile.apple.managed-assets`はToolchain／Store policyが定めるminimum OSを持つ別variantのmanaged deliveryであり、同じbinary variantへ混在させない。Simulatorはfunctional test用で実機packageの代替にしない。
+`target.apple.mobile`はiPhone／iPadのarm64 Shipping候補Targetである。`package-profile.apple.bundle`はbundle＋self-hosted unmanaged delivery、`package-profile.apple.managed-assets`はToolchain／Store policyが定めるminimum OSを持つ別variantのmanaged deliveryであり、同じbinary variantへ混在させない。Simulatorはfunctional test用で実機packageの代替にしない。
+
+根拠: official-spec／project-decision — [Xcode support](https://developer.apple.com/support/xcode/)、[App Store submission requirements](https://developer.apple.com/app-store/submitting/)、[Accessibility HIG](https://developer.apple.com/design/human-interface-guidelines/accessibility)、[Typography HIG](https://developer.apple.com/design/human-interface-guidelines/typography)に従う。deployment target 17.0、対応Device範囲、Distribution ProfileはMiraikanaiの候補判断であり、Appleの一般推奨値または市場coverage保証ではない。
 
 host OS、Xcode、SDK、deployment target、CMake／Ninja、Metal tool、generator、supported device／GPU baselineのexact valuesは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のApple profileだけが所有する。本書はそれらをBuild Driver、C ABI App shell、archive、Distributionへ写像する。
 

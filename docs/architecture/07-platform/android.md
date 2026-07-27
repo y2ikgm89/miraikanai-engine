@@ -1,15 +1,21 @@
 # Miraikanai Engine Android Platform Contract
 
 - 文書ID: mirakan.arch.platform-android
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Android Target／Distribution Profile、Toolchain Build mapping、GameActivity／controller／frame-pacing Adapter、Vulkan Target mapping、Android package／Play delivery、lifecycle、permission／privacy、16 KiB page compatibility、Android device qualification／release gate
 - 非正本範囲: exact Tool／SDK／library version・hash・license・URL、Mobile共通schema／lifecycle意味／aggregate cap、Renderer共通contract、Input／Audio／UI意味、Asset lifecycle、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
-- 外部根拠検証日: 2026-07-23
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Mobile Common](mobile-common.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. ProfileとBuild mapping
 
-`target.android.mobile`はphone／tablet／foldableのShipping Target、`package-profile.android.play`はGoogle Play Distribution Profileである。minimum／compile／target API、ABI、Vulkan Profile、NDK、Gradle／AGP、Build Tools、JDK、CMake／Ninja、AndroidX Games、Oboeのexact valuesは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のAndroid baselineだけが所有する。本書はそれらをProfile、Build、packageへ写像する。
+`target.android.mobile`はphone／tablet／foldableのShipping候補Target、`package-profile.android.play`はGoogle Play Distribution候補Profileである。minimum／compile／target API、ABI、Vulkan Profile、NDK、Gradle／AGP、Build Tools、JDK、CMake／Ninja、AndroidX Games、Oboeの候補値は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のAndroid baselineだけが所有する。本書はそれらをProfile、Build、packageへ写像する。
+
+根拠: official-spec／project-decision — [Google Play target API要件](https://developer.android.com/google/play/requirements/target-sdk)、[NDK revision history](https://developer.android.com/ndk/downloads/revision_history)、[Android Vulkan Profiles](https://developer.android.com/ndk/guides/graphics/android-vulkan-profile)、[48 dp touch target guidance](https://developer.android.com/design/ui/mobile/guides/foundations/accessibility)に従う。minimum API 29、NDK r29、Android Vulkan Profile 2022、対応Device範囲はMiraikanaiの候補判断であり、Googleの既定値や市場coverage保証ではない。
 
 Shipping ABIはToolchain profileのprimary arm64 ABIだけ、secondary ABIはDevelopment／CIだけに許可する。STLはToolchain profileが指定する一種へappとnative dependencyを統一する。Runtime probeとpackage inspectionはresolved OS／ABI／graphics requirementsを[Mobile Common](mobile-common.md)の`MobileCapabilitySignatureV1`へ記録し、不足をquality fallbackで隠さない。AndroidはPlatform観測値の写像だけを所有し、共通field setを再定義しない。
 

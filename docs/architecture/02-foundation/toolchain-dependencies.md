@@ -1,15 +1,31 @@
 # Miraikanai Engine Toolchain／Dependencies
 
 - 文書ID: mirakan.arch.toolchain-dependencies
-- 状態: review
-- 正本範囲: 外部Tool・SDK・Library・APIのexact version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock、Dependency採用・更新Gate、Build Driver Profileのclosed set、CI実行基盤のrunner／hosting／capacity binding
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
+- 正本範囲: 外部Tool・SDK・Library・APIの調査済み候補version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock要件、Dependency採用・更新Gate、Build Driver Profile候補、CI実行基盤要件
 - 非正本範囲: Product scope、Subsystem API・型・Budget、Runtime phase、Platform lifecycle、Dependency内部を包むEngine-owned Adapter契約。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)
-- 外部根拠検証日: 2026-07-26
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. 結論と一意所有
 
-本文書はMiraikanai Engineが採用する外部Tool、SDK、Library、APIのversion、release、commit、artifact size、hash、integrity、license、取得URLを決める唯一の正本である。他のArchitecture仕様はDependency名と本文書へのLinkだけを記載し、固定値を複写しない。
+本文書はMiraikanai Engineが評価する外部Tool、SDK、Library、APIのversion、release、commit、artifact size、hash、integrity、license、取得URLと、採用時に必要なlock条件を所有する。外部tag／releaseと公式互換表を確認済みであっても、Repositoryへlock、SBOM、取得Artifact、Build Receiptが存在しないDependencyを「採用済み」「locked」「qualified」と表現しない。他のArchitecture仕様はDependency名と本文書へのLinkだけを記載し、固定値を複写しない。
+
+2026-07-27時点のmaterialization状態は次のとおりである。
+
+| 対象 | 状態 | 解釈 |
+|---|---|---|
+| Version／tag／release／upstream commit | `source-checked` | 公式release、tag、一次資料との一致を確認した候補baseline |
+| Download artifact size／SHA-256 | `source-checked`または`provisional` | 各rowの記載に従う。Repository内のcurrent lockを意味しない |
+| `toolchain.lock.json` | `absent` | 本文中のFieldとProfileは将来lockに必要な設計であり、生成済みSchemaではない |
+| SBOM／license bundle | `absent` | dependency採用完了を主張しない |
+| Build／Package／Target Qualification Receipt | `absent` | 互換性、Build成功、Shipping対応を主張しない |
+
+以降の「lockする」「記録する」は、採用判断後に必要となるArtifact要件を表す。現存するlockまたは実装手順を表さない。
 
 ここにある値は2026-07-23に再検証した初期baselineであり、floatingな「最新」ではない。Vendorの最新推奨とMiraikanaiの採用判断を区別し、更新は本書、lock、CI image、SBOM、Receiptを一つのToolchain更新ChangeSetで変更する。
 
@@ -23,7 +39,7 @@
 | Target minimum OS（player実行環境） | 未固定。D3D12 Agility SDK 1.619.4／Enhanced Barriers必須要件と整合するWindows buildを更新ChangeSetでexact lockする。Host OS行（ビルドホスト）と区別し、混同しない |
 | Visual Studio Build Tools | 2026 18.8.0 Stable、build 12009.203 |
 | Primary compiler | MSVC Build Tools v14.51 x64/x86、`cl.exe`／`link.exe` 14.51.36231以上。CX0だけ`/std:c++23preview`、Shipping不可 |
-| CX3 compiler condition | PreviewでないMSVC v14.52以降で正式`/std:c++23`を提供したreleaseを更新ChangeSetでexact lockする。未固定状態ではCX3を有効化しない |
+| CX3 compiler condition | Microsoft公式資料で非PreviewのC++23適合modeがstable releaseに提供された時点で、actual flagとtoolsetを更新ChangeSetでexact lockする。`/std:c++23`という未発表flag名やv14.52というPreview情報をShipping条件として先取りしない。未固定状態ではCX3を有効化しない |
 | Secondary compiler | LLVM／clang-cl 22.1.8。Windows Shipping ABIはMSVCで統一 |
 | Windows SDK | 10.0.26100.8249 |
 | CMake | 4.4.0 |
@@ -57,7 +73,7 @@ C1の「Editor visual asset lock」は、新しい`EditorVisualAssetLockV1`、to
 | Host UI typography | `target.windows.editor`の`host`＋`resolved_files[]` | CI OS image digest、`ja-JP`のJapanese prose／ASCII labelに対するDirectWrite選択family・face・weight・fallback順、resolved fileのrelative path・file version・SHA-256・signer。system fontをbundleせず、別OS imageの同名familyまたは「近い」fallbackへ読み替えない |
 | bundled code typography | `profiles[].artifacts[]` | Noto archive、Regular／Bold static OTF、LICENSEのsource commit・size・SHA-256・coverage・bundle manifest・notice。CFF2 variable font、別Noto family、Host fontによる代替を許さない |
 | icon geometry | `profiles[].artifacts[]` | `EditorIconTokenContractV1`のexact consumer集合（全`WidgetPatternContractV1.icon_consumer_refs[]`、全`EditorPanelDescriptor.icon_token_ref`、全`EditorCommandPresentationDescriptorV1.presentation_icon_token_ref`を§15.2の`IconConsumerRefV1`へcanonical展開）→approved source icon ID／Regular・Filled variant／allowed usage contextのexact binding、selected SVG hash、converter ID／exact version／option、16／20 logical-sizeごとのconversion output hash。変換物はsemantic colorを焼き込まないgeometry／alpha sourceとし、unknown icon、emoji、runtime SVG／CSS parserへfallbackしない |
-| reference capture hardware boundary | outer [Editor Reference Environment Profile](../03-authoring/editor-ui-framework.md#1582-environment-profileとdeterministic-clock)と[Performance／Capacity §8.1](../04-runtime/performance-capacity.md#81-editor-reference-01-performance-profile)の`ReferenceHardwareProfileV1` | resolved Host UI fontが使うCI OS image digestはselected hardware profileの`os_image_ref`とexact一致する。GPU driver package、monitor topology／EDID、power planはPerformance Ownerだけがprofileに保持し、`target.windows.editor`のartifact hashまたは`style_font_generation`へ複写しない。outer Environment ProfileがA／B hardware ref／hashを欠く、OS imageが不一致、driver／EDIDを別Hardwareから補う場合はvisual captureを開始しない |
+| reference capture hardware boundary | outer [Editor Reference Environment Profile](../appendices/editor-ui-design-system-catalog.md#1582-environment-profileとdeterministic-clock)と[Performance／Capacity §8.1](../04-runtime/performance-capacity.md#81-editor-reference-01-performance-profile)の`ReferenceHardwareProfileV1` | resolved Host UI fontが使うCI OS image digestはselected hardware profileの`os_image_ref`とexact一致する。GPU driver package、monitor topology／EDID、power planはPerformance Ownerだけがprofileに保持し、`target.windows.editor`のartifact hashまたは`style_font_generation`へ複写しない。outer Environment ProfileがA／B hardware ref／hashを欠く、OS imageが不一致、driver／EDIDを別Hardwareから補う場合はvisual captureを開始しない |
 | theme color mapping | 既存Environment Profileのtheme／system-color snapshotと[Editor UI Framework §13.2.2](../03-authoring/editor-ui-framework.md#1322-windows-appearance-change)／§15.1 | `theme.editor.light@1`／`theme.editor.dark@1`のexact token profileとE07–E10のWindows system-color snapshot ref／hash。LightをDarkの反転またはOS accentから生成せず、snapshotは`HCF_HIGHCONTRASTON`とrequired current system colorsを含み、asset自身の色、scheme名、既知paletteでHigh Contrastを代用しない。system colorとshape／icon／text labelの複合表現を使う |
 | provenance | `artifacts[]`、SBOM、third-party notice | source archive／tag commit／license file／conversion outputのchain、bundled OTF／icon notice、system fontを再配布していないこと。hashが未固定の候補をlock済みと表示しない |
 | invalidation | 既存`style_font_generation` | font file、font fallback resolution、icon source、converter、conversion outputの一つでも差があればgenerationを変え、旧layout、glyph cache、draw packet、visual snapshotを再利用しない |
@@ -71,7 +87,7 @@ C1の「Editor visual asset lock」は、新しい`EditorVisualAssetLockV1`、to
 既存`fixture.product.windows-empty-scene`と`fixture.editor.reference-01@1`は、次を同じProfile／generationでEvidence化するまでvisual asset lockを閉じない。
 
 1. 日本語UI、ASCII identifier、code、numeric、Windows pathを同時に表示し、Host UI fontのface選択、Noto glyph coverage、baseline、ellipsis／copy、Widget／Panel／Command presentationの全Editor-owned system icon consumer集合、`EditorIconTokenContractV1`、source ID／variant／usage context mappingと16／20 lu conversion outputをlayout／semantic／visual oracleで照合する。
-2. E00–E01のDarkとE13のLightでは[Editor UI Framework §15.1](../03-authoring/editor-ui-framework.md#151-darklight-baselinescalehigh-contrast)の通常text contrast下限を満たし、E07–E10の四つのWindows Contrast Themeではsystem-color snapshotを用いて、selected／focused／disabled／error／warning／stale／AI proposal／Runtimeの意味を色だけに依存せず維持する。同一running processでLight→Dark→Light→四theme→少なくとも一つのuser-customized system color→Lightを遷移し、通知受信、current snapshot hash、old color-bearing packet不使用、Light／Dark title barとclientの一致、Project／Semantic不変を実証する。static image、scheme表示名、起動時readをruntime対応の代用にしない。
+2. E00–E01のDarkとE13のLightでは[Editor UI Framework §15.1](../appendices/editor-ui-design-system-catalog.md#151-darklight-baselinescalehigh-contrast)の通常text contrast下限を満たし、E07–E10の四つのWindows Contrast Themeではsystem-color snapshotを用いて、selected／focused／disabled／error／warning／stale／AI proposal／Runtimeの意味を色だけに依存せず維持する。同一running processでLight→Dark→Light→四theme→少なくとも一つのuser-customized system color→Lightを遷移し、通知受信、current snapshot hash、old color-bearing packet不使用、Light／Dark title barとclientの一致、Project／Semantic不変を実証する。static image、scheme表示名、起動時readをruntime対応の代用にしない。
 3. E04（DPI 200%）、E05（UI 200%）、E06（Font 200%）、E12（mixed-DPI move）で、同じasset tupleからreflow、baseline、clip、hit target、icon geometry、Semantic／UIA targetが崩れないことを示す。100%のScreenshot、別Hardware、別contrast themeを代用しない。
 4. E00の`SPI_GETCLIENTAREAANIMATION=TRUE`とE11の`FALSE`をexact motion snapshotとして照合し、同一running Windowで外部controllerが`TRUE -> FALSE -> TRUE`へ変えるPlatform Adapter probeを別Evidence化する。`AnimationsEnabledChanged`の実受信と`WM_SETTINGCHANGE`の同一refreshへのcoalesceを記録し、in-flight dock preview／panel-tab／dock-workspace／indeterminate taskは次presentでstatic final stateとなり、preference change自身がProject／Semantic／Command／Receiptを増やさず、`TRUE`復帰後のnew triggerだけがfull durationを使うことを示す。E00／E11のstatic screenshot、clock、app-local settingをruntime対応の代用にしない。
 5. E00–E13の全Profileが`UISettings.AdvancedEffectsEnabled=TRUE`のexact snapshotと`effects.editor.opaque-only@1`を持つことを照合し、同一running Windowで外部controllerが`TRUE -> FALSE -> TRUE`へ変えるPlatform Adapter probeを別Evidence化する。`AdvancedEffectsEnabledChanged`の実受信、old／new snapshot hash、opaque draw descriptor、Project／Semantic／Command／Receipt不変を記録し、E00–E13のstatic screenshotをruntime transitionまたはmaterial対応の代用にしない。
@@ -96,7 +112,9 @@ C1の「Editor visual asset lock」は、新しい`EditorVisualAssetLockV1`、to
 | AndroidX Games | GameActivity 4.4.2、Controller 2.0.2、Frame Pacing 2.1.3 |
 | ABI／STL | Shipping `arm64-v8a`、Developmentは必要なCIだけ`x86_64`を追加、全native dependencyを`c++_shared`へ統一 |
 
-AGPのNDK既定値は採用根拠にしない。公式downloadで別version指定が許されることを確認したうえで、Miraikanaiは上表のNDKを明示固定する。
+根拠: official-spec — AGP 9.3の既定NDKは28.2.13676358であり、Android NDK download pageではr29がstable、r27dがLTSとして案内される。
+
+根拠: project-decision／provisional — Miraikanaiはr29を候補として明示固定する。これはAGP既定またはLTS推奨の採用ではない。全native dependency、16 KiB page、GameActivity、Oboe、ASan、Packageの互換結果がない間はqualified baselineとしない。
 
 minimum SDK API 29は技術baselineであり、市場coverageの達成主張ではない。Google Playの[Target API要件](https://developer.android.com/google/play/requirements/target-sdk)は2026-08-31以降の新規app／updateへAndroid 16（API 36）以上のtargetを要求するが、minimum SDKを決めない。API 29の継続可否は[Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1`で別途判定し、Receiptなしに「十分な端末をカバーする」と表現しない。
 
@@ -116,7 +134,7 @@ minimum SDK API 29は技術baselineであり、市場coverageの達成主張で�
 | Target | exact external baseline |
 |---|---|
 | Windows | Direct3D 12、Agility SDK 1.619.4、portable HLSL 2021、DXIL Shader Model 6.6、Root Signature 1.1、Enhanced Barriers必須 |
-| Android | portable HLSL 2021をDXCでSPIR-Vへoffline compileし、Vulkan 1.1、Android Vulkan Baseline 2022 profile（`VP_ANDROID_baseline_2022`、要求Vulkan 1.1.106）、SPIRV-Tools validationを通す |
+| Android | portable HLSL 2021をDXCでSPIR-Vへoffline compileし、Vulkan 1.1、Android Vulkan Profile 2022（profile ID `VP_ANDROID_baseline_2022`、要求Vulkan 1.1.106）、SPIRV-Tools validationを通す |
 | Apple | portable HLSL 2021をDXCのSPIR-V intermediate、SPIRV-CrossのMSLへ変換し、iOS／iPadOS SDK 26.5のMetal compilerでmetallibをoffline生成 |
 
 Apple経路（DXC→SPIR-V→SPIRV-Cross→MSL）は、ray系／mesh／amplification Stageの変換成立可否が未検証である。検証Ownerは[Project Shader](../06-rendering/project-shader.md)のOwnerとし、同§4のとおり検証完了までAppleの当該Stageは既定unsupportedとする。検証タスクと、代替経路（Metal Shader Converter等のDXIL→metallib経路）の採用可否検討は§9のDependency採用・更新Gateの検討事項として登録し、採用時のexact version／hashは検証時に`toolchain.lock.json`で固定する。
@@ -153,7 +171,7 @@ Project、AI、Build scriptはargument、entry profile、register／space、opti
 | Internal validation dialect | JSON Schema Draft 2020-12 |
 | Control Plane lint validator | Ajv 8.20.0。`ajv/dist/2020`、`strict=true`、`allErrors=false`、`loadSchema`未設定、local `$id`／`$ref` allowlistだけを使用 |
 | MCP Tool protocol | Model Context Protocol 2025-11-25 |
-| OpenAI API／SDK | Responses API、official TypeScript SDK 6.48.0 |
+| OpenAI API／SDK | Responses API、official TypeScript SDK 6.49.0 |
 | Anthropic API／SDK | 未固定。MVPのAnthropic系接続は[Executable contracts](executable-contracts.md)のMCP経路（Claude CLI／Desktop→Miraikanai MCP Server）だけとし、direct Provider projection用`provider_profile`はexact pinを確定するDependency ChangeSetまで作成しない |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium` |
 
@@ -183,7 +201,7 @@ OpenAIの公式deprecation policyは、一般GA modelを原則6か月、speciali
 | DXC v1.9.2602.24 | [release zip](https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2602.24/dxc_2026_05_27.zip) | 27,108,038 bytes、SHA-256 `cf658aacf070d3045e31b8f1f8a696c2945f37c1095019481ef7c513368db3b4` |
 | Node.js 24.18.0 LTS／npm 11.16.0 | [Windows x64 zip](https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip) | 37,176,245 bytes、SHA-256 `0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821` |
 | TypeScript 7.0.2 | npm `typescript@7.0.2` | 365,612 bytes、integrity `sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==` |
-| OpenAI TypeScript SDK 6.48.0 | npm `openai@6.48.0` | commit `ee5bce84fccb97135948a4838255804d4af1b7dd`、1,707,934 bytes、integrity `sha512-KhVp+FyV50QrXNextvL9hIU5l6ox5HYuKQjGVk7lIqprgJol90+dQXWONV6S1lRWsKA1bXjrow8RsUT14M1hNA==` |
+| OpenAI TypeScript SDK 6.49.0 | npm `openai@6.49.0` | commit `04671d278ef1531692ae31a870251eec90f3c2d2`、1,793,066 bytes、integrity `sha512-aYCc0C6L864eR6WSYIwQGyXriw/nIyZx0ObvhzOEVuk0zoBDpynjSbrionWI7q65B5H8jJX0DXR9snEzM6bfPg==` |
 | Ajv 8.20.0 | [exact npm tarball](https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz) | 217,611 bytes、SHA-256 `b2f0b3a893bbb8cc5efb6814f08b1499e19e31d5dd73683f5893382f48f6e7b3`、npm shasum `304b3636add88ba7d936760dd50ece006dea95f9`、integrity `sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==`、MIT |
 | jsonc-parser 3.3.1 | [npm package](https://www.npmjs.com/package/jsonc-parser/v/3.3.1) | commit `3c9b4203d663061d87d4d34dd0004690aef94db5`、27,354 bytes、integrity `sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==`、MIT |
 | canonicalize 3.0.0 | [npm package](https://www.npmjs.com/package/canonicalize/v/3.0.0) | commit `aba9209d044f2729c51141d8a73b11e80816e42c`、6,020 bytes、integrity `sha512-yYLfHyDMIXRyRqsKBRLX023riFLpXY2YOfdtqKXZRZy9qsfOJ9U+4F9YZL7MEzL5+ziN2x2nlBvY/Voi3EBljA==`、Apache-2.0 |
@@ -195,11 +213,11 @@ MSVCとWindows SDKは固定bootstrapperからoffline layoutを作り、resolved 
 
 ## 5. JavaScript／AI toolchain boundary
 
-公式JavaScript toolchainはNode.js 24.18.0 LTS archiveと同梱npm 11.16.0の一組である。利用rootを`orchestrator/`、`tools/architecture_lint/`、`tools/contract_compiler/`、`tools/contract_lint/`だけに限定し、各`package.json`は`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`を要求する。PATH上のglobal Node、npm、Corepack、Bun、pnpm、Yarnを正規Buildへ混在させない。
+本ProjectのJavaScript toolchain候補はNode.js 24.18.0 LTS archiveと同梱npm 11.16.0の一組である。利用rootを`orchestrator/`、`tools/architecture_lint/`、`tools/contract_compiler/`、`tools/contract_lint/`だけに限定し、各`package.json`は`private=true`、ES module、exact `engines`、`packageManager=npm@11.16.0`を要求する。PATH上のglobal Node、npm、Corepack、Bun、pnpm、Yarnを正規Buildへ混在させない。
 
 通常Buildは事前充填したcontent-addressed cacheに対し`npm ci --ignore-scripts --offline --no-audit --no-fund`を実行する。install／prepare scriptを必要とするDependencyは専用ADR、exact package hash、閉じたscript allowlist、隔離Dependency Buildを先に承認する。
 
-TypeScript 7.0.2は上記許可root（Orchestrator、architecture lint、contract compiler、contract lint）のcompileとlanguage-service CLIだけに使い、安定公開されていないprogrammatic compiler APIへ製品codeを依存させない。正式Artifactはstrict、single-threaded clean buildで生成する。Ajv 8.20.0はArchitecture Evolution Control PlaneのDraft 2020-12 schema lintだけに使い、Engine Runtime、C++ contract validator、MCD semantic validation、Authorizationへ持ち込まない。OpenAI接続はResponses APIと公式TypeScript SDK 6.48.0を使い、strict function callingのSchema制約は[Executable contracts](executable-contracts.md)が所有する。
+TypeScript 7.0.2は上記許可root（Orchestrator、architecture lint、contract compiler、contract lint）のcompileとlanguage-service CLIだけに使い、安定公開されていないprogrammatic compiler APIへ製品codeを依存させない。正式Artifactはstrict、single-threaded clean buildで生成する。Ajv 8.20.0はArchitecture Evolution Control PlaneのDraft 2020-12 schema lintだけに使い、Engine Runtime、C++ contract validator、MCD semantic validation、Authorizationへ持ち込まない。OpenAI接続はResponses APIと公式TypeScript SDK 6.49.0を使い、strict function callingのSchema制約は[Executable contracts](executable-contracts.md)が所有する。
 
 ## 6. External Dependency baseline
 
@@ -249,25 +267,25 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 
 第一party自作を選ぶ場合も9節のGateと同等の検証（公式test vector等）をADRへ記録し、本表の行をexact pinまたは実装先Directoryへ置換する。
 
-### 6.2 Known unresolved decision queue
+### 6.2 Known unresolved decision register
 
-本queueは未固定値の正本を複製せず、最初のconsumer、必要Evidence、fail-closed境界を索引する。Waveは準備順であり、各行のTriggerが期限である。Triggerが先に到来した行は即時に前倒しする。Architecture Evolution Control Planeはlock済みNode.js／TypeScript CLIと標準Libraryだけを使い、新しいproduction dependencyを要求しないため、本queueのC++／Platform行を理由に`wp.architecture.control-plane`を停止しない。
+本registerは未固定値の正本を複製せず、適用を許可できないconsumer、必要Evidence、fail-closed境界を索引する。Classはリスク分類であり、実装順、期限、担当または作業計画ではない。Architecture Evolution Control Planeはlock済みNode.js／TypeScript CLIと標準Libraryだけを使い、新しいproduction dependencyを要求しないため、本registerのC++／Platform行を理由に`wp.architecture.control-plane`を停止しない。
 
-| Wave | Unresolved input | Decision authority | Trigger／deadline | Required closure evidence | Blocked consumer／current state |
+| Class | Unresolved input | Decision authority | Required before | Required closure evidence | Blocked consumer／current state |
 |---|---|---|---|---|---|
-| A | C++ unit test frameworkまたはfirst-party harness | `mirakan.arch.toolchain-dependencies` | Runtime ECS Task 3で最初のC++ contract testを書く前 | §9のrelease／license／hash／Adapter確認、CTest discovery、failure／filter／parallel実行fixture。自作時は実装Directoryとself-test Receipt | `wp.runtime.ecs-e0`のC++ test着手を停止／未固定 |
-| A | SHA-256 implementation | `mirakan.arch.toolchain-dependencies` | Runtime ECS Task 4のcanonical hash実装前 | exact実装、license／artifact lock、NIST known-answer、incremental／zero-length／large input、cross-target byte一致Receipt | `wp.runtime.ecs-e0`のhash実装を停止／未固定 |
-| A | Microsoft.Direct3D.WARP | `mirakan.arch.toolchain-dependencies` | D3D12 Task 3 WARP conformance着手前 | Microsoft公式NuGetのexact version、nupkg SHA-256、同梱license、Agility互換、Development-only conformance Receipt | `wp.runtime.d3d12-backend` Task 3を停止／未固定 |
-| A | Windows Target minimum OS | `mirakan.arch.toolchain-dependencies` | D3D12 Task 12 package binding前 | Agility／Enhanced Barriers／GameInput提供形態、Microsoft support lifecycleを満たすexact build、OS probe、package negative fixtureを持つADR | Windows package promotionを停止／未固定 |
-| A | Microsoft.GameInput | `mirakan.arch.toolchain-dependencies` | Windows Input Adapter実装またはpackage同梱判定前 | Microsoft公式NuGetのexact version、nupkg SHA-256、license、header／runtime DLL manifest、minimum OS別in-box／redist matrix、Input conformance Receipt | `wp.product.editor-runtime-windows`のInput／package Gateを停止／未固定 |
+| A | C++ unit test frameworkまたはfirst-party harness | `mirakan.arch.toolchain-dependencies` | C++ contract testをQualification Evidenceとして受理する前 | §9のrelease／license／hash／Adapter確認、CTest discovery、failure／filter／parallel実行fixture。自作時は実装Directoryとself-test Receipt | C++ test Evidenceの受理を停止／未固定 |
+| A | SHA-256 implementation | `mirakan.arch.toolchain-dependencies` | Runtime canonical hashを正本または検証結果として受理する前 | exact実装、license／artifact lock、NIST known-answer、incremental／zero-length／large input、cross-target byte一致Receipt | Runtime hash consumerを停止／未固定 |
+| A | Microsoft.Direct3D.WARP | `mirakan.arch.toolchain-dependencies` | WARP conformance ReceiptをD3D12 qualificationへ使用する前 | Microsoft公式NuGetのexact version、nupkg SHA-256、同梱license、Agility互換、Development-only conformance Receipt | WARP qualification laneを停止／未固定 |
+| A | Windows Target minimum OS | `mirakan.arch.toolchain-dependencies` | Windows package promotion条件を承認する前 | Agility／Enhanced Barriers／GameInput提供形態、Microsoft support lifecycleを満たすexact build、OS probe、package negative fixtureを持つADR | Windows package promotionを停止／未固定 |
+| A | Microsoft.GameInput | `mirakan.arch.toolchain-dependencies` | Windows Input capabilityまたはpackage同梱判断を承認する前 | Microsoft公式NuGetのexact version、nupkg SHA-256、license、header／runtime DLL manifest、minimum OS別in-box／redist matrix、Input conformance Receipt | Windows Input／package Gateを停止／未固定 |
 | A | Windows Editor visual asset lock | `mirakan.arch.toolchain-dependencies` | `fixture.product.windows-empty-scene`の最初のrendered Reference Design fixture前 | §2.1のHost OS image／DirectWrite resolved file、Noto static OTF archive／file／license hash、Widget／Panel／Command presentationの全Editor-owned system icon consumer集合=`EditorIconTokenContractV1`=`conversion manifest`のexact mapping、Fluent source ID／variant／usage context、allowlist／converter／16・20 lu conversion hash、SBOM／notice、同一`style_font_generation`、Light／Dark／四High Contrast／DPI・UI・Font 200% text-icon fixture、running processの`WM_THEMECHANGED`／`WM_SYSCOLORCHANGE`／`WM_SETTINGCHANGE`後のcurrent Light／Dark modeまたはsystem-color snapshot re-read、standard title barとの一致、customized Contrast Theme transition。desktop appでunsupportedな`ColorValuesChanged`をfallbackにしないこと | Phase 2のReference Design visual closureを停止／未固定 |
-| B | 厳格C++ JSON parser | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §17.1を使う最初のC++ acceptance path実装前 | exact release／license／hash、duplicate field、invalid UTF-8、trailing bytes、number overflow、depth／size boundのpositive／negative Receipt | 最初のC++ JSON consumerだけを停止／未固定 |
-| B | C++ Runtime JSON Schema Draft 2020-12 validator | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §14の最初のruntime validator実装前 | exact release／license／hash、official Draft 2020-12 test suite、unknown dialect／unsupported keyword／recursive ref／bound failure Receipt。Control Plane lint用AjvのReceiptを流用しない | 最初のruntime schema consumerだけを停止／未固定 |
-| B | MCP server SDKまたはfirst-party server boundary | `mirakan.arch.toolchain-dependencies` | `wp.product.external-agent`実装前 | MCP 2025-11-25 conformance、transport／capability negotiation、message bound、cancel／disconnect、license／artifact lock。自作時は実装Directoryとprotocol fixture | Phase 5 external-agent WPを停止／未固定 |
+| B | 厳格C++ JSON parser | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §17.1のC++ acceptance pathを有効化する前 | exact release／license／hash、duplicate field、invalid UTF-8、trailing bytes、number overflow、depth／size boundのpositive／negative Receipt | C++ JSON consumerを停止／未固定 |
+| B | C++ Runtime JSON Schema Draft 2020-12 validator | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §14のruntime validationを有効化する前 | exact release／license／hash、official Draft 2020-12 test suite、unknown dialect／unsupported keyword／recursive ref／bound failure Receipt。Control Plane lint用AjvのReceiptを流用しない | runtime schema consumerを停止／未固定 |
+| B | MCP server SDKまたはfirst-party server boundary | `mirakan.arch.toolchain-dependencies` | external-agent capabilityをActivation候補へ昇格する前 | MCP 2025-11-25 conformance、transport／capability negotiation、message bound、cancel／disconnect、license／artifact lock。自作時は実装Directoryとprotocol fixture | external-agent capabilityを`not_activated`／未固定 |
 | Future | managed external Host Broker／attestor boundary | `mirakan.arch.toolchain-dependencies`＋`mirakan.arch.ai-security-approval` | `future.capability.managed-external-host-execution`のActive promotion proposal前 | exact Host／version／binary、Transport／version／endpoint／auth、Provider／managed deployment／Model、Tool projection set、Targetを束縛する`HostTransportConformanceReceiptV1`／`ProviderToolConformanceReceiptV1`／`SchemaEvalConformanceReceiptV1`、Broker sandbox、session／execution attestation、Engine Build Receipt closure、全negative fixture | managed Source edit／Buildだけを`not_activated`／standard external MCP proposal laneとfirst-party local inferenceは非依存 |
 | Future | first-party local inference runtime／loader | `mirakan.arch.toolchain-dependencies`＋`mirakan.arch.ai-security-approval` | `future.capability.first-party-local-inference`のActive promotion proposal前 | exact runtime release／artifact hash／license、DLL・GPU backend closure、supported model format、sandbox、OS IPC／authenticated loopback、CPU／GPU device matrix、Model Import／Schema／Tool Conformance。候補がllama.cppでもbuilt-in file／shell toolとMCP proxyは無効 | first-party local inferenceだけを`not_activated`／MVP・外部Host local model経路は非依存 |
 | B | Android minimum SDK market coverage | `mirakan.arch.platform-android`、閾値承認は`mirakan.arch.product-plan` | `wp.platform.mobile-offline`開始前 | [Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1` | Android Target Gateを停止／Play Console Evidence待ち |
-| C | CX3 stable MSVC cutover | `mirakan.arch.toolchain-dependencies` | CX3 activation proposal前 | Microsoft stable release、正式`/std:c++23`、resolved toolset hash、`import std`／module partition C1001 regression fixture、全Target CX0↔CX3 ABI Receipt | CX3だけを停止しCX0を維持／非Preview v14.52+待ち |
+| C | CX3 stable MSVC cutover | `mirakan.arch.toolchain-dependencies` | CX3 activation proposal前 | Microsoft stable release、公式に文書化された非PreviewのC++23適合mode、resolved toolset hash、`import std`／module partition C1001 regression fixture、全Target CX0↔CX3 ABI Receipt | CX3だけを停止しCX0を維持／公式stable mode待ち |
 | C | Anthropic direct API／SDK | `mirakan.arch.toolchain-dependencies` | direct Provider projectionがProduct WPへ登録された時 | official SDK exact version／integrity／license、Provider version、Schema keyword conformance、credential／error／rate-limit fixture | direct projectionだけを停止しMVPはMCP経路を使用／scope未登録 |
 | Per target | CI runner／GPU・macOS host／mobile device poolとcapacity owner | `mirakan.arch.toolchain-dependencies` | 対応するProduct Target Gate開始前 | §8.1のqualified `CiExecutionProfileV1`、non-`unfixed` Owner、runner image／Toolchain lock／device matrix／capacity Receipt | 該当laneを`diagnostic.toolchain.ci-capacity-unresolved`で停止／Owner・capacity input待ち |
 
@@ -410,10 +428,10 @@ Context7の内容はmain branchの挙動説明であり、exact release／commit
 | MCP Authorization | [MCP 2025-11-25 Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) | 2026-07-23 | Authorizationはoptionalとし、HTTP-based transportで有効化する場合は同仕様のOAuth discovery／token audienceを適用する。STDIOはMCP OAuth対象外だが、MiraikanaiではEngine／Project credentialをenvironmentから継承しない。AI Security §8の`none`またはTask専用短命Broker例外だけを許可する |
 | OpenAI hosted ChatGPT Work MCP | [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp#use-mcp-backed-tools-in-chatgpt-web) | 2026-07-24 | hosted ChatGPT Workはpluginが束ねるremote MCP Toolを使い、local Codex設定／command menu／direct local STDIOを読まない。plan／workspace／admin条件とremote serviceまたはSecure MCP TunnelをHost Profileへ固定する |
 | OpenAI Codex-hosted MCP | [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp) | 2026-07-24 | ChatGPT desktop appのCodex host、Codex CLI、IDEは同じCodex MCP config layerからSTDIO／Streamable HTTPを使える。hosted ChatGPT Workとは別Profileにし、MiraikanaiのMCP 2025-11-25 conformance Gateを別途必須にする |
-| OpenAI GPT-5.6 | [GPT-5.6 migration guidance](https://developers.openai.com/api/docs/guides/upgrading-to-gpt-5p6-sol) | 2026-07-23 | direct Providerの既定explicit modelを`gpt-5.6-sol`、reasoning effortを`medium`とし、ModelSnapshot Profile／Evalなしにaliasへ追従しない |
+| OpenAI GPT-5.6 | [GPT-5.6 migration guidance](https://developers.openai.com/api/docs/guides/upgrading-to-gpt-5p6-sol) | 2026-07-27 | direct Providerの既定explicit modelを`gpt-5.6-sol`、reasoning effortを`medium`とし、ModelSnapshot Profile／Evalなしにaliasへ追従しない |
 | Ajv Draft 2020-12 | [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html#draft-2020-12)、[Ajv 8.20.0 registry metadata](https://registry.npmjs.org/ajv/8.20.0) | 2026-07-23 | `ajv/dist/2020`をControl Plane lintだけへexact lockし、§4のtarball／integrity／MITをread-backする。C++ Runtime validatorの未固定状態は閉じない |
 | CMake C++ Modules | [latest manual](https://cmake.org/cmake/help/latest/manual/cmake-cxxmodules.7.html)、[4.4 manual](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html) | 2026-07-23 | 4.4の`import std`はExperimental opt-inかつNinja／Ninja Multi-Config限定とする。Visual Studio GeneratorのIMPORTED BMIをShipping経路にしない |
-| MSVC C++ language mode | [Microsoft `/std` reference](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version)、[MSVC 14.51 C++23 status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) | 2026-07-23 | v14.51の`/std:c++23preview`はCX0 Development／Test／candidate／internal Technology Previewだけとし、正式`/std:c++23`を提供するstable toolsetまでCX3 Release Activationを拒否する |
+| MSVC C++ language mode | [Microsoft `/std` reference](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version)、[MSVC 14.51 C++23 status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) | 2026-07-27 | 公式資料が現在案内する`/std:c++23preview`はCX0 Development／Test／candidate／internal Technology Previewだけとし、公式に文書化された非PreviewのC++23適合modeを持つstable toolsetまでCX3 Release Activationを拒否する |
 | C++ memory safety instrumentation | [Microsoft AddressSanitizer](https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170)、[LLVM AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)、[LLVM ThreadSanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) | 2026-07-26 | ASanはTarget Profileが対応するcompiler／runtime上のDevelopment／CI laneへ固定し、MSVCでは対応x86／x64構成だけを有効候補にする。sanitizer buildをShipping、PGO、通常performance baselineへ流用しない。race検証は別のsupported Toolchain／runner laneだけで実行し、MSVCまたは任意Targetが未対応でも実行済みと表示しない。未対応Targetはstatic／negative fixtureとsupported laneのEvidenceを別記録にし、同値のpassへ変換しない |
 | Box2D 3.1.1 simulation optimization boundary | [Box2D Simulation](https://box2d.org/documentation/md_simulation.html)、[v3.1.1 release](https://github.com/erincatto/box2d/releases/tag/v3.1.1) | 2026-07-26 | task callback／worker、sleep、body creation position、filterはexact Target／World Profile候補として測定し、値をAPI既定またはCPU brandから推測しない。task callbackはprivate、thread-safe、allocation-freeで、Engine-owned semantic oracleを変更しない |
 | Jolt Physics 5.6.0 optimization boundary | [Jolt Physics 5.6.0 documentation](https://jrouwe.github.io/JoltPhysicsDocs/5.6.0/)、[v5.6.0 release](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0) | 2026-07-26 | JobSystem／TempAllocator、batch insertion、BroadPhase layer／filter、sleepをTarget別候補にする。複数Bodyを一件ずつ追加する経路と毎frameの`OptimizeBroadPhase`を標準候補にせず、ContactListener rejectをearly filterと数えない |

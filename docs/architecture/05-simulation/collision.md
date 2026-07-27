@@ -1,11 +1,15 @@
 # Miraikanai Engine Collision Contract
 
 - 文書ID: mirakan.arch.simulation-collision
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: 2D／3D geometry、Collider Source／Cooked Asset、Collision Material／Filter／Sensor、filter execution placement／early rejection eligibility、query request／result、contact／trigger／hit event semantics
 - 非正本範囲: Body dynamics、solver、joint、character motor、Runtime phase／Simulation Advance／lifetime、共通capacity／backpressure、Asset transaction、AI authorization。各Owner文書を参照する
-- 依存: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math core](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](physics.md)
-- 外部根拠検証日: 2026-07-26
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Math／Core Utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
+- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math core](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](physics.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-26
 
 ## 1. 結論と所有境界
 
@@ -120,9 +124,30 @@ Sensorはmass、force、jointを持たず、overlap eventのsourceとなるColli
 
 `CollisionQueryResultV1`はrequest ID、observed scene version、status、normalized hitのordered listを持つ。hitはEngine body handle／generation、Entity Stable ID、Collider Asset version、shape slot、subshape index、fraction（ray／shape cast）またはdistance（closest point）、position、normal、material／surface tagを持つ。overlapとbroad bounds queryのhitはfraction／distance fieldを持たない。native face、polygon reference、pointer、status bitsは含めない。
 
-結果順は`kind別ordering第1 key（上表）, Entity Stable ID, shape slot, subshape index, point lexicographic`で固定する。packed engine body handleはsession-localでSaveへ保存されないため、ordering keyへ使わない。Entity Stable ID順の結果はSave／Load跨ぎ、Replay、cross-sessionで再現する。同値判定は[Math core](../02-foundation/math-core.md)のquantization／comparison契約を使用する。Queryが観測したscene versionとconsumerが要求したversionが一致しない場合は`stale`として破棄し、現Worldに再解決しない。
+根拠: project-decision — Backend collectorのearly-outで最初に発見されたhitは、broadphase tree、worker、native ID、走査順によって変わり得る。事後sortは、収集されなかった候補を復元できない。
+
+`all`の結果順は`kind別ordering第1 key（上表）, Entity Stable ID, shape slot, subshape index, point lexicographic`で固定する。`closest`はBackendが最初に返したhitをそのまま採用せず、最小fraction／distanceと同じ量子化bucketに入るtie候補を保持し、同じcanonical keyで一件を選ぶ。Backendがtie候補の列挙を保証できないquery／shape組合せはauthoritative `closest`をunsupportedとして拒否する。
+
+`any`はperformance-orientedな存在確認だけに使用するnon-authoritative modeであり、どのhitを返すかのcross-run決定性を保証しない。`any`の結果をGameplay state変更、Save、Replay、network authority、AIのCommit判断、Qualification oracleへ使用しない。決定論的な存在確認が必要なcallerは有限bound付き`all`を要求し、canonical orderの先頭を選ぶ。bound超過は結果なしのtyped failureであり、`any`へfallbackしない。
+
+packed engine body handleはsession-localでSaveへ保存されないため、ordering keyへ使わない。Entity Stable ID順のcanonical結果はSave／Load跨ぎ、Replay、cross-sessionで再現する。同値判定は[Math core](../02-foundation/math-core.md)のquantization／comparison契約を使用する。Queryが観測したscene versionとconsumerが要求したversionが一致しない場合は`stale`として破棄し、現Worldに再解決しない。
 
 非同期queryのacceptance、deadline、lease、consume slotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の正本に従う。Collision文書は`T20_AsyncIntegrate`等のcanonical identifierを参照するだけで、新しいphaseや別順序を定義しない。
+
+<a id="collision-capability-records"></a>
+
+### 4.1 MCD Capability record closure
+
+Collisionが公開するMCD Capabilityは次のexact二件である。これはProduct `capability.simulation.collision-2d | collision-3d` rowではなく、Target別Product Activation Bindingが参照するDomain Contractである。文書状態が`review`でmaterialized Contract setがない現在は設計候補であり、IDだけをactive refとして解決しない。
+
+共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.collision]`、`requirement_refs=[]`、`since_contract_set=2`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
+
+| Capability ID | `title` | `description` | `required_capabilities[]` | `rationale_refs[]` | `tags[]` |
+|---|---|---|---|---|---|
+| `capability.simulation.collision_query` | `Collision query` | normalized、bounded、versioned Collision queryを提供する | `[]` | `[mirakan.arch.simulation-collision#4-collision-query-contract]` | `[collision, query]` |
+| `capability.simulation.collision_response` | `Collision response semantics` | Filter、Sensor、Contact／Trigger／Hitのnormalized response semanticsを提供する。Body dynamics／solver authorityは含まない | `[]` | `[mirakan.arch.simulation-collision#3-materialfiltersensor]` | `[collision, response]` |
+
+両recordの`failure_modes`は`[{diagnostic_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED, fallback_id=fallback.capability.unavailable}]`である。Product Capability、Physics provider、Interaction Roleは同じContract set rootを持つexact RefとTarget Activation Bindingを使用し、`collision`等の未定義generic ID、dimension名、Product maturityからMCD Refを合成しない。
 
 ## 5. Contact、Trigger、Hit event
 
@@ -161,7 +186,7 @@ filter最適化のAI／Editor説明は[Runtime performance／capacity §8.4](../
 - event normalization invariant violation
 - consumed lease／generation mismatch
 
-Qualificationは2D／3D primitive、compound、mesh／height-field cook、filter matrix、sensor enter／exit、query ordering、event ordering、asset swap、stale result、fuzz inputを含む。同じfixtureを全private Backendへ与え、Engine-owned resultとdiagnosticが一致することを検査する。filter fixtureはinput bounds、candidate pair、broadphase reject、pair-filter reject、shape-filter reject、late-listener reject、narrow-phase／contact成立数をstage別に記録し、early stageへ移した候補でも最終pair relation、sensor、query、eventのsemantic hashをreferenceと一致させる。asymmetric matrix、callback allocation／nondeterminism、late rejectをearly rejectへ誤計上するcaseを一原因ずつ拒否する。Performanceの測定方法とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使用する。
+Qualificationは2D／3D primitive、compound、mesh／height-field cook、filter matrix、sensor enter／exit、query ordering、event ordering、asset swap、stale result、fuzz inputを含む。query fixtureは、候補列挙順を変えても`all`とauthoritative `closest`が同じ結果になること、equal fraction／distanceのtie-break、bound超過、`any`をauthoritative consumerへ接続した場合の拒否を含む。同じfixtureを全private Backendへ与え、Engine-owned resultとdiagnosticが一致することを検査する。filter fixtureはinput bounds、candidate pair、broadphase reject、pair-filter reject、shape-filter reject、late-listener reject、narrow-phase／contact成立数をstage別に記録し、early stageへ移した候補でも最終pair relation、sensor、query、eventのsemantic hashをreferenceと一致させる。asymmetric matrix、callback allocation／nondeterminism、late rejectをearly rejectへ誤計上するcaseを一原因ずつ拒否する。Performanceの測定方法とcapacity promotionは[Runtime performance／capacity](../04-runtime/performance-capacity.md)、evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を使用する。
 
 次を採用しない。
 

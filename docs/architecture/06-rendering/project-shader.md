@@ -1,11 +1,15 @@
 # Miraikanai Engine Project Shader Contract
 
 - 文書ID: mirakan.arch.rendering-project-shader
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Typed IR／bounded HLSL Project Shaderの自由度境界、semantic module、Project Node／Shading Model、Project Shader Technique、宣言的resource／pass、compile fact、AI context／operation、Shader Understanding Closure、Shader固有diagnostic／qualification
 - 非正本範囲: Engine shader実装、native graphics API、Render Graph実行algorithm、Material／Lighting／Post Process／VFXのauthoring意味、Tool／compilerのexact version、AI authorization／Approval、共通Evidence envelope、Project transaction。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core Utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[VFX authoring](vfx-authoring.md)
-- 外部根拠検証日: 2026-07-22
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Project State](../03-authoring/project-state.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core Utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[VFX authoring](vfx-authoring.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-22
 
 ## 1. 結論と自由度境界
 

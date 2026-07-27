@@ -1,11 +1,15 @@
 # Miraikanai Engine Input／Action／Device Contract
 
 - 文書ID: mirakan.arch.platform-input
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Input device／reading、Action／Binding／Context、latch semantics、Platform input Adapter、touch／gesture、remap／accessibility、haptics、Input replay、Input固有capacity／failure／qualification
 - 非正本範囲: Runtime phase／shared queue・memory budget、UI／Text event、Platform lifecycle、Tool／SDK version、Product phase、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)
+- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論
 
@@ -279,7 +283,7 @@ BindingはT10 `InputSnapshot`をT30でregistered typed Commandへ変換するだ
 
 ## 5. Context、Focus、Consumption
 
-公式Contextを次で固定する。
+標準Context候補を次で固定する。
 
 - `system`
 - `editor_global`
@@ -329,7 +333,7 @@ InputSnapshot
 
 Snapshotは一advance中immutableで、GameplayはDevice readingを追加pollしない。先頭三FieldはScheduling Ownerが当該T00～T110へ発行した`SimulationAdvanceIntervalV1`とbyte equalityにする。`phase`はfold後に最後に成立したtransitionの`started | performed | cancelled`、transitionがなければ`none`であり、`transition_count`は当該advanceで受理した全transition数、`last_transition_offset`は最後の受理位置である。複数transitionが一advanceに入った場合もtap／repeat評価を失わず、Actionごとのbounded transition countは最大16とする。超過時は前段のcanonical順の先頭16 transitionを保持し、残りを破棄してActionごとのdropped countとともにtyped `InputTransitionOverflow` diagnosticを発行する。この縮約は決定的でSnapshotへ記録し、authoritative session faultにしない。hitch中に蓄積した正常入力でGameを落とさない。
 
-`input_profile_hash`の対象である「Input Profile」を次で定義する。`InputActionMap` Artifact（`ArtifactRefV1`＋`StableId`↔`RuntimeActionId`対応表）、公式Context定義集合（§5）、interaction timing値（§4.3）、processor既定（§4.4）、composite構成の組であり、hashはこの列挙順のcanonical serializationから計算する。User RemapとDevice構成はInput Profileへ含めない。Replayはnormalized Action value／transitionを記録するため、Remap変更は再生可能性を失わせない。
+`input_profile_hash`の対象である「Input Profile」を次で定義する。`InputActionMap` Artifact（`ArtifactRefV1`＋`StableId`↔`RuntimeActionId`対応表）、標準Context定義集合（§5）、interaction timing値（§4.3）、processor既定（§4.4）、composite構成の組であり、hashはこの列挙順のcanonical serializationから計算する。User RemapとDevice構成はInput Profileへ含めない。Replayはnormalized Action value／transitionを記録するため、Remap変更は再生可能性を失わせない。
 
 ## 7. Platform Adapter
 
@@ -438,7 +442,7 @@ Persistent 8 MiBとLatch transient 4 MiBはRuntime ownerのInput child scopeへc
 
 上限超過は末尾dropやAction切捨てにせず、Cook／Play prepareで静的超過を拒否し、Runtime queue超過はauthoritative session faultとする。transition超過だけは§6のtyped縮約で処理する。Shipping callback／poll pathで一般heap allocation、lock待機、filesystem、log formattingを行わない。
 
-## 14. TestとDefinition of Done
+## 14. Testと受入条件
 
 - Keyboard、Mouse、Xbox系／generic controller、touch、penのconnect／disconnect
 - press／tap／hold／repeat／chord／toggle、dead zone、composite、conflict

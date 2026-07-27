@@ -1,23 +1,29 @@
 # Miraikanai Engine C++23 Modules
 
 - 文書ID: mirakan.arch.cpp23-modules
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: C++23 language profile、Named Module境界、`import std`移行state、CMake module表現、Header例外、BMI identity、Cutover Gate
 - 非正本範囲: Compiler・CMake・Ninja・SDKのexact version／hash／取得元、一般命名・Directory、Memory／Pointer、Native Game ABI、Platform package。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
-- 外部根拠検証日: 2026-07-23
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Naming／Project Layout](naming-project-layout.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. 結論
 
-Miraikanai EngineのC++製品基準と最終Source構成を次に固定する。
+根拠: project-decision／provisional — C++23は製品言語の候補基準、Named Modulesと`import std`はPrototypeと全Target検証を必要とする候補方式である。2026-07-27時点で対応Source、Build設定、Prototype、ReceiptはRepositoryに存在しない。
+
+Miraikanai EngineのC++設計候補を次のように整理する。
 
 1. Engine、Editor、Tool、GameHost、NativeGameModuleのFirst-party CPU codeはC++23とする。
-2. First-party C++公開境界はC++ Named Modulesへ移行する。
-3. Named Module内の標準Library利用は原則`import std;`へ統一する。
+2. First-party C++公開境界は、self-contained Headerを基準経路として開始し、C++ Named Modulesを候補として検証する。
+3. Named Module Prototypeでは`import std;`を検証対象にする。
 4. C++26はShipping基準にせず、同じC++23 Sourceを`/std:c++latest`または`-std=c++2c`でもCompileするreadiness CIだけを持つ。
-5. Modules／`import std`は採用済みの最終方式であり、今後のGateは採否を再検討するものではなく、安全に正式有効化できる時点を判定する。
-6. 現行Toolchainに残る制限を製品Buildへ持ち込まないため、Header準備期、Probe期、Cutover候補期、正式Module期の一方向移行を行う。
-7. 正式移行後はHeader版公開APIとの恒久的二重Buildを持たず、Engine C++ Public Headerを削除する。C ABI、Preprocessor macro、Objective-C／JNI等の言語境界だけを小さなHeaderとして残す。
+5. Modules／`import std`の採否は、固定Toolchain、全Target、IDE／analysis、Package、Build性能を同じSourceで比較した結果とADRで決定する。
+6. 検証中はHeader、限定Probe、Cutover候補を分離し、Probe結果をShipping対応と読み替えない。
+7. Modulesを採用する場合のHeader削除方針は、Cutover ADRで改めて決定する。現時点でPublic Headerの削除を確約しない。
 
 ModulesはCompilerが強制するSource公開境界であり、Plugin ABI、Binary互換層、Security sandboxではない。NativeGameModuleのProcess／C ABI／Promotion境界、AI Source Worker、構造化ChangeSet検証は従来どおり必要である。
 
@@ -29,7 +35,7 @@ ModulesはCompilerが強制するSource公開境界であり、Plugin ABI、Bina
 | C++ Named Module | `export module mirakan.<name>;`で宣言するC++ Source公開単位 |
 | Module partition | `mirakan.<name>:<partition>`に属し、同じNamed Moduleを分割する単位 |
 | NativeGameModule | Project固有C++を隔離Build／PromotionするMiraikanai製品概念。C++ Named Moduleとは別物 |
-| Standard Library Module | C++23の`std` Named Module。本書では`import std;`だけを正式利用する |
+| Standard Library Module | C++23の`std` Named Module。Prototypeで検証する候補は`import std;` |
 | BMI | Compilerが生成するBinary Module Interface。MSVCのIFCを含む総称 |
 | Textual Header | Preprocessorの`#include`で展開するHeader |
 | Module graph | Named Module間の`import`依存DAG |
@@ -42,18 +48,18 @@ Tool、Compiler、SDKのexact release、version、hash、取得元と、そのve
 
 | 確認事項 | Miraikanaiの判断 |
 |---|---|
-| Named Modules | C++23 Source公開境界として正式採用する |
-| `import std` | 標準名は`import std;`、必要macroは限定Headerで明示する。`std.compat`は採用しない |
-| Module scan | `FILE_SET CXX_MODULES`を正式なBuild表現とする |
+| Named Modules | Source公開境界の候補としてPrototypeする。採用済みとは扱わない |
+| `import std` | Named Module Prototypeで検証する。正式採用と`std.compat`の扱いはCutover ADRで決定する |
+| Module scan | PrototypeではCMake `FILE_SET CXX_MODULES`を使用する |
 | Experimental `import std` | Probeに限りExperimental gateを隔離利用し、正式期は非Experimental supportを必須にする |
 | Apple build | portable C++ Module graphとApp shell／最終Link／Archive／署名をDriver Profileで分離する |
 | Header Units | 移行手段にも正式方式にも採用しない |
 
 CompilerやBuild Systemの対応表は「その組合せなら製品に安全」という保証ではない。固定Toolchain、全Target fixture、IDE、Sanitizer、Static Analysis、Package testを本書のGateで追加検証する。
 
-## 4. 一方向の移行State
+## 4. 評価Profile
 
-`CxxFrontendProfileV1`は次の四状態だけを持つ。文字列、遷移、Artifact用途を固定し、独自Profileを追加する場合は本書改訂を必要とする。
+次表は採用判断に使う候補Profileであり、current実装済みProfileではない。CX0からCX2までは比較可能な評価経路、CX3は将来Modulesを採用した場合の目標状態を表す。CX3への遷移は自動でも一方向でもなく、Prototype evidenceとADR承認を必要とする。
 
 | State | Profile ID | Source公開方式 | Standard Library | Artifact用途 |
 |---|---|---|---|---|
@@ -62,7 +68,7 @@ CompilerやBuild Systemの対応表は「その組合せなら製品に安全」
 | CX2 | `cxx23_modules_candidate` | 全First-party公開APIをNamed Modulesへ変換したCutover branch | `import std` | 全Target候補検証。公開Release不可 |
 | CX3 | `cxx23_modules_shipping` | Named Modulesが唯一のC++公開方式 | `import std` | Development、Profile、Shipping、ASanの正式方式 |
 
-MCD recordは`{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`を持ち、上表から生成する。Compiler、STL、CMakeとの対応はMCDへ埋め込まず、Target別`toolchain.lock.json`の`profiles[].build.cxx_bindings[]`へ次の`CxxToolchainBindingV1`として固定する。Configure入口とGeneratorは別契約の`BuildDriverProfileV1`が所有する。
+機械可読MCDとToolchain lockを導入する場合は、`{profile_id, state, source_api_mode, standard_library_mode, promotion_allowed, shipping_allowed}`を上表から生成し、Compiler、STL、CMakeとの対応をTarget別lockへ記録する。2026-07-27時点で、これらのSchema、MCD、lockは存在しない。
 
 `shipping_allowed`はProduction Release候補を署名／配布してよいかを表し、Shipping Configurationで内部Buildできるかを表さない。初期値はCX3だけ`true`、CX0～CX2は`false`である。CX0／CX1のDevelopment、Test、candidate Package、internal Technology Previewと、CX2の全Target候補検証は内部Evidence生成に限り、Release Activationへ入力できない。CX3の`shipping_allowed=true`もToolchain binding、全Target Gate、Package／Release Receiptを省略する許可ではない。
 
@@ -107,11 +113,13 @@ using Result = std::expected<T, Error>;
 
 `Result<void>`も同じaliasを使用する。C ABI、serialized data、NativeGameModule descriptorへ`std::expected`、`Error` object、STL objectを出さない。
 
-### 5.2 CX3の完全C++23
+### 5.2 CX3のC++23適合条件
 
-CX3は各公式Targetで次を満たす。
+根拠: official-spec／project-decision — 2026-07-27時点のMicrosoft公式資料が案内するC++23 modeは`/std:c++23preview`であり、Preview modeをShipping基準へ昇格しない。将来のstable modeのflag名やtoolset versionを先取りして固定せず、採用時点のMicrosoft公式資料とToolchain lockで確定する。
 
-- MSVCはStable toolsetの正式な`/std:c++23`を使用する。
+CX3は各Targetで次を満たす。
+
+- MSVCはstable releaseが公式に提供する非PreviewのC++23適合modeを使用する。該当modeが存在しない間はCX3を有効化しない。
 - Clang系は`-std=c++23`を使用する。
 - CMake targetは`target_compile_features(<target> PUBLIC cxx_std_23)`を宣言する。
 - `__cplusplus`／`_MSVC_LANG`、P2564R3、P0533R9、`std::expected`、Named Modules、`import std`のcompile／negative fixtureに合格する。
@@ -220,7 +228,7 @@ set_property(TARGET mirakan_foundation PROPERTY CXX_MODULE_STD ON)
 
 ### 8.2 Build Driver／Generator規則
 
-CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDriverProfileV1`と[Toolchain／Dependencies](toolchain-dependencies.md#3-build-driver-matrix)のexact Toolchain bindingに一致する入口だけを公式経路とする。
+CMakeを全First-party C++ targetの唯一のBuild定義候補とし、MCDの`BuildDriverProfileV1`と[Toolchain／Dependencies](toolchain-dependencies.md#3-build-driver-matrix)のexact Toolchain bindingに一致する入口だけを承認可能な経路とする。
 
 | Target／State | Driver Profile ID | 正規入口 | C++ Generator | Configuration単位 | 後段 |
 |---|---|---|---|---|---|
@@ -238,7 +246,7 @@ CMakeを全First-party C++ targetの唯一のBuild定義とし、MCDの`BuildDri
 - AndroidはNinja Multi-Configを使わず、Gradle Variant × ABI × C++ ProfileごとのSingle-Config Ninjaへ固定する。
 - Target、C++ Profile、Driver、Generator、Toolchain hashが異なるBuild treeを共有しない。既存Build treeの`CMAKE_GENERATOR`を書き換えず、別treeを作る。
 - Windows／Appleの通常入口は`cmake --preset`／`cmake --build --preset`、AndroidはGradle Wrapperとし、利用者、AI、CIがProduct Buildで`ninja`を直接起動しない。
-- CI／Promotionはcommand-line `-G`、`CMAKE_GENERATOR`環境変数、`CMakeUserPresets.json`による公式Generatorの上書きを拒否する。
+- CI／Promotionはcommand-line `-G`、`CMAKE_GENERATOR`環境変数、`CMakeUserPresets.json`による承認済みGeneratorの上書きを拒否する。
 - Makeしか提供しないThird-partyは隔離Dependency Buildでのみ許可し、検証済みimmutable artifactまたはCMake imported targetへ変換する。Engine／ProjectのBuild modeとして公開しない。
 - NinjaはCMake生成DAGの実行器に限定し、Asset Cook、Shader Package、APK／AAB、Apple archive、Signing、Promotionの正本にしない。全製品工程はBuild Gatewayが型付きTaskとして順序付ける。
 - Editor、AI、CIは`build.ninja`、`build-<Config>.ninja`、`.ninja_deps`、`.ninja_log`を解析または変更せず、CMake File APIとEngine-owned Build ReceiptだけからTarget、Configuration、Artifact、Diagnosticを取得する。
@@ -441,7 +449,7 @@ CX2は依存DAGの下位から次の順で変換する。
 
 ### 16.1 Toolchain
 
-- Windows Primary compilerが[Toolchain／Dependencies](toolchain-dependencies.md)のCX3条件を満たし、正式な`/std:c++23`を提供する。
+- Windows Primary compilerが[Toolchain／Dependencies](toolchain-dependencies.md)のCX3条件を満たし、Microsoft公式資料で非PreviewのC++23適合modeとして文書化されたflagを提供する。
 - CMakeの`import std`がExperimental tokenなしで利用でき、`CMAKE_CXX_COMPILER_IMPORT_STD`がC++23を列挙する。
 - `import std`を使うproduction C++ archiveはNinja／Ninja Multi-Configでbuildし、Visual Studio Generator由来BMIをShipping packageへ含めない。
 - Windows／Android／AppleのCompiler、STL、SDK、CMake、Ninja、Xcodeをexact version／hashで`toolchain.lock.json`へ固定する。
@@ -489,7 +497,9 @@ CX2は依存DAGの下位から次の順で変換する。
 - Peak compiler process tree memoryはTool process hard cap内である。
 - 計測値、Compiler trace、Module graph、Cache hit／missをBuild Performance Receiptへ保存する。
 
-性能条件に失敗した場合もModules採用を撤回せず、CX2のまま原因を修正する。Unity Build、PCH、Header Unitで数値だけを補正しない。同一構成の完全測定cycleで3回連続して不合格となった場合は、閾値と測定方式の再評価をR4承認のADRとして起草する。再評価はModules採用と§4の一方向移行を再検討の対象にしない。5%／10%閾値の妥当性は§18項10のCX0／CX1 Build Performance Receiptを基準測定として検証し、再評価ADRの入力へ含める。
+根拠: provisional — 5%／10%は初期比較用の候補閾値であり、計測済み製品Budgetではない。
+
+性能条件に失敗した場合はModules採用を前提にせず、Header基準経路を維持して原因、Toolchain制約、閾値、採否を再評価する。Unity Build、PCH、Header UnitをModulesの成功証拠へ混在させない。同一構成の完全測定cycleで結果を再現し、採用ADRの入力へ含める。
 
 ## 17. FailureとDiagnostic
 
@@ -503,35 +513,31 @@ CX2は依存DAGの下位から次の順で変換する。
 | `MIRAKAN-BUILD-MODULE_IMPORT_NOT_DECLARED` | Source importとMCD不一致 | Source Gate失敗 |
 | `MIRAKAN-BUILD-TEXTUAL_INCLUDE_NOT_ALLOWED` | allowlist外Header | Source Gate失敗 |
 | `MIRAKAN-BUILD-BMI_IDENTITY_MISMATCH` | BMI key不一致 | 該当Build treeを無効化して一度だけclean rebuild |
-| `MIRAKAN-BUILD-IMPORT_STD_UNAVAILABLE` | Active Compiler／Generatorが`import std`非対応 | Profile activation失敗。HeaderへFallbackしない |
+| `MIRAKAN-BUILD-IMPORT_STD_UNAVAILABLE` | Candidate Compiler／Generatorが`import std`非対応 | Module candidateを不合格にし、Header基準経路を維持する |
 | `MIRAKAN-BUILD-MODULE_TOOLING_UNAVAILABLE` | 必須IDE／analysis fixture失敗 | CX3 Promotionを停止 |
 
 Clean rebuild後も同じBMI errorが再発した場合は自動Retryを止め、Toolchain defectとしてBuild Receiptを失敗確定する。
 
-## 18. Phase 0成果物
+## 18. 採用判断に必要なEvidence
 
-Phase 0の実装計画は次を独立taskへ分解する。
+本節は実装Taskや実装順序を定義しない。Modules採用を`accepted`へ変更する前に、少なくとも次の比較Evidenceを同じSource revisionとTarget集合で揃える。
 
-1. `CxxFrontendProfileV1`、`CppDependencySetV1`、`BuildDriverProfileV1`のMCD。
-2. `mirakan_add_cpp_component()`と`CxxComponentGraphV1`生成。
-3. C++23 Header bootstrap compiler policy。
-4. P2564R3、P0533R9、`std::expected`、language modeのconformance fixture。
-5. `mirakan.foundation`のCX1 Named Module／`import std` probe。
-6. Module graph cycle、undeclared import、Header exception、Makefiles／Generator overrideのnegative fixture。
-7. BMI identity／configuration isolation test。
-8. `cxx26_readiness` compile-only CI。
-9. Windows Ninja Multi-Config、Android Gradle→Single-Config Ninja、Apple Ninja–XcodeのCX3候補Build recipeとC ABI link fixture。
-10. CX0／CX1 Build Performance Receiptと`VerificationReceiptV1` gate `mirakan.build.ninja_adoption.v1`。no-op、leaf変更、Module interface fan-out、generated Header invalidation、中断復旧、clean／incremental成果物一致を含む。
-11. `CppValueTransferPolicyManifest.bin`とsource API subject／policy binding／generated signatureのset-equality static Gate。
+- C++23 language featureとHeader基準経路のcompile結果。
+- 限定Named Module／`import std` Prototypeのcompile結果。
+- Module graph cycle、undeclared import、Header例外、BMI identityのnegative result。
+- Windows、Android、Apple候補BuildとC ABI link結果。
+- no-op、clean、leaf変更、Module interface変更のBuild時間と再Build範囲。
+- IDE、static analysis、sanitizer、Package経路の対応結果。
+- Header基準経路とModule候補経路の成果物・挙動差。
 
-Phase 0はCX3へ移行しない。Phase 0完了にはCX0のC++23 Development／Test／candidate Package／internal Technology Preview基盤とCX1 probeの再現可能な成功または明示的なToolchain failure Receiptが必要であり、Preview不具合を隠して成功扱いしない。CX0／CX1のReceiptをRelease Activationへ使用しない。
+失敗結果もEvidenceとして保持し、未対応を成功、fallback、将来修正済みと表現しない。
 
-## 19. Definition of Done
+## 19. 文書受入条件
 
-本設計は次を満たした時に仕様として完全である。
+本設計を`accepted`へ変更するには次を満たす。
 
 1. C++23が全First-party CPU codeの唯一の言語基準として全正式仕様に反映されている。
-2. Modules／`import std`が採用済みの最終方式として記録されている。
+2. Modules／`import std`が候補または採用済みのどちらかとして、EvidenceとADRに一致して記録されている。
 3. CX0、CX1、CX2、CX3の用途、遷移、Promotion可否が一意である。
 4. CMake target、Named Module、NativeGameModuleの用語が混同されない。
 5. Module名、Directory、CMake表現、AI dependency schemaが対応している。

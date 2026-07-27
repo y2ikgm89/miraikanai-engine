@@ -1,11 +1,15 @@
 # Miraikanai Engine Navigation Contract
 
 - 文書ID: mirakan.arch.simulation-navigation
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: 2D Grid Navigation、canonical A*／高度探索のalgorithm eligibility、3D Navmesh source／profile／artifact、Detour sliced query／version付き結果cache、Navmesh query request／result／status、Navmesh version／lease、Path Following／Movement Intent contract、`MotionExecutorPortV1`
 - 非正本範囲: Runtime phase／Simulation Advance／shared worker／capacity、Physics dynamics、Collision event、selected Motion ExecutorによるTransform解決、Animation、World streaming、external dependency version／build pin、AI authorization。各Owner文書を参照する
-- 依存: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
-- 外部根拠検証日: 2026-07-26
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Collision](collision.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
+- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](collision.md)、[Physics](physics.md)、[World](../06-rendering/world.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-26
 
 ## 1. 結論とPlatform境界
 
@@ -89,6 +93,13 @@ Detour private Adapterのsliced path candidateは、in-flight query／workerご�
 Async resultのdeadlineとacceptanceは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のcanonical `T20_AsyncIntegrate`を参照する。Navigationはphase順序を再定義せず、accepted resultだけを次のGameplay evaluationから利用できる。Replayへはrequest、accepted result、version／artifact identityを供給し、記録はRuntime ownerのcanonical `T100_ReplayCheckpoint`に接続する。
 
 ### 4.1 C1 Path Following／Movement Intent
+
+<a id="PathFollowRequestV1"></a>
+<a id="PathFollowerStateV1"></a>
+<a id="MovementIntentV1"></a>
+<a id="MotionExecutorPortV1"></a>
+<a id="Path-Following"></a>
+<a id="41-generic-motion-executor-port"></a>
 
 `capability.gameplay.path_following`（成熟度C1。maturityはidentityに含めない）は2D／3D共通のgoal、path generation、waypoint進行、replan、stuck判定をNavigation ownerとして所有する。Navigation query resultとselected Motion Executorの最終authoritative motion解決の間を結び、Path FollowingはWorld Transform、Physics body、Nav payloadを直接writeしない。selected executorのwriter authorityを奪わない。
 
@@ -338,6 +349,21 @@ GameSystemSpecV2 game_system.engine.navigation.motion_intent_batch_publisher
 ```
 
 表記上の`@1`は`McdContractRefV1 {id, version=1, contract_set_hash}`の短記であり、ID文字列に`@1`を含めない。依存edgeはpublisherがSelection、Binding Registry、Provider Catalog、全contributorのgeneric Portだけを読むことを許可し、Feature／Genre固有proposal schemaへのCore dependencyを許可しない。Core validatorはcurrent System CatalogにこのReceipt-free Spec IDがexact一件、`state_class=derived`、owned state 0件、Save／Replay ref canonical omission、batch emitter exact一件であることを検証する。Spec／Contract set root確定後のexact `GameSystemActivationBindingRefV1`だけがpublisher System contract／Target setのsigned Qualification Receiptを持ち、Catalog entryはSpec refとActivation Binding refを別Fieldで保持する。
+
+<a id="navigation-capability-records"></a>
+
+#### MCD Capability record closure
+
+上記Systemとresolverが参照するNavigation-owned MCD Capabilityは次のexact二件である。Product `capability.simulation.navigation` rowとは別recordであり、Target別Activation Bindingが同じContract set rootへ接続する。materialized Contract setがない現在は設計候補で、Game System本文にIDが現れるだけでは定義済みまたはactiveと扱わない。
+
+共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.navigation]`、`requirement_refs=[]`、`since_contract_set=2`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
+
+| Capability ID | `title` | `description` | `required_capabilities[]` | `rationale_refs[]` | `tags[]` |
+|---|---|---|---|---|---|
+| `capability.navigation.motion_intent_binding_resolve` | `Motion intent binding resolver` | owner登録済みproposalをexact一つのadapterで`AdaptedMotionIntentV1`へ解決する | `[]` | `[mirakan.arch.simulation-navigation#41-generic-motion-executor-port]` | `[motion_intent, navigation, resolver]` |
+| `capability.navigation.motion_intent_batch_publish` | `Motion intent batch publisher` | 解決済みcontributionをcanonical mergeし、選択Providerへ一batchだけpublishする | `[capability.navigation.motion_intent_binding_resolve@1]` | `[mirakan.arch.simulation-navigation#41-generic-motion-executor-port]` | `[motion_intent, navigation, publisher]` |
+
+両recordの`failure_modes`は`[{diagnostic_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED, fallback_id=fallback.capability.unavailable}]`である。Product Capability、Game System、Selection、Provider Catalogは明示Bindingで接続し、`navigation`等のgeneric IDやProduct maturityからMCD Refを合成しない。
 
 #### 4.1.1 Core publisher補助record closure
 
@@ -696,6 +722,13 @@ QualificationはGrid rasterization／canonical A*、node／heap memory再利用�
 |---|---|---|---|---|---|
 | `provider.fixture.motion_executor.board_token` v1／fixture_only／exact `fixture.navigation.motion-executor.board-token-no-physics` owner | `capability.motion_executor.fixture.board_token` | `type.fixture.motion.board_token_movement_profile` | `[type.navigation.adapted_motion_intent]` | `type.navigation.motion_executor_intent_batch`／`type.fixture.motion.board_token_resolved_motion` | `policy.fixture.motion.board_token_target_dimension` |
 | `provider.fixture.motion_executor.rts_stub` v1／fixture_only／exact `fixture.navigation.motion-executor.rts-stub-no-physics` owner | `capability.motion_executor.fixture.rts_stub` | `type.fixture.motion.rts_stub_movement_profile` | `[type.navigation.adapted_motion_intent]` | `type.navigation.motion_executor_intent_batch`／`type.fixture.motion.rts_stub_resolved_motion` | `policy.fixture.motion.rts_stub_target_dimension` |
+
+二つの`executor_capability_ref`は未定義の文字列ではなく、対応Fixture専用Contract setだけに含む次のMCD Capability recordである。両recordは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.navigation]`、`requirement_refs=[]`、`since_contract_set=2`、`supersedes=[]`、`maturity=C1`、`supported_targets=[target.headless.host]`、`required_capabilities=[]`を持つ。Payloadの共通値は`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`failure_modes=[{diagnostic_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED, fallback_id=fallback.capability.unavailable}]`、`examples=[]`、`ai_guidance=[]`である。Target Profile ref／hashは§6のFixture Qualification subjectが`target.headless.host@1`へ別に束縛する。Production Contract set、Product `CapabilityRegistryV1`、通常Provider discoveryにはrecord自体を含めない。
+
+| Capability ID | `title` | `description` | `rationale_refs[]` | `tags[]` | usage boundary |
+|---|---|---|---|---|---|
+| `capability.motion_executor.fixture.board_token` | `Board-token fixture motion executor` | Physicsなしのboard-token movementを検証するfixture executor | `[mirakan.arch.simulation-navigation#6-qualificationと採用しないもの]` | `[fixture, motion_executor, navigation]` | `fixture.navigation.motion-executor.board-token-no-physics`だけ |
+| `capability.motion_executor.fixture.rts_stub` | `RTS-stub fixture motion executor` | PhysicsなしのRTS movementを検証するfixture executor | `[mirakan.arch.simulation-navigation#6-qualificationと採用しないもの]` | `[fixture, motion_executor, navigation]` | `fixture.navigation.motion-executor.rts-stub-no-physics`だけ |
 
 両fixture-only implementation base recordを次の全Fieldで固定する。これら二件は[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `FixtureImplementationSystemRecordV1` schemaの具体instanceであり、schemaの再定義ではない。全`@1` MCD／Target／Fixture refはversionとcontent hashまたはContract set rootを持つexact refであり、空配列もrecord hashへcount 0で含める。
 

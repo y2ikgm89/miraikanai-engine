@@ -2,9 +2,13 @@
 
 ## 1. 目的と非規範性
 
-このIndexはArchitecture文書を発見し、読む順序と責務の入口を示すためのnavigationである。EngineのSchema、固定値、Gate、実装順序、Capability activationを定義しない。
+このIndexはArchitecture文書を発見し、読む順序と責務の入口を示すための手動管理navigationである。EngineのSchema、固定値、Gate、実装順序、Capability activationを定義しない。
 
-current文書件数、文書ID、状態、path、依存は各Headerから生成する[Architecture Governance](01-governance/architecture-governance.md)の`ArchitectureInventoryV1`が正本である。この一覧はそのInventoryと一致する閲覧用projectionであり、一覧だけを根拠にOwnerやcurrent Contractを推測してはならない。
+2026-07-27時点で、Architecture InventoryのGenerator、Schema、生成ArtifactはRepositoryに存在しない。この一覧は現存するOwner文書50件を手作業で列挙したものであり、生成済みprojectionではない。件数、状態、path、依存の機械的な正しさを主張せず、変更時は実ファイルと各Headerを確認する。
+
+Owner文書はすべて`review`であり、対応するEngine実装・Schema・Fixture・ReceiptはRepositoryに存在しない。したがって本文中の型、Registry、固定値、hash、Operationは、明示的な外部Artifactを除き設計候補である。状態と根拠の解釈は[Architecture Governance](01-governance/architecture-governance.md)を正本とする。
+
+以下の「Owner文書」は、各概念の目標上の所有先を示す。`review`のままでは採択済み正本または現行実装の証拠にならない。とくにRuntime ECSは移管先候補であり、[Governance Migration Proposals](appendices/governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)の候補が完成ChangeSetとして承認され`applied`となるまでは、[Gameplay Programming Model](03-authoring/gameplay-programming-model.md) revision 1に残る現行authorityを置き換えない。
 
 ## 2. 読む順序
 
@@ -17,21 +21,21 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 
 個別変更では全仕様を通読せず、対象概念の正本範囲、非正本範囲、依存、Owner refを先に確認する。
 
-## 3. 正本一覧
+## 3. Owner文書一覧（全件`review`）
 
 ### 3.1 Product
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 1 | [Product Plan](00-product/product-plan.md) | review | Product intent、scope、Capability portfolio、Work Package宣言 |
+| 1 | [Product Plan](00-product/product-plan.md) | review | Product intent、scope、Capability portfolio、MVP・昇格判断 |
 
 ### 3.2 Governance
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 2 | [AI Security／Approval](01-governance/ai-security-approval.md) | review | AI authorization、risk、trust boundary、sandbox、credential、人間承認 |
+| 2 | [AI Security／Approval](01-governance/ai-security-approval.md) | review | AI authorization、risk、trust boundary、sandbox、人間承認の原則 |
 | 3 | [AI Verification／Provenance](01-governance/ai-verification-provenance.md) | review | verification、evaluation、evidence、provenance、trace grading |
-| 4 | [Architecture Governance](01-governance/architecture-governance.md) | review | 文書Inventory、正本責務移管、Architecture ChangeSet、AI explain projection |
+| 4 | [Architecture Governance](01-governance/architecture-governance.md) | review | 文書状態、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、ADR |
 
 ### 3.3 Foundation
 
@@ -52,7 +56,7 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 |---:|---|---|---|
 | 13 | [Project State](03-authoring/project-state.md) | review | Project aggregate、revision、ChangeSet、commit、undo／recovery |
 | 14 | [Asset Lifecycle](03-authoring/asset-lifecycle.md) | review | Asset import、Derived Artifact、catalog、package assembly、promotion |
-| 15 | [Editor UI Framework](03-authoring/editor-ui-framework.md) | review | Editor UI core、widget、layout、event、rendering、accessibility bridge |
+| 15 | [Editor UI Framework](03-authoring/editor-ui-framework.md) | review | Editor UI core、layout、event、rendering、platform／accessibility bridge |
 | 16 | [Editor Workspace／UX](03-authoring/editor-workspace-ux.md) | review | Workspace、制作journey、AI partner、error／recovery UX |
 | 17 | [Gameplay Programming Model](03-authoring/gameplay-programming-model.md) | review | 構造化Gameplay、Game System、Project実装、code generation |
 | 18 | [Native Game Module](03-authoring/native-game-module.md) | review | Native module ABI、build、link、package、promotion evidence |
@@ -61,11 +65,11 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 19 | [Runtime ECS](04-runtime/entity-component-system.md) | review | Entity／Component、archetype、query、access manifest、structural transaction |
+| 19 | [Runtime ECS](04-runtime/entity-component-system.md) | review（target Owner） | Entity／Component、archetype、query、access manifest、structural transaction |
 | 20 | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | review | Simulation Advance、execution order、job dependency、message order、lifetime |
 | 21 | [Runtime Package](04-runtime/runtime-package.md) | review | Runtime Entry launch closure、world／ui／headless branch、World Root／Section image、loader、publication |
 | 22 | [Persistence／Save](04-runtime/persistence-save.md) | review | Save、persistent identity projection、digest、reconstruction、Replay projection |
-| 23 | [Performance／Capacity](04-runtime/performance-capacity.md) | review | 共通capacity、measurement、backpressure、scale、regression |
+| 23 | [Performance／Capacity](04-runtime/performance-capacity.md) | review | 測定境界、暫定budget／capacity、backpressure、regression |
 | 24 | [Debugging／Observability／Replay](04-runtime/debugging-observability-replay.md) | review | debug、telemetry、causality、capture、replay transport、crash evidence |
 
 ### 3.6 Simulation
@@ -73,7 +77,7 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
 | 25 | [Collision](05-simulation/collision.md) | review | geometry、collider、filter、query、contact／trigger／hit semantics |
-| 26 | [Physics](05-simulation/physics.md) | review | dynamics、body、constraint、character、kernel adapter、AI semantics |
+| 26 | [Physics](05-simulation/physics.md) | review | dynamics、body、constraint、kinematic motion、kernel adapter |
 | 27 | [Navigation](05-simulation/navigation.md) | review | 2D grid、3D navmesh、navigation query、artifact lifetime |
 | 28 | [Animation](05-simulation/animation.md) | review | animation source／artifact、graph、pose、event、root motion、retarget |
 
@@ -110,15 +114,37 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
 | 47 | [Pack Contract](08-packs/pack-contract.md) | review | Pack構造、dependency、install、update、removal |
-| 48 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role、fixture |
-| 49 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | Combat、Ranged Combat、Encounter、Scoring、Pickupのcontract catalog |
+| 48 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role |
+| 49 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | reusable Featureの共通ownership、manifest、Port、State、Save／Replay、failure |
 | 50 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
 
-## 4. Decision Log
+## 4. 補助文書とProposal
+
+次の文書はOwner本文から分離した詳細CatalogまたはProposalである。`proposal appendix`はcurrent正本ではなく、`Owner supplement`も親Ownerと同じ`review`状態であり、実装済みを意味しない。
+
+| 文書 | 種別 | 内容 |
+|---|---|---|
+| [Product Execution Registry Proposal](appendices/product-execution-registry-proposal.md) | proposal appendix | Product Registry、Policy、Gate、Work Package候補 |
+| [AI Provider／MCP Security Supplement](appendices/ai-provider-mcp-security-supplement.md) | Owner supplement | Provider、MCP、CLI、Pluginのsecurity詳細 |
+| [AI Security Assumptions／Questions Guide](appendices/ai-security-assumptions-guide.md) | explanatory supplement | 質問、assumption、Project data境界 |
+| [AI Evidence Envelope／Fixture Candidate Catalog](appendices/ai-evidence-envelope-fixture-catalog.md) | Owner supplement | Evidence envelope、Receipt、AI Eval、CI Fixture候補 |
+| [Executable Contracts Operation／Planning Candidate Catalog](appendices/executable-contracts-operation-planning-catalog.md) | Owner supplement | 具体MCD record、Operation catalog、未Activation planning候補 |
+| [Gameplay Generated Projection／Fixture Candidate Catalog](appendices/gameplay-generated-projection-fixture-catalog.md) | Owner supplement | Gameplay Schema、Registry、generated projection、Fixture候補 |
+| [Project Target Readiness／Fixture Candidate Catalog](appendices/project-target-readiness-fixture-catalog.md) | Owner supplement | Project Document、Runtime Entry、Target readiness、Change primitive候補 |
+| [Editor UI Design System Catalog](appendices/editor-ui-design-system-catalog.md) | Owner supplement | Widget Pattern、visual／semantic／UIA、Reference Fixture候補 |
+| [Editor Panel／Reference Catalog](appendices/editor-panel-reference-catalog.md) | Owner supplement | Panel、Reference Design、environment／coverage候補 |
+| [Performance Scale Catalog Proposal](appendices/performance-scale-catalog-proposal.md) | proposal appendix | workload scale、Registry、integrated fixture候補 |
+| [Physics AI Catalog Proposal](appendices/physics-ai-catalog-proposal.md) | proposal appendix | Physics intent、role、Operation、AI Eval候補 |
+| [Procedural World Catalog／Fixture Candidate](appendices/procedural-world-catalog-fixture.md) | Owner supplement | World Schema、procedural generation、Tilemap、Blockout、Fixture候補 |
+| [Gameplay Feature Definition／Fixture Candidate Catalog](appendices/gameplay-feature-definition-fixture-catalog.md) | Owner supplement | Weapon、Damage、Vital、Score、Encounter、Pickup、Locomotion候補 |
+| [Shooter Reference Catalog](appendices/shooter-reference-catalog.md) | proposal appendix | AI composition、Fixture、Difficulty、Input template候補 |
+| [Governance Migration Proposals](appendices/governance-migration-proposals.md) | proposal appendix | Definition移管、Runtime ECS Owner移管の未承認候補 |
+
+## 5. Decision Log
 
 [Decision Log](decisions/README.md)はDecisionのrationaleと履歴を所有し、current Schemaまたはruntime behaviorを所有しない。
 
-## 5. 変更時の入口
+## 6. 変更時の入口
 
 | 調べたいこと | 先に読む文書 | 次に辿るOwner |
 |---|---|---|
@@ -132,6 +158,8 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 | Pointer／ownership／handle／lease／allocation | [Memory／Pointers](02-foundation/memory-pointers.md) | [Executable Contracts](02-foundation/executable-contracts.md)、[Product Plan](00-product/product-plan.md)、対象Subsystemのconsumer binding |
 | 実行順、capacity、debug／replay transport | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | [Performance／Capacity](04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](04-runtime/debugging-observability-replay.md) |
 
-## 6. Indexの更新規則
+## 7. Indexの更新規則
 
-Indexを更新してもArchitecture、Schema、Gate、実装計画、Operation activationは変化しない。文書追加・統廃合・retirementでは、先に[Architecture Governance](01-governance/architecture-governance.md)のInventoryとChangeSetを整合させ、次にこの表示projectionを更新する。
+Indexを更新してもArchitecture、Schema、Gate、実装計画、Operation activationは変化しない。文書追加・統廃合・retirementでは、対象OwnerのHeader、正本範囲、規範依存、関連文書、内部linkを先に整合させ、最後にこの手動一覧を更新する。
+
+Inventory Generatorと生成ArtifactがRepositoryへ追加されるまでは、このIndexを`generated`、`materialized`、`exact projection`と表現しない。

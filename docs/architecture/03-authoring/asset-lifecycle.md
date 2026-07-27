@@ -1,11 +1,15 @@
 # Miraikanai Engine Asset Lifecycle Contract
 
 - 文書ID: mirakan.arch.asset-lifecycle
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Asset source／import identity、Import Profile／Plan／IR、Preview／Conversion Report、Reimport／dependency invalidation、Asset／World artifact共通のDerived／Cooked envelope・Catalog・content addressing、Asset Content Package assembly、Asset promotion、Editor／AI Asset operation、Asset diagnostics／qualification
 - 非正本範囲: Project transaction、共有Schema基盤、外部Tool・SDK・Libraryのversion／hash／license／取得元、Runtime scheduling／lease／capacity、ECS storage、World Root／Section payload・Runtime Package binary、Save／Replay、各DomainのRuntime意味。各Owner文書を参照する
-- 依存: [Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[World契約](../06-rendering/world.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
+- 関連文書: [Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[World契約](../06-rendering/world.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 AssetをEditorが直接読むSource fileではなく、次の閉じたlifecycleとして扱う。Asset versionのgeneration、immutable read lease、promotion後のretireは本書がAsset固有の意味を所有し、公開型、保存／job capture、allocation／fallbackの一般規則は[Memory／Pointers](../02-foundation/memory-pointers.md)の`PointerMemoryConsumerBindingV1`へexactに束縛する。Asset readerがlive payload pointerやleaseをSave／Package／AI projectionへ渡すことはない。
 
@@ -182,7 +186,7 @@ AssetImportPlanV1
   risk_class: Governance-owned Risk class reference
 ```
 
-`risk_class`は[Governance Risk class](../01-governance/ai-security-approval.md#4-risk-classとactivation)のMCD `risk_class` type ID／versionを参照し、Asset schemaはvariantを列挙、制限、拡張しない。Blocking questionが一件でもあればCook承認対象にしない。AIが未回答を既定値で埋めることを禁止する。低影響で公式Profileが一意な項目だけEngineが解決し、由来をPlanへ記録する。
+`risk_class`は[Governance Risk class](../01-governance/ai-security-approval.md#4-risk-classとactivation)のMCD `risk_class` type ID／versionを参照し、Asset schemaはvariantを列挙、制限、拡張しない。Blocking questionが一件でもあればCook承認対象にしない。AIが未回答を既定値で埋めることを禁止する。低影響で承認済みProfileが一意な項目だけEngineが解決し、由来をPlanへ記録する。
 
 ### 2.2 Asset kind settings
 

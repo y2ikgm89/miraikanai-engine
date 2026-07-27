@@ -7,7 +7,7 @@
 - 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)
 - 外部根拠検証日: 2026-07-26
 - 文書種別: Architecture Decision
-- Decision owner document: `mirakan.arch.runtime-ecs`
+- Decision owner document: `mirakan.arch.runtime-entity-component-system`
 - Decision日: 2026-07-22
 - Supersedes: none
 
@@ -63,7 +63,7 @@ archetype／SoAにより、同じComponent集合の走査局所性、宣言的qu
 
 ## 7. Currentization and compatibility
 
-[Architecture Governance](../01-governance/architecture-governance.md#4-runtime-ecs正本化changeset)がOwner移管、承認closure、Definition Migration binding、およびcurrent化を所有する。同文書のreview profileが完成ChangeSetとして承認・適用されるまでは、target Runtime ECS文書をcurrent authorityまたは実装済みcontractとして扱わない。
+[Governance Migration Proposals](../appendices/governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)がOwner移管、承認closure、Definition Migration binding、およびcurrent化の未承認候補をまとめる。同proposalが完成ChangeSetとして承認・適用されるまでは、target Runtime ECS文書をcurrent authorityまたは実装済みcontractとして扱わない。
 
 [Compatibility／Evolution](../02-foundation/compatibility-evolution.md)がRuntime ECS正本化の`source_preserving_recook`、consumer inventory、reader／writer／alias policy、migration evidenceを所有する。consumer保護と承認closureの詳細は両Owner文書へ委ね、本Decisionでは手順、record field、Gateを再定義しない。
 

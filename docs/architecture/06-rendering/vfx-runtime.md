@@ -1,11 +1,15 @@
 # Miraikanai Engine VFX Runtime Contract
 
 - 文書ID: mirakan.arch.rendering-vfx-runtime
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: compiled VFX artifact boundary、instance lifecycle、CPU／GPU simulation、VFX render execution、visual collision／event、VFX固有resource ceiling／fallback／diagnostic／qualification
 - 非正本範囲: VFX Source／Graph／catalog／compiler authoring、Render Graph共通pass／resource／queue、LOD共通selection、Runtime phase／shared capacity、Physics authority、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[LOD](lod.md)、[VFX authoring](vfx-authoring.md)、[Environment／surfaces](environment-surfaces.md)
-- 外部根拠検証日: 2026-07-21
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[VFX Authoring](vfx-authoring.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[LOD](lod.md)、[VFX authoring](vfx-authoring.md)、[Environment／surfaces](environment-surfaces.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-21
 
 ## 1. 結論と実行境界
 

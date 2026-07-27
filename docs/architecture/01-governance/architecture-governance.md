@@ -1,371 +1,239 @@
-# Miraikanai Engine Architecture Governance Contract
+# Miraikanai Engine Architecture Governance
 
 - 文書ID: mirakan.arch.architecture-governance
-- 状態: review
-- 正本範囲: Architecture文書の識別・状態・inventory・一意所有、Architecture ChangeSet、Definition Migration binding、正本責務移管、AI向けArchitecture Explain projection、Architecture文書の分割・統廃合規則、Architecture Decision Logの状態・不変性・現行正本との分離
-- 非正本範囲: Product capabilityの成熟度、MCD／Operation activation、実装Taskの順序、各DomainのSchema・固定値・runtime挙動、AIの認可・実行route。各Owner文書を参照する
-- 依存: [AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
-- 外部根拠検証日: 2026-07-26
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
+- 正本範囲: Architecture文書の状態、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log
+- 非正本範囲: Product capability、MCD／Operation、実装Task、実装順序、Domain Schema・固定値・runtime挙動、AIの認可・実行route
+- 規範依存: none
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
+- 根拠区分: project-decision。ADR lifecycleは一次資料を確認済み
+- 外部根拠確認日: 2026-07-27
 
 ## 1. 結論
 
-Architectureは説明文の集合ではなく、各概念の責務、状態、依存、移管履歴を機械的に追跡できる正本集合として扱う。
+Architecture文書は、現在採用する設計、検討中の設計、外部仕様、実装状態、検証結果を混同しない。
 
-Indexの記載件数や表示名を正本にせず、全Active文書のHeaderから生成するInventoryを唯一の件数根拠とする。Architecture文書の追加、統廃合、正本責務の移管は、本文の編集だけでcurrent stateを変えない。対象文書、旧新Owner、対象revision、影響するContract set、検証、承認境界を閉じたArchitecture ChangeSetで記録し、承認済みdefinition migrationが存在する時だけcurrent Owner Registryへ反映する。
+文書が存在することは、実装、Schema、Registry、Artifact、生成物、Qualification Receiptが存在することを意味しない。`review`文書に記載された型、固定値、hash、Registry、Operation、Fixtureは、対応するRepository artifactと検証結果が存在しない限り設計候補である。
 
-本書は文書・責務の統治だけを定める。MCD type、Operation、Tool、Service、Provider projection、runtime capabilityを登録またはactivateしない。
+Architectureの各主張は次のいずれかへ分類する。
 
-## 2. 文書Inventory
+1. `official-spec`: 外部の公式仕様、標準、またはVendor一次資料で確認した事実。
+2. `project-decision`: Miraikanaiが選択する方式。外部仕様への適合と、選択の妥当性を分けて記録する。
+3. `provisional`: Prototype、計測、利用者検証、または承認が未完了の候補値・候補方式。
+4. `measured`: 再現可能な条件、入力、Toolchain、Target、結果を持つ計測済み判断。
 
-### 2.1 Header record
+「公式推奨」「公式方式」は、Miraikanai内部の採用判断を外部組織の推奨と誤読できるため使用しない。Miraikanaiの判断は「本プロジェクトの採用方式」、外部資料の内容は「公式仕様で確認済み」と記載する。
 
-全Active Architecture文書は次のHeaderを同じ順で持つ。
+## 2. 文書状態
+
+### 2.1 Owner文書のHeader
+
+`docs/architecture/00-product`から`08-packs`までのOwner文書は、次のHeader fieldを同じ順序で持つ。
 
 ```text
 - 文書ID: immutable ASCII ID
-- 状態: review | normative
-- 正本範囲: この文書だけが決定する事項
-- 非正本範囲: この文書が決定してはならない事項と参照先
-- 依存: 相対Linkの一覧
-- 外部根拠検証日: YYYY-MM-DD
+- 文書状態: draft | review | accepted | deprecated
+- 実装状態: absent | partial | implemented
+- 検証状態: unreviewed | design-reviewed | prototype-verified | measurement-verified
+- 正本範囲: この文書だけが決定する設計範囲
+- 非正本範囲: この文書が決定しない範囲
+- 規範依存: この文書の成立に必要なOwner文書。DAGでなければならない
+- 関連文書: 読解・連携に必要だが成立条件ではない文書。循環可能
+- 根拠区分: 本文で使用する根拠分類と例外
+- 外部根拠確認日: YYYY-MM-DD | none
 ```
 
-`review`は文書の承認状態であり、capability、MCD、Operation、Toolのactivation状態ではない。将来挙動は各Ownerが`not_activated`、`candidate_locked`、`qualified`、`production`のいずれかを明記し、Headerから推測しない。
+状態の意味は次のとおりである。
 
-Headerから次のrecordを生成する。
-
-```text
-ArchitectureDocumentRecordV1
-  document_id: ASCII stable ID
-  canonical_path: repository-relative normalized path
-  document_status: review | normative
-  canonical_scope: normalized text hash
-  noncanonical_scope: normalized text hash
-  dependency_document_ids[]: sorted unique ArchitectureDocumentId
-  supersedes_document_ids[]: sorted unique ArchitectureDocumentId
-  line_budget_class: compact | standard | split_required
-  source_content_hash: SHA-256
-
-ArchitectureInventoryV1
-  inventory_version: positive uint32
-  generated_at_revision: ProjectRevisionRefV1
-  documents[]: ArchitectureDocumentRecordV1 sorted by document_id
-  inventory_content_hash: SHA-256
-```
-
-`canonical_path`は実在する一意pathであり、redirect、旧path互換stub、同一`document_id`の複製を許可しない。相対Linkが示す対象はInventoryの一件へ解決しなければならない。`README.md`は閲覧用Indexであり、Inventory件数、文書ID、状態、pathを手入力で正本化しない。
-
-### 2.2 件数とline budget
-
-過去の再編Decisionにある42件は2026-07-21時点の移行基準値であり、current Inventoryの固定値ではない。追加・統廃合後の件数は必ず`ArchitectureInventoryV1.documents[]`から算出する。
-
-新規または大幅に再編集する正本仕様は原則1,000行未満に保つ。1,000行以上が必要な場合は、次のいずれかを同じChangeSetに含める。
-
-1. 型・固定値・Gateの単一Ownerを保った責務分割。
-2. generated appendixまたは履歴資料への退避。appendixは正本規則を再定義しない。
-3. 一時的に`split_required`を設定し、分割対象、残存期間、検証を明示した承認済みChangeSet。
-
-行数だけを理由に意味的に密結合なSchemaを分裂させない。一方、Decision、runtime storage、永続化、package binary、AI projectionを一冊へ集約して検索範囲を不必要に広げることも禁止する。
-
-### 2.3 現行のsplit-required文書
-
-次の既存文書は1,000行以上のため、次の生成Inventoryでは`line_budget_class = split_required`として扱う。内容を増やすChangeSetは、単一Ownerを保つ責務分割、generated appendixへの退避、または明示的な例外承認のいずれかを同じclosureへ含める。これは実装Taskの順序ではなく、二重正本を増やさないための文書統治ruleである。
-
-| Document ID | 現在の主な密結合領域 | 次の大幅改訂で必要な扱い |
+| Field | Value | 意味 |
 |---|---|---|
-| `mirakan.arch.product-plan` | capability／requirement／phase／Work Package registry | Product意図とregistry schemaの単一Ownerを保った責務分割、またはgenerated appendix |
-| `mirakan.arch.ai-security-approval` | authorization／risk／trust／approval policy | identity・authorization・approval evidenceのOwner境界を保った責務分割 |
-| `mirakan.arch.ai-verification-provenance` | verification／Eval／Evidence envelope／Receipt／provenance／external evidence | signed envelopeの単一Ownerを保ち、Requirement／Receipt／external evidenceの規則とgenerated appendixを責務別に分離 |
-| `mirakan.arch.executable-contracts` | MCD core／operation registry／planned vocabulary／projection | current Contract coreとplanning ledgerを二重定義しない責務分割 |
-| `mirakan.arch.simulation-physics` | Physics domain semantics／fixture／AI projection | semantic contractとgenerated／fixture appendixの分離、または行数をbudget内へ縮小 |
-| `mirakan.arch.gameplay-programming-model` | GameplayDefinition／GameSystemSpec／State owner／codegen／promotion | stable Programming Model、generated contract projection、qualification appendixを単一Owner境界のまま分離 |
-| `mirakan.arch.pack-gameplay-features` | reusable Feature contract／schema／state／fixture catalog | Feature単位の正本またはgenerated catalog appendixへ分割し、共通Pack boundaryを重複させない |
-| `mirakan.arch.project-state` | Project aggregate／revision／ChangeSet／Target readiness／recovery | transaction core、Target readiness、recovery／fixture appendixを責務別に分離 |
-| `mirakan.arch.editor-ui-framework` | MirakanUi Core／Shell、Widget Pattern、visual state、Accessibility、Reference fixture／baseline evidence | retained UI core／platform bridgeと、versioned Widget・semantic／UIA・fixture catalogを単一Owner境界のまま分離するか、後者をgenerated appendixへ退避。source icon・font lockはToolchain Ownerへ複写しない |
-| `mirakan.arch.editor-workspace-ux` | Workspace／Panel、Reference Design、journey、baseline review／publication UX | workspace／Panel contractと、Reference fixture・review surfaceのprojection catalogを単一Owner境界のまま分離するか、後者をgenerated appendixへ退避。Widget token／UIA・Command規則をFramework Ownerへ複写しない |
-| `mirakan.arch.pack-shooter` | Shooter composition／Profile／Game Flow／fixture | Genre compositionとfixture appendixを分け、Feature Public ContractをPackへ複写しない |
-| `mirakan.arch.runtime-performance-capacity` | budget／capacity／measurement／qualification | normative budget／capacity ruleとgenerated measurement・qualification appendixを分離 |
-| `mirakan.arch.rendering-world` | World source identity／spatial topology／partition／procedural source | source compositionとspatial／partition planを一意Ownerのまま分離 |
+| 文書状態 | `draft` | 構造化前の草案。正本として参照しない |
+| 文書状態 | `review` | 設計審査中。採用・実装済みとは解釈しない |
+| 文書状態 | `accepted` | Project判断として承認済み。実装状態とは独立 |
+| 文書状態 | `deprecated` | current設計ではない。後継または削除理由を示す |
+| 実装状態 | `absent` | 対応する実装・生成物をRepositoryで確認できない |
+| 実装状態 | `partial` | 一部実装が存在する。適用範囲を本文で列挙する |
+| 実装状態 | `implemented` | 対応実装と公開境界が存在する。検証済みとは限らない |
+| 検証状態 | `unreviewed` | 一次資料・内部整合性を未確認 |
+| 検証状態 | `design-reviewed` | 文書と一次資料を確認したがPrototype／計測結果はない |
+| 検証状態 | `prototype-verified` | 対象Targetの再現可能なPrototypeで成立を確認した |
+| 検証状態 | `measurement-verified` | 定義済み環境と入力で閾値・予算を計測した |
 
-## 3. 一意所有と責務移管
+`implemented`、`prototype-verified`、`measurement-verified`は、本文から到達できるRepository pathまたはimmutable Evidence referenceを必須とする。参照がない状態でこれらへ昇格しない。
 
-### 3.1 Owner record
+### 2.2 ADRの状態
 
-Architectureの正本責務はOwner Registryの`owner_id`とdocument revisionの組で参照する。path、見出し、表示名、リンク先からOwnerを推測しない。
+Architecture Decision RecordはOwner文書と異なるlifecycleを持ち、`review | normative | rejected | superseded`を使用する。
 
-```text
-ArchitectureOwnershipRefV1
-  owner_id: OwnerId
-  owner_revision: positive uint32
-  authority_document_id: ArchitectureDocumentId
-  authority_document_content_hash: SHA-256
+- `review`は検討中であり、本文を修正できる。
+- `normative`と`rejected`の本文は履歴として不変にする。
+- 判断変更時は新しいADRを作成し、旧ADRへ`Superseded by`関係だけを追加する。
+- 現在のSchema、固定値、runtime挙動はADRではなくOwner文書が所有する。
 
-ArchitectureOwnershipTransferV1
-  transfer_id: StableId
-  subject_id: closed ArchitectureSubjectId
-  source_owner_ref: ArchitectureOwnershipRefV1
-  target_owner_ref: ArchitectureOwnershipRefV1
-  source_scope_hash: SHA-256
-  target_scope_hash: SHA-256
-  moved_concept_ids[1..256]: sorted unique ClosedConceptId
-  retained_concept_ids[0..256]: sorted unique ClosedConceptId
-  affected_contract_set_refs[0..64]: sorted unique ContractSetRefV1
-  compatibility_change_ref: CompatibilityChangeRefV1
-  evidence_requirement_refs[1..64]: sorted unique EvidenceRequirementRefV1
-  evidence_satisfaction_bindings[0..64]:
-    sorted unique EvidenceSatisfactionBindingV1
-  approval_ref: optional ArchitectureApprovalRefV1
-  transfer_state: proposed | approved | applied | rejected
-  content_hash: SHA-256
+この方針は、`normative`（外部guidanceにおけるAccepted）ADRを後から現在の説明へ書き換えず、新しいADRで置換関係を記録するAWSおよびMicrosoftのguidanceと整合する。
 
-ArchitectureOwnershipTransferRefV1
-  transfer_id: StableId
-  content_hash: SHA-256
-```
+## 3. 根拠と断定の規則
 
-`source_owner_ref.owner_revision`をin-placeで書き換えない。authority documentの変更は同じ`owner_id`のrevisionをexactに一つ進め、新しいOwner Registry root、Foundation Definition Closure、参照するMCD／manifest／diagnosticのowner refを一つの承認済みdefinition migrationで更新する。説明文、相対Link、Product Work Packageの変更だけで`applied`にしない。
+### 3.1 Inline根拠
 
-移管前のsource文書は旧名称や二重の詳細schemaを保持せず、current ownerと移管中の対象範囲だけを短く参照する。target文書は`proposed`または`review`の間、目標Contractを定義できるが、current runtime capabilityやOperationが既に存在すると主張してはならない。
+次の主張は、段落、表、または節の冒頭で根拠区分を明示する。
 
-### 3.2 Architecture ChangeSet
+- 外部APIのsupport、制約、default、minimum、deprecation。
+- OS、SDK、Compiler、Tool、Libraryのversionと互換条件。
+- memory、frame time、queue、timeout、UI timing、容量、件数などの数値。
+- 「必須」「禁止」「唯一」「決定論的」「互換」とする設計判断。
+- Security、Accessibility、Store、Distributionに関する合否条件。
+
+記載形式は次のいずれかとする。
 
 ```text
-ArchitectureChangeSetV1
-  change_set_id: StableId
-  purpose: document_restructure | ownership_transfer | compatibility_cutover
-           | canonical_schema_move | document_retirement
-  base_inventory_ref: ArchitectureInventoryRefV1
-  resulting_inventory_ref: ArchitectureInventoryRefV1
-  document_mutations[1..256]:
-    add | revise | split | merge | retire
-  ownership_transfers[0..64]: ArchitectureOwnershipTransferV1
-  compatibility_change_refs[0..64]: CompatibilityChangeRefV1
-  definition_migration_binding_ref: optional ArchitectureDefinitionMigrationBindingRefV1
-  contract_activation_effect: none | approved_definition_migration
-  evidence_requirement_refs[1..128]: sorted unique EvidenceRequirementRefV1
-  evidence_satisfaction_bindings[0..128]:
-    sorted unique EvidenceSatisfactionBindingV1
-  approval_ref: optional ArchitectureApprovalRefV1
-  state: draft | review | approved | applied | rejected
-  content_hash: SHA-256
+根拠: official-spec — <一次資料へのlinkと対象version>
+根拠: project-decision — <選択理由またはADR>
+根拠: provisional — <未検証事項と確定条件>
+根拠: measured — <環境、入力、結果、Evidence reference>
 ```
 
-`contract_activation_effect = none`が既定であり、この時`definition_migration_binding_ref`はcanonical omissionする。Architecture文書を作成・更新・分割しても、MCD current set、Operation registry、Tool registry、runtime package、binary format、Save reader、AI route grantは変化しない。これらを変える場合だけ`contract_activation_effect = approved_definition_migration`とし、approved `ArchitectureDefinitionMigrationBindingV1`を明示参照する。`applied`には、bindingが指すsource／target Definition Closure、owner ref migration manifest、Compatibility Change、consumer inventory、verification、Approvalがread-backで一致することを必要とし、文書本文、相対Link、Product Work Packageの変更だけでcurrent化しない。
+`review`文書にある未tagの固定値、hash、Registry内容、Fixture件数は`provisional`として扱う。数値の表記がexactでも、実測済みとは解釈しない。
 
-`retire`はGit履歴へ戻せる文書のみを対象にし、current Inventory、README、依存Link、Owner transferが整合した後に実行する。曖昧な旧文書をredirectとして残すことは互換性ではなく二重正本であるため禁止する。
+### 3.2 外部根拠確認日
 
-### 3.3 Definition Migration binding
+`外部根拠確認日`は、外部資料を最後に確認した日であり、文書全体の正しさ、実装、互換性を保証しない。
 
-Architecture ChangeSetとProduct側のActive Definition migrationを相互にhashへ埋め戻すとcycleになる。そのため、先にsource／target根とowner ref集合だけを持つSubjectを確定し、bindingはSubjectを参照する。Product migrationとArchitecture ChangeSetは同じbindingを一方向に参照し、binding自身は後段wrapperへ逆参照しない。
+- 外部資料を使用しない文書は`none`とする。
+- `latest`だけへ依存せず、可能なら対象versionを固定する。
+- 公式資料とProject判断を同じ文章で混ぜない。
+- Blog、比較記事、検索結果は選択肢の発見に利用できるが、仕様判断は公式一次資料で再確認する。
+
+### 3.3 Hashと生成物
+
+外部配布Artifactのhashは、取得URL、version、byte size、hash algorithmと組で記録できる。
+
+内部Schema、Registry、Fixture、Receipt、Inventoryのhashは、対応ArtifactがRepositoryまたは承認済みimmutable storageに存在する場合だけcurrent値として記載できる。未生成Artifactのhash例は`example`または`provisional`と明示し、current root、lock、baselineと呼ばない。
+
+## 4. 規範依存と関連文書
+
+`規範依存`は、この文書の設計を解釈・検証するために必須となるOwner文書だけを列挙する。
+
+- 規範依存graphはDAGでなければならない。
+- Product、Governance、Foundation、Authoring／Runtime、Simulation／Rendering、Platform、Packの順序を逆向きに依存させない。
+- 下位層から上位層への説明link、相互運用link、具体例は`関連文書`へ置く。
+- 本文中の局所的な正本参照は許可するが、Headerの規範依存と矛盾させない。
+- `mirakan.arch.<document-id>#<fragment>`形式の型付き文書参照は、参照先に一意に存在するMarkdown heading slugまたは明示的なASCII `<a id="..."></a>`へ解決しなければならない。Fragmentは大文字小文字を区別するimmutable identifierとして扱い、未定義の型名、表示見出し、重複anchorを参照値へ使わない。
+
+循環が必要に見える場合は、共有契約のOwnerが不明確か、規範依存と関連参照を混同している。循環を正当化するのではなく、共通Ownerへの移管または参照分類の修正を行う。
+
+## 5. InventoryとIndex
+
+### 5.1 現在の状態
+
+2026-07-27時点で、`ArchitectureInventoryV1`を生成するTool、Schema、immutable Inventory artifactはRepositoryに存在しない。
+
+したがって、[Architecture Index](../README.md)は手動管理のnavigationであり、生成済みprojectionではない。Indexは文書件数、Owner、状態、依存の正本ではない。現存ファイルと各Headerがcurrent review対象である。
+
+### 5.2 将来のInventory
+
+Inventoryを導入する場合は、少なくとも次を実ファイルから決定論的に生成する。
 
 ```text
-ArchitectureOwnerReferenceMigrationManifestV1
-  manifest_id: StableId
-  source_foundation_definition_closure_ref: FoundationDefinitionClosureRefV1
-  target_foundation_definition_closure_ref: FoundationDefinitionClosureRefV1
-  source_owner_ref: OwnerIdentityLocalRefV1
-  target_owner_ref: OwnerIdentityLocalRefV1
-  entries[1..65536]:
-    reference_kind: active_mcd_owner | owner_manifest_contribution
-                  | diagnostic_owner | runtime_scope_owner | game_system_owner
-                  | generated_binding_owner | retained_artifact_owner
-    logical_subject_ref: immutable content-addressed ref
-    source_owner_ref: OwnerIdentityLocalRefV1
-    target_owner_ref: OwnerIdentityLocalRefV1
-  manifest_content_hash: SHA-256
-
-ArchitectureDefinitionMigrationSubjectV1
-  migration_subject_id: StableId
-  base_inventory_ref: ArchitectureInventoryRefV1
-  resulting_inventory_ref: ArchitectureInventoryRefV1
-  ownership_transfer_refs[1..64]: sorted unique ArchitectureOwnershipTransferRefV1
-  compatibility_change_refs[1..64]: sorted unique CompatibilityChangeRefV1
-  consumer_inventory_refs[1..64]: sorted unique CompatibilityConsumerInventoryRefV1
-  source_contract_set_ref: ContractSetRefV1
-  target_contract_set_ref: ContractSetRefV1
-  source_foundation_definition_closure_ref: FoundationDefinitionClosureRefV1
-  target_foundation_definition_closure_ref: FoundationDefinitionClosureRefV1
-  source_active_product_definition_sha256: SHA-256
-  target_active_product_definition_sha256: SHA-256
-  owner_reference_migration_manifest_ref: immutable content-addressed ref
-  evidence_requirement_refs[1..128]: sorted unique EvidenceRequirementRefV1
-  evidence_satisfaction_bindings[0..128]:
-    sorted unique EvidenceSatisfactionBindingV1
-  subject_content_hash: SHA-256
-
-ArchitectureDefinitionMigrationSubjectRefV1
-  migration_subject_id: StableId
-  subject_content_hash: SHA-256
-
-ArchitectureDefinitionMigrationBindingV1
-  binding_id: StableId
-  binding_version: positive uint32
-  migration_subject_ref: ArchitectureDefinitionMigrationSubjectRefV1
-  architecture_approval_ref: optional ArchitectureApprovalRefV1
-  binding_state: prepared | approved | rejected
-  binding_content_hash: SHA-256
-
-ArchitectureDefinitionMigrationBindingRefV1
-  binding_id: StableId
-  binding_version: positive uint32
-  binding_content_hash: SHA-256
+ArchitectureDocumentRecord
+  document_id
+  canonical_path
+  document_status
+  implementation_status
+  verification_status
+  normative_dependencies[]
+  related_documents[]
+  source_content_hash
 ```
 
-`ArchitectureOwnerReferenceMigrationManifestV1.entries[]`は、source Closureから到達するsource Ownerのcurrent typed reference全体とset equalityにする。単に`owner_id`をgrepした結果、path、表示名、説明文をentryにしない。target側では全entryの`target_owner_ref`がtarget Closureのselected active rowへexact解決し、旧revisionがcurrent Contract set、Manifest、Diagnostic、Runtime Scope、Game System、generated bindingへ残らないことを検証する。retained source artifactはsource Closureと共に監査用に残せるが、target current dispatchへ混入させない。
+Generatorが存在しない間、README、Markdown表、手入力hashをInventoryとして扱わない。「生成済み」「materialized」「exact projection」という表現も使用しない。
 
-Subjectの`source_active_product_definition_sha256`／`target_active_product_definition_sha256`はProduct Ownerが発行する完成Definitionのopaque equality anchorであり、GovernanceがProduct schema、Registry row、Product stateを所有することを意味しない。
+## 6. 一意所有
 
-SubjectのInventory、Ownership Transfer、Compatibility Change、Consumer Inventory、source／target Contract Set、Definition Closure、owner ref manifest、Evidence Requirement／pass fulfillment集合は相互にexact一致する。Bindingが`approved`になるにはSubjectの全ref、全Requirementのpass fulfillment、Architecture Approvalが一致する。BindingのApproval subjectは`migration_subject_ref`と`subject_content_hash`だけにexact束縛し、Architecture ChangeSet、Binding wrapper、Product migration wrapperをapproval hash preimageへ入れない。Bindingはimmutableなapproved recordのままにし、`applied`は同じBindingを参照するProduct側のDefinition migrationがsource／target active definition hashと同じclosureをatomicに切替えたことをread-backしたArchitecture ChangeSetだけの状態とする。bindingからProduct wrapperへの逆ref、Architecture ChangeSetからProduct wrapperをhash preimageへ戻すこと、latest検索、部分集合、状態だけを変えた別Bindingの発行を禁止する。
+一つの型、識別子、固定値、Gate、状態遷移、Algorithm、Diagnosticには、正本Ownerを一件だけ割り当てる。
 
-Architecture Definition Migrationで選ぶEvidence Requirementは次の閉じた用途に限る。Requirementのpass fulfillmentはBinding発行前に読み戻し、Architecture Approvalを技術Evidenceで代用しない。
+- 他文書は正本へのlinkと利用条件だけを記載する。
+- 完全なSchema blockを複写しない。
+- 同じ説明を複数文書へ置く場合は、片方を非規範の要約と明示する。
+- Generated projectionを使用する場合は、生成元と検証方法を示す。
+- Owner移管は旧Ownerから定義を削除し、新Ownerへ移した同じ変更で全参照を更新する。
 
-| 検証対象 | `EvidenceRequirementV1.evidence_kind` | `acceptance_predicate` | pass時のexact条件 |
-|---|---|---|---|
-| source／target Foundation Definition Closure | `definition_closure_set_equality` | `closure_validation_pass` | Contract Set、Owner Registry、Product Definition anchor、source／target closureのcross-refが一致する |
-| Owner reference migration manifest | `owner_reference_set_equality` | `exact_set_equality` | source Closure到達typed ref全量とmanifest entry集合、target selected owner refが一致する |
-| Compatibility Consumer Inventory／ChangeSet | `compatibility_change_validation` | `closure_validation_pass` | Consumer Inventory／Compatibility Change／source format／affected class／rollback policyがSubjectと一致する |
-| discovered reader／writer endpoint | `consumer_endpoint_inventory` | `endpoint_inventory_complete` | Consumer recordのendpoint／owner／rebuild／old reader・writer policyがInventoryと一致する |
+正本Ownerが未決定の場合は、暫定的な複数定義を作らず、`provisional`な未解決事項として一か所へ記録する。
 
-Requirement、fulfillment subject、Technical Qualification Receipt、Subject、Bindingは同一immutable inputを別々に再hashし、document本文やlocal search結果だけを`pass`へ昇格させない。
+## 7. 分割・統廃合
 
-## 4. Runtime ECS正本化ChangeSet
+### 7.1 分割基準
 
-Runtime ECSの整理は次のtarget ChangeSetとして管理する。以下はmaterialize前のreview profileであり、完成した`ArchitectureChangeSetV1`そのものではない。これは実装指示、実装Task Plan、またはcurrent capability activationではない。
+Owner文書は原則1,000行未満を目安とする。行数だけで分割せず、次の内容が混在した場合に分離する。
 
-```text
-RuntimeEcsCanonicalizationChangeSetV1
-  change_set_id: architecture.runtime_ecs.canonicalization.v1
-  materialization_type: ArchitectureChangeSetV1
-  state: review
-  contract_activation_effect: none
-  definition_migration_binding_ref: absent
-  source_owner_selector:
-    owner_id: owner.core.runtime_ecs
-    owner_revision: 1
-    authority_document_id: mirakan.arch.gameplay-programming-model
-  target_owner_selector:
-    owner_id: owner.core.runtime_ecs
-    owner_revision: 2
-    authority_document_id: mirakan.arch.runtime-entity-component-system
-  moved_concept_ids:
-    - runtime_entity_identity
-    - runtime_component_contract
-    - runtime_archetype_layout
-    - runtime_query_and_selection
-    - runtime_component_access_manifest
-    - runtime_structural_transaction
-    - runtime_ecs_ai_contract_graph
-  retained_source_concept_ids:
-    - gameplay_definition
-    - game_system_authoring
-    - generated_gameplay_bundle
-  target_document_ids:
-    - mirakan.arch.runtime-entity-component-system
-    - mirakan.arch.runtime-package
-    - mirakan.arch.persistence-save
-    - mirakan.arch.compatibility-evolution
-  required_at_approval:
-    - base and resulting Architecture Inventory refs
-    - exact one ArchitectureOwnershipTransferV1 with full source and target hashes
-    - complete CompatibilityConsumerInventoryV1 and approved CompatibilityChangeSetV1
-    - profile-bound complete Registry Snapshot／Receipt closure for every external discovery scope
-    - source and target Owner Registry, Contract Set, and Foundation Definition Closure refs
-    - complete ArchitectureOwnerReferenceMigrationManifestV1
-    - approved ArchitectureDefinitionMigrationBindingV1
-    - exact Evidence Requirement／pass satisfaction-binding closure and required fixture refs
-```
+1. 安定したArchitecture原則と、未承認の候補設計。
+2. 人が読む設計と、生成されるRegistry／Catalog。
+3. Contract semanticsと、大量のFixture／Test matrix。
+4. Domain共通規則と、Platform／Genre固有の具体例。
+5. 現行仕様と、移行・履歴・検討記録。
 
-`RuntimeEcsCanonicalizationChangeSetV1`を完成`ArchitectureChangeSetV1`へmaterializeする時、source／target `ArchitectureOwnershipRefV1`はauthority document hashを含め、`ownership_transfers[]`、`compatibility_change_refs[]`、`definition_migration_binding_ref`、Evidence Requirement／satisfaction binding、Approvalを省略しない。known discovery seedはcurrent Owner Identity Registryで規定する`owner.core.runtime_ecs` selected rowと`scope.core.entity`のRuntime Scope owner refである。このselectorをmaterialized Registry content refまたはApprovalの存在と読み替えない。これらだけを完全集合と見なさず、source Foundation Definition Closureから到達するMCD、Owner Manifest、Diagnostic、Runtime Scope、Game System、generated binding、retained artifactの全typed refをmanifestで閉じる。
+分割後もOwnerを一意にする。補助文書はHeaderで`正本範囲`を限定し、親Ownerと同じ型を再定義しない。
 
-`RuntimeEcsCanonicalizationChangeSetV1`が`applied`になる前は、current Owner Registryの`owner.core.runtime_ecs` revision 1と[Gameplay programming model](../03-authoring/gameplay-programming-model.md)が現行authorityである。新しいECS、Runtime Package、Persistence文書は目標正本であり、実装済み・登録済みを意味しない。review profileの`contract_activation_effect = none`を文書編集だけで変更せず、complete consumer inventory、approved Compatibility ChangeSet、approved Definition Migration bindingを持つ完成recordを新たに発行する。
+### 7.2 統合基準
 
-### 4.1 現在のapproval-readiness snapshot
+次の場合は文書または節を統合する。
 
-以下は2026-07-24にlocal Gitとpublic GitHub metadataだけを調査したreview snapshotである。baseline `41929d0`には追跡pathが51件（`docs/**/*.md` 48件、`.codex/config.toml`、`.gitattributes`、`.gitignore`各1件）、Git tagは0件である。`origin`の公開refは`main`だけで、[GitHub Releases](https://github.com/y2ikgm89/miraikanai-engine/releases)も同日時点でrelease 0件を表示した。これは未署名の観測であり、外部release／distribution／ABI／API registryにconsumerが存在しない証明、またはEvidence Requirementのfulfillmentではない。現在のworktreeには未commitのArchitecture文書変更もあるため、このsnapshot自体をsource／target immutable refにしない。
+- 同じ型・固定値・Gateを二か所で所有している。
+- 一方の文書が他方の要約だけで独立した責務を持たない。
+- 分離により相互参照が増え、単独では設計を理解できない。
+- 実体のないredirect、legacy stub、mirror Schemaになっている。
 
-| closure入力 | localで確認できる状態 | 安全な扱い |
+`normative`／`rejected` ADRは統合・削除せず、Decision Logに履歴として残す。
+
+### 7.3 Current split status
+
+補助文書は大量の候補Registry、CatalogまたはFixtureを隔離するため、1,000行目安の例外になり得る。ただしHeaderで非正本性と親Ownerを明示し、安定原則を再定義してはならない。
+
+| Document ID | 状態 | 分離対象または結果 |
 |---|---|---|
-| `ArchitectureInventoryV1` | Header／linkのreviewはできるが、immutable generated Inventory recordはない | `absent` |
-| source／target Owner Registry、Contract Set、Foundation Definition Closure | document上のtarget記述だけで、content-addressed current／target recordがない | `unresolved` |
-| `CompatibilityConsumerInventoryV1` | source／target format ref、署名済みscope fulfillment、外部Registry Profile／snapshot／Receiptがない | `collecting`／`unresolved` |
-| external Registry authority profile／snapshot／collector Receipt | provider／tenant／namespace、official APIまたはsigned export、全page／manifest closure、trusted collector evidenceがない | `unresolved` |
-| `CompatibilityChangeSetV1` | consumer inventoryとformat refが未materialize | `absent` |
-| `ArchitectureOwnerReferenceMigrationManifestV1` | source Definition Closureがないため到達typed ref集合を算出できない | `absent` |
-| Product active Definition anchors | 完成Active Product Definition record／state snapshotがない | `absent` |
-| Evidence fulfillment | trusted Runner発行の対応`TechnicalQualificationReceiptV1`がない | `absent` |
-| Architecture Approval | 人間Approval refと承認Authorityが提示されていない | `absent` |
-| Definition Migration Binding／Architecture ChangeSet | 上記入力不足のため発行禁止 | `absent`、`contract_activation_effect=none` |
-
-この表は実装Task、担当、見積り、実行順を定義しない。目的は、文書の存在、ローカル検索結果、またはAIの説明だけからBindingやApprovalを発行する誤りを防ぐことにある。外部scopeの実際の観測は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md#45-外部registry-closureの提出境界)が定めるProfile／Snapshot／Receiptへ変換するまで、`unresolved`のまま保持する。この記載は外部Registryの照会、credential利用、export取得、Approval発行を許可しない。
-
-## 5. AI向けArchitecture Explain projection
-
-AIがArchitectureを理解する際、巨大文書全文、live memory、秘密値、未認可Sourceを入力にしない。Document InventoryとOwnerがsealしたimmutable projectionから、許可された範囲だけを取得する。
-
-```text
-ArchitectureExplainProjectionV1
-  projection_version: 1
-  project_revision_ref: ProjectRevisionRefV1
-  architecture_inventory_ref: ArchitectureInventoryRefV1
-  requested_scope_ids[1..64]: sorted unique ArchitectureScopeId
-  documents[1..128]:
-    document_id
-    document_status
-    canonical_scope_summary
-    owner_refs[]
-    source_or_derived: source | derived
-    dependency_document_ids[]
-    invariant_ids[]
-    evidence_refs[]
-  contract_nodes[0..1024]:
-    node_id
-    owner_ref
-    status: current | target_review | not_activated
-    exposure_policy_ref
-  edges[0..4096]:
-    from_node_id
-    edge_kind: owns | depends_on | projects | verifies | supersedes
-    to_node_id
-  requested_field_mask
-  returned_field_mask
-  redacted_fields[]
-  omitted_ranges[]
-  continuation: optional ContinuationToken
-  projection_content_hash: SHA-256
-```
-
-`ArchitectureExplainProjectionV1`をmaterializeする前提は、`architecture_inventory_ref`が`project_revision_ref`と同じrevisionから生成された完成`ArchitectureInventoryV1`へexact解決し、要求scopeから到達する全Document recordの`canonical_path`、`document_id`、`source_content_hash`、dependency集合がそのrevisionのSourceとbyte equalityになることである。Inventoryが`absent`、stale、部分生成、same-ID different-hash、または要求scopeの到達Documentを欠く場合、Projectionを生成せず、Markdown本文や検索結果を代替Inventoryとして補完しない。§4.1のcurrent snapshotではimmutable generated Inventoryが`absent`であるため、current `ArchitectureExplainProjectionV1`のmaterialized集合はexact `[]`である。
-
-Inventory未materialize時も、認可済みDocument断片を`unverified_document_context`としてread-only参照できるが、Architecture全体、Owner closure、Activation、利用可能Capability、Evidence充足を確定する回答には使わず、[AI Security／Approval](ai-security-approval.md)の`AiTaskContextCapsuleV1`へ`architecture_explain` bindingとして格納しない。materialize後も`omitted_ranges[]`または`continuation != null`のquery型Projectionは取得済み範囲だけを説明でき、完全なArchitecture closureを要求するOperation inputまたは適合Caseを満たさない。
-
-`status = target_review`は設計済みの目標であってcurrent MCDやruntime存在の証拠ではない。`source_or_derived = derived`のprojectionをSourceへ逆書込みしない。AIが取得・説明できることは変更権限を与えず、変更は[AI Security／Approval](ai-security-approval.md)のTask Authorizationと承認済みChangeSetを必要とする。
-
-routeのcanonical enumはAI Securityの`engine_provider_adapter | standard_external_mcp | managed_external_host`だけである。本書はroute aliasを追加しない。MCP、provider、host固有のgrant評価はAI Security Ownerだけが決定する。
-
-## 6. 文書作成・統廃合の検証
-
-Architecture ChangeSetは少なくとも次を検証する。
-
-1. Header必須Field、document ID、path、relative Link、依存先、Inventory hashが一致する。
-2. 正本範囲が他文書の型、固定値、Gate、Operationを重複所有しない。
-3. split／merge後に旧文書の詳細定義が残らず、移動先Ownerを一意に参照する。
-4. Owner transferはrevision増分、Definition Closure、owner ref migration manifest、Compatibility Consumer Inventory、Compatibility Change、Evidence Requirement／pass fulfillment、Definition Migration binding、Approvalを同一closureで検証する。
-5. 新規の完全な`operation.*` tokenは[Executable contracts](../02-foundation/executable-contracts.md)のclosed partitionへ同じ変更で分類する。本文書だけでOperationを登録しない。
-6. AI projectionはInventory／Project revision／Source hash、field mask、sensitivity、redaction、omitted range、continuationを検証し、missing／stale InventoryをDocument検索で補完せず、raw credential、native pointer、live runtime memoryを含めない。
-7. Definition Migration SubjectとBindingの生成順がhash cycleを作らず、BindingのApproval subjectがSubjectだけへ束縛され、Requirement／pass fulfillment集合、source／target root、Product active definition hash、owner ref manifestがexact一致する。
-8. line budget、fenced block、見出し階層、リンク、重複document IDをlintする。
-9. 公開handle／lease／view／owner、memory resource、native Adapter allocation、またはそれらの保存・job capture・retire規則を持つDomainは、[Memory／Pointers](../02-foundation/memory-pointers.md)の`PointerMemoryConsumerBindingV1`へconsumer conceptを正逆参照する。一般pointer taxonomy、allocation policy、live pointerの永続化禁止をDomain文書が再定義してはならず、実際に非該当ならownerと理由をclosed recordで明示する。
-
-## 7. 変更時の読順
-
-Architectureの変更は、(1) Inventoryと一意所有、(2)互換性、(3)対象Domainの正本、(4)境界Owner、(5)ProductのWork Package宣言、(6)実装・qualificationの順に検証する。ここでいう順序は文書の整合確認順であり、実装Taskの実行順を定義しない。
+| `mirakan.arch.product-plan` | 分離済み | execution registry proposalを補助文書へ分離 |
+| `mirakan.arch.ai-security-approval` | 部分分離 | assumption guideとProvider／MCP supplementを分離。残るSecurity coreは次回追加前に再評価 |
+| `mirakan.arch.editor-ui-framework` | 部分分離 | Design System／reference fixture catalogを分離。残るUI coreは次回追加前に再評価 |
+| `mirakan.arch.editor-workspace-ux` | 分離済み | Panel／reference catalogを補助文書へ分離 |
+| `mirakan.arch.runtime-performance-capacity` | 分離済み | 暫定scale catalogをproposalへ分離 |
+| `mirakan.arch.simulation-physics` | 分離済み | AI intent／fixture catalogをproposalへ分離 |
+| `mirakan.arch.pack-shooter` | 分離済み | Genre example／difficulty／fixtureをreference catalogへ分離 |
+| `mirakan.arch.ai-verification-provenance` | 分離済み | Evidence lifecycle coreとEnvelope／Fixture candidate catalogを分離 |
+| `mirakan.arch.executable-contracts` | 分離済み | MCD coreとOperation／未Activation planning candidate catalogを分離 |
+| `mirakan.arch.gameplay-programming-model` | 分離済み | Programming Model coreとgenerated projection／Fixture candidate catalogを分離 |
+| `mirakan.arch.project-state` | 分離済み | Project transaction coreとTarget readiness／Fixture candidate catalogを分離 |
+| `mirakan.arch.rendering-world` | 分離済み | World source semantics coreとprocedural／Tilemap／Blockout candidate catalogを分離 |
+| `mirakan.arch.pack-gameplay-features` | 分離済み | common Feature contractとFeature Definition／Fixture candidate catalogを分離 |
 
 ## 8. Architecture Decision Log
 
-1. Current Architecture specifications continue to use `review | normative`.
-2. Decision records use `review | normative | rejected | superseded`, where the first two map to Proposed and Accepted.
-3. `normative` and `rejected` Decision bodies are immutable; only status and supersession relationship metadata may change.
-4. Changed choices require a new Decision and bidirectional stable-ID/relative-link supersession.
-5. Decision rationale is informative to Domain Owner documents and is not the sole authority for current Contract fields, fixed values, Gates, or runtime behavior.
-6. Rejected and superseded records remain discoverable in the Decision Log even when they are not current Architecture authority.
-7. `decisions/README.md` owns only lifecycle, template, and navigation.
+Decision Logは[decisions/README.md](../decisions/README.md)に置く。
+
+- 判断がArchitecture上重要で、複数の妥当な選択肢がある場合にADRを作成する。
+- ADRはContext、選択肢、Decision、理由、Consequences、Owner文書を記録する。
+- 実装Task、担当、工数、作業順序、巨大Schema、Fixture一覧をADRへ含めない。
+- `normative`または`rejected`になった本文を、現在の設計へ合わせて書き換えない。
+
+## 9. Review checklist
+
+Architecture文書の追加、更新、分割、統合では、次を確認する。
+
+1. Headerの全fieldがあり、状態が実態と一致する。
+2. 「公式」とProject判断を区別している。
+3. 未実装の型・Registry・Artifactをcurrentまたは生成済みと呼んでいない。
+4. 固定値に`official-spec | project-decision | provisional | measured`の根拠がある。
+5. 規範依存がDAGで、関連文書と分離されている。
+6. 型、固定値、Gate、Diagnosticの正本が一件である。
+7. exact Owner／Capability／Target／Contract refが対応Registryまたは完全なrecordへ一意に解決し、ID出現、名前、prefixから未定義refを補完していない。
+8. 内部Markdown link、型付き文書fragment、anchorが一意に解決する。
+9. 外部linkが対象versionの一次資料へ到達する。
+10. `normative`／`rejected` ADRの本文を変更していない。
+11. 文書変更を実装完了、Capability activation、Qualification passとして表現していない。
+
+## 10. 一次資料
+
+- [AWS Prescriptive Guidance: Architectural decision record process](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html)
+- [AWS Prescriptive Guidance: Best practices for ADRs](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/best-practices.html)
+- [Microsoft Azure Well-Architected Framework: Maintain an architecture decision record](https://learn.microsoft.com/en-us/azure/well-architected/architect-role/architecture-decision-record)

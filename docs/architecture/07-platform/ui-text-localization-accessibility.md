@@ -1,11 +1,15 @@
 # Miraikanai Engine UI／Text／Localization／Accessibility Contract
 
 - 文書ID: mirakan.arch.platform-ui-text-localization-accessibility
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Screen definition／instance／Stack／navigation、Text storage／input／layout、Game／Editor Localization Catalog schema・BCP 47・fallback、glyph cache、Accessibility、Player Profile／Settings transaction／Save Catalog、UI authoring、UI固有capacity／failure／qualification
 - 非正本範囲: Project ChangeSet／Asset lifecycle、Gameplay Save payload、common Renderer execution、Runtime phase／shared budget、Editor shell／workspace、Account credential、telemetry／AI／network consent、Platform lifecycle／safe-area source、external library version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
-- 外部根拠検証日: 2026-07-26
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Project State](../03-authoring/project-state.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. 結論
 
@@ -263,7 +267,7 @@ UiStyleSheet
 
 Rule selectorはWidget Type、Style Class、Stateの三要素だけとし、descendant selector、path selector、arbitrary predicateを禁止する。解決優先順位はEngine default、Visual Style、Document Style、Class、inline overrideで固定する。
 
-`State`はDomain stateの単一enumではなく、immutable presentation stateから導く有限のstyle overlayである。Game UIの共通最低overlayは`normal`、`hover`、`pressed`、`focused`、`disabled`、`selected`、`invalid`であり、`invalid`はvalidation errorのpresentationに使う。`read_only`、`warning`、`stale`、proposal、runtime等の追加意味はDomain／Editor側の別axisを保持した上で対応するoverlayを追加し、`disabled`、`invalid`、`selected`へ読み替えない。Editorが使うaxis、overlay順、High Contrast表現は[Editor UI Framework §15.3](../03-authoring/editor-ui-framework.md#153-visual-state-contract)が正本である。Color以外にborder、icon、text、focus indicatorの少なくとも一つで意味を示す。
+`State`はDomain stateの単一enumではなく、immutable presentation stateから導く有限のstyle overlayである。Game UIの共通最低overlayは`normal`、`hover`、`pressed`、`focused`、`disabled`、`selected`、`invalid`であり、`invalid`はvalidation errorのpresentationに使う。`read_only`、`warning`、`stale`、proposal、runtime等の追加意味はDomain／Editor側の別axisを保持した上で対応するoverlayを追加し、`disabled`、`invalid`、`selected`へ読み替えない。Editorが使うaxis、overlay順、High Contrast表現は[Editor UI Framework §15.3](../appendices/editor-ui-design-system-catalog.md#153-visual-state-contract)が正本である。Color以外にborder、icon、text、focus indicatorの少なくとも一つで意味を示す。
 
 Style変更はVisualStyleProfile dependency closureとしてPreview／Cookし、Font、UI、Material、Postと部分generationを混在させない。
 
@@ -644,6 +648,8 @@ Platform bridgeはSemantic Node IDとgenerationを使い、UI Runtime pointerを
 
 ### 14.3 Game UI要件
 
+根拠: official-spec／project-decision — WCAG 2.2 Target Size (Minimum)は原則24×24 CSS pixelであり、44×44はWCAG Minimumそのものではない。Miraikanaiの44×44 `ui_lu`はOS別物理Gateへ接続するProject基準である。[WCAG 2.2 Target Size (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum)
+
 - keyboard／controller／touch／screen readerでCore menuを操作可能
 - focus visible、focus not obscured、keyboard trapなし
 - primary touch target最低44×44 lu、desktop最低32×32 lu。判定はscale policyとUser UI scale適用後のfinal logical rect（Surface論理空間の`ui_lu`）で行う
@@ -652,6 +658,8 @@ Platform bridgeはSemantic Node IDとgenerationを使い、UI Runtime pointerを
 - captions、subtitle size／background／speaker option
 - reduced motion、flash／camera shake settingとのStyle連携
 - timeoutを必要とするUIは延長／停止policyを明示
+
+WCAGのCSS pixel、Miraikanaiの`ui_lu`、Androidのdp、Appleのptを数値だけで同一単位へ換算しない。共通UI文書はlogical layout policy、Platform文書は実Device上のphysical hit rectangleと各OS guidanceを検証する。
 
 `AccessibilityPolicySnapshotV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、最低fieldとしてrevision、reduced motion、flash／camera shake制限、High Contrast、text／UI scale、caption policyの各有効状態を持つ。[Post Processing](../06-rendering/post-processing.md) §7のresolver入力を含む消費側はfield一覧を複写せず書き戻さない。
 
@@ -912,7 +920,7 @@ HarfBuzzはFreeType／ICU integrationを有効にし、不要なoptional integra
 
 Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject locale set、fallback、number／date／plural、boundary ruleに必要なdataをICU Data Filterで決定論的に絞る。Filter inputとoutput hashをPackage Receiptへ記録する。
 
-## 20. TestとDefinition of Done
+## 20. Testと受入条件
 
 - UiDocument node／depth／cycle／capacity、全Layout kind、responsive／safe area
 - Focus、directional navigation、modal、pointer capture、Widget event、stale hit test

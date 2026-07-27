@@ -1,11 +1,15 @@
 # Miraikanai Engine Pack Contract
 
 - 文書ID: mirakan.arch.pack-contract
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Packの4層境界、`PackManifestV1`、Feature／Genre依存、Profile ownership、install／update／removal、migration、last-valid規則
 - 非正本範囲: Product roadmap／Capability成熟度、各FeatureのPublic Contract、Genre固有composition、共有MCD／ChangeSet、Subsystem契約は各Ownerを参照
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 外部根拠検証日: 2026-07-23
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-23
 
 ## 1. 結論
 

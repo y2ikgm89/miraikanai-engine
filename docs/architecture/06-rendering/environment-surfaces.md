@@ -1,11 +1,15 @@
 # Miraikanai Engine Environment／Surface Contract
 
 - 文書ID: mirakan.arch.rendering-environment-surfaces
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: Environment composition、Sky／Atmosphere／Fog／Cloud、Weather presentation、Water body／surface／query、Snow／wetness surface response、単一Source root、domain compiler／artifact、domain budget／fallback／diagnostic／qualification
 - 非正本範囲: Light／Material／VFX semantics、Render Graph共通pass／resource／history lifetime、LOD共通selection、Physics／Gameplay surface authority、Runtime phase／shared capacity、Asset transaction、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[VFX authoring](vfx-authoring.md)、[VFX runtime](vfx-runtime.md)、[LOD](lod.md)、[World](world.md)
-- 外部根拠検証日: 2026-07-27
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[World](world.md)、[Lighting](lighting.md)、[Materials](materials.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[VFX authoring](vfx-authoring.md)、[VFX runtime](vfx-runtime.md)、[LOD](lod.md)、[World](world.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-27
 
 ## 1. 結論と単一Source model
 
@@ -623,10 +627,10 @@ EditorのEnvironment PanelはIntent／Preset／World binding／visibility／time
 
 比較はUI名や内部object modelの互換目標ではなく、制作導線と責任分離の根拠に使う。
 
-| Engineの公式モデル | 採用する要点 | Miraikanaiでの差分 |
+| 比較Engineの公開モデル | 採用する要点 | Miraikanaiでの差分 |
 |---|---|---|
 | [Unreal Engine Environment Light Mixer](https://dev.epicgames.com/documentation/en-us/unreal-engine/environment-light-mixer-in-unreal-engine) | Sky、Atmosphere Light、Cloud、Sky Lightを一つのdockable windowへ集約し、Minimal／Normal／Advancedで表示量を切り替える | Environment Panelへ集約し詳細度を変えても同じcanonical field refを維持する。一般Lightは[Light Mixer](https://dev.epicgames.com/documentation/en-us/unreal-engine/using-the-light-mixer-in-unreal-engine)と同様にLighting Ownerへ分離し、Time-of-Dayだけexact companion Planで連携する |
-| [Unity Lighting window](https://docs.unity3d.com/6000.0/Manual/lighting-window.html)と[HDRP Volume](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@10.5/manual/Volumes.html) | Scene単位のEnvironment lightingと、Profile参照によるglobal／local override・camera位置でのblendを区別する | World bindingとProfile refをSourceで明示し、Local Fogだけをbounded typed volumeにする。全Environment fieldをgeneric override stackへせず、同priorityの評価順やscene object列挙へ正本性を依存させない |
+| [Unity Lighting window](https://docs.unity3d.com/6000.0/Documentation/Manual/lighting-window.html)と[HDRP Volume](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@10.5/manual/Volumes.html) | Scene単位のEnvironment lightingと、Profile参照によるglobal／local override・camera位置でのblendを区別する | World bindingとProfile refをSourceで明示し、Local Fogだけをbounded typed volumeにする。全Environment fieldをgeneric override stackへせず、同priorityの評価順やscene object列挙へ正本性を依存させない |
 | [Godot WorldEnvironment](https://docs.godotengine.org/en/stable/classes/class_worldenvironment.html)と[Environment／post-processing](https://docs.godotengine.org/en/stable/tutorials/3d/environment_and_post_processing.html) | SceneのEnvironment resource、Camera override、Editor preview sun／skyを別優先度・別用途として扱う | WorldはEnvironment bindingを最大一件だけ持ち、Camera／Post Processは各Ownerのexact overrideに分離する。Editor previewをRuntime EnvironmentやSource既定値へ昇格しない |
 
 共通して有効なのは「環境関連設定の一箇所集約」「Profile／resource参照」「Scene／World scope」「詳細度切替」「光源との明示連携」である。本設計はさらに、AI向けにStable ID／revision／hash、typed intent、bounded candidate、read-only projection、Operation→Change primitive coverage、fallback ID、Source／Derived／Runtime境界を必須にする。これによりAIは画面label、Actor／Node名、配列順、現在Camera、Editor previewから編集対象や権限を推測しない。

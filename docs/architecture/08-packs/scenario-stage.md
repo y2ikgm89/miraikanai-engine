@@ -1,11 +1,15 @@
 # Miraikanai Engine Scenario／Stage Feature Pack
 
 - 文書ID: mirakan.arch.pack-scenario-stage
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: optional Scenario／Stage Feature、`StageDefinitionV1`、Stage Scope、completion tagged rule、transition、Save／Replay、AI Operation、fixture
 - 非正本範囲: World／Scene／Cell、Runtime scheduling、Game Flow、Combat／Encounter、Save storage、Replay transport、Product roadmapは各Ownerを参照
-- 依存: [Pack Contract](pack-contract.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](../03-authoring/project-state.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[World](../06-rendering/world.md)
-- 外部根拠検証日: 2026-07-23
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Pack Contract](pack-contract.md)、[Project State](../03-authoring/project-state.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
+- 関連文書: [Pack Contract](pack-contract.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](../03-authoring/project-state.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[World](../06-rendering/world.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-23
 
 ## 1. 結論
 
@@ -14,6 +18,9 @@
 Scenario／StageはGeneric Engine CoreのWorldまたはRuntimeへLevel契約を追加しない。Worldは空間、Scene、global composition、persistent entity、任意のspatial topologyだけを所有する。Stageは必要な場合だけ既存Worldを参照し、UI-only／headless Stageは偽Worldなしに有限workflowを構成する。
 
 本Packは`pack_kind=feature`で、`capability.gameplay.scenario_stage`を提供する。
+
+<a id="StageDefinitionV1"></a>
+<a id="CompletionContractV1"></a>
 
 ## 2. `StageDefinitionV1`
 
@@ -55,6 +62,8 @@ branch validationは次へ固定する。
 
 CompletionはWorld activation、Scene activation、Cell streamingの前提ではない。Stage終了をWorld unloadと同一視せず、transition policyが次のStage、別World、UI、headless continuation、session終了のいずれかをtyped destinationとして選ぶ。
 
+<a id="game_system.extension.feature.scenario_stage"></a>
+
 ## 4. Stage Scope
 
 Feature Packは`scope.feature.scenario_stage.instance`をversioned Runtime Scope Type Catalogへ登録する。Coreは`level_instance`をclosed enumへ追加しない。
@@ -70,6 +79,8 @@ Scope entryは`RuntimeScopeTypeCatalogV1`へ次のexact 7-Field rowで登録す�
 保存値は`RuntimeScopeTypeRefV1`、`McdContractRefV1`、`RuntimeScopeOwnerRefV1`のversion／hash付きtyped refであり、表のIDだけを永続化しない。全dependencyをactive Runtime Scope Registryへ実体recordとして登録する。Stage instanceは同じStage definitionから複数生成でき、Stateはinstance keyで分離する。Stage Game System、Objective、Spawn、transitionのState ownerはScope entryと各Game System Specが宣言し、World、UI、Shooter Game Flowが暗黙所有しない。
 
 旧Level System scopeの実在bytesは現計画から証明されていない。`runtime_scope.migration_contribution.feature.scenario_stage@1`はcurrent Pack memberではなく、Gameplay Programming Model §3.1.2のconditional legacy migrationがsigned `LegacyMigrationInventoryV1` gateを満たしてatomic activationされる場合だけ追加できるdestination candidateである。現時点のContribution／Qualification subject／Receipt／Binding／Activation Catalog／migration fixture inventoryはすべてexact `[]`で、`fixture.feature.scenario_stage.runtime_scope_migration@1`もcurrent `test_scenario_refs[]`へ含めない。Activation transactionでは本Packが`RuntimeScopeMigrationContributionRegistryV1`へ同recordを登録する。Production contribution destinationは`owner.feature.scenario_stage`、Inventoryが束縛したexact legacy Level System ref／hash、source `type.game_system.spec` version 1、destination version 2、legacy `level_instance`、destination `scope.feature.scenario_stage.instance`、Stage-owned auxiliary／identity migration policyを持つReceipt-free recordである。Registry／ContributionRef固定後に`qualification.runtime_scope_migration.feature.scenario_stage@1` subject／signed Receiptと`qualification_binding.runtime_scope_migration.feature.scenario_stage@1`をroot外で作る。Fixture bodyはsubjectだけが`fixture.feature.scenario_stage.runtime_scope_migration`を解決する。Activation後のCore migratorはgeneric record／Binding解決だけを行い、Level／Stage ID、Qualification subject／Fixture、adapterをCoreへhard-codeしない。
+
+<a id="StageTransitionPolicyV1"></a>
 
 ## 5. Transition
 
@@ -118,6 +129,13 @@ future work item `activation.scenario_stage.authoring.v1`は採用するexact Op
 - transition成功、destination activation失敗、fallback、last-valid source維持
 - World／Runtimeへ`level_instance`またはCompletion requirementを追加しないdependency検査
 - Scenario／Stage Packなしのendless、UI-only、headless Projectがvalid
+
+<a id="StageRuntimeStateV1"></a>
+<a id="StageTransitionDestinationV2"></a>
+<a id="StageTransitionRequestV2"></a>
+<a id="StageTransitionContractRefSetV1"></a>
+<a id="StageActivationPortV1"></a>
+<a id="StageTransitionPortV2"></a>
 
 ## 9. Feature manifestとPublic port
 

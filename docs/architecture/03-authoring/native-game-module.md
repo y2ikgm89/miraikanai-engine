@@ -1,11 +1,15 @@
 # Miraikanai Engine NativeGameModuleアーキテクチャ規約
 
 - 文書ID: mirakan.arch.native-game-module
-- 状態: review
+- 文書状態: review
+- 実装状態: absent
+- 検証状態: design-reviewed
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
 - 非正本範囲: GameplayDefinition、GameSystemSpecV2、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime ECS storage・query・access manifest、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
-- 依存: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
-- 外部根拠検証日: 2026-07-23
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[C++23 Modules](../02-foundation/cpp23-modules.md)、[Gameplay Programming Model](gameplay-programming-model.md)
+- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
+- 外部根拠確認日: 2026-07-23
 
 ## 1. 結論
 
@@ -563,7 +567,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - source C++ callable binding、generated adapter、C ABI descriptor、Contract Set、Target Profile、Toolchain lockのhash不一致でModule全体をloadしない。
 - old signature alias、dual descriptor、old readerをConsumer Inventoryなしで追加しない。
 
-## 13. TestとDefinition of Done
+## 13. Testと受入条件
 
 - static linkとWindows startup DLLが同一conformance fixtureを通る。
 - C ABI struct size、alignment、unknown minor、wrong major、truncated tableをfuzzする。
