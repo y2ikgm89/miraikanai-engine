@@ -2,7 +2,7 @@
 
 - 文書ID: mirakan.arch.architecture-governance
 - 状態: review
-- 正本範囲: Architecture文書の識別・状態・inventory・一意所有、Architecture ChangeSet、Definition Migration binding、正本責務移管、AI向けArchitecture Explain projection、Architecture文書の分割・統廃合規則
+- 正本範囲: Architecture文書の識別・状態・inventory・一意所有、Architecture ChangeSet、Definition Migration binding、正本責務移管、AI向けArchitecture Explain projection、Architecture文書の分割・統廃合規則、Architecture Decision Logの状態・不変性・現行正本との分離
 - 非正本範囲: Product capabilityの成熟度、MCD／Operation activation、実装Taskの順序、各DomainのSchema・固定値・runtime挙動、AIの認可・実行route。各Owner文書を参照する
 - 依存: [AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
 - 外部根拠検証日: 2026-07-26
@@ -359,3 +359,13 @@ Architecture ChangeSetは少なくとも次を検証する。
 ## 7. 変更時の読順
 
 Architectureの変更は、(1) Inventoryと一意所有、(2)互換性、(3)対象Domainの正本、(4)境界Owner、(5)ProductのWork Package宣言、(6)実装・qualificationの順に検証する。ここでいう順序は文書の整合確認順であり、実装Taskの実行順を定義しない。
+
+## 8. Architecture Decision Log
+
+1. Current Architecture specifications continue to use `review | normative`.
+2. Decision records use `review | normative | rejected | superseded`, where the first two map to Proposed and Accepted.
+3. `normative` and `rejected` Decision bodies are immutable; only status and supersession relationship metadata may change.
+4. Changed choices require a new Decision and bidirectional stable-ID/relative-link supersession.
+5. Decision rationale is informative to Domain Owner documents and is not the sole authority for current Contract fields, fixed values, Gates, or runtime behavior.
+6. Rejected and superseded records remain discoverable in the Decision Log even when they are not current Architecture authority.
+7. `decisions/README.md` owns only lifecycle, template, and navigation.
