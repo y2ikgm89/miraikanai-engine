@@ -80,6 +80,42 @@ Gameplay／UI／Animation Event
 
 Audio control threadがVoice create／destroy、Bus graph、Cue selection、decode scheduling、mix-aheadを所有する。Platform callbackはpreallocated PCM blockをconsumeし、completion／underrunをbounded queueへcopyするだけとする。Callback内でallocation、file I/O、log、mutex待機、device rebuild、Gameplay callbackを行わない。
 
+### 3.1 Clock Domainとglobal Pause
+
+次はAudio Ownerが将来materializeするcandidate versioned dataであり、current MCDまたはRuntime Registry memberではない。
+
+```text
+AudioClockDomainContributionV1
+  contribution_id: namespace付きStableId
+  contribution_version: positive uint32
+  owner_ref: exact mirakan.arch.platform-audio owner ref
+  clock_domain_entry_ref: ClockDomainRefV1
+  qualification_binding_ref:
+    exact {binding_id, binding_version, binding_content_hash}
+  contribution_content_hash: SHA-256
+
+MixerSnapshotRefV1
+  snapshot_id: namespace付きStableId
+  snapshot_version: positive uint32
+  snapshot_content_hash: SHA-256
+
+AudioPauseSnapshotV1
+  snapshot_id: namespace付きStableId
+  snapshot_version: positive uint32
+  audio_runtime_profile_ref: AudioRuntimeProfileRefV1
+  target_profile_ref: TargetProfileRefV1
+  clock_domain_ref: exact ClockDomainRefV1
+  pause_mixer_snapshot_ref: MixerSnapshotRefV1
+  continue_bus_refs[0..64]:
+    Bus StableId byte順、重複禁止、同じMixer Graphだけ
+  voice_time_policy: freeze_except_continue_buses
+  snapshot_content_hash: SHA-256
+```
+
+Audioは[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)が選択したRuntime Clock Domainだけを消費し、文書名、Bus名、display refresh、device sample clockからDomainまたはPause policyを生成しない。global Pauseはselected Domainと検証済み`AudioPauseSnapshotV1`に従ってlogical Voice／Mixer stateをAudio control-block boundaryで一括更新するが、device stop、callback停止、stream破棄を意味しない。missing／stale Profile、Target、Domain、Graph、Bus、Snapshotではbatch全体を拒否し、直前generationを維持する。
+
+Voice completion、stream underrun、device callback、actual playback cursorはpresentation feedbackであり、authoritative Gameplay Event、Timer、resume条件を生成しない。現在の`AudioClockDomainContributionV1`、Qualification Binding、`AudioPauseSnapshotV1`集合はexact `[]`であり、対応するProduct／Owner closureがActivationされるまでRuntime Registryへ登録しない。
+
 ## 4. Audio Asset
 
 ### 4.1 `AudioClipAsset`
@@ -142,18 +178,20 @@ Random choiceはCue instance seedとdraw countを使い、同じReplay入力でs
 
 | Command | 主なField |
 |---|---|
-| `PlayCue` | Cue Asset version、emitter、bus、priority、gain、pitch、owner generation |
+| `PlayCue` | Cue Asset version、emitter、bus、priority、`gain_db`、pitch、owner generation |
 | `StopVoice` | VoiceHandle、fade |
 | `StopOwner` | owner generation、fade |
 | `PauseVoice`／`ResumeVoice` | VoiceHandle |
 | `SetVoiceParameter` | registered parameter、ramp |
-| `SetBusGain` | Bus ID、gain、ramp |
+| `SetBusGain` | Bus ID、`layer=runtime \| user_settings`、`gain_db`、ramp、`user_settings`時はSettings generation |
 | `SetListener` | Listener transform／velocity |
 | `SetEmitter` | Emitter transform／velocity／spatial profile |
 | `SetSnapshot` | registered Mixer Snapshot、transition |
 | `StopAll` | critical command |
 
 Command header／queueは[Runtime performance／capacity](../04-runtime/performance-capacity.md)のAudio command reservationとcritical reserveを使う。`StopVoice`、`StopOwner`、`StopAll`、device recoveryをcriticalとし、低priority `PlayCue`だけをdropできる。
+
+`SetBusGain(layer=runtime)`はGame／Presentationが所有する一時的なruntime layerだけを更新する。`layer=user_settings`は[UI／Text](ui-text-localization-accessibility.md#15-player-profilesettings)が成功させたSettings Apply transactionから、同じSettings generationに属する全Bus更新を一batchで受ける。個別Busを先に可視化せず、Audio control-block boundaryで全件をatomicに適用し、Graph、Bus、range、generationの任意一件が不一致ならbatch全体をrejectして直前generationを維持する。
 
 Commandはnative source voice、PCM pointer、file path、function callbackを含めない。
 
@@ -204,6 +242,31 @@ Ambience ---/
 ```
 
 Authoring SourceのBus identityはUUIDv7 `StableId`とする。Cookerは一つのexact Audio Graph Artifact内だけで有効な`AudioBusId uint16`へStableId byte順で0～63を割り当てる。0もvalidであり、Masterは数値でなくGraphの`master_bus_ref`で厳密に一つ指定する。`AudioBusId`とGraph `ArtifactRefV1`を組にして扱い、別Graphの同じ数値を比較またはSaveせず、Save／User settingはBus `StableId`を保持する。parentは一つ、cycle禁止、最大64 Bus、depth最大8とする。既定BusはMaster、Music、SFX、UI、Dialogue、Ambience。User volumeはBus gainへ適用し、Game Project revisionを変更しない。
+
+Bus／Cue／Voice／Snapshotの音量Fieldは次のcandidate closed valueを共有し、裸の`float`、percent、linear amplitude、dBをfield名またはtypeなしに混在させない。
+
+```text
+AudioGainDbV1
+  value_db: finite float32 [-96.0, +12.0]
+
+AudioGainRampV1
+  duration_ms: uint32 [0, 60_000]
+  curve: linear_db | linear_amplitude | equal_power
+
+AudioUserSettingsV1
+  schema_version: 1
+  mixer_graph_ref: exact Audio Graph ArtifactRefV1
+  bus_volumes[1..64]:
+    {bus_ref: Bus StableId, gain_db: finite float32 [-96.0, 0.0], mute: bool}
+    Bus StableId byte順、重複禁止
+  dynamic_range_profile_ref
+  mono_output: bool
+  settings_content_hash: SHA-256
+```
+
+`AudioGainDbV1`の`-96 dB`はfinite attenuation floorであってmuteではなく、muteは別のboolだけで表す。Busの有効gainはdB加算で`authored_base + snapshot_adjustment + runtime_adjustment + user_adjustment`の四layerを各Ownerから解決する。各layerは個別にrange内でなければならず、総和が`+12 dB`を超える更新、non-finite、unknown Bus、stale Graph／Settings generationはrejectして直前値を維持する。総和が`-96 dB`以下またはいずれかのmuteがtrueならcanonical silence係数0へ解決するが、他layerの保存値は失わない。各変更はexplicit `AudioGainRampV1`を持ち、未指定curve／durationを推測しない。
+
+`AudioUserSettingsV1`のAudio payload意味とvalidationは本書が所有する。Settings documentのidentity、revision、保存、atomic Apply／Revertは[UI／Text](ui-text-localization-accessibility.md#15-player-profilesettings)が所有し、AudioがProject revisionまたは別Settings正本を生成しない。
 
 Bus graphの構造変更はPlay開始前またはAudio control block boundaryで互換なSnapshot swapとして行う。一部Nodeだけをhot replaceしない。
 
@@ -301,7 +364,7 @@ Audio Editorはwaveform、sample-accurate loop、trim、loudness、true peak、c
 
 `asset.inspect_source`、`asset.propose_import_profile`、`asset.request_preview`、`asset.propose_import_settings_change`、`asset.propose_reimport`はAudio Import向けplanned action tokenであり、MCD Operation Stable ID、current Tool、aliasではない。Ambiguous channel、loop、gain、dialogue localeは将来Activationされたactionでも質問を返し、file名から確定しない。
 
-Audio Authoring data契約は`schemas/mirakan/audio/`のMCDを正本とし、C++、TypeScript、将来Activation後のMCP projection、validator、reference docsを生成する。最低限`AudioRuntimeProfileV1`、`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`をversioned schemaにする。
+Audio Authoring data契約は`schemas/mirakan/audio/`のMCDを正本とし、C++、TypeScript、将来Activation後のMCP projection、validator、reference docsを生成する。candidate versioned schema listは`AudioRuntimeProfileV1`／Ref、`AudioClockDomainContributionV1`、`AudioPauseSnapshotV1`、`AudioClipAssetV1`、`AudioImportSettingsV1`、`SoundCueDefinitionV1`、`MixerGraphV1`、`MixerSnapshotV1`／Ref、`AudioGainDbV1`、`AudioGainRampV1`、`AudioUserSettingsV1`、`SpatialAudioProfileV1`、`AudioCommandV1`、`AudioDiagnosticV1`である。このlistはcurrent MCD membershipまたはActivationを意味しない。
 
 semantic role、Cue parameter、Bus、DSP node、Snapshot、Spatial curve、diagnostic codeは`AudioSemanticCatalogV1`のStable IDへ登録する。表示名、file path、Editor selection、native handleを参照IDにしない。AIとEditorは同じCatalog revisionとvalidatorを使用し、unknown ID、range外、cycle、capacity超過、Target非対応をCommit前に拒否する。
 
