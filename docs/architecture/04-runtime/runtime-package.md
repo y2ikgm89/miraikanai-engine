@@ -7,7 +7,7 @@
 - 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
 - 非正本範囲: generic Derived Artifact manifest／catalog、ECS storage・query・lease、Save／Replay record、runtime phase／job DAG、Domain World source意味、debug transport、AI認可。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Runtime ECS](entity-component-system.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
 
@@ -275,6 +275,8 @@ Loaderは次を順に検査する。
 World construction前に、missing／extra／duplicateなlayout policyまたはarchetype layout ref、layout policyと異なるComponent schema hash、alignment／payload計算後のrow capacity 0、unbounded archetype permutationまたはstructural delta capacity、capacity recordに覆われないquery／command／output reservationを拒否する。old AoS、sparse-set、object-graphのPackage section、old generated signature、pointer-backed inline payload、persisted row selection、およびglobal `new`、default PMR、第二のShipping storage backendへのfallbackも拒否する。
 
 load中のimage、decoded record、reservationはstagingだけに存在する。failure、cancel、stale Project revision、missing dependency、capacity不足、identity collisionではlast-valid World publicationを維持し、partial Worldをpublishしない。
+
+async I/Oまたはdecodeの完了はpublication条件ではない。request時とaccept時のProject revision、Package／Catalog generation、Target／Contract set、dependency generationを再照合し、integrity、capacity reservation、persistent handoff、指定publication boundaryまで全条件が成立する間、completionをstagingに保持する。completion順をGameplay順へ変換せず、[Scheduling／Lifetime](scheduling-lifetime.md)のcanonical acceptance／merge ruleで選択し、stale resultを旧generationへのretryまたは同期fallbackへ変換しない。
 
 上記のいずれかに失敗した場合は、partial Worldも自動修復したPackageもpublishしない。
 

@@ -145,6 +145,8 @@ Owner文書はすべて`review`であり、対応するEngine実装・Schema・F
 
 [Decision Log](decisions/README.md)はDecisionのrationaleと履歴を所有し、current Schemaまたはruntime behaviorを所有しない。
 
+Current review Decision: [AI-readable Asset／Memory／Async Loading Alignment](decisions/2026-07-28-ai-asset-memory-async-alignment.md)。このLinkはSource、Artifact、memory、async publicationの判断理由へのnavigationであり、各Owner文書のcurrent Contractを置き換えない。
+
 ## 6. 変更時の入口
 
 | 調べたいこと | 先に読む文書 | 次に辿るOwner |

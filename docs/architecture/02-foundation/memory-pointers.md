@@ -7,7 +7,7 @@
 - 正本範囲: Pointer taxonomy、ownership、typed handle、lease／view、Memory domain、arena／pool、allocation metadata、OOM、AI contract、failure、telemetry、Qualification
 - 非正本範囲: 外部Library・Tool version／hash／license、Runtime共通budget／phase、ECS storage layout・query・lease、GPU residency、一般命名・Directory、Schema共通構造。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Math／Core Utilities](math-core.md)、[Naming／Project Layout](naming-project-layout.md)
-- 関連文書: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Compatibility／Evolution](compatibility-evolution.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)、[Product plan](../00-product/product-plan.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Compatibility／Evolution](compatibility-evolution.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)、[Product plan](../00-product/product-plan.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -187,6 +187,8 @@ SystemMemoryResource
 - `FailureMemoryResource`はTest専用で、N回目、size、domain、phaseを条件に失敗させる。
 
 Process global default PMR resourceを変更しない。ResourceはComposition Rootから明示注入し、Resource lifetimeがcontainer／ownerより長いことをcontract testで保証する。
+
+process memoryのreclamationとpersistent Artifactの削除は別authorityである。Memory Ownerはgeneration handle、lease、submission、reader pinのretire完了とresource解放を判定するが、Artifact storeのreachabilityや削除を決定しない。Project、Catalog、Package、last-valid、Recoveryから到達するArtifactの保持／sweepは[Asset Lifecycle](../03-authoring/asset-lifecycle.md)が所有し、process allocationが0になったことをArtifact非到達の証拠にしない。
 
 ### 5.3 allocation policy
 
