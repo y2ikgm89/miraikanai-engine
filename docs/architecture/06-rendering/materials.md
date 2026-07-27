@@ -297,7 +297,7 @@ MaterialSemanticCatalogV1
 
 `MaterialSemanticEntryV1`は`semantic_role_id: StableEnumId`、`display_name`、`description`、`search_synonyms[]`、`positive_examples[]`、`counter_examples[]`、`allowed_domains[]`、`allowed_shading_models[]`、`required_texture_channels[]`、`optional_texture_channels[]`、`parameter_semantics[]`、`compatible_style_profile_ids[]`、`required_capabilities[]`、`target_support[]`、`default_template_id`、`allowed_fallback_template_ids[]`、`preview_fixture_ids[]`、`production_maturity`を持つ。`production_maturity`の値とfeature割当は[Product Plan](../00-product/product-plan.md)を参照し本書へ複写しない。
 
-初期role setは`surface.generic | surface.terrain | surface.foliage | surface.water | character.skin | character.hair | character.eye | character.cloth | prop.opaque | prop.transparent | sprite.actor | sprite.environment | sprite.effect | decal.surface | vfx.particle | ui.surface`である。synonym／example／counter-exampleは検索用で正規IDではなく、Asset名や作品名だけでroleを確定しない。Project roleはEngine roleを上書きせず`project.<project_id>.*` namespaceへ追加する。
+初期role setは`surface.generic | surface.terrain | surface.foliage | surface.water | surface.snow | character.skin | character.hair | character.eye | character.cloth | prop.opaque | prop.transparent | sprite.actor | sprite.environment | sprite.effect | decal.surface | vfx.particle | ui.surface`である。[Environment／Water／Weather／Snow](environment-surfaces.md)が参照するWater／Snow surfaceの正規IDはそれぞれ`surface.water`／`surface.snow`であり、`water_surface`、`snow_surface`、Asset名による別名を契約IDとして受理しない。synonym／example／counter-exampleは検索用で正規IDではなく、Asset名や作品名だけでroleを確定しない。Project roleはEngine roleを上書きせず`project.<project_id>.*` namespaceへ追加する。
 
 ### 3.2 `MaterialParameterSemanticV1`
 

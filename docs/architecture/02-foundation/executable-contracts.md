@@ -1540,7 +1540,7 @@ activationは一つのContract set transactionで、対象Operation、Owner Mani
 
 ### 8.2 Current Installed Product active Operation closure
 
-§8.1のGeneric Engine Core bootstrap六件に加えてcurrent Contract setへ存在するDomain OperationはWorld一件とShooter Genre Pack三件だけであり、current Installed Productのactive Operation総数はexact 10件である。§8.1.2のconditional legacy migration四件、§§20～21のplanning candidate 191件、非活性Scenario vocabulary、§21.2のexample／pending／rejected ID、legacy aliasはこの集合に含めない。
+§8.1のGeneric Engine Core bootstrap六件に加えてcurrent Contract setへ存在するDomain OperationはWorld一件とShooter Genre Pack三件だけであり、current Installed Productのactive Operation総数はexact 10件である。§8.1.2のconditional legacy migration四件、§§20～21のplanning candidate 192件、非活性Scenario vocabulary、§21.2のexample／pending／rejected ID、legacy aliasはこの集合に含めない。
 
 current `InstalledProductOperationCompositionV1`は次のexact三Origin contribution／十entryである。表は§8.1のliteral hash短記を使い、解決先`OwnerOperationContributionV1`および同じFoundation Closureのselected-active Owner identityとbyte equalityにする。
 
@@ -1650,7 +1650,7 @@ service.authoring_command_gateway@1
 
 `allowed_operation_local_refs[10]`はcontract-activeな最大allowlistであって、それだけではdispatch authorityにならない。current Installed compositionに許可するoperational stage集合は、初期exact `[]`、`activation.foundation.operation_domain_receipt_pipeline.v1`後のProject State Origin exact六件、`activation.installed_product.operation_composition_extensions.v1`後のProject State＋World＋Shooter三Origin exact十件だけである。Runtime projectorはcurrent Signer Policyで同Serviceへ割り当てられたOperation集合をOrigin別に逆引きし、選択した各`OwnerOperationContributionV1.operation_local_refs[]`を全件含むこと、そのunionがSigner集合とset equality、full allowlistのsubset、同一Candidateのfresh Qualification集合とset equalityであることを毎dispatch検証する。`[] -> 6 -> 10`以外の集合、Origin内部分集合、allowlistだけのAuthority合成を拒否する。extension時はbaseline六もextension四と同じWave 3 Candidateで再Qualificationするが、baseline Operation／Origin／Signer／Role／assignment／Key bytesは変更せず、World／Shooter四rowだけを追加する。これによりContract set／baseline／composition／Service hashを変更せず、operational stateとSigner／Trust currentだけを段階的に進める。
 
-Shooter Genre Packを将来取り外す場合は、承認済みdefinition migrationで`contribution.owner.genre.shooter.target_provider_binding`のexact三entryだけをInstalled Product composition、MCD current集合、Owner Manifest contribution union、Service allowlist、Provider／MCP projection、Signer Policy destination、Trust／Foundation closureから同時に除去し、composition／Service／Contract set／Closureのversionとhashを再発行する。このtransactionは`GenericCoreOperationBaselineV1`、Project State Origin、baseline六entryおよびその`baseline_content_hash`を変更してはならない。Shooter removalをCore baseline migrationとして扱うこと、Shooter三entryを`core`または`generic_core_baseline`へ付替えること、旧三Operationをaliasとしてcurrentに残すことを拒否する。これは将来の構成変更規則であり、current Installed Productのactive 10、conditional 4、reserved 191という現行件数を変更しない。
+Shooter Genre Packを将来取り外す場合は、承認済みdefinition migrationで`contribution.owner.genre.shooter.target_provider_binding`のexact三entryだけをInstalled Product composition、MCD current集合、Owner Manifest contribution union、Service allowlist、Provider／MCP projection、Signer Policy destination、Trust／Foundation closureから同時に除去し、composition／Service／Contract set／Closureのversionとhashを再発行する。このtransactionは`GenericCoreOperationBaselineV1`、Project State Origin、baseline六entryおよびその`baseline_content_hash`を変更してはならない。Shooter removalをCore baseline migrationとして扱うこと、Shooter三entryを`core`または`generic_core_baseline`へ付替えること、旧三Operationをaliasとしてcurrentに残すことを拒否する。これは将来の構成変更規則であり、current Installed Productのactive 10、conditional 4、reserved 192という現行件数を変更しない。
 
 四OperationのContract set closureは、Operation 4件、参照Policy 10件、下表のdirect reachable Type exact 19件、World Requirement 1件、Service owner contribution、Validator local record、Operation Validator Closure local record、reachable Diagnostic exact 23件をすべて`ContractSetSnapshotV2.members[]`へ実recordとして含める。Type 19件は§8.1と共有するcommon六件を一度だけ数え、Owner固有13件とのdisjoint unionにする。各Typeはcomplete MCD local record、self-excluding local hash、Type member hashを持ち、nested schema refも同じSnapshot内のexact LocalRefへ再帰解決する。外部root付きType ref、bare ID、同名別versionをmember preimageへ入れない。
 
@@ -2094,7 +2094,7 @@ Activation後の受入条件として、AIへ巨大な全Schemaを一括送信�
 
 Activation後のSearch結果はその時点のContract set hashを含む。AIが古いhashのCapabilityでProposalを送った場合、Gatewayはstaleとして拒否し、差分を返す。AIがSchemaにないFieldや完全登録済みでないOperationを使った場合、fuzzyに推測して補正せず、候補ID付きDiagnosticを返す。planned検索actionのbounded result受入値は、各表で別値を明示しない限り既定50件、最大200件、continuation付きとする。Activation前のcurrent Search／Read Operation集合は空であり、この挙動をcallableとみなさない。
 
-以下の§§20～21に現れる191個の`operation.*`文字列は実行契約ではなく、将来の語彙衝突を防ぐ予約候補である。最初の八family 67件はDiscovery／Execution候補、後続十family 92件は既存Domain文書から回収した未登録authoring／selection候補、末尾六family 32件はAI制作E2EのChangeSet／Source／Build／GameplayDefinition／Asset実行carrier候補である。MCD document、Owner Manifest、Contract set member、Trusted Service allowlist、Provider projection、MCP alias、CLI／Editor commandのいずれにも存在せず、全familyのcurrent集合は空、Capability stateは`not_activated`である。別途§8.1／§8.2で完全登録したcurrent active 10 Operationは維持し、このplanning ledgerへ移動しない。§8.1.2のconditional legacy migration四件もplanning ledgerへ重複登録しない。
+以下の§§20～21.1の候補表に列挙する192個の`operation.*` IDは実行契約ではなく、将来の語彙衝突を防ぐ予約候補である。最初の八family 67件はDiscovery／Execution候補、後続十family 93件は既存Domain文書から回収した未登録authoring／selection候補、末尾六family 32件はAI制作E2EのChangeSet／Source／Build／GameplayDefinition／Asset実行carrier候補である。MCD document、Owner Manifest、Contract set member、Trusted Service allowlist、Provider projection、MCP alias、CLI／Editor commandのいずれにも存在せず、全familyのcurrent集合は空、Capability stateは`not_activated`である。別途§8.1／§8.2で完全登録したcurrent active 10 Operationは維持し、このplanning ledgerへ移動しない。§8.1.2のconditional legacy migration四件もplanning ledgerへ重複登録しない。
 
 ```text
 PlannedOperationFamilyV1
@@ -2138,7 +2138,7 @@ PlannedOperationFamilyV1
 | `planning.operation_family.camera_authoring` | 1 | `camera_authoring` | 11 | `activation.camera.authoring_operations.v1` |
 | `planning.operation_family.material_authoring` | 1 | `material_authoring` | 15 | `activation.material.authoring_operations.v1` |
 | `planning.operation_family.vfx_authoring` | 1 | `vfx_authoring` | 24 | `activation.vfx.authoring_operations.v1` |
-| `planning.operation_family.environment_authoring` | 1 | `environment_authoring` | 24 | `activation.environment.authoring_operations.v1` |
+| `planning.operation_family.environment_authoring` | 1 | `environment_authoring` | 25 | `activation.environment.authoring_operations.v1` |
 | `planning.operation_family.lod_authoring` | 1 | `lod_authoring` | 2 | `activation.lod.authoring_operations.v1` |
 | `planning.operation_family.input_binding_selection` | 1 | `input_binding_selection` | 1 | `activation.input.semantic_action_binding_selection.v1` |
 | `planning.operation_family.navigation_binding_selection` | 1 | `navigation_binding_selection` | 1 | `activation.navigation.motion_intent_binding_selection.v1` |
@@ -2300,7 +2300,7 @@ activation後のPlan／Proposeは`expected_project_revision`、`idempotency_key`
 
 ### 21.1 既存Domain文書から回収した未登録Operation候補
 
-次の十表92件は、既存Domain文書が過去にcurrent／canonical／registeredとして記述していたname-only surfaceを、§20の`PlannedOperationFamilyV1`へ回収したclosed candidate集合である。各表は上のledger後半十行と同じ順で対応する。これらは予約語彙であってMCD Operationではなく、全current集合とalias集合は明示`[]`、Capability stateは`not_activated`である。要求はGateway dispatch前に`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Source、Project、Registry、Taskを変更しない。
+次の十表93件は、既存Domain文書が過去にcurrent／canonical／registeredとして記述していたname-only surfaceを、§20の`PlannedOperationFamilyV1`へ回収したclosed candidate集合である。各表は上のledger後半十行と同じ順で対応する。これらは予約語彙であってMCD Operationではなく、全current集合とalias集合は明示`[]`、Capability stateは`not_activated`である。要求はGateway dispatch前に`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Source、Project、Registry、Taskを変更しない。
 
 Math semantic authoringは次の六IDだけを予約する。Math文書にある`operation.camera.set_profile_projection`はCamera ownerの次表に属する同一候補への参照であり、Math familyへ複製しない。
 
@@ -2378,7 +2378,7 @@ VFX authoringは次の24 IDだけを予約する。
 | `operation.vfx.run_qualification` | Qualification実行Proposal |
 | `operation.vfx.propose_extension_operator` | Extension operator Source Proposal |
 
-Environment authoringは次の24 IDだけを予約する。
+Environment authoringは次の25 IDだけを予約する。
 
 | reserved candidate ID | 予定意味 |
 |---|---|
@@ -2389,6 +2389,7 @@ Environment authoringは次の24 IDだけを予約する。
 | `operation.environment.preview_changeset` | Staging Preview |
 | `operation.environment.estimate_cost` | Target別cost見積り |
 | `operation.environment.create_profile` | Profile作成Proposal |
+| `operation.environment.set_world_binding` | WorldのEnvironment Profile binding変更Proposal |
 | `operation.environment.apply_preset` | Preset適用Proposal |
 | `operation.environment.set_intent` | Intent変更Proposal |
 | `operation.environment.set_sky` | Sky変更Proposal |
@@ -2508,7 +2509,7 @@ Asset authoring surfaceは次の十IDだけを予約する。Importer実行結�
 | `operation.asset.plan_bulk_migration` | R1 proposal。bounded item集合、batch、rollback、failure policyを作る |
 | `operation.asset.validate_import` | R0 validation。Source、Importer、Derived、license、Target、budget、dependency closureを検証する |
 
-既存92件と追加32件についてもfamily単位のatomic activationだけを許可する。Math文書からCamera候補への一回のcross-owner参照を除き、191件全体の候補IDは重複なしである。`67 + 6 + 11 + 15 + 24 + 24 + 2 + 1 + 1 + 1 + 7 + 4 + 5 + 1 + 6 + 6 + 10 = 191`、planning family数は`8 + 10 + 6 = 24`であり、count、ID union、全empty current集合、work itemをcompiler fixtureでexact比較する。
+既存93件と追加32件についてもfamily単位のatomic activationだけを許可する。Math文書からCamera候補への一回のcross-owner参照を除き、192件全体の候補IDは重複なしである。`67 + 6 + 11 + 15 + 24 + 25 + 2 + 1 + 1 + 1 + 7 + 4 + 5 + 1 + 6 + 6 + 10 = 192`、planning family数は`8 + 10 + 6 = 24`であり、count、ID union、全empty current集合、work itemをcompiler fixtureでexact比較する。
 
 ### 21.2 Architecture内`operation.*` tokenのclosed partition
 
@@ -2519,7 +2520,7 @@ current architectureで完全なOperation IDとして現れるtokenは、次の�
 | class | exact集合／件数 | materialization |
 |---|---|---|
 | `active_complete` | §8.1／§8.2の10件 | 完全なcurrent MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt closureだけ |
-| `reserved_not_activated` | §§20～21.1の24 family、191件 | `PlannedOperationFamilyV1`だけ。全current集合／alias集合`[]` |
+| `reserved_not_activated` | §§20～21.1の24 family、192件 | `PlannedOperationFamilyV1`だけ。全current集合／alias集合`[]` |
 | `conditional_legacy_migration` | §8.1.2の4件 | destination設計templateだけ。全current投影集合`[]`、signed legacy inventory成立後に限りatomic activation |
 | `example_pending_or_rejected` | 下表の11件 | current／planning／alias集合すべて`[]`。dispatch拒否 |
 
@@ -2590,8 +2591,8 @@ lintは完全ID token集合について`active_complete ∪ reserved_not_activat
 - Lighting planning familyのatomic activation fixtureはSource／Intent／Profile／Plan／Snapshot、物理単位tagged union、候補九件、bounded result、stale／lock／Target／Budget／overflowのvalid／invalid fixtureを同じMCDから生成する。Activation前の候補集合は空である。
 - Post Process planning familyのatomic activation fixtureはIntent／Profile／Camera Override／Volume／Node Catalog／Plan、固定stage、色空間、AA／Layer／history Predicate、候補九件、bounded resultのvalid／invalid fixtureを同じMCDから生成する。Activation前の候補集合は空である。
 - Lighting／Post Processをactivateする場合もProvider projectionへCommit、native GPU resource、任意Render pass／Shader、history内部値、Capability activationを含めず、Internal validatorが未知fieldと未成熟Capabilityをfail-closedにする。
-- §§20～21.1のclosed expansion ruleから24 `PlannedOperationFamilyV1`をField省略なしでmaterializeし、ledger／候補表が24対24、候補countが`4+14+4+6+5+9+9+16+6+11+15+24+24+2+1+1+1+7+4+5+1+6+6+10=191`、全current集合とalias集合が明示的な空配列、Capability stateが`not_activated`、family固有activation work itemが一件であることを検査する。191候補の一件でもMCD／Manifest／Service／Provider／MCP current集合へ混入したfixture、empty Fieldを省略して暗黙既定値にしたfixture、§8.1／§8.2のactive 10件をplanning集合へ移したfixtureを拒否する。
-- Architecture内の完全な`operation.*` ID tokenを§21.2の四classへexact partitionし、active 10、reserved 191、conditional legacy migration 4、example／pending／rejected 11、pairwise intersection 0、未分類0を検査する。conditional四件についてcurrent MCD／Manifest／Service／Policy／Validator／migration専用Diagnostic／Receipt／Provider／MCP／alias集合がすべてexact `[]`であることも検査する。current非Operation Diagnostic exact五recordはcandidate集合へ含めない。別kind ID内の`operation.*` substring、不完全prefix、action名をOperation IDとして数えず、逆に完全IDをsubstring扱いで見落とさない。
+- §§20～21.1のclosed expansion ruleから24 `PlannedOperationFamilyV1`をField省略なしでmaterializeし、ledger／候補表が24対24、候補countが`4+14+4+6+5+9+9+16+6+11+15+24+25+2+1+1+1+7+4+5+1+6+6+10=192`、全current集合とalias集合が明示的な空配列、Capability stateが`not_activated`、family固有activation work itemが一件であることを検査する。192候補の一件でもMCD／Manifest／Service／Provider／MCP current集合へ混入したfixture、empty Fieldを省略して暗黙既定値にしたfixture、§8.1／§8.2のactive 10件をplanning集合へ移したfixtureを拒否する。
+- Architecture内の完全な`operation.*` ID tokenを§21.2の四classへexact partitionし、active 10、reserved 192、conditional legacy migration 4、example／pending／rejected 11、pairwise intersection 0、未分類0を検査する。conditional四件についてcurrent MCD／Manifest／Service／Policy／Validator／migration専用Diagnostic／Receipt／Provider／MCP／alias集合がすべてexact `[]`であることも検査する。current非Operation Diagnostic exact五recordはcandidate集合へ含めない。別kind ID内の`operation.*` substring、不完全prefix、action名をOperation IDとして数えず、逆に完全IDをsubstring扱いで見落とさない。
 - 全architecture proseのcurrent／registered／public Operation claimを§21.2のclaim lintへ通し、active完全ID、内部Primitive／Job kind、または明示`not_activated` planned actionのexact一つへ分類する。未分類の現在形claim、IDのないregistered family、Activation前候補を「使う」とする記述を0件にする。
 
 ## 23. 一次資料と採用根拠

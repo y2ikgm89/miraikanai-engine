@@ -75,7 +75,7 @@ WorldDocumentV1
   world_id
   world_space_profile_ref: exact WorldSpaceProfileRefV1
   scene_document_refs[0..65535]
-  global_composition_refs[]
+  global_composition_refs[0..256]: registered owner contribution refs
   persistent_entity_refs[]
   spatial_topology_definition_ref: SpatialTopologyDefinitionV1 | null
 ```
@@ -108,6 +108,8 @@ WorldSpaceCompatibilityV1
 `profile_content_hash`はASCII `MIRAKAN_WORLD_SPACE_PROFILE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。配列はclosed enum ordinal順へstrict sortし、duplicateを拒否する。`supported_hybrid_gameplay_spaces[]`は`hybrid`非対応時にempty、dimension集合と`supports_non_spatial`がともにempty／falseの互換Profileはinvalidである。World Profileが`WorldSpaceCompatibilityV1`を満たすのは、`scene_dimension`が`supported_scene_dimensions[]`に含まれ、かつhybrid時は`hybrid_gameplay_space`も`supported_hybrid_gameplay_spaces[]`に含まれる場合だけである。World不要のconsumerは`supports_non_spatial=true`だけを根拠にでき、Worldを参照するconsumerはそれをspatial compatibilityの代用にしない。座標handedness、axis、unit、angle、matrix規約は[Math／Core utilities](../02-foundation/math-core.md)が所有し、World Profileで変更できない。
 
 `scene_document_refs[]`は0件を許可し、procedural-only Worldをvalidとする。`spatial_topology_definition_ref`は0または1件であり、Gameplay progressionを暗黙生成しない。WorldへAsset binary、Navigation mesh、HLOD mesh、Streaming payload、C++ source、Vendor objectを埋め込まない。UI-only／headless Runtime Entryは[Project state](../03-authoring/project-state.md)のbranch ruleによりWorldを参照しないため、`WorldSpaceProfileV1`も要求しない。
+
+`global_composition_refs[]`は各Ownerが登録したexact contribution refだけを受理する。[Environment／Water／Weather／Snow](environment-surfaces.md)の`EnvironmentWorldBindingRefV1`は一つのWorldにつき0件または1件であり、解決先bindingの`world_id`はこの`WorldDocumentV1.world_id`と一致しなければならない。0件はEnvironment presentationが明示的に存在しない状態であり、配列先頭、最初のProfile、表示名またはEditor選択から既定Environmentを推測しない。bindingの追加・変更・解除ではEnvironment Documentのbinding recordとWorld側refを同じ`ProjectChangeSetV1`で原子的に変更する。WorldはEnvironment Profileのfield、Profile選択規則、fallbackを複製しない。
 
 `SceneDocumentV1`は`scene_id`、optional `document_bounds`、`entity_refs[0..1048576]`、`space_membership_refs[]`、`layer_refs[]`、`source_dependency_refs[]`、`edit_ownership`を持つ。Scene境界はRuntime streaming境界を強制せず、Cookerは複数Sceneを一Cellへまとめることも一Sceneを複数Cellへ分割することもできる。
 

@@ -88,7 +88,19 @@ Profile ID／version／parent、Default role recipe、`VisualStyleProfile` ref�
 
 ### 3.3 `ResolvedLightPlanV1`
 
-Resolver出力はIntent／Profile／Catalog／Target Capabilityのversion／hash、exact `WorldSpaceProfileRefV1`、適用時はexact `ToonShadingProfileRefV1`、追加／更新／削除する`LightSourceV1` exact patch、解決したphysical quantity／color／type／range／mobility／channel／importance／priority、Shadow Intent ref、selection／cluster上限のworst-case proof、予測CPU／GPU時間／persistent・transient byte、保持lock／未充足constraint、採用／棄却／理由／fallback chain、必要Asset cook／Preview／approval／Qualification、`plan_hash`／expiryを持つ。Toon responseはPlanにparameter展開せず、profile refとそのTarget-qualified fixture結果だけを記録する。
+Resolver出力は`base_project_revision`、`world_id`、exact Target Profile refs、Intent／Profile／Catalog／Target Capabilityのversion／hash、exact `WorldSpaceProfileRefV1`、適用時はexact `ToonShadingProfileRefV1`、追加／更新／削除する`LightSourceV1` exact patchとその`affected_light_ids[]`、解決したphysical quantity／color／type／range／mobility／channel／importance／priority、Shadow Intent ref、selection／cluster上限のworst-case proof、予測CPU／GPU時間／persistent・transient byte、保持lock／未充足constraint、採用／棄却／理由／fallback chain、必要Asset cook／Preview／approval／Qualification、`plan_hash`／expiryを持つ。Toon responseはPlanにparameter展開せず、profile refとそのTarget-qualified fixture結果だけを記録する。
+
+```text
+ResolvedLightPlanRefV1
+  plan_hash: SHA-256
+  base_project_revision: positive u64
+  world_id: StableId
+  target_profile_refs[1..64]
+  affected_light_ids[1..4096]: StableId
+  expires_at
+```
+
+`ResolvedLightPlanRefV1`は一つの保存済みread-only `ResolvedLightPlanV1`へexact解決し、全fieldを解決先とbyte equalityにする。`affected_light_ids[]`はStable ID byte順、Target refsはProfile ID／version／content hash順へstrict sortし、duplicateを拒否する。[Environment／Surfaces](environment-surfaces.md)のTime-of-Day candidateがsun／moon変更を伴う場合、このrefだけをcompanion planとして保持し、Light patch、物理量またはfallbackをEnvironment側へ複写しない。
 
 PlanはProjectを変更しない。ChangeSet Commit後だけSourceを更新し、Catalog、Target Profile、base revisionのいずれかが変われば`MIRAKAN-LIGHTING-STALE-PLAN`として再解決する。approval mechanicsは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照する。
 
@@ -256,6 +268,8 @@ resolve(
 解決順は(1) Schema／Stable ID／base revision／権限、(2) exact World Profile／scope／subject／human lock、(3) Visual Style／Toon response／Environmentのrole recipe、(4) Target適合Light／Shadow／Assetの絞り込み、(5) 物理量／色／配置candidate生成、(6) readability／budget評価、(7) fallback chain、(8) Plan／reason／cost／risk／Preview差分の固定順とする。Toon Profileがnullである場合、Toon Shading Modelを使うMaterialを対象にした`toon_banded` candidateを生成しない。
 
 Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_light_ids[]`、`type_and_flags[]`、`position_and_range[]`、`direction_and_cone[]`、`color_and_radiometry[]`、`shape_parameters[]`、`channel_masks[]`、`shadow_plan_refs[]`、`source_revisions[]`を持つimmutableな論理SoAである。GPU packingはMCD生成`LightGpuRecordV1`とBackend Adapterの所有とし、Snapshotにnative handle／descriptor／GPU addressを含めない。compact indexはgeneration内だけ有効で、Save／Replay／DiagnosticはStable `light_id`を使う。
+
+`LightSnapshotV1`の抽出・検証・Render Graph入力としての実行はProduct上の`capability.rendering.render-graph-core`に含む。一方、`ResolvedLightPlanV1`を作るIntent discovery／explain surfaceは`planning.operation_family.lighting_discovery`の別activation境界であり、render-graph-coreまたはEnvironment capabilityの有効化から推測して公開しない。
 
 ## 7. AI／Editor operation
 
