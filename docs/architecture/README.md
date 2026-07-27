@@ -139,6 +139,7 @@ Owner文書はすべて`review`であり、対応するEngine実装・Schema・F
 | [Gameplay Feature Definition／Fixture Candidate Catalog](appendices/gameplay-feature-definition-fixture-catalog.md) | Owner supplement | Weapon、Damage、Vital、Score、Encounter、Pickup、Locomotion候補 |
 | [Shooter Reference Catalog](appendices/shooter-reference-catalog.md) | proposal appendix | AI composition、Fixture、Difficulty、Input template候補 |
 | [Governance Migration Proposals](appendices/governance-migration-proposals.md) | proposal appendix | Definition移管、Runtime ECS Owner移管の未承認候補 |
+| [Runtime ECS Design Closure Review](appendices/runtime-ecs-design-closure-review.md) | proposal appendix | ECS設計監査、current／target区分、cross-owner整合性、未解決Closure |
 
 ## 5. Decision Log
 

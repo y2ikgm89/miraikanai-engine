@@ -481,6 +481,31 @@ hot pathの一般heap fallbackはcount 0をhard predicateとし、unsupported Ta
 本節だけがRuntime ECS data-oriented qualificationのprofile、campaign、mandatory metric、sampling、promotion predicateを所有する。
 
 ```text
+RuntimeEcsInitialAcceptanceThresholdSetV1
+  threshold_set_version: 1
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version,
+           target_profile_content_hash}
+  selected_chunk_payload_bytes: 16384
+  scenario_limits[6]:
+    sorted unique by scenario_id
+    scenario_id:
+      sequential_motion | position_only_projection | lifetime_only_scan
+      | structural_burst | archetype_fragmentation
+      | query_cache_invalidation
+    scenario_cpu_p95_ns_max: positive uint64
+    scenario_memory_peak_bytes_max: positive uint64
+  handle_resolve_p95_ns_max: positive uint64
+  lease_validation_p95_ns_max: positive uint64
+  threshold_set_hash: SHA-256
+
+RuntimeEcsInitialAcceptanceThresholdSetRefV1
+  threshold_set_version: positive uint32
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version,
+           target_profile_content_hash}
+  threshold_set_hash: SHA-256
+
 RuntimeDataOrientedQualificationProfileV1
   profile_version: 1
   target_profile_ref:
@@ -501,6 +526,8 @@ RuntimeDataOrientedQualificationProfileV1
   metric_set: runtime_ecs_data_oriented_metrics_v1
   correctness_oracle:
     runtime_ecs_semantic_publication_failure_atomicity_v1
+  initial_acceptance_threshold_set_ref:
+    exact RuntimeEcsInitialAcceptanceThresholdSetRefV1
   profile_hash: SHA-256
 
 RuntimeDataOrientedQualificationCampaignV1
@@ -520,9 +547,19 @@ RuntimeDataOrientedQualificationCampaignV1
   campaign_hash: SHA-256
 ```
 
-profileはCandidateを含まない。campaignの`ArtifactCandidateBindingV1` Target member、Contract Set、Toolchainはprofile、sample artifact、correctness artifactとbyte-equalでなければならない。Contract Set rootを先にfinalizeし、それを参照するprofile／campaign instanceをContract Set preimageへ循環挿入しない。hashはMCD canonical encodingを使い、Product signed wrapperのRFC 8785 JCSで代用しない。
+initial threshold setは初回selected 16 KiB layoutの絶対memory／latency acceptanceを所有する。値はlocked Reference Hardware Profile上のcharacterizationと独立Reviewから承認し、Markdownの推測値、別Target、別device、相対差、0 baseline、Product deadlineから生成しない。Target Profileが未完成、scenarioがexact 6件でない、上限が0／欠落、またはthreshold setが未承認の場合は`RuntimeDataOrientedQualificationProfileV1`をmaterializeせず、Phase GateとCapabilityをpassにしない。8／32 KiBはinitial campaignでcharacterizationするが、このthreshold setを満たしたことをselected layoutのpassまたは自動切替へ使わない。
+
+profileはCandidateを含まない。campaignの`ArtifactCandidateBindingV1` Target member、Contract Set、Toolchainはprofile、initial threshold set、sample artifact、correctness artifactとbyte-equalでなければならない。Contract Set rootを先にfinalizeし、それを参照するprofile／campaign instanceをContract Set preimageへ循環挿入しない。hashはMCD canonical encodingを使い、Product signed wrapperのRFC 8785 JCSで代用しない。
 
 ```text
+threshold_set_hash =
+  SHA-256(
+    ASCII "MIRAKAN_RUNTIME_ECS_INITIAL_ACCEPTANCE_THRESHOLD_SET_V1"
+    || uint32_be(len(canonical threshold set bytes
+                     excluding threshold_set_hash))
+    || canonical threshold set bytes excluding threshold_set_hash
+  )
+
 profile_hash =
   SHA-256(
     ASCII "MIRAKAN_RUNTIME_DATA_ORIENTED_QUALIFICATION_PROFILE_V1"
@@ -595,7 +632,7 @@ Position、Velocity、Lifetime、cold metadataはsynthetic bounded test schema�
 
 `runtime_ecs_semantic_publication_failure_atomicity_v1`は、callback general-heap allocation count、callback upstream fallback count、chunk boundaryを跨ぐcallback work unit、unselected／undeclared column access、semantic／publication／failure oracle mismatch、stale handle／expired lease／accepted direct structural mutation、required metric missingがすべて0であることを要求する。全predicateを90 runと3 soakのすべてで満たす。initial selected layoutは16,384 bytesであり、8,192／32,768 bytesの結果が良くてもRuntimeを自動切替しない。
 
-Initial qualification invents neither a zero baseline nor an improvement percentage. It passes only when the selected 16 KiB layout completes the full matrix and every hard predicate.
+Initial qualification invents neither a zero baseline nor an improvement percentage. It passes only when the selected 16 KiB layout completes the full matrix、every hard predicate、exact six `scenario_cpu_p95_ns_max`、exact six `scenario_memory_peak_bytes_max`、`handle_resolve_p95_ns_max`、`lease_validation_p95_ns_max`を全て満たす。absolute threshold failureを8／32 KiBの良好値、相対改善、平均値、別TargetのReceiptで免除しない。
 
 After an initial qualified layout exists, promotion compares baseline and candidate campaigns with byte-equal profile ref、Target、Contract Set、Toolchain、fixture、input trace、sample policy, and correctness oracle. Candidate refs are intentionally different.
 
@@ -606,6 +643,11 @@ diagnostic.performance.ecs-required-metric-missing
 MIRAKAN-PERFORMANCE-ECS-REQUIRED-METRIC-MISSING
 arguments = campaign_hash, scenario_id, payload_bytes, metric_id
 result = qualification failure
+
+diagnostic.performance.ecs-initial-threshold-invalid
+MIRAKAN-PERFORMANCE-ECS-INITIAL-THRESHOLD-INVALID
+arguments = threshold_set_ref, target_profile_ref, invalid_field_set_hash
+result = Profile materialization and initial qualification prohibited
 ```
 
 ### 8.4 Algorithm optimization candidate qualification

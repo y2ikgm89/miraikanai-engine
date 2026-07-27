@@ -221,6 +221,7 @@ Stage、Quest、Inventory、Gameplay Timer等のDomain Saveは`AuthoritativeSave
 RuntimeAuthoritativeStateDigestV1
   digest_version: 1
   source_world_publication_ref: RuntimeWorldPublicationRefV1
+  world_epoch: positive uint64
   world_publication_generation: positive uint64
   advance_sequence: positive uint64
   contract_set_ref: ContractSetRefV1
@@ -237,6 +238,8 @@ RuntimeAuthoritativeStateDigestRefV1
   advance_sequence: positive uint64
   digest_sha256: SHA-256
 ```
+
+digestの`world_epoch`と`world_publication_generation`は`source_world_publication_ref`が解決する同名Fieldとbyte equalityでなければならない。T00のprivate working World、faulted advance、未publish section set、次回向けsealed structural batchからdigestまたはSave projectionを生成しない。
 
 digestはcanonical persistent field projectionから計算する。Componentを`sizeof` bytesでhashしない。Entity relationはpersistent identityへ投影するか、ephemeral／derived relationとして除外根拠を明示する。raw handle、chunk layout、worker index、memory address、wall-clock completion timeをdigest入力にしない。
 

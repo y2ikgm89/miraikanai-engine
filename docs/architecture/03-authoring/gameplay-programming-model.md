@@ -75,9 +75,11 @@ Ruleはevent、pure condition、bounded action proposalからなり、直接Doma
 
 同一authoritative fieldのwriterは同一advanceに一つである。Systemは未宣言Component、State、Portへaccessせず、phaseやpriorityだけでwriter authorityを得ない。Implementation Variantは同じPublic ContractとState semanticsを維持する。
 
+本文の列挙はfield-level Schemaの代用ではない。`GameSystemSpecV2`をcurrent Definition Closureへ含める前に、少なくともSystem identity／version、Owner、origin、Capability、Runtime Scope、State classとState owner、Component read／write集合、structural permission集合、State read／write集合、phase集合、Command／Event／Snapshot Port、implementation set、Save／Replay policy、Budget、failure、qualification subjectを持つ一つのbounded canonical Schemaへ解決する。各collectionのelement type、bound、sort、uniqueness、branch制約、self-excluding contract hashが欠ける場合、Contract compiler、ECS manifest、Native descriptor、Package、Save／Replay projectionを生成しない。
+
 ### Runtime ECS access cohort projection
 
-Runtime ECS accessはGame Systemの宣言をECS query／access manifestへ投影する。Gameplay側はECS storage、archetype、query lease、structural transactionを再定義しない。
+Runtime ECS accessはGame SystemのComponent read集合を`RuntimeComponentAccessManifestV1.read_component_refs`、Component write集合を`write_component_refs`、structural permission集合を`structural_permissions`、State read／write集合をstate store bindingへ別々に投影する。State writeをComponent writeへ、Command permissionをstructural permissionへ、phase membershipをwriter authorityへ読み替えない。Gameplay側はECS storage、archetype、query lease、structural transactionを再定義しない。
 
 ### Owner identity registry
 
