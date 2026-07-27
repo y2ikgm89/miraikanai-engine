@@ -101,6 +101,8 @@ StateはOwner、Scope、writer、readers、Save、Replay、publication boundary�
 
 Portはbounded valueまたはtyped refだけを運び、raw pointer、live lease、native handle、mutable containerを公開しない。Failureはtyped result／Diagnosticで返し、silent dropまたはdefault successにしない。
 
+`presentation_cue_ref`は、そのFieldを含むSchema、validator、Cooker、valid／invalid fixture、Product destinationが同じDefinition closureで採用されるまでplanned fieldであり、current Gameplay MCDへ追加しない。Activation後はexact `SoundCueDefinitionV1`とMixer Bus Stable IDへ解決し、Asset path、display label、native Voice、暗黙のdefault Busへfallbackしない。Gameplay OwnerはT90前にsealするauthoritative Eventとpresentation intentだけを所有し、[Audio](../07-platform/audio.md)がCue選択、playback state、Voice capacity、Mixer gain、loop、Spatial、device failureを所有する。Audio completionまたは失敗をGameplay Event、Timer、Stateへ逆入力しない。
+
 ## 5. Project-defined systems
 
 Project-defined SystemはEngineのPublic Capability、MCD Type、Portだけを利用する。Engine core改変、private namespace、unregistered service、unbounded runtime reflectionを要求するSystemは拒否する。
