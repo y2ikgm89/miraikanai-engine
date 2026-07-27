@@ -1,0 +1,46 @@
+# Miraikanai Engine Architecture Decision Log
+
+This README is navigation/template only and does not itself make an Architecture decision.
+
+## 1. Purpose
+
+- This directory records why architecturally significant choices were made.
+- Current Schema, fixed values, runtime behavior, Gates, and qualification remain in Owner documents.
+- The log is append-only after a Decision becomes `normative` or `rejected`.
+
+## 2. Lifecycle
+
+| 状態 | Meaning | Allowed changes |
+|---|---|---|
+| `review` | Proposed | Review revisions |
+| `normative` | Accepted | Relationship/status metadata only |
+| `rejected` | Rejected | Relationship/status metadata only |
+| `superseded` | Replaced by a newer Decision | Relationship metadata only |
+
+## 3. Decision Log
+
+| Date | Decision | Status | Scope |
+|---|---|---|---|
+| 2026-07-21 | [Architecture Document System Restructure](2026-07-21-document-system-restructure.md) | `normative` | document-system restructure |
+| 2026-07-22 | [Runtime ECS Contract](2026-07-22-runtime-ecs-contract.md) | `review` | Engine-owned ECS choice |
+| 2026-07-27 | [Architecture Decision Log Governance](2026-07-27-architecture-decision-log-governance.md) | `review` | ADR lifecycle and authority separation |
+
+## 4. Template
+
+1. Required Architecture header fields.
+2. Decision owner document, Decision date, Supersedes.
+3. Context.
+4. Decision drivers.
+5. Considered options.
+6. Decision.
+7. Consequences.
+8. Canonical Owner documents.
+9. Supersedes/Superseded by.
+10. Official or primary sources.
+
+## 5. Update rules
+
+- One significant decision per file.
+- Do not rewrite accepted/rejected Decision bodies.
+- Create a new Decision for a changed choice and link the supersession.
+- Do not use Decision text as the sole authority for a current Contract.

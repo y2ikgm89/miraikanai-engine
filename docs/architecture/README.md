@@ -114,18 +114,16 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 | 49 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | Combat、Ranged Combat、Encounter、Scoring、Pickupのcontract catalog |
 | 50 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
 
-### 3.10 Decisions
+## 4. Decision Log
 
-| # | 文書 | 状態 | 閲覧上の責務 |
-|---:|---|---|---|
-| 51 | [Architecture Document System Restructure](decisions/2026-07-21-document-system-restructure.md) | normative | 文書体系の再編原則、旧Path互換を残さない移行方針 |
-| 52 | [Runtime ECS Contract Decision](decisions/2026-07-22-runtime-ecs-contract.md) | review | Engine-owned ECSの採用判断、責務分割、current化の承認境界 |
+[Decision Log](decisions/README.md)はDecisionのrationaleと履歴を所有し、current Schemaまたはruntime behaviorを所有しない。
 
-## 4. 変更時の入口
+## 5. 変更時の入口
 
 | 調べたいこと | 先に読む文書 | 次に辿るOwner |
 |---|---|---|
 | 正本追加、統廃合、Owner移管 | [Architecture Governance](01-governance/architecture-governance.md) | [Compatibility／Evolution](02-foundation/compatibility-evolution.md)、対象Domain |
+| DecisionのContext、比較案、置換履歴 | [Decision Log](decisions/README.md) | relevant Domain Owner |
 | AIによる説明・変更、安全、evidence | [AI Security／Approval](01-governance/ai-security-approval.md) | [AI Verification／Provenance](01-governance/ai-verification-provenance.md)、対象Owner |
 | 英語技術語彙、Editor表示locale、AI返答locale、Game source locale | [Naming／Project Layout](02-foundation/naming-project-layout.md) | [Editor Workspace／UX](03-authoring/editor-workspace-ux.md)、[Editor UI Framework](03-authoring/editor-ui-framework.md)、[Project State](03-authoring/project-state.md)、[UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md)、[AI Verification／Provenance](01-governance/ai-verification-provenance.md) |
 | ECS、World load、Save／Replay | [Runtime ECS](04-runtime/entity-component-system.md) | [Runtime Package](04-runtime/runtime-package.md)、[Persistence／Save](04-runtime/persistence-save.md)、[Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) |
@@ -134,6 +132,6 @@ current文書件数、文書ID、状態、path、依存は各Headerから生成�
 | Pointer／ownership／handle／lease／allocation | [Memory／Pointers](02-foundation/memory-pointers.md) | [Executable Contracts](02-foundation/executable-contracts.md)、[Product Plan](00-product/product-plan.md)、対象Subsystemのconsumer binding |
 | 実行順、capacity、debug／replay transport | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | [Performance／Capacity](04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](04-runtime/debugging-observability-replay.md) |
 
-## 5. Indexの更新規則
+## 6. Indexの更新規則
 
 Indexを更新してもArchitecture、Schema、Gate、実装計画、Operation activationは変化しない。文書追加・統廃合・retirementでは、先に[Architecture Governance](01-governance/architecture-governance.md)のInventoryとChangeSetを整合させ、次にこの表示projectionを更新する。
