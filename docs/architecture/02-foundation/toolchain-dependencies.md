@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: 外部Tool・SDK・Library・APIのexact version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock、Dependency採用・更新Gate、Build Driver Profileのclosed set、CI実行基盤のrunner／hosting／capacity binding
 - 非正本範囲: Product scope、Subsystem API・型・Budget、Runtime phase、Platform lifecycle、Dependency内部を包むEngine-owned Adapter契約。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. 結論と一意所有

@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: C++23 language profile、Named Module境界、`import std`移行state、CMake module表現、Header例外、BMI identity、Cutover Gate
 - 非正本範囲: Compiler・CMake・Ninja・SDKのexact version／hash／取得元、一般命名・Directory、Memory／Pointer、Native Game ABI、Platform package。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
 - 外部根拠検証日: 2026-07-23
 
 ## 1. 結論

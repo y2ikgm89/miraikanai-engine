@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Foundation utilityとMath target、semantic／compact型、座標・単位・matrix・quaternion、floating-point、失敗契約、AI projection、Interchange／Shader境界、Qualification
 - 非正本範囲: 外部Library・Tool version／hash／license、一般命名・配置、Memory／Pointer taxonomy、Runtime budget／phase、Product capability maturity。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[Memory／Pointers](memory-pointers.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論

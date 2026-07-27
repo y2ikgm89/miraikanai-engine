@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: VFX Source Document、semantic intent／catalog、typed graph、curve／gradient／random、compiler、VFX固有planned authoring action／diagnostic／qualification
 - 非正本範囲: Project HLSL Module／Technique、compiled execution artifact／instance／CPU・GPU simulation／render execution、LOD共通selection、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[LOD](lod.md)、[VFX runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[LOD](lod.md)、[VFX runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)
 - 外部根拠検証日: 2026-07-22
 
 ## 1. 結論と所有境界

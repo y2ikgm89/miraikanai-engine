@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: 共通語彙、acronym、正規技術語彙の人間言語境界、public型・Operation・Diagnostic・file・directory命名、Engine／Game Project root、Source／Derived／Intermediate／Package配置、generated file、module／namespace／target対応、lint／migration Gate
 - 非正本範囲: 型・Schemaの構造、外部Tool version、Build Driver、Project revision、Asset lifecycle、Domain固有field。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
+- 依存: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. 結論と優先順位
