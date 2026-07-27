@@ -25,6 +25,7 @@ This README is navigation/template only and does not itself make an Architecture
 | 2026-07-22 | [Runtime ECS Contract](2026-07-22-runtime-ecs-contract.md) | `review` | Engine-owned ECS choice |
 | 2026-07-27 | [Architecture Decision Log Governance](2026-07-27-architecture-decision-log-governance.md) | `normative` | ADR lifecycle and authority separation |
 | 2026-07-28 | [AI-readable Asset／Memory／Async Loading Alignment](2026-07-28-ai-asset-memory-async-alignment.md) | `review` | Asset import, memory lifecycle, async publication |
+| 2026-07-28 | [Simulation Cadence／Presentation Separation](2026-07-28-simulation-cadence-presentation-separation.md) | `review` | Runtime timing authority separation |
 
 ## 4. Template
 
