@@ -2,9 +2,9 @@
 
 - 文書ID: mirakan.arch.runtime-debugging-observability-replay
 - 状態: review
-- 正本範囲: Debug Session、typed event／counter／snapshot、bounded Store／Index／Query、causality、breakpoint／watch／safe pause、deterministic capture／replay／rewind、crash／hang evidence、support bundle（構成artifact、redaction manifest、consent、生成operation）、remote device bridge、Editor Debug UX、AI diagnosis、Debug qualification
+- 正本範囲: Debug Session、typed event／counter／snapshot、Runtime Entry／Stage／World spatial／UI Screen transition event、bounded Store／Index／Query、causality、breakpoint／watch／safe pause、deterministic capture／replay／rewind、crash／hang evidence、support bundle（構成artifact、redaction manifest、consent、生成operation）、remote device bridge、Editor Debug UX、AI diagnosis、Debug qualification
 - 非正本範囲: Runtime phase／Simulation Advance／lifetime、Runtime ECS storage／live query・lease、Save／Replay semantic record・digest・reconstruction、Runtime Package binary、共通memory／performance／queue budget、AI Risk／authorization／approval、Evidence／Provenance envelope、Project transaction、Subsystem固有state schema、外部Tool／SDK version。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[VFX runtime](../06-rendering/vfx-runtime.md)、[Environment／surfaces](../06-rendering/environment-surfaces.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Audio](../07-platform/audio.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Performance／capacity](performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[VFX runtime](../06-rendering/vfx-runtime.md)、[Environment／surfaces](../06-rendering/environment-surfaces.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Audio](../07-platform/audio.md)
 - 外部根拠検証日: 2026-07-21
 
 ## 1. 結論とauthority
@@ -137,6 +137,32 @@ DebugSessionClosureV1
 
 `DebugEventEnvelopeV1`はevent type ref、session、sequence、time point、producer process／thread role、target refs、correlation、bounded parent refs、trace／span／diagnostic ref、payload hash、payload、redaction flagsを持ち、canonical encodingとhashを使う。共通Evidence envelope fieldを埋め込まず、Governance Evidenceから本record hashを参照する。
 
+画面／進行切替の観測は曖昧な`Level transition` eventを使わず、次のtyped payloadを登録する。
+
+```text
+DebugTransitionEventV1
+  transition_kind:
+    runtime_entry_transition
+    | stage_transition
+    | world_space_transition
+    | ui_screen_navigation
+  transition_phase:
+    requested | preparing | ready | committed | rejected | cancelled_before_commit
+  request_ref: exact typed transition | navigation request ref
+  source_target_ref: DebugTargetRefV1
+  destination_target_ref: DebugTargetRefV1 | null
+  source_generation: positive uint64
+  destination_generation: positive uint64 | null
+  boundary_runtime_time_ref: RuntimeTimeRefV1 | null
+  final_result_ref: exact typed owner result | receipt ref | null
+  diagnostic_refs[0..64]
+  transition_event_content_hash: SHA-256
+```
+
+`requested | preparing | ready`はdestination generation／boundary time／final resultをnull、`committed`は三Fieldをpresent、`rejected | cancelled_before_commit`はdestination generation／boundary timeをnullとしてexact final resultをpresentにする。final resultはOwnerが定めるReceipt、boundary result、published Stack／Stage／World generation refのclosed variantであり、Debug ownerが疑似Receiptを作らない。`transition_event_content_hash`はASCII `MIRAKAN_DEBUG_TRANSITION_EVENT_V1`と自身を除く全FieldのMCD canonical bytesをlength framingして計算する。source／destination refは各OwnerのStable／typed identityへ解決し、display screen name、Scene path、Level名、pixel、Widget pathをtargetにしない。同じrequestのphase eventはrequest refとRuntime monotonic sequenceで相関し、Loading表示や時間的近接からcommitを推測しない。
+
+`DebugTransitionEventV1`はtarget review event typeであり、current Event Type Registry、Breakpoint Registry、MCD Contract Set、capture／query Operation inventoryを本節だけで変更しない。四Ownerのsource event／result schema、Consumer Inventory、Definition Migration、redaction／capacity／qualificationが同じclosureで揃うまで、current V1の`Level transition`をtarget Event／Breakpoint／Evidenceへ流用して暫定availableにしない。
+
 ## 5. Debug Session lifecycle
 
 ```text
@@ -201,7 +227,7 @@ Store ring、disk retention、ingress queue、capture throughput、instrumentati
 
 ## 8. Causality Graph
 
-`DebugCausalEdgeV1.kind`は`input_produced | command_emitted | command_consumed | state_read | state_written | event_emitted | event_delivered | async_requested | async_accepted | job_scheduled | job_completed | resource_waited | rng_consumed | checkpoint_compared | asset_resolved | level_activated | presentation_derived | diagnostic_caused | fallback_selected`のclosed setとする。
+current `DebugCausalEdgeV1.kind`は`input_produced | command_emitted | command_consumed | state_read | state_written | event_emitted | event_delivered | async_requested | async_accepted | job_scheduled | job_completed | resource_waited | rng_consumed | checkpoint_compared | asset_resolved | level_activated | presentation_derived | diagnostic_caused | fallback_selected`のclosed setを維持し、`level_activated`をRuntime Entry／Stage／World spatial／UI navigationのいずれかへ読み替えない。target `DebugCausalEdgeV2.kind`はV1の`level_activated`一件を削除し、`runtime_entry_transitioned | stage_transitioned | world_space_transitioned | ui_screen_navigated`の四件を追加したclosed setとする。他のV1 kindは同名で維持する。V1→V2はEvent Type Registry、Query／Index、Replay／Causality reader、Breakpoint、fixtureを同時移行し、V2に`level_activated` aliasを残さない。
 
 edgeはsource／destination event、target、Runtime distance、delivery class、completenessを持つ。時系列上近いだけのeventをcausal edgeにしない。Parent／correlationが欠けた推定edgeは`inferred`とし、validated causeに使用しない。Presentationからauthoritative Gameplayへの逆edgeを作らない。
 
@@ -209,7 +235,7 @@ edgeはsource／destination event、target、Runtime distance、delivery class�
 
 ## 9. Breakpoint、Watch、Pause、Step
 
-`DebugBreakpointV1`はID／version、enabled、optional Session scope、kind、target selector、registered pure predicate ref、hit policy、action、safe-boundary policy、capture channel、owner、expiryを持つ。kindはRuntime time、System／Definition entry／exit、command／event、state predicate、Diagnostic、budget threshold、Asset generation、Level transition、render capture triggerをregistered IDで表す。任意C++／Script式、filesystem、network、clock、random、World mutationをpredicateにしない。
+current `DebugBreakpointV1`はID／version、enabled、optional Session scope、kind、target selector、registered pure predicate ref、hit policy、action、safe-boundary policy、capture channel、owner、expiryを持つ。kindはRuntime time、System／Definition entry／exit、command／event、state predicate、Diagnostic、budget threshold、Asset generation、Level transition、render capture triggerのclosed registered IDである。ただし`Level transition`は§4の四typed transitionを区別できないため、新しいtransitionのQualification、commit Evidence、AI validated causeに使用しない。target `DebugBreakpointV2`は`Level transition`を削除してtyped transition kindを持ち、selectorは`runtime_entry_transition | stage_transition | world_space_transition | ui_screen_navigation`とphaseをexact指定する。Scene名、screen labelをaliasとして受理しない。V1／V2とも任意C++／Script式、filesystem、network、clock、random、World mutationをpredicateにしない。
 
 hit policyは`first | every | after_count | every_n | once_per_target_generation | rate_limited`とし、hit／suppressed countとfirst／last hitを記録する。actionは`mark | capture | pause_at_safe_boundary | stop_recording | fail_qualification`である。
 
@@ -697,13 +723,15 @@ Contract fixtureは全Typeのvalid／invalid／boundary、canonical encoding／h
 
 Runtime fixtureは[Scheduling／lifetime](scheduling-lifetime.md)の全Runtime orderへのtime ref対応、parallel emitのcanonical sequence、priority drop、safe pause／complete Simulation Advance step／render step、sandbox node step、Store／Panel crash非干渉、callback hot path allocation／block 0を検証する。Debug stepでは四branchのRequest→Scheduling検証→sealed Interval投影を検査し、Debugger生成Interval、Profile／expected sequence差、variable範囲外、wrong Command／request type、Ref／hash差、消費済みcontrol、explicit ordinal 0／上限超過を各一原因で拒否してInterval／World state 0件変更を確認する。Hang fixtureはfixed duration、variable min／max、turn Control Ref＋completed SHA＋Interval hash、explicit request Ref＋completed SHA＋ordinal＋Interval hashを検証し、旧sequence ref、bare ID、Profile／branch差、待機中の偽periodic expectationを拒否する。instrumentation overhead、memory、disk、queue、soakは[Performance／capacity](performance-capacity.md)のcurrent Gateで測定する。
 
+Transition observability fixtureはRuntime Entry、Stage、World spatial、UI Screen navigationの四kindについてrequested→preparing／ready→committedとrequested→rejected／cancelledを検証し、request ref、source／destination typed target、generation、T00 Runtime time、exact owner final resultをread-backする。`Level transition` event／breakpoint、display name／path target、commit前のdestination generation、Loading表示から合成したcommit、別request final result、source generation差を各一原因でrejectし、instrumentation gapがある場合はtransition失敗または成功を推測せず`partial`として表示する。
+
 Runtime ECS qualification fixtureはmandatory metric欠落、NaN／infinite value、counter overflow、wrong Target、wrong Candidate、process reuse、missing campaign cell、Debug-to-Runtime authority back-edgeを一原因ずつ拒否する。mandatory metric欠落は`diagnostic.performance.ecs-required-metric-missing`へexact mappingし、他のinvalid sampleを0またはpassへ補正しない。
 
 Replay fixtureはInput、RNG、accepted async resultから同じstate hashとfirst divergenceを得ること、recorded／current revision分離、closure／Asset／worker mismatch拒否、gapを含むSessionのpartial表示、child Session isolationを検証する。`RuntimeReplayProjectionV1`、`RuntimeReplayTransportBindingV1`、`RuntimeReplayBundleManifestV1`、`ReplaySliceV1`はtyped Debug Session、Build、Project triple、Target、Contract set、連続advance rangeへbyte equalityで解決する。transport bindingのcheckpoint／input／accepted async／RNG／asset version／redaction artifact集合はcanonical order、duplicateなし、range完全性を検証し、missing、extra、別Session／Build／Target／Contract set、hash差、range gap／overlap、redaction隠蔽、base projectionへのbinding埋戻し、別rootを束ねるBundleをReplay開始前に拒否する。Domain Replayはreceipt-free Projectionからroot外Bindingを生成し、Persistence OwnerだけがBundle Manifestへmembershipを閉じる。
 
 Atomic activation acceptance fixtureはAggregate→Query→Causality→Replay→Finding validation→exact domain Proposalのtask／Receipt chainを検証する。QueryのAggregate Receipt、CausalityのQuery Receipt、ReplayのBuild／Query／Causality Receipt、Finding validationのBuild／Query／Causality／Replay Receiptについて、missing、typed receipt kind／Operation／Task差、completed SHA差、署名差、別operation payload、revocationを一原因ずつ注入して後段を停止する。全Receipt payloadのtyped Session／Build Ref／completed SHA／Project triple／Targetを前段、Descriptor、Persistence OwnerのReplay Bundle／Sliceから一Fieldずつ差し替えるfixtureを持つ。各Payload outcomeとEnvelope resultの差、success output欠落／他branch混入、failed／cancelledのempty／65件目Diagnostic、generation 0、root Evidence 0／17件、source Receipt 0／65件も拒否する。Replay ReceiptのReplay Bundle Ref／completed SHA、transport binding Ref／completed SHA、Replay projection Ref／completed SHA、range start／end、Slice content hash差も後段を停止する。stale Candidate、別Session／Build／Project document set／Target／Store／Index generation、remote Device交換、request hash／Authorization差でも拒否する。Evidence ref不在、別revision、gap／redaction隠蔽、時間相関だけ、reproductionなしの`validated_cause`を含む偽Findingは`operation.debug.validate_finding`で`diagnostic.debug.finding-evidence-invalid`となり、proposal Operation refを返さずProject stateを不変にする。Support Bundle branchは同じ署名Envelope／Task APIを使い、Descriptor／Closure差またはClosure欠落、source Debug Receipt差、consentなし、Policy／Data Class不一致、redaction action branch混在、component／manifest／archive set差、size／file／entry bound超過でexport byteを公開しない。current fixtureは14 candidateすべてについてdispatch前の`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`とProject／Task／export byte不変を検査する。
 
-`fixture.debug.known-faults`は少なくともInput context conflict、Collision filter、stale Nav result、root-motion authority conflict、Asset generation mismatch、Render barrier diagnostic、Audio pressure、Gameplay bounded-execution fault、Level closure不足、RNG divergence、GameHost crash／symbol mismatch、remote disconnect／gapを含む。各caseはobservation、typed Diagnostic、causal path、Replay Slice、correct remediation、forbidden remediation、regression fixtureを持つ。
+`fixture.debug.known-faults`は少なくともInput context conflict、Collision filter、stale Nav result、root-motion authority conflict、Asset generation mismatch、Render barrier diagnostic、Audio pressure、Gameplay bounded-execution fault、Runtime Entry／Stage closure不足、RNG divergence、GameHost crash／symbol mismatch、remote disconnect／gapを含む。各caseはobservation、typed Diagnostic、causal path、Replay Slice、correct remediation、forbidden remediation、regression fixtureを持つ。
 
 AI Eval `debugging_diagnosis`はroot cause top-1 85%以上、top-3 95%以上、Blocking／High Evidence recall 100%、Evidenceなしvalidated cause 0、gap／redaction／revision／Presentation authority誤認0、unknown ID提出0、permission緩和0、2回超repair 0、unreproduced fixed claim 0、関連regression実行100%をC1 targetとする。Corpus／grader／3-run／Receipt構造は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが決定する。
 

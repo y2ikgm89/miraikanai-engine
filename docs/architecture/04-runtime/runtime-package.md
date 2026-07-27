@@ -2,18 +2,69 @@
 
 - 文書ID: mirakan.arch.runtime-package
 - 状態: review
-- 正本範囲: Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
+- 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
 - 非正本範囲: generic Derived Artifact manifest／catalog、ECS storage・query・lease、Save／Replay record、runtime phase／job DAG、Domain World source意味、debug transport、AI認可。各Owner文書を参照する
-- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[World](../06-rendering/world.md)
+- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)
 - 外部根拠検証日: 2026-07-24
 
 ## 1. 状態と結論
 
-Runtime Packageは、承認済みProject revisionからCookされたimmutable World Root／Section imageを、検証済みの一単位としてRuntime World build gatewayへ渡す。World imageはAuthoring object、Editor object、live ECS chunk、native objectを含まない。[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingにより、Packageが渡すのはimmutable bytes、stable／typed reference、bounded readだけであり、live pointer、lease、allocator、runtime slotをdirectory・binary・handoffへ投影しない。
+Runtime Entryのlaunch rootは`RuntimeEntryPackageV1`であり、world／ui／headlessのtagged branchを同じ外側Contractで扱う。既存`RuntimePackageV1`はWorld Root／Section binaryだけを格納するWorld branch内側payloadであり、UI-only／headless launch packageまたは全branch共通rootとして扱わない。World imageはAuthoring object、Editor object、live ECS chunk、native objectを含まない。[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingにより、Packageが渡すのはimmutable bytes、stable／typed reference、bounded readだけであり、live pointer、lease、allocator、runtime slotをdirectory・binary・handoffへ投影しない。
 
 generic artifact identity、promotion、catalogは[Asset lifecycle](../03-authoring/asset-lifecycle.md)が所有する。Runtime Packageは`DerivedArtifactManifestV1`を再定義せず、World RootまたはWorld Sectionというtagged artifact subjectとartifact roleを解決してpayloadを読む。
 
 本書はtarget review Contractであり、Package reader、binary format、loader、section streamingがcurrentにactiveであることを意味しない。current化にはRuntime ECS正本化ChangeSet、Package Ownerのdefinition migration、complete／zero-verified Consumer Inventory、Compatibility Change、Owner reference migration manifest、source／target Foundation Definition Closure、全Evidence Requirementのpass satisfaction binding、qualification evidenceが同一closureで必要である。
+
+### 1.1 Runtime Entry package closure
+
+```text
+RuntimeEntryPackageV1
+  package_version: 1
+  package_id: StableId
+  package_revision: positive uint64
+  source_project_revision_ref: ProjectRevisionRefV1
+  runtime_entry_ref: DocumentRef<RuntimeEntryPointDocumentV1>
+  runtime_entry_semantic_hash: RuntimeEntryPointSemanticHashV1
+  runtime_entry_presentation_binding_ref:
+    RuntimeEntryPresentationBindingRefV1 | null
+  runtime_entry_presentation_binding_hash: SHA-256 | null
+  entry_kind: world | ui | headless
+  entry_branch_closure_hash: SHA-256
+  target_profile_ref: TargetProfileRefV1
+  contract_set_ref: ContractSetRefV1
+  catalog_ref: ArtifactCatalogRefV1
+  simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
+  game_clock_domain_profile_ref: GameClockDomainProfileRefV1
+  physics_substep_activation_binding_ref:
+    PhysicsSubstepActivationBindingRefV1 | null
+  world_package_ref: RuntimePackageRefV1 | null
+  ui_root_screen_definition_ref: UiScreenDefinitionRefV1 | null
+  ui_dependency_closure_hash: SHA-256 | null
+  startup_system_closure_hash: SHA-256 | null
+  package_root_hash: SHA-256
+
+RuntimeEntryPackageRefV1
+  package_version: positive uint32
+  package_id: StableId
+  package_revision: positive uint64
+  runtime_entry_semantic_hash: RuntimeEntryPointSemanticHashV1
+  entry_branch_closure_hash: SHA-256
+  package_root_hash: SHA-256
+```
+
+`runtime_entry_ref`のDocument content hashと`runtime_entry_semantic_hash`、Project Compile Manifestの`entry_branch_closure_hash`、Target、Contract set、Catalogはbyte equalityでなければならない。`package_root_hash`はASCII `MIRAKAN_RUNTIME_ENTRY_PACKAGE_V1`と自身を除く全FieldのMCD canonical bytesをlength framingして計算し、Build日時、path、display name、runtime handleを含めない。Cadence／Clock Domain／optional Physics Substep Bindingは[Scheduling／Lifetime](scheduling-lifetime.md)の選択済みexact refへ解決する。
+
+branch validationは次へ固定する。
+
+| `entry_kind` | Presentation Binding二Field | `world_package_ref` | UI二Field | `startup_system_closure_hash` |
+|---|---|---|---|---|
+| `world` | Project State §3.1.1.1のatomic activation後にBinding選択時だけexact ref＋hash、Bindingなしは両方null | exact一件 | Binding present時だけexact `ui_root_screen_definition_ref`＋`ui_dependency_closure_hash`、Binding nullなら両方null | startup systemが1件以上の時だけexact closure hash |
+| `ui` | 両方null | null | Runtime Entryのexact `ui_document_ref`から作る`ui_root_screen_definition_ref`＋`ui_dependency_closure_hash` | startup systemが1件以上の時だけexact closure hash |
+| `headless` | 両方null | null | 両方null | exact startup closure hash一件 |
+
+Presentation Binding二FieldとUI二Fieldはそれぞれall-nullまたはall-presentで、worldでは両groupのpresent／nullが一致しなければならない。Binding ref／hash、Project Compile ManifestのBinding ref／hash、Binding内Runtime Entry ref／semantic hash、root UiDocument ref／content hashをbyte equalityで検証する。`ui_root_screen_definition_ref`はexact UiDocument ref／content hashとNavigation Policyを束縛したcompiled `UiScreenDefinitionV1`、`ui_dependency_closure_hash`は同Documentから到達するStyle／Localization／Font／Asset Catalog dependency集合へ解決する。これらをAsset Lifecycleの`ArtifactSubjectRefV1`へ未登録subject kindとして偽装しない。headlessへ空startup closureを作る、UI-onlyへ空World packageを作る、V1 worldの`ui_document_ref`をnon-nullにする、world UIをdependency blobとしてWorld binaryへ隠す、missing fieldをCatalogや表示名から補完することを禁止する。World branch内側の`RuntimePackageV1`と外側の`RuntimeEntryPackageV1`は別のID／hashを持ち、相互のRef型を代用しない。
+
+Runtime Entry transitionとContinueは常に外側`RuntimeEntryPackageRefV1`を参照する。ECS World constructionと`RuntimeWorldSaveRecordSetV1`だけがworld branch内側`RuntimePackageRefV1`を参照できる。これによりTitle／ResultのUI-only branchとheadless workflowはWorld Root imageなしにload／validate／publishできる。
 
 ## 2. World artifactの境界
 
@@ -265,6 +316,8 @@ loader／capacity qualification receiptは、同じCandidate、Target、Contract
 5. Package、ECS、Persistence、Asset Lifecycle間にraw pointer、live handle、synthetic Asset ID、old aliasを渡さない。
 6. source-preserving recookが旧Package bytesに依存せず、Catalog／dependency／qualification closureをread-backできる。
 7. Consumer InventoryのPackage／distribution scopeと全Evidence Requirementのpass fulfillment、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じclosureへexact解決する。
+8. `RuntimeEntryPackageV1`のworld＋target Presentation Binding UI、world Bindingなし、UI-only、headless四branchをround-tripし、branch外field、Binding group／UI groupのpresent差、entry／Binding／closure／Target／Catalog hash差、UI-only／headlessへの偽World、V1 world `ui_document_ref`非nullを各一原因でrejectする。
+9. Runtime Entry transitionとContinueが外側`RuntimeEntryPackageRefV1`、ECS constructionとWorld Saveが内側`RuntimePackageRefV1`だけを受理し、Ref型の相互代用をrejectする。
 
 ## 9. 非目的
 

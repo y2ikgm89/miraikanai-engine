@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: Architecture文書の識別・状態・inventory・一意所有、Architecture ChangeSet、Definition Migration binding、正本責務移管、AI向けArchitecture Explain projection、Architecture文書の分割・統廃合規則
 - 非正本範囲: Product capabilityの成熟度、MCD／Operation activation、実装Taskの順序、各DomainのSchema・固定値・runtime挙動、AIの認可・実行route。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
+- 依存: [AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. 結論

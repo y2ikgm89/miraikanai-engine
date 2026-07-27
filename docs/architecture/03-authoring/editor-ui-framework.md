@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: MirakanUi Core、Editor Shell、Widget／Layout／Style、Event／Focus／Command、UI Rendering、Window／Dock、Text／IME、Semantic Tree、Accessibility bridge、UI ownershipと検証
 - 非正本範囲: Project transaction、Workspace journey、Asset operation、Gameplay model、外部Tool・SDK・Libraryの固定値、Runtime／Rendering／Platform内部。各Owner文書を参照する
-- 依存: [文書体系再編Decision](../decisions/2026-07-21-document-system-restructure.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 依存: [Product Plan](../00-product/product-plan.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 外部根拠検証日: 2026-07-26
 
 ## 1. 結論

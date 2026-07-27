@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: optional Scenario／Stage Feature、`StageDefinitionV1`、Stage Scope、completion tagged rule、transition、Save／Replay、AI Operation、fixture
 - 非正本範囲: World／Scene／Cell、Runtime scheduling、Game Flow、Combat／Encounter、Save storage、Replay transport、Product roadmapは各Ownerを参照
-- 依存: [Pack Contract](pack-contract.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](../03-authoring/project-state.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[World](../06-rendering/world.md)
+- 依存: [Pack Contract](pack-contract.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](../03-authoring/project-state.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[World](../06-rendering/world.md)
 - 外部根拠検証日: 2026-07-23
 
 ## 1. 結論
@@ -372,11 +372,22 @@ StageTransitionRequestV2
 
 UI Document、headless startup systems、World ref、AnchorをStage destinationへ直接持たせず、すべてRuntime EntryまたはWorld-owned `SpatialTransitionDestinationV1`のcompile済みclosureを通す。`runtime_entry`はworld entry全体への非spatial遷移、`world_space`は同じworld entryに加えてexact spatial destinationを持つ遷移、`ui`と`headless`は各entry kind専用であり、六branchの受理集合は相互排他的である。`world_space`はruntime entryが参照するWorldとspatial destinationのWorldがexact equalityであること、entry selectorが現在Targetを含むこと、World／Topology／Edge／Space／Anchor version／hashが一致することをactivation前に検証する。`ui`／`headless`もentry kindを検証し、Stageがstartup closureを再構成しない。
 
-`transfer_subject_refs[]`はregistered typed subjectだけを受理し、display roleやowner推測でPlayer／Partyへ変換しない。destinationがWorld Spaceの場合は[World](../06-rendering/world.md)のgeneric spatial transition port、別Stageの場合は`StageActivationPortV1`を使う。いずれのbranchもsealed transition payloadを[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)のregistered `BoundaryDeliveryContractV1`へ渡し、次のeligible `T00_BoundaryApply`で適用する。Stage側にT40／Motion Executor／Locomotion dependencyを追加しない。
+`transfer_subject_refs[]`はregistered typed subjectだけを受理し、display roleやowner推測でPlayer／Partyへ変換しない。destinationごとのPort接続を次へ固定する。
 
-target dependency不足、stale precondition、unknown destination、subject incompatibilityではpartial activationせず、source Stageとlast-valid World generationを維持する。Loading progress／cancel／retryの表示契約はWorld／Runtimeのgeneric Loading projectionを参照し、Stage outcomeをLoading UIから推測しない。
+| destination kind | exact接続 |
+|---|---|
+| `stage` | current active Runtime Entry／World closureとdestination Stageがcompatibleな場合だけ`StageActivationPortV1` |
+| `runtime_entry | ui | headless` | [Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)の`RuntimeEntryTransitionPortV1`。Stage request／policy refをtrigger、`transfer_subject_refs[]`を同名typed fieldとして渡す |
+| `world_space` | destination Runtime Entryがcurrent active entryとexact一致する場合はWorldのgeneric spatial transition port。異なる場合はexact World spatial destinationをtyped `destination_activation_payload`として`RuntimeEntryTransitionPortV1`へ渡し、destination World validatorとRuntime stagingの両方がpassした場合だけbranch publish時に適用 |
+| `session_end` | Runtime Session ownerのtyped stop request。Stage／World／UIがprocess終了を直接実行しない |
 
-qualificationは六kindを各一件round-tripし、`runtime_entry`はworld／spatialなしだけを検証する。negative fixtureはruntime_entryへのui／headless entryまたはspatial ref、discriminator外Field、Requestへのinline destination、Policy hash mismatch、Runtime Entry payload／Document hash mismatch、ui／headless entry kind mismatch、world_spaceのnon-world entry、spatial type ref kind／version／Contract set mismatch、required anchor欠落、stale World／Topology／Space／Edge／Anchor、spatial destination hash mismatch、session_end payloadを各単独原因で拒否し、source Stage／World／Project revisionを不変にする。
+`runtime_entry | ui | headless`でStageがUI Document、World ref、startup systems、Packageを再構成せず、Policyが持つexact Runtime Entry ref／semantic hashから`RuntimeEntryPackageRefV1`とbranch closureを解決する。`world_space`のactivation payload schema／ref／hashはall-presentで、generic Runtime transition schemaへWorld／Anchor fieldを追加しない。別Stageまたは同一entry内spatial branchはsealed transition payloadをregistered `BoundaryDeliveryContractV1`へ渡し、次のeligible `T00_BoundaryApply`で適用する。Stage側にT40／Motion Executor／Locomotion dependencyを追加しない。
+
+target dependency不足、stale precondition、unknown destination、subject incompatibility、Runtime Entry Package／branch closure不一致、World activation payload不正ではpartial activationせず、source Stage、active Runtime Entry branch、last-valid World／UI generationを維持する。Loading progress／cancel／retryの表示契約はWorld／Runtimeのgeneric Loading projectionを参照し、Stage outcomeをLoading UIから推測しない。
+
+qualificationは六kindを各一件round-tripし、`runtime_entry`はworld／spatialなし、`ui | headless`は対応Runtime Entry transition、`world_space`はsame-entry World portとcross-entry activation payloadの両branchを検証する。negative fixtureはruntime_entryへのui／headless entryまたはspatial ref、discriminator外Field、Requestへのinline destination、Policy hash mismatch、Runtime Entry payload／Document hash mismatch、UI／headless entry kind mismatch、outer Entry Package／branch closure mismatch、world_spaceのnon-world entry、spatial type ref kind／version／Contract set mismatch、activation payload三Fieldのnullability差、required anchor欠落、stale World／Topology／Space／Edge／Anchor、spatial destination hash mismatch、session_end payloadを各単独原因で拒否し、source Stage／Runtime Entry／World／UI／Project revisionを不変にする。
+
+`RuntimeEntryTransitionPortV1`との接続はtarget integration dependencyであり、Scenario／Stage Pack自身の`runtime_port_refs[]`へRuntime ownerのPortを複写せず、current Pack Manifest、Operation／Service／Provider／MCP inventoryを変更しない。Runtime ownerのatomic activation前は当該destination branchをavailableと報告せず、同名のPack-private transitionへfallbackしない。
 
 ## 12. Save identityとmigration
 
