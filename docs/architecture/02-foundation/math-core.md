@@ -481,7 +481,7 @@ Math単体のns改善だけでProduction採用しない。Runtime規約のRefere
 | M3 Mobile | Android arm64 Vulkan、Apple arm64 Metal、NEON／alignment／thermal |
 | M4 Optimized backend | BackendごとのTarget variant、Before／After、fallback |
 
-WARP／HLSL Shader conformanceはD3D12 backend実装（`wp.runtime.d3d12-backend`）を前提とするためM0では実行しない。glTFのmath-level TRS／matrix goldenはM0で実行し、Importer側のconformance closureはAsset Import実装後のentry条件とする。未合格backendはCapability Manifestへ掲載せず、portable scalar referenceを維持する。
+WARP／HLSL Shader conformanceはD3D12 backend実装（`wp.rendering.d3d12-backend`）を前提とするためM0では実行しない。glTFのmath-level TRS／matrix goldenはM0で実行し、Importer側のconformance closureはAsset Import実装後のentry条件とする。未合格backendはCapability Manifestへ掲載せず、portable scalar referenceを維持する。
 
 ## 14. 設計依存と受入条件
 

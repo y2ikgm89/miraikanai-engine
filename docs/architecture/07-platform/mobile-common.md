@@ -71,6 +71,10 @@ MobileCapabilitySignatureV1
 
 各値はEngine-owned enum／valueへ正規化し、vendor objectやdisplay名を永続化しない。Android／Apple ownerは観測値の写像だけを所有し、このfield setを再定義しない。旧`CapabilitySignature`、`PlatformCapabilitySignature`、別綴りのalias、union受理は行わない。
 
+`MobileCapabilitySignatureV1`はPlatform観測の正本であり、[Render Graph §12](../06-rendering/render-graph.md#12-関連契約の配置)の`RendererCapabilitySignatureV1`の別名、基底型、union memberではない。Render Graph ownerはexact Mobile署名ref、`TargetProfileRef`、Toolchain ref、Vulkan／Metal Backend Adapter ID、Renderer／Shader artifact refをsource bindingとし、`gpu_capabilities`、graphicsに必要な`device_identity`の正規化部分、`memory_class`、`display_capabilities`だけをRenderer署名へ決定論的に写像する。OS／CPU／input／audio／thermal fieldは複写せず、thermalは§7の動的なMobile選択policy入力として分離する。
+
+Source ref、content hash、Backend Adapter generationのいずれかが変われば旧Renderer署名、`RendererCapabilityProjectionV1`、`ResolvedRendererProfileV1`をstaleにする。Android／Apple ownerは観測値を供給するだけでRenderer fieldやprofileを再定義せず、Renderer ownerは欠落featureを端末名から推測しない。Authoring／AIはMobile署名本体とdevice identityを直接読まず、Render Graph ownerのredacted `RendererCapabilityProjectionV1`を消費する。
+
 Store要件の時点依存dataは共通参照schemaだけを持つ。
 
 ```text

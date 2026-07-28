@@ -128,7 +128,7 @@ Architecture Decision RecordはOwner文書と異なるlifecycleを持ち、`revi
 
 ### 5.1 現在の状態
 
-2026-07-27時点で、`ArchitectureInventoryV1`を生成するTool、Schema、immutable Inventory artifactはRepositoryに存在しない。
+2026-07-28時点で、`ArchitectureInventoryV1`を生成するTool、Schema、immutable Inventory artifactはRepositoryに存在しない。
 
 したがって、[Architecture Index](../README.md)は手動管理のnavigationであり、生成済みprojectionではない。Indexは文書件数、Owner、状態、依存の正本ではない。現存ファイルと各Headerがcurrent review対象である。
 
@@ -137,6 +137,12 @@ Architecture Decision RecordはOwner文書と異なるlifecycleを持ち、`revi
 Inventoryを導入する場合は、少なくとも次を実ファイルから決定論的に生成する。
 
 ```text
+ArchitectureInventoryV1
+  schema_version
+  source_repository_revision
+  documents[]: sorted ArchitectureDocumentRecord
+  inventory_content_hash
+
 ArchitectureDocumentRecord
   document_id
   canonical_path
@@ -149,6 +155,53 @@ ArchitectureDocumentRecord
 ```
 
 Generatorが存在しない間、README、Markdown表、手入力hashをInventoryとして扱わない。「生成済み」「materialized」「exact projection」という表現も使用しない。
+
+### 5.3 Architecture Explain Projection
+
+`ArchitectureExplainProjectionV1`は、AI、Editor、人間のreviewerが同じOwner、文書状態、実装状態、規範依存、consumer関係をbounded queryで確認するためのread-only projectionである。本書がprojection contractを所有し、各Domain Ownerは自分が所有するsubjectとexact fragmentを供給する。Product Planは利用目的を定めるが、Schema、Owner関係、文書状態を再定義しない。
+
+将来の最小contractは次である。
+
+```text
+ArchitectureExplainProjectionV1
+  schema_version
+  source_repository_revision
+  source_inventory_ref { source_repository_revision, inventory_content_hash }
+  query_scope { document_ids[], subject_ids[], fragment_refs[] }
+  document_record_refs[] { document_id, source_content_hash }
+  subject_records[] {
+    subject_id
+    subject_kind
+    phase_or_lifetime_refs[]
+    evidence_requirement_refs[]
+  }
+  owner_relations[] {
+    subject_id
+    owner_document_id
+    owner_fragment_ref
+  }
+  consumer_relations[] {
+    subject_id
+    consumer_document_id
+    relation_kind
+  }
+  normative_dependency_edges[] { source_document_id, target_document_id }
+  related_document_edges[] { source_document_id, target_document_id }
+  state_records[] {
+    document_id
+    document_status
+    implementation_status
+    verification_status
+  }
+  omitted_ranges[]
+  next_cursor: optional
+  invalidation_condition = source_inventory_content_hash_changed
+  projection_content_hash
+```
+
+これはquery型Projectionであるため、全Repositoryを含まない応答は`omitted_ranges[]`と`next_cursor`を必須にし、欠落を「存在しない」と表現しない。全refは同じ`ArchitectureInventoryV1` content hashへ閉じ、Ownerはexact一件、規範依存はDAG、fragmentは§4の解決規則に合格しなければならない。`phase_or_lifetime_refs[]`と`evidence_requirement_refs[]`はOwner文書またはその正本Registryに存在するexact refだけを持ち、表示見出しや自然言語から生成しない。説明文から型、Owner、実装状態、Capability activationを推測して補完せず、native handle、credential、Project content、AI authorityを含めない。
+
+Projectionは説明と探索だけに使い、Architecture変更、Project mutation、Operation dispatch、Approval、Capability activationの権限を付与しない。source Inventory hashが変わったProjectionはstaleとして拒否する。2026-07-28時点で`ArchitectureExplainProjectionV1`のSchema、Generator、Artifact、query Toolは存在せず、`ArchitectureInventoryV1`と同様に未materializeである。
 
 ## 6. 一意所有
 
