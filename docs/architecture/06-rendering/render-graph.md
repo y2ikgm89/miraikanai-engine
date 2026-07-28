@@ -7,13 +7,15 @@
 - 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、visibility／geometry execution、lighting pipeline profile、anti-aliasing／temporal execution、Renderer固有failure／qualification
 - 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
 ## 1. 結論と所有境界
 
 RendererはProject C++、Gameplay、Editor、AIからnative API object、command list、descriptor index、GPU address、shader binaryを隔離し、Engine-owned handleとimmutable input snapshotだけを受ける。Render Graphはpass、resource、queue、barrier、alias、temporal history、submissionを一意に計画し、Backend Adapterはその計画をnative APIへ写像する。
+
+本書でいう「RHI相当境界」は、`CanonicalRenderExecutionPlanV1`を受ける`GraphicsDevicePort`と、その下にあるprivate Backend Adapterの境界を説明する比較用語である。`RHI`という公開Module、Class、Stable ID、Project APIを別に新設せず、正本名には既存の型とModule名を使う。
 
 宣言的`RenderGraphDefinition`はresource／pass／view／dependencyだけを持ち、`render_graph` moduleがcanonical execution planへcompileする。Engine-owned Pass Templateと[Project Shader](project-shader.md)でQualification済みのTechnique ManifestだけをDefinitionへ展開し、callback外access、native barrier／queue signal、Backend objectを埋め込まない。
 
@@ -27,12 +29,44 @@ ModuleはContracts、Render Extract、Graph Compiler、Resource Registry、Pipel
 
 `GraphicsDevicePort`はadapter／device／surface Capability query、resource／view／sampler／pipeline作成、descriptor／argument binding、command allocator／buffer取得、logical barrier plan encode、queue submit／serial／completion、present／resize／device fault report、budget／residency telemetryだけを公開する。native型をPort header／MCD／Asset metadata／Project C++へ出さない。
 
+### 2.1 RHI相当境界
+
+論理計画からnative APIまでの一方向関係は次で固定する。
+
+```text
+RenderGraphDefinition
+  -> Graph Compiler
+  -> CanonicalRenderExecutionPlanV1
+  -> GraphicsDevicePort
+  -> private D3D12 | Vulkan | Metal Backend Adapter
+  -> native graphics API
+```
+
+| 境界 | 所有するもの | 禁止するもの |
+|---|---|---|
+| Render Graph／Compiler | pass・resource・dependency、canonical順序、logical queue／barrier／lifetime plan | native command、Vendor feature struct、Backend別pass追加 |
+| `GraphicsDevicePort` | Engine-owned descriptor／handle、作成・encode・submit・completion・surface・fault・telemetryの抽象操作 | Project向け描画API化、Graph意味の再解釈、native handle返却 |
+| private Backend Adapter | logical planのnative object／command／synchronization／presentationへの写像 | logical pass／resource／edgeの追加・削除・並べ替え、別TargetのCapability推測 |
+| Platform Target owner | Target Profile、Platform Capability観測、surface／lifecycle入力 | Renderer plan、resource lifetime、barrier意味の再定義 |
+
+`GraphicsDevicePort`の設計閉包は、具体的なC++ method一覧ではなく次の操作分類と不変条件で判定する。
+
+| 操作分類 | Engine入力 | Engine出力／不変条件 |
+|---|---|---|
+| Capability／surface | exact Target／Platform Capability ref、surface generation | 正規化済みCapability、generation付きsurface state |
+| resource／pipeline lifetime | closed descriptor、Engine handle、artifact hash | generation付きhandle。native objectを返さない |
+| binding／command encode | `CanonicalRenderExecutionPlanV1`、logical barrier plan、parameter block | logical planを変更しないBackend work |
+| submit／completion／present | Engine queue class、surface generation、work batch | `GpuSubmissionSerial`、typed completion／present result |
+| fault／budget telemetry | device generation、submission serial、Engine field mask | stable Renderer diagnostic、正規化済みbudget／residency。native detailはprivate attachment |
+
+PortのC++ ABI、method signature、MCD生成物、Backend実装がRepositoryに存在しない間、この表は設計境界であり実装済みinterfaceではない。AI／Editorは操作分類から未定義method名を生成せず、[Architecture Governance §5.3](../01-governance/architecture-governance.md#53-architecture-explain-projection)のread-only projectionでOwner、関係、状態を確認する。
+
 公開入力は次のinventoryに限定する。以後の節と他文書はこの表のIDだけを参照する。種別は`frame`（毎frameのimmutable入力）、`resolved`（Owner Resolverの解決済みPlan）、`cook`（Cook由来artifact）である。`AntiAliasingIntentV1`等のplanned authoring action入力は§11の正本経由であり、frame入力へ混在させない。
 
 | 公開入力 | 種別 | 正本schemaとOwner定義 |
 |---|---|---|
-| `RenderSnapshot` | frame | 本書§2.1。published simulation／world stateから抽出したimmutable frame input |
-| `ViewFamily` | frame | 本書§2.1の`RenderView`集合。同じsurface、render extent policy、AA plan、exposure familyを共有する |
+| `RenderSnapshot` | frame | 本書§2.2。published simulation／world stateから抽出したimmutable frame input |
+| `ViewFamily` | frame | 本書§2.2の`RenderView`集合。同じsurface、render extent policy、AA plan、exposure familyを共有する |
 | `ResolvedMaterialBindingV1` | frame | [Materials](materials.md) §5。`CookedMaterialArtifactGenerationRefV1`、typed Instance／Runtime Override、`MaterialBatchCompatibilityKeyV1`の解決結果 |
 | `LightSnapshotV1` | frame | [Lighting](lighting.md) §6。`ResolvedLightSet`の唯一のRenderer公開形で、`RenderSnapshot.light_snapshot`として受ける |
 | `EnvironmentPresentationSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Environment Profileと完成Artifact generationのprojection |
@@ -53,7 +87,7 @@ SnapshotはSource Stable ID、artifact generation、Transform、bounds、visibil
 
 Renderableの`RenderObjectKey`は`{renderable_type_id, pipeline_key, material_key, geometry_key, stable_render_id}`のcanonical tupleである。Transparent sortはStyleのdepth／priorityとStable IDを使い、pointer／submission orderをtie-breakにしない。
 
-### 2.1 `RenderSnapshot`と`RenderView`
+### 2.2 `RenderSnapshot`と`RenderView`
 
 ```text
 RenderSnapshot
@@ -387,6 +421,8 @@ Renderer固有diagnosticはGraph／pass／resource／ViewFamily／surface genera
 
 optimizationのAI／Editor説明は[Runtime performance／capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)の`OptimizationDecisionProjectionV1`をread-onlyで消費する。AIはnative command／barrier、resource alias、visibility buffer、GPU address、candidate selection、threshold、Receiptを変更せず、raw capture／full traceを直接解釈してselectionを補完しない。Optimization propose／select Operationは現在登録せず、§11のcurrent MCD Operation集合を増やさない。
 
+[Architecture Governance §5.3](../01-governance/architecture-governance.md#53-architecture-explain-projection)の`ArchitectureExplainProjectionV1`は、`RenderGraphDefinition -> CanonicalRenderExecutionPlanV1 -> GraphicsDevicePort -> Backend Adapter -> Target graphics API`のOwner／consumer関係、文書状態、実装状態をread-onlyに説明できなければならない。これはnative object、command stream、driver identity、Project write権限を公開する経路ではない。ProjectionとGeneratorが未materializeの現在は、本書とexact Owner linkがreview用正本であり、AI対応済みまたはtool dispatch可能とは表現しない。
+
 `RendererProviderErrorV1`は`NotInstalled | UnsupportedDevice | UnsupportedDriver | SignatureInvalid | LicenseNotApproved | VersionMismatch | MissingInput | InvalidFormat | InitializationFailed | ExecutionFailed | HistoryInvalid | SwapchainConflict | BudgetExceeded | DeviceFault`のclosed codeを持つ。AAの互換／排他／scope失敗は`AntiAliasingResolutionErrorV1`を使い、Provider障害と混同しない。Running中のProvider failureは同frameで別Providerへ差し替えずgenerationを停止し、次のLoading境界でContextを再生成する。RT／Neural failureも次frameの登録済みRaster／non-neural Graphへ切り替える。
 
 Quality fallbackは意味を明示し、resolution、optional effect、shadow execution、temporal provider、ray／neural profileの順序付き候補から選ぶ。allocation失敗時のsilent quality reduction、draw skip、default material置換を禁止する。共通backpressureとcapacity判定は[Runtime performance／capacity](../04-runtime/performance-capacity.md)へ従う。
@@ -402,6 +438,18 @@ Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfi
 2Dは`Renderer2DExecutionPlanV1`により`SpriteRendererComponentV1`または`TileChunkArtifactV1`からAsset version、bounds、layer／order／Y-sort、material instance、atlas page、mask／blend、Stable rendering IDを持つpacketを抽出する。Source rect／Tile ID配列、texture handle、native descriptor indexをSnapshotへcopyしない。
 
 `RendererCapabilitySignatureV1`はBackend、API／shader version、GPU／driver identity、feature bit、memory budget、display mode、SDK／model generation、signed artifact hashを持つ。`RendererCapabilityProjectionV1`はそのAuthoring向けredacted projectionであり、Adapter LUID、driver文字列等のnative識別子をEngine build固定のfield maskで除外した集合だけを公開する。Authoring／AI経路はSignature本体を直接読まずこのprojectionを消費する。`ResolvedRendererProfileV1`はProject要求、Target Profile、そのSignature、Qualification Receiptから一意に解決するroot外Derived projectionで、承認済みfallback順を持つ。Receipt subjectは先に固定したCapability Signature／Target artifact closureだけであり、Resolved Profile／Plan hashを含めない。`RendererOptimizationReceiptV1`は同一input trace／Profile／driver／SDKのBefore／After、capture、visual diffを結ぶ。
+
+`RendererCapabilitySignatureV1`は`WindowsCapabilitySignatureV1`または`MobileCapabilitySignatureV1`の別名、継承型、unionではない。Renderer ownerがexact `platform_capability_signature_ref`、`target_profile_ref`、`toolchain_profile_ref`、`backend_adapter_id`、`renderer_artifact_refs[]`をsource bindingとして保持し、次の規則で決定論的に生成する。
+
+| Source | Renderer署名への写像 |
+|---|---|
+| Target Profile | 許可Backend、既定Renderer profile、Target identityをexact refで束縛 |
+| Platform Capability Signature | GPU／driver／graphics feature／shader capability／memory budget／display capabilityの正規化済み観測だけを写像 |
+| Toolchain／Provider lock | API／shader version、SDK／model generation、Backend artifact requirementを写像 |
+| signed Renderer／Shader artifact manifest | content hashとsignature statusをexact artifact refとして写像 |
+| OS／CPU／input／audio／thermal／privacy field | Renderer選択に明示的に必要な正規化fieldを除き署名へ複写しない |
+
+Source ref、source content hash、Backend Adapter generationのいずれかが変われば旧Renderer署名、`RendererCapabilityProjectionV1`、`ResolvedRendererProfileV1`をstaleにする。Qualification Receiptは完成したRenderer署名へ束縛するdownstream evidenceであり、署名生成の入力へ戻さない。Platform ownerはRenderer field setを再定義せず、Renderer ownerはPlatform署名に存在しない観測値を推測しない。
 
 Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`／`ShadowGraphV1`と承認済み`ProjectShadowTechniqueV1`は解決後の`ResolvedShadowPlanV1`だけをRendererへ渡す。`ProjectShadowTechniqueV1`は`ProjectShaderTechniqueV1`のexact specializationで、`injection_port_id = shadow`、`technique_kind = raster | compute | ray | mixed`、必須出力を`shadow_attenuation_linear`とする。`ShadowTechniquePortV1`は[Project Shader](project-shader.md)の`ProjectShaderTechniquePortV1`の`port_id = shadow` entryであり、同じSchemaを使う別名の契約を作らない。このentryが入力semantic、出力、Layer、history、ordering boundaryを固定する。`ShadowGraphV1`はclosed Pass Templateへoffline compileし、native command／barrier、runtime shader compile、未宣言accessを禁止する。
 
@@ -440,6 +488,16 @@ AA metricの算出仕様は`AntiAliasingVisualReceiptV1`のDomain projectionと�
 Qualificationはportable raster referenceを必須とし、次のDomain fixtureを持つ。
 
 algorithm optimization candidateは同じGraph Definition、Render Snapshot、ViewFamily、Target Profile、Capability Signature、driver、Toolchain lock、fixture、input traceで比較し、[Runtime performance／capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)の`OptimizationDecisionProjectionV1`へread-onlyに投影する。最低metricはCPU／GPU P50／P95／P99、command／indirect argument count、visible-set equality／false occlusion、transient logical／physical peak、alias reuse byte、barrier／validation error、history invalidation数である。Target別に一つのprimaryだけを選び、別Target結果から推測しない。
+
+Backend qualificationは同じlogical conformanceを三Backendへ要求し、API固有の最適化量ではなく意味同等性を先に判定する。
+
+| Backend | Platform source | 必須mapping／evidence |
+|---|---|---|
+| D3D12 | [Windows](../07-platform/windows.md)の`WindowsCapabilitySignatureV1` | `CanonicalRenderExecutionPlanV1`からEnhanced Barriers、queue、resource、surfaceへ写像し、OPTIONS12 positive／negative、validation、artifact hashを同一Renderer署名へ束縛 |
+| Vulkan | [Android](../07-platform/android.md)が生成する[Mobile Common](../07-platform/mobile-common.md)の`MobileCapabilitySignatureV1` | 同じlogical access／barrier／queue ownership／lifetimeを写像し、validation zero-error、offline shader artifact、physical-device resultを同一Renderer署名へ束縛 |
+| Metal | [Apple](../07-platform/apple.md)が生成する[Mobile Common](../07-platform/mobile-common.md)の`MobileCapabilitySignatureV1` | 同じlogical resource／hazard／queue／completion／surface lifetimeを写像し、validation、offline library artifact、physical-device resultを同一Renderer署名へ束縛 |
+
+Backend固有render-pass merge、memoryless／tile optimization、native queue統合は、canonical pass／resource／dependencyと観測結果を変えず、Backend conformance Receiptで意味同等性を示す場合だけ許可する。Backend Adapterが不足するlogical featureを別pass、別format、別queueへ黙って置換しない。
 
 - Graph cycle、read-before-write、unordered write、subresource overlap、history invalidationのunit／property test。
 - 同一Graph入力からcanonical compile plan hashが一致するdeterminism test。

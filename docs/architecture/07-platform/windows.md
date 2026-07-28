@@ -48,7 +48,7 @@ WindowsDesktopTargetProfileV1
   toolchain_profile_ref
   architecture = x86_64
   executable_model = win32_full_trust
-  renderer_profile_ref
+  renderer_profile_ref = forward_plus_v1
   dpi_awareness = per_monitor_v2
   input_backend = gameinput
   audio_backend = xaudio2
@@ -75,6 +75,10 @@ WindowsCapabilitySignatureV1
 ```
 
 起動時にOS build、CPU architecture、D3D feature、SM、driver、memory budget、display、audio／input availabilityを`WindowsCapabilitySignatureV1`へ記録する。これはMobileの`MobileCapabilitySignatureV1`とは別のclosed typeであり、旧`PlatformCapabilitySignature`、旧`CapabilitySignature`、alias、別綴りを受理しない。Hard requirement不足は起動を止め、quality fallbackでTarget不足を隠さない。
+
+`target.windows.desktop@1`の既定Renderer profileは[Render Graph §8](../06-rendering/render-graph.md#8-materiallightingpost-processとの実行境界)の`forward_plus_v1`だけである。`hybrid_deferred_v1`はRenderer側のclosed candidateであっても、このTarget Profile revisionに品質Tierとのexact mappingがないため選択しない。将来選択する場合はWindows Target Profile revision、Capability条件、fallback、Target別Qualificationを同じArchitecture変更で固定し、GPU名または性能推測から暗黙選択しない。
+
+`WindowsCapabilitySignatureV1`はPlatform観測の正本であり、`RendererCapabilitySignatureV1`の別名または基底型ではない。Render Graph ownerはexact Windows署名ref、Target Profile ref、Toolchain ref、D3D12 Backend Adapter ID、Renderer／Shader artifact refから[Render Graph §12](../06-rendering/render-graph.md#12-関連契約の配置)の規則でRenderer署名を生成する。D3D feature／SM／driver／memory／display観測だけをgraphics fieldへ写像し、OS／CPU／audio／input fieldを複写しない。いずれかのsource refまたはhashが変われば旧Renderer署名と`ResolvedRendererProfileV1`をstaleにする。Authoring／AIはWindows署名本体やdriver identityを直接読まず、redacted `RendererCapabilityProjectionV1`だけを消費する。
 
 player実行環境のTarget minimum OS（Host OSとは別行のentry）、OS Support期間、累積更新要件は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows baselineを参照し、本書は固定build、取得先、更新周期を再定義しない。§8.1のminimum OS生成と§14のMinimum OS判定は、このTarget minimum OS entryだけを出所とする。
 

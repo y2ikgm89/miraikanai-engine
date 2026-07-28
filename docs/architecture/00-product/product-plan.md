@@ -9,7 +9,7 @@
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
 - 関連文書: [Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-27
+- 外部根拠確認日: 2026-07-28
 
 ## 1. Product intent
 
@@ -139,7 +139,7 @@ Priorityは影響範囲、期待ROI、意味契約の安定性、依存順を表
 
 ### 4.2 AI production understanding boundary
 
-AIがGame制作時に理解する標準経路は、巨大なMarkdown、全Project dump、live native objectを直接読む方式ではなく、Ownerが正規状態から導出したbounded typed Projectionと登録済みsemantic toolである。AIへ渡せる制作文脈は、目的別に`ArchitectureExplainProjectionV1`、`GameUnderstandingClosureV1`、`AiTaskContextCapsuleV1`、`EditorContextSnapshotV1`、`OptimizationDecisionProjectionV1`へ分割し、各Projectionはschema version、source revision、exact ref／hash、invalidation conditionを持つ。query型Projectionだけがomitted rangeとcursorを明示し、complete型Projectionは欠落Fieldを許さない。Project Sourceと設計文書の必要な抜粋はread-only inputとして利用できるが、Projectionを補完する権威、暗黙default、直接write対象にはしない。
+AIがGame制作時に理解する標準経路は、巨大なMarkdown、全Project dump、live native objectを直接読む方式ではなく、Ownerが正規状態から導出したbounded typed Projectionと登録済みsemantic toolである。AIへ渡せる制作文脈は、目的別に[Architecture Governance §5.3](../01-governance/architecture-governance.md#53-architecture-explain-projection)所有の`ArchitectureExplainProjectionV1`、`GameUnderstandingClosureV1`、`AiTaskContextCapsuleV1`、`EditorContextSnapshotV1`、`OptimizationDecisionProjectionV1`へ分割し、各Projectionはschema version、source revision、exact ref／hash、invalidation conditionを持つ。query型Projectionだけがomitted rangeとcursorを明示し、complete型Projectionは欠落Fieldを許さない。Project Sourceと設計文書の必要な抜粋はread-only inputとして利用できるが、Projectionを補完する権威、暗黙default、直接write対象にはしない。
 
 ```text
 Canonical Project／Contract／Evidence
@@ -154,7 +154,7 @@ Canonical Project／Contract／Evidence
 
 Toolの表示、Provider schema適合、AIの説明成功はAuthorityを付与しない。変更はactiveなOperationが生成したChangeSetだけを通し、raw file edit、任意`set_property`、native handle、memory、shell、`eval`、汎用Python、無制限Project traversal、AI自身によるthreshold緩和／candidate昇格を禁止する。Commit後は新しいProject revision、semantic hash、必要なtest／Receiptをread-backし、要求した変更と一致しなければ成功にしない。現在の設計文書が`review`でOperation集合またはCapabilityが`not_activated`の領域は、AIが説明できても制作利用可能とは扱わない。
 
-current closureではimmutable `ArchitectureInventoryV1`、Architecture Explain Projection、optimization説明用Eval Fixture／Receipt、該当`AiTaskContextCapsuleV1`、optimization explain／propose／select Operationが未materializeまたは未Activationである。したがって§4.2はAI制作経路の目標契約であって現在利用可能な機能一覧ではない。現在状態は[Governance Migration Proposals §2.1](../appendices/governance-migration-proposals.md#21-current-readiness)、Capsule schemaとbinding条件は[AI Security／Approval §5](../01-governance/ai-security-approval.md#5-beginner-questionsassumptions理解条件)、optimization ProjectionとEval条件は[Performance／Capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)を正本とし、本書で件数またはActivationを上書きしない。
+current closureではimmutable `ArchitectureInventoryV1`、`ArchitectureExplainProjectionV1`、optimization説明用Eval Fixture／Receipt、該当`AiTaskContextCapsuleV1`、optimization explain／propose／select Operationが未materializeまたは未Activationである。したがって§4.2はAI制作経路の目標契約であって現在利用可能な機能一覧ではない。Architecture Inventory／Explain Projectionの状態と契約は[Architecture Governance §5](../01-governance/architecture-governance.md#5-inventoryとindex)、移行全体のreadinessは[Governance Migration Proposals §2.1](../appendices/governance-migration-proposals.md#21-current-readiness)、Capsule schemaとbinding条件は[AI Security／Approval §5](../01-governance/ai-security-approval.md#5-beginner-questionsassumptions理解条件)、optimization ProjectionとEval条件は[Performance／Capacity §8.4](../04-runtime/performance-capacity.md#84-algorithm-optimization-candidate-qualification)を正本とし、本書で件数またはActivationを上書きしない。
 
 Target／ProfileごとのPrimary candidateは、qualified selectionが存在する場合にexact一件、存在しない場合は0件である。reference implementationはsemantic oracle、または明示的に別Qualificationされたsemantic fallbackになり得るが、旧経路と新経路の暗黙併載、deprecated reader、alias、silent fallback、runtime自動切替を正当化しない。benchmark candidateはdispatch不能である。選択を変える場合はprofile／algorithm revisionを新設し、public semanticsが変わる場合は新しいcontract versionとして扱う。Source dataは保持するが、旧挙動を温存する互換layerは作らない。
 
@@ -278,7 +278,7 @@ Network、Account、Provider、Store loginがなくてもTitleからResultまで
 | `team_assumption_state` | ユーザー入力前は`unfixed`。人数、役割、AI利用量を推測しない |
 | `planning_capacity` | calendar期間を出さず、相対sizeと依存DAGだけを保持する |
 | `phase_estimate` | elapsed timeではなく相対size `S / M / L / XL` |
-| `critical_path` | Control Plane → ECS E0 →（Headless AuthoringとD3D12を並行）→ Editor Runtime → Genre非依存Core holdout → compact 2D RPG → Authoring MVP-A。Project Source ActivationとShooter technical qualificationは独立lane |
+| `critical_path` | Control Plane → ECS E0 → Headless Authoring → Render Graph core／D3D12 → Editor Runtime → Genre非依存Core holdout → compact 2D RPG → Authoring MVP-A。Phase 1のHeadless Authoring exitはPhase 2 exitより前に閉じる。閉包後はRender Graph core／D3D12と、Phase 2内のPlatform／UI統合を並行できる。Project Source ActivationとShooter technical qualificationは独立lane |
 | `scope_reduction_order` | C2 advanced rendering → non-RPG Reference coverage → 3D technical Reference → mobile shipping。MVP-AのGenre非依存Core holdoutとRPG Reference contractは削除しない |
 | `risk_owner` | `mirakan.arch.product-plan` |
 | `review_cadence` | 各Phase exitで更新し、仮定を同じCandidateの実測Receiptへ差し替える |
@@ -654,6 +654,16 @@ Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較E
 | Unreal Engine 5.8 | Experimental Unreal MCPはEditor内のToolset Registryから型付きtoolを公開し、Actor／Component／Assetはreflection／Asset Registry／Editor APIで扱う。Python公式資料もOS file APIによるAsset操作を禁止する | reflection-backed projection、登録tool、Editor API、commit後read-back | 任意property setter、汎用Python／console／file edit、localhostであることを認証や承認の代用にすること |
 | Godot 4.x | Node／Scene／Resourceとtext形式`.tscn`、`EditorPlugin`／`ClassDB`により構造が観測可能で差分化しやすい。確認した公式資料にはUnity AI／Unreal MCP相当の内蔵AI authoring authorityはない | 透明でdiff可能なcanonical source、型／UID／NodePathを保つEditor-owned validation | textであることを安全性の証明にすること、subresource／順序／UID制約を無視した直接置換 |
 
+Rendering abstractionはAI Authoringとは別の比較軸である。同じ三Engineの公式資料から、上位render graph／pipelineと低位graphics abstraction／driverを分離する原則だけを採る。
+
+| Engine | 公式に確認したRendering境界 | Miraikanaiでの対応／差分 |
+|---|---|---|
+| Unreal Engine 5.8 | RHIはplatform graphics API直上の薄い低位層で、RDGがpass／resource dependency、lifetime、barrier、parallel executionを上位で管理する | `GraphicsDevicePort`＋private Backend AdapterをRHI相当境界、`CanonicalRenderExecutionPlanV1`を上位Graph正本にする。Backendによるlogical pass追加とProject callbackからのnative commandを許さない点はさらに狭い |
+| Unity 6 | SRP Coreがplatform graphics APIを扱う共通部品を提供し、URP Render Graphではpass入力／出力を宣言してcommand生成を実行関数へ分ける | 再利用可能なpipeline／backend分離とresource宣言を採る。Project scripting APIをGraphics Device境界にせず、Qualification済みPass Templateへ閉じる |
+| Godot 4.x | Renderer methodの下にVulkan／D3D12／Metalを抽象化する`RenderingDevice`があり、rendererとgraphics driverを分離する | Engine handleとprivate driverの分離を採る。Renderer profile、Target Profile、Capability Signatureを別契約にし、Backend名から品質profileを推測しない |
+
+Miraikanaiの正本構造は[Render Graph §2.1](../06-rendering/render-graph.md#21-rhi相当境界)であり、外部EngineのClass名、RHI method、command list、feature-level値を互換APIとして導入しない。
+
 scene／screen切替についても公式資料から次の責務分離だけを採用判断へ使う。
 
 | Engine | 公式に確認した切替モデル | Miraikanaiでの対応／差分 |
@@ -685,6 +695,11 @@ scene／screen切替についても公式資料から次の責務分離だけを
 - [Unreal Engine 5.8 Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)
 - [Unity 6 Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)
 - [Godot 4.5 GDExtension](https://docs.godotengine.org/en/4.5/tutorials/scripting/gdextension/what_is_gdextension.html)
+- [Unreal Engine 5.8 Graphics Programming Overview／RHI](https://dev.epicgames.com/documentation/unreal-engine/graphics-programming-overview-for-unreal-engine)
+- [Unreal Engine 5.8 Render Dependency Graph](https://dev.epicgames.com/documentation/en-us/unreal-engine/render-dependency-graph-in-unreal-engine)
+- [Unity 6 Scriptable Render Pipeline Core](https://docs.unity3d.com/ja/6000.0/Manual/com.unity.render-pipelines.core.html)
+- [Unity 6 URP Render Graph](https://docs.unity3d.com/ja/current/Manual/urp/render-graph-write-render-pass.html)
+- [Godot 4.7 Internal rendering architecture](https://docs.godotengine.org/en/4.7/engine_details/architecture/internal_rendering_architecture.html)
 - [Unity Hub／Editor language selection](https://docs.unity.com/en-us/hub/add-editor-language)
 - [Unreal Engine Localization Overview](https://dev.epicgames.com/documentation/en-us/unreal-engine/localization-overview-for-unreal-engine)
 - [Godot EditorSettings language／property-name localization](https://docs.godotengine.org/en/latest/classes/class_editorsettings.html)

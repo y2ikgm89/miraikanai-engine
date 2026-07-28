@@ -9,7 +9,7 @@
 - 正本範囲: Evidence envelope、Receipt、AI Eval、Dataset、grader、release evidence、CI fixtureのreview候補詳細
 - 非正本範囲: Verification lifecycle、不変条件、Evidence採否、freshness、failure意味、AI authorization。親Ownerと各Domain Ownerが決定する
 - 規範依存: [親Owner](../01-governance/ai-verification-provenance.md)
-- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -156,7 +156,7 @@ ArchitectureComprehensionFixtureV1
 - Unity、Unreal Engine、GodotのScene／Level／Object／Component等を含む入力を`ExternalEngineConceptResolutionV1`で一意なcanonical conceptへ解決するか、必要な質問へ戻す。
 - 複数Owner候補、矛盾するauthority参照、stale revision、`omitted_ranges`、欠落Evidence、存在しないID／phaseを含み、断定またはChangeSet化せず停止できるかを問う。
 
-各Caseの期待値は`ArchitectureMetadataV2`、current `DocumentLifecycleRecordV1` Head、document relation registry、MCD Contract registry、Source StableIdからauthorityを解決し、`ArchitectureExplainProjectionV1`のOwner／phase／lifetime／Evidenceと一致させる。graderはcanonical ID、Owner、phase／lifetime、Evidence closure、質問要否をcode-basedに比較し、自然言語表現の一致を正答条件にしない。
+各Caseの期待値は同じsource repository revisionの`ArchitectureInventoryV1`、Owner文書のexact fragment、MCD Contract Registry、Source StableIdからauthorityを解決し、[Architecture Governance §5.3](../01-governance/architecture-governance.md#53-architecture-explain-projection)所有の`ArchitectureExplainProjectionV1`にある`owner_relations[]`、`subject_records[].phase_or_lifetime_refs[]`、`subject_records[].evidence_requirement_refs[]`と一致させる。graderはcanonical ID、Owner、phase／lifetime、Evidence closure、質問要否をcode-basedに比較し、自然言語表現の一致を正答条件にしない。Inventory、Owner fragment、Registryのいずれかが未materializeならFixtureを実行可能と扱わない。
 
 | Architecture comprehension metric | Hard gate |
 |---|---:|
