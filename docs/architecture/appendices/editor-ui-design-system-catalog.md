@@ -324,7 +324,7 @@ Tree／Asset／Tableの`scrollbars` anatomy slotとDiagnosticsのscrollbarはこ
 
 #### 15.6.1 `widget.property.property-row@1`
 
-`property-row@1`はInspector、Import Inspector、Level Form等で一つの`canonical_field_ref`を表示・編集・reviewする`composite` Patternである。Panelごとにlabel列、validation、mixed value、proposal、read-only、Commit境界を再実装しない。rowはProject valueの正本を所有せず、current read projection、local draft、proposal、runtime projectionを別authority layerとして表示する。
+`property-row@1`はInspector、Import Inspector、World Composition Form等で一つの`canonical_field_ref`を表示・編集・reviewする`composite` Patternである。Panelごとにlabel列、validation、mixed value、proposal、read-only、Commit境界を再実装しない。rowはProject valueの正本を所有せず、current read projection、local draft、proposal、runtime projectionを別authority layerとして表示する。
 
 Pattern instanceは次を一件ずつ束縛する。
 
@@ -977,7 +977,7 @@ EditorCanvasSurfaceStateV1
 
 - `content_projection_ref`、generation、Project revision、Stable target、owner-issued coordinate／view／overlay refが意味identityである。render texture、depth／ID buffer、camera matrix、screen／world coordinate単独、pixel color、draw order、gizmo handle、pointer positionからProject targetまたはActionを作らない。
 - pan／orbit／zoom、editor camera、grid visibility、overlay visibility、active tool、snap toggle、view modeは`EditorUserState`のpresentation stateでありProject Undoへ入れない。Source Cameraを選択していてもSceneのeditor cameraは別物であり、`Align source camera to view`等の登録済みChangeSetがない限りSource Cameraを変更しない。
-- `semantic_content_hash`はcontent projection、Project revision、selection、authority、Target、coordinate domain、overlayのtyped data ref、登録済みActionを含み、physical bounds、render texture、editor camera pose、zoom、pointer、pick bufferを除外する。AI Context Planが`WorldAuthoringContextV1.viewport_bounds`を明示選択した場合だけそのContext hashへview boundを束縛し、後のcamera移動で無関係なProposalをstaleにしない。
+- `semantic_content_hash`はcontent projection、Project revision、selection、authority、Target、coordinate domain、overlayのtyped data ref、登録済みActionを含み、physical bounds、render texture、editor camera pose、zoom、pointer、pick bufferを除外する。AI Context Planが`WorldAuthoringContextV1.viewport_query`を明示選択した場合だけそのContext hashへSpace refとview boundを束縛し、後のcamera移動で無関係なProposalをstaleにしない。
 - `scene_3d`はpan／orbit／dolly／frame、`scene_2d`と`ui_designer`はpan／zoom／frameを持つ。navigationはselectionとSourceを変更せず、frame selectedは登録済みStable selectionのbounded spatial resultだけを使う。`game_preview`はRuntime Camera／Render Viewをread-only表示し、free cameraへ黙って切り替えない。
 - anatomyは`context-bar`、`tool-strip`、`content-viewport`、`owner-overlay-layer`、`selection-layer`、`gizmo-layer`、`legend-status`、`input-routing-status`、`focus-boundary`とする。Scene／Gameの最小contentは640×360 luであり、確保できないときは低priority Panelをtab化する。context bar／tool stripはcompact／standard／comfortableで32／32／36 lu、全interactive targetは32×32 lu以上とし、200% Font／UI scaleでsecondary controlsをoverflow popoverへ移してもauthority、Target、selection、input routingを隠さない。
 - texture composite → Source content → Derived／owner overlay → selected target → validation／AI proposal／Runtime marker → gizmo → Canvas chrome → surface focus ringの順に合成する。selectionはSourceの色を塗り替えず、AI proposalはcurrent geometryを置換せずviolet dash＋`AI提案`、Runtimeはcyan badge＋`Runtime`、validationはicon＋severity labelを使う。
@@ -1127,7 +1127,7 @@ Owner variantは次で閉じる。
 |---|---|
 | `gameplay_definition` | `GameplayDefinition`のcurrent schemaへexact束縛する。Rule／ECA、FSM等の未登録kindをgeneric nodeとして作らず、ownerが登録したChangeSetだけをSource／Stagingへ適用する |
 | `animation` | `AnimationGraphDefinition`のstate、transition、blend、layer、parameter等をAnimation ownerから投影する。現行のAnimation authoring Operation集合は`[]`、Capabilityは`not_activated`であるため、Production UIはinspect／disabled reasonだけを示し、fixture名やplanned action名から編集Actionを生成しない |
-| `world_topology` | Level、Portal、entry／exit AnchorをWorld ownerのStable refとprimitiveへ束縛し、片側edge、暗黙Scene owner変更、Level membership変更を作らない |
+| `world_topology` | Space、Anchor、Topology relation、spatial Transition intentをWorld ownerのStable refとprimitiveへ束縛し、`Level`／`Portal`表示labelからidentityまたはprimitiveを生成せず、片側edge、暗黙Scene owner変更、World composition membership変更を作らない。Entry／Exitとfinite progressionはowner-typed `StageDefinitionV1` projectionへ分離する |
 | `render_derived` | `RenderGraphDefinition`／canonical execution planのowner-issued Derived projectionをread-only表示する。pass／resource／queue／barrierを表示位置から編集せず、Project／AIからnative resourceまたは未登録passを追加しない |
 | `causality_derived` | `CausalityGraphV1`のbounded query、frontier、gap、completenessをread-only表示する。欠落frontierをedgeなしまたはroot cause確定として扱わない |
 

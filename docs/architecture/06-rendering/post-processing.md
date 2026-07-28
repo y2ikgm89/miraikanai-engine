@@ -174,11 +174,11 @@ SSAOはOpaque Lightingのambient visibility、SSRはlit Opaqueのreflection cont
 
 ## 4. Volume resolveとparameter blend
 
-ResolverはViewFamily、view position／tags、active World／Level scope、Project default profile、intersecting Volume、explicit Camera override refから一つのPlanを作る。同priority VolumeはStable ID順でdeterministicに処理し、worker completion順やviewport selection順を使わない。
+ResolverはViewFamily、view position／tags、active World／Scene／Space scope、Project default profile、intersecting Volume、explicit Camera override refから一つのPlanを作る。同priority VolumeはStable ID順でdeterministicに処理し、worker completion順やviewport selection順を使わない。
 
 blend operatorはlinear、normalized weight、nearest／highest priority、boolean select、enum select等をparameter definitionごとに固定する。color、angle、exposure、curve等は型固有の補間意味を持ち、全parameterをscalar lerpへ落とさない。
 
-global、World、Level、Cell、Camera／View scopeの優先関係は明示されたscope chainから解決する。scope外Volumeやstale revisionを無視したまま成功表示せずdiagnosticへ残す。
+global、World、Scene、Space、Cell、Camera／View scopeの優先関係は明示されたowner-typed scope chainから解決する。Level Workspace、表示labelまたはPanel selectionをscopeにしない。scope外Volumeやstale revisionを無視したまま成功表示せずdiagnosticへ残す。
 
 ## 5. AA、Layer、UIとの互換
 

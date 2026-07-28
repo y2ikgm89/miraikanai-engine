@@ -7,7 +7,7 @@
 - 正本範囲: Editor process model、Shell配置、Panel／Workspaceの共通契約、Editor表示locale／AI返答locale preference、制作journey、AI Partner UX、手動編集との往復、Error／Recovery UX、AccessibilityとEditor操作性能
 - 非正本範囲: Widget／Layout実装、Project transaction、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Editor UI Framework](editor-ui-framework.md)、[Project State](project-state.md)、[Asset Lifecycle](asset-lifecycle.md)
-- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -188,7 +188,7 @@ Workspace load時にmonitor topology、work area、DPI、Panel type、minimum si
 |---|---|---|
 | `AI Creator` | 初心者、高水準指示 | Game Brief、Game、AI Partner、Question／Decision、History／Diff、Problems |
 | `Production` | 通常制作 | Scene／Canvas、Hierarchy／Outliner、Inspector、Asset Browser、Console、Build／Package、Animation Timeline、AI Partner |
-| `Level` | Level designer | World Outline、Scene／Canvas、Hierarchy／Outliner、Topology Graph、Level Form、Inspector、Streaming Inspector、Navigation、Physics／Collision、Map Presentation Preview、Bundle Review、AI Partner |
+| `Level Workspace` | World／Scene designer | World Outline、Scene／Canvas、Hierarchy／Outliner、Topology Graph、World Composition Form、Inspector、Streaming Inspector、Navigation、Physics／Collision、Map Presentation Preview、Bundle Review、AI Partner |
 | `Gameplay Logic` | Designer／Programmer | Gameplay Definition Graph／Table／Form、Source、Test／Playtest、Console、AI Partner |
 | `Rendering` | Technical artist | Scene／Canvas、Material、Visual Style、Environment、Render Graph、Profiler |
 | `Animation` | Animator | Scene／Canvas、Animation Timeline、Animation Graph、Asset Browser、Inspector |
@@ -269,7 +269,7 @@ AiTurnLanguageContextV1
 
 各Turnはoriginal User text hashとこのContextをtraceへ保持する。これはRequest／Evidence metadataであり、Project identity、Authorization、ChangeSet targetではない。locale変更中のin-flight requestは開始時に解決した値を維持し、次Turnから新値を使う。既存messageを再翻訳または上書きしない。
 
-World／Scene／Level編集では、画面captureまたはPanel内部objectをAI Contextの正本にせず、`AuthoringSelectionContextV1`、`WorldAuthoringContextV1`、必要な`SceneSliceV1`をPreviewする。Userは送信前にWorld／Scene／Level Stable ref、Viewport bounds、Target、field mask、omitted rangeを確認できる。Context生成後にProject revisionまたはselectionが変わった場合、pending promptとProposalをstale表示し、自動で新しい対象へ付け替えない。
+Level Workspaceを含むWorld／Scene編集では、画面captureまたはPanel内部objectをAI Contextの正本にせず、Project State所有の`AuthoringSelectionContextV1`、World所有の`WorldAuthoringContextV1`、必要な`SceneSliceV1`をPreviewする。Userは送信前にProject revision、World／Scene／Spaceのexact ref、owner-typed Gameplay ref、Space-bound Viewport query、Target、field mask、omitted rangeを確認できる。`Level`表示label、Workspace instance、Panel layoutをStable refとして送らない。Context生成後にProject revisionまたはselectionが変わった場合、pending promptとProposalをstale表示し、自動で新しい対象へ付け替えない。
 
 AI PartnerはEngine validation、AI proposal、User selection、Runtime stateを一つのstatus表示へ畳み込まない。validationはseverity rail／icon、AI proposalはviolet dashed outline＋`AI提案` badge＋before→after、selectionはblue fill、Runtimeはcyan `Runtime` badge、staleはdotted border＋clock＋base/current revisionで同時に見せる。stale ProposalのCommitはdisabledにし、`Rebase`または`Discard`を明示する。`Ask`／`Suggest`／`Execute Authorized`は常時textで表示し、Proposalの色やTaskの成功だけからmode・approval・Commit可否を推測させない。
 
@@ -303,7 +303,7 @@ ExternalEngineConceptResolutionV1
 
 `resolved`は候補が一つで、要求、Project Capability、Target、正規Ownerと矛盾せず、`evidence_refs`がcanonical concept IDと決定根拠を閉じる場合だけ許可する。`selected_concept`は表示名でなくMCDまたは正規仕様のstable concept IDである。
 
-`Unity Scene`、`Unreal Level`、`Godot Scene`は文脈により`SceneDocument`、`LevelDefinition`、`WorldStreamingPlanV1`／Cell、`UiDocument`、Composition Recipeのいずれにもなり得る。候補選択がState owner、Save形式、Level遷移、Streaming、Target Capability、Project構造を変える場合は`question_required`とし、AIは仮定でChangeSetへ進めない。表示呼称だけの低影響差はcanonical termへ正規化できるが、未対応機能は`unsupported`として近似実装へ暗黙変換しない。
+`Unity Scene`、`Unreal Level`、`Godot Scene`は文脈によりWorld、Scene Source、Space、`StageDefinitionV1`、`WorldStreamingPlanV1`／Cell、`UiDocument`、Composition RecipeまたはLevel Workspaceのいずれにもなり得る。候補選択がState owner、Save形式、Stage／World spatial transition、Streaming、Target Capability、Project構造を変える場合は`question_required`とし、AIは仮定でChangeSetへ進めない。Level Workspaceへの解決はpresentationだけを求める場合に限定し、Source identityを作らない。表示呼称だけの低影響差はcanonical termへ正規化できるが、未対応機能は`unsupported`として近似実装へ暗黙変換しない。
 
 外部用語とcanonical conceptの永続的な1対1 alias、互換class、外部Scene path、Hierarchy indexをidentityとして作らない。このResolutionは入力理解のEvidenceであり、Project正本、Commit可能なOperation、Owner登録ではない。
 
@@ -335,7 +335,7 @@ Local inference表示はcurrent `InferenceDeploymentProfileV1.model_snapshot_pro
 ## 9. Manual editingとAIの往復
 
 - GUI、Graph、Inspector、Source、AIの全変更にauthor、base revision、field sourceを記録する。
-- Scene／Level Viewのdirty表示はlocal draft、staged Proposal、Commit済みrevision、Derived再Cook待ちを別stateとし、一つの`*`だけで混同しない。
+- Scene View／Level Workspaceのdirty表示はlocal draft、staged Proposal、Commit済みrevision、Derived再Cook待ちを別stateとし、一つの`*`だけで混同しない。Level Workspace自身のrevisionまたはdirty stateは作らない。
 - 人間変更を既定でAI lockとせず、AIが変更する場合はDiffで明示する。
 - 明示LockはAI、bulk tool、Recipe updateから保護する。
 - AI proposal作成中に人間がCommitした場合、proposalをstaleとして自動Commitを禁止する。
@@ -513,8 +513,8 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - Property Rowのinline／stacked reflow、mixed multi-select、invalid draft、continuous cancel、Japanese IME、長い日本語label／ASCII identifier／Windows path／large numeric＋unitでclip、silent clamp、代表値生成、partial Commitを0件にする
 - Reference 01で人間のWidget操作とAIの`EditorSemanticActionV1`が同じCommandへ収束し、AIがPattern ID、UIA、screen coordinateから追加権限を得ない
 - 1920×1080でScene、Outliner、Inspector、Asset、AI Partnerが同時利用可能
-- `fixture.world.authoring-cross-view`の64 scenarioで、World Outline、Topology Graph、Level Form、Spatial View、AIが同じStableId／revision／`WorldSourceChangePrimitiveKindV1` discriminator／after state hashへ収束
-- Scene永続化owner、Level membership、Cell assignmentの表示と変更経路を混同せず、共有Scene変更の影響LevelをCommit前に列挙
+- `fixture.world.authoring-cross-view`の64 scenarioで、World Outline、Topology Graph、World Composition Form、Spatial View、AIが同じStableId／revision／`WorldSourceChangePrimitiveKindV1` discriminator／after state hashへ収束
+- Scene永続化owner、World composition membership、Cell assignment、pack-owned `StageDefinitionV1` bindingの表示と変更経路を混同せず、共有Scene変更の影響を受けるWorld／owner-typed consumerをCommit前に列挙
 - sort／filter／rename／re-shard／DPI変更後も、mouse、keyboard、UI Automation、AIがscreen coordinateまたは表示rowで別Objectを変更しない
 - Derived read-only／Runtime対象の編集を全Viewで拒否し、Source Intentへの安全な遷移候補を表示
 - 10万Assetのfilter／selection、multi-select共通field edit、dependency／reverse dependency表示

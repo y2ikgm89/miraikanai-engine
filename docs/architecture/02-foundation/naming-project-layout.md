@@ -39,7 +39,7 @@ Projectの正式stemは次とする。
 |---|---|---|
 | Project | Userが編集・CommitするGame制作単位 | Engine repository、Workspace |
 | World | Runtime／Authoringの空間的root identity | Level、Scene、Map |
-| Level | Worldへ配置・streamするAuthoring単位 | Worldそのもの |
+| Level Workspace | World／Scene／Spaceとowner-typed Gameplay文書を横断表示・編集するEditor presentation。Source Document、Stable identity、revisionまたはRuntime activation単位ではない | World、Scene、Stage、Map、Level Source |
 | Asset | SourceからCooked Artifactまで追跡される内容identity | arbitrary file、Runtime resource |
 | Artifact | Build／Cookが生成するimmutable出力 | Source document |
 | Source | Userまたは承認済みToolが編集する正規入力 | Derived、cache |
@@ -245,7 +245,7 @@ Sourceへcache、object、BMI、downloaded Dependency、generated Provider Schem
 
 ## 7. AssetとAuthoring document配置
 
-`source/assets/<domain>/`は外部Source Assetとimport設定を、`source/worlds/`はWorld／Level Authoring documentを、`source/gameplay/`はGameplayDefinitionを、`source/ui/`と`source/localization/`は各Domain sourceを所有する。
+`source/assets/<domain>/`は外部Source Assetとimport設定を、`source/worlds/`はWorld／Scene SourceとSpace／Topology definitionを、`source/gameplay/`はGameplayDefinitionと選択済みPackのowner-typed文書を、`source/ui/`と`source/localization/`は各Domain sourceを所有する。Level Workspaceのlayout、selectionまたはContextを`source/worlds/`へ保存しない。
 
 Asset identityはCatalogのStable IDであり、Filenameは人間向けのlocatorである。RenameやMoveでidentityを変更しない。Content hashはdeduplicationとIntegrityに使うが、User intentを表すidentityにしない。
 

@@ -26,12 +26,12 @@
 | requirements_resolution | 不足要件、質問、Default、矛盾 |
 | capability_discovery | 正しいCapability検索、存在しないID抑制 |
 | context_selection | Evidence recall、bounded context、省略、stale index |
-| architecture_comprehension | canonical concept、State owner、phase／lifetime、依存、World／Level／Streaming、外部Engine用語、Evidenceの正しい読解 |
+| architecture_comprehension | canonical concept、State owner、phase／lifetime、依存、World／Scene／Space／Streaming、Level Workspace非authority、外部Engine用語、Evidenceの正しい読解 |
 | structured_authoring | ChangeSet、Scene、UI、Asset、Rule |
 | large_scene_authoring | Shard、Stable ID、Slice、Diff、Decision／lock |
 | implementation_strategy | GameplayDefinition／C++選択とBudget根拠 |
 | game_system_authoring | Catalog、Project System、State owner、Bundle、実装同値性 |
-| world_level_authoring | Map分類、World／Scene／Level／Cell、Topology、Streaming |
+| world_scene_authoring | Map分類、World／Scene／Space／Cell、Topology、Streaming、Level Workspaceからのowner解決 |
 | vfx_authoring | Effect routing、Intent、2D／3D、Style、Target、Cue、Fallback |
 | shader_authoring | Module／Technique、symbol／call／resource、unit／space／color、副作用、Target差、U0～U4理解 |
 | source_implementation | C++／TS／Definition、Test、Scope |
@@ -152,7 +152,7 @@ ArchitectureComprehensionFixtureV1
 
 固定Corpusは次の三群へ80 Caseずつ配分する。
 
-- Miraikanaiのcanonical termを直接使い、Game System、State owner、dependency、T00～T110、R00～R70、World／Scene／Level／Cell、Capability、Target、Save／Replayを問う。
+- Miraikanaiのcanonical termを直接使い、Game System、State owner、dependency、T00～T110、R00～R70、World／Scene／Space／Cell、Level Workspace非authority、Capability、Target、Save／Replayを問う。
 - Unity、Unreal Engine、GodotのScene／Level／Object／Component等を含む入力を`ExternalEngineConceptResolutionV1`で一意なcanonical conceptへ解決するか、必要な質問へ戻す。
 - 複数Owner候補、矛盾するauthority参照、stale revision、`omitted_ranges`、欠落Evidence、存在しないID／phaseを含み、断定またはChangeSet化せず停止できるかを問う。
 

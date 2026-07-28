@@ -610,7 +610,7 @@ DecalPacketV1
 
 C1はForward+のopaque／masked receiverだけへcolor、normal、roughness、emissiveを適用する。transparent receiver、animated atlas、deferred-only DBufferはC2 Capabilityであり、Mobileを含む未対応Targetは`target_fallback_ref`でQualification済みのmesh／particle／UI presentationへ明示的にfallbackする。同一pixelの採択順は`sort_layer`、budget priority、`decal_id`、`runtime_spawn_sequence`の順にcanonicalである。stale `source_revision`、invalid／unsupported receiver、未qualified fallback、capacity超過はそれぞれtyped rejectとし、別Material、receiver、またはsilent dropへ置換しない。
 
-`authored_static`だけがLevel SourceとSave互換identityを持つ。impact等の`timed` DecalはHit／Interaction等のauthoritative Eventから再生成するpresentationであり、Damage、collision、visibility、surface friction、Gameplay state、SaveのいずれもDecalのresidencyまたはrender resultに依存しない。Replayも元Eventから再生成し、Decalの有無でauthoritative state hashを変化させない。
+`authored_static`だけがowner World／Scene SourceとSave互換identityを持つ。impact等の`timed` DecalはHit／Interaction等のauthoritative Eventから再生成するpresentationであり、Damage、collision、visibility、surface friction、Gameplay state、SaveのいずれもDecalのresidencyまたはrender resultに依存しない。Replayも元Eventから再生成し、Decalの有無でauthoritative state hashを変化させない。
 
 C1 reference Profileはactive 2,048、spawn 128／presentation update、visible 512／viewをhard boundとする。ここでpresentation updateはMaterial presentation queueのconsume boundaryであり、Simulation Advance、render frame、wall-clock秒へ暗黙変換しない。超過時は`ambient`、`gameplay_feedback`の順にcanonical evictionしてDiagnosticを残す。`critical_feedback`は黙って欠落させず、Target Profileのfallbackへ切替えるか`MIRAKAN-MATERIAL-DECAL_CRITICAL_FALLBACK_REQUIRED`で拒否する。その他のclosed failureは`MIRAKAN-MATERIAL-DECAL_SCHEMA_INVALID | MIRAKAN-MATERIAL-DECAL_STALE_COMMAND | MIRAKAN-MATERIAL-DECAL_RECEIVER_UNSUPPORTED | MIRAKAN-MATERIAL-DECAL_CAPACITY_EXCEEDED`とする。
 
@@ -747,7 +747,7 @@ Qualificationは次のDomain fixtureを持つ。
 | Material Instance／Runtime Override | 親深度0／8／9、cycle／別Definition、flatten再現、unknown／型／unit／color-space／range／style lock、Source InstanceとRuntime Overrideの許可scope、sequence重複／stale generation／lease終了、Source／Save／Replay hash非変更 |
 | Batch compatibility | 同一Definitionの多数Instanceが非compile overrideでArtifact generationを共有、compile-time／uniform-across-batch／per-render-instance差、同一key必要条件、異なるkey非結合、geometry／LOD／View／Pass差、individual／instancedで同じStable render ID集合とvisual oracle、capacity丁度／+1でsilent dropなし |
 | Target | Windows、Android、Appleのoffline compile、pipeline、fallback |
-| Decal | Forward+、MSAA 1x／2x／4x、receiver mask、opaque／masked以外とskinned receiver除外、同一面sort、timed fade、capacity丁度／+1、critical fallback、camera cut、Level deactivate、Windows／Mobile fallback、固定Camera／Materialによるangle／depth bias／normal blend／fadeのgolden regression、Decal不在時のauthoritative state hash一致 |
+| Decal | Forward+、MSAA 1x／2x／4x、receiver mask、opaque／masked以外とskinned receiver除外、同一面sort、timed fade、capacity丁度／+1、critical fallback、camera cut、owner World／Scene deactivate、Windows／Mobile fallback、固定Camera／Materialによるangle／depth bias／normal blend／fadeのgolden regression、Decal不在時のauthoritative state hash一致 |
 
 同一Reference GPU／driverのgolden imageはSSIM 0.995以上、絶対channel差2／255超のpixelが0.1%未満を既定Gateとする。Cross-vendorはparameter ordering、luminance、finite、outline width、pixel grid等のanalytic invariantを検証する。
 

@@ -247,7 +247,7 @@ Material側はResolved Light semanticsをshading inputとして消費し、Light
 
 Lighting intentはsubject、mood／readability、key／fill／rim relation、contrast、time／environment context、physical constraint、Target scopeをtyped axesで表す。曖昧な「明るく」「映画的」等は、既存Light編集、Light追加、exposure／post-process変更の候補を区別して質問する。
 
-ResolverはProject revision、selected World／Level scope、existing Light refs、Material／Environment context refs、Target Profile、assumption／question、candidate changes、compatibility resultを束ねたDomain resolutionを返す。共通hash、revision、disposition、projection fieldは[Executable contracts](../02-foundation/executable-contracts.md)の正本を使う。
+ResolverはProject revision、selected World／Scene／Space scope、existing Light refs、Material／Environment context refs、Target Profile、assumption／question、candidate changes、compatibility resultを束ねたDomain resolutionを返す。Level WorkspaceまたはPanel selectionをSource scopeにせず、共通hash、revision、disposition、projection fieldは[Executable contracts](../02-foundation/executable-contracts.md)の正本を使う。
 
 同じ入力とCatalog revisionから同じcandidate orderを返し、Entity列挙順やviewportの一時状態へ依存しない。物理constraintとartistic intentが競合する場合はsilent conversionをせず、意味差を示した代替案を返す。
 
@@ -281,7 +281,7 @@ create light、update physical property、apply lighting intent、bind Source De
 
 `operation.lighting.resolve_intent`／`operation.lighting.explain_plan`は`planning.operation_family.lighting_discovery`のreserved candidateであり、current canonical IDではない。九候補のcurrent MCD／Manifest／Service／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.lighting.discovery_operations.v1`がfamily全体をatomic activateする場合、それぞれ`ResolvedLightPlanV1`／`LightingPlanExplanationV1`を返し、Light Sourceへwriteしない。
 
-Activation後のPreviewは対象revision、World／Level scope、affected Light Stable IDs、before／after physical values、Renderer compatibility、fallback、diagnosticを表示する。Explainは入力intent、unit conversion、採用candidate、assumption、未解決questionを返す。authorization classとhuman approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決める。
+Activation後のPreviewは対象revision、World／Scene／Space scope、affected Light Stable IDs、before／after physical values、Renderer compatibility、fallback、diagnosticを表示する。Explainは入力intent、unit conversion、採用candidate、assumption、未解決questionを返す。authorization classとhuman approvalは[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決める。
 
 Activation後の`SceneLightingSummaryV1`はScene／View Family／Target／Visual Style／EnvironmentのID／version、role／type／importance別Light数、Critical Light、上限／現在値／予測cost／overflow、Shadow tier分布、human lock数、active Diagnostic上位数、詳細取得用Stable ID／continuation tokenだけをboundedに返す。`LightingPlanExplanationV1`はLightごとのIntent fieldからSource fieldへの対応、代替案の棄却理由、予測cost、視覚risk、fallbackで失われるcueを返す。
 

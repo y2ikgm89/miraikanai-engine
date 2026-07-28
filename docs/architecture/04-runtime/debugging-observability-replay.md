@@ -286,7 +286,7 @@ divergence reportはfirst mismatch Runtime time、System／State Type／Field ID
 | Domain | required projection family |
 |---|---|
 | [Gameplay](../03-authoring/gameplay-programming-model.md) | state owner、entrypoint、command／event、delta、task、variant、budget ref |
-| [World／Level](../06-rendering/world.md) | active Level、activation closure、cell ref、transition、last-valid state |
+| [World／Scene／Space](../06-rendering/world.md) | active World／Scene／Space ref、activation closure、Cell ref、Topology／transition、last-valid state |
 | [Physics](../05-simulation/physics.md)／[Collision](../05-simulation/collision.md) | body／shape ref、contact、sleep、constraint、query evidence |
 | [Navigation](../05-simulation/navigation.md) | artifact／tile ref、agent、path、stale／failed result |
 | [Animation](../05-simulation/animation.md) | graph state、transition、root motion、pose generation、event、LOD ref |

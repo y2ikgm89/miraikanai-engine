@@ -9,7 +9,7 @@
 - 正本範囲: Panel catalog、Reference Design、environment・coverage・baseline候補
 - 非正本範囲: 親Ownerが所有する安定Architecture原則、実装Task、実装順序、生成済みArtifactまたはQualification結果
 - 規範依存: [親Owner](../03-authoring/editor-workspace-ux.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](../03-authoring/project-state.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)
 - 根拠区分: project-decision／provisional。実ArtifactがないRegistry、Catalog、Fixtureは候補
 - 外部根拠確認日: 2026-07-27
 
@@ -18,7 +18,7 @@
 
 | Group | C1 Panel |
 |---|---|
-| World | Scene／Canvas、Game、World Outline、Hierarchy／Outliner、Inspector、Topology Graph、Level Form、Streaming Inspector、Map Presentation Preview、Environment、Bundle Review |
+| World | Scene／Canvas、Game、World Outline、Hierarchy／Outliner、Inspector、Topology Graph、World Composition Form、Streaming Inspector、Map Presentation Preview、Environment、Bundle Review |
 | Content | Asset Browser、Import、Visual Style、Material |
 | Logic | Gameplay Definition Graph／Table／Form、UI Designer、Source |
 | Motion | Animation Timeline、Animation Graph |
@@ -38,7 +38,7 @@
 | role | 代表Panel | 基本構成と見分け方 |
 |---|---|---|
 | `tree_list` | Hierarchy／Outliner、Asset Browser、World Outline | hierarchyは`tree-view／tree-row`、Asset Browserのflat contentは`asset-view`の下でlist=`list-row`、tile=`asset-tile`、columns=`table-view／column-header／table-row`を使う。columnsはDataGrid conformanceがclosedになるまでCapabilityをactivateしない。いずれもrow／grid coordinateではなくStable IDを選択し、view／filter／sort後もselectionを維持する。validation rail、proposal dash、runtime badgeはselected fillの上へ重ねる |
-| `property_form` | Inspector、Import Inspector、Level Form、Environment | label・value/control・unit・field statusを同じbaselineに置く。mixedはem dash、unsetは明示`未設定`、read-onlyはlock＋reason、error／warningはfield左railとinline messageで表す。before／afterはfield単位のDiffへ遷移する |
+| `property_form` | Inspector、Import Inspector、World Composition Form、Environment | label・value/control・unit・field statusを同じbaselineに置く。mixedはem dash、unsetは明示`未設定`、read-onlyはlock＋reason、error／warningはfield左railとinline messageで表す。before／afterはfield単位のDiffへ遷移する |
 | `canvas` | Scene、Game、UI Designer、Map Presentation Preview | `surface.canvas`を背景にし、screen/world座標、camera、Target、`Source／Staging／Derived／Runtime`をcontext barへ固定表示する。selectionはblue outline、runtimeはcyan badge、gizmo／overlayはSceneの正規状態を直接書き換えない |
 | `graph_timeline` | Gameplay Definition Graph、Animation Graph、Animation Timeline、Debug Timeline | graphはnode・port・edge、timelineはtrack・time ruler・keyframeを別semantic roleにする。viewport外はLOD／queryで省略し、50k nodeを一枚のsemantic treeに展開しない。selection、playhead、recorded/current、gapを形状・labelでも区別する |
 | `diagnostics` | Problems、Console、Profiler、Build、Replay、Causality | severity rail＋icon＋message、対象Stable ref、recorded/current revision、timepoint、gap／redactionを一行で追跡できる。errorをAI proposalやselectionと同じviolet／blueにしない |
@@ -84,24 +84,24 @@ Canvas型の候補正本は[Editor UI Design System Catalog §15.6.15～§15.6.1
 - Gizmo操作はpointer downでbase revision／target／value／space／pivot／snapをfreezeし、drag中はlocal preview、releaseで一ChangeSetとする。Escape、capture／focus／revision／lock／device driftで全previewを破棄し、native transform pointer、Runtime object、moveごとのProject writeを行わない。
 - Play中の編集はfieldの`live_edit_policy`を表示し、`allowed | preview_only | restart_required | runtime_read_only`を区別する。Runtime表示が選択色またはAI proposalへ吸収されないよう、context barと対象へplay glyph＋`Runtime` textを残す。
 
-### 6.3.1 Level Authoring View
+### 6.3.1 Level Workspace／World Authoring View
 
-Level WorkspaceはWorld／Level／Map規約の同じSourceを次のProjectionで編集する。
+`Level Workspace`は[World](../06-rendering/world.md#world-level-workspace-boundary)で定義したEditor presentationであり、Level Source、Level Stable ref、Level membershipまたは独立Revisionを所有しない。同じProject revisionの`AuthoringSelectionContextV1`、`WorldAuthoringContextV1`、`SceneSliceV1`と、明示的に選択したowner-typed Gameplay projectionを次のViewへ合成する。
 
 | View | 編集対象 | planned change action／制約 |
 |---|---|---|
-| World Outline | World、Region、Level、Scene | StableId selection。Scene永続化ownerとLevel membershipを別columnで表示 |
-| Topology Graph | Level、Portal、entry／exit Anchor | `CreatePortal`／`UpdatePortalContract`／`DeletePortal`。片側edgeだけを保存しない |
-| Level Form | Source Scene集合、entry／exit、System、Objective、Profile、Budget | `SetLevelSourceScenes`、`SetLevelEntryExitContract`、`SetLevelGameplayComposition` |
-| Spatial View | Entity、Anchor、bounds、Scene owner | typed Transform change primitive、`MoveEntityToScene` primitive。Level membershipとCellを暗黙変更しない |
+| World Outline | World、Space、Scene、owner-typed consumer | Stable ref selection。Scene永続化ownerとWorld composition membership、consumer bindingを別columnで表示 |
+| Topology Graph | Space、Anchor、Topology relation、spatial Transition intent | World ownerの`UpdateTopology`候補または登録済みtyped primitiveへ解決する。`Portal`表示labelから型を生成せず、片側edgeだけを保存しない |
+| World Composition Form | Scene composition、Environment／Profile／Budget、owner-typed Stage／Gameplay binding | World ownerの`UpdateWorldComposition | UpdateSceneComposition | BindOwnerTypedDocument`候補へ分離する。Entry／Exit、Objective、finite progressionは`StageDefinitionV1`等のowner Operationを別Fieldとして表示し、汎用`SetLevel*` actionを作らない |
+| Spatial View | Entity、Anchor、bounds、Scene owner | 登録済みtyped Transform／Scene ownership primitiveだけを使う。World composition membershipとCellを暗黙変更しない |
 | Streaming Inspector | Cell、residency、dependency、memory／IO | Target別Derived Planのread-only projection。Source編集欄を持たない |
 | Navigation Overlay | walkability、cost、query、Source／Artifact差 | Source Intentだけをtyped change primitiveで変更し、Navmesh／tileへwriteしない |
 | Map Presentation Preview | minimap、world map、marker、fog | Presentation Sourceだけを変更し、Quest／Objective／Navigation authorityへwriteしない |
 | Bundle Review | Requirement、Source Diff、Topology、Target、Budget、Test、Risk | Staging Bundleのaccept／reject。Commit権限を持たない |
 
-各ViewのContext barはProject revision、World／Scene／Level Stable ref、Target、lock、`Source | Staging | Derived read-only | Runtime`を常時表示し、Authoring規約の`AuthoringSelectionContextV1`とWorld規約の`WorldAuthoringContextV1`を同じContext hashで結ぶ。Scene／Outlinerは同じ`authoring_target`をStableIdで共有し、Graph／Form／Inspectorは§6.8のtyped channel、Panel binding、exact relationで関連付ける。一つのselectionへ統合せず、screen coordinate、表示row、同名Object、Hierarchy pathをtarget identityにしない。
+各ViewのContext barはProject revision、World／Scene／Spaceのexact ref、選択中のowner-typed Gameplay ref、Target、lock、`Source | Staging | Derived read-only | Runtime`を常時表示し、Project State規約の`AuthoringSelectionContextV1`とWorld規約の`WorldAuthoringContextV1`を同じContext hashで結ぶ。Workspace名、Panel instanceまたは`Level` labelをtarget identityにしない。Scene／Outlinerは同じ`authoring_target`をStableIdで共有し、Graph／Form／Inspectorは§6.8のtyped channel、Panel binding、exact relationで関連付ける。一つのselectionへ統合せず、screen coordinate、表示row、同名Object、Hierarchy pathをtarget identityにしない。
 
-共有Sceneを複数Levelが参照する場合、編集の影響を受ける全LevelとTargetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、Level membership変更は別change primitiveとして明示する。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
+共有Sceneを複数Worldまたは複数の`StageDefinitionV1`等が参照する場合、編集の影響を受けるWorld、owner-typed consumer、Targetを操作前に表示する。Scene間Entity移動では永続化owner変更、参照closure、lock、Recipe overrideをPreviewし、World composition membership変更は別change primitiveとして明示する。Worldとpack-owned文書を同時変更する場合は各Ownerのactive primitiveを一つの`ProjectChangeSetV1`へ列挙し、一つでも未Activationなら該当Fieldを理由付きread-onlyにして部分Applyしない。Derived read-only対象へのdrag／property edit／pasteは拒否し、対応するSource Intent Viewへの遷移候補を示す。
 
 ### 6.3.2 Environment Panel
 

@@ -15,7 +15,7 @@
 
 LODは距離だけでなく、projected error、semantic importance、view role、quality intent、runtime pressureを入力に、どのrepresentationを選ぶかを一意に所有する。各Subsystemは候補representationとcost／quality metadataを公開し、LOD Resolverが選択、hysteresis、transition、fallbackを決める。
 
-[Render Graph](render-graph.md)は選択済みgeometry／material representationのvisibilityとdraw executionを所有する。[World](world.md)はWorld／Scene／Level Sourceと`WorldStreamingPlanV1`内のplan-local Cell descriptorを所有し、Runtime scheduling／capacity ownerがactivationとpressureを決める。Physics、Navigation、Animationは各Domainのbehavior semanticsを所有し、LODが別のDynamics／Nav／Animation規則を作らない。
+[Render Graph](render-graph.md)は選択済みgeometry／material representationのvisibilityとdraw executionを所有する。[World](world.md)はWorld／Scene Sourceと`WorldStreamingPlanV1`内のplan-local Cell descriptorを所有し、Runtime scheduling／capacity ownerがactivationとpressureを決める。Physics、Navigation、Animationは各Domainのbehavior semanticsを所有し、LODが別のDynamics／Nav／Animation規則を作らない。
 
 Asset import、cook、promotion、generation leaseは[Asset lifecycle](../03-authoring/asset-lifecycle.md)だけが所有する。本書はartifactを生成せず、同一source identityへ紐づく候補artifactの選択条件を定義する。
 

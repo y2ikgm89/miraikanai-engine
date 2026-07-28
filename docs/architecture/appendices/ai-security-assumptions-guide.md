@@ -206,7 +206,7 @@ Game制作Tool catalogへEngine source patch、Engine module／Extension／Adapt
 
 - Game Brief、GameSpec、Requirement、Decision。
 - GameSystemSpecV2、Project-defined System Contract。
-- GameplayDefinition、World、Level、Scene、UI、Asset、Material、Animation、Audio設定。
+- GameplayDefinition、World、Scene、Space、UI、Asset、Material、Animation、Audio設定、選択済みPackの`StageDefinitionV1`等のowner-typed Source。Level WorkspaceはProject artifactではない。
 - Project Test、Fixture、Benchmark、Replay、Save migration。
 - BoundedNativeGameProfileV1に適合するNativeGameModule。
 - [Project Shader](../06-rendering/project-shader.md)の`BoundedProjectShaderProfileV1`に適合する`ProjectShaderModuleV1`／`ProjectShaderTechniqueV1` Source、`ShaderFactGraphV1`、`ShaderUnderstandingClosureV1`、Target別`ProjectShaderArtifactSetV1`。

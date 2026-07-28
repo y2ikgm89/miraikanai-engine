@@ -6,10 +6,10 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 親Owner: [Architecture Governance](../01-governance/architecture-governance.md)
-- 正本範囲: Architecture計画全体の監査結論、current／target区分、AI可読性、Runtime coverage、Editor／Game分離、Target別Build mapping、cross-owner整合性、未解決Closureの追跡
+- 正本範囲: Architecture計画全体の監査結論、current／target区分、AI可読性、Creative expression境界、Scene／Level authoring意味、Runtime coverage、Editor／Game分離、Target別Build mapping、cross-owner整合性、未解決Closureの追跡
 - 非正本範囲: Subsystem semantics、Schema、API、Backend、固定Budget、Product Phase／Work Package、実装Task、実装順序、担当、工数、日程、Capability Activation、承認結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)、[AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)、[AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](../06-rendering/world.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[Scenario／Stage](../08-packs/scenario-stage.md)
 - 根拠区分: project-review／official-spec comparison
 - 外部根拠確認日: 2026-07-28
 
@@ -23,6 +23,8 @@ Miraikanai EngineのArchitecture計画は、Owner分離、current／target区分
 |---|---|---|---|
 | AIによる概念理解 | strong | Markdown reviewのみ | Owner、identity、revision、authority、安全境界は説明可能 |
 | AIによる機械解決 | strong contract intent | incomplete | Inventory、Explain Projection、Capsule、Schema、query Toolが未materialize |
+| Creative expression | broad inside public Capability | design only | 2D／3D／nonspatial／procedural、Genre非依存Gameplay、Project C++／Shaderを許す一方、任意plugin／private API／JITは意図的に除外 |
+| Scene／Level authoring | owner boundary corrected | Projection／Operation absent | `Level Workspace`をEditor presentationへ限定し、World／Scene／Space、Project selection、pack-owned Stageへ正規状態を分離 |
 | Runtime描画／物理／Memory | detailed target | implementation absent | 意味、lifetime、backend境界、Qualificationは計画済み |
 | Runtime Asset | end-to-end方針はaligned | Owner gap | Source／Cook／Packageは明確だが、汎用Runtime request／residency authorityが未決定 |
 | Editor／Game分離 | strong | implementation absent | process、state、dependency、failure isolationが一貫している |
@@ -34,7 +36,7 @@ Miraikanai EngineのArchitecture計画は、Owner分離、current／target区分
 
 ## 2. 監査方法と判定語彙
 
-監査はArchitecture Index、全Owner header、Decision、proposal appendix、規範依存、関連文書、相対link、文書ID、current／target記述を対象とした。2026-07-28の監査では、相対Markdown link切れ0件、文書ID重複0件、抽出可能な規範依存graphのcycle 0件を確認した。ただし手動IndexとMarkdown解析は、生成済み`ArchitectureInventoryV1`またはSchema validationの代用ではない。
+監査はArchitecture Index、全Owner header、Decision、proposal appendix、規範依存、関連文書、相対link、文書ID、current／target記述を対象とした。2026-07-28の監査ではArchitecture Markdown 75件、文書ID 73件、Owner文書50件を確認し、相対Markdown link切れ0件、文書ID重複0件、50 Owner間から抽出した規範依存202 edgeの未解決0件／cycle 0件を確認した。50 Owner文書はすべて`文書状態=review`、`実装状態=absent`、`検証状態=design-reviewed`である。ただし手動IndexとMarkdown解析は、生成済み`ArchitectureInventoryV1`またはSchema validationの代用ではない。
 
 本書では次の語を分ける。
 
@@ -78,23 +80,31 @@ currentでは`ArchitectureInventoryV1`、`ArchitectureExplainProjectionV1`、`Ai
 
 | 比較対象 | 公式資料で確認した実働構造 | Miraikanaiへの示唆 | そのまま採らないもの |
 |---|---|---|---|
-| Unreal Engine 5.8 | Reflection／Asset metadata、Mass archetype、RDG、Asset Manager、Toolset Registry経由のMCP Tool | typed metadata、declared resource access、async Asset handle、tool registryはAI／Runtime可読性に有効 | UObject／Actor／Mass API、reflection可視性をwrite authorityにすること、実験中MCPのAPI／data format |
-| Unity Entities 1.4／Addressables | archetype chunk、cached query、deferred structural change、async load handle、dependency、release | data-oriented storageとruntime Asset managerを独立した実働境界として持つ | Unity object／serialization／Addressables identity、sync point semantics、既定chunk size |
-| Godot 4.5 | Node／Scene／Resource、ResourceLoader cache／threaded load、RenderingDevice | authoring dataを明示し、runtime loaderとlow-level graphics handleを分離する | pathを永続authorityにすること、Node treeをECS layoutにすること、RIDをAI projectionへ公開すること |
+| Unreal Engine 5.8 | Level Editor、World Partition／Data Layers、Reflection／Asset metadata、Mass、RDG、Asset Manager、Toolset Registry経由のexperimental MCP Tool | 実働するWorld authoring、typed metadata、declared resource access、async Asset handle、tool registryはAI／Runtime可読性に有効 | UObject／Actor／Mass API、reflection可視性をwrite authorityにすること、実験中MCPのAPI／data format |
+| Unity 6.3 LTS／Entities 1.4／Addressables 1.21 | Scene／multi-Scene editing、GameObject／Component、`SerializedObject`、Editor extension、AI Ask／Plan／Agent、archetype chunk、async Asset handle | 実働するScene composition、Editor-owned mutation、bounded project context、data-oriented storageとruntime Asset managerの分離 | Unity object／serialization／Addressables identity、UI permissionだけをauthorityにすること、既定chunk size |
+| Godot 4.7.1 | Node／Scene／Resource、text `.tscn`、EditorPlugin／`@tool`、ResourceLoader cache／threaded load、RenderingDevice | 再利用Sceneと透明なSource、軽量なEditor拡張、runtime loaderとlow-level graphics handleの分離 | pathを永続authorityにすること、Node treeをECS layoutにすること、Editor内任意codeまたはRIDをAI authorityにすること |
 
 公開一次資料で確認できる範囲では、MiraikanaiのtargetはOwner、revision、exact hash、authorization、Evidenceの接続をより厳格にする。一方、外部Engineには実働するreflection、Asset loader、profiler、editor tool surfaceがある。Miraikanaiはtarget contractの厳格さを、未実装機能の存在証明に使わない。
 
 一次資料:
 
 - [Unreal Engine 5.8 Unreal MCP](https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor)
+- [Unreal Engine Level Editor](https://dev.epicgames.com/documentation/en-us/unreal-engine/level-editor-in-unreal-engine)
+- [Unreal Engine World Partition](https://dev.epicgames.com/documentation/unreal-engine/world-partition-in-unreal-engine?lang=en-US)
 - [Unreal Engine 5.8 Render Dependency Graph](https://dev.epicgames.com/documentation/en-us/unreal-engine/render-dependency-graph-in-unreal-engine)
 - [Unreal Engine 5.8 Asset Management](https://dev.epicgames.com/documentation/en-us/unreal-engine/asset-management-in-unreal-engine)
 - [Unreal Engine 5.8 MassEntity overview](https://dev.epicgames.com/documentation/unreal-engine/overview-of-mass-entity-in-unreal-engine?lang=en-US)
 - [Unity Entities 1.4 archetype concepts](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/concepts-archetypes.html)
 - [Unity Entities structural change optimization](https://docs.unity3d.com/Packages/com.unity.entities@1.4/manual/optimize-structural-changes.html)
 - [Unity Addressables 1.21 loading](https://docs.unity3d.com/Packages/com.unity.addressables@1.21/manual/LoadingAddressableAssets.html)
-- [Godot 4.5 ResourceLoader](https://docs.godotengine.org/en/4.5/classes/class_resourceloader.html)
-- [Godot 4.5 internal rendering architecture](https://docs.godotengine.org/en/4.5/engine_details/architecture/internal_rendering_architecture.html)
+- [Unity 6.3 LTS support](https://unity.com/releases/unity-6/support)
+- [Unity multi-Scene editing](https://docs.unity3d.com/6000.0/Documentation/Manual/MultiSceneEditing.html)
+- [Unity `SerializedObject`](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/SerializedObject.html)
+- [Godot release archive](https://godotengine.org/download/archive/)
+- [Godot 4.7 ResourceLoader](https://docs.godotengine.org/en/4.7/classes/class_resourceloader.html)
+- [Godot Editor plugins](https://docs.godotengine.org/en/stable/tutorials/plugins/editor/making_plugins.html)
+- [Godot `@tool`](https://docs.godotengine.org/en/stable/tutorials/plugins/running_code_in_the_editor.html)
+- [Godot 4.7 internal rendering architecture](https://docs.godotengine.org/en/4.7/engine_details/architecture/internal_rendering_architecture.html)
 
 ## 4. Runtime計画のcoverage
 
@@ -180,6 +190,8 @@ C++ ModulesのBuild性能比較はCX0とCX2の採否Evidenceであり、Shipping
 | Product ↔ Runtime Owners | `corrected-in-review` | Product Owner一覧へRuntime PackageとPersistence／Saveを含める |
 | Governance ↔ 全Owner | target aligned／Inventory absent | GovernanceはOwner／state／dependency Inventory、各OwnerはDomain fragment |
 | AI Security ↔ Project／Engine change | target aligned／Operation absent | Project ChangeSetとEngine Candidate qualificationを分離 |
+| Project State ↔ Editor／World context | target aligned／Schema absent | Project Stateは`AuthoringSelectionContextV1`、Worldは`WorldAuthoringContextV1`／`SceneSliceV1`、Editorはattention／Panel binding |
+| Editor ↔ World ↔ Scenario／Stage | `corrected-in-review` | Level Workspaceはpresentation、Worldはcomposition／topology、Scenario／StageはEntry／Exit／Objective／finite progression |
 | Asset Lifecycle ↔ Runtime | target aligned／Owner gap | AssetはSource／Cook／Catalog、Runtime側の汎用request／residency Ownerは未決定 |
 | Runtime Package ↔ Scheduling | aligned | Packageはstaging／dependency、Schedulingはcompletion acceptance／publication boundary |
 | Memory ↔ Runtime Resource | aligned | Memoryはgeneration／lease／allocation、Domain Ownerはpayload意味とfallback |
@@ -204,6 +216,7 @@ C++ ModulesのBuild性能比較はCX0とCX2の採否Evidenceであり、Shipping
 | `ARCH-C10` | 必須C++ dependency、minimum OS、CI／device pool | `open-blocker` | Toolchain Known unresolved register。候補名だけでGateを開かない |
 | `ARCH-C11` | 手動Indexと長大Owner／Catalog | `design-risk` | Governance。生成Inventoryまでは手動Indexをcurrent truthと主張しない。分割はOwner／ID／anchor migrationを伴う別文書変更 |
 | `ARCH-C12` | Runtime、Build、AIの実装可能性 | `implementation-absent` | 本Reviewでは解消しない。実装、実装計画、Work Package、日程を生成しない |
+| `ARCH-C13` | Level Source、Region、Portal、Entry／Exit、Authoring ContextのOwner重複 | `corrected-in-review` | `Level Workspace`をpresentation限定、Region／PortalをSpace／Topologyへ解決、Entry／Exitを`StageDefinitionV1`等へ分離し、Project State／WorldのContext Ownerを明記 |
 
 ## 9. 推奨するArchitecture判断
 
@@ -234,12 +247,30 @@ Owner未決定の間、Scheduling diagramの`Asset Runtime` label、Asset Lifecy
 
 provisional Budgetと候補最適化は、同じTarget、Build、Toolchain、fixture、input trace、warm-up、sample count、aggregation、correctness oracleで比較する。別Target、sanitizer run、推定値、平均値、`latest`、製品deadlineからthresholdまたは採用結果を生成しない。
 
+### 9.5 Scene／Level authoring boundary
+
+Coreの正規SourceはWorld／Scene／Space／Topology relationであり、`Level Workspace`はこれらとowner-typed Gameplay文書を横断表示するEditor presentationである。`LevelSourceV1`、Level Stable ref、Level revision、Level membershipまたはLevel固有Operationを追加しない。
+
+- World OwnerはWorld／Scene composition、Space、Anchor、Topology relation、spatial Transition intent、`WorldAuthoringContextV1`、`SceneSliceV1`を所有する。
+- Project State Ownerは同じProject revisionへ閉じた`AuthoringSelectionContextV1`を所有する。
+- Editor OwnerはWorkspace、attention、focus、follow／pin、Context表示を所有し、Sourceまたはauthorizationを所有しない。
+- `StageDefinitionV1`等のFeature／Game OwnerはEntry／Exit、Objective、finite progressionを所有する。
+- 一つのUser intentが複数Ownerを変更する場合はactiveな各Owner primitiveを一つの`ProjectChangeSetV1`へ列挙し、未Activation、staleまたはunauthorizedな一件があれば全体を部分適用しない。
+
+この整理はOwner重複を閉じる設計修正であり、Projection Schema、Operation、Fixture、Work Packageまたは実装を作成したことを意味しない。`ARCH-C03`、`ARCH-C04`、`ARCH-C12`は引き続き未解決である。
+
 ## 10. 本Reviewに伴う文書整合
 
 | 文書 | 変更内容 |
 |---|---|
 | Architecture Index | 本Reviewへのnavigationと変更入口を追加 |
 | Product Plan | Runtime／Simulation Owner一覧へRuntime Package、Persistence／Saveを追加し、本Reviewを関連文書へ追加 |
+| Product Plan／Naming | Creative expressionとextensionを別axis化し、Level Workspaceを非authorityのEditor presentationへ固定 |
+| Project State | `AuthoringSelectionContextV1`のProject lineage、target解決、revision／hash／invalidation Ownerを明記 |
+| World | Level／Region／Portal表示語の正規解決、World authoring Projection、cross-owner atomicityを明記 |
+| Editor Workspace／Panel／Design System | Level Stable ref／membership／`SetLevel*`を除去し、World Compositionとpack-owned bindingへ分離 |
+| Executable Contracts planning catalog | Level WorkspaceがOperation familyでないこと、複数Owner Operationの部分fallback禁止を明記 |
+| Scenario／Stage、LOD、Materials、World fixture | `Level Source`をcurrent Core identityとして扱う残存記述をlegacy migrationまたはWorld／Scene／Topology表現へ修正 |
 | Asset Lifecycle | `Runtime Owner`を一意Ownerとして扱わず、汎用Runtime Asset authorityがopen decisionであることを明記 |
 | Runtime Package | World／Runtime Entry loader scopeと、汎用Asset request／residency非正本範囲を明確化 |
 | Scheduling／Lifetime | diagramの`Asset Runtime`が未決定module labelでありOwner／target／Capabilityを生成しないことを明記 |

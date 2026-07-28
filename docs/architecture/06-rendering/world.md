@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: World／Scene／SpaceのSource identity、global composition、persistent entity、optional spatial topology、Cellのplan-local identity、partition／streaming-plan authoring、spatial transition、Loading presentation、procedural／Tilemap／Blockoutの共通意味
+- 正本範囲: World／Scene／SpaceのSource identity、global composition、persistent entity、optional spatial topology、Cellのplan-local identity、partition／streaming-plan authoring、spatial transition、Loading presentation、procedural／Tilemap／Blockoutの共通意味、World authoring read projectionの所有境界
 - 非正本範囲: 具体World schema、procedural／Tilemap／Blockout catalog、Operation、Fixture、Gameplay progression、Runtime cell phase、ECS schema、Physics／Navigation behavior、Render execution、Save／Replay envelope
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Collision](../05-simulation/collision.md)
-- 関連文書: [Procedural World Catalog／Fixture Candidate](../appendices/procedural-world-catalog-fixture.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)
+- 関連文書: [Procedural World Catalog／Fixture Candidate](../appendices/procedural-world-catalog-fixture.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -24,10 +24,13 @@ World activation、Scene activation、Cell streamingはGameplay goalやResultを
 | World | global compositionとpersistent spatial／nonspatial sourceのauthority |
 | Scene | World内で再利用可能なsource composition |
 | Space | coordinate／topology profile |
+| Anchor | 一つのWorld／Scene SourceとSpaceへ束縛されたstable attachment point。spawn、Objective、Runtime handleそのものではない |
+| Topology relation | source／destinationのAnchorまたはSpaceを結ぶWorld-owned relation。方向、対称性、到達条件をtypedに表す |
 | Cell | 一つのpartition／streaming plan内だけで有効なplan-local単位 |
 | Map | user intent。World、Scene、Tilemap、Stage等へtypedに解決する |
+| Level Workspace | World／Scene／Spaceとowner-typed Gameplay文書を横断するEditor presentation。Source、identity、membership、revisionまたはRuntime activation単位ではない |
 
-World／Scene identityはstable source IDとrevisionであり、display name、path、配列index、Runtime handleを使わない。Cell IDをWorld-global identityまたはpersistent entity IDとして保存しない。
+World／Scene identityはstable source IDとrevisionであり、display name、path、配列index、Runtime handleを使わない。AnchorとTopology relationはowner World／Scene Sourceのexact ref／revisionへ束縛する。Cell IDをWorld-global identityまたはpersistent entity IDとして保存しない。`Level`または`Region`という表示labelからSource identityを生成しない。
 
 ## 3. 「Map」要求の解決規則
 
@@ -39,7 +42,25 @@ World／Scene identityはstable source IDとrevisionであり、display name、p
 - finite gameplay progression → Scenario／Stage
 - runtime partition unit → Cell
 
-曖昧な場合は候補を提示して選択を求め、root Scene、Level、Stage、Worldを相互aliasにしない。
+曖昧な場合は候補を提示して選択を求め、root Scene、Level Workspace、Stage、Worldを相互aliasにしない。
+
+<a id="world-level-workspace-boundary"></a>
+
+### 3.1 Level Workspaceの非authority境界
+
+`Level Workspace`は保存DocumentまたはCore gameplay conceptではない。同じProject revisionにあるWorld composition、Scene Source、Space、Topology relation、必要に応じたowner-typed Gameplay文書を一つのEditor surfaceへ投影する。`level_id`、`level_revision`、`level_membership`、`LevelSourceV1`または`playable_level`をCore Sourceへ追加しない。
+
+表示語は次へ一意に解決する。
+
+| 表示語 | 正規解決 |
+|---|---|
+| Level | `Level Workspace`の現在Context。永続refとして保存しない |
+| Region | coordinate／topology境界なら`Space`またはWorld-owned Topology selection、それ以外は明示されたowner-typed Document／query |
+| Portal | World-owned `Topology relation`またはspatial `Transition intent`の表示。別のCore identityを作らない |
+| Entry／Exit、Objective、finite progression | [Scenario／Stage](../08-packs/scenario-stage.md)の`StageDefinitionV1`等、選択されたFeature／Game Ownerのtyped ref |
+| Scene集合 | World SourceのScene composition。Level membershipという第二の集合を作らない |
+
+Level Workspaceが複数Ownerを同時表示しても、各Fieldのcanonical owner、Document revision、authorization、Operationを維持する。一つのform submitから別Ownerの変更が必要な場合、各Ownerのactiveなtyped primitiveを一つの`ProjectChangeSetV1`へ明示的に列挙してatomic commitする。必要なOperationが一つでも未Activationなら、そのFieldを理由付きread-only Gapにし、Level固有operation、自由patchまたは部分commitへfallbackしない。
 
 ## 4. Source Document model
 
@@ -54,6 +75,8 @@ Scene SourceはWorldから独立した再利用identityを持てるが、World-g
 Topologyは2D、3D、nonspatialをclosed profileで表す。座標系、単位、axis、origin policyはMath／World Space Ownerのtyped refへ解決する。WorldがPhysics、Navigation、Renderingの内部payloadを複写しない。
 
 Nonspatial Worldではanchor、Cell、spatial spawn、streaming fieldをcanonical omissionする。Default 3D空間を補完しない。
+
+Topology relationはWorld-owned Source relationであり、Editor上の`Portal`表示を正本にしない。双方向または対になるrelationを要求するprofileでは両側を同じChangeSetで検証し、片側だけを公開しない。Gameplay上の解放条件、Objective、Stage progressionはrelation payloadへ複写せず、owner-typed policy refを使用する。
 
 ## 6. Spatial Partitionとstreaming-plan authoring
 
@@ -107,6 +130,16 @@ BlockoutはAuthoring geometry sourceであり、final art、Physics body、Navig
 
 World authoring bundleは同一Project revisionのSource closureだけを含む。AI／Editorはtyped ChangeSetを提案し、live Runtime World、Editor selection、partial streaming stateをSource authorityへ直接serializeしない。
 
+### 11.1 World authoring read projection
+
+World Ownerは`WorldAuthoringContextV1`と`SceneSliceV1`の意味、Source境界、freshnessを所有する。Project Stateは`AuthoringSelectionContextV1`を所有し、Editorはattention／focus／Panel bindingだけを所有する。
+
+`WorldAuthoringContextV1`は一つのexact Project revisionとWorld Source ref／revision／hash、選択されたScene／Space／Topology relation／Transition intent ref、Target、`Source | Staging | Derived read-only | Runtime`区分、field mask、任意のSpace-bound viewport query、omitted range／continuation、selection context hashまたは明示`null`、invalidation condition、projection content hashを持つbounded read-only projectionである。`SceneSliceV1`は同じProject／World lineageにある一つのScene Source ref／revision／hash、query／field mask、返却record、omitted range／continuation、invalidation condition、slice content hashを持つ。どちらもProject mutation、AI authorization、完全なWorld closureまたはRuntime handleを意味しない。
+
+Level Workspaceはこの二Projectionとowner-typed Gameplay projectionをContext hashで関連付けるだけで、`Level` refへ統合しない。World／Scene Source revision、Project revision、field mask対象、Space-bound viewport query、selection context hashのいずれかが変われば該当Projectionをstaleにし、新しいContextを要求する。screen coordinate、render texture、Hierarchy path、表示row、表示名からtargetまたは権限を再構成しない。
+
+上記はtarget contractであり、materialized Schema、collection bound、query Tool、Operation、Fixture、Receiptはcurrent Repositoryに存在しない。したがって現在は`conceptually-readable`であり、`operationally-readable`または利用可能と扱わない。
+
 ## 12. Save、Replay、Migration境界
 
 Saveはpersistent identityとOwnerが宣言したStateだけを保存する。World Source、Cell plan、Runtime handleを混同しない。Replayはtransition intent、accepted activation、relevant source／artifact identityを記録する。
@@ -115,6 +148,6 @@ Migrationはsource／target schema、consumer inventory、stable identity mappin
 
 ## 13. Diagnostic、failure、qualification
 
-最低限、unknown ref、wrong revision／hash、invalid topology、plan-local Cell misuse、capacity overflow、generator nondeterminism、stable-ID conflict、partial publication、Target unsupportedをtyped Diagnosticで区別する。
+最低限、unknown ref、wrong revision／hash、invalid topology、presentation label used as identity、plan-local Cell misuse、capacity overflow、generator nondeterminism、stable-ID conflict、partial publication、Target unsupportedをtyped Diagnosticで区別する。
 
-Qualificationはworldless、Scene 0、2D、3D、large partition、transition failure、procedural determinism、Tilemap／Blockout projection、Save／Replay、crash recoveryを含む。具体Fixture候補は[補助Catalog](../appendices/procedural-world-catalog-fixture.md#13-diagnosticfailurequalification)へ分離する。
+Qualificationはworldless、Scene 0、2D、3D、large partition、transition failure、procedural determinism、Tilemap／Blockout projection、Level Workspace labelから新しいSource identityを生成しないこと、Save／Replay、crash recoveryを含む。具体Fixture候補は[補助Catalog](../appendices/procedural-world-catalog-fixture.md#13-diagnosticfailurequalification)へ分離する。

@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1の意味とtransaction、Target readiness意味、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery
+- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1の意味とtransaction、Target readiness意味、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery、authoring target selection projectionの所有境界
 - 非正本範囲: 具体Document／Operation／Change primitive／readiness／fixture候補、MCD共通Envelope、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI、Runtime package
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)
 - 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
@@ -68,6 +68,16 @@ Target readinessはTarget、configuration、Runtime Entry、Toolchain lock、req
 Project StateはWorld／Scene／EntityをAuthoring Documentとしてcontainできるが、spatial topology、streaming、rendering、Gameplay進行を所有しない。Projectionは同一revisionのSource closureから生成し、Editor viewをSourceへ逆serializeしない。
 
 Large SceneのShard、Index、Sliceは同じWorld Source identityとrevisionへ束縛し、部分sliceを完全Worldとしてcommitしない。
+
+### 4.1 `AuthoringSelectionContextV1`
+
+Project State Ownerは`AuthoringSelectionContextV1`のProject lineage、target解決、revision binding、content hashとinvalidation semanticsを所有する。Editor Workspaceはpointer／keyboard／UIA／AIから届くselection intent、attention channel、focus、follow／pinを所有するが、同名Schemaを再定義しない。
+
+`AuthoringSelectionContextV1`はexact Project ref／revision、owner-typed target refのbounded集合、明示primary targetまたは`null`、target set hash、query selectionを使う場合のquery ref／omitted range／continuation、invalidation condition、context content hashを持つread-only disposable projectionである。空集合ではprimary targetを`null`にし、非空集合のprimary targetは集合内exact一件でなければならない。World／Scene／Entity、Assetまたはowner-typed Sourceのpayloadを複写せず、各refを同じProject revisionのDocument／Indexへ解決する。
+
+このContextはselectionの説明とbounded read queryを結ぶためのものであり、Project mutation、lock、authorization、Approval、AI scopeまたはRuntime object selectionを意味しない。display name、path、Hierarchy row、screen coordinate、pointer hit、Editor object addressをtarget refに変換して保存しない。Project revision、target existence／owner／revision、query result generationのいずれかが変わればstaleにし、別targetへの自動rebaseを禁止する。
+
+上記はtarget contractであり、materialized Schema、collection bound、query Tool、Fixture、Receiptはcurrent Repositoryに存在しない。AIまたはEditorが同名の自由JSONを生成して不足を補わない。
 
 ## 5. `ProjectChangeSetV1`
 

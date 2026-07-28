@@ -434,7 +434,7 @@ World BundleはStaging SourceからTarget別Streaming／Navigation／LOD／非�
 - C1 entity／population envelope未校正時の`blocked(performance_envelope_unqualified)`、Target Profile実機fixture＋fresh Receiptによる解除、恣意的な数値defaultの拒否
 - Target readinessへの`Predicted`／`Blocked`／`Qualified`／`OptimizationRequired`とCapability専用`not_activated`混入、stateと`blocked_reason_ref`／Receipt nullability不一致を一原因ずつ拒否するnegative fixture
 - Game System authoritative State ownerが0件／複数件、stale System Bundle、Source Promotion後Project Commit failureのnegative／recovery test
-- World／Scene／Space／Cell identity、Topology reachability、Portal trap、Map intent ambiguity、Cell activation atomicityのfixture
+- World／Scene／Space／Cell identity、Topology reachability、片側またはtrapになるWorld-owned Topology relation、Map intent ambiguity、Cell activation atomicityのfixture
 - Source Intentから同じTarget別Streaming Plan hashを再生成し、Derived Planの直接編集を拒否するtest
 - `MoveEntityToScene`がsubtreeの永続化owner、Shard、明示したroot parentだけを原子的に変更し、owner-typed gameplay membership、subtree内部parent、StableId、Runtime Cellを暗黙変更しないvalid／invalid／Undo test
 - `fixture.project.runtime-entry.world-empty`: Scene 0件／Topology nullかつexact World Space Profileを持つWorld entryがvalidでbranch hashだけを出力する

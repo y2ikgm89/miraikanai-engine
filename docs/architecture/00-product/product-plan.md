@@ -168,6 +168,24 @@ cross-owner連携は次の一方向chainだけを使う。Architecture Governanc
 
 Runtime ECS固有の有名Engine比較、詳細な整合性判定、未解決Closureは[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)をnavigation先とする。Architecture全体のAI可読性、Runtime coverage、Editor／Game分離、Target別Build、汎用Runtime Asset authorityとBuild最適化の未解決Closureは[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)をnavigation先とする。両Reviewはproposal appendixであり、Product Capability、Phase、Work Package、Runtime contractまたは外部Engine互換性を追加しない。本節も実装Task、日程、担当、Activation、採用済み最適化を生成しない。
 
+### 4.3 Creative expressionとextension境界
+
+Miraikanaiはゲーム内容の表現自由度と、Engine／Editorへ任意codeを注入する拡張自由度を別axisで扱う。前者を広く保ち、後者を安全性、移植性、再現性のためclosed public Capabilityへ限定する。片方の広さまたは狭さから他方を推測しない。
+
+| axis | targetで許す表現 | 意図的な境界 |
+|---|---|---|
+| World構造 | 2D、3D、nonspatial、Scene 0件、再利用Scene、procedural、Tilemap、Blockout、continuous／finite composition | 固定`Level` hierarchy、root Scene default、Cellの永続identityを要求しない。`Level Workspace`はEditor presentationだけ |
+| Gameplay | `GameplayDefinition`、Feature Pack、任意Genre Pack、Game Project、適格なProject C++23の組合せ | Genre、Player、Character、Weapon、Quest、StageをCore必須階層にしない。Runtime JIT、任意FFI、download codeは許可しない |
+| Visual | 2D／3D Render、Material parameter／Graph、`typed_ir`／`bounded_hlsl`、Shading Model、declarative Technique | native graphics API、private Backend handle、未登録Frame StageをProject authorityにしない |
+| Authoring | 手動、AI、CLI、MCPが同じSource、Projection、ChangeSet、Diff、Undo、Receiptを使う | screen coordinate、raw file置換、任意property setter、AI自己承認を制作能力にしない |
+| Engine／Editor extension | 公開Capability、owner-typed Document、登録済みPanel／Operation、qualified Project Native Module／Shader | C1では任意binary plugin、Marketplace、public Editor Extension SDK、Engine private APIを提供しない |
+
+Product claimとしての「表現可能」は、対象ゲームの意味、状態、入出力、World構造、Visual Styleを公開Capabilityとowner-typed Sourceで保持でき、Target差をSource分裂またはprivate escape hatchなしに解決できることを指す。見た目だけの近似、AIの自然言語説明、外部Tool内だけの再現、未登録pluginまたはEngine改造を成功扱いしない。
+
+安全境界で要求を表現できない場合は`capability_unavailable`として明示し、別Genreの固定template、Level hierarchy、自由JSON、Project C++によるprivate API accessへ黙示fallbackしない。逆に、Capabilityが存在する領域へ特定Genre、Reference Game、Workspace layout、AI providerの都合による不要な制約を追加しない。
+
+current RepositoryではOwner文書が`review`、CapabilityとOperationが未Activation、実装状態が`absent`である。したがって本節はtargetの自由度と制約を定義するが、現在利用可能な制作機能または完成度を主張しない。
+
 ## 5. MVP scope
 
 MVPはEngine機能網羅版ではなく、AI Authoringの安全な往復を証明する製品vertical sliceである。
@@ -674,17 +692,17 @@ Unreal Engine、Unity、Godotの公式資料はCoverageと責務分離の比較E
 
 | Engine | 公式に確認した制作境界 | Miraikanaiへ採る原則 | 採らないもの |
 |---|---|---|---|
-| Unity 6 | Unity AI Open BetaはEditor内のProject文脈を使うAsk／Plan／Agent、permission level、変更確認／Undoを提示する。Editor data変更は`SerializedObject`がdirty、Undo、Prefab overrideを扱う公式経路である | liveだがboundedなsemantic context、段階的権限、preview／Undo、Editor-owned mutation経路 | AIによるraw Asset／Scene file直接編集、UI上のpermission表示だけをAuthorityとすること |
+| Unity 6.3 LTS | Unity AI Open BetaはEditor内のProject文脈を使うAsk／Plan／Agent、permission level、変更確認／Undoを提示する。Editor data変更は`SerializedObject`がdirty、Undo、Prefab overrideを扱う公式経路である | liveだがboundedなsemantic context、段階的権限、preview／Undo、Editor-owned mutation経路 | AIによるraw Asset／Scene file直接編集、UI上のpermission表示だけをAuthorityとすること |
 | Unreal Engine 5.8 | Experimental Unreal MCPはEditor内のToolset Registryから型付きtoolを公開し、Actor／Component／Assetはreflection／Asset Registry／Editor APIで扱う。Python公式資料もOS file APIによるAsset操作を禁止する | reflection-backed projection、登録tool、Editor API、commit後read-back | 任意property setter、汎用Python／console／file edit、localhostであることを認証や承認の代用にすること |
-| Godot 4.x | Node／Scene／Resourceとtext形式`.tscn`、`EditorPlugin`／`ClassDB`により構造が観測可能で差分化しやすい。確認した公式資料にはUnity AI／Unreal MCP相当の内蔵AI authoring authorityはない | 透明でdiff可能なcanonical source、型／UID／NodePathを保つEditor-owned validation | textであることを安全性の証明にすること、subresource／順序／UID制約を無視した直接置換 |
+| Godot 4.7.1 | Node／Scene／Resourceとtext形式`.tscn`、`EditorPlugin`／`ClassDB`により構造が観測可能で差分化しやすい。確認した公式資料にはUnity AI／Unreal MCP相当の内蔵AI authoring authorityはない | 透明でdiff可能なcanonical source、型／UID／NodePathを保つEditor-owned validation | textであることを安全性の証明にすること、subresource／順序／UID制約を無視した直接置換 |
 
 Rendering abstractionはAI Authoringとは別の比較軸である。同じ三Engineの公式資料から、上位render graph／pipelineと低位graphics abstraction／driverを分離する原則だけを採る。
 
 | Engine | 公式に確認したRendering境界 | Miraikanaiでの対応／差分 |
 |---|---|---|
 | Unreal Engine 5.8 | RHIはplatform graphics API直上の薄い低位層で、RDGがpass／resource dependency、lifetime、barrier、parallel executionを上位で管理する | `GraphicsDevicePort`＋private Backend AdapterをRHI相当境界、`CanonicalRenderExecutionPlanV1`を上位Graph正本にする。Backendによるlogical pass追加とProject callbackからのnative commandを許さない点はさらに狭い |
-| Unity 6 | SRP Coreがplatform graphics APIを扱う共通部品を提供し、URP Render Graphではpass入力／出力を宣言してcommand生成を実行関数へ分ける | 再利用可能なpipeline／backend分離とresource宣言を採る。Project scripting APIをGraphics Device境界にせず、Qualification済みPass Templateへ閉じる |
-| Godot 4.x | Renderer methodの下にVulkan／D3D12／Metalを抽象化する`RenderingDevice`があり、rendererとgraphics driverを分離する | Engine handleとprivate driverの分離を採る。Renderer profile、Target Profile、Capability Signatureを別契約にし、Backend名から品質profileを推測しない |
+| Unity 6.3 LTS | SRP Coreがplatform graphics APIを扱う共通部品を提供し、URP Render Graphではpass入力／出力を宣言してcommand生成を実行関数へ分ける | 再利用可能なpipeline／backend分離とresource宣言を採る。Project scripting APIをGraphics Device境界にせず、Qualification済みPass Templateへ閉じる |
+| Godot 4.7.1 | Renderer methodの下にVulkan／D3D12／Metalを抽象化する`RenderingDevice`があり、rendererとgraphics driverを分離する | Engine handleとprivate driverの分離を採る。Renderer profile、Target Profile、Capability Signatureを別契約にし、Backend名から品質profileを推測しない |
 
 Miraikanaiの正本構造は[Render Graph §2.1](../06-rendering/render-graph.md#21-rhi相当境界)であり、外部EngineのClass名、RHI method、command list、feature-level値を互換APIとして導入しない。
 
@@ -692,14 +710,15 @@ scene／screen切替についても公式資料から次の責務分離だけを
 
 | Engine | 公式に確認した切替モデル | Miraikanaiでの対応／差分 |
 |---|---|---|
-| Unity 6 | `SceneManager`がSceneをSingle／Additiveでloadし、Sceneを越えて保持するObjectは`DontDestroyOnLoad`で明示する | top-level切替と永続Sessionを分離する原則は採る。一方、Scene AssetをTitle／Stage／UI／Worldの共通authorityにはせず、Runtime Entry、Stage、World、UI Screenをtyped Owner契約へ分ける |
-| Unreal Engine 5.x | Gameplay FrameworkはGameInstanceをMap load間で保持し、World／LevelをTravel／Streamingする。Common UIはActivatable Widget Stackを持つ | persistent Play Session＋branch travel＋UI Stackの三分離に最も近い。Miraikanaiはさらにexact ref／hash、T00 atomic publish、source保持failureを共通Runtime契約にする |
-| Godot 4.5 | `SceneTree`のcurrent sceneを変更し、global stateやscene switching helperはAutoloadで保持できる | 小規模Projectの単純性は参考にするが、global singletonへdestination、Save、Stage、UI authorityを集約せず、registered PortとOwner validatorを必須にする |
+| Unity 6.3 LTS | `SceneManager`がSceneをSingle／Additiveでloadし、Sceneを越えて保持するObjectは`DontDestroyOnLoad`で明示する | top-level切替と永続Sessionを分離する原則は採る。一方、Scene AssetをTitle／Stage／UI／Worldの共通authorityにはせず、Runtime Entry、Stage、World、UI Screenをtyped Owner契約へ分ける |
+| Unreal Engine 5.8 | Gameplay FrameworkはGameInstanceをMap load間で保持し、World／LevelをTravel／Streamingする。Common UIはActivatable Widget Stackを持つ | persistent Play Session＋branch travel＋UI Stackの三分離に最も近い。Miraikanaiはさらにexact ref／hash、T00 atomic publish、source保持failureを共通Runtime契約にする |
+| Godot 4.7.1 | `SceneTree`のcurrent sceneを変更し、global stateやscene switching helperはAutoloadで保持できる | 小規模Projectの単純性は参考にするが、global singletonへdestination、Save、Stage、UI authorityを集約せず、registered PortとOwner validatorを必須にする |
 
 三Engineとも画面切替、永続state、UI navigationを完全に同一Objectへ畳み込むことを要求していない。したがってMiraikanaiは単一`SceneManager`を追加せず、§5.0.1の`Runtime Entry replacement + UI Screen Stack + Stage transition + World spatial transition`を正規分解とする。
 
 - [Unity AI: Ask／Plan／Agent](https://unity.com/blog/unity-ai-assistant-ask-plan-agent-mode-explained)
 - [Unity AI: Get started](https://unity.com/blog/unity-ai-how-to-get-started)
+- [Unity 6 release support](https://unity.com/releases/unity-6/support)
 - [Unity 6 `SerializedObject`](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/SerializedObject.html)
 - [Unity 6 additive Scene load](https://docs.unity3d.com/6000.1/Documentation/ScriptReference/SceneManagement.LoadSceneMode.Additive.html)
 - [Unity 6 multiple Scene editing](https://docs.unity3d.com/ja/6000.0/Manual/setupmultiplescenes.html)
@@ -712,13 +731,14 @@ scene／screen切替についても公式資料から次の責務分離だけを
 - [Unreal Engine Level Streaming](https://dev.epicgames.com/documentation/unreal-engine/level-streaming-in-unreal-engine)
 - [Unreal Engine Common Activatable Widget Stack](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Plugins/CommonUI/UCommonActivatableWidgetStack)
 - [Godot Nodes and Scenes](https://docs.godotengine.org/en/stable/getting_started/step_by_step/nodes_and_scenes.html)
-- [Godot `.tscn` format](https://docs.godotengine.org/en/latest/engine_details/file_formats/tscn.html)
+- [Godot 4.7 `.tscn` format](https://docs.godotengine.org/en/4.7/engine_details/file_formats/tscn.html)
 - [Godot Editor plugins](https://docs.godotengine.org/en/stable/tutorials/plugins/editor/making_plugins.html)
-- [Godot 4.5 `SceneTree`](https://docs.godotengine.org/en/4.5/classes/class_scenetree.html)
-- [Godot 4.5 Autoload](https://docs.godotengine.org/en/4.5/tutorials/scripting/singletons_autoload.html)
+- [Godot release archive](https://godotengine.org/download/archive/)
+- [Godot 4.7 `SceneTree`](https://docs.godotengine.org/en/4.7/classes/class_scenetree.html)
+- [Godot 4.7 Autoload](https://docs.godotengine.org/en/4.7/tutorials/scripting/singletons_autoload.html)
 - [Unreal Engine 5.8 Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)
 - [Unity 6 Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)
-- [Godot 4.5 GDExtension](https://docs.godotengine.org/en/4.5/tutorials/scripting/gdextension/what_is_gdextension.html)
+- [Godot 4.7 GDExtension](https://docs.godotengine.org/en/4.7/tutorials/scripting/gdextension/what_is_gdextension.html)
 - [Unreal Engine 5.8 Graphics Programming Overview／RHI](https://dev.epicgames.com/documentation/unreal-engine/graphics-programming-overview-for-unreal-engine)
 - [Unreal Engine 5.8 Render Dependency Graph](https://dev.epicgames.com/documentation/en-us/unreal-engine/render-dependency-graph-in-unreal-engine)
 - [Unity 6 Scriptable Render Pipeline Core](https://docs.unity3d.com/ja/6000.0/Manual/com.unity.render-pipelines.core.html)
