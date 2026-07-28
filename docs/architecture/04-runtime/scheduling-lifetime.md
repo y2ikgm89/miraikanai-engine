@@ -7,7 +7,7 @@
 - 正本範囲: Simulation Advance／render phase、固定実行順、job dependency、command／event順序、state writer orchestration、callback lifetime、Asset activation、Play／Runtime Entry branch／World／frame lifetime、Runtime Entry transition、fault recovery、Saveへ渡すtimebase input、Runtime contract固有のGameplay Timer capacity（§4.1）
 - 非正本範囲: Runtime ECS storage・Entity identity・query・selection・Component lease・access manifest・structural delta、World Package binary、Save／Replay payload、共通memory／frame／queue budget、共通capacity、backpressure、測定閾値、Scale Envelope、Debug Store、Subsystem固有schema／Backend。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
+- 関連文書: [Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)、[Persistence／Save](persistence-save.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[Performance／capacity](performance-capacity.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Render Graph](../06-rendering/render-graph.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -71,7 +71,7 @@ flowchart BT
 
 矢印は依存元から依存先を示す。実target edgeはconfigure時に検査し、循環、未許可edge、Domain間直接依存を拒否する。
 
-図中の`Asset Runtime`はSchedulingがcompletion acceptance、publication boundary、retire順を接続する論理module labelであり、汎用Runtime Asset Owner、CMake target、Schema、APIまたはactive Capabilityの宣言ではない。汎用Runtime Asset authorityは[Architecture Plan Closure Review `ARCH-C02`](../appendices/architecture-plan-closure-review.md#8-architecture-closure-register)の`open-decision`であり、本図のedgeからOwnerまたは実装を生成しない。
+図中の`Asset Runtime`はSchedulingがcompletion acceptance、publication boundary、retire順を接続する論理module labelであり、target Owner境界は[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)へ解決する。ただし同文書は`review`、実装は`absent`であり、CMake target、Schema、API、Serviceまたはactive Capabilityの存在を意味しない。Owner Decisionとconsumer migrationが適用されるまでは、本図のedgeからcurrent実装を生成しない。
 
 | target | 所有 | 禁止 |
 |---|---|---|
@@ -287,6 +287,21 @@ BoundaryDeliveryContractV1
 ### 4.0 Runtime Entry transition
 
 Title、Result、gameplay、server等のtop-level branch replacementはRuntime ownerの次のclosed contractだけを使う。Screen navigation、Stage transition、World spatial transitionはこのPortを代用せず、top-level branchが変わる場合だけ各Ownerが本Portへtyped requestを提出する。
+
+Runtime Entryに関与する正本分担は次に固定する。
+
+| Owner | 正本責務 | 所有しないもの |
+|---|---|---|
+| Product Plan | end-to-end scenario、observable outcome、acceptance invariant、Evidence非代替 | transition state、commit、cancel、generation、teardown |
+| Project State | Runtime Entry Source definition、Target selection、activation policy、Project revision | Runtime transition execution |
+| Scheduling／Lifetime | request受理、prepare／commit boundary、cancel、branch generation、source teardown、terminal result | Source Document、Package内容、Save reconstruction、UI／Stage意味 |
+| Runtime Package | destination branch／World／UI／startup dependencyのprivate staging、validation、publication acknowledgement | transition request policy、Screen／Stage／World spatial state |
+| Persistence／Save | ContinueのSave Bundle解決、reconstruction payload、identity／digest validation | destination publicationとbranch generation |
+| UI | registered command、Screen navigation、Loading projection | Runtime Entry success、World／Stage state |
+| Scenario／Stage | completion outcome、Stage instance、次destination role | top-level transition commit |
+| World | spatial destinationとWorld内transition | Runtime Entry branch replacement |
+
+同じend-to-end scenarioを複数Ownerが説明できるが、state machine、commit／cancel、branch generation、terminal Receiptは本節だけを正本とする。他文書は本節へのref、提出payloadのOwner意味、consumer固有acceptanceだけを記載し、同じ状態遷移を複写しない。Productのscenario表、UI Loading表示、Stage completion、Save metadata、Package readinessのいずれか単独からtransition成功を推測しない。
 
 ```text
 RuntimeEntryTransitionPortV1

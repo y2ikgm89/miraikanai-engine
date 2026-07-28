@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Evidence envelope意味、Receipt class、freshness、Provenance、Trace grading、release evidence、保持、failure
+- 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
 - 非正本範囲: 具体Envelope／Registry／Fixture候補、AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。補助文書または各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[AI Security／Approval](ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
 - 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
@@ -103,6 +103,18 @@ Store Upload Receiptはupload対象、destination、server response、submission
 
 Release Gateは必要なEvidence classのset equalityを検証する。万能Receipt、class alias、missing classの黙示補完を禁止する。
 
+### 7.9 Test結果集約、retry、quarantine
+
+Test aggregationは、各attemptのCandidate、Requirement、suite／fixture、Target、Toolchain、device／runner、input closure、開始／終了、`passed | failed | blocked | infrastructure_error`結果を保持し、定義済みGateが要求するTest集合とのset equalityから判定する。未実行、欠損、unknown、timeout、runner crash、log欠損を`passed`または黙示的`skipped`へ変換しない。
+
+retryは新しいattemptであり、最初の失敗を上書きしない。同じCandidateに対する全attemptとretry reasonを保持し、再実行で通っただけのflaky Testを安定したpassとして集約しない。自動retryはInfrastructure分類とbounded policyに限定し、product defect、security failure、determinism mismatch、data corruptionをInfrastructureへ分類変更して迂回しない。
+
+quarantineはTestの存在と既知問題を追跡する隔離状態であり、Requirement充足ではない。mandatory Testがquarantine中なら対応Gateは`blocked`またはincompleteであり、Test件数から除外してpass率を上げない。解除には原因、修正Candidate、再現fixture、連続pass条件を持つ独立Evidenceを要求する。
+
+waiverはOwner、対象Requirement／Candidate／Target、理由、代替Evidence、発行時刻、expiry、revocationを束縛する明示的なGovernance判断である。別Candidate、別Target、期限後へ継承せず、Security、integrity、credential、署名、artifact identityの必須条件を迂回しない。waiverを`passed`へ書き換えず、Release summaryへ未充足Requirementとともに表示する。
+
+Unit、headless、simulator、screenshot、snapshot、semantic tree、accessibility、performance分布、physical-device sessionは互いの代替ではない。Requirementが指定するclassをexactに満たし、特にphysical-device、install／upgrade、launch／lifecycle、input、thermal／power、accessibility実機、P95／P99 tailをhost／simulator結果から推測しない。
+
 ## 8. Trace gradingとchain
 
 TraceはSource、Candidate、Build、Test、Review、Qualification、Promotion、Release間のexact refを辿れる必要がある。Gradeは到達可能なEvidenceと欠損を表し、品質の主観評価またはApprovalを表さない。
@@ -129,7 +141,7 @@ Dependency Evidenceはexact version、source、license、integrity、resolved ar
 
 ## 14. CI lanes
 
-CI laneは対象Requirement、Target、Toolchain、isolation、credential class、Artifact retentionを固定する。具体lane候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#14-ci-lanes)へ分離し、RunnerとReceiptが存在するまで実行済みと表現しない。
+CI laneは対象Requirement、Candidate、Target、Toolchain、device／runner、isolation、credential class、Artifact retention、freshnessを固定する。Gateはlane名や緑色表示ではなく、§7.9のattempt結果と必要lane集合のset equalityを検証する。具体lane候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#14-ci-lanes)へ分離し、Runner、Test Artifact、Receiptが存在するまで実行済みと表現しない。
 
 ## 15. 完了条件
 

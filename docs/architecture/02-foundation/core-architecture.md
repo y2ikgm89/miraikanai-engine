@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、Repository境界、Test／CI、Feature開始Gate
+- 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、cross-target Build／Release Evidence closure、Repository境界、Test／CI、Feature開始Gate
 - 非正本範囲: 外部Tool・SDK・Libraryのversion／hash／license／取得元、命名、Memory／Pointer詳細、Runtime scheduling／budget／observability、Schema構造。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -150,7 +150,7 @@ OperationTaskV1
   receipt_ref?
 ```
 
-`device_identity_ref`と`device_generation`はDeviceまたはremote Debugを対象にするOperationでは対で必須、それ以外では省略する。`consent_record_ref`はOperation Registryが明示consentを要求する場合だけ必須であり、空値や別Operationのconsentで代用しない。`receipt_ref`は非終端stateでは省略し、`succeeded | failed | cancelled`では同じtask ID、request hash、Project revision、Candidate root、Target、Device bindingを持つimmutable Receiptへ必須参照する。失敗詳細はReceiptが参照するtyped `MirakanDiagnosticV1`から取得し、自由文だけをTaskへ保存しない。
+`device_identity_ref`と`device_generation`はDeviceまたはremote Debugを対象にするOperationでは対で必須、それ以外では省略する。`consent_record_ref`はOperation Registryが明示consentを要求する場合だけ必須であり、空値や別Operationのconsentで代用しない。Consentのsubject、purpose、scope、freshness、revocationとirreversible boundaryでの意味は[AI Security／Approval §3.3](../01-governance/ai-security-approval.md#33-consent-recordとpurpose-binding)だけが所有し、本書は参照を消費する。`receipt_ref`は非終端stateでは省略し、`succeeded | failed | cancelled`では同じtask ID、request hash、Project revision、Candidate root、Target、Device bindingを持つimmutable Receiptへ必須参照する。失敗詳細はReceiptが参照するtyped `MirakanDiagnosticV1`から取得し、自由文だけをTaskへ保存しない。
 
 Activation後にOperation Registryへ同時登録する全14 Receiptは、次の共通subjectとOperation固有payloadを一つの署名済みRecordへ閉じる。
 
@@ -672,6 +672,24 @@ CandidateTestReceiptRefV1 =
 - §9.1 Package successのValidation／Cook／Game Candidate Build集合は各exact singleton、Candidate Test集合はPackage policyが同じGame Candidate Manifestに要求するTest Plan集合とset equalityである。PackageはGame Candidate Build Receiptの`source_build_closure.kind=promoted_project_source`だけを`PackageReceiptPayloadV1.source_build_closure.kind=selected_project_source`へ投影でき、Promotion ref／Build ref集合をbyte equalityにする。`prepromotion_project_source`のGame Candidate／Test成功をPackage authorizationへ流用せず、前段六family以外のself-declared artifactやunsigned hashをReceiptとして数えない。
 
 下流開始前とReceipt発行直前の二回、全前段wrapper、current revocation、対象stageのProject revision head、typed Project Publication binding、Candidate root、Target closure、Toolchain closureをread-backする。prepromotion closureは`kind=prepromotion_base`、live base `N`のValidate／Cook／Source Build／Game Candidate／Candidate TestからPromotionまで、final closureは`kind=committed_revision`、exact `PublicPublicationMarkerRefV1`後のcurrent committed `N+1`のValidate→Cook→Game Candidate→Candidate Test→Packageまでであり、二つを一つのsame-revision chainへ合成しない。Promotion Receipt→late authorization binding→Project Commit Public Markerは両closureを結ぶ唯一の境界で、Promotion Receiptが参照するprepromotion Build／Test Receiptは`N`のまま保持する。drift時はterminal `failed`とtyped Diagnosticを発行し、成功artifactをpublishしない。各OperationのAuthorizationは独立であり前段Authorizationを後段へ継承しない。
+
+### 9.3 Cross-target Build／Release Evidence closure
+
+Build／Releaseの共通closureとTarget固有closureを分離する。共通closureはexact Source／Project revision、Candidate root、Contract set、Dependency／Toolchain lock、Validation、Cook、Native／Shader Build、Game Candidate、Candidate Testまでを所有する。Windows、Android、Appleの各Target Ownerはその共通Candidateを入力に、Target package、signing、install／upgrade、launch／lifecycle、smoke、physical-device、distribution／store submissionのうち該当するEvidence classを追加する。
+
+| 境界 | 共通で一致させるidentity | Target固有で追加するidentity／Evidence |
+|---|---|---|
+| Package | Project revision、Candidate root、Contract set、Toolchain lock、Cook／Build／Test Receipt | Target Profile、package format、manifest、entitlement／permission、artifact hash |
+| Signing | exact unsigned／prepared Artifact hash | signer role、certificate／key非秘密ref、signature、notarization等のTarget固有結果 |
+| Install／Upgrade | signed Package identity | Device identity／generation、clean installまたはfrom-version、install result |
+| Launch／Lifecycle／Smoke | installed ArtifactとDevice binding | OS／runtime version、entry path、background／resume／termination、fixture result |
+| Release／Submission | 上記の必要Evidence class集合 | destination、submission identity、server response、review／publication state |
+
+Signing成功だけをRelease成功、upload成功だけをStore承認、launch成功だけをSmoke passと呼ばない。clean installとupgrade、hostとsimulator、simulatorとphysical device、同一OS familyの別Target、平均性能とtail性能を相互代用しない。[AI Verification／Provenance §7.8–7.9](../01-governance/ai-verification-provenance.md#78-product-release-evidence-class-aggregation)のset equality、retry、quarantine、waiver規則を全Targetへ適用する。
+
+Release Gateは必要EvidenceをCandidate、Target Profile、Toolchain lock、package hash、device generation、fixture、freshnessでexactに束縛する。missing、expired、revoked、wrong-target、wrong-device、別Candidate、Infrastructure failure、quarantined mandatory laneを合格へ補完しない。Target Ownerが要求するphysical-device／distribution Evidenceを共通headless laneで置き換えず、共通closureの失敗をTarget固有signingで覆い隠さない。
+
+本節はEvidence compositionの目標契約であり、current Build Service、CI runner、signing key、Device Lab、Store credential、Release Artifact、Receipt instanceの存在を主張しない。具体Tool version／lockは[Toolchain／Dependencies](toolchain-dependencies.md)、Targetのpackage／device／store意味は[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)が所有する。
 
 ## 10. Repository境界
 

@@ -5,9 +5,9 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: reusable Gameplay Featureの共通ownership、manifest、compatibility、Public Contract、State owner、Command／Event／Snapshot、Save／Replay、failure、qualification意味
-- 非正本範囲: 具体Weapon／Damage／Vital／Score／Encounter／Pickup／Locomotion Schema、Registry、Fixture、Genre composition、Pack lifecycle、Subsystem契約、Product roadmap
+- 非正本範囲: 具体Weapon／Damage／Vital／Score／Encounter／Pickup／Locomotion／RPG Feature Schema、Registry、Fixture、Genre composition、Pack lifecycle、Subsystem契約、Product roadmap
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Pack Contract](pack-contract.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)
-- 関連文書: [Feature Definition／Fixture Candidate Catalog](../appendices/gameplay-feature-definition-fixture-catalog.md)、[Scenario／Stage](scenario-stage.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[Input](../07-platform/input.md)
+- 関連文書: [Feature Definition／Fixture Candidate Catalog](../appendices/gameplay-feature-definition-fixture-catalog.md)、[RPG Genre Pack](rpg.md)、[Scenario／Stage](scenario-stage.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[Input](../07-platform/input.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -77,6 +77,22 @@ FeatureはSubsystemのlive memory、raw pointer、mutable leaseを保持しな�
 ### 4.3 Transaction
 
 Fire、Damage、Pickup、Score等のstate-changing actionはexpected State generation、Definition／Policy ref、authorization、input closureを束縛し、全成功または変更0件にする。Collision、Physics、Inventory等の別Owner更新を途中状態で公開しない。
+
+### 4.4 Reusable RPG Feature family
+
+RPG-first Product方向は新しいGeneric Core hierarchyを作らない。次の五familyをGenre非依存のReusable Featureとして本書の共通ownershipへ解決し、[RPG Genre Pack](rpg.md)はcomposition、Profile、Game Flow、command roleだけを所有する。
+
+| Feature family | 一意Owner責務 | 他Ownerとの境界 |
+|---|---|---|
+| Command Battle | battle instance、turn ownership、legal command、deterministic resolution、interrupt、outcome、failure | Schedulingのglobal cadenceを変更せず、Input／AIからtyped Commandを受ける |
+| Actor Progression | progression State、experience／level policy、derived-stat publication、cap、migration | Character／Entityの固定Core型を作らず、consumerへsealed Snapshotを公開する |
+| Inventory／Equipment | item ownership、stack／capacity、equipment slot、equip／unequip／item-use transaction | Asset identity、UI presentation、Pickup／Grant producerを所有しない |
+| Dialogue／Quest | dialogue choice、condition、quest objective／State、causality、Save identity | UI／Localization／Scenario／Worldへtyped refで接続する |
+| Currency／Shop | currency ledger、offer／price policy、purchase／sell transaction、reject atomicity | UI、Product balance、store／platform commerceを所有しない |
+
+五familyは一つのOwner文書に集約できるが、logical Owner、State、Command、Event、Snapshot、Save projection、failureを相互に混ぜない。Feature間の操作は各Ownerのprepared resultを一つのbounded transactionへ束縛し、全precondition成功時だけpublishする。equipment変更とderived stat、inventoryとcurrency、dialogue choiceとquest、battle commandとturn advanceを片側だけcommitしない。
+
+これはOwner responsibilityのtarget designであり、Stable ID、Schema、Registry、Operation、CapabilityまたはFixtureをcurrentへ追加しない。ShooterのWeapon／Score／Pickup／Game Flowを名前変更してRPG Featureへ流用せず、意味一致する既存Public Contractだけを明示参照する。具体Feature contractをmaterializeする場合は、各familyについてDefinition／State／Command／Event／Snapshot、transaction、Save／Replay、Diagnostic、negative fixtureを同じreview changeへ閉じる。
 
 ## 5. Command、Event、Snapshot
 

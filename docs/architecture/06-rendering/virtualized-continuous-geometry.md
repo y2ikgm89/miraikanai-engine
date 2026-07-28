@@ -7,7 +7,7 @@
 - Capability状態: `future.capability.virtualized-continuous-geometry-lod = planning_only`
 - 正本範囲: virtualized／continuous geometryの用語、表現ファミリ境界、semantic authoring intent、Target別feature qualification、cluster hierarchy／page artifactの統合契約、outer LODとinner cutの分離、residency／fallback意味、AI read／preview、固有diagnostic／qualification、未決定事項の型付き管理
 - 非正本範囲: discrete LOD／HLOD policy、Asset transaction／共通Artifact envelope、Material／Animation意味、World partition、Render pass／resource／queue実行、共通memory／I/O budget、Save／Replay envelope、Tool／SDK／Library lock、Platform activation、AI authorization、実装方式／実装工程／日程。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[LOD](lod.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Render Graph](render-graph.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[LOD](lod.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Render Graph](render-graph.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
 - 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](camera.md)、[Materials](materials.md)、[World](world.md)
 - 根拠区分: project-decision（外部Engineの記述はofficial-spec、未計測の数値・方式選択はprovisional）
 - 外部根拠確認日: 2026-07-29
@@ -94,7 +94,8 @@ Unreal Engineの現行hardware条件もTarget qualificationの参考にするが
 | LOD | outer representation候補、semantic floor、hysteresis、exact fallback chain | inner hierarchy traversal／cut |
 | Asset lifecycle | Source import、cook intentの格納、hierarchy／page Artifact、generation、Catalog、promotion | View selection、runtime pool pressure |
 | Runtime Package | World／Sectionから必要Artifactへのexact dependency closure | page I/O／residency manager |
-| 本書のtarget Residency Coordinator | virtual geometry page要求の検証／merge、root pin意味、generation acceptance、non-root eviction適格性、immutable snapshot publication | generic Artifact Store／I/O、phase、lease一般則、capacity値 |
+| 本書のtarget Residency Coordinator | virtual geometry page要求の検証／merge、root pin意味、generation acceptance、non-root eviction適格性、immutable snapshot publication | generic Artifact Store／I/O、request state、phase、lease一般則、capacity値 |
+| Runtime Asset Lifecycle | generic Artifact request／read／decode／upload、dependency、generation、residency／lease／eviction、failure atomicity | virtual geometryのroot／page意味、cut、quality fallback |
 | Scheduling／Lifetime | request／completionのphase、job dependency、cancel／stale acceptance、device recovery boundary | page意味、quality fallback、capacity値 |
 | Memory／Pointers | immutable lease、generation handle、pool allocation／retireの一般則 | page priority、cut、quality意味 |
 | World | plan-local Cell、representation slot、prefetch role／priority intent | page ID、resident set、micro-cluster |
@@ -429,7 +430,7 @@ VirtualGeometryTargetActivationBindingV1
 
 Activation Bindingは`status=requirements_closed`のPlanだけを参照し、全Feature Requirementへexact一件の`qualified` Bindingを持ち、extra／missing／duplicate tupleを拒否する。`runtime_asset_authority_ref`のOwner Decisionが`applied`、Renderer signatureとPackage closureが同じTarget、fallbackがqualifiedかつreadyである場合にだけnon-dispatchableなstaged candidateを作れる。Product Capabilityの`active`移行とTarget Activation Bindingのpublicationは同一Governance transactionでatomicに成立させ、Product activeをcandidate作成の事前条件にするcycleも、Binding publicationをProduct activeより先にする隙間も作らない。BindingはPlan hashへ戻さず、revoke後は新規View／Graph generationでvirtual candidateを登録しない。`VirtualGeometryTargetActivationBindingRefV1`はactivation binding ID、version、Target ref、hashを持つ。current staged／published Binding集合はともに`[]`である。
 
-### 7.2 Residency Coordinatorと未解決authority
+### 7.2 Residency CoordinatorとRuntime Asset authority
 
 virtual geometry固有のtarget `VirtualGeometryResidencyContractV1`は本書が所有し、次を固定する。
 
@@ -465,7 +466,7 @@ Coordinatorは三入力をowner-qualified priority intentとして受け、同�
 
 `VirtualGeometryResidencyContractRefV1`は`residency_contract_id`、version、`residency_contract_hash`のexact refである。
 
-generic Artifact request／read／decode／upload／residency ManagerのOwnerと公開Portは[Architecture Plan Closure Reviewの`ARCH-C02`](../appendices/architecture-plan-closure-review.md#8-architecture-closure-register)で`open-decision`である。本書はその汎用authorityをvirtual geometry用に横取りまたは推測せず、`runtime_asset_authority_ref`がapproved／applied exact refへ解決するまでPlanを`fallback_only`、active Targetを`[]`にする。これにより未所有箇所を隠さず、discrete LOD／HLODで安全に閉じる。
+generic Artifact request／read／decode／upload／residencyのtarget Ownerは[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)へ一意化した。本書はその汎用authorityをvirtual geometry用に横取りせず、`runtime_asset_authority_ref`が同Ownerのapproved／applied exact Definition refへ解決し、Runtime Asset Capabilityが対象TargetでactiveになるまでPlanを`fallback_only`、active Targetを`[]`にする。`ARCH-C02`のtarget design closureは実装、Definition materialization、Capability activationを意味しないため、discrete LOD／HLOD fallbackは維持する。
 
 ### 7.3 runtime residency snapshot
 
@@ -673,7 +674,7 @@ VirtualGeometryDecisionV1
 | Decision | current state | candidate scope | mandatory fallback |
 |---|---|---|---|
 | provider／private Adapter | `not_evaluated` | in-house／qualified third-party | discrete LOD／HLOD |
-| generic Runtime Asset request／residency authority | `not_evaluated`（`ARCH-C02 open-decision`） | Architecture GovernanceでOwner／Portを一意に選ぶ候補 | virtual candidateを登録せずdiscrete LOD／HLOD |
+| generic Runtime Asset request／residency authority | `owner_selected_target`（`ARCH-C02 closed-in-target-design`、Capability `not_activated`） | [Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)のDefinition／Port materializationとTarget qualification | virtual candidateを登録せずdiscrete LOD／HLOD |
 | hierarchy builder／simplification algorithm | `not_evaluated` | Toolchain lockへ登録する候補だけ | Source保存＋discrete chain |
 | micro-cluster granularity | `not_evaluated` | Target measurementで比較するbounded profile | provider-neutral intent |
 | page granularity／layout | `not_evaluated` | I/O、memory、integrity fixtureで比較 | root＋discrete fallback |

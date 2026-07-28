@@ -665,7 +665,7 @@ WCAGのCSS pixel、Miraikanaiの`ui_lu`、Androidのdp、Appleのptを数値だ�
 
 ## 15. Player Profile／Settings
 
-本書はlocal Player Profile、Settings、apply／revert transaction、Save Catalogの唯一のOwnerである。Gameplay Save payloadの形式／atomicityはRuntime／Platform正本、Editor workspaceはEditor正本、Account credentialはAccount正本、telemetry／AI Provider／network consentは専用Consent Record正本が所有し、Settingsの一般boolへ畳み込まない。
+本書はlocal Player Profile、Settings、apply／revert transaction、Save Catalogの唯一のOwnerである。Gameplay Save payloadの形式／atomicityはRuntime／Platform正本、Editor workspaceはEditor正本、Account credentialはAccount正本、telemetry／AI Provider／network consentのsubject、purpose、grant／deny／revoke、freshnessは[AI Security／Approval §3.3](../01-governance/ai-security-approval.md#33-consent-recordとpurpose-binding)のConsent Record正本が所有し、Settingsの一般boolへ畳み込まない。本書は同意文面、locale、accessible presentationとUser入力を担当するが、表示したことをgrantとして記録しない。
 
 ```text
 LocalPlayerProfileV1

@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV2、State owner、typed Command／Event／Snapshot Port、Perception／Interaction意味、Project-defined System、generated projection／Promotion条件
+- 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV2、State owner、typed Command／Event／Snapshot Port、Perception／Interaction／Decision／Action意味、Project-defined System、generated projection／Promotion条件
 - 非正本範囲: 具体Schema／Registry／Fixture候補、Native ABI、Project transaction、共有Schema基盤、Runtime scheduling、外部Tool固定、Navigation query、Character Motor、Project固有Interaction結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [Generated Projection／Fixture Candidate Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
+- 関連文書: [Generated Projection／Fixture Candidate Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Input](../07-platform/input.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -68,6 +68,26 @@ Interaction Space Semanticはlogical、spatial、UIの空間差をclosed semanti
 ### 2.5 Rule／ECAとFinite State Machine
 
 Ruleはevent、pure condition、bounded action proposalからなり、直接Domain stateを書かない。FSMはclosed state／event／transition、initial／terminal state、failureを持つ。競合proposalはOwnerが定めるdeterministic policyで解決する。
+
+### 2.6 Perception→Decision→Action接続
+
+Gameplay AIの方式としてBehavior Tree、Utility、Planner、FSMのいずれかをCore既定にしない。必要なのは方式ではなく、`observation -> bounded memory -> decision proposal -> selected action -> typed command -> subsystem execution -> completion／failure -> explanation`の一方向contractである。
+
+| 段階 | 正本Owner | 境界 |
+|---|---|---|
+| observation／stimulus | Perception／Interaction | source、subject、observed advance、confidence／completeness、expiryをboundedに公開 |
+| bounded memory | Gameplay System／Feature Owner | retention、aging、merge、forget、Save／Replay policyを宣言し、Renderer visibilityやlive queryを記憶として流用しない |
+| decision proposal／selection | Gameplay System／Genre／Project policy Owner | read set、goal／rule、candidate action、selection理由、tie policyを所有し、Subsystem private stateを書かない |
+| action command | Commandを所有するFeature／Subsystem | exact target、precondition、idempotency、cancel／interrupt policyを検証 |
+| execution | Navigation、Animation、Input／Command、Feature等 | typed requestを実行し、decision policyを再定義しない |
+| completion／failure | action Owner | accepted、rejected、cancelled、interrupted、failedを一つのterminal resultとして返す |
+| explanation／Replay | Debug／Persistence＋各Owner projection | causalityと選択理由をboundedに束縛し、欠損を推測しない |
+
+stimulus expiry、higher-priority Event、target消失、Navigation path invalidation、Animation lock、Feature rejectionは明示的なinterrupt／failure inputである。interruptはselected actionのOwnerへtyped requestとして渡し、Animation、Navigation、Physics、Rendererのprivate stateを直接変更しない。cancel不可boundaryを越えた成功をcancelledへ書き換えず、次action proposalへ解決する。
+
+Perception memory、decision state、selected actionのSave／Replay扱いはOwnerが明示する。deterministic gameplay結果へ影響する入力、RNG binding、selection、accepted Command、terminal resultはReplay projectionへ含め、cache、worker timing、Editor selection、localized explanationをauthoritative stateにしない。non-deterministic inputを使用する場合はrecord／replay可能なsealed observationへ変換するか、deterministic Replay非対応をCapability／Qualificationで明示する。
+
+Debug projectionは「何を観測し、何を記憶し、どの候補をなぜ棄却し、どのactionを選び、どのSubsystemがどの結果を返したか」を同じcausal chainで返す。gap、expired observation、redacted input、unknown policy、missing terminal resultがある場合はcomplete explanationを捏造しない。Genre固有のNPC behaviorはこのcontractを消費し、Generic Gameplay ModelへRPG／Shooter固有decision treeを追加しない。
 
 ## 3. `GameSystemSpecV2`
 

@@ -5,9 +5,9 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: Audio Assetのdomain意味、Sound Cue、Audio command、Voice、Mixer／Bus／DSP、Spatial、decode／stream／callback、route／interruption、Audio固有capacity／failure／qualification
-- 非正本範囲: Source import／cook／promotion transaction、Runtime phase／shared queue・memory budget、Platform lifecycle、external codec／SDK version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
+- 非正本範囲: Source import／cook／promotion transaction、generic Runtime Asset request／residency／eviction、Runtime phase／shared queue・memory budget、Platform lifecycle、external codec／SDK version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -26,6 +26,7 @@ C1は48 kHz float32 Engine mix、stereo output、one-shot PCM、Opus music strea
 | Audio Asset意味、Voice、Cue、Mixer、Bus、DSP、Spatial、Streaming | 本書 |
 | Runtime slot、Audio control／callback scheduling、shared queue／memory budget | Runtime owners |
 | Source import、PCM／Opus cook、Asset generation | Asset規約 |
+| Runtime Artifact request、dependency、generation acceptance、residency lease、eviction | [Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md) |
 | Android／Apple device、route、interruption | Mobile規約 |
 
 C1ではvoice chat、microphone capture、speech recognition、MIDI、video sync、third-party DSP plugin、Runtime arbitrary audio graph code、HRTF、convolution reverb、dynamic music authoringを実装しない。HRTF、advanced reverb、voice chatはC2以降の別Capabilityである。

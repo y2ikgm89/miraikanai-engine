@@ -4,8 +4,8 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: AI task authorization、Risk、Trust boundary、不変Engine、Sandbox、Credential原則、Provider／MCP／CLI security原則、Preview、人間承認、Activation、Promotion、拒否
-- 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持。これらはAI Verification／Provenanceを参照する
+- 正本範囲: AI task authorization、Risk、Trust boundary、不変Engine、Sandbox、Credential原則、Provider／MCP／CLI security原則、Preview、人間承認、Consent Recordとpurpose binding、Activation、Promotion、拒否
+- 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持、同意を提示するUI、Platform privacy declaration、data retention／deletion policy。これらはAI Verification／Provenanceまたは各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
 - 関連文書: [AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
@@ -317,6 +317,18 @@ AwaitingUserInputはResolvingRequirements、Running、Validatingからだけ入�
 Atomic commit、許可済みlong-running verification、Release transactionのcritical section開始後は、Cancel／Expiryで結果不明のまま終了表示しない。完了、rollback、read-backのいずれかへ収束させる。
 
 本節の15状態はAI Orchestrator TaskのGovernance stateである。Build familyのatomic Activation後、[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)のplanned `OperationTaskV1.state = queued | running | cancel_requested | succeeded | failed | cancelled`は個々のPackage／Device／Play／Debug実行ledgerになり、相互の状態名をaliasにせず、Operation Receiptから親Taskへ結果を投影する。current `OperationTaskV1` instanceは0件である。
+
+### 3.3 Consent Recordとpurpose binding
+
+Consentは、特定subjectが提示内容を理解して特定purposeとscopeへ許可または拒否を与えたことを表す、Governance-ownedの署名Recordである。Task Authorization、Risk Approval、Settings値、Platform privacy declaration、利用規約への包括同意、外部Providerの同意画面とは別物であり、いずれか一つから他を推測しない。本節はConsentの意味と検証境界だけを所有し、表示／入力UIは[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、収集対象とredactionは各Domain Owner、Evidence保持は[AI Verification／Provenance](ai-verification-provenance.md)が所有する。
+
+Consent Recordは最低限、consent identity、subject identity、purpose、scope、Project／Target／Device bindingの適用有無、提示したpolicy／text／locale version、`granted | denied | revoked | expired`のdecision、発行時刻、freshness／expiry、issuer／evidence refを束縛する。purposeは少なくともSupport Bundle生成、crash upload、telemetry export、AI Provider／network利用、device install、device resetを相互に異なる値として扱う。一つのpurpose、別Project、別Target、別Device generation、別User、古い提示文または古いPolicyへのgrantを他へ継承しない。
+
+各Operationはenqueue時と副作用開始直前に、Registryが要求するexact purpose、subject、scope、Project／Target／Device、policy／text version、freshness、revocationを再検証する。Consentが必要なOperationではmissing、`denied`、`revoked`、`expired`、wrong-purpose、wrong-subject、wrong-device、stale-policyをfail-closedで拒否し、generic boolean、Settings flag、Platform manifest declaration、Approval Receiptを代用しない。Consentが不要なOperationへ不要なRecordを添付しても権限は増えない。
+
+revocationまたはexpiryがirreversible boundaryより前に到着したqueued／running Taskは新しい副作用を開始せず、cancelまたはfailへ収束させる。boundary通過後は結果不明として消さず、Operationをterminal Receiptへ収束させ、Retention／Deletion Ownerが定める処理を別Operationとして要求する。UIの表示消去、Taskのcancel、既に外部へ送信されたdataの削除を同一の結果として扱わない。
+
+本節はtarget Contractであり、current Consent Registry、Schema、Signer Role／Key、Consent UI、Operation binding、Receipt instanceは存在しない。Activation時は各purposeのpositive／deny／revoke／expiry／wrong-binding fixture、表示した文面と署名Recordの一致、前段Operationからの非継承、irreversible boundary前後の収束を検証する。
 
 ## 4. Risk classとActivation
 

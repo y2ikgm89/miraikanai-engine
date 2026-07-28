@@ -72,6 +72,20 @@ Generated public API識別子とgenerated code identifierは英語正規語を�
 
 Architecture正本の現在のproseは日本語を維持し、正規技術tokenだけを上表の綴りへ一致させる。翻訳版Architectureは[Architecture Governance](../01-governance/architecture-governance.md)が明示的な正本移管を承認しない限り非正規projectionである。
 
+### 2.2 Package、Pack、Bundleのqualified名称
+
+人間向け説明で裸の「Package」または「Pack」を使うと配布Artifactと機能構成を混同できるため、次のqualified名称を用いる。技術identityは各OwnerのStable ID／Schema名を優先する。
+
+| 正規語 | 意味 | Owner／混同しないもの |
+|---|---|---|
+| Content Package | Cook済みAssetのimmutable内容集合 | Asset Lifecycle。Runtime EntryまたはPlatform install packageではない |
+| Runtime Package | Runtime Entry／World／Sectionを起動するdependency closure | Runtime Package Owner。generic Runtime Asset residencyではない |
+| Platform Package | Target OSへinstall／distributionするArtifact | 各Platform Owner。Content Packageではない |
+| Package Candidate | 検証／署名前を含む特定Targetの候補Artifact | Build／Release closure。公開済みReleaseではない |
+| Feature Pack | 再利用可能なGameplay Feature構成 | Gameplay Features。Genre全体または配布Artifactではない |
+| Genre Pack | 複数FeatureをGenre flowへ構成する選択単位 | Genre Pack Owner。Product outcomeまたはReference Gameではない |
+| Support Bundle | User提出用にredactされたDebug Artifact | Debugging／Observability／Replay。PackageまたはReproduction Bundleではない |
+
 ## 3. Public type、operation、diagnostic
 
 ### 3.1 C++とSchema type

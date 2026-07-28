@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Architecture文書の状態、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log
+- 正本範囲: Architecture文書の状態、subject-qualified状態語彙、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log
 - 非正本範囲: Product capability、MCD／Operation、実装Task、実装順序、Domain Schema・固定値・runtime挙動、AIの認可・実行route
 - 規範依存: none
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
@@ -74,6 +74,25 @@ Architecture Decision RecordはOwner文書と異なるlifecycleを持ち、`revi
 
 この方針は、`normative`（外部guidanceにおけるAccepted）ADRを後から現在の説明へ書き換えず、新しいADRで置換関係を記録するAWSおよびMicrosoftのguidanceと整合する。
 
+### 2.3 状態軸とsubject-qualified語彙
+
+Architecture全体の状態語は、必ず何の状態かを特定する。次の軸は直交し、一つの成立から別軸を推測しない。
+
+| 状態軸 | 正本／代表語 | 意味しないこと |
+|---|---|---|
+| 文書 | 本書 §2.1の`draft | review | accepted | deprecated` | 実装、検証、Capability activation |
+| 実装 | 本書 §2.1の`absent | partial | implemented` | Target qualification、release可能性 |
+| 文書検証 | 本書 §2.1の`unreviewed | design-reviewed | prototype-verified | measurement-verified` | Product acceptance、全Target適合 |
+| Architecture authority | `current authority | target authority | proposal` | target文書がcurrent Registryへ登録済みであること |
+| Capability成熟度 | [Product Plan](../00-product/product-plan.md)のCapability state／Phase | Operation、Provider、Targetがactiveであること |
+| Capability／Operation activation | 対応Ownerの`not_activated | active | revoked`等 | 文書accepted、Artifact promotion、Qualification pass |
+| Source／Artifact promotion | Source、Candidate、ArtifactごとのPromotion state | Capability activation、release signing |
+| Technical qualification | exact Candidate／Target／Toolchain／freshnessに対するReceipt | Product判断、Store公開、将来versionの適合 |
+| Target／Device qualification | exact Target Profile／Device generationの適合 | simulator、別Target、同型別Deviceの適合 |
+| Release／Product completion | Product PlanとRelease Evidenceが定める状態 | Architectureまたは実装全体の完了 |
+
+裸の`current`、`active`、`qualified`、`promoted`、`complete`を、subjectを一意に特定できない表、Schema、説明へ使わない。`current Architecture authority`、`Capability active`、`Artifact promoted`、`Target qualified`、`Product acceptance complete`のように修飾する。同名に見えるstateを相互aliasにせず、Owner境界をまたぐ投影には元Recordのexact refを持たせる。
+
 ## 3. 根拠と断定の規則
 
 ### 3.1 Inline根拠
@@ -83,7 +102,7 @@ Architecture Decision RecordはOwner文書と異なるlifecycleを持ち、`revi
 - 外部APIのsupport、制約、default、minimum、deprecation。
 - OS、SDK、Compiler、Tool、Libraryのversionと互換条件。
 - memory、frame time、queue、timeout、UI timing、容量、件数などの数値。
-- 「必須」「禁止」「唯一」「決定論的」「互換」とする設計判断。
+- 外部事実を根拠に「必須」「禁止」「唯一」「決定論的」「互換」とする設計判断。
 - Security、Accessibility、Store、Distributionに関する合否条件。
 
 記載形式は次のいずれかとする。
@@ -95,7 +114,9 @@ Architecture Decision RecordはOwner文書と異なるlifecycleを持ち、`revi
 根拠: measured — <環境、入力、結果、Evidence reference>
 ```
 
-`review`文書にある未tagの固定値、hash、Registry内容、Fixture件数は`provisional`として扱う。数値の表記がexactでも、実測済みとは解釈しない。
+Headerが`根拠区分: project-decision`と明示するOwner-nativeな規範節は、その節がProject判断だけで構成される場合、各文の「必須」「禁止」へ同じtagを反復しなくてよい。節冒頭のtagは同一根拠の連続する段落／表へ適用できるが、途中で外部事実、未計測の数値、Security／Accessibility／Store条件を混ぜる場合はclaimまたは表の行ごとに区別する。異なる根拠を持つ複合段落を一つのtagで覆わない。
+
+`review`文書にある未tagの固定値、hash、Registry内容、Fixture件数は`provisional`として扱う。数値の表記がexactでも、実測済みとは解釈しない。Owner Headerのproject-decisionは、外部仕様の事実性、固定値の妥当性、計測済み状態を代用しない。
 
 ### 3.2 外部根拠確認日
 
@@ -114,10 +135,12 @@ Architecture Decision RecordはOwner文書と異なるlifecycleを持ち、`revi
 
 ## 4. 規範依存と関連文書
 
-`規範依存`は、この文書の設計を解釈・検証するために必須となるOwner文書だけを列挙する。
+`規範依存`は、この文書の設計を解釈・検証するために必須となるOwner文書だけを列挙する。矢印は「依存元文書 → 依存先の正本」を表し、依存先が依存元のDomain意味を所有することを意味しない。
 
 - 規範依存graphはDAGでなければならない。
 - Product、Governance、Foundation、Authoring／Runtime、Simulation／Rendering、Platform、Packの順序を逆向きに依存させない。
+- Architecture Governanceは全層が参照できるmeta-contractであり、層順序の例外として常に依存先になれる。
+- Governance OwnerがFoundationの署名、Schema、canonical encoding等の実行形式を規範依存に持つ場合、その意味はGovernanceに残し、FoundationがRisk、Approval、Consent、Evidence判断へ逆依存しないことを必須とする。
 - 下位層から上位層への説明link、相互運用link、具体例は`関連文書`へ置く。
 - 本文中の局所的な正本参照は許可するが、Headerの規範依存と矛盾させない。
 - `mirakan.arch.<document-id>#<fragment>`形式の型付き文書参照は、参照先に一意に存在するMarkdown heading slugまたは明示的なASCII `<a id="..."></a>`へ解決しなければならない。Fragmentは大文字小文字を区別するimmutable identifierとして扱い、未定義の型名、表示見出し、重複anchorを参照値へ使わない。

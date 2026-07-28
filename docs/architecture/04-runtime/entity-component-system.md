@@ -25,6 +25,14 @@ current authorityが移管されるまで、`owner.core.runtime_ecs` revision 1�
 
 unresolved Type、略記`refs[]`、未materialize fixture、missing golden hash、owner不明のdiagnosticが一件でもある場合、Contract compilerはRuntime ECS Definition Closureを生成せず、Owner移管、Phase Gate、Capability Activation、Native load、Package load、Save／Replay reader、AI complete explanationを成功にしない。監査状態とcross-owner論点は[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)で追跡する。同Reviewは本書のsemanticsを上書きしない。
 
+### 1.2 Authority migration boundary
+
+Gameplay programming modelから本書へのcurrent authority移管はall-or-nothingで行う。少なくとも、Governanceで承認済みDecisionが`applied`であること、Architecture／Definition／Diagnostic／Consumer Inventoryがcurrentであること、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)の全blocking `ECS-C*`がclosedであること、§1.1のDefinition Closureとqualification Evidenceがmaterialize済みであることを同一migration closureへ束縛する。
+
+Consumer migration manifestはGameplay programming model、Scheduling／Lifetime、Runtime Package、Persistence／Save、Debugging／Observability／Replay、Native Game Module、AI Tool／Explain projection、各Domain Component Ownerの参照を列挙し、旧Owner refから本書のexact document／Definition refへ一括更新する。旧current authorityは同じChangeSetでretireし、alias、二重Registry、fallback lookup、旧Schema readerを残さない。互換性影響、Save／Package／Replay拒否条件、Native ABI変更、rollback可能なpublication boundaryは[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のChange Recordへ閉じる。
+
+一部consumerだけの移行、Inventory欠損、旧新両authorityの併存、Review文書からの型名推測、Product／RPG Featureの先行activationを許可しない。ECS authority移管はECS contractのcurrent化だけを意味し、RPG Genre Pack、Gameplay Feature、Native API、Package reader、Capabilityのactivationを自動的に成立させない。
+
 ## 2. 設計不変条件
 
 1. EntityとComponent storageはEngine-ownedであり、third-party ECS runtimeへ委譲しない。
