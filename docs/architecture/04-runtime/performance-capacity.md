@@ -7,7 +7,7 @@
 - 正本範囲: 共通CPU／GPU／memory／queueの暫定budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、Owner横断algorithm optimization candidate qualification
 - 非正本範囲: Runtime phase／Simulation Advance／lifetime、ECS storage／query／digest field、Runtime Package binary、Save／Replay record、World cell／coordinate field、LOD policy field、Authoring Document／ChangeSet field、Domain固有budget、外部Tool／SDK／driverの固定値、AI承認、Evidence envelope。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)
-- 関連文書: [Performance Scale Catalog Proposal](../appendices/performance-scale-catalog-proposal.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)、[Mobile common](../07-platform/mobile-common.md)
+- 関連文書: [Performance Scale Catalog Proposal](../appendices/performance-scale-catalog-proposal.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Mobile common](../07-platform/mobile-common.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -146,6 +146,46 @@ Presentation／Audioはpriority昇順、同priorityはScheduling Ownerのcanonic
 ingress headerは32 bytes／entryで、arena、Store ring、Index working setとともにDebug diagnosticsへchargeする。`fault_minimal`と`baseline`は64 MiB reservation内で起動し、`interactive`と`capture`は開始前に未使用のnoncritical Parent envelopeからSession期限付きmode-exclusive loanを明示予約する。loanを確保できなければtier開始を拒否し、EmergencyまたはUnassigned headroomを使わない。CPU増分は同一fixture・同一Buildのtier-off比較で測り、process CPUはlogical processor数で正規化したhost process使用率差とする。entry、arena、ring、disk、throughput、CPUのいずれかが先に上限へ達した場合も、[Debugging／observability／replay](debugging-observability-replay.md)のgap／capture stop semanticsを使い、authoritative Runtimeを遅延させない。
 
 Backpressure actionは`reject | defer | drop_presentation | degrade_presentation | stop_capture | fault_transaction`のclosed setとし、owner、trigger、hysteresis、maximum delay、fallback、counter、recovery predicateを持つ。Source meaningやfidelity floorを変更するactionを自動選択しない。
+
+### 5.2 LOD budget pressure snapshot
+
+LODへ渡すpressureはraw frame time、free bytes、queue occupancyまたはBackend signalではなく、本書が所有する次のimmutable分類snapshotだけとする。
+
+```text
+LodBudgetPressureSnapshotRefV1
+  snapshot_id: StableId
+  snapshot_generation: positive u64
+  snapshot_content_hash: SHA-256
+
+LodBudgetPressureSnapshotV1
+  schema_version: 1
+  snapshot_id: StableId
+  snapshot_generation: positive u64
+  target_profile_ref: TargetProfileRefV1
+  quality_profile_ref: QualityProfileRefV1
+  measurement_window_ref: exact owner-typed ref
+  measurement_generation: positive u64
+  valid_through_measurement_generation: positive u64
+  cpu_pressure_class: normal | elevated | severe | critical
+  gpu_pressure_class: normal | elevated | severe | critical
+  memory_pressure_class: normal | elevated | severe | critical
+  streaming_pressure_class: normal | elevated | severe | critical
+  aggregate_pressure_class: normal | elevated | severe | critical
+  source_budget_evidence_refs[1..32]: sorted unique exact refs
+  snapshot_content_hash: SHA-256
+```
+
+順序を`normal < elevated < severe < critical`に固定し、`aggregate_pressure_class`は4 Domain classの最大値とbyte equalityにする。`valid_through_measurement_generation >= measurement_generation`を必須とし、現在のPerformance measurement generationが範囲外、Target／Quality不一致、evidence staleならsnapshotはstaleである。snapshot hashはASCII `MIRAKAN_LOD_BUDGET_PRESSURE_SNAPSHOT_V1`と自己hashを除くcanonical bytesから計算する。
+
+各classの測定、平滑化、enter／exit、minimum durationはexact Performance ProfileとMeasurement Receiptが所有する。LODはclassを再計算、補間、倍率化せず、[LOD Selection Table](../06-rendering/lod.md#4-共通選択契約)のexact Row keyとしてだけ消費する。pressureはPresentationの同一semantic floor内でのみ候補を変え、Gameplay fidelity、authoritative state／event、Collision、Navigation、Simulation Cadenceを変更しない。snapshotがnull／staleのときLODはprevious validまたはhighest-fidelity valid candidateを維持してDiagnosticを返し、`normal`、`critical`または架空の数値を補完しない。
+
+### 5.3 Virtualized geometry capacityのtarget ownership
+
+[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)がactiveとなる場合、本書はTarget別のgeometry pool resident bytes、root reservation、page request／read／decode／upload queue、candidate micro-cluster count、visible micro-cluster count、request／fallback／thrash rate、cut traversal／raster時間の測定とhard capacityを所有する。Geometry Ownerはsemantic floorとfallback意味、Asset Ownerはpage Artifact、Render Graphはcut executionを所有し、いずれも本書のcapacity値やmeasurement windowを複写しない。
+
+current baseline、qualified Target、page／cluster size、pool／queue／candidate／visible上限、supported scene scaleはすべて`not_measured`である。0、外部Engine既定値、GPU memory比率、device free-memory heuristicを候補値としてSource／Planへ埋めない。将来値はexact Target、Device、Driver、Toolchain、Source fixture、Quality、camera trace、fault injectionを束縛したMeasurement Receiptでのみ採用する。
+
+pressure時はroot setをevictせず、semantic floor内のresident ancestor、次にexact discrete fallbackを使う。pool thrash、queue saturation、candidate／visible capacity超過を平均frame timeへ吸収して成功扱いせず別counter／Diagnosticにする。capacity不足からGeometry消失、critical cue消失、Collision／Navigation／Animation／Damage変更、unbounded synchronous loadを起こさない。current Capabilityが`planning_only`のためreservation、budget child scope、counter集合は未登録である。
 
 ## 6. Worker、I/O、job capacity
 

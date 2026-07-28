@@ -23,26 +23,37 @@ RuntimeはVFXをPresentationとして実行し、World／Physicsへwrite backし
 
 ```text
 VfxSystemArtifactManifestV1
+  manifest_schema_version: 1
+  manifest_id: StableId
+  manifest_version: positive u32
   system_id
   source_content_hash
-  target_profile_id
-  quality_profile_id
+  target_profile_ref: TargetProfileRefV1
+  quality_profile_ref: VfxQualityProfileRefV1
+  budget_profile_ref: VfxBudgetProfileRefV1
+  lod_profile_ref: VfxLodProfileRefV1
   simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
   timing_contract: fixed_rational_advance_v1
-  emitter_artifact_refs[1..32]
+  emitter_artifact_refs[1..32]:
+    exact {artifact_id, artifact_version, artifact_content_hash}
   parameter_layout_hash
   lifecycle_descriptor
-  closure_hash
+  manifest_content_hash: SHA-256
 
 VfxExecutionArtifactV1
-  artifact_schema_version
+  artifact_schema_version: 1
+  artifact_id: StableId
+  artifact_version: positive u32
+  artifact_content_hash: SHA-256
   system_id
   emitter_id
   source_content_hash
   compiler_build_hash
   node_catalog_version
-  target_profile_id
-  quality_profile_id
+  target_profile_ref: TargetProfileRefV1
+  quality_profile_ref: VfxQualityProfileRefV1
+  budget_profile_ref: VfxBudgetProfileRefV1
+  lod_profile_ref: VfxLodProfileRefV1
   simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
   timing_contract: fixed_rational_advance_v1
   spatial_domain: d2 | d3
@@ -57,10 +68,9 @@ VfxExecutionArtifactV1
   resource_estimate
   capability_requirements[]
   fallback_artifact_ref: optional
-  verification_receipt_refs[]
 ```
 
-Manifestは全enabled Emitterの選択Dimension artifactがReadyの場合だけReadyになる。keyはSystem、Emitter、Dimension、execution target、Target、Quality、Toolchain、Source closure、完成`SimulationCadenceProfileRefV1`を含み、Source／compiler／Cadence hash違いを再利用しない。全Emitter artifact、Runtime Package、Save／Replay closureのProfile refはManifestとbyte equalityにする。V1は解決先が`cadence.kind=fixed`でTarget別VFX Qualificationがfreshな場合だけloadし、他kindまたは未資格Profileを`cadence_profile_not_qualified`でinstance開始前に拒否する。RuntimeはTarget／Quality manifestが選んだartifactをinstance開始時に一度選び、frame負荷でCPU／GPUを切り替えない。
+Manifestは全enabled Emitterの選択Dimension artifactがReadyの場合だけReadyになる。keyはSystem、Emitter、Dimension、execution target、Target、Quality、Budget、LOD、Toolchain、Source closure、完成`SimulationCadenceProfileRefV1`を含み、Source／compiler／Profile／Cadence hash違いを再利用しない。Artifact hashはASCII `MIRAKAN_VFX_EXECUTION_ARTIFACT_V1`、Manifest hashはASCII `MIRAKAN_VFX_SYSTEM_ARTIFACT_MANIFEST_V1`と各自己hashを除くcanonical bytesから計算する。両者はReceipt-free baseで、Verification Receipt／Activation Bindingをpreimageまたはfieldへ埋め戻さない。System Source、Quality binding、Manifest、全Emitter artifact、Runtime Package、Save／Replay closureのTarget／Quality／Budget／LOD／Cadence Profile refはbyte equalityにする。V1は解決先が`cadence.kind=fixed`でTarget別VFX Qualificationがfreshな場合だけloadし、他kindまたは未資格Profileを`cadence_profile_not_qualified`でinstance開始前に拒否する。RuntimeはManifestと[LOD](lod.md)が選んだexact VFX tierをinstance開始／qualified transition boundaryでだけ適用し、frame負荷から別Profile、CPU／GPU、未登録tierを合成しない。
 
 `VfxCpuProgramV1`は事前compile済みclosed C++ kernel IDとimmutable parameter blockのtyped順序であり、bytecode／scriptではない。loop、recursion、file／network／OS API、reflection、allocation instructionを持たず、kernelごとのattribute access、scratch byte、dimension、stageをmanifestへ固定する。unknown kernel、manifest hash、parameter block size不一致をload前に拒否する。
 

@@ -7,7 +7,7 @@
 - 正本範囲: Material Domain／Shading Modelの意味、Visual Style／表現Profile、semantic material intent、Material Graph／Function／IR／instance、MaterialからProject Shaderへのtyped接続、Material compile／package、Material固有operation／diagnostic／qualification
 - 非正本範囲: Project HLSL source profile／semantic Module／Technique／Shader AI理解、Render pass／queue／AA execution、Lighting物理意味、Post Process composition、LOD共通selection、Asset transaction、Runtime shared capacity、Tool／compiler version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Project Shader](project-shader.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[World](world.md)、[Render Graph](render-graph.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[World](world.md)、[Render Graph](render-graph.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-28
 
@@ -693,7 +693,44 @@ Shader compileはoffline build／cookだけで実行し、Shipping Runtimeにsou
 
 Materialは各representationで利用可能なMaterial artifact、feature reduction、texture residency requirement、意味同等fallbackを宣言する。[LOD](lod.md)がrepresentationとtransitionを選択し、Materialsはその選択に対応するbindingを返す。
 
-`MaterialLodProfileV1`はtierごとに`material_interface_hash`、`allowed_feature_mask`、`texture_residency_floor`、`shadow_participation`、`depth_participation`、`visual_equivalence_tolerance`を持つ。Runtime shader生成、任意branch削除、Material mergeをLOD selection内で行わない。
+```text
+MaterialLodProfileRefV1
+  profile_id: StableId
+  profile_version: positive u32
+  profile_content_hash: SHA-256
+
+MaterialLodProfileV1 =
+  LodDomainProfileV1<MaterialLodProfilePayloadV1>
+
+MaterialLodProfilePayloadV1
+  schema_version: 1
+  tiers[1..16]: MaterialLodTierV1
+  payload_content_hash: SHA-256
+
+MaterialLodTierV1
+  tier_id: StableId
+  material_artifact_generation_ref:
+    exact {artifact_id, generation, artifact_hash}
+  material_interface_hash: SHA-256
+  allowed_feature_mask: closed MaterialFeatureMaskV1
+  texture_residency_floor_ref: exact owner-typed ref
+  shadow_participation: required | optional | forbidden
+  depth_participation: required | optional | forbidden
+  visual_equivalence_tolerance_ref: exact owner-typed ref
+  required_semantic_refs[0..32]: sorted unique exact refs
+  forbidden_semantic_refs[0..32]: sorted unique exact refs
+  fallback_tier_id: StableId | null
+```
+
+`fallback_tier_id`は同じProfile内のplan-local IDとして解決し、外部Profile refを埋め戻してhash cycleを作らない。Tierは`tier_id`順へstrict sortしduplicate、fallback cycle、required／forbidden semanticの交差を拒否する。Tier ID集合は共通Envelopeの`tier_bindings[].tier_id`とset equalityにする。`payload_content_hash`はASCII `MIRAKAN_MATERIAL_LOD_PROFILE_PAYLOAD_V1`と自己hashを除くcanonical payload bytesから計算し、Envelopeの`owner_payload_content_hash`とbyte equalityにする。Profile identity、version、Representation Set、tier binding、Profile hashは[LOD §3.2](lod.md#32-lodpolicysetv1)の共通Envelopeだけが所有する。
+
+LOD Policyのclass=`material_detail`にあるfull `LodDomainProfileRefV1`の`profile_id／profile_version／profile_content_hash`はnarrow `MaterialLodProfileRefV1`とbyte equalityにする。`lod_class`と`subject_scope_ref`はMaterial Sourceへ複写せず、full Domain refとMaterial Owner scopeの照合で検証する。LODは同Profile refとtier refをexactに消費し、選択geometryのrequired Material interface、Target／Quality、artifact generationとbyte equalityにする。Runtime shader生成、任意branch削除、Material mergeをLOD selection内で行わない。
+
+Virtualized geometry向けtarget `VirtualGeometryMaterialCompatibilityV1`はMaterial Ownerが所有し、exact Material Artifact／`ShaderInterface`、surface kind、alpha mode、two-sided、displacement／world-position deformation、render role、Target、constraint、exact fallback Material／geometry bindingを持つreceipt-free意味契約である。Target support stateとReceiptは[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)の`VirtualGeometryFeatureQualificationBindingV1`だけが所有する。該当Feature Requirementへの`qualified` Bindingがなければvirtualized candidateを許可せず、Geometry側がshader名、alpha値、Node使用有無またはBackend capabilityから互換性を推測しない。
+
+target `VirtualGeometryMaterialCompatibilityRefV1`はcompatibility ID、positive version、content hashのexact refである。content hashはMaterial Artifact／interface、feature tuple、constraint、fallback bindingから計算し、Qualification Receipt／Binding／Activation Bindingをpreimageへ戻さない。
+
+opaque main-viewでの合格をmasked、translucent、shadow、reflection、ray-query fallbackへ横展開しない。virtual path非互換時はcompile featureを削る、default Materialへ置換する、Material mergeするのではなく、同じMaterial意味を保持するexact discrete geometry fallbackを選ぶ。current Capabilityは`planning_only`でありcompatibility record集合は`[]`である。
 
 距離、projected error、hysteresis、CPU／GPU pressureからMaterial tierを直接選ばない。Material側のfeature reductionはsurface identity、opacity、silhouetteに影響する意味変更を明示し、未宣言のshader simplificationを禁止する。
 

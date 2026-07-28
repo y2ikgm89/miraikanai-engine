@@ -38,7 +38,7 @@ AIの自動ResolverとEditor／CLIの自動候補提示は`core_graph -> typed_s
 | `VfxStyleProfileV1` | `MIRAKAN_VFX_STYLE_PROFILE_V1` |
 | `VfxBudgetProfileV1` | `MIRAKAN_VFX_BUDGET_PROFILE_V1` |
 | `VfxQualityProfileV1` | `MIRAKAN_VFX_QUALITY_PROFILE_V1` |
-| `VfxLodProfileV1` | `MIRAKAN_VFX_LOD_PROFILE_V1` |
+| `VfxLodProfilePayloadV1` | `MIRAKAN_VFX_LOD_PROFILE_PAYLOAD_V1` |
 | `VfxPerformanceBudgetAllocationV1` | `MIRAKAN_VFX_PERFORMANCE_BUDGET_ALLOCATION_V1` |
 | `VfxSystemArtifactManifestV1` | `MIRAKAN_VFX_SYSTEM_ARTIFACT_MANIFEST_V1` |
 | `VfxArtifactQualificationSubjectV1` | `MIRAKAN_VFX_ARTIFACT_QUALIFICATION_SUBJECT_V1` |
@@ -460,7 +460,7 @@ VfxPerformanceBudgetAllocationV1
   allocation_content_hash: SHA-256
 ```
 
-`VfxLodProfileV1`はLOD Owner側で`profile_id`、positive `profile_version`、`profile_content_hash`を必須化する。各Refは上記のOwner-typed exact型とする。`VfxSystemDocumentV1`は`VfxBudgetProfileRefV1`、`VfxQualityProfileRefV1`を持つ。Compilerは選択Target Profileに一致するbindingをexact一件だけ解決し、0件、複数、stale、Target mismatchをCook前に拒否する。Qualityの`allowed_execution_targets`は同Targetの`backend_budgets[].execution_target`のsubsetでなければならない。
+`VfxLodProfileV1 = LodDomainProfileV1<VfxLodProfilePayloadV1>`とする。LOD Ownerは共通Envelopeの`lod_class`、`subject_scope_ref`、`profile_id`、positive `profile_version`、Representation Set、tier binding、`profile_content_hash`を所有し、VFX Ownerはclosed tier payloadと`payload_content_hash`を所有する。narrow `VfxLodProfileRefV1={profile_id, profile_version, profile_content_hash}`はclass=`vfx_presentation`のfull `LodDomainProfileRefV1`の同三Fieldとbyte equalityにし、残るFieldをIDや表示名から補完しない。`VfxSystemDocumentV1`は`VfxBudgetProfileRefV1`、`VfxQualityProfileRefV1`、`VfxLodProfileRefV1`を持つ。Compilerは選択Target Profileに一致するbindingをexact一件だけ解決し、0件、複数、stale、Target mismatchをCook前に拒否する。Qualityの`allowed_execution_targets`は同Targetの`backend_budgets[].execution_target`のsubsetでなければならない。
 
 `VfxSystemArtifactManifestV1`と`VfxExecutionArtifactV1`の`target_profile_id`／`quality_profile_id`を`target_profile_ref`／`quality_profile_ref`へ変更し、`budget_profile_ref`と`lod_profile_ref`を追加する。
 
@@ -752,7 +752,7 @@ Replayは受理済みauthoritative Presentation Event、seed、parameter command
 - Runtime Schedulingは`T90_PresentationBuild`、command merge、Simulation Advance、snapshot publishを所有する。
 - VFX RuntimeはT90内のVFX command適用、CPU simulation、GPU Advance Record構築を所有する。
 - Render Graphはpublish済み`VfxBatchSnapshotV1`だけを読み、World leaseまたはlive VFX stateを持たない。
-- LODは`VfxLodProfileV1`とtier selectionを所有し、VFX Source／Runtimeは選択済みtierを解釈する。
+- LODは`VfxLodProfileV1`の共通Envelopeとtier selectionを所有し、VFX Authoringはclosed payloadを所有し、VFX Source／Runtimeは選択済みtierを解釈する。
 - MaterialsはMaterial Domain、Shading Model、AlphaMode、render-state intentを所有する。
 - VFX AuthoringはStyle Profile、Semantic Role、Pattern、Graph、Subgraph、Extension、Compiler入力を所有する。
 - Asset Lifecycleはgeneric Derived Artifact envelope、Catalog、promotion、Package assemblyを所有する。

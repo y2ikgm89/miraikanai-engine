@@ -563,7 +563,42 @@ Dynamic IBLは6 face＋1 diffuse＋9 specular mip＝16 work units、最大1 unit
 
 Fog／Cloud historyはcamera cut、world-origin rebase、internal extent、non-jitter projection、Environment generation、sun 1 frame 5 degree、weather coverage／density max delta 0.20で破棄する。破棄frame weight 0、次7 framesで`min(0.90, valid_frames/8)`まで増やす。編集不可のderived policyである。
 
-Water orderingはOpaque／Lighting、Environment、Water Depth／Surface、Underwater／Waterline、Transparent／World VFXである。Water resource generationをsnapshot dependencyへ含め、LODは`WaterLodProfileV1`／`LodResolutionPlanV1`だけからpatch density、wave shading、reflection、underwater、foam／spray tierを選ぶ。SnowはLOD ownerの`SnowSurfaceLodProfileV1`だけからupdate distance、normal／sparkle、static fallbackを選び、降雪particle密度は`vfx_presentation` classの`VfxLodProfileV1`だけから選ぶ。CPU query、Volume、Gameplay water level、Snow page identity／stampをLODで変えない。
+Water／SnowのOwner payloadを次に閉じる。両Profileは[LOD §3.2](lod.md#32-lodpolicysetv1)の共通identity、Representation Set、tier binding、hashを再定義しない。
+
+```text
+WaterLodProfileV1 =
+  LodDomainProfileV1<WaterLodProfilePayloadV1>
+
+WaterLodProfilePayloadV1
+  schema_version: 1
+  tier_metadata[1..32]:
+    tier_id: StableId
+    surface_patch_density_profile_ref: exact owner-typed ref
+    wave_shading_profile_ref: exact owner-typed ref
+    reflection_profile_ref: exact owner-typed ref
+    underwater_presentation_profile_ref: exact owner-typed ref | null
+    foam_spray_vfx_tier_ref: exact LodTierRefV1 | null
+  gameplay_water_invariance_contract_ref: exact owner-typed ref
+  payload_content_hash: SHA-256
+
+SnowSurfaceLodProfileV1 =
+  LodDomainProfileV1<SnowSurfaceLodProfilePayloadV1>
+
+SnowSurfaceLodProfilePayloadV1
+  schema_version: 1
+  tier_metadata[1..32]:
+    tier_id: StableId
+    dynamic_field_update_distance_mm: u64
+    normal_detail_profile_ref: exact owner-typed ref
+    sparkle_detail_profile_ref: exact owner-typed ref
+    static_mask_fallback_ref: exact owner-typed ref
+  gameplay_surface_invariance_contract_ref: exact owner-typed ref
+  payload_content_hash: SHA-256
+```
+
+各tier ID集合はEnvelopeの`tier_bindings[].tier_id`とset equalityにする。payload hashはそれぞれASCII `MIRAKAN_WATER_LOD_PROFILE_PAYLOAD_V1`／`MIRAKAN_SNOW_SURFACE_LOD_PROFILE_PAYLOAD_V1`と自己hashを除くcanonical payload bytesから計算し、Envelopeの`owner_payload_content_hash`とbyte equalityにする。WaterからVFX tierへの依存は一方向であり、VFX ProfileからWater Profileを参照してはならない。exact owner-typed refのSchemaまたはCapabilityが未登録ならProfileをmaterializeせず、値を推測しない。
+
+Water orderingはOpaque／Lighting、Environment、Water Depth／Surface、Underwater／Waterline、Transparent／World VFXである。Water resource generationをsnapshot dependencyへ含め、LODはEnvironment-owned `WaterLodProfileV1`／`LodResolutionPlanV1`だけからpatch density、wave shading、reflection、underwater、foam／spray tierを選ぶ。SnowはEnvironment-owned `SnowSurfaceLodProfileV1`だけからupdate distance、normal／sparkle、static fallbackを選び、降雪particle密度は`vfx_presentation` classの`VfxLodProfileV1`だけから選ぶ。CPU query、Volume、Gameplay water level、Snow page identity／stampをLODで変えない。
 
 Snow computeはWorld opaque Materialより前に完了し、same-frame finalized fieldだけをsampleする。Pixel-locked 2Dはatlasでなくexplicit Tile／Sprite snow variantを使う。Device loss時はSource／receiptからpersistent Environment、Water material／mesh／query、Snow mask／manifest／empty fieldを復元し、historyを破棄、bounded warm-upし、one-shot VFXを再発火しない。
 

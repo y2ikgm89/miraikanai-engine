@@ -38,6 +38,8 @@ Miraikanai EngineのArchitecture計画は、Owner分離、current／target区分
 
 監査はArchitecture Index、全Owner header、Decision、proposal appendix、規範依存、関連文書、相対link、文書ID、current／target記述を対象とした。2026-07-28の監査ではArchitecture Markdown 75件、文書ID 73件、Owner文書50件を確認し、相対Markdown link切れ0件、文書ID重複0件、50 Owner間から抽出した規範依存202 edgeの未解決0件／cycle 0件を確認した。50 Owner文書はすべて`文書状態=review`、`実装状態=absent`、`検証状態=design-reviewed`である。ただし手動IndexとMarkdown解析は、生成済み`ArchitectureInventoryV1`またはSchema validationの代用ではない。
 
+2026-07-29に[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)を51件目のOwner文書として追加した。本節の75／73／50／202という数値は2026-07-28監査の履歴Evidenceであり、追加後のcurrent Inventoryまたは再監査結果ではない。current件数は[Architecture Index](../README.md)を参照し、51 Ownerを対象にした同等の再監査Evidenceが作られるまで本節から新文書のclosureを推測しない。
+
 本書では次の語を分ける。
 
 | 語 | 意味 |

@@ -7,7 +7,7 @@
 - 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、visibility／geometry execution、lighting pipeline profile、anti-aliasing／temporal execution、Renderer固有failure／qualification
 - 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[World](world.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[World](world.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -75,6 +75,7 @@ PortのC++ ABI、method signature、MCD生成物、Backend実装がRepositoryに
 | `SnowSurfaceBatchV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Snow receiver／page／Material bindingのprojection |
 | `VfxBatchSnapshotV1` | frame | [VFX Runtime](vfx-runtime.md) §3。CPU draw batchとGPU emitter advanceのimmutable projection |
 | `ResolvedPostProcessPlanV1` | resolved | [Post Processing](post-processing.md)が解決したordered effect composition |
+| `ViewLodCandidateSetV1` | frame | 本書§7。LOD選択前のconservative frustum／layer candidate集合。selected tier／occlusionを含まない |
 | `ResolvedRepresentationSet` | frame | 本書のframe入力名。[LOD](lod.md)所有の`LodResolutionPlanV1`／`ViewLodContextV1`に基づくruntime選択結果（representationとtransition state）をViewFamilyごとに整列する |
 | `WorldRenderPacket` | frame | [World](world.md)のactive cell revisionから生成されたrenderable集合 |
 | `ResolvedAntiAliasingPlanV1` | resolved | 本書§9。[Executable contracts](../02-foundation/executable-contracts.md)正本の`AntiAliasingIntentV1`から解決する |
@@ -222,17 +223,48 @@ Post Processのeffect順、volume blend、history reset要求は[Post Processing
 
 ## 7. Visibilityとgeometry execution
 
-Visibility executionはViewのfrustum、layer mask、World packet bounds、[LOD](lod.md)のResolved Representationを入力とし、candidate生成、occlusion、instance compaction、indirect command generationを行う。representation選択やprojected-error policyをRendererで再計算しない。
+```text
+ViewLodCandidateSetRefV1
+  candidate_set_id: StableId
+  candidate_set_generation: positive u64
+  candidate_set_content_hash: SHA-256
+
+ViewLodCandidateSetV1
+  schema_version: 1
+  candidate_set_id: StableId
+  candidate_set_generation: positive u64
+  view_id: StableId
+  view_generation: positive u64
+  view_lod_context_hash: SHA-256
+  subjects[0..1048576]:
+    subject_stable_id: StableId
+    source_bounds_generation: positive u64
+    conservative_world_bounds_ref: exact immutable bounds ref
+    layer_mask: closed RenderLayerMaskV1
+  candidate_set_content_hash: SHA-256
+```
+
+RendererはSource／World packetのconservative boundsをclosed View frustumとlayer maskだけで評価し、交差するsubjectをStable ID順へstrict sortしてcandidate setを作る。set hashはASCII `MIRAKAN_VIEW_LOD_CANDIDATE_SET_V1`と自己hashを除くcanonical bytesから計算する。selected representation、projected metric、occlusion history、resident stateをpreimageへ入れない。LOD ContextとView ID／generation／hash、bounds generationが一致しないsetを拒否し、camera cut、projection／extent／World bounds generation変更で新generationを作る。
+
+Visibility executionはこのconservative candidate set、[LOD](lod.md)のResolved Representation、occlusion inputを順に使い、LOD選択後のocclusion、instance compaction、indirect command generationを行う。frustum／layer candidate生成はLOD selectionの前、occlusionは後であり、occlusion結果を同frameまたは次frameのtier／Simulation relevancyへ逆入力しない。representation選択やprojected-error policyをRendererで再計算しない。
 
 GPU-driven pathとCPU reference pathは同じvisible item identity、material binding、geometry generationを生成しなければならない。HZBやocclusion historyはView／surface／projection generationへ束縛し、camera cut、teleport、extent change、history欠損ではconservative visibleへfallbackする。Work expansion機能を使ってもresource lifetime、queue、barrier、budget ownershipはRender Graphから移さない。
 
 実行path IDは`renderer-profile.cpu-direct`、`renderer-profile.gpu-indirect`、`renderer-profile.gpu-meshlet`、`renderer-profile.gpu-work-graph`で、後3者はそれぞれ`renderer-profile.cpu-direct`または`renderer-profile.gpu-indirect`へfallbackできる。HLODのstatic eligibility roleは`decorative_instance`に限り、Gameplay identity／interactionを変更しない。
 
-candidate評価順は`CPU direct semantic oracle -> GPU frustum／layer／LOD culling＋compaction＋indirect draw -> HZB occlusion -> meshlet／work graph`とする。GPU indirectはCPU referenceとvisible Stable ID集合、material／geometry generation、LOD tier、draw argument countが一致しなければならない。argument／count／compaction bufferのcapacity超過はtyped failureでGraph generationを不成立にし、partial command buffer、silent draw drop、CPU再実行を同frameへ挿入しない。Microsoftの[D3D12 ExecuteIndirect sample](https://learn.microsoft.com/en-us/samples/microsoft/directx-graphics-samples/d3d12-execute-indirect-sample-win32/)はcompute visibility cullingとindirect command compactionの実装比較根拠にだけ使用する。
+candidate評価順は`CPU direct conservative frustum／layer oracle -> ViewLodCandidateSetV1 -> LOD Resolver -> GPU representation packet／HZB occlusion／compaction／indirect draw -> meshlet／work graph`とする。GPU indirectはCPU referenceとcandidate／visible Stable ID集合、material／geometry generation、LOD tier、draw argument countが一致しなければならない。argument／count／compaction bufferのcapacity超過はtyped failureでGraph generationを不成立にし、partial command buffer、silent draw drop、CPU再実行を同frameへ挿入しない。Microsoftの[D3D12 ExecuteIndirect sample](https://learn.microsoft.com/en-us/samples/microsoft/directx-graphics-samples/d3d12-execute-indirect-sample-win32/)はcompute visibility cullingとindirect command compactionの実装比較根拠にだけ使用する。
 
 HZBはconservative occlusionだけを許し、false occlusion（referenceでvisibleなitemを不可視にすること）を0にする。occluder selection、depth convention、mip reduction、reprojection、history validityはalgorithm／profile revisionへ含め、camera cut、teleport、projection／extent／surface generation変更、missing／stale historyでは全candidateをvisible側へ倒す。余分にvisibleなitemはperformance metricへ記録できるが、誤って隠したitemをtoleranceで合格させない。
 
 Target／Profileのqualified primary execution pathはexact一件、未選択なら0件とする。CPU pathはsemantic oracle、または別Qualificationされた明示的fallbackになり得るが、旧／新経路の互換layer、silent fallback、runtime auto-tuning、同frameの二重drawを意味しない。fallbackはProfileにexact ref、発動条件、意味同等Receipt、切替generationを持つ場合だけ次Graph generationで選択する。benchmark candidateは非dispatchableである。
+
+### 7.1 Virtualized geometryのtarget execution境界
+
+[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)がactiveなTargetでは、実行順を`conservative View candidate -> outer LOD representation -> virtual familyのresident hierarchy cut -> occlusion／compaction -> raster`に固定する。Render Graphはexact `VirtualGeometryTargetActivationBindingRefV1`／`VirtualGeometryResolutionPlanRefV1`、同じArtifact generationのimmutable `VirtualGeometryResidencySnapshotRefV1`、`CameraRenderViewV1`から投影済みの`ViewLodContextV1`だけを受ける。Activation Binding、Plan、Snapshot、ViewのTarget／generationが一致しなければGraphを作らない。Source Intent、World Cell、provider option、raw I/O queueを解釈しない。
+
+inner cutはRender Viewごとに解決し、ancestor／descendant排他、surface coverage、resident-only、error bound、Material／deformation interface、candidate／visible capacityを検証する。結果はbounded `VirtualGeometryViewCutSummaryV1`へ投影できるが、`LodTierRefV1`、World state、Simulation input、Save／Replayへ書き戻さない。page requestはowner-qualified hintだけを返し、I/O順、eviction、pool budgetをRendererが決めない。
+
+root unavailable、generation mismatch、Material／deformation incompatibility、capacity超過、provider faultをsubmission前に検出した場合はそのGraph generationを不成立にし、同frameへpartial command、CPU再実行、default Materialまたはfallback passを挿入しない。統合Planにapproved exact discrete fallbackがあれば次のGraph generationで選び、なければRenderer faultとする。virtual pathからCPU directへ戻すだけではgeometry artifactの意味同等fallbackにならないため、Render execution fallbackとrepresentation fallbackを別Diagnosticで扱う。Capabilityが`planning_only`のcurrent Graphへvirtual pass、resource、pipeline、feature flagを登録しない。
 
 ## 8. Material、Lighting、Post Processとの実行境界
 
@@ -432,6 +464,18 @@ Quality fallbackは意味を明示し、resolution、optional effect、shadow ex
 Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfileV1`／`ResolvedLightPlanV1`、[Post Processing](post-processing.md)所有の`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、[LOD](lod.md)所有の`LodIntentV1`／`LodResolutionPlanV1`／`ViewLodContextV1`を解釈し直さず実行する。UI primitiveの`MirakanUiDrawPacketV1`は[Editor UI Framework](../03-authoring/editor-ui-framework.md)、`RuntimeRepresentationPlanV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)、共通`RemediationV1`は[Executable contracts](../02-foundation/executable-contracts.md)、Provider lockの`RendererProviderLockV1`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が正本である。
 
 `RenderRepresentationPlanV1`はRuntime planからCookされ、各Source集合を`individual | instanced | spatial_batch | presentation_batch`の一つに分類し、Source Stable ID集合、plan-local Cell、mobility／interaction、geometry key、[Materials](materials.md)所有のexact `MaterialBatchCompatibilityKeyV1`、Domain LOD plan、HLOD chain、bounds、resident／visible上限、Target fallback、visual-equivalence hashを持つ。`VisibilityInstanceV1`はgeometry generation、current／previous transform、bounds、量子化済みerror／threshold、previous presentation tier、material packet、layer、stable render IDだけを持つSoAで、Entity／Component pointer／Gameplay tag／Simulation tierを含めない。
+
+LOD representation tierとRenderer cook classの対応を次に固定する。Rendererはこの対応で再分類するだけで、LOD thresholdまたはtierを再選択しない。
+
+| LOD `RepresentationLodProfileV1` tier | `RenderRepresentationPlanV1` class／処理 |
+|---|---|
+| `individual` | `individual` |
+| `instanced` | Source identity集合とexact geometry／material keyが適格なら`instanced`、不適格ならPlan compile拒否 |
+| `spatial_proxy` | exact World cell／representation slotとHLOD Artifactがある場合だけ`spatial_batch` |
+| `impostor` | exact proxy artifactとMaterial interfaceがある場合だけ`spatial_batch` |
+| `hidden_presentation` | 対象Viewの`ResolvedRepresentationSet`からcanonical omission。Source identity、Entity、Save、Simulationは削除しない |
+
+`presentation_batch`はVFX／sprite等の選択済みPresentation outputをRendererが実行都合でbatch化するclassで、LOD tier名ではない。`spatial_proxy | impostor`をartifact欠損時に`individual`へ暗黙変換せず、LOD Planのexact fallbackへ戻す。`hidden_presentation`をvisibility culling result、World unload、Entity deletionとして記録しない。
 
 同じ`MaterialBatchCompatibilityKeyV1`はbatchの必要条件であって十分条件ではない。Rendererはexact geometry generation、vertex／Pass interface、LOD、View、layer、sort class、Target Profileも一致するときだけgroup化し、異なるMaterial keyを同じbatchへ入れない。Material parameter名、値、texture handleを再評価せず、Materialsが宣言したper-render-instance layoutのpayloadだけを参照する。individual／instancedのどちらでもSource Stable ID集合とstable render IDを保ち、batch化をGameplay identityの統合として扱わない。上限超過、stale artifact generation、layout不一致ではgeneration全体をtyped rejectし、silent dropや同一frameの別Material fallbackを行わない。
 

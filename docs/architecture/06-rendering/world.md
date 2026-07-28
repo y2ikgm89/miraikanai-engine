@@ -7,7 +7,7 @@
 - 正本範囲: World／Scene／SpaceのSource identity、global composition、persistent entity、optional spatial topology、Cellのplan-local identity、partition／streaming-plan authoring、spatial transition、Loading presentation、procedural／Tilemap／Blockoutの共通意味、World authoring read projectionの所有境界
 - 非正本範囲: 具体World schema、procedural／Tilemap／Blockout catalog、Operation、Fixture、Gameplay progression、Runtime cell phase、ECS schema、Physics／Navigation behavior、Render execution、Save／Replay envelope
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Collision](../05-simulation/collision.md)
-- 関連文書: [Procedural World Catalog／Fixture Candidate](../appendices/procedural-world-catalog-fixture.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)
+- 関連文書: [Procedural World Catalog／Fixture Candidate](../appendices/procedural-world-catalog-fixture.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -82,7 +82,56 @@ Topology relationはWorld-owned Source relationであり、Editor上の`Portal`�
 
 Partition planはWorld Source revision、Space profile、algorithm profile、Cell集合、dependency、priority、capacity refを束縛する。Cell identityはplan ID＋plan revision＋local cell IDで解決し、別planへ流用しない。
 
-Streaming plan authoringはSourceを直接分割せずDerived plan候補を作る。Runtime phase、I/O scheduling、shared capacityはRuntime Ownerが決定する。
+```text
+WorldStreamingPlanRefV1
+  plan_id: StableId
+  plan_revision: positive u64
+  plan_artifact_hash: SHA-256
+
+WorldStreamingPlanV1
+  schema_version: 1
+  plan_id: StableId
+  plan_revision: positive u64
+  source_world_ref: exact {world_id, source_revision, source_content_hash}
+  world_space_profile_ref: WorldSpaceProfileRefV1
+  partition_algorithm_profile_ref: exact owner-typed ref
+  cells[0..1048576]: WorldStreamingCellDescriptorV1
+  representation_slots[0..1048576]:
+    WorldStreamingRepresentationSlotV1
+  dependency_edges[0..4194304]: WorldStreamingDependencyEdgeV1
+  capacity_ref: exact owner-typed ref
+  compiler_ref: exact {compiler_id, compiler_version, compiler_hash}
+  plan_artifact_hash: SHA-256
+
+WorldStreamingCellDescriptorV1
+  cell_id: non-zero u64
+  bounds_ref: exact World-space bounds ref
+  priority_class: critical | gameplay | presentation | background
+  residency_group_ref: exact owner-typed ref
+  capacity_charge_ref: exact owner-typed ref
+
+WorldStreamingRepresentationSlotV1
+  representation_slot_id: non-zero u64
+  cell_ids[1..256]: sorted unique plan-local cell_id
+  source_stable_id_set_hash: SHA-256
+  allowed_representation_roles[1..8]:
+    individual | instanced | spatial_proxy | impostor
+  residency_dependency_role_refs[0..64]:
+    sorted unique registered owner-qualified role refs
+
+WorldStreamingDependencyEdgeV1
+  from_cell_id: non-zero plan-local u64
+  to_cell_id: non-zero plan-local u64
+  dependency_kind: activation_required | prefetch_hint
+```
+
+`plan_artifact_hash`はASCII `MIRAKAN_WORLD_STREAMING_PLAN_V1`と自己hashを除くcanonical bytesから計算する。Cellは`cell_id`、slotは`representation_slot_id`、edgeは`from_cell_id, to_cell_id, dependency_kind`順へstrict sortしduplicate、self edge、`activation_required` cycle、Plan外cell IDを拒否する。`prefetch_hint`はactivation prerequisiteではない。Streaming plan authoringはSourceを直接分割せずReceipt-free Derived plan候補を作る。Runtime phase、I/O scheduling、shared capacityはRuntime Ownerが決定する。
+
+[LOD](lod.md)のHLOD Artifactは完成Plan refとplan-local cell／representation slotを参照するdownstream artifactであり、World PlanへHLOD artifact ref／hashを埋め戻さない。生成順を`World Source -> WorldStreamingPlanV1 -> HlodArtifactV1`に固定し、hash cycleを作らない。Planのresidency dependency roleは必要artifactのOwner-qualified役割だけを表し、HLOD artifact ref、runtime resident／pending stateまたはactivation authorityを保存しない。
+
+[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)も同じ一方向境界を使う。Worldの`residency_dependency_role_refs[]`は登録済みの`required_root | likely_detail | opportunistic`相当owner-qualified role refを持てるが、virtual page ID、micro-cluster ID、pool slot、resident／pending bit、View cutまたはGPU feedbackを持たない。virtual geometry Artifactは完成World Plan refまたはrepresentation slotをdownstream dependencyとして参照できるが、そのArtifact ref／hashをWorld Plan hashへ埋め戻さない。
+
+HLODのWorld aggregation clusterとvirtual geometryのmicro-clusterは別identity、別owner、別lifetimeである。前者は複数subjectのproxy representation、後者は一つのArtifact family内部のView-local detail nodeであり、World Cell membership、activation、Save identity、Gameplay relevancyをmicro-clusterから生成しない。Capabilityが`planning_only`の現在はWorld role Registryへvirtual geometry roleを登録しない。
 
 ## 7. Spatial transition intent
 

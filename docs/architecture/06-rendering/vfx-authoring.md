@@ -37,11 +37,14 @@ VfxSystemDocumentV1
   event_inputs: VfxEventInputV1[0..16]
   emitters: VfxEmitterV1[1..32]
   bounds_policy: VfxBoundsPolicyV1
-  quality_profile_ref: StableId
-  budget_profile_ref: StableId
+  quality_profile_ref: VfxQualityProfileRefV1
+  budget_profile_ref: VfxBudgetProfileRefV1
+  lod_profile_ref: VfxLodProfileRefV1
   visual_style_roles: StableId[0..16]
   capability_requirements: CapabilityId[0..32]
 ```
+
+`VfxQualityProfileRefV1`、`VfxBudgetProfileRefV1`、`VfxLodProfileRefV1`はそれぞれ`{profile_id: StableId, profile_version: positive u32, profile_content_hash: SHA-256}`のOwner-typed exact refである。`VfxLodProfileV1`は[LOD](lod.md#8-animationmaterialvfxとの境界)の共通EnvelopeとVFX-owned payloadのcompositionであり、Profile identity、version、Representation Set、tier binding、Profile hashを本書で二重定義しない。Quality／Budget Profileの正本は本書のOwner closureに置く。LOD Policyのclass=`vfx_presentation`にあるfull `LodDomainProfileRefV1`の`profile_id／profile_version／profile_content_hash`はnarrow `VfxLodProfileRefV1`とbyte equalityにし、`lod_class`と`subject_scope_ref`はSystem Sourceへ複写せずfull Domain refとVFX Owner scopeの照合で検証する。ID-only、表示名、latest、Target名からProfileを補完しない。選択Targetに一致するQuality bindingがexact一件あり、そのbindingのBudget／LOD refとSystem Documentのrefがbyte equalityでなければCookを拒否する。
 
 `once`／`loop`はexact rational `duration_seconds`を必須とし`[1/48000,3600]`秒、`continuous`はnullとする。enabled Emitterは最低1件、portable profileは最大16、advanced profileは最大32 Emitterである。Portable Sourceはdimension-polymorphic Nodeだけを持ち、2D／3D Artifactを別生成する。Dimension-specific instanceは`d2 | d3`を明示し、layerや親Entityから推測しない。System参照cycleを拒否する。
 

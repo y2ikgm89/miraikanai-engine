@@ -7,7 +7,7 @@
 - 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
 - 非正本範囲: generic Derived Artifact manifest／catalog、Texture／Mesh／Audio／Font等の汎用Runtime Asset request・priority・deadline・cancel・residency・eviction、ECS storage・query・lease、Save／Replay record、runtime phase／job DAG、Domain World source意味、debug transport、AI認可。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Runtime ECS](entity-component-system.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
-- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
 
@@ -261,6 +261,10 @@ directoryはbounded range readを可能にするが、Package全体のmemory map
 ### 5.3 Artifact linkage
 
 Package assemblyはAsset LifecycleのCatalogとpromotion closureを消費する。Runtime Packageが独自のCook、artifact hash、Catalog substitution、content mount policyを定義してはならない。Section payloadが必要とするAsset／Domain artifactは`section_dependency_refs[]`へ明示し、外部dependencyはgeneric manifestとCatalog launch setだけが所有する。
+
+[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)がactiveなTargetでは、World Root／SectionはCatalog上のexact `VirtualGeometryArtifactManifestV1`と常設discrete fallback Representation Setを通常の`ArtifactRefV1` dependencyとして列挙する。Package closureはhierarchy、page set、root set、fallbackのall-ready／same-generationを検証し、virtual-only、fallback欠損、別Source／Target／generation混在を拒否する。
+
+Packageへpage ID、micro-cluster ID、resident set、pool slot、request priority、View cut、GPU feedbackを焼き込まない。Package publicationはArtifact availabilityを保証するがruntime residencyを保証せず、World loaderから汎用page I/O、decode、eviction authorityを作らない。Capabilityが`planning_only`のcurrent package role／dependency要求は未登録である。
 
 ## 6. Loaderとpublication
 

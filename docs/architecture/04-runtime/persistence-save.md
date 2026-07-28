@@ -7,7 +7,7 @@
 - 正本範囲: Runtime Session Save Bundle、Continue／load resolution、Runtime World Save record、persistent／ephemeral Entity projection、Component lifecycle・enablement projection、authoritative state digest、reconstruction、Replay projection、Save migration・qualification
 - 非正本範囲: ECS storage layout・query・lease、Package binary、generic artifact catalog、debug capture transport、runtime phase／job DAG、Domain field意味、AI authorization。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
 
@@ -258,6 +258,10 @@ reconstructionは次を順に実行する。
 
 reconstruction中に旧RuntimeEntityHandleを再利用しない。Source section、World Root、runtime spawnのidentity conflictは明示policyなしにmergeせずrejectする。失敗時はlast-valid Save、Source Project revision、current World publicationを破壊しない。
 
+[LOD](../06-rendering/lod.md#7-simulation-lod境界)のProduction Simulation LODを持つOwnerは、receipt-free `SimulationLodSaveProjectionV1`を`AuthoritativeSaveStateOwnerProjectionRefV1`としてHeaderへ列挙し、root外`AuthoritativeSaveDomainBindingV1`でBundleへ結ぶ。ProjectionのContract ref、subject persistent ref、retained state、queued event、wake condition、handoff generationを各Domain validatorがreconstruction前に検証する。`last_committed_tier_ref`はdiagnostic／handoff検証にだけ使い、Load先のtierを強制しない。View、distance、occlusion、pressure snapshot、resident handleをSaveから復元せず、fullまたは明示last-valid semantic stateをpublishした後にfresh Runtime Contextで再選択する。Projection missing／stale／invalidでfull復元もできない場合はLoad activationを拒否し、tierを推測しない。
+
+[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)のpage ID、micro-cluster ID、hierarchy cut、root／page resident set、pool generation、request／feedback queue、View cut history、GPU／native handle、`VirtualGeometryResidencySnapshotV1`、`VirtualGeometryViewCutSummaryV1`はderived Presentation stateであり、Save、authoritative digest、authoritative Replay rootへ含めない。Load／Replayはexact Source／Package／Artifact dependencyを検証した後、current Targetのimmutable Artifactからresidencyをroot-firstで再構築し、fresh Camera／LOD Contextでrepresentationとcutを再選択する。保存時のcut、page availability、pressureを再現または強制しない。
+
 ### 4.1 Continue／Runtime Session load
 
 Continueは次の一方向resolutionだけを使う。
@@ -284,6 +288,7 @@ RuntimeReplayProjectionV1
     advance_sequence
     accepted_input_refs[]
     accepted_async_result_refs[]
+    simulation_lod_domain_projection_refs[]
     structural_delta_batch_hash
     authoritative_digest_ref
     published_or_faulted: published | faulted
@@ -293,6 +298,8 @@ RuntimeReplayProjectionRefV1
   replay_version: positive uint32
   replay_hash: SHA-256
 ```
+
+`simulation_lod_domain_projection_refs[]`はauthoritative behaviorへ関与するSimulation LOD transitionがそのAdvanceに存在する場合だけ、exact Contract／candidate ref、input context hash、previous／selected tier、transition reason、handoff generationを持つreceipt-free Owner projectionを参照する。Geometry／Material／VFX等のPresentation LOD、virtualized geometryのpage／micro-cluster／cut／residency／feedback、View、pressure snapshotをauthoritative Replay rootへ入れない。各refは§5.1の`RuntimeReplayDomainBindingV1`へexact一件解決し、0件／複数／別rootを拒否する。
 
 Replayはprovider callback順、worker completion時刻、live memory、GPU／Physics native callback pointerを記録しない。async resultはrequest identity、accept advance、validated value projectionを記録し、到着時刻を再現条件にしない。faulted advanceは`published_or_faulted = faulted`を残せるが、World publicationやSave snapshotを生成しない。
 

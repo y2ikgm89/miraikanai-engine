@@ -7,7 +7,7 @@
 - 正本範囲: Asset source／import identity、Import Profile／Plan／IR、Preview／Conversion Report、Reimport／dependency invalidation、Asset／World artifact共通のDerived／Cooked envelope・Catalog・content addressing、Asset Content Package assembly、Asset promotion、Editor／AI Asset operation、Asset diagnostics／qualification
 - 非正本範囲: Project transaction、共有Schema基盤、外部Tool・SDK・Libraryのversion／hash／license／取得元、Runtime scheduling／lease／capacity、ECS storage、World Root／Section payload・Runtime Package binary、Save／Replay、各DomainのRuntime意味。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
-- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[World契約](../06-rendering/world.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World契約](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -248,14 +248,33 @@ SceneImportSettingsV1
 MeshImportSettingsV1
   lod_source_mode: disabled | source_chain | generated_chain | hybrid_chain
   source_lod_bindings: SourceLodBindingV1[0..16]
-  mesh_lod_profile_id: StableId?
+  mesh_lod_generation_profile_ref: MeshLodGenerationProfileRefV1 | null
   preserve_boundaries: bool
   preserve_uv_seams: bool
   preserve_hard_normals: bool
   required_vertex_color_channels: ClosedChannelId[0..8]
   skin_policy: source_only | qualified_generated
   morph_policy: source_only | qualified_generated
+
+SourceLodBindingV1
+  level_index: u8[0..15]
+  source_asset_ref: exact {asset_id, source_revision, source_content_hash}
+  source_primitive_set_hash: SHA-256
+  intended_artifact_role: lod0_source | authored_reduction
+
+MeshLodGenerationProfileRefV1
+  profile_id: StableId
+  profile_version: positive u32
+  profile_content_hash: SHA-256
 ```
+
+`SourceLodBindingV1`は`level_index`順にstrict sortしduplicateを拒否する。`lod_source_mode=disabled`はbinding 0件かつgeneration profile null、`source_chain`はbinding 1件以上かつgeneration profile null、`generated_chain`はLOD0 binding一件かつgeneration profile必須、`hybrid_chain`はbinding 1件以上かつgeneration profile必須とする。Generation Profileはtriangle／object-error target、boundary／UV／normal／vertex-color、skin／morph preservation、Tool input semanticsをAsset Ownerのtyped payloadとして持ち、LOD runtime threshold、View、pressure、selectionを持たない。[LOD](../06-rendering/lod.md)は公開済みartifact generationとerror metadataだけをexact参照し、Source modeまたはsimplifier設定を再定義しない。
+
+#### 2.2.1 Virtualized geometryのtarget import binding
+
+[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)が`planning_only`の間、`MeshImportSettingsV1`へenable bool、provider option、page size、cluster sizeまたは空Artifact roleを追加しない。将来のCapability activationでは、既存Sourceを保持したままexact `VirtualGeometryAuthoringIntentV1`をImport Planへ関連付ける`VirtualGeometryCookIntentBindingV1`を別のversioned owner-typed bindingとして登録する。BindingはSource Asset ref、Intent ref、binding content hashだけを持ち、Target Policyとdiscrete fallback Representation SetはIntentのexact refから解決して複写しない。View、runtime error threshold、resident page、pool slot、GPU handleを持たない。
+
+Source LOD chainとvirtualized hierarchyは同じSourceから生成できるが、一方を他方から逆生成しない。Source revision、Intent、Material／deformation compatibility、Toolchain lock、Targetのいずれかが変われば新しいArtifact generationを要求する。provider／builder固有optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のprivate profileへ固定し、Authoring SourceまたはAI intentへ露出しない。
 
 `SkeletonImportSettingsV1`は旧Skeleton validation policyをfield化し、任意propertyを許可しない。
 
@@ -495,6 +514,12 @@ Source拡張子の検出、decoderの存在、Preview成功はProduct採用ま�
 Artifact keyは完成manifestとpayloadのcanonical encodingから作る。Payload headerはsubject、role、Target、schema、sizeを持ち、unknown major、truncation、trailing bytes、hash mismatchを拒否する。Artifact storeはcontent-addressedかつimmutableであり、成功Artifactを上書きしない。
 
 Hard dependency closureが同一generationでReadyになるまでArtifactをpromotionできない。Geometry、Material、Skeleton、Animation、Physics、Navigation等のDomain artifactは各DomainのSource意味とvalidationを消費する。Backend native pointer、device固有command、driver依存objectをArtifact／Packageへ保存しない。
+
+Virtualized geometryがactiveとなる場合、Asset Ownerはgeneric `DerivedArtifactManifestV1`のpayloadとしてtarget `VirtualGeometryArtifactManifestV1`を所有する。payloadはexact Source ref／hash、Authoring Intent、Representation Family ref、Target、Toolchain／Provider profile、sorted unique Feature Requirement ref集合、hierarchy descriptor ref、content-addressed page-set ref、root-residency-set ref、bounds／error metadata ref、Material／deformation compatibility ref、discrete fallback Representation Set ref、generation、payload content hashを必須にする。`artifact_role_id`はhierarchy、page、rootを別々の独立promotion対象にせず、一つのall-ready manifest closureへ束縛するregistered roleとする。
+
+target `VirtualGeometryArtifactManifestRefV1`はgeneric `ArtifactRefV1`、positive `generation`、`manifest_content_hash`を持ち、解決先manifestのArtifact key、Target、generation、content hashとbyte equalityにする。bare Artifact ID、Catalogのlatest generation、page-set hashだけをManifest refとして受理しない。
+
+`page_id`と`micro_cluster_id`はArtifact Manifest ref＋generation内だけのlocal identityである。Catalog key、World Cell、Save、Project Source、AI ChangeSet、Render Viewへbare IDを公開しない。root set欠損、page／hierarchy generation差、fallback ref欠損、Material／deformation ref不一致ではpromotionを拒否し、partial page set、virtual-only Assetまたは旧generationとの混在をpublishしない。このtarget payloadとroleはCapability activationのCompatibility Changeまでcurrent Catalog memberではない。
 
 Garbage collectionはProject revision、Catalog、Package manifest、last-valid generation、active lease、Recovery snapshotからreachabilityを計算した後だけ実行する。SourceからCooked Artifactを逆生成せず、corrupt Cacheはhashで拒否してSourceから再Cookする。
 

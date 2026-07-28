@@ -4,7 +4,7 @@
 
 このIndexはArchitecture文書を発見し、読む順序と責務の入口を示すための手動管理navigationである。EngineのSchema、固定値、Gate、実装順序、Capability activationを定義しない。
 
-2026-07-27時点で、Architecture InventoryのGenerator、Schema、生成ArtifactはRepositoryに存在しない。この一覧は現存するOwner文書50件を手作業で列挙したものであり、生成済みprojectionではない。件数、状態、path、依存の機械的な正しさを主張せず、変更時は実ファイルと各Headerを確認する。
+2026-07-29時点で、Architecture InventoryのGenerator、Schema、生成ArtifactはRepositoryに存在しない。この一覧は現存するOwner文書51件を手作業で列挙したものであり、生成済みprojectionではない。件数、状態、path、依存の機械的な正しさを主張せず、変更時は実ファイルと各Headerを確認する。
 
 Owner文書はすべて`review`であり、対応するEngine実装・Schema・Fixture・ReceiptはRepositoryに存在しない。したがって本文中の型、Registry、固定値、hash、Operationは、明示的な外部Artifactを除き設計候補である。状態と根拠の解釈は[Architecture Governance](01-governance/architecture-governance.md)を正本とする。
 
@@ -95,28 +95,29 @@ Owner文書はすべて`review`であり、対応するEngine実装・Schema・F
 | 36 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
 | 37 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |
 | 38 | [LOD](06-rendering/lod.md) | review | representation selection、transition、fallback、LOD semantics |
-| 39 | [World／Scene／Space／Cell](06-rendering/world.md) | review | World composition、spatial topology、partition、activation、generic transition |
+| 39 | [Virtualized／Continuous Geometry](06-rendering/virtualized-continuous-geometry.md) | review | virtual geometry表現ファミリ、inner cut、residency／fallback統合、feature qualification |
+| 40 | [World／Scene／Space／Cell](06-rendering/world.md) | review | World composition、spatial topology、partition、activation、generic transition |
 
 ### 3.8 Platform
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 40 | [Windows](07-platform/windows.md) | review | Windows target、process／window adapter、package、distribution、qualification |
-| 41 | [Mobile Common](07-platform/mobile-common.md) | review | Mobile共通target、port、lifecycle、resource policy、device workflow |
-| 42 | [Android](07-platform/android.md) | review | Android build／runtime adapter、package、store delivery、device qualification |
-| 43 | [Apple](07-platform/apple.md) | review | Apple build／runtime bridge、signing、store、device qualification |
-| 44 | [Input](07-platform/input.md) | review | device、action、binding、context、remap、haptics、input replay |
-| 45 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
-| 46 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、UI authoring |
+| 41 | [Windows](07-platform/windows.md) | review | Windows target、process／window adapter、package、distribution、qualification |
+| 42 | [Mobile Common](07-platform/mobile-common.md) | review | Mobile共通target、port、lifecycle、resource policy、device workflow |
+| 43 | [Android](07-platform/android.md) | review | Android build／runtime adapter、package、store delivery、device qualification |
+| 44 | [Apple](07-platform/apple.md) | review | Apple build／runtime bridge、signing、store、device qualification |
+| 45 | [Input](07-platform/input.md) | review | device、action、binding、context、remap、haptics、input replay |
+| 46 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
+| 47 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、UI authoring |
 
 ### 3.9 Packs
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 47 | [Pack Contract](08-packs/pack-contract.md) | review | Pack構造、dependency、install、update、removal |
-| 48 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role |
-| 49 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | reusable Featureの共通ownership、manifest、Port、State、Save／Replay、failure |
-| 50 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
+| 48 | [Pack Contract](08-packs/pack-contract.md) | review | Pack構造、dependency、install、update、removal |
+| 49 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role |
+| 50 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | reusable Featureの共通ownership、manifest、Port、State、Save／Replay、failure |
+| 51 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
 
 ## 4. 補助文書とProposal
 

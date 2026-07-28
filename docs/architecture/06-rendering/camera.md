@@ -7,7 +7,7 @@
 - 正本範囲: Gameplay／Cinematic CameraのProfile、Rig、Director、Presentation、Sequence、typed authoring、Base Pose runtime、Camera固有budget／diagnostic／qualification
 - 非正本範囲: Capability maturity／roadmap、Render View execution／temporal history、Post Process schema、Physics query execution、Runtime phase／shared capacity、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Math／Core Utilities](../02-foundation/math-core.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)
-- 関連文書: [Product Plan（Recording／Timecode／Genlock／Virtual Productionはnot_activated）](../00-product/product-plan.md#8-future-portfolio)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](world.md)、[Render Graph](render-graph.md)、[Post Processing](post-processing.md)
+- 関連文書: [Product Plan（Recording／Timecode／Genlock／Virtual Productionはnot_activated）](../00-product/product-plan.md#8-future-portfolio)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](world.md)、[Render Graph](render-graph.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[Post Processing](post-processing.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -150,6 +150,10 @@ Perspective系はvertical FOV、Orthographic系はvertical sizeを必須とし�
 `CameraIntentSnapshotV1`はGameplay用logical origin／direction／target／frustum intent、`CameraBasePoseSnapshotV1`はprevious／current Base Pose、Rig／Director generation、cut flag、`CameraPresentationSnapshotV1`はview impulse／view noise channel、`CameraRenderViewV1`はRendering ownerが作るinterpolated View／Projection、Viewport、Post ref、history resetである。Render View／GPU matrixをGameplayへ返さない。
 
 `CameraPresentationSummaryV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、最低fieldとして`camera_id`、source revision、projection variant、vertical FOVまたはorthographic vertical size、focus distance、aperture、cut／history reset flag、pixel-locked policyを持つ。[Post Processing](post-processing.md)等のConsumerはfield一覧を複写せず、write backしない。
+
+[LOD](lod.md#4-共通選択契約)は選択済み`CameraRenderViewV1`からだけ`ViewLodContextV1`を構築する。対応は`perspective | physical_perspective -> perspective{vertical_fov_rad,near_m}`、`orthographic | pixel_orthographic -> orthographic{vertical_span_m,near_m}`で、render extent、view transform、view purpose、view generation、cut／history resetもbyte-exactに投影する。LODはCamera Source、Lens、display aspect、Post Processからprojectionを再解決せず、Cameraはprojected error、LOD threshold、tier、pressureを所有しない。cut、projection variant、render extent generationの変化はLODへ明示し、古いView historyを別View／generationへ流用しない。
+
+[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)のinner cutも同じ`CameraRenderViewV1`／`ViewLodContextV1`だけをView入力とし、virtual path専用Camera、FOV補正、resolution scale、camera cut判定を作らない。main、shadow、reflection、Editor、thumbnail、split ViewはそれぞれのView ID／generationで独立cutを持ち、別Viewのhistory、error、fallbackを共有しない。Cameraはmicro-cluster、page request、residencyまたはcapacityを所有しない。
 
 ## 3. Rig、Director、transition
 
