@@ -1677,7 +1677,7 @@ activation work itemが16件を採用する場合、全結果は`project_revisio
 
 activation後のSearchは既定50件、最大200件、continuation付き、Read／Inspect／Explainはfield mask、Stable ID、Target／variant scope、最大node／edge／source byteを必須にする。上限超過時は`omitted_ranges`と`continuation_cursor`を返し、GraphまたはSourceを途中で正常完了扱いしない。
 
-activation後のPlan／Proposeは`expected_project_revision`、`idempotency_key`、Profile hash、対象Module／Technique Stable ID、Target集合、Requirement、Budget、fixture、fallback、Riskを必須にする。ProposeはSource ChangeSetだけに限定し、compiler command、Project／Engine filesystem直接write、artifact publish、Commit、Activation、Approval、Policy変更を行わない。現在はPlan／Proposeを含む16件すべてを拒否する。
+activation後のPlan／Proposeは`expected_project_revision`、`idempotency_key`、Profile hash、対象Module／Technique Stable ID、Target集合、Requirement、Budget、fixture、fallback、Riskを必須にする。PlanはR1 Proposal、ProposeはStagingへ実行code候補を生成するためR3 Source Proposalであり、後段Promotionが別であることを理由にRiskを下げない。ProposeはSource ChangeSetだけに限定し、compiler command、Project／Engine filesystem直接write、artifact publish、Commit、Activation、Approval、Policy変更を行わない。現在はPlan／Proposeを含む16件すべてを拒否する。
 
 ### 21.1 既存Domain文書から回収した未登録Operation候補
 

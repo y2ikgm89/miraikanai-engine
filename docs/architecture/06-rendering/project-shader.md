@@ -4,12 +4,12 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Typed IR／bounded HLSL Project Shaderの自由度境界、semantic module、Project Node／Shading Model、Project Shader Technique、宣言的resource／pass、compile fact、AI context／operation、Shader Understanding Closure、Shader固有diagnostic／qualification
+- 正本範囲: Typed IR／bounded HLSL Project Shaderの自由度境界、semantic module、Project Node／Shading Model、Project Shader Technique、宣言的resource／pass、compile fact、AI context／operation、Shader Understanding Closure、設計完了closure、Shader固有diagnostic／qualification
 - 非正本範囲: Engine shader実装、native graphics API、Render Graph実行algorithm、Material／Lighting／Post Process／VFXのauthoring意味、Tool／compilerのexact version、AI authorization／Approval、共通Evidence envelope、Project transaction。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Project State](../03-authoring/project-state.md)
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core Utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[Post Processing](post-processing.md)、[VFX authoring](vfx-authoring.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-22
+- 外部根拠確認日: 2026-07-28
 
 ## 1. 結論と自由度境界
 
@@ -21,12 +21,22 @@ HLSL textだけを正本またはAI理解の証拠にしない。各`ProjectShad
 
 Shipping Runtimeはoffline compiled artifactだけを読む。Shader source、authoring semantic、compiler、AST、JIT、runtime download、未承認variant生成をPackageへ含めない。
 
+AI可読性はmode別に主張範囲を分ける。`typed_ir`は後述するclosed operation catalogがmaterializeされ、IR、generated source、artifact、behavior／change-impact coverageが同一closureへ閉じた場合だけU0～U4の構造・意味理解を主張できる。`bounded_hlsl`は宣言済みpublic semantics、後述するAnalysis Profileが生成したFact、Target artifact、登録fixtureの挙動だけを理解範囲とし、任意HLSL Sourceの完全な意味理解を主張しない。AI説明、compile成功、reflection成功、Code Owner reviewのいずれも単独では理解完了にならない。
+
+表現自由度も同じく二層に分ける。S0～S4はEngine-owned Port、公開Shader SDK、Target Profile内のMaterial／Stage／複数Pass algorithmを対象とする。S5は`project_render_domain`のclosed Portを使うProject Feature Bundleであって、Unreal EngineのRenderer module、Unity SRP callback、Godot `RenderingDevice`に相当するnative Renderer拡張ではない。Port Catalogに存在しないframe stage、resource semantic、ordering、pipeline primitive、Backend extensionを要求する機能はS5成功へ近似せず`capability_unavailable`とする。
+
 ## 2. Canonical objectとidentity
 
 | Object | 所有する意味 | 生成／変更主体 |
 |---|---|---|
 | `BoundedProjectShaderProfileV1` | Source language、公開Shader SDK、許可Stage／Port／Resource／副作用／上限、Target、Compiler Profile、Qualification Policy | Engine buildが生成し、Project／AI変更不可 |
 | `PublicShaderSdkCatalogV1` | Project HLSLから参照できる全Engine公開symbolの宣言、semantic、効果、Capability、Target、Evidence | Engine buildが生成し、Project／AI変更不可 |
+| `TypedShaderIrOperationCatalogV1` | Typed IRで使用できる全operation、型規則、Stage、control、resource／side effect、code generation意味 | Engine buildが生成し、Project／AI変更不可 |
+| `ProjectShaderTechniquePortCatalogV1` | 全Technique Portのexact input／output、ordering、history、Layer、pipeline、Target、Budget | Engine buildが生成し、Project／AI変更不可 |
+| `BoundedHlslAnalysisProfileV1` | Source frontend、preprocessor、Fact抽出、有限control証明、runtime-use trace、soundness限界 | Engine buildが生成し、Project／AI変更不可 |
+| `ProjectShaderCapabilityMatrixV1` | mode／S Level／Stage／Port／Target／Compiler Profileごとのrequired／optional／unsupported | Engine buildが生成し、Project／AI変更不可 |
+| `ProjectShaderQualificationFixtureRegistryV1` | 設計要素ごとのrequired positive／negative／fault／AI Eval fixture集合 | Engine buildが生成し、Project／AI変更不可 |
+| `ProjectShaderDesignClosureV1` | Profile、Catalog、Analysis、Matrix、Schema、Fixtureの同一baseline設計完了closure | Architecture／Build検証が生成 |
 | `ProjectShaderModuleV1` | Function、Node、Stage、Libraryのsemantic interfaceとSource closure | Project Source。R3 ChangeSet |
 | `TypedShaderIrV1` | Engine-generated shader textのcanonical structural／semantic source | Project Source。R3 ChangeSet |
 | `ProjectShaderTechniqueV1` | Engine-owned injection Portへ接続するlogical resourceとPass DAG | Project Source。R3 ChangeSet |
@@ -63,6 +73,47 @@ Profile外のStage、Port、Resource、side effect、Capability、Target、Compi
 
 `PublicShaderSdkCatalogV1`はCatalog ID、Engine baseline hash、public Shader SDK source hashと、全public entryを持つ。各entryはStable SDK Symbol ID、HLSL symbol／kind／declaration、typed value／resource interface、semantic role、unit／coordinate／color space、side effect、許可Stage、required Capability、Target support、determinism class、cost class、invariant、example／counter-example、生成元declaration／documentation hashを持つ。Projectから参照可能なfunction、type、constant、generated binding helperを100%列挙し、Engine private symbolは一件も含めない。SourceがCatalogにないEngine symbolへ解決した場合、compile可否にかかわらずProfile違反にする。
 
+Project Shaderの設計完了は文書本文の存在ではなく、次のroot外closureで判定する。
+
+```text
+ProjectShaderDesignClosureV1
+  closure_id: StableId
+  closure_version: positive uint32
+  engine_baseline_hash
+  bounded_project_shader_profile_ref:
+    exact {profile_id, profile_version, profile_content_hash}
+  public_shader_sdk_catalog_ref:
+    exact {catalog_id, catalog_version, catalog_content_hash}
+  typed_shader_ir_operation_catalog_ref:
+    exact {catalog_id, catalog_version, catalog_content_hash}
+  technique_port_catalog_ref:
+    exact {catalog_id, catalog_version, catalog_content_hash}
+  bounded_hlsl_analysis_profile_ref:
+    exact {profile_id, profile_version, profile_content_hash}
+  capability_matrix_ref:
+    exact {matrix_id, matrix_version, matrix_content_hash}
+  compiler_profile_refs[1..16]:
+    exact {profile_id, profile_version, profile_content_hash}
+  schema_contract_hashes[1..64]: SHA-256
+  qualification_fixture_registry_ref:
+    exact {registry_id, registry_version, registry_content_hash}
+  closure_hash: SHA-256
+```
+
+`TypedShaderIrOperationCatalogV1`はoperation Stable ID、version、operand／result type rule、unit／coordinate／color rule、許可Stage、structured control rule、resource access、side effect、required Capability、Target lowering、analytic invariant、positive／negative fixtureを全entryへ必須にする。未知operation、自由文字列opcode、Catalog外template展開を拒否する。
+
+`ProjectShaderTechniquePortCatalogV1`は§5の各Portについて、Port ID／version、許可Technique／Stage、typed input／output semantic、import／export Resource role、ordering predecessor／successor、history／Layer、許可pipeline contract、Target support、Budget Profile、fallback policyをexact一entryにする。§5で列挙するPort IDを名前だけ登録した状態、または一部Portだけ具体化した状態をCatalog完成としない。
+
+`BoundedHlslAnalysisProfileV1`はSource frontend、preprocessor、validator、instrumentation AdapterごとのTool ID／version／artifact hash／public API、入力言語Profile、Fact kind coverage、有限control証明規則、resource／side-effect抽出規則、runtime-use trace取得点、未観測pathの扱い、既知のsoundness限界、fixture setを固定する。Compiler-private AST text、未pinのParser、AIによるSource説明をProfileの代用にしない。Profileが生成できないrequired Factはunknownのままhard blockerとし、absenceをeffectなしへ変換しない。
+
+`ProjectShaderCapabilityMatrixV1`は`{understanding_mode, S Level, Stage, Port, Target Profile, Compiler Profile}`のclosed tupleごとに`required | optional | unsupported`を一件持つ。Matrixにない組合せは`unsupported`であり、近いStage、同Backend、同OS familyから補完しない。上記Closureの全refが同じEngine baselineへ解決し、required Schema／Fixtureが揃うまでS2～S5、AI Operation、Source Promotionを`not_activated`に保つ。
+
+`ProjectShaderQualificationFixtureRegistryV1`はRegistry ID／version／content hash、Engine baseline hashと、`profile | public_sdk_symbol | ir_operation | technique_port | analysis_fact | pipeline_branch | target_tuple | fault | ai_eval`ごとのsubject exact ref、fixture set exact ref、`accept | reject | diagnostic`のexpected disposition、required Target Profile refsを持つ。§11の全Qualification項目を少なくとも一件のrequired entryへ写像し、同じfixtureを複数項目の証拠にする場合も各subject refを明示する。未登録手動試験、説明文、screenshotだけをRegistry entryへ補完しない。
+
+Design Closureの各ref配列はStable ID、version、content hash順、`schema_contract_hashes[]`はbyte順へstrict sort／uniqueとする。`closure_hash = SHA-256(ASCII "MIRAKAN_PROJECT_SHADER_DESIGN_CLOSURE_V1" || uint32_be(length(canonical bytes excluding closure_hash)) || canonical bytes excluding closure_hash)`とし、全refのresolved objectにあるEngine baseline hashを`engine_baseline_hash`とbyte equalityにする。missing、latest lookup、同ID別hash、cross-baseline、空Fixture Registryを拒否する。
+
+current repositoryのmaterialized `ProjectShaderDesignClosureV1`、IR Operation Catalog、Technique Port Catalog、HLSL Analysis Profile、Capability Matrix、Qualification Fixture Registry、Qualification Receipt集合はexact `[]`である。本書は設計正本であって実装または利用可能性の証拠ではなく、上記集合が完成するまで文書状態`review`、実装状態`absent`、Capability `not_activated`を維持する。
+
 ## 3. Capability ladder
 
 Project Shaderの表現力を次のclosed levelで分類する。Levelは品質順位ではなく必要な契約とRiskの段階である。
@@ -79,6 +130,8 @@ Project Shaderの表現力を次のclosed levelで分類する。Levelは品質�
 S2以上は`ProjectShaderNodeCatalogV1`へProject namespaceで登録できる。Catalog entryはQualification済みartifactだけを参照し、Sourceの存在だけで利用可能にしない。S3のShading Modelは既存Domainの入力／出力、depth、alpha、motion、shadow、fallback契約を満たす。S5の新Domainは`ProjectRenderDomainPortV1`のclosed input／output semanticsで完全に表現できる場合だけ許可し、Port自体、Backend、native execution primitiveの追加はEngine Extensionとする。
 
 S5の「Project Renderer Feature」は`project_render_domain` Portへ一つ以上のS4 Techniqueを接続したProject namespaceのFeature Bundleを指す。EngineのMaterial Domain enum、Render phase、Port Catalog、Backendを追加する意味ではない。Portのclosed semanticで不足する入力／出力／orderingが一つでもあればS5として近似せず`capability_unavailable`にする。
+
+V1のProject Shader Stageは§4の`vertex | pixel | compute | mesh | amplification | ray_generation | ray_miss | ray_closest_hit | ray_any_hit | ray_intersection | callable`だけである。Geometry、Hull、Domain／Tessellation、Work Graph／Node Shader、Backend固有StageはV1で`unsupported`とする。将来追加はStage enum、IR operation、Port、Compiler／Target Profile、Capability Matrix、全required fixtureを同じEngine baseline ChangeSetで更新する場合だけ許可し、HLSL compilerが受理することだけから有効化しない。
 
 ## 4. `ProjectShaderModuleV1`
 
@@ -309,6 +362,42 @@ ProjectShaderTechniqueV1
 
 `ProjectShaderPassV1`はPass ID、pass type、queue intent、view scope、module Entry refs、accesses、color／depth attachment、dispatch／draw envelope、explicit dependency、side-effect class、declared costを持つ。pass typeは`raster | compute | ray`、queue intentは`graphics | async_compute_preferred`である。Queue確定、barrier、alias、merge、cullingはRender Graphが決める。
 
+各Passはpass typeと一致する`ProjectShaderPassPipelineContractV1`を一つ必須にする。
+
+```text
+ProjectShaderPassPipelineContractV1
+  kind: raster
+    primitive_topology: point | line | triangle
+    raster_state_intent_ref:
+      exact {intent_id, intent_version, intent_content_hash}
+    attachment_interface_hash
+    sample_count_class
+  | kind: compute
+    threadgroup_contract_ref:
+      exact {contract_id, contract_version, contract_content_hash}
+    dispatch_bound_ref:
+      exact {bound_id, bound_version, bound_content_hash}
+    indirect_dispatch: forbidden | capability_required
+  | kind: ray
+    ray_generation_entry_ref: exact one Module Entry ref
+    miss_entry_refs[1..64]
+    hit_groups[1..256]:
+      hit_group_id
+      closest_hit_entry_ref: optional
+      any_hit_entry_ref: optional
+      intersection_entry_ref: optional
+    callable_entry_refs[0..64]
+    payload_schema_ref:
+      exact {schema_id, schema_version, schema_content_hash}
+    attribute_schema_ref:
+      exact {schema_id, schema_version, schema_content_hash}
+    acceleration_structure_role_refs[1..16]
+    max_recursion_depth
+    function_table_interface_hash
+```
+
+Rasterの`raster_state_intent_ref`は`material_surface`では[Materials](materials.md)が所有するDefinitionのrender-state intent、その他のPortではTechnique Port Catalogが許可するEngine-owned intentへexact解決する。Project Sourceへnative fill／cull／blend／depth-stencil enumを保存しない。Rayのhit groupは少なくとも一つのHit Stageを持ち、procedural intersectionは対応するCapabilityとAcceleration Structure roleを必須にする。payload／attribute size、recursion、function table、scratchはTarget Profileと[Render Graph](render-graph.md)の`RayTracingPortV1`上限以下でなければならない。Render Graphはlogical associationからnative pipeline／shader tableを生成し、Project Sourceはnative shader identifier、table address、strideを保持しない。pass typeとunion branchの不一致、Entry Stage不一致、空hit group、重複Entry association、Target上限超過をQualification前に拒否する。
+
 Techniqueは宣言済みPassとResourceだけを使用する。Sourceまたはruntime-use traceがManifest外Resource、追加dispatch、native barrier、別queue workを観測した場合、Technique全体を不合格にする。Running中の不一致は該当Techniqueの以後のpass／submissionを停止し、同一frameへfallbackを挿入しない。承認済みfallbackがある場合だけ次のGraph generationから切り替える。
 
 ## 6. Portable HLSL source profileとTyped IR code generation
@@ -319,7 +408,7 @@ Techniqueは宣言済みPassとResourceだけを使用する。Sourceまたはru
 
 `bounded_hlsl`のPreprocessor symbolはModule manifestのvariant dimension、Target Capability、Engine public Shader SDKが生成した値だけを条件入力にできる。Source-local helper macroは外部状態を読まず、variantを増やすmacroは全値をManifestへ列挙する。Project指定`#pragma`、register／space固定、compiler flag、Backend conditional、unknown extensionを禁止する。
 
-`bounded_hlsl`のLoopはcompile-time finite bound、またはbinding時にProfile上限へ検証されるbounded parameterを上限式に持つcanonical loopだけを許可する。無上限`while`／`do`、再帰、自己変更、device address、unbounded bindless、function pointerによる未列挙dispatchを禁止する。Wave／Subgroup、atomic、derivative、ray operation、indirect operationはCapabilityとside effectを宣言し、Target fallbackを持つ。
+`bounded_hlsl`のLoopはcompile-time finite bound、またはbinding時にProfile上限へ検証されるbounded parameterを上限式に持つcanonical `for` loopだけを許可する。canonical loopはlocal `exact_integer` induction variableの単一初期化、`< | <= | > | >=`の単一比較、compile-time positive stepによる単調更新、induction variableのLoop body内非変更、overflowしないwidened integerでの最大iteration導出、Profile上限以下の最大iterationを必須にする。parameter boundは`ShaderValueSemanticV1.valid_range`の有限端とbinding時validatorの両方から同じ最大値を導出する。nested loopは各最大iterationの積をoverflow検査付きで求め、Profileのper-entry control bound以下にする。`break`／`continue`は最大iterationを増やさない場合だけ許可し、bound証明の代用にしない。無上限`while`／`do`、再帰、induction variable alias／外部変更、符号反転step、浮動小数点induction、device address、unbounded bindless、function pointerによる未列挙dispatchを禁止する。Wave／Subgroup、atomic、derivative、ray operation、indirect operationはCapabilityとside effectを宣言し、Target fallbackを持つ。
 
 Typed IR generatorはclosed node／operation catalog以外を展開せず、IR外のtext template input、generated HLSLへの手書きpatch、Target別semantic substitutionを受理しない。生成HLSLとsource mapはexact `{ir_id, ir_version, ir_content_hash}`、public Shader SDK Catalog hash、Compiler Profile hash、Target Profile hashを含むDerived Artifact hashへbindする。Matrix layout、clip／depth convention、texture coordinate origin、front-face、precision lowering、binding layoutはEngine public Shader SDKが生成する。`bounded_hlsl` Sourceも`typed_ir` generatorもTarget別の暗黙規約を再実装しない。
 
@@ -335,6 +424,8 @@ Shader Workerは次の固定順でCandidateを処理する。
 6. `typed_ir`ではIR、generated source map、public reflection、static fact、runtime-use traceを照合する。`bounded_hlsl`ではManifest、public reflection、static fact、runtime-use traceを照合する。
 7. fixture、parameter sweep、visual／analytic invariant、performance、fault testを、Target／variant／fixtureのexact tupleごとに実行する。
 8. `ProjectShaderArtifactSetV1`とVerification Receiptを組み立てる。
+
+手順3と6は完成`BoundedHlslAnalysisProfileV1`を必須入力にする。Source frontendはProfileが列挙するFact kindをStable IDとsource span付きで生成し、抽出不能、Parser recovery、unsupported construct、preprocessor divergenceをunknownまたはDiagnosticとして残す。runtime-use traceはRender Graph binding、instrumented Development artifact、validation／capture AdapterのうちProfileが列挙した取得点だけから生成し、実行されなかったbranch、variant、Targetのeffect不存在を証明しない。static Fact、reflection、runtime-use traceのいずれか一つだけでManifest一致を主張せず、required Factごとのdeclared／static／compiled／observed状態をset equalityで比較する。
 
 ```text
 ShaderUnderstandingInputV1
@@ -360,6 +451,7 @@ ShaderUnderstandingInputClosureV1
 artifact_set_id
 project_revision
 engine_baseline_hash
+project_shader_design_closure_hash
 bounded_project_shader_profile_hash
 public_shader_sdk_catalog_hash
 module_hashes[]
@@ -378,7 +470,7 @@ verification_receipt_hashes[]
 provenance_root_hash
 ```
 
-`binary_artifacts[]`はkind、content hash、size、entry／Stage set、exact `ShaderVariantTupleRefV1`を持ち、native pathやtimestampをidentityにしない。各tuple refはArtifact SetのModuleへexact解決し、同じTarget／variantを別artifactへ推測で流用しない。Artifact Setは一Target専用であり、DXIL、SPIR-V、metallib等の別Target payloadを一つのRuntime選択肢として混在させない。Development-only reflection／source map／FactはShipping payloadへ含めず、Package Catalogから署名済みReceipt hashだけを参照する。
+`project_shader_design_closure_hash`は§2の完成`ProjectShaderDesignClosureV1`へ解決し、Artifact SetのProfile、Catalog、Analysis、Capability Matrix、Compiler Profile、Schema、Fixture Registryを同じEngine baselineへ推移的にbindする。一つでも変更された旧Artifact Setをstaleにする。`binary_artifacts[]`はkind、content hash、size、entry／Stage set、exact `ShaderVariantTupleRefV1`を持ち、native pathやtimestampをidentityにしない。各tuple refはArtifact SetのModuleへexact解決し、同じTarget／variantを別artifactへ推測で流用しない。Artifact Setは一Target専用であり、DXIL、SPIR-V、metallib等の別Target payloadを一つのRuntime選択肢として混在させない。Development-only reflection／source map／FactはShipping payloadへ含めず、Package Catalogから署名済みReceipt hashだけを参照する。
 
 Shader binaryは実行codeに準じるTarget application artifactであり、[Asset lifecycle](../03-authoring/asset-lifecycle.md)のContent Package、Content Patch、DLC、managed Asset deliveryへ格納しない。Project Shader更新は対象TargetのApplication updateとして配布し、Application package validatorがArtifact Set、Target Profile、Engine baseline、Qualification Receipt、署名のhash closureを照合する。Material／VFX／Post等のContent artifactはShader binaryを内包せず、同じApplication build内のQualification済みArtifact IDだけを参照する。
 
@@ -432,7 +524,7 @@ producer_tool_ids[]
 - `operation.shader.propose_module`
 - `operation.shader.propose_technique`
 
-current MCD／Manifest／Service allowlist／Policy／Validator closure／Diagnostic／Receipt／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.shader.discovery_proposal_operations.v1`が16件をatomic activateする場合、Search／Read／Inspect／Explain／Compare／Estimate／ValidateはR0、Preview／Sweepは状態を正規Projectへ反映しないbounded Job、Planはread-only Proposal、ProposeはR1 Patch Proposalとする。ProposeはSource revision、Project、Artifactを変更せず、Broker再計算Diffを持つ下記`ProjectShaderPatchProposalV1`だけを返す。Source Promotionは[Executable Contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の別family `operation.project_source.promote_revision`がCode Owner ApprovalとBuild／Test Receiptを再検証する`trusted_internal` route、Project登録は[Project state](../03-authoring/project-state.md#52-projectchangeprimitivev1)のShader二primitiveを含むChangeSet routeだけを使う。Modelへraw filesystem write、compiler command、artifact publish、commit、promotion、activation、policy overrideを公開しない。
+current MCD／Manifest／Service allowlist／Policy／Validator closure／Diagnostic／Receipt／Provider／MCP Tool／alias集合は空、Capability stateは`not_activated`である。`activation.shader.discovery_proposal_operations.v1`が16件をatomic activateする場合、Search／Read／Inspect／Explain／Compare／Estimate／ValidateはR0、Preview／Sweepは正規Projectを変更しないbounded Job、PlanはR1 Proposal、ProposeはR3 Source Patch Proposalとする。この分類は[Operation planning catalog](../appendices/executable-contracts-operation-planning-catalog.md) §21および[Architecture Governance](../01-governance/architecture-governance.md)とbyte-exactに一致させる。ProposeがSource revision、Project、Artifactを直接変更しないことはR3をR1へ下げる理由にならない。R3はStaging上へ実行code候補を生成する境界を表し、ProposeはBroker再計算Diffを持つ下記`ProjectShaderPatchProposalV1`だけを返す。Source Promotionは[Executable Contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の別family `operation.project_source.promote_revision`がCode Owner ApprovalとBuild／Test Receiptを再検証する`trusted_internal` route、Project登録は[Project state](../03-authoring/project-state.md#52-projectchangeprimitivev1)のShader二primitiveを含むChangeSet routeだけを使う。Modelへraw filesystem write、compiler command、artifact publish、commit、promotion、activation、policy overrideを公開しない。
 
 Plan／ProposeがSource Workerへ渡すtarget carrierを次へ固定する。Schemaの存在はOperation ActivationまたはSource write権限を意味しない。
 
@@ -510,6 +602,7 @@ ProjectShaderSourceTaskV1
   path_scope_refs[1..256]: ProjectShaderSourcePathScopeRefV1
   shader_authoring_profile_ref: BoundedProjectShaderProfileRefV1
   shader_authoring_profile_sha256: Sha256DigestV1
+  project_shader_design_closure_sha256: Sha256DigestV1
   public_shader_sdk_catalog_sha256: Sha256DigestV1
   contract_set_hash: Sha256DigestV1
   toolchain_lock_sha256: Sha256DigestV1
@@ -547,11 +640,11 @@ ProjectShaderPatchProposalV1
 
 `source_subject`は`action`をdiscriminatorとするclosed tagged unionである。`create_module | create_technique`はGatewayが予約した未使用identityだけを必須にし、revision refと`base_source_revision_ref`をcanonical omissionする。`update_module | update_technique`はCommit済みexact revision refと、その同じProject／subject Stable ID／revisionへ解決するbase refを必須にし、identity refをcanonical omissionする。createで既存ID、updateでmissing／zero／latest base、ModuleとTechniqueのcross-kind ref、branch外Field、Project／subject ID／revision／content hash不一致を拒否し、空refを省略の代用にしない。ProposalはModule actionでModule manifest候補だけnon-null、Technique actionでTechnique manifest候補だけnon-nullにし、Promotionの`revision_transition.kind`をcreate／update actionと一致させる。
 
-Task IDはASCII `MIRAKAN_PROJECT_SHADER_SOURCE_TASK_V1`、Proposal ID／hashは`MIRAKAN_PROJECT_SHADER_PATCH_PROPOSAL_V1`と各自己Fieldを除くcanonical bytesから導出する。`shader_authoring_profile_sha256`はprofile refが解決する完成profile hashとbyte equalityにする。Path Scope、Target、Requirementの各ref集合はID／version／content hash順でcanonical sortし、duplicate ID、同ID別hash、latest／display name lookupを拒否する。Path Scopeは`scope_artifact_ref`をAssignmentの`OperationMutationTypedScopeRefV1.scope_artifact_ref`とbyte equalityにし、完成scope payload hashを同artifact refのSHA-256へ一致させる。Scopeを解決したPathはProject-relative、Assignment Scope内、canonical sort／uniqueで、Engine Shader、Backend、generated binding、Compiler directoryを拒否する。`changed_path_refs[]`は[Project state](../03-authoring/project-state.md#51-envelope)のtyped `ProjectSourceChangedPathRefV1`で、同Ownerが定めるcanonical tuple順を使い、全recordの`source_kind=project_shader`、Project一致、closed `BrokerRecomputedSourceDiffV1`とのset equality、全pathのScope包含を必須にする。createの`source_bundle_ref`／`before_source_tree_sha256`はcanonical empty Project Shader source tree、updateはexact base Source revisionへ解決し、空refまたは別subject treeを使わない。Worker DeltaをApproval対象にせず、clean Stagingへ適用してBrokerが再計算したDiffだけを`ProjectSourcePromotionSubjectV1.source.source_kind=project_shader`かつTask actionと一致する`revision_transition.kind`へ渡す。`bounded_hlsl`はPromotion Receipt、Target別Shader Build／Test Receipt、Code Owner Approvalの一つでも欠けるSourceをChangeSet primitiveへ変換しない。
+Task IDはASCII `MIRAKAN_PROJECT_SHADER_SOURCE_TASK_V1`、Proposal ID／hashは`MIRAKAN_PROJECT_SHADER_PATCH_PROPOSAL_V1`と各自己Fieldを除くcanonical bytesから導出する。`shader_authoring_profile_sha256`はprofile refが解決する完成profile hashとbyte equalityにする。`project_shader_design_closure_sha256`は§2の完成Closureへ解決し、Profile、Public SDK、IR Operation、Technique Port、Analysis Profile、Capability Matrix、Compiler Profile、Schema、Fixture RegistryをTaskへ同時にbindする。Path Scope、Target、Requirementの各ref集合はID／version／content hash順でcanonical sortし、duplicate ID、同ID別hash、latest／display name lookupを拒否する。Path Scopeは`scope_artifact_ref`をAssignmentの`OperationMutationTypedScopeRefV1.scope_artifact_ref`とbyte equalityにし、完成scope payload hashを同artifact refのSHA-256へ一致させる。Scopeを解決したPathはProject-relative、Assignment Scope内、canonical sort／uniqueで、Engine Shader、Backend、generated binding、Compiler directoryを拒否する。`changed_path_refs[]`は[Project state](../03-authoring/project-state.md#51-envelope)のtyped `ProjectSourceChangedPathRefV1`で、同Ownerが定めるcanonical tuple順を使い、全recordの`source_kind=project_shader`、Project一致、closed `BrokerRecomputedSourceDiffV1`とのset equality、全pathのScope包含を必須にする。createの`source_bundle_ref`／`before_source_tree_sha256`はcanonical empty Project Shader source tree、updateはexact base Source revisionへ解決し、空refまたは別subject treeを使わない。Worker DeltaをApproval対象にせず、clean Stagingへ適用してBrokerが再計算したDiffだけを`ProjectSourcePromotionSubjectV1.source.source_kind=project_shader`かつTask actionと一致する`revision_transition.kind`へ渡す。`bounded_hlsl`はPromotion Receipt、Target別Shader Build／Test Receipt、Code Owner Approvalの一つでも欠けるSourceをChangeSet primitiveへ変換しない。
 
 上記のpath／source-bundle／diff carrierは`bounded_hlsl`だけに適用する。`typed_ir`はexact `TypedShaderIrRefV1`とIR canonical bytesをModule revisionへbindし、generated HLSLをpath scope、Source Bundle、human review対象へ見せない。Typed IR authoring write surfaceはcurrent MCDで未登録であり、専用OperationがModule／IR atomic revision、Validator、Receipt、ChangeSet primitiveを完全登録するまで`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`としてSource不変にする。これは通常のautomated staging可否を先取りしてwrite権限を与えるものではない。
 
-Activation時の`ShaderContextSliceV1`はquery hash、Project revision、Profile hash、public Shader SDK Catalog hash、Module／Technique IDとrevision、`ShaderUnderstandingInputClosureV1` ref、selected Project symbols、参照するSDK Symbol entry、typed value／resource interfaces、call／value／resource／control edge、Pass relation、`typed_ir_slices[]`または`source_excerpts[]`、exact Target Profile refs、`selected_variant_tuple_refs[]`、budget、diagnostic、fixture／Evidence summary、available Operation ID、omitted range、cursor、total countを持つ。全variant refはSliceのModuleへexact解決し、Target／variant差を表示名やhashだけへ縮約しない。`typed_ir_slices[]`はIR ID／version／hash、canonical node／edge range、source origin intent、truncation stateを、`source_excerpts[]`はproject-relative path、file content hash、start／end span、UTF-8 Source text、truncation stateを持つ。同じSliceに別revision／hashのIRまたはSourceを混在させない。配列／byte上限時に黙って切らずcontinuationを返す。
+Activation時の`ShaderContextSliceV1`はquery hash、Project revision、`project_shader_design_closure_hash`、Profile hash、public Shader SDK Catalog hash、Module／Technique IDとrevision、`ShaderUnderstandingInputClosureV1` ref、selected Project symbols、参照するSDK Symbol entry、typed value／resource interfaces、call／value／resource／control edge、Pass relation、`typed_ir_slices[]`または`source_excerpts[]`、exact Target Profile refs、`selected_variant_tuple_refs[]`、budget、diagnostic、fixture／Evidence summary、available Operation ID、omitted range、cursor、total countを持つ。Design ClosureからIR Operation／Technique Port／Analysis／Capability Matrixのexact entryへ解決できないFact、edge、Pass relationを返さない。全variant refはSliceのModuleへexact解決し、Target／variant差を表示名やhashだけへ縮約しない。`typed_ir_slices[]`はIR ID／version／hash、canonical node／edge range、source origin intent、truncation stateを、`source_excerpts[]`はproject-relative path、file content hash、start／end span、UTF-8 Source text、truncation stateを持つ。同じSliceに別revision／hashのIRまたはSourceを混在させない。配列／byte上限時に黙って切らずcontinuationを返す。
 
 Activation後、AIへは`typed_ir`ならauthoritative IRのexact slice、`bounded_hlsl`ならauthoring Sourceのexact excerpt、参照する全public SDK entry、それに対応するpreprocessor input／Fact／source mapを同時に渡す。generated binding、generated HLSL、Backend source、Compiler内部AST textをauthoring Sourceまたはcanonical IRとして返さない。Full objectが必要な場合も同じrevision／hashを保持したbounded sliceをcontinuationで取得し、途中までのIR／Sourceを完全なModuleとして扱わない。Engine baseline、public Shader SDK Catalog、IR、bounded Sourceのいずれかが変われば、他が未変更でも旧Fact、Context、Understanding Closureをstaleにする。
 
@@ -622,6 +715,7 @@ Behavior caseはTarget／variant／fixtureのexact tupleだけをcoverし、個�
 ShaderUnderstandingClosurePayloadV1
   closure_id
   project_revision
+  project_shader_design_closure_hash
   profile_hash
   public_shader_sdk_catalog_hash
   module_ref: exact ProjectShaderModuleRefV1
@@ -655,7 +749,7 @@ ShaderUnderstandingClosureV1
     exact MirakanSignedRecordV1(purpose=shader_understanding_closure)
 ```
 
-Closureは一Moduleかつ一`understanding_mode`をsubjectとする。`module_ref`は`ShaderUnderstandingInputClosureV1.inputs[]`に厳密に一件存在し、同inputのmode、IRまたはbounded Source branch、Module Manifestと一致しなければならない。`behavior_coverage_ref`と`change_impact_coverage_ref`が解決する`module_ref`、後者の`covered_behavior_ref`、Closureの`fixture_set_ref`はすべて同じModule／fixture setへbyte equalityでbindする。`understanding_mode`と`structural_authority`、`review_requirement`はModule modeから一意に導き、異なるmodeや別Module／fixture／coverageの組合せを拒否する。Techniqueは参照する各Moduleのfresh Closureを別々に束ね、異なるmodeを一つのClosureへ混在させない。
+Closureは一Moduleかつ一`understanding_mode`をsubjectとする。`project_shader_design_closure_hash`はArtifact Set、Context Slice、Qualification Evidenceと同じ完成Closureへ解決する。`module_ref`は`ShaderUnderstandingInputClosureV1.inputs[]`に厳密に一件存在し、同inputのmode、IRまたはbounded Source branch、Module Manifestと一致しなければならない。`behavior_coverage_ref`と`change_impact_coverage_ref`が解決する`module_ref`、後者の`covered_behavior_ref`、Closureの`fixture_set_ref`はすべて同じModule／fixture setへbyte equalityでbindする。`understanding_mode`と`structural_authority`、`review_requirement`はModule modeから一意に導き、異なるmodeや別Module／fixture／coverageの組合せを拒否する。Techniqueは参照する各Moduleのfresh Closureを別々に束ね、異なるmodeを一つのClosureへ混在させない。
 
 | Level | `typed_ir` | `bounded_hlsl` |
 |---|---|---|
@@ -706,9 +800,13 @@ Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示し�
 最低Qualificationを次に固定する。
 
 - Schema、Profile、namespace、path、dependency、public Shader SDK conformance。
+- `ProjectShaderDesignClosureV1`の全refが同一Engine baselineへexact解決し、Profile、Public SDK、IR Operation、Technique Port、Analysis、Capability Matrix、Compiler Profile、Schema、Fixture Registryのmissing／stale／cross-baselineを拒否するfixture。
 - `typed_ir`のclosed node／operation catalog、canonical order／hash、type／unit／coordinate／color／range、finite control、declared resource／side effect、IR→generated HLSL／source-map identityのpositive／negative fixture。
+- `TypedShaderIrOperationCatalogV1`の全operation entryについて型規則、Stage、structured control、resource／side effect、Target lowering、analytic invariantを検証し、未知opcodeとCatalog外templateを拒否するfixture。
 - `bounded_hlsl`のSource／Manifest／public reflection／validator fact境界、Compiler-private AST textをsemantic authorityに使わないこと、Project Shader Code Owner approval必須のfixture。
+- `BoundedHlslAnalysisProfileV1`の全Fact kind、有限control証明、resource／side-effect抽出、runtime-use trace取得点、unknown blockingを検証し、未観測pathをeffectなしへ変換しないfixture。
 - `PublicShaderSdkCatalogV1`の全public symbol coverage、declaration／documentation hash、Project参照closure、private symbol 0件。
+- `ProjectShaderTechniquePortCatalogV1`の全八Portと`ProjectShaderPassPipelineContractV1`のRaster／Compute／Ray branchについて、input／output、ordering、history／Layer、pipeline、Target、Budget、fallbackを検証し、未登録Portとcross-branch Fieldを拒否するfixture。
 - 許可／禁止HLSL、bounded loop、resource index、variant、atomic／wave／ray Capabilityのpositive／negative fixture。
 - current Product Registryで当該Capabilityの`scope=required`となる全Targetについて、clean offline compile、validator、reflection、source map、artifact hashを再現する。Phase 5の`capability.project.shader`はWindows Editor／Desktopだけをrequiredとし、Android／Appleは別のProduct Target bindingとfresh Target Qualificationまで`excluded`かつ非対応表示にする。
 - Manifest対static fact／reflection／runtime-use traceのresource、side effect、interface一致。
@@ -720,6 +818,8 @@ Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示し�
 - timeout、Worker crash、corrupt Source／artifact、stale revision、device loss、runtime-use mismatch、fallback切替のfault fixture。
 - readable declared Variant tupleとTarget／variant／fixture exact tupleを持つbehavior coverage、同Module／fixture setへのCoverage／Closure binding、change-impact required setとcovered caseのsubset、stale／missing／cross-Module coverage、fallback cycle、Code Owner review欠落のnegative fixture。
 - AI EvalのU0～U4、存在しないsymbol／resource／Target抑制、stale Context拒否、禁止Operation拒否、seeded contract／IR／Source mismatch検出。
+
+Phase 5のWindows First Playableは、少なくとも一つの`typed_ir` Moduleと一つの`bounded_hlsl` Moduleを同じCandidate／Project revisionの実際の表示または挙動で使用し、それぞれに独立したUnderstanding Closure、Qualification Evidence Closure、Qualification Receiptを要求する。一方のmodeの合格を他方へ流用せず、`bounded_hlsl`ではCode Owner Approval、`typed_ir`ではIR canonical identityを追加で確認する。段階的提供へ変更する場合は、先にProduct Definition／Registryの別revisionで対象Capability、Work Package、Gateを分離し、現行Phase 5の文言を片方だけへ再解釈しない。
 
 AI Evalはpublic、holdout、adversarial、incident corpusを分離し、各required Caseを3回実行する。hard gate違反、無権限Commit、存在しないStable IDの最終提出、未対応Capabilityの成功表示、Manifest外Resource／Passの見逃しは0件とする。required U0～U4、Target／fallback、Preview／undo／redo／recookのexact一致は全Case／全runで100%を要求する。
 
@@ -736,6 +836,7 @@ Runtime source compile、undeclared resource、unbounded control／resource／va
 - [Executable contracts](../02-foundation/executable-contracts.md)はOperation envelope、Schema projection、Task state、Diagnostic共通形を所有する。
 - [AI Security／Approval](../01-governance/ai-security-approval.md)はR3、A1、Worker、Authorization、Approval、Promotionを所有する。
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)はReceipt、Evidence、Eval corpus、Provenance、freshnessを所有する。
+- Android／Apple等のPlatform文書はEngine-owned／事前Qualification済み／将来有効化済みProject ShaderのTarget artifact packagingと検証境界を定義できるが、Project Source authoring、Qualification対象化、Runtime選択の有効化はProduct Registryだけが所有する。Platform側にArtifact SetやBackend package schemaが存在してもCapability有効化を意味せず、別Target bindingとfresh Qualificationが完了するまで`excluded`を維持する。
 
 ## 13. 有名Engine／Shader ecosystemとの比較と採用判断
 
@@ -749,7 +850,7 @@ Runtime source compile、undeclared resource、unbounded control／resource／va
 | MaterialX | NodeDefが型、unit、color spaceを持ち、Target implementationを分離する | `ShaderValueSemanticV1`のtype／unit／space／colorとModule実装の分離 | Target名またはimplementation選択だけをTarget互換性証明にする方式 |
 | Slang | Module、Capability、Reflectionを言語機能として提供する | 将来Frontend評価時の比較基準 | 初期HLSL／DXC baselineとの同時併設。言語追加は独立Qualificationを必須とする |
 
-比較結果から、自由度の単位を「raw HLSL file」ではなく、S2のtyped Module、S3のDomain適合Stage／Shading Model、S4／S5のdeclarative Techniqueに固定する。AI理解は各EngineのEditor向けmetadataだけに依存せず、宣言semantic、compiler fact、runtime-use trace、fixture、Target artifactを`ShaderUnderstandingClosureV1`で閉じる。
+比較結果から、自由度の単位を「raw HLSL file」ではなく、S2のtyped Module、S3のDomain適合Stage／Shading Model、S4／S5のdeclarative Techniqueに固定する。AI理解は各EngineのEditor向けmetadataだけに依存せず、宣言semantic、compiler fact、runtime-use trace、fixture、Target artifactを`ShaderUnderstandingClosureV1`で閉じる。相対的位置づけは「AIが検証可能なsemantic／Evidenceは厚いが、native Renderer拡張の自由度は意図的に低い」である。S5をUnreal Renderer module、Unity SRP callback、Godot `RenderingDevice`と同等とは表記せず、Port CatalogとCapability Matrixが`required | optional`にした組合せだけを対応範囲とする。
 
 ## 14. 一次根拠
 

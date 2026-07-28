@@ -419,6 +419,7 @@ SystemQualificationReceiptV1
     gate_applicability_hash
     bounded_native_profile_hash?
     bounded_project_shader_profile_hashes[]
+    project_shader_design_closure_hashes[]
     gate_policy_hash, result
     runner_id
   signed_record:
@@ -435,6 +436,7 @@ SystemQualificationReceiptV1はEvidenceだけを所有し、Authorization、Appr
 ProjectShaderQualificationEvidenceClosureV1
   evidence_closure_id
   project_revision, engine_baseline_hash
+  project_shader_design_closure_hash
   bounded_project_shader_profile_hash
   public_shader_sdk_catalog_hash
   module_hashes[], technique_hashes[]
@@ -453,7 +455,7 @@ ProjectShaderQualificationEvidenceClosureV1
   evidence_closure_hash
 ```
 
-`evidence_closure_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_EVIDENCE_CLOSURE_V1`と自己Fieldだけを除くcount／length-framed canonical bytesから計算し、`ProjectShaderQualificationReceiptV1`、Activation Binding、Projectionをpreimageへ含めない。Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_graph_hashes[]`はTarget Profile ID順で件数を一致させる。`shader_understanding_closure_hash`が解決するClosureのexact Module refのcontent hashは`module_hashes[]`に厳密に一件存在し、Closureのbehavior／change-impact coverage、後者のcovered behavior、fixture set、input closureは同じModule／fixture setへbyte equalityで閉じなければならない。Module／Technique hash、authoritative input closure、Profile、public Shader SDK Catalog、Target、Compiler Profile、Fact Graph、Understanding Closure、behavior coverage、change-impact coverage、Fixture、Budgetの一つでも変わればClosureを失効させる。`typed_ir`では`ShaderUnderstandingClosureV1`がcanonical IRをstructural authorityとして、`bounded_hlsl`ではdeclared／observed Fact setを限定的structural authorityとして記録する。両modeともbehaviorはexact Target／variant／fixture caseとmeasurement receiptからだけ評価し、reflection成功を意味または挙動の完全証明へ昇格させない。Project Shader ownerの`ProjectShaderQualificationSubjectV1.compiler_and_artifact_closure_hash`は対応するClosure hashとbyte equalityにし、そのSubjectをcanonical `ProjectShaderQualificationReceiptV1.signed_record`が署名する。`ShaderUnderstandingClosureV1`、Evidence Closure、Qualification Receiptは別stageであり、相互に代用しない。
+`evidence_closure_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_EVIDENCE_CLOSURE_V1`と自己Fieldだけを除くcount／length-framed canonical bytesから計算し、`ProjectShaderQualificationReceiptV1`、Activation Binding、Projectionをpreimageへ含めない。`project_shader_design_closure_hash`は[Project Shader](../06-rendering/project-shader.md)の完成`ProjectShaderDesignClosureV1`へ解決し、Profile、Public SDK、IR Operation Catalog、Technique Port Catalog、HLSL Analysis Profile、Capability Matrix、Compiler Profile、Schema、Fixture Registryを同一Engine baselineへbindする。Target別`target_profile_hashes[]`、`artifact_set_hashes[]`、`shader_fact_graph_hashes[]`はTarget Profile ID順で件数を一致させる。`shader_understanding_closure_hash`が解決するClosureのexact Module refのcontent hashは`module_hashes[]`に厳密に一件存在し、Closureのbehavior／change-impact coverage、後者のcovered behavior、fixture set、input closureは同じModule／fixture setへbyte equalityで閉じなければならない。Module／Technique hash、authoritative input closure、Design Closure、Profile、public Shader SDK Catalog、Target、Compiler Profile、Fact Graph、Understanding Closure、behavior coverage、change-impact coverage、Fixture、Budgetの一つでも変わればClosureを失効させる。`typed_ir`では`ShaderUnderstandingClosureV1`がcanonical IRをstructural authorityとして、`bounded_hlsl`ではdeclared／observed Fact setを限定的structural authorityとして記録する。両modeともbehaviorはexact Target／variant／fixture caseとmeasurement receiptからだけ評価し、reflection成功を意味または挙動の完全証明へ昇格させない。Project Shader ownerの`ProjectShaderQualificationSubjectV1.compiler_and_artifact_closure_hash`は対応するClosure hashとbyte equalityにし、そのSubjectをcanonical `ProjectShaderQualificationReceiptV1.signed_record`が署名する。`ShaderUnderstandingClosureV1`、Evidence Closure、Qualification Receiptは別stageであり、相互に代用しない。
 
 WorldQualificationReceiptV1は汎用Receiptを一つのWorld subject、Topology、State owner、Target artifact、Save／Replay、Performance、Fault、Reviewへ束ねる。System／Worldのsubject hashが変わればReceiptを再利用せず、Estimate、Preview、別Target、別Quality、別Toolchainを代用しない。
 
