@@ -1519,7 +1519,7 @@ PlannedOperationFamilyV1
 | `planning.operation_family.camera_authoring` | 1 | `camera_authoring` | 11 | `activation.camera.authoring_operations.v1` |
 | `planning.operation_family.material_authoring` | 1 | `material_authoring` | 15 | `activation.material.authoring_operations.v1` |
 | `planning.operation_family.vfx_authoring` | 1 | `vfx_authoring` | 24 | `activation.vfx.authoring_operations.v1` |
-| `planning.operation_family.environment_authoring` | 1 | `environment_authoring` | 25 | `activation.environment.authoring_operations.v1` |
+| `planning.operation_family.environment_authoring` | 2 | `environment_authoring` | 26 | `activation.environment.authoring_operations.v2` |
 | `planning.operation_family.lod_authoring` | 1 | `lod_authoring` | 2 | `activation.lod.authoring_operations.v1` |
 | `planning.operation_family.input_binding_selection` | 1 | `input_binding_selection` | 1 | `activation.input.semantic_action_binding_selection.v1` |
 | `planning.operation_family.navigation_binding_selection` | 1 | `navigation_binding_selection` | 1 | `activation.navigation.motion_intent_binding_selection.v1` |
@@ -1759,11 +1759,14 @@ VFX authoringは次の24 IDだけを予約する。
 | `operation.vfx.run_qualification` | Qualification実行Proposal |
 | `operation.vfx.propose_extension_operator` | Extension operator Source Proposal |
 
-Environment authoringは次の25 IDだけを予約する。
+Environment authoringは次の26 IDだけを予約する。
+
+Version 1の25候補draftは一度もActivationされておらず、`operation.environment.explain_effective`を含むversion 2がcurrent planning definitionである。Version 1のCandidate setまたは`activation.environment.authoring_operations.v1`を再利用、部分Activation、version 2へaliasしない。
 
 | reserved candidate ID | 予定意味 |
 |---|---|
 | `operation.environment.inspect_profile` | Environment Profile検査 |
+| `operation.environment.explain_effective` | Source／Preset／Style／Weather／Time／fallback合成後の実効値と理由をread-only取得 |
 | `operation.environment.list_presets` | bounded Preset列挙 |
 | `operation.environment.resolve_intent` | Environment intentのread-only解決 |
 | `operation.environment.validate_changeset` | ChangeSet検証 |

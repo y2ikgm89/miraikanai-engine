@@ -107,12 +107,12 @@ Level WorkspaceはWorld／Level／Map規約の同じSourceを次のProjectionで
 
 Environment Panelは[Environment／Water／Weather／Snow](../06-rendering/environment-surfaces.md)の`EnvironmentWorldBindingRefV1`と`EnvironmentProfileRefV1`を選択Worldへexact投影する。上部Context barはProject revision、World ref、binding ref、Profile ref、Target、quality tier、Source／Derived／Runtime状態を常時表示し、配列先頭、表示名、直前のEditor選択からProfileを推測しない。
 
-- 基本表示はIntent／Preset、World binding、visibility、time、cloud、cost、fallback、Diagnosticである。詳細表示は同じcanonical field refのAtmosphere、Height／Volumetric／Local Fog、IBLを追加するだけで、別の簡易設定や既定値を持たない。
-- fieldは`property-row@1`、Preset候補はStable ref付きbounded collection、before／afterはHistory／Diff、視覚結果はScene／Canvasの同じTarget／Profile revisionへ投影する。Panel内に第二のPreview state、Renderer settingまたはLight Sourceコピーを作らない。
+- 表示modeはexact `basic | detailed`である。`basic`はIntent／Preset、World binding、visibility、time、cloud、cost、fallback、Diagnostic、`detailed`は同じcanonical field refのAtmosphere、Height／Volumetric／Local Fog、IBL、実効値のorigin／reasonを追加するだけで、別の簡易設定や既定値を持たない。UEの公開UI名は比較根拠に留め、Miraikanaiのmode enumへ流用しない。
+- fieldは`property-row@1`、Preset候補はexact `EnvironmentPresetRefV1`付きbounded collection、before／afterはHistory／Diff、視覚結果はScene／Canvasの同じTarget／Profile revisionへ投影する。Authored値は`inspect_profile`、合成後の実効値と理由は`explain_effective`へ分け、Panel内に第二のPreview state、Renderer settingまたはLight Sourceコピーを作らない。露出はPost Process Ownerへのread-only status／navigationだけを表示し、Environment fieldまたはactionとして複写しない。
 - Environment semantic actionは完全登録済みOperationへ解決できるActivation後だけenabledにする。Water、Weather、SnowのSource projectionは表示できるが、対応Owner familyが未登録の間は`capability_not_activated`理由付きread-only Gapであり、labelやcontrolからfuture Operationを生成しない。
-- Time-of-Dayがsun／moon変更を伴う場合はexact companion `ResolvedLightPlanRefV1`と同じrevision／World／Targetを表示する。Planがmissing／staleならEnvironmentだけのApplyをdisabledにし、質問またはLighting discoveryのActivation不足を示す。
+- Time-of-Dayがsun／moon変更を伴う場合はexact companion `ResolvedLightPlanRefV1`と`LightingChangeSetProposalRefV1`、同じbase Project revision／World／Target／expiry、sun／moon exact集合を表示する。Environment Proposal、Lighting Proposal、必要なWorld binding primitiveを一件のatomic `ProjectChangeSetV1`としてPreview／Approval／Applyし、Plan／Proposalがmissing／stale／scope mismatchならEnvironmentだけのApplyをdisabledにしてclosed Diagnosticと質問を示す。
 
-Environment PanelはC1 Panel catalog上の正式な情報設計だが、`fixture.editor.reference-01@1`のexact九Panel instanceへ追加せず、同fixtureの166 coverage entry、九Panel countまたはBaselineを変更しない。Capability activationと専用Reference fixtureはProduct／UI Ownerの別登録が成立するまで未materializedとする。
+Environment PanelはC1 Panel catalog上の正式な情報設計だが、`fixture.editor.reference-01@1`のexact九Panel instanceへ追加せず、同fixtureの166 coverage entry、九Panel countまたはBaselineを変更しない。専用Reference fixtureは少なくとも`basic | detailed`の同一field identity、Source／effective分離、Preset exact ref、Time-of-Day atomic composite、露出非所有、Water／Weather／Snow read-only Gapを検査対象とする。Capability activationと専用Reference fixtureはProduct／UI Ownerの別登録が成立するまで未materializedであり、本記述だけで実装済みまたはQualification済みとしない。
 
 ### 6.4 Source／Text／Diff
 

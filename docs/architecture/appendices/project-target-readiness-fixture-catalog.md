@@ -58,7 +58,7 @@
 
 target `ProjectManifest.runtime_entry_presentation_binding_refs`は0～64件のexact `DocumentRef<RuntimeEntryPresentationBindingDocumentV1>`であり、§3.1.1.1のatomic activation前はField自体をcurrent Manifest schemaへ追加せず、current集合をexact `[]`とする。
 
-`EnvironmentSurfaceDocumentV1`は[Environment／Water／Weather／Snow](../06-rendering/environment-surfaces.md)が所有するCore canonical Documentであり、owner-typed Pack Documentとして扱わない。WorldはEnvironment Profile本文または既定値を複製せず、`global_composition_refs[]`にexact `EnvironmentWorldBindingRefV1`を0件または1件だけ保持する。bindingの`world_id`、Environment Profile ref、Document hash、World側refを検証し、bindingの追加・変更・解除はEnvironment DocumentとWorld Documentを同じ`ProjectChangeSetV1`で原子的に更新する。
+`EnvironmentSurfaceDocumentV1`は[Environment／Water／Weather／Snow](../06-rendering/environment-surfaces.md)が所有するCore canonical Documentであり、owner-typed Pack Documentとして扱わない。WorldはEnvironment Profile本文または既定値を複製せず、`global_composition_refs[]`にexact `EnvironmentWorldBindingRefV1`を0件または1件だけ保持する。bindingの`world_id`、Environment Profile ref、Document hash、World側refを検証し、bindingの追加・変更・解除はEnvironment DocumentとWorld Documentを同じ`ProjectChangeSetV1`で原子的に更新する。Time-of-Dayがsun／moon Light Source変更を伴う場合もEnvironmentだけの別ChangeSetを作らず、exact `LightingChangeSetProposalRefV1`が解決するLighting primitiveとEnvironment／World primitiveを同じbase Project revision／World／Target／expiryへ束縛した一件へmaterializeする。
 
 ### 3.1.1 `RuntimeEntryPointV1`
 
@@ -370,7 +370,7 @@ wire値はlower snake caseだけを受理する。`Predicted`、`Blocked`、`Qua
 | Recipe | `InstantiateRecipe`、`ApplyRecipeUpdate`、`SetRecipeOverride` |
 | Gameplay／UI／Style | 各Subsystemが登録するtyped change primitive |
 | Game System | `RegisterProjectGameSystemSpec`、`SetSystemImplementationVariant`、`ReplaceSystemConfiguration`。`qualified` Contract／Staging hashだけ |
-| World／Environment／owner-typed content | Topology、Partition Intent、Procedural、Map Presentation、Environment ownerが登録するclosed `EnvironmentChangePrimitiveV1`、登録済みowner namespaceの各Domain typed change primitive。`SetEnvironmentWorldBinding`はEnvironment DocumentとWorld Documentを同じChangeSetで変更 |
+| World／Environment／owner-typed content | Topology、Partition Intent、Procedural、Map Presentation、Environment ownerが登録するclosed `EnvironmentChangePrimitiveV1`、登録済みowner namespaceの各Domain typed change primitive。`SetEnvironmentWorldBinding`はEnvironment DocumentとWorld Documentを同じChangeSetで変更。Time-of-Dayのsun／moon Source変更はEnvironment／Lighting／必要なWorld primitiveを同じChangeSetへ閉じ、片側primitiveを受理しない |
 | Asset | `RegisterAssetSource`、`SetImportField`、`ReplaceAssetSourceRevision` |
 | Native C++ | `RegisterNativeModuleRevision`。receipt-free `ProjectSourceRegistrationIntentRefV1`とCandidate Source revisionだけ。Promotionはlate authorization bindingで検証 |
 | Project Shader | `RegisterProjectShaderModuleRevision`、`RegisterProjectShaderTechniqueRevision`。receipt-free Registration Intent、Candidate Source revision、Technique／Port compatibility closureだけ。Promotion／Target別Buildはlate bindingで検証 |

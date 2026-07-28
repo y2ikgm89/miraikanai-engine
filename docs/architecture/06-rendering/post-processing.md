@@ -17,7 +17,7 @@ Post ProcessingはVolumeとEffectのauthoring semantics、blend、priority、sco
 
 AA／temporal provider、Render Graph pass／resource／queue、surface／UI compositeは[Render Graph](render-graph.md)が所有する。MaterialとLightingのsemantic valueをPost Process parameterへ複写せず、必要なscene inputだけをtyped dependencyとして宣言する。
 
-Camera、Environment、UIのSource schemaは本書の対象外である。それらから届くview tag、exposure context、environment hint、pixel-locked layer policyを入力として消費し、Owner不在のfieldを先回りして定義しない。
+Camera、Environment、UIのSource schemaは本書の対象外である。Cameraから届くview tagとUIのpixel-locked layer policyだけをtyped Source dependencyとして消費する。Environmentの明るさは`P15`に描画されたWorld HDRを`ExposureProfileV1`のmetering規則で測定し、Environment Source／Summaryから露出値やhintを受け取らない。Owner不在のfieldを先回りして定義しない。
 
 ## 2. 正本データモデル
 
@@ -144,7 +144,7 @@ Effect Catalogはtone／exposure adaptation、color transform、bloom／glare、
 
 Portable Node／parameter contractを次に固定する。本書はdomain qualification evidenceだけを出力する。
 
-- `ExposureProfileV1`: `mode: manual_ev100 | histogram_auto`、manual EV100 -16～32、histogram 256 bins、luminance percentile low 0.5%／high 99.5%、middle gray 0.18、output EV100 -6～16、adaptation speedは0より大きい1/second、nullableな検証済みmetering mask。`P15`のWorld HDRだけを測定しUI等を含めない。
+- `ExposureProfileV1`: `mode: manual_ev100 | histogram_auto`、`exposure_compensation_ev` -8～8、manual EV100 -16～32、histogram 256 bins、luminance percentile low 0.5%／high 99.5%、middle gray 0.18、output EV100 min／max -6～16かつmin<max、`brighten_speed_ev_per_s`／`darken_speed_ev_per_s`は`(0,64]`（Reference 1.5／3.0）、nullableな検証済みmetering maskを持つ。Manualはmanual EVだけ、Histogram Autoはhistogram／percentile／middle gray／output range／adaptationだけを持ち、inactive payloadをcanonical nullにする。`P15`のWorld HDRだけを測定しUI等を含めない。露出mode、compensation、metering、EV range、adaptationのSource ownerは本型だけであり、Environment、Lighting、Camera Profileへ同値Fieldを複写しない。
 - Tone map mode: `aces_fitted_v1 | neutral_v1 | pixel_preserve_v1`。White BalanceはCCT 1000～20000 K／tint -1～1、Color Grade LUTは検証済み3D LUT／intensity 0～1。`P50`順は`white_balance(scene-linear HDR) -> exposure_and_tone_map -> color_grade_lut(display-linear)`で固定する。
 - `BloomProfileV1`: `enabled`、exposure-relative threshold EV -10～10、intensity 0～4、scatter 0～1。Pixel Crispは既定offでpixel-locked／UIを除外する。
 - `MotionBlurProfileV1`: `enabled`、shutter angle 0～360 degree、maximum velocity clamp、camera／object contribution policy。Low Latency、VR、Pixel Crisp、camera cut直後は既定offまたはTarget policyで無効化する。

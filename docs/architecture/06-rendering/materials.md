@@ -220,6 +220,25 @@ locked_fields[]
 ```
 
 ```text
+VisualStyleProfileRefV1
+  profile_id: StableId
+  profile_version: positive uint32
+  profile_content_hash: SHA-256
+
+PaletteTokenV1
+  token_id: StableId
+  token_version: positive uint32
+  token_content_hash: SHA-256
+  linear_srgb_rgba: {r: f32[0,64], g: f32[0,64], b: f32[0,64], a: f32[0,1]}
+  allowed_usages: nonempty set<surface | fog_scattering | light | vfx | ui | outline>
+
+PaletteTokenRefV1
+  palette_profile_ref:
+    exact {profile_id, profile_version, profile_content_hash}
+  token_id: StableId
+  token_version: positive uint32
+  token_content_hash: SHA-256
+
 VisualStyleSemanticRefV1
   axis_id: art_direction | composition_variant
   semantic_id: namespace付きStableId
@@ -256,7 +275,7 @@ VisualStyleSemanticActivationProjectionV1
 
 `semantic_content_hash`はASCII `MIRAKAN_VISUAL_STYLE_SEMANTIC_CONTRIBUTION_V1`と自己hashを除くReceipt-free Contribution canonical bytes、Registry hashはASCII `MIRAKAN_VISUAL_STYLE_SEMANTIC_REGISTRY_V1`、Registry ID／version、axis／semantic ID／version順の全Contribution canonical bytesから計算する。selected refsはaxis／semantic ID／version／hash順、Binding refsは解決したsubject refの同じ順にstrict sortし、duplicateを拒否する。Activation Projectionのselected ref集合とQualification Bindingが解決する合格かつfreshなsubject集合はexact set equalityで、Receipt／BindingをContribution／Registry hashへ戻さない。Feature／Genre contributionは所有Pack identity、Project contributionはProject owner identityへexact解決する。各Ownerは自己namespaceだけへ追加でき、Core entryの上書き、同一logical IDの別hash、unknown、stale owner／version／hash、未Qualification、Target／Capability不成立をfail closedにする。Registry materializationはProject／Pack dependency closureを解決したCompilerが行い、Generic Engine CoreからPackへのdependency edgeを生成しない。
 
-Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。Rendering／Physics／Navigationの実行空間は[World](world.md)のexact `WorldSpaceProfileRefV1`だけが選択する。`VisualStyleProfileV1`は`compatible_world_space`によって使用可能範囲を宣言できるが、scene dimensionまたはhybrid gameplay authorityを所有・推測・変更しない。表現語彙である`art_direction_ref`と`composition_variant_ref`だけをRegistryで拡張し、同じactive Registry／Activation Projectionへexact解決する。全Profile／Template refは三Fieldのbyte equalityで解決し、ID-only、`latest`、display name、別Ownerの同名Profileを受理しない。`profile_content_hash`はASCII `MIRAKAN_VISUAL_STYLE_PROFILE_V1`と自己hash Fieldだけを除く全Fieldのcount／presence／length-framed canonical bytesから計算し、Activation Projection、Qualification Receipt、Preview、派生Renderer planをpreimageへ含めない。
+Engine同梱Profileはimmutable templateである。Project変更時は全fieldを解決した派生Profileを新規作成し、Runtime inheritance、複数親、自動伝播chainを持たない。Rendering／Physics／Navigationの実行空間は[World](world.md)のexact `WorldSpaceProfileRefV1`だけが選択する。`VisualStyleProfileV1`は`compatible_world_space`によって使用可能範囲を宣言できるが、scene dimensionまたはhybrid gameplay authorityを所有・推測・変更しない。表現語彙である`art_direction_ref`と`composition_variant_ref`だけをRegistryで拡張し、同じactive Registry／Activation Projectionへexact解決する。全Profile／Template refは三Fieldのbyte equalityで解決し、ID-only、`latest`、display name、別Ownerの同名Profileを受理しない。`VisualStyleProfileRefV1`は解決先Profileの三Fieldとbyte equalityにする。`PaletteTokenRefV1`は解決先Palette Profileと`PaletteTokenV1`のID／version／hashへ全Fieldでexact解決し、Token表示名、色値一致、配列順から代替Tokenを推測しない。Token hashはASCII `MIRAKAN_PALETTE_TOKEN_V1`と自己hashを除く全Fieldのlength-framed canonical bytesから計算する。Consumerは自己usageが`allowed_usages`に含まれることと自己Field rangeを再検証し、Token側rangeを理由に緩和しない。`profile_content_hash`はASCII `MIRAKAN_VISUAL_STYLE_PROFILE_V1`と自己hash Fieldだけを除く全Fieldのcount／presence／length-framed canonical bytesから計算し、Activation Projection、Qualification Receipt、Preview、派生Renderer planをpreimageへ含めない。
 
 ### 3.1 Toon／Outline semantic contract
 

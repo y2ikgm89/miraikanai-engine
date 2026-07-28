@@ -15,7 +15,7 @@
 
 LightingはLightの物理意味とauthoring intentをEngine-owned contractに固定する。人間とAIはlight type、shape、photometric quantity、color、attenuation、range、shadow intentを編集し、Renderer Backend、cluster layout、shadow atlas、pass、descriptorを指定しない。
 
-[Render Graph](render-graph.md)は解決済みLight setのselection、cluster／tile assignment、shadow／lighting passとqueue executionを所有する。[Materials](materials.md)はsurface responseを所有する。本書はEnvironmentやCameraのsource modelを再定義せず、revision付き`EnvironmentLightingSummaryV1`／exposure contextをtyped inputとして消費する。
+[Render Graph](render-graph.md)は解決済みLight setのselection、cluster／tile assignment、shadow／lighting passとqueue executionを所有する。[Materials](materials.md)はsurface responseを所有する。本書はEnvironmentやCameraのsource modelを再定義せず、revision付き`EnvironmentLightingSummaryV1`をtyped inputとして消費する。露出Sourceは[Post Processing](post-processing.md)だけが所有し、Lighting Source／Plan／Summaryへ露出値を複写しない。
 
 共通Source revision、ChangeSet、operation envelope、projection、approval、Evidenceは[Project state](../03-authoring/project-state.md)、[Executable contracts](../02-foundation/executable-contracts.md)、Governance文書を参照し、本書でfieldやruleを複写しない。
 
@@ -88,7 +88,7 @@ LightIntentV1
 
 ### 3.2 `LightingStyleProfileV1`
 
-Profile ID／version／parent、Default role recipe、`VisualStyleProfile` ref／整合constraint、Targetごとの許可light type／shadow tier、Exposure接続、2D normal lighting／Pixel Art quantization方針、color temperature／saturation／contrast range、importance別fallback priority、Preview fixture／Qualification refを持つ。Toonを使う場合はVisual Styleが指すexact `ToonShadingProfileRefV1`をinputとして消費するだけで、band、ramp、specular、rim、shadow、energy parameterを複写・上書きしない。継承は最大4段、cycle禁止、各fieldは`inherit | replace`を明示し、配列を暗黙appendしない。
+Profile ID／version／parent、Default role recipe、exact `VisualStyleProfileRefV1`／整合constraint、Targetごとの許可light type／shadow tier、Post Process Profileへのread-only relation、2D normal lighting／Pixel Art quantization方針、color temperature／saturation／contrast range、importance別fallback priority、Preview fixture／Qualification refを持つ。Toonを使う場合はVisual Styleが指すexact `ToonShadingProfileRefV1`をinputとして消費するだけで、band、ramp、specular、rim、shadow、energy parameterを複写・上書きしない。継承は最大4段、cycle禁止、各fieldは`inherit | replace`を明示し、配列を暗黙appendしない。
 
 ### 3.3 `ResolvedLightPlanV1`
 
@@ -285,7 +285,21 @@ Activation後のPreviewは対象revision、World／Level scope、affected Light 
 
 Activation後の`SceneLightingSummaryV1`はScene／View Family／Target／Visual Style／EnvironmentのID／version、role／type／importance別Light数、Critical Light、上限／現在値／予測cost／overflow、Shadow tier分布、human lock数、active Diagnostic上位数、詳細取得用Stable ID／continuation tokenだけをboundedに返す。`LightingPlanExplanationV1`はLightごとのIntent fieldからSource fieldへの対応、代替案の棄却理由、予測cost、視覚risk、fallbackで失われるcueを返す。
 
-`LightingChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeにbase revision、typed Light差分、対象Stable IDs、risk、Preview hash、必要Approvalを載せるDomain projectionであり、直接Commitしない。`LightingDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとLight property pathを載せる。`EnvironmentLightingSummaryV1`は[Environment／Surfaces](environment-surfaces.md)、`MaterialReadabilitySummaryV1`は[Materials](materials.md) §8が定義・公開するread-only／revisioned projectionである。`TargetCapabilitySnapshotV1`、`LightingBudgetEnvelopeV1`、`PolicySnapshotV1`もそれぞれのOwnerが公開する同種のprojectionであり、Lightingはいずれの内容も複写または書き戻さない。
+```text
+LightingChangeSetProposalRefV1
+  proposal_id: StableId
+  proposal_version: positive u32
+  proposal_content_hash: SHA-256
+  base_project_revision: positive u64
+  world_id: StableId
+  target_profile_refs[1..64]
+  affected_light_ids[1..4096]: StableId
+  expires_at
+```
+
+`LightingChangeSetProposalV1`は[Executable contracts](../02-foundation/executable-contracts.md)のProposal envelopeに上記identity、base revision、typed Light差分、対象Stable IDs、risk、Preview hash、必要Approvalを載せるDomain projectionであり、直接Commitしない。`LightingChangeSetProposalRefV1`は保存済みProposalの全Fieldへbyte equalityでexact解決し、Target refsとLight IDsをそれぞれStable byte順へstrict sortして重複を拒否する。[Environment／Surfaces](environment-surfaces.md)のTime-of-Day変更がsun／moon Source変更を伴う場合、Environment ProposalとLighting Proposalを同じbase Project revision、World、Target集合、expiryへ束縛し、`affected_light_ids[]`をbindingのnon-null sun／moon集合とexact set equalityにする。両Domain primitiveは一つの`ProjectChangeSetV1`へmaterializeし、atomic Preview／Approval／Commitする。片側だけのApply、追加Lightの混在、stale片側のretryを拒否する。
+
+`LightingDiagnosticSetV1`は共通Diagnostic envelopeに本書のclosed IDとLight property pathを載せる。`EnvironmentLightingSummaryV1`は[Environment／Surfaces](environment-surfaces.md)、`MaterialReadabilitySummaryV1`は[Materials](materials.md) §8が定義・公開するread-only／revisioned projectionである。`TargetCapabilitySnapshotV1`、`LightingBudgetEnvelopeV1`、`PolicySnapshotV1`もそれぞれのOwnerが公開する同種のprojectionであり、Lightingはいずれの内容も複写または書き戻さない。
 
 ## 8. Diagnosticとfailure
 
