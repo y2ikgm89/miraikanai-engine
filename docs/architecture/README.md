@@ -147,13 +147,16 @@ Owner文書はすべて`review`であり、対応するEngine実装・Schema・F
 
 Current review Decision: [AI-readable Asset／Memory／Async Loading Alignment](decisions/2026-07-28-ai-asset-memory-async-alignment.md)。このLinkはSource、Artifact、memory、async publicationの判断理由へのnavigationであり、各Owner文書のcurrent Contractを置き換えない。
 
+Current design review: [Runtime ECS Design Closure Review](appendices/runtime-ecs-design-closure-review.md)。このReviewはAI可読性、外部Engine比較、Memory／ECS／Performance／AI／Projectのcross-owner整合性、未解決Closureへのnavigationであり、Runtime ECS semantics、Capability Activationまたは実装計画を所有しない。
+
 ## 6. 変更時の入口
 
 | 調べたいこと | 先に読む文書 | 次に辿るOwner |
 |---|---|---|
 | 正本追加、統廃合、Owner移管 | [Architecture Governance](01-governance/architecture-governance.md) | [Compatibility／Evolution](02-foundation/compatibility-evolution.md)、対象Domain |
 | DecisionのContext、比較案、置換履歴 | [Decision Log](decisions/README.md) | relevant Domain Owner |
-| AIによる説明・変更、安全、evidence | [AI Security／Approval](01-governance/ai-security-approval.md) | [AI Verification／Provenance](01-governance/ai-verification-provenance.md)、対象Owner |
+| AIによるArchitecture／ECS／最適化の説明 | [Architecture Governance](01-governance/architecture-governance.md) | [Product Plan](00-product/product-plan.md)、[Runtime ECS](04-runtime/entity-component-system.md)、[Memory／Pointers](02-foundation/memory-pointers.md)、[Performance／Capacity](04-runtime/performance-capacity.md)、[Runtime ECS Design Closure Review](appendices/runtime-ecs-design-closure-review.md) |
+| AIによる提案・変更、安全、evidence | [AI Security／Approval](01-governance/ai-security-approval.md) | [Project State](03-authoring/project-state.md)、[AI Verification／Provenance](01-governance/ai-verification-provenance.md)、対象Owner |
 | 英語技術語彙、Editor表示locale、AI返答locale、Game source locale | [Naming／Project Layout](02-foundation/naming-project-layout.md) | [Editor Workspace／UX](03-authoring/editor-workspace-ux.md)、[Editor UI Framework](03-authoring/editor-ui-framework.md)、[Project State](03-authoring/project-state.md)、[UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md)、[AI Verification／Provenance](01-governance/ai-verification-provenance.md) |
 | ECS、World load、Save／Replay | [Runtime ECS](04-runtime/entity-component-system.md) | [Runtime Package](04-runtime/runtime-package.md)、[Persistence／Save](04-runtime/persistence-save.md)、[Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) |
 | Project編集、Asset、Editor、Gameplay実装 | [Project State](03-authoring/project-state.md) | [Asset Lifecycle](03-authoring/asset-lifecycle.md)、[Gameplay Programming Model](03-authoring/gameplay-programming-model.md) |

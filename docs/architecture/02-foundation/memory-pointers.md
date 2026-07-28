@@ -7,7 +7,7 @@
 - 正本範囲: Pointer taxonomy、ownership、typed handle、lease／view、Memory domain、arena／pool、allocation metadata、OOM、AI contract、failure、telemetry、Qualification
 - 非正本範囲: 外部Library・Tool version／hash／license、Runtime共通budget／phase、ECS storage layout・query・lease、GPU residency、一般命名・Directory、Schema共通構造。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Math／Core Utilities](math-core.md)、[Naming／Project Layout](naming-project-layout.md)
-- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Compatibility／Evolution](compatibility-evolution.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)、[Product plan](../00-product/product-plan.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Compatibility／Evolution](compatibility-evolution.md)、[Naming／Project layout](naming-project-layout.md)、[Math／Core utilities](math-core.md)、[Product plan](../00-product/product-plan.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -224,6 +224,10 @@ default構築状態とmove後状態は空ownerとし、destructorは何もしな
 Project C++の明示`new`／`delete`、`malloc`／`free`を禁止する。Module内部のPMR containerは`MirakanNativeMemoryPortV1`を包むmodule-owned Adapterをconstructorで受け取る。ABIを越えてfactory、owner、PMR object、STL containerを渡さない。
 
 ## 6. AI可読Contract
+
+本書がAI向けに供給するのはpointer taxonomy、ownership、lifetime、allocation policy、failure、aggregate telemetryのtyped fragmentである。ArchitectureのOwner／文書状態／依存は[Architecture Governance](../01-governance/architecture-governance.md)の`ArchitectureExplainProjectionV1`、ECS layout／query／structural semanticsは[Runtime ECS](../04-runtime/entity-component-system.md)の`RuntimeEcsContractGraphV1`、候補の評価状態と選択理由は[Performance／Capacity](../04-runtime/performance-capacity.md)の`OptimizationDecisionProjectionV1`、AI route／authorization／Task contextは[AI Security／Approval](../01-governance/ai-security-approval.md)、Eval／Receipt／freshnessは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有する。本書はそれらのField、状態、権限またはEvidenceを複写しない。
+
+同じAI contextへ複数fragmentを含める場合は、Project lineage、source revision、Target Profile、Contract Set、Toolchain、fixture、freshnessをexact一致させる。native address、allocator object、live lease、full allocation trace、credentialを投影せず、必要な集約値がredactionまたは未materializeにより確定できない場合は推測値ではなくBlocking diagnosticを返す。Contract fragmentの可読性はallocation、budget、pool化、alignment、failure policyを変更するauthorityを付与しない。
 
 ### 6.1 `PointerContractV1`
 

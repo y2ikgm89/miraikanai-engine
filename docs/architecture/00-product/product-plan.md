@@ -158,6 +158,16 @@ current closureではimmutable `ArchitectureInventoryV1`、`ArchitectureExplainP
 
 Target／ProfileごとのPrimary candidateは、qualified selectionが存在する場合にexact一件、存在しない場合は0件である。reference implementationはsemantic oracle、または明示的に別Qualificationされたsemantic fallbackになり得るが、旧経路と新経路の暗黙併載、deprecated reader、alias、silent fallback、runtime自動切替を正当化しない。benchmark candidateはdispatch不能である。選択を変える場合はprofile／algorithm revisionを新設し、public semanticsが変わる場合は新しいcontract versionとして扱う。Source dataは保持するが、旧挙動を温存する互換layerは作らない。
 
+#### 4.2.1 AI-readable ECS／Memory alignment assessment
+
+ECS／Memory最適化のAI可読性は、概念理解、current／target判別、機械的解決、実行可能性、安全境界を分けて評価する。target designではOwner、identity、storage、query、lease、Candidate、Evidence、selected／rejected理由が分離されており、概念理解と安全境界はstrongである。一方、current authorityはGameplay Programming Model revision 1とRuntime ECS revision 2のtarget Ownerに分かれ、`ArchitectureInventoryV1`、各Projection、Schema、validator、fixture Artifact、Receiptが未materializeであるため、機械的解決はincomplete、実行可能性はabsentである。AIがMarkdownを説明できることを、この不足の代用にしない。
+
+cross-owner連携は次の一方向chainだけを使う。Architecture GovernanceはOwner／文書状態／依存の`ArchitectureExplainProjectionV1`、Memoryはpointer／allocation Contract fragment、Runtime ECSはstorage／query／structural semanticsの`RuntimeEcsContractGraphV1`、Performanceは評価済み候補の`OptimizationDecisionProjectionV1`、AI Securityは`AiTaskContextCapsuleV1`とauthorization、AI VerificationはEval／Receipt／freshnessを所有する。各Ownerは他OwnerのField、状態、権限、Evidenceを複写せず、同じProject lineage、source revision、Target、Contract Set、Toolchain、fixtureへexactに束縛されたread-only Projectionだけを接続する。
+
+共通のAI read／explain／propose以後はauthority別に分岐する。Game Projectのauthoring mutationだけがProject State所有のactive Operationから`ProjectChangeSetV1`、preview／validate／approve／commit、new Project revisionへ進む。Engineのalgorithm／layout CandidateはProject ChangeSetへ変換せず、Performance／Artifact／Governance Ownerのqualification、selection、promotion、Contract revisionへ進む。Project authoring ReceiptをEngine最適化Evidenceへ、Optimization ReceiptをProject Commit authorityへ流用しない。
+
+有名Engineとの比較、詳細な整合性判定、未解決Closureは[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)をnavigation先とする。同Reviewはproposal appendixであり、Product Capability、Phase、Work Package、Runtime contractまたは外部Engine互換性を追加しない。本節も実装Task、日程、担当、Activation、採用済み最適化を生成しない。
+
 ## 5. MVP scope
 
 MVPはEngine機能網羅版ではなく、AI Authoringの安全な往復を証明する製品vertical sliceである。

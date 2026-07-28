@@ -656,6 +656,8 @@ algorithm／layout／Backend settingの変更は、Ownerが定義するsemantic 
 
 `OptimizationDecisionProjectionV1`はsealed qualification recordから導出するPerformance-owned read-only Projectionであり、AI、Editor、Review toolが候補の状態と根拠を同じ意味で読むためのものとする。Projection自体はSource、selection authority、Receipt、Runtime dispatch tableではない。
 
+ArchitectureのOwner／文書状態／current／targetは`ArchitectureExplainProjectionV1`、ECSのstorage／query／structural semanticsは`RuntimeEcsContractGraphV1`、pointer／allocation規則はMemory Contract fragment、Taskごとの可視範囲とauthorizationは`AiTaskContextCapsuleV1`が所有する。本Projectionはそれらを複写せず、同じProject lineage、source revision、Target、Contract Set、Toolchain、fixtureへexactに束縛する。ArchitectureまたはECS graphが可読でも、本Projectionの完全なmetric／semantic／selection Receipt closureがなければCandidateを`qualified_not_selected | selected`として説明しない。
+
 ```text
 OptimizationCandidateRefV1
   artifact_candidate_id:

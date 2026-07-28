@@ -373,6 +373,8 @@ Stable identityはtyped generation handleだけが持つ。chunk ID、row、addr
 
 AIにECSの構造を説明するため、OwnerがsealしたContract graphだけを使う。Graphは実行surfaceではなく、Operation、Tool、write権限、live World accessを追加しない。
 
+`ArchitectureExplainProjectionV1`はRuntime ECSのOwner、文書状態、依存、consumer関係を説明し、`RuntimeEcsContractGraphV1`はECS内部のstorage、query、access、structural、publication意味を説明し、`OptimizationDecisionProjectionV1`は評価済みCandidateの状態とEvidenceを説明する。`AiTaskContextCapsuleV1`はTaskに必要なこれらのexact refを束縛するが、いずれか一つを他の代用にしない。Architecture文書名からECS nodeを生成せず、ECS graphから候補のselected状態を生成せず、Task CapsuleからOperationまたはApprovalを生成しない。
+
 ```text
 RuntimeEcsContractGraphV1
   graph_version: 1
