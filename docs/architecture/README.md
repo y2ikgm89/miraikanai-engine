@@ -140,6 +140,7 @@ Owner文書はすべて`review`であり、対応するEngine実装・Schema・F
 | [Shooter Reference Catalog](appendices/shooter-reference-catalog.md) | proposal appendix | AI composition、Fixture、Difficulty、Input template候補 |
 | [Governance Migration Proposals](appendices/governance-migration-proposals.md) | proposal appendix | Definition移管、Runtime ECS Owner移管の未承認候補 |
 | [Runtime ECS Design Closure Review](appendices/runtime-ecs-design-closure-review.md) | proposal appendix | ECS設計監査、current／target区分、cross-owner整合性、未解決Closure |
+| [Architecture Plan Closure Review](appendices/architecture-plan-closure-review.md) | proposal appendix | AI可読性、Runtime coverage、Editor／Game分離、Target別Build、cross-owner整合性、未解決Closure |
 
 ## 5. Decision Log
 
@@ -149,6 +150,8 @@ Current review Decision: [AI-readable Asset／Memory／Async Loading Alignment](
 
 Current design review: [Runtime ECS Design Closure Review](appendices/runtime-ecs-design-closure-review.md)。このReviewはAI可読性、外部Engine比較、Memory／ECS／Performance／AI／Projectのcross-owner整合性、未解決Closureへのnavigationであり、Runtime ECS semantics、Capability Activationまたは実装計画を所有しない。
 
+Cross-domain design review: [Architecture Plan Closure Review](appendices/architecture-plan-closure-review.md)。このReviewはAI可読性、Runtime、Asset、Editor／Game分離、Target別Buildの監査結論と未解決Authorityへのnavigationであり、Subsystem semantics、Capability Activation、実装Taskまたは実装計画を所有しない。
+
 ## 6. 変更時の入口
 
 | 調べたいこと | 先に読む文書 | 次に辿るOwner |
@@ -157,6 +160,7 @@ Current design review: [Runtime ECS Design Closure Review](appendices/runtime-ec
 | DecisionのContext、比較案、置換履歴 | [Decision Log](decisions/README.md) | relevant Domain Owner |
 | AIによるArchitecture／ECS／最適化の説明 | [Architecture Governance](01-governance/architecture-governance.md) | [Product Plan](00-product/product-plan.md)、[Runtime ECS](04-runtime/entity-component-system.md)、[Memory／Pointers](02-foundation/memory-pointers.md)、[Performance／Capacity](04-runtime/performance-capacity.md)、[Runtime ECS Design Closure Review](appendices/runtime-ecs-design-closure-review.md) |
 | AIによる提案・変更、安全、evidence | [AI Security／Approval](01-governance/ai-security-approval.md) | [Project State](03-authoring/project-state.md)、[AI Verification／Provenance](01-governance/ai-verification-provenance.md)、対象Owner |
+| Runtime coverage、Editor／Game分離、Target別Build、未解決Authority | [Architecture Plan Closure Review](appendices/architecture-plan-closure-review.md) | [Runtime Package](04-runtime/runtime-package.md)、[Scheduling／Lifetime](04-runtime/scheduling-lifetime.md)、[Editor Workspace／UX](03-authoring/editor-workspace-ux.md)、[Toolchain／Dependencies](02-foundation/toolchain-dependencies.md)、各Platform Owner |
 | 英語技術語彙、Editor表示locale、AI返答locale、Game source locale | [Naming／Project Layout](02-foundation/naming-project-layout.md) | [Editor Workspace／UX](03-authoring/editor-workspace-ux.md)、[Editor UI Framework](03-authoring/editor-ui-framework.md)、[Project State](03-authoring/project-state.md)、[UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md)、[AI Verification／Provenance](01-governance/ai-verification-provenance.md) |
 | ECS、World load、Save／Replay | [Runtime ECS](04-runtime/entity-component-system.md) | [Runtime Package](04-runtime/runtime-package.md)、[Persistence／Save](04-runtime/persistence-save.md)、[Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) |
 | Project編集、Asset、Editor、Gameplay実装 | [Project State](03-authoring/project-state.md) | [Asset Lifecycle](03-authoring/asset-lifecycle.md)、[Gameplay Programming Model](03-authoring/gameplay-programming-model.md) |

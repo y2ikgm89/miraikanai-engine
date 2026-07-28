@@ -4,7 +4,7 @@
 - 状態: review
 - 正本範囲: AI可読性、外部Asset import、Memory／lifecycle、非同期loadを一つの制作・実行経路として扱う採用判断とOwner責務地図
 - 非正本範囲: Product Capability成熟度、Phase／Work Package、Schema・Operation・Diagnostic、Toolchain、Runtime budget／phase、実装Task、Capability activation。各Owner文書を参照する
-- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
 - 外部根拠検証日: 2026-07-28
 - 文書種別: Architecture Decision／cross-owner alignment
 - Decision owner document: `mirakan.arch.asset-lifecycle`
@@ -76,6 +76,7 @@ process memoryのreclamationはpersistent Artifactを削除するauthorityでは
 - Owner間でSource／Artifact／generation ref、invalidation、publication boundaryを照合する必要がある。
 - background I/Oが完了しても、dependency、integrity、capacity、generation検証が終わるまで利用可能にならない。
 - Inventory、Projection、Operationが未materializeの間、AIによるAsset説明はreview支援に限定される。
+- 汎用Runtime Asset request、priority、deadline、cancel、residency、evictionの一意なOwnerは未決定である。Runtime Package、Scheduling、Performanceの既存責務を結合してOwner、Manager、SchemaまたはAPIを推測しない。
 
 ## 6. Canonical Owner documents
 
@@ -88,6 +89,7 @@ process memoryのreclamationはpersistent Artifactを削除するauthorityでは
 | Package staging、dependency closure、atomic publication | [Runtime Package](../04-runtime/runtime-package.md) |
 | completion acceptance、publish boundary、retire順 | [Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md) |
 | queue、worker、I/O、memory、frame hitch budget | [Performance／Capacity](../04-runtime/performance-capacity.md) |
+| 汎用Runtime Asset request、priority、deadline、cancel、residency、eviction | 未決定。[Architecture Plan Closure Review `ARCH-C02`](../appendices/architecture-plan-closure-review.md#8-architecture-closure-register) |
 
 本Decisionは上記OwnerのSchema、fixed value、runtime behaviorを再定義しない。
 

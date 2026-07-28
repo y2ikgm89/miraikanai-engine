@@ -7,7 +7,7 @@
 - 正本範囲: Windows Target Profile、process／window／display／lifecycle Adapter、filesystem／user data、Windows package／signing／publication／update、Windows crash／security／qualification
 - 非正本範囲: 外部Tool／SDK／OS／graphics version、共通Runtime budget／phase、Asset lifecycle、Renderer／Input／Audio／UI意味、AI authorization／Evidence envelope。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)
-- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
+- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -87,13 +87,16 @@ player実行環境のTarget minimum OS（Host OSとは別行のentry）、OS Sup
 | Process | 権限／役割 |
 |---|---|
 | `mirakan_editor.exe` | UI、Authoring Command Gateway、Project／Workspace |
-| `mirakan_game_host.exe` | Preview Runtime、Project C++、Renderer、Audio |
+| `mirakan_game_host.exe` | Editor childのPreview GameHost role、Project C++ Preview DLL、Renderer、Audio |
+| `mirakan_game.exe` | standalone Shipping GameHost role、static-linked Project C++、Renderer、Audio |
 | `mirakan_worker_host.exe` | Asset／Shader／Contract等のJob entry |
 | `mirakan_ai_orchestrator.exe` | Model Provider、MCP、AI Task |
 | `mirakan_package_service.exe` | Package assembly／inspection。署名keyなし |
 | `mirakan_crash_collector.exe` | optional out-of-process dump／metadata collection |
 
 Editor起動child tree全体は`EditorSessionJob`でkill-on-job-closeとchild process policyを適用するが、AI／Compiler／WorkerまでEditor memoryへ誤計上しないため、このroot Jobへaggregate memory limitを設定しない。EditorHost、GameHost、Source／Asset／Shader Worker、AI Orchestrator、Package Service、Crash Collectorは[Runtime performance／capacity](../04-runtime/performance-capacity.md)のprocess group、allocator tag、working-set telemetry、sandbox capacityへ個別にchargeする。Workerはsuspended起動後にtask別nested Jobへ割り当ててからresumeし、GameHost終了時にProject C++ job、GPU、Audioをjoinし、timeout時はProcess単位で終了する。
+
+`mirakan_game_host.exe`と`mirakan_game.exe`は[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)のGameHost role／outer-loop contractを共有するが、同一binary、aliasまたは相互fallbackではない。PreviewはEditor IPC、Development／Profile instrument、検証済みProject DLLを持つ別composition、ShippingはCook済みPackageとstatic-linked Project codeだけを持つstandalone compositionである。Shipping dependency closureへEditor、Authoring、Workspace、Preview IPC authorityを含めない。
 
 Credential、Signing、UploadはBuild Processへ渡さない。Named pipeはUser SID ACL、length prefix、JSON-RPC、message 8 MiB上限、nonce／protocol versionを持つ。
 

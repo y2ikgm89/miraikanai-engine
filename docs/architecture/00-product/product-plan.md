@@ -7,7 +7,7 @@
 - 正本範囲: Product intent、非交渉原則、Capability成熟度、Portfolio、Algorithm／Performance最適化のProduct優先度、AI制作理解境界、MVP、Phase順序、製品昇格・停止・完了Gate
 - 非正本範囲: Subsystemの型・Field・API・Backend・既定値・Budget、AI権限と承認、Evidence形式。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)
+- 関連文書: [Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-28
 
@@ -166,7 +166,7 @@ cross-owner連携は次の一方向chainだけを使う。Architecture Governanc
 
 共通のAI read／explain／propose以後はauthority別に分岐する。Game Projectのauthoring mutationだけがProject State所有のactive Operationから`ProjectChangeSetV1`、preview／validate／approve／commit、new Project revisionへ進む。Engineのalgorithm／layout CandidateはProject ChangeSetへ変換せず、Performance／Artifact／Governance Ownerのqualification、selection、promotion、Contract revisionへ進む。Project authoring ReceiptをEngine最適化Evidenceへ、Optimization ReceiptをProject Commit authorityへ流用しない。
 
-有名Engineとの比較、詳細な整合性判定、未解決Closureは[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)をnavigation先とする。同Reviewはproposal appendixであり、Product Capability、Phase、Work Package、Runtime contractまたは外部Engine互換性を追加しない。本節も実装Task、日程、担当、Activation、採用済み最適化を生成しない。
+Runtime ECS固有の有名Engine比較、詳細な整合性判定、未解決Closureは[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)をnavigation先とする。Architecture全体のAI可読性、Runtime coverage、Editor／Game分離、Target別Build、汎用Runtime Asset authorityとBuild最適化の未解決Closureは[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)をnavigation先とする。両Reviewはproposal appendixであり、Product Capability、Phase、Work Package、Runtime contractまたは外部Engine互換性を追加しない。本節も実装Task、日程、担当、Activation、採用済み最適化を生成しない。
 
 ## 5. MVP scope
 
@@ -607,6 +607,8 @@ Future IDはactiveな`CapabilityRegistryV1`、`ProductPhaseRegistryV1`、`PhaseF
 
 - [Runtime ECS](../04-runtime/entity-component-system.md)
 - [Scheduling／lifetime](../04-runtime/scheduling-lifetime.md)
+- [Runtime Package](../04-runtime/runtime-package.md)
+- [Persistence／Save](../04-runtime/persistence-save.md)
 - [Performance／capacity](../04-runtime/performance-capacity.md)
 - [Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)
 - [Collision](../05-simulation/collision.md)
