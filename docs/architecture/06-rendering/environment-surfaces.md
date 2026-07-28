@@ -9,7 +9,7 @@
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[World](world.md)、[Lighting](lighting.md)、[Materials](materials.md)
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[VFX authoring](vfx-authoring.md)、[VFX runtime](vfx-runtime.md)、[LOD](lod.md)、[World](world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-27
+- 外部根拠確認日: 2026-07-28
 
 ## 1. 結論と単一Source model
 
@@ -59,6 +59,20 @@ EnvironmentProfileRefV1
 
 Capability maturity、Activation、roadmapはProduct Plan、共通phase／lifetimeはRuntime scheduling、共通capacity envelope／測定／backpressureはRuntime performanceだけが所有する。本書のBudgetはdomain固有Source／artifact ceilingである。
 
+### 1.1 設計判定と明示Gap
+
+本計画の推奨判定は「Environment Light Mixer相当のEnvironment Profile authoring設計として採用、実装済み／Activation済みとは扱わない」である。現在の境界を次に固定する。
+
+| 観点 | 設計上の判定 | current非主張 |
+|---|---|---|
+| AI理解性 | Stable ID／version／hash、closed intent／Preset section、Source／effective分離、origin／reason、bounded候補、closed primitiveで設計を閉じる | Markdown記述だけをMCD、JSON Schema、Provider、callable Toolまたは実行可能validatorとみなさない |
+| Environment／Lighting／World連携 | Time-of-Dayはexact Source Sample、sun／moon set equality、単一`ProjectChangeSetV1`でatomicに閉じる | Environmentだけの部分Apply、Editor Lightコピー、未登録Lighting discoveryを成功扱いしない |
+| Environment／Post Process責務 | EnvironmentはSky／Atmosphere／Fog／Cloud／IBL、Post Processは露出／metering／adaptation／toneを単独所有する | 同名露出Field、Environment hint、Camera／Lighting側の複製所有を認めない |
+| Runtime／Target連携 | Render Snapshot、VFX Weather ref、World binding、exact budget envelope、C1 Core／C2 advanced fallbackへ接続する | 未計測budgetをQualification済み値とせず、Core構成要素の循環fallbackを認めない |
+| UI／Product scope | Environment Panelは`basic | detailed`で同じcanonical fieldを表示し、Environment authoring 26候補だけをversion 2計画集合とする | Panel fixture、Operation family、Preset Catalog、Time Providerは未materialized。Water／Weather／Snow mutationはcurrent Product closure外 |
+
+この表は実装Task、実装順序、期間、担当、依存導入を定義しない。設計状態と非主張を要約するだけで、具体的Activation条件は§6、Product状態はProduct Plan／Execution Registryを正本とする。
+
 ## 2. Environment composition、Sky、Fog、Wind
 
 ### 2.1 Environment profileとpolicy
@@ -71,7 +85,7 @@ EnvironmentProfileV1
   profile_content_hash: SHA-256
   display_name: string[1..128]
   semantic_intent: EnvironmentIntentV1
-  preset_id: EnvironmentPresetId
+  applied_preset_provenance_ref: nullable<EnvironmentPresetRefV1>
   quality_policy: EnvironmentQualityPolicyV1
   sky: SkySourceV1
   atmosphere: AtmosphereSourceV1
@@ -89,28 +103,57 @@ EnvironmentQualityPolicyV1
   minimum_tier: low | medium | high
   preferred_tier: low | medium | high
   fallback_policy: deny | require_approval | allow_preapproved
-  budget_profile_id: StableId
+  budget_profile_ref:
+    exact {budget_profile_id, budget_profile_version, budget_profile_content_hash}
 
 WeatherBindingV1
-  weather_profile_id: StableId
-  minimum_revision: u64
+  weather_profile_ref: exact WeatherPresentationProfileRefV1
   channels: set<wind | cloud_coverage | cloud_density | precipitation | temperature>
 
 VisualStyleBindingV1
-  visual_style_profile_id: StableId
-  minimum_revision: u64
+  visual_style_profile_ref: exact VisualStyleProfileRefV1
 
 TimeOfDayPresentationBindingV1
   source_ref: PresentationTimeSourceRefV1
-  minimum_revision: u64
   sun_light_id: LightSourceV1 StableId
   moon_light_id: nullable<LightSourceV1 StableId>
+  named_phase_q32:
+    dawn: u32
+    day: u32
+    dusk: u32
+    night: u32
 
 PresentationTimeSourceRefV1
-  owner_ref: exact registered Owner ref
+  provider_ref: exact PresentationTimeSourceProviderRefV1
   source_id: StableId
   source_version: positive u32
   source_content_hash: SHA-256
+
+PresentationTimeSourceProviderRefV1
+  provider_id: StableId
+  provider_version: positive u32
+  provider_content_hash: SHA-256
+  owner_manifest_ref: exact registered Owner Manifest ref
+
+PresentationTimeSampleV1
+  source_ref: exact PresentationTimeSourceRefV1
+  world_id: StableId
+  sample_sequence: positive u64
+  solar_phase_q32: u32
+  discontinuity: bool
+  sample_content_hash: SHA-256
+
+PresentationTimeSampleRefV1
+  source_ref: exact PresentationTimeSourceRefV1
+  world_id: StableId
+  sample_sequence: positive u64
+  sample_content_hash: SHA-256
+
+EnvironmentPresetRefV1
+  catalog_ref: exact {catalog_id, catalog_version, catalog_content_hash}
+  preset_id: StableId
+  preset_version: positive u32
+  preset_content_hash: SHA-256
 
 EnvironmentFieldLockV1
   field_id: u32
@@ -119,7 +162,7 @@ EnvironmentFieldLockV1
   reason: string[1..256]
 ```
 
-Tierは`low < medium < high`、minimum≤preferred。preapproved fallbackはTarget manifestに列挙したものだけ、binding revision不足はstale、lockはstable Field IDを参照し重複を拒否する。Authorization semanticsはGovernance ownerへ委譲する。
+Tierは`low < medium < high`、minimum≤preferred。preapproved fallbackはTarget manifestに列挙したものだけ、exact ref不一致はstale、lockはstable Field IDを参照し重複を拒否する。`VisualStyleProfileRefV1`と`PaletteTokenRefV1`は[Materials](materials.md)の正本型だけを使う。`PresentationTimeSourceProviderRefV1`はExecutable Contractsの同一Contract setで登録されたProviderとOwner Manifestへ全Fieldでexact解決し、Source refはそのProviderが公開するimmutableなSource定義へexact解決する。Providerは同じWorldに対して単調増加する`sample_sequence`と正規化周期`solar_phase_q32`を持つ`PresentationTimeSampleV1`を公開する。Provider／Sourceのどちらかが未登録、stale、Owner Manifest不一致ならSource unavailableとして扱う。Sample hashはASCII `MIRAKAN_PRESENTATION_TIME_SAMPLE_V1`と自己hashを除く全Fieldのlength-framed canonical bytesからSHA-256し、Sample ref全Fieldを解決先とbyte equalityにする。Engine wall clock、Editor時刻、現在Camera、Light transformから時刻を推測しない。四つのnamed phaseは相互に異なる値で、Presetの`dawn | day | dusk | night`はこの表だけからsolar phaseへ解決する。`discontinuity=true`ではEnvironment／Cloud／Fog historyをresetする。Authorization semanticsはGovernance ownerへ委譲する。
 
 ### 2.2 Sky、atmosphere、fog
 
@@ -160,7 +203,7 @@ FogSourceV1
   base_height_m: f32
   albedo_source: fixed_linear | inherit_sky | palette_token
   scattering_albedo_linear: nullable<LinearRgb>
-  palette_token: nullable<StablePaletteToken>
+  palette_token_ref: nullable<PaletteTokenRefV1>
   anisotropy_g: f32
   max_distance_m: f32
   ambient_injection: f32
@@ -210,34 +253,41 @@ CloudSourceV1
   max_view_distance_m: f32
   coverage: f32
   density_multiplier: f32
+  reference_asset_set_ref: nullable<ReferenceCloudAssetsRefV1>
   weather_map_asset: nullable<512² RGBA8_UNORM ref>
   base_noise_asset: nullable<128³ R8_UNORM ref>
   detail_noise_asset: nullable<32³ R8_UNORM ref>
   wind_velocity_m_s: world-space Velocity3f
   cast_cloud_shadow: bool
+
+ReferenceCloudAssetsRefV1
+  asset_set_id: StableId
+  asset_set_version: positive u32
+  asset_set_content_hash: SHA-256
+  weather_map_asset: exact 512² RGBA8_UNORM ref
+  base_noise_asset: exact 128³ R8_UNORM ref
+  detail_noise_asset: exact 32³ R8_UNORM ref
 ```
 
-Bottomは0～100,000 m、top=bottom+1～200,000 m、view distance 1～100,000 m、coverage 0～1、density 0～10、wind各axis ±200 m/s。Referenceはbottom 1,500、top 5,000、distance 100,000、coverage 0.5、density 1.0。Volumetricは3 assets全件または同version `ReferenceCloudAssetsV1`一式とし、部分補完しない。
+Bottomは0～100,000 m、top=bottom+1～200,000 m、view distance 1～100,000 m、coverage 0～1、density 0～10、wind各axis ±200 m/s。Referenceはbottom 1,500、top 5,000、distance 100,000、coverage 0.5、density 1.0。Volumetricは`reference_asset_set_ref`一件かProject指定の3 assets全件のexactly-oneを要求する。Reference set使用時は個別3 fieldをcanonical null、Project assets使用時はReference refをcanonical nullとし、部分補完、異なるset versionの混在、Reference refと個別assetの併記を拒否する。
 
 ```text
 EnvironmentLightingSourceV1
   ibl_mode: baked | dynamic_incremental
   diffuse_irradiance_enabled: bool
   specular_prefilter_enabled: bool
-  exposure_mode: automatic | manual
-  exposure_compensation_ev: f32
-  manual_ev100: nullable<f32>
-  min_ev100: f32
-  max_ev100: f32
 ```
 
-Compensation -8～8 EV、manual／auto range -16～32、min<max。Manualだけmanual EVを持つ。`ExposureRuntimeProfile::ReferenceV1`は256 log-luminance bins、0.5～99.5 percentile、18% gray、brighten 1.5 EV/s、darken 3.0 EV/s。Baked IBLはdiffuse 32²×6 `RGBA16_FLOAT`、specular 256²×6・9 mip `RGBA16_FLOAT`、BRDF LUT 256² `RG16_FLOAT`、HDR sourceを除くpersistent set 8 MiB以下である。
+露出、metering、adaptation、tone mappingは[Post Processing](post-processing.md)の`ExposureProfileV1`だけがSource ownerである。Environment Source、Preset、Intent、Summary、fallbackは露出値を持たず、Environment Panelから露出を変更する場合もPost Processの別Proposalへ明示的に遷移し、Environment ChangeSetへ複写しない。Baked IBLはdiffuse 32²×6 `RGBA16_FLOAT`、specular 256²×6・9 mip `RGBA16_FLOAT`、BRDF LUT 256² `RG16_FLOAT`、HDR sourceを除くpersistent set 8 MiB以下である。
 
-`EnvironmentLightingSummaryV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、[Lighting](lighting.md) §6の`LightIntentResolverV1`入力である。最低fieldとしてrevision、exact `EnvironmentProfileRefV1`、`ibl_mode`、`exposure_mode`と実効EV range（min／max、manual時はmanual EV100）、diffuse／specular IBL有効状態、合成後実効cloud coverage、`cast_cloud_shadow`を持つ。revisionは入力SourceのDocument revisionとWeather合成generationから決定的に導出し、同一入力から同一revisionを生成する。消費側はfield一覧を複写せず、Summary経由でSourceへ書き戻さない。
+`EnvironmentLightingSummaryV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、[Lighting](lighting.md) §6の`LightIntentResolverV1`入力である。最低fieldとしてrevision、exact `EnvironmentProfileRefV1`、sky kind、sun／moon Light Stable ID、`ibl_mode`、diffuse／specular IBL有効状態、合成後実効cloud coverage、`cast_cloud_shadow`を持つ。露出またはPost Process fieldを含めない。revisionは入力SourceのDocument revision、Weather合成generation、nullable Presentation Time Sample hashから決定的に導出し、同一入力から同一revisionを生成する。消費側はfield一覧を複写せず、Summary経由でSourceへ書き戻さない。
 
 ```text
 WeatherPresentationProfileV1
-  profile_id
+  profile_id: StableId
+  schema_version: 1
+  source_revision: u64
+  profile_content_hash: SHA-256
   precipitation_kind: none | rain | snow | sleet
   precipitation_rate_mmph
   wind_velocity_world_mps
@@ -247,6 +297,13 @@ WeatherPresentationProfileV1
   snow_accumulation_rate_mps
   snow_melt_rate_mps
   transition_seconds
+
+WeatherPresentationProfileRefV1
+  environment_document_ref: exact DocumentRef<EnvironmentSurfaceDocumentV1>
+  profile_id: StableId
+  profile_schema_version: positive u32
+  profile_source_revision: u64
+  profile_content_hash: SHA-256
 ```
 
 ```text
@@ -255,8 +312,7 @@ WeatherPresentationSnapshotV1
   generation: positive u64
   snapshot_content_hash: SHA-256
   environment_profile_ref: exact EnvironmentProfileRefV1
-  weather_profile_id: StableId
-  weather_profile_source_revision: u64
+  weather_profile_ref: exact WeatherPresentationProfileRefV1
   precipitation_kind
   precipitation_rate_mmph
   wind_velocity_world_mps
@@ -272,7 +328,7 @@ WeatherPresentationSnapshotRefV1
   snapshot_content_hash: SHA-256
 ```
 
-Rangeはprecipitation `[0,500] mm/h`、wind各axis `[-150,150] m/s`、temperature `[-100,100] C`、cloud coverage `[0,1]`、cloud density multiplier `[0,10]`、accumulation／melt `[0,0.01] m/s`、transition `[0,600] s`。`WeatherBindingV1.channels`が`cloud_coverage`を含む場合は`CloudSourceV1.coverage`をweather値でoverrideし、`cloud_density`を含む場合は`CloudSourceV1.density_multiplier`へ`cloud_density_multiplier`を乗算する。いずれも`transition_seconds`で補間し、channel未選択のfieldはCloudSourceV1のauthored値を維持する。§5のweather coverage／density history破棄条件はこの合成後の実効値を入力とする。`WeatherPresentationSnapshotV1`は同generationをEnvironment、VFX、Snowへpublishし、Gameplay weatherへ逆入力しない。VFXとSnowはSnapshot refを消費し、Weather fieldを複写した別generationを作らない。
+Rangeはprecipitation `[0,500] mm/h`、wind各axis `[-150,150] m/s`、temperature `[-100,100] C`、cloud coverage `[0,1]`、cloud density multiplier `[0,10]`、accumulation／melt `[0,0.01] m/s`、transition `[0,600] s`。Profile hashはASCII `MIRAKAN_WEATHER_PRESENTATION_PROFILE_V1`と自己hashを除く全Fieldのlength-framed canonical bytesからSHA-256し、Ref全五Fieldを解決先とbyte equalityにする。`WeatherBindingV1.channels`が`cloud_coverage`を含む場合は`CloudSourceV1.coverage`をweather値でoverrideし、`cloud_density`を含む場合は`CloudSourceV1.density_multiplier`へ`cloud_density_multiplier`を乗算する。いずれも`transition_seconds`で補間し、channel未選択のfieldはCloudSourceV1のauthored値を維持する。§5のweather coverage／density history破棄条件はこの合成後の実効値を入力とする。`WeatherPresentationSnapshotV1`は同generationをEnvironment、VFX、Snowへpublishし、Gameplay weatherへ逆入力しない。VFXとSnowはSnapshot refを消費し、Weather fieldを複写した別generationを作らない。
 
 ## 3. Water surface／body profile
 
@@ -427,7 +483,7 @@ WetnessはWeather rain／sleet、Water interaction、receiver allow maskからMa
 
 ## 5. Renderer／Material interfaceとruntime compilation
 
-EnvironmentはSky radiance、sun／moon refs、Fog／Cloud、IBL／Exposure input、Waterへ入射lightを提供する。WaterはSurface／Underwater packetと`WaterSnapshotV1`、Snowはcoverage／compaction bindingを出す。Materialsは正規semantic role `surface.water`と`surface.snow`を所有し、本書はMaterial IR／Shading Modelを複写しない。VFXはshort-lived smoke／precipitation／splashを所有し、VFXからLocal Fog／Snow Sourceへ暗黙変換しない。
+EnvironmentはSky radiance、sun／moon refs、Fog／Cloud、IBL、Waterへ入射lightを提供する。露出はEnvironment入力でなく、World HDRを測光するPost Process stageである。WaterはSurface／Underwater packetと`WaterSnapshotV1`、Snowはcoverage／compaction bindingを出す。Materialsは正規semantic role `surface.water`と`surface.snow`を所有し、本書はMaterial IR／Shading Modelを複写しない。VFXはshort-lived smoke／precipitation／splashを所有し、VFXからLocal Fog／Snow Sourceへ暗黙変換しない。
 
 Rendererへ渡すEnvironment-owned frame inputを次の四型に閉じる。いずれもSourceでなく、同じpublished Simulation AdvanceとEnvironment artifact generationから作るimmutable projectionである。
 
@@ -437,6 +493,7 @@ EnvironmentPresentationSnapshotV1
   environment_profile_ref: exact EnvironmentProfileRefV1
   artifact_set_ref: exact EnvironmentArtifactSetRefV1
   weather_snapshot_ref: nullable<WeatherPresentationSnapshotRefV1>
+  presentation_time_sample_ref: nullable<PresentationTimeSampleRefV1>
   sun_light_id: nullable<LightSourceV1 StableId>
   moon_light_id: nullable<LightSourceV1 StableId>
   selected_fallback_refs[]
@@ -466,7 +523,7 @@ EnvironmentArtifactSetRefV1
   artifact_set_content_hash: SHA-256
 ```
 
-`EnvironmentArtifactSetRefV1`と`WeatherPresentationSnapshotRefV1`はそれぞれ完成Artifact setとSnapshotへ全三Fieldでexact解決する。Artifact set hashはASCII `MIRAKAN_ENVIRONMENT_ARTIFACT_SET_V1`と自己hash／`resource_receipt`を除くreceipt-free closed record、Weather hashはASCII `MIRAKAN_WEATHER_PRESENTATION_SNAPSHOT_V1`と自己hashを除くclosed recordのcanonical bytesを`uint32_be` length framingしてSHA-256する。`EnvironmentPresentationSnapshotV1.weather_snapshot_ref`、`SnowSurfaceBatchV1.weather_snapshot_ref`、VFXが消費するWeather refは、Weather bindingが存在する時に同じ一件へbyte equalityで解決し、存在しない時は全てcanonical nullとする。`WaterSnapshotV1`のCadence三値は同じpublish対象`SimulationAdvanceIntervalV1`とbyte equalityにする。Rendererは四型のfieldを再解釈、補完、相互変換せず、Source Profileへ書き戻さない。
+`EnvironmentArtifactSetRefV1`と`WeatherPresentationSnapshotRefV1`はそれぞれ完成Artifact setとSnapshotへ全三Fieldでexact解決する。`PresentationTimeSampleRefV1`も解決先Sampleのsource ref、World、sequence、hashとbyte equalityにする。Artifact set hashはASCII `MIRAKAN_ENVIRONMENT_ARTIFACT_SET_V1`と自己hash／`resource_receipt`を除くreceipt-free closed record、Weather hashはASCII `MIRAKAN_WEATHER_PRESENTATION_SNAPSHOT_V1`と自己hashを除くclosed recordのcanonical bytesを`uint32_be` length framingしてSHA-256する。`EnvironmentPresentationSnapshotV1.weather_snapshot_ref`、`SnowSurfaceBatchV1.weather_snapshot_ref`、VFXが消費するWeather refは、Weather bindingが存在する時に同じ一件へbyte equalityで解決し、存在しない時は全てcanonical nullとする。Time-of-Day bindingが存在する時は`EnvironmentPresentationSnapshotV1.presentation_time_sample_ref`をpublishに使った同一Sampleへexact解決し、bindingなしではcanonical nullとする。`WaterSnapshotV1`のCadence三値は同じpublish対象`SimulationAdvanceIntervalV1`とbyte equalityにする。Rendererは四型のfieldを再解釈、補完、相互変換せず、Source Profileへ書き戻さない。
 
 `EnvironmentCompiler`はcanonical Source、Contract set、Target、Toolchainからdeterministic artifactを生成する。
 
@@ -512,18 +569,84 @@ Snow computeはWorld opaque Materialより前に完了し、same-frame finalized
 
 ## 6. AI／Editor operation、preview、validation
 
-Environmentの予約候補は`operation.environment.inspect_profile, operation.environment.list_presets, operation.environment.resolve_intent, operation.environment.validate_changeset, operation.environment.preview_changeset, operation.environment.estimate_cost, operation.environment.create_profile, operation.environment.set_world_binding, operation.environment.apply_preset, operation.environment.set_intent, operation.environment.set_sky, operation.environment.set_sun_moon_link, operation.environment.set_height_distance_fog, operation.environment.set_volumetric_fog, operation.environment.create_local_fog_volume, operation.environment.update_local_fog_volume, operation.environment.delete_local_fog_volume, operation.environment.set_atmosphere_preset, operation.environment.set_custom_atmosphere, operation.environment.set_cloud_layer, operation.environment.set_lighting, operation.environment.bind_weather, operation.environment.generate_fallback, operation.environment.bake, operation.environment.run_qualification`のexact 25件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.environment_authoring@1`だけに属する。Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。`activation.environment.authoring_operations.v1`が25件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。Waterの`CreateWaterBody, SetWaterBoundary, SetWaveProfile, SetFlowProfile, SetWaterMaterial, SetUnderwaterProfile, PreviewWaterCost`とWeather／Snowの`SetWeatherPresentation, CreateSnowReceiver, PaintStaticSnowMask, SetSnowMaterial, EnableDynamicSnow, PreviewSnowCost`はStable IDでないfuture action labelであり、current Operation／planning candidateへ推測しない。`operation.lod.*`も不完全prefixであり、LOD ownerのexact二候補だけを別familyで扱う。Write／ChangeSetの意味は各familyのActivation後だけ有効である。
+Environmentの予約候補は`operation.environment.inspect_profile, operation.environment.explain_effective, operation.environment.list_presets, operation.environment.resolve_intent, operation.environment.validate_changeset, operation.environment.preview_changeset, operation.environment.estimate_cost, operation.environment.create_profile, operation.environment.set_world_binding, operation.environment.apply_preset, operation.environment.set_intent, operation.environment.set_sky, operation.environment.set_sun_moon_link, operation.environment.set_height_distance_fog, operation.environment.set_volumetric_fog, operation.environment.create_local_fog_volume, operation.environment.update_local_fog_volume, operation.environment.delete_local_fog_volume, operation.environment.set_atmosphere_preset, operation.environment.set_custom_atmosphere, operation.environment.set_cloud_layer, operation.environment.set_lighting, operation.environment.bind_weather, operation.environment.generate_fallback, operation.environment.bake, operation.environment.run_qualification`のexact 26件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.environment_authoring@2`だけに属する。Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。未Activationだったversion 1の25候補setを置換し、`activation.environment.authoring_operations.v2`が26件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。Version 1の再利用、alias、部分Activationを禁止する。Waterの`CreateWaterBody, SetWaterBoundary, SetWaveProfile, SetFlowProfile, SetWaterMaterial, SetUnderwaterProfile, PreviewWaterCost`とWeather／Snowの`SetWeatherPresentation, CreateSnowReceiver, PaintStaticSnowMask, SetSnowMaterial, EnableDynamicSnow, PreviewSnowCost`はStable IDでないfuture action labelであり、current Operation／planning candidateへ推測しない。`wp.rendering.environment-c2`と`capability.environment.*`はEnvironment Profileのauthoring／runtime presentationだけをProduct closureとし、Water／Weather／Snow mutation capabilityを成立済みとみなさない。三領域のSource／Runtime schemaは設計契約として維持するが、別Owner family、Operation全件、Policy、Validator、Receipt、Provider、Target Qualificationが同じActivationで登録されるまではread-only／not activatedである。`operation.lod.*`も不完全prefixであり、LOD ownerのexact二候補だけを別familyで扱う。Write／ChangeSetの意味は各familyのActivation後だけ有効である。
 
 OperationからProject mutation／Jobへの閉じ方を次に固定する。
 
 | Operation群 | canonical result | Project mutation |
 |---|---|---|
-| `inspect_profile, list_presets, resolve_intent, validate_changeset, preview_changeset, estimate_cost` | bounded read projection／Proposal validation／Preview Receipt | なし |
-| `create_profile, set_world_binding, apply_preset, set_intent, set_sky, set_sun_moon_link, set_height_distance_fog, set_volumetric_fog, create_local_fog_volume, update_local_fog_volume, delete_local_fog_volume, set_atmosphere_preset, set_custom_atmosphere, set_cloud_layer, set_lighting, bind_weather, generate_fallback` | `EnvironmentChangeSet` Proposal | 下記exact `EnvironmentChangePrimitiveV1` branch |
+| `inspect_profile, list_presets` | bounded Source／Catalog projection | なし |
+| `explain_effective` | `EnvironmentEffectiveStateV1`＋`EnvironmentPlanExplanationV1` | なし |
+| `resolve_intent, validate_changeset, preview_changeset, estimate_cost` | bounded resolution／Proposal validation／Preview Receipt | なし |
+| `create_profile, set_world_binding, apply_preset, set_intent, set_sky, set_sun_moon_link, set_height_distance_fog, set_volumetric_fog, create_local_fog_volume, update_local_fog_volume, delete_local_fog_volume, set_atmosphere_preset, set_custom_atmosphere, set_cloud_layer, set_lighting, bind_weather, generate_fallback` | `EnvironmentChangeSetProposalV1` | 下記exact `EnvironmentChangePrimitiveV1` branch |
 | `bake` | immutable Source revisionを入力にするoffline Job Proposal | なし |
 | `run_qualification` | immutable Artifact／Target closureを入力にするQualification Job Proposal | なし |
 
-`EnvironmentChangePrimitiveV1`のclosed branchは`CreateEnvironmentProfile, SetEnvironmentWorldBinding, ApplyEnvironmentPreset, SetEnvironmentIntent, SetEnvironmentSky, SetEnvironmentSunMoonLink, SetEnvironmentHeightDistanceFog, SetEnvironmentVolumetricFog, CreateEnvironmentLocalFogVolume, UpdateEnvironmentLocalFogVolume, DeleteEnvironmentLocalFogVolume, SetEnvironmentAtmospherePreset, SetEnvironmentCustomAtmosphere, SetEnvironmentCloudLayer, SetEnvironmentLighting, BindEnvironmentWeather, SetEnvironmentFallbackSelection`である。各branchはtarget Stable ID、expected Environment Document revision、typed argument、lock対象Field、declared costを持ち、[Project state](../03-authoring/project-state.md)の`ProjectChangePrimitiveV1` owner namespaceへ登録する。`SetEnvironmentWorldBinding`だけがEnvironment Document内bindingと対象Worldの`global_composition_refs[]`を同じChangeSetで変更し、片側だけのmutationを拒否する。Operation名からprimitive名を生成せず、Activation closureが上表のOperation→result→branch coverage 100%を検証する。
+`EnvironmentChangePrimitiveV1`のclosed branchは`CreateEnvironmentProfile, SetEnvironmentWorldBinding, ApplyEnvironmentPreset, SetEnvironmentIntent, SetEnvironmentSky, SetEnvironmentSunMoonLink, SetEnvironmentHeightDistanceFog, SetEnvironmentVolumetricFog, CreateEnvironmentLocalFogVolume, UpdateEnvironmentLocalFogVolume, DeleteEnvironmentLocalFogVolume, SetEnvironmentAtmospherePreset, SetEnvironmentCustomAtmosphere, SetEnvironmentCloudLayer, SetEnvironmentLighting, BindEnvironmentWeather, SetEnvironmentFallbackSelection`である。全branchは`primitive_id`、exact Environment Document ref、target Profile／Volume／binding Stable ID、expected Environment Document revision、`locked_field_ids[]`、`declared_cost_ref`を共通fieldとし、payloadを次のclosed型へ固定する。
+
+| branch | exact payload |
+|---|---|
+| `CreateEnvironmentProfile` | 完全な`EnvironmentProfileV1`一件 |
+| `SetEnvironmentWorldBinding` | before／after `EnvironmentWorldBindingV1`とbefore／after World `global_composition_refs[]` |
+| `ApplyEnvironmentPreset` | 完全な`EnvironmentPresetApplicationV1` |
+| `SetEnvironmentIntent` | 完全な`EnvironmentIntentV1` |
+| `SetEnvironmentSky` | 完全な`SkySourceV1` |
+| `SetEnvironmentSunMoonLink` | before／after Skyおよび`TimeOfDayPresentationBindingV1`のsun／moon ID |
+| `SetEnvironmentHeightDistanceFog`／`SetEnvironmentVolumetricFog` | 完全な`FogSourceV1` |
+| `CreateEnvironmentLocalFogVolume`／`UpdateEnvironmentLocalFogVolume` | 完全な`LocalFogVolumeSourceV1`一件 |
+| `DeleteEnvironmentLocalFogVolume` | exact Volume Stable IDとbefore content hash |
+| `SetEnvironmentAtmospherePreset`／`SetEnvironmentCustomAtmosphere` | 完全な`AtmosphereSourceV1` |
+| `SetEnvironmentCloudLayer` | 完全な`CloudSourceV1` |
+| `SetEnvironmentLighting` | 完全なIBL-only `EnvironmentLightingSourceV1` |
+| `BindEnvironmentWeather` | nullableな完全`WeatherBindingV1` |
+| `SetEnvironmentFallbackSelection` | 完全な`EnvironmentQualityPolicyV1`と選択fallback ref集合 |
+
+```text
+EnvironmentPresetApplicationV1
+  base_profile_ref: exact EnvironmentProfileRefV1
+  preset_ref: exact EnvironmentPresetRefV1
+  preset_section_replacements[1..11]: EnvironmentSectionReplacementV1
+  explicit_section_overrides[0..11]: EnvironmentSectionOverrideV1
+  result_profile: complete EnvironmentProfileV1
+```
+
+両section unionのbranchとpayloadを次に閉じる。
+
+| branch | complete payload |
+|---|---|
+| `semantic_intent` | `EnvironmentIntentV1` |
+| `quality_policy` | `EnvironmentQualityPolicyV1` |
+| `sky` | `SkySourceV1` |
+| `atmosphere` | `AtmosphereSourceV1` |
+| `fog` | `FogSourceV1` |
+| `local_fog_volumes` | `LocalFogVolumeSourceV1[0..128]` |
+| `cloud` | `CloudSourceV1` |
+| `lighting` | `EnvironmentLightingSourceV1` |
+| `time_of_day_binding` | `nullable<TimeOfDayPresentationBindingV1>` |
+| `weather_binding` | `nullable<WeatherBindingV1>` |
+| `style_binding` | `nullable<VisualStyleBindingV1>` |
+
+Compilerはbase ProfileへCatalog entryとbyte equalityなPreset replacement、明示overrideの順で適用してresult Profileとのbyte equalityを検証し、`applied_preset_provenance_ref`へPreset refを保存する。PresetはRuntime inheritanceではなく、一回のChangeSetで完全なSourceへmaterializeされるため、後のCatalog更新で既存Profileをsilent変更しない。
+
+`EnvironmentSectionReplacementV1`／`EnvironmentSectionOverrideV1`は上表のclosed tagged unionを使う。同じbranchの重複を拒否し、branch ID順へstrict sortする。OverrideはPreset entryが置換するbranchだけに許可し、変更対象のstable Field lockを一件でも含めば全Applicationを拒否する。raw JSON pointer、untyped object、不完全Source fragment、unknown branch、暗黙型変換を拒否する。各primitive branchは[Project state](../03-authoring/project-state.md)の`ProjectChangePrimitiveV1` owner namespaceへ登録する。`SetEnvironmentWorldBinding`はEnvironment Document内bindingと対象Worldの`global_composition_refs[]`を同じChangeSetで変更し、片側だけのmutationを拒否する。Operation名からprimitive名を生成せず、Activation closureが上表のOperation→result→branch coverage 100%を検証する。
+
+```text
+EnvironmentChangeSetProposalV1
+  proposal_id: StableId
+  proposal_version: positive u32
+  proposal_content_hash: SHA-256
+  base_project_revision: positive u64
+  environment_document_ref: exact DocumentRef<EnvironmentSurfaceDocumentV1>
+  world_id: StableId
+  target_profile_refs[1..64]
+  primitives[1..256]: EnvironmentChangePrimitiveV1
+  companion_lighting_changeset_ref: nullable<LightingChangeSetProposalRefV1>
+  risk_summary
+  preview_receipt_ref: nullable<exact EnvironmentPreviewReceiptRefV1>
+  expires_at
+```
+
+これは共通Proposal envelopeのDomain projectionであり、直接Commitしない。Time-of-Day変更がLight Source変更を伴う場合、exact `LightingChangeSetProposalRefV1`を必須とし、両Proposalのbase Project revision、World、Target集合、expiryをbyte equalityにする。Environment primitive、Lighting primitive、必要なWorld binding primitiveを一つの`ProjectChangeSetV1`へmaterializeしてatomic commitし、片方だけのPreview、Approval、Apply、Commit、retryを拒否する。sun／moonの`affected_light_ids[]`はbindingのnon-null sun／moon ID集合とexact set equalityにし、追加Lightを同じcompanionへ混在させない。
 
 Environment Capability IDは`capability.environment.core, capability.environment.sky_hdri, capability.environment.height_fog, capability.environment.ibl_baked, capability.environment.atmosphere_lut, capability.environment.aerial_perspective, capability.environment.volumetric_fog, capability.environment.local_fog_volume, capability.environment.volumetric_cloud, capability.environment.dynamic_ibl, capability.environment.cloud_shadow, capability.environment.intent_resolver`に閉じる。共通`capabilities.search`／`capabilities.read` projectionはExecutable contracts ownerを参照し、maturityを本書へ複写しない。
 
@@ -538,7 +661,7 @@ EnvironmentIntentV1
   cloud_intent: none | thin | scattered | overcast | storm_like
   motion_intent: still | gentle | windy | inherit_weather
   target_visibility_m: nullable<f32>
-  palette_token: nullable<StablePaletteToken>
+  palette_token_ref: nullable<PaletteTokenRefV1>
 ```
 
 Reference intent mappingを次に閉じる。
@@ -558,6 +681,24 @@ Reference intent mappingを次に閉じる。
 
 Reference Presetは次のversioned constantsとResolver ruleであり、Source copyではない。
 
+```text
+EnvironmentPresetCatalogV1
+  catalog_id: StableId
+  catalog_version: positive u32
+  entries[1..256]: EnvironmentPresetEntryV1
+  catalog_content_hash: SHA-256
+
+EnvironmentPresetEntryV1
+  preset_id: StableId
+  preset_version: positive u32
+  preset_content_hash: SHA-256
+  section_replacements[1..11]: EnvironmentSectionReplacementV1
+  required_capability_refs[0..32]
+  reference_cloud_assets_ref: nullable<ReferenceCloudAssetsRefV1>
+```
+
+Catalog entriesは`preset_id` byte順へstrict sortし重複を拒否し、全entryに`semantic_intent` replacementをexact一件要求する。`preset_content_hash`はASCII `MIRAKAN_ENVIRONMENT_PRESET_ENTRY_V1`と自己hashを除く全Field、Catalog hashはASCII `MIRAKAN_ENVIRONMENT_PRESET_CATALOG_V1`と自己hashを除く全Fieldのlength-framed canonical bytesをSHA-256する。Preset適用はentryが列挙する完全sectionだけを置換して他sectionを維持する。表の八件は`preset_version=1`のbuilt-in entryであり、表の定数、完全なtyped section replacement、Capability、Reference Asset refがFixture Catalog artifactで一致するまでActivationしない。
+
 | Preset | Intent | Fog source | Capability |
 |---|---|---|---|
 | `fixture.environment.clear-day` | clear、uniform、shaftなし | visibility 20,000 m、falloff 0 | Environment core |
@@ -569,11 +710,31 @@ Reference Presetは次のversioned constantsとResolver ruleであり、Source c
 | `fixture.environment.stylized-tinted-fog` | stylized、palette_token | Profile値＋必須Palette token | Environment core／advanced |
 | `fixture.environment.reference-earth-atmosphere` | outdoor、inherit time | `ReferenceEarthV1` atmosphere | Atmosphere LUT |
 
-Preset適用は既存human lockを維持する。`typed_overrides`はlockされていないfieldにだけ許可し、closed enum／range／Capability／Target／fallbackを通常のValidatorで再検査する。lock済みfieldの上書き、Presetにないfieldの暗黙補完、unknown override、`fixture.environment.stylized-tinted-fog`のPalette token欠落、`fixture.environment.reference-earth-atmosphere`へのcustom係数混在を拒否する。明示Target visibilityは候補のtyped overrideにできるがPreset定数自体を変更しない。
+Preset適用は既存human lockを維持する。`EnvironmentSectionOverrideV1`はlockされていないPreset replacement branchにだけ許可し、complete type、closed enum／range／Capability／Target／fallbackを通常のValidatorで再検査する。lock済みfieldの上書き、Preset replacement外branchの暗黙補完、unknown override、`fixture.environment.stylized-tinted-fog`のexact Palette token ref欠落、`fixture.environment.reference-earth-atmosphere`へのcustom係数混在を拒否する。明示Target visibilityは完全なFog overrideにできるがPreset定数自体を変更しない。
 
-`fixture.environment.interior-dust-shafts`は選択中room／region boundsをbox shapeへ使い、density multiplier 0.015、albedo `(0.78,0.72,0.62)`、anisotropy 0.7、blend distanceを最短半径の10%とする。bounded regionを一意に取得できなければshapeを推測せずBlocking質問へ停止する。Built-in Cloud Presetは同version `ReferenceCloudAssetsV1`一式を参照し、Project Assetが明示指定された場合だけ全件置換する。部分置換とnoise texel生成を禁止する。
+`fixture.environment.interior-dust-shafts`は選択中room／region boundsをbox shapeへ使い、density multiplier 0.015、albedo `(0.78,0.72,0.62)`、anisotropy 0.7、blend distanceを最短半径の10%とする。bounded regionを一意に取得できなければshapeを推測せずBlocking質問へ停止する。Built-in Cloud Presetはexact `ReferenceCloudAssetsRefV1`一式を参照し、Project Assetが明示指定された場合だけ全件置換する。部分置換とnoise texel生成を禁止する。
 
-`storm_like`はCloud intentであり雨、雷、風、Gameplay weatherを暗黙生成しない。`gentle／windy／inherit_weather`はversioned Weather bindingがある場合だけ風向／速度を解決し、bindingなしで`still`以外ならBlocking質問を一つ返す。`time_of_day`はexact `TimeOfDayPresentationBindingV1`がある場合だけ、そのversioned Sourceとsun／moon Lightへ渡す。bindingなし、minimum revision不足、Skyのsun／moon link差、Lighting Resolver unavailableのいずれかで`inherit`以外なら、登録済みPreset提示またはBlocking質問を一つ返し、Environment fieldだけを部分変更しない。
+`storm_like`はCloud intentであり雨、雷、風、Gameplay weatherを暗黙生成しない。`gentle／windy／inherit_weather`はexact Weather bindingがある場合だけ風向／速度を解決し、bindingなしで`still`以外ならBlocking質問を一つ返す。`time_of_day`はexact `TimeOfDayPresentationBindingV1`とfresh `PresentationTimeSampleV1`がある場合だけ、そのSourceとsun／moon Lightへ渡す。binding／sampleなし、ref不一致、sample sequence巻戻り、Skyとbindingのsun／moon集合差、Lighting Resolver unavailableのいずれかで`inherit`以外なら、登録済みPreset提示またはBlocking質問を一つ返し、Environment fieldだけを部分変更しない。
+
+`EnvironmentIntentResolverV1`は次の純粋関数契約に固定する。
+
+```text
+resolve(
+  EnvironmentIntentV1,
+  EnvironmentProfileV1,
+  EnvironmentWorldBindingV1,
+  EnvironmentPresetCatalogV1,
+  VisualStyleProfileRefV1 | null,
+  WeatherPresentationSnapshotRefV1 | null,
+  PresentationTimeSampleV1 | null,
+  TargetCapabilitySnapshotV1,
+  EnvironmentBudgetEnvelopeV1,
+  PolicySnapshotV1,
+  ResolvedLightPlanRefV1 | null
+) -> EnvironmentIntentCandidateV1[0..3] | EnvironmentDiagnosticSetV1
+```
+
+入力Profile、Style、Weather、Time、Target、Budget、Policy、companion Planは同じbase Project revision／World／Target closureへ解決する。Budget envelopeがmissing／stale／別Worldならcostを推測せずDiagnosticへ停止する。
 
 ```text
 EnvironmentIntentCandidateV1
@@ -581,27 +742,80 @@ EnvironmentIntentCandidateV1
   base_project_revision: positive u64
   world_binding_ref: exact EnvironmentWorldBindingRefV1
   target_profile_refs[1..64]
-  preset_id: EnvironmentPresetId
-  typed_overrides[]
+  preset_ref: nullable<EnvironmentPresetRefV1>
+  section_overrides[0..11]: EnvironmentSectionOverrideV1
   required_capability_refs[0..32]
-  estimated_cost
+  estimated_cost: EnvironmentCostEstimateV1
   assumptions[0..32]
   blocking_questions[0..7]
   confidence_q16: u16
   companion_lighting_plan_ref: nullable<ResolvedLightPlanRefV1>
   expires_at
   contract_hash: SHA-256
+
+EnvironmentCostEstimateV1
+  budget_envelope_ref: exact EnvironmentBudgetEnvelopeRefV1
+  estimated_gpu_p95_us: nonnegative u64
+  estimated_persistent_bytes: nonnegative u64
+  estimated_transient_peak_bytes: nonnegative u64
+  artifact_rebuild_units: nonnegative u32
+  confidence_q16: u16
+  estimate_content_hash: SHA-256
 ```
 
-このtyped candidateを`EnvironmentChangeSet` Proposalへ投影する。`companion_lighting_plan_ref`はTime-of-Day candidateがsun／moon Source変更を必要とする時だけ必須で、[Lighting](lighting.md)のResolver出力を参照するだけとしLight patchを複写しない。Planのbase Project revision、World、Target、expiryはcandidateとbyte equality、`affected_light_ids[]`はbindingが指定するsunとoptional moonのexact集合を含まなければならない。Resolver順はlock／Target／minimum quality除外、explicit intent match、Style／Weather／Time-of-Day binding、minimum capability、Preset ID byte tie-break。最大3候補で、Gameplay visibility混同、lock conflict、Targetなし、必要なcompanion Plan欠落は質問へ停止する。
+このtyped candidateを`EnvironmentChangeSetProposalV1`へ投影する。`companion_lighting_plan_ref`はTime-of-Day candidateがsun／moon Source変更を必要とする時だけ必須で、[Lighting](lighting.md)のResolver出力を参照するだけとしLight patchを複写しない。Planのbase Project revision、World、Target、expiryはcandidateとbyte equality、`affected_light_ids[]`はbindingが指定するnon-null sun／moonのexact集合とset equalityでなければならない。Resolver順はlock／Target／minimum quality除外、explicit intent match、Style／Weather／Time-of-Day binding、minimum capability、Preset ID byte tie-break。最大3候補で、Gameplay visibility混同、lock conflict、Targetなし、必要なcompanion Plan欠落は質問へ停止する。
+
+`operation.environment.inspect_profile`はauthored Sourceだけを返し、実効値を装わない。`operation.environment.explain_effective`は次のread-only projectionを返す。
+
+```text
+EnvironmentEffectiveStateV1
+  base_project_revision: positive u64
+  world_binding_ref: exact EnvironmentWorldBindingRefV1
+  environment_profile_ref: exact EnvironmentProfileRefV1
+  visual_style_profile_ref: nullable<exact VisualStyleProfileRefV1>
+  weather_snapshot_ref: nullable<exact WeatherPresentationSnapshotRefV1>
+  presentation_time_sample_ref: nullable<exact PresentationTimeSampleRefV1>
+  target_profile_refs[1..64]
+  budget_envelope_ref: exact EnvironmentBudgetEnvelopeRefV1
+  sky: SkySourceV1
+  atmosphere: AtmosphereSourceV1
+  fog: FogSourceV1
+  local_fog_volumes[0..128]: LocalFogVolumeSourceV1
+  cloud: CloudSourceV1
+  lighting: EnvironmentLightingSourceV1
+  selected_fallback_refs[0..32]
+  field_origins[1..512]: EnvironmentEffectiveOriginV1
+  companion_lighting_plan_ref: nullable<ResolvedLightPlanRefV1>
+  diagnostics
+  effective_state_content_hash: SHA-256
+
+EnvironmentEffectiveOriginV1
+  field_id: stable u32
+  source_kind:
+    authored_source | applied_preset_provenance | visual_style | weather |
+    presentation_time | target | budget | fallback | companion_lighting
+  exact_origin_ref: closed source-kind-matched ref
+
+EnvironmentPlanExplanationV1
+  effective_state_content_hash: SHA-256
+  decision_records[1..512]:
+    {field_id, authored_value_hash, effective_value_hash, origin_ref, rule_id, disposition: accepted | rejected, reason_code}
+  omitted_candidate_reasons[0..64]
+  blocking_questions[0..7]
+```
+
+`EnvironmentEffectiveOriginV1.exact_origin_ref`は`authored_source -> EnvironmentProfileRefV1`、`applied_preset_provenance -> EnvironmentPresetRefV1`、`visual_style -> VisualStyleProfileRefV1`、`weather -> WeatherPresentationSnapshotRefV1`、`presentation_time -> PresentationTimeSampleRefV1`、`target -> exact Target Profile ref`、`budget -> EnvironmentBudgetEnvelopeRefV1`、`fallback -> exact Product fallback Registry ref`、`companion_lighting -> ResolvedLightPlanRefV1`のclosed対応とし、kindとref branch不一致を拒否する。`field_origins[]`と`decision_records[]`は`field_id` byte順、fallback refsはfallback ID順へstrict sortし重複を拒否する。Source、Preset、Weather、Style、Time、Target、Budget、fallback、companion Lightingのどれが値を決めたかを一件ずつ示し、screen label、現在Camera、Editor preview、Renderer native stateを根拠にしない。露出はこのprojectionに含めず、Post Process Ownerへのexact navigation relationだけをUIが別表示できる。
 
 ```text
 EnvironmentPreviewReceiptV1
-  receipt_id
+  receipt_id: StableId
+  receipt_content_hash: SHA-256
   contract_set_hash
   base_project_revision
   canonical_changeset_hash
-  target_profile_id
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  budget_envelope_ref: exact EnvironmentBudgetEnvelopeRefV1
   quality_tier
   camera_set_hash
   before_capture_refs[1..3]
@@ -615,13 +829,22 @@ EnvironmentPreviewReceiptV1
   fallback_summary
   diagnostics
   expires_at
+
+EnvironmentPreviewReceiptRefV1
+  receipt_id: StableId
+  receipt_content_hash: SHA-256
+  base_project_revision: positive u64
+  canonical_changeset_hash: SHA-256
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  expires_at
 ```
 
-Ground／elevated／representative gameplay cameraを最低1件使う。Environment／Water／Snowを別Preview lifecycleにせず、同じroot revision、Target、fallback summaryへ結ぶ。
+Receipt hashはASCII `MIRAKAN_ENVIRONMENT_PREVIEW_RECEIPT_V1`と自己hashを除く全Fieldのlength-framed canonical bytesからSHA-256する。Refはreceipt identity／hash、base revision、ChangeSet hash、Target ref、expiryを解決先とbyte equalityにする。Ground／elevated／representative gameplay cameraを最低1件使う。Environment／Water／Snowを別Preview lifecycleにせず、同じroot revision、Target、fallback summaryへ結ぶ。
 
 Validator固定順はSchema／enum／collection／finite／unit、ID／revision／Asset ref、domain invariant、lock／base revision、Capability／Target／fallback、domain cost、Scene bounds／camera、cross-profile invariant、fresh Previewである。Custom atmosphere全係数、scene-wide sky／sun、visibility 100 m未満または4倍超、required volumetric、dynamic Snow、Gameplay visibility混同はBefore／After Previewを必須にする。Authorization／approval判定はGovernance ownerへ委譲する。
 
-EditorのEnvironment PanelはIntent／Preset／World binding／visibility／time／cloud、advanced atmosphere／Fog／Volume／IBL、cost／fallback／diagnosticだけを上記planned semantic actionsへ変換する。Activation後だけ各actionを完全登録済みMCD Operationへ解決する。Water body／flow／depth／wave／query、Weather、Snow receiver／mask／page／stampはSource projectionを表示できるが、別Owner familyが完全登録されるまではread-only Gap表示とし、future action labelからOperationを推測しない。AIはLUT、froxel、step、format、history、GPU texture、Particle buffer、Physics force／frictionを編集しない。
+EditorのEnvironment Panelはexact `basic | detailed`の二表示modeだけを持つ。`basic`はIntent／Preset／World binding／visibility／time／cloud／cost／fallback／diagnostic、`detailed`は同じcanonical fieldにAtmosphere／Fog／Volume／IBLと`EnvironmentEffectiveStateV1`のorigin／reasonを追加する。表示modeはSourceへ保存せず、別の簡易値や既定値を持たない。Activation後だけ各actionを完全登録済みMCD Operationへ解決する。露出はPost Process Ownerへのread-only status／navigationだけで、Environment actionへ変換しない。Water body／flow／depth／wave／query、Weather、Snow receiver／mask／page／stampはSource projectionを表示できるが、別Owner familyが完全登録されるまではread-only Gap表示とし、future action labelからOperationを推測しない。AIはLUT、froxel、step、format、history、GPU texture、Particle buffer、Physics force／frictionを編集しない。
 
 ### 6.1 有名Engineとの設計比較
 
@@ -629,19 +852,19 @@ EditorのEnvironment PanelはIntent／Preset／World binding／visibility／time
 
 | 比較Engineの公開モデル | 採用する要点 | Miraikanaiでの差分 |
 |---|---|---|
-| [Unreal Engine Environment Light Mixer](https://dev.epicgames.com/documentation/en-us/unreal-engine/environment-light-mixer-in-unreal-engine) | Sky、Atmosphere Light、Cloud、Sky Lightを一つのdockable windowへ集約し、Minimal／Normal／Advancedで表示量を切り替える | Environment Panelへ集約し詳細度を変えても同じcanonical field refを維持する。一般Lightは[Light Mixer](https://dev.epicgames.com/documentation/en-us/unreal-engine/using-the-light-mixer-in-unreal-engine)と同様にLighting Ownerへ分離し、Time-of-Dayだけexact companion Planで連携する |
-| [Unity Lighting window](https://docs.unity3d.com/6000.0/Documentation/Manual/lighting-window.html)と[HDRP Volume](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@10.5/manual/Volumes.html) | Scene単位のEnvironment lightingと、Profile参照によるglobal／local override・camera位置でのblendを区別する | World bindingとProfile refをSourceで明示し、Local Fogだけをbounded typed volumeにする。全Environment fieldをgeneric override stackへせず、同priorityの評価順やscene object列挙へ正本性を依存させない |
-| [Godot WorldEnvironment](https://docs.godotengine.org/en/stable/classes/class_worldenvironment.html)と[Environment／post-processing](https://docs.godotengine.org/en/stable/tutorials/3d/environment_and_post_processing.html) | SceneのEnvironment resource、Camera override、Editor preview sun／skyを別優先度・別用途として扱う | WorldはEnvironment bindingを最大一件だけ持ち、Camera／Post Processは各Ownerのexact overrideに分離する。Editor previewをRuntime EnvironmentやSource既定値へ昇格しない |
+| [Unreal Engine 5.8 Environment Light Mixer](https://dev.epicgames.com/documentation/en-us/unreal-engine/environment-light-mixer-in-unreal-engine?application_version=5.8) | Sky Light、最大二つのAtmosphere Directional Light、Sky Atmosphere、Volumetric Cloudを一つのdockable windowへ集約し、Minimal／Normal／Normal+Advancedでproperty表示量を切り替える | Environment Panelへ集約し詳細度を変えても同じcanonical field refを維持する。一般Lightは[UE 5.8 Light Mixer](https://dev.epicgames.com/documentation/en-us/unreal-engine/using-the-light-mixer-in-unreal-engine?application_version=5.8)と同様にLighting Ownerへ分離し、Time-of-Dayだけexact companion Planで連携する |
+| [Unity 6 Lighting window](https://docs.unity3d.com/6000.0/Documentation/Manual/lighting-window.html)、[HDRP 17.0 Visual Environment](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/Override-Visual-Environment.html)、[Volume](https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.0/manual/volume-component.html) | Scene単位のEnvironment lightingと、Profile参照によるglobal／local Volume、weight／priority／blendを区別する | World bindingとProfile refをSourceで明示し、Local Fogだけをbounded typed volumeにする。全Environment fieldをgeneric override stackへせず、同priority時の任意評価順やscene object列挙へ正本性を依存させない |
+| [Godot 4.5 WorldEnvironment](https://docs.godotengine.org/en/4.5/classes/class_worldenvironment.html)と[Environment／post-processing](https://docs.godotengine.org/en/4.5/tutorials/3d/environment_and_post_processing.html) | SceneのEnvironment resource、Camera override、Editor preview sun／skyを別優先度・別用途として扱い、露出／被写界深度はEnvironmentからCameraAttributesへ分離する | WorldはEnvironment bindingを最大一件だけ持ち、Camera／Post Processは各Ownerのexact overrideに分離する。露出をEnvironmentへ複写せず、Editor previewをRuntime EnvironmentやSource既定値へ昇格しない |
 
 共通して有効なのは「環境関連設定の一箇所集約」「Profile／resource参照」「Scene／World scope」「詳細度切替」「光源との明示連携」である。本設計はさらに、AI向けにStable ID／revision／hash、typed intent、bounded candidate、read-only projection、Operation→Change primitive coverage、fallback ID、Source／Derived／Runtime境界を必須にする。これによりAIは画面label、Actor／Node名、配列順、現在Camera、Editor previewから編集対象や権限を推測しない。
 
 ## 7. Domain budgetとfallback
 
-Environment tier semanticsはLow＝precomputed sky＋height fog＋2D cloud、Medium＝atmosphere LUT＋160×90×64 fog＋1/4 cloud、High＝dynamic IBL＋240×135×96 fog＋1/2 cloud／shadowである。Environment persistent＋history＋exclusive transient peakはLow 32 MiB、Medium 128 MiB、High 256 MiB、Medium domain GPU P95 soft ceiling 2.00 ms。Alias後physical peakとlogical内訳を共に記録し、未証明aliasを0 byte扱いしない。
+Environment tier semanticsはLow／Core＝precomputed sky＋height fog＋2D cloud＋baked diffuse／specular IBL、Medium＝atmosphere LUT＋160×90×64 fog＋1/4 cloud、High＝dynamic IBL＋240×135×96 fog＋1/2 cloud／shadowである。Environment persistent＋history＋exclusive transient peakはLow 32 MiB、Medium 128 MiB、High 256 MiB、Medium domain GPU P95 soft ceiling 2.00 ms。これらは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が公開する同revision／Target／World／View Familyの`EnvironmentBudgetEnvelopeV1`内数であり、Resolver、Preview、QualificationはそのrevisionをReceiptへ記録する。Alias後physical peakとlogical内訳を共に記録し、未証明aliasを0 byte扱いしない。
 
 Environment fallback順はcloud-shadow update frequency、light steps、primary steps／scale、Fog XY→Z、local light count、dynamic→baked IBL、volumetric→2D cloud、volumetric→height fog、atmosphere LUT→precomputed cubemap。同じPalette、sun／moon meaning、target visibility、Gameplay ruleを維持し、minimum tier未満はsilent fallbackしない。
 
-Product Planのexact fallback IDとの対応は次に固定する。`fallback.rendering.ibl-baked`は`dynamic_incremental -> baked`と同じdiffuse／specular有効意味、Palette、sun／moon link、exposure rangeを維持し、`diagnostic.rendering.ibl-baked-selected`を発行する。`fallback.rendering.environment-core`は上記順のうちdynamic IBL以外のadvanced要素をLow tierのprecomputed sky＋height fog＋2D cloudへ落とし、Palette、sun／moon meaning、target visibility、Gameplay ruleを維持して`diagnostic.rendering.environment-fallback-selected`を発行する。必要Asset不在、target visibilityまたはminimum tierを維持不能、未登録中間variantの場合は`preserves_semantics=true`を主張せずfallback全体を拒否する。別順序、silent fallback、Product fallback IDなしの成功扱いを禁止する。
+Product Planのexact fallback IDとの対応は次に固定する。`fallback.rendering.ibl-baked`は`dynamic_incremental -> baked`と同じdiffuse／specular有効意味、Palette、sun／moon linkを維持し、`diagnostic.rendering.ibl-baked-selected`を発行する。`fallback.rendering.environment-core`はadvanced要素をLow／Coreのprecomputed sky＋height fog＋2D cloud＋baked IBLへ落とし、Palette、sun／moon meaning、target visibility、Gameplay ruleを維持して`diagnostic.rendering.environment-fallback-selected`を発行する。`capability.environment.core`、`height_fog`、`ibl_baked`はCore構成要素であり相互fallbackせず、いずれかが不成立なら`fallback.capability.unavailable`でfail closedにする。必要Asset不在、target visibilityまたはminimum tierを維持不能、未登録中間variantの場合は`preserves_semantics=true`を主張せずfallback全体を拒否する。別順序、循環fallback、silent fallback、Product fallback IDなしの成功扱いを禁止する。
 
 | Water ceiling | Baseline desktop | Advanced desktop | Advanced mobile standard |
 |---|---:|---:|---:|
@@ -663,13 +886,13 @@ Snow fallback順はfootprint detail、field update distance、sparkle、normal d
 
 ## 8. Diagnostic、failure、qualification
 
-Environment closed Diagnosticは`EnvironmentPresetNotFound, EnvironmentIntentAmbiguous, EnvironmentIntentUnsupported, EnvironmentInvalidUnit, EnvironmentInvalidRange, EnvironmentFogVisibilityConflict, EnvironmentFogFarBeforeNear, EnvironmentAtmosphereIncomplete, EnvironmentAtmosphereRadiusInvalid, EnvironmentLocalFogLimitExceeded, EnvironmentCloudLayerInvalid, EnvironmentCloudAssetMissing, EnvironmentCapabilityUnavailable, EnvironmentTargetFallbackMissing, EnvironmentBudgetExceeded, EnvironmentDerivedFieldWriteForbidden, EnvironmentHistoryPolicyLocked, EnvironmentHumanLockConflict, EnvironmentPreviewRequired, EnvironmentPreviewStale, EnvironmentWeatherBindingStale, EnvironmentStyleConflict, EnvironmentGenerationMismatch, EnvironmentIblPromotionIncomplete`。
+Environment closed Diagnosticは`EnvironmentPresetNotFound, EnvironmentPresetRefStale, EnvironmentIntentAmbiguous, EnvironmentIntentUnsupported, EnvironmentInvalidUnit, EnvironmentInvalidRange, EnvironmentFogVisibilityConflict, EnvironmentFogFarBeforeNear, EnvironmentAtmosphereIncomplete, EnvironmentAtmosphereRadiusInvalid, EnvironmentLocalFogLimitExceeded, EnvironmentCloudLayerInvalid, EnvironmentCloudAssetMissing, EnvironmentCapabilityUnavailable, EnvironmentTargetFallbackMissing, EnvironmentBudgetEnvelopeMissing, EnvironmentBudgetEnvelopeStale, EnvironmentBudgetExceeded, EnvironmentDerivedFieldWriteForbidden, EnvironmentHistoryPolicyLocked, EnvironmentHumanLockConflict, EnvironmentPreviewRequired, EnvironmentPreviewStale, EnvironmentWeatherBindingStale, EnvironmentStyleBindingStale, EnvironmentStyleConflict, EnvironmentTimeSourceMissing, EnvironmentTimeSourceStale, EnvironmentTimeSampleOutOfOrder, EnvironmentSunMoonLinkMismatch, EnvironmentCompanionLightingPlanMissing, EnvironmentCompanionLightingPlanStale, EnvironmentCompanionLightingScopeMismatch, EnvironmentGenerationMismatch, EnvironmentIblPromotionIncomplete`。
 
 Waterは`WaterInvalidBoundary, WaterBodyOverlapConflict, WaterUnsupportedBodyKind, WaterWaveOutOfRange, WaterDepthCookFailed, WaterQueryQueueFull, WaterQueryStaleSnapshot, WaterCpuGpuMismatch, WaterRenderBudgetExceeded, WaterResourceGenerationMismatch, WaterFallbackMissing`。Weather／Snowは`WeatherValueOutOfRange, SnowReceiverInvalid, SnowMaskMissingUv, SnowDynamicCapabilityMissing, SnowPageBudgetExceeded, SnowStampOverflow, SnowFieldGenerationMismatch, SnowMaterialInterfaceMismatch, SnowFallbackMissing, SnowRenderBudgetExceeded`である。
 
 Validation、Compile、Bake failureではlive root revisionとlive generationを変えず、partial artifactを公開しない。stale bindingはlast valid snapshot＋Diagnostic、budget overflowは規定fallbackかreject、device lossはSource／receiptから再生成する。
 
-Contract qualificationは全Source／operationのvalid／boundary／invalid／unknown／NaN／unit、lock／stale／Capability／fallback／partial custom body、resolver candidate順／ChangeSet／artifact hash determinismを含む。8 Reference Presetはそれぞれ同一Inputから同じcandidate順、typed override、ChangeSet hashと上表のexact constantsを得るfixtureを持ち、lock競合、unknown override、Palette token欠落、bounds不明、Cloud Asset部分置換をnegative fixtureとする。Environment fixturesはclear day、morning mist、dense fog、local dust、sunset atmosphere、overcast cloud、camera cut／extent／origin rebase／sun／weather history、Water／Transparent／Pixel／VFX／UI compositeである。
+Contract qualificationは全Source／operationのvalid／boundary／invalid／unknown／NaN／unit、lock／stale／Capability／fallback／partial custom body、resolver candidate順／ChangeSet／artifact hash determinismを含む。8 Reference Presetはそれぞれ同一Inputから同じcandidate順、closed section override、ChangeSet hashと上表のexact constantsを得るfixtureを持ち、lock競合、unknown／duplicate override、Palette token欠落、bounds不明、Cloud Asset部分置換をnegative fixtureとする。Time-of-Day fixtureはSource ref／sample／named phase、Sky link、Lighting Plan／ChangeSet proposalの同一revision／World／Target／expiryとsun／moon exact set equality、atomic Commit、片側失敗時Source不変を検証する。Effective-state fixtureはSource、Preset、Weather、Style、Time、fallbackごとのorigin／reasonと同一入力hash determinismを検証し、露出field混入をnegative fixtureにする。Environment fixturesはclear day、morning mist、dense fog、local dust、sunset atmosphere、overcast cloud、camera cut／extent／origin rebase／sun／weather history、Water／Transparent／Pixel／VFX／UI compositeである。
 
 Water fixturesはbounded pool、river-like mesh、2D tile、lake／river／ocean overlap、flat Volume enter／exit、analytic CPU／GPU tolerance、buoyancy frame-rate independence、probe／SSR／underwater／waterline／flow／depth／foam、LOD invariance、device recoveryを含む。Query fixtureは全7 status、16,384／4,096境界、QueueFull非fallback、stale generationを検査する。Save／load fixtureはBody Asset revision、Gameplay water state、解析波開始advanceから同じqueryを復元し、GPU texture／foam／SSR historyがpayloadにないことを検査する。Interaction fixtureは各closed kindとinvalid field、同一Simulation Advance内のcanonical order、Replay後の7 field／VFX seed一致、VFX／Audio独立配送、Gameplay逆入力0を検査する。Snow fixturesは2D／3D precipitation、Style variants、authoritative contact、exact `SimulationAdvanceIntervalV1`列を固定したfield hash、duration-null時のtime pass停止、page／stamp order、Save canonical omission／load reset、complete／incomplete visual Replay判定、device recovery、Gameplay friction invariance、LOD／static fallbackである。
 

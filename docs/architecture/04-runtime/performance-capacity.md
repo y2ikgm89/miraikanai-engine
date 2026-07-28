@@ -203,7 +203,7 @@ Subsystem固有pass／Domain budgetは各Ownerが上表の内数として割り�
 
 `PostProcessBudgetEnvelopeV1`は本書がOwnerとして公開するread-only／revisioned projectionであり、最低fieldとしてrevision、Target Profile ref、Post／Exposure pass groupの内数としてのGPU P95 cap、Post Process用persistent／transient byte上限を持つ。[Post Processing](../06-rendering/post-processing.md) §7のresolver入力はこのprojectionを消費し、field一覧を複写せず書き戻さない。Temporal reconstruction、frame generation、ray tracing等の追加経路はbase real frame、headroom、memory、visual、fault Gateを満たすTarget限定profileとし、generated frameをreal fpsへ加算して合格を作らない。
 
-`RendererBudgetEnvelopeV1`と`LightingBudgetEnvelopeV1`も本書がOwnerとして公開するread-only／revisioned projectionである。
+`RendererBudgetEnvelopeV1`、`LightingBudgetEnvelopeV1`、`EnvironmentBudgetEnvelopeV1`も本書がOwnerとして公開するread-only／revisioned projectionである。
 
 ```text
 RendererBudgetEnvelopeV1
@@ -245,9 +245,36 @@ LightingBudgetEnvelopeV1
   persistent_byte_reserved: uint64
   persistent_byte_remaining: derived cap - reserved
   content_hash: SHA-256
+
+EnvironmentBudgetEnvelopeV1
+  revision: positive uint64
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  quality_profile_ref:
+    exact {quality_profile_id, quality_profile_version, quality_profile_content_hash}
+  world_scope_hash: SHA-256
+  view_family_id: StableId
+  environment_gpu_p95_cap_us: finite nonnegative microseconds
+  environment_gpu_p95_reserved_us: finite nonnegative microseconds
+  environment_gpu_p95_remaining_us: derived cap - reserved
+  transient_byte_cap: uint64
+  transient_byte_reserved: uint64
+  transient_byte_remaining: derived cap - reserved
+  persistent_byte_cap: uint64
+  persistent_byte_reserved: uint64
+  persistent_byte_remaining: derived cap - reserved
+  content_hash: SHA-256
+
+EnvironmentBudgetEnvelopeRefV1
+  revision: positive uint64
+  target_profile_ref:
+    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  world_scope_hash: SHA-256
+  view_family_id: StableId
+  content_hash: SHA-256
 ```
 
-全remaining値は同じrevisionの`cap - reserved`から再計算し、負値、別Target／scope／View Familyの混在、stale reservationを拒否する。`content_hash`はそれぞれASCII `MIRAKAN_RENDERER_BUDGET_ENVELOPE_V1`、`MIRAKAN_LIGHTING_BUDGET_ENVELOPE_V1`と自己Fieldを除くlength-framed canonical bytesをSHA-256する。[Render Graph](../06-rendering/render-graph.md)のOutline resolverと[Lighting](../06-rendering/lighting.md)のIntent Resolverはこのprojectionをread-only inputとして消費し、field一覧を複写または書き戻さない。
+全remaining値は同じrevisionの`cap - reserved`から再計算し、負値、別Target／scope／View Familyの混在、stale reservationを拒否する。`content_hash`はそれぞれASCII `MIRAKAN_RENDERER_BUDGET_ENVELOPE_V1`、`MIRAKAN_LIGHTING_BUDGET_ENVELOPE_V1`、`MIRAKAN_ENVIRONMENT_BUDGET_ENVELOPE_V1`と自己Fieldを除くlength-framed canonical bytesをSHA-256する。`EnvironmentBudgetEnvelopeRefV1`は解決先Environment envelopeのrevision、Target、World scope、View Family、hashへ全Fieldでbyte equalityにする。[Render Graph](../06-rendering/render-graph.md)のOutline resolver、[Lighting](../06-rendering/lighting.md)のIntent Resolver、[Environment／Surfaces](../06-rendering/environment-surfaces.md)のEnvironment Intent Resolverは対応projectionをread-only inputとして消費し、field一覧を複写または書き戻さない。
 
 共通operation budgetはAudio callback P99 0.25 ms以下かつhard 1.00 ms未満、main／render thread activation slice soft 0.50 msかつhard 1.00 ms以下、warm-cache package start P95 soft 5.00 sかつhard 8.00 s、Scene reload P95 soft 2.00 sかつhard 3.00 sとする。
 
