@@ -130,3 +130,5 @@ Contract、Source、Cooked、Runtime、Save／Replay、AI proposal、failure、r
 ## 10. 禁止する固定階層とunrestricted scripting runtime
 
 Genre、Level、Player、Character、Weapon、QuestをEngine必須階層へ固定しない。Unrestricted scripting VM、eval、download code、native FFIをGameplayDefinitionの一般逃げ道にしない。
+
+[Product Plan](../00-product/product-plan.md)の`future.capability.unrestricted-project-scripting-runtime`はstructured content MOD、sandboxed executable MOD、signed AOT desktop native extension、developer-only executable code（JIT／未署名）を分離検討するincubation umbrellaであり、current GameplayDefinition、Project-defined System、AI code generation、NativeGameModuleを拡張しない。umbrella、表示名、署名、hash一致からOperation、Host API、native権限、Shipping対応を生成しない。

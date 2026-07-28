@@ -23,6 +23,10 @@ ShippingではProject C++をGame binaryへ静的linkする。Windows Development
 
 これによりShipping最適化とattack surface縮小を優先しながら、Windows Editorの反復速度をGameHost再起動で確保する。
 
+code signature、publisher certificate、content hash、provenance Receiptはartifact identityとintegrityのEvidenceであり、load権限、Engine private API、Target対応を付与するCapabilityではない。Shipping packageはPackage closureの外からdownload、追加、差替えられたnative code、汎用plugin DLL、任意pathのbinary、JIT生成codeをloadしない。Windows Development Preview DLLもexact Project／Engine／Contract／Toolchain／Target identity、Governance authorization、read-only artifact directoryを満たす一件だけを新規GameHost startup時にloadし、未署名codeをShipping、Release、MOD配布へ昇格させない。
+
+[Product Plan](../00-product/product-plan.md)の`future.capability.unrestricted-project-scripting-runtime`は将来scopeを分解するincubation umbrellaであり、本書のC ABI、Preview DLL、static linkからsigned AOT native extension、dynamic plugin、sandbox VM、JIT対応を推測しない。将来のsigned AOT desktop extensionが独立Future Capabilityとして成立しても本`NativeGameModule`と別artifact family、別Owner、別ABI／trust／Target／Qualificationを持つ。interpreted／bytecode MODとJITはNativeGameModuleではない。
+
 公式比較では、Unreal Engine 5.8はProject `Source`のprimary module、Unity 6はnative plug-in境界、Godot 4.5はEngine再compileを不要にするGDExtension native libraryをそれぞれ公開している。本設計が採用する共通原則は「固定Engine baseline＋Project-owned extension＋明示ABI／Build／Target別Qualification」だけである。[Unreal Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)、[Unity Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)、[Godot 4.5 GDExtension](https://docs.godotengine.org/en/4.5/tutorials/scripting/gdextension/what_is_gdextension.html)を比較Evidenceとし、いずれのAPI互換、plugin ecosystem互換、hot reload挙動、機能同等性も保証しない。MiraikanaiのProject C++は本書のbounded ABI、Engine非改変、Process隔離、static Shipping link、Receipt Gateを正本とする。
 
 C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget`として登録できる。ただしこれは一般Widget pluginではなく、UI規約の型付きManifest、bounded primitive、typed command、Accessibility、fallbackを満たすNativeGameModule Capabilityである。Project codeをEditor Processへloadせず、PreviewはGameHostだけで実行する。
@@ -45,7 +49,7 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 - Box2D／Jolt／Recast／ozz／XAudio2等のvendor API
 - Engine全Projectで再利用すべきSubsystem
 - 汎用reflection、汎用plugin loader、任意console、Script interpreter
-- Downloadしたbinary、Runtime生成C++、Runtime compiler
+- Downloadしたbinary、package closure外の追加／差替えbinary、Runtime生成C++、Runtime compiler、JIT
 - Anti-cheat、DRM、広告SDK、課金SDK等のPlatform／third-party integration
 
 これらはGame制作Taskの対象外である。必要なCapabilityは別Repository／別AuthorizationのEngine製品開発でのみ検討でき、Game制作TaskはPatchや権限へ自動昇格せず`capability_unavailable`で停止する。
