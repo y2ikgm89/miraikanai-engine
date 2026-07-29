@@ -7,7 +7,7 @@
 - 正本範囲: Editor process model、Shell配置、Panel／Workspaceの共通契約、Editor表示locale／AI返答locale preference、制作journey、AI Partner UX、手動編集との往復、Error／Recovery UX、AccessibilityとEditor操作性能
 - 非正本範囲: Widget／Layout実装、Project transaction、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Editor UI Framework](editor-ui-framework.md)、[Project State](project-state.md)、[Asset Lifecycle](asset-lifecycle.md)
-- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -19,6 +19,8 @@ Miraikanai EditorはAI chatを中央に置いた単機能appでも、有名Engin
 
 AIは常時表示、tab、floating、非表示をWorkspaceごとに選択できる。既定のProduction WorkspaceではAI Partnerをpinするが、Scene／Hierarchy／Inspector／Assetを置き換えない。
 
+Project create、Template／Sample、update／repair、Documentation、support、NOTICEは[Product Lifecycle](../00-product/product-lifecycle.md)が製品意味を所有する。Editorは同じtyped request／Operation／ReceiptのGUI projectionであり、CLI／headlessと異なるhidden default、silent repair、direct filesystem mutation、partial successを持たない。GUI固有のWizard、progress、confirmation、link presentationは許可するが、request hash、authorization、candidate hash、result、typed Diagnosticを変えない。
+
 ## 2. 決定権と対象外
 
 | 主題 | 正本 |
@@ -26,6 +28,8 @@ AIは常時表示、tab、floating、非表示をWorkspaceごとに選択でき�
 | Shell、panel、layout、workspace、操作、AI Partner、accessibility | 本書 |
 | Project Document、ChangeSet、Commit、Undo、Recovery data | [Project state](project-state.md) |
 | AI Task、質問、権限、Approval、Provider／MCP／CLI | [AI Security／Approval](../01-governance/ai-security-approval.md) |
+| Project bootstrap、Template／Sample／Documentation、surface parity、update／repair／support／NOTICE | [Product Lifecycle](../00-product/product-lifecycle.md) |
+| Product vulnerability case、security update／disclosure／incident | [Product Security](../01-governance/product-security.md) |
 | Debug Session／Event／Counter／Query、pause／step、Replay／Causality、AI診断意味 | Debugging規約 |
 | Runtime／Play、Renderer、Asset、Input／UI／Audio等のDomain意味 | 各Subsystem規約 |
 | Asset Browser、Import Inspector、Preview、Conversion Report、Reimport ConflictのDomain data | [Asset lifecycle](asset-lifecycle.md) |

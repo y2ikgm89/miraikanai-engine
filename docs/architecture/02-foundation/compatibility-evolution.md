@@ -7,13 +7,15 @@
 - 正本範囲: Architecture／Schema／artifact／runtime boundaryの互換性class、consumer inventory、clean-break procedure、reader／writer／aliasの可否、recook／rebuild／migration evidence、互換性ChangeSet
 - 非正本範囲: 個別Domain Schemaのfield、Save payload、Package binary、runtime lease、Product Work Package、外部SDKのversion。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Executable Contracts](executable-contracts.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Product plan](../00-product/product-plan.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Product plan](../00-product/product-plan.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
 ## 1. 結論
 
 互換性は「旧名称を残すこと」ではない。保存済み入力、公開済みconsumer、外部API、配布済みartifactのどれに対して何を読めるかを、Owner、期間、検証、rollbackと共に明記する契約である。
+
+[Product Lifecycle](../00-product/product-lifecycle.md)の`ProductUpdatePlanV1`は本書のCompatibility assessment、migration class、consumer inventory、rollback eligibilityをsame release／Project／CandidateのE2E updateへ束縛するconsumerであり、migration意味を再定義しない。同書の`ProductPublicationRecoveryPolicyV1`は本書が決定したeligibilityの後にCandidate publication、配布済みrelease、不可逆外部actionをorchestrateする別subjectであり、data reader／writer、migration、復元後semanticsまたはrollback可能性を所有しない。[Product Security](../01-governance/product-security.md)のsecurity updateも同じCompatibility契約を使用し、緊急性を理由にpartial migration、implicit reader、旧aliasまたはTarget置換を許可しない。
 
 release済みconsumerを根拠にしない内部設計整理はclean breakを既定とする。旧type alias、dual reader、暗黙変換、synthetic identity、旧path redirectを残さず、committed Sourceから新形式を再生成する。公開済み互換性が必要な場合だけ、versioned migrationと有限のreader期間を承認済みCompatibility ChangeSetへ記録する。
 

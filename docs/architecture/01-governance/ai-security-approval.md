@@ -7,7 +7,7 @@
 - 正本範囲: AI task authorization、Risk、Trust boundary、不変Engine、Sandbox、Credential原則、Provider／MCP／CLI security原則、Preview、人間承認、Consent Recordとpurpose binding、Activation、Promotion、拒否
 - 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持、同意を提示するUI、Platform privacy declaration、data retention／deletion policy。これらはAI Verification／Provenanceまたは各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
+- 関連文書: [AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-23
 
@@ -22,6 +22,8 @@ Miraikanai EngineはHybrid High-Assurance AI Developmentを採用する。次の
 AIはGame制作とEngine製品開発で実装Proposalを作れるが、自分で権限を宣言し、自分の出力を検証済みとみなし、Project revision、正規Git履歴、署名鍵、Storeを直接変更してはならない。
 
 Game制作とEngine製品開発は別Profile、別Repository、別Authorizationである。GameAuthoringProfileV1ではEngine baselineを不変にし、Engine source、Extension、Adapter、Validator、Policyの変更Toolを公開しない。Engine製品開発のR4／A2をGame制作へ継承してはならない。
+
+本書はAI task authorization、approval、sandbox、credential、promotion authorizationだけを所有する。Product全体のthreat ownership、vulnerability report、affected release、security update、disclosure、notification、incident closureは[Product Security](product-security.md)が所有し、本書のAI security event／revocation Evidenceをcase inputとして参照する。AI incidentを本書だけでclosedにせず、Product Security case stateをAI Approval stateへ複写しない。
 
 ### 1.1 規範の優先順位
 

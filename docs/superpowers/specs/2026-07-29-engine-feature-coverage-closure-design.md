@@ -128,282 +128,34 @@ Gameplay progression、spawn rule、Quest、Stage outcomeは各consumer Ownerの
 
 ## 4. Product Lifecycle contract
 
-本節のrecordは設計対象であり、実装済みSchemaまたはactive Operationではない。全objectはclosed、未知Fieldと重複Fieldを拒否する。`exact Ref`はOwner定義のID、positive version／revision、content hashをすべて持つ。表示名、path、`latest`、近いversion、別Targetから再解決しない。
+完全な正規Schemaと不変条件は [Product Lifecycle Architecture](../../architecture/00-product/product-lifecycle.md) だけが所有する。本節は設計判断の要約であり、recordを複製しない。
 
-### 4.1 Releaseとbootstrap
-
-```text
-EngineReleaseBindingV1
-  engine_release_ref: exact EngineReleaseRefV1
-  product_definition_ref: exact ActiveProductDefinitionRefV1
-  toolchain_closure_ref: exact BuildToolchainClosureRefV1
-  supported_target_profile_refs[1..64]: sorted unique exact TargetProfileRefV1
-  public_contract_set_ref: exact PublicContractSetRefV1
-  documentation_bundle_ref: exact DocumentationBundleManifestRefV1
-  security_baseline_ref: exact ProductSecurityBaselineRefV1
-  support_window_ref: exact ProductSupportWindowRefV1
-  release_binding_content_hash: SHA-256
-
-ProjectBootstrapProfileV1
-  bootstrap_profile_id: StableId
-  bootstrap_profile_version: positive u32
-  engine_release_binding_ref: exact EngineReleaseBindingRefV1
-  project_template_ref: exact ProjectTemplateManifestRefV1
-  requested_target_profile_refs[1..64]: sorted unique exact TargetProfileRefV1
-  initial_project_contract_ref: exact InitialProjectContractRefV1
-  bootstrap_policy_ref: exact ProductBootstrapPolicyRefV1
-  bootstrap_profile_content_hash: SHA-256
-```
-
-`supported_target_profile_refs[]`と`requested_target_profile_refs[]`はsubset関係を要求する。Template、public contract、documentation、security baseline、support windowは同じEngine release bindingへexactに閉じる。release IDだけ一致する別hash、同名Template、別Target sampleを受理しない。
-
-### 4.2 Template、Sample、Documentation
-
-```text
-ProjectTemplateManifestV1
-  template_id: StableId
-  template_version: positive u32
-  engine_release_binding_ref: exact EngineReleaseBindingRefV1
-  source_tree_artifact_ref: exact ArtifactRefV1
-  initial_document_refs[1..4096]: sorted unique exact ProjectDocumentRefV1
-  required_capability_refs[0..256]: sorted unique exact CapabilityDefinitionRefV1
-  supported_target_profile_refs[1..64]: sorted unique exact TargetProfileRefV1
-  license_notice_refs[1..256]: sorted unique exact ProductNoticeRefV1
-  template_content_hash: SHA-256
-
-SampleProjectManifestV1
-  sample_id: StableId
-  sample_version: positive u32
-  engine_release_binding_ref: exact EngineReleaseBindingRefV1
-  source_project_artifact_ref: exact ArtifactRefV1
-  expected_project_revision_ref: exact ProjectRevisionRefV1
-  supported_target_profile_refs[1..64]: sorted unique exact TargetProfileRefV1
-  qualification_scenario_refs[1..256]: sorted unique exact QualificationScenarioRefV1
-  documentation_entry_refs[1..256]: sorted unique exact DocumentationEntryRefV1
-  license_notice_refs[1..256]: sorted unique exact ProductNoticeRefV1
-  sample_content_hash: SHA-256
-
-DocumentationBundleManifestV1
-  documentation_bundle_id: StableId
-  documentation_bundle_version: positive u32
-  engine_release_binding_ref: exact EngineReleaseBindingRefV1
-  public_contract_set_ref: exact PublicContractSetRefV1
-  entry_refs[1..65535]: sorted unique exact DocumentationEntryRefV1
-  snippet_fixture_refs[1..4096]: sorted unique exact DocumentationSnippetFixtureRefV1
-  tutorial_scenario_refs[1..4096]: sorted unique exact QualificationScenarioRefV1
-  sample_project_refs[0..256]: sorted unique exact SampleProjectManifestRefV1
-  link_graph_content_hash: SHA-256
-  bundle_content_hash: SHA-256
-```
-
-Documentationはpublic contractと同じreleaseへ束縛し、snippetのcompile／validate／execute種別を明示する。broken link、stale signature、unrunnable sample、別release向けtutorialはrelease acceptanceを失敗させる。Documentationを補足資料としてrelease Gate外へ逃がさない。
-
-### 4.3 Update、support、NOTICE
-
-```text
-ProductUpdatePlanV1
-  update_plan_id: StableId
-  source_engine_release_binding_ref: exact EngineReleaseBindingRefV1
-  destination_engine_release_binding_ref: exact EngineReleaseBindingRefV1
-  source_project_revision_ref: exact ProjectRevisionRefV1
-  candidate_ref: exact PreparedCandidateRefV1
-  compatibility_assessment_ref: exact CompatibilityAssessmentRefV1
-  migration_plan_ref: exact MigrationPlanRefV1
-  target_profile_refs[1..64]: sorted unique exact TargetProfileRefV1
-  required_qualification_scenario_refs[1..4096]: sorted unique exact QualificationScenarioRefV1
-  support_window_ref: exact ProductSupportWindowRefV1
-  update_plan_content_hash: SHA-256
-
-ProductNoticePresentationV1
-  engine_release_binding_ref: exact EngineReleaseBindingRefV1
-  package_artifact_ref: exact ArtifactRefV1
-  sbom_ref: exact SbomRefV1
-  notice_bundle_ref: exact ThirdPartyNoticeBundleRefV1
-  presentation_entry_refs[1..4096]: sorted unique exact ProductNoticePresentationEntryRefV1
-  locale_profile_refs[1..64]: sorted unique exact LocaleProfileRefV1
-  presentation_content_hash: SHA-256
-```
-
-Updateはlive Projectを直接変更しない。source Project revisionとdestination releaseから独立Candidateを作り、Inventory、migration、validation、cook、package、launch、support、NOTICEのsame-candidate closureを得た後だけ一回のpromotionを許す。失敗時は旧release／旧Projectをlast-known-goodとして維持し、途中状態をcurrentにしない。不可逆な外部操作を「rollback済み」と偽装しない。
-
-NOTICE presentationはToolchain Ownerが生成するSBOM／notice sourceを消費し、package artifactとのset equalityとUser到達可能性だけをProduct Lifecycleが判定する。別buildのSBOM、空NOTICE、UI上の到達不能を成功にしない。
-
-### 4.4 共通Operation flow
-
-Editor GUI、CLI、headlessはそれぞれ独自mutationを持たない。
-
-```text
-Editor GUI ─┐
-CLI        ─┼─> same typed request
-Headless   ─┘
-              -> same registered semantic Operation
-              -> same authorization／validation
-              -> same Authoring Command Gateway
-              -> atomic ProjectRevision or no current mutation
-              -> same typed Receipt／diagnostic
-```
-
-表示形式、interactive prompt、progress projectionはsurfaceごとに異なってよい。request meaning、default、authorization、validation、idempotency、candidate hash、receipt meaningは同一でなければならない。GUIだけのhidden default、CLIだけのrepair、headlessだけのpartial successを禁止する。
+- ReleaseはProduct Definition、Toolchain closure、Target、Public Contract、Documentation、Support Windowへexactに閉じる。Securityは完成Releaseを一方向に消費し、Release側へ逆参照を作らない。
+- BootstrapはFoundation Definition Closureを満たすTemplateから、GUI／CLI／headless共通のsemantic Operationで全成否のProjectを作る。partial Project、hidden default、fallbackを許さない。
+- Documentationはversioned Entry、typed snippet／tutorial qualification、DAGのLink graph、Public Contractとのset equalityをRelease Gateに含める。
+- Product updateはCompatibilityが所有するmigration／rollback eligibilityと、Lifecycleが所有するpublication／recovery orchestrationを分離し、同一Candidateのvalidation後に一回だけpromotionする。
+- SBOM／NOTICEのpackage set equality、Support Window closure、通知Receipt、Release Acceptanceはversioned exact Refで追跡し、古いartifactや別releaseのEvidenceを流用しない。
 
 ## 5. Scene composition contract
 
-```text
-SceneCompositionInstanceV1
-  instance_id: StableId
-  source_scene_ref: exact SceneSourceRevisionRefV1
-  parent_instance_id: null | StableId
-  attachment_ref: exact WorldAttachmentRefV1
-  override_set_ref: null | exact SceneOverrideSetRefV1
-  accepted_rebase_change_ref: null | exact SceneRebaseChangeRefV1
+完全な正規Schemaと不変条件は [World Architecture](../../architecture/06-rendering/world.md) だけが所有する。本節は設計判断の要約であり、recordを複製しない。
 
-SceneOverrideSetV1
-  override_set_id: StableId
-  override_set_version: positive u32
-  source_scene_ref: exact SceneSourceRevisionRefV1
-  entries[1..4096]: sorted unique SceneOverrideEntryV1
-  override_set_content_hash: SHA-256
-
-SceneOverrideEntryV1
-  source_object_id: StableId
-  owner_document_ref: exact ProjectDocumentRefV1
-  field_contract_ref: exact PublicFieldContractRefV1
-  expected_source_value_hash: SHA-256
-  replacement_value: exact field-contract value
-
-SceneRebaseChangeV1
-  rebase_change_id: StableId
-  instance_id: StableId
-  before_source_scene_ref: exact SceneSourceRevisionRefV1
-  after_source_scene_ref: exact SceneSourceRevisionRefV1
-  before_override_set_ref: null | exact SceneOverrideSetRefV1
-  result_override_set_ref: null | exact SceneOverrideSetRefV1
-  resolutions[0..4096]: sorted unique SceneRebaseResolutionV1
-  unresolved_conflicts[0..4096]: sorted unique SceneRebaseConflictV1
-  rebase_change_content_hash: SHA-256
-```
-
-Nested instance graphはacyclicで、instance、source object、owner document、field contractをstable identityで解決する。同一fieldへのduplicate override、型不一致、削除済みobject、unknown field、別revision値、capacity超過を拒否する。
-
-Source Scene更新は自動追従しない。explicit rebaseがbefore／after exact revision、override delta、conflict resolutionを記録し、未解決conflictが0件の時だけProject ChangeSetへ入る。名前、path、配列index、似たfield、同名objectからrepairしない。
-
-Cookはinstance graphをTarget artifactへ閉じ、runtime stable identityとauthoring lineageの対応をdebug／save／replay用manifestへ保持する。ただしRuntime PackageはAuthoring Scene Source file、Editor objectまたはrebase serviceへ依存しない。
+- `Scene Source`を唯一の再利用可能Source identityとし、Prefab schema、Prefab alias、第二のimport形式を作らない。
+- Instance、attachment、override、source object、owner document、field contractをversioned exact Refで束縛する。
+- Source更新は暗黙追従せず、before／after Source revision、before／result Override Set、各resolutionを持つversioned Rebase Changeを明示的にacceptする。
+- Rebase時はinstance内のaccepted change refとchange側のinstance refが相互にexact一致し、source-only change、name／path／index repair、未解決conflictを拒否する。
+- Cook後のRuntime Packageはauthoring Scene Source fileやEditor serviceへ依存せず、debug／save／replay用lineageだけをTarget artifactへ閉じる。
 
 ## 6. Product Security contract
 
-### 6.1 Ownershipとbaseline
+完全な正規Schemaと不変条件は [Product Security Architecture](../../architecture/01-governance/product-security.md) だけが所有する。本節は設計判断の要約であり、recordを複製しない。
 
-```text
-ThreatOwnershipRegistryV1
-  registry_id: StableId
-  registry_version: positive u32
-  product_definition_ref: exact ActiveProductDefinitionRefV1
-  bindings[1..4096]: sorted unique ThreatOwnershipBindingV1
-  registry_content_hash: SHA-256
-
-ThreatOwnershipBindingV1
-  security_subject_ref: exact SecuritySubjectRefV1
-  accountable_owner_document_id: ArchitectureDocumentId
-  responsible_owner_document_ids[1..32]: sorted unique ArchitectureDocumentId
-  required_baseline_control_refs[1..256]: sorted unique SecurityControlRefV1
-  escalation_policy_ref: exact SecurityEscalationPolicyRefV1
-
-ProductSecurityBaselineV1
-  baseline_id: StableId
-  baseline_version: positive u32
-  product_definition_ref: exact ActiveProductDefinitionRefV1
-  target_profile_refs[1..64]: sorted unique exact TargetProfileRefV1
-  control_refs[1..4096]: sorted unique exact SecurityControlRefV1
-  accepted_risk_refs[0..256]: sorted unique exact AcceptedSecurityRiskRefV1
-  memory_safety_strategy_ref: exact MemorySafetyStrategyRefV1
-  response_policy_ref: exact VulnerabilityResponsePolicyRefV1
-  baseline_content_hash: SHA-256
-```
-
-`SecuritySubjectRefV1`は`architecture_domain | product_release | target_package | dependency | public_contract | project_source_surface | ai_authority_surface`のclosed unionとする。各branchはowner-specific exact refを持ち、自由文字列またはpathをsubjectにしない。
-
-C++23採用を無条件に安全または不適格とは扱わない。Memory／Pointers、sanitizer、fuzz、static analysis、compiler hardening、dependency isolation、unsafe boundary inventory、incident learningをexact baseline controlへ束縛し、例外はowner、期限、scope、compensating control、revalidationを持つaccepted riskだけに限定する。
-
-### 6.2 Vulnerability lifecycle
-
-```text
-VulnerabilityCaseV1
-  case_id: StableId
-  case_revision: positive u32
-  state:
-    received | triaged | validating | confirmed | remediation_candidate
-    | release_pending | disclosure_pending | monitoring | closed | rejected
-  intake_evidence_refs[1..256]: sorted unique exact EvidenceRefV1
-  security_subject_refs[1..256]: sorted unique exact SecuritySubjectRefV1
-  threat_ownership_binding_refs[1..256]: sorted unique exact ThreatOwnershipBindingRefV1
-  affected_release_refs[0..256]: sorted unique exact EngineReleaseBindingRefV1
-  unaffected_release_evidence_refs[0..256]: sorted unique exact EvidenceRefV1
-  validation_evidence_refs[0..4096]: sorted unique exact EvidenceRefV1
-  remediation_candidate_ref: null | exact PreparedCandidateRefV1
-  security_update_decision_ref: null | exact SecurityUpdateDecisionRefV1
-  disclosure_record_ref: null | exact SecurityDisclosureRecordRefV1
-  incident_ref: null | exact ProductSecurityIncidentRefV1
-  embargo_ref: null | exact SecurityEmbargoRefV1
-  closure_evidence_refs[0..4096]: sorted unique exact EvidenceRefV1
-  case_content_hash: SHA-256
-
-SecurityUpdateDecisionV1
-  decision_id: StableId
-  vulnerability_case_ref: exact VulnerabilityCaseRefV1
-  affected_release_refs[1..256]: sorted unique exact EngineReleaseBindingRefV1
-  fixed_release_refs[0..256]: sorted unique exact EngineReleaseBindingRefV1
-  update_channel_refs[1..64]: sorted unique exact ProductUpdateChannelRefV1
-  rollback_policy_ref: exact ProductRollbackPolicyRefV1
-  notification_audience_refs[1..256]: sorted unique exact NotificationAudienceRefV1
-  decision: prepare_update | release_update | withdraw_update | no_update
-  rationale_evidence_refs[1..4096]: sorted unique exact EvidenceRefV1
-  decision_content_hash: SHA-256
-
-SecurityDisclosureRecordV1
-  disclosure_id: StableId
-  vulnerability_case_ref: exact VulnerabilityCaseRefV1
-  affected_release_refs[1..256]: sorted unique exact EngineReleaseBindingRefV1
-  fixed_release_refs[0..256]: sorted unique exact EngineReleaseBindingRefV1
-  publication_state: withheld | scheduled | published | corrected | withdrawn
-  embargo_ref: null | exact SecurityEmbargoRefV1
-  public_advisory_artifact_ref: null | exact ArtifactRefV1
-  notification_receipt_refs[0..4096]: sorted unique exact NotificationReceiptRefV1
-  redaction_evidence_ref: exact EvidenceRefV1
-  disclosure_content_hash: SHA-256
-```
-
-Case stateはreport intake、triage、validation、fix candidate、release、disclosure、closure Evidenceを分離する。`duplicate`は別case refへのexact relationであり、close理由だけではない。scanner名、CVSS、報告者severity、issue priorityを製品severityまたはaffected releaseへ自動変換しない。
-
-次ではcaseをcloseできない。
-
-- duplicate候補だがcanonical caseがexactに解決しない
-- validation未完了またはimpact不明
-- affected／unaffected releaseのEvidence不足
-- embargoが未解決
-- fix candidateがreleaseされていない
-- required audienceへの通知が未完了
-- disclosure artifactまたはredaction Evidenceが不整合
-- recurrence preventionまたはmonitoring条件が未完了
-
-古いSBOM、別release inventory、package名一致からunaffectedを推測しない。Disclosure／update／notification失敗時はcaseとEvidenceを保持し、成功Receiptを発行しない。
-
-### 6.3 Incident
-
-```text
-ProductSecurityIncidentV1
-  incident_id: StableId
-  incident_revision: positive u32
-  state: declared | containing | recovering | monitoring | closed
-  related_vulnerability_case_refs[0..256]: sorted unique exact VulnerabilityCaseRefV1
-  affected_release_refs[1..256]: sorted unique exact EngineReleaseBindingRefV1
-  containment_evidence_refs[1..4096]: sorted unique exact EvidenceRefV1
-  recovery_evidence_refs[0..4096]: sorted unique exact EvidenceRefV1
-  notification_receipt_refs[0..4096]: sorted unique exact NotificationReceiptRefV1
-  recurrence_prevention_refs[0..256]: sorted unique exact SecurityControlChangeRefV1
-  exercise_or_incident: exercise | real_incident
-  incident_content_hash: SHA-256
-```
-
-Exerciseとreal incidentを同じclosure contractで検証するが相互に代用しない。containment、recovery、notification、recurrence preventionの必須条件をresponse policyがcase／release／Target別に選び、欠落時は`closed`を拒否する。
+- Threat Ownership Registry、Baseline、Security Case Registry Snapshot、Release Bindingをtyped exact Refで閉じ、Release側との相互hash依存を作らない。
+- canonical hashはRFC 8785 JCS前のtyped projection、domain separation、length framingを規定し、全semantic integerを範囲検査済みtagged decimal stringとして表現する。
+- 製品severityはresponse policy classへexactに束縛し、scanner名、CVSS、報告者severity、issue priorityから暗黙変換しない。
+- Update、Embargo、Disclosure、Incidentはclosed tagged branchで状態別必須Receipt／Evidenceを持つ。closed Incidentは少なくとも1件のconfirmed以降のcaseへ束縛する。
+- Case、Decision、Embargo、Disclosure、Incident、Control Changeの相互参照はstrict-ancestor ruleでDAGにし、同一record参照、forward参照、duplicate cycleを拒否する。
+- C++23採用は無条件に安全とも不適格ともせず、memory／pointer control、sanitizer、fuzz、static analysis、compiler hardening、dependency isolation、unsafe-boundary inventory、incident learningをbaseline化する。
 
 ## 7. failure contract
 

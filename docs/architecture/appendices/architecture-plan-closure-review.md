@@ -6,12 +6,12 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 親Owner: [Architecture Governance](../01-governance/architecture-governance.md)
-- 正本範囲: Architecture計画全体の監査結論、current／target区分、AI可読性、Creative expression境界、Scene／Level authoring意味、Runtime coverage、Editor／Game分離、Target別Build／Release evidence mapping、Consent／RPG／QA／2Dのcross-owner整合性、未解決Closureの追跡
+- 正本範囲: Architecture計画全体の監査結論、current／target区分、AI可読性、Creative expression境界、Product Lifecycle／Product Security、Scene instance／override／rebase／Level authoring意味、Runtime coverage、Editor／Game分離、Target別Build／Release evidence mapping、Consent／RPG／QA／2Dのcross-owner整合性、未解決Closureの追跡
 - 非正本範囲: Subsystem semantics、Schema、API、Backend、固定Budget、Product Phase／Work Package、実装Task、実装順序、担当、工数、日程、Capability Activation、承認結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)、[AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](../06-rendering/world.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[RPG Genre Pack](../08-packs/rpg.md)、[Scenario／Stage](../08-packs/scenario-stage.md)
+- 関連文書: [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)、[AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Product Lifecycle／Product Security Ownership](../decisions/2026-07-29-product-lifecycle-security-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](../06-rendering/world.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[RPG Genre Pack](../08-packs/rpg.md)、[Scenario／Stage](../08-packs/scenario-stage.md)
 - 根拠区分: project-review／official-spec comparison
-- 外部根拠確認日: 2026-07-28
+- 外部根拠確認日: 2026-07-29
 
 > 本書は実装計画ではない。表の順序、Closure ID、推奨判断は実装順、Product Phase、Work Package、担当、工数または日程を意味しない。本書は既存Ownerの正本を置き換えず、明白な文書不整合の修正と、未決定事項を未決定のまま一意に追跡する。
 
@@ -24,7 +24,10 @@ Miraikanai EngineのArchitecture計画は、Owner分離、current／target区分
 | AIによる概念理解 | strong | Markdown reviewのみ | Owner、identity、revision、authority、安全境界は説明可能 |
 | AIによる機械解決 | strong contract intent | incomplete | Inventory、Explain Projection、Capsule、Schema、query Toolが未materialize |
 | Creative expression | broad inside public Capability | design only | 2D／3D／nonspatial／procedural、Genre非依存Gameplay、Project C++／Shaderを許す一方、任意plugin／private API／JITは意図的に除外 |
-| Scene／Level authoring | owner boundary corrected | Projection／Operation absent | `Level Workspace`をEditor presentationへ限定し、World／Scene／Space、Project selection、pack-owned Stageへ正規状態を分離 |
+| Product lifecycle | `closed-in-target-design` | Schema／Operation／Template／Sample／Documentation／Receipt absent | bootstrap、surface parity、update、repair、support、NOTICE、release acceptanceを専用Ownerへ一意化 |
+| Product security | `closed-in-target-design` | Registry／Case Store／Operation／Fixture／Receipt absent | threat ownership、baseline、vulnerability response、security update／disclosure／incidentを専用Ownerへ一意化 |
+| Scene／Level authoring | `closed-in-target-design` | Schema／Projection／Operation absent | `Level Workspace`をpresentation、Scene Sourceを再利用instance／nested composition／typed override／explicit rebaseのauthorityへ分離 |
+| Native iteration | `closed-in-target-design` | Native build／Preview executable／Receipt absent | Shipping static link、Preview DLLのstartup一回load、変更時GameHost restart。in-process Hot Reloadは採用しない |
 | Runtime描画／物理／Memory | detailed target | implementation absent | 意味、lifetime、backend境界、Qualificationは計画済み |
 | Runtime Asset | `closed-in-target-design` | implementation／Definition absent | 専用Ownerへrequest／dependency／generation／residency／lease／eviction／recoveryを一意化 |
 | Editor／Game分離 | strong | implementation absent | process、state、dependency、failure isolationが一貫している |
@@ -38,7 +41,9 @@ Miraikanai EngineのArchitecture計画は、Owner分離、current／target区分
 
 監査はArchitecture Index、全Owner header、Decision、proposal appendix、規範依存、関連文書、相対link、文書ID、current／target記述を対象とした。2026-07-28の監査ではArchitecture Markdown 75件、文書ID 73件、Owner文書50件を確認し、相対Markdown link切れ0件、文書ID重複0件、50 Owner間から抽出した規範依存202 edgeの未解決0件／cycle 0件を確認した。50 Owner文書はすべて`文書状態=review`、`実装状態=absent`、`検証状態=design-reviewed`である。ただし手動IndexとMarkdown解析は、生成済み`ArchitectureInventoryV1`またはSchema validationの代用ではない。
 
-2026-07-29に[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[RPG Genre Pack](../08-packs/rpg.md)を追加した。本節の75／73／50／202という数値は2026-07-28監査の履歴Evidenceであり、追加後のcurrent Inventoryまたは再監査結果ではない。2026-07-29の再確認ではArchitecture Markdown 78件、文書ID 76件、Owner文書53件、相対Markdown path 2,483件の未解決0件、文書ID重複0件、Owner Header不一致0件、53 Owner間の規範依存225 edgeの未解決0件／cycle 0件を確認した。この結果はRepository bytesへの手動検証であり、生成済み`ArchitectureInventoryV1`またはSchema validationの代用にはしない。
+2026-07-29に[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[RPG Genre Pack](../08-packs/rpg.md)を追加した。本節の75／73／50／202という数値は2026-07-28監査の履歴Evidenceであり、追加後のcurrent Inventoryまたは再監査結果ではない。同日の最初の再確認ではArchitecture Markdown 78件、文書ID 76件、Owner文書53件、相対Markdown path 2,483件の未解決0件、文書ID重複0件、Owner Header不一致0件、53 Owner間の規範依存225 edgeの未解決0件／cycle 0件を確認した。
+
+required-features closureでは[Product Lifecycle](../00-product/product-lifecycle.md)と[Product Security](../01-governance/product-security.md)を追加した。追加後のcurrent Repository bytesではArchitecture Markdown 81件、Header内文書ID 79件、Owner文書55件、相対Markdown path 2,611件の未解決0件、文書ID重複0件、Owner Header不一致0件、55 Owner間の規範依存234 edgeの未解決0件／cycle 0件を確認した。この手動検証も生成済み`ArchitectureInventoryV1`またはSchema validationの代用にはしない。
 
 本書では次の語を分ける。
 
@@ -191,10 +196,13 @@ C++ ModulesのBuild性能比較はCX0とCX2の採否Evidenceであり、Shipping
 | 接続 | 判定 | 一意な境界 |
 |---|---|---|
 | Product ↔ Runtime Owners | `corrected-in-review` | Product Owner一覧へRuntime PackageとPersistence／Saveを含める |
+| Product Lifecycle ↔ Project／Build／Docs／Platform | `closed-in-target-design`／materialization absent | Lifecycleはbootstrap／update／support／NOTICE acceptance、各domainはProject／Build／Package／Documentation artifactの意味 |
+| Product Security ↔ AI／Toolchain／Platform／Domain | `closed-in-target-design`／materialization absent | Securityはthreat ownership／case／update／disclosure／incident、各domainはauthorization／SBOM／signing／technical validation |
 | Governance ↔ 全Owner | target aligned／Inventory absent | GovernanceはOwner／state／dependency Inventory、各OwnerはDomain fragment |
 | AI Security ↔ Project／Engine change | target aligned／Operation absent | Project ChangeSetとEngine Candidate qualificationを分離 |
 | Project State ↔ Editor／World context | target aligned／Schema absent | Project Stateは`AuthoringSelectionContextV1`、Worldは`WorldAuthoringContextV1`／`SceneSliceV1`、Editorはattention／Panel binding |
 | Editor ↔ World ↔ Scenario／Stage | `corrected-in-review` | Level Workspaceはpresentation、Worldはcomposition／topology、Scenario／StageはEntry／Exit／Objective／finite progression |
+| Scene Source ↔ instance／override／rebase ↔ Runtime | `closed-in-target-design`／materialization absent | Worldはexact Source instance／typed override／explicit rebase、Cookはlineage、RuntimeはAuthoring Source非依存 |
 | Asset Lifecycle ↔ Runtime Asset ↔ Runtime Package | `closed-in-target-design`／implementation absent | AssetはSource／Cook／Catalog、Runtime Assetはrequest／generation／residency、Runtime PackageはEntry／World package closure |
 | Runtime Package ↔ Scheduling | aligned | Packageはstaging／dependency、Schedulingはcompletion acceptance／publication boundary |
 | Memory ↔ Runtime Resource | aligned | Memoryはgeneration／lease／allocation、Domain Ownerはpayload意味とfallback |
@@ -231,8 +239,13 @@ C++ ModulesのBuild性能比較はCX0とCX2の採否Evidenceであり、Shipping
 | `ARCH-C18` | Test結果集約、retry、quarantine、waiver、Test class非代替 | `closed-in-target-design` | AI Verification §7.9へ集約意味とfail-closed Gateを一意化 |
 | `ARCH-C19` | 共通BuildとTarget固有Package／Signing／Device／Store Evidenceの合成 | `closed-in-target-design` | Core Architecture §9.3＋Verification §7.8–7.9＋各Platform Owner |
 | `ARCH-C20` | 文書、実装、検証、authority、activation、promotion、qualification、release状態の混同 | `closed-in-target-design` | Architecture Governance §2.3で直交軸とsubject-qualified語彙を固定 |
-| `ARCH-C21` | AI task security以外の製品横断Security／Vulnerability governance | `open-decision` | Governance、Toolchain、Platform、各Domainの既存security節をInventoryし、既存Owner拡張か専用Ownerかを決める。重複Policyを先に作らない |
+| `ARCH-C21` | AI task security以外の製品横断Security／Vulnerability governance | `closed-in-target-design` | 専用[Product Security](../01-governance/product-security.md)へthreat ownership、baseline、case、security update、disclosure、incidentを一意化。canonical hash、typed Case Registry Snapshot、strict-ancestor record DAG、severity／publication／incident branchをclosed contract化。Registry／Operation／Fixture／Receiptは未materialize |
 | `ARCH-C22` | 2D Sprite／Tile／Animation／Residency／Render sort authority chain | `closed-in-target-design` | Render Graph §12.1のOwner matrix、stable sorting、batch非並替え、negative qualificationで閉じる |
+| `ARCH-C23` | Project bootstrap、Template／Sample／Documentation、surface parity、update／repair／support／NOTICEの製品横断closure | `closed-in-target-design` | 専用[Product Lifecycle](../00-product/product-lifecycle.md)がversioned local Ref、acyclic Documentation Link Graph、typed parity／documentation Receipt、Support Closure、publication recovery境界を各Ownerのexact artifact／Receiptとsame release／Project／Candidateへ束縛。Schema／Operation／Artifact／Receiptは未materialize |
+| `ARCH-C24` | 再利用Scene instance、nested composition、typed override、explicit rebase | `closed-in-target-design` | [World](../06-rendering/world.md)のScene Sourceをcleanな意味置換として拡張。closed Attachment Ref、versioned Rebase Ref、Instance／Source／Override／before-after byte equalityを要求し、`Prefab` canonical aliasなし、RuntimeはAuthoring Source非依存 |
+| `ARCH-C25` | Mobile Application stateとsurface availability、Windows workspace rootの文書矛盾 | `corrected-in-review` | Mobile CommonをSchedulingのApplication／presentation二軸へ一致させ、Windowsからlegacy `build/` rootを除去 |
+
+`ARCH-C03`はArchitecture Inventory／Explain Projectionというsubjectのtarget semantics欠落ではなくmaterialization未実施を表す。ただしArchitecture全体で唯一のmaterialization blockerではない。`ARCH-C04`、`ARCH-C05`、`ARCH-C10`、`ARCH-C12`、ならびにLifecycle／Security Ownerが明記する未materialized Schema／Operation／Fixture／Receiptを独立に保持し、一件の状態を他件の代表にしない。
 
 ## 9. 推奨するArchitecture判断
 
@@ -267,11 +280,13 @@ provisional Budgetと候補最適化は、同じTarget、Build、Toolchain、fix
 
 Coreの正規SourceはWorld／Scene／Space／Topology relationであり、`Level Workspace`はこれらとowner-typed Gameplay文書を横断表示するEditor presentationである。`LevelSourceV1`、Level Stable ref、Level revision、Level membershipまたはLevel固有Operationを追加しない。
 
-- World OwnerはWorld／Scene composition、Space、Anchor、Topology relation、spatial Transition intent、`WorldAuthoringContextV1`、`SceneSliceV1`を所有する。
+- World OwnerはWorld／Scene composition、exact Scene Source instance、acyclic nested composition、typed override、explicit rebase、Space、Anchor、Topology relation、spatial Transition intent、`WorldAuthoringContextV1`、`SceneSliceV1`を所有する。
 - Project State Ownerは同じProject revisionへ閉じた`AuthoringSelectionContextV1`を所有する。
 - Editor OwnerはWorkspace、attention、focus、follow／pin、Context表示を所有し、Sourceまたはauthorizationを所有しない。
 - `StageDefinitionV1`等のFeature／Game OwnerはEntry／Exit、Objective、finite progressionを所有する。
 - 一つのUser intentが複数Ownerを変更する場合はactiveな各Owner primitiveを一つの`ProjectChangeSetV1`へ列挙し、未Activation、staleまたはunauthorizedな一件があれば全体を部分適用しない。
+
+外部要求の`Prefab`は`Scene Source`＋`SceneCompositionInstanceV1`へ解決し、第二のSource identity、Schema名、legacy aliasを作らない。Source更新は暗黙追従せず、before／after exact revision、override delta、typed resolution、unresolved conflictを持つ`SceneRebaseChangeV1`でのみ受理する。Cookはsource／instance／override／rebase lineageを保持するが、Runtime PackageはAuthoring Scene Sourceまたはrebase serviceへ依存しない。
 
 この整理はOwner重複を閉じる設計修正であり、Projection Schema、Operation、Fixture、Work Packageまたは実装を作成したことを意味しない。`ARCH-C03`、`ARCH-C04`、`ARCH-C12`は引き続き未解決である。
 
@@ -293,9 +308,17 @@ RPG-first Productは、Genre非依存Core、[Reusable RPG Feature family](../08-
 
 ### 9.10 製品横断Security判断
 
-`ARCH-C21`は既存のAI Security、Toolchain supply chain、Platform privacy／signing、Domain security節のInventoryを先に作り、threat ownership、vulnerability intake／triage／disclosure、security update、incident response、network／storage／crypto baselineの重複と欠損を確認する。Inventory前に万能Security Ownerまたは重複Policyを追加せず、既存Owner拡張と専用Ownerの比較をArchitecture Decisionとして残す。
+`ARCH-C21`は専用[Product Security](../01-governance/product-security.md)を採用して`closed-in-target-design`とした。Product Securityはthreat ownership、baseline、vulnerability intake／triage／validation、remediation Candidate、security update、disclosure／notification、incident／recurrence preventionをcase全体として所有する。AI SecurityはAI authorization、Toolchainはdependency lock／SBOM、Platformはsigning／privacy、各Domainはtechnical validation、VerificationはEvidence envelope、DebuggingはSupport Bundleを維持する。
 
-### 9.11 2D runtime authority
+報告者の文章、scanner severity、CVSS、issue label、stale SBOMをauthorityにせず、affected／fixed／unaffected release、embargo、fix release、notification、redaction、monitoringが閉じるまでcaseをcloseしない。C++23採用を一律禁止または無条件に安全とせず、Memory／Pointers、compiler hardening、sanitizer、static analysis、fuzz、dependency isolation、unsafe boundary inventory、accepted riskをProduct Security baselineへ束縛する。Registry、Case Store、Operation、Fixture、Receiptは未materializeであり、Owner追加をoperationalなvulnerability programと表現しない。
+
+### 9.11 Product lifecycle判断
+
+`ARCH-C23`は専用[Product Lifecycle](../00-product/product-lifecycle.md)を採用して`closed-in-target-design`とした。Product LifecycleはEngine release binding、Project bootstrap、Template／Sample／Documentation、Editor GUI／CLI／headless parity、update／repair／support／NOTICE、E2E release acceptanceを所有し、Project State、Build／Cook／Package、Toolchain、Compatibility、Support Bundle、Evidenceのdomain meaningを複写しない。
+
+Bootstrapは全initial DocumentとSourceを一つのprepared candidateとして検証し、成功時だけ最初のProject revisionをatomic publishする。Updateは旧release／Projectをlast-known-goodに保ったseparate CandidateでInventory、migration、validation、cook、package、launch、support、NOTICEを閉じた後だけ一回promotionする。`latest`、同名、近いversion、別Target、別Sample、partial migrationへ置換しない。Schema、Operation、Template、Sample、Documentation bundle、Fixture、Receiptは未materializeである。
+
+### 9.12 2D runtime authority
 
 2DはAsset import／Atlas、World Tile Source／chunk、Animation frame selection、Runtime Asset generation／lease、Material compatibility、Camera pixel policy、Renderer packet／stable sort／batch、Collision／Navigation projectionを一つのOwnerへ統合しない。Render batchingはcanonical sort orderを変えず、Tile representationの更新はSource revisionとRuntime Asset generationの一致を要求する。
 
@@ -303,11 +326,13 @@ RPG-first Productは、Genre非依存Core、[Reusable RPG Feature family](../08-
 
 | 文書 | 変更内容 |
 |---|---|
-| Architecture Index | 本Reviewへのnavigationと変更入口を追加 |
-| Product Plan | Runtime／Simulation Owner一覧へRuntime Package、Persistence／Saveを追加し、本Reviewを関連文書へ追加 |
+| Architecture Index | Owner文書を55件へ更新し、Product Lifecycle／Product Security／Ownership Decisionへのnavigationと変更入口を追加 |
+| Product Lifecycle | Project bootstrap、Template／Sample／Documentation、surface parity、update／repair／support／NOTICE、E2E acceptanceの専用Ownerを追加 |
+| Product Security | threat ownership、baseline、vulnerability case、security update／disclosure／notification／incidentの専用Ownerを追加 |
+| Product Plan | Product completionへLifecycle／Security acceptanceを追加し、各専用Ownerとの境界を明記 |
 | Product Plan／Naming | Creative expressionとextensionを別axis化し、Level Workspaceを非authorityのEditor presentationへ固定 |
 | Project State | `AuthoringSelectionContextV1`のProject lineage、target解決、revision／hash／invalidation Ownerを明記 |
-| World | Level／Region／Portal表示語の正規解決、World authoring Projection、cross-owner atomicityを明記 |
+| World | Level／Region／Portal表示語の正規解決、World authoring Projection、Scene instance／nested composition／typed override／explicit rebase、cross-owner atomicityを明記 |
 | Editor Workspace／Panel／Design System | Level Stable ref／membership／`SetLevel*`を除去し、World Compositionとpack-owned bindingへ分離 |
 | Executable Contracts planning catalog | Level WorkspaceがOperation familyでないこと、複数Owner Operationの部分fallback禁止を明記 |
 | Scenario／Stage、LOD、Materials、World fixture | `Level Source`をcurrent Core identityとして扱う残存記述をlegacy migrationまたはWorld／Scene／Topology表現へ修正 |
@@ -320,13 +345,16 @@ RPG-first Productは、Genre非依存Core、[Reusable RPG Feature family](../08-
 | Gameplay Feature Packs／RPG Genre Pack／Product Plan | Reusable RPG Feature、Genre composition、通常Reference Game、Product acceptanceを四層化 |
 | Runtime ECS | all-or-nothing authority migration、Consumer Inventory、旧authority retirement条件を追加 |
 | Render Graph／World／Animation／Runtime Asset | Sprite／Tile／frame／residency／packet／stable sort／batchの2D authority chainを追加 |
-| Windows | Preview／Shipping executableとGameHost roleの対応を明記 |
+| Native Game Module | restart-based Windows PreviewをHot Reloadのcleanな意味置換として明記し、in-process unload／replacement／patch禁止を維持 |
+| Windows／Mobile Common | legacy `build/` rootを除去し、Application lifecycleとpresentation surface availabilityを別stateへ修正 |
 | Toolchain／Dependencies | Target別C++ Build optimization closureをKnown unresolved registerへ追加 |
 
 ## 11. 非目標
 
 - 本ReviewからC++ source、CMake target、Schema、Generator、Operation、Fixture、Receiptを生成しない。
 - Runtime Asset Manager、Consent Registry、RPG Pack Registry、QA aggregator、Build Optimization ProfileまたはAI Toolを仮実装しない。
+- Product Lifecycle／Product SecurityのOwner追加からSchema、Operation、Template、Sample、Case Store、Fixture、Receiptまたは運用体制を生成済みとみなさない。
 - Product Phase、Work Package、実装順、担当、工数、日程を追加しない。
 - review文書を`normative`、Capabilityを`active | qualified | production`へ昇格しない。
 - 外部EngineのAPI、object model、chunk size、Asset identity、path、default、tool permissionをMiraikanaiの正本へ移植しない。
+- Plugin ecosystem、汎用Script VM／JIT、Multiplayer、large-world機能をrequired-featuresの名称coverageだけでMVPへ追加しない。

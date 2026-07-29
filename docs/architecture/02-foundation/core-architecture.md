@@ -7,7 +7,7 @@
 - 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、cross-target Build／Release Evidence closure、Repository境界、Test／CI、Feature開始Gate
 - 非正本範囲: 外部Tool・SDK・Libraryのversion／hash／license／取得元、命名、Memory／Pointer詳細、Runtime scheduling／budget／observability、Schema構造。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -690,6 +690,10 @@ Signing成功だけをRelease成功、upload成功だけをStore承認、launch�
 Release Gateは必要EvidenceをCandidate、Target Profile、Toolchain lock、package hash、device generation、fixture、freshnessでexactに束縛する。missing、expired、revoked、wrong-target、wrong-device、別Candidate、Infrastructure failure、quarantined mandatory laneを合格へ補完しない。Target Ownerが要求するphysical-device／distribution Evidenceを共通headless laneで置き換えず、共通closureの失敗をTarget固有signingで覆い隠さない。
 
 本節はEvidence compositionの目標契約であり、current Build Service、CI runner、signing key、Device Lab、Store credential、Release Artifact、Receipt instanceの存在を主張しない。具体Tool version／lockは[Toolchain／Dependencies](toolchain-dependencies.md)、Targetのpackage／device／store意味は[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)が所有する。
+
+[Product Lifecycle](../00-product/product-lifecycle.md)は本節のfresh Build／Release EvidenceをEngine release、Project bootstrap、Documentation、update、support、NOTICEのE2E acceptanceへ束縛するconsumerであり、Build Task、ReceiptまたはTarget packageを再定義しない。[Product Security](../01-governance/product-security.md)はsecurity fix Candidateとaffected／fixed release caseへ同じEvidenceを束縛するconsumerであり、security urgencyを理由にBuild／Signing／Target Gateを迂回しない。
+
+[CMake Presets 4.4](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)のconfigure／build／test／package／workflow Presetはtyped Build requestのprojectionとして使用できる。Preset、CMake cache、IDE profileまたはworkflow成功をProject revision、Build authority、Package成功、Product acceptanceにしない。
 
 ## 10. Repository境界
 

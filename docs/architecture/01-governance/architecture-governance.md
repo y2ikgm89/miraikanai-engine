@@ -7,7 +7,7 @@
 - 正本範囲: Architecture文書の状態、subject-qualified状態語彙、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log
 - 非正本範囲: Product capability、MCD／Operation、実装Task、実装順序、Domain Schema・固定値・runtime挙動、AIの認可・実行route
 - 規範依存: none
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
 - 根拠区分: project-decision。ADR lifecycleは一次資料を確認済み
 - 外部根拠確認日: 2026-07-27
 
@@ -237,6 +237,8 @@ Projectionは説明と探索だけに使い、Architecture変更、Project mutat
 - Owner移管は旧Ownerから定義を削除し、新Ownerへ移した同じ変更で全参照を更新する。
 
 正本Ownerが未決定の場合は、暫定的な複数定義を作らず、`provisional`な未解決事項として一か所へ記録する。
+
+[Product Security](product-security.md)の`ThreatOwnershipRegistryV1`はsecurity subjectに対するaccountable／responsible Ownerを投影するが、本書のArchitecture正本所有を置き換えない。Registry bindingのOwner文書IDは同じ`ArchitectureInventoryV1`へexactに解決し、Inventory上の正本Ownerと矛盾するbinding、複数accountable Owner、orphan subjectを拒否する。[Product Lifecycle](../00-product/product-lifecycle.md)のE2E acceptanceも各domain Ownerの意味を集約するだけで、Project、Build、Package、Evidenceの正本を移管しない。
 
 ## 7. 分割・統廃合
 

@@ -7,13 +7,15 @@
 - 正本範囲: 外部Tool・SDK・Library・APIの調査済み候補version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock要件、Dependency採用・更新Gate、Build Driver Profile候補、CI実行基盤要件
 - 非正本範囲: Product scope、Subsystem API・型・Budget、Runtime phase、Platform lifecycle、Dependency内部を包むEngine-owned Adapter契約。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)
+- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
 ## 1. 結論と一意所有
 
 本文書はMiraikanai Engineが評価する外部Tool、SDK、Library、APIのversion、release、commit、artifact size、hash、integrity、license、取得URLと、採用時に必要なlock条件を所有する。外部tag／releaseと公式互換表を確認済みであっても、Repositoryへlock、SBOM、取得Artifact、Build Receiptが存在しないDependencyを「採用済み」「locked」「qualified」と表現しない。他のArchitecture仕様はDependency名と本文書へのLinkだけを記載し、固定値を複写しない。
+
+[Product Lifecycle](../00-product/product-lifecycle.md)は本書が生成するexact Toolchain closure、SBOM、license／third-party notice sourceをEngine release、Package、Documentation、User向けNOTICE presentationへ束縛するconsumerであり、dependency version、license判断、SBOM生成を所有しない。[Product Security](../01-governance/product-security.md)はDependency subject、vulnerability case、affected／fixed releaseへsame artifactを束縛するconsumerであり、stale SBOMまたは別release lockからunaffectedを推測しない。
 
 2026-07-27時点のmaterialization状態は次のとおりである。
 

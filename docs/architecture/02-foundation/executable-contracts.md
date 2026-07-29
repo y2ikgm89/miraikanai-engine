@@ -7,7 +7,7 @@
 - 正本範囲: MCD共通意味、Requirement、Type、Operation、State machine、Capability、Policy、Profile、Diagnostic、Service、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
 - 非正本範囲: 具体Operation／planning catalog、外部Tool・package固定、Product scope、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)
-- 関連文書: [Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
+- 関連文書: [Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -122,6 +122,8 @@ Legacy migration Operationは実在するlegacy Source、complete consumer inven
 ### 8.2 Current Installed Product active Operation closure
 
 Installed Productのactive Operation closureは、Product Definition、Contract set、Service allowlist、Policy、Validator、Diagnostic、Target bindingのset equalityから決定する。Markdown上の候補表、未Activation planning record、Provider discovery resultをactive集合へ混入しない。現Repositoryではmaterialized closureがないため、active集合を生成済みとは主張しない。
+
+[Product Lifecycle](../00-product/product-lifecycle.md)のProject bootstrap／update／repair／acceptanceと[Product Security](../01-governance/product-security.md)のcase transition／security update／disclosure／incidentはtyped Operationを要求するが、両文書にOperation ID、MCD record、Owner Manifest、Service allowlist、Signer Policy、Provider／CLI／Editor projectionはまだ存在しない。したがってcurrent active／operational集合への追加はexact 0件であり、型名、state名、UI action、command名からOperationを補完またはdispatchしない。
 
 ## 9. State machine定義
 

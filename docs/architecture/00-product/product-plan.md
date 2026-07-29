@@ -7,7 +7,7 @@
 - 正本範囲: Product intent、非交渉原則、Capability成熟度、Portfolio、Algorithm／Performance最適化のProduct優先度、AI制作理解境界、MVP、Phase順序、製品昇格・停止・完了Gate
 - 非正本範囲: Subsystemの型・Field・API・Backend・既定値・Budget、AI権限と承認、Evidence形式。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)
+- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-28
 
@@ -419,7 +419,7 @@ Capabilityの昇格には、少なくとも次を必要とする。
 
 ### 7.2 Deactivation gate
 
-Security incident、重大回帰、license／Provider停止、Target非適合、Evidence失効を検出したOwnerは、新規選択、AI active use、Promotion、Package収録を停止する。現在状態、影響Target、利用Project、last-known-good、rollback／migration、再Qualification条件を記録し、無言のfallbackやGameplay意味変更を行わない。
+Security incidentは[Product Security](../01-governance/product-security.md)のcase／incident closureへ接続し、重大回帰、license／Provider停止、Target非適合、Evidence失効を検出した各domain Ownerと共同で新規選択、AI active use、Promotion、Package収録を停止する。現在状態、影響Target、利用Project、last-known-good、rollback／migration、再Qualification条件を記録し、無言のfallbackやGameplay意味変更を行わない。
 
 ### 7.3 Product completion gate
 
@@ -431,6 +431,8 @@ Product milestoneは、機能一覧のcheckだけでは完了しない。
 - AIと手動編集が同じProject history、Diff、Approval、Undo、Replayを使う。
 - 未対応Capability、未実測Target、失効Evidenceを明示し、成功表示しない。
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)のRelease evidence closureが同一Candidateへ結び付く。
+- [Product Lifecycle](product-lifecycle.md)のbootstrap、Template／Sample、Documentation、GUI／CLI／headless parity、update／repair／support／NOTICE acceptanceが同じEngine release bindingとCandidateへ閉じる。
+- [Product Security](../01-governance/product-security.md)の`ProductSecurityReleaseBindingV1`がcurrent baseline、threat ownership、fresh assessment、support windowとtyped `SecurityCaseRegistrySnapshotV1`を同じReleaseへ閉じる。Snapshotは全Case head、空のopen-critical set、security update／disclosure／embargo／incident head、required notification Receiptをexact setとして持ち、generic Evidenceだけでcompletionを主張しない。
 
 ### 7.4 C2 coverageとgenre横断Gate
 
@@ -678,6 +680,7 @@ RPG-first targetは、Generic Engine Core、command battle／actor progression�
 
 ### 9.5 Foundation／Governance
 
+- [Product Lifecycle](product-lifecycle.md)
 - [Core architecture](../02-foundation/core-architecture.md)
 - [Toolchain／dependencies](../02-foundation/toolchain-dependencies.md)
 - [Executable contracts](../02-foundation/executable-contracts.md)
@@ -687,6 +690,7 @@ RPG-first targetは、Generic Engine Core、command battle／actor progression�
 - [Memory／pointers](../02-foundation/memory-pointers.md)
 - [AI Security／Approval](../01-governance/ai-security-approval.md)
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
+- [Product Security](../01-governance/product-security.md)
 
 Primary Product Evidenceは、MVP-AのRPG First PlayableとGenre非依存Core holdout、MVP-Bの独立3D technical Reference、clean package／install／offline run、AIと手動編集の往復、Save／Load、Undo／Replay、Target別Qualification、failure／rollback、Release closureである。MVP-BまたはShooter EvidenceをMVP-A、RPG、Genre非依存Coreの代用にしない。EvidenceのRecord形式、保持、Trace、SBOM、ProvenanceはVerification Ownerだけが決定する。
 

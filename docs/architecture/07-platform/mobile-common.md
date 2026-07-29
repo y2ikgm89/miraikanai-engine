@@ -7,7 +7,7 @@
 - 正本範囲: Mobile共通Target schema、Platform Port境界、lifecycle／surface／save／recovery、renderer接続境界、Asset delivery意味、touch／safe area、memory／thermal policy、device workflow、privacy model、共通crash metadata、共通qualification
 - 非正本範囲: Android／Apple固有profile値・build・package・store・signing、external Tool／SDK version、共通Runtime phase／budget、Asset import／cook／promotion、Renderer内部契約、Input／Audio／UI domain意味、AI authorization／Evidence envelope。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Render Graph](../06-rendering/render-graph.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Android](android.md)、[Apple](apple.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Android](android.md)、[Apple](apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -100,7 +100,7 @@ Android／Appleのrequirement値、refresh／submission procedureは各Platform 
 |---|---|---|
 | `IGraphicsDevice` | resource／pipeline／submission／present／budget query | [Render Graph](../06-rendering/render-graph.md)とPlatform graphics Adapter |
 | `IApplicationSurface` | logical／pixel extent、orientation、safe area、surface generation | Android／Apple |
-| `ILifecycleService` | active／inactive／suspended／surface unavailable／terminate／memory pressure | Android／Apple |
+| `ILifecycleService` | starting／active／inactive／suspended／terminating／memory pressure | Android／Apple |
 | `IInputDeviceHub` | Action、touch、pointer、controller snapshot | [Input](input.md)とPlatform Adapter |
 | `ITextInputService` | composition、selection、commit、cancel | [UI／Text](ui-text-localization-accessibility.md)とPlatform Adapter |
 | `IAudioDevice` | callback、route、latency、interruption | [Audio](audio.md)とPlatform Adapter |
@@ -116,13 +116,16 @@ Physical directory名は実装配置であり契約identityではない。`platf
 
 ## 4. Lifecycle、surface、save、recovery
 
-共通lifecycle stateは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`と同一のclosed set `Starting | Active | Inactive | Suspended | SurfaceUnavailable | Terminating`である。cold startはprocess未起動でありこのstateの外とする。exact transition slot、Simulation Advance、job dependency、lifetimeは同文書が所有し、本書はPlatform eventの意味を所有する。
+共通Application lifecycle stateは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)の`application_state`と同一のclosed set `Starting | Active | Inactive | Suspended | Terminating`である。cold startはprocess未起動でありこのstateの外とする。exact transition slot、Simulation Advance、job dependency、lifetimeは同文書が所有し、本書はPlatform eventの意味を所有する。
+
+Presentable surfaceの有無はApplication stateへ混入せず、同書の`presentation_state = absent | active | surface_unavailable`へ投影する。一つのApplication state中にsurface generationが変化でき、`SurfaceUnavailable`というApplication stateまたはOS lifecycle aliasを作らない。
 
 - `Active`: interaction、simulation、presentationを許可する。
 - `Inactive`: foregroundだがinteraction不可。authoritative simulationをpauseする。
 - `Suspended`: CPU／GPU／audio activityを停止し、復帰用checkpointが完了している。
-- `SurfaceUnavailable`: WorldとGameplay stateは保持できるがpresentable surfaceがない。
 - `Terminating`: best-effort通知であり、到達を前提にしない。
+
+`presentation_state=surface_unavailable`ではWorldとGameplay stateを保持できるがpresentable surfaceがない。これは`Inactive`または`Suspended`を暗黙に意味せず、OS eventからApplication stateとpresentation stateを別々に解決する。
 
 `SurfaceGeneration`はsurface create／resize／rotation／recreationごとに単調増加する。Render job、pointer／touch event、drawable／presentはcaptureしたgenerationとcurrent generationが一致する場合だけcommitする。不一致jobは破棄し、World、Save、Asset generationをsurface lossで破棄しない。GPU resourceのretire／history resetは[Render Graph](../06-rendering/render-graph.md)へ委譲する。
 

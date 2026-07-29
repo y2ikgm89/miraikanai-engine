@@ -7,7 +7,7 @@
 - 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1の意味とtransaction、Target readiness意味、Commit、Source／Derived境界、Undo／Redo、外部編集、Recovery、authoring target selection projectionの所有境界
 - 非正本範囲: 具体Document／Operation／Change primitive／readiness／fixture候補、MCD共通Envelope、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI、Runtime package
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)
-- 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
+- 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -16,6 +16,8 @@
 Projectの正規状態はEditor widget、Scene Tree、AI会話、Runtime World、生成binaryではない。Schema検証可能なAuthoring Document集合と単調増加する`ProjectRevision`がauthorityである。
 
 AI、Editor、CLI、MCP、外部IDEは同じ`ProjectChangeSetV1`を提案する。Stateを確定できるのはAuthoring Command Gatewayだけであり、expected revision、全primitive、Policy、Validator、authorizationを検証して一つのrevisionとしてatomic commitする。
+
+[Product Lifecycle](../00-product/product-lifecycle.md)はTemplate、Target selection、Documentation、Engine releaseを一つのbootstrap profileへcompositionするが、最初のProject作成も本書のAuthoring Command Gatewayとatomic publicationを使用する。全initial DocumentとSource treeを一つのprepared candidateとして検証し、成功時だけ最初の`ProjectRevision`を発行する。失敗時はcurrent revision、openable partial Projectまたは権威を持つdestination manifestを残さない。Product Lifecycle、Editor、CLI、headlessにProject stateの別write pathを設けない。
 
 ## 2. 決定権と対象外
 
