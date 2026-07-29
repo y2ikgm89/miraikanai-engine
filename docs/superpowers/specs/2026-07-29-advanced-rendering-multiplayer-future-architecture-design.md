@@ -5,6 +5,8 @@
 - 対象: Advanced RenderingとMultiplayerの将来Architectureを、現Product scopeを維持したままOwner、型、data flow、failure、Qualificationまで設計閉包する判断
 - 非対象: Engine／Schema／Editor／Server／Service／CI／Testの実装、実装Task、実装順序、担当、工数、日程、Provider選定、Account／Lobby／Matchmaking／Hosting／Cloud運用の採択、現在CapabilityへのActivation
 - 現行状態: 関連Owner文書は`review`、実装は`absent`、将来Portfolioは`planning_only`
+- 反証監査訂正: 初稿のGI＋Reflections一行／全30行は独立ActivationとTarget別claimを閉じないため撤回し、GIとReflectionsを別IDにした全31行を採用する。Owner数は四件のまま
+- 最終反証監査: [Research Adjudication](../../reviews/2026-07-29-advanced-rendering-multiplayer-research-adjudication.md)に全応答と採否を保存し、current bytesの最終確認はBlocker／Major／Minor 0、到達不能／過大claim／authority重複・空白／実装scope混入 0、`公式推奨: 可`。外部監査出力をQualification／承認Receiptにはしない
 
 ## 1. 結論
 
@@ -14,7 +16,7 @@ Advanced RenderingとMultiplayerは、実装直前まで名前だけを残すの
 
 | 新Owner | 正本化する意味 |
 |---|---|
-| `mirakan.arch.rendering-advanced-light-transport` | GI、reflection、advanced shadow、ray／path-traced light transport、scene representation、denoise／reference比較、Target別technique／fallback |
+| `mirakan.arch.rendering-advanced-light-transport` | GI、reflection、advanced shadow、ray／path-traced light transport、scene representation requirementのsemantic declarationとavailability／completeness validation、denoise／reference比較、Target別technique／fallback |
 | `mirakan.arch.rendering-terrain-foliage` | Terrain source／tile／layer／cook／streamingとFoliage species／scatter／instance／wind interaction／qualification |
 | `mirakan.arch.network-transport-connection` | endpoint、protocol handshake、connection、delivery class、packetization、security binding、congestion／timeout、provider adapter、fault injection |
 | `mirakan.arch.multiplayer-authority-replication` | multiplayer role／authority、network object identity、replication、RPC／command、relevancy／priority、prediction／reconciliation／rollback、join／leave／resync |
@@ -114,7 +116,7 @@ Advanced Light Transport Ownerは、照明結果を得る「方式の意味」�
 
 - diffuse indirect、specular indirect、visibility／occlusion、shadow transportのsemantic channel
 - baked、probe、screen-space、software-ray、hardware-ray、hybrid、path-traced reference／preview／runtimeのclosed technique family
-- techniqueごとのscene representation requirementとgeneration
+- techniqueごとのscene representation requirement宣言、必要generationのexact request、Runtime Asset／Render Graphから返却されたgenerationのcompleteness検証。ALTはgeneration identityを発行しない
 - static／dynamic source、receiver、emissive、translucent／volumetric participation
 - view／region／quality profileとTarget capability resolution
 - temporal accumulation、denoise、history validityに必要なsemantic input
@@ -221,7 +223,7 @@ Multiplayer runtimeとOnline Servicesは別問題である。
 
 ## 7. Product Future portfolioの原子化
 
-二つの複合Entryを分解し、26行を30行にする。すべて`planning_only`を維持する。
+二つの複合Entryを七つの原子的Entryへclean-breakし、26行を31行にする。すべて`planning_only`を維持する。
 
 ### 7.1 Rendering
 
@@ -231,9 +233,10 @@ Multiplayer runtimeとOnline Servicesは別問題である。
 |---|---|
 | `future.capability.production-terrain` | `mirakan.arch.rendering-terrain-foliage` |
 | `future.capability.production-foliage` | `mirakan.arch.rendering-terrain-foliage` |
-| `future.capability.production-global-illumination-reflections` | `mirakan.arch.rendering-advanced-light-transport` |
+| `future.capability.production-global-illumination` | `mirakan.arch.rendering-advanced-light-transport` |
+| `future.capability.production-reflections` | `mirakan.arch.rendering-advanced-light-transport` |
 
-`future.capability.aaa-photoreal-rendering`はOwnerを`mirakan.arch.product-plan`へ移し、上記三EntryをFuture prerequisiteにする。Virtualized Geometry、ray tracing、path tracing、neural reconstructionは品質目標を満たす候補であり、一律の必須手段にはしない。
+`future.capability.aaa-photoreal-rendering`はOwnerを`mirakan.arch.product-plan`へ移し、上記四Entryを同一Target上のFuture prerequisiteにする。GIとReflectionsは同じOwnerだが相互に依存せず、Target support、fallback、Qualification、claimを独立に昇格／降格する。`claim.product.feature.production-reflections`を追加し、GI行は`claim.product.feature.production-gi`だけ、Reflections行は新claimだけを所有する。Virtualized Geometry、ray tracing、path tracing、neural reconstructionは品質目標を満たす候補であり、一律の必須手段にはしない。
 
 ### 7.2 Multiplayer
 
@@ -245,7 +248,11 @@ Multiplayer runtimeとOnline Servicesは別問題である。
 | `future.capability.network-transport-connection` | `mirakan.arch.network-transport-connection` |
 | `future.capability.multiplayer-authority-replication` | `mirakan.arch.multiplayer-authority-replication` |
 
-small co-opはTransportとAuthority／Replicationを必須前提にし、listenまたはdedicated topologyをProduct Decisionで選べるようにする。rollback competitiveはTransportとAuthority／Replicationを前提にする。large-session shooterとMMOはDedicated Server targetを追加前提にする。Dedicated Serverが存在するだけでmultiplayer、co-op、rollback、large sessionを主張しない。
+Authority／Replication行自身がTransportをFuture prerequisiteにする。small co-opとrollback competitiveはTransportとAuthority／Replicationを明示前提にし、small co-opはlistenまたはdedicated topologyをProduct Decisionで選べるようにする。large-session shooterはDedicated Server、Transport、Authority／Replicationを前提にするが、rollbackを必須にしない。MMOはこの三件にoffline large Worldとpersistence／operationsを加える。persistence／operationsはOnline Service境界であり、game Transport、Replication、dedicated game Runtimeを暗黙前提にしない。Dedicated Serverが存在するだけでmultiplayer、co-op、rollback、large sessionを主張しない。
+
+単一Target向けsame-target prerequisiteをcross-target Product consumerへ一律適用しない。[Product Plan](../../architecture/00-product/product-plan.md)の`FutureTargetClosureRegistryV1`は全31 Futureとset equalityで、25行を`single_target`、persistence、small co-op、rollback、large-session、MMO、managed external Hostの六行を`target_role_bundle`にする。bundleはexact profile一件、role→Target Profile集合、role間relation、親行とset equalityなactive／common Future前提とclaim requirement、profile固有additional Future前提、bundle前提のrole mapping、DAG末端までの再帰Activation closure、claimごとのrequired non-empty roleを一つのpromotion／claim release単位へ閉じる。
+
+small co-op／rollbackのlisten／peer profileはDedicated Serverを要求せず、dedicated profileだけが`future.capability.headless-dedicated-server-target`を追加前提にする。large-sessionはdedicatedまたはdistributed authority profile、MMOはdesktop client＋同じdistributed cluster上のauthority／operations profileを持つ。AAAは`single_target`のまま四つのRendering前提を同じexact Targetへ要求する。Target kind集合の交差、暗黙cross product、一roleの成功からbundle claimを推測しない。
 
 旧Future IDは公開済みCapabilityではなく`planning_only`かつ未materializeであるためaliasを残さない。
 
@@ -339,7 +346,7 @@ Transportはreplicated objectを知らず、Replicationはsocket／packetを知�
 
 ### 11.1 Advanced Light Transport
 
-- semantic sourceからresolved profile、scene representation、Render Graph要求までのcontract fixture
+- semantic sourceからresolved profile、scene representation request／返却generation completeness、Render Graph要求までのcontract fixture
 - raster、screen、software-ray、hardware-ray、hybrid、path referenceのTarget support matrix
 - camera cut、dynamic geometry、emissive、translucent、volumetric、large instance count、streaming境界
 - history invalidation、device loss、representation欠落、budget overflow、fallback ladder
@@ -422,14 +429,15 @@ Architecture反映は次をすべて満たした場合だけ完了とする。
 1. 新Owner四文書とDecisionがIndexから到達でき、Owner文書数が59件として整合する。
 2. Advanced Light Transport、Terrain／Foliage、Transport／Connection、Authority／Replicationの正本範囲が重複しない。
 3. Render Graph、Lighting、Environment、World、Runtime Package、Scheduling、Product Planから新Ownerへのproducer／consumer境界が一方向かつexactである。
-4. 二つの複合Future IDが六つの原子的IDへclean-breakされ、全30行が`planning_only`である。
+4. 二つの複合Future IDが七つの原子的IDへclean-breakされ、全31行が`planning_only`である。
 5. AAA／photoreal claimはProduct Planが集約し、特定technique／Providerを暗黙必須にしない。
 6. small co-opはlisten／dedicatedの選択自由を持ち、Dedicated ServerだけでMultiplayer対応を主張しない。
 7. Online ServicesをTransportまたはReplicationの一部として暗黙採択していない。
 8. closed tagged union、exact Ref、bounded cardinality、failure、fallback、negative fixtureが各Ownerにある。
 9. 公式Engine比較とChatGPT 5.6 Pro監査の指摘がOwner正本へ反映または根拠付きで不採用になっている。
 10. 文書link、文書ID、Future ID／Owner ref、関連Owner、禁止語、状態表現の機械監査がpassする。
-11. 実装、実装計画、Task、順序、担当、工数、日程、Provider選定、Product Activationを追加していない。
-12. 現行MVPとcurrent Product claimsが変更されず、Multiplayerとadvanced high-end renderingはcompletion dependencyのままではない。
+11. 全31 Futureにexact `single_target | target_role_bundle` closureが一件あり、active prerequisite binding、common Future binding、claim requirementが親行とset equality、common／profile固有Future edge unionがacyclic、DAG末端まで再帰展開したrole Target／bundle prerequisite／claim required role／claim releaseがset equalityである。
+12. 実装、実装計画、Task、順序、担当、工数、日程、Provider選定、Product Activationを追加していない。
+13. 現行MVPとcurrent Product claimsが変更されず、Multiplayerとadvanced high-end renderingはcompletion dependencyのままではない。
 
 この文書は将来Architectureの所有判断を承認する設計であり、実装計画ではない。

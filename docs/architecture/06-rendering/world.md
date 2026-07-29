@@ -5,9 +5,9 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: World／Scene／SpaceのSource identity、global composition、再利用Scene instance／nested composition／typed override／explicit rebase、persistent entity、optional spatial topology、Cellのplan-local identity、partition／streaming-plan authoring、spatial transition、Loading presentation、procedural／Tilemap／Blockoutの共通意味、World authoring read projectionの所有境界
-- 非正本範囲: 具体World schema、procedural／Tilemap／Blockout catalog、Operation、Fixture、Gameplay progression、Runtime cell phase、ECS schema、Physics／Navigation behavior、Render execution、Save／Replay envelope
+- 非正本範囲: 具体World schema、procedural／Tilemap／Blockout catalog、Terrain／Foliage Source／domain artifact、network session／authority／replication、Operation、Fixture、Gameplay progression、Runtime cell phase、ECS schema、Physics／Navigation behavior、Render execution、Save／Replay envelope
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Collision](../05-simulation/collision.md)
-- 関連文書: [Procedural World Catalog／Fixture Candidate](../appendices/procedural-world-catalog-fixture.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)
+- 関連文書: [Procedural World Catalog／Fixture Candidate](../appendices/procedural-world-catalog-fixture.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](render-graph.md)、[Terrain／Foliage](terrain-foliage.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -16,6 +16,10 @@
 Worldは空間、Scene、global composition、persistent entity、任意のspatial topologyを所有する。Gameplay goal、outcome、spawn、進行単位はconsumer-owned stateであり、World activationへ必須にしない。
 
 World activation、Scene activation、Cell streamingはGameplay goalやResultを要求しない。Scene 0件のprocedural-only World、spatial topologyなしのUI補助World、有限進行を持たないcontinuous simulationをvalidとする。
+
+[Terrain／Foliage](terrain-foliage.md)は本書のexact World／Scene／Space／Cell／partition bindingを消費し、Terrain region／tileとFoliage placement／clusterのdomain artifactを返す。本書はそのSource、species、scatter、seam、representationを再定義せず、Terrain／FoliageはCell identity、partition、activation setを再定義しない。
+
+[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)はWorld object／region／Cell scopeをNetwork Object、authority lease、interest inputへexact bindingできるが、World Cellをnetwork shard、replication bucket、player relevancyと同一視しない。本書はnetwork topology、authority、snapshot、resyncを所有しない。
 
 ## 2. 正規用語とidentity
 

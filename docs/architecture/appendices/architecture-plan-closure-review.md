@@ -6,10 +6,10 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 親Owner: [Architecture Governance](../01-governance/architecture-governance.md)
-- 正本範囲: Architecture計画全体の監査結論、current／target区分、AI可読性、Creative expression境界、Product Lifecycle／Product Security、Scene instance／override／rebase／Level authoring意味、Runtime coverage、Editor／Game分離、Target別Build／Release evidence mapping、Consent／RPG／QA／2Dのcross-owner整合性、未解決Closureの追跡
+- 正本範囲: Architecture計画全体の監査結論、current／target区分、AI可読性、Creative expression境界、Product Lifecycle／Product Security、Scene instance／override／rebase／Level authoring意味、Advanced Rendering／Multiplayer ownership、Future Target-role closure、Runtime coverage、Editor／Game分離、Target別Build／Release evidence mapping、Consent／RPG／QA／2Dのcross-owner整合性、未解決Closureの追跡
 - 非正本範囲: Subsystem semantics、Schema、API、Backend、固定Budget、Product Phase／Work Package、実装Task、実装順序、担当、工数、日程、Capability Activation、承認結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)、[AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Product Lifecycle／Product Security Ownership](../decisions/2026-07-29-product-lifecycle-security-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](../06-rendering/world.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[RPG Genre Pack](../08-packs/rpg.md)、[Scenario／Stage](../08-packs/scenario-stage.md)
+- 関連文書: [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)、[AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Product Lifecycle／Product Security Ownership](../decisions/2026-07-29-product-lifecycle-security-ownership.md)、[Advanced Rendering／Multiplayer Ownership](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project State](../03-authoring/project-state.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Physics](../05-simulation/physics.md)、[World](../06-rendering/world.md)、[Render Graph](../06-rendering/render-graph.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[RPG Genre Pack](../08-packs/rpg.md)、[Scenario／Stage](../08-packs/scenario-stage.md)
 - 根拠区分: project-review／official-spec comparison
 - 外部根拠確認日: 2026-07-29
 
@@ -29,6 +29,9 @@ Miraikanai EngineのArchitecture計画は、Owner分離、current／target区分
 | Scene／Level authoring | `closed-in-target-design` | Schema／Projection／Operation absent | `Level Workspace`をpresentation、Scene Sourceを再利用instance／nested composition／typed override／explicit rebaseのauthorityへ分離 |
 | Native iteration | `closed-in-target-design` | Native build／Preview executable／Receipt absent | Shipping static link、Preview DLLのstartup一回load、変更時GameHost restart。in-process Hot Reloadは採用しない |
 | Runtime描画／物理／Memory | detailed target | implementation absent | 意味、lifetime、backend境界、Qualificationは計画済み |
+| Advanced Rendering | `closed-in-target-design` | Owner／Schema review、implementation absent | Light transport semantic channelとchannel-local Technique binding、Terrain／Foliage branch別fallback outcome、Render Graph execution、World／LOD／Asset境界を分離し、GI／Reflectionsを独立Futureにした |
+| Multiplayer | `closed-in-target-design` | Owner／Schema review、implementation absent | Transport／Connection、gameplay session／authority／replication、Dedicated Runtime Target、Online Servicesを分離し、Envelope whole-content identityとsession／authority epoch付きCommand deduplication domainを閉じた |
+| Future Target closure | `closed-in-target-design` | Registry／Promotion／Receipt absent | 25 single Targetと6 Target-role bundleをtagged union化し、client／authority／operationsの到達不能とoptional role由来の過大claimを除去した |
 | Runtime Asset | `closed-in-target-design` | implementation／Definition absent | 専用Ownerへrequest／dependency／generation／residency／lease／eviction／recoveryを一意化 |
 | Editor／Game分離 | strong | implementation absent | process、state、dependency、failure isolationが一貫している |
 | Target別Build mapping | strong | lock／Receipt absent | Driver、Target、Package、Signing、device Gateは計画済み |
@@ -44,6 +47,8 @@ Miraikanai EngineのArchitecture計画は、Owner分離、current／target区分
 2026-07-29に[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[RPG Genre Pack](../08-packs/rpg.md)を追加した。本節の75／73／50／202という数値は2026-07-28監査の履歴Evidenceであり、追加後のcurrent Inventoryまたは再監査結果ではない。同日の最初の再確認ではArchitecture Markdown 78件、文書ID 76件、Owner文書53件、相対Markdown path 2,483件の未解決0件、文書ID重複0件、Owner Header不一致0件、53 Owner間の規範依存225 edgeの未解決0件／cycle 0件を確認した。
 
 required-features closureでは[Product Lifecycle](../00-product/product-lifecycle.md)と[Product Security](../01-governance/product-security.md)を追加した。追加後のcurrent Repository bytesではArchitecture Markdown 81件、Header内文書ID 79件、Owner文書55件、相対Markdown path 2,611件の未解決0件、文書ID重複0件、Owner Header不一致0件、55 Owner間の規範依存234 edgeの未解決0件／cycle 0件を確認した。この手動検証も生成済み`ArchitectureInventoryV1`またはSchema validationの代用にはしない。
+
+Advanced Rendering／Multiplayer closure追加後の2026-07-29 current Repository bytesでは、Architecture Markdown 86件、Header内文書ID 84件、Owner文書59件、相対Markdown path 2,885件の未解決0件、文書ID重複0件、Owner Header不一致0件、59 Owner間の規範依存252 edgeの未解決0件／cycle 0件を確認した。Futureは31 unique行すべて`planning_only`、claim Registry 60件とFuture claim unionがset equality、Target closureは25 single／6 bundle・10 profile・21 role、common／profile固有edgeを含むFuture DAG 19 edgeはmissing／self／cycle 0件である。Profileごとのactive／common prerequisiteとclaim requirementは親Future行、candidate Target kind unionは親candidate集合とset equalityである。これらもMarkdownからの機械抽出であり、生成済みRegistry、Schema validator、Profile Artifact、Promotion Manifest、Receiptの実在証拠ではない。
 
 本書では次の語を分ける。
 
@@ -214,6 +219,10 @@ C++ ModulesのBuild性能比較はCX0とCX2の採否Evidenceであり、Shipping
 | RPG Product ↔ Feature／Genre／Project | `closed-in-target-design` | Featureは再利用State、Genreはcomposition、Reference Gameは通常Project、Productはoutcome／acceptance |
 | QA ↔ CI／Release | `closed-in-target-design` | Verificationがattempt集約、retry、quarantine、waiver、非代替を所有 |
 | 2D Asset／World／Animation ↔ Renderer | `closed-in-target-design` | 各Source／selection／residencyをOwnerに残し、Rendererがpacket／sort／batchを所有 |
+| Lighting／Materials／World ↔ ALT ↔ Render Graph／Post | `closed-in-target-design` | Source意味は既存Owner、ALTはchannel別Technique／fallback／transport plan、Render Graphはexecution、Postはgeneric effect／history intent |
+| World／LOD／Runtime Asset ↔ Terrain／Foliage | `closed-in-target-design` | Terrain／Foliageはdomain Source／Artifact、Worldはpartition、LODはselection、Runtime Assetはgeneration／residency |
+| Runtime Package ↔ Transport ↔ Multiplayer | `closed-in-target-design` | PackageはDedicated Target、TransportはConnection／delivery、Multiplayerはsession／authority／replication |
+| Product Future ↔ Target roles | `closed-in-target-design`／materialization absent | Product Planがsingle Targetまたはclient／authority／operations bundle、各Ownerがrole別Qualificationを所有 |
 
 ## 8. Architecture closure register
 
@@ -244,6 +253,9 @@ C++ ModulesのBuild性能比較はCX0とCX2の採否Evidenceであり、Shipping
 | `ARCH-C23` | Project bootstrap、Template／Sample／Documentation、surface parity、update／repair／support／NOTICEの製品横断closure | `closed-in-target-design` | 専用[Product Lifecycle](../00-product/product-lifecycle.md)がversioned local Ref、acyclic Documentation Link Graph、typed parity／documentation Receipt、Support Closure、publication recovery境界を各Ownerのexact artifact／Receiptとsame release／Project／Candidateへ束縛。Schema／Operation／Artifact／Receiptは未materialize |
 | `ARCH-C24` | 再利用Scene instance、nested composition、typed override、explicit rebase | `closed-in-target-design` | [World](../06-rendering/world.md)のScene Sourceをcleanな意味置換として拡張。closed Attachment Ref、versioned Rebase Ref、Instance／Source／Override／before-after byte equalityを要求し、`Prefab` canonical aliasなし、RuntimeはAuthoring Source非依存 |
 | `ARCH-C25` | Mobile Application stateとsurface availability、Windows workspace rootの文書矛盾 | `corrected-in-review` | Mobile CommonをSchedulingのApplication／presentation二軸へ一致させ、Windowsからlegacy `build/` rootを除去 |
+| `ARCH-C26` | GI／Reflection／advanced Shadow／Terrain／Foliageと既存Renderer／World authority | `closed-in-target-design` | [Advanced Light Transport](../06-rendering/advanced-light-transport.md)と[Terrain／Foliage](../06-rendering/terrain-foliage.md)を追加し、Source／semantic selection／execution／representation／residencyを一意化 |
+| `ARCH-C27` | Dedicated Target、Transport Connection、gameplay session／authority／replicationの複合ownership | `closed-in-target-design` | Runtime Package、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)へ三分し、Online Servicesを別Future Decisionに維持 |
+| `ARCH-C28` | same-target規則でlarge-session clientとMMO全Targetが到達不能 | `closed-in-target-design` | Product Planの`FutureTargetClosureRegistryV1`で25 `single_target`／6 `target_role_bundle`、active／common／profile固有Future binding、role mapping、claimごとのrequired non-empty role、bundle claim releaseをexact化 |
 
 `ARCH-C03`はArchitecture Inventory／Explain Projectionというsubjectのtarget semantics欠落ではなくmaterialization未実施を表す。ただしArchitecture全体で唯一のmaterialization blockerではない。`ARCH-C04`、`ARCH-C05`、`ARCH-C10`、`ARCH-C12`、ならびにLifecycle／Security Ownerが明記する未materialized Schema／Operation／Fixture／Receiptを独立に保持し、一件の状態を他件の代表にしない。
 
@@ -322,11 +334,29 @@ Bootstrapは全initial DocumentとSourceを一つのprepared candidateとして�
 
 2DはAsset import／Atlas、World Tile Source／chunk、Animation frame selection、Runtime Asset generation／lease、Material compatibility、Camera pixel policy、Renderer packet／stable sort／batch、Collision／Navigation projectionを一つのOwnerへ統合しない。Render batchingはcanonical sort orderを変えず、Tile representationの更新はSource revisionとRuntime Asset generationの一致を要求する。
 
+### 9.13 Advanced Rendering authority
+
+`ARCH-C26`は[Advanced Light Transport](../06-rendering/advanced-light-transport.md)と[Terrain／Foliage](../06-rendering/terrain-foliage.md)を追加して`closed-in-target-design`とした。Lighting／Materials／Environment／WorldはSource意味、ALTはdiffuse indirect／specular indirect／shadow visibility／reference transportのchannel別Technique requirement／Target support／fallbackと同channel binding validation、Terrain／Foliageは独立domain Source／Artifactとdomain完全列挙fallback outcome、LOD／Virtual Geometryはrepresentation generation、Runtime Assetはgeneration／residency、Render Graphはpass／resource／history executionを所有する。
+
+GIとReflectionsは同じALT OwnerでもTarget support、fallback、Qualification、claimが独立するため別Future IDにする。AAA／photorealはProduct Planが同じexact Target上のTerrain／Foliage／GI／Reflections Receiptを集約するだけで、ray／path／neural／virtual geometryまたはProviderを必須手段にしない。
+
+### 9.14 Multiplayer authority
+
+`ARCH-C27`はDedicated game Runtime TargetをRuntime Package、endpoint／handshake／semantic delivery／Connection epoch／whole-envelope duplicate／Packet Plan reassembly identityを[Network Transport／Connection](../09-networking/network-transport-connection.md)、gameplay session／role／authority／Network Object／replication／prediction／rollback／session lifecycleとauthority epochに閉じたCommand deduplicationを[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)へ分離して`closed-in-target-design`とした。
+
+Transport `connected`をsession `joined | synchronized | authoritative`へ読み替えず、Dedicated TargetだけでMultiplayer claimを解放しない。Account／entitlement、Lobby／Matchmaking、Relay allocation、Hosting fleet、cloud persistence／economy／moderationは別将来Decisionであり、opaque binding以外を二Ownerへ吸収しない。
+
+### 9.15 Future Target-role closure
+
+`ARCH-C28`は単一Target prerequisiteとcross-target Product compositionを`single_target | target_role_bundle`へ分けて`closed-in-target-design`とした。AAA等25行はsame exact Target、persistence、small co-op、rollback、large-session、MMO、managed external Hostの六行はexact profile、role Target集合、全role pair relation、DAG末端まで再帰展開するactive／common Future／profile固有additional Future前提、bundle前提role mapping、claimごとのrequired non-empty roleを一つのpromotion／claim release単位にする。
+
+small co-op／rollbackのheadless Targetはdedicated profileだけが選べ、Dedicated Target Futureをprofile固有前提にする。large-sessionのclient Targetとauthority Target、MMOのdesktop clientとdistributed authority／operationsをflat intersectionへ潰さない。一roleのReceipt、Target kindだけの一致、別profile間の混成、implicit cross product、optional artifact roleが空のmanaged Source buildからProduct claimを解放しない。Registry、Profile Artifact、Promotion Manifest、Activation、Receiptは未materializeである。
+
 ## 10. 本Reviewに伴う文書整合
 
 | 文書 | 変更内容 |
 |---|---|
-| Architecture Index | Owner文書を55件へ更新し、Product Lifecycle／Product Security／Ownership Decisionへのnavigationと変更入口を追加 |
+| Architecture Index | Owner文書を59件へ更新し、Advanced Light Transport／Terrain・Foliage／Network Transport／Multiplayer AuthorityとOwnership Decisionへのnavigationを追加 |
 | Product Lifecycle | Project bootstrap、Template／Sample／Documentation、surface parity、update／repair／support／NOTICE、E2E acceptanceの専用Ownerを追加 |
 | Product Security | threat ownership、baseline、vulnerability case、security update／disclosure／notification／incidentの専用Ownerを追加 |
 | Product Plan | Product completionへLifecycle／Security acceptanceを追加し、各専用Ownerとの境界を明記 |
@@ -348,6 +378,10 @@ Bootstrapは全initial DocumentとSourceを一つのprepared candidateとして�
 | Native Game Module | restart-based Windows PreviewをHot Reloadのcleanな意味置換として明記し、in-process unload／replacement／patch禁止を維持 |
 | Windows／Mobile Common | legacy `build/` rootを除去し、Application lifecycleとpresentation surface availabilityを別stateへ修正 |
 | Toolchain／Dependencies | Target別C++ Build optimization closureをKnown unresolved registerへ追加 |
+| Advanced Light Transport／Render Graph／Lighting／Materials／Post／Environment | Source意味、channel別Technique／fallback、generic effect、physical executionのauthorityを分離 |
+| Terrain／Foliage／World／LOD／Runtime Asset | TerrainとFoliageのSource／Artifact branchを独立させ、partition／selection／residencyを既存Ownerへ維持 |
+| Runtime Package／Network Transport／Multiplayer | Dedicated Target、Connection／delivery、gameplay session／authority／replicationを三分し、Online Servicesを非正本化 |
+| Product Plan／Execution Registry proposal／Shooter | Future 31行、Reflection claim、Target-role bundle、active／common／profile固有Future prerequisite、claim required role、promotion／claim release closureを追加 |
 
 ## 11. 非目標
 

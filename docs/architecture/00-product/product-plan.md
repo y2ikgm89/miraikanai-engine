@@ -7,7 +7,7 @@
 - 正本範囲: Product intent、非交渉原則、Capability成熟度、Portfolio、Algorithm／Performance最適化のProduct優先度、AI制作理解境界、MVP、Phase順序、製品昇格・停止・完了Gate
 - 非正本範囲: Subsystemの型・Field・API・Backend・既定値・Budget、AI権限と承認、Evidence形式。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)
+- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Render Graph](../06-rendering/render-graph.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-28
 
@@ -497,7 +497,7 @@ player assignment、join／leave、Input、Game Flow、UI join prompt／focus、
 
 ## 8. Future portfolio
 
-本節の`FutureCapabilityIncubationRegistryV1`は、将来境界を実装DAGから隔離したまま、再検討に必要な決定とQualification形を失わないための唯一のProduct正本である。
+本節の`FutureCapabilityIncubationRegistryV1`と`FutureTargetClosureRegistryV1`は、将来境界を実装DAGから隔離したまま、再検討に必要な決定、Target-role closure、Qualification形を失わないための唯一のProduct正本である。
 
 ```text
 FutureCapabilityIncubationRegistryV1
@@ -514,23 +514,28 @@ FutureCapabilityIncubationRegistryV1
     excluded_current_product_claims[]
 ```
 
-`planning_state`の初期値は全26行`planning_only`である。`required_decision_kinds[]`は`product_scope | authority_model | data_model | threat_model | target_program | provider_selection | licensing | operations | qualification`、`candidate_target_kinds[]`は`headless_server | desktop | mobile | console | web | xr | distributed_cluster`、`qualification_fixture_kinds[]`は`contract | deterministic_simulation | network_fault | scale | target_device | content_quality | security | operations`のclosed値だけを受理する。
+`planning_state`の初期値は全31行`planning_only`である。`required_decision_kinds[]`は`product_scope | authority_model | data_model | threat_model | target_program | provider_selection | licensing | operations | qualification`、`candidate_target_kinds[]`は`headless_server | desktop | mobile | console | web | xr | distributed_cluster`、`qualification_fixture_kinds[]`は`contract | deterministic_simulation | network_fault | scale | target_device | content_quality | security | operations`のclosed値だけを受理する。
 
 | future_capability_id | Owner | planning_state | prerequisite capability refs | prerequisite Future refs | required decision kinds | candidate target kinds | qualification fixture kinds | activation trigger | excluded current product claims |
 |---|---|---|---|---|---|---|---|---|---|
 | `future.capability.offline-large-world-continuous-streaming` | `mirakan.arch.rendering-world` | `planning_only` | `capability.world.3d; capability.environment.core; capability.product.general_production_3d` | `[]` | `product_scope; data_model; qualification` | `desktop; mobile` | `contract; scale; target_device` | C2 3DのTarget別production Receipt後に、offline World partition、streaming authority、Save整合性、memory budgetの承認Decisionが成立する | `claim.product.feature.general-3d-production; claim.product.feature.offline-large-world-support` |
 | `future.capability.alternate-simulation-cadence-and-substep` | `mirakan.arch.runtime-scheduling-lifetime` | `planning_only` | `capability.runtime.scheduling` | `[]` | `product_scope; data_model; target_program; qualification` | `headless_server; desktop; mobile` | `contract; deterministic_simulation; target_device` | alternate fixed／variable／turn-based／explicit-step Cadenceと`SimulationAdvanceIntervalV1`について、Physics／Navigation、Animation、VFX、Input／Replay、Debug hang／step、LOD、Gameplay Feature timer／cadence、Pause、Native ABI、Save、Target budgetを同じProfile hashへ閉じ、60/1以外のCadenceごとに全consumer determinism／Save／Replay／Target Receiptが揃う | `claim.product.feature.alternate-simulation-cadence; claim.product.feature.explicit-step-simulation; claim.product.feature.configurable-physics-substep` |
-| `future.capability.headless-dedicated-server-session-transport-replication` | `mirakan.arch.runtime-scheduling-lifetime` | `planning_only` | `capability.runtime.scheduling; capability.runtime.ecs-e3-cook-load` | `[]` | `product_scope; authority_model; data_model; threat_model; operations; qualification` | `headless_server; distributed_cluster` | `contract; deterministic_simulation; network_fault; security; operations` | headless Target programとserver authority、session transport、replication contract、運用責務の承認Decisionが揃う | `claim.product.network.multiplayer; claim.product.network.dedicated-server-support` |
-| `future.capability.small-cooperative-multiplayer` | `mirakan.arch.product-plan` | `planning_only` | `capability.runtime.scheduling` | `future.capability.headless-dedicated-server-session-transport-replication` | `product_scope; authority_model; threat_model; qualification` | `desktop; mobile; headless_server` | `deterministic_simulation; network_fault; target_device; security` | dedicated server／replicationのqualified Receipt後に、Genre-neutralなplayer count、join／leave、Save、host migrationのProduct Decisionが成立する | `claim.product.network.cooperative-multiplayer` |
-| `future.capability.rollback-competitive-networking` | `mirakan.arch.product-plan` | `planning_only` | `capability.runtime.scheduling` | `future.capability.headless-dedicated-server-session-transport-replication` | `product_scope; authority_model; data_model; threat_model; qualification` | `desktop; mobile; headless_server` | `deterministic_simulation; network_fault; scale; security` | Genre-neutralなdeterministic simulation、input delay、rollback window、anti-cheat、ranked operationsの承認Decisionとprototype Receiptが揃う | `claim.product.network.rollback-networking; claim.product.network.competitive-networking` |
-| `future.capability.large-session-network-shooter` | `mirakan.arch.pack-shooter` | `planning_only` | `capability.gameplay.combat; capability.gameplay.ranged_combat; capability.gameplay.encounter_spawn; capability.gameplay.scoring; capability.gameplay.pickup_grant; capability.gameplay.interaction; capability.gameplay.character_locomotion; capability.gameplay.path_following; capability.gameplay.scenario_stage; capability.domain.shooter-2d; capability.domain.shooter-3d; capability.runtime.scheduling` | `future.capability.headless-dedicated-server-session-transport-replication; future.capability.rollback-competitive-networking` | `product_scope; authority_model; data_model; threat_model; operations; qualification` | `headless_server; distributed_cluster; desktop; mobile` | `deterministic_simulation; network_fault; scale; target_device; security; operations` | 二つのGenre-neutralなFuture前提がactiveへ移行した後、Shooter Genre consumerとしてplayer count、server／region authority、replication／rollback、anti-cheat、failure recovery、運用SLOの承認Decisionとscale Receiptが揃う | `claim.product.network.large-session-shooter; claim.product.network.high-player-count-support` |
-| `future.capability.persistence-live-service-moderation-operations` | `mirakan.arch.ai-security-approval` | `planning_only` | `capability.product.general_production_2d; capability.product.general_production_3d` | `future.capability.headless-dedicated-server-session-transport-replication` | `product_scope; authority_model; data_model; threat_model; licensing; operations; qualification` | `headless_server; desktop; mobile; distributed_cluster` | `security; operations; network_fault; scale` | persistence、live update、moderation、privacy、retention、incident responseの各Owner Decisionと運用演習Receiptが揃う | `claim.product.operations.persistence; claim.product.operations.live-service; claim.product.operations.moderation` |
-| `future.capability.mmo-distributed-world-authority` | `mirakan.arch.product-plan` | `planning_only` | `capability.product.general_production_3d` | `future.capability.headless-dedicated-server-session-transport-replication; future.capability.offline-large-world-continuous-streaming; future.capability.persistence-live-service-moderation-operations` | `product_scope; authority_model; data_model; threat_model; operations; qualification` | `headless_server; distributed_cluster; desktop` | `deterministic_simulation; network_fault; scale; security; operations` | 三つのFuture前提がactiveとなり、shard／region authorityとfailure recoveryの承認Decisionが成立する | `claim.product.network.mmo; claim.product.network.distributed-world` |
+| `future.capability.headless-dedicated-server-target` | `mirakan.arch.runtime-package` | `planning_only` | `capability.runtime.scheduling; capability.runtime.ecs-e3-cook-load` | `[]` | `product_scope; target_program; threat_model; operations; qualification` | `headless_server; distributed_cluster` | `contract; deterministic_simulation; target_device; security; operations` | Editor／graphics／local-user Inputを含まないpresentation-free `entry_kind=world` Dedicated Game Runtime Entry、`world_package_ref=exact one`、Presentation／UI closureなし、Target kindは`headless_server`または`distributed_cluster`、package closure、process lifecycle、Target security、crash／update／operationsとTarget別Receiptが揃う。worldless `entry_kind=headless`は本Futureのpromotion subjectではない | `claim.product.network.dedicated-server-support` |
+| `future.capability.network-transport-connection` | `mirakan.arch.network-transport-connection` | `planning_only` | `capability.runtime.scheduling; capability.runtime.debug-replay-support` | `[]` | `product_scope; data_model; threat_model; provider_selection; licensing; target_program; operations; qualification` | `headless_server; desktop; mobile; console; web; distributed_cluster` | `contract; network_fault; scale; target_device; security; operations` | protocol revision、endpoint／handshake、four semantic delivery classes、bounded queue／reconnect／security、private Adapterと各Targetのloss／reorder／fragment／fault conformance Receiptが揃う | `[]` |
+| `future.capability.multiplayer-authority-replication` | `mirakan.arch.multiplayer-authority-replication` | `planning_only` | `capability.runtime.scheduling; capability.runtime.ecs-e3-cook-load; capability.runtime.debug-replay-support` | `future.capability.network-transport-connection` | `product_scope; authority_model; data_model; threat_model; operations; qualification` | `headless_server; desktop; mobile; console; web; distributed_cluster` | `contract; deterministic_simulation; network_fault; scale; target_device; security; operations` | topology／role／authority、Network Object、typed command、snapshot／delta／baseline、join／resync、optional prediction／rollback subprofileをexact Target／Transport tupleへ閉じたReceiptが揃う | `claim.product.network.multiplayer` |
+| `future.capability.small-cooperative-multiplayer` | `mirakan.arch.product-plan` | `planning_only` | `capability.runtime.scheduling` | `future.capability.network-transport-connection; future.capability.multiplayer-authority-replication` | `product_scope; authority_model; threat_model; qualification` | `headless_server; desktop; mobile; console` | `deterministic_simulation; network_fault; target_device; security` | listenまたはdedicatedのexact Target-role bundleを一件選び、各client／authority roleにTransportとAuthority／Replicationを閉じる。dedicated profileだけはheadless Dedicated Targetを追加前提にし、join／leave／late join、Save、failure／qualified host migrationのProduct DecisionとReceiptを同じbundleへ束縛する | `claim.product.network.cooperative-multiplayer` |
+| `future.capability.rollback-competitive-networking` | `mirakan.arch.product-plan` | `planning_only` | `capability.runtime.scheduling` | `future.capability.network-transport-connection; future.capability.multiplayer-authority-replication` | `product_scope; authority_model; data_model; threat_model; operations; qualification` | `headless_server; desktop; mobile; console` | `deterministic_simulation; network_fault; scale; target_device; security; operations` | peer、listen、dedicatedのexact Target-role bundleを一件選び、各client／authority roleへTransportとAuthority／Replicationを閉じる。dedicated profileだけはheadless Dedicated Targetを追加前提にし、Input Snapshot、deterministic state、prediction／reconciliation、rollback window、anti-cheat、ranked operationsのDecisionとReceiptを同じbundleへ束縛する | `claim.product.network.rollback-networking; claim.product.network.competitive-networking` |
+| `future.capability.large-session-network-shooter` | `mirakan.arch.pack-shooter` | `planning_only` | `capability.gameplay.combat; capability.gameplay.ranged_combat; capability.gameplay.encounter_spawn; capability.gameplay.scoring; capability.gameplay.pickup_grant; capability.gameplay.interaction; capability.gameplay.character_locomotion; capability.gameplay.path_following; capability.gameplay.scenario_stage; capability.domain.shooter-2d; capability.domain.shooter-3d; capability.runtime.scheduling` | `future.capability.headless-dedicated-server-target; future.capability.network-transport-connection; future.capability.multiplayer-authority-replication` | `product_scope; authority_model; data_model; threat_model; operations; qualification` | `headless_server; distributed_cluster; desktop; mobile; console` | `deterministic_simulation; network_fault; scale; target_device; security; operations` | dedicatedまたはdistributedのexact Target-role bundleを一件選び、Dedicated Targetをauthority role、TransportとAuthority／Replicationを全client／authority roleへ閉じる。Shooter consumerのplayer count、server／region authority、interest／replication、anti-cheat、failure recovery、運用SLOをbundle全体でQualificationする。rollbackは別Futureであり必須にしない | `claim.product.network.large-session-shooter; claim.product.network.high-player-count-support` |
+| `future.capability.persistence-live-service-moderation-operations` | `mirakan.arch.ai-security-approval` | `planning_only` | `capability.product.general_production_2d; capability.product.general_production_3d` | `[]` | `product_scope; authority_model; data_model; threat_model; licensing; operations; qualification` | `headless_server; desktop; mobile; distributed_cluster` | `security; operations; network_fault; scale` | clientとoperationsのexact Target-role bundleに、persistence、live update、moderation、privacy、retention、incident responseの各Owner Decisionと運用演習Receiptを閉じる。game Transport、Replication、dedicated game Runtimeを暗黙前提にしない | `claim.product.operations.persistence; claim.product.operations.live-service; claim.product.operations.moderation` |
+| `future.capability.mmo-distributed-world-authority` | `mirakan.arch.product-plan` | `planning_only` | `capability.product.general_production_3d` | `future.capability.headless-dedicated-server-target; future.capability.network-transport-connection; future.capability.multiplayer-authority-replication; future.capability.offline-large-world-continuous-streaming; future.capability.persistence-live-service-moderation-operations` | `product_scope; authority_model; data_model; threat_model; operations; qualification` | `distributed_cluster; desktop` | `deterministic_simulation; network_fault; scale; security; operations` | desktop client、同じdistributed clusterへco-locateするdistributed authority／operationsのexact bundleを閉じる。Dedicated Targetはauthority、Transport／Authority／Replicationはclientとauthority、offline large Worldはclient、persistence bundleはclient／operations roleへexact mappingし、shard／region authority、handoff、failure recovery、operationsをbundle全体でQualificationする | `claim.product.network.mmo; claim.product.network.distributed-world` |
 | `future.capability.vehicle-ragdoll-crowd-motion-warping` | `mirakan.arch.simulation-physics` | `planning_only` | `capability.simulation.physics-3d; capability.simulation.animation-3d` | `[]` | `product_scope; data_model; provider_selection; licensing; qualification` | `desktop; mobile` | `contract; deterministic_simulation; scale; target_device` | vehicle、ragdoll、crowd、motion warpingを独立Capabilityとして分割したOwner仕様とTarget prototype Receiptが揃う | `claim.product.feature.vehicle; claim.product.feature.ragdoll; claim.product.feature.crowd; claim.product.feature.motion-warping` |
 | `future.capability.first-person-shooter-profile` | `mirakan.arch.pack-shooter` | `planning_only` | `capability.gameplay.combat; capability.gameplay.ranged_combat; capability.gameplay.encounter_spawn; capability.gameplay.scoring; capability.gameplay.pickup_grant; capability.gameplay.interaction; capability.gameplay.character_locomotion; capability.gameplay.path_following; capability.gameplay.scenario_stage; capability.domain.shooter-3d; capability.camera.3d; capability.simulation.animation-3d; capability.platform.input-core; capability.platform.audio-core; capability.platform.ui-core` | `[]` | `product_scope; data_model; target_program; qualification` | `desktop; mobile; console` | `contract; deterministic_simulation; target_device; content_quality` | first-person Camera／aim／weapon presentation、authoritative 3D Animation、Input／Audio／UI／comfort／Accessibility、2D／TPSとFeature意味を共有するProfile、独立fixture、Target別performanceを閉じる | `claim.product.feature.fps-support; claim.product.feature.first-person-shooter-profile` |
-| `future.capability.production-terrain-foliage-gi` | `mirakan.arch.rendering-environment-surfaces` | `planning_only` | `capability.world.3d; capability.environment.core` | `[]` | `product_scope; data_model; provider_selection; licensing; qualification` | `desktop; mobile` | `content_quality; scale; target_device` | Terrain、Foliage、GIを別artifact pipelineとfallbackへ分離した仕様、budget Decision、Target比較Receiptが揃う | `claim.product.feature.production-terrain; claim.product.feature.production-foliage; claim.product.feature.production-gi` |
+| `future.capability.production-terrain` | `mirakan.arch.rendering-terrain-foliage` | `planning_only` | `capability.world.3d; capability.rendering.render-graph-core` | `[]` | `product_scope; data_model; provider_selection; licensing; target_program; qualification` | `desktop; mobile; console` | `contract; content_quality; scale; target_device` | Terrain Source、tile／layer／seam、domain artifact、World／LOD／Collision／Navigation handoff、Target fallbackとcontent／scale Receiptが独立して揃う | `claim.product.feature.production-terrain` |
+| `future.capability.production-foliage` | `mirakan.arch.rendering-terrain-foliage` | `planning_only` | `capability.world.3d; capability.rendering.render-graph-core` | `[]` | `product_scope; data_model; provider_selection; licensing; target_program; qualification` | `desktop; mobile; console` | `contract; content_quality; scale; target_device` | Foliage species／placement、authored／generated identity、deterministic scatter、domain artifact、World／LOD／Environment handoff、Target fallbackとcontent／scale Receiptが独立して揃う | `claim.product.feature.production-foliage` |
+| `future.capability.production-global-illumination` | `mirakan.arch.rendering-advanced-light-transport` | `planning_only` | `capability.world.3d; capability.environment.core; capability.render.material.realistic_advanced; capability.rendering.render-graph-core` | `[]` | `product_scope; data_model; provider_selection; licensing; target_program; qualification` | `desktop; mobile; console` | `contract; content_quality; scale; target_device` | diffuse indirect channelのSource participation、Technique、representation requirement、history／denoise、Target support、meaning-preserving fallbackと比較Receiptが独立して揃う | `claim.product.feature.production-gi` |
+| `future.capability.production-reflections` | `mirakan.arch.rendering-advanced-light-transport` | `planning_only` | `capability.world.3d; capability.environment.core; capability.render.material.realistic_advanced; capability.rendering.render-graph-core` | `[]` | `product_scope; data_model; provider_selection; licensing; target_program; qualification` | `desktop; mobile; console` | `contract; content_quality; scale; target_device` | specular reflection channelのSource participation、Technique、representation requirement、history／denoise、Target support、meaning-preserving fallbackと比較Receiptが独立して揃う | `claim.product.feature.production-reflections` |
 | `future.capability.virtualized-continuous-geometry-lod` | `mirakan.arch.rendering-virtualized-continuous-geometry` | `planning_only` | `capability.rendering.render-graph-core; capability.product.general_production_3d` | `[]` | `product_scope; data_model; provider_selection; licensing; target_program; operations; qualification` | `desktop; mobile; console` | `contract; content_quality; scale; target_device; operations` | discrete Mesh LOD／HLODのPlan hashとexact fallbackがqualifiedになり、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)のtarget Owner選択後にexact Definition／Port、Capability、Target qualificationがappliedとなった後、Virtualized／Continuous Geometry OwnerがLOD、Asset Lifecycle、Runtime Asset Lifecycle、Runtime Package、World、Camera、Render Graph、Scheduling／Lifetime、Memory／Pointers、Performance／Capacity、Materials、Animation、Persistence、Debug、Toolchain／Platformのreceipt-free closureを束ね、feature tupleごとのTarget Receipt／active Qualification Binding、provider／license Decision、root／page residency、overflow／fault／device-loss fallback Receiptまで承認する。Product `active`移行とTarget Activation Binding publicationを同一Governance transactionでatomicに行い、active Target／Qualification Binding／Operation集合のいずれかが空なら`planning_only`を維持する | `claim.product.feature.continuous-geometry-lod; claim.product.feature.virtualized-geometry` |
-| `future.capability.aaa-photoreal-rendering` | `mirakan.arch.rendering-environment-surfaces` | `planning_only` | `capability.world.3d; capability.camera.3d; capability.environment.core; capability.render.material.realistic_advanced; capability.vfx.system; capability.product.general_production_3d` | `future.capability.production-terrain-foliage-gi` | `product_scope; data_model; provider_selection; licensing; target_program; qualification` | `desktop; console` | `contract; content_quality; scale; target_device; operations` | general 3D production後に、quality rubric、content pipeline、lighting／material／environment／VFX fidelity、hardware budget、意味同等fallbackの承認Decisionとblind comparison Receiptが揃う | `claim.product.quality.aaa-visual-parity; claim.product.quality.photoreal-rendering-guarantee` |
+| `future.capability.aaa-photoreal-rendering` | `mirakan.arch.product-plan` | `planning_only` | `capability.world.3d; capability.camera.3d; capability.environment.core; capability.render.material.realistic_advanced; capability.vfx.system; capability.product.general_production_3d` | `future.capability.production-terrain; future.capability.production-foliage; future.capability.production-global-illumination; future.capability.production-reflections` | `product_scope; data_model; provider_selection; licensing; target_program; qualification` | `desktop; console` | `contract; content_quality; scale; target_device; operations` | 四つの前提が同一Targetでactiveとなり、Target別quality rubric、content pipeline、Lighting／Material／Environment／VFX／Animation／Camera fidelity、hardware budget、意味同等fallback、blind comparison Receiptのset equalityが成立する。特定ray／path／neural／geometry Techniqueは必須にしない | `claim.product.quality.aaa-visual-parity; claim.product.quality.photoreal-rendering-guarantee` |
 | `future.capability.console-target-program` | `mirakan.arch.product-plan` | `planning_only` | `capability.runtime.scheduling; capability.rendering.render-graph-core; capability.platform.input-core; capability.platform.audio-core; capability.platform.ui-core` | `[]` | `target_program; threat_model; licensing; operations; qualification` | `console` | `contract; target_device; security; operations` | 特定Console programへの参加承認後に、NDA下Owner、SDK、graphics／input／audio／UI adapter、certification、device lab、release operationsが確定する | `claim.product.platform.console-support; claim.product.platform.console-shipping` |
 | `future.capability.web-target-program` | `mirakan.arch.product-plan` | `planning_only` | `capability.runtime.scheduling; capability.rendering.render-graph-core; capability.platform.input-core; capability.platform.audio-core; capability.platform.ui-core` | `[]` | `target_program; data_model; threat_model; provider_selection; licensing; qualification` | `web` | `contract; target_device; security; content_quality` | Web runtime、graphics、storage、threading、download、browser matrixのTarget Decisionとprototype Receiptが揃う | `claim.product.platform.web-support; claim.product.platform.web-shipping` |
 | `future.capability.xr-target-program` | `mirakan.arch.rendering-camera` | `planning_only` | `capability.camera.3d; capability.platform.input-core; capability.platform.audio-core; capability.platform.ui-core; capability.rendering.render-graph-core` | `[]` | `target_program; data_model; threat_model; provider_selection; licensing; qualification` | `xr` | `contract; target_device; security; content_quality` | XR runtime、tracking、comfort、input、render budget、device matrixのTarget Decisionとprototype Receiptが揃う | `claim.product.platform.xr-support; claim.product.platform.xr-shipping` |
@@ -545,6 +550,163 @@ FutureCapabilityIncubationRegistryV1
 | `future.capability.local-multiplayer-split-screen` | `mirakan.arch.product-plan` | `planning_only` | `capability.gameplay.interaction; capability.platform.input-core; capability.platform.audio-core; capability.platform.ui-core; capability.camera.2d; capability.camera.3d` | `[]` | `product_scope; data_model; target_program; qualification` | `desktop; mobile; console` | `contract; deterministic_simulation; target_device; content_quality` | player assignment、join／leave、split viewport、focus、audio listener、save profile、Accessibilityを一つのTarget別integrated fixtureで閉じる | `claim.product.feature.local-multiplayer; claim.product.feature.split-screen` |
 | `future.capability.unrestricted-project-scripting-runtime` | `mirakan.arch.gameplay-programming-model` | `planning_only` | `capability.authoring.ai-core; capability.product.project-source-activation; capability.runtime.debug-replay-support` | `[]` | `product_scope; authority_model; data_model; threat_model; provider_selection; licensing; operations; qualification` | `desktop; mobile` | `contract; deterministic_simulation; target_device; security; operations` | 本Entryを直接active移行しない。structured content MOD、sandboxed executable MOD、signed AOT desktop native extension、developer-only executable code（JIT／未署名）を別Future ID／Owner／Target／claimへ分解するProduct Decisionが先に成立し、各分岐のVM／ABI、sandbox、determinism、hot reload、debug、package、mod trust、Target／Store policy、adversarial／replay Receiptが独立して閉じる | `claim.product.feature.unrestricted-scripting; claim.product.feature.arbitrary-runtime-code; claim.product.feature.mod-execution` |
 
+`candidate_target_kinds[]`は一行のflat support claimではなく、次の`FutureTargetClosureRegistryV1`が選択できるrole Target kindのexact unionである。単一Runtime／描画Targetと、client／authority／operations等を同時に要するProduct capabilityを同じsame-target規則へ押し込まない。
+
+```text
+FutureTargetClosureRegistryV1
+  entries[31]:
+    future_capability_ref
+    closure:
+      { kind: single_target }
+      | { kind: target_role_bundle,
+          bundle_profiles[1..16]: FutureTargetRoleBundleProfileV1 }
+
+FutureTargetRoleBundleProfileV1
+  bundle_profile_id
+  bundle_profile_version = 1
+  roles[1..8]:
+    role_id
+    role_kind: client | authority_listen | authority_peer |
+               authority_dedicated | authority_distributed |
+               operations | execution_host | artifact_target
+    candidate_target_kinds[1..7]
+    min_target_count: 0..16
+    max_target_count: 1..16
+  role_relations[0..28]:
+    left_role_id
+    right_role_id
+    relation: independent_target_sets | disjoint_target_sets |
+              same_exact_target | same_target_set |
+              left_singleton_member_of_right_set
+  active_prerequisite_bindings[0..64]: ActivePrerequisiteTargetBindingV1
+  common_future_prerequisite_bindings[0..64]: FuturePrerequisiteTargetBindingV1
+  additional_future_prerequisite_bindings[0..32]: FuturePrerequisiteTargetBindingV1
+  claim_role_requirements[0..64]: FutureClaimRoleRequirementV1
+  bundle_profile_content_hash: SHA-256
+
+ActivePrerequisiteTargetBindingV1
+  prerequisite_capability_ref
+  consumer_role_ids[1..8]
+
+FutureClaimRoleRequirementV1
+  claim_id
+  required_nonempty_role_ids[1..8]
+
+FuturePrerequisiteTargetBindingV1
+  prerequisite_future_capability_ref
+  binding:
+    { kind: single_target,
+      consumer_role_ids[1..8] }
+    | { kind: target_role_bundle,
+        accepted_prerequisite_profile_ids[1..16],
+        role_mappings[1..8]:
+          { consumer_role_id, prerequisite_role_id,
+            relation: same_exact_target | same_target_set } }
+```
+
+`target_role_bundle`のexact六行は次であり、残る25行は`single_target`である。
+
+| Future ID | bundle profile IDs |
+|---|---|
+| `future.capability.persistence-live-service-moderation-operations` | `future.target-bundle.persistence-client-operations` |
+| `future.capability.small-cooperative-multiplayer` | `future.target-bundle.coop-listen; future.target-bundle.coop-dedicated` |
+| `future.capability.rollback-competitive-networking` | `future.target-bundle.rollback-peer; future.target-bundle.rollback-listen; future.target-bundle.rollback-dedicated` |
+| `future.capability.large-session-network-shooter` | `future.target-bundle.large-session-dedicated; future.target-bundle.large-session-distributed` |
+| `future.capability.mmo-distributed-world-authority` | `future.target-bundle.mmo-distributed` |
+| `future.capability.managed-external-host-execution` | `future.target-bundle.managed-external-host` |
+
+各profileのrole集合は次をexact値とする。`min..max`はplayer数またはprocess数でなく、同じbundleへ束縛する異なるexact `TargetProfileRefV1`の件数である。
+
+| profile ID | role ID | role kind | candidate Target kinds | min..max |
+|---|---|---|---|---|
+| `future.target-bundle.persistence-client-operations` | `client` | `client` | `desktop; mobile` | `1..16` |
+| `future.target-bundle.persistence-client-operations` | `operations` | `operations` | `headless_server; distributed_cluster` | `1..1` |
+| `future.target-bundle.coop-listen` | `client` | `client` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.coop-listen` | `authority` | `authority_listen` | `desktop; mobile; console` | `1..1` |
+| `future.target-bundle.coop-dedicated` | `client` | `client` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.coop-dedicated` | `authority` | `authority_dedicated` | `headless_server` | `1..1` |
+| `future.target-bundle.rollback-peer` | `client` | `client` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.rollback-peer` | `authority` | `authority_peer` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.rollback-listen` | `client` | `client` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.rollback-listen` | `authority` | `authority_listen` | `desktop; mobile; console` | `1..1` |
+| `future.target-bundle.rollback-dedicated` | `client` | `client` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.rollback-dedicated` | `authority` | `authority_dedicated` | `headless_server` | `1..1` |
+| `future.target-bundle.large-session-dedicated` | `client` | `client` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.large-session-dedicated` | `authority` | `authority_dedicated` | `headless_server` | `1..1` |
+| `future.target-bundle.large-session-distributed` | `client` | `client` | `desktop; mobile; console` | `1..16` |
+| `future.target-bundle.large-session-distributed` | `authority` | `authority_distributed` | `distributed_cluster` | `1..1` |
+| `future.target-bundle.mmo-distributed` | `client` | `client` | `desktop` | `1..1` |
+| `future.target-bundle.mmo-distributed` | `authority` | `authority_distributed` | `distributed_cluster` | `1..1` |
+| `future.target-bundle.mmo-distributed` | `operations` | `operations` | `distributed_cluster` | `1..1` |
+| `future.target-bundle.managed-external-host` | `execution_host` | `execution_host` | `desktop; headless_server` | `1..1` |
+| `future.target-bundle.managed-external-host` | `artifact_target` | `artifact_target` | `desktop` | `0..1` |
+
+各profileは全unordered role pairを次のrelationでexact一件ずつ持つ。未列挙pair、duplicate、逆向き別relationを拒否する。
+
+| profile IDs | left | right | relation |
+|---|---|---|---|
+| `future.target-bundle.persistence-client-operations` | `client` | `operations` | `disjoint_target_sets` |
+| `future.target-bundle.coop-listen; future.target-bundle.rollback-listen` | `authority` | `client` | `left_singleton_member_of_right_set` |
+| `future.target-bundle.coop-dedicated; future.target-bundle.rollback-dedicated; future.target-bundle.large-session-dedicated; future.target-bundle.large-session-distributed` | `client` | `authority` | `disjoint_target_sets` |
+| `future.target-bundle.rollback-peer` | `client` | `authority` | `same_target_set` |
+| `future.target-bundle.mmo-distributed` | `client` | `authority` | `disjoint_target_sets` |
+| `future.target-bundle.mmo-distributed` | `client` | `operations` | `disjoint_target_sets` |
+| `future.target-bundle.mmo-distributed` | `authority` | `operations` | `same_exact_target` |
+| `future.target-bundle.managed-external-host` | `execution_host` | `artifact_target` | `independent_target_sets` |
+
+active prerequisite bindingは次をexact値とする。`roles(...)`は列挙roleが選択した重複除去後の全exact Targetで、親Future行のactive `prerequisite_capability_refs[]`に対応するdestination Capability、Target Activation Binding、fresh Qualificationを要求する。optional roleが0 TargetならそのroleはTargetを追加しないが、一binding全体の解決Target集合はnon-emptyでなければならない。
+
+| profile IDs | active prerequisite bindings |
+|---|---|
+| `future.target-bundle.persistence-client-operations` | `capability.product.general_production_2d=roles(client); capability.product.general_production_3d=roles(client)` |
+| `future.target-bundle.coop-listen; future.target-bundle.coop-dedicated; future.target-bundle.rollback-peer; future.target-bundle.rollback-listen; future.target-bundle.rollback-dedicated` | `capability.runtime.scheduling=roles(client,authority)` |
+| `future.target-bundle.large-session-dedicated; future.target-bundle.large-session-distributed` | `capability.gameplay.combat=roles(client,authority); capability.gameplay.ranged_combat=roles(client,authority); capability.gameplay.encounter_spawn=roles(client,authority); capability.gameplay.scoring=roles(client,authority); capability.gameplay.pickup_grant=roles(client,authority); capability.gameplay.interaction=roles(client,authority); capability.gameplay.character_locomotion=roles(client,authority); capability.gameplay.path_following=roles(client,authority); capability.gameplay.scenario_stage=roles(client,authority); capability.domain.shooter-2d=roles(client,authority); capability.domain.shooter-3d=roles(client,authority); capability.runtime.scheduling=roles(client,authority)` |
+| `future.target-bundle.mmo-distributed` | `capability.product.general_production_3d=roles(client)` |
+| `future.target-bundle.managed-external-host` | `capability.authoring.ai-core=roles(execution_host); capability.product.external-agent=roles(execution_host); capability.product.project-source-activation=roles(execution_host,artifact_target)` |
+
+claimごとのnon-empty role要件は次をexact値とする。Profileの通常min cardinalityに加え、列挙claimをreleaseする場合は指定roleが一件以上のexact Targetを持たなければならない。これによりoptional artifactなしのHost executionとartifactを生成するmanaged Source buildを同じFuture内で過大主張なく区別する。
+
+| profile IDs | claim role requirements |
+|---|---|
+| `future.target-bundle.persistence-client-operations` | `claim.product.operations.persistence=roles(client,operations); claim.product.operations.live-service=roles(client,operations); claim.product.operations.moderation=roles(client,operations)` |
+| `future.target-bundle.coop-listen; future.target-bundle.coop-dedicated` | `claim.product.network.cooperative-multiplayer=roles(client,authority)` |
+| `future.target-bundle.rollback-peer; future.target-bundle.rollback-listen; future.target-bundle.rollback-dedicated` | `claim.product.network.rollback-networking=roles(client,authority); claim.product.network.competitive-networking=roles(client,authority)` |
+| `future.target-bundle.large-session-dedicated; future.target-bundle.large-session-distributed` | `claim.product.network.large-session-shooter=roles(client,authority); claim.product.network.high-player-count-support=roles(client,authority)` |
+| `future.target-bundle.mmo-distributed` | `claim.product.network.mmo=roles(client,authority,operations); claim.product.network.distributed-world=roles(client,authority,operations)` |
+| `future.target-bundle.managed-external-host` | `claim.product.ai.managed-external-host-execution=roles(execution_host); claim.product.ai.managed-source-build=roles(execution_host,artifact_target)` |
+
+common／additional Future prerequisite bindingは次をexact値とする。`single(role...)`は列挙roleが選択した重複除去後の全exact Targetで、そのFutureのdestination Capabilityと同Targetへ再帰展開したactive／Future prerequisite closure、Target Activation Binding、fresh Qualificationを要求する。`bundle(profile; mappings)`は完成した前提bundle全体、その再帰済みActivation closureとrole mappingを要求する。
+
+| profile IDs | common Future prerequisite bindings | additional Future prerequisite bindings |
+|---|---|---|
+| `future.target-bundle.persistence-client-operations; future.target-bundle.managed-external-host` | `[]` | `[]` |
+| `future.target-bundle.coop-listen` | `network-transport-connection=single(client,authority); multiplayer-authority-replication=single(client,authority)` | `[]` |
+| `future.target-bundle.coop-dedicated` | `network-transport-connection=single(client,authority); multiplayer-authority-replication=single(client,authority)` | `headless-dedicated-server-target=single(authority)` |
+| `future.target-bundle.rollback-peer; future.target-bundle.rollback-listen` | `network-transport-connection=single(client,authority); multiplayer-authority-replication=single(client,authority)` | `[]` |
+| `future.target-bundle.rollback-dedicated` | `network-transport-connection=single(client,authority); multiplayer-authority-replication=single(client,authority)` | `headless-dedicated-server-target=single(authority)` |
+| `future.target-bundle.large-session-dedicated; future.target-bundle.large-session-distributed` | `headless-dedicated-server-target=single(authority); network-transport-connection=single(client,authority); multiplayer-authority-replication=single(client,authority)` | `[]` |
+| `future.target-bundle.mmo-distributed` | `headless-dedicated-server-target=single(authority); network-transport-connection=single(client,authority); multiplayer-authority-replication=single(client,authority); offline-large-world-continuous-streaming=single(client); persistence-live-service-moderation-operations=bundle(future.target-bundle.persistence-client-operations; client->client:same_target_set, operations->operations:same_exact_target)` | `[]` |
+
+`single_target` entryはunion上`bundle_profiles` Fieldを持たず、consumerをTarget `t`へpromotionする場合に全`prerequisite_capability_refs[]`と`prerequisite_future_capability_refs[]`を同じ`t`へ要求する。`target_role_bundle` entryは単一Target promotionを禁止し、profileをexact一件選んだrole Target集合全体だけをpromotion単位にする。各profileのactive binding ID集合は親Future行の`prerequisite_capability_refs[]`、common Future binding ID集合は親行の`prerequisite_future_capability_refs[]`、claim requirement ID集合は親行の`excluded_current_product_claims[]`とそれぞれset equalityでなければならない。additional Future binding ID集合はcommon集合とdisjointにし、選択profileだけの条件付きedgeとして親行のcommon集合へ混ぜないが、全profileのcommon／additional Future edge unionをFuture DAGのacyclicity検査へ含める。
+
+bundleでは、親行の`candidate_target_kinds[]`と全profile roleのcandidate kind unionをset equalityにする。role ID／kindはprofile内unique、`0 <= min_target_count <= max_target_count <= 16`、少なくとも一roleはmin 1以上とする。選択時はkindではなく重複のないexact `TargetProfileRefV1`／hashをroleへ束縛し、各refのkindがrole候補に含まれることを検証する。同じkindの複数exact Target Profileは許すが同じrefの重複は拒否し、全role Targetを同じdestination Definition、promotion manifest、Candidateへ閉じる。profileの一部だけ、別profile間のrole混成、kindだけ一致するTarget、暗黙cross product、別Candidate Receiptを拒否する。
+
+active prerequisiteはbinding先roleの各distinct Targetで検証し、destination migrationが同じCandidateのTarget Binding、fallback、Gate、Requirementを追加または保持しない限り、現行Target未対応のCapabilityを候補kindだけから補完しない。Future前提が`single_target`ならbinding先全roleの各distinct Targetで前提Futureのdestination、active prerequisite、さらにそのFuture prerequisiteをDAG末端まで再帰展開する。Future前提がbundleならaccepted profileとrole mappingの全件、前提Promotion Manifestが持つ再帰済みrole Activation closureを検証し、前提bundleのrequired roleを省略しない。同じ`{role, capability, Target}`または`{capability, Target}`は重複除去し、cycleはDefinition validationで先に拒否する。`single` binding先roleのcandidate kind unionを前提Futureのcandidate kind集合内、bundle mappingのconsumer role candidate kind集合をmapped prerequisite roleのcandidate kind集合内に要求する。選択後はkindだけでなくexact Target集合がbinding relationを満たさなければならない。
+
+profile内の`bundle_profile_id`はFuture closure内uniqueとし、profile配列をID、role配列をrole ID、relationを表記された`{left_role_id,right_role_id}`、bindingをprerequisite ID、claim requirementをclaim ID、各内部role／profile／mappingをID tupleのunsigned UTF-8 byte順へ正規化する。`bundle_profile_content_hash`は同Fieldを除いたprofileのJCS bytesに対するSHA-256 lowercase hexである。unknown Field、未正規順、逆向きに重複したrole pair、存在しないrole／profile／claim、commonとadditionalの重複、hash不一致を拒否する。
+
+claim releaseは選択したbundle profile ID／hash、role→exact Target集合、DAG末端まで再帰展開した全active／common Future／additional Future前提、全Target Activation／fresh Receiptのset equalityに加え、`released_claims[]`各claimの`required_nonempty_role_ids[]`を満たす場合だけ許す。一Targetまたは一roleの成功、直接前提だけの成功、optional roleが空のままそのroleを必要とするclaimからbundle全体のclaimを解除しない。
+
+`headless_server`はTarget kindであってdedicated game Runtimeの意味ではない。small co-op／rollbackのheadless候補はdedicated profileの`authority` roleだけに現れ、`future.capability.headless-dedicated-server-target` additional prerequisiteなしに単独選択できない。MMOはdistributed profileだけを持つため、未使用の`headless_server`を親candidate集合から除外する。
+
+`future.capability.production-terrain-foliage-gi`と`future.capability.headless-dedicated-server-session-transport-replication`は、いずれも`planning_only`かつ公開Schema／実装が`absent`の旧複合IDである。本revisionでは前者をTerrain、Foliage、GI、Reflectionsの四ID、後者をheadless Target、Transport、Authority／Replicationの三IDへclean-breakした。`future.capability.production-global-illumination-reflections`を中間aliasまたはumbrellaとして作らない。旧ID、中間ID、表示名、近似名をactive Capability、prerequisite、fallback、promotion mappingへ受理しない。
+
+active／Future prerequisiteはCapability identityだけでなく上記tagged Target closureへ適用する。`single_target`のsame-target Receiptを別Targetから合成せず、`target_role_bundle`をsame-target intersectionへ潰さない。Console／Web等のTarget Programが別Futureである場合も、各roleのexact Targetに必要なactive DefinitionとPlatform／Toolchain closureが成立するまで候補kindだけからTarget supportを推測しない。
+
+`future.capability.production-global-illumination`と`future.capability.production-reflections`は同じOwnerだが相互にFuture prerequisiteを持たない。diffuse indirectとspecular reflectionのTarget support、Technique、fallback、Qualification、claimを独立にpromotion／降格できる。`future.capability.aaa-photoreal-rendering`だけが同一Target上のTerrain、Foliage、GI、Reflections四件をexact前提にし、個別Feature claimを再所有または直接releaseしない。
+
+`future.capability.multiplayer-authority-replication`はTransportを技術前提にするが、Transportの`active`をgameplay sessionの`joined | synchronized | authoritative`として扱わない。small co-opはlisten／dedicatedを選べ、Dedicated Serverを必須にしない。large-session shooterはdedicated、Transport、Authority／Replicationを必要とするがrollbackを必須にしない。MMOはこれら三件にoffline large Worldとpersistence／operationsを加える。persistence／operationsはOnline Service境界であり、game Transport、Replication、dedicated game Runtimeを暗黙前提にしない。
+
 Android／AppleのPlatform文書にProject ShaderのTarget artifact／package schemaが存在しても、`capability.project.shader`のProject-defined Sourceは有効化されない。現行Registryでは両Targetを`excluded`とし、`future.capability.mobile-project-native-shader-source-qualification`を分解・承認してTarget bindingとfresh Qualificationを追加するまで、Engine-ownedまたは事前Qualification済みartifactのpackaging境界だけを参照する。
 
 `future.capability.unrestricted-project-scripting-runtime`は複数の異なるtrust boundaryを発見するためのincubation umbrellaであり、Candidate、active Capability、Work Packageへ直接昇格させない。分解時は実行payload classとして次の四scopeを相互排他にする。(1) Asset、Pack、GameplayDefinition等のstructured content MODは実行codeを含まず、既存Schema／Capability／authority／quota内だけでCookする。(2) sandboxed executable MODは選定済みVM／bytecode、closed Host API、memory／CPU／storage／network budget、determinism、Save／Replay、署名またはcontent trust policyを持ち、native process権限を得ない。(3) signed AOT desktop native extensionはTarget別ABI、publisher trust、Package固定のstatic linkまたはstartup dynamic binding、revocation、crash isolationを閉じ、署名またはhash一致だけでEngine private API、post-package download、mobile対応を許可しない。(4) developer-only executable codeはJITまたは未署名codeを隔離Development Profileだけで扱い、Shipping package、Release claim、MOD配布経路へ流用しない。一つの配布物が複数classを含む場合もpayloadごとに別Capabilityとして判定し、弱いclassのpolicyへ統合しない。
@@ -553,7 +715,7 @@ Current Productは上記四scopeをShipping後のMOD／extension／JIT配布Capa
 
 分解Product Decisionは新しいFuture Portfolio revisionでumbrella行をremoveし、各新規行とclaim対応を同じrow migration manifestへ明示する。umbrella IDをactive Capability alias、fallback、共通Operation familyとして残さず、四scopeの一つがQualificationされても他scopeのclaimをreleaseしない。
 
-`excluded_current_product_claims[]`と`released_claims[]`は自由文字列でなく、同じFuture closureに含む次の`ProductClaimDefinitionRegistryV1`のexact `claim_id`だけを参照する。Registryのclaim ID集合は26件のFuture行が列挙する`excluded_current_product_claims[]`のunionとset equalityでなければならない。`claim_scope`は`feature | network | platform | operations | ai | quality | migration`のclosed値である。MVP-A、MVP-B、Technology Preview等のmilestoneはActive ProductのPhase／Release Gateだけが所有し、Future claimへ重複登録しない。canonical labelの変更はclaim identityを変えず、ID再利用、未登録label、別言語表示からのID推測を拒否する。
+`excluded_current_product_claims[]`と`released_claims[]`は自由文字列でなく、同じFuture closureに含む次の`ProductClaimDefinitionRegistryV1`のexact `claim_id`だけを参照する。Registryのclaim ID集合は31件のFuture行が列挙する`excluded_current_product_claims[]`のunionとset equalityでなければならない。空配列のTransport entryはProduct claimを直接releaseしない技術前提であり、欠落ではない。`claim_scope`は`feature | network | platform | operations | ai | quality | migration`のclosed値である。MVP-A、MVP-B、Technology Preview等のmilestoneはActive ProductのPhase／Release Gateだけが所有し、Future claimへ重複登録しない。canonical labelの変更はclaim identityを変えず、ID再利用、未登録label、別言語表示からのID推測を拒否する。
 
 | claim_id | canonical label | claim_scope |
 |---|---|---|
@@ -579,6 +741,7 @@ Current Productは上記四scopeをShipping後のMOD／extension／JIT配布Capa
 | `claim.product.feature.offline-large-world-support` | offline large-world support | `feature` |
 | `claim.product.feature.production-foliage` | production Foliage | `feature` |
 | `claim.product.feature.production-gi` | production GI | `feature` |
+| `claim.product.feature.production-reflections` | production reflections | `feature` |
 | `claim.product.feature.production-terrain` | production Terrain | `feature` |
 | `claim.product.feature.ragdoll` | ragdoll | `feature` |
 | `claim.product.feature.split-screen` | split screen | `feature` |
@@ -617,7 +780,7 @@ Current Productは上記四scopeをShipping後のMOD／extension／JIT配布Capa
 | `claim.product.quality.asset-quality-guarantee` | asset quality guarantee | `quality` |
 | `claim.product.quality.photoreal-rendering-guarantee` | photoreal rendering guarantee | `quality` |
 
-Future IDはactiveな`CapabilityRegistryV1`、`ProductPhaseRegistryV1`、`PhaseFixtureBindingRegistryV1`、Shipping labelから参照してはならない。上表からactive Capabilityへの`prerequisite_capability_refs[]`はincubation側だけが持つ一方向参照であり、CapabilityのActivation、Target対応、Phase schedulingを発生させない。`future.capability.large-session-network-shooter`のactivation triggerが参照する二つのFuture IDもplanning dependencyであってactive DAG edgeではなく、各前提を独立したProduct Decisionでactive Capabilityへ昇格させるまでlarge-session Entryをschedulingしない。各Entryを実装DAGへ移すには、新しいProduct DecisionでOwner、Target、fallback、Requirement、Fixture、Work Packageを同時に登録し、`planning_only`のまま暗黙activateしない。
+Future IDはactiveな`CapabilityRegistryV1`、`ProductPhaseRegistryV1`、`PhaseFixtureBindingRegistryV1`、Shipping labelから参照してはならない。上表からactive Capabilityへの`prerequisite_capability_refs[]`はincubation側だけが持つ一方向参照であり、CapabilityのActivation、Target対応、Phase schedulingを発生させない。`prerequisite_future_capability_refs[]`とbundle profile固有edgeもplanning dependencyであってactive DAG edgeではない。`single_target`の同一exact Target、または`target_role_bundle`のactive／Future bindingが指定する全role Targetで各前提を独立したProduct Decisionによりactive Capabilityへ昇格させるまでconsumer Entryをschedulingしない。各Entryを実装DAGへ移すには、新しいProduct DecisionでOwner、Target closure、fallback、Requirement、Fixture、Work Packageを同時に登録し、`planning_only`のまま暗黙activateしない。
 
 ## 9. Subsystem ownersとPrimary Product evidence
 
@@ -660,6 +823,8 @@ Future IDはactiveな`CapabilityRegistryV1`、`ProductPhaseRegistryV1`、`PhaseF
 - [LOD](../06-rendering/lod.md)
 - [Virtualized／continuous geometry](../06-rendering/virtualized-continuous-geometry.md)
 - [World](../06-rendering/world.md)
+- [Advanced Light Transport](../06-rendering/advanced-light-transport.md)
+- [Terrain／Foliage](../06-rendering/terrain-foliage.md)
 
 ### 9.4 Platform／Packs
 
@@ -691,6 +856,11 @@ RPG-first targetは、Generic Engine Core、command battle／actor progression�
 - [AI Security／Approval](../01-governance/ai-security-approval.md)
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
 - [Product Security](../01-governance/product-security.md)
+
+### 9.6 Networking
+
+- [Network Transport／Connection](../09-networking/network-transport-connection.md)
+- [Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 
 Primary Product Evidenceは、MVP-AのRPG First PlayableとGenre非依存Core holdout、MVP-Bの独立3D technical Reference、clean package／install／offline run、AIと手動編集の往復、Save／Load、Undo／Replay、Target別Qualification、failure／rollback、Release closureである。MVP-BまたはShooter EvidenceをMVP-A、RPG、Genre非依存Coreの代用にしない。EvidenceのRecord形式、保持、Trace、SBOM、ProvenanceはVerification Ownerだけが決定する。
 

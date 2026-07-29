@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、2D presentation packet・sorting・batching、visibility／geometry execution、lighting pipeline profile、anti-aliasing／temporal execution、Renderer固有failure／qualification
-- 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Post Process／LOD／Worldのauthoring semantics、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
+- 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、2D presentation packet・sorting・batching、visibility／geometry execution、resolved lighting／light-transport execution、anti-aliasing／temporal resource execution、Renderer固有failure／qualification
+- 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Advanced Light Transport／Post Process／Terrain／LOD／Worldのauthoring semanticsとTechnique選択、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[World](world.md)、[Camera](camera.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Advanced Light Transport](advanced-light-transport.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[Terrain／Foliage](terrain-foliage.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[World](world.md)、[Camera](camera.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -21,7 +21,7 @@ RendererはProject C++、Gameplay、Editor、AIからnative API object、command
 
 Runtime phase、Simulation Advance、job dependency、submission lifetimeは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、共通CPU／GPU／memory budgetと測定法は[Runtime performance／capacity](../04-runtime/performance-capacity.md)だけが決定する。本書はRenderer固有のresource pressure、fallback、correctnessを定義するが、共通値や測定envelopeを複写しない。
 
-Materialのshading意味、Lightの物理意味、Post Processのvolume／effect composition、LOD representation選択、World source／streaming planは各同階層Ownerが決定する。Rendererは解決済み入力を実行し、他DomainのSource Documentを解釈しない。
+Materialのshading意味、Lightの物理意味、GI／reflection／advanced shadow／reference transportのTechniqueとfallback、Post Processのvolume／effect composition、Terrain／Foliage domain、LOD representation選択、World source／streaming planは各同階層Ownerが決定する。Rendererは解決済み入力を実行し、他DomainのSource Documentを解釈しない。
 
 ## 2. Module境界と公開Port
 
@@ -80,7 +80,8 @@ PortのC++ ABI、method signature、MCD生成物、Backend実装がRepositoryに
 | `WorldRenderPacket` | frame | [World](world.md)のactive cell revisionから生成されたrenderable集合 |
 | `ResolvedAntiAliasingPlanV1` | resolved | 本書§9。[Executable contracts](../02-foundation/executable-contracts.md)正本の`AntiAliasingIntentV1`から解決する |
 | `ResolvedOutlineExecutionPlanV1` | resolved | 本書§8.1。[Materials](materials.md)の`OutlineStyleProfileV1`をEngine-owned qualified techniqueへ解決した結果 |
-| `ResolvedShadowPlanV1` | resolved | 本書§12。Shadow authoringの解決結果 |
+| `ResolvedShadowPlanV1` | resolved | [Advanced Light Transport](advanced-light-transport.md) §6。Lighting-owned Shadow authoringのchannel／Technique解決結果 |
+| `ResolvedLightTransportPlanV1` | resolved | [Advanced Light Transport](advanced-light-transport.md) §5。channel別Technique／representation／fallbackの解決結果 |
 | `RenderRepresentationPlanV1` | cook | 本書§12。Runtime planからCookした分類plan |
 | `Renderer2DExecutionPlanV1` | cook | 本書§12。2D packet抽出plan |
 
@@ -437,13 +438,15 @@ TemporalFrameInputV1
 
 Providerはprivate Adapterとして統合し、exact version、hash、license、取得元、build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが固定する。未署名artifact、runtime download、runtime training、無承認更新は本書で別規則を複写せず[AI Security／Approval](../01-governance/ai-security-approval.md)とToolchain ownerへ委譲する。
 
-## 10. Ray、path、neural capability
+## 10. Ray、path、neural execution capability
 
-Ray query、ray-traced shadow／reflection／GI、path preview、neural reconstructionは同じRender Graph resource／queue contractへ従うoptional execution profileであり、別Rendererを形成しない。Capability unavailable、history invalid、provider fault時はProfileに登録されたraster／non-neural pathへ次のGraph generationから切り替える。同一frameへ未宣言passを差し込まない。
+Ray query、ray／path transport、neural reconstructionは同じRender Graph resource／queue contractへ従うoptional execution capabilityであり、別Rendererを形成しない。ただしGI、reflection、shadow visibility、reference transportのsemantic channel、Technique ID、reference／preview／runtime role、representation requirement、denoise intent、fallback ladderは[Advanced Light Transport](advanced-light-transport.md)だけが選択する。本書は`ResolvedLightTransportPlanV1`／`LightTransportExecutionRequestV1`を解釈し直さずGraphへ展開する。
 
-closed profile IDは`render-path-profile.rt-shadow`、`render-path-profile.rt-reflection`、`render-path-profile.rtgi`、`render-path-profile.path-trace-reference`、`render-path-profile.path-trace-preview`、`render-path-profile.path-trace-runtime`である。`render-path-profile.rtgi-medium`は`RadianceCachePortV1`の一つのqualified profileとし、上限超過時は未宣言にallocationまたはray数変更を行わず登録済みfallbackへ戻る。
+本書は`RayTracingPortV1`、`RadianceCachePortV1`、`NeuralRenderModelV1`と、acceleration build／update、logical ray dispatch、scratch、history resource、queue／barrier／submissionを所有する。ALT Profileの`software_ray | hardware_ray | path_traced | hybrid`等をRender Graph profile名へ複写せず、Provider／Backend capabilityからsemantic channelを推測しない。
 
-Acceleration structure、model weight、scratch resourceはgeneration付きArtifact／resourceとして扱う。Project C++やAIへnative acceleration handle、arbitrary operator、network accessを公開しない。Path previewをproduction referenceと表示するactivation判断は[Product Plan](../00-product/product-plan.md)が本書のqualification evidenceを消費して決定する。
+Capability unavailable、history resource invalid、Provider／device fault時は同一frameへ未宣言passを差し込まない。Rendererはtyped execution failureをALTへ返し、ALTのregistered fallbackが新しいPlanを作った場合だけ次のGraph generationで切り替える。Rendererが独自にraster、screen-space、non-neural、channel disabledへ降格しない。
+
+Acceleration structure、model weight、scratch resourceはgeneration付きArtifact／resourceとして扱う。Project C++やAIへnative acceleration handle、arbitrary operator、network accessを公開しない。reference、preview、runtime candidateのTarget QualificationとProduct claimはALTと[Product Plan](../00-product/product-plan.md)が所有し、Graph実行成功だけから昇格しない。
 
 ## 11. Planned action vocabulary、diagnostic、fallback
 
@@ -455,13 +458,13 @@ optimizationのAI／Editor説明は[Runtime performance／capacity §8.4](../04-
 
 [Architecture Governance §5.3](../01-governance/architecture-governance.md#53-architecture-explain-projection)の`ArchitectureExplainProjectionV1`は、`RenderGraphDefinition -> CanonicalRenderExecutionPlanV1 -> GraphicsDevicePort -> Backend Adapter -> Target graphics API`のOwner／consumer関係、文書状態、実装状態をread-onlyに説明できなければならない。これはnative object、command stream、driver identity、Project write権限を公開する経路ではない。ProjectionとGeneratorが未materializeの現在は、本書とexact Owner linkがreview用正本であり、AI対応済みまたはtool dispatch可能とは表現しない。
 
-`RendererProviderErrorV1`は`NotInstalled | UnsupportedDevice | UnsupportedDriver | SignatureInvalid | LicenseNotApproved | VersionMismatch | MissingInput | InvalidFormat | InitializationFailed | ExecutionFailed | HistoryInvalid | SwapchainConflict | BudgetExceeded | DeviceFault`のclosed codeを持つ。AAの互換／排他／scope失敗は`AntiAliasingResolutionErrorV1`を使い、Provider障害と混同しない。Running中のProvider failureは同frameで別Providerへ差し替えずgenerationを停止し、次のLoading境界でContextを再生成する。RT／Neural failureも次frameの登録済みRaster／non-neural Graphへ切り替える。
+`RendererProviderErrorV1`は`NotInstalled | UnsupportedDevice | UnsupportedDriver | SignatureInvalid | LicenseNotApproved | VersionMismatch | MissingInput | InvalidFormat | InitializationFailed | ExecutionFailed | HistoryInvalid | SwapchainConflict | BudgetExceeded | DeviceFault`のclosed codeを持つ。AAの互換／排他／scope失敗は`AntiAliasingResolutionErrorV1`を使い、Provider障害と混同しない。Running中のProvider failureは同frameで別Providerへ差し替えずgenerationを停止し、次のLoading境界でContextを再生成する。Ray／path／neural failureはALTへtyped failureを返し、同Ownerのfallback解決を経ないGraph変更を行わない。
 
-Quality fallbackは意味を明示し、resolution、optional effect、shadow execution、temporal provider、ray／neural profileの順序付き候補から選ぶ。allocation失敗時のsilent quality reduction、draw skip、default material置換を禁止する。共通backpressureとcapacity判定は[Runtime performance／capacity](../04-runtime/performance-capacity.md)へ従う。
+Renderer-owned Quality fallbackはresolution、optional Renderer effect、AA／temporal execution等の本書が所有する順序付き候補だけから選ぶ。GI／reflection／shadow／reference transport、light-transport denoiseのfallbackは[Advanced Light Transport](advanced-light-transport.md)、Post effectのfallbackは[Post Processing](post-processing.md)へ委譲する。allocation失敗時のsilent quality reduction、draw skip、default material置換、別Domain Techniqueへの切替を禁止する。共通backpressureとcapacity判定は[Runtime performance／capacity](../04-runtime/performance-capacity.md)へ従う。
 
 ## 12. 関連契約の配置
 
-Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfileV1`／`ResolvedLightPlanV1`、[Post Processing](post-processing.md)所有の`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、[LOD](lod.md)所有の`LodIntentV1`／`LodResolutionPlanV1`／`ViewLodContextV1`を解釈し直さず実行する。UI primitiveの`MirakanUiDrawPacketV1`は[Editor UI Framework](../03-authoring/editor-ui-framework.md)、`RuntimeRepresentationPlanV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)、共通`RemediationV1`は[Executable contracts](../02-foundation/executable-contracts.md)、Provider lockの`RendererProviderLockV1`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が正本である。
+Rendererは[Lighting](lighting.md)所有の`LightIntentV1`／`LightingStyleProfileV1`／`ResolvedLightPlanV1`、[Advanced Light Transport](advanced-light-transport.md)所有の`ResolvedLightTransportPlanV1`／`ResolvedShadowPlanV1`／`LightTransportExecutionRequestV1`、[Post Processing](post-processing.md)所有の`PostProcessIntentV1`／`PostProcessProfileV1`／`ResolvedPostProcessPlanV1`、[LOD](lod.md)所有の`LodIntentV1`／`LodResolutionPlanV1`／`ViewLodContextV1`を解釈し直さず実行する。UI primitiveの`MirakanUiDrawPacketV1`は[Editor UI Framework](../03-authoring/editor-ui-framework.md)、`RuntimeRepresentationPlanV1`は[Runtime performance／capacity](../04-runtime/performance-capacity.md)、共通`RemediationV1`は[Executable contracts](../02-foundation/executable-contracts.md)、Provider lockの`RendererProviderLockV1`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)が正本である。
 
 `RenderRepresentationPlanV1`はRuntime planからCookされ、各Source集合を`individual | instanced | spatial_batch | presentation_batch`の一つに分類し、Source Stable ID集合、plan-local Cell、mobility／interaction、geometry key、[Materials](materials.md)所有のexact `MaterialBatchCompatibilityKeyV1`、Domain LOD plan、HLOD chain、bounds、resident／visible上限、Target fallback、visual-equivalence hashを持つ。`VisibilityInstanceV1`はgeometry generation、current／previous transform、bounds、量子化済みerror／threshold、previous presentation tier、material packet、layer、stable render IDだけを持つSoAで、Entity／Component pointer／Gameplay tag／Simulation tierを含めない。
 
@@ -516,33 +519,15 @@ canonical sort keyはView、composition layer、owner-supplied order、quantized
 
 Source ref、source content hash、Backend Adapter generationのいずれかが変われば旧Renderer署名、`RendererCapabilityProjectionV1`、`ResolvedRendererProfileV1`をstaleにする。Qualification Receiptは完成したRenderer署名へ束縛するdownstream evidenceであり、署名生成の入力へ戻さない。Platform ownerはRenderer field setを再定義せず、Renderer ownerはPlatform署名に存在しない観測値を推測しない。
 
-Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`／`ShadowGraphV1`と承認済み`ProjectShadowTechniqueV1`は解決後の`ResolvedShadowPlanV1`だけをRendererへ渡す。`ProjectShadowTechniqueV1`は`ProjectShaderTechniqueV1`のexact specializationで、`injection_port_id = shadow`、`technique_kind = raster | compute | ray | mixed`、必須出力を`shadow_attenuation_linear`とする。`ShadowTechniquePortV1`は[Project Shader](project-shader.md)の`ProjectShaderTechniquePortV1`の`port_id = shadow` entryであり、同じSchemaを使う別名の契約を作らない。このentryが入力semantic、出力、Layer、history、ordering boundaryを固定する。`ShadowGraphV1`はclosed Pass Templateへoffline compileし、native command／barrier、runtime shader compile、未宣言accessを禁止する。
+Shadow authoringの`ShadowIntentV1`／`ShadowStyleProfileV1`は[Lighting](lighting.md)、semantic `ShadowGraphV1`、Technique／fallback selection、`ResolvedShadowPlanV1`は[Advanced Light Transport](advanced-light-transport.md)が所有する。`ProjectShadowTechniqueV1`は[Project Shader](project-shader.md)の`ProjectShaderTechniqueV1` specializationで、ALTがTarget／channel／Qualificationを解決する。Rendererは完成した`execution_request_refs[]`をregistered Pass Templateへ展開し、cycle、hazard、resource lifetime、alias、queue、memoryを検証するが、Shadow quality、raster／compute／ray／mixed selection、meaning fallbackを再決定しない。
 
-```text
-ShadowGraphV1
-  graph_id, graph_revision, target_profile_ref
-  source_shadow_intent_ref, source_shadow_style_profile_ref
-  nodes[1..64] { node_id, registered_pass_template_ref, parameter_set_ref }
-  edges[0..128] { source_node_id, output_semantic, target_node_id, input_semantic }
-  output_semantic: shadow_attenuation_linear
-  graph_hash
-
-ResolvedShadowPlanV1
-  plan_id, source_project_revision, target_profile_ref
-  shadow_intent_ref, shadow_style_profile_ref, shadow_graph_ref, shadow_graph_hash
-  light_binding_refs[], resource_plan_ref, budget_reservation_ref
-  project_shadow_technique_ref: optional
-  selected_fallback_ref: optional
-  capability_signature_hash, qualification_receipt_refs[], plan_hash
-```
-
-`ShadowGraphV1`と`ResolvedShadowPlanV1`はRenderer-owned root外Derived Artifactであり、Project／AIが直接編集しない。Graph compilerはnode／edgeのStable ID順でcanonicalizeし、cycle、未登録Template、型不一致semantic、上限超過、`shadow_attenuation_linear`以外の最終出力を拒否する。`qualification_receipt_refs[]`は先に固定したCapability Signature／Technique artifactをsubjectにするdownstream evidenceだけで、Receipt subjectへ`plan_hash`を戻さない。`ResolvedShadowPlanV1`はLighting-owned Source refsと同じProject revision、Target、Capability、budget、Qualificationへ閉じ、欠落時に既定Shadow Graphを生成しない。
+`ShadowTechniquePortV1`はProject Shaderの`ProjectShaderTechniquePortV1`にある`port_id=shadow` entryをexact reuseし、同名Schemaを作らない。必須出力`shadow_attenuation_linear`、入力semantic、Layer、history、ordering boundaryはPortとALT Planへ閉じる。Plan欠落、Target／generation mismatch、未登録Template、型不一致semantic、上限超過では既定Shadow Graphを生成せずGraph compileをrejectする。
 
 Render Graph compilerは[Project Shader](project-shader.md)が所有するTechnique Manifestを通常Passと同じcycle、hazard、lifetime、alias、queue、memory validationへ通す。Manifest申告とShader Fact Graph、reflection、実行時resource useが一致しないArtifactはpromotionを拒否する。Running中の不一致は汎用`ProjectShaderTechniqueValidationFailed`とDomain projectionを発行し、該当Techniqueのそれ以降のpassとsubmissionを停止する。ShadowではDomain projectionを`ShadowTechniqueValidationFailed`とする。同一frameにfallback passを挿入しない。
 
 PlanがGovernanceで承認されたfallback referenceを持つ場合は、次frameのGraph Instanceからそのfallbackへ決定論的に切り替える。承認済みfallbackがなければRenderer faultへ遷移し、該当Planをretry／resumeしない。承認の成立、scope、署名、期限／失効は[AI Security／Approval](../01-governance/ai-security-approval.md)だけが決め、Rendererはそのexact Governance referenceの検証結果だけを消費する。
 
-`RayTracingPortV1`はacceleration-structure build／update、ray query／dispatch、shader／function table、scratch、compaction、timestampだけを公開する。RTGIはEngine-owned `RadianceCachePortV1`を介し、native handleをAssetへ保存しない。`NeuralRenderModelV1`はmodel ID、semantic input／output、architecture version、weight format／SHA-256／provenance、quantization、required feature、scratch／persistent byte、inference cap、fallbackを持ち、runtime download／training／未署名weight／arbitrary operator／network accessを禁止する。
+`RayTracingPortV1`はacceleration-structure build／update、ray query／dispatch、shader／function table、scratch、compaction、timestampだけを公開する。ALTが要求するradiance cache executionはEngine-owned `RadianceCachePortV1`を介し、native handleをAssetまたはALT Planへ保存しない。`NeuralRenderModelV1`はmodel ID、semantic input／output、architecture version、weight format／SHA-256／provenance、quantization、required feature、scratch／persistent byte、inference cap、fallbackを持ち、runtime download／training／未署名weight／arbitrary operator／network accessを禁止する。モデル選択とlight-transport fallbackはALT、generic reconstruction executionとphysical resourceは本書が所有する。
 
 `RendererVisualReceiptV1`はlinear Rec.709 RGB32F比較、UI／pixel-locked bit-exact mask、3D SSIM／RMSE、NaN／Inf、ghost persistenceとframe／camera／exposure／jitter／extent／Provider／driver／SDK／model hashを保存する。`AntiAliasingVisualReceiptV1`は本書のAA reference／baseline、alias energy、edge spread、shimmer、ghost、`unaddressed_alias_class`を追加するDomain projectionである。
 

@@ -7,7 +7,7 @@
 - 正本範囲: Product全体のthreat ownership、security baseline、vulnerability report intake／triage／validation／remediation／security release／disclosure／closure、security update decision、Product security incident
 - 非正本範囲: AI task authorization、dependency lock／SBOM generation、Platform signing／privacy、domain input／memory／resource contract、SupportBundle schema、Evidence envelope。各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)
-- 関連文書: [Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision／official-guidance comparison
 - 外部根拠確認日: 2026-07-29
 
@@ -18,6 +18,8 @@ Product Securityは、Product全体のsecurity subjectにaccountable Ownerを割
 AI task authorization、approval tier、managed host authorityは[AI Security／Approval](ai-security-approval.md)、dependency version／license／SBOM generationは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、signing／Store／OS sandbox／privacyは各Platform、input validation／memory／handle／resource contractは各domain Owner、Evidence envelope／signature／retention／revocationは[AI Verification／Provenance](ai-verification-provenance.md)、`SupportBundleV1`は[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)だけが所有する。
 
 Product Securityはdomain Ownerの技術判断を上書きしない。report text、scanner result、外部severity score、issue labelをauthorityにせず、case state、affected release closure、security release、disclosure、notification、incident closureを所有する。
+
+Network Transport Ownerはendpoint／handshake／connection／delivery、peer-auth／integrity／confidentiality bindingとmalformed message rejection、Multiplayer Ownerはsession role／authority／typed command／rate／state transition validationを所有する。本書は両surfaceのThreat Ownership、anti-cheat／abuse case、incident、security update／disclosureを所有する。Transport encryptionをAccount ownership、entitlement、trusted client、anti-cheat、gameplay authorityの証拠にせず、invalid commandをsecurity caseへ記録しただけでDomain stateへ適用しない。Online Identity／Lobby／Matchmaking／Hostingは別Future Owner Decisionまで未採択である。
 
 本書はtarget designである。対応するRegistry、Schema、Case Store、Operation、Fixture、Receipt、response team運用はRepositoryに存在せず、未materialize／未Activationである。
 

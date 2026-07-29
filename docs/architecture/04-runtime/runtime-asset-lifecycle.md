@@ -7,7 +7,7 @@
 - 正本範囲: Runtime Asset request identity、dependency closure、staging／activation、generation、residency、lease／release、eviction、retirement、memory pressure／device loss時の回復、共通failure／diagnostic／qualification境界
 - 非正本範囲: Source／Import／Cook／Catalog／Content Package、Runtime Entry／World Package publication、共有allocation policy／budget値、Runtime phase、Texture／Mesh／Audio／Font／VFX等のDomain意味、Render／Audio execution、Save／Replay semantics、Platform package delivery、実装Task／順序
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Performance／Capacity](performance-capacity.md)
-- 関連文書: [Runtime Package](runtime-package.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[VFX Runtime](../06-rendering/vfx-runtime.md)、[Audio](../07-platform/audio.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)
+- 関連文書: [Runtime Package](runtime-package.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[VFX Runtime](../06-rendering/vfx-runtime.md)、[Audio](../07-platform/audio.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)
 - 根拠区分: project-decision（未計測のcapacity、priority weight、timeout、resident量はprovisional）
 - 外部根拠確認日: none
 
@@ -108,6 +108,8 @@ Virtualized Geometryのroot／page、LOD representation、Audio stream、Font／
 |---|---|---|
 | Runtime Package／World | branch／section closure、required root、publication precondition | Runtime Entry／World／Sectionの意味とpublication |
 | Render Graph／Materials／LOD | representation need、View／quality intent、device compatibility | render packet、material、visibility、LOD selection |
+| Advanced Light Transport | acceleration／radiance／probe／model等のexact representation generation need | semantic channel、Technique、Target support、history／denoise intent、fallback |
+| Terrain／Foliage | region／tile／cluster artifact dependency、World activation generation、representation need | Terrain／Foliage Source、identity、domain artifact、Cell binding、domain fallback |
 | Virtualized Geometry | root／page dependency、pin／fault intent、fallback representation ref | geometry representation familyとpage meaning |
 | Audio | stream／resident need、deadline intent、voice generation binding | cue、voice、mixer、audibility、audio fallback |
 | UI／Text | image／font／glyph resource need、locale／style binding | layout、text shaping、focus、semantic accessibility |

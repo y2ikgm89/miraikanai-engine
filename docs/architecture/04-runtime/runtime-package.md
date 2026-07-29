@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
-- 非正本範囲: generic Derived Artifact manifest／catalog、Texture／Mesh／Audio／Font等の汎用Runtime Asset request・priority・deadline・cancel・residency・eviction（Runtime Asset Lifecycleを参照）、ECS storage・query・lease、Save／Replay record、runtime phase／job DAG、Domain World source意味、debug transport、AI認可。各Owner文書を参照する
+- 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、headless dedicated game Runtime Targetのpackage／launch closure、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
+- 非正本範囲: network endpoint／Transport、gameplay session／authority／replication、Online hosting／region／autoscale／operations、generic Derived Artifact manifest／catalog、Texture／Mesh／Audio／Font等の汎用Runtime Asset request・priority・deadline・cancel・residency・eviction（Runtime Asset Lifecycleを参照）、ECS storage・query・lease、Save／Replay record、runtime phase／job DAG、Domain World source意味、debug transport、AI認可。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Runtime ECS](entity-component-system.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
-- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
 
@@ -71,6 +71,46 @@ branch validationは次へ固定する。
 Presentation Binding二FieldとUI二Fieldはそれぞれall-nullまたはall-presentで、worldでは両groupのpresent／nullが一致しなければならない。Binding ref／hash、Project Compile ManifestのBinding ref／hash、Binding内Runtime Entry ref／semantic hash、root UiDocument ref／content hashをbyte equalityで検証する。`ui_root_screen_definition_ref`はexact UiDocument ref／content hashとNavigation Policyを束縛したcompiled `UiScreenDefinitionV1`、`ui_dependency_closure_hash`は同Documentから到達するStyle／Localization／Font／Asset Catalog dependency集合へ解決する。これらをAsset Lifecycleの`ArtifactSubjectRefV1`へ未登録subject kindとして偽装しない。headlessへ空startup closureを作る、UI-onlyへ空World packageを作る、V1 worldの`ui_document_ref`をnon-nullにする、world UIをdependency blobとしてWorld binaryへ隠す、missing fieldをCatalogや表示名から補完することを禁止する。World branch内側の`RuntimePackageV1`と外側の`RuntimeEntryPackageV1`は別のID／hashを持ち、相互のRef型を代用しない。
 
 Runtime Entry transitionとContinueは常に外側`RuntimeEntryPackageRefV1`を参照する。ECS World constructionと`RuntimeWorldSaveRecordSetV1`だけがworld branch内側`RuntimePackageRefV1`を参照できる。これによりTitle／ResultのUI-only branchとheadless workflowはWorld Root imageなしにload／validate／publishできる。
+
+### 1.2 Headless dedicated game Runtime Target（planning only）
+
+`future.capability.headless-dedicated-server-target`は本書が所有する独立Futureである。これは「画面を持たないgame Runtime package／launch Target」を意味し、network Transport、Multiplayer authority、session、replication、Lobby、Hosting fleetを含まない。Future row、Profile、型候補は`planning_only`／`review`、実装は`absent`である。
+
+dedicated game RuntimeはWorld simulationを必要とするため、`entry_kind=world`、`world_package_ref=exact one`、Presentation Binding二FieldとUI二Fieldがall-null、Target Profile kind=`headless_server | distributed_cluster`として表す。`distributed_cluster`は一つ以上のheadless authority Runtime memberとcluster-level lifecycle／handoff／operations closureを持つ別Target Profileであり、単一process Receiptから合成しない。`entry_kind=headless`はWorld Rootを持たないlogic／workflow branchのまま維持し、Dedicated Serverの空World代用品にしない。
+
+[Product Plan](../00-product/product-plan.md)のsmall co-op／rollback／large-session／MMO Target-role bundleが`authority_dedicated | authority_distributed` roleへ本Futureを束縛する場合も、kind名だけで成立させない。選択profileのexact authority Target、完成Dedicated Runtime Target Profile、Package／launch closure、fresh Qualificationを一致させる。listen／peer profileまたはworldless `entry_kind=headless`からDedicated Server claimを解放しない。
+
+```text
+HeadlessDedicatedRuntimeTargetProfileV1
+  profile_id: StableId
+  profile_version: positive u32
+  target_profile_ref: exact TargetProfileRefV1
+  target_kind: headless_server | distributed_cluster
+  runtime_entry_package_ref:
+    exact RuntimeEntryPackageRefV1
+  required_entry_kind: world
+  require_world_package: true
+  require_presentation_binding: false
+  require_ui_closure: false
+  required_startup_system_closure_hash: SHA-256
+  process_lifecycle_policy_ref:
+    exact HeadlessProcessLifecyclePolicyRefV1
+  resource_limit_ref:
+    exact HeadlessRuntimeResourceLimitRefV1
+  security_profile_ref:
+    exact HeadlessRuntimeSecurityProfileRefV1
+  observability_binding_ref:
+    exact HeadlessRuntimeObservabilityBindingRefV1
+  update_recovery_policy_ref:
+    exact HeadlessRuntimeUpdateRecoveryPolicyRefV1
+  profile_content_hash: SHA-256
+```
+
+Profileはrenderer、surface、window、local-player Input、Audio output、Editor、UI dependencyをpackage closureへ要求しない。ただしGame Systemがpresentation-independentなAsset、World、ECS、Save、Debugを必要とする場合は各Ownerのexact dependencyを保持し、空Artifactまたはdesktop packageの削除版から推測しない。
+
+process start／ready／drain／shutdown／crash／restartの意味は本Profileのlifecycle policyと[Scheduling／Lifetime](scheduling-lifetime.md)のpublication／shutdown boundaryへ閉じる。fleet allocation、region、autoscale、health-based traffic routing、deployment platformは将来Hosting／Operations Ownerの非正本範囲である。Network Transport ProfileまたはMultiplayer Profileは任意consumerとして同じTarget packageへ追加できるが、そのReceiptなしにpackage成功からconnect、session、authority、replicationを主張しない。
+
+Qualificationは少なくとも、clean-machine package検証、graphics／window／UI／local-input dependency 0件、World／ECS construction、Save／Replay、bounded process lifecycle、signal／crash／update／rollback、resource／security／observability、desktop／mobile artifact混入negative fixtureを含む。`distributed_cluster`ではさらにmember set、cluster identity、authority member lifecycle、partial rollout／failure／recoveryをsame Target Profileへ閉じる。Dedicated Target ReceiptでTransport、Multiplayer、Online hosting、operations SLOをsupportしない。
 
 ## 2. World artifactの境界
 

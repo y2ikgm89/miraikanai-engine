@@ -5,15 +5,17 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: Environment composition、Sky／Atmosphere／Fog／Cloud、Weather presentation、Water body／surface／query、Snow／wetness surface response、単一Source root、domain compiler／artifact、domain budget／fallback／diagnostic／qualification
-- 非正本範囲: Light／Material／VFX semantics、Render Graph共通pass／resource／history lifetime、LOD共通selection、Physics／Gameplay surface authority、Runtime phase／shared capacity、Asset transaction、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
+- 非正本範囲: Terrain／Foliage Source／artifact、GI／reflection／advanced shadow／reference transportのTechnique／fallback、Light／Material／VFX semantics、Render Graph共通pass／resource／history lifetime、LOD共通selection、Physics／Gameplay surface authority、Runtime phase／shared capacity、Asset transaction、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[World](world.md)、[Lighting](lighting.md)、[Materials](materials.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Lighting](lighting.md)、[VFX authoring](vfx-authoring.md)、[VFX runtime](vfx-runtime.md)、[LOD](lod.md)、[World](world.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Render Graph](render-graph.md)、[Advanced Light Transport](advanced-light-transport.md)、[Terrain／Foliage](terrain-foliage.md)、[Materials](materials.md)、[Lighting](lighting.md)、[VFX authoring](vfx-authoring.md)、[VFX runtime](vfx-runtime.md)、[LOD](lod.md)、[World](world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-28
 
 ## 1. 結論と単一Source model
 
 Environment、Water、Weather／Snowは一つの`EnvironmentSurfaceDocumentV1`をSource rootとする。Sky、Fog、Water Body、Weather input、Snow receiverを独立Project設定へ分散させず、同じrevision、ChangeSet、lock、Target validation、Preview、Cook closureで扱う。旧来のdomain名付き型はroot内のtyped sectionであり、独立した正本や別lifecycleではない。
+
+TerrainとFoliageは[Terrain／Foliage](terrain-foliage.md)の別Source rootであり、本書へ追加しない。本書はweather、water、snow／wetness、surface conditionをtyped inputとして渡し、Terrain／Foliageのtile、species、placement、identity、artifactを所有しない。GI／reflection／advanced shadow／reference transportは[Advanced Light Transport](advanced-light-transport.md)が本書のradiance／volumetric／water／surface summaryを消費してTechniqueとfallbackを解決する。本書はray、screen-space、probe、path等のTechniqueを選択しない。
 
 ```text
 EnvironmentSurfaceDocumentV1
@@ -69,7 +71,7 @@ Capability maturity、Activation、roadmapはProduct Plan、共通phase／lifeti
 | Environment／Lighting／World連携 | Time-of-Dayはexact Source Sample、sun／moon set equality、単一`ProjectChangeSetV1`でatomicに閉じる | Environmentだけの部分Apply、Editor Lightコピー、未登録Lighting discoveryを成功扱いしない |
 | Environment／Post Process責務 | EnvironmentはSky／Atmosphere／Fog／Cloud／IBL、Post Processは露出／metering／adaptation／toneを単独所有する | 同名露出Field、Environment hint、Camera／Lighting側の複製所有を認めない |
 | Runtime／Target連携 | Render Snapshot、VFX Weather ref、World binding、exact budget envelope、C1 Core／C2 advanced fallbackへ接続する | 未計測budgetをQualification済み値とせず、Core構成要素の循環fallbackを認めない |
-| UI／Product scope | Environment Panelは`basic | detailed`で同じcanonical fieldを表示し、Environment authoring 26候補だけをversion 2計画集合とする | Panel fixture、Operation family、Preset Catalog、Time Providerは未materialized。Water／Weather／Snow mutationはcurrent Product closure外 |
+| UI／Product scope | Environment Panelは`basic`／`detailed`で同じcanonical fieldを表示し、Environment authoring 26候補だけをversion 2計画集合とする | Panel fixture、Operation family、Preset Catalog、Time Providerは未materialized。Water／Weather／Snow mutationはcurrent Product closure外 |
 
 この表は実装Task、実装順序、期間、担当、依存導入を定義しない。設計状態と非主張を要約するだけで、具体的Activation条件は§6、Product状態はProduct Plan／Execution Registryを正本とする。
 
@@ -378,7 +380,7 @@ omega = sqrt(gravity_mps2 * k)
 
 `gravity_mps2`は波分散専用のscalar f32 Source定数であり、範囲`[0.1,100] m/s^2`、既定9.80665とする。PhysicsのWorld Profile gravityを暗黙参照せず、2D／3D Projectで同じfieldを使う。CPU QueryとGPU vertexは同じ生成定数／式を使う。各componentの時刻位相`omega*t`はScheduling Ownerの`SimulationAdvanceIntervalV1.interval.logical_duration_seconds`から得た同じtime stateをCPUがf64で累積し`[0,2π)`へ折り畳んだ定数としてGPUへ渡し、大きな累積引数のままsinを評価しない。duration-null Cadenceではqualified advance-driven wave policyなしに進めない。空間位相はworld-origin rebase後のcamera近傍座標で評価する。一致fixtureはorigin±2,048 m、開始advanceからexact 24時間相当のProfile／Interval列へ固定した65,536 reference pointsでheight error最大2 mm、normal angle最大0.25 degreeを満たす。`FlowProfileV1`はconstant flowまたはCooked current mapを持ち、RG normalized direction、B `[0,1]` strength、profile max speedを使う。Gameplayはtextureを直接sampleせず同じfieldのCPU artifactを読む。
 
-Depthはoffline terrain／mesh sourceを使い、scene depthをcanonical water depthにしない。ReflectionはIBL、qualified profileでProbe／SSR、UnderwaterはWater Volume overlapからabsorption／scattering／fog／waterlineを選ぶ。Boundary 5 cm以内はprevious Body保持、10 cm外で解除する。
+Depthは[Terrain／Foliage](terrain-foliage.md)またはWorld／Mesh ownerのexact offline surface sourceを使い、scene depthをcanonical water depthにしない。Waterはsurface normal、roughness、absorption、IOR、radiance／receiver summaryを[Advanced Light Transport](advanced-light-transport.md)へ渡し、reflection Technique、IBL／probe／screen-space／ray fallbackを本書で選ばない。UnderwaterはWater Volume overlapからabsorption／scattering／fog／waterlineを選ぶ。Boundary 5 cm以内はprevious Body保持、10 cm外で解除する。
 
 ```text
 WaterQueryRequestV1
@@ -483,7 +485,7 @@ WetnessはWeather rain／sleet、Water interaction、receiver allow maskからMa
 
 ## 5. Renderer／Material interfaceとruntime compilation
 
-EnvironmentはSky radiance、sun／moon refs、Fog／Cloud、IBL、Waterへ入射lightを提供する。露出はEnvironment入力でなく、World HDRを測光するPost Process stageである。WaterはSurface／Underwater packetと`WaterSnapshotV1`、Snowはcoverage／compaction bindingを出す。Materialsは正規semantic role `surface.water`と`surface.snow`を所有し、本書はMaterial IR／Shading Modelを複写しない。VFXはshort-lived smoke／precipitation／splashを所有し、VFXからLocal Fog／Snow Sourceへ暗黙変換しない。
+EnvironmentはSky radiance、sun／moon refs、Fog／Cloud、IBL、Waterへ入射lightを提供し、Advanced Light Transportへexact radiance／participation summaryを渡す。露出はEnvironment入力でなく、World HDRを測光するPost Process stageである。WaterはSurface／Underwater packetと`WaterSnapshotV1`、Snowはcoverage／compaction bindingを出す。Materialsは正規semantic role `surface.water`と`surface.snow`を所有し、本書はMaterial IR／Shading Modelを複写しない。Terrain／Foliageはsnow／wetness receiver、vegetation response bindingを消費するが、weather／surface condition authorityを持たない。VFXはshort-lived smoke／precipitation／splashを所有し、VFXからLocal Fog／Snow Sourceへ暗黙変換しない。
 
 Rendererへ渡すEnvironment-owned frame inputを次の四型に閉じる。いずれもSourceでなく、同じpublished Simulation AdvanceとEnvironment artifact generationから作るimmutable projectionである。
 
@@ -575,7 +577,8 @@ WaterLodProfilePayloadV1
     tier_id: StableId
     surface_patch_density_profile_ref: exact owner-typed ref
     wave_shading_profile_ref: exact owner-typed ref
-    reflection_profile_ref: exact owner-typed ref
+    specular_transport_participation_ref:
+      exact WaterSpecularTransportParticipationRefV1
     underwater_presentation_profile_ref: exact owner-typed ref | null
     foam_spray_vfx_tier_ref: exact LodTierRefV1 | null
   gameplay_water_invariance_contract_ref: exact owner-typed ref
@@ -596,9 +599,11 @@ SnowSurfaceLodProfilePayloadV1
   payload_content_hash: SHA-256
 ```
 
+`specular_transport_participation_ref`はWaterのroughness／normal／coverage／receiver意味だけを持つEnvironment-owned summaryである。reflection Technique、quality tier、history、fallback、Target supportは[Advanced Light Transport](advanced-light-transport.md)が解決し、このLOD payloadへ複写しない。
+
 各tier ID集合はEnvelopeの`tier_bindings[].tier_id`とset equalityにする。payload hashはそれぞれASCII `MIRAKAN_WATER_LOD_PROFILE_PAYLOAD_V1`／`MIRAKAN_SNOW_SURFACE_LOD_PROFILE_PAYLOAD_V1`と自己hashを除くcanonical payload bytesから計算し、Envelopeの`owner_payload_content_hash`とbyte equalityにする。WaterからVFX tierへの依存は一方向であり、VFX ProfileからWater Profileを参照してはならない。exact owner-typed refのSchemaまたはCapabilityが未登録ならProfileをmaterializeせず、値を推測しない。
 
-Water orderingはOpaque／Lighting、Environment、Water Depth／Surface、Underwater／Waterline、Transparent／World VFXである。Water resource generationをsnapshot dependencyへ含め、LODはEnvironment-owned `WaterLodProfileV1`／`LodResolutionPlanV1`だけからpatch density、wave shading、reflection、underwater、foam／spray tierを選ぶ。SnowはEnvironment-owned `SnowSurfaceLodProfileV1`だけからupdate distance、normal／sparkle、static fallbackを選び、降雪particle密度は`vfx_presentation` classの`VfxLodProfileV1`だけから選ぶ。CPU query、Volume、Gameplay water level、Snow page identity／stampをLODで変えない。
+Water orderingはOpaque／Lighting、Environment、Water Depth／Surface、Underwater／Waterline、Transparent／World VFXである。Water resource generationをsnapshot dependencyへ含め、LODはEnvironment-owned `WaterLodProfileV1`／`LodResolutionPlanV1`だけからpatch density、wave shading、specular transport participation summary、underwater、foam／spray presentation tierを選ぶ。reflection Technique／fallbackは選ばない。SnowはEnvironment-owned `SnowSurfaceLodProfileV1`だけからupdate distance、normal／sparkle、static fallbackを選び、降雪particle密度は`vfx_presentation` classの`VfxLodProfileV1`だけから選ぶ。CPU query、Volume、Gameplay water level、Snow page identity／stampをLODで変えない。
 
 Snow computeはWorld opaque Materialより前に完了し、same-frame finalized fieldだけをsampleする。Pixel-locked 2Dはatlasでなくexplicit Tile／Sprite snow variantを使う。Device loss時はSource／receiptからpersistent Environment、Water material／mesh／query、Snow mask／manifest／empty fieldを復元し、historyを破棄、bounded warm-upし、one-shot VFXを再発火しない。
 

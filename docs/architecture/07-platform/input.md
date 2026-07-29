@@ -5,9 +5,9 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: Input device／reading、Action／Binding／Context、latch semantics、Platform input Adapter、touch／gesture、remap／accessibility、haptics、Input replay、Input固有capacity／failure／qualification
-- 非正本範囲: Runtime phase／shared queue・memory budget、UI／Text event、Platform lifecycle、Tool／SDK version、Product phase、AI authorization／Evidence envelope。各Owner文書を参照する
+- 非正本範囲: network delivery、remote participant／authority、prediction／rollback／anti-cheat、Runtime phase／shared queue・memory budget、UI／Text event、Platform lifecycle、Tool／SDK version、Product phase、AI authorization／Evidence envelope。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)
-- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 関連文書: [Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -16,6 +16,8 @@
 Miraikanai EngineはPlatformのkey code、controller object、touch callbackをGame ruleへ直接渡さない。Platform AdapterがDevice ReadingをEngine値へ正規化し、`InputActionMap`がsemantic Actionへ解決し、`T10_InputLatch`でSimulation Advance sequence付きimmutable `InputSnapshot`を確定する。Adapter callbackからSnapshotへのcopy、bounded queue、callback captureのPointer／Memory規則は[Memory／Pointers](../02-foundation/memory-pointers.md)のbindingを使い、Platform object、callback pointer、borrowをsnapshot／Replayへ渡さない。
 
 Gameplay、UI、AI、NativeGameModuleが参照するのはStable `InputActionId`とSnapshotだけである。Text入力／IMEはAction Inputと別の`ITextInputService`が所有し、keyboard stateから文字を推測しない。
+
+[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)はlocal `InputSnapshot`のexact Schema／advance bindingをprediction／typed command inputとして消費できるが、Action、Binding、Device、latch、remapを再定義しない。remote inputは本書のDevice Readingまたはlocal `InputSnapshot`ではなく、Multiplayer Ownerがsender role、authority、rate／size、expiry、orderingを検証したtyped commandとしてScheduling boundaryへ入る。packet arrival、remote key code、client timestampをInput authorityにしない。
 
 Editor UIのpointer、keyboard、IME、Window eventは`PlatformUiEventV1`へ正規化し、MirakanUi Event／Focus Routerへ渡す。Editor Command操作をGameplayの`T10_InputLatch`へ混入させず、Editor UI event、Game InputSnapshot、Text compositionの三経路を分離する。
 

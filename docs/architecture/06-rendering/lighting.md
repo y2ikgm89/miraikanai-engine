@@ -5,9 +5,9 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: Light Source／Component、light type／shape、photometric quantity／unit／color、attenuation／range、shadow intent、Lighting semantic intent／resolver、Lighting固有operation／diagnostic／qualification
-- 非正本範囲: Render pass／cluster／queue／shadow execution、Material shading、Environment composition、Runtime shared capacity、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
+- 非正本範囲: GI／reflection／advanced shadow／reference transportのTechnique／Target support／fallback、Render pass／cluster／queue／shadow execution、Material shading、Environment composition、Runtime shared capacity、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Materials](materials.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[Environment／Surfaces](environment-surfaces.md)、[World](world.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Advanced Light Transport](advanced-light-transport.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[Environment／Surfaces](environment-surfaces.md)、[Terrain／Foliage](terrain-foliage.md)、[World](world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -110,7 +110,7 @@ PlanはProjectを変更しない。ChangeSet Commit後だけSourceを更新し�
 
 ### 3.4 Shadow authoring
 
-LightingはSource側の`ShadowIntentV1`と`ShadowStyleProfileV1`を所有し、Render GraphはDerived側の`ShadowGraphV1`と`ResolvedShadowPlanV1`を所有する。Source objectへpass、queue、resource、descriptor、native techniqueを保存しない。
+LightingはSource側の`ShadowIntentV1`と`ShadowStyleProfileV1`を所有し、[Advanced Light Transport](advanced-light-transport.md)はDerived側の`ShadowGraphV1`、Technique／fallback selection、`ResolvedShadowPlanV1`を所有し、[Render Graph](render-graph.md)は解決済みexecution requestを実行する。Source objectへpass、queue、resource、descriptor、native techniqueを保存しない。
 
 ```text
 ShadowIntentV1
@@ -128,7 +128,7 @@ ShadowStyleProfileV1
   preview_fixture_refs[], qualification_policy_ref
 ```
 
-`quality_intent=project_technique`だけが`project_technique_ref`を必須とし、他値では禁止する。`ray_qualified`と`project_technique`はTarget Capabilityとfresh Qualification Receiptを必須とする。Source Intent／Style ProfileはReceipt-freeで、Receiptは先に固定したTechnique／Target artifact closureをsubjectにするroot外Activation Bindingからだけ解決し、Intent／Profile hashまたはReceipt subjectへResolved Plan hashを戻さない。`fallback_priority[]`は同Profileの`fallback_refs[]`だけを重複なしで順序付け、未登録fallback、空の必須fallback、Renderer都合のsilent downgradeを拒否する。ResolverはSource refs、Profile、Target、Capability、budget、Qualificationを同一revisionで固定し、Render Graphへexact refだけを渡す。
+`quality_intent=project_technique`だけが`project_technique_ref`を必須とし、他値では禁止する。`ray_qualified`と`project_technique`はTarget Capabilityとfresh Qualification Receiptを必須とする。Source Intent／Style ProfileはReceipt-freeで、Receiptは先に固定したTechnique／Target artifact closureをsubjectにするroot外Activation Bindingからだけ解決し、Intent／Profile hashまたはReceipt subjectへResolved Plan hashを戻さない。`fallback_priority[]`はsource-side quality意図の優先だけを表し、actual Technique／meaning fallback ladderはAdvanced Light Transportが所有する。未登録fallback、空の必須fallback、Renderer都合のsilent downgradeを拒否する。Lighting ResolverはSource refsとphysical Light planを固定してALTへ渡し、ALTは完成`ResolvedShadowPlanV1`をRender Graphへ渡す。
 
 ### 3.5 Production Lighting Bake／Probe
 
@@ -189,7 +189,7 @@ Static Meshのlightmap UVは専用UV set、0～1範囲、finite、triangle overl
 
 Probe重複はpriority、volume、Stable IDの順に決定する。未配置領域はC1 Environment IBLへfallbackし、local reflection probeをC1 global IBLと混同しない。geometry、Materialのbaked contribution、static／stationary Light、Environment、Bake Profile、baker toolchain version、quality settingsからSource dependency hashをcanonicalに構成し、そのいずれかのhash変更時だけ該当World Cell Artifactをinvalidateする。
 
-ArtifactはWorld Cell dependencyへ登録し、同一CellのLightmap、irradiance、reflectionをactivation group単位でall-or-nothingにresident化する。UV／probe／Cell dependency closureが不完全、artifactがmissing／stale／corrupt、またはreadback hash不一致なら`MIRAKAN-LIGHTING-BAKE_CLOSURE_INCOMPLETE`、`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`、`MIRAKAN-LIGHTING-BAKE_CELL_ACTIVATION_FAILED`のtyped failureとし、黒Scene、旧Artifact継続、partial atlas／probe適用を禁止する。同じTargetでQualification済みのrealtime Light＋Environment IBLへ明示的にfallbackし、fallback不可ならCell activationを拒否する。
+ArtifactはWorld Cell dependencyへ登録し、同一CellのLightmap、irradiance、reflectionをactivation group単位でall-or-nothingにresident化する。UV／probe／Cell dependency closureが不完全、artifactがmissing／stale／corrupt、またはreadback hash不一致なら`MIRAKAN-LIGHTING-BAKE_CLOSURE_INCOMPLETE`、`MIRAKAN-LIGHTING-BAKE_ARTIFACT_INVALID`、`MIRAKAN-LIGHTING-BAKE_CELL_ACTIVATION_FAILED`のtyped failureとし、黒Scene、旧Artifact継続、partial atlas／probe適用を禁止する。本書はartifact failureとSource-side fallback intentだけを渡し、同じTargetでQualification済みのrealtime Light／Environment radianceへ切り替えられるかは[Advanced Light Transport](advanced-light-transport.md)のregistered Technique／meaning fallbackが決める。fallback不能ならCell activationを拒否する。
 
 Bakeは同じSource dependency hash、Toolchain、Profile、Targetで同じ`artifact_hash`を得るdeterministic jobである。`validation_report_ref`はUV overlap、leak、seam、probe light leak、dynamic object blend、Cell境界、cold streaming、memory、bake timeを検査したVisual／performance receiptを参照する。fixed Exposureのoffline reference、realtime fallback、Target実機を比較し、Gameplay、Physics、Navigation、Save stateがBake Artifactの存在、residency、結果に依存しないことをQualificationする。
 

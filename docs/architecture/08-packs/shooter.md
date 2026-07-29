@@ -5,15 +5,19 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: Shooter固有composition recipe、Genre identity、Profile、Game Flow、Action role
-- 非正本範囲: Feature CapabilityのPublic Contract／Schema／State owner、Pack lifecycle、Input／Collision／Physics／Navigation／Camera／UI／Audio／LOD、World／Stage、Runtime scheduling、Product roadmapは各Ownerを参照
+- 非正本範囲: Network Transport、Multiplayer session／authority／replication／prediction／rollback、Dedicated Target、Feature CapabilityのPublic Contract／Schema／State owner、Pack lifecycle、Input／Collision／Physics／Navigation／Camera／UI／Audio／LOD、World／Stage、Runtime scheduling、Product roadmapは各Ownerを参照
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Pack Contract](pack-contract.md)、[Gameplay Feature Packs](gameplay-features.md)、[Scenario／Stage](scenario-stage.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](../06-rendering/camera.md)、[Input](../07-platform/input.md)、[Audio](../07-platform/audio.md)、[UI／Text](../07-platform/ui-text-localization-accessibility.md)
-- 関連文書: [Shooter Reference Catalog](../appendices/shooter-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Pack Contract](pack-contract.md)、[Gameplay Feature Packs](gameplay-features.md)、[Scenario／Stage](scenario-stage.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](../06-rendering/camera.md)、[LOD](../06-rendering/lod.md)、[Input](../07-platform/input.md)、[Audio](../07-platform/audio.md)、[Game UI](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [Shooter Reference Catalog](../appendices/shooter-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Pack Contract](pack-contract.md)、[Gameplay Feature Packs](gameplay-features.md)、[Scenario／Stage](scenario-stage.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](../06-rendering/camera.md)、[LOD](../06-rendering/lod.md)、[Input](../07-platform/input.md)、[Audio](../07-platform/audio.md)、[Game UI](../07-platform/ui-text-localization-accessibility.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-23
 
 ## 1. 結論
 
 Shooterは`pack_kind=genre`のGenre Packであり、Generic Engine Coreまたは単一の共通Gameplay基盤ではない。Shooterは再利用可能なFeature Packをcomposition recipeで組み合わせ、Shooter固有のProfile、Game Flow、Action role、reference scenarioだけを所有する。
+
+`future.capability.large-session-network-shooter`は本書が所有する`planning_only` Product consumerである。[Product Plan](../00-product/product-plan.md)のexact Target-role bundleでdedicatedまたはdistributed profileを一件選び、`future.capability.headless-dedicated-server-target`をauthority role、`future.capability.network-transport-connection`と`future.capability.multiplayer-authority-replication`を全client／authority roleへ束縛する。本書はShooter固有player count、combat／spawn／score／interaction composition、interest intent、server／region Product requirement、scale／operations fixtureだけを所有し、Transport message、session、Network Object、authority、replication Schemaを複写しない。rollbackは`future.capability.rollback-competitive-networking`の別選択であり、large-sessionの必須前提にしない。
+
+三前提の文書またはReceiptが存在しても本Futureは自動昇格せず、逆にShooter Packのcurrent Profile／Reference fixtureからMultiplayer対応を推測しない。Online Identity、Lobby、Matchmaking、Hosting、anti-cheat operationsも別Future Decisionまで非正本である。
 
 正規Genre identityは次の二つである。
 

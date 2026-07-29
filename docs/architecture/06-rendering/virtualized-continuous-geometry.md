@@ -6,9 +6,9 @@
 - 検証状態: design-reviewed
 - Capability状態: `future.capability.virtualized-continuous-geometry-lod = planning_only`
 - 正本範囲: virtualized／continuous geometryの用語、表現ファミリ境界、semantic authoring intent、Target別feature qualification、cluster hierarchy／page artifactの統合契約、outer LODとinner cutの分離、residency／fallback意味、AI read／preview、固有diagnostic／qualification、未決定事項の型付き管理
-- 非正本範囲: discrete LOD／HLOD policy、Asset transaction／共通Artifact envelope、Material／Animation意味、World partition、Render pass／resource／queue実行、共通memory／I/O budget、Save／Replay envelope、Tool／SDK／Library lock、Platform activation、AI authorization、実装方式／実装工程／日程。各Owner文書を参照する
+- 非正本範囲: Terrain／Foliage Source／identity／domain artifact、GI／reflection／shadow Technique、discrete LOD／HLOD policy、Asset transaction／共通Artifact envelope、Material／Animation意味、World partition、Render pass／resource／queue実行、共通memory／I/O budget、Save／Replay envelope、Tool／SDK／Library lock、Platform activation、AI authorization、実装方式／実装工程／日程。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[LOD](lod.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Render Graph](render-graph.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](camera.md)、[Materials](materials.md)、[World](world.md)
+- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](camera.md)、[Materials](materials.md)、[Advanced Light Transport](advanced-light-transport.md)、[Terrain／Foliage](terrain-foliage.md)、[World](world.md)
 - 根拠区分: project-decision（外部Engineの記述はofficial-spec、未計測の数値・方式選択はprovisional）
 - 外部根拠確認日: 2026-07-29
 
@@ -17,6 +17,8 @@
 Nanite相当のcontinuous／virtualized geometry LODは詳細な独立計画書を持つ。これは通常のMesh LODにfieldを足すだけの機能ではなく、Source／Cook、hierarchy／page artifact、Target feature matrix、runtime residency、Viewごとのcontinuous cut、material／deformation compatibility、capacity failure、非対応Target fallbackまでを横断する統合Capabilityだからである。
 
 採用する構成は次に固定する。
+
+Terrain／Foliage Ownerはdomain Source、tile／cluster、species／instance identity、Cooked domain artifactとrepresentation requestを所有する。本書はそのrequestに対するvirtualized geometry representation family、hierarchy／page Artifact、inner cut compatibilityだけを所有し、Terrain／Foliage capabilityまたはWorld Cellを吸収しない。Advanced Light Transportがacceleration／coverage representationを要求する場合も、本書はgeometry candidateを返すだけでGI／reflection／shadow Technique、channel support、fallbackを選択しない。
 
 1. [LOD](lod.md)のdiscrete Mesh LOD／HLODを現行かつ常設のfallback正本として維持する。
 2. outer LOD Resolverは一つのrepresentation descriptorを選び、そのtarget compositionを「subject aggregation」と「geometry family」の直交二軸で解決する。TargetでCapabilityがactiveでなければ`geometry_family=virtualized`を候補集合へ入れない。
@@ -118,8 +120,8 @@ HLODとvirtualized geometryを排他的な機能にしない。outer representat
 
 | subject aggregation | geometry family | 判定 |
 |---|---|---|
-| `individual | instanced` | `discrete` | 現行LODでvalid |
-| `individual | instanced` | `virtualized` | Target／feature tupleがqualifiedな場合だけvalid |
+| `individual`／`instanced` | `discrete` | 現行LODでvalid |
+| `individual`／`instanced` | `virtualized` | Target／feature tupleがqualifiedな場合だけvalid |
 | `spatial_proxy` | `discrete` | 現行HLOD proxyでvalid |
 | `spatial_proxy` | `virtualized` | HLOD proxy Artifact自身がqualified virtual familyとexact fallbackを持つ場合だけvalid |
 | `impostor` | `discrete` | 現行明示representationとしてvalid |
@@ -552,7 +554,7 @@ VirtualGeometryFallbackContractV1
 | Condition | 必須結果 |
 |---|---|
 | Capability `planning_only`／Target entryなし | virtual candidateを登録せずdiscrete chainを使う |
-| Source featureのBindingが`unsupported | not_evaluated | provisional`または欠損 | Planを変更せずvirtual candidateを非登録、exact discrete fallbackと理由をPreview／Diagnosticへ出す |
+| Source featureのBindingが`unsupported`／`not_evaluated`／`provisional`または欠損 | Planを変更せずvirtual candidateを非登録、exact discrete fallbackと理由をPreview／Diagnosticへ出す |
 | discrete fallback欠損／stale／別Source | Cook／promotion拒否。virtual-only packageを作らない |
 | root residency setがpending／failed／stale | virtual path非選択、discrete fallback |
 | non-root page missing | error内ならresident ancestor、超えるならdiscrete fallback |

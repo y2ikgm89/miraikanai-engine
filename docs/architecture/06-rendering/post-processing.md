@@ -5,9 +5,9 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: Post Process Source／Volume、effect catalog／parameter semantics、volume blend／priority／scope、ordered effect composition、history intent、Post Process operation／diagnostic／qualification
-- 非正本範囲: Project Shader Source／Technique、Render pass／resource／queue／AA execution、Material／Lighting semantics、Camera／Environment source、UI composition、Runtime shared capacity、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
+- 非正本範囲: Project Shader Source／Technique、GI／reflection／advanced shadow／reference transportとそのhistory／denoise、Render pass／resource／queue／AA execution、Material／Lighting semantics、Camera／Environment source、UI composition、Runtime shared capacity、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Materials](materials.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Advanced Light Transport](advanced-light-transport.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-22
 
@@ -15,7 +15,7 @@
 
 Post ProcessingはVolumeとEffectのauthoring semantics、blend、priority、scope、ordered compositionを一意に所有し、ViewFamilyごとにimmutable `ResolvedPostProcessPlan`を生成する。RendererはそのPlanを登録済みPass Template、resource、history、queueへ展開するが、effect順やparameter意味を変更しない。
 
-AA／temporal provider、Render Graph pass／resource／queue、surface／UI compositeは[Render Graph](render-graph.md)が所有する。MaterialとLightingのsemantic valueをPost Process parameterへ複写せず、必要なscene inputだけをtyped dependencyとして宣言する。
+AA／temporal provider、Render Graph pass／resource／queue、surface／UI compositeは[Render Graph](render-graph.md)が所有する。GI／reflection／advanced shadow／reference transportのchannel／Technique／channel-local history／denoiseは[Advanced Light Transport](advanced-light-transport.md)が所有する。MaterialとLightingのsemantic valueをPost Process parameterへ複写せず、必要なscene inputだけをtyped dependencyとして宣言する。
 
 Camera、Environment、UIのSource schemaは本書の対象外である。Cameraから届くview tagとUIのpixel-locked layer policyだけをtyped Source dependencyとして消費する。Environmentの明るさは`P15`に描画されたWorld HDRを`ExposureProfileV1`のmetering規則で測定し、Environment Source／Summaryから露出値やhintを受け取らない。Owner不在のfieldを先回りして定義しない。
 
@@ -37,14 +37,13 @@ PostProcessIntentV1
   focus_intent
   motion_clarity_intent
   ambient_occlusion_intent
-  reflection_intent
   composition_constraints
   accessibility_constraints
   fallback_priority[]
   base_revision
 ```
 
-主要語彙は`scope: project_default | view_family | camera_profile | volume`、`goal: balanced | cinematic | gameplay_clarity | low_gpu_cost | low_latency | pixel_crisp | accessibility_safe | offline_reference`、`exposure_intent: manual | stable_auto | responsive_auto | match_reference`、`tone_intent: neutral | filmic | high_contrast | low_contrast | pixel_preserve | custom_profile`、`bloom_intent: off | subtle | balanced | strong`、`focus_intent: off | camera_lens | distance | subject_group`、`motion_clarity_intent: crisp | balanced | cinematic`、`ambient_occlusion_intent: off | subtle | balanced | strong`、`reflection_intent: off | rough_only | balanced | high_quality`に閉じる。
+主要語彙は`scope: project_default | view_family | camera_profile | volume`、`goal: balanced | cinematic | gameplay_clarity | low_gpu_cost | low_latency | pixel_crisp | accessibility_safe | offline_reference`、`exposure_intent: manual | stable_auto | responsive_auto | match_reference`、`tone_intent: neutral | filmic | high_contrast | low_contrast | pixel_preserve | custom_profile`、`bloom_intent: off | subtle | balanced | strong`、`focus_intent: off | camera_lens | distance | subject_group`、`motion_clarity_intent: crisp | balanced | cinematic`、`ambient_occlusion_intent: off | subtle | balanced | strong`に閉じる。旧候補の`reflection_intent`はspecular transport authorityと重複するためV1へ採用せず、Advanced Light Transportの`specular_indirect` channel requirementを参照する。
 
 `fallback_priority`は0～16件の`PostProcessFallbackStepV1`で、array先頭を最高priorityとする。step kindは`reduce_quality | disable_optional_node | substitute_qualified_node | bypass_effect`のclosed setであり、対象Node ref、kind固有parameter、維持するfidelity／Accessibility constraint refを持つ。`reduce_quality`はCatalogの一段低いqualified quality、`disable_optional_node`はCatalogでoptionalなNode、`substitute_qualified_node`はexactな代替Catalog Node ref、`bypass_effect`はeffect family全体がoptionalな場合だけ有効である。同じtarget／kindの重複、空の代替ref、fidelity floorを破るstepをschema validationで拒否する。Resolverは宣言順に一回ずつ試し、最初に全制約とBudgetを満たすstepを採用する。配列外のimplicit fallback、parameter clamp、Node reorder、未qualified代替を行わない。
 
@@ -151,14 +150,14 @@ Portable Node／parameter contractを次に固定する。本書はdomain qualif
 - `DepthOfFieldProfileV1`: focus source、subject groupまたはfocus distance 0.01～100000 m、maximum CoC 0～64 pixel、quality intent。Camera Lens fieldを複写しない。
 - `VignetteProfileV1`: intensity 0～1、roundness 0～1、center。UI、Text、cursor、Accessibility overlayへ適用しない。
 
-SSAO、SSR、高品質DOF、SMAA、Temporal Upscale Providerはoptional capabilityであり、NodeごとにCapability、reference fallback、Visual fixture、Target実測、disable可能性を必要とする。activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。SSR失敗はreflection probe／Environment fallback、SSAOはGameplay visibilityへ使わない。
+SSAO、高品質DOF、SMAA、Temporal Upscale ProviderはPost／AAのoptional capabilityであり、NodeごとにCapability、reference fallback、Visual fixture、Target実測、disable可能性を必要とする。activationと導入順は[Product Plan](../00-product/product-plan.md)が決定する。screen-space reflectionはPost NodeではなくAdvanced Light Transportの`specular_indirect` Technique候補であり、そのprobe／Environment fallback、Target support、Qualificationを本書へ複写しない。SSAOはGameplay visibilityへ使わない。
 
 実行stageは次の順で固定し、ProfileやAIが並べ替えない。
 
 | Stage | 内容 | 主入力 |
 |---|---|---|
 | `P00_OPAQUE_AO` | SSAOをOpaque Lightingへ供給 | depth、normal |
-| `P05_OPAQUE_REFLECTION` | SSRをlit Opaqueへ合成 | HDR opaque、depth、normal、motion |
+| `P05_OPAQUE_REFLECTION` | ALTが解決したspecular indirect contributionの合成境界。Post Nodeではない | ALT execution output、HDR opaque |
 | `P10_WORLD_COMPOSITE` | Transparent、VFX、Water、EnvironmentとのRenderer合成点 | World HDR |
 | `P15_EXPOSURE_MEASURE` | luminance histogram／manual exposure | World HDR |
 | `P20_TEMPORAL_RESOLVE` | TAA／TAAU／Provider。AA Planが所有 | HDR、depth、motion、history |
@@ -170,7 +169,7 @@ SSAO、SSR、高品質DOF、SMAA、Temporal Upscale Providerはoptional capabili
 | `P80_PIXEL_LOCKED_UI` | UI／Text／cursor／pixel-locked layer合成点 | display target |
 | `P90_ACCESSIBILITY_OUTPUT` | UI規約が要求する最終display transform／overlay | composited display |
 
-SSAOはOpaque Lightingのambient visibility、SSRはlit Opaqueのreflection contributionとして`P10`前に合成する。表を一本のfull-screen chainとは解釈しない。同一stageの非可換NodeはCatalogのdependency edgeを必須とし、依存なしNodeはCatalogが`commutative=true`の場合だけNode ID順で実行する。曖昧な順序とcycleは`MIRAKAN-POST-STAGE-INVALID`で拒否する。`P20`と`P60`は`ResolvedAntiAliasingPlanV1`が選択した一方または許可組合せだけを実行し、ProfileはAA methodやsample countを指定しない。
+SSAOはOpaque Lightingのambient visibilityとして扱う。`P05`はALT outputとのcross-owner ordering boundaryであり、Post Profile／Volume／CatalogがTechniqueまたはfallbackを選択しない。表を一本のfull-screen chainとは解釈しない。同一stageの非可換Post NodeはCatalogのdependency edgeを必須とし、依存なしNodeはCatalogが`commutative=true`の場合だけNode ID順で実行する。曖昧な順序とcycleは`MIRAKAN-POST-STAGE-INVALID`で拒否する。`P20`と`P60`は`ResolvedAntiAliasingPlanV1`が選択した一方または許可組合せだけを実行し、ProfileはAA methodやsample countを指定しない。
 
 ## 4. Volume resolveとparameter blend
 
@@ -194,7 +193,7 @@ Material／LightingのSource valueをPost Process resolverが書き換えない�
 
 Temporal effectはhistory semantic、required input、initialization、reset mask、warm-up disposition、fallbackを宣言する。history keyはViewFamily、effect Stable ID、effect／provider generation、surface generation、extent、projectionへ束縛する。
 
-camera cut、teleport、projection／extent／surface／effect generation変更、missing motion／depthではresetを要求する。実際のresource allocation、barrier、queue、lease、AA provider historyは[Render Graph](render-graph.md)が所有する。本書はhistoryの意味とreset要求だけを決める。
+camera cut、teleport、projection／extent／surface／effect generation変更、missing motion／depthではresetを要求する。実際のresource allocation、barrier、queue、lease、AA provider historyは[Render Graph](render-graph.md)が所有する。本書はPost effect historyの意味とreset要求だけを決める。radiance、visibility、reservoir、light-transport denoise／reference accumulationのhistory intentはAdvanced Light Transportが所有し、本書のNode historyへ複写しない。
 
 `PostHistoryDescriptorV1`は`node_id`、`view_family_id`、`camera_id`、`algorithm_version`、`extent`、`logical_format`、`quality_revision`、`generation`、`valid_region`を持つ。Camera cut／View Family、extent／dynamic-resolution／format、Node enable／algorithm／quality、AA／Post Plan hash、surface／device generation、projection／jitter／world origin、Replay seek／time discontinuityの非互換変更で必ずresetし、reasonをtelemetry／Replay Evidenceへ記録する。
 
