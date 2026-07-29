@@ -1,6 +1,6 @@
 # Collaborating with ChatGPT Pro Skill Design
 
-- 設計状態: user-review
+- 設計状態: implemented
 - 対象: Codex personal Global Skill
 - 作成日: 2026-07-29
 - 目的: 人間が入力したPromptをCodexが正確にTask Contractへ変換し、必要なContextだけを使ってブラウザ版ChatGPT Pro向けPromptを動的生成し、全visible対話を持ち帰ってローカルで裁定・実行する
@@ -23,6 +23,10 @@ $HOME/.agents/skills/collaborating-with-chatgpt-pro/
 - Pro modeを必須とし、Chrome、standard mode、別model、APIへ黙示fallbackしない。
 - Skillは明示呼び出し専用とし、自然言語だけでは自動発動させない。
 - 全visible対話は実行中の一時Artifactへ保持し、永続保存は利用者が明示した場合だけ行う。
+- ChatGPT Projectの選択はGlobal Skillへ固定せず、現在Prompt、次いでclosest
+  applicable `AGENTS.md`から解決する。
+- 本Repositoryでは`AGENTS.md`のrouteにより、Project-only memoryの専用
+  ChatGPT Projectを使用し、成果物ごとにProject内の新規chatを開始する。
 
 ## 2. 採用方式
 
@@ -66,7 +70,8 @@ Codexが動的に判断する。
 - hidden chain-of-thought、非表示reasoning、cookie、token、browser storageを取得すること
 - Proが利用できない場合に品質を落として継続すること
 - Transcriptを既定でRepository、Git、Global Skill directoryへ永続保存すること
-- `AGENTS.md`、Rules、custom subagentへWorkflowを重複実装すること
+- `AGENTS.md`、Rules、custom subagentへWorkflowを重複実装すること。
+  Repository固有のChatGPT Project routeだけは`AGENTS.md`へ保持できる。
 - model versionをSkill名、Trigger、Artifact pathへ固定すること
 
 ## 4. Artifact構成
@@ -80,6 +85,18 @@ $HOME/.agents/skills/collaborating-with-chatgpt-pro/
    ├─ prompt-generation-contract.md
    ├─ transcript-contract.md
    └─ adjudication-and-stop-rules.md
+```
+
+本RepositoryはSkill実体を複製せず、本RepositoryまたはそのArtifactを対象に
+Skillを明示呼び出しした場合のroute情報だけをroot `AGENTS.md`に保持する。
+
+```text
+Project URL
+expected visible Project title
+required memory mode
+required Pro mode
+new chat per distinct outcome
+fallback denial
 ```
 
 V1はinstruction-onlyを基本とする。Prompt、Transcript、hash処理の再現性がforward testで不足した場合だけ、必要最小限のscriptを追加する。
@@ -107,8 +124,8 @@ V1はinstruction-onlyを基本とする。Prompt、Transcript、hash処理の再
 ```yaml
 interface:
   display_name: "Collaborate with ChatGPT Pro"
-  short_description: "Generate a task-specific prompt, consult browser ChatGPT Pro, and adjudicate the complete visible exchange."
-  default_prompt: "Interpret my request, generate the task-specific ChatGPT Pro prompt from only necessary context, preserve the complete visible exchange, and perform only the local actions I authorize."
+  short_description: "Consult ChatGPT Pro with a task-specific prompt"
+  default_prompt: "Use $collaborating-with-chatgpt-pro to consult ChatGPT Pro for this request and adjudicate the result."
 
 policy:
   allow_implicit_invocation: false
@@ -134,6 +151,19 @@ Skill名を含まない自然言語Promptでは発動しない。
 - Secretまたは不要なprivate dataの送信
 - 利用者が依頼していないローカル実装
 - Transcriptの永続保存またはGit commit
+
+### 5.1 Destination route解決
+
+次の優先順位でBrowser上のdestinationを解決する。
+
+1. 現在の利用者Promptで明示されたChatGPT Project
+2. closest applicable `AGENTS.md`のChatGPT Project route
+3. Project routeがない場合のstandalone new ChatGPT chat
+
+routeはURLだけでなく、expected title、required memory mode、required mode、
+new-chat policy、fallback policyを持てる。URLだけをProject identityの証明に
+しない。選択したrouteを満たせない場合は、利用者が新しいTask Contractを
+明示し、route policyが許可しない限りdestinationを変更しない。
 
 ## 6. Task Contract
 
@@ -191,7 +221,12 @@ RepositoryまたはProject Contextを既定では取得しない。
 
 - Repository全体を無差別に読む、要約する、送信しない。
 - 現在の作業directoryにRepositoryが存在することだけを、Context投入理由にしない。
+- `AGENTS.md`のProject routeは現在TaskがそのRepositoryまたはArtifactを対象に
+  する場合だけ適用し、working directoryだけを関連性の根拠にしない。
 - local `AGENTS.md`はCodexのローカル作業規則として従うが、関連するProject情報だけをBrowser Promptへ含める。
+- route metadata、Project identity、Repository名、Repository規則を
+  subject-matter Contextと分離し、現在Taskにmaterialでない場合はPrompt、
+  Role、completion markerへ含めない。
 - Secret、credential、private key、token、cookie、不要な個人情報を含めない。
 - private sourceは、利用者の明示権限とTask上の必要性が両方ある場合だけ使用する。
 - Artifact全文が判断に必要なら、要約で置換せず、attachmentまたは順序付きpartsで完全に投入する。
@@ -220,6 +255,10 @@ Stop or abstain rules
 ```
 
 CodexはTaskに応じてRole、順序、質問、schema、Checklistを生成する。一般的な「よく考えて」「詳細に」「簡潔に」、挙動を変えない反復instruction、不要なtool説明は加えない。
+
+Role、task identifier、completion markerは現在Taskのoutcomeから生成する。
+選択Project、working directory、無関係なRepository名から生成しない。
+`AGENTS.md`は全文転記せず、現在Taskをmaterialに制約する規則だけを変換する。
 
 ### 8.1 条件付きprofile
 
@@ -259,7 +298,20 @@ Browser送信前に次を検査する。
 - 組み込みBrowserが利用不能または未loginなら、同Browserでの準備を利用者へ依頼する。
 - Chromeは利用者が明示指定または切替を承認した別runだけで使用する。
 
-### 9.2 Pro確認
+### 9.2 ChatGPT Project
+
+- Project routeがある場合は、送信前にexact URLまたはidentity、visible
+  title、required memory modeをread-backする。
+- 成果物ごとにProject内で新しいchatを開始する。
+- ChatGPT Projectはlocal Repositoryを直接読めないため、Taskに必要な
+  excerptまたはArtifactだけをmanifest付きで渡す。
+- Project-only memoryはProject外のmemoryを除外するが、同じProject内の
+  chatを参照し得る。したがってProject-context reviewと完全な独立Reviewを
+  同一視しない。
+- 本Repositoryのrouteはroot `AGENTS.md`を正本とし、Global SkillへURL、
+  title、Miraikanai固有指示を埋め込まない。
+
+### 9.3 Pro確認
 
 各run開始前と送信前に、visible UIから次を確認する。
 
@@ -275,7 +327,7 @@ Proを選択またはread-backできなければ`blocked`とする。
 
 API model IDとBrowser表示名を同一と推測しない。公式model情報とBrowser UIは別Evidenceとして記録する。
 
-### 9.3 version更新
+### 9.4 version更新
 
 - Skill名、Trigger、Prompt契約へmodel versionを固定しない。
 - UI model labelまたはmodeが変化したら、新しいrunとしてpreflightする。
@@ -397,7 +449,13 @@ ChatGPT出力だけを根拠に`accept`しない。領域間のmaterial conflict
 
 ### 15.1 `AGENTS.md`
 
-本Workflow、Trigger、model、Browser、Prompt contractをGlobalまたはRepository `AGENTS.md`へ記載しない。
+本Workflow、Task Contract、Prompt生成、Transcript、裁定、停止規則をGlobal
+またはRepository `AGENTS.md`へ複製しない。
+
+Repository固有のChatGPT Project routeはdurable Repository convention
+なので、closest applicable `AGENTS.md`へ最小限記載する。routeはdestination
+identity、required memory/mode、new-chat policy、fallback policyだけを持ち、
+Global Skillの手順を再実装しない。
 
 呼び出したRepositoryの`AGENTS.md`はローカル作業規則として通常どおり適用する。Skillはその内容を複製しない。
 
@@ -499,6 +557,8 @@ SkillなしのbaselineとSkillありのcandidateをfresh contextで比較する�
 
 - [OpenAI Codex Customization](https://learn.chatgpt.com/docs/customization/overview)
 - [Build skills](https://learn.chatgpt.com/docs/build-skills)
+- [Custom instructions with AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+- [Projects and chats](https://learn.chatgpt.com/docs/projects)
 - [Browser](https://learn.chatgpt.com/docs/browser)
 - [Chrome extension](https://learn.chatgpt.com/docs/chrome-extension)
 - [Prompting guidance for GPT-5.6 Sol](https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6)
@@ -519,6 +579,10 @@ SkillなしのbaselineとSkillありのcandidateをfresh contextで比較する�
 
 - 個人Global Skillとして公式User scopeへ存在する。
 - 特定ProjectまたはRepositoryの内容を埋め込まない。
+- Project routeを現在Prompt、次いでclosest applicable `AGENTS.md`から解決する。
+- 本RepositoryまたはそのArtifactを対象に明示呼び出しした場合は、指定
+  Projectのtitle、Project-only memory、Proを送信前にvisible UIで検証し、
+  成果物ごとにProject内の新しいchatを開始する。
 - 明示呼び出し専用policyが有効である。
 - 入力PromptからTask ContractとBrowser Promptを動的生成する。
 - ContextはTaskに必要な場合だけ取得する。
@@ -529,5 +593,6 @@ SkillなしのbaselineとSkillありのcandidateをfresh contextで比較する�
 - 外部主張をRepositoryまたは公式一次資料で裁定する。
 - 固定round数を持たず、observableな成功・追加round・blocked条件を使う。
 - Reviewから実装権限を推測しない。
-- `AGENTS.md`、Rules、custom subagentへWorkflowを重複させない。
+- `AGENTS.md`へProject routeだけを保持し、Rules、custom subagentを含めて
+  Workflowを重複させない。
 - static、trigger、baseline、forward、failure、dry-run検証結果を報告する。
