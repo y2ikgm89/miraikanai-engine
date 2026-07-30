@@ -15,9 +15,9 @@
 
 RPGは`pack_kind=genre`のGenre Packであり、Generic Engine Core、Editor、AI、Build、Runtime、PlatformへRPG依存を追加しない。[Gameplay Feature Packs](gameplay-features.md)がcommand battle、actor progression、inventory／equipment、dialogue／quest、currency／shopの再利用可能Feature familyを所有し、本書はそれらのPublic Contract、State、transaction、Save／Replay、failureを再定義しない。
 
-[Product Plan](../00-product/product-plan.md)はcompact 2D command RPGを最初のProduct-facing Reference Gameとして選び、MVP outcome、acceptance、Core holdout、Shooter sourceからRPG destinationへのProduct Definition Migrationを所有する。本書はReference Gameのoriginal content、balance、World layout、localized text、asset selectionまたはProduct completionを所有しない。Reference Gameは通常のGame Projectとして本Genre Packを消費し、Production PackからFixture／Reference Gameへ逆依存しない。
+[Product Plan](../00-product/product-plan.md)はcompact 2D command RPGをinitial V1のProduct-facing Reference Gameとして直接選び、MVP outcome、acceptance、Core holdoutを所有する。本書はReference Gameのoriginal content、balance、World layout、localized text、asset selectionまたはProduct completionを所有しない。Reference Gameは通常のGame Projectとして本Genre Packを消費し、Production PackからFixture／Reference Gameへ逆依存しない。
 
-本書はtarget Owner設計であり、current Installed Product、Pack Registry、Capability Registry、Operation、Work Package、Receiptを変更しない。RPG Feature／Genre／Referenceは`not_activated`を維持し、Shooter IDのrename、Shooter Receiptの流用、未materialize IDのcurrent登録を行わない。
+本書はinitial V1のRPG Genre Owner設計であり、Pack Registry、Capability Registry、Operation、Work PackageまたはReceiptがmaterialize済みであることを意味しない。RPG Feature／Genre／ReferenceはArchitecture、Definition、実装、Qualification、activationを別々に判定し、Shooter IDのrename、Shooter Receiptの流用、未materialize IDのactive登録を行わない。
 
 ## 2. 四層境界
 
@@ -93,17 +93,17 @@ Featureをまたぐ操作は、各Feature Ownerのvalidationとprepared result�
 
 transaction failureをUI animation、Audio cue、VFX、loading表示から成功と推測しない。Presentationはcommitted Event／Snapshotだけを消費する。
 
-## 9. State、Save、Replay、migration
+## 9. State、Save、Replay
 
 Genre-owned stateはFeature compositionとRPG flowに限定し、battle／progression／inventory／quest／currencyのauthoritative stateを複写しない。Save BundleはGenre flow projectionと各Feature Owner projectionを同じProject、Pack closure、Runtime Session、Contract set、last committed Simulation boundaryへ束縛する。
 
 Replayはaccepted Command、Feature Event、Genre flow transition、causality、RNG bindingをOwner別projectionとして保持する。Presentation timing、localized text、UI layout、asset residencyをGameplay replay identityにしない。deterministic battleのReplay成功をWorld transition、Save migration、Target Qualificationの代用にしない。
 
-Shooter sourceからRPG destinationへのProduct Definition Migrationは、Product、Pack、Feature、Genre、Reference Game、Capability、Evidenceのsource／destinationを一つのatomic changeとして扱う。RPG側の一部Ownerだけをcurrent化し、ShooterとRPGをdual current Product Definitionにしない。ECS移管とは別Closureであり、ECS migration successだけからRPG Product Definitionをactivateしない。
+initial V1のProduct Definitionはcompact 2D RPG Reference、optional Shooter Genre Pack、Genre-neutral Core holdoutをそれぞれ直接登録し、Product predecessor、source／destination migration、Pack ID renameまたはReceipt流用を持たない。RPG Architectureの承認、Feature／Pack Definition Closure、実装、Qualification、Capability activationは別axisであり、ECSまたはShooterの状態からRPGを自動昇格させない。
 
 ## 10. AI Authoring境界
 
-AIはGame Briefから必要Feature、RPG Profile、Game Flow、command role、Reference requirementを説明し、missing dependency、ambiguous intent、unsupported capabilityを質問できる。AIはFeature private State、Runtime memory、Registry current head、Capability activationを直接変更せず、Pack／Projectのactive typed Operationを通す。
+AIはGame Briefから必要Feature、RPG Profile、Game Flow、command role、Reference requirementを説明し、missing dependency、ambiguous intent、unsupported capabilityを質問できる。AIはFeature private State、Runtime memory、Registry current head、Capability activationを直接変更せず、将来Activation後もPack／Projectのexact typed Operationだけを通す。現RepositoryのRPG Operation集合は`[]`である。
 
 bounded semantic projectionは、selected Recipe、Feature dependency closure、Owner mapping、Profile、Genre flow、Action role、Reference binding、unresolved ref、Diagnostic、Evidence gapを返す。localized label、Editor panel、screen coordinate、Shooter類似名からRPG identityやFeatureを補完しない。
 
@@ -132,15 +132,15 @@ Qualificationは少なくとも次を独立Evidence classとして扱う。
 
 Feature ReceiptをGenre Receipt、Genre ReceiptをReference acceptance、Reference acceptanceをGeneric Core Release、Shooter ReceiptをRPG Evidenceへ流用しない。Fixture件数、balance値、performance thresholdはProduct／Performance／Platformのfresh Evidenceなしに本書へ固定しない。
 
-## 13. Target design closure
+## 13. Initial V1 design closure
 
-RPG Product Definitionのtarget design closureは次を要求する。
+RPG Product Definitionのinitial V1 design closureは次を要求する。
 
 1. Product §5.0の全RPG requirementがGeneric、Reusable Feature、RPG Genre、Reference Gameの一つへ解決する。
 2. five Feature familyのState、Command、transaction、Save／Replay、failure Ownerが一意である。
 3. 本書がGenre compositionだけを所有し、Feature Schema、Core、Reference contentへ侵入しない。
 4. Product outcome、RPG Genre、Reference Gameの責務とEvidence非代替が一致する。
-5. Shooter source／RPG destination、ECS migration、Capability activationを別axisとしてatomicに追跡できる。
+5. RPG、optional Shooter、Genre-neutral Core、Runtime ECS、Capability activationを独立axisとして追跡し、前任Product、Owner migrationまたはEvidence流用を前提にしない。
 
 このclosureはPack Manifest、Schema、Registry、Operation、Fixture artifact、Receipt、current Product Definition、Capability activationまたは実装の存在を意味しない。
 

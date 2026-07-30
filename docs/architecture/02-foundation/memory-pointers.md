@@ -86,7 +86,7 @@ qualification_owner_document_id
 
 Save、Replay、Package、AI projection、Network、job packetへlive pointer、reference、lease、span、writer、allocator objectを保存しない。保存可能な値は上表の`storable_form`で明示したStable／Project／Protocol IDだけとし、jobは`job_capture_form`で許可した値、handle、immutable snapshot、owned packetだけを受け渡す。これらの禁止を例外的なlocal wrapper、alias、dual readerで回避しない。
 
-この候補設計は旧combined Work Package／Capability IDや旧型aliasを新Contractへ接続しないclean breakを前提とする。current化の判断前には[Compatibility／Evolution](compatibility-evolution.md)のconsumer inventoryで外部consumerを確認し、zero consumerが検証できた場合だけ旧定義を削除できる。検証不能な外部consumerを「互換性不要」と推測して変更しない。
+Math／Core UtilitiesとMemory／Pointersはinitial V1から独立したOwner、Product Work Package、Capability identityを持ち、本書はMemory／Pointer側だけを直接定義する。predecessorとなるcombined identity、旧型alias、source／target migration、dual RegistryまたはCompatibility Receiptをinitial V1へ作らない。初回materializationまたは公開後に変更する場合だけ、[Compatibility／Evolution](compatibility-evolution.md)のconsumer inventoryと承認済みCompatibility Changeを適用する。
 
 ## 4. 標準Pointer taxonomy
 
@@ -113,9 +113,9 @@ Save、Replay、Package、AI projection、Network、job packetへlive pointer、
 公開面を二層に固定する。
 
 - **Safe generated API**: Project C++、GameplayDefinition、AI、Editor automationが使用する。value、typed handle、lease、immutable view、bounded writer、`Result<T>`だけを公開する。
-- **Unsafe private implementation**: Foundation allocator、ECS storage、Adapter、serialization kernelだけが使用する。placement new、pointer arithmetic、native pointer、raw storageを許可するが、公開Module interfaceへexportしない。
+- **Unsafe private implementation**: Foundation allocator、ECS storage、Adapter、serialization kernelだけが使用する。placement new、pointer arithmetic、native pointer、raw storageを許可するが、Public Headerまたはgenerated bindingへ露出しない。
 
-`unsafe`はnamespace名だけで権限を表現しない。CMake target、Named Module partition、include path、Capability manifest、AST scanのすべてで境界を強制する。
+`unsafe`はnamespace名だけで権限を表現しない。CMake target、private source root、public include allowlist、Capability manifest、AST scanのすべてで境界を強制する。
 
 ### 4.3 generation handle
 
@@ -327,8 +327,7 @@ CppValueTransferPolicyV1
   policy_version: 1
   contract_set_ref: ContractSetRefV1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version,
-           target_profile_content_hash}
+    exact TargetProfileRefV1
   toolchain_lock_sha256: SHA-256
   target_abi_facts:
     data_model: ilp32 | lp64 | llp64

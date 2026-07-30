@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: Renderer公開境界、Render Snapshot／View、resource／pass graph、queue／barrier／lifetime execution、transient alias／GPU visibility optimization eligibility、surface composition、2D presentation packet・sorting・batching、visibility／geometry execution、resolved lighting／light-transport execution、anti-aliasing／temporal resource execution、Renderer固有failure／qualification
 - 非正本範囲: Project Shader Source／semantic Module／Technique Manifest意味／AI理解、Material／Lighting／Advanced Light Transport／Post Process／Terrain／LOD／Worldのauthoring semanticsとTechnique選択、Runtime phase／shared capacity、Asset transaction、Tool／SDK version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[World](world.md)
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Materials](materials.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Advanced Light Transport](advanced-light-transport.md)、[Environment／Water／Weather／Snow](environment-surfaces.md)、[Terrain／Foliage](terrain-foliage.md)、[VFX Runtime](vfx-runtime.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[World](world.md)、[Camera](camera.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
@@ -66,9 +66,9 @@ PortのC++ ABI、method signature、MCD生成物、Backend実装がRepositoryに
 | 公開入力 | 種別 | 正本schemaとOwner定義 |
 |---|---|---|
 | `RenderSnapshot` | frame | 本書§2.2。published simulation／world stateから抽出したimmutable frame input |
-| `ViewFamily` | frame | 本書§2.2の`RenderView`集合。同じsurface、render extent policy、AA plan、exposure familyを共有する |
+| `ViewFamilyV1` | frame | 本書§2.2の`RenderViewV1`集合。同じsurface、render extent policy、AA plan、exposure familyを共有する |
 | `ResolvedMaterialBindingV1` | frame | [Materials](materials.md) §5。`CookedMaterialArtifactGenerationRefV1`、typed Instance／Runtime Override、`MaterialBatchCompatibilityKeyV1`の解決結果 |
-| `LightSnapshotV1` | frame | [Lighting](lighting.md) §6。`ResolvedLightSet`の唯一のRenderer公開形で、`RenderSnapshot.light_snapshot`として受ける |
+| `LightSnapshotV1` | frame | [Lighting](lighting.md) §6。`ResolvedLightSet`の唯一のRenderer公開形で、各View Familyにexact一件の`RenderSnapshot.light_snapshots[]` memberとして受ける |
 | `EnvironmentPresentationSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Environment Profileと完成Artifact generationのprojection |
 | `WaterSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §5。Water surface／underwater／query generationのprojection |
 | `WeatherPresentationSnapshotV1` | frame | [Environment／Water／Weather／Snow](environment-surfaces.md) §2.3。Weather Provider状態の非authoritative presentation projection |
@@ -101,10 +101,10 @@ RenderSnapshot
   project_revision
   world_generation
   asset_generation_id
-  view_family[]
+  view_families[1..64]: ViewFamilyV1
   renderable_2d[]
   renderable_3d[]
-  light_snapshot: LightSnapshotV1
+  light_snapshots[1..64]: LightSnapshotV1
   environment: nullable<EnvironmentPresentationSnapshotV1>
   water_snapshot: nullable<WaterSnapshotV1>
   weather_presentation: nullable<WeatherPresentationSnapshotV1>
@@ -116,20 +116,87 @@ RenderSnapshot
 
 Snapshotは[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)のpublish contractで全体を一度だけpublish後immutableとする。先頭のCadence Profile ref、Interval hash、advance sequenceは同じpublish対象`SimulationAdvanceIntervalV1`とbyte equalityにし、Presentation側でrateまたはdurationを補完しない。Entity pointer、Component span、native Physics／GPU objectを含めず、ArrayはStable rendering keyでcanonical sortしworker completion順を保存しない。
 
+各`view_families[]` member `f`から`Ref(f)={view_family_id,view_family_generation,view_family_content_hash}`を投影し、`{ls.view_family_ref | ls in light_snapshots[]} = {Ref(f) | f in view_families[]}`をexact set equalityにする。`light_snapshots[]`は`view_family_ref`の三Field tuple順へstrict sortし、duplicate Family ref、missing／extra Family、同ID別generation／hash、配列位置または`latest`による対応を拒否する。各`LightSnapshotV1.project_revision`は`RenderSnapshot.project_revision`とbyte equalityでなければならない。Lightが0件のFamilyもSoA配列が全てemptyのexact一Snapshotを持ち、Family memberを省略しない。Advanced Light TransportへはRequirementの`view_family_ref`とbyte equalityになる一件だけを渡し、別FamilyのSnapshot、配列先頭、表示名または同じTargetから選択しない。
+
 Environment bindingが存在する時、`environment`はnon-nullとし、その`weather_snapshot_ref`は`weather_presentation`のexact refとbyte equalityにする。Water／Snow／VFXをpublishする場合は各SnapshotのCadenceまたはWeather refを同じSimulation Advance／Environment generationへ束縛する。bindingまたは各Domain出力が存在しないFieldはcanonical nullであり、Rendererは配列先頭、直前frame、Source Profile、表示名からSnapshotや既定Environmentを補完しない。
 
-| `RenderView` field | 型／規則 |
-|---|---|
-| `view_id` | frame内一意`uint32` |
-| `purpose` | `game \| editor \| shadow \| reflection \| thumbnail` |
-| `projection` | perspective／orthographicとfinite parameter |
-| `view_transform` | right-handed、meter、finite |
-| `viewport_px`／`scissor_px` | surface範囲内 |
-| `render_scale` | Target Profile範囲 |
-| `layer_mask` | registered 64-bit layer |
-| `visibility_origin` | camera-relative origin |
-| `history_key` | temporal history Stable key |
-| `quality_profile_id` | Cooked Profile |
+```text
+RenderViewV1
+  schema_version: 1
+  view_id: StableId
+  view_generation: positive u64
+  frame_view_slot: uint32
+  purpose: game | editor | shadow | reflection | thumbnail
+  projection:
+    perspective | physical_perspective {
+      vertical_fov_rad: finite (0, pi)
+      near_m: finite positive f64
+    }
+    | orthographic | pixel_orthographic {
+        vertical_span_m: finite positive f64
+        near_m: finite non-negative f64
+      }
+  view_from_world: finite right-handed Matrix4x4
+  render_width_px: positive u32
+  render_height_px: positive u32
+  viewport_px: finite integer rect inside render extent
+  scissor_px: finite integer rect inside viewport
+  render_scale: finite Target-Profile-bounded f64
+  layer_mask: registered u64 layer mask
+  visibility_origin: finite world-space Vec3
+  camera_cut: bool
+  history_reset: bool
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  history_key: StableId
+  view_content_hash: SHA-256
+
+RenderViewRefV1
+  view_id: StableId
+  view_generation: positive u64
+  view_content_hash: SHA-256
+
+ViewFamilyV1
+  schema_version: 1
+  view_family_id: StableId
+  view_family_generation: positive u64
+  world_scope_ref: exact WorldScopeRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  surface_generation_ref: exact owner-typed ref
+  render_extent_policy_ref: exact owner-typed ref
+  anti_aliasing_plan_ref: exact ResolvedAntiAliasingPlanRefV1
+  exposure_family_ref: exact owner-typed ref
+  view_refs[1..64]: exact RenderViewRefV1
+  view_family_content_hash: SHA-256
+
+ViewFamilyRefV1
+  view_family_id: StableId
+  view_family_generation: positive u64
+  view_family_content_hash: SHA-256
+
+ViewFamilyRequirementV1
+  requirement_id: content-derived StableId
+  requirement_version: positive u32
+  project_revision: positive u64
+  view_family_ref: exact ViewFamilyRefV1
+  world_scope_ref: exact WorldScopeRefV1
+  required_view_refs[1..64]: exact RenderViewRefV1
+  required_purposes[1..5]:
+    game | editor | shadow | reflection | thumbnail
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  requirement_content_hash: SHA-256
+
+ViewFamilyRequirementRefV1
+  requirement_id: StableId
+  requirement_version: positive u32
+  requirement_content_hash: SHA-256
+```
+
+`RenderViewRefV1`、`ViewFamilyRefV1`、`ViewFamilyRequirementRefV1`はそれぞれ解決先のidentity、generation／version、content hashと全Fieldでbyte equalityにする。`view_refs[]`と`required_view_refs[]`は`view_id, view_generation`順、`required_purposes[]`は上記closed enum ordinal順へstrict sortし、duplicateを拒否する。FamilyのTarget／Qualityは全Viewとbyte equalityにし、全Viewは同じ`world_scope_ref`のWorldから解決されたcamera／derived Viewでなければならない。Requirementの`world_scope_ref`、Target／Qualityは参照先Familyとbyte equality、View集合はFamilyのView集合のnon-empty subset、purpose集合はそのView集合から投影したpurpose集合とset equalityにする。
+
+`view_id`と`view_generation`がframeを跨いでView identityを表し、`frame_view_slot`は一つの`RenderSnapshot`内のexecution indexに限る。同じSnapshot内ではslotをuniqueとするが、slotの再利用、配列順、surface上の位置からView identityまたはhistoryを復元しない。`view_content_hash`はASCII `MIRAKAN_RENDER_VIEW_V1`、Family hashはASCII `MIRAKAN_VIEW_FAMILY_V1`、Requirement hashはASCII `MIRAKAN_VIEW_FAMILY_REQUIREMENT_V1`と、それぞれ自己hashを除くclosed recordのcount／presence／length-framed canonical bytesからSHA-256する。CameraはSource／Rig／cut intentを公開し、Render Graph Ownerだけが解決済み`RenderViewV1`、Family、Requirementのcanonical recordを公開する。
 
 View capabilityのactivationと導入順は[Product Plan](../00-product/product-plan.md)を参照し、本書はViewごとに独立selection／history stateとdomain qualification evidenceだけを提供する。
 
@@ -261,7 +328,7 @@ Target／Profileのqualified primary execution pathはexact一件、未選択な
 
 ### 7.1 Virtualized geometryのtarget execution境界
 
-[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)がactiveなTargetでは、実行順を`conservative View candidate -> outer LOD representation -> virtual familyのresident hierarchy cut -> occlusion／compaction -> raster`に固定する。Render Graphはexact `VirtualGeometryTargetActivationBindingRefV1`／`VirtualGeometryResolutionPlanRefV1`、同じArtifact generationのimmutable `VirtualGeometryResidencySnapshotRefV1`、`CameraRenderViewV1`から投影済みの`ViewLodContextV1`だけを受ける。Activation Binding、Plan、Snapshot、ViewのTarget／generationが一致しなければGraphを作らない。Source Intent、World Cell、provider option、raw I/O queueを解釈しない。
+[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)がactiveなTargetでは、実行順を`conservative View candidate -> outer LOD representation -> virtual familyのresident hierarchy cut -> occlusion／compaction -> raster`に固定する。Render Graphはexact `VirtualGeometryTargetActivationBindingRefV1`／`VirtualGeometryResolutionPlanRefV1`、同じArtifact generationのimmutable `VirtualGeometryResidencySnapshotRefV1`、`RenderViewV1`から投影済みの`ViewLodContextV1`だけを受ける。Activation Binding、Plan、Snapshot、ViewのTarget／generationが一致しなければGraphを作らない。Source Intent、World Cell、provider option、raw I/O queueを解釈しない。
 
 inner cutはRender Viewごとに解決し、ancestor／descendant排他、surface coverage、resident-only、error bound、Material／deformation interface、candidate／visible capacityを検証する。結果はbounded `VirtualGeometryViewCutSummaryV1`へ投影できるが、`LodTierRefV1`、World state、Simulation input、Save／Replayへ書き戻さない。page requestはowner-qualified hintだけを返し、I/O順、eviction、pool budgetをRendererが決めない。
 
@@ -301,7 +368,7 @@ OutlineTechniqueCatalogEntryV1
   entry_version: positive uint32
   qualified_technique_ref: exact OutlineQualifiedTechniqueRefV1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   resolved_technique_kind: geometry | screen_space | hybrid
   compatible_world_space: WorldSpaceCompatibilityV1
   required_input_kinds[0..3]: unique subset of {depth, normal, coverage}
@@ -338,7 +405,7 @@ OutlineResolutionDiagnosticV1
   source_outline_style_profile_ref: exact OutlineStyleProfileRefV1
   world_space_profile_ref: exact WorldSpaceProfileRefV1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   rejected_catalog_entry_refs[0..256]: OutlineTechniqueCatalogEntryRefV1
   remediation_capability_refs[0..16]: McdContractRefV1(kind=capability)
 
@@ -356,7 +423,7 @@ ResolvedOutlineExecutionPlanV1
   source_outline_style_profile_ref: OutlineStyleProfileRefV1
   world_space_profile_ref: exact WorldSpaceProfileRefV1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   qualified_technique_ref: OutlineQualifiedTechniqueRefV1 | null
   source_catalog_entry_ref: OutlineTechniqueCatalogEntryRefV1 | null
   outline_technique_catalog_hash: SHA-256

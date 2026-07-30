@@ -7,7 +7,7 @@
 - 正本範囲: Architecture文書の状態、subject-qualified状態語彙、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log
 - 非正本範囲: Product capability、MCD／Operation、実装Task、実装順序、Domain Schema・固定値・runtime挙動、AIの認可・実行route
 - 規範依存: none
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Product Publication／Completion](../00-product/product-publication-completion.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
 - 根拠区分: project-decision。ADR lifecycleは一次資料を確認済み
 - 外部根拠確認日: 2026-07-27
 
@@ -30,7 +30,7 @@ Architectureの各主張は次のいずれかへ分類する。
 
 ### 2.1 Owner文書のHeader
 
-`docs/architecture/00-product`から`08-packs`までのOwner文書は、次のHeader fieldを同じ順序で持つ。
+Architecture Indexの「Owner文書一覧」に登録された全Owner文書は、directory番号やDomainの追加時期にかかわらず、次のHeader fieldを同じ順序で持つ。現行範囲には`docs/architecture/00-product`から`09-networking`までが含まれる。
 
 ```text
 - 文書ID: immutable ASCII ID
@@ -141,6 +141,7 @@ Headerが`根拠区分: project-decision`と明示するOwner-nativeな規範節
 - Product、Governance、Foundation、Authoring／Runtime、Simulation／Rendering、Platform、Packの順序を逆向きに依存させない。
 - Architecture Governanceは全層が参照できるmeta-contractであり、層順序の例外として常に依存先になれる。
 - Governance OwnerがFoundationの署名、Schema、canonical encoding等の実行形式を規範依存に持つ場合、その意味はGovernanceに残し、FoundationがRisk、Approval、Consent、Evidence判断へ逆依存しないことを必須とする。
+- Product release pipelineはfolder順ではなくsubject DAGで判定する。`Product Definition／Manifest／Acceptance → signed Release Decision → Platform signing／submission Receipt → Product Publication → signed Completion`の一方向だけを許可する。Platform Ownerはpre-publication Release Decisionを規範入力にでき、final Product Publication OwnerはPlatform Receiptを集約できるが、PlatformからPublication／Completionへの逆依存、DecisionからPlatform Receiptへの逆参照、Manifest／Acceptanceへの後段Ref埋戻しを禁止する。
 - 下位層から上位層への説明link、相互運用link、具体例は`関連文書`へ置く。
 - 本文中の局所的な正本参照は許可するが、Headerの規範依存と矛盾させない。
 - `mirakan.arch.<document-id>#<fragment>`形式の型付き文書参照は、参照先に一意に存在するMarkdown heading slugまたは明示的なASCII `<a id="..."></a>`へ解決しなければならない。Fragmentは大文字小文字を区別するimmutable identifierとして扱い、未定義の型名、表示見出し、重複anchorを参照値へ使わない。
@@ -237,6 +238,19 @@ Projectionは説明と探索だけに使い、Architecture変更、Project mutat
 - Owner移管は旧Ownerから定義を削除し、新Ownerへ移した同じ変更で全参照を更新する。
 
 正本Ownerが未決定の場合は、暫定的な複数定義を作らず、`provisional`な未解決事項として一か所へ記録する。
+
+release-criticalな共通identity spineのcurrent Owner routingは次である。この表はSchemaを複写せず、各Ownerのexact fragmentへだけ解決する。将来`ArchitectureInventoryV1`がmaterializeした場合、同じ型→Owner projectionとset equalityでなければならない。
+
+| identity family | canonical Owner |
+|---|---|
+| `TargetProfileV1`／`TargetProfileRefV1`／root Registry | [Product Plan §6.1](../00-product/product-plan.md#product-profile-identity) |
+| `LocaleProfileV1`／`LocaleProfileRefV1`／root Registry | [Product Plan §6.1](../00-product/product-plan.md#product-profile-identity) |
+| `QualificationScenarioV1`／`EvidenceClassV1`／`VerificationScopeVectorV1`／generic `EvidenceRefV1`／`QualificationReceiptRefV1`／semantic admissibility／resolver Registry | [AI Verification／Provenance §7](ai-verification-provenance.md#verification-identity-spine) |
+| generic `OperationReceiptV1`／`OperationReceiptRefV1`／Receipt Type Registry | [Executable Contracts §8.0](../02-foundation/executable-contracts.md#operation-receipt-identity) |
+| MCD `kind=data_flow`共通Envelope／`McdContractRefV1(kind=data_flow)` | [Executable Contracts §4](../02-foundation/executable-contracts.md#4-mcd-kind) |
+| `ProductDataFlowDefinitionV1` payload／Inventory／Privacy projection | [Product Privacy／Data Governance §3](product-privacy-data-governance.md#3-purpose-bindingとdata-flow-inventory) |
+
+Consumer Ownerは上表のRefをopaqueなexact tupleとして使用し、local narrow Ref、ID／version／hashの不完全な再宣言、display name／prefix／`latest` resolverまたはappendix candidateを正本にしない。Host／runtime Target kind、locale、Verification scope、subject contract、Evidence class、record kind、purpose、owner-specific backing Ref、Operation、requestまたはsubjectの一Fieldでも異なるsubstitutionを拒否し、semantic admissibilityをset equalityの前に検証する。
 
 [Product Security](product-security.md)の`ThreatOwnershipRegistryV1`はsecurity subjectに対するaccountable／responsible Ownerを投影するが、本書のArchitecture正本所有を置き換えない。Registry bindingのOwner文書IDは同じ`ArchitectureInventoryV1`へexactに解決し、Inventory上の正本Ownerと矛盾するbinding、複数accountable Owner、orphan subjectを拒否する。[Product Lifecycle](../00-product/product-lifecycle.md)のE2E acceptanceも各domain Ownerの意味を集約するだけで、Project、Build、Package、Evidenceの正本を移管しない。
 

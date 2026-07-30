@@ -8,8 +8,8 @@
 - 親Owner: [Navigation](../05-simulation/navigation.md)
 - 正本範囲: Navigation設計監査の結論、AI可読性、主要Engine比較、cross-owner整合性、意図的な未確定事項の追跡
 - 非正本範囲: Navigation runtime semantics、MCD Schema、Product Registry、実装Task、実装順序、担当、工数、生成済みArtifact、Qualification結果、Capability activation
-- 規範依存: [Navigation](../05-simulation/navigation.md)、[Product Plan](../00-product/product-plan.md)、[Product Execution Registry Proposal](product-execution-registry-proposal.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
-- 関連文書: [Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[World](../06-rendering/world.md)
+- 規範依存: [Navigation](../05-simulation/navigation.md)、[Product Plan](../00-product/product-plan.md)、[Runtime Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
+- 関連文書: [Product Execution Registry Proposal](product-execution-registry-proposal.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[World](../06-rendering/world.md)
 - 根拠区分: project-review／official-spec comparison
 - 外部根拠確認日: 2026-07-28
 

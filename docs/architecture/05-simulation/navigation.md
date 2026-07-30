@@ -303,10 +303,10 @@ Compile closureはSelection Document ref／content hash、RegistryRef、全Bindi
 
 Port transportとgeneric batch publisherをNavigation／Core ownerへ固定する。`game_system.engine.navigation.motion_intent_batch_publisher`はactive Selection DocumentとContribution Registryを読み、全owner contributionをcanonical mergeして、T40でselected Providerへ一回だけ配送する。Character、RTS、board token、Animation等のcontributorは自身のproposalとadapter recordだけを所有し、このpublisher、batch identity、merge orderを所有またはforkしない。これはEventではなくbounded Port messageである。
 
-このpublisherはcurrent Core System Catalogへ次の一件だけを完全な`GameSystemSpecV2`として登録する。省略したFieldをdefault扱いせず、空集合もcanonical count 0としてhashへ含める。
+このpublisherはcurrent Core System Catalogへ次の一件だけを完全な`GameSystemSpecV1`として登録する。省略したFieldをdefault扱いせず、空集合もcanonical count 0としてhashへ含める。
 
 ```text
-GameSystemSpecV2 game_system.engine.navigation.motion_intent_batch_publisher
+GameSystemSpecV1 game_system.engine.navigation.motion_intent_batch_publisher
   MCD common envelope: all fields
   id: game_system.engine.navigation.motion_intent_batch_publisher
   version: 1
@@ -379,7 +379,7 @@ GameSystemSpecV2 game_system.engine.navigation.motion_intent_batch_publisher
 
 上記Systemとresolverが参照するNavigation-owned MCD Capabilityは次のexact二件である。Product `capability.simulation.navigation` rowとは別recordであり、Target別Activation Bindingが同じContract set rootへ接続する。materialized Contract setがない現在は設計候補で、Game System本文にIDが現れるだけでは定義済みまたはactiveと扱わない。
 
-共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.navigation]`、`requirement_refs=[]`、`since_contract_set=2`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
+共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.navigation]`、`requirement_refs=[]`、`since_contract_set=1`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
 
 | Capability ID | `title` | `description` | `required_capabilities[]` | `rationale_refs[]` | `tags[]` |
 |---|---|---|---|---|---|
@@ -496,7 +496,7 @@ description=Publish at most one canonical selected-provider batch per actor gene
 owners=[owner.core.navigation]
 requirement_refs=[]
 rationale_refs=[mirakan.arch.simulation-navigation#41-generic-motion-executor-port]
-since_contract_set=2
+since_contract_set=1
 supersedes=[]
 tags=[motion_intent,navigation,publisher]
 normative_level=must
@@ -519,7 +519,7 @@ description=Keep the generic publisher outside Transform Physics and Gameplay st
 owners=[owner.core.navigation]
 requirement_refs=[]
 rationale_refs=[mirakan.arch.simulation-navigation#41-generic-motion-executor-port]
-since_contract_set=2
+since_contract_set=1
 supersedes=[]
 tags=[authority,boundary,motion_intent,navigation]
 normative_level=must_not
@@ -533,7 +533,7 @@ source_refs=[{ref=mirakan.arch.simulation-navigation#41-generic-motion-executor-
 introduced_by=changeset.architecture.navigation.motion_intent_batch_publisher.v1
 ```
 
-Contract compilerは二Requirementを`ContractSetMemberLocalRecordV2(member_kind=mcd)`、publisher Specを同じkindの別local memberとして同一`ContractSetSnapshotV2`へ含める。Spec内のRequirement／Type／Capability edgeはlocal identityで解決し、10件の非MCD auxiliary record hashと上記12 refのexact `GameSystemAuxiliaryRefSetV1`をSpec local payloadへ含めてからmember hashとset rootを計算する。root確定後だけ二RequirementとSpecのexternal refをmaterializeする。12件の一件missing／extra／duplicate、wrong owner／type／version／hash、Target budget一行missing／extra、各payload一Field mutation、noncanonical ref順でauxiliary hashまたはContract set rootが変わらないfixtureをrejectし、last-valid Catalogを不変にする。
+Contract compilerは二Requirementを`ContractSetMemberLocalRecordV1(member_kind=mcd)`、publisher Specを同じkindの別local memberとして同一`ContractSetSnapshotV1`へ含める。Spec内のRequirement／Type／Capability edgeはlocal identityで解決し、10件の非MCD auxiliary record hashと上記12 refのexact `GameSystemAuxiliaryRefSetV1`をSpec local payloadへ含めてからmember hashとset rootを計算する。root確定後だけ二RequirementとSpecのexternal refをmaterializeする。12件の一件missing／extra／duplicate、wrong owner／type／version／hash、Target budget一行missing／extra、各payload一Field mutation、noncanonical ref順でauxiliary hashまたはContract set rootが変わらないfixtureをrejectし、last-valid Catalogを不変にする。
 
 ```text
 MotionExecutorIntentBatchV1
@@ -697,9 +697,9 @@ ProviderSelectionCompileBindingRefV1
   compile_binding_hash: SHA-256
 ```
 
-owner unionはdiscriminator外Fieldをnullにする。`owner_layer=core`は`core_system_owner_ref`だけをnon-nullにし、その`GameSystemOwnerRefV1`は同Provider recordのproduction implementation baseが指すReceipt-free `GameSystemSpecV2.owner_ref`と全Field byte equalityでなければならない。これによりSystem contractとは別のEngine Component identity／Registryを作らない。`owner_layer=feature_pack | genre_pack`は`pack_contract_ref`だけをnon-nullにする。そのRefは[Pack Contract](../08-packs/pack-contract.md)のexact `PackManifestV1 {pack_id,pack_version,content_hash}`へ一件だけ解決し、Manifestの`pack_kind`がそれぞれ`feature | genre`、三FieldがCatalog owner inventoryとbyte equalityでなければならない。未定義の中間`PackContractV1`、bare Pack ID、latest Manifestを介さない。`usage=production`は`core | feature_pack | genre_pack | project`だけ、`fixture_only`は`fixture`だけを許可する。base recordの`implementation_system_base_ref.usage`とQualification subjectの`implementation_system_ref.base_ref.usage`はenclosing usageとexact equalityである。
+owner unionはdiscriminator外Fieldをnullにする。`owner_layer=core`は`core_system_owner_ref`だけをnon-nullにし、その`GameSystemOwnerRefV1`は同Provider recordのproduction implementation baseが指すReceipt-free `GameSystemSpecV1.owner_ref`と全Field byte equalityでなければならない。これによりSystem contractとは別のEngine Component identity／Registryを作らない。`owner_layer=feature_pack | genre_pack`は`pack_contract_ref`だけをnon-nullにする。そのRefは[Pack Contract](../08-packs/pack-contract.md)のexact `PackManifestV1 {pack_id,pack_version,content_hash}`へ一件だけ解決し、Manifestの`pack_kind`がそれぞれ`feature | genre`、三FieldがCatalog owner inventoryとbyte equalityでなければならない。未定義の中間`PackContractV1`、bare Pack ID、latest Manifestを介さない。`usage=production`は`core | feature_pack | genre_pack | project`だけ、`fixture_only`は`fixture`だけを許可する。base recordの`implementation_system_base_ref.usage`とQualification subjectの`implementation_system_ref.base_ref.usage`はenclosing usageとexact equalityである。
 
-Production ownerの照合は異型union同士の直接比較を行わず、root外のexact `ProviderProductionOwnerProjectionV1`を介す。CoreはProvider recordのexact `core_system_owner_ref`、Feature／Genreはexact Pack owner inventory、Projectはstable `project_identity_ref`とtrusted Project owner inventoryがそれぞれ登録した一件の`GameSystemOwnerRefV1`へだけ投影できる。Provider `core | feature_pack | genre_pack | project`はGame System `core | feature_pack | genre_pack | project`の同ordinalへ写像し、projectionの`provider_record_ref`は対象Record、provider identityは同Recordの`owner_identity`、`game_system_owner_ref`は参照先`GameSystemSpecV2.owner_ref`とbyte equalityでなければならない。Coreではこの三者に加えてProvider `owner_identity.core_system_owner_ref`も同じOwner refとbyte equalityにする。projection hashはASCII `MIRAKAN_PROVIDER_PRODUCTION_OWNER_PROJECTION_V1`と自己Fieldを除くcanonical bytesから計算する。Provider recordはProjection ref、Project revision、Document-set hashを持たず、production Qualification subjectだけがexact Projection refを持つ。production base branchは`production_system_ref: GameSystemContractRefV1`と`production_system_contract_hash`だけ、fixture-only base branchはProjection Fieldをcanonical omissionして`fixture_system_ref: FixtureImplementationSystemRefV1`だけを持つ。Provider Qualification subjectの`implementation_system_ref.base_ref`はbase recordの`implementation_system_base_ref`とbyte equalityにし、その後段でproductionならexact `production_system_activation_binding_ref`、fixtureならexact `fixture_system_activation_binding_ref`を加える。fixture Registry record／System Qualification subjectの`fixture_owner_ref`はProvider ownerの同型fixture refとexact equalityにする。Core namespace、Pack kind、fixture名の自己申告だけでは所有を証明しない。
+Production ownerの照合は異型union同士の直接比較を行わず、root外のexact `ProviderProductionOwnerProjectionV1`を介す。CoreはProvider recordのexact `core_system_owner_ref`、Feature／Genreはexact Pack owner inventory、Projectはstable `project_identity_ref`とtrusted Project owner inventoryがそれぞれ登録した一件の`GameSystemOwnerRefV1`へだけ投影できる。Provider `core | feature_pack | genre_pack | project`はGame System `core | feature_pack | genre_pack | project`の同ordinalへ写像し、projectionの`provider_record_ref`は対象Record、provider identityは同Recordの`owner_identity`、`game_system_owner_ref`は参照先`GameSystemSpecV1.owner_ref`とbyte equalityでなければならない。Coreではこの三者に加えてProvider `owner_identity.core_system_owner_ref`も同じOwner refとbyte equalityにする。projection hashはASCII `MIRAKAN_PROVIDER_PRODUCTION_OWNER_PROJECTION_V1`と自己Fieldを除くcanonical bytesから計算する。Provider recordはProjection ref、Project revision、Document-set hashを持たず、production Qualification subjectだけがexact Projection refを持つ。production base branchは`production_system_ref: GameSystemContractRefV1`と`production_system_contract_hash`だけ、fixture-only base branchはProjection Fieldをcanonical omissionして`fixture_system_ref: FixtureImplementationSystemRefV1`だけを持つ。Provider Qualification subjectの`implementation_system_ref.base_ref`はbase recordの`implementation_system_base_ref`とbyte equalityにし、その後段でproductionならexact `production_system_activation_binding_ref`、fixtureならexact `fixture_system_activation_binding_ref`を加える。fixture Registry record／System Qualification subjectの`fixture_owner_ref`はProvider ownerの同型fixture refとexact equalityにする。Core namespace、Pack kind、fixture名の自己申告だけでは所有を証明しない。
 
 recordは`provider_content_hash`を除くReceipt-free全FieldのMCD canonical bytesからhashし、CatalogはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_CATALOG_V1`、catalog ID／version、Contract set hash、provider ID／version順でstrict sortしたrecord全体を入力して自己hashを除外する。`MotionExecutorProviderRecordRefV1`はCatalog identity／version／hash／Contract setとrecord identity／version／content hashを一つにbindし、current Catalogからlatest recordを再解決しない。Catalog／RecordRef固定後、Production Owner Projectionを作り、既に完成したSystem Activation Bindingをbase refへ付加した`UsageTaggedImplementationSystemRefV1`とProjection refをProvider Qualification subjectへだけ入れる。Qualification subject hashはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_QUALIFICATION_SUBJECT_V1`、Activation binding hashはASCII `MIRAKAN_MOTION_EXECUTOR_PROVIDER_ACTIVATION_BINDING_V1`と各自己Fieldを除くcanonical bytesから計算する。subjectの`owner_identity`はbase recordの同Field、Production Projectionは同RecordRef／owner／System owner、`implementation_system_ref.base_ref`はbase recordの`implementation_system_base_ref`とbyte equality、Activation BindingのRecordRefはsubjectとbyte equalityでなければならない。signed wrapperは完成subjectだけを署名し、System／Provider record、Catalog hashへReceipt、Projection、wrapper、System／Provider Activation Bindingを戻さない。生成順は`receipt-free System base → System subject／signed Receipt／Activation Binding; receipt-free Provider record(System base ref only) → Catalog／RecordRef → root外Owner Projection → Provider subject(System Activation Binding＋Owner Projection) → signed Provider Receipt → Provider Activation Binding → Selection Document／Project document-set hash → root外ProviderSelectionCompileBindingV1`である。
 
@@ -746,7 +746,7 @@ QualificationはGrid rasterization／canonical A*、node／heap memory再利用�
 | `provider.fixture.motion_executor.board_token` v1／fixture_only／exact `fixture.navigation.motion-executor.board-token-no-physics` owner | `capability.motion_executor.fixture.board_token` | `type.fixture.motion.board_token_movement_profile` | `[type.navigation.adapted_motion_intent]` | `type.navigation.motion_executor_intent_batch`／`type.fixture.motion.board_token_resolved_motion` | `policy.fixture.motion.board_token_target_dimension` |
 | `provider.fixture.motion_executor.rts_stub` v1／fixture_only／exact `fixture.navigation.motion-executor.rts-stub-no-physics` owner | `capability.motion_executor.fixture.rts_stub` | `type.fixture.motion.rts_stub_movement_profile` | `[type.navigation.adapted_motion_intent]` | `type.navigation.motion_executor_intent_batch`／`type.fixture.motion.rts_stub_resolved_motion` | `policy.fixture.motion.rts_stub_target_dimension` |
 
-二つの`executor_capability_ref`は未定義の文字列ではなく、対応Fixture専用Contract setだけに含む次のMCD Capability recordである。両recordは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.navigation]`、`requirement_refs=[]`、`since_contract_set=2`、`supersedes=[]`、`maturity=C1`、`supported_targets=[target.headless.host]`、`required_capabilities=[]`を持つ。Payloadの共通値は`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`failure_modes=[{diagnostic_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED, fallback_id=fallback.capability.unavailable}]`、`examples=[]`、`ai_guidance=[]`である。Target Profile ref／hashは§6のFixture Qualification subjectが`target.headless.host@1`へ別に束縛する。Production Contract set、Product `CapabilityRegistryV1`、通常Provider discoveryにはrecord自体を含めない。
+二つの`executor_capability_ref`は未定義の文字列ではなく、対応Fixture専用Contract setだけに含む次のMCD Capability recordである。両recordは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.navigation]`、`requirement_refs=[]`、`since_contract_set=1`、`supersedes=[]`、`maturity=C1`、`supported_targets=[target.headless.host]`、`required_capabilities=[]`を持つ。Payloadの共通値は`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`failure_modes=[{diagnostic_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED, fallback_id=fallback.capability.unavailable}]`、`examples=[]`、`ai_guidance=[]`である。Target Profile ref／hashは§6のFixture Qualification subjectが`target.headless.host@1`へ別に束縛する。Production Contract set、Product `CapabilityRegistryV1`、通常Provider discoveryにはrecord自体を含めない。
 
 | Capability ID | `title` | `description` | `rationale_refs[]` | `tags[]` | usage boundary |
 |---|---|---|---|---|---|

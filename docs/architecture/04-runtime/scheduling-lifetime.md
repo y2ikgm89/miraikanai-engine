@@ -75,7 +75,7 @@ flowchart BT
 
 矢印は依存元から依存先を示す。実target edgeはconfigure時に検査し、循環、未許可edge、Domain間直接依存を拒否する。
 
-図中の`Asset Runtime`はSchedulingがcompletion acceptance、publication boundary、retire順を接続する論理module labelであり、target Owner境界は[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)へ解決する。ただし同文書は`review`、実装は`absent`であり、CMake target、Schema、API、Serviceまたはactive Capabilityの存在を意味しない。Owner Decisionとconsumer migrationが適用されるまでは、本図のedgeからcurrent実装を生成しない。
+図中の`Asset Runtime`はSchedulingがcompletion acceptance、publication boundary、retire順を接続する論理module labelであり、initial V1 Owner境界は[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)へ解決する。ただし同文書は`review`、実装は`absent`であり、CMake target、Schema、API、Serviceまたはactive Capabilityの存在を意味しない。本図のedgeから実装、SchemaまたはServiceを生成せず、初期Contract Setではexact Owner／Definition refへ直接束縛する。
 
 | target | 所有 | 禁止 |
 |---|---|---|
@@ -380,7 +380,7 @@ RuntimeEntryTransitionReceiptRefV1
 
 Runtime Entry transitionのpositive fixtureはUI-only→World＋HUD、World→UI-only Result、Result→Title、UI-only→headlessを含む。negative fixtureはstale source generation、entry semantic／Document hash差、branch closure／Package差、同key別payload、activation payload三Fieldのnullability差、unknown payload owner、prepare中cancel、commit後cancel、readiness failureを各一原因で注入し、source publication、Input target、Screen Stack、World／Stage generationが部分変更されないことを検証する。Scenario／Stage PackなしのUI-only→World transitionも同じPortで成立しなければならない。
 
-本節はtarget review definitionであり、current MCD Contract Set、Runtime Port Registry、Operation／Service／Provider／MCP allowlistへ上記三Type／一Portを追加しない。Foundation Definition Closure、Consumer Inventory、Compatibility／Definition Migration、Qualificationが同一ChangeSetで成立するまで、Runtime Entry transitionをcurrent availableまたは実装開始可能と表示しない。
+本節はinitial V1 review definitionであり、materialized MCD Contract Set、Runtime Port Registry、Operation／Service／Provider／MCP allowlistへ上記三Type／一Portが存在することを意味しない。Foundation Definition Closure、Runtime Entry／Package／UIのexact ref closure、Qualificationが同一subjectで成立するまで、Runtime Entry transitionをavailableまたは実装開始可能と表示しない。
 
 ### 4.1 Clock domain、Pause、Gameplay Timer
 
@@ -646,7 +646,7 @@ Save header、Domain projection binding、bundle rootのfield・hash・生成順
 
 current reference defaultのpre-hash source notationは`{profile_id=simulation.cadence.reference.fixed_60, profile_version=1, cadence={kind=fixed, rate_hz=60/1, max_catch_up_steps=4, overrun_policy=clamp_and_report}, physics_substep_profile_ref=null}`である。compilerはこのclosed base recordへ`profile_content_hash`を追加して完成させ、その外側に`SimulationCadenceProfileRefV1`をmaterializeする。C1／C2で現在Production Qualification済みと計画するCadenceはこの一件だけで、他rateおよび`variable | turn_based | explicit_step`は対応するCapability、Target、Clock Domain consumer、Save／Replay fixtureのActivationまで`cadence_profile_not_qualified`を返す。これにより60はdefault instanceとして維持し、`SimulationCadenceProfileV1`、`TickPhaseId`、Native Game Module ABIの固定値にはしない。
 
-全Profileの最小Core required setは`clock.domain.core.gameplay@1`（`simulation_cadence`）と`clock.domain.core.real_time@1`（`monotonic_time`）のexact二件である。Presentation branchは`clock.domain.rendering.presentation@1`、非同期I/O branchは`clock.domain.runtime.async_io@1`を追加で要求し、Physics、authoritative Animation、Cinematic、UI、Audioは各active ownerがqualified contributionを選択した場合だけ、それぞれ`clock.domain.physics.simulation@1`、`clock.domain.animation.authoritative@1`、`clock.domain.camera.cinematic@1`、`clock.domain.ui.presentation@1`、`clock.domain.audio.presentation@1`を要求する。計画書上のreference default Profileはこの九refをexactに選択して従来の`gameplay | physics | authoritative_animation | cinematic | presentation | ui | audio | real_time | async_io`の意味とPause／Replay fixtureを維持するが、九件を全Projectのclosed必須集合にはしない。strict headless、UI-only、turn-based等のProfileは未使用branchのDomainを偽装登録せず、Core二件と実際に選択したqualified contributionだけを持てる。
+全Profileの最小Core required setは`clock.domain.core.gameplay@1`（`simulation_cadence`）と`clock.domain.core.real_time@1`（`monotonic_time`）のexact二件である。Presentation branchは`clock.domain.rendering.presentation@1`、非同期I/O branchは`clock.domain.runtime.async_io@1`を追加で要求し、Physics、authoritative Animation、Cinematic、UI、Audioは各active ownerがqualified contributionを選択した場合だけ、それぞれ`clock.domain.physics.simulation@1`、`clock.domain.animation.authoritative@1`、`clock.domain.camera.cinematic@1`、`clock.domain.ui.presentation@1`、`clock.domain.audio.presentation@1`を要求する。initial reference default Profileはこの九refをexactに選択し、そのPause／Replay fixtureをcanonicalに固定するが、九件を全Projectのclosed必須集合にはしない。strict headless、UI-only、turn-based等のProfileは未使用branchのDomainを偽装登録せず、Core二件と実際に選択したqualified contributionだけを持てる。
 
 | default Domain ref | `source`／`paused_behavior_default` | logical owner | Profile requirement |
 |---|---|---|---|
@@ -662,7 +662,7 @@ current reference defaultのpre-hash source notationは`{profile_id=simulation.c
 
 表のlogical ownerはmaterialization時にrevision／content hashを含むexact `owner_ref`へ解決する。Registry hashはASCII `MIRAKAN_CLOCK_DOMAIN_REGISTRY_V1`、Registry ID／version、entry count、`domain_id`／version順の全完成Entry canonical bytesから計算する。Profileの`clock_domain_registry_ref`とProjectionのRegistry ref、ProfileとProjectionの`selected_domain_refs[]`はbyte equalityである。`simulation_cadence_profile_ref`はcompleted `SimulationCadenceProfileV1`のID／version／hashへexact一件解決し、選択Domainの`source=simulation_cadence` consumer全件が同じCadence kind、Target、Qualificationへ適合しなければならない。selected refsはDomain ID／version／hash順、Binding refsは解決したsubject refの同じ順にstrict sortし、duplicateを拒否する。selected集合はRegistry memberのsubset、`qualification_binding_refs[]`が解決する合格かつfreshなQualification subject集合とexact set equalityでなければならない。Qualification Receipt／BindingはRegistry hashへ戻さない。Feature／Genre contributionは所有Packのexact identity、Project contributionはProject owner identityへ解決し、自己namespace外ID、同一logical IDの上書き、duplicate、unknown、stale owner／version／hash、unqualified entry、必要Capability欠落を`clock_domain_entries_invalid`としてtyped rejectし、Profile、Pause state、Replay headerを変更しない。Registry materializationはProject／Pack dependency closureを解決したCompilerが行い、Generic Engine CoreからPackへのdependency edgeを生成しない。
 
-従来の裸label `gameplay | physics | authoritative_animation | cinematic | presentation | ui | audio | real_time | async_io`は上表の意味説明にだけ残し、新SourceのDomain ref、alias、dispatch keyとして受理しない。実在する旧bytesを移行する場合は、source schema bytes／Owner／Named Algorithm／immutable fixtureを束縛した別の承認済みschema migrationを先にactivateし、名前だけの自動変換を行わない。
+initial V1 Sourceは完全な`ClockDomainRefV1`だけを受理する。Domain IDのsuffix、裸label、display nameをDomain ref、alias、dispatch keyまたは自動選択keyとしてSchemaへ定義しない。
 
 `supported_consumer_kinds[]`はclosed structural vocabulary `pause | gameplay_timer | sequence | presentation | audio | async_completion`のsubsetであり、Clock Domain名から用途を推測しない。現在のdefaultでGameplay Timerを許可するのは`clock.domain.core.gameplay@1`、`clock.domain.animation.authoritative@1`、`clock.domain.camera.cinematic@1`の三entry、Camera Sequenceを許可するのは`clock.domain.core.gameplay@1`と`clock.domain.camera.cinematic@1`の二entryである。新しいqualified Domainは必要consumer kindを明示し、TimerではReplay／Save／Pause同値性、Sequenceではframe-to-advance mapping／cut／Replay authority分離fixtureを通過した場合だけ選択できる。
 
@@ -733,7 +733,7 @@ Asset activationはdependency closure単位の`AssetGenerationId`を使う。CPU
 | Dynamic rigid-body transform | Physics integration | Gameplayはcommandだけ提出 |
 | Executor-resolved transform | selected Motion Executor owner | Animation／Gameplay／Path Followingはregistered `resolved_motion_schema_ref`だけを読む |
 | Non-physics gameplay transform | owner Gameplay System | Rendererはsnapshotだけ読む |
-| Skeletal pose | Animation finalize | 現行C1／C2はAnimation inputだけを受ける。Ragdoll input fieldは`future.capability.vehicle-ragdoll-crowd-motion-warping`のactive migration後だけ追加できる |
+| Skeletal pose | Animation finalize | 現行C1／C2はAnimation inputだけを受ける。Ragdoll input fieldは`future.capability.vehicle-ragdoll-crowd-motion-warping`の独立採択、契約更新、fresh Qualification後だけ追加できる |
 | UI layout transform | UI layout owner | Rendererはsnapshotだけ読む |
 | Render interpolation／GPU particle | Presentation owner | authoritative Worldへ戻さない |
 
@@ -760,7 +760,7 @@ callback dispatch前に、query-plan scratch、selection mask、workerごとのc
 
 T00でstructural batchをbounded deltaとして受け取り、canonical sort／merge、全handle／lease／capacity検査を完了してから一度だけcommitする。stale handle、競合、またはcapacity不足で拒否した場合は、直前にpublish済みのWorld、location table、query cache、output packetを維持し、[Runtime ECS](entity-component-system.md)所有の診断を発行する。予約済みstructural capacityを超えた場合は`structural-capacity-exceeded`とし、別backendやgeneral heapで再試行しない。
 
-regular Component value writeはcallback／phase scope内だけで可視にし、Renderer、Audio、VFX、Debug、AI、Saveはseal済みsnapshot／publicationだけを読む。structural commit前のlocation、presence、new handleを外部へ公開しない。大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV2`、World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)を参照する。
+regular Component value writeはcallback／phase scope内だけで可視にし、Renderer、Audio、VFX、Debug、AI、Saveはseal済みsnapshot／publicationだけを読む。structural commit前のlocation、presence、new handleを外部へ公開しない。大量配置、burst生成、Simulation LODは[Performance／capacity](performance-capacity.md)の`ProjectScaleEnvelopeV1`、World cell fieldは[World](../06-rendering/world.md)、LOD strategy fieldは[LOD](../06-rendering/lod.md)を参照する。
 
 ## 8. Handle、borrow、lease、job lifetime
 

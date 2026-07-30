@@ -4,12 +4,12 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 外部Tool・SDK・Library・APIの調査済み候補version／release／commit、artifact size、hash／integrity、license、取得元、Toolchain lock要件、Dependency採用・更新Gate、Build Driver Profile候補、CI実行基盤要件
+- 正本範囲: 外部Tool・SDK・Library・APIの調査済み候補version／release／commit、artifact size、hash／integrity、license、取得元、C++23 Shipping compiler、Target×Configuration Build Policy、Toolchain lock要件、Dependency採用・更新Gate、Build Driver Profile、CI実行基盤要件
 - 非正本範囲: Product scope、Subsystem API・型・Budget、Runtime phase、Platform lifecycle、Dependency内部を包むEngine-owned Adapter契約。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 modules](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)
+- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](core-architecture.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[C++23 Language／Public Surface](cpp23-modules.md)、[Project Shader](../06-rendering/project-shader.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[C++23 Header Shipping／Toolchain Baseline Decision](../decisions/2026-07-30-cxx23-header-shipping-toolchain-baseline.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-27
+- 外部根拠確認日: 2026-07-30
 
 ## 1. 結論と一意所有
 
@@ -17,7 +17,7 @@
 
 [Product Lifecycle](../00-product/product-lifecycle.md)は本書が生成するexact Toolchain closure、SBOM、license／third-party notice sourceをEngine release、Package、Documentation、User向けNOTICE presentationへ束縛するconsumerであり、dependency version、license判断、SBOM生成を所有しない。[Product Security](../01-governance/product-security.md)はDependency subject、vulnerability case、affected／fixed releaseへsame artifactを束縛するconsumerであり、stale SBOMまたは別release lockからunaffectedを推測しない。
 
-2026-07-27時点のmaterialization状態は次のとおりである。
+2026-07-30時点のmaterialization状態は次のとおりである。
 
 | 対象 | 状態 | 解釈 |
 |---|---|---|
@@ -29,7 +29,7 @@
 
 以降の「lockする」「記録する」は、採用判断後に必要となるArtifact要件を表す。現存するlockまたは実装手順を表さない。
 
-ここにある値は2026-07-23に再検証した初期baselineであり、floatingな「最新」ではない。Vendorの最新推奨とMiraikanaiの採用判断を区別し、更新は本書、lock、CI image、SBOM、Receiptを一つのToolchain更新ChangeSetで変更する。
+ここにある値は2026-07-30に再検証した初期baselineであり、floatingな「最新」ではない。Vendorのcurrent release／仕様とMiraikanaiの採用判断を区別し、更新は本書、lock、CI image、SBOM、Receiptを一つのToolchain更新ChangeSetで変更する。
 
 ## 2. Target toolchain baseline
 
@@ -38,13 +38,15 @@
 | 項目 | exact pin／判断 |
 |---|---|
 | Host OS | Windows 11 25H2 x64、OS build 26200以上。lock比較はbuild 26200、UBR 8875 |
-| Target minimum OS（player実行環境） | 未固定。D3D12 Agility SDK 1.619.4／Enhanced Barriers必須要件と整合するWindows buildを更新ChangeSetでexact lockする。Host OS行（ビルドホスト）と区別し、混同しない |
-| Visual Studio Build Tools | 2026 18.8.0 Stable、build 12009.203 |
-| Primary compiler | MSVC Build Tools v14.51 x64/x86、`cl.exe`／`link.exe` 14.51.36231以上。CX0だけ`/std:c++23preview`、Shipping不可 |
-| CX3 compiler condition | Microsoft公式資料で非PreviewのC++23適合modeがstable releaseに提供された時点で、actual flagとtoolsetを更新ChangeSetでexact lockする。`/std:c++23`という未発表flag名やv14.52というPreview情報をShipping条件として先取りしない。未固定状態ではCX3を有効化しない |
-| Secondary compiler | LLVM／clang-cl 22.1.8。Windows Shipping ABIはMSVCで統一 |
+| Target minimum OS（player実行環境） | Windows 11 version 24H2、canonical deployment version `10.0.26100.0`、x86-64。MSIX MinVersionとruntime probeを同値にし、build 26100未満を起動前に拒否する。Host OS行と区別する |
+| Visual Studio Build Tools release | Visual Studio 2026 18.8.2 Stable（official-spec） |
+| Miraikanai Build Tools bootstrapper candidate | ProductVersion 18.8.2、FileVersion 18.8.12023.21の固定URL／hash候補（project-decision／provisional）。`12023.21`をVendor公式release versionまたは公式推奨buildとして扱わない |
+| C++23 Shipping frontend | LLVM `clang-cl` 22.1.8、`/clang:-std=c++23`。Clang公式statusがC++23をPartialとするため、言語modeだけで完全適合を主張せず[C++23 Language](cpp23-modules.md)のrequired feature setを全件probeする |
+| Linker | LLVM `lld-link` 22.1.8 |
+| Windows ABI／STL／CRT | MSVC Build Tools v14.51、MSVC STL／UCRT／VCRuntime 14.51.36231以上、Windows x64 MSVC ABI。`cl.exe`／`link.exe`はABI comparison／diagnostic laneでありinitial V1 Shipping frontend／linkerではない |
+| Secondary conformance lane | MSVC v14.51 `/std:c++23preview`はnon-Shipping compile probeだけ。Preview object、library、PDB、PackageをShippingへ昇格しない |
 | Windows SDK | 10.0.26100.8249 |
-| CMake | 4.4.0 |
+| CMake | 4.4.1 |
 | Generator／executor | Ninja Multi-Config、Ninja 1.13.2 |
 | vcpkg registry | release 2026.06.24、builtin baseline `cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3` |
 | Shader compiler | DXC tag v1.9.2602.24、commit `d355aa8364d34df3f0822ba0de8d1dfc75ae6f48` |
@@ -58,11 +60,11 @@
 |---|---|---|
 | UI label／Japanese prose | Windows 11 25H2の`Segoe UI Variable`（Regular 400／Semibold 600）をLatin第一選択、`Yu Gothic UI`をJapanese fallbackとする | DirectWriteが選ぶfont family／file version／file SHA-256、Japanese＋Latin混在baseline・truncation・copy fixture。Microsoft system fontはbundleしない |
 | code／log／ID／path／numeric editor | `Noto Sans Mono CJK JP` 2.004のstatic OTF、`NotoSansMonoCJKjp-Regular.otf`と`NotoSansMonoCJKjp-Bold.otf`だけをbundle候補とする。sourceは`Sans2.004` tag／commit `523d033d6cb47f4a80c58a35753646f5c3608a78`、SIL Open Font License 1.1 | `06_NotoSansCJKjp.zip`、二font file、LICENSEのsize／SHA-256、coverage、bundle manifest、notice、DirectWrite load／fallback fixture。Windows上で注意書きのあるCFF2 variable fontを代用しない |
-| command／status icon | Fluent UI System Icons 1.1.333、tag commit `1953430cd73f928f3e43997e17a9d058b00d17b8`、MIT。Regularを通常、Filledをselected／activeだけに使う | `EditorIconTokenContractV1`のWidget／Panel／Command presentationにあるEditor-owned system icon consumer集合、approved source archive／selected SVGのSHA-256、LICENSE／NOTICE、icon ID allowlist、16／20 logical-size conversion output hash。runtime SVG／CSS parserを導入しない |
+| command／status icon | Fluent UI System Icons 1.1.334、tag commit `f2f75a6e4814153d5c049c0f06e197731718326b`、MIT。Regularを通常、Filledをselected／activeだけに使う | `EditorIconTokenContractV1`のWidget／Panel／Command presentationにあるEditor-owned system icon consumer集合、approved source archive／selected SVGのSHA-256、LICENSE／NOTICE、icon ID allowlist、16／20 logical-size conversion output hash。runtime SVG／CSS parserを導入しない |
 
 Windows system fontの見た目はHost OS buildだけでなくresolved fileに依存するため、Host OS名だけをvisual reproducibilityの根拠にしない。bundled OTFとiconのsource取得・hash照合に失敗した場合、fallback assetを黙って採用せず`diagnostic.toolchain.editor-visual-assets-unlocked`でReference Design fixtureをfail closedにする。
 
-MSVC v14.51には、third-party headerの`#include`後に`import std`を行うC++23 module partitionのbuildがC1001 internal compiler errorになる既知のcompiler bugがあり、修正はv14.52 Previewで告知済みである。CX1 probeは該当構成のnegative／compile fixtureを含め、回避不能なProject構成をCX0へ留める。同一translation unitでの標準C++ headerの`#include`と`import std`の混在は公式に禁止されている（C wrapper headerは除く）。
+Initial V1はNamed Modules／`import std`を使用しないため、MSVC Preview mode、Module partition bugまたは将来の非Preview flagをShipping成立条件にしない。MSVC ABI／STL／CRT file setとclang-cl／lld-linkの組合せはexact lock、public ABI fixture、exception／RTTI境界、PDB／crash symbol、clean packageで別途検証する。
 
 AI Source Worker隔離Backend `HyperVIsolatedWorkerV1`（[AI Security／Approval](../01-governance/ai-security-approval.md) §7.1）のHost要件は次のとおりとする（[Microsoft公式Hyper-V要件](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/host-hardware-requirements)による）: Hyper-Vを有効化できるWindows edition（Windows 10／11 ProfessionalまたはEnterprise。Homeでは有効化不可）、SLAT対応64-bit CPU、VM Monitor Mode extensions、BIOS／UEFIでの仮想化支援（Intel VT／AMD-V）とhardware DEP（XD／NX）有効化、最低4 GB RAM、およびGeneration 2 guestのSecure Bootを提供できるHyper-V platform。Host要件を満たさない環境（Home等）では同§7.1の「同等のremote hardware-VM Worker」を標準経路とし、非隔離fallbackを行わない。
 
@@ -103,20 +105,20 @@ C1の「Editor visual asset lock」は、新しい`EditorVisualAssetLockV1`、to
 
 | 項目 | exact pin／判断 |
 |---|---|
-| compile／target SDK | Android API 36 |
+| compile／target SDK | `compileSdk=37`、`targetSdk=36`。compile surfaceと公開target behaviorを同一値とみなさない |
 | minimum SDK | API 29 |
 | NDK | r29、29.0.14206865 |
-| Android Gradle Plugin | 9.3.0 |
+| Android Gradle Plugin | Project selected pin `9.3.1`、official coordinate `com.android.tools.build:gradle:9.3.1`、Google Maven repository。dynamic `9.3.+`、未公開patch推測、Preview／RCへfallbackしない |
 | Gradle | 9.5.0 |
 | SDK Build Tools | 36.0.0 |
 | JDK | Microsoft Build of OpenJDK 17.0.19 LTS |
-| C++ build | CMake 4.4.0、Single-Config Ninja 1.13.2、`externalNativeBuild.cmake` |
+| C++ build | NDK r29 Clang／LLD、`-std=c++23`、CMake 4.4.1、Single-Config Ninja 1.13.2、`externalNativeBuild.cmake` |
 | AndroidX Games | GameActivity 4.4.2、Controller 2.0.2、Frame Pacing 2.1.3 |
 | ABI／STL | Shipping `arm64-v8a`、Developmentは必要なCIだけ`x86_64`を追加、全native dependencyを`c++_shared`へ統一 |
 
-根拠: official-spec — AGP 9.3の既定NDKは28.2.13676358であり、Android NDK download pageではr29がstable、r27dがLTSとして案内される。
+根拠: official-spec — 2026-07-30確認時点で[Android Gradle plugin API reference](https://developer.android.com/reference/tools/gradle-api)はCurrent Releaseをexact `9.3.1`、Previewを`9.4.0-alpha07`として分離する。[Android Gradle plugin 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes)は9.3 familyのCompatibilityとしてGradle 9.5.0、SDK Build Tools 36.0.0、default NDK 28.2.13676358、JDK 17を列挙する。[About Android Gradle plugin](https://developer.android.com/build/releases/about-agp)はdynamic versionを避けるよう要求する。[NDK revision history](https://developer.android.com/ndk/downloads/revision_history)と[NDK downloads](https://developer.android.com/ndk/downloads)はr29をcurrent stable、r27dをLTSとして案内する。
 
-根拠: project-decision／provisional — Miraikanaiはr29を候補として明示固定する。これはAGP既定またはLTS推奨の採用ではない。全native dependency、16 KiB page、GameActivity、Oboe、ASan、Packageの互換結果がない間はqualified baselineとしない。
+根拠: project-decision／provisional — Miraikanaiはclean initial baselineとしてcurrent stable patchと一致するAGP `9.3.1`と、公式defaultから意図的に更新するNDK r29を選択する。Gradle 9.5.0、Build Tools 36.0.0、JDK 17は9.3 family公式Compatibility、NDK r29は独立したMiraikanai pinとして同一baseline ChangeSetへ束縛する。Preview `9.4.0-alpha07`へfallbackせず、9.3.0またはdynamic `9.3.+`も選択pinの代用にしない。release artifactはGoogle Mavenのexact coordinateから取得し、Repository lock／Build Toolchain Closureがresolved artifact URL、size、SHA-256、repository provenanceを固定するまでimmutable artifact identityがmaterializeしたとみなさない。release artifact、既知問題、全native dependency、16 KiB page、GameActivity、Oboe、ASan、Packageのfresh Qualificationがない間はcompatible／qualified baselineとしない。
 
 minimum SDK API 29は技術baselineであり、市場coverageの達成主張ではない。Google Playの[Target API要件](https://developer.android.com/google/play/requirements/target-sdk)は2026-08-31以降の新規app／updateへAndroid 16（API 36）以上のtargetを要求するが、minimum SDKを決めない。API 29の継続可否は[Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1`で別途判定し、Receiptなしに「十分な端末をカバーする」と表現しない。
 
@@ -128,15 +130,15 @@ minimum SDK API 29は技術baselineであり、市場coverageの達成主張で�
 | Xcode | 26.6 Stable |
 | SDK | iOS／iPadOS 26.5 |
 | Deployment target | 17.0 |
-| C++ build | CMake 4.4.0。CX0はXcode Generator、CX1 ProbeはNinja Multi-Config 1.13.2、CX2–CX3はNinja C++ archiveとXcode App shell／最終link／archive |
-| Shipping route | `AppleShippingRouteV1`のallowed tupleだけ。`{ build_driver_ref: driver.apple.xcode-cloud, delivery_profile_ref: none }`または`{ build_driver_ref: driver.apple.modules-ninja-xcode, delivery_profile_ref: delivery-profile.apple.self-hosted-split }` |
+| C++ build | Xcode 26.6 AppleClang／libc++／Apple linker、`-std=c++23`、CMake 4.4.1 Xcode Generator |
+| Shipping route | `AppleShippingRouteV1`のallowed tupleだけ。`{ build_driver_ref: driver.apple.xcode-cloud, delivery_profile_ref: none }`または`{ build_driver_ref: driver.apple.xcode, delivery_profile_ref: delivery-profile.apple.self-hosted }` |
 
 ### 2.4 Graphics／shader
 
 | Target | exact external baseline |
 |---|---|
 | Windows | Direct3D 12、Agility SDK 1.619.4、portable HLSL 2021、DXIL Shader Model 6.6、Root Signature 1.1、Enhanced Barriers必須 |
-| Android | portable HLSL 2021をDXCでSPIR-Vへoffline compileし、Vulkan 1.1、Android Vulkan Profile 2022（profile ID `VP_ANDROID_baseline_2022`、要求Vulkan 1.1.106）、SPIRV-Tools validationを通す |
+| Android | portable HLSL 2021をDXCでSPIR-Vへoffline compileし、Vulkan 1.1、required `VP_ANDROID_vulkan_profile_2022`（AVP API version 1.1.106）、optional high `VP_ANDROID_vulkan_profile_2025`（AVP API version 1.1.128）、SPIRV-Tools validationを通す |
 | Apple | portable HLSL 2021をDXCのSPIR-V intermediate、SPIRV-CrossのMSLへ変換し、iOS／iPadOS SDK 26.5のMetal compilerでmetallibをoffline生成 |
 
 Apple経路（DXC→SPIR-V→SPIRV-Cross→MSL）は、ray系／mesh／amplification Stageの変換成立可否が未検証である。検証Ownerは[Project Shader](../06-rendering/project-shader.md)のOwnerとし、同§4のとおり検証完了までAppleの当該Stageは既定unsupportedとする。検証タスクと、代替経路（Metal Shader Converter等のDXIL→metallib経路）の採用可否検討は§9のDependency採用・更新Gateの検討事項として登録し、採用時のexact version／hashは検証時に`toolchain.lock.json`で固定する。
@@ -146,7 +148,7 @@ Apple経路（DXC→SPIR-V→SPIRV-Cross→MSL）は、ray系／mesh／amplifica
 ```text
 schema_version
 compiler_profile_id
-target_profile_id
+target_profile_ref: exact TargetProfileRefV1(profile_kind=runtime_target)
 source_language_profile_id
 compiler_lock_ref
 translator_lock_refs[]
@@ -173,37 +175,96 @@ Project、AI、Build scriptはargument、entry profile、register／space、opti
 | Internal validation dialect | JSON Schema Draft 2020-12 |
 | Control Plane lint validator | Ajv 8.20.0。`ajv/dist/2020`、`strict=true`、`allErrors=false`、`loadSchema`未設定、local `$id`／`$ref` allowlistだけを使用 |
 | MCP Tool protocol | Model Context Protocol 2025-11-25 |
-| OpenAI API／SDK | Responses API、official TypeScript SDK 6.49.0 |
+| OpenAI API／SDK | Responses API、official TypeScript SDK 7.1.0（Node.js 22以上。固定Node.js 24.18.0で充足） |
 | Anthropic API／SDK | 未固定。MVPのAnthropic系接続は[Executable contracts](executable-contracts.md)のMCP経路（Claude CLI／Desktop→Miraikanai MCP Server）だけとし、direct Provider projection用`provider_profile`はexact pinを確定するDependency ChangeSetまで作成しない |
 | 初期評価Model | `gpt-5.6-sol`、reasoning effort `medium` |
 
 OpenAIの公式deprecation policyは、一般GA modelを原則6か月、specialized GA variantを原則3か月、preview modelを約2週間の場合ありとし、安全・法令・compliance上の例外も認めるため、6か月を最小保証として扱わない。Model IDはOrchestrator codeへ埋め込まずToolchain lockへexplicit固定し、[公式deprecation feed](https://developers.openai.com/api/docs/deprecations)を定期read-backして、通知時にModelSnapshot Evalを期限切れへし、承認済みexplicit fallbackが同じEval／Policy Gateを通るまでdirect Provider routeをfail closedにする。Responses API固有機能への依存はProvider Adapter一箇所へ閉じる。
 
+### 2.6 Target×Configuration C++ Build Policy
+
+Initial V1のBuild意味は次のrecordだけが所有する。
+
+```text
+TargetConfigurationBuildPolicyV1
+  build_policy_id: StableId
+  build_policy_version: 1
+  target_profile_ref: exact TargetProfileRefV1
+  configuration:
+    development | test | profile | shipping
+  cxx_language_profile_ref: exact Cxx23LanguageProfileRefV1
+  compiler_artifact_ref: exact ToolArtifactRefV1
+  linker_artifact_ref: exact ToolArtifactRefV1
+  standard_library_artifact_set_ref: exact ArtifactSetRefV1
+  compiler_runtime_artifact_set_ref: exact ArtifactSetRefV1
+  exception_policy: disabled_first_party
+  rtti_policy: disabled_first_party
+  visibility_policy: hidden_by_default_explicit_export
+  optimization_policy:
+    none | debug_optimized | optimized | optimized_thin_lto
+  sanitizer_set:
+    none | address_undefined
+  assertion_policy: enabled | disabled
+  debug_information_policy:
+    full_private | line_tables_private | split_private
+  hardening_policy_ref: exact McdContractRefV1(kind=policy)
+  isa_policy_ref: exact McdContractRefV1(kind=profile)
+  pgo_policy: disabled
+  compiler_argument_set[1..256]:
+    ordered unique canonical ASCII
+  linker_argument_set[1..256]:
+    ordered unique canonical ASCII
+  build_policy_content_hash: SHA-256
+```
+
+`build_policy_content_hash`はASCII `MIRAKAN_TARGET_CONFIGURATION_BUILD_POLICY_V1`と自己hashを除くlength-framed canonical bytesをSHA-256する。Product current Target三種×Configuration四種の12 recordをexactly oneずつ要求し、Configuration名、CMake build type、IDE preset、package labelからFieldを補完しない。
+
+共通First-party policyはC++ exceptionとRTTIを全Configurationで無効、Public ABIをstatus／result型とgenerated C ABIへ限定し、hidden visibility＋explicit export manifestを使う。Third-party libraryが内部でexception／RTTIを必要とする場合は別Target、別argument set、Engine-owned Adapterで隔離し、exception、`type_info`、Vendor objectをFirst-partyまたはPublic ABIへ越境させない。PGOは12 recordすべて`disabled`であり、training input、profile freshnessまたは暗黙compiler defaultをShippingへ使わない。
+
+| Configuration | optimization | sanitizer | assertion | debug／symbol | LTO |
+|---|---|---|---|---|---|
+| `development` | none (`-O0`) | none | enabled | full private | disabled |
+| `test` | debug optimized (`-O1`) | AddressSanitizer＋UndefinedBehaviorSanitizer | enabled | full private | disabled |
+| `profile` | optimized (`-O2`) | none | disabled | line tables private、profiling marker enabled | disabled |
+| `shipping` | optimized (`-O2`) | none | disabled | split private、public packageからdebug entry除外 | ThinLTO |
+
+Target固有のcanonical argument setは次である。CMakeが順序を正規化しても、生成後argument vectorと本表のtoken projectionをset／order ruleで照合する。
+
+| Target | common compiler arguments | Shipping additional compiler／linker arguments | hardening／runtime |
+|---|---|---|---|
+| Windows x86-64 | `/clang:-std=c++23 /clang:-fno-exceptions /GR- /permissive- /Zc:__cplusplus /W4 /WX /GS /MD /Brepro` | compiler `/O2 /DNDEBUG /clang:-flto=thin /guard:cf`、linker `/OPT:REF /OPT:ICF /INCREMENTAL:NO /Brepro /GUARD:CF /CETCOMPAT /DYNAMICBASE /NXCOMPAT /HIGHENTROPYVA` | clang-cl／lld-link 22.1.8、MSVC STL／UCRT／VCRuntime 14.51、compiler-side CFG instrumentation＋linker-side Guard metadata、CET-compatible image、private PDB |
+| Android arm64-v8a | `-std=c++23 -fno-exceptions -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden -Wall -Wextra -Wpedantic -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=2` | compiler `-O2 -DNDEBUG -flto=thin`、linker `-fuse-ld=lld -flto=thin -Wl,--gc-sections,-z,relro,-z,now,-z,noexecstack,--build-id=sha1` | NDK r29 Clang／LLD／libc++ shared、16 KiB page compatibility、private native symbols |
+| Apple arm64 | `-std=c++23 -fno-exceptions -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden -Wall -Wextra -Wpedantic -Werror -fstack-protector-strong` | compiler `-O2 -DNDEBUG -flto=thin`、linker `-flto=thin -Wl,-dead_strip -Wl,-fatal_warnings` | Xcode 26.6 AppleClang／libc++／Apple linker、hardened code signingはPlatform Owner、private dSYM |
+
+`development`は上表Shipping最適化tokenを`-O0`／`/Od`、full debugへ置換し、`test`は`-O1`と`-fsanitize=address,undefined`（Windows clang-clでは`/clang:-fsanitize=address,undefined`）、`profile`は`-O2`、line tables、profiling markerへ置換する。Sanitizer runtime availabilityとpackage exclusionを各Targetでprobeし、unsupported sanitizerをno-opまたはpassへ変換しない。Test artifact、sanitizer runtime、Profile marker、private symbolをShipping packageへ含めない。
+
+ISA policyはWindows x86-64 baselineをSSE2とし、`-march=native`、build Host CPU、CPUID brand stringを禁止する。Optional variantは`SSE4.2`と`AVX2+FMA`だけで、Engine-owned dispatchがCPUID leafとOSXSAVE／XGETBVを検証した後に選択し、scalar／SSE2 oracleとsame-result fixtureを通す。Android `arm64-v8a`はABI-required Armv8-A＋Advanced SIMD、Appleはdeployment targetのarm64 ABIをbaselineとし、initial V1で追加ISA variantを持たない。ISA不足、unknown CPU、dispatch fixture failureではWindows baselineへ戻し、別semantic resultまたはillegal instructionを許さない。
+
+Build Policyはexact compiler／linker binary、STL／runtime file set、Target SDK、argument vector、environment allowlist、Source tree、generated Source、public Header ManifestをBuild Receiptへ束縛する。Windows Shippingでは全first-party EXE／DLL／static library objectを生成するcompile actionがcompiler `/guard:cf`を持ち、final image linkが`/GUARD:CF`と`/DYNAMICBASE`を持つことをargument read-backでset equalityにする。一objectでもcompiler instrumentationを欠く場合、linker flagだけでCFG適合とみなさない。final EXE／DLLのload-config／header inspectionは`Guard` characteristic、`CF Instrumented`、`FID table present`をすべて要求し、一件欠落をPackage promotion failureにする。clean／incremental／cancel後rebuildで同じ input hashから同じ normalized output hash、link map、SBOM、Package inspectionを要求する。binary timestamp、PDB／dSYM identity、code signing等の意図的non-deterministic Fieldは別provenanceへ分離し、実行imageのsemantic hashへ混ぜない。
+
 ## 3. Build Driver matrix
 
 | Driver Profile | Target／Frontend | Configure driver | C++ Generator | Package owner |
 |---|---|---|---|---|
-| `driver.windows.cmake-ninja-multi` | Windows／CX0–CX3 | `cmake_preset` | `Ninja Multi-Config` | Windows Platform owner |
-| `driver.android.gradle-ninja` | Android／CX0–CX3 | `gradle_external_native_build` | `Ninja` | Gradle |
-| `driver.apple.cx0-xcode` | Apple／CX0 | `cmake_preset` | `Xcode` | Xcode |
-| `driver.apple.modules-probe-ninja` | Apple／CX1 | `cmake_preset` | `Ninja Multi-Config` | なし、Promotion不可 |
-| `driver.apple.modules-ninja-xcode` | Apple／CX2–CX3 | `cmake_preset` | `Ninja Multi-Config` | Xcode |
-| `driver.apple.xcode-cloud` | Apple／CX2–CX3 Shipping | `xcode_cloud_workflow` | `Ninja Multi-Config`＋`Xcode` | Xcode Cloud |
+| `driver.windows.cmake-ninja-multi` | Windows／C++23 Header surface | `cmake_preset` | `Ninja Multi-Config` | Windows Platform owner |
+| `driver.android.gradle-ninja` | Android／C++23 Header surface | `gradle_external_native_build` | `Ninja` | Gradle |
+| `driver.apple.xcode` | Apple／C++23 Header surface | `cmake_preset` | `Xcode` | Xcode |
+| `driver.apple.xcode-cloud` | Apple／C++23 Header surface | `xcode_cloud_workflow` | `Xcode` | Xcode Cloud |
 
-本matrixは`BuildDriverProfileV1`のDriver Profile IDと許可組合せのclosed setの唯一の正本である。`AppleShippingRouteV1`は`build_driver_ref`とnullableな`delivery_profile_ref`を持ち、§2.3の二tupleだけを許可する。Xcode Cloud routeはchecked-in `ci_scripts`でNinja C++ archiveを作成してXcode App shellへ渡し、managed signing／TestFlight handoffをXcode Cloudへ委譲するため`delivery_profile_ref = none`とする。self-hosted routeだけが`driver.apple.modules-ninja-xcode`と`delivery-profile.apple.self-hosted-split`を組み合わせる。Driver IDとDelivery Profile IDを同じenumへ格納しない。First-party TargetでMakefiles系、raw Makefile、Android `ndk-build`を禁止する。Windows／Appleの通常入口はchecked-in Preset、Androidの通常入口は固定Gradle Wrapperとする。Target、Frontend Profile、Driver、Generator、toolchain hashが異なるBuild tree、object、BMI、log、Receiptを共有しない。
+本matrixは`BuildDriverProfileV1`のDriver Profile IDと許可組合せのclosed setの唯一の正本である。`AppleShippingRouteV1`は`build_driver_ref`とnullableな`delivery_profile_ref`を持ち、§2.3の二tupleだけを許可する。Xcode CloudはXcode project／schemeをbuildしてmanaged signing／TestFlight handoffを行い、self-hostedも同じXcode Driverとexact Toolchain Profileを使う。Driver IDとDelivery Profile IDを同じenumへ格納しない。First-party TargetでMakefiles系、raw Makefile、Android `ndk-build`を禁止する。Windows／Appleの通常入口はchecked-in Preset、Androidの通常入口は固定Gradle Wrapperとする。Target、Language Profile、Driver、Generator、Toolchain hashが異なるBuild tree、object、archive、log、Receiptを共有しない。Initial V1はBMIを生成または配布しない。
 
 ## 4. Tool artifact lock
 
 | Tool | 取得元 | size／hash／integrity |
 |---|---|---|
-| Visual Studio Build Tools 18.8.0 | [fixed-version bootstrapper](https://download.visualstudio.microsoft.com/download/pr/e05c0bc8-d058-4b2b-937c-1c80073d7633/b62e8829c6a6c043aacf2ef657456213ab71099c7e46a610f95d6778bfc9beb0/vs_BuildTools.exe) | 5,687,056 bytes、SHA-256 `b62e8829c6a6c043aacf2ef657456213ab71099c7e46a610f95d6778bfc9beb0`、ProductVersion 18.8.0、FileVersion 18.8.12009.203 |
-| CMake 4.4.0 | [Windows x64 zip](https://cmake.org/files/v4.4/cmake-4.4.0-windows-x86_64.zip) | 54,388,920 bytes、SHA-256 `156d70eb7625a7b469444df7d0861d2af8d5d0a437fce32c350372b08f5620e8` |
+| Visual Studio Build Tools 18.8.2 bootstrapper candidate | [fixed-version bootstrapper](https://download.visualstudio.microsoft.com/download/pr/58aec969-7d60-47ab-a001-285ca0c69097/2818a86e05e8e4a3a7e27fa12c729a6484209109ab06b2352195ebb10aa33723/vs_BuildTools.exe) | project-decision／provisional: 5,686,296 bytes、SHA-256 `2818a86e05e8e4a3a7e27fa12c729a6484209109ab06b2352195ebb10aa33723`、ProductVersion 18.8.2、FileVersion 18.8.12023.21。Repository内`toolchain.lock.json`とresolved offline-layout manifestは未materialize |
+| CMake 4.4.1 | [Windows x64 zip](https://cmake.org/files/v4.4/cmake-4.4.1-windows-x86_64.zip) | commit `22515316d11df7fcc74085d52b7cc3b432c592e3`、54,399,998 bytes、SHA-256 `091919e1cde162b69d2d5e0f3b1f5670c973e72133f78126fbb18042947d6f19` |
 | Ninja 1.13.2 | [Windows zip](https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-win.zip) | 291,570 bytes、SHA-256 `07fc8261b42b20e71d1720b39068c2e14ffcee6396b76fb7a795fb460b78dc65` |
 | LLVM 22.1.8 | [Windows installer](https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/LLVM-22.1.8-win64.exe) | commit `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1`、455,545,840 bytes、SHA-256 `16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c` |
 | DXC v1.9.2602.24 | [release zip](https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2602.24/dxc_2026_05_27.zip) | 27,108,038 bytes、SHA-256 `cf658aacf070d3045e31b8f1f8a696c2945f37c1095019481ef7c513368db3b4` |
 | Node.js 24.18.0 LTS／npm 11.16.0 | [Windows x64 zip](https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip) | 37,176,245 bytes、SHA-256 `0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821` |
 | TypeScript 7.0.2 | npm `typescript@7.0.2` | 365,612 bytes、integrity `sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==` |
-| OpenAI TypeScript SDK 6.49.0 | npm `openai@6.49.0` | commit `04671d278ef1531692ae31a870251eec90f3c2d2`、1,793,066 bytes、integrity `sha512-aYCc0C6L864eR6WSYIwQGyXriw/nIyZx0ObvhzOEVuk0zoBDpynjSbrionWI7q65B5H8jJX0DXR9snEzM6bfPg==` |
+| OpenAI TypeScript SDK 7.1.0 | npm `openai@7.1.0` | commit `83e6b4a3820bc9c6eac4466cf99d828e90a2ef8a`、1,795,359 bytes、npm shasum `a9f1e307b0dc34015f148f4dea1211cd08fc5939`、integrity `sha512-7xWJ9iO5z5u1dnIUGwoUmZHkSyrUYXX2cUxo2E/26iKFrSC8IdEak7z94d5UntU7z+S/Cid33hYymwMSab2fZQ==` |
 | Ajv 8.20.0 | [exact npm tarball](https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz) | 217,611 bytes、SHA-256 `b2f0b3a893bbb8cc5efb6814f08b1499e19e31d5dd73683f5893382f48f6e7b3`、npm shasum `304b3636add88ba7d936760dd50ece006dea95f9`、integrity `sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==`、MIT |
 | jsonc-parser 3.3.1 | [npm package](https://www.npmjs.com/package/jsonc-parser/v/3.3.1) | commit `3c9b4203d663061d87d4d34dd0004690aef94db5`、27,354 bytes、integrity `sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==`、MIT |
 | canonicalize 3.0.0 | [npm package](https://www.npmjs.com/package/canonicalize/v/3.0.0) | commit `aba9209d044f2729c51141d8a73b11e80816e42c`、6,020 bytes、integrity `sha512-yYLfHyDMIXRyRqsKBRLX023riFLpXY2YOfdtqKXZRZy9qsfOJ9U+4F9YZL7MEzL5+ziN2x2nlBvY/Voi3EBljA==`、Apache-2.0 |
@@ -219,17 +280,17 @@ MSVCとWindows SDKは固定bootstrapperからoffline layoutを作り、resolved 
 
 通常Buildは事前充填したcontent-addressed cacheに対し`npm ci --ignore-scripts --offline --no-audit --no-fund`を実行する。install／prepare scriptを必要とするDependencyは専用ADR、exact package hash、閉じたscript allowlist、隔離Dependency Buildを先に承認する。
 
-TypeScript 7.0.2は上記許可root（Orchestrator、architecture lint、contract compiler、contract lint）のcompileとlanguage-service CLIだけに使い、安定公開されていないprogrammatic compiler APIへ製品codeを依存させない。正式Artifactはstrict、single-threaded clean buildで生成する。Ajv 8.20.0はArchitecture Evolution Control PlaneのDraft 2020-12 schema lintだけに使い、Engine Runtime、C++ contract validator、MCD semantic validation、Authorizationへ持ち込まない。OpenAI接続はResponses APIと公式TypeScript SDK 6.49.0を使い、strict function callingのSchema制約は[Executable contracts](executable-contracts.md)が所有する。
+TypeScript 7.0.2は上記許可root（Orchestrator、architecture lint、contract compiler、contract lint）のcompileとlanguage-service CLIだけに使い、安定公開されていないprogrammatic compiler APIへ製品codeを依存させない。正式Artifactはstrict、single-threaded clean buildで生成する。Ajv 8.20.0はArchitecture Evolution Control PlaneのDraft 2020-12 schema lintだけに使い、Engine Runtime、C++ contract validator、MCD semantic validation、Authorizationへ持ち込まない。OpenAI接続はResponses APIと公式TypeScript SDK 7.1.0を使い、strict function callingのSchema制約は[Executable contracts](executable-contracts.md)が所有する。
 
 ## 6. External Dependency baseline
 
 | 分類 | Dependency | exact release／commit | License | 採用範囲 |
 |---|---|---|---|---|
 | Graphics | Microsoft.Direct3D.D3D12 | 1.619.4／SDKVersion 619 | package同梱`LICENSE.txt`／`LICENSE-CODE.txt` | Agility runtime、D3D12 header、Enhanced Barriers |
-| Graphics | Microsoft.Direct3D.WARP | 未固定。lock ChangeSetでexact version／nupkg hashを確定 | package同梱license（lock ChangeSetで確認・固定） | app-local WARP redistributable。deterministic Development reference、性能Gate対象外 |
-| Input | Microsoft.GameInput（Windows GameInput SDK） | 未固定。Microsoft.GameInput NuGetの正規経路から更新ChangeSetでexact version／hashを検証・固定 | 未固定（package同梱licenseを更新ChangeSetで確認・固定） | GameInput header、redistributable runtime DLL |
+| Graphics | Microsoft.Direct3D.WARP | 1.0.20、nupkg 15,319,749 bytes、SHA-256 `e5fe5de661ce98b58ef9cfb736e73c0a7a2623d3bbf5f14839b2d55566d87e40` | package同梱`LICENSE.TXT` 12,250 bytes、SHA-256 `5435f10305a92870b45735dfc169c5d6010617f6556e0859689a058d2c6b59c4` | app-local WARP。deterministic Development／conformance reference、性能Gate対象外 |
+| Input | Microsoft.GameInput | 3.5.262、nupkg 2,116,174 bytes、SHA-256 `2654e45081588409f6326838e681d6b50ac533e2f24402421dd73c167744d24e` | package同梱`LICENSE.txt` SHA-256 `9e61041baca79359e84e2135450137655e19fff59fb490701970ef68833eb42e`、`NOTICE.txt` SHA-256 `3576e0a79a82e02ed70706abb27254b0beb6f0d1c3414a6a335d58f69a3fa1cb` | GameInput v3 header、static import library、PC redistributable。MSIXにside-by-side redistを含める |
 | Graphics | D3D12MA | v3.2.0／`1d86c1130f61453634b1df85782e1fecfd59a525` | MIT | D3D12 heap suballocation、budget stats |
-| Graphics | Vulkan Memory Allocator | v3.3.0／`1d8f600fd424278486eade7ed3e877c99f0846b1` | MIT | Vulkan heap suballocation、budget、defrag primitive |
+| Graphics | Vulkan Memory Allocator | v3.4.0／`3aa921224c154a0d2c43912bc88e1c42ce1f7607` | MIT | Vulkan heap suballocation、budget、defrag primitive |
 | Graphics | SPIRV-Cross | Vulkan SDK 1.4.350.0／`1a6169566c73d3da552748fc372fe2bbb856e46e` | Apache-2.0 | SPIR-V reflection、MSL生成 |
 | Graphics | SPIRV-Tools | v2026.2／`0539c81f69a3daeb706fd3477dca61435b475156` | Apache-2.0 | SPIR-V validation、offline optimization |
 | Image | KTX-Software | v4.4.2／`4d6fc70eaf62ad0558e63e8d97eb9766118327a6` | Apache-2.0 | Offline KTX／ASTC処理 |
@@ -249,67 +310,72 @@ TypeScript 7.0.2は上記許可root（Orchestrator、architecture lint、contrac
 | Text | FreeType | 2.14.1／`3bd82b5f543bc84ccf2b1d0cdb63b95218099ee6` | FreeType License | OTF／TTF validation、glyph metric／rasterization |
 | Text | ICU4C | 78.3／`21d1eb0f306e1141c10931e914dfc038c06121da` | Unicode-3.0 | BCP 47、BiDi、boundary、plural／number／date／message format |
 
-XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への別途pinを持たない。GameInputのredistributable runtime DLLはMSIX同梱方式（§2.1のTarget minimum OSがin-box提供かredist必要かの判定を含む）を[Windows](../07-platform/windows.md)のpackage節が所有し、本書はexact version／hash／license／取得元だけを所有する。両者の未固定項目は更新ChangeSetで確定するまで採用Featureの実装開始Gateを通過できない（§6.1と同じ規律）。
+XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への別途pinを持たない。GameInput 3.5.262のPC redistributableは[Microsoft公式NuGet](https://www.nuget.org/packages/Microsoft.GameInput/3.5.262)から取得し、MSIXへside-by-side同梱する。WARP 1.0.20も[Microsoft公式NuGet](https://www.nuget.org/packages/Microsoft.Direct3D.WARP/1.0.20)だけを取得元にする。Windows package節はlayout、install、repair、uninstallを所有し、本書はversion、artifact hash、license、取得元を所有する。Repository内lock、Package、SBOM、NOTICE、conformance Receiptは未materializeであり、上記read-backを採用済みまたはqualifiedと表現しない。
 
 全DependencyをEngine-owned Adapterへ隔離し、Vendor型を公開Contractや永続formatへ出さない。Box2D、Jolt、Recastは該当Capabilityの候補実装へのexact hash lockを提供するだけである。Activation stateは[Product Plan](../00-product/product-plan.md)のRegistryが`{capability_id, target_id}`行単位で所有し、本文書の記載や更新でActivationを昇格しない。Joltは`JPH_USE_DX12=OFF`、`JPH_USE_VK=OFF`、`JPH_USE_MTL=OFF`、`JPH_USE_CPU_COMPUTE=OFF`としてCPU rigid-body kernelだけをbuildする。
 
-### 6.1 必須だが未固定のDependency
+### 6.1 Release-critical first-party component decision
 
-次の実装能力は他正本が要求するが、採用Dependencyまたは第一party実装の決定が未固定である。各行は9節のGateとADRで確定するまで`未固定`とし、確定するまで該当Featureは[Core architecture](core-architecture.md)のFeature実装開始Gateを通過できない。
+次のRelease-critical能力は外部Libraryを選ばず、Engine-owned bounded componentとしてinitial V1 target designを固定する。これは実装計画、Source Directory、Schema、Artifact、FixtureまたはReceiptの存在を意味しない。materializationとQualificationがない間は各consumerをfail closedにする。
 
-| 要求能力 | 要求元 | 状態 |
+| 要求能力 | 要求元 | 採用判断／current materialization |
 |---|---|---|
-| C++側の厳格JSON parser（duplicate field、invalid UTF-8拒否） | [Executable contracts](executable-contracts.md) §17.1 | 未固定 |
-| C++ Runtime側JSON Schema Draft 2020-12検証器（contract compiler手順のruntime validate） | [Executable contracts](executable-contracts.md) §14 | 未固定。Control Plane lint用Ajv 8.20.0とは別Dependency |
-| SHA-256実装（Runtimeのhash検証、canonical hash） | [Core architecture](core-architecture.md) §11、[Executable contracts](executable-contracts.md) §13 | 未固定 |
-| C++ unit test framework | [Core architecture](core-architecture.md) §12 | 未固定 |
-| MCP server実装SDK | [Executable contracts](executable-contracts.md) §16.2 | 未固定 |
+| C++ strict JSON parser | [Executable contracts](executable-contracts.md) §17.1 | `mirakan.json.strict.v1`。RFC 8259 UTF-8、duplicate name／invalid UTF-8／trailing bytes／nonfinite／overflow／depth・size超過をreject。first-party、実装 absent |
+| C++ JSON Schema Draft 2020-12 validator | [Executable contracts](executable-contracts.md) §14 | `mirakan.schema.draft2020-12.v1`。Core／Applicator／Validation／Unevaluated／Format-Annotation vocabularyのclosed supported set、unsupported vocabulary／remote ref／unknown dialectをreject。first-party、実装 absent |
+| SHA-256 | [Core architecture](core-architecture.md) §11、[Executable contracts](executable-contracts.md) §13 | `mirakan.crypto.sha256.v1`。FIPS 180-4 byte semantics、one-shot／incremental同値、NIST known-answer、全Target same bytes。first-party、実装 absent |
+| C++ test harness | [Core architecture](core-architecture.md) §12 | `mirakan.test.harness.v1`＋CTest protocol。process isolation、typed fixture ID、filter、timeout、shard、structured result、crash／cancelをclosed contract化。third-party test frameworkなし、実装 absent |
+| MCP server boundary | [Executable contracts](executable-contracts.md) §16.2 | `mirakan.mcp.server.v1`。MCP 2025-11-25のstdio／Streamable HTTP、initialize／capability negotiation、bounded message、cancel／disconnect、same Operation projection。外部SDKなし、実装 absent |
 | managed external Host Broker／session・execution attestor | [AI Security／Approval](../01-governance/ai-security-approval.md) §8.3、Product Planの`future.capability.managed-external-host-execution` | 未固定。`planning_state=planning_only`、MVP外、Active Definition migrationで専用Work Packageを登録・承認するまで`not_activated` |
 | first-party local inference runtime／loader | [AI Security／Approval](../01-governance/ai-security-approval.md) §8.4、Product Planの`future.capability.first-party-local-inference` | 未固定。MVP外、Future promotion前まで`not_activated` |
 
-第一party自作を選ぶ場合も9節のGateと同等の検証（公式test vector等）をADRへ記録し、本表の行をexact pinまたは実装先Directoryへ置換する。
+各first-party componentはstable semantic ID、version、Owner、bounded input／output、memory／time limit、diagnostic、fuzz／negative fixture、cross-target golden vectorをMCDへmaterializeし、§9のGate、Security review、same-release Toolchain lock、Qualification Receiptを満たすまでactiveにしない。AjvのControl Plane pass、Platform crypto、別JSON parser、CTest commandの存在をEngine componentのEvidenceに流用しない。
 
-### 6.2 Known unresolved decision register
+### 6.2 Materialization／future decision register
 
-本registerは未固定値の正本を複製せず、適用を許可できないconsumer、必要Evidence、fail-closed境界を索引する。Classはリスク分類であり、実装順、期限、担当または作業計画ではない。Architecture Evolution Control Planeはlock済みNode.js／TypeScript CLIと標準Libraryだけを使い、新しいproduction dependencyを要求しないため、本registerのC++／Platform行を理由に`wp.architecture.control-plane`を停止しない。
+本registerはtarget designが選択済みでもArtifact／Receiptがないsubjectと、Product Futureだけに残る未選択decisionを分け、適用を許可できないconsumer、必要Evidence、fail-closed境界を索引する。Classはリスク分類であり、実装順、期限、担当または作業計画ではない。`selected／absent`を`unfixed`、`implemented`、`qualified`または`active`へ読み替えない。
 
 | Class | Unresolved input | Decision authority | Required before | Required closure evidence | Blocked consumer／current state |
 |---|---|---|---|---|---|
-| A | C++ unit test frameworkまたはfirst-party harness | `mirakan.arch.toolchain-dependencies` | C++ contract testをQualification Evidenceとして受理する前 | §9のrelease／license／hash／Adapter確認、CTest discovery、failure／filter／parallel実行fixture。自作時は実装Directoryとself-test Receipt | C++ test Evidenceの受理を停止／未固定 |
-| A | SHA-256 implementation | `mirakan.arch.toolchain-dependencies` | Runtime canonical hashを正本または検証結果として受理する前 | exact実装、license／artifact lock、NIST known-answer、incremental／zero-length／large input、cross-target byte一致Receipt | Runtime hash consumerを停止／未固定 |
-| A | Microsoft.Direct3D.WARP | `mirakan.arch.toolchain-dependencies` | WARP conformance ReceiptをD3D12 qualificationへ使用する前 | Microsoft公式NuGetのexact version、nupkg SHA-256、同梱license、Agility互換、Development-only conformance Receipt | WARP qualification laneを停止／未固定 |
-| A | Windows Target minimum OS | `mirakan.arch.toolchain-dependencies` | Windows package promotion条件を承認する前 | Agility／Enhanced Barriers／GameInput提供形態、Microsoft support lifecycleを満たすexact build、OS probe、package negative fixtureを持つADR | Windows package promotionを停止／未固定 |
-| A | Target／Configuration別C++ Build optimization closure | `mirakan.arch.toolchain-dependencies`＋各Platform Owner＋`mirakan.arch.runtime-performance-capacity` | Target別最適化済みBuildをQualificationまたはShipping claimへ使用する前 | compiler／linker exact flag・full version、CRT／STL、exception／RTTI／visibility、LTO選択、symbol split／strip、hardening、CPU ISA baseline／dispatch、PGO disabledまたはcontent-addressed training／profile／freshness、binary／Package size・startup・load・frame・memory・compile／link metric、clean／incremental／cancel recovery、reproducible output、link map／SBOM／Package inspection、同一Target comparison Receipt | Configuration名だけから最適化を推測することを停止／未固定。[Architecture Plan Closure Review `ARCH-C07`](../appendices/architecture-plan-closure-review.md#8-architecture-closure-register) |
-| A | Microsoft.GameInput | `mirakan.arch.toolchain-dependencies` | Windows Input capabilityまたはpackage同梱判断を承認する前 | Microsoft公式NuGetのexact version、nupkg SHA-256、license、header／runtime DLL manifest、minimum OS別in-box／redist matrix、Input conformance Receipt | Windows Input／package Gateを停止／未固定 |
+| A | `mirakan.test.harness.v1` selected／absent | `mirakan.arch.toolchain-dependencies` | C++ contract testをQualification Evidenceとして受理する前 | MCD、CTest discovery、failure／filter／shard／parallel／timeout／crash fixture、self-test Receipt | C++ test Evidenceの受理を停止／materialization待ち |
+| A | `mirakan.crypto.sha256.v1` selected／absent | `mirakan.arch.toolchain-dependencies` | Runtime canonical hashを正本または検証結果として受理する前 | MCD、NIST known-answer、incremental／zero-length／large input、cross-target byte一致Receipt | Runtime hash consumerを停止／materialization待ち |
+| A | Microsoft.Direct3D.WARP 1.0.20 selected／lock absent | `mirakan.arch.toolchain-dependencies` | WARP conformance ReceiptをD3D12 qualificationへ使用する前 | §6 exact nupkg／license read-back、Repository lock、SBOM、Agility互換、Development-only conformance Receipt | WARP qualification laneを停止／materialization待ち |
+| A | Windows 11 24H2 build 26100 selected／Receipt absent | `mirakan.arch.toolchain-dependencies` | Windows package promotion条件を承認する前 | MSIX MinVersion／runtime probe同値、Agility／Enhanced Barriers／GameInput redist、Microsoft support lifecycle、OS negative fixture | Windows package promotionを停止／qualification待ち |
+| A | `TargetConfigurationBuildPolicyV1` selected／records absent | `mirakan.arch.toolchain-dependencies`＋各Platform Owner＋`mirakan.arch.runtime-performance-capacity` | Target別最適化済みBuildをQualificationまたはShipping claimへ使用する前 | §2.6の12 exact policy、compiler／linker／CRT／STL、flag read-back、LTO、symbol、hardening、ISA dispatch、PGO disabled、size／startup／load／frame／memory／build metric、reproducible output、link map／SBOM／Package inspection Receipt | Configuration名だけから最適化を推測することを停止／materialization待ち |
+| A | Microsoft.GameInput 3.5.262 selected／lock absent | `mirakan.arch.toolchain-dependencies` | Windows Input capabilityまたはpackage同梱判断を承認する前 | §6 exact nupkg／license／NOTICE read-back、Repository lock、header／runtime DLL manifest、MSIX redist、Input conformance Receipt | Windows Input／package Gateを停止／materialization待ち |
 | A | Windows Editor visual asset lock | `mirakan.arch.toolchain-dependencies` | `fixture.product.windows-empty-scene`の最初のrendered Reference Design fixture前 | §2.1のHost OS image／DirectWrite resolved file、Noto static OTF archive／file／license hash、Widget／Panel／Command presentationの全Editor-owned system icon consumer集合=`EditorIconTokenContractV1`=`conversion manifest`のexact mapping、Fluent source ID／variant／usage context、allowlist／converter／16・20 lu conversion hash、SBOM／notice、同一`style_font_generation`、Light／Dark／四High Contrast／DPI・UI・Font 200% text-icon fixture、running processの`WM_THEMECHANGED`／`WM_SYSCOLORCHANGE`／`WM_SETTINGCHANGE`後のcurrent Light／Dark modeまたはsystem-color snapshot re-read、standard title barとの一致、customized Contrast Theme transition。desktop appでunsupportedな`ColorValuesChanged`をfallbackにしないこと | Phase 2のReference Design visual closureを停止／未固定 |
-| B | 厳格C++ JSON parser | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §17.1のC++ acceptance pathを有効化する前 | exact release／license／hash、duplicate field、invalid UTF-8、trailing bytes、number overflow、depth／size boundのpositive／negative Receipt | C++ JSON consumerを停止／未固定 |
-| B | C++ Runtime JSON Schema Draft 2020-12 validator | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md) §14のruntime validationを有効化する前 | exact release／license／hash、official Draft 2020-12 test suite、unknown dialect／unsupported keyword／recursive ref／bound failure Receipt。Control Plane lint用AjvのReceiptを流用しない | runtime schema consumerを停止／未固定 |
-| B | MCP server SDKまたはfirst-party server boundary | `mirakan.arch.toolchain-dependencies` | external-agent capabilityをActivation候補へ昇格する前 | MCP 2025-11-25 conformance、transport／capability negotiation、message bound、cancel／disconnect、license／artifact lock。自作時は実装Directoryとprotocol fixture | external-agent capabilityを`not_activated`／未固定 |
+| B | `mirakan.json.strict.v1` selected／absent | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md)のC++ acceptance pathを有効化する前 | RFC 8259、duplicate／UTF-8／trailing／overflow／depth・size positive／negative／fuzz Receipt | C++ JSON consumerを停止／materialization待ち |
+| B | `mirakan.schema.draft2020-12.v1` selected／absent | `mirakan.arch.toolchain-dependencies` | [Executable contracts](executable-contracts.md)のruntime validationを有効化する前 | official Draft 2020-12 test suite、supported vocabulary set equality、unknown dialect／unsupported vocabulary／recursive ref／bound failure Receipt | runtime schema consumerを停止／materialization待ち |
+| B | `mirakan.mcp.server.v1` selected／absent | `mirakan.arch.toolchain-dependencies` | external-agent capabilityをActivation候補へ昇格する前 | MCP 2025-11-25 conformance、stdio／Streamable HTTP、capability negotiation、message bound、cancel／disconnect、Operation set equality Receipt | external-agent capabilityを`not_activated`／materialization待ち |
 | Future | managed external Host Broker／attestor boundary | `mirakan.arch.toolchain-dependencies`＋`mirakan.arch.ai-security-approval` | `future.capability.managed-external-host-execution`のActive promotion proposal前 | exact Host／version／binary、Transport／version／endpoint／auth、Provider／managed deployment／Model、Tool projection set、Targetを束縛する`HostTransportConformanceReceiptV1`／`ProviderToolConformanceReceiptV1`／`SchemaEvalConformanceReceiptV1`、Broker sandbox、session／execution attestation、Engine Build Receipt closure、全negative fixture | managed Source edit／Buildだけを`not_activated`／standard external MCP proposal laneとfirst-party local inferenceは非依存 |
 | Future | first-party local inference runtime／loader | `mirakan.arch.toolchain-dependencies`＋`mirakan.arch.ai-security-approval` | `future.capability.first-party-local-inference`のActive promotion proposal前 | exact runtime release／artifact hash／license、DLL・GPU backend closure、supported model format、sandbox、OS IPC／authenticated loopback、CPU／GPU device matrix、Model Import／Schema／Tool Conformance。候補がllama.cppでもbuilt-in file／shell toolとMCP proxyは無効 | first-party local inferenceだけを`not_activated`／MVP・外部Host local model経路は非依存 |
 | Future | virtualized geometry hierarchy builder／simplifier／page packer／codec／runtime provider | `mirakan.arch.toolchain-dependencies`＋`mirakan.arch.rendering-virtualized-continuous-geometry` | `future.capability.virtualized-continuous-geometry-lod`のActive promotion proposal前 | providerごとのexact version／commit／artifact hash／license／patent review／build option、deterministic hierarchy・page・root manifest、Source／Target／feature tuple conformance、corruption／overflow／device-loss fixture、SBOM／notice、in-house時は実装Directoryと同等self-test Receipt | virtualized geometryだけを`planning_only`。builder名、meshlet対応、graphics API対応からCapabilityを推測せずdiscrete LOD／HLODを維持 |
 | B | Android minimum SDK market coverage | `mirakan.arch.platform-android`、閾値承認は`mirakan.arch.product-plan` | `wp.platform.mobile-offline`開始前 | [Android §5](../07-platform/android.md#5-device-testsfailurerelease-gate)の`AndroidMinSdkCoverageReceiptV1` | Android Target Gateを停止／Play Console Evidence待ち |
-| C | CX3 stable MSVC cutover | `mirakan.arch.toolchain-dependencies` | CX3 activation proposal前 | Microsoft stable release、公式に文書化された非PreviewのC++23適合mode、resolved toolset hash、`import std`／module partition C1001 regression fixture、全Target CX0↔CX3 ABI Receipt | CX3だけを停止しCX0を維持／公式stable mode待ち |
+| Future | C++ Named Modules adoption | `mirakan.arch.cpp23-modules`＋`mirakan.arch.compatibility-evolution` | initial V1公開後のsuccessor ADR前 | 全Target stable Toolchain、Module／`import std`／IDE／analysis／sanitizer／Package fixture、complete public Header consumer inventory、single-surface Decision | required universe外。initial V1 Header Shippingに影響させない |
 | C | Anthropic direct API／SDK | `mirakan.arch.toolchain-dependencies` | direct Provider projectionがProduct WPへ登録された時 | official SDK exact version／integrity／license、Provider version、Schema keyword conformance、credential／error／rate-limit fixture | direct projectionだけを停止しMVPはMCP経路を使用／scope未登録 |
 | Per target | CI runner／GPU・macOS host／mobile device poolとcapacity owner | `mirakan.arch.toolchain-dependencies` | 対応するProduct Target Gate開始前 | §8.1のqualified `CiExecutionProfileV1`、non-`unfixed` Owner、runner image／Toolchain lock／device matrix／capacity Receipt | 該当laneを`diagnostic.toolchain.ci-capacity-unresolved`で停止／Owner・capacity input待ち |
 
-各行のclosureは「候補名を本文へ書く」ことではない。§9を満たすADRまたはMeasurement Receipt、exact Toolchain lock、SBOM／notice、positive／negative fixtureを同じChangeSetでread-backできた時だけ未固定の正本行を置換する。候補調査だけでFeature Gateを開かない。
+各行のclosureは「名前を本文へ書く」ことではない。§9を満たすADRまたはMeasurement Receipt、exact Toolchain lock、SBOM／notice、positive／negative fixtureをread-backできた時だけmaterialization／Qualification状態を更新する。target selectionだけでFeature Gateを開かない。
 
 ## 7. Source artifact、license、取得先
 
 | Dependency／artifact | 公式取得・Release根拠 | 追加lock |
 |---|---|---|
 | Agility SDK package | [NuGet package](https://www.nuget.org/packages/Microsoft.Direct3D.D3D12/1.619.4)、[flat-container artifact](https://api.nuget.org/v3-flatcontainer/microsoft.direct3d.d3d12/1.619.4/microsoft.direct3d.d3d12.1.619.4.nupkg) | 35,169,986 bytes、SHA-512 `6a275381027ed758714eedf1ccaeea446b1d9afeddc1f6b6bbc3c85939ef9ffd02b7fae780cd50da635b66b09f5fce99535788551cd64e3663b9e59fe6f7d9de` |
+| LLVM／Clang／LLD 22.1.8 | [LLVM 22.1.8 release artifact](https://github.com/llvm/llvm-project/releases/tag/llvmorg-22.1.8)、[Clang C++ status](https://clang.llvm.org/cxx_status.html)、[Clang 22 command guide](https://releases.llvm.org/22.1.0/tools/clang/docs/CommandGuide/clang.html) | §4のWindows installer size／SHA-256、release signature／attestation、`clang-cl.exe`／`lld-link.exe` resolved file hash、C++23 required feature Receipt |
+| Android Gradle Plugin 9.3.1 | [AGP API reference current release](https://developer.android.com/reference/tools/gradle-api)、[AGP 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes)、[About AGP](https://developer.android.com/build/releases/about-agp)、[Google Maven](https://maven.google.com/web/index.html#com.android.tools.build:gradle) | coordinate `com.android.tools.build:gradle:9.3.1`、resolved repository URL、artifact size／SHA-256／provenance、Gradle 9.5.0、Build Tools 36.0.0、JDK 17、Miraikanai-selected NDK r29とのQualification |
+| Windows 11 24H2 | [Windows 11 24H2 release health](https://learn.microsoft.com/en-us/windows/release-health/status-windows-11-24h2)、[Windows 11 release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information) | deployment version `10.0.26100.0`、MSIX MinVersion、runtime OS probe、current support state、build 26100未満negative fixture |
+| Microsoft.GameInput 3.5.262 | [official NuGet](https://www.nuget.org/packages/Microsoft.GameInput/3.5.262)、[GameInput versioning](https://learn.microsoft.com/en-us/gaming/gdk/docs/features/common/input/overviews/input-versioning) | nupkg 2,116,174 bytes／SHA-256 `2654e45081588409f6326838e681d6b50ac533e2f24402421dd73c167744d24e`、LICENSE／NOTICE hash、header／lib／redist manifest |
+| Microsoft.Direct3D.WARP 1.0.20 | [official NuGet](https://www.nuget.org/packages/Microsoft.Direct3D.WARP/1.0.20) | nupkg 15,319,749 bytes／SHA-256 `e5fe5de661ce98b58ef9cfb736e73c0a7a2623d3bbf5f14839b2d55566d87e40`、LICENSE hash、D3D10Warp.dll manifest |
 | Windows Editor system UI font | [Windows Typography](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/typography)、[International fonts](https://learn.microsoft.com/en-us/windows/apps/design/globalizing/loc-international-fonts) | bundleせず、`target.windows.editor` Host OSで解決したSegoe UI Variable／Yu Gothic UI file version・SHA-256を`resolved_files[]`へ固定 |
 | Noto Sans Mono CJK JP | [Noto Sans CJK 2.004 release](https://github.com/notofonts/noto-cjk/releases/tag/Sans2.004) | `Sans2.004`／`523d033d6cb47f4a80c58a35753646f5c3608a78`、candidate archive `06_NotoSansCJKjp.zip`（94,832,242 bytes）、SIL Open Font License 1.1。archive／Regular／Bold／LICENSEのSHA-256は取得時に固定するまで未固定 |
-| Fluent UI System Icons | [1.1.333 tag](https://github.com/microsoft/fluentui-system-icons/tree/1.1.333) | tag commit `1953430cd73f928f3e43997e17a9d058b00d17b8`、MIT。selected SVG、conversion output、LICENSE／NOTICEのSHA-256を取得時に固定するまで未固定 |
+| Fluent UI System Icons | [1.1.334 tag](https://github.com/microsoft/fluentui-system-icons/tree/1.1.334) | tag commit `f2f75a6e4814153d5c049c0f06e197731718326b`、MIT。selected SVG、conversion output、LICENSE／NOTICEのSHA-256を取得時に固定するまで未固定 |
 | Windows Light／Dark・contrast／text／scale／motion | [Support Dark and Light themes in Win32 apps](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-windows-themes)、[Contrast themes](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/high-contrast-themes)、[Accessible text requirements](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/accessible-text-requirements)、[Text scaling](https://learn.microsoft.com/en-us/windows/apps/develop/input/text-scaling)、[Composition tailoring for WinUI apps](https://learn.microsoft.com/en-us/windows/apps/develop/composition/composition-tailoring)、[`SystemParametersInfoW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow)、[`WM_SETTINGCHANGE`](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-settingchange)、[Accessibility testing](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/accessibility-testing) | Light／Darkの通常visible textは各profileで最低4.5:1、四contrast themeはSystemColor snapshotで照合し、DPI／text scalingのlayout・rendering regressionをfixtureでfail closedにする。custom DirectWrite text surfaceはWindows system text scale 1.00–2.25のnotification／reflowを別途閉じる。custom client area motionは`SPI_GETCLIENTAREAANIMATION`を初期化時と`WM_SETTINGCHANGE`後にreadし、falseならstatic final presentationへ縮退する。これは新しいassetではなく、§2.1 tupleを使うEnvironment Evidenceである |
 | SPIRV-Cross source | [official repository](https://github.com/KhronosGroup/SPIRV-Cross) | vcpkg source SHA-512 `f4f9f62a9ff15e9b707b820ce603bda1ea9fe7138bf505307791e55058063d9362e9bba6e508f5d302836a53b51e115b03b9ce7478fbc7b86a4b266b426eaa5d` |
 | Box2D | [v3.1.1 release](https://github.com/erincatto/box2d/releases/tag/v3.1.1) | tagとcommitを照合 |
 | Jolt Physics | [v5.6.0 release](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0) | tagとcommitを照合 |
 | Recast Navigation | [v1.6.0 release](https://github.com/recastnavigation/recastnavigation/releases/tag/v1.6.0) | annotated tagとcommitを照合 |
 | D3D12MA | [v3.2.0 release](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator/releases/tag/v3.2.0) | source archive SHA-512とlicense hashをoverlay portで固定 |
-| VMA | [v3.3.0 release](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/releases/tag/v3.3.0) | source archive SHA-512とlicense hashをoverlay portで固定 |
+| VMA | [v3.4.0 release](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/releases/tag/v3.4.0) | source archive SHA-512とlicense hashをoverlay portで固定 |
 | SPIRV-Tools | [v2026.2 release](https://github.com/KhronosGroup/SPIRV-Tools/releases/tag/v2026.2) | source archive SHA-512とlicense hashをoverlay portで固定 |
 | KTX-Software | [v4.4.2 release](https://github.com/KhronosGroup/KTX-Software/releases/tag/v4.4.2) | source archive SHA-512とlicense hashをoverlay portで固定 |
 | Oboe | [1.10.0 release](https://github.com/google/oboe/releases/tag/1.10.0) | source archive SHA-512とlicense hashをoverlay portで固定 |
@@ -329,14 +395,13 @@ XAudio2はWindows SDK headerとOS in-box runtimeで提供され、本表への�
 
 ## 8. Toolchain lock contract
 
-Repository rootの`toolchain.lock.json`はschema version 6とし、未知Field、`null`、重複ID、相対URL、version range、`latest`、wildcard、複数hash候補を拒否する。条件不該当Fieldは`null`でなくtagged branchから省略する。Profile、artifact、Driver、resolved fileをIDまたは正規化relative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
+Repository rootの`toolchain.lock.json`はinitial canonical schema version 1とし、未知Field、`null`、重複ID、相対URL、version range、`latest`、wildcard、複数hash候補を拒否する。条件不該当Fieldは`null`でなくtagged branchから省略する。Profile、artifact、Driver、resolved fileをIDまたは正規化relative pathのunsigned UTF-8 byte順に保存し、canonical JSONのSHA-256をBuild manifestへ記録する。
 
 | Field | 規則 |
 |---|---|
-| `lock_schema_version` | `uint32`、値6 |
-| `profiles[].profile_id` | Product current Targetとset equalityの`target.headless.host`、`target.windows.editor`、`target.windows.desktop`、`target.android.mobile`、`target.apple.mobile`を各一件。headlessはWindows x64 native build/test hostでありOS-genericまたはLinuxを意味しない。EditorとDesktopはartifact refを共有できるが独立Profileとして全Fieldを持つ |
-| `profiles[].profile_kind` | `build_host \| editor_host \| runtime_target`。headless=`build_host`、Windows Editor=`editor_host`、Windows／Android／Apple product runtime=`runtime_target` |
-| `profiles[].profile_version` | `uint32`、初期値1。logical IDへversionを埋め込まない |
+| `lock_schema_version` | `uint32`、値1 |
+| `profiles[].product_target_profile_ref` | [Product Plan §6.1](../00-product/product-plan.md#product-profile-identity)のexact `TargetProfileRefV1`。Active Product DefinitionのHost projectionにある`target.headless.host`、`target.windows.editor`、runtime Target projectionにある`target.windows.desktop`、`target.android.mobile`、`target.apple.mobile`を各一件とし、両projectionのtagged unionがlockの全Profile Ref集合とset equalityである。RefのID／version／kind／content hashを全Field read-backし、同ID／version別hash、同ID／hash別kind、local ID、表示名またはprefixへ縮退しない |
+| `profiles[].technical_profile_content_hash` | `MIRAKAN_TOOLCHAIN_TARGET_PROFILE_BINDING_V1`、algorithm `sha256`、algorithm version 1、schema順、`uint32_be` length framingで、`product_target_profile_ref`と当該Profileの全technical Fieldをcanonical encodeしたper-profile hash。lock全体hashやProduct Profile hashで代用しない |
 | `profiles[].host` | OS、architecture、minimum version、CI image digest |
 | `profiles[].target.deployment_target` | Target minimum OSのcanonical numeric string。値は各Profileの正本行（`target.apple.mobile`は[§2.3 Apple](#23-apple)のDeployment target行、`target.android.mobile`は[§2.2 Android](#22-android)のminimum SDK行、`target.windows.desktop`は[§2.1 Windows](#21-windows)のTarget minimum OS行）と一致する。正本行が未固定のProfileではField自体を拒否 |
 | `profiles[].artifacts[]` | tool ID、exact version、source／resolved URL、size、SHA-256、source commit。generated conversion manifestもartifact recordとして保持し、`EditorIconTokenContractV1`のicon token、全Widget／Panel／Command presentationのEditor-owned system icon consumer ref、Command presentationではexact `presentation_context`、source icon ID、Regular／Filled variant、allowed usage context、converter ID／version／commit、input SVG hash、option、logical size別output hashをそのcontent hashで束縛する |
@@ -353,15 +418,11 @@ Windows installerはSHA-256に加えてAuthenticode chainとPublisherを照合�
 
 Fluent conversion manifestは既存`profiles[].artifacts[]`のgenerated artifactとして記録し、別schemaやmutable build logへ退避しない。manifestは各`EditorIconTokenContractV1` tokenについて全consumer ref、semantic category／subject、`command_presentation` consumerごとの`presentation_context`、source icon ID、Regular／Filled variant、allowed usage context、input SVG hash、converter ID／version／source commit／option、16／20 logical-size output hashを一recordに束縛し、同manifestのcontent hashから復元できなければならない。一つのsemantic tokenの複数source、variant／usage contextの省略、Registry consumer集合またはCommand presentation contextとの不一致を拒否する。source geometryを複数tokenで再利用する場合もtokenごとの明示recordを必須にし、暗黙aliasにしない。これによりconverter optionの同名既定値変更、input icon差し替え、outputだけの再生成を`style_font_generation`差として検出する。
 
-`profile_kind`はtagged unionである。`build_host`はWindows x64 host OS／architecture／CI image／Build tool fieldsを必須とし`target`／deployment Fieldを禁止する。`editor_host`は§2.1のBuild／Editor Host OSとexact同値のWindows minimum OS、host、Editor driver／artifact fieldsを必須とする。`runtime_target`はTarget OS／architecture／deployment target、Target compiler／SDK／driver fieldsを必須とする。共通artifactをref共有してもProfile objectを省略またはalias化しない。
+`product_target_profile_ref.profile_kind`はtagged unionである。`build_host`はWindows x64 host OS／architecture／CI image／Build tool fieldsを必須とし`target`／deployment Fieldを禁止する。`editor_host`は§2.1のBuild／Editor Host OSとexact同値のWindows minimum OS、host、Editor driver／artifact fieldsを必須とする。`runtime_target`はTarget OS／architecture／deployment target、Target compiler／SDK／driver fieldsを必須とする。共通artifactをref共有してもProfile object、Product Refまたは`technical_profile_content_hash`を省略・alias化しない。
 
-schema version 5から6を単独の自動offline renameで移行することは禁止する。旧3 profileを次表でrenameするだけでは必須のheadless／editor 2 profileと`profile_kind`を生成できない。表はlegacy inventory分類だけに使い、実移行は5 profileの完成schema6 lock、Active Definition row migration、Control Plane rebaseline、full-reset Product state migrationを一つのChangeSetとして承認する。旧IDをruntime aliasとして保持せず、migration後はold IDを拒否する。
+lockの`product_target_profile_ref.profile_kind=build_host | editor_host` projectionはActive Product Definitionの`host_profile_refs[]`、`profile_kind=runtime_target` projectionは`runtime_target_profile_refs[]`とRef全Fieldで各々set equalityである。各RefはDefinitionが束縛する`TargetProfileRegistryRefV1`からexactly one recordへ解決し、Product Definition側のHost／runtime Target membership、Registryまたはlock側のProfile、kind、hashにmissing／extra／duplicateがあればToolchain closureを生成しない。Locale ProfileはToolchain ProfileではなくActive Product Definitionの独立`locale_profile_refs[]`へ属し、Target Profile ID、OS localeまたはresolved fontからLocale membershipを推測しない。
 
-| schema 5 `profile_id` | schema 6 `profile_id` | 追加Field |
-|---|---|---|
-| `windows_desktop_v1` | `target.windows.desktop` | `profile_version=1, profile_kind=runtime_target` |
-| `android_mobile_v1` | `target.android.mobile` | `profile_version=1, profile_kind=runtime_target` |
-| `apple_mobile_v1` | `target.apple.mobile` | `profile_version=1, profile_kind=runtime_target` |
+対応するlock、Schema、Generator、Build manifestは未materializeであるため、上記五Product Profile Ref、kind-specific technical branch、per-profile hashを最初のcanonical schemaへ直接定義する。旧profile ID、consumer-local tuple、rename table、offline migrator、runtime alias、dual readerまたはProduct state migrationをinitial lock contractへ持ち込まない。
 
 ### 8.1 CI execution profile
 
@@ -372,16 +433,16 @@ schema version 5から6を単独の自動offline renameで移行することは�
 | `lane_id` | Verification正本のexact lane ID |
 | `runner_class` | `windows_gpu`、`windows_hardware_vm`、`macos_build`、`android_device`、`apple_device`のclosed enum |
 | `hosting_mode` | `managed`または`self_hosted` |
-| `toolchain_profile_id` | `profiles[].profile_id`のexact `target.*`だけ。architecture／JavaScript laneもcurrent MVPではWindows x64 `target.headless.host`を使う |
+| `toolchain_target_profile_ref` | `profiles[].product_target_profile_ref`のexact `TargetProfileRefV1`だけ。architecture／JavaScript laneもcurrent MVPではWindows x64 `target.headless.host` Refを使い、ID文字列へ縮退しない |
 | `device_matrix_ref` | physical deviceを使う`android_device`／`apple_device` branchで必須。他runner branchではField自体を禁止する |
 | `capacity_state` | `unfixed`、`qualified`、`unavailable`のclosed enum |
 | `owner` | 調達、credential、patch、quota、保守、incident対応の責任主体。未決定時はliteral `unfixed` |
 
-Entry identityは`{lane_id, runner_class, toolchain_profile_id}`のtupleとし、重複を拒否する。`capacity_state=qualified`はrunner image hash、Toolchain lock hash、isolation profile、同時実行上限、retention、device matrix（該当時）、fresh Qualification Receiptが揃う場合だけ許可する。`unfixed`または`unavailable`、`owner=unfixed`、Receipt失効、device欠落ではlane開始を`diagnostic.toolchain.ci-capacity-unresolved`で拒否し、local runner、別OS、別device、managed／self-hosted間へ暗黙fallbackしない。
+Entry identityは`{lane_id, runner_class, toolchain_target_profile_ref}`のtupleとし、重複を拒否する。`capacity_state=qualified`はrunner image hash、Toolchain lock hash、isolation profile、同時実行上限、retention、device matrix（該当時）、fresh Qualification Receiptが揃う場合だけ許可する。`unfixed`または`unavailable`、`owner=unfixed`、Receipt失効、device欠落ではlane開始を`diagnostic.toolchain.ci-capacity-unresolved`で拒否し、local runner、別OS、別device、managed／self-hosted間へ暗黙fallbackしない。
 
 portable Linux CIを導入する場合はProduct Targetを偽装せず、別`ci.host.portable-linux` execution profileとしてdistro、kernel、libc、architecture、container／VM image digest、Node／JavaScript tool hashをすべて固定するDependency ChangeSetを先に承認する。現行lock／runner enumにはこのprofileをmaterializeせず、Linux Product supportはProduct Planのplanning-only Future entryのままとする。
 
-ユーザーがrunner契約、self-hosted host、実機pool、担当Ownerをまだ指定していないため、本文書はcapacityや費用を推測しない。Productの見積りは[Product Plan §5.1](../00-product/product-plan.md#51-開発体制見積りrisk-contract)の`team_assumption_state=unfixed`を維持し、必要laneが`qualified`になるまで該当product target gateを開始しない。
+runner契約、self-hosted host、実機pool、担当Ownerがmaterializeされていないため、本文書はcapacity、費用、工程または人員を推測しない。[Product Plan §5](../00-product/product-plan.md#5-mvp-scope)はProduct outcomeだけを所有し、必要laneが`qualified`になるまで該当Product Target Gateを成功扱いしない。
 
 ## 9. Dependency採用・更新Gate
 
@@ -397,11 +458,13 @@ portable Linux CIを導入する場合はProduct Targetを偽装せず、別`ci.
 
 ## 10. Context7と公式一次資料
 
-Context7で次のIDを2026-07-21～2026-07-26に解決し、指定queryで確認した。
+Context7で次のIDを2026-07-21～2026-07-30に解決し、指定queryで確認した。
 
 | 対象 | Context7 ID | query／確認結果 |
 |---|---|---|
 | CMake | `/websites/cmake_cmake_help` | C++ Module scanのGenerator、`import std`、`CXX_MODULE_STD`を照会。`import std`はNinja／Ninja Multi-Configに限定され、Visual Studio GeneratorはIMPORTED targetのBMIをbuildできず、CMake 4.4時点でもExperimental token（`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD`）を必要とすることを確認 |
+| Clang／LLVM | `/websites/clang_llvm` | C++ language modeとNamed Modulesのstandard mode一致を照会。mode flag受理を完全なC++23 feature conformanceへ一般化せず、exact 22.1.8 releaseとrequired feature closureはLLVM公式release／Clang statusでread-backする |
+| Android NDK | `/android/ndk` | Gradle `ndkVersion`によるexact revision選択を照会。stable／LTS status、r29 revision、download artifactはAndroid公式NDK downloads／revision historyで別途read-backする |
 | Ajv | `/ajv-validator/ajv` | Draft 2020-12専用class `ajv/dist/2020`、strict mode、`allErrors`を照会。Control Plane lintを`strict=true`／`allErrors=false`／local `$ref`だけへ固定する判断と整合 |
 | Microsoft C++ | `/microsoftdocs/cpp-docs` | named moduleと`import std`を照会。標準header include／header unitとの混在禁止をBuild graph制約として扱う |
 | Windows apps | `/websites/learn_microsoft_en-us_windows_apps` | Typography、International fonts、contrast themes、accessible text、text scaling、Light／Dark Win32 theme、desktop WinRT API supportを照会。Segoe UI Variable／Yu Gothic UIのHost解決、通常text 4.5:1、四Contrast Themeとuser-customized SystemColor、custom DirectWriteの`TextScaleFactorChanged`／1.00–2.25 reflow、`UISettings.GetColorValue(UIColorType::Foreground)`によるLight／Dark判定、`DwmSetWindowAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE)`によるstandard title bar同期、desktop appでunsupportedな`ColorValuesChanged`を除外し`WM_THEMECHANGED`／`WM_SYSCOLORCHANGE`／`WM_SETTINGCHANGE`後にcurrent snapshotを再読込すること、DPI／text scaling regression testを§2.1 C1 closureへ反映 |
@@ -433,9 +496,15 @@ Context7の内容はmain branchの挙動説明であり、exact release／commit
 | OpenAI hosted ChatGPT Work MCP | [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp#use-mcp-backed-tools-in-chatgpt-web) | 2026-07-24 | hosted ChatGPT Workはpluginが束ねるremote MCP Toolを使い、local Codex設定／command menu／direct local STDIOを読まない。plan／workspace／admin条件とremote serviceまたはSecure MCP TunnelをHost Profileへ固定する |
 | OpenAI Codex-hosted MCP | [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp) | 2026-07-24 | ChatGPT desktop appのCodex host、Codex CLI、IDEは同じCodex MCP config layerからSTDIO／Streamable HTTPを使える。hosted ChatGPT Workとは別Profileにし、MiraikanaiのMCP 2025-11-25 conformance Gateを別途必須にする |
 | OpenAI GPT-5.6 | [GPT-5.6 migration guidance](https://developers.openai.com/api/docs/guides/upgrading-to-gpt-5p6-sol) | 2026-07-27 | direct Providerの既定explicit modelを`gpt-5.6-sol`、reasoning effortを`medium`とし、ModelSnapshot Profile／Evalなしにaliasへ追従しない |
-| Ajv Draft 2020-12 | [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html#draft-2020-12)、[Ajv 8.20.0 registry metadata](https://registry.npmjs.org/ajv/8.20.0) | 2026-07-23 | `ajv/dist/2020`をControl Plane lintだけへexact lockし、§4のtarball／integrity／MITをread-backする。C++ Runtime validatorの未固定状態は閉じない |
-| CMake C++ Modules | [latest manual](https://cmake.org/cmake/help/latest/manual/cmake-cxxmodules.7.html)、[4.4 manual](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html) | 2026-07-23 | 4.4の`import std`はExperimental opt-inかつNinja／Ninja Multi-Config限定とする。Visual Studio GeneratorのIMPORTED BMIをShipping経路にしない |
-| MSVC C++ language mode | [Microsoft `/std` reference](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version)、[MSVC 14.51 C++23 status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) | 2026-07-27 | 公式資料が現在案内する`/std:c++23preview`はCX0 Development／Test／candidate／internal Technology Previewだけとし、公式に文書化された非PreviewのC++23適合modeを持つstable toolsetまでCX3 Release Activationを拒否する |
+| Ajv Draft 2020-12 | [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html#draft-2020-12)、[Ajv 8.20.0 registry metadata](https://registry.npmjs.org/ajv/8.20.0) | 2026-07-23 | `ajv/dist/2020`をControl Plane lintだけへexact lockし、§4のtarball／integrity／MITをread-backする。C++ Runtimeは選定済みfirst-party `mirakan.schema.draft2020-12.v1`であり、Ajv ReceiptをmaterializationまたはQualificationへ流用しない |
+| CMake C++ Modules | [latest manual](https://cmake.org/cmake/help/latest/manual/cmake-cxxmodules.7.html)、[4.4 manual](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html) | 2026-07-30 | initial V1ではNamed Modules、`import std`、experimental token、CXX_MODULES file setをすべて禁止する。資料はrequired Shipping inputではなく将来proposalの比較根拠だけ |
+| CMake release | [CMake 4.4.1 release](https://github.com/Kitware/CMake/releases/tag/v4.4.1)、[4.4 release notes](https://cmake.org/cmake/help/v4.4/release/4.4.html) | 2026-07-30 | current stable 4.4.1をexact selected baselineにし、RC／git-stage buildへfallbackしない |
+| LLVM／Clang release | [LLVM 22.1.8 release](https://github.com/llvm/llvm-project/releases/tag/llvmorg-22.1.8)、[Clang C++ status](https://clang.llvm.org/cxx_status.html) | 2026-07-30 | signed release tag／binaryを22.1.8へ固定し、C++23全体の`Partial`表示をrequired feature passへ読み替えない |
+| MSVC C++ language mode | [Microsoft `/std` reference](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version)、[MSVC 14.51 C++23 status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/) | 2026-07-30 | `/std:c++23preview`はMSVC comparison laneだけに許可し、Preview artifactをShippingへ使用しない。Initial V1 Shippingはclang-cl 22.1.8 `/clang:-std=c++23` |
+| Windows Control Flow Guard | [Microsoft compiler `/guard:cf`](https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard)、[Microsoft linker `/GUARD:CF`](https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-guard-checks)、[Clang command-line reference](https://clang.llvm.org/docs/ClangCommandLineReference.html) | 2026-07-30 | compiler instrumentationとlinker image metadataを分離し、全first-party objectへ`/guard:cf`、final linkへ`/GUARD:CF /DYNAMICBASE`、binary inspectionへ`Guard`／`CF Instrumented`／`FID table present`を要求する |
+| Windows Host／minimum Target | [Windows 11 release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information)、[Windows 11 24H2 release health](https://learn.microsoft.com/en-us/windows/release-health/status-windows-11-24h2) | 2026-07-30 | Host lockは25H2 build 26200.8875、player minimumは24H2 deployment version `10.0.26100.0`として分離する |
+| Android NDK stable | [NDK downloads](https://developer.android.com/ndk/downloads)、[NDK revision history](https://developer.android.com/ndk/downloads/revision_history) | 2026-07-30 | current stable r29 revision 29.0.14206865を選択し、Context7上のr30例またはpreview channelをstableへ読み替えない |
+| Apple Xcode release | [Xcode 26.6 release](https://developer.apple.com/news/releases/?id=06252026a)、[Xcode 26.6 release notes](https://developer.apple.com/documentation/Xcode-Release-Notes/xcode-26_6-release-notes) | 2026-07-30 | Stable 26.6（17F113）、Apple SDK 26.5、required macOS Tahoe 26.2以降をselected Apple host baselineにする |
 | C++ memory safety instrumentation | [Microsoft AddressSanitizer](https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170)、[LLVM AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)、[LLVM ThreadSanitizer](https://clang.llvm.org/docs/ThreadSanitizer.html) | 2026-07-26 | ASanはTarget Profileが対応するcompiler／runtime上のDevelopment／CI laneへ固定し、MSVCでは対応x86／x64構成だけを有効候補にする。sanitizer buildをShipping、PGO、通常performance baselineへ流用しない。race検証は別のsupported Toolchain／runner laneだけで実行し、MSVCまたは任意Targetが未対応でも実行済みと表示しない。未対応Targetはstatic／negative fixtureとsupported laneのEvidenceを別記録にし、同値のpassへ変換しない |
 | Box2D 3.1.1 simulation optimization boundary | [Box2D Simulation](https://box2d.org/documentation/md_simulation.html)、[v3.1.1 release](https://github.com/erincatto/box2d/releases/tag/v3.1.1) | 2026-07-26 | task callback／worker、sleep、body creation position、filterはexact Target／World Profile候補として測定し、値をAPI既定またはCPU brandから推測しない。task callbackはprivate、thread-safe、allocation-freeで、Engine-owned semantic oracleを変更しない |
 | Jolt Physics 5.6.0 optimization boundary | [Jolt Physics 5.6.0 documentation](https://jrouwe.github.io/JoltPhysicsDocs/5.6.0/)、[v5.6.0 release](https://github.com/jrouwe/JoltPhysics/releases/tag/v5.6.0) | 2026-07-26 | JobSystem／TempAllocator、batch insertion、BroadPhase layer／filter、sleepをTarget別候補にする。複数Bodyを一件ずつ追加する経路と毎frameの`OptimizeBroadPhase`を標準候補にせず、ContactListener rejectをearly filterと数えない |
@@ -444,9 +513,9 @@ Context7の内容はmain branchの挙動説明であり、exact release／commit
 
 Shader toolchainの補完一次根拠は[DXC v1.9.2602.24 release](https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2602.24)、[DXC API](https://github.com/microsoft/DirectXShaderCompiler/wiki/Using-dxc.exe-and-dxcompiler.dll)、[DXC HLSL options](https://github.com/microsoft/DirectXShaderCompiler/blob/main/include/dxc/Support/HLSLOptions.td)、[HLSL Specification Working Draft](https://microsoft.github.io/hlsl-specs/specs/index.html)である。Working Draftまたはmain branchの変化をBuild時に自動採用せず、上表のDXC tag／commitと`ShaderCompilerProfileV1`を実行正本にする。
 
-CMakeのversion別根拠は[C++ Modules support](https://cmake.org/cmake/help/v4.4/manual/cmake-cxxmodules.7.html)、[`CXX_MODULE_STD`](https://cmake.org/cmake/help/v4.4/prop_tgt/CXX_MODULE_STD.html)、[Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)、[Ninja Multi-Config](https://cmake.org/cmake/help/v4.4/generator/Ninja%20Multi-Config.html)、[File API](https://cmake.org/cmake/help/v4.4/manual/cmake-file-api.7.html)で補完した。MSVCのbaselineとCutover条件は[stable release](https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/)、[C++23 support status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/)、[Visual Studio release history](https://learn.microsoft.com/en-us/visualstudio/releases/2026/release-history)を一次根拠とする。v14.51の`import std`／module partition既知bug（C1001）と修正予定は[MSVC Build Tools Preview updates July 2026](https://devblogs.microsoft.com/cppblog/msvc-build-tools-preview-updates-july-2026/)、`import std`と`#include`の混在禁止は[Import the standard library with modules](https://learn.microsoft.com/en-us/cpp/cpp/tutorial-import-stl-named-module)を一次根拠とする。Android Vulkan profileの正式名は[VP_ANDROID_baseline_2022](https://github.com/KhronosGroup/Vulkan-Profiles/blob/main/profiles/VP_ANDROID_baseline_2022.json)を一次根拠とする。
+CMakeのversion別根拠は[Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)、[Ninja Multi-Config](https://cmake.org/cmake/help/v4.4/generator/Ninja%20Multi-Config.html)、[File API](https://cmake.org/cmake/help/v4.4/manual/cmake-file-api.7.html)で補完した。Clang Shipping frontendは[Clang C++ status](https://clang.llvm.org/cxx_status.html)、[Clang 22 command guide](https://releases.llvm.org/22.1.0/tools/clang/docs/CommandGuide/clang.html)、[LLVM 22.1 release notes](https://releases.llvm.org/22.1.0/docs/ReleaseNotes.html)を一次根拠とする。Clang公式statusのC++23はPartialであるためrequired feature closureを使う。MSVCは[stable release](https://devblogs.microsoft.com/cppblog/msvc-version-1451-available/)、[C++23 support status](https://devblogs.microsoft.com/cppblog/c23-support-in-msvc-build-tools-14-51/)、[Visual Studio release history](https://learn.microsoft.com/en-us/visualstudio/releases/2026/release-history)をABI／STL／CRTおよびcomparison laneの一次根拠とし、Preview language modeをShippingへ使わない。Android Vulkan profileの正式名は[Android Vulkan Profiles](https://developer.android.com/ndk/guides/graphics/android-vulkan-profile)とKhronosの[Vulkan Profiles repository](https://github.com/KhronosGroup/Vulkan-Profiles/tree/main/profiles)を一次根拠とする。
 
-AndroidはContext7に公式AGP資料がなかったため、[AGP 9.3.0 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes)と[NDK downloads](https://developer.android.com/ndk/downloads)へフォールバックした。前者でGradle 9.5.0、Build Tools 36.0.0、JDK 17の互換条件、後者でNDK r29 revision 29.0.14206865を確認した。
+Androidは[Android Gradle plugin API reference](https://developer.android.com/reference/tools/gradle-api)で2026-07-30時点のCurrent Release exact `9.3.1`とPreview `9.4.0-alpha07`の分離を確認し、[Android Gradle plugin 9.3 release notes](https://developer.android.com/build/releases/agp-9-3-0-release-notes)で9.3 familyのGradle 9.5.0、Build Tools 36.0.0、JDK 17を確認した。Google Mavenのexact coordinate `com.android.tools.build:gradle:9.3.1`を選択し、9.3.0、dynamic patchまたは9.4 Previewへ読み替えない。[NDK downloads](https://developer.android.com/ndk/downloads)と[NDK revision history](https://developer.android.com/ndk/downloads/revision_history)でcurrent stable r29 revision 29.0.14206865を確認した。公式default NDK 28.2.13676358とMiraikanai-selected r29を混同せず、全tupleは同一baselineのfresh Qualificationでだけ成立させる。
 
 Apple pinは[Xcode 26.6 release notes](https://developer.apple.com/documentation/Xcode-Release-Notes/xcode-26_6-release-notes)、[Xcode support matrix](https://developer.apple.com/support/xcode/)、Build分離は[Xcode Cloud security](https://developer.apple.com/xcode-cloud/security/)を一次根拠とする。
 

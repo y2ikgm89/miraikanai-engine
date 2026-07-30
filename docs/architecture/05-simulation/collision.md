@@ -142,7 +142,7 @@ packed engine body handleはsession-localでSaveへ保存されないため、or
 
 Collisionが公開するMCD Capabilityは次のexact二件である。これはProduct `capability.simulation.collision-2d | collision-3d` rowではなく、Target別Product Activation Bindingが参照するDomain Contractである。文書状態が`review`でmaterialized Contract setがない現在は設計候補であり、IDだけをactive refとして解決しない。
 
-共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.collision]`、`requirement_refs=[]`、`since_contract_set=2`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
+共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.collision]`、`requirement_refs=[]`、`since_contract_set=1`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
 
 | Capability ID | `title` | `description` | `required_capabilities[]` | `rationale_refs[]` | `tags[]` |
 |---|---|---|---|---|---|

@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: Apple Target／Distribution Profile、Toolchain Build mapping、C ABI／Objective-C++ bridge、UIKit／Metal／Audio Adapter、Apple Asset package、unsigned-build／signing／upload separation、Xcode Cloud mapping、Privacy Manifest、TestFlight／App Store、Apple device qualification／release gate
 - 非正本範囲: exact Tool／SDK／OS／library version・hash・license・URL、Mobile共通schema／lifecycle意味／aggregate cap、Renderer共通contract、Input／Audio／UI意味、Asset lifecycle、AI authorization／Evidence envelope。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Mobile Common](mobile-common.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Mobile Common](mobile-common.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
@@ -21,14 +21,12 @@ host OS、Xcode、SDK、deployment target、CMake／Ninja、Metal tool、generat
 
 | Driver Profile | purpose | package result |
 |---|---|---|
-| `driver.apple.cx0-xcode` | baseline header frontend、App shell／link | unsigned development payload |
-| `driver.apple.modules-probe-ninja` | Named Module compile-only probe | package／promotion不可 |
-| `driver.apple.modules-ninja-xcode` | portable C++ archive＋Xcode App shell／final link | `UnsignedApplePayloadV1` |
-| `driver.apple.xcode-cloud` | checked-in `ci_scripts`によるNinja C++ archive＋Xcode App shell／managed signing | signed package／TestFlight handoff |
+| `driver.apple.xcode` | C++23 Header surface、portable C++ core＋App shell／final link | `UnsignedApplePayloadV1` |
+| `driver.apple.xcode-cloud` | 同じXcode Project／Schemeのmanaged build／signing | signed package／TestFlight handoff |
 
-Driver Profile ID、Generator、resolved Build tree、Toolchain lock、package ownerは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のclosed matrixへ一致させる。C++ Frontend／Target／Configuration／Toolchainが異なるobject、BMI、archive、log、Receiptを共有しない。
+Driver Profile ID、Generator、resolved Build tree、Toolchain lock、package ownerは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のclosed matrixへ一致させる。C++ Frontend／Target／Configuration／Toolchainが異なるobject、archive、log、Receiptを共有しない。Initial V1はNamed Module source、`import std`、BMIを生成または配布しない。
 
-language boundaryはportable C++ core、generated C ABI header、opaque handle、Objective-C／Objective-C++ Adapterである。Xcode App shellはC++ Named Moduleをimportせず、generated C ABIへ接続する。Objective-C objectをCommon C++ object、MCD、Saveへ保存せず、UIKitはmain thread、Adapter `.mm`はARC、C++／Metal wrapperはmove-only generation handleで所有する。
+language boundaryはC++23 Header-based portable core、generated C ABI header、opaque handle、Objective-C／Objective-C++ Adapterである。Xcode App shellはgenerated C ABIへ接続する。Objective-C objectをCommon C++ object、MCD、Saveへ保存せず、UIKitはmain thread、Adapter `.mm`はARC、C++／Metal wrapperはmove-only generation handleで所有する。
 
 WindowsはApple用Source generation、common Asset Cook、portable shader validationまで行えるが、Apple platform binary、final Metal library、arm64 final link、archiveを生成しない。Apple WorkerはToolchain lockを再検証し、C++ archive、Metal artifact、App shellを一つのunsigned payload manifestへ結ぶ。
 
@@ -72,19 +70,19 @@ Apple textureはASTC target formatでpackageする。Package validatorは[Mobile
 
 ## 4. Unsigned Build、Signing、Upload separation
 
-Shippingは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)正本の`AppleShippingRouteV1`だけを受理する。`build_driver_ref = driver.apple.xcode-cloud`では`delivery_profile_ref = none`とし、Xcode Cloud build／managed signing／TestFlight handoffへ写像して独自distribution keyをBuild scriptへ渡さない。`build_driver_ref = driver.apple.modules-ninja-xcode`では`delivery_profile_ref = delivery-profile.apple.self-hosted-split`を必須とし、`AppleUnsignedBuildWorkerV1`、Apple Signing Service、Store Upload Serviceを別identity／workspace／credentialへ分離する。Driver IDとDelivery Profile IDを同じenumとして比較しない。
+Shippingは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)正本の`AppleShippingRouteV1`だけを受理する。`build_driver_ref = driver.apple.xcode-cloud`では`delivery_profile_ref = none`とし、Xcode Cloud build／managed signing／TestFlight handoffへ写像して独自distribution keyをBuild scriptへ渡さない。`build_driver_ref = driver.apple.xcode`では`delivery_profile_ref = delivery-profile.apple.self-hosted`を必須とし、`AppleUnsignedBuildWorkerV1`、Apple Signing Service、Store Upload Serviceを別identity／workspace／credentialへ分離する。Driver IDとDelivery Profile IDを同じenumとして比較しない。
 
 `AppleUnsignedBuildWorkerV1`はnon-admin task identity、signed immutable base、taskごとのephemeral VM／volume、no general egress、brokered content-addressed input／output、bounded CPU／memory／process／file／output／wall-timeを必須とする。User home、Keychain、other Project、Source-control credential、Signing／Upload endpointをmountしない。task後にReceipt確定後diskを破棄し、workspace削除だけをclean workerとみなさない。
 
 Worker outputは`UnsignedApplePayloadV1`とbounded log／Receiptだけである。payloadはTarget／Distribution ref、Engine／Source／Toolchain ref、C ABI archive、Metal artifact、App shell、bundle manifest、entry path／size／content hash／executable kindを持つ。guest filesystem archive、absolute／parent path、case／Unicode collision、symlink／hardlink、undeclared nested codeを拒否する。
 
-Apple Signing Serviceはfixed `UnsignedApplePayloadV1`、approved entitlement／provisioning ref、[AI Security／Approval](../01-governance/ai-security-approval.md)のRelease decision refだけを受ける。Source、Project、workspace、Build script、compiler、arbitrary shell／environmentを受け取らない。first-party packagerがbundle path、Mach-O、nested code、Info、entitlement、Privacy Manifest、provisioning match、content hashを検査し、nested signing、archive／export／validationを行う。private keyをfile、environment、stdio、logへ展開しない。
+Apple Signing Serviceはfixed `UnsignedApplePayloadV1`、approved entitlement／provisioning ref、[Product Release Decision](../00-product/product-release-decision.md)のexact `ProductReleaseDecisionRecordRefV1`、`ProductReleaseDecisionAuthorityStateRefV1`、`ProductAuthorityStateAuthorizationRecordRefV1`、`ProductAuthorityStateHeadRecordRefV1`だけをauthorizationとして受ける。RecordのSubjectが`approved`、signature／qualified authority quorum／freshness／current revocationが有効、Stateが`current`、State Authorizationが有効、Authority Serviceからread-backした署名済みHeadが同じStateを指し、同じEngine Release／Manifest／Apple Target Packageへ解決する場合だけsigningする。Source、Project、workspace、Build script、compiler、arbitrary shell／environmentを受け取らない。first-party packagerがbundle path、Mach-O、nested code、Info、entitlement、Privacy Manifest、provisioning match、content hashを検査し、nested signing、archive／export／validationを行う。private keyをfile、environment、stdio、logへ展開しない。
 
-Store Upload Serviceはsigned package、`AppleSigningReceiptV1`、short-lived upload credentialだけを持ち、Source／Build script／signing keyを持たない。Receiptはunsigned／signed root、key ref、certificate-chain ref、entitlement／profile hash、Tool ref、validation resultを記録する。UploadはreceiptとRelease decision refが一致しなければ拒否する。
+Store Upload Serviceはsigned package、`AppleSigningReceiptV1`、short-lived upload credential、同じDecision Record／State／Authorization／Headだけを持ち、Source／Build script／signing keyを持たない。Receiptはunsigned／signed root、key ref、certificate-chain ref、entitlement／profile hash、Tool ref、validation result、Decision Record／State／Authorization／Head refを記録する。Uploadはreceiptと四Refが全Field byte equalityでなければ拒否する。expired／revoked／superseded Record、unsigned State、stale Head、approval label、issue state、bare content hashをauthorizationにせず、upload、TestFlight／App Store review、approval、public read-backを別Receiptにする。
 
 Remote Apple serviceはmutual-authenticated transportでrole別versioned RPC `status | submit_unsigned_build | submit_signing | submit_upload | cancel | fetch_artifact | fetch_receipt | fetch_log`だけを公開する。arbitrary shell／path／environmentをWindows Editorへ公開しない。inputはcontent-addressed manifest、lock digest、signed request schema、outputはsecret-free artifact／Receiptだけとする。
 
-`delivery-profile.apple.self-hosted-split`は次のsource-free signing conformanceを全て満たすまでactivateしない。
+`delivery-profile.apple.self-hosted`は次のsource-free signing conformanceを全て満たすまでactivateしない。
 
 1. WorkerにKeychain identity、provisioning material、Store credentialがない状態で同一inputからunsigned arm64 payloadを再現する。
 2. Signing ServiceにSource、Project、Build script、compilerを置かず、fixed RPC／toolだけでnested signing、archive／export、signature／archive validationを完了する。

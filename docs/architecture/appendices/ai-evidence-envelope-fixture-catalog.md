@@ -15,7 +15,7 @@
 
 > 本書は分離前Owner文書の具体Envelope、Registry、Fixture候補を保持する補助文書である。親Ownerが定める意味、不変条件、採否、freshness、failureを上書きせず、対応Artifactが存在しないrecordをcurrent、発行済み、検証済みとして扱わない。
 
-> 以下の見出し番号は、分離前Ownerからの参照互換性と履歴追跡のために維持する。欠番は省略された親Ownerの安定規範であり、本書に補完しない。
+> 以下の見出し番号は、親Ownerの論点番号との対応を明示するために維持する。欠番は親Ownerが所有する規範であり、本書に補完しない。
 
 ## 5. AI Eval lifecycle
 

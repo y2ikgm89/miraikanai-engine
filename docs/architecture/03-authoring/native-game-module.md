@@ -4,20 +4,20 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
-- 非正本範囲: GameplayDefinition、GameSystemSpecV2、System実装選択、typed portsの意味、Project transaction、Toolchain固定値、Runtime ECS storage・query・access manifest、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[C++23 Modules](../02-foundation/cpp23-modules.md)、[Gameplay Programming Model](gameplay-programming-model.md)
-- 関連文書: [Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、Public API Catalogとsubject stability、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
+- 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、Project test semantics、SDK配布／license／Documentation bundle、typed portsの意味、Project transaction、Toolchain固定値、Runtime ECS storage・query・access manifest、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Gameplay Programming Model](gameplay-programming-model.md)
+- 関連文書: [Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Developer Testing](developer-testing.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-23
 
 ## 1. 結論
 
-`NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++23で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。CX0ではModule-ready Header API、CX3ではNamed Modules＋`import std`を使用するが、Process／C ABI／Promotion境界は変えない。
+`NativeGameModule`は、構造化`GameplayDefinition`では表現できないProject固有algorithm、または同一fixtureで必要性を実測したhot pathをC++23で実装する信頼済みProject codeである。一般plugin、Platform SDK bridge、Engine private extension、Script代替ではない。Initial V1は[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)の単一Header-based Shipping APIを使用し、Named Modules、`import std`、BMIを使用しない。Process／C ABI／Promotion境界はC++ Source公開方式と独立する。
 
 Game制作では`BoundedNativeGameProfileV1`（§5.3）へ適合するModuleだけを許可し、Engine本体、Extension、Adapter、公開SDK、Validator、Policyを変更しない。公開SDKで要求を意味同等に実現できない場合、Native C++で境界を迂回せず`capability_unavailable`とする。
 
-Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV2`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
+Native implementationは単独のC++ classを正本にせず、active `GameSystemSpecV1`の一つの`Implementation Variant`として登録する。Engine StandardかProject-definedかにかかわらず、State owner、Command／Event／Snapshot、phase、Save／Replay、Target fallback、semantic equivalence fixtureを同じPublic System Contractへ一致させる。
 
 ShippingではProject C++をGame binaryへ静的linkする。Windows Development Previewだけ、同じentry contractを持つDLLを新しい`GameHost` Processの起動時に一度loadできる。in-process unload、binary差替え、live code patchを行わず、変更時はGameHostを終了して再起動する。AndroidではProject static archiveをGame runtime `.so`へ、Appleではstatic archive／objectをapp executableへlinkする。
 
@@ -37,9 +37,9 @@ C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget
 
 | 主題 | 正本 |
 |---|---|
-| C++／GameplayDefinition選択、GameSystemSpecV2、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
+| C++／GameplayDefinition選択、GameSystemSpecV1、typed Port、System Bundle、Script VM不採用 | [Gameplay programming model](gameplay-programming-model.md) |
 | NativeGameModule artifact、ABI、entry、lifecycle、Build、Package | 本書 |
-| C++ language、compiler、memory、pointer、exception、target DAG | [C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md) |
+| C++ language、compiler、public surface、memory、pointer、exception、target DAG | [C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md) |
 | Simulation Advance／Cadence、phase、World lease、command／event、queue、failure | [Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md) |
 | Source Worker、Risk、Approval、Promotion authorization | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Game System ID、State owner、Implementation Variant、System Bundle、Target同値性 | [Gameplay programming model](gameplay-programming-model.md) |
@@ -210,7 +210,7 @@ MirakanNativeCadenceInputV1
 
 ### 5.1 公開API
 
-Project sourceが宣言できるEngine依存は次のPrimary Named Moduleだけとする。
+Project sourceが宣言できるEngine依存は次のlogical public dependency IDだけとする。これらはC++ Named Module名ではなく、`CppDependencySetV1`からPublic Header include rootとCMake targetへ一意投影するidentityである。
 
 ```text
 mirakan.foundation
@@ -221,7 +221,7 @@ mirakan.project.contracts
 std
 ```
 
-`CppDependencySetV1`へpublic／private import、closed `StdHeaderId`、closed Header例外を記録する。CX0は上記論理依存を`include/mirakan/`、個別標準Header、`<build>/generated/mirakan/project_contracts/`へ投影し、CX3はPrimary Named Moduleと`import std;`へ投影する。`engine/**/source`、vendor header、Platform header、generated backend binding、Editor headerをinclude pathへ加えない。CIはCX0のinclude graph／preprocessor trace、CX1以降のModule dependency scan／ASTを検査する。
+`CppDependencySetV1`へpublic／private dependency、closed `StdHeaderId`、closed Header例外を記録する。Initial V1は上記論理依存を`include/mirakan/`、個別標準Header、`<build>/generated/mirakan/project_contracts/`へ一意投影する。`engine/**/source`、vendor header、Platform header、generated backend binding、Editor headerをinclude pathへ加えない。CIはinclude graph、preprocessor trace、standalone Header compile、AST public surfaceを検査し、Named Module dependencyまたはBMIを入力にしない。
 
 Generated C++ adapterは[Memory／Pointers](../02-foundation/memory-pointers.md)の`CppValueTransferPolicyV1`、`PointerContractV1`、`MemoryContractV1`へexact解決する。C ABIのpointer／count／alignment／call lifetimeを検証してcall-scope `std::span`またはgenerated bounded viewへ変換し、return後に保持しない。`unique_owner`／`move_sink`はABIを越えず、Memory Port、opaque handle、caller-owned bufferを使う。
 
@@ -241,13 +241,71 @@ MCDから生成するProject C++ APIは次を提供する。
 
 公開APIはEngine object pointerを返さない。`RuntimeEntityHandle`、`AssetVersionHandle`、`NativeSystemHandle`はindex＋generationまたはopaque fixed-width valueであり、保存や別session再利用を禁止する。callbackを越えるEntity参照は[Runtime ECS](../04-runtime/entity-component-system.md)の`RuntimeEntityRefV1`へ投影する。
 
-Runtime ECS正本化でNative ABIがrelease、external client、retained artifactから読まれる可能性がある場合、それは`native_abi` consumerとして[Compatibility／Evolution](../02-foundation/compatibility-evolution.md#42-ecs-consumer-inventory-boundary)へrecordする。本文書のC ABI規約だけから公開済みconsumer、old reader、compatibility windowが存在すると推測しない。complete Consumer Inventoryとscope Requirementのpass fulfillmentがsource rebuildまたはversioned migrationの条件を証明するまで、ABI aliasや旧handle projectionを追加しない。
+Native ABIは[Runtime ECS](../04-runtime/entity-component-system.md)のinitial V1 refとbounded projectionを直接参照し、本文書のC ABI規約だけから公開済みconsumer、old readerまたはcompatibility windowが存在すると推測しない。初回materialization後にABIを変更する場合だけ`native_abi` consumerとして[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)へrecordし、承認済みclassなしにABI aliasまたは旧handle projectionを追加しない。
+
+#### 5.1.1 Public API Catalogとsubject stability
+
+公開SDKへ含まれるHeader、namespace、type、function、constant、enum、error、callback、generated binding、build requirementは一件残らず`PublicApiCatalogV1`へ列挙する。Documentation、Sample、Project test、SDK distributionはこのCatalogと同じ`PublicContractSetV1`を消費し、include path、symbol export、autocompleteまたは使用例からpublic statusを推測しない。
+
+```text
+PublicApiSubjectV1
+  api_subject_id: StableId
+  api_subject_version: positive u32
+  subject_kind:
+    header | namespace | type | function | constant
+    | enum | error | callback | generated_binding | build_requirement
+  canonical_cpp_name: ASCII qualified name
+  owning_public_contract_member_ref: exact PublicContractMemberRefV1
+  declaration_artifact_ref: exact ArtifactSliceRefV1
+  stability: stable | preview
+  availability_profile_refs[1..64]:
+    sorted unique exact PublicApiAvailabilityProfileRefV1
+  ownership_contract_ref: exact PublicApiOwnershipContractRefV1
+  threading_contract_ref: exact PublicApiThreadingContractRefV1
+  error_contract_ref: exact PublicApiErrorContractRefV1
+  documentation_entry_refs[1..64]:
+    sorted unique exact DocumentationEntryRefV1
+  api_subject_content_hash: SHA-256
+
+PublicApiCatalogV1
+  public_api_catalog_id: StableId
+  public_api_catalog_version: positive u32
+  public_contract_set_ref: exact PublicContractSetRefV1
+  subject_refs[1..65535]:
+    sorted unique exact PublicApiSubjectRefV1
+  forbidden_include_root_refs[1..64]:
+    sorted unique exact ArtifactPathPolicyRefV1
+  catalog_content_hash: SHA-256
+```
+
+各exact `{public_contract_set_ref, target_profile_ref, toolchain_lock_sha256}`について、公開C++ callable集合を`C`、callable `f`のparameter数を`p(f)`、non-void returnを持つ時だけ1となる値を`r(f)`とする。Catalog publication前にchecked arithmeticで
+
+```text
+sum(f in C, p(f) + r(f)) <= 65536
+```
+
+を検証し、この左辺の各要素を[Memory／Pointers](../02-foundation/memory-pointers.md)のexactly one `CppValueTransferPolicyV1.bindings[]` rowへset equalityで投影する。上限超過、parameter／returnのmissing・orphan・duplicate bindingをCatalog全体のrejectionにし、複数Policyへの暗黙sharding、Catalog subsetまたはTarget／Toolchainを違えるPolicyの合成で上限を回避しない。
+
+`stable` subjectは公開releaseで通常利用できる契約であり、意味、ownership、threading、error、Target availabilityを変更する時は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のexternal API assessmentを必要とする。`preview` subjectはProduction依存の既定選択にせず、exact release、Target、既知制限、終了／昇格条件をDocumentationへ表示する。Previewであっても同じrelease内でCatalogから消したり、同名で意味を差し替えたりしない。
+
+最初のmaterialized／公開SDKより前のdesign revisionはCompatibility Ownerのclean initial version規則に従い、current Catalog、Subject、Refをすべて`V1`として直接定義する。旧draft alias、compatibility Header、deprecated wrapper、dual declarationを作らない。公開後のsubject removal／rename／signature／layout／exception／ownership／threading変更は、consumer inventoryとfinite migration／deprecation decisionなしに行わない。
+
+Catalogのclosureは少なくとも次を検証する。
+
+- declaration artifactの全public symbolがexactly one subjectへ解決し、Catalogだけのghost subjectがない。
+- public C++ name、C ABI entry、generated binding、Documentation、Sample、Project testが同じcontract memberへ解決する。
+- Engine private、Editor、vendor、Platform、test-only declarationがpublic include／link surfaceへ漏れない。
+- Target／configurationで利用不能なsubjectはcompile-time typed diagnosticまたはavailability queryで明示し、空実装、no-op、別Backendへ意味変更しない。
+- ownership、lifetime、nullability、thread／phase、allocation、error、determinism、Save可否がすべてbounded contractへ解決する。
+- Catalog hash、public API hash、SDK artifact、Native build identity、Engine release bindingがsame candidateで一致する。
+
+Public APIのsource互換、binary互換、semantic互換、Save／wire互換を一つの`compatible` Booleanへ畳み込まない。NativeGameModuleのShipping static linkはEngine releaseごとのrebuildを許せるが、これをsource／semantic breakの許可またはDocumentation省略の根拠にしない。
 
 ### 5.2 STL、RTTI、Exception
 
 | 項目 | 規則 |
 |---|---|
-| STL | Module内部で使用可。CX1以降は原則`import std;`。ABI struct、callback parameter、Engine container ownershipへ出さない |
+| STL | Source／private implementationで使用可。必要な個別標準Headerを直接includeし、ABI struct、callback parameter、Engine container ownershipへ出さない |
 | RTTI | Compilerは基盤規約どおり有効。Engine reflection、serialization、Capability discoveryへ使わない |
 | Exception | Module内部で使用可。ただし全generated trampolineでcatchしtyped `NativeModuleError`へ変換。ABI／Subsystem boundaryを越えない |
 | Allocation | Engineは`MirakanNativeMemoryPortV1 {context, allocate, deallocate}`の固定C function tableを渡す。Moduleは必要ならこれをmodule-owned `std::pmr::memory_resource` Adapterで包むが、PMR objectを境界へ渡さない |
@@ -267,13 +325,13 @@ Module内部のPMR containerはMemory Portを包むmodule-owned `std::pmr::memor
 |---|---|
 | `schema_version`／`profile_id` | MCD共通Envelopeに従うgenerated ID |
 | `engine_public_api_hash` | 適合検査対象のEngine公開APIをexactに固定するSHA-256 |
-| `allowed_named_modules[]` | §5.1のPrimary Named Module集合のclosed subset |
+| `allowed_public_dependency_ids[]` | §5.1のlogical public dependency ID集合のclosed subset |
 | `allowed_std_header_ids[]` | `CppDependencySetV1`のclosed `StdHeaderId` allowlist |
 | `forbidden_operation_rule_ids[]` | §5.2のGlobal state／Thread／I-O／明示的allocation禁止に対応するclosed rule ID集合 |
 | `memory_limit_refs[]` | `MirakanNativeMemoryPortV1`の`hard_limit_bytes`等、上限値へのexact参照 |
 | `gate_ids[]` | §12のSource scan／manifest一致検査を含む検査Gate ID集合 |
 
-Profileの各Fieldは本書の各節が所有する規則へのexact参照であり、閾値・上限のNormative値を複写しない。適合はSource Gate（§12のAST／Module graph／link import scan）とload時照合（§7.1のGraph照合）で機械検査し、不適合ModuleはGame制作Taskで登録しない。
+Profileの各Fieldは本書の各節が所有する規則へのexact参照であり、閾値・上限のNormative値を複写しない。適合はSource Gate（§12のAST／include graph／link import scan）とload時照合（§7.1のGraph照合）で機械検査し、不適合ModuleはGame制作Taskで登録しない。
 
 ## 6. Lifecycle
 
@@ -310,14 +368,14 @@ Discovered
 | Field | 規則 |
 |---|---|
 | `system_id` | Cooked package内runtime `uint32` ID、generated。永続化／別Package比較禁止 |
-| `system_contract_version` | `GameSystemSpecV2.version`からgenerated |
+| `system_contract_version` | `GameSystemSpecV1.version`からgenerated |
 | `implementation_variant_hash` | Source、generated binding、manifest、configを結ぶSHA-256 |
-| `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV2`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
+| `phase_mask` | 重複なしの`TickPhaseId[1..16]`。`GameSystemSpecV1`からphase ordinal順に生成された許可集合だけを消費し、Native側でphaseを追加しない |
 | `read_component_set` | `RuntimeComponentAccessManifestV1`のread setかつcallbackのquery dispatch selectionに一致するsubset |
 | `write_component_set` | `RuntimeComponentAccessManifestV1`のwrite setかつcallbackのquery dispatch selectionに一致するsubset |
 | `structural_permission_set` | Manifestのoperation kind、target Component／transition、template、apply boundary、count／byte budgetに一致するsubset |
-| `read_state_set` | `GameSystemSpecV2`とstate store bindingが許可するGameplayState field subset |
-| `write_state_set` | `GameSystemSpecV2`のexact active State ownerに属するGameplayState field subset |
+| `read_state_set` | `GameSystemSpecV1`とstate store bindingが許可するGameplayState field subset |
+| `write_state_set` | `GameSystemSpecV1`のexact active State ownerに属するGameplayState field subset |
 | `command_set`／`event_set` | 生成可能な型のsubset |
 | `max_instances` | finite hard bound |
 | `scratch_bytes` | phaseごとのhard bound |
@@ -326,7 +384,7 @@ Discovered
 | `state_owner_set_hash` | Specのowned State Type集合と一致 |
 | `invoke` | generated no-throw trampoline |
 
-`GameSystemSpecV2.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、ECS Manifest、generated implementation binding、descriptorのread Component、write Component、structural permission、read／write State集合を正逆方向に検査し、descriptorがManifest権限を拡張する場合だけでなく、generated bindingが要求するaccessをdescriptorが欠落させる場合もLoad時にModule全体の登録失敗とする。より強いauthorityへの暗黙昇格、State writeをComponent writeとして代用すること、structural permissionを汎用commandとして代用することを禁止する。
+`GameSystemSpecV1.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、ECS Manifest、generated implementation binding、descriptorのread Component、write Component、structural permission、read／write State集合を正逆方向に検査し、descriptorがManifest権限を拡張する場合だけでなく、generated bindingが要求するaccessをdescriptorが欠落させる場合もLoad時にModule全体の登録失敗とする。より強いauthorityへの暗黙昇格、State writeをComponent writeとして代用すること、structural permissionを汎用commandとして代用することを禁止する。
 
 Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component read／write access、structural permission、State read／write access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはstep sequence、exact Cadence Profile identity、closed cadence branch input、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。authoritative runtime state／Command／Event publicationはcallback成功後だけRuntime規約のcanonical merge順で行い、Worldを持たないUI-only／headless branchにも同じ規則を適用する。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
 
@@ -394,7 +452,7 @@ absolute path、user、timestampをobjectの意味入力にしない。Target別
 Native buildは`NativeModuleBuildEvidenceV1`として次のdomain evidenceだけを出力する。
 
 - Source delta／source tree hashとRequirement mapping
-- generated Module／C ABI contract hash、Dependency Set、manifest、Capability／access／budget
+- generated Public Header／C ABI contract hash、Dependency Set、manifest、Capability／access／budget
 - build identity、Target、Configuration、Toolchain lock、artifact hash
 - primary／secondary compile、format、warning、static analysisの結果
 - unit、property、fuzz、integration、replay、save／load、ASan、contract conformanceの結果
@@ -403,7 +461,7 @@ Native buildは`NativeModuleBuildEvidenceV1`として次のdomain evidenceだけ
 
 `NativeModuleBuildEvidenceV1`はbuild事実のimmutable envelopeであり、Risk、Approval、review attestation、promotion、activationを決定しない。それらの分類、署名者、失効、authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)と[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有する。`SystemBundleChangeSetV1`と実装切替は[Gameplay programming model](gameplay-programming-model.md)、Projectへの登録とCommitは[Project state](project-state.md)が所有する。
 
-Source、generated Module／C ABI Header、Dependency Set、Build artifact、build evidenceのhashが一つでも一致しなければload候補にしない。BMI hash自体はArtifact identityにせず、Toolchain／Configurationを含む破棄可能CacheとしてC++言語・Modules規約どおり分離する。Governanceからauthorizationが返らないartifactはinactiveに保ち、Projectは直前のQualified Variantを参照し続ける。
+Source、generated Public Header／C ABI Header、Dependency Set、Build artifact、build evidenceのhashが一つでも一致しなければload候補にしない。Named Module、Header UnitまたはBMIを検出した候補は[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)の禁止境界違反として拒否し、Artifact identity、Cacheまたはfallback入力にしない。Governanceからauthorizationが返らないartifactはinactiveに保ち、Projectは直前のQualified Variantを参照し続ける。
 
 ### 9.3 AI生成SourceとCode owner gate
 
@@ -450,11 +508,6 @@ BoundedNativeGameProfileRefV1
   profile_schema_version: 1
   profile_content_hash: Sha256DigestV1
 
-NativeSourceTargetProfileRefV1
-  target_profile_id: StableId
-  target_profile_version: uint32
-  target_profile_content_hash: Sha256DigestV1
-
 NativeSourceRequirementRefV1
   requirement_id: StableId
   requirement_version: uint32
@@ -480,7 +533,8 @@ NativeModuleSourceTaskV1
   public_sdk_contract_set_hash: Sha256DigestV1
   engine_public_api_sha256: Sha256DigestV1
   toolchain_lock_sha256: Sha256DigestV1
-  target_profile_refs[1..64]: NativeSourceTargetProfileRefV1
+  target_profile_refs[1..64]:
+    sorted unique exact TargetProfileRefV1
   requirement_refs[1..128]: NativeSourceRequirementRefV1
   code_owner_assignment_ref: CodeOwnerAssignmentRecordRefV1
   code_owner_assignment_sha256: Sha256DigestV1
@@ -553,8 +607,8 @@ Save互換検証なしに旧Play stateを新Processへ移さない。Preview art
 | invalid handle／lease | command reject、authoritative invariantならsession fault |
 | DLL file lock／load failure | Editorは継続、last valid artifactを明示表示 |
 | Mobile C++変更 | rebuild、re-sign、reinstallなしのPreviewを禁止 |
-| 未宣言import／未許可Header／Module cycle | Source Gate失敗、Header方式へFallbackしない |
-| `import std`／BMI／Module tooling不成立 | Active C++ Frontend Profile失敗、artifactを生成しない |
+| 未宣言include／未許可Header／CMake dependency cycle | Source Gate失敗、近いHeaderまたはTargetへFallbackしない |
+| `export module`／`import std`／Header Unit／BMI tokenまたはartifact検出 | C++ Public Surface Gate失敗、artifactを生成またはloadしない |
 | Code owner Assignment不在／Role欠落・unknown・Shader Role／失効／Scope外 | Source Workerを起動せず`AwaitingCodeOwner`。BeginnerはDefinition／prequalified Packへ再Plan |
 | Code owner ApprovalのDiff／revision／Receipt不一致 | Promotion／load拒否、Sourceはinactive Stagingに隔離 |
 | Native Widget manifest／Capability／Target不一致 | Widget callback登録前にreject、UI規約のfallbackへ遷移 |
@@ -593,7 +647,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - AI生成SourceがGovernance authorization前に正規Project／Editor／Shippingへloadされない。
 - AI生成Sourceはexact `role.code_owner.native_module`、Native Scope、current Qualification、`revoked_at=null`を持つ`CodeOwnerAssignmentV1`なしに生成されず、exact Diffの`CodeOwnerApprovalV1`なしにPromotion／loadされない。missing／unknown／`role.code_owner.project_shader`／Scope差／revokedを一原因ずつ拒否する。
 - Beginner Profileでは新規Native Source Taskが0件で、Definition／prequalified Pack不能な要求を`capability_unavailable`として停止する。
-- CX3ではEngine C++ Public Headerをincludeせず、`CppDependencySetV1`、実際のimport、CMake DAGが一致する。
+- Engine C++ Public Header、`CppDependencySetV1`、実際のinclude、CMake DAGが一致し、Named Module／BMI dependencyが0件である。
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
 - C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
 - ECS format migrationを伴うNative ABI変更では、native_abi Consumer Inventory record、全Evidence Requirementのpass satisfaction binding、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じqualification closureへexact解決しなければload／releaseを許可しない。

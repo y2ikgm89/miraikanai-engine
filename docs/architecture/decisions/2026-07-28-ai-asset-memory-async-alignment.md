@@ -76,7 +76,7 @@ process memoryのreclamationはpersistent Artifactを削除するauthorityでは
 - Owner間でSource／Artifact／generation ref、invalidation、publication boundaryを照合する必要がある。
 - background I/Oが完了しても、dependency、integrity、capacity、generation検証が終わるまで利用可能にならない。
 - Inventory、Projection、Operationが未materializeの間、AIによるAsset説明はreview支援に限定される。
-- 汎用Runtime Asset request、priority、deadline、cancel、generation、residency、evictionのtarget OwnerはRuntime Asset Lifecycleへ一意化した。ただし同文書は`review`、実装は`absent`であり、Decision適用、Definition／Port、consumer migration、Qualificationなしにcurrent Manager、SchemaまたはAPIを推測しない。
+- 汎用Runtime Asset request、priority、deadline、cancel、generation、residency、evictionのinitial V1 OwnerはRuntime Asset Lifecycleへ一意化した。ただし同文書は`review`、実装は`absent`であり、Definition／Port、exact consumer binding、QualificationなしにManager、SchemaまたはAPIのmaterializationを推測しない。predecessor Manager、Owner transfer、aliasまたはdual Registryをinitial V1へ作らない。
 
 ## 6. Canonical Owner documents
 

@@ -65,9 +65,38 @@ source.
   stop as blocked. Do not fall back to another Project, a standalone ChatGPT
   chat, Chrome, an API, or a lower mode.
 - This section selects the destination only. The Global Skill owns dynamic
-  prompt generation, transcript handling, adjudication, and stop rules.
+  prompt generation, in-session transcript handling, adjudication, and stop
+  rules. The repository policy below owns post-closure retention.
 - The ChatGPT Project cannot directly access this local repository. Provide
   only the task-relevant excerpts or artifacts required for the consultation.
+
+## External consultation evidence retention
+
+- This retention policy is a Miraikanai project decision for repository hygiene,
+  not an OpenAI recommendation or an Architecture contract.
+- Treat full consultation prompts, responses, screenshots, and attachment
+  archives as transient working data. Keep them only until findings have been
+  locally adjudicated, every accepted finding has been incorporated into its
+  canonical Owner or ADR, the affected dependency／consumer closure has passed,
+  and the requested terminal audit condition has been verified.
+- Before deleting transient data, update `docs/reviews/README.md` with the audit
+  ID and date, route and mode, scope, input document count and digest when
+  available, valid-gap count, affected canonical Owners or ADRs, closure result,
+  exact terminal response and marker, response digest when available, and
+  retention disposition.
+- After the summary is verified, delete per-round transcript Markdown and
+  consultation attachment archives from the repository. Do not commit them as
+  durable documentation. Read only the compact review summary by default; do
+  not reopen consultation chats or reconstruct deleted transcripts unless the
+  user explicitly requests it.
+- Retain a full transcript only when the user explicitly requires retention or
+  when an unresolved security, legal, licensing, incident, or external-audit
+  obligation requires the original text. Record the reason and removal
+  condition in the review summary.
+- Review summaries are non-normative evidence. They never define current types,
+  values, states, Gates, implementation, qualification, release, or Product
+  completion; those claims remain with their canonical Owner and repository
+  evidence.
 
 ## Architecture document rules
 

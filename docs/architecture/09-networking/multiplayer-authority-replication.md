@@ -184,6 +184,7 @@ MultiplayerParticipantIdentityV1
   previous_participant_ref:
     null | exact MultiplayerParticipantRefV1
   session_id: StableId
+  session_epoch: positive u64
   role: MultiplayerParticipantRoleV1
   external_identity_binding_ref:
     optional exact OpaqueExternalIdentityBindingRefV1
@@ -197,6 +198,7 @@ MultiplayerParticipantIdentityV1
 SessionTransportConnectionBindingV1
   binding_id/version/content_hash
   session_id: StableId
+  session_epoch: positive u64
   participant_id: StableId
   transport_connection_pair_identity_ref:
     exact TransportConnectionPairIdentityRefV1
@@ -209,7 +211,7 @@ SessionTransportConnectionBindingV1
     null | exact SessionTransportConnectionBindingRefV1
 ```
 
-Participantの初版だけ`participant_epoch=1`かつ`previous_participant_ref=null`、後続は同じparticipant／session ID、current head ref、exact `N+1`を持つ。Transport connection集合またはrole変更時は旧Binding／Participant refをretireし、新Binding集合とParticipant epochをatomic publishする。Bindingも各logical bindingの初版だけepoch 1／previous null、後続はcurrent headとexact `N+1`である。Pairはparticipant Connection Identityをexact一件含み、相手向きIdentityをparticipant自身へ誤束縛しない。複数Connectionはshard／handoff／redundant path等のProfile-declared routeだけに使い、同じmessageをarrival順で競合適用しない。route policyはmessage type／authority scopeごとにexact一経路または明示的冗長deduplicationを決め、permitted message type unionはParticipantに必要なProfile集合とset equalityにする。Authority leaseのcurrent集合はSessionの`authority_binding.active_authority_lease_refs[]`が所有し、Participant identityへ埋め戻さない。participant IDをIP、socket、connection ID、Account名から導出しない。external identity bindingはAccount／entitlement Serviceが将来提供するopaque exact Refで、role／authorityを自動付与しない。
+Participantの初版だけ`participant_epoch=1`かつ`previous_participant_ref=null`、後続は同じparticipantと同じ`{session_id,session_epoch}` lifecycle、current head ref、exact `N+1`を持つ。Transport connection集合またはrole変更時は旧Binding／Participant refをretireし、新Binding集合とParticipant epochをatomic publishする。Bindingも各logical bindingの初版だけepoch 1／previous null、後続はcurrent headとexact `N+1`である。Participantと全Bindingの`{session_id,session_epoch}`は包含Session lifecycleとbyte equalityにし、旧session epochのParticipant／Bindingを新lifecycleへ再束縛しない。Pairはparticipant Connection Identityをexact一件含み、相手向きIdentityをparticipant自身へ誤束縛しない。複数Connectionはshard／handoff／redundant path等のProfile-declared routeだけに使い、同じmessageをarrival順で競合適用しない。route policyはmessage type／authority scopeごとにexact一経路または明示的冗長deduplicationを決め、permitted message type unionはParticipantに必要なProfile集合とset equalityにする。Authority leaseのcurrent集合はSessionの`authority_binding.active_authority_lease_refs[]`が所有し、Participant identityへ埋め戻さない。participant IDをIP、socket、connection ID、Account名から導出しない。external identity bindingはAccount／entitlement Serviceが将来提供するopaque exact Refで、role／authorityを自動付与しない。
 
 ```text
 MultiplayerSessionV1
@@ -262,7 +264,7 @@ Sessionの`target_profile_refs[]`は、standalone Profileでは単一Target、pr
 
 初回lifecycleのgenesisだけ`session_epoch=1`、`state_sequence=1`、`previous_session_ref=null`とする。同じepochの後続Snapshotはcurrent head refとstate sequence exact `N+1`を持ち、single-writer CASで一件だけ進める。同じsession IDを新しいlifecycleへ再利用する場合は前lifecycleのterminal headを`previous_session_ref`へ持ち、`session_epoch`をexact `N+1`、`state_sequence=1`にしたnew chainとする。new epoch genesisをnull parentにせず、同じepochのsequenceを1へ戻さない。
 
-`authority_binding=unassigned`と`baseline_binding=unavailable`はactive authority／baselineの不存在を表し、架空のepoch値を予約しない。`synchronizing | active | resynchronizing | migrating_authority`はassigned authorityを必須とする。`synchronizing`はbaseline unavailableを許すが、発行予定Baselineのauthority epochをassigned authority epochへ固定し、Transport peerまたはmessage senderからauthorityを補完しない。`active`は同じsession／authority epochへ解決するcurrent Baselineを必須にする。assigned lease集合はそのSnapshotで有効な同epoch leaseのexact集合、baseline Fieldは参照先Baselineのepochとexact一致しなければならない。表にない遷移、`left | fault`からの同一epoch resume、Transport reconnectだけによる`active`復帰、baseline未完成の`active`、同じauthority epochでのhandoffをrejectする。
+`authority_binding=unassigned`と`baseline_binding=unavailable`はactive authority／baselineの不存在を表し、架空のepoch値を予約しない。`synchronizing | active | resynchronizing | migrating_authority`はassigned authorityを必須とする。`synchronizing`はbaseline unavailableを許すが、発行予定Baselineのauthority epochをassigned authority epochへ固定し、Transport peerまたはmessage senderからauthorityを補完しない。`active`は同じ`{session_id,session_epoch}` lifecycle／authority epochへ解決するcurrent Baselineを必須にする。assigned lease集合はそのSnapshotと同じsession lifecycleかつ同authority epochで有効なLeaseのexact集合、participant集合と全Transport Bindingも同じsession lifecycle、baseline Fieldは参照先Baselineのsession lifecycle／authority epoch／baseline epochとexact一致しなければならない。表にない遷移、`left | fault`からの同一epoch resume、Transport reconnectだけによる`active`復帰、baseline未完成の`active`、同じauthority epochでのhandoffをrejectする。
 
 ## 5. Network Object identityとECS／World binding
 
@@ -271,6 +273,7 @@ NetworkObjectIdentityV1
   network_object_id: StableId
   object_epoch: positive u64
   session_id: StableId
+  session_epoch: positive u64
   spawn_sequence: positive u64
   previous_network_object_ref:
     null | exact NetworkObjectRefV1
@@ -287,13 +290,14 @@ NetworkObjectIdentityV1
   network_object_content_hash: SHA-256
 ```
 
-union外runtime branchを禁止し、pointer、Entity index、World path、display name、spawn packet sequenceだけをidentityにしない。初回spawnだけ`object_epoch=1`かつ`previous_network_object_ref=null`、despawn後の同じnetwork object ID再利用はterminalなcurrent Object ref、object epoch exact `N+1`、増加したspawn sequence、明示spawn／migrationなしに禁止する。current write authorityはSessionのauthority epochと`AuthorityLeaseV1`からscopeで解決し、mutable lease refをObject identityへ埋め戻さない。
+union外runtime branchを禁止し、pointer、Entity index、World path、display name、spawn packet sequenceだけをidentityにしない。初回spawnだけ`object_epoch=1`かつ`previous_network_object_ref=null`、despawn後の同じnetwork object ID再利用はterminalなcurrent Object ref、object epoch exact `N+1`、増加したspawn sequence、明示spawn／migrationなしに禁止する。non-null `previous_network_object_ref`の解決先は同じ`network_object_id`と同じ`{session_id,session_epoch}` lifecycleを持たなければならず、別session epochでは新しいObject chainをprevious nullから開始する。`MultiplayerSessionV1.previous_session_ref`だけがnew session lifecycle genesisで許すcross-lifecycle edgeであり、Network Object chainへ一般化しない。current write authorityはSessionのauthority epochと`AuthorityLeaseV1`からscopeで解決し、mutable lease refをObject identityへ埋め戻さない。
 
 ```text
 AuthorityLeaseV1
   lease_id: StableId
   lease_version: positive u32
   session_id: StableId
+  session_epoch: positive u64
   authority_epoch: positive u64
   holder_participant_ref:
     exact MultiplayerParticipantRefV1
@@ -410,6 +414,7 @@ ReplicationBaselineV1
   previous_baseline_ref:
     null | exact ReplicationBaselineRefV1
   session_id: StableId
+  session_epoch: positive u64
   authority_epoch: positive u64
   source_advance_sequence: positive u64
   world_generation_ref: exact WorldGenerationRefV1
@@ -446,12 +451,13 @@ ReplicationStateEnvelopeRefV1
   envelope_content_hash: SHA-256
 ```
 
-`envelope_content_hash`は自身を除くEnvelope全FieldのMCD canonical bytesに対するSHA-256で、session／authority epoch、advance／tick、snapshot／delta branch、Baseline、recipient projection、Schema set、payload hashをすべて封印する。Refの三Fieldは完成Envelopeとbyte equalityにし、payload hashまたはmessage IDだけからRefを生成しない。Baselineの初版だけ`baseline_epoch=1`かつ`previous_baseline_ref=null`、後続は同じsessionのcurrent Baseline refとexact `N+1`を持つ。authority epoch cutover後の最初のBaselineも旧authorityのfinal Baselineをpreviousに保持し、epochを巻き戻さない。snapshot branchは同じsession／authority／source advanceへ解決する完成Baseline、delta branchは適用元のexact Baseline ID／epoch／hashを持つ。近いbaseline、最新baseline、同じtickの別recipient baselineを代用しない。baseline missing／stale／authority epoch mismatchでは適用せずresyncを要求する。union外payload、partial object setをfull baselineとして扱わない。
+`envelope_content_hash`は自身を除くEnvelope全FieldのMCD canonical bytesに対するSHA-256で、session／authority epoch、advance／tick、snapshot／delta branch、Baseline、recipient projection、Schema set、payload hashをすべて封印する。Refの三Fieldは完成Envelopeとbyte equalityにし、payload hashまたはmessage IDだけからRefを生成しない。`recipient_projection_ref`の解決先`{session_id,session_epoch}`はEnvelopeの同pairとbyte equalityでなければならず、content hashが正しくても旧epoch Projectionを新lifecycleへ再束縛しない。Baselineの初版だけ`baseline_epoch=1`かつ`previous_baseline_ref=null`、後続は同じsessionのcurrent Baseline refとexact `N+1`を持つ。authority epoch cutover後の最初のBaselineも旧authorityのfinal Baselineをpreviousに保持し、epochを巻き戻さない。snapshot branchは同じsession／authority／source advanceへ解決する完成Baseline、delta branchは適用元のexact Baseline ID／epoch／hashを持つ。近いbaseline、最新baseline、同じtickの別recipient baselineを代用しない。baseline missing／stale／authority epoch mismatchでは適用せずresyncを要求する。union外payload、partial object setをfull baselineとして扱わない。
 
 ```text
 ReplicationAcknowledgementV1
   acknowledgement_id: StableId
   session_id: StableId
+  session_epoch: positive u64
   participant_ref: exact MultiplayerParticipantRefV1
   authority_epoch: positive u64
   baseline_epoch: positive u64
@@ -472,6 +478,7 @@ ackはtransport delivery ackではなく、recipientがSchema／authority／base
 RecipientProjectionV1
   projection_id: content-derived StableId
   session_id: StableId
+  session_epoch: positive u64
   recipient_participant_ref:
     exact MultiplayerParticipantRefV1
   authority_epoch: positive u64
@@ -492,7 +499,7 @@ RecipientProjectionV1
   projection_content_hash: SHA-256
 ```
 
-各object集合はuniqueとする。`dormant_object_refs[]`は`relevant_object_refs[]`のsubset、`selected_object_refs[]`は`relevant - dormant`のsubsetである。priority recordのobject集合は`relevant - dormant`、omission reasonのobject集合は`relevant - selected`とそれぞれset equalityにする。snapshot／delta payloadが当該recipientへ含めるobject集合は`selected_object_refs[]`とexact一致し、dormantまたはomitted objectを暗黙送信しない。relevancyはGameplay／World Ownerが提供するtyped scope、visibility policy、participant role、authority、distance class等のregistered inputだけで決める。Render visibility、occlusion query、Camera frustumだけをGameplay relevancy authorityにしない。interest resolverはsame inputからsame set／orderを返し、hash map順、packet budget後の偶然、arrival順を使わない。
+set algebra、interest評価結果のseal、`projection_content_hash`計算またはpublicationより前に、`recipient_participant_ref`の解決先と、`relevant_object_refs[]`、`dormant_object_refs[]`、`selected_object_refs[]`、`priority_records[].network_object_ref`、`omission_reason_records[]`のobject projectionに現れる全`NetworkObjectRefV1`の解決先について、`{session_id,session_epoch}`をRecipient Projectionの同pairとbyte equalityにする。旧epoch Refはexact Ref／content hash／deterministic interest result／後続集合関係が正しくてもrejectし、同じ`network_object_id`または表示上のsession名からcurrent epochへrebaseしない。各object集合はuniqueとする。`dormant_object_refs[]`は`relevant_object_refs[]`のsubset、`selected_object_refs[]`は`relevant - dormant`のsubsetである。priority recordのobject集合は`relevant - dormant`、omission reasonのobject集合は`relevant - selected`とそれぞれset equalityにする。snapshot／delta payloadが当該recipientへ含めるobject集合は`selected_object_refs[]`とexact一致し、dormantまたはomitted objectを暗黙送信しない。relevancyはGameplay／World Ownerが提供するtyped scope、visibility policy、participant role、authority、distance class等のregistered inputだけで決める。Render visibility、occlusion query、Camera frustumだけをGameplay relevancy authorityにしない。interest resolverはsame inputからsame set／orderを返し、hash map順、packet budget後の偶然、arrival順を使わない。
 
 dormancyはstate unchanged／wake conditionのreplication optimizationで、object deletion、World unload、authority removalを意味しない。priorityはbounded classとage ruleで、starvation limitとomission reasonを持つ。bandwidth envelope不足時はProfileのbackpressure／defer／reduced-frequency／session faultから選び、fieldをsilent dropまたはquantization変更しない。
 
@@ -514,6 +521,7 @@ NetworkTimeMappingProfileV1
 
 NetworkTimeSnapshotV1
   session_id: StableId
+  session_epoch: positive u64
   authority_epoch: positive u64
   local_advance_sequence: positive u64
   estimated_authoritative_advance_sequence: positive u64
@@ -607,6 +615,7 @@ host migrationは`listen_server | peer_authority`で明示Qualificationされた
 AuthorityHandoffPlanV1
   handoff_id: StableId
   session_id: StableId
+  session_epoch: positive u64
   source_authority_epoch: positive u64
   destination_authority_epoch: positive u64
   source_authority_lease_refs[

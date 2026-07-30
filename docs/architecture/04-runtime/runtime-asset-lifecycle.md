@@ -13,9 +13,9 @@
 
 ## 1. 結論と状態
 
-本書を、Cook済みAssetをRuntime consumerが要求してから、検証済みgenerationを利用し、leaseを返却し、evict／retireするまでの共通Runtime target Ownerとする。[Runtime Package](runtime-package.md)はRuntime Entry／World Root／Section package closureのstagingとpublicationを維持し、汎用Texture／Mesh／Audio／Font等のrequest／residencyを所有しない。[Asset Lifecycle](../03-authoring/asset-lifecycle.md)はSource、Import、Cook、Catalog、Content Packageの正本を維持し、Runtime lifetimeを所有しない。
+本書を、Cook済みAssetをRuntime consumerが要求してから、検証済みgenerationを利用し、leaseを返却し、evict／retireするまでのinitial V1 Runtime Ownerとする。[Runtime Package](runtime-package.md)はRuntime Entry／World Root／Section package closureのstagingとpublicationを維持し、汎用Texture／Mesh／Audio／Font等のrequest／residencyを所有しない。[Asset Lifecycle](../03-authoring/asset-lifecycle.md)はSource、Import、Cook、Catalog、Content Packageの正本を維持し、Runtime lifetimeを所有しない。
 
-このOwner選択により[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)の`ARCH-C02`をtarget design上で閉じる。文書追加だけでOwner移管、Schema、Service、Runtime module、Capability、Operation、Fixture、ReceiptまたはTarget Qualificationが存在するとは扱わない。実装状態は`absent`であり、全consumer migrationとDecision適用まではcurrent Runtime Asset Managerが存在すると推測しない。
+全consumerは初期Contract Setから本書のexact Owner／Definition refを直接参照する。旧Manager、移管元Owner、source／target Definition、consumer migration、aliasまたはdual Registryをinitial V1へ定義しない。文書追加だけでSchema、Service、Runtime module、Capability、Operation、Fixture、ReceiptまたはTarget Qualificationが存在するとは扱わず、実装状態は`absent`である。
 
 ## 2. 不変条件
 
@@ -147,15 +147,15 @@ RuntimeはCook済みCatalog／Package／Artifactのintegrity、size／range、si
 
 Test pass、simulator、Editor Preview、単一consumer、平均latency、warm cacheだけで全Targetをqualifiedにしない。absolute threshold、Hardware Profile、queue capacity、resident byte、deadlineはPerformance／Platformのfresh Evidenceへ束縛し、未materialize値を本書から生成しない。
 
-## 15. Target design closure
+## 15. Initial V1 design closure
 
-本書のtarget design closureは、次が文書上相互参照できる状態を指す。
+本書のinitial V1 design closureは、次が文書上相互参照できる状態を指す。
 
 1. 全Runtime Asset consumerが本書を唯一のrequest／generation／residency authorityとして参照する。
 2. Asset Lifecycle、Runtime Package、Scheduling、Memory、Performanceとの正本／非正本境界が一致する。
 3. dependency、cancel、activation、lease、eviction、device loss、hot reloadのfailure atomicityが同じ意味へ解決する。
 4. Virtualized Geometryを含む未解決Runtime Asset refが本書へ解決する。
-5. `ARCH-C02`のOwner Decision、consumer inventory、negative scenario、Evidence requirementが同じArchitecture revisionへ閉じる。
+5. 全consumerのOwner／Definition ref、negative scenario、Evidence requirementが同じinitial V1 Architecture revisionへ閉じ、duplicate Owner、近似名fallbackまたは旧aliasが0件である。
 
 このclosureは実装、Service、Schema、Artifact、Fixture、Receipt、Capability ActivationまたはProduct completionを意味しない。
 

@@ -397,9 +397,49 @@ FoliageRuntimeSnapshotV1
   environment_response_state_ref:
     optional exact EnvironmentResponseStateRefV1
   snapshot_content_hash: SHA-256
+
+TerrainRuntimeSnapshotRefV1
+  snapshot_id: StableId
+  world_activation_generation_ref:
+    exact WorldActivationGenerationRefV1
+  snapshot_content_hash: SHA-256
+
+FoliageRuntimeSnapshotRefV1
+  snapshot_id: StableId
+  world_activation_generation_ref:
+    exact WorldActivationGenerationRefV1
+  snapshot_content_hash: SHA-256
+
+TerrainFoliageRepresentationSummaryV1
+  schema_version: 1
+  summary_id: content-derived StableId
+  summary_generation: positive u64
+  project_revision: positive u64
+  world_scope_ref: exact WorldScopeRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  world_activation_generation_ref:
+    exact WorldActivationGenerationRefV1
+  terrain_snapshot_ref: nullable<exact TerrainRuntimeSnapshotRefV1>
+  foliage_snapshot_ref: nullable<exact FoliageRuntimeSnapshotRefV1>
+  entries[0..65536]:
+    domain: terrain | foliage
+    subject_ref: exact versioned Terrain／Foliage domain ref
+    bounds_ref: exact World-space bounds ref
+    mobility_class: static | dynamic | wind_deformed
+    opacity_class: opaque | masked | qualified_extended
+    coverage_class: surface | volume | sparse_instances
+    representation_refs[1..16]:
+      exact versioned representation ref
+  summary_content_hash: SHA-256
+
+TerrainFoliageRepresentationSummaryRefV1
+  summary_id: StableId
+  summary_generation: positive u64
+  summary_content_hash: SHA-256
 ```
 
-Snapshotはimmutable frame／publication inputで、native buffer、pointer、descriptor、Render pass、Physics body、Nav mesh、Runtime queueを含めない。World activation generationとartifact generationが一致しないSnapshotをpublishしない。
+SnapshotとSummaryはimmutable frame／publication inputで、native buffer、pointer、descriptor、Render pass、Physics body、Nav mesh、Runtime queueを含めない。World activation generationとartifact generationが一致しないSnapshotをpublishしない。Runtime Snapshot Refはsnapshot identity、World activation generation、hashの全Field、Summary Refは解決先三Fieldとbyte equalityにする。Summary entriesは`domain, subject_ref`順、各`representation_refs[]`はexact refのcanonical byte順へstrict sortしてduplicateを拒否し、全entryを通じたrepresentation ref総数をchecked sumで`<= 1048576`とする。Terrain／Foliageがどちらも不在の時だけ両Snapshot refとentriesを空にでき、片方が存在する場合は対応domain entry集合をそのSnapshotのactive subject closureとset equalityにする。Summary hashはASCII `MIRAKAN_TERRAIN_FOLIAGE_REPRESENTATION_SUMMARY_V1`と自己hashを除くclosed recordのcount／presence／length-framed canonical bytesからSHA-256する。
 
 ## 7. Environment、Lighting、Collision、Navigation、Gameplay
 

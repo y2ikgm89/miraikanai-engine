@@ -7,7 +7,7 @@
 - 正本範囲: 共通語彙、acronym、正規技術語彙の人間言語境界、public型・Operation・Diagnostic・file・directory命名、Engine／Game Project root、Source／Derived／Intermediate／Package配置、generated file、module／namespace／target対応、lint／migration Gate
 - 非正本範囲: 型・Schemaの構造、外部Tool version、Build Driver、Project revision、Asset lifecycle、Domain固有field。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)
-- 関連文書: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 modules](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
+- 関連文書: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 Language／Public Surface](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -152,7 +152,7 @@ Messageはlocalized projectionでありidentityではない。動的値、path�
 | 対象 | 正規形 |
 |---|---|
 | Architecture Markdown | lowercase kebab-case `.md`、日付なし。Decisionだけ日付prefixを許可 |
-| C++ source／header／module | lowercase snake_case、`.cpp`／`.hpp`／`.cppm` |
+| C++ source／header | lowercase snake_case、`.cpp`／`.hpp` |
 | Directory | lowercase snake_case。文書分類DirectoryはIndex規約でnumeric prefixを許可 |
 | Schema／JSON | lowercase snake_case、型を表すfileはmajor suffixを含める |
 | CMake module | lowercase snake_case `.cmake` |
@@ -161,10 +161,7 @@ Messageはlocalized projectionでありidentityではない。動的値、path�
 | Benchmark | 対象名＋`_benchmark` |
 | Generated file | generator所有root内で正規type／projection名から決定 |
 
-Filename内のdot区切りは次の二つだけを例外として許可し、他に追加しない。
-
-- Module interface fileは[C++23 modules](cpp23-modules.md#7-directoryとsource配置)が定めるPrimary Named Module名＋`.cppm`とする。例: `mirakan.foundation.cppm`。
-- Project manifestは§5の予約名`mirakan.project.json`とする。
+Filename内のdot区切りは§5の予約名`mirakan.project.json`だけを例外として許可し、他に追加しない。Initial V1は[C++23 Language／Public Surface](cpp23-modules.md#5-named-modulesbmi禁止境界)が禁止する`.cppm`、`.ixx`、Named Module interface、partitionを正規file／directory分類へ持たない。
 
 Caseだけが異なる名前、末尾space／dot、reserved device name、Unicode normalizationが異なる同一視名を拒否する。Path segmentはportableなlowercase ASCIIを原則とし、User表示名と物理Pathを分離する。
 
@@ -212,36 +209,13 @@ Engine repository rootは[Core architecture](core-architecture.md)のRepository�
 
 Project root discoveryは`mirakan.project.json`の存在とschema validationで行う。Current working directory、Editor executable位置、親Directory名から推測しない。Project manifest内のProject IDとdisplay nameを物理Directory名から独立させる。
 
-### 5.1 旧Project rootのclean-break disposition
+### 5.1 Initial Project root
 
-旧Project layoutを通常のProject open、Build、Import、Editor、AI Operationで受理しない。専用offline migratorだけが旧rootを入力として認識でき、次表の一つのdestinationへ移すか、明示した理由で破棄する。表にない推測、複数候補へのcopy、旧Path fallbackを禁止する。
+新layoutのTop-level closed setは`source/`、`config/`、`packages/`、`derived/`、`intermediate/`、`staging/`、`evidence/`とmanifestである。対応する旧Project Schema、Project bytes、reader、writer、releaseまたは外部consumerはmaterializeされていないため、このclosed setをinitial V1として直接定義する。
 
-| 旧root | disposition | 新destination／Owner | Migration処理と理由 |
-|---|---|---|---|
-| `authoring/` | 移動 | `source/`／Authoring Gateway | Stable IDとDomain kindを保持してAuthoring Sourceへ移す。旧root自体は削除する |
-| `assets/source/` | 移動 | `source/assets/`／Asset Gateway | Source Assetとimport設定を移し、Catalog参照を同じChangeSetで書き換える |
-| `assets/metadata/` | 移動 | `source/assets/`／Asset Gateway | 対応Asset subjectのSource metadataとして併置し、Asset IDで一意に解決する。独立metadata rootは残さない |
-| `native/game/` | 移動 | `source/native/`／Source Promotion Service | Module単位を保持して移し、CMake inputとgenerated descriptor参照を同時更新する |
-| `.mirakan/journal/` | 明示削除 | Project State owner、旧内容のProject内destinationなし。新journalは`intermediate/journal/`で新規開始 | 旧local operation logはcanonical sourceではない。Commit済みrevisionだけを正本とし、migration receipt確定後に破棄する |
-| `.mirakan/snapshots/` | 明示削除 | Project State owner、旧内容のProject内destinationなし。新snapshotは`intermediate/snapshots/`で新規作成 | 旧recovery snapshotを新Sourceとして昇格しない。必要なcanonical revisionを先にCommitし、snapshotは破棄する |
-| `.mirakan/recovery/` | 移動 | `intermediate/recovery/`／Editor Recovery | crash recovery用local stateとして移し、Source、Package、Git追跡対象にしない |
-| `.mirakan/index/` | 移動 | `derived/index/`／Indexer | Sourceから再構築可能なindexとして移す。内容hashが不一致なら移さず再生成する |
-| `.mirakan/staging/` | 移動 | `staging/`／Trusted Broker | 未Commit proposal／candidateをAuthorityを変えず隔離rootへ移す。期限切れ・入力不明のcandidateは失敗として破棄する |
-| `.mirakan/user/` | 明示削除 | Editor User Profile owner、Project外のUser data root | machine／User固有stateをProjectへ移植せず、Editor profileから再設定する。Project configへcopyしない |
-| `.mirakan/` | 明示削除 | destinationなし | 全child disposition完了後に空であることを検査してrootを削除する。未知childがあればmigrationを失敗させる |
-| `build/` | 明示削除 | Build／Content／Packaging owner、旧rootのdestinationなし | Authorityが混在するため内容を移さない。Sourceから`derived/`、`intermediate/`、`packages/`へ分類別にclean rebuildする |
+過去draftの`authoring/`、`assets/source/`、`assets/metadata/`、`native/game/`、`.mirakan/`、`build/`、`content/`、`resources/`、`game_data/`、`ai_generated/`、`temp/`をcurrent Project root、alias、redirect、symlink／junction、compatibility lookup、dual watch、offline migration inputとして受理しない。これらを検出したProjectはunknown layoutとしてopen／Build／Import／Packageを拒否し、path名からcurrent Source、Derived、Intermediate、PackageまたはUser stateへ推測変換しない。
 
-新layoutのTop-level closed setは`source/`、`config/`、`packages/`、`derived/`、`intermediate/`、`staging/`、`evidence/`とmanifestである。旧root名、`content/`、`resources/`、`game_data/`、`ai_generated/`、`temp/`等の代替rootを追加しない。
-
-Migrationは次のfail-closed手順だけを許可する。
-
-1. Offline migratorが旧tree、manifest、Catalog、全referenceをinventoryし、上表から一意なrename／delete／rebuild planを作る。通常Gatewayは旧rootを探索しない。
-2. 新destinationに別identityまたは異なるcontentのentryがある、case／Unicode正規化後に衝突する、旧rootの一部しか読めない、未知`.mirakan` childがある場合は、変更前に全体を失敗させる。merge、上書き、自動連番をしない。
-3. 隔離temp treeで全Path、Stable ID、Catalog、manifest、reference、Git profileを検証し、一つのProject ChangeSetで新layout profileへの更新、移動、明示削除を原子的にCommitする。失敗時は旧treeをそのまま残す。
-4. Commit後に旧rootが0件、新rootのAuthorityが一意、clean rebuildが成功することを検証してMigration Receiptを確定する。
-5. 新layout profileで旧rootを一つでも検出したProjectは`LegacyLayoutRoot`、旧rootと新rootの併存または欠落を検出したProjectは`PartialLayoutMigration`としてopen／Build／Import／Packageを拒否する。
-
-旧Path alias、redirect、symlink／junction、旧rootから新rootを探すcompatibility lookup、旧Pathと新Pathの二重watch、fallback importを実装しない。未移行Projectは通常openせず、明示されたoffline migrationだけを案内する。
+最初の公開後に実在Project layoutのmigrationが必要になった場合だけ、[Compatibility／Evolution](compatibility-evolution.md)のconsumer inventory、source bytes、reader／writer、rollback、Evidenceを持つ新しいversioned ChangeSetとして設計する。
 
 ## 6. Source、Derived、Intermediate、Package
 
@@ -287,7 +261,7 @@ Generated fileはgenerator ID、generator version binding、input artifact hashe
 - Generated outputを別の正本へ昇格せず、入力が失われたoutputは無効とする。
 - AI生成物は「generated」の名目で承認を迂回せず、Source候補なら`staging/`からChangeSetを通す。
 
-## 10. Module、namespace、target mapping
+## 10. Header、namespace、target mapping
 
 一つのComponent stemから次を機械的に導出する。
 
@@ -295,12 +269,11 @@ Generated fileはgenerator ID、generator version binding、input artifact hashe
 |---|---|
 | Directory | `engine/rendering/render_graph/` |
 | C++ namespace | `mirakan::rendering::render_graph` |
-| Primary module | `mirakan.rendering.render_graph` |
 | CMake target | `mirakan_rendering_render_graph` |
-| Public include（移行期のみ） | `mirakan/rendering/render_graph/...` |
+| Public include root | `mirakan/rendering/render_graph/` |
 | Test target | `mirakan_rendering_render_graph_tests` |
 
-Module segment、namespace segment、target segmentを意味の違うaliasへ変換しない。Primary moduleへversion suffixやPlatform suffixを付けず、Platform差はprivate Adapter targetで表す。ConsumerはpartitionやAdapter moduleを直接importしない。詳細なModule Cutoverは[C++23 modules](cpp23-modules.md)を参照する。
+Directory segment、namespace segment、CMake target stem、public include segmentを意味の違うaliasへ変換しない。Public Headerへversion suffixやPlatform suffixを付けず、Platform差はprivate Adapter targetとprivate Headerで表す。Consumerはprivate source root、Vendor Header、Platform Header、Adapter Headerを直接includeしない。Initial V1の単一Header-based Shipping surfaceとNamed Modules禁止境界は[C++23 Language／Public Surface](cpp23-modules.md)を参照する。
 
 ## 11. C ABI、CMake、HLSL、Tool language
 

@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV2、State owner、typed Command／Event／Snapshot Port、Perception／Interaction／Decision／Action意味、Project-defined System、generated projection／Promotion条件
+- 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV1、State owner、typed Command／Event／Snapshot Port、Perception／Interaction／Decision／Action意味、Project-defined System、generated projection／Promotion条件
 - 非正本範囲: 具体Schema／Registry／Fixture候補、Native ABI、Project transaction、共有Schema基盤、Runtime scheduling、外部Tool固定、Navigation query、Character Motor、Project固有Interaction結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
 - 関連文書: [Generated Projection／Fixture Candidate Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Input](../07-platform/input.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)
@@ -89,13 +89,13 @@ Perception memory、decision state、selected actionのSave／Replay扱いはOwn
 
 Debug projectionは「何を観測し、何を記憶し、どの候補をなぜ棄却し、どのactionを選び、どのSubsystemがどの結果を返したか」を同じcausal chainで返す。gap、expired observation、redacted input、unknown policy、missing terminal resultがある場合はcomplete explanationを捏造しない。Genre固有のNPC behaviorはこのcontractを消費し、Generic Gameplay ModelへRPG／Shooter固有decision treeを追加しない。
 
-## 3. `GameSystemSpecV2`
+## 3. `GameSystemSpecV1`
 
-`GameSystemSpecV2`はGame System identity、owner、origin、Capability、State owner、read／write access、phase、Port、implementation set、Save／Replay、Budget、failure、qualificationを宣言する。
+`GameSystemSpecV1`はGame System identity、owner、origin、Capability、State owner、read／write access、phase、Port、implementation set、Save／Replay、Budget、failure、qualificationを宣言する。
 
 同一authoritative fieldのwriterは同一advanceに一つである。Systemは未宣言Component、State、Portへaccessせず、phaseやpriorityだけでwriter authorityを得ない。Implementation Variantは同じPublic ContractとState semanticsを維持する。
 
-本文の列挙はfield-level Schemaの代用ではない。`GameSystemSpecV2`をcurrent Definition Closureへ含める前に、少なくともSystem identity／version、Owner、origin、Capability、Runtime Scope、State classとState owner、Component read／write集合、structural permission集合、State read／write集合、phase集合、Command／Event／Snapshot Port、implementation set、Save／Replay policy、Budget、failure、qualification subjectを持つ一つのbounded canonical Schemaへ解決する。各collectionのelement type、bound、sort、uniqueness、branch制約、self-excluding contract hashが欠ける場合、Contract compiler、ECS manifest、Native descriptor、Package、Save／Replay projectionを生成しない。
+本文の列挙はfield-level Schemaの代用ではない。`GameSystemSpecV1`をcurrent Definition Closureへ含める前に、少なくともSystem identity／version、Owner、origin、Capability、Runtime Scope、State classとState owner、Component read／write集合、structural permission集合、State read／write集合、phase集合、Command／Event／Snapshot Port、implementation set、Save／Replay policy、Budget、failure、qualification subjectを持つ一つのbounded canonical Schemaへ解決する。各collectionのelement type、bound、sort、uniqueness、branch制約、self-excluding contract hashが欠ける場合、Contract compiler、ECS manifest、Native descriptor、Package、Save／Replay projectionを生成しない。
 
 ### Runtime ECS access cohort projection
 
@@ -105,15 +105,15 @@ Runtime ECS accessはGame SystemのComponent read集合を`RuntimeComponentAcces
 
 Owner identityはstable Owner ID、revision、authority document、content hashを束縛する。表示名、path、旧称をRegistry aliasとして保存しない。具体候補は[補助Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md#owner-identity-registry)を参照する。
 
-`owner.core.runtime_ecs`のcurrent authority sourceは本書revision 1である。target authorityは[Runtime ECS](../04-runtime/entity-component-system.md) revision 2であり、[Governance Migration Proposals](../appendices/governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)の完成ChangeSetが承認され`applied`になるまで移管しない。
+`owner.core.runtime_ecs`のinitial V1 authority documentは[Runtime ECS](../04-runtime/entity-component-system.md)である。本書はGame System identity、authoring semantics、State／Port、ECS access cohortへのprojectionだけを所有し、Entity／Component storage、archetype、query lease、structural transactionまたはRuntime ECS Owner identityを再定義しない。旧Owner revision、移管元、aliasまたはdual Registryをinitial V1へ作らない。
 
 ### 3.1 `RuntimeScopeTypeCatalogV1`
 
 Runtime Scopeはtype identity、instance key schema、owner、lifetime、Save／Replay、activation／deactivation conditionを宣言する。Core closed enumへFeature固有Scopeを埋め込まず、Feature contributionはOwner、version、hash付きrecordとして登録する。
 
-### 3.1.2 Scope依存recordとconditional offline migration
+### 3.1.2 Scope依存record
 
-Scope migrationは実在legacy bytes、signed inventory、Compatibility Change、migration fixture、Qualification、Approvalが揃う場合だけconditional contributionとして追加する。条件未成立時のlegacy migration contribution集合は空である。具体record候補は[補助Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md#312-scope依存recordとconditional-offline-migration)を参照する。
+Runtime ScopeのOwner、typed instance key、lifetime、Save／Replay dependencyはinitial V1の正規recordへ直接定義する。過去draftのinline scope、legacy contribution、offline migration、aliasをcurrent Catalogへ登録しない。具体record候補は[補助Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md#312-scope依存record)を参照する。
 
 ## 4. State ownershipとtyped ports
 

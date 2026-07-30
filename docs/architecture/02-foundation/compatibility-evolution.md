@@ -19,6 +19,10 @@
 
 release済みconsumerを根拠にしない内部設計整理はclean breakを既定とする。旧type alias、dual reader、暗黙変換、synthetic identity、旧path redirectを残さず、committed Sourceから新形式を再生成する。公開済み互換性が必要な場合だけ、versioned migrationと有限のreader期間を承認済みCompatibility ChangeSetへ記録する。
 
+設計文書にだけ存在し、対応するSchema、Generator、serializer、Repository artifact、配布release、公開SDKまたは外部consumerが一度もmaterializeされていないsubjectのrevisionは、互換性versionではない。この状態で名前、Fieldまたは構造を改める場合、current Ownerとcurrent supplementは最初のcanonical public／materialized versionを`V1`として直接定義し、旧draft名、migration、alias、reader、writerおよびconsumer inventoryを作らない。旧draft表記はimmutable ADRまたはreview transcriptだけに履歴として残せる。
+
+`V2`以上へのversion bumpは、直前versionを消費するmaterialized Schema／Artifactまたは公開済みconsumerのRepository／release evidence、影響範囲、Compatibility class、reader／writer方針、rollback判断を同時に示せる場合だけ許す。設計の編集回数、日付、文書revision、候補比較、将来のmigration想定をversion bumpの根拠にしない。
+
 本書は互換性の判定枠組みを所有するだけで、Schema、MCD、Operation、binary readerをactive化しない。
 
 ## 2. 互換性classとconsumer inventory
@@ -140,178 +144,21 @@ clean breakは次の順に扱う。
 
 Sourceを保持することはruntime handle、native pointer、chunk location、worker順、raw memory bytesを保存することではない。これらは再構築できないsession-local値であり、Save／Packageへ擬似互換fieldを追加しない。
 
-## 4. Runtime ECS canonicalizationの互換性
+## 4. Initial V1 direct-definition boundary
 
-Runtime ECS正本化の`source_preserving_recook`はreview中の候補classである。これは[Governance Migration Proposals](../appendices/governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)の`RuntimeEcsCanonicalizationChangeSetV1`候補と一対一に結ぶが、completeかつzero verifiedな`CompatibilityConsumerInventoryV1`とapproved Compatibility ChangeSetが生成されるまで承認済みclassではない。同ChangeSetが`applied`になるまではcurrent formatを変更しない。
+設計文書だけが存在し、Schema、Generator、serializer、Repository artifact、配布release、公開SDKおよび外部consumerが一度もmaterializeされていないsubjectは、§2のCompatibility Change subjectではない。Runtime ECS、Runtime Asset、Math Core、Memory／Pointers、Product Definition、Pack、Player Profile／Settingsを含むinitial V1 Architectureは、それぞれのOwnerが最初のcanonical identity、Field、version、参照方向を直接定義する。
 
-| 旧concept | target concept | target Owner | cutover規則 |
-|---|---|---|---|
-| `EntityHandle` | `RuntimeEntityHandle` | Runtime ECS | old aliasを残さない。callbackを越える参照は`RuntimeEntityRefV1`へ明示投影する |
-| `ComponentAccessManifest` | `RuntimeComponentAccessManifestV1` | Runtime ECS | read/write/structural permission、query selection、phase、budgetをtarget schemaで閉じる |
-| suffixなし`DerivedArtifactManifest` | `DerivedArtifactManifestV1` | Asset Lifecycle | subject tagged unionとgeneric catalog keyへ再Cookする |
-| asset-only catalog entry | `MirakanArtifactCatalogV1` entry | Asset Lifecycle | keyを`{artifact_subject_ref, artifact_role_id}`へ移し、synthetic Asset IDを禁止する |
-| ad-hoc World payload | `RuntimeWorldRootImageV1`／`RuntimeWorldSectionImageV1` | Runtime Package | generic Artifact envelopeを再定義せず、payload contractを分離する |
-| ad-hoc Save／Replay projection | `RuntimeWorldSaveRecordSetV1`／`RuntimeReplayProjectionV1` | Persistence／Save | ECS identity・field projectorを参照し、raw runtime handleを保存しない |
+initial V1では旧draft concept、source／target Owner、Owner revision migration、Product migration source、consumer migration manifest、migration history、alias、dual reader、旧path redirectまたはCompatibility Receiptを作らない。補助reviewは設計の検討履歴を説明できるが、current ArchitectureまたはDefinition Closureへ旧identityを登録せず、Owner文書のdirect definitionを上書きしない。
 
-対象の旧名称は、承認・適用後にActive仕様、current Owner Registry、MCD、native ABI、catalog、diagnostic、生成bindingから消す。history、ChangeSetのsource side、migration fixtureの入力識別子だけは旧形式を判別するために保持できるが、それをcurrent type、alias、dispatch keyとして解釈しない。
+各Ownerはinitial V1 consumerをexact Owner／Definition refへ直接束縛し、次を検証する。
 
-complete Consumer Inventoryの全retained consumerがcommitted Sourceから再構築できる場合だけ、次のconditional policyを使う。
+1. 同じidentity、type、fixed valueまたはoperationのcanonical Ownerがexactly oneである。
+2. current Owner／Definition ref集合に旧draft名、近似名fallback、alias、source／target pairまたはV2以上の根拠なきversionが0件である。
+3. unresolved Type、Schema、hash、FixtureまたはQualificationを文書だけからmaterialized／activeとみなさない。
+4. Save、Replay、Package、Native ABI、external APIへlive pointer、lease、runtime slotまたはraw runtime layoutを保存しない。
+5. initial V1がmaterializeまたは公開された後の変更だけを、新しい`CompatibilityConsumerInventoryV1`と承認済み`CompatibilityChangeSetV1`へ閉じる。
 
-```text
-change_class = source_preserving_recook
-old_reader_policy = absent
-old_writer_policy = absent
-alias_policy = forbidden
-source_preservation_policy = retain
-regeneration_policy = full_recook | full_rebuild
-rollback_policy = source_rebuild
-```
-
-regeneration inputはcommitted Source、Asset import document、approved Runtime entry documentだけである。stale cache、old package bytes、raw Runtime handle、chunk row、address、old generated bindingを入力にしない。
-
-適用時は次をcurrent boundaryからatomicに除去する。
-
-- legacy or suffixless type aliases
-- object-address or pool-slot identity
-- pointer-backed inline Component payload
-- per-Entity virtual update storage
-- Runtime shared_ptr ownership
-- alternate Shipping AoS／sparse-set storage
-- direct mutation during iteration
-- old query cache entries and persisted row selections
-- dual Package／Save／Replay Runtime-layout projections
-- old generated API signatures that violate `CppValueTransferPolicyV1`
-
-committed Project Source、Asset provenance、published Save、Native ABI consumer、distributed Package、external API consumerは、それぞれのapproved migrationが明示しない限り削除しない。
-
-```text
-diagnostic.compatibility.ecs-consumer-inventory-unresolved
-MIRAKAN-COMPATIBILITY-ECS-CONSUMER-INVENTORY-UNRESOLVED
-arguments = change_set_ref, discovery_scope, discovery_state
-result = clean-break application rejected
-
-diagnostic.compatibility.ecs-retained-external-consumer
-MIRAKAN-COMPATIBILITY-ECS-RETAINED-EXTERNAL-CONSUMER
-arguments = change_set_ref, consumer_class, consumer_ref
-result = switch to separately approved finite migration
-```
-
-release、published Save、Native ABI、distribution、external consumerのいずれかがrebuild不能ならclean breakを停止する。finite reader window、target release、telemetry、rollback、removal Gateを持つ別承認の`versioned_reader_migration`または`external_api_deprecation`へ切り替え、readerを推測または恒久化しない。
-
-### 4.1 再生成対象
-
-```text
-RuntimeEcsCleanBreakRegenerationSetV1
-  source_inputs:
-    Project source documents
-    Asset import documents
-    approved Runtime entry documents
-  invalidate:
-    Derived artifact cache
-    artifact catalog
-    runtime world root and section images
-    runtime package manifests and binaries
-    save/replay fixture artifacts
-    generated native and AI projection bindings
-  prohibited_inputs:
-    old manifest bytes
-    old package bytes
-    raw runtime handles
-    synthetic asset identities
-    unsealed live-world capture
-```
-
-このsetは「既存fileを破棄する操作」ではなく、target形式のcurrent candidateとして受理しない入力範囲を示す。物理的なcache cleanupやimplementation手順は実装承認後のOwner手順で決定する。
-
-### 4.2 ECS consumer inventory boundary
-
-ECS正本化では次のdiscovery scopeを必須にする。これはconsumerの存在を主張する表ではなく、Inventoryが未調査対象を残さないための最低調査境界である。
-
-| 調査境界 | inventory class | 完了条件 |
-|---|---|---|
-| Project Source／Authoring document | `authoring_source` | committed Sourceから対象形式を再生成できることをRequirementのpass fulfillmentで確認する |
-| Derived Artifact／Catalog | `derived_artifact` | old manifest bytesをcurrent inputにせずrecookできることをpass fulfillmentで確認する |
-| World Root／Section／Runtime Package | `runtime_package` | Package reader／writer、distribution対象、release rollback要否をRequirementとfulfillmentで列挙する |
-| Save／Replay | `save`／`replay` | retained Save／Replay、reader／writer、migration failureとrollback要否をRequirementとfulfillmentで列挙する |
-| Native Game Module／公開C ABI | `native_abi` | externalまたはrelease済みABIのreader、writer、compatibility windowをRequirementとfulfillmentで列挙する |
-| Renderer／Audio／VFX | `runtime_projection` | live leaseではなくsealed projectionだけを読む境界と再生成可否をpass fulfillmentで確認する |
-| Debug transport／AI capture | `observability_projection` | capture／projectionのreader、redaction、retentionをRequirementとfulfillmentで列挙する |
-| 外部API／配布先／文書projection | `external_api`／`documentation` | 公開surface、distribution、deprecated alias、consumer通知の要否をRequirementとfulfillmentで列挙する |
-
-Runtime ECS正本化の`required_discovery_scope_kinds[]`は`repository_worktree`、`reachable_git_history`、`release_registry`、`distribution_registry`、`native_abi_registry`、`external_api_registry`のexact setとする。存在しないRegistryを省略せず、`not_applicable`とscope固有Requirementのpass fulfillmentで明示する。
-
-materialization時のscope Requirementは次のkind／predicateを使う。これはRequirement instanceの選択規則であって、現在のrecord、Receipt、Approvalを発行するものではない。各instanceは対象source format／Owner／closureを持つimmutable subjectへ束縛する。
-
-| discovery scope | `EvidenceRequirementV1.evidence_kind` | `acceptance_predicate` | pass時に確定すること |
-|---|---|---|---|
-| `repository_worktree` | `repository_tree_inventory` | `exact_set_equality` | frozen source tree内のformat、reader／writer endpoint、derived inputの全量 |
-| `reachable_git_history` | `reachable_history_inventory` | `exact_set_equality` | reachable ref全体でretainされたformat／reader／release metadataの全量 |
-| `release_registry` | `release_registry_inventory` | `registry_export_complete` | subjectに関係するpublished releaseとrollback／old-reader windowの全量 |
-| `distribution_registry` | `distribution_registry_inventory` | `registry_export_complete` | distribution済みPackage／contentとconsumer通知対象の全量 |
-| `native_abi_registry` | `native_abi_registry_inventory` | `registry_export_complete` | published native ABI、header／manifest、consumer compatibility windowの全量 |
-| `external_api_registry` | `external_api_registry_inventory` | `registry_export_complete` | public API／SDK／caller registrationとdeprecation対象の全量 |
-| 発見済みconsumer endpoint | `consumer_endpoint_inventory` | `endpoint_inventory_complete` | 各recordのreader／writer、owner、old reader／writer requirement、rebuild可否 |
-
-scope exportまたはclosed source treeが対象format／consumerを0件と示す場合だけ、対応Requirementの`acceptance_predicate=no_match_in_closed_scope`を使用できる。export未取得、read権限なし、subject format不明、署名／freshness不成立は0件の根拠ではなく`unresolved`である。
-
-current Architectureには、このECS clean breakに対するmaterialized `CompatibilityConsumerInventoryV1`、公開済みconsumer inventory、またはapproved old-reader windowを置かない。この欠落をconsumerゼロと解釈しない。Inventoryがcompleteになる前、または実consumerが見つかった時は、ChangeSetを`review`または`rejected`へ戻し、clean-break approvalを発行しない。
-
-### 4.3 Saveとrelease boundary
-
-Save、Replay、外部Native ABI、配布済みcontent packageに実consumerが存在する場合、source recookだけでは互換性を満たさない。その場合は対象ごとに`versioned_reader_migration`または`external_api_deprecation`を選び、reader／writer version、互換期限、migration failure、rollback、qualification targetをChangeSetへ追加する。
-
-release済みconsumerがないことは`CompatibilityConsumerInventoryV1`のcomplete／zero-verifiedかつscope Requirementのpass fulfillmentでのみ証明する。したがって、将来の実装開始前にconsumer inventoryが見つかった場合だけでなく、Inventoryが未完成、Requirement／binding不足、endpoint不明、またはrebuild statusが`unverified`である場合も、clean breakの前提が未成立としてChangeSetを`rejected`または再reviewへ戻す。
-
-### 4.4 Current local review observation
-
-これは`CompatibilityConsumerInventoryV1`、Compatibility ChangeSet、Evidence Requirement fulfillment、release inventoryではない。2026-07-24にlocal Git baseline `41929d0`とpublic GitHub metadataへ行った未署名の探索結果だけを、将来の再調査時に「何をまだ証明していないか」を失わないため記録する。baselineには追跡pathが51件あり、48件は`docs/**/*.md`、残る3件は`.codex/config.toml`、`.gitattributes`、`.gitignore`である。全reachable historyの変更pathも文書または同3設定だけである。Git tagは0件、`origin`の公開refは`main`だけで、[GitHub Releases](https://github.com/y2ikgm89/miraikanai-engine/releases)も同日時点でrelease 0件を表示した。Source／test／schema／Package／Save／Replay／native header／release artifactはこのbaselineまたはreachable historyに追跡されていない。
-
-| required discovery scope | local観測 | inventoryへ転記できない理由 | 現在状態 |
-|---|---|---|---|
-| `repository_worktree` | baselineは文書と設定だけで、ECS source formatまたはconsumer endpointを発見していない | worktreeは未commitで、観測は署名Receiptでもclosed source snapshotでもない | `collecting` |
-| `reachable_git_history` | tag 0件、全reachable historyの変更pathは文書または設定だけ | 全reachable refの署名済みformat／consumer inventoryを発行していない | `collecting` |
-| `release_registry` | `origin`にtagなし、public [GitHub Releases](https://github.com/y2ikgm89/miraikanai-engine/releases)も観測時release 0件 | public page／Git refはProfileに束縛されたcomplete snapshotでもtrusted collector Receiptでもない | `unresolved` |
-| `distribution_registry` | local repository内にdistribution inventoryはない | 外部authority profile、照会／export、complete snapshot、trusted collector Receiptがない | `unresolved` |
-| `native_abi_registry` | tracked native header／ABI manifestはない | 公開済みABIの不存在をlocal pathの欠落から推測できず、authority profile／snapshot／Receiptもない | `unresolved` |
-| `external_api_registry` | tracked SDK／公開API caller registryはない | 外部consumer・published APIの不存在をlocal pathの欠落から推測できず、authority profile／snapshot／Receiptもない | `unresolved` |
-
-この観測から`consumer_records=[]`、`zero_verified`、`not_applicable`、clean break、old-reader不要を導かない。各行は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#711-evidence-requirementとfulfillment-binding)の`EvidenceRequirementV1`、closed fulfillment subject、freshな`TechnicalQualificationReceiptV1`を揃えた時だけmaterialized Inventoryへ進める。外部registryのauthority profileに基づく照会またはsigned export、complete snapshot、Receiptが与えられない限り、最も安全な結論は`unresolved`である。
-
-### 4.5 外部Registry closureの提出境界
-
-残る4つの外部scopeは、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#712-外部registry-snapshotとauthority-boundary)の`ExternalRegistryAuthorityProfileV1`、同Profileに従う`ExternalRegistrySnapshotV1`、trusted collectorのpass `VerificationReceiptV1`、freshな`TechnicalQualificationReceiptV1`の順で閉じる。これは実装Task、外部サービスへの書込み、資格情報の提出要求、または承認の代行ではなく、外部Ownerが渡すべき最小のevidence interfaceである。
-
-| required discovery scope | Profileが固定するauthorityと完了境界 | normalized inventoryの最小内容 | `complete`にできない場合 |
-|---|---|---|---|
-| `release_registry` | repository／owner、公式release endpointまたはprovider signed export、API／export version、全pageまたはclosed manifest | release／tag、target revision、published／draft／prerelease、asset digest、rollback・old reader window | Profile未確定、認可なし、page未完、source errorは`unresolved` |
-| `distribution_registry` | provider、tenant／namespace、delivery endpoint、全配布channel／regionの閉包 | 配布済みPackage／content、digest、配布先、rollback、consumer通知対象 | provider／namespace未提示、export未取得、範囲不明は`unresolved` |
-| `native_abi_registry` | 公開SDK／header／ABI manifestのauthority、配布namespace、version／compatibility policyの閉包 | ABI／header／manifest version、公開consumer、互換window、retirement／rollback | public ABI sourceまたはconsumer registryが不明なら`unresolved` |
-| `external_api_registry` | public API contract／SDK／caller registrationのauthority、公開namespace、deprecation channelの閉包 | API／SDK version、registered caller／consumer、deprecation通知、sunset／rollback | authority、caller registry、公開範囲のいずれか不明なら`unresolved` |
-
-GitHubを`release_registry`のauthorityとして選ぶ場合、[公式Releases REST API](https://docs.github.com/en/rest/releases/releases)のList releases responseはraw snapshot inputにできる。現行の公開Releases page観測やGit ref照会は、そのProfile、全page closure、trusted collector Receiptを持たないため、これを置換しない。現行reviewでは4 scopeのProfile／Snapshot／Receiptはいずれも未materializeであり、外部照会も発行していない。
-
-| snapshotの検証結果 | Consumer Inventoryへの扱い |
-|---|---|
-| `complete`かつnormalized inventoryが空 | 当該Requirementのpredicateに従ってpass候補にできる。他scope、endpoint inventory、Requirement／binding集合もcompleteになるまで`zero_verified`にしない。 |
-| `complete`かつrecordあり | recordごとにconsumer class、reader／writer、source rebuild、rollbackをInventoryへ入れ、`clean_break`ではなく適切なmigration classを再選択する。 |
-| `authority_denied`、`source_error`、`pagination_incomplete`、Profile／signature／freshness不一致 | empty record、`not_applicable`、old reader不要、clean breakの根拠にせず`unresolved`を維持する。 |
-
-Profile、Snapshot、Receiptの本文へcredential、access token、cookie、外部Ownerの不要な個人情報を複写しない。provider signed exportが利用できる場合はProfileどおりに検証するが、GitHub artifact attestationをRegistryの空集合証明へ流用しない。artifact attestationは実際のrelease artifactのbuild provenance用であり、artifactが存在した時だけ別Evidenceとして検証する。
-
-### 4.6 Foundation Pointer／Memory contractのclean-break境界
-
-[Memory／Pointers](memory-pointers.md)と[Product plan](../00-product/product-plan.md)が定めるMath／Memoryの責務分離は、`subject_id=foundation.pointer-memory-contract`の**planning-only** clean-break候補とする。これは旧combined Work Package／Capabilityを新しいMath CoreとMemory／Pointersの二つのcurrent identityへ置換する対象であり、旧ID、type alias、dual reader、implicit conversion、旧path redirectをtarget current集合へ残さない。
-
-この文書更新は`CompatibilityConsumerInventoryV1`、Compatibility ChangeSet、MCD migration、runtime reader、external通知をmaterializeしない。したがって、current Architectureの旧combined IDが除去されたことだけを外部consumerゼロや実装適用の許可と解釈しない。実装または公開Schemaへ適用する前には、§2のrequired discovery scope全てについてconsumer inventoryをcompleteにし、未知consumerを`zero_verified`へ閉じる。
-
-適用候補の`clean_break`は、少なくとも次を同一ChangeSetで検査する。
-
-1. Product registry、Architecture Document Registry、MCD source、generated projection、current diagnostic／fixture inputに旧combined IDまたはaliasが0件である。
-2. [Memory／Pointers](memory-pointers.md)の`PointerMemoryConsumerBindingV1`で列挙した全consumerが、新しいOwner、reference form、保存、job capture、retire、qualificationの正逆参照を閉じる。
-3. Save、Replay、Package、Native ABI、external APIにlive pointer、lease、span、allocator object、旧IDを擬似互換fieldとして保存しない。
-4. externalまたはretained consumerが一件でも見つかった場合は、clean breakを勝手に例外化せず、対象だけを`versioned_reader_migration`または`external_api_deprecation`として新しいChangeSetへ分離する。
-
-この対象はFoundationの一般語彙とProduct registry identityの更新であり、Entity、Asset、GPU、Physics、Audioなど個別Subsystemの固有handle／retire意味を移管しない。それらは各Ownerがbindingを更新して閉じる。
+初回materialization後にretained Save、Package、Native ABI、external APIまたは配布済みconsumerが存在する変更では、§2～§3のrequired discovery scope、Evidence Requirement、reader／writer policy、rollbackを適用する。実consumerがないことはその時点のcomplete／zero-verified Inventoryでのみ証明し、Architecture review時のRepository観測や文書上の`absent`を将来の互換性判断へ流用しない。
 
 ## 5. Aliasと命名の規則
 

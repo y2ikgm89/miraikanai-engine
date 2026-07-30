@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: MCD共通意味、Requirement、Type、Operation、State machine、Capability、Policy、Profile、Diagnostic、Service、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
-- 非正本範囲: 具体Operation／planning catalog、外部Tool・package固定、Product scope、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics
+- 正本範囲: MCD共通意味、Requirement、Type、Operation、Data Flow共通kind／Envelope、generic Operation Receipt identity／type resolver、State machine、Capability、Policy、Profile、Diagnostic、Service、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
+- 非正本範囲: 具体Operation／planning catalog、外部Tool・package固定、Product scope、Product data-flow payload／Privacy semantics、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)
-- 関連文書: [Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
+- 関連文書: [Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -35,7 +35,9 @@ MCD Sourceは`/schemas/mirakan/`、generated artifactはRepository規約が定�
 
 ## 4. MCD kind
 
-共通kindは`requirement | type | operation | state_machine | capability | policy | profile | diagnostic | service`のclosed setとする。Domainが独自kind、別Envelope、別version意味を追加しない。Domain固有意味は共通kindのpayloadとOwner refで表す。
+共通kindは`requirement | type | operation | data_flow | state_machine | capability | policy | profile | diagnostic | service`のclosed setとする。Domainが独自kind、別Envelope、別version意味を追加しない。Domain固有意味は共通kindのpayloadとOwner refで表す。
+
+`kind=data_flow`はProductが所有またはbundleするoutbound／persisted data flowをContract setへ閉じる共通Envelope kindである。payloadのcomplete schema、purpose、data category、destination、processor、region、retention、consent、User controlおよびPrivacy acceptance意味は[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)だけが所有する。`McdContractRefV1(kind=data_flow)`は同じContract setのexact一recordへ解決し、payloadのData Flow ID／version／content hashをread-backする。`kind=profile | type | requirement`への偽装、Privacy-local narrow Ref、bare endpoint、ID-only、display name、別Contract setまたは`latest`をdata-flow identityにしない。
 
 ## 5. MCD共通Envelope
 
@@ -107,23 +109,86 @@ OperationContractV1
 
 State-changing Operationはauthorization、precondition、prepared candidate、postcondition、private publication preparation、signed wrapper read-back、Public Commit Closure／Marker／after-state atomic CASを分離する。Validation成功だけでpublicationせず、部分成功を残さない。Queryはstate-changing Receiptやpublicationを生成しない。
 
+<a id="operation-receipt-identity"></a>
+
+### 8.0 Generic Operation Receipt identity
+
+Domain固有Receipt payloadの意味は各Ownerが所有し、本節は共通`OperationReceiptRefV1`がwrong Operation、payload Type、purpose、subjectまたはsigned recordへ付け替わらないためのidentity spineとclosed resolverだけを所有する。
+
+| 型 | ASCII domain separator |
+|---|---|
+| `OperationReceiptTypeRegistryV1` | `MIRAKAN_OPERATION_RECEIPT_TYPE_REGISTRY_V1` |
+| `OperationReceiptV1` | `MIRAKAN_OPERATION_RECEIPT_V1` |
+
+```text
+OperationReceiptTypeRegistryV1
+  operation_receipt_type_registry_id: StableId
+  operation_receipt_type_registry_version: 1
+  receipt_type_entries[1..65535]:
+    sorted unique {
+      receipt_payload_type_ref: exact McdContractRefV1(kind=type),
+      authority_service_ref: exact McdContractRefV1(kind=service),
+      operation_refs[1..4096]:
+        sorted unique exact McdContractRefV1(kind=operation),
+      allowed_signed_purpose_refs[1..64]:
+        sorted unique exact McdContractRefV1(kind=policy),
+      required_receipt_subject_contract_refs[1..4096]:
+        sorted unique exact McdContractRefV1(kind=type)
+    }
+  operation_receipt_type_registry_content_hash: SHA-256
+
+OperationReceiptV1
+  operation_receipt_id: StableId
+  operation_receipt_version: positive u32
+  operation_receipt_type_registry_ref:
+    exact OperationReceiptTypeRegistryRefV1
+  operation_ref: exact McdContractRefV1(kind=operation)
+  receipt_payload_type_ref: exact McdContractRefV1(kind=type)
+  signed_receipt_purpose_ref: exact McdContractRefV1(kind=policy)
+  owner_receipt_record:
+    owner_record_id: StableId
+    owner_record_version: positive u32
+    owner_record_content_hash: SHA-256
+  receipt_subject_contract_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=type)
+  receipt_subject_content_hash: SHA-256
+  request_content_hash: SHA-256
+  completed_signed_record_content_hash: SHA-256
+  operation_receipt_content_hash: SHA-256
+```
+
+| Ref | Field |
+|---|---|
+| `OperationReceiptTypeRegistryRefV1` | `{operation_receipt_type_registry_id, operation_receipt_type_registry_version=1, operation_receipt_type_registry_content_hash}` |
+| `OperationReceiptRefV1` | `{operation_receipt_id, operation_receipt_version, operation_ref, receipt_payload_type_ref, signed_receipt_purpose_ref, owner_record_id, owner_record_version, owner_record_content_hash, receipt_subject_contract_refs, receipt_subject_content_hash, request_content_hash, completed_signed_record_content_hash, operation_receipt_content_hash}` |
+
+`OperationReceiptRefV1`はID／version／content hashだけでなく、exact Operation、payload Type、signed purpose、owner-specific backing record、subject contract集合、subject、requestおよびcompleted signed recordを同一tupleへ保持する。解決先`OperationReceiptV1`の全Fieldをbyte equalityにし、そのRegistry entryのpayload Type、Authority Service、Operation membership、purpose membership、required subject contract集合と一致させる。`OperationContractV1.receipt_type_ref`は同OperationのRegistry entryの`receipt_payload_type_ref`とbyte equalityでなければならない。generic RefからDomain successを推測せず、consumerは解決先owner recordをそのOwnerのvalidatorでread-backし、owner-specific completed subjectからsubject contract集合、full context、subject content hash、request content hashを再計算してRef／wrapperとbyte equalityにする。Target、Host、locale、Reference dimension、Project revision、Candidate、Pack、Distribution Subject等のどのcontext Fieldがrequiredかはowner payload Typeが所有し、generic wrapperへ不完全な固定context vectorを複写しない。wrong Operation、wrong payload Type、wrong purpose、wrong Authority、別subject、別request、context欠落、hash-only Ref、display action名またはReceiptへのRef併記による意味拡張を拒否する。
+
+RegistryとReceiptのcontent hashは自己hashだけを除く全Fieldを型固有domain separator、algorithm `sha256`、algorithm version 1、schema順、`uint32_be` length framingでcanonical encodeして計算する。Registry memberはunsigned UTF-8 tuple bytes順にsortする。current initial V1へこのtupleを直接定義し、owner-specific Refを失う旧generic Ref、ID-only alias、dual Registry、`latest` resolverまたはmigration readerを設けない。現RepositoryにSchema、Registry、Receipt、resolverまたはsigned recordは存在しない。
+
 <a id="81-project-runtime-entryruntime-scope"></a>
 
-### 8.1 Project Runtime Entry／Runtime Scopeの正規Operation登録
+### 8.1 Project Runtime Entry／Runtime Scopeのtarget Operation候補
 
-Project Runtime Entry／Runtime Scope Operationの共通成立条件は、Project State ownerが所有するDocument identity、expected revision、Target selector、Scope owner、ChangeSet transactionとexact一致することである。具体MCD record、Policy、Service、Diagnostic、Fixture候補は[Operation／Planning Catalog](../appendices/executable-contracts-operation-planning-catalog.md#81-project-runtime-entryruntime-scopeの正規operation登録)へ分離する。
+Project Runtime Entry／Runtime Scopeのtarget Operation候補が将来materializeされる場合の共通成立条件は、Project State ownerが所有するDocument identity、expected revision、Target selector、Scope owner、ChangeSet transactionとexact一致することである。具体MCD record、Policy、Service、Diagnostic、Fixture候補は[Operation／Planning Catalog](../appendices/executable-contracts-operation-planning-catalog.md#81-project-runtime-entryruntime-scopeのtarget-operation候補)へ分離する。
 
 この節は`service.authoring_command_gateway`が完全登録済みOperationだけを処理し、Provider／MCPが直接Projectを変更しないというauthority境界を所有する。補助Catalogのrecord件数またはIDをactive inventoryと解釈しない。
 
-### 8.1.2 Conditional legacy migration evidence gate
+<a id="812-conditional-legacy-migration-evidence-gate"></a>
 
-Legacy migration Operationは実在するlegacy Source、complete consumer inventory、Compatibility Change、migration fixture、fresh Qualification、Approvalがすべてmaterializeした場合だけclosed catalogへ追加できる。条件未成立時のcurrent migration Operation集合は空である。具体候補は[補助Catalog](../appendices/executable-contracts-operation-planning-catalog.md#812-conditional-legacy-migration-evidence-gate)を参照する。
+### 8.1.2 Post-release migration admission rule
 
-### 8.2 Current Installed Product active Operation closure
+Initial V1へmigration Operationを登録しない。最初の公開後に実在する旧Source、complete consumer inventory、Compatibility Change、migration fixture、fresh Qualification、Approvalがすべてmaterializeした場合だけ、新しいversioned closed catalogへ追加できる。条件未成立時のcurrent migration Operation集合は空である。admission ruleの詳細は[補助Catalog](../appendices/executable-contracts-operation-planning-catalog.md#812-conditional-legacy-migration-evidence-gate)を参照する。
 
-Installed Productのactive Operation closureは、Product Definition、Contract set、Service allowlist、Policy、Validator、Diagnostic、Target bindingのset equalityから決定する。Markdown上の候補表、未Activation planning record、Provider discovery resultをactive集合へ混入しない。現Repositoryではmaterialized closureがないため、active集合を生成済みとは主張しない。
+### 8.2 Target Installed Product Operation closureとcurrent empty state
 
-[Product Lifecycle](../00-product/product-lifecycle.md)のProject bootstrap／update／repair／acceptanceと[Product Security](../01-governance/product-security.md)のcase transition／security update／disclosure／incidentはtyped Operationを要求するが、両文書にOperation ID、MCD record、Owner Manifest、Service allowlist、Signer Policy、Provider／CLI／Editor projectionはまだ存在しない。したがってcurrent active／operational集合への追加はexact 0件であり、型名、state名、UI action、command名からOperationを補完またはdispatchしない。
+Installed Productのtarget Operation closureは、Product Definition、Contract set、Service allowlist、Policy、Validator、Diagnostic、Target bindingのset equalityから決定する。Markdown上の候補表、未Activation planning record、Provider discovery resultをmaterialized／contract-active／active／operational集合へ混入しない。現Repositoryではclosure inputが一つもmaterializeしていないため、四つのcurrent集合はすべてexact `[]`である。
+
+[Product Plan](../00-product/product-plan.md)の`RequiredProductOperationUniverseV1`がProduct claimからrequired `{family,operation,requirement,surface}`集合を導出し、`ProductOperationActivationClosureV1`がMCD Operation、Owner Manifest、Authority Service、Service allowlist、Validator、Diagnostic、Receipt type、surface projection、Activation Evidenceを同じContract setへ閉じる。本書の`OperationContractV1`は各exact Operation Refについてinput／output／authority／risk／side effect／transaction／precondition／postcondition／error／validator／timeout／rate limit／audit／provider exposure／Receiptを完全定義する。Product family名、UI action、CLI command、MCP tool名またはstate transition名からOperation Refを生成しない。
+
+Product claimに必要なinstall／update／repair／uninstall、Project bootstrap／open、human author／preview／validate／commit、build／test／cook／package／launch、diagnostics／support、Pack acquire／install／apply／update／remove、AI read／explain／propose／validate／approve／commit、security case transition／update／disclosure／incident response、publication／withdrawalは[Product Plan](../00-product/product-plan.md)のclosed non-collapsed family universeであり、各familyはexact MCD Operationへ解決しなければならない。human authoringとAI authoring、cookとpackage、diagnosticsとsupport、Pack lifecycleとProduct lifecycleを同一familyへ縮退しない。AI／MCPはProvider projectionであって別Operationまたは別authorityではなく、proposalからcommitまでを単一write Toolへ融合しない。state-changing Operationだけがprepared candidate、required Approval、Authoring Command Gateway、atomic Commit Closure、typed Receiptを持ち、queryはProject mutationまたはCommit Receiptを持たない。
+
+target designのrequired universeとgeneric Operation contractは以上で閉じるが、現RepositoryにはMCD Source、Contract set、Owner Manifest、Service allowlist、Policy、Validator、Diagnostic、Receipt Schema、surface projection、Activation Evidenceが存在しない。したがってRepository-wideの`materialized_operations`、`contract_active_operations`、`active_operations`、`operational_operations`はすべてexact `[]`であり、Architecture上のtarget Operation ID、target-complete candidateまたはfamilyを実装済み、登録済み、契約参照可能またはdispatch可能と扱わない。current Operation状態の唯一の正本は本節であり、appendix、AI Security、Domain文書またはtoken lintが非空集合へ上書きしない。
 
 ## 9. State machine定義
 

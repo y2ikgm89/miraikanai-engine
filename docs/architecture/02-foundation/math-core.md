@@ -78,12 +78,12 @@ MathとCore Utilitiesはほぼ全Subsystemの下位依存であり、ここで�
 
 ### 4.2 Directory
 
-`engine/foundation/`と`engine/math/`は各一つのcomponent rootであり、[C++23 modules](cpp23-modules.md#7-directoryとsource配置)の標準形（CMakeLists.txt、include、modules、source、tests、benchmarks）へ従う。次の概念dirは`source/`配下の実装内部構成（partitionは`modules/`）であり、合成後の正規treeは本節を正本とする。
+`engine/foundation/`と`engine/math/`は各一つのcomponent rootであり、[C++23 Language／Public Surface](cpp23-modules.md#4-initial-v1-public-header-contract)の公開Header境界と[Naming／Project Layout](naming-project-layout.md#10-headernamespacetarget-mapping)の標準形（CMakeLists.txt、include、source、tests、benchmarks）へ従う。次の概念dirは`source/`配下のprivate実装内部構成であり、合成後の正規treeは本節を正本とする。
 
 ```text
 engine/
 ├─ foundation/
-│  ├─ modules/
+│  ├─ include/mirakan/foundation/
 │  └─ source/
 │     ├─ result/
 │     ├─ diagnostics/
@@ -94,7 +94,7 @@ engine/
 │     ├─ bounded/
 │     └─ memory/
 └─ math/
-   ├─ modules/
+   ├─ include/mirakan/math/
    └─ source/
       ├─ scalar/
       ├─ units/

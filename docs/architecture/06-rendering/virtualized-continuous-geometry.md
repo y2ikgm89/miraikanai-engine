@@ -4,7 +4,6 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- Capability状態: `future.capability.virtualized-continuous-geometry-lod = planning_only`
 - 正本範囲: virtualized／continuous geometryの用語、表現ファミリ境界、semantic authoring intent、Target別feature qualification、cluster hierarchy／page artifactの統合契約、outer LODとinner cutの分離、residency／fallback意味、AI read／preview、固有diagnostic／qualification、未決定事項の型付き管理
 - 非正本範囲: Terrain／Foliage Source／identity／domain artifact、GI／reflection／shadow Technique、discrete LOD／HLOD policy、Asset transaction／共通Artifact envelope、Material／Animation意味、World partition、Render pass／resource／queue実行、共通memory／I/O budget、Save／Replay envelope、Tool／SDK／Library lock、Platform activation、AI authorization、実装方式／実装工程／日程。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[LOD](lod.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Render Graph](render-graph.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
@@ -468,7 +467,7 @@ Coordinatorは三入力をowner-qualified priority intentとして受け、同�
 
 `VirtualGeometryResidencyContractRefV1`は`residency_contract_id`、version、`residency_contract_hash`のexact refである。
 
-generic Artifact request／read／decode／upload／residencyのtarget Ownerは[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)へ一意化した。本書はその汎用authorityをvirtual geometry用に横取りせず、`runtime_asset_authority_ref`が同Ownerのapproved／applied exact Definition refへ解決し、Runtime Asset Capabilityが対象TargetでactiveになるまでPlanを`fallback_only`、active Targetを`[]`にする。`ARCH-C02`のtarget design closureは実装、Definition materialization、Capability activationを意味しないため、discrete LOD／HLOD fallbackは維持する。
+generic Artifact request／read／decode／upload／residencyのinitial V1 Ownerは[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)へ一意化する。本書はその汎用authorityをvirtual geometry用に横取りせず、`runtime_asset_authority_ref`が同Ownerのexact Definition refへ解決し、Runtime Asset Capabilityが対象TargetでactiveになるまでPlanを`fallback_only`、active Targetを`[]`にする。Architecture上のOwner closureは実装、Definition materialization、Capability activationを意味しないため、discrete LOD／HLOD fallbackは維持する。
 
 ### 7.3 runtime residency snapshot
 
@@ -694,7 +693,7 @@ VirtualGeometryDecisionV1
 3. Asset LifecycleはArtifactを所有するが、View metric、pool pressure、Render passを持たない。
 4. Runtime PackageはArtifact dependencyを列挙するが、page resident stateをPackageへ焼き込まない。
 5. Worldはprefetch intentを宣言できるが、page ID、micro-cluster、pool slotを持たない。
-6. Cameraは`CameraRenderViewV1`と`ViewLodContextV1`の唯一のView入力であり、virtual path用Cameraを作らない。
+6. Render Graphの`RenderViewV1`と、そこからLOD Ownerがbyte-exactに投影した`ViewLodContextV1`だけをView入力とし、virtual path用Cameraを作らない。
 7. Materials／Animationはfeature compatibilityとsemantic invariantを所有し、Geometry側がshader／deformation意味を推測しない。
 8. Render Graphはresident snapshotからcut／drawを実行するが、Asset generation、I/O／eviction policy、shared budgetを所有しない。
 9. Performanceはcapacityとpressureを所有するが、critical cue、silhouette、fallback semantic floorを変更しない。

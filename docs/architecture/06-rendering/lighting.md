@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: Light Source／Component、light type／shape、photometric quantity／unit／color、attenuation／range、shadow intent、Lighting semantic intent／resolver、Lighting固有operation／diagnostic／qualification
 - 非正本範囲: GI／reflection／advanced shadow／reference transportのTechnique／Target support／fallback、Render pass／cluster／queue／shadow execution、Material shading、Environment composition、Runtime shared capacity、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Materials](materials.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Materials](materials.md)、[World](world.md)
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](render-graph.md)、[Advanced Light Transport](advanced-light-transport.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[Environment／Surfaces](environment-surfaces.md)、[Terrain／Foliage](terrain-foliage.md)、[World](world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
@@ -271,7 +271,37 @@ resolve(
 
 解決順は(1) Schema／Stable ID／base revision／権限、(2) exact World Profile／scope／subject／human lock、(3) Visual Style／Toon response／Environmentのrole recipe、(4) Target適合Light／Shadow／Assetの絞り込み、(5) 物理量／色／配置candidate生成、(6) readability／budget評価、(7) fallback chain、(8) Plan／reason／cost／risk／Preview差分の固定順とする。Toon Profileがnullである場合、Toon Shading Modelを使うMaterialを対象にした`toon_banded` candidateを生成しない。
 
-Renderer入力の`LightSnapshotV1`は`generation`、`view_family_id`、`compact_light_ids[]`、`type_and_flags[]`、`position_and_range[]`、`direction_and_cone[]`、`color_and_radiometry[]`、`shape_parameters[]`、`channel_masks[]`、`shadow_plan_refs[]`、`source_revisions[]`を持つimmutableな論理SoAである。GPU packingはMCD生成`LightGpuRecordV1`とBackend Adapterの所有とし、Snapshotにnative handle／descriptor／GPU addressを含めない。compact indexはgeneration内だけ有効で、Save／Replay／DiagnosticはStable `light_id`を使う。
+Renderer入力を次のversioned recordに閉じる。
+
+```text
+LightSnapshotV1
+  schema_version: 1
+  snapshot_id: content-derived StableId
+  generation: positive u64
+  project_revision: positive u64
+  world_scope_ref: exact WorldScopeRefV1
+  view_family_ref: exact ViewFamilyRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  compact_light_ids[0..65535]: Stable light_id
+  type_and_flags[0..65535]
+  position_and_range[0..65535]
+  direction_and_cone[0..65535]
+  color_and_radiometry[0..65535]
+  shape_parameters[0..65535]
+  channel_masks[0..65535]
+  shadow_intent_refs[0..65535]:
+    nullable<exact ShadowIntentRefV1>
+  source_revisions[0..65535]: positive u64
+  snapshot_content_hash: SHA-256
+
+LightSnapshotRefV1
+  snapshot_id: StableId
+  generation: positive u64
+  snapshot_content_hash: SHA-256
+```
+
+全SoA配列長は`compact_light_ids[]`長とexact equalityにし、light ID順へstrict sortしてduplicateを拒否する。`world_scope_ref`、Target／Qualityは`view_family_ref`の解決先とbyte equalityにする。`shadow_intent_refs[i]`は同ordinalのSource Lightが持つnullable `LightSourceV1.shadow_intent_ref`とbyte equalityであり、ALTが後段で生成する`ResolvedShadowPlanV1`またはRender Graph execution stateをSnapshotへ逆流させない。`LightSnapshotRefV1`は解決先Snapshotの三Fieldとbyte equalityにする。Snapshot hashはASCII `MIRAKAN_LIGHT_SNAPSHOT_V1`と自己hashを除くclosed recordのcount／presence／length-framed canonical bytesからSHA-256する。GPU packingはMCD生成`LightGpuRecordV1`とBackend Adapterの所有とし、Snapshotにnative handle／descriptor／GPU addressを含めない。compact indexはgeneration内だけ有効で、Save／Replay／DiagnosticはStable `light_id`を使う。
 
 `LightSnapshotV1`の抽出・検証・Render Graph入力としての実行はProduct上の`capability.rendering.render-graph-core`に含む。一方、`ResolvedLightPlanV1`を作るIntent discovery／explain surfaceは`planning.operation_family.lighting_discovery`の別activation境界であり、render-graph-coreまたはEnvironment capabilityの有効化から推測して公開しない。
 

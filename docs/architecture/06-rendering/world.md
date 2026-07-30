@@ -84,6 +84,11 @@ SceneSourceRevisionRefV1
   source_revision: positive u64
   source_content_hash: SHA-256
 
+WorldScopeRefV1
+  world_id: StableId
+  source_revision: positive u64
+  source_content_hash: SHA-256
+
 WorldAttachmentRefV1
   {
     kind: composition_root,
@@ -240,7 +245,7 @@ WorldStreamingPlanV1
   schema_version: 1
   plan_id: StableId
   plan_revision: positive u64
-  source_world_ref: exact {world_id, source_revision, source_content_hash}
+  source_world_ref: exact WorldScopeRefV1
   world_space_profile_ref: WorldSpaceProfileRefV1
   partition_algorithm_profile_ref: exact owner-typed ref
   cells[0..1048576]: WorldStreamingCellDescriptorV1
@@ -312,6 +317,40 @@ Ownerが維持する不変条件は次である。
 ## 10. Navigation、Simulation、Renderingとの境界
 
 Worldはgeometry／topology sourceとtyped attachment pointを提供する。Collisionはcollision representation、Physicsはbody／constraint、Navigationはnav data、Renderingはvisibility／draw executionを所有する。
+
+Advanced Light Transportへ渡すWorld-owned representation availabilityを次のread-only publication projectionに閉じる。
+
+```text
+WorldRepresentationSummaryV1
+  schema_version: 1
+  summary_id: content-derived StableId
+  summary_generation: positive u64
+  project_revision: positive u64
+  world_scope_ref: exact WorldScopeRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  streaming_plan_ref: nullable<exact WorldStreamingPlanRefV1>
+  world_activation_generation_ref:
+    exact owner-typed World activation generation ref
+  active_cell_ids[0..1048576]:
+    sorted unique plan-local cell_id
+  available_representations[0..1048576]:
+    cell_id: plan-local cell_id | null
+    source_owner_ref: exact OwnerRefV1
+    source_revision_ref: exact versioned domain Ref
+    representation_ref: exact versioned domain Ref
+    geometry_coverage:
+      static | dynamic | skinned | qualified_subset
+    availability: available | unavailable
+  summary_content_hash: SHA-256
+
+WorldRepresentationSummaryRefV1
+  summary_id: StableId
+  summary_generation: positive u64
+  summary_content_hash: SHA-256
+```
+
+`WorldScopeRefV1`はexact一件のWorld Source revisionへ三Fieldすべてで解決し、表示名、Scene、Runtime World handle、近いrevisionまたは`latest`から補完しない。`available_representations[]`は`cell_id(null first), source_owner_ref, representation_ref`のcanonical byte順へstrict sortしてduplicateを拒否する。Spatial Worldではnon-null cell集合を`active_cell_ids[]`のsubset、Nonspatial Worldでは全`cell_id`をcanonical nullとする。Summaryは`world_scope_ref`とbyte equalityの完成Streaming Plan、exact activation generation、各Domainが公開したversioned representation availabilityだけを束縛し、LOD選択、resident page、Renderer executionまたはruntime Cell phaseを所有しない。Refは解決先三Fieldとbyte equalityにし、summary hashはASCII `MIRAKAN_WORLD_REPRESENTATION_SUMMARY_V1`と自己hashを除くclosed recordのcount／presence／length-framed canonical bytesからSHA-256する。
 
 ### 10.1 Tilemap source、cook、publication
 

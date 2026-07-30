@@ -4,7 +4,7 @@
 - 判断日: 2026-07-29
 - 対象: C++ Game Engine必須機能監査から得たProduct Lifecycle、Product Security、再利用Scene composition、Architecture文書間整合性の設計閉包
 - 非対象: Engine／Schema／Editor／CI／Testの実装、実装Task、実装順序、担当、工数、日程、Plugin ecosystem、汎用Script VM／JIT、Multiplayer、既存形式向け互換fallback
-- 根拠入力: [ChatGPT 5.6 Pro required-features source](../../reviews/2026-07-29-chatgpt-5-6-pro-required-features-source.md)、[feature coverage audit](../../reviews/2026-07-29-chatgpt-5-6-pro-feature-coverage-audit.md)
+- 根拠入力: [External Review Summary](../../reviews/README.md)に要約した非規範review。採用済みclosureは[Architecture Plan Closure Review](../../architecture/appendices/architecture-plan-closure-review.md)から各canonical Ownerへ辿る
 
 ## 1. 結論
 

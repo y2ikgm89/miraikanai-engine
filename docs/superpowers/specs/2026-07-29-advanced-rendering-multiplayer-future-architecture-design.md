@@ -6,7 +6,7 @@
 - 非対象: Engine／Schema／Editor／Server／Service／CI／Testの実装、実装Task、実装順序、担当、工数、日程、Provider選定、Account／Lobby／Matchmaking／Hosting／Cloud運用の採択、現在CapabilityへのActivation
 - 現行状態: 関連Owner文書は`review`、実装は`absent`、将来Portfolioは`planning_only`
 - 反証監査訂正: 初稿のGI＋Reflections一行／全30行は独立ActivationとTarget別claimを閉じないため撤回し、GIとReflectionsを別IDにした全31行を採用する。Owner数は四件のまま
-- 最終反証監査: [Research Adjudication](../../reviews/2026-07-29-advanced-rendering-multiplayer-research-adjudication.md)に全応答と採否を保存し、current bytesの最終確認はBlocker／Major／Minor 0、到達不能／過大claim／authority重複・空白／実装scope混入 0、`公式推奨: 可`。外部監査出力をQualification／承認Receiptにはしない
+- 最終反証監査: [External Review Summary](../../reviews/README.md)へ要約したcurrent bytesの最終確認はBlocker／Major／Minor 0、到達不能／過大claim／authority重複・空白／実装scope混入 0。これはMiraikanaiの採択判断であり、外部団体の公式推奨、Qualificationまたは承認Receiptとして扱わない
 
 ## 1. 結論
 

@@ -303,7 +303,7 @@ Provider-private `KinematicMoveIntentV1`はactor handle、consume advance sequen
 
 Physicsが公開するMCD Capabilityは次のexact二件である。Product `capability.simulation.physics-2d | physics-3d` rowやProvider Catalog rowとは別recordであり、Target別Activation Bindingが同じContract set rootへ接続する。materialized Contract setがない現在は設計候補で、表だけをcurrent refとして解決しない。
 
-共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.physics]`、`requirement_refs=[]`、`since_contract_set=2`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
+共通Envelopeは`mcd_version=1`、`kind=capability`、`version=1`、`status=active`、`owners=[owner.core.physics]`、`requirement_refs=[]`、`since_contract_set=1`、`supersedes=[]`である。Payloadは`maturity=C1`、`supported_targets=[target.android.mobile, target.apple.mobile, target.headless.host, target.windows.desktop, target.windows.editor]`、`conflicts=[]`、`authoring_types=[]`、`operations=[]`、`validators=[]`、`quality_profiles=[]`、`budgets=[]`、`examples=[]`、`ai_guidance=[]`を共通値とする。
 
 | Capability ID | `title` | `description` | `required_capabilities[]` | `rationale_refs[]` | `tags[]` |
 |---|---|---|---|---|---|
@@ -314,10 +314,10 @@ Physicsが公開するMCD Capabilityは次のexact二件である。Product `cap
 
 #### 3.1.1 Production implementation System contract
 
-production Providerの実装先は未指定の「Physics System」ではなく、exact `game_system.engine.physics.kinematic_motion_executor` v1である。これはNavigation Selection／batch ownershipやPhysics authoritative Stateを持たず、検証済みbatchとProfile／Collision snapshotからresolved motion Portを導出するReceipt-free `GameSystemSpecV2`である。次のrecordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical schemaのPhysics具体instanceであり、schemaの再定義ではない。全`@1`は同じContract set rootを持つexact MCD refの表示短記であり、ID文字列へ`@1`を含めない。
+production Providerの実装先は未指定の「Physics System」ではなく、exact `game_system.engine.physics.kinematic_motion_executor` v1である。これはNavigation Selection／batch ownershipやPhysics authoritative Stateを持たず、検証済みbatchとProfile／Collision snapshotからresolved motion Portを導出するReceipt-free `GameSystemSpecV1`である。次のrecordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical schemaのPhysics具体instanceであり、schemaの再定義ではない。全`@1`は同じContract set rootを持つexact MCD refの表示短記であり、ID文字列へ`@1`を含めない。
 
 ```text
-GameSystemSpecV2
+GameSystemSpecV1
   MCD common envelope: all fields
   id: game_system.engine.physics.kinematic_motion_executor
   version: 1
@@ -488,7 +488,7 @@ description=Produce a bounded Physics resolved-motion result from one validated 
 owners=[owner.core.physics]
 requirement_refs=[]
 rationale_refs=[mirakan.arch.simulation-physics#31-kinematic-motion-reference-provider]
-since_contract_set=2
+since_contract_set=1
 supersedes=[]
 tags=[kinematic_motion,motion_executor,physics]
 normative_level=must
@@ -511,7 +511,7 @@ description=Keep the Physics Provider downstream of Navigation selection binding
 owners=[owner.core.physics]
 requirement_refs=[]
 rationale_refs=[mirakan.arch.simulation-physics#31-kinematic-motion-reference-provider]
-since_contract_set=2
+since_contract_set=1
 supersedes=[]
 tags=[authority,boundary,motion_executor,physics]
 normative_level=must_not
@@ -525,7 +525,7 @@ source_refs=[{ref=mirakan.arch.simulation-physics#31-kinematic-motion-reference-
 introduced_by=changeset.architecture.physics.kinematic_motion_executor.v1
 ```
 
-Contract compilerは二RequirementとSpecを同じ`ContractSetSnapshotV2`のMCD local memberとして含め、全MCD edgeをlocal identityで解決し、8件のtyped auxiliary record hashと10 refのexact `GameSystemAuxiliaryRefSetV1`をSpec local payloadへ含めてからmember hash／set rootを計算する。root確定後にだけ次のSystem ref、Qualification、signed Receipt、Activation Bindingを順にmaterializeする。後三recordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `GameSystemQualificationSubjectV1`、`GameSystemQualificationReceiptV1`、`GameSystemActivationBindingV1` schemaのPhysics具体instanceであり、schemaの再定義ではない。
+Contract compilerは二RequirementとSpecを同じ`ContractSetSnapshotV1`のMCD local memberとして含め、全MCD edgeをlocal identityで解決し、8件のtyped auxiliary record hashと10 refのexact `GameSystemAuxiliaryRefSetV1`をSpec local payloadへ含めてからmember hash／set rootを計算する。root確定後にだけ次のSystem ref、Qualification、signed Receipt、Activation Bindingを順にmaterializeする。後三recordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `GameSystemQualificationSubjectV1`、`GameSystemQualificationReceiptV1`、`GameSystemActivationBindingV1` schemaのPhysics具体instanceであり、schemaの再定義ではない。
 
 ```text
 GameSystemContractRefV1
@@ -543,7 +543,7 @@ GameSystemQualificationSubjectV1
   system_ref:
     exact game_system.engine.physics.kinematic_motion_executor v1 ref above
   system_contract_hash:
-    exact self-excluding resolved GameSystemSpecV2 contract hash
+    exact self-excluding resolved GameSystemSpecV1 contract hash
   target_profile_refs:
     exact Provider supported Target Profile set
   fixture_refs[1]:
