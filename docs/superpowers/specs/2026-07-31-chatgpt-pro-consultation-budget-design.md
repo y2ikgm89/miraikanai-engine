@@ -242,8 +242,8 @@ Unexpected write、secret、Scope外取得は既存のfail-closed規則を維持
 
 Live Browser Proは検証に使わない。利用枠を消費しないfresh agent application
 testとして、no-guidance controlと更新Skillを各5件実行する。各sampleの完全な
-payload、response、agent ID、model、timestamp、SHA-256、判定を一時Evidenceへ
-保存する。
+payload、response、agent ID、model（observed value | unknown）、timestamp、SHA-256、判定を一時Evidenceへ
+保存する。`unknown`はapplication-test runtimeがmodel identityを公開しない場合だけ用いる。
 
 Static検証では次を確認する。
 
