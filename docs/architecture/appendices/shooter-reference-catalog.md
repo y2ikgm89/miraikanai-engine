@@ -195,7 +195,7 @@ ResolverはSource termごとにEvidence Requirement IDとconfidenceを返す。c
 
 ### 12.4 Future AI authoring vocabulary（not activated）
 
-この節の九actionは要求分類用のfuture vocabularyであり、MCD `operation` identityではない。従来のname-only `operation.shooter.*`表記は一度もactivateされておらず、current MCD、Pack Manifest、Service allowlist、Provider／MCP Catalogから除外し、legacy aliasとしても読まない。current Shooter Operation setは§4の完全登録済みtarget-provider Binding三件だけである。
+この節の九actionは要求分類用のfuture vocabularyであり、MCD `operation` identityではない。従来のname-only `operation.shooter.*`表記は一度もactivateされておらず、current MCD、Pack Manifest、Service allowlist、Provider／MCP Catalogから除外し、legacy aliasとしても読まない。§4のtarget-provider Binding三Operationもtarget-complete candidateであって未materializeであり、current Shooter Operation setはexact `[]`である。
 
 | Future vocabulary token | 想定Risk | 想定結果 |
 |---|---:|---|

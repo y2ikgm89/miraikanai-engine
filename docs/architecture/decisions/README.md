@@ -28,6 +28,11 @@ This README is navigation/template only and does not itself make an Architecture
 | 2026-07-28 | [Simulation Cadence／Presentation Separation](2026-07-28-simulation-cadence-presentation-separation.md) | `review` | Runtime timing authority separation |
 | 2026-07-29 | [Product Lifecycle／Product Security Ownership](2026-07-29-product-lifecycle-security-ownership.md) | `review` | Product lifecycle and product-wide security ownership |
 | 2026-07-29 | [Advanced Rendering／Multiplayer Ownership](2026-07-29-advanced-rendering-multiplayer-ownership.md) | `review` | Advanced light transport、Terrain／Foliage、Transport、Authority／Replication ownership |
+| 2026-07-29 | [Android Compile／Target SDK and Vulkan Profile Baseline](2026-07-29-android-release-baseline.md) | `review` | Android SDK role separation and required／optional Vulkan Profile baseline |
+| 2026-07-30 | [Product Release／Publication Authority Ownership](2026-07-30-product-release-publication-authority.md) | `review` | Requirement projection、signed release authorization、Platform publication、Product completion authority separation |
+| 2026-07-30 | [C++23 Header Shipping／Toolchain Baseline](2026-07-30-cxx23-header-shipping-toolchain-baseline.md) | `review` | initial V1 C++23 Header public surface、Target Shipping frontend、Windows minimum target baseline |
+| 2026-07-30 | [Product Data Flow MCD Kind](2026-07-30-product-data-flow-mcd-kind.md) | `review` | Product data-flow identity、MCD common kind、Privacy payload ownership separation |
+| 2026-07-30 | [Verification Semantic Admissibility](2026-07-30-verification-semantic-admissibility.md) | `review` | generic verification scope、subject contract、branch and semantic admissibility |
 
 ## 4. Template
 

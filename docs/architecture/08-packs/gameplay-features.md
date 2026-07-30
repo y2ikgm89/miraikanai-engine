@@ -50,7 +50,7 @@ Weapon、Fire Mode、Projectile、Ammo／Reload、Damage、Team、Vital、Score�
 
 ## 4. Game SystemとState owner
 
-Feature-owned Game Systemは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md#3-gamesystemspecv2)の`GameSystemSpecV2`を使用し、Feature owner、State owner、phase、read／write access、Port、implementation set、Budget、failureを宣言する。
+Feature-owned Game Systemは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md#3-gamesystemspecv1)の`GameSystemSpecV1`を使用し、Feature owner、State owner、phase、read／write access、Port、implementation set、Budget、failureを宣言する。
 
 System priorityまたはPack load orderだけでwriter authorityを決めない。同一fieldへ複数contributionが必要な場合は、Ownerがcontribution Type、selection／merge policy、final publisherを一件だけ定義する。
 

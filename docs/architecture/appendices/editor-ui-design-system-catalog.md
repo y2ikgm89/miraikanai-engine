@@ -108,7 +108,7 @@ High Contrastでは上表二profileのcolor tokenをWindows system colorへ置�
 | number、time、memory、progress | Japanese prose中の数値はUI face、editable numeric field・table column・timeline tick・Profiler値はmono face＋tabular figuresを使う。表示桁を固定し、unitはtyped valueのpresentationでありparse対象の文字列にしない |
 | mixed Japanese／ASCII | Japanese sentenceはUI role、identifier／literal／file pathはcode roleに分ける。一つのidentifierの途中でfont fallbackを意味づけに使わず、同一行に混在してもfont size、baseline、copy／pasteのsemanticを変えない |
 
-Iconは`Fluent UI System Icons 1.1.333`、tag commit `1953430cd73f928f3e43997e17a9d058b00d17b8`をbaselineとし、通常はRegular、selected／activeだけはFilledを使う。Tree／field内は16 lu、toolbar／primary actionは20 luを使い、同一semantic tokenで形状を変えない。exact source hash、license、16／20 luのbuild-time conversion output hashをToolchain lockへ固定する。runtime SVG／CSS parserは使わず、承認済みSVGをbuild時にbounded vector pathとDPI bucketごとのraster atlasへ変換する。Fluent geometryはfont-based iconではないため§13.2.1のWindows system text scaleを継承せず、DPI／`editor_ui_scale`だけでphysical sizeを決める。未知、曖昧、emojiのiconをprimary commandに使わない。
+Iconは`Fluent UI System Icons 1.1.334`、tag commit `f2f75a6e4814153d5c049c0f06e197731718326b`をbaselineとし、通常はRegular、selected／activeだけはFilledを使う。Tree／field内は16 lu、toolbar／primary actionは20 luを使い、同一semantic tokenで形状を変えない。exact source hash、license、16／20 luのbuild-time conversion output hashをToolchain lockへ固定する。runtime SVG／CSS parserは使わず、承認済みSVGをbuild時にbounded vector pathとDPI bucketごとのraster atlasへ変換する。Fluent geometryはfont-based iconではないため§13.2.1のWindows system text scaleを継承せず、DPI／`editor_ui_scale`だけでphysical sizeを決める。未知、曖昧、emojiのiconをprimary commandに使わない。
 
 #### Icon semantic token contract
 

@@ -279,7 +279,7 @@ ViewLodContextV1
   context_hash: SHA-256
 ```
 
-この型は[Camera](camera.md)／[Render Graph](render-graph.md)が公開する選択済み`CameraRenderViewV1`からLOD Ownerが作るread-only projectionである。`physical_perspective`は解決済みvertical FOVを持つ`perspective`、`pixel_orthographic`は解決済みvertical spanを持つ`orthographic`へ一意に投影する。Source Camera Profile、Lens、aspect、Post Processを複写せず、`context_hash`はASCII `MIRAKAN_VIEW_LOD_CONTEXT_V1`と自己hashを除くcanonical bytesから計算する。Editor／shadow／reflection／thumbnail Viewは独立したselection／history stateを持つ。
+この型は[Render Graph](render-graph.md)が公開する選択済み`RenderViewV1`からLOD Ownerが作るread-only projectionである。`view_id`、`view_generation`、purpose、Target／QualityはSource Viewとbyte equalityにし、`physical_perspective`は解決済みvertical FOVを持つ`perspective`、`pixel_orthographic`は解決済みvertical spanを持つ`orthographic`へ一意に投影する。Source Camera Profile、Lens、aspect、Post Processを複写せず、`context_hash`はASCII `MIRAKAN_VIEW_LOD_CONTEXT_V1`と自己hashを除くcanonical bytesから計算する。Editor／shadow／reflection／thumbnail Viewは独立したselection／history stateを持つ。
 
 `algorithm.lod.projected_metric.v1`を次に固定する。入力は同じView generationのcandidate setに含まれるView space conservative bounding sphere center `c=(x,y,z)`、radius `r_m >= 0`、候補descriptorの`geometric_error={kind=bounded_m, maximum_object_error_m=e_m >= 0}`で、Math正本どおりCamera forwardは`-Z`とする。`d_m=-z`、`nearest_depth_m=max(near_m, d_m-r_m)`とし、Perspectiveでは`pixel_scale=render_height_px/(2*tan(vertical_fov_rad/2))`、Orthographicでは`pixel_scale=render_height_px/vertical_span_m`とする。
 
@@ -425,7 +425,7 @@ Terrain、foliage、water、snow／surfaceはDomain Ownerがtile／patch／clust
 
 `TerrainLodProfileV1 = LodDomainProfileV1<TerrainLodProfilePayloadV1>`とし、payloadの`tier_metadata[1..32]`は`tier_id`、`maximum_projected_error_px_q16: u32`、exact `patch_bounds_profile_ref`、exact `seam_profile_ref`、exact `material_residency_floor_ref`、exact `streaming_cell_role_ref`を持ち、payload全体に`neighbor_rank_delta_max: u8[0..31]`とexact `gameplay_surface_invariance_contract_ref`を持つ。`FoliageLodProfileV1 = LodDomainProfileV1<FoliageLodProfilePayloadV1>`とし、payloadの`tier_metadata[1..32]`は`tier_id`、exact `wind_profile_ref`、exact `shadow_profile_ref`、nullable exact `impostor_profile_ref`、exact `cluster_bounds_profile_ref`、`maximum_instances_per_cell: positive u32`を持ち、payload全体にexact `gameplay_collision_invariance_contract_ref`を持つ。render patchはCollision height／Nav tile／Gameplay Surface Stateを置き換えず、Gameplay Collision subsetを描画LODへ追従させない。
 
-Terrain／FoliageのSource／artifact／identityは[Terrain／Foliage](terrain-foliage.md)が所有し、本書は同Ownerが公開するrepresentation candidateとLOD Profileだけを消費する。`future.capability.production-terrain`と`future.capability.production-foliage`は独立した`planning_only` entryであり、上記Schema名、Owner link、候補metadataはActive Capability、Operation、Provider、Cook artifact、Runtime candidate、Qualification Receiptの存在を意味しない。旧複合IDからGIまたはdomain supportを推測しない。
+Terrain／FoliageのSource／artifact／identityは[Terrain／Foliage](terrain-foliage.md)が所有し、本書は同Ownerが公開するrepresentation candidateとLOD Profileだけを消費する。`future.capability.production-terrain`と`future.capability.production-foliage`は独立した`planning_only` entryであり、上記Schema名、Owner link、候補metadataはActive Capability、Operation、Provider、Cook artifact、Runtime candidate、Qualification Receiptの存在を意味しない。Terrain、Foliage、GIまたは別domain supportを一つの複合Capability IDから推測する経路を定義しない。
 
 [Environment／surfacesが所有する`WaterLodProfileV1`と`SnowSurfaceLodProfileV1`](environment-surfaces.md)は同文書のclosed payload Schemaを使う。LODはEnvelopeのtier bindingを選ぶだけで、CPU Surface Query／Water Volume／浮力／swimming／Damage／Navigation cost、Gameplay Surface State／friction／movement／foot contact／static coverageを変更しない。降雪particle密度の倍率は`vfx_presentation` classの`VfxLodProfileV1`だけが所有し、`SnowfallVfxProfileV1`の`density_scale`はauthored基準値である。
 
@@ -485,9 +485,9 @@ LodPolicyPresetProvenanceRefV1
 
 `preset_content_hash`はASCII `MIRAKAN_LOD_POLICY_PRESET_V1`と自己hashを除くReceipt-free Preset canonical bytes、Registry hashはASCII `MIRAKAN_LOD_POLICY_PRESET_REGISTRY_V1`、Registry ID／version、Preset ID／version順の全Preset canonical bytesから計算する。`policy_fragment_ref`はPreset／Registry／resolved Policy refを持たないReceipt-free template fragmentへだけ解決する。selected refsはPreset ID／version／hash順、Binding refsは解決したsubject refの同じ順にstrict sortし、duplicateを拒否する。Activation Projectionのselected ref集合とQualification Bindingが解決する合格かつfreshなsubject集合はexact set equalityで、Receipt／BindingをPreset／Registry hashへ戻さない。Resolved Policyは`LodPolicyPresetProvenanceRefV1`だけをReceipt-free provenanceとしてhashへ含め、Activation Projection／Qualification BindingをPolicy／Plan preimageへ戻さない。Project-owned `LodPolicyPresetSelectionV1`とPreviewが外側でfreshness／qualificationを検証する。Feature／Genre contributionは所有Pack identity、Project contributionはProject owner identityへexact解決する。自己namespace外ID、Coreまたは他Owner entryの上書き、duplicate、unknown、stale owner／version／hash、unqualified entry、Target／Capability不成立をfail closedにする。Registry materializationはProject／Pack dependency closureを解決したCompilerが行い、Generic Engine CoreからPackへのdependency edgeを生成しない。
 
-Core required defaultはGenre／object classを仮定しない`lod.preset.core.primary_subject@1 | lod.preset.core.interactive_subject@1 | lod.preset.core.supporting_subject@1 | lod.preset.core.decorative_subject@1 | lod.preset.core.critical_presentation_cue@1 | lod.preset.core.ambient_presentation@1`のexact六件である。従来defaultは次のexact contributionへ移し、同じ意味とresolved policyをgolden fixtureで維持する。
+initial V1のCore required defaultはGenre／object classを仮定しない`lod.preset.core.primary_subject@1 | lod.preset.core.interactive_subject@1 | lod.preset.core.supporting_subject@1 | lod.preset.core.decorative_subject@1 | lod.preset.core.critical_presentation_cue@1 | lod.preset.core.ambient_presentation@1`のexact六件である。次のexact contributionはinitial optional catalogであり、各logical ownerとresolved policyをcanonical fixtureで固定する。
 
-| 従来suffix | canonical `preset_id@version` | `contribution_layer`／logical owner |
+| semantic label | canonical `preset_id@version` | `contribution_layer`／logical owner |
 |---|---|---|
 | `hero_character` | `lod.preset.hero_character@1` | `feature_pack`／`feature.character_locomotion@1` |
 | `interactive_character` | `lod.preset.interactive_character@1` | `feature_pack`／`feature.character_locomotion@1` |
@@ -502,9 +502,9 @@ Core required defaultはGenre／object classを仮定しない`lod.preset.core.p
 | `vfx_ambient` | `lod.preset.vfx_ambient@1` | `core`／`mirakan.arch.rendering-lod` |
 | `pixel_art_sprite` | `lod.preset.pixel_art_sprite@1` | `core`／`mirakan.arch.rendering-lod` |
 
-表のlogical ownerはmaterialization時にversion／content hashを含むexact `owner_ref`またはPack identityへ解決する。Core互換entryはCore required六件とは別のoptional default、Feature entryは該当Packを選択したProjectだけのcandidateである。いずれも全Projectの暗黙default、名前fallbackにはせず、該当Contributionを選択しないProjectでは候補に現れない。これによりboard／puzzle／simulation／tool ProjectがCharacter、Crowd、Combat vocabularyへ依存せず、必要なPackだけが固有Presetを追加できる。
+表のlogical ownerはmaterialization時にversion／content hashを含むexact `owner_ref`またはPack identityへ解決する。Core entryはCore required六件とは別のoptional default、Feature entryは該当Packを選択したProjectだけのcandidateである。いずれも全Projectの暗黙default、名前fallbackにはせず、該当Contributionを選択しないProjectでは候補に現れない。これによりboard／puzzle／simulation／tool ProjectがCharacter、Crowd、Combat vocabularyへ依存せず、必要なPackだけが固有Presetを追加できる。
 
-従来suffixは互換fixtureの説明にだけ残し、新SourceのPreset refまたはaliasとして受理しない。実在する旧bytesを移行する場合はsource schema bytes／Owner／Named Algorithm／immutable fixtureを束縛した別の承認済みschema migrationを先にactivateし、suffixまたはsemantic roleだけで自動変換しない。
+initial V1 Sourceは完全な`LodPolicyPresetRefV1`だけを受理する。表のsemantic label、suffix、display nameまたはsemantic roleをPreset ref、aliasまたは自動選択keyとして定義しない。
 
 ```text
 LodAuthoringContextV1
@@ -536,7 +536,7 @@ LodPlanPreviewV1
   subject_results[1..256]: owner-typed bounded preview results
   aggregate_before_after: owner-typed cost projections
   risk_refs[0..256]: exact risk refs
-  blocking_diagnostic_refs[0..256]: DiagnosticRefV1
+  blocking_diagnostic_refs[0..256]: DiagnosticCodeRefV1
   required_approval_refs[0..64]: exact approval refs
   completeness: complete | partial
   omitted_ranges[0..64]: typed range descriptors
@@ -586,7 +586,7 @@ Qualificationは次のDomain fixtureを持つ。
 
 - Domain schemaからgenerated C++／TypeScript／binary descriptor／MCP projectionが同じclosed field／enumを表し、unknown field／enum／majorを拒否する。projection mechanicsはFoundation ownerを使う。
 - unit、range、monotonic、fallback closure、Selection Row exact一件、bandの全域一回coverage、Preset version、policy lockのpositive／negative fixture。Human、AI、headless CLIが同じIntentから同じPolicy／Receipt-free Plan hashへ収束する。
-- Preset RegistryはCore neutral六件と従来default十二suffixのresolved policyをgolden fixtureで維持し、Genre Pack 0件のneutral Project、qualified `project.board_game.token@1` contributionをpositiveで検証する。unknown ref、Qualification欠落、owner／hash stale、Core ID上書き、同一ID別hash、Pack未選択、表示名／suffixからの暗黙選択を各一原因negativeとしてSource／last-valid Registry不変で拒否する。
+- Preset RegistryはCore neutral六件とinitial optional十二entryのresolved policyをgolden fixtureで固定し、Genre Pack 0件のneutral Project、qualified `project.board_game.token@1` contributionをpositiveで検証する。unknown ref、Qualification欠落、owner／hash stale、Core ID上書き、同一ID別hash、Pack未選択、表示名／suffixからの暗黙選択を各一原因negativeとしてSource／last-valid Registry不変で拒否する。
 - FOV端値、near-plane交差、orthographic／perspective／physical／pixel projection、resolution、dynamic extent、camera cut、split Editor Viewについて`algorithm.lod.projected_metric.v1`のfloating intermediate、ceil Q16、saturation、境界包含がCPU／GPU／Previewで一致するgolden値。
 - CPU／GPUのconservative frustum／layer oracleが同じ`ViewLodCandidateSetV1` Stable ID／bounds generation集合を生成し、set外subjectがhidden tier、Simulation relevancy、residency requestへ変換されず、HZB／occlusion差がLOD selectionを変えないfixture。
 - CPU direct／GPU indirectのtier、境界包含、hysteresis一致とsilhouette、normal、UV seam、vertex color、material interface、skinning、morph、shadow error fixture。

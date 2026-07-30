@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Runtime Session Save Bundle、Continue／load resolution、Runtime World Save record、persistent／ephemeral Entity projection、Component lifecycle・enablement projection、authoritative state digest、reconstruction、Replay projection、Save migration・qualification
+- 正本範囲: Save Catalog identity／slot membership、Runtime Session Save Bundle、Continue／load resolution、Runtime World Save record、persistent／ephemeral Entity projection、Component lifecycle・enablement projection、authoritative state digest、reconstruction、Replay projection、Save migration・qualification
 - 非正本範囲: network connection／participant／session／authority／baseline／replication／prediction buffer／rollback history、ECS storage layout・query・lease、Package binary、generic artifact catalog、debug capture transport、runtime phase／job DAG、Domain field意味、AI authorization。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
 
@@ -19,7 +19,7 @@ ReplayはSaveと同じpayloadではない。Replayはauthoritative input、accep
 
 [Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)はsession／participant／Network Object／authority／baseline、validated command、prediction／rollback、resyncを所有する。本書は同Ownerがexact `PersistentIdentityBindingRefV1`とDomain Save projectionを宣言したauthoritative fieldだけをSaveへ含める。Transport connection／epoch、packet／queue、replication ack、interest／dormancy cache、prediction buffer、rollback snapshotをSave identityまたは復帰shortcutにしない。Load後はnew Runtime Entity generationと必要ならnew Multiplayer session／baselineへ再bindingし、位置、Network Object IDまたは同名participantから旧authorityを復元しない。
 
-本書はtarget review Contractであり、Save reader／writer、Replay reader／writer、migrationのcurrent activationを意味しない。current化にはcomplete／zero-verified Consumer Inventory、approved Compatibility Change、Owner reference migration manifest、source／target Foundation Definition Closure、Definition Migration binding、全Evidence Requirementのpass satisfaction binding、qualification evidenceが同一closureで必要である。
+本書はinitial V1 review Contractであり、Save reader／writer、Replay reader／writerまたはmigrationのmaterialization／activationを意味しない。Save／Replayの最初のcanonical Schema、identity、reconstruction、failureを本書へ直接定義し、旧Schema、source／target Owner、migration history、aliasまたはdual readerをinitial V1へ作らない。Definition Closure、全Evidence Requirementのpass satisfaction bindingとqualification evidenceが揃うまで利用可能と表示しない。
 
 ## 2. Identityとprojection規則
 
@@ -39,9 +39,27 @@ PersistentEntityIdentityRefV1
   identity_value: StableId
   identity_revision: positive uint64
   identity_hash: SHA-256
+
+PersistentEntityIdentityAllocationBindingV1
+  allocation_binding_id: StableId
+  allocation_binding_version: 1
+  persistent_spawn_request_ref:
+    exact RuntimePersistentSpawnIdentityRequestRefV1
+  allocated_identity_ref: exact PersistentEntityIdentityRefV1(
+    identity_kind=runtime_spawn)
+  identity_authority_service_ref: exact McdContractRefV1(kind=service)
+  allocation_receipt_ref: exact OperationReceiptRefV1
+  allocation_binding_content_hash: SHA-256
+
+PersistentEntityIdentityAllocationBindingRefV1
+  allocation_binding_id: StableId
+  allocation_binding_version: 1
+  allocation_binding_content_hash: SHA-256
 ```
 
-`authoring_entity`はAuthoring stable identityから解決する。`world_root_runtime`と`runtime_spawn`はRuntime Ownerが明示的に発行するpersistent identityであり、Cook時に将来spawnを予約してはならない。raw `RuntimeEntityHandle`、slot index、generation、chunk ID、rowはpersistent identityではない。
+`authoring_entity`はAuthoring stable identityから解決する。`world_root_runtime`はWorld construction authority、`runtime_spawn`はPersistence identity authorityが明示的に発行するpersistent identityであり、Cook時に将来spawnを予約してはならない。raw `RuntimeEntityHandle`、slot index、generation、chunk ID、rowはpersistent identityではない。
+
+runtime spawn allocationはRuntime ECSのexact `RuntimePersistentSpawnIdentityRequestRefV1`だけを入力にする。同じrequest refとidempotency keyは同じAllocation Bindingを返し、別request、World Root、Template、ownerまたはhashへidentityを再利用しない。request一件にAllocation Binding exactly one、allocated identity一件にactive request exactly oneを要求し、duplicate、branch、call-site指定ID、位置／Entity handle／sequenceからのID推測を拒否する。Binding hashは`MIRAKAN_PERSISTENT_ENTITY_IDENTITY_ALLOCATION_BINDING_V1`と自己hashを除くlength-framed canonical bytesでSHA-256し、ECSは有効なBindingとReceiptをstructural batch preflightで検証してもIdentity発行意味を再定義しない。対応Schema、authority service、Operation、Receipt、Binding storeは未materializeである。
 
 Component fieldはDomain Ownerが定めるpersistence policyに従う。persistent fieldだけをcanonical field encodingへ投影し、derived index、presentation value、native object、credential、pointer、runtime-only handleは保存しない。persistent identityを持たないEntityをSaveへ近似せず、required relationがそのEntityを指すならSave validationを失敗させる。
 
@@ -61,7 +79,6 @@ RuntimeWorldSaveRecordSetV1
     AuthoritativeSaveBundleManifestRefV1
   authoritative_digest_ref: RuntimeAuthoritativeStateDigestRefV1
   entity_records[0..1048576]: RuntimeEntitySaveRecordV1
-  migration_chain_refs[0..64]
   record_set_hash: SHA-256
 
 RuntimeEntitySaveRecordV1
@@ -88,6 +105,8 @@ RuntimeWorldSaveRecordSetRefV1
 ```
 
 entity recordはpersistent identity canonical bytes順、component recordはComponent schema ref順、fieldはField ID順とする。`entity_ordinal`はsave内のcanonical ordering補助であり、runtime slot、World chunk row、persistent identityの代替ではない。
+
+source World publication `W`に存在するpersistent identityのdistinct集合を`P(W)`とする。`RuntimeWorldSaveRecordSetV1.entity_records[].persistent_identity_ref`のprojectionは`P(W)`とset equality、各identityはexactly one recordでなければならない。`W.runtime_package_ref`が解決するPackageの`RuntimeWorldRootImageV1.capacity_record_ref`からexact `RuntimeWorldCapacityRecordV1.max_persistent_entities`を解決し、World Root、Target、Contract Setをsource publicationとbyte equalityにする。checked arithmeticで`|P(W)| <= max_persistent_entities <= 1048576`を満たす場合だけRecord Setをsealする。ephemeral Entityの省略、duplicate identityのdeduplication、複数Record Setへのshardingまたは`RuntimeSessionSaveBundleV1`外の追加World Save refでcarrier上限を回避しない。
 
 `component_presence = present`だけをSave recordへ書く。remove済みComponent、derived Component、presentation Componentをmissing fieldとして暗黙復元しない。enablementを持たないComponentは`not_applicable`を使い、nullやzero値で代用しない。
 
@@ -175,19 +194,90 @@ RuntimeSessionSaveBundleRefV1
   bundle_version: positive uint32
   bundle_content_hash: SHA-256
 
+SaveContentPackageSetV1
+  content_package_set_id: StableId
+  content_package_set_version: positive uint32
+  package_entries[1..4096]:
+    sorted unique {
+      package_artifact_ref: exact ArtifactRefV1,
+      package_root_hash: SHA-256,
+      mount_role: base | patch | dlc | optional_content
+    }
+  content_package_set_content_hash: SHA-256
+
+SaveContentPackageSetRefV1
+  content_package_set_id: StableId
+  content_package_set_version: positive uint32
+  content_package_set_content_hash: SHA-256
+
+SaveCatalogSlotV1
+  slot_id: StableId
+  display_metadata_content_hash: SHA-256
+  save_schema_version: positive uint32
+  runtime_session_save_bundle_ref:
+    exact RuntimeSessionSaveBundleRefV1
+  content_package_set_ref: exact SaveContentPackageSetRefV1
+  transport_checksum: SHA-256
+  status: ready | damaged | incompatible | unavailable
+  slot_entry_content_hash: SHA-256
+
+SaveCatalogV1
+  save_catalog_id: StableId
+  catalog_schema_version: 1
+  profile_scope_id: StableId
+  generation: positive uint64
+  content_package_set_ref: exact SaveContentPackageSetRefV1
+  slots[0..4096]:
+    sorted unique SaveCatalogSlotV1 by slot_id canonical bytes
+  slot_entry_set_hash: SHA-256
+  save_catalog_content_hash: SHA-256
+
+SaveCatalogRefV1
+  save_catalog_id: StableId
+  catalog_schema_version: 1
+  generation: positive uint64
+  save_catalog_content_hash: SHA-256
+
+SaveCatalogActiveRootPreconditionV1
+  profile_scope_id: StableId
+  expected_commit_generation: positive uint64
+  expected_save_catalog_ref: exact SaveCatalogRefV1
+  active_root_subject_hash: SHA-256
+  precondition_content_hash: SHA-256
+
+SaveCatalogActiveRootPreconditionRefV1
+  profile_scope_id: StableId
+  expected_commit_generation: positive uint64
+  precondition_content_hash: SHA-256
+
+SaveCatalogSlotMembershipV1
+  save_catalog_ref: exact SaveCatalogRefV1
+  slot_id: StableId
+  slot_entry_content_hash: SHA-256
+  runtime_session_save_bundle_ref:
+    exact RuntimeSessionSaveBundleRefV1
+  content_package_set_ref: exact SaveContentPackageSetRefV1
+  membership_content_hash: SHA-256
+
+SaveCatalogSlotMembershipRefV1
+  save_catalog_ref: exact SaveCatalogRefV1
+  slot_id: StableId
+  membership_content_hash: SHA-256
+
 RuntimeSessionLoadRequestV1
   request_id: StableId
   idempotency_key: StableId
   play_session_id: StableId
   source_branch_generation: positive uint64
-  profile_id: StableId
-  save_catalog_id: StableId
-  save_catalog_schema_version: uint32 = 2
-  expected_save_catalog_generation: positive uint64
+  save_catalog_ref: exact SaveCatalogRefV1
+  active_root_precondition_ref:
+    exact SaveCatalogActiveRootPreconditionRefV1
   slot_id: StableId
-  runtime_session_save_bundle_ref: RuntimeSessionSaveBundleRefV1
+  slot_membership_ref: exact SaveCatalogSlotMembershipRefV1
+  runtime_session_save_bundle_ref:
+    exact RuntimeSessionSaveBundleRefV1
+  content_package_set_ref: exact SaveContentPackageSetRefV1
   requested_apply_advance_sequence: uint64
-  precondition_snapshot_hash: SHA-256
   request_content_hash: SHA-256
 
 RuntimeSessionLoadRequestRefV1
@@ -211,7 +301,13 @@ headerのProject triple、Target、Contract set、Cadence Profile、last committ
 
 Domain Projection base recordへHeader refまたはBinding refを埋め戻してhash cycleを作らない。生成順は`receipt-free Domain Projection → Projection Ref集合 → AuthoritativeSaveHeader／Ref → Domain Binding／Ref集合 → Bundle Manifest`とする。bare hash、latest Build、表示Hz、別Target／Project revision、Header外Projectionをload時に補完しない。
 
-`RuntimeSessionSaveBundleV1`はBundle Manifest完成後にだけ生成し、自己hashを除く全FieldをASCII `MIRAKAN_RUNTIME_SESSION_SAVE_BUNDLE_V1`とMCD canonical length framingして`bundle_content_hash`を計算する。Load Requestとactivation payloadもそれぞれASCII `MIRAKAN_RUNTIME_SESSION_LOAD_REQUEST_V1`、`MIRAKAN_RUNTIME_SESSION_LOAD_ACTIVATION_PAYLOAD_V1`と自身のhash Fieldを除くMCD canonical bytesをlength framingしてhashする。`runtime_entry_ref`／semantic hash／branch closure、外側`RuntimeEntryPackageRefV1`、HeaderのProject triple／Target／Contract set／Cadence、Bundle ManifestのHeader refはbyte equalityでなければならない。`entry_kind=world`だけが`world_save_record_set_ref`を0または1件持て、presentの場合はWorld Save内側`RuntimePackageRefV1`が外側Entry Packageの`world_package_ref`へexact解決する。`ui | headless`はWorld Save refをnullとし、UI／headlessのState owner projectionはBundle Manifestから保存する。UI-only／headless Saveのために偽World publicationまたは空World recordを生成しない。
+`RuntimeSessionSaveBundleV1`はBundle Manifest完成後にだけ生成し、自己hashを除く全FieldをASCII `MIRAKAN_RUNTIME_SESSION_SAVE_BUNDLE_V1`とMCD canonical length framingして`bundle_content_hash`を計算する。Save Content Package Set、Save Catalog、active-root precondition、slot membership、Load Request、activation payloadはそれぞれASCII `MIRAKAN_SAVE_CONTENT_PACKAGE_SET_V1`、`MIRAKAN_SAVE_CATALOG_V1`、`MIRAKAN_SAVE_CATALOG_ACTIVE_ROOT_PRECONDITION_V1`、`MIRAKAN_SAVE_CATALOG_SLOT_MEMBERSHIP_V1`、`MIRAKAN_RUNTIME_SESSION_LOAD_REQUEST_V1`、`MIRAKAN_RUNTIME_SESSION_LOAD_ACTIVATION_PAYLOAD_V1`と自身のhash Fieldだけを除くclosed canonical bytesをlength framingしてhashする。`runtime_entry_ref`／semantic hash／branch closure、外側`RuntimeEntryPackageRefV1`、HeaderのProject triple／Target／Contract set／Cadence、Bundle ManifestのHeader refはbyte equalityでなければならない。`entry_kind=world`だけが`world_save_record_set_ref`を0または1件持て、presentの場合はWorld Save内側`RuntimePackageRefV1`が外側Entry Packageの`world_package_ref`へexact解決する。`ui | headless`はWorld Save refをnullとし、UI／headlessのState owner projectionはBundle Manifestから保存する。UI-only／headless Saveのために偽World publicationまたは空World recordを生成しない。
+
+`SaveContentPackageSetV1`はSaveをLoadするために必要なAsset Content Packageのexact immutable closure projectionであり、各entryのgeneric Artifact ref、package root hash、mount roleを閉じる。Asset Content Packageのformat、assembly、mount semanticsは[Asset Lifecycle](../03-authoring/asset-lifecycle.md)が所有し、本書は複写しない。`SaveCatalogV1`と各Slotはimmutableである。`save_catalog_content_hash`はID、schema、profile scope、generation、Catalog-level content package set、全Slotの全Field、`slot_entry_set_hash`を含み、`slot_entry_set_hash`は各`slot_entry_content_hash`のcanonical sorted setへexact一致する。SlotのBundle ref、content package set、transport checksum、status、display metadata hashの一件でも変われば新Catalog generationと新content hashを発行する。同ID／generation別hash、Slot IDだけ、表示label、timestamp、native path、`latest`、近いcontent setからBundleまたはCatalogを補完しない。
+
+`SaveCatalogSlotMembershipV1`は、解決したexact Catalogの`slots[]`に同じ`slot_id`がexactly one件あり、Slot entry hash、Bundle ref、content package setが全Field byte equalityの場合だけsealする。Membership record自身をCatalogへ埋め戻さず、Catalog全体の再hashとunique membership検証を省略するMerkle proofまたはcaller assertionとして扱わない。
+
+`SaveCatalogActiveRootPreconditionV1`はUI Ownerがcurrent `SettingsCatalogCommitMarkerV1`のProfile scope、commit generation、exact Save Catalog refをclosed projectionして渡す値であり、`active_root_subject_hash`はそのmarker refを含むactive-root subjectのcanonical hashである。PersistenceはUI Profile、marker、file、display stateを検索せず、Load要求に渡されたpreconditionとexact Catalog／membershipだけを検証する。callerはRuntime Entry transition commit直前にも同じactive-root subjectがcurrentであることをCAS検証し、staleならLoadを拒否する。UI Ownerへの逆参照、独立したPersistence側active root、Profile名からのCatalog discoveryを作らない。
 
 `RuntimeSessionLoadActivationPayloadV1.world_reconstruction_input_ref`はbundleの`entry_kind=world`かつWorld Saveがpresentの場合だけexact一件、worldでWorld Save absentまたは`ui | headless`ではnullにする。`state_owner_projection_set_hash`はHeaderの同Fieldとbyte equalityで、Load Request ref／hash、Bundle ref、World reconstruction nullabilityのいずれかが一致しなければpayloadをsealしない。
 
@@ -251,7 +347,7 @@ digestはWorldがsealされた後に一度だけ作り、partial value writeやs
 
 reconstructionは次を順に実行する。
 
-1. Save format major、record set hash、Package、Contract set、Target compatibility、migration chainを検証する。
+1. Save format major、record set hash、Package、Contract set、Target compatibilityを検証する。
 2. persistent identityのduplicate、missing required relation、template／initializer mismatch、unknown Component schema、unknown persisted fieldをrejectする。
 3. Runtime Packageが渡す`RuntimeWorldBuildGatewayV1`とECS construction setをstagingする。
 4. entity recordをcanonical orderでtemplateへ展開し、canonical field値とenablementを適用する。
@@ -268,15 +364,15 @@ reconstruction中に旧RuntimeEntityHandleを再利用しない。Source section
 
 Continueは次の一方向resolutionだけを使う。
 
-1. UI Profile Ownerのactive `SettingsCatalogCommitMarkerV1`からexact target `SaveCatalogV2` generationを解決し、`slot_id`に一致する一件の`runtime_session_save_bundle_ref`を読む。current V1はBundle refを持たないためContinue requestを生成しない。
-2. Bundle ref／content hash、Header、Manifest membership、Project triple、Build、Target、Contract set、Runtime Entry ref／semantic hash、branch closure、`RuntimeEntryPackageRefV1`を検証する。
-3. World SaveがpresentならWorld record、inner World Package、persistent identity、digest、migrationを検証する。Stageその他のDomain projectionは各Ownerがschema／policy／content hashを検証し、missing projectionを表示metadataから合成しない。
+1. callerがactive markerから投影したexact `SaveCatalogActiveRootPreconditionRefV1`、`SaveCatalogRefV1`、`slot_id`、`SaveCatalogSlotMembershipRefV1`、Bundle ref、content package setを受け取り、Catalog全体のcontent hash、generation、profile scope、unique Slot membershipと全Field byte equalityを検証する。PersistenceはUI markerを検索しない。
+2. Bundle ref／content hash、Catalog Slot／membership、Header、Manifest membership、Project triple、Build、Target、Contract set、Runtime Entry ref／semantic hash、branch closure、`RuntimeEntryPackageRefV1`を検証する。
+3. World SaveがpresentならWorld record、inner World Package、persistent identity、digestを検証する。Stageその他のDomain projectionは各Ownerがschema／policy／content hashを検証し、missing projectionを表示metadataから合成しない。
 4. 全Owner validation後に`RuntimeSessionLoadActivationPayloadV1`をsealし、[Scheduling／Lifetime](scheduling-lifetime.md)の`RuntimeEntryTransitionRequestV1.trigger_ref`へexact Load Request、activation payload三Fieldへ本payloadのschema／ref／hashを設定する。
 5. Runtime Entry transitionがdestination branchをpublishした後にだけ新World／Domain stateをactiveにし、source branchをreverse teardownする。
 
-Catalog generation／slot／bundle／entry／package／projection／migrationのいずれかがstale、missing、duplicate、hash不一致ならLoad Requestをrejectし、current Runtime Entry、World／Stage state、Save Catalog、last-valid Saveを変更しない。同じidempotency key＋同じrequest hashは同じ結果を返し、別hashはconflictである。cancelはRuntime Entry transitionのcommit前だけ受理し、commit後に旧branchへ暗黙復帰しない。
+active-root precondition、Catalog generation／content hash、slot membership、bundle、content package set、entry、package、projectionのいずれかがstale、missing、duplicate、hash不一致ならLoad Requestをrejectし、current Runtime Entry、World／Stage state、Save Catalog、last-valid Saveを変更しない。同じidempotency key＋同じrequest hashは同じ結果を返し、別hashはconflictである。cancelはRuntime Entry transitionのcommit前だけ受理し、commit後に旧branchへ暗黙復帰しない。
 
-本節のRuntime Session Bundle／Load型とContinue resolutionはtarget review definitionであり、UI ownerのSave Catalog V2、Runtime Entry Package／transition、Project Presentation Binding、Domain projection migrationと同じatomic Definition Migration前はcurrent Save reader／writer、Operation／Service／Provider／MCP inventoryへ追加しない。V1 Catalog、World Saveだけ、表示metadataからtarget BundleまたはLoad Requestを合成しない。
+本節のRuntime Session Bundle／Load型とContinue resolutionはinitial V1 review definitionである。対応するSave reader／writer、Operation／Service／Provider／MCP inventoryは未materializeであり、Architecture記載から利用可能と解釈しない。表示metadata、World Saveだけ、旧draft shapeからBundleまたはLoad Requestを合成しない。
 
 ## 5. Replay projection
 
@@ -381,13 +477,13 @@ Save record setの`authoritative_save_header_ref`はBundle ManifestのHeader ref
 
 ## 6. Migrationとcompatibility
 
-Save／Replay schema、Component projector、persistent identity policy、digest algorithmを変更する場合は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のCompatibility ChangeSetを必須とする。`save`／`replay` classを含むConsumer Inventoryがcompleteかつzero verifiedで、scope Requirementのpass fulfillmentがrelease済みSave consumerなしを示したtarget ECS clean breakだけが、`source_preserving_recook`の範囲でfixtureを再生成し、old Save／Replay reader、dual schema、handle aliasを残さない。
+initial V1のSave／Replay Schemaはmigration chain、old reader、dual schemaまたはhandle aliasを持たない。初回materializationまたは公開後にSave／Replay schema、Component projector、persistent identity policy、digest algorithmを変更する場合だけ、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のCompatibility ChangeSetを必須とする。`save`／`replay` classを含むConsumer Inventoryがcompleteかつzero verifiedで、scope Requirementのpass fulfillmentがrelease済みSave consumerなしを示した場合に限り、source-preserving fixture再生成とold reader不要を承認できる。
 
 公開済みSaveまたはReplayを読む必要がある場合は、対象format major、old reader期限、new writer開始点、migration failure、release rollback、evidenceを`versioned_reader_migration`として明記する。readerがfield欠落を旧schemaと推測すること、unknown relationをnull objectへ変換すること、old raw handleをpersistent identityへ変換することを禁止する。
 
 ## 7. Qualification
 
-target Persistence／Saveは少なくとも次を証明する。
+initial V1 Persistence／Saveは少なくとも次を証明する。
 
 1. 同じsealed World publicationから同じSave record set、digest、Replay projection hashを二回生成する。
 2. stale／duplicate persistent identity、missing required relation、unknown schema／field、hash mismatch、target／contract mismatchをrejectする。
@@ -396,10 +492,10 @@ target Persistence／Saveは少なくとも次を証明する。
 5. faulted advance、partial structural transaction、partial value writeからSave／digest／published replay snapshotを作らない。
 6. Save／Replay bundleのmember setがHeader／root Projection、transport、Domain Bindingへexactに解決し、base projectionへのbinding埋戻しを拒否する。
 7. migrationが必要なconsumerをclean breakとして誤分類せず、reader／writer／rollback期限をCompatibility ChangeSetで検証する。
-8. Consumer InventoryのSave／Replay scopeと全Evidence Requirementのpass fulfillment、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じclosureへexact解決する。
+8. initial V1 Save／Replay／Package／ECS／Domain projectionのexact Owner／Definition refと全Evidence Requirementのpass fulfillmentが同じclosureへ解決し、旧Schema、migration chain、alias、dual readerが0件である。
 9. world＋optional UI、UI-only、headlessの`RuntimeSessionSaveBundleV1`をround-tripし、UI-only／headlessでWorld Save ref／偽Worldが0件、worldでouter Entry Packageとinner World Packageがexact接続することを検証する。
-10. Titleのtarget V2 Save slotからContinueし、exact Runtime Entry／Package／Stage projection／authoritative digestへ復元する。V1ではContinue unavailable、V2ではslot display metadata、timestamp、Level名を変えてもresolutionが不変で、Catalog generation、Bundle hash、Entry hash、Package、Stage policyを一件ずつstaleにしたcaseはsource branch不変でrejectする。
+10. TitleのSave Catalog V1 slotからContinueし、exact Runtime Entry／Package／Stage projection／authoritative digestへ復元する。slot display metadata、timestamp、Level名を変えてもresolutionが不変で、Catalog generation、Bundle hash、Entry hash、Package、Stage policyを一件ずつstaleにしたcaseはsource branch不変でrejectする。
 
 ## 8. 非目的
 
-本書はSave implementation、storage backend、cloud sync、debug viewer、Task Plan、migration実行を指示しない。実施は対象Ownerの承認済みdefinition migrationとProduct Work Package条件の後に開始できる。
+本書はSave implementation、storage backend、cloud sync、debug viewer、Task Plan、migration実行を指示しない。実施はinitial V1 Definition Closure、Qualification要求とProduct Work Package条件の後に開始できる。

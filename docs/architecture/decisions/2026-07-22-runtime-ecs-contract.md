@@ -15,7 +15,7 @@
 
 Runtime Worldには、Entityとdata-only Componentを標準的に格納し、queryと構造変更を決定論的な境界で扱えるstorageが必要である。これはSave／Replayへの安定したprojection、AIがboundedに説明できるcontract graph、およびlayout挙動を継続的に測定できる基盤にもなる。
 
-本Decisionが選ぶのはRuntime ECSの方式だけである。Entity／Componentの現行Schemaと挙動はRuntime ECS、World imageとloaderはRuntime Package、Save／ReplayはPersistence、phaseとcallback lifetimeはScheduling、移行規則はCompatibility、AIの認可とrouteはAI Securityがそれぞれ所有する。本Decisionはそれらのauthorityを統合または置換しない。
+本Decisionが選ぶのはRuntime ECSの方式だけである。Entity／Componentのinitial V1 Schemaと挙動はRuntime ECS、World imageとloaderはRuntime Package、Save／ReplayはPersistence、phaseとcallback lifetimeはScheduling、初回公開後の移行規則はCompatibility、AIの認可とrouteはAI Securityがそれぞれ所有する。本Decisionはそれらのauthorityを統合または置換しない。
 
 ## 2. Decision drivers
 
@@ -45,7 +45,7 @@ Miraikanai Engineは、Engine-owned archetype／SoA Runtime ECSをRuntime World�
 
 archetype／SoAにより、同じComponent集合の走査局所性、宣言的query、storage layoutの制御、容量とfragmentationの測定可能性を得られる。また、Miraikanai固有のMCD、Project revision、Artifact、Runtime boundary、Save／Replay projection、AI approvalへ一意に接続できる。
 
-一方で、Engineはstorage、generated binding、structural publication、diagnosticを実装し、継続的にqualificationする費用を負う。外部ECS runtimeの更新でこれらの責任を代替できない。layoutと性能の採否は[Performance／Capacity](../04-runtime/performance-capacity.md)、移行とconsumer保護は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、承認Evidenceとcurrent化は[Architecture Governance](../01-governance/architecture-governance.md)がそれぞれ閉じる。
+一方で、Engineはstorage、generated binding、structural publication、diagnosticを実装し、継続的にqualificationする費用を負う。外部ECS runtimeの更新でこれらの責任を代替できない。layoutと性能の採否は[Performance／Capacity](../04-runtime/performance-capacity.md)、初回公開後の移行とconsumer保護は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、Architecture Approvalと状態軸は[Architecture Governance](../01-governance/architecture-governance.md)がそれぞれ閉じる。
 
 ## 6. Canonical Owner documents
 
@@ -61,11 +61,11 @@ archetype／SoAにより、同じComponent集合の走査局所性、宣言的qu
 
 この表はauthorityへの案内であり、各OwnerのSchema、固定値、Gate、migration detailを本Decisionへ複写しない。
 
-## 7. Currentization and compatibility
+## 7. Initial V1 and post-public compatibility
 
-[Governance Migration Proposals](../appendices/governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)がOwner移管、承認closure、Definition Migration binding、およびcurrent化の未承認候補をまとめる。同proposalが完成ChangeSetとして承認・適用されるまでは、target Runtime ECS文書をcurrent authorityまたは実装済みcontractとして扱わない。
+[Runtime ECS](../04-runtime/entity-component-system.md)を`owner.core.runtime_ecs`のinitial V1 Architecture Ownerとして直接定義し、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)はGame Systemのauthoring semanticsとECS access projectionだけを所有する。predecessor Owner、revision 1→2 transfer、alias、dual Registryまたはmigration readerをinitial V1へ作らない。
 
-[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)がRuntime ECS正本化の`source_preserving_recook`、consumer inventory、reader／writer／alias policy、migration evidenceを所有する。consumer保護と承認closureの詳細は両Owner文書へ委ね、本Decisionでは手順、record field、Gateを再定義しない。
+このOwner選択はSchema、Generator、Runtime、Package／Save reader、ReceiptまたはCapabilityのmaterialization／activationを意味しない。初回materializationまたは公開後にRuntime ECSのOwner、Schema、Package、Save／Replay、Native ABIまたは外部APIを変更する場合だけ、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)がconsumer inventory、reader／writer／alias policy、migration evidenceを所有する。本Decisionは手順、record fieldまたはGateを再定義しない。
 
 ## 8. Official comparison sources
 

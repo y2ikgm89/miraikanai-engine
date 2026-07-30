@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、cross-target Build／Release Evidence closure、Repository境界、Test／CI、Feature開始Gate
+- 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、Build／Device／Play TaskとReceipt envelope、Launch request／Task／Receiptのexact Runtime Entry Selection binding、cross-target Build／Release Evidence closure、Repository境界、Test／CI、Feature開始Gate
 - 非正本範囲: 外部Tool・SDK・Libraryのversion／hash／license／取得元、命名、Memory／Pointer詳細、Runtime scheduling／budget／observability、Schema構造。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 modules](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 Language／Public Surface](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -50,7 +50,7 @@ Private platform and vendor adapters
 - Hostだけがconcrete Adapterを組み立てる。Domain codeはService Locatorやglobal mutable singletonでAdapterを探索しない。
 - Vendor型、native handle、allocator型を公開API、MCD、永続formatへ露出しない。
 - `EditorHost`はAuthoring状態、`GameHost`はCook済みRuntime状態、`WorkerHost`は隔離されたBuild／Import／Validation taskだけを扱う。
-- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。現在契約参照できる型付きIPC Operationは[Executable contracts](executable-contracts.md)の`active_complete` exact 10 IDだけであり、同節のconditional legacy migration 4 IDとreserved 192 IDはIPC／Provider／MCPへ投影しない。さらにcurrent Signer Policyがemptyな間は10件もoperationalではなく、Operation名、文書内template、未Activation候補からdispatchを推測しない。Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)に従う。
+- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。現在契約参照またはdispatchできる型付きIPC Operationはexact 0件である。[Executable contracts](executable-contracts.md)のtarget-complete十候補、reserved 192 ID、legacy migrationはcurrent MCD／IPC／Provider／MCPへ投影しない。Operation名、文書内templateまたは未Activation候補からdispatchを推測せず、将来materializeしたexact Operationだけを[AI Security／Approval](../01-governance/ai-security-approval.md)のAuthorizationで許可する。
 
 ## 4. Authoring状態とRuntime状態
 
@@ -100,17 +100,17 @@ RuntimeのSimulation Advance、phase DAG、lifetimeは[Runtime scheduling／life
 
 Diagnostic IDの命名は[Naming／Project layout](naming-project-layout.md)、Evidence envelopeは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)が所有する。
 
-## 8. C++とModule境界
+## 8. C++とPublic Surface境界
 
-First-party CPU codeはC++23を用いる。言語frontend state、Named Module、`import std`、CMake module edge、BMI identity、Cutoverは[C++23 modules](cpp23-modules.md)を唯一の正本とする。Compiler、CMake、Ninja、SDKのexact pinは[Toolchain／Dependencies](toolchain-dependencies.md)だけが所有する。
+First-party CPU codeはC++23を用いる。言語profile、required feature set、単一Header-based Shipping surface、Named Modules／`import std`／Header Unit／BMIの禁止境界は[C++23 Language／Public Surface](cpp23-modules.md)を唯一の正本とする。Compiler、CMake、Ninja、SDKのexact pinは[Toolchain／Dependencies](toolchain-dependencies.md)だけが所有する。
 
-Generated／First-party C++ APIは[Memory／Pointers](memory-pointers.md)の`CppValueTransferPolicyV1`へexactに閉じる。Module、Header、Native adapterが独自のby-value／`const T&`／`T&&`／bounded-view規則を持たず、C ABIは[Native Game Module](../03-authoring/native-game-module.md)の固定幅値、opaque handle、caller-owned bufferへ分離する。
+Generated／First-party C++ APIは[Memory／Pointers](memory-pointers.md)の`CppValueTransferPolicyV1`へexactに閉じる。Public Header、generated binding、Native adapterが独自のby-value／`const T&`／`T&&`／bounded-view規則を持たず、C ABIは[Native Game Module](../03-authoring/native-game-module.md)の固定幅値、opaque handle、caller-owned bufferへ分離する。
 
 Foundationは次だけを共通原則とする。
 
 - Public Contractとprivate implementationを別Targetにする。
-- Header、Module interface、generated projectionへ同じ宣言を手書き複製しない。
-- RTTIによるEngine reflection、巨大Header-only Engine、unity build前提、循環Moduleを禁止する。
+- Public Header、C ABI Header、generated projectionへ同じ宣言を手書き複製しない。
+- RTTIによるEngine reflection、巨大Header-only Engine、unity build前提、循環CMake target依存を禁止する。
 - Mathの型、座標、数値、失敗契約は[Math／Core utilities](math-core.md)を参照する。
 
 ## 9. Build architecture
@@ -145,12 +145,17 @@ OperationTaskV1
   device_generation?
   authorization_envelope_hash
   consent_record_ref?
+  runtime_entry_launch_selection_ref?:
+    ArtifactRefV1(
+      artifact_kind=runtime_entry_launch_selection,
+      schema_version=1)
+  runtime_entry_launch_selection_sha256?
   idempotency_key
   state = queued | running | cancel_requested | succeeded | failed | cancelled
   receipt_ref?
 ```
 
-`device_identity_ref`と`device_generation`はDeviceまたはremote Debugを対象にするOperationでは対で必須、それ以外では省略する。`consent_record_ref`はOperation Registryが明示consentを要求する場合だけ必須であり、空値や別Operationのconsentで代用しない。Consentのsubject、purpose、scope、freshness、revocationとirreversible boundaryでの意味は[AI Security／Approval §3.3](../01-governance/ai-security-approval.md#33-consent-recordとpurpose-binding)だけが所有し、本書は参照を消費する。`receipt_ref`は非終端stateでは省略し、`succeeded | failed | cancelled`では同じtask ID、request hash、Project revision、Candidate root、Target、Device bindingを持つimmutable Receiptへ必須参照する。失敗詳細はReceiptが参照するtyped `MirakanDiagnosticV1`から取得し、自由文だけをTaskへ保存しない。
+`device_identity_ref`と`device_generation`はDeviceまたはremote Debugを対象にするOperationでは対で必須、それ以外では省略する。Launch Selection二Fieldは`operation.device.launch`だけで対として必須、それ以外の13 Operationでは両方をcanonical omissionする。Launchのcanonical request bodyとAuthorization subjectは同じ二Fieldを含み、`request_sha256`はそれらを含むrequest全体をhashする。Selectionのdomain意味とManifest row解決はRuntime Package Ownerだけが所有し、本書はgeneric exact `ArtifactRefV1`と完成record SHAを運ぶ。`consent_record_ref`はOperation Registryが明示consentを要求する場合だけ必須であり、空値や別Operationのconsentで代用しない。Consentのsubject、purpose、scope、freshness、revocationとirreversible boundaryでの意味は[AI Security／Approval §3.3](../01-governance/ai-security-approval.md#33-consent-recordとpurpose-binding)だけが所有し、本書は参照を消費する。`receipt_ref`は非終端stateでは省略し、`succeeded | failed | cancelled`では同じtask ID、request hash、Project revision、Candidate root、Target、Device binding、Launch Operationの場合は同じSelection ref／hashを持つimmutable Receiptへ必須参照する。失敗詳細はReceiptが参照するtyped `MirakanDiagnosticV1`から取得し、自由文だけをTaskへ保存しない。
 
 Activation後にOperation Registryへ同時登録する全14 Receiptは、次の共通subjectとOperation固有payloadを一つの署名済みRecordへ閉じる。
 
@@ -221,8 +226,22 @@ PackageReceiptPayloadV1
         MirakanSignedRecordRefV1(purpose=project_source_promotion)
       native_module_build_receipt_refs[0..64]: NativeModuleBuildReceiptRefV1
       project_shader_build_receipt_refs[0..64]: ProjectShaderBuildReceiptRefV1
+  project_repository_snapshot_content_hash?
+  project_source_closure_ref?:
+    ArtifactRefV1(
+      artifact_kind=project_source_closure,
+      schema_version=1)
+  project_source_closure_content_hash?
+  project_source_transport_artifact_ref?:
+    ArtifactRefV1(
+      artifact_kind=project_source_transport,
+      schema_version=1)
   package_artifact_ref?
   package_artifact_sha256?
+  package_manifest_ref?:
+    ArtifactRefV1(
+      artifact_kind=runtime_entry_distribution_package_manifest,
+      schema_version=1)
   package_manifest_sha256?
 
 DeviceInstallReceiptPayloadV1
@@ -230,6 +249,11 @@ DeviceInstallReceiptPayloadV1
   package_receipt_sha256
   package_artifact_ref
   package_artifact_sha256
+  package_manifest_ref:
+    ArtifactRefV1(
+      artifact_kind=runtime_entry_distribution_package_manifest,
+      schema_version=1)
+  package_manifest_sha256
   consent_record_ref
   approval_record_ref
   install_transaction_sha256?
@@ -239,7 +263,16 @@ DeviceLaunchReceiptPayloadV1
   device_install_receipt_sha256
   package_artifact_ref
   package_artifact_sha256
-  launch_descriptor_sha256
+  package_manifest_ref:
+    ArtifactRefV1(
+      artifact_kind=runtime_entry_distribution_package_manifest,
+      schema_version=1)
+  package_manifest_sha256
+  runtime_entry_launch_selection_ref:
+    ArtifactRefV1(
+      artifact_kind=runtime_entry_launch_selection,
+      schema_version=1)
+  runtime_entry_launch_selection_sha256
   process_instance_ref?
 
 DeviceDataResetReceiptPayloadV1
@@ -293,17 +326,21 @@ TaskCancellationReceiptPayloadV1
   target_terminal_receipt_sha256?
 ```
 
-全Fieldは`?`を付けたFieldを除き必須で、配列は重複なしunsigned byte順、unknown Fieldは禁止する。Envelopeの`result=succeeded`では各payloadのsuccess output groupをすべて必須にする。Packageのsuccess output groupはcommitted Project Publication binding、Project Validation、Cook、Game Candidate Build、1件以上のCandidate Test、Source build closure、package artifact ref／hash／manifest hashである。Installのtransaction hash、Launchのprocess instance、Resetのtransaction hash、Smokeのsession ref／result hash、Statusのsnapshot sequence／target state、Readのtarget terminal state、Cancellationのstate-before／converged state／target terminal Receipt ref／hashが各success output groupである。`result=failed | cancelled`ではそのgroupを全て省略し、`diagnostic_refs[]`を1件以上必須にする。同期ControlのEnvelope resultは`succeeded | failed`だけで、対象Taskがcancelledへ収束してもCancellation Envelope自身は`succeeded`である。
+全Fieldは`?`を付けたFieldを除き必須で、配列は重複なしunsigned byte順、unknown Fieldは禁止する。Envelopeの`result=succeeded`では各payloadのsuccess output groupをすべて必須にする。Packageのsuccess output groupはcommitted Project Publication binding、Project Validation、Cook、Game Candidate Build、1件以上のCandidate Test、Source build closure、Project Repository Snapshot content hash、Project Source closure ref／content hash／canonical transport artifact ref、package artifact ref／hash、typed Package Manifest ref／hashである。Installのtransaction hash、Launchのprocess instance、Resetのtransaction hash、Smokeのsession ref／result hash、Statusのsnapshot sequence／target state、Readのtarget terminal state、Cancellationのstate-before／converged state／target terminal Receipt ref／hashが各success output groupである。`result=failed | cancelled`ではそのgroupを全て省略し、`diagnostic_refs[]`を1件以上必須にする。同期ControlのEnvelope resultは`succeeded | failed`だけで、対象Taskがcancelledへ収束してもCancellation Envelope自身は`succeeded`である。
 
 Packageの前段Receiptは[Executable Contracts](executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.build_candidate_test`をatomic Activationするときに、§9.2の`ProjectValidationReceiptV1`、`CookReceiptV1`、`NativeModuleBuildReceiptV1`、`ProjectShaderBuildReceiptV1`、`GameCandidateBuildReceiptV1`、`CandidateTestReceiptV1`というnamed closed payload／wrapperへ固定する。各Refは§9.2のexact purposeを持つ`MirakanSignedRecordRefV1`で、隣接`*_receipt_sha256`または配列要素の`signed_record_hash`は同じ完成wrapperのRFC 8785 JCS SHA-256へ一致させる。current familyは`not_activated`でMCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／Signer／Provider／MCP集合がexact `[]`のため、現在はPackage success closureも成立しない。Receipt名、上表Field、文書中のOperation候補をcallableと解釈しない。
 
 `source_build_closure.kind=no_project_source`はbranch外三配列をcanonical omissionし、Game Candidate Compile Manifestのselected Native／Shader source集合がともにexact `[]`の場合だけ許す。`selected_project_source`はPromotion Receiptを1件以上、Native／Shader Build Receiptの少なくとも一方を1件以上必須にし、Compile Manifestが選択した全Source revisionとPromotion／Build Receipt集合をkind、revision、hash、Targetのset equalityで照合する。Nativeだけ、Shaderだけ、両方を許すが、未選択Sourceのextra Receipt、選択Sourceのmissing Receipt、空のselected branchを拒否する。Packageの`project_publication_binding`は常に`committed_revision`で、Sourceを選択した場合は同bindingのlate source-promotion authorization entry集合と`source_build_closure.project_source_promotion_receipt_refs[]`をPromotion Receipt wrapper hashでset equalityにし、Sourceなしの場合はbinding内Ref集合をexact `[]`にする。
 
+`source_build_closure.kind=no_project_source`はNative／Shader source選択がないbranchであって、Project Source closure自体が空または不要であることを意味しない。Package successではProject State Ownerのexact Repository Snapshot、Snapshotが解決する`ProjectSourceClosureV1`、そのcanonical transport artifactをread-backし、EnvelopeのProject ID／revision、`project_repository_snapshot_content_hash`、`project_source_closure_ref`、`project_source_closure_content_hash`、`project_source_transport_artifact_ref`を同時にbyte equalityにする。closure refの`ArtifactRefV1.sha256`は完成closure record bytes、隣接content hashはOwnerのdomain-separated closure content hashであり、相互代用しない。同revision別closure／Snapshot、Snapshot外transport、hash-onlyまたはReceipt上のref co-occurrenceをPackage source provenanceへ数えない。
+
+`package_manifest_ref`はRuntime Package Ownerのexact `RuntimeEntryDistributionPackageManifestRefV1`と同じ`ArtifactRefV1(artifact_kind=runtime_entry_distribution_package_manifest, schema_version=1)`であり、`package_manifest_sha256`は同Refの`sha256`および完成Manifest bytesへ一致させる。Manifestがread-backするPackage artifact、Project Snapshot／Source closure／transport、Candidate、Target、Contract Set、outer Runtime Entry集合はPackage Envelope、前段Receiptおよび`package_artifact_ref`と一致しなければならない。Install／Launch payloadのManifest ref／hashもPackage success Receiptの同Fieldへbyte equalityにする。Launch Selection二FieldはRuntime Package Ownerのexact `RuntimeEntryLaunchSelectionRefV1`と同じgeneric ArtifactRef／完成record SHAで、Task、canonical request、Authorization subject、Receipt payloadをbyte equalityにする。Selectionは同じManifestのexactly one outer-entry rowへ解決し、そのentry artifact／launch descriptor artifactをPackage full member setへ閉じる。bare `package_manifest_sha256`、entry-set hash、descriptor SHA、pathまたはPlatform package metadataだけではPackage success、installまたはlaunchを構成しない。
+
 成功した`TaskStatusReceiptPayloadV1`のReceipt ref／hashは対象Taskがterminalの場合だけ対で必須、非terminalでは両方省略する。成功した`TaskCancellationReceiptPayloadV1`は`converged_state`の値にかかわらず対象Task自身のterminal Receipt ref／hashを必須にし、Cancellation Receiptを対象TaskのReceiptとして流用しない。対象Async Operationはcancelled時も同じ`task_id`を持つ型固有terminal Receiptを発行する。
 
-完成した各`*ReceiptV1`は`OperationReceiptEnvelopeV1`をsubjectとし、上表のexact `signed_record_purpose`を持つ`MirakanSignedRecordV1`である。Async 11 Operationの`OperationTaskV1.receipt_ref`、前段Receipt ref、`*_receipt_sha256`は署名を含む完成Record全体のcanonical hashを指す。同期Control Receiptは`control_invocation_id`で呼出しを監査し、新しい`OperationTaskV1`またはTask receipt refを作らない。共通署名envelope、hash chain、保持は[AI Verification／Provenance §7](../01-governance/ai-verification-provenance.md#7-evidence-envelope)、algorithm、Signer Role／Key用途、Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書へ署名Fieldや独自Provenanceを複写しない。
+完成した各`*ReceiptV1`は`OperationReceiptEnvelopeV1`をsubjectとし、上表のexact `signed_record_purpose`を持つ`MirakanSignedRecordV1`である。Async 11 Operationの`OperationTaskV1.receipt_ref`、前段Receipt ref、`*_receipt_sha256`は署名を含む完成Record全体のcanonical hashを指す。Launch Receiptはrequest／TaskのSelection ref／hashをpayloadへread-backし、E1 requestへE2 Selectionを付ける、同descriptor hashの別entry、別ManifestのSelectionまたはReceipt内だけのSelection併記を拒否する。同期Control Receiptは`control_invocation_id`で呼出しを監査し、新しい`OperationTaskV1`またはTask receipt refを作らない。共通署名envelope、hash chain、保持は[AI Verification／Provenance §7](../01-governance/ai-verification-provenance.md#7-evidence-envelope)、algorithm、Signer Role／Key用途、Authorizationは[AI Security／Approval](../01-governance/ai-security-approval.md)を参照し、本書へ署名Fieldや独自Provenanceを複写しない。
 
-Packageはcommitted Project revision `N+1`で実行した最終Validation→Cook→Game Candidate Build→Candidate Testの完成Receiptを署名込みでread-backし、これらとPackage EnvelopeのProject revision `N+1`、Candidate root、Target、Contract set、Toolchain lock、exact `BuildProjectPublicationBindingV1(kind=committed_revision)`を一致させる。bindingの`PublicPublicationMarkerRefV1`は完成`PublicPublicationMarkerV1`へ、Markerとsigned Domain Receiptの同一`PublicCommitClosureRefV1`は完成`PublicCommitClosureV1`へ解決する。Marker／Receipt／ClosureのOperationを`operation.authoring.changeset.commit`、before Projectを`N`、public-after Projectを`N+1`とし、Closureの`domain_commitment.kind=project_change_set_commit`からexact `project_change_set_ref`と`candidate_root_sha256`を読み、ClosureのPrepared Candidate、late source-promotion authorization binding集合とともにbindingへbyte equalityにする。Source registration primitiveが0件でもProject branch、ChangeSet、Candidate rootを必須にし、late binding集合だけを`[]`にする。Marker／Receiptの`public_commit_closure_hash`とRef内`closure_ref.sha256`は完成Closure object SHA、Refの`closure_content_hash`はsemantic hashとして別々に検証し、相互代用しない。private Marker bodyまたはPrepared Envelope bodyの公開lookupをPackage成立条件にせず、ClosureのEnvelope／private Marker commitmentはPublic Marker、signed Receipt、retained internal audit objectのhashと一致させる。Sourceを選択した場合、Promotion Receiptとそれがexact参照するprepromotion Build／Test Receiptだけは即時predecessorであるbase Project revision `N`へ束縛し、Project ID、Candidate root、Target、Toolchain、promoted Source revision、before／after tree、Code Owner Approval、および同late bindingをset equalityで照合する。これらPromotion用Receiptの`project_revision=N`を最終Envelopeの`N+1`へ書き換えず、最終Validation／Cook／Game Candidate／Candidate Test Receiptとして流用しない。Package→Install→Launch→Smokeでは全EnvelopeのProject revision、Candidate root、Targetと、全payloadのPackage artifact ref／hashをexact一致させる。各`authorization_envelope_hash`は当該Operation、同じsubject identity、Project／Candidate／Target／Device closureへ有効でなければならず、前段Authorizationを継承しない。Install／Launch／SmokeではDevice identity／generationも一致させ、SmokeはPackage、Install、Launchの`result=succeeded`完成Receipt ref／hashとfixture ref／hashをすべて必須にする。Resetも`result=succeeded`のPackage Receipt／artifact、Device、consent、R3 Approvalへ閉じる。前段Receiptのmissing、非success、署名／hash／subject差、revocation、Device generation差、fixture差を後段の成功として受理しない。
+Packageはcommitted Project revision `N+1`で実行した最終Validation→Cook→Game Candidate Build→Candidate Testの完成Receiptを署名込みでread-backし、これらとPackage EnvelopeのProject revision `N+1`、Candidate root、Target、Contract set、Toolchain lock、exact `BuildProjectPublicationBindingV1(kind=committed_revision)`を一致させる。bindingの`PublicPublicationMarkerRefV1`は完成`PublicPublicationMarkerV1`へ、Markerとsigned Domain Receiptの同一`PublicCommitClosureRefV1`は完成`PublicCommitClosureV1`へ解決する。Marker／Receipt／ClosureのOperationを`operation.authoring.changeset.commit`、before Projectを`N`、public-after Projectを`N+1`とし、Closureの`domain_commitment.kind=project_change_set_commit`からexact `project_change_set_ref`と`candidate_root_sha256`を読み、ClosureのPrepared Candidate、late source-promotion authorization binding集合とともにbindingへbyte equalityにする。Source registration primitiveが0件でもProject branch、ChangeSet、Candidate root、Project Source closureを必須にし、late binding集合だけを`[]`にする。Marker／Receiptの`public_commit_closure_hash`とRef内`closure_ref.sha256`は完成Closure object SHA、Refの`closure_content_hash`はsemantic hashとして別々に検証し、相互代用しない。private Marker bodyまたはPrepared Envelope bodyの公開lookupをPackage成立条件にせず、ClosureのEnvelope／private Marker commitmentはPublic Marker、signed Receipt、retained internal audit objectのhashと一致させる。Sourceを選択した場合、Promotion Receiptとそれがexact参照するprepromotion Build／Test Receiptだけは即時predecessorであるbase Project revision `N`へ束縛し、Project ID、Candidate root、Target、Toolchain、promoted Source revision、before／after tree、Code Owner Approval、および同late bindingをset equalityで照合する。これらPromotion用Receiptの`project_revision=N`を最終Envelopeの`N+1`へ書き換えず、最終Validation／Cook／Game Candidate／Candidate Test Receiptとして流用しない。Package→Install→Launch→Smokeでは全EnvelopeのProject revision、Candidate root、Targetと、全payloadのPackage artifact ref／hashをexact一致させる。Install／Launch／SmokeがPackage Manifestまたはouter Runtime Entryをread-backする場合はPackage success Receiptのexact Manifest ref／hashと同じartifact／entry集合へ閉じる。Launchはさらにrequest／Task／Authorization／Receiptのexact Selection ref／hashを同じManifest rowへ閉じ、別Manifest、entry-set hash、descriptor hashまたはReceiptへのRef併記だけを代用しない。各`authorization_envelope_hash`は当該Operation、同じsubject identity、Project／Candidate／Target／Device closureへ有効でなければならず、前段Authorizationを継承しない。Install／Launch／SmokeではDevice identity／generationも一致させ、SmokeはPackage、Install、Launchの`result=succeeded`完成Receipt ref／hashとfixture ref／hashをすべて必須にする。Resetも`result=succeeded`のPackage Receipt／artifact、Device、consent、R3 Approvalへ閉じる。前段Receiptのmissing、非success、署名／hash／subject差、revocation、Device generation差、Selection差、fixture差を後段の成功として受理しない。
 
 `TaskStatusReceiptV1`と`TaskReceiptReadReceiptV1`はControl requestと対象Task／Receipt hashを監査する同期read Receipt、`TaskCancellationReceiptV1`はcancel requestと収束結果を監査するControl Receiptであり、いずれも新しい`OperationTaskV1`を作らない。
 
@@ -734,7 +771,6 @@ Engine repositoryの正規rootを次に固定する。各Directoryの命名gramm
 <component>/
 ├─ CMakeLists.txt
 ├─ include/mirakan/<component>/
-├─ modules/
 ├─ source/
 ├─ tests/
 └─ benchmarks/

@@ -7,7 +7,7 @@
 - 正本範囲: MirakanUi Core、Editor Shell、Widget／Layoutの基本契約、Event／Focus／Command、UI Rendering、Window／Dock、Text／IME、Semantic Tree、Accessibility bridge、UI ownershipと検証
 - 非正本範囲: Project transaction、Workspace journey、Asset operation、Gameplay model、外部Tool・SDK・Libraryの固定値、Runtime／Rendering／Platform内部。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
-- 関連文書: [Editor UI Design System Catalog](../appendices/editor-ui-design-system-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [Editor UI Design System Catalog](../appendices/editor-ui-design-system-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -36,7 +36,7 @@ EditorとShipping Game UIは`MirakanUi Core`を共有するが、FrontendとPlat
 | Project state変更、ChangeSet、Commit、Undo、Recovery | Authoring規約 |
 | UI Render Pass、GPU resource、D3D12 device／submission | Rendering規約 |
 | Win32 HWND、DPI、Process、Package、OS service | Windows規約 |
-| C++ target、Named Module、Memory／Pointer、Dependency lock | 基盤規約とC++規約 |
+| C++ target、Public Header、Memory／Pointer、Dependency lock | 基盤規約とC++規約 |
 
 同じ主題で表現が異なる場合は上表のOwnerを優先する。本書はGame UIのSchemaやEditorの画面構成を重複定義しない。
 
@@ -169,11 +169,11 @@ ProjectRevision + EditorUserState
 | UI Automation | `IUiAccessibilityBridge` Portのみ | `mirakan.ui.uia.adapter`をcompose | Windows Accessibilityを有効にするGameだけ同じAdapterをcompose |
 | HarfBuzz／FreeType／ICU | Portのみ | ICUだけをlocale、boundary、message処理へ利用。HarfBuzz／FreeTypeはEditorHostへlinkしない | Target共通Backend |
 
-Shipping `GameHost`のdependency closureに`mirakan.editor.*`、Authoring、Workspace、UIA Editor providerを含めない。CIはCMake graph、Named Module graph、link map、SBOMの四つで検査する。
+Shipping `GameHost`のdependency closureに`mirakan.editor.*`、Authoring、Workspace、UIA Editor providerを含めない。CIはCMake graph、public／private include graph、link map、SBOMの四つで検査する。
 
 EditorとGameで共有するのはalgorithmとcontractであり、Widget instance、Font cache、Focus、State Store、semantic generation、GPU resourceをProcess間共有しない。
 
-## 7. Directory、CMake target、Named Module
+## 7. Directory、CMake target、Public Header
 
 基盤規約のdirectoryを次の具体形にする。
 
@@ -206,24 +206,24 @@ editor/
 └─ recovery/                   # last-valid layout、safe recovery entry
 ```
 
-| CMake alias | Named Module | 公開責務 |
+| CMake alias | Public include root | 公開責務 |
 |---|---|---|
-| `mirakan::ui_core` | `mirakan.ui.core` | tree、handle、snapshot、state |
-| `mirakan::ui_layout` | `mirakan.ui.layout` | typed layout、virtualization |
-| `mirakan::ui_events` | `mirakan.ui.events` | event、focus、hit test |
-| `mirakan::ui_semantics` | `mirakan.ui.semantics` | semantic contract |
-| `mirakan::ui_text` | `mirakan.ui.text` | text backend port |
-| `mirakan::ui_rendering` | `mirakan.ui.rendering` | draw packet、render port |
-| `mirakan::ui_d3d12_adapter` | `mirakan.ui.d3d12.adapter` | MirakanUiDrawPacketV1のD3D12変換 |
-| `mirakan::ui_directwrite_adapter` | `mirakan.ui.directwrite.adapter` | DirectWrite text layout／glyph analysis |
-| `mirakan::ui_tsf_adapter` | `mirakan.ui.tsf.adapter` | TSF text input |
-| `mirakan::ui_uia_adapter` | `mirakan.ui.uia.adapter` | UI Automation provider |
-| `mirakan::ui_harfbuzz_freetype_adapter` | `mirakan.ui.harfbuzz_freetype.adapter` | Shipping Game text shaping／raster |
-| `mirakan::editor_ole_adapter` | `mirakan.editor.ole.adapter` | Editor Clipboard／OLE drag and drop |
-| `mirakan::editor_ui` | `mirakan.editor.ui` | Editor view／control |
-| `mirakan::editor_shell` | `mirakan.editor.shell` | shell／command composition |
-| `mirakan::editor_docking` | `mirakan.editor.docking` | docking／floating transaction |
-| `mirakan::editor_semantics` | `mirakan.editor.semantics` | AI／UIA用Editor semantics |
+| `mirakan::ui_core` | `mirakan/ui/core/` | tree、handle、snapshot、state |
+| `mirakan::ui_layout` | `mirakan/ui/layout/` | typed layout、virtualization |
+| `mirakan::ui_events` | `mirakan/ui/events/` | event、focus、hit test |
+| `mirakan::ui_semantics` | `mirakan/ui/semantics/` | semantic contract |
+| `mirakan::ui_text` | `mirakan/ui/text/` | text backend port |
+| `mirakan::ui_rendering` | `mirakan/ui/rendering/` | draw packet、render port |
+| `mirakan::ui_d3d12_adapter` | private | MirakanUiDrawPacketV1のD3D12変換 |
+| `mirakan::ui_directwrite_adapter` | private | DirectWrite text layout／glyph analysis |
+| `mirakan::ui_tsf_adapter` | private | TSF text input |
+| `mirakan::ui_uia_adapter` | private | UI Automation provider |
+| `mirakan::ui_harfbuzz_freetype_adapter` | private | Shipping Game text shaping／raster |
+| `mirakan::editor_ole_adapter` | private | Editor Clipboard／OLE drag and drop |
+| `mirakan::editor_ui` | `mirakan/editor/ui/` | Editor view／control |
+| `mirakan::editor_shell` | `mirakan/editor/shell/` | shell／command composition |
+| `mirakan::editor_docking` | `mirakan/editor/docking/` | docking／floating transaction |
+| `mirakan::editor_semantics` | `mirakan/editor/semantics/` | AI／UIA用Editor semantics |
 
 依存は次のDAGに固定する。`A <- B`は「BがAへ依存する」を意味し、逆方向の依存を許可しない。
 
@@ -419,7 +419,7 @@ Project mutation Commandは、Registry recordがcurrent Contract setの完全な
 |---|---|
 | typed input closure | 一件のStable target ref、一件の`canonical_field_ref`、そのfield schemaへexactに解決する一件のtyped scalar value、`ProjectRevisionBindingV1`の`project_id`／`project_revision`／`document_set_sha256`、authorization contextを必須にする。`EditorCommandRequest.project_revision`はこのbindingのrevisionとbyte equalityでなければならない。表示文字列、unit文字列、row index、screen coordinate、Runtime valueを入力またはidentityにしない |
 | primitive closure | Reference 01のscalar editは一件だけの`SetComponentField`へ変換する。自由形式`SetJsonPointer`、任意field write、複数fieldの暗黙展開、Component replacementを許さない。primitive target、field、typed value、expected document revision、ChangeSetのbase Project revisionは上のbindingとexact一致する |
-| outer route | `operation.authoring.changeset.propose`、`validate`、`preview`、`commit`の四件と、そのprimitive coverage、Policy、Validator、Diagnostic、Receipt／Publication closureが同じatomic Contract set transactionで完全登録された後だけ実行可能にする。成功Commitは新しいEditor固有Receiptを作らず、[Project State §5.3](project-state.md#53-commit-algorithm)の`PublicCommitClosureV1`、`PublishedDomainReceiptV2`、`PublicPublicationMarkerV1`とbefore／after Project refへ閉じる |
+| outer route | `operation.authoring.changeset.propose`、`validate`、`preview`、`commit`の四件と、そのprimitive coverage、Policy、Validator、Diagnostic、Receipt／Publication closureが同じatomic Contract set transactionで完全登録された後だけ実行可能にする。成功Commitは新しいEditor固有Receiptを作らず、[Project State §5.3](project-state.md#53-commit-algorithm)の`PublicCommitClosureV1`、`PublishedDomainReceiptV1`、`PublicPublicationMarkerV1`とbefore／after Project refへ閉じる |
 | actor boundary | Human pointer／keyboard／accessibilityとAI `internal_ai`は、有効なAction projectionが返したtyped argumentだけを要求できる。AIはProposalを作れてもApprovalまたはtrusted-internal Commitを実行しない。`automation/test`のGateway direct requestはdefense-in-depth fixtureだけであり、Production Registry／AI Toolへ投影しない |
 | runtime read-only | `live_edit=runtime_read_only`ではSemantic Actionを`enabled=false`、`disabled_reason_key=reason.live-edit.runtime-read-only`にし、surface bindingはCommand requestを一件も発行しない。Gateway direct fixtureだけは同じ`reason_key`と`DiagnosticCodeRefV1`を持つ`EditorCommandUnavailableResultV1`で拒否し、Project root／revision、ChangeSet、Receiptをすべて不変／emptyにする |
 | current status | `planning.operation_family.authoring_changeset_execution`のcurrent集合は`[]`、Capabilityは`not_activated`である。したがってこのCommandのcurrent execution record／Action projectionは存在せず、未Activation時のcandidate dispatchは`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否する。Reference 01の`D.edit`／`D.reject`は上記activation後にだけmaterializeできるexpected behaviorであり、現在のManifest、baseline、Receiptを主張しない |
@@ -1011,7 +1011,7 @@ Phase順序、Capability maturity、release threshold、promotion authorization�
 - AIがUIA、mouse macro、screen coordinateを正規操作経路にすること
 - CSS／HTML互換を目指すこと
 - Project C++がEditor Widget callbackをProcess内注入すること
-- Platform Adapter型をNamed Module、serialization、MCDへ公開すること
+- Platform Adapter型をPublic Header、serialization、MCDへ公開すること
 - Accessibilityを実装後の追加機能として扱うこと
 - GPU device loss時にProject recovery手段を失うこと
 
@@ -1079,7 +1079,7 @@ C1独自Editor UI Frameworkは次をすべて満たした時点で完了する�
 | Light／Dark、High Contrast、text、motion、transparencyを色やanimationだけに依存させず、running desktop processのtheme／system-color／client-area animation／advanced effects変更ではOSのcurrent valueを再読込する | [Support Dark and Light themes in Win32 apps](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-windows-themes)、[Contrast themes](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/high-contrast-themes)、[High contrast parameter](https://learn.microsoft.com/en-us/windows/win32/winauto/high-contrast-parameter)、[`GetSysColor`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsyscolor)、[`UISettings.GetColorValue`](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.getcolorvalue)、[`DwmSetWindowAttribute`](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmsetwindowattribute)、[`SystemParametersInfoW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow)、[`WM_THEMECHANGED`](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-themechanged)、[`WM_SYSCOLORCHANGE`](https://learn.microsoft.com/en-us/windows/win32/gdi/wm-syscolorchange)、[`WM_SETTINGCHANGE`](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-settingchange?view=windowsdesktop-10.0)、[Composition tailoring for WinUI apps](https://learn.microsoft.com/en-us/windows/apps/develop/composition/composition-tailoring)、[`UISettings.AnimationsEnabledChanged`](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.animationsenabledchanged)、[`UISettings.AdvancedEffectsEnabled`](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.advancedeffectsenabled)、[`UISettings.AdvancedEffectsEnabledChanged`](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.advancedeffectsenabledchanged)、[Use Mica material in Win32 apps](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-mica-win32)、[Desktop WinRT API support](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-api-desktop-app-support)、[Accessible text requirements](https://learn.microsoft.com/en-us/windows/apps/design/accessibility/accessible-text-requirements)、[Timing and easing](https://learn.microsoft.com/en-us/windows/apps/design/motion/timing-and-easing) |
 | custom scroll chromeはWindowsのauto-hide preferenceを再読込し、visible indicator／full thumbとUIA Scrollを別に扱う | [`UISettings.AutoHideScrollBars`](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.autohidescrollbars)、[`UISettings.AutoHideScrollBarsChanged`](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.autohidescrollbarschanged)、[Scroll viewer controls](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/scroll-controls)、[Scroll control pattern](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-implementingscroll)、[ScrollBar control type](https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-supportscrollbarcontroltype)、[Desktop WinRT API support](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-api-desktop-app-support) |
 | in-window transient notificationはWindows message durationを再読込し、UIA notificationをredaction済みのcoalesced eventだけで発行する。短いactionなしfeedbackはStatus bar一件、状態／actionはowner-inlineとし、C1は外部App notification／Toastを使わない | [Message duration parameter](https://learn.microsoft.com/en-us/windows/win32/winauto/message-duration)、[`SystemParametersInfoW`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfow)、[Accessibility parameters](https://learn.microsoft.com/en-us/windows/win32/winauto/accessibility-parameters)、[`WM_SETTINGCHANGE`](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-settingchange?view=windowsdesktop-10.0)、[`UISettings.MessageDurationChanged`](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.messagedurationchanged)、[`UiaRaiseNotificationEvent`](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcoreapi/nf-uiautomationcoreapi-uiaraisenotificationevent)、[NotificationKind](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/ne-uiautomationcore-notificationkind)、[NotificationProcessing](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationcore/ne-uiautomationcore-notificationprocessing)、[InfoBar](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/infobar)、[App notifications overview](https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/) |
-| Windows typography、CJK mono fontとsystem iconをHost／bundled assetへ分け、iconは小サイズでも意味が明確なcommand／navigation用途に限定し、label／accessible nameとsemantic tokenからlock済みassetへ解決する | [Windows Typography](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/typography)、[International fonts](https://learn.microsoft.com/en-us/windows/apps/design/globalizing/loc-international-fonts)、[Icons in Windows apps](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/icons)、[Noto Sans CJK 2.004](https://github.com/notofonts/noto-cjk/releases/tag/Sans2.004)、[Fluent UI System Icons 1.1.333](https://github.com/microsoft/fluentui-system-icons/tree/1.1.333) |
+| Windows typography、CJK mono fontとsystem iconをHost／bundled assetへ分け、iconは小サイズでも意味が明確なcommand／navigation用途に限定し、label／accessible nameとsemantic tokenからlock済みassetへ解決する | [Windows Typography](https://learn.microsoft.com/en-us/windows/apps/design/signature-experiences/typography)、[International fonts](https://learn.microsoft.com/en-us/windows/apps/design/globalizing/loc-international-fonts)、[Icons in Windows apps](https://learn.microsoft.com/en-us/windows/apps/develop/ui/controls/icons)、[Noto Sans CJK 2.004](https://github.com/notofonts/noto-cjk/releases/tag/Sans2.004)、[Fluent UI System Icons 1.1.334](https://github.com/microsoft/fluentui-system-icons/tree/1.1.334) |
 | Keyboard、Focus、target size、drag代替の人間工学原則 | [WCAG 2.2](https://www.w3.org/TR/WCAG22/) |
 
 外部資料はPlatform APIと既存Engineの方式を示す。`MirakanUi Core`、`EditorViewDescriptor`、`EditorSemanticSnapshotV1`、AI／UIA分離、Command収束、UI固有contractとfixtureはMiraikanai Engine独自の規範決定である。

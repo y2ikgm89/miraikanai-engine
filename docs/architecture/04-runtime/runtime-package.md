@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、headless dedicated game Runtime Targetのpackage／launch closure、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
+- 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、配布Package artifactとouter Runtime Entry集合のtyped manifest、Manifestのexact outer-entry rowを選ぶreceipt-free Launch Selection、headless dedicated game Runtime Targetのpackage／launch closure、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
 - 非正本範囲: network endpoint／Transport、gameplay session／authority／replication、Online hosting／region／autoscale／operations、generic Derived Artifact manifest／catalog、Texture／Mesh／Audio／Font等の汎用Runtime Asset request・priority・deadline・cancel・residency・eviction（Runtime Asset Lifecycleを参照）、ECS storage・query・lease、Save／Replay record、runtime phase／job DAG、Domain World source意味、debug transport、AI認可。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Runtime ECS](entity-component-system.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
-- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Project State](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
 
@@ -17,9 +17,9 @@ Runtime Entryのlaunch rootは`RuntimeEntryPackageV1`であり、world／ui／he
 
 generic artifact identity、promotion、catalogは[Asset lifecycle](../03-authoring/asset-lifecycle.md)が所有する。Runtime Packageは`DerivedArtifactManifestV1`を再定義せず、World RootまたはWorld Sectionというtagged artifact subjectとartifact roleを解決してpayloadを読む。
 
-本書のloaderはRuntime Entry、World Root、World Sectionのpackage closureをstaging、検証、publicationするOwnerであり、Texture、Mesh、Audio、Fontその他の汎用Runtime Asset request／residency Managerではない。targetの汎用Runtime Asset authorityは[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)へ解決し、World loaderは同Ownerのrequest／generation／leaseをconsumerとして利用する。Owner Decisionとconsumer migrationが未適用で実装状態も`absent`であるため、World loaderのI/O、decode、generationまたはsection streamingからcurrent汎用API、Service、priority、eviction policyを生成しない。
+本書のloaderはRuntime Entry、World Root、World Sectionのpackage closureをstaging、検証、publicationするOwnerであり、Texture、Mesh、Audio、Fontその他の汎用Runtime Asset request／residency Managerではない。汎用Runtime Assetのinitial V1 authorityは[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)であり、World loaderは同Ownerのrequest／generation／leaseをconsumerとして利用する。実装状態は`absent`であるため、World loaderのI/O、decode、generationまたはsection streamingからmaterialized汎用API、Service、priority、eviction policyを生成しない。
 
-本書はtarget review Contractであり、Package reader、binary format、loader、section streamingがcurrentにactiveであることを意味しない。current化にはRuntime ECS正本化ChangeSet、Package Ownerのdefinition migration、complete／zero-verified Consumer Inventory、Compatibility Change、Owner reference migration manifest、source／target Foundation Definition Closure、全Evidence Requirementのpass satisfaction binding、qualification evidenceが同一closureで必要である。
+本書はinitial V1のreview Contractであり、Package reader、binary format、loader、section streamingがmaterializeまたはactiveであることを意味しない。Runtime PackageのDefinition Closure、実装、Qualification、Capability activationには本書と[Runtime ECS](entity-component-system.md)のexact initial V1 ref、全Evidence Requirementのpass satisfaction binding、qualification evidenceが同一subjectへ整合する必要がある。旧Package Owner、旧ECS Owner、source／target migration、aliasまたはdual readerをinitial V1へ定義しない。
 
 ### 1.1 Runtime Entry package closure
 
@@ -71,6 +71,67 @@ branch validationは次へ固定する。
 Presentation Binding二FieldとUI二Fieldはそれぞれall-nullまたはall-presentで、worldでは両groupのpresent／nullが一致しなければならない。Binding ref／hash、Project Compile ManifestのBinding ref／hash、Binding内Runtime Entry ref／semantic hash、root UiDocument ref／content hashをbyte equalityで検証する。`ui_root_screen_definition_ref`はexact UiDocument ref／content hashとNavigation Policyを束縛したcompiled `UiScreenDefinitionV1`、`ui_dependency_closure_hash`は同Documentから到達するStyle／Localization／Font／Asset Catalog dependency集合へ解決する。これらをAsset Lifecycleの`ArtifactSubjectRefV1`へ未登録subject kindとして偽装しない。headlessへ空startup closureを作る、UI-onlyへ空World packageを作る、V1 worldの`ui_document_ref`をnon-nullにする、world UIをdependency blobとしてWorld binaryへ隠す、missing fieldをCatalogや表示名から補完することを禁止する。World branch内側の`RuntimePackageV1`と外側の`RuntimeEntryPackageV1`は別のID／hashを持ち、相互のRef型を代用しない。
 
 Runtime Entry transitionとContinueは常に外側`RuntimeEntryPackageRefV1`を参照する。ECS World constructionと`RuntimeWorldSaveRecordSetV1`だけがworld branch内側`RuntimePackageRefV1`を参照できる。これによりTitle／ResultのUI-only branchとheadless workflowはWorld Root imageなしにload／validate／publishできる。
+
+#### 1.1.1 配布Package artifact manifest
+
+```text
+RuntimeEntryDistributionPackageManifestV1
+  distribution_manifest_version: 1
+  package_artifact_ref: exact ArtifactRefV1
+  source_repository_snapshot_ref:
+    exact ProjectRepositorySnapshotRefV1
+  source_closure_ref: exact ProjectSourceClosureRefV1
+  source_transport_artifact_ref:
+    exact ArtifactRefV1(
+      artifact_kind=project_source_transport,
+      schema_version=1)
+  source_project_revision_ref: exact ProjectRevisionRefV1
+  candidate_ref: exact PreparedCandidateRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  contract_set_ref: exact ContractSetRefV1
+  public_contract_set_ref: exact PublicContractSetRefV1
+  package_member_bindings[1..65535]:
+    sorted unique {
+      canonical_package_relative_path: normalized UTF-8,
+      member_artifact_ref: exact ArtifactRefV1
+    }
+  runtime_entry_members[1..64]:
+    sorted unique {
+      runtime_entry_package_ref: exact RuntimeEntryPackageRefV1,
+      runtime_entry_package_artifact_ref: exact ArtifactRefV1,
+      launch_descriptor_artifact_ref: exact ArtifactRefV1
+    }
+  distribution_manifest_content_hash: SHA-256
+
+RuntimeEntryDistributionPackageManifestRefV1 =
+  exact ArtifactRefV1(
+    artifact_kind=runtime_entry_distribution_package_manifest,
+    schema_version=1)
+
+RuntimeEntryLaunchSelectionV1
+  launch_selection_version: 1
+  distribution_package_manifest_ref:
+    exact RuntimeEntryDistributionPackageManifestRefV1
+  runtime_entry_package_ref: exact RuntimeEntryPackageRefV1
+  runtime_entry_package_artifact_ref: exact ArtifactRefV1
+  launch_descriptor_artifact_ref: exact ArtifactRefV1
+  launch_selection_content_hash: SHA-256
+
+RuntimeEntryLaunchSelectionRefV1 =
+  exact ArtifactRefV1(
+    artifact_kind=runtime_entry_launch_selection,
+    schema_version=1)
+```
+
+このManifestは完成`package_artifact_ref`を検査した後に作るreceipt-free detached recordであり、Package artifactまたはそのmemberからManifest／Receiptを逆参照させない。`package_member_bindings[]`はcontainerの正規inspectionで得た全file memberのcanonical package-relative pathと完成bytesの`ArtifactRefV1`をexactly once列挙する。directory entry、container timestamp、compression method、owner、permissionまたはmember順をidentityへ含めず、path collision、root escape、duplicate member、unlisted bytes、missing／extra memberを拒否する。Manifest自身はPackage member集合へ含めず、Package artifact hashとManifest hashのcycleを作らない。
+
+`runtime_entry_members[]`の`runtime_entry_package_ref` projectionはuniqueで、Package内の全launchable outer entry集合である。同じouter entry refを異なるartifact／descriptor rowへ重複させることを拒否する。各rowのRuntime Entry artifactとlaunch descriptor artifactは`package_member_bindings[]`のexact memberへ解決し、同じProject revision、Target、Runtime Contract Set、entry semantic hash、branch closureを`RuntimeEntryPackageV1`とbyte equalityにする。launchable descriptorを別member role、表示名、拡張子、配列位置またはinner `RuntimePackageRefV1`から補完しない。`world`だけがouter entryからexact inner World Packageへ解決し、`ui | headless`はinner nullを維持する。
+
+`source_repository_snapshot_ref`が解決するSource closure ref／hash、Project／revisionおよびcanonical transport artifactはManifestの同Fieldへbyte equalityにする。`distribution_manifest_content_hash`はASCII `MIRAKAN_RUNTIME_ENTRY_DISTRIBUTION_PACKAGE_MANIFEST_V1`と、自身を除く全FieldのMCD canonical bytesを各`uint32_be` length framingした列のSHA-256である。`RuntimeEntryDistributionPackageManifestRefV1.sha256`はこのcontent hashを含む完成record bytesへ一致し、bare Manifest hash、`package_entry_set_hash`、container pathまたはPlatform固有entry nameをRefにしない。
+
+`RuntimeEntryLaunchSelectionV1`は完成Manifestの`runtime_entry_members[]`から選択したexact一行を複写するreceipt-free detached recordである。四つのRefは同じManifestのexactly one rowとbyte equalityにし、0件／複数件へ解決する選択、Manifest外entry artifact／descriptor artifact、同descriptorを共有する別entry、別Manifestの同名／同Ref表示、outer `RuntimeEntryPackageRefV1`からinner `RuntimePackageRefV1`への代用を拒否する。`launch_selection_content_hash`はASCII `MIRAKAN_RUNTIME_ENTRY_LAUNCH_SELECTION_V1`と自身を除く全FieldのMCD canonical bytesを各`uint32_be` length framingした列のSHA-256、Refの`sha256`はcontent hashを含む完成record bytesのSHA-256である。ManifestはSelectionを逆参照せず、SelectionからManifestへの一方向edgeだけを持つためhash cycleを作らない。
+
+Core ArchitectureのPackage success Receiptは同じPackage artifact、Source snapshot／closure／transport、Candidate、Targetおよびexact `RuntimeEntryDistributionPackageManifestRefV1`をread-backする。Launch request／Task／Receiptは選択したexact `RuntimeEntryLaunchSelectionRefV1`をread-backする。Product Lifecycle、desktop package、AABその他のPlatform containerはManifest／Selectionを参照または投影するconsumerであり、Platform別outer-entry identity、Launch選択または別Manifest意味を定義しない。Package／install／launch Receipt間でartifact、Manifest、Selection、entry、Project revision、Target、Contract Setの一つでも異なるstitch、W1 ManifestとW2 Selection／artifact、missing／extra／duplicate entry、descriptor hashだけ、Manifest hashだけ、outer／inner Ref型代用をrejectする。
 
 ### 1.2 Headless dedicated game Runtime Target（planning only）
 
@@ -134,20 +195,21 @@ RuntimeWorldCapacityRecordV1
   target_profile_ref: TargetProfileRefV1
   max_loaded_sections: positive uint32
   max_runtime_entities: positive uint32
+  max_persistent_entities: positive uint32 in [1,1048576]
   max_archetypes: positive uint32
   max_chunks: positive uint32
   max_structural_deltas_per_boundary: positive uint32
-  max_query_work_units_per_advance: positive uint32
+  max_query_work_units_per_advance: positive uint32 in [1,65536]
   section_reservation_records[0..4096]:
     world_section_id
     entity_reservation
     chunk_reservation
-    memory_budget_ref: ProjectScaleEnvelopeRefV2
-  capacity_envelope_ref: ProjectScaleEnvelopeRefV2
+    memory_budget_ref: ProjectScaleEnvelopeRefV1
+  capacity_envelope_ref: ProjectScaleEnvelopeRefV1
   record_hash: SHA-256
 ```
 
-capacity recordはWorld build／section publicationに必要な上限とreservationを表す。global capacity envelope、測定方法、backpressureは[Performance／Capacity](performance-capacity.md)が所有し、本recordはそのOwnerが承認したrefを消費する。loaderは予約を超えるSection、Entity、chunk、delta、work unitをstagingへ入れない。
+capacity recordはWorld build／section publicationに必要な上限とreservationを表す。global capacity envelope、測定方法、backpressureは[Performance／Capacity](performance-capacity.md)が所有し、本recordはそのOwnerが承認したrefを消費する。`max_persistent_entities <= max_runtime_entities`を必須にする。loaderは予約を超えるSection、Entity、persistent Entity、chunk、delta、work unitをstagingへ入れない。
 
 ### 3.2 Data-oriented construction closure
 
@@ -185,7 +247,7 @@ RuntimeWorldSectionEntityRecordSetV1
   record_set_hash: SHA-256
 ```
 
-entity recordはRuntime Entity handle、chunk ID、row、native pointer、Editor pathを持たない。`entity_record_id`はSection payload内のimmutable record identityであり、runtime slotやpersistent identityの代替ではない。persistent identityが必要なrecordだけがexplicit refを持ち、identity collision、template／initializer mismatch、section dependency missingをloader preflightで拒否する。
+entity recordはRuntime Entity handle、chunk ID、row、native pointer、Editor pathを持たない。`entity_record_id`はSection payload内のimmutable record identityであり、runtime slotやpersistent identityの代替ではない。persistent identityが必要なrecordだけがexplicit refを持ち、identity collision、template／initializer mismatch、section dependency missingをloader preflightで拒否する。同時にpublishする全Section entity record setについて、presentな`persistent_identity_ref`のdistinct集合を`P_package(W)`とし、checked sumとset validationで`|P_package(W)| <= max_persistent_entities <= 1048576`を満たさなければPackage assemblyとloader stagingの双方を拒否する。一Sectionごとの配列上限、section reservationまたはidentity重複排除をこのWorld全体上限の代用にしない。
 
 record orderは`entity_record_id`のcanonical byte順とし、payload file offset、Cook worker順、OS filesystem順を意味にしない。section entity record setはECSの`RuntimeEntityConstructionSetV1`へ入力として渡されるが、archetype row placementやlive location tableを所有しない。
 
@@ -318,7 +380,7 @@ Loaderは次を順に検査する。
 4. persistent identity、template、initializer、State store binding、capacityを検証する。
 5. 全Sectionとdependencyがreadyである場合だけRuntime Worldへpublishを要求する。
 
-World construction前に、missing／extra／duplicateなlayout policyまたはarchetype layout ref、layout policyと異なるComponent schema hash、alignment／payload計算後のrow capacity 0、unbounded archetype permutationまたはstructural delta capacity、capacity recordに覆われないquery／command／output reservationを拒否する。old AoS、sparse-set、object-graphのPackage section、old generated signature、pointer-backed inline payload、persisted row selection、およびglobal `new`、default PMR、第二のShipping storage backendへのfallbackも拒否する。
+World construction前に、missing／extra／duplicateなlayout policyまたはarchetype layout ref、layout policyと異なるComponent schema hash、alignment／payload計算後のrow capacity 0、unbounded archetype permutationまたはstructural delta capacity、capacity recordに覆われないquery／command／output reservationを拒否する。一つのSimulation Advanceで生成する全`RuntimeQueryDispatchPlanV1`について、checked arithmeticで`sum(|plan.work_units|) <= max_query_work_units_per_advance <= 65536`をpreflightし、個別Planが上限内でもaggregateが超える場合はcallback開始前に拒否する。Plan分割、空Plan、worker割当または`deterministic_hash`でaggregate上限を回避しない。old AoS、sparse-set、object-graphのPackage section、old generated signature、pointer-backed inline payload、persisted row selection、およびglobal `new`、default PMR、第二のShipping storage backendへのfallbackも拒否する。
 
 load中のimage、decoded record、reservationはstagingだけに存在する。failure、cancel、stale Project revision、missing dependency、capacity不足、identity collisionではlast-valid World publicationを維持し、partial Worldをpublishしない。
 
@@ -367,11 +429,13 @@ loader／capacity qualification receiptは、同じCandidate、Target、Contract
 3. missing dependency、capacity overrun、identity collision、template mismatch、stale section revisionでpartial publicationしない。
 4. section add／removeがECS boundary外のlive storageを直接変更せず、失敗時にold publicationを保持する。
 5. Package、ECS、Persistence、Asset Lifecycle間にraw pointer、live handle、synthetic Asset ID、old aliasを渡さない。
-6. source-preserving recookが旧Package bytesに依存せず、Catalog／dependency／qualification closureをread-backできる。
-7. Consumer InventoryのPackage／distribution scopeと全Evidence Requirementのpass fulfillment、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じclosureへexact解決する。
+6. initial V1 package生成が旧draft Package bytes、aliasまたは近似名fallbackに依存せず、Catalog／dependency／qualification closureをread-backできる。
+7. Runtime Package、Runtime ECS、Runtime Asset、Asset Lifecycleのexact initial V1 Owner／Definition refと全Evidence Requirementのpass fulfillmentが同じclosureへ解決し、duplicate Ownerまたはunresolved refが0件である。
 8. `RuntimeEntryPackageV1`のworld＋target Presentation Binding UI、world Bindingなし、UI-only、headless四branchをround-tripし、branch外field、Binding group／UI groupのpresent差、entry／Binding／closure／Target／Catalog hash差、UI-only／headlessへの偽World、V1 world `ui_document_ref`非nullを各一原因でrejectする。
 9. Runtime Entry transitionとContinueが外側`RuntimeEntryPackageRefV1`、ECS constructionとWorld Saveが内側`RuntimePackageRefV1`だけを受理し、Ref型の相互代用をrejectする。
+10. 配布Package Manifestのpackage member／outer entry projectionと実container inspectionをset equalityにし、missing／extra／duplicate member、wrong artifact／Snapshot／Source closure／transport／Candidate／Target／Contract Set、W1 Manifest＋W2 artifact、bare Manifest hash、Platform固有entry identityを各一原因でrejectする。
+11. Launch SelectionがManifestのexactly one outer-entry rowへ解決し、request／Task／Receiptで同じSelection ref／hashを保持する。E1を実行してE2をclaimする、descriptor共有entry、descriptor SHAだけ、別Manifest、wrong entry artifact／descriptor artifact、outer／inner Ref代用、requestとReceiptのSelection差を各一原因でrejectする。
 
 ## 9. 非目的
 
-本書はWorld streaming implementation、Package writer、loader implementation、Task Plan、cache削除を実行しない。各実施は承認済みdefinition migrationとProduct Work Packageの条件が満たされた後に開始できる。
+本書はWorld streaming implementation、Package writer、loader implementation、Task Plan、cache削除を実行しない。各実施はinitial V1 Definition Closure、Qualification要求とProduct Work Packageの条件が満たされた後にだけ開始できる。

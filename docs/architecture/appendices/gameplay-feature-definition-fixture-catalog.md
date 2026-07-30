@@ -15,7 +15,7 @@
 
 > 本書は分離前Owner文書のWeapon、Damage、Vital、Score、Encounter、Pickup、Character Locomotion等の具体Schema、Registry、Fixture候補を保持する。親OwnerのFeature共通境界、ownership、Port、Save／Replay、failure意味を上書きせず、ArtifactとQualificationがない候補をactive Packとして扱わない。
 
-> 以下の見出し番号は、分離前Ownerからの参照互換性と履歴追跡のために維持する。欠番は省略された親Ownerの安定規範であり、本書に補完しない。
+> 以下の見出し番号は、親Ownerの論点番号との対応を明示するために維持する。欠番は親Ownerが所有する規範であり、本書に補完しない。
 
 ## 3. Canonical data model
 
@@ -434,15 +434,7 @@ GrantRequestPortV1
 
 各scope typeは`RuntimeScopeTypeRefV1 {scope_type_id, scope_type_version=1, scope_type_hash}`、type／policy cellは`McdContractRefV1 {id, version=1, contract_set_hash}`、owner cellは`RuntimeScopeOwnerRefV1 {owner_id, owner_revision, owner_content_hash}`として保存し、表の裸IDを永続化しない。全dependency recordをactive Scope Registryへ登録する。Save identity、Replay identity、ephemeral runtime generationを別Fieldで保持し、複数instanceのStateをSource IDまたはRuntime handleで合成しない。
 
-旧System Sourceの実在bytesは現計画から証明されていない。次の三rowはcurrent Pack memberではなく、Gameplay Programming Model §3.1.2のconditional legacy migrationがsigned `LegacyMigrationInventoryV1` gateを満たしてatomic activationされる場合だけ追加できるdestination templateである。currentの三Pack `migration_contribution_refs[]`、Feature owner Contribution Registry subset、Qualification subject／Receipt／Binding、Activation Catalog集合はすべてexact `[]`である。Activation transactionではCore tableへFeature IDを追加せず、Gameplay Programming Modelの`RuntimeScopeMigrationContributionRegistryV1`へ各Feature ownerが次のexact Receipt-free recordを登録する。全recordはInventoryが束縛したsource schema `type.game_system.spec` version 1、destination schema version 2、owner固有source-System match policy、auxiliary record migration policy、identity mapping policy、self-excluding content hashを持つ。Registry／ContributionRef固定後に別owner-typed Qualification subject／signed Receipt／Qualification Bindingを作り、Fixture bodyはsubjectだけが解決する。
-
-| contribution ID／owner | source match | legacy scope | destination | root外Qualification Binding |
-|---|---|---|---|---|
-| `runtime_scope.migration_contribution.feature.scoring`／`owner.feature.scoring` | exact legacy Score System ref／hash | `play_session` | `scope.feature.scoring.instance` | `qualification_binding.runtime_scope_migration.feature.scoring@1` |
-| `runtime_scope.migration_contribution.feature.encounter_spawn`／`owner.feature.encounter_spawn` | exact legacy Encounter System ref／hash | `encounter_instance` | `scope.feature.encounter_spawn.instance` | `qualification_binding.runtime_scope_migration.feature.encounter_spawn@1` |
-| `runtime_scope.migration_contribution.feature.character_locomotion`／`owner.feature.character_locomotion` | exact legacy Character Locomotion binding System ref／hash | `entity_instance` | `scope.core.entity` | `qualification_binding.runtime_scope_migration.feature.character_locomotion@1` |
-
-Activation Qualificationは同じlegacy valueの別Systemへ適用せず、0件／複数match、owner／Qualification Binding／Receipt／policy hash stale、Source／Save／Replay identity mapping不一致を拒否する。Activation後のCore migratorはgeneric resolverだけを実行し、この三record、Binding、adapter、Qualification subject／Fixtureをhard-codeしない。
+Feature SystemのScopeと`GameSystemSpecV1.runtime_scope_type_ref`はinitial V1から上表のtyped refを使用する。対応する旧System bytesまたはreader／writerはmaterializeされていないため、`play_session`／`encounter_instance`／`entity_instance`からのRuntime Scope migration contribution、offline Operation、alias、legacy fixtureをcurrent Packへ定義しない。過去draftの裸scope値をowner名またはSystem名からcurrent refへ推測変換しない。
 
 Ranged Combat ownerはShooterその他のconsumerが参照するPort／Eventを次のMCD typeとして登録する。
 
@@ -485,10 +477,10 @@ exact MCD refは`{id=type.feature.character_locomotion.gameplay_motion_intent, v
 
 <a id="41-character-locomotion-binding-system"></a>
 
-`game_system.extension.feature.character_locomotion.contribution`の全mandatory Fieldは次へ固定する。次のrecordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `GameSystemSpecV2` schemaのCharacter Locomotion具体instanceであり、schemaの再定義ではない。
+`game_system.extension.feature.character_locomotion.contribution`の全mandatory Fieldは次へ固定する。次のrecordは[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)が所有するcanonical `GameSystemSpecV1` schemaのCharacter Locomotion具体instanceであり、schemaの再定義ではない。
 
 ```text
-GameSystemSpecV2
+GameSystemSpecV1
   MCD common envelope: all fields
   id: game_system.extension.feature.character_locomotion.contribution
   version: 1
@@ -934,7 +926,6 @@ DiagnosticはRequirement ID、Definition／Field path、System、Cadence Profile
 | `fixture.feature.path_following.executor_stub` | Navigation ownerのpath execution port、board-token／RTS stub、missing／incompatible Provider |
 | `fixture.feature.scenario_stage.none` | `completion_mode=none`でcompletion ownerを要求しないStage |
 | `fixture.feature.scenario_stage.aggregate-manifest-set-equality` | Scenario Stage owner／aggregate／Contract Manifestのexact ref set equality |
-| `fixture.feature.scenario_stage.runtime_scope_migration` | conditional legacy migration activation用destination fixture。current Pack `test_scenario_refs[]`には含めない |
 
 各fixtureはPack単体または宣言済みFeature closureだけでinstall／validate／executeできなければならない。Genre Pack、Genre Profile、product fixture、Genre固有Action roleをtest dependencyへ含めない。manual authoring、AI生成、manual再編集、AI再編集は同じSourceとFeature operationを使い、同じDefinition hash、Receipt、Runtime結果へ収束する。
 
@@ -966,4 +957,4 @@ Previously proposed, never activated logical IDs:
   operation.feature.validate_contract
 ```
 
-七IDは`planning.operation_family.feature_authoring@1`の予約候補以外に存在せず、current MCD、Core Authoring Gateway Manifest、Service allowlist、Provider／MCP Catalog、各Feature Manifestに存在せず、legacy aliasとしても読まない。Capability stateは`not_activated`で、要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`としてSource不変で拒否する。future work item `activation.feature.authoring_operations.v1`は、採用するexact Operation setを一つに固定し、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV2`、Policy／Validator／Diagnostic closure、canonical signed Receipt、Qualificationを同じContract set transactionで完全登録するまでactivateしない。state-changing Operationのpublication／crash recoveryは[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)をcanonical reuseし、`private Marker read-back → secret-free PublicCommitClosureV1 candidate → signed wrapper read-back → PublicCommitClosureV1＋PublicPublicationMarkerV1＋after stateのatomic CAS`へ固定する。Closureは`domain_commitment.kind=owner_typed_state_commit`、exact selected Feature owner、Prepared payloadが束縛したreceipt-free committed artifact ref集合を持ち、Ref／hash規則を本書へ複写しない。Closure bodyまたは同Closureを束縛するsigned wrapperを欠くPublic Marker／after-state current authorityを拒否する。read-only preview／explain／validateを将来別Operationとして採用する場合も、name-only entryを先行公開せず、state-changing publicationを発生させない。
+七IDは`planning.operation_family.feature_authoring@1`の予約候補以外に存在せず、current MCD、Core Authoring Gateway Manifest、Service allowlist、Provider／MCP Catalog、各Feature Manifestに存在せず、legacy aliasとしても読まない。Capability stateは`not_activated`で、要求は`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`としてSource不変で拒否する。future work item `activation.feature.authoring_operations.v1`は、採用するexact Operation setを一つに固定し、initial create/upsertとupdate、named input／result、semantic intent hash、`MutationAuthorizationBindingV1`、Policy／Validator／Diagnostic closure、canonical signed Receipt、Qualificationを同じContract set transactionで完全登録するまでactivateしない。state-changing Operationのpublication／crash recoveryは[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)をcanonical reuseし、`private Marker read-back → secret-free PublicCommitClosureV1 candidate → signed wrapper read-back → PublicCommitClosureV1＋PublicPublicationMarkerV1＋after stateのatomic CAS`へ固定する。Closureは`domain_commitment.kind=owner_typed_state_commit`、exact selected Feature owner、Prepared payloadが束縛したreceipt-free committed artifact ref集合を持ち、Ref／hash規則を本書へ複写しない。Closure bodyまたは同Closureを束縛するsigned wrapperを欠くPublic Marker／after-state current authorityを拒否する。read-only preview／explain／validateを将来別Operationとして採用する場合も、name-only entryを先行公開せず、state-changing publicationを発生させない。

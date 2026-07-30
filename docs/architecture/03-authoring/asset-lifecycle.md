@@ -77,7 +77,7 @@ AssetImportJob
   import_profile_hash: sha256
   importer_id: ClosedImporterId
   importer_version_hash: sha256
-  target_profile_id: StableId
+  target_profile_ref: exact TargetProfileRefV1
   dependency_artifact_keys: sha256[0..4096]
   toolchain_lock_hash: sha256
   limits: AssetImportJobLimitsV1
@@ -312,7 +312,7 @@ AudioImportSettingsV1
   loop_policy: none | explicit_frames | source_markers
   streaming_policy: auto_profile | resident | streamed
   codec_profile: StableId
-  locale: optional LocaleId
+  locale_profile_ref: optional exact LocaleProfileRefV1
 ```
 
 `trim_explicit_range`、`apply_explicit_db`、`explicit_frames`のpayloadは`ImportConversionV1`に置き、settingsへuntyped scalarを追加しない。無承認の音量正規化を行わない。
@@ -321,7 +321,7 @@ AudioImportSettingsV1
 
 | Field | 型／規則 |
 |---|---|
-| `required_locales` | `LocaleId[1..256]` |
+| `required_locale_profile_refs` | sorted unique exact `LocaleProfileRefV1[1..256]` |
 | `required_scripts` | `ScriptId[1..256]` |
 | `glyph_coverage_policy` | `FontGlyphCoveragePolicyV1` |
 | `variable_axis_policy` | `FontVariableAxisPolicyV1` |
@@ -503,7 +503,7 @@ DerivedArtifactManifestV1
 RuntimeAssetBudgetRefV1
   asset_budget_class_id: AssetBudgetClassId
   target_profile_ref: TargetProfileRefV1
-  project_scale_envelope_ref: ProjectScaleEnvelopeRefV2
+  project_scale_envelope_ref: ProjectScaleEnvelopeRefV1
   budget_ref_hash: SHA-256
 ```
 
@@ -603,7 +603,7 @@ Source／Import contract、Artifact identity、Catalog conformance、Package ass
 - Store delivery、Platform署名、install／entitlement、Application updateはPlatform Ownerへ渡す。
 - Device／driver固有cacheは同一device identity、driver、API、build flag、geometry keyに限定し、Content Package、Patch、DLCへ配布しない。
 
-Streaming requestのpriority、deadline、cancel、lease、queue、residency、eviction、Runtime activationは[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)がtarget Ownerとして決める。[Runtime Package](../04-runtime/runtime-package.md)のWorld／Runtime Entry loader、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)のpublication boundary、[Performance／Capacity](../04-runtime/performance-capacity.md)のqueue／budgetから別の汎用Asset Manager authority、SchemaまたはAPIを推測しない。Asset LifecycleはPackage range、Artifact dependency、same-generation fallback、integrity metadataを提供する。Targetに意味同等fallbackがなければunsupportedとし、Source意味を黙って削らない。Runtime Asset Ownerは`review`、実装は`absent`であり、文書参照だけをcurrent ServiceまたはCapabilityの存在として扱わない。
+Streaming requestのpriority、deadline、cancel、lease、queue、residency、eviction、Runtime activationは[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)がinitial V1 Ownerとして決める。[Runtime Package](../04-runtime/runtime-package.md)のWorld／Runtime Entry loader、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)のpublication boundary、[Performance／Capacity](../04-runtime/performance-capacity.md)のqueue／budgetから別の汎用Asset Manager authority、SchemaまたはAPIを推測しない。Asset LifecycleはPackage range、Artifact dependency、same-generation fallback、integrity metadataを提供する。Targetに意味同等fallbackがなければunsupportedとし、Source意味を黙って削らない。Runtime Asset Ownerは`review`、実装は`absent`であり、文書参照だけをmaterialized Serviceまたはactive Capabilityの存在として扱わない。
 
 ## 10. Diagnostics
 

@@ -63,7 +63,7 @@ allowed_technique_port_ids[]
 allowed_resource_classes[]
 allowed_side_effect_classes[]
 allowed_capability_ids[]
-target_profile_ids[]
+target_profile_refs[]: sorted unique exact TargetProfileRefV1
 compiler_profile_ids[]
 limit_profile_ref
 qualification_policy_hash
@@ -185,9 +185,7 @@ TypedShaderIrRefV1
   ir_content_hash: SHA-256
 
 ShaderTargetSupportRefV1
-  target_profile_id
-  target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  target_profile_ref: exact TargetProfileRefV1
   support_content_hash
 
 ProjectShaderQualificationSubjectV1
@@ -195,8 +193,7 @@ ProjectShaderQualificationSubjectV1
   owner_ref: exact {owner_id, owner_revision, owner_content_hash}
   module_ref: ProjectShaderModuleRefV1
   target_support_ref: exact receipt-free ShaderTargetSupportRefV1
-  target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+  target_profile_ref: exact TargetProfileRefV1
   fixture_refs[1..128]: exact fixture ref/version/content_hash
   compiler_and_artifact_closure_hash
   result: pass | fail
@@ -235,9 +232,9 @@ ProjectShaderTargetActivationProjectionV1
   projection_hash
 ```
 
-`module_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_V1`、`qualification_subject_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_SUBJECT_V1`、`activation_binding_hash`はASCII `MIRAKAN_PROJECT_SHADER_ACTIVATION_BINDING_V1`、`projection_hash`はASCII `MIRAKAN_PROJECT_SHADER_TARGET_ACTIVATION_PROJECTION_V1`と、それぞれ自己Fieldだけを除くcount／length-framed canonical bytesから計算する。`interface_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_INTERFACE_V1`と、module ID／revision／namespace／owner／kind／purpose／semantic role／export／entry／value／resource／side effect／Capability／Target support／variant dimensions／allowed variant tuples／budget／invariant／fallbackのreceipt-free canonical interface bytesから計算し、`module_content_hash`、`typed_ir_ref`、`source_files[]`、provenanceを含めない。これによりTyped IRは循環hashなしにexact semantic interfaceへbindできる。Module `owner_ref`はModule ID／namespaceを含むProject containment recordのexact owner tripleであり、表示namespaceやProject ID prefixから補完しない。Subject `owner_ref`は`module_ref`が解決するReceipt-free Moduleの同Field、`compiler_and_artifact_closure_hash`はAI Verification ownerの対応する`ProjectShaderQualificationEvidenceClosureV1.evidence_closure_hash`とbyte equalityにする。Subjectは`target_support_ref.target_profile_id == target_profile_ref.target_profile_id`を必須にし、`target_support_ref`が解決するexact `ShaderTargetSupportV1.target_profile_ref`、Support Ref内の`target_profile_ref`、Subjectの`target_profile_ref`を三者byte equalityにする。Support recordまたはTarget Profile recordをIDだけ、latest、同名Targetへfallbackしない。Fixture／Qualification Receipt／Binding／ProjectionをModuleまたはtarget support hashへ含めない。生成順は`receipt-free Module／Target Support／Target Profile → Module／Support refs → Evidence Closure → Qualification subject → signed Receipt → Activation Binding → root外Target Activation projection`である。
+`module_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_V1`、`qualification_subject_hash`はASCII `MIRAKAN_PROJECT_SHADER_QUALIFICATION_SUBJECT_V1`、`activation_binding_hash`はASCII `MIRAKAN_PROJECT_SHADER_ACTIVATION_BINDING_V1`、`projection_hash`はASCII `MIRAKAN_PROJECT_SHADER_TARGET_ACTIVATION_PROJECTION_V1`と、それぞれ自己Fieldだけを除くcount／length-framed canonical bytesから計算する。`interface_content_hash`はASCII `MIRAKAN_PROJECT_SHADER_MODULE_INTERFACE_V1`と、module ID／revision／namespace／owner／kind／purpose／semantic role／export／entry／value／resource／side effect／Capability／Target support／variant dimensions／allowed variant tuples／budget／invariant／fallbackのreceipt-free canonical interface bytesから計算し、`module_content_hash`、`typed_ir_ref`、`source_files[]`、provenanceを含めない。これによりTyped IRは循環hashなしにexact semantic interfaceへbindできる。Module `owner_ref`はModule ID／namespaceを含むProject containment recordのexact owner tripleであり、表示namespaceやProject ID prefixから補完しない。Subject `owner_ref`は`module_ref`が解決するReceipt-free Moduleの同Field、`compiler_and_artifact_closure_hash`はAI Verification ownerの対応する`ProjectShaderQualificationEvidenceClosureV1.evidence_closure_hash`とbyte equalityにする。`target_support_ref`が解決するexact `ShaderTargetSupportV1.target_profile_ref`、Support Ref内の`target_profile_ref`、Subjectの`target_profile_ref`を三者全Fieldbyte equalityにする。Support recordまたはTarget Profile recordをIDだけ、latest、同名Targetへfallbackしない。Fixture／Qualification Receipt／Binding／ProjectionをModuleまたはtarget support hashへ含めない。生成順は`receipt-free Module／Target Support／Target Profile → Module／Support refs → Evidence Closure → Qualification subject → signed Receipt → Activation Binding → root外Target Activation projection`である。
 
-Projection `entries[]`は`target_profile_id`／Target Profile version／content hash／support content hash／Binding ID／version順にstrict sortし、Target Support refのduplicateを拒否する。各entryのBindingはProjectionと同じ`module_ref`を解決し、Bindingの`target_support_ref`はentryの同refとbyte equality、Bindingが解決する全Receipt subjectのowner／Module／Target tupleも同tupleとbyte equalityでなければならない。各tupleでは前段のSupport ID／Support内Target Profile ref／Subject Target Profile refの三者整合性を再検証する。Projection entryのTarget Support集合はModule `target_support[]`の`required`集合とexact set equalityにし、明示的にactivateする`optional`は0または1 entry、`unsupported`は0 entryとする。これによりrequired pairの欠落／追加、別Moduleの有効Binding、別Target Binding、duplicate／順序違反を許さない。Module revision、owner ref、Target Support hash、Target Profile version／hashのいずれかだけを更新したstale Projection、別の有効Project ownerへのsubject owner substitution、cross-module substitution、Support AへTarget Profile Bを組み合わせるsubstitution、required pairの欠落・余分、entry pairの片側入替えを各一原因fixtureで拒否する。`exports[]`はStable Export ID、HLSL symbol、kind、visibilityを持つ。public exportだけを別Module、Graph、Techniqueから参照できる。Module-relative private symbolを文字列名で外部接続しない。
+Projection `entries[]`は`TargetProfileRefV1`のcanonical tuple bytes、support content hash、Binding ID／version順にstrict sortし、Target Support refのduplicateを拒否する。各entryのBindingはProjectionと同じ`module_ref`を解決し、Bindingの`target_support_ref`はentryの同refとbyte equality、Bindingが解決する全Receipt subjectのowner／Module／Target tupleも同tupleとbyte equalityでなければならない。各tupleでは前段のSupport ID／Support内Target Profile ref／Subject Target Profile refの三者整合性を再検証する。Projection entryのTarget Support集合はModule `target_support[]`の`required`集合とexact set equalityにし、明示的にactivateする`optional`は0または1 entry、`unsupported`は0 entryとする。これによりrequired pairの欠落／追加、別Moduleの有効Binding、別Target Binding、duplicate／順序違反を許さない。Module revision、owner ref、Target Support hash、Target Profile version／hash／kindのいずれかだけを更新したstale Projection、別の有効Project ownerへのsubject owner substitution、cross-module substitution、Support AへTarget Profile Bを組み合わせるsubstitution、required pairの欠落・余分、entry pairの片側入替えを各一原因fixtureで拒否する。`exports[]`はStable Export ID、HLSL symbol、kind、visibilityを持つ。public exportだけを別Module、Graph、Techniqueから参照できる。Module-relative private symbolを文字列名で外部接続しない。
 
 ```text
 TypedShaderIrV1
@@ -324,7 +321,7 @@ ShaderVariantTupleRefV1
 
 `ShaderVariantDimensionV1`はVariant ID、kind、closed values、default、selection source、mutual-exclusion groupを持つ。自由文字列keyword、runtime文字列、未列挙macro値をVariant identityにしない。`ShaderVariantTupleV1.selections[]`はVariant ID順にstrict sort／uniqueとし、Moduleが宣言する全Dimensionを厳密に一件ずつ持つ。tupleはModuleの`allowed_variant_tuples[]`のcompleted canonical bytesと一致し、`ShaderVariantTupleRefV1.module_ref`がそのModuleへexact解決する場合だけCoverageから参照できる。全DimensionのCartesian productを暗黙生成しない。`tuple_content_hash`はASCII `MIRAKAN_SHADER_VARIANT_TUPLE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。
 
-`ShaderTargetSupportV1`はTarget Profile ID、exact `target_profile_ref {target_profile_id,target_profile_version,target_profile_content_hash}`、support state、required Capability IDs、Compiler Profile ID、Fallback Stable ID、support content hashを持つReceipt-free declarationである。Target Profile IDは同ref内のIDと一致し、refはTarget Profile Registryのexact一recordへ解決する。support stateは`required | optional | unsupported`である。`unsupported`へArtifactまたは空Fallbackを対応付けず、`required`はroot外`ProjectShaderActivationBindingV1`が指す全Gate pass Receiptを必須とする。Receipt／BindingをSupportまたはModuleへ戻さない。
+`ShaderTargetSupportV1`はexact `TargetProfileRefV1`、support state、required Capability IDs、Compiler Profile ID、Fallback Stable ID、support content hashを持つReceipt-free declarationである。RefはProduct PlanのTarget Profile Registryのexact一recordへ全Fieldで解決する。support stateは`required | optional | unsupported`である。`unsupported`へArtifactまたは空Fallbackを対応付けず、`required`はroot外`ProjectShaderActivationBindingV1`が指す全Gate pass Receiptを必須とする。Receipt／BindingをSupportまたはModuleへ戻さない。
 
 `ShaderBudgetContractV1`はTarget／Quality別に`max_pass_count`、`max_logical_resource_count`、`max_resource_array_elements`、`max_variant_count`、`max_threadgroup_threads`、`max_dispatch_elements`、`max_transient_bytes`、`max_persistent_bytes`、`max_predicted_gpu_us`、`max_compile_milliseconds`、`runtime_budget_envelope_ref`を持つ。値は[Runtime performance／capacity](../04-runtime/performance-capacity.md)とEngine-generated Profileから解決し、ProjectがTarget上限を引き上げない。Estimateとinstrumented peakを別FieldでReceiptへ記録し、Estimate以下であることだけを合格証拠にしない。
 
@@ -567,11 +564,6 @@ BoundedProjectShaderProfileRefV1
   profile_schema_version: 1
   profile_content_hash: Sha256DigestV1
 
-ProjectShaderSourceTargetProfileRefV1
-  target_profile_id: StableId
-  target_profile_version: uint32
-  target_profile_content_hash: Sha256DigestV1
-
 ProjectShaderSourceRequirementRefV1
   requirement_id: StableId
   requirement_version: uint32
@@ -606,7 +598,8 @@ ProjectShaderSourceTaskV1
   public_shader_sdk_catalog_sha256: Sha256DigestV1
   contract_set_hash: Sha256DigestV1
   toolchain_lock_sha256: Sha256DigestV1
-  target_profile_refs[1..64]: ProjectShaderSourceTargetProfileRefV1
+  target_profile_refs[1..64]:
+    sorted unique exact TargetProfileRefV1
   requirement_refs[1..128]: ProjectShaderSourceRequirementRefV1
   code_owner_assignment_ref: CodeOwnerAssignmentRecordRefV1
   task_input_closure_sha256: Sha256DigestV1
@@ -657,7 +650,7 @@ AIの「Shaderを理解した」という自己申告を状態にしない。Tru
 ```text
 ShaderCoverageCaseKeyV1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   variant_tuple_ref: exact ShaderVariantTupleRefV1
   fixture_ref:
     exact {fixture_id, fixture_version, fixture_content_hash}

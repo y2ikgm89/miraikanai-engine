@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: diffuse indirect／specular indirect／shadow visibility／reference transportのsemantic channel、channel別technique family、Target support解決、scene representation requirement、light-transport固有history／denoise intent、意味同等fallback、Shadow technique解決、domain diagnostic／qualification
 - 非正本範囲: Light Source／photometry／attenuation／Shadow authoring intent、Material response／Project Shader source、Environment radiance source、World／Terrain／geometry／LOD／residency、Render Graph pass／resource／queue／barrier／history allocation／submission、generic Post effect、device API、shared capacity、Evidence envelope、Product quality claim、実装Task／順序。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Lighting](lighting.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[World](world.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Lighting](lighting.md)、[Materials](materials.md)、[Post Processing](post-processing.md)、[World](world.md)、[Environment／Surfaces](environment-surfaces.md)、[Terrain／Foliage](terrain-foliage.md)
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Environment／Surfaces](environment-surfaces.md)、[Terrain／Foliage](terrain-foliage.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[Project Shader](project-shader.md)、[Camera](camera.md)、[Windows](../07-platform/windows.md)、[Mobile Common](../07-platform/mobile-common.md)
 - 根拠区分: project-decision／official-documentation comparison（未計測のquality threshold、ray／sample count、distance、cache量、時間／memory値はprovisional）
 - 外部根拠確認日: 2026-07-29
@@ -224,7 +224,7 @@ Resolverは次の一方向contractを持つ。
 ```text
 resolve(
   exact LightTransportProfileRefV1,
-  exact LightingSnapshotRefV1,
+  exact LightSnapshotRefV1,
   exact MaterialTransportSummaryRefV1,
   exact EnvironmentRadianceSummaryRefV1,
   exact WorldRepresentationSummaryRefV1,
@@ -237,7 +237,9 @@ resolve(
    | LightTransportDiagnosticSetV1
 ```
 
-解決順は(1) exact Ref／Source revision／Target整合、(2) channel requirement、(3) channel別Technique eligibility、(4) representation completeness、(5) Target supportとQualification Binding、(6) budget envelope、(7) fallback ladder、(8) Plan固定とする。Runtime availabilityまたは測定値からSource requirementを逆変更しない。
+入力RefのOwnerは、Lightingの`LightSnapshotV1`、Materialsの`MaterialTransportSummaryV1`、Environmentの`EnvironmentRadianceSummaryV1`、Worldの`WorldRepresentationSummaryV1`、Terrain／Foliageの`TerrainFoliageRepresentationSummaryV1`、Render Graphの`ViewFamilyRequirementV1`である。Resolverは各RefをOwner recordへ全Fieldでexact解決する。全入力の`project_revision`、exact `WorldScopeRefV1`、`target_profile_ref`、`quality_profile_ref`をbyte equalityにし、Light Snapshotの`view_family_ref`をRequirementのFamilyへ、WorldとTerrain／Foliageのactivation generationを相互にbyte equalityにする。各Source／artifact generationはそのOwner Refの解決先と一致することをchannel評価より先に検証する。Scene名、View matrix、Material scope名、World表示名または同じTargetだけからWorld scopeを補完しない。Terrain／Foliage summaryをnullにできるのはWorld representation closureにTerrain／Foliage subjectが0件である場合だけとし、対象が存在するのにnull、stale、部分entriesである入力をWorld summaryやMaterial名から補完しない。
+
+解決順は(1) exact Ref／Source revision／cross-owner join key／Target整合、(2) channel requirement、(3) channel別Technique eligibility、(4) representation completeness、(5) Target supportとQualification Binding、(6) budget envelope、(7) fallback ladder、(8) Plan固定とする。Runtime availabilityまたは測定値からSource requirementを逆変更しない。
 
 ```text
 ResolvedLightTransportPlanV1

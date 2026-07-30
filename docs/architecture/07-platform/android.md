@@ -6,16 +6,16 @@
 - 検証状態: design-reviewed
 - 正本範囲: Android Target／Distribution Profile、Toolchain Build mapping、GameActivity／controller／frame-pacing Adapter、Vulkan Target mapping、Android package／Play delivery、lifecycle、permission／privacy、16 KiB page compatibility、Android device qualification／release gate
 - 非正本範囲: exact Tool／SDK／library version・hash・license・URL、Mobile共通schema／lifecycle意味／aggregate cap、Renderer共通contract、Input／Audio／UI意味、Asset lifecycle、AI authorization／Evidence envelope。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Mobile Common](mobile-common.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Mobile Common](mobile-common.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-27
+- 外部根拠確認日: 2026-07-29
 
 ## 1. ProfileとBuild mapping
 
-`target.android.mobile`はphone／tablet／foldableのShipping候補Target、`package-profile.android.play`はGoogle Play Distribution候補Profileである。minimum／compile／target API、ABI、Vulkan Profile、NDK、Gradle／AGP、Build Tools、JDK、CMake／Ninja、AndroidX Games、Oboeの候補値は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のAndroid baselineだけが所有する。本書はそれらをProfile、Build、packageへ写像する。
+`target.android.mobile`はphone／tablet／foldableのShipping候補Target、`package-profile.android.play`はGoogle Play Distribution候補Profileである。minimum／compile／target API、ABI、Vulkan Profile、NDK、Gradle／AGP、Build Tools、JDK、CMake／Ninja、AndroidX Games、Oboeの候補値は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のAndroid baselineだけが所有する。本書は`compileSdk=37`、`targetSdk=36`、minimum API 29をProfile、Build、packageへ写像し、compile surfaceを公開target behaviorまたはminimum runtimeへ読み替えない。
 
-根拠: official-spec／project-decision — [Google Play target API要件](https://developer.android.com/google/play/requirements/target-sdk)、[NDK revision history](https://developer.android.com/ndk/downloads/revision_history)、[Android Vulkan Profiles](https://developer.android.com/ndk/guides/graphics/android-vulkan-profile)、[48 dp touch target guidance](https://developer.android.com/design/ui/mobile/guides/foundations/accessibility)に従う。minimum API 29、NDK r29、Android Vulkan Profile 2022、対応Device範囲はMiraikanaiの候補判断であり、Googleの既定値や市場coverage保証ではない。
+根拠: official-spec／project-decision — [Google Play target API要件](https://developer.android.com/google/play/requirements/target-sdk)、[NDK revision history](https://developer.android.com/ndk/downloads/revision_history)、[Android Vulkan Profiles](https://developer.android.com/ndk/guides/graphics/android-vulkan-profile)、[48 dp touch target guidance](https://developer.android.com/design/ui/mobile/guides/foundations/accessibility)に従う。minimum API 29、NDK r29、required baseline `VP_ANDROID_vulkan_profile_2022`（AVP API version 1.1.106）、optional high `VP_ANDROID_vulkan_profile_2025`（AVP API version 1.1.128）、対応Device範囲はMiraikanaiの候補判断であり、Googleの既定値や市場coverage保証ではない。
 
 Shipping ABIはToolchain profileのprimary arm64 ABIだけ、secondary ABIはDevelopment／CIだけに許可する。STLはToolchain profileが指定する一種へappとnative dependencyを統一する。Runtime probeとpackage inspectionはresolved OS／ABI／graphics requirementsを[Mobile Common](mobile-common.md)の`MobileCapabilitySignatureV1`へ記録し、不足をquality fallbackで隠さない。AndroidはPlatform観測値の写像だけを所有し、共通field setを再定義しない。
 
@@ -28,7 +28,7 @@ Shipping ABIはToolchain profileのprimary arm64 ABIだけ、secondary ABIはDev
 | `Shipping` | release | `Release` | Release gate合格時だけ |
 | `ASan` | sanitizer test | Debug＋AddressSanitizer | test packageだけ |
 
-variantは署名、debuggable、optimization、sanitizer、package suffixを明示し、unknown variantを近いbuild typeへfallbackしない。Build tree identityは`module_id × variant_id × ABI × C++ Frontend Profile × toolchain_lock_hash`で、Variant／ABI／Profileを同じ object、BMI、staging directoryへ混在させない。ReceiptはDriver Profile ID、Generator、resolved tree、Toolchain ref、package ownerを記録する。
+variantは署名、debuggable、optimization、sanitizer、package suffixを明示し、unknown variantを近いbuild typeへfallbackしない。Build tree identityは`module_id × variant_id × ABI × C++ Frontend Profile × toolchain_lock_hash`で、Variant／ABI／Profileを同じobject、PCH、compiler cache、staging directoryへ混在させない。Named Module、Header Unit、BMIは生成または配布しない。ReceiptはDriver Profile ID、Generator、resolved tree、Toolchain ref、package ownerを記録する。
 
 ## 2. GameActivity、lifecycle、Input／Audio Adapter
 
@@ -50,7 +50,7 @@ frame pacing AdapterはToolchain lockのAndroidX Games Frame Pacingをpresent ti
 
 ## 3. Vulkan、shader、memory／thermal hardening
 
-Android graphicsはToolchain ownerのVulkan／Android Vulkan Profile baselineを`target.android.mobile`へ写像する。起動時にloader API、device feature、sample／format／queue、memory budgetをprobeし、required baseline不足は`UnsupportedDevice`として起動前に説明する。新しいoptional Profileは`mobile_high` Capabilityにできるがbaseline contentの必須条件にしない。
+Android graphicsはToolchain ownerのVulkan／Android Vulkan Profile baselineを`target.android.mobile`へ写像する。required minimumはexact `VP_ANDROID_vulkan_profile_2022`、optional `mobile_high`はexact `VP_ANDROID_vulkan_profile_2025`とし、後者をbaseline contentまたはStore eligibilityの必須条件にしない。起動時にAVP support、loader API、device feature、sample／format／queue、memory budgetをprobeし、required baseline不足は`UnsupportedDevice`として起動前に説明する。Profile表示名、yearだけの文字列、近似feature集合をexact Profile IDの代用にしない。
 
 Manifest filter、Play Device Catalog exclusion、Runtime Capability probeの三段をRelease manifestへ記録する。未知modelを自動合格にせず`unverified`としてphysical-device qualificationへ送る。Adreno系とMali系をminimum laneに含め、model／SoC／driver固有fallbackをSource AssetやGameplayへ焼き込まない。
 
@@ -87,7 +87,9 @@ default permissionは0である。Capabilityからmanifest candidateを生成す
 
 `ProjectPrivacySpec`とAndroid Data Safety declaration、manifest、embedded SDK behavior、runtime telemetry scanを一致させる。AI prompt、crash、analytics、generated contentのpurposeをまとめない。dynamic executable codeをremote sourceまたはAsset deliveryからloadしない。
 
-Signing Serviceはfixed unsigned AABとgovernance ownerのRelease decision refだけを受け、Gradle、Source、Build scriptを受け取らない。upload keyとPlay API credentialは別identityへ分け、debug credential／debuggable packageをShipping入力として拒否する。正規AAB署名／verification toolとexact behaviorはToolchain ownerを参照する。`AndroidSigningReceiptV1`はunsigned／signed root、key ref、certificate-chain ref、profile hash、Tool ref、verification resultを持つ。
+Signing Serviceはfixed unsigned AABと[Product Release Decision](../00-product/product-release-decision.md)のexact `ProductReleaseDecisionRecordRefV1`、`ProductReleaseDecisionAuthorityStateRefV1`、`ProductAuthorityStateAuthorizationRecordRefV1`、`ProductAuthorityStateHeadRecordRefV1`だけをauthorizationとして受け、Gradle、Source、Build scriptを受け取らない。RecordのSubjectが`approved`、signature／qualified authority quorum／freshness／current revocationが有効、Stateが`current`、State Authorizationが有効、Authority Serviceからread-backした署名済みHeadが同じStateを指し、同じEngine Release／Manifest／Android Target Packageへ解決する場合だけsigningする。upload keyとPlay API credentialは別identityへ分け、debug credential／debuggable packageをShipping入力として拒否する。正規AAB署名／verification toolとexact behaviorはToolchain ownerを参照する。`AndroidSigningReceiptV1`はunsigned／signed root、key ref、certificate-chain ref、profile hash、Tool ref、verification result、Decision Record／State／Authorization／Head refを持つ。
+
+Play upload／submission Serviceはsigned AAB、`AndroidSigningReceiptV1`、short-lived upload credential、同じDecision Record／State／Authorization／Headだけを受ける。別Decision、別AAB、expired／revoked／superseded Record、unsigned State、stale Head、approval label、issue state、bare content hashを拒否し、upload、review、approval、public read-backを別Receiptにする。
 
 ## 5. Device tests、failure、release gate
 

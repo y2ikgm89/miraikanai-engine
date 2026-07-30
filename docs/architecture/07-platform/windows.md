@@ -6,10 +6,10 @@
 - 検証状態: design-reviewed
 - 正本範囲: Windows Target Profile、process／window／display／lifecycle Adapter、filesystem／user data、Windows package／signing／publication／update、Windows crash／security／qualification
 - 非正本範囲: 外部Tool／SDK／OS／graphics version、共通Runtime budget／phase、Asset lifecycle、Renderer／Input／Audio／UI意味、AI authorization／Evidence envelope。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)
-- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 modules](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)
+- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-21
+- 外部根拠確認日: 2026-07-30
 
 ## 1. 結論
 
@@ -202,7 +202,7 @@ MSIX
 
 - `AppxManifest.xml`、`D3D12/D3D12Core.dll`、Third-party runtime basename、MSIX生成物はTool／Platform所有名として原表記を保持する。それ以外のFirst-party artifactとDirectoryはEngine命名正本のlowercase `snake_case`に従う。
 - Package identity、publisher、version、architecture、minimum OS、capabilityをTarget／Distribution Profileから生成する。
-- default capabilityは0で、実際に必要な宣言だけを[AI Security／Approval](../01-governance/ai-security-approval.md)のRelease decision refから生成する。
+- default capabilityは0で、実際に必要な宣言だけをcurrent signed `ProductReleaseDecisionRecordRefV1`が承認した同一Manifest／Target package scopeから生成する。
 - elevation、driver、service、arbitrary startup taskを要求するGameをC1 packageで拒否する。
 - Agility DLL version／hash、executable import、Content root hash、source／debug／compiler非混入をinspectionする。
 - GameInput runtime redistributableは`<locked_runtime_dependency>.dll`の該当物であり、同梱要否、exact version／hash、取得元は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows baselineが固定する。同梱要否は同書§2.1のTarget minimum OS（未固定）がGameInput runtimeをin-box提供するかの判定に依存し、baseline確定と同じ更新ChangeSetで固定するまで未固定とする。XAudio2 runtimeはOS in-boxであり、redistributable DLLを同梱しない。
@@ -230,7 +230,7 @@ Commit済みSource
 -> Target Cook
 -> unsigned layout／MSIX content
 -> Package Inspection
--> Governance Release decision reference
+-> current signed ProductReleaseDecisionRecordRefV1
 -> isolated Signing
 -> signed Package Inspection
 -> Distribution-specific Upload
@@ -238,16 +238,16 @@ Commit済みSource
 ```
 
 - `clean Build`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)の`driver.windows.cmake-ninja-multi` Driver mappingを使用する。IDEからも同じchecked-in entryを使い、別Product Build経路を生成しない。
-- `Development`、`Profile`、`Shipping`、`ASan`は同じGeneratorの明示Configurationであり、C++ Profile、Toolchain hash、Configurationが異なるBuild tree／BMIを共有しない。
+- `Development`、`Profile`、`Shipping`、`ASan`は同じGeneratorの明示Configurationであり、C++ Profile、Toolchain hash、Configurationが異なるBuild tree、object、PCH、compiler cacheを共有しない。Named Module、Header Unit、BMIは生成または配布しない。
 - Editor、AI、CIはBuild Gatewayを呼び、`ninja`または`cmake -G`を直接Product Build入口として公開しない。
 - Build Workerはprivate signing keyを持たない。
-- Signing Serviceは固定Package artifact、identity、Governance ownerのRelease decision refだけを受け取る。
+- Signing Serviceは固定Distribution artifact、exact `ProductDistributionSubjectRefV1`、artifact role、Host／runtime Target execution scopeまたはscope-independent、locale scope、channel identity、[Product Release Decision](../00-product/product-release-decision.md)のexact `ProductReleaseDecisionRecordRefV1`、`ProductReleaseDecisionAuthorityStateRefV1`、`ProductAuthorityStateAuthorizationRecordRefV1`、`ProductAuthorityStateHeadRecordRefV1`だけをauthorizationとして受け取る。Distribution SubjectはProduct Lifecycleのclosed tagged unionを保ち、Windows routeの`host_distribution`または`target_package` branchへexact解決する。RecordのSubjectが`approved`、purpose-separated signature／authority quorum／freshness／current revocationが有効、Stateが`current`、State Authorizationが有効、Authority Serviceからread-backした署名済みHeadが同じStateを指し、同じEngine Release／Manifest／Distribution Subject／artifact／role／execution scope／locale／channelへ解決する場合だけsigningを開始する。Host DistributionをTarget Packageへ、Editor artifactをGame packageへ置換せず、branch外Fieldを拒否する。
 - Authenticode／MSIXはSHA-256を使用し、trusted timestamp policyをDistribution Profileへ固定する。
 - private keyはPlatform credential store、HSM、またはGovernance ownerが選択したSigning serviceからexportしない。
 - `signtool verify`、MSIX package validation、malware scan、SBOM／notice、package executable-content scanを行う。
 - Store／Platform upload credentialはSigning keyとSource accessを持たない別Serviceに置く。
 
-Certificate subject、thumbprint、timestamp URL、Store identityはProject bootstrapで実在値を入力し、secretではないreferenceだけをrepositoryへ保存する。
+Distribution-specific Uploadも同じDecision Record／State／Authorization／Head、signed Distribution artifact、Signing Receipt、Distribution Subject／artifact／role／execution scope／locale／channel identityをbyte equalityで受け、別Decision、別Subject／artifact、branch変更、expired／revoked／superseded Record、unsigned State、stale Head、approval label、issue state、bare content hashを拒否する。Certificate subject、thumbprint、timestamp URL、Store identityはProject bootstrapで実在値を入力し、secretではないreferenceだけをrepositoryへ保存する。
 
 ## 10. Update、Patch、DLC
 
@@ -292,7 +292,7 @@ support bundle（正本は[Debugging／observability／replay](../04-runtime/deb
 
 ## 12. Security
 
-- Shipping binaryはDEP、ASLR、CFG、CET互換、stack protection、signed executableを必須とする。
+- Shipping binaryはDEP、ASLR、CFG、CET互換、stack protection、signed executableを必須とする。CFG claimは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows Shipping policyからだけ導出し、全first-party object-producing compileの`/guard:cf`、final linkの`/GUARD:CF /DYNAMICBASE`、final EXE／DLL inspectionの`Guard`、`CF Instrumented`、`FID table present`を同じBuild／Package Receiptへ束縛する。linker flagだけ、binary characteristicだけ、compile subsetだけをCFG成功にしない。
 - DLL searchはApplication directoryと明示pathへ限定し、current directory／PATH依存loadを禁止する。
 - Development DLL loadもabsolute path、hash、manifest、publisher／artifact Receiptを検査する。
 - COM、URL scheme、file association、firewall rule、protocol handlerをdefaultで登録しない。

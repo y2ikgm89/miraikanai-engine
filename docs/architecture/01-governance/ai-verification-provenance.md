@@ -4,9 +4,9 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
-- 非正本範囲: 具体Envelope／Registry／Fixture候補、AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。補助文書または各Ownerを参照する
-- 規範依存: [Architecture Governance](architecture-governance.md)、[AI Security／Approval](ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
+- 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Qualification Scenario／Evidence Class identity、generic Verification Scope／subject contract／Evidence／Qualification Receipt spine、semantic admissibility predicateとclosed resolver Registry、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
+- 非正本範囲: Domain固有Evidence／Receipt payload、materialized Registry／Fixture候補、AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。補助文書または各Ownerを参照する
+- 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
 - 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
@@ -53,7 +53,223 @@ AI Evalは固定Suite identity、Dataset partition、grader identity、Model sna
 
 ## 7. Evidence envelope
 
-Evidence envelopeは共通して、identity、subject、issuer、created time、freshness policy、input closure、result、diagnostic、signature／attestation refを持つ。Envelope classごとの具体field候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#7-evidence-envelope)に隔離する。
+<a id="verification-identity-spine"></a>
+
+Qualification Scenario、Evidence Class、generic Evidence／Qualification ReceiptのArchitecture上のstable identity spineは本節が一意に所有する。Domain固有payloadとFixture候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#7-evidence-envelope)へ隔離できるが、次のRef、complete backing record、resolver root、canonical hash規則をappendix、consumer-local tupleまたは表示名から補完しない。
+
+| 型 | ASCII domain separator |
+|---|---|
+| `QualificationScenarioV1` | `MIRAKAN_QUALIFICATION_SCENARIO_V1` |
+| `QualificationScenarioRegistryV1` | `MIRAKAN_QUALIFICATION_SCENARIO_REGISTRY_V1` |
+| `EvidenceClassV1` | `MIRAKAN_EVIDENCE_CLASS_V1` |
+| `EvidenceClassRegistryV1` | `MIRAKAN_EVIDENCE_CLASS_REGISTRY_V1` |
+| `VerificationRecordTypeRegistryV1` | `MIRAKAN_VERIFICATION_RECORD_TYPE_REGISTRY_V1` |
+| `EvidenceRecordV1` | `MIRAKAN_EVIDENCE_RECORD_V1` |
+| `QualificationReceiptV1` | `MIRAKAN_QUALIFICATION_RECEIPT_V1` |
+
+```text
+QualificationScenarioV1
+  qualification_scenario_id: StableId
+  qualification_scenario_version: positive u32
+  owner_requirement_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=requirement)
+  scenario_purpose_ref:
+    exact McdContractRefV1(kind=policy)
+  host_applicability:
+    {kind=not_applicable}
+    | {kind=host_independent}
+    | {
+        kind=exact_set,
+        host_profile_refs[1..64]:
+          sorted unique exact TargetProfileRefV1(
+            profile_kind=build_host | editor_host)
+      }
+  target_applicability:
+    {kind=not_applicable}
+    | {kind=target_independent}
+    | {
+        kind=exact_set,
+        target_profile_refs[1..64]:
+          sorted unique exact TargetProfileRefV1(
+            profile_kind=runtime_target)
+      }
+  locale_applicability:
+    {kind=not_applicable}
+    | {kind=locale_independent}
+    | {
+        kind=exact_set,
+        locale_profile_refs[1..64]:
+          sorted unique exact LocaleProfileRefV1
+      }
+  reference_dimension_applicability:
+    {kind=not_applicable}
+    | {kind=dimension_independent}
+    | {
+        kind=exact_set,
+        reference_dimensions[1..2]:
+          sorted unique two_d | three_d
+      }
+  expected_result_branches[1..3]:
+    sorted unique
+      success | expected_policy_rejection | domain_failure_recovery
+  immutable_input_contract_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=type)
+  immutable_result_contract_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=type)
+  qualification_scenario_content_hash: SHA-256
+
+QualificationScenarioRegistryV1
+  qualification_scenario_registry_id: StableId
+  qualification_scenario_registry_version: 1
+  qualification_scenario_refs[1..65535]:
+    sorted unique exact QualificationScenarioRefV1
+  qualification_scenario_registry_content_hash: SHA-256
+
+EvidenceClassV1
+  evidence_class_id: StableId
+  evidence_class_version: positive u32
+  evidence_semantic_kind:
+    contract_conformance | technical_qualification | human_review
+    | promotion | release_signing | platform_submission
+    | publication_readback | operation_result | developer_test
+    | security | privacy | license | lifecycle | support | provenance
+  allowed_record_kinds[1..2]:
+    sorted unique evidence | qualification_receipt
+  allowed_purpose_refs[1..256]:
+    sorted unique exact McdContractRefV1(kind=policy)
+  required_subject_contract_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=type)
+  evidence_class_content_hash: SHA-256
+
+EvidenceClassRegistryV1
+  evidence_class_registry_id: StableId
+  evidence_class_registry_version: 1
+  evidence_class_refs[1..4096]:
+    sorted unique exact EvidenceClassRefV1
+  evidence_class_registry_content_hash: SHA-256
+
+VerificationScopeVectorV1
+  host_scope:
+    {kind=not_applicable}
+    | {kind=host_independent}
+    | {
+        kind=host_profile,
+        host_profile_ref:
+          exact TargetProfileRefV1(
+            profile_kind=build_host | editor_host)
+      }
+  target_scope:
+    {kind=not_applicable}
+    | {kind=target_independent}
+    | {
+        kind=target_profile,
+        target_profile_ref:
+          exact TargetProfileRefV1(profile_kind=runtime_target)
+      }
+  locale_scope:
+    {kind=not_applicable}
+    | {kind=locale_independent}
+    | {
+        kind=locale_profile,
+        locale_profile_ref: exact LocaleProfileRefV1
+      }
+  reference_dimension_scope:
+    {kind=not_applicable}
+    | {kind=dimension_independent}
+    | {
+        kind=reference_dimension,
+        reference_dimension: two_d | three_d
+      }
+
+VerificationRecordTypeRegistryV1
+  verification_record_type_registry_id: StableId
+  verification_record_type_registry_version: 1
+  record_type_entries[1..65535]:
+    sorted unique {
+      owner_record_type_ref: exact McdContractRefV1(kind=type),
+      record_kind: evidence | qualification_receipt,
+      evidence_class_refs[1..4096]:
+        sorted unique exact EvidenceClassRefV1,
+      allowed_purpose_refs[1..256]:
+        sorted unique exact McdContractRefV1(kind=policy),
+      required_subject_contract_refs[1..4096]:
+        sorted unique exact McdContractRefV1(kind=type)
+    }
+  verification_record_type_registry_content_hash: SHA-256
+
+EvidenceRecordV1
+  evidence_id: StableId
+  evidence_version: positive u32
+  evidence_class_registry_ref: exact EvidenceClassRegistryRefV1
+  verification_record_type_registry_ref:
+    exact VerificationRecordTypeRegistryRefV1
+  evidence_class_ref: exact EvidenceClassRefV1
+  evidence_purpose_ref: exact McdContractRefV1(kind=policy)
+  owner_evidence_record:
+    owner_record_type_ref: exact McdContractRefV1(kind=type)
+    owner_record_id: StableId
+    owner_record_version: positive u32
+    owner_record_content_hash: SHA-256
+  verification_scope: exact VerificationScopeVectorV1
+  subject_contract_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=type)
+  subject_content_hash: SHA-256
+  completed_signed_record_content_hash: SHA-256
+  evidence_record_content_hash: SHA-256
+
+QualificationReceiptV1
+  qualification_receipt_id: StableId
+  qualification_receipt_version: positive u32
+  qualification_scenario_registry_ref:
+    exact QualificationScenarioRegistryRefV1
+  evidence_class_registry_ref: exact EvidenceClassRegistryRefV1
+  verification_record_type_registry_ref:
+    exact VerificationRecordTypeRegistryRefV1
+  qualification_scenario_ref: exact QualificationScenarioRefV1
+  evidence_class_ref: exact EvidenceClassRefV1
+  qualification_purpose_ref: exact McdContractRefV1(kind=policy)
+  owner_qualification_receipt_record:
+    owner_record_type_ref: exact McdContractRefV1(kind=type)
+    owner_record_id: StableId
+    owner_record_version: positive u32
+    owner_record_content_hash: SHA-256
+  verification_scope: exact VerificationScopeVectorV1
+  subject_contract_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=type)
+  subject_content_hash: SHA-256
+  observed_result_branch:
+    success | expected_policy_rejection | domain_failure_recovery
+  completed_signed_record_content_hash: SHA-256
+  qualification_receipt_content_hash: SHA-256
+```
+
+本書Ownerのexact Refは次のclosed tupleである。
+
+| Ref | Field |
+|---|---|
+| `QualificationScenarioRefV1` | `{qualification_scenario_id, qualification_scenario_version, qualification_scenario_content_hash}` |
+| `QualificationScenarioRegistryRefV1` | `{qualification_scenario_registry_id, qualification_scenario_registry_version=1, qualification_scenario_registry_content_hash}` |
+| `EvidenceClassRefV1` | `{evidence_class_id, evidence_class_version, evidence_class_content_hash}` |
+| `EvidenceClassRegistryRefV1` | `{evidence_class_registry_id, evidence_class_registry_version=1, evidence_class_registry_content_hash}` |
+| `VerificationRecordTypeRegistryRefV1` | `{verification_record_type_registry_id, verification_record_type_registry_version=1, verification_record_type_registry_content_hash}` |
+| `EvidenceRefV1` | `{evidence_id, evidence_version, evidence_class_ref, evidence_purpose_ref, owner_record_type_ref, owner_record_id, owner_record_version, owner_record_content_hash, verification_scope, subject_contract_refs, subject_content_hash, completed_signed_record_content_hash, evidence_record_content_hash}` |
+| `QualificationReceiptRefV1` | `{qualification_receipt_id, qualification_receipt_version, qualification_scenario_ref, evidence_class_ref, qualification_purpose_ref, owner_record_type_ref, owner_record_id, owner_record_version, owner_record_content_hash, verification_scope, subject_contract_refs, subject_content_hash, observed_result_branch, completed_signed_record_content_hash, qualification_receipt_content_hash}` |
+
+各Registry Refはexactly one complete Registryへ、member RefはそのRegistryからexactly one complete recordへ全Fieldで解決する。`VerificationRecordTypeRegistryV1`の各entryは`owner_record_type_ref`が解決するMCD Type recordの一意Ownerと、許可Evidence class／purpose、required subject contractを閉じる。Evidence／Receiptは同Registryのexact一entryへrecord kind、owner Type、Evidence class、purposeで解決し、owner-specific recordのID／version／content hashをread-backする。wrapperの`subject_contract_refs[]`は、解決したEvidence ClassとType Registry entryの`required_subject_contract_refs[]` canonical unionとexact set equalityにする。Registry validityは、record kindがClassの`allowed_record_kinds[]`に属し、Class refがentryの`evidence_class_refs[]`に属し、両`allowed_purpose_refs[]`のintersectionがnon-emptyな全許可pairについて、このcanonical unionのchecked cardinalityが4,096以下であることを先に要求する。checked overflowまたは4,096超過のpairをRegistryへ登録せず、Evidence／Receipt生成時の表現不能へ遅延させない。owner-specific completed recordからscope vector、subject contract集合、subject content hash、Qualificationのscenario／observed branchを再計算してgeneric wrapper／Refとbyte equalityにし、wrong class、wrong record kind、wrong purpose、wrong owner Type、wrong scenario、wrong subject、hash-only Ref、Technical QualificationによるReview／Promotion／Signing代用を拒否する。
+
+全recordとRegistryのcontent hashは自己hashだけを除く全Fieldを型固有domain separator、algorithm `sha256`、algorithm version 1、schema順、`uint32_be` length framingでcanonical encodeして計算する。Ref内のcompleted signed-record hashは署名wrapperを含む完了recordを束縛し、bodyとsignature wrapperを相互hashしない。ID／versionだけ、同名class／scenario、display label、prefix、`latest`、consumer-local tuple、appendix candidateからRefを生成しない。Target／Locale Refは[Product Planのroot Registry](../00-product/product-plan.md#product-profile-identity)へexact解決し、Scenario、Evidence subjectまたはReceipt間でkind、Host、Target、locale、dimensionを置換しない。
+
+Verification Semantic Admissibility Predicate v1は、recordを任意のRequirement Set、set equality、Acceptance、Release、PublicationまたはCompletionへ参加させる前に次をすべて評価する。構文的Ref解決またはcontent hash一致だけをpredicateの代用にしない。
+
+1. Ref、generic wrapper、owner-specific completed record、signature wrapperをすべてexact解決し、各content hash／signed-record hashを再計算する。
+2. owner Type、record kind、Evidence Class、purpose、subject contract集合をType Registry／Evidence Classの許可集合と上記exact union規則で検証する。
+3. `VerificationScopeVectorV1`のHost、runtime Target、locale、Reference dimensionをProduct Planのroot Registryへ解決し、owner-specific subjectの同scopeと全Fieldbyte equalityにする。`not_applicable`、independent、scalar Profile／dimension branchを相互変換しない。
+4. QualificationではScenarioを解決し、Scenarioの各applicabilityが`not_applicable`なら同scopeだけ、independentなら同independent scopeだけ、`exact_set`ならそのexact memberのscalar scopeだけを許す。`observed_result_branch`はScenarioの`expected_result_branches[]`のexact memberでなければならない。
+5. Evidence Class、Scenarioまたはowner Type自身のinvariantに違反するtuple、別Contract set、stale／revoked record、subject hashだけ一致してscope／contract／branchが異なるrecordをfail-closedで拒否する。
+
+Product LifecycleがProduct PlanのJourney projectionをQualification obligationとして消費する境界、Documentation／SDK／Support／Lifecycle transition Requirement Set、Pack lifecycle、各Domain Qualification、Release Decision、Publication／Completionはこのpredicateを各rowのQualification生成時とReceipt read-back時に適用する。Product Planのreceipt-free required universeへVerification Receiptを逆参照させない。無効tupleをrequired集合へ複写してset equalityを成立させること、generic wrapperだけを検証してowner-specific semanticsを省略することを禁止する。現RepositoryにはこれらのSchema、Registry、record、resolverまたはReceiptが存在せず、本節の設計記載を発行済みEvidenceへ数えない。
+
+Evidence envelopeは共通して、上記identity spineに加え、issuer、created time、freshness policy、input closure、result、diagnostic、signature／attestation refを持つ。Envelope classごとのDomain固有field候補は補助Catalogに隔離する。
 
 Ownerが決定する不変条件は次のとおりである。
 
@@ -77,7 +293,7 @@ Requirementとfulfillmentは別recordとし、fulfillmentはexact Requirement ve
 
 ### 7.2 TechnicalQualificationReceiptV1
 
-Technical Qualificationは定義済みTargetとCandidateに対する技術Evidenceの充足を表す。Architecture Approval、Product decision、release signingを代替しない。具体wire候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#72-technicalqualificationreceiptv1)を参照する。
+Technical Qualificationは定義済みTargetとCandidateに対する技術Evidenceの充足を表す。Architecture Approval、Product decision、release signingを代替しない。stable identityは本節の`QualificationReceiptV1`／Refへ従い、Domain固有payload候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#72-technicalqualificationreceiptv1)を参照する。
 
 ### 7.3 GenerationReceiptV1
 

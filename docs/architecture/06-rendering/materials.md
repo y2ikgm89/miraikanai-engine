@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: Material Domain／Shading Modelの意味、Visual Style／表現Profile、semantic material intent、Material Graph／Function／IR／instance、MaterialからProject Shaderへのtyped接続、Material compile／package、Material固有operation／diagnostic／qualification
 - 非正本範囲: Project HLSL source profile／semantic Module／Technique／Shader AI理解、GI／reflection／advanced shadow／reference transportのTechnique選択、Render pass／queue／AA execution、Lighting物理意味、Post Process composition、LOD共通selection、Asset transaction、Runtime shared capacity、Tool／compiler version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[Project Shader](project-shader.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](render-graph.md)、[World](world.md)、[Project Shader](project-shader.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[World](world.md)、[Terrain／Foliage](terrain-foliage.md)、[Render Graph](render-graph.md)、[Project Shader](project-shader.md)、[Lighting](lighting.md)、[Advanced Light Transport](advanced-light-transport.md)、[Post Processing](post-processing.md)、[LOD](lod.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-28
@@ -36,7 +36,7 @@ Authoring surfaceのcanonical objectを次に固定する。下記と別のAsset
 | `AnimationPresentationProfile` | Stable ID／revision、presentation sampling、pose hold、motion accent | Simulation meaningから分離し表示だけを変更 |
 | `VisualStyleProfileV1` | Material、Light、Camera、Post、VFX、UI、Asset制作規則のStyle契約 | `StyleChangeSet`／Preview／承認を必須とし、下記exact fieldsを使う |
 | `VisualStyleSemanticRegistryV1` | Style axisごとのCore defaultとOwner-qualified Feature／Genre／Project contribution | dependency closureとQualificationから生成しSourceから直接編集不可 |
-| `StyleCapabilityManifest` | `engine_build_id`、`target_profile_id`、`quality_profile_id`、利用可能なMaterial Domain／Shading Model／Node／Template、active Visual Style Registry／Projection ref、required Capability／Qualification ref | Engine buildとProject／Pack dependency closureから生成しAI／Project data変更不可 |
+| `StyleCapabilityManifest` | `engine_build_id`、exact `target_profile_ref`、`quality_profile_id`、利用可能なMaterial Domain／Shading Model／Node／Template、active Visual Style Registry／Projection ref、required Capability／Qualification ref | Engine buildとProject／Pack dependency closureから生成しAI／Project data変更不可 |
 | `VisualStyleDecision` | 候補、除外理由、選択理由、未解決事項、Capability、domain result | Decision Ledger／Governance参照を持ち、authority／approvalは所有しない |
 | `MaterialExplanationV1` | Material判断の根拠、差、cost、fallback | Preview／Plan revisionへ紐付け |
 
@@ -411,9 +411,9 @@ OutlineStyleProfileV1
 
 Outline Profileはstyle intentだけを持つ。`compatible_world_space`は再利用可能Profileの互換性だけを宣言し、scene dimensionまたはhybrid gameplay authorityを選択しない。Resolverはexact World Profileがこのconstraintを満たす場合だけ候補を評価する。`geometry_only`はnon-`none` geometry width、zero screen width／depth threshold／normal threshold、`no_history`を必須にする。`screen_space_only`は`geometry_width_semantic=none`、positive screen width、nonzero depthまたはnormal thresholdを、`hybrid_qualified`はnon-`none` geometry widthとpositive screen widthを、`disabled`は全width／threshold zero、`no_history`、empty Capability／fallback setを必須にする。fallbackはstrict priority、unique、acyclic、Target-qualifiedである。`profile_content_hash`はASCII `MIRAKAN_OUTLINE_STYLE_PROFILE_V1`と自己Fieldを除くreceipt-free canonical bytesを`uint32_be` length framingしてSHA-256する。ProfileはRender pass、resource、Backend objectを作らない。
 
-初期Core defaultは`style.art_direction.realistic@1 | style.art_direction.toon@1 | style.art_direction.pixel_2d@1 | style.art_direction.pixel_diorama@1`と`style.composition.native@1 | style.composition.crisp_sprite_over_high_res_3d@1 | style.composition.unified_low_resolution@1`のexact七entryであり、従来Profileの意味とfixtureを維持する開始値であってclosed上限ではない。Feature／Genre／Projectはwatercolor、voxel、technical visualization等のqualified semantic entryを追加できるが、名前だけでShading Model、Render pass、Camera、Post、VFX、UIを生成せず、Contributionのtyped constraintと`required_profile_role_refs[]`へ完全解決する。unknown／unqualified ref、axis mismatch、0件または複数の意味同等候補はBlocking questionまたはtyped rejectにし、`realistic`、`native`、近い表示名へ黙ってfallbackしない。
+initial V1のCore defaultは`style.art_direction.realistic@1 | style.art_direction.toon@1 | style.art_direction.pixel_2d@1 | style.art_direction.pixel_diorama@1`と`style.composition.native@1 | style.composition.crisp_sprite_over_high_res_3d@1 | style.composition.unified_low_resolution@1`のexact七entryであり、initial canonical fixtureを構成する開始値であってclosed上限ではない。Feature／Genre／Projectはwatercolor、voxel、technical visualization等のqualified semantic entryを追加できるが、名前だけでShading Model、Render pass、Camera、Post、VFX、UIを生成せず、Contributionのtyped constraintと`required_profile_role_refs[]`へ完全解決する。unknown／unqualified ref、axis mismatch、0件または複数の意味同等候補はBlocking questionまたはtyped rejectにし、`realistic`、`native`、近い表示名へ黙ってfallbackしない。
 
-旧open field `composition`と旧scalar field `art_direction`／`composition_variant`、`scene_dimension`、`gameplay_space`、`outline_profile_id`は新Profileで受理しない。Visual Styleの表現方向とpresentation composition方式はqualified exact semantic refだけが所有し、Worldの構造的空間選択はWorld Profileに委譲する。自由文字列、別名field、未登録variantを拒否する。実在する旧bytesを移行する場合はsource schema bytes／Owner／Named Algorithm／immutable fixtureを束縛した別の承認済みschema migrationを先にactivateし、旧valueまたは表示名だけで自動変換しない。
+initial V1のVisual Style Profileはqualified exact `art_direction_ref`、`composition_variant_ref`、World Profile／Outline Profileのtyped refだけを持つ。表現方向とpresentation composition方式はsemantic ref、Worldの構造的空間選択はWorld Profileが所有する。open `composition`、裸scalar、自由文字列、別名field、未登録variant、表示名からの自動変換をSchemaへ定義しない。
 
 `art_direction_ref = style.art_direction.pixel_2d@1`または`composition_variant_ref = style.composition.unified_low_resolution@1`の場合は正整数`reference_resolution`、1以上の`pixels_per_unit`、`not_applicable`以外のinteger scale policyを必須とする。`composition_variant_ref = style.composition.crisp_sprite_over_high_res_3d@1`は`reference_resolution = null`としてCamera Profileの出力解像度を使う。`world_texel_density`は`art_direction_ref = style.art_direction.pixel_diorama@1`でだけ必須で、`min_screen_pixel_ratio <= max_screen_pixel_ratio`、既定0.8～1.2とする。Camera変更時に`reference_distance_m`を暗黙更新しない。追加Contributionは同じ制約を名前から継承せず、自身の`constraint_schema_ref`で必要field、互換性、fallback禁止条件を宣言する。
 
@@ -430,7 +430,7 @@ MaterialSemanticCatalogV1
   schema_version
   catalog_revision
   engine_build_id
-  target_profile_ids[]
+  target_profile_refs[]: sorted unique exact TargetProfileRefV1
   quality_profile_ids[]
   entries[]
 ```
@@ -630,14 +630,14 @@ CookedMaterialArtifactGenerationRefV1
   artifact_generation: positive uint64
   artifact_content_hash: SHA-256
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   quality_profile_ref:
     exact {quality_profile_id, quality_profile_version, quality_profile_content_hash}
 
 MaterialBatchCompatibilityKeyV1
   schema_version: 1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   quality_profile_ref:
     exact {quality_profile_id, quality_profile_version, quality_profile_content_hash}
   artifact_generation_ref: CookedMaterialArtifactGenerationRefV1
@@ -680,6 +680,40 @@ ResolvedMaterialBindingV1
 `MaterialBatchCompatibilityKeyV1`のTarget／Quality refは`artifact_generation_ref`内のrefとbyte equalityにする。このkeyの一致はMaterial側のbatch必要条件であり、十分条件ではない。Source InstanceとRuntime Overrideを解決した後、`uniform_across_batch`のParameter値またはTexture role bindingの差は対応するbatch-uniform hashとkeyを変え、`per_render_instance`／`per_render_instance_indexed`の差だけを宣言済みCooked layoutのpayloadへ格納できる。異なるkeyを同じbatchへ入れず、同じkeyでもgeometry generation、LOD、View、Pass、layer、sort等のRender Graph条件を満たすまでbatch可能とみなさない。Stable render ID、transform、Gameplay identityはkeyから除外し、batch化でobject identityを統合しない。
 
 `ResolvedMaterialBindingV1`はrenderableごとのimmutable bindingであり、Cook時に解決したcanonical flat parameter／texture集合とRuntime OverrideをEngine-stable block／payload refへ閉じる。refは公開Schemaでnative pointer／descriptorを示さず、Artifact世代と同じResource Registry generationへ一件解決する。Artifact、block、payload generation、Source revision、`ShaderInterface`、resource layout、override sequenceのいずれかがstaleまたは不一致ならbinding全体を拒否し、部分適用、文字列名による再解決、descriptor index／native handleの公開、同一frameの別Materialへの差し替えを行わない。`batch_key_hash`と`binding_hash`はそれぞれ型名のASCII domain separatorと、自己hash Fieldを除くcount／presence／length-framed canonical bytesから計算し、参照先hashは各Ownerの式で再検証する。
+
+Advanced Light Transportへ渡すMaterial-owned入力を次のread-only／revisioned projectionに閉じる。
+
+```text
+MaterialTransportSummaryV1
+  schema_version: 1
+  summary_id: content-derived StableId
+  project_revision: positive u64
+  world_scope_ref: exact WorldScopeRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  entries[0..65535]:
+    material_instance_id: StableId
+    material_revision: positive u64
+    artifact_generation_ref:
+      exact CookedMaterialArtifactGenerationRefV1
+    semantic_role_id: StableEnumId
+    domain: surface_3d | sprite_2d | decal | post_process | vfx | ui
+    shading_model: MaterialShadingModelId
+    receiver_participation:
+      excluded | opaque | opaque_and_masked | qualified_extended
+    opacity_class: opaque | masked | translucent
+    emissive_participation:
+      disabled | static | dynamic_qualified
+    two_sided: bool
+  summary_content_hash: SHA-256
+
+MaterialTransportSummaryRefV1
+  summary_id: StableId
+  project_revision: positive u64
+  summary_content_hash: SHA-256
+```
+
+entriesは`material_instance_id, material_revision`順へstrict sortしてduplicateを拒否し、同じProject revision／scopeで実際に参照するMaterial closureとset equalityにする。各transport fieldは同revisionのMaterial semantic axisとCooked bindingからlosslessに投影し、ALT側がShading Model名、opacity値、emissive値または未列挙Materialから補完しない。`MaterialTransportSummaryRefV1`は解決先の三Fieldとbyte equalityにし、summary hashはASCII `MIRAKAN_MATERIAL_TRANSPORT_SUMMARY_V1`と自己hashを除くclosed recordのcount／presence／length-framed canonical bytesからSHA-256する。
 
 ## 6. Material IR、Shader compile、package
 
@@ -750,7 +784,7 @@ AIの最初のbounded projectionである`MaterialContextSummaryV1`は`material_
 
 `VisualStyleDecision`はMaterials-domain payloadとして`request_id`、exact Registry／Activation Projection ref、`resolved_semantic_refs[]`、`resolved_requirements[]`、`unknowns[]`、`conflicts[]`、`eligible_profile_ids[]`、`rejected_candidates[]`、optional `selected_profile_id`、`selection_reasons[]`、`production_cost_estimate`、`runtime_cost_estimate`、`required_capabilities[]`、`missing_capabilities[]`、`domain_result`、exact `decision_ledger_entry_ref`、exact `authorization_envelope_hash`を持つ。`decision_ledger_entry_ref`は[Project state](../03-authoring/project-state.md)の`DecisionLedgerDocument`、`authorization_envelope_hash`は[AI Security／Approval](../01-governance/ai-security-approval.md)の署名済み`TaskAuthorizationEnvelope`へのopaque referenceである。権限enum、委任cardinality、承認／人間確認条件、署名／失効規則をMaterialsに定義せずGovernanceの正本を消費する。
 
-旧payloadの`decision_authority`、`delegation_record_id`、`requires_human_confirmation`はMaterials fieldとして非採用である。対応するauthority／delegation／confirmation状態は`TaskAuthorizationEnvelope`とGovernanceが発行する署名済みApproval recordの参照先だけで評価する。
+Materials payloadは`decision_authority`、`delegation_record_id`、`requires_human_confirmation`をSchema fieldとして定義しない。authority／delegation／confirmation状態は`TaskAuthorizationEnvelope`とGovernanceが発行する署名済みApproval recordの参照先だけで評価する。
 
 `MaterialExplanationV1`は`request_id`、`material_id`、`source_revision`、`resolved_intents[]`、`selected_semantic_role_id`、`selected_template_id`、`changed_parameters[]`、`selection_reasons[]`、`rejected_candidates[]`、`assumptions[]`、`target_differences[]`、`predicted_cost`、optional `measured_cost`、`fallbacks[]`、`warnings[]`、`required_human_confirmations[]`、`confidence`を持つ。`confidence`はAI自己申告ではなく、unknown／conflict／capability／budget／Preview状態からEngineが再計算する。
 

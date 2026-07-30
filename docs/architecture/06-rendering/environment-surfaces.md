@@ -71,7 +71,7 @@ Capability maturity、Activation、roadmapはProduct Plan、共通phase／lifeti
 | Environment／Lighting／World連携 | Time-of-Dayはexact Source Sample、sun／moon set equality、単一`ProjectChangeSetV1`でatomicに閉じる | Environmentだけの部分Apply、Editor Lightコピー、未登録Lighting discoveryを成功扱いしない |
 | Environment／Post Process責務 | EnvironmentはSky／Atmosphere／Fog／Cloud／IBL、Post Processは露出／metering／adaptation／toneを単独所有する | 同名露出Field、Environment hint、Camera／Lighting側の複製所有を認めない |
 | Runtime／Target連携 | Render Snapshot、VFX Weather ref、World binding、exact budget envelope、C1 Core／C2 advanced fallbackへ接続する | 未計測budgetをQualification済み値とせず、Core構成要素の循環fallbackを認めない |
-| UI／Product scope | Environment Panelは`basic`／`detailed`で同じcanonical fieldを表示し、Environment authoring 26候補だけをversion 2計画集合とする | Panel fixture、Operation family、Preset Catalog、Time Providerは未materialized。Water／Weather／Snow mutationはcurrent Product closure外 |
+| UI／Product scope | Environment Panelは`basic`／`detailed`で同じcanonical fieldを表示し、Environment authoring 26候補だけをinitial version 1計画集合とする | Panel fixture、Operation family、Preset Catalog、Time Providerは未materialized。Water／Weather／Snow mutationはcurrent Product closure外 |
 
 この表は実装Task、実装順序、期間、担当、依存導入を定義しない。設計状態と非主張を要約するだけで、具体的Activation条件は§6、Product状態はProduct Plan／Execution Registryを正本とする。
 
@@ -527,6 +527,38 @@ EnvironmentArtifactSetRefV1
 
 `EnvironmentArtifactSetRefV1`と`WeatherPresentationSnapshotRefV1`はそれぞれ完成Artifact setとSnapshotへ全三Fieldでexact解決する。`PresentationTimeSampleRefV1`も解決先Sampleのsource ref、World、sequence、hashとbyte equalityにする。Artifact set hashはASCII `MIRAKAN_ENVIRONMENT_ARTIFACT_SET_V1`と自己hash／`resource_receipt`を除くreceipt-free closed record、Weather hashはASCII `MIRAKAN_WEATHER_PRESENTATION_SNAPSHOT_V1`と自己hashを除くclosed recordのcanonical bytesを`uint32_be` length framingしてSHA-256する。`EnvironmentPresentationSnapshotV1.weather_snapshot_ref`、`SnowSurfaceBatchV1.weather_snapshot_ref`、VFXが消費するWeather refは、Weather bindingが存在する時に同じ一件へbyte equalityで解決し、存在しない時は全てcanonical nullとする。Time-of-Day bindingが存在する時は`EnvironmentPresentationSnapshotV1.presentation_time_sample_ref`をpublishに使った同一Sampleへexact解決し、bindingなしではcanonical nullとする。`WaterSnapshotV1`のCadence三値は同じpublish対象`SimulationAdvanceIntervalV1`とbyte equalityにする。Rendererは四型のfieldを再解釈、補完、相互変換せず、Source Profileへ書き戻さない。
 
+Advanced Light Transportへ渡すEnvironment-owned radiance inputを次のimmutable projectionに閉じる。
+
+```text
+EnvironmentRadianceSummaryV1
+  schema_version: 1
+  summary_id: content-derived StableId
+  generation: positive u64
+  project_revision: positive u64
+  world_scope_ref: exact WorldScopeRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  quality_profile_ref: exact QualityProfileRefV1
+  environment_profile_ref: exact EnvironmentProfileRefV1
+  artifact_set_ref: exact EnvironmentArtifactSetRefV1
+  weather_snapshot_ref: nullable<WeatherPresentationSnapshotRefV1>
+  presentation_time_sample_ref: nullable<PresentationTimeSampleRefV1>
+  radiance_sources[1..6]:
+    source_kind:
+      sky | atmosphere | ibl_diffuse | ibl_specular | cloud | volumetric
+    participation:
+      diffuse_indirect | specular_indirect | volumetric_receive
+    availability: available | unavailable
+    source_generation_ref: exact owner-typed generation ref
+  summary_content_hash: SHA-256
+
+EnvironmentRadianceSummaryRefV1
+  summary_id: StableId
+  generation: positive u64
+  summary_content_hash: SHA-256
+```
+
+`radiance_sources[]`は`source_kind, participation` enum ordinal順へstrict sortしてduplicateを拒否し、同じEnvironment generationで有効または明示unavailableなradiance source closureとset equalityにする。Profile、Artifact、Weather、Time refsは同じ`EnvironmentPresentationSnapshotV1` generationの各refとbyte equalityにする。Refは解決先三Fieldとbyte equalityにし、summary hashはASCII `MIRAKAN_ENVIRONMENT_RADIANCE_SUMMARY_V1`と自己hashを除くclosed recordのcount／presence／length-framed canonical bytesからSHA-256する。ALTはこのprojectionから露出、Light Source、Material responseまたはTechniqueを生成しない。
+
 `EnvironmentCompiler`はcanonical Source、Contract set、Target、Toolchainからdeterministic artifactを生成する。
 
 ```text
@@ -537,7 +569,7 @@ EnvironmentArtifactSetV1
   source_profile_id
   source_revision
   contract_set_hash
-  target_profile_id
+  target_profile_ref: exact TargetProfileRefV1
   quality_tier
   sky_artifact
   atmosphere_lut_artifact
@@ -609,7 +641,7 @@ Snow computeはWorld opaque Materialより前に完了し、same-frame finalized
 
 ## 6. AI／Editor operation、preview、validation
 
-Environmentの予約候補は`operation.environment.inspect_profile, operation.environment.explain_effective, operation.environment.list_presets, operation.environment.resolve_intent, operation.environment.validate_changeset, operation.environment.preview_changeset, operation.environment.estimate_cost, operation.environment.create_profile, operation.environment.set_world_binding, operation.environment.apply_preset, operation.environment.set_intent, operation.environment.set_sky, operation.environment.set_sun_moon_link, operation.environment.set_height_distance_fog, operation.environment.set_volumetric_fog, operation.environment.create_local_fog_volume, operation.environment.update_local_fog_volume, operation.environment.delete_local_fog_volume, operation.environment.set_atmosphere_preset, operation.environment.set_custom_atmosphere, operation.environment.set_cloud_layer, operation.environment.set_lighting, operation.environment.bind_weather, operation.environment.generate_fallback, operation.environment.bake, operation.environment.run_qualification`のexact 26件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.environment_authoring@2`だけに属する。Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。未Activationだったversion 1の25候補setを置換し、`activation.environment.authoring_operations.v2`が26件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。Version 1の再利用、alias、部分Activationを禁止する。Waterの`CreateWaterBody, SetWaterBoundary, SetWaveProfile, SetFlowProfile, SetWaterMaterial, SetUnderwaterProfile, PreviewWaterCost`とWeather／Snowの`SetWeatherPresentation, CreateSnowReceiver, PaintStaticSnowMask, SetSnowMaterial, EnableDynamicSnow, PreviewSnowCost`はStable IDでないfuture action labelであり、current Operation／planning candidateへ推測しない。`wp.rendering.environment-c2`と`capability.environment.*`はEnvironment Profileのauthoring／runtime presentationだけをProduct closureとし、Water／Weather／Snow mutation capabilityを成立済みとみなさない。三領域のSource／Runtime schemaは設計契約として維持するが、別Owner family、Operation全件、Policy、Validator、Receipt、Provider、Target Qualificationが同じActivationで登録されるまではread-only／not activatedである。`operation.lod.*`も不完全prefixであり、LOD ownerのexact二候補だけを別familyで扱う。Write／ChangeSetの意味は各familyのActivation後だけ有効である。
+Environmentの予約候補は`operation.environment.inspect_profile, operation.environment.explain_effective, operation.environment.list_presets, operation.environment.resolve_intent, operation.environment.validate_changeset, operation.environment.preview_changeset, operation.environment.estimate_cost, operation.environment.create_profile, operation.environment.set_world_binding, operation.environment.apply_preset, operation.environment.set_intent, operation.environment.set_sky, operation.environment.set_sun_moon_link, operation.environment.set_height_distance_fog, operation.environment.set_volumetric_fog, operation.environment.create_local_fog_volume, operation.environment.update_local_fog_volume, operation.environment.delete_local_fog_volume, operation.environment.set_atmosphere_preset, operation.environment.set_custom_atmosphere, operation.environment.set_cloud_layer, operation.environment.set_lighting, operation.environment.bind_weather, operation.environment.generate_fallback, operation.environment.bake, operation.environment.run_qualification`のexact 26件であり、[Executable contracts](../02-foundation/executable-contracts.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.environment_authoring@1`だけに属する。Capability stateは`not_activated`、current MCD／Owner Manifest／Service allowlist／Policy／Validator／Diagnostic／Receipt／Provider／MCP／generated alias／legacy alias集合はすべて`[]`である。`activation.environment.authoring_operations.v1`が26件を同じContract set transactionで完全登録するまでGatewayはdispatchせず、要求を`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`でSource不変として拒否する。過去draftの25件集合、alias、部分Activationを禁止する。Waterの`CreateWaterBody, SetWaterBoundary, SetWaveProfile, SetFlowProfile, SetWaterMaterial, SetUnderwaterProfile, PreviewWaterCost`とWeather／Snowの`SetWeatherPresentation, CreateSnowReceiver, PaintStaticSnowMask, SetSnowMaterial, EnableDynamicSnow, PreviewSnowCost`はStable IDでないfuture action labelであり、current Operation／planning candidateへ推測しない。`wp.rendering.environment-c2`と`capability.environment.*`はEnvironment Profileのauthoring／runtime presentationだけをProduct closureとし、Water／Weather／Snow mutation capabilityを成立済みとみなさない。三領域のSource／Runtime schemaは設計契約として維持するが、別Owner family、Operation全件、Policy、Validator、Receipt、Provider、Target Qualificationが同じActivationで登録されるまではread-only／not activatedである。`operation.lod.*`も不完全prefixであり、LOD ownerのexact二候補だけを別familyで扱う。Write／ChangeSetの意味は各familyのActivation後だけ有効である。
 
 OperationからProject mutation／Jobへの閉じ方を次に固定する。
 
@@ -854,7 +886,7 @@ EnvironmentPreviewReceiptV1
   base_project_revision
   canonical_changeset_hash
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   budget_envelope_ref: exact EnvironmentBudgetEnvelopeRefV1
   quality_tier
   camera_set_hash
@@ -876,7 +908,7 @@ EnvironmentPreviewReceiptRefV1
   base_project_revision: positive u64
   canonical_changeset_hash: SHA-256
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   expires_at
 ```
 

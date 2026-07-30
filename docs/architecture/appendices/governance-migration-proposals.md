@@ -6,18 +6,18 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 親Owner: [Architecture Governance](../01-governance/architecture-governance.md)
-- 正本範囲: Definition移管bindingとRuntime ECS Owner移管ChangeSetの未承認候補
+- 正本範囲: 初回公開後のDefinition／Owner変更に使用できる非正本migration binding候補
 - 非正本範囲: Governanceの安定規則、Compatibility policy、Runtime ECS semantics、実装Task、実装順序、生成済みArtifactまたは承認結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)
+- 関連文書: [Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Runtime ECS](../04-runtime/entity-component-system.md)
 - 根拠区分: project-decision／provisional。本文の型、ChangeSet、Binding、Evidence集合はRepository Artifactが存在しない設計候補
 - 外部根拠確認日: none
 
 > 本書は実装計画ではない。候補Schemaを記載しても、Registry、Contract Set、Inventory、Receipt、Approval、ChangeSetまたはCapabilityが存在・承認・適用済みであることを意味しない。
 
-## 1. Definition Migration binding candidate
+## 1. Post-public Definition Migration binding candidate
 
-Architecture ChangeSetとProduct側のActive Definition migrationを相互のhash preimageへ戻すと循環する。そのため、候補設計ではsource／target closureとOwner reference集合を先に確定したSubjectを作り、Bindingと各wrapperはSubjectを一方向に参照する。
+initial V1がmaterializeまたは公開された後にArchitecture ChangeSetとProduct側のActive Definition migrationが必要になった場合、両者を相互のhash preimageへ戻すと循環する。そのため、候補設計ではsource／target closureとOwner reference集合を先に確定したSubjectを作り、Bindingと各wrapperはSubjectを一方向に参照する。現在のinitial V1 Architectureへこのmigration subject、source Owner、target Owner、Compatibility Receiptまたはold readerを生成しない。
 
 ```text
 ArchitectureOwnerReferenceMigrationManifestV1
@@ -66,38 +66,11 @@ Product Definition hashはProduct Ownerが発行する完成Definitionへのopaq
 
 本候補を採用する場合でも、完成SchemaのOwner、canonical encoding、hash domain、size bound、signer／trust policy、retention、revocationおよびatomic current-pointer切替は別のArchitecture判断と実Artifactで確定する。この文書のMarkdown Schemaだけからhash、BindingまたはApprovalを発行しない。
 
-## 2. Runtime ECS canonicalization candidate
+## 2. Initial V1 exclusion
 
-Runtime ECSのOwner移管は、次の候補ChangeSetで検討する。これはmaterialize前のreview profileであり、完成`ArchitectureChangeSetV1`、実装指示またはCapability activationではない。
+[Runtime ECS](../04-runtime/entity-component-system.md)を含む現Architecture Ownerは、最初のcanonical V1を各Owner文書へ直接定義する。Schema、Generator、serializer、Repository artifact、配布release、公開SDKまたは外部consumerが未materializeのsubjectについて、本Appendixのmigration bindingをbootstrap手段として使用しない。
 
-```text
-RuntimeEcsCanonicalizationChangeSetV1
-  change_set_id: architecture.runtime_ecs.canonicalization.v1
-  state: review
-  contract_activation_effect: none
-  source_owner_selector:
-    owner_id: owner.core.runtime_ecs
-    owner_revision: 1
-    authority_document_id: mirakan.arch.gameplay-programming-model
-  target_owner_selector:
-    owner_id: owner.core.runtime_ecs
-    owner_revision: 2
-    authority_document_id: mirakan.arch.runtime-entity-component-system
-  moved_concept_ids:
-    - runtime_entity_identity
-    - runtime_component_contract
-    - runtime_archetype_layout
-    - runtime_query_and_selection
-    - runtime_component_access_manifest
-    - runtime_structural_transaction
-    - runtime_ecs_ai_contract_graph
-  retained_source_concept_ids:
-    - gameplay_definition
-    - game_system_authoring
-    - generated_gameplay_bundle
-```
-
-候補を完成ChangeSetへ昇格する前に、少なくとも次の同一closureが必要である。
+初回公開後にOwner変更が必要になった時だけ、少なくとも次を同じclosed subjectへ束縛する。
 
 - base／resulting Architecture Inventory ref。
 - source／target authority document hashを含む一件のOwnership Transfer。
@@ -106,23 +79,5 @@ RuntimeEcsCanonicalizationChangeSetV1
 - complete Owner Reference Migration Manifest。
 - 全Evidence Requirementのpass satisfaction binding。
 - Definition Migration Bindingと独立したArchitecture Approval。
-- [Runtime ECS Design Closure Review](runtime-ecs-design-closure-review.md)のcurrent化必須`open-blocker`が0件で、同Reviewが要求するmachine-readable Schema、canonical encoding、hash golden vector、cross-owner正逆参照がtarget Foundation Definition Closureへ含まれること。
 
-`applied`になる前は、`owner.core.runtime_ecs` revision 1と[Gameplay programming model](../03-authoring/gameplay-programming-model.md)がcurrent authorityである。[Runtime ECS](../04-runtime/entity-component-system.md)はtarget Ownerであり、文書の存在を実装、登録または移管完了と解釈しない。
-
-### 2.1 Current readiness
-
-2026-07-27時点のRepositoryでは、この候補を承認または適用する入力を確認できない。
-
-| Closure入力 | 確認状態 | 扱い |
-|---|---|---|
-| immutable Architecture Inventory | 生成Schema、Generator、Artifactがない | `absent` |
-| source／target Owner Registry、Contract Set、Foundation Definition Closure | content-addressed Artifactがない | `absent` |
-| complete Consumer Inventory／Compatibility Change | 完成ArtifactとApprovalがない | `absent` |
-| Owner Reference Migration Manifest | source Closureがない | `absent` |
-| Product active Definition anchors | 完成Definition Artifactがない | `absent` |
-| Evidence fulfillment／Architecture Approval | trusted ReceiptとApproval refがない | `absent` |
-| Runtime ECS design closure | Closure registerは存在するがcurrent化必須`open-blocker`が残る | `incomplete` |
-| Definition Migration Binding／Architecture ChangeSet | 上記入力が不足 | 発行禁止、`contract_activation_effect=none` |
-
-このsnapshotは実装Task、担当、見積りまたは作業順序を定義しない。外部consumerが存在しないことも証明しない。Consumer調査が必要になった場合は、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のauthority profile、snapshot、receipt境界を使用する。
+この候補Schemaは実装Task、担当、見積り、作業順序、current migration、外部consumerの不存在またはCapability activationを意味しない。

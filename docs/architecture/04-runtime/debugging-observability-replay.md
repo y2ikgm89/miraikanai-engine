@@ -21,7 +21,7 @@ Debuggingは自由文Logを大量に収集して原因を推測する機能で�
 
 Debug Queryはread-onlyである。AI Findingから修正候補を作る場合も、[Project state](../03-authoring/project-state.md)のChangeSet、Governance authorization、Staging、Test、Replay regressionを迂回しない。
 
-Runtime ECS正本化ではDebug transportとAI captureを`observability_projection` consumerとして[Compatibility／Evolution](../02-foundation/compatibility-evolution.md#42-ecs-consumer-inventory-boundary)へ列挙する。これは現行reader、公開capture、retention windowの存在を主張しない。対象formatを読む／保持するconsumerがあるか、redacted projectionをsourceから再生成できるか、external captureがあるかをcomplete Consumer Inventoryとscope Requirementのpass fulfillmentで確定するまで、clean breakを承認しない。
+Debug transportとAI captureは[Runtime ECS](entity-component-system.md)のsealed initial V1 projectionだけを参照し、live query、lease、raw handleまたは近似Owner refから補完しない。これは現行reader、公開captureまたはretention windowの存在を主張しない。初回materialization後にprojection形式を変更する場合だけ、`observability_projection` consumerとして[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)のInventoryと承認済みChangeへ閉じる。
 
 ## 2. 原則、Capability、構成
 
@@ -233,7 +233,7 @@ Store ring、disk retention、ingress queue、capture throughput、instrumentati
 
 ## 8. Causality Graph
 
-current `DebugCausalEdgeV1.kind`は`input_produced | command_emitted | command_consumed | state_read | state_written | event_emitted | event_delivered | async_requested | async_accepted | job_scheduled | job_completed | resource_waited | rng_consumed | checkpoint_compared | asset_resolved | level_activated | presentation_derived | diagnostic_caused | fallback_selected`のclosed setを維持し、`level_activated`をRuntime Entry／Stage／World spatial／UI navigationのいずれかへ読み替えない。target `DebugCausalEdgeV2.kind`はV1の`level_activated`一件を削除し、`runtime_entry_transitioned | stage_transitioned | world_space_transitioned | ui_screen_navigated`の四件を追加したclosed setとする。他のV1 kindは同名で維持する。V1→V2はEvent Type Registry、Query／Index、Replay／Causality reader、Breakpoint、fixtureを同時移行し、V2に`level_activated` aliasを残さない。
+`DebugCausalEdgeV1.kind`は`input_produced | command_emitted | command_consumed | state_read | state_written | event_emitted | event_delivered | async_requested | async_accepted | job_scheduled | job_completed | resource_waited | rng_consumed | checkpoint_compared | asset_resolved | runtime_entry_transitioned | stage_transitioned | world_space_transitioned | ui_screen_navigated | presentation_derived | diagnostic_caused | fallback_selected`のclosed setとする。曖昧な`level_activated` kindまたはaliasを定義せず、Runtime Entry、Stage、World spatial、UI navigationをEvent Type Registry、Query／Index、Replay／Causality reader、Breakpoint、fixtureで一貫して区別する。
 
 edgeはsource／destination event、target、Runtime distance、delivery class、completenessを持つ。時系列上近いだけのeventをcausal edgeにしない。Parent／correlationが欠けた推定edgeは`inferred`とし、validated causeに使用しない。Presentationからauthoritative Gameplayへの逆edgeを作らない。
 
@@ -241,7 +241,7 @@ edgeはsource／destination event、target、Runtime distance、delivery class�
 
 ## 9. Breakpoint、Watch、Pause、Step
 
-current `DebugBreakpointV1`はID／version、enabled、optional Session scope、kind、target selector、registered pure predicate ref、hit policy、action、safe-boundary policy、capture channel、owner、expiryを持つ。kindはRuntime time、System／Definition entry／exit、command／event、state predicate、Diagnostic、budget threshold、Asset generation、Level transition、render capture triggerのclosed registered IDである。ただし`Level transition`は§4の四typed transitionを区別できないため、新しいtransitionのQualification、commit Evidence、AI validated causeに使用しない。target `DebugBreakpointV2`は`Level transition`を削除してtyped transition kindを持ち、selectorは`runtime_entry_transition | stage_transition | world_space_transition | ui_screen_navigation`とphaseをexact指定する。Scene名、screen labelをaliasとして受理しない。V1／V2とも任意C++／Script式、filesystem、network、clock、random、World mutationをpredicateにしない。
+`DebugBreakpointV1`はID／version、enabled、optional Session scope、kind、target selector、registered pure predicate ref、hit policy、action、safe-boundary policy、capture channel、owner、expiryを持つ。kindはRuntime time、System／Definition entry／exit、command／event、state predicate、Diagnostic、budget threshold、Asset generation、typed transition、render capture triggerのclosed registered IDである。transition selectorは`runtime_entry_transition | stage_transition | world_space_transition | ui_screen_navigation`とphaseをexact指定し、曖昧な`Level transition`、Scene名、screen labelをaliasとして受理しない。任意C++／Script式、filesystem、network、clock、random、World mutationをpredicateにしない。
 
 hit policyは`first | every | after_count | every_n | once_per_target_generation | rate_limited`とし、hit／suppressed countとfirst／last hitを記録する。actionは`mark | capture | pause_at_safe_boundary | stop_recording | fail_qualification`である。
 

@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 共通CPU／GPU／memory／queueの暫定budget、capacity、reservation／loan、backpressure、worker capacity、測定法、regression、Owner横断algorithm optimization candidate qualification
+- 正本範囲: 共通CPU／GPU／memory／queueの暫定budget、capacity、reservation／loan、backpressure、worker capacity、測定法、Project向けmarker／counter／baseline、regression、Owner横断algorithm optimization candidate qualification
 - 非正本範囲: Runtime phase／Simulation Advance／lifetime、ECS storage／query／digest field、Runtime Package binary、Save／Replay record、World cell／coordinate field、LOD policy field、light-transport／Terrain／Foliage／Transport／MultiplayerのDomain Profileとfallback、Authoring Document／ChangeSet field、Domain固有budget、外部Tool／SDK／driverの固定値、AI承認、Evidence envelope。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)
-- 関連文書: [Performance Scale Catalog Proposal](../appendices/performance-scale-catalog-proposal.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Mobile common](../07-platform/mobile-common.md)
+- 関連文書: [Performance Scale Catalog Proposal](../appendices/performance-scale-catalog-proposal.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Runtime ECS](entity-component-system.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Scheduling／lifetime](scheduling-lifetime.md)、[Debugging／observability／replay](debugging-observability-replay.md)、[World](../06-rendering/world.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Mobile common](../07-platform/mobile-common.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -251,7 +251,7 @@ Subsystem固有pass／Domain budgetは各Ownerが上表の内数として割り�
 RendererBudgetEnvelopeV1
   revision: positive uint64
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   quality_profile_ref:
     exact {quality_profile_id, quality_profile_version, quality_profile_content_hash}
   view_family_id: StableId
@@ -271,7 +271,7 @@ RendererBudgetEnvelopeV1
 LightingBudgetEnvelopeV1
   revision: positive uint64
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   world_level_scope_hash: SHA-256
   view_family_id: StableId
   lighting_gpu_p95_cap_us: finite nonnegative microseconds
@@ -291,7 +291,7 @@ LightingBudgetEnvelopeV1
 EnvironmentBudgetEnvelopeV1
   revision: positive uint64
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   quality_profile_ref:
     exact {quality_profile_id, quality_profile_version, quality_profile_content_hash}
   world_scope_hash: SHA-256
@@ -310,7 +310,7 @@ EnvironmentBudgetEnvelopeV1
 EnvironmentBudgetEnvelopeRefV1
   revision: positive uint64
   target_profile_ref:
-    exact {target_profile_id, target_profile_version, target_profile_content_hash}
+    exact TargetProfileRefV1
   world_scope_hash: SHA-256
   view_family_id: StableId
   content_hash: SHA-256
@@ -375,6 +375,51 @@ ReferenceHardwareProfileV1
 構成A／Bのlogical identityはそれぞれ`profile.performance.windows-reference-a@1`、`profile.performance.windows-reference-b@1`とする。これは表示名やGPU family aliasではなく、CPU stepping、motherboard／BIOS、memory part／timing、storage firmware、monitor EDID、OS image、GPU／driver package、power plan、Toolchain profile refを持つ完成`ReferenceHardwareProfileV1`のID／versionである。現在のC0表から未確定Fieldを推測してcontent hashを作らず、全Fieldとhashがlockされるまでは両Profileを`characterization_only`とし、Reference Fixture materializationをblockして関連Capabilityを`not_activated`に保つ。完成Profileが存在するがCapability対象外の場合のManifest applicability `prohibited`と、Profile未完成を混同しない。UI／Runtime consumerは構成値を複写せず、この二refと完成hashだけを使う。
 
 Reference Fixtureのouter `EditorReferenceEnvironmentProfileV1.reference_hardware_profile_ref`はA／Bの完成Profile一件へ解決し、同Profileの`os_image_ref`は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)がHost UI fontのresolved fileを得たCI OS imageとexact一致しなければならない。GPU driver package、monitor topology／EDID、power planはこのPerformance profileだけが所有し、Toolchainの`style_font_generation`またはfont／icon artifact hashへ複写しない。outer Environment Profile、Toolchain OS image、Performance profileの三者が一Fieldでも異なる場合は`infrastructure_error`としてcapture／comparisonを開始しない。これによりfont assetの失効とhardware／display driftを別generationとして保持し、相互hash cycleを作らない。
+
+### 8.0 Project performance marker／counter／baseline
+
+第三者DeveloperはProject C++、structured Gameplay、World、UI、Asset／Build journeyへEngine-owned public markerとcounterを追加し、GUI、CLI、headlessの同じcapture requestからProject performance regressionを検証できる。Project codeがProfiler backend、OS counter、GPU query、timestamp sourceまたはtrace bufferを直接操作しない。
+
+```text
+ProjectPerformanceSubjectV1
+  performance_subject_id: ProjectStableId
+  performance_subject_version: positive u32
+  subject_kind: duration_marker | gauge | counter | memory_counter
+  canonical_name: ASCII dotted name
+  owner_source_ref: exact ProjectSourceLocationRefV1
+  unit: nanoseconds | bytes | count | ratio_ppm
+  aggregation_policy_ref: exact PerformanceAggregationPolicyRefV1
+  privacy_classification_ref: exact ProductDataCategoryRefV1
+  performance_subject_content_hash: SHA-256
+
+ProjectPerformanceBaselineV1
+  baseline_id: ProjectStableId
+  baseline_version: positive u32
+  project_revision_ref: exact ProjectRevisionRefV1
+  engine_release_binding_ref: exact EngineReleaseBindingRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  build_configuration_ref: exact BuildConfigurationRefV1
+  workload_ref: exact ProjectPerformanceWorkloadRefV1
+  input_trace_ref: exact InputTraceRefV1
+  environment_profile_ref: exact MeasurementEnvironmentProfileRefV1
+  subject_threshold_refs[1..4096]:
+    sorted unique exact ProjectPerformanceThresholdRefV1
+  sample_policy_ref: exact PerformanceSamplePolicyRefV1
+  correctness_oracle_refs[1..256]:
+    sorted unique exact QualificationOracleRefV1
+  baseline_evidence_ref: exact EvidenceRefV1
+  baseline_content_hash: SHA-256
+```
+
+Marker scopeはRAIIまたはgenerated callback guardで必ず閉じ、begin／end mismatch、再入、cross-thread close、stack overflowをtyped diagnosticへする。Shipping buildでmarker／counterを保持するか除去するかはTarget profileで明示し、名前、labelまたはUser textをunbounded runtime telemetryへ送信しない。dynamic label、asset path、Entity name、Player ID、prompt、free-form stringをmetric dimensionにしない。
+
+Project baselineはEditor上の直前run、開発PCの平均値、手入力thresholdまたは`latest`結果ではない。Project revision、Engine release、Target、configuration、workload、input trace、environment、sample、correctness oracleへ固定したimmutable Evidenceである。baseline変更は通常test runと分離したProject ChangeSetとreviewを必要とし、regression観測値を自動acceptしない。
+
+[Developer Testing](../03-authoring/developer-testing.md)の`performance` caseはexact baseline refを入力にし、headless runnerがwarm-up、sample、aggregation、correctness／fault oracleを実行する。Editor Profilerは同じcanonical capture／resultをvisualizeするprojectionであり、GUIを開いたrun、異なるinstrumentation tier、別hardware、別Targetをheadless Gateへ混ぜない。Project marker結果はEngine内部QualificationまたはProduct performance claimを単独で発行せず、Owner-required workload集合の一部としてProduct Lifecycleへ束縛する。
+
+Public API catalogはmarker／counter subject登録、scope、value update、capture queryのC++ subjectを列挙し、test-only APIとShipping APIのavailabilityを区別する。subject削除／rename、unit／aggregation変更、baseline schema変更はCompatibility assessmentを必要とし、同名の意味差し替えを行わない。
+
+最低negative scenarioはduplicate subject ID、unknown unit、dynamic label、scope mismatch、counter overflow、disabled instrumentation、sample gap、wrong revision／Target／environment、stale／revoked baseline、correctness failure、headless／GUI result差を含む。metric欠測、NaN／Inf、counter reset、trace gapを0またはpassへ補完しない。
 
 ### 8.1 Editor Reference 01 performance profile
 
@@ -553,8 +598,7 @@ hot pathの一般heap fallbackはcount 0をhard predicateとし、unsupported Ta
 RuntimeEcsInitialAcceptanceThresholdSetV1
   threshold_set_version: 1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version,
-           target_profile_content_hash}
+    exact TargetProfileRefV1
   selected_chunk_payload_bytes: 16384
   scenario_limits[6]:
     sorted unique by scenario_id
@@ -571,15 +615,13 @@ RuntimeEcsInitialAcceptanceThresholdSetV1
 RuntimeEcsInitialAcceptanceThresholdSetRefV1
   threshold_set_version: positive uint32
   target_profile_ref:
-    exact {target_profile_id, target_profile_version,
-           target_profile_content_hash}
+    exact TargetProfileRefV1
   threshold_set_hash: SHA-256
 
 RuntimeDataOrientedQualificationProfileV1
   profile_version: 1
   target_profile_ref:
-    exact {target_profile_id, target_profile_version,
-           target_profile_content_hash}
+    exact TargetProfileRefV1
   contract_set_ref: ContractSetRefV1
   toolchain_lock_sha256: SHA-256
   fixture_id: fixture.runtime.ecs-data-oriented-core
@@ -816,9 +858,9 @@ AIがこのProjectionを正しく理解することは[AI Verification／Provena
 
 <a id="9-owner-typed-workload-scale-model"></a>
 
-## 9. Owner-typed workload scale modelと`ProjectScaleEnvelopeV2`
+## 9. Owner-typed workload scale modelと`ProjectScaleEnvelopeV1`
 
-詳細は[performance-scale-catalog-proposal](../appendices/performance-scale-catalog-proposal.md#9-owner-typed-workload-scale-modelとprojectscaleenvelopev2)へ分離した。本節はnavigationだけを持ち、Catalog／Fixture定義を複写しない。
+詳細は[performance-scale-catalog-proposal](../appendices/performance-scale-catalog-proposal.md#9-owner-typed-workload-scale-modelとprojectscaleenvelopev1)へ分離した。本節はnavigationだけを持ち、Catalog／Fixture定義を複写しない。
 
 ## 14. Failure、CI、completion
 
@@ -837,7 +879,7 @@ AIがこのProjectionを正しく理解することは[AI Verification／Provena
 
 CIはbudget hard limit、loan deadline、queue pressure、§5のqueue表から導出したcommit合計と記載値の不一致、missing metric、SourceへのRuntime／Derived ID、stale plan／Receipt、owner requirement低下、partial activation、Presentation→authoritative owner逆入力、Medium fallback欠落、unactivated Authority公開を拒否する。加えて、workload未校正なのに`performance_envelope_unqualified`以外を返すこと、PascalCase readiness、`optimization_required`／`not_activated`のstate混入、`blocked`でreason欠落、fresh Target-device Receiptなしの`qualified`を一原因ずつnegative fixtureで拒否する。
 
-本書のcompletionには、共通budget／capacity／backpressureが一意、`ProjectScaleEnvelopeV2`とowner-typed workload registryが一意、Worldなし／UI-only／headless／tool／resource-only fixtureがvalid、Domain fieldのowner委譲が明示、same-source transition fixture、bounded explanation、Target qualification、last-valid recoveryが実行可能であることを必要とする。Product Phase順序、Capability maturity、Governance authorization、Evidence envelopeを本書で再定義しない。
+本書のcompletionには、共通budget／capacity／backpressureが一意、`ProjectScaleEnvelopeV1`とowner-typed workload registryが一意、Worldなし／UI-only／headless／tool／resource-only fixtureがvalid、Domain fieldのowner委譲が明示、same-source transition fixture、bounded explanation、Target qualification、last-valid recoveryが実行可能であることを必要とする。Product Phase順序、Capability maturity、Governance authorization、Evidence envelopeを本書で再定義しない。
 
 ## 15. 明示的に採用しないもの
 

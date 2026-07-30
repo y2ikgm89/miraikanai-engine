@@ -104,6 +104,16 @@ SecuritySubjectRefV1
     target_profile_ref: exact TargetProfileRefV1
   }
   | {
+    kind: distribution_subject,
+    distribution_subject_ref: exact ProductDistributionSubjectRefV1
+  }
+  | {
+    kind: distributed_artifact,
+    parent_distribution_subject_ref:
+      exact ProductDistributionSubjectRefV1,
+    distributed_artifact_ref: exact ArtifactRefV1
+  }
+  | {
     kind: dependency,
     dependency_lock_entry_ref: exact DependencyLockEntryRefV1
   }
@@ -124,7 +134,7 @@ ThreatOwnershipRegistryV1
   registry_id: StableId
   registry_version: positive u32
   product_definition_ref: exact ActiveProductDefinitionRefV1
-  bindings[1..4096]:
+  bindings[1..524288]:
     sorted unique ThreatOwnershipBindingV1
   registry_content_hash: SHA-256
 
@@ -141,7 +151,7 @@ ThreatOwnershipBindingV1
   binding_content_hash: SHA-256
 ```
 
-`SecuritySubjectRefV1`は独立content recordへのRefではなくclosed tagged subject keyである。各branchはArchitecture Contract fragmentまたは既存Ownerのexact versioned Refを含み、bare document ID、表示名、path、current document headをsubject identityにしない。`ThreatOwnershipBindingRefV1`は`{binding_id, binding_version, binding_content_hash}`とし、解決先Bindingとbyte equalityにする。RegistryはBinding recordをinline保持し、BindingからRegistryを逆参照しない。
+`SecuritySubjectRefV1`は独立content recordへのRefではなくclosed tagged subject keyである。各branchはArchitecture Contract fragmentまたは既存Ownerのexact versioned Refを含み、bare document ID、表示名、path、current document headをsubject identityにしない。`distribution_subject`はLifecycleのexact Subject identity、`distributed_artifact`はexact親Subjectとそのmembership内Artifactのordered pairであり、bare Artifact hashを別配布surface間でcollapseしない。SDK／Template／Sample／Pack／Documentation／License／Support artifactを`target_package`、`dependency`または`public_contract` branchへ偽装しない。`ThreatOwnershipBindingRefV1`は`{binding_id, binding_version, binding_content_hash}`とし、解決先Bindingとbyte equalityにする。RegistryはBinding recordをinline保持し、BindingからRegistryを逆参照しない。
 
 一つのsecurity subjectはexactly one accountable Ownerを持つ。Responsible Ownerは複数でもよいが、accountable Owner欠落、複数accountable、unknown document、retired Owner、control set欠落、循環するescalationを拒否する。
 
@@ -160,7 +170,7 @@ SecurityControlV1
     | vulnerability_response | incident_response
   accountable_owner_document_id: ArchitectureDocumentId
   owner_contract_fragment_ref: exact ArchitectureContractFragmentRefV1
-  applicable_subject_kinds[1..7]:
+  applicable_subject_kinds[1..9]:
     sorted unique closed SecuritySubjectRefV1.kind
   required_evidence_class_refs[1..256]:
     sorted unique exact EvidenceClassRefV1
@@ -263,8 +273,11 @@ ProductSecurityBaselineV1
   baseline_id: StableId
   baseline_version: positive u32
   product_definition_ref: exact ActiveProductDefinitionRefV1
+  host_profile_refs[1..64]:
+    sorted unique exact TargetProfileRefV1(
+      profile_kind=build_host | editor_host)
   target_profile_refs[1..64]:
-    sorted unique exact TargetProfileRefV1
+    sorted unique exact TargetProfileRefV1(profile_kind=runtime_target)
   control_refs[1..4096]:
     sorted unique exact SecurityControlRefV1
   accepted_risk_refs[0..256]:
@@ -277,12 +290,22 @@ ProductSecurityReleaseBindingV1
   security_release_binding_id: StableId
   security_release_binding_version: positive u32
   engine_release_binding_ref: exact EngineReleaseBindingRefV1
+  release_content_manifest_ref: exact ProductReleaseContentManifestRefV1
+  distribution_coverage_projection_ref:
+    exact ProductDistributionCoverageProjectionRefV1
   security_baseline_ref: exact ProductSecurityBaselineRefV1
   threat_ownership_registry_ref: exact ThreatOwnershipRegistryRefV1
   support_window_ref: exact ProductSupportWindowRefV1
   case_registry_snapshot_ref: exact SecurityCaseRegistrySnapshotRefV1
   release_security_assessment_evidence_refs[1..4096]:
     sorted unique exact EvidenceRefV1
+  distribution_security_evidence_bindings[1..65535]:
+    sorted unique {
+      distribution_subject_ref: exact ProductDistributionSubjectRefV1,
+      control_kind:
+        malware_scan | vulnerability_scan | signature | provenance,
+      evidence_ref: exact EvidenceRefV1
+    }
   security_release_binding_content_hash: SHA-256
 
 SecurityCaseRegistrySnapshotV1
@@ -308,6 +331,12 @@ SecurityCaseRegistrySnapshotV1
   case_registry_snapshot_content_hash: SHA-256
 ```
 
+`ProductSecurityReleaseBindingV1`のrelease subjectは、`release_content_manifest_ref`が束縛する[Product Lifecycle](../00-product/product-lifecycle.md)のexact `ProductDistributionCoverageProjectionV1.distribution_subject_refs[]`である。Coverage Projection refはManifest、Engine Release、Security Release Bindingでbyte equalityにする。Threat ownership、dependency provenance、credential isolation、accepted risk、open case判定はこの全subject setを過不足なくcoverする。control実行は各Subjectのexact `ProductDistributionControlApplicabilityV1`に従い、全Subjectへ同じcontrolを一律要求または一律省略しない。Game Project package一件、SDKだけ、Host installerだけ、Reference一件またはManifest外の近似artifactの評価をProduct release全体へ一般化しない。
+
+SBOM／NOTICE生成形式とdependency inventoryは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、Distribution Subject／control applicability／container別presentationは[Product Lifecycle](../00-product/product-lifecycle.md)が所有する。本書はApplicabilityで`malware_scan | vulnerability_scan | signature | provenance`がrequiredな`{subject,control}` pairと`distribution_security_evidence_bindings[]`のprojectionをset equalityにし、forbidden pairとのintersectionをexact emptyにする。全EvidenceはAI Verification OwnerのVerification Semantic Admissibility Predicate v1をset比較前に通過し、generic scope／subject contract、owner-specific completed record、Candidate、Host／Target／locale／dimension、subject、class、purposeをread-backする。SBOM／NOTICE／license／privacy／support controlはLifecycle acceptanceで同じApplicabilityを検証し、本書がSchemaまたはdomain meaningを複製しない。required pairの一件でもmissing、stale、別Candidate、別Engine Source、別Target、別Host、別Subject、invalid semantic tupleまたはhash-onlyならSecurity Release Bindingを発行しない。
+
+`ThreatOwnershipRegistryV1.product_definition_ref`と`ProductSecurityBaselineV1.product_definition_ref`は[Product Plan](../00-product/product-plan.md)のexact `ActiveProductDefinitionRefV1`へ全Field byte equalityで解決する。同ID／revision別hash、ID／revisionだけ、同名Definition、`latest`、Release labelまたはManifestからの補完を拒否し、Registry、Baseline、Release Bindingで別Product Definitionを合成しない。
+
 Baseline controlは少なくとも次のcategoryをclosed IDでcoverageする。
 
 - threat modelingとsecurity requirement
@@ -327,9 +356,9 @@ Accepted riskはrisk ID、exact subject refs、accountable Owner、rationale Evi
 
 Response Policyは四つのnamed classを持ち、各Fieldの`product_severity`はField名とbyte equalityにする。別severity、重複severity、欠落classを拒否する。各classはIncident closureで必要なcontainment、recovery、notification、monitoring、recurrence-prevention集合をclosed setとして決める。
 
-`ProductSecurityReleaseBindingV1`はProduct Lifecycleの完成Release refを入力にSecurity baseline、Threat Registry、Support Window、case registry snapshot、fresh assessment Evidenceを一方向に束縛する。Engine release bindingからSecurity recordを逆参照せず、Product LifecycleとProduct Securityの規範依存／content hash cycleを作らない。
+`ProductSecurityReleaseBindingV1`はProduct Lifecycleの完成Release refと同Releaseが束縛するexact Release Content Manifest refを入力にSecurity baseline、Threat Registry、Support Window、case registry snapshot、fresh assessment Evidenceを一方向に束縛する。`release_content_manifest_ref`はEngine Releaseの同Fieldとbyte equalityにし、Engine ReleaseまたはRelease Content ManifestからSecurity recordを逆参照せず、Product LifecycleとProduct Securityの規範依存／content hash cycleを作らない。
 
-Releaseの`product_definition_ref`はBaselineとThreat Registryの同Fieldにbyte equality、ReleaseのTarget集合はBaselineのTarget集合とset equalityにする。Required security subject集合は、Releaseの全Target package、public contract member、dependency lock entry、AI authority surface、Architecture Inventoryのapplicable public domainをclosed projection ruleで導出し、Registry Bindingのsubject集合がそのexact superset、各subjectのrequired control集合がBaseline control集合のsubsetでなければならない。Projection input、rule version、結果set hashは`case_registry_snapshot_ref`のEvidenceへ束縛し、名前またはcurrent Inventoryから再推測しない。Support Windowは同じReleaseが束縛するexact refとbyte equalityにする。
+Releaseの`product_definition_ref`はBaseline、Threat Registry、Release Content Manifestの同Fieldにbyte equality、ReleaseのHost／runtime Target集合はBaselineの対応集合およびManifestのHost Distribution／Target Package projectionと各々set equalityにする。Required security subject集合は、Distribution Coverage Projectionの全Subjectを`kind=distribution_subject`、各Subjectの再帰的な`distributed_artifact_bindings[].distribution_artifact_ref` distinct projection（Engine Source、Host、Target Package、SDK、Template、Sample、Pack、Documentation、License、Supportを含む）を親Subject付き`kind=distributed_artifact`へ一件ずつ投影し、product release、public contract member、dependency lock entry、AI authority surface、Architecture Inventoryのapplicable public domainとのcanonical unionとして導出する。同一artifactのrole／execution／locale binding複数行はsecurity subjectを重複生成しないが、Coverageでのbinding欠落をartifact subject存在で補わない。集合総数は262,144件以下でなければならず、checked overflowまたは超過はSecurity Release Binding生成を拒否する。Registry Bindingのsubject集合はこのrequired集合のexact supersetであり、Registry自体の524,288件上限内でrequired外のpre-release／incident／Project Source subjectを保持できる。各subjectのrequired control集合はBaseline control集合のsubsetでなければならない。Candidate、source repository snapshot、Project revision、Target Package集合またはPack集合をEngine Release label、package path、Pack表示名またはcurrent Inventoryから再推測しない。Projection input、rule version、結果set hashは`case_registry_snapshot_ref`のEvidenceへ束縛する。Support Windowは同じReleaseが束縛するexact refとbyte equalityにする。
 
 `SecurityCaseRegistrySnapshotV1`はReleaseへ影響し得る全Caseのcurrent headをexactly one件ずつ含み、各Caseのdownstream decision／disclosure／embargo／incident headとrequired notification receiptをtyped setで閉じる。`open_critical_case_refs`はSchema上emptyであり、critical caseがunresolvedならSnapshotを作れない。Snapshotは完成Release refを下流から参照し、ReleaseまたはCaseへSnapshot refを埋め戻さない。
 
@@ -402,8 +431,8 @@ SecurityUpdateDecisionV1
     {
       kind: prepare_update,
       remediation_candidate_ref: exact PreparedCandidateRefV1,
-      update_channel_refs[1..64]:
-        sorted unique exact ProductUpdateChannelRefV1,
+      installation_channel_refs[1..64]:
+        sorted unique exact ProductInstallationChannelRefV1,
       qualification_evidence_refs[1..4096]:
         sorted unique exact EvidenceRefV1
     }
@@ -417,8 +446,8 @@ SecurityUpdateDecisionV1
             package_artifact_ref: exact ArtifactRefV1,
             signature_receipt_ref: exact OperationReceiptRefV1
           },
-        update_channel_refs[1..64]:
-          sorted unique exact ProductUpdateChannelRefV1,
+        installation_channel_refs[1..64]:
+          sorted unique exact ProductInstallationChannelRefV1,
         publication_recovery_policy_ref:
           exact ProductPublicationRecoveryPolicyRefV1,
         disclosure_disposition:

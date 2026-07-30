@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Editor process model、Shell配置、Panel／Workspaceの共通契約、Editor表示locale／AI返答locale preference、制作journey、AI Partner UX、手動編集との往復、Error／Recovery UX、AccessibilityとEditor操作性能
-- 非正本範囲: Widget／Layout実装、Project transaction、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
+- 正本範囲: Editor process model、Project Browser／Launcher projection、Shell配置、Panel／Workspaceの共通契約、Editor表示locale／AI返答locale preference、制作journey、外部IDE往復、AI Partner UX、手動編集との往復、Error／Recovery UX、AccessibilityとEditor操作性能
+- 非正本範囲: Engine release取得／install／update意味、Widget／Layout実装、Project transaction／VCS semantics、Project test semantics、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Editor UI Framework](editor-ui-framework.md)、[Project State](project-state.md)、[Asset Lifecycle](asset-lifecycle.md)
-- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Developer Testing](developer-testing.md)、[Native Game Module](native-game-module.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -29,7 +29,10 @@ Project create、Template／Sample、update／repair、Documentation、support�
 | Project Document、ChangeSet、Commit、Undo、Recovery data | [Project state](project-state.md) |
 | AI Task、質問、権限、Approval、Provider／MCP／CLI | [AI Security／Approval](../01-governance/ai-security-approval.md) |
 | Project bootstrap、Template／Sample／Documentation、surface parity、update／repair／support／NOTICE | [Product Lifecycle](../00-product/product-lifecycle.md) |
+| Product data flow、consent、retention、export／delete | [Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md) |
 | Product vulnerability case、security update／disclosure／incident | [Product Security](../01-governance/product-security.md) |
+| Project test suite／case／runner／result | [Developer Testing](developer-testing.md) |
+| Public C++ API Catalog、Native build／link／package | [Native Game Module](native-game-module.md) |
 | Debug Session／Event／Counter／Query、pause／step、Replay／Causality、AI診断意味 | Debugging規約 |
 | Runtime／Play、Renderer、Asset、Input／UI／Audio等のDomain意味 | 各Subsystem規約 |
 | Asset Browser、Import Inspector、Preview、Conversion Report、Reimport ConflictのDomain data | [Asset lifecycle](asset-lifecycle.md) |
@@ -83,6 +86,43 @@ EditorClosing  -> terminal
 - `EditorClosing`は新taskとChangeSet受付を閉じ、Worker／AI／GameHostを停止し、timeout後はchild Processを終了してRecovery receiptを残す。
 
 許可されない遷移、二重Play、closing中のCommit、旧Project generationのtask resultはtyped errorとして拒否する。GameHost／Worker crashはEditor sessionを`Faulted`へ遷移させず、Task failureとして隔離し、Authoringを継続する。
+
+### 3.2 Project Browser／Launcher
+
+`NoProject`の既定surfaceは空SceneではなくProject Browserである。Project Browserはinstalled Engine release、Editor／SDK health、Template／Sample、recent／pinned Project、repository state、Target compatibility、update／repair／support statusをread-only projectionとして表示し、Product LifecycleとProject Stateのauthorityを置き換えない。
+
+```text
+ProjectBrowserEntryV1
+  project_identity_ref: exact ProjectIdentityRefV1
+  project_manifest_location_ref: exact LocalLocationRefV1
+  bound_engine_release_ref: exact EngineReleaseBindingRefV1
+  observed_repository_snapshot_ref:
+    optional exact ProjectRepositorySnapshotRefV1
+  last_opened_project_revision_ref:
+    optional exact ProjectRevisionRefV1
+  compatibility_assessment_ref:
+    exact CompatibilityAssessmentRefV1
+  health_state:
+    ready | update_required | repair_required | conflicted
+    | missing | access_denied | unsupported
+  last_observed_at
+  browser_entry_content_hash: SHA-256
+```
+
+Recent listはUser preferenceでありProject inventoryではない。Project pathを移動、renameまたは削除しても同pathの別Projectへidentityを付け替えない。missing、access denied、corrupt manifest、duplicate Project ID、repository conflict、required Engine release欠落を別stateとして表示し、一覧から自動削除、別releaseで自動open、silent migrationまたはempty Project再作成を行わない。
+
+Project Browserから次のjourneyへ到達できる。
+
+- installed exact Engine releaseでTemplateからProjectをatomic createする。
+- existing Project manifestをscanし、変更せずcompatibility／repository／Target readinessをpreviewしてopenする。
+- VCS providerが用意したlocal checkoutをscanする。remote clone、credential、branch checkoutはProject openと別Operationにする。
+- Sampleをread-onlyで確認するか、new Project identityへ明示copyして開く。
+- required Engine release／SDK／Template／Documentationを取得、repairまたは選択する。
+- Projectを一覧から忘れる。Source、repository、cache、build outputのdeleteとは分離する。
+
+Engine Launcher surfaceをEditor外processとして設ける場合も、同じ`EngineReleaseBindingV1`、Project Browser entry、install／update／repair Operationを使う。LauncherとEditorのrecent list、health、update stateを別authorityにせず、LauncherからEditorへ渡すのはexact Project identity、manifest location、Engine release refだけとする。arbitrary command line、credential、Project contentをhandoff payloadへ含めない。
+
+Project create／open／clone／update／repair中はprogress、download source、artifact hash、disk impact、license、Privacy network flow、cancel／rollbackを表示する。cancelまたはfailure時はpartial openable Project、stale installed-release成功表示、temporary credentialを残さない。
 
 ## 4. Shellと既定画面
 
@@ -332,7 +372,7 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 
 初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。EditorはAssignmentのclosed 9-Field subject、exact `role_ref`、Scope、qualification、期間、`revoked_at=null`と、信頼済みrevocation registryの署名済みcurrent headをread-backする。Assignment Recordまたはsubject identityのcurrent revocation、snapshot missing／stale／invalid、Role欠落／unknown、RoleとScope kind不一致では`awaiting_code_owner`を表示してSource Workerを起動しない。
 
-`activation.build_gateway.operation_pipeline.v1`完了後のPackage journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。後段PanelはPackage artifact hashと前段完成Receipt ref／hashを表示し、InstallはPackage、LaunchはInstall、SmokeはPackage／Install／Launchとfixtureの全bindingが一致するまで成功表示しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
+`activation.build_gateway.operation_pipeline.v1`完了後のPackage journeyは`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`のexact順で、各段階を別`OperationTaskV1`、Authorization、署名済み`OperationReceiptEnvelopeV1`として表示する。Package成功PanelはPackage artifactとexact `RuntimeEntryDistributionPackageManifestV1` ref／hash、Installは同Package／ManifestとInstall Receipt、Launchは同Manifestの各launch対象outer Runtime Entryに対するexact `RuntimeEntryLaunchSelectionV1` ref／完成record SHA、固有Launch request／Task／Receiptを表示する。SmokeはPackage／Manifest／Install／全required Launch Selection／Launch Receiptとfixtureの全bindingが一致するまで成功表示しない。descriptor hash、entry表示名、同Manifestの別entryまたはInstall ReceiptだけからLaunch Selectionを補完しない。`operation.task.status`、`operation.task.read_receipt`、`operation.task.cancel`は選択Taskだけを対象にする。installと`operation.device.reset_data`ではDevice identity／generation、Package Receipt、削除／install対象、明示consent、R3 Approvalを確認画面に同時表示する。前段のApprovalやconsentをlaunch、smoke、Debugへ引き継いだ表示にしない。
 
 Local inference表示はcurrent `InferenceDeploymentProfileV1.model_snapshot_profile_binding`のrecord／issuance Headからread-backした`ModelSnapshotProfileV1`だけをModel identity正本にする。weight shard closure、native／quantized encoding branch、license、provenanceをDeployment表示値から取得せず、Deployment／Snapshot binding差、`local_process_ipc`からprovider model参照、Snapshot／Conformance失効またはstale Headを`not_activated`とDiagnosticで表示する。
 
@@ -346,6 +386,16 @@ Local inference表示はcurrent `InferenceDeploymentProfileV1.model_snapshot_pro
 - `Accept all`だけでなくchange primitive／Document／field単位のaccept／rejectを提供する。
 - 一部accept後は新ChangeSetを再構築し、全Validatorを再実行する。
 - Playtest中のruntime tweakをApply Backする場合もtyped Project change primitiveへ変換する。
+
+### 9.1 外部IDE往復
+
+Source Panelはfull source-code editorを必須とせず、Project C++／Shader／test source、generated public binding、diagnostic、build configurationを閲覧し、Userが選んだ外部IDEへexact file、line、column、Project revision、Engine release、Toolchain profileを渡す。外部IDEのworkspace、cache、extension、indexまたはbuild buttonをProject authorityにしない。
+
+外部IDE向けworkspace／compile command／language-server metadataはProduct LifecycleのSDK distributionとBuild Gatewayから生成するDerived artifactである。Engine private include、vendor header、secret、User-specific absolute pathをportable Project Sourceへcommitしない。Toolchain、public API catalogまたはProject revisionが変わればstaleにし、古いindexからbuild successを推測しない。
+
+外部編集の保存は[Project State §7.1](project-state.md#71-version-controlrepository-interoperability)のstable-read、semantic Diff、conflict、atomic ChangeSetへ戻す。Editorは未保存IDE bufferを読むと仮定せず、filesystemへ確定したbytesだけを候補にする。外部IDEのbuild／test起動も同じBuild Gateway／Developer Testing requestへ投影し、独自script、別output root、hidden environmentで成功を作らない。
+
+Compiler／linker／test diagnosticはstable code、public API subject、Project source location、Target、configuration、candidate hashを保持し、EditorとIDEのProblemsへ同じcanonical resultを投影する。IDEがない、未対応、起動失敗の場合もSourceを失わず、exact command／request artifactとmanual setup guidanceを提示する。
 
 ## 10. Undo、History、Recovery
 
@@ -464,7 +514,7 @@ Editor memory envelopeは[Performance／Capacity](../04-runtime/performance-capa
 - `en-US`↔`ja-JP`表示切替で同じStable target、typed value、Action、semantic content hashを維持し、layout reflowだけを許可する
 - AI CreatorからProductionへ切替えて同じObjectを手動修正し、AI再編集で保持
 - Build familyのatomic Activation acceptanceでは、AI CreatorのjourneyだけでTargetを選択し、`operation.build.request_package` → `operation.device.install` → `operation.device.launch` → `operation.play.run_smoke`を別Task／Receiptで完了し、smoke結果がAI PartnerのResultへ提示される
-- 同acceptanceではPackage→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、Project／Deviceの正規状態が不変。current fixtureでは全候補commandが非表示で、直接dispatchが`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`となる
+- 同acceptanceではPackage→Install→Launch→Smokeの各前段Receipt ref／hash、Package artifact、typed distribution Manifest、outer Runtime Entry、Launch Selection ref／完成record SHA、request、Authorization、fixture、Device generationを一原因ずつ差し替えて失敗表示し、別entry Receipt、descriptor hashまたはInstall ReceiptだけによるLaunch成功を拒否してProject／Deviceの正規状態が不変。current fixtureでは全候補commandが非表示で、直接dispatchが`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`となる
 - BeginnerではDefinition／prequalified PackだけからFirst Playableへ進み、Native／Shader要求は`awaiting_code_owner`または`capability_unavailable`になってSource reviewを要求しない
 - Code owner Assignmentのmissing／unknown／wrong-scope `role_ref`、`revoked_at` Field省略、non-null `revoked_at`、unknown extra Field、current snapshotのAssignment／subject revoke、current snapshotのmissing／stale／invalidを一原因ずつ拒否し、`revoked_at=null`だけで`awaiting_code_owner`からSource生成／Promotionへ進めない
 - expired Host／Model Profile、Deployment／Snapshot bindingのschema ID／logical ID／record ref／hash／revision／issuance Head差、`model_identity.kind`差、silent cloud fallbackを拒否し、対応状態、送信byte 0、Diagnosticを表示

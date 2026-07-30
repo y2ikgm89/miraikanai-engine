@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Screen definition／instance／Stack／navigation、Text storage／input／layout、Game／Editor Localization Catalog schema・BCP 47・fallback、glyph cache、Accessibility、Player Profile／Settings transaction／Save Catalog、UI authoring、UI固有capacity／failure／qualification
+- 正本範囲: Game UI document／widget／layout／style／binding／event／focus、Screen definition／instance／Stack／navigation、Text storage／input／layout、Game／Editor Localization Catalog schema・BCP 47・fallback、glyph cache、Accessibility、Player Profile／Settings transaction、SettingsとPersistence-owned Save Catalogのatomic co-publication、UI authoring、UI固有capacity／failure／qualification
 - 非正本範囲: Project ChangeSet／Asset lifecycle、Gameplay Save payload、common Renderer execution、Runtime phase／shared budget、Editor shell／workspace、Account credential、telemetry／AI／network consent、Platform lifecycle／safe-area source、external library version・hash・license・URL、AI authorization／Evidence envelope。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Project State](../03-authoring/project-state.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Project State](../03-authoring/project-state.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Render Graph](../06-rendering/render-graph.md)、[Windows](windows.md)、[Mobile Common](mobile-common.md)、[Android](android.md)、[Apple](apple.md)、[Input](input.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -400,7 +400,7 @@ Navigation requestは[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.m
 
 TitleのPlay／Continue、ResultのReturn Title等はregistered `UiCommandId`を発行するだけである。authorized game logic／orchestratorがcommandをexact Runtime Entry refまたはSave bundle refへ解決し、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)の`RuntimeEntryTransitionPortV1`へ提出する。UI RuntimeがWorld／Stage／Saveを直接変更したり、button labelからdestinationを推測したりしない。mouse、keyboard、controller、touch、screen reader、AI testは同じ`UiScreenNavigationRequestV1`または`UiCommandId`へ収束する。
 
-本節のScreen／Stack型と`UiDocument.screen_navigation_policy_ref`はtarget review definitionであり、current UI authoring Operation、MCD Contract Set、Runtime Port、Service／Provider／MCP inventoryを追加またはactivateしない。既存UiDocumentのcurrent readerへFieldを部分追加せず、Project ownerのPresentation Binding、Runtime Entry Package／transition、Consumer Inventory、Compatibility Change、source／target Definition Closure、Definition Migration、qualificationが揃うatomic activationだけがschemaとreader／writerを同時に切り替えられる。
+本節のScreen／Stack型と`UiDocument.screen_navigation_policy_ref`はinitial V1 review definitionであり、UI authoring Operation、MCD Contract Set、Runtime Port、Service／Provider／MCP inventoryがmaterializeまたはactiveであることを意味しない。Project OwnerのPresentation Binding、Runtime Entry Package／transition、exact Definition Closure、Qualificationが揃うまでSchemaまたはreader／writerを生成せず、旧UiDocument、部分Field追加、aliasまたはdual readerをinitial V1へ定義しない。
 
 ## 9. Event、Hit Test、Focus
 
@@ -466,13 +466,14 @@ Password／secret fieldはplaintext log、History、AI Context、clipboard、cra
 ```text
 LocalizationCatalog
   namespace_id
-  source_locale
-  required_locales[]
+  source_locale_profile_ref: exact LocaleProfileRefV1
+  required_locale_profile_refs[]:
+    sorted unique exact LocaleProfileRefV1
   entries[]
     localization_key_id
     developer_description
     argument_schema
-    messages_by_locale
+    messages_by_locale_profile_ref
 ```
 
 `LocalizationCatalog`の正規Commit経路は[Project state](../03-authoring/project-state.md) §3.1の`LocalizationCatalogDocument`（document_kind）であり、本書がそのschema正本、Project stateがDocument identityとCommitを所有する。
@@ -482,9 +483,15 @@ Editor自身のLocalizationは同じentry／Message AST／BCP 47 schemaを使用
 ```text
 EditorLocalizationCatalogProfileV1
   namespace_id = mirakan.editor
-  source_locale = en-US
-  required_locales = [en-US, ja-JP]
-  final_fallback_locale = en-US
+  source_locale_profile_ref =
+    exact LocaleProfileRefV1(canonical_language_tag=en-US)
+  required_locale_profile_refs =
+    sorted exact [
+      LocaleProfileRefV1(canonical_language_tag=en-US),
+      LocaleProfileRefV1(canonical_language_tag=ja-JP)
+    ]
+  final_fallback_locale_profile_ref =
+    exact LocaleProfileRefV1(canonical_language_tag=en-US)
   catalog_artifact_ref
 ```
 
@@ -492,7 +499,7 @@ EditorLocalizationCatalogProfileV1
 
 Source `LocalizationKeyId`はUUIDv7 `StableId`で、Source文字列やEnglish本文をkeyにしない。Cookerは一つのexact Localization Catalog Artifact内でKey `StableId`をUUID byte順に並べ、1から`LocalizationKeyRuntimeId uint32`を割り当てる。0はinvalidとし、Runtime IDをSource、Save、別Catalog比較へ使用しない。各messageはICU MessageFormat相当のbounded ASTへoffline Cookする。
 
-`developer_description`はTranslator、Tool、AIが同じ意味とplaceholder contextを参照するcanonical `en-US` technical proseであり、display textでもLocalization keyでもない。翻訳対象の`messages_by_locale`と同じFieldへ混在させず、Userへ表示するhelpは別Localization entryにする。
+`developer_description`はTranslator、Tool、AIが同じ意味とplaceholder contextを参照するcanonical `en-US` technical proseであり、display textでもLocalization keyでもない。翻訳対象の`messages_by_locale_profile_ref`と同じFieldへ混在させず、Userへ表示するhelpは別Localization entryにする。
 
 ### 11.2 Message AST
 
@@ -512,7 +519,9 @@ Argument schemaはstring、integer、finite number、date-time instant、duratio
 
 ### 11.3 Localeとfallback
 
-Locale tagはBCP 47としてICUでcanonicalizeする。Fallback順を次で固定する。
+Product-level `LocaleProfileV1`、`LocaleProfileRefV1`およびroot Registryの一意Ownerは[Product Plan §6.1](../00-product/product-plan.md#product-profile-identity)である。本書のCatalog、requested locale、fallback edge、Font coverageおよびQualificationはexact Locale Profile Refを保持し、language tag、OS locale、Catalog key、display nameまたは`latest`からRefを生成しない。各RefはProduct Definitionが束縛するroot Registryのcomplete recordへID／version／content hashで解決し、解決先の`canonical_language_tag`をICUでBCP 47 canonicalizeした結果とbyte equalityにする。同じtagでも別Ref、同ID／version別hash、Registry外Refは拒否する。
+
+Locale tagはBCP 47としてICUでcanonicalizeする。Fallback edgeはsource／destinationのexact `LocaleProfileRefV1`を持ち、順序を次で固定する。
 
 ```text
 requested exact locale
@@ -665,20 +674,20 @@ WCAGのCSS pixel、Miraikanaiの`ui_lu`、Androidのdp、Appleのptを数値だ�
 
 ## 15. Player Profile／Settings
 
-本書はlocal Player Profile、Settings、apply／revert transaction、Save Catalogの唯一のOwnerである。Gameplay Save payloadの形式／atomicityはRuntime／Platform正本、Editor workspaceはEditor正本、Account credentialはAccount正本、telemetry／AI Provider／network consentのsubject、purpose、grant／deny／revoke、freshnessは[AI Security／Approval §3.3](../01-governance/ai-security-approval.md#33-consent-recordとpurpose-binding)のConsent Record正本が所有し、Settingsの一般boolへ畳み込まない。本書は同意文面、locale、accessible presentationとUser入力を担当するが、表示したことをgrantとして記録しない。
+本書はlocal Player Profile、Settings、apply／revert transaction、およびSettingsとPersistence-owned Save Catalogのatomic co-publicationの唯一のOwnerである。Save Catalog identity、Slot membership、Gameplay Save payloadの形式／atomicity、Load Requestは[Persistence／Save](../04-runtime/persistence-save.md)、Editor workspaceはEditor正本、Account credentialはAccount正本、telemetry／AI Provider／network consentのsubject、purpose、grant／deny／revoke、freshnessは[AI Security／Approval §3.3](../01-governance/ai-security-approval.md#33-consent-recordとpurpose-binding)のConsent Record正本が所有し、Settingsの一般boolへ畳み込まない。本書は同意文面、locale、accessible presentationとUser入力を担当するが、表示したことをgrantとして記録しない。
 
 ```text
 LocalPlayerProfileV1
-  profile_id
-  profile_schema_version
-  settings_catalog_commit_marker_ref
-  settings_catalog_commit_marker_generation
+  profile_id: StableId
+  profile_schema_version: 1
+  settings_catalog_commit_marker_ref:
+    exact SettingsCatalogCommitMarkerRefV1
+  settings_catalog_commit_marker_generation: positive uint64
   input_binding_document_ref
   accessibility_document_ref
   locale_selection
   consent_record_refs[]
   created_at_monotonic_context
-  migration_history[]
 ```
 
 ```text
@@ -697,9 +706,9 @@ SettingsDefaultsV1
 
 ```text
 SettingsDocumentV1
-  settings_document_id
-  schema_version
-  revision
+  settings_document_id: StableId
+  schema_version: 1
+  revision: positive uint64
   project_defaults_hash
   display_settings_ref
   render_quality_selection_ref
@@ -708,7 +717,13 @@ SettingsDocumentV1
   accessibility_document_ref
   locale_selection
   last_known_good_snapshot_ref
-  migration_history[]
+  settings_document_content_hash: SHA-256
+
+SettingsDocumentRefV1
+  settings_document_id: StableId
+  schema_version: 1
+  revision: positive uint64
+  settings_document_content_hash: SHA-256
 
 SettingsApplyTransactionV1
   transaction_id
@@ -723,20 +738,29 @@ SettingsApplyTransactionV1
   result: pending | applied | reverted | restart_required | rejected
 
 SettingsCatalogCommitMarkerV1
-  commit_marker_id
-  commit_generation: uint64
-  previous_commit_marker_ref: optional exact commit marker ref
-  settings_document_ref
-  settings_revision
-  settings_checksum
-  save_catalog_ref
-  save_catalog_generation
-  save_catalog_checksum
+  commit_marker_id: StableId
+  commit_marker_version: 1
+  profile_id: StableId
+  commit_generation: positive uint64
+  previous_commit_marker_ref:
+    null | exact SettingsCatalogCommitMarkerRefV1
+  settings_document_ref: exact SettingsDocumentRefV1
+  settings_transport_checksum: SHA-256
+  save_catalog_ref: exact SaveCatalogRefV1
+  save_catalog_transport_checksum: SHA-256
+  active_root_subject_hash: SHA-256
+  commit_marker_content_hash: SHA-256
+
+SettingsCatalogCommitMarkerRefV1
+  commit_marker_id: StableId
+  commit_marker_version: 1
+  commit_generation: positive uint64
+  commit_marker_content_hash: SHA-256
 ```
 
-`settings_catalog_commit_marker_ref`と`settings_catalog_commit_marker_generation`の対が`LocalPlayerProfileV1`の唯一のactive read rootである。current Profileはこのmarkerから`SettingsDocumentV1`と`SaveCatalogV1`のpayload referenceを解決し、target V2 migration後は同じ一markerからSettingsとexact `SaveCatalogV2`だけを解決する。V1／V2 CatalogまたはSettings／Catalog direct refsを独立active rootとして混在して読まない。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、marker経由で解決したSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
+`settings_catalog_commit_marker_ref`と`settings_catalog_commit_marker_generation`の対が`LocalPlayerProfileV1`の唯一のactive read rootである。current Profileはこのmarkerから`SettingsDocumentV1`と[Persistence／Save](../04-runtime/persistence-save.md)のexact `SaveCatalogRefV1`を一組として解決する。Marker ref、Profile field、解決先MarkerのID／version／generation／content hash、Markerの`profile_id`は全Field byte equalityにする。Settings／Catalog direct refsを独立active rootとして混在して読まない。`LocalPlayerProfileV1`上のinput、accessibility、locale fieldは起動時Discovery用のread-only projectionであり、marker経由で解決したSettings fieldとexact一致しなければProfileを開かない。個別SubsystemやUIがこれらを別々に保存して複数の正本を作らない。
 
-Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変更せずProfile scopeのoverrideだけを保存する。有効値は`Project defaults -> Target supported range -> User override`の順で解決する。未対応値を近似せず、該当field pathとTarget capabilityを含むtyped rejectionを返す。旧schemaは登録済み一方向Migrationを通す。future schema、hash不一致、参照欠落ではSettingsDocumentを上書きせず、検証済みactive marker pairを維持する。有効なpairがまだないbootstrap時だけ、後述のPackage default Settings＋空Catalog pairからSafe Modeを再構築する。
+Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変更せずProfile scopeのoverrideだけを保存する。有効値は`Project defaults -> Target supported range -> User override`の順で解決する。未対応値を近似せず、該当field pathとTarget capabilityを含むtyped rejectionを返す。Local Player Profile、Settings、commit markerとCatalog co-publicationをinitial V1として直接定義する。future／unknown schema、hash不一致、参照欠落ではSettingsDocumentを上書きせず、検証済みactive marker pairを維持する。有効なpairがまだないbootstrap時だけ、後述のPackage default Settings＋空Catalog pairからSafe Modeを再構築する。初回materialization後にSchemaを変更する場合だけ、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)の承認済みclassとconsumer inventoryを要求する。
 
 | Apply class | 対象 | 規則 |
 |---|---|---|
@@ -746,7 +770,7 @@ Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変
 
 SettingsとSave Catalogは`SettingsCatalogCommitMarkerV1`を同じdurable commit markerとする二相公開で、個別generationを公開しない。第一相ではSettings payloadと対応するSave Catalog entry／generationをstageし、両方をflushしchecksum verifyしてからmarkerをdurableにする。第二相では成功した同一markerのrefと`commit_generation`をProfileのactive rootとしてatomic replaceし、そのmarkerに記録されたSettingsとCatalogの両referenceを同時にpublishする。readerはactive markerから対になる両referenceを一読で解決し、SettingsまたはCatalogを別rootから混在して読まない。
 
-`genesis marker`はProfileごとにexactly 1件、`commit_generation=1`、`previous_commit_marker_ref` absentである。Profile bootstrapはPackageの`SettingsDefaultsV1`から全fieldが確定したProfile scopeの`SettingsDocumentV1` revision 1と、slot 0件の`SaveCatalogV1` generation 1を作り、通常と同じstage／flush／checksum verify後にgenesis markerをdurable化する。`first publication`はそのmarker ref／generationを持つ`LocalPlayerProfileV1` rootのatomic createであり、それより前のProfile、Settings、Catalogはいずれもactiveまたはreadableとして公開しない。非genesis markerは`previous_commit_marker_ref`を必須とし、検証済みactive markerをexactに指し、`commit_generation`を直前generationのexact +1とする。
+`genesis marker`はProfileごとにexactly 1件、`commit_generation=1`、`previous_commit_marker_ref=null`である。Profile bootstrapはPackageの`SettingsDefaultsV1`から全fieldが確定したProfile scopeの`SettingsDocumentV1` revision 1と、Persistence Ownerのslot 0件な`SaveCatalogV1` generation 1を作り、通常と同じstage／flush／checksum verify後にgenesis markerをdurable化する。`first publication`はそのmarker ref／generationを持つ`LocalPlayerProfileV1` rootのatomic createであり、それより前のProfile、Settings、Catalogはいずれもactiveまたはreadableとして公開しない。非genesis markerは`previous_commit_marker_ref`を必須とし、検証済みactive markerをexactに指し、`commit_generation`を直前generationのexact +1とする。
 
 Catalog update、marker、Profile root replace、flush、atomic replace、recoveryのいずれかが失敗した場合はtyped `catalog_commit_failed`としてrejectedとし、staged generationを一方も公開せず、SettingsとCatalogをともに以前のgenerationへ残す。起動時のinterrupted commit recoveryはProfile rootとmarker generation、active marker、両payload／checksumをreadbackして対を検証する。Profile rootが検証済みpairを指す場合、rootへ到達しないstaged payload／markerを破棄し、そのpairを維持する。非genesis rootのmarker／payload不一致では、そのmarkerの`previous_commit_marker_ref`が指す両payloadとgenerationを検証してからProfile rootをexact pairへatomicに復旧し、検証不能ならProfileを開かずSafe Modeへ入る。
 
@@ -754,42 +778,9 @@ Catalog update、marker、Profile root replace、flush、atomic replace、recove
 
 Commitはこの二相境界の内側でtemp write、flush、checksum verify、atomic replaceを行う。base revision mismatch、unsupported Target、display mode loss、device loss、audio route loss、storage full、partial writeはtyped failureとして原子的にrejectedとし、部分適用を成功扱いにしない。失敗時はlast-known-goodへatomic revertし、confirmed適用中もUI、確認入力、screen reader、Revert経路を維持して表示不能を成功扱いにしない。
 
-```text
-SaveCatalogV1
-  save_catalog_id
-  catalog_schema_version
-  profile_ref
-  generation
-  content_package_set_ref
-  checksum
-  slots[]
-    slot_id
-    display_metadata
-    save_schema_version
-    content_package_set_ref
-    checksum
-    status
+Save CatalogのSchema、content identity、generation、Slot、Bundle membership、content package membership、status、load preconditionは[Persistence／Save](../04-runtime/persistence-save.md)だけが所有する。本書はexact `SaveCatalogRefV1`とtransport checksumをSettingsとのdurable markerへ束縛し、Catalog payload、Slot表示metadataまたはBundle refを複写しない。
 
-SaveCatalogV2
-  save_catalog_id
-  catalog_schema_version: 2
-  profile_ref
-  generation
-  content_package_set_ref
-  checksum
-  slots[]
-    slot_id
-    display_metadata
-    save_schema_version
-    runtime_session_save_bundle_ref: RuntimeSessionSaveBundleRefV1
-    content_package_set_ref
-    checksum
-    status
-```
-
-current `SaveCatalogV1`はslot display metadata、generation、schema、content package set、checksum、statusだけを持ち、exact Save payload rootを持たないため、deterministic Continueの正本にできない。target `SaveCatalogV2.runtime_session_save_bundle_ref`だけが[Persistence／Save](../04-runtime/persistence-save.md)のimmutable bundle ID／version／content hashへ解決し、`checksum`は保存transport bytesのintegrityを検査する。両者を同一視せず、slot label、timestamp、進捗表示、native path、pointer、runtime handle、localized display textからSave payloadまたはRuntime Entryを推測しない。Save payloadの形式とatomicityはRuntime／Platform正本へ従う。
-
-V1→V2はProfileの`SettingsCatalogCommitMarkerV1`だけを部分更新せず、Settings payload、Catalog V2 payload、全slotのBundle ref、checksum、marker、Profile active root、reader／writerを一つのCompatibility／Definition Migrationでatomic publishする。既存slotにexact Bundle refを証明できなければV2 slotを合成せずmigrationをrejectし、V1とlast-valid Settings pairを維持する。V2 activation後の新Profile bootstrapはslot 0件のV2 genesis Catalogを作り、V1 genesisを新規発行しない。V2 activation前のcurrent Catalog schema、reader／writer、Operation／Service／Provider／MCP inventoryはV1のままで、Continueをavailableと表示しない。
+Continueを発行するUIは、検証済みcurrent MarkerのProfile scope、commit generation、exact Catalog ref、Marker refをPersistence Ownerの`SaveCatalogActiveRootPreconditionV1`へclosed projectionし、Userが選択したexact `slot_id`に対する同Ownerの`SaveCatalogSlotMembershipRefV1`とともにLoad Requestへ渡す。UIはslot label、timestamp、進捗表示、native path、pointer、runtime handle、localized display textからSave payload、Bundle、content package setまたはRuntime Entryを推測しない。PersistenceはProfile／Markerを検索せず、UIはCatalog membershipを独自再定義しない。
 
 ## 16. Memory、Thread、Performance
 
@@ -936,8 +927,8 @@ Editor toolにはfull ICU dataを同梱できるが、Shipping GameはProject lo
 - Windows UIA、Android Accessibility、Apple UIAccessibility action
 - keyboard／controller／touch／screen readerでTitle→Settings→Play→Pause→Exit
 - UI-only Titleのentry root、Settings push／pop、target Presentation BindingによるWorld＋HUD root、Pause modal、Result UI-only entryについてScreen definition／instance／Stack generationを検証し、V1 world `ui_document_ref`非null、root pop、stale generation、duplicate policy違反、modal外dismiss、同key別requestを副作用なしでrejectする
-- Play／target V2 Continue／Return Titleのmouse／keyboard／controller／touch／screen reader／AI入力が同じregistered `UiCommandId`へ収束し、UI RuntimeからWorld／Stage／Saveへの直接mutationが0件であることを検証する
-- Save Catalog V1がBundle refを持たずContinue unavailableであること、V2が全slotのexact `RuntimeSessionSaveBundleRefV1`を持つこと、V1→V2のslot／Settings／marker／Profile root migrationが部分公開されないことを検証する
+- Play／Continue／Return Titleのmouse／keyboard／controller／touch／screen reader／AI入力が同じregistered `UiCommandId`へ収束し、UI RuntimeからWorld／Stage／Saveへの直接mutationが0件であることを検証する
+- Save Catalog V1の全slotがexact `RuntimeSessionSaveBundleRefV1`を持ち、slot／Settings／marker／Profile rootのpublicationが部分公開されないことを検証する
 - `SettingsApplyTransactionV1`のbase revision／Target rejection、immediate atomic revert、confirmedのmonotonic 15.0秒timeout、restart_required、future schema／hash／reference Safe Mode、`SettingsCatalogCommitMarkerV1`二相公開／split generation不可視／catalog_commit_failed／interrupted recovery、genesis generation 1／previous absent、first publication failure、bootstrap recovery、non-genesis previous exact +1、Profile marker root／generation mismatch recovery／direct-root禁止、Save Catalog generation／identity禁止
 - glyph atlas eviction／submission lifetime、locale／Font／Style hot reload
 - 131,072 Node、65,536 glyph、8,192 event上限と10分soak

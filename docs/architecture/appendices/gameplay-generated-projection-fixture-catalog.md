@@ -15,7 +15,7 @@
 
 > 本書は分離前Owner文書の具体Schema、Registry、generated projection、fixture候補を保持する。親OwnerのProgramming Model、State ownership、Port意味、Runtime ECS移管条件を上書きせず、生成ArtifactまたはQualification Receiptが存在しない候補をactive、generated、promotedとして扱わない。
 
-> 以下の見出し番号は、分離前Ownerからの参照互換性と履歴追跡のために維持する。欠番は省略された親Ownerの安定規範であり、本書に補完しない。
+> 以下の見出し番号は、親Ownerの論点番号との対応を明示するために維持する。欠番は親Ownerが所有する規範であり、本書に補完しない。
 
 ## 分離前Owner節から抽出した候補record
 
@@ -196,7 +196,7 @@ C1 fixtureでは既存のdoor、switch、collision pickup、explicit-use pickup�
 
 従来草案のflat `max_range_m`／`query_shape_ref`／`line_of_sight_policy`表現はactive Contract Setへ登録された証拠がなく、新Sourceのcompatibility aliasとして受理しない。実在する旧bytesが後からinventoryで証明された場合は、source schema bytes／Owner／Definition hashを束縛した承認済みversioned migrationを別途activateし、全recordを`interaction.space.spatial@1`＋`SpatialInteractionBindingV1`へ明示変換する。名前またはField存在だけでlogical／uiへ推測変換しない。
 
-`InteractionSnapshotV1@1.rejection_reason=game_flow_disallowed`は`InteractionSnapshotV1@2.rejection_reason=policy_denied`へversioned clean migrationする。旧値を@2 aliasとしてdeserializeせず、migrationは登録済みeligibility policy ref、owner、schema hashを要求する。policy ownerを一意に解決できないSource／Save／Replayはmigrationを拒否してlast-valid recordを維持する。fixtureは@1→@2 round-trip、policyなしneutral Interaction、Shooter policyありdeny、@2への旧enum直接入力拒否を検証する。
+`InteractionSnapshotV1@1.rejection_reason`はinitial V1から`policy_denied`をcanonical値とする。過去draftの`game_flow_disallowed`、alias、dual reader、migration fixtureをcurrent planへ登録せず、Source／Save／Replayで旧enum値を拒否する。fixtureはpolicyなしneutral Interaction、Shooter policyありdeny、旧enum直接入力拒否を検証する。
 
 ### Owner identity registry
 
@@ -237,7 +237,7 @@ OwnerIdentityRegistryRefV1
 
 Owner revision不変条件は全Ownerへ一律に適用する。全retained Registry revisionで同じ`{owner_id, owner_revision}`を持つ完成`OwnerIdentityRecordV1` bytesと`owner_record_content_hash`はbyte-identicalでなければならない。current Registryは各`owner_id`にexact一つのselected revisionだけを持ち、同じowner IDの複数revision併存を拒否する。`owner_layer`、`authority_source`のbranchまたは値、`status`を一Fieldでも変更する場合は同じ`owner_id`の`owner_revision`をexact `N+1`へ進め、新Owner record、新Owner Registry root、新Foundation Definition Closureを発行する。同じID／revisionのin-place更新、revision飛越し、旧revision再利用、authorityをowner ID prefixから補完することを拒否する。状態遷移は`active -> deprecated -> removed`だけを許可し、逆行には新Owner IDと明示migrationを要求する。retained Project、Save、Replay、Receipt、Diagnostic、Contract setが参照する旧revisionはその旧Registry root／Foundation Closureと共に保持し、current Registryへ旧rowを併存させずselected revisionだけを新revisionへ移す。
 
-Registry row集合またはrecord bytesが変わる場合だけ`registry_version`をexact `N+1`へ進め、同じRegistry versionで別root、同一bytesの不要なversion増加、複数current rootを拒否する。Registry version更新、Owner revision更新、Contract set／Diagnostic／Game System側のowner ref移行、Foundation Definition Closure更新は、[Governance Migration Proposals](governance-migration-proposals.md#1-definition-migration-binding-candidate)のOwner reference migration manifest、Compatibility Consumer Inventory、Compatibility Change、全Evidence Requirementのpass satisfaction binding、Definition Migration binding候補を含む一つの承認済みdefinition migrationでset equalityを満たす。Owner recordだけ、aliasだけ、説明文だけを先行current化しない。
+Registry row集合またはrecord bytesが変わる場合だけ`registry_version`をexact `N+1`へ進め、同じRegistry versionで別root、同一bytesの不要なversion増加、複数current rootを拒否する。初回公開後のRegistry version更新、Owner revision更新、Contract set／Diagnostic／Game System側のowner ref移行、Foundation Definition Closure更新は、[Governance Migration Proposals](governance-migration-proposals.md#1-post-public-definition-migration-binding-candidate)のOwner reference migration manifest、Compatibility Consumer Inventory、Compatibility Change、全Evidence Requirementのpass satisfaction binding、Definition Migration binding候補を含む一つの承認済みdefinition migrationでset equalityを満たす。initial V1へこのmigrationを適用せず、Owner recordだけ、aliasだけ、説明文だけを先行current化しない。
 
 current初期Registryは`registry_version=1`、`record_count=18`で、全rowが`owner_revision=1`、`status=active`、`authority_source=architecture_document`の次のexact集合である。
 
@@ -251,7 +251,7 @@ current初期Registryは`registry_version=1`、`record_count=18`で、全rowが`
 | `owner.core.physics` | `core` | `mirakan.arch.simulation-physics` |
 | `owner.core.project_state` | `core` | `mirakan.arch.project-state` |
 | `owner.core.runtime` | `core` | `mirakan.arch.runtime-scheduling-lifetime` |
-| `owner.core.runtime_ecs` | `core` | `mirakan.arch.gameplay-programming-model` |
+| `owner.core.runtime_ecs` | `core` | `mirakan.arch.runtime-entity-component-system` |
 | `owner.core.security_approval` | `core` | `mirakan.arch.ai-security-approval` |
 | `owner.core.ui` | `core` | `mirakan.arch.platform-ui-text-localization-accessibility` |
 | `owner.core.world` | `core` | `mirakan.arch.rendering-world` |
@@ -262,15 +262,15 @@ current初期Registryは`registry_version=1`、`record_count=18`で、全rowが`
 | `owner.feature.scoring` | `feature_pack` | `mirakan.arch.pack-gameplay-features` |
 | `owner.genre.shooter` | `genre_pack` | `mirakan.arch.pack-shooter` |
 
-`owner.core.runtime_ecs`のcurrent authority sourceは本書のrevision 1である。target authority documentは[Runtime ECS](../04-runtime/entity-component-system.md)のrevision 2であり、移管条件、対象concept、complete Consumer Inventory、Compatibility Change、Owner reference migration manifest、全Evidence Requirementのpass satisfaction binding、Definition Migration binding、approvalは[Governance Migration Proposals](governance-migration-proposals.md#2-runtime-ecs-canonicalization-candidate)の`RuntimeEcsCanonicalizationChangeSetV1`候補がまとめる。同ChangeSetが承認され`applied`になるまで、本書はcurrent source authorityを維持し、target ECS文書を実装済みまたはactive MCDと扱わない。移管時は上記の一般規則どおり同じOwner IDの`owner_revision`をexact `N+1`へ進め、新Owner record／Registry root／Foundation Definition Closureを発行する。document path変更や表示名変更だけで既存revisionのauthority sourceをin-place更新しない。
+`owner.core.runtime_ecs`のinitial V1 authority documentは[Runtime ECS](../04-runtime/entity-component-system.md)である。本Catalog候補はそのexact document IDを直接参照し、Gameplay Programming ModelをRuntime ECS authorityとして登録しない。旧Owner revision、source／target authority、Owner-reference migration、aliasまたはdual Registryをinitial V1へ作らない。Catalogの存在はOwner Registry、Foundation Definition Closure、実装またはactive MCDがmaterialize済みであることを意味しない。
 
 `owner.core.ai_security`、`owner.core.runtime_scheduling`、`owner.core.ui_text_accessibility`はcurrent Owner IDではなく、それぞれ`owner.core.security_approval`、`owner.core.runtime`、`owner.core.ui`への説明用旧称である。Registry row、MCD owner、Runtime Scope、Diagnostic、Game Systemへaliasを保存せず、追加Ownerとして数えない。
 
 補助Fieldのarrayは意味上のset、wire上のsorted arrayである。各arrayはrefのlogical ID NFC UTF-8 bytes、version `uint32_be`、content hash bytesの順でstrict sortし、MCD requirement refはID、version、Contract set hashの順でsortする。同じIDのduplicate、同じID／versionの別hash、非canonical orderをrejectし、入力順を意味へ残さない。`implementation_policy_ref`は一件、`save_replay_contract_ref`はenclosing `state_class=authoritative`で一件、それ以外ではField自体をcanonical omissionし、`null`やzero refで代用しない。
 
-`auxiliary_ref_set_hash = SHA-256(ASCII "MIRAKAN_GAME_SYSTEM_AUXILIARY_REF_SET_V1" || uint32_be(length(MCD canonical bytes of GameSystemAuxiliaryRefSetV1 excluding auxiliary_ref_set_hash)) || canonical bytes)`である。各arrayはcountをcanonical bytesに持ち、hash Fieldを唯一のself-exclusion対象にする。`type.game_system.spec` version 2だけが上記Fieldをcurrentとして登録する。全refはactive recordをexactly oneへ解決し、Specにinline payloadを埋め込まない。補助recordの`content_hash`、MCD requirement／type／CapabilityのContract set hash、Scope hash、owner ref、auxiliary set hashのどれか一つでもstaleならSystem Catalog全体をrejectする。
+`auxiliary_ref_set_hash = SHA-256(ASCII "MIRAKAN_GAME_SYSTEM_AUXILIARY_REF_SET_V1" || uint32_be(length(MCD canonical bytes of GameSystemAuxiliaryRefSetV1 excluding auxiliary_ref_set_hash)) || canonical bytes)`である。各arrayはcountをcanonical bytesに持ち、hash Fieldを唯一のself-exclusion対象にする。`type.game_system.spec` version 1だけが上記Fieldをcurrentとして登録する。全refはactive recordをexactly oneへ解決し、Specにinline payloadを埋め込まない。補助recordの`content_hash`、MCD requirement／type／CapabilityのContract set hash、Scope hash、owner ref、auxiliary set hashのどれか一つでもstaleならSystem Catalog全体をrejectする。
 
-Fixture artifactはProduction `GameSystemSpecV2`／auxiliary hashから分離する。SpecとContract set rootをReceipt-freeで固定した後、次のowner-typed subject、signed Receipt、root外Activation bindingをこの順で生成する。
+Fixture artifactはProduction `GameSystemSpecV1`／auxiliary hashから分離する。SpecとContract set rootをReceipt-freeで固定した後、次のowner-typed subject、signed Receipt、root外Activation bindingをこの順で生成する。
 
 ```text
 GameSystemQualificationSubjectV1
@@ -300,9 +300,9 @@ GameSystemActivationBindingV1
   activation_binding_hash: SHA-256
 ```
 
-`qualification_subject_hash`はASCII `MIRAKAN_GAME_SYSTEM_QUALIFICATION_SUBJECT_V1`と自己Fieldを除くlength-framed canonical subject bytes、`activation_binding_hash`はASCII `MIRAKAN_GAME_SYSTEM_ACTIVATION_BINDING_V1`と自己Fieldを除くbinding bytesから計算する。Qualification subjectの`owner_ref`、`system_ref`、`system_contract_hash`は`system_ref`が解決するReceipt-free `GameSystemSpecV2`の`owner_ref`、exact Contract ref、self-excluding System contract hashとbyte equality、Activation Bindingの`system_ref`／`system_contract_hash`はReceipt subjectの同Fieldとbyte equalityにする。`GameSystemQualificationReceiptRefV1`の`qualification_id／qualification_version`はwrapper内subjectの同Fieldとbyte equalityで、qualification content identityとsigned record hashは同じwrapperへexact解決する。signed wrapperはAI Verificationの二値規則に従い、`qualification_subject_hash`を含む完成Subject全体のJCS hashを`signed_record.subject_sha256`として署名する。subject payload／hash preimageへwrapperまたはReceipt refを含めない。Production `GameSystemCatalogV1`はReceipt-free Spec refとexact `GameSystemActivationBindingRefV1`を別Fieldで持ち、Bindingが指す署名済みwrapperのsubject、owner、System、Target、contract hash、result=`pass`、freshness／revocationを検証するだけで、`fixture_refs[]`のbody、oracle、pathをRuntime Package、Save、Replay、Production registryへ解決しない。生成順は`Receipt-free GameSystemSpecV2／auxiliary hash → Contract set root／GameSystemContractRefV1 → Qualification subject → signed Receipt → Activation binding／Catalog projection`であり、Receipt、wrapper、Activation bindingをSpec、auxiliary hash、Contract set rootへ戻さない。Fixture集合変更は新subject／Receipt／Activation bindingを発行し、Production Spec hashへFixture refまたはReceipt refを混入しない。正しいSpec refのままsubject owner／contract hashだけを差し替えるcase、BindingのSystem ref／contract hashだけを別subjectへ差し替えるcaseを一原因negative fixtureで拒否する。
+`qualification_subject_hash`はASCII `MIRAKAN_GAME_SYSTEM_QUALIFICATION_SUBJECT_V1`と自己Fieldを除くlength-framed canonical subject bytes、`activation_binding_hash`はASCII `MIRAKAN_GAME_SYSTEM_ACTIVATION_BINDING_V1`と自己Fieldを除くbinding bytesから計算する。Qualification subjectの`owner_ref`、`system_ref`、`system_contract_hash`は`system_ref`が解決するReceipt-free `GameSystemSpecV1`の`owner_ref`、exact Contract ref、self-excluding System contract hashとbyte equality、Activation Bindingの`system_ref`／`system_contract_hash`はReceipt subjectの同Fieldとbyte equalityにする。`GameSystemQualificationReceiptRefV1`の`qualification_id／qualification_version`はwrapper内subjectの同Fieldとbyte equalityで、qualification content identityとsigned record hashは同じwrapperへexact解決する。signed wrapperはAI Verificationの二値規則に従い、`qualification_subject_hash`を含む完成Subject全体のJCS hashを`signed_record.subject_sha256`として署名する。subject payload／hash preimageへwrapperまたはReceipt refを含めない。Production `GameSystemCatalogV1`はReceipt-free Spec refとexact `GameSystemActivationBindingRefV1`を別Fieldで持ち、Bindingが指す署名済みwrapperのsubject、owner、System、Target、contract hash、result=`pass`、freshness／revocationを検証するだけで、`fixture_refs[]`のbody、oracle、pathをRuntime Package、Save、Replay、Production registryへ解決しない。生成順は`Receipt-free GameSystemSpecV1／auxiliary hash → Contract set root／GameSystemContractRefV1 → Qualification subject → signed Receipt → Activation binding／Catalog projection`であり、Receipt、wrapper、Activation bindingをSpec、auxiliary hash、Contract set rootへ戻さない。Fixture集合変更は新subject／Receipt／Activation bindingを発行し、Production Spec hashへFixture refまたはReceipt refを混入しない。正しいSpec refのままsubject owner／contract hashだけを差し替えるcase、BindingのSystem ref／contract hashだけを別subjectへ差し替えるcaseを一原因negative fixtureで拒否する。
 
-Fixture内だけで動くtest double／stub／oracle implementationはProduction `GameSystemSpecV2`を名乗らない。次の別identity、owner、Registry、Qualification contractだけを使用する。
+Fixture内だけで動くtest double／stub／oracle implementationはProduction `GameSystemSpecV1`を名乗らない。次の別identity、owner、Registry、Qualification contractだけを使用する。
 
 ```text
 FixtureImplementationSystemRegistryRefV1
@@ -398,148 +398,19 @@ UsageTaggedImplementationSystemRefV1
 
 Fixture implementation base recordはID／version順、全Type／Target集合は各typed refのcanonical identity順へstrict sortする。record hashとRegistry hashはそれぞれASCII `MIRAKAN_FIXTURE_IMPLEMENTATION_SYSTEM_RECORD_V1`、`MIRAKAN_FIXTURE_IMPLEMENTATION_SYSTEM_REGISTRY_V1`と自己hashを除くReceipt-free Fieldのlength-framed canonical bytesから計算する。Registry refとSystem refを固定した後、Qualification subject hashをASCII `MIRAKAN_FIXTURE_IMPLEMENTATION_SYSTEM_QUALIFICATION_SUBJECT_V1`、Activation binding hashをASCII `MIRAKAN_FIXTURE_IMPLEMENTATION_SYSTEM_ACTIVATION_BINDING_V1`と各自己Fieldを除くbytesから計算する。signed wrapperは完成subjectだけを署名し、subject／record／Registry hash preimageへwrapper、Receipt ref、Activation bindingを含めない。生成順は`receipt-free base record → Registry hash／FixtureImplementationSystemRefV1 → Qualification subject → signed Receipt → Activation binding`である。duplicate、same-ID／version different-hash、owner不一致、stale Artifact／Type／Target／Receipt、failed／revoked QualificationをActivation binding materialization前に拒否する。
 
-`UsageTaggedImplementationSystemBaseRefV1`はReceipt-freeなSystem identityだけを持ち、discriminatorとbranch Fieldをexactに一致させる。`usage=production | project_owned`では`production_system_ref`と`production_system_contract_hash`だけ、`fixture_only`では`fixture_system_ref`だけを必須とし、Qualification Receipt／Activation Binding refを一件も含めない。`UsageTaggedImplementationSystemRefV1`は完成base refにroot外System Activation Bindingを加えるdownstream qualified-dependency refである。前者ではbaseのSystem refをsubjectにする`production_system_activation_binding_ref`だけ、後者ではbaseのFixture System refをsubjectにするexact `fixture_system_activation_binding_ref`だけを必須とし、両branch、両方欠落、discriminator外Fieldを拒否する。production consumerのtyped ownerは参照先`GameSystemSpecV2.owner_ref`とexact equalityにする。fixture consumerは自身の`fixture_owner_ref {fixture_id,fixture_version,fixture_content_hash}`をFixture Registry record、Qualification subject、Activation bindingが解決する同型Fieldとexact equalityにし、`GameSystemOwnerRefV1`またはowner kind enumとの異型比較を行わない。生成順は`receipt-free System base／System ref → System Qualification subject → signed Receipt → System Activation Binding → UsageTaggedImplementationSystemRefV1`であり、downstream refをSystem base、Fixture Registry、Contract set rootへ戻さない。
+`UsageTaggedImplementationSystemBaseRefV1`はReceipt-freeなSystem identityだけを持ち、discriminatorとbranch Fieldをexactに一致させる。`usage=production | project_owned`では`production_system_ref`と`production_system_contract_hash`だけ、`fixture_only`では`fixture_system_ref`だけを必須とし、Qualification Receipt／Activation Binding refを一件も含めない。`UsageTaggedImplementationSystemRefV1`は完成base refにroot外System Activation Bindingを加えるdownstream qualified-dependency refである。前者ではbaseのSystem refをsubjectにする`production_system_activation_binding_ref`だけ、後者ではbaseのFixture System refをsubjectにするexact `fixture_system_activation_binding_ref`だけを必須とし、両branch、両方欠落、discriminator外Fieldを拒否する。production consumerのtyped ownerは参照先`GameSystemSpecV1.owner_ref`とexact equalityにする。fixture consumerは自身の`fixture_owner_ref {fixture_id,fixture_version,fixture_content_hash}`をFixture Registry record、Qualification subject、Activation bindingが解決する同型Fieldとexact equalityにし、`GameSystemOwnerRefV1`またはowner kind enumとの異型比較を行わない。生成順は`receipt-free System base／System ref → System Qualification subject → signed Receipt → System Activation Binding → UsageTaggedImplementationSystemRefV1`であり、downstream refをSystem base、Fixture Registry、Contract set rootへ戻さない。
 
-Fixture Registry、System ref、Qualification Receipt、Activation bindingはQualification sandboxだけが解決する。Production `GameSystemCatalogV1`、`GameSystemSpecV2`、`SystemImplementationSetV1`、Project Source／Compile Manifest、Dependency Graph、Save、Replay、Cooked／Runtime Packageへ一件も投影しない。fixture refのProduction branch混入、Production `GameSystemContractRefV1`のfixture branch混入、cross-owner、stale Registry／record／subject／Receipt／Activation binding hashを各一原因で拒否し、last-valid Production catalog／packageを不変にする。
+Fixture Registry、System ref、Qualification Receipt、Activation bindingはQualification sandboxだけが解決する。Production `GameSystemCatalogV1`、`GameSystemSpecV1`、`SystemImplementationSetV1`、Project Source／Compile Manifest、Dependency Graph、Save、Replay、Cooked／Runtime Packageへ一件も投影しない。fixture refのProduction branch混入、Production `GameSystemContractRefV1`のfixture branch混入、cross-owner、stale Registry／record／subject／Receipt／Activation binding hashを各一原因で拒否し、last-valid Production catalog／packageを不変にする。
 
 一つのSpecはCatalogで解決した一scopeだけを持つ。複数scopeのStateを所有する場合はSystemを分割し、Stable handleまたはtyped Eventで接続する。
 
-### 3.1.2 Scope依存recordとconditional offline migration
+### 3.1.2 Scope依存record
 
-current validatorはSource schema refが`type.game_system.spec` version 2でない入力、`runtime_instance_scope`、legacy enum、bare scope／auxiliary ID、version／hash欠落、current Catalog以外のscope hashを`MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID`でrejectする。`GameSystemSpecV1` bytesと該当する旧Project／Systemが実在することは現計画からは証明されておらず、current deserializerへaliasを残さず、説明上の旧inline payloadをcurrent migration inputとして受理しない。
+`GameSystemSpecV1`は`type.game_system.spec` version 1として、`runtime_scope_type_ref`とowner-typed auxiliary record refを最初から持つ。validatorは`runtime_instance_scope`、legacy enum、bare scope／auxiliary ID、version／hash欠落、current Catalog以外のscope hashを`MIRAKAN-RUNTIME-SCOPE-CATALOG_INVALID`でrejectする。
 
-`operation.runtime_scope.migrate_game_system@1`は[Executable contracts §8.1.2](../02-foundation/executable-contracts.md#812-conditional-legacy-migration-evidence-gate)のconditional legacy migrationで、current状態は`not_activated`である。このOperationに固有のcurrent MCD／Owner Manifest／Service allowlist／Policy／Validator／migration Diagnostic／Receipt／Provider／MCP／alias／Qualification Binding／Activation Catalog集合はすべてexact `[]`であり、`service.offline_project_migrator`、`capability.authoring.offline_migration`、`profile.isolation.offline_project_migrator`のcurrent集合もexact `[]`である。入力Type、出力Type、Prepared Receipt Type、Migration Contribution／Registry／Qualification型を含む以下の詳細schemaはcurrent Contract set memberではなく、post-activation destination templateである。code block内のOperation／Type／Service／Policy refをcurrent refとして解決または公開しない。
+対応Schema、Project／System bytes、reader／writer、Registry、Operation、Receiptが一度もmaterializeされていないため、過去draftのinline scope、旧`GameSystemSpecV1` migration、legacy Runtime Scope migration Operation、Migration Contribution／Registry／Qualification型、offline Service／Capability／Isolation Profile、aliasをcurrent planへ定義しない。過去表記はimmutable ADRまたはreview transcriptだけに履歴として残し、current Source、Editor、AI projection、Compile、Save、Replayの入力として受理しない。
 
-将来Activationするには、実在する旧`GameSystemSpecV1` schema bytes、旧Project／System bytes、source `ContractSetSnapshotV2`、Owner Identity Registry、Named Algorithm Registry、`FoundationDefinitionClosureV1`、全retained artifact ref／hash、正負fixtureを一件も推測せず列挙したsigned `LegacyMigrationInventoryV1`が§8.1.2 gateを満たさなければならない。その同じ承認済みtransactionだけが、Operation／Type／Policy／Validator／migration Diagnostic／Receipt、offline Service／Capability／Isolation Profile、Service allowlist、Contribution Registry／records、Qualification Receipt／Binding、Activation Catalog、Provider／MCP projectionを完全closureとして同時にmaterializeできる。部分Activation、説明文からのlegacy bytes生成、移行前のalias、silent変換を禁止する。Activation後のlogical IDはversion-neutral `operation.runtime_scope.migrate_game_system` version 1とし、source／destination schema majorをIDへ埋め込まず、exact source／destination schema refをinputへ持つ。
-
-```text
-RuntimeScopeGameSystemMigrationInputV1
-  input_type_ref: McdContractRefV1(
-    id=type.runtime_scope.game_system_migration_input, version=1, contract_set_hash)
-  operation_ref: McdContractRefV1(
-    id=operation.runtime_scope.migrate_game_system, version=1, contract_set_hash)
-  before_project_ref:
-    exact {project_id, expected_project_revision, document_set_hash}
-  operation_intent_hash
-  request_hash
-  idempotency_key
-  source_foundation_definition_closure_ref:
-    FoundationDefinitionClosureRefV1
-  retained_source_mcd_ref: McdContractRefV1(
-    id=type.game_system.spec, version=1, source_contract_set_hash)
-  destination_system_schema_ref: McdContractRefV1(
-    id=type.game_system.spec, version=2, destination_contract_set_hash)
-  source_system_ref/hash
-  source_system_payload_hash
-  legacy_scope_value
-  legacy_auxiliary_payload_hash
-  destination_catalog_ref: RuntimeScopeCatalogRefV1
-  destination_catalog_hash
-  contribution_registry_ref: RuntimeScopeMigrationContributionRegistryRefV1
-  contribution_registry_hash
-  selected_contribution_ref: RuntimeScopeMigrationContributionRefV1
-  resolved_scope_entry: exact seven typed refs
-  resolved_auxiliary_ref_set: GameSystemAuxiliaryRefSetV1
-  source_instance_identity_mapping_ref/hash
-  save_identity_mapping_ref/hash
-  replay_identity_mapping_ref/hash
-  preview_policy_ref: McdContractRefV1(kind=policy)
-  validation_policy_ref: McdContractRefV1(kind=policy)
-  mutation_authorization_binding: exact MutationAuthorizationBindingV2(
-    risk_class=R3, authority_evidence=approval)
-
-RuntimeScopeGameSystemMigrationResultV1
-  disposition: migrated | rejected
-  migrated:
-    after_project_ref:
-      exact {project_id, project_revision, document_set_hash}
-    destination_system_source_ref/hash
-    destination_system_schema_ref
-    runtime_scope_type_ref: RuntimeScopeTypeRefV1
-    auxiliary_ref_set_hash
-    preview_receipt_ref/hash
-    validation_receipt_ref/hash
-    public_publication_marker_ref/hash
-    migration_receipt_ref/hash
-  rejected:
-    diagnostics[1..64]: DiagnosticCodeRefV1
-
-PreparedRuntimeScopeMigrationReceiptPayloadV1
-  publication_binding: exact PreparedReceiptPublicationBindingV1
-  operation_ref: McdContractRefV1(kind=operation)
-  operation_intent_hash
-  request_hash
-  idempotency_key
-  before_project_ref
-  after_project_ref
-  source_system_ref/hash
-  source_foundation_definition_closure_ref:
-    FoundationDefinitionClosureRefV1
-  destination_system_source_ref/hash
-  retained_source_mcd_ref
-  destination_system_schema_ref
-  legacy_scope_value_hash
-  legacy_auxiliary_payload_hash
-  contribution_registry_ref/hash
-  selected_contribution_ref
-  seven_dependency_after_refs/hashes
-  auxiliary_ref_set_after: GameSystemAuxiliaryRefSetV1
-  source_instance_identity_mapping_ref/hash
-  save_identity_mapping_ref/hash
-  replay_identity_mapping_ref/hash
-  preview_receipt_payload_ref/hash
-  validation_receipt_payload_ref/hash
-  materialization_context_ref/hash:
-    PublishedReceiptMaterializationContextRefV1
-  ephemeral_generation_migrated: false
-  diagnostics[0..64]: DiagnosticCodeRefV1
-  prepared_payload_hash: SHA-256
-
-RuntimeScopeMigrationReceiptV1
-  published_receipt:
-    exact PublishedDomainReceiptV2 whose
-    prepared_domain_receipt_payload_ref/hash resolves
-    PreparedRuntimeScopeMigrationReceiptPayloadV1
-```
-
-Activation後の`operation_intent_hash`と`request_hash`は[Executable contracts §8.1.2](../02-foundation/executable-contracts.md#812-conditional-legacy-migration-evidence-gate)から参照する唯一の`MIRAKAN_OPERATION_INTENT_V2 -> MutationAuthorizationBindingV2 -> MIRAKAN_OPERATION_REQUEST_V2`を使い、本書では式またはanonymous bindingを再定義しない。Operation、before Project、source Foundation Closure、source／destination schema、Source、Catalog、Contribution Registry／record、scope／auxiliary closure、identity mapping、Preview／Validationはintentへ入り、binding確定後のrequestはintent hashとexact Approval Set evidenceを含む。`source_foundation_definition_closure_ref`はInputおよび選択した`RuntimeScopeMigrationContributionV1`のexact Field `retained_source_mcd_ref`とSource System recordのContract set／Owner refを同時代のContract Set／Owner Identity Registry／Named Algorithm Registryへexact解決する。三つの`retained_source_mcd_ref`（Input、Contribution、Prepared Receipt）はbyte equalityで、同じsource Closureへだけ解決する。Mutation binding、Operation／input／output／Policy／Validator／Diagnostic／destination schema／Contributionのdestination ref／mapping refはdispatch時のdestination Foundation Closureへ解決し、source Closureへdowngradeしない。InputとPrepared Receiptのsource Closure refもbyte equalityにし、Public Receiptのprepared payloadからretained rootをhistorical解決できなければならない。source Closure省略、別source root、複数source root、retained source refの別名化または三者差、source schemaをdestination rootへalias、destination refをretained rootへ混入するcaseを一原因で拒否する。Prepared payload hashはASCII `MIRAKAN_PREPARED_RUNTIME_SCOPE_MIGRATION_RECEIPT_PAYLOAD_V1`とself-excluding canonical bytesから計算する。唯一のsigned subject／wrapperはExecutable Contractsの`PublishedDomainReceiptPayloadV2`／`PublishedDomainReceiptV2`であり、Domain固有Subject／alternate wrapper／inline signer／key／algorithm／signature Fieldを持たない。
-
-Activation後の`migrated`ではbefore／after Project IDが一致しrevisionが一だけ増加し、ResultとReceiptのafter Project、destination Source、schema、scope、auxiliary set、Preview／Validation／Public Publication Marker ref／hashがexact equalityでなければならず、そのMarkerとReceiptは同じPublic Commit Closureへ解決する。Preview、Validation、Prepared Candidate、staged postcondition成功後のpublicationは[Executable Contracts §8](../02-foundation/executable-contracts.md#8-operation定義)をcanonical reuseし、`private Marker read-back → secret-free PublicCommitClosureV1 candidate → signed wrapper read-back → PublicCommitClosureV1＋PublicPublicationMarkerV1＋after Projectのatomic CAS → Result`の順に固定する。Closureの`domain_commitment.kind`は`owner_typed_state_commit`、`domain_owner_ref`はdestination Foundation Closureが解決するexact `owner.core.gameplay_programming_model` ref、committed artifact集合はPrepared payloadが束縛したreceipt-free destination Source／Catalog artifact ref集合とする。Closure Ref／hash規則は同節から参照し、本書で別式を定義しない。Closure bodyまたは同Closureを束縛するsigned wrapperを欠くPublic Marker／after-state current authorityを拒否する。各Receipt payloadのintent／request hashはOperation inputと一致する。`rejected`ではafter Project、destination Source、Public Marker／migration Receiptをcanonical omissionし、Public Commit Closure bodyを公開せず、diagnosticsはOperation `errors[]`とreachable Validator error集合のsubset 1～64件にする。成功Receiptのdiagnosticsは同じclosed setのwarning／nonblocking recordだけを0～64件許可する。
-
-Activation Qualificationでは、同じ`idempotency_key`＋`request_hash`のretryがbyte-identical Resultと同じReceipt ref／hashを返し、同じkeyの別requestを`MIRAKAN-OPERATION-IDEMPOTENCY_KEY_REUSE`で拒否することを検証する。source／destination Closureまたはschema、Contribution、owner row、七dependency、auxiliary record、Save／Replay mappingの非一意、stale hash、identity collision、Receipt binding不一致は全migrationをrejectし、last-valid Source／Catalog／active instanceを維持する。Activation候補のCore fixtureは四Core contributionをSource／Save／Replay round-tripまで検証する。extension固有mapping／adapter／fixtureは各contributor ownerが同じactivation closureへ登録し、Core fixture inventoryへコピーしない。negative fixtureはsource Closure missing／wrong root／destination substitution、source／destination schema逆転、bare ref、Contribution 0件／複数、removed owner、各dependency hash mismatch、auxiliary sort／duplicate／hash mismatch、Receipt request／Project／Source／mapping mismatch、partial migrationを一原因ずつ拒否する。
-
-`GameSystemImplementationPolicyV1`は許可Implementation kind、default implementation、Native eligibility、replacement policy、live switch policy、equivalence fixture、required Target、configuration schema、unavailable behaviorを持つ。Native live switchは許可しない。Project overrideもPublic Contract、State、Save field、Replay意味を変更できない。`configuration_schema_ref`は厳密に一件のMCD Type refを必須とし、構成Fieldを持たないPolicyも省略、`null`、zero ref、名前だけのempty schemaにしない。
-
-構成Fieldを持たないSystem用の共有schemaは次の完全なMCD Type一件だけである。
-
-```text
-EmptyGameSystemConfigurationV1
-  field_count: exact 0
-  additional_fields: forbidden
-  canonical_value: exact MCD empty map
-
-MCD Type local record
-  mcd_version: 1
-  kind: type
-  id: type.game_system.empty_configuration
-  version: 1
-  status: active
-  title: Empty Game System Configuration
-  description:
-    closed zero-field configuration for a System whose implementation
-    policy exposes no configurable values
-  owners: [owner.core.gameplay_programming_model]
-  requirement_refs: []
-  rationale_refs: [mirakan.arch.gameplay-programming-model#3-gamesystemspecv2]
-  since_contract_set: 2
-  supersedes: []
-  tags: [configuration,game_system,shared]
-  payload_schema: exact EmptyGameSystemConfigurationV1 above
-```
-
-このType local recordは`ContractSetMemberLocalRecordV2(member_kind=mcd, local_identity={kind=type,id=type.game_system.empty_configuration,version=1})`として一度だけSnapshotへ含め、self-excluding MCD member hashとset rootを固定後にだけ`McdContractRefV1 {id=type.game_system.empty_configuration,version=1,contract_set_hash}`へmaterializeする。各Policy local payloadはroot前に同じType LocalRef、external Policy recordはroot後に同じexternal refを持つ。Core／Feature／Genre／Projectごとの複写、別ownerの同ID、unknown Fieldを含むempty value、schema ref missing／wrong kind／stale root、PolicyがこのTypeを指しながら構成値を一Fieldでも持つcaseをrejectする。構成Fieldが必要なPolicyはowner自身の別complete MCD Typeを参照し、この共有Typeを拡張しない。
-
-[Executable contracts](../02-foundation/executable-contracts.md#5-mcd共通envelope)が所有する`GameSystemContractRefV1`をPublic Contractの永続identityに使い、Fieldを再定義しない。Implementation Variant／Bundle／ReceiptはUUIDv7 `StableId`、Cooked package内dispatchはderived `uint32 system_id`を使う。runtime `system_id`をSave、Replay、外部APIへ保存しない。
+Scope contractを公開／materializeした後に変更する場合だけ、Compatibility Ownerのconsumer inventoryとversioned migration判断を新しいChangeSetで追加する。現時点のcurrent schema、Catalog、validator、fixtureはinitial V1だけを対象とする。
 
 ## 6. AI planとcode generation
 
@@ -553,7 +424,7 @@ AIはGameSpecからsemantic roleを抽出し、Catalogを検索し、候補Syste
 
 External Agentが同じPlanを提案しても、Host／Model Conformance、Caller Authorization、Project Source Activation、Code owner、G0–G7、Promotionは別Gateである。standard MCPの`StandardExternalProposalReceiptV1`をSource生成、Code owner Approval、Activationへ読み替えない。
 
-Contract compilerは`GameSystemSpecV2`から次を決定論的に生成する。
+Contract compilerは`GameSystemSpecV1`から次を決定論的に生成する。
 
 - C++ System ID、Type ref、Command／Event／Snapshot binding。
 - Component access manifestとNative descriptor skeleton。
@@ -645,7 +516,7 @@ Native／Project Shader buildが成功しただけでactiveにしない。Projec
 
 - 全Fieldのvalid／invalid／boundary fixtureとMCD projection整合。
 - State owner exactly-one、dependency cycle、undeclared edgeのnegative test。
-- current Catalog fixtureは`entries[5..4096]`、Core exact 5の7-Field row、canonical sort／hash、extension owner登録、Catalog materialization、owner removal、unknown owner、owner unavailable／removed、duplicate、instance-key mismatch、version／Save Replay schema hash mismatchを検証する。`GameSystemSpecV1` version 1の`runtime_instance_scope`→`GameSystemSpecV2` version 2の`runtime_scope_type_ref` clean migrationとmigration conflict fixtureはcurrent suiteへ含めず、signed legacy evidence gate成立後のActivation Qualificationだけへ同じtransactionで追加する。
+- current Catalog fixtureは`entries[5..4096]`、Core exact 5の7-Field row、canonical sort／hash、extension owner登録、Catalog materialization、owner removal、unknown owner、owner unavailable／removed、duplicate、instance-key mismatch、version／Save Replay schema hash mismatchを検証する。`GameSystemSpecV1`はinitial schemaから`runtime_scope_type_ref`を必須とし、旧inline scope、legacy migration、migration conflict fixtureをcurrent suiteまたはOperation inventoryへ追加しない。
 - Core Systemからextension-owned scopeへの依存、cross-owner未宣言依存、owner namespace偽装を拒否し、同一owner内の登録済みscopeだけを解決するfixture。extension固有scope IDとpositive fixtureは当該ownerが保有する。
 - `InteractionSpaceSemanticRegistryV1`の初期Contribution exact三件、owner／namespace／hash、Projection／Qualification set equalityを検証し、CollisionなしProjectでlogical／uiだけを選択・実行でき、spatialだけがCollision Capability／range／Query／LOSを要求するfixture。branch／payload schema mismatch、Projection非選択semantic、logical／uiの空間Field偽装を拒否する。neutral Interactionはeligibility policyなしでvalid、registered generic policy denialは`policy_denied`、任意extension policy未installでもcommon Interaction install／実行が成功する。
 - Command／Event／Snapshot、phase access、queue、budget conformance。
