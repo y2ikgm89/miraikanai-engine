@@ -1,6 +1,6 @@
 # ChatGPT Pro Consultation Budget Design
 
-- 設計状態: review
+- 設計状態: approved
 - 対象: 個人Global Skill `collaborating-with-chatgpt-pro`
 - 判断日: 2026-07-31
 - 外部根拠確認日: 2026-07-31
