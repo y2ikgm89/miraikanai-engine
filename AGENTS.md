@@ -67,8 +67,14 @@ source.
 - This section selects the destination only. The Global Skill owns dynamic
   prompt generation, in-session transcript handling, adjudication, and stop
   rules. The repository policy below owns post-closure retention.
-- The ChatGPT Project cannot directly access this local repository. Provide
-  only the task-relevant excerpts or artifacts required for the consultation.
+- Prefer the verified Secure MCP Tunnel-backed Filesystem MCP app for
+  task-relevant artifacts under `G:\workspace`. Before relying on it, verify
+  the allowed root, this repository's reachability, and the required tool
+  capabilities. Do not infer read-only or write capability from the app name.
+- If Tunnel access is unavailable or incomplete, use the Global Skill's
+  authorized chat-delivery fallback. Tunnel reads and writes remain limited by
+  the Task Contract, and ChatGPT-originated changes require local diff and
+  validation by Codex.
 
 ## External consultation evidence retention
 
