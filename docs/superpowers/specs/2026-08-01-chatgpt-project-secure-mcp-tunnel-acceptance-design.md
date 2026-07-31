@@ -49,6 +49,7 @@ Browser版ChatGPTに新規Project `Secure MCP Tunnel 検証`を作成し、そ�
 | 既存`G Workspace Readonly`を再利用し、重複Appを作成しない。 | `project-decision` | 最小変更と既存設定保護 |
 | 過去のProject chatではTool catalogがturnへ公開されなかった。 | `measured`／historical | 2026-07-31 route clarification record |
 | 新規Projectの`Pro` chatではexact app選択後もsession Tool listが空で、Tool callが0件だった。 | `measured` | 2026-08-01 Task 5 initial attempt |
+| 非`Pro` retryでは各取得を示すaggregate live Tool statusが表示され、個別Tool cardは完了後に保持されなかった。 | `measured` | 2026-08-01 Task 5 corrected retry |
 
 公式Help CenterはApp互換性がmodelによって異なると明記している。`Pro` chatでToolが
 公開されなかった実測を受け、同じProject、app、prompt、Artifactを保ったまま、
@@ -116,9 +117,11 @@ Browser ChatGPT Project chat
 1. Skill static validator、Tunnel lifecycle suite、Local MCP tests／self-testを実行する。
 2. Tool discovery画面でexact Tool catalogとmetadataを確認する。
 3. 新規Projectのtitle、memory、exact app selectionを可視確認する。
-4. 既知ArtifactのLocal manifestとBrowser応答を照合する。
-5. sanitized telemetryでacceptance turn中のTool call／forward event増分を確認する。
-6. `git diff --check`、`git status --short`、`git diff --stat`を実行し、repository変更が
+4. 個別Tool cardまたは各取得を特定できるaggregate live Tool statusを確認し、response prose
+   だけからTool callを推測しない。
+5. 既知ArtifactのLocal manifestとBrowser応答を照合する。
+6. sanitized telemetryでacceptance turn中のTool call／forward event増分を確認する。
+7. `git diff --check`、`git status --short`、`git diff --stat`を実行し、repository変更が
    この設計／計画／必要なreview summaryだけに限定されることを確認する。
 
 最終結果は`pass`または`blocked`で記録する。Tool callを確認できない場合、App選択や

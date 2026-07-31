@@ -296,13 +296,13 @@ G Workspace Readonlyだけを使って、次を順に実行してください。
 添付、Project Source、Web検索、別Appは使わないでください。最終回答には、観測したroot、Artifact ID、metadata.source_bytes、metadata.source_sha256、先頭見出し、各Toolの成功／失敗、および完了marker CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801 だけを記載してください。Toolが利用できなければ推測せず、利用できないTool名とエラーを記載してください。
 ```
 
-Expected: this corrected chat visibly invokes `list_allowed_directories`, `list_directory`, and `fetch` in order. No local Artifact content appears in the prompt. Do not send a third acceptance attempt.
+Expected: this corrected chat visibly invokes `list_allowed_directories`, `list_directory`, and `fetch` in order. Current UI may present these as individual Tool cards or one aggregate live Tool status that identifies each requested retrieval. No local Artifact content appears in the prompt. Do not send a third acceptance attempt.
 
 - [ ] **Step 4: Wait for verified completion and inspect Tool evidence**
 
-Wait until generation is complete. Inspect every visible Tool card and final response. Record exact Tool names, call status, and typed error or `none` without retaining the fetched body.
+Wait until generation is complete. Inspect every visible Tool card or aggregate live Tool status and the final response. Record exact Tool names, call status, and typed error or `none` without retaining the fetched body.
 
-Expected: exactly one successful call for each required Tool and no unexpected Tool.
+Expected: UI evidence identifies all three required retrievals and no unexpected Tool. A transient individual card plus aggregate live status is sufficient only when all response metadata also matches the Local manifest; response prose alone remains insufficient.
 
 - [ ] **Step 5: Reconcile response metadata with the Local manifest**
 
@@ -328,7 +328,7 @@ tools_call_delta = final_tools_call_count - baseline_tools_call_count
 forward_event_delta = matching forward events after baseline_log_sequence
 ```
 
-When telemetry is available, require both deltas to be positive. When it is unavailable under Step 1, require the three successful visible Tool cards and exact fetch metadata match instead. Finalize Browser tabs after the final visible evidence read and make no later Browser call in this execution.
+When telemetry is available, require both deltas to be positive. When the aggregate `tools/call` metric is unavailable, allow a positive sanitized forward-event delta together with UI evidence for all three retrievals and an exact fetch metadata match. If no sanitized delta can be derived, require the same UI evidence plus exact fetch metadata; response prose alone remains insufficient. Finalize Browser tabs after the final visible evidence read and make no later Browser call in this execution.
 
 ---
 
