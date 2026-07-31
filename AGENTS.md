@@ -72,10 +72,10 @@ source.
   task-relevant artifacts under `G:\workspace`. Before relying on it, verify
   the allowed root, this repository's reachability, and the required tool
   capabilities. Do not infer read-only or write capability from the app name.
-- If Tunnel access is unavailable or incomplete, use the Global Skill's
-  authorized chat-delivery fallback. Tunnel reads and writes remain limited by
-  the Task Contract, and ChatGPT-originated changes require local diff and
-  validation by Codex.
+- If Tunnel access is unavailable or incomplete, stop as `blocked`. Do not
+  attach, upload, paste, use Project Source, or fall back to another route.
+  Tunnel reads and writes remain limited by the Task Contract, and
+  ChatGPT-originated changes require local diff and validation by Codex.
 
 ## External consultation evidence retention
 
