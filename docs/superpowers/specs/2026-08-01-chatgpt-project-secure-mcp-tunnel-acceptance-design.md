@@ -133,3 +133,29 @@ Tunnel readyだけから成功を推論しない。
 MCP実装、Tunnel Profile、既存ChatGPT Project、既存chat、現行Personal Skill contract、
 repository `AGENTS.md`を変更しない。既存standalone-chat設計／計画は履歴として保持し、
 今回のacceptanceへ暗黙に適用しない。
+
+## 8. 実測acceptance記録（non-normative）
+
+実施日: 2026-08-01。これは今回の受入手順の実測証拠であり、Architectureの実装、
+qualification、activation、releaseまたはProduct completionを主張しない。
+
+- Local preflightはstatic validatorの`TOTAL_FAILURES=0`、Tunnel lifecycle 35件`PASS`
+  （独立`pwsh -File` process exit `0`）、Local MCP pytest 128件passed、self-test
+  `PASS`、ensure contractの6 predicate全trueを確認した。
+- MCP Inspector 2.0.0はexact 4 read-only Toolを発見し、4件のvalid readはすべて
+  `PASS`、path escapeは`path-outside-root`、unknown writeは`tool_not_found`として
+  fail-closedを確認した。
+- Browser ChatGPTではDeveloper mode enabledの既存`G Workspace Readonly`を一度だけ
+  Refreshし、root `G:\workspace`のread-only description、exact 4 Tool、write Tool不在を
+  可視確認した。新規Project `Secure MCP Tunnel 検証`は
+  `プロジェクト限定メモリ`（Project-only）で作成し、sources／uploadsは0件だった。
+- 初回`Pro` chatはsession Tool list 0件で診断上`blocked`となった。同じProject、App、
+  prompt、Artifactを維持してresponse performanceだけを非`Pro`の`非常に高い`へ変更した
+  一回のretryでは、`list_allowed_directories`、`list_directory`、`fetch`の各取得をUIで
+  特定し、unexpected Toolは観測されなかった。
+- retryのroot、Artifact ID、`metadata.source_bytes`、`metadata.source_sha256`、先頭見出し、
+  completion markerはcanonical manifestと全一致した。aggregate `tools/call`は利用不能
+  だったが、sanitized `forward_event_delta=4`は正であり、UI Tool evidenceと併せて照合した。
+- acceptance attemptは合計2件で第三試行はない。Tunnel／Appは再作成しておらず、attachment、
+  upload、Project Source、Web、alternate Appも使用していない。最終結果は`pass`、terminal
+  markerは`CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801`である。

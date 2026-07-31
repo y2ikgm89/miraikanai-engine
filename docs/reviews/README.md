@@ -95,3 +95,22 @@ valid gap count: 0
 ## 4. Interpretation
 
 R22はArchitecture target designに対するreview closureである。Executable Schema、Registry、Fixture、Receipt、Build、CI、runtime implementation、qualification、activation、publication、releaseまたはProduct completionの存在を証明しない。将来の変更はこの要約をContractとして使用せず、対象Ownerとその規範依存／consumer closureを再監査する。
+
+## 5. CHATGPT-PROJECT-MCP-20260801 acceptance summary
+
+| Field | Value |
+|---|---|
+| Date | 2026-08-01 |
+| Route／mode | Browser ChatGPT Project → existing developer-mode `G Workspace Readonly` app → Secure MCP Tunnel |
+| Scope | `G:\workspace`のread-only custom MCP Tool discoveryと、canonical design Artifactのmetadata-only read acceptance |
+| Input | 1 Artifact: `G:\workspace\development\GameEngine\miraikanai-engine\docs\superpowers\specs\2026-08-01-chatgpt-project-secure-mcp-tunnel-acceptance-design.md` |
+| Input digest | 7,365 bytes; SHA-256 `34226799950a7ebbd31ade0ea52b832b044f032479c58a7a926fe4c5236fef66` |
+| Valid-gap count | 2 acceptance-procedure gaps: Pro model compatibility assumption、persistent individual Tool-card assumption。いずれもclosedであり、Architecture gapではない。 |
+| Affected authority | canonical Architecture Owner／ADR: none; affected: non-normative acceptance design／plan only |
+| Closure | Local contract、Inspector fail-closed boundary、existing App refresh、Project-only Project、non-Pro one-variable retryのTool evidence、manifest reconciliation、sanitized positive forward-event deltaを確認。Tunnel／Appの再作成なし。 |
+| Exact terminal marker | `CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801` |
+| Response digest | `unavailable`（full responseを保持しなかったため。推測または再読込はしない。） |
+| Retention disposition | full prompt／response／screenshots／attachments／transient SDD reportsはfinal adjudication後に削除し、durable evidenceはこのcompact summaryのみとする。現在のSDD workspaceはfinal review後に削除する。 |
+
+この記録はnon-normative acceptance evidenceであり、Architectureの型、値、状態、Gate、
+実装、qualification、activation、releaseまたはProduct completionを定義・証明しない。

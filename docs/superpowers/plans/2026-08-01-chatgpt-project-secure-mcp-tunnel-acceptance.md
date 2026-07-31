@@ -32,7 +32,7 @@
 - Consumes: approved existing-App Refresh design
 - Produces: approved design plus `artifact_id`, `expected_bytes`, `source_sha256`, and `marker` used by Tasks 2–4
 
-- [ ] **Step 1: Verify the approved design and fixed acceptance Artifact**
+- [x] **Step 1: Verify the approved design and fixed acceptance Artifact**
 
 Run from the repository root:
 
@@ -50,7 +50,7 @@ if ($design -notmatch '(?m)^- 状態: `approved-for-implementation`$') {
 
 Expected: exit code `0`.
 
-- [ ] **Step 2: Derive the manifest without reading it into the Browser prompt**
+- [x] **Step 2: Derive the manifest without reading it into the Browser prompt**
 
 Run:
 
@@ -69,7 +69,7 @@ $manifest | ConvertTo-Json
 
 Expected: one root-relative `artifact_id`, positive `expected_bytes`, 64-character lowercase `source_sha256`, and the exact non-secret marker. Keep this object in task-local memory only.
 
-- [ ] **Step 3: Verify a clean repository baseline before execution**
+- [x] **Step 3: Verify a clean repository baseline before execution**
 
 Run:
 
@@ -96,7 +96,7 @@ Expected: all commands succeed and `git status --short` is empty. If unrelated u
 - Consumes: fixed profile `g-workspace-readonly` and exact four-Tool Local Server
 - Produces: current Local test evidence and lifecycle result with `health`, `ready`, `profile_verified`, `lock_verified`, `catalog_verified`, `allowed_root_verified` all true
 
-- [ ] **Step 1: Run the static Skill contract validator**
+- [x] **Step 1: Run the static Skill contract validator**
 
 Run:
 
@@ -106,7 +106,7 @@ Run:
 
 Expected: exit code `0` and `TOTAL_FAILURES=0`. This validates the existing personal Skill package only; it does not authorize its standalone Browser route for this acceptance.
 
-- [ ] **Step 2: Run the Tunnel lifecycle regression suite**
+- [x] **Step 2: Run the Tunnel lifecycle regression suite**
 
 Run:
 
@@ -116,7 +116,7 @@ Run:
 
 Expected: exit code `0`; every lifecycle case passes.
 
-- [ ] **Step 3: Run all Local MCP tests and self-test**
+- [x] **Step 3: Run all Local MCP tests and self-test**
 
 Run:
 
@@ -129,7 +129,7 @@ $python = Join-Path $serverRoot '.venv\Scripts\python.exe'
 
 Expected: pytest exit code `0`; self-test returns one JSON line with `allowed_root` equal to `G:\workspace`, `annotations_exact: true`, the exact four-Tool catalog, and empty `forbidden_tools`.
 
-- [ ] **Step 4: Ensure exactly one healthy fixed Tunnel runtime**
+- [x] **Step 4: Ensure exactly one healthy fixed Tunnel runtime**
 
 Run:
 
@@ -157,7 +157,7 @@ Expected: exit code `0`; no Profile content or identifier is printed.
 - Consumes: Task 2 passing Local runtime and Task 1 `artifact_id`
 - Produces: Inspector evidence for initialize／`tools/list`, valid read, invalid input, path escape denial, and unknown write Tool denial
 
-- [ ] **Step 1: Confirm Node.js and npm runner availability**
+- [x] **Step 1: Confirm Node.js and npm runner availability**
 
 Run:
 
@@ -168,7 +168,7 @@ npx --version
 
 Expected: both exit code `0`. If unavailable, load the bundled workspace Node runtime and rerun once; if still unavailable, stop `blocked` before Browser work.
 
-- [ ] **Step 2: List the exact Tool catalog through Inspector CLI**
+- [x] **Step 2: List the exact Tool catalog through Inspector CLI**
 
 Run from the MCP server directory:
 
@@ -179,7 +179,7 @@ $python = 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\mcp-serv
 
 Expected: exit code `0`; exactly `list_allowed_directories`, `list_directory`, `search`, `fetch` with explicit input/output schemas and read-only annotations.
 
-- [ ] **Step 3: Call the allowed-root and Artifact read Tools**
+- [x] **Step 3: Call the allowed-root and Artifact read Tools**
 
 Run:
 
@@ -194,7 +194,7 @@ $artifactId = 'development/GameEngine/miraikanai-engine/docs/superpowers/specs/2
 
 Expected: allowed root `G:\workspace`; directory and search results contain the acceptance design; fetch returns matching `id`, `metadata.source_bytes`, `metadata.source_sha256`, and marker text.
 
-- [ ] **Step 4: Verify invalid and forbidden operations fail closed**
+- [x] **Step 4: Verify invalid and forbidden operations fail closed**
 
 Run each command separately and retain only the typed error category:
 
@@ -219,31 +219,31 @@ Expected: path escape returns a typed boundary error; `write_file` returns metho
 - Consumes: Task 2 healthy Tunnel and Task 3 exact Tool discovery
 - Produces: refreshed existing app metadata and one new isolated ChatGPT Project with `プロジェクトのみ` memory
 
-- [ ] **Step 1: Initialize Browser control for the target URL**
+- [x] **Step 1: Initialize Browser control for the target URL**
 
 Before Browser control, query available tools for a purpose-built ChatGPT connector. Because no connector provides ChatGPT Developer mode／Project UI management, use the Browser skill. Initialize the Browser runtime, select the browser for `https://chatgpt.com/projects`, read its complete documentation once, and reuse that binding for all following steps.
 
 Expected: an authenticated ChatGPT tab is available. If authentication is required, ask the user to sign in in the selected browser and stop until they confirm.
 
-- [ ] **Step 2: Verify Developer mode and open the existing connection**
+- [x] **Step 2: Verify Developer mode and open the existing connection**
 
 Navigate through ChatGPT Settings → Security and login and verify Developer mode is enabled. Open [ChatGPT Plugins](https://chatgpt.com/plugins), locate exact `G Workspace Readonly`, and verify its visible description states root `G:\workspace` and read-only access.
 
 Expected: exact app exists once. Do not create or delete an app.
 
-- [ ] **Step 3: Refresh and inspect the existing connection metadata**
+- [x] **Step 3: Refresh and inspect the existing connection metadata**
 
 Select `Refresh` on the existing connection and inspect the discovered Tool metadata.
 
 Expected: exact Tool names `list_allowed_directories`, `list_directory`, `search`, `fetch`; read-only annotations; no write Tool. If metadata is missing after one Refresh, capture the visible error and stop `blocked` without recreating the app.
 
-- [ ] **Step 4: Create the new isolated Project**
+- [x] **Step 4: Create the new isolated Project**
 
 Open `https://chatgpt.com/projects`, create one Project with exact title `Secure MCP Tunnel 検証`, and choose memory `プロジェクトのみ` when prompted.
 
 Expected: the Project opens with the exact title and Project-only memory. If a Project with that exact title already exists from an interrupted run, reuse it only when it has no unrelated chats or sources; otherwise stop and ask before creating a suffixed duplicate.
 
-- [ ] **Step 5: Start one new Project chat and add the exact app**
+- [x] **Step 5: Start one new Project chat and add the exact app**
 
 Start a new chat inside the Project, open its Tools menu, and add exact `G Workspace Readonly`.
 
@@ -263,7 +263,7 @@ Expected: the composer visibly shows the selected app. Task 4ではresponse perf
 - Consumes: Task 1 manifest, Task 4 selected exact app, and Task 2 healthy Tunnel
 - Produces: one `pass` or `blocked` disposition with visible Tool evidence, matching Artifact metadata, and sanitized Tunnel delta
 
-- [ ] **Step 1: Capture the sanitized Tunnel baseline**
+- [x] **Step 1: Capture the sanitized Tunnel baseline**
 
 Read the loopback-only `/metrics` and `/ui` surfaces before sending. Record only the current aggregate `tools/call` count, last visible log sequence, and capture time. Do not retain Tunnel IDs, request IDs, Profile content, credentials, or unrelated log text.
 
@@ -277,13 +277,13 @@ captured_at: ISO-8601 with offset
 
 If these sanitized values cannot be derived from the current surfaces, record telemetry as unavailable and use the visible ChatGPT Tool cards plus exact fetch metadata as the required Tool evidence; do not infer a call from the response text alone.
 
-- [ ] **Step 2: Select one App-compatible non-Pro model for the corrected retry**
+- [x] **Step 2: Select one App-compatible non-Pro model for the corrected retry**
 
 The initial `Pro` attempt is retained as measured diagnostic evidence: the exact app pill was visible, but the session exposed no required Tool and produced no Tool card. Start one new chat in the same Project, change only response performance to a non-`Pro` model that the current UI presents as App-compatible, then reselect exact `G Workspace Readonly`.
 
 Expected: exact Project, app, prompt, Artifact, memory, and safety constraints remain unchanged. Record the visible non-`Pro` model label. If no App-compatible non-`Pro` option is available, stop `blocked` without changing the Tunnel or app.
 
-- [ ] **Step 3: Send one metadata-only corrected acceptance prompt**
+- [x] **Step 3: Send one metadata-only corrected acceptance prompt**
 
 Send the following prompt after verifying exact `G Workspace Readonly` is still selected:
 
@@ -298,13 +298,13 @@ G Workspace Readonlyだけを使って、次を順に実行してください。
 
 Expected: this corrected chat visibly invokes `list_allowed_directories`, `list_directory`, and `fetch` in order. Current UI may present these as individual Tool cards or one aggregate live Tool status that identifies each requested retrieval. No local Artifact content appears in the prompt. Do not send a third acceptance attempt.
 
-- [ ] **Step 4: Wait for verified completion and inspect Tool evidence**
+- [x] **Step 4: Wait for verified completion and inspect Tool evidence**
 
 Wait until generation is complete. Inspect every visible Tool card or aggregate live Tool status and the final response. Record exact Tool names, call status, and typed error or `none` without retaining the fetched body.
 
 Expected: UI evidence identifies all three required retrievals and no unexpected Tool. A transient individual card plus aggregate live status is sufficient only when all response metadata also matches the Local manifest; response prose alone remains insufficient.
 
-- [ ] **Step 5: Reconcile response metadata with the Local manifest**
+- [x] **Step 5: Reconcile response metadata with the Local manifest**
 
 Pass only when all are equal:
 
@@ -319,7 +319,7 @@ completion marker == CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801
 
 Any required retrieval lacking both individual Tool-card evidence and identifying aggregate live-status evidence, any mismatch, partial read, extra Tool, inferred value, or unavailable exact app yields `blocked`.
 
-- [ ] **Step 6: Capture the sanitized final Tunnel delta**
+- [x] **Step 6: Capture the sanitized final Tunnel delta**
 
 Read `/metrics` and `/ui` again and calculate only:
 
@@ -343,19 +343,19 @@ When telemetry is available, require both deltas to be positive. When the aggreg
 - Consumes: Tasks 2–5 exact current outputs
 - Produces: one compact audit record, final checked plan state, and repository commit containing no transient Browser transcript or secret
 
-- [ ] **Step 1: Append the measured implementation record**
+- [x] **Step 1: Append the measured implementation record**
 
 Append to the design only: Local validator/test counts, Inspector result, Browser Project title/memory, exact app, discovered Tool catalog, required Tool outcomes, metadata comparison, telemetry availability/deltas, upload count `0`, terminal marker, and final `pass` or `blocked` disposition.
 
-- [ ] **Step 2: Update the compact review ledger**
+- [x] **Step 2: Update the compact review ledger**
 
 Add one entry to `docs/reviews/README.md` with audit ID `CHATGPT-PROJECT-MCP-20260801`, date, Browser／Tunnel route, scope, one input Artifact and its digest, valid-gap count, affected non-normative design only, closure result, exact terminal marker, response digest when available, and retention disposition. Do not retain the full prompt, response, screenshots, attachment archive, Tunnel IDs, request IDs, or secrets.
 
-- [ ] **Step 3: Mark only evidenced plan checkboxes complete**
+- [x] **Step 3: Mark only evidenced plan checkboxes complete**
 
 Check each completed step. If Browser acceptance is blocked, leave unmet success predicates unchecked and state the exact blocker in the measured record.
 
-- [ ] **Step 4: Run final repository checks and inspect the complete diff**
+- [x] **Step 4: Run final repository checks and inspect the complete diff**
 
 Run:
 
@@ -368,7 +368,7 @@ git diff -- docs/superpowers/specs/2026-08-01-chatgpt-project-secure-mcp-tunnel-
 
 Expected: no Architecture Owner or implementation claim changed; no unresolved placeholder; no secret or transient transcript retained.
 
-- [ ] **Step 5: Stage and commit only repository-owned evidence**
+- [x] **Step 5: Stage and commit only repository-owned evidence**
 
 Run:
 
