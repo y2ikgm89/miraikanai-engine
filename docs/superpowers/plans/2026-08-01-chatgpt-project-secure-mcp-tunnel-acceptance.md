@@ -4,7 +4,7 @@
 
 **Goal:** Browser版ChatGPTに新規Project `Secure MCP Tunnel 検証`を作成し、既存Secure MCP Tunnel-backed `G Workspace Readonly`のread-only Tool discoveryと実Artifact readを公式手順に沿って検証する。
 
-**Architecture:** Local MCP Server、固定Tunnel Profile、既存developer-mode appは変更せず、Local contract、MCP Inspector、ChatGPT connection metadata、新規Project chatの順に検証する。BrowserへはArtifact本文を送らず、固定manifestだけを渡し、`fetch`結果のbytes／SHA-256／markerとsanitized Tunnel telemetry deltaをLocal evidenceへ照合する。
+**Architecture:** Local MCP Server、固定Tunnel Profile、既存developer-mode appは変更せず、Local contract、MCP Inspector、ChatGPT connection metadata、新規Project chatの順に検証する。Browser promptへはArtifact ID、要求field名、completion markerだけを渡し、期待byte count／SHA-256／先頭見出しはcontroller-local manifestとして応答後に照合する。Artifact本文は送らず、sanitized Tunnel telemetry deltaもLocal evidenceへ照合する。
 
 **Tech Stack:** PowerShell 7、CPython 3.14、MCP Python SDK 2.0.0、pytest 9.1.1、`@modelcontextprotocol/inspector`、OpenAI `tunnel-client`、Browser版ChatGPT、Secure MCP Tunnel、Codex Browser control
 
@@ -30,7 +30,7 @@
 
 **Interfaces:**
 - Consumes: approved existing-App Refresh design
-- Produces: approved design plus `artifact_id`, `expected_bytes`, `source_sha256`, and `marker` used by Tasks 2–4
+- Produces: Browser prompt用の`artifact_id`と、Task 5の応答後照合だけに使うcontroller-local `expected_bytes`、`source_sha256`、`marker`
 
 - [x] **Step 1: Verify the approved design and fixed acceptance Artifact**
 
@@ -50,7 +50,7 @@ if ($design -notmatch '(?m)^- 状態: `approved-for-implementation`$') {
 
 Expected: exit code `0`.
 
-- [x] **Step 2: Derive the manifest without reading it into the Browser prompt**
+- [x] **Step 2: Derive the controller-local manifest without sending expected values to the Browser prompt**
 
 Run:
 
@@ -67,7 +67,7 @@ $manifest = [ordered]@{
 $manifest | ConvertTo-Json
 ```
 
-Expected: one root-relative `artifact_id`, positive `expected_bytes`, 64-character lowercase `source_sha256`, and the exact non-secret marker. Keep this object in task-local memory only.
+Expected: one root-relative `artifact_id`, positive `expected_bytes`, 64-character lowercase `source_sha256`, and the exact non-secret marker. Keep expected bytes／SHA-256／heading in controller-local memory for post-response comparison; Browser promptへ渡せるのはArtifact ID、要求field名、completion markerだけとする。
 
 - [x] **Step 3: Verify a clean repository baseline before execution**
 
@@ -295,6 +295,9 @@ G Workspace Readonlyだけを使って、次を順に実行してください。
 
 添付、Project Source、Web検索、別Appは使わないでください。最終回答には、観測したroot、Artifact ID、metadata.source_bytes、metadata.source_sha256、先頭見出し、各Toolの成功／失敗、および完了marker CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801 だけを記載してください。Toolが利用できなければ推測せず、利用できないTool名とエラーを記載してください。
 ```
+
+このpromptにはArtifact ID、要求field名、completion markerだけを渡す。期待byte count、SHA-256、
+先頭見出しはcontroller-local manifestに保持し、応答後だけに比較する。
 
 Expected: this corrected chat visibly invokes `list_allowed_directories`, `list_directory`, and `fetch` in order. Current UI may present these as individual Tool cards or one aggregate live Tool status that identifies each requested retrieval. No local Artifact content appears in the prompt. Do not send a third acceptance attempt.
 

@@ -48,7 +48,7 @@ Browser版ChatGPTに新規Project `Secure MCP Tunnel 検証`を作成し、そ�
 | 新規Project名を`Secure MCP Tunnel 検証`とし、memoryを`プロジェクトのみ`にする。 | `project-decision` | 今回の検証を他Project contextから分離するため |
 | 既存`G Workspace Readonly`を再利用し、重複Appを作成しない。 | `project-decision` | 最小変更と既存設定保護 |
 | 過去のProject chatではTool catalogがturnへ公開されなかった。 | `measured`／historical | 2026-07-31 route clarification record |
-| 新規Projectの`Pro` chatではexact app選択後もsession Tool listが空で、Tool callが0件だった。 | `measured` | 2026-08-01 Task 5 initial attempt |
+| 新規Projectの`Pro` chatではexact app選択後もsession Tool listが空で、required MCP Tool callは観測されなかった。 | `measured` | 2026-08-01 Task 5 initial attempt |
 | 非`Pro` retryでは各取得を示すaggregate live Tool statusが表示され、個別Tool cardは完了後に保持されなかった。 | `measured` | 2026-08-01 Task 5 corrected retry |
 
 公式Help CenterはApp互換性がmodelによって異なると明記している。`Pro` chatでToolが
@@ -90,8 +90,9 @@ Browser ChatGPT Project chat
 - ChatGPT Projectは会話contextの境界であり、MCP認可境界には使用しない。
 - `G:\workspace` root、path containment、read-only Tool catalogはLocal MCP Server側で
   強制する。
-- Browserへ渡すのはroot-relative Artifact ID、期待byte count、SHA-256、期待markerだけ
-  とし、Artifact本文はTool resultとしてのみ返す。
+- Browser promptへ渡すのはroot-relative Artifact ID、要求field名、completion markerだけ
+  とする。期待byte count、SHA-256、先頭見出しはcontroller-local manifestとして応答後に
+  照合し、Artifact本文はTool resultとしてのみ返す。
 - Durable evidenceへ`tunnel_id`、request ID、Profile本文、API key、cookie、account ID、
   Local secretを保存しない。
 
@@ -104,7 +105,7 @@ Browser ChatGPT Project chat
   discovery failureとして`blocked`にする。
 - Project chatでexact appを選択できない、Tool callが発生しない、または結果照合が失敗
   した場合は、standalone chat、別App、upload、paste、公開endpointへfallbackしない。
-- `Pro` chatでTool callが発生せずsession Tool listにも公開されない場合に限り、同じ
+- `Pro` chatでrequired MCP Tool callが観測されずsession Tool listにも公開されない場合に限り、同じ
   Project内の新規chatでApp互換の非`Pro` modelへ変える一変数の再試行を許可する。
 - Browserがsign-in、管理者承認、OAuthなど明示的なuser actionを要求した場合は、その場で
   停止して必要な操作だけを依頼する。
@@ -149,7 +150,7 @@ qualification、activation、releaseまたはProduct completionを主張しな�
   Refreshし、root `G:\workspace`のread-only description、exact 4 Tool、write Tool不在を
   可視確認した。新規Project `Secure MCP Tunnel 検証`は
   `プロジェクト限定メモリ`（Project-only）で作成し、sources／uploadsは0件だった。
-- 初回`Pro` chatはsession Tool list 0件で診断上`blocked`となった。同じProject、App、
+- 初回`Pro` chatはsession Tool list 0件でrequired MCP Tool callが観測されず、診断上`blocked`となった。同じProject、App、
   prompt、Artifactを維持してresponse performanceだけを非`Pro`の`非常に高い`へ変更した
   一回のretryでは、`list_allowed_directories`、`list_directory`、`fetch`の各取得をUIで
   特定し、unexpected Toolは観測されなかった。

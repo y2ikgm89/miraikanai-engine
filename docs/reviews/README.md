@@ -101,7 +101,7 @@ R22はArchitecture target designに対するreview closureである。Executable
 | Field | Value |
 |---|---|
 | Date | 2026-08-01 |
-| Route／mode | Browser ChatGPT Project → existing developer-mode `G Workspace Readonly` app → Secure MCP Tunnel |
+| Route／mode | Browser ChatGPT Project → existing developer-mode `G Workspace Readonly` app → Secure MCP Tunnel。初回`Pro`はrequired MCP Tool call未観測でdiagnostic failure、同一条件の一度だけの非`Pro` `非常に高い` retryが`pass`。 |
 | Scope | `G:\workspace`のread-only custom MCP Tool discoveryと、canonical design Artifactのmetadata-only read acceptance |
 | Input | 1 Artifact: `G:\workspace\development\GameEngine\miraikanai-engine\docs\superpowers\specs\2026-08-01-chatgpt-project-secure-mcp-tunnel-acceptance-design.md` |
 | Input digest | 7,365 bytes; SHA-256 `34226799950a7ebbd31ade0ea52b832b044f032479c58a7a926fe4c5236fef66` |
