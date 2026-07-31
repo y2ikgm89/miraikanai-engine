@@ -1,6 +1,6 @@
 # ChatGPT Project Secure MCP Tunnel Acceptance Design
 
-- 状態: `draft-for-user-review`
+- 状態: `approved-for-implementation`
 - 対象: Browser版ChatGPTの新規Projectにおける、既存Secure MCP
   Tunnel-backed `G Workspace Readonly` appのTool discovery／Tool call検証
 - 判断日: 2026-08-01
