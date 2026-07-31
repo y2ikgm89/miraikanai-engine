@@ -283,6 +283,11 @@ LimitまたはI/O errorで完全なIndexを構築できない場合は、旧Inde
 fallbackせず`search-index-unavailable`を返す。Tool call全体が外部deadlineへ
 到達する前にLocal typed errorで終了させる。
 
+初回build失敗はprocess-localなfailure stateとして保持し、Tool catalog discovery
+自体は継続する。`search`はそのstateをtyped errorとして返し、5秒経過後だけ完全な
+rebuildを再試行できる。Refresh失敗も旧success stateをfailure stateへatomic swap
+し、stale resultを返さない。
+
 Queryはstripとcasefoldを行い、Unicode whitespaceでtokenizeする。空Queryは0件を
 返す。非空Queryは全tokenがfilenameまたはroot-relative pathへ含まれるentryだけを
 候補とし、exact filename、exact filename stem、filename match、path matchの順で
