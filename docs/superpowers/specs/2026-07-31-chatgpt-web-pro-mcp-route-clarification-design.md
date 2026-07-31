@@ -74,3 +74,15 @@ validator、current repository `AGENTS.md`である。過去の計画、実測�
   送信はmetadata-onlyで、Local Artifactのattachment、upload、pasteは0回とする。
 - Browser UIが`Pro`とapp Tool callを同時に提供しない場合は、未確認の成功を主張せず
   `blocked`として保持する。
+
+## 7. 実施記録（2026-07-31）
+
+| Evidence | Classification | Result |
+| --- | --- | --- |
+| static contract validator | `measured` | `TOTAL_FAILURES=0`。Browser版ChatGPTがMCP clientであり、Codexはcontrol plane、turnごとに`Pro`を確認する現行contractを検査した。 |
+| Secure MCP Tunnel lifecycle suite | `measured` | 35件すべて成功。固定profile、lock、catalog、allowed rootのpreflightを確認した。 |
+| local server self-test／test suite | `measured` | exact 4 read-only Toolとforbidden Toolなしを確認。cold-start indexの実測に合わせ、local serverのindex build上限を5秒から10秒へ拡張後、128件すべて成功した。これはlocal implementation decisionであり、OpenAIの公式推奨ではない。 |
+| Browser版ChatGPT acceptance | `measured` | ChatGPT Desktop app内蔵BrowserでProject title、memory `プロジェクトのみ`、`応答性能: Pro`、collapsed `Pro`、read-only `G Workspace Readonly`選択を可視確認した。Local Artifactのattachment、upload、paste、Project Sourceは0回。 |
+| Browser版ChatGPT Tool evidence | `measured` | primary turnで`G Workspace Readonly`のTool catalogが公開されず、最初の必須`list_allowed_directories`は`REQUIRED_TOOL_CATALOG_UNAVAILABLE`。後続の`search`、`list_directory`、`fetch`は未実行で、Tool cardは0件。 |
+
+以上より、local Tunnelのready状態、Browser app選択、`Pro`選択はそれぞれ確認できたが、同一のbrowser ChatGPT `Pro` turnでexact Tool catalogとcall successを確認できなかった。現在のroute dispositionは`blocked`である。これは`非常に高い`、attachment、upload、paste、API、別appへのfallbackを許可しない。再開には、browser ChatGPT `Pro` turnへ`G Workspace Readonly`の4 Toolが実際に公開されることを確認できるruntime／product側の状態変更が必要である。

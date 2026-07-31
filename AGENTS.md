@@ -55,17 +55,21 @@ source.
 - Apply this section only when the user explicitly invokes
   `$collaborating-with-chatgpt-pro` for work concerning this repository or its
   artifacts.
-- Use the Codex in-app Browser and route the consultation to:
+- Use the ChatGPT Desktop app's built-in Browser, operated by Codex, to open
+  browser ChatGPT at:
   `https://chatgpt.com/g/g-p-6a69aacb1ae88191a27dd74eeb166569/project`.
+- Browser ChatGPT is the MCP client that uses the verified Secure MCP
+  Tunnel-backed `G Workspace Readonly` app; Codex only controls and verifies
+  the Browser UI.
 - Before sending, visibly verify the Project title
   `AIネイティブC++ゲームエンジンプロジェクト`, memory mode
-  `プロジェクトのみ`, and response performance `非常に高い`. Start a new chat
-  inside that Project for each distinct outcome. The account may be on a Pro
-  plan, but do not select response-performance `Pro` for a custom MCP app turn.
+  `プロジェクトのみ`, and browser ChatGPT response performance `Pro`. Start a new
+  chat inside that Project for each distinct outcome. The collapsed response
+  performance button must display `Pro` for every send.
 - If the route, Project identity, memory mode, or response performance
-  `非常に高い` cannot be verified,
+  `Pro` cannot be verified,
   stop as blocked. Do not fall back to another Project, a standalone ChatGPT
-  chat, Chrome, an API, `高い`, `中程度`, or a lower mode.
+  chat, Chrome, an API, `非常に高い`, `高い`, `中程度`, or a lower mode.
 - This section selects the destination only. The Global Skill owns dynamic
   prompt generation, in-session transcript handling, adjudication, and stop
   rules. The repository policy below owns post-closure retention.
