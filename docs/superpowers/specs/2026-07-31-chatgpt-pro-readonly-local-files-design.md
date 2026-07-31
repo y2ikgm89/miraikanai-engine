@@ -1,6 +1,6 @@
 # ChatGPT Pro Read-only Local Files Design
 
-- 設計状態: review
+- 設計状態: approved
 - 対象: 個人Global Skill `collaborating-with-chatgpt-pro`、Secure MCP
   Tunnel Profile `g-workspace-readonly`、Browser版ChatGPT developer-mode app
   `G Workspace Readonly`
