@@ -317,7 +317,7 @@ observed heading == manifest.marker
 completion marker == CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801
 ```
 
-Any missing Tool card, mismatch, partial read, extra Tool, inferred value, or unavailable exact app yields `blocked`.
+Any required retrieval lacking both individual Tool-card evidence and identifying aggregate live-status evidence, any mismatch, partial read, extra Tool, inferred value, or unavailable exact app yields `blocked`.
 
 - [ ] **Step 6: Capture the sanitized final Tunnel delta**
 
