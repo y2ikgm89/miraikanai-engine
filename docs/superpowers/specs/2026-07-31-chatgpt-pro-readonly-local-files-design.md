@@ -6,14 +6,18 @@
   `G Workspace Readonly`
 - 判断日: 2026-07-31
 - 外部根拠確認日: 2026-07-31
+- 実装検証状態: Local Server／Tunnel検証済み、Browser formal acceptance
+  `incomplete`
 - 先行設計:
   [ChatGPT Pro Tunnel-only Delivery Design](2026-07-31-chatgpt-pro-tunnel-only-delivery-design.md)
 
 ## 1. 結論
 
-現在の`g-workspace-readonly` Profileが直接起動している汎用
+`g-workspace-readonly` Profileが直接起動していた汎用
 `@modelcontextprotocol/server-filesystem`を廃止し、`G:\workspace`専用の
-least-privilege read-only MCP serverへ置き換える。
+least-privilege read-only MCP serverへ置き換えた。Local ServerとTunnelの
+検証は完了したが、Browserのactual Tool cardを永続的に再確認できなかったため、
+Browser formal acceptanceは`incomplete`である。
 
 新Serverが公開するToolは次の4個だけとする。
 
@@ -82,11 +86,50 @@ Project Source、write Toolは使用していない。
 同じ実装をfixture directoryだけへ適用すると`2ms`で1件を返したが、
 `G:\workspace`では`25,074ms`経過しても完了しなかった。
 
-原因は、現行`search`がfilename一致を発見してもroot全体の1周目を完了するまで
-返さず、filename一致が0件なら2周目でextractable Fileの内容まで同期抽出する
-ことにある。`os.walk`は`.git`、virtual environment、dependency、cache、
+原因は、旧`search`がfilename一致を発見してもroot全体の1周目を完了するまで
+返さず、filename一致が0件なら2周目でextractable Fileの内容まで同期抽出して
+いたことにある。`os.walk`は`.git`、virtual environment、dependency、cache、
 generated outputも走査するため、Server処理がChatGPT／Tunnelのcall deadlineを
 超えた。Timeout延長やTunnel再起動では解消しないServer algorithmの問題である。
+
+### 2.1 実装後の実測結果とdisposition
+
+`official-spec`として採用したsingle-property `search(query)`／`fetch(id)`互換形状、
+明示的output schema、`structuredContent`と先頭text contentの同値性は、catalogと
+compatibility testで維持を確認した。Browser app管理画面でも公開Actionは
+`list_allowed_directories`、`list_directory`、`search`、`fetch`のexact 4件で、
+すべてread Actionだった。
+
+metadata-only process-local index、5秒TTL、5秒／50,000 directories／100,000
+searchable filesのbuild limit、除外directory、100 result limit、
+response-performance `非常に高い`は`project-decision`である。これらはOpenAIの
+一般推奨または全app共通要件ではない。
+
+2026-07-31のfresh `measured` evidenceでは、Server testは128件、lifecycle testは
+35件すべてexit code 0で通過し、static validatorは`TOTAL_FAILURES=0`、Skill
+validatorは`Skill is valid!`、`pip check`はbroken requirementなしだった。
+requirements lockのSHA-256は
+`e5397d790776b5332fc84457d4344a698fb0634530805cebfd042b291a19a474`で、self-testは
+exact 4 Tool、forbidden Tool 0、exact annotationを報告した。`G:\workspace`に対する
+fresh processでのdirect `search(query="known.md")`は3回ともerrorなし、1 resultで、
+2689ms、2762ms、2810msだった。fixture parentのdirect `list_directory`とexpected
+IDの`fetch`もerrorなしで、entry 1件、source bytes 34、expected SHA-256、
+`extraction_status=complete`を返した。
+
+最終コード反映時はexact Tunnel targetだけを停止して再起動し、その後のfresh
+preflightは`already-running`／`ready`で、health、ready、Profile、lock、catalog、
+allowed rootの各verificationがtrueだった。exact Tunnel processとcurrent runtimeは
+各1件、legacy Node／NPX runtimeは0件だった。Browserではexact Project、memory
+`プロジェクトのみ`、response performance `非常に高い`、exact appを可視確認し、
+metadata-only promptを1回だけ送信した。最終応答はT6-R1からT6-R4をsuccessと報告し、
+expected root／catalog／Artifact ID／bytes／digest／extraction status／terminal
+markerと一致し、`TimeoutError`は表示されなかった。
+
+ただし、応答完了後にcompleted Tool cardを永続的に可視確認できた件数は0／4であり、
+最終応答の自己申告はactual Tool cardの代替にならない。従ってexact per-turn
+reconciliationは成立せず、Browser formal acceptanceは`incomplete`／`blocked`の
+ままである。これは成功、accepted、closedを意味しない。Browser添付、upload、
+paste、Project Source、alternate app、write Toolの使用はいずれも0回だった。
 
 ## 3. 外部仕様とProject decision
 
@@ -378,17 +421,33 @@ Skillはcomplete Artifact readを要求するTaskでこのerrorを`blocked`と�
 Tool inputはroot-relative pathまたはroot-relative stable IDだけを受け入れる。
 Serverは各callで次を実行する。
 
-1. separatorとcaseをWindows規則で正規化する。
-2. absolute path、UNC、device path、drive-relative path、`..`を拒否する。
-3. targetのreal pathを取得する。
-4. case-insensitiveな`path.relative`相当判定で`G:\workspace`配下を確認する。
-5. symlink、junction、reparse pointの解決後にroot外へ出るtargetを拒否する。
-6. read直前にstatを取り直し、file typeとsizeを再検証する。
+1. `/`を`\`へ統一して`PureWindowsPath` componentへ分解する。componentの表記と
+   caseは保持し、重複separatorと`.`はWindows path parsingに従ってcollapseする。
+   `list_directory(".")`はfixed root listingとして受理する。
+2. 空input、absolute path、UNC、device path、drive-relative path、ADS／colon、
+   `..`、NULを拒否する。HANDLE relative open時にはUTF-16
+   `UNICODE_STRING`上限を超えるcomponentとencode不能componentも拒否する。
+3. fixed rootをreparse非追従で1回開き、各childを親HANDLE相対で開く。文字列Pathを
+   検証後に再オープンしない。
+4. directory traversalとlistingは各ancestor HANDLEを保持し、
+   `FileIdExtdDirectoryInfo`からmetadataを列挙する。symlink、junction、その他
+   reparse pointは辿らない。
+5. `fetch`は最終Fileを親HANDLE相対・reparse非追従で開き、同じ安定HANDLEから
+   header、全bytes、final size、EOFを確認する。extractorへPathではなく取得済み
+   bytesを渡す。
+6. `list_directory`は対象directory HANDLEから全raw entryを数え、limit超過時は
+   partial resultを返さない。device／reparse entryは結果から除外する。
 
 Server processにはwrite API、shell API、network client、または任意Archiveを展開する
 APIを持たせない。DOCX／PPTX／XLSX parserはallowlisted package entryだけを
 memory内で読み、embedded executableを展開しない。Temporary extractionが必要な
 parserは専用temporary directoryだけを使い、`G:\workspace`へFileを作成しない。
+
+Search build deadlineは各native directory enumerationの前後でも検査する。ただし
+同期Win32／NT syscall自体をPythonから安全に中断できないため、1回のnative callが
+OS内で停止した場合の絶対wall-clock上限は保証しない。root-scale testとfresh
+measurementで通常経路を検証し、この残余riskはdeadline延長ではなくfail-closed
+errorと運用監視で扱う。
 
 ## 8. Lifecycle and migration
 

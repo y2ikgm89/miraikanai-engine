@@ -100,7 +100,7 @@ PowerShell lifecycle tests, Secure MCP Tunnel, Codex in-app Browser.
   build_seconds=5.0, directory_limit=50_000, file_limit=100_000)` and
   `SearchIndexCache.search(query, result_limit=100)`.
 
-- [ ] **Step 1: Take a fresh non-repository baseline**
+- [x] **Step 1: Take a fresh non-repository baseline**
 
 Use a task-specific temporary directory and preserve the exact Personal Skill
 state before editing:
@@ -119,7 +119,7 @@ Resolve-Path -LiteralPath $baseline
 Expected: one absolute `%TEMP%` path is printed. Record it in the execution
 evidence without copying secrets or Tunnel configuration into the repository.
 
-- [ ] **Step 2: Write the failing index behavior tests**
+- [x] **Step 2: Write the failing index behavior tests**
 
 Create `tests/test_search_index.py` with real filesystem fixtures and
 hand-derived expected values:
@@ -367,7 +367,7 @@ Each test catches a concrete break: wrong rank, OR-token matching, accidental
 content reads, missing exclusions, unsupported discovery, stale refresh,
 stale fallback, or partial result truncation.
 
-- [ ] **Step 3: Add the failing production-root stdio deadline test**
+- [x] **Step 3: Add the failing production-root stdio deadline test**
 
 In `test_production_stdio_exposes_only_fixed_root_read_tools`, retain the
 existing generated fixture but change the empty search call to:
@@ -394,7 +394,7 @@ The generated UUID ensures the result is unique within `G:\workspace`. The
 ten-second local test deadline is stricter than the observed Browser timeout
 and must not be implemented as a production timeout increase.
 
-- [ ] **Step 4: Run RED and confirm both failures are relevant**
+- [x] **Step 4: Run RED and confirm both failures are relevant**
 
 Run:
 
@@ -442,7 +442,7 @@ test to match the old implementation.
   `SearchIndexEntry`, immutable `SearchIndex`, and
   `SearchIndexCache.search(query, result_limit=100)`.
 
-- [ ] **Step 1: Centralize exact index constants**
+- [x] **Step 1: Centralize exact index constants**
 
 Move `TEXT_EXTENSIONS` from `extractors.py` to `models.py`, import it back into
 `extractors.py`, and add:
@@ -494,7 +494,7 @@ SEARCHABLE_EXTENSIONS: Final = frozenset(
 
 Do not add legacy or macro-enabled Office extensions.
 
-- [ ] **Step 2: Implement immutable entries and deterministic search**
+- [x] **Step 2: Implement immutable entries and deterministic search**
 
 Create `search_index.py` with these public structures:
 
@@ -586,7 +586,7 @@ class SearchIndexState:
 The expected values come from filenames and relative paths only. Do not call
 `extract_file`, `Path.open`, `read_bytes`, or `read_text`.
 
-- [ ] **Step 3: Implement the complete-or-error builder**
+- [x] **Step 3: Implement the complete-or-error builder**
 
 Add the private function with this exact interface:
 
@@ -653,7 +653,7 @@ raise ReadonlyFileError(
 ) from None
 ```
 
-- [ ] **Step 4: Implement eager build and complete refresh**
+- [x] **Step 4: Implement eager build and complete refresh**
 
 Add `SearchIndexCache`:
 
@@ -737,7 +737,7 @@ refresh atomically replaces the old success state with a failure state; it
 must not return `current`. After five seconds, the cache may attempt one new
 complete rebuild.
 
-- [ ] **Step 5: Run GREEN for the index unit**
+- [x] **Step 5: Run GREEN for the index unit**
 
 Run:
 
@@ -748,7 +748,7 @@ Run:
 
 Expected: all index tests pass with no warnings.
 
-- [ ] **Step 6: Run the existing extractor suite**
+- [x] **Step 6: Run the existing extractor suite**
 
 Run:
 
@@ -785,7 +785,7 @@ Expected: all existing extractor tests pass, proving that moving
   `create_runtime(root)`, and the breaking
   `execute_tool(runtime, name, arguments)` signature.
 
-- [ ] **Step 1: Update catalog tests for the new runtime contract**
+- [x] **Step 1: Update catalog tests for the new runtime contract**
 
 In `test_catalog.py`, import `create_runtime` and change every direct call that
 passes a `PathPolicy` as the first argument so it constructs one
@@ -829,7 +829,7 @@ Change the 101-match fixture names to `Known-000.md` through
 `Known-100.md` and query `known`. Keep the existing exact typed-error
 assertions.
 
-- [ ] **Step 2: Run RED for the breaking runtime API**
+- [x] **Step 2: Run RED for the breaking runtime API**
 
 Run:
 
@@ -841,7 +841,7 @@ Run:
 Expected: FAIL because `create_runtime` is absent and `execute_tool` still
 accepts `PathPolicy`.
 
-- [ ] **Step 3: Add `ReadonlyRuntime` and route search to the index**
+- [x] **Step 3: Add `ReadonlyRuntime` and route search to the index**
 
 In `server.py`, delete `_walk_root_files` and the complete two-pass
 `search_payload(policy, query)` implementation. Remove now-unused `os`.
@@ -912,7 +912,7 @@ def create_server(root: Path = ALLOWED_ROOT) -> Server:
 
 The Tool handler must pass `runtime` to `execute_tool`.
 
-- [ ] **Step 4: Update the public description and version**
+- [x] **Step 4: Update the public description and version**
 
 Change the `search` Tool description to:
 
@@ -944,7 +944,7 @@ return Server(
 
 Dependencies and `requirements.lock` must remain byte-identical.
 
-- [ ] **Step 5: Refresh editable distribution metadata without dependencies**
+- [x] **Step 5: Refresh editable distribution metadata without dependencies**
 
 Run:
 
@@ -962,7 +962,7 @@ finally {
 Expected: editable package `readonly-local-files==2.0.0` is installed without
 resolving or changing dependencies.
 
-- [ ] **Step 6: Run GREEN for catalog and stdio regressions**
+- [x] **Step 6: Run GREEN for catalog and stdio regressions**
 
 Run:
 
@@ -975,7 +975,7 @@ Run:
 Expected: both files pass. The production-root stdio test must find its UUID
 fixture within ten seconds and report server version `2.0.0`.
 
-- [ ] **Step 7: Prove the lock did not change**
+- [x] **Step 7: Prove the lock did not change**
 
 Run:
 
@@ -1014,7 +1014,7 @@ dependency change was separately approved.
   metadata, and exact runtime catalog are valid before replacing the live
   process.
 
-- [ ] **Step 1: Run the complete Server suite**
+- [x] **Step 1: Run the complete Server suite**
 
 ```powershell
 & "$server\.venv\Scripts\python.exe" -m pytest "$server\tests" -q
@@ -1023,7 +1023,7 @@ dependency change was separately approved.
 Expected: all tests pass with zero failures and zero warnings. Record the exact
 test count.
 
-- [ ] **Step 2: Run the original symptom locally**
+- [x] **Step 2: Run the original symptom locally**
 
 Use the retained acceptance fixture and measure a direct indexed search:
 
@@ -1053,7 +1053,7 @@ print(json.dumps({
 Expected: `is_error` is false, `result_count` is at least 1, and
 `elapsed_ms` is below 5,000. Do not print file content.
 
-- [ ] **Step 3: Run lifecycle helper regression tests**
+- [x] **Step 3: Run lifecycle helper regression tests**
 
 ```powershell
 & 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\scripts\test_ensure_secure_mcp_tunnel.ps1'
@@ -1061,7 +1061,7 @@ Expected: `is_error` is false, `result_count` is at least 1, and
 
 Expected: all lifecycle tests pass. Record the exact total.
 
-- [ ] **Step 4: Run the static Skill/runtime contract validator**
+- [x] **Step 4: Run the static Skill/runtime contract validator**
 
 ```powershell
 & 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\scripts\validate_secure_mcp_contract.ps1'
@@ -1069,7 +1069,7 @@ Expected: all lifecycle tests pass. Record the exact total.
 
 Expected: `TOTAL_FAILURES=0`.
 
-- [ ] **Step 5: Run package and Skill validators**
+- [x] **Step 5: Run package and Skill validators**
 
 ```powershell
 & "$server\.venv\Scripts\python.exe" -m pip check
@@ -1080,7 +1080,7 @@ Expected: `TOTAL_FAILURES=0`.
 
 Expected: no broken requirements and `Skill is valid!`.
 
-- [ ] **Step 6: Run the exact self-test**
+- [x] **Step 6: Run the exact self-test**
 
 ```powershell
 & "$server\.venv\Scripts\python.exe" `
@@ -1108,7 +1108,7 @@ no forbidden Tools, exact annotations, and the unchanged lock digest.
 - Produces: one newly started Tunnel process running the updated local MCP
   package, with health, ready, Profile, lock, catalog, and root checks true.
 
-- [ ] **Step 1: Confirm exactly one live target before stopping**
+- [x] **Step 1: Confirm exactly one live target before stopping**
 
 Dot-source the helper so its tested exact-process predicate is reused:
 
@@ -1131,7 +1131,7 @@ if ($targets.Count -ne 1) {
 Do not print `CommandLine`, environment variables, Profile content, Tunnel ID,
 API key, or process ID.
 
-- [ ] **Step 2: Stop only the verified process**
+- [x] **Step 2: Stop only the verified process**
 
 ```powershell
 $targetProcess = Get-Process -Id $targets[0].ProcessId -ErrorAction Stop
@@ -1146,7 +1146,7 @@ if (-not $stopped) {
 This stop is authorized only for the exact executable and exact
 `g-workspace-readonly` Profile confirmed in Step 1.
 
-- [ ] **Step 3: Start through the production helper**
+- [x] **Step 3: Start through the production helper**
 
 ```powershell
 $raw = & $helper
@@ -1166,13 +1166,13 @@ $state = $raw | ConvertFrom-Json
 Expected: `status=started`, `reason=ready`, and all six verification booleans
 true.
 
-- [ ] **Step 4: Verify reuse after the fresh start**
+- [x] **Step 4: Verify reuse after the fresh start**
 
 Run the same helper again and project only the safe fields.
 
 Expected: `status=already-running`, `reason=ready`, and all six booleans true.
 
-- [ ] **Step 5: Verify no legacy runtime remains**
+- [x] **Step 5: Verify no legacy runtime remains**
 
 Inspect processes using exact executable and module-name predicates. Exclude
 the current PowerShell command line from any diagnostic count.
@@ -1184,6 +1184,11 @@ Expected: one exact Tunnel process, one current
 ---
 
 ### Task 6: Browser Acceptance Without Upload
+
+**Task status:** `incomplete`／`blocked`. Final responseはT6-R1からT6-R4の
+successと一致metadataを報告し、`TimeoutError`は表示されなかったが、completed
+Tool cardを永続的に可視確認できた件数は0／4だった。従ってStep 4とformal
+acceptanceは未完了であり、成功、accepted、closedとは扱わない。
 
 **Files:**
 
@@ -1198,7 +1203,7 @@ Expected: one exact Tunnel process, one current
   subsequent `fetch` of the returned exact ID complete through Secure MCP
   Tunnel.
 
-- [ ] **Step 1: Refresh and verify the app catalog**
+- [x] **Step 1: Refresh and verify the app catalog**
 
 Use only the Codex in-app Browser. Open the exact app management page, invoke
 the app refresh action, and visibly verify these four Actions only:
@@ -1213,7 +1218,7 @@ search
 Verify all are read Actions and no write／edit／move／create／delete／shell
 Action exists.
 
-- [ ] **Step 2: Create a fresh exact-Project chat**
+- [x] **Step 2: Create a fresh exact-Project chat**
 
 Visibly verify:
 
@@ -1226,7 +1231,7 @@ App: G Workspace Readonly
 
 Do not reuse the failed search chat because it may retain old Tool state.
 
-- [ ] **Step 3: Send a metadata-only acceptance prompt**
+- [x] **Step 3: Send a metadata-only acceptance prompt**
 
 The prompt must name Tool calls and root-relative IDs but contain no Local
 Artifact content:
@@ -1255,7 +1260,7 @@ If ChatGPT stops before the requested sequence, records a Tool failure, or
 omits the terminal report, mark Browser acceptance `incomplete`; do not send a
 follow-up in the same Skill run and do not fall back to attachment or paste.
 
-- [ ] **Step 5: Finalize Browser tabs**
+- [x] **Step 5: Finalize Browser tabs**
 
 After all Browser inspection, call the Browser tab-finalization operation as
 the last Browser operation. Keep only the app-management evidence tab and the
@@ -1279,7 +1284,7 @@ new acceptance chat needed for user inspection.
 - Consumes: fresh local, Tunnel, Browser, Git, and retained-fixture evidence.
 - Produces: one repository evidence commit and an honest disposition.
 
-- [ ] **Step 1: Record exact execution evidence**
+- [x] **Step 1: Record exact execution evidence**
 
 Update this plan’s checkboxes and append one dated execution block containing:
 
@@ -1297,7 +1302,7 @@ Update this plan’s checkboxes and append one dated execution block containing:
 Do not record API keys, Tunnel ID, Profile contents, process IDs, Local file
 content, or full Browser transcripts.
 
-- [ ] **Step 2: Update the approved design with actual outcome**
+- [x] **Step 2: Update the approved design with actual outcome**
 
 Change future-tense statements only where runtime evidence now exists.
 Distinguish:
@@ -1308,7 +1313,7 @@ Distinguish:
 
 Do not call a Browser-incomplete run accepted or complete.
 
-- [ ] **Step 3: Run repository verification**
+- [x] **Step 3: Run repository verification**
 
 From `G:\workspace\development\GameEngine\miraikanai-engine`:
 
@@ -1324,7 +1329,7 @@ git diff -- `
 Expected: no whitespace errors and only the intended evidence documents
 changed.
 
-- [ ] **Step 4: Commit repository evidence**
+- [x] **Step 4: Commit repository evidence**
 
 ```powershell
 git add -- `
@@ -1336,7 +1341,7 @@ git commit -m "docs: record bounded local search verification"
 
 Do not add Personal Skill files or temporary baselines to the repository.
 
-- [ ] **Step 5: Apply retention rules**
+- [x] **Step 5: Apply retention rules**
 
 If Browser acceptance is complete and all accepted findings are closed, update
 the compact review summary as required and delete only the exact verified
@@ -1346,23 +1351,100 @@ If Browser acceptance is incomplete, retain the fixture and baseline, record
 why, and report the remaining Browser orchestration risk. Never recursively
 delete a computed or unverified path.
 
+## Execution Evidence — 2026-07-31
+
+### Evidence classification
+
+| Class | Recorded outcome |
+| --- | --- |
+| `official-spec` | OpenAI互換のsingle-property `search(query)`／`fetch(id)` shape、明示的output schema、`structuredContent`と先頭text contentの同値性を維持した。 |
+| `project-decision` | metadata-only process-local index、exact exclusions、5秒TTL、5秒／50,000 directory／100,000 searchable file limit、100 result limit、response performance `非常に高い`を採用した。OpenAIの一般推奨とは扱わない。 |
+| `measured` | 下記のfresh Local／Tunnel／Browser evidence。Browser formal acceptanceは`incomplete`／`blocked`であり、成功、accepted、closedとは扱わない。 |
+
+### Local and package verification
+
+| Check | Fresh result |
+| --- | --- |
+| Complete Server suite | exit code `0`; `128 passed in 13.08s` |
+| Lifecycle suite | independent child exit code `0`; `35/35 PASS` |
+| Static Skill/runtime validator | exit code `0`; `TOTAL_FAILURES=0` |
+| Skill validator | exit code `0`; `Skill is valid!` |
+| Package consistency | exit code `0`; `pip check` reported no broken requirements |
+| Exact self-test | exit code `0`; exact 4 Tool catalog、forbidden Tool 0、annotations exact |
+| Lock SHA-256 | `e5397d790776b5332fc84457d4344a698fb0634530805cebfd042b291a19a474` |
+| Fresh direct `search(query="known.md")` | 3 fresh processes: `2689ms`、`2762ms`、`2810ms`; all `is_error=false`; all `result_count=1` |
+| Direct `list_directory`／`fetch` | `is_error=false`; exact entry 1; expected ID; source bytes `34`; expected SHA-256; `extraction_status=complete` |
+
+Task 1のfresh non-repository baseline、Task 1からTask 3のRED／GREEN、atomic
+refresh fix rounds、Windows親HANDLE相対・reparse非追従のsearch／list／fetch、
+breaking version `2.0.0`、dependency不変の詳細は各Task reportに記録した。
+Personal SkillはGit管理外であり、Personal Skill commitは存在しない。
+
+### Tunnel verification
+
+最終コード反映時のcontrolled replacementではexact targetだけを停止し、fresh
+start後のreuseを確認した。続く2回のpreflightは
+`status=already-running`、`health=true`、`ready=true`で、
+`profile_verified`、`lock_verified`、`catalog_verified`、
+`allowed_root_verified`はすべてtrueだった。exact Tunnel processとcurrent runtimeは
+各1件、legacy Node／NPX runtimeは0件だった。
+Process ID、Tunnel ID、Profile内容、command line、環境変数、secretは記録していない。
+
+### Browser disposition
+
+- exact Project `AIネイティブC++ゲームエンジンプロジェクト`、memory
+  `プロジェクトのみ`、response performance `非常に高い`、app
+  `G Workspace Readonly`を送信直前に可視確認した。
+- app管理画面では`list_allowed_directories`、`list_directory`、`search`、`fetch`の
+  exact 4 read Actionsだけを確認した。
+- metadata-only promptは1回だけ送信した。最終応答はT6-R1
+  `list_allowed_directories`、T6-R2 `search(query="known.md")`、T6-R3 fixture parentの
+  `list_directory`、T6-R4 expected IDの`fetch`をすべてsuccessと報告した。
+- 最終応答のroot、catalog、Artifact ID、source bytes、source SHA-256、extraction
+  status、terminal markerはLocal manifestと一致し、`TimeoutError`、typed Tool
+  error、unexpected／write Toolは表示されなかった。
+- ただし、応答完了後にindependently visibleなcompleted Tool cardは0／4で、exact
+  per-turn Tool-card equalityは成立していない。最終応答の自己申告はactual Tool
+  card evidenceの代替にしない。Task 6 reportのhonest incomplete／blocked disposition
+  はreview済みだが、Browser acceptanceの成功としては承認されていない。
+- Browser attachment、upload、paste、Project Source、alternate app、write Toolの
+  使用はいずれも0回だった。同じSkill runでのfollow-upやfallbackは行っていない。
+
+### Retention disposition
+
+Browser formal acceptanceが`incomplete`のため、次のexact evidenceは削除せず保持する。
+
+- fixture:
+  `G:\workspace\.chatgpt-pro-readonly-mcp-acceptance-2c76ebe0-6eeb-4c67-8d13-44f2c7f12438`
+- Personal Skill baseline:
+  `C:\Users\y2ikg\AppData\Local\Temp\readonly-search-index-20260731-175500`
+- transient Browser transcript:
+  `C:\Users\y2ikg\AppData\Local\Temp\miraikanai-task6-browser-acceptance-root-20260731.md`
+
+File内容とfull transcriptはrepositoryへ記録していない。Consultation closureが未成立の
+ため`docs/reviews/README.md`は更新せず、fixture／baseline／transcriptを削除して
+いない。残るriskは、Browser UIが4件のcompleted Tool cardを永続表示せず、actual
+per-call status／targetのformal reconciliationを完了できないことである。
+
 ## Final Verification Matrix
 
 | Requirement | Evidence |
 | --- | --- |
 | Official `search(query)` shape unchanged | Catalog unit test and app management |
 | Exact four read-only Tools | Catalog, self-test, helper, Browser |
-| Search never reads content | `Path.open` regression and deleted content scan |
+| Search never reads content | no-open regression and deleted content scan |
 | Filename/path discovery | Index unit and stdio tests |
 | Deterministic rank | Literal ordered unit expectations |
 | Exclusions exact | Parameterized unit test |
 | Five-second refresh | Fake-clock unit test |
 | No stale/partial fallback | Refresh-failure unit test |
 | 100-result limit | 101-match typed-error test |
-| Root-scale timeout fixed | Ten-second stdio test and measured direct call |
-| `fetch` behavior preserved | Extractor suite and compatibility test |
+| Root-scale timeout fixed | Ten-second stdio test and 3 measured fresh direct calls |
+| Path traversal is race-resistant | parent-HANDLE-relative, reparse-nofollow tests and review |
+| `fetch` owns stable content read | same-HANDLE byte-read tests, extractor suite, compatibility test |
+| `list_directory` never truncates silently | raw-entry limit and reparse/device tests |
 | Package breaking version | stdio initialization reports `2.0.0` |
 | Lock and dependencies unchanged | SHA-256 and `pip check` |
 | Tunnel runs new code | Controlled restart and safe readiness fields |
 | No upload path used | Browser inspection and execution evidence |
-| Original Browser symptom resolved | `search(query="known.md")` Tool card completes |
+| Original Browser symptom disposition | Local direct searchは2689–2810msで3回成功し、Browser最終応答に`TimeoutError`はなかった。ただしcompleted Tool card 0／4のためformalには未解決 |
