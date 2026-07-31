@@ -55,21 +55,16 @@ source.
 - Apply this section only when the user explicitly invokes
   `$collaborating-with-chatgpt-pro` for work concerning this repository or its
   artifacts.
-- Use the ChatGPT Desktop app's built-in Browser, operated by Codex, to open
-  browser ChatGPT at:
-  `https://chatgpt.com/g/g-p-6a69aacb1ae88191a27dd74eeb166569/project`.
+- Use the Codex in-app Browser and start each distinct outcome in a fresh standalone chat at `https://chatgpt.com/`.
 - Browser ChatGPT is the MCP client that uses the verified Secure MCP
   Tunnel-backed `G Workspace Readonly` app; Codex only controls and verifies
   the Browser UI.
-- Before sending, visibly verify the Project title
-  `AIネイティブC++ゲームエンジンプロジェクト`, memory mode
-  `プロジェクトのみ`, and browser ChatGPT response performance `Pro`. Start a new
-  chat inside that Project for each distinct outcome. The collapsed response
-  performance button must display `Pro` for every send.
-- If the route, Project identity, memory mode, or response performance
-  `Pro` cannot be verified,
-  stop as blocked. Do not fall back to another Project, a standalone ChatGPT
-  chat, Chrome, an API, `非常に高い`, `高い`, `中程度`, or a lower mode.
+- Before sending, visibly verify that the chat is not Project-bound, the
+  response-performance control is selected as `Pro`, the collapsed control
+  reads `Pro`, and the exact `G Workspace Readonly` app is selected.
+- Treat any path beginning with `/g/g-p-`, Project memory, Project Source,
+  another app, API, Chrome, a lower response-performance option, or file
+  attachment/upload/paste as forbidden fallbacks.
 - This section selects the destination only. The Global Skill owns dynamic
   prompt generation, in-session transcript handling, adjudication, and stop
   rules. The repository policy below owns post-closure retention.
@@ -77,10 +72,10 @@ source.
   task-relevant artifacts under `G:\workspace`. Before relying on it, verify
   the allowed root, this repository's reachability, and the required tool
   capabilities. Do not infer read-only or write capability from the app name.
-- If Tunnel access is unavailable or incomplete, use the Global Skill's
-  authorized chat-delivery fallback. Tunnel reads and writes remain limited by
-  the Task Contract, and ChatGPT-originated changes require local diff and
-  validation by Codex.
+- If Tunnel access is unavailable or incomplete, stop as `blocked`. Do not
+  attach, upload, paste, use Project Source, or fall back to another route.
+  Tunnel reads and writes remain limited by the Task Contract, and
+  ChatGPT-originated changes require local diff and validation by Codex.
 
 ## External consultation evidence retention
 

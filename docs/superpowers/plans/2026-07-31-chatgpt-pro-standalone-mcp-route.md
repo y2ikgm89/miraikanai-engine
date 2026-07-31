@@ -33,7 +33,7 @@
 
 **Produces:** named failing checks which distinguish the required standalone route, forbidden Project gates, and Tunnel evidence from the old contract.
 
-- [ ] **Step 1: Add the standalone-route shape check without editing production contracts**
+- [x] **Step 1: Add the standalone-route shape check without editing production contracts**
 
 After the current route verification block, add a check equivalent to:
 
@@ -56,7 +56,7 @@ $standaloneChatRouteRequired = Has-All $prompt @(
 Add-Result 'StandaloneChatRouteRequired' $standaloneChatRouteRequired
 ```
 
-- [ ] **Step 2: Add explicit absence checks for the deleted Project contract**
+- [x] **Step 2: Add explicit absence checks for the deleted Project contract**
 
 Build current-contract text only from `SKILL.md` and the five active references. Add separate results:
 
@@ -78,7 +78,7 @@ Add-Result 'ProjectMemoryGateForbidden' $projectMemoryGateForbidden
 
 Keep the phrase `Project Source` allowed only inside deny rules; do not use a blanket search for the word `Project`.
 
-- [ ] **Step 3: Add telemetry, no-upload, exact-app, Pro, and no-fallback predicates**
+- [x] **Step 3: Add telemetry, no-upload, exact-app, Pro, and no-fallback predicates**
 
 Require the transcript schema and the owner rules with named results:
 
@@ -100,7 +100,7 @@ Add-Result 'TunnelTelemetryEvidenceRequired' $tunnelTelemetryEvidenceRequired
 
 Add or retain distinct `ResponsePerformanceProRequired`, `ExactBrowserAppIdentity`, `BrowserUploadsAlwaysDenied`, and `NoRouteFallback` checks. Each result must test its canonical owner rather than pass because the same sentence is duplicated across every reference.
 
-- [ ] **Step 4: Run the validator and capture RED**
+- [x] **Step 4: Run the validator and capture RED**
 
 Run:
 
@@ -127,7 +127,7 @@ Expected: exit code `1`; at least `FAIL StandaloneChatRouteRequired`, `FAIL Proj
 
 **Produces:** one active standalone Browser route, one telemetry-aware completion rule, and zero current Project route aliases.
 
-- [ ] **Step 1: Replace the Skill route phase**
+- [x] **Step 1: Replace the Skill route phase**
 
 In `SKILL.md`, replace the Project identity／memory phase with a standalone route phase that requires:
 
@@ -141,7 +141,7 @@ In `SKILL.md`, replace the Project identity／memory phase with a standalone rou
 
 Keep Codex as Browser control plane and browser ChatGPT as MCP client. Remove exact Project URL/title, Project chat creation, and Project-memory verification from active workflow text.
 
-- [ ] **Step 2: Make the prompt contract the canonical route owner**
+- [x] **Step 2: Make the prompt contract the canonical route owner**
 
 Replace `project_route:` with the exact `chat_route:` YAML from the approved design. Add a metadata-only context manifest whose item shape is:
 
@@ -161,7 +161,7 @@ artifact_manifest:
 
 State that Local Artifact body, quoted excerpts, encoded payloads, and substitute summaries are forbidden in the prompt. Require only task-relevant exact allowlist entries.
 
-- [ ] **Step 3: Align artifact delivery and completion ownership**
+- [x] **Step 3: Align artifact delivery and completion ownership**
 
 In `artifact-delivery-contract.md`, replace Project-route wording with standalone route and retain the four exact read-only Tools. Make `search` metadata-first and `fetch` content-returning. Keep attachment, upload, paste, Project Source, and Tunnel write as unconditional denies.
 
@@ -179,7 +179,7 @@ standalone route verified
 
 Define a visible Tool card as supplemental evidence when exposed. A card must not replace telemetry or completeness; a missing card must not independently fail an otherwise fully corroborated turn.
 
-- [ ] **Step 4: Replace transcript route fields and add sanitized telemetry**
+- [x] **Step 4: Replace transcript route fields and add sanitized telemetry**
 
 In `transcript-contract.md`, replace the current route block with:
 
@@ -215,11 +215,11 @@ tunnel_telemetry:
 
 Explicitly forbid retaining Tunnel IDs, request IDs, Profile contents, credentials, or secrets. Replace `tunnel_tool_calls: count` with the canonical delta block rather than keeping both schemas.
 
-- [ ] **Step 5: Align adjudication and terminal blockers**
+- [x] **Step 5: Align adjudication and terminal blockers**
 
 In `adjudication-and-stop-rules.md`, make every primary／follow-up completion check revalidate fresh standalone route, visible `Pro`, exact app, Tunnel delta, and Artifact completeness. Remove standalone chat from forbidden fallbacks; add Project chat and any path beginning with `/g/g-p-` as forbidden destinations. Preserve no-API, no-upload, no-lower-mode, and no-write rules.
 
-- [ ] **Step 6: Make all new validator predicates GREEN**
+- [x] **Step 6: Make all new validator predicates GREEN**
 
 Remove or replace `BrowserProjectMemoryProVisualVerification`. Keep the existing `ResponsePerformanceSelectionPolicy` and `TranscriptObservedProModeDate` only if their patterns match the new canonical schema without accepting Project state. Replace `ResourceObservationShape`'s legacy `tunnel_tool_calls: count` expectation with the six-field `tunnel_telemetry` schema.
 
@@ -243,7 +243,7 @@ Expected: exit code `0`; all eight approved-design predicates are `PASS`; `TOTAL
 
 **Produces:** repository-specific destination selection that adds no second schema and no Project-only exception.
 
-- [ ] **Step 1: Replace the ChatGPT Pro collaboration route section**
+- [x] **Step 1: Replace the ChatGPT Pro collaboration route section**
 
 Keep the invocation trigger and repository authority boundaries. Replace the exact Project URL/title/memory rules with:
 
@@ -255,7 +255,7 @@ Keep the invocation trigger and repository authority boundaries. Replace the exa
 
 Link behavior ownership back to the Global Skill. Keep repository Artifact access under `G:\workspace`, Task Contract authority, local diff validation, and the retention policy unchanged.
 
-- [ ] **Step 2: Check required and forbidden active text**
+- [x] **Step 2: Check required and forbidden active text**
 
 Run:
 
@@ -283,7 +283,7 @@ Expected: exit code `0`.
 
 **Produces:** current evidence that route documentation changes did not regress Tunnel lifecycle or Local Filesystem MCP behavior.
 
-- [ ] **Step 1: Run the static Skill validator**
+- [x] **Step 1: Run the static Skill validator**
 
 ```powershell
 & 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\scripts\validate_secure_mcp_contract.ps1'
@@ -291,7 +291,7 @@ Expected: exit code `0`.
 
 Expected: `TOTAL_FAILURES=0`.
 
-- [ ] **Step 2: Run the Tunnel lifecycle suite**
+- [x] **Step 2: Run the Tunnel lifecycle suite**
 
 ```powershell
 & 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\scripts\test_ensure_secure_mcp_tunnel.ps1'
@@ -299,7 +299,7 @@ Expected: `TOTAL_FAILURES=0`.
 
 Expected: exit code `0`; all lifecycle cases pass. Do not include Profile contents or generated Tunnel identifiers in durable evidence.
 
-- [ ] **Step 3: Run the Local MCP test suite and self-test**
+- [x] **Step 3: Run the Local MCP test suite and self-test**
 
 ```powershell
 $serverRoot = 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\mcp-server'
@@ -310,7 +310,7 @@ $venvPython = Join-Path $serverRoot '.venv\Scripts\python.exe'
 
 Expected: pytest exit code `0`; self-test reports the exact Tool catalog `list_allowed_directories`, `list_directory`, `search`, `fetch` and no write Tool.
 
-- [ ] **Step 4: Run the system Skill validator**
+- [x] **Step 4: Run the system Skill validator**
 
 ```powershell
 $venvPython = 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\mcp-server\.venv\Scripts\python.exe'
@@ -333,7 +333,7 @@ Expected: exit code `0` and a valid Skill package.
 
 **Produces:** one fail-closed End-to-End disposition based on visible route state, sanitized Tunnel delta, and exact Artifact completeness.
 
-- [ ] **Step 1: Load Browser instructions and ensure the Tunnel lifecycle**
+- [x] **Step 1: Load Browser instructions and ensure the Tunnel lifecycle**
 
 Read `browser:control-in-app-browser` completely before Browser calls. Run the lifecycle helper exactly as documented by the Skill:
 
@@ -343,7 +343,7 @@ Read `browser:control-in-app-browser` completely before Browser calls. Run the l
 
 Expected: healthy existing Tunnel is reused; absent/unhealthy Tunnel is started and becomes ready; a hard lifecycle failure stops the acceptance.
 
-- [ ] **Step 2: Derive the known Artifact manifest locally**
+- [x] **Step 2: Derive the known Artifact manifest locally**
 
 Resolve one existing `known.md` acceptance Artifact under `G:\workspace`. Record only its root-relative ID, byte count, lowercase SHA-256, and non-secret marker in task-local evidence:
 
@@ -362,7 +362,7 @@ $manifest | ConvertTo-Json
 
 Do not paste the file body into the browser prompt.
 
-- [ ] **Step 3: Capture sanitized Tunnel baseline**
+- [x] **Step 3: Capture sanitized Tunnel baseline**
 
 From the currently running tunnel client's loopback admin telemetry, record only:
 
@@ -374,7 +374,7 @@ captured_at: ISO-8601 with offset
 
 Obtain the concrete read-only metrics/log endpoints from the installed tunnel client's current help/schema before querying; do not guess ports or endpoint paths. Discard Tunnel IDs, request IDs, Profile body, credentials, and unrelated log messages immediately.
 
-- [ ] **Step 4: Start and verify the exact Browser route**
+- [x] **Step 4: Start and verify the exact Browser route**
 
 Using only the in-app Browser, navigate to `https://chatgpt.com/`, start a fresh standalone chat, and verify:
 
@@ -391,7 +391,7 @@ browser_app_access: read-only
 
 Stop as `blocked` if URL/state is Project-bound, `Pro` is not visibly selected, or exact app identity cannot be verified.
 
-- [ ] **Step 5: Send one metadata-only acceptance prompt**
+- [x] **Step 5: Send one metadata-only acceptance prompt**
 
 Require browser ChatGPT to call `list_allowed_directories`, then `fetch` for the exact `artifact_id`, and return only:
 
@@ -413,7 +413,16 @@ forward_event_delta = count(sanitized matching forward events after baseline_log
 
 Pass only when both deltas are positive and the response's Artifact ID, bytes, digest, marker, and completeness match the local manifest. A visible Tool card may be recorded as supplemental evidence. Any zero delta, mismatch, partial read, or inferred response is `blocked`.
 
-- [ ] **Step 7: Finalize Browser tabs as the last Browser operation**
+> **Current blocker (2026-08-01):** Initial telemetry and response observations did
+> not preserve the active Transcript contract's per-call `call_id`, exact-one
+> requirement mapping, or duplicate／unauthorized-extra reconciliation. They are
+> historical and non-dispositive. A strict retry stopped before navigation because
+> `iab` was unavailable in the subagent Browser inventory; lifecycle was `ready`,
+> sends／uploads／fallbacks were 0. Current live acceptance is `blocked`／
+> `incomplete`. Resume in a parent context with `iab` and rerun a fresh acceptance
+> with call-level reconciliation for every observed call.
+
+- [x] **Step 7: Finalize Browser tabs as the last Browser operation**
 
 After the final visible evidence read, call the Browser tab finalization method. Make no Browser call afterward in this execution turn.
 
@@ -431,17 +440,17 @@ After the final visible evidence read, call the Browser tab finalization method.
 
 **Produces:** a compact non-normative audit record, checked plan completion state, and one repository commit without transient consultation data.
 
-- [ ] **Step 1: Record only current implementation and acceptance evidence**
+- [x] **Step 1: Record only current implementation and acceptance evidence**
 
 Append a compact implementation record to the approved design: changed active contracts, named validator result, lifecycle/pytest/self-test/Skill-validator result, browser route, visible mode, sanitized Tunnel deltas, Artifact completeness, upload count `0`, and final `pass` or `blocked` disposition.
 
 Update `docs/reviews/README.md` before deleting any transient prompt/response/screenshot data. Include audit ID/date, standalone route and `Pro`, scope, input count and digest, valid-gap count, affected active contracts, closure result, exact terminal marker, response digest when available, and retention disposition. Never promote this review summary to Architecture or implementation evidence.
 
-- [ ] **Step 2: Mark plan checkboxes from actual evidence**
+- [x] **Step 2: Mark plan checkboxes from actual evidence**
 
 Check only completed steps. If live acceptance is blocked, leave its unmet pass predicate unchecked and record the exact blocker; local implementation tasks may still be checked independently.
 
-- [ ] **Step 3: Scan current contracts for stale route aliases and unfinished markers**
+- [x] **Step 3: Scan current contracts for stale route aliases and unfinished markers**
 
 Run:
 
@@ -468,7 +477,7 @@ if ($unfinished) { $unfinished; throw 'unfinished marker remains' }
 
 Expected: exit code `0`.
 
-- [ ] **Step 4: Run final repository checks and inspect the complete diff**
+- [x] **Step 4: Run final repository checks and inspect the complete diff**
 
 ```powershell
 git diff --check
@@ -479,7 +488,7 @@ git diff -- AGENTS.md docs/superpowers/specs/2026-07-31-chatgpt-pro-standalone-m
 
 Confirm no unrelated file changed, no absent implementation is claimed, and evidence labels distinguish official facts, user requirement, project decision, and measured result.
 
-- [ ] **Step 5: Stage and commit only repository-owned changes**
+- [x] **Step 5: Stage and commit only repository-owned changes**
 
 ```powershell
 git add -- AGENTS.md docs/superpowers/specs/2026-07-31-chatgpt-pro-standalone-mcp-route-design.md docs/superpowers/plans/2026-07-31-chatgpt-pro-standalone-mcp-route.md docs/reviews/README.md

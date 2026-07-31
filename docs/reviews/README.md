@@ -114,3 +114,48 @@ R22はArchitecture target designに対するreview closureである。Executable
 
 この記録はnon-normative acceptance evidenceであり、Architectureの型、値、状態、Gate、
 実装、qualification、activation、releaseまたはProduct completionを定義・証明しない。
+
+## 6. CHATGPT-PRO-STANDALONE-MCP-20260731
+
+| Field | Value |
+|---|---|
+| Evidence classification | `non-normative measured route-acceptance summary` |
+| Date | 2026-07-31–2026-08-01 |
+| Route／mode | initial historical observation: fresh standalone browser ChatGPT `/c/` outside Project／visible and collapsed `Pro`; strict retry: unverified because `iab` was unavailable before navigation |
+| App／scope | initial historical observation: exact `G Workspace Readonly`／`G:\workspace` read-only; strict retry: not checked because the `iab` gate failed first |
+| Scope | Personal Skillのstandalone route、Secure MCP Tunnel lifecycle、exact 4 read-only Tools、metadata-only Local Artifact read |
+| Input | initial transient fixture 1件／140 bytes; strict-retry transient fixture 1件／146 bytes |
+| Input SHA-256 | initial `4364a4f96597833375e0ad1e4db0327e0ebbd94dba8d09f902bec492d017c602`; strict retry `701c3b884a1f043805b6e478455cd8359a760c68df51f3b70de1a34f4c60e9b8` |
+| Valid gap count | `1 acceptance-evidence gap (not Architecture gap)` |
+| Affected active contracts | Personal Skill `SKILL.md`; `prompt-generation-contract.md`; `artifact-delivery-contract.md`; `response-completion-gate.md`; `transcript-contract.md`; `adjudication-and-stop-rules.md`; `validate_secure_mcp_contract.ps1`; repository `AGENTS.md` destination policy |
+| Local closure | static validator `62/62 PASS`／`TOTAL_FAILURES=0`; lifecycle `35/35 PASS`／`TOTAL_TESTS=35`; pytest `128 passed`; self-test exact 4 read-only Tools／`forbidden_tools: []`; Skill validator `Skill is valid!` |
+| Live closure | `blocked`／`incomplete`: initial run lacked call-level `call_id`／exact-one／duplicate-extra reconciliation required by the active Transcript contract. Strict retry stopped before navigation because the subagent Browser inventory had no `iab` backend; lifecycle `ready`, Browser send 0, attachment／upload／paste／Project Source／fallback 0 |
+| Unresolved acceptance-evidence gap | Record every observed Tool call with stable `call_id`, exactly one expected `requirement_id`, status/error, and reconcile missing／duplicate／failed／unauthorized extra calls before declaring completeness |
+| Historical terminal response／marker | 下記のChatGPT自己報告を参照。local adjudicationによりacceptance pass証拠としてはnon-dispositive |
+| Historical visible response evidence canonicalization | `UTF-8 LF of captured stable in-app Browser DOMSnapshot assistant block, from ChatGPT heading through immediately before response actions` |
+| Historical visible response evidence bytes | 7,172 |
+| Historical visible response evidence SHA-256 | `5887b3e1b6f6407f11784c8a27538ce2d3996024c4d8ee827c5457a06dd4e787` |
+| Digest scope | historical stable visible DOMSnapshot assistant-block evidence。raw transport payloadまたは保持済み応答全文のhashではなく、current acceptance dispositionを証明しない |
+| Strict retry terminal response | `not-available-no-send` |
+| Resume action | `iab`を利用できるparent contextでfresh acceptanceを再実行し、active Transcript contractのcall-level reconciliationを全observed callについて取得する |
+| Retention disposition | `sanitized-summary-only`; initial transient recordsは既に削除し、strict-retry fixture／reportもsummary検証後に削除。strict retryはsend前に停止したためprompt／response／screenshotなし |
+
+Historical exact terminal response（ChatGPT自己報告、non-dispositive）:
+
+```text
+PASS
+
+4件の必須ツール要件が同一応答内で完了し、指定された1件のartifactのみをfetchしました。バイト数とSHA-256はManifestに完全一致し、フォールバックは使用していません。
+
+STANDALONE_PRO_MCP_ACCEPTANCE_20260731
+```
+
+Browser表示上の`fetch`のcode stylingは、上記historical canonical terminal textでは
+plain textへ正規化した。raw応答全文は保持しない。この応答、初回telemetry、Artifact
+digestおよびvisible response digestは観測事実だが、欠落したcall-level reconciliation
+を補わず、current acceptance dispositionは`blocked`である。
+
+この項目はBrowser routeとLocal Artifact readの監査要約に限られ、Architecture Owner、
+Engine実装、materialized Fixture、qualification、releaseまたはProduct completionの
+証拠ではない。Personal Skillのactive contractはrepository外にあり、このrepository
+commitには含まれない。

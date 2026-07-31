@@ -233,3 +233,43 @@ Chrome、Project chat、低い応答性能は使用しない。
 - Tunnel、app、route、`Pro`、Tool、coverage failureで別routeへfallbackしない。
 - static validator、Skill validator、lifecycle suite、Local MCP suiteがpassする。
 - live acceptanceでstandalone `Pro` turnからknown ArtifactのEnd-to-End readが成功する。
+
+## 11. 実装・受入記録（2026-07-31）
+
+- 証拠分類: `measured`
+- disposition: `blocked`
+- active contract変更: Personal Skill `SKILL.md`、five reference contracts、static
+  validatorの計7ファイル、およびrepository `AGENTS.md`のdestination policy
+- static validator: `62/62 PASS`、`TOTAL_FAILURES=0`
+- Tunnel lifecycle suite: `35/35 PASS`、`TOTAL_TESTS=35`
+- Local Filesystem MCP: pytest `128 passed`、self-testは
+  `list_allowed_directories`／`list_directory`／`search`／`fetch`のexact 4 read-only
+  Toolsと`forbidden_tools: []`を確認
+- Skill package validator: `Skill is valid!`
+- historical initial observation: fresh standalone `/c/` chat、Project外、visibleかつ
+  collapsed `Pro`、exact `G Workspace Readonly`、`G:\workspace` read-only scope、
+  metadata-only primary send 1回、Browser upload／attachment／Artifact本文paste／Project
+  Source各0回、sanitized Tunnel telemetry `tools/call +26`／forward event `+15`を
+  観測した。unauthorized Tool 0はresponse-reportedでありcall-level確認済みではない
+- historical response-reported Artifact: input 1件、140 bytes、SHA-256
+  `4364a4f96597833375e0ad1e4db0327e0ebbd94dba8d09f902bec492d017c602`、
+  required Tools `4/4 PASS`、content-derived heading／last-line一致を応答上で観測した
+- historical terminal marker: `STANDALONE_PRO_MCP_ACCEPTANCE_20260731`。これは
+  ChatGPT自己報告であり、local adjudication後のacceptance pass証拠ではない
+- historical visible response evidence: stable in-app Browser DOMSnapshot assistant blockを
+  `UTF-8 LF`へ正規化した7,172 bytes、SHA-256
+  `5887b3e1b6f6407f11784c8a27538ce2d3996024c4d8ee827c5457a06dd4e787`。raw transport
+  payloadのhashではなく、raw応答全文は保持しない。このdigestもhistoricalかつ
+  non-dispositiveである
+- acceptance-evidence gap: 1。初回観測はactive Transcript contractが要求する各
+  observed callの`call_id`、expected requirementへのexact-one対応、およびduplicate／
+  unauthorized extraを含む全call reconciliationを保持していない
+- strict retry: lifecycleは`ready`だったが、subagent Browser inventoryに`iab`がなく
+  Edgeだけが見えたためnavigation前にfail closedした。Browser send、attachment、
+  upload、paste、Project Source、fallbackは各0回で、completenessは`incomplete`
+- resume action: `iab`を利用できるparent contextでfresh acceptanceを再実行し、全
+  observed callのcall-level reconciliationを含む現行contractを満たす
+
+この記録はPersonal Skill routeと受入試験の実測であり、Engine、Schema、Registry、
+Fixture、Build、CI、runtime implementation、qualification、releaseまたはProduct
+completionのmaterializationを証明しない。
