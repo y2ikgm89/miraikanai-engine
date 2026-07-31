@@ -18,7 +18,7 @@
 - Browser attachment、upload、Local Artifact本文のprompt paste、Project Source、alternate app、standalone-chat fallback、公開HTTPS fallbackを禁止する。
 - 既存ChatGPT Project、既存chat、既存App、Tunnel Profile、Local MCP実装、現行Personal Skill contract、repository `AGENTS.md`を変更しない。
 - `tunnel_id`、request ID、Profile本文、API key、cookie、account ID、Local secretをdurable evidenceへ保存しない。
-- response-performance optionは変更しない。今回の公式acceptanceはTool discovery／Tool callを判定対象とする。
+- 初回`Pro` chatでTool catalogがsessionへ公開されなかった実測後は、同じProject内の新規chatでresponse performanceだけをApp互換の非`Pro` modelへ変更する。別条件は変えず、一度だけ再試行する。
 - 失敗時は別経路へ切り替えず、last verified stateとminimum resume actionを`blocked`として記録する。
 
 ---
@@ -247,7 +247,7 @@ Expected: the Project opens with the exact title and Project-only memory. If a P
 
 Start a new chat inside the Project, open its Tools menu, and add exact `G Workspace Readonly`.
 
-Expected: the composer visibly shows the selected app. Do not change response performance, attach files, add Project Sources, or select another app.
+Expected: the composer visibly shows the selected app. Task 4ではresponse performanceを変更せず、添付、Project Sources、別Appも追加しない。Task 5の初回`Pro`診断がTool非公開で終わった場合だけ、承認済み設計の一変数再試行へ進む。
 
 ---
 
@@ -277,7 +277,13 @@ captured_at: ISO-8601 with offset
 
 If these sanitized values cannot be derived from the current surfaces, record telemetry as unavailable and use the visible ChatGPT Tool cards plus exact fetch metadata as the required Tool evidence; do not infer a call from the response text alone.
 
-- [ ] **Step 2: Send one metadata-only acceptance prompt**
+- [ ] **Step 2: Select one App-compatible non-Pro model for the corrected retry**
+
+The initial `Pro` attempt is retained as measured diagnostic evidence: the exact app pill was visible, but the session exposed no required Tool and produced no Tool card. Start one new chat in the same Project, change only response performance to a non-`Pro` model that the current UI presents as App-compatible, then reselect exact `G Workspace Readonly`.
+
+Expected: exact Project, app, prompt, Artifact, memory, and safety constraints remain unchanged. Record the visible non-`Pro` model label. If no App-compatible non-`Pro` option is available, stop `blocked` without changing the Tunnel or app.
+
+- [ ] **Step 3: Send one metadata-only corrected acceptance prompt**
 
 Send the following prompt after verifying exact `G Workspace Readonly` is still selected:
 
@@ -290,15 +296,15 @@ G Workspace Readonlyだけを使って、次を順に実行してください。
 添付、Project Source、Web検索、別Appは使わないでください。最終回答には、観測したroot、Artifact ID、metadata.source_bytes、metadata.source_sha256、先頭見出し、各Toolの成功／失敗、および完了marker CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801 だけを記載してください。Toolが利用できなければ推測せず、利用できないTool名とエラーを記載してください。
 ```
 
-Expected: the chat visibly invokes `list_allowed_directories`, `list_directory`, and `fetch` in order. No local Artifact content appears in the prompt.
+Expected: this corrected chat visibly invokes `list_allowed_directories`, `list_directory`, and `fetch` in order. No local Artifact content appears in the prompt. Do not send a third acceptance attempt.
 
-- [ ] **Step 3: Wait for verified completion and inspect Tool evidence**
+- [ ] **Step 4: Wait for verified completion and inspect Tool evidence**
 
 Wait until generation is complete. Inspect every visible Tool card and final response. Record exact Tool names, call status, and typed error or `none` without retaining the fetched body.
 
 Expected: exactly one successful call for each required Tool and no unexpected Tool.
 
-- [ ] **Step 4: Reconcile response metadata with the Local manifest**
+- [ ] **Step 5: Reconcile response metadata with the Local manifest**
 
 Pass only when all are equal:
 
@@ -313,7 +319,7 @@ completion marker == CHATGPT_PROJECT_MCP_ACCEPTANCE_20260801
 
 Any missing Tool card, mismatch, partial read, extra Tool, inferred value, or unavailable exact app yields `blocked`.
 
-- [ ] **Step 5: Capture the sanitized final Tunnel delta**
+- [ ] **Step 6: Capture the sanitized final Tunnel delta**
 
 Read `/metrics` and `/ui` again and calculate only:
 

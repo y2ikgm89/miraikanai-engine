@@ -8,6 +8,8 @@
 - 外部根拠:
   - [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
   - [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt)
+  - [Apps in ChatGPT](https://help.openai.com/en/articles/11487775-connectors-in)
+  - [Projects in ChatGPT](https://help.openai.com/en/articles/10169521-projects-in-chatgpt)
 - 関連記録:
   - [ChatGPT Web Pro MCP Route Clarification Design](2026-07-31-chatgpt-web-pro-mcp-route-clarification-design.md)
   - [ChatGPT Pro Standalone MCP Route Design](2026-07-31-chatgpt-pro-standalone-mcp-route-design.md)
@@ -42,14 +44,17 @@ Browser版ChatGPTに新規Project `Secure MCP Tunnel 検証`を作成し、そ�
 | Secure MCP Tunnelはprivate MCP Serverをpublic internetへ公開せず、対応OpenAI productから利用可能にする。 | `official-spec` | OpenAI Secure MCP Tunnel guide |
 | ChatGPTではDeveloper mode appを作成し、Tunnelを選択してTool／metadataを発見し、新規conversationのTools menuから接続する。 | `official-spec` | OpenAI Connect and test guide |
 | Tunnel associationはChatGPT Workspace／Platform Organizationを対象とし、ChatGPT Project単位ではない。 | `official-spec` | OpenAI Secure MCP Tunnel guide |
+| Connected appはProject chatで利用できるが、App互換性はmodelを含む利用条件によって異なる。 | `official-spec` | OpenAI Projects／Apps Help Center |
 | 新規Project名を`Secure MCP Tunnel 検証`とし、memoryを`プロジェクトのみ`にする。 | `project-decision` | 今回の検証を他Project contextから分離するため |
 | 既存`G Workspace Readonly`を再利用し、重複Appを作成しない。 | `project-decision` | 最小変更と既存設定保護 |
 | 過去のProject chatではTool catalogがturnへ公開されなかった。 | `measured`／historical | 2026-07-31 route clarification record |
+| 新規Projectの`Pro` chatではexact app選択後もsession Tool listが空で、Tool callが0件だった。 | `measured` | 2026-08-01 Task 5 initial attempt |
 
-公開資料は特定のresponse-performance optionをTunnel利用条件として要求していない。
-従って今回のacceptanceでは応答性能を変更せず、Tool discovery／Tool callの成否だけを
-検証する。これは既存の`collaborating-with-chatgpt-pro` Skill routeやMiraikanaiの
-Project固有`Pro`要件を変更しない。
+公式Help CenterはApp互換性がmodelによって異なると明記している。`Pro` chatでToolが
+公開されなかった実測を受け、同じProject、app、prompt、Artifactを保ったまま、
+response performanceだけをApp互換の非`Pro` modelへ変更して一度再試行する。これは
+今回のacceptanceに限る`project-decision`であり、既存の
+`collaborating-with-chatgpt-pro` Skill contractや別Projectの設定を変更しない。
 
 ## 3. 採用方式
 
@@ -62,8 +67,10 @@ Project固有`Pro`要件を変更しない。
 3. ChatGPTのDeveloper modeとexact app identityを可視確認し、既存connectionを
    `Refresh`してTool metadataを再取得する。
 4. Browser版ChatGPTに新規Projectを作成し、Project内の新規chatでexact appを追加する。
-5. metadata-only acceptance promptを1回送信し、Tool実行結果とsanitized Tunnel
-   telemetry deltaをLocal manifestに照合する。
+5. `Pro`でTool catalogがsessionへ公開されないことを確認した場合は、新規Project chatの
+   response performanceだけをApp互換の非`Pro` modelへ変更し、metadata-only
+   acceptance promptを一度再送してTool実行結果とsanitized Tunnel telemetry deltaを
+   Local manifestに照合する。
 
 既存connectionの削除、同じTunnelを使う重複App作成、Tunnel Profile変更、Local MCP
 Server実装変更、公開HTTPS化、Plugin submissionは今回の範囲外とする。
@@ -96,6 +103,8 @@ Browser ChatGPT Project chat
   discovery failureとして`blocked`にする。
 - Project chatでexact appを選択できない、Tool callが発生しない、または結果照合が失敗
   した場合は、standalone chat、別App、upload、paste、公開endpointへfallbackしない。
+- `Pro` chatでTool callが発生せずsession Tool listにも公開されない場合に限り、同じ
+  Project内の新規chatでApp互換の非`Pro` modelへ変える一変数の再試行を許可する。
 - Browserがsign-in、管理者承認、OAuthなど明示的なuser actionを要求した場合は、その場で
   停止して必要な操作だけを依頼する。
 
