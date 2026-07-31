@@ -174,7 +174,7 @@ Run from the MCP server directory:
 
 ```powershell
 $python = 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\mcp-server\.venv\Scripts\python.exe'
-& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server --method tools/list
+& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server -- --method tools/list
 ```
 
 Expected: exit code `0`; exactly `list_allowed_directories`, `list_directory`, `search`, `fetch` with explicit input/output schemas and read-only annotations.
@@ -186,10 +186,10 @@ Run:
 ```powershell
 $python = 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\mcp-server\.venv\Scripts\python.exe'
 $artifactId = 'development/GameEngine/miraikanai-engine/docs/superpowers/specs/2026-08-01-chatgpt-project-secure-mcp-tunnel-acceptance-design.md'
-& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server --method tools/call --tool-name list_allowed_directories
-& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server --method tools/call --tool-name list_directory --tool-arg 'path=development/GameEngine/miraikanai-engine/docs/superpowers/specs'
-& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server --method tools/call --tool-name search --tool-arg 'query=2026-08-01-chatgpt-project-secure-mcp-tunnel-acceptance-design.md'
-& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server --method tools/call --tool-name fetch --tool-arg "id=$artifactId"
+& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server -- --method tools/call --tool-name list_allowed_directories
+& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server -- --method tools/call --tool-name list_directory --tool-arg 'path=development/GameEngine/miraikanai-engine/docs/superpowers/specs'
+& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server -- --method tools/call --tool-name search --tool-arg 'query=2026-08-01-chatgpt-project-secure-mcp-tunnel-acceptance-design.md'
+& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server -- --method tools/call --tool-name fetch --tool-arg "id=$artifactId"
 ```
 
 Expected: allowed root `G:\workspace`; directory and search results contain the acceptance design; fetch returns matching `id`, `metadata.source_bytes`, `metadata.source_sha256`, and marker text.
@@ -200,8 +200,8 @@ Run each command separately and retain only the typed error category:
 
 ```powershell
 $python = 'C:\Users\y2ikg\.agents\skills\collaborating-with-chatgpt-pro\mcp-server\.venv\Scripts\python.exe'
-& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server --method tools/call --tool-name fetch --tool-arg 'id=../outside.txt'
-& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server --method tools/call --tool-name write_file --tool-arg 'path=forbidden.txt'
+& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server -- --method tools/call --tool-name fetch --tool-arg 'id=../outside.txt'
+& npx.cmd -y '@modelcontextprotocol/inspector@latest' --cli $python -m readonly_local_files.server -- --method tools/call --tool-name write_file --tool-arg 'path=forbidden.txt'
 ```
 
 Expected: path escape returns a typed boundary error; `write_file` returns method/tool not found. Neither command creates or changes a file.
