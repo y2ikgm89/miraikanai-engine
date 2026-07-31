@@ -56,8 +56,9 @@
 - Existing Tunnel processの停止とProfile置換はTask 9のcontrolled migrationだけが
   行う。通常preflight mismatchはprocessをkillせず`blocked`にする。
 - App catalog refresh後は既存chatを使わず、exact Project内の新規chatで
-  `プロジェクトのみ`、visible `応答性能: Pro`、collapsed `Pro`、exact appを
-  確認する。
+  `プロジェクトのみ`、visible `応答性能: 非常に高い`、collapsed
+  `非常に高い`、exact appを確認する。response-performance `Pro`はcustom MCP
+  turnで使用しない。
 - Browser acceptanceで添付、upload、paste、Project Source追加を一度も行わない。
 - Personal SkillはGit-backedではない。編集前baselineをtask-local `%TEMP%`へ保存し、
   Personal Skill変更について存在しないGit commitを主張しない。
@@ -82,7 +83,7 @@
 | `...\scripts\ensure_secure_mcp_tunnel.ps1` | Profile／lock／Server self-test preflight、exact Process reuse／auto-start |
 | `...\scripts\test_ensure_secure_mcp_tunnel.ps1` | lifecycle preflightと既存process state machineのunit regression |
 | `...\scripts\validate_secure_mcp_contract.ps1` | Markdownとruntime契約のbreaking static validation |
-| `...\SKILL.md`と5個の`references\*.md` | exact 4-Tool、no-upload、Pro、Transcript、blocked contract |
+| `...\SKILL.md`と5個の`references\*.md` | exact 4-Tool、no-upload、compatible response performance、Transcript、blocked contract |
 | `%APPDATA%\tunnel-client\g-workspace-readonly.yaml` | 専用venv Pythonのstdio commandだけを指すactive Profile |
 
 ---
@@ -1628,7 +1629,7 @@ Add named predicates:
 - `ProfileCommandPreflightRequired`
 - `NoCatalogGuessingBranch`
 - `NoUploadOrPasteFallback`
-- `ExactProTurnEvidence`
+- `ExactCompatibleTurnEvidence`
 
 Reject structural occurrences of:
 
@@ -1711,7 +1712,8 @@ allowed_root_verified: true
 Require Browser navigation to stop on `profile-mismatch`,
 `catalog-mismatch`, or any false verification field. Replace every abstract
 `list`／`read` instruction with the exact Tool and planned-call policy from
-Step 3. Preserve visible per-send `応答性能: Pro`, collapsed `Pro`, exact
+Step 3. Preserve visible per-send `応答性能: 非常に高い`, collapsed
+`非常に高い`, exact
 Project, no-upload, task authorization, response completion, and local
 adjudication.
 
@@ -1745,7 +1747,8 @@ tool_calls:
 
 Update completion and adjudication contracts so missing exact catalog,
 unexpected Tool, typed read failure, incomplete `fetch`, Profile mismatch,
-catalog mismatch, and absent Pro evidence all end `blocked` without attachment
+catalog mismatch, and absent compatible-mode evidence all end `blocked`
+without attachment
 fallback.
 
 - [ ] **Step 6: Run validator and Skill metadata validation**
@@ -1986,8 +1989,9 @@ Visibly verify:
 - Project title exact `AIネイティブC++ゲームエンジンプロジェクト`;
 - memory mode exact `プロジェクトのみ`;
 - a newly created chat after catalog refresh;
-- visible `応答性能` option exact `Pro` selected;
-- collapsed response-performance button exact `Pro`;
+- visible `応答性能` option exact `非常に高い` selected;
+- collapsed response-performance button exact `非常に高い`;
+- response-performance `Pro` absent from the custom MCP turn;
 - exact app pill `G Workspace Readonly`.
 
 Any mismatch is `blocked`; do not use an existing chat or another route.
@@ -2032,6 +2036,17 @@ ChatGPT prose without visible Tool-call evidence does not pass.
 After all Browser reads are complete, call `iab.tabs.finalize` as the final
 Browser operation. Keep only the app management evidence tab and the new
 acceptance chat needed for user inspection.
+
+**2026-07-31 execution evidence:** Steps 1–5 and Step 7 were performed with
+the exact Project, `プロジェクトのみ`, visible／collapsed `非常に高い`, and the
+exact app pill. The management page exposed only `fetch`,
+`list_allowed_directories`, `list_directory`, and `search`. The new turn
+completed `list_allowed_directories` through the Tunnel, but stopped before
+the other three planned calls and terminal marker. Step 6 therefore remains
+`blocked` with incomplete per-turn Tool coverage. No attachment, upload,
+Local Artifact paste, Project Source, alternate app, or write Tool was used.
+Retain the fixtures and baseline under Task 11 until a fresh Browser turn
+completes the full manifest.
 
 ---
 

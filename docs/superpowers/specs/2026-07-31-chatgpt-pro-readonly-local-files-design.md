@@ -62,6 +62,21 @@ ChatGPTはToolを1回も呼ばず、`catalog_observable: false`、
 ことを検査していたが、Profileの実commandと実際の`tools/list`結果を検査して
 いなかった。文書上の契約がruntime capabilityを証明していないことが根本原因である。
 
+専用Server移行後のBrowser acceptanceでは、管理画面がexact 4 Toolへ更新され、
+Tunnelも`ready`であったが、visible `応答性能: Pro`の新規Project chatにはToolが
+1件も注入されず、Tunnelにも当該chatからのMCP requestが到達しなかった。
+したがって、専用Server／Tunnel／app catalogの問題とは分離して、
+response-performance `Pro`とこのcustom MCP appの組み合わせを非対応として扱う。
+
+同じProjectの新規chatでvisible `応答性能: 非常に高い`を選択すると、exact app
+pillが保持され、`list_allowed_directories`が実際に注入・実行され、Browserの
+Tool cardは`完了`になった。Tunnel側でもLocal MCP Serverへのforwardを観測した。
+ただし、4 Toolを順に各1回要求したturnは最初の1 call後に応答を終了し、
+`list_directory`、`search`、`fetch`とterminal markerを欠いた。このため
+Browser acceptance全体は`incomplete`であり、実Serverの66 test合格とは分離して
+ChatGPT turn orchestration上の未解決gapとして扱う。添付、upload、paste、
+Project Source、write Toolは使用していない。
+
 ## 3. 外部仕様とProject decision
 
 ### 3.1 OpenAI公式として採用する事実
@@ -70,6 +85,9 @@ ChatGPTはToolを1回も呼ばず、`catalog_observable: false`、
 は、private MCP serverをpublic ingressなしでOpenAI Productへ接続し、
 `tunnel-client`がMCP requestをLocal Serverへ転送する方式である。
 App discoveryとTool callは、稼働中でconnectedなTunnel clientに依存する。
+Developer machine上のprivate MCP Serverも対象であり、`tunnel-client`は
+outbound HTTPSでworkを取得してLocal MCPへforwardし、同じTunnelでresponseを
+返す。
 
 [Building MCP servers for plugins and API integrations](https://developers.openai.com/api/docs/mcp#create-an-mcp-server)
 は、ChatGPT連携向けのread-only compatibilityとして`search`と`fetch`を示し、
@@ -78,6 +96,14 @@ Tool output schemaとstructured resultを定義するよう求めている。
 [MCP and Connectors](https://developers.openai.com/api/docs/guides/tools-connectors-mcp)
 は、MCP ServerのTool definitionがModelへimportされ、その中からToolが呼ばれる
 こと、sensitive actionにはapprovalまたはallowlistを使うことを説明している。
+
+[Apps in ChatGPT](https://help.openai.com/en/articles/11487775-connectors-in)
+は、app互換性がapp、capability、plan、workspace、modelにより異なるため、
+app／plugin detailsで現行availabilityを確認するよう求めている。
+
+[Developer mode and MCP apps in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt)
+は、Pro planがdeveloper modeでread／fetch権限のMCPへ接続できること、
+Local MCPは直接接続せずSecure MCP Tunnelを使うことを説明している。
 
 公式資料は、この個人環境の`G:\workspace`、4 Tool構成、file type allowlist、
 size limit、Skill prompt、特定ChatGPT Project、または後方互換性を規定しない。
@@ -93,6 +119,11 @@ size limit、Skill prompt、特定ChatGPT Project、または後方互換性を�
 - `npx -y`、floating latest、汎用Filesystem Server、proxy filter、
   ChatGPT側approvalだけによるread-only擬制は採用しない。
 - 旧Tool名、write Tool、compatibility proxy、fallback Profileは残さない。
+- ChatGPT Proはaccount planとして利用する。custom MCP turnの応答性能は、
+  2026-07-31 Browser acceptanceでTool injectionを確認できる最高のnon-Pro候補
+  `非常に高い`へ固定し、response-performance `Pro`は使用しない。これは
+  OpenAIの全appに対する一般規則ではなく、このappの実測に基づくProject decision
+  とする。
 
 ## 4. 方式比較
 
@@ -332,7 +363,9 @@ Tool resultからallowed root、target、coverageを報告する。
 4. exact Project `AIネイティブC++ゲームエンジンプロジェクト`を開く。
 5. memory mode `プロジェクトのみ`を確認する。
 6. 新規chatを作成する。
-7. `応答性能`でexact `Pro`を選択し、collapsed button `Pro`を確認する。
+7. `応答性能`でexact `非常に高い`を選択し、collapsed button
+   `非常に高い`を確認する。response-performance `Pro`はcustom MCP turnで
+   使用しない。
 8. exact app `G Workspace Readonly`を選択する。
 9. Browser添付、upload、paste、Project Sourceを使用しない。
 10. `list_allowed_directories`、`list_directory`、`fetch`で既知Markdownを読む。

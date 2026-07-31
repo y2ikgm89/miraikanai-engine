@@ -59,11 +59,13 @@ source.
   `https://chatgpt.com/g/g-p-6a69aacb1ae88191a27dd74eeb166569/project`.
 - Before sending, visibly verify the Project title
   `AIネイティブC++ゲームエンジンプロジェクト`, memory mode
-  `プロジェクトのみ`, and Pro mode. Start a new chat inside that Project for
-  each distinct outcome.
-- If the route, Project identity, memory mode, or Pro mode cannot be verified,
+  `プロジェクトのみ`, and response performance `非常に高い`. Start a new chat
+  inside that Project for each distinct outcome. The account may be on a Pro
+  plan, but do not select response-performance `Pro` for a custom MCP app turn.
+- If the route, Project identity, memory mode, or response performance
+  `非常に高い` cannot be verified,
   stop as blocked. Do not fall back to another Project, a standalone ChatGPT
-  chat, Chrome, an API, or a lower mode.
+  chat, Chrome, an API, `高い`, `中程度`, or a lower mode.
 - This section selects the destination only. The Global Skill owns dynamic
   prompt generation, in-session transcript handling, adjudication, and stop
   rules. The repository policy below owns post-closure retention.
