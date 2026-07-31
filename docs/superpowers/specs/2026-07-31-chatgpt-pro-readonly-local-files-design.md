@@ -77,6 +77,17 @@ Browser acceptance全体は`incomplete`であり、実Serverの66 test合格と�
 ChatGPT turn orchestration上の未解決gapとして扱う。添付、upload、paste、
 Project Source、write Toolは使用していない。
 
+その後の新規Browser turnで`search(query="known.md")`は`TimeoutError`になった。
+同時点のTunnelは`ready`で、Profile、catalog、allowed rootの検証も通っていた。
+同じ実装をfixture directoryだけへ適用すると`2ms`で1件を返したが、
+`G:\workspace`では`25,074ms`経過しても完了しなかった。
+
+原因は、現行`search`がfilename一致を発見してもroot全体の1周目を完了するまで
+返さず、filename一致が0件なら2周目でextractable Fileの内容まで同期抽出する
+ことにある。`os.walk`は`.git`、virtual environment、dependency、cache、
+generated outputも走査するため、Server処理がChatGPT／Tunnelのcall deadlineを
+超えた。Timeout延長やTunnel再起動では解消しないServer algorithmの問題である。
+
 ## 3. 外部仕様とProject decision
 
 ### 3.1 OpenAI公式として採用する事実
@@ -119,6 +130,11 @@ size limit、Skill prompt、特定ChatGPT Project、または後方互換性を�
 - `npx -y`、floating latest、汎用Filesystem Server、proxy filter、
   ChatGPT側approvalだけによるread-only擬制は採用しない。
 - 旧Tool名、write Tool、compatibility proxy、fallback Profileは残さない。
+- `search`はOpenAI互換のsingle `query` inputを維持し、独自`path`引数を追加しない。
+- `search`はboundedなprocess-local metadata indexだけを検索する。Artifact内容の
+  readとextractは`fetch`だけが所有し、旧content-scan fallbackは残さない。
+- Search indexは永続DB、OS search service、shell、subprocess、network、新規
+  runtime dependencyを使わない。
 - ChatGPT Proはaccount planとして利用する。custom MCP turnの応答性能は、
   2026-07-31 Browser acceptanceでTool injectionを確認できる最高のnon-Pro候補
   `非常に高い`へ固定し、response-performance `Pro`は使用しない。これは
@@ -132,6 +148,15 @@ size limit、Skill prompt、特定ChatGPT Project、または後方互換性を�
 | 専用read-only MCP Server | 実装とcatalogの両方からwriteを除去でき、file type処理と検証を所有できる | Serverとextractorの保守が必要 | 採用 |
 | 汎用Filesystem MCPの前段proxy | 既存Tool実装を再利用できる | 内部write capabilityとfilter bypass riskが残る | 不採用 |
 | ChatGPT permission／approvalだけで制御 | Local実装変更が小さい | write Toolが公開されたままで、approvalはread-only保証ではない | 不採用 |
+
+`search`のTimeout対策は次の比較で決定した。
+
+| 方式 | 利点 | 欠点 | 判定 |
+| --- | --- | --- | --- |
+| process-local metadata index | 公式`search(query)` shapeを維持し、Tool call中の内容抽出と全root走査を除去できる | Index refreshと除外規則が必要 | 採用 |
+| call timeout延長 | 実装変更が小さい | root増加で再発し、Browser側deadlineを所有できない | 不採用 |
+| `search(query, path)`へ変更 | 対象を狭められる | OpenAI互換のsingle-query inputから外れる | 不採用 |
+| 永続SQLite／OS index | Queryは高速 | cache write、freshness、追加stateの保守が増える | 不採用 |
 
 ## 5. Server architecture
 
@@ -148,6 +173,7 @@ collaborating-with-chatgpt-pro/
       readonly_local_files/
         __init__.py
         server.py
+        search_index.py
         paths.py
         extractors.py
         models.py
@@ -188,7 +214,8 @@ command lineへ追加しない。
 - input: one query string
 - output: OpenAI compatibility shapeの`results`
 - result fields: stable relative-path ID、title、empty URL、metadata
-- behavior: filenameとextractable textに対するbounded search
+- behavior: process-local metadata indexにあるfilenameとroot-relative pathへ
+  case-insensitiveなdeterministic matchを行う
 - purpose: ChatGPTの一般的なLocal document discovery
 
 Local Fileはpublic URLを持たないため、架空のHTTP URLを生成しない。`url`は空文字とし、
@@ -205,6 +232,63 @@ ChatGPT citationではなくordinary Tool evidenceとして扱う。
 `search`と`fetch`は明示的なoutput schemaを持ち、同じ値を`structuredContent`と
 JSON-encoded text contentで返す。Binary Artifactのmanifest照合は、`fetch`が
 read直前のsource bytesから計算したSHA-256とsource byte countを使う。
+
+### 5.3 Search index
+
+`search_index.py`は、`SearchIndexEntry`、immutable `SearchIndex`、
+`SearchIndexCache`を所有する。Server起動時に最初のIndexを構築し、その後は
+monotonic clockで5秒以上経過した最初の`search` callがrefreshする。Refreshは
+新しいIndexをLocal variableへ完成させてからLock内で参照をatomic swapする。
+Partial indexは公開しない。
+
+Index entryは次だけを持つ。
+
+- root-relative stable ID
+- filename
+- source byte count
+- casefold済みsearch key
+
+Index構築はArtifact contentをopen、decode、hash、parseしない。Search対象は
+`fetch`が受理するallowlisted extensionだけとし、unsupported Fileを検索結果へ
+混ぜない。Directory traversalではsymlink、junction、root外real pathを拒否する。
+次のdirectory nameはcase-insensitiveに再帰対象から除外する。
+
+```text
+.git
+.hg
+.svn
+.venv
+venv
+node_modules
+__pycache__
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.cache
+build
+dist
+out
+target
+bin
+obj
+coverage
+```
+
+除外はSearch discoveryだけに適用する。Task Contractがexact root-relative IDを
+許可した場合の`list_directory`と`fetch`は、既存のpath／file policyを満たす限り
+同じdirectoryを扱える。
+
+Index buildのhard limitは5秒、50,000 directories、100,000 searchable filesとする。
+LimitまたはI/O errorで完全なIndexを構築できない場合は、旧Indexやpartial resultへ
+fallbackせず`search-index-unavailable`を返す。Tool call全体が外部deadlineへ
+到達する前にLocal typed errorで終了させる。
+
+Queryはstripとcasefoldを行い、Unicode whitespaceでtokenizeする。空Queryは0件を
+返す。非空Queryは全tokenがfilenameまたはroot-relative pathへ含まれるentryだけを
+候補とし、exact filename、exact filename stem、filename match、path matchの順で
+rankする。同rankはroot-relative stable IDのcase-insensitive order、続いてoriginal
+orderで安定化する。101件以上ならsilent truncationせず`result-too-large`を返す。
+Result metadataは`source_bytes`と`extraction_status: path-index-match`だけを返す。
 
 全Toolに次のannotationを付与する。
 
@@ -276,6 +360,10 @@ Default limitはServer定数として一元管理する。
 - one Tool result extracted text: 400,000 Unicode characters
 - directory listing: 2,000 entries
 - search results: 100 entries
+- search index refresh age: 5 seconds
+- search index build: 5 seconds
+- search index directories: 50,000 entries
+- search index searchable files: 100,000 entries
 
 Limit超過時はsilent truncationせず、exact limitとobserved sizeを含むtyped errorを返す。
 Skillはcomplete Artifact readを要求するTaskでこのerrorを`blocked`として扱う。
@@ -393,6 +481,7 @@ Fixtureは専用temporary acceptance directoryに生成し、exact pathを確認
 - `scan-only-pdf`
 - `file-too-large`
 - `result-too-large`
+- `search-index-unavailable`
 - `directory-too-large`
 - `extractor-failed`
 - `catalog-mismatch`
@@ -429,6 +518,9 @@ Error resultへsecret、Profile内容、API key、Tunnel ID、環境変数一覧
 - XLSX sheet／cell抽出
 - encrypted／macro／legacy format拒否
 - source size／result size／entry count limit
+- Search index exclusion、build limit、refresh age、deterministic rank
+- `search`がArtifact contentをopen／extractしないこと
+- stale Index refresh failureでpartial／old resultを返さないこと
 - error redaction
 
 ### 12.3 Integration
@@ -444,9 +536,10 @@ Error resultへsecret、Profile内容、API key、Tunnel ID、環境変数一覧
 ### 12.4 Browser
 
 - app catalog exact equality
-- new Project chat／project-only memory／Pro
+- new Project chat／project-only memory／`非常に高い`
 - no upload
 - expected Tool calls
+- `search(query="known.md")`がBrowser deadline内に完了すること
 - representative file type coverage
 - response内容のLocal照合
 
@@ -461,9 +554,11 @@ Error resultへsecret、Profile内容、API key、Tunnel ID、環境変数一覧
   typed errorになる。
 - Tunnel停止時にSkill helperが固定Profileを起動する。
 - Tunnel起動後にruntime catalog fingerprintを検証する。
-- Browser版ChatGPTの新規Project chatでexact `Pro`とexact appを選択する。
+- Browser版ChatGPTの新規Project chatでexact `非常に高い`とexact appを選択する。
 - Browser添付、upload、paste、Project Source追加が0回である。
 - ChatGPTがTool resultだけから既知Local File内容を正しく回答する。
+- `search`が`G:\workspace`全体のArtifact contentを同期走査せず、
+  `known.md`をBrowser deadline内に発見する。
 - 既存汎用Filesystem MCP commandとwrite Tool compatibility layerが残らない。
 - Skill test、Server test、Tunnel integration、Browser acceptance、
   Repository verificationがすべてpassする。
