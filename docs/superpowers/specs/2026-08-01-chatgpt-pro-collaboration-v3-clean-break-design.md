@@ -1,7 +1,8 @@
 # ChatGPT Pro Collaboration v3 Clean-Break Design
 
 - 文書分類: `non-normative implementation design`
-- 状態: `written-spec-review-pending`
+- 状態: `approved-for-implementation`
+- Written spec承認日: 2026-08-01
 - 対象: Personal Skill `collaborating-with-chatgpt-pro`、そのLocal MCP Server、検証suite、repository固有route／retention記述
 - 判断日: 2026-08-01
 - 外部根拠確認日: 2026-08-01
@@ -137,8 +138,95 @@ tool_requirements
 artifact_integrity
 runtime_authorization
 receipt_store
+telemetry
 deadlines
 follow_up_gates
+```
+
+canonical installed valueは次の一件に固定する。
+
+```json
+{
+  "schema": "consultation-contract/3",
+  "route": {
+    "start_url": "https://chatgpt.com/",
+    "required_surface": "Chat",
+    "project_membership": "denied",
+    "forbidden_path_prefixes": ["/g/g-p-"]
+  },
+  "response_performance": {
+    "control": "応答性能",
+    "required_option": "Pro",
+    "collapsed_button": "Pro"
+  },
+  "browser_app": {
+    "display_name": "G Workspace Readonly",
+    "description_root": "G:\\workspace",
+    "read_only": true
+  },
+  "tunnel": {
+    "profile": "g-workspace-readonly",
+    "allowed_root": "G:\\workspace",
+    "read_only": true,
+    "tools": ["search", "fetch"]
+  },
+  "delivery": {
+    "fallback": "denied",
+    "browser_file_uploads": "denied",
+    "browser_file_paste": "denied",
+    "project_source": "denied",
+    "project_memory": "denied",
+    "workspace_writes": "denied",
+    "alternate_route": "denied"
+  },
+  "tool_requirements": {
+    "search": "exactly_once_if_authorized_else_zero",
+    "fetch": "exactly_once_per_artifact_in_manifest_order"
+  },
+  "artifact_integrity": {
+    "required_fields": [
+      "artifact_id",
+      "source_bytes",
+      "source_sha256",
+      "extraction_status"
+    ],
+    "required_status": "complete",
+    "digest": "sha256",
+    "match": "exact"
+  },
+  "runtime_authorization": {
+    "schema": "mcp-read-authorization/2",
+    "state_relative_path": "OpenAI/SecureMcpTunnel/g-workspace-readonly/active-read-authorization.json",
+    "max_age_seconds": 1800
+  },
+  "receipt_store": {
+    "snapshot_schema": "consultation-receipt-snapshot/1",
+    "database_relative_path": "OpenAI/SecureMcpTunnel/g-workspace-readonly/consultation-receipts.sqlite3",
+    "session_root_relative_path": "OpenAI/SecureMcpTunnel/g-workspace-readonly/consultation-sessions"
+  },
+  "telemetry": {
+    "operator_base_url": "http://127.0.0.1:8080",
+    "logs_path": "/api/logs",
+    "log_limit": 2000,
+    "forward_event_message": "dispatcher forwarded command to MCP server",
+    "success_predicate": "positive_delta"
+  },
+  "deadlines": {
+    "response_wait_seconds": 1200,
+    "receipt_drain_seconds": 30,
+    "lifecycle_mutex_wait_seconds": 5,
+    "stable_observation_min_count": 2,
+    "stable_observation_min_interval_ms": 2000
+  },
+  "follow_up_gates": {
+    "conditions": [
+      "incomplete-response",
+      "unresolved-material-finding",
+      "new-material-evidence",
+      "materially-changed-candidate"
+    ]
+  }
+}
 ```
 
 `route`は次を所有する。
@@ -213,6 +301,27 @@ canonical JSONのUTF-8 bytesに対するlowercase SHA-256とする。canonical J
 Unicode code point順にsortし、insignificant whitespaceなし、UTF-8、BOMなし、non-ASCIIを
 escapeしない表現へ固定する。
 
+exact root／Artifact keyは次とする。
+
+```text
+schema
+grant_id
+task_id
+turn_id
+issued_at_utc
+expires_at_utc
+task_sha256
+manifest_sha256
+search_query
+artifacts[] {
+  artifact_id
+  source_bytes
+  source_sha256
+  extraction_status
+}
+state_sha256
+```
+
 旧`mcp-read-authorization/1`、unknown schema、future timestamp、expired state、digest mismatch、
 case-only duplicate、unsafe pathを拒否する。互換parserまたは自動変換を設けない。
 
@@ -253,6 +362,14 @@ DBはinstalled contractから導出した`LOCALAPPDATA`配下へ置き、`G:\wor
 directory、Browser-accessible rootとの包含関係を禁止する。
 
 DBはsession tableとcall tableを持つ。session statusは次の一方向遷移だけを許可する。
+session rowはTask／Manifest／prompt／response／telemetry baselineの内部absolute pathとdigestを所有し、
+public resultへ出さない。最初のimmutable Receipt snapshot JSON／digestとterminal result JSON／digestも
+同じrowへ保存し、idempotent `Complete`／`Abort`はdigest検証後にそのexact resultを返す。別のsession
+descriptor fileを作らない。
+
+terminal retryでは保存済みsnapshot／resultのdigestを再検証する。`Complete`は新しいstdin responseの
+UTF-8 SHA-256も保存済み`response_sha256`と一致するとき、`Abort`はreasonが保存済みreasonと一致する
+ときだけexact resultを返す。不一致は永続状態を変更せず`blocked/invalid-input`とする。
 
 ```text
 prepared -> active -> closing -> complete | blocked -> purged
@@ -263,6 +380,11 @@ active   -> closing -> blocked -> purged
 未知status、逆遷移、identity mismatchを拒否する。
 同一Receipt Storeでは`prepared | active | closing`のnon-terminal sessionをexact一件だけ許可し、
 processをまたぐ同時Prepare／Arm／Closeは同じnamed lifecycle mutexで直列化する。
+mutexはauthorization state pathのlowercase SHA-256から導出した`Local\` Windows kernel objectとし、
+Python標準`ctypes`で所有する。5秒以内に取得できない場合はfilesystem／DB／authorizationを変更せず
+`blocked`とする。`WAIT_ABANDONED`はmutex取得後にauthorization／Receipt invariant auditを先に行い、
+active authorizationもnon-terminal sessionもない場合だけrequested mutationへ進む。それ以外はexact
+identityのrecovery close／revokeを行って`blocked`とし、新sessionを開始しない。
 
 ### 7.2 Call Receipt
 
@@ -275,6 +397,7 @@ grant_id
 task_id
 turn_id
 tool
+invalid_tool_sha256
 target
 invalid_target_sha256
 started_at_utc
@@ -289,6 +412,8 @@ extraction_status
 - `call_id`はserver生成のlowercase canonical UUIDv4とする。
 - `ordinal`は同一grant内でtransactionalに単調増加させる。
 - canonical targetだけを平文保存する。invalid inputは値を保存せずSHA-256だけを残す。
+- invalid string targetはstrict UTF-8 bytes、missing／non-string targetはcanonical arguments JSON bytesをhashする。
+- unknown Toolは`tool = unknown`とraw Tool名のstrict UTF-8 SHA-256だけを保存する。
 - `error_code`はstable sanitized codeとし、exception text、absolute path、secretを保存しない。
 - source metadataはsuccessful `fetch`だけが持ち、Manifestとexact一致しなければTool自体を失敗させる。
 
@@ -309,6 +434,34 @@ Closeは次の順序で行う。
 
 authorizationを読んだ直後にcloseと競合したcallも、Receipt admissionが`closing`を観測すれば
 file access前に拒否される。close前にadmit済みのcallだけをdrain対象とする。
+
+`consultation-receipt-snapshot/1`のexact root keyは次とし、`calls`は`ordinal`昇順に固定する。
+
+```text
+schema
+grant_id
+task_id
+turn_id
+session_status
+calls[] {
+  ordinal
+  call_id
+  tool
+  invalid_tool_sha256
+  target
+  invalid_target_sha256
+  started_at_utc
+  completed_at_utc
+  status
+  error_code
+  source_bytes
+  source_sha256
+  extraction_status
+}
+snapshot_sha256
+```
+
+`snapshot_sha256`は同fieldだけを除いたcanonical JSON bytesのlowercase SHA-256とする。
 
 ## 8. Lifecycle interface
 
@@ -338,12 +491,15 @@ Radio／menu stateはDOM property `checked`ではなく、accessible selected st
 - Browser controllerが渡すpre-send observationをstrict schemaで検証する。
 - telemetry baselineを取得する。
 - exact prepared Receipt sessionを`active`へ遷移させ、authorization grantをactivateする。
-- exact prompt path、task／turn／grant identity、deadlineを返す。
+- metadata-only prompt本文、task／turn／grant identity、deadlineを返す。
 
 `Arm`成功後はprompt以外のBrowser configurationを変更せず、直ちに一回だけ送信する。
 Receipt transitionとauthorization state writeは同じlifecycle mutex内で行う。authorization state
 writeが完了しない場合はReceipt sessionを`blocked`へ閉じ、active authorizationが存在しないことを
 確認してから失敗を返す。
+
+public lifecycle inputは`task_id`、`turn_id`、Arm後の`grant_id`だけをsession handleとして使う。
+内部Task、Manifest、prompt、responseのabsolute pathをpublic input／outputにしない。
 
 ### 8.4 Wait
 
@@ -354,12 +510,17 @@ response待機上限は`Arm`から1,200秒とする。`今すぐ回答`、model 
 - exact `CONSULTATION_COMPLETE::<task_id>::<turn_id>`がvisible response末尾にある。
 - 2秒以上離れた二回の観測で末尾とgeneration stateが変化しない。
 
+二回の観測はUTC時刻、generation active boolean、visible response SHA-256を持ち、`Complete`がstdin
+response bytesからdigestと間隔を再計算する。
+
 期限超過、Browser失敗、marker欠落、UI不安定は`Abort`へ進む。
 
 ### 8.5 `Complete`／`Abort`
 
 `Complete`は§7.3のcloseを実施し、Receipt、Artifact、route、performance、app、marker、positive
 Tunnel telemetryを検証する。`Abort`も同じclose／revoke gateを通り、理由をsanitized codeで残す。
+Browser controllerはexact visible response本文を`Complete`のstdinだけで渡す。helperはcommand line、
+stdout、stderrへ本文を出さず、同じUTF-8 bytesをmarker検証、SHA-256、一時response fileに使用する。
 
 両Modeは同じsession identityに対してidempotentとする。他sessionのactive grantを削除しない。
 内部例外が発生しても`finally`でexact revokeを試みる。revoke identity mismatchまたはrevoke failureは
@@ -403,24 +564,42 @@ recovery、maintenanceのときだけ読む。
 
 ## 10. Validation result
 
-`consultation-result/2`はexact key setを持つsanitized JSONとする。
+全public lifecycle Modeは`consultation-result/2`のexact key setを持つsanitized JSONを一件だけ返す。
 
 ```text
 schema
-status = complete | blocked | error
+mode = prepare | arm | complete | abort | purge
+status = prepared | armed | complete | blocked | error | purged
 reason
 task_id
 turn_id
 grant_id
+prompt
+deadline_utc
 receipt_snapshot_sha256
 affected_artifact_ids[]
 affected_call_ids[]
-metrics
+metrics {
+  artifact_count
+  source_bytes
+  prompt_bytes
+  receipt_call_count
+  forward_event_delta
+  elapsed_ms
+}
 ```
+
+`prompt`と`deadline_utc`は成功した`arm`だけでnon-nullとし、`grant_id`はArm前だけnullとする。
+`task_id`／`turn_id`はinvalid inputから安全に抽出不能な`blocked／error`だけnullを許可する。
+Receipt snapshotが存在しないModeでは`receipt_snapshot_sha256`をnullとする。metricsの全keyは常に
+存在し、該当しない値だけnullとする。成功statusは`prepare=prepared`、`arm=armed`、
+`complete=complete`、`purge=purged`に固定し、`abort`成功はcaller reason付き`blocked`とする。
 
 少なくとも次のstable reasonを区別する。
 
 - `scope-incomplete`
+- `invalid-input`
+- `lifecycle-busy`
 - `tunnel-not-ready`
 - `route-mismatch`
 - `surface-mismatch`
@@ -439,8 +618,9 @@ metrics
 - `unexpected-write`
 - `validator-runtime-failure`
 
-stdoutは結果JSON一件だけ、stderrはdeveloper test以外でsecret／absolute pathを含めない。
-invalid inputはexit 2の`blocked`、内部障害はexit 3の`error`、completeはexit 0とする。
+stdoutは結果JSON一件だけとし、stdout／stderrはdeveloper test以外でsecret／absolute pathを含めない。
+invalid inputはexit 2の`blocked`、内部障害はexit 3の`error`、`prepared／armed／complete／purged`は
+exit 0とする。
 
 ## 11. Quality non-regression gates
 
