@@ -17,6 +17,8 @@ Gameplay Feature PackはGenre非依存で再利用可能なCapabilityとPublic C
 
 FeatureはEngine CoreへPlayer、Character、Weapon、Enemy、Score、Level等の固定階層を追加しない。必要なProjectだけがFeature Packを選び、PackなしのProjectもvalidである。
 
+[Product Plan §5.1](../00-product/product-plan.md#51-first-playable-outcome)の`FirstPlayableDefinitionV1`はcompact RPGに必要なFeature Pack exact subsetを選べるが、Feature Ownerは自身のPublic Contract、State、Command／Event、Save／Replay、failureだけを所有する。Genre composition、Reference Project content、AI journey、Playtest acceptance、Human Gameplay ApprovalまたはProduct completionをFeature stateへ複写せず、一FeatureのpassをFirst Playable全体のpassにしない。
+
 具体Feature Schema、Registry、Fixture候補は[Feature Definition／Fixture Catalog](../appendices/gameplay-feature-definition-fixture-catalog.md)へ分離する。
 
 ## 2. Ownership、manifest、compatibility

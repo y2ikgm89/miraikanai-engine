@@ -296,12 +296,7 @@ Closureは全Question current headを過不足なく含め、四countを解決re
 
 ## 7. AI game generation lane
 
-```text
-AiGameGenerationLaneV1 =
-  ai_composed_game |
-  ai_generated_external_content |
-  ai_generated_project_source
-```
+[Product Plan §1.1.1](../00-product/product-plan.md#111-ai-game-generation-claim-lane)が`AiGameGenerationLaneV1`とProduct claim scopeを一意に所有する。本書は同じ三tokenをGame production経路へ適用し、別enum、aliasまたはProduct claimを所有しない。
 
 | lane | 対象 | 必須境界 |
 |---|---|---|

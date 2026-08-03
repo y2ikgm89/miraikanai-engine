@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: 第三者Developer向けProject bootstrap、Engine source／Host／Editor／Tool／Installer／Target別配布Packageを閉じるrelease content identity、Project source provenance、claim-derived Target×2D／3D Reference carrierと全Reference requirement Qualification、Manifest／SDK／Documentationをflattenするrelease Sample universeとWorkflow Sample全件のoperation-specific Qualification、Runtime Entry launch root／exact Launch Selection composition、SDK／Template／Sample／Documentation／first-party licenseのrelease binding、GUI／CLI／headless／external IDE／AI-MCPのclaim-derived Operation journey parity、Engine／Project update composition、Pack lifecycle集約、repair／support window、全配布container別NOTICE presentation、Product lifecycle E2E acceptance
 - 非正本範囲: Product intent／MVP／release／completion Decision、ProjectRevision／ChangeSet、public C++ APIの意味／stability、Project test semantics、Privacy data-flow意味、Build／Cook／Package／Signing／Pack transactionのdomain semantics、dependency version／SBOM source、migration class、SupportBundle schema、Evidence envelope。各Ownerを参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Project State](../03-authoring/project-state.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Pack Contract](../08-packs/pack-contract.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Project State](../03-authoring/project-state.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Pack Contract](../08-packs/pack-contract.md)
 - 関連文書: [Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Security](../01-governance/product-security.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec）
 - 外部根拠確認日: 2026-07-29
@@ -1401,6 +1401,16 @@ ProductLifecycleAcceptanceV1
   acceptance_version: positive u32
   engine_release_binding_ref: exact EngineReleaseBindingRefV1
   candidate_ref: exact PreparedCandidateRefV1
+  first_playable_definition_ref: exact FirstPlayableDefinitionRefV1
+  first_playable_project_revision_ref: exact ProjectRevisionRefV1
+  first_playable_ai_generation_claim_scope_ref:
+    exact AiGameGenerationClaimScopeRefV1
+  first_playable_game_production_loop_closure_ref:
+    exact GameProductionLoopClosureRefV1
+  first_playable_manual_journey_evidence_refs[1..256]:
+    sorted unique exact EvidenceRefV1
+  first_playable_ai_journey_evidence_refs[1..256]:
+    sorted unique exact EvidenceRefV1
   host_profile_refs[1..64]:
     sorted unique exact TargetProfileRefV1(
       profile_kind=build_host | editor_host)
@@ -1644,6 +1654,8 @@ ProductLifecycleAcceptanceV1
     }
   acceptance_content_hash: SHA-256
 ```
+
+First Playable六Fieldは[Product Plan §5.1](product-plan.md#51-first-playable-outcome)のexact `FirstPlayableDefinitionV1`からrequired Project lineage、AI lane、journey、Runtime Entry role、scenario、Requirement、Evidence classを導出する。Loop Closureは同じCandidate／Project revision、`accepted`、`GameUnderstandingClosureV1=ready_to_stage`、Experience Evaluation、Human Gameplay Approval、Iteration `accept_candidate`へ解決し、AI claim scopeはDefinitionが要求するexact `{ai_composed_game}`とbyte equalityにする。manualとAI journey EvidenceはそれぞれDefinitionのrequired journey projectionとset equalityで全件`fresh`にし、一方を他方へ流用しない。partial Project、manual-only、AI-only、Shooter、3D、別Genre、wrong Target、別Candidate、別Project revisionまたは別Runtime EntryのEvidenceを拒否する。
 
 AcceptanceはReceipt発行元のdomain meaningを変更せず、same release、same candidate、same Engine source、required Host／runtime Target／locale集合、freshness、non-revocation、required scenario set equalityを検証する。`candidate_ref`はRelease Content Manifestの`candidate_ref`、`host_profile_refs[]`、`target_profile_refs[]`、`locale_profile_refs[]`はManifest、Engine Release、Release Requirement Projectionの対応集合と各々byte／set equalityにする。Host Distribution ReceiptはManifestの全Host Distributionへexactly one件対応し、Editor、Engine runtime、Launcher、CLI／headless、全tool、installer／layout、entry set、Toolchain、public contract、Engine sourceの同一性を検証する。`bootstrap_receipt_refs[]`のTemplate projectionは`TemplateBootstrapRequirementSetV1(M)`とset equalityで、各Receiptが束縛するexact `ProjectBootstrapProfileV1`のTemplateとrequested Target setを同rowへbyte／set equalityにし、clean destination bootstrap、first Project revision atomic publication、open／build／test、failure時no partial Projectをcoverする。Documentation Requirement SetはManifestのexact Bundleから§5.1 Algorithmで生成し、AcceptanceのRefとReceiptのRefをbyte equalityにする。Project test resultはsame public contract setとProject revision、Privacy acceptanceはreleaseと同じProduct definition、Toolchain、public contract set、Host／runtime Target／locale集合、Candidateへ一致させる。
 

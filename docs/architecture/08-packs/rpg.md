@@ -56,6 +56,8 @@ compact command RPGのtarget compositionは、少なくとも次の関係を表�
 - dialogue、shop、battle、inventory UIはtyped requestとsealed Snapshotを使い、authoritative Feature Stateを書かない。
 - Save／Loadは各FeatureのOwner-typed projectionとGenre flow projectionをPersistenceへ束縛し、UI label、localized text、array indexをidentityにしない。
 
+[Product Plan §5.1](../00-product/product-plan.md#51-first-playable-outcome)の`FirstPlayableDefinitionRefV1`がcompact 2D command RPGを選ぶ場合、本書はDefinitionが要求するRPG Genre composition、Game Flow role、command role、Feature／Scenario／World／UI bindingだけを供給する。Title／Map／conversation／battle／inventory／Save／Settings／ResultのProduct acceptance、AI journey、Playtest、Target、localeまたはCompletionをGenre Packへ移管せず、Shooter／別Genre／別ProjectのEvidenceをRPG compositionへ混入させない。
+
 Genre Recipe、Profile、Game Flow、Action roleの具体record候補は、Parent Ownerの意味を再定義しない補助Catalogへ分離できる。本書から未承認Schema、fixed balance、content件数、Operation inventoryまたはTarget budgetをcurrentとして作らない。
 
 ## 5. RPG Profile
@@ -63,6 +65,8 @@ Genre Recipe、Profile、Game Flow、Action roleの具体record候補は、Paren
 RPG Profileは必要Feature closure、World／Camera／Input／UI／Audio／Animationのbinding intent、command presentation mode、Save／Replay requirement、Accessibility／Localization requirement、Target compatibilityを組み合わせる。Profileは各Subsystemのparameter schema、fixed value、execution semanticsを所有しない。
 
 最初のProduct Reference向けProfileは2D command presentationを要求できるが、2Dをdepth-zero 3Dとして扱わず、Genre PackがSprite、Tile、Material、Camera、Text、Audio、Navigationのruntime authorityを所有しない。3D、action hybrid、real-time battle等は、必要FeatureとQualificationが別に閉じるまで同Profileのimplicit modeにしない。
+
+RPG Reference contentは通常のProject Source、Document、Asset、PackageとしてProject Owner群へ従い、Pack payload、Core default、Product ReceiptまたはCompletion recordではない。
 
 Profile名、表示label、Reference Game titleからFeature依存を推測しない。Profileが宣言したexact Feature／Owner／version／hashと、Projectが選択したPack closureだけを使う。
 

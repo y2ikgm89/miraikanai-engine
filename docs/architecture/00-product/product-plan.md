@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Product intent、AI-native C++ Product claim、第三者向け汎用Engine minimum surface、非交渉原則、Capability成熟度、2D／3D Product portfolio、MVP outcome、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
+- 正本範囲: Product intent、AI-native C++ Product claim、AI game generation claim lane、第三者向け汎用Engine minimum surface、非交渉原則、Capability成熟度、2D／3D Product portfolio、MVP outcome、FirstPlayableDefinitionV1、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
 - 非正本範囲: 最終Release authority record、Publication／Completion authority record、実装順序、工程、工数、担当、Fixture件数、実行／materialization Registry、Target technical Toolchain binding、Localization Catalog／fallback、Subsystemの型・Field・API・Backend・既定値・Budget、AI権限、各domain Evidence／Receiptの形式と意味。各Owner文書または非規範proposalを参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-08-03
 
@@ -47,6 +47,36 @@ Miraikanai Engineは、2Dと3Dを同格のfirst-class capabilityとして扱い�
 6. AI Provider、MCP endpointまたはそれらへのnetwork pathが不在、失効、拒否、timeout、非互換であっても、install済みのsupported local環境ではEditor／CLI／IDEによるmanual authoring、Validation、build、test、recoveryを維持する。AI経路の停止をProject破損、権限拡張またはEngine機能の偽装成功へfallbackしない。
 
 Product-facing標準flowは`discover／query -> bounded context -> question／decision（必要時） -> typed proposal -> semantic diff -> validation -> approval -> atomic commit -> test／build -> receipt／explain／recovery`である。これはProduct journeyの順序関係であり、Operation名、Schema、実装順序またはActivationを定義しない。`undo`は対象Ownerがreversibleと定義したOperationだけに許し、不可逆な外部effectには事前Approval、明示的boundary、補償またはrecovery policyを要求して偽のundoを提示しない。正確なOperation membershipとprojectionは[Executable Contracts](../02-foundation/executable-contracts.md)、権限と承認は[AI Security／Approval](../01-governance/ai-security-approval.md)、transactionは[Project State](../03-authoring/project-state.md)、Editor interactionは[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、Evidenceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を一意なOwnerとする。
+
+#### 1.1.1 AI game generation claim lane
+
+```text
+AiGameGenerationLaneV1 =
+  ai_composed_game |
+  ai_generated_external_content |
+  ai_generated_project_source
+
+AiGameGenerationClaimScopeV1
+  ai_generation_claim_scope_id: StableId
+  ai_generation_claim_scope_version: 1
+  claimed_lane_set[1..3]: sorted unique AiGameGenerationLaneV1
+  required_requirement_refs[1..256]:
+    sorted unique exact McdContractRefV1(kind=requirement)
+  required_journey_refs[1..256]: sorted unique exact ArtifactRefV1
+  required_evidence_class_refs[1..256]:
+    sorted unique exact EvidenceClassRefV1
+  excluded_lane_set[0..2]: sorted unique AiGameGenerationLaneV1
+  ai_generation_claim_scope_content_hash: SHA-256
+
+AiGameGenerationClaimScopeRefV1
+  ai_generation_claim_scope_id: StableId
+  ai_generation_claim_scope_version: 1
+  ai_generation_claim_scope_content_hash: SHA-256
+```
+
+各public claimは`claimed_lane_set[]`を明示し、次のnon-substituting意味を使う。`ai_composed_game`はGame Production Loopのtyped Document／Gameplay Definition／prequalified Pack／許可Assetを組成する。`ai_generated_external_content`はqualified Providerによる画像、音声、3D等をAsset provenance／rights／safety／human reviewへ閉じる。`ai_generated_project_source`はNative C++／Project Shader SourceをCode Owner、independent review、Build／Test、Promotionへ閉じる。
+
+一laneのpass Receipt、CapabilityまたはDemoを他laneのsupport claimへ数えない。`ai_composed_game`だけの製品をoriginal Asset生成済みまたはNative Source生成対応と表現せず、外部content生成だけからGame完成またはProject Source supportを主張しない。Game Production Loopはこのclosed enumを消費してauthoring semanticsを所有し、Product Planへ別enum、aliasまたは第四laneを返さない。
 
 ### 1.2 第三者向け汎用Engineとしてのminimum surface
 
@@ -164,6 +194,73 @@ MVPは「全Engine完成」ではなく、第三者Developer journeyを最小の
 - 失敗時にpartial Project、壊れたSave、silent fallback、誤った成功表示を残さない。
 
 Exact scene数、dialogue数、Asset数、test数、対応環境数はQualification Ownerまたは非規範Fixture catalogが、対象契約を過不足なく証明するために決める。件数自体をProduct完成条件にしない。
+
+```text
+FirstPlayableGameFlowRoleV1 =
+  title |
+  map_exploration |
+  conversation |
+  command_battle |
+  inventory_progress |
+  save_load |
+  settings |
+  result
+
+FirstPlayableInputDeviceClassV1 = keyboard | controller
+
+FirstPlayableDefinitionV1
+  first_playable_definition_id:
+    first_playable.compact_2d_command_rpg
+  first_playable_definition_version: 1
+  product_definition_ref: exact ActiveProductDefinitionRefV1
+  reference_dimension: two_d
+  genre_pack_requirement_ref:
+    exact McdContractRefV1(kind=requirement)
+  required_feature_pack_requirement_refs[1..64]:
+    sorted unique exact McdContractRefV1(kind=requirement)
+  required_game_flow_roles[8..8]:
+    sorted unique FirstPlayableGameFlowRoleV1
+  required_locale_profile_refs[2..2]: sorted unique exact LocaleProfileRefV1
+  required_input_action_refs[1..256]: sorted unique exact ArtifactRefV1
+  required_input_device_classes[2..2]:
+    sorted unique FirstPlayableInputDeviceClassV1
+  input_remap_required: true
+  required_accessibility_requirement_refs[1..256]:
+    sorted unique exact McdContractRefV1(kind=requirement)
+  required_capability_refs[1..1024]: sorted unique exact ArtifactRefV1
+  required_host_profile_refs[1..16]:
+    sorted unique exact TargetProfileRefV1(
+      profile_kind=build_host | editor_host)
+  required_runtime_target_profile_refs[1..16]:
+    sorted unique exact TargetProfileRefV1(profile_kind=runtime_target)
+  required_runtime_entry_role_refs[1..64]: sorted unique exact ArtifactRefV1
+  required_qualification_scenario_refs[1..256]:
+    sorted unique exact QualificationScenarioRefV1
+  required_requirement_refs[1..4096]:
+    sorted unique exact McdContractRefV1(kind=requirement)
+  required_operation_family_refs[1..256]: sorted unique exact ArtifactRefV1
+  required_evidence_class_refs[1..256]:
+    sorted unique exact EvidenceClassRefV1
+  required_ai_generation_claim_scope_ref:
+    exact AiGameGenerationClaimScopeRefV1
+  required_game_production_loop_contract_ref:
+    exact McdContractRefV1(kind=type)
+  manual_authoring_continuity_required: true
+  clean_install_required: true
+  offline_completion_required: true
+  first_playable_definition_content_hash: SHA-256
+
+FirstPlayableDefinitionRefV1
+  first_playable_definition_id: StableId
+  first_playable_definition_version: 1
+  first_playable_definition_content_hash: SHA-256
+```
+
+initial exact Definitionは`required_locale_profile_refs={en-US, ja-JP}`、`required_input_device_classes={keyboard, controller}`、`required_ai_generation_claim_scope_ref.claimed_lane_set={ai_composed_game}`である。`ai_generated_external_content`と`ai_generated_project_source`はexcluded laneで、C1 First Playable成立条件にしない。required Capabilityは2D rendering、UI／Text／Localization／Accessibility、Audio、Input、Save／Load、Gameplay Definition、Project Testing、Build／Cook／Package／Launchを過不足なく含み、required PackはRPG GenreとDefinitionが選ぶreusable RPG Featureだけを含む。
+
+Acceptanceは同じsigned Engine／Editor／SDK Candidateからbootstrapした一つのProject revision lineageで、author、validate、test、package、clean install、launch、Title→Result、offline completion、checkpoint Save／Load、Settings、keyboard／controller remap、`en-US`／`ja-JP` semantic invarianceを閉じる。さらに[Game Production Loop](../03-authoring/game-production-loop.md)の`GameUnderstandingClosureV1=ready_to_stage`、Experience Goal、Playtest Observation／Evaluation、`GameIterationDecisionV1=accept_candidate`、有効Human Gameplay Approvalを同じCandidateへ要求する。
+
+Shooter Fixture、3D technical Reference、別Genre、別Project、manual-only journey、AI-only journey、wrong Target、別Candidateまたは`fresh`でないEvidenceをこのDefinitionへ使わない。Definition自身はReceipt-freeなtarget requirementであり、対応MCD、Registry、RPG Project、Package、Fixture、ReceiptがmaterializeするまでFirst Playable完成を主張しない。
 
 ### 5.2 3D Product reference outcome
 

@@ -793,6 +793,8 @@ Future Dossierはcurrent rowを参照する`current_profile`と、authority-free
 
 五つの`requirement.product.release-*`は単なるbuild成功ではなく、同一Candidate／Toolchain／Target Profileでのclean build、署名済みpackageまたはheadless distribution、clean install／launch、offline run（適用Target）、Support Bundle、rollback rehearsal、license／SBOM／provenance、Release Approvalを閉じる。Headlessは物理Deviceを要求しないが、exact build host profileとdistributable artifactのreproducibilityを要求する。Windows Editor／Desktop、Android、AppleのReceiptは相互流用せず、`policy.evidence.release.v1`でcurrent signer／package／device／support windowを再評価する。
 
+[Product Plan §5.1](../00-product/product-plan.md#51-first-playable-outcome)のreceipt-free `FirstPlayableDefinitionRefV1`だけがcompact 2D command RPGのProduct scopeを選ぶ。本Proposalの`requirement.product.manual-first-playable-2d`、`requirement.product.ai-authoring-mvp-a`、`requirement.product.mvp-completion`は、そのDefinitionが投影するexact Requirement／journey／scenario／Target／Evidence classのconsumerであり、独自Definition、日程、工数、担当、materialized Fixture IDまたはReceiptを作らない。Shooter rows、3D Reference、Genre-neutral holdout、manual-onlyまたはAI-only結果をRPG First Playable acceptanceへ流用しない。
+
 | fixture_id | Owner | requirement_refs | targets | minimum duration seconds |
 |---|---|---|---|---:|
 | `fixture.product.headless-contract-smoke` | `mirakan.arch.product-plan` | `requirement.target.headless-determinism` | `target.headless.host` | 60 |
