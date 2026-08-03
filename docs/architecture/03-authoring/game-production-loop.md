@@ -443,6 +443,8 @@ target Operationは次の三familyへ分離する。
 | `game_experience_iteration` | playtest observation record、experience evaluate、iteration decide | Human Gameplay Approvalを発行せず、新Iterationには新Authorizationを要求する |
 | `game_production_read` | bounded inspect、trace、explain | mutation Receipt、Approval、Commit、Promotionを発行しない |
 
+[Operation／Planning Catalog §21.1](../appendices/executable-contracts-operation-planning-catalog.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.game_intent_understanding | planning.operation_family.game_experience_iteration | planning.operation_family.game_production_read`が、三familyへ一対一対応するexact candidate ID集合とField省略なし`PlannedOperationFamilyV1`を所有する。本書はGame production意味を所有するが、別candidate ID、planning record、work itemまたはactivation stateを複写しない。
+
 Provider／MCP projectionへHuman Gameplay Approval、Project Commit、Source Promotion、ActivationまたはRelease authorityを公開しない。Editor、CLI、MCP、Providerごとにpayload semanticsやhidden defaultをforkしない。
 
 現Repositoryの`materialized_operations`、`contract_active_operations`、`active_operations`、`operational_operations`はすべてexact `[]`で、三familyのcurrent stateは`not_activated`である。Operation表示名または本節のaction列からdispatchability、Service existence、Policy coverageまたはReceipt typeを合成しない。

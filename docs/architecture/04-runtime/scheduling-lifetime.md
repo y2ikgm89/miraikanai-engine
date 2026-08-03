@@ -21,6 +21,10 @@
 
 [Runtime Package](runtime-package.md)のDedicated game Runtimeは`entry_kind=world`＋headless Target＋Presentation absentであり、本書の`presentation_state=absent`を使う。Worldを持たない既存`entry_kind=headless` branchと同一視せず、Dedicated Target packageの存在からTransport／Multiplayer／Online supportを推測しない。
 
+[Core Architecture §13](../02-foundation/core-architecture.md#13-minimum-executable-core-target-closure)のMinimum Executable Core targetは、Runtime Packageに束縛されたexact Definitionから`runtime_orchestrator | runtime_scheduler | job_system | runtime_ecs | headless_game_host | deterministic_clock | deterministic_seed | typed_command | typed_event | typed_fault`の十roleを消費する。本書はrole、DefinitionまたはQualification型を複写せず、同じworldless headless Package、Project revision、Contract set、Cadence、seed、Candidate、Toolchain、Host／runtime Targetでphase、merge、fault、cancel、reverse teardownを実行する意味だけを所有する。
+
+Minimum Core bootで`Playing`へ遷移できることは、Coreの九scenario Qualificationを一件も代替せず、Product First Playable、Dedicated Server、Rendering、Gameplay quality、ReleaseまたはCompletionを成立させない。Definition ref欠落、十roleの一件missing／extra、別Candidate／Project revision／Contract set／Target／Toolchain、window／surface／Render threadへの依存、worker completion順によるhash driftをPlay readinessで拒否する。現RepositoryのDefinition、Package、Scheduler、Host、Fixture、Evidence、Qualification instanceはすべて未materializeである。
+
 Runtimeが保証する不変条件は次である。
 
 - Worldへの書込は宣言済みownerが宣言済みphaseでだけ行う。

@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、Build／Device／Play TaskとReceipt envelope、Launch request／Task／Receiptのexact Runtime Entry Selection binding、cross-target Build／Release Evidence closure、Repository境界、Test／CI、Feature開始Gate
+- 正本範囲: 基盤Layer、Host／Process境界、状態変更Gateway、ID・所有権、Thread／Job原則、Error規則、Build layer、Build／Device／Play TaskとReceipt envelope、Launch request／Task／Receiptのexact Runtime Entry Selection binding、cross-target Build／Release Evidence closure、Repository境界、Test／CI、MinimumExecutableCoreDefinitionV1／QualificationV1、Feature開始Gate
 - 非正本範囲: 外部Tool・SDK・Libraryのversion／hash／license／取得元、命名、Memory／Pointer詳細、Runtime scheduling／budget／observability、Schema構造。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 Language／Public Surface](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[Naming／Project layout](naming-project-layout.md)、[C++23 Language／Public Surface](cpp23-modules.md)、[Math／Core utilities](math-core.md)、[Memory／Pointers](memory-pointers.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -50,7 +50,7 @@ Private platform and vendor adapters
 - Hostだけがconcrete Adapterを組み立てる。Domain codeはService Locatorやglobal mutable singletonでAdapterを探索しない。
 - Vendor型、native handle、allocator型を公開API、MCD、永続formatへ露出しない。
 - `EditorHost`はAuthoring状態、`GameHost`はCook済みRuntime状態、`WorkerHost`は隔離されたBuild／Import／Validation taskだけを扱う。
-- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。現在契約参照またはdispatchできる型付きIPC Operationはexact 0件である。[Executable contracts](executable-contracts.md)のtarget-complete十候補、reserved 192 ID、legacy migrationはcurrent MCD／IPC／Provider／MCPへ投影しない。Operation名、文書内templateまたは未Activation候補からdispatchを推測せず、将来materializeしたexact Operationだけを[AI Security／Approval](../01-governance/ai-security-approval.md)のAuthorizationで許可する。
+- AI Orchestratorは別Processとし、EngineのmemoryやProject fileを直接変更しない。現在契約参照またはdispatchできる型付きIPC Operationはexact 0件である。[Executable contracts](executable-contracts.md)のtarget-complete十候補、reserved 207 ID、legacy migrationはcurrent MCD／IPC／Provider／MCPへ投影しない。Operation名、文書内templateまたは未Activation候補からdispatchを推測せず、将来materializeしたexact Operationだけを[AI Security／Approval](../01-governance/ai-security-approval.md)のAuthorizationで許可する。
 
 ## 4. Authoring状態とRuntime状態
 
@@ -798,7 +798,126 @@ CIは生成C++ signature、Pointer／Memory manifest、C ABI adapterが同じCon
 
 Observabilityは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、performance telemetryとregression thresholdは[Runtime performance／capacity](../04-runtime/performance-capacity.md)が所有する。FoundationはEvidenceへの入力を生成するだけで、数値を再定義しない。
 
-## 13. Feature実装開始Gate
+## 13. Minimum Executable Core target closure
+
+Minimum Executable Coreは「Engine全体」でもProduct First Playableでもない。Commit済みProject revisionからworldless headless Runtime Entryを読み、検査済みContractとPackageを同じCandidate／Toolchain／Targetでloadし、決定論的に進行・fault・cancel・shutdownできる最小の実行境界である。Rendering、Audio、Input、Editor UI、Asset production、Genre、Game content、Package distribution、Release、Completionはこのclosureへ含めない。
+
+```text
+MinimumExecutableCoreMemberRoleV1 =
+  foundation_contract |
+  math_contract |
+  memory_policy |
+  mcd_contract_set_resolver |
+  mcd_type_resolver |
+  mcd_operation_resolver |
+  mcd_diagnostic_resolver |
+  project_state_reader |
+  immutable_project_revision_input |
+  runtime_entry_package_reader |
+  runtime_entry_integrity_validator |
+  runtime_loader_staging |
+  runtime_orchestrator |
+  runtime_scheduler |
+  job_system |
+  runtime_ecs |
+  headless_game_host |
+  worker_host |
+  private_platform_adapter |
+  structured_logging |
+  crash_evidence |
+  deterministic_clock |
+  deterministic_seed |
+  typed_command |
+  typed_event |
+  typed_fault |
+  public_contract_surface |
+  toolchain_lock |
+  build_host_profile |
+  headless_runtime_target_profile
+
+MinimumExecutableCoreDefinitionV1
+  minimum_executable_core_definition_id:
+    core.minimum_executable.headless
+  minimum_executable_core_definition_version: 1
+  product_definition_ref: exact ActiveProductDefinitionRefV1
+  required_member_bindings[30..30]:
+    sorted unique {
+      member_role: MinimumExecutableCoreMemberRoleV1,
+      owner_contract_or_artifact_ref: exact ArtifactRefV1
+    }
+  required_contract_set_ref: exact ArtifactRefV1
+  required_public_contract_set_ref: exact ArtifactRefV1
+  required_project_revision_ref_kind: project_revision
+  required_runtime_entry_kind: headless
+  required_runtime_entry_package_contract_ref: exact ArtifactRefV1
+  required_runtime_entry_integrity_contract_ref: exact ArtifactRefV1
+  required_simulation_cadence_profile_ref: exact ArtifactRefV1
+  required_seed_profile_ref: exact ArtifactRefV1
+  required_toolchain_closure_ref: exact BuildToolchainClosureRefV1
+  required_build_host_profile_ref:
+    exact TargetProfileRefV1(profile_kind=build_host)
+  required_runtime_target_profile_ref:
+    exact TargetProfileRefV1(profile_kind=runtime_target)
+  minimum_executable_core_definition_content_hash: SHA-256
+
+MinimumExecutableCoreDefinitionRefV1
+  minimum_executable_core_definition_id: StableId
+  minimum_executable_core_definition_version: 1
+  minimum_executable_core_definition_content_hash: SHA-256
+```
+
+`required_member_bindings[]`のrole projectionは上のclosed enumとset equality、各roleはexactly one bindingである。binding先は各Ownerのversion／hash付きContractまたはArtifactへ解決し、文書見出し、Directory、CMake Target名、C++ namespace、同名Serviceまたは「Core」labelから補完しない。`private_platform_adapter`はHostからだけ到達し、vendor型をContract、Project、Package、command／event／faultへ露出しない。`runtime_ecs`はworldless headless entryでもSystem実行に必要な最小Runtime stateだけを供給し、Genre Component、Rendering WorldまたはProduct gameplayをCore defaultにしない。
+
+Contract set resolverは同じrootからType、Operation、Diagnosticをfail-closedで解決する。Project readerは一つのimmutable committed revisionだけを入力にし、Runtime Entry reader、integrity validator、loader stagingは同じrevision、Contract set、Target、Package hashを保持する。OrchestratorだけがScheduler、Job、typed command／event merge、fault transition、publication、reverse teardownを進める。clockとseedはwall-clock、thread index、worker completion順、pointer、localeまたはPlatform既定値からauthoritative結果を導出しない。
+
+```text
+MinimumExecutableCoreQualificationScenarioV1 =
+  clean_configure_and_build |
+  contract_round_trip |
+  headless_runtime_entry_load |
+  deterministic_advance_hash |
+  cooperative_cancel |
+  typed_fault_containment |
+  ordered_shutdown |
+  sanitizer_and_leak |
+  wrong_input_rejection
+
+MinimumExecutableCoreQualificationV1
+  minimum_executable_core_qualification_id: StableId
+  minimum_executable_core_qualification_version: 1
+  definition_ref: exact MinimumExecutableCoreDefinitionRefV1
+  candidate_ref: exact PreparedCandidateRefV1
+  project_revision_ref: exact ProjectRevisionRefV1
+  contract_set_ref: exact ArtifactRefV1
+  public_contract_set_ref: exact ArtifactRefV1
+  runtime_entry_package_ref: exact ArtifactRefV1
+  runtime_entry_launch_selection_ref: exact ArtifactRefV1
+  toolchain_ref: exact BuildToolchainClosureRefV1
+  build_host_profile_ref:
+    exact TargetProfileRefV1(profile_kind=build_host)
+  runtime_target_profile_ref:
+    exact TargetProfileRefV1(profile_kind=runtime_target)
+  scenario_evidence_bindings[1..9]:
+    sorted unique {
+      scenario: MinimumExecutableCoreQualificationScenarioV1,
+      expected_branch: success | expected_rejection,
+      evidence_ref: exact EvidenceRefV1
+    }
+  qualification_result: passed | failed
+  evaluated_at: RFC3339 UTC
+  qualification_content_hash: SHA-256
+
+MinimumExecutableCoreQualificationRefV1
+  minimum_executable_core_qualification_id: StableId
+  minimum_executable_core_qualification_version: 1
+  qualification_content_hash: SHA-256
+```
+
+`qualification_result=passed`では`scenario_evidence_bindings[]`のscenario projectionをclosed enumとset equalityにする。`failed`は実行できた既知scenarioのnon-empty subsetだけを保持できるが、unknown、duplicate、別DefinitionのEvidenceを入れず、missing scenarioをpassへ補完しない。`wrong_input_rejection`だけが`expected_branch=expected_rejection`、他八件は`success`とし、全Evidenceを同じDefinition、Candidate、Project revision、Contract set、public contract set、Toolchain、Host／runtime Target、Runtime Entry Package／Selectionへ束縛する。deterministic scenarioは同一初期Snapshot、Cadence、seed、typed inputを複数回進めてcanonical state／event／fault hashを一致させる。cancelはpartial publication 0、faultは未完了advance publication 0、shutdownはactual dependency DAGのreverse order、sanitizer／leakはToolchain Ownerが当該Hostへ要求するlaneを満たす。wrong inputはstale revision、wrong Contract set、corrupt Package、wrong Targetの各required negative caseを含み、last-valid stateを変えない。
+
+`qualification_result=passed`は九bindingが全て存在し、Evidenceが`fresh`かつnon-revokedで、Definitionのexact binding集合と同じCandidateへread-backできる場合だけ許す。一件でもmissing、extra、duplicate、stale、別Candidate、別Project revision、別Target、別Toolchainまたはwrong expected branchなら`failed`である。Definition、Qualification、Schema、Fixture、Evidence、Candidate、Toolchain lock、Target Profile、C++、Build systemのいずれも現Repositoryにはmaterializeしておらず、current qualified Minimum Core集合はexact `[]`である。
+
+## 14. Feature実装開始Gate
 
 Feature実装は次を満たすまで開始しない。
 
@@ -812,7 +931,7 @@ Feature実装は次を満たすまで開始しない。
 
 Gate不合格時は別Backend、旧Path、legacy Schema、未固定toolへ暗黙fallbackしない。
 
-## 14. 明示的に採用しないもの
+## 15. 明示的に採用しないもの
 
 - Entityごとのheap objectとvirtual update
 - Service Locatorとglobal mutable singleton

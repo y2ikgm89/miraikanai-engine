@@ -309,6 +309,8 @@ C++、TypeScript、Gameplay Cooked binaryは同じType／Operation identityとca
 
 Discovery／Execution planning recordの具体候補は[Operation／Planning Catalog](../appendices/executable-contracts-operation-planning-catalog.md#20-ai向けdiscoveryexecution候補のplanning-record未activation)へ分離する。Planning recordはOperation登録、Provider exposure、authorization、Capability activationを発生させない。
 
+[Game Production Loop](../03-authoring/game-production-loop.md)の`game_intent_understanding`、`game_experience_iteration`、`game_production_read`も同じ`PlannedOperationFamilyV1`だけを使う。前三familyのstate-changing意味はprepared Proposalまでを外部投影上限とし、実Project変更は別のactive ChangeSet carrierとtrusted-internal Commitを必要とする。`game_production_read`はread-onlyで、三familyのProvider／MCP projectionへProject Commit、Human Gameplay Approval、Source Promotion、Activation、Signing、Releaseを含めない。現Repositoryでは三familyを含むreserved 27 family／207候補の全current集合とalias集合がexact `[]`、Capability stateが`not_activated`である。
+
 ## 21. Project Shader Discovery／Proposal候補
 
 Project Shader候補も同じOperation共通意味と未Activation規則に従う。

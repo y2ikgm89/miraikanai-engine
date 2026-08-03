@@ -1432,7 +1432,7 @@ Activation後の受入条件として、AIへ巨大な全Schemaを一括送信�
 
 Activation後のSearch結果はその時点のContract set hashを含む。AIが古いhashのCapabilityでProposalを送った場合、Gatewayはstaleとして拒否し、差分を返す。AIがSchemaにないFieldや完全登録済みでないOperationを使った場合、fuzzyに推測して補正せず、候補ID付きDiagnosticを返す。planned検索actionのbounded result受入値は、各表で別値を明示しない限り既定50件、最大200件、continuation付きとする。Activation前のcurrent Search／Read Operation集合は空であり、この挙動をcallableとみなさない。
 
-以下の§§20～21.1の候補表に列挙する`operation.*` IDは実行契約ではなく、将来の語彙衝突を防ぐ予約候補である。MCD document、Owner Manifest、Contract set member、Trusted Service allowlist、Provider projection、MCP alias、CLI／Editor commandのいずれにも存在せず、全familyのcurrent集合は空、Capability stateは`not_activated`である。§8.1／§8.2のtarget-complete候補十件もcurrent MCDには存在せず、本planning ledgerのreserved 192件とは別classで保持する。legacy migration IDはplanning ledgerへ登録しない。
+以下の§§20～21.1の候補表に列挙する`operation.*` IDは実行契約ではなく、将来の語彙衝突を防ぐ予約候補である。MCD document、Owner Manifest、Contract set member、Trusted Service allowlist、Provider projection、MCP alias、CLI／Editor commandのいずれにも存在せず、全familyのcurrent集合は空、Capability stateは`not_activated`である。§8.1／§8.2のtarget-complete候補十件もcurrent MCDには存在せず、本planning ledgerのreserved 207件とは別classで保持する。legacy migration IDはplanning ledgerへ登録しない。
 
 ```text
 PlannedOperationFamilyV1
@@ -1488,8 +1488,11 @@ PlannedOperationFamilyV1
 | `planning.operation_family.build_candidate_test` | 1 | `build_candidate_test` | 6 | `activation.build.candidate_test_operations.v1` |
 | `planning.operation_family.gameplay_definition_authoring` | 1 | `gameplay_definition_authoring` | 6 | `activation.gameplay_definition.authoring_operations.v1` |
 | `planning.operation_family.asset_authoring` | 1 | `asset_authoring` | 10 | `activation.asset.authoring_operations.v1` |
+| `planning.operation_family.game_intent_understanding` | 1 | `game_intent_understanding` | 8 | `activation.game_production.intent_understanding_operations.v1` |
+| `planning.operation_family.game_experience_iteration` | 1 | `game_experience_iteration` | 3 | `activation.game_production.experience_iteration_operations.v1` |
+| `planning.operation_family.game_production_read` | 1 | `game_production_read` | 3 | `activation.game_production.read_operations.v1` |
 
-上表24行と、この後に文書順で現れる第一列見出しが`reserved candidate ID`の24表を同じindexでzipするclosed expansion ruleを正本とする。各`PlannedOperationFamilyV1` instanceは、ledger列から`planning_record_id`、`planning_record_version`、`family_id`、`reserved_candidate_count`、`activation_work_item_id`を、対応候補表の第一列から行順を保った`reserved_candidate_ids[]`をmaterializeする。残る全Fieldは上のschemaに書かれたliteral、すなわち`capability_state=not_activated`、十のcurrent集合と二つのalias集合すべて`[]`、`activation_mode=atomic_family_contract_set_transaction`、`unavailable_error_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`をField省略なしでmaterializeし、その後にだけ`planning_record_hash`を計算する。これは既定値補完ではない。ledger／候補表が24対24でない、候補数不一致、候補ID重複、別familyへの同一ID混入、literal Fieldの省略／変更、empty集合の省略をplanning record compile failureにする。
+上表27行と、この後に文書順で現れる第一列見出しが`reserved candidate ID`の27表を同じindexでzipするclosed expansion ruleを正本とする。各`PlannedOperationFamilyV1` instanceは、ledger列から`planning_record_id`、`planning_record_version`、`family_id`、`reserved_candidate_count`、`activation_work_item_id`を、対応候補表の第一列から行順を保った`reserved_candidate_ids[]`をmaterializeする。残る全Fieldは上のschemaに書かれたliteral、すなわち`capability_state=not_activated`、十のcurrent集合と二つのalias集合すべて`[]`、`activation_mode=atomic_family_contract_set_transaction`、`unavailable_error_code=MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`をField省略なしでmaterializeし、その後にだけ`planning_record_hash`を計算する。これは既定値補完ではない。ledger／候補表が27対27でない、候補数不一致、候補ID重複、別familyへの同一ID混入、literal Fieldの省略／変更、empty集合の省略をplanning record compile failureにする。
 
 各work itemは、そのfamilyの採用exact ID集合、各OperationのMCD共通Envelope全Field、named input／result／Receipt Type、authority Serviceとallowlist、Risk、side effect、idempotency、transaction、pure pre／post Policy、rate／timeout、closed Diagnostic、Validator／closure、Provider exposure、canonical signed Receipt、private-to-public recovery、positive／negative Qualification、Owner Manifest／MCD／Service／Provider／aliasのlike-for-like equalityを同じContract set transactionで完備した場合だけfamily全体をactivateできる。候補IDを削除または分割する場合もplanning recordをversion-upし、実在しないIDをlegacy aliasにしない。以下の表の「予定意味」はactivation後に採用可否を再審査する入力であり、現行動作を記述しない。
 
@@ -1852,7 +1855,38 @@ Asset authoring surfaceは次の十IDだけを予約する。Importer実行結�
 | `operation.asset.plan_bulk_migration` | R1 proposal。bounded item集合、batch、rollback、failure policyを作る |
 | `operation.asset.validate_import` | R0 validation。Source、Importer、Derived、license、Target、budget、dependency closureを検証する |
 
-既存93件と追加32件についてもfamily単位のatomic activationだけを許可する。Math文書からCamera候補への一回のcross-owner参照を除き、192件全体の候補IDは重複なしである。`67 + 6 + 11 + 15 + 24 + 25 + 2 + 1 + 1 + 1 + 7 + 4 + 5 + 1 + 6 + 6 + 10 = 192`、planning family数は`8 + 10 + 6 = 24`であり、count、ID union、全empty current集合、work itemをcompiler fixtureでexact比較する。
+Game production intent理解は次のexact八IDだけを予約する。全件R1 Proposalで、Owner-typed recordまたはChangeSet primitive候補を返すだけでProjectを変更しない。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.game_intent.session.propose_create` | bounded scope、Project／Contract set、Context Capsuleを持つIntent session作成Proposal |
+| `operation.game_intent.draft.propose_capture` | Session内Intent Draftのimmutable capture Proposal |
+| `operation.game_intent.question.propose_answer` | exact open QuestionへのAnswer record Proposal |
+| `operation.game_intent.question.propose_withdraw` | exact open Questionのwithdrawal Proposal |
+| `operation.game_intent.assumption.propose_resolution` | Assumptionをacceptまたはreplacementへ閉じるProposal |
+| `operation.game_intent.brief.propose_confirmation` | traceable Game Brief confirmation Proposal |
+| `operation.game_intent.spec.propose_publication` | Requirement／Decision traceabilityを持つGameSpec publication Proposal |
+| `operation.game_intent.understanding.propose_closure` | unresolved Question／Assumption countを再検証するUnderstanding Closure Proposal |
+
+Game experience iterationは次のexact三IDだけを予約する。Observation、Evaluation、Decisionを相互代替せず、Human Gameplay Approvalを発行しない。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.game_experience.playtest_observation.propose_record` | participant、session、build、provenanceへ閉じたObservation record Proposal |
+| `operation.game_experience.evaluation.propose` | Experience GoalとObservation集合をsame Candidateで評価するProposal |
+| `operation.game_experience.iteration.propose_decision` | Evaluationからiterate、restage、accept、stopのDecision Proposal |
+
+Game production readは次のexact三IDだけを予約する。全件R0 read-onlyでmutation Receipt、Approval、Commit、PromotionまたはActivationを返さない。
+
+| reserved candidate ID | 予定意味 |
+|---|---|
+| `operation.game_production.inspect` | bounded Game Brief／Spec／Question／Assumption／Decision／Playtest projectionを返す |
+| `operation.game_production.trace` | Requirement、Decision、Change、Evidence、Observationのbounded traceを返す |
+| `operation.game_production.explain` | Closure state、gap、rejection reason、required next decisionを説明する |
+
+三familyは各ledger rowからField省略なし`PlannedOperationFamilyV1`へ展開し、十のcurrent projection集合、`generated_aliases`、`legacy_aliases`をすべてexact `[]`、`capability_state=not_activated`にする。Provider／MCPは将来Activation後もProposal／read subsetだけで、Project Commit、Human Gameplay Approval、Source Promotion、Activation、SigningまたはRelease authorityを持たない。
+
+既存94件、追加32件、Game production 14件についてもfamily単位のatomic activationだけを許可する。Math文書からCamera候補への一回のcross-owner参照を除き、207件全体の候補IDは重複なしである。`67 + 6 + 11 + 15 + 24 + 26 + 2 + 1 + 1 + 1 + 7 + 4 + 5 + 1 + 6 + 6 + 10 + 8 + 3 + 3 = 207`、planning family数は`8 + 10 + 6 + 3 = 27`であり、count、ID union、全empty current集合、work itemをcompiler fixtureでexact比較する。
 
 ### 21.2 Architecture内`operation.*` tokenのclosed partition
 
@@ -1863,7 +1897,7 @@ current architectureで完全なOperation IDとして現れるtokenは、次の�
 | class | exact集合／件数 | materialization |
 |---|---|---|
 | `target_complete_not_materialized` | §8.1／§8.2の10件 | target closure定義だけ。current MCD／Manifest／Service／Policy／Validator／Diagnostic／Receipt／surface／Activation Evidence集合は全て`[]` |
-| `reserved_not_activated` | §§20～21.1の24 family、192件 | `PlannedOperationFamilyV1`だけ。全current集合／alias集合`[]` |
+| `reserved_not_activated` | §§20～21.1の27 family、207件 | `PlannedOperationFamilyV1`だけ。全current集合／alias集合`[]` |
 | `example_pending_or_rejected` | 下表の10件 | current／planning／alias集合すべて`[]`。dispatch拒否 |
 
 | exact non-current ID | reason |

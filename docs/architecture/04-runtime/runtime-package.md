@@ -31,6 +31,8 @@ RuntimeEntryPackageV1
   source_project_revision_ref: ProjectRevisionRefV1
   runtime_entry_ref: DocumentRef<RuntimeEntryPointDocumentV1>
   runtime_entry_semantic_hash: RuntimeEntryPointSemanticHashV1
+  minimum_executable_core_definition_ref:
+    MinimumExecutableCoreDefinitionRefV1 | null
   runtime_entry_presentation_binding_ref:
     RuntimeEntryPresentationBindingRefV1 | null
   runtime_entry_presentation_binding_hash: SHA-256 | null
@@ -65,11 +67,11 @@ RuntimeEntryPackageRefV1
 
 branch validationは次へ固定する。
 
-| `entry_kind` | Presentation Binding二Field | `world_package_ref` | UI二Field | `startup_system_closure_hash` |
-|---|---|---|---|---|
-| `world` | Project State §3.1.1.1のatomic activation後にBinding選択時だけexact ref＋hash、Bindingなしは両方null | exact一件 | Binding present時だけexact `ui_root_screen_definition_ref`＋`ui_dependency_closure_hash`、Binding nullなら両方null | startup systemが1件以上の時だけexact closure hash |
-| `ui` | 両方null | null | Runtime Entryのexact `ui_document_ref`から作る`ui_root_screen_definition_ref`＋`ui_dependency_closure_hash` | startup systemが1件以上の時だけexact closure hash |
-| `headless` | 両方null | null | 両方null | exact startup closure hash一件 |
+| `entry_kind` | Minimum Core Definition | Presentation Binding二Field | `world_package_ref` | UI二Field | `startup_system_closure_hash` |
+|---|---|---|---|---|---|
+| `world` | null | Project State §3.1.1.1のatomic activation後にBinding選択時だけexact ref＋hash、Bindingなしは両方null | exact一件 | Binding present時だけexact `ui_root_screen_definition_ref`＋`ui_dependency_closure_hash`、Binding nullなら両方null | startup systemが1件以上の時だけexact closure hash |
+| `ui` | null | 両方null | null | Runtime Entryのexact `ui_document_ref`から作る`ui_root_screen_definition_ref`＋`ui_dependency_closure_hash` | startup systemが1件以上の時だけexact closure hash |
+| `headless` | Minimum Executable Core qualification targetだけexact一件、通常workflowはnull | 両方null | null | 両方null | exact startup closure hash一件 |
 
 Presentation Binding二FieldとUI二Fieldはそれぞれall-nullまたはall-presentで、worldでは両groupのpresent／nullが一致しなければならない。Binding ref／hash、Project Compile ManifestのBinding ref／hash、Binding内Runtime Entry ref／semantic hash、root UiDocument ref／content hashをbyte equalityで検証する。`ui_root_screen_definition_ref`はexact UiDocument ref／content hashとNavigation Policyを束縛したcompiled `UiScreenDefinitionV1`、`ui_dependency_closure_hash`は同Documentから到達するStyle／Localization／Font／Asset Catalog dependency集合へ解決する。これらをAsset Lifecycleの`ArtifactSubjectRefV1`へ未登録subject kindとして偽装しない。headlessへ空startup closureを作る、UI-onlyへ空World packageを作る、V1 worldの`ui_document_ref`をnon-nullにする、world UIをdependency blobとしてWorld binaryへ隠す、missing fieldをCatalogや表示名から補完することを禁止する。World branch内側の`RuntimePackageV1`と外側の`RuntimeEntryPackageV1`は別のID／hashを持ち、相互のRef型を代用しない。
 
@@ -77,7 +79,13 @@ Runtime PackageはGraph／Implementation／State owner recordのshapeを所有�
 
 Runtime Entry transitionとContinueは常に外側`RuntimeEntryPackageRefV1`を参照する。ECS World constructionと`RuntimeWorldSaveRecordSetV1`だけがworld branch内側`RuntimePackageRefV1`を参照できる。これによりTitle／ResultのUI-only branchとheadless workflowはWorld Root imageなしにload／validate／publishできる。
 
-#### 1.1.1 配布Package artifact manifest
+#### 1.1.1 Minimum Executable Core headless boot binding
+
+[Core Architecture §13](../02-foundation/core-architecture.md#13-minimum-executable-core-target-closure)のMinimum Executable Core qualification targetでは、`entry_kind=headless`のPackageがexact `MinimumExecutableCoreDefinitionRefV1`を持つ。DefinitionのProject revision input kind、Contract set、Runtime Entry Package reader／integrity／loader staging、Cadence、Toolchain、Build Host、runtime Target bindingをPackage、Build input、launch selection、Qualification subjectへbyte／set equalityで接続する。Definition refだけ、Packageだけ、起動成功だけからQualification passを導出しない。
+
+このbindingはworldless headless bootの最小実行境界である。Product First Playable、Dedicated Server、Rendering、UI、Asset、Genre、Game completionまたはReleaseの代替Evidenceにしない。通常のheadless workflowはDefinition refをnullにできるが、Minimum Core qualification scenarioがnull、world／ui packageがnon-null、別Definition／Candidate／Project revision／Target／Toolchainへ解決する場合はboot前に拒否する。現RepositoryにDefinition、Package、reader、loader、CandidateまたはQualification instanceは存在しない。
+
+#### 1.1.2 配布Package artifact manifest
 
 ```text
 RuntimeEntryDistributionPackageManifestV1
