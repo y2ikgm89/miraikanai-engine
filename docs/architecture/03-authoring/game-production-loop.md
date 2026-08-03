@@ -27,7 +27,7 @@ AIと人間は同じrecord、Project ChangeSet、Validator、Evidence、Approval
 |---|---|---|
 | Task scope、Risk、Consent、Approval、Code Owner、Provider trust | [AI Security／Approval](../01-governance/ai-security-approval.md) | exact Authorization／Approval refを検証する |
 | Evidence identity、署名、admissibility、freshness、revocation | [AI Verification／Provenance](../01-governance/ai-verification-provenance.md) | `fresh`なexact Evidence refだけを数える |
-| Project／revision、Document header、ChangeSet、Commit、bootstrap publication | [Project State](project-state.md) | prepared candidateをatomic Commitする |
+| Project／revision、Document header、ChangeSet、Commit、bootstrap publication | [Project State](project-state.md) | existing Projectはexpected revision付きChangeSet、bootstrapはprivate prepared candidateとatomic first publicationを使う |
 | automated test suite／case／run result | [Developer Testing](developer-testing.md) | exact Result refをtechnical inputとして読む |
 | Gameplay System、State owner、implementation variant | [Gameplay Programming Model](gameplay-programming-model.md) | exact graph／projection refを読む |
 | Asset provenance、rights、safety、promotion | [Asset Lifecycle](asset-lifecycle.md) | lane別Asset closureを読む |
@@ -39,9 +39,18 @@ Technical testは人間のObservationを代替せず、人間のObservationはte
 
 ### 3.1 完成recordとRef
 
-本書が所有する全top-level recordはclosed recordであり、`schema_version=1`、型固有`StableId`、自己hashを除く全Fieldから導出した`content_hash: SHA-256`を持つ。unknown sibling Field、default補完、display nameからのID推測、同じID／versionに対する異なるhashを拒否する。
+本書が所有する非Document top-level recordはclosed recordであり、`schema_version=1`、型固有`StableId`、自己hashを除く全Fieldから導出した`content_hash: SHA-256`を持つ。unknown sibling Field、default補完、display nameからのID推測、同じID／versionに対する異なるhashを拒否する。
 
-各`XxxRefV1`は`{xxx_id, xxx_version=1, xxx_content_hash}`のexact tupleで、解決先完成recordの同Fieldとbyte equalityにする。裸ID、path、timestamp、Project revisionだけ、`latest`、別recordのhashまたは会話中の呼称をRefとして受理しない。
+各非Document `XxxRefV1`は`{xxx_id, xxx_version=1, xxx_content_hash}`のexact tupleで、解決先完成recordの同Fieldとbyte equalityにする。裸ID、path、timestamp、Project revisionだけ、`latest`、別recordのhashまたは会話中の呼称をRefとして受理しない。
+
+`GameBriefDocumentV1`、`GameSpecDocumentV1`、`GameDecisionLedgerDocumentV1`は例外として[Project State §3.2](project-state.md#32-共通document-header)の共通Document identity／revision／hashを使う。正規Refは次のtyped aliasだけで、一般record用tupleの同名別shapeを作らない。
+
+```text
+GameBriefDocumentRefV1 = exact DocumentRef<GameBriefDocumentV1>
+GameSpecDocumentRefV1 = exact DocumentRef<GameSpecDocumentV1>
+GameDecisionLedgerDocumentRefV1 =
+  exact DocumentRef<GameDecisionLedgerDocumentV1>
+```
 
 本文で特記しない配列はMCD canonical bytes全体のunsigned lexicographic順でstrict sortし、duplicateを拒否する。ordered stepだけは明示`ordinal: uint16`を持ち、`ordinal=0..count-1`の連続列にする。全hashは[Executable Contracts](../02-foundation/executable-contracts.md)のcanonical encodingを使い、JSON property order、locale、filesystem orderまたはproducer orderへ依存しない。
 
@@ -52,6 +61,10 @@ Technical testは人間のObservationを代替せず、人間のObservationはte
 ### 3.3 lineage invariant
 
 一つのloopに参加する全recordは同じ`GameProductionSubjectV1`、`ProjectRefV1`、開始時`ContractSetRefV1`およびTarget集合へ解決する。`existing_project`では全Project Document／Artifactを同じ`ProjectRevisionRefV1`またはその正規descendantへ結び、別branchのsame-number revisionを拒否する。`bootstrap`ではstable Project identityを先に確保するが、Project Stateのatomic publication成功前にrevision 1、部分Projectまたはcurrent Documentを公開しない。
+
+`bootstrap`中のIntent／Question／Assumption／DecisionとBrief／Spec／Decision LedgerのDocument候補は、exact bootstrap request／profile、stable Project ref、Task Authorizationと、各recordが宣言する直前／direct refに束縛したprivate staging candidateであり、Project authorityではない。完成Brief／Spec／Decision Ledger／initial Source treeを含む一つのprepared candidateがProject Stateのatomic first publicationに成功したときだけrevision 1へ結び付く。取消／失敗はprivate candidateをProjectとして開かず、同じProject IDを別bootstrapへ再利用しない。
+
+`GameRequirementTraceabilityV1`、revision-bound System graph／Implementation／State owner projection、`GameUnderstandingClosureV1`はCommit済み`ProjectRevisionRefV1`を必須にするため、bootstrap prepublication中に完成recordとして発行しない。atomic first publication後、同じbootstrap subjectのrevision 1またはその正規descendantからこれらを作成し、後続state changeはexpected revision付きexisting-Project transaction規則に従う。存在しないrevision 1のref／hash、予定document-set hashまたは`null`を理解完了の入力にしない。
 
 ## 4. Game production subjectとIntent session
 
@@ -103,7 +116,7 @@ DraftはUser入力の改変検知とEvidence lineageを保存するがProject Do
 
 ### 5.1 Game BriefとGameSpec Document
 
-`GameBriefDocumentV1`と`GameSpecDocumentV1`は[Project State §4](project-state.md#4-documentモデル)の共通Document headerをそのまま使用する。Document identity、kind、schema、owner、revision、hash、dependencyはProject Stateが所有し、本書はpayloadだけを所有する。
+`GameBriefDocumentV1`と`GameSpecDocumentV1`は[Project State §3.2](project-state.md#32-共通document-header)の共通Document headerをそのまま使用する。Document identity、kind、schema、owner、revision、hash、dependencyはProject Stateが所有し、本書はpayloadだけを所有する。
 
 ```text
 GameBriefDocumentV1.payload
@@ -267,6 +280,7 @@ GameUnderstandingClosureV1
   contract_set_ref: exact ContractSetRefV1
   game_brief_document_ref: exact GameBriefDocumentRefV1
   game_spec_document_ref: exact GameSpecDocumentRefV1
+  game_decision_ledger_document_ref: exact GameDecisionLedgerDocumentRefV1
   question_record_refs[0..512]: sorted unique exact GameQuestionRecordRefV1
   assumption_record_refs[0..256]: sorted unique exact GameAssumptionRecordRefV1
   decision_record_refs[1..1024]: sorted unique exact GameDecisionRecordRefV1
@@ -292,7 +306,9 @@ GameUnderstandingClosureV1
 
 Traceabilityの`entries[].requirement_ref` projectionはGameSpecのrequired Requirement集合とset equalityにし、各required RequirementをCapability、System、compatible Implementation、Test、Evidence requirementへ一意に到達可能にする。required Capabilityには`capability_refs`、System、Implementation、Test、Evidence requirementを空にできない。Artifactはstaging前には0件を許すが、存在しないArtifactを予定名やpathで補完しない。
 
-Closureは全Question current headを過不足なく含め、四countを解決recordから再計算する。`ready_to_stage`にはBlocking／High／Low open 0、acceptedかつ有効AssumptionのないMedium open 0、Requirement coverage 100%、State owner collision 0、required Systemのmissing compatible Implementation 0、unsupported required Capability 0、`fresh`以外のrequired Evidence 0を全て要求する。required Capabilityが未対応なら`capability_unavailable`とし、質問closure、traceabilityまたはEvidence条件を緩和しない。二つ以外のdisposition、partial ready、AI overrideを認めない。
+TraceabilityとUnderstanding Closureの`project_revision_ref`は常にnon-nullのCommit済みrevisionである。`bootstrap`ではrevision 1または承認済みdescendant、`existing_project`では開始時または承認済みdescendantのexact refを必須とし、null、未公開candidate、別Project、same-number別branchを拒否する。
+
+Closureは全Question current headを過不足なく含め、四countを解決recordから再計算する。`game_decision_ledger_document_ref`は同じProject revision／production subjectの完成Documentへ解決し、`decision_record_refs[]`をLedgerの`current_decision_record_refs[]`とset equalityにする。stale Ledger、superseded Decision、別subjectまたはLedgerにないDecisionを使わない。`ready_to_stage`にはBlocking／High／Low open 0、acceptedかつ有効AssumptionのないMedium open 0、Requirement coverage 100%、State owner collision 0、required Systemのmissing compatible Implementation 0、unsupported required Capability 0、`fresh`以外のrequired Evidence 0を全て要求する。required Capabilityが未対応なら`capability_unavailable`とし、質問closure、traceabilityまたはEvidence条件を緩和しない。二つ以外のdisposition、partial ready、AI overrideを認めない。
 
 ## 7. AI game generation lane
 
@@ -418,6 +434,7 @@ GameProductionLoopClosureV1
   game_production_loop_closure_id: StableId
   production_subject_ref: exact GameProductionSubjectRefV1
   game_understanding_closure_ref: exact GameUnderstandingClosureRefV1
+  project_revision_ref: exact ProjectRevisionRefV1
   candidate_ref: exact ArtifactRefV1
   technical_validation_evidence_refs[1..256]:
     sorted unique exact EvidenceRefV1
@@ -431,7 +448,7 @@ GameProductionLoopClosureV1
 
 `accept_candidate`はEvaluationの全required Goalが`met`、全important Goalが`met | partially_met`、blocking Observation 0でなければ発行しない。`revise.observation_ordinals[]`はEvaluationが参照する同じObservation Setの実ordinalだけを指し、解決対象Goal、Observation、Requirement delta、proposal scopeを欠落させない。`stop`と`defer`を成功扱いせず、`defer`は再入条件を必須にする。
 
-Loop Closureの`accepted`にはUnderstanding `ready_to_stage`、全required technical Gate pass、required Evidence `fresh`、有効Human Gameplay Approval、Iteration `accept_candidate`を同一Candidate／Project lineage／Target集合へ束縛する。他branchはそれぞれIteration Decisionと一致させる。Closure発行だけでProject Commit、Product First Playable、ReleaseまたはCompletionへ昇格しない。
+Loop Closureの`project_revision_ref`はEvaluationから解決するPlaytest Sessionのrevisionとbyte equalityにし、bootstrapではrevision 1またはその正規descendant、`existing_project`ではUnderstanding Closureのexact revisionまたはその承認済みdescendantだけを許す。`accepted`にはUnderstanding `ready_to_stage`、全required technical Gate pass、required Evidence `fresh`、有効Human Gameplay Approval、Iteration `accept_candidate`を同一Candidate／Project lineage／Target集合へ束縛する。他branchはそれぞれIteration Decisionと一致させる。Closure発行だけでProject Commit、Product First Playable、ReleaseまたはCompletionへ昇格しない。
 
 ## 10. Target Operation familyとcurrent状態
 
@@ -439,7 +456,7 @@ target Operationは次の三familyへ分離する。
 
 | family | target action | authority boundary |
 |---|---|---|
-| `game_intent_understanding` | session create、draft capture、question answer／withdraw、assumption accept／replace、brief confirm、spec publish、understanding close | state変更はprepared candidate、expected revision、Authorization／Approval、atomic Commitを必須にする |
+| `game_intent_understanding` | session create、draft capture、question answer／withdraw、assumption accept／replace、brief confirm、spec publish、understanding close | bootstrap prepublication recordはexact bootstrap request／Authorization付きprivate stagingに限定し、Brief／SpecのProject authorityはApproval付きatomic first publicationでだけ発行する。理解closureと公開後変更はprepared ChangeSet／expected revision／Authorization／Approval／atomic Commitを必須にする |
 | `game_experience_iteration` | playtest observation record、experience evaluate、iteration decide | Human Gameplay Approvalを発行せず、新Iterationには新Authorizationを要求する |
 | `game_production_read` | bounded inspect、trace、explain | mutation Receipt、Approval、Commit、Promotionを発行しない |
 

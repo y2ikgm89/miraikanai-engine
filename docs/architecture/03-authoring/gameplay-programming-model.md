@@ -116,7 +116,7 @@ GameSystemDependencyGraphV1
   graph_version: 1
   project_revision_ref: exact ProjectRevisionRefV1
   contract_set_ref: exact ContractSetRefV1
-  system_nodes[1..4096]: sorted unique {
+  system_nodes[0..4096]: sorted unique {
     game_system_contract_ref: exact GameSystemContractRefV1,
     game_system_spec_content_hash: SHA-256,
     runtime_scope_type_ref: exact RuntimeScopeTypeRefV1,
@@ -156,7 +156,7 @@ SystemImplementationSetV1
   contract_set_ref: exact ContractSetRefV1
   game_system_dependency_graph_ref: exact GameSystemDependencyGraphRefV1
   target_profile_ref: exact TargetProfileRefV1
-  selections[1..4096]: sorted unique {
+  selections[0..4096]: sorted unique {
     game_system_contract_ref: exact GameSystemContractRefV1,
     implementation_variant_ref: exact ArtifactRefV1,
     implementation_kind:
@@ -179,7 +179,7 @@ GameStateOwnerProjectionV1
   project_revision_ref: exact ProjectRevisionRefV1
   contract_set_ref: exact ContractSetRefV1
   game_system_dependency_graph_ref: exact GameSystemDependencyGraphRefV1
-  entries[1..65536]: sorted unique {
+  entries[0..65536]: sorted unique {
     state_type_ref: exact McdContractRefV1(kind=type),
     authoritative_owner_system_ref: exact GameSystemContractRefV1,
     runtime_scope_type_ref: exact RuntimeScopeTypeRefV1,
@@ -197,6 +197,8 @@ GameStateOwnerProjectionRefV1
 ```
 
 全Refは解決先完成recordとbyte equalityにし、各配列は要素のMCD canonical bytes全体によるunsigned lexicographic strict sort、duplicate 0である。Graphのnode projectionは同Project revision／Contract setのrequired `GameSystemSpecV1`集合とset equalityにし、各nodeのphase、Component、State、Command、Event集合をSpecとbyte equalityにする。edge両端はnode集合内に存在し、self-edge、未宣言subject、read／writeまたはPortから説明できないedgeを拒否する。
+
+System 0件のUI-only／worldless headless Runtime Entryは、三recordの完成empty集合を持つ有効なclosureにできる。ただしGameSpecまたはRuntime Entryがrequired Systemを持つ場合、Graph nodeはそのrequired集合とset equalityであるためemptyへ退化できない。State owner entry 0件はauthoritative State Type 0件の場合だけ許し、missing ownerの代用にしない。
 
 `build | cook` edgeおよび`boundary=same_advance` edgeの部分graphはDAGでなければならない。`next_advance | activation | shutdown`を跨ぐ論理cycleは、全edgeが明示され、bounded queue／capacity、fault、Replay requirementが各Owner contractへ解決する場合だけ許可する。同phase callback再入、same-advance write cycle、phase priorityによるcycle隠蔽を許可しない。
 

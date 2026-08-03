@@ -1643,7 +1643,7 @@ activation後のPlan／Proposeは`expected_project_revision`、`idempotency_key`
 
 ### 21.1 既存Domain文書から回収した未登録Operation候補
 
-次の十表93件は、既存Domain文書が過去にcurrent／canonical／registeredとして記述していたname-only surfaceを、§20の`PlannedOperationFamilyV1`へ回収したclosed candidate集合である。各表は上のledger後半十行と同じ順で対応する。これらは予約語彙であってMCD Operationではなく、全current集合とalias集合は明示`[]`、Capability stateは`not_activated`である。要求はGateway dispatch前に`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Source、Project、Registry、Taskを変更しない。
+次の十表94件は、既存Domain文書が過去にcurrent／canonical／registeredとして記述していたname-only surfaceを、§20の`PlannedOperationFamilyV1`へ回収したclosed candidate集合である。各表は上のledger後半十行と同じ順で対応する。これらは予約語彙であってMCD Operationではなく、全current集合とalias集合は明示`[]`、Capability stateは`not_activated`である。要求はGateway dispatch前に`MIRAKAN-POLICY-CAPABILITY_NOT_ACTIVATED`で拒否し、Source、Project、Registry、Taskを変更しない。
 
 Math semantic authoringは次の六IDだけを予約する。Math文書にある`operation.camera.set_profile_projection`はCamera ownerの次表に属する同一候補への参照であり、Math familyへ複製しない。
 
@@ -1874,7 +1874,7 @@ Game experience iterationは次のexact三IDだけを予約する。Observation�
 |---|---|
 | `operation.game_experience.playtest_observation.propose_record` | participant、session、build、provenanceへ閉じたObservation record Proposal |
 | `operation.game_experience.evaluation.propose` | Experience GoalとObservation集合をsame Candidateで評価するProposal |
-| `operation.game_experience.iteration.propose_decision` | Evaluationからiterate、restage、accept、stopのDecision Proposal |
+| `operation.game_experience.iteration.propose_decision` | Evaluationから`accept_candidate | revise | stop | defer`のexact一branchを選ぶDecision Proposal |
 
 Game production readは次のexact三IDだけを予約する。全件R0 read-onlyでmutation Receipt、Approval、Commit、PromotionまたはActivationを返さない。
 

@@ -18,7 +18,7 @@
 
 [Game Production Loop §4–§6](../03-authoring/game-production-loop.md#4-game-production-subjectとintent-session)は`GameIntentDraftV1 → GameBriefDocumentV1 → GameSpecDocumentV1 → GameUnderstandingClosureV1`と、`GameQuestionRecordV1`／`GameAssumptionRecordV1`／`GameDecisionRecordV1`を一意に所有する。本書はそれらのField、bound、hash、dispositionまたはRef tupleを複写しない。不足型を同名shadow schema、自由JSON、表示名、会話summaryまたは旧candidate名から補完しない。
 
-`AiTaskContextCapsuleV1`はTask Authorizationとactive Operation refの積集合を持つread-only／Disposable projectionで、Capsule自身、Game理解record、自由文のselection reasonまたはcontinuation tokenは権限にならない。Game Understandingを要求するOperationでは、親Owner §5がcanonical `GameUnderstandingClosureRefV1`をcomplete／current／authorized projectionとして検証し、`ready_to_stage`以外、`fresh`でないEvidence、wrong Project／Candidate／TargetをModel呼出し前に拒否する。
+`AiTaskContextCapsuleV1`はTask Authorizationとactive Operation refの積集合を持つread-only／Disposable projectionで、Capsule自身、Game理解record、自由文のselection reasonまたはcontinuation tokenは権限にならない。Game Understandingを要求するOperationでは、親Owner §5がcanonical `GameUnderstandingClosureRefV1`をcomplete／current／authorized projectionとして検証し、`ready_to_stage`以外、`fresh`でないEvidence、wrong Project lineage／Contract set／TargetをModel呼出し前に拒否する。Candidateは後続のproduction-loop closureが別途束縛する。
 
 質問を次に分類する。
 
@@ -35,7 +35,7 @@
 
 AIの「理解した」という自己申告を状態にしない。`GameQuestionRecordV1.resolution`はopen／answered／withdrawnのexact一branchで、回答文字列だけ、callerの「回答済み」、Decision refなしのansweredを拒否する。`GameAssumptionRecordV1`はMedium open質問だけをsourceにし、typed Default、根拠1件以上、有限の`expires_at`、再検証条件1件以上を全て必須にする。根拠0、無期限sentinel、期限切れ、再検証条件0、Closure Question集合のsame-ID different-hash、同一質問への複数active assumptionでは進行しない。条件成立またはEvidence freshness切れ時は、期限前でも新Decision／Assumption hashを発行して再検証する。
 
-`GameUnderstandingClosureV1`の終端条件はcanonical Ownerだけを参照する。Security preflightは`disposition=ready_to_stage`、同一Project lineage、complete exact refs、required Evidenceの`fresh`を確認し、第三state、自由文字列、AI override、別Project／Target／CandidateのClosureを拒否する。Project Shaderを含むSystemは全参照Module／Techniqueに有効な`ShaderUnderstandingClosureV1`と`ProjectShaderQualificationReceiptV1`を必要とし、欠落／`fresh`でない／Target不一致をGame全体の理解で相殺しない。
+`GameUnderstandingClosureV1`の終端条件はcanonical Ownerだけを参照する。Security preflightは`disposition=ready_to_stage`、同一Project lineage／Contract set／Target集合、complete exact refs、required Evidenceの`fresh`を確認し、第三state、自由文字列、AI override、別Project／Contract set／TargetのClosureを拒否する。Candidateは後続`GameProductionLoopClosureV1`だけで束縛する。Project Shaderを含むSystemは全参照Module／Techniqueに有効な`ShaderUnderstandingClosureV1`と`ProjectShaderQualificationReceiptV1`を必要とし、欠落／`fresh`でない／Target不一致をGame全体の理解で相殺しない。
 
 ## 6. Project data、Project C++／Shader／Native module
 
