@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: Runtime Entry launch closure、world／ui／headless branch package、配布Package artifactとouter Runtime Entry集合のtyped manifest、Manifestのexact outer-entry rowを選ぶreceipt-free Launch Selection、headless dedicated game Runtime Targetのpackage／launch closure、Runtime World Root／Section image、World capacity record、section entity record set、Runtime Package directory・binary integrity、loader staging、section publication／retirement、World artifactとgeneric artifact envelopeの接続
 - 非正本範囲: network endpoint／Transport、gameplay session／authority／replication、Online hosting／region／autoscale／operations、generic Derived Artifact manifest／catalog、Texture／Mesh／Audio／Font等の汎用Runtime Asset request・priority・deadline・cancel・residency・eviction（Runtime Asset Lifecycleを参照）、ECS storage・query・lease、Save／Replay record、runtime phase／job DAG、Domain World source意味、debug transport、AI認可。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Project State](../03-authoring/project-state.md)、[Runtime ECS](entity-component-system.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Project State](../03-authoring/project-state.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Runtime ECS](entity-component-system.md)、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
 - 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Asset Lifecycle](runtime-asset-lifecycle.md)、[Runtime ECS](entity-component-system.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Persistence／Save](persistence-save.md)、[Performance／Capacity](performance-capacity.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World](../06-rendering/world.md)、[UI](../07-platform/ui-text-localization-accessibility.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
@@ -38,6 +38,9 @@ RuntimeEntryPackageV1
   entry_branch_closure_hash: SHA-256
   target_profile_ref: TargetProfileRefV1
   contract_set_ref: ContractSetRefV1
+  game_system_dependency_graph_ref: GameSystemDependencyGraphRefV1
+  system_implementation_set_ref: SystemImplementationSetRefV1
+  game_state_owner_projection_ref: GameStateOwnerProjectionRefV1
   catalog_ref: ArtifactCatalogRefV1
   simulation_cadence_profile_ref: SimulationCadenceProfileRefV1
   game_clock_domain_profile_ref: GameClockDomainProfileRefV1
@@ -58,7 +61,7 @@ RuntimeEntryPackageRefV1
   package_root_hash: SHA-256
 ```
 
-`runtime_entry_ref`のDocument content hashと`runtime_entry_semantic_hash`、Project Compile Manifestの`entry_branch_closure_hash`、Target、Contract set、Catalogはbyte equalityでなければならない。`package_root_hash`はASCII `MIRAKAN_RUNTIME_ENTRY_PACKAGE_V1`と自身を除く全FieldのMCD canonical bytesをlength framingして計算し、Build日時、path、display name、runtime handleを含めない。Cadence／Clock Domain／optional Physics Substep Bindingは[Scheduling／Lifetime](scheduling-lifetime.md)の選択済みexact refへ解決する。
+`runtime_entry_ref`のDocument content hashと`runtime_entry_semantic_hash`、Project Compile Manifestの`entry_branch_closure_hash`、Target、Contract set、Catalogはbyte equalityでなければならない。三Gameplay refは[Gameplay Programming Model §3.0.1](../03-authoring/gameplay-programming-model.md#301-system-graphimplementation-setstate-owner-projection)の完成recordへ解決し、Project revision／Contract setをPackageとbyte equality、Implementation SetとState owner projectionのGraph refをPackageのGraph refとbyte equality、Implementation SetのTargetをPackage Targetとbyte equalityにする。`package_root_hash`はASCII `MIRAKAN_RUNTIME_ENTRY_PACKAGE_V1`と自身を除く全FieldのMCD canonical bytesをlength framingして計算し、Build日時、path、display name、runtime handleを含めない。Cadence／Clock Domain／optional Physics Substep Bindingは[Scheduling／Lifetime](scheduling-lifetime.md)の選択済みexact refへ解決する。
 
 branch validationは次へ固定する。
 
@@ -69,6 +72,8 @@ branch validationは次へ固定する。
 | `headless` | 両方null | null | 両方null | exact startup closure hash一件 |
 
 Presentation Binding二FieldとUI二Fieldはそれぞれall-nullまたはall-presentで、worldでは両groupのpresent／nullが一致しなければならない。Binding ref／hash、Project Compile ManifestのBinding ref／hash、Binding内Runtime Entry ref／semantic hash、root UiDocument ref／content hashをbyte equalityで検証する。`ui_root_screen_definition_ref`はexact UiDocument ref／content hashとNavigation Policyを束縛したcompiled `UiScreenDefinitionV1`、`ui_dependency_closure_hash`は同Documentから到達するStyle／Localization／Font／Asset Catalog dependency集合へ解決する。これらをAsset Lifecycleの`ArtifactSubjectRefV1`へ未登録subject kindとして偽装しない。headlessへ空startup closureを作る、UI-onlyへ空World packageを作る、V1 worldの`ui_document_ref`をnon-nullにする、world UIをdependency blobとしてWorld binaryへ隠す、missing fieldをCatalogや表示名から補完することを禁止する。World branch内側の`RuntimePackageV1`と外側の`RuntimeEntryPackageV1`は別のID／hashを持ち、相互のRef型を代用しない。
+
+Runtime PackageはGraph／Implementation／State owner recordのshapeを所有しない。`startup_system_closure_hash`は選択Runtime Entryから到達するGraph node、transitive edge、Implementation selection、State owner entryの完全projectionから導出し、三canonical refと不一致の別hash、部分集合またはPackage-local graphを拒否する。
 
 Runtime Entry transitionとContinueは常に外側`RuntimeEntryPackageRefV1`を参照する。ECS World constructionと`RuntimeWorldSaveRecordSetV1`だけがworld branch内側`RuntimePackageRefV1`を参照できる。これによりTitle／ResultのUI-only branchとheadless workflowはWorld Root imageなしにload／validate／publishできる。
 

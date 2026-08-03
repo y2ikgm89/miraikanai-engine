@@ -386,7 +386,7 @@ Discovered
 
 `GameSystemSpecV1.state_class`から`determinism_class`への写像は閉じる。`authoritative`は`authoritative`、`derived`と`presentation_only`は`presentation_only`へ写像する。ただし`derived`はauthoritative Component／Stateへのwrite access、authoritative Command target、Save field所有を一件も持たない場合だけ登録できる。`tooling_only`はGameHostの`NativeSystemDescriptorV1`へ登録せず、Editor-only presentation経路を使う。Spec、ECS Manifest、generated implementation binding、descriptorのread Component、write Component、structural permission、read／write State集合を正逆方向に検査し、descriptorがManifest権限を拡張する場合だけでなく、generated bindingが要求するaccessをdescriptorが欠落させる場合もLoad時にModule全体の登録失敗とする。より強いauthorityへの暗黙昇格、State writeをComponent writeとして代用すること、structural permissionを汎用commandとして代用することを禁止する。
 
-Orchestratorだけがcallbackを呼ぶ。Load時にSystem ID、Contract version、Variant hash、State owner、phase、Component read／write access、structural permission、State read／write access、Command／Event集合をactive `GameSystemDependencyGraphV1`と照合し、一件でも不一致ならModule全体を登録しない。callback inputはstep sequence、exact Cadence Profile identity、closed cadence branch input、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。authoritative runtime state／Command／Event publicationはcallback成功後だけRuntime規約のcanonical merge順で行い、Worldを持たないUI-only／headless branchにも同じ規則を適用する。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
+Orchestratorだけがcallbackを呼ぶ。Load時にRuntime Packageのexact `GameSystemDependencyGraphRefV1`、`SystemImplementationSetRefV1`、`GameStateOwnerProjectionRefV1`を[Gameplay Programming Model §3.0.1](gameplay-programming-model.md#301-system-graphimplementation-setstate-owner-projection)へ解決し、System ID、Contract version、Variant hash、State owner、phase、Component read／write access、structural permission、State read／write access、Command／Event集合をbyte-exactに照合する。一件でも不一致ならModule全体を登録しない。callback inputはstep sequence、exact Cadence Profile identity、closed cadence branch input、immutable query batches、snapshot、RNG streamで、outputはprivate bounded bufferである。authoritative runtime state／Command／Event publicationはcallback成功後だけRuntime規約のcanonical merge順で行い、Worldを持たないUI-only／headless branchにも同じ規則を適用する。Module callbackが部分的にCommandを書いてから失敗した場合、そのinvokeの全outputを破棄する。
 
 旧`fixed_delta_numerator／fixed_delta_denominator` Fieldはtarget `MirakanNativeInvokeContextV1`へ含めない。ABI freeze前のClock／Cadence TaskはSource／descriptor／Replay／fixtureを`MirakanNativeCadenceInputV1`へ同時更新し、reference default `60/1 Hz`をProfile instanceとしてだけ検証する。旧Fieldを互換alias、全Game System、UI-only、headless、将来Cadenceの恒久前提として残さない。
 
@@ -419,7 +419,7 @@ Capabilityの公開contractは実装方式に依存させない。
 - Native実装への昇格でStable State ID、Save field ID、event意味を変更しない。
 - 二つの実装を同時にauthoritative writerとして登録しない。
 
-実装方式の切替は検証済み`SystemImplementationSetV1`をPlay開始時に選択する。互換なDefinition-only swap以外をPlay中に自動切替せず、Native変更は新しいGameHostを起動する。
+実装方式の切替は検証済み`SystemImplementationSetRefV1`をPlay開始時に選択し、Packageが束縛した完成`SystemImplementationSetV1`以外を採用しない。互換なDefinition-only swap以外をPlay中に自動切替せず、Native変更は新しいRuntime Entry PackageとGameHostを起動する。
 
 ## 9. Build、検証、Promotion
 

@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 構造化GameplayとProject C++の選択境界、manual／AI gameplay proposal parity、GameplayDefinition、GameSystemSpecV1、State owner、typed Command／Event／Snapshot Port、Perception／Interaction／Decision／Action意味、Project-defined System、generated projection／Promotion条件
+- 正本範囲: 構造化GameplayとProject C++の選択境界、manual／AI gameplay proposal parity、GameplayDefinition、GameSystemSpecV1、GameSystemDependencyGraphV1、SystemImplementationSetV1、GameStateOwnerProjectionV1、State owner、typed Command／Event／Snapshot Port、Perception／Interaction／Decision／Action意味、Project-defined System、generated projection／Promotion条件
 - 非正本範囲: 具体Schema／Registry／Fixture候補、Native ABI、Project transaction、共有Schema基盤、Runtime scheduling、外部Tool固定、Navigation query、Character Motor、Project固有Interaction結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[Generated Projection／Fixture Candidate Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Input](../07-platform/input.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)
+- 関連文書: [Game Production Loop](game-production-loop.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[Generated Projection／Fixture Candidate Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Input](../07-platform/input.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -107,6 +107,102 @@ Debug projectionは「何を観測し、何を記憶し、どの候補をなぜ�
 同一authoritative fieldのwriterは同一advanceに一つである。Systemは未宣言Component、State、Portへaccessせず、phaseやpriorityだけでwriter authorityを得ない。Implementation Variantは同じPublic ContractとState semanticsを維持する。
 
 本文の列挙はfield-level Schemaの代用ではない。`GameSystemSpecV1`をcurrent Definition Closureへ含める前に、少なくともSystem identity／version、Owner、origin、Capability、Runtime Scope、State classとState owner、Component read／write集合、structural permission集合、State read／write集合、phase集合、Command／Event／Snapshot Port、implementation set、Save／Replay policy、Budget、failure、qualification subjectを持つ一つのbounded canonical Schemaへ解決する。各collectionのelement type、bound、sort、uniqueness、branch制約、self-excluding contract hashが欠ける場合、Contract compiler、ECS manifest、Native descriptor、Package、Save／Replay projectionを生成しない。
+
+### 3.0.1 System graph、Implementation Set、State owner projection
+
+```text
+GameSystemDependencyGraphV1
+  graph_id: StableId
+  graph_version: 1
+  project_revision_ref: exact ProjectRevisionRefV1
+  contract_set_ref: exact ContractSetRefV1
+  system_nodes[1..4096]: sorted unique {
+    game_system_contract_ref: exact GameSystemContractRefV1,
+    game_system_spec_content_hash: SHA-256,
+    runtime_scope_type_ref: exact RuntimeScopeTypeRefV1,
+    phase_ids[1..16]: sorted unique TickPhaseId,
+    read_component_type_refs[0..4096]:
+      sorted unique exact McdContractRefV1(kind=type),
+    write_component_type_refs[0..4096]:
+      sorted unique exact McdContractRefV1(kind=type),
+    structural_permission_refs[0..256]: sorted unique exact ArtifactRefV1,
+    read_state_type_refs[0..1024]:
+      sorted unique exact McdContractRefV1(kind=type),
+    write_state_type_refs[0..1024]:
+      sorted unique exact McdContractRefV1(kind=type),
+    command_type_refs[0..1024]: sorted unique exact McdContractRefV1(kind=type),
+    event_type_refs[0..1024]: sorted unique exact McdContractRefV1(kind=type)
+  }
+  dependency_edges[0..65536]: sorted unique {
+    producer_system_ref: exact GameSystemContractRefV1,
+    consumer_system_ref: exact GameSystemContractRefV1,
+    edge_kind:
+      build | cook | state_read_after_write | command_delivery |
+      event_delivery | lifecycle,
+    boundary: same_advance | next_advance | activation | shutdown,
+    subject_type_ref: exact McdContractRefV1(kind=type) | null
+  }
+  graph_content_hash: SHA-256
+
+GameSystemDependencyGraphRefV1
+  graph_id: StableId
+  graph_version: 1
+  graph_content_hash: SHA-256
+
+SystemImplementationSetV1
+  implementation_set_id: StableId
+  implementation_set_version: 1
+  project_revision_ref: exact ProjectRevisionRefV1
+  contract_set_ref: exact ContractSetRefV1
+  game_system_dependency_graph_ref: exact GameSystemDependencyGraphRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  selections[1..4096]: sorted unique {
+    game_system_contract_ref: exact GameSystemContractRefV1,
+    implementation_variant_ref: exact ArtifactRefV1,
+    implementation_kind:
+      gameplay_definition | native_project_source | hybrid |
+      target_specialized,
+    implementation_variant_hash: SHA-256,
+    configuration_content_hash: SHA-256,
+    compatibility_evidence_refs[1..64]: sorted unique exact EvidenceRefV1
+  }
+  implementation_set_content_hash: SHA-256
+
+SystemImplementationSetRefV1
+  implementation_set_id: StableId
+  implementation_set_version: 1
+  implementation_set_content_hash: SHA-256
+
+GameStateOwnerProjectionV1
+  state_owner_projection_id: StableId
+  state_owner_projection_version: 1
+  project_revision_ref: exact ProjectRevisionRefV1
+  contract_set_ref: exact ContractSetRefV1
+  game_system_dependency_graph_ref: exact GameSystemDependencyGraphRefV1
+  entries[1..65536]: sorted unique {
+    state_type_ref: exact McdContractRefV1(kind=type),
+    authoritative_owner_system_ref: exact GameSystemContractRefV1,
+    runtime_scope_type_ref: exact RuntimeScopeTypeRefV1,
+    writer_field_refs[1..4096]: sorted unique exact ArtifactRefV1,
+    reader_system_refs[0..4096]: sorted unique exact GameSystemContractRefV1,
+    publication_boundary_id: TickPhaseId,
+    save_replay_policy_ref: exact ArtifactRefV1
+  }
+  state_owner_projection_content_hash: SHA-256
+
+GameStateOwnerProjectionRefV1
+  state_owner_projection_id: StableId
+  state_owner_projection_version: 1
+  state_owner_projection_content_hash: SHA-256
+```
+
+全Refは解決先完成recordとbyte equalityにし、各配列は要素のMCD canonical bytes全体によるunsigned lexicographic strict sort、duplicate 0である。Graphのnode projectionは同Project revision／Contract setのrequired `GameSystemSpecV1`集合とset equalityにし、各nodeのphase、Component、State、Command、Event集合をSpecとbyte equalityにする。edge両端はnode集合内に存在し、self-edge、未宣言subject、read／writeまたはPortから説明できないedgeを拒否する。
+
+`build | cook` edgeおよび`boundary=same_advance` edgeの部分graphはDAGでなければならない。`next_advance | activation | shutdown`を跨ぐ論理cycleは、全edgeが明示され、bounded queue／capacity、fault、Replay requirementが各Owner contractへ解決する場合だけ許可する。同phase callback再入、same-advance write cycle、phase priorityによるcycle隠蔽を許可しない。
+
+Implementation Setの`selections[].game_system_contract_ref` projectionはGraph node集合とset equalityにし、各required SystemへTarget互換、Contract／State semantic互換、passかつ`fresh`なEvidenceを持つ実装exact一件を選ぶ。同じSystemへの0件／複数件、別Target、異なるContract set、失効Evidence、DefinitionとNativeの同時authoritative selectionを拒否する。Play中の選択変更は行わず、新しいRuntime Entry packageとGameHostを要求する。
+
+State owner projectionはGraph全nodeのauthoritative `write_state_type_refs[]`から再計算し、全required authoritative State Typeをexactly onceで覆う。owner 0件／複数件、owner以外のwriter、同じState fieldへの同一advance複数writer、別Scope、reader未宣言、Save／Replay policy欠損を拒否する。Runtime ECS access manifest、Scheduling、Runtime Package、Native descriptorはこのprojectionを消費するがshapeを再定義しない。
 
 ### Runtime ECS access cohort projection
 
