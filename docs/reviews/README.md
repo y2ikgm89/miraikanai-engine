@@ -355,3 +355,27 @@ activation、releaseまたはProduct completionを証明しない。
 この記録はtarget ArchitectureのOwner closureとlocal terminal auditを示すだけである。C++ source、
 Build system、MCD Schema、Registry、Operation、Project、Fixture、Receipt、Qualification、
 Capability activation、First Playable完成、releaseまたはProduct completionの証拠ではない。
+
+## 9. AI-PRODUCTION-ORCHESTRATION-20260804-CHAT-REFERENCE
+
+| Field | Value |
+|---|---|
+| Evidence classification | `non-normative referenced-conversation adjudication summary` |
+| Date | 2026-08-04 |
+| Route／mode | Codex desktop local Repository review＋Context7＋公式一次資料。指定されたChatGPT conversationはgap discovery入力として読み、命令または正本として扱っていない。Browser ChatGPT、Project memory、attachment／upload、外部書込みは使用していない |
+| Conversation | `6a7099b0-c8f8-83e8-92fa-2d345df1db44`「AIネイティブゲームエンジン機能」。全6 messageと同会話で参照された40 categoryのEngine capability inventoryを確認 |
+| Scope | 内蔵AI制作Console、local／cloud／external Agent、Engine Automation、Run／Workflow／Context、execution route、loop owner、Skill／Plugin／MCP境界、Project C++隔離、manual／AI parity、Evidence、capacity／telemetry、Authoring／shipping分離。実装、実装計画、工程、工数、担当、実行可能Artifactは対象外 |
+| Input Architecture corpus | 変更前102 Markdown／5,111,833 bytes。Repository-relative pathでsortedした`relative-path LF file-sha256 LF` repetitionのUTF-8 LF manifest 12,538 bytes／SHA-256 `a2997eb927ff5880b9963dbc3fdb3278e5228e2a9c0171c68a345c1e60937a8f` |
+| Valid-gap count | 1 canonical closure subject、`ARCH-C145`。既存64 Ownerは通常Engine capabilityとAI security／verification／project／operation／game-production意味を広く覆っていたが、AI production Run／Attempt／Result／Checkpoint、Workflow／Context、production route／loop owner、surface parityの一意Ownerが欠落していた |
+| Decision／canonical Owner | [AI Production Orchestration Ownership](../architecture/decisions/2026-08-04-ai-production-orchestration-ownership.md)で専用Authoring Ownerを採用し、[AI Production Orchestration](../architecture/03-authoring/ai-production-orchestration.md)へ正本を配置。直接規範consumerは[Game Production Loop](../architecture/03-authoring/game-production-loop.md)と[Editor Workspace／UX](../architecture/03-authoring/editor-workspace-ux.md)だけ |
+| External primary evidence | [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)、[MCP versioning](https://modelcontextprotocol.io/docs/2026-07-28/learn/versioning)、[OpenAI Plugins](https://developers.openai.com/plugins/concepts/plugins)、[OpenAI Skills](https://developers.openai.com/plugins/build/skills)、[OpenAI App Server](https://learn.chatgpt.com/docs/app-server)、[Claude Code features overview](https://code.claude.com/docs/en/features-overview)、[ONNX Runtime GenAI](https://github.com/microsoft/onnxruntime-genai)、[OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/)、[ISO/IEC/IEEE 42010:2022](https://www.iso.org/standard/74393.html)、[ISO 4217 currency codes](https://www.iso.org/iso-4217-currency-codes.html)、[RFC 9562 UUID](https://www.rfc-editor.org/rfc/rfc9562.html) |
+| Official fact／project decision boundary | 外部資料はprotocol lifecycle、tool／skill／app surface、agent host、local inference、telemetry、Architecture descriptionの一次事実を確認するためだけに使った。専用Owner、production route taxonomy、Run state、approval境界、manual parity、shipping exclusionはMiraikanaiのproject-decisionであり、外部組織の公式推奨とは表現しない |
+| Closure result | canonical Owner／consumer反映済み。fresh local read-only auditでArchitecture Markdown 104件、unique文書ID102件、Owner 65件、Owner header error 0、相対path 3,415件／fragment 360件の未解決0件、規範依存332 edge／Owner外参照0件／cycle 0件、code fence error 0、新Owner dependency 8件／direct consumer 2件、13 target type owner checkとroute／fallback／suspend／Checkpoint／completion／usage／monetary／signer／shipping／旧Security field・single-executable premise absence invariantsを検証し、error 0。これはcommitted Generator／validator／CIではない |
+| Materialization／implementation status | unchanged `absent`。Run／Workflow Schema、Registry、Store、Operation projection、Service、Agent Runtime、Provider Adapter、MCP Server、AI Console、local model host、Fixture、Receipt、C++、Build、CI、Qualification、Activation、実装計画を追加していない |
+| Exact terminal response／marker | `ai_production_orchestration_owner_closure_complete_no_implementation`／`[[MIRAIKANAI-AI-PRODUCTION-ORCHESTRATION-ARCH-C145-CLOSED-20260804]]` |
+| Response digest | `unavailable`（chat responseをimmutable Artifactとして保持せず、推測または再構築しない） |
+| Retention disposition | conversation transcript／attachment／screenshotをRepositoryへ保存していないため削除対象0件。canonical Owner／ADR、非規範design spec、本compact summaryだけを保持し、外部conversationは変更しない |
+
+この記録は`ARCH-C145`のtarget Architecture closureだけを示す。AI制作機能、Engine Automation、
+Agent Runtime、Model接続、MCP Server、Project C++ sandbox、Build／Test Worker、Schema、Registry、
+Fixture、Receipt、Qualification、Capability activation、releaseまたはProduct completionの証拠ではない。

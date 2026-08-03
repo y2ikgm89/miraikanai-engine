@@ -37,7 +37,7 @@ Capability Inventoryの機能分類は、Product、Foundation、Authoring、Runt
 - [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)は、LLM applicationと外部data／toolの接続、stateless self-contained request、per-request capability negotiationを定める。[Versioning](https://modelcontextprotocol.io/docs/2026-07-28/learn/versioning)は`2026-07-28`をcurrent revisionとし、Tasks、Skills over MCP、MCP Apps等をopt-in extensionとして分離する。
 - [OpenAI Plugin architecture](https://developers.openai.com/plugins/concepts/plugins)はPluginをSkill、MCP Server、optional UIの配布packageとして扱う。[Build skills](https://developers.openai.com/plugins/build/skills)はSkillをrepeatable workflow guidance、MCP Serverをlive data、authentication、authorization、controlled actionの境界として分離する。
 - [Codex App Server](https://learn.chatgpt.com/docs/app-server)はCodexのauthentication、conversation history、approval、streamed agent eventを製品へ統合するvendor surfaceであり、汎用Automation contractではない。
-- [Claude Code extension model](https://code.claude.com/docs/en/features-overview)もSkill、MCP、subagent、hook、pluginを異なる拡張点として扱い、instructionとsecurity enforcementを同一視しない。
+- [Claude Code extension model](https://code.claude.com/docs/en/features-overview)はSkill、MCP、subagent、hook、pluginをAgent loopへ接続する異なる拡張点として列挙する。これらをMiraikanaiのinstruction／security boundaryへどう割り当てるかは下記project-decisionである。
 - [ONNX Runtime GenAI](https://github.com/microsoft/onnxruntime-genai)はlocal inferenceのC／C++を含む実行候補を提供するが、pre-1.0で継続的に変化している。特定runtimeをEngine正本へ埋め込む根拠にはしない。
 - [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/)はtrace、metric、log等のobservability signalと共通Contextを提供するが、MiraikanaiのTask、Project、Authorization、EvidenceまたはWorkflow意味を所有しない。
 
@@ -182,7 +182,7 @@ Task、Project revision、Owner ref、Target、selection、contract／policy／t
 
 ### 7.4 Inference Route Resolver
 
-要求Capability、privacy、region、retention、cost、latency、Model Eval、local resource request、Provider／Deployment／Model bindingから一つのrouteを選ぶ。Model family名をEngine branchにせず、fallbackは別の完全なroute selectionと新Authorizationを要求する。
+要求Capability、privacy、region、retention、cost、latency、Model Eval、local resource request、Provider／Deployment／Model bindingから一つのrouteを選ぶ。Model family名をEngine branchにせず、fallbackは別の完全なroute selection、新Context、新Authorization、新Runを要求する。
 
 ### 7.5 Workflow Executor
 
@@ -219,14 +219,14 @@ Workflow Definitionは少なくとも次を持つ。
 - typed input／output Ref集合
 - required Task kind、required Capability、allowed Operation exact Ref集合
 - step graphとclosed step kind
-- maximum step、model call、tool call、child Run、retry、wall time、cost、context byte budget
+- maximum step、model call、external roundtrip、Operation call、child Run、retry、wall time、cost、route-bound model usage unit、context／output byte budget
 - question、stop、cancel、failure、compensation policy
 - required Validation、Evidence、Approval class ref
 - deterministic semantic hashとversioned compatibility policy
 
 Workflow Definitionはreceipt-free immutable definitionであり、`active`、`approved`または同等のFieldを持ってOperation、Authorization、QualificationもしくはProduct Capabilityを有効化しない。Workflowが列挙するrequired Validation／Evidence／Approvalは下限であり、current Policyが要求する追加条件を削減できない。Modelは実行中にDefinition、allowed Operation、boundまたはstop policyを変更できない。
 
-closed step kindは`query | compile_context | infer | request_input | propose | validate | invoke_authorized_operation | wait_operation | branch_typed_result | emit_result | stop`とする。Loopは明示back-edgeとpositive finite counterを持つ場合だけ許し、再帰、unbounded retry、自然言語だけのterminationを拒否する。
+closed step kindは`query | compile_context | infer | request_input | propose | validate | invoke_authorized_operation | wait_operation | start_child_run | join_child_run | branch_typed_result | emit_result | stop`とする。Loopは明示back-edgeとpositive finite counterを持つ場合だけ許し、再帰、unbounded retry、自然言語だけのterminationを拒否する。
 
 ### 9.2 Skill
 
@@ -250,22 +250,25 @@ Codex App Server、Codex SDK、Claude Agent SDK／Claude Code plugin等はClient
 
 - `AiProductionRunV1／RefV1`
 - `AiProductionAttemptV1／RefV1`
+- `AiProductionAttemptOutcomeV1／RefV1`
 - `AiRunContextBundleV1／RefV1`
 - `AiWorkflowDefinitionV1／RefV1`
+- `AiWorkflowRegistryV1／RefV1`
 - `AiWorkflowBindingV1／RefV1`
 - `AiProductionExecutionRouteSelectionV1／RefV1`
 - `AiOrchestrationCheckpointV1／RefV1`
 - `AiProductionResultV1／RefV1`
+- `AiProductionRunTransitionV1／RefV1`と`AiProductionRunHeadV1`
 
 これらは本Design Specのtarget candidateであり、current MCD、Registry、Operation、Provider／MCP ToolまたはRuntime package memberではない。
 
 ### 10.1 Run identity
 
-Runはexact Task Specification、Authorization subject、Workflow revision、Run Context hash、route selection、Project subject、Target集合、budgetへ固定する。Run IDをconversation ID、MCP session ID、Editor tab、process IDまたはdisplay nameから導出しない。
+Runはexact Task Specification、Authorization subject、Workflow revision、Run Context hash、route selection、Project subject、Target集合、interaction intent、execution profile、budgetへ固定する。childとfallbackは別Fieldで一方向にlineageを持ち、同時non-nullにしない。Run IDをconversation ID、MCP session ID、Editor tab、process IDまたはdisplay nameから導出しない。
 
 ### 10.2 Attempt
 
-retry、resume、fallbackまたはModel再選択は同じAttemptの上書きでなく、新しいmonotonic Attemptとして記録する。Attemptは入力Context、route、Model／Host profile binding、start／end、result branch、Diagnostic、child handleを持つ。別routeへのfallbackは新しいCaller ContextとAuthorizationを必要とする。
+retryとresumeは同じRunのAttemptを上書きせず、新しいmonotonic Attemptとして記録する。Attemptは入力Context、route、Model／Host profile binding、start／end、result branch、Diagnostic、child handleを持つ。別routeへのfallbackまたはModel／Host再選択は旧Runをterminalへ閉じ、新しいCaller Context、Authorization、Context、Run、initial Attemptを作る。同じRunのrouteを変更しない。
 
 ### 10.3 Run Context
 
@@ -277,7 +280,7 @@ Run Contextは少なくとも次を閉じる。
 - Contract set、Policy set、Tool catalog、Workflow revision
 - Target、locale、Capability、generation、environment binding
 - input provenance、Sensitivity、redaction、Provider data policy
-- token、context byte、cost、latency、wall-time、model／tool call、CPU／GPU resource request budget
+- Workflowのcontext／output byte、wall-time、model／Operation call、monetary budgetと、routeのexact metering profile／model usage budget、PerformanceのCPU／GPU resource decisionへのbinding
 - created time、expiry、issuer、semantic content hash
 
 Contextはimmutable derived inputであり、Project authorityではない。required inputがboundを超える場合は、意味を変えるtruncateまたはAI要約を行わず、scope分割またはQuestionへ戻す。Project revision、Contract、Policy、Tool catalog、Provider policyまたはrequired input hashが変わればstaleとし、暗黙再compileせず新Contextを作る。
@@ -305,7 +308,7 @@ AI SecurityのTask state、Executable ContractsのOperation Task state、Project
 
 ### 10.5 Checkpointとresume
 
-CheckpointはWorkflow step、Attempt、Context hash、completed child handle、idempotency key、remaining budget、secret-free intermediate refを保存する。Model hidden state、raw Credential、native pointer、uncommitted Project writerを保存しない。同じProject revision、Contract、Policy、Workflow、route binding、input closureがcurrentな場合だけresumeし、差があれば旧Runを`superseded`にして新Runを作る。
+CheckpointはWorkflow step、Attempt、Context hash、completed child handle、idempotency key、remaining budget、secret-free intermediate refを保存する。Model hidden state、raw Credential、native pointer、uncommitted Project writerを保存しない。Checkpointはsuspend前の公開済みRun Transitionを参照し、suspend TransitionがCheckpointを参照する一方向にしてcontent-hash cycleを作らない。同じProject revision、Contract、Policy、Workflow、route binding、input closureがcurrentな場合だけresumeし、差があれば旧Runを`superseded`にして新Runを作る。
 
 ## 11. Interaction intentとbounded autonomy
 
@@ -324,7 +327,7 @@ conversationで提案された`Autonomous Workspace`と`Release Candidate`は追
 
 ## 12. Authoring AIとshipping Runtime AI
 
-新OwnerはAuthoring Host／Toolingだけを対象にする。Runtime Packageは、AI Production Orchestrator、Agent Host、Model Provider Credential、MCP Server、Source Worker、Compiler、Signer、write-capable Project Gatewayを含めない。
+新OwnerはAuthoring Host／Toolingだけを対象にする。Runtime Packageは、AI Production Orchestrator、Agent Host、Workflow Registry、Run／conversation Store、Model Provider Credential、MCP Server、Source Worker、Compiler、Signer、write-capable Project Gateway、Prompt template、Authoring Tool SDKを含めない。
 
 deterministic NPC／Gameplay AIはGameplay、Navigation、Simulationの既存Ownerに属する。shipping generative AIを将来追加する場合は、Product Future Portfolioから独立Capabilityとして昇格し、Runtime Owner、Threat Model、Privacy／network／cost／content safety、Target package、Save／Replay、offline failure、Service withdrawal、positive／negative Fixtureを一つのArchitecture変更として定義する。Authoring Provider Profile、Model Eval、Consent、Credential、Run ReceiptまたはActivationを流用しない。
 
@@ -332,9 +335,9 @@ deterministic NPC／Gameplay AIはGameplay、Navigation、Simulationの既存Own
 
 first-party Agent route内で、cloud APIとfirst-party local inferenceを`InferenceDeploymentProfileV1`等のgoverned bindingにより選ぶ。Model family名、file extension、endpoint到達性またはGPU存在だけからrouteを選ばない。
 
-新OwnerはAI固有のrequested budgetとroute decisionを所有する。system CPU／GPU／RAM／VRAM capacity、measurement、reservation、loan、backpressureはPerformance／Capacityが所有し、deployment process、sandbox、network、license、model provenanceはAI Security supplement、artifact pinはToolchainが所有する。
+新OwnerはAI固有のrequested budgetとroute decisionを所有する。model usageはexact metering profileへ固定し、first-party Engine-enforced、managed Host attested、standard external unattestedを別branchにして、異なるtokenizer／Provider unitを比較・換算しない。system CPU／GPU／RAM／VRAM capacity、measurement、reservation、loan、backpressureはPerformance／Capacityが所有し、deployment process、sandbox、network、license、model provenanceはAI Security supplement、artifact pinはToolchainが所有する。
 
-local resource不足、runtime crashまたはtimeoutを理由にcloudへ暗黙送信しない。cloud fallbackはProvider、region、retention、training use、data class、cost、Model snapshot、Tool projectionを再Previewし、新しいroute selection、Context、Caller Context、Authorization、Attemptを作る。fallback不成立時は元Projectを不変にして失敗する。
+local resource不足、runtime crashまたはtimeoutを理由にcloudへ暗黙送信しない。cloud fallbackはProvider、region、retention、training use、data class、cost、Model snapshot、Tool projectionを再Previewし、新しいroute selection、Context、Caller Context、Authorization、Run、initial Attemptを作る。fallback不成立時は元Projectを不変にして失敗する。
 
 外部Agentがlocal modelを使用できることと、Miraikanaiがfirst-party local inference runtimeを配布・supportすることを別Capabilityにする。一方のConformanceまたは成功を他方へ流用しない。
 
@@ -475,13 +478,16 @@ Design Spec承認後、次の最小coherent closureを一つのArchitecture変�
 10. `docs/architecture/04-runtime/performance-capacity.md`: AI resource requestとsystem capacity ownershipを分離する関連linkを追加する。
 11. `docs/architecture/04-runtime/debugging-observability-replay.md`: Run／Attempt causal projectionと本文redaction、OTel Adapter境界を追加する。
 12. `docs/architecture/04-runtime/runtime-package.md`: Authoring Orchestrator、Agent、Credential、MCP、Compiler、write Gateway exclusionを明示する。
+13. `docs/architecture/07-platform/windows.md`: 旧single Orchestrator executable前提を除き、logical roleと隔離Tooling Host process groupのPlatform mappingを整合させる。
 
 ### 19.3 補助文書、Index、監査記録
 
 1. `docs/architecture/appendices/ai-provider-mcp-security-supplement.md`: security profileを保持し、Workflow、route、Run意味のshadow definitionを新Ownerへlinkする。
-2. `docs/architecture/appendices/architecture-plan-closure-review.md`: 今回gapとclosureを新しい`ARCH-C*`として登録する。
-3. `docs/architecture/README.md`: Owner 65件へ更新し、新OwnerをProject StateとGame Production Loopの間へ追加する。
-4. `docs/reviews/README.md`: conversation audit ID、route、input、valid gap、affected Owner、closure、retention dispositionを記録する。
+2. `docs/architecture/appendices/ai-evidence-envelope-fixture-catalog.md`: security caller route fieldとGeneration Receipt Signer境界を新Owner／Securityへ揃える。
+3. `docs/architecture/appendices/architecture-plan-closure-review.md`: 今回gapとclosureを新しい`ARCH-C*`として登録する。
+4. `docs/architecture/decisions/README.md`: Ownership DecisionをDecision Logへ追加する。
+5. `docs/architecture/README.md`: Owner 65件へ更新し、新OwnerをProject StateとGame Production Loopの間へ追加する。
+6. `docs/reviews/README.md`: conversation audit ID、route、input、valid gap、affected Owner、closure、retention dispositionを記録する。
 
 先行Design Spec、normative／rejected ADR body、既存review summaryの履歴を上書きしない。今回のDesignは2026-08-03 Designをsupersedeせず、AI production execution gapを補う後続設計とする。
 

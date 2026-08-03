@@ -39,6 +39,7 @@ This README is navigation/template only and does not itself make an Architecture
 | 2026-08-03 | [glTF Import Dependency Baseline](2026-08-03-gltf-import-dependency-baseline.md) | `review` | cgltf／MikkTSpace／Khronos Validatorのrole分離、single-parser、materialization Gate |
 | 2026-08-03 | [MCP Current Protocol Baseline](2026-08-03-mcp-current-protocol-baseline.md) | `review` | current protocol singleton、legacy lifecycle非採用、materialization境界 |
 | 2026-08-03 | [Android Adaptive Game Window Baseline](2026-08-03-android-adaptive-game-window-baseline.md) | `review` | game categoryとadaptive orientation／resizable windowの一意なbaseline |
+| 2026-08-04 | [AI Production Orchestration Ownership](2026-08-04-ai-production-orchestration-ownership.md) | `review` | AI production Run／Workflow／Context／route／loop ownershipと既存Owner境界 |
 
 ## 4. Template
 

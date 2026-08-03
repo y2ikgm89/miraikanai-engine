@@ -7,7 +7,7 @@
 - 正本範囲: MCD共通意味、Requirement、Type、Operation、Data Flow共通kind／Envelope、generic Operation Receipt identity／type resolver、State machine、Capability、Policy、Profile、Diagnostic、Service、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
 - 非正本範囲: 具体Operation／planning catalog、外部Tool・package固定、Product scope、Product data-flow payload／Privacy semantics、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)
-- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
+- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-08-03
 
@@ -292,6 +292,14 @@ Provider surfaceはOperation ref、input／output Schema ref、authority class�
 initial V1のMCP projectionはToolchain Ownerが固定するsupported-version set exact `[2026-07-28]`だけを受理する。各requestの`_meta["io.modelcontextprotocol/protocolVersion"]`を必須にし、Streamable HTTPでは同じ値の`MCP-Protocol-Version` headerも必須としてbyte equalityにする。stdioはHTTP headerを持たずrequest `_meta`の値だけを使う。`server/discover`は同じsingleton version、Server identity、実際に投影可能なcapability集合だけを返し、未materialize Operation、Provider-only Tool、内部Validatorまたはprivate Evidenceをadvertiseしない。
 
 missing `_meta` key、`2026-07-28`以外、request `_meta`／HTTP header mismatch、discovery結果外capabilityまたはmutual version不在は副作用前にunsupported protocolとして拒否する。`2025-11-25` initialize、legacy lifecycle、旧Tool名alias、dual-version sessionまたは自動fallbackをinitial V1へ持たない。version適合はSchema、Authorization、Operation activation、Host／Transport ConformanceまたはTool execution成功を代替しない。MCP Server、Schema、Registry、Fixture、ReceiptおよびSDKはRepositoryに存在せず、本節は実装または相互運用を主張しない。
+
+### 16.3 AI Production Orchestration projection
+
+[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)のWorkflowが参照できるのは、Workflow BindingのContract Setで本書の`operational_operations`へ存在し、AI SecurityのTask Authorization、Caller Context、surface policy、Owner Policyとのintersectionに含まれるexact Operationだけである。Workflow ID、step kind、Skill、Plugin、Prompt、Provider Tool名、MCP Resource／Taskまたはvendor sessionからOperation ID、input default、Risk、side effect、Receiptまたはauthorityを生成しない。
+
+Run／Workflow／Context／Route Selectionのdomain semanticsはAI Production Orchestration Owner、MCD共通Envelope、canonicalization、Operation、Diagnostic、C++／TypeScript／MCP／Provider projectionは本書が所有する。Schema materialization時も同じTypeのdomain意味を本書へ複写せず、Owner Manifestからexact Ownerを解決する。Run `completed`またはWorkflow terminal stepは`OperationTaskV1.succeeded`、Operation Receipt、Project CommitまたはCapability stateのaliasではない。
+
+Editor、Native SDK、CLI、MCP、first-party Agent、external Agentは同じouter Operation refとtyped payload meaningを使用する。surface policyによる明示subsetは許すが、first-party UIだけのprivate Operation、external proposal-only surfaceへのCommit／Promotion／Approval／Activation／Signing／Release、Provider固有hidden defaultまたはgeneric `apply` fallbackを禁止する。MCP Taskを使う場合もcanonical Run／Operation Taskへのtransport projectionに限定し、MCP TaskをProject stateまたはdurable authorityにしない。
 
 ## 17. Language／Runtime projection
 

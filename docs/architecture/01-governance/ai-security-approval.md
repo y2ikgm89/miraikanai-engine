@@ -7,7 +7,7 @@
 - 正本範囲: AI task authorization、`AiTaskContextCapsuleV1`／authorized projection binding、Risk、Trust boundary、不変Engine、Sandbox、Credential原則、Provider／MCP／CLI security原則、Preview、人間承認、Consent Recordとpurpose binding、Activation、Promotion、拒否
 - 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持、同意を提示するUI、Platform privacy declaration、data retention／deletion policy。これらはAI Verification／Provenanceまたは各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
+- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-08-03
 
@@ -63,7 +63,8 @@ Game制作とEngine製品開発は別Profile、別Repository、別Authorization�
 | Editor Shell | 信頼済みClient | Proposal、Diff、Approval要求、typed Command | Validator迂回書込 |
 | Policy Service | 信頼済みAuthority | Risk分類、Policy解決、Envelope／Attestation署名 | Artifact生成、自己Approval |
 | Approval Service | 信頼済みAuthority | 人間認証、exact CandidateへのApproval署名 | 判断代行、Artifact変更 |
-| AI Orchestrator | 制限Service | Task分解、Provider調停、Proposal組立 | 自己承認、Secret保持、main／current Candidate変更 |
+| AI Orchestrator | 制限Service | Securityにより許可されたTask分解、Provider調停、Proposal組立 | 自己承認、Secret／Signer key保持、main／current Candidate変更、Run／Workflowからの権限生成 |
+| AI Orchestration Generation Receipt Signer | 用途限定Authority | completed orchestration recordをsubjectにするexact `GenerationReceiptPayloadV1`への`generation_receipt`署名 | Provider Credential、Project write、Task Authorization／Approval／Promotion／Release署名、payloadの生成・変更 |
 | Provider Adapter | Secret分離Service | Credential使用、Provider request、metadata採取 | Project書込、CredentialをContext／Logへ出力 |
 | Model Provider | 非信頼外部処理 | 構造化Proposalと説明 | 権限決定、最終検証、正規書込 |
 | External AI Client | 非信頼Client | Query、Proposal提出 | Commit、activate、merge、sign、release |
@@ -77,6 +78,8 @@ Game制作とEngine製品開発は別Profile、別Repository、別Authorization�
 | Store Upload Service | 最高権限Service | 承認済みsigned artifactの提出 | Source、Build script、Signing key |
 
 AIが生成したText、Tool argument、Patch、Test要約、Risk自己申告は非信頼Inputである。合否には信頼済みRunnerが採取した終了状態とArtifact hashだけを使う。
+
+この表の`AI Orchestrator`はSecurity actorとTrust上限を表す。AI制作Run、Workflow、immutable Context、production route、control-loop／Agent-loop ownership、checkpoint／resumeおよびResultの意味は[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)が所有する。本書のTask Authorization、Risk、Caller Context、Credential、Approval、SignerまたはTask stateを新Ownerへ移管せず、Run `completed`、Workflow completion、Agent sessionまたはModel responseからSecurity authorityを生成しない。
 
 Threat ModelはModelが規則に従うことを前提にしない。malformed argument、Prompt injection、Path escape、任意Code execution、resource exhaustion、malicious endpoint、stale／replay／差替え、Provider refusal、Schema drift、Runner crashをin-scopeにする。
 
@@ -198,7 +201,7 @@ repair_attempt_limitはTaskAuthorizationEnvelopeの必須uint8 Fieldであり、
 
 通常TaskはR0を含め署名必須である。製品内Chat等の連続する読取専用QueryはSession単位のR0 Envelope一つへ束ねてよい。このEnvelopeはread Operation allowlistと有効期限を固定し、Proposal組立へ進む時点で新Taskと新Envelopeを必要とする。署名鍵作成前のBootstrapDiscoveryは通常State machine外に置き、local system情報読取り、Key生成、Public key registry初期化だけを許可する。Provider、Project読取り、Worker、任意Path、Network、変更を許可せず、初期化後に再実行できない。
 
-署名RecordはMirakanSignedRecordV1を使用する。Task Authorization wrapperは`subject_sha256=SHA-256(JCS(payload))`、`signed_record.signer_subject_ref=payload.policy_service_subject_ref`、`signer_role_ref=payload.policy_service_role_ref`、`issued_at=payload.issued_at`、`revocation_snapshot_ref=payload.revocation_snapshot_ref`をbyte equalityにする。初期ProfileはECDSA P-256／SHA-256、RFC 8785 JCS、P1363固定64 byte、base64url without padding、low-S必須である。unknown field、duplicate key、invalid UTF-8、非有限値、高S、未知／失効／用途不一致／期限外Keyをfail closedで拒否する。秘密鍵は専用Service identityのnon-exportable Key storeへ置き、AI／Workerから分離する。AI Orchestratorにはgeneration_receipt用途専用のService identityとnon-exportable Keyだけを割り当て、この用途KeyをVerification、Approval、Promotion、Release用途へ流用しない。ActorのSecret保持禁止はProvider Credential等の可搬Secretを指し、このnon-exportable署名identityを含まない。
+署名RecordはMirakanSignedRecordV1を使用する。Task Authorization wrapperは`subject_sha256=SHA-256(JCS(payload))`、`signed_record.signer_subject_ref=payload.policy_service_subject_ref`、`signer_role_ref=payload.policy_service_role_ref`、`issued_at=payload.issued_at`、`revocation_snapshot_ref=payload.revocation_snapshot_ref`をbyte equalityにする。初期ProfileはECDSA P-256／SHA-256、RFC 8785 JCS、P1363固定64 byte、base64url without padding、low-S必須である。unknown field、duplicate key、invalid UTF-8、非有限値、高S、未知／失効／用途不一致／期限外Keyをfail closedで拒否する。秘密鍵は専用Service identityのnon-exportable Key storeへ置き、AI／Workerから分離する。AI Orchestration Generation Receipt Signerだけに`generation_receipt`用途専用のService identityとnon-exportable Keyを割り当て、Workflow Executor、Agent Host、AI Orchestrator control role、Provider AdapterまたはModelへKey handleを渡さない。この用途KeyをVerification、Task Authorization、Approval、Promotion、Release用途へ流用せず、SignerはOrchestratorが提示した`GenerationReceiptPayloadV1`を生成・変更せず、完成Orchestration recordとのsubject bindingを含むPolicy検証後にexact payload bytesだけを署名する。
 
 Operation Receiptの署名権限は次のclosed `OperationReceiptSignerPolicyV1`だけが与える。
 
@@ -308,7 +311,7 @@ Activation後、各`signer_role_ref`は同じ行のpurpose一件だけを許可�
 - Native／Shader Source生成前に有効なCode owner assignmentがなく、またはPromotion前にexact DiffへのCode owner approvalがなければ進めない。
 - Approvalは表示したDiff、Gate result、Artifact hashと完全一致するrevisionだけに有効である。
 - Rejected、Failed、ExpiredのArtifactを昇格しない。
-- CompletedはAuthoritative revision／commitのread-back照合後だけにする。
+- CompletedはTask kindごとのauthoritative terminal outputをread-backした後だけにする。mutation Taskはexact revision／Commit／Promotion、proposal-only Taskはexact typed Proposal、read-only Taskはexact typed Query Resultを照合し、Task Specificationのrequired Receipt／Validation集合がnon-emptyならそのset equalityとfreshnessも必須にする。Model response、Workflow／Run `completed`、Editor表示またはHost自己申告だけではCompletedにしない。
 
 AwaitingUserInputはResolvingRequirements、Running、Validatingからだけ入る。Authorization前の回答はSpecification draftを更新できる。Authorization後の回答がGoal、Success criteria、Input、Risk、Operation、Path、Network、Dependency、Gate、Approvalへ影響する場合、元TaskをCancelledにし、新Taskと新Envelopeを作る。
 
@@ -319,6 +322,8 @@ AwaitingUserInputはResolvingRequirements、Running、Validatingからだけ入�
 Atomic commit、許可済みlong-running verification、Release transactionのcritical section開始後は、Cancel／Expiryで結果不明のまま終了表示しない。完了、rollback、read-backのいずれかへ収束させる。
 
 本節の15状態はAI Orchestrator TaskのGovernance stateである。Build familyのatomic Activation後、[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)のplanned `OperationTaskV1.state = queued | running | cancel_requested | succeeded | failed | cancelled`は個々のPackage／Device／Play／Debug実行ledgerになり、相互の状態名をaliasにせず、Operation Receiptから親Taskへ結果を投影する。current `OperationTaskV1` instanceは0件である。
+
+[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)の`AiProductionRunStateV1`はこのGovernance Task内でWorkflow executionを追跡する別stateである。Run `completed`はtyped Resultを親Taskの`Running | Validating`へ渡せるだけで、Task `Completed`、Project ChangeSet stateまたはOperation Task stateへ直接遷移させない。Model／external Host Proposalを生成・受理するretry／resumeの新Attemptと、explicit fallback先の新Runに属するinitial Attemptは本書のTask-scoped signed repair reservation／headを参照し、Run、route、Host、Modelまたはprocessを変えて`repair_attempt_limit`をresetしない。Model Proposalを扱わない`deterministic_automation`のOperation retryはこのrepair counterでなくWorkflow boundと各Operationのidempotency／retry Policyに従う。
 
 ### 3.3 Consent Recordとpurpose binding
 
@@ -814,6 +819,17 @@ Service `authority_capability_refs[]`のactivation predicateはProduct selection
 ## 8. Provider API、MCP、CLI、Plugin
 
 詳細は[ai-provider-mcp-security-supplement](../appendices/ai-provider-mcp-security-supplement.md#8-provider-apimcpcliplugin)へ分離した。本節はnavigationだけを持ち、Catalog／Fixture定義を複写しない。
+
+Provider supplementのSecurity caller routeと[AI Production Orchestration §7](../03-authoring/ai-production-orchestration.md#7-execution-routeとloop-owner)のproduction routeは別型で、次のexplicit mappingだけを許す。
+
+| production route | Security caller route | security invariant |
+|---|---|---|
+| `deterministic_automation` | none | signed Task Authorizationとcurrent Operation Policyを使い、Provider／Agent Caller Contextを捏造しない |
+| `first_party_agent` | `engine_provider_adapter` | Engine Host／Provider／Deployment／Model／Tool tupleとConformanceをcurrent検証する |
+| `standard_external_agent` | current targetでは`standard_external_mcp` | proposal-only Authority、Host／Transport＋Schema／Eval Conformanceを必須にする |
+| `managed_external_host` | `managed_external_host` | Future Capability、fresh session／execution attestation、専用Broker closureを必須にする |
+
+production Route Selection、Workflow BindingまたはAgent-loop ownerはCaller Context、Authorization、Credential、Conformance ReceiptまたはCapability Activationを発行しない。MCP以外の外部SDK routeを追加する場合は、SDK名を`standard_external_mcp`へaliasせず、新しいSecurity transport／Caller Context branchとConformanceを先に定義する。
 
 ## 9. Preview、technical qualification、人間承認
 

@@ -7,7 +7,7 @@
 - 正本範囲: Project aggregate、Project／ProjectRevision identity、Authoring Document、ProjectChangeSetV1の意味とtransaction、Project Source変更／Promotion共通契約、Target readiness意味、Commit、Source／Derived境界、Project Source closure／canonical transport artifactとexact wire grammar、Undo／Redo、外部編集、Recovery、Version Control／repository interoperability、authoring target selection projectionの所有境界
 - 非正本範囲: 具体Document／Operation／Change primitive／readiness／fixture候補、VCS provider UI／credential／remote hosting、MCD共通Envelope、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI、Runtime package
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)
-- 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[Game Production Loop](game-production-loop.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Developer Testing](developer-testing.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
+- 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[AI Production Orchestration](ai-production-orchestration.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Game Production Loop](game-production-loop.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Developer Testing](developer-testing.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -363,6 +363,12 @@ Project作成、clone／open、branch switch／provider revision change、merge�
 ## 8. AIと手動編集
 
 AIと人間は同じproposal、validation、commit境界を使う。AI生成Source、手動編集、Editor operationを別の弱い経路へ分けない。説明またはpreviewはState mutation権限を与えない。
+
+[AI Production Orchestration](ai-production-orchestration.md)のRun Context、Workflow Binding、Route Selection、Attempt、Checkpoint、Result、conversationまたはAgent／MCP sessionはProject Source、Project revision、Document、Decision Ledger、ChangeSet、Commit、Undo journalまたはRepository snapshotではない。これらをProject directoryへ保存した、Runが`completed`になった、Modelが成功を宣言した、またはResultがProposal refを持つことからcurrent revisionを進めない。
+
+AI outputをProjectへ残す場合は、Owner-typed Proposal／Decision／Source／Documentへ変換し、exact base Project revision、subject scope、author、provenance、Validation、必要Approvalを持つ`ProjectChangeSetV1`としてCommitする。Run Contextのcopy、Prompt、conversation summary、Checkpointまたはopaque Agent patchをchange primitiveへ変換せず、Projectへのpromotion後も元Run／Attempt／Context refはlineageであってauthorityではない。Project revision、Contract、Policy、Workflow inputまたはselectionが変わったpending Proposalはstaleにし、新対象へ自動rebase／retargetしない。
+
+Project recoveryはcanonical Source、Commit、Repository Snapshot、Owner Receiptから行い、AI Run Storeまたはconversationの生存を前提にしない。反対にProject Undo／RedoはRun、Provider request、外部costまたは既に公開されたArtifactを自動取消しせず、必要なら各Ownerのcancel／compensation Operationを別に行う。
 
 ## 9. Runtime compile境界
 

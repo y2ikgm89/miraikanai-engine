@@ -5,9 +5,9 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 正本範囲: Game production subject、Intent session／draft、Game Brief／GameSpec／Game Decision Ledger、Question／Answer／Assumption／Decision、Requirement traceability、Game understanding closure、AI game generation lane、Experience Goal、Playtest observation／evaluation、Iteration Decision、Game production loop closure、およびこれらを扱うtarget Operation familyの意味
-- 非正本範囲: AI Task Authorization／Risk／Consent／Approval／Provider trust、Evidence envelope／署名／freshness、Project identity／Document共通header／ChangeSet／Commit、automated test runner／result、Gameplay System／Capability／Stateのdomain意味、Asset provenance／rights／safety、Build／Cook／Package／Launch、Product claim／First Playable／Release／Completion、実装順序／工程／工数／担当
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](project-state.md)、[Developer Testing](developer-testing.md)、[Gameplay Programming Model](gameplay-programming-model.md)
-- 関連文書: [Product Lifecycle](../00-product/product-lifecycle.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace／UX](editor-workspace-ux.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Native Game Module](native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[RPG Genre Pack](../08-packs/rpg.md)
+- 非正本範囲: AI Task Authorization／Risk／Consent／Approval／Provider trust、AI Production Run／Workflow／Context／route／Agent loop、Evidence envelope／署名／freshness、Project identity／Document共通header／ChangeSet／Commit、automated test runner／result、Gameplay System／Capability／Stateのdomain意味、Asset provenance／rights／safety、Build／Cook／Package／Launch、Product claim／First Playable／Release／Completion、実装順序／工程／工数／担当
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](project-state.md)、[AI Production Orchestration](ai-production-orchestration.md)、[Developer Testing](developer-testing.md)、[Gameplay Programming Model](gameplay-programming-model.md)
+- 関連文書: [AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace／UX](editor-workspace-ux.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Native Game Module](native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[RPG Genre Pack](../08-packs/rpg.md)
 - 根拠区分: project-decision
 - 外部根拠確認日: none
 
@@ -26,6 +26,7 @@ AIと人間は同じrecord、Project ChangeSet、Validator、Evidence、Approval
 | concern | canonical Owner | 本書の使用 |
 |---|---|---|
 | Task scope、Risk、Consent、Approval、Code Owner、Provider trust | [AI Security／Approval](../01-governance/ai-security-approval.md) | exact Authorization／Approval refを検証する |
+| AI Production Run、Workflow、Context、route、loop、Result | [AI Production Orchestration](ai-production-orchestration.md) | Game production recordをtyped Workflow input／Resultへ束縛し、実行stateを複写しない |
 | Evidence identity、署名、admissibility、freshness、revocation | [AI Verification／Provenance](../01-governance/ai-verification-provenance.md) | `fresh`なexact Evidence refだけを数える |
 | Project／revision、Document header、ChangeSet、Commit、bootstrap publication | [Project State](project-state.md) | existing Projectはexpected revision付きChangeSet、bootstrapはprivate prepared candidateとatomic first publicationを使う |
 | automated test suite／case／run result | [Developer Testing](developer-testing.md) | exact Result refをtechnical inputとして読む |
@@ -314,6 +315,8 @@ Closureは全Question current headを過不足なく含め、四countを解決re
 
 [Product Plan §1.1.1](../00-product/product-plan.md#111-ai-game-generation-claim-lane)が`AiGameGenerationLaneV1`とProduct claim scopeを一意に所有する。本書は同じ三tokenをGame production経路へ適用し、別enum、aliasまたはProduct claimを所有しない。
 
+各laneを実行するRun、Workflow Definition／Binding、immutable Context、deterministic／first-party／external route、Agent loop、retry／checkpoint／Resultは[AI Production Orchestration](ai-production-orchestration.md)を正本とする。本書のIntent、Question、Brief、Spec、Understanding Closure、Playtest、EvaluationまたはIteration recordをWorkflow stateへ変換せず、Workflow／Run `completed`を`GameUnderstandingClosureV1.ready_to_stage`、Human Gameplay Approval、`GameProductionLoopClosureV1.accepted`またはProduct claimへ読み替えない。
+
 | lane | 対象 | 必須境界 |
 |---|---|---|
 | `ai_composed_game` | Project Document、Gameplay Definition、prequalified Pack、`domain_pack_reference | user_provided` Assetの構成 | Project ChangeSet、Requirement traceability、manual continuity |
@@ -463,6 +466,8 @@ target Operationは次の三familyへ分離する。
 [Operation／Planning Catalog §21.1](../appendices/executable-contracts-operation-planning-catalog.md#211-既存domain文書から回収した未登録operation候補)の`planning.operation_family.game_intent_understanding | planning.operation_family.game_experience_iteration | planning.operation_family.game_production_read`が、三familyへ一対一対応するexact candidate ID集合とField省略なし`PlannedOperationFamilyV1`を所有する。本書はGame production意味を所有するが、別candidate ID、planning record、work itemまたはactivation stateを複写しない。
 
 Provider／MCP projectionへHuman Gameplay Approval、Project Commit、Source Promotion、ActivationまたはRelease authorityを公開しない。Editor、CLI、MCP、Providerごとにpayload semanticsやhidden defaultをforkしない。
+
+三familyをAI制作へ束縛する場合、[AI Production Orchestration](ai-production-orchestration.md)のWorkflowは本節Owner-typed input／outputとExecutable Contractsのcurrent operational Operationをexact参照する。Workflow名、Skill、Prompt、Agent Tool、MCP Taskまたはconversationから三familyのcandidate ID、Domain record、Approvalまたはloop closureを生成しない。Game production WorkflowのRunがterminalになっても、Observation→Evaluation→Iteration Decisionおよび新Authorizationのdomain loopは本書の別record chainとして継続する。
 
 現Repositoryの`materialized_operations`、`contract_active_operations`、`active_operations`、`operational_operations`はすべてexact `[]`で、三familyのcurrent stateは`not_activated`である。Operation表示名または本節のaction列からdispatchability、Service existence、Policy coverageまたはReceipt typeを合成しない。
 

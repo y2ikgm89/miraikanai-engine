@@ -9,7 +9,7 @@
 - 正本範囲: Evidence envelope、Receipt、AI Eval、Dataset、grader、release evidence、CI fixtureのreview候補詳細
 - 非正本範囲: Verification lifecycle、不変条件、Evidence採否、freshness、failure意味、AI authorization。親Ownerと各Domain Ownerが決定する
 - 規範依存: [親Owner](../01-governance/ai-verification-provenance.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -531,7 +531,7 @@ GenerationReceiptV1
 
 各`GovernedAiProfileBindingV1`は発行時Head ref／hash／sequenceを含み、Attempt開始時とTool実行時にはAI Security／Approvalのcurrent signed Profile Headへ解決してCaller Contextの同じbindingとbyte-exact一致しなければならない。Head更新後のbindingを新規実行またはPromotionへ使わない。一方、履歴監査では発行時Head chainと当時のvalidityを再検証し、正当なら`authentic_but_stale`として保持するため、currentでないことだけを改竄または過去Receipt無効としない。Generation ReceiptのReservation／Task／Attempt／sequence／kind／repair count／Context／Authorizationはcurrent `state=reserved`の`AiTaskRepairAttemptHeadV1`とbyte-exact一致させ、Result wrapper完成後に同HeadをrecordedへCASできないReceiptをStaging／Evalへ使わない。`engine_provider_adapter`ではProvider Manifestが指すDeployment、Model、ToolとCaller Contextをexact一致させる。`managed_external_host`ではCaller Contextとpost-execution AttestationのModel／Task／attempt／Input／typed resultを一致させ、Provider ManifestまたはEngine-owned Deploymentを捏造しない。cloud/provider identityだけ`exact_resolved_provider_model_id`、local identityだけLocal Model Artifact bindingを持ち、local inferenceへ架空Provider model IDを要求しない。completed branchの`exact_response_bytes_sha256`はProvider／local runtimeまたはmanaged Brokerから受領して永続化する正規response bytes全体のhashで、表示text、response ID、parsed tool callだけのhashを代用しない。Provider呼出し前、timeout、resource、transport failureはfailed branch、空response ID、null response hash、1件以上のtyped Diagnosticで表す。
 
-`standard_external_mcp`は上流Provider／Deployment／Modelと完全なModel responseをattestできないため`GenerationReceiptV1`を発行しない。Gatewayが実際に受領したTool callはtyped `OperationReceiptEnvelopeV1`、Proposalは次の`StandardExternalProposalReceiptV1`へ記録し、Model出力provenanceまたはEval attributionへ読み替えない。Managed Host routeは完成post-execution Attestation ref／hashを両non-null、Engine Adapterは両nullにする。署名は「このOrchestratorがこのContextとProvider、local runtime、またはattested managed Host Attemptを記録した」ことだけを証明し、出力の正しさを保証しない。署名Keyはgeneration_receipt用途専用のAI Orchestrator Service identityに属し、Key管理と用途分離は[AI Security／Approval](../01-governance/ai-security-approval.md)に従う。
+`standard_external_mcp`は上流Provider／Deployment／Modelと完全なModel responseをattestできないため`GenerationReceiptV1`を発行しない。Gatewayが実際に受領したTool callはtyped `OperationReceiptEnvelopeV1`、Proposalは次の`StandardExternalProposalReceiptV1`へ記録し、Model出力provenanceまたはEval attributionへ読み替えない。Managed Host routeは完成post-execution Attestation ref／hashを両non-null、Engine Adapterは両nullにする。署名は「このOrchestration境界がこのContextとProvider、local runtime、またはattested managed Host Attemptを記録した」ことだけを証明し、出力の正しさを保証しない。署名Keyは`generation_receipt`用途専用のAI Orchestration Generation Receipt Signer service identityに属し、Workflow／Agent／Orchestrator control roleへKey handleを渡さない。Key管理と用途分離は[AI Security／Approval](../01-governance/ai-security-approval.md)に従う。
 
 #### 7.3.1 Task-wide Attempt reservation／Head
 
@@ -540,7 +540,7 @@ AiTaskAttemptReservationPayloadV1
   reservation_id, task_id, attempt_id
   attempt_sequence: positive safe integer
   attempt_kind = initial_proposal | repair_proposal
-  execution_route_kind = engine_provider_adapter | managed_external_host | standard_external_mcp
+  caller_security_route_kind = engine_provider_adapter | managed_external_host | standard_external_mcp
   previous_terminal_head_ref: null | content-addressed ref
   previous_terminal_head_sha256: null | lowercase hex 64
   caller_context_ref, caller_context_sha256
@@ -583,7 +583,7 @@ AiTaskRepairAttemptHeadV1
   signed_record: MirakanSignedRecordV1(purpose=ai_task_repair_attempt_head)
 ```
 
-Taskごとのrepair正本はroute別Receiptのcounterでなくcurrent `AiTaskRepairAttemptHeadV1`一件である。初回Reservationはprevious terminal Head=null、`attempt_sequence=1`、`attempt_kind=initial_proposal`、`repair_attempt_count=0`である。次のReservationはcurrent Headが`recorded | aborted`のときだけ、その完成Headをprevious、attempt sequenceをprevious `N+1`、`attempt_kind=repair_proposal`、repair countをprevious `N+1`として作る。Caller Context、route、Authorization、Task、Contract、Policyをcurrent read-backし、countがEnvelope上限以下かつ`reserved_at < expires_at <= min(Context, Authorization)`の場合だけ、GatewayがReservation wrapperと`state=reserved` Headを作り、current Headへのexpected-previous single CASを成功させてからProvider／local runtime／managed Hostを起動、またはstandard MCP Proposalを受理する。
+Taskごとのrepair正本はroute別Receiptのcounterでなくcurrent `AiTaskRepairAttemptHeadV1`一件である。`caller_security_route_kind`はAI Security／Approvalが所有するCaller Contextのsecurity projectionであり、AI Production Orchestrationのproduction routeまたはloop ownerではない。両routeは[AI Production Orchestration §7](../03-authoring/ai-production-orchestration.md#7-execution-routeとloop-owner)のexplicit mappingからだけ束縛し、ReceiptまたはHost名から補完しない。初回Reservationはprevious terminal Head=null、`attempt_sequence=1`、`attempt_kind=initial_proposal`、`repair_attempt_count=0`である。次のReservationはcurrent Headが`recorded | aborted`のときだけ、その完成Headをprevious、attempt sequenceをprevious `N+1`、`attempt_kind=repair_proposal`、repair countをprevious `N+1`として作る。Caller Context、route、Authorization、Task、Contract、Policyをcurrent read-backし、countがEnvelope上限以下かつ`reserved_at < expires_at <= min(Context, Authorization)`の場合だけ、GatewayがReservation wrapperと`state=reserved` Headを作り、current Headへのexpected-previous single CASを成功させてからProvider／local runtime／managed Hostを起動、またはstandard MCP Proposalを受理する。
 
 reserved Headは同Taskの新Reservationを拒否する。結果wrapper完成後は、Generation ReceiptまたはStandard External Proposal ReceiptのReservation／Task／Attempt／sequence／kind／count／Context／Authorizationをbyte-exact照合する。Generationは`reserved_at <= started_at <= finished_at < expires_at`、standard Proposalは`reserved_at <= received_at < expires_at`、recorded Headは結果時刻以上かつ`recorded_at < expires_at`でなければならない。そのwrapperをoutcomeにした`state=recorded` Headをreserved Headへのexpected-previous CASでpublishする。結果wrapperを作れず`evaluation_time >= expires_at`になった場合だけ、Gateway recovery serviceが1件以上のtyped Diagnosticを持つ`aborted` Headを同じreserved Headからpublishできる。recorded／abortedともattemptを消費し、countを巻き戻さない。`recorded`はattempt履歴の完成であって成功判定ではなく、StagingはGeneration `generation_result.kind=completed`またはstandard Proposal `validation_disposition=accepted_for_validation`だけを受理し、failed／rejected outcomeは修復判断にだけ使う。CAS失敗、Host／Transport／Grant／Model／Provider／Attempt変更、process再起動、並行実行でも別Headをcurrentにせず、新規Staging、Eval、修復開始はcurrent recorded Headが指すexact outcomeだけを使う。
 
@@ -617,7 +617,7 @@ StandardExternalProposalReceiptV1
   signed_record: MirakanSignedRecordV1(purpose=standard_external_proposal_receipt)
 ```
 
-このReceiptはstandard external MCPからGatewayが受領したProposal bytesだけを証明し、上流Prompt、Provider、Model、完全なresponseを証明しない。`accepted_for_validation`は`diagnostic_refs[]`がempty、`rejected_pre_validation`は1件以上であり、どちらもReservation済みattemptを消費する。ReceiptのCaller Contextは`execution_route.kind=standard_external_mcp`で、current reserved Headが指すReservation、Grant／Authorization／Task／Policy、attempt sequence／kind／repair countをbyte-exact一致させ、proposal payloadと受領message bytesを別hashで固定する。
+このReceiptはstandard external MCPからGatewayが受領したProposal bytesだけを証明し、上流Prompt、Provider、Model、完全なresponseを証明しない。`accepted_for_validation`は`diagnostic_refs[]`がempty、`rejected_pre_validation`は1件以上であり、どちらもReservation済みattemptを消費する。ReceiptのCaller Contextは`caller_security_route.kind=standard_external_mcp`で、current reserved Headが指すReservation、Grant／Authorization／Task／Policy、attempt sequence／kind／repair countをbyte-exact一致させ、proposal payloadと受領message bytesを別hashで固定する。
 
 `receipt_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:standard-external-proposal-receipt:sha256:<lowercase-hex>`として導出し、`role.ai-gateway-standard-external-proposal-receipt`／singleton purpose `standard_external_proposal_receipt`で署名する。Receipt単体はcurrentを決めず、上記common Headの`state=recorded` outcomeとしてCAS成功した場合だけEval／Stagingへ使う。Generation Receiptの捏造、Receiptだけのretry、別Reservationへの付替えを拒否する。
 

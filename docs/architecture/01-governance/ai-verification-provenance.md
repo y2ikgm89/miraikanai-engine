@@ -7,7 +7,7 @@
 - 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Qualification Scenario／Evidence Class identity、generic Verification Scope／subject contract／Evidence／Qualification Receipt spine、semantic admissibility predicateとclosed resolver Registry、`MirakanSignedRecordV1`共通署名Envelope／Ref、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
 - 非正本範囲: Domain固有Evidence／Receipt payload、materialized Registry／Fixture候補、AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。補助文書または各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -364,6 +364,14 @@ quarantineはTestの存在と既知問題を追跡する隔離状態であり、
 waiverはOwner、対象Requirement／Candidate／Target、理由、代替Evidence、発行時刻、expiry、revocationを束縛する明示的なGovernance判断である。別Candidate、別Target、期限後へ継承せず、Security、integrity、credential、署名、artifact identityの必須条件を迂回しない。waiverを`passed`へ書き換えず、Release summaryへ未充足Requirementとともに表示する。
 
 Unit、headless、simulator、screenshot、snapshot、semantic tree、accessibility、performance分布、physical-device sessionは互いの代替ではない。Requirementが指定するclassをexactに満たし、特にphysical-device、install／upgrade、launch／lifecycle、input、thermal／power、accessibility実機、P95／P99 tailをhost／simulator結果から推測しない。
+
+### 7.10 AI Production Run／Workflow lineage
+
+[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)のRun、Attempt、Workflow Binding、Run Context、Route Selection、ResultはEvidenceのcausal subjectまたはinput lineageになれるが、Evidence class、admissibility、freshness、pass、QualificationまたはRelease stateを所有しない。Run `completed`、Attempt `succeeded`、Workflow terminal step、Model self-critique、conversation summary、Agent／MCP session completionをEvidence ReceiptまたはTest passへ変換しない。
+
+Run中に消費する既存EvidenceはRun Contextへexact ref／hashとして固定し、dispatch直前に本書のeffective stateを再評価する。Run／Resultを評価して後から発行するGeneration／Review／Verification Receiptは完成RunまたはResultを一方向参照し、Run／ResultへそのReceiptを埋め戻さない。Runが既存Evidenceを参照し、同じEvidenceがそのRun／Resultをsubjectにする循環、Receipt発行後のResult書換え、Result hashだけからEvidence classを推測する経路を拒否する。
+
+retry／resumeは同Runの別Attempt、explicit fallbackまたはModel／Host／route変更は旧Runをterminalへ閉じた後の別Runとinitial Attemptである。Evidence envelopeは実際に使用したexact Run、Attempt、Context、route、Provider／Host attributionの証明可能範囲を保持する。`standard_external_agent`で上流Provider／Modelがunattestedの場合、そのmetadataをGeneration attributionへ昇格せず、Host／Transport／Schema Conformanceとtyped Proposal lineageだけを記録する。first-party／managed routeもProfile名だけでattributionせず、AI Security所有のcurrent Caller Context／Conformance／Attestationへ解決する。
 
 ## 8. Trace gradingとchain
 

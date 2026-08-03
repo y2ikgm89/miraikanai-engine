@@ -7,13 +7,16 @@
 - 検証状態: design-reviewed
 - 親Owner: [AI Security／Approval](../01-governance/ai-security-approval.md)
 - 正本範囲: Provider、MCP、CLI、Pluginのtransport・credential・authorization候補詳細
-- 非正本範囲: 親Ownerが所有する安定Architecture原則、実装Task、実装順序、生成済みArtifactまたはQualification結果
+- 非正本範囲: 親Ownerが所有する安定Architecture原則、AI Production Run／Workflow／Context／production route／Agent loop、実装Task、実装順序、生成済みArtifactまたはQualification結果
 - 規範依存: [親Owner](../01-governance/ai-security-approval.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)
 - 根拠区分: project-decision／provisional。実ArtifactがないRegistry、Catalog、Fixtureは候補
 - 外部根拠確認日: 2026-08-03
 
 > この補助文書の型、Registry、Catalog、Fixtureは、対応するRepository Artifactが存在しない限り未実装の設計候補である。親Ownerの安定原則や実装済み状態を上書きしない。
+
+本書の`caller_security_route.kind`はCaller ContextのHost／Transport／Provider／Credential／Conformance security unionであり、[AI Production Orchestration §7](../03-authoring/ai-production-orchestration.md#7-execution-routeとloop-owner)の`AiProductionExecutionRouteKindV1`とは別型である。production routeは`deterministic_automation -> none`、`first_party_agent -> engine_provider_adapter`、`standard_external_agent -> standard_external_mcp`、`managed_external_host -> managed_external_host`のexplicit mappingだけを使う。両route名、Host brand、MCP接続、SDKまたはModel名から他方を補完しない。
+
 ## 8. Provider API、MCP、CLI、Plugin
 
 | 接続 | 正規用途 | 権限にならないもの |
@@ -41,6 +44,8 @@ Provider／Model名をEngine codeへhard-codeしない。`ProviderManifestV1`は
 
 Prompt templateはRole、Goal、Success criteria、Normative constraints、Toolと権限、Evidence要求、Output Schema、Stop／質問条件の順にする。PromptをSecurity boundaryにせず、同じ規則を複数Promptへ反復しない。Prompt変更は一群ずつ行い、Model変更と同時に評価原因を混在させない。
 
+Prompt templateはModel input artifactであり、Workflow、step graph、budget、Run stateまたはterminationの正本ではない。Workflow Definition／Binding、Run Context assembly、production route、loop ownership、checkpoint／resumeは[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)を参照し、Prompt本文またはRepository guidanceからallowed Operation、child Run、retry、fallback、Approvalまたはsuccessを生成しない。
+
 RepositoryのAGENTS.mdはRepository map、Build／Test入口、禁止操作、Definition of Done、本正本とExecutable contractへのLinkに限定する。Subsystem規則は近いOwner文書へ置き、AGENTS.mdと実行可能契約が矛盾するMustをCIで拒否する。
 
 ### 8.2 Privacy、Prompt injection、Data handling
@@ -61,14 +66,14 @@ MCP 2026-07-28のper-request protocol version、HTTP header、`server/discover`�
 
 ### 8.3 Caller／Provider／Deployment／Model Profile
 
-Caller互換性をHost brandだけで判定しない。正規判定は`execution_route.kind`をdiscriminatorにした次の3 branchだけである。`standard_external_mcp`は外部Host＋MCP Transport＋Tool＋proposal-only Authority＋MCP Grant＋`HostTransportConformanceReceiptV1`＋`SchemaEvalConformanceReceiptV1`を必須にし、上流Provider／Deployment／Modelと`ProviderToolConformanceReceiptV1`を必須`null`／unattestedとする。`managed_external_host`は外部Host＋MCP Transport＋Provider Runtime＋managed deployment identity＋Model＋Tool＋Authority＋`HostTransportConformanceReceiptV1`／`ProviderToolConformanceReceiptV1`／`SchemaEvalConformanceReceiptV1`のexact三Receipt＋fresh Session Attestationを使う。`engine_provider_adapter`はfirst-party Engine Host＋Provider Runtime＋Provider Manifest＋Inference Deployment＋Model＋Tool＋Authority＋`ProviderToolConformanceReceiptV1`＋`SchemaEvalConformanceReceiptV1`を使い、MCP Transport／Grant／`HostTransportConformanceReceiptV1`を必須`null`にする。cloud direct APIとfirst-party local inferenceはroute kindを増やさず、`engine_provider_adapter`配下の`InferenceDeploymentProfileV1.deployment_kind`で区別する。次のclosed型をMCDへ登録する。
+Caller互換性をHost brandだけで判定しない。正規判定は`caller_security_route.kind`をdiscriminatorにした次の3 branchだけである。`standard_external_mcp`は外部Host＋MCP Transport＋Tool＋proposal-only Authority＋MCP Grant＋`HostTransportConformanceReceiptV1`＋`SchemaEvalConformanceReceiptV1`を必須にし、上流Provider／Deployment／Modelと`ProviderToolConformanceReceiptV1`を必須`null`／unattestedとする。`managed_external_host`は外部Host＋MCP Transport＋Provider Runtime＋managed deployment identity＋Model＋Tool＋Authority＋`HostTransportConformanceReceiptV1`／`ProviderToolConformanceReceiptV1`／`SchemaEvalConformanceReceiptV1`のexact三Receipt＋fresh Session Attestationを使う。`engine_provider_adapter`はfirst-party Engine Host＋Provider Runtime＋Provider Manifest＋Inference Deployment＋Model＋Tool＋Authority＋`ProviderToolConformanceReceiptV1`＋`SchemaEvalConformanceReceiptV1`を使い、MCP Transport／Grant／`HostTransportConformanceReceiptV1`を必須`null`にする。cloud direct APIとfirst-party local inferenceはroute kindを増やさず、`engine_provider_adapter`配下の`InferenceDeploymentProfileV1.deployment_kind`で区別する。次のclosed型をMCDへ登録する。
 
 ```text
 AiCallerContextPayloadV1
   caller_context_id, authenticated_subject_ref
   host_profile_binding: GovernedAiProfileBindingV1
   conformance_target: AiConformanceTargetRefV1
-  execution_route:
+  caller_security_route:
     {kind: standard_external_mcp,
      transport_profile_binding: GovernedAiProfileBindingV1,
      provider_runtime_profile_binding: null,
@@ -395,7 +400,7 @@ AiConformanceResultV1
        diagnostic_refs[1..256]}
 
 AiConformanceSubjectTupleV1
-  execution_route:
+  caller_security_route:
     {kind: standard_external_mcp,
      host_profile_binding:
        GovernedAiProfileBindingV1(

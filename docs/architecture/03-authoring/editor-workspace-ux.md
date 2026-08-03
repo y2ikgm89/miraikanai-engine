@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Editor process model、Project Browser／Launcher projection、Shell配置、Panel／Workspaceの共通契約、Editor表示locale／AI返答locale preference、制作journey、外部IDE往復、AI Partner UX、手動編集との往復、Error／Recovery UX、AccessibilityとEditor操作性能
-- 非正本範囲: Engine release取得／install／update意味、Widget／Layout実装、Project transaction／VCS semantics、Project test semantics、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Editor UI Framework](editor-ui-framework.md)、[Project State](project-state.md)、[Game Production Loop](game-production-loop.md)、[Asset Lifecycle](asset-lifecycle.md)
-- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Developer Testing](developer-testing.md)、[Native Game Module](native-game-module.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
+- 正本範囲: Editor process model、Project Browser／Launcher projection、Shell配置、Panel／Workspaceの共通契約、Editor表示locale／AI返答locale preference、制作journey、外部IDE往復、AI Partnerのread projection／interaction UX、手動編集との往復、Error／Recovery UX、AccessibilityとEditor操作性能
+- 非正本範囲: Engine release取得／install／update意味、Widget／Layout実装、Project transaction／VCS semantics、Project test semantics、Asset lifecycle、Gameplay contract、AI authorization／Approval、AI Production Run／Workflow／Context／route／loop／Result semantics、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Editor UI Framework](editor-ui-framework.md)、[Project State](project-state.md)、[Game Production Loop](game-production-loop.md)、[AI Production Orchestration](ai-production-orchestration.md)、[Asset Lifecycle](asset-lifecycle.md)
+- 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Developer Testing](developer-testing.md)、[Native Game Module](native-game-module.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -50,14 +50,14 @@ EditorHost
   ├─ Platform UI／Text／Accessibility Adapter
   └─ IPC clients
        ├─ GameHost
-       ├─ AI Orchestrator
+       ├─ AI Production Tooling Host process group
        ├─ Asset／Shader／Source Worker
        └─ Device／Package Service
 ```
 
 - EditorHostは正規Authoring stateを所有する。
 - GameHost crash、device loss、Project C++ faultでEditorHostを終了しない。
-- AI Orchestratorは別Processで、Editor widget IDやnative handleを受け取らない。
+- AI Production ToolingはEditorHostと別trust／process groupで、Editor widget IDやnative handleを受け取らない。Orchestrator、Context Compiler、Route Resolver、Workflow Executor、Agent Hostは論理roleであり、本書は一role一process、単一binaryまたはexact process countを決めない。
 - 長時間Build／Cook／GenerateをUI threadで実行しない。
 - PanelはDomain Serviceのread projectionとtyped Editor command／Project change primitiveだけを使い、private Runtime objectを保持しない。
 
@@ -293,11 +293,12 @@ AI Partnerは単なるconversation logでなく、次のstateを分けて表示�
 | Intent | exact `GameIntentSessionRefV1`／`GameIntentDraftRefV1`、production subject、User要求、完了条件 |
 | Questions | exact `GameQuestionRecordRefV1`／`GameAssumptionRecordRefV1`／`GameDecisionRecordRefV1`のcurrent headと未解決理由 |
 | Plan | exact `GameBriefDocumentRefV1`／`GameSpecDocumentRefV1`／`GameRequirementTraceabilityRefV1`から投影したSystem／Scene／Asset／C++のproposal scopeと依存 |
+| Orchestration | exact `AiProductionRunRefV1`、Run state、current Attempt／Workflow Binding／Context／route、control-loop owner、budget／expiry、current step、child handle。Governance Task stateと別列で表示 |
 | Proposal | 未Commit ChangeSet、Native／Asset Source change |
 | Validation | schema、semantic、budget、Build、Test、Preview |
 | `awaiting_code_owner` | Native／Shader Sourceの対象Scope、exact `role_ref`、Assignment／Approvalの不足または失効、待機／取消／Definition・prequalified Pack fallback |
 | Approval | Risk、対象、権限、期限 |
-| Result | exact Commit revision、Receipt、`PlaytestObservationSetRefV1`／`GameExperienceEvaluationRefV1`／`GameIterationDecisionRefV1`、Package／Device install結果、rollback |
+| Result | exact `AiProductionResultRefV1`のtyped outputと、別OwnerのCommit revision、Receipt、`PlaytestObservationSetRefV1`／`GameExperienceEvaluationRefV1`／`GameIterationDecisionRefV1`、Package／Device結果、rollbackを別groupで表示。Run Resultから後者を推測しない |
 
 Panelは現在selection、open Document、Problems、Playtest結果をContext候補として表示し、送信前にUserが除外できる。Project全体を毎回Providerへ送らない。
 
@@ -319,9 +320,9 @@ AI PartnerはEngine validation、AI proposal、User selection、Runtime stateを
 
 #### 8.1.1 Task／Proposal／Review Reference Contract
 
-`task_proposal_review`は、AI Partnerが独自のTask／Approval／Receiptを作る場所ではない。Intent、Question、Assumption、Decision、Brief、Spec、Playtest、Evaluation、Iterationは[Game Production Loop](game-production-loop.md)のexact ref、Task／ApprovalはSecurity、EvidenceはVerification、Project revision／Proposal／CommitはProject Stateのexact refをread-onlyに投影する。Panel独自のGame理解schema、Task state、Approval state、Receipt、Project write権限を持たず、会話要約、表示名、カード、色、UIA、screen coordinate、Pattern IDからActionを発行しない。
+`task_proposal_review`は、AI Partnerが独自のTask／Run／Workflow／Context／Approval／Receiptを作る場所ではない。Intent、Question、Assumption、Decision、Brief、Spec、Playtest、Evaluation、Iterationは[Game Production Loop](game-production-loop.md)のexact ref、Run／Attempt／Workflow Binding／Context／Route Selection／Resultは[AI Production Orchestration](ai-production-orchestration.md)、Task／ApprovalはSecurity、EvidenceはVerification、Project revision／Proposal／CommitはProject Stateのexact refをread-onlyに投影する。Panel独自のGame理解schema、Run／Task state、Approval state、Receipt、Project write権限を持たず、会話要約、表示名、カード、色、UIA、screen coordinate、Pattern IDからActionを発行しない。
 
-表示は`Intent → Question／Assumption／Decision → Brief／Spec → Task → Proposal → Validation → Approval → Commit／Promotion → Playtest Observation → Experience Evaluation → Iteration Decision／Result → Receipt`の一方向とする。括弧内のApproval／PromotionはRisk、scope、Capabilityが要求する場合だけ表示する。各段階はTask ID／attempt ID、owner-issued ref／hash、base／current Project revision、semantic content hash、対象scopeで結び、[AI Security／Approval §3.2](../01-governance/ai-security-approval.md#32-task-state-machine)の15 Task stateをそのまま表示する。Build／Package／Deviceなどの`OperationTaskV1`は実行ledgerであり、Task stateのaliasにせず、Receiptから親Taskへ結果を投影する。
+表示は`Intent → Question／Assumption／Decision → Brief／Spec → Governance Task → Production Run／Attempt → Proposal／typed Result → Validation → Approval → Commit／Promotion → Playtest Observation → Experience Evaluation → Iteration Decision → Receipt`の一方向とする。括弧内のApproval／PromotionはRisk、scope、Capabilityが要求する場合だけ表示する。各段階はTask ref、Run／Attempt ref、owner-issued ref／hash、base／current Project revision、semantic content hash、対象scopeで結ぶ。[AI Security／Approval §3.2](../01-governance/ai-security-approval.md#32-task-state-machine)の15 Task state、[AI Production Orchestration §9](ai-production-orchestration.md#9-run-lifecycleと親task境界)のRun state、Build／Package／Device等の`OperationTaskV1.state`を別axisとして表示し、相互aliasにしない。Run `completed`はtyped Result発行、Task `Completed`はTask kind固有のauthoritative terminal output read-back、Operation Task `succeeded`は個別Operation Receiptを意味する。
 
 - unresolvedなblocking Questionがある間はProposal作成・実行Actionを公開しない。Questionの回答、Assumptionのaccept、Decisionの変更はOwnerの登録済みCommandだけが行い、会話本文、scroll、`viewed`から自動解決しない。
 - ProposalはStaging上の候補であり、current Project valueを置換しない。Proposal Cardはproposal ref、base／current revision、対象scope、before／after Diff、Validation ref、Approval state、Risk、disabled reasonを同時表示する。accept／rejectはchange primitive、Document、fieldの明示単位だけに許し、部分accept後は新しいChangeSetを再構成して全Validatorを再実行する。`Accept all`、自動Commit、カードからの直接writeを禁止する。
@@ -353,11 +354,9 @@ ExternalEngineConceptResolutionV1
 
 ### 8.3 Interaction mode
 
-- `Ask`: 説明、質問、比較だけ。状態変更Proposalを作らない。
-- `Suggest`: ChangeSet／Source changeを作り、Commitしない。
-- `Execute Authorized`: Authorization Envelope内で検証／承認済み操作だけを進める。
+[AI Production Orchestration §11](ai-production-orchestration.md#11-interaction-intentとbounded-execution-profile)の`ask | suggest | execute_authorized`をexact tokenと意味の正本として消費する。Editor labelは`Ask | Suggest | Execute Authorized`とし、`ask`ではread／explain、`suggest`ではProposal／Validation、`execute_authorized`ではcurrent AuthorizationとOperation Policyが許すActionだけを表示する。Panelは第四mode、`Autonomous` authority、hidden auto-applyまたはPrompt由来のmodeを作らない。
 
-Mode表示は常時visibleで、prompt本文によって自己昇格しない。AI outputをEngine validationと同じ色／iconにしない。
+Mode表示は常時visibleで、prompt本文、Model confidence、Workflow、Skill、PluginまたはRun成功によって自己昇格しない。`interactive | bounded_workspace | release_candidate_assist` execution profileはmodeと別表示にし、workspace isolation、budget、review point、Release authority不在を示す。AI outputをEngine validationと同じ色／iconにせず、`Execute Authorized`でもApproval／Commit／Signing／Publicationを自動化済みと表示しない。
 
 ### 8.4 初心者workflow
 
@@ -409,7 +408,7 @@ Compiler／linker／test diagnosticはstable code、public API subject、Project
 
 ## 11. Long-running task
 
-Build、Cook、AI生成、Package、Device install、Testは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationTaskV1`を正本とする`BackgroundTask` projectionとして次を持つ。
+Build、Cook、Package、Device install、Test等のEngine Operationは[Core architecture](../02-foundation/core-architecture.md#91-operationtaskv1)の`OperationTaskV1`を正本とする`BackgroundTask` projectionとして次を持つ。AI制作全体は[AI Production Orchestration](ai-production-orchestration.md)のRun／Attempt／Transitionを正本とし、AI Runが起動したBuild／Test等のchild Operationだけを`OperationTaskV1`として関連表示する。Provider stream、Agent turnまたはWorkflow stepを架空のOperation Taskへ変換しない。
 
 ```text
 operation_task_ref
