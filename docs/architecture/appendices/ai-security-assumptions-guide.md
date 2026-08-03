@@ -6,17 +6,17 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 親Owner: [AI Security／Approval](../01-governance/ai-security-approval.md)
-- 正本範囲: Beginner question、assumption、Project data境界の説明
+- 正本範囲: Beginner question、assumption、Project data境界とprovisional Game understanding候補の説明
 - 非正本範囲: 親Ownerが所有する安定Architecture原則、実装Task、実装順序、生成済みArtifactまたはQualification結果
 - 規範依存: [親Owner](../01-governance/ai-security-approval.md)
 - 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)
 - 根拠区分: project-decision／provisional。実ArtifactがないRegistry、Catalog、Fixtureは候補
 - 外部根拠確認日: 2026-07-27
 
-> この補助文書の型、Registry、Catalog、Fixtureは、対応するRepository Artifactが存在しない限り未実装の設計候補である。親Ownerの安定原則や実装済み状態を上書きしない。
+> この補助文書の型、Registry、Catalog、Fixtureはprovisionalな設計候補である。対応する正本Ownerとexact MCD Typeが親Ownerで採択され、Repository Artifactが存在するまでcurrent Schema、Context input、実装済み状態または理解完了を意味しない。親Ownerの`AiTaskContextCapsuleV1`／projection bindingを上書きしない。
 ## 5. Beginner questions、assumptions、理解条件
 
-上位理解recordのtop-level許可集合は`GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`、`QuestionRecordV1`、`AssumptionRecordV1`、`DecisionRecordV1`、`GameUnderstandingClosureV1`、`AiCatalogEntryV1`、`AiTaskContextCapsuleV1`のexact九Schemaだけとする。`AiTaskContextProjectionBindingV1`等の名前付きnested shapeはtop-level record、Catalog entry、権限、保存rootとして発行しない。全Field required、明示`| null`だけnullable、tagged unionはexact一branch、unknown Field禁止、配列boundsとcanonical order／unique、typed refのID／schema version／content hash exact解決、`MIRAKAN_CLOSED_RECORD_V1/<SchemaName>`の自己Field除外hashを本節の共通規則とbyte equalityにする。同名shadow schema、optional補完、自由文からのOperation／Authority／Target／Provider／Model／Host／Deployment推測を追加しない。
+上位理解recordの候補familyは`GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`、`QuestionRecordV1`、`AssumptionRecordV1`、`DecisionRecordV1`、`GameUnderstandingClosureV1`、`AiCatalogEntryV1`である。これは許可済みtop-level Schema集合ではない。各候補は正本Owner、全direct ref、bound、canonical order、hash、Requirement／Project／Evidence joinが同じArchitecture Changeで確定するまでMCD Registryへ登録せず、`AiTaskContextCapsuleV1`へ束縛しない。以下のshapeは論点保全用であり、不足型を同名shadow schema、自由JSONまたは表示名から補完しない。
 
 `GameIntentDraftV1 -> GameBriefV1 -> GameSpecDocumentV1 -> GameUnderstandingClosureV1`は各content-addressed refで一方向に連結する。Briefはhuman確認subject／時刻、SpecはProject snapshot、ClosureはBrief／Spec／Question／Assumption／DecisionとRequirementからArtifactまでのEvidence closureをexact hashで束縛する。`AiCatalogEntryV1.production_owner_layer=core | feature_pack | genre_pack | game_project`はproduction ownership、`artifact_role=production | cross_cutting_control_plane | reference_game | fixture | qualification`はartifact用途であり、二軸を混同しない。Provider／Model／Host／Deployment Profileも独立四ref集合とし、brand別schema branchを禁止する。`AiTaskContextCapsuleV1`はTask Authorizationとactive Operation refの積集合を持つread-only／Disposable projectionで、Capsule自身、自由文のselection reasonまたはcontinuation tokenは権限にならない。
 
@@ -116,59 +116,9 @@ GameUnderstandingClosureV1
   disposition: ready_to_stage | capability_unavailable
   content_hash: Sha256
 
-AiTaskContextProjectionBindingV1
-  binding_kind:
-    {kind: authoring_context}
-    | {kind: architecture_explain}
-    | {kind: game_understanding}
-    | {kind: editor_context}
-    | {kind: optimization_decision}
-    | {kind: ai_debug_context}
-  projection_schema_id: StableId
-  projection_artifact_ref: TypedArtifactRefV1
-  projection_content_sha256: Sha256
-  owner_document_id: ArchitectureDocumentId
-  project_revision_ref: ProjectRevisionRefV1
-  source_revision_artifact_ref: TypedArtifactRefV1 | null
-  requested_field_paths[1..256]:
-    sorted unique CanonicalJsonPointer
-  returned_field_paths[1..256]:
-    sorted unique CanonicalJsonPointer
-  completeness:
-    {kind: complete, omitted_ranges: [], continuation: null}
-    | {kind: bounded_query,
-       omitted_ranges[0..64]:
-         {collection_path: CanonicalJsonPointer,
-          start_index: uint32,
-          omitted_count: positive uint32},
-       continuation:
-         {kind: none}
-         | {kind: present,
-            continuation_ref: TypedArtifactRefV1,
-            continuation_sha256: Sha256,
-            expires_at: UtcTimestamp}}
-  invalidation_condition_refs[1..32]: McdContractRefV1(kind=policy)
-
-AiTaskContextCapsuleV1
-  schema_version: 1
-  capsule_id: StableId
-  task_authorization_ref: TaskAuthorizationEnvelopeRefV1
-  task_authorization_wrapper_sha256: Sha256
-  project_ref: ProjectSnapshotRefV1
-  project_revision_ref: ProjectRevisionRefV1
-  active_operation_refs[1..64]: McdContractRefV1(kind=operation)
-  context_projection_bindings[1..16]:
-    AiTaskContextProjectionBindingV1
-  issued_at: UtcTimestamp
-  expires_at: UtcTimestamp
-  content_hash: Sha256
 ```
 
-`AiTaskContextProjectionBindingV1.binding_kind`と`projection_schema_id`は、`authoring_context=AuthoringContextPackV1`、`architecture_explain=ArchitectureExplainProjectionV1`、`game_understanding=GameUnderstandingClosureV1`、`editor_context=EditorContextSnapshotV1`、`optimization_decision=OptimizationDecisionProjectionV1`、`ai_debug_context=AiDebugContextV1`のexact一対一対応だけを許す。`projection_artifact_ref`と`projection_content_sha256`は完成Projection bytesへ一致し、Owner、Project lineage、source revision、field path、completeness、invalidation policyを表示名または最新revisionから補完しない。`source_revision_artifact_ref`はProjection rootが独立Source revisionを所有するときだけnon-nullにし、`optimization_decision`では`ArtifactCandidateBindingV1.source_revision_ref`とbyte equalityを必須にする。`GameUnderstandingClosureV1`と`OptimizationDecisionProjectionV1`は`completeness.kind=complete`だけを許し、欠落Field、omitted range、continuationを持つbindingを拒否する。complete branchの`continuation: null`はbounded branchの`{kind:none}`と異なるcanonical discriminatorであり、相互変換しない。
-
-`AiTaskContextCapsuleV1.active_operation_refs[]`は、署名済みTask Authorizationのexact Operation allowlist、current operational MCD／Tool projection、Capability／Target Activation、route grant、Project／subject scopeのintersectionから導出した非空集合である。各bindingはその集合内Operationのregistered input schemaが要求するkind／field maskだけを含み、同じProject lineageとexact revisionへ閉じる。明示的なhistorical read Operationが登録されていない限りrevision混成を拒否する。`issued_at < expires_at`かつCapsule expiryはAuthorization、Projection、Policy、Receiptの最短expiryを超えず、dispatch直前にAuthorization wrapper、Operation集合、Project revision、Projection hash、invalidation condition、Receipt freshness／revocationをread-backする。一件でもdriftしたCapsuleをrebase、部分利用、別Projectionへのfallbackに使わず、新Capsuleを要求する。
-
-Capsuleはread-only／Disposableな入力manifestであり、Operation、Authority、Approval、selection、continuation権限を新設しない。`architecture_explain`は完成Inventory、`optimization_decision`は完成sealed qualification closureがなければbinding不能である。current Architecture Inventoryが`absent`で、optimization explain／select Operationも未Activationであるため、両kindを含むcurrent Capsuleのmaterialized集合はexact `[]`とし、文書断片、raw benchmark log、AI生成要約で補完しない。
+current Capsule／Projection bindingのSchema、Operation intersection、freshness、authorityは[親Owner §5](../01-governance/ai-security-approval.md#5-beginner-questionsassumptions理解条件)だけが所有する。`GameUnderstandingClosureV1`候補は、その全direct refのOwner採択後にcomplete Projectionを要求する候補であり、現在はbinding不能である。Architecture Explainは完成Inventory、Optimization Decisionは完成sealed qualification closureがなければbinding不能で、文書断片、raw traceまたはAI生成要約で補完しない。
 
 質問を次に分類する。
 

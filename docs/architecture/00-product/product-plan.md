@@ -4,12 +4,12 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Product intent、非交渉原則、Capability成熟度、2D／3D Product portfolio、MVP outcome、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
+- 正本範囲: Product intent、AI-native C++ Product claim、第三者向け汎用Engine minimum surface、非交渉原則、Capability成熟度、2D／3D Product portfolio、MVP outcome、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
 - 非正本範囲: 最終Release authority record、Publication／Completion authority record、実装順序、工程、工数、担当、Fixture件数、実行／materialization Registry、Target technical Toolchain binding、Localization Catalog／fallback、Subsystemの型・Field・API・Backend・既定値・Budget、AI権限、各domain Evidence／Receiptの形式と意味。各Owner文書または非規範proposalを参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-29
+- 外部根拠確認日: 2026-08-03
 
 ## 1. Product intent
 
@@ -30,6 +30,37 @@ Miraikanai Engineは、2Dと3Dを同格のfirst-class capabilityとして扱い�
 9. Engine／Projectを更新、repairまたはrollbackし、既知制限、security update、support終了へ追随する。
 
 上記の一段でもrelease固有Evidenceがない場合、Architecture記載、Demo動画、Editor表示またはbuild成功だけから「第三者へ提供可能」と主張しない。
+
+標準journeyを第三者Developerが完結できることは、Engine自身のProduct operational state、Architecture baseline、R4 Engine core／security変更、R5 release／publicationを一人の主体が自己認証できることを意味しない。Project authoring、候補生成、local build／testは[AI Security／Approval](../01-governance/ai-security-approval.md)のRisk別規則に従い、独立性を要求しないR2／R3 edgeへ架空の第二人員を要求しない。一方、Ownerが独立承認を要求するProduct Decision、Engine R4、release／publicationは独立主体または分離Pipelineが成立するまで未承認に留め、同一人物の複数Role、複数Key、AI判断またはpublisher署名を別主体として数えない。単独作業者は候補とEvidenceを作成できるが、独立性が必要なEngine production／release claimを自己認証できることはProduct requirementではない。
+
+根拠: official-spec／project-decision — [NIST SP 800-53 AC-5 Separation of Duties](https://doi.org/10.6028/NIST.SP.800-53r5)は権限濫用riskを下げるため分離対象職務とaccess authorizationの明確化を求める。どのMiraikanai edgeをR2／R3／R4／R5へ分類するか、独立性を要求する範囲およびProduct journeyとの分離は本プロジェクトの判断である。
+
+### 1.1 AI-native C++ Product identity
+
+`AI-native`は外部標準名ではなくMiraikanaiのproject-decisionであり、「Chat画面がある」「AI Providerへ接続できる」「AIがC++ textを生成できる」の同義語ではない。MiraikanaiがAI-native C++ Game Engineを名乗れるのは、次の条件が同じProject revisionと公開契約へ閉じる場合だけである。
+
+1. 人間、AI、Editor、CLI、IDEは同じcanonical Project stateを読み、同じtyped Operation／ChangeSet境界へproposalを作る。AI専用のhidden writer、private Engine APIまたはProvider Schema由来authorityを持たない。
+2. AIが保持する文脈はTask authorization、Project revision、対象Owner、read set、policy、redaction、期限を明示したbounded contextであり、Chat履歴、Model memory、Editor selectionまたはRuntime live stateを暗黙の正本にしない。
+3. `read／query／explain`と`propose／validate／approve／commit`を分離する。mutationはsemantic diff、Validation、必要Approval、atomic Commitを経由し、C++ Engineだけが現在revision、Capability、policy、contract、preconditionを権威判定する。
+4. AIが生成したC++、Shaderまたは構造化dataも通常のProject Sourceである。同じOwner、format、review、build、test、diagnostic、provenance、license、security、rollback条件を適用し、生成元を理由にGateを迂回しない。
+5. proposal、Validation、Commit、test／build、結果、拒否理由は同じrequest／revision／content identityへ関連付け、説明とundo／recoveryに必要なbounded Receiptを残す。ただしReceipt Schemaと意味は各Ownerが所有する。
+6. AI Provider、MCP endpointまたはそれらへのnetwork pathが不在、失効、拒否、timeout、非互換であっても、install済みのsupported local環境ではEditor／CLI／IDEによるmanual authoring、Validation、build、test、recoveryを維持する。AI経路の停止をProject破損、権限拡張またはEngine機能の偽装成功へfallbackしない。
+
+Product-facing標準flowは`discover／query -> bounded context -> question／decision（必要時） -> typed proposal -> semantic diff -> validation -> approval -> atomic commit -> test／build -> receipt／explain／recovery`である。これはProduct journeyの順序関係であり、Operation名、Schema、実装順序またはActivationを定義しない。`undo`は対象Ownerがreversibleと定義したOperationだけに許し、不可逆な外部effectには事前Approval、明示的boundary、補償またはrecovery policyを要求して偽のundoを提示しない。正確なOperation membershipとprojectionは[Executable Contracts](../02-foundation/executable-contracts.md)、権限と承認は[AI Security／Approval](../01-governance/ai-security-approval.md)、transactionは[Project State](../03-authoring/project-state.md)、Editor interactionは[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、Evidenceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)を一意なOwnerとする。
+
+### 1.2 第三者向け汎用Engineとしてのminimum surface
+
+Miraikanaiの独自性は汎用Game Engineの基本journeyを省略する根拠ではない。第三者向けC2 claimは、競合製品の機能名や個数ではなく、少なくとも次のnon-substituting surface familyが同一releaseへ閉じることを要求する。
+
+- Project作成／open／version control／recoveryと、Editor・CLI・外部IDE・AIからの同一canonical state利用。
+- 2D／3D World、Gameplay、UI、Input、Audioと、構造化data／bounded C++の明示的なauthoring選択。
+- Asset import／reimport／Cook／runtime delivery、依存関係、診断、source preservation、Target別artifact。
+- Runtime、Simulation、Rendering、Save／Load／Replayの意味、failure、fallback、debug／profile。
+- Project test、headless execution、Build／Cook／Package／clean install／launchとTarget qualification。
+- 署名・由来付きPackとbounded Native Game Moduleによる公開拡張、dependency／license／update／removal。
+- Documentation、Sample、Template、privacy、security、license、update／repair／rollback、supportとknown limitation。
+
+各familyの型、API、Backend、UI layout、数値Budget、Target support、Activationは該当Ownerが所有する。public Editor extension marketplace、汎用Script runtime、Online、large world、Linux／macOS／Web／Console／XRは§8のFutureまたは明示的非目標であり、第三者向け汎用性から暗黙にcurrent scopeへ昇格しない。
 
 ## 2. 非交渉原則と明示的な非目標
 
@@ -59,6 +90,8 @@ Miraikanai Engineは、2Dと3Dを同格のfirst-class capabilityとして扱い�
 - Chat履歴、Editor view、Runtime WorldをProjectの正規記憶にすること。
 - 一行Promptから無検証で完成品を一括生成すること。
 - 他Engineの型階層、Scene形式、Editor操作、名称、creative expressionを模倣すること。
+- 外部EngineのProject、Scene、Script、Plugin、Editor APIと一対一互換な別名、import pathまたはmigration layerをinitial V1へ持つこと。
+- AI、Chat、MCPまたはcode generationの存在だけをAI-native、第三者利用可能、production-readyのEvidenceにすること。
 - C1へOnline Multiplayer、Account、Cloud、広告、課金、Runtime code generationを持ち込むこと。
 - 将来Capabilityを理由に空Module、空Directory、placeholder APIを先行作成すること。
 - 未選定Provider、Backend、Store、Hardware、数値Budget、開発日程または人員をProduct正本で仮固定すること。
@@ -977,11 +1010,16 @@ Completion Requirement Projectionは上記各項目をrequired requirement／Evi
 
 | Product concern | Primary Owner | Productが要求するclosure |
 |---|---|---|
+| AI-native Product claim／manual continuity | 本[Product Plan](#11-ai-native-c-product-identity) | shared canonical state、typed proposal／commit flow、C++ Engine authority、Provider不在時のmanual journey |
+| AI Operation semantics／Provider projection | [Executable Contracts](../02-foundation/executable-contracts.md) | canonical OperationとProvider-neutral projection、current membership、validation／diagnostic |
+| AI authority／approval | [AI Security／Approval](../01-governance/ai-security-approval.md) | Task authorization、bounded context、consent、approval、deny／revoke／expiry |
 | Product lifecycle／distribution | [Product Lifecycle](product-lifecycle.md) | install、bootstrap、docs、update、repair、support、license presentation |
 | Privacy／data | [Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md) | data inventory、purpose、consent、retention、export／delete、processor／region |
 | Security | [Product Security](../01-governance/product-security.md) | threat、secure update、vulnerability response、incident |
 | Project transaction／VCS | [Project State](../03-authoring/project-state.md) | canonical source、revision、merge／recovery、repository interop |
 | Editor journey | [Editor Workspace／UX](../03-authoring/editor-workspace-ux.md) | Project Browser、authoring、build／test／debug／profile導線 |
+| Gameplay expression | [Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) | structured data／bounded C++／hybridの選択、State／Port、manual／AI proposal parity |
+| Asset pipeline | [Asset Lifecycle](../03-authoring/asset-lifecycle.md) | Source、import／reimport、Cook、typed IR、diagnostic、source preservation |
 | Public C++ SDK | [Native Game Module](../03-authoring/native-game-module.md) | public API catalog、subject stability、build／link／package evidence |
 | Project testing | [Developer Testing](../03-authoring/developer-testing.md) | public suite／case／assertion／runner／result contract |
 | Runtime／Simulation | Runtime、Simulation各Owner | 2D／3D meaning、fault、Save／Replay、qualification |
@@ -994,7 +1032,9 @@ Owner文書にexact SchemaやGateが存在しても、Repository実装またはm
 
 ## 10. 外部比較の使用範囲
 
-他Engine、SDK、Store、Platformの比較は、必須journey、failure mode、accessibility、distribution、supportの見落としを発見するために使う。名称、UI配置、API形状、機能数を模倣せず、公式一次資料で確認した外部事実とMiraikanaiの採用判断を分離する。
+他Engine、SDK、Store、Platformの比較は、必須journey、failure mode、accessibility、distribution、supportの見落としを発見するために使う。名称、UI配置、API形状、object／Scene model、Plugin形式、workflow、既定値または機能数を模倣せず、公式一次資料で確認した外部事実とMiraikanaiの採用判断を分離する。
+
+外部Engine由来の候補は、Miraikanai側のUser requirement、canonical Owner、public boundary、state／failure／fallback、Target、Evidenceへ独立に導出できた時だけ採択できる。外部Engineの型、API、Scene、Plugin、Editor commandとの一対一alias、同名互換層またはproject importerをinitial V1の近道にしない。共通content formatを採用する場合も、そのformat自身の公式仕様と[Asset Lifecycle](../03-authoring/asset-lifecycle.md)のtyped IR／Conversion Reportへ束縛し、外部EngineのProject object model互換と主張しない。
 
 比較表、market positioning、競合機能一覧はProduct claimのEvidenceにならない。採択しない機能はGapとして無期限に残さず、明示的non-goal、Future subjectまたはOwner付きrequirementのいずれかへ分類する。
 
@@ -1007,4 +1047,6 @@ Owner文書にexact SchemaやGateが存在しても、Repository実装またはm
 - First Playable、2D／3D Engine、第三者製品releaseのclaimが区別されている。
 - ReleaseとCompletionがtyped Decision、required／supplied Evidence set equality、Claim Scope、Production Activation集合へ閉じ、文章だけで自己充足しない。
 - Future subjectがC1または現行supportとして誤読されない。
+- AI-native claimがshared canonical state、C++ Engine authority、typed proposal／validation／approval／atomic Commit、Evidence、manual continuityへ閉じ、AI機能の存在だけで自己充足しない。
+- 汎用Engineのminimum surfaceがOwnerへ一意に接続され、外部Engineの型／API／Scene／Plugin／workflowを模倣または互換層として持ち込まない。
 - Architectureの存在を実装、Activation、QualificationまたはProduct completionと表現していない。

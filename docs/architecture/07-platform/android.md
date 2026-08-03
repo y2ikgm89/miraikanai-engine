@@ -7,9 +7,9 @@
 - 正本範囲: Android Target／Distribution Profile、Toolchain Build mapping、GameActivity／controller／frame-pacing Adapter、Vulkan Target mapping、Android package／Play delivery、lifecycle、permission／privacy、16 KiB page compatibility、Android device qualification／release gate
 - 非正本範囲: exact Tool／SDK／library version・hash・license・URL、Mobile共通schema／lifecycle意味／aggregate cap、Renderer共通contract、Input／Audio／UI意味、Asset lifecycle、AI authorization／Evidence envelope。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Mobile Common](mobile-common.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
-- 関連文書: [AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
+- 関連文書: [Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Mobile Common](mobile-common.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-29
+- 外部根拠確認日: 2026-08-03
 
 ## 1. ProfileとBuild mapping
 
@@ -34,7 +34,9 @@ variantは署名、debuggable、optimization、sanitizer、package suffixを明�
 
 Application shellはToolchain lockのGameActivityを使用する。Kotlin／JavaはActivity、Platform service、permission、Store glueだけを担当し、Gameplay stateを所有しない。EngineとGame native artifactはToolchain ABI contractどおりlinkし、GameActivityからgenerated stable entry pointを呼ぶ。
 
-generated manifestはToolchain profileのminimum／target API、required Vulkan feature、ABI、orientation／resize、permissionをTarget／Project specから生成する。OpenGL ES fallbackを暗黙に宣言しない。manifest filterだけで合格とせず、Store Device CatalogとRuntime probeを併用する。
+generated manifestはToolchain profileのminimum／target API、required Vulkan feature、ABI、permissionをTarget／Project specから生成する。Application categoryはProduct種別からEngine-owned exact `android:appCategory="game"`へ固定し、Project自由値にしない。Mobile Commonのinitial `orientation_policy=adaptive`／`resize_policy=adaptive_required`は`android:resizeableActivity="true"`へ写像し、`android:screenOrientation`、`android:minAspectRatio`、`android:maxAspectRatio`、restricted-resizability opt-out propertyを生成しない。OpenGL ES fallbackを暗黙に宣言しない。manifest filterだけで合格とせず、Store Device CatalogとRuntime probeを併用する。
+
+根拠: official-spec／project-decision — Androidの[Adaptive do's and don'ts](https://developer.android.com/develop/adaptive-apps/guides/adaptive-dos-and-donts)はresizable、全orientation、固定aspect ratio除去を推奨し、[orientation／aspect ratio／resizability behavior](https://developer.android.com/develop/adaptive-apps/guides/app-orientation-aspect-ratio-resizability)は`android:appCategory`に基づくgame例外を定め、[Develop games for all screens](https://developer.android.com/games/develop/all-screens)はphone／foldable／tablet／large-screenと複数aspectへの対応を扱う。Miraikanaiはgame categoryを正しく宣言するが、その例外を固定orientation／non-resizableの根拠に使わずadaptive baselineを採用する。これはGoogleがMiraikanai固有設定を指定したという意味ではなく、本プロジェクトのpackage判断である。
 
 GameActivity callbackは[Mobile Common](mobile-common.md)のclosed lifecycle stateへ正規化する。`SurfaceView`の`ANativeWindow`はmove-only wrapperでacquire／releaseを一対にし、`SurfaceGeneration`を記録する。surface destroy／process killでWorldを破棄せず、Save／recoveryはMobile Commonを使う。
 
@@ -42,11 +44,28 @@ JNI local referenceはcall scope、global referenceはRAII wrapper、thread atta
 
 InputはGameActivity bufferをproducer／consumerでswapし、touch／key／mouseを[Input](input.md)の`DeviceReading`と`InputSnapshot`へ正規化する。Toolchain lockのcontroller Adapterはeventを同じAction mapへforwardし、Platform buttonをGameplayへ出さない。IME compositionはGameTextInput経由の`TextCompositionEvent`へ写像し、Back gesture／system navigationをGame Actionへ混同しない。
 
+Android Backはsystem Back APIから[Mobile Common §6](mobile-common.md#system-navigation-event)の`SystemNavigationEventV1`へ写像する。Predictive Backはgesture begin／progress／cancel／commitを保持し、UI navigationが消費可能な時だけsupported callbackを有効にする。rootまたは消費不能stateではcallbackを無効にしてsystemのback-to-home／Activity navigationへ委譲する。`KeyEvent.KEYCODE_BACK`のintercept、legacy `onBackPressed` override、常時有効callback、BackからGameplay Action／Exit command／Saveを直接発行する経路を禁止する。
+
+根拠: official-spec／project-decision — Android公式の[Predictive Back対応](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture)はsupported system Back APIへの移行、callbackのUI-state連動、消費しない時の無効化を示す。`SystemNavigationEventV1`とUI commandへの写像はMiraikanaiの採用判断であり、Android APIの別名ではない。
+
 Androidのprimary interactive targetは48×48 dp以上とする。logical `ui_lu`の共通最小hit targetは[UI／Text](ui-text-localization-accessibility.md)が所有し、本節はAndroid物理単位Gateだけを所有する。視覚glyphだけでなく実際のhit rectangleで満たし、safe area、display scale、large text、隣接targetとの分離を含むUI fixtureで検証する。
 
 Audioは[Audio](audio.md)のMixer／PCM ringをToolchain lockのAndroid output Adapterへ接続する。actual backend、sample rate、burst、latency、xrunを`MobileCapabilitySignatureV1`へ記録する。callback内allocation、mutex、file I/O、log、JNI、Asset lookupは禁止し、route／focus／lifecycle eventはAudio control threadへvalue eventとして渡す。
 
 frame pacing AdapterはToolchain lockのAndroidX Games Frame Pacingをpresent timingへ使用し、busy wait／fixed sleep capを禁止する。Controller／Frame Pacing／GameActivity objectはprivate Adapterから公開しない。
+
+User data rootの物理写像を次に固定する。APIから取得したapp-private internal rootに対する相対pathだけを保存し、absolute sandbox pathをidentityにしない。
+
+| Common root | Android mapping | Backup |
+|---|---|---|
+| `save` | credential-protected `filesDir/mirakan/save` | include |
+| `config` | credential-protected `filesDir/mirakan/config` | include |
+| `log` | credential-protected `noBackupFilesDir/mirakan/log` | exclude |
+| `cache` | credential-protected `cacheDir/mirakan/cache` | exclude、purgeable |
+
+`save`／`config`をexternal storage、device-protected storage、cacheまたはno-backup rootへfallbackしない。`log`／`cache`をbackup対象へ昇格せず、cache消失をerrorまたはSave lossにしない。Target API 36のmanifestは`android:allowBackup`を明示し、Android 12以降向け`data-extraction-rules`とAndroid 11以前向け`full-backup-content`の両宣言を生成してsave／configだけをinclude、log／cacheと未登録rootをexcludeする。cloud backupとdevice-to-device transferを同一視せず、各routeのinclude／excludeを同じProject policyへ写像してclean-install／restore fixtureで検証する。backup無効、quota超過、未実行はSave失敗ではなくremote restore unavailableと表示し、local atomic Saveを変更しない。
+
+根拠: official-spec／project-decision — Android公式の[app-specific storage](https://developer.android.com/training/data-storage/app-specific)はinternal `filesDir`をpersistent、`cacheDir`をpurgeableなapp-private storageとして定め、[Auto Backup](https://developer.android.com/identity/data/autobackup)は`filesDir`を既定対象、`cacheDir`／`noBackupFilesDir`を除外し、API 31以降の`data-extraction-rules`を定める。上表のsubdirectory名、save／config包含、log／cache除外はMiraikanaiのProject判断である。
 
 ## 3. Vulkan、shader、memory／thermal hardening
 
@@ -54,9 +73,11 @@ Android graphicsはToolchain ownerのVulkan／Android Vulkan Profile baselineを
 
 Manifest filter、Play Device Catalog exclusion、Runtime Capability probeの三段をRelease manifestへ記録する。未知modelを自動合格にせず`unverified`としてphysical-device qualificationへ送る。Adreno系とMali系をminimum laneに含め、model／SoC／driver固有fallbackをSource AssetやGameplayへ焼き込まない。
 
-orientation changeはswapchain transformとprojectionでpre-rotationし、compositorの余分なrotationを避ける。validation layerはDevelopment packageだけに含める。device lostは同一sessionで無条件復旧せず、crash-safe diagnosticとSaveを保護してrender fault画面またはsafe exitへ移る。
+orientation、window size、multi-window、fold／unfoldまたはdisplay migrationのchangeはcurrent Surface generation、window extent、density、safe area、Input transformを同じlifecycle eventへ閉じ、swapchain transformとprojectionでpre-rotationしてcompositorの余分なrotationを避ける。変更前のextent／orientationを継続利用、World／Gameplay state reset、別Activity／Project variantへの切替またはsurface event無視を行わない。validation layerはDevelopment packageだけに含める。device lostは同一sessionで無条件復旧せず、crash-safe diagnosticとSaveを保護してrender fault画面またはsafe exitへ移る。
 
 Render Graph、resource access／barrier、`GpuSubmissionSerial`、AA／temporal resolver、dynamic resolution、history reset、provider qualificationは[Render Graph](../06-rendering/render-graph.md)を参照し、MobileのFrames-in-flight、AA intent、dynamic resolution、Frame Generation選択policyは[Mobile Common](mobile-common.md)を参照する。AndroidはVulkan feature／format／sample count／tile memory／bandwidth／driver結果を`MobileCapabilitySignatureV1`とQualification Receiptへ供給し、MSAA、temporal、frame generation、ray／neural techniqueを実機Gateなしで有効化しない。
+
+AndroidのOS／ABI／Vulkan／display／input／audio観測はMobile署名から`platform_capability_projection_entry`へ一意に写像し、[Executable Contracts](../02-foundation/executable-contracts.md#target-capability-snapshot)の`TargetCapabilitySnapshotV1`へ束縛する。Manifest filter、Play Device CatalogまたはVulkan Profile名だけから`supported`を生成せず、Runtime probeとTarget Profileが一致しないEntryをSnapshotへ採用しない。
 
 offline shader pipelineは[Project Shader](../06-rendering/project-shader.md)とToolchain lockのProfileを使い、Android専用`ProjectShaderArtifactSetV1`のSPIR-V artifactだけをApplication packageへ格納する。Package validatorはAndroid Target Profile、Engine baseline、`ProjectShaderQualificationReceiptV1`、artifact／interface hashを照合する。Shippingへcompiler、shader source、authoring reflectionを含めない。`renderer-profile.portable-mobile`はmesh／ray、unbounded bindless、wave-size依存、geometry／tessellationをrequired featureにせず、unsupported Module／Technique／Materialはexplicit Target fallbackなしにCookしない。この段落はEngine-owned／事前Qualification済みartifactと将来有効化されるProject ShaderのTarget packaging境界だけを定義する。現行Product RegistryではAndroidの`capability.project.shader`は`excluded`であり、別Product Target bindingとfresh Target Qualificationが成立するまでProject-defined Sourceのauthoring、Qualification対象化、Runtime選択、package成功を許可または示唆しない。
 
@@ -99,7 +120,7 @@ Play upload／submission Serviceはsigned AAB、`AndroidSigningReceiptV1`、shor
 
 Minimum laneはToolchain profileのminimum API／Vulkan Profileに合格するarm64 Adreno系1台とMali系1台、Reference laneはcurrent profileのphone／tablet／foldable、High laneはoptional graphics／high-refresh Profileとする。device交換はsame commit／package／input traceのbridge baselineを残す。Emulatorはfunctional smokeだけに使う。
 
-Android fixtureはclean install／upgrade／uninstall、cold／warm start、background／foreground、process kill Save recovery、surface loss／rotation／resize／fold、touch／controller／IME、audio route、offline、PAD interruption／resume／hash mismatch、PSS pressure、GPU allocation failure、thermal／battery saver、Vulkan variant／golden、16 KiB package、permission／privacy scanを含む。texture fixtureは同一Asset IDのASTC primary＋ETC2 fallback package、各7-field照合、片方不足／誤対応／payload tamperのpromotion拒否、Runtime transcode不在を検証する。touch fixtureはprimary interactive targetの実hit rectangleが48×48 dp以上であることを検証する。crash fixtureは[Mobile Common](mobile-common.md)の共通crash metadata必須fieldの存在、除外対象の不在、redactionを検証する。10分performance、30分thermal、2時間endurance runをphysical deviceで行う。
+Android fixtureはclean install／upgrade／uninstall、cold／warm start、background／foreground、process kill Save recovery、surface loss、portrait／landscape rotation、freeform／multi-window resize、fold／unfold、inner／outer display migration、touch／controller／IME、audio route、offline、PAD interruption／resume／hash mismatch、PSS pressure、GPU allocation failure、thermal／battery saver、Vulkan variant／golden、16 KiB package、permission／privacy scanを含む。同じpackage、Project revision、Save、Input traceをphone／tablet／foldableと4:3、16:10、21:9のlandscapeおよび対応portrait aspectへ適用し、stretch／crop、safe-area侵害、Input座標ずれ、state loss、manifest orientation lock、non-resizableまたは固定aspect設定を拒否する。texture fixtureは同一Asset IDのASTC primary＋ETC2 fallback package、各7-field照合、片方不足／誤対応／payload tamperのpromotion拒否、Runtime transcode不在を検証する。touch fixtureはprimary interactive targetの実hit rectangleが48×48 dp以上であることを検証する。crash fixtureは[Mobile Common](mobile-common.md)の共通crash metadata必須fieldの存在、除外対象の不在、redactionを検証する。10分performance、30分thermal、2時間endurance runをphysical deviceで行う。
 
 | Failure | 結果 |
 |---|---|

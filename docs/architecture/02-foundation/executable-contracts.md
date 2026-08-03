@@ -7,9 +7,9 @@
 - 正本範囲: MCD共通意味、Requirement、Type、Operation、Data Flow共通kind／Envelope、generic Operation Receipt identity／type resolver、State machine、Capability、Policy、Profile、Diagnostic、Service、canonicalization、Contract compiler、C++／TypeScript／MCP／Provider／Cooked projection
 - 非正本範囲: 具体Operation／planning catalog、外部Tool・package固定、Product scope、Product data-flow payload／Privacy semantics、AI authorization、Evidence envelope、Project transaction schema、Domain固有runtime semantics
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)
-- 関連文書: [Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
+- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[Operation／Planning Candidate Catalog](../appendices/executable-contracts-operation-planning-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Project State](../03-authoring/project-state.md)、[Memory／Pointers](memory-pointers.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-27
+- 外部根拠確認日: 2026-08-03
 
 ## 1. 結論
 
@@ -202,6 +202,45 @@ Capabilityはidentity、maturity、owner、required contract、Target availabili
 
 MCD CapabilityとProduct `CapabilityRegistryV1` rowは別のauthorityである。MCD Capabilityは実行Contractの存在と依存を表し、Product rowはTarget別の選択、成熟度表示、Activation evidenceを表す。両者は明示的なversion／hash付きBindingで接続し、同名、prefix、maturity、Targetの一致から相互生成しない。
 
+<a id="target-capability-snapshot"></a>
+
+### 10.1 Target Capability Snapshot共通Envelope
+
+```text
+TargetCapabilityEntryV1
+  capability_ref: exact McdContractRefV1(kind=capability)
+  availability: supported | unsupported
+  platform_projection_entry_ref: exact ArtifactRefV1(
+    artifact_kind=platform_capability_projection_entry,
+    schema_version=1)
+  constraint_profile_ref:
+    null | exact McdContractRefV1(kind=profile)
+  capability_entry_content_hash: SHA-256
+
+TargetCapabilitySnapshotV1
+  capability_snapshot_id: StableId
+  capability_snapshot_version: 1
+  target_profile_ref: exact TargetProfileRefV1
+  contract_set_content_hash: SHA-256
+  platform_projection_ref: exact ArtifactRefV1(
+    artifact_kind=platform_capability_projection,
+    schema_version=1)
+  source_generation: positive u64
+  capability_entries[1..4096]:
+    sorted unique TargetCapabilityEntryV1
+  capability_snapshot_content_hash: SHA-256
+
+TargetCapabilitySnapshotRefV1
+  capability_snapshot_id: StableId
+  capability_snapshot_version: 1
+  target_profile_ref: exact TargetProfileRefV1
+  capability_snapshot_content_hash: SHA-256
+```
+
+各EntryのCapability refは`contract_set_content_hash`で束縛した同じMCD Contract setへexact一件解決する。`availability=supported`はPlatform Ownerの完成projection entryと、nullableならCapabilityが要求するconstraint Profileへ解決できる場合だけ許し、`unsupported`でも観測したPlatform entryを省略しない。Snapshotは対象Targetで評価するCapability完全集合をCapability refのclosed MCD canonical bytes unsigned lexicographic順へstrict sortし、duplicate ID、同ID別version／hash、Provider名、native feature bit、表示名または配列順からsupportを推測しない。`capability_entry_content_hash`と`capability_snapshot_content_hash`はそれぞれASCII `MIRAKAN_TARGET_CAPABILITY_ENTRY_V1`／`MIRAKAN_TARGET_CAPABILITY_SNAPSHOT_V1`と自己hashを除くclosed MCD canonical bytesから計算する。
+
+Windows／Android／Apple等のPlatform Ownerはnative API、OS、driver、device、permission、surface条件を`platform_projection_entry_ref`へ写像するが、この共通Field集合を再定義しない。SnapshotはTarget supportのrevisioned read-only projectionで、Product Capability activation、Qualification pass、Release readinessまたはruntime fallbackを単独では意味しない。現RepositoryにMCD、Platform projection artifact、Snapshot、Registryまたは生成器は存在せず、Consumerは同名の自由JSON、native capability structまたは文書表から不足を補完しない。
+
 ## 11. Policy、Profile、Service
 
 Policyは判断predicate、ProfileはTarget／環境ごとのclosed configurationを表す。Policyに副作用を持たせず、Profileの未指定FieldをHost defaultへ補完しない。Tool versionとDependency pinはToolchain Ownerが所有する。
@@ -244,6 +283,16 @@ JSON Schemaは内部validation projectionでありSource MCDではない。Diale
 
 MCP、OpenAI、Anthropic、CLI／Desktop projectionは同じOperationの許可されたField subsetである。Provider固有Schema制約のため意味、authority、Risk、side effect、errorを変更しない。Credential、Approval token、private EvidenceをTool Schemaへ含めない。
 
+### 16.1 共通projection境界
+
+Provider surfaceはOperation ref、input／output Schema ref、authority class、Risk、side effect、Diagnostic、bounded resultをMCDから投影する。surface名、Provider annotation、Host capability表示または接続成功からOperation membership、write authority、Capability activationを生成しない。
+
+### 16.2 MCP 2026-07-28 projection
+
+initial V1のMCP projectionはToolchain Ownerが固定するsupported-version set exact `[2026-07-28]`だけを受理する。各requestの`_meta["io.modelcontextprotocol/protocolVersion"]`を必須にし、Streamable HTTPでは同じ値の`MCP-Protocol-Version` headerも必須としてbyte equalityにする。stdioはHTTP headerを持たずrequest `_meta`の値だけを使う。`server/discover`は同じsingleton version、Server identity、実際に投影可能なcapability集合だけを返し、未materialize Operation、Provider-only Tool、内部Validatorまたはprivate Evidenceをadvertiseしない。
+
+missing `_meta` key、`2026-07-28`以外、request `_meta`／HTTP header mismatch、discovery結果外capabilityまたはmutual version不在は副作用前にunsupported protocolとして拒否する。`2025-11-25` initialize、legacy lifecycle、旧Tool名alias、dual-version sessionまたは自動fallbackをinitial V1へ持たない。version適合はSchema、Authorization、Operation activation、Host／Transport ConformanceまたはTool execution成功を代替しない。MCP Server、Schema、Registry、Fixture、ReceiptおよびSDKはRepositoryに存在せず、本節は実装または相互運用を主張しない。
+
 ## 17. Language／Runtime projection
 
 C++、TypeScript、Gameplay Cooked binaryは同じType／Operation identityとcanonical fixtureを共有する。Host ABI、compiler padding、JavaScript number coercion、JSON serialization差をwire semanticsへ持ち込まない。
@@ -279,7 +328,8 @@ Architecture内の完全な`operation.*` tokenは、active、conditional、plann
 ## 23. 一次資料と採用根拠
 
 - [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12)
-- [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
+- [Model Context Protocol 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)
+- [Model Context Protocol versioning](https://modelcontextprotocol.io/docs/2026-07-28/learn/versioning)
 - [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [Protocol Buffers Encoding](https://protobuf.dev/programming-guides/encoding/)
 

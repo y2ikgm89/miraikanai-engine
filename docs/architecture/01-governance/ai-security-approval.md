@@ -4,12 +4,12 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: AI task authorization、Risk、Trust boundary、不変Engine、Sandbox、Credential原則、Provider／MCP／CLI security原則、Preview、人間承認、Consent Recordとpurpose binding、Activation、Promotion、拒否
+- 正本範囲: AI task authorization、`AiTaskContextCapsuleV1`／authorized projection binding、Risk、Trust boundary、不変Engine、Sandbox、Credential原則、Provider／MCP／CLI security原則、Preview、人間承認、Consent Recordとpurpose binding、Activation、Promotion、拒否
 - 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持、同意を提示するUI、Platform privacy declaration、data retention／deletion policy。これらはAI Verification／Provenanceまたは各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
+- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-23
+- 外部根拠確認日: 2026-08-03
 
 ## 1. 結論、優先順位、用語
 
@@ -590,7 +590,149 @@ MutationAuthorizationBindingV1
 
 ## 5. Beginner questions、assumptions、理解条件
 
-詳細は[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md#5-beginner-questionsassumptions理解条件)へ分離した。本節はnavigationだけを持ち、定義を複写しない。
+質問／assumption／Game understandingの候補recordとBeginner向け説明は[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md#5-beginner-questionsassumptions理解条件)へ分離する。候補名の存在をcurrent Schema、Context inputまたはAI理解完了へ読み替えない。`GameUnderstandingClosureV1`はRequirement／traceability／system graph／state owner／Capability scopeの各canonical Ownerとexact refが確定するまで`provisional`であり、current `AiTaskContextCapsuleV1`へ束縛できない。
+
+AI Taskへ渡すcurrent target contractは、任意の名前付き「context pack」ではなく次の共通Capsuleとregistered projection bindingである。
+
+```text
+AiTaskSubjectRevisionBindingV1
+  revision_contract_ref:
+    exact McdContractRefV1(kind=type)
+  revision_artifact_ref: exact ArtifactRefV1
+  revision_content_sha256: SHA-256
+  revision_binding_content_hash: SHA-256
+
+AiTaskContextProjectionBindingV1
+  projection_contract_ref:
+    exact McdContractRefV1(kind=type)
+  projection_artifact_ref: exact ArtifactRefV1
+  projection_content_sha256: SHA-256
+  owner_document_id: ArchitectureDocumentId
+  subject_revision_binding:
+    exact AiTaskSubjectRevisionBindingV1
+  source_revision_artifact_ref: exact ArtifactRefV1 | null
+  requested_field_paths[1..256]:
+    sorted unique CanonicalJsonPointer
+  returned_field_paths[1..256]:
+    sorted unique CanonicalJsonPointer
+  completeness:
+    {kind: complete, omitted_ranges: [], continuation: null}
+    | {kind: bounded_query,
+       omitted_ranges[0..64]:
+         {collection_path: CanonicalJsonPointer,
+          start_index: uint32,
+          omitted_count: positive uint32},
+       continuation:
+         {kind: none}
+         | {kind: present,
+            continuation_ref: exact ArtifactRefV1,
+            continuation_sha256: SHA-256,
+            expires_at: UtcTimestamp}}
+  invalidation_condition_refs[1..32]:
+    sorted unique exact McdContractRefV1(kind=policy)
+  binding_content_hash: SHA-256
+
+AiTaskContextCapsuleV1
+  capsule_id: StableId
+  capsule_version: 1
+  task_authorization_ref:
+    exact TaskAuthorizationEnvelopeRefV1
+  task_authorization_wrapper_sha256: SHA-256
+  subject_revision_binding:
+    exact AiTaskSubjectRevisionBindingV1
+  active_operation_refs[1..64]:
+    sorted unique exact McdContractRefV1(kind=operation)
+  context_projection_bindings[1..16]:
+    sorted unique AiTaskContextProjectionBindingV1
+  issued_at: UtcTimestamp
+  expires_at: UtcTimestamp
+  capsule_content_hash: SHA-256
+```
+
+`projection_contract_ref`はcurrent Contract setでexactly one complete MCD Type recordへ解決し、各Operation input schemaが許可するprojection contract集合とCapsule内集合をset equalityにする。Architecture、Editor、Project、World、ECS、Memory、Optimization、Debug等のOwnerは自分のProjection Schemaを所有し、AI SecurityへFieldを複写しない。未materialize、未Activation、provisional、stale、revokedまたはwrong Project revisionのProjectionを、Markdown断片、screen capture、自由JSON、同名typeまたは別Owner Projectionで補完しない。
+
+`subject_revision_binding.revision_contract_ref`はOperationが対象subjectに要求するcurrent MCD revision Typeへexact解決し、artifact ref／hashはその完成revision recordとbyte equalityにする。Project taskでは[Project State](../03-authoring/project-state.md)が登録するProject revision contractだけを許すが、Governance層の本SchemaへAuthoring型を複写しない。ProjectionとCapsuleのrevision bindingはbyte equality、`projection_artifact_ref`／hashは完成Projection bytes、`owner_document_id`はそのMCD Typeの一意Owner、source revisionはProjection lineageとbyte equalityにする。`complete`を要求するTypeへbounded queryを渡さず、bounded queryはomitted rangeとcontinuationを保存する。`issued_at < expires_at`かつCapsule expiryはAuthorization、Projection、Policy、Receiptの最短expiryを超えない。dispatch直前に全ref／hash／freshness／revocation／Operation intersectionをread-backし、一件でもdriftしたCapsuleをrebase、部分利用または別Projectionへfallbackせず新Capsuleを要求する。Capsuleはread-only input manifestであり、Operation、Authority、Approval、selectionまたはcontinuation権限を新設しない。
+
+<a id="trust-identity-spine"></a>
+
+## 6. Trust identity、Role、Key、Revocation
+
+署名Recordが参照するidentity spineは本書が一意に所有する。Domain Owner、appendix、ProviderまたはPackは同名Refを再定義しない。
+
+```text
+TrustSubjectV1
+  trust_subject_id: StableId
+  trust_subject_version: positive u32
+  subject_kind: human | service | device | organization | publisher
+  identity_authority_id: StableId
+  authenticated_identity_content_hash: SHA-256
+  subject_status: active | disabled
+  trust_subject_content_hash: SHA-256
+
+TrustSubjectRefV1
+  trust_subject_id: StableId
+  trust_subject_version: positive u32
+  trust_subject_content_hash: SHA-256
+
+TrustRoleV1
+  trust_role_id: StableId
+  trust_role_version: positive u32
+  role_owner_document_id: canonical ASCII document ID
+  allowed_signed_record_purposes[0..256]:
+    sorted unique registered closed purpose
+  allowed_detached_signature_purposes[0..256]:
+    sorted unique registered closed purpose
+  assignment_policy_ref: exact McdContractRefV1(kind=policy)
+  trust_role_content_hash: SHA-256
+
+TrustRoleRefV1
+  trust_role_id: StableId
+  trust_role_version: positive u32
+  trust_role_content_hash: SHA-256
+
+TrustKeyV1
+  key_id: StableId
+  key_version: positive u32
+  owner_subject_ref: exact TrustSubjectRefV1
+  allowed_role_refs[1..64]: sorted unique exact TrustRoleRefV1
+  allowed_signed_record_purposes[0..256]:
+    sorted unique registered closed purpose
+  allowed_detached_signature_purposes[0..256]:
+    sorted unique registered closed purpose
+  signature_algorithm: registered closed algorithm
+  signature_format: registered closed format
+  public_key_material_sha256: SHA-256
+  valid_from: UtcTimestamp
+  valid_until: UtcTimestamp
+  key_status: active | retired | revoked
+  trust_key_content_hash: SHA-256
+
+RevocationSnapshotV1
+  revocation_snapshot_id: StableId
+  revocation_snapshot_version: 1
+  snapshot_sequence: positive u64
+  previous_snapshot_ref: null | exact RevocationSnapshotRefV1
+  issued_at: UtcTimestamp
+  authority_key_id: StableId
+  revoked_signed_record_hashes[0..65536]: sorted unique SHA-256
+  revoked_subject_refs[0..65536]: sorted unique exact TrustSubjectRefV1
+  revoked_role_refs[0..65536]: sorted unique exact TrustRoleRefV1
+  revoked_key_ids[0..65536]: sorted unique StableId
+  revoked_purposes[0..4096]: sorted unique registered closed purpose
+  authority_signature_algorithm: registered closed algorithm
+  authority_signature_format: registered closed format
+  authority_signature: bounded bytes
+  revocation_snapshot_content_hash: SHA-256
+
+RevocationSnapshotRefV1
+  revocation_snapshot_id: StableId
+  snapshot_sequence: positive u64
+  revocation_snapshot_content_hash: SHA-256
+```
+
+全Refは完成recordへexact解決し、同じID／versionまたはsequenceへ異なるcontent hashを許さない。Role／Keyはsigned recordとdetached signatureのpurpose集合を同時にemptyにできない。`key_id`はTrust Key Registry内で全versionを通じて再利用せず、`valid_from < valid_until`とする。`MirakanSignedRecordV1`ではRoleとKeyの`signed_record` purpose intersectionがRecordのexact purposeをsingletonで含み、Pack等のdetached signatureでは両者の`detached_signature` purpose intersectionがDomain Ownerのexact purposeをsingletonで含む。二つのpurpose namespaceを相互変換しない。`disabled | retired | revoked`、期限外、Subject／Role不一致またはpurpose不一致のKeyを受理しない。Revocation Snapshotはsequence 1だけpreviousを`null`、以後は直前sequenceへexact解決し、前Snapshotのrevoked集合を全て保持する。集合削除、sequence rollback、同sequence別hashを拒否する。
+
+Revocation Snapshotは循環参照を避けるTrust root recordであり、`MirakanSignedRecordV1`で包まない。`authority_signature`だけを除くclosed canonical bytesをconfigured offline revocation authority keyで検証し、`authority_key_id`は通常のDomain signing keyと分離する。Snapshot content hashは署名を含む完成recordのcanonical bytes、Refは完成hashへ一致させる。Genesis authority、Registry、Key provisioning、Snapshot、SchemaまたはVerifierは現Repositoryで`absent`であり、不在中は署名Recordをvalidと判定しない。
 
 ## 7. Sandbox、Filesystem、Network、Credential
 
@@ -1077,7 +1219,7 @@ AIはGate失敗を直すためにEngine、Validator、Engine-owned Test、Budget
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
 - [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785)
 - [RFC 7518 JSON Web Algorithms](https://www.rfc-editor.org/rfc/rfc7518)
-- [Model Context Protocol 2025-11-25 specification](https://modelcontextprotocol.io/specification/2025-11-25)
+- [Model Context Protocol 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)
 - [OpenAI: Model Context Protocol for hosted ChatGPT Work and local Codex hosts](https://learn.chatgpt.com/docs/extend/mcp)
 - [Anthropic: Desktop Extensions and local MCP servers](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
 - [Anthropic: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)

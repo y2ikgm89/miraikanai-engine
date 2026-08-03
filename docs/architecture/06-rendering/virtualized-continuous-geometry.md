@@ -7,7 +7,7 @@
 - 正本範囲: virtualized／continuous geometryの用語、表現ファミリ境界、semantic authoring intent、Target別feature qualification、cluster hierarchy／page artifactの統合契約、outer LODとinner cutの分離、residency／fallback意味、AI read／preview、固有diagnostic／qualification、未決定事項の型付き管理
 - 非正本範囲: Terrain／Foliage Source／identity／domain artifact、GI／reflection／shadow Technique、discrete LOD／HLOD policy、Asset transaction／共通Artifact envelope、Material／Animation意味、World partition、Render pass／resource／queue実行、共通memory／I/O budget、Save／Replay envelope、Tool／SDK／Library lock、Platform activation、AI authorization、実装方式／実装工程／日程。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[LOD](lod.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Render Graph](render-graph.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](camera.md)、[Materials](materials.md)、[Advanced Light Transport](advanced-light-transport.md)、[Terrain／Foliage](terrain-foliage.md)、[World](world.md)
+- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Initial Morph Capability Boundary Decision](../decisions/2026-08-03-initial-morph-capability-boundary.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)、[Camera](camera.md)、[Materials](materials.md)、[Advanced Light Transport](advanced-light-transport.md)、[Terrain／Foliage](terrain-foliage.md)、[World](world.md)
 - 根拠区分: project-decision（外部Engineの記述はofficial-spec、未計測の数値・方式選択はprovisional）
 - 外部根拠確認日: 2026-07-29
 
@@ -104,7 +104,7 @@ Unreal Engineの現行hardware条件もTarget qualificationの参考にするが
 | Render Graph | selected familyのvisibility、inner cut execution、draw／dispatch、resource lifetime | Source semantics、page I/O policy、shared budget |
 | Performance／Capacity | pool／queue／candidate／visible capacity、measurement、pressure snapshot | geometry quality floor |
 | Materials | shading／alpha／deformation interfaceのcompatibility | cluster selection |
-| Animation | Skeleton／Skin／Morph／deformation envelopeとsemantic invariant | geometry residency |
+| Animation | Skeleton／Skin、将来Morph、deformation envelopeとsemantic invariant | geometry residency |
 | Debugging | bounded record／query／overlay transport | authoritative cut selection |
 | Persistence | Save／Replayへの包含／除外 | presentation cacheの復元 |
 | Toolchain／Platform | provider／builder／codec／SDK／driver exact lockとTarget qualification | Product activation |
@@ -291,6 +291,8 @@ VirtualGeometryFeatureQualificationBindingV1
 ```
 
 Feature RequirementはTargetで必要な組合せをreceipt-freeに宣言し、Qualification Bindingが現在のEvidence状態を重ねる。`qualified`だけがcandidateをactive Targetへ登録でき、Receiptを必須とする。`unsupported | not_evaluated | provisional`ではReceiptをnullにしてvirtualized candidateを除外し、Requirementのexact discrete fallbackを使う。特定meshでstatic／opaque／main viewがqualifiedでも、skeletal、masked、shadow、displacementまたは別Targetへsupportを横展開しない。
+
+`deformation_kind=morph_target`はFuture Morph Capability用のtarget vocabularyであり、initial V1、C1、C2のFeature Requirement集合、Artifact、fallbackまたは対応表示に含めない。current `VirtualGeometryFeatureRequirementV1`／Binding自体が未materializeであることに加え、Morphは[Asset lifecycle](../03-authoring/asset-lifecycle.md)が定めるend-to-end Source／track／runtime／fallback closureを満たす新versionが承認されるまで選択不能である。tokenの存在、`unsupported` Binding、empty compatibility refまたはzero-weight fallbackをMorph supportに数えない。
 
 `VirtualGeometryFeatureRequirementRefV1`はrequirement ID／version、Target Profile ref、四つのfeature discriminator、`requirement_content_hash`を持つ。Requirement hashはASCII `MIRAKAN_VIRTUAL_GEOMETRY_FEATURE_REQUIREMENT_V1`と自己hashを除く全Fieldから計算する。Binding hashはASCII `MIRAKAN_VIRTUAL_GEOMETRY_FEATURE_QUALIFICATION_BINDING_V1`と自己hashを除く全Fieldから計算する。Receipt subjectはRequirement ref、fixture、Device／Driver、measured resultを束縛し、Bindingを参照しない。生成順を`Requirement -> Qualification Receipt -> Qualification Binding -> staged Target Activation Binding -> atomic Product Activation／Binding publication`に固定し、Receipt／BindingをRequirementまたはResolution Plan hashへ戻さない。
 

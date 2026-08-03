@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Architecture文書の状態、subject-qualified状態語彙、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log
+- 正本範囲: Architecture文書の状態、subject-qualified状態語彙、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log、Architecture Change／Approval identity
 - 非正本範囲: Product capability、MCD／Operation、実装Task、実装順序、Domain Schema・固定値・runtime挙動、AIの認可・実行route
 - 規範依存: none
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Product Publication／Completion](../00-product/product-publication-completion.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
@@ -307,6 +307,69 @@ Decision Logは[decisions/README.md](../decisions/README.md)に置く。
 - ADRはContext、選択肢、Decision、理由、Consequences、Owner文書を記録する。
 - 実装Task、担当、工数、作業順序、巨大Schema、Fixture一覧をADRへ含めない。
 - `normative`または`rejected`になった本文を、現在の設計へ合わせて書き換えない。
+
+### 8.1 Architecture Change／Approval identity
+
+Architecture変更をCompatibility承認、ADRまたは実装状態と混同しないため、共通identityを次に固定する。
+
+```text
+ArchitectureDocumentVersionRefV1
+  document_id: canonical ASCII document ID
+  document_state: draft | review | approved | deprecated
+  document_content_hash: SHA-256
+
+ArchitectureChangeSetV1
+  architecture_changeset_id: StableId
+  architecture_changeset_version: 1
+  base_architecture_tree_hash: SHA-256
+  resulting_architecture_tree_hash: SHA-256
+  changed_document_refs[1..4096]:
+    sorted unique exact ArchitectureDocumentVersionRefV1
+  affected_owner_document_ids[1..4096]:
+    sorted unique canonical ASCII document ID
+  decision_record_refs[0..256]:
+    sorted unique exact ArchitectureDecisionRecordRefV1
+  change_rationale_sha256: SHA-256
+  architecture_changeset_content_hash: SHA-256
+
+ArchitectureChangeSetRefV1
+  architecture_changeset_id: StableId
+  architecture_changeset_version: 1
+  architecture_changeset_content_hash: SHA-256
+
+ArchitectureDecisionRecordRefV1
+  adr_document_id: canonical ASCII document ID
+  adr_state: review | normative | rejected | superseded
+  adr_content_hash: SHA-256
+
+ArchitectureReviewerIdentityRefV1
+  reviewer_identity_id: StableId
+  identity_authority_id: StableId
+  identity_generation: positive u64
+  authenticated_identity_content_hash: SHA-256
+
+ArchitectureApprovalV1
+  architecture_approval_id: StableId
+  architecture_approval_version: 1
+  architecture_changeset_ref: exact ArchitectureChangeSetRefV1
+  decision: approved | rejected
+  reviewer_identity_refs[1..64]:
+    sorted unique exact ArchitectureReviewerIdentityRefV1
+  decided_at_utc: RFC 3339 UTC
+  decision_rationale_sha256: SHA-256
+  architecture_approval_content_hash: SHA-256
+
+ArchitectureApprovalRefV1
+  architecture_approval_id: StableId
+  architecture_approval_version: 1
+  architecture_approval_content_hash: SHA-256
+```
+
+Document refはその時点の完成Owner headerと本文bytesへexact解決し、同じ`document_id, document_content_hash`へ異なるstateを許さない。`changed_document_refs[]`は変更後bytes、`base_architecture_tree_hash`と`resulting_architecture_tree_hash`はArchitecture対象root配下のcanonical path／content hash完全集合をそれぞれ束縛する。ChangeSetは全変更Ownerを`affected_owner_document_ids[]`へexact set equalityで含め、ADRを追加・置換・状態変更する時だけ対応する`decision_record_refs[]`を必須にする。配列は各refのclosed MCD canonical bytes unsigned lexicographic順でstrict sortし、duplicate ID、同ID別hash、path／表示名／配列順からの再解決を拒否する。
+
+Reviewer identity refはArchitecture reviewに使用した認証済みidentity snapshotだけを指し、表示名、Git author、chat participant、emailまたはRole名から補完しない。同じidentity IDでもauthority、generationまたはcontent hashが変われば別refであり、Review時の認証read-backと一致しなければApprovalを発行しない。Approvalは一つの不変ChangeSetだけを判断し、`approved`とArchitecture文書の`approved`状態、ADRの`normative`状態、Compatibility ChangeSetの承認、実装、Qualification、releaseを相互に推論しない。ChangeSetの一byte、対象Owner、ADR、base／resulting treeが変われば別Approvalを必要とする。`ArchitectureApprovalRefV1`は完成Approval全Fieldへexact解決し、`decision=approved`の場合だけ[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)の`approval_ref`として使用できる。
+
+これらは将来のmachine-verifiable target contractである。現Repositoryにはmaterialized Architecture Inventory、ChangeSet、Approval、Registry、Receiptまたは生成器が存在せず、Git差分、会話上の了承、文書の`review`状態を同recordの存在として扱わない。
 
 ## 9. Review checklist
 

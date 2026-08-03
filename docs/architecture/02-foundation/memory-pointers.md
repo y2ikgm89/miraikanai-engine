@@ -219,7 +219,7 @@ Result<MirakanUniqueOwner<T>> MirakanMakePersistent(
 
 `MirakanUniqueOwner<T>`はmove-onlyで、object pointer、Memory Port、size、alignment、tagを保持する。destructorは`T`のdestructorを一度だけ呼び、取得時と同じPort、size、alignment、tagでdeallocateする。copy、releaseによる所有raw pointer流出、別Portへの移管を禁止する。
 
-default構築状態とmove後状態は空ownerとし、destructorは何もしない。Memory Portのallocateがnullを返した場合は`MemoryBudgetExceeded`、`T`のconstructorが例外を投げた場合は取得blockを同じPortへ返して`NativeObjectConstructionFailed`を返す。例外をC ABIまたはRuntime phase境界へ伝播させない。
+default構築状態とmove後状態は空ownerとし、destructorは何もしない。Memory Portのallocateがnullを返した場合は`MemoryBudgetExceeded`を返す。First-partyの全Target／Configurationは[Toolchain／Dependencies](toolchain-dependencies.md#2-c23-languageとbuild-policy)の`exception_policy=disabled_first_party`へ固定するため、`MirakanMakePersistent<T>`が受理する`T`は`noexcept` construction／destructionを満たさなければならず、throwing constructorをcatchしてtyped failureへ変換するbranchまたはconstructor-failure Diagnosticを持たない。生成後初期化が失敗し得る型は、未公開の一時ownerに対するowner-defined `Result`返却initializationを完了してからだけpublishし、失敗時は一時ownerのdestructorと同じPort／size／alignment／tagで回収する。例外有効なThird-party objectはToolchain Ownerの隔離Target／Adapter内で完結し、このfactory、First-party型またはPublic ABIへ渡さない。
 
 Project C++の明示`new`／`delete`、`malloc`／`free`を禁止する。Module内部のPMR containerは`MirakanNativeMemoryPortV1`を包むmodule-owned Adapterをconstructorで受け取る。ABIを越えてfactory、owner、PMR object、STL containerを渡さない。
 
@@ -431,7 +431,6 @@ AIはcontract IDから許可型とfactoryを選ぶ。判断不能時はraw point
 | `MIRAKAN-MEMORY-CONTRACT_MISSING` | allocation siteにcontractなし | Build failure | 未昇格artifactに含めない |
 | `MIRAKAN-MEMORY-DOMAIN_MISMATCH` | free元、domain、tag不一致 | fail-fast | session fault |
 | `MIRAKAN-MEMORY-BUDGET_EXCEEDED` | hard cap超過 | allocation拒否＋capture | 規定evict後一度retry、再失敗はdomain fault |
-| `MIRAKAN-MEMORY-CONSTRUCTION_FAILED` | `MirakanMakePersistent`のconstructor失敗 | 取得blockを同一Portへ返却しtyped failure | typed failure。partial objectを公開しない |
 | `MIRAKAN-MEMORY-HOT_PATH_FALLBACK` | hot pathが一般heapを要求 | performance test failure | fallbackせず当該phase fault |
 | `MIRAKAN-POINTER-STALE_HANDLE` | generation不一致 | owner／create／destroy advance sequenceを表示 | typed failure |
 | `MIRAKAN-POINTER-BORROW_EXPIRED` | epoch／phase失効後access | fail-fast | invalid actionをpublishしない |
@@ -466,7 +465,6 @@ C++公開`Error` enumerator（PascalCase）とDiagnostic codeは次の1:1対応�
 | Error | Diagnostic code |
 |---|---|
 | `MemoryBudgetExceeded` | `MIRAKAN-MEMORY-BUDGET_EXCEEDED` |
-| `NativeObjectConstructionFailed` | `MIRAKAN-MEMORY-CONSTRUCTION_FAILED` |
 | `MissingMemoryContract` | `MIRAKAN-MEMORY-CONTRACT_MISSING` |
 | `MissingPointerContract` | `MIRAKAN-POINTER-CONTRACT_MISSING` |
 
@@ -504,7 +502,7 @@ hot callbackのgeneral-heap allocation countとupstream fallback countは両方e
 
 - generation slotのcreate、destroy、reuse、random invalid、wrap retire、space exhaustion。
 - `ReadLease`／`WriteLease`のphase、epoch、thread、overlap、structural mutation失効。
-- `MirakanUniqueOwner`のconstructor failure、move、destructor一回、Port／size／alignment／tag一致。
+- `MirakanMakePersistent`のallocation failure、`noexcept` construction、fallible explicit initialization失敗時の非公開owner回収、move、destructor一回、Port／size／alignment／tag一致。
 - arena reset、pool reuse、double free、wrong resource、alignment 1～4096。
 - Asset version leaseとGPU／Audio／Physics retireの同時条件。
 - GPU multi-queue submission completion前のallocation／binding再利用禁止。

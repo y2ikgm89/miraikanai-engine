@@ -33,6 +33,12 @@ This README is navigation/template only and does not itself make an Architecture
 | 2026-07-30 | [C++23 Header Shipping／Toolchain Baseline](2026-07-30-cxx23-header-shipping-toolchain-baseline.md) | `review` | initial V1 C++23 Header public surface、Target Shipping frontend、Windows minimum target baseline |
 | 2026-07-30 | [Product Data Flow MCD Kind](2026-07-30-product-data-flow-mcd-kind.md) | `review` | Product data-flow identity、MCD common kind、Privacy payload ownership separation |
 | 2026-07-30 | [Verification Semantic Admissibility](2026-07-30-verification-semantic-admissibility.md) | `review` | generic verification scope、subject contract、branch and semantic admissibility |
+| 2026-08-03 | [AI-native C++ Product Identity](2026-08-03-ai-native-cpp-product-identity.md) | `review` | AI-native C++ product identity、independent design、initial V1 clean-break |
+| 2026-08-03 | [Runtime ECS Static Definition／Entity Reference Boundary](2026-08-03-runtime-ecs-static-and-entity-reference-boundary.md) | `review` | static phase identity、snapshot-bound／cross-advance Entity Refのlifetime分離 |
+| 2026-08-03 | [Initial Morph Capability Boundary](2026-08-03-initial-morph-capability-boundary.md) | `review` | initial V1／C1／C2からMorphを除外しFuture end-to-end closureへ分離 |
+| 2026-08-03 | [glTF Import Dependency Baseline](2026-08-03-gltf-import-dependency-baseline.md) | `review` | cgltf／MikkTSpace／Khronos Validatorのrole分離、single-parser、materialization Gate |
+| 2026-08-03 | [MCP Current Protocol Baseline](2026-08-03-mcp-current-protocol-baseline.md) | `review` | current protocol singleton、legacy lifecycle非採用、materialization境界 |
+| 2026-08-03 | [Android Adaptive Game Window Baseline](2026-08-03-android-adaptive-game-window-baseline.md) | `review` | game categoryとadaptive orientation／resizable windowの一意なbaseline |
 
 ## 4. Template
 

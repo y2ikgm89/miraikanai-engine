@@ -86,7 +86,7 @@ ProductDataFlowDefinitionV1
   consent_policy_ref: exact ProductConsentPolicyRefV1
   redaction_policy_ref: exact DataRedactionPolicyRefV1
   export_delete_policy_ref: exact DataSubjectControlPolicyRefV1
-  security_control_refs[1..64]: sorted unique security control ref
+  security_control_refs[1..64]: sorted unique exact SecurityControlRefV1
   disclosure_entry_refs[1..16]: sorted unique PrivacyDisclosureEntryRefV1
   governing_requirement_refs[1..32]:
     sorted unique exact McdContractRefV1(
@@ -213,16 +213,35 @@ Capacity Validity Algorithm v1は各Flowのexecution scopeを129件、locale sco
 Consentが必要なflowは、default off、purpose別、surface別、subject別とする。bundled check box、利用継続、Privacy Policy閲覧、OS diagnostic setting、別製品のconsentを同意とみなさない。
 
 ```text
+ProductConsentSubjectRefV1
+  subject_kind: local_device_profile | account
+  subject_id: StableId
+  subject_scope_content_hash: SHA-256
+
 ProductConsentDecisionV1
-  consent_subject_ref: exact local or account-scoped subject ref
+  consent_decision_id: StableId
+  consent_decision_version: 1
+  consent_subject_ref: exact ProductConsentSubjectRefV1
   data_flow_ref: exact McdContractRefV1(kind=data_flow)
   disclosure_version_ref: exact PrivacyDisclosureVersionRefV1
   decision: granted | denied | withdrawn
   decision_source: explicit_ui | managed_organization_policy
-  effective_at
-  expected_previous_decision_ref: optional exact ProductConsentDecisionRefV1
+  effective_at_utc: RFC 3339 UTC
+  expected_previous_decision_ref:
+    null | exact ProductConsentDecisionRefV1
+  consent_decision_content_hash: SHA-256
+
+ProductConsentDecisionRefV1
+  consent_decision_id: StableId
+  consent_decision_version: 1
   consent_decision_content_hash: SHA-256
 ```
+
+`ProductConsentSubjectRefV1`はProduct consent namespace内のopaque subject identityで、PII、display name、email、device serial、credentialまたはProvider account tokenを含めない。`subject_scope_content_hash`はsubject kind、stable ID、identity authorityが保持するscope commitmentから生成し、local consentをaccountへ、Engine Developer consentをGame Playerへ、別Game／別Product consentを相互変換しない。
+
+同じsubject／data flowの最初のDecisionだけ`expected_previous_decision_ref=null`を許し、以後はそのchainのcurrent headへexact解決してsubject／flowをbyte equalityにする。`effective_at_utc`はpreviousより厳密に後、同じprevious refから成功できる後続Decisionはexact一件とし、CAS conflictは再読込後に新Decisionとして判断する。`withdrawn`後に再grantする場合もwithdrawn Decisionをpreviousへ明示し、旧granted refの再公開、時刻順sortまたはlast writer winsを禁止する。Decision content hashはASCII `MIRAKAN_PRODUCT_CONSENT_DECISION_V1`と自己hashを除くclosed MCD canonical bytesから計算し、Refは完成recordへexact解決する。
+
+`security_control_refs[]`は[Product Security](product-security.md)の完成`SecurityControlV1`へexact解決し、Data Flowに適用するControl完全集合を持つ。Control ID文字列、Requirement名、実装方式またはEvidenceの存在からRefを補完しない。Consent subject／Decision、Control bindingはいずれもtarget contractであり、現RepositoryにConsent store、Schema、Registry、UI、ReceiptまたはSecurity control実装が存在するという主張ではない。不在中はconsent-required flowをdenyし、設定値、OS consent、会話または既定値から`granted`を合成しない。
 
 撤回は将来の収集／送信を即時停止し、queued payloadを削除する。法的またはsecurity retentionが必要な既送信dataは、保持理由、範囲、期限をUser controlから確認できる。撤回を製品全体の利用停止と結び付けない。ただし機能成立に外部処理が不可欠なAI route等は、その機能だけを利用不能として代替手動journeyを示す。
 

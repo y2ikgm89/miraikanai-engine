@@ -6,10 +6,10 @@
 - 検証状態: design-reviewed
 - 正本範囲: Mobile共通Target schema、Platform Port境界、lifecycle／surface／save／recovery、renderer接続境界、Asset delivery意味、touch／safe area、memory／thermal policy、device workflow、privacy model、共通crash metadata、共通qualification
 - 非正本範囲: Android／Apple固有profile値・build・package・store・signing、external Tool／SDK version、共通Runtime phase／budget、Asset import／cook／promotion、Renderer内部契約、Input／Audio／UI domain意味、AI authorization／Evidence envelope。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Render Graph](../06-rendering/render-graph.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Android](android.md)、[Apple](apple.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Render Graph](../06-rendering/render-graph.md)
+- 関連文書: [Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Android](android.md)、[Apple](apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-21
+- 外部根拠確認日: 2026-08-03
 
 ## 1. 結論と所有境界
 
@@ -24,40 +24,87 @@ Android固有のBuild／GameActivity／Vulkan／Play／permission／releaseは[A
 Projectはfree-form platform条件を保存せず、次の型付きcontractを使う。
 
 ```text
-TargetProfileRef
-  profile_id
-  profile_revision
-  toolchain_profile_ref
-  render_quality_tier
-  memory_class
-  target_fps
-  optional_capabilities[]
+MobileTargetConfigurationV1
+  mobile_target_configuration_id: StableId
+  mobile_target_configuration_version: 1
+  target_profile_ref:
+    exact TargetProfileRefV1(
+      profile_kind=runtime_target,
+      product_platform_kind=android | apple,
+      product_scope_role=mobile_game_runtime)
+  toolchain_profile_ref: exact ArtifactRefV1(
+    artifact_kind=toolchain_lock_profile, schema_version=1)
+  render_quality_tier: Baseline | Standard | High
+  memory_class: mobile_baseline | mobile_standard | mobile_high
+  target_fps: 30 | 60 | 90 | 120
+  optional_capability_refs[0..256]:
+    sorted unique exact McdContractRefV1(kind=capability)
+  mobile_target_configuration_content_hash: SHA-256
 
-DistributionProfileRef
-  profile_id
-  package_id
-  version_name
-  version_code
-  signing_profile_ref
-  content_delivery_policy
+MobileTargetConfigurationRefV1
+  mobile_target_configuration_id: StableId
+  mobile_target_configuration_version: 1
+  mobile_target_configuration_content_hash: SHA-256
 
-ProjectMobileSpec
-  orientation_policy
-  resize_policy
-  safe_area_policy
-  touch_fallback_policy
-  permissions[]
-  privacy_declarations[]
-  content_safety_profile_ref
+MobileDistributionProfileV1
+  mobile_distribution_profile_id: StableId
+  mobile_distribution_profile_version: 1
+  target_profile_ref:
+    exact TargetProfileRefV1(
+      profile_kind=runtime_target,
+      product_platform_kind=android | apple,
+      product_scope_role=mobile_game_runtime)
+  package_identifier: canonical platform package identifier
+  product_version_name: normalized UTF-8
+  product_version_code: positive u64
+  signing_profile_ref: exact ArtifactRefV1(
+    artifact_kind=platform_signing_profile, schema_version=1)
+  content_delivery_policy_ref: exact McdContractRefV1(kind=policy)
+  mobile_distribution_profile_content_hash: SHA-256
+
+MobileDistributionProfileRefV1
+  mobile_distribution_profile_id: StableId
+  mobile_distribution_profile_version: 1
+  mobile_distribution_profile_content_hash: SHA-256
+
+ProjectMobileSpecV1
+  project_mobile_spec_id: StableId
+  project_mobile_spec_version: 1
+  target_configuration_ref: exact MobileTargetConfigurationRefV1
+  distribution_profile_ref: exact MobileDistributionProfileRefV1
+  orientation_policy: adaptive
+  resize_policy: adaptive_required
+  safe_area_policy: avoid_system_occlusion
+  touch_fallback_policy: registered_input_action_required
+  permission_capability_refs[0..64]:
+    sorted unique exact McdContractRefV1(kind=capability)
+  privacy_data_flow_refs[0..64]:
+    sorted unique exact McdContractRefV1(kind=data_flow)
+  user_data_backup_policy:
+    { save: include, config: include, log: exclude, cache: exclude }
+  content_safety_profile_ref: exact McdContractRefV1(kind=profile)
+  project_mobile_spec_content_hash: SHA-256
+
+ProjectMobileSpecRefV1
+  project_mobile_spec_id: StableId
+  project_mobile_spec_version: 1
+  project_mobile_spec_content_hash: SHA-256
 ```
 
-`profile_revision`不一致、unknown Capability、禁止permission、Target別aggregate cap超過、minimum deviceとCooked artifact要求の不整合はCook前に拒否する。Android／Appleが共通して生成し、ResolverとQualificationが消費する型は次の`MobileCapabilitySignatureV1`だけである。
+initial V1、C1、C2の`ProjectMobileSpecV1`は`orientation_policy=adaptive`、`resize_policy=adaptive_required`だけを受理する。portrait／landscape固定、non-resizable、hard-coded aspect ratio、primary orientationをPlatform lockへ変換する値またはunknown enumを持たない。Mobile Runtimeはportrait／landscape、window resize、multi-window、fold／unfold、display migration、density／safe-area changeを同じProject stateとsurface lifecycleで処理し、orientationまたはsize変更をWorld reset、Save loss、Input座標不整合または別Project variantへfallbackしない。
+
+Art directionまたはCamera compositionが特定aspectを優先する場合も、それはUI／Camera／Presentation Ownerのadaptive layout intentであり、`ProjectMobileSpecV1`、Platform manifest、runtime Target identityまたはCapability supportを変更しない。対応できないcontentを黙ってstretch、cropまたは固定orientationへ変換せず、Target qualification前に明示的なunsupported contentとして停止する。
+
+全content hashは対応する型名のASCII domain separatorと自己hashを除くclosed MCD canonical bytesから計算し、Refは完成recordへexact解決する。Target ConfigurationとDistribution ProfileのTarget Profileはbyte equality、Project specのpermission／privacy集合はProduct CapabilityとData Flowのactive集合のsubsetでなければならない。同じTarget Profileへ別Toolchain／Quality／Memoryを暗黙適用せず、変更は新Configuration versionとProject revisionを必要とする。これらはtarget contractであり、Schema、Registry、Project recordまたは生成器は現Repositoryで`absent`である。
+
+`target_profile_ref`のversion／hash不一致、unknown Capability、禁止permission、Target別aggregate cap超過、minimum deviceとCooked artifact要求の不整合はCook前に拒否する。Android／Appleが共通して生成し、ResolverとQualificationが消費する型は次の`MobileCapabilitySignatureV1`だけである。
 
 ```text
 MobileCapabilitySignatureV1
-  schema_version
-  target_profile_ref
-  toolchain_profile_ref
+  schema_version: 1
+  target_profile_ref: exact TargetProfileRefV1(profile_kind=runtime_target)
+  toolchain_profile_ref: exact ArtifactRefV1(
+    artifact_kind=toolchain_lock_profile, schema_version=1)
   device_identity
   os_capabilities
   cpu_abi
@@ -71,9 +118,11 @@ MobileCapabilitySignatureV1
 
 各値はEngine-owned enum／valueへ正規化し、vendor objectやdisplay名を永続化しない。Android／Apple ownerは観測値の写像だけを所有し、このfield setを再定義しない。旧`CapabilitySignature`、`PlatformCapabilitySignature`、別綴りのalias、union受理は行わない。
 
-`MobileCapabilitySignatureV1`はPlatform観測の正本であり、[Render Graph §12](../06-rendering/render-graph.md#12-関連契約の配置)の`RendererCapabilitySignatureV1`の別名、基底型、union memberではない。Render Graph ownerはexact Mobile署名ref、`TargetProfileRef`、Toolchain ref、Vulkan／Metal Backend Adapter ID、Renderer／Shader artifact refをsource bindingとし、`gpu_capabilities`、graphicsに必要な`device_identity`の正規化部分、`memory_class`、`display_capabilities`だけをRenderer署名へ決定論的に写像する。OS／CPU／input／audio／thermal fieldは複写せず、thermalは§7の動的なMobile選択policy入力として分離する。
+`MobileCapabilitySignatureV1`はPlatform観測の正本であり、[Render Graph §12](../06-rendering/render-graph.md#12-関連契約の配置)の`RendererCapabilitySignatureV1`の別名、基底型、union memberではない。Render Graph ownerはexact Mobile署名ref、`TargetProfileRefV1`、Toolchain ref、Vulkan／Metal Backend Adapter ID、Renderer／Shader artifact refをsource bindingとし、`gpu_capabilities`、graphicsに必要な`device_identity`の正規化部分、`memory_class`、`display_capabilities`だけをRenderer署名へ決定論的に写像する。OS／CPU／input／audio／thermal fieldは複写せず、thermalは§7の動的なMobile選択policy入力として分離する。
 
 Source ref、content hash、Backend Adapter generationのいずれかが変われば旧Renderer署名、`RendererCapabilityProjectionV1`、`ResolvedRendererProfileV1`をstaleにする。Android／Apple ownerは観測値を供給するだけでRenderer fieldやprofileを再定義せず、Renderer ownerは欠落featureを端末名から推測しない。Authoring／AIはMobile署名本体とdevice identityを直接読まず、Render Graph ownerのredacted `RendererCapabilityProjectionV1`を消費する。
+
+MCD CapabilityのTarget supportへ公開する時は、Android／Apple ownerが署名の該当観測値を[Executable Contracts §10.1](../02-foundation/executable-contracts.md#target-capability-snapshot)の`platform_capability_projection_entry` Artifactへ決定論的に写像し、共通`TargetCapabilitySnapshotV1`へ束縛する。SnapshotのTarget Profileは署名とbyte equality、Capability集合は評価対象Contract setとexact set equalityにする。端末名、OS version、Vulkan／Metal feature文字列または一時的なthermal stateから未登録Capabilityを追加せず、動的pressureはSnapshotの`availability`へ書き戻さない。
 
 Store要件の時点依存dataは共通参照schemaだけを持つ。
 
@@ -131,7 +180,7 @@ Presentable surfaceの有無はApplication stateへ混入せず、同書の`pres
 
 OS process killとtermination callback不達を前提とする。Saveはexplicit checkpoint、inactive／background transition、重要transaction commit後にgeneration付きtemporary fileへ完全writeし、flush、checksum、journal commit、atomic replaceする。復帰はschema version、content package set、last complete transaction、checksumを検証し、partial／stale generationをactive slotとして表示しない。Source／Derived lifecycle、Cook／promotion／rollbackは[Asset lifecycle](../03-authoring/asset-lifecycle.md)が所有する。
 
-User data rootは`save | config | log | cache`のclosed分類とし、全rootをapp-private storageへ置く。OS backup（Android Auto Backup、iCloud backup）の包含はsaveとconfigを既定対象、logとcacheを既定除外とし、変更は`ProjectMobileSpec`の宣言だけで行う。cacheはOSがpurgeできる領域として扱い、purgeでsave／configを失わない。具体directory mapping、file protection設定、backup宣言の物理表現はAndroid／Apple ownerが所有する。storage fullまたはuser data write失敗ではSave成功を表示せず、previous slotを維持する。
+User data rootは`save | config | log | cache`のclosed分類とし、全rootをapp-private storageへ置く。OS backup（Android Auto Backup、iCloud backup）の包含はsaveとconfigを既定対象、logとcacheを既定除外とし、変更は`ProjectMobileSpecV1`の宣言だけで行う。cacheはOSがpurgeできる領域として扱い、purgeでsave／configを失わない。具体directory mapping、file protection設定、backup宣言の物理表現はAndroid／Apple ownerが所有する。storage fullまたはuser data write失敗ではSave成功を表示せず、previous slotを維持する。
 
 initial Mobile Runtimeはbackground simulation、network tick、Asset decodeを行わず、Platformが許すbounded checkpoint完了だけを使う。background audio／location／Bluetooth等はactivated `PlatformServiceCapability`なしに有効化しない。
 
@@ -171,7 +220,7 @@ touch-to-photonは1000 fps以上のhigh-speed camera、または1 ms以下の時
 
 ### 5.4 Mobile graphics quality
 
-Mobile graphics quality profileは`Baseline | Standard | High`のclosed setである。quality profileは§2 `TargetProfileRef`の`render_quality_tier`、`mobile_baseline`等のIDは`memory_class`であり、別軸として扱う。§5.1–§5.3のキーは`memory_class`、本節のキーは`render_quality_tier`である。本表Frame Generation行のHigh列は§5.3のとおりquality Highかつ`memory_class = mobile_high`の両条件を要求する。各値は次のMobile選択policyを一括して表し、Android／Apple Adapterはこの表を再定義しない。
+Mobile graphics quality profileは`Baseline | Standard | High`のclosed setである。quality profileは§2 `MobileTargetConfigurationV1.render_quality_tier`、`mobile_baseline`等のIDは同型の`memory_class`であり、別軸として扱う。§5.1–§5.3のキーは`memory_class`、本節のキーは`render_quality_tier`である。本表Frame Generation行のHigh列は§5.3のとおりquality Highかつ`memory_class = mobile_high`の両条件を要求する。各値は次のMobile選択policyを一括して表し、Android／Apple Adapterはこの表を再定義しない。
 
 | `memory_class` | 許可する`render_quality_tier` |
 |---|---|
@@ -240,6 +289,25 @@ mountはdownload完了だけでなく、size、content hash、signature、depend
 `DisplaySnapshot`はpixel extent、logical extent、scale、safe-area insets、cutout regions、orientation、refresh range、HDR capability、`SurfaceGeneration`を持つ。World render resolutionとUI logical resolutionを分離し、safe area／orientation changeを同じframeのInput mappingより先にpublishする。
 
 Touch OS IDは保存せず、contact開始から終了まで有効なgeneration handleへ変換する。Touch／controller／keyboardは同じ`InputActionId`へbindし、Platform key／buttonをGame ruleへ渡さない。contact cardinality、gesture、remap、haptics、Action semanticsは[Input](input.md)、hit target、large text、layout、Accessibility semanticsは[UI／Text](ui-text-localization-accessibility.md)が所有する。
+
+<a id="system-navigation-event"></a>
+
+```text
+SystemNavigationEventV1
+  navigation_event_id: StableId
+  navigation_event_version: 1
+  surface_generation: positive u64
+  event_sequence: positive u64
+  navigation_kind: back | dismiss
+  source:
+    android_predictive_back | android_back_button
+    | apple_system_navigation
+  phase: began | changed | cancelled | committed
+  progress: null | finite f64 in [0,1]
+  navigation_event_content_hash: SHA-256
+```
+
+System navigationはUI navigation stateへのintentであり、`InputActionId`、Gameplay command、Pause、Exit、Saveまたはbusiness logicではない。interactive gestureは`began -> changed* -> cancelled | committed`、non-interactive buttonは`phase=committed, progress=null`だけを許し、stale surface generation、event sequenceのrollback／duplicate、terminal後の追加eventを拒否する。UI Ownerは現在のtop modal／navigation stackがBackまたはDismissを消費できる時だけPlatform callbackをactiveにし、commit時に同じUI command pathへ収束させる。消費可能なUI stateがない時はcallbackを無効にしてOSのdefault navigation／app exitへ委譲し、rootでeventを飲み込まない。`cancelled`はUIをgesture開始前のpresentation stateへ戻し、Project、World、SettingsまたはSaveを変更しない。content hashはASCII `MIRAKAN_SYSTEM_NAVIGATION_EVENT_V1`と自己hashを除くclosed MCD canonical bytesから計算する。
 
 Editor／AIはTarget／Distribution selector、Capability Matrix、phone／tablet／foldable／safe-area／cutout／orientation preview、touch／controller／software keyboard simulation、World／UI resolution、memory／frame／thermal status、Package Inspector、Platform impact／fallbackを同じProject snapshotから表示する。
 

@@ -231,35 +231,7 @@ sentinelはTool Schema acceptance、strict mode、required field／enum／refusa
 
 ## 7. Evidence envelope
 
-全署名Recordは[AI Security／Approval](../01-governance/ai-security-approval.md)の暗号／Key Policyを消費し、次の`MirakanSignedRecordV1`共通envelopeを使う。唯一のJSON Schema `$id`は`urn:mirakan:schema:governance:mirakan-signed-record:v1`であり、consumer schemaはこのrootをexact `$ref`し、署名Fieldをinline再定義しない。
-
-```text
-MirakanSignedRecordV1
-  envelope_version: 1
-  purpose
-  subject_sha256
-  signer_subject_ref
-  signer_role_ref
-  key_id
-  issued_at
-  revocation_snapshot_ref
-  signature_algorithm
-  signature_format
-  signature
-
-MirakanSignedRecordRefV1
-  envelope_schema_id:
-    urn:mirakan:schema:governance:mirakan-signed-record:v1
-  purpose
-  subject_sha256
-  signed_record_hash: SHA-256
-```
-
-全Fieldは必須、unknown Fieldは禁止する。`subject_sha256`は用途別schemaで閉じたsubject payloadのRFC 8785 JCS bytesをSHA-256したlowercase 64桁hexであり、payloadやそのrefをenvelopeへ複写しない。署名対象は`signature`だけを除く上記envelope FieldのJCS bytesである。`purpose`、`subject_sha256`、Signer、Role、Key、発行時刻、発行時revocation snapshot、algorithm、formatの一つでも変われば署名は成立しない。`MirakanSignedRecordRefV1.signed_record_hash`は署名を含む完成Record全体のJCS SHA-256で、refのpurpose／subject hashは同RecordのFieldとbyte equalityでなければならない。別schema ID、purpose／subject不一致、hash-only ref、inline署名Fieldを拒否する。
-
-Verifierはschemaとcanonical encodingを確認した後、現在のsubject payload bytesからhashを再計算し、`purpose`を用途別exact値と比較する。続いて現在のIdentity／Role／Public key registryでSignerとRoleの対応、Key所有者、Keyの許可purpose、algorithm／format、発行時の有効期間を照合して署名を検証し、発行時snapshotとそれ以後のcurrent revocation snapshotの署名／sequenceを検証する。current snapshotがRecord、subject、Signer、Role、Key、purposeのいずれかを失効対象に含む場合は拒否する。missing envelope、invalid signature、wrong purpose、wrong subject、unknown／期限外／用途不一致Key、Role不一致、stale／invalid snapshot、revoked対象をfail closedにする。Verification keyでApproval／Promotionへ署名できない。
-
-Domain Qualification subjectが`qualification_subject_hash`を持つ場合は二段階hashを共通規則とする。まず各DomainのASCII domain separationと、同Fieldだけを除くclosed canonical subject bytesから`qualification_subject_hash`を計算し、完成Subject recordへ格納する。次にwrapperの署名subjectを、そのFieldを含む完成Subject record全体とし、`MirakanSignedRecordV1.subject_sha256 = SHA-256(JCS(completed subject))`を計算する。前者はQualification content identity、後者は署名対象bytesのhashであり別値である。`qualification_subject_hash`を後者へ代用すること、両値のbyte equalityを要求すること、完成Subjectから同Fieldを除いた匿名署名projectionを作ることを禁止する。Qualification Receipt Refの`qualification_subject_hash`は完成Subject内の同Field、`MirakanSignedRecordRefV1.subject_sha256`を持つ場合は完成Subject JCS hash、`signed_record_hash`は完成envelope hashへそれぞれexact一致させる。この二値規則は全`*QualificationSubjectV1`／`*QualificationReceiptV1`に適用し、Domain文書の「subject hash」は修飾なしならcontent identity、`signed_record.subject_sha256`なら完成Subject JCS hashを意味する。
+`MirakanSignedRecordV1`／`MirakanSignedRecordRefV1`の唯一の正本Schema、JCS／hash、verification、revocation、二段階Qualification hash規則は[親Owner §7.0](../01-governance/ai-verification-provenance.md#signed-record-envelope)に置く。本Catalogは以下のDomain固有Receipt payload候補だけを記載し、共通Envelope Field、Ref tuple、algorithm、Key／Role／purpose policyを再定義しない。
 
 ### 7.1 VerificationReceiptV1
 

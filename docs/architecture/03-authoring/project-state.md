@@ -4,9 +4,9 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Project aggregate、Authoring Document、ProjectRevision、ProjectChangeSetV1の意味とtransaction、Target readiness意味、Commit、Source／Derived境界、Project Source closure／canonical transport artifactとexact wire grammar、Undo／Redo、外部編集、Recovery、Version Control／repository interoperability、authoring target selection projectionの所有境界
+- 正本範囲: Project aggregate、Project／ProjectRevision identity、Authoring Document、ProjectChangeSetV1の意味とtransaction、Project Source変更／Promotion共通契約、Target readiness意味、Commit、Source／Derived境界、Project Source closure／canonical transport artifactとexact wire grammar、Undo／Redo、外部編集、Recovery、Version Control／repository interoperability、authoring target selection projectionの所有境界
 - 非正本範囲: 具体Document／Operation／Change primitive／readiness／fixture候補、VCS provider UI／credential／remote hosting、MCD共通Envelope、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI、Runtime package
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)
 - 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Developer Testing](developer-testing.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
@@ -28,6 +28,26 @@ UI表示、AI suggestion、filesystem watcher、generated projectionはproposal�
 ## 3. Project aggregate
 
 Project aggregateはProject identity、revision、Document set、Active Definition ref、Target readiness summary、Decision Ledger、Source／Derived rootを束縛する。Documentの部分集合だけをProject snapshotと呼ばず、異なるrevisionのDocumentを混在させない。
+
+### 3.0 Project／ProjectRevision identity
+
+```text
+ProjectRefV1
+  project_id: StableId
+
+ProjectRevisionRefV1
+  project_id: StableId
+  project_revision: positive u64
+  document_set_hash: SHA-256
+
+ProjectSnapshotRefV1 = exact ProjectRevisionRefV1
+```
+
+`ProjectRefV1`はProject aggregate自体のstable identityだけを表し、revisionまたはDocument集合を指す用途へ使わない。`ProjectRevisionRefV1`は一つのCommit済みProject状態を指す唯一の共通refで、同じ`project_id, project_revision`へ異なる`document_set_hash`を許さない。最初の公開Commitはrevision 1、以後の成功Commitは直前の公開revisionからexactly 1だけ増加し、失敗、Preview、Promotion、Build、PackageまたはVCS commitでは増加させない。`document_set_hash`は同revisionへ属する全canonical Authoring Document refの完全なsorted setからProject State Ownerのcanonical encodingで導出し、空でない部分集合、path、表示名、VCS object ID、時刻または裸のrevision番号で代替しない。
+
+`ProjectSnapshotRefV1`は別Schemaまたは互換aliasではなく、`ProjectRevisionRefV1`と同じclosed recordへ付ける用途名である。[Core Architecture](../02-foundation/core-architecture.md)の`BuildProjectRevisionRefV1`もこの三Fieldとbyte equalityにし、Build固有FieldをProject revision identityへ追加しない。この節はtarget contractであり、materialized Schema、Registry、Project、Document setまたはCommit Receiptが現在存在するという主張ではない。
+
+Project-scoped AI Taskでは、[AI Security／Approval](../01-governance/ai-security-approval.md)の`AiTaskSubjectRevisionBindingV1.revision_contract_ref`を、この`ProjectRevisionRefV1`を公開するcurrent MCD Typeへexact解決し、revision artifact／hashを同じ三Fieldの完成recordへ一致させる。AI Security側へProject revision Fieldを複写しない。
 
 ### 3.1 正規Document
 
@@ -103,6 +123,100 @@ ProjectChangeSetV1
 ```
 
 `request_id`は一回のAuthoring Command Gateway試行を相関するidentityであり、`changeset_id`または`idempotency_key`の代替ではない。全producerは`request_id`を必須で発行し、Editor commandから生成する場合は`EditorCommandRequestV1.command_request_id`とbyte equalityにする。ChangeSet ID、intent、idempotency keyの再利用時に別payloadを受理しない。Authorizationはsubjectとscopeをexactに束縛し、Approvalをtechnical validationで代用しない。
+
+#### 5.1.1 Project Source変更／Promotion共通契約
+
+Native C++とProject Shaderが使うProject Source変更identityとPromotion結果は本書だけが所有する。各DomainはSource revision、Build／Test、Code Owner条件を所有するが、同名のPromotion envelopeまたはchanged-path refを再定義しない。
+
+```text
+ProjectSourceChangedPathV1
+  source_kind: native_module | project_shader
+  project_revision_ref: exact ProjectRevisionRefV1
+  canonical_project_relative_path: normalized UTF-8
+  change_kind: create | replace | delete
+  before_source_content_hash: null | SHA-256
+  after_source_content_hash: null | SHA-256
+  changed_path_content_hash: SHA-256
+
+ProjectSourceChangedPathRefV1
+  source_kind: native_module | project_shader
+  project_id: StableId
+  project_revision: positive u64
+  canonical_project_relative_path: normalized UTF-8
+  changed_path_content_hash: SHA-256
+
+ProjectSourcePromotionSubjectV1
+  promotion_subject_id: StableId
+  promotion_subject_version: 1
+  project_ref: exact ProjectRefV1
+  base_project_revision_ref: exact ProjectRevisionRefV1
+  source:
+    { source_kind: native_module,
+      proposal_id:
+        urn:mirakan:native-module-patch-proposal:sha256:<lowercase-hex-64>,
+      proposal_sha256: SHA-256,
+      candidate_source_revision_ref: exact ArtifactRefV1(
+        artifact_kind=project_native_source_revision, schema_version=1) }
+    | { source_kind: project_shader,
+        proposal_id:
+          urn:mirakan:project-shader-patch-proposal:sha256:<lowercase-hex-64>,
+        proposal_sha256: SHA-256,
+        candidate_source_revision_ref: exact ArtifactRefV1(
+          artifact_kind=project_shader_source_revision, schema_version=1) }
+  revision_transition:
+    { kind: create, base_source_revision_ref: null }
+    | { kind: update,
+        base_source_revision_ref: exact ArtifactRefV1(
+          artifact_kind=project_native_source_revision
+            | project_shader_source_revision according to source.source_kind,
+          schema_version=1) }
+  broker_recomputed_diff_ref: exact ArtifactRefV1(
+    artifact_kind=broker_recomputed_source_diff, schema_version=1)
+  broker_recomputed_diff_sha256: SHA-256
+  before_source_tree_sha256: SHA-256
+  after_source_tree_sha256: SHA-256
+  changed_path_refs[1..4096]:
+    sorted unique exact ProjectSourceChangedPathRefV1
+  code_owner_approval_refs[1..128]:
+    sorted unique exact CodeOwnerApprovalRecordRefV1
+  qualification_evidence_refs[1..4096]:
+    sorted unique exact EvidenceRefV1
+  promotion_subject_content_hash: SHA-256
+
+ProjectSourcePromotionSubjectRefV1
+  promotion_subject_id: StableId
+  promotion_subject_version: 1
+  promotion_subject_content_hash: SHA-256
+
+ProjectSourcePromotionReceiptV1
+  promotion_receipt_id: StableId
+  promotion_receipt_version: 1
+  subject_ref: exact ProjectSourcePromotionSubjectRefV1
+  result: promoted | rejected
+  promoted_source_revision_ref:
+    null | exact ArtifactRefV1(
+      artifact_kind=project_native_source_revision
+        | project_shader_source_revision
+          according to resolved subject_ref.source.source_kind,
+      schema_version=1)
+  diagnostic_refs[0..64]: sorted unique DiagnosticCodeRefV1
+  signed_record_ref: exact MirakanSignedRecordRefV1(
+    purpose=project_source_promotion)
+  promotion_receipt_content_hash: SHA-256
+
+ProjectSourcePromotionReceiptRefV1
+  promotion_receipt_id: StableId
+  promotion_receipt_version: 1
+  promotion_receipt_content_hash: SHA-256
+```
+
+Changed Pathの`create`はbeforeが`null`でafterがnon-null、`delete`はbeforeがnon-nullでafterが`null`、`replace`は両方non-nullかつhashが異なる。PathはNaming／Project LayoutのProject-relative canonical pathで、absolute path、root escape、symlink解決後のScope外、case／Unicode collisionを拒否する。`changed_path_content_hash`はASCII `MIRAKAN_PROJECT_SOURCE_CHANGED_PATH_V1`と自己hashを除くclosed recordのMCD canonical bytesから計算する。Refは解決先のProject、revision、kind、path、hashとbyte equalityにし、`source_kind, project_id, project_revision, canonical_project_relative_path, changed_path_content_hash`のMCD canonical bytes unsigned lexicographic順へstrict sortする。
+
+Promotion Subjectは同一Project、base revision、Proposal、candidate Source revision、Broker再計算Diff、before／after tree、changed-path完全集合、Code Owner Approval、Qualification Evidenceを一つのimmutable判断対象へ閉じる。Nativeの`proposal_id／proposal_sha256`は`NativeModulePatchProposalV1`、Shaderの同Fieldは`ProjectShaderPatchProposalV1`の完成recordとbyte equalityにし、ID suffixとhashも一致させる。全隣接hashは解決先完成recordとbyte equality、changed-path集合はBroker再計算Diffの集合とexact set equality、全PathはApproval Scope内でなければならない。Native branchは全TargetのNative Build ReceiptとCandidate Test Receipt、Shader branchは全TargetのShader Build ReceiptとCandidate Test Receiptを`qualification_evidence_refs[]`に必須とし、各Domain OwnerのTarget集合、Toolchain、Source revision、Diff hash、independent review条件へexact一致させる。`CodeOwnerApprovalRecordRefV1`は[AI Security／Approval](../01-governance/ai-security-approval.md)のcurrent非失効recordへ解決し、Source kind、Scope、Diff、candidate revision、Evidence集合がSubjectと一致しなければならない。
+
+`promoted`は`promoted_source_revision_ref`をcandidate refとbyte equality、diagnostic集合を空にする。`rejected`はpromoted refを`null`とし、一件以上のclosed Diagnosticを必須にする。`signed_record_ref`は[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#signed-record-envelope)の完成共通署名recordへ解決し、そのsubject hashを自己hashを除くReceipt bodyへ一致させる。Promotion成功はProject Commitではなく、同Receiptとcandidate refを使うtyped Change Primitiveが§5.3を完了するまで`ProjectRevisionRefV1`またはcurrent Document setを変更しない。
+
+本節はtarget Architecture contractである。現RepositoryにSchema、Operation、Registry、Promotion service、Artifact、Evidence、ReceiptまたはFixtureがmaterialize／registered／activeであることを意味しない。これらが存在しない間はNative／Project Shader Source Promotionをfail closedにし、説明文、自由JSON、Build成功またはCode Owner表示からPromotionを推論しない。
 
 ### 5.2 `ProjectChangePrimitiveV1`
 

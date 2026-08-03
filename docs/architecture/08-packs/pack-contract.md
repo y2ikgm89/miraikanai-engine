@@ -110,12 +110,143 @@ PackContractRefV1
 Pack artifactのcontent integrity、publisher identity、取得元、license、permission、qualificationは別subjectであり、signature成功だけから相互に推測しない。
 
 ```text
+PackOriginV1
+  pack_origin_id: StableId
+  pack_origin_version: 1
+  origin:
+    { kind: bundled,
+      bundle_artifact_ref: exact ArtifactRefV1(
+        artifact_kind=bundled_pack_origin, schema_version=1) }
+    | { kind: first_party_repository | external_repository,
+        canonical_repository_uri_utf8: normalized absolute URI }
+    | { kind: approved_registry,
+        canonical_registry_uri_utf8: normalized absolute URI }
+    | { kind: local_artifact,
+        local_artifact_ref: exact ArtifactRefV1(
+          artifact_kind=local_pack_origin, schema_version=1) }
+  pack_origin_content_hash: SHA-256
+
+PackOriginRefV1
+  pack_origin_id: StableId
+  pack_origin_version: 1
+  pack_origin_content_hash: SHA-256
+
+PackTransportSecurityPolicyV1
+  transport_policy_id: StableId
+  transport_policy_version: 1
+  transport_kind: no_network | authenticated_https
+  redirect_policy: deny | same_origin_only
+  maximum_redirect_count: u8 in 0..8
+  network_address_scope: none | public_only
+  artifact_hash_required: true
+  signature_verification_required: true
+  transport_policy_content_hash: SHA-256
+
+PackTransportSecurityPolicyRefV1
+  transport_policy_id: StableId
+  transport_policy_version: 1
+  transport_policy_content_hash: SHA-256
+
+PackIndexSnapshotV1
+  index_snapshot_id: StableId
+  index_snapshot_version: 1
+  pack_source_id: StableId
+  pack_source_version: positive u32
+  retrieved_at_utc: RFC 3339 UTC
+  source_sequence: positive u64
+  pagination_complete: bool
+  index_entries_artifact_ref: exact ArtifactRefV1(
+    artifact_kind=pack_index_entries, schema_version=1)
+  entry_count: u32
+  entry_set_root_hash: SHA-256
+  index_snapshot_content_hash: SHA-256
+
+PackIndexSnapshotRefV1
+  index_snapshot_id: StableId
+  index_snapshot_version: 1
+  index_snapshot_content_hash: SHA-256
+
+PackSigningIdentityV1
+  signing_identity_id: StableId
+  signing_identity_version: positive u32
+  publisher_id: StableId
+  signer_subject_ref: exact TrustSubjectRefV1
+  signer_role_ref: exact TrustRoleRefV1
+  signing_key_id: StableId
+  public_key_content_hash: SHA-256
+  allowed_pack_scope_content_hash: SHA-256
+  signing_identity_content_hash: SHA-256
+
+PackSigningIdentityRefV1
+  signing_identity_id: StableId
+  signing_identity_version: positive u32
+  signing_identity_content_hash: SHA-256
+
+PackSignatureVerificationV1
+  signature_verification_id: StableId
+  signature_verification_version: 1
+  pack_contract_ref: exact PackContractRefV1
+  artifact_ref: exact ArtifactRefV1
+  signing_identity_ref: exact PackSigningIdentityRefV1
+  signature_algorithm_profile_ref:
+    exact McdContractRefV1(kind=profile)
+  signature_artifact_ref: exact ArtifactRefV1(
+    artifact_kind=pack_signature, schema_version=1)
+  signature_bytes_sha256: SHA-256
+  decision: valid | invalid
+  verified_at_utc: RFC 3339 UTC
+  diagnostic_refs[0..64]: sorted unique exact DiagnosticCodeRefV1
+  signature_verification_content_hash: SHA-256
+
+PackSignatureVerificationRefV1
+  signature_verification_id: StableId
+  signature_verification_version: 1
+  signature_verification_content_hash: SHA-256
+
+PackLicenseReviewV1
+  license_review_id: StableId
+  license_review_version: 1
+  artifact_ref: exact ArtifactRefV1
+  license_declaration_ref: exact ArtifactRefV1(
+    artifact_kind=pack_license_declaration, schema_version=1)
+  distribution_scope: development_only | project_distribution | public_distribution
+  decision: approved | rejected
+  review_evidence_ref: exact EvidenceRefV1
+  diagnostic_refs[0..64]: sorted unique exact DiagnosticCodeRefV1
+  license_review_content_hash: SHA-256
+
+PackLicenseReviewRefV1
+  license_review_id: StableId
+  license_review_version: 1
+  license_review_content_hash: SHA-256
+
+PackPermissionReviewV1
+  permission_review_id: StableId
+  permission_review_version: 1
+  artifact_ref: exact ArtifactRefV1
+  requested_capability_refs[0..256]:
+    sorted unique exact McdContractRefV1(kind=capability)
+  approved_capability_refs[0..256]:
+    sorted unique exact McdContractRefV1(kind=capability)
+  security_review_evidence_refs[0..64]:
+    sorted unique exact EvidenceRefV1
+  privacy_review_evidence_refs[0..64]:
+    sorted unique exact EvidenceRefV1
+  decision: approved | rejected
+  diagnostic_refs[0..64]: sorted unique exact DiagnosticCodeRefV1
+  permission_review_content_hash: SHA-256
+
+PackPermissionReviewRefV1
+  permission_review_id: StableId
+  permission_review_version: 1
+  permission_review_content_hash: SHA-256
+
 PackPublisherIdentityV1
   publisher_id: StableId
   publisher_identity_version: positive u32
   display_identity_artifact_ref: exact ArtifactRefV1
   signing_identity_refs[1..16]:
-    sorted unique exact SigningIdentityRefV1
+    sorted unique exact PackSigningIdentityRefV1
   support_channel_refs[1..16]:
     sorted unique exact ProductSupportChannelRefV1
   privacy_disclosure_refs[0..16]:
@@ -128,8 +259,8 @@ PackSourceIdentityV1
   source_kind: bundled | first_party_repository | approved_registry
     | local_artifact | external_repository
   canonical_origin_ref: exact PackOriginRefV1
-  transport_security_policy_ref: exact TransportSecurityPolicyRefV1
-  index_snapshot_ref: optional exact PackIndexSnapshotRefV1
+  transport_security_policy_ref: exact PackTransportSecurityPolicyRefV1
+  index_snapshot_ref: null | exact PackIndexSnapshotRefV1
   source_identity_content_hash: SHA-256
 
 PackAcquisitionBindingV1
@@ -139,11 +270,11 @@ PackAcquisitionBindingV1
   publisher_identity_ref: exact PackPublisherIdentityRefV1
   source_identity_ref: exact PackSourceIdentityRefV1
   acquired_artifact_ref: exact ArtifactRefV1
-  signature_verification_ref: exact SignatureVerificationRefV1
-  license_review_ref: exact LicenseReviewRefV1
+  signature_verification_ref: exact PackSignatureVerificationRefV1
+  license_review_ref: exact PackLicenseReviewRefV1
   permission_review_ref: exact PackPermissionReviewRefV1
   provenance_evidence_ref: exact EvidenceRefV1
-  acquired_at
+  acquired_at_utc: RFC 3339 UTC
   acquisition_binding_content_hash: SHA-256
 
 PackAcquisitionBindingRefV1
@@ -153,6 +284,14 @@ PackAcquisitionBindingRefV1
 ```
 
 Manifestのpublisher／sourceはAcquisition Bindingとbyte equalityにする。同じPack ID／version／content hashを別publisherまたは別sourceから取得した場合も別Acquisitionとしてreviewし、以前のtrust decisionを流用しない。redirect、mirror、cache、offline copyはcanonical originを隠さず、最終artifact hashと署名を再検証する。
+
+`PackOriginV1.origin.kind`は`PackSourceIdentityV1.source_kind`とbyte equalityにし、bundled／localは`transport_kind=no_network, redirect_policy=deny, maximum_redirect_count=0, network_address_scope=none`、repository／registryは`transport_kind=authenticated_https, network_address_scope=public_only`を必須にする。Network originのcanonical URIはuserinfo、fragment、non-HTTPS scheme、loopback、link-local、private／reserved addressへの解決を拒否し、redirect後にも同じ検査を繰り返す。`pagination_complete=false`のIndex Snapshot、source identityと異なるsource ID／version、entry artifactのcount／root不一致、rollbackした`source_sequence`または同sequence別entry rootをinstall／update選択に使わない。
+
+Pack Signing Identityはpublisher、AI Security OwnerのTrust Subject／Role、Trust Key Registryのglobally unique key ID、public key bytes、許可Pack scopeを一つのrecordへ束縛する。署名検証時はkey IDからcurrent `TrustKeyV1`をexact一件解決し、Subject／Role／public key hash、RoleとKeyのexact detached purpose `pack_artifact_signature`、有効期間／revocationとSigning Identityを照合する。署名preimageはexact Pack Contract Refと完成Pack artifact ref／content hashをalgorithm Profileのclosed canonical encodingで束縛し、Signature VerificationとAcquisition BindingのPack／artifact refをbyte equalityにする。表示publisher名、certificate subject文字列、同じpublic key bytesまたは過去key versionからIdentityを補完しない。
+
+Index entries artifactはsourceが返した全entryのclosed recordsをcanonical sortした完成集合で、`entry_count`を配列長、`entry_set_root_hash`を完成artifact bytesのSHA-256と一致させる。Signature、License、Permission recordは同じ`acquired_artifact_ref`へexact解決し、BindingのPack contractが指す完成artifact hashとbyte equalityにする。Signature artifact bytesのhashは`signature_bytes_sha256`と一致させ、Signatureの`valid`はlicense／permission／publisher trust／qualificationの承認ではない。Licenseの`approved`は宣言された`distribution_scope`だけに有効で、Development承認をpublic distributionへ昇格しない。Permissionの`approved`ではrequested集合とapproved集合をexact set equalityにし、`rejected`ではapproved集合をemptyにする。Signature／License／Permissionの成功DecisionはDiagnostic集合empty、失敗Decisionは一件以上を必須とする。security／privacy Evidence要件は要求CapabilityのOwner predicateから導出し、空集合を包括承認として扱わない。全content hashは対応する型名のASCII domain separatorと自己hashを除くclosed MCD canonical bytesから計算し、各Refは完成recordへexact解決する。
+
+本節の型はPack trust正本のtarget contractであり、現RepositoryにSchema、Registry、Index、署名検証器、Review、EvidenceまたはAcquisition Bindingがmaterializeしていることを意味しない。不在中はexternal／registry Packのacquire、install、update、applyをfail closedにし、URL、publisher表示名、署名ファイルの存在または文書上の承認からrecordを生成しない。
 
 `source_kind`はtrust levelではない。first-party、bundled、approved registry、署名済みであっても、Engine contract、Target、Capability、license、Privacy、Security、qualificationのGateを免除しない。外部repository URL、search result、display name、download count、rating、同名publisherをidentityとして扱わない。
 

@@ -149,9 +149,25 @@ TransportProviderBindingV1
   capability_limit_ref: exact TransportCapabilityLimitRefV1
   qualification_binding_ref:
     exact TransportProviderQualificationBindingRefV1
+
+TransportProviderGenerationV1
+  provider_binding_ref: exact TransportProviderBindingRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  runtime_gateway_instance_nonce: opaque bytes[32]
+  generation: positive u64
+  generation_content_hash: SHA-256
+
+TransportProviderGenerationRefV1
+  provider_binding_ref: exact TransportProviderBindingRefV1
+  target_profile_ref: exact TargetProfileRefV1
+  runtime_gateway_instance_nonce: opaque bytes[32]
+  generation: positive u64
+  generation_content_hash: SHA-256
 ```
 
 Provider version、hash、license、取得元、build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが固定する。Provider型、result code、callback、thread、socketをEngine-owned Contractへ漏らさない。
+
+`TransportProviderGenerationV1`はEngine Transport Gatewayが所有するprocess-local／wire-visible identityであり、Provider Adapterまたはpeerが発行しない。Gateway instance生成時にCSPRNG由来のfresh `runtime_gateway_instance_nonce`と`generation=1`を作り、同process内でAdapterを置換、再初期化またはresetするたびexact `N+1`へ進める。process再起動ではgenerationを継承せずfresh nonceへ変える。wall clock、PID、address、pointer、Provider名またはartifact timestampをnonce／generationへ使用しない。content hashはASCII domain `MIRAKAN_TRANSPORT_PROVIDER_GENERATION_V1`、self hashを除くclosed payload length、closed payloadの順で計算する。Refはbacking recordの全Fieldとbyte equalityにする。
 
 ## 4. Handshakeとprotocol negotiation
 
@@ -167,6 +183,7 @@ TransportHandshakeOfferV1
   transport_profile_ref: exact NetworkTransportProfileRefV1
   target_profile_ref: exact TargetProfileRefV1
   provider_binding_ref: exact TransportProviderBindingRefV1
+  provider_generation_ref: exact TransportProviderGenerationRefV1
   delivery_capability_set[1..4]:
     TransportDeliveryClassV1
   message_envelope_limit_ref: exact EnvelopeLimitRefV1
@@ -188,7 +205,7 @@ TransportHandshakeAcceptanceV1
   acceptance_content_hash: SHA-256
 ```
 
-`offer_refs[]`は両側の異なるConnection Attempt、nonce、Profile、Target、Providerへ解決し、offerer Attempt ref順へ正規化する。両Offerの`handshake_id`はAcceptanceとexact一致する。negotiationはこのexact二Offerの共通集合とProfile policyから一意に選び、表示versionの最大値、Provider順、arrival順を使わない。共通revision、required delivery class、security binding、limitが欠ける場合は`protocol_mismatch | handshake_rejected`で閉じる。片側Offerの省略、同じOfferの重複、別attemptのAcceptance、unknown optional fieldのsilent ignoreを拒否する。
+`offer_refs[]`は両側の異なるConnection Attempt、nonce、Profile、Target、Provider binding、Provider generationへ解決し、offerer Attempt ref順へ正規化する。Offerの`provider_generation_ref`は同じOfferのConnection Attemptが持つRefとbyte equalityでなければならない。両Offerの`handshake_id`はAcceptanceとexact一致する。negotiationはこのexact二Offerの共通集合とProfile policyから一意に選び、表示versionの最大値、Provider順、arrival順を使わない。共通revision、required delivery class、security binding、limitが欠ける場合は`protocol_mismatch | handshake_rejected`で閉じる。片側Offerの省略、同じOfferの重複、別attemptのAcceptance、unknown optional fieldのsilent ignoreを拒否する。
 
 `PeerAuthenticationBindingRefV1`はtransport peer／credential／attestationのopaque exact bindingで、Account、player、entitlement、gameplay roleを表さない。将来Identity Serviceと接続する場合も、そのService Receiptを本書のConnection identityへ明示bindingするだけで、名前やtoken claimからgameplay authorityを推測しない。
 
@@ -205,6 +222,7 @@ TransportConnectionAttemptIdentityV1
   transport_profile_ref: exact NetworkTransportProfileRefV1
   target_profile_ref: exact TargetProfileRefV1
   provider_binding_ref: exact TransportProviderBindingRefV1
+  provider_generation_ref: exact TransportProviderGenerationRefV1
   attempt_content_hash: SHA-256
 
 TransportConnectionIdentityV1
@@ -227,10 +245,12 @@ TransportConnectionPairIdentityV1
     exact TransportHandshakeAcceptanceRefV1
   connection_identity_refs[2]:
     exact TransportConnectionIdentityRefV1
+  provider_generation_refs[2]:
+    exact TransportProviderGenerationRefV1
   pair_content_hash: SHA-256
 ```
 
-`connection_id`はlogical relation、`connection_epoch`は一回のattempt／active transport lifetimeを識別する。最初のAttemptだけ`connection_epoch=1`かつ`previous_attempt_ref=null`、reconnectは同じconnection ID、previous Attemptのexact ref、epoch `N+1`を必須にする。Acceptance後、二Offerの各Attemptについて一件ずつ完成`TransportConnectionIdentityV1`を作り、その二件をAttempt ref順の`TransportConnectionPairIdentityV1`へ閉じる。identityのown／peer Attempt refはAcceptanceの二Offer Attempt集合とset equalityで、ownとpeerを同じrefにせず、protocol／security／limitはAcceptanceとexact一致させる。Pairは両Identityのown Attempt集合をAcceptanceのOffer Attempt集合とset equalityにし、別Acceptanceまたは同じ向きのIdentity重複を拒否する。旧epochのsequence、fragment、ack、credential、gameplay channel bindingを新epochへ流用しない。
+`connection_id`はlogical relation、`connection_epoch`は一回のattempt／active transport lifetimeを識別する。最初のAttemptだけ`connection_epoch=1`かつ`previous_attempt_ref=null`、reconnectは同じconnection ID、previous Attemptのexact ref、epoch `N+1`を必須にする。AttemptのProvider Binding／TargetとProvider Generation Refの同名Fieldはbyte equalityでなければならない。Acceptance後、二Offerの各Attemptについて一件ずつ完成`TransportConnectionIdentityV1`を作り、その二件をAttempt ref順の`TransportConnectionPairIdentityV1`へ閉じる。identityのown／peer Attempt refはAcceptanceの二Offer Attempt集合とset equalityで、ownとpeerを同じrefにせず、own `provider_generation_ref`はown Offer／Attemptと、protocol／security／limitはAcceptanceとexact一致させる。Pairの`provider_generation_refs[]`は`connection_identity_refs[]`と同じAttempt ref順で、両Identityのgeneration集合およびAcceptanceの両Offer generation集合とset equalityにする。別Acceptance、同じ向きのIdentity重複、generation欠落／置換を拒否する。旧Provider generationまたは旧connection epochのcallback、packet、sequence、fragment、ack、credential、gameplay channel bindingを新generation／epochへ流用しない。
 
 許可遷移を次に固定する。
 

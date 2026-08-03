@@ -7,7 +7,7 @@
 - 正本範囲: Runtime Entity／Component identity、initializer・template・archetype／SoA layout、query・selection・dispatch・cache、Component access manifest、lease、structural transaction、runtime state binding、ECS AI contract graph、ECS固有diagnostic・qualification
 - 非正本範囲: Runtime phase／job DAG、network connection／session／Network Object／authority／replication、generic artifact envelope／catalog、World package binary、Save／Replay payload、debug transport、AI authorization・route grant、各Domain Componentの意味・field。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Scheduling／Lifetime](scheduling-lifetime.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Performance／Capacity](performance-capacity.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)
+- 関連文書: [Runtime ECS Static Definition／Entity Reference Boundary Decision](../decisions/2026-08-03-runtime-ecs-static-and-entity-reference-boundary.md)、[Architecture Governance](../01-governance/architecture-governance.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Scheduling／Lifetime](scheduling-lifetime.md)、[Runtime Package](runtime-package.md)、[Persistence／Save](persistence-save.md)、[Debugging／Observability／Replay](debugging-observability-replay.md)、[Performance／Capacity](performance-capacity.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Runtime ECS Design Closure Review](../appendices/runtime-ecs-design-closure-review.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-24
 
@@ -169,9 +169,7 @@ RuntimeStructuralPermissionV1
     sorted unique exact ComponentTransitionRefV1
   creatable_template_refs[0..1024]:
     sorted unique exact EntityTemplateRefV1
-  apply_phase_ref:
-    exact RuntimeTimeRefV1(
-      kind=simulation, phase_id=T00_BoundaryApply)
+  apply_phase_id: exact TickPhaseId = T00_BoundaryApply
   maximum_delta_count_per_advance: positive u32
   maximum_payload_bytes_per_advance: positive u64
   lifetime_owner_ref: exact OwnerRefV1
@@ -222,7 +220,7 @@ Domain separatorは順に`MIRAKAN_COMPONENT_SCHEMA_V1`、`MIRAKAN_CANONICAL_VALU
 | classification | exact top-level Type／Ref |
 |---|---|
 | `persisted_content_addressed` | `ComponentSchemaV1`; `ComponentSchemaRefV1`; `CanonicalValueV1`; `CanonicalValueRefV1`; `StableArchetypeId`; `ComponentTransitionV1`; `ComponentTransitionRefV1`; `InitializerSpecV1`; `InitializerSpecRefV1`; `EntityTemplateV1`; `EntityTemplateRefV1`; `RuntimeStateStoreBindingV1`; `RuntimeStateStoreBindingRefV1`; `RuntimePersistentSpawnIdentityRequestV1`; `RuntimePersistentSpawnIdentityRequestRefV1`; `RuntimeComponentLayoutPolicyV1`; `RuntimeComponentLayoutPolicyRefV1`; `RuntimeEntityConstructionSetV1`; `RuntimeEntityConstructionSetRefV1`; `RuntimeArchetypeLayoutPlanV1`; `RuntimeArchetypeLayoutPlanRefV1`; `RuntimeWorldBuildGatewayV1`; `RuntimeWorldBuildGatewayRefV1`; `RuntimeQueryV1`; `RuntimeQueryRefV1`; `RuntimeComponentAccessManifestV1`; `RuntimeComponentAccessManifestRefV1`; `RuntimeSystemBindingAndStateStoreSetV1`; `RuntimeSystemBindingAndStateStoreSetRefV1`; `RuntimeStructuralCommitBoundaryV1`; `RuntimeStructuralCommitBoundaryRefV1`; `RuntimeEcsContractGraphV1`; `RuntimeEcsContractGraphRefV1`; `RuntimeWorldPublicationV1`; `RuntimeWorldPublicationRefV1`; `ComponentSchemaEvolutionBindingV1`; `ComponentSchemaEvolutionBindingRefV1`; `RuntimeEcsDefinitionFixtureContractV1`; `RuntimeEcsDefinitionFixtureContractRefV1`; `RuntimeEcsAiReadinessBindingV1`; `RuntimeEcsAiReadinessBindingRefV1`; `RuntimeEcsTargetQualificationBindingV1`; `RuntimeEcsTargetQualificationBindingRefV1` |
-| `process_local_ephemeral` | `ImmutableBitsetV1`; `ImmutableBitsetRefV1`; `EntityCreateToken`; `RuntimeChunkId`; `RuntimeEntityHandle`; `RuntimeWorldInstanceHandle`; `RuntimeEntityRefV1`; `RuntimeQueryArchetypeCacheV1`; `RuntimeQueryArchetypeCacheRefV1`; `RuntimeQuerySelectionMaskV1`; `RuntimeQuerySelectionMaskRefV1`; `RuntimeQueryDispatchPlanV1`; `RuntimeComponentLeaseV1`; `RuntimeComponentLifecycleDeltaV1` |
+| `process_local_ephemeral` | `ImmutableBitsetV1`; `ImmutableBitsetRefV1`; `EntityCreateToken`; `RuntimeChunkId`; `RuntimeEntityHandle`; `RuntimeWorldInstanceHandle`; `RuntimeEntitySnapshotRefV1`; `RuntimeEntityLiveRefV1`; `RuntimeQueryArchetypeCacheV1`; `RuntimeQueryArchetypeCacheRefV1`; `RuntimeQuerySelectionMaskV1`; `RuntimeQuerySelectionMaskRefV1`; `RuntimeQueryDispatchPlanV1`; `RuntimeComponentLeaseV1`; `RuntimeComponentLifecycleDeltaV1` |
 | `nested_only_value` | `RuntimeStructuralPermissionV1` |
 
 `persisted_content_addressed` recordは各recordのself hash名にかかわらず、record固有ASCII domain separator、`uint32_be(payload_length)`、自己hashだけを除くclosed canonical payloadでSHA-256を計算する。§1.3以外の固有separatorは`MIRAKAN_RUNTIME_COMPONENT_LAYOUT_POLICY_V1`、`MIRAKAN_RUNTIME_ENTITY_CONSTRUCTION_SET_V1`、`MIRAKAN_RUNTIME_ARCHETYPE_LAYOUT_PLAN_V1`、`MIRAKAN_RUNTIME_WORLD_BUILD_GATEWAY_V1`、`MIRAKAN_RUNTIME_QUERY_V1`、`MIRAKAN_RUNTIME_COMPONENT_ACCESS_MANIFEST_V1`、`MIRAKAN_RUNTIME_SYSTEM_BINDING_AND_STATE_STORE_SET_V1`、`MIRAKAN_RUNTIME_ECS_CONTRACT_GRAPH_V1`、`MIRAKAN_RUNTIME_WORLD_PUBLICATION_V1`、`MIRAKAN_COMPONENT_SCHEMA_EVOLUTION_BINDING_V1`、`MIRAKAN_RUNTIME_ECS_DEFINITION_FIXTURE_CONTRACT_V1`、`MIRAKAN_RUNTIME_ECS_AI_READINESS_BINDING_V1`、`MIRAKAN_RUNTIME_ECS_TARGET_QUALIFICATION_BINDING_V1`である。各Refは同名backing recordのidentity／version／自己hashへexact解決し、`RuntimeStructuralCommitBoundaryRefV1`は上記`RuntimeStructuralCommitBoundaryV1`へ解決する。Refだけ、backing recordだけ、same-name／different-hash、missing external bytesを拒否する。
@@ -237,7 +235,7 @@ Domain separatorは順に`MIRAKAN_COMPONENT_SCHEMA_V1`、`MIRAKAN_CANONICAL_VALU
 
 `RuntimePersistentSpawnIdentityRequestV1`はruntime spawnのpersistent identityをECSからPersistenceへ渡す唯一のrequestである。ECSはID値を発行せず、Persistence Ownerが同request ref、同World root、同Template、同idempotency keyへexactly oneのPersistent Identity Allocation Bindingを返した場合だけpersistent createをpreflight成功にする。ephemeralまたはauthoring-bound initializerでこのrequestを持つこと、runtime-spawn-requiredで欠くこと、call siteがPersistent IDを直接指定することを拒否する。
 
-`RuntimeStructuralPermissionV1`のbranch Fieldは次のmatrixで閉じる。共通Fieldは`apply_phase_ref`、二budget、`lifetime_owner_ref`だけで、表の`empty`はexact `[]`を意味する。unknown Field、表外組合せまたは複数branch混在を包含`RuntimeComponentAccessManifestV1`のcanonical validation前に拒否する。
+`RuntimeStructuralPermissionV1`のbranch Fieldは次のmatrixで閉じる。共通Fieldは`apply_phase_id`、二budget、`lifetime_owner_ref`だけで、表の`empty`はexact `[]`を意味する。`apply_phase_id`はScheduling Ownerのserialized `TickPhaseId`であり、advance、interval、publicationまたはwall-clock identityを持たない。unknown Field、表外組合せまたは複数branch混在を包含`RuntimeComponentAccessManifestV1`のcanonical validation前に拒否する。
 
 | `permission_kind` | `target_component_schema_refs` | `transition_refs` | `creatable_template_refs` |
 |---|---|---|---|
@@ -272,22 +270,28 @@ RuntimeWorldInstanceHandle
   index: uint32
   generation: uint32
 
-RuntimeEntityRefV1
+RuntimeEntitySnapshotRefV1
   world_instance_handle: RuntimeWorldInstanceHandle
   entity_handle: RuntimeEntityHandle
   world_epoch: positive uint64
   world_publication_generation: positive uint64
+
+RuntimeEntityLiveRefV1
+  world_instance_handle: RuntimeWorldInstanceHandle
+  entity_handle: RuntimeEntityHandle
 ```
 
-各handleのall-zero値はinvalidである。slot reuse時はgenerationを増やし、wrapするslotはretireする。`RuntimeEntityHandle`は同一Worldに束縛されたcallback内だけで使える。command、event、async result、debug request、Subsystem Portのようにcallbackを越える参照は`RuntimeEntityRefV1`を使い、World instance、World epoch、publication generation、Entity generation、alive stateを全て検査する。
+各handleのall-zero値はinvalidである。slot reuse時はgenerationを増やし、wrapするslotはretireする。`RuntimeEntityHandle`は同一Worldに束縛されたcallback内だけで使える。seal済みpublicationのsnapshot-bound read、debug captureまたは同publication内の照合には`RuntimeEntitySnapshotRefV1`を使う。command、event、async result、debug request、Subsystem PortのようにcallbackまたはSimulation Advanceを越えて同じruntime session内のcurrent Entityを指すcarrierには`RuntimeEntityLiveRefV1`を使う。
 
-handleはobjectを所有せず、Source、Save、Replay、cross-session digestへ保存しない。永続化が必要なEntityはPersistence Ownerが定めるPersistent Entity Identityへ投影し、持たないEntityはephemeral ordinalとして明示的に除外する。
+いずれのRefもobject、lease、write authorityまたはlivenessを所有せず、Source、Save、Replay、Package、AI Evidence、cross-session digestへ保存しない。永続化、Replayまたは別sessionでの再同定が必要なEntityはPersistence Ownerが定めるPersistent Entity Identityへ投影し、持たないEntityはephemeral ordinalとして明示的に除外する。`RuntimeEntityLiveRefV1`をPersistent Entity Identityの短縮形またはfallbackにしない。
 
 `world_epoch`は一つの`RuntimeWorldInstanceHandle`内にあるprivate working Worldの構造世代である。eligible `T00_BoundaryApply`でsealed structural batchのpreflightとcommitが全件成功した場合だけexact 1増加し、regular value write、T110 snapshot publish、失敗したstructural batchでは増加しない。`world_publication_generation`は外部consumerへ可視なseal済みWorld publicationの世代であり、Simulation Advance全体が成功して`T110_Publish`でpublishされた場合だけexact 1増加する。一つのpublicationは、そのsnapshotが表すexact `world_epoch`を記録する。
 
 初期constructionを全件検証したprivate working Worldは`world_epoch=1`から開始し、最初の成功`T110_Publish`を`world_publication_generation=1`とする。published Refで0を許可しない。初回publication前を表すboundary preconditionだけは`expected_source_world_publication_generation=0`を許可し、その場合もstaged construction set、Contract Set、Target Profileのexact一致を要求する。
 
-`RuntimeEntityRefV1`のresolveはWorld instance、World epoch、publication generation、Entity generation、alive stateを全て一致させる。古いpublicationから取得したRefを新しいworking epochへ暗黙rebaseせず、同じEntity slot／generationに見えてもepochまたはpublication generationが異なればstaleとして拒否する。
+`RuntimeEntitySnapshotRefV1`のresolveはWorld instance、World epoch、publication generation、Entity generation、alive stateを全て一致させる。古いpublicationから取得したSnapshot Refを新しいworking epochまたはpublicationへ暗黙rebaseせず、同じEntity slot／generationに見えてもepochまたはpublication generationが異なればstaleとして拒否する。
+
+`RuntimeEntityLiveRefV1`のresolveはdelivery／dispatch時のcurrent World instance generation、Entity slot generation、alive stateを検査する。無関係なEntityのstructural commitまたは新しいpublicationだけではLive Refを失効させないが、World instanceの破棄・再利用、対象Entityのdestroy、slot reuseまたはgeneration mismatchではstaleとして拒否する。resolve成功はComponent access、structural mutation、Gameplay authorityまたはleaseを付与せず、呼出し側は別途current Manifest、phase、scope、authorizationを満たさなければならない。
 
 ### 3.2 Component contract
 
@@ -529,9 +533,8 @@ Cached queryはarchetype membershipだけを保存する。一つのgenerated ca
 RuntimeComponentAccessManifestV1
   manifest_version: 1
   system_ref: exact GameSystemContractRefV1
-  permitted_phase_refs[1..64]:
-    sorted unique exact RuntimeTimeRefV1(
-      kind=simulation, phase_id=non-null)
+  permitted_phase_ids[1..64]:
+    sorted unique exact TickPhaseId
   query_refs[0..256]:
     sorted unique exact RuntimeQueryRefV1
   read_component_refs[0..1024]:
@@ -547,9 +550,9 @@ RuntimeComponentAccessManifestV1
   manifest_hash: SHA-256
 ```
 
-read／write集合、query集合、phase、structural permission、state bindingはmanifestで閉じる。CompilerはSystem registration、query contract、Component owner、template、initializer、persistence policy、capacity budgetとの一致を検証する。未宣言Component access、任意Componentを対象にするstructural permission、phase外callback、manifest外state storeを生成bindingから表現できないようにする。
+read／write集合、query集合、phase、structural permission、state bindingはmanifestで閉じる。`RuntimeComponentAccessManifestV1`はcontent-addressedな静的Definitionであるため、Scheduling Ownerのserialized `TickPhaseId`だけを保持し、`SimulationAdvanceIntervalRefV1`、advance sequence、publication generationまたは`RuntimeTimeRefV1`を保持しない。CompilerはSystem registration、query contract、Component owner、template、initializer、persistence policy、capacity budgetとの一致を検証する。未宣言Component access、任意Componentを対象にするstructural permission、phase外callback、manifest外state storeを生成bindingから表現できないようにする。
 
-`structural_permissions[]`はoperation kind、許可target Component／transition、create可能template hash、apply boundary、count／byte budget、lifetime ownerを持つ。`create_entity`、`destroy_entity`、`set_entity_enabled`はEntity lifetime owner、`add_component`、`remove_component`、`set_component_enabled`は対象Component ownerからだけ発行できる。
+`structural_permissions[]`はoperation kind、許可target Component／transition、create可能template hash、静的apply phase ID、count／byte budget、lifetime ownerを持つ。実行時にはOrchestratorがcurrent `RuntimeTimeRefV1.phase_id`と`apply_phase_id`をbyte equalityで照合するが、実行時Time RefをManifestへ書き戻さない。`create_entity`、`destroy_entity`、`set_entity_enabled`はEntity lifetime owner、`add_component`、`remove_component`、`set_component_enabled`は対象Component ownerからだけ発行できる。
 
 ### 6.2 Leaseとwrite validation
 

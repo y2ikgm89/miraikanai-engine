@@ -9,9 +9,9 @@
 - 正本範囲: Provider、MCP、CLI、Pluginのtransport・credential・authorization候補詳細
 - 非正本範囲: 親Ownerが所有する安定Architecture原則、実装Task、実装順序、生成済みArtifactまたはQualification結果
 - 規範依存: [親Owner](../01-governance/ai-security-approval.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)
 - 根拠区分: project-decision／provisional。実ArtifactがないRegistry、Catalog、Fixtureは候補
-- 外部根拠確認日: 2026-07-27
+- 外部根拠確認日: 2026-08-03
 
 > この補助文書の型、Registry、Catalog、Fixtureは、対応するRepository Artifactが存在しない限り未実装の設計候補である。親Ownerの安定原則や実装済み状態を上書きしない。
 ## 8. Provider API、MCP、CLI、Plugin
@@ -57,7 +57,7 @@ Product Capabilityの利用可否は[Product Execution Registry Proposal §11.1]
 
 MCP annotationをAccess controlにしない。Serverは正本Schema、Authorization、timeout、rate limit、Auditを強制する。local STDIOはACL付きIPCをGatewayへ接続する。Streamable HTTPはexact `HostTransportConformanceReceiptRefV1`、TLS、認証、origin／redirect／private-address policy、session binding、別Threat ModelとActivationがある場合だけ有効にし、単なるport forwardingを許可しない。Tool公開には同じsubject tupleの`SchemaEvalConformanceReceiptRefV1`も必須にする。`McpSessionGrantV1`は署名済みEnvelopeを代替せず、Grant配下のbounded read／QueryもR0 Envelopeを必要とする。GrantはClientとchannelの束縛だけを追加する。
 
-MCP 2025-11-25の標準initializeでAuthorityとして検証できるClient情報はprotocol version、capabilities、`clientInfo`等に限られ、上流Provider、Model、local binary hashの暗号学的attestationは得られない。標準外部MCP接続のprovider／model表示は`unattested_optional_metadata`としてAudit UIにだけ出し、Authorization、Eval attribution、Source／Build Receiptへ使わない。`managed_source_edit | build_job`を許す経路は、実行前にMCP外の登録済みBrokerがHost session／Provider runtime／managed deployment identity／Model snapshot／Tool projection／期限／nonceを署名したfresh `ManagedHostSessionAttestationV1`をCaller Contextへ束縛し、実行後に同じmanaged deployment identity、Context／Task／Authorization／attempt／Input closure／typed resultを署名した`HostExecutionAttestationV1`をSourceDelta／Build Receiptへ束縛する。Attestation不在時はManaged Contextを拒否し、別途standard routeのHost／Transport／Tool／proposal-only Authority Profile、Grant、`HostTransportConformanceReceiptRefV1`、`SchemaEvalConformanceReceiptRefV1`が全てcurrentな場合だけGatewayが新しい`standard_external_mcp` Caller Contextを発行する。事後resultを実行前Contextへ入れる因果循環、Host自己申告JSON、MCP annotation、Client名をAttestationに読み替えない。
+MCP 2026-07-28のper-request protocol version、HTTP header、`server/discover`、Server identityまたはcapabilitiesから、上流Provider、Model、local binary hashの暗号学的attestationは得られない。標準外部MCP接続のprovider／model表示は`unattested_optional_metadata`としてAudit UIにだけ出し、Authorization、Eval attribution、Source／Build Receiptへ使わない。`managed_source_edit | build_job`を許す経路は、実行前にMCP外の登録済みBrokerがHost session／Provider runtime／managed deployment identity／Model snapshot／Tool projection／期限／nonceを署名したfresh `ManagedHostSessionAttestationV1`をCaller Contextへ束縛し、実行後に同じmanaged deployment identity、Context／Task／Authorization／attempt／Input closure／typed resultを署名した`HostExecutionAttestationV1`をSourceDelta／Build Receiptへ束縛する。Attestation不在時はManaged Contextを拒否し、別途standard routeのHost／Transport／Tool／proposal-only Authority Profile、Grant、`HostTransportConformanceReceiptRefV1`、`SchemaEvalConformanceReceiptRefV1`が全てcurrentな場合だけGatewayが新しい`standard_external_mcp` Caller Contextを発行する。事後resultを実行前Contextへ入れる因果循環、Host自己申告JSON、MCP annotation、Client名をAttestationに読み替えない。
 
 ### 8.3 Caller／Provider／Deployment／Model Profile
 
@@ -190,7 +190,7 @@ EngineAiHostSecurityProfileV1
 
 McpTransportSecurityProfileV1
   transport_profile_id
-  mcp_protocol_version = 2025-11-25
+  mcp_protocol_version = 2026-07-28
   transport_kind = local_stdio | streamable_http | secure_mcp_tunnel
   transport:
     {kind: local_stdio,
@@ -983,7 +983,7 @@ Caller Context発行時、GatewayはContextから`AiConformanceSubjectTupleV1`�
 
 `AiCallerContextV1`はGatewayだけが`role.ai-gateway-context-publisher`／singleton purpose `ai_caller_context`で発行する短命signed contextである。`caller_context_id`は同Fieldを除くpayload JCS hashから`urn:mirakan:ai-caller-context:sha256:<lowercase-hex>`として導出し、signed recordのsubject hash、issued_at=`created_at`、revocation snapshotをexact一致させる。`created_at < expires_at`、current Freshness Policyの`record_kind=ai_caller_context`はexact一件かつ`max_age_seconds <= 600`、`expires_at=min(created_at+max_age_seconds, Authorization／当該branchのGrantまたはSession Attestation／全non-null profile・Receiptのexpiry)`を必須にする。各non-null binding、Grant、Conformance Receipt、Authorization Envelopeを発行時とTool実行直前にread-backし、`expires_at <= evaluation_time`、current Head drift、revocation、別Project／subject／channelでは拒否する。
 
-`host_profile_binding.profile_schema_id`は`standard_external_mcp | managed_external_host`で`ExternalClientSecurityProfileV1`、`engine_provider_adapter`で`EngineAiHostSecurityProfileV1`だけを許す。外部2 routeではHost Profileが列挙するcurrent MCP Transport bindingとContextのbindingをbyte-exact一致させる。Engine routeではEngine Hostが列挙するcurrent Provider Runtime bindingとContextを一致させ、MCP Transportを要求または捏造しない。`standard_external_mcp`はProvider Runtime、Provider Manifest、Inference Deployment、Model、managed deployment identity、Managed Session Attestation、Provider／Tool Receiptを全てnull、Host／Transport ReceiptとSchema／Eval Receiptをnon-nullとし、MCP initialize由来のProvider／Model名はunattested metadataだけへ隔離する。`managed_external_host`だけはProvider／Model binding、managed deployment identity、三Conformance Receipt、実行前`ManagedHostSessionAttestationV1` ref／hashを全non-null、同一Host session／`tool_projection_binding`へ閉じる。`engine_provider_adapter`はmanaged deployment identityをnullにし、Provider Manifestが指すProvider Runtime、Inference Deployment、Model Snapshot、Tool ProjectionをContextとbyte-exact一致させ、Provider／Tool ReceiptとSchema／Eval Receiptをnon-nullにする。cloud direct APIとfirst-party local IPCは同じEngine routeのDeployment branchであり、MCP Transport Profileを流用しない。branch間Field流用、裸Context、caller自己署名を拒否する。
+`host_profile_binding.profile_schema_id`は`standard_external_mcp | managed_external_host`で`ExternalClientSecurityProfileV1`、`engine_provider_adapter`で`EngineAiHostSecurityProfileV1`だけを許す。外部2 routeではHost Profileが列挙するcurrent MCP Transport bindingとContextのbindingをbyte-exact一致させる。Engine routeではEngine Hostが列挙するcurrent Provider Runtime bindingとContextを一致させ、MCP Transportを要求または捏造しない。`standard_external_mcp`はProvider Runtime、Provider Manifest、Inference Deployment、Model、managed deployment identity、Managed Session Attestation、Provider／Tool Receiptを全てnull、Host／Transport ReceiptとSchema／Eval Receiptをnon-nullとし、`server/discover`、request `_meta`、Server identity／capabilityまたはHost自己申告由来のProvider／Model名はunattested metadataだけへ隔離する。`managed_external_host`だけはProvider／Model binding、managed deployment identity、三Conformance Receipt、実行前`ManagedHostSessionAttestationV1` ref／hashを全non-null、同一Host session／`tool_projection_binding`へ閉じる。`engine_provider_adapter`はmanaged deployment identityをnullにし、Provider Manifestが指すProvider Runtime、Inference Deployment、Model Snapshot、Tool ProjectionをContextとbyte-exact一致させ、Provider／Tool ReceiptとSchema／Eval Receiptをnon-nullにする。cloud direct APIとfirst-party local IPCは同じEngine routeのDeployment branchであり、MCP Transport Profileを流用しない。branch間Field流用、裸Context、caller自己署名を拒否する。
 
 route別session bindingもclosedにする。`standard_external_mcp`はfresh `McpSessionGrantV1` ref／hashを両non-nullで必須、`engine_provider_adapter`は両方null、`managed_external_host`は両方nullかつ実行前`ManagedHostSessionAttestationV1`を専用Broker session bindingとして必須にする。effective operation集合は常に `route ceiling ∩ current AiAuthorityProfile.allowed_operation_refs[] ∩ signed TaskAuthorizationEnvelope.payload.allowed_operations[] ∩ Server Policy`、standard MCPではさらに`∩ McpSessionGrant.payload.allowed_proposal_operation_refs[]`である。managed routeではSession Attestationの`allowed_task_kinds[]`／authority classも積集合へ加える。いずれかのmissing、tuple差、空でない超過、より強いcaller申告、Profileの`forbidden_authorities[]`欠落をTool公開前と実行直前に拒否する。
 

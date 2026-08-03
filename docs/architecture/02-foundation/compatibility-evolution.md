@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Architecture／Schema／artifact／runtime boundaryの互換性class、consumer inventory、clean-break procedure、reader／writer／aliasの可否、recook／rebuild／migration evidence、互換性ChangeSet
+- 正本範囲: Architecture／Schema／artifact／runtime boundaryの互換性class、consumer inventory、clean-break procedure、initial V1の外部Engine／過去draft非互換境界、reader／writer／aliasの可否、recook／rebuild／migration evidence、互換性ChangeSet
 - 非正本範囲: 個別Domain Schemaのfield、Save payload、Package binary、runtime lease、Product Work Package、外部SDKのversion。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Executable Contracts](executable-contracts.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Product plan](../00-product/product-plan.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)
+- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Product plan](../00-product/product-plan.md)、[Executable contracts](executable-contracts.md)、[Memory／Pointers](memory-pointers.md)、[Project state](../03-authoring/project-state.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
@@ -159,6 +159,14 @@ initial V1では旧draft concept、source／target Owner、Owner revision migrat
 5. initial V1がmaterializeまたは公開された後の変更だけを、新しい`CompatibilityConsumerInventoryV1`と承認済み`CompatibilityChangeSetV1`へ閉じる。
 
 初回materialization後にretained Save、Package、Native ABI、external APIまたは配布済みconsumerが存在する変更では、§2～§3のrequired discovery scope、Evidence Requirement、reader／writer policy、rollbackを適用する。実consumerがないことはその時点のcomplete／zero-verified Inventoryでのみ証明し、Architecture review時のRepository観測や文書上の`absent`を将来の互換性判断へ流用しない。
+
+### 4.1 Independent initial V1 boundary
+
+initial V1は外部Game Engineまたは過去draftのProject、Scene、Script、Plugin、Editor command、API、type階層に対する互換製品として定義しない。current Project format、Gameplay model、Asset IR、Pack、Native Game Module、Editor OperationはMiraikanaiのOwnerが最初のcanonical V1を直接定義し、外部Engine互換alias、同名wrapper、dual reader、project importer、migration manifestまたは旧draft redirectを持たない。
+
+第三者content formatのimportは、format自身の公式仕様、license、Source preservation、[Asset Lifecycle](../03-authoring/asset-lifecycle.md)のtyped IR、Conversion Report、unsupported feature diagnosticへ閉じる場合だけ別途採択できる。これは外部Engine Project、Scene object model、Script semantics、Plugin ABIまたはEditor workflowの互換性を意味しない。
+
+clean breakはcommitted User Sourceを無条件に破棄する許可ではない。initial V1がpublic／materializedになる前はcurrent Ownerへのdirect definitionとSourceからの再生成を使い、初回公開後は実在する第三者consumerを§2のInventoryで保護する。独自性を理由に公開済みSave、Package、Native ABI、external APIまたはProject Sourceのconsumerを無視しない。
 
 ## 5. Aliasと命名の規則
 

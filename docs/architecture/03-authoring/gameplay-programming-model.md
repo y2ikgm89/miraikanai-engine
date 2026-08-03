@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 構造化GameplayとProject C++の選択境界、GameplayDefinition、GameSystemSpecV1、State owner、typed Command／Event／Snapshot Port、Perception／Interaction／Decision／Action意味、Project-defined System、generated projection／Promotion条件
+- 正本範囲: 構造化GameplayとProject C++の選択境界、manual／AI gameplay proposal parity、GameplayDefinition、GameSystemSpecV1、State owner、typed Command／Event／Snapshot Port、Perception／Interaction／Decision／Action意味、Project-defined System、generated projection／Promotion条件
 - 非正本範囲: 具体Schema／Registry／Fixture候補、Native ABI、Project transaction、共有Schema基盤、Runtime scheduling、外部Tool固定、Navigation query、Character Motor、Project固有Interaction結果
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [Generated Projection／Fixture Candidate Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Input](../07-platform/input.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)
+- 関連文書: [AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[Generated Projection／Fixture Candidate Catalog](../appendices/gameplay-generated-projection-fixture-catalog.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](native-game-module.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[Input](../07-platform/input.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -26,6 +26,17 @@ Miraikanai EngineはCPU上のEngine／Game実行codeをC++とし、調整頻度�
 | Public Capability外の要求 | `capability_unavailable`で停止 |
 
 Project C++はNative Game Module境界、MCD Port、Memory／Pointer規則、Target Build identityに従う。Runtime code generation、download code、unrestricted scripting、Engine private header、raw pointerのPublic Port露出を認めない。
+
+### 1.1 AI-native gameplay authoring closure
+
+AIと人間は同じ`GameplayDefinition`、`GameSystemSpecV1`、Project C++、Native Game Module descriptorをSourceとして扱う。Editor、CLI、IDE、AIのいずれから開始しても、提案は同じProject revision、Owner、read／write set、Contract set、Validation、semantic diff、Approval、atomic Commitへ収束し、AI専用Gameplay objectまたはAIだけが書けるRuntime stateを作らない。
+
+- bounded data、closed rule、FSM、parameterized behaviorは構造化Sourceを標準とし、複雑algorithm、hot loop、native integrationは公開Contract内のbounded Project C++、両者の分離が有効な場合だけhybridを選ぶ。AIの得意不得意、外部EngineのScript／visual graph慣行またはProvider出力形式で選択を反転しない。
+- AI生成C++は通常のProject C++であり、Engine private API、unregistered service、unrestricted reflection、runtime code generationまたは特別な免責領域へ置かない。人間が同じSourceをIDEで読解、変更、build、test、revertできなければ採択しない。
+- AIはquery／explainとSource proposalを行えるが、Contract activation、Engine／Adapter変更、approval、Commit authorityを取得しない。Provider不在、拒否、timeoutまたはprotocol非互換時も、既存Sourceをmanual surfaceから保守できなければならない。
+- 同じsemantic fixtureをmanual proposal経路とAI proposal経路からValidationし、accepted Source／Cooked／Runtime／Save／Replayの意味を比較する。AIがコードを生成した事実、build成功または自然言語説明だけをGameplay capability、iteration speed、correctnessまたはpromotion Evidenceにしない。
+
+この節はAI Operation、Task authorization、Project transaction、Native ABIまたはFixture Schemaを再定義しない。それぞれ[Executable Contracts](../02-foundation/executable-contracts.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[Project State](project-state.md)、[Native Game Module](native-game-module.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)をOwnerとする。
 
 ## 2. `GameplayDefinition`
 

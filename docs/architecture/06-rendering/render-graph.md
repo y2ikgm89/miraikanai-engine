@@ -77,7 +77,6 @@ PortのC++ ABI、method signature、MCD生成物、Backend実装がRepositoryに
 | `ResolvedPostProcessPlanV1` | resolved | [Post Processing](post-processing.md)が解決したordered effect composition |
 | `ViewLodCandidateSetV1` | frame | 本書§7。LOD選択前のconservative frustum／layer candidate集合。selected tier／occlusionを含まない |
 | `ResolvedRepresentationSet` | frame | 本書のframe入力名。[LOD](lod.md)所有の`LodResolutionPlanV1`／`ViewLodContextV1`に基づくruntime選択結果（representationとtransition state）をViewFamilyごとに整列する |
-| `WorldRenderPacket` | frame | [World](world.md)のactive cell revisionから生成されたrenderable集合 |
 | `ResolvedAntiAliasingPlanV1` | resolved | 本書§9。[Executable contracts](../02-foundation/executable-contracts.md)正本の`AntiAliasingIntentV1`から解決する |
 | `ResolvedOutlineExecutionPlanV1` | resolved | 本書§8.1。[Materials](materials.md)の`OutlineStyleProfileV1`をEngine-owned qualified techniqueへ解決した結果 |
 | `ResolvedShadowPlanV1` | resolved | [Advanced Light Transport](advanced-light-transport.md) §6。Lighting-owned Shadow authoringのchannel／Technique解決結果 |
@@ -86,6 +85,8 @@ PortのC++ ABI、method signature、MCD生成物、Backend実装がRepositoryに
 | `Renderer2DExecutionPlanV1` | cook | 本書§12。2D packet抽出plan |
 
 SnapshotはSource Stable ID、artifact generation、Transform、bounds、visibility mask、previous presentation stateをEngine handleで参照する。Rendererはauthoritative World／Physics stateを書き戻さない。Animation skin／poseは[Animation](../05-simulation/animation.md)が公開したgeneration付きsnapshotとして読み、GPU skin executionだけを所有する。
+
+[World](world.md)所有の`WorldRepresentationSummaryV1`とactive Cell lineageは`RenderSnapshot.renderable_2d[]`／`renderable_3d[]`の抽出条件として使い、別の公開`WorldRenderPacket`型を作らない。World summary、Cell revision、RenderableのWorld lineageのいずれかが一致しなければSnapshot全体をpublishせず、配列先頭、前frameまたは同名Worldから補完しない。
 
 Renderableの`RenderObjectKey`は`{renderable_type_id, pipeline_key, material_key, geometry_key, stable_render_id}`のcanonical tupleである。Transparent sortはStyleのdepth／priorityとStable IDを使い、pointer／submission orderをtie-breakにしない。
 
@@ -131,10 +132,12 @@ RenderViewV1
     perspective | physical_perspective {
       vertical_fov_rad: finite (0, pi)
       near_m: finite positive f64
+      far_m: finite f64 greater than near_m
     }
     | orthographic | pixel_orthographic {
         vertical_span_m: finite positive f64
         near_m: finite non-negative f64
+        far_m: finite f64 greater than near_m
       }
   view_from_world: finite right-handed Matrix4x4
   render_width_px: positive u32
@@ -166,7 +169,7 @@ ViewFamilyV1
   surface_generation_ref: exact owner-typed ref
   render_extent_policy_ref: exact owner-typed ref
   anti_aliasing_plan_ref: exact ResolvedAntiAliasingPlanRefV1
-  exposure_family_ref: exact owner-typed ref
+  exposure_history_key: StableId
   view_refs[1..64]: exact RenderViewRefV1
   view_family_content_hash: SHA-256
 
@@ -194,7 +197,7 @@ ViewFamilyRequirementRefV1
   requirement_content_hash: SHA-256
 ```
 
-`RenderViewRefV1`、`ViewFamilyRefV1`、`ViewFamilyRequirementRefV1`はそれぞれ解決先のidentity、generation／version、content hashと全Fieldでbyte equalityにする。`view_refs[]`と`required_view_refs[]`は`view_id, view_generation`順、`required_purposes[]`は上記closed enum ordinal順へstrict sortし、duplicateを拒否する。FamilyのTarget／Qualityは全Viewとbyte equalityにし、全Viewは同じ`world_scope_ref`のWorldから解決されたcamera／derived Viewでなければならない。Requirementの`world_scope_ref`、Target／Qualityは参照先Familyとbyte equality、View集合はFamilyのView集合のnon-empty subset、purpose集合はそのView集合から投影したpurpose集合とset equalityにする。
+`RenderViewRefV1`、`ViewFamilyRefV1`、`ViewFamilyRequirementRefV1`はそれぞれ解決先のidentity、generation／version、content hashと全Fieldでbyte equalityにする。`view_refs[]`と`required_view_refs[]`は`view_id, view_generation`順、`required_purposes[]`は上記closed enum ordinal順へstrict sortし、duplicateを拒否する。FamilyのTarget／Qualityは全Viewとbyte equalityにし、全Viewは同じ`world_scope_ref`のWorldから解決されたcamera／derived Viewでなければならない。Requirementの`world_scope_ref`、Target／Qualityは参照先Familyとbyte equality、View集合はFamilyのView集合のnon-empty subset、purpose集合はそのView集合から投影したpurpose集合とset equalityにする。`exposure_history_key`は同じ露出測定／adaptation historyを共有するViewだけで同一にし、異なるWorld scope、surface generation、Post Process exposure modeまたはmetering scopeを同じkeyへ束縛しない。Exposure parameterのSourceは[Post Processing](post-processing.md)の`ExposureProfileV1`であり、Render Graphはprofile refや同値parameterをFamilyへ複写しない。
 
 `view_id`と`view_generation`がframeを跨いでView identityを表し、`frame_view_slot`は一つの`RenderSnapshot`内のexecution indexに限る。同じSnapshot内ではslotをuniqueとするが、slotの再利用、配列順、surface上の位置からView identityまたはhistoryを復元しない。`view_content_hash`はASCII `MIRAKAN_RENDER_VIEW_V1`、Family hashはASCII `MIRAKAN_VIEW_FAMILY_V1`、Requirement hashはASCII `MIRAKAN_VIEW_FAMILY_REQUIREMENT_V1`と、それぞれ自己hashを除くclosed recordのcount／presence／length-framed canonical bytesからSHA-256する。CameraはSource／Rig／cut intentを公開し、Render Graph Ownerだけが解決済み`RenderViewV1`、Family、Requirementのcanonical recordを公開する。
 
@@ -484,24 +487,89 @@ Resolverは`UnsupportedByRenderer | UnsupportedByTarget | InvalidCombination | M
 
 Temporal historyはViewFamily、algorithm／provider generation、surface generation、extent、projectionへ束縛する。camera cut、teleport、generation／extent／projection／AA方式変更、missing motion inputでは破棄する。Generated frameはauthoritative simulation／render snapshotではなくpresentation outputとして区別し、real frameのmetricへ混ぜない。
 
-`TemporalFrameInputV1`は本書所有のclosed schemaであり、次を持つ。
+`TemporalFrameInputV1`とそのmotion／history execution carrierは本書所有のclosed schemaであり、次を持つ。
 
 ```text
+RenderResourceGenerationRefV1
+  resource_handle:
+    { index32: u32, generation32: u32 }
+  backend_device_generation: positive u64
+  logical_resource_descriptor_hash: SHA-256
+
+TemporalMotionVectorInputV1
+  motion_input_id: StableId
+  motion_input_version: 1
+  view_family_ref: exact ViewFamilyRefV1
+  frame_id: positive u64
+  present_id: positive u64
+  history_reset: bool
+  previous_render_view_refs[0..64]:
+    sorted unique exact RenderViewRefV1
+  current_render_view_refs[1..64]:
+    sorted unique exact RenderViewRefV1
+  motion_resource_ref: exact RenderResourceGenerationRefV1
+  validity_mask_resource_ref:
+    null | exact RenderResourceGenerationRefV1
+  encoding: screen_space_pixels_per_real_frame_xy_right_down
+  includes_camera_motion: true
+  includes_object_motion: true
+  excludes_projection_jitter: true
+  source_snapshot_sequence: positive u64
+  previous_source_snapshot_sequence: null | positive u64
+  motion_input_content_hash: SHA-256
+
+TemporalMotionVectorInputRefV1
+  motion_input_id: StableId
+  motion_input_version: 1
+  motion_input_content_hash: SHA-256
+
+TemporalExposureSampleV1
+  exposure_sample_id: StableId
+  exposure_sample_version: 1
+  exposure_history_key: StableId
+  frame_id: positive u64
+  ev100: finite f64
+  linear_exposure_multiplier: finite positive f64
+  exposure_sample_content_hash: SHA-256
+
+TemporalExposureSampleRefV1
+  exposure_sample_id: StableId
+  exposure_sample_version: 1
+  exposure_sample_content_hash: SHA-256
+
+TemporalHistoryLeaseRefV1
+  history_key: StableId
+  history_generation: positive u64
+  algorithm_or_provider_profile_ref:
+    exact McdContractRefV1(kind=profile)
+  surface_id: StableId
+  surface_generation: positive u64
+  surface_content_hash: SHA-256
+  render_extent: positive u32 width, positive u32 height
+  display_extent: positive u32 width, positive u32 height
+  history_content_hash: SHA-256
+
 TemporalFrameInputV1
-  schema_version
-  view_family_id
-  frame_id
-  present_id
-  render_extent／display_extent
-  jitter_offset
-  motion_vector_ref
-  depth_ref
-  exposure_ref
-  history_ref
-  history_reset_mask
+  schema_version: 1
+  view_family_ref: exact ViewFamilyRefV1
+  frame_id: positive u64
+  present_id: positive u64
+  render_extent: positive u32 width, positive u32 height
+  display_extent: positive u32 width, positive u32 height
+  jitter_offset_px: finite Vec2
+  motion_vector_ref: exact TemporalMotionVectorInputRefV1
+  depth_ref: exact RenderResourceGenerationRefV1
+  exposure_ref: exact TemporalExposureSampleRefV1
+  history_ref: exact TemporalHistoryLeaseRefV1
+  history_reset_mask: closed ResolvedAntiAliasingPlanV1 reset bits
+  temporal_input_content_hash: SHA-256
 ```
 
-`frame_id`／`present_id`はreal frameごとに単調増加し、generated frameへ新しいsimulation identityを割り当てない。`jitter_offset`は`jitter_policy`から導出したEngine-owned値、`history_ref`は`history_key`へ束縛したgeneration付きlease、`history_reset_mask`は`ResolvedAntiAliasingPlanV1`と同じclosed bitである。native handle、descriptor index、Provider内部structを含めない。
+`TemporalMotionVectorInputV1`はRender Graphだけが、同じView Familyのcurrent／previous unjittered View／Projection、`VisibilityInstanceV1`のcurrent／previous presentation transform、[Animation](../05-simulation/animation.md)の同じSource snapshot lineageに束縛されたcurrent／previous poseから生成する。値はcurrent render extent上のpixel単位、real frameあたり、+X右／+Y下で、projection jitterを含めない。Camera motionとobject motionを合成し、skinned／procedural objectのprevious presentation stateを欠くpixelはzero motionに偽装せず`validity_mask_resource_ref`でinvalidにする。initial V1で非対象のMorphを暗黙に処理せず、将来のMorph Capabilityは同じprevious-state契約をend-to-endで満たすまでtemporal inputへ参加させない。`validity_mask_resource_ref=null`は全pixel validの時だけ許す。Engine基準temporal methodはinvalid pixelの旧history weightを0にしてcurrent sampleからseedし、Provider Profileが完全motion validityを要求する場合だけ一件でもinvalidなら`MissingMotionVectors | MissingTemporalInput`でPlanを不成立にする。Gameplay velocity、Physics velocity、generated frame、前回のmotion textureまたはBackend推定から補完しない。
+
+`history_reset=false`ではprevious／current Viewを同じView ID集合とし、current集合を`view_family_ref`のView集合とexact set equality、previous集合を各current Viewの直前generationへexact解決し、previous／current source snapshot sequenceも連続させる。`history_reset=true`ではprevious View集合をempty、previous source sequenceを`null`、validity maskを全pixel invalidにし、current sampleだけでhistoryをseedする。camera cut、teleport、World／surface／extent／projection generation変更、source snapshot非連続またはprevious state欠落ではこのreset branchだけを使い、旧motion／historyを再利用しない。`motion_input_content_hash`、`exposure_sample_content_hash`、`temporal_input_content_hash`はそれぞれ型名のASCII domain separatorと自己hashを除くclosed MCD canonical bytesから計算し、Refは完成recordへexact解決する。
+
+`frame_id`／`present_id`はreal frameごとに単調増加し、generated frameへ新しいsimulation identityを割り当てない。`jitter_offset_px`は`jitter_policy`から導出したEngine-owned値、`history_ref.history_key`は`ViewFamilyV1.exposure_history_key`ではなくAA Planが所有するtemporal history keyへ束縛し、surface identity／generation／hashはFamilyの`surface_generation_ref`解決先とbyte equalityにする。`exposure_ref.exposure_history_key`はFamilyとbyte equality、`history_reset_mask`は`ResolvedAntiAliasingPlanV1`と同じclosed bitである。`RenderResourceGenerationRefV1`は§3のEngine handle、Backend device generation、logical descriptorを一体で検証し、native handle、descriptor index、Provider内部structを公開しない。これらもtarget contractであり、resource、motion producer、history leaseまたはSchemaの実装済み主張ではない。
 
 Providerはprivate Adapterとして統合し、exact version、hash、license、取得元、build optionは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが固定する。未署名artifact、runtime download、runtime training、無承認更新は本書で別規則を複写せず[AI Security／Approval](../01-governance/ai-security-approval.md)とToolchain ownerへ委譲する。
 

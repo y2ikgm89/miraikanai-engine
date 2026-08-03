@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Qualification Scenario／Evidence Class identity、generic Verification Scope／subject contract／Evidence／Qualification Receipt spine、semantic admissibility predicateとclosed resolver Registry、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
+- 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Qualification Scenario／Evidence Class identity、generic Verification Scope／subject contract／Evidence／Qualification Receipt spine、semantic admissibility predicateとclosed resolver Registry、`MirakanSignedRecordV1`共通署名Envelope／Ref、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
 - 非正本範囲: Domain固有Evidence／Receipt payload、materialized Registry／Fixture候補、AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。補助文書または各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
 - 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
@@ -55,7 +55,41 @@ AI Evalは固定Suite identity、Dataset partition、grader identity、Model sna
 
 <a id="verification-identity-spine"></a>
 
-Qualification Scenario、Evidence Class、generic Evidence／Qualification ReceiptのArchitecture上のstable identity spineは本節が一意に所有する。Domain固有payloadとFixture候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#7-evidence-envelope)へ隔離できるが、次のRef、complete backing record、resolver root、canonical hash規則をappendix、consumer-local tupleまたは表示名から補完しない。
+Qualification Scenario、Evidence Class、generic Evidence／Qualification Receiptと共通署名EnvelopeのArchitecture上のstable identity spineは本節が一意に所有する。Domain固有payloadとFixture候補は[補助Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md#7-evidence-envelope)へ隔離できるが、次のRef、complete backing record、resolver root、canonical hash規則をappendix、consumer-local tupleまたは表示名から補完しない。
+
+<a id="signed-record-envelope"></a>
+
+### 7.0 `MirakanSignedRecordV1`
+
+全署名Recordは[AI Security／Approval](ai-security-approval.md)のalgorithm／Key／Role／purpose policyを消費し、次の唯一の共通Envelopeを使う。JSON Schema `$id`は`urn:mirakan:schema:governance:mirakan-signed-record:v1`であり、consumer schemaはこのrootをexact `$ref`し、署名Fieldをinline再定義しない。
+
+```text
+MirakanSignedRecordV1
+  envelope_version: 1
+  purpose: registered closed purpose
+  subject_sha256: SHA-256
+  signer_subject_ref: exact TrustSubjectRefV1
+  signer_role_ref: exact TrustRoleRefV1
+  key_id: StableId (exact TrustKeyV1 lookup)
+  issued_at: UtcTimestamp
+  revocation_snapshot_ref: exact RevocationSnapshotRefV1
+  signature_algorithm: registered closed algorithm
+  signature_format: registered closed format
+  signature: bounded bytes
+
+MirakanSignedRecordRefV1
+  envelope_schema_id:
+    urn:mirakan:schema:governance:mirakan-signed-record:v1
+  purpose: registered closed purpose
+  subject_sha256: SHA-256
+  signed_record_hash: SHA-256
+```
+
+全Fieldは必須、unknown Fieldは禁止する。`subject_sha256`は用途別Schemaで閉じたsubject payloadのRFC 8785 JCS bytesをSHA-256したlowercase 64桁hexであり、payloadまたはpayload refをEnvelopeへ複写しない。署名対象は`signature`だけを除くEnvelope FieldのRFC 8785 JCS bytesである。`purpose`、subject hash、Signer、Role、Key、発行時刻、発行時revocation snapshot、algorithm、formatの一つでも変われば署名は成立しない。Refは完成Recordのschema ID、purpose、subject hashとbyte equalityにし、`signed_record_hash`を署名を含む完成Record全体のRFC 8785 JCS SHA-256へ一致させる。別Schema ID、wrong purpose／subject、hash-only ref、inline署名Fieldを拒否する。
+
+VerifierはSchema／canonical encoding、現在のsubject payload bytesから再計算したhash、用途別exact purposeを先に検査する。続いて[AI Security／Approval §6](ai-security-approval.md#trust-identity-spine)のcurrent Trust RegistryでSigner／Role Refと`key_id`を完成recordへexact解決し、Key所有者、許可purpose、algorithm／format、発行時の有効期間を照合する。その後、発行時snapshotとそれ以後のcurrent revocation snapshotの署名／sequenceを検証する。current snapshotがRecord、subject、Signer、Role、Keyまたはpurposeを失効対象に含む場合は拒否する。missing Envelope、invalid signature、unknown／期限外／用途不一致Key、Role不一致、stale／invalid snapshot、revoked対象をfail closedにし、Verification keyをApproval／Promotionへ流用しない。
+
+Domain Qualification subjectが`qualification_subject_hash`を持つ場合は二段階hashを共通規則とする。まずDomain固有ASCII separatorと同Fieldだけを除くclosed canonical subject bytesからcontent identityを計算し、完成Subjectへ格納する。次にそのFieldを含む完成Subject全体のRFC 8785 JCS hashを`MirakanSignedRecordV1.subject_sha256`とする。Qualification Receipt Refのcontent identity、`MirakanSignedRecordRefV1.subject_sha256`、`signed_record_hash`を相互代用せず、それぞれ完成Subject内Field、完成Subject JCS、完成Envelope JCSへexact一致させる。
 
 | 型 | ASCII domain separator |
 |---|---|

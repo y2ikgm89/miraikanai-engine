@@ -44,9 +44,24 @@ Appleの頻繁に使うinteractive targetは44×44 pt以上、補助targetも28�
 
 Audioは`AVAudioSession`でcategory／route／interruption、AudioUnit callbackで[Audio](audio.md)のMixer／PCM ringを接続する。interruption、route change、media service resetはgeneration付きvalue eventにし、callback内allocation、lock、log、World callを禁止する。
 
+User data rootはFoundationが返すapp container内の標準directory URLから解決し、absolute sandbox pathをidentityとして保存しない。
+
+| Common root | Apple mapping | Backup／protection |
+|---|---|---|
+| `save` | `Library/Application Support/Miraikanai/Save` | include、`completeUntilFirstUserAuthentication` |
+| `config` | `Library/Application Support/Miraikanai/Config` | include、`completeUntilFirstUserAuthentication` |
+| `log` | `Library/Caches/Miraikanai/Log` | exclude、purgeable、`completeUntilFirstUserAuthentication` |
+| `cache` | `Library/Caches/Miraikanai/Cache` | exclude、purgeable、`completeUntilFirstUserAuthentication` |
+
+Application Supportのsave／configだけをbackup対象とし、再生成可能data、download cache、log、crash upload queueを含めない。log／cache消失をSave lossにせず、support用に非purgeable logが必要な将来CapabilityはApplication Support配下の別root、`isExcludedFromBackup=true`、Privacy／Retention契約を新versionで明示するまで使用しない。Saveのtemporary file、journal、replacement先は同じdirectoryと同じprotection classにし、atomic replace完了前のfileをactive slotへ公開しない。boot後初回unlock前にSave／configへアクセスできないことを正常なlocked stateとして扱い、protectionを`none`へ下げたりKeychain credentialをfileへ移したりしない。
+
+根拠: official-spec／project-decision — Apple公式の[File System Programming Guide](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html)はApplication Supportをapp support data、Cachesを再生成可能でbackup対象外のdataへ使用する区分を示し、[iCloud Backup最適化](https://developer.apple.com/documentation/foundation/optimizing-your-app-s-data-for-icloud-backup)はpurgeable／再生成可能dataの除外を求める。[FileProtectionType](https://developer.apple.com/documentation/foundation/fileprotectiontype/completeuntilfirstuserauthentication)は初回unlock後に利用可能な暗号化保護を定義する。上表のMiraikanai subdirectoryと全rootのprotection選択はProject判断である。
+
 Metal Adapterはheap／memoryless attachment、offline shader library／binary archive、command buffer completionを[Render Graph](../06-rendering/render-graph.md)へ写像する。drawable、command buffer、resourceはsubmission serial完了前にreuse／releaseしない。drawable timeout、background、device faultを別failureにする。
 
 AA／temporal／dynamic resolution／history reset／provider resolverはRender Graph ownerを参照し、MobileのFrames-in-flight、AA intent、dynamic resolution、Frame Generation選択policyは[Mobile Common](mobile-common.md)を参照する。Appleはfeature family、sample count、tile memory／bandwidth、format／resolve、API availability、device resultを[Mobile Common](mobile-common.md)の`MobileCapabilitySignatureV1`とQualification Receiptへ供給し、共通field setを再定義しない。MSAA、MetalFX、indirect、mesh／ray／neural techniqueを実機Gateなしで有効化せず、minimum deviceにないoptional converter／argument featureをbaseline shader pathへ要求しない。
+
+AppleのOS／ABI／Metal／display／input／audio観測はMobile署名から`platform_capability_projection_entry`へ一意に写像し、[Executable Contracts](../02-foundation/executable-contracts.md#target-capability-snapshot)の`TargetCapabilitySnapshotV1`へ束縛する。device family名、SDK availability checkまたはStore minimum OSだけから`supported`を生成せず、実Device probeとTarget Profileが一致しないEntryをSnapshotへ採用しない。
 
 offline shader pathは[Project Shader](../06-rendering/project-shader.md)とToolchain lockのProfileに従い、portable HLSLからintermediate、MSL、Metal libraryへ変換し、Apple専用`ProjectShaderArtifactSetV1`としてApplication bundleへ格納する。Package validatorはApple Target Profile、Engine baseline、`ProjectShaderQualificationReceiptV1`、artifact／interface hashを照合する。Shippingへcompiler、shader source、authoring reflectionを含めない。unqualified Target-limited Module／Technique／Materialはexplicit fallbackとvisual diffなしにCookしない。この段落はEngine-owned／事前Qualification済みartifactと将来有効化されるProject ShaderのTarget packaging境界だけを定義する。現行Product RegistryではAppleの`capability.project.shader`は`excluded`であり、別Product Target bindingとfresh Target Qualificationが成立するまでProject-defined Sourceのauthoring、Qualification対象化、Runtime選択、package成功を許可または示唆しない。
 

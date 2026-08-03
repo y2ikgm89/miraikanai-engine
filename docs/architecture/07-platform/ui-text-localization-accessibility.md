@@ -765,7 +765,7 @@ Projectは`SettingsDefaultsV1`をPackageへCookし、UserはProject Sourceを変
 | Apply class | 対象 | 規則 |
 |---|---|---|
 | `immediate` | Audio volume／route preference、Input binding、Language、Accessibility、通常のQuality選択 | 全Validator成功後にSubsystemへ同一transaction generationで適用し、atomic保存失敗時は全fieldを以前のgenerationへ戻す |
-| `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、`confirmation_deadline_monotonic_ms`（monotonic clock、適用時刻＋15.0秒、Gameplay pause非依存）までにkeyboard／controllerで確認されなければ自動Revert。deadline判定の許容誤差は+1 UI frame以内とし、wall clockを判定に使わない |
+| `confirmed` | Resolution、fullscreen、refresh rate、HDR、display output | 適用前にlast-known-goodを永続化し、`confirmation_deadline_monotonic_ms`（monotonic clock、適用時刻＋15.0秒、Gameplay pause非依存）までに現在activeなAccessibility-safe `settings_confirm` UI command（keyboard／controller／pointer／touch／switch／screen-reader actionの利用可能な経路）で確認されなければ自動Revert。独立した`settings_revert` commandを全経路で維持する。deadline判定の許容誤差は+1 UI frame以内とし、wall clockを判定に使わない。対象Targetがconfirmed表示設定を公開しない場合はApply classをunsupportedとしてUIから除外し、偽の確認経路を作らない |
 | `restart_required` | Renderer Backend、Packageでrestartが必要と宣言されたDevice feature | 現sessionのRuntime stateを変更せず、次回起動候補として保存し、起動失敗時はlast-known-goodへ戻す |
 
 SettingsとSave Catalogは`SettingsCatalogCommitMarkerV1`を同じdurable commit markerとする二相公開で、個別generationを公開しない。第一相ではSettings payloadと対応するSave Catalog entry／generationをstageし、両方をflushしchecksum verifyしてからmarkerをdurableにする。第二相では成功した同一markerのrefと`commit_generation`をProfileのactive rootとしてatomic replaceし、そのmarkerに記録されたSettingsとCatalogの両referenceを同時にpublishする。readerはactive markerから対になる両referenceを一読で解決し、SettingsまたはCatalogを別rootから混在して読まない。
@@ -841,7 +841,8 @@ AIがUIを生成する場合、GameSpecの主要flow、Target、safe area、requ
 
 ```text
 Natural-language intent／manual edit
-  -> AuthoringContextPackV1
+  -> manual: owner-typed Authoring／Selection Projection
+     AI／MCP: AiTaskContextCapsuleV1
   -> UiAuthoringIntentV1
   -> UiDocument／Composite／Style／Binding proposal
   -> AssetRequirement／GeneratedAssetStaging

@@ -510,7 +510,7 @@ WorldはNavigation build volume／modifier、Physics／Collision component、Ani
 
 Navigation queryやWorld movement、Physics body activation、Animation sampling、Render visibilityは各OwnerとRuntime schedulingが所有する。World Cell stateをそれらのauthoritative simulation stateとして兼用しない。
 
-[LOD](../06-rendering/lod.md)はresident candidateからrepresentationを選び、[Render Graph](../06-rendering/render-graph.md)はactive Cell由来の`WorldRenderPacket`を実行する。Worldはselection formula、visibility algorithm、render passを所有しない。
+[LOD](../06-rendering/lod.md)はresident candidateからrepresentationを選び、[Render Graph](../06-rendering/render-graph.md)はactive Cell lineageを検証して`RenderSnapshot.renderable_2d[]`／`renderable_3d[]`へ抽出した集合を実行する。別の公開`WorldRenderPacket`型を作らない。Worldはselection formula、visibility algorithm、render passを所有しない。
 
 `MapPresentationDefinitionV1`は`map_presentation_id: StableId`、`presentation_kind: minimap | world_map | space_map | navigation_overlay`、exact `spatial_subject_ref`、`projection_policy: orthographic_2d | authored_2d | projected_3d`、`layer_refs[1..128]`、`marker_style_refs[0..512]`、typed `marker_source_contract_refs`、optional `fog_policy_ref`、`accessibility_profile_refs[1..32]`、exact `localization_namespace_ref`、Targetごとのexact `render_budget_refs`、`fallback_contract`を持つ非authoritative Sourceである。Marker／fog／cursorからWorld state、consumer-owned Gameplay state、Navigation costを直接writeせず、入力はtyped `MapInteractionCommandV1`として登録済みcommand ownerへ送る。
 

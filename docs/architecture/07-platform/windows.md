@@ -80,6 +80,8 @@ WindowsCapabilitySignatureV1
 
 `WindowsCapabilitySignatureV1`はPlatform観測の正本であり、`RendererCapabilitySignatureV1`の別名または基底型ではない。Render Graph ownerはexact Windows署名ref、Target Profile ref、Toolchain ref、D3D12 Backend Adapter ID、Renderer／Shader artifact refから[Render Graph §12](../06-rendering/render-graph.md#12-関連契約の配置)の規則でRenderer署名を生成する。D3D feature／SM／driver／memory／display観測だけをgraphics fieldへ写像し、OS／CPU／audio／input fieldを複写しない。いずれかのsource refまたはhashが変われば旧Renderer署名と`ResolvedRendererProfileV1`をstaleにする。Authoring／AIはWindows署名本体やdriver identityを直接読まず、redacted `RendererCapabilityProjectionV1`だけを消費する。
 
+WindowsのOS／CPU／D3D／display／audio／input観測は署名から`platform_capability_projection_entry`へ一意に写像し、[Executable Contracts §10.1](../02-foundation/executable-contracts.md#target-capability-snapshot)の`TargetCapabilitySnapshotV1`へ束縛する。OS build名、GPU名、Shader Model文字列またはpackage dependencyの存在だけから`supported`を生成せず、Runtime probe、Target Profile、Contract setが一致しないEntryをSnapshotへ採用しない。
+
 player実行環境のTarget minimum OS（Host OSとは別行のentry）、OS Support期間、累積更新要件は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows baselineを参照し、本書は固定build、取得先、更新周期を再定義しない。§8.1のminimum OS生成と§14のMinimum OS判定は、このTarget minimum OS entryだけを出所とする。
 
 ## 4. Process model
@@ -194,7 +196,6 @@ MSIX
 ├─ mirakan_game.exe
 ├─ D3D12/D3D12Core.dll
 ├─ content/*.mirakanpack
-├─ <locked_runtime_dependency>.dll
 ├─ assets/
 ├─ licenses/
 └─ [MSIX-generated block map／signature]
@@ -205,12 +206,13 @@ MSIX
 - default capabilityは0で、実際に必要な宣言だけをcurrent signed `ProductReleaseDecisionRecordRefV1`が承認した同一Manifest／Target package scopeから生成する。
 - elevation、driver、service、arbitrary startup taskを要求するGameをC1 packageで拒否する。
 - Agility DLL version／hash、executable import、Content root hash、source／debug／compiler非混入をinspectionする。
-- GameInput runtime redistributableは`<locked_runtime_dependency>.dll`の該当物であり、同梱要否、exact version／hash、取得元は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)のWindows baselineが固定する。同梱要否は同書§2.1のTarget minimum OS（未固定）がGameInput runtimeをin-box提供するかの判定に依存し、baseline確定と同じ更新ChangeSetで固定するまで未固定とする。XAudio2 runtimeはOS in-boxであり、redistributable DLLを同梱しない。
+- GameInputはMSIX内のside-by-side DLLまたはMSI payloadとして配置しない。[MicrosoftのPC redistributable guidance](https://learn.microsoft.com/ja-jp/gaming/gdk/docs/features/common/input/overviews/input-nuget?view=gdk-2604)どおり、Toolchain lockのexact `GameInputRedist.msi`を通常installのprerequisiteとして別のDistribution installer／clientが適用し、install resultをPackage install Receiptへ束縛する。Build Hostへの事前install、in-box runtime、MSIX contentへのfile同梱をTarget machineの充足へ読み替えない。prerequisiteを適用できないStore／direct MSIX routeは、そのroute固有のMicrosoft-supported配布経路とclean-machine ReceiptがOwner文書で閉じるまで`blocked`であり、GameInputなしの近似Input Backendへsilent fallbackしない。XAudio2 runtimeはOS in-boxであり、redistributable DLLを同梱しない。
+- `/MD`で生成したC++ Win32 MSIXは[MicrosoftのVCLibs framework guidance](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-prepare)に従い、Toolchain lockとarchitectureに一致する`Microsoft.VCLibs` framework packageのexact Name、Publisher、MinVersionを`AppxManifest.xml`の`PackageDependency`へ持つ。Store routeはStoreによるdependency installをread-backし、sideload routeは対応framework packageの別installを必須にする。dependency欠落をapp-local CRT探索、Build Host状態または別architecture packageで補完しない。
 - Project Shaderを含む場合はWindows専用`ProjectShaderArtifactSetV1`のDXIL、Target Profile、Engine baseline、`ProjectShaderQualificationReceiptV1`、artifact／interface hashも一致させる。
 - MSIX packageはinstall前に署名が必要で、Store外はTarget環境が信頼する証明書を用いる。
 - Store提出用packageとdirect／enterprise署名packageのIdentity／Signing Receiptを混在させない。
 
-Editor本体もC2 Production Distributionではfull-trust MSIXを推奨する。Phase 0／C1の開発中は署名済みinternal MSIXとportable CI artifactを分け、portable artifactを一般配布物と表現しない。
+Editor本体もC2 Production Distributionではfull-trust MSIXを推奨する。Phase 0／C1の開発中は署名済みinternal MSIXとportable CI artifactを分け、portable artifactを一般配布物と表現しない。WARPはToolchain Ownerが許可するDevelopment／test／internal conformanceだけでhost-localに使用し、internal MSIXを含む再配布可能Package、Production MSIX、managed layout、Store upload、公開downloadへ含めない。
 
 ### 8.2 `package-profile.windows.managed-layout`
 

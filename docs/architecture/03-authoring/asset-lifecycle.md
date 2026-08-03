@@ -7,9 +7,9 @@
 - 正本範囲: Asset source／import identity、Import Profile／Plan／IR、Preview／Conversion Report、Reimport／dependency invalidation、Asset／World artifact共通のDerived／Cooked envelope・Catalog・content addressing、Asset Content Package assembly、Asset promotion、Editor／AI Asset operation、Asset diagnostics／qualification
 - 非正本範囲: Project transaction、共有Schema基盤、外部Tool・SDK・Libraryのversion／hash／license／取得元、Runtime request／residency／scheduling／lease／capacity、ECS storage、World Root／Section payload・Runtime Package binary、Save／Replay、各DomainのRuntime意味。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)
-- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World契約](../06-rendering/world.md)
+- 関連文書: [AI-readable Asset／Memory／Async Loading Alignment](../decisions/2026-07-28-ai-asset-memory-async-alignment.md)、[Initial Morph Capability Boundary Decision](../decisions/2026-08-03-initial-morph-capability-boundary.md)、[glTF Import Dependency Baseline Decision](../decisions/2026-08-03-gltf-import-dependency-baseline.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Project state](project-state.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[LOD](../06-rendering/lod.md)、[Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)、[World契約](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-21
+- 外部根拠確認日: 2026-08-03
 
 AssetをEditorが直接読むSource fileではなく、次の閉じたlifecycleとして扱う。Asset versionのgeneration、immutable read lease、promotion後のretireは本書がAsset固有の意味を所有し、公開型、保存／job capture、allocation／fallbackの一般規則は[Memory／Pointers](../02-foundation/memory-pointers.md)の`PointerMemoryConsumerBindingV1`へexactに束縛する。Asset readerがlive payload pointerやleaseをSave／Package／AI projectionへ渡すことはない。
 
@@ -60,7 +60,30 @@ Runtime、Renderer、Physics、Navigation、Animation、AudioはSource fileを�
 | `safety_receipt_id` | `optional StableId`。`external_generated`では必須 |
 | `editor_tags` | `ClosedAssetTagId[0..64]` |
 
-`source_origin`は`domain_pack_reference`で`pack_id`、`pack_version`、`pack_content_sha256`、`reference_asset_id`、`reference_asset_sha256`、`user_provided`で`project_source_record_id`と`ingest_receipt_ref`、`external_generated`で`generation_operation_ref`、`tool_model_lock_ref`、`generation_tool_receipt_ref`を必須とする。別kindのField、自由形式provider名、remote URLを混在させず、kind変更は新`asset_revision`とApprovalを必要とする。
+`source_origin`は`domain_pack_reference`で`pack_id`、`pack_version`、`pack_content_sha256`、`reference_asset_id`、`reference_asset_sha256`、`user_provided`でexact `project_source_entry_ref: ProjectSourceEntryRefV1`とexact `source_ingest_receipt_ref: AssetSourceIngestReceiptRefV1`、`external_generated`で`generation_operation_ref`、`tool_model_lock_ref`、`generation_tool_receipt_ref`を必須とする。別kindのField、自由形式provider名、remote URLを混在させず、kind変更は新`asset_revision`とApprovalを必要とする。
+
+```text
+AssetSourceIngestReceiptV1
+  source_ingest_receipt_id: StableId
+  source_ingest_receipt_version: 1
+  project_source_entry_ref: exact ProjectSourceEntryRefV1
+  observed_source_byte_length: u64
+  observed_source_sha256: SHA-256
+  observed_source_media_type: closed Asset source media type
+  source_boundary_ref: exact ArtifactRefV1(
+    artifact_kind=project_source_boundary_snapshot, schema_version=1)
+  safety_evidence_refs[0..64]: sorted unique exact EvidenceRefV1
+  decision: accepted | rejected
+  diagnostic_refs[0..64]: sorted unique DiagnosticCodeRefV1
+  source_ingest_receipt_content_hash: SHA-256
+
+AssetSourceIngestReceiptRefV1
+  source_ingest_receipt_id: StableId
+  source_ingest_receipt_version: 1
+  source_ingest_receipt_content_hash: SHA-256
+```
+
+Ingest ReceiptのProject Source entry、byte length、SHA-256は解決済み`ProjectSourceEntryV1`とbyte equalityにし、Asset descriptorの`source_logical_path`、`source_sha256`、media typeとも一致させる。Source boundary artifactはBrokerがread-backした許可root、canonical path、symlink／reparse解決結果、file identity、観測時刻を閉じたsnapshotで、別root、後続filesystem状態またはpath文字列だけから補完しない。`accepted`はDiagnostic集合がemptyかつ、Source種別が要求する全Safety Evidenceが揃う場合だけ許す。`rejected`は一件以上のclosed Diagnosticを必須にし、Asset Import Jobへ進めない。`source_ingest_receipt_content_hash`はASCII `MIRAKAN_ASSET_SOURCE_INGEST_RECEIPT_V1`と自己hashを除くclosed MCD canonical bytesから計算し、Refは完成recordへexact解決する。これはtarget contractであり、現RepositoryにSchema、ingest service、Evidence、ReceiptまたはFixtureが存在するという主張ではない。
 
 Pathは`/`へ正規化し、absolute path、drive、UNC、`..`、empty segment、NUL、reserved device name、case-fold衝突を拒否する。logical path比較はUnicode NFCとProject canonical keyを使い、同一keyの二つのSourceを許可しない。Source dependencyはBrokerが解決したmanifestへ閉じ、Importerが実行中に任意pathを探索してはならない。
 
@@ -254,7 +277,6 @@ MeshImportSettingsV1
   preserve_hard_normals: bool
   required_vertex_color_channels: ClosedChannelId[0..8]
   skin_policy: source_only | qualified_generated
-  morph_policy: source_only | qualified_generated
 
 SourceLodBindingV1
   level_index: u8[0..15]
@@ -268,9 +290,17 @@ MeshLodGenerationProfileRefV1
   profile_content_hash: SHA-256
 ```
 
-`SourceLodBindingV1`は`level_index`順にstrict sortしduplicateを拒否する。`lod_source_mode=disabled`はbinding 0件かつgeneration profile null、`source_chain`はbinding 1件以上かつgeneration profile null、`generated_chain`はLOD0 binding一件かつgeneration profile必須、`hybrid_chain`はbinding 1件以上かつgeneration profile必須とする。Generation Profileはtriangle／object-error target、boundary／UV／normal／vertex-color、skin／morph preservation、Tool input semanticsをAsset Ownerのtyped payloadとして持ち、LOD runtime threshold、View、pressure、selectionを持たない。[LOD](../06-rendering/lod.md)は公開済みartifact generationとerror metadataだけをexact参照し、Source modeまたはsimplifier設定を再定義しない。
+`SourceLodBindingV1`は`level_index`順にstrict sortしduplicateを拒否する。`lod_source_mode=disabled`はbinding 0件かつgeneration profile null、`source_chain`はbinding 1件以上かつgeneration profile null、`generated_chain`はLOD0 binding一件かつgeneration profile必須、`hybrid_chain`はbinding 1件以上かつgeneration profile必須とする。Generation Profileはtriangle／object-error target、boundary／UV／normal／vertex-color／skin preservation、Tool input semanticsをAsset Ownerのtyped payloadとして持ち、LOD runtime threshold、View、pressure、selectionを持たない。[LOD](../06-rendering/lod.md)は公開済みartifact generationとerror metadataだけをexact参照し、Source modeまたはsimplifier設定を再定義しない。
 
-#### 2.2.1 Virtualized geometryのtarget import binding
+#### 2.2.1 Morph targetのinitial V1境界
+
+initial V1、C1およびC2のMesh／Animation importはMorph Targetを対応範囲に含めない。Source Analyzerがbase primitiveに対するposition／normal／tangent等のMorph delta、default weightまたはMorph weight animation channelを検出した場合、`unsupported_features[]`へexact feature `feature.asset.morph-target`を記録し、Import Plan、Preview promotion、CookおよびPackage promotionをfail closedにする。Morph dataのdrop、zero weight固定、base meshへのbake、bind pose、静的Meshへの再解釈または警告だけでの継続をfallbackにしない。
+
+この境界によりinitial `MeshImportSettingsV1`は`morph_policy`を持たず、Source、Import IR、Derived／Cooked Artifact、Animation Clip、runtime evaluation、LOD compatibilityまたはVirtual Geometry compatibilityの一部だけを先行して「Morph対応」と表示しない。将来採択する場合はSource Morph identity／base primitive compatibility、channel mapping、default／animated weight、time／interpolation、skinとの評価順、bounds、Render Snapshot、LOD／Virtual Geometry、fallback、Save／Replay、Target Qualificationを同じCapability closureへ閉じた新しいversioned Owner契約を必要とする。
+
+根拠: official-spec／project-decision — [glTF 2.0](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)はMorph Targetをbase attributeへのweighted deltaとして定義し、animation targetの`weights`、default weights、accessor count／attribute整合を別々に要求する。Miraikanaiがinitial V1から除外すること自体は本プロジェクトのscope判断である。
+
+#### 2.2.2 Virtualized geometryのtarget import binding
 
 [Virtualized／Continuous Geometry](../06-rendering/virtualized-continuous-geometry.md)が`planning_only`の間、`MeshImportSettingsV1`へenable bool、provider option、page size、cluster sizeまたは空Artifact roleを追加しない。将来のCapability activationでは、既存Sourceを保持したままexact `VirtualGeometryAuthoringIntentV1`をImport Planへ関連付ける`VirtualGeometryCookIntentBindingV1`を別のversioned owner-typed bindingとして登録する。BindingはSource Asset ref、Intent ref、binding content hashだけを持ち、Target Policyとdiscrete fallback Representation SetはIntentのexact refから解決して複写しない。View、runtime error threshold、resident page、pool slot、GPU handleを持たない。
 
@@ -398,6 +428,19 @@ Textureはsemantic role、color／alpha、normal convention、mip、resize、com
 AnimationはSkeleton binding、clip extraction、sample／interpolation、root motion、event、retarget Profileを明示する。Audioはchannel、sample rate、trim、gain、loop、residency、codec Profileを明示し、無承認の音量正規化を行わない。Fontはrequired locale／script、coverage、variation、color glyph、hinting、fallback、raster policy、embedding permissionを明示する。
 
 外部format Adapterのversion、実行物hash、license、取得元は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)だけが固定する。ここではAdapterをCapabilityとして扱い、未ActivationのformatをCatalogへ出さない。DCC converterは別sandboxで実行し、Engine-native typed IRへ変換する。Source IDやproperty名からComponent、Gameplay Event、Asset pathを推測生成しない。
+
+<a id="gltf-import-adapter-boundary"></a>
+
+glTF initial V1は[Toolchain／Dependencies §9.1](../02-foundation/toolchain-dependencies.md#gltf-tangent-dependency-state)が選定したsingle parser／MikkTSpace／Khronos Validator closureだけを対象とし、次のAsset-owned境界を満たす。
+
+1. BrokerがSource descriptorに束縛したbounded `.gltf`／`.glb` bytesと明示dependency handlesだけをAsset Import Workerへ渡す。parserのdefault file API、relative／absolute path traversal、arbitrary URI、network、environment、working directoryまたはplugin discoveryによる解決を許可しない。
+2. 各Production Import Jobはparse成功後にparser構造検査とMiraikanaiのbounds／finite／cycle／allowlist／Target capability／semantic検査を独立して要求する。一つのpassを別検査の代用にせず、unknown、unsupported、外部decoder未採用、Morphまたは意味変換不能なfeatureをLoss付き成功へdowngradeしない。
+3. parser native object、pointer、array index、URIまたはextension property bagをWorker／Adapter外へ出さず、Source orderに依存しないstable identityとcanonical orderを持つ`SceneImportIRV1`へ変換する。Engine Runtime、public C++、MCD、Project SourceまたはCooked Artifactは第三者Library型を参照しない。
+4. validなprovided tangentはcorner semanticsとhandednessを検証して保持する。欠落しnormal textureで必要な場合だけ、同textureのexact UV set、position、normalをMaterialsの意味契約に従ってMikkTSpaceへ渡す。triangle cornerへ決定論的に展開し、per-corner出力を既存indexへ平均／上書きせず、tangent seamを含む新しいcanonical vertex split／indexをIRへ記録する。
+5. MikkTSpace入力前にface／corner count、全積算size、index、finite position／normal／UVをboundし、WorkerのCPU、wall time、commit memory、output size hard capを適用する。invalid／non-finite input、allocation failure、生成失敗、invalid handednessまたは二回実行hash不一致をImport failureにする。
+6. Importer baselineのDevelopment／Qualificationでは同じimmutable fixtureをKhronos Validatorにも通し、parser構造検査およびMiraikanai semantic結果との差をEvidence化する。Validatorを各Production Import Jobの実行依存にはせず、Production Sourceを外部serviceへ送信せず、Shipping Packageへ含めない。Validator version／dependency／report normalizationはToolchain lockとQualification Receiptからexactに解決する。
+
+この境界はLibraryの内部object modelや他EngineのImporter workflowをMiraikanaiへ移植せず、Miraikanai固有のSource transaction、typed IR、Conversion Report、Receiptを正本にする。2026-08-03時点ではdependency artifact、lock、Adapter、Schema、Fixture、ReceiptおよびQualificationが存在しないため、選定済みtarget designからglTF Source analysis、Import、Preview、Cook、promotionまたはPackage eligibilityを開始しない。
 
 ## 3. PreviewとConversion Report
 

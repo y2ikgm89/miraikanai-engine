@@ -7,7 +7,7 @@
 - 正本範囲: LOD intent／policy、representation set／tier、projected-error／importance／pressure入力、hysteresis／transition、geometry／HLOD／simulation／animation／material／VFX／terrain representation selection、LOD固有operation／diagnostic／qualification
 - 非正本範囲: Terrain／Foliage Source／artifact、representation asset生成／promotion／runtime residency、GI／reflection technique、Render pass／visibility execution、World streaming activation、Simulation behavior、Runtime shared capacity／phase、Tool version、AI authorization、Evidence envelope、共通Schema／projection。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[World](world.md)、[Camera](camera.md)、[Render Graph](render-graph.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Camera](camera.md)、[Render Graph](render-graph.md)、[Advanced Light Transport](advanced-light-transport.md)、[Terrain／Foliage](terrain-foliage.md)、[Materials](materials.md)、[VFX Authoring](vfx-authoring.md)、[VFX Runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[World](world.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Initial Morph Capability Boundary Decision](../decisions/2026-08-03-initial-morph-capability-boundary.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Math／Core utilities](../02-foundation/math-core.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Project state](../03-authoring/project-state.md)、[Runtime Asset Lifecycle](../04-runtime/runtime-asset-lifecycle.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Animation](../05-simulation/animation.md)、[Physics](../05-simulation/physics.md)、[Collision](../05-simulation/collision.md)、[Navigation](../05-simulation/navigation.md)、[Camera](camera.md)、[Render Graph](render-graph.md)、[Advanced Light Transport](advanced-light-transport.md)、[Terrain／Foliage](terrain-foliage.md)、[Materials](materials.md)、[VFX Authoring](vfx-authoring.md)、[VFX Runtime](vfx-runtime.md)、[Environment／surfaces](environment-surfaces.md)、[Virtualized／Continuous Geometry](virtualized-continuous-geometry.md)、[World](world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-28
 
@@ -266,8 +266,8 @@ ViewLodContextV1
   view_generation: positive u64
   view_purpose: game | editor | shadow | reflection | thumbnail
   projection:
-    perspective {vertical_fov_rad, near_m}
-    | orthographic {vertical_span_m, near_m}
+    perspective {vertical_fov_rad, near_m, far_m}
+    | orthographic {vertical_span_m, near_m, far_m}
   view_from_world: finite Matrix4x4
   render_width_px: positive u32
   render_height_px: positive u32
@@ -279,7 +279,7 @@ ViewLodContextV1
   context_hash: SHA-256
 ```
 
-この型は[Render Graph](render-graph.md)が公開する選択済み`RenderViewV1`からLOD Ownerが作るread-only projectionである。`view_id`、`view_generation`、purpose、Target／QualityはSource Viewとbyte equalityにし、`physical_perspective`は解決済みvertical FOVを持つ`perspective`、`pixel_orthographic`は解決済みvertical spanを持つ`orthographic`へ一意に投影する。Source Camera Profile、Lens、aspect、Post Processを複写せず、`context_hash`はASCII `MIRAKAN_VIEW_LOD_CONTEXT_V1`と自己hashを除くcanonical bytesから計算する。Editor／shadow／reflection／thumbnail Viewは独立したselection／history stateを持つ。
+この型は[Render Graph](render-graph.md)が公開する選択済み`RenderViewV1`からLOD Ownerが作るread-only projectionである。`view_id`、`view_generation`、purpose、near／far、Target／QualityはSource Viewとbyte equalityにし、`physical_perspective`は解決済みvertical FOVを持つ`perspective`、`pixel_orthographic`は解決済みvertical spanを持つ`orthographic`へ一意に投影する。`far_m`はfiniteかつ`far_m > near_m`で、candidate setのclosed frustum外を選択対象へ戻さない。Source Camera Profile、Lens、aspect、Post Processを複写せず、`context_hash`はASCII `MIRAKAN_VIEW_LOD_CONTEXT_V1`と自己hashを除くcanonical bytesから計算する。Editor／shadow／reflection／thumbnail Viewは独立したselection／history stateを持つ。
 
 `algorithm.lod.projected_metric.v1`を次に固定する。入力は同じView generationのcandidate setに含まれるView space conservative bounding sphere center `c=(x,y,z)`、radius `r_m >= 0`、候補descriptorの`geometric_error={kind=bounded_m, maximum_object_error_m=e_m >= 0}`で、Math正本どおりCamera forwardは`-Z`とする。`d_m=-z`、`nearest_depth_m=max(near_m, d_m-r_m)`とし、Perspectiveでは`pixel_scale=render_height_px/(2*tan(vertical_fov_rad/2))`、Orthographicでは`pixel_scale=render_height_px/vertical_span_m`とする。
 
@@ -356,11 +356,11 @@ previous selectionは候補がなおvalidで、対応transition ruleのexit条�
 
 ## 5. Mesh／Sprite geometry LOD
 
-`MeshLodProfileV1 = LodDomainProfileV1<MeshLodProfilePayloadV1>`とし、payloadは`selection_metric = projected_error_px_q16`、`quality_binding_refs[]`、`skin_compatibility_ref`、`morph_compatibility_ref`、`section_compatibility_ref`、`shadow_policy_ref`、plan-local `fallback_geometry_id`を持つ。Transition RuleはProfile hash完成後に`LodTierRefV1`へ結ぶため、ProfileへRule refを埋め戻さず`LodSelectionTableV1`だけが参照する。Source chain／generated chain／hybrid、triangle ratio、boundary／UV seam／normal／vertex-color保持、simplifier Toolは[Asset lifecycle](../03-authoring/asset-lifecycle.md)の`MeshImportSettingsV1`と`MeshLodGenerationProfileRefV1`だけが所有し、本Profileへ複写しない。
+`MeshLodProfileV1 = LodDomainProfileV1<MeshLodProfilePayloadV1>`とし、payloadは`selection_metric = projected_error_px_q16`、`quality_binding_refs[]`、`skin_compatibility_ref`、`section_compatibility_ref`、`shadow_policy_ref`、plan-local `fallback_geometry_id`を持つ。Transition RuleはProfile hash完成後に`LodTierRefV1`へ結ぶため、ProfileへRule refを埋め戻さず`LodSelectionTableV1`だけが参照する。Source chain／generated chain／hybrid、triangle ratio、boundary／UV seam／normal／vertex-color／skin保持、simplifier Toolは[Asset lifecycle](../03-authoring/asset-lifecycle.md)の`MeshImportSettingsV1`と`MeshLodGenerationProfileRefV1`だけが所有し、本Profileへ複写しない。
 
 `MeshLodLevelV1`は`level_index: u8[0..15]`、exact `representation_ref`、`maximum_projected_error_px_q16`、`required_material_interface_hash`、`expected_triangle_count: u64`、`artifact_role`を持つ。levelは生成指示でなく、Assetが公開済みartifactへ付与した選択metadataである。LOD0は最高detail Source representationへexact解決し、欠損または別Source generationを拒否する。
 
-Mesh／Sprite representationはgeometry artifact ref、bounds／silhouette error、vertex／primitive cost class、material interface、skin／morph compatibility、shadow／collision proxy relationを宣言する。LODはgeometry candidateを選び、meshlet／indirect draw／occlusionの実行は[Render Graph](render-graph.md)へ委譲する。
+Mesh／Sprite representationはgeometry artifact ref、bounds／silhouette error、vertex／primitive cost class、material interface、skin compatibility、shadow／collision proxy relationを宣言する。initial V1、C1、C2はMorph Targetを非対象とし、`morph_compatibility_ref`、empty placeholder、zero-weight representationまたはMorph対応表示を作らない。将来Morph Capabilityを採択する場合だけ[Asset lifecycle](../03-authoring/asset-lifecycle.md)のend-to-end closureを満たす新しいversioned LOD payloadで追加する。LODはgeometry candidateを選び、meshlet／indirect draw／occlusionの実行は[Render Graph](render-graph.md)へ委譲する。
 
 silhouette、UV、normal／tangent、skin weight、sprite pivot／pixel lockに意味差があるtierは明示する。missing material interfaceやanimation bindingをdefaultへ置換せず、compatible fallbackへ戻す。
 
