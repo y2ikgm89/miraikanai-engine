@@ -60,81 +60,82 @@ Owner文書はすべて`review`であり、対応するEngine実装・Schema・F
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
 | 18 | [Project State](03-authoring/project-state.md) | review | Project aggregate、revision、ChangeSet、commit、undo／recovery |
-| 19 | [Asset Lifecycle](03-authoring/asset-lifecycle.md) | review | Asset import、Derived Artifact、catalog、package assembly、promotion |
-| 20 | [Editor UI Framework](03-authoring/editor-ui-framework.md) | review | Editor UI core、layout、event、rendering、platform／accessibility bridge |
-| 21 | [Editor Workspace／UX](03-authoring/editor-workspace-ux.md) | review | Workspace、制作journey、AI partner、error／recovery UX |
-| 22 | [Gameplay Programming Model](03-authoring/gameplay-programming-model.md) | review | 構造化Gameplay、Game System、Project実装、code generation |
-| 23 | [Native Game Module](03-authoring/native-game-module.md) | review | Native module ABI、build、link、package、promotion evidence |
-| 24 | [Developer Testing](03-authoring/developer-testing.md) | review | Project test suite／case／assertion、GUI／CLI／headless runner、isolation、result、public C++ test API |
+| 19 | [Game Production Loop](03-authoring/game-production-loop.md) | review | Intent／Brief／GameSpec、理解closure、Playtest評価、Iteration Decision、AI生成lane |
+| 20 | [Asset Lifecycle](03-authoring/asset-lifecycle.md) | review | Asset import、Derived Artifact、catalog、package assembly、promotion |
+| 21 | [Editor UI Framework](03-authoring/editor-ui-framework.md) | review | Editor UI core、layout、event、rendering、platform／accessibility bridge |
+| 22 | [Editor Workspace／UX](03-authoring/editor-workspace-ux.md) | review | Workspace、制作journey、AI partner、error／recovery UX |
+| 23 | [Gameplay Programming Model](03-authoring/gameplay-programming-model.md) | review | 構造化Gameplay、Game System、Project実装、code generation |
+| 24 | [Native Game Module](03-authoring/native-game-module.md) | review | Native module ABI、build、link、package、promotion evidence |
+| 25 | [Developer Testing](03-authoring/developer-testing.md) | review | Project test suite／case／assertion、GUI／CLI／headless runner、isolation、result、public C++ test API |
 
 ### 3.5 Runtime
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 25 | [Runtime ECS](04-runtime/entity-component-system.md) | review | Entity／Component、archetype、query、access manifest、structural transaction |
-| 26 | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | review | Simulation Advance、execution order、job dependency、message order、lifetime |
-| 27 | [Runtime Package](04-runtime/runtime-package.md) | review | Runtime Entry launch closure、world／ui／headless branch、World Root／Section image、loader、publication |
-| 28 | [Runtime Asset Lifecycle](04-runtime/runtime-asset-lifecycle.md) | review | Cook済みArtifactのrequest、dependency、generation、residency、lease、eviction、recovery |
-| 29 | [Persistence／Save](04-runtime/persistence-save.md) | review | Save Catalog／slot membership、Save、persistent identity projection、digest、reconstruction、Replay projection |
-| 30 | [Performance／Capacity](04-runtime/performance-capacity.md) | review | 測定境界、暫定budget／capacity、backpressure、regression |
-| 31 | [Debugging／Observability／Replay](04-runtime/debugging-observability-replay.md) | review | debug、telemetry、causality、capture、replay transport、crash evidence |
+| 26 | [Runtime ECS](04-runtime/entity-component-system.md) | review | Entity／Component、archetype、query、access manifest、structural transaction |
+| 27 | [Scheduling／Lifetime](04-runtime/scheduling-lifetime.md) | review | Simulation Advance、execution order、job dependency、message order、lifetime |
+| 28 | [Runtime Package](04-runtime/runtime-package.md) | review | Runtime Entry launch closure、world／ui／headless branch、World Root／Section image、loader、publication |
+| 29 | [Runtime Asset Lifecycle](04-runtime/runtime-asset-lifecycle.md) | review | Cook済みArtifactのrequest、dependency、generation、residency、lease、eviction、recovery |
+| 30 | [Persistence／Save](04-runtime/persistence-save.md) | review | Save Catalog／slot membership、Save、persistent identity projection、digest、reconstruction、Replay projection |
+| 31 | [Performance／Capacity](04-runtime/performance-capacity.md) | review | 測定境界、暫定budget／capacity、backpressure、regression |
+| 32 | [Debugging／Observability／Replay](04-runtime/debugging-observability-replay.md) | review | debug、telemetry、causality、capture、replay transport、crash evidence |
 
 ### 3.6 Simulation
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 32 | [Collision](05-simulation/collision.md) | review | geometry、collider、filter、query、contact／trigger／hit semantics |
-| 33 | [Physics](05-simulation/physics.md) | review | dynamics、body、constraint、kinematic motion、kernel adapter |
-| 34 | [Navigation](05-simulation/navigation.md) | review | 2D grid、3D navmesh、navigation query、artifact lifetime |
-| 35 | [Animation](05-simulation/animation.md) | review | animation source／artifact、graph、pose、event、root motion、retarget |
+| 33 | [Collision](05-simulation/collision.md) | review | geometry、collider、filter、query、contact／trigger／hit semantics |
+| 34 | [Physics](05-simulation/physics.md) | review | dynamics、body、constraint、kinematic motion、kernel adapter |
+| 35 | [Navigation](05-simulation/navigation.md) | review | 2D grid、3D navmesh、navigation query、artifact lifetime |
+| 36 | [Animation](05-simulation/animation.md) | review | animation source／artifact、graph、pose、event、root motion、retarget |
 
 ### 3.7 Rendering
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 36 | [Render Graph](06-rendering/render-graph.md) | review | renderer boundary、resource／pass graph、2D packet／sort／batch、visibility、temporal execution |
-| 37 | [Materials](06-rendering/materials.md) | review | material／shader authoring、semantic intent、compile、package |
-| 38 | [Project Shader](06-rendering/project-shader.md) | review | bounded HLSL、semantic module、Project Node、Technique、qualification |
-| 39 | [Lighting](06-rendering/lighting.md) | review | light source、photometry、attenuation、shadow intent、lighting semantics |
-| 40 | [Advanced Light Transport](06-rendering/advanced-light-transport.md) | review | GI／reflection／advanced shadow／reference transport、channel別Technique／Target support／fallback |
-| 41 | [Post Processing](06-rendering/post-processing.md) | review | post-process source、volume、effect composition、history intent |
-| 42 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、planned authoring action |
-| 43 | [VFX Runtime](06-rendering/vfx-runtime.md) | review | VFX artifact、instance、simulation、render、visual interaction |
-| 44 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
-| 45 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |
-| 46 | [Terrain／Foliage](06-rendering/terrain-foliage.md) | review | Terrain source／tile／layer／artifact、Foliage species／placement／identity／artifact |
-| 47 | [LOD](06-rendering/lod.md) | review | representation selection、transition、fallback、LOD semantics |
-| 48 | [Virtualized／Continuous Geometry](06-rendering/virtualized-continuous-geometry.md) | review | virtual geometry表現ファミリ、inner cut、residency／fallback統合、feature qualification |
-| 49 | [World／Scene／Space／Cell](06-rendering/world.md) | review | World composition、reusable Scene instance／override／rebase、spatial topology、partition、activation、generic transition |
+| 37 | [Render Graph](06-rendering/render-graph.md) | review | renderer boundary、resource／pass graph、2D packet／sort／batch、visibility、temporal execution |
+| 38 | [Materials](06-rendering/materials.md) | review | material／shader authoring、semantic intent、compile、package |
+| 39 | [Project Shader](06-rendering/project-shader.md) | review | bounded HLSL、semantic module、Project Node、Technique、qualification |
+| 40 | [Lighting](06-rendering/lighting.md) | review | light source、photometry、attenuation、shadow intent、lighting semantics |
+| 41 | [Advanced Light Transport](06-rendering/advanced-light-transport.md) | review | GI／reflection／advanced shadow／reference transport、channel別Technique／Target support／fallback |
+| 42 | [Post Processing](06-rendering/post-processing.md) | review | post-process source、volume、effect composition、history intent |
+| 43 | [VFX Authoring](06-rendering/vfx-authoring.md) | review | VFX source、semantic catalog、typed graph、compiler、planned authoring action |
+| 44 | [VFX Runtime](06-rendering/vfx-runtime.md) | review | VFX artifact、instance、simulation、render、visual interaction |
+| 45 | [Camera](06-rendering/camera.md) | review | Camera profile、rig、director、sequence、runtime／authoring |
+| 46 | [Environment／Surfaces](06-rendering/environment-surfaces.md) | review | sky、fog、weather presentation、water、snow／wetness surface response |
+| 47 | [Terrain／Foliage](06-rendering/terrain-foliage.md) | review | Terrain source／tile／layer／artifact、Foliage species／placement／identity／artifact |
+| 48 | [LOD](06-rendering/lod.md) | review | representation selection、transition、fallback、LOD semantics |
+| 49 | [Virtualized／Continuous Geometry](06-rendering/virtualized-continuous-geometry.md) | review | virtual geometry表現ファミリ、inner cut、residency／fallback統合、feature qualification |
+| 50 | [World／Scene／Space／Cell](06-rendering/world.md) | review | World composition、reusable Scene instance／override／rebase、spatial topology、partition、activation、generic transition |
 
 ### 3.8 Platform
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 50 | [Windows](07-platform/windows.md) | review | Windows target、process／window adapter、package、distribution、qualification |
-| 51 | [Mobile Common](07-platform/mobile-common.md) | review | Mobile共通target、port、lifecycle、resource policy、device workflow |
-| 52 | [Android](07-platform/android.md) | review | Android build／runtime adapter、package、store delivery、device qualification |
-| 53 | [Apple](07-platform/apple.md) | review | Apple build／runtime bridge、signing、store、device qualification |
-| 54 | [Input](07-platform/input.md) | review | device、action、binding、context、remap、haptics、input replay |
-| 55 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
-| 56 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、Settings／Save Catalog co-publication、UI authoring |
+| 51 | [Windows](07-platform/windows.md) | review | Windows target、process／window adapter、package、distribution、qualification |
+| 52 | [Mobile Common](07-platform/mobile-common.md) | review | Mobile共通target、port、lifecycle、resource policy、device workflow |
+| 53 | [Android](07-platform/android.md) | review | Android build／runtime adapter、package、store delivery、device qualification |
+| 54 | [Apple](07-platform/apple.md) | review | Apple build／runtime bridge、signing、store、device qualification |
+| 55 | [Input](07-platform/input.md) | review | device、action、binding、context、remap、haptics、input replay |
+| 56 | [Audio](07-platform/audio.md) | review | Audio asset semantics、cue、voice、mixer、spatial、streaming |
+| 57 | [UI／Text／Localization／Accessibility](07-platform/ui-text-localization-accessibility.md) | review | Game UI、text、localization、focus、accessibility、Settings／Save Catalog co-publication、UI authoring |
 
 ### 3.9 Packs
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 57 | [Pack Contract](08-packs/pack-contract.md) | review | Pack構造、dependency、install、update、removal |
-| 58 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role |
-| 59 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | reusable Featureの共通ownership、RPG Feature family、manifest、Port、State、Save／Replay、failure |
-| 60 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
-| 61 | [RPG Genre Pack](08-packs/rpg.md) | review | RPG Feature composition、Profile、Game Flow、command role、Reference fixture binding |
+| 58 | [Pack Contract](08-packs/pack-contract.md) | review | Pack構造、dependency、install、update、removal |
+| 59 | [Shooter Genre Pack](08-packs/shooter.md) | review | Shooter固有composition、Profile、Game Flow、Action role |
+| 60 | [Gameplay Feature Packs](08-packs/gameplay-features.md) | review | reusable Featureの共通ownership、RPG Feature family、manifest、Port、State、Save／Replay、failure |
+| 61 | [Scenario／Stage Feature Pack](08-packs/scenario-stage.md) | review | optional Stage、completion、Scope、transition、Save／Replay |
+| 62 | [RPG Genre Pack](08-packs/rpg.md) | review | RPG Feature composition、Profile、Game Flow、command role、Reference fixture binding |
 
 ### 3.10 Networking
 
 | # | 文書 | 状態 | 閲覧上の責務 |
 |---:|---|---|---|
-| 62 | [Network Transport／Connection](09-networking/network-transport-connection.md) | review | endpoint、handshake、connection epoch、semantic delivery、packet／flow／security binding |
-| 63 | [Multiplayer Authority／Replication](09-networking/multiplayer-authority-replication.md) | review | topology／role／authority、session、Network Object、replication、prediction／rollback、resync／handoff |
+| 63 | [Network Transport／Connection](09-networking/network-transport-connection.md) | review | endpoint、handshake、connection epoch、semantic delivery、packet／flow／security binding |
+| 64 | [Multiplayer Authority／Replication](09-networking/multiplayer-authority-replication.md) | review | topology／role／authority、session、Network Object、replication、prediction／rollback、resync／handoff |
 
 ## 4. 補助文書とProposal
 
