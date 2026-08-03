@@ -9,7 +9,7 @@
 - 正本範囲: Project Document、Runtime Entry、Target readiness、Change primitive、transaction、fixtureのreview候補詳細
 - 非正本範囲: Project aggregate、revision、commit、undo／recoveryの意味、Domain payload、current readiness。親Ownerと各Domain Ownerが決定する
 - 規範依存: [親Owner](../03-authoring/project-state.md)
-- 関連文書: [Executable Contracts](../02-foundation/executable-contracts.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
+- 関連文書: [Game Production Loop](../03-authoring/game-production-loop.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-21
 
@@ -28,7 +28,8 @@
 | `RuntimeTargetSelectorDocumentV1` | Runtime Entryが選択可能なexact Target Profile集合 | `selector_id`、document revision |
 | `RuntimeEntryActivationPolicyDocumentV1` | readiness timeout、failure／cancel／deactivation semantics | `policy_id`、document revision |
 | `RuntimeEntryPresentationBindingDocumentV1` | world Runtime Entryと初期root UiDocumentのtarget-only exact binding | `binding_id`、document revision |
-| `GameSpecDocument` | Genreに依存しない要求、system、content、test、budget、style lock | `game_spec_id`、document revision |
+| [`GameBriefDocumentV1`](../03-authoring/game-production-loop.md#51-game-briefとgamespec-document) | Game Production Loop Ownerの確認済みBrief payloadを共通Document headerへ載せる | canonical Ownerのexact Document ref |
+| [`GameSpecDocumentV1`](../03-authoring/game-production-loop.md#51-game-briefとgamespec-document) | Game Production Loop OwnerのRequirement／system intent／content／test／budget／style lock payloadを共通Document headerへ載せる | canonical Ownerのexact Document ref |
 | `WorldDocument` | exact `WorldSpaceProfileRefV1`、Scene／optional spatial topology参照、global composition、persistent entity、Source Intent root | `world_id`、document revision |
 | `EnvironmentSurfaceDocumentV1` | Environment Profile、World binding、Weather／Water／Snow surface Source root | `document_id`、`source_revision` |
 | `SceneDocument` | collaborative edit shard identity、Shard index、global setting、Composition Recipe root。Gameplay LevelまたはStreaming Cellではない | `scene_id`、document revision |
@@ -45,10 +46,12 @@
 | `VisualStyleProfileDocument` | 表現四軸、Material、Lighting、Camera、Post、UI style | Profile StableId、document revision |
 | `NativeGameModuleManifest` | Project C++ source root、Capability、access、build contract | Module StableId、manifest revision |
 | `TargetProfileDocument` | Platform、quality、distribution、content delivery、budget | Profile StableId、document revision |
-| `DecisionLedgerDocument` | 判断値、由来、理由、approval、lock、依存 | Entry StableId、document revision |
+| [`GameDecisionLedgerDocumentV1`](../03-authoring/game-production-loop.md#51-game-briefとgamespec-document) | Game Production Loop Ownerのcurrent Decision headとretained supersession historyを共通Document headerへ載せる | canonical Ownerのexact Document ref |
 | `TestScenarioDocument` | Preconditions、input、oracle、budget、Target | Scenario StableId、document revision |
 
 `LocalizationCatalogDocument.source_locale_profile_ref`は各Catalogが宣言するGame／Project contentの原文localeをProduct Planのexact `LocaleProfileRefV1`で保持し、Editor表示locale、AI返答locale、OS locale、language tag文字列から推測または同期しない。Projectは日本語その他のlocaleをsourceにでき、Editor Preferenceを変更してもCatalog DocumentまたはProject revisionを変更しない。Editor自身のCatalogはProject Document indexへ登録せず、Game Packageへ混入させない。
+
+上表の三Game Production Documentは候補shapeではなくcanonical Ownerへのnavigationであり、本書はField、ID tuple、supersessionまたは理解完了条件を再定義しない。旧`GameSpecDocument`／`DecisionLedgerDocument`名からalias Schema、dual readerまたはmigration Operationを作らない。
 
 共通headerの`display_name`、Asset／Entity名、台詞、Localization source message、User comment、Promptその他のUser／Project原文は入力されたNFC UTF-8と宣言localeを保持する。AIまたはEditorは英語の正規技術語彙を理由に自動翻訳、transliteration、canonical Englishへの置換を行わない。翻訳は対象Localization entryまたはUserが明示した別Fieldへのtyped ChangeSetとしてだけ提案できる。
 

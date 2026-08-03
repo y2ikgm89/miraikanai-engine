@@ -6,7 +6,7 @@
 - 検証状態: design-reviewed
 - 正本範囲: Editor process model、Project Browser／Launcher projection、Shell配置、Panel／Workspaceの共通契約、Editor表示locale／AI返答locale preference、制作journey、外部IDE往復、AI Partner UX、手動編集との往復、Error／Recovery UX、AccessibilityとEditor操作性能
 - 非正本範囲: Engine release取得／install／update意味、Widget／Layout実装、Project transaction／VCS semantics、Project test semantics、Asset lifecycle、Gameplay contract、AI authorization／Approval、外部Tool・SDK・Libraryの固定値。各Owner文書を参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Editor UI Framework](editor-ui-framework.md)、[Project State](project-state.md)、[Asset Lifecycle](asset-lifecycle.md)
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Editor UI Framework](editor-ui-framework.md)、[Project State](project-state.md)、[Game Production Loop](game-production-loop.md)、[Asset Lifecycle](asset-lifecycle.md)
 - 関連文書: [Editor Panel／Reference Catalog](../appendices/editor-panel-reference-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Developer Testing](developer-testing.md)、[Native Game Module](native-game-module.md)、[Asset lifecycle](asset-lifecycle.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay programming model](gameplay-programming-model.md)、[World](../06-rendering/world.md)、[Scenario／Stage](../08-packs/scenario-stage.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
@@ -290,14 +290,14 @@ AI Partnerは単なるconversation logでなく、次のstateを分けて表示�
 
 | State | 表示 |
 |---|---|
-| Intent | User要求、対象、完了条件 |
-| Questions | High／Medium Impactの不足要件、回答、AI仮定 |
-| Plan | System／Scene／Asset／C++の作業単位と依存 |
+| Intent | exact `GameIntentSessionRefV1`／`GameIntentDraftRefV1`、production subject、User要求、完了条件 |
+| Questions | exact `GameQuestionRecordRefV1`／`GameAssumptionRecordRefV1`／`GameDecisionRecordRefV1`のcurrent headと未解決理由 |
+| Plan | exact `GameBriefDocumentRefV1`／`GameSpecDocumentRefV1`／`GameRequirementTraceabilityRefV1`から投影したSystem／Scene／Asset／C++のproposal scopeと依存 |
 | Proposal | 未Commit ChangeSet、Native／Asset Source change |
 | Validation | schema、semantic、budget、Build、Test、Preview |
 | `awaiting_code_owner` | Native／Shader Sourceの対象Scope、exact `role_ref`、Assignment／Approvalの不足または失効、待機／取消／Definition・prequalified Pack fallback |
 | Approval | Risk、対象、権限、期限 |
-| Result | Commit revision、Receipt、Playtest、Package／Device installの成果物参照とsmoke結果、rollback |
+| Result | exact Commit revision、Receipt、`PlaytestObservationSetRefV1`／`GameExperienceEvaluationRefV1`／`GameIterationDecisionRefV1`、Package／Device install結果、rollback |
 
 Panelは現在selection、open Document、Problems、Playtest結果をContext候補として表示し、送信前にUserが除外できる。Project全体を毎回Providerへ送らない。
 
@@ -319,9 +319,9 @@ AI PartnerはEngine validation、AI proposal、User selection、Runtime stateを
 
 #### 8.1.1 Task／Proposal／Review Reference Contract
 
-`task_proposal_review`は、AI Partnerが独自のTask／Approval／Receiptを作る場所ではない。Security／Approval、Verification／Provenance、Project Stateの各Ownerが発行したIntent、Question、Assumption、Decision、Task、Proposal、Validation、Approval、Receiptをread-onlyに投影する。Panel独自のTask state、Approval state、Receipt、Project write権限を持たず、表示名、カード、色、UIA、screen coordinate、Pattern IDからActionを発行しない。
+`task_proposal_review`は、AI Partnerが独自のTask／Approval／Receiptを作る場所ではない。Intent、Question、Assumption、Decision、Brief、Spec、Playtest、Evaluation、Iterationは[Game Production Loop](game-production-loop.md)のexact ref、Task／ApprovalはSecurity、EvidenceはVerification、Project revision／Proposal／CommitはProject Stateのexact refをread-onlyに投影する。Panel独自のGame理解schema、Task state、Approval state、Receipt、Project write権限を持たず、会話要約、表示名、カード、色、UIA、screen coordinate、Pattern IDからActionを発行しない。
 
-表示は`Intent → Question／Assumption／Decision → Task → Proposal → Validation → Approval → Promotion／Result → Receipt`の一方向とする。括弧内のApproval／PromotionはRisk、scope、Capabilityが要求する場合だけ表示する。各段階はTask ID／attempt ID、owner-issued ref／hash、base／current Project revision、semantic content hash、対象scopeで結び、[AI Security／Approval §3.2](../01-governance/ai-security-approval.md#32-task-state-machine)の15 Task stateをそのまま表示する。Build／Package／Deviceなどの`OperationTaskV1`は実行ledgerであり、Task stateのaliasにせず、Receiptから親Taskへ結果を投影する。
+表示は`Intent → Question／Assumption／Decision → Brief／Spec → Task → Proposal → Validation → Approval → Commit／Promotion → Playtest Observation → Experience Evaluation → Iteration Decision／Result → Receipt`の一方向とする。括弧内のApproval／PromotionはRisk、scope、Capabilityが要求する場合だけ表示する。各段階はTask ID／attempt ID、owner-issued ref／hash、base／current Project revision、semantic content hash、対象scopeで結び、[AI Security／Approval §3.2](../01-governance/ai-security-approval.md#32-task-state-machine)の15 Task stateをそのまま表示する。Build／Package／Deviceなどの`OperationTaskV1`は実行ledgerであり、Task stateのaliasにせず、Receiptから親Taskへ結果を投影する。
 
 - unresolvedなblocking Questionがある間はProposal作成・実行Actionを公開しない。Questionの回答、Assumptionのaccept、Decisionの変更はOwnerの登録済みCommandだけが行い、会話本文、scroll、`viewed`から自動解決しない。
 - ProposalはStaging上の候補であり、current Project valueを置換しない。Proposal Cardはproposal ref、base／current revision、対象scope、before／after Diff、Validation ref、Approval state、Risk、disabled reasonを同時表示する。accept／rejectはchange primitive、Document、fieldの明示単位だけに許し、部分accept後は新しいChangeSetを再構成して全Validatorを再実行する。`Accept all`、自動Commit、カードからの直接writeを禁止する。
@@ -361,13 +361,13 @@ Mode表示は常時visibleで、prompt本文によって自己昇格しない。
 
 ### 8.4 初心者workflow
 
-1. 大まかなPromptからGame Briefを抽出する。
-2. High Impact不足だけをGame用語で質問する。
-3. Userが「おまかせ」を選んだ項目はAI仮定と理由をDecision Ledgerへ記録する。
-4. 薄い全体と一つの深いplayable loopをDefinition-firstで提案し、適合するQualification済みPackがあればexact Pack／Variantを示す。
-5. Diff、Risk、予測時間／Asset量、Target影響を見せる。
-6. 検証後にCommitし、Playtest結果を自然言語と計測で返す。
-7. 会話で修正し、手動編集があればbase revisionから再読込する。
+1. 大まかなPromptを`GameIntentDraftRefV1`として捕捉し、production subjectとTask Authorizationを表示する。
+2. `GameQuestionRecordRefV1`のBlocking／Highを質問し、Mediumだけを期限・根拠・再検証条件付き`GameAssumptionRecordRefV1`として明示選択させる。
+3. User回答と「おまかせ」は`GameDecisionRecordRefV1`へ閉じ、確認済み`GameBriefDocumentRefV1`と`GameSpecDocumentRefV1`をProject ChangeSet候補にする。
+4. Requirement traceabilityと`GameUnderstandingClosureRefV1`が`ready_to_stage`の場合だけ、薄い全体と一つの深いplayable loopをDefinition-firstで提案する。
+5. Diff、Risk、Asset量、Target影響、AI generation lane、未解決Goalを見せる。工程・工数をArchitecture既定値として作らない。
+6. 検証後にCommitし、exact Playtest Sessionへtechnical Resultと人間のObservationを別々に記録する。
+7. `GameExperienceEvaluationRefV1`と`GameIterationDecisionRefV1`を表示し、`revise`では新しいTask Authorizationを取得して次iterationを始める。会話要約から旧Authorizationを再利用しない。
 8. Playable確認後のTarget選択、Package、Device install、smoke結果提示は、Build／Device／Play familyのatomic Activation後にだけ同じ会話journeyで利用できる。currentでは候補Operation／Task／Receipt／UI commandを公開せず、`capability_unavailable`と対応work itemを表示する。Activation後の各段階は§11の`BackgroundTask`として進み、Receiptと成果物参照をResultへ残す。
 
 初心者へC++／GameplayDefinition、ECS、Render Graph、ABIを選ばせない。Beginner MVPではAIが新規Native／Shader Source laneを選ばず、Definitionまたはprequalified Packで成立しないRequirementを`capability_unavailable`として示す。AdvancedでProject Sourceを明示選択した場合も、生成前の`CodeOwnerAssignmentV1`とexact Diffへの`CodeOwnerApprovalV1`はGameplay Approvalと別である。EditorはAssignmentのclosed 9-Field subject、exact `role_ref`、Scope、qualification、期間、`revoked_at=null`と、信頼済みrevocation registryの署名済みcurrent headをread-backする。Assignment Recordまたはsubject identityのcurrent revocation、snapshot missing／stale／invalid、Role欠落／unknown、RoleとScope kind不一致では`awaiting_code_owner`を表示してSource Workerを起動しない。

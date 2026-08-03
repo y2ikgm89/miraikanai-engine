@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Game production subject、Intent session／draft、Game Brief／GameSpec、Question／Answer／Assumption／Decision、Requirement traceability、Game understanding closure、AI game generation lane、Experience Goal、Playtest observation／evaluation、Iteration Decision、Game production loop closure、およびこれらを扱うtarget Operation familyの意味
+- 正本範囲: Game production subject、Intent session／draft、Game Brief／GameSpec／Game Decision Ledger、Question／Answer／Assumption／Decision、Requirement traceability、Game understanding closure、AI game generation lane、Experience Goal、Playtest observation／evaluation、Iteration Decision、Game production loop closure、およびこれらを扱うtarget Operation familyの意味
 - 非正本範囲: AI Task Authorization／Risk／Consent／Approval／Provider trust、Evidence envelope／署名／freshness、Project identity／Document共通header／ChangeSet／Commit、automated test runner／result、Gameplay System／Capability／Stateのdomain意味、Asset provenance／rights／safety、Build／Cook／Package／Launch、Product claim／First Playable／Release／Completion、実装順序／工程／工数／担当
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](project-state.md)、[Developer Testing](developer-testing.md)
 - 関連文書: [Product Lifecycle](../00-product/product-lifecycle.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace／UX](editor-workspace-ux.md)、[Editor UI Framework](editor-ui-framework.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Native Game Module](native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[RPG Genre Pack](../08-packs/rpg.md)
@@ -147,7 +147,17 @@ GameSpecDocumentV1.payload
   capability_requirement_refs[1..1024]: sorted unique exact CapabilityRefV1
   save_replay_contract_set_ref: exact ArtifactRefV1
   spec_decision_refs[1..1024]: sorted unique exact GameDecisionRecordRefV1
+
+GameDecisionLedgerDocumentV1.payload
+  production_subject_ref: exact GameProductionSubjectRefV1
+  current_decision_record_refs[1..1024]:
+    sorted unique exact GameDecisionRecordRefV1
+  retained_superseded_decision_record_refs[0..4096]:
+    sorted unique exact GameDecisionRecordRefV1
+  decision_subject_projection_hash: SHA-256
 ```
+
+`GameDecisionLedgerDocumentV1.current_decision_record_refs[]`は各logical decision subjectの非superseded current head exact一件とset equalityにし、retained集合はそのheadから`previous_decision_record_ref`で到達する全履歴とset equalityにする。Architecture ADR、Approval、runtime eventまたは会話logを混入させない。
 
 自由proseだけでRequirement、Target、Capability、Input、Save、rights、accessibility、locale、budgetまたはtest intentを充足しない。Brief確認後の意味変更は同じDocumentを上書きせず、新Document revisionとDecisionをProject ChangeSetへ含める。
 

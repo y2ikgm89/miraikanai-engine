@@ -7,7 +7,7 @@
 - 正本範囲: Project aggregate、Project／ProjectRevision identity、Authoring Document、ProjectChangeSetV1の意味とtransaction、Project Source変更／Promotion共通契約、Target readiness意味、Commit、Source／Derived境界、Project Source closure／canonical transport artifactとexact wire grammar、Undo／Redo、外部編集、Recovery、Version Control／repository interoperability、authoring target selection projectionの所有境界
 - 非正本範囲: 具体Document／Operation／Change primitive／readiness／fixture候補、VCS provider UI／credential／remote hosting、MCD共通Envelope、命名・Project配置、Asset lifecycle、Editor表示、Gameplay System、Native ABI、Runtime package
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Naming／Project Layout](../02-foundation/naming-project-layout.md)
-- 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Developer Testing](developer-testing.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
+- 関連文書: [Target Readiness／Fixture Candidate Catalog](../appendices/project-target-readiness-fixture-catalog.md)、[Game Production Loop](game-production-loop.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Asset Lifecycle](asset-lifecycle.md)、[Editor Workspace UX](editor-workspace-ux.md)、[Developer Testing](developer-testing.md)、[Gameplay Programming Model](gameplay-programming-model.md)、[Runtime Package](../04-runtime/runtime-package.md)、[World](../06-rendering/world.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -18,6 +18,8 @@ Projectの正規状態はEditor widget、Scene Tree、AI会話、Runtime World�
 AI、Editor、CLI、MCP、外部IDEは同じ`ProjectChangeSetV1`を提案する。Stateを確定できるのはAuthoring Command Gatewayだけであり、expected revision、全primitive、Policy、Validator、authorizationを検証して一つのrevisionとしてatomic commitする。
 
 [Product Lifecycle](../00-product/product-lifecycle.md)はTemplate、Target selection、Documentation、Engine releaseを一つのbootstrap profileへcompositionするが、最初のProject作成も本書のAuthoring Command Gatewayとatomic publicationを使用する。全initial DocumentとSource treeを一つのprepared candidateとして検証し、成功時だけ最初の`ProjectRevision`を発行する。失敗時はcurrent revision、openable partial Projectまたは権威を持つdestination manifestを残さない。Product Lifecycle、Editor、CLI、headlessにProject stateの別write pathを設けない。
+
+bootstrap requestの受理時に、未使用のstable `ProjectRefV1`をprepared candidateのidentityとして一件だけ割り当てる。この割当は[Game Production Loop](game-production-loop.md#4-game-production-subjectとintent-session)の`GameProductionSubjectV1.subject=bootstrap`がProject lineageを持つために利用できるが、Project aggregate、revision 1、Document index、destination manifestまたはopenable directoryの公開ではない。検証失敗または取消時に同じ`project_id`を別Projectへ再利用せず、成功したatomic publicationだけがそのidentityへ最初の`ProjectRevisionRefV1`を結ぶ。
 
 ## 2. 決定権と対象外
 
@@ -53,6 +55,8 @@ Project-scoped AI Taskでは、[AI Security／Approval](../01-governance/ai-secu
 
 全Documentはstable document ID、kind、schema ref、owner ref、revision、content hash、semantic hash、dependency refsを持つ。Path、表示名、Editor object identityをDocument identityとして保存しない。
 
+Game制作のinitial canonical Document kindには[Game Production Loop](game-production-loop.md#51-game-briefとgamespec-document)所有の`GameBriefDocumentV1`、`GameSpecDocumentV1`、`GameDecisionLedgerDocumentV1`を含む。Project Stateは共通header、Document index、revision、transactionだけを所有し、Brief／Spec payload、Decision current-head／履歴集合または理解完了条件を複製しない。旧`GameBriefV1`、裸の`GameSpecDocument`、`DecisionLedgerDocument`をalias、alternate readerまたはcandidate fallbackとして残さない。
+
 具体Document候補は[Target Readiness／Fixture Catalog](../appendices/project-target-readiness-fixture-catalog.md#31-正規document)へ分離する。補助Catalogの種類やFieldをmaterialized Schemaまたはcurrent Registryと解釈しない。
 
 ### 3.1.1 `RuntimeEntryPointV1`
@@ -77,7 +81,7 @@ Document headerはidentity、kind、schema、owner、revision、hash、dependenc
 
 ### 3.3 Decision Ledgerの有効性
 
-Decision LedgerはProject固有判断、subject、choice、reason、supersedesをappend-onlyに記録する。Architecture ADR、Approval Receipt、runtime event logを兼用しない。Current choiceは同一subjectの非superseded recordが一つである場合だけ解決する。
+Decision LedgerのDocument identity、revision、transactionは本書、payloadと`GameDecisionRecordV1`のcurrent-head／supersession意味は[Game Production Loop](game-production-loop.md#52-questionanswerassumptiondecision)が所有する。Architecture ADR、Approval Receipt、runtime event logを兼用せず、同一logical subjectにcurrent headがexact一件でなければDocument candidateをCommitしない。
 
 ### 3.4 Target readiness
 

@@ -7,7 +7,7 @@
 - 正本範囲: Game Project Developer向けtest suite／case／assertion／parameter／fixture input、GUI／CLI／headless runner、filter／shard／retry、isolation、result、report、public C++ test API、Project test release binding
 - 非正本範囲: Engine内部Unit／CI実装、AI Eval／Evidence envelope、Domain qualificationの意味、performance budget、Debug capture Schema、build／package semantics、Platform device farm。各Ownerを参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](project-state.md)、[Native Game Module](native-game-module.md)
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Native Game Module](native-game-module.md)、[Editor Workspace／UX](editor-workspace-ux.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)
+- 関連文書: [Game Production Loop](game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Native Game Module](native-game-module.md)、[Editor Workspace／UX](editor-workspace-ux.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)
 - 根拠区分: project-decision（外部test frameworkの仕様を引用する箇所はofficial-spec、未計測timeout／capacityはprovisional）
 - 外部根拠確認日: none
 
@@ -16,6 +16,8 @@
 第三者Developerが自分のGame Projectをrelease前に自動検証できることは、Engine内部testまたはReference Game qualificationで代用できない。MiraikanaiはProject sourceとしてversion管理できるpublic test contractと、Editor GUI、CLI、headlessから同じ意味で実行できるrunnerを製品surfaceとして持つ。
 
 Project testは本番Game Runtimeのauthorityを持たず、隔離されたtest execution contextで公開API、structured Gameplay、World、Input、Save、Render、Audioのobservable contractを検証する。test専用native backdoor、private Engine型、raw pointer、GPU／Physics handleへのaccessを公開しない。
+
+`play_scenario`はtechnical assertionと再現可能な`ProjectTestRunResultRefV1`を生成する。結果は[Game Production Loop](game-production-loop.md#8-experience-goalplaytestevaluation)の`PlaytestSessionDefinitionV1.automated_test_result_refs[]`へ入力できるが、人間の`PlaytestObservationSetV1`、`GameExperienceEvaluationV1`またはHuman Gameplay Approvalを生成・代替しない。
 
 [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)はEvidenceの署名、集約、freshness、retry／quarantine policyを所有する。本書はGame Developerが書くtestの意味とrunner resultを所有し、Project testのpassだけからEngine qualification、Capability activationまたはProduct releaseを発行しない。
 
@@ -361,6 +363,8 @@ Case attempt statusは`passed | assertion_failed | crashed | timed_out | cancell
 Run statusはfinal outcomeの決定論的aggregateである。全selected identityが初回`passed`なら`passed`、一件でもflakyで他にhard failureがなければ`flaky`、case failure／unsupportedは`failed`、User cancellationは`cancelled`、runner／environment failureは`infrastructure_error`とし、複数failure classの優先順位をRun aggregate Algorithm v1のcontent hashへ固定する。Result作成者がsummary statusを選ばず、Case Attempt、final outcome、Selectionの三集合から再計算してbyte equalityにする。
 
 Human-readable report、JUnit等の外部format、Editor panelはcanonical resultのProjectionでありauthorityではない。Projection failure、truncation、locale差でcanonical statusを変えない。reportにはomitted artifact、redaction、next pageまたは取得失敗を明示する。
+
+`test_kind=play_scenario`が`passed`でも、面白さ、理解しやすさ、pacing、affect、accessibility usabilityまたはHuman Gameplay Approvalをpassとしない。逆にPlaytest Observationが良好でも、missing case、assertion failure、crash、timeout、unsupported environment、flakyまたはinfrastructure errorをtechnical passへ変換しない。両者の集約はGame Production Loopがexact refを用いて行う。
 
 ## 10. Public C++ test API
 
