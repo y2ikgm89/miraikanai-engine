@@ -333,3 +333,25 @@ activation、releaseまたはProduct completionを証明しない。
 | Exact terminal response／marker | `gltf_dependency_target_selected_materialization_pending`／`[[MIRAIKANAI-PLAN-AUDIT-20260803-ARCH-C135-DECISION-RECORDED]]` |
 | Response digest | `unavailable`（最終chat responseをimmutable Artifactとして保持しないため。推測または再構築しない） |
 | Retention disposition | `retain-transient-until-owner-and-materialization-closure`。repository外の原監査Artifactは本作業で削除しない |
+
+## 8. AI-NATIVE-ARCH-RECONSTRUCTION-20260803-LOCAL
+
+| Field | Value |
+|---|---|
+| Evidence classification | `non-normative local Architecture adjudication summary` |
+| Date | 2026-08-03 |
+| Route／mode | Codex desktop local Repository review＋Context7＋公式一次資料。Browser ChatGPT、Project memory、外部consultation、attachment／uploadは使用していない |
+| Scope | AI-native Game production loop、Playtest iteration、AI generation claim lane、compact 2D command RPG First Playable、Evidence freshness、Gameplay System graph、Minimum Executable Core、Operation planning partition、reference integrity。Engine実装、実装計画、工程、工数、担当、実行可能Schema／Registry／Fixture／Receiptは対象外 |
+| Input Architecture corpus | 102 Markdown／5,107,171 bytes。sorted `relative-path LF file-sha256 LF` repetitionのUTF-8 LF manifest 12,538 bytes／SHA-256 `86791b250a886e24cbfa782be2a330eeb725bac5c8f07b2ba0789a1674b58927` |
+| Owner／ID inventory | manual Architecture Index 64 Owner row、Header文書ID 102／unique 102。generated `ArchitectureInventoryV1`ではない |
+| Valid-gap count | 8 canonical closure subject、`ARCH-C137`～`ARCH-C144`。6件`closed-in-target-design`、2件`corrected-in-review`。全件で実装／materialization／Qualificationの残存境界を維持 |
+| Canonical Owners／consumers | [Product Plan](../architecture/00-product/product-plan.md)、[Product Lifecycle](../architecture/00-product/product-lifecycle.md)、[AI Security／Approval](../architecture/01-governance/ai-security-approval.md)、[AI Verification／Provenance](../architecture/01-governance/ai-verification-provenance.md)、[Core Architecture](../architecture/02-foundation/core-architecture.md)、[Executable Contracts](../architecture/02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../architecture/02-foundation/toolchain-dependencies.md)、[Memory／Pointers](../architecture/02-foundation/memory-pointers.md)、[Game Production Loop](../architecture/03-authoring/game-production-loop.md)、[Gameplay Programming Model](../architecture/03-authoring/gameplay-programming-model.md)、[Runtime Package](../architecture/04-runtime/runtime-package.md)、[Scheduling／Lifetime](../architecture/04-runtime/scheduling-lifetime.md)、[Performance／Capacity](../architecture/04-runtime/performance-capacity.md)、[RPG Genre Pack](../architecture/08-packs/rpg.md)、[Gameplay Feature Packs](../architecture/08-packs/gameplay-features.md)、非規範[Operation Planning Catalog](../architecture/appendices/executable-contracts-operation-planning-catalog.md)／[Product Execution Registry Proposal](../architecture/appendices/product-execution-registry-proposal.md) |
+| External primary evidence | [CMake 4.4 Presets](https://cmake.org/cmake/help/v4.4/manual/cmake-presets.7.html)、[CMake 4.4 File API](https://cmake.org/cmake/help/v4.4/manual/cmake-file-api.7.html)、[CMake 4.4.2 release](https://github.com/Kitware/CMake/releases/tag/v4.4.2)、[CMake 4.4 release notes](https://cmake.org/cmake/help/v4.4/release/4.4.html)、[MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28) |
+| Closure result | canonical Owner／consumer反映済み。Architecture terminal validator、全相対link／fragment、規範依存cycle、型所有、current-empty stateの最終監査はpending |
+| Exact terminal response／marker | `owner_reconstruction_applied_terminal_audit_pending`／`[[MIRAIKANAI-AI-NATIVE-ARCH-RECONSTRUCTION-OWNER-CLOSURE-RECORDED-20260803]]` |
+| Response digest | `unavailable`（chat responseをimmutable Artifactとして保持せず、推測または再構築しない） |
+| Retention disposition | external consultation transcript／attachment／screenshotを作成していない。削除対象のrepository内transient consultation dataは0件。Architecture文書と本compact summaryだけを保持する |
+
+この記録はtarget ArchitectureのOwner closureと文書修正を示すだけである。C++ source、
+Build system、MCD Schema、Registry、Operation、Project、Fixture、Receipt、Qualification、
+Capability activation、First Playable完成、releaseまたはProduct completionの証拠ではない。
