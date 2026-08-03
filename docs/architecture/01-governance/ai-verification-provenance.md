@@ -7,7 +7,7 @@
 - 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Qualification Scenario／Evidence Class identity、generic Verification Scope／subject contract／Evidence／Qualification Receipt spine、semantic admissibility predicateとclosed resolver Registry、`MirakanSignedRecordV1`共通署名Envelope／Ref、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
 - 非正本範囲: Domain固有Evidence／Receipt payload、materialized Registry／Fixture候補、AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。補助文書または各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
@@ -376,6 +376,25 @@ Build provenanceはSource、Dependency lock、Toolchain、Builder、command prof
 ## 10. External evidence、保持、freshness
 
 FreshnessはEvidence class、対象、変更trigger、最大期間から決定する。時刻だけでなくSource、Dependency、Toolchain、Model、Policy、Target、Dataset変更でも失効させる。保持期限と削除要件は監査要件とsensitivityを分離して定義する。
+
+### 10.1 Evidence effective state
+
+```text
+EvidenceEffectiveStateV1 = fresh | expired | revoked | invalid
+```
+
+Evidence consumerは、完成Evidence recordと署名wrapper、評価時のcurrent Trust／revocation snapshot、purpose、subject、required context、freshness policy、`evaluation_time`から一つのeffective stateを導出する。複数条件が同時に成立する場合の唯一の優先順位は`invalid > revoked > expired > fresh`である。
+
+| state | exact condition |
+|---|---|
+| `invalid` | schema／canonical encoding、署名、purpose、owner Type、subject／content hash、required Evidence集合、Trust chain、Project／Candidate／Contract set／Target／environment contextのいずれかが欠損、不一致または検証不能 |
+| `revoked` | record、subject、issuer、Role、Key、Policyまたはtransitive Evidenceの一件が評価時current revocation snapshotで失効し、かつ`invalid`条件がない |
+| `expired` | validかつnon-revokedだが`evaluation_time >= expires_at`、またはfreshness policyが固定するsource generation、Toolchain、Model、Dataset、Target／device environmentの許容期間外 |
+| `fresh` | valid、non-revoked、期限内で、purpose、subject、required context、current generation／environmentが全てbyte equality |
+
+`stale`を第五stateとして保存しない。Project／Candidate／Contract set／Target／generation／context mismatchは`invalid`、時間またはpolicy window超過は`expired`とし、原因別Diagnosticへ元のstale reasonを保持する。未知state、評価時刻欠損、current revocation snapshot欠損、freshness policy未解決を`fresh`へdefaultしない。Positive Evidence、coverage、Qualification、Approval、Promotion、Activation、ReleaseおよびGame understanding／production loop closureへ数えられるのは`fresh`だけである。
+
+Evidence集合のeffective stateは各memberへ同じ評価contextを適用して導出し、一件でも`fresh`以外なら集合全体をpositive closureとして受理しない。上位Receiptで古いEvidenceを再包装して期限を延長せず、transitive memberの`invalid | revoked | expired`を上位の新しい署名で相殺しない。
 
 ## 11. Dependency／toolchain Evidence
 

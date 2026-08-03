@@ -6,119 +6,19 @@
 - 実装状態: absent
 - 検証状態: design-reviewed
 - 親Owner: [AI Security／Approval](../01-governance/ai-security-approval.md)
-- 正本範囲: Beginner question、assumption、Project data境界とprovisional Game understanding候補の説明
-- 非正本範囲: 親Ownerが所有する安定Architecture原則、実装Task、実装順序、生成済みArtifactまたはQualification結果
+- 正本範囲: Beginner question／assumptionの説明、Game production recordを用いるsecurity guidance、Project data／Engine境界、negative scenario
+- 非正本範囲: Game intent／Brief／Spec／Question／Assumption／Decision／理解closureの型と意味、親Ownerが所有するAuthorization／Capsule、実装Task、実装順序、生成済みArtifactまたはQualification結果
 - 規範依存: [親Owner](../01-governance/ai-security-approval.md)
-- 関連文書: [Architecture Governance](../01-governance/architecture-governance.md)
+- 関連文書: [Game Production Loop](../03-authoring/game-production-loop.md)、[Architecture Governance](../01-governance/architecture-governance.md)
 - 根拠区分: project-decision／provisional。実ArtifactがないRegistry、Catalog、Fixtureは候補
 - 外部根拠確認日: 2026-07-27
 
-> この補助文書の型、Registry、Catalog、Fixtureはprovisionalな設計候補である。対応する正本Ownerとexact MCD Typeが親Ownerで採択され、Repository Artifactが存在するまでcurrent Schema、Context input、実装済み状態または理解完了を意味しない。親Ownerの`AiTaskContextCapsuleV1`／projection bindingを上書きしない。
+> 本書はGame production型を定義しない。[Game Production Loop](../03-authoring/game-production-loop.md)のcanonical type／Refをsecurity guidanceへ使用し、[親Owner](../01-governance/ai-security-approval.md)の`AiTaskContextCapsuleV1`／projection bindingを上書きしない。以下のRegistry、Catalog、Fixture候補は対応Artifactが存在するまでcurrent、実装済みまたはqualifiedではない。
 ## 5. Beginner questions、assumptions、理解条件
 
-上位理解recordの候補familyは`GameIntentDraftV1`、`GameBriefV1`、`GameSpecDocumentV1`、`QuestionRecordV1`、`AssumptionRecordV1`、`DecisionRecordV1`、`GameUnderstandingClosureV1`、`AiCatalogEntryV1`である。これは許可済みtop-level Schema集合ではない。各候補は正本Owner、全direct ref、bound、canonical order、hash、Requirement／Project／Evidence joinが同じArchitecture Changeで確定するまでMCD Registryへ登録せず、`AiTaskContextCapsuleV1`へ束縛しない。以下のshapeは論点保全用であり、不足型を同名shadow schema、自由JSONまたは表示名から補完しない。
+[Game Production Loop §4–§6](../03-authoring/game-production-loop.md#4-game-production-subjectとintent-session)は`GameIntentDraftV1 → GameBriefDocumentV1 → GameSpecDocumentV1 → GameUnderstandingClosureV1`と、`GameQuestionRecordV1`／`GameAssumptionRecordV1`／`GameDecisionRecordV1`を一意に所有する。本書はそれらのField、bound、hash、dispositionまたはRef tupleを複写しない。不足型を同名shadow schema、自由JSON、表示名、会話summaryまたは旧candidate名から補完しない。
 
-`GameIntentDraftV1 -> GameBriefV1 -> GameSpecDocumentV1 -> GameUnderstandingClosureV1`は各content-addressed refで一方向に連結する。Briefはhuman確認subject／時刻、SpecはProject snapshot、ClosureはBrief／Spec／Question／Assumption／DecisionとRequirementからArtifactまでのEvidence closureをexact hashで束縛する。`AiCatalogEntryV1.production_owner_layer=core | feature_pack | genre_pack | game_project`はproduction ownership、`artifact_role=production | cross_cutting_control_plane | reference_game | fixture | qualification`はartifact用途であり、二軸を混同しない。Provider／Model／Host／Deployment Profileも独立四ref集合とし、brand別schema branchを禁止する。`AiTaskContextCapsuleV1`はTask Authorizationとactive Operation refの積集合を持つread-only／Disposable projectionで、Capsule自身、自由文のselection reasonまたはcontinuation tokenは権限にならない。
-
-質問、Default、DecisionのSecurity-owned stateは次のclosed shapeである。Scalar、Ref、presence、ordering、hash規則は上記九Schema共通規則を使用する。
-
-```text
-QuestionRecordV1
-  schema_version: 1
-  question_id: StableId
-  project_ref: ProjectSnapshotRefV1
-  subject_ref: TypedArtifactRefV1
-  question_class: blocking | high | medium | low
-  question_text: Text<2048>
-  impact_text: Text<2048>
-  resolution:
-    open: {}
-    | answered:
-        answer_text: Text<4096>
-        answer_evidence_refs[0..32]: EvidenceArtifactRefV1
-        decision_ref: DecisionRecordRefV1
-        answered_by_subject_ref: TrustSubjectRefV1
-        answered_at: UtcTimestamp
-    | withdrawn:
-        reason_text: Text<2048>
-        decision_ref: DecisionRecordRefV1
-        withdrawn_by_subject_ref: TrustSubjectRefV1
-        withdrawn_at: UtcTimestamp
-  created_at: UtcTimestamp
-  content_hash: Sha256
-
-AssumptionRecordV1
-  schema_version: 1
-  assumption_id: StableId
-  project_ref: ProjectSnapshotRefV1
-  source_question_ref: QuestionRecordRefV1(question_class=medium,resolution=open)
-  assumption_class: medium_default
-  default_value_ref: TypedAssumptionValueRefV1
-  default_summary: Text<2048>
-  default_basis_refs[1..32]: EvidenceArtifactRefV1
-  valid_from: UtcTimestamp
-  expires_at: UtcTimestamp
-  revalidation_condition_refs[1..32]: RevalidationConditionRefV1
-  acceptance:
-    proposed: {}
-    | accepted:
-        acceptance_decision_ref: DecisionRecordRefV1
-        accepted_by_subject_ref: TrustSubjectRefV1
-        accepted_at: UtcTimestamp
-    | superseded:
-        replacement_assumption_ref: AssumptionRecordRefV1
-        supersession_decision_ref: DecisionRecordRefV1
-        superseded_at: UtcTimestamp
-  content_hash: Sha256
-
-DecisionRecordV1
-  schema_version: 1
-  decision_id: StableId
-  project_ref: ProjectSnapshotRefV1
-  decision_kind:
-    experience | requirement | constraint | implementation |
-    target_profile | capability_disposition
-  subject_ref: TypedArtifactRefV1
-  selected_option_ref: TypedDecisionOptionRefV1
-  rejected_option_refs[0..32]: TypedDecisionOptionRefV1
-  rationale_text: Text<4096>
-  evidence_refs[0..64]: EvidenceArtifactRefV1
-  decided_by_subject_ref: TrustSubjectRefV1
-  decided_at: UtcTimestamp
-  content_hash: Sha256
-
-GameUnderstandingClosureV1
-  schema_version: 1
-  closure_id: StableId
-  project_ref: ProjectSnapshotRefV1
-  game_brief_ref: GameBriefRefV1
-  game_spec_ref: GameSpecDocumentRefV1
-  question_record_refs[0..512]: QuestionRecordRefV1
-  assumption_record_refs[0..256]: AssumptionRecordRefV1
-  decision_record_refs[1..1024]: DecisionRecordRefV1
-  requirement_set_ref: RequirementSetRefV1
-  requirement_traceability_ref: RequirementTraceabilityRefV1
-  system_graph_ref: SystemGraphRefV1
-  state_owner_map_ref: StateOwnerMapRefV1
-  capability_scope_ref: CapabilityScopeRefV1
-  save_replay_contract_set_ref: SaveReplayContractSetRefV1
-  target_profile_refs[0..64]: TargetProfileRefV1
-  behavior_budget_refs[1..128]: BudgetProfileRefV1
-  test_plan_ref: TestPlanRefV1
-  evidence_closure_ref: EvidenceClosureRefV1
-  project_shader_understanding_closure_refs[0..256]:
-    ShaderUnderstandingClosureRefV1
-  unsupported_capability_refs[0..256]: CapabilityRefV1
-  unresolved_blocking_question_count: uint16
-  unresolved_high_question_count: uint16
-  unresolved_medium_question_count: uint16
-  unresolved_low_question_count: uint16
-  disposition: ready_to_stage | capability_unavailable
-  content_hash: Sha256
-
-```
-
-current Capsule／Projection bindingのSchema、Operation intersection、freshness、authorityは[親Owner §5](../01-governance/ai-security-approval.md#5-beginner-questionsassumptions理解条件)だけが所有する。`GameUnderstandingClosureV1`候補は、その全direct refのOwner採択後にcomplete Projectionを要求する候補であり、現在はbinding不能である。Architecture Explainは完成Inventory、Optimization Decisionは完成sealed qualification closureがなければbinding不能で、文書断片、raw traceまたはAI生成要約で補完しない。
+`AiTaskContextCapsuleV1`はTask Authorizationとactive Operation refの積集合を持つread-only／Disposable projectionで、Capsule自身、Game理解record、自由文のselection reasonまたはcontinuation tokenは権限にならない。Game Understandingを要求するOperationでは、親Owner §5がcanonical `GameUnderstandingClosureRefV1`をcomplete／current／authorized projectionとして検証し、`ready_to_stage`以外、`fresh`でないEvidence、wrong Project／Candidate／TargetをModel呼出し前に拒否する。
 
 質問を次に分類する。
 
@@ -131,11 +31,11 @@ current Capsule／Projection bindingのSchema、Operation intersection、freshne
 
 初回はBlockingとHighを最大7問へまとめる。超える場合はGame core、Visual、Platform／Businessの順に分割する。初心者向けUIは複雑さを隠せるが、質問、仮定、Risk、Approval、制限を省略してはならない。
 
-大まかなPromptはGameIntentDraft、Capability／Platform／権利／Online／Save／年齢／Performance検査、質問、GameBrief、人間確認、First Playable Scope、実装方式、Staging、Gate、Approvalの順で処理する。
+大まかなPromptは`GameIntentDraftV1`、Capability／Platform／権利／Online／Save／年齢／Performance検査、`GameQuestionRecordV1`、`GameBriefDocumentV1`、人間確認、First Playable Scope、実装方式、Staging、Gate、Approvalの順で処理する。
 
-AIの「理解した」という自己申告を状態にしない。`QuestionRecordV1.resolution`はopen／answered／withdrawnのexact一branchで、回答文字列だけ、callerの「回答済み」、Decision refなしのansweredを拒否する。`AssumptionRecordV1`はMedium open質問だけをsourceにし、typed `default_value_ref`、根拠1件以上、有限の`expires_at`、再検証条件1件以上を全て必須にする。根拠0、無期限sentinel、期限切れ、再検証条件0、Closure Question集合のsame-ID different-hash、同一質問への複数active assumptionでは進行しない。条件成立またはEvidence freshness切れ時は、期限前でも新Decision／Assumption hashを発行して再検証する。
+AIの「理解した」という自己申告を状態にしない。`GameQuestionRecordV1.resolution`はopen／answered／withdrawnのexact一branchで、回答文字列だけ、callerの「回答済み」、Decision refなしのansweredを拒否する。`GameAssumptionRecordV1`はMedium open質問だけをsourceにし、typed Default、根拠1件以上、有限の`expires_at`、再検証条件1件以上を全て必須にする。根拠0、無期限sentinel、期限切れ、再検証条件0、Closure Question集合のsame-ID different-hash、同一質問への複数active assumptionでは進行しない。条件成立またはEvidence freshness切れ時は、期限前でも新Decision／Assumption hashを発行して再検証する。
 
-`GameUnderstandingClosureV1`は終端Recordであり、Blocking／High／Low openを0件にする。Medium openは同じQuestion refに対する`acceptance=accepted`かつ`valid_from <= evaluation time < expires_at`のAssumption exact一件だけを許可する。四countは解決済みQuestion集合から再計算し、Brief／Spec／Question／Assumption／DecisionのProject lineageと全ref hashを一致させる。`disposition`へ第三のstateや自由文字列を追加しない。ready_to_stageには上記質問closure、RequirementからCapability／Pack／System／Implementation／Test／Artifactまでの追跡100%、State owner重複0、stale Evidence 0、unsupported required Capability 0が必要である。Project Shaderを含むSystemは全参照Module／Techniqueに有効な`ShaderUnderstandingClosureV1`と`ProjectShaderQualificationReceiptV1`を必要とし、欠落／stale／Target不一致をGame全体の理解で相殺しない。必須Requirementに未対応Capabilityがあればcapability_unavailableにするが、質問／Assumption closureを緩和しない。
+`GameUnderstandingClosureV1`の終端条件はcanonical Ownerだけを参照する。Security preflightは`disposition=ready_to_stage`、同一Project lineage、complete exact refs、required Evidenceの`fresh`を確認し、第三state、自由文字列、AI override、別Project／Target／CandidateのClosureを拒否する。Project Shaderを含むSystemは全参照Module／Techniqueに有効な`ShaderUnderstandingClosureV1`と`ProjectShaderQualificationReceiptV1`を必要とし、欠落／`fresh`でない／Target不一致をGame全体の理解で相殺しない。
 
 ## 6. Project data、Project C++／Shader／Native module
 

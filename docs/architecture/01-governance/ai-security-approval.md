@@ -7,7 +7,7 @@
 - 正本範囲: AI task authorization、`AiTaskContextCapsuleV1`／authorized projection binding、Risk、Trust boundary、不変Engine、Sandbox、Credential原則、Provider／MCP／CLI security原則、Preview、人間承認、Consent Recordとpurpose binding、Activation、Promotion、拒否
 - 非正本範囲: Eval、Evidence envelope、Provenance、Trace grading、Receipt保持、同意を提示するUI、Platform privacy declaration、data retention／deletion policy。これらはAI Verification／Provenanceまたは各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
+- 関連文書: [MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)、[AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Project state](../03-authoring/project-state.md)、[Native game module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-08-03
 
@@ -590,7 +590,7 @@ MutationAuthorizationBindingV1
 
 ## 5. Beginner questions、assumptions、理解条件
 
-質問／assumption／Game understandingの候補recordとBeginner向け説明は[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md#5-beginner-questionsassumptions理解条件)へ分離する。候補名の存在をcurrent Schema、Context inputまたはAI理解完了へ読み替えない。`GameUnderstandingClosureV1`はRequirement／traceability／system graph／state owner／Capability scopeの各canonical Ownerとexact refが確定するまで`provisional`であり、current `AiTaskContextCapsuleV1`へ束縛できない。
+Game intent、Question／Assumption／Decision、Brief／Spec、理解完了、Playtest／Iterationのpayload意味は[Game Production Loop](../03-authoring/game-production-loop.md)だけが所有する。本書はそれらをopaqueなregistered Projection Type／Artifact refとして扱い、Field、disposition、Question classまたはclosure predicateを再定義しない。Beginner向けsecurity説明とnegative scenarioは[AI Security Assumptions／Questions Guide](../appendices/ai-security-assumptions-guide.md#5-beginner-questionsassumptions理解条件)へ分離する。
 
 AI Taskへ渡すcurrent target contractは、任意の名前付き「context pack」ではなく次の共通Capsuleとregistered projection bindingである。
 
@@ -649,9 +649,11 @@ AiTaskContextCapsuleV1
   capsule_content_hash: SHA-256
 ```
 
-`projection_contract_ref`はcurrent Contract setでexactly one complete MCD Type recordへ解決し、各Operation input schemaが許可するprojection contract集合とCapsule内集合をset equalityにする。Architecture、Editor、Project、World、ECS、Memory、Optimization、Debug等のOwnerは自分のProjection Schemaを所有し、AI SecurityへFieldを複写しない。未materialize、未Activation、provisional、stale、revokedまたはwrong Project revisionのProjectionを、Markdown断片、screen capture、自由JSON、同名typeまたは別Owner Projectionで補完しない。
+`projection_contract_ref`はcurrent Contract setでexactly one complete MCD Type recordへ解決し、各Operation input schemaが許可するprojection contract集合とCapsule内集合をset equalityにする。Architecture、Game Production、Editor、Project、World、ECS、Memory、Optimization、Debug等のOwnerは自分のProjection Schemaを所有し、AI SecurityへFieldを複写しない。未materialize、未Activation、incomplete、`fresh`でない、wrong Project revisionまたはAuthorization scope外のProjectionを、Markdown断片、screen capture、自由JSON、同名typeまたは別Owner Projectionで補完しない。
 
 `subject_revision_binding.revision_contract_ref`はOperationが対象subjectに要求するcurrent MCD revision Typeへexact解決し、artifact ref／hashはその完成revision recordとbyte equalityにする。Project taskでは[Project State](../03-authoring/project-state.md)が登録するProject revision contractだけを許すが、Governance層の本SchemaへAuthoring型を複写しない。ProjectionとCapsuleのrevision bindingはbyte equality、`projection_artifact_ref`／hashは完成Projection bytes、`owner_document_id`はそのMCD Typeの一意Owner、source revisionはProjection lineageとbyte equalityにする。`complete`を要求するTypeへbounded queryを渡さず、bounded queryはomitted rangeとcontinuationを保存する。`issued_at < expires_at`かつCapsule expiryはAuthorization、Projection、Policy、Receiptの最短expiryを超えない。dispatch直前に全ref／hash／freshness／revocation／Operation intersectionをread-backし、一件でもdriftしたCapsuleをrebase、部分利用または別Projectionへfallbackせず新Capsuleを要求する。Capsuleはread-only input manifestであり、Operation、Authority、Approval、selectionまたはcontinuation権限を新設しない。
+
+Game制作Operationがcomplete理解を要求する場合、bindingはGame Production Loop Ownerの完成`GameUnderstandingClosureV1`を解決し、`disposition=ready_to_stage`、同じproduction subject／Project lineage／Contract set／Target集合、[AI Verification／Provenance §10.1](ai-verification-provenance.md#101-evidence-effective-state)で全required Evidenceが`fresh`、Task Authorization scope内であることをdispatch直前に検証する。欠損、`capability_unavailable`、別Candidate、古いclosure、会話要約または同名自由JSONをbindingにしない。
 
 <a id="trust-identity-spine"></a>
 
