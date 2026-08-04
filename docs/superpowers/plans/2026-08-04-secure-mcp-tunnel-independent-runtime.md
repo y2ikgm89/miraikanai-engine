@@ -4,7 +4,7 @@
 
 **Goal:** 廃止済みPersonal Skillへ依存せず、`G:\workspace`だけを読むexact 4-Tool MCP Serverを独立runtimeとして構築し、既存`g-workspace-readonly` Secure MCP Tunnel Profileへ安全に接続して、現在のWindowsユーザーのログオン30秒後に最小権限で自動起動する。
 
-**Architecture:** `%LOCALAPPDATA%\MCP\g-workspace-readonly`を独立したPython project兼Local Git repositoryとし、CPython 3.14.6、uv lock、専用venv、MCP Python SDK v2の`MCPServer`でread-only Serverを実装する。Server単体／stdio検証が完了するまで既存Profileを変更せず、sanitized baselineとbackupを取得後にMCP commandだけを切り替える。Tunnel ready後、current-user／interactive-token／limited-run-levelのScheduled Taskを登録し、manual start、性能guardrail、次回実ログオンの順に受入確認する。
+**Architecture:** `%LOCALAPPDATA%\MCP\g-workspace-readonly`を独立したPython project兼Local Git repositoryとし、CPython 3.14.6、uv lock、専用venv、MCP Python SDK v2のlow-level `Server`でread-only Serverを実装する。Low-level APIを選ぶ理由は、公開input／output schema、未知argument拒否、typed errorをpublic APIだけで明示できるためである。Server単体／stdio検証が完了するまで既存Profileを変更せず、sanitized baselineとbackupを取得後にMCP commandだけを切り替える。Tunnel ready後、current-user／interactive-token／limited-run-levelのScheduled Taskを登録し、manual start、性能guardrail、次回実ログオンの順に受入確認する。
 
 **Tech Stack:** CPython 3.14.6、uv 0.12.1、MCP Python SDK `mcp==2.0.0`、Pillow 12.3.0、pypdf 6.14.2、python-docx 1.2.0、python-pptx 1.0.2、openpyxl 3.1.5、pytest 9.1.1、PowerShell 7／Windows PowerShell ScheduledTasks、OpenAI `tunnel-client` v0.0.10、Windows Task Scheduler
 
@@ -267,7 +267,7 @@ Expected: one root commit containing only metadata, lock, and the RED test.
 - Create: `%LOCALAPPDATA%\MCP\g-workspace-readonly\src\readonly_local_files\server.py`
 - Modify test: `%LOCALAPPDATA%\MCP\g-workspace-readonly\tests\test_catalog.py`
 
-**Interfaces:** Produces immutable limits, Pydantic result models, `ReadonlyFileError`, exact `ToolAnnotations`, `create_server(root: Path) -> MCPServer`, and four registered Tool definitions with temporary typed `not-ready` behavior.
+**Interfaces:** Produces immutable limits, Pydantic result models, `ReadonlyFileError`, exact `ToolAnnotations`, `build_tool_catalog() -> tuple[Tool, ...]`, `create_server(root: Path) -> Server`, and four explicit Tool schemas with temporary typed `not-ready` behavior.
 
 - [ ] **Step 1: Extend catalog tests for schemas and forbidden capabilities**
 
@@ -386,16 +386,22 @@ class FetchResult(StrictModel):
 
 Also define internal immutable `ResolvedFile` and `ExtractedArtifact` dataclasses. `ExtractedArtifact` contains text, MIME, extractor, source byte count, SHA-256, format metadata, and optional original image bytes／MIME.
 
-- [ ] **Step 3: Create an exact `MCPServer` catalog**
+- [ ] **Step 3: Create an exact low-level `Server` catalog**
 
-In `server.py`, use only the official v2 high-level API:
+The official v2 high-level decorator omits `additionalProperties: false` and ignores unknown arguments. Use the official low-level API so the approved fail-closed input contract is explicit:
 
 ```python
 from pathlib import Path
-from typing import Annotated
+from typing import Any
 
-from mcp.server import MCPServer
-from mcp.types import CallToolResult, TextContent
+from mcp.server import Server, ServerRequestContext
+from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    Tool,
+)
 
 from .models import (
     ALLOWED_ROOT,
@@ -407,35 +413,63 @@ from .models import (
 )
 
 
-def create_server(root: Path = ALLOWED_ROOT) -> MCPServer:
-    mcp = MCPServer("G Workspace Readonly")
+def _input_schema(
+    properties: dict[str, dict[str, Any]],
+    required: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    schema = {
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": False,
+    }
+    if required:
+        schema["required"] = list(required)
+    return schema
 
-    @mcp.tool(
-        name="list_allowed_directories",
-        annotations=READ_ONLY_ANNOTATIONS,
+
+def build_tool_catalog() -> tuple[Tool, ...]:
+    definitions = (
+        ("list_allowed_directories", _input_schema({}), AllowedDirectoriesResult),
+        ("list_directory", _input_schema({"path": {"type": "string"}}, ("path",)), DirectoryResult),
+        ("search", _input_schema({"query": {"type": "string"}}, ("query",)), SearchResult),
+        ("fetch", _input_schema({"id": {"type": "string"}}, ("id",)), FetchResult),
     )
-    def list_allowed_directories(
-    ) -> Annotated[CallToolResult, AllowedDirectoriesResult]:
+    return tuple(
+        Tool(
+            name=name,
+            description=name,
+            inputSchema=input_schema,
+            outputSchema=model.model_json_schema(),
+            annotations=READ_ONLY_ANNOTATIONS,
+        )
+        for name, input_schema, model in definitions
+    )
+
+
+def create_server(root: Path = ALLOWED_ROOT) -> Server:
+    catalog = build_tool_catalog()
+
+    async def list_tools(
+        ctx: ServerRequestContext,
+        params: PaginatedRequestParams | None,
+    ) -> ListToolsResult:
+        return ListToolsResult(tools=list(catalog))
+
+    async def call_tool(
+        ctx: ServerRequestContext,
+        params: CallToolRequestParams,
+    ) -> CallToolResult:
         raise RuntimeError("not-ready")
 
-    @mcp.tool(name="list_directory", annotations=READ_ONLY_ANNOTATIONS)
-    def list_directory(
-        path: str,
-    ) -> Annotated[CallToolResult, DirectoryResult]:
-        raise RuntimeError("not-ready")
-
-    @mcp.tool(name="search", annotations=READ_ONLY_ANNOTATIONS)
-    def search(query: str) -> Annotated[CallToolResult, SearchResult]:
-        raise RuntimeError("not-ready")
-
-    @mcp.tool(name="fetch", annotations=READ_ONLY_ANNOTATIONS)
-    def fetch(id: str) -> Annotated[CallToolResult, FetchResult]:
-        raise RuntimeError("not-ready")
-
-    return mcp
+    return Server(
+        "G Workspace Readonly",
+        version="1.0.0",
+        on_list_tools=list_tools,
+        on_call_tool=call_tool,
+    )
 ```
 
-Use Pydantic return models to generate explicit output schema. `fetch` uses `Annotated[CallToolResult, FetchResult]` because it may return both structured metadata and MCP `ImageContent`.
+Use Pydantic result models only to generate explicit output schema. Tool calls return low-level `CallToolResult`, allowing `fetch` to include both structured metadata and MCP `ImageContent`.
 
 - [ ] **Step 4: Run catalog tests and verify GREEN**
 
@@ -910,7 +944,7 @@ Create one GUID fixture directory directly under `G:\workspace`, record its exac
 
 - [ ] **Step 7: Implement CLI and self-test**
 
-Normal entry point calls only `create_server(ALLOWED_ROOT).run()` and writes no banner to stdout. `--self-test` validates root, catalog, annotations, installed interpreter, and sibling `uv.lock`, then emits exactly one sanitized JSON line:
+Normal entry point creates `stdio_server()`, then calls `server.run(read_stream, write_stream, server.create_initialization_options())` and writes no banner to stdout. `--self-test` validates root, catalog, annotations, installed interpreter, and sibling `uv.lock`, then emits exactly one sanitized JSON line:
 
 ```json
 {"allowed_root":"G:\\workspace","annotations_exact":true,"catalog":["list_allowed_directories","list_directory","search","fetch"],"forbidden_tools":[],"python":"3.14.6","uv_lock_sha256":"<64 lowercase hex>"}
