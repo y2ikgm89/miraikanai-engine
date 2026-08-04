@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Product intent、AI-native C++ Product claim、AI game generation claim lane、第三者向け汎用Engine minimum surface、非交渉原則、Capability成熟度、2D／3D Product portfolio、MVP outcome、FirstPlayableDefinitionV1、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
-- 非正本範囲: 最終Release authority record、Publication／Completion authority record、実装順序、工程、工数、担当、Fixture件数、実行／materialization Registry、Target technical Toolchain binding、Localization Catalog／fallback、Subsystemの型・Field・API・Backend・既定値・Budget、AI権限、各domain Evidence／Receiptの形式と意味。各Owner文書または非規範proposalを参照する
+- 正本範囲: Product intent、AI-native C++ Product claim、AI game generation claim lane、第三者向け汎用Engine minimum surface、非交渉原則、Capability成熟度、P0 Architecture scope／fixed root membership／Product-derived membership／16-axis closure projection、2D／3D Product portfolio、MVP outcome、FirstPlayableDefinitionV1、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
+- 非正本範囲: P0 Subsystem各axisのdomain semantics、最終Release authority record、Publication／Completion authority record、実装順序、工程、工数、担当、Fixture件数、実行／materialization Registry、Target technical Toolchain binding、Localization Catalog／fallback、Subsystemの型・Field・API・Backend・既定値・Budget、AI権限、各domain Evidence／Receiptの形式と意味、法令解釈／Legal Decision。各Owner文書または非規範proposalを参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
-- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[P0 Architecture／Legal-IP Ownership Decision](../decisions/2026-08-04-p0-architecture-and-legal-ip-ownership.md)、[Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-08-03
 
@@ -15,7 +15,7 @@
 
 Miraikanai Engineは、2Dと3Dを同格のfirst-class capabilityとして扱い、独自Editor、公開C++ SDK、build／package経路、診断、更新、文書、supportを一つの製品releaseへ閉じる、第三者Developer向けGame Engineである。既存EngineへChat機能を付加する製品ではない。人間とAIが同じ型付きAuthoring経路を使い、C++ Engineの信頼済みGatewayだけが検証済み変更をProjectへ確定する。
 
-対象Userは初心者からC++を扱う上級者までである。両者は互換性のない別Project形式を使わず、同じ正規Project stateを異なるWorkspaceとsurfaceから扱う。Editor GUI、CLI、headless runner、外部IDE、AI／MCPはそれぞれ別authorityを持たず、同じProject revision、public contract、policy、diagnostic、evidenceへ収束する。
+対象Userは初心者からC++を扱う上級者までである。両者は互換性のない別Project形式を使わず、同じ正規Project stateを異なるWorkspaceとsurfaceから扱う。Editor GUI、CLI、headless runner、Native SDK、external IDE、MCP、AI automationはそれぞれ別authorityを持たず、同じProject revision、public contract、policy、diagnostic、evidenceへ収束する。
 
 第三者Developerが完結できる標準journeyは次である。各段階の意味と型は該当Ownerが所有し、本書はProduct outcomeだけを所有する。
 
@@ -158,6 +158,191 @@ Activation stateはTarget別Artifact Evidenceに基づく運用状態であり�
 通常遷移は`not_activated -> candidate_locked -> qualified -> production`とする。Security incident、重大回帰、license失効、Evidence期限切れ、Provider停止では即時availabilityを停止し、署名済み降格Recordを追随させる。保存stateだけをavailabilityとしない。
 
 必須Targetのrow欠落を`not_activated`で補完せずclosureを拒否する。optional Targetはaggregate claimへ混ぜない。Architecture文書、Feature名、OS／GPU brand、近いTarget、fallbackの存在からstateを推測しない。
+
+<a id="p0-canonical-architecture"></a>
+
+### 3.3 P0 Canonical Architecture Specification
+
+`P0`は`Priority Zero Architecture Scope`であり、実装Phase、日程、Work Package、担当、工程順、Capability tierまたはActivation stateではない。Active Product Definition、First Playable、Minimum Executable CoreおよびProduct横断Gateを実現するため、C++、Schema、Registry、Fixture、Buildまたは実装計画を作る前に意味上閉じていなければならないOwner集合を表す。
+
+P0は機能名の一覧ではない。各Subsystemの意味を本文書へ複写せず、exact Owner文書とcanonical fragmentへ束縛する。Owner文書が存在してもProduct Definitionから到達不能なFuture subjectはP0にせず、逆にProduct Definitionから到達するsubjectを手動判断で除外しない。
+
+#### 3.3.1 型と16-axis closure
+
+| 型 | ASCII domain separator |
+|---|---|
+| `P0SubsystemRefV1` | `MIRAKAN_P0_SUBSYSTEM_REF_V1` |
+| `P0ArchitectureAxisBindingV1` | `MIRAKAN_P0_ARCHITECTURE_AXIS_BINDING_V1` |
+| `P0SubsystemArchitectureClosureV1` | `MIRAKAN_P0_SUBSYSTEM_ARCHITECTURE_CLOSURE_V1` |
+| `P0CanonicalArchitectureSpecificationV1` | `MIRAKAN_P0_CANONICAL_ARCHITECTURE_SPECIFICATION_V1` |
+
+```text
+P0SubsystemRefV1
+  subsystem_id: StableId
+  canonical_subsystem_owner_document_id:
+    canonical ASCII Architecture document ID
+  canonical_subsystem_owner_source_content_hash: SHA-256
+
+P0ArchitectureAxisKindV1 =
+  canonical_state
+  | public_api
+  | internal_api
+  | state_machine
+  | lifetime
+  | threading
+  | invariant
+  | failure_atomicity
+  | versioning
+  | migration
+  | compatibility
+  | security_boundary
+  | evidence_contract
+  | acceptance_test
+  | surface_conformance
+  | performance_capacity
+
+P0ArchitectureAxisBindingV1
+  subsystem_ref: exact P0SubsystemRefV1
+  axis_kind: P0ArchitectureAxisKindV1
+  semantic_owner_document_id:
+    canonical ASCII Architecture document ID
+  semantic_owner_source_content_hash: SHA-256
+  canonical_owner_fragment_ref:
+    mirakan.arch.<document-id>#<fragment>
+  shared_contract_fragment_refs[0..32]:
+    sorted unique mirakan.arch.<document-id>#<fragment>
+  applicability:
+    {kind=required}
+    | {
+        kind=not_applicable,
+        reason_artifact_ref: exact ArtifactRefV1,
+        boundary_owner_document_id:
+          canonical ASCII Architecture document ID,
+        reconsideration_condition_refs[1..32]:
+          sorted unique exact ArtifactRefV1
+      }
+  observed_document_status: draft | review | accepted | deprecated
+  observed_implementation_status: absent | partial | implemented
+  observed_verification_status:
+    unreviewed | design-reviewed
+    | prototype-verified | measurement-verified
+  blocking_evidence_refs[0..256]:
+    sorted unique exact EvidenceRefV1
+  axis_binding_content_hash: SHA-256
+
+P0SubsystemArchitectureClosureV1
+  subsystem_closure_id: StableId
+  subsystem_closure_version: positive u32
+  source_inventory_ref:
+    {source_repository_revision, inventory_content_hash}
+  subsystem_ref: exact P0SubsystemRefV1
+  membership_basis_refs[1..4096]:
+    sorted unique exact ArtifactRefV1
+  axis_bindings[16..16]:
+    sorted unique P0ArchitectureAxisBindingV1
+  architecture_closure_result: open | target_design_closed
+  unresolved_diagnostic_refs[0..256]:
+    sorted unique DiagnosticCodeRefV1
+  subsystem_closure_content_hash: SHA-256
+
+P0CanonicalArchitectureSpecificationV1
+  p0_specification_id: StableId
+  p0_specification_version: positive u32
+  source_inventory_ref:
+    {source_repository_revision, inventory_content_hash}
+  product_definition_ref: exact ActiveProductDefinitionRefV1
+  first_playable_definition_ref: exact FirstPlayableDefinitionRefV1
+  minimum_executable_core_definition_ref:
+    exact MinimumExecutableCoreDefinitionRefV1
+  fixed_root_subsystem_refs[34..34]:
+    sorted unique exact P0SubsystemRefV1
+  derived_subsystem_refs[0..512]:
+    sorted unique exact P0SubsystemRefV1
+  subsystem_closure_refs[34..546]:
+    sorted unique exact P0SubsystemArchitectureClosureRefV1
+  excluded_future_subject_refs[0..4096]:
+    sorted unique exact ArtifactRefV1
+  p0_specification_content_hash: SHA-256
+```
+
+本節で使用するexact Refは次のclosed tupleである。
+
+| Ref | Field |
+|---|---|
+| `P0SubsystemArchitectureClosureRefV1` | `{subsystem_closure_id, subsystem_closure_version, subsystem_closure_content_hash}` |
+| `P0CanonicalArchitectureSpecificationRefV1` | `{p0_specification_id, p0_specification_version, p0_specification_content_hash}` |
+
+各Refは解決先recordと全Field byte equalityでなければならない。Subsystem ID、Owner文書ID、最大version、Index順または近いsource hashからClosure／Specification Refを補完しない。
+
+`axis_bindings[]`は16 enumをexactly onceずつ持つ。各axisの`semantic_owner_document_id`はexact一件であり、共通Envelope、encoding、generic state-machine表現、Evidence spineまたはcompatibility classを`shared_contract_fragment_refs[]`へ置いて複数Owner化しない。`not_applicable`は空欄、`none`、推測またはSubsystem名から生成せず、同じInventory上のboundary Owner、理由Artifact、再評価条件を必須にする。
+
+`canonical_owner_fragment_ref`と全shared fragmentは同じ`source_inventory_ref`が束縛するOwner文書へ解決しなければならない。Source content hash、Header state、fragment、Owner relation、規範依存のいずれかが変わったClosureはstaleである。Index、表示見出し、path、行番号、自然言語説明、AI回答または`latest`からOwner／fragmentを補完しない。
+
+#### 3.3.2 固定root Owner集合
+
+どのActive Product Definitionでも、Product scope、Governance、Foundation、Authoring control plane、Runtime coreを解釈するため次の34 OwnerをP0固定rootとする。IDは集合membershipであり、表の表示順をserialization順または依存順にしない。
+
+| group | exact canonical document IDs | cardinality |
+|---|---|---:|
+| Product | `mirakan.arch.product-plan`; `mirakan.arch.product-lifecycle`; `mirakan.arch.product-release-decision`; `mirakan.arch.product-publication-completion` | 4 |
+| Governance | `mirakan.arch.architecture-governance`; `mirakan.arch.product-legal-ip-governance`; `mirakan.arch.product-security`; `mirakan.arch.product-privacy-data-governance`; `mirakan.arch.ai-security-approval`; `mirakan.arch.ai-verification-provenance` | 6 |
+| Foundation | `mirakan.arch.core-architecture`; `mirakan.arch.toolchain-dependencies`; `mirakan.arch.executable-contracts`; `mirakan.arch.compatibility-evolution`; `mirakan.arch.naming-project-layout`; `mirakan.arch.cpp23-modules`; `mirakan.arch.math-core`; `mirakan.arch.memory-pointers` | 8 |
+| Authoring | `mirakan.arch.project-state`; `mirakan.arch.ai-production-orchestration`; `mirakan.arch.game-production-loop`; `mirakan.arch.asset-lifecycle`; `mirakan.arch.editor-ui-framework`; `mirakan.arch.editor-workspace-ux`; `mirakan.arch.gameplay-programming-model`; `mirakan.arch.native-game-module`; `mirakan.arch.developer-testing` | 9 |
+| Runtime core | `mirakan.arch.runtime-entity-component-system`; `mirakan.arch.runtime-scheduling-lifetime`; `mirakan.arch.runtime-asset-lifecycle`; `mirakan.arch.runtime-package`; `mirakan.arch.persistence-save`; `mirakan.arch.runtime-debugging-observability-replay`; `mirakan.arch.runtime-performance-capacity` | 7 |
+
+固定rootが34件でない、ID重複、Owner文書不存在、Header ID不一致、source hash欠落、`review`を`approved`へ補完または実装`absent`を無視する場合はSpecification生成を拒否する。
+
+#### 3.3.3 Product-derived Owner集合 Named Algorithm v1
+
+Derived集合は次の順で決定論的に生成する。
+
+1. `ActiveProductDefinitionV1`のCapability、Host、runtime Target、locale、required／bundled Pack requirement、Target×2D／3D Reference requirement、claim-facing requirement、Product data-flow、Operation family bindingを完全に展開する。
+2. `FirstPlayableDefinitionV1`のCapability、Pack、Game flow、Input、Accessibility、Target、Runtime Entry、Scenario、Requirement、Operation family、Evidence classを追加する。
+3. `MinimumExecutableCoreDefinitionV1`のrequired role、Scenario、Subsystem bindingを追加する。
+4. 各subjectを同じ`ArchitectureInventoryV1`のexact owner relationへjoinし、canonical Owner documentを一件だけ解決する。zero／multiple Ownerはerrorである。
+5. 解決したOwnerから同Inventoryの規範依存edgeをDAG末端まで展開し、Owner文書だけをcanonical set unionする。
+6. 固定rootとの差集合を`derived_subsystem_refs[]`、union全体を`subsystem_closure_refs[]`のSubsystem projectionとset equalityにする。
+7. Future Portfolioだけから到達するsubjectは`excluded_future_subject_refs[]`へ記録し、Active／First Playable／Minimum Coreからも到達するsubjectだけを除外集合から取り除く。
+
+Owner文書の存在、Architecture Index掲載、Feature名、競合Engine比較、ProposalのWork Package、Future Capability、optional Fixtureまたは近いSubsystemからDerived membershipを追加しない。反対に、Active Product DefinitionのTarget／Pack／Reference／Requirementから到達するOwnerを「後で実装する」「optionalに見える」等の説明で削除しない。
+
+#### 3.3.4 16-axisの所有規則
+
+| Axis | primary routing rule | 不正な代用 |
+|---|---|---|
+| `canonical_state` | Subsystem Ownerのauthoritative stateと[Architecture Governance](../01-governance/architecture-governance.md)の文書／実装／検証状態 | UI表示、Feature名、保存Boolean |
+| `public_api` | Subsystem Owner。C++共通surfaceは[C++23](../02-foundation/cpp23-modules.md)／[Native Game Module](../03-authoring/native-game-module.md)、Operationは[Executable Contracts](../02-foundation/executable-contracts.md)をshared refにする | internal header、Widget、MCP Tool名 |
+| `internal_api` | Subsystem Ownerと[Core Architecture](../02-foundation/core-architecture.md)のLayer／Host／Gateway境界 | public SDKまたはAI projectionへのprivate型漏出 |
+| `state_machine` | Domain transitionはSubsystem Owner、generic representationはExecutable Contracts | conversation、session、UI state |
+| `lifetime` | Domain lifetimeはSubsystem Owner、Runtime共通order／scopeは[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md) | pointer lifetime、frame表示からの推測 |
+| `threading` | Subsystem access／writer ruleはSubsystem Owner、共通Job／phaseはScheduling／Lifetime | callback実行threadの暗黙default |
+| `invariant` | Subsystem Ownerのclosed invariantとvalidator boundary | example、happy-path testだけ |
+| `failure_atomicity` | Subsystem Owner。Project mutationは[Project State](../03-authoring/project-state.md)、共通Task publicationはCoreをshared refにする | partial success、silent repair、偽undo |
+| `versioning` | Domain versionはSubsystem Owner、class／consumer protectionは[Compatibility／Evolution](../02-foundation/compatibility-evolution.md) | file名、latest、release label |
+| `migration` | Domain変換意味はSubsystem Owner、admission／clean breakはCompatibility | dual reader、silent coercion |
+| `compatibility` | Compatibility classはCompatibility Owner、対象consumerはSubsystem Owner | ABIだけによる全互換主張 |
+| `security_boundary` | Domain trust／input boundaryはSubsystem Owner、AI authorityはAI Security、Product threatはProduct Security | Provider permission、UI confirmationだけ |
+| `evidence_contract` | Domain合否payloadはSubsystem Owner、generic envelope／freshnessは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md) | log、screenshot、hash-only |
+| `acceptance_test` | Subsystem Ownerのpositive／negative／fault requirement。Project test表現はDeveloper Testing | test名または件数だけ |
+| `surface_conformance` | Product journeyは[Product Lifecycle](product-lifecycle.md)、AI client routeは[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、Domain Operation意味はSubsystem Owner | GUI成功によるSDK／MCP／Agent代用 |
+| `performance_capacity` | [Performance／Capacity](../04-runtime/performance-capacity.md)またはDomain／Platform Ownerのexact budget／measurement fragment | provisional値、別Target、平均値だけ |
+
+Subsystemが外部surfaceを持たない場合も`public_api`または`surface_conformance`を空にせず、internal-only boundaryと再評価条件を持つ`not_applicable`へ閉じる。数値Budgetが意味を持たないGovernance recordも同様に、処理量／carrier bound／latencyがどのOwnerに属するか、またはなぜProduct性能Gate対象外かを明示する。
+
+#### 3.3.5 Closure predicateとcurrent state
+
+Subsystem `target_design_closed`は次のpure predicateをすべて満たす時だけ成立する。
+
+1. Subsystem refがfixed rootまたはProduct-derived集合へexactly once存在する。
+2. canonical Subsystem Ownerがexactly oneで、InventoryとHeaderが一致する。
+3. 16 axisがexactly once存在し、全Owner／fragment／shared refが同Inventoryへ解決する。
+4. `not_applicable`が理由、boundary Owner、再評価条件を持つ。
+5. 規範依存がDAGで、下位文書からP0 rootへの意味逆流または第二Ownerがない。
+6. `unresolved_diagnostic_refs[]=[]`である。
+
+このpredicateは`observed_implementation_status=implemented`、`observed_verification_status=prototype-verified | measurement-verified`またはEvidence non-emptyを要求してArchitecture意味を実装と混同しない。一方、各axisはcurrent stateをread-backするため、`absent`、`unreviewed`、`provisional`を`closed`へ隠せない。Product release、Capability activation、性能達成、制作体験または商用運用は各Ownerの別Gateであり、P0 Architecture closureをEvidenceへ数えない。
+
+Current Repositoryでは`ArchitectureInventoryV1`、Active Product Definition record、P0 Schema／Generator／Registry／Specification／Closure Artifactが未materializeである。したがってP0 target semanticsと固定root集合はclosed-in-target-design候補だが、P0 Specification instance、全Derived membership、16-axis machine validation、Conformance SuiteまたはAcceptance Receiptは`absent`である。手動Indexまたは本節の表をmaterialized Specificationとして扱わない。
 
 ## 4. 2D／3D Capability portfolio
 
@@ -318,6 +503,10 @@ Product releaseとProduct completionのrequired universeはDecision作成者のi
 | `ProductProductionActivationSetV1` | `MIRAKAN_PRODUCT_PRODUCTION_ACTIVATION_SET_V1` |
 
 ```text
+ProductSurfaceKindV1 =
+  editor_gui | cli | headless | native_sdk
+  | external_ide | mcp | ai_automation
+
 TargetProfileV1
   target_profile_id: StableId
   target_profile_version: positive u32
@@ -411,9 +600,8 @@ ActiveProductDefinitionV1
       operation_ref: exact McdContractRefV1(kind=operation),
       governed_requirement_categories[1..32]:
         sorted unique ProductRequirementCategoryV1,
-      allowed_surface_kinds[1..5]:
-        sorted unique
-        editor_gui | cli | headless | external_ide | ai_mcp
+      allowed_surface_kinds[1..7]:
+        sorted unique ProductSurfaceKindV1
     }
   active_product_definition_content_hash: SHA-256
 
@@ -615,12 +803,10 @@ ProductRequirementProjectionInputV1
           success | expected_policy_rejection | domain_failure_recovery,
       evidence_class_refs[1..32]:
         sorted unique exact EvidenceClassRefV1,
-      required_surface_kinds[1..5]:
-        sorted unique
-          editor_gui | cli | headless | external_ide | ai_mcp,
-      forbidden_surface_kinds[0..5]:
-        sorted unique
-          editor_gui | cli | headless | external_ide | ai_mcp
+      required_surface_kinds[1..7]:
+        sorted unique ProductSurfaceKindV1,
+      forbidden_surface_kinds[0..7]:
+        sorted unique ProductSurfaceKindV1
     }
   workflow_applicabilities[0..12]:
     sorted unique {
@@ -838,9 +1024,8 @@ RequiredProductOperationUniverseV1
       operation_ref: exact McdContractRefV1(kind=operation),
       governed_requirement_refs[1..4096]:
         sorted unique exact McdContractRefV1(kind=requirement),
-      allowed_surface_kinds[1..5]:
-        sorted unique
-        editor_gui | cli | headless | external_ide | ai_mcp
+      allowed_surface_kinds[1..7]:
+        sorted unique ProductSurfaceKindV1
     }
   projection_algorithm_id: required_product_operation_universe
   projection_algorithm_version: 1
@@ -862,8 +1047,7 @@ RequiredProductOperationJourneyProjectionV1
       requirement_ref: exact McdContractRefV1(kind=requirement),
       operation_family_kind: operation_family_kind,
       operation_ref: exact McdContractRefV1(kind=operation),
-      surface_kind:
-        editor_gui | cli | headless | external_ide | ai_mcp,
+      surface_kind: ProductSurfaceKindV1,
       host_scope:
         {kind=host_independent}
         | {
@@ -905,8 +1089,7 @@ RequiredProductOperationJourneyProjectionV1
       requirement_ref: exact McdContractRefV1(kind=requirement),
       operation_family_kind: operation_family_kind,
       operation_ref: exact McdContractRefV1(kind=operation),
-      surface_kind:
-        editor_gui | cli | headless | external_ide | ai_mcp,
+      surface_kind: ProductSurfaceKindV1,
       host_scope:
         {kind=host_independent}
         | {
@@ -962,10 +1145,9 @@ ProductOperationActivationClosureV1
       diagnostic_refs[1..256]:
         sorted unique exact McdContractRefV1(kind=diagnostic),
       receipt_type_ref: exact McdContractRefV1(kind=type),
-      surface_projection_artifact_refs[1..5]:
+      surface_projection_artifact_refs[1..7]:
         sorted unique {
-          surface_kind:
-            editor_gui | cli | headless | external_ide | ai_mcp,
+          surface_kind: ProductSurfaceKindV1,
           projection_artifact_ref: exact ArtifactRefV1
         },
       activation_evidence_refs[1..4096]:
@@ -1012,9 +1194,11 @@ ProductProductionActivationSetV1
 
 <a id="product-profile-identity"></a>
 
+`ProductSurfaceKindV1`は`editor_gui | cli | headless | native_sdk | external_ide | mcp | ai_automation`のclosed Product surface enumである。SDK、MCP、AI automationを一つのAI／tooling surfaceへcollapseせず、個別Agent／versionはProduct surface enumへ追加せずLifecycleのClient ProfileとAI Production OrchestrationのAgent Host Profileで束縛する。
+
 `TargetProfileV1`と`LocaleProfileV1`はProduct-level identityだけのreceipt-free complete recordであり、Toolchain technical fields、OS locale、Localization fallback、Artifact、EvidenceまたはReceiptを含めない。各Refは対応root RegistryからID／version／kind（Targetだけ）／content hashの全Fieldでexactly one recordへ解決し、同ID／version別hash、同ID／hash別kind、language tagだけの一致、表示名、prefix、OS localeまたは`latest`を拒否する。各recordのcontent hashは自己hashだけを除く全Fieldを上表の型固有domain separator、algorithm `sha256`、algorithm version 1、`uint32_be` length framing、schema順でcanonical encodeして計算する。Registryはmember Refをunsigned UTF-8 tuple bytes順にsortし、Registry自己hashだけを除く全Fieldを同じ規則でhashする。現Repositoryにrecord、Registry、resolverまたは生成Artifactは存在せず、本節はtarget contractだけを定義する。
 
-`ProductRequirementCategoryV1`は`capability_activation | lifecycle | security | privacy | license | support | sdk | template | sample | reference | documentation | workflow | pack | developer_testing | packaging | publication | completion`のclosed enumである。`ProductCompletionDistributionScopeKindV1`は`engine_source | host_distribution | target_package | sdk_distribution | project_template | sample_project | documentation_bundle | product_license | support_material | pack_distribution`のclosed enumであり、Product requirementがCompletionで要求する配布classだけを表す。`ProductDistributionArtifactRoleKindV1`は`engine_source | editor_executable | engine_host_runtime | project_launcher | cli_headless_runner | build_tool | installer_layout | target_package | public_header | public_library | sdk_tool | debug_symbol | project_template | sample_project | pack_payload | documentation_bundle | license_text | notice_or_sbom | support_material | publication_metadata`のclosed enumであり、公開route selectorが要求するartifactの配布上の主roleだけを表す。`ProductLifecycleWorkflowKindV1`は`install | project_bootstrap | author | build | test | package | launch | update | repair | diagnose | support | uninstall`のclosed enumであり、Lifecycleのdocumented workflow coverageと同じtoken集合を使う。Lifecycleのexact Distribution Subject identityまたはartifact identityをProduct Planへ逆依存させない。`ActiveProductDefinitionV1`はinitial V1からProductのCapability、Build／Editor Host、runtime Target、locale、required／bundled Pack requirement、Target×2D／3D Reference requirement、claim-facing requirement membership、typed Requirement projection input、Product data-flow membership、claim-kind minimum、required Operation family bindingを閉じるreceipt-free rootである。`host_profile_refs[] ∪ runtime_target_profile_refs[]`は`target_profile_registry_ref`のmembership subset、`locale_profile_refs[]`は`locale_profile_registry_ref`のmembership subsetであり、全member Refを解決してkindとhashをread-backする。三membershipは型でdisjointで、Hostをruntime Targetへ、runtime TargetをHostへ、BCP 47 localeをいずれかのProfileへaliasしない。Activation Receipt、Release Content Manifest、Engine Release、Security／Privacy／Lifecycle Acceptance、Release Decision、PublicationまたはCompletionを含めない。`active_product_definition_content_hash`は自己hashだけを除く全Fieldを上表のdomain separatorと`uint32_be` length framingでhashする。appendixのBundle／ClosureからRef shapeを補完せず、同ID／revision別hash、同名Definitionまたは`latest`へfallbackしない。
+`ProductRequirementCategoryV1`は`capability_activation | lifecycle | security | privacy | legal_ip | license | support | sdk | template | sample | reference | documentation | workflow | pack | developer_testing | packaging | publication | completion`のclosed enumである。`legal_ip`は[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)のsame-scope Applicability Profile、全category binding、Domain Evidence、Independent Design Subject、fresh signed Decisionを要求し、`license`、`privacy`または`security`へcollapseしない。`ProductCompletionDistributionScopeKindV1`は`engine_source | host_distribution | target_package | sdk_distribution | project_template | sample_project | documentation_bundle | product_license | support_material | pack_distribution`のclosed enumであり、Product requirementがCompletionで要求する配布classだけを表す。`ProductDistributionArtifactRoleKindV1`は`engine_source | editor_executable | engine_host_runtime | project_launcher | cli_headless_runner | build_tool | installer_layout | target_package | public_header | public_library | sdk_tool | debug_symbol | project_template | sample_project | pack_payload | documentation_bundle | license_text | notice_or_sbom | support_material | publication_metadata`のclosed enumであり、公開route selectorが要求するartifactの配布上の主roleだけを表す。`ProductLifecycleWorkflowKindV1`は`install | project_bootstrap | author | build | test | package | launch | update | repair | diagnose | support | uninstall`のclosed enumであり、Lifecycleのdocumented workflow coverageと同じtoken集合を使う。Lifecycleのexact Distribution Subject identityまたはartifact identityをProduct Planへ逆依存させない。`ActiveProductDefinitionV1`はinitial V1からProductのCapability、Build／Editor Host、runtime Target、locale、required／bundled Pack requirement、Target×2D／3D Reference requirement、claim-facing requirement membership、typed Requirement projection input、Product data-flow membership、claim-kind minimum、required Operation family bindingを閉じるreceipt-free rootである。`host_profile_refs[] ∪ runtime_target_profile_refs[]`は`target_profile_registry_ref`のmembership subset、`locale_profile_refs[]`は`locale_profile_registry_ref`のmembership subsetであり、全member Refを解決してkindとhashをread-backする。三membershipは型でdisjointで、Hostをruntime Targetへ、runtime TargetをHostへ、BCP 47 localeをいずれかのProfileへaliasしない。Activation Receipt、Release Content Manifest、Engine Release、Security／Privacy／Legal／Lifecycle Acceptance、Release Decision、PublicationまたはCompletionを含めない。`active_product_definition_content_hash`は自己hashだけを除く全Fieldを上表のdomain separatorと`uint32_be` length framingでhashする。appendixのBundle／ClosureからRef shapeを補完せず、同ID／revision別hash、同名Definitionまたは`latest`へfallbackしない。
 
 `requirement_projection_input_bindings[]`のRequirement projectionは`claim_facing_requirement_refs[]`とset equalityで、各Requirementへexactly oneの完成`ProductRequirementProjectionInputV1`を束縛する。解決先の`requirement_ref`はbindingとbyte equalityである。この一対一bindingが各Requirementの唯一のProduct category割当であり、同じRequirement Refへ異なる`requirement_category`を持つ第二Input、category alias、Minimum／Projection／consumerによるcategory overrideを禁止する。各`ProductClaimKindMinimumV1.required_requirement_bindings[]`は同じRequirementのInputを解決し、`requirement_ref`と`requirement_category`をともにbyte equalityにしなければならない。
 
@@ -1042,11 +1226,11 @@ Projection Capacity Validity Algorithm v1はProjection作成前にchecked arithm
 
 overflow、上限超過、truncate、Completion scope aggregate、Capability／Target／locale／Reference dimension／Requirement／Evidence class／surfaceのaggregateまたは別RequirementへのcollapseはProjection生成失敗であり、小さいcarrierへ黙って収めない。これらはProduct DefinitionまたはRequirement個別上限を置換せず、組合せをrelease Claim Scopeとして受理できるかを決めるderived invariantである。
 
-Required Operation UniverseのNamed Algorithm v1は、選択MinimumとClaim Scope追加familyのcanonical unionを取り、Active Definitionの`operation_family_bindings[]`へexactly oneでjoinする。各entryの`governed_requirement_refs[]`はRelease Projectionに現れる同category requirementの完全なsetであり、family、Operation Ref、surfaceまたはrequirementを追加・削除しない。closed family enumはProduct install／update／repair／uninstall、Project bootstrap／open、human author／preview／validate／commit、build／test／cook／package／launch、diagnostics、support、Pack acquire／install／apply／update／remove、Security、Publication、およびAI read／explain／propose／validate／approve／commitをそれぞれ独立identityとして持つ。bootstrapとopen、diagnosticsとsupport、human authoringとAI phase、Packの異なるlifecycle actionを一familyまたは一Operationへcollapseしない。AI／MCPがcommit、approvalまたはGatewayを迂回せず、GUI、CLI、headless、external IDE、AI／MCPは許可されたOperation Refのsurface projectionであって別authorityではない。
+Required Operation UniverseのNamed Algorithm v1は、選択MinimumとClaim Scope追加familyのcanonical unionを取り、Active Definitionの`operation_family_bindings[]`へexactly oneでjoinする。各entryの`governed_requirement_refs[]`はRelease Projectionに現れる同category requirementの完全なsetであり、family、Operation Ref、surfaceまたはrequirementを追加・削除しない。closed family enumはProduct install／update／repair／uninstall、Project bootstrap／open、human author／preview／validate／commit、build／test／cook／package／launch、diagnostics、support、Pack acquire／install／apply／update／remove、Security、Publication、およびAI read／explain／propose／validate／approve／commitをそれぞれ独立identityとして持つ。bootstrapとopen、diagnosticsとsupport、human authoringとAI phase、Packの異なるlifecycle actionを一familyまたは一Operationへcollapseしない。AIまたはMCP clientがcommit、approvalまたはGatewayを迂回せず、GUI、CLI、headless、Native SDK、external IDE、MCP、AI automationは許可されたOperation Refのsurface projectionであって別authorityではない。
 
-Required Operation Journey ProjectionのNamed Algorithm v1は、Required Universeの各non-collapsed `{family,operation}`、同entryのgoverned Requirement、Claim Scope、そのRequirementのtyped `journey_applicabilities[]`から、required journey tupleとforbidden surface tupleを決定論的に生成する。applicability rowのfamilyはUniverse entryとbyte equalityでなければならない。`all_requirement_locales`と`all_requirement_reference_dimensions`は同Requirementのtop-level applicabilityが要求するexact locale／dimension集合へ、exact branchは各memberへ完全展開する。independentとnot-applicableは異なるscalar branchとして一件だけ生成し、空集合、既定locale、既定dimension、Claim Scope aggregate Refへ変換しない。required rowは`{claim scope,requirement,semantic group,family,operation,surface,host scope,target scope,locale scope,reference dimension scope,scenario,expected result branch,evidence class}`を、forbidden rowもbranchとEvidence classを除く同じfull scopeを最後まで保持し、Activation Evidence、workflow表示名、別Requirement、別semantic group、別family、別Operation、別surface、別Host／Target／locale／dimensionまたは別scenarioへcollapseしない。各base `{requirement,semantic group,family,operation,host scope,target scope,locale scope,reference dimension scope,scenario}`について5 surfaceはrequiredとforbiddenのdisjoint unionへ完全分割し、Required Operation Universeの`allowed_surface_kinds[]`外は必ずforbidden、内側もtyped inputが許可しないsurfaceはforbiddenとする。全familyへ5 surfaceを無条件要求せず、`not_applicable`をmissing Receiptとして扱わない一方、forbiddenにない許可surfaceを暗黙省略しない。
+Required Operation Journey ProjectionのNamed Algorithm v1は、Required Universeの各non-collapsed `{family,operation}`、同entryのgoverned Requirement、Claim Scope、そのRequirementのtyped `journey_applicabilities[]`から、required journey tupleとforbidden surface tupleを決定論的に生成する。applicability rowのfamilyはUniverse entryとbyte equalityでなければならない。`all_requirement_locales`と`all_requirement_reference_dimensions`は同Requirementのtop-level applicabilityが要求するexact locale／dimension集合へ、exact branchは各memberへ完全展開する。independentとnot-applicableは異なるscalar branchとして一件だけ生成し、空集合、既定locale、既定dimension、Claim Scope aggregate Refへ変換しない。required rowは`{claim scope,requirement,semantic group,family,operation,surface,host scope,target scope,locale scope,reference dimension scope,scenario,expected result branch,evidence class}`を、forbidden rowもbranchとEvidence classを除く同じfull scopeを最後まで保持し、Activation Evidence、workflow表示名、別Requirement、別semantic group、別family、別Operation、別surface、別Host／Target／locale／dimensionまたは別scenarioへcollapseしない。各base `{requirement,semantic group,family,operation,host scope,target scope,locale scope,reference dimension scope,scenario}`について7 surfaceはrequiredとforbiddenのdisjoint unionへ完全分割し、Required Operation Universeの`allowed_surface_kinds[]`外は必ずforbidden、内側もtyped inputが許可しないsurfaceはforbiddenとする。全familyへ7 surfaceを無条件要求せず、`not_applicable`をmissing Receiptとして扱わない一方、forbiddenにない許可surfaceを暗黙省略しない。
 
-Required Journeyのdistinct `{operation_family_kind,operation_ref}` projectionはRequired Operation Universeの同projectionとset equalityである。各Universe pairは少なくとも一つのrequired `success` rowを持ち、governed Requirementのtyped inputが要求するpolicy拒否またはdomain failure／recoveryをそれぞれ`expected_policy_rejection`、`domain_failure_recovery`の独立rowへ投影する。これによりUniverseに存在するがJourneyが0件のfamily／Operationを許可しない。external IDEとAI／MCPもapplicableなOperationではrequired rowになり、GUI／CLI／headless成功で代用しない。`semantic_equivalence_group_id`は同じRequirement意味を要求するsurface rowだけを束縛し、同groupではrequest meaning、authorization、Candidate、before／after Project revision、semantic result、typed diagnosticの同値をProduct Lifecycleが検証する。Requirement、semantic group、family、Operation、surface、Host scope、Target scope、locale scope、Reference dimension scope、scenario、branch、Evidence classのmissing、extraまたは一Field substitutionを拒否する。Projectionはreceipt-freeであり、Operation、surface adapter、Fixture、Receipt、Evidence、ActivationまたはQualificationの存在を示さない。
+Required Journeyのdistinct `{operation_family_kind,operation_ref}` projectionはRequired Operation Universeの同projectionとset equalityである。各Universe pairは少なくとも一つのrequired `success` rowを持ち、governed Requirementのtyped inputが要求するpolicy拒否またはdomain failure／recoveryをそれぞれ`expected_policy_rejection`、`domain_failure_recovery`の独立rowへ投影する。これによりUniverseに存在するがJourneyが0件のfamily／Operationを許可しない。Native SDK、external IDE、MCP、AI automationもapplicableなOperationではrequired rowになり、GUI／CLI／headless成功で代用しない。`semantic_equivalence_group_id`は同じRequirement意味を要求するsurface rowだけを束縛し、同groupではrequest meaning、authorization、Candidate、before／after Project revision、semantic result、typed diagnosticの同値をProduct Lifecycleが検証する。Requirement、semantic group、family、Operation、surface、Host scope、Target scope、locale scope、Reference dimension scope、scenario、branch、Evidence classのmissing、extraまたは一Field substitutionを拒否する。Projectionはreceipt-freeであり、Operation、surface adapter、Fixture、Receipt、Evidence、ActivationまたはQualificationの存在を示さない。
 
 Operation Activation ClosureはRequired Universeの`{family,operation}` projectionとactivated entry projectionをset equalityにし、各entryのsurface projectionをUniverseのallowed surface集合とset equalityにする。Operation MCD、Owner Manifest、Service allowlist、Policy、Validator、Diagnostic、Receipt type、全surface projection、fresh non-revoked Activation Evidenceは同じContract setとOperation hashへ解決する。authoring commandは同じAuthoring Command Gateway、expected Project revision、prepared candidate、Approval、atomic Commit Closureを使い、read／explainはmutation Receiptを発行しない。これらがmaterializeしClosureが成立するまでProduct releaseは不可である。本書の型またはfamily名だけをOperation登録、Activationまたは実装の証拠にしない。
 
@@ -1058,7 +1242,7 @@ Activation SetはRelease Requirement Projectionの`required_activation_subjects[
 
 ### 7.1 Promotion gate
 
-Capabilityを上位stateへ昇格するには、対象Ownerが定めるContract、Artifact、Target、Toolchain、Policy、Security／Privacy、license、positive／negative／fault Evidence、known limitation、fallbackまたは明示的non-supportをsame candidateへ閉じる。Evidence requirementの欠落、stale、revoked、scope差は失敗である。
+Capabilityを上位stateへ昇格するには、対象Ownerが定めるContract、Artifact、Target、Toolchain、Policy、Security／Privacy／Legal-IP、license、positive／negative／fault Evidence、known limitation、fallbackまたは明示的non-supportをsame candidateへ閉じる。Legal／IPは対象jurisdiction、market、channel、Product／AI roleへ束縛されたfresh Decisionを要求し、別市場、同じlocaleまたはlicense scannerの結果で代用しない。Evidence requirementの欠落、stale、revoked、scope差は失敗である。
 
 ### 7.2 Deactivation gate
 
@@ -1084,7 +1268,7 @@ Product completionはArchitecture文書の完了ではない。required Engine r
 
 - required CapabilityとTargetのproduction activation。
 - 2D／3D Reference、Editor、SDK、Testing、Build／Packageのsame-release E2E acceptance。
-- Security、Privacy、SBOM／NOTICE、first-party license、third-party redistribution条件のclosure。
+- Security、Privacy、same-scope Legal／IP Readiness Decision、SBOM／NOTICE、first-party license、third-party redistribution条件のclosure。
 - Documentation、Sample、known limitation、support channel、support window、update／repair／rollbackのclosure。
 - required performance、stability、fault、accessibility、locale、clean-machine／device evidence。
 - release claimがEvidence scopeを越えず、未対応Futureを明示している。
@@ -1109,6 +1293,7 @@ Completion Requirement Projectionは上記各項目をrequired requirement／Evi
 
 | Product concern | Primary Owner | Productが要求するclosure |
 |---|---|---|
+| P0 Architecture membership／16-axis closure | 本[Product Plan §3.3](#p0-canonical-architecture) | fixed root 34件、Product-derived Owner集合、全16 axis、unique Owner／fragment、current state read-back、Future非混入 |
 | AI-native Product claim／manual continuity | 本[Product Plan](#11-ai-native-c-product-identity) | shared canonical state、typed proposal／commit flow、C++ Engine authority、Provider不在時のmanual journey |
 | AI production Run／Workflow／Context／route | [AI Production Orchestration](../03-authoring/ai-production-orchestration.md) | finite Workflow、immutable Context、single loop owner、surface parity、Run／Task／Commit非代替、Authoring／shipping分離 |
 | AI Operation semantics／Provider projection | [Executable Contracts](../02-foundation/executable-contracts.md) | canonical OperationとProvider-neutral projection、current membership、validation／diagnostic |
@@ -1116,6 +1301,7 @@ Completion Requirement Projectionは上記各項目をrequired requirement／Evi
 | Product lifecycle／distribution | [Product Lifecycle](product-lifecycle.md) | install、bootstrap、docs、update、repair、support、license presentation |
 | Privacy／data | [Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md) | data inventory、purpose、consent、retention、export／delete、processor／region |
 | Security | [Product Security](../01-governance/product-security.md) | threat、secure update、vulnerability response、incident |
+| Legal／IP／independent design | [Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md) | jurisdiction／market／channel／role、copyright／trademark／patent FTO／license／AI terms、Independent Design、human signed Decision |
 | Project transaction／VCS | [Project State](../03-authoring/project-state.md) | canonical source、revision、merge／recovery、repository interop |
 | Editor journey | [Editor Workspace／UX](../03-authoring/editor-workspace-ux.md) | Project Browser、authoring、build／test／debug／profile導線 |
 | Gameplay expression | [Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) | structured data／bounded C++／hybridの選択、State／Port、manual／AI proposal parity |
@@ -1148,5 +1334,7 @@ Owner文書にexact SchemaやGateが存在しても、Repository実装またはm
 - ReleaseとCompletionがtyped Decision、required／supplied Evidence set equality、Claim Scope、Production Activation集合へ閉じ、文章だけで自己充足しない。
 - Future subjectがC1または現行supportとして誤読されない。
 - AI-native claimがshared canonical state、C++ Engine authority、typed proposal／validation／approval／atomic Commit、Evidence、manual continuityへ閉じ、AI機能の存在だけで自己充足しない。
+- P0が実装PhaseではなくActive Product Definition由来のOwner集合として閉じ、固定root 34件、Product-derived membership、16 axis、unique Owner／fragment、current stateを一つのSpecificationへ束縛している。
+- Legal／IPをSecurity、Privacy、LicenseまたはAI生成Provenanceへcollapseせず、Release法域、market、channel、role、Independent Designとauthorized human Decisionへ閉じている。
 - 汎用Engineのminimum surfaceがOwnerへ一意に接続され、外部Engineの型／API／Scene／Plugin／workflowを模倣または互換層として持ち込まない。
 - Architectureの存在を実装、Activation、QualificationまたはProduct completionと表現していない。

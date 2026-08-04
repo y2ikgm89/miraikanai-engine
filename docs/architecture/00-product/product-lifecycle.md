@@ -4,18 +4,18 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: 第三者Developer向けProject bootstrap、Engine source／Host／Editor／Tool／Installer／Target別配布Packageを閉じるrelease content identity、Project source provenance、claim-derived Target×2D／3D Reference carrierと全Reference requirement Qualification、Manifest／SDK／Documentationをflattenするrelease Sample universeとWorkflow Sample全件のoperation-specific Qualification、Runtime Entry launch root／exact Launch Selection composition、SDK／Template／Sample／Documentation／first-party licenseのrelease binding、GUI／CLI／headless／external IDE／AI-MCPのclaim-derived Operation journey parity、Engine／Project update composition、Pack lifecycle集約、repair／support window、全配布container別NOTICE presentation、Product lifecycle E2E acceptance
-- 非正本範囲: Product intent／MVP／release／completion Decision、ProjectRevision／ChangeSet、public C++ APIの意味／stability、Project test semantics、Privacy data-flow意味、Build／Cook／Package／Signing／Pack transactionのdomain semantics、dependency version／SBOM source、migration class、SupportBundle schema、Evidence envelope。各Ownerを参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Project State](../03-authoring/project-state.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Pack Contract](../08-packs/pack-contract.md)
-- 関連文書: [Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Security](../01-governance/product-security.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 正本範囲: 第三者Developer向けProject bootstrap、Engine source／Host／Editor／Tool／Installer／Target別配布Packageを閉じるrelease content identity、Project source provenance、claim-derived Target×2D／3D Reference carrierと全Reference requirement Qualification、Manifest／SDK／Documentationをflattenするrelease Sample universeとWorkflow Sample全件のoperation-specific Qualification、Runtime Entry launch root／exact Launch Selection composition、SDK／Template／Sample／Documentation／first-party licenseのrelease binding、GUI／CLI／headless／Native SDK／external IDE／MCP／AI automationのclaim-derived Operation journey parity、versioned client／Agent Host profile別cross-surface conformance、Legal／IP reviewへ渡すrelease content／distribution／license domain evidence、Engine／Project update composition、Pack lifecycle集約、repair／support window、全配布container別NOTICE presentation、Product lifecycle E2E acceptance
+- 非正本範囲: Product intent／MVP／release／completion Decision、Legal／IP applicability・法的判断・review authorityの意味、AI Production Run／Agent Host profileの意味、ProjectRevision／ChangeSet、public C++ APIの意味／stability、Project test semantics、Privacy data-flow意味、Build／Cook／Package／Signing／Pack transactionのdomain semantics、dependency version／SBOM source、migration class、SupportBundle schema、Evidence envelope。各Ownerを参照する
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Project State](../03-authoring/project-state.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Pack Contract](../08-packs/pack-contract.md)
+- 関連文書: [Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)、[Product Security](../01-governance/product-security.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[P0 Architecture／Legal-IP Ownership Decision](../decisions/2026-08-04-p0-architecture-and-legal-ip-ownership.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec）
-- 外部根拠確認日: 2026-07-29
+- 外部根拠確認日: 2026-08-04
 
 ## 1. 結論と所有境界
 
 Product Lifecycleは、第三者DeveloperがEngine releaseと利用条件を取得し、Projectを作成し、学習し、公開SDKで拡張し、Project testを実行し、build／cook／package／launchし、Privacy／NOTICE／redistribution条件を確認して配布し、更新、repair、診断、supportを受けるまでの製品横断compositionとacceptanceを所有する。個別domainのSchemaまたは処理を再定義せず、各Ownerのexact artifact／Receiptを同じrelease、Project revision、Candidate、Targetへ束縛する。
 
-Product intent、MVP、Product release／stop／completion Gateは[Product Plan](product-plan.md)、Product data flow／consent／retention／export／deleteは[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、`ProjectRevision`とatomic commitは[Project State](../03-authoring/project-state.md)、Project test semanticsは[Developer Testing](../03-authoring/developer-testing.md)、public C++ API catalog／stabilityは[Native Game Module](../03-authoring/native-game-module.md)、Operation authorization／Audit bindingは[Executable Contracts](../02-foundation/executable-contracts.md)と[AI Security／Approval](../01-governance/ai-security-approval.md)、Build／Cook／Package／SigningはCore、Asset、Runtime Package、各Platform、dependency lock／third-party license／SBOM／notice sourceは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、migration class、rollback eligibility、data／public-contract復元意味は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、`SupportBundleV1`は[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、Evidence envelope／signature／retention／revocationは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが所有する。本書はfirst-party Engine／Editor／SDK license grantとそのpresentationを所有する。`ProductPublicationRecoveryPolicyV1`はCompatibility判断後のCandidate publication、配布済みrelease、不可逆な外部actionの製品横断orchestrationだけを所有し、migration／rollback可能性または復元後data semanticsを決定しない。
+Product intent、MVP、Product release／stop／completion Gateは[Product Plan](product-plan.md)、Legal source／jurisdiction／applicability／authorized review／Decisionは[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)、AI Production surface／Agent Host Profileは[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、Product data flow／consent／retention／export／deleteは[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、`ProjectRevision`とatomic commitは[Project State](../03-authoring/project-state.md)、Project test semanticsは[Developer Testing](../03-authoring/developer-testing.md)、public C++ API catalog／stabilityは[Native Game Module](../03-authoring/native-game-module.md)、Operation authorization／Audit bindingは[Executable Contracts](../02-foundation/executable-contracts.md)と[AI Security／Approval](../01-governance/ai-security-approval.md)、Build／Cook／Package／SigningはCore、Asset、Runtime Package、各Platform、dependency lock／third-party license／SBOM／notice sourceは[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、migration class、rollback eligibility、data／public-contract復元意味は[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、`SupportBundleV1`は[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、Evidence envelope／signature／retention／revocationは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが所有する。本書はfirst-party Engine／Editor／SDK license grantとそのpresentation、Product surfaceとversioned client profileのrelease compositionを所有し、Release Content Manifest、Distribution Coverage、NOTICE／license EvidenceをLegal reviewの一方向inputとして供給する。Lifecycle Acceptance自身はLegal Decisionを発行、検証または内包せず、[Product Release Decision](product-release-decision.md)がLifecycle AcceptanceとLegal／IP Decisionを同じRelease subjectへ合流させる。`ProductPublicationRecoveryPolicyV1`はCompatibility判断後のCandidate publication、配布済みrelease、不可逆な外部actionの製品横断orchestrationだけを所有し、migration／rollback可能性または復元後data semanticsを決定しない。
 
 本書はProduct lifecycle契約のtarget designである。対応するSchema、Operation、Template、Sample、Documentation bundle、Fixture、ReceiptはRepositoryに存在せず、すべて未materialize／未Activationである。
 
@@ -25,7 +25,7 @@ Product intent、MVP、Product release／stop／completion Gateは[Product Plan]
 - 全Refは参照Ownerが定義するID、positive version／revision、content hashを持つexact Refである。ID-only、表示名、path、`latest`、近いversion、同名別Owner、別Targetへfallbackしない。
 - `sorted unique`配列は各要素のcanonical identity byte順にstrict sortし、duplicateを拒否する。
 - content hashは自己hash Fieldだけを除くclosed canonical bytesを、型ごとのASCII domain separatorとlength framingしてSHA-256する。
-- Editor GUI、CLI、headless、external IDE、AI／MCPは、Product Planがapplicableとしたjourneyで同じtyped request、Operation、authorization、validation、candidate hash、semantic result、Receipt／diagnosticを使用する。表示、interactive prompt、progress projectionだけをsurface固有にできる。
+- Editor GUI、CLI、headless、Native SDK、external IDE、MCP、AI automationは、Product Planがapplicableとしたjourneyで同じtyped request、Operation、authorization、validation、candidate hash、semantic result、Receipt／diagnosticを使用する。表示、transport、interactive prompt、progress projectionだけをsurface固有にできる。SDK、MCPおよびAI Agentを一つのsurfaceへcollapseしない。
 - clean-breakは未公開かつ未materializeの内部Schemaにだけ適用する。一度公開したProject、Save、Package、ReleaseはCompatibility Ownerのversioned migrationとlast-known-good規則に従う。
 
 本書が新設するhash型のASCII domain separatorは次である。
@@ -51,6 +51,8 @@ Product intent、MVP、Product release／stop／completion Gateは[Product Plan]
 | `DocumentationLinkV1` | `MIRAKAN_DOCUMENTATION_LINK_V1` |
 | `DocumentationSnippetFixtureV1` | `MIRAKAN_DOCUMENTATION_SNIPPET_FIXTURE_V1` |
 | `DocumentationQualificationRequirementSetV1` | `MIRAKAN_DOCUMENTATION_QUALIFICATION_REQUIREMENT_SET_V1` |
+| `ProductSurfaceClientProfileV1` | `MIRAKAN_PRODUCT_SURFACE_CLIENT_PROFILE_V1` |
+| `ProductCrossSurfaceConformanceProfileV1` | `MIRAKAN_PRODUCT_CROSS_SURFACE_CONFORMANCE_PROFILE_V1` |
 | `ProductSurfaceParityReceiptV1` | `MIRAKAN_PRODUCT_SURFACE_PARITY_RECEIPT_V1` |
 | `DocumentationQualificationReceiptV1` | `MIRAKAN_DOCUMENTATION_QUALIFICATION_RECEIPT_V1` |
 | `DocumentationBundleManifestV1` | `MIRAKAN_DOCUMENTATION_BUNDLE_MANIFEST_V1` |
@@ -91,6 +93,8 @@ Product intent、MVP、Product release／stop／completion Gateは[Product Plan]
 | `DocumentationLinkRefV1` | `{documentation_link_id, documentation_link_version, documentation_link_content_hash}` |
 | `DocumentationSnippetFixtureRefV1` | `{snippet_fixture_id, snippet_fixture_version, snippet_fixture_content_hash}` |
 | `DocumentationQualificationRequirementSetRefV1` | `{documentation_requirement_set_id, documentation_requirement_set_version=1, documentation_requirement_set_content_hash}` |
+| `ProductSurfaceClientProfileRefV1` | `{surface_client_profile_id, surface_client_profile_version, surface_client_profile_content_hash}` |
+| `ProductCrossSurfaceConformanceProfileRefV1` | `{cross_surface_profile_id, cross_surface_profile_version, cross_surface_profile_content_hash}` |
 | `ProductSurfaceParityReceiptRefV1` | `{parity_receipt_id, parity_receipt_version, parity_receipt_content_hash}` |
 | `DocumentationQualificationReceiptRefV1` | `{documentation_receipt_id, documentation_receipt_version, documentation_receipt_content_hash}` |
 | `DocumentationBundleManifestRefV1` | `{documentation_bundle_id, documentation_bundle_version, bundle_content_hash}` |
@@ -478,7 +482,7 @@ Distribution Coverage ProjectionのNamed Algorithm v1は、Product Claim Minimum
 
 `WorkflowCoverageKeySetV1(M)` Named Algorithmは、Manifest `M`が束縛するRelease Requirement Projectionの全Requirementをexact typed `ProductRequirementProjectionInputV1`へjoinし、各`workflow_applicabilities[]`を次のclosed規則で展開する。`host_independent`は`host_profile_ref=null`一件だけ、Host exact setは各Hostを一件ずつ生成する。`target_independent`は`target_profile_ref=null`一件だけ、`all_requirement_targets`はtyped Requirement target applicabilityをClaim Scopeへ展開した各Target、Target exact setは各Targetを一件ずつ生成する。同じworkflow kindについてindependent branchとexact／all branchを異なるRequirement間で混在させず、混在はProjection invalidとする。各Requirementの`required_distribution_scope_kinds[]`をCoverageのexact Subject branchへjoinし、同じ`{workflow,Host,Target}` keyを要求する全RequirementとSubjectをそれぞれcanonical unionする。
 
-`workflow_coverage[]`のfull key projectionは`WorkflowCoverageKeySetV1(M)`とset equality、各rowの`basis_requirement_refs[]`と`required_distribution_subject_refs[]`は同keyのAlgorithm結果と各々set equalityである。12 workflow kind、最大64 Host、最大64 Targetのexplicit cross-productからouter carrier上限を`12 × 64 × 64 = 49152`とし、independent branchは64件のaggregateではなくnull identity一件としてだけ数える。Host／Targetの任意省略、null aggregateとexplicit cross-productの併用、別workflowのSubject流用、64 Subjectでの打切りを拒否する。これは配布物から到達できるdocumented workflow導線だけを表し、Product Operation journey qualificationではない。12 workflow kindの成功、Manifest membershipまたはOperation Activation Evidenceを、Product Planの全non-collapsed family、external IDE／AI-MCP、expected rejectionまたはfailure recoveryの代用にしない。
+`workflow_coverage[]`のfull key projectionは`WorkflowCoverageKeySetV1(M)`とset equality、各rowの`basis_requirement_refs[]`と`required_distribution_subject_refs[]`は同keyのAlgorithm結果と各々set equalityである。12 workflow kind、最大64 Host、最大64 Targetのexplicit cross-productからouter carrier上限を`12 × 64 × 64 = 49152`とし、independent branchは64件のaggregateではなくnull identity一件としてだけ数える。Host／Targetの任意省略、null aggregateとexplicit cross-productの併用、別workflowのSubject流用、64 Subjectでの打切りを拒否する。これは配布物から到達できるdocumented workflow導線だけを表し、Product Operation journey qualificationではない。12 workflow kindの成功、Manifest membershipまたはOperation Activation Evidenceを、Product Planの全non-collapsed family、Native SDK／external IDE／MCP／AI automation、expected rejectionまたはfailure recoveryの代用にしない。
 
 `publication_route_projection[]`は各Distribution Subjectの各`distributed_artifact_bindings[]` full tupleについてexactly one rowを持つ。Subject branchから得る`ProductCompletionDistributionScopeKindV1`、bindingのartifact role、execution scope、locale scopeをRelease Requirement Projectionの各`required_publication_distribution_subjects[]`へexact joinし、全Fieldがbyte equalityのrouteだけをrequired、それ以外をforbiddenへ決定論的に投影する。各rowのrequired／forbidden集合はdisjointで、unionをProduct Planの完全publication distribution subject universeとset equalityにする。全rowの`{subject,artifact,artifact role,execution scope,locale scope}` projectionは全Distribution Subjectの全binding集合とset equalityである。required routeが空のbindingは「そのartifact bindingを公開しない」という有効な完全分割であり、Productのrequired distribution subjectが全rowで一度もrequiredへ投影されない場合はmissingとしてProjection全体を拒否する。Hostをruntime Targetへ、scope-independentを一Targetへ、locale-independentを既定localeへ縮約せず、missing、extra、cross-channel、cross-scope、cross-role、cross-Host／Target、cross-locale、required／forbidden重複、同Subject外artifactまたは自己申告routeを拒否する。Publication Ownerはこの関係を推論せずexact flatten joinとして消費する。
 
@@ -958,17 +962,20 @@ Tutorial scenarioは開始Project ref、typed action列、expected Project revis
 
 broken internal／external link、public signatureと異なるsnippet、unrunnable sample、別release向けtutorial、missing locale fallback declarationをProduct Release Gateで失敗させる。Documentation bundleはrelease artifactであり、Websiteのcurrent pageまたはChat回答を正本にしない。
 
-## 6. GUI／CLI／headless parity
+<a id="product-cross-surface-parity"></a>
+
+## 6. Product cross-surface parity
 
 ```text
-Editor GUI ─┐
-CLI        ─┼─> same typed request
-Headless   ─┘
-              -> same registered semantic Operation
-              -> same authorization and validation
-              -> same Authoring Command Gateway
-              -> atomic ProjectRevision or no current mutation
-              -> same typed Receipt／diagnostic
+Editor GUI / CLI / Headless / Native SDK / External IDE / MCP
+AI automation (Editor built-in / first-party Host / external Host)
+  -> versioned ProductSurfaceClientProfile
+  -> same typed request
+  -> same registered semantic Operation
+  -> same authorization and validation
+  -> same Authoring Command Gateway
+  -> atomic ProjectRevision or no current mutation
+  -> same typed Receipt／diagnostic
 ```
 
 Surface adapterは入力をtyped requestへ投影し、Operation resultを各presentationへ投影するだけである。次を禁止する。
@@ -980,9 +987,51 @@ Surface adapterは入力をtyped requestへ投影し、Operation resultを各pre
 - Widget label、command text、exit codeをsemantic Operation identityにすること
 
 ```text
+ProductSurfaceClientProfileV1
+  surface_client_profile_id: StableId
+  surface_client_profile_version: positive u32
+  product_surface_kind: ProductSurfaceKindV1
+  adapter_artifact_ref: exact ArtifactRefV1
+  adapter_version_identity: non-empty normalized ASCII
+  applicable_operation_family_kinds[1..64]:
+    sorted unique operation_family_kind
+  client_binding:
+    {
+      kind=canonical_surface_adapter,
+      transport_kind:
+        editor_projection | cli | headless | native_sdk
+        | external_ide | mcp,
+      ai_surface_kind: null,
+      ai_agent_host_profile_ref: null
+    }
+    | {
+        kind=ai_agent_host_adapter,
+        transport_kind:
+          editor_projection | cli | native_sdk | mcp,
+        ai_surface_kind: AiAgentHostSurfaceKindV1,
+        ai_agent_host_profile_ref:
+          exact AiAgentHostConformanceProfileRefV1
+      }
+  surface_policy_content_hash: SHA-256
+  surface_client_profile_content_hash: SHA-256
+
+ProductCrossSurfaceConformanceProfileV1
+  cross_surface_profile_id: StableId
+  cross_surface_profile_version: positive u32
+  engine_release_binding_ref: exact EngineReleaseBindingRefV1
+  active_product_definition_ref: exact ActiveProductDefinitionRefV1
+  claim_scope_ref: exact ProductClaimScopeRefV1
+  required_surface_client_profile_refs[1..256]:
+    sorted unique exact ProductSurfaceClientProfileRefV1
+  cross_surface_profile_content_hash: SHA-256
+
 ProductSurfaceParityReceiptV1
   parity_receipt_id: StableId
   parity_receipt_version: positive u32
+  cross_surface_conformance_profile_ref:
+    exact ProductCrossSurfaceConformanceProfileRefV1
+  surface_client_profile_ref:
+    exact ProductSurfaceClientProfileRefV1
   required_operation_journey_projection_ref:
     exact RequiredProductOperationJourneyProjectionRefV1
   claim_scope_ref: exact ProductClaimScopeRefV1
@@ -990,8 +1039,7 @@ ProductSurfaceParityReceiptV1
   semantic_equivalence_group_id: StableId
   operation_family_kind: operation_family_kind
   operation_ref: exact McdContractRefV1(kind=operation)
-  surface_kind:
-    editor_gui | cli | headless | external_ide | ai_mcp
+  surface_kind: ProductSurfaceKindV1
   host_scope:
     {kind=host_independent}
     | {
@@ -1088,9 +1136,13 @@ DocumentationQualificationReceiptV1
   documentation_receipt_content_hash: SHA-256
 ```
 
-各Parity ReceiptはRequired Operation Journey Projectionのexactly one required rowへRequirement、semantic equivalence groupを含む全identity Fieldで解決し、forbidden rowまたはProjection外tupleへ解決してはならない。`observed_result_branch`はrequired rowの`expected_result_branch`と一致し、`owner_typed_journey_evidence_ref`は同じRequirement、semantic group、Evidence class、family、Operation、surface、Host scope／Target scope／locale scope／Reference dimension scope、scenario、branchを持つfresh non-revoked owner-typed signed Evidenceへ解決する。state-changing successはexact Operation Receiptとafter Project revision、read-only successはmutation Receiptなし、expected rejection／failure recoveryは規定されたtyped diagnosticとbefore Project不変を要求する。
+`ProductSurfaceClientProfileV1`のclosed matrixでは、`canonical_surface_adapter`のProduct surfaceとtransportを`editor_gui→editor_projection | cli→cli | headless→headless | native_sdk→native_sdk | external_ide→external_ide | mcp→mcp`へexact一致させ、`ai_automation`を禁止する。`ai_agent_host_adapter`はProduct surfaceを`ai_automation`に固定し、AI surfaceをAI Production Orchestrationのexact Profileへ一致させる。`editor_builtin→editor_projection`、`first_party_agent_host→cli | native_sdk`、`external_agent_host→mcp | cli | native_sdk`だけを許可する。Vendor名はenumにせず、製品、adapter、version、transport、surface policyを`AiAgentHostConformanceProfileRefV1`で固定する。generic MCP Conformanceは`mcp` Product surface、個別Agent経由のMCP Conformanceは`ai_automation`として別Receiptを要求し、相互代用しない。
 
-同じ`{requirement_ref,semantic_equivalence_group_id}`にはProjectionがrequiredとするsurface rowがexactly one件ずつ存在し、request hash、authorization、Candidate、before Project、Operation semantic result、resulting Project、diagnostic setをbranchの意味に従って同値にする。全5 surfaceを無条件要求せず、forbidden surfaceを欠落Receiptとして扱わない。反対にGUI／CLI／headless成功をexternal IDE／AI-MCPへ、別Requirement、別semantic group、別family、別Operation、別Targetまたは別scenarioの成功をrequired rowへ代用しない。presentation bytes equalityは要求しない。
+Cross-surface Profileは同じEngine Release、Active Product Definition、Claim Scopeへ閉じ、ReleaseがProduct上で`supported`と表示する全client／adapter versionをexactly once列挙する。各Required Journey rowについて、同じsurfaceとoperation familyを宣言するClient Profile集合を決定論的に選ぶ。集合がemptyならProfile自体を拒否し、各`{required journey row,client profile}` pairへexactly one Parity Receiptを要求する。全rowのapplicable Client Profile件数をchecked sumしたpair総数は65,535以下でなければならず、overflow、上限超過、truncate、profile間collapseまたは一Receiptによる複数pair代用ではProfile／Acceptanceを生成しない。Profileに列挙しないAgent、adapter、IDE extensionまたはversionをsupportedと表示せず、同vendor別version、同transport別Agent、generic MCP Fixtureを一件へcollapseしない。
+
+各Parity ReceiptはRequired Operation Journey Projectionのexactly one required rowとCross-surface Profileのexactly one Client Profileへ、Requirement、semantic equivalence groupを含む全identity Fieldで解決し、forbidden rowまたはProjection外tupleへ解決してはならない。Receiptの`surface_kind`はClient Profileの`product_surface_kind`とbyte equalityである。`observed_result_branch`はrequired rowの`expected_result_branch`と一致し、`owner_typed_journey_evidence_ref`は同じRequirement、semantic group、Evidence class、family、Operation、surface、Client Profile、Host scope／Target scope／locale scope／Reference dimension scope、scenario、branchを持つfresh non-revoked owner-typed signed Evidenceへ解決する。state-changing successはexact Operation Receiptとafter Project revision、read-only successはmutation Receiptなし、expected rejection／failure recoveryは規定されたtyped diagnosticとbefore Project不変を要求する。
+
+同じ`{requirement_ref,semantic_equivalence_group_id}`にはProjectionがrequiredとするsurface rowとapplicable Client ProfileのCartesian pairがexactly one件ずつ存在し、request hash、authorization、Candidate、before Project、Operation semantic result、resulting Project、diagnostic setをbranchの意味に従って同値にする。全7 Product surfaceを無条件要求せず、forbidden surfaceを欠落Receiptとして扱わない。反対にGUI／CLI／headless成功をNative SDK／external IDE／MCP／AI automationへ、SDK FixtureをMCPへ、MCP transport FixtureをCodex／Claude等の個別Agent Profileへ、あるAgent versionを別versionへ、別Requirement、別semantic group、別family、別Operation、別Targetまたは別scenarioの成功をrequired pairへ代用しない。presentation bytes、Model prose、Tool-call serializationまたはlatencyの一致は要求しない。
 
 Documentation ReceiptのRequirement Setは同じBundleを参照し、Entry、Link、Snippet Target、Tutorialの各result full identity projectionをRequirement Setの対応配列と各々set equalityにする。Snippetのobserved resultはFixture expected result、Tutorialのobserved branchはrequired branchとbyte equalityで、全resultは同じCandidate／public contract setのfresh non-revoked owner Evidenceへ解決する。Bundle-level `passed`一件、Target／Scenarioだけのaggregate、Entry／Link未検査、Snippet S1によるS2充足、4,096件での打切り、失敗、取消済みEvidence、別Candidateまたは別public contract setをAcceptanceへ入れない。
 
@@ -1422,6 +1474,8 @@ ProductLifecycleAcceptanceV1
     exact ProductDistributionCoverageProjectionRefV1
   required_operation_journey_projection_ref:
     exact RequiredProductOperationJourneyProjectionRefV1
+  cross_surface_conformance_profile_ref:
+    exact ProductCrossSurfaceConformanceProfileRefV1
   bootstrap_receipt_refs[1..256]:
     sorted unique exact OperationReceiptRefV1
   parity_receipt_refs[1..65535]:
@@ -1657,7 +1711,7 @@ ProductLifecycleAcceptanceV1
 
 First Playable六Fieldは[Product Plan §5.1](product-plan.md#51-first-playable-outcome)のexact `FirstPlayableDefinitionV1`からrequired Project lineage、AI lane、journey、Runtime Entry role、scenario、Requirement、Evidence classを導出する。Loop Closureは同じCandidate／Project revision、`accepted`、`GameUnderstandingClosureV1=ready_to_stage`、Experience Evaluation、Human Gameplay Approval、Iteration `accept_candidate`へ解決し、AI claim scopeはDefinitionが要求するexact `{ai_composed_game}`とbyte equalityにする。manualとAI journey EvidenceはそれぞれDefinitionのrequired journey projectionとset equalityで全件`fresh`にし、一方を他方へ流用しない。partial Project、manual-only、AI-only、Shooter、3D、別Genre、wrong Target、別Candidate、別Project revisionまたは別Runtime EntryのEvidenceを拒否する。
 
-AcceptanceはReceipt発行元のdomain meaningを変更せず、same release、same candidate、same Engine source、required Host／runtime Target／locale集合、freshness、non-revocation、required scenario set equalityを検証する。`candidate_ref`はRelease Content Manifestの`candidate_ref`、`host_profile_refs[]`、`target_profile_refs[]`、`locale_profile_refs[]`はManifest、Engine Release、Release Requirement Projectionの対応集合と各々byte／set equalityにする。Host Distribution ReceiptはManifestの全Host Distributionへexactly one件対応し、Editor、Engine runtime、Launcher、CLI／headless、全tool、installer／layout、entry set、Toolchain、public contract、Engine sourceの同一性を検証する。`bootstrap_receipt_refs[]`のTemplate projectionは`TemplateBootstrapRequirementSetV1(M)`とset equalityで、各Receiptが束縛するexact `ProjectBootstrapProfileV1`のTemplateとrequested Target setを同rowへbyte／set equalityにし、clean destination bootstrap、first Project revision atomic publication、open／build／test、failure時no partial Projectをcoverする。Documentation Requirement SetはManifestのexact Bundleから§5.1 Algorithmで生成し、AcceptanceのRefとReceiptのRefをbyte equalityにする。Project test resultはsame public contract setとProject revision、Privacy acceptanceはreleaseと同じProduct definition、Toolchain、public contract set、Host／runtime Target／locale集合、Candidateへ一致させる。
+AcceptanceはReceipt発行元のdomain meaningを変更せず、same release、same candidate、same Engine source、required Host／runtime Target／locale集合、freshness、non-revocation、required scenario set equalityを検証する。`candidate_ref`はRelease Content Manifestの`candidate_ref`、`host_profile_refs[]`、`target_profile_refs[]`、`locale_profile_refs[]`はManifest、Engine Release、Release Requirement Projectionの対応集合と各々byte／set equalityにする。Host Distribution ReceiptはManifestの全Host Distributionへexactly one件対応し、Editor、Engine runtime、Launcher、CLI／headless、全tool、installer／layout、entry set、Toolchain、public contract、Engine sourceの同一性を検証する。`bootstrap_receipt_refs[]`のTemplate projectionは`TemplateBootstrapRequirementSetV1(M)`とset equalityで、各Receiptが束縛するexact `ProjectBootstrapProfileV1`のTemplateとrequested Target setを同rowへbyte／set equalityにし、clean destination bootstrap、first Project revision atomic publication、open／build／test、failure時no partial Projectをcoverする。Documentation Requirement SetはManifestのexact Bundleから§5.1 Algorithmで生成し、AcceptanceのRefとReceiptのRefをbyte equalityにする。Project test resultはsame public contract setとProject revision、Privacy acceptanceはreleaseと同じProduct definition、Toolchain、public contract set、Host／runtime Target／locale集合、Candidateへ一致させる。Legal Applicability Profile／Decision／HeadはAcceptance Fieldではなく、Release Decisionが本Acceptanceと同じProduct／Candidate／Manifest／Claim Scopeへ別Owner inputとして束縛する。
 
 本書の全Named Algorithmは、`QualificationScenarioRefV1`を持つrowを生成する前に[AI Verification／Provenance](../01-governance/ai-verification-provenance.md#verification-identity-spine)のVerification Semantic Admissibility Predicate v1を適用する。rowのHost／Target／locale／Reference dimension scalar scope、expected branch、Evidence Class、subject contract集合がScenario／Class／owner Typeにadmissibleでない場合はRequirement SetまたはProjection生成を失敗させ、無効rowをrequired集合へ複写しない。Acceptanceは全`EvidenceRefV1`／`QualificationReceiptRefV1`について同predicateを再実行し、generic wrapperの`verification_scope`、`subject_contract_refs[]`、scenario、observed branchをowner-specific completed recordとread-backする。Refまたはcontent hashだけ、scopeなしgeneric Receipt、別ScenarioでvalidなReceipt、set equalityへの同じ無効tuple複写を成功にしない。
 
@@ -1697,7 +1751,7 @@ Workflow bindingは次のoperation-specific closed unionへ従う。
 
 `target_independent`へTargetを補完する、authoring／build／testへ偽Package／Manifest／Selectionを注入する、package non-successへ存在しない完成成果物を要求する、installでper-entry意味を主張する、launchでTarget／Package／Selectionを省略する、direct Manifest-only Sampleを除外する、同名／同role／同Artifact hash／同revisionの別Sample、Reference Sample Receipt、wrong Target／scenario／expected branch／operation family／Operation Ref／execution branchを代用することを拒否する。Workflow Sampleが0件ならrequirement集合とbinding集合をともにexact emptyにし、Reference集合の有無からWorkflow集合を推測しない。
 
-Acceptanceの`required_operation_journey_projection_ref`はEngine ReleaseのProduct Definition／Claim Scope／Release Requirement Projection／Required Operation Universeへexact解決する。`parity_receipt_refs[]`の`{claim scope,requirement,semantic group,family,operation,surface,host scope,target scope,locale scope,reference dimension scope,scenario,expected branch,evidence class}` projectionはRequired Journey Projectionの`required_journey_entries[]`とexact set equalityにする。Receiptからbranch／Evidence classを除いたfull projectionと、semantic groupを含む`forbidden_surface_entries[]`のintersectionはexact emptyでなければならない。missing、extra、wrong Claim Scope、wrong Requirement、wrong semantic group、wrong family、wrong Operation、wrong surface、wrong Host／Target／locale／Reference dimension scope、wrong scenario、wrong branch、wrong Evidence classをそれぞれ拒否する。Operation Activation Closure、`workflow_coverage[]`、generic Evidence、別Requirement、別semantic group、別surfaceまたは別familyの成功をJourney Evidenceへ数えない。一localeまたは一dimensionのReceiptを別locale、別dimension、`*_independent`または`not_applicable` rowへ流用しない。
+Acceptanceの`required_operation_journey_projection_ref`はEngine ReleaseのProduct Definition／Claim Scope／Release Requirement Projection／Required Operation Universeへexact解決する。Cross-surface Profileも同じEngine Release／Product Definition／Claim Scopeへ解決する。`parity_receipt_refs[]`の`{claim scope,requirement,semantic group,family,operation,surface,client profile,host scope,target scope,locale scope,reference dimension scope,scenario,expected branch,evidence class}` projectionは、Required Journey Projectionの各required rowと同surface／familyへapplicableなCross-surface Client Profile集合を組み合わせたexact pair集合とset equalityにする。Receiptからclient profile、branch／Evidence classを除いたJourney projectionと、semantic groupを含む`forbidden_surface_entries[]`のintersectionはexact emptyでなければならない。missing、extra、wrong Claim Scope、wrong Requirement、wrong semantic group、wrong family、wrong Operation、wrong surface、wrong client／Agent Host Profile、wrong Host／Target／locale／Reference dimension scope、wrong scenario、wrong branch、wrong Evidence classをそれぞれ拒否する。Operation Activation Closure、`workflow_coverage[]`、generic Evidence、別Requirement、別semantic group、別surface、別client versionまたは別familyの成功をJourney Evidenceへ数えない。一localeまたは一dimensionのReceiptを別locale、別dimension、`*_independent`または`not_applicable` rowへ流用しない。
 
 AcceptanceのDistribution Coverage Projection refはManifestとEngine Releaseの同Fieldへbyte equalityにする。`distribution_control_evidence_bindings[]`の`{subject,control}` projectionは全Applicabilityのrequired control pairとset equality、forbidden pairとのintersection exact emptyにする。Notice Presentation subject集合は`third_party_notice`または`first_party_license_presentation`がrequiredなSubject集合とset equalityにし、各required source／containerへexactly one件以上の到達可能なpresentationを要求する。`pack_lifecycle_acceptance_refs[]`の`{pack_requirement_ref,pack_contract_ref}` projectionはCoverageの`pack_distribution_coverage[]`とset equalityで、Product Definitionがrequiredまたはbundledとする全Pack journeyへexactly one件ずつ対応する。各recordのProduct definition、Toolchain、public contract、Candidate、Target、Pack identityと、全action bindingのbefore／after Project revision、Pack Registry head、installed closure、dependency closure、typed signed Receipt lineageをRelease Content Manifestの`pack_contract_refs[]`、Coverageの同pair row、Pack Distribution Subject、Required Operation Journey Projectionへexact照合する。別requirementへの付替え、Pack ID、version、artifact hash、Target、scenario、action lineageまたはpublication routeが一つでもmissing／extra／mismatchならacceptanceを拒否する。first-party licenseはManifest／Engine Releaseのexact `ProductLicenseGrantRefV1`、そのlegal review Evidence、Applicabilityがrequiredにした全Subjectの`ProductNoticePresentationV1`、`first_party_license_presentation` control Evidenceからだけ導出する。独立した`product_license_receipt_refs[]`、installer同意、Website textまたは一Subjectのpresentationを別のlicense authorityにしない。
 
@@ -1717,7 +1771,7 @@ AcceptanceのDistribution Coverage Projection refはManifestとEngine Releaseの
 - Target Packageのouter Runtime Entry集合とtyped distribution Manifest／Package artifact／Launch Selection／package／install／launch Evidence集合が一致しない場合、inner World Package、entry-set hash、bare Manifest／descriptor hash、別entryのlaunch成功または同じPackage名で埋めない。
 - Release Content Manifestに存在しないEngine source／Host Distribution／Candidate／Target Package、配布container集合の一部だけのSBOM／NOTICE、別Project revisionのPackageをrelease acceptance成功にしない。
 - Privacy acceptance、Pack lifecycle acceptance、first-party license、SBOM／NOTICE、User到達可能なPackage別presentation、support windowの欠落をrelease acceptance成功にしない。
-- surface adapter failureを別surfaceの成功で埋めず、GUI／CLI／headless／external IDE／AI-MCPのどれか一つをsemantic authorityにしない。
+- surface adapter failureを別surfaceまたは別client versionの成功で埋めず、GUI／CLI／headless／Native SDK／external IDE／MCP／AI automationのどれか一つをsemantic authorityにしない。
 
 ## 11. Qualification
 
@@ -1757,7 +1811,7 @@ Android、Apple、headless distributionも同じProduct lifecycle meaningを使�
 
 - Candidate、Project snapshot四Field／Project revision／Source closure／canonical transport artifact、全Target Packageのtyped distribution Manifest／outer Runtime Entry集合／Launch Selection、Engine release、SDK、first-party license、Template、`ReleaseSampleSetV1`と全Reference／Workflow Qualification requirement、Documentation、update、support、Privacy、Pack、NOTICEがexact Refで一方向に閉じる。
 - 全local RefがID、version／revision、content hashを持ち、Documentation Entry／Link／Bundle、Support Window／Closure、Release／Acceptanceのhash graphがDAGである。
-- GUI／CLI／headlessが同じOperationへ収束し、surface固有authorityを持たない。
+- GUI／CLI／headless／Native SDK／external IDE／MCP／AI automationが同じOperationへ収束し、surface固有authorityを持たない。Product-supportedな各Agent Host／adapter versionは個別ProfileとReceiptを持つ。
 - bootstrapはatomic、updateはseparate Candidate＋single promotion、failureはlast-known-goodを維持する。
 - Product Release GateがSDK、Project testing、claim-derived 0／1／2 dimension Referenceの全Sample×Target×requirement、release Sample carrier union、Workflow Sample全件のoperation-specific typed Qualification、Target Package Source provenance／typed distribution Manifest／Runtime Entry launch closure／exact Launch Selection、Documentation、Privacy、Pack lifecycle、first-party license、support、全Target PackageのNOTICEをBuild成功と別に検証できる。
 - Product Lifecycleが各domain Schemaを複写せず、各Ownerのfresh Receiptだけを集約する。

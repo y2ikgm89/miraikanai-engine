@@ -7,11 +7,13 @@
 - 正本範囲: Verification lifecycle、Requirement coverage、AI Evalの独立性、Qualification Scenario／Evidence Class identity、generic Verification Scope／subject contract／Evidence／Qualification Receipt spine、semantic admissibility predicateとclosed resolver Registry、`MirakanSignedRecordV1`共通署名Envelope／Ref、Evidence envelope意味、Receipt class、Test結果集約・retry・quarantine・waiver、freshness、Provenance、Trace grading、release evidence、保持、failure
 - 非正本範囲: Domain固有Evidence／Receipt payload、materialized Registry／Fixture候補、AI authorization、Risk、Approval権限、Sandbox、Credential、MCP security。補助文書または各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](ai-security-approval.md)、[Executable Contracts](../02-foundation/executable-contracts.md)
-- 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
+- 関連文書: [AI Evidence Envelope／Fixture Candidate Catalog](../appendices/ai-evidence-envelope-fixture-catalog.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Product Legal／IP Governance](product-legal-ip-governance.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Plan](../00-product/product-plan.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-27
 
 ## 1. Evidence原則
+
+Legal／IP reviewで使うEvidenceも本書のgeneric Envelope、semantic admissibility、freshness、revocation、retentionへ従うが、法的applicability、privilege、review authorityまたはApproval outcomeは[Product Legal／IP Governance](product-legal-ip-governance.md)だけが所有する。署名、hash、provenanceまたはEvidence class単独を法令遵守、権利処理または非侵害の証明にしない。
 
 AI出力、Schema適合、AIが生成したTest、単一Benchmark、reviewer一名の判断のいずれかだけで変更を採用しない。Riskに応じ、互いに独立したRequirement、検証、Approvalを束縛する。
 

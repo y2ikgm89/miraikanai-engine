@@ -7,11 +7,13 @@
 - 正本範囲: 共通語彙、acronym、正規技術語彙の人間言語境界、public型・Operation・Diagnostic・file・directory命名、Engine／Game Project root、Source／Derived／Intermediate／Package配置、generated file、module／namespace／target対応、lint／migration Gate
 - 非正本範囲: 型・Schemaの構造、外部Tool version、Build Driver、Project revision、Asset lifecycle、Domain固有field。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Core Architecture](core-architecture.md)
-- 関連文書: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 Language／Public Surface](cpp23-modules.md)、[Project state](../03-authoring/project-state.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
+- 関連文書: [Core architecture](core-architecture.md)、[Toolchain／Dependencies](toolchain-dependencies.md)、[Executable contracts](executable-contracts.md)、[C++23 Language／Public Surface](cpp23-modules.md)、[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)、[Project state](../03-authoring/project-state.md)、[Editor Workspace UX](../03-authoring/editor-workspace-ux.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-26
 
 ## 1. 結論と優先順位
+
+本書は技術token、path、namespace、表示localeの規則を所有するが、Product名、logo、feature名、package ID、domainまたはvisual identityのtrademark／trade dress clearanceを所有しない。第三者identifierとの権利reviewとmarket固有Decisionは[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)へ送る。命名lint成功、接頭辞、綴り変更または一意なStable IDをclearance Evidenceにしない。
 
 名前、Path、Stable ID、表示名を分離し、同じ意味へ一つの正規語を使う。技術識別子は人間とAIが検索、推論、生成、reviewできる明示性を優先し、省略、文脈依存alias、同義語の併存を避ける。
 

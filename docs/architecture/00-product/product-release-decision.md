@@ -4,9 +4,9 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Product release eligibilityのauthoritative subject、署名済みRelease Decision record、release authority／quorum／freshness／revocation、Product authority scope／stream identity、state transition authorization、署名済みcurrent head、current／superseded／revoked state
-- 非正本範囲: Product intent／required universe導出、Release Content Manifest、Lifecycle／Security acceptanceのdomain意味、Platform signing／upload／submission、実公開、Product completion、汎用署名・Role・Trust semantics。各Ownerを参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[Product Lifecycle](product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
+- 正本範囲: Product release eligibilityのauthoritative subject、same-scope Legal／IP readiness binding、署名済みRelease Decision record、release authority／quorum／freshness／revocation、Product authority scope／stream identity、state transition authorization、署名済みcurrent head、current／superseded／revoked state
+- 非正本範囲: Product intent／required universe導出、Release Content Manifest、Lifecycle／Security／Legal-IP acceptanceのdomain意味、Platform signing／upload／submission、実公開、Product completion、汎用署名・Role・Trust semantics。各Ownerを参照する
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[Product Lifecycle](product-lifecycle.md)、[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)
 - 関連文書: [Product Publication／Completion](product-publication-completion.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision（署名primitive、Role、Trust、revocationは参照先Governance Ownerの正本に従う）
 - 外部根拠確認日: none
@@ -14,6 +14,8 @@
 ## 1. 結論と所有境界
 
 Release Decisionは「公開してよい」というauthorizationであり、Release label、Build成功、Lifecycle Acceptance、Security Binding、unsigned subject、Platform uploadまたはStore availabilityではない。本書はProduct Planのpure predicateを、qualified release authorityがpurpose-separated signatureで承認または拒否する最終authority recordへ閉じる。
+
+Release authorityは法的判断を代行しない。Release subjectは[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)のsame-scope current `approved` DecisionとHeadを必須入力としてread-backし、jurisdiction／market／channel／role／Candidateが一件でも不一致、未review、期限切れ、revoked、supersededまたはscope-changedならReleaseをfail closedにする。
 
 実際のpublic availability、partial publication、withdrawal、supersession、support開始、Product completionは[Product Publication／Completion](product-publication-completion.md)だけが所有する。Platform Ownerは本書の有効な署名済みDecisionをsigning／upload／submission authorizationとして消費するが、本書はPlatform Receiptをhash preimageへ含めない。
 
@@ -54,6 +56,11 @@ ProductReleaseDecisionSubjectV1
   engine_release_binding_ref: exact EngineReleaseBindingRefV1
   product_lifecycle_acceptance_ref:
     exact ProductLifecycleAcceptanceRefV1
+  product_legal_applicability_profile_ref:
+    exact ProductLegalApplicabilityProfileRefV1
+  product_legal_ip_decision_ref: exact ProductLegalIpDecisionRefV1
+  product_legal_ip_decision_head_ref:
+    exact ProductLegalIpDecisionHeadRefV1
   product_security_release_binding_ref:
     exact ProductSecurityReleaseBindingRefV1
   production_activation_set_ref:
@@ -107,10 +114,10 @@ ProductReleaseDecisionSubjectV1
 
 `approved`では次をすべて満たす。
 
-1. Requirement Projection、Required Operation Universe、Required Operation Journey Projection、Operation Activation Closure、Engine Release、Lifecycle Acceptance、Security Binding、Activation SetのActive Product Definition、Claim Scope、Candidate、Toolchain、public contract、Host／runtime Target／locale集合を各Ownerのprojection規則でbyte／set equalityにする。
+1. Requirement Projection、Required Operation Universe、Required Operation Journey Projection、Operation Activation Closure、Engine Release、Lifecycle Acceptance、Legal Applicability Profile／Decision／Head、Security Binding、Activation SetのActive Product Definition、Claim Scope、Candidate、Toolchain、public contract、Host／runtime Target／locale集合を各Ownerのprojection規則でbyte／set equalityにする。
 2. Requirement Projectionの`required_activation_subjects[]`とActivation Setのsupplied subject projectionをset equalityにする。
-3. Requirement Projectionの全`required_acceptance_subjects[]`が要求する`{requirement_ref,evidence_class_ref,required Host scope,required Target scope,required locale scope,required Reference dimension scope}`と、Lifecycle／Security／Privacy／License／Support／Reference／Pack acceptanceまたは`supplemental_evidence_bindings[]`から正規化した同じpair固有のsatisfied scopeをexact set equalityにする。`required_evidence_class_refs[]`はそのdistinct class projectionとset equalityにする。
-4. 各required pairを同じrequirement identityのOwner acceptanceまたはsupplemental Evidenceへ一意に解決する。同一pairに複数Evidenceがある場合はそのpair内だけでHost、runtime Target、locale、Reference dimensionのcanonical unionを計算し、required branchと各々exact equalityにする。`not_applicable`、`host_independent`／`target_independent`／`locale_independent`／`dimension_independent`、`exact_set`は相互変換せず、independentまたはnot-applicable branchとexact setの混在、empty exact set、別pairを跨ぐunionを拒否する。
+3. Requirement Projectionの全`required_acceptance_subjects[]`が要求する`{requirement_ref,evidence_class_ref,required Host scope,required Target scope,required locale scope,required Reference dimension scope}`と、Lifecycle／Legal／Security／Privacy／License／Support／Reference／Pack acceptanceまたは`supplemental_evidence_bindings[]`から正規化した同じpair固有のsatisfied scopeをexact set equalityにする。`required_evidence_class_refs[]`はそのdistinct class projectionとset equalityにする。
+4. 各required pairを同じrequirement identityのOwner acceptanceまたはsupplemental Evidenceへ一意に解決する。Legal pairはcurrent approved Legal／IP DecisionのReview Subjectにある`supplied_domain_evidence_bindings[]`から、Requirement Bindingの`product_requirement_ref`とrowの`evidence_class_ref`をread-backして正規化する。同一pairに複数Evidenceがある場合はそのpair内だけでHost、runtime Target、locale、Reference dimensionのcanonical unionを計算し、required branchと各々exact equalityにする。`not_applicable`、`host_independent`／`target_independent`／`locale_independent`／`dimension_independent`、`exact_set`は相互変換せず、independentまたはnot-applicable branchとexact setの混在、empty exact set、別pairを跨ぐunionを拒否する。Legal Decision record単独、Decision reason、source snapshotまたはauthorized reviewer identityをEvidence pairの代用にしない。
 5. 各Evidence／Qualification ReceiptへAI Verification OwnerのVerification Semantic Admissibility Predicate v1を適用し、generic wrapper、owner-specific completed record、subject contract集合、Host／Target／locale／Reference dimension scope、Scenario／branch、Candidate、freshness、non-revocationを発行元Ownerでread-backする。content hashまたはset equalityだけで意味制約を省略しない。
 6. canonical `required − satisfied`差分を再計算し、そのcanonical empty projection hashを`required_minus_satisfied_gap_content_hash`とbyte equalityにする。
 7. `rejection_reason_evidence_refs=[]`とする。
@@ -118,6 +125,8 @@ ProductReleaseDecisionSubjectV1
 9. Required Operation Journey Projectionのfull `{Claim Scope,Requirement,semantic group,family,Operation,surface,Host scope,Target scope,locale scope,Reference dimension scope,scenario,branch,Evidence class}`集合とLifecycle Acceptanceのtyped Journey Evidence projectionをexact set equality、branch／Evidence classを除く同scopeのforbidden surface集合とのintersectionをexact emptyにし、Activation Evidence、別localeまたは別dimensionのJourney Evidenceをjourney qualificationへ数えない。
 10. Required Operation Journey Projectionのdistinct `{operation_family_kind,operation_ref}` projectionをRequired Operation Universeの同projectionとset equalityにし、各Universe pairに少なくとも一つのrequired `success` rowと、同じHost／Target／locale／Reference dimension scopeをread-backするfresh Journey Evidenceがあることを検証する。
 11. Claim Scopeへ入る全claim-facing Requirementについて、Product Planの唯一のtyped InputとMinimum bindingの`{requirement_ref,requirement_category}`をbyte equalityにし、pre-publication、Completion、JourneyのEvidence class canonical unionをnon-emptyにする。`third_party_product_release`ではdistinct category projectionを全`ProductRequirementCategoryV1`とexact set equalityにし、category alias／override、Evidence obligation三集合empty、別Requirementまたはglobal class unionによる補完を拒否する。
+
+加えてLegal Applicability Profileの全distribution bindingがLifecycle Acceptanceの`distribution_coverage_projection_ref`から解決する全required publication routeとexact scope equalityであり、Legal DecisionがそのProfileのrequired binding／Domain Evidence／Independent Design closureを承認し、Headが同Decisionをcurrentとして指すことをProduct Legal／IP Ownerのeffective-state規則でread-time再検証する。Release Decision自身、Security pass、SBOM、license label、AI回答またはArchitecture reviewをLegal Approvalへ代用しない。
 
 `rejected`では一件以上のrejection reasonを必須とし、Release signing、publication、claim、support開始またはCompletionのauthorizationに使用しない。Decision作成者がrequired集合、gap、acceptance kind、Evidence classまたはpair固有scopeをinlineに追加・削除するFieldは存在しない。`supplemental_evidence_bindings[]`はOwner aggregateに含まれないexact Evidenceを同じrequired pairへ束縛するだけで、required universeまたはscopeの選択元ではない。
 
@@ -171,6 +180,8 @@ ProductReleaseAuthorityScopeSubjectV1
   release_requirement_projection_ref:
     exact ProductReleaseRequirementProjectionRefV1
   engine_release_binding_ref: exact EngineReleaseBindingRefV1
+  product_legal_applicability_profile_ref:
+    exact ProductLegalApplicabilityProfileRefV1
   release_authority_scope_subject_content_hash: SHA-256
 
 ProductAuthorityStateStreamKeyV1
@@ -246,7 +257,7 @@ ProductAuthorityStateHeadRecordV1
   state_head_record_content_hash: SHA-256
 ```
 
-Release authority scopeは同じActive Product Definition、Claim Scope、Release Requirement Projection、Engine Releaseのexact tupleであり、Product line global、Authority Service global、release labelまたはDecision ID単独へ縮退しない。`ProductReleaseAuthorityScopeSubjectV1`をgeneric `ProductAuthorityScopeSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-release-decision`、typeは`ProductReleaseAuthorityScopeSubjectV1`、content hashはlocal recordとbyte equalityにする。
+Release authority scopeは同じActive Product Definition、Claim Scope、Release Requirement Projection、Engine Release、Legal Applicability Profileのexact tupleであり、Product line global、Authority Service global、release labelまたはDecision ID単独へ縮退しない。Decision Subjectの同五Fieldをscopeとbyte equalityにし、別market／channel／role Profileを同じauthority streamへ付け替えない。`ProductReleaseAuthorityScopeSubjectV1`をgeneric `ProductAuthorityScopeSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-release-decision`、typeは`ProductReleaseAuthorityScopeSubjectV1`、content hashはlocal recordとbyte equalityにする。
 
 最初のStateはversion 1、`expected_previous_state_ref=null`である。更新は同じState IDの直前versionへCASし、branch、merge、skip、self、cycleを拒否する。`current`はsuccessor null、`superseded`はsuccessor必須、`revoked`はsuccessor optionalである。Release Stateを`ProductAuthorityStateSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-release-decision`、typeは`ProductReleaseDecisionAuthorityStateV1`、scopeは同StateのRelease scopeを上記generic Refへ投影した値、残りのID／version／hashはlocal exact Refとbyte equalityにする。
 
@@ -263,7 +274,7 @@ Platform signing／upload／submissionとProduct claimは、`decision_state=appr
 | Ref | Field |
 |---|---|
 | `ProductAuthorityScopeSubjectRefV1` | `{authority_scope_owner_document_id, authority_scope_type_id, authority_scope_subject_content_hash}` |
-| `ProductReleaseAuthorityScopeSubjectRefV1` | `{active_product_definition_ref, claim_scope_ref, release_requirement_projection_ref, engine_release_binding_ref, release_authority_scope_subject_content_hash}` |
+| `ProductReleaseAuthorityScopeSubjectRefV1` | `{active_product_definition_ref, claim_scope_ref, release_requirement_projection_ref, engine_release_binding_ref, product_legal_applicability_profile_ref, release_authority_scope_subject_content_hash}` |
 | `ProductAuthorityStateSubjectRefV1` | `{authority_state_owner_document_id, authority_state_type_id, authority_scope_subject_ref, authority_state_id, authority_state_version, authority_state_content_hash}` |
 | `ProductReleaseDecisionSubjectRefV1` | `{product_release_decision_subject_id, product_release_decision_subject_version=1, product_release_decision_subject_content_hash}` |
 | `ProductReleaseDecisionRecordRefV1` | `{product_release_decision_record_id, product_release_decision_record_version=1, product_release_decision_record_content_hash}` |
@@ -275,6 +286,7 @@ Platform signing／upload／submissionとProduct claimは、`decision_state=appr
 
 - bare Subject、content hashだけ、Approval label、人間名、issue stateをauthorityにしない。
 - Lifecycle、Security、Privacy、License、Support、Reference、Pack、ActivationまたはEvidenceの一部欠落を別class成功で補わない。
+- Legal／IP Decisionのmissing、partial scope、expired、revoked、supersededまたはscope-changedを別market、別Candidate、license scan、Security passまたはrelease authority署名で補わない。
 - rejected、expired、revoked、superseded Decision、unsigned State、未authorization State、stale／unsigned HeadをPlatform actionまたはpublic claimへ使わない。
 - Decision RecordまたはStateをRelease Content Manifest、Engine Release、Acceptance、Activation Bindingへ埋め戻さない。
 - Platform publication ReceiptまたはCompletion RecordをDecision hashへ含めない。
@@ -290,4 +302,5 @@ Platform signing／upload／submissionとProduct claimは、`decision_state=appr
 - Required universeがProduct Planのexact Projectionだけから決まり、Decisionにinline required集合がない。
 - Release subject、authority scope／stream、signature、freshness、revocation、quorum、current stateが一意に閉じる。
 - Platform Ownerがbare subjectではなくcurrent署名済みDecision Recordを要求する。
+- Product Release subjectがsame-scope current Legal／IP Decision／Headを必須とする。
 - Release DecisionからPlatform Receipt、Publication、Completionへの一方向DAGが成立する。

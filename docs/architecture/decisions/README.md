@@ -40,6 +40,7 @@ This README is navigation/template only and does not itself make an Architecture
 | 2026-08-03 | [MCP Current Protocol Baseline](2026-08-03-mcp-current-protocol-baseline.md) | `review` | current protocol singleton、legacy lifecycle非採用、materialization境界 |
 | 2026-08-03 | [Android Adaptive Game Window Baseline](2026-08-03-android-adaptive-game-window-baseline.md) | `review` | game categoryとadaptive orientation／resizable windowの一意なbaseline |
 | 2026-08-04 | [AI Production Orchestration Ownership](2026-08-04-ai-production-orchestration-ownership.md) | `review` | AI production Run／Workflow／Context／route／loop ownershipと既存Owner境界 |
+| 2026-08-04 | [P0 Canonical Architecture／Product Legal-IP Ownership](2026-08-04-p0-architecture-and-legal-ip-ownership.md) | `review` | Product-derived P0 membership／16-axis closureとProduct Legal／IP Governanceの一意所有 |
 
 ## 4. Template
 

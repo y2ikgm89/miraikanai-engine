@@ -7,11 +7,13 @@
 - 正本範囲: Product全体のthreat ownership、security baseline、vulnerability report intake／triage／validation／remediation／security release／disclosure／closure、security update decision、Product security incident
 - 非正本範囲: AI task authorization、dependency lock／SBOM generation、Platform signing／privacy、domain input／memory／resource contract、SupportBundle schema、Evidence envelope。各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)
-- 関連文書: [Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 関連文書: [Product Legal／IP Governance](product-legal-ip-governance.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Project Shader](../06-rendering/project-shader.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 根拠区分: project-decision／official-guidance comparison
 - 外部根拠確認日: 2026-07-29
 
 ## 1. 結論と所有境界
+
+本書のSecurity Baseline、vulnerability、update、disclosure、incident recordは[Product Legal／IP Governance](product-legal-ip-governance.md)へ渡すdomain Evidenceになり得るが、法域固有のcybersecurity obligation、contract interpretationまたはLegal／IP Release Approvalを所有しない。逆にLegal／IP DecisionはSecurity Acceptanceや修正済みEvidenceを代替しない。
 
 Product Securityは、Product全体のsecurity subjectにaccountable Ownerを割り当て、脆弱性報告を受けてからvalidation、修正Candidate、security update、通知、開示、incident response、再発防止までを一つのcaseとして閉じる。
 

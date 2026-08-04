@@ -7,7 +7,7 @@
 - 正本範囲: Architecture文書の状態、subject-qualified状態語彙、根拠区分、Inventory、一意所有、規範依存、分割・統廃合、Architecture Decision Log、Architecture Change／Approval identity
 - 非正本範囲: Product capability、MCD／Operation、実装Task、実装順序、Domain Schema・固定値・runtime挙動、AIの認可・実行route
 - 規範依存: none
-- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Product Publication／Completion](../00-product/product-publication-completion.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Product Publication／Completion](../00-product/product-publication-completion.md)、[Product Legal／IP Governance](product-legal-ip-governance.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Governance Migration Proposals](../appendices/governance-migration-proposals.md)、[P0 Architecture／Legal-IP Ownership Decision](../decisions/2026-08-04-p0-architecture-and-legal-ip-ownership.md)
 - 根拠区分: project-decision。ADR lifecycleは一次資料を確認済み
 - 外部根拠確認日: 2026-07-27
 
@@ -243,6 +243,11 @@ release-criticalな共通identity spineのcurrent Owner routingは次である�
 
 | identity family | canonical Owner |
 |---|---|
+| `P0SubsystemRefV1`／`P0ArchitectureAxisBindingV1`／`P0SubsystemArchitectureClosureV1`／`P0CanonicalArchitectureSpecificationV1` | [Product Plan §3.3](../00-product/product-plan.md#p0-canonical-architecture) |
+| `LegalAuthoritySourceSnapshotV1`／`LegalJurisdictionProfileV1`／`ProductLegalDistributionBindingV1`／`ProductLegalApplicabilityProfileV1`／`ProductLegalRequirementBindingV1`／`IndependentDesignReviewSubjectV1`／`ProductLegalIpReviewSubjectV1`／`ProductLegalIpDecisionV1`／`ProductLegalIpDecisionHeadV1` | [Product Legal／IP Governance §3](product-legal-ip-governance.md#product-legal-ip-identity) |
+| `ProductSurfaceKindV1` | [Product Plan §6.1](../00-product/product-plan.md#product-profile-identity) |
+| `ProductSurfaceClientProfileV1`／`ProductCrossSurfaceConformanceProfileV1`／`ProductSurfaceParityReceiptV1` | [Product Lifecycle §6](../00-product/product-lifecycle.md#product-cross-surface-parity) |
+| `AiProductionSurfaceKindV1`／`AiAgentHostSurfaceKindV1`／`AiAgentHostConformanceProfileV1` | [AI Production Orchestration §13](../03-authoring/ai-production-orchestration.md#ai-surface-parity-conformance) |
 | `TargetProfileV1`／`TargetProfileRefV1`／root Registry | [Product Plan §6.1](../00-product/product-plan.md#product-profile-identity) |
 | `LocaleProfileV1`／`LocaleProfileRefV1`／root Registry | [Product Plan §6.1](../00-product/product-plan.md#product-profile-identity) |
 | `QualificationScenarioV1`／`EvidenceClassV1`／`VerificationScopeVectorV1`／generic `EvidenceRefV1`／`QualificationReceiptRefV1`／semantic admissibility／resolver Registry | [AI Verification／Provenance §7](ai-verification-provenance.md#verification-identity-spine) |
@@ -315,7 +320,7 @@ Architecture変更をCompatibility承認、ADRまたは実装状態と混同し�
 ```text
 ArchitectureDocumentVersionRefV1
   document_id: canonical ASCII document ID
-  document_state: draft | review | approved | deprecated
+  document_state: draft | review | accepted | deprecated
   document_content_hash: SHA-256
 
 ArchitectureChangeSetV1

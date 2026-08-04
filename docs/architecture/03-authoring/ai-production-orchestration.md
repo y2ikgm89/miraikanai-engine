@@ -4,10 +4,10 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: AI Production Run／Attempt／Result／Checkpoint、AI Workflow Definition／Registry／binding／step semantics／bound、immutable Run Context assembly、deterministic Automation／first-party Agent／standard external Agent／managed external Hostのproduction route、Runごとのcontrol-loop／Agent-loop単一所有、明示fallback／child Run、conversation／session非authority、interaction intent／bounded execution profile、Authoring AIとshipping Runtime AIの非代替、surface semantic parity、およびこれらを扱うtarget Operation familyの意味
-- 非正本範囲: Product claim／MVP／First Playable／Release／Completion、Task Authorization／Risk／Approval／Consent／Credential／Provider・MCP security、Evidence／Eval／Provenance／freshness、MCD／Operation共通Envelope／Diagnostic／projection、Host／Process／IPC配置、Project revision／Document／ChangeSet／Commit／Undo、Game Brief／Spec／Question／Playtest／Iteration、Panel／Workspace／Accessibility、外部SDK／runtime／model artifactのversion・hash・license、system CPU／GPU／memory capacity、Runtime package／shipping eligibility、NPC／Gameplay AI／Navigation、shipping generative Runtime AI、binary名／service数／queue・thread実装、実装順序／工程／工数／担当
+- 正本範囲: AI Production Run／Attempt／Result／Checkpoint、AI Workflow Definition／Registry／binding／step semantics／bound、immutable Run Context assembly、deterministic Automation／first-party Agent／standard external Agent／managed external Hostのproduction route、Runごとのcontrol-loop／Agent-loop単一所有、明示fallback／child Run、conversation／session非authority、interaction intent／bounded execution profile、Authoring AIとshipping Runtime AIの非代替、AI surface semantic parity、versioned Agent Host Conformance Profile、およびこれらを扱うtarget Operation familyの意味
+- 非正本範囲: Product claim／MVP／First Playable／Release／Completion、Product journeyのrequired surface／client集合とrelease acceptance、Task Authorization／Risk／Approval／Consent／Credential／Provider・MCP security、Evidence／Eval／Provenance／freshness、MCD／Operation共通Envelope／Diagnostic／projection、Host／Process／IPC配置、Project revision／Document／ChangeSet／Commit／Undo、Game Brief／Spec／Question／Playtest／Iteration、Panel／Workspace／Accessibility、外部SDK／runtime／model artifactのversion・hash・license、system CPU／GPU／memory capacity、Runtime package／shipping eligibility、NPC／Gameplay AI／Navigation、shipping generative Runtime AI、binary名／service数／queue・thread実装、実装順序／工程／工数／担当
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Project State](project-state.md)
-- 関連文書: [AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Game Production Loop](game-production-loop.md)、[Editor Workspace／UX](editor-workspace-ux.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Runtime Package](../04-runtime/runtime-package.md)、[AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)
+- 関連文書: [AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Game Production Loop](game-production-loop.md)、[Editor Workspace／UX](editor-workspace-ux.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Runtime Package](../04-runtime/runtime-package.md)、[AI Provider／MCP Security Supplement](../appendices/ai-provider-mcp-security-supplement.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[MCP Current Protocol Baseline Decision](../decisions/2026-08-03-mcp-current-protocol-baseline.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未materializeの型・Registry・Operation・Fixture・Receiptおよび未計測boundはtarget candidate／provisional）
 - 外部根拠確認日: 2026-08-04
 
@@ -35,6 +35,7 @@ MiraikanaiのAI制作は、ModelまたはChat UIへProject write権限を与え�
 | CPU／GPU／RAM／VRAM capacity、reservation、measurement | [Performance／Capacity](../04-runtime/performance-capacity.md) | orchestration budgetとは別のcapacity判定として消費する |
 | Run causal event、Store／Query／export、redaction | [Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md) | typed causal projectionだけを公開する |
 | shipping package、launch、Runtime inclusion／exclusion | [Runtime Package](../04-runtime/runtime-package.md) | Authoring AI artifact exclusionを要求する |
+| Product journey surface、required client profile集合、release acceptance | [Product Lifecycle](../00-product/product-lifecycle.md) | AI Profile identityを供給し、Product parity／release passを決めない |
 
 本書の`AiProductionRunStateV1`はAI SecurityのGovernance Task state、Coreの`OperationTaskV1.state`、Project StateのChangeSet stateまたはProvider session stateと別の直交stateである。同じ表示語があってもalias、implicit transitionまたは完了推論を作らない。
 
@@ -43,6 +44,12 @@ MiraikanaiのAI制作は、ModelまたはChat UIへProject write権限を与え�
 本書が所有する全top-level target recordはclosed object、`schema_version=1`、型固有Stable ID、自己hashを除く全Fieldのcanonical bytesから導出する型固有`content_hash: SHA-256`を持つ。共通encoding、hash、`ArtifactRefV1`、`McdContractRefV1`のshapeはExecutable Contractsを参照し、本書へ複写しない。
 
 各`XxxRefV1`は型固有ID、schema version、完成record content hashのexact tupleで、解決した完成recordとbyte equalityにする。裸ID、display name、path、array index、`latest`、conversation ID、MCP session ID、Editor tab、process ID、Model-generated aliasまたは同ID別hashを受理しない。配列は別記がなければcanonical ref bytes順のstrict sorted unique setで、duplicate、同logical ID別hash、欠損memberの自然言語補完を拒否する。
+
+```text
+AiProductionSurfaceKindV1 =
+  editor_builtin | native_sdk | cli | mcp
+  | first_party_agent_host | external_agent_host
+```
 
 Run lineageは次の一方向だけを許す。
 
@@ -641,9 +648,47 @@ MCP Tool、Prompt、Resource、Task extension、App UIはcanonical Operationま�
 
 vendor thread、session、subagent、permission mode、hook、plugin lifecycle、Model family名をMiraikanai正本型へ流入させない。Adapterを`supported`と表示できるのは、同じsurface policy、Workflow、Context、Operation、Diagnostic、Resultを評価するcurrent Conformance Receiptがある場合だけである。
 
+<a id="ai-surface-parity-conformance"></a>
+
 ## 13. surface parityとConformance
 
-`AiProductionSurfaceKindV1`は`editor_builtin | native_sdk | cli | mcp | first_party_agent_host | external_agent_host`のclosed target setである。各surfaceは同じcanonical requestへ投影し、surface固有の表示、transport、streamingまたはauthenticationをsemantic Operationへ混ぜない。
+`AiProductionSurfaceKindV1`は§3のclosed target setである。`AiAgentHostSurfaceKindV1`はそのうちAgent Host Profileを持つ`editor_builtin | first_party_agent_host | external_agent_host`のclosed subsetである。各surfaceは同じcanonical requestへ投影し、surface固有の表示、transport、streamingまたはauthenticationをsemantic Operationへ混ぜない。
+
+```text
+AiAgentHostSurfaceKindV1 =
+  editor_builtin | first_party_agent_host | external_agent_host
+
+AiAgentHostConformanceProfileV1
+  schema_version: 1
+  agent_host_profile_id: StableId
+  agent_host_profile_version: positive u32
+  ai_surface_kind: AiAgentHostSurfaceKindV1
+  agent_product_identifier: StableId
+  agent_product_version_identity: non-empty normalized UTF-8
+  adapter_artifact_ref: exact ArtifactRefV1
+  host_binding_ref: exact ArtifactRefV1
+  transport_projection_kind:
+    editor_projection | cli | native_sdk | mcp
+  workflow_registry_ref: exact AiWorkflowRegistryRefV1
+  allowed_workflow_refs[1..4096]:
+    sorted unique exact AiWorkflowDefinitionRefV1
+  allowed_operation_refs[1..65535]:
+    sorted unique exact McdContractRefV1(kind=operation)
+  surface_policy_content_hash: SHA-256
+  conformance_requirement_artifact_ref: exact ArtifactRefV1
+  agent_host_profile_content_hash: SHA-256
+
+AiAgentHostConformanceProfileRefV1
+  agent_host_profile_id: StableId
+  agent_host_profile_version: positive u32
+  agent_host_profile_content_hash: SHA-256
+```
+
+`AiAgentHostConformanceProfileV1.agent_host_profile_content_hash`はASCII domain separator `MIRAKAN_AI_AGENT_HOST_CONFORMANCE_PROFILE_V1`と§3のcanonical framingで、自己hashだけを除く全Fieldから計算する。Refは解決先のID、version、content hashとbyte equalityである。
+
+Profileのclosed matrixは`editor_builtin→editor_projection`、`first_party_agent_host→cli | native_sdk`、`external_agent_host→mcp | cli | native_sdk`である。同じ製品名でもAgent version、adapter artifact、Host binding、transport、Workflow Registry、surface policyまたはOperation集合が異なれば別Profileとする。`latest`、vendor account、thread、session、display label、Model familyまたはtransportだけからProfileを補完しない。Codex、Claudeその他の製品名は`agent_product_identifier`のdataであり、canonical enum、authorityまたは互換保証ではない。
+
+Profileは適合対象を固定するだけで、supported claimまたはConformance passではない。[Product Lifecycle](../00-product/product-lifecycle.md)がReleaseごとのrequired Client Profile集合とProduct surface `ai_automation`へのmappingを所有し、AI VerificationがProfileをsubjectとするcurrent Fixture／Suite／Receiptのidentity、freshness、revocationを所有する。generic `mcp` transport Fixture、Native SDK Fixture、同vendor別version、別Agentまたは別surfaceのReceiptをProfile passへ代用しない。現RepositoryにProfile Schema、Registry、Fixture、SuiteまたはReceiptは存在しない。
 
 同じsubject、Workflow Binding、Run Context input、route class、Authorization、Project revision、surface policyを与えた場合、Conformanceは少なくとも次を検証する。
 

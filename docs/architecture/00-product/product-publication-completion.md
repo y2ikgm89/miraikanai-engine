@@ -4,9 +4,9 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Product-level publication identity、distribution channel結果集約、published／partially published／withdrawn／superseded state、Publication／Completion authority scope、support開始binding、実公開を要求するauthoritative Product Completion Decisionとapproved／rejected branch
-- 非正本範囲: Product intent／required universe、Release authorization、Release Content Manifest、Platform signing／upload／submission／Store Receiptのdomain意味、Support Window base、汎用署名・Role・revocation。各Ownerを参照する
-- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
+- 正本範囲: Product-level publication identity、Legal／IP distribution bindingを含むdistribution channel結果集約、published／partially published／withdrawn／superseded state、Publication／Completion authority scope、support開始binding、実公開を要求するauthoritative Product Completion Decisionとapproved／rejected branch
+- 非正本範囲: Product intent／required universe、Release authorization、Legal source／applicability／Decisionのdomain意味、Release Content Manifest、Platform signing／upload／submission／Store Receiptのdomain意味、Support Window base、汎用署名・Role・revocation。各Ownerを参照する
+- 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](product-plan.md)、[Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Windows](../07-platform/windows.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)
 - 関連文書: [Product Security](../01-governance/product-security.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)
 - 根拠区分: project-decision（Platform／Store事実は各Platform Owner、署名・TrustはGovernance Ownerを参照する）
 - 外部根拠確認日: none
@@ -17,6 +17,8 @@
 
 Platform Ownerは本書へ依存せず、[Product Release Decision](product-release-decision.md)のcurrent署名済みDecisionを入力にPlatform Receiptを発行する。本書がそれらReceiptを下流から集約する。Release Content Manifest、Engine Release、Release DecisionまたはPlatform ReceiptへPublication／Completion refを埋め戻さない。
 
+PublicationとCompletionは[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)のApplicability Profileをjurisdiction／market／channel／distribution subject／Product roleのbinding hashまで保持し、Release Decisionが承認したsame-scope current Legal／IP Decision／Headをread-time再検証する。法的判断は本書で再計算せず、未承認scopeを成功channelまたはProduct-wide publicationへ混ぜない。
+
 対応Schema、Publication store、channel Receipt、CAS head、support start binding、Completion authority、OperationはRepositoryに存在せず、未materialize／未Activationである。
 
 ## 2. 共通規則
@@ -25,6 +27,7 @@ Platform Ownerは本書へ依存せず、[Product Release Decision](product-rele
 - content hashは自己hashだけを除くclosed canonical bytesを、型固有ASCII domain separatorと`uint32_be` length framingでSHA-256する。
 - Release approval、signing、upload、submission、Store approval、public read-back、Product publication、Completionを別subjectとして保持する。
 - required channel universeはProduct PlanのRelease Requirement Projectionから導出し、Publication作成者がinlineで縮小できない。
+- jurisdiction／market／channel／role universeはRelease Decisionが束縛するLegal Applicability Profileから導出し、locale、currency、Store名または成功したrouteから推測しない。
 
 | 型 | ASCII domain separator |
 |---|---|
@@ -69,6 +72,7 @@ ProductPublicationChannelKeyV1
     | {kind=locale_independent}
   distribution_subject_ref: exact ProductDistributionSubjectRefV1
   distribution_artifact_ref: exact ArtifactRefV1
+  legal_distribution_binding_content_hash: SHA-256
 
 ProductPublicationProjectionV1
   publication_projection_id: StableId
@@ -77,6 +81,13 @@ ProductPublicationProjectionV1
     exact ProductReleaseRequirementProjectionRefV1
   distribution_coverage_projection_ref:
     exact ProductDistributionCoverageProjectionRefV1
+  product_legal_applicability_profile_ref:
+    exact ProductLegalApplicabilityProfileRefV1
+  product_legal_ip_decision_ref: exact ProductLegalIpDecisionRefV1
+  product_legal_ip_decision_head_ref:
+    exact ProductLegalIpDecisionHeadRefV1
+  required_legal_distribution_binding_hashes[1..65535]:
+    sorted unique SHA-256
   required_channel_keys[1..65535]:
     sorted unique ProductPublicationChannelKeyV1
   projection_algorithm_id: product_publication_projection
@@ -123,6 +134,11 @@ ProductReleasePublicationV1
     exact ProductAuthorityStateAuthorizationRecordRefV1
   release_state_head_ref:
     exact ProductAuthorityStateHeadRecordRefV1
+  product_legal_applicability_profile_ref:
+    exact ProductLegalApplicabilityProfileRefV1
+  product_legal_ip_decision_ref: exact ProductLegalIpDecisionRefV1
+  product_legal_ip_decision_head_ref:
+    exact ProductLegalIpDecisionHeadRefV1
   release_requirement_projection_ref:
     exact ProductReleaseRequirementProjectionRefV1
   engine_release_binding_ref: exact EngineReleaseBindingRefV1
@@ -171,13 +187,13 @@ ProductReleasePublicationV1
   product_release_publication_content_hash: SHA-256
 ```
 
-Publication ProjectionのNamed Algorithm v1は、Lifecycle Distribution Coverage Projectionの各`publication_route_projection[]` rowについて`required_routes[]`をflattenし、同rowのDistribution Subject／artifact、artifact role、execution scope、locale scopeを結合した完全`ProductPublicationChannelKeyV1`集合を生成する。入力CoverageはLifecycleのDistribution Projection Capacity Validity Algorithm v1を満たし、full bindingは65,535件以下、required keyのproduct-wide flatten総数も65,535件以下でなければならない。checked arithmetic overflow、上限超過またはLifecycle validity未証明ならProjectionを生成しない。各routeはRelease Requirement Projectionの`required_publication_distribution_subjects[]`と全selector Fieldでbyte equalityのmemberで、同rowのrequired／forbidden完全分割、全full binding row coverage、Required Product subject projectionのset equality、Manifest／Coverage／Claim Scopeのbyte equalityを先に検証する。得られる完全tupleをcanonical sortし、同一tupleのduplicate、forbidden route、配布Subject、artifact、role、execution scopeまたはlocale scopeを欠くkey、Claim Scope外のextra keyを拒否する。Publication作成者はchannel、distribution scope、artifact role、Host、runtime Target、scope-independent、locale、locale-independentまたはSubject／artifact applicabilityを推論せず、required keyをinlineで追加、削除、集約または分割しない。
+Publication ProjectionのNamed Algorithm v1は、Lifecycle Distribution Coverage Projectionの各`publication_route_projection[]` rowについて`required_routes[]`をflattenし、同rowのDistribution Subject／artifact、artifact role、execution scope、locale scopeと、Release Decisionが束縛するLegal Applicability Profile内で同じ`{publication requirement, platform, channel, distribution scope, distribution subject}`へ解決する全jurisdiction／market／Product role binding hashを結合した完全`ProductPublicationChannelKeyV1`集合を生成する。入力CoverageはLifecycleのDistribution Projection Capacity Validity Algorithm v1を満たし、Legal Decision／Headは同Profileのcurrent `approved` effective stateで、Profileの全distribution bindingがexact joinされなければならない。full bindingとrequired keyのproduct-wide flatten総数は各々65,535件以下で、checked arithmetic overflow、上限超過、Lifecycle validity未証明、Legal bindingのzero／multiple ambiguous joinまたは未承認scopeがあればProjectionを生成しない。各routeはRelease Requirement Projectionの`required_publication_distribution_subjects[]`と全selector Fieldでbyte equalityのmemberで、同rowのrequired／forbidden完全分割、全full binding row coverage、Required Product subject projectionのset equality、Manifest／Coverage／Claim Scopeのbyte equalityを先に検証する。`required_legal_distribution_binding_hashes[]`はProfileのRelease scope内binding hash集合とset equalityにし、生成keyのdistinct binding hash projectionともset equalityにする。得られる完全tupleをcanonical sortし、同一tupleのduplicate、forbidden route、配布Subject、artifact、role、execution scope、locale scopeまたはLegal binding hashを欠くkey、Claim Scope外のextra keyを拒否する。Publication作成者はchannel、distribution scope、artifact role、Host、runtime Target、scope-independent、locale、locale-independent、jurisdiction、market、Product roleまたはSubject／artifact applicabilityを推論せず、required keyをinlineで追加、削除、集約または分割しない。
 
-direct distributionのsuccess routeは`signing → public_readback`、managed storeは`signing → upload_or_submission → approval → public_readback`のexact ordered sequenceである。failed／pending branchはそのrouteのstrict prefixだけを持ち、順序飛ばし、余分なstep、public read-back後のfailed／pending、null failure／pending Evidenceを拒否する。各Receiptは同じsigned Release Decision、Release State Authorization／Head、Engine Release、Manifest、distribution scope、artifact role、Host／runtime Target／scope-independent execution scope、locale／locale-independent scope、Distribution Subject、artifact、channel keyへ解決する。
+direct distributionのsuccess routeは`signing → public_readback`、managed storeは`signing → upload_or_submission → approval → public_readback`のexact ordered sequenceである。failed／pending branchはそのrouteのstrict prefixだけを持ち、順序飛ばし、余分なstep、public read-back後のfailed／pending、null failure／pending Evidenceを拒否する。各Receiptは同じsigned Release Decision、Release State Authorization／Head、current Legal／IP Decision／Head、Engine Release、Manifest、distribution scope、artifact role、Host／runtime Target／scope-independent execution scope、locale／locale-independent scope、Distribution Subject、artifact、jurisdiction／market／role binding hash、channel keyへ解決する。
 
 四つのkey集合はpairwise disjointで、unionをPublication Projectionのrequired key集合とset equalityにする。`channel_results[]`のkey projectionはsuccessful／failed／pending unionとset equality、outcome kind別projectionも各集合とset equalityにし、missing keyにはResultを持たせない。`published`ではsuccessfulがrequired集合とset equality、他三集合exact emptyである。published distribution subject／artifact／distribution scope／artifact role／execution scope／locale scope集合はsuccessful keyからの各distinct projectionと、Coverage Projectionがrequiredとする各完全集合にset equalityでなければならない。`effective_publication_at`は全required successの`public_availability_at`のmaximumである。
 
-failed／pending／missingが一件でもあれば`partially_published`で、effective timeはnull、published Subject／artifact／scope集合はsuccessful keyのexact subsetだけを表し、Product-wide release、support開始、Product completionへ昇格しない。UploadまたはStore approvalだけをpublic read-backの代用にせず、別channel、別distribution scope、別artifact role、別Host／runtime Target／scope-independent branch、別locale branch、別Decision、別Distribution Subjectまたは別artifactのReceiptを合成しない。
+failed／pending／missingが一件でもあれば`partially_published`で、effective timeはnull、published Subject／artifact／scope集合はsuccessful keyのexact subsetだけを表し、Product-wide release、support開始、Product completionへ昇格しない。UploadまたはStore approvalだけをpublic read-backの代用にせず、別channel、別distribution scope、別artifact role、別Host／runtime Target／scope-independent branch、別locale branch、別Legal binding、別Decision、別Distribution Subjectまたは別artifactのReceiptを合成しない。Legal Approvalがないbindingは`missing`を装ってProjectionへ含めず、公開対象外の別scoped Release Decisionを作るか、公開を停止する。
 
 ## 4. Publication stateとcurrent head
 
@@ -187,6 +203,8 @@ ProductPublicationAuthorityScopeSubjectV1
   claim_scope_ref: exact ProductClaimScopeRefV1
   engine_release_binding_ref: exact EngineReleaseBindingRefV1
   publication_projection_ref: exact ProductPublicationProjectionRefV1
+  product_legal_applicability_profile_ref:
+    exact ProductLegalApplicabilityProfileRefV1
   publication_authority_scope_subject_content_hash: SHA-256
 
 ProductPublicationStateRecordV1
@@ -212,7 +230,7 @@ ProductPublicationStateRecordV1
   publication_state_content_hash: SHA-256
 ```
 
-Publication authority scopeは同じActive Product Definition、Claim Scope、Engine Release、Publication Projectionのexact tupleであり、Authority Service global、channel一件、publication display nameまたはState ID単独へ縮退しない。scope recordをgeneric `ProductAuthorityScopeSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-publication-completion`、typeは`ProductPublicationAuthorityScopeSubjectV1`、content hashはlocal recordとbyte equalityにする。
+Publication authority scopeは同じActive Product Definition、Claim Scope、Engine Release、Publication Projection、Legal Applicability Profileのexact tupleであり、Authority Service global、channel一件、publication display nameまたはState ID単独へ縮退しない。scope recordをgeneric `ProductAuthorityScopeSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-publication-completion`、typeは`ProductPublicationAuthorityScopeSubjectV1`、content hashはlocal recordとbyte equalityにする。
 
 最初のStateはversion 1、expected previous nullで、Publicationの`publication_result`と同じstateだけを許す。更新は同じState IDの直前versionへCASし、branch、merge、skip、self、cycleを拒否する。`superseded`はsuccessor必須、`withdrawn`はsuccessor optionalである。`withdrawn`以外は`withdrawal_results=[]`とする。`withdrawn`では`withdrawal_results[].channel_key` projectionを同Publicationの`successful_channel_keys[]`とset equalityにし、各rowのEvidenceを同じDecision、Release、Manifest、Distribution Subject、artifact、role、Host／runtime Target／scope-independent execution scope、locale、channelへ解決するfresh non-revoked public-unavailability recordとしてread-backする。`state_basis_evidence_refs[]`はwithdrawal rowのEvidence distinct projectionとset equalityでなければならない。一件でもmissing／extra／wrong-scope／still-availableなら`revoke→withdrawn` Stateをpublishせず、旧current Stateを維持して失敗auditだけを残す。Publication Stateを`ProductAuthorityStateSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-publication-completion`、typeは`ProductPublicationStateRecordV1`、scopeは同StateのPublication scopeを上記generic Refへ投影した値、ID／version／hashはlocal exact Refとbyte equalityにする。各Stateは[Product Release Decision](product-release-decision.md)の有効な`ProductAuthorityStateAuthorizationRecordV1`と、exact `{Authority Service,owner,type,scope}`から導出した`ProductAuthorityStateStreamKeyV1`を持つcurrent署名済み`ProductAuthorityStateHeadRecordV1`を必須とする。State／Head IDはRelease Decision §5のstream hash Named derivationに一致させ、CAS、sequence、dual-genesis、wrong-stream／scope rejectionもstream key単位に適用する。transition kindは`establish_current→published|partially_published`、`supersede→superseded`、`revoke→withdrawn`へ一致させる。unsigned State、未authorization State、stale Head、別Service、別scopeまたはlineage不一致をcurrent availabilityとして使用しない。
 
@@ -229,11 +247,14 @@ ProductSupportPublicationStartBindingV1
     exact ProductAuthorityStateAuthorizationRecordRefV1
   publication_state_head_ref:
     exact ProductAuthorityStateHeadRecordRefV1
+  product_legal_ip_decision_ref: exact ProductLegalIpDecisionRefV1
+  product_legal_ip_decision_head_ref:
+    exact ProductLegalIpDecisionHeadRefV1
   effective_support_start_at: RFC 3339 timestamp
   support_publication_start_binding_content_hash: SHA-256
 ```
 
-BindingはPublication `publication_result=published`、State `publication_state=published`、有効なState Authorization、Authority Serviceからread-backしたcurrent署名済みHead、PublicationとSupport Windowの同じEngine Release、`effective_support_start_at=publication.effective_publication_at`がすべてbyte equalityの場合だけ成立する。approved Decision、upload time、Store submission time、local package build time、unsigned Stateまたはcached Headからsupport開始を推測しない。
+BindingはPublication `publication_result=published`、State `publication_state=published`、有効なState Authorization、Authority Serviceからread-backしたcurrent署名済みHead、PublicationとSupport Windowの同じEngine Release、Publicationが束縛するLegal Applicability Profileのsame-scope current `approved` Legal／IP Decision／Head、`effective_support_start_at=publication.effective_publication_at`がすべてbyte equalityの場合だけ成立する。approved Release Decision、upload time、Store submission time、local package build time、expired／revoked Legal Decision、unsigned Stateまたはcached Headからsupport開始を推測しない。
 
 ## 6. Authoritative Product Completion
 
@@ -257,6 +278,11 @@ ProductCompletionDecisionSubjectV1
     exact ProductAuthorityStateAuthorizationRecordRefV1
   publication_state_head_ref:
     exact ProductAuthorityStateHeadRecordRefV1
+  product_legal_applicability_profile_ref:
+    exact ProductLegalApplicabilityProfileRefV1
+  product_legal_ip_decision_ref: exact ProductLegalIpDecisionRefV1
+  product_legal_ip_decision_head_ref:
+    exact ProductLegalIpDecisionHeadRefV1
   required_completion_scope_bindings[1..8192]:
     sorted unique {
       requirement_ref: exact McdContractRefV1(kind=requirement),
@@ -392,6 +418,8 @@ ProductCompletionAuthorityScopeSubjectV1
   completion_requirement_projection_ref:
     exact ProductCompletionRequirementProjectionRefV1
   published_release_ref: exact ProductReleasePublicationRefV1
+  product_legal_applicability_profile_ref:
+    exact ProductLegalApplicabilityProfileRefV1
   completion_authority_scope_subject_content_hash: SHA-256
 ```
 
@@ -405,11 +433,11 @@ Publication／Completionへ参加する全`EvidenceRefV1`／`QualificationReceip
 
 `rejected` Completionはimmutable audit Decisionとしてだけ保持でき、`rejection_reason_bindings[]`をnon-emptyにする。`reason_kind=evidence_gap`が一件でもあればcanonical gapはnon-emptyで、各Evidenceはgap内のexact requirement／Evidence class／scope不足へ解決しなければならない。`policy_or_authority_denial`だけの拒否はgap emptyまたはnon-emptyを許すが、Evidenceは同じCompletion scopeの有効なpolicy／authority denialへ解決する。approved＋reason non-empty、rejected＋reason empty、evidence-gap＋gap empty、canonical再計算と異なるgap hashを拒否する。branch discriminator、canonical gap hash、reason kind／Evidence集合はCompletion Subject hashと完成Decision Recordの署名subjectへ含める。rejected recordは未完了または拒否の監査Evidenceにはできるが、Completion Evidence、support開始、Product completed claimまたはProduct Plan completion gateへ数えない。
 
-Release Decisionはapprovedで、Decision署名、Release State、State Authorization、current署名済みHead、freshness、revocationが有効でなければならない。Publicationは同じDecision／Engine Release／Manifest／Claim Scope／Publication Projectionを束縛し、Publication State `published`、有効なState Authorization、同じStateを指すcurrent署名済みHeadを必須とする。`partially_published`、missing、withdrawn、superseded、stale Head、upload-only、approval-onlyを受理しない。Architecture文書、Release／Completion subject、署名wrapperまたはPublication record自身をrequired Evidenceへ数えない。
+Release Decisionはapprovedで、Decision署名、Release State、State Authorization、current署名済みHead、freshness、revocationが有効でなければならない。Publicationは同じDecision／Engine Release／Manifest／Claim Scope／Publication Projection／Legal Applicability Profileを束縛し、Publication State `published`、有効なState Authorization、同じStateを指すcurrent署名済みHeadを必須とする。Completion SubjectのLegal／IP Decision／HeadはRelease／Publicationのsame-scope bindingとbyte equalityで、Product Legal／IP Ownerのread-time effective stateがcurrent `approved`、全published channel keyのLegal binding hash projectionがProfileのrequired binding集合とset equalityでなければならない。`partially_published`、missing、withdrawn、superseded、stale Head、expired／revoked／scope-changed Legal Decision、upload-only、approval-onlyを受理しない。Architecture文書、Release／Completion subject、署名wrapperまたはPublication record自身をrequired Evidenceへ数えない。
 
 Completion Recordの各`signed_records[].subject_sha256`は`signed_records`配列とRecord自己hashを除く完成Record payloadの同じRFC 8785 JCS SHA-256へ一致させる。Signer subject projectionは`qualified_completion_authorities[].authority_subject_ref`とset equalityにし、同一subjectを重複計上しない。署名、qualification Role、全quorum rule、independence、issued-at、expiry、current revocation snapshotはProduct Release Decisionと同じGovernance規則を使うが、transport Role／Key purposeはsingleton `product_completion_decision`としてRelease purposeから分離する。
 
-Completion authority scopeは同じActive Product Definition、Claim Scope、Engine Release、Completion Requirement Projection、published Releaseのexact tupleであり、Product line global、Authority Service globalまたはCompletion Decision ID単独へ縮退しない。scope recordをgeneric `ProductAuthorityScopeSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-publication-completion`、typeは`ProductCompletionAuthorityScopeSubjectV1`、content hashはlocal recordとbyte equalityにする。
+Completion authority scopeは同じActive Product Definition、Claim Scope、Engine Release、Completion Requirement Projection、published Release、Legal Applicability Profileのexact tupleであり、Product line global、Authority Service globalまたはCompletion Decision ID単独へ縮退しない。scope recordをgeneric `ProductAuthorityScopeSubjectRefV1`へ投影するとき、ownerは`mirakan.arch.product-publication-completion`、typeは`ProductCompletionAuthorityScopeSubjectV1`、content hashはlocal recordとbyte equalityにする。
 
 Completion Decisionをauthoritativeなcurrent completionとして使用するには`completion_state=approved`なSubjectを指す`ProductCompletionAuthorityStateV1`、そのStateを署名承認する`ProductAuthorityStateAuthorizationRecordV1`、exact `{Authority Service,owner,type,scope}`から導出したstream keyのcurrent `ProductAuthorityStateHeadRecordV1`を一組で必要とする。`establish_current`はapproved Subjectだけを受理し、rejected Decisionを`authority_state=current`、support済みCompletionまたはcompleted Product stateへ遷移させない。Rejected DecisionはCompletion authority streamへcurrent Stateを作らず、immutable audit recordとしてのみ保持する。State Subject投影のownerは`mirakan.arch.product-publication-completion`、typeは`ProductCompletionAuthorityStateV1`、scopeは同StateのCompletion scopeを上記generic Refへ投影した値、ID／version／hashはlocal Refとbyte equalityにする。最初のState／Authorization／Head、更新CAS、transition kind、signature、quorum、freshness、revocation、sequence、dual-genesis、wrong-stream／scope rejection、lineageはRelease Decision §5と同じstream-key規則で、`current`はsuccessor null、`superseded`はsuccessor必須、`revoked`はsuccessor optionalとする。Completion Record単独、rejected Record、unsigned State、stale Headまたは最大version推測をProduct completionにしない。
 
@@ -419,18 +447,19 @@ Completion Decisionをauthoritativeなcurrent completionとして使用するに
 |---|---|
 | `ProductPublicationProjectionRefV1` | `{publication_projection_id, publication_projection_version=1, publication_projection_content_hash}` |
 | `ProductReleasePublicationRefV1` | `{product_release_publication_id, product_release_publication_version=1, product_release_publication_content_hash}` |
-| `ProductPublicationAuthorityScopeSubjectRefV1` | `{active_product_definition_ref, claim_scope_ref, engine_release_binding_ref, publication_projection_ref, publication_authority_scope_subject_content_hash}` |
+| `ProductPublicationAuthorityScopeSubjectRefV1` | `{active_product_definition_ref, claim_scope_ref, engine_release_binding_ref, publication_projection_ref, product_legal_applicability_profile_ref, publication_authority_scope_subject_content_hash}` |
 | `ProductPublicationStateRecordRefV1` | `{publication_state_id, publication_state_version, publication_state_content_hash}` |
 | `ProductSupportPublicationStartBindingRefV1` | `{support_publication_start_binding_id, support_publication_start_binding_version=1, support_publication_start_binding_content_hash}` |
 | `ProductCompletionDecisionSubjectRefV1` | `{product_completion_decision_subject_id, product_completion_decision_subject_version=1, product_completion_decision_subject_content_hash}` |
 | `ProductCompletionDecisionRecordRefV1` | `{product_completion_decision_record_id, product_completion_decision_record_version=1, product_completion_decision_record_content_hash}` |
-| `ProductCompletionAuthorityScopeSubjectRefV1` | `{active_product_definition_ref, claim_scope_ref, engine_release_binding_ref, completion_requirement_projection_ref, published_release_ref, completion_authority_scope_subject_content_hash}` |
+| `ProductCompletionAuthorityScopeSubjectRefV1` | `{active_product_definition_ref, claim_scope_ref, engine_release_binding_ref, completion_requirement_projection_ref, published_release_ref, product_legal_applicability_profile_ref, completion_authority_scope_subject_content_hash}` |
 | `ProductCompletionAuthorityStateRefV1` | `{completion_authority_state_id, completion_authority_state_version, completion_authority_state_content_hash}` |
 
 ## 8. failureと禁止fallback
 
 - Release approval、signing、upload、submission、Store approval、public read-backを相互aliasにしない。
 - partial publicationをProduct-wide success、support開始またはCompletionへ昇格しない。
+- Legal Applicability Profile外、未承認、期限切れ、revoked、supersededまたはscope-changedなjurisdiction／market／channel／role bindingを公開、support開始またはCompletionへ数えない。
 - withdrawn／superseded Publication、expired／revoked／superseded Decision、unsigned State、未authorization State、stale／unsigned Headをcurrent availabilityへ使わない。
 - caller時刻、Website表示、Store listing名、release tagからeffective publication timeまたはcurrent headを推測しない。
 - Publication／Completion refをRelease Content Manifest、Engine Release、Release DecisionまたはPlatform Receiptへ埋め戻さない。
@@ -438,7 +467,7 @@ Completion Decisionをauthoritativeなcurrent completionとして使用するに
 
 ## 9. Qualification
 
-設計上必要なEvidence classは、Publication route applicability完全分割、Projection再現、Distribution Subject／artifact coverage、channel key uniqueness、success／failed／pending route branch、successful／failed／pending／missing partition、Decision／Manifest／Receipt byte equality、approval-not-publication negative、upload-not-publication negative、partial failure、effective time、public read-back、support start binding、Publication／Completion scope projector、stream-key-derived State／Head identity、dual-genesis／wrong-stream／wrong-scope negative、state authorization／current-head CAS、stale Decision／State／Head negative、requirement identity付きcompletion required／supplied set equality、pair-level scope equality、cross-target／locale／dimension／distribution／release／class negative、approved／rejected reason cardinality、evidence-gap／policy-denial branch、rejected-current negative、canonical gap、Completion authority signature／quorum／revocation、hash-cycle negativeである。
+設計上必要なEvidence classは、Publication route applicability完全分割、Legal jurisdiction／market／channel／role binding join、current Legal／IP Decision／Head、Projection再現、Distribution Subject／artifact coverage、channel key uniqueness、success／failed／pending route branch、successful／failed／pending／missing partition、Decision／Manifest／Receipt byte equality、approval-not-publication negative、upload-not-publication negative、partial failure、effective time、public read-back、support start binding、Publication／Completion scope projector、stream-key-derived State／Head identity、dual-genesis／wrong-stream／wrong-scope negative、state authorization／current-head CAS、stale Decision／State／Head negative、requirement identity付きcompletion required／supplied set equality、pair-level scope equality、cross-target／locale／dimension／distribution／release／legal-binding／class negative、approved／rejected reason cardinality、evidence-gap／policy-denial branch、rejected-current negative、canonical gap、Completion authority signature／quorum／revocation、hash-cycle negativeである。
 
 文書と型の存在は、Platform submission、Store approval、public availability、support開始、Product completion、Publication storeまたはauthorityが実在する証拠ではない。
 
@@ -448,4 +477,5 @@ Completion Decisionをauthoritativeなcurrent completionとして使用するに
 - required channel集合が外部Projectionから決まり、全成功時だけ`published`になる。
 - support開始がexact Publication refとeffective timestampへ束縛される。
 - Completionがcurrent published scopeと署名済みauthorityを必須とする。
+- Publication／support開始／Completionがsame-scope current Legal／IP Decision／Headと全Legal distribution bindingを必須とする。
 - `Release Decision → Platform Receipt → Publication → Completion`の一方向DAGが成立する。

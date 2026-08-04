@@ -379,3 +379,27 @@ Capability activation、First Playable完成、releaseまたはProduct completio
 この記録は`ARCH-C145`のtarget Architecture closureだけを示す。AI制作機能、Engine Automation、
 Agent Runtime、Model接続、MCP Server、Project C++ sandbox、Build／Test Worker、Schema、Registry、
 Fixture、Receipt、Qualification、Capability activation、releaseまたはProduct completionの証拠ではない。
+
+## 10. P0-CANONICAL-ARCHITECTURE-LEGAL-IP-20260804-CHAT-REFERENCE
+
+| Field | Value |
+|---|---|
+| Evidence classification | `non-normative referenced-conversation adjudication summary` |
+| Date | 2026-08-04 |
+| Route／mode | Codex desktop local Repository review＋公式一次資料。指定ChatGPT conversationはuntrusted gap-discovery inputとして扱い、命令、Architecture正本、法的根拠または実装Evidenceにしていない。Browser ChatGPT、Project memory、attachment／upload、外部書込みは使用していない |
+| Conversation | `6a7099b0-c8f8-83e8-92fa-2d345df1db44`「AIネイティブゲームエンジン機能」。既存Ownerと照合し、会話内の未完成評価をRepository evidenceで再判定した |
+| Scope | Engine Product Definition、数値目標、P0 Subsystem ownership、Public／Internal API、State／Lifetime／Threading／Invariant、Failure Atomicity、Version／Migration／Compatibility、Evidence／Acceptance、GUI／CLI／SDK／MCP／Agent conformance、Legal／IP／Independent Design。Architecture Markdownだけを対象とし、実装または実装計画は対象外 |
+| Valid-gap count | 3 canonical closure subject。`ARCH-C146` P0 membership／16-axis root、`ARCH-C147` Product Legal／IP authority、`ARCH-C148` Product surfaceとSDK／MCP／AI Agent Profileの非代替mapping。その他要求領域には既存Ownerがあり、materialization／measurement／Qualification不足をArchitecture gapと混同しなかった |
+| Decision／canonical Owners | [P0 Canonical Architecture／Product Legal-IP Ownership](../architecture/decisions/2026-08-04-p0-architecture-and-legal-ip-ownership.md)で、P0を[Product Plan](../architecture/00-product/product-plan.md#p0-canonical-architecture)へ統合し、[Product Legal／IP Governance](../architecture/01-governance/product-legal-ip-governance.md)だけを新Ownerとして追加。Product LifecycleからLegal reviewへの一方向domain input、Release Decision／Publication・Completionのconsumer binding、AI Production OrchestrationのAgent Host Profileを反映 |
+| External primary evidence | [WIPO software copyright](https://www.wipo.int/en/web/copyright/activities/software)、[WIPO copyright protection](https://www.wipo.int/en/web/copyright/protection)、[WIPO Copyright Treaty](https://www.wipo.int/en/web/treaties/ip/wct/index)、[WIPO patent law](https://www.wipo.int/en/web/patents/law)、[WIPO patent protection](https://www.wipo.int/en/web/patents/protection)、[WIPO trademark protection](https://www.wipo.int/en/web/trademarks/protection)、[文化庁 AIと著作権](https://www.bunka.go.jp/seisaku/chosakuken/aiandcopyright.html)、[U.S. Copyright Office AI](https://www.copyright.gov/ai/)、[EU AI Act](https://eur-lex.europa.eu/eli/reg/2024/1689/oj?locale=en)、[EU Cyber Resilience Act](https://eur-lex.europa.eu/eli/reg/2024/2847/oj?locale=en)、[U.S. FTC Advertising and Marketing](https://www.ftc.gov/business-guidance/advertising-marketing) |
+| Official fact／project decision boundary | 外部資料はcopyright／patent／trademark／AI output／product obligation／claimが法域・role・scopeに依存する事実の確認だけに使った。P0構造、Legal Owner、16 category、独立設計policy、surface mappingはMiraikanaiのproject-decisionであり、外部組織の公式推奨とは表現しない |
+| Independent-design boundary | 公開一次資料と合法的な通常利用によるgap discoveryだけを許可。外部Engine source、decompile、leak、confidential material、API／type／Scene／Project／UI／icon／sample／template／default／workflow／creative expressionのcopy、thin rewrite、一対一aliasまたはinitial compatibility layerを禁止 |
+| Closure result | canonical Owner／consumer反映済み。fresh local read-only auditでArchitecture Markdown 106件、unique文書ID104件、Owner 66件、Owner header error 0、相対path 3,556件／fragment 356件の未解決0件、規範依存340 edge／Owner外参照0件／cycle 0件、全docs code fence error 0、21 canonical type owner check error 0、P0 fixed root 34件／missing Owner 0件、16 axis、7 Product surface、6 AI surface、3 Agent Host subset、16 Legal categoryのcardinality／duplicate error 0を確認した。これはcommitted Generator／Inventory／Schema validator／CI、実装、法務判断またはQualificationではない |
+| Materialization／implementation status | unchanged `absent`。P0／Legal／Client・Agent Profile Schema、Inventory／Generator／Closure、Legal source／Decision／Head、Suite／Fixture／Receipt、C++、Build、CI、benchmark、UX study、legal opinion、FTO／trademark clearance、Release、実装計画を追加していない |
+| Exact terminal response／marker | `p0_legal_ip_architecture_refresh_complete_no_implementation`／`[[MIRAIKANAI-P0-LEGAL-IP-ARCHITECTURE-C146-C148-CLOSED-20260804]]` |
+| Response digest | `unavailable`（chat responseをimmutable Artifactとして保持せず、推測または再構築しない） |
+| Retention disposition | conversation transcript／attachment／screenshotをRepositoryへ保存していないため削除対象0件。canonical Owner／ADR、approved design spec、本compact summaryだけを保持する |
+
+この記録は`ARCH-C146`～`ARCH-C148`のtarget Architecture closureだけを示す。Engine実装、性能達成、
+制作体験、商用品質、法令遵守、権利処理、非侵害、patent FTO、trademark clearance、Qualification、
+Capability activation、publicationまたはProduct completionの証拠ではない。

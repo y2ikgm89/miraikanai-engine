@@ -7,7 +7,7 @@
 - 正本範囲: MCD `kind=data_flow`のProduct-owned payload、Engine、Editor、Game Runtime、AI、telemetry、crash、supportにまたがるProduct data inventory、purpose、legal／consent basis、collection、disclosure、processor／region、retention、export／delete、User control、privacy release acceptance
 - 非正本範囲: MCD共通Envelope／Ref、Security threat／credential／sandbox、AI Operation authorization、Platform permission API、Game Project自身が収集するPlayer dataの製品固有policy、SupportBundle field、network transport、Store disclosure形式。各Ownerを参照する
 - 規範依存: [Architecture Governance](architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Native Game Module](../03-authoring/native-game-module.md)
-- 関連文書: [Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[Windows](../07-platform/windows.md)
+- 関連文書: [Product Lifecycle](../00-product/product-lifecycle.md)、[Product Legal／IP Governance](product-legal-ip-governance.md)、[Product Security](product-security.md)、[AI Security／Approval](ai-security-approval.md)、[AI Verification／Provenance](ai-verification-provenance.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Project State](../03-authoring/project-state.md)、[Editor Workspace／UX](../03-authoring/editor-workspace-ux.md)、[Debugging／Observability／Replay](../04-runtime/debugging-observability-replay.md)、[Mobile Common](../07-platform/mobile-common.md)、[Android](../07-platform/android.md)、[Apple](../07-platform/apple.md)、[Windows](../07-platform/windows.md)
 - 根拠区分: project-decision（法令、Store、PlatformまたはProvider要件を引用する箇所はofficial-spec。jurisdiction判断は製品releaseごとのlegal reviewを必要とする）
 - 外部根拠確認日: none
 
@@ -389,7 +389,7 @@ Product Lifecycle acceptanceは、上記の`EngineReleaseBindingRefV1`を含ま�
 8. Documentation、Privacy disclosure、runtime UI、support responseが同じversionを示す。
 9. wrong consent subject、stale disclosure、別release policy、unknown endpoint、redaction failureをfail closedにする。
 
-Legal reviewはArchitecture acceptanceまたはautomated testで代用しない。Required Scope Projectionが`approved`を要求するjurisdiction／route／locale／region／processor keyごとのreview Evidenceがないreleaseは、そのdistribution scopeを主張しない。`not_applicable`は同じfull keyのapplicability Evidenceを持つtyped branchだけを許し、keyをRequired Scope Projectionから削除する手段にしない。
+Privacy Acceptance内のLegal review resultはprivacy flow／jurisdiction／route／locale／region／processor keyに対するdomain Evidenceであり、Product-wide Legal／IP Decisionではない。横断applicability、authorized reviewer、current Decision／HeadおよびRelease scopeは[Product Legal／IP Governance](product-legal-ip-governance.md)が所有し、本書の`approved` branchだけから法令遵守またはRelease authorizationを推論しない。Legal reviewはArchitecture acceptanceまたはautomated testで代用しない。Required Scope Projectionが`approved`を要求するkeyごとのreview Evidenceがないreleaseは、そのdistribution scopeを主張しない。`not_applicable`は同じfull keyのapplicability Evidenceを持つtyped branchだけを許し、keyをRequired Scope Projectionから削除する手段にしない。
 
 ## 10. Failureと禁止fallback
 
