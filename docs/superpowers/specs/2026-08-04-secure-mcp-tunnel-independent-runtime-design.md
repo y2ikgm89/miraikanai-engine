@@ -5,7 +5,7 @@
 - 対象: 個人Windows環境の`g-workspace-readonly` Secure MCP Tunnel、独立read-only MCP server、ユーザー単位Scheduled Task
 - 決定: 廃止済みSkillへの依存を除去し、専用MCP runtimeを`%LOCALAPPDATA%`へ分離して、ログイン時に最小権限でTunnelを自動起動する
 - 承認: 推奨案を2026-08-04にユーザー承認
-- Local runtime実装状態: materialized and locally verified on 2026-08-04; real-logon trigger acceptance pending
+- Local runtime実装状態: materialized and locally verified on 2026-08-04; real-logon trigger accepted after reboot on 2026-08-04
 - Repository Architecture Owner影響: none
 - 外部根拠確認日: 2026-08-04
 
@@ -317,11 +317,11 @@ Error outputへAPI key、Tunnel ID、Organization／Workspace ID、Profile body�
 - 独立runtimeを`%LOCALAPPDATA%\MCP\g-workspace-readonly`へmaterializeし、廃止済みPersonal Skillを復元せず、独立Git `a924e97`までcleanにした。
 - 実行contractはPython 3.14.6、uv 0.12.1、MCP 2.0.0、Tunnel client 0.0.10、専用`.venv`、locked dependencyである。
 - MCP testは83件PASS。公開catalogは`list_allowed_directories`、`list_directory`、`search`、`fetch`のexact 4 Tools、forbidden Tool 0件、allowed rootはreal path `G:\workspace`一件である。
-- Profileはprivate current-user-only backupを保持したままMCP command一行だけを独立runtimeへ変更した。旧Skill参照0件、新command 1件、その他content一致を確認した。
+- Profileはprivate current-user-only backupを保持してMCP command一行だけを独立runtimeへ変更した。旧Skill参照0件、新command 1件、その他content一致を確認し、real-login acceptance後に今回分のbackup fileを削除した。
 - 公式`doctor --explain --json`は12 PASS、3 SKIP、FAIL 0。on-demand起動とTask manual startの両方で`/healthz=200`、`/readyz=200`、Tunnel executable 1件を確認し、second startはsteady-state Processを増やさず終了した。
 - Scheduled Task `OpenAI Secure MCP Tunnel - G Workspace Readonly`はcurrent user、Interactive、Limited、login delay 30秒、IgnoreNew、restart 1分／3回、network required、enabled、password／secret保存なしで登録した。manual startは合格し、Taskは現在enabledである。
 - 訂正版10分idle測定は638.867秒／120 samples、7 Processes、平均CPU 0.0021%、最大combined working set 37,928,960 bytes（約36.2 MiB）、Process count stableでLocal guardrailにPASSした。
 - 同測定のI/O transferはread 1,247,895 bytes、write 1,647,568 bytes、system network adapter aggregateは943,287,769 bytes、allowed rootのunattributed changesは265件だった。これらはTunnel専用disk／network／workspace writeへ帰属できない参考値である。
 - Local Codex検出により`codex app-server`系を含む7 Process treeになったが、Codex pluginまたはSkillはinstallしていない。read-only Python Processの60秒Process別観測ではwrite transfer 0で、長時間増分はLocal Codex検出のstdio／JSON-RPC側へ集中した。
 - representative stdio integrationは合格した。ユーザーのnetwork adapterを停止するnetwork断／復帰試験は安全なisolated pathがないため未実施である。
-- 次回の実PC loginで、loginから30秒以後の起動、instance 1件、health／ready、restart stormなしを確認するまでは、real-logon trigger acceptanceを`pending-next-login`とする。Profile backupもそのacceptanceまでprivate retentionする。
+- 実PC reboot後、Explorer開始は2026-08-04 23:42:11.562 JST、Task実行は23:42:42.000、Tunnel生成は23:42:42.568だった。TaskはExplorer開始30.438秒後、Tunnelは31.005秒後に起動し、instance 1件、startup log 1件、MissedRuns 0、`/healthz=200`、`/readyz=200`、Task enabled／Runningを確認したため、real-logon trigger acceptanceをPASSとする。
