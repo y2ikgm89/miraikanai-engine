@@ -9,15 +9,17 @@
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[Runtime Package](../04-runtime/runtime-package.md)、[Render Graph](../06-rendering/render-graph.md)
 - 関連文書: [Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[Gameplay programming model](../03-authoring/gameplay-programming-model.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Android](android.md)、[Apple](apple.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-08-03
+- 外部根拠確認日: 2026-08-04
 
 ## 1. 結論と所有境界
 
-MobileはWindows Editor、共通Runtime Contract、private Platform Adapterで構成する。AndroidとAppleでGameSpec、World、Asset ID、GameplayDefinition、portable C++、Input Action、Save schema、Renderer intent、AI ChangeSetをforkしない。OS lifecycle、surface、graphics、audio、text、content delivery、memory／thermalだけをAdapterへ隔離する。
+MobileはWindows Editor、共通Runtime Contract、private Platform Adapterで構成する。AndroidとAppleでGameSpec、World、Asset ID、GameplayDefinition、portable C++、Project Shader intent、Input Action、Save schema、Renderer intent、AI ChangeSetをforkしない。OS lifecycle、surface、graphics、audio、text、content delivery、memory／thermalだけをAdapterへ隔離する。
 
-初期Mobileはoffline single-playerをpermissionなしで成立させる。広告、課金、push、platform account／achievement／leaderboard、cloud save、camera／microphone／location、background gameplayは[Product Plan](../00-product/product-plan.md)のactivation対象であり、`PlatformServiceCapability`、permission、privacy、offline／failure、server authorityをOwner仕様で閉じるまでRuntimeへ公開しない。
+Product C2 Mobileはoffline single-playerをpermissionなしで成立させる。広告、課金、push、platform account／achievement／leaderboard、cloud save、camera／microphone／location、background gameplayはC2から除外し、current Future 30件にも採択しないunadopted candidateである。新しいProduct／Future revisionがexact ID、Owner、`PlatformServiceCapability` contract、permission、privacy、offline／failure、server authority、Target／Store／support closureを同時に定義するまでRuntimeへ公開しない。名称、OS APIまたはStore機能の存在からactivationを推論しない。
 
 Android固有のBuild／GameActivity／Vulkan／Play／permission／releaseは[Android](android.md)、Apple固有のBuild／C ABI bridge／Metal／signing／TestFlight／App Storeは[Apple](apple.md)だけが所有する。本書にはGradle、AGP、NDK、Xcode、Provisioning、App Store Connectの値または手順を置かない。
+
+Product C1はWindows-onlyであり、Mobileをrequiredまたはoptional Targetとして含まない。Mobileが初めてProduct claimへ参加するのは[Product Plan §5.3](../00-product/product-plan.md#53-c2-production-exact-product-boundary)のC2で、exact runtime Targetは`{target.android.mobile@1, target.apple.mobile@1}`、public distribution baselineは`package-profile.android.play`＋Google Playと`package-profile.apple.bundle`＋App Storeである。本書はこのProduct selectionを再定義せず、両Targetの共通lifecycle、adaptive surface、meaning-preserving fallback、offline content、device qualificationを所有する。`package-profile.apple.managed-assets`は別minimum-OS variantで、C2 baselineへ混在させない。
 
 ## 2. Target、Distribution、Capability schema
 
@@ -82,7 +84,8 @@ ProjectMobileSpecV1
     sorted unique exact McdContractRefV1(kind=data_flow)
   user_data_backup_policy:
     { save: include, config: include, log: exclude, cache: exclude }
-  content_safety_profile_ref: exact McdContractRefV1(kind=profile)
+  runtime_generation_policy: deny_all
+  content_safety_profile_ref: null
   project_mobile_spec_content_hash: SHA-256
 
 ProjectMobileSpecRefV1
@@ -91,11 +94,13 @@ ProjectMobileSpecRefV1
   project_mobile_spec_content_hash: SHA-256
 ```
 
-initial V1、C1、C2の`ProjectMobileSpecV1`は`orientation_policy=adaptive`、`resize_policy=adaptive_required`だけを受理する。portrait／landscape固定、non-resizable、hard-coded aspect ratio、primary orientationをPlatform lockへ変換する値またはunknown enumを持たない。Mobile Runtimeはportrait／landscape、window resize、multi-window、fold／unfold、display migration、density／safe-area changeを同じProject stateとsurface lifecycleで処理し、orientationまたはsize変更をWorld reset、Save loss、Input座標不整合または別Project variantへfallbackしない。
+initial `ProjectMobileSpecV1`とProduct C2は`orientation_policy=adaptive`、`resize_policy=adaptive_required`、`runtime_generation_policy=deny_all`、`content_safety_profile_ref=null`だけを受理する。Product C1にはMobile spec自体が存在しない。portrait／landscape固定、non-resizable、hard-coded aspect ratio、primary orientationをPlatform lockへ変換する値、unknown enum、Content Safety Profileの仮Refまたはhidden positive-generation branchを持たない。Mobile Runtimeはportrait／landscape、window resize、multi-window、fold／unfold、display migration、density／safe-area changeを同じProject stateとsurface lifecycleで処理し、orientationまたはsize変更をWorld reset、Save loss、Input座標不整合または別Project variantへfallbackしない。
 
 Art directionまたはCamera compositionが特定aspectを優先する場合も、それはUI／Camera／Presentation Ownerのadaptive layout intentであり、`ProjectMobileSpecV1`、Platform manifest、runtime Target identityまたはCapability supportを変更しない。対応できないcontentを黙ってstretch、cropまたは固定orientationへ変換せず、Target qualification前に明示的なunsupported contentとして停止する。
 
-全content hashは対応する型名のASCII domain separatorと自己hashを除くclosed MCD canonical bytesから計算し、Refは完成recordへexact解決する。Target ConfigurationとDistribution ProfileのTarget Profileはbyte equality、Project specのpermission／privacy集合はProduct CapabilityとData Flowのactive集合のsubsetでなければならない。同じTarget Profileへ別Toolchain／Quality／Memoryを暗黙適用せず、変更は新Configuration versionとProject revisionを必要とする。これらはtarget contractであり、Schema、Registry、Project recordまたは生成器は現Repositoryで`absent`である。
+全content hashは対応する型名のASCII domain separatorと自己hashを除くclosed MCD canonical bytesから計算し、Refは完成recordへexact解決する。Target ConfigurationとDistribution ProfileのTarget Profileはbyte equality、Project specのpermission／privacy集合はProduct CapabilityとData Flowのactive集合のsubsetでなければならない。同じTarget Profileへ別Toolchain／Quality／Memoryを暗黙適用せず、変更は新Configuration versionとProject revisionを必要とする。`optional_capability_refs[]`は同じActive Product Definitionの`capability_refs[]`に存在し、そのexact Mobile Targetでqualifiedで、選ばなくてもC2 minimumとcomplete Gameplay meaningを維持できる追加Presentation／quality Capabilityだけを列挙する。C2 required Capability、Future ID、unadopted candidate、別TargetのCapabilityまたはfallback未定義Capabilityをoptionalへ移してscopeを縮小しない。これらはtarget contractであり、Schema、Registry、Project recordまたは生成器は現Repositoryで`absent`である。
+
+`runtime_generation_policy=deny_all`ではAI provider network call、generated content download／load、Project／Save／authoritative World mutationを全て拒否し、Content Safety Profileを要求または解決しない。`future.capability.runtime-structured-data-generation`を採択する場合は新しいActive Product Definition revision、Mobile spec schema revision、専用Authority／Threat Model、non-null Content Safety Profile、Target別fresh Qualificationを同時に定義する。現V1のnullを未設定、default allowまたは後方互換branchとして読み替えない。
 
 `target_profile_ref`のversion／hash不一致、unknown Capability、禁止permission、Target別aggregate cap超過、minimum deviceとCooked artifact要求の不整合はCook前に拒否する。Android／Appleが共通して生成し、ResolverとQualificationが消費する型は次の`MobileCapabilitySignatureV1`だけである。
 
@@ -182,7 +187,7 @@ OS process killとtermination callback不達を前提とする。Saveはexplicit
 
 User data rootは`save | config | log | cache`のclosed分類とし、全rootをapp-private storageへ置く。OS backup（Android Auto Backup、iCloud backup）の包含はsaveとconfigを既定対象、logとcacheを既定除外とし、変更は`ProjectMobileSpecV1`の宣言だけで行う。cacheはOSがpurgeできる領域として扱い、purgeでsave／configを失わない。具体directory mapping、file protection設定、backup宣言の物理表現はAndroid／Apple ownerが所有する。storage fullまたはuser data write失敗ではSave成功を表示せず、previous slotを維持する。
 
-initial Mobile Runtimeはbackground simulation、network tick、Asset decodeを行わず、Platformが許すbounded checkpoint完了だけを使う。background audio／location／Bluetooth等はactivated `PlatformServiceCapability`なしに有効化しない。
+Product C2 Mobile Runtimeはbackground simulation、network tick、Asset decodeを行わず、Platformが許すbounded checkpoint完了だけを使う。background audio／location／Bluetooth等は、それを採択する新Product／Future revisionとqualified `PlatformServiceCapability`が存在しないcurrent C2では有効化しない。
 
 Platform Adapter破棄順は、callback停止、新規submission停止、queue drain／timeout、resource retire、device／surface解放の順で固定する。順序を入れ替えず、timeout後も未完了submissionが参照するresourceを先に解放しない。停止後に届いたcallbackと古い`SurfaceGeneration`のworkはcommitせず、diagnosticへgeneration、submission serial、timeout reasonを記録する。
 
@@ -198,7 +203,7 @@ Frames-in-flightは`mobile_baseline`を2、`mobile_standard`と`mobile_high`を3
 
 - `balanced | low_gpu_cost`: Baseline既定はFXAAであり、実機Gateなしにtemporal methodを自動選択しない。
 - `minimum_blur | minimum_ghosting | vr_low_latency`: qualification済みForward+ MSAA 2x／4xだけを候補にする。
-- MSAA 8xは`mobile_high`またはoffline capture C2だけに許可し、AI自動選択から除外する。SMAA 1xはC2であり、Baseline必須にしない。
+- MSAA 8xは`mobile_high`またはoffline captureの独立Qualificationでだけ許可し、AI自動選択とC2 minimumから除外する。SMAA 1xも個別Qualification済み候補であり、C2またはBaselineの必須条件にしない。
 - `pixel_crisp`: pixel-locked layerへWorld AAを適用せず、最終解像度で合成する。
 - unsupported combinationは`AntiAliasingResolutionErrorV1::UnsupportedByTarget`で失敗し、明示的fallbackを表示する。
 
@@ -214,7 +219,7 @@ Dynamic resolutionのscaleは幅と高さそれぞれへ掛けるlinear axis sca
 
 ### 5.3 Frame Generation
 
-Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameが[Runtime performance／capacityの60 fps共通frame profile](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。C1 candidateはfuture real frameを待たないextrapolative Providerに限定し、補間のために次real frameを保留するProviderはこの8.33 ms degradation Gateの候補外とする。displayed target rateはreal 60 fpsに対するdisplayed 120 fpsだけとし、他のreal／displayed組合せを候補にしない。
+Frame Generationは`mobile_high`だけに許可し、Provider-offのreal frameが[Runtime performance／capacityの60 fps共通frame profile](../04-runtime/performance-capacity.md#7-framelatencysubsystem-budget)、deadline miss 1%以下、30分thermalと2時間enduranceを全て通過した場合だけ候補にする。eligible candidateはfuture real frameを待たないextrapolative Providerに限定し、補間のために次real frameを保留するProviderはこの8.33 ms degradation Gateの候補外とする。displayed target rateはreal 60 fpsに対するdisplayed 120 fpsだけとし、他のreal／displayed組合せを候補にしない。Frame GenerationはC2 minimumではなく、Provider-off pathがC2 Referenceを単独で満たす。
 
 touch-to-photonは1000 fps以上のhigh-speed camera、または1 ms以下の時間分解能を持つphotodiode＋自動tapper治具で`240 tap×5 run`を採取し、touch contact frameから登録済みflash ROIの最初の輝度変化までを測る。接触前20 sampleのlinear-luminance平均をbaseline、標準偏差の5倍とcapture quantization floorの大きい方をcalibrated noise floorとする。接触後、ROI平均linear luminanceのbaseline差がnoise floorを3 sample連続で超えた最初のsampleを「最初の輝度変化」とし、後続2 sampleではなく最初のsample時刻を採る。各runのnearest-rank P95のmedianを判定値とし、Provider-off比の劣化8.33 ms以下かつ絶対値83.33 ms以下を要求する。測定治具、ROI、baseline／noise floor、時間分解能、calibration、判定値をReceiptへ記録し、Receiptがなければ失敗する。30 fps入力をdisplayed 60 fpsにした結果を60 fps capabilityと表示しない。pixel-locked 2D、fullscreen menu、loading、pause、camera cut、rotation／resize／surface regenerationでは無効化する。
 
@@ -244,7 +249,7 @@ Mobile graphics quality profileは`Baseline | Standard | High`のclosed setで�
 | Frame Generation | Off | Off | Qualified `mobile_high`だけ |
 | RT／Neural | Off | Off | 個別Experimental／Qualification後。Raster fallback必須 |
 
-この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず、`High → Standard → Baseline`の順に一段下げ、選択Profile、棄却理由、fallback、omitted reason、Qualification Receiptをdiagnosticへ残す。unknown profileは近い値へ変換せず拒否する。Baselineでも合格しないTargetは`OptimizationRequired`としてShippingを拒否する。2D C1はBaselineで全機能を成立させ、3D C1はscalable subsetを成立させる。Presentation縮退はresolution、shadow、VFX、volumetric、streaming concurrency等だけに適用し、敵味方数、damage、collision、goal、spawn timingその他のauthoritative resultを2D／3Dとも変更しない。
+この表はvendor保証ではなくMiraikanai Engineの品質budgetである。実機測定が不合格ならCapabilityを偽装せず、`High → Standard → Baseline`の順に一段下げ、選択Profile、棄却理由、fallback、omitted reason、Qualification Receiptをdiagnosticへ残す。unknown profileは近い値へ変換せず拒否する。Baselineでも合格しないTargetは`OptimizationRequired`としてShippingを拒否する。C2ではAndroid／Appleの2Dと3D ReferenceがともにBaselineでcomplete Gameplay meaning、Save、Input、UI、Audio、offline completionを維持しなければならない。3Dのscalable presentation subsetはOwnerが明示したmeaning-preserving fallbackだけで、required World／Camera／Mesh／Material／Lighting／Animation／Physics／NavigationまたはProject Source closureを省略する意味ではない。Presentation縮退はresolution、shadow、VFX、volumetric、streaming concurrency等だけに適用し、敵味方数、damage、collision、goal、spawn timingその他のauthoritative resultを2D／3Dとも変更しない。
 
 AI／Editorはmethod名を直接推測せず`AntiAliasingIntentV1`を入力し、Rendererの決定的Resolverから得た`ResolvedAntiAliasingPlanV1`、推定GPU／memory／bandwidth費用、fallback、omitted reason、Qualification Receiptを同じChangeSet previewへ表示する。Rendererは表のexecutionを所有し、Mobile Commonはclosed profile値と縮退policyを所有する。
 
@@ -331,9 +336,9 @@ thermal levelは`Nominal | Warm | Serious | Critical`へ正規化する。Warm�
 
 Mobile共通crash metadata契約は次である。Shipping crash recordはEngine build ID、Target Profile、`MobileCapabilitySignatureV1`、last completed render frame ID／Simulation Advance sequence、memory／thermal levelを必須fieldとし、personal information、conversation body、credential、token、signing key、Project source、AI promptを含めない。収集経路、out-of-process制約、redaction検証、release gateは各Platform ownerが所有し、Crash recordとSession／Replayの関連付けは[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)を参照する。
 
-support bundle（正本は同書§14の`SupportBundleV1`）のMobile提出経路は本書が共通規則を、[Android](android.md)／[Apple](apple.md)がOS固有経路を所有する。生成はUserの明示操作で行い、保存先はapp-scoped storage、提出はC1ではOS標準share機構等のUser操作によるexportだけとする。crash収集経路はcrash evidenceの収集だけを所有し、bundleの構成、redaction、生成operationはDebugging Ownerの定義へ従う。
+support bundle（正本は同書§14の`SupportBundleV1`）のMobile提出経路は本書が共通規則を、[Android](android.md)／[Apple](apple.md)がOS固有経路を所有する。生成はUserの明示操作で行い、保存先はapp-scoped storage、Product C2ではOS標準share機構等のUser操作によるexportだけとする。crash収集経路はcrash evidenceの収集だけを所有し、bundleの構成、redaction、生成operationはDebugging Ownerの定義へ従う。
 
-現行C1／C2 Mobile Shipping RuntimeはAIによるstructured data生成／mutation、AI provider network call、generated contentのdownload／loadを許可しない。C／C++、native library、platform bytecode、script、shader source／pipeline、dynamic library、FFI、arbitrary Engine callを含む全Runtime generation要求をPhase 9のdeny-only policyで拒否し、Project／Save／authoritative Worldを不変に保つ。`ContentSafetyProfile`、moderation、age／region policy、rate limit、report、audit ID、生成content rollbackは`future.capability.runtime-structured-data-generation`がactive Product Registry、Mobile Target binding、専用Authority／Threat Model、fresh Target Qualificationを一つのChangeSetで成立させた後だけ本書へ追加し、現在のShipping契約として実装しない。
+現行Product C2 Mobile Shipping RuntimeはAIによるstructured data生成／mutation、AI provider network call、generated contentのdownload／loadを許可しない。C／C++、native library、platform bytecode、script、shader source／pipeline、dynamic library、FFI、arbitrary Engine callを含む全Runtime generation要求を`ProjectMobileSpecV1.runtime_generation_policy=deny_all`で拒否し、Project／Save／authoritative Worldを不変に保つ。`ContentSafetyProfile`、moderation、age／region policy、rate limit、report、audit ID、生成content rollbackは`future.capability.runtime-structured-data-generation`の新しいActive Product Definition／Mobile spec revision、専用Authority／Threat Model、fresh Target Qualificationが成立した場合だけ追加でき、current C2 requirement、hidden optionまたは既定fallbackにしない。
 
 ## 8. Failureと共通qualification
 
@@ -353,6 +358,6 @@ support bundle（正本は同書§14の`SupportBundleV1`）のMobile提出経路
 | executable content in delivered Asset | package／mount拒否 |
 | Runtime AI generation／mutation／provider call要求 | deny-only policyで拒否し、Project／Save／authoritative World不変 |
 
-共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、Runtime AI generation／mutation／provider call拒否とProject／Save／authoritative World hash不変を含む。positive structured-data generation／moderation／rollback fixtureはFuture entryのactive移行まで含めない。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Mobile graphics-quality fixtureは11行×3 profileの全値、unknown拒否、`High → Standard → Baseline`の一段遷移、Baseline不合格、2D C1全機能、3D C1 scalable subset、Presentation縮退前後のauthoritative result一致を検証する。Texture fixtureは同一入力の反復Cookで`target_format`／`content_hash`一致、7 field各tamperの拒否、宣言laneのTarget artifact不足／同一lane内重複、Pixel Art／UI／maskのRGBA8またはlossless、Runtime Basis／Universal Texture transcode path不在を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
+共通fixtureはclean／warm start、inactive／background／foreground、process kill recovery、surface loss／rotation／resize／fold、safe-area change、touch／controller／IME／audio interruption、offline delivery interruption／resume／hash mismatch、memory pressure、GPU allocation failure、thermal soak、battery saver、Target fallback、Runtime AI generation／mutation／provider call拒否とProject／Save／authoritative World hash不変を含む。positive structured-data generation／moderation／rollback fixtureはFuture entryのactive移行まで含めない。Renderer fixtureはProfile別Frames-in-flight、各AA intentの候補／fallback、30-frame thresholdと15秒回復を含む5% dynamic-resolution遷移、全history-reset reason、Frame Generationのreal／displayed frame分離、`240 tap×5 run`、30分thermal、2時間endurance、無効化場面を検証する。Mobile graphics-quality fixtureは11行×3 profileの全値、unknown拒否、`High → Standard → Baseline`の一段遷移、Baseline不合格、C2 2D／3D Referenceのcomplete Gameplay meaning、Owner-declared 3D presentation fallback、Presentation縮退前後のauthoritative result一致を検証する。Texture fixtureは同一入力の反復Cookで`target_format`／`content_hash`一致、7 field各tamperの拒否、宣言laneのTarget artifact不足／同一lane内重複、Pixel Art／UI／maskのRGBA8またはlossless、Runtime Basis／Universal Texture transcode path不在を検証する。Device bridge fixtureは一台目／一Session目の59分59秒までを許可し、二台目、二Session目を拒否し、1時間到達でcaptureを停止してcomplete chunkとmissing gapを確定する。Adapter teardown fixtureはcallback中、in-flight submission、queue timeoutを注入し、callback停止からdevice／surface解放までの順序と診断を検証する。
 
 Minimum／Reference実機は同一commit、package、input traceでlifecycle、Save、Input、Audio、graphics golden、memory、thermal、deliveryを測る。Emulator／Simulatorはfunctional smoke専用で、GPU、audio／touch latency、memory、thermalの合否に使わない。Evidence envelope、run grading、provenanceは[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)だけが所有する。

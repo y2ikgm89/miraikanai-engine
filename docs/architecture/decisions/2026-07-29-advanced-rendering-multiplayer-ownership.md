@@ -2,9 +2,9 @@
 
 - 文書ID: mirakan.decision.advanced-rendering-multiplayer-ownership
 - 状態: review
-- 正本範囲: Advanced Rendering／Multiplayerの将来Owner分割、既存Ownerからのsemantic移管、Product Future原子性、Online Services分離の判断理由
+- 正本範囲: Advanced Rendering／Multiplayerの将来Owner分割、既存Ownerからのsemantic移管、Product Future原子性、Mobile Project Source qualificationのC2再分類、Online Services分離の判断理由
 - 非正本範囲: 各OwnerのSchema／Operation／failure／Qualification、Product Activation、実装Task、実装順序、担当、工数、日程、Provider／Protocol／algorithm選定。各Owner文書とProduct Planを参照する
-- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Render Graph](../06-rendering/render-graph.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)
+- 依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Plan](../00-product/product-plan.md)、[Native Game Module](../03-authoring/native-game-module.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Advanced Light Transport](../06-rendering/advanced-light-transport.md)、[Terrain／Foliage](../06-rendering/terrain-foliage.md)、[Network Transport／Connection](../09-networking/network-transport-connection.md)、[Multiplayer Authority／Replication](../09-networking/multiplayer-authority-replication.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)
 - 外部根拠検証日: 2026-07-29
 - 文書種別: Architecture Decision／cross-owner ownership
 - Decision owner document: `mirakan.arch.architecture-governance`
@@ -26,6 +26,8 @@
 - Lobby／Matchmaking／Relay／HostingがTransportまたはReplicationに含まれるか
 
 関連実装、公開Schema、Fixture、Receiptは`absent`で、Future rowは`planning_only`である。したがって、公開済み互換性を守るaliasより、Ownerとactivation identityが正しいV1をclean-breakで設計できる。
+
+2026-08-04のC1後続監査で、Product Planのcurrent C2がWindows／Android／AppleのProject C++／Project Shaderをrequired surfaceとする一方、旧Future inventoryだけが`future.capability.mobile-project-native-shader-source-qualification`を残していることを確認した。同じrequirementをC2とFutureへ二重分類せず、public materialization前のreview判断としてMobile source qualificationをC2へ移し、Future inventoryから旧IDをclean-breakで除く。
 
 ## Decision drivers
 
@@ -66,7 +68,7 @@ GI／Reflection／advanced Shadow／path roleのsemantic Profile ID、Technique 
 
 Render Graphはlogical execution port、Pass Template展開、physical history、resource lifetime、Backend Adapterを維持する。Post Processingはgeneric effect／history intentを維持する。これによりALT、Post、Render Graphの三重ownershipを作らない。
 
-### 3. Future Portfolioを31行にする
+### 3. Future Portfolioを30行にする
 
 旧二複合行を廃止する。
 
@@ -85,7 +87,7 @@ Render Graphはlogical execution port、Pass Template展開、physical history�
 | `future.capability.network-transport-connection` | Network Transport／Connection | なし。技術前提 |
 | `future.capability.multiplayer-authority-replication` | Multiplayer Authority／Replication | `claim.product.network.multiplayer` |
 
-計算は`26 - 2 + 7 = 31`である。全行は`planning_only`を維持する。`future.capability.production-global-illumination-reflections`を中間umbrella、alias、fallbackまたはpromotion mappingにしない。
+Advanced Rendering／Multiplayer分割時の計算は`26 - 2 + 7 = 31`である。current C2へMobile Project Source qualificationを移して`future.capability.mobile-project-native-shader-source-qualification`を除くため、current inventoryは`31 - 1 = 30`となる。全行は`planning_only`を維持する。削除ID、`future.capability.production-global-illumination-reflections`または旧複合IDを中間umbrella、alias、fallback、supersession rowまたはpromotion mappingにしない。
 
 GIとReflectionsは同じOwnerでも、semantic channel、Target support、fallback、Qualification、claimが独立するため別Future IDにする。互いにprerequisiteを持たない。AAA／photorealだけが同一Target上のTerrain、Foliage、GI、Reflections四件を前提にし、特定ray／path／neural／virtual geometry／Providerを一律必須にしない。
 
@@ -102,13 +104,15 @@ GIとReflectionsは同じOwnerでも、semantic channel、Target support、fallb
 
 単一描画Targetのsame-target prerequisiteを、client、authority server、operationsを同時に必要とするProduct capabilityへ適用すると、large-sessionのclient TargetとMMOの全Targetが到達不能になる。candidate Target kindを広げてDedicated Serverやoffline large Worldの意味を壊さず、Future IDをclient／serverごとに再分割もしない。
 
-[Product Plan](../00-product/product-plan.md)の`FutureTargetClosureRegistryV1`で`single_target | target_role_bundle`をtagged unionにする。AAAは`single_target`としてTerrain／Foliage／GI／Reflectionsを同じexact Targetへ要求する。small co-op、rollback、large-session、MMO、persistence、managed external Hostはprofileごとのclient／authority／operations／Host／artifact role、exact Target集合、DAG末端まで再帰展開したactive／common Future／profile固有additional Future前提、role mapping、claimごとのrequired non-empty roleを一つのpromotion／claim release単位へ閉じる。
+[Product Plan §8](../00-product/product-plan.md#8-future-portfolio)のreceipt-free inventoryとbundle profile表で`single_target | target_role_bundle`を閉じる。AAAは`single_target`としてTerrain／Foliage／GI／Reflectionsを同じexact Targetへ要求する。small co-op、rollback、large-session、MMO、persistence、managed external Hostはprofileごとのclient／authority／operations／Host／artifact role、exact Target集合、DAG末端まで再帰展開したFuture前提、role mapping、required non-empty roleを一つのpromotion／claim release単位へ閉じる。Product Planへexecution Registry、Promotion Manifestまたはmaterialized binding schemaを置かない。
 
-small co-op／rollbackの`headless_server`はdedicated profileのauthority roleだけに現れ、`future.capability.headless-dedicated-server-target`をprofile固有前提にする。MMOはdesktop clientと同じdistributed clusterにco-locateするauthority／operationsだけを候補にし、未使用のgeneric `headless_server`を候補から除く。Future 31行、Owner 59件、`planning_only`／`absent`は変えない。
+small co-op／rollbackの`headless_server`はdedicated profileのauthority roleだけに現れ、`future.capability.headless-dedicated-server-target`をprofile固有前提にする。MMOはdesktop clientと同じdistributed clusterにco-locateするauthority／operationsだけを候補にし、未使用のgeneric `headless_server`を候補から除く。Future 30行の`planning_only`／`not_activated`とRepository実装`absent`は変えない。Owner総数はcurrent Architecture Indexが所有し、このDecisionの旧時点件数から推論しない。
 
 ### 6. Online Servicesは別将来Decisionにする
 
 Account／platform identity／entitlement、party／lobby／matchmaking／backfill、relay allocation、fleet hosting／region placement／autoscale、cloud persistence／economy／moderationは、このDecisionでOwnerまたはProviderを採択しない。
+
+Product Planの`future.capability.persistence-live-service-moderation-operations`はclient／operationsを一つのProduct promotion subjectへ閉じるcomposite planning identityであり、上記Online Serviceのdomain Owner、ServiceまたはProviderを定義しない。専用domain Ownerを採択するArchitecture revisionまでCanonical OwnerはProduct Planに置き、AI Security、Persistence／Save、Runtime PackageまたはNetworkingへdomain意味を暗黙移管しない。同じOwner監査により、first-party local inferenceとmanaged external Hostのproduction routeはAI Production Orchestrationへ置き、AI SecurityはAuthorization／Trust／Credentialだけを維持する。shipping Runtime structured-data generationも専用Runtime AI Owner未採択のProduct-level planning identityであり、Authoring AIまたはAI Securityへ吸収しない。
 
 TransportとMultiplayerは将来Serviceのopaque exact bindingを受けられるが、Lobbyをgameplay session、RelayをReplication、MatchmakerをTransport、HostingをDedicated Server packageと呼び替えない。
 
@@ -148,24 +152,24 @@ TransportとMultiplayerは将来Serviceのopaque exact bindingを受けられる
 
 ## Consequences
 
-- Owner文書は55件から59件になる。全件`review`、実装`absent`のままである。
-- Future rowは26件から31件になり、全件`planning_only`のままである。
+- 本Decisionのoriginal Owner分割は四Ownerを追加した。current Owner総数と状態はArchitecture Index／各Headerからread-backし、旧時点の55／59件をcurrent Inventoryにしない。
+- Advanced Rendering／Multiplayer分割後31件からMobile source qualification一件をC2へ再分類し、Future rowは30件、全件`planning_only`のままである。
 - Reflection用`claim.product.feature.production-reflections`を追加し、GI claimと一対一に分ける。
 - `AAA`／`photoreal`はEnvironment capabilityでなくProduct横断quality claimになる。
 - Render Graphの旧semantic profile記述とShadow Plan ownershipをAdvanced Light Transportへ移す。
-- current MVP、active Capability、Target support、Phase／Work Package、release claim、Provider選定は変更しない。
+- current C1、Capability Activation、Target support、実装計画、release claim、Provider選定は変更しない。C2のMobile Project Source requirementだけをProduct Planと各Ownerへ一意化する。
 - 旧複合IDと中間GI＋Reflection IDへalias、dual read、fallback lookupを残さない。
 
 ## Verification
 
-- Architecture Indexが59 Ownerをexactに列挙し、全Header／path／文書IDが一致する。
-- Product Future tableが31 unique ID、全`planning_only`、valid Owner ref、acyclic prerequisite、valid `single_target | target_role_bundle` closureを持つ。
-- Future Target closureは31行とset equalityで、25行が`single_target`、6行がexact `target_role_bundle` profileを持つ。active binding、common binding、claim requirementは親行とset equality、common／profile固有Future edge unionはacyclicで、再帰展開後のbundle role Activation／mapping／claim releaseがset equalityになる。
-- 旧二複合IDと中間GI＋Reflection IDが説明上の廃止記録以外のcurrent Refに残らない。
+- Architecture Indexのcurrent Owner集合と全Header／path／文書IDが一致する。過去時点の59件をcurrent固定値にしない。
+- Product Future tableが30 unique ID、全`planning_only`、Owner正本範囲に整合するvalid Owner ref、acyclic prerequisite、valid `single_target | target_role_bundle` closureを持つ。
+- Future Target closureは30行とset equalityで、24行が`single_target`、6行がexact `target_role_bundle` profileを持つ。各bundle parentのcandidate kind／direct Future edgeは全Profileのrole kind／applicable mapping unionとset equalityで、選択Profileは自分のexact subsetだけを適用し、再帰展開後のrole mappingを縮小しない。
+- 旧二複合ID、中間GI＋Reflection ID、削除したMobile source qualification IDが説明上の廃止記録以外のcurrent Refに残らない。
 - Render Graph／Lighting／Post／Environment／World／LOD／Runtime Asset／Runtime Package／Scheduling／ECSの正本／非正本境界が新Ownerと重複しない。
 - small co-opにDedicated Server、large-sessionにrollback、persistenceにgame Transportを強制していない。
 - Online Serviceを暗黙採択していない。
-- link、ID、Owner、claim union、Future DAG、state表現、禁止語、placeholder、diffを機械監査する。
+- link、ID、Owner Header／正本範囲、Future inventory／bundle semantics／DAG、state表現、旧ID、未materialize carrier参照、diffを監査する。
 
 ## Official or primary sources
 

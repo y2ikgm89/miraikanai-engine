@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: reusable Gameplay Featureの共通ownership、manifest、compatibility、Public Contract、State owner、Command／Event／Snapshot、Save／Replay、failure、qualification意味
+- 正本範囲: reusable Gameplay Featureの共通ownership、`ReusableRpgFeatureFamilyV1`／initial full-family set、manifest、compatibility、Public Contract、State owner、Command／Event／Snapshot、Save／Replay、failure、qualification意味
 - 非正本範囲: 具体Weapon／Damage／Vital／Score／Encounter／Pickup／Locomotion／RPG Feature Schema、Registry、Fixture、Genre composition、Pack lifecycle、Subsystem契約、Product roadmap
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Pack Contract](pack-contract.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Collision](../05-simulation/collision.md)、[Physics](../05-simulation/physics.md)、[Navigation](../05-simulation/navigation.md)
 - 関連文書: [Feature Definition／Fixture Candidate Catalog](../appendices/gameplay-feature-definition-fixture-catalog.md)、[RPG Genre Pack](rpg.md)、[Scenario／Stage](scenario-stage.md)、[Performance／Capacity](../04-runtime/performance-capacity.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[Input](../07-platform/input.md)
@@ -84,6 +84,20 @@ Fire、Damage、Pickup、Score等のstate-changing actionはexpected State gener
 
 RPG-first Product方向は新しいGeneric Core hierarchyを作らない。次の五familyをGenre非依存のReusable Featureとして本書の共通ownershipへ解決し、[RPG Genre Pack](rpg.md)はcomposition、Profile、Game Flow、command roleだけを所有する。
 
+```text
+ReusableRpgFeatureFamilyV1 =
+  command_battle |
+  actor_progression |
+  inventory_equipment |
+  dialogue_quest |
+  currency_shop
+
+InitialFirstPlayableRpgFeatureFamilySetV1 =
+  exact set of every ReusableRpgFeatureFamilyV1 member
+```
+
+このclosed enumと全member setがfamily identityのArchitecture正本である。表示label、表の行番号、RPG Profile名または将来のMCD IDからfamily membershipを再構成しない。`FirstPlayableDefinitionV1.required_feature_pack_requirement_refs[]`をmaterializeする場合は各memberをexact一件のFeature Requirement Refへtotal bijectionで解決し、projectionのset equality、unique Owner、version／hash一致を要求する。missing／multiple／duplicate／extra ref、複数familyを一Requirementへcollapseすることを拒否する。これはFeature Pack Stable ID、MCD record、RegistryまたはActivationが現在存在するという意味ではない。
+
 | Feature family | 一意Owner責務 | 他Ownerとの境界 |
 |---|---|---|
 | Command Battle | battle instance、turn ownership、legal command、deterministic resolution、interrupt、outcome、failure | Schedulingのglobal cadenceを変更せず、Input／AIからtyped Commandを受ける |
@@ -93,6 +107,18 @@ RPG-first Product方向は新しいGeneric Core hierarchyを作らない。次�
 | Currency／Shop | currency ledger、offer／price policy、purchase／sell transaction、reject atomicity | UI、Product balance、store／platform commerceを所有しない |
 
 五familyは一つのOwner文書に集約できるが、logical Owner、State、Command、Event、Snapshot、Save projection、failureを相互に混ぜない。Feature間の操作は各Ownerのprepared resultを一つのbounded transactionへ束縛し、全precondition成功時だけpublishする。equipment変更とderived stat、inventoryとcurrency、dialogue choiceとquest、battle commandとturn advanceを片側だけcommitしない。
+
+[Product Plan §5.1.2](../00-product/product-plan.md#512-playable-path-and-required-gameplay-coverage)のinitial First Playableはexact `InitialFirstPlayableRpgFeatureFamilySetV1`をrequired集合として選ぶ。これは次のnon-substituting coverageを閉じるためのProduct選択であり、全RPG Projectのminimum、Feature activationまたは一つの巨大RPG State ownerを意味しない。
+
+| Feature family | initial First Playableで必要なcoverage | 不足または代用として拒否するもの |
+|---|---|---|
+| Command Battle | [RPG Genre Pack §7](rpg.md#rpg-command-role)のinitial battle command role set、turn ownership、deterministic enemy command、regular／Boss outcome、bounded negative status | Shooter action、UI animation、global turn-based Simulation cadence |
+| Actor Progression | level-upによるdeclared gameplay valueの変更、cap、Save／Load semantic invariance | display levelだけの変更、equipment値による代用 |
+| Inventory／Equipment | item use、capacity rejection、equipment変更とderived effectのatomic publication | item一覧だけ、partial inventory／stat commit |
+| Dialogue／Quest | mandatory Quest、bounded choice、Quest flagと後続dialogueのcausality、single-ending boundary | localized text branchだけ、第二Ending、Scene名によるQuest推測 |
+| Currency／Shop | buy-only offer、price、funds、inventory capacity、accept／reject atomicity | platform commerce、real-money purchase、UI上の価格表示だけ |
+
+五familyの各Ownerは上表に必要な自身のDefinition／State／Command／Event／Snapshot、transaction、Save／Replay、failure meaningを一意に所有する。Product Planのcoverage名やRPG Genreのcommand roleからprivate Fieldを生成せず、missing familyを別family、generic Interaction、Shooter contractまたはReference contentで補完しない。別Projectは明示Recipeで一部familyを省略できるが、そのEvidenceをinitial First Playableへ流用しない。
 
 これはOwner responsibilityのtarget designであり、Stable ID、Schema、Registry、Operation、CapabilityまたはFixtureをcurrentへ追加しない。ShooterのWeapon／Score／Pickup／Game Flowを名前変更してRPG Featureへ流用せず、意味一致する既存Public Contractだけを明示参照する。具体Feature contractをmaterializeする場合は、各familyについてDefinition／State／Command／Event／Snapshot、transaction、Save／Replay、Diagnostic、negative fixtureを同じreview changeへ閉じる。
 

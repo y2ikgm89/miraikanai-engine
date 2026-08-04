@@ -18,9 +18,11 @@
 本文中の`Task 0`～`Task 10B`と`task-*`は、既存Control Plane bootstrap protocolから引用した状態・Receipt labelであり、本書が新しい実装Task、担当、日程または作業順序を計画するものではない。
 ## 11. Product execution registries
 
-本節はControl Plane移行時にMCDへ移すProduct-owned機械正本である。それまではMarkdown表を入力とし、表外のID、暗黙行、前方一致、別名を拒否する。
+本節はControl Plane／execution Registryの非規範候補であり、current machine canonical、Owner contractまたは実装計画ではない。対応するOwner採択Decision、実行Schema、materialized Artifact、Generatorは存在せず、Markdown表をcurrent Registry入力、Product requirementまたはQualification universeとして使用しない。
 
 本節のRegistry候補はinitial V1 Product Definitionの実行projection候補であり、[Product Plan](../00-product/product-plan.md)が選ぶcompact 2D RPG Reference、3D technical Reference、optional Shooter fixture、Genre-neutral Core holdoutをpredecessor、source／destination Product migration、Pack ID renameまたはReceipt流用なしに別subjectとして閉じなければならない。現Revisionの候補表にはcompact 2D RPG ReferenceのFixture、[RPG Genre Pack](../08-packs/rpg.md) Owner Work Package、Capability、Phase Gate bindingが存在しないため、本ProposalはProduct-facing 2D First Playable outcomeを一件も定義または評価しない。既存`phase.manual-2d`、`wp.domain.shooter-2d`、`fixture.product.shooter-2d`、`gate.product.phase-3-manual-2d`はoptional Shooter内部候補のopaque legacy IDであり、RPG Product requirement、RPG Pack、First PlayableまたはC1 exitへ投影しない。RPG用の未定義ID、Availability、Receiptを本文から推測または生成せず、Shooter／Genre-neutral ReceiptでRPG Evidenceを代用せず、候補表の存在をmaterialized Registryまたはactive Capabilityと解釈しない。RPGのWork Package、Fixture、Capability、Gate、Target bindingは将来の承認済みActive Definition／Registry changeまで未materializeとし、本Architecture closureで作成しない。
+
+2026-08-04のpost-C1 auditで[Product Plan §5.3](../00-product/product-plan.md#53-c2-production-exact-product-boundary)と[§8](../00-product/product-plan.md#8-future-portfolio)がC2のexact Windows／Android／Apple selectionとFuture 30件を正本化した。本ProposalのPhase、Work Package、Capability表、`required | optional | excluded`、Fixture、Gate、Future Registry shapeはそれ以前の候補projectionであり、C2／Mobile／Futureのcurrent scope、実装順序または残Taskを定義しない。相違時はProduct Planと各Ownerだけをcurrent contractとして読み、本Proposalの表を部分修正して正本化しない。
 
 ### 11.1 Registry共通規則
 
@@ -154,7 +156,7 @@ FixtureRegistryV1
 
 `ProductExecutionTargetQualificationProjectionV1`は[Product Plan](../00-product/product-plan.md#product-profile-identity)が所有する`TargetProfileRegistryV1`のexact recordへQualification requirementを対応付ける候補投影であり、Target Profileのidentity、kind、roleまたはRegistryを再定義しない。`target_profile_ref`はProduct Planの全Fieldを持つexact Refであり、ID、表示名、kind、platform名、`latest`または本付録の行から復元しない。
 
-次のrecord群はRegistry一覧に必要なentry payloadの投影であり、型の再定義ではない。`FallbackRegistryV1`のclosed canonical schemaは§11.3、`FutureCapabilityIncubationRegistryV1`と`FutureTargetClosureRegistryV1`の唯一のcanonical schemaは§8が所有し、本一覧はそれらとField名・意味を一致させる。
+次のrecord群はRegistry一覧に必要となり得るentry payloadの非規範候補である。`FallbackRegistryV1`の候補shapeは§11.3にあるが、`FutureCapabilityIncubationRegistryV1`と`FutureTargetClosureRegistryV1`を含むexecution Registry schemaのcurrent canonical Ownerまたはmaterialized schemaは存在しない。[Product Plan §8](../00-product/product-plan.md#8-future-portfolio)が所有するのはFuture membership、direct prerequisite、`single_target | target_role_bundle`のreceipt-free Product boundaryだけであり、本一覧のField、Registry、promotion mechanicsを所有しない。
 
 ```text
 FallbackRegistryV1
@@ -1246,7 +1248,7 @@ Production owner layerがGeneric Engine CoreであるWPは、`required_capabilit
 
 `required_capability_refs[]`はconsumer WPの各`target_refs[]`で実行時に必須なCapabilityだけを列挙する。各edgeについてCapability表の同Target scopeが`required`でなければ拒否し、`optional`または`excluded`をrequired edgeに使わない。optional Capabilityを選べるWPはrequired edgeへ混在させず、Owner contractの明示selection policyとfallback refで表し、選択時だけcurrent Target state／fresh fallbackを検査する。headless authoring、build host、Code owner、Phase順序などcross-targetのorderingだけを表す関係は`requires_work_package_refs[]`へ置き、Target availabilityの証拠にしない。`defer_reason`、依存、`reconsideration_gate_refs[]`はWork Packageだけが所有し、Capability表または`CapabilityTargetActivationStateV1`へ複写しない。
 
-`capability.project.shader`と`capability.product.project-source-activation`のAndroid／Apple `excluded`は、Platform側のSPIR-V／Metal library package schema、Vulkan／Metal Backend、Phase 7 mobile runtimeの存在によって変化しない。Project-defined Shader SourceをMobileへ広げる場合は、Product Planの`future.capability.mobile-project-native-shader-source-qualification`を別revisionで分解し、Target binding、Work Package、Requirement、Gate、fresh Qualificationを追加する。
+本Proposalの`capability.project.native_module`／`capability.project.shader`／`capability.product.project-source-activation`にあるAndroid／Apple `excluded`行はcurrent C2 contractではない。Product Plan §5.3はProject C++／Project Shaderをexact Windows／Android／Apple Targetでrequiredとし、Native Game Module／Project Shader／Android／Apple Ownerは各Targetのfresh Qualificationがmaterializeするまで`not_activated`を維持する。削除済み`future.capability.mobile-project-native-shader-source-qualification`、Phase、Work Packageまたは本Proposalの候補行からcurrent support、実装Taskまたはpromotion routeを生成しない。
 
 現行`WorkPackageRegistryV1`にはoptional Capability選択Fieldがなく、全`required_capability_refs[]` edgeは`required` scopeだけで閉じる。将来WPがoptional selection自体をProduct正本へ持つ場合は、selection policy、fallback、selected／unselected fixtureを含むDefinition schema revisionを先に承認し、自由記述や既存required edgeの読み替えで追加しない。
 

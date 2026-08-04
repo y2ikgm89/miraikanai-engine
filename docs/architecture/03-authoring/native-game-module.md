@@ -7,7 +7,7 @@
 - 正本範囲: NativeGameModule artifact／C ABI／entry、公開C++ source境界、Public API Catalogとsubject stability、lifecycle、Native descriptor、Target別link、Build identity、Preview、Packaging、Native failure、Governance handoff用build evidence
 - 非正本範囲: GameplayDefinition、GameSystemSpecV1、System実装選択、Project test semantics、SDK配布／license／Documentation bundle、typed portsの意味、Project transaction、Toolchain固定値、Runtime ECS storage・query・access manifest、Runtime scheduling値、Risk分類、Approval／attestation／promotion authorization。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Project State](project-state.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Gameplay Programming Model](gameplay-programming-model.md)
-- 関連文書: [Runtime ECS Static Definition／Entity Reference Boundary Decision](../decisions/2026-08-03-runtime-ecs-static-and-entity-reference-boundary.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Developer Testing](developer-testing.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
+- 関連文書: [Runtime ECS Static Definition／Entity Reference Boundary Decision](../decisions/2026-08-03-runtime-ecs-static-and-entity-reference-boundary.md)、[Product Plan](../00-product/product-plan.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Executable contracts](../02-foundation/executable-contracts.md)、[Naming／Project layout](../02-foundation/naming-project-layout.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Memory／Pointers](../02-foundation/memory-pointers.md)、[Developer Testing](developer-testing.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Performance／capacity](../04-runtime/performance-capacity.md)、[Project state](project-state.md)、[Gameplay programming model](gameplay-programming-model.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
 - 外部根拠確認日: 2026-07-23
 
@@ -31,7 +31,7 @@ code signature、publisher certificate、content hash、provenance Receiptはart
 
 公式比較では、Unreal Engine 5.8はProject `Source`のprimary module、Unity 6.3 LTSはUnity 6 familyのnative plug-in境界、Godot 4.7.1はEngine再compileを不要にするGDExtension native libraryをそれぞれ公開している。本設計が採用する共通原則は「固定Engine baseline＋Project-owned extension＋明示ABI／Build／Target別Qualification」だけである。[Unreal Modules](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-modules?lang=en-US)、[Unity Native plug-ins](https://docs.unity3d.com/6000.0/Documentation/Manual/plug-ins-native.html)、[Godot 4.7 GDExtension](https://docs.godotengine.org/en/4.7/tutorials/scripting/gdextension/what_is_gdextension.html)を比較Evidenceとし、いずれのAPI互換、plugin ecosystem互換、hot reload挙動、機能同等性も保証しない。MiraikanaiのProject C++は本書のbounded ABI、Engine非改変、Process隔離、static Shipping link、Receipt Gateを正本とする。
 
-C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget`として登録できる。ただしこれは一般Widget pluginではなく、UI規約の型付きManifest、bounded primitive、typed command、Accessibility、fallbackを満たすNativeGameModule Capabilityである。Project codeをEditor Processへloadせず、PreviewはGameHostだけで実行する。
+Product C2では、宣言型UIで表現できないProject固有Widgetを`UiNativeWidget`として登録できる。ただしこれは一般Widget pluginではなく、UI規約の型付きManifest、bounded primitive、typed command、Accessibility、fallbackを満たすNativeGameModule Capabilityである。Project codeをEditor Processへloadせず、PreviewはGameHostだけで実行する。
 
 ## 2. 決定権と対象外
 
@@ -619,7 +619,7 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 ## 12. Performance、Memory、Security Gate
 
 - Native callbackの時間はSystem ID別に測定し、[Performance／capacity](../04-runtime/performance-capacity.md)が所有するGameplay Logic合計budgetを緩和しない。
-- Runtime callback内allocation countはsteady stateで0をC1目標とし、許可allocationはphase scratchからだけ行う。
+- Runtime callback内allocation countはsteady stateで0をWindows qualification baselineの目標とし、許可allocationはphase scratchからだけ行う。
 - Persistent、session、scratch、command payloadを別telemetry counterへchargeする。
 - C++化の成立条件は[Gameplay programming model](gameplay-programming-model.md) §1.1の選択境界に従い、性能根拠は[Performance／capacity](../04-runtime/performance-capacity.md)が所有する改善閾値を同一fixtureで満たすこと、または表現不能Capabilityだけとする。閾値のNormative値を本書へ複写しない。
 - ASLR、DEP、CFG、CET互換、stack protection、warnings-as-errors等のWindows Shipping hardeningをEngine binaryと同じにする。
@@ -643,19 +643,21 @@ CrashしたProject C++はEngine memoryへ到達可能な信頼済みCodeであ�
 - Target-specialized Variantが同じPublic System ContractとGameplay fidelity fixtureを通り、意味同等fallbackなしのTargetを非対応にする。
 - Governance authorization後Project Commit失敗時に新Variantをloadせず、直前Qualified Variantを維持する。
 - GameHostを100回再起動し、Editor Processのhandle／memoryが増加しない。
-- Phase 5 C1ではWindows Editor PreviewとWindows Desktopのclean static-link packageが同じModule revision hashを記録する。Android／AppleはProduct Registryで`excluded`のまま、別のTarget Profile、Work Package、Capability Target binding、fresh Target Qualificationが承認されるまで本C1完了条件と対応表示へ含めない。
+- Native Game ModuleのWindows qualification baselineはWindows Editor Previewと`target.windows.desktop@1`のclean static-link packageが同じModule revision hashを記録する。これはProduct First Playable C1、Capability tierまたは実装Phaseではない。Android／Appleはこのbaselineの完了条件と対応表示へ含めず、Windows ReceiptからMobile supportを推論しない。
 - AI生成SourceがGovernance authorization前に正規Project／Editor／Shippingへloadされない。
 - AI生成Sourceはexact `role.code_owner.native_module`、Native Scope、current Qualification、`revoked_at=null`を持つ`CodeOwnerAssignmentV1`なしに生成されず、exact Diffの`CodeOwnerApprovalV1`なしにPromotion／loadされない。missing／unknown／`role.code_owner.project_shader`／Scope差／revokedを一原因ずつ拒否する。
 - Beginner Profileでは新規Native Source Taskが0件で、Definition／prequalified Pack不能な要求を`capability_unavailable`として停止する。
 - Engine C++ Public Header、`CppDependencySetV1`、実際のinclude、CMake DAGが一致し、Named Module／BMI dependencyが0件である。
 - Native artifactがTarget別`BuildDriverProfileV1`とBuild tree identityを記録し、Make／Ninja二重経路を持たない。
-- C2 `UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationを全Target fixtureで検証する。
+- Product C2の`UiNativeWidget`はManifest、ABI、pure callback、determinism、primitive cap、Accessibility、fallback、GameHost fault isolationをexact `{target.windows.desktop@1, target.android.mobile@1, target.apple.mobile@1}`で個別に検証する。
 - ECS format migrationを伴うNative ABI変更では、native_abi Consumer Inventory record、全Evidence Requirementのpass satisfaction binding、Compatibility Change、Owner reference migration manifest、source／target Definition Closure、Definition Migration bindingが同じqualification closureへexact解決しなければload／releaseを許可しない。
 - C ABI Header AST scan、pointer／count／alignment fuzz、call-return後view access、Memory Port mismatch、source binding／adapter／descriptor／Contract Set／Target／Toolchain hash不一致のnegative fixtureを通す。
 
-本Native CapabilityのC1完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ実装し、Code owner gate、Windows Editor Preview再起動、Windows Desktop clean static-link artifact、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateでも、Shipping／Release readinessでもない。
+Native Game ModuleのWindows qualification baseline完了条件は、Advanced Project Source Activation下の2D縦切りで一つのProject固有CapabilityをNativeGameModuleへ表現し、Code owner gate、Windows Editor Preview再起動、Windows Desktop clean static-link artifact、Definitionとのcontract conformance、fault recoveryをすべて合格することである。これはBeginner MVP／First PlayableのCompletion Gateでも、Shipping／Release readinessでもない。
 
-C2 UI extension完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として実装し、Governance-authorized source、UI Designer fallback projection、Windows GameHost Preview、Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを合格することである。これはC1 NativeGameModule完了条件を置き換えない。
+Product C2のNative Game Module完了条件は、一つの宣言型では表現不能なWidgetを`UiNativeWidget`として表現し、Governance-authorized source、UI Designer fallback projection、Windows GameHost Preview、exact Windows／Android／Apple static-link package、semantic／layout／render golden、fault recoveryを同じCandidateで合格することである。これはWindows qualification baselineを置き換えず、Android／Apple package schemaまたはArchitecture文書の存在だけをSource qualificationへ数えない。
+
+Android／AppleのProject native source qualificationは[Product Plan §5.3](../00-product/product-plan.md#53-c2-production-exact-product-boundary)のC2 requirementである。`future.capability.mobile-project-native-shader-source-qualification`というFuture ID、互換alias、Work Packageまたは後続Phaseを作らず、各TargetのABI、Compiler、static link、signing、fault、rollback、Store policyとfresh Qualificationがmaterializeするまで`not_activated`を維持する。
 
 ## 14. 一次資料
 

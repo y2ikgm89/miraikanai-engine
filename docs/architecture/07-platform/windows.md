@@ -7,9 +7,9 @@
 - 正本範囲: Windows Target Profile、process／window／display／lifecycle Adapter、filesystem／user data、Windows package／signing／publication／update、Windows crash／security／qualification
 - 非正本範囲: 外部Tool／SDK／OS／graphics version、共通Runtime budget／phase、Asset lifecycle、Renderer／Input／Audio／UI意味、AI authorization／Evidence envelope、AI Production Run／Workflow／Context／route／logical role semantics。各Owner文書を参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Release Decision](../00-product/product-release-decision.md)、[Core Architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Render Graph](../06-rendering/render-graph.md)
-- 関連文書: [Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
+- 関連文書: [Product Plan](../00-product/product-plan.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[Product Lifecycle](../00-product/product-lifecycle.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Core architecture](../02-foundation/core-architecture.md)、[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)、[Naming／project layout](../02-foundation/naming-project-layout.md)、[C++23 Language／Public Surface](../02-foundation/cpp23-modules.md)、[Asset lifecycle](../03-authoring/asset-lifecycle.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Editor UI Framework](../03-authoring/editor-ui-framework.md)、[Editor workspace／UX](../03-authoring/editor-workspace-ux.md)、[Native game module](../03-authoring/native-game-module.md)、[Runtime scheduling／lifetime](../04-runtime/scheduling-lifetime.md)、[Runtime performance／capacity](../04-runtime/performance-capacity.md)、[Debugging／observability／replay](../04-runtime/debugging-observability-replay.md)、[Render Graph](../06-rendering/render-graph.md)、[Project Shader](../06-rendering/project-shader.md)、[Input](input.md)、[Audio](audio.md)、[UI／Text](ui-text-localization-accessibility.md)、[Mobile Common](mobile-common.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-07-30
+- 外部根拠確認日: 2026-08-04
 
 ## 1. 結論
 
@@ -23,6 +23,10 @@ Windows固有APIは`engine/platform/windows`と各Backend Adapterに閉じ、正
 - `package-profile.windows.managed-layout`: Steam等の外部配布clientがinstall／updateを管理する署名済みDirectory layout
 
 Development用portable layoutはShipping Distributionではない。Miraikanai独自の常駐auto-updater、kernel driver、system serviceをC1で実装しない。
+
+[Microsoftのcurrent package／deployment overview](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/)と[distribution path guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/choose-distribution-path)は、多くのDeveloperにMicrosoft Store routeを推奨し、MSIX submissionにStore signing／hosting／updateを提供することと、MSIXのpredictable install／update／servicing／clean deploymentを説明する。これはWindows platformのofficial-spec factである。Miraikanaiがinitial [Product First Playable](../00-product/product-plan.md#511-initial-v1-exact-product-boundary)へsigned internal `package-profile.windows.msix`を一件だけ選び、external clientを必要とする`package-profile.windows.managed-layout`をcompletion dependencyにしないことはproject-decisionであり、MicrosoftがMiraikanai Gameの製品scopeを推奨したという意味ではない。
+
+[Product Plan §5.3](../00-product/product-plan.md#53-c2-production-exact-product-boundary)はC2のexact Windows runtime Targetを`target.windows.desktop@1`、public publication baselineを`package-profile.windows.msix`＋Microsoft Storeとする。本書はStore submission identity、GameInput／VCLibs prerequisite、Signing、certification、public read-back、update／withdrawalを所有する。signed internal MSIX、direct／enterprise MSIX、managed layout、Store uploadまたはcertification passはC2 public publicationの代用ではない。Microsoft Store推奨という外部factと、Miraikanaiが三Platform C2のWindows routeへStore MSIXを選ぶproject-decisionを混同しない。
 
 ## 2. 決定権と対象外
 
@@ -212,7 +216,7 @@ MSIX
 - MSIX packageはinstall前に署名が必要で、Store外はTarget環境が信頼する証明書を用いる。
 - Store提出用packageとdirect／enterprise署名packageのIdentity／Signing Receiptを混在させない。
 
-Editor本体もC2 Production Distributionではfull-trust MSIXを推奨する。Phase 0／C1の開発中は署名済みinternal MSIXとportable CI artifactを分け、portable artifactを一般配布物と表現しない。WARPはToolchain Ownerが許可するDevelopment／test／internal conformanceだけでhost-localに使用し、internal MSIXを含む再配布可能Package、Production MSIX、managed layout、Store upload、公開downloadへ含めない。
+Editor本体もC2 Production Distributionではfull-trust MSIXを採用する。initial First Playableの署名済みinternal MSIXとportable development artifactは分け、portable artifactを一般配布物と表現しない。WARPはToolchain Ownerが許可するDevelopment／test／internal conformanceだけでhost-localに使用し、internal MSIXを含む再配布可能Package、Production MSIX、managed layout、Store upload、公開downloadへ含めない。
 
 ### 8.2 `package-profile.windows.managed-layout`
 
@@ -341,7 +345,13 @@ support bundle（正本は[Debugging／observability／replay](../04-runtime/deb
 - Development／ProfileのPDB／source map／DRED／Debug Session関連付けと、Shipping packageからvalidation layer、IDE attach、raw trace、source path、credentialを除外するscan
 - signed Packageをclean VMへinstallし、2D／3D縦切りをplay／save／reload
 
-C1完了条件は、Windows Editorから同一Project revisionをDevelopment Play、signed internal MSIX、managed layoutへBuildし、clean machineでinstall／play／save／crash回収／uninstallでき、Source、credential、debug toolをShippingへ含めないことである。
+Windows domainのcross-distribution C1 closureは、Windows Editorから同一Project revisionをDevelopment Play、signed internal MSIX、managed layoutへBuildし、各profile固有のclean-machine／external-client環境でinstall／play／save／load／crash回収／uninstallを完了し、Source、credential、debug toolをShippingへ含めないことである。一つのprofile、Build Host上のsmokeまたはpayload生成をdomain C1全体へ代用しない。
+
+initial Product First Playableがこのdomainから要求するsubsetは、Development Playとsigned internal MSIXだけである。同一Project revisionをGameInput／VCLibs prerequisiteを含む[§8.1](#81-package-profilewindowsmsix)のexact install routeでclean machineへinstallし、offline play／save／load／crash回収／uninstallを完了する。MSIX payload生成だけ、prerequisite済みBuild Host、portable layoutまたはmanaged layoutをこのProduct closureへ数えない。
+
+`package-profile.windows.managed-layout`のBuild、external client install／update、file hash、offline launchはWindows domain C1または、そのprofileを要求する別Product claim／Active Product Definitionで個別にqualifyする。managed layoutの未実施はinitial First Playableを阻害せず、逆にProduct subsetのpassだけからWindows domain C1、managed layout、Store publication、enterprise distributionまたはWindows Product release全体を主張しない。
+
+C2は同じCandidateのMicrosoft Store向け`package-profile.windows.msix`についてStore identity、GameInput／VCLibs prerequisite、package certification、submission、public availability read-back、update／withdrawalを閉じる。initial First Playableのinternal MSIXまたはWindows domain C1のmanaged layoutをC2 Store publicationへ流用せず、C2 Store passもdirect／enterprise／managed-layout supportへ一般化しない。
 
 ## 16. 外部依存境界
 

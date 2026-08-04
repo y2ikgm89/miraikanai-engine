@@ -801,9 +801,9 @@ Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示し�
 - `PublicShaderSdkCatalogV1`の全public symbol coverage、declaration／documentation hash、Project参照closure、private symbol 0件。
 - `ProjectShaderTechniquePortCatalogV1`の全八Portと`ProjectShaderPassPipelineContractV1`のRaster／Compute／Ray branchについて、input／output、ordering、history／Layer、pipeline、Target、Budget、fallbackを検証し、未登録Portとcross-branch Fieldを拒否するfixture。
 - 許可／禁止HLSL、bounded loop、resource index、variant、atomic／wave／ray Capabilityのpositive／negative fixture。
-- current Product Registryで当該Capabilityの`scope=required`となる全Targetについて、clean offline compile、validator、reflection、source map、artifact hashを再現する。Phase 5の`capability.project.shader`はWindows Editor／Desktopだけをrequiredとし、Android／Appleは別のProduct Target bindingとfresh Target Qualificationまで`excluded`かつ非対応表示にする。
+- current Active Product Definitionと適用する`ProductClaimKindMinimumV1.required_capability_refs[]`／required Host・runtime Target集合が当該Capabilityを要求する全Targetについて、clean offline compile、validator、reflection、source map、artifact hashを再現する。Project ShaderのWindows qualification baselineは`target.windows.editor@1`／`target.windows.desktop@1`だけを対象とし、Product First Playable C1、Capability tierまたは実装Phaseではない。[Product Plan §5.3](../00-product/product-plan.md#53-c2-production-exact-product-boundary)のC2はexact `{target.windows.desktop@1, target.android.mobile@1, target.apple.mobile@1}`をrequired runtime Targetとし、各Targetのfresh Qualificationがmaterializeするまで対応rowを`not_activated`かつ非対応表示にする。
 - Manifest対static fact／reflection／runtime-use traceのresource、side effect、interface一致。
-- required Targetが使用するBackendのbinding、matrix、clip／depth、precision、texture coordinate、Stage interface差分fixture。Phase 5はD3D12だけを評価し、Vulkan／MetalはAndroid／Apple Targetを追加する後続ChangeSetでそれぞれ必須化する。Windows ReceiptからMobile対応を推論しない。
+- required Targetが使用するBackendのbinding、matrix、clip／depth、precision、texture coordinate、Stage interface差分fixture。Windows qualification baselineはD3D12だけ、Product C2はD3D12／Vulkan／Metalを各exact Targetで評価する。Windows ReceiptからMobile対応を推論せず、Vulkan合格をMetalへ、Metal合格をVulkanへ流用しない。
 - Graph／Module／Techniqueのcycle、missing producer、unordered write、history、fallback、capacity fixture。
 - Parameter sweep、counterfactual、NaN／Inf、range端、zero／max resource、deterministic seed。
 - Reference image、analytic invariant、Target別visual tolerance、before／after diff。
@@ -812,7 +812,7 @@ Editor Previewだけが直前のvalid artifactを`stale_last_valid`と明示し�
 - readable declared Variant tupleとTarget／variant／fixture exact tupleを持つbehavior coverage、同Module／fixture setへのCoverage／Closure binding、change-impact required setとcovered caseのsubset、stale／missing／cross-Module coverage、fallback cycle、Code Owner review欠落のnegative fixture。
 - AI EvalのU0～U4、存在しないsymbol／resource／Target抑制、stale Context拒否、禁止Operation拒否、seeded contract／IR／Source mismatch検出。
 
-Phase 5のWindows First Playableは、少なくとも一つの`typed_ir` Moduleと一つの`bounded_hlsl` Moduleを同じCandidate／Project revisionの実際の表示または挙動で使用し、それぞれに独立したUnderstanding Closure、Qualification Evidence Closure、Qualification Receiptを要求する。一方のmodeの合格を他方へ流用せず、`bounded_hlsl`ではCode Owner Approval、`typed_ir`ではIR canonical identityを追加で確認する。段階的提供へ変更する場合は、先にProduct Definition／Registryの別revisionで対象Capability、Work Package、Gateを分離し、現行Phase 5の文言を片方だけへ再解釈しない。
+Project ShaderのWindows qualification baselineは、少なくとも一つの`typed_ir` Moduleと一つの`bounded_hlsl` Moduleを同じCandidate／Project revisionの実際の表示または挙動で使用し、それぞれに独立したUnderstanding Closure、Qualification Evidence Closure、Qualification Receiptを要求する。一方のmodeの合格を他方へ流用せず、`bounded_hlsl`ではCode Owner Approval、`typed_ir`ではIR canonical identityを追加で確認する。対象modeまたはTarget集合を変更する場合は、先にActive Product DefinitionとCapability contractの新revisionでrequired集合を変更し、Windows baselineまたはProduct C2の文言を片方だけへ再解釈しない。
 
 AI Evalはpublic、holdout、adversarial、incident corpusを分離し、各required Caseを3回実行する。hard gate違反、無権限Commit、存在しないStable IDの最終提出、未対応Capabilityの成功表示、Manifest外Resource／Passの見逃しは0件とする。required U0～U4、Target／fallback、Preview／undo／redo／recookのexact一致は全Case／全runで100%を要求する。
 
@@ -829,7 +829,7 @@ Runtime source compile、undeclared resource、unbounded control／resource／va
 - [Executable contracts](../02-foundation/executable-contracts.md)はOperation envelope、Schema projection、Task state、Diagnostic共通形を所有する。
 - [AI Security／Approval](../01-governance/ai-security-approval.md)はR3、A1、Worker、Authorization、Approval、Promotionを所有する。
 - [AI Verification／Provenance](../01-governance/ai-verification-provenance.md)はReceipt、Evidence、Eval corpus、Provenance、freshnessを所有する。
-- Android／Apple等のPlatform文書はEngine-owned／事前Qualification済み／将来有効化済みProject ShaderのTarget artifact packagingと検証境界を定義できるが、Project Source authoring、Qualification対象化、Runtime選択の有効化はProduct Registryだけが所有する。Platform側にArtifact SetやBackend package schemaが存在してもCapability有効化を意味せず、別Target bindingとfresh Qualificationが完了するまで`excluded`を維持する。
+- Android／Apple等のPlatform文書はProject ShaderのTarget artifact packagingと検証境界を定義できるが、Project Source authoring、Qualification対象化、Runtime選択のrequired Target選択はActive Product Definitionだけが所有する。C2ではAndroid／Apple Target bindingをrequiredとする一方、Platform側にArtifact SetやBackend package schemaが存在してもCapability有効化を意味せず、各Targetのfresh Qualificationがmaterializeするまで`not_activated`を維持する。`future.capability.mobile-project-native-shader-source-qualification`、互換alias、Work Packageまたは後続Phaseを作らない。
 
 ## 13. 有名Engine／Shader ecosystemとの比較と採用判断
 

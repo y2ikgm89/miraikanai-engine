@@ -4,12 +4,12 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: Product intent、AI-native C++ Product claim、AI game generation claim lane、第三者向け汎用Engine minimum surface、非交渉原則、Capability成熟度、P0 Architecture scope／fixed root membership／Product-derived membership／16-axis closure projection、2D／3D Product portfolio、MVP outcome、FirstPlayableDefinitionV1、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
+- 正本範囲: Product intent、AI-native C++ Product claim、AI game generation claim lane、第三者向け汎用Engine minimum surface、非交渉原則、Capability成熟度、P0 Architecture scope／fixed root membership／Product-derived membership／16-axis closure projection、2D／3D Product portfolio、MVP outcome、FirstPlayableDefinitionV1、initial First Playableのexact Target／playable boundary／required gameplay coverage／explicit exclusion／non-substituting Generic Core holdout、C2 Productionのexact Host／runtime Target／locale／public publication baseline、Future Portfolio membership／direct prerequisite／Target closure、Product Host／runtime Target／locale Profile identityとroot Registry、Active Product Definition、claim-kind minimum、製品claim、release／completion requirement projection、claim-derived required Operation universe、required Operation journeyとsurface applicability projection、昇格・停止・pure release／completion predicate
 - 非正本範囲: P0 Subsystem各axisのdomain semantics、最終Release authority record、Publication／Completion authority record、実装順序、工程、工数、担当、Fixture件数、実行／materialization Registry、Target technical Toolchain binding、Localization Catalog／fallback、Subsystemの型・Field・API・Backend・既定値・Budget、AI権限、各domain Evidence／Receiptの形式と意味、法令解釈／Legal Decision。各Owner文書または非規範proposalを参照する
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)
 - 関連文書: [Product Lifecycle](product-lifecycle.md)、[Product Release Decision](product-release-decision.md)、[Product Publication／Completion](product-publication-completion.md)、[Product Legal／IP Governance](../01-governance/product-legal-ip-governance.md)、[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、[Game Production Loop](../03-authoring/game-production-loop.md)、[Product Privacy／Data Governance](../01-governance/product-privacy-data-governance.md)、[Product Security](../01-governance/product-security.md)、[AI Security／Approval](../01-governance/ai-security-approval.md)、[AI Verification／Provenance](../01-governance/ai-verification-provenance.md)、[Executable Contracts](../02-foundation/executable-contracts.md)、[AI-native C++ Product Identity Decision](../decisions/2026-08-03-ai-native-cpp-product-identity.md)、[AI Production Orchestration Ownership Decision](../decisions/2026-08-04-ai-production-orchestration-ownership.md)、[P0 Architecture／Legal-IP Ownership Decision](../decisions/2026-08-04-p0-architecture-and-legal-ip-ownership.md)、[Android Adaptive Game Window Baseline Decision](../decisions/2026-08-03-android-adaptive-game-window-baseline.md)、[Product Execution Registry Proposal](../appendices/product-execution-registry-proposal.md)、[Architecture Plan Closure Review](../appendices/architecture-plan-closure-review.md)、[Advanced Rendering／Multiplayer Ownership Decision](../decisions/2026-07-29-advanced-rendering-multiplayer-ownership.md)、[Compatibility／Evolution](../02-foundation/compatibility-evolution.md)、[Developer Testing](../03-authoring/developer-testing.md)、[Runtime Performance／Capacity](../04-runtime/performance-capacity.md)
 - 根拠区分: project-decision（外部仕様を引用する箇所はofficial-spec、未計測の固定値はprovisional）
-- 外部根拠確認日: 2026-08-03
+- 外部根拠確認日: 2026-08-04
 
 ## 1. Product intent
 
@@ -382,6 +382,77 @@ MVPは「全Engine完成」ではなく、第三者Developer journeyを最小の
 
 Exact scene数、dialogue数、Asset数、test数、対応環境数はQualification Ownerまたは非規範Fixture catalogが、対象契約を過不足なく証明するために決める。件数自体をProduct完成条件にしない。
 
+本節は到達させるProduct outcomeを定義するものであり、現時点の利用可能性を表さない。現RepositoryにはEngine／Editor／SDKの実行binary、materialized Contract／Registry、RPG Project、Package、Fixture、Receiptが存在しないため、current evidenceから実際に作成、起動または配布できるGameは0件である。target designとcurrent evidenceの差は[Architecture Plan Closure Review §16](../appendices/architecture-plan-closure-review.md#first-playable-boundary-follow-up)が追跡する。
+
+#### 5.1.1 Initial V1 exact Product boundary
+
+initial V1のFirst Playableは次のexact境界だけを持つ。これはProduct選択であり、Microsoft、W3C、IETF、他EngineまたはRPG genre一般の公式推奨ではない。Platform／format／accessibilityの外部事実は各Ownerの公式一次資料を使用し、Game内容とscopeはMiraikanaiのproject-decisionとして分離する。
+
+| Axis | initial exact selection | 代用を拒否するもの |
+|---|---|---|
+| Game form | original、offline、compact 2D command RPG、single ending | 3D、Shooter、別Genre、既存作品のcreative expression、online service |
+| Build／authoring Host | exact `target.headless.host@1` build Hostと`target.windows.editor@1` Editor Host | Android／Apple Host、EditorだけまたはheadlessだけのEvidence |
+| Runtime Target | exact `target.windows.desktop@1` | `target.android.mobile`、`target.apple.mobile`、別Windows Profile、Editor Previewだけ |
+| Distribution | signed internal `package-profile.windows.msix`と、[Windows](../07-platform/windows.md)が要求するGameInput／VCLibs prerequisite closureを含むclean-machine install／uninstall | Development portable layout、`package-profile.windows.managed-layout`、Build Hostへの事前install、別packageのReceipt |
+| Locale | exact `{en-US, ja-JP}` | OS locale、language-only alias、片localeだけのpass |
+| Input | exact `{keyboard, controller}`、両device classのremap、Core menuからResultまでの到達 | mouse-only、touch-only、keyboardまたはcontroller片方だけのjourney |
+| Authoring lane | manual authoring continuityとexact `{ai_composed_game}` | manual-only、AI-only、external content生成、Project Source生成 |
+| Runtime cadence | fixed Simulation profile上のRPG-owned deterministic battle state | Engine全体をturn-based cadenceへ変更すること |
+
+上表の`@1`値はtarget-design identityであり、materialized `TargetProfileRefV1`またはActivationを意味しない。対応recordが作られる場合はID／version／kind／content hashをすべて解決し、bare ID、表示名、`latest`、近似Targetまたは旧draft aliasを受理しない。initial V1にはpredecessor、v0、Shooter→RPG rename、dual reader、migration stepまたは互換profileを作らない。
+
+#### 5.1.2 Playable path and required gameplay coverage
+
+complete playable pathは次である。`Continue`はvalid Saveがある場合だけ、`Settings`はTitleまたはPlay中の許可された遷移から入り、いずれも同じProject revision、locale、Input Profile、Save identityへ戻る。
+
+```text
+Title／Continue／Settings
+  -> Town
+  -> Field
+  -> Dungeon
+  -> Boss battle
+  -> Result／Ending
+```
+
+Town、Field、Dungeon、BossはReference Gameのdestination roleであり、Generic CoreまたはRPG Genreの永久closed enumではない。次表のcardinalityはinitial Reference Gameに必要なsemantic content floorであり、Engineの公開上限、一般RPGのminimum、Scene／Asset／dialogue／test Fixture件数ではない。追加contentでmissing meaningを代用せず、Qualificationはsame Candidate／Project lineageで各rowを証明する。
+
+| Coverage | 必須となるmeaning | Canonical Owner boundary |
+|---|---|---|
+| Party | exactly one player-controlled protagonistとexactly one fixed companion。recruit、dismiss、party reorderは行わない | RPG compositionとReference Game content。Entity／State意味はGameplay／Runtime Owner |
+| Command battle | [RPG Genre Pack §7](../08-packs/rpg.md#rpg-command-role)のexact `InitialFirstPlayableBattleCommandRoleSetV1`、at least three Skill／spell definitions、exactly four regular enemy definitionsとexactly one Boss definition、deterministic enemy decision、regular encounterとBoss outcome、invalid／stale commandのno-change rejection | [RPG Genre Pack](../08-packs/rpg.md)、[Gameplay Feature Packs](../08-packs/gameplay-features.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md) |
+| Progression | at least one deterministic level-upが宣言済みgameplay valueを変更し、Save／Load後も同じ意味を保つ | Actor Progression Feature Owner |
+| Inventory／Equipment | item useとat least one equipment changeがvisible typed gameplay effectを持ち、capacity／invalid target失敗でpartial stateを残さない | Inventory／Equipment Feature Owner |
+| Status | at least one bounded-duration negative statusとdeterministic recoveryを扱う | Command BattleとFeature-owned State。UI／VFXはauthoritative Stateを書かない |
+| Dialogue／Quest | one mandatory Questとone bounded choiceがone Quest flagおよび後続dialogueを変更するが、第二Endingを作らない | Dialogue／Quest Feature Owner、Scenario／Stage、UI／Localization |
+| Currency／Shop | one buy-only Shop pathがcurrency、price、inventory capacity、accept／reject atomicityを扱う | Currency／Shop Feature Owner |
+| World traversal | one World composition上のone Town、one Field、one Dungeon、one Boss destination間を2D World、Camera、Collision、Navigation、Interaction、Scenario transitionで到達する | World／Camera／Collision／Navigation／Gameplay Interaction／Scenario各Owner |
+| Save／Load | one checkpoint plus manual Save／Loadをactive battle外で行い、corrupt／wrong-version Saveをfail closedにする | [Persistence／Save](../04-runtime/persistence-save.md) |
+| Presentation | Sprite／Tile／2D Camera、Game UI、Text、Localization、Accessibility、Audioを同じGameplay identityへ投影する | Rendering／UI／Audio各Owner |
+| Production loop | one complete manual authoring runとone complete AI／manual round-trip runでauthor、validate、test、playtest、package、clean install、offline completionを閉じる | Project／Editor／Game Production／Testing／Lifecycle各Owner |
+
+required reusable RPG Feature集合は[Gameplay Feature Packs §4.4](../08-packs/gameplay-features.md#44-reusable-rpg-feature-family)のexact `InitialFirstPlayableRpgFeatureFamilySetV1`であり、一部familyのpassをFirst Playable全体のpassにしない。加えてScenario／Stage、Character Locomotion、Interaction、deterministic NPC Decision、2D World／Rendering／Camera、Collision／Navigation、Input、UI／Text／Localization／Accessibility、Audio、Persistence、Asset、Project State、Runtime Package、Developer Testing、Windows PackageのOwner closureを要求する。Physics、3D、VFXまたは別GenreのEvidenceを、meaningが一致しないrequired ownerへ流用しない。
+
+`FirstPlayableDefinitionV1`をmaterializeする場合、上表の各Coverage rowはcanonical Ownerのnon-empty Requirement Ref集合と少なくとも一つのQualification Scenario Refへtotal mappingし、それらのcanonical unionをDefinitionの`required_requirement_refs[]`／`required_qualification_scenario_refs[]`対応subsetとset equalityにする。行名、自然文、同一Demoまたは一つのaggregate Receiptだけをmappingにせず、missing／extra／duplicate Owner、Evidence classを持たないRequirement、別coverageのScenarioによる代用を拒否する。このArchitecture mappingは現在のMCD、Scenario、RegistryまたはReceiptの存在を意味しない。
+
+#### 5.1.3 Explicit exclusions and completion blockers
+
+次はinitial First Playableのcompletion dependencyではない。absenceをGapとして扱わず、採用する場合だけ新しいProduct Definition revisionとOwner closureを要求する。
+
+- job／class change、recruitable member、party reorder、branching ending
+- crafting、random loot table、procedural dungeon、open-world streaming、complex economy simulation
+- action／real-time battle、3D Reference、advanced VFX、voice acting、cinematic cutscene
+- unrestricted scripting、runtime code generation、multiplayer、Account、Cloud、広告、課金
+- commercial-quality bulk Asset generation、`ai_generated_external_content`、`ai_generated_project_source`
+- Android、Apple、Linux、macOS、Web、Console、XRをFirst Playable completion dependencyにすること
+
+initial DefinitionのRequirement／Capability／Pack／Target／journey集合から上記excluded scopeを暗黙導出してはならない。採択にはDefinition revisionと対象Owner closureを同じArchitecture変更で明示し、current Definitionへalias、optional hidden rowまたはfallbackとして追加しない。一方、上表のrequired coverage、exact Windows Target／MSIX route、両locale、両Input device class、manual／AI continuity、Save／Load、Package／clean install、Human Gameplay Approvalのいずれかが欠ける場合は、内容が短くてもFirst Playableは未完成である。excluded featureの追加、scene／Asset数の増加、Shooter／3D／Mobile ReceiptまたはDemo動画で不足を補えない。
+
+#### 5.1.4 Non-substituting Generic Core holdout
+
+`FirstPlayableDefinitionV1`はProduct-facing Game outcomeだけを表す。汎用EngineのC1 claimは、同じsigned Candidateとinitial Definitionのexact Host／runtime Targetについて、First Playable AcceptanceとGenre-neutral Core holdoutの論理積を要求する。Core holdoutは全Genre Packとoptional Gameplay Feature Packをuninstallした状態で、Core、Editor、AI Authoring、Project C++／Shader、Test、Runtime、Save、Cook、Package、DiagnosticsがGenre private contractなしに閉じることを[Pack Contract](../08-packs/pack-contract.md)および各domain Ownerの独立Evidenceで証明する。
+
+RPG passをCore holdoutへ、Core holdoutをRPG completionへ、Shooter stress Fixtureをいずれかへ流用しない。RPGだけがpassした場合は限定した2D First Playableだけ、Core holdoutだけがpassした場合はgenre-neutral technical closureだけを主張でき、汎用Engine C1またはFirst Playable完成を主張しない。このholdoutはReference Gameへ追加contentを要求せず、RPG FeatureをGeneric Coreへ移動しない。
+
 ```text
 FirstPlayableGameFlowRoleV1 =
   title |
@@ -443,11 +514,11 @@ FirstPlayableDefinitionRefV1
   first_playable_definition_content_hash: SHA-256
 ```
 
-initial exact Definitionは`required_locale_profile_refs={en-US, ja-JP}`、`required_input_device_classes={keyboard, controller}`、`required_ai_generation_claim_scope_ref.claimed_lane_set={ai_composed_game}`である。`ai_generated_external_content`と`ai_generated_project_source`はexcluded laneで、C1 First Playable成立条件にしない。required Capabilityは2D rendering、UI／Text／Localization／Accessibility、Audio、Input、Save／Load、Gameplay Definition、Project Testing、Build／Cook／Package／Launchを過不足なく含み、required PackはRPG GenreとDefinitionが選ぶreusable RPG Featureだけを含む。
+initial exact Definitionは`required_host_profile_refs={target.headless.host@1, target.windows.editor@1}`、`required_runtime_target_profile_refs={target.windows.desktop@1}`、`required_locale_profile_refs={en-US, ja-JP}`、`required_input_device_classes={keyboard, controller}`、`required_ai_generation_claim_scope_ref.claimed_lane_set={ai_composed_game}`である。`ai_generated_external_content`と`ai_generated_project_source`はexcluded laneで、C1 First Playable成立条件にしない。required Capabilityは§5.1.2の2D rendering、UI／Text／Localization／Accessibility、Audio、Input、Save／Load、Gameplay Definition、Project Testing、Build／Cook／Package／Launchとcross-owner gameplay closureを過不足なく含み、required PackはRPG Genre、exact `InitialFirstPlayableRpgFeatureFamilySetV1`、Scenario／Stageおよびそれらのdeclared dependency closureだけを含む。clean installのrequired packaging requirementは`package-profile.windows.msix`へ解決し、managed layoutまたはportable layoutを代用にしない。
 
 Acceptanceは同じsigned Engine／Editor／SDK Candidateからbootstrapした一つのProject revision lineageで、author、validate、test、package、clean install、launch、Title→Result、offline completion、checkpoint Save／Load、Settings、keyboard／controller remap、`en-US`／`ja-JP` semantic invarianceを閉じる。さらに[Game Production Loop](../03-authoring/game-production-loop.md)の`GameProductionLoopClosureV1=accepted`を同じCandidate／Project revisionへ要求する。Loop Closureから`GameUnderstandingClosureV1=ready_to_stage`、Experience Goal、Playtest Observation／Evaluation、`GameIterationDecisionV1=accept_candidate`、有効Human Gameplay Approvalをread-backし、Candidateを持たないUnderstanding ClosureへCandidate Fieldを補完しない。
 
-Shooter Fixture、3D technical Reference、別Genre、別Project、manual-only journey、AI-only journey、wrong Target、別Candidateまたは`fresh`でないEvidenceをこのDefinitionへ使わない。Definition自身はReceipt-freeなtarget requirementであり、対応MCD、Registry、RPG Project、Package、Fixture、ReceiptがmaterializeするまでFirst Playable完成を主張しない。
+Shooter Fixture、3D technical Reference、別Genre、別Project、manual-only journey、AI-only journey、Android／Apple runtime、managed／portable layout、別Candidateまたは`fresh`でないEvidenceをこのDefinitionへ使わない。Definition自身はReceipt-freeなtarget requirementであり、対応MCD、Target／Locale Profile Registry、RPG／Feature contract、RPG Project、Windows Package、Fixture、ReceiptがmaterializeするまでFirst Playable完成を主張しない。
 
 ### 5.2 3D Product reference outcome
 
@@ -459,7 +530,32 @@ Shooter Fixture、3D technical Reference、別Genre、別Project、manual-only j
 - required Targetでperformance、fallback、device loss／resource pressure、package、clean launchを検証する。
 - 2D Referenceと同じProject lifecycle、Testing、Privacy、License、Support contractを使用する。
 
-### 5.3 Localeとaccessibility floor
+### 5.3 C2 Production exact Product boundary
+
+C2 ProductionはC1へ機能を順番に足す工程名ではなく、`engine_2d_3d`および`third_party_product_release` claimのminimum Product Definitionである。次のselectionはMiraikanaiのproject-decisionであり、Microsoft、GoogleまたはAppleが三Platform同時release、locale、Reference contentまたはGame scopeを推奨したという意味ではない。
+
+| Axis | C2 exact selection | 代用を拒否するもの |
+|---|---|---|
+| Build／authoring Host | exact `{target.headless.host@1, target.windows.editor@1}` | Mobile上のBuild／Editor、Editorだけ、headlessだけ、別Host Profile |
+| Runtime Target | exact `{target.windows.desktop@1, target.android.mobile@1, target.apple.mobile@1}` | 一Target欠落、近似Device、Simulator／Emulator、別Target Profile |
+| Reference dimension | 各runtime Targetでexact `{two_d, three_d}` | 一方のdimension、別Target、別CandidateまたはShooter一件による全3D代用 |
+| Locale | exact `{en-US, ja-JP}` | OS locale、language-only alias、片localeだけのpass |
+| Project authoring | structured data、bounded Project C++、Project Shaderを同じpublic contractへ閉じ、Project C++／Shaderは全required Targetで個別Qualification | WindowsだけのSource qualification、Engine-owned precompiled artifact、別TargetのReceipt |
+| Windows publication | `package-profile.windows.msix`をMicrosoft Storeでpublic read-back | signed internal MSIX、direct／enterprise route、managed layout、upload／certificationだけ |
+| Android publication | `package-profile.android.play`のAABをGoogle Playでpublic read-back | local APK、internal／closed test、upload／review approvalだけ |
+| Apple publication | `package-profile.apple.bundle`をApp Storeでpublic read-back | Development／Ad Hoc、TestFlight、upload／review approval、`package-profile.apple.managed-assets` |
+| Runtime content | offline completionと全required 2D／3D Reference pathに必要なcontentをinstall-time payloadへ含める | first launch後の必須download、fast-follow／on-demand／managed assetだけで成立するpath |
+| Runtime generation | C++、native library、platform bytecode、script、shader source／pipeline、AI structured-data mutationをdeny | `future.capability.runtime-structured-data-generation`、downloaded executable、hidden experimental switch |
+
+2Dと3Dは同一Engine release、同一release candidate、同一Host／runtime Target／locale集合へ束縛し、Target別Presentationはmeaning-preservingなqualified fallbackだけを使用する。resolution、shadow、VFX、volumetricまたはstreaming concurrencyを縮退できても、enemy／party cardinality、damage、collision、goal、spawn timing、Save semanticsその他のauthoritative Gameplay resultをTargetごとに変えない。各ReferenceはそのTargetのpackage、clean install、offline launch、Save／Load、test、performance、fallback、device loss／resource pressure、privacy、license、supportを独立に閉じる。
+
+Microsoft Store、Google Play、App StoreはC2 public publicationのexact baselineである。internal MSIX、Play test track、TestFlight、upload、reviewまたはStore approvalはpre-publication qualification inputであり、actual public read-backを代用しない。Apple-hosted managed assetsはiOS／iPadOS 26以上を要求する別variantであるため、deployment target 17.0のbaseline `package-profile.apple.bundle`へ混在させない。別public channelを製品claimへ加える場合は、同じActive Product Definition revisionでdistribution requirement、Signing、Privacy、Legal／IP、support、update／withdrawal、actual publication Evidenceを追加し、C2 baselineの成功から暗黙supportを推論しない。
+
+Online／dedicated server／multiplayer、Account／Cloud／commerce／advertising、runtime generation、large World、production Terrain／Foliage／GI／Reflections／virtualized geometry、Linux／macOS／Web／Console／XR、public Editor extension marketplace、unrestricted scriptingはC2のrequired、optional hidden memberまたは不足機能ではない。採択する場合は§8に従い、直接昇格可能なFutureは新しいActive Product Definition revisionへ入れ、unrestricted scriptingは相互排他的な原子Futureへの分解を先に閉じる。
+
+2026-08-04に確認した外部factはPlatform boundaryの検証だけに使用する。[Microsoft distribution path guidance](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/choose-distribution-path)は多くのDeveloperにMicrosoft Storeを推奨し、MSIX submissionのStore signing／hosting／updateを説明する。[Google Play target API requirement](https://developer.android.com/google/play/requirements/target-sdk)は2026-08-31から新規app／updateへAndroid 16／API 36以上を要求し、Android公式の[16 KiB page support](https://developer.android.com/guide/practices/page-sizes)、[adaptive design](https://developer.android.com/develop/adaptive-apps/guides/adaptive-dos-and-donts)、[Android Vulkan Profiles](https://developer.android.com/ndk/guides/graphics/android-vulkan-profile)、[texture compression targeting](https://developer.android.com/guide/playcore/asset-delivery/texture-compression)がPlatform Ownerの対応境界を支える。[Apple App Store submission requirements](https://developer.apple.com/app-store/submitting/)、[Xcode SDK／system requirements](https://developer.apple.com/xcode/system-requirements)、[Apple-hosted asset packs](https://developer.apple.com/help/app-store-connect/manage-asset-packs/overview-of-apple-hosted-asset-packs/)はcurrent SDK upload要件とiOS／iPadOS 26以上のmanaged asset variantを示す。C2 target set、Store選択、AVP baseline、minimum OS、install-time contentはこれらの外部資料から自動導出せず、本節のproject-decisionだけが所有する。
+
+### 5.4 Localeとaccessibility floor
 
 C1のEditor表示locale、明示AI返答locale、Game Reference localeは`en-US`と`ja-JP`を最低集合とする。追加localeはUI／Text Ownerのlocale profile、font／line-break／input、Documentation、AI Eval、Reference contentを同じreleaseでQualificationする。locale数だけを国際化完了の証拠にしない。
 
@@ -1206,7 +1302,7 @@ ProductProductionActivationSetV1
 
 Publication selectorの`all_requirement_distribution_scopes`はCompletion distribution scopeが`exact_set`、`all_requirement_hosts`はHost applicabilityがall／exact、`all_requirement_targets`はTarget applicabilityがall／exact、`all_requirement_locales`はlocale applicabilityがall／exactの場合だけvalidである。independent selectorは対応するindependent applicability、exact Host／runtime Target／locale selectorは対応するProduct root membershipのsubsetでなければならない。execution scopeがexact Hostまたはexact runtime Target `p`なら、selectorの`platform_kind`は解決した`TargetProfileV1.product_platform_kind`とbyte equalityでなければならない。`all_requirement_hosts | all_requirement_targets`はapplicable Profile集合を`product_platform_kind`でpartitionし、selectorのPlatformと一致するmemberだけをscalar tupleへ展開する。一致memberが0件のselector、cross-platform Profile、Host／runtime Target kind差を拒否する。`scope_independent`だけはProfileを持たず、このPlatform equalityの対象外である。not-applicable scopeをallへ、independent scopeを一件の既定Profile／localeへ、Hostをruntime Targetへ展開しない。artifact roleは中立closed enumであり、Product Planがexact artifact、path、containerまたはDistribution Subjectを選ばない。
 
-Active Definitionは上記5 `claim_kind`についてexactly oneのMinimumを持つ。各MinimumのHost、runtime Target、locale、Capability、requirement binding、Target×dimension、Operation familyはDefinition内membershipのsubsetでなければならない。各Minimumの`required_requirement_bindings[]`はRequirement Refでstrict uniqueなtotal mappingで、対応する`ProductRequirementProjectionInputV1`のcategoryとbyte equalityにする。同じRequirementを複数categoryへ置くこと、同じcategoryを満たす目的でRequirementのcanonical categoryをMinimum内だけ変更すること、表示labelまたはsemantic groupからcategoryを推測することを拒否する。`engine_2d_3d`と`third_party_product_release`は各required runtime Targetについて`two_d`と`three_d`をexactly oneずつ要求し、異なるTargetまたはdimensionのReferenceで代用しない。`third_party_product_release`はHost minimumへ`target.headless.host`のbuild Hostと`target.windows.editor`のEditor Hostをexactly一件ずつ、locale minimumへcanonical language tag `en-US`と`ja-JP`のexact Locale Profileを含め、`required_requirement_bindings[].requirement_category`のdistinct projectionを全`ProductRequirementCategoryV1`のclosed setとexact set equalityにし、`product_install`から`withdrawal`までの全Operation familyをminimumへ含める。さらに、そのMinimumが選ぶ全Requirementの`workflow_applicabilities[].workflow_kind` distinct projectionを全`ProductLifecycleWorkflowKindV1`とexact set equalityにする。配列下限またはHost×Target展開row数をdistinct workflow kind coverageの代用にせず、12 kindのいずれかがmissing／extra／aliasならMinimumを拒否する。空集合、別claim Minimum、表示上のclaim名、known limitationによるminimum削減を拒否する。
+Active Definitionは上記5 `claim_kind`についてexactly oneのMinimumを持つ。各MinimumのHost、runtime Target、locale、Capability、requirement binding、Target×dimension、Operation familyはDefinition内membershipのsubsetでなければならない。各Minimumの`required_requirement_bindings[]`はRequirement Refでstrict uniqueなtotal mappingで、対応する`ProductRequirementProjectionInputV1`のcategoryとbyte equalityにする。同じRequirementを複数categoryへ置くこと、同じcategoryを満たす目的でRequirementのcanonical categoryをMinimum内だけ変更すること、表示labelまたはsemantic groupからcategoryを推測することを拒否する。`engine_2d_3d`と`third_party_product_release`のHost minimumはexact `{target.headless.host@1, target.windows.editor@1}`、runtime Target minimumはexact `{target.windows.desktop@1, target.android.mobile@1, target.apple.mobile@1}`、locale minimumはcanonical language tagのexact `{en-US, ja-JP}`である。両claimは各required runtime Targetについて`two_d`と`three_d`をexactly oneずつ要求し、異なるTargetまたはdimensionのReferenceで代用しない。Project C++、Project Shader、Target package、clean install／offline launch、meaning-preserving fallback、privacy、license、supportのC2 requirementは§5.3のsame-candidate selectionを縮小せず、WindowsだけのSource qualificationまたはEngine-owned precompiled artifactをAndroid／Apple Project Source supportへ数えない。`third_party_product_release`は§5.3の三managed Store publication requirementをすべて含み、internal／test distribution、upload、reviewまたはStore approvalをactual public read-backへ代用しない。さらに`required_requirement_bindings[].requirement_category`のdistinct projectionを全`ProductRequirementCategoryV1`のclosed setとexact set equalityにし、`product_install`から`withdrawal`までの全Operation familyをminimumへ含める。そのMinimumが選ぶ全Requirementの`workflow_applicabilities[].workflow_kind` distinct projectionも全`ProductLifecycleWorkflowKindV1`とexact set equalityにする。配列下限またはHost×Target展開row数をdistinct workflow kind coverageの代用にせず、12 kindのいずれかがmissing／extra／aliasならMinimumを拒否する。空集合、別claim Minimum、表示上のclaim名、known limitationによるminimum削減を拒否する。
 
 Active Definitionの`required_pack_requirement_refs[]`と`bundled_pack_requirement_refs[]`のcanonical unionは1,024件以下でなければならない。このunionおよび`reference_requirement_bindings[].requirement_ref`のprojectionは`claim_facing_requirement_refs[]`のsubsetであり、Packまたは2D／3D Reference requirementだけをtyped projection inputの外へ隠せない。Requirement projection inputが参照するexact Host／runtime Target／localeはDefinition membership内、Evidence class／scenario／surface／workflow／distribution scope／artifact role enumはclosed branch内でなければならず、required／forbidden surface集合はdisjointとする。`required_product_data_flow_refs[]`はProductが所有またはbundleする全first-party／third-party data flowのreceipt-free membershipであり、optional flowも省略しない。空集合はProductがremote／persisted Product data flowを一件も持たない明示的判断だけに使い、Privacy Acceptance作成者が縮小できない。
 
@@ -1277,17 +1373,69 @@ Completion Requirement Projectionは上記各項目をrequired requirement／Evi
 
 ## 8. Future portfolio
 
-次はProduct requirementではなく、独立したOwner、Threat Model、public boundary、Target、fallback、Evidence、support costを承認して初めてPortfolioへ追加できるFuture subjectである。Architecture上の名称や既存Ownerはactivationを意味しない。
+Future Portfolioはcurrent Product requirementではなく、将来のProduct Definition revisionでのみ採択できるplanning subjectのexact inventoryである。全rowのportfolio stateは`planning_only`、Activation stateは`not_activated`であり、Owner文書、型、候補Target、prerequisiteまたは本表の存在を実装、Qualification、support、release claimへ数えない。
 
-- Online／dedicated server／replication／platform service。
-- large world、virtualized geometry、advanced light transportのproduction profile。
-- Linux、macOS、Web、Console、XR、specialized device。
-- collaborative multi-user authoring、UGC、public Editor extension ecosystem。
-- video／media、virtual production、recording／timecode／genlock。
-- Account、Cloud、commerce、advertising、live operations。
-- Runtime structured-data generationまたはruntime code generation。
+`candidate_target_kinds`はpromotion時に選択できるTarget kindの上限であり、current support matrixではない。closed tokenは`headless_server | distributed_cluster | desktop | mobile | console | web | xr`である。`single_target`行の`direct_future_prerequisites`はpromotion前に必要なFuture edgeのexact direct setである。`target_role_bundle`行では同Fieldを全候補Profileが参照し得るFuture edgeのclosed unionとし、選択したProfileに適用するexact subsetとrole mappingは後続表だけが定める。unionにないedgeの追加、選択Profile表にないunion memberの暗黙適用、別Profileのmapping流用を拒否する。別Ownerの通常Capability prerequisiteは各Ownerが所有する。
 
-現時点でFuture subjectはC1または第三者製品releaseの暗黙要件ではなく、`not_activated`として扱う。Networking Ownerの存在はOnline supportのclaimにならない。Future追加時はProduct claim、Security、Privacy、support、license、Target costへの影響を先に審査する。
+| Future ID | Canonical Owner | candidate_target_kinds | Target closure | direct_future_prerequisites |
+|---|---|---|---|---|
+| `future.capability.offline-large-world-continuous-streaming` | `mirakan.arch.rendering-world` | `desktop; mobile` | `single_target` | `[]` |
+| `future.capability.alternate-simulation-cadence-and-substep` | `mirakan.arch.runtime-scheduling-lifetime` | `headless_server; desktop; mobile` | `single_target` | `[]` |
+| `future.capability.headless-dedicated-server-target` | `mirakan.arch.runtime-package` | `headless_server; distributed_cluster` | `single_target` | `[]` |
+| `future.capability.network-transport-connection` | `mirakan.arch.network-transport-connection` | `headless_server; distributed_cluster; desktop; mobile; console; web` | `single_target` | `[]` |
+| `future.capability.multiplayer-authority-replication` | `mirakan.arch.multiplayer-authority-replication` | `headless_server; distributed_cluster; desktop; mobile; console; web` | `single_target` | `future.capability.network-transport-connection` |
+| `future.capability.small-cooperative-multiplayer` | `mirakan.arch.product-plan` | `headless_server; desktop; mobile; console` | `target_role_bundle: future.target-bundle.coop-listen; future.target-bundle.coop-dedicated` | `future.capability.headless-dedicated-server-target; future.capability.network-transport-connection; future.capability.multiplayer-authority-replication` |
+| `future.capability.rollback-competitive-networking` | `mirakan.arch.product-plan` | `headless_server; desktop; mobile; console` | `target_role_bundle: future.target-bundle.rollback-peer; future.target-bundle.rollback-listen; future.target-bundle.rollback-dedicated` | `future.capability.headless-dedicated-server-target; future.capability.network-transport-connection; future.capability.multiplayer-authority-replication` |
+| `future.capability.large-session-network-shooter` | `mirakan.arch.pack-shooter` | `headless_server; distributed_cluster; desktop; mobile; console` | `target_role_bundle: future.target-bundle.large-session-dedicated; future.target-bundle.large-session-distributed` | `future.capability.headless-dedicated-server-target; future.capability.network-transport-connection; future.capability.multiplayer-authority-replication` |
+| `future.capability.persistence-live-service-moderation-operations` | `mirakan.arch.product-plan` | `headless_server; distributed_cluster; desktop; mobile` | `target_role_bundle: future.target-bundle.persistence-client-operations` | `[]` |
+| `future.capability.mmo-distributed-world-authority` | `mirakan.arch.product-plan` | `distributed_cluster; desktop` | `target_role_bundle: future.target-bundle.mmo-distributed` | `future.capability.headless-dedicated-server-target; future.capability.network-transport-connection; future.capability.multiplayer-authority-replication; future.capability.offline-large-world-continuous-streaming; future.capability.persistence-live-service-moderation-operations` |
+| `future.capability.vehicle-ragdoll-crowd-motion-warping` | `mirakan.arch.simulation-physics` | `desktop; mobile` | `single_target` | `[]` |
+| `future.capability.first-person-shooter-profile` | `mirakan.arch.pack-shooter` | `desktop; mobile; console` | `single_target` | `[]` |
+| `future.capability.production-terrain` | `mirakan.arch.rendering-terrain-foliage` | `desktop; mobile; console` | `single_target` | `[]` |
+| `future.capability.production-foliage` | `mirakan.arch.rendering-terrain-foliage` | `desktop; mobile; console` | `single_target` | `[]` |
+| `future.capability.production-global-illumination` | `mirakan.arch.rendering-advanced-light-transport` | `desktop; mobile; console` | `single_target` | `[]` |
+| `future.capability.production-reflections` | `mirakan.arch.rendering-advanced-light-transport` | `desktop; mobile; console` | `single_target` | `[]` |
+| `future.capability.virtualized-continuous-geometry-lod` | `mirakan.arch.rendering-virtualized-continuous-geometry` | `desktop; mobile; console` | `single_target` | `[]` |
+| `future.capability.aaa-photoreal-rendering` | `mirakan.arch.product-plan` | `desktop; console` | `single_target` | `future.capability.production-terrain; future.capability.production-foliage; future.capability.production-global-illumination; future.capability.production-reflections` |
+| `future.capability.console-target-program` | `mirakan.arch.product-plan` | `console` | `single_target` | `[]` |
+| `future.capability.web-target-program` | `mirakan.arch.product-plan` | `web` | `single_target` | `[]` |
+| `future.capability.xr-target-program` | `mirakan.arch.rendering-camera` | `xr` | `single_target` | `[]` |
+| `future.capability.commercial-asset-generation-license-quality-qualification` | `mirakan.arch.asset-lifecycle` | `desktop; mobile` | `single_target` | `[]` |
+| `future.capability.first-party-local-inference` | `mirakan.arch.ai-production-orchestration` | `desktop` | `single_target` | `[]` |
+| `future.capability.managed-external-host-execution` | `mirakan.arch.ai-production-orchestration` | `desktop; headless_server` | `target_role_bundle: future.target-bundle.managed-external-host` | `[]` |
+| `future.capability.runtime-structured-data-generation` | `mirakan.arch.product-plan` | `desktop; mobile; headless_server` | `single_target` | `[]` |
+| `future.capability.proof-carry-forward-definition-migration` | `mirakan.arch.product-plan` | `headless_server; desktop; mobile` | `single_target` | `[]` |
+| `future.capability.linux-desktop-target-program` | `mirakan.arch.product-plan` | `desktop` | `single_target` | `[]` |
+| `future.capability.macos-desktop-target-program` | `mirakan.arch.product-plan` | `desktop` | `single_target` | `[]` |
+| `future.capability.local-multiplayer-split-screen` | `mirakan.arch.product-plan` | `desktop; mobile; console` | `single_target` | `[]` |
+| `future.capability.unrestricted-project-scripting-runtime` | `mirakan.arch.gameplay-programming-model` | `desktop; mobile` | `single_target` | `[]` |
+
+`Canonical Owner`はcurrent planning subjectのidentity、promotion boundaryおよび当該文書の正本範囲内の意味を一意に持つ欄であり、別domainのSecurity review、Toolchain artifactまたはProduct selectionまで兼任させる欄ではない。Authoring AIのfirst-party local inference routeとmanaged external Host production routeは[AI Production Orchestration](../03-authoring/ai-production-orchestration.md)、そのAuthorization／Trust／Credentialは[AI Security／Approval](../01-governance/ai-security-approval.md)、runtime／loader／Host／Broker artifact選定は[Toolchain／Dependencies](../02-foundation/toolchain-dependencies.md)がそれぞれ所有する。`future.capability.persistence-live-service-moderation-operations`と`future.capability.runtime-structured-data-generation`は、専用domain Ownerが未採択のProduct-level composite planning identityとして本書がProduct compositionだけを暫定所有する。前者のOnline Service Owner／Provider、後者のshipping Runtime AI Ownerはcurrent Architectureに存在せず、promotionするArchitecture revisionが専用Ownerと正本範囲を同時に採択して本表のOwnerをatomicに置換するまで、AI Security、Persistence／Save、Runtime Package、MobileまたはProduct Planがdomain contractを代行したと解釈しない。この二rowの`direct_future_prerequisites=[]`はcurrent inventoryに採択済みFuture edgeがないことだけを表し、Service、Runtime、Authority、moderationまたはcontent-safety dependencyが0件であることを意味しない。promotion revisionは新たに採択するdomain Future edgeを同時に表へ追加し、Target role mappingとDAGを再閉包する。
+
+上表のFuture ID集合はexact 30件、`single_target`は24件、`target_role_bundle`は6件である。Target closure classificationはdirect promotion eligibilityを意味しない。`future.capability.unrestricted-project-scripting-runtime`だけは`decomposition_required`のincubation subjectで、structured content MOD、sandboxed executable MOD、signed AOT desktop native extension、developer-only executable code（JIT／未署名）を相互排他的な新Future IDへ分解し、umbrella rowを同じFuture Portfolio revisionでclean removalするまでActive Productへ直接promotionできない。旧umbrella ID、Target closure、OwnerまたはEvidenceを新IDのalias、migration、共通Capabilityまたは成功証拠へ流用しない。残る29件はPortfolio構造上のdirect promotion candidateであり、promotion-ready、Owner採択済み、実装済みまたはqualifiedを意味しない。うち23 `single_target`はpromotionでexactly oneの完成`TargetProfileRefV1`を選び、親Futureと再帰展開した全direct prerequisiteを同じexact Targetへ束縛する。候補kind、近いTarget、別TargetのReceiptまたはfallbackをsame-target closureへ数えない。
+
+`target_role_bundle`は親Futureごとに次の候補Profileからexactly oneを選ぶ。`role_id[role_kind]=min..max:candidate kinds`の`min..max`はplayer数またはprocess数ではなく、同じbundleへ束縛する異なるexact `TargetProfileRefV1`の件数である。relation tokenは`disjoint_target_sets | left_singleton_member_of_right_set | same_target_set | same_exact_target | independent_target_sets`だけを許す。Future前提mappingの`single(role...)`は列挙roleの重複除去済み全Targetへsingle-target前提を適用し、`bundle(profile; mapping...)`は前提bundleのexact profileとrole relationを再帰的に要求する。role cardinality、role kind、Target kind、全unordered role pairのrelation、prerequisite role mappingを一Fieldでも縮小、暗黙cross productまたは別Profile間で混成しない。
+
+| Bundle Profile ID | Parent Future | exact role／candidate closure | role relation | direct prerequisite role mapping |
+|---|---|---|---|---|
+| `future.target-bundle.persistence-client-operations` | `future.capability.persistence-live-service-moderation-operations` | `client[client]=1..16:desktop|mobile; operations[operations]=1..1:headless_server|distributed_cluster` | `client,operations=disjoint_target_sets` | `[]` |
+| `future.target-bundle.coop-listen` | `future.capability.small-cooperative-multiplayer` | `client[client]=1..16:desktop|mobile|console; authority[authority_listen]=1..1:desktop|mobile|console` | `authority,client=left_singleton_member_of_right_set` | `future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority)` |
+| `future.target-bundle.coop-dedicated` | `future.capability.small-cooperative-multiplayer` | `client[client]=1..16:desktop|mobile|console; authority[authority_dedicated]=1..1:headless_server` | `client,authority=disjoint_target_sets` | `future.capability.headless-dedicated-server-target=single(authority); future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority)` |
+| `future.target-bundle.rollback-peer` | `future.capability.rollback-competitive-networking` | `client[client]=1..16:desktop|mobile|console; authority[authority_peer]=1..16:desktop|mobile|console` | `client,authority=same_target_set` | `future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority)` |
+| `future.target-bundle.rollback-listen` | `future.capability.rollback-competitive-networking` | `client[client]=1..16:desktop|mobile|console; authority[authority_listen]=1..1:desktop|mobile|console` | `authority,client=left_singleton_member_of_right_set` | `future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority)` |
+| `future.target-bundle.rollback-dedicated` | `future.capability.rollback-competitive-networking` | `client[client]=1..16:desktop|mobile|console; authority[authority_dedicated]=1..1:headless_server` | `client,authority=disjoint_target_sets` | `future.capability.headless-dedicated-server-target=single(authority); future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority)` |
+| `future.target-bundle.large-session-dedicated` | `future.capability.large-session-network-shooter` | `client[client]=1..16:desktop|mobile|console; authority[authority_dedicated]=1..1:headless_server` | `client,authority=disjoint_target_sets` | `future.capability.headless-dedicated-server-target=single(authority); future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority)` |
+| `future.target-bundle.large-session-distributed` | `future.capability.large-session-network-shooter` | `client[client]=1..16:desktop|mobile|console; authority[authority_distributed]=1..1:distributed_cluster` | `client,authority=disjoint_target_sets` | `future.capability.headless-dedicated-server-target=single(authority); future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority)` |
+| `future.target-bundle.mmo-distributed` | `future.capability.mmo-distributed-world-authority` | `client[client]=1..1:desktop; authority[authority_distributed]=1..1:distributed_cluster; operations[operations]=1..1:distributed_cluster` | `client,authority=disjoint_target_sets; client,operations=disjoint_target_sets; authority,operations=same_exact_target` | `future.capability.headless-dedicated-server-target=single(authority); future.capability.network-transport-connection=single(client,authority); future.capability.multiplayer-authority-replication=single(client,authority); future.capability.offline-large-world-continuous-streaming=single(client); future.capability.persistence-live-service-moderation-operations=bundle(future.target-bundle.persistence-client-operations; client->client:same_target_set, operations->operations:same_exact_target)` |
+| `future.target-bundle.managed-external-host` | `future.capability.managed-external-host-execution` | `execution_host[execution_host]=1..1:desktop|headless_server; artifact_target[artifact_target]=0..1:desktop` | `execution_host,artifact_target=independent_target_sets` | `[]` |
+
+親FutureのProduct claimはrequired role全件のnon-empty active binding、再帰prerequisite、Owner contract、Security、Privacy、Legal／License、support、fallback、same-scope fresh Evidenceが一つのpromotion subjectへ閉じるまで解放しない。`artifact_target=0`はmanaged executionだけに使用でき、managed Source build claimを許可しない。一roleのpass、Target kind一致、別Profile、implicit role mappingまたは別CandidateのEvidenceをbundle全体へ数えない。
+
+direct promotion candidateのFuture promotionは新しい`ActiveProductDefinitionV1` revisionだけで行い、C1／C2 Definitionをin-place拡張しない。Promotion revisionはexact Future ID、Owner contract、public boundary、Target closure、claim、required／forbidden Operation、Security、Privacy、Legal／License、support、fallback、Evidence requirementを同時に追加する。`decomposition_required` subjectを直接promotionせず、planning rowをoptional hidden Capability、empty Module、placeholder API、legacy alias、umbrella IDまたはmigration entryへ変換しない。
+
+`future.capability.mobile-project-native-shader-source-qualification`は本inventoryに存在せず、unknown IDとして拒否する。Android／AppleのProject C++／Project Shader qualificationは§5.3のC2 requirementであり、旧Future ID、alias、supersession rowまたは互換bindingを作らない。`future.capability.production-terrain-foliage-gi`、`future.capability.headless-dedicated-server-session-transport-replication`、`future.capability.production-global-illumination-reflections`もumbrella、aliasまたはfallbackとして受理しない。
+
+collaborative multi-user authoring、UGC、public Editor extension ecosystem、video／media、virtual production、recording／timecode／genlock、platform account／identity／achievement／leaderboard、cloud save、push、camera／microphone／location、background gameplay、Account、Cloud、commerce／in-app purchase、advertisingは30件のcurrent Future inventoryに含まれない。ここで`cloud save`はplatform accountへ結び付くUser Save同期、`Cloud`は汎用cloud product／service採択を指し、`future.capability.persistence-live-service-moderation-operations`のclient／operations compositionと同一ではない。同Future rowもOnline Service、cloud persistence Providerまたはmoderation Serviceを採択済みにしない。これらは名称やPlatform APIだけのFuture IDではなく、Product revisionでOwner、public boundary、Target closure、Security／Privacy／Legal、offline／failure、support、riskとclaimを追加するまではunadopted candidateまたはnon-goalである。
 
 ## 9. Owner coverageとprimary Product evidence
 
@@ -1331,8 +1479,9 @@ Owner文書にexact SchemaやGateが存在しても、Repository実装またはm
 - 第三者Developer journeyが取得から配布、更新、supportまで閉じている。
 - Editor、公開SDK、Project testing、Privacy、License、SupportがProduct release evidenceへ含まれている。
 - First Playable、2D／3D Engine、第三者製品releaseのclaimが区別されている。
+- C2のHost、Windows／Android／Apple runtime Target、locale、各Targetの2D＋3D、Project C++／Shader、三managed Store publication baselineがexactに一意である。
 - ReleaseとCompletionがtyped Decision、required／supplied Evidence set equality、Claim Scope、Production Activation集合へ閉じ、文章だけで自己充足しない。
-- Future subjectがC1または現行supportとして誤読されない。
+- Future inventoryが30 unique ID、24 `single_target`、6 `target_role_bundle`、29 direct promotion candidate、1 `decomposition_required`で、C1、C2、third-party releaseまたは現行supportとして誤読されない。
 - AI-native claimがshared canonical state、C++ Engine authority、typed proposal／validation／approval／atomic Commit、Evidence、manual continuityへ閉じ、AI機能の存在だけで自己充足しない。
 - P0が実装PhaseではなくActive Product Definition由来のOwner集合として閉じ、固定root 34件、Product-derived membership、16 axis、unique Owner／fragment、current stateを一つのSpecificationへ束縛している。
 - Legal／IPをSecurity、Privacy、LicenseまたはAI生成Provenanceへcollapseせず、Release法域、market、channel、role、Independent Designとauthorized human Decisionへ閉じている。

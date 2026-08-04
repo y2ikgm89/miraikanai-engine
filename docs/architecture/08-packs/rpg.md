@@ -4,7 +4,7 @@
 - 文書状態: review
 - 実装状態: absent
 - 検証状態: design-reviewed
-- 正本範囲: RPG固有Genre composition、RPG Profile、Game Flow vocabulary、command role mapping、Reusable RPG Featureの組合せ、Reference Gameへの非Production fixture binding
+- 正本範囲: RPG固有Genre composition、RPG Profile、Game Flow vocabulary、command role mapping、Reusable RPG Featureの組合せ、initial First PlayableのGenre-facing exact composition、Reference Gameへの非Production fixture binding
 - 非正本範囲: Generic Core、Reusable FeatureのPublic Contract／State／Schema、Scenario／Stage semantics、UI／Localization／Save／Replay、RPG Reference Gameのoriginal content／balance／World composition、Product outcome／Gate、current Registry／Operation／Capability activation、実装Task／順序
 - 規範依存: [Architecture Governance](../01-governance/architecture-governance.md)、[Pack Contract](pack-contract.md)、[Gameplay Feature Packs](gameplay-features.md)、[Gameplay Programming Model](../03-authoring/gameplay-programming-model.md)、[Scenario／Stage](scenario-stage.md)
 - 関連文書: [Product Plan](../00-product/product-plan.md)、[Shooter Genre Pack](shooter.md)、[Runtime ECS](../04-runtime/entity-component-system.md)、[Scheduling／Lifetime](../04-runtime/scheduling-lifetime.md)、[Persistence／Save](../04-runtime/persistence-save.md)、[Debugging／Replay](../04-runtime/debugging-observability-replay.md)、[Navigation](../05-simulation/navigation.md)、[Animation](../05-simulation/animation.md)、[World](../06-rendering/world.md)、[Input](../07-platform/input.md)、[Audio](../07-platform/audio.md)、[UI／Text／Localization／Accessibility](../07-platform/ui-text-localization-accessibility.md)
@@ -58,6 +58,20 @@ compact command RPGのtarget compositionは、少なくとも次の関係を表�
 
 [Product Plan §5.1](../00-product/product-plan.md#51-first-playable-outcome)の`FirstPlayableDefinitionRefV1`がcompact 2D command RPGを選ぶ場合、本書はDefinitionが要求するRPG Genre composition、Game Flow role、command role、Feature／Scenario／World／UI bindingだけを供給する。Title／Map／conversation／battle／inventory／Save／Settings／ResultのProduct acceptance、AI journey、Playtest、Target、localeまたはCompletionをGenre Packへ移管せず、Shooter／別Genre／別ProjectのEvidenceをRPG compositionへ混入させない。
 
+### 4.1 Initial First Playable composition
+
+[Product Plan §5.1.2](../00-product/product-plan.md#512-playable-path-and-required-gameplay-coverage)のinitial First Playableへ供給するGenre-facing compositionは、[Gameplay Feature Packs §4.4](gameplay-features.md#44-reusable-rpg-feature-family)のexact `InitialFirstPlayableRpgFeatureFamilySetV1`を選ぶ。一familyをoptional扱いにする、Dialogueだけを理由にQuest Ownerを省略する、Inventoryだけを理由にEquipment transactionを未検証にする、またはShop UIだけでcurrency ledgerを代用するcompositionはinitial First Playableには不適合である。別Game Projectは自身のRecipeでsubsetを選べるが、そのsubsetをFirst Playable Recipeへ逆投影しない。
+
+同Recipeは次のgeneric／cross-domain contractをrequired dependencyとして参照し、RPG Pack内へ複写しない。
+
+- Scenario／Stageによるfinite progressionとResult到達。
+- Character Locomotion、2D Collision／Navigation、InteractionによるTown／Field／Dungeon／Boss destination role間のtraversal。
+- Gameplay Programming ModelのPerception／Decision／Action contractによるdeterministic enemy command selection。
+- 2D World、Sprite／Tile、Camera、UI／Text／Localization／Accessibility、Audio、Inputのpresentation／interaction。
+- Persistence／Save、Replay、Runtime Package、Asset、Project State、Developer Testing、Windows packageのlifecycle closure。
+
+このexact compositionはArchitecture上のProduct requirement projectionであり、Pack Manifest、Feature Stable ID、MCD、Registry、Operation、Fixture、Receipt、PackageまたはActivationを作成しない。未materialize refを名前の近さで補完せず、Shooter Feature／Receipt、旧draft ID、alias、rename、dual readerまたはmigrationをinitial V1へ導入しない。
+
 Genre Recipe、Profile、Game Flow、Action roleの具体record候補は、Parent Ownerの意味を再定義しない補助Catalogへ分離できる。本書から未承認Schema、fixed balance、content件数、Operation inventoryまたはTarget budgetをcurrentとして作らない。
 
 ## 5. RPG Profile
@@ -76,9 +90,20 @@ RPG Genreは、RPG固有のflow vocabularyとFeature／Scenario outcomeから次
 
 Title、Settings、Loading、HUD、Pause、ResultのscreenまたはRuntime Entry詳細をRPG private state machineへ複写しない。Town、Field、Dungeon、Boss等のReference destination名をGenreの永久closed enumにせず、Reference GameがWorld／Scenario compositionとして所有する。Genre flowはtyped outcomeとdestination roleを参照し、display name、path、Scene名から遷移先を推測しない。
 
+<a id="rpg-command-role"></a>
+
 ## 7. Command roleとInput／UI境界
 
 RPG command roleは、menu navigation、confirm、cancel、interact、pause、battle command selection、target selection、context action等のGenre vocabularyを表す。Input OwnerがProject適用時のAction identity、device binding、remap、gesture、haptics、replay inputを所有する。Genreはkey code、controller button、touch coordinate、dead zoneを固定しない。
+
+```text
+RpgBattleCommandRoleV1 = attack | skill | item | defend
+
+InitialFirstPlayableBattleCommandRoleSetV1 =
+  exact set of every RpgBattleCommandRoleV1 member
+```
+
+このclosed enumと全member setがinitial battle command role identityのArchitecture正本である。RPG Recipeをmaterializeする場合は各memberをexact一件のFeature Command roleとProject-owned Input Action Refへtotal mappingし、`FirstPlayableDefinitionV1.required_input_action_refs[]`の対応projectionとset equalityにする。全roleはlegal target、cost／item availability、expected battle generation、accepted／rejected result、turn ownershipおよびReplay causalityへ束縛し、表示label、menu index、keyboard keyまたはcontroller buttonをidentityにしない。enemy側も同じlegal Command contractを使い、Gameplay Decisionが選んだtyped commandだけを提出する。`attack`だけのDemo、UI上のdisabled項目、real-time action、Shooter fire actionまたは自然言語command名を四role closureへ数えない。この型はInput Action Stable ID、Feature Command Schema、MCDまたはRegistryが現在存在するという意味ではない。
 
 UIはcommand roleとFeature Snapshotからpresentationを構築し、typed requestを発行する。UI focus、Screen Stack、Text、Localization、AccessibilityはUI Ownerが所有し、RPGが別UI runtimeを作らない。locale変更はStable ID、rule、balance、Save identity、command resultを変更しない。
 
@@ -132,7 +157,7 @@ Qualificationは少なくとも次を独立Evidence classとして扱う。
 - Reference GameのTitleからEndingまでのacceptance、original content、`en-US`／`ja-JP` semantic invariance。
 - Genre-neutral Core holdout。RPG／Shooter／Scenario PackなしのWorldless UI／logic、2D／3D Project、Save、Cook、Package、Diagnostics。
 - Shooter technical fixture。高頻度Input／Collision／Physics／ECS／Rendering stressをRPG acceptanceと別に保持する。
-- Windows／Mobile等のTarget別clean package、install、offline launch、lifecycle、device session。
+- initial Product First Playableについて、exact `target.windows.desktop@1`のsigned internal MSIX、clean install、offline launch、keyboard／controller device session。Android／Apple／別Windows Profileは別Target qualificationであり、このProduct C1の必須Evidenceでも代替Evidenceでもない。
 
 Feature ReceiptをGenre Receipt、Genre ReceiptをReference acceptance、Reference acceptanceをGeneric Core Release、Shooter ReceiptをRPG Evidenceへ流用しない。Fixture件数、balance値、performance thresholdはProduct／Performance／Platformのfresh Evidenceなしに本書へ固定しない。
 
@@ -140,7 +165,7 @@ Feature ReceiptをGenre Receipt、Genre ReceiptをReference acceptance、Referen
 
 RPG Product Definitionのinitial V1 design closureは次を要求する。
 
-1. Product §5.0の全RPG requirementがGeneric、Reusable Feature、RPG Genre、Reference Gameの一つへ解決する。
+1. Product §5.1の全RPG requirementがGeneric、Reusable Feature、RPG Genre、Reference Gameの一つへ解決する。
 2. five Feature familyのState、Command、transaction、Save／Replay、failure Ownerが一意である。
 3. 本書がGenre compositionだけを所有し、Feature Schema、Core、Reference contentへ侵入しない。
 4. Product outcome、RPG Genre、Reference Gameの責務とEvidence非代替が一致する。

@@ -759,6 +759,8 @@ local resource不足、runtime crash、Provider refusal、timeoutまたはnetwor
 
 外部Agentがlocal Modelを使用できることと、Miraikanaiがfirst-party local inference runtimeを配布・supportすることは別Capabilityである。一方のHost Conformance、Model Eval、license、successまたはActivationを他方へ流用しない。first-party local inferenceはProduct Futureのままで、MVPまたはFirst Playableの必須条件にしない。
 
+[Product Plan §8](../00-product/product-plan.md#8-future-portfolio)の`future.capability.first-party-local-inference`と`future.capability.managed-external-host-execution`について、本書がCanonical Ownerとして所有するのはfirst-party Agent／managed external Hostのproduction route、Run、Context、loop、fallback、output acceptance境界である。Product selection／claimはProduct Plan、Authorization／Trust／CredentialはAI Security、runtime／loader／Host／Broker artifactはToolchainが所有する。二Futureはともに`planning_only`／`not_activated`であり、本書、Security Profileまたは候補型の存在をruntime配布、Host support、ActivationまたはQualificationへ数えない。
+
 ## 17. Authoring AIとshipping Runtime AI
 
 本OwnerはAuthoring Host／Toolingだけを対象にする。Runtime packageへAI Production Orchestrator、Agent Host、Workflow Registry、Run／conversation Store、Provider／Model Credential、MCP Server、Source Worker、Compiler、Signer、write-capable Project Gateway、Prompt templateまたはAuthoring Tool SDKを含めない。Build／Packageのinput closureとinspectionはこれらが0件であることを検証し、未参照だから安全と推測しない。

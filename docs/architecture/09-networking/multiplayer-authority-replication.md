@@ -21,7 +21,7 @@
 
 Account、entitlement、Lobby、Matchmaking、Hosting、region allocation、cloud persistenceは別将来Ownerである。本書はopaque external participant／session-discovery／hosting bindingを任意入力として受けられるが、それらをgameplay authorityまたはTransportへ統合しない。
 
-[Product Plan](../00-product/product-plan.md)はsmall co-op、rollback、large-session、MMOというProduct consumerの`FutureTargetClosureRegistryV1`、client／authority／operations role集合、active／common Future／profile固有additional Future prerequisite、claim releaseを所有する。本書は選択済みbundleのexact role／Target Profile bindingを`MultiplayerProfileV1`へ投影し、topology／authority／replicationをQualificationするが、Product bundle membershipまたはclaimを再所有しない。`headless_server` kindだけからdedicated topologyを選ばず、dedicated profileでは[Runtime Package](../04-runtime/runtime-package.md)のFuture prerequisite bindingを必須にする。
+[Product Plan §8](../00-product/product-plan.md#8-future-portfolio)はsmall co-op、rollback、large-session、MMOというProduct consumerのreceipt-free bundle profile、client／authority／operations role集合、direct Future prerequisite role mapping、claim release boundaryを所有する。本書はpromotion subjectで選択されたexact role／Target Profile bindingを`MultiplayerProfileV1`へ投影し、topology／authority／replicationをQualificationするが、Product bundle membership、claimまたはexecution Registryを再所有しない。`headless_server` kindだけからdedicated topologyを選ばず、dedicated profileでは[Runtime Package](../04-runtime/runtime-package.md)のFuture prerequisite bindingを必須にする。
 
 本書の型とFuture entryは`review`／`absent`／`planning_only`である。current Multiplayer、server、replication、rollback、Online、Target support、Provider、実装はRepositoryに存在しない。
 
@@ -130,7 +130,7 @@ MultiplayerProfileV1
   profile_content_hash: SHA-256
 ```
 
-`product_role_bundle`はProduct Planの完成Promotion ManifestにあるTarget closure bindingを再定義しないread-only projectionである。`bundle_profile_id`／hashをsource manifestと一致させ、sourceの`client | authority_*` role ID集合、各roleのexact Target集合と`role_target_bindings[]`をset equalityにする。各`participant_role_set[]`はTopology Profileがそのproduct roleへ許可したnon-empty subsetで、同じparticipant roleを相反するproduct roleへ重複させない。role bindingはproduct role ID、Target refsはexact Target tuple順へ正規化する。`operations | execution_host | artifact_target` roleを本Profileへ複写せず、別roleのTargetをflat unionまたはimplicit cross productから補完しない。`standalone_single_target`ではbundle Fieldを禁止する。
+`product_role_bundle`は[Product Plan §8](../00-product/product-plan.md#8-future-portfolio)に従ってpromotion subjectが選んだTarget closure bindingを再定義しないread-only projectionである。`bundle_profile_id`／hashを同じpromotion subjectの選択Profileと一致させ、選択Profileの`client | authority_*` role ID集合、各roleのexact Target集合と`role_target_bindings[]`をset equalityにする。各`participant_role_set[]`はTopology Profileがそのproduct roleへ許可したnon-empty subsetで、同じparticipant roleを相反するproduct roleへ重複させない。role bindingはproduct role ID、Target refsはexact Target tuple順へ正規化する。`operations | execution_host | artifact_target` roleを本Profileへ複写せず、別roleのTargetをflat unionまたはimplicit cross productから補完しない。`standalone_single_target`ではbundle Fieldを禁止する。promotion bindingのmachine-readable carrierはcurrent Repositoryで未採択／未materializeであり、旧Proposalの`FutureToActivePromotionManifestV1`をcurrent sourceとして要求または推測しない。
 
 ```text
 MultiplayerCapacityLimitV1
@@ -243,7 +243,7 @@ MultiplayerSessionV1
   session_content_hash: SHA-256
 ```
 
-Sessionの`target_profile_refs[]`は、standalone Profileでは単一Target、product bundle ProfileではProfileが投影したclient／authority role Targetの重複除去unionとset equalityにする。`runtime_entry_refs[]`はTopologyが要求するauthority／client Runtime Entry closureのexact集合で、各EntryのTargetはこのTarget集合へ解決する。listen topologyでは同じRuntime Entryがclient／authority roleを満たせるが重複refを持たず、distributed topologyを一つの代表Entryへ潰さない。operations等の非Multiplayer role Target、近いkind、別Promotion ManifestのTargetを追加しない。
+Sessionの`target_profile_refs[]`は、standalone Profileでは単一Target、product bundle ProfileではProfileが投影したclient／authority role Targetの重複除去unionとset equalityにする。`runtime_entry_refs[]`はTopologyが要求するauthority／client Runtime Entry closureのexact集合で、各EntryのTargetはこのTarget集合へ解決する。listen topologyでは同じRuntime Entryがclient／authority roleを満たせるが重複refを持たず、distributed topologyを一つの代表Entryへ潰さない。operations等の非Multiplayer role Target、近いkind、別promotion subjectのTargetを追加しない。
 
 許可遷移を次に固定する。
 

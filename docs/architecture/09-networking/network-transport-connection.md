@@ -19,7 +19,7 @@
 
 Account、platform identity、entitlement、party、lobby、matchmaking、backfill、fleet hosting、region placement、autoscale、cloud persistenceはOnline Servicesの別将来境界である。本書はそれらが将来発行するopaqueでexactなendpoint／credential／peer-auth bindingを任意入力として受けられるが、Serviceの存在を前提にしない。Relayをreplication、Lobbyをgameplay session、Matchmakerをtransportと呼び替えない。
 
-[Product Plan](../00-product/product-plan.md)の`FutureTargetClosureRegistryV1`がcross-target Product consumerのclient／authority roleへ本Futureを束縛する。本書はroleごとに渡されたexact `TargetProfileRefV1`でTransport ProfileとQualificationを解決するだけで、role集合、topology、Dedicated Target、Product claimを所有しない。一TargetのTransport Receiptを別role／Targetへ流用しない。
+[Product Plan §8](../00-product/product-plan.md#8-future-portfolio)のreceipt-free Future inventory／bundle profileがcross-target Product consumerのclient／authority roleと本Futureのdirect prerequisite mappingを所有する。本書はpromotion subjectでroleごとに選択されたexact `TargetProfileRefV1`に対するTransport ProfileとQualificationだけを解決し、role集合、topology、Dedicated Target、Product claimまたはexecution Registryを所有しない。一TargetのTransport Receiptを別role／Targetへ流用しない。
 
 本書の型とFuture entryは`review`／`absent`／`planning_only`である。current network Capability、Target support、Provider、socket、server、Service、実装はRepositoryに存在しない。
 
