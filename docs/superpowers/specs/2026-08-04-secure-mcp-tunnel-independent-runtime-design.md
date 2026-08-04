@@ -5,7 +5,7 @@
 - 対象: 個人Windows環境の`g-workspace-readonly` Secure MCP Tunnel、独立read-only MCP server、ユーザー単位Scheduled Task
 - 決定: 廃止済みSkillへの依存を除去し、専用MCP runtimeを`%LOCALAPPDATA%`へ分離して、ログイン時に最小権限でTunnelを自動起動する
 - 承認: 推奨案を2026-08-04にユーザー承認
-- Local runtime実装状態: absent and unchanged
+- Local runtime実装状態: materialized and locally verified on 2026-08-04; real-logon trigger acceptance pending
 - Repository Architecture Owner影響: none
 - 外部根拠確認日: 2026-08-04
 
@@ -201,16 +201,18 @@ hidden: false
 
 ### 9.1 Performance
 
-待機中は`tunnel-client`のoutbound long-pollとPython MCP stdio Processが主な常駐要素である。login contentionを避けるため30秒delayを使用し、Server extractorは必要なTool callまで大型parserをlazy importする。
+待機中は`tunnel-client`のoutbound long-poll、Python MCP stdio Process、Tunnelが行うLocal Codex検出の子Processが常駐要素になり得る。login contentionを避けるため30秒delayを使用し、Server extractorは必要なTool callまで大型parserをlazy importする。
 
 実装後に同一PCで次を実測する。
 
 - login triggerから`readyz=200`までの時間。
-- ready後10分間の`tunnel-client`とPythonのCPU、working set、disk I/O、network bytes。
+- ready後10分間のTunnel全Process treeのCPU、working set、Process I/O transfer count、system network adapter bytes。
 - representative text `fetch`一回と最大許容File一回の追加負荷。
 - network断／復帰時のProcess数、retry、CPU、log growth。
 
-Local operational guardrailは、10分idle平均CPU 1%未満、combined working set 256 MiB未満、持続的restart／reconnect loopなし、`G:\workspace`へのwrite 0件とする。これはMiraikanai local decisionであり、OpenAI、MCP、Pythonまたはuvの公式保証値ではない。超過時はTaskを無効化してon-demand起動へ戻し、原因を調査する。
+Local operational guardrailは、10分idle平均CPU 1%未満、Tunnel全Process treeのcombined working set 256 MiB未満、Process identity／count安定、持続的restart／reconnect loopなしとする。これはMiraikanai local decisionであり、OpenAI、MCP、Pythonまたはuvの公式保証値ではない。超過時はTaskを無効化してon-demand起動へ戻し、原因を調査する。
+
+[Microsoft `GetProcessIoCounters`](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getprocessiocounters)は指定Processの「すべてのI/O操作」のaccountingを返し、`WriteTransferCount`をfilesystem writeへ限定しない。そのためProcess I/O transferとsystem network adapter aggregateは性能の参考値とし、disk／workspace writeの証拠またはguardrailには使用しない。allowed root全体のbefore／after snapshotも他Processの変更を含み帰属できないため参考値に限定する。read-only性はTool catalog、write handler不在、path containment、source reviewとstdio integration testで別に検証する。
 
 ### 9.2 Security
 
@@ -223,6 +225,7 @@ Local operational guardrailは、10分idle平均CPU 1%未満、combined working 
 | login persistence対象の改ざん | absolute path、User ACL、binary version／hash、Profile sanitized diff、lock fingerprint |
 | root escape | real-path containment、reparse point拒否、read直前再検証 |
 | write／shell capability | handlerとdependencyから除去し、catalog testでforbidden Tool 0件を確認 |
+| same-user Process compromise | TaskはLimitedだがcurrent user tokenにはworkspace write権限が残る。read-onlyはOS ACL強制ではなくapplication boundaryであり、absolute path、locked dependencies、exact catalog、test、manual update gateでriskを低減する |
 | restart storm | single instance、1分間隔、最大3回、既存Processを自動killしない |
 | local admin UI exposure | `127.0.0.1`だけを維持し、remote bindを禁止 |
 | stale dependency | auto-update禁止、明示的lock refresh、test／doctor／acceptance後だけpromotion |
@@ -273,7 +276,8 @@ Error outputへAPI key、Tunnel ID、Organization／Workspace ID、Profile body�
 ### 11.4 Performance
 
 - 10分idle、representative fetch、network断／復帰の測定値を記録する。
-- guardrail超過、restart loop、unexpected log growthまたはworkspace writeがあればTaskを有効化済みのまま残さない。
+- CPU／working set／Process安定性guardrail超過、restart loopまたはunexpected log growthがあればTaskを有効化済みのまま残さない。
+- Process I/O transfer、system network bytes、allowed root全体の変化は帰属不能なaggregateとして記録し、disk／workspace writeの証拠へ読み替えない。
 
 ## 12. Change boundary
 
@@ -305,3 +309,19 @@ Error outputへAPI key、Tunnel ID、Organization／Workspace ID、Profile body�
 8. `doctor`、health、ready、stdio Tool、Task manual run、performance guardrailをLocal Evidenceで検証する。
 9. 実login後のTrigger acceptanceが未実施なら、その一点をremaining verificationとして明示する。
 10. Local runtimeまたはTaskの存在をEngine実装、Architecture materialization、Product qualificationまたはreleaseへ読み替えない。
+
+## 14. 2026-08-04 Local materialization evidence
+
+本節は個人Windows環境の非規範Local evidenceであり、Repository Engine実装、Architecture materialization、Product qualification、ChatGPT workspace authorizationまたはreleaseを表さない。
+
+- 独立runtimeを`%LOCALAPPDATA%\MCP\g-workspace-readonly`へmaterializeし、廃止済みPersonal Skillを復元せず、独立Git `a924e97`までcleanにした。
+- 実行contractはPython 3.14.6、uv 0.12.1、MCP 2.0.0、Tunnel client 0.0.10、専用`.venv`、locked dependencyである。
+- MCP testは83件PASS。公開catalogは`list_allowed_directories`、`list_directory`、`search`、`fetch`のexact 4 Tools、forbidden Tool 0件、allowed rootはreal path `G:\workspace`一件である。
+- Profileはprivate current-user-only backupを保持したままMCP command一行だけを独立runtimeへ変更した。旧Skill参照0件、新command 1件、その他content一致を確認した。
+- 公式`doctor --explain --json`は12 PASS、3 SKIP、FAIL 0。on-demand起動とTask manual startの両方で`/healthz=200`、`/readyz=200`、Tunnel executable 1件を確認し、second startはsteady-state Processを増やさず終了した。
+- Scheduled Task `OpenAI Secure MCP Tunnel - G Workspace Readonly`はcurrent user、Interactive、Limited、login delay 30秒、IgnoreNew、restart 1分／3回、network required、enabled、password／secret保存なしで登録した。manual startは合格し、Taskは現在enabledである。
+- 訂正版10分idle測定は638.867秒／120 samples、7 Processes、平均CPU 0.0021%、最大combined working set 37,928,960 bytes（約36.2 MiB）、Process count stableでLocal guardrailにPASSした。
+- 同測定のI/O transferはread 1,247,895 bytes、write 1,647,568 bytes、system network adapter aggregateは943,287,769 bytes、allowed rootのunattributed changesは265件だった。これらはTunnel専用disk／network／workspace writeへ帰属できない参考値である。
+- Local Codex検出により`codex app-server`系を含む7 Process treeになったが、Codex pluginまたはSkillはinstallしていない。read-only Python Processの60秒Process別観測ではwrite transfer 0で、長時間増分はLocal Codex検出のstdio／JSON-RPC側へ集中した。
+- representative stdio integrationは合格した。ユーザーのnetwork adapterを停止するnetwork断／復帰試験は安全なisolated pathがないため未実施である。
+- 次回の実PC loginで、loginから30秒以後の起動、instance 1件、health／ready、restart stormなしを確認するまでは、real-logon trigger acceptanceを`pending-next-login`とする。Profile backupもそのacceptanceまでprivate retentionする。
